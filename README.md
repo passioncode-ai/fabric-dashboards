@@ -9,7 +9,7 @@ service that speaks `fabric-service/0.1`, shows whether it is alive and what it 
 last, starts, stops and restarts it through launchd, and opens its dashboard inside the
 app — signed in, one live view per service — instead of a browser tab per port.
 
-**Status (2026-09-28): 0.1.0, built and tested on this Mac.** See [HANDOFF](docs/HANDOFF.md)
+**Status (2026-09-29): 0.1.0 released** — [download](https://github.com/passioncode-ai/fabric-dashboards/releases/latest). See [HANDOFF](docs/HANDOFF.md)
 for what is released and what is next.
 
 ## What it does
