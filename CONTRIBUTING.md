@@ -1,0 +1,20 @@
+# Contributing
+
+```bash
+npm ci
+npm run check        # typecheck, unit + integration tests, brand pins, UX lint
+npm run test:e2e     # builds, then drives the real Electron app against a live sample service
+npm start            # run from source
+npm run icon         # re-render build/icon.icns and the menu bar templates from the vendored mark
+npm run dist -- --notary-profile fabric-notary   # signed, notarized DMG + update zip + feed
+```
+
+- The integration test drives real launchd with the fixed label
+  `ai.passioncode.fabric-dashboards.test.sample`; set `FD_SKIP_LAUNCHD=1` where there is no
+  GUI login session (CI).
+- Brand files under `src/renderer/brand/` are vendored from `passioncode-ai.github.io` and
+  pinned in `docs/brand-source.json`; `scripts/check-brand.mjs` rejects an edit. Update the
+  canonical file there, copy it, repin.
+- Protocol fixtures under `test/fixtures/contract/` and the sample service under
+  `test/fixtures/sample-service/` are copies with a `SOURCE.txt`; never edit them here.
+- A user-facing change updates `docs/ux/scenarios.md` in the same change.

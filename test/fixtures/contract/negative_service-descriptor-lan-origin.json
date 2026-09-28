@@ -1,0 +1,7 @@
+{
+  "protocol": "fabric-service/0.1", "id": "stray", "instance": "default", "name": "Stray server",
+  "origin": "http://0.0.0.0:47166",
+  "auth": { "tokenFile": "~/stray.token" }, "lifecycle": { "manager": "none" },
+  "paths": { "data": "~/Library/Application Support/stray", "logs": [] },
+  "installedAt": "2026-09-28T18:00:00Z", "installedBy": "by hand"
+}

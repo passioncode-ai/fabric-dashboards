@@ -1,0 +1,9 @@
+{
+  "protocol": "fabric-service/0.1", "id": "plan-board", "instance": "default", "name": "Plan Board",
+  "origin": "http://127.0.0.1:47110",
+  "auth": { "tokenFile": "~/Library/Application Support/plan-board/service.token" },
+  "lifecycle": { "manager": "none" },
+  "paths": { "data": "~/Library/Application Support/plan-board", "logs": [] },
+  "commands": { "doctor": "example-agent check && echo ok" },
+  "installedAt": "2026-09-28T18:00:00Z", "installedBy": "example-agent install"
+}

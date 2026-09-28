@@ -1,0 +1,16 @@
+# CONTEXT — Fabric Dashboards
+
+Terms reused from the Fabric Agent Contract (`fabric-agent-contract/CONTEXT.md`) keep
+their meaning there: Host, Provider, Agent, Capability, Profile.
+
+| Term | Meaning |
+|---|---|
+| Service | A local, long-running agent process on the operator's Mac, supervised by launchd, speaking `fabric-service/0.1`. |
+| Service instance | One installation of a service, named `<id>.<instance>`; a preview copy is a second instance, never a second id. |
+| Descriptor | The static JSON file an installer writes into the services directory: identity, origin, auth, lifecycle, paths, commands. Describes an installation, not a run. |
+| Well-known document | The live, unauthenticated answer at `/.well-known/fabric-service`: build identity, process, status, degraded sources, summary tiles, surfaces. |
+| Activity event | One record from a service's events feed: when, what kind, which level, one human sentence, optional subject, link and notify flag. |
+| Activity feed | The union of every service's activity events plus the host's own state-change events. |
+| Control | Start, Stop or Restart, performed only through launchd. Stop is persistent. |
+| Service state | What the host derives: invalid, stopped, conflict, foreign, duplicate, down, starting, stopping, degraded, ready. |
+| Operator login | The one-time code the host obtains with the service token and exchanges for a dashboard cookie; the token never reaches a page. |

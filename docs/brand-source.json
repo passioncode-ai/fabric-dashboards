@@ -1,0 +1,19 @@
+{
+  "contract": "PassionCode design system v1.1.0, Fabric ADR-0070",
+  "source": "https://github.com/passioncode-ai/passioncode-ai.github.io",
+  "files": [
+    {
+      "source": "design-system/tokens.css",
+      "commit": "2e2cbf21",
+      "copy": "src/renderer/brand/fabric-tokens.css",
+      "sha256": "86866df1bec49b85e9def4132021401894483bb819dc2d3a3a70511d2e4b2a61"
+    },
+    {
+      "source": "assets/dashboards-mark.svg",
+      "commit": "53cdd1b7",
+      "note": "added in passioncode-ai.github.io#6",
+      "copy": "src/renderer/brand/dashboards-mark.svg",
+      "sha256": "1d3788630cbe511cb0d927893ebfd4a3b3944ed9fd5da45a4cec4375837bbd37"
+    }
+  ]
+}

@@ -1,0 +1,8 @@
+{
+  "protocol": "fabric-service/0.1", "id": "maker", "instance": "default", "name": "Maker",
+  "origin": "http://127.0.0.1:47187",
+  "auth": { "tokenFile": "~/.config/maker/services/47187/service.token", "header": "X-Example-Token", "scheme": "none" },
+  "lifecycle": { "manager": "launchd", "plist": "~/Library/LaunchAgents/com.example.maker.plist" },
+  "paths": { "data": "~/Code/maker/store", "logs": [] },
+  "installedAt": "2026-09-28T18:00:00Z", "installedBy": "maker service start"
+}

@@ -1,0 +1,12 @@
+{
+  "protocol": "fabric-service/0.1",
+  "id": "runner",
+  "instance": "dev",
+  "name": "Runner",
+  "origin": "http://127.0.0.1:47210",
+  "auth": { "tokenFile": "~/Library/Application Support/runner/service.token" },
+  "lifecycle": { "manager": "none" },
+  "paths": { "data": "~/Library/Application Support/runner", "logs": [] },
+  "installedAt": "2026-09-28T18:00:00Z",
+  "installedBy": "runner service register"
+}

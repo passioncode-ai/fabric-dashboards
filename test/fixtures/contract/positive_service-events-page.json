@@ -1,0 +1,22 @@
+{
+  "events": [
+    {
+      "id": "4213",
+      "at": "2026-09-28T17:55:10Z",
+      "kind": "job.awaiting_choice",
+      "level": "notice",
+      "text": "The Q3 report draft is ready for your approval (12 sections, 3 languages).",
+      "subject": { "type": "report", "id": "q3", "label": "Q3 report" },
+      "link": "/dashboard#/approvals/77",
+      "notify": true
+    },
+    {
+      "id": "4214",
+      "at": "2026-09-28T17:56:00Z",
+      "kind": "service.started",
+      "level": "info",
+      "text": "Service started on build 8b80be9."
+    }
+  ],
+  "cursor": "4214"
+}

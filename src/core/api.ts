@@ -1,0 +1,55 @@
+// The typed bridge between the renderer and the main process. The renderer
+// never sees a token, a file handle or a process: it asks, the main process acts.
+import type { ActivityItem, AppStatus, Listener, Reason, Settings } from './types';
+
+export interface Rect { x: number; y: number; width: number; height: number }
+
+export interface FabricApi {
+  status(): Promise<AppStatus>;
+  onStatus(listener: (status: AppStatus) => void): () => void;
+  control(key: string, action: 'restart' | 'stop' | 'start'): Promise<{ ok: boolean; reason: Reason }>;
+  command(key: string, which: 'doctor' | 'update'): Promise<{ code: number | null; output: string; timedOut: boolean }>;
+  logs(key: string): Promise<{ path: string; text?: string; error?: string }[]>;
+  activity(filter: { serviceKey?: string; minLevel?: ActivityItem['level'] }): Promise<ActivityItem[]>;
+  markActivitySeen(): Promise<void>;
+  settings(): Promise<Settings>;
+  updateSettings(patch: Partial<Settings>): Promise<{ settings: Settings; error?: string }>;
+  listeners(): Promise<{ listeners: Listener[]; error?: string }>;
+  showPath(path: string): Promise<void>;
+  showView(key: string, rect: Rect, link?: string): Promise<{ ok: boolean; error?: string }>;
+  hideView(): Promise<void>;
+  viewBounds(rect: Rect): void;
+  reloadView(key: string): Promise<void>;
+  onViewEvent(listener: (event: { key: string; kind: 'restarted' | 'crashed' | 'loaded' | 'error'; error?: string }) => void): () => void;
+  onNavigate(listener: (target: { page: 'service' | 'activity'; key?: string; link?: string }) => void): () => void;
+  restartToUpdate(): Promise<void>;
+  checkForUpdates(): Promise<void>;
+  notificationsAllowed(): Promise<boolean>;
+  openNotificationSettings(): Promise<void>;
+  locale(): Promise<string>;
+}
+
+export const CHANNELS = {
+  status: 'fd:status',
+  statusPush: 'fd:status-push',
+  control: 'fd:control',
+  command: 'fd:command',
+  logs: 'fd:logs',
+  activity: 'fd:activity',
+  activitySeen: 'fd:activity-seen',
+  settings: 'fd:settings',
+  settingsUpdate: 'fd:settings-update',
+  listeners: 'fd:listeners',
+  showPath: 'fd:show-path',
+  viewShow: 'fd:view-show',
+  viewHide: 'fd:view-hide',
+  viewBounds: 'fd:view-bounds',
+  viewReload: 'fd:view-reload',
+  viewEvent: 'fd:view-event',
+  navigate: 'fd:navigate',
+  updateRestart: 'fd:update-restart',
+  updateCheck: 'fd:update-check',
+  notificationsAllowed: 'fd:notifications-allowed',
+  notificationSettings: 'fd:notification-settings',
+  locale: 'fd:locale',
+} as const;

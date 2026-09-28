@@ -1,0 +1,11 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "module": "CommonJS",
+    "outDir": "out/main",
+    "rootDir": "src",
+    "types": ["node"],
+    "lib": ["ES2023"]
+  },
+  "include": ["src/core/**/*.ts", "src/electron/**/*.ts"]
+}

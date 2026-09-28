@@ -1,0 +1,45 @@
+{
+  "name": "fabric-dashboards",
+  "productName": "Fabric Dashboards",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Fabric Dashboards (PassionCode.ai): finds, watches and controls every local agent service on this Mac that speaks fabric-service/0.1.",
+  "license": "MIT",
+  "author": "PassionCode.ai",
+  "main": "out/main/electron/main.js",
+  "scripts": {
+    "build:main": "tsc -p tsconfig.main.json && esbuild src/electron/preload.ts --bundle --platform=node --external:electron --format=cjs --target=node22 --outfile=out/main/electron/preload.js --log-level=warning",
+    "build:renderer": "vite build",
+    "build": "npm run build:main && npm run build:renderer",
+    "typecheck": "tsc -p tsconfig.main.json --noEmit && tsc -p tsconfig.renderer.json --noEmit",
+    "test": "node --import tsx --test test/*.test.ts",
+    "test:e2e": "npm run build && node --import tsx --test test/e2e/*.test.ts",
+    "check": "npm run typecheck && npm test && node scripts/check-brand.mjs && python3 docs/ux/lint.py",
+    "start": "npm run build && electron .",
+    "icon": "node scripts/make-icon.mjs",
+    "dist": "node scripts/dist-mac.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "@electron/osx-sign": "2.7.0",
+    "@electron/packager": "^20.3.0",
+    "@types/node": "^26.6.3",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.1",
+    "electron": "^44.4.5",
+    "esbuild": "^0.28.2",
+    "playwright": "^1.63.0",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "sharp": "^0.35.5",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.1"
+  },
+  "allowScripts": {
+    "esbuild@0.28.2": true
+  }
+}

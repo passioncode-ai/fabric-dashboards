@@ -1,0 +1,7 @@
+{
+  "protocol": "fabric-service/0.1",
+  "service": { "id": "plan-board", "instance": "default", "name": "Plan Board", "version": "0.1.0", "build": { "commit": "4575f92" } },
+  "process": { "pid": 51235, "startedAt": "2026-09-28T17:35:31Z" },
+  "status": "ready",
+  "surfaces": { "dashboard": { "path": "/", "login": false }, "events": { "path": "/fabric/v1/events" } }
+}
