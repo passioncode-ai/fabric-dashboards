@@ -15,11 +15,11 @@ Cross-repository index: `passioncode-ai/org-index` → `docs/runs/2026-09-28-fab
 | Piece | Where | State | Evidence |
 |---|---|---|---|
 | Protocol `fabric-service/0.1` | `fabric-agent-contract` PR #6 | merged (`a5a2709`) | `pnpm run check` exit 0 on the merged main |
-| Skill `building-fabric-services` | `fabric-agent-adapter` PR #2 (`v0.4.0`), PR #4 (`v0.4.2`, `e09551f`) | merged, tagged; the kit's `LoopbackHTTPServer` binds without a resolver (0.4.2); **npm publish pending** (needs `npm login`) | `npm test`, both `claude plugin validate --strict` |
+| Skill `building-fabric-services` | `fabric-agent-adapter` PR #2 (`v0.4.0`), PR #4 (`v0.4.2`, `e09551f`) | merged, tagged; the kit's `LoopbackHTTPServer` binds without a resolver (0.4.2); **on npm** as `@passioncode-ai/fabric-agent-adapter@0.4.2` | `npm test`, both `claude plugin validate --strict` |
 | Cross-repository ADR | `fabric` ADR-0083 (PR #2) | merged | `scripts/check-docs.sh`, `check-registers.mjs` |
 | Product mark | `passioncode-ai.github.io` PR #6 | merged | site `npm run check` |
 | **Fabric Dashboards 0.1.0** | this repository, tag `v0.1.0` | **released** — [GitHub release](https://github.com/passioncode-ai/fabric-dashboards/releases/tag/v0.1.0), installed in `/Applications` on the operator's Mac, login item registered | receipt: Developer ID, notarization `accepted and stapled`, Gatekeeper `accepted`; `update-feed.json` and the zip download anonymously (HTTP 200) |
-| Launcher `passioncode` 0.1.2 | `passioncode` tag `v0.1.2` (`7df3c01`) | installed on the operator's Mac from the tagged payload (adapter 0.4.2); **npm publish pending** (needs `npm login`) | `passioncode status`: 3 plugins, hubs 3/3, no shadows |
+| Launcher `@passioncode-ai/passioncode` 0.1.4 | `passioncode` tag `v0.1.4` (`df38fd3`) | **on npm**; this Mac updated from npm; the self-update sees 0.1.4 by `ssheleg`, a trusted publisher | `npx @passioncode-ai/passioncode@latest status`: 3 plugins, hubs 3/3, no shadows |
 | Project Observatory server | `project-observatory-dashboard` PR #75 → 0.8.0 (`d454fb4`, tag `v0.8.0`) | merged through all three required checks, released, installed on the operator's Mac with its descriptor | live `check_service.py`: 20 rules, 0 FAIL, 1 NOT_RUN (no login declared) |
 | The operator's own services | their private repositories | merged and reinstalled locally only; not published, not named here | each probed live; the only FAIL left is one data directory the operator chose to keep inside its checkout |
 
@@ -30,18 +30,12 @@ operator's personal agents is public; the development history is kept privately 
 ## Open
 
 - UX scenarios are `draft` until the operator approves them from the running app.
-- npm publishing of `@passioncode-ai/fabric-agent-adapter` 0.4.2 and `passioncode` 0.1.2:
-  hosted Actions for private repositories are held by the organisation's spending cap, and
-  this machine has no npm login.
-
-## Next task
-
-After `npm login` on the operator's Mac: `npm publish` in `fabric-agent-adapter` (at
-`v0.4.2`) and in `passioncode` (at `v0.1.2`, `prepublishOnly` re-vendors from tags and
-tests), then `npx passioncode@latest status`.
-
-## Found and fixed on the way
-
+- **Releases from GitHub are wired but cannot run yet.** Both packages name their `release.yml`
+  as npm trusted publisher (OIDC, `createPackage` + stage), and both repositories set
+  `RELEASE_ENABLED` / `PUBLISH_NPMJS`. Hosted Actions in these private repositories do not
+  start: GitHub answers "recent account payments have failed or your spending limit needs to
+  be increased" (runs on `v0.4.0`–`v0.4.2`). The operator decides: raise the limit, or make both
+  repositories public after a history audit (the npm tarballs are public already).
 - `http.server` asks the resolver for its FQDN between `bind()` and `listen()`; on the macOS
   runner the port stayed bound but silent. Fixed in the adapter kit (`LoopbackHTTPServer`,
   0.4.2) and in every server that used the stdlib class.
