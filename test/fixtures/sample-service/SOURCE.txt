@@ -1,1 +1,1 @@
-Copied from passioncode-ai/fabric-agent-adapter@b496b3bb5553 skills/building-fabric-services/scripts. Re-copy when the kit changes; never edit here.
+Copied from passioncode-ai/fabric-agent-adapter@e09551f20ed7 (tag v0.4.2) skills/building-fabric-services/scripts. Re-copy when the kit changes; never edit here.
