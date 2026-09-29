@@ -37,6 +37,32 @@ say contributions are accepted under it. README no longer links the private cont
 adapter repositories. Repository homepage and topics set. Nothing released yet under the new
 license: the next tag is the first.
 
+## Deep links and the MCP server, 2026-09-29 (0.2.0, branch `agent/deep-links-mcp`)
+
+Objective: an agent that starts work on a local service hands the operator a link that opens
+that exact page inside the app, and agents use the app's own rules for administration
+([ADR-0004](adr/0004-deep-links-and-mcp.md), ST-011, ST-012, SCN-026…SCN-028).
+
+- `src/core/deeplink.ts` — `fabric-dashboards://open?service=&path=` / `?url=`, `activity`,
+  overview; only installed services and paths on their own origin; `linkFor()`.
+- `src/electron/main.ts` — `open-url` queued from `will-finish-launching`, argv links
+  (launch and second instance), the first scan awaited, a refused link explained in a
+  dialog; `setAsDefaultProtocolClient` when packaged; the renderer now pulls a navigation
+  that arrived before it listened (`CHANNELS.navigateTake`) — this also fixes notification
+  clicks during window load.
+- `src/mcp/{tools,server}.ts` — stdio MCP server; `build/bin/fabric-dashboards-mcp` runs the
+  app binary with `ELECTRON_RUN_AS_NODE=1` against `app.asar`; `scripts/dist-mac.mjs`
+  registers the scheme, ships the launcher and asserts it answers `initialize` with the
+  release version (receipt `checks.mcpLauncher`).
+- Checks run: `npm run check` (tsc ×2, 40 unit tests incl. `test/mcp.test.ts` and
+  `test/deeplink.test.ts`, brand, UX lint), `npm run test:e2e` (2 tests: the existing one,
+  and a link at launch opening the signed-in page at its path + the built MCP server listing
+  the live sample service, handing out the same link, reading activity, never the token).
+
+Next task: merge, then `npm run dist -- --notary-profile fabric-notary` from the merge
+commit, tag `v0.2.0`, publish the release (RUNBOOK → Release), install, register the MCP
+server (`claude mcp add fabric-dashboards -- "/Applications/Fabric Dashboards.app/Contents/Resources/bin/fabric-dashboards-mcp"`).
+
 ## Open
 
 - UX scenarios are `draft` until the operator approves them from the running app.

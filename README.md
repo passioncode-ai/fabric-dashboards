@@ -21,6 +21,8 @@ for what is released and what is next.
 | **Activity** | every service's events and the app's own observations in one feed, filterable, each row opening the exact item |
 | **Notifications** | not answering (after 30 s), back, two copies, another program on the port, events a service marks for you — with quiet hours and per-service levels |
 | **Menu bar** | the aggregate state as a shape, problems first |
+| **Links from agents** | `fabric-dashboards://open?service=<id.instance>&path=/…` opens that page here, signed in |
+| **MCP for agents** | list services, hand out links, open a page, restart or update — through the app's own rules |
 
 States it tells apart: Ready, Degraded, Not answering, Off, Starting/Stopping, Two copies
 (the answering pid is not launchd's), Wrong program on port (another id answers),
@@ -48,6 +50,19 @@ skill builds or migrates a service, are private repositories for now.
 
 Download the DMG from the [releases](https://github.com/passioncode-ai/fabric-dashboards/releases),
 drag the app to Applications. It opens at login by default and updates itself.
+
+## For agents
+
+Register the MCP server that ships inside the app once:
+
+```bash
+claude mcp add fabric-dashboards -- "/Applications/Fabric Dashboards.app/Contents/Resources/bin/fabric-dashboards-mcp"
+```
+
+Tools: `list_services`, `service_status`, `link`, `open`, `control`, `doctor`, `update`,
+`activity`. An agent that starts work on a service hands the operator the `open_link` from
+`link` — it opens that page inside the app — and the plain `http_url` as a fallback.
+[ADR-0004](docs/adr/0004-deep-links-and-mcp.md) has the rules.
 
 ## Develop
 

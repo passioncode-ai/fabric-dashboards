@@ -11,7 +11,7 @@
 // receipt with hashes and the signing/notarization state is written beside them.
 import { execFileSync, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statfsSync, symlinkSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statfsSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -113,11 +113,15 @@ async function main() {
       dir: stage, name: PRODUCT, executableName: PRODUCT, appVersion: version, buildVersion: version,
       appBundleId: BUNDLE_ID, appCategoryType: 'public.app-category.developer-tools', icon: path.join(root, 'build/icon.icns'),
       platform: 'darwin', arch: 'universal', electronVersion, out: path.join(temp, 'out'), overwrite: true, asar: true, prune: false,
-      extraResource: [path.join(root, 'build/assets')],
+      extraResource: [path.join(root, 'build/assets'), path.join(root, 'build/bin')],
       extendInfo: { NSHumanReadableCopyright: `${PRODUCT} — PassionCode.ai`, NSRequiresAquaSystemAppearance: false, LSMinimumSystemVersion: '13.0', LSUIElement: false },
+      // `fabric-dashboards://` opens a service page here (docs/adr/0004-deep-links-and-mcp.md).
+      protocols: [{ name: PRODUCT, schemes: ['fabric-dashboards'] }],
     });
     const app = path.join(appDir, `${PRODUCT}.app`);
     requireThat(existsSync(path.join(app, 'Contents/Resources/assets/trayTemplate.png')), 'The packaged app is missing its menu bar icons.');
+    const mcp = path.join(app, 'Contents/Resources/bin/fabric-dashboards-mcp');
+    requireThat(existsSync(mcp) && (statSync(mcp).mode & 0o111) !== 0, 'The packaged app is missing its executable MCP launcher.');
     // Signed and notarized AFTER packaging, on the finished universal bundle: signing
     // inside the packager raced its own temporary directories (2026-09-28, ENOENT).
     if (identity) {
@@ -142,6 +146,11 @@ async function main() {
       requireThat(receipt.checks.hardenedRuntime === 'present', 'The app was signed without the hardened runtime; notarization would refuse it.');
     }
     receipt.checks.architectures = run('lipo', ['-archs', path.join(app, `Contents/MacOS/${PRODUCT}`)]).trim();
+    // The MCP launcher answers `initialize` from inside the finished, signed bundle.
+    const hello = spawnSync(mcp, [], { input: '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}\n', encoding: 'utf8', timeout: 20_000, env: { ...process.env, FABRIC_SERVICES_DIR: temp } });
+    const answer = (() => { try { return JSON.parse(hello.stdout.split('\n')[0]); } catch { return null; } })();
+    requireThat(answer?.result?.serverInfo?.version === version, `The packaged MCP launcher did not answer initialize: ${(hello.stderr || hello.stdout || String(hello.error)).slice(0, 300)}`);
+    receipt.checks.mcpLauncher = `Contents/Resources/bin/fabric-dashboards-mcp answers initialize as ${answer.result.serverInfo.name} ${version}`;
     if (args.notaryProfile) receipt.checks.appStaple = tryRun('xcrun', ['stapler', 'validate', app]).ok ? 'stapled' : 'not stapled';
 
     // The update zip keeps the app's signature and staple: ditto, never zip(1).

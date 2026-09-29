@@ -6,6 +6,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { ActivityStore } from '../core/activity';
 import { CHANNELS, type Rect } from '../core/api';
+import { parseDeepLink, SCHEME } from '../core/deeplink';
 import { servicesDir } from '../core/descriptor';
 import { langFor, t, type Lang } from '../core/i18n';
 import { execRunner } from '../core/launchd';
@@ -36,6 +37,18 @@ function log(message: string): void {
     fs.appendFileSync(path.join(dir, 'main.log'), `${new Date().toISOString()} ${message}\n`);
   } catch { /* logging must never take the app down */ }
 }
+
+// Deep links (docs/adr/0004-deep-links-and-mcp.md). macOS delivers `open-url` as early as
+// `will-finish-launching`, before the window or the monitor exists: the link waits in a queue.
+const pendingLinks: string[] = [];
+let handleLink: ((raw: string) => void) | null = null;
+app.on('will-finish-launching', () => {
+  app.on('open-url', (event, raw) => {
+    event.preventDefault();
+    if (handleLink) handleLink(raw);
+    else pendingLinks.push(raw);
+  });
+});
 
 if (!app.requestSingleInstanceLock()) {
   app.quit();
@@ -80,6 +93,8 @@ if (!app.requestSingleInstanceLock()) {
       webPreferences: { preload: path.join(__dirname, 'preload.js'), sandbox: true, contextIsolation: true, nodeIntegration: false, webSecurity: true, spellcheck: false },
     });
     const w = window;
+    rendererListening = false;
+    w.webContents.on('did-start-loading', () => { rendererListening = false; });
     w.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
     w.webContents.on('will-navigate', (event) => event.preventDefault());
     w.webContents.session.setPermissionRequestHandler((_wc, _p, callback) => callback(false));
@@ -99,11 +114,15 @@ if (!app.requestSingleInstanceLock()) {
     return w;
   }
 
-  function navigate(target: { page: 'service' | 'activity'; key?: string; link?: string }): void {
+  // A navigation sent before the renderer subscribes is lost (a link at launch lands while React
+  // is still mounting), so until the renderer takes it (CHANNELS.navigateTake) it waits here.
+  type NavTarget = { page: 'service' | 'activity'; key?: string; link?: string };
+  let rendererListening = false;
+  let pendingNav: NavTarget | null = null;
+  function navigate(target: NavTarget): void {
     const w = showWindow();
-    const send = () => w.webContents.send(CHANNELS.navigate, target);
-    if (w.webContents.isLoading()) w.webContents.once('did-finish-load', send);
-    else send();
+    if (rendererListening) w.webContents.send(CHANNELS.navigate, target);
+    else pendingNav = target; // the latest wins, as a click would
   }
 
   function notify(notice: Notice): void {
@@ -136,6 +155,12 @@ if (!app.requestSingleInstanceLock()) {
   function registerIpc(): void {
     const snap = (key: string) => monitor.snapshot(key);
     ipcMain.handle(CHANNELS.status, () => status());
+    ipcMain.handle(CHANNELS.navigateTake, () => {
+      rendererListening = true;
+      const target = pendingNav;
+      pendingNav = null;
+      return target;
+    });
     ipcMain.handle(CHANNELS.control, async (_e, key: string, action: 'restart' | 'stop' | 'start') => {
       if (!['restart', 'stop', 'start'].includes(action)) throw new Error('unknown action');
       if (action !== 'restart') views?.drop(key);
@@ -205,7 +230,13 @@ if (!app.requestSingleInstanceLock()) {
     ]));
   }
 
-  app.on('second-instance', () => showWindow());
+  // A link opened while the app runs reaches the first instance as an argument (and through
+  // `open-url` on macOS); a second process only forwards it and exits.
+  app.on('second-instance', (_event, argv) => {
+    const raw = argv.find((a) => a.startsWith(`${SCHEME}:`));
+    if (raw && handleLink) handleLink(raw);
+    else showWindow();
+  });
   app.on('activate', () => showWindow());
   app.on('before-quit', () => { quitting = true; });
   app.on('will-quit', () => monitor.stop());
@@ -225,6 +256,30 @@ if (!app.requestSingleInstanceLock()) {
     monitor.on('restarted', (key: string) => views?.serviceRestarted(key));
     monitor.start();
     updater.start();
+    if (app.isPackaged) app.setAsDefaultProtocolClient(SCHEME);
+    handleLink = (raw: string) => {
+      const known = monitor.snapshots().map((s) => ({ key: s.key, descriptor: s.descriptor }));
+      const result = parseDeepLink(raw, known);
+      if (!result.ok) {
+        // The reason is logged, never the raw link — a link is not trusted text; the parts a
+        // reason quotes are JSON-escaped and clipped (src/core/deeplink.ts).
+        log(`deep link refused: ${result.reason}`);
+        showWindow();
+        // The reason names what is wrong (an unknown service, a path off its origin), never the link.
+        void dialog.showMessageBox({ type: 'warning', message: t(lang(), 'link.refused.title'), detail: t(lang(), 'link.refused.body', { reason: result.reason }), buttons: ['OK'] });
+        return;
+      }
+      const { target } = result;
+      if (target.page === 'overview') showWindow();
+      else navigate(target);
+    };
+    // The first scan fills the snapshots a link is checked against; a link that arrived with the
+    // launch waits for it rather than being refused as «no installed service».
+    const argvLink = process.argv.find((a) => a.startsWith(`${SCHEME}:`));
+    if (argvLink) pendingLinks.push(argvLink);
+    const flush = () => { for (const raw of pendingLinks.splice(0)) handleLink?.(raw); };
+    if (monitor.snapshots().length || !pendingLinks.length) flush();
+    else monitor.once('change', flush);
     applyLoginItem(settings.get());
     // Opened at login: stay in the menu bar; the operator opens the window when they want it.
     const hidden = app.getLoginItemSettings().wasOpenedAtLogin || process.argv.includes('--hidden');

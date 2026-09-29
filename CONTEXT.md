@@ -14,3 +14,5 @@ their meaning there: Host, Provider, Agent, Capability, Profile.
 | Control | Start, Stop or Restart, performed only through launchd. Stop is persistent. |
 | Service state | What the host derives: invalid, stopped, conflict, foreign, duplicate, down, starting, stopping, degraded, ready. |
 | Operator login | The one-time code the host obtains with the service token and exchanges for a dashboard cookie; the token never reaches a page. |
+| Deep link | A `fabric-dashboards://open?service=<id.instance>&path=/…` (or `?url=http://127.0.0.1:<port>/…`) link that opens that page of an installed service inside the app, signed in (ADR-0004). |
+| MCP server | `fabric-dashboards-mcp`, shipped inside the app: agents list services, get deep links, open pages, and start, stop, restart, doctor or update through the app's own rules. |

@@ -1,0 +1,206 @@
+import assert from 'node:assert/strict';
+import { spawn } from 'node:child_process';
+import fs from 'node:fs';
+import path from 'node:path';
+import test from 'node:test';
+import { Launchd, type RunResult } from '../src/core/launchd';
+import type { Descriptor, ServiceEvent, WellKnown, WellKnownResult } from '../src/core/types';
+import { handle, TOOLS } from '../src/mcp/server';
+import * as tools from '../src/mcp/tools';
+import { tmp } from './helpers';
+
+const fixture = (name: string) => JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures/contract', name), 'utf8'));
+const DESCRIPTOR = fixture('positive_service-descriptor.json') as Descriptor;
+const WELL_KNOWN = fixture('positive_service-well-known.json') as WellKnown;
+const SECRET = 'tok-never-returned-7f3a';
+
+interface World {
+  deps: tools.Deps;
+  calls: { launchctl: string[][]; open: string[]; run: string[][] };
+  answers: WellKnownResult[];
+}
+
+function world(opts: { installed?: boolean; platform?: NodeJS.Platform; loaded?: boolean; answers?: WellKnownResult[]; descriptor?: Partial<Descriptor> } = {}): World {
+  const dir = tmp('fd-mcp-');
+  const d = { ...DESCRIPTOR, ...opts.descriptor };
+  fs.writeFileSync(path.join(dir, `${d.id}.${d.instance}.json`), JSON.stringify(d));
+  const calls = { launchctl: [] as string[][], open: [] as string[], run: [] as string[][] };
+  const answers = opts.answers ?? [];
+  const runner = async (command: string, args: string[]): Promise<RunResult> => {
+    calls.launchctl.push([command, ...args]);
+    if (args[0] === 'print') return opts.loaded === false ? { code: 113, stdout: '', stderr: 'Could not find service' } : { code: 0, stdout: 'pid = 51234\n', stderr: '' };
+    if (args[0] === 'print-disabled') return { code: 0, stdout: '', stderr: '' };
+    return { code: 0, stdout: '', stderr: '' };
+  };
+  let clock = 0;
+  const deps: tools.Deps = {
+    servicesDir: () => dir,
+    wellKnown: async () => answers.length > 1 ? answers.shift()! : answers[0] ?? { kind: 'answer', doc: WELL_KNOWN, ms: 3 },
+    launchd: new Launchd(runner, 501),
+    open: async (target) => { calls.open.push(target); return 0; },
+    appInstalled: async () => opts.installed ?? true,
+    run: async (argv) => { calls.run.push(argv); return { code: 0, output: 'all good', timedOut: false }; },
+    events: async (_d, eventsPath, token) => {
+      assert.equal(eventsPath, '/fabric/v1/events');
+      assert.equal(token, SECRET);
+      const events: ServiceEvent[] = [
+        { id: 'e1', at: '2026-09-29T10:00:00Z', kind: 'job.started', level: 'info', text: 'Job job_1 started', link: '/dashboard/job_1' },
+        { id: 'e2', at: '2026-09-29T10:01:00Z', kind: 'job.done', level: 'notice', text: 'Job job_1 delivered' },
+      ];
+      return { events, cursor: null };
+    },
+    token: () => SECRET,
+    now: () => clock,
+    sleep: async (ms) => { clock += ms; },
+    platform: opts.platform ?? 'darwin',
+  };
+  return { deps, calls, answers };
+}
+
+const KEY = 'example-agent.default';
+
+test('list_services shows the state, the dashboard and a deep link, and no token', async () => {
+  const { deps } = world();
+  const out = await tools.listServices(deps);
+  assert.equal(out.services.length, 1);
+  const s = out.services[0]!;
+  assert.equal(s.key, KEY);
+  assert.equal(s.state, 'degraded');
+  assert.equal(s.version, '0.2.0');
+  assert.equal(s.build, '8b80be9');
+  assert.equal(s.dashboard, 'http://127.0.0.1:47195/dashboard');
+  assert.equal(s.open_link, 'fabric-dashboards://open?service=example-agent.default&path=%2Fdashboard');
+  assert.deepEqual(s.commands, ['doctor']);
+  assert.equal(JSON.stringify(out).includes(SECRET), false);
+});
+
+test('a service that does not answer is down, not starting', async () => {
+  const { deps } = world({ answers: [{ kind: 'no-answer', detail: 'ECONNREFUSED' }] });
+  assert.equal((await tools.serviceStatus(deps, KEY)).state, 'down');
+  await assert.rejects(tools.serviceStatus(deps, 'nobody.default'), /no installed service/);
+});
+
+test('link turns a service URL or a key and path into the deep link, and opens nothing', async () => {
+  const { deps, calls } = world();
+  assert.deepEqual(await tools.link(deps, { url: 'http://127.0.0.1:47195/dashboard/job_1?tab=log' }), {
+    service: KEY,
+    open_link: 'fabric-dashboards://open?service=example-agent.default&path=%2Fdashboard%2Fjob_1%3Ftab%3Dlog',
+    http_url: 'http://127.0.0.1:47195/dashboard/job_1?tab=log',
+  });
+  assert.equal((await tools.link(deps, { service: KEY, path: '/dashboard/job_2' })).http_url, 'http://127.0.0.1:47195/dashboard/job_2');
+  await assert.rejects(tools.link(deps, { service: KEY, path: '//evil.example' }), /path must be/);
+  await assert.rejects(tools.link(deps, { url: 'https://evil.example/' }), /local service/);
+  await assert.rejects(tools.link(deps, {}), /service \(id.instance\) or url/);
+  assert.deepEqual(calls.open, []);
+});
+
+test('open goes to the app when it is installed, to the browser when not, and nowhere off macOS', async () => {
+  const inApp = world();
+  assert.equal((await tools.open(inApp.deps, { service: KEY, path: '/dashboard/job_1' })).opened_in, 'fabric-dashboards');
+  assert.deepEqual(inApp.calls.open, ['fabric-dashboards://open?service=example-agent.default&path=%2Fdashboard%2Fjob_1']);
+
+  const browser = world({ installed: false });
+  const r = await tools.open(browser.deps, { service: KEY, path: '/dashboard/job_1' });
+  assert.equal(r.opened_in, 'browser');
+  assert.deepEqual(browser.calls.open, ['http://127.0.0.1:47195/dashboard/job_1']);
+
+  const linux = world({ platform: 'linux' });
+  assert.equal((await tools.open(linux.deps, { service: KEY })).opened_in, 'nothing');
+  assert.deepEqual(linux.calls.open, []);
+});
+
+test('restart goes through launchd and waits for a new pid', async () => {
+  const oldDoc = { kind: 'answer', doc: WELL_KNOWN, ms: 1 } as const;
+  const newDoc = { kind: 'answer', doc: { ...WELL_KNOWN, process: { ...WELL_KNOWN.process, pid: 60000 } }, ms: 1 } as const;
+  const { deps, calls } = world({ answers: [oldDoc, oldDoc, oldDoc, newDoc] });
+  const r = await tools.control(deps, KEY, 'restart');
+  assert.equal(r.ok, true);
+  assert.match(r.detail, /pid 60000/);
+  assert.ok(calls.launchctl.some((c) => c.join(' ') === 'launchctl kickstart -k gui/501/com.example.example-agent'));
+});
+
+test('stop disables the job and confirms nothing answers', async () => {
+  const { deps, calls } = world({ loaded: false, answers: [{ kind: 'answer', doc: WELL_KNOWN, ms: 1 }, { kind: 'no-answer', detail: 'ECONNREFUSED' }] });
+  const r = await tools.control(deps, KEY, 'stop');
+  assert.deepEqual([r.ok, r.state], [true, 'stopped']);
+  assert.ok(calls.launchctl.some((c) => c.join(' ') === 'launchctl disable gui/501/com.example.example-agent'));
+});
+
+test('control reports a timeout honestly and refuses a service launchd does not manage', async () => {
+  const { deps } = world({ answers: [{ kind: 'answer', doc: WELL_KNOWN, ms: 1 }] });
+  const r = await tools.control(deps, KEY, 'restart'); // the pid never changes
+  assert.equal(r.ok, false);
+  assert.match(r.detail, /within 40 s/);
+
+  const unmanaged = world({ descriptor: { lifecycle: { manager: 'none' } } });
+  await assert.rejects(tools.control(unmanaged.deps, KEY, 'stop'), /not managed by launchd/);
+  await assert.rejects(tools.control(deps, KEY, 'reboot' as 'stop'), /start, stop or restart/);
+});
+
+test('doctor runs only the descriptor argv; an undeclared update is refused', async () => {
+  const { deps, calls } = world();
+  assert.deepEqual(await tools.command(deps, KEY, 'doctor'), { code: 0, output: 'all good', timed_out: false });
+  assert.deepEqual(calls.run, [DESCRIPTOR.commands!.doctor]);
+  await assert.rejects(tools.command(deps, KEY, 'update'), /declares no update command/);
+});
+
+test('activity reads the events with the local token, never returns it, and turns links into deep links', async () => {
+  const { deps } = world();
+  const out = await tools.activity(deps, KEY, 5);
+  assert.equal(out.events.length, 2);
+  assert.equal(out.events[0]!.link, 'fabric-dashboards://open?service=example-agent.default&path=%2Fdashboard%2Fjob_1');
+  assert.equal(out.events[1]!.link, undefined);
+  assert.equal(JSON.stringify(out).includes(SECRET), false);
+
+  const down = world({ answers: [{ kind: 'no-answer', detail: 'ECONNREFUSED' }] });
+  await assert.rejects(tools.activity(down.deps, KEY), /does not answer/);
+});
+
+test('the protocol: initialize, tools/list, a call, a refusal as isError, notifications get nothing', async () => {
+  const { deps } = world();
+  const init = await handle(deps, { jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-03-26' } });
+  assert.equal((init!.result as { protocolVersion: string }).protocolVersion, '2025-03-26');
+  const unknownVersion = await handle(deps, { jsonrpc: '2.0', id: 2, method: 'initialize', params: { protocolVersion: '1999-01-01' } });
+  assert.equal((unknownVersion!.result as { protocolVersion: string }).protocolVersion, '2025-06-18');
+
+  const list = await handle(deps, { jsonrpc: '2.0', id: 3, method: 'tools/list' });
+  assert.deepEqual((list!.result as { tools: { name: string }[] }).tools.map((t) => t.name), TOOLS.map((t) => t.name));
+
+  const ok = await handle(deps, { jsonrpc: '2.0', id: 4, method: 'tools/call', params: { name: 'link', arguments: { service: KEY } } });
+  assert.equal((ok!.result as { structuredContent: { service: string } }).structuredContent.service, KEY);
+
+  const refused = await handle(deps, { jsonrpc: '2.0', id: 5, method: 'tools/call', params: { name: 'control', arguments: { service: KEY } } });
+  assert.deepEqual(refused!.result, { content: [{ type: 'text', text: 'action is required' }], isError: true });
+
+  const unknownTool = await handle(deps, { jsonrpc: '2.0', id: 6, method: 'tools/call', params: { name: 'rm_rf' } });
+  assert.equal((unknownTool!.result as { isError: boolean }).isError, true);
+
+  assert.equal(await handle(deps, { jsonrpc: '2.0', method: 'notifications/initialized' }), null);
+  assert.deepEqual((await handle(deps, { jsonrpc: '2.0', id: 7, method: 'nope' }))!.error, { code: -32601, message: 'method not found: nope' });
+});
+
+test('the server speaks newline-delimited JSON-RPC over stdio', async () => {
+  const dir = tmp('fd-mcp-stdio-');
+  const child = spawn(process.execPath, ['--import', 'tsx', path.join(__dirname, '../src/mcp/server.ts')], {
+    env: { ...process.env, FABRIC_SERVICES_DIR: dir }, stdio: ['pipe', 'pipe', 'inherit'],
+  });
+  const lines: string[] = [];
+  let buffer = '';
+  child.stdout.on('data', (chunk) => {
+    buffer += String(chunk);
+    let i: number;
+    while ((i = buffer.indexOf('\n')) >= 0) { lines.push(buffer.slice(0, i)); buffer = buffer.slice(i + 1); }
+  });
+  child.stdin.write('{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18"}}\n');
+  child.stdin.write('not json\n');
+  child.stdin.write('{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"list_services","arguments":{}}}\n');
+  const deadline = Date.now() + 15_000;
+  while (lines.length < 3 && Date.now() < deadline) await new Promise((r) => setTimeout(r, 50));
+  child.kill();
+  const replies = lines.map((l) => JSON.parse(l) as { id: number | null; result?: { serverInfo?: { name: string }; structuredContent?: { services: unknown[]; services_dir: string } }; error?: { code: number } });
+  const byId = new Map(replies.map((r) => [r.id, r]));
+  assert.equal(byId.get(1)!.result!.serverInfo!.name, 'fabric-dashboards');
+  assert.equal((byId.get(1)!.result!.serverInfo as { version: string }).version, JSON.parse(fs.readFileSync(path.join(__dirname, '../package.json'), 'utf8')).version);
+  assert.equal(byId.get(null)!.error!.code, -32700);
+  assert.deepEqual(byId.get(2)!.result!.structuredContent, { services: [], services_dir: dir });
+});

@@ -22,6 +22,8 @@ export interface FabricApi {
   reloadView(key: string): Promise<void>;
   onViewEvent(listener: (event: { key: string; kind: 'restarted' | 'crashed' | 'loaded' | 'error'; error?: string }) => void): () => void;
   onNavigate(listener: (target: { page: 'service' | 'activity'; key?: string; link?: string }) => void): () => void;
+  /** Called once the renderer listens: the navigation that arrived before it did (a link at launch), if any. */
+  takeNavigation(): Promise<{ page: 'service' | 'activity'; key?: string; link?: string } | null>;
   restartToUpdate(): Promise<void>;
   checkForUpdates(): Promise<void>;
   notificationsAllowed(): Promise<boolean>;
@@ -47,6 +49,7 @@ export const CHANNELS = {
   viewReload: 'fd:view-reload',
   viewEvent: 'fd:view-event',
   navigate: 'fd:navigate',
+  navigateTake: 'fd:navigate-take',
   updateRestart: 'fd:update-restart',
   updateCheck: 'fd:update-check',
   notificationsAllowed: 'fd:notifications-allowed',

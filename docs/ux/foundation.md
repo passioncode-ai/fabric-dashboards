@@ -170,6 +170,24 @@ hunt browser tabs to learn whether an agent is alive or what it did.
 - **Priority:** should
 - **Status:** proposed
 
+### ST-011: A link from an agent opens the exact page here
+- **Story:** As P-01, I want a link an agent hands me to open that service's page inside the app, signed in, so that I watch the work it started without hunting for a port.
+- **Traces:** JTBD-04, JRN-01/#5
+- **Acceptance criteria:**
+  - Given the app is installed and an agent hands me `fabric-dashboards://open?service=<id.instance>&path=/…`, when I open it, then the service view opens at that path, signed in, whether the app was running or not.
+  - Given the link names a service that is not installed or a path off its origin, when I open it, then the app says it cannot open it and why, and opens nothing.
+- **Priority:** should
+- **Status:** proposed
+
+### ST-012: Agents use the same controls through MCP
+- **Story:** As P-01, I want an agent to see the services, hand me their links and restart or update one through the app's own rules, so that it never runs launchctl by hand or starts a second copy.
+- **Traces:** JTBD-02, JRN-01/#3
+- **Acceptance criteria:**
+  - Given an agent calls the `fabric-dashboards` MCP server, when it lists services, then it gets the same states the app shows, a deep link per service, and no token.
+  - Given an agent restarts a service through it, when the service does not come back within 40 s, then the tool says so rather than reporting success.
+- **Priority:** should
+- **Status:** proposed
+
 ## Design tooling
 - **Figma:** disabled
 - **Figma file:** none — text-only design surface decided at intake (brief D-7); the PassionCode.ai design system tokens are vendored by hash.

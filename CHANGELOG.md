@@ -1,8 +1,18 @@
 # Changelog
 
-## Unreleased
+## 0.2.0 - 2026-09-29
 
-- **License.** From the next release, Fabric Dashboards is source-available under
+- **Links from agents open here.** `fabric-dashboards://open?service=<id.instance>&path=/…`
+  (or `?url=http://127.0.0.1:<port>/…`) opens that page of an installed service inside the
+  app, signed in, whether the app was running or not. A link to anything else is refused with
+  the reason.
+- **MCP server for agents.** `Contents/Resources/bin/fabric-dashboards-mcp` (stdio): list
+  services with their state and links, open a page, start, stop or restart through launchd,
+  run a service's doctor or update, read its recent activity. Tokens are never returned.
+- **Fixed:** a notification clicked while the window was still loading could land on the
+  overview instead of the item; the window now picks the waiting navigation up once it listens.
+
+- **License.** From this release, Fabric Dashboards is source-available under
   `PolyForm-Noncommercial-1.0.0 OR LicenseRef-PolyForm-Internal-Use-1.0.0`, with a
   commercial license on request (contact@passioncode.ai). Release 0.1.0 and every earlier
   commit, and the later commits up to and including `7fb699d`, stay available under MIT.

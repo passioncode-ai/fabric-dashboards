@@ -6,7 +6,7 @@
 | ID | Screen | Used by | Figma | Status | Coverage |
 |----|--------|---------|-------|--------|----------|
 | SCR-01 | Overview | SCN-001, SCN-002, SCN-005, SCN-006 | none (text-only) | built | src/renderer/components/Overview.tsx |
-| SCR-02 | Service view | SCN-004, SCN-007–SCN-016, SCN-021, SCN-025 | none (text-only) | built | src/renderer/components/ServiceView.tsx |
+| SCR-02 | Service view | SCN-004, SCN-007–SCN-016, SCN-021, SCN-025, SCN-026, SCN-027 | none (text-only) | built | src/renderer/components/ServiceView.tsx |
 | SCR-03 | Activity | SCN-003, SCN-017, SCN-018 | none (text-only) | built | src/renderer/components/Activity.tsx |
 | SCR-04 | Settings | SCN-019, SCN-024 | none (text-only) | built | src/renderer/components/Settings.tsx |
 | SCR-05 | Stop confirmation | SCN-009 | none (text-only) | built | src/renderer/App.tsx |
@@ -41,7 +41,7 @@
 - **Status:** built
 
 ### SCR-02: Service view
-- **Used by:** SCN-004, SCN-007–SCN-016, SCN-021, SCN-025
+- **Used by:** SCN-004, SCN-007–SCN-016, SCN-021, SCN-025, SCN-026, SCN-027
 - **Purpose:** JTBD-02 and JTBD-04 — control one service and work in its dashboard
 - **Elements:** header (state, name, version+commit, pid, uptime, port; Restart — primary when down —, Stop/Start, Update when available, Doctor when declared, Show data folder); tabs Dashboard / Activity / Health / Logs; embedded dashboard; reload bar
 - **States:**
@@ -55,7 +55,7 @@
   | working | a control is running | — | progress label, other controls disabled |
   | sign-in error | SCN-016 | — | reason + token path + Retry |
 - **Coverage:** src/renderer/components/ServiceView.tsx
-- **Scenarios:** SCN-004, SCN-007, SCN-008, SCN-009, SCN-010, SCN-011, SCN-012, SCN-013, SCN-014, SCN-015, SCN-016, SCN-021, SCN-025
+- **Scenarios:** SCN-004, SCN-007, SCN-008, SCN-009, SCN-010, SCN-011, SCN-012, SCN-013, SCN-014, SCN-015, SCN-016, SCN-021, SCN-025, SCN-026, SCN-027
 - **Status:** built
 
 ### SCR-03: Activity

@@ -31,6 +31,9 @@
 | SCN-023 | Glance from the menu bar | tray | P-01 | ST-009 | draft | — |
 | SCN-024 | Settings: launch at login, notifications, quiet hours | settings | P-01 | ST-010, ST-007 | draft | — |
 | SCN-025 | Run doctor and read logs | control | P-01 | ST-003 | draft | — |
+| SCN-026 | Open a service page from a link an agent handed over | links | P-01 | ST-011, ST-005 | draft | — |
+| SCN-027 | A link that cannot be opened | links | P-01 | ST-011 | draft | — |
+| SCN-028 | An agent reads and administers services through MCP | agents | P-01 | ST-012, ST-003 | draft | — |
 
 ## Personas
 
@@ -499,4 +502,62 @@ first release; every sentence a service writes is shown as the service wrote it.
 - **Errors & recovery:** macOS refuses the login item -> the toggle returns to off with the reason; the listener scan is unavailable -> "Cannot list listeners: <reason>"
 - **Status:** draft
 - **Coverage:** src/renderer/components/Settings.tsx, src/core/settings.ts, src/core/listeners.ts, test/parts.test.ts
+- **Product:** unobserved
+
+## links
+
+### SCN-026: Open a service page from a link an agent handed over
+- **Persona:** P-01
+- **Feature:** links
+- **Traces:** ST-011, ST-005 (JTBD-04, JRN-01/#5)
+- **Entry point:** a `fabric-dashboards://open?service=<id.instance>&path=/…` link (or `?url=http://127.0.0.1:<port>/…`) in a chat, a terminal or another app
+- **Preconditions:** Fabric Dashboards is installed; the service is installed
+- **Steps:**
+  1. User opens the link -> macOS hands it to Fabric Dashboards; if the app was not running it starts, waits for its first scan of the services folder, then continues
+  2. System checks the link against the installed descriptors -> the window comes forward on the service view, and its dashboard opens at the path, signed in as in SCN-014
+- **Expected result:** the page the agent meant, inside the app, with no second window, no browser tab and no token in any address
+- **Alt paths:** a link with no path opens the service's dashboard; `fabric-dashboards://activity` opens Activity; `fabric-dashboards://` opens the overview; the app is not installed -> the agent's own tool opens the plain `http://127.0.0.1` address in the browser instead (SCN-028)
+- **UI elements:** service view, embedded dashboard
+- **States covered:** loading, success
+- **Errors & recovery:** see SCN-027; a dashboard that cannot sign in -> SCN-016
+- **Status:** draft
+- **Coverage:** src/core/deeplink.ts, src/electron/main.ts, test/deeplink.test.ts
+- **Product:** unobserved
+
+### SCN-027: A link that cannot be opened
+- **Persona:** P-01
+- **Feature:** links
+- **Traces:** ST-011 (JTBD-04, JRN-01/#5)
+- **Entry point:** SCN-026 step 2
+- **Preconditions:** the link names no installed service, a path that is not on the service's own origin (`//host`, a full URL, a backslash), a non-local address, or an unknown verb
+- **Steps:**
+  1. System refuses the link -> the window comes forward and a message says "This link cannot be opened" with the reason (for example `no installed service "x.default"`) and "Nothing was opened."
+- **Expected result:** the operator sees why; a crafted link can never point the signed-in view at another site
+- **UI elements:** warning message, OK
+- **States covered:** error
+- **Errors & recovery:** install or start the service, then open the link again
+- **Status:** draft
+- **Coverage:** src/core/deeplink.ts, src/electron/main.ts, test/deeplink.test.ts
+- **Product:** unobserved
+
+## agents
+
+### SCN-028: An agent reads and administers services through MCP
+- **Persona:** P-01
+- **Feature:** agents
+- **Traces:** ST-012, ST-003 (JTBD-02, JRN-01/#3)
+- **Entry point:** an agent session with the `fabric-dashboards` MCP server registered (`Contents/Resources/bin/fabric-dashboards-mcp`)
+- **Preconditions:** none; the app does not need to be running
+- **Steps:**
+  1. Agent calls `list_services` or `service_status` -> it receives each service's state and reasons, version and commit, dashboard address, deep link, tiles and pending update — no token
+  2. Agent calls `link` for a job it started -> it receives the deep link and the plain address, and hands them to the operator; or calls `open` -> the page opens in the app (in the browser when the app is not installed)
+  3. Agent calls `control` (start, stop, restart), `doctor` or `update` -> the same launchd verbs and descriptor commands as the app run, and the tool returns the result it observed
+  4. Agent calls `activity` -> recent events as sentences, each with a deep link when it points at a page
+- **Expected result:** agents hand the operator the exact page and use the app's rules for administration instead of launchctl by hand
+- **Alt paths:** a service without launchd lifecycle -> `control` refuses; no declared update -> `update` refuses
+- **UI elements:** none (agent tool results); the opened service view
+- **States covered:** success, error
+- **Errors & recovery:** a restart that gets no new answer within 40 s is reported as not done, with the state it left; a refusal is a tool error the agent reads, not a crash
+- **Status:** draft
+- **Coverage:** src/mcp/tools.ts, src/mcp/server.ts, test/mcp.test.ts
 - **Product:** unobserved

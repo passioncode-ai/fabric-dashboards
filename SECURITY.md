@@ -16,7 +16,13 @@ service data.
   the `doctor` and `update` argument arrays a descriptor declares — no shell, 120 s limit.
 - **Writes** its own data under `~/Library/Application Support/Fabric Dashboards/`
   (settings, activity) and logs under `~/Library/Logs/Fabric Dashboards/`.
-- **Listens** on no port.
+- **Listens** on no port. The MCP server (`Contents/Resources/bin/fabric-dashboards-mcp`)
+  is started by an agent and speaks only over its stdin and stdout; it reads the same
+  folder and token files and runs the same `launchctl` verbs and descriptor argument arrays
+  as the app, and never returns a token.
+- **Opens** `fabric-dashboards://` links only for an installed service and a path on that
+  service's own origin; any other link is refused with the reason and opens nothing
+  ([ADR-0004](docs/adr/0004-deep-links-and-mcp.md)).
 
 A token file is readable by any process of the same user. Fabric Dashboards, like the
 `fabric-service/0.1` extension, defends against web pages and mistakes, not against

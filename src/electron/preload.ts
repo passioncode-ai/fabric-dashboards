@@ -26,6 +26,7 @@ const api: FabricApi = {
   reloadView: (key) => ipcRenderer.invoke(CHANNELS.viewReload, key),
   onViewEvent: (l) => subscribe(CHANNELS.viewEvent, l),
   onNavigate: (l) => subscribe(CHANNELS.navigate, l),
+  takeNavigation: () => ipcRenderer.invoke(CHANNELS.navigateTake),
   restartToUpdate: () => ipcRenderer.invoke(CHANNELS.updateRestart),
   checkForUpdates: () => ipcRenderer.invoke(CHANNELS.updateCheck),
   notificationsAllowed: () => ipcRenderer.invoke(CHANNELS.notificationsAllowed),
