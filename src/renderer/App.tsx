@@ -23,10 +23,12 @@ export function App() {
     void api().status().then(setStatus);
     void api().settings().then((s) => applyTheme(s.theme));
     const offStatus = api().onStatus(setStatus);
-    const offNav = api().onNavigate((target) => {
+    const go = (target: { page: 'service' | 'activity'; key?: string; link?: string }) => {
       if (target.page === 'activity') setRoute({ page: 'activity' });
       else if (target.key) setRoute({ page: 'service', key: target.key, link: target.link, nonce: Date.now() });
-    });
+    };
+    const offNav = api().onNavigate(go);
+    void api().takeNavigation().then((target) => { if (target) go(target); }); // after subscribing: nothing falls between
     return () => { offStatus(); offNav(); };
   }, []);
 
