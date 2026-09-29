@@ -7,7 +7,8 @@
 One window for every local agent service on your Mac. Fabric Dashboards finds each
 service that speaks `fabric-service/0.1`, shows whether it is alive and what it did
 last, starts, stops and restarts it through launchd, and opens its dashboard inside the
-app — signed in, one live view per service — instead of a browser tab per port.
+app — signed in, one live view per service — instead of a browser tab per port. It is
+Fabric's monitoring tool and works on its own.
 
 **Status (2026-09-29): 0.2.0 released** — [download](https://github.com/passioncode-ai/fabric-dashboards/releases/latest). See [HANDOFF](docs/HANDOFF.md)
 for what is released and what is next.
@@ -43,8 +44,9 @@ and the contract's fixtures are copied under [`test/fixtures/contract/`](test/fi
 has spoken it since 0.8.0 and is a public example
 ([its design note](https://github.com/passioncode-ai/project-observatory-dashboard/blob/main/docs/design/FABRIC-SERVICE.md)).
 
-The Fabric Agent Contract and the Fabric agent adapter, whose `building-fabric-services`
-skill builds or migrates a service, are private repositories for now.
+The [Fabric Agent Adapter](https://github.com/passioncode-ai/fabric-agent-adapter), whose
+`building-fabric-services` skill builds or migrates a service, is public; the Fabric Agent
+Contract is a private repository for now.
 
 ## Install
 
