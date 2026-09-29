@@ -24,12 +24,20 @@ by the task's nouns, not read in full.
    build plus notarization zips is several gigabytes; a full disk takes down unrelated
    live services. Check free space before `npm run dist`. *Retire when* `dist-mac.mjs`
    refuses to start below a free-space floor.
+6. **A test that times out says what it saw.** A wait loop reports the last answer and, for a
+   child process, its output and a faulthandler stack dump. The first macOS failure said only
+   "did not become ready" and cost three CI rounds; the dump named `socket.getfqdn` at once.
+   *Retire when* the kit ships a wait helper that does this and every repository uses it.
+7. **Read the target repository's own merge and release rules before touching its version or
+   changelog, and fetch before choosing a version number.** *Retire when* a pre-push hook
+   refuses both.
 
 ## Run stamps
 
 | Run | Commit | Date |
 |---|---|---|
 | Fabric Dashboards 0.1.0 + fabric-service/0.1 + passioncode launcher | `41facd4` | 2026-09-29 |
+| Close-out: Observatory 0.8.0, adapter 0.4.2, passioncode 0.1.2, local reinstalls | `10948f5` | 2026-09-29 |
 
 ## Recent log
 
@@ -56,3 +64,17 @@ by the task's nouns, not read in full.
 - **The release build filled the disk** and a live local service's heartbeat hit
   `ENOSPC`. That service now reports a failed heartbeat as a degraded row instead of
   staying `starting`. Standing instruction 5.
+
+### 2026-09-29 (close-out) — three more
+
+- **A CI timeout diagnosed by guessing.** The macOS job failed "server did not become ready"
+  three times; the first fix (heartbeat) addressed a real but different fault. Surfaced at
+  stage 7; owned by stage 6 (the test gave no evidence). Root cause: `HTTPServer.server_bind()`
+  calls `socket.getfqdn()` before `listen()`. Fix: diagnostics first (last answer, output,
+  stack dump), then `LoopbackHTTPServer`. Standing instruction 6.
+- **A feature PR edited another repository's CHANGELOG**, which its AGENTS.md reserves for the
+  release PR. Surfaced at the merge; owned by stage 7. Fix: the PR became the 0.8.0 release.
+  Standing instruction 7.
+- **Two sessions released the adapter as 0.4.1 at the same time.** Surfaced as a merge
+  conflict; owned by stage 7. Fix: rebased and released as 0.4.2; the other session recorded
+  the collision in the adapter's handoff. Standing instruction 7.

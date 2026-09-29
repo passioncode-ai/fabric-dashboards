@@ -20,8 +20,8 @@ Cross-repository index: `passioncode-ai/org-index` → `docs/runs/2026-09-28-fab
 | Product mark | `passioncode-ai.github.io` PR #6 | merged | site `npm run check` |
 | **Fabric Dashboards 0.1.0** | this repository, tag `v0.1.0` | **released** — [GitHub release](https://github.com/passioncode-ai/fabric-dashboards/releases/tag/v0.1.0), installed in `/Applications` on the operator's Mac, login item registered | receipt: Developer ID, notarization `accepted and stapled`, Gatekeeper `accepted`; `update-feed.json` and the zip download anonymously (HTTP 200) |
 | Launcher `passioncode` 0.1.2 | `passioncode` tag `v0.1.2` (`7df3c01`) | installed on the operator's Mac from the tagged payload (adapter 0.4.2); **npm publish pending** (needs `npm login`) | `passioncode status`: 3 plugins, hubs 3/3, no shadows |
-| Project Observatory server | `project-observatory-dashboard` PR #75 | open; CI re-running after the heartbeat fix | 40 fabric-service tests; 62/63 suites locally, the 63rd fails on `main` too |
-| The operator's own services | their private repositories | migrated on branches, landed locally only | not published, not named here |
+| Project Observatory server | `project-observatory-dashboard` PR #75 → 0.8.0 (`d454fb4`, tag `v0.8.0`) | merged through all three required checks, released, installed on the operator's Mac with its descriptor | live `check_service.py`: 20 rules, 0 FAIL, 1 NOT_RUN (no login declared) |
+| The operator's own services | their private repositories | merged and reinstalled locally only; not published, not named here | each probed live; the only FAIL left is one data directory the operator chose to keep inside its checkout |
 
 This repository was recreated from a clean tree on 2026-09-29 so that nothing about the
 operator's personal agents is public; the development history is kept privately in
@@ -33,14 +33,20 @@ operator's personal agents is public; the development history is kept privately 
 - npm publishing of `@passioncode-ai/fabric-agent-adapter` 0.4.2 and `passioncode` 0.1.2:
   hosted Actions for private repositories are held by the organisation's spending cap, and
   this machine has no npm login.
-- Merge PR #75, cut the Observatory release it needs, reinstall its server, and see it in
-  the app as `ready`.
 
 ## Next task
 
 After `npm login` on the operator's Mac: `npm publish` in `fabric-agent-adapter` (at
 `v0.4.2`) and in `passioncode` (at `v0.1.2`, `prepublishOnly` re-vendors from tags and
 tests), then `npx passioncode@latest status`.
+
+## Found and fixed on the way
+
+- `http.server` asks the resolver for its FQDN between `bind()` and `listen()`; on the macOS
+  runner the port stayed bound but silent. Fixed in the adapter kit (`LoopbackHTTPServer`,
+  0.4.2) and in every server that used the stdlib class.
+- An e2e run wrote into the operator's `~/Library/Logs/Fabric Dashboards/main.log`:
+  `FABRIC_DASHBOARDS_USER_DATA` now moves `logs` too (`10948f5`, e2e asserts it).
 
 ## Known residue
 
