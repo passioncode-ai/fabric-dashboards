@@ -40,12 +40,12 @@ license: the next tag is the first.
 ## Open
 
 - UX scenarios are `draft` until the operator approves them from the running app.
-- **Releases from GitHub are wired but cannot run yet.** Both packages name their `release.yml`
-  as npm trusted publisher (OIDC, `createPackage` + stage), and both repositories set
-  `RELEASE_ENABLED` / `PUBLISH_NPMJS`. Hosted Actions in these private repositories do not
-  start: GitHub answers "recent account payments have failed or your spending limit needs to
-  be increased" (runs on `v0.4.0`–`v0.4.2`). The operator decides: raise the limit, or make both
-  repositories public after a history audit (the npm tarballs are public already).
+- **Releases come from GitHub.** `fabric-agent-adapter` and `passioncode` are public since
+  2026-09-29 (full-history gitleaks: 0 findings). A `v*` tag runs `release.yml`, which publishes
+  through npm trusted publishing with provenance: `@passioncode-ai/passioncode@0.1.6` and
+  `@passioncode-ai/fabric-agent-adapter@0.4.3` were published by `GitHub Actions
+  <npm-oidc-no-reply@github.com>` with no human step; the launcher's self-update trusts that
+  identity (`github-actions-oidc`).
 - `http.server` asks the resolver for its FQDN between `bind()` and `listen()`; on the macOS
   runner the port stayed bound but silent. Fixed in the adapter kit (`LoopbackHTTPServer`,
   0.4.2) and in every server that used the stdlib class.
