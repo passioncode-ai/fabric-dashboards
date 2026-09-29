@@ -27,6 +27,16 @@ This repository was recreated from a clean tree on 2026-09-29 so that nothing ab
 operator's personal agents is public; the development history is kept privately in
 `passioncode-ai/fabric-dashboards-archive`.
 
+## License change, 2026-09-29
+
+Relicensed from MIT to `PolyForm-Noncommercial-1.0.0 OR LicenseRef-PolyForm-Internal-Use-1.0.0`
+(operator decision; commercial license on request). `LICENSE` carries both verbatim PolyForm
+texts and names what stays MIT (v0.1.0 and commits up to `7fb699d`); `package.json` and the
+lockfile root carry the SPDX expression; `CLA.md`, the PR template checkbox and CONTRIBUTING
+say contributions are accepted under it. README no longer links the private contract and
+adapter repositories. Repository homepage and topics set. Nothing released yet under the new
+license: the next tag is the first.
+
 ## Open
 
 - UX scenarios are `draft` until the operator approves them from the running app.

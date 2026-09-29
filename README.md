@@ -31,13 +31,18 @@ It never starts a service process itself — launchd is the only supervisor
 
 ## How a service joins
 
-Build or migrate it with the `building-fabric-services` skill of
-[fabric-agent-adapter](https://github.com/passioncode-ai/fabric-agent-adapter). Its
-installer writes a descriptor into
+A service writes a descriptor into
 `~/Library/Application Support/ai.passioncode.fabric/services/`; the app picks it up
-within five seconds. The protocol is the `fabric-service/0.1` extension of the
-[Fabric Agent Contract](https://github.com/passioncode-ai/fabric-agent-contract)
-(`docs/specification/service.md`, DEC-0015).
+within five seconds. The protocol is `fabric-service/0.1`, an extension of the Fabric
+Agent Contract. Its public description is section 2 of the
+[design](docs/design/2026-09-28-fabric-dashboards-design.md#2-fabric-service01--the-protocol),
+and the contract's fixtures are copied under [`test/fixtures/contract/`](test/fixtures/contract/).
+[Project Observatory](https://github.com/passioncode-ai/project-observatory-dashboard)
+has spoken it since 0.8.0 and is a public example
+([its design note](https://github.com/passioncode-ai/project-observatory-dashboard/blob/main/docs/design/FABRIC-SERVICE.md)).
+
+The Fabric Agent Contract and the Fabric agent adapter, whose `building-fabric-services`
+skill builds or migrates a service, are private repositories for now.
 
 ## Install
 
@@ -47,7 +52,15 @@ drag the app to Applications. It opens at login by default and updates itself.
 ## Develop
 
 See [CONTRIBUTING](CONTRIBUTING.md). Runbook: [docs/RUNBOOK.md](docs/RUNBOOK.md).
+Contributions are accepted under the [Contributor License Agreement](CLA.md).
 
 - Design: [docs/design/2026-09-28-fabric-dashboards-design.md](docs/design/2026-09-28-fabric-dashboards-design.md)
 - UX: [scenarios](docs/ux/scenarios.md), [screens](docs/ux/screens.md), [foundation](docs/ux/foundation.md)
 - Decisions: [docs/adr/](docs/adr/) · glossary: [CONTEXT.md](CONTEXT.md)
+
+## License
+
+Source-available under PolyForm Noncommercial or Internal Use; commercial license on request
+(contact@passioncode.ai). SPDX: `PolyForm-Noncommercial-1.0.0 OR LicenseRef-PolyForm-Internal-Use-1.0.0`.
+Release v0.1.0 and earlier commits were released under the MIT License and remain available
+under MIT. Full terms: [LICENSE](LICENSE).

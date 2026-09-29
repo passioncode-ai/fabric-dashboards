@@ -1,5 +1,9 @@
 # Contributing
 
+Contributions are accepted under the [Contributor License Agreement](CLA.md): tick its box in
+the pull request template. It lets PassionCode.ai keep offering Fabric Dashboards under its
+source-available licenses ([LICENSE](LICENSE)) and under separate commercial licenses.
+
 ```bash
 npm ci
 npm run check        # typecheck, unit + integration tests, brand pins, UX lint

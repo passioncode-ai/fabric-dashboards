@@ -1,6 +1,8 @@
 # Security
 
-Report vulnerabilities privately to the maintainers of the `passioncode-ai` organization.
+Report vulnerabilities privately through GitHub's
+[private vulnerability reporting](https://github.com/passioncode-ai/fabric-dashboards/security/advisories/new)
+for this repository, or by email to contact@passioncode.ai.
 Do not open a public issue containing tokens, descriptor contents from your machine, or
 service data.
 

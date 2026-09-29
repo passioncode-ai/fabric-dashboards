@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- **License.** From the next release, Fabric Dashboards is source-available under
+  `PolyForm-Noncommercial-1.0.0 OR LicenseRef-PolyForm-Internal-Use-1.0.0`, with a
+  commercial license on request (contact@passioncode.ai). Release 0.1.0 and every earlier
+  commit, and the later commits up to and including `7fb699d`, stay available under MIT.
+  Contributions are accepted under [CLA.md](CLA.md).
+
 ## 0.1.0 - 2026-09-28
 
 First release of Fabric Dashboards: one window for every local agent service on the Mac

@@ -4,8 +4,12 @@
   "version": "0.1.0",
   "private": true,
   "description": "Fabric Dashboards (PassionCode.ai): finds, watches and controls every local agent service on this Mac that speaks fabric-service/0.1.",
-  "license": "MIT",
-  "author": "PassionCode.ai",
+  "license": "PolyForm-Noncommercial-1.0.0 OR LicenseRef-PolyForm-Internal-Use-1.0.0",
+  "author": {
+    "name": "PassionCode.ai",
+    "url": "https://passioncode.ai/"
+  },
+  "homepage": "https://passioncode.ai/",
   "main": "out/main/electron/main.js",
   "scripts": {
     "build:main": "tsc -p tsconfig.main.json && esbuild src/electron/preload.ts --bundle --platform=node --external:electron --format=cjs --target=node22 --outfile=out/main/electron/preload.js --log-level=warning",
