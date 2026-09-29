@@ -31,6 +31,9 @@ test('discovers a live service, opens its dashboard signed in, keeps one view, s
     const page = await app.firstWindow();
     await page.getByRole('button', { name: /Sample Service — Ready/ }).waitFor({ timeout: 20_000 });
     await shot(page, '01-overview');
+    const logs = await app.evaluate(({ app: a }) => a.getPath('logs'));
+    assert.ok(logs.startsWith(path.join(base, 'app')), `a test run logs inside its own data, not the operator's (${logs})`);
+    assert.ok(fs.readFileSync(path.join(logs, 'main.log'), 'utf8').includes(services), 'the start line names the test services dir');
 
     await page.getByRole('button', { name: /Sample Service — Ready/ }).click();
     await page.getByRole('heading', { name: 'Sample Service' }).waitFor();

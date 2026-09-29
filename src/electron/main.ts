@@ -19,7 +19,12 @@ import { ServiceViews } from './views';
 
 app.enableSandbox();
 app.setName('Fabric Dashboards');
-if (process.env.FABRIC_DASHBOARDS_USER_DATA) app.setPath('userData', process.env.FABRIC_DASHBOARDS_USER_DATA);
+if (process.env.FABRIC_DASHBOARDS_USER_DATA) {
+  // A test or second profile keeps its logs beside its data; Electron derives `logs` from the
+  // app name, not from userData, so without this a test run writes into the operator's log.
+  app.setPath('userData', process.env.FABRIC_DASHBOARDS_USER_DATA);
+  app.setPath('logs', path.join(process.env.FABRIC_DASHBOARDS_USER_DATA, 'logs'));
+}
 
 const assets = app.isPackaged ? path.join(process.resourcesPath, 'assets') : path.join(__dirname, '../../../build/assets');
 const rendererIndex = path.join(__dirname, '../../renderer/index.html');
