@@ -131,17 +131,27 @@ and its bundled MCP server — finds it the way a checkout does.
 ## Consuming it from Fabric
 
 Pin a commit of this repository and take the package from its folder. With pnpm (Fabric uses
-pnpm 11):
+pnpm 11), in the consuming package's `package.json`:
 
 ```json
-"@passioncode-ai/fabric-service-host": "github:passioncode-ai/fabric-dashboards#<commit>&path:/packages/service-host"
+"@passioncode-ai/fabric-service-host": "github:passioncode-ai/fabric-dashboards#<full commit sha>&path:/packages/service-host"
 ```
 
 pnpm fetches that folder at the pinned commit and runs its `prepare` script, which builds
-`dist/` with its own `typescript` dev dependency; Fabric's `pnpm-workspace.yaml` must allow that
-build (`allowBuilds: { '@passioncode-ai/fabric-service-host': true }`). Moving the pin is a
-reviewed change in Fabric, like any dependency bump; the state vectors travel with the pin, so
-Fabric's run of them tests the exact code it ships.
+`dist/` with the package's own `typescript` dev dependency. pnpm 11 runs it only when the
+workspace allows that exact fetch — the package name alone is refused with
+`ERR_PNPM_GIT_DEP_PREPARE_NOT_ALLOWED` — so `pnpm-workspace.yaml` names the resolved tarball:
+
+```yaml
+allowBuilds:
+  "@passioncode-ai/fabric-service-host@https://codeload.github.com/passioncode-ai/fabric-dashboards/tar.gz/<full commit sha>#path:/packages/service-host": true
+```
+
+Checked with pnpm 11.21.0 on a scratch consumer: `pnpm install` exit 0, `dist/` built, every
+state vector passing through `require`, and the four entry points typechecking under both
+`moduleResolution: bundler` and `nodenext`. Moving the pin is a reviewed change in Fabric, like
+any dependency bump, and moves the `allowBuilds` key with it; the state vectors travel with the
+pin, so Fabric's run of them tests the exact code it ships.
 
 ## Develop
 

@@ -106,7 +106,7 @@ this app, shared rather than copied ([ADR-0006](adr/0006-shared-service-host-pac
   commit with `path:` — results in the PR.
 
 For Fabric (not done here — Fabric is edited in its own run): add the dependency pinned to the
-landed commit, allow its build in `pnpm-workspace.yaml`, read `services/` with
+landed commit, allow its build in `pnpm-workspace.yaml` (the exact key is in the package README), read `services/` with
 `lookAtServices`, run the vectors in Fabric's tests, and decide how the ten states map onto the
 registry's six health values. `org-index/repositories.json` needs this repository's row to name
 the package it now provides.
