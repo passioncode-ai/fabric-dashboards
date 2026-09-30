@@ -1,6 +1,6 @@
 # Handoff — Fabric Dashboards
 
-Updated 2026-09-30.
+Updated 2026-09-30 (repository standard and AGPL-3.0).
 
 ## Objective
 
@@ -27,6 +27,29 @@ Cross-repository index: `passioncode-ai/org-index` → `docs/runs/2026-09-28-fab
 This repository was recreated from a clean tree on 2026-09-29 so that nothing about the
 operator's personal agents is public; the development history is kept privately in
 `passioncode-ai/fabric-dashboards-archive`.
+
+## Repository standard and AGPL-3.0, 2026-09-30 (branch `agent/standard-agpl`)
+
+Objective: this repository meets the PassionCode.ai repository standard (fabric-workspace
+`knowledge/repository-standard.md`, org-index `scripts/check_format.py` F1–F11) and the licence of
+Fabric ADR-0092 ([ADR-0007](adr/0007-agpl-or-commercial.md)).
+
+- `LICENSE` is the AGPL-3.0 template, `COMMERCIAL-LICENSE.md` added, `CLA.md` already matched the
+  template; `package.json`, `packages/service-host/package.json` and `package-lock.json` declare
+  `AGPL-3.0-only OR LicenseRef-PassionCode-Commercial`.
+- README: first paragraph names Fabric's role and that the app works on its own;
+  `## Quick start for a new teammate` with Install / Configure / MCP / Develop; `## License` in
+  the knowledge base wording (v0.1.0 MIT; v0.2.0–v0.3.0 PolyForm). AGENTS.md opens with the
+  knowledge base *Read first* block, has a Commands table, and ends with *After work*.
+  CONTRIBUTING and the service-host README no longer say "source-available".
+- MCP proof with a real client, in a temporary directory with a temporary config (no user config
+  touched): `claude -p "Call the fabric-dashboards list_services tool once and reply with only the
+  number of services it returned." --strict-mcp-config --mcp-config <temp>.json --allowedTools
+  mcp__fabric-dashboards__list_services --output-format stream-json --verbose --max-turns 3`
+  against the installed 0.3.0 app → init `fabric-dashboards` `connected`, one `list_services`
+  call, result `success`, answer `4` (the services installed on the operator's Mac), exit 0.
+- Not released: v0.3.0 stays PolyForm. **Next task:** the next release (RUNBOOK) is the first
+  under AGPL-3.0 or commercial; its `CHANGELOG.md` section carries a *License* line saying so.
 
 ## License change, 2026-09-29
 

@@ -2,15 +2,14 @@
 
 # Fabric Dashboards
 
-> **PassionCode.ai — The agent-agnostic operating system for AI-native teams.**
+Fabric Dashboards is one window for every local agent service on your Mac. It finds each
+service that speaks `fabric-service/0.1`, shows whether it is alive and what it did last,
+starts, stops and restarts it through launchd, and opens its dashboard inside the app — signed
+in, one live view per service — instead of a browser tab per port. It is the monitoring tool of
+[Fabric](https://passioncode.ai/), PassionCode.ai's CEO AI agent, and it also works on its own:
+agents drive it over MCP, people use the window.
 
-One window for every local agent service on your Mac. Fabric Dashboards finds each
-service that speaks `fabric-service/0.1`, shows whether it is alive and what it did
-last, starts, stops and restarts it through launchd, and opens its dashboard inside the
-app — signed in, one live view per service — instead of a browser tab per port. It is
-Fabric's monitoring tool and works on its own.
-
-**Status (2026-09-29): 0.2.0 released** — [download](https://github.com/passioncode-ai/fabric-dashboards/releases/latest). See [HANDOFF](docs/HANDOFF.md)
+**Status (2026-09-30): 0.3.0 released** — [download](https://github.com/passioncode-ai/fabric-dashboards/releases/latest). See [HANDOFF](docs/HANDOFF.md)
 for what is released and what is next.
 
 ## What it does
@@ -48,45 +47,77 @@ The [Fabric Agent Adapter](https://github.com/passioncode-ai/fabric-agent-adapte
 `building-fabric-services` skill builds or migrates a service, is public; the Fabric Agent
 Contract is a private repository for now.
 
-## Quick start
+## Quick start for a new teammate
 
-1. **Get the app.** Download `Fabric-Dashboards-<version>.dmg` from the
-   [latest release](https://github.com/passioncode-ai/fabric-dashboards/releases/latest), open it
-   and drag **Fabric Dashboards** to Applications. It is signed with a Developer ID and notarized,
-   so it opens without a Gatekeeper warning (`spctl -a -vv -t exec "/Applications/Fabric Dashboards.app"`
-   prints `accepted`, `source=Notarized Developer ID`). macOS 13 or later.
-2. **First run.** Open it from Applications. It lives in the menu bar and opens its window; with
-   no service installed the overview says *No services yet* and **Show folder** opens the services
-   folder. A service appears within five seconds of its installer writing a descriptor there. It
-   opens at login from then on (Settings) and updates itself.
-3. **Register the MCP server** that ships inside the app, once, for every project
-   (`--scope user`; without it Claude Code registers it for the current directory only):
+### Install
 
-   ```bash
-   claude mcp add --scope user fabric-dashboards -- "/Applications/Fabric Dashboards.app/Contents/Resources/bin/fabric-dashboards-mcp"
-   claude mcp get fabric-dashboards        # Status: ✔ Connected
-   ```
+Download `Fabric-Dashboards-<version>.dmg` from the
+[latest release](https://github.com/passioncode-ai/fabric-dashboards/releases/latest), open it and
+drag **Fabric Dashboards** to Applications. It is signed with a Developer ID and notarized, so it
+opens without a Gatekeeper warning (`spctl -a -vv -t exec "/Applications/Fabric Dashboards.app"`
+prints `accepted`, `source=Notarized Developer ID`). macOS 13 or later.
 
-   Any other MCP client runs the same file as a stdio server; it needs no arguments.
-4. **Check it answers** — one tool call, straight to the server:
+Open it from Applications. It lives in the menu bar and opens its window; with no service
+installed the overview says *No services yet* and **Show folder** opens the services folder. A
+service appears within five seconds of its installer writing a descriptor there. It opens at
+login from then on (Settings) and updates itself from GitHub releases.
 
-   ```bash
-   printf '%s\n' \
-     '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18"}}' \
-     '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"list_services","arguments":{}}}' \
-     | "/Applications/Fabric Dashboards.app/Contents/Resources/bin/fabric-dashboards-mcp"; echo "exit $?"
-   ```
+### Configure
 
-   Two JSON lines come back — `serverInfo` with the app's version, then `services` (empty until a
-   service is installed) and `services_dir` — and `exit 0`. Release 0.2.0 hands out links as
-   `open?service=…`; later releases as `service/…` (below). Both open.
+No keys. Each service's token is read from that service's own descriptor, in the main process
+only ([SECURITY](SECURITY.md)). Optional environment variables: `FABRIC_DASHBOARDS_USER_DATA`
+(a separate profile and log folder, for a checkout build or tests) and `FD_SKIP_LAUNCHD`
+(tests without a GUI login session).
 
-**From source** instead (Node 20 or later, macOS): `git clone https://github.com/passioncode-ai/fabric-dashboards && cd fabric-dashboards && npm ci && npm start`.
+### MCP
+
+Register the stdio server that ships inside the app, once, for every project (`--scope user`;
+without it Claude Code registers it for the current directory only):
+
+```bash
+claude mcp add --scope user fabric-dashboards -- "/Applications/Fabric Dashboards.app/Contents/Resources/bin/fabric-dashboards-mcp"
+claude mcp get fabric-dashboards        # Status: ✔ Connected
+```
+
+One call that proves it works, from a real client:
+
+```bash
+claude -p "Call the fabric-dashboards list_services tool once and reply with only the number of services it returned." \
+  --allowedTools mcp__fabric-dashboards__list_services --max-turns 3
+```
+
+The answer is the number of installed services (`0` until one is installed). Any other MCP
+client runs the same file as a stdio server with no arguments; without a client, two JSON-RPC
+lines prove the server answers:
+
+```bash
+printf '%s\n' \
+  '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18"}}' \
+  '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"list_services","arguments":{}}}' \
+  | "/Applications/Fabric Dashboards.app/Contents/Resources/bin/fabric-dashboards-mcp"; echo "exit $?"
+```
+
+Two JSON lines come back — `serverInfo` with the app's version, then `services` and
+`services_dir` — and `exit 0`. Release 0.2.0 hands out links as `open?service=…`; later releases
+as `service/…` (below). Both open.
+
+### Develop
+
+Node 20 or later, macOS:
+
+```bash
+git clone https://github.com/passioncode-ai/fabric-dashboards && cd fabric-dashboards
+npm ci
+npm start            # run from source
+npm run check        # the gate: typecheck, tests, brand pins, code regions, UX lint
+npm run test:e2e     # drives the real Electron app against a live sample service
+```
+
 The MCP server from a checkout is `node out/main/mcp/server.js` after `npm run build`. A checkout
 build does not register the `fabric-dashboards://` scheme; links open only in the installed app.
 While the installed app runs, a checkout build shares its profile and only brings the installed
 window forward: quit the installed app first, or give the checkout its own profile with
-`FABRIC_DASHBOARDS_USER_DATA=/tmp/fd-dev npm start`.
+`FABRIC_DASHBOARDS_USER_DATA=/tmp/fd-dev npm start`. More in [CONTRIBUTING](CONTRIBUTING.md).
 
 ## For agents
 
@@ -97,7 +128,7 @@ app — and the plain `http_url` as a fallback. `open` opens it now, in the defa
 the app is not installed. [ADR-0004](docs/adr/0004-deep-links-and-mcp.md) and
 [ADR-0005](docs/adr/0005-service-links.md) have the rules.
 
-## Develop
+## Design and decisions
 
 See [CONTRIBUTING](CONTRIBUTING.md). Runbook: [docs/RUNBOOK.md](docs/RUNBOOK.md).
 Contributions are accepted under the [Contributor License Agreement](CLA.md).
@@ -110,7 +141,6 @@ Contributions are accepted under the [Contributor License Agreement](CLA.md).
 
 ## License
 
-Source-available under PolyForm Noncommercial or Internal Use; commercial license on request
-(contact@passioncode.ai). SPDX: `PolyForm-Noncommercial-1.0.0 OR LicenseRef-PolyForm-Internal-Use-1.0.0`.
-Release v0.1.0 and earlier commits were released under the MIT License and remain available
-under MIT. Full terms: [LICENSE](LICENSE).
+Open source under the [GNU AGPL-3.0](LICENSE). A [commercial license](COMMERCIAL-LICENSE.md) is
+available for use that does not meet the AGPL's terms — contact@passioncode.ai.
+Versions up to and including v0.3.0 were released under PolyForm Noncommercial or Internal Use (v0.2.0–v0.3.0) and the MIT License (v0.1.0 and earlier); those releases keep their licence.
