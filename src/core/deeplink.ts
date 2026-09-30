@@ -6,10 +6,11 @@
 // same place here, signed in. Parsing is pure and checked against the descriptors the app
 // already trusts: a link can only name a service that is installed and a path on that service's
 // own origin (docs/adr/0004-deep-links-and-mcp.md, docs/adr/0005-service-links.md).
-import { INSTANCE_PATTERN, ID_PATTERN, portOf } from './descriptor';
-import type { Descriptor } from './types';
+// The key syntax, the safe path and the link builder are shared with Fabric
+// (@passioncode-ai/fabric-service-host → links), so the two apps cannot disagree on the form.
+import { isServiceKey, portOf, safePath, SCHEME, serviceLink, type Descriptor } from '@passioncode-ai/fabric-service-host';
 
-export const SCHEME = 'fabric-dashboards';
+export { isServiceKey, safePath, SCHEME } from '@passioncode-ai/fabric-service-host';
 
 export type DeepLink =
   | { page: 'service'; key: string; link?: string }
@@ -25,20 +26,6 @@ export type Known = ReadonlyArray<{ key: string; descriptor: Descriptor | null }
 const quote = (s: string, max = 80) => JSON.stringify(s.slice(0, max));
 
 const PATH_REFUSED = 'path must be a path on the service, starting with one /';
-const MAX_LINK = 2048;
-
-/** `id.instance`, each part in the descriptor's own syntax; nothing encoded, nothing extra. */
-export function isServiceKey(key: string): boolean {
-  const dot = key.indexOf('.');
-  return dot > 0 && ID_PATTERN.test(key.slice(0, dot)) && INSTANCE_PATTERN.test(key.slice(dot + 1));
-}
-
-/** A path on the service's own origin: `/…`, not `//host`, no backslash, no control character. */
-export function safePath(path: string): string | null {
-  if (!path.startsWith('/') || path.startsWith('//') || path.length > MAX_LINK) return null;
-  if (/[\\\u0000-\u001f\u007f]/.test(path)) return null;
-  return path;
-}
 
 /**
  * `fabric-dashboards://service/<id.instance>[?path=/…]`             (the form linkFor hands out)
@@ -125,9 +112,5 @@ export function fromServiceUrl(raw: string, known: Known): DeepLinkResult {
  * app would refuse.
  */
 export function linkFor(key: string, path?: string): string {
-  if (!isServiceKey(key)) throw new TypeError(`not a service key ${quote(key)}: id.instance, lowercase letters, digits and dashes`);
-  const base = `${SCHEME}://service/${key}`;
-  if (path === undefined || path === '') return base;
-  if (!safePath(path)) throw new TypeError(PATH_REFUSED);
-  return `${base}?${new URLSearchParams({ path }).toString()}`;
+  return serviceLink(key, path);
 }

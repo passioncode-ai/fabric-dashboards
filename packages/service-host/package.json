@@ -1,0 +1,52 @@
+{
+  "name": "@passioncode-ai/fabric-service-host",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Reading local agent services that speak fabric-service/0.1: descriptor discovery in services/, claim conflicts, launchd status, the well-known health probe, the state precedence, and the fabric-dashboards://service/<id>.<instance> link. Shared by Fabric Dashboards and Fabric.",
+  "license": "PolyForm-Noncommercial-1.0.0 OR LicenseRef-PolyForm-Internal-Use-1.0.0",
+  "author": {
+    "name": "PassionCode.ai",
+    "url": "https://passioncode.ai/"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/passioncode-ai/fabric-dashboards.git",
+    "directory": "packages/service-host"
+  },
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" },
+    "./protocol": { "types": "./dist/protocol.d.ts", "default": "./dist/protocol.js" },
+    "./state": { "types": "./dist/state.d.ts", "default": "./dist/state.js" },
+    "./links": { "types": "./dist/links.d.ts", "default": "./dist/links.js" },
+    "./test-vectors/state-precedence.json": "./test-vectors/state-precedence.json",
+    "./package.json": "./package.json"
+  },
+  "typesVersions": {
+    "*": {
+      "protocol": ["dist/protocol.d.ts"],
+      "state": ["dist/state.d.ts"],
+      "links": ["dist/links.d.ts"]
+    }
+  },
+  "files": [
+    "dist",
+    "src",
+    "test-vectors",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "prepare": "tsc -p tsconfig.json",
+    "test": "node --import tsx --test test/*.test.ts"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.3",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2"
+  }
+}

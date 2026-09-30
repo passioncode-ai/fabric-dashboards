@@ -29,8 +29,12 @@ and on manual dispatch, with `FD_SKIP_LAUNCHD=1`. The release steps are in
 
 - [docs/HANDOFF.md](docs/HANDOFF.md) shows where each module stands, the next task and the checks
   that were run.
-- Code: `src/core/` (discovery, state, launchd, probes), `src/electron/` (main process, tray,
-  updater) and `src/renderer/` (UI). Tests are in `test/`.
+- Code: `packages/service-host/` — the npm workspace `@passioncode-ai/fabric-service-host`, the
+  reading code Fabric also uses (descriptors, conflicts, launchd status, health, state
+  precedence, service links; [its README](packages/service-host/README.md),
+  [ADR-0006](docs/adr/0006-shared-service-host-package.md)); `src/core/` (monitor, launchd
+  verbs, token-gated probes, links, activity, settings), `src/electron/` (main process, tray,
+  updater) and `src/renderer/` (UI). Tests are in `test/` and `packages/service-host/test/`.
 - The design is
   [docs/design/2026-09-28-fabric-dashboards-design.md](docs/design/2026-09-28-fabric-dashboards-design.md).
   Decisions are ADRs in [docs/adr/](docs/adr/), and [CONTEXT.md](CONTEXT.md) is the glossary.
@@ -44,6 +48,9 @@ and on manual dispatch, with `FD_SKIP_LAUNCHD=1`. The release steps are in
 
 - launchd is the only supervisor. The app never starts a service process itself
   ([ADR-0002](docs/adr/0002-launchd-is-the-only-supervisor.md)).
+- Reading a service belongs in `packages/service-host` (Fabric shares it); changing one, a token
+  and the events feed stay in the app. A change to the state order updates
+  `test-vectors/state-precedence.json` in the same change — Fabric runs that file too (ADR-0006).
 - A user-facing change updates `docs/ux/scenarios.md` in the same change (`CONTRIBUTING.md`).
 - To change a brand file, update the canonical file on the website, copy it and repin
   (`CONTRIBUTING.md`).

@@ -5,17 +5,20 @@
 //
 // Same rules as the app: launchd is the only supervisor (ADR-0002); a token is read here and
 // never returned; a command is only ever the descriptor's own argument array.
+//
+// Reading — descriptors, claim conflicts, launchd status, the health probe, the state — is one
+// look through @passioncode-ai/fabric-service-host, the same code Fabric's registry reads with.
 import { execFile } from 'node:child_process';
-import { claimConflicts, expand, readDirectory, servicesDir as defaultServicesDir, type DescriptorEntry } from '../core/descriptor';
+import {
+  APP_NAME, expand, lookAtServices, readDirectory, servicesDir as defaultServicesDir,
+  type Descriptor, type DescriptorEntry, type ServiceLook, type ServiceState, type WellKnownResult,
+} from '@passioncode-ai/fabric-service-host';
 import { fromServiceUrl, isServiceKey, linkFor, safePath } from '../core/deeplink';
 import { Launchd, execRunner, type Runner } from '../core/launchd';
 import { fetchEvents, fetchWellKnown, readToken } from '../core/probe';
-import { DOWN_AFTER_MS, deriveState } from '../core/state';
-import type { Descriptor, ServiceState, WellKnownResult } from '../core/types';
 
 export const COMMAND_TIMEOUT_MS = 120_000;
 export const CONTROL_TIMEOUT_MS = 40_000;
-const APP_NAME = 'Fabric Dashboards';
 
 export interface Deps {
   servicesDir: () => string;
@@ -80,58 +83,54 @@ export interface ServiceView {
   problems: string[];
 }
 
-async function view(entry: DescriptorEntry, conflict: { port?: number; with: string[] } | undefined, deps: Deps): Promise<ServiceView> {
-  const d = entry.descriptor;
-  const probe = d && !conflict ? await deps.wellKnown(d.origin) : null;
-  const managed = d?.lifecycle.manager === 'launchd' && Boolean(d.lifecycle.label);
-  const launchd = managed ? { managed: true, ...(await deps.launchd.status(d!.lifecycle.label!)) } : { managed: false, loaded: false, pid: null, disabled: false };
-  const { state, reasons } = deriveState({
-    descriptor: d, problems: entry.problems, conflict, launchd, probe,
-    // One look, not a watch: a service that does not answer now is `down`, not «starting».
-    firstUnansweredAt: deps.now() - DOWN_AFTER_MS, now: deps.now(), busy: null,
-  });
-  const wk = probe?.kind === 'answer' ? probe.doc : null;
+function view(s: ServiceLook): ServiceView {
+  const d = s.descriptor;
+  const wk = s.wellKnown;
   const dashPath = wk?.surfaces.dashboard?.path ?? null;
   return {
-    key: entry.key,
-    name: d?.name ?? entry.key,
-    state,
-    reasons,
+    key: s.key,
+    name: d?.name ?? s.key,
+    state: s.state,
+    reasons: s.reasons,
     version: wk?.service.version ?? null,
     build: wk?.service.build.commit ?? wk?.service.build.digest ?? null,
     origin: d?.origin ?? null,
     dashboard: d && dashPath ? `${d.origin}${dashPath}` : null,
     // A descriptor that cannot be read names no service a link could open.
-    open_link: d && isServiceKey(entry.key) ? linkFor(entry.key, dashPath && safePath(dashPath) ? dashPath : undefined) : null,
+    open_link: d && isServiceKey(s.key) ? linkFor(s.key, dashPath && safePath(dashPath) ? dashPath : undefined) : null,
     tiles: wk?.summary ?? [],
     update_available: wk?.update?.available ?? null,
     commands: Object.keys(d?.commands ?? {}),
-    problems: entry.problems,
+    problems: s.problems,
   };
 }
 
-function entries(deps: Deps): { list: DescriptorEntry[]; conflicts: ReturnType<typeof claimConflicts> } {
-  const list = readDirectory(deps.servicesDir());
-  return { list, conflicts: claimConflicts(list) };
+/** One look, as the package reads it; an unreadable services directory is the tool's error. */
+async function look(deps: Deps, only?: string[]): Promise<ServiceLook[]> {
+  const out = await lookAtServices({ servicesDir: deps.servicesDir(), wellKnown: deps.wellKnown, launchd: deps.launchd, now: deps.now, only });
+  if (out.error) throw new ToolError(`cannot read the services directory ${out.servicesDir}: ${out.error}`);
+  return out.services;
+}
+
+function entries(deps: Deps): DescriptorEntry[] {
+  return readDirectory(deps.servicesDir());
 }
 
 function find(deps: Deps, key: string): DescriptorEntry & { descriptor: Descriptor } {
-  const entry = entries(deps).list.find((e) => e.key === key);
+  const entry = entries(deps).find((e) => e.key === key);
   if (!entry) throw new ToolError(`no installed service ${JSON.stringify(key)}; list_services names them`);
   if (!entry.descriptor) throw new ToolError(`the descriptor of ${key} is invalid: ${entry.problems[0] ?? 'unreadable'}`);
   return entry as DescriptorEntry & { descriptor: Descriptor };
 }
 
 export async function listServices(deps: Deps): Promise<{ services: ServiceView[]; services_dir: string }> {
-  const { list, conflicts } = entries(deps);
-  return { services: await Promise.all(list.map((e) => view(e, conflicts.get(e.key), deps))), services_dir: deps.servicesDir() };
+  return { services: (await look(deps)).map(view), services_dir: deps.servicesDir() };
 }
 
 export async function serviceStatus(deps: Deps, key: string): Promise<ServiceView> {
-  const { list, conflicts } = entries(deps);
-  const entry = list.find((e) => e.key === key);
-  if (!entry) throw new ToolError(`no installed service ${JSON.stringify(key)}`);
-  return view(entry, conflicts.get(key), deps);
+  const [one] = await look(deps, [key]);
+  if (!one) throw new ToolError(`no installed service ${JSON.stringify(key)}`);
+  return view(one);
 }
 
 // ── links and opening ───────────────────────────────────────────────────────────────────
@@ -140,7 +139,7 @@ export interface Target { service?: string; path?: string; url?: string }
 
 /** The service and path an agent means, from a key + path or from the service's own URL. */
 export function resolveTarget(deps: Deps, t: Target): { key: string; path?: string; http: string } {
-  const known = entries(deps).list.map((e) => ({ key: e.key, descriptor: e.descriptor }));
+  const known = entries(deps).map((e) => ({ key: e.key, descriptor: e.descriptor }));
   if (t.url && t.service) throw new ToolError('name a service or a url, not both');
   if (t.url) {
     const r = fromServiceUrl(t.url, known);

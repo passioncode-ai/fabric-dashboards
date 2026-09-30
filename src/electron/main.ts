@@ -7,7 +7,7 @@ import path from 'node:path';
 import { ActivityStore } from '../core/activity';
 import { CHANNELS, type Rect } from '../core/api';
 import { parseDeepLink, SCHEME } from '../core/deeplink';
-import { servicesDir } from '../core/descriptor';
+import { servicesDir } from '@passioncode-ai/fabric-service-host';
 import { langFor, t, type Lang } from '../core/i18n';
 import { execRunner } from '../core/launchd';
 import { listListeners, unattributed } from '../core/listeners';

@@ -85,7 +85,31 @@ keeps the 0.2.0 links working and refuses malformed or foreign targets
 - Not released: 0.2.0 refuses `service/…` as an unknown verb. Fabric's "Open dashboard" needs the
   next release of this app installed.
 
-Next task: the shared service-host package (Fabric plan AR-2.2, Dashboards half), on top of this.
+Landed on `main` by fast-forward as `f338852` ([PR #3](https://github.com/passioncode-ai/fabric-dashboards/pull/3)).
+
+## The shared service-host package, 2026-09-30 (Fabric plan AR-2.2, Dashboards half; branch `agent/service-host`)
+
+Objective: Fabric's registry reads `services/` with the same code and the same state order as
+this app, shared rather than copied ([ADR-0006](adr/0006-shared-service-host-package.md)).
+
+- `packages/service-host` — npm workspace `@passioncode-ai/fabric-service-host` 0.1.0, private,
+  not published; API in [its README](../packages/service-host/README.md). `src/core/descriptor.ts`
+  and `src/core/state.ts` moved into it (git sees the renames); `probe.ts` keeps the token,
+  events and login; `Launchd extends LaunchdReader` keeps the verbs; the MCP server reads through
+  `lookAtServices`.
+- `test-vectors/state-precedence.json` — the shared cases; run by the package
+  (`test/state.test.ts`) and by the app through its own import (`test/core.test.ts`).
+- `scripts/dist-mac.mjs#stageWorkspacePackages` puts the built package into the app's
+  `node_modules` (`test/dist.test.ts` resolves it from a stage alone).
+- Checks run: `npm run check`, `npm run test:e2e`, an unsigned `npm run dist` whose packaged MCP
+  launcher answered `initialize`, and a pnpm 11 consumer installing the package from a pinned
+  commit with `path:` — results in the PR.
+
+For Fabric (not done here — Fabric is edited in its own run): add the dependency pinned to the
+landed commit, allow its build in `pnpm-workspace.yaml`, read `services/` with
+`lookAtServices`, run the vectors in Fabric's tests, and decide how the ten states map onto the
+registry's six health values. `org-index/repositories.json` needs this repository's row to name
+the package it now provides.
 
 ## Open
 

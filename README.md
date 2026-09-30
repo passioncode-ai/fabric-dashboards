@@ -105,6 +105,8 @@ Contributions are accepted under the [Contributor License Agreement](CLA.md).
 - Design: [docs/design/2026-09-28-fabric-dashboards-design.md](docs/design/2026-09-28-fabric-dashboards-design.md)
 - UX: [scenarios](docs/ux/scenarios.md), [screens](docs/ux/screens.md), [foundation](docs/ux/foundation.md)
 - Decisions: [docs/adr/](docs/adr/) · glossary: [CONTEXT.md](CONTEXT.md)
+- Shared with Fabric: [`packages/service-host`](packages/service-host/README.md) — the code that
+  reads `services/` (descriptors, health, state, service links)
 
 ## License
 

@@ -1,19 +1,18 @@
-// Reading and checking descriptors (fabric-service/0.1 → Descriptor).
-// Mirrors schemas/service-descriptor.schema.json and FAC-SEM-010/012; the
-// contract's schema stays normative, the contract fixtures are the test vectors.
+// #region descriptor-discovery — docs: packages/service-host/README.md#discovery
+// Reading and checking descriptors in services/ (fabric-service/0.1 → Descriptor).
+// Mirrors schemas/service-descriptor.schema.json and FAC-SEM-010/012; the contract's schema stays
+// normative, the contract fixtures are the test vectors.
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { PROTOCOL, type Descriptor } from './types';
+import { ID_PATTERN, INSTANCE_PATTERN, PROTOCOL, type ClaimConflict, type Descriptor } from './protocol';
 
-/** A descriptor's `id` and `instance`; together, `id.instance`, they name one installation. */
-export const ID_PATTERN = /^[a-z][a-z0-9-]{1,62}$/;
-export const INSTANCE_PATTERN = /^[a-z][a-z0-9-]{0,31}$/;
 const ORIGIN = /^http:\/\/127\.0\.0\.1:([0-9]{3,5})$/;
 const LABEL = /^[A-Za-z0-9][A-Za-z0-9._-]{2,254}$/;
 const HEADER = /^[A-Za-z][A-Za-z0-9-]{0,63}$/;
 const LOCAL_PATH = /^(~\/|\/)[^\0]*$/;
 
+/** Where installers write descriptors: FABRIC_SERVICES_DIR, else the OS location. */
 export function servicesDir(env: NodeJS.ProcessEnv = process.env, platform = process.platform, home = os.homedir()): string {
   if (env.FABRIC_SERVICES_DIR) return expand(env.FABRIC_SERVICES_DIR, home);
   if (platform === 'darwin') return path.join(home, 'Library/Application Support/ai.passioncode.fabric/services');
@@ -24,6 +23,7 @@ export function expand(p: string, home = os.homedir()): string {
   return p.startsWith('~/') ? path.join(home, p.slice(2)) : p;
 }
 
+/** The port of an `http://127.0.0.1:<port>` origin, or null for anything else. */
 export function portOf(origin: string): number | null {
   const m = ORIGIN.exec(origin);
   if (!m) return null;
@@ -86,7 +86,11 @@ export interface DescriptorEntry {
   problems: string[];
 }
 
-/** Read every *.json in the directory. A half-written or unreadable file is reported, never thrown. */
+/**
+ * Read every *.json in the directory. A half-written or unreadable file is an entry with its
+ * problem, never a throw; an absent directory is an empty list. Anything else the directory
+ * itself refuses (not a directory, no permission) is thrown for the caller to report.
+ */
 export function readDirectory(dir: string): DescriptorEntry[] {
   let names: string[];
   try {
@@ -115,7 +119,7 @@ export function readDirectory(dir: string): DescriptorEntry[] {
 }
 
 /** FAC-SEM-010: which entries claim a port or an id.instance another entry claims. */
-export function claimConflicts(entries: DescriptorEntry[]): Map<string, { port?: number; with: string[] }> {
+export function claimConflicts(entries: readonly DescriptorEntry[]): Map<string, ClaimConflict> {
   const byPort = new Map<number, string[]>();
   const byKey = new Map<string, number>();
   for (const e of entries) {
@@ -124,7 +128,7 @@ export function claimConflicts(entries: DescriptorEntry[]): Map<string, { port?:
     const port = portOf(e.descriptor.origin);
     if (port !== null) byPort.set(port, [...(byPort.get(port) ?? []), e.key]);
   }
-  const out = new Map<string, { port?: number; with: string[] }>();
+  const out = new Map<string, ClaimConflict>();
   for (const [port, keys] of byPort) {
     const unique = [...new Set(keys)];
     if (unique.length > 1) for (const k of unique) out.set(k, { port, with: unique.filter((o) => o !== k) });
@@ -132,3 +136,4 @@ export function claimConflicts(entries: DescriptorEntry[]): Map<string, { port?:
   for (const [key, count] of byKey) if (count > 1 && !out.has(key)) out.set(key, { with: [key] });
   return out;
 }
+// #endregion descriptor-discovery

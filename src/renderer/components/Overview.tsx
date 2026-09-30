@@ -1,4 +1,4 @@
-import { attentionRank } from '../../core/state';
+import { attentionRank } from '@passioncode-ai/fabric-service-host/state';
 import type { AppStatus, ServiceSnapshot } from '../../core/types';
 import { api, nameOf, shortBuild, Spinner, StateBadge, useT } from '../lib';
 

@@ -1,55 +1,13 @@
 // launchd is the only supervisor (ADR-0002). This module never starts a
 // service process itself: every verb is a launchctl call on gui/<uid>/<label>.
-import { execFile } from 'node:child_process';
+// Reading a job's status is shared with Fabric (LaunchdReader in
+// @passioncode-ai/fabric-service-host); the verbs that change a job live only here.
+import { LaunchdReader, type RunResult } from '@passioncode-ai/fabric-service-host';
 
-export interface RunResult { code: number; stdout: string; stderr: string }
-export type Runner = (command: string, args: string[], timeoutMs?: number) => Promise<RunResult>;
+export { execRunner, LaunchdReader, parseDisabled, parsePrint } from '@passioncode-ai/fabric-service-host';
+export type { JobStatus, Runner, RunResult } from '@passioncode-ai/fabric-service-host';
 
-export const execRunner: Runner = (command, args, timeoutMs = 30_000) =>
-  new Promise((resolve) => {
-    execFile(command, args, { timeout: timeoutMs, maxBuffer: 4 * 1024 * 1024, encoding: 'utf8' }, (error, stdout, stderr) => {
-      const code = error ? (typeof (error as NodeJS.ErrnoException & { code?: unknown }).code === 'number' ? Number((error as { code: number }).code) : 1) : 0;
-      resolve({ code, stdout: String(stdout ?? ''), stderr: String(stderr ?? (error ? error.message : '')) });
-    });
-  });
-
-export interface JobStatus { loaded: boolean; pid: number | null; disabled: boolean }
-
-export function parsePrint(stdout: string): { pid: number | null } {
-  const m = /^\s*pid = (\d+)\s*$/m.exec(stdout);
-  return { pid: m ? Number(m[1]) : null };
-}
-
-export function parseDisabled(stdout: string, label: string): boolean {
-  const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const m = new RegExp(`"${escaped}"\\s*=>\\s*(true|false|disabled|enabled)`).exec(stdout);
-  return m ? m[1] === 'true' || m[1] === 'disabled' : false;
-}
-
-export class Launchd {
-  constructor(private readonly run: Runner = execRunner, private readonly uid: number = process.getuid ? process.getuid() : 0) {}
-
-  get domain(): string {
-    return `gui/${this.uid}`;
-  }
-
-  target(label: string): string {
-    return `${this.domain}/${label}`;
-  }
-
-  /** One `print-disabled` for the whole domain, read once per probe round. */
-  async disabledTable(): Promise<string> {
-    const r = await this.run('launchctl', ['print-disabled', this.domain]);
-    return r.code === 0 ? r.stdout : '';
-  }
-
-  async status(label: string, disabledTable?: string): Promise<JobStatus> {
-    const r = await this.run('launchctl', ['print', this.target(label)]);
-    const disabled = parseDisabled(disabledTable ?? (await this.disabledTable()), label);
-    if (r.code !== 0) return { loaded: false, pid: null, disabled };
-    return { loaded: true, pid: parsePrint(r.stdout).pid, disabled };
-  }
-
+export class Launchd extends LaunchdReader {
   private async bootstrap(plist: string): Promise<RunResult> {
     let last: RunResult = { code: 1, stdout: '', stderr: '' };
     for (let attempt = 0; attempt < 5; attempt += 1) {

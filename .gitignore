@@ -7,3 +7,4 @@ test-results/
 test/.debug/
 __pycache__/
 *.pyc
+packages/*/dist/

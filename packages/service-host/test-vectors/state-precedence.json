@@ -1,0 +1,179 @@
+{
+  "schema": "fabric-service-host/state-precedence@1",
+  "about": "The state a host derives for one service from its descriptor, its claim conflicts, launchd, one well-known probe and the host's own action in flight. Each case is `base` with the case's `input` keys replaced (a shallow merge); `expect.state` must equal the derived state and, when given, `expect.reasons` the derived reasons exactly. Any host that reads services/ runs these cases against its own use of deriveState: Fabric Dashboards in test/core.test.ts, the package in packages/service-host/test/state.test.ts.",
+  "downAfterMs": 15000,
+  "base": {
+    "descriptor": {
+      "protocol": "fabric-service/0.1",
+      "id": "example-agent",
+      "instance": "default",
+      "name": "Example Agent",
+      "origin": "http://127.0.0.1:47195",
+      "auth": { "tokenFile": "~/.config/example-agent/service.token" },
+      "lifecycle": { "manager": "launchd", "label": "com.example.example-agent", "plist": "~/Library/LaunchAgents/com.example.example-agent.plist" },
+      "paths": { "data": "~/Library/Application Support/example-agent", "logs": [] },
+      "installedAt": "2026-09-28T18:00:00Z",
+      "installedBy": "example-agent service install 0.2.0"
+    },
+    "problems": [],
+    "conflict": null,
+    "launchd": { "managed": true, "loaded": true, "pid": 51234, "disabled": false },
+    "probe": {
+      "kind": "answer",
+      "ms": 3,
+      "doc": {
+        "protocol": "fabric-service/0.1",
+        "service": { "id": "example-agent", "instance": "default", "name": "Example Agent", "version": "0.2.0", "build": { "commit": "8b80be9" } },
+        "process": { "pid": 51234, "startedAt": "2026-09-28T17:41:02Z" },
+        "status": "ready",
+        "degraded": [],
+        "surfaces": { "dashboard": { "path": "/dashboard", "login": true }, "events": { "path": "/fabric/v1/events" } }
+      }
+    },
+    "firstUnansweredAt": null,
+    "now": 1000000,
+    "busy": null
+  },
+  "cases": [
+    {
+      "name": "answers as itself, ready, one copy",
+      "input": {},
+      "expect": { "state": "ready", "reasons": [] }
+    },
+    {
+      "name": "degraded sources make it degraded, one reason per source",
+      "input": { "probe": { "kind": "answer", "ms": 3, "doc": { "protocol": "fabric-service/0.1", "service": { "id": "example-agent", "instance": "default", "name": "Example Agent", "version": "0.2.0", "build": {} }, "process": { "pid": 51234, "startedAt": "2026-09-28T17:41:02Z" }, "status": "ready", "degraded": [{ "source": "llm", "reason": "No model key: drafting is paused." }], "surfaces": { "events": { "path": "/fabric/v1/events" } } } } },
+      "expect": { "state": "degraded", "reasons": [{ "code": "reason.degraded", "params": { "source": "llm", "reason": "No model key: drafting is paused." } }] }
+    },
+    {
+      "name": "status degraded with an empty list is still degraded",
+      "input": { "probe": { "kind": "answer", "ms": 3, "doc": { "protocol": "fabric-service/0.1", "service": { "id": "example-agent", "instance": "default", "name": "Example Agent", "version": "0.2.0", "build": {} }, "process": { "pid": 51234, "startedAt": "2026-09-28T17:41:02Z" }, "status": "degraded", "degraded": [], "surfaces": { "events": { "path": "/fabric/v1/events" } } } } },
+      "expect": { "state": "degraded", "reasons": [] }
+    },
+    {
+      "name": "the service reports starting",
+      "input": { "probe": { "kind": "answer", "ms": 3, "doc": { "protocol": "fabric-service/0.1", "service": { "id": "example-agent", "instance": "default", "name": "Example Agent", "version": "0.2.0", "build": {} }, "process": { "pid": 51234, "startedAt": "2026-09-28T17:41:02Z" }, "status": "starting", "degraded": [], "surfaces": { "events": { "path": "/fabric/v1/events" } } } } },
+      "expect": { "state": "starting", "reasons": [] }
+    },
+    {
+      "name": "the service reports stopping",
+      "input": { "probe": { "kind": "answer", "ms": 3, "doc": { "protocol": "fabric-service/0.1", "service": { "id": "example-agent", "instance": "default", "name": "Example Agent", "version": "0.2.0", "build": {} }, "process": { "pid": 51234, "startedAt": "2026-09-28T17:41:02Z" }, "status": "stopping", "degraded": [], "surfaces": { "events": { "path": "/fabric/v1/events" } } } } },
+      "expect": { "state": "stopping", "reasons": [] }
+    },
+    {
+      "name": "an unreadable descriptor is invalid, with its first problem",
+      "input": { "descriptor": null, "problems": ["the file cannot be read as JSON: Unexpected end of JSON input"] },
+      "expect": { "state": "invalid", "reasons": [{ "code": "reason.invalid", "params": { "problem": "the file cannot be read as JSON: Unexpected end of JSON input" } }] }
+    },
+    {
+      "name": "invalid comes before a claim conflict",
+      "input": { "problems": ["origin must be http://127.0.0.1:<port>"], "conflict": { "port": 47195, "with": ["writer.default"] } },
+      "expect": { "state": "invalid", "reasons": [{ "code": "reason.invalid", "params": { "problem": "origin must be http://127.0.0.1:<port>" } }] }
+    },
+    {
+      "name": "two descriptors claim one port",
+      "input": { "conflict": { "port": 47195, "with": ["writer.default"] } },
+      "expect": { "state": "conflict", "reasons": [{ "code": "reason.conflict.port", "params": { "port": 47195, "with": "writer.default" } }] }
+    },
+    {
+      "name": "two descriptors claim one id.instance",
+      "input": { "conflict": { "with": ["example-agent.default"] } },
+      "expect": { "state": "conflict", "reasons": [{ "code": "reason.conflict.key", "params": { "port": 0, "with": "example-agent.default" } }] }
+    },
+    {
+      "name": "a conflict comes before the host's own action",
+      "input": { "conflict": { "port": 47195, "with": ["writer.default"] }, "busy": "restarting" },
+      "expect": { "state": "conflict" }
+    },
+    {
+      "name": "the host is stopping it",
+      "input": { "busy": "stopping" },
+      "expect": { "state": "stopping", "reasons": [] }
+    },
+    {
+      "name": "the host is restarting it",
+      "input": { "busy": "restarting" },
+      "expect": { "state": "starting", "reasons": [] }
+    },
+    {
+      "name": "the host is starting it",
+      "input": { "busy": "starting", "probe": { "kind": "no-answer", "detail": "connect ECONNREFUSED 127.0.0.1:47195" } },
+      "expect": { "state": "starting", "reasons": [] }
+    },
+    {
+      "name": "the host's action comes before another program on the port",
+      "input": { "busy": "stopping", "probe": { "kind": "not-protocol", "detail": "HTTP 404 on /.well-known/fabric-service" } },
+      "expect": { "state": "stopping" }
+    },
+    {
+      "name": "running doctor or update is not a state of its own",
+      "input": { "busy": "doctor" },
+      "expect": { "state": "ready" }
+    },
+    {
+      "name": "another fabric service answers on the port",
+      "input": { "probe": { "kind": "answer", "ms": 3, "doc": { "protocol": "fabric-service/0.1", "service": { "id": "maker", "instance": "preview", "name": "Maker", "version": "1.0.0", "build": {} }, "process": { "pid": 51234, "startedAt": "2026-09-28T17:41:02Z" }, "status": "ready", "degraded": [], "surfaces": { "events": { "path": "/fabric/v1/events" } } } } },
+      "expect": { "state": "foreign", "reasons": [{ "code": "reason.foreign.other", "params": { "port": 47195, "answer": "maker.preview" } }] }
+    },
+    {
+      "name": "something that is not a fabric service answers on the port",
+      "input": { "probe": { "kind": "not-protocol", "detail": "HTTP 404 on /.well-known/fabric-service" } },
+      "expect": { "state": "foreign", "reasons": [{ "code": "reason.foreign.protocol", "params": { "port": 47195, "detail": "HTTP 404 on /.well-known/fabric-service" } }] }
+    },
+    {
+      "name": "another program answering comes before launchd saying it is off",
+      "input": { "probe": { "kind": "not-protocol", "detail": "the answer is not JSON" }, "launchd": { "managed": true, "loaded": false, "pid": null, "disabled": true } },
+      "expect": { "state": "foreign" }
+    },
+    {
+      "name": "the answering pid is not launchd's: two copies",
+      "input": { "launchd": { "managed": true, "loaded": true, "pid": 5542, "disabled": false } },
+      "expect": { "state": "duplicate", "reasons": [{ "code": "reason.duplicate", "params": { "answering": 51234, "launchd": 5542 } }] }
+    },
+    {
+      "name": "a service launchd does not manage has no second copy to compare",
+      "input": { "launchd": { "managed": false, "loaded": false, "pid": null, "disabled": false } },
+      "expect": { "state": "ready" }
+    },
+    {
+      "name": "launchd has no pid yet: not a duplicate",
+      "input": { "launchd": { "managed": true, "loaded": true, "pid": null, "disabled": false } },
+      "expect": { "state": "ready" }
+    },
+    {
+      "name": "silent and disabled in launchd: stopped by the operator",
+      "input": { "probe": { "kind": "no-answer", "detail": "connect ECONNREFUSED 127.0.0.1:47195" }, "launchd": { "managed": true, "loaded": false, "pid": null, "disabled": true } },
+      "expect": { "state": "stopped", "reasons": [{ "code": "reason.stopped" }] }
+    },
+    {
+      "name": "silent and not loaded: stopped, not down",
+      "input": { "probe": { "kind": "no-answer", "detail": "connect ECONNREFUSED 127.0.0.1:47195" }, "launchd": { "managed": true, "loaded": false, "pid": null, "disabled": false }, "firstUnansweredAt": 0 },
+      "expect": { "state": "stopped", "reasons": [{ "code": "reason.not-loaded" }] }
+    },
+    {
+      "name": "loaded, silent for less than the grace window: starting",
+      "input": { "probe": { "kind": "no-answer", "detail": "connect ECONNREFUSED 127.0.0.1:47195" }, "firstUnansweredAt": 999000 },
+      "expect": { "state": "starting", "reasons": [{ "code": "reason.waiting" }] }
+    },
+    {
+      "name": "the first silence starts the grace window now",
+      "input": { "probe": { "kind": "no-answer", "detail": "connect ECONNREFUSED 127.0.0.1:47195" }, "firstUnansweredAt": null },
+      "expect": { "state": "starting", "reasons": [{ "code": "reason.waiting" }] }
+    },
+    {
+      "name": "silent for exactly the grace window: down",
+      "input": { "probe": { "kind": "no-answer", "detail": "connect ECONNREFUSED 127.0.0.1:47195" }, "firstUnansweredAt": 985000 },
+      "expect": { "state": "down", "reasons": [{ "code": "reason.down", "params": { "since": "1970-01-01T00:16:25.000Z" } }] }
+    },
+    {
+      "name": "unmanaged and silent past the grace window: down",
+      "input": { "probe": { "kind": "no-answer", "detail": "no answer within 2000 ms" }, "launchd": { "managed": false, "loaded": false, "pid": null, "disabled": false }, "firstUnansweredAt": 1 },
+      "expect": { "state": "down", "reasons": [{ "code": "reason.down", "params": { "since": "1970-01-01T00:00:00.001Z" } }] }
+    },
+    {
+      "name": "not probed (the host skipped it) and loaded: waits, then down",
+      "input": { "probe": null, "firstUnansweredAt": 0 },
+      "expect": { "state": "down" }
+    }
+  ]
+}

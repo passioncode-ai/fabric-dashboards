@@ -5,13 +5,12 @@ import { EventEmitter } from 'node:events';
 import { execFile } from 'node:child_process';
 import fs from 'node:fs';
 import { ActivityStore } from './activity';
-import { claimConflicts, expand, readDirectory, type DescriptorEntry } from './descriptor';
+import { claimConflicts, deriveState, expand, fetchWellKnown, readDirectory, type DescriptorEntry, type WellKnownResult } from '@passioncode-ai/fabric-service-host';
 import { tail } from './fsutil';
 import { duration, t as tr, type Lang } from './i18n';
 import { Launchd } from './launchd';
 import { DOWN_NOTIFY_AFTER_MS, shouldNotify, type Happening } from './notify';
-import { fetchEvents, fetchWellKnown, readToken, type WellKnownResult } from './probe';
-import { deriveState } from './state';
+import { fetchEvents, readToken } from './probe';
 import type { Busy, Reason, ServiceSnapshot, Settings } from './types';
 
 export const CONTROL_TIMEOUT_MS = 40_000;

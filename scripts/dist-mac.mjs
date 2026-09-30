@@ -22,6 +22,25 @@ export const REPO = 'passioncode-ai/fabric-dashboards';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 function requireThat(condition, message) { if (!condition) throw new Error(message); }
+
+// #region stage-workspace-packages — docs: packages/service-host/README.md#inside-the-app
+/**
+ * The app's one runtime dependency is this repository's own workspace package
+ * @passioncode-ai/fabric-service-host (packages/service-host): its built dist, its shared test
+ * vectors and its package.json go into the stage's node_modules, so `require` inside app.asar
+ * finds it the way it does in a checkout. Nothing from the registry is shipped.
+ */
+export function stageWorkspacePackages(from, stage) {
+  const pkgDir = path.join(from, 'packages/service-host');
+  const manifest = JSON.parse(readFileSync(path.join(pkgDir, 'package.json'), 'utf8'));
+  requireThat(existsSync(path.join(pkgDir, 'dist/index.js')), `${manifest.name} is not built; npm run build:host first.`);
+  const target = path.join(stage, 'node_modules', ...manifest.name.split('/'));
+  mkdirSync(target, { recursive: true });
+  writeFileSync(path.join(target, 'package.json'), JSON.stringify({ name: manifest.name, version: manifest.version, license: manifest.license, main: manifest.main, types: manifest.types, exports: manifest.exports }, null, 2));
+  for (const part of ['dist', 'test-vectors']) cpSync(path.join(pkgDir, part), path.join(target, part), { recursive: true });
+  return target;
+}
+// #endregion stage-workspace-packages
 function run(command, args, options = {}) {
   return execFileSync(command, args, { cwd: root, encoding: 'utf8', maxBuffer: 64 * 1024 ** 2, stdio: ['pipe', 'pipe', 'pipe'], ...options });
 }
@@ -102,12 +121,13 @@ async function main() {
   rmSync(zip, { force: true });
   const temp = mkdtempSync(path.join(os.tmpdir(), 'fd-dist-'));
   try {
-    // The app needs no node_modules: the renderer and preload are bundled, and
-    // the main process uses only Electron and Node built-ins.
+    // The renderer and preload are bundled; the main process uses Electron, Node built-ins and
+    // one package of this repository's own, staged into node_modules (stageWorkspacePackages).
     const stage = path.join(temp, 'app');
     mkdirSync(stage);
     writeFileSync(path.join(stage, 'package.json'), JSON.stringify({ name: pkg.name, productName: PRODUCT, version, main: pkg.main, license: pkg.license, author: pkg.author }, null, 2));
     cpSync(path.join(root, 'out'), path.join(stage, 'out'), { recursive: true });
+    stageWorkspacePackages(root, stage);
     const { packager } = await import('@electron/packager');
     const [appDir] = await packager({
       dir: stage, name: PRODUCT, executableName: PRODUCT, appVersion: version, buildVersion: version,

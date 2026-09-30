@@ -2,7 +2,7 @@
 import { Menu, nativeImage, Tray, type MenuItemConstructorOptions } from 'electron';
 import path from 'node:path';
 import { t, type Lang } from '../core/i18n';
-import { attentionRank } from '../core/state';
+import { attentionRank } from '@passioncode-ai/fabric-service-host/state';
 import type { ServiceSnapshot, ServiceState } from '../core/types';
 
 export type TrayLevel = 'ok' | 'degraded' | 'problem';

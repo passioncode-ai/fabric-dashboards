@@ -13,6 +13,9 @@ npm run icon         # re-render build/icon.icns and the menu bar templates from
 npm run dist -- --notary-profile fabric-notary   # signed, notarized DMG + update zip + feed
 ```
 
+- `packages/service-host` is an npm workspace (`@passioncode-ai/fabric-service-host`, shared with
+  Fabric, not published). `npm ci` at the root links it; `npm test`, `typecheck` and `build` build
+  it first. A change to the state order updates its `test-vectors/state-precedence.json`.
 - The integration test drives real launchd with the fixed label
   `ai.passioncode.fabric-dashboards.test.sample`; set `FD_SKIP_LAUNCHD=1` where there is no
   GUI login session (CI).

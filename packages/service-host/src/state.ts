@@ -1,13 +1,19 @@
-// Deriving the one state a service is in, in the precedence of design §3.3.
-import type { Busy, Descriptor, Reason, ServiceState, WellKnown, WellKnownResult } from './types';
+// The one state a service is in, in the precedence of the Fabric Dashboards design §3.3. The
+// shared vectors (test-vectors/state-precedence.json) are the normative test of this order; any
+// host that reads services/ runs them. Pure: no Node import, so a renderer may import
+// `@passioncode-ai/fabric-service-host/state`.
+import type { Busy, ClaimConflict, Descriptor, LaunchdStatus, Reason, ServiceState, WellKnown, WellKnownResult } from './protocol';
 
+// #region state-precedence — docs: packages/service-host/README.md#state-precedence
+
+/** Silence shorter than this after answering is `starting`; longer is `down`. */
 export const DOWN_AFTER_MS = 15_000;
 
 export interface StateInput {
   descriptor: Descriptor | null;
   problems: string[];
-  conflict: { port?: number; with: string[] } | undefined;
-  launchd: { managed: boolean; loaded: boolean; pid: number | null; disabled: boolean };
+  conflict: ClaimConflict | null | undefined;
+  launchd: LaunchdStatus;
   probe: WellKnownResult | null; // null: not probed (invalid, conflict)
   firstUnansweredAt: number | null; // ms epoch when answers stopped
   now: number;
@@ -70,3 +76,4 @@ export function attentionRank(state: ServiceState, wellKnown: WellKnown | null):
   if (wellKnown?.summary?.some((t) => t.attention)) return 7;
   return null;
 }
+// #endregion state-precedence

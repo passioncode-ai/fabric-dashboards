@@ -16,4 +16,6 @@ their meaning there: Host, Provider, Agent, Capability, Profile.
 | Operator login | The one-time code the host obtains with the service token and exchanges for a dashboard cookie; the token never reaches a page. |
 | Deep link | A `fabric-dashboards://` link that opens an installed service, or one page of it, inside the app, signed in (ADR-0004). |
 | Service link | The deep link form `fabric-dashboards://service/<id>.<instance>[?path=/…]`: the one the MCP tools hand out and Fabric's "Open dashboard" opens; the 0.2.0 forms `open?service=…` and `open?url=…` still open (ADR-0005). |
+| Service host package | `@passioncode-ai/fabric-service-host` (`packages/service-host`): the reading code this app shares with Fabric — descriptors, conflicts, launchd status, health probe, state precedence, one look, the service link. Reads only (ADR-0006). |
+| State vectors | `packages/service-host/test-vectors/state-precedence.json`: the cases every host that reads `services/` runs against its own use of the state precedence. |
 | MCP server | `fabric-dashboards-mcp`, shipped inside the app: agents list services, get deep links, open pages, and start, stop, restart, doctor or update through the app's own rules. |

@@ -10,6 +10,11 @@
   ([ADR-0005](docs/adr/0005-service-links.md)).
 - **MCP:** `open_link` is `null` for a descriptor that cannot be read, and an event whose link is
   not a path on the service gets no deep link instead of failing the whole `activity` call.
+- **Shared with Fabric:** the code that reads services — descriptors, claim conflicts, launchd
+  status, the health probe, the state precedence, one look at every service, the service link —
+  is the workspace package `@passioncode-ai/fabric-service-host` (`packages/service-host`), with
+  state-precedence test vectors every host runs. The app and its MCP server read through it;
+  nothing a user sees changes ([ADR-0006](docs/adr/0006-shared-service-host-package.md)).
 - **README:** a quick start a newcomer can follow — download, first run, `claude mcp add --scope
   user`, one tool call that proves the server answers.
 
