@@ -48,7 +48,7 @@ Normative home: `fabric-agent-contract/docs/specification/service.md` and
 text will use MUST/SHOULD wording.
 
 It is an **extension** of Fabric Agent Contract `0.1.0`, keyed by the absolute URI
-`https://passioncode.ai/fabric/extensions/service/0.1` (the contract's extension rule,
+`https://fabric.passioncode.ai/agent-contract/extensions/service/0.1` (corrected 2026-09-30, contract gap G-08: the spelling first written here, `passioncode.ai/fabric/extensions/service/0.1`, was never the schema's key) (the contract's extension rule,
 `docs/specification/overview.md` → *Extension rule*). A service that also exposes
 capabilities points its `fabric-agent.json` at its descriptor through that key; a
 service with no capabilities (a board) needs only the descriptor.

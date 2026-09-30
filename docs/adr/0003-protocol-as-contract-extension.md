@@ -13,7 +13,7 @@ allows extensions under absolute-URI keys without a major version
 ## Decision
 
 The protocol lives in `fabric-agent-contract` as `docs/specification/service.md` plus
-schemas, keyed `https://passioncode.ai/fabric/extensions/service/0.1`. The skills teach
+schemas, keyed `https://fabric.passioncode.ai/agent-contract/extensions/service/0.1` (corrected 2026-09-30, contract gap G-08: the spelling first written here, `passioncode.ai/fabric/extensions/service/0.1`, was never the schema's key). The skills teach
 it; Fabric Dashboards consumes it; the contract's fixtures are the shared test vectors
 for all three.
 
