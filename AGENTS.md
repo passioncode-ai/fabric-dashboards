@@ -1,29 +1,39 @@
-# fabric-dashboards — working in this repository
+# Working in fabric-dashboards
 
-## Role
+## Read first
 
-Fabric Dashboards is a macOS desktop app (Electron) that finds every local agent service speaking
-`fabric-service/0.1` and shows whether it is alive and what it did last. It starts, stops and
-restarts services through launchd and opens each service's dashboard inside the app. The current
-version is 0.2.0 (`package.json`, `CHANGELOG.md`); the README quick start is the path for a new user.
+1. The PassionCode.ai knowledge base — `fabric-workspace/knowledge/` in your clone (org-index
+   `scripts/clone_all.sh` makes it) or https://wiki.passioncode.ai/knowledge — at least its
+   [README](https://github.com/passioncode-ai/fabric-workspace/blob/main/knowledge/README.md),
+   vision, principles and how-to-work.
+2. This file, then the organization's
+   [CONTRIBUTING.md](https://github.com/passioncode-ai/.github/blob/main/CONTRIBUTING.md).
 
-## Build and test
+## What this repository is
+
+Fabric Dashboards: a macOS desktop app (Electron) that finds every local agent service speaking
+`fabric-service/0.1`, shows whether it is alive and what it did last, starts, stops and restarts
+it through launchd and opens each service's dashboard inside the app. Fabric's monitoring tool;
+also works on its own. The current version is 0.3.0 (`package.json`, `CHANGELOG.md`); the README
+*Quick start for a new teammate* is the path for a new user. Licence:
+`AGPL-3.0-only OR LicenseRef-PassionCode-Commercial` ([ADR-0007](docs/adr/0007-agpl-or-commercial.md)).
+
+## Commands
 
 These come from `CONTRIBUTING.md`:
 
-```bash
-npm ci
-npm run check        # typecheck, unit + integration tests, brand pins, code regions, UX lint
-npm run test:e2e     # builds, then drives the real Electron app against a live sample service
-npm start            # run from source
-npm run dist -- --notary-profile fabric-notary   # signed, notarized DMG + update zip + feed
-```
+| What | Command |
+|---|---|
+| Install | `npm ci` |
+| Test (the gate) | `npm run check` — typecheck, unit + integration tests, brand pins, code regions, UX lint (`FD_SKIP_LAUNCHD=1` without a GUI login session) |
+| End-to-end | `npm run test:e2e` — builds, then drives the real Electron app against a live sample service |
+| Run from source | `npm start` |
+| Build a release | `npm run dist -- --notary-profile fabric-notary` — signed, notarized DMG + update zip + feed ([RUNBOOK](docs/RUNBOOK.md)) |
+| MCP (register + proving call) | `claude mcp add --scope user fabric-dashboards -- "/Applications/Fabric Dashboards.app/Contents/Resources/bin/fabric-dashboards-mcp"`, then `claude -p "Call the fabric-dashboards list_services tool once and reply with only the number of services it returned." --allowedTools mcp__fabric-dashboards__list_services --max-turns 3` |
 
 The integration test drives the real launchd with the fixed label
-`ai.passioncode.fabric-dashboards.test.sample`. Set `FD_SKIP_LAUNCHD=1` where there is no GUI login
-session. `.github/workflows/validate.yml` runs `npm ci` and `npm run check` on macOS every night
-and on manual dispatch, with `FD_SKIP_LAUNCHD=1`. The release steps are in
-[docs/RUNBOOK.md](docs/RUNBOOK.md).
+`ai.passioncode.fabric-dashboards.test.sample`. `.github/workflows/validate.yml` runs `npm ci`
+and `npm run check` on macOS every night and on manual dispatch, with `FD_SKIP_LAUNCHD=1`.
 
 ## Where things live
 
@@ -44,7 +54,7 @@ and on manual dispatch, with `FD_SKIP_LAUNCHD=1`. The release steps are in
   `scripts/check-brand.mjs`), and `test/fixtures/contract/` and `test/fixtures/sample-service/`
   (each has a `SOURCE.txt`).
 
-## Rules in this repository
+## Local rules
 
 - launchd is the only supervisor. The app never starts a service process itself
   ([ADR-0002](docs/adr/0002-launchd-is-the-only-supervisor.md)).
@@ -69,8 +79,15 @@ rules and onboarding live in [passioncode-ai/org-index](https://github.com/passi
 (private; readable by every org member):
 
 - [README](https://github.com/passioncode-ai/org-index#repositories): which repository owns what, and how they connect
-- [RULES.md](https://github.com/passioncode-ai/org-index/blob/main/RULES.md): branches, commits, CI, leases, secrets, handoffs
+- [rules](https://github.com/passioncode-ai/fabric-workspace/blob/main/knowledge/rules.md) (in the knowledge base since 2026-09-30; org-index `RULES.md` points there): branches, commits, CI, leases, secrets, handoffs
 - [ONBOARDING.md](https://github.com/passioncode-ai/org-index/blob/main/ONBOARDING.md): setting up a new contributor's machine
 
-Where this file is stricter than RULES.md, this file wins. A change to this repository's
+Where this file is stricter than those rules, this file wins. A change to this repository's
 role, dependencies or test command updates its row in `org-index/repositories.json` in the same change.
+
+## After work
+
+In the same run: update this repository's docs with the change; if a cross-repository fact changed
+(a product, a version, a plan row, a principle), update the page in `fabric-workspace/knowledge/`
+that owns it; land both; publish (`node scripts/workspace.mjs sync` from a Fabric checkout) or
+leave it to the scheduled sync. Leave a handoff with the exact next task.

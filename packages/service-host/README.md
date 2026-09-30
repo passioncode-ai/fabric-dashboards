@@ -13,7 +13,8 @@ dashboard stay in Fabric Dashboards ([ADR-0002](../../docs/adr/0002-launchd-is-t
 
 Private to this repository's workspace and not published to npm; see
 [Consuming it from Fabric](#consuming-it-from-fabric). License: the repository's
-`PolyForm-Noncommercial-1.0.0 OR LicenseRef-PolyForm-Internal-Use-1.0.0` ([LICENSE](../../LICENSE)).
+`AGPL-3.0-only OR LicenseRef-PassionCode-Commercial` ([LICENSE](../../LICENSE),
+[commercial](../../COMMERCIAL-LICENSE.md)).
 
 ## Entry points
 

@@ -4,7 +4,7 @@
   "version": "0.3.0",
   "private": true,
   "description": "Fabric Dashboards (PassionCode.ai): finds, watches and controls every local agent service on this Mac that speaks fabric-service/0.1.",
-  "license": "PolyForm-Noncommercial-1.0.0 OR LicenseRef-PolyForm-Internal-Use-1.0.0",
+  "license": "AGPL-3.0-only OR LicenseRef-PassionCode-Commercial",
   "author": {
     "name": "PassionCode.ai",
     "url": "https://passioncode.ai/"
