@@ -30,8 +30,8 @@ receipts are kept privately by the operator.
 | O2 | Three of four services have no single-instance guarantee — only the OS refusing a second `bind`. In one, the startup hook runs **before** the bind, so a second copy re-queues the first copy's running jobs | the lock is taken before any side effect; the bind is not a lock |
 | O3 | Two services default to ports that other live services hold | a machine-wide port claim, checked at install |
 | O4 | Nothing is discoverable: observatory's `fabric-agent.json` declares MCP only — no port, no dashboard. The Fabric Agent Contract has no notion of a local service | a descriptor file per installed service, in one directory, plus a contract extension |
-| O5 | brand-agent keeps data and logs inside the repository; deleting the checkout leaves a plist launchd retries every 10 s | state lives in per-user OS directories, code in releases |
-| O6 | Every dashboard authenticates differently: header checks only (brand), token file + one-time code → cookie (publisher, foundry), Host + `Sec-Fetch` (observatory) | one token file + one-time login code; the token never reaches a browser |
+| O5 | One service keeps data and logs inside the repository; deleting the checkout leaves a plist launchd retries every 10 s | state lives in per-user OS directories, code in releases |
+| O6 | Every dashboard authenticates differently: header checks only (one service), token file + one-time code → cookie (two others), Host + `Sec-Fetch` (observatory) | one token file + one-time login code; the token never reaches a browser |
 | O7 | Every service already keeps an event log, in six shapes: a SQL `events` table, per-job JSONL files, a second `events` table, a journal, an execution-events table, an audit log | one cursor-paged events endpoint; the cross-agent activity feed is its union |
 | O8 | One service's remote MCP chain had been dead for two days — a stopped gateway container, a lost tunnel route, an expired bridge token — and nothing watched any of the three | the host watches every declared surface, not only the process |
 | O9 | A stray `python -m http.server` bound to **all interfaces** served a source tree to the LAN, orphaned for a day | loopback-only is normative; the host lists listeners it cannot attribute |
@@ -107,7 +107,7 @@ never writes it — a descriptor describes an installation, not a run.
   "source": { "repository": "https://github.com/example/example-agent" },
   "fabricManifest": "~/Code/example-agent/fabric-agent.json",
   "installedAt": "2026-09-28T18:00:00Z",
-  "installedBy": "publisher service install 0.2.0"
+  "installedBy": "example-agent service install 0.2.0"
 }
 ```
 
@@ -181,7 +181,7 @@ counter-example, O1).
   No `after` returns the newest `limit` events. Retention: at least 7 days or 1000
   events, whichever is more.
 - `level` ∈ `info | notice | warning | error`. `text` is one sentence a person reads
-  (vibe-bridge's `line` field is the model, O7) — never a machine id.
+  (one existing service's `line` field is the model, O7) — never a machine id.
 - `notify: true` asks the host to raise an OS notification; `link` is a dashboard path
   the notification and the feed open. The service decides what is notification-worthy;
   the host decides whether the operator wants it.
@@ -211,8 +211,8 @@ whose dashboard is intentionally open to local reads declares no
 | Take an exclusive `flock` on `<data>/service.lock` **before any side effect** (job resume, scheduler, migrations); if held, print one sentence naming the holder pid and exit 75 | O2 |
 | Supervisor is launchd: `RunAtLoad true`, `KeepAlive true`, `ThrottleInterval 10`, `ExitTimeOut` above the drain time, `ProcessType Background`; no secrets in the plist; `PATH` filtered; plist `plutil -lint`ed before `bootstrap` | O10 |
 | Install = write plist → `bootout` (wait until unloaded) → `bootstrap` (retry EIO 5) → poll the well-known until `service.id` matches, 40 s budget | two services each rediscovered this race |
-| `SIGTERM` drains in-flight work, then exits; interrupted work resumes on the next start | foundry's lifespan drain |
-| Code runs from an immutable release directory (`releases/<version>-<sha12>/`); the plist points at the release, an upgrade rewrites the plist and restarts | foundry's release layout; retro lesson "ran on stale code" |
+| `SIGTERM` drains in-flight work, then exits; interrupted work resumes on the next start | one existing service's lifespan drain |
+| Code runs from an immutable release directory (`releases/<version>-<sha12>/`); the plist points at the release, an upgrade rewrites the plist and restarts | one existing service's release layout; retro lesson "ran on stale code" |
 | State: data + config in `~/Library/Application Support/<id>/`, logs in `~/Library/Logs/<id>/`, cache in `~/Library/Caches/<id>/`; never inside a repository or a release; writes atomic; logs rotate | O5 |
 | Uninstall = `bootout`, delete plist, delete descriptor; **data stays** unless `--purge` | every service today |
 
