@@ -29,11 +29,11 @@ test('contract fixtures: positive descriptors pass, negative ones fail with the 
 });
 
 test('services directory follows FABRIC_SERVICES_DIR, then the OS location', () => {
-  assert.equal(servicesDir({ FABRIC_SERVICES_DIR: '/x/y' }, 'darwin', '/Users/o'), '/x/y');
-  assert.equal(servicesDir({ FABRIC_SERVICES_DIR: '~/s' }, 'darwin', '/Users/o'), '/Users/o/s');
-  assert.equal(servicesDir({}, 'darwin', '/Users/o'), '/Users/o/Library/Application Support/ai.passioncode.fabric/services');
-  assert.equal(servicesDir({}, 'linux', '/home/o'), '/home/o/.local/share/passioncode-fabric/services');
-  assert.equal(servicesDir({ XDG_DATA_HOME: '/d' }, 'linux', '/home/o'), '/d/passioncode-fabric/services');
+  assert.equal(servicesDir({ FABRIC_SERVICES_DIR: '/x/y' }, 'darwin', '/Users/example'), '/x/y');
+  assert.equal(servicesDir({ FABRIC_SERVICES_DIR: '~/s' }, 'darwin', '/Users/example'), '/Users/example/s');
+  assert.equal(servicesDir({}, 'darwin', '/Users/example'), '/Users/example/Library/Application Support/ai.passioncode.fabric/services');
+  assert.equal(servicesDir({}, 'linux', '/home/example'), '/home/example/.local/share/passioncode-fabric/services');
+  assert.equal(servicesDir({ XDG_DATA_HOME: '/d' }, 'linux', '/home/example'), '/d/passioncode-fabric/services');
 });
 
 test('portOf accepts only a loopback http origin with a port', () => {
