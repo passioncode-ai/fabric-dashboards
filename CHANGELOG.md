@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.3.0 — 2026-09-30
 
 - **Service links.** `fabric-dashboards://service/<id>.<instance>` opens that service in the app,
   and `?path=/…` one page of it — the link Fabric's "Open dashboard" opens. The MCP tools hand
