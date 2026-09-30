@@ -1,10 +1,11 @@
 // End to end: the packaged-shape app (out/) against a live sample service.
-// Covers SCN-001, SCN-005, SCN-014, SCN-015, SCN-017, SCN-026 and SCN-028 on a real Electron.
+// Covers SCN-001, SCN-005, SCN-014, SCN-015, SCN-017, SCN-026…SCN-029 on a real Electron.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
+import electronBinary from 'electron';
 import { _electron as electron, type ElectronApplication, type Page } from 'playwright';
 import { freePort, register, serve, stopProcess, tmp, waitAnswering } from '../helpers';
 
@@ -13,6 +14,13 @@ const SHOTS = process.env.FD_SCREENSHOTS;
 
 async function shot(page: Page, name: string) {
   if (SHOTS) await page.screenshot({ path: path.join(SHOTS, `${name}.png`) });
+}
+
+/** Close the app; a native dialog left open (a failed run) must not hang the suite. */
+async function closeApp(app: ElectronApplication | null): Promise<void> {
+  if (!app) return;
+  const closed = await Promise.race([app.close().then(() => true, () => false), new Promise<boolean>((r) => setTimeout(() => r(false), 10_000))]);
+  if (!closed) app.process().kill('SIGKILL');
 }
 
 test('discovers a live service, opens its dashboard signed in, keeps one view, shows activity', async () => {
@@ -69,7 +77,7 @@ test('discovers a live service, opens its dashboard signed in, keeps one view, s
     await page.getByText('Unattributed listeners').waitFor();
     await shot(page, '04-settings');
   } finally {
-    await app?.close();
+    await closeApp(app);
     await stopProcess(proc);
   }
 });
@@ -103,7 +111,7 @@ test('a deep link at launch opens the service page signed in; the MCP server see
     const listed = (replies.get(2)!.structuredContent as { services: { key: string; state: string }[] }).services;
     assert.deepEqual(listed.map((s) => [s.key, s.state]), [['sample.default', 'ready']]);
     const link = replies.get(3)!.structuredContent as { open_link: string };
-    assert.equal(link.open_link, 'fabric-dashboards://open?service=sample.default&path=%2F%3Ffrom%3Dagent');
+    assert.equal(link.open_link, 'fabric-dashboards://service/sample.default?path=%2F%3Ffrom%3Dagent');
     assert.ok((replies.get(4)!.structuredContent as { events: { text: string }[] }).events.some((e) => /Sample Service started/.test(e.text)));
 
     app = await electron.launch({
@@ -122,7 +130,87 @@ test('a deep link at launch opens the service page signed in; the MCP server see
     assert.equal(url, `${origin}/?from=agent`, 'the embedded view is at the linked path, signed in');
     await shot(page, '05-deep-link');
   } finally {
-    await app?.close();
+    await closeApp(app);
+    await stopProcess(proc);
+  }
+});
+
+// SCN-029 (Fabric's SCN-101, plan row AR-2.5): `fabric-dashboards://service/<id>.<instance>` — the
+// form Fabric's "Open dashboard" opens — at launch and while the app runs (a second process
+// forwards the link and exits). A stopped service still opens, on its Start control; a service
+// that is not installed, and a page off the service's origin, are refused with the reason.
+test('service/<id>.<instance> links open the service, a stopped one on its Start control; foreign targets are refused', { timeout: 180_000 }, async () => {
+  const base = tmp('fd-e2e-service-');
+  const services = path.join(base, 'services');
+  const data = path.join(base, 'svc');
+  const port = await freePort();
+  const restingPort = await freePort();
+  const proc = serve(port, data, ['--name', 'Sample Service']);
+  let app: ElectronApplication | null = null;
+  const env = { ...process.env, FABRIC_SERVICES_DIR: services, FABRIC_DASHBOARDS_USER_DATA: path.join(base, 'app'), LANG: 'en_US.UTF-8' };
+  // A second process with the same profile finds the running app, hands it the link and quits.
+  const forward = (link: string) => {
+    const r = spawnSync(electronBinary as unknown as string, [ROOT, link], { env, encoding: 'utf8', timeout: 30_000 });
+    assert.equal(r.status, 0, `the forwarding process exits cleanly (${r.stderr?.slice(0, 300)})`);
+  };
+  try {
+    await waitAnswering(port);
+    register(port, data, services);
+    // Installed, launchd-managed, never loaded: launchd answers «not found», so it is Off. No
+    // launchctl verb runs — the label and the plist do not exist.
+    register(restingPort, path.join(base, 'resting'), services, ['--id', 'resting', '--name', 'Resting Service',
+      '--label', 'ai.passioncode.fabric-dashboards.test.absent', '--plist', path.join(base, 'absent.plist')]);
+
+    app = await electron.launch({ args: [ROOT, 'fabric-dashboards://service/sample.default'], env });
+    const page = await app.firstWindow();
+    await page.getByRole('tab', { name: 'Dashboard', selected: true }).waitFor({ timeout: 20_000 });
+    await page.getByRole('heading', { level: 1, name: 'Sample Service' }).waitFor();
+    const origin = `http://127.0.0.1:${port}`;
+    let url = '';
+    for (let i = 0; i < 75 && url !== `${origin}/`; i += 1) {
+      await new Promise((r) => setTimeout(r, 200));
+      url = await app.evaluate(({ webContents }, o) => webContents.getAllWebContents().map((wc) => wc.getURL()).find((u) => u.startsWith(o)) ?? '', origin);
+    }
+    assert.equal(url, `${origin}/`, 'the plan form opens the service\'s dashboard, signed in');
+    await shot(page, '06-service-link');
+
+    // Refusals are shown in a native dialog; capture it instead of leaving one on the screen.
+    await app.evaluate(({ dialog }) => {
+      const seen: unknown[] = [];
+      (globalThis as { refused?: unknown[] }).refused = seen;
+      dialog.showMessageBox = (async (...args: unknown[]) => { seen.push(args.at(-1)); return { response: 0, checkboxChecked: false }; }) as typeof dialog.showMessageBox;
+    });
+
+    forward('fabric-dashboards://service/resting.default');
+    await page.getByRole('heading', { level: 1, name: 'Resting Service' }).waitFor({ timeout: 20_000 });
+    await page.getByRole('button', { name: 'Start', exact: true }).waitFor({ timeout: 20_000 });
+    assert.ok(await page.getByText('Off', { exact: true }).first().isVisible(), 'the stopped service is shown Off');
+    await shot(page, '07-service-link-stopped');
+
+    const refusals = async (n: number) => {
+      for (let i = 0; i < 100; i += 1) {
+        const seen = await app!.evaluate(() => ((globalThis as { refused?: { detail?: string }[] }).refused ?? []).map((o) => o.detail ?? ''));
+        if (seen.length >= n) return seen;
+        await new Promise((r) => setTimeout(r, 100));
+      }
+      throw new Error(`fewer than ${n} refusals shown`);
+    };
+    forward('fabric-dashboards://service/nobody.default');
+    forward(`fabric-dashboards://service/sample.default?path=${encodeURIComponent('//evil.example/x')}`);
+    forward('fabric-dashboards://service/Sample.default');
+    const shown = await refusals(3);
+    assert.match(shown[0]!, /no installed service "nobody\.default"\. Nothing was opened\./);
+    assert.match(shown[1]!, /path must be a path on the service/);
+    assert.match(shown[2]!, /not a service key/);
+    const urls = await app.evaluate(({ webContents }) => webContents.getAllWebContents().map((wc) => wc.getURL()));
+    assert.ok(urls.every((u) => !u.includes('evil.example')), 'a refused link opens nothing');
+    await page.getByRole('heading', { level: 1, name: 'Resting Service' }).waitFor();
+    const logs = await app.evaluate(({ app: a }) => a.getPath('logs'));
+    const logged = fs.readFileSync(path.join(logs, 'main.log'), 'utf8');
+    assert.match(logged, /deep link refused: no installed service "nobody\.default"/);
+    assert.ok(!logged.includes('evil.example'), 'the log names the reason, never the link');
+  } finally {
+    await closeApp(app);
     await stopProcess(proc);
   }
 });

@@ -1,6 +1,6 @@
 # ADR-0004 — Deep links and an MCP server: agents hand the operator the page and use the app's rules
 
-Status: accepted · 2026-09-29
+Status: accepted · 2026-09-29 · §1 amended by [ADR-0005](0005-service-links.md) (the service link form)
 
 ## Context
 

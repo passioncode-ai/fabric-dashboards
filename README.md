@@ -22,7 +22,7 @@ for what is released and what is next.
 | **Activity** | every service's events and the app's own observations in one feed, filterable, each row opening the exact item |
 | **Notifications** | not answering (after 30 s), back, two copies, another program on the port, events a service marks for you — with quiet hours and per-service levels |
 | **Menu bar** | the aggregate state as a shape, problems first |
-| **Links from agents** | `fabric-dashboards://open?service=<id.instance>&path=/…` opens that page here, signed in |
+| **Links from agents and Fabric** | `fabric-dashboards://service/<id.instance>?path=/…` opens that service, or that page of it, here, signed in — the link Fabric's "Open dashboard" opens |
 | **MCP for agents** | list services, hand out links, open a page, restart or update — through the app's own rules |
 
 States it tells apart: Ready, Degraded, Not answering, Off, Starting/Stopping, Two copies
@@ -48,23 +48,54 @@ The [Fabric Agent Adapter](https://github.com/passioncode-ai/fabric-agent-adapte
 `building-fabric-services` skill builds or migrates a service, is public; the Fabric Agent
 Contract is a private repository for now.
 
-## Install
+## Quick start
 
-Download the DMG from the [releases](https://github.com/passioncode-ai/fabric-dashboards/releases),
-drag the app to Applications. It opens at login by default and updates itself.
+1. **Get the app.** Download `Fabric-Dashboards-<version>.dmg` from the
+   [latest release](https://github.com/passioncode-ai/fabric-dashboards/releases/latest), open it
+   and drag **Fabric Dashboards** to Applications. It is signed with a Developer ID and notarized,
+   so it opens without a Gatekeeper warning (`spctl -a -vv -t exec "/Applications/Fabric Dashboards.app"`
+   prints `accepted`, `source=Notarized Developer ID`). macOS 13 or later.
+2. **First run.** Open it from Applications. It lives in the menu bar and opens its window; with
+   no service installed the overview says *No services yet* and **Show folder** opens the services
+   folder. A service appears within five seconds of its installer writing a descriptor there. It
+   opens at login from then on (Settings) and updates itself.
+3. **Register the MCP server** that ships inside the app, once, for every project
+   (`--scope user`; without it Claude Code registers it for the current directory only):
+
+   ```bash
+   claude mcp add --scope user fabric-dashboards -- "/Applications/Fabric Dashboards.app/Contents/Resources/bin/fabric-dashboards-mcp"
+   claude mcp get fabric-dashboards        # Status: ✔ Connected
+   ```
+
+   Any other MCP client runs the same file as a stdio server; it needs no arguments.
+4. **Check it answers** — one tool call, straight to the server:
+
+   ```bash
+   printf '%s\n' \
+     '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18"}}' \
+     '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"list_services","arguments":{}}}' \
+     | "/Applications/Fabric Dashboards.app/Contents/Resources/bin/fabric-dashboards-mcp"; echo "exit $?"
+   ```
+
+   Two JSON lines come back — `serverInfo` with the app's version, then `services` (empty until a
+   service is installed) and `services_dir` — and `exit 0`. Release 0.2.0 hands out links as
+   `open?service=…`; later releases as `service/…` (below). Both open.
+
+**From source** instead (Node 20 or later, macOS): `git clone https://github.com/passioncode-ai/fabric-dashboards && cd fabric-dashboards && npm ci && npm start`.
+The MCP server from a checkout is `node out/main/mcp/server.js` after `npm run build`. A checkout
+build does not register the `fabric-dashboards://` scheme; links open only in the installed app.
+While the installed app runs, a checkout build shares its profile and only brings the installed
+window forward: quit the installed app first, or give the checkout its own profile with
+`FABRIC_DASHBOARDS_USER_DATA=/tmp/fd-dev npm start`.
 
 ## For agents
 
-Register the MCP server that ships inside the app once:
-
-```bash
-claude mcp add fabric-dashboards -- "/Applications/Fabric Dashboards.app/Contents/Resources/bin/fabric-dashboards-mcp"
-```
-
 Tools: `list_services`, `service_status`, `link`, `open`, `control`, `doctor`, `update`,
 `activity`. An agent that starts work on a service hands the operator the `open_link` from
-`link` — it opens that page inside the app — and the plain `http_url` as a fallback.
-[ADR-0004](docs/adr/0004-deep-links-and-mcp.md) has the rules.
+`link` — `fabric-dashboards://service/<id.instance>?path=/…`, which opens that page inside the
+app — and the plain `http_url` as a fallback. `open` opens it now, in the default browser when
+the app is not installed. [ADR-0004](docs/adr/0004-deep-links-and-mcp.md) and
+[ADR-0005](docs/adr/0005-service-links.md) have the rules.
 
 ## Develop
 

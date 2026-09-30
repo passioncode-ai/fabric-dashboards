@@ -6,7 +6,7 @@ source-available licenses ([LICENSE](LICENSE)) and under separate commercial lic
 
 ```bash
 npm ci
-npm run check        # typecheck, unit + integration tests, brand pins, UX lint
+npm run check        # typecheck, unit + integration tests, brand pins, code regions, UX lint
 npm run test:e2e     # builds, then drives the real Electron app against a live sample service
 npm start            # run from source
 npm run icon         # re-render build/icon.icns and the menu bar templates from the vendored mark

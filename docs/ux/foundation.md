@@ -174,7 +174,7 @@ hunt browser tabs to learn whether an agent is alive or what it did.
 - **Story:** As P-01, I want a link an agent hands me to open that service's page inside the app, signed in, so that I watch the work it started without hunting for a port.
 - **Traces:** JTBD-04, JRN-01/#5
 - **Acceptance criteria:**
-  - Given the app is installed and an agent hands me `fabric-dashboards://open?service=<id.instance>&path=/…`, when I open it, then the service view opens at that path, signed in, whether the app was running or not.
+  - Given the app is installed and an agent (or Fabric's "Open dashboard") hands me `fabric-dashboards://service/<id.instance>?path=/…`, when I open it, then the service view opens at that path, signed in, whether the app was running or not.
   - Given the link names a service that is not installed or a path off its origin, when I open it, then the app says it cannot open it and why, and opens nothing.
 - **Priority:** should
 - **Status:** proposed

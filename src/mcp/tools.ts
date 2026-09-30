@@ -7,7 +7,7 @@
 // never returned; a command is only ever the descriptor's own argument array.
 import { execFile } from 'node:child_process';
 import { claimConflicts, expand, readDirectory, servicesDir as defaultServicesDir, type DescriptorEntry } from '../core/descriptor';
-import { fromServiceUrl, linkFor, safePath } from '../core/deeplink';
+import { fromServiceUrl, isServiceKey, linkFor, safePath } from '../core/deeplink';
 import { Launchd, execRunner, type Runner } from '../core/launchd';
 import { fetchEvents, fetchWellKnown, readToken } from '../core/probe';
 import { DOWN_AFTER_MS, deriveState } from '../core/state';
@@ -73,7 +73,7 @@ export interface ServiceView {
   build: string | null;
   origin: string | null;
   dashboard: string | null;
-  open_link: string;
+  open_link: string | null;
   tiles: { label: string; value: number | string; attention?: boolean }[];
   update_available: string | null;
   commands: string[];
@@ -101,7 +101,8 @@ async function view(entry: DescriptorEntry, conflict: { port?: number; with: str
     build: wk?.service.build.commit ?? wk?.service.build.digest ?? null,
     origin: d?.origin ?? null,
     dashboard: d && dashPath ? `${d.origin}${dashPath}` : null,
-    open_link: linkFor(entry.key, dashPath ?? undefined),
+    // A descriptor that cannot be read names no service a link could open.
+    open_link: d && isServiceKey(entry.key) ? linkFor(entry.key, dashPath && safePath(dashPath) ? dashPath : undefined) : null,
     tiles: wk?.summary ?? [],
     update_available: wk?.update?.available ?? null,
     commands: Object.keys(d?.commands ?? {}),
@@ -228,5 +229,5 @@ export async function activity(deps: Deps, key: string, limit = 20): Promise<{ e
   }
   const n = Math.max(1, Math.min(100, Math.floor(limit)));
   const page = await deps.events(d, probe.doc.surfaces.events.path, token, null, n);
-  return { events: page.events.slice(-n).map((e) => ({ at: e.at, level: e.level, text: e.text, ...(e.link ? { link: linkFor(key, e.link) } : {}) })) };
+  return { events: page.events.slice(-n).map((e) => ({ at: e.at, level: e.level, text: e.text, ...(e.link && safePath(e.link) ? { link: linkFor(key, e.link) } : {}) })) };
 }

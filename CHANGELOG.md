@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+- **Service links.** `fabric-dashboards://service/<id>.<instance>` opens that service in the app,
+  and `?path=/…` one page of it — the link Fabric's "Open dashboard" opens. The MCP tools hand
+  links out in this form; the 0.2.0 forms `open?service=…` and `open?url=…` still open. A
+  malformed link, one that names a service not installed, carries extra parameters, a user,
+  password or port, or points off the service's origin is refused with the reason
+  ([ADR-0005](docs/adr/0005-service-links.md)).
+- **MCP:** `open_link` is `null` for a descriptor that cannot be read, and an event whose link is
+  not a path on the service gets no deep link instead of failing the whole `activity` call.
+- **README:** a quick start a newcomer can follow — download, first run, `claude mcp add --scope
+  user`, one tool call that proves the server answers.
+
 ## 0.2.0 - 2026-09-29
 
 - **Links from agents open here.** `fabric-dashboards://open?service=<id.instance>&path=/…`

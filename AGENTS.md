@@ -5,7 +5,7 @@
 Fabric Dashboards is a macOS desktop app (Electron) that finds every local agent service speaking
 `fabric-service/0.1` and shows whether it is alive and what it did last. It starts, stops and
 restarts services through launchd and opens each service's dashboard inside the app. The current
-version is 0.1.0, built and tested on the operator's Mac (`README.md`).
+version is 0.2.0 (`package.json`, `CHANGELOG.md`); the README quick start is the path for a new user.
 
 ## Build and test
 
@@ -13,7 +13,7 @@ These come from `CONTRIBUTING.md`:
 
 ```bash
 npm ci
-npm run check        # typecheck, unit + integration tests, brand pins, UX lint
+npm run check        # typecheck, unit + integration tests, brand pins, code regions, UX lint
 npm run test:e2e     # builds, then drives the real Electron app against a live sample service
 npm start            # run from source
 npm run dist -- --notary-profile fabric-notary   # signed, notarized DMG + update zip + feed
@@ -51,6 +51,9 @@ and on manual dispatch, with `FD_SKIP_LAUNCHD=1`. The release steps are in
   listens on no port (`SECURITY.md`).
 - The repository's visibility decides whether the update feed is reachable (D-8 in
   `docs/HANDOFF.md`, and `docs/RUNBOOK.md`).
+- A feature, module or special condition is fenced `// #region <slug> — docs: <path>#<anchor>` …
+  `// #endregion <slug>`; `scripts/check-regions.mjs` (in `npm run check`) fails an unclosed
+  region or a reference that does not open ([org CONTRIBUTING](https://github.com/passioncode-ai/.github/blob/main/CONTRIBUTING.md) §4).
 
 ## Organisation
 

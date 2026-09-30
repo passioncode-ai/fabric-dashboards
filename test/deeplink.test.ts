@@ -63,8 +63,70 @@ test('safePath refuses backslashes, control characters and over-long paths', () 
   assert.equal(safePath('/dashboard/job_1'), '/dashboard/job_1');
 });
 
-test('linkFor round-trips through parseDeepLink', () => {
+test('linkFor hands out the service form and round-trips through parseDeepLink', () => {
   const link = linkFor('example-agent.default', '/dashboard/job_3?x=1');
-  assert.equal(link, 'fabric-dashboards://open?service=example-agent.default&path=%2Fdashboard%2Fjob_3%3Fx%3D1');
+  assert.equal(link, 'fabric-dashboards://service/example-agent.default?path=%2Fdashboard%2Fjob_3%3Fx%3D1');
   assert.deepEqual(parseDeepLink(link, known), { ok: true, target: { page: 'service', key: 'example-agent.default', link: '/dashboard/job_3?x=1' } });
+  assert.equal(linkFor('example-agent.preview'), 'fabric-dashboards://service/example-agent.preview');
+  assert.deepEqual(parseDeepLink(linkFor('example-agent.preview'), known), { ok: true, target: { page: 'service', key: 'example-agent.preview' } });
+});
+
+// SCN-101 / AR-2.5: the form Fabric's "Open dashboard" opens.
+test('service/<id>.<instance> opens that service, a page of it with path=', () => {
+  assert.deepEqual(parseDeepLink('fabric-dashboards://service/example-agent.default', known), {
+    ok: true, target: { page: 'service', key: 'example-agent.default' },
+  });
+  assert.deepEqual(parseDeepLink('fabric-dashboards://service/example-agent.preview/', known), {
+    ok: true, target: { page: 'service', key: 'example-agent.preview' },
+  }, 'one trailing slash is the same link');
+  assert.deepEqual(parseDeepLink('fabric-dashboards://SERVICE/example-agent.default?path=%2Fdashboard%2Fjob_1', known), {
+    ok: true, target: { page: 'service', key: 'example-agent.default', link: '/dashboard/job_1' },
+  });
+});
+
+test('the old open?service= and open?url= links keep working', () => {
+  assert.deepEqual(parseDeepLink('fabric-dashboards://open?service=example-agent.default&path=%2Fdashboard', known), {
+    ok: true, target: { page: 'service', key: 'example-agent.default', link: '/dashboard' },
+  });
+});
+
+test('a malformed or foreign service link is refused with the reason and opens nothing', () => {
+  const refused: Record<string, RegExp> = {
+    'fabric-dashboards://service': /needs the service/,
+    'fabric-dashboards://service/': /needs the service/,
+    'fabric-dashboards://service/example-agent': /not a service key/,
+    'fabric-dashboards://service/Example-Agent.default': /not a service key/,
+    'fabric-dashboards://service/example-agent.default.x': /not a service key/,
+    'fabric-dashboards://service/example-agent%2Edefault': /not a service key/,
+    'fabric-dashboards://service/..%2F..%2Fetc.passwd': /not a service key/,
+    'fabric-dashboards://service/example-agent.default/dashboard': /one service/,
+    'fabric-dashboards://service//example-agent.default': /not a service key|one service/,
+    'fabric-dashboards://service/nobody.default': /no installed service "nobody.default"/,
+    'fabric-dashboards://service/broken.default': /no installed service "broken.default"/,
+    'fabric-dashboards://service/example-agent.default?path=//evil.example/x': /path must be/,
+    'fabric-dashboards://service/example-agent.default?path=http://evil.example': /path must be/,
+    'fabric-dashboards://service/example-agent.default?path=': /path must be/,
+    'fabric-dashboards://service/example-agent.default?path=/a&path=/b': /one path/,
+    'fabric-dashboards://service/example-agent.default?url=http://127.0.0.1:47195/': /unknown parameter "url"/,
+    'fabric-dashboards://service/example-agent.default?service=example-agent.preview': /unknown parameter "service"/,
+    'fabric-dashboards://service/example-agent.default#x': /fragment/,
+    'fabric-dashboards://user:pw@service/example-agent.default': /user, password or port/,
+    'fabric-dashboards://service:8080/example-agent.default': /user, password or port/,
+    'fabric-dashboards://user@open?service=example-agent.default': /user, password or port/,
+    'fabric-dashboards:service/example-agent.default': /unknown link verb/,
+  };
+  for (const [raw, reason] of Object.entries(refused)) {
+    const result = parseDeepLink(raw, known);
+    assert.equal(result.ok, false, raw);
+    assert.match((result as { reason: string }).reason, reason, raw);
+  }
+});
+
+test('a refusal quotes at most a clipped, escaped piece of the link', () => {
+  const long = `fabric-dashboards://service/${'a'.repeat(500)}.default`;
+  const r = parseDeepLink(long, known) as { ok: false; reason: string };
+  assert.equal(r.ok, false);
+  assert.ok(r.reason.length < 200, r.reason);
+  const quoted = parseDeepLink('fabric-dashboards://service/a"b.default', known) as { ok: false; reason: string };
+  assert.match(quoted.reason, /\\"|%22/, 'a quote inside the key is escaped or still encoded');
 });

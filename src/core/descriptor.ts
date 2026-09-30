@@ -6,8 +6,9 @@ import os from 'node:os';
 import path from 'node:path';
 import { PROTOCOL, type Descriptor } from './types';
 
-const ID = /^[a-z][a-z0-9-]{1,62}$/;
-const INSTANCE = /^[a-z][a-z0-9-]{0,31}$/;
+/** A descriptor's `id` and `instance`; together, `id.instance`, they name one installation. */
+export const ID_PATTERN = /^[a-z][a-z0-9-]{1,62}$/;
+export const INSTANCE_PATTERN = /^[a-z][a-z0-9-]{0,31}$/;
 const ORIGIN = /^http:\/\/127\.0\.0\.1:([0-9]{3,5})$/;
 const LABEL = /^[A-Za-z0-9][A-Za-z0-9._-]{2,254}$/;
 const HEADER = /^[A-Za-z][A-Za-z0-9-]{0,63}$/;
@@ -43,8 +44,8 @@ export function validateDescriptor(raw: unknown): string[] {
   }
   if (problems.length) return problems;
   if (d.protocol !== PROTOCOL) problems.push(`protocol must be ${PROTOCOL}, not ${JSON.stringify(d.protocol)}`);
-  if (!isStr(d.id) || !ID.test(d.id)) problems.push('id must be lowercase letters, digits and dashes');
-  if (!isStr(d.instance) || !INSTANCE.test(d.instance)) problems.push('instance must be lowercase letters, digits and dashes');
+  if (!isStr(d.id) || !ID_PATTERN.test(d.id)) problems.push('id must be lowercase letters, digits and dashes');
+  if (!isStr(d.instance) || !INSTANCE_PATTERN.test(d.instance)) problems.push('instance must be lowercase letters, digits and dashes');
   if (!isStr(d.name) || !d.name || d.name.length > 80) problems.push('name must be 1 to 80 characters');
   if (!isStr(d.origin) || portOf(d.origin) === null) problems.push('origin must be http://127.0.0.1:<port>');
   const auth = d.auth;

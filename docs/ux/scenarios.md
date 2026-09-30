@@ -34,6 +34,7 @@
 | SCN-026 | Open a service page from a link an agent handed over | links | P-01 | ST-011, ST-005 | draft | — |
 | SCN-027 | A link that cannot be opened | links | P-01 | ST-011 | draft | — |
 | SCN-028 | An agent reads and administers services through MCP | agents | P-01 | ST-012, ST-003 | draft | — |
+| SCN-029 | Open a service from Fabric's agent registry | links | P-01 | ST-011, ST-005, ST-003 | draft | — |
 
 ## Personas
 
@@ -510,7 +511,7 @@ first release; every sentence a service writes is shown as the service wrote it.
 - **Persona:** P-01
 - **Feature:** links
 - **Traces:** ST-011, ST-005 (JTBD-04, JRN-01/#5)
-- **Entry point:** a `fabric-dashboards://open?service=<id.instance>&path=/…` link (or `?url=http://127.0.0.1:<port>/…`) in a chat, a terminal or another app
+- **Entry point:** a `fabric-dashboards://service/<id.instance>?path=/…` link (the form the MCP tools hand out; the 0.2.0 forms `open?service=<id.instance>&path=/…` and `open?url=http://127.0.0.1:<port>/…` still open) in a chat, a terminal or another app
 - **Preconditions:** Fabric Dashboards is installed; the service is installed
 - **Steps:**
   1. User opens the link -> macOS hands it to Fabric Dashboards; if the app was not running it starts, waits for its first scan of the services folder, then continues
@@ -521,7 +522,7 @@ first release; every sentence a service writes is shown as the service wrote it.
 - **States covered:** loading, success
 - **Errors & recovery:** see SCN-027; a dashboard that cannot sign in -> SCN-016
 - **Status:** draft
-- **Coverage:** src/core/deeplink.ts, src/electron/main.ts, test/deeplink.test.ts
+- **Coverage:** src/core/deeplink.ts, src/electron/main.ts, test/deeplink.test.ts, test/e2e/app.test.ts
 - **Product:** unobserved
 
 ### SCN-027: A link that cannot be opened
@@ -529,7 +530,7 @@ first release; every sentence a service writes is shown as the service wrote it.
 - **Feature:** links
 - **Traces:** ST-011 (JTBD-04, JRN-01/#5)
 - **Entry point:** SCN-026 step 2
-- **Preconditions:** the link names no installed service, a path that is not on the service's own origin (`//host`, a full URL, a backslash), a non-local address, or an unknown verb
+- **Preconditions:** the link names no installed service, a key that is not `id.instance` (an encoded character, a capital letter, a third part), something after the key, a parameter other than `path`, a `#fragment` outside `path`, a user, password or port, a path that is not on the service's own origin (`//host`, a full URL, a backslash), a non-local address, or an unknown verb
 - **Steps:**
   1. System refuses the link -> the window comes forward and a message says "This link cannot be opened" with the reason (for example `no installed service "x.default"`) and "Nothing was opened."
 - **Expected result:** the operator sees why; a crafted link can never point the signed-in view at another site
@@ -537,7 +538,26 @@ first release; every sentence a service writes is shown as the service wrote it.
 - **States covered:** error
 - **Errors & recovery:** install or start the service, then open the link again
 - **Status:** draft
-- **Coverage:** src/core/deeplink.ts, src/electron/main.ts, test/deeplink.test.ts
+- **Coverage:** src/core/deeplink.ts, src/electron/main.ts, test/deeplink.test.ts, test/e2e/app.test.ts
+- **Product:** unobserved
+
+### SCN-029: Open a service from Fabric's agent registry
+- **Persona:** P-01
+- **Feature:** links
+- **Traces:** ST-011, ST-005, ST-003 (JTBD-04, JRN-01/#5); Fabric SCN-101, plan row AR-2.5
+- **Entry point:** Fabric's agent registry → a service card → Open dashboard, which opens `fabric-dashboards://service/<id>.<instance>`
+- **Preconditions:** Fabric Dashboards is installed; the service's descriptor is in the services folder
+- **Steps:**
+  1. User chooses Open dashboard in Fabric -> macOS hands the link to Fabric Dashboards, running or not (a running app gets it from the second process, which quits)
+  2. System checks the key against the installed descriptors -> the window comes forward on that service's view, its dashboard open and signed in as in SCN-014
+  3. The service is stopped -> the same view opens, the state reads Off and Start is offered (SCN-010)
+- **Expected result:** the service is watched here; Fabric never becomes a second dashboard host
+- **Alt paths:** `?path=/…` opens one page of the service, as in SCN-026; Fabric Dashboards is not installed -> nothing reaches the app, and Fabric's card says so and links to the download (Fabric's own scenario)
+- **UI elements:** service view, state badge, Start, embedded dashboard
+- **States covered:** loading, success, error
+- **Errors & recovery:** a service that is not installed, or a malformed or foreign link -> SCN-027 with the reason; nothing opens in a browser tab
+- **Status:** draft
+- **Coverage:** src/core/deeplink.ts#parseDeepLink, test/deeplink.test.ts, test/e2e/app.test.ts
 - **Product:** unobserved
 
 ## agents

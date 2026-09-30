@@ -69,7 +69,7 @@ test('list_services shows the state, the dashboard and a deep link, and no token
   assert.equal(s.version, '0.2.0');
   assert.equal(s.build, '8b80be9');
   assert.equal(s.dashboard, 'http://127.0.0.1:47195/dashboard');
-  assert.equal(s.open_link, 'fabric-dashboards://open?service=example-agent.default&path=%2Fdashboard');
+  assert.equal(s.open_link, 'fabric-dashboards://service/example-agent.default?path=%2Fdashboard');
   assert.deepEqual(s.commands, ['doctor']);
   assert.equal(JSON.stringify(out).includes(SECRET), false);
 });
@@ -84,7 +84,7 @@ test('link turns a service URL or a key and path into the deep link, and opens n
   const { deps, calls } = world();
   assert.deepEqual(await tools.link(deps, { url: 'http://127.0.0.1:47195/dashboard/job_1?tab=log' }), {
     service: KEY,
-    open_link: 'fabric-dashboards://open?service=example-agent.default&path=%2Fdashboard%2Fjob_1%3Ftab%3Dlog',
+    open_link: 'fabric-dashboards://service/example-agent.default?path=%2Fdashboard%2Fjob_1%3Ftab%3Dlog',
     http_url: 'http://127.0.0.1:47195/dashboard/job_1?tab=log',
   });
   assert.equal((await tools.link(deps, { service: KEY, path: '/dashboard/job_2' })).http_url, 'http://127.0.0.1:47195/dashboard/job_2');
@@ -97,7 +97,7 @@ test('link turns a service URL or a key and path into the deep link, and opens n
 test('open goes to the app when it is installed, to the browser when not, and nowhere off macOS', async () => {
   const inApp = world();
   assert.equal((await tools.open(inApp.deps, { service: KEY, path: '/dashboard/job_1' })).opened_in, 'fabric-dashboards');
-  assert.deepEqual(inApp.calls.open, ['fabric-dashboards://open?service=example-agent.default&path=%2Fdashboard%2Fjob_1']);
+  assert.deepEqual(inApp.calls.open, ['fabric-dashboards://service/example-agent.default?path=%2Fdashboard%2Fjob_1']);
 
   const browser = world({ installed: false });
   const r = await tools.open(browser.deps, { service: KEY, path: '/dashboard/job_1' });
@@ -148,7 +148,7 @@ test('activity reads the events with the local token, never returns it, and turn
   const { deps } = world();
   const out = await tools.activity(deps, KEY, 5);
   assert.equal(out.events.length, 2);
-  assert.equal(out.events[0]!.link, 'fabric-dashboards://open?service=example-agent.default&path=%2Fdashboard%2Fjob_1');
+  assert.equal(out.events[0]!.link, 'fabric-dashboards://service/example-agent.default?path=%2Fdashboard%2Fjob_1');
   assert.equal(out.events[1]!.link, undefined);
   assert.equal(JSON.stringify(out).includes(SECRET), false);
 
@@ -203,4 +203,26 @@ test('the server speaks newline-delimited JSON-RPC over stdio', async () => {
   assert.equal((byId.get(1)!.result!.serverInfo as { version: string }).version, JSON.parse(fs.readFileSync(path.join(__dirname, '../package.json'), 'utf8')).version);
   assert.equal(byId.get(null)!.error!.code, -32700);
   assert.deepEqual(byId.get(2)!.result!.structuredContent, { services: [], services_dir: dir });
+});
+
+test('an unreadable descriptor is listed with its problem and no link to open', async () => {
+  const { deps } = world();
+  fs.writeFileSync(path.join(deps.servicesDir(), 'Not_A_Key.json'), '{');
+  const out = await tools.listServices(deps);
+  const bad = out.services.find((s) => s.key === 'Not_A_Key')!;
+  assert.equal(bad.state, 'invalid');
+  assert.equal(bad.open_link, null, 'a link to it would only be refused');
+  assert.match(bad.problems[0]!, /JSON/);
+  assert.equal(out.services.find((s) => s.key === KEY)!.open_link, 'fabric-dashboards://service/example-agent.default?path=%2Fdashboard');
+});
+
+test('an event link that is not a path on the service gets no deep link, and the rest still come back', async () => {
+  const { deps } = world();
+  deps.events = async () => ({ cursor: null, events: [
+    { id: 'e1', at: '2026-09-29T10:00:00Z', kind: 'x', level: 'info', text: 'odd', link: '/a\\b' },
+    { id: 'e2', at: '2026-09-29T10:01:00Z', kind: 'x', level: 'info', text: 'fine', link: '/dashboard/job_2' },
+  ] });
+  const out = await tools.activity(deps, KEY, 5);
+  assert.equal(out.events[0]!.link, undefined);
+  assert.equal(out.events[1]!.link, 'fabric-dashboards://service/example-agent.default?path=%2Fdashboard%2Fjob_2');
 });

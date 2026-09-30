@@ -1,6 +1,6 @@
 # Handoff — Fabric Dashboards
 
-Updated 2026-09-29.
+Updated 2026-09-30.
 
 ## Objective
 
@@ -62,6 +62,30 @@ that exact page inside the app, and agents use the app's own rules for administr
 
 Released as 0.2.0 (row above). Next task: move scenarios SCN-026…SCN-028 from `draft` once the
 operator has used a link and the MCP server from a real session.
+
+## Service links, 2026-09-30 (Fabric plan AR-2.5, branch `agent/service-links`)
+
+Objective: Fabric's agent registry opens a service's dashboard here through
+`fabric-dashboards://service/<id>.<instance>` (Fabric SCN-101); this app accepts that form,
+keeps the 0.2.0 links working and refuses malformed or foreign targets
+([ADR-0005](adr/0005-service-links.md), SCN-029, SCN-026/027 updated).
+
+- `src/core/deeplink.ts#parseDeepLink` — the `service/` verb (region `service-link-form`),
+  a global refusal of user/password/port; `linkFor()` now builds the service form and refuses a
+  key or path the app would refuse. `src/mcp/tools.ts` — `open_link` null for an unreadable
+  descriptor; an event link off the service's origin is dropped, not thrown.
+- `scripts/check-regions.mjs` (copied from Fabric, see its header) is part of `npm run check`.
+- README quick start rewritten for a newcomer; the newcomer path was checked against the
+  released 0.2.0 DMG (anonymous download HTTP 200, `spctl` accepted as Notarized Developer ID,
+  `codesign --verify --deep --strict` exit 0, the bundled MCP launcher answered `initialize` and
+  `list_services` with exit 0).
+- Checks run: `npm run check`, `npm run test:e2e` (3 tests; the third is new: the service form at
+  launch and forwarded by a second process to the running app, a stopped service opening on
+  Start, three refusals shown and logged without the link).
+- Not released: 0.2.0 refuses `service/…` as an unknown verb. Fabric's "Open dashboard" needs the
+  next release of this app installed.
+
+Next task: the shared service-host package (Fabric plan AR-2.2, Dashboards half), on top of this.
 
 ## Open
 
