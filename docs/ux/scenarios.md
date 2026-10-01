@@ -53,7 +53,7 @@ first release; every sentence a service writes is shown as the service wrote it.
 - **Preconditions:** at least one service is installed and running
 - **Steps:**
   1. User opens Fabric Dashboards for the first time -> system shows the window with the sidebar and Overview, a "Looking for services…" line while it reads the services directory
-  2. System reads every descriptor and probes each service -> each service appears in the sidebar and as a card with its state, name and version within 5 seconds
+  2. System reads every descriptor and probes each service -> each service appears in the sidebar and as a card with its state, name and version within 5 seconds; a second instance of one agent carries its instance in the name ("Example Agent · preview")
   3. User looks at the menu bar -> system shows the Dashboards icon with the aggregate state
 - **Expected result:** every installed service is listed with its real state without any setup
 - **Alt paths:** a service is installed but its launchd job is off -> it appears as "Off" with Start
@@ -315,7 +315,7 @@ first release; every sentence a service writes is shown as the service wrote it.
 - **States covered:** loading, success, error
 - **Errors & recovery:** see SCN-016; a link inside the page to another site asks "Open <address> in your browser?" before leaving the app
 - **Status:** draft
-- **Coverage:** src/electron/views.ts, test/e2e/app.test.ts
+- **Coverage:** src/electron/views.ts, src/electron/policy.ts, test/viewslot.test.ts, test/e2e/app.test.ts
 - **Product:** unobserved
 
 ### SCN-015: Dashboard view keeps its place
@@ -325,7 +325,7 @@ first release; every sentence a service writes is shown as the service wrote it.
 - **Entry point:** a service view already opened once
 - **Preconditions:** none
 - **Steps:**
-  1. User switches to another service and back -> system shows the same page, scrolled and filled as it was; it is not reloaded and no second copy exists
+  1. User switches to another service and back -> system shows the same page, scrolled and filled as it was; it is not reloaded and no second copy exists. Switching between two dashboards that are both open shows the chosen one, never a blank tab
   2. The service restarts -> the view shows "Service restarted — Reload" and reloads when chosen
 - **Expected result:** one live view per service, never duplicated
 - **UI elements:** embedded page, reload bar
@@ -416,15 +416,15 @@ first release; every sentence a service writes is shown as the service wrote it.
 - **Entry point:** app running
 - **Preconditions:** a service publishes an event with notify true
 - **Steps:**
-  1. System reads the event -> a notification shows the service name and the event sentence
+  1. System reads the event; it is a question (`*.awaiting_*`, `*.approval_*`, `human_step.opened`), a failure (level error) or a warning -> a notification: the title names the agent and its instance when it is not the default ("Example Agent · preview"), the subtitle says what it wants ("Needs your decision", "Failed", "Needs attention"), the body is the event sentence
   2. User clicks it -> the app opens the service view at the event's link
-- **Expected result:** one click reaches the exact item
-- **Alt paths:** several events within a minute from one service -> one notification "3 new from Store Agent", opening Activity filtered to it
+- **Expected result:** one click reaches the exact item; the operator is interrupted only when an agent needs them or something went wrong
+- **Alt paths:** several such events in one read from one service -> one notification "3 need you · needs your decision" with the most urgent sentence, opening Activity filtered to it. The same subject's event again within its cool-down (question 24 h, warning 12 h, failure 6 h), the same warning from another instance of the agent, a delivery, a recovery or a plain notice -> no notification; Activity records it ([ADR-0010](../adr/0010-notifications-only-when-it-matters.md))
 - **UI elements:** macOS notification, service view
 - **States covered:** success
 - **Errors & recovery:** the link no longer exists in the service -> the service's own page shows its not-found state; nothing can fail in the app
 - **Status:** draft
-- **Coverage:** src/core/monitor.ts, src/electron/main.ts, test/monitor.test.ts
+- **Coverage:** src/core/monitor.ts, src/core/notify.ts, src/electron/main.ts, test/monitor.test.ts, test/notify.test.ts
 - **Product:** unobserved
 
 ## updates

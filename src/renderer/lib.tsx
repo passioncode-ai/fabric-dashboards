@@ -2,6 +2,7 @@ import { createContext, useContext } from 'react';
 import type { FabricApi } from '../core/api';
 import { duration as fmtDuration, hasKey, t as translate, type Lang } from '../core/i18n';
 import type { Reason, ServiceSnapshot, ServiceState } from '../core/types';
+import { displayName } from '../core/names';
 
 declare global {
   interface Window { fabric: FabricApi }
@@ -44,7 +45,11 @@ export function Spinner() {
   return <span className="spinner" aria-hidden="true" />;
 }
 
-export const nameOf = (s: ServiceSnapshot) => s.descriptor?.name ?? s.wellKnown?.service.name ?? s.key;
+/** The name a person reads; a second instance of one agent carries its instance (ADR-0010). */
+export const nameOf = (s: ServiceSnapshot) => {
+  const named = s.descriptor ?? s.wellKnown?.service;
+  return named ? displayName(named.name, named.instance) : s.key;
+};
 export const portOf = (s: ServiceSnapshot) => /:(\d+)$/.exec(s.descriptor?.origin ?? '')?.[1] ?? '—';
 export const shortBuild = (s: ServiceSnapshot) => {
   const b = s.wellKnown?.service.build;

@@ -40,16 +40,23 @@ test('discovers a service, reads its events and notifies only on new ones', asyn
     assert.equal(notices.length, 0, 'history on first read is not news');
     const token = readToken(path.join(data, 'service.token'));
     const body = JSON.stringify({ kind: 'job.awaiting_choice', level: 'notice', text: 'The Q3 report waits for your approval.', notify: true, link: '/#approvals/7' });
-    const res = await new Promise<number>((resolve, reject) => {
+    const emit = (payload: string) => new Promise<number>((resolve, reject) => {
       const http = require('node:http') as typeof import('node:http');
-      const r = http.request({ host: '127.0.0.1', port, method: 'POST', path: '/api/emit', headers: { Host: `127.0.0.1:${port}`, Authorization: `Bearer ${token}`, 'X-Fabric-Request': '1', 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) } }, (x) => { x.resume(); resolve(x.statusCode ?? 0); });
-      r.on('error', reject); r.end(body);
+      const r = http.request({ host: '127.0.0.1', port, method: 'POST', path: '/api/emit', headers: { Host: `127.0.0.1:${port}`, Authorization: `Bearer ${token}`, 'X-Fabric-Request': '1', 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(payload) } }, (x) => { x.resume(); resolve(x.statusCode ?? 0); });
+      r.on('error', reject); r.end(payload);
     });
-    assert.equal(res, 200);
+    assert.equal(await emit(body), 200);
     await monitor.pollEvents();
     assert.deepEqual(notices.map((n) => [n.title, n.body, n.link]), [['Sample Service', 'The Q3 report waits for your approval.', '/#approvals/7']]);
+    assert.equal(notices[0]!.subtitle, 'Needs your decision', 'the banner says what the agent wants');
     await monitor.pollEvents();
     assert.equal(notices.length, 1, 'an event is never notified twice');
+    // ADR-0010: the same question asked again, and a delivery, ask to notify but are not news.
+    assert.equal(await emit(body), 200);
+    assert.equal(await emit(JSON.stringify({ kind: 'job.delivered', level: 'notice', text: 'The Q3 report is ready.', notify: true })), 200);
+    await monitor.pollEvents();
+    assert.equal(notices.length, 1, 'a repeated question and a delivery go to Activity only');
+    assert.ok(activity.list({ serviceKey: 'sample.default' }).some((e) => e.kind === 'job.delivered'), 'Activity still has them');
   } finally {
     monitor.stop();
     await stopProcess(proc);

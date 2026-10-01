@@ -49,6 +49,7 @@ export class ActivityStore {
   addServiceEvents(serviceKey: string, serviceName: string, events: ServiceEvent[], cursor: string | null): ActivityItem[] {
     const known = new Set(this.items.filter((i) => i.serviceKey === serviceKey && i.source === 'service').map((i) => i.id));
     const fresh = events.filter((e) => !known.has(e.id)).map((e) => ({ ...e, serviceKey, serviceName, source: 'service' as const }));
+    if (!fresh.length && this.cursors[serviceKey] === cursor) return fresh; // nothing new: no rewrite of the whole feed
     this.items.push(...fresh);
     this.cursors[serviceKey] = cursor;
     this.sort();

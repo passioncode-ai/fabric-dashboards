@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.3.4 — 2026-10-01
+
+- **Fixed: a blank Dashboard tab.** Switching between two services whose dashboards were both open
+  left the tab empty: the old dashboard's hide arrived after the new one's show and removed it. A
+  hide now withdraws only the view its own dashboard asked for, and a page that finishes loading
+  after a newer choice never covers it (`ViewSlot`, SCN-015; reproduced by a new end-to-end test,
+  which fails without the fix).
+- **Notifications only when it matters** ([ADR-0010](docs/adr/0010-notifications-only-when-it-matters.md)).
+  A service event that asks to notify becomes a banner only when the agent needs a decision, failed,
+  or warns — once per subject and cool-down (question 24 h, warning 12 h, failure 6 h), remembered
+  across restarts; one warning from two instances of an agent is one banner. Deliveries, recoveries
+  and plain notices go to Activity only. The banner names the agent and its instance, says what it
+  wants in the subtitle, and opens the item on click.
+- **Two instances read apart:** the sidebar, cards and banners name a non-default instance
+  ("Example Agent · preview").
+- **Less disk work:** a poll that brings no new event no longer rewrites the activity file (about
+  1 MB, every 15 s per service); a failed write leaves no temporary file behind.
+
 ## 0.3.3 — 2026-10-01
 
 - **Cold launch from MCP:** remove the MCP launcher’s `ELECTRON_RUN_AS_NODE` flag from the child that opens a dashboard. Previously macOS could accept a link while the closed app exited without a window. Existing-host routing, strict fallback and the MCP process environment are preserved.

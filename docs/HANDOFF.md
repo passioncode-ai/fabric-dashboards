@@ -1,10 +1,47 @@
 # Handoff — Fabric Dashboards
 
-Updated 2026-10-01 (release 0.3.3, cold-start correction).
+Updated 2026-10-01 (release 0.3.4, blank dashboard and notification policy).
 
-Current release: [dashboard routing 0.3.3](runs/2026-10-01-dashboard-links/README.md#cold-launch-correction--033),
-with [signed build and installed MCP receipts](runs/2026-10-01-dashboard-links/release-0.3.3.json).
-Earlier releases below are preserved as dated evidence.
+Current release: 0.3.4 (section below). Earlier releases below are preserved as dated evidence.
+
+## Release 0.3.4, 2026-10-01 (branch `agent/view-race-stability`)
+
+Objective: the operator saw an empty Dashboard tab, two sidebar rows with one name, services
+"restarting" all day and a flood of banners. What was found and done:
+
+- **Blank Dashboard tab — fixed in the app.** Reproduced in the installed 0.3.1: open service A,
+  open service B, back to A → empty tab. Cause: the renderer sends the new host's `showView`
+  before the old host's cleanup `hideView()`, and that hide removed the view just shown.
+  `ViewSlot` (`src/electron/policy.ts`) keys show and hide by the dashboard host that asked;
+  a show overtaken while loading never attaches. Evidence: `test/viewslot.test.ts`; the new e2e
+  *switching between two loaded dashboards…* fails on the old code («back to Alpha: … not a
+  blank tab») and passes on the new.
+- **Notifications — ADR-0010.** Measured 405 `notify: true` events in one day, 302 of them one
+  flapping low-disk warning from two instances of one agent. A banner now needs intent ask,
+  failed or attention, once per episode and cool-down, remembered in `notified.json`; title =
+  agent and instance, subtitle = what it wants. `test/notify.test.ts` holds the day's cases.
+- **Two instances read apart:** `displayName` (`src/core/names.ts`) in the sidebar and banners.
+- **Disk work:** `ActivityStore` no longer rewrites ~1 MB per service every 15 s when nothing is
+  new; `atomicWrite` removes its temporary file on a failed write (zero-byte leftovers had been
+  found in the operator's app data after a full disk).
+- **"Restarting all day" was not restarts.** Two services the host flapped on ran with
+  `launchctl print` → `runs = 1` for 19 h. Both had `ProcessType Background` (one also `Nice 5`,
+  `LowPriorityIO`), copied from the adapter kit's lifecycle table; under a load average of 192
+  macOS starved them. Fixed upstream: `fabric-agent-adapter` 0.5.7 (PR #23, tag `v0.5.7`, on npm)
+  writes `Standard` and its probe fails `Background` (`lifecycle.priority`);
+  `project-observatory-dashboard` PR #110 does the same for its server and stops its own
+  `osascript` banners when this host is present; `passioncode` 0.1.18 pins adapter 0.5.7.
+- **Copies:** the extra services were second instances left running beside `default`; they were
+  uninstalled on the operator's Mac and their runbooks now say an instance is temporary
+  (private repositories, not named here).
+
+Checks run: `npm run check` (119 tests, regions, UX lint), `npm run test:e2e` (4 tests),
+`npm run dist -- --notary-profile fabric-notary` (receipt in the release).
+
+Next task: once PR #110 has its three required checks green, merge it, release
+`project-observatory-dashboard` and reinstall the server so its plist is `Standard` (until then
+the installed plist still says `Background`). Then move SCN-001/015/020 out of `draft` after the
+operator has used 0.3.4.
 
 ## Objective
 

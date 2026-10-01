@@ -31,3 +31,42 @@ export function clampRect(rect: { x: number; y: number; width: number; height: n
   const n = (v: number) => (Number.isFinite(v) ? Math.max(0, Math.round(v)) : 0);
   return { x: n(rect.x), y: n(rect.y), width: n(rect.width), height: n(rect.height) };
 }
+
+// #region view-slot — docs: docs/ux/scenarios.md#scn-015-dashboard-view-keeps-its-place
+/** Which service view belongs on screen. Show and hide come over IPC in the order React commits
+ *  effects — the new dashboard host's show before the old host's cleanup hide — so the slot goes
+ *  by who asked: a host (`owner`, one per mounted dashboard host) may hide only its own request,
+ *  and a show that a newer show or a hide overtook while it loaded never attaches. */
+export class ViewSlot {
+  private owner: string | null = null;
+  private key: string | null = null;
+  private seq = 0;
+
+  /** A host asks to show a service; returns the ticket its show attaches with. */
+  request(owner: string, key: string): number {
+    this.owner = owner;
+    this.key = key;
+    this.seq += 1;
+    return this.seq;
+  }
+
+  /** May the show holding this ticket attach its view now? */
+  current(ticket: number): boolean {
+    return ticket === this.seq && this.owner !== null;
+  }
+
+  /** A hide. With an owner, only that host's own request is withdrawn; without, any. True: hide now. */
+  release(owner?: string): boolean {
+    if (this.owner === null || (owner !== undefined && owner !== this.owner)) return false;
+    this.owner = null;
+    this.key = null;
+    this.seq += 1;
+    return true;
+  }
+
+  /** The service key currently wanted on screen, or null. */
+  wanted(): string | null {
+    return this.key;
+  }
+}
+// #endregion view-slot

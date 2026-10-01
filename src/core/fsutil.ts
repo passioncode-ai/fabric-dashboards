@@ -8,15 +8,15 @@ export function atomicWrite(file: string, data: string | Buffer, mode = 0o600): 
   const tmp = path.join(path.dirname(file), `.${path.basename(file)}.${process.pid}.${crypto.randomBytes(4).toString('hex')}`);
   const fd = fs.openSync(tmp, 'wx', mode);
   try {
-    fs.writeSync(fd, typeof data === 'string' ? Buffer.from(data, 'utf8') : data);
-    fs.fsyncSync(fd);
-  } finally {
-    fs.closeSync(fd);
-  }
-  try {
+    try {
+      fs.writeSync(fd, typeof data === 'string' ? Buffer.from(data, 'utf8') : data);
+      fs.fsyncSync(fd);
+    } finally {
+      fs.closeSync(fd);
+    }
     fs.renameSync(tmp, file);
   } catch (error) {
-    fs.rmSync(tmp, { force: true });
+    fs.rmSync(tmp, { force: true }); // a full disk fails the write, not only the rename: never leave the temp file
     throw error;
   }
 }

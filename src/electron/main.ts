@@ -12,6 +12,7 @@ import { langFor, t, type Lang } from '../core/i18n';
 import { execRunner } from '../core/launchd';
 import { listListeners, unattributed } from '../core/listeners';
 import { Monitor, type Notice } from '../core/monitor';
+import { NotifyLedger } from '../core/notify';
 import { SettingsStore } from '../core/settings';
 import type { AppStatus, Settings } from '../core/types';
 import { AppTray } from './tray';
@@ -60,7 +61,7 @@ if (!app.requestSingleInstanceLock()) {
   const settings = new SettingsStore(userData);
   const activity = new ActivityStore(userData);
   const lang = (): Lang => langFor(app.getPreferredSystemLanguages()[0] ?? app.getLocale());
-  const monitor = new Monitor({ servicesDir: servicesDir(), activity, settings: () => settings.get(), lang });
+  const monitor = new Monitor({ servicesDir: servicesDir(), activity, settings: () => settings.get(), lang, ledger: new NotifyLedger(path.join(userData, 'notified.json')) });
   let tray: AppTray | null = null;
   const updater = new Updater(() => pushStatus(), log);
 
@@ -127,7 +128,7 @@ if (!app.requestSingleInstanceLock()) {
 
   function notify(notice: Notice): void {
     if (!Notification.isSupported()) return;
-    const n = new Notification({ title: notice.title, body: notice.body, silent: false });
+    const n = new Notification({ title: notice.title, subtitle: notice.subtitle, body: notice.body, silent: false });
     n.on('click', () => navigate({ page: notice.target, key: notice.serviceKey, link: notice.link }));
     n.show();
   }
@@ -201,12 +202,13 @@ if (!app.requestSingleInstanceLock()) {
       if (fs.existsSync(target) && fs.statSync(target).isDirectory()) void shell.openPath(target);
       else shell.showItemInFolder(target);
     });
-    ipcMain.handle(CHANNELS.viewShow, async (_e, key: string, rect: Rect, link?: string) => {
+    ipcMain.handle(CHANNELS.viewShow, async (_e, key: string, rect: Rect, link: string | undefined, owner: string) => {
       const s = snap(key);
       if (!s || !views) return { ok: false, error: 'unknown service' };
-      return views.show(s, rect, link);
+      if (typeof owner !== 'string' || !owner) throw new Error('a view is shown for a dashboard host');
+      return views.show(s, rect, link, owner);
     });
-    ipcMain.handle(CHANNELS.viewHide, () => views?.hide());
+    ipcMain.handle(CHANNELS.viewHide, (_e, owner?: string) => views?.hide(typeof owner === 'string' ? owner : undefined));
     ipcMain.handle(CHANNELS.viewReload, async (_e, key: string) => { const s = snap(key); if (s) await views?.reload(s); });
     ipcMain.handle(CHANNELS.updateRestart, () => { quitting = true; updater.restart(); });
     ipcMain.handle(CHANNELS.updateCheck, () => updater.check());

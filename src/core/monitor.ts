@@ -9,7 +9,7 @@ import { claimConflicts, deriveState, expand, fetchWellKnown, readDirectory, typ
 import { tail } from './fsutil';
 import { duration, t as tr, type Lang } from './i18n';
 import { Launchd } from './launchd';
-import { DOWN_NOTIFY_AFTER_MS, shouldNotify, type Happening } from './notify';
+import { composeEventNotice, displayName, DOWN_NOTIFY_AFTER_MS, episodeKey, intentOf, NotifyLedger, shouldNotify, type Happening, type Intent } from './notify';
 import { fetchEvents, PROBE_TIMEOUT_MS, readToken } from './probe';
 import type { Busy, Reason, ServiceSnapshot, Settings } from './types';
 
@@ -18,7 +18,7 @@ export const COMMAND_TIMEOUT_MS = 120_000;
 /** Consecutive failed probes before silence counts at all (ADR-0008). Fewer keep the last answer. */
 export const DOWN_AFTER_MISSES = 3;
 
-export interface Notice { serviceKey: string; title: string; body: string; link?: string; target: 'service' | 'activity' }
+export interface Notice { serviceKey: string; title: string; subtitle?: string; body: string; link?: string; target: 'service' | 'activity' }
 
 export interface MonitorOptions {
   servicesDir: string;
@@ -30,6 +30,8 @@ export interface MonitorOptions {
   intervals?: { rescan: number; visible: number; background: number; events: number; maxBackoff: number };
   /** The health probe. Default: the well-known document with PROBE_TIMEOUT_MS. */
   wellKnown?: (origin: string) => Promise<WellKnownResult>;
+  /** Which notification episodes were told and when (ADR-0010). Default: in memory. */
+  ledger?: NotifyLedger;
 }
 
 interface Tracked {
@@ -59,6 +61,7 @@ export class Monitor extends EventEmitter {
   private readonly now: () => number;
   private readonly intervals: typeof DEFAULT_INTERVALS;
   private readonly wellKnown: (origin: string) => Promise<WellKnownResult>;
+  private readonly ledger: NotifyLedger;
   private visible = true;
   private watcher: fs.FSWatcher | null = null;
   private timers: NodeJS.Timeout[] = [];
@@ -74,6 +77,7 @@ export class Monitor extends EventEmitter {
     this.now = o.now ?? Date.now;
     this.intervals = { ...DEFAULT_INTERVALS, ...(o.intervals ?? {}) };
     this.wellKnown = o.wellKnown ?? ((origin) => fetchWellKnown(origin, PROBE_TIMEOUT_MS));
+    this.ledger = o.ledger ?? new NotifyLedger(null);
   }
 
   // --- lifecycle -----------------------------------------------------------------
@@ -271,7 +275,9 @@ export class Monitor extends EventEmitter {
   }
 
   private name(t: Tracked): string {
-    return t.entry.descriptor?.name ?? (t.probe?.kind === 'answer' ? t.probe.doc.service.name : t.entry.key);
+    const d = t.entry.descriptor;
+    if (d) return displayName(d.name, d.instance);
+    return t.probe?.kind === 'answer' ? displayName(t.probe.doc.service.name, t.probe.doc.service.instance) : t.entry.key;
   }
 
   private appEvent(key: string, t: Tracked, kind: string, level: 'info' | 'notice' | 'warning' | 'error', textKey: string, params: Record<string, string | number> = {}): void {
@@ -322,13 +328,19 @@ export class Monitor extends EventEmitter {
       }
       t.feedError = null;
       if (firstEver || !t.baselined) { t.baselined = true; return; } // history, not news
-      const asking = fresh.filter((e) => e.notify);
-      const allowed = asking.filter((e) => shouldNotify(this.o.settings(), { kind: 'event', serviceKey: t.entry.key, level: e.level }, new Date(this.now())));
-      if (allowed.length === 1) {
-        this.emit('notify', { serviceKey: t.entry.key, title: d.name, body: allowed[0]!.text, link: allowed[0]!.link, target: 'service' } satisfies Notice);
-      } else if (allowed.length > 1) {
-        this.emit('notify', { serviceKey: t.entry.key, title: tr(this.o.lang(), 'notify.many', { name: d.name, count: allowed.length }), body: allowed.at(-1)!.text, target: 'activity' } satisfies Notice);
+      // #region notification-policy — docs: docs/adr/0010-notifications-only-when-it-matters.md#decision
+      // The service asks (`notify`); the host tells only a request, a failure or a new warning, once per episode.
+      const now = this.now();
+      const told: { intent: Exclude<Intent, 'quiet'>; text: string; link?: string }[] = [];
+      for (const e of fresh) {
+        const intent = e.notify ? intentOf(e) : 'quiet';
+        if (intent === 'quiet') continue;
+        if (!shouldNotify(this.o.settings(), { kind: 'event', serviceKey: t.entry.key, level: e.level }, new Date(now))) continue;
+        if (!this.ledger.admit(episodeKey({ key: t.entry.key, id: d.id }, e), intent, now)) continue;
+        told.push({ intent, text: e.text, link: e.link });
       }
+      if (told.length) this.emit('notify', { serviceKey: t.entry.key, ...composeEventNotice(this.o.lang(), this.name(t), told) } satisfies Notice);
+      // #endregion notification-policy
     } catch (error) {
       t.feedError = { code: 'raw', params: { text: (error as Error).message } };
     }

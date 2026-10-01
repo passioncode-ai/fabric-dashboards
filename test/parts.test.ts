@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import { ActivityStore } from '../src/core/activity';
+import { atomicWrite } from '../src/core/fsutil';
 import { allKeys, dictionary, duration, langFor, t } from '../src/core/i18n';
 import { parseLsof, unattributed } from '../src/core/listeners';
 import { inQuietHours, shouldNotify } from '../src/core/notify';
@@ -67,6 +68,29 @@ test('activity store: merges, never repeats, survives a restart with its cursor,
   assert.equal(b.latest('store.default')?.id, '2');
   fs.appendFileSync(path.join(dir, 'activity.jsonl'), '{"torn');
   assert.equal(new ActivityStore(dir).list().length, 4, 'a torn last line is skipped');
+});
+
+test('activity store: a poll that brings nothing new writes nothing', () => {
+  const dir = tmp('fd-act-quiet-');
+  const a = new ActivityStore(dir);
+  const ev = { id: '1', at: '2026-09-28T10:00:00Z', kind: 'job.done', level: 'notice' as const, text: 'Job 1 finished.' };
+  a.addServiceEvents('store.default', 'Store Agent', [ev], '1');
+  const file = path.join(dir, 'activity.jsonl');
+  const before = fs.statSync(file).ino;
+  assert.equal(a.addServiceEvents('store.default', 'Store Agent', [], '1').length, 0);
+  assert.equal(a.addServiceEvents('store.default', 'Store Agent', [ev], '1').length, 0, 'a repeated page');
+  assert.equal(fs.statSync(file).ino, before, 'the ~1 MB feed is not rewritten every 15 s per service');
+  a.addServiceEvents('store.default', 'Store Agent', [], '2');
+  assert.notEqual(fs.statSync(file).ino, before, 'a moved cursor is kept');
+  assert.equal(new ActivityStore(dir).cursor('store.default'), '2');
+});
+
+test('atomicWrite leaves no temporary file behind when the write fails', () => {
+  const dir = tmp('fd-atomic-');
+  const file = path.join(dir, 'x.json');
+  fs.mkdirSync(file); // rename onto a directory fails
+  assert.throws(() => atomicWrite(file, 'data'));
+  assert.deepEqual(fs.readdirSync(dir), ['x.json']);
 });
 
 test('every interface string exists in English and Russian, and placeholders match', () => {

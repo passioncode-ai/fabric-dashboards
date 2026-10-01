@@ -9,7 +9,7 @@ in, one live view per service — instead of a browser tab per port. It is the m
 [Fabric](https://passioncode.ai/), PassionCode.ai's CEO AI agent, and it also works on its own:
 agents drive it over MCP, people use the window.
 
-**Version 0.3.3** — [download](https://github.com/passioncode-ai/fabric-dashboards/releases/latest). See [HANDOFF](docs/HANDOFF.md)
+**Version 0.3.4** — [download](https://github.com/passioncode-ai/fabric-dashboards/releases/latest). See [HANDOFF](docs/HANDOFF.md)
 for what is released and what is next.
 
 ## What it does
@@ -19,7 +19,7 @@ for what is released and what is next.
 | **Overview** | a card per service — state, version and commit, uptime, the service's own tiles, its latest event — and *Needs attention* first |
 | **Service view** | Restart · Stop/Start · Update · Doctor · Logs, with the service's dashboard embedded below |
 | **Activity** | every service's events and the app's own observations in one feed, filterable, each row opening the exact item |
-| **Notifications** | not answering (three missed probes in a row and 60 s of silence — a slow answer under load is not an outage, [ADR-0008](docs/adr/0008-a-missed-probe-is-not-an-outage.md)), back, two copies, another program on the port, events a service marks for you — with quiet hours and per-service levels |
+| **Notifications** | not answering (three missed probes in a row and 60 s of silence — a slow answer under load is not an outage, [ADR-0008](docs/adr/0008-a-missed-probe-is-not-an-outage.md)), back, two copies, another program on the port, and, from the events a service marks for you, only a decision it waits for, a failure or a warning — once per subject, titled with the agent and what it wants ([ADR-0010](docs/adr/0010-notifications-only-when-it-matters.md)); quiet hours and per-service levels |
 | **Menu bar** | the aggregate state as a shape, problems first |
 | **Links from agents and Fabric** | `fabric-dashboards://service/<id.instance>?path=/…` opens that service, or that page of it, here, signed in — the link Fabric's "Open dashboard" opens |
 | **MCP for agents** | list services, hand out links, open a page, restart or update — through the app's own rules |

@@ -16,8 +16,11 @@ export interface FabricApi {
   updateSettings(patch: Partial<Settings>): Promise<{ settings: Settings; error?: string }>;
   listeners(): Promise<{ listeners: Listener[]; error?: string }>;
   showPath(path: string): Promise<void>;
-  showView(key: string, rect: Rect, link?: string): Promise<{ ok: boolean; error?: string }>;
-  hideView(): Promise<void>;
+  /** `owner` names the dashboard host asking (one per mounted host), so its later hide cannot
+   *  remove a view another host has shown since (ViewSlot in src/electron/policy.ts). */
+  showView(key: string, rect: Rect, link: string | undefined, owner: string): Promise<{ ok: boolean; error?: string }>;
+  /** With an owner, hide only that host's view; without, hide whatever is shown. */
+  hideView(owner?: string): Promise<void>;
   viewBounds(rect: Rect): void;
   reloadView(key: string): Promise<void>;
   onViewEvent(listener: (event: { key: string; kind: 'restarted' | 'crashed' | 'loaded' | 'error'; error?: string }) => void): () => void;

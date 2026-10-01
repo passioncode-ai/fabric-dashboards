@@ -6,13 +6,14 @@ import type { Rect } from '../core/api';
 import { t, type Lang } from '../core/i18n';
 import { loginUrl, readToken } from '../core/probe';
 import type { ServiceSnapshot } from '../core/types';
-import { clampRect, navigation, partitionFor, resolveLink } from './policy';
+import { clampRect, navigation, partitionFor, resolveLink, ViewSlot } from './policy';
 
 interface Entry { view: WebContentsView; origin: string; crashes: number; loadedOnce: boolean }
 
 export class ServiceViews {
   private readonly views = new Map<string, Entry>();
   private shown: string | null = null;
+  private readonly slot = new ViewSlot();
 
   constructor(
     private readonly window: BrowserWindow,
@@ -92,9 +93,13 @@ export class ServiceViews {
     }
   }
 
-  async show(snap: ServiceSnapshot, rect: Rect, link?: string): Promise<{ ok: boolean; error?: string }> {
+  /** Show a service's view for the dashboard host `owner`. A show overtaken while it loaded — by a
+   *  newer show or a hide — returns without attaching, so a slow page never covers the current one. */
+  async show(snap: ServiceSnapshot, rect: Rect, link: string | undefined, owner: string): Promise<{ ok: boolean; error?: string }> {
+    const ticket = this.slot.request(owner, snap.key);
     if (!snap.descriptor || !snap.wellKnown || (snap.state !== 'ready' && snap.state !== 'degraded')) {
-      this.hide();
+      this.slot.release(owner);
+      this.hideNow();
       return { ok: false, error: 'unavailable' };
     }
     const existing = this.views.get(snap.key);
@@ -107,6 +112,7 @@ export class ServiceViews {
     } else if (link) {
       await entry.view.webContents.loadURL(resolveLink(snap.descriptor.origin, link, snap.wellKnown.surfaces.dashboard?.path ?? '/'));
     }
+    if (!this.slot.current(ticket) || !this.views.has(snap.key)) return result;
     if (this.shown && this.shown !== snap.key) this.detach(this.shown);
     if (this.shown !== snap.key) this.window.contentView.addChildView(entry.view);
     this.shown = snap.key;
@@ -123,7 +129,13 @@ export class ServiceViews {
     if (entry) this.window.contentView.removeChildView(entry.view);
   }
 
-  hide(): void {
+  /** Hide for the host `owner` — only its own view; a stale hide from an unmounted host is ignored.
+   *  Without an owner (the app left the service page) whatever is shown is hidden. */
+  hide(owner?: string): void {
+    if (this.slot.release(owner) || owner === undefined) this.hideNow();
+  }
+
+  private hideNow(): void {
     if (this.shown) this.detach(this.shown);
     this.shown = null;
   }
@@ -144,7 +156,7 @@ export class ServiceViews {
   drop(key: string): void {
     const entry = this.views.get(key);
     if (!entry) return;
-    if (this.shown === key) this.hide();
+    if (this.shown === key) this.hideNow();
     entry.view.webContents.close();
     this.views.delete(key);
   }

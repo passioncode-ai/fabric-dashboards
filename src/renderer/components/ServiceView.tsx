@@ -90,6 +90,7 @@ function DashboardHost({ s, link, nonce, hidden }: { s: ServiceSnapshot; link?: 
   const ref = useRef<HTMLDivElement>(null);
   const [phase, setPhase] = useState<'opening' | 'open' | 'error' | 'restarted' | 'crashed'>('opening');
   const [error, setError] = useState('');
+  const owner = useRef(`host-${Math.random().toString(36).slice(2)}-${Date.now()}`).current; // this mount, for show/hide (ViewSlot)
   const available = Boolean(s.wellKnown?.surfaces.dashboard) && (s.state === 'ready' || s.state === 'degraded');
   const rect = () => {
     const r = ref.current?.getBoundingClientRect();
@@ -97,13 +98,13 @@ function DashboardHost({ s, link, nonce, hidden }: { s: ServiceSnapshot; link?: 
   };
 
   useLayoutEffect(() => {
-    if (!available || hidden) { void api().hideView(); return; }
+    if (!available || hidden) { void api().hideView(owner); return; }
     let cancelled = false;
     setPhase('opening');
-    void api().showView(s.key, rect(), link).then((r) => {
+    void api().showView(s.key, rect(), link, owner).then((r) => {
       if (cancelled) return;
       if (r.ok) setPhase('open');
-      else { setPhase('error'); setError(r.error ?? ''); void api().hideView(); }
+      else { setPhase('error'); setError(r.error ?? ''); void api().hideView(owner); }
     });
     return () => { cancelled = true; };
   }, [s.key, available, hidden, link, nonce]);
@@ -115,13 +116,13 @@ function DashboardHost({ s, link, nonce, hidden }: { s: ServiceSnapshot; link?: 
     observer.observe(el);
     const onResize = () => api().viewBounds(rect());
     window.addEventListener('resize', onResize);
-    return () => { observer.disconnect(); window.removeEventListener('resize', onResize); void api().hideView(); };
+    return () => { observer.disconnect(); window.removeEventListener('resize', onResize); void api().hideView(owner); };
   }, [s.key]);
 
   useEffect(() => api().onViewEvent((e) => {
     if (e.key !== s.key) return;
     if (e.kind === 'restarted') setPhase('restarted');
-    if (e.kind === 'crashed') { setPhase('crashed'); void api().hideView(); }
+    if (e.kind === 'crashed') { setPhase('crashed'); void api().hideView(owner); }
     if (e.kind === 'error') { setPhase('error'); setError(e.error ?? ''); }
   }), [s.key]);
 

@@ -344,9 +344,10 @@ Each action writes an app event with the outcome sentence; a timeout says so and
 ### 3.6 Notifications and updates
 
 - **Notifications** (Electron `Notification`): a service went `down` and a probe still
-  failed after 60 s of silence (ADR-0008), came back after such a notification, became `duplicate` or `foreign`; a service event with `notify: true`; an update
-  is available. Clicking opens the service view at the link. Debounced per service,
-  respecting quiet hours and per-service settings.
+  failed after 60 s of silence (ADR-0008), came back after such a notification, became `duplicate` or `foreign`; a service event with `notify: true` whose intent
+  is a question, a failure or a warning, once per episode and cool-down (ADR-0010); an update
+  is available. The title names the agent and its instance, the subtitle what it wants.
+  Clicking opens the service view at the link. Respecting quiet hours and per-service settings.
 - **App auto-update**: Squirrel.Mac through Electron's `autoUpdater` with a JSON feed
   published as a release asset of `passioncode-ai/fabric-dashboards`; the zip is the
   signed, notarized app. Checked at start and every 6 h; installed on the next quit or

@@ -233,3 +233,53 @@ test('service/<id>.<instance> links open the service, a stopped one on its Start
     await stopProcess(proc);
   }
 });
+
+// SCN-015: switching between two dashboards that are both loaded shows the chosen one. Before
+// the fix the old host's hide arrived after the new host's show and left the tab blank.
+test('switching between two loaded dashboards keeps the chosen dashboard on screen', async () => {
+  const base = tmp('fd-e2e-switch-');
+  const services = path.join(base, 'services');
+  const ports = [await freePort(), await freePort()];
+  const names = ['Alpha Service', 'Beta Service'];
+  const procs = ports.map((p, i) => serve(p, path.join(base, `svc-${i}`), ['--name', names[i]!, '--instance', i ? 'beta' : 'alpha']));
+  let app: ElectronApplication | null = null;
+  try {
+    for (const [i, p] of ports.entries()) {
+      await waitAnswering(p);
+      register(p, path.join(base, `svc-${i}`), services, ['--name', names[i]!, '--instance', i ? 'beta' : 'alpha']);
+    }
+    app = await electron.launch({
+      args: [ROOT],
+      env: { ...process.env, FABRIC_SERVICES_DIR: services, FABRIC_DASHBOARDS_USER_DATA: path.join(base, 'app'), LANG: 'en_US.UTF-8' },
+    });
+    const page = await app.firstWindow();
+    const onScreen = async () => app!.evaluate(({ BrowserWindow, webContents }) => {
+      const children = BrowserWindow.getAllWindows()[0]!.contentView.children as unknown as { webContents?: { id: number }; getBounds(): { width: number; height: number } }[];
+      return children.filter((c) => c.webContents && c.getBounds().width > 0 && c.getBounds().height > 0)
+        .map((c) => webContents.fromId(c.webContents!.id)?.getURL() ?? '');
+    });
+    const open = async (i: number) => {
+      await page.getByRole('button', { name: new RegExp(`^${names[i]}`) }).first().click();
+      await page.getByRole('heading', { level: 1, name: names[i]! }).waitFor();
+      const origin = `http://127.0.0.1:${ports[i]}`;
+      for (let n = 0; n < 75; n += 1) {
+        const urls = await onScreen();
+        if (urls.length === 1 && urls[0]!.startsWith(origin) && !urls[0]!.includes('login')) return urls;
+        await new Promise((r) => setTimeout(r, 200));
+      }
+      return onScreen();
+    };
+    await page.getByRole('button', { name: /Alpha Service — Ready/ }).waitFor({ timeout: 20_000 });
+    await page.getByRole('button', { name: /Beta Service — Ready/ }).waitFor({ timeout: 20_000 });
+    assert.equal((await open(0))[0], `http://127.0.0.1:${ports[0]}/`, 'Alpha opens');
+    assert.equal((await open(1))[0], `http://127.0.0.1:${ports[1]}/`, 'Beta opens');
+    await new Promise((r) => setTimeout(r, 500)); // let every late hide arrive
+    assert.deepEqual(await open(0), [`http://127.0.0.1:${ports[0]}/`], 'back to Alpha: its loaded page is on screen, not a blank tab');
+    await new Promise((r) => setTimeout(r, 500));
+    assert.deepEqual(await onScreen(), [`http://127.0.0.1:${ports[0]}/`], 'and it stays there');
+    await shot(page, '10-switch-back');
+  } finally {
+    await closeApp(app);
+    for (const p of procs) await stopProcess(p);
+  }
+});
