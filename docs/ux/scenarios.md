@@ -570,14 +570,14 @@ first release; every sentence a service writes is shown as the service wrote it.
 - **Preconditions:** none; the app does not need to be running
 - **Steps:**
   1. Agent calls `list_services` or `service_status` -> it receives each service's state and reasons, version and commit, dashboard address, deep link, tiles and pending update — no token
-  2. Agent calls `link` for a job it started -> it receives the deep link and the plain address, and hands them to the operator; or calls `open` -> the page opens in the app (in the browser when the app is not installed)
+  2. Agent calls `link` for a job it started -> it receives the deep link as the primary dashboard action and the plain address for diagnostics; `host_status` distinguishes installed/absent/unknown/version/handler; `open` uses the existing host (browser only for confirmed absence with `fallback=if_absent`, never with `fallback=never`)
   3. Agent calls `control` (start, stop, restart), `doctor` or `update` -> the same launchd verbs and descriptor commands as the app run, and the tool returns the result it observed
   4. Agent calls `activity` -> recent events as sentences, each with a deep link when it points at a page
 - **Expected result:** agents hand the operator the exact page and use the app's rules for administration instead of launchctl by hand
 - **Alt paths:** a service without launchd lifecycle -> `control` refuses; no declared update -> `update` refuses
 - **UI elements:** none (agent tool results); the opened service view
 - **States covered:** success, error
-- **Errors & recovery:** a restart that gets no new answer within 40 s is reported as not done, with the state it left; a refusal is a tool error the agent reads, not a crash
+- **Errors & recovery:** installed-host open failure, unknown discovery, incompatible version and wrong handler open no browser; OS acceptance is not page readiness; a restart that gets no new answer within 40 s is reported as not done, with the state it left; a refusal is a tool error the agent reads, not a crash
 - **Status:** draft
 - **Coverage:** src/mcp/tools.ts, src/mcp/server.ts, test/mcp.test.ts
 - **Product:** unobserved

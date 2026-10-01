@@ -123,11 +123,11 @@ window forward: quit the installed app first, or give the checkout its own profi
 
 ## For agents
 
-Tools: `list_services`, `service_status`, `link`, `open`, `control`, `doctor`, `update`,
+Tools: `host_status`, `list_services`, `service_status`, `link`, `open`, `control`, `doctor`, `update`,
 `activity`. An agent that starts work on a service hands the operator the `open_link` from
 `link` — `fabric-dashboards://service/<id.instance>?path=/…`, which opens that page inside the
-app — and the plain `http_url` as a fallback. `open` opens it now, in the default browser when
-the app is not installed. [ADR-0004](docs/adr/0004-deep-links-and-mcp.md) and
+app. Keep `http_url` for diagnostics or confirmed-absent fallback. `open` opens it now;
+`fallback=never` forbids the browser, and installed-host failure never falls back. [ADR-0004](docs/adr/0004-deep-links-and-mcp.md) and
 [ADR-0005](docs/adr/0005-service-links.md) have the rules.
 
 ## Design and decisions
@@ -146,3 +146,13 @@ Contributions are accepted under the [Contributor License Agreement](CLA.md).
 Open source under the [GNU AGPL-3.0](LICENSE). A [commercial license](COMMERCIAL-LICENSE.md) is
 available for use that does not meet the AGPL's terms — contact@passioncode.ai.
 Versions up to and including v0.3.0 were released under PolyForm Noncommercial or Internal Use (v0.2.0–v0.3.0) and the MIT License (v0.1.0 and earlier); those releases keep their licence.
+
+## Dashboard handoff and strict opening
+
+For a registered dashboard, consumers return `link.open_link` as the primary
+action; `http_url` remains diagnostic data. `host_status` reads installation,
+version and the registered handler without launching anything. `open` accepts
+`fallback=if_absent` (default) or `never`: an installed host failure never opens
+a browser. Its `accepted_by_os` receipt is not proof of page readiness. See the
+[implementation and checks](docs/runs/2026-10-01-dashboard-links/README.md#host-routing).
+These additions are in this source branch, not the published 0.3.1 app.

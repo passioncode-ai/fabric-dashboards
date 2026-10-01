@@ -128,6 +128,25 @@ test('a deep link at launch opens the service page signed in; the MCP server see
       url = await app.evaluate(({ webContents }, o) => webContents.getAllWebContents().map((wc) => wc.getURL()).find((u) => u.startsWith(o)) ?? '', origin);
     }
     assert.equal(url, `${origin}/?from=agent`, 'the embedded view is at the linked path, signed in');
+    const before = await app.evaluate(({ webContents }, o) => webContents.getAllWebContents()
+      .filter((wc) => wc.getURL().startsWith(o)).map((wc) => wc.id), origin);
+    assert.equal(before.length, 1);
+    // Burst through the real application event handler, as Launch Services does. This
+    // does not claim ten OS-dispatched processes: second-instance forwarding is below.
+    await app.evaluate(({ app: a, shell }, deep) => {
+      const state = globalThis as typeof globalThis & { externalOpens?: number };
+      state.externalOpens = 0;
+      shell.openExternal = async () => { state.externalOpens!++; };
+      for (let i = 0; i < 10; i++) a.emit('open-url', { preventDefault() {} }, deep);
+    }, link.open_link);
+    await page.getByRole('tab', { name: 'Dashboard', selected: true }).waitFor();
+    await new Promise((resolve) => setTimeout(resolve, 700));
+    const after = await app.evaluate(({ webContents }, o) => ({
+      ids: webContents.getAllWebContents().filter((wc) => wc.getURL().startsWith(o)).map((wc) => wc.id),
+      external: (globalThis as typeof globalThis & { externalOpens: number }).externalOpens,
+    }), origin);
+    assert.deepEqual(after.ids, before, 'ten links reuse the same embedded service view');
+    assert.equal(after.external, 0, 'no external browser open');
     await shot(page, '05-deep-link');
   } finally {
     await closeApp(app);

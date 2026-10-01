@@ -38,7 +38,8 @@ function world(opts: { installed?: boolean; platform?: NodeJS.Platform; loaded?:
     wellKnown: async () => answers.length > 1 ? answers.shift()! : answers[0] ?? { kind: 'answer', doc: WELL_KNOWN, ms: 3 },
     launchd: new Launchd(runner, 501),
     open: async (target) => { calls.open.push(target); return 0; },
-    appInstalled: async () => opts.installed ?? true,
+    host: async () => ({ state: opts.installed === false ? 'not_installed' : 'available', observed_at: '2026-10-01T00:00:00Z',
+      application: opts.installed === false ? null : { id: 'ai.passioncode.fabric-dashboards', version: '0.3.1', path: '/Applications/Fabric Dashboards.app' } }),
     run: async (argv) => { calls.run.push(argv); return { code: 0, output: 'all good', timedOut: false }; },
     events: async (_d, eventsPath, token) => {
       assert.equal(eventsPath, '/fabric/v1/events');
@@ -107,6 +108,13 @@ test('open goes to the app when it is installed, to the browser when not, and no
   const linux = world({ platform: 'linux' });
   assert.equal((await tools.open(linux.deps, { service: KEY })).opened_in, 'nothing');
   assert.deepEqual(linux.calls.open, []);
+});
+
+test('installed host open failure must not fall back to HTTP', async () => {
+  const { deps, calls } = world();
+  deps.open = async (target) => { calls.open.push(target); return 1; };
+  await assert.rejects(tools.open(deps, { service: KEY }), /open_failed/);
+  assert.deepEqual(calls.open, ['fabric-dashboards://service/example-agent.default']);
 });
 
 test('restart goes through launchd and waits for a new pid', async () => {
@@ -225,4 +233,44 @@ test('an event link that is not a path on the service gets no deep link, and the
   const out = await tools.activity(deps, KEY, 5);
   assert.equal(out.events[0]!.link, undefined);
   assert.equal(out.events[1]!.link, 'fabric-dashboards://service/example-agent.default?path=%2Fdashboard%2Fjob_2');
+});
+
+
+test('host errors and never policy refuse before any browser open, including MCP bypass arguments', async () => {
+  for (const state of ['unknown', 'incompatible', 'handler_mismatch', 'unsupported'] as const) {
+    const { deps, calls } = world();
+    deps.host = async () => ({ state, application: null, observed_at: '2026-10-01T00:00:00Z' });
+    const out = await handle(deps, { id: 1, method: 'tools/call', params: { name: 'open', arguments: { service: KEY } } });
+    const result = out!.result as { isError: boolean; structuredContent: { status: string; opened_in: string } };
+    assert.equal(result.isError, true);
+    assert.equal(result.structuredContent.status, `host_${state}`);
+    assert.equal(result.structuredContent.opened_in, 'nothing');
+    assert.deepEqual(calls.open, []);
+  }
+  const { deps, calls } = world({ installed: false });
+  for (const fallback of ['never', 'always', 1, null]) {
+    const out = await handle(deps, { id: 1, method: 'tools/call', params: { name: 'open', arguments: { service: KEY, fallback } } });
+    assert.equal((out!.result as { isError: boolean }).isError, true);
+  }
+  assert.deepEqual(calls.open, []);
+  deps.host = async () => { throw new Error('timeout'); };
+  await assert.rejects(tools.open(deps, { service: KEY }), /host_unknown/);
+  assert.deepEqual(calls.open, []);
+});
+
+test('open reports only OS acceptance; invalid targets are rejected before discovery/effects', async () => {
+  const { deps, calls } = world();
+  let discoveries = 0;
+  const host = deps.host;
+  deps.host = async () => { discoveries++; return host(); };
+  const opened = await tools.open(deps, { service: KEY, path: '/dashboard?tab=jobs#details' }, 'never');
+  assert.equal(opened.status, 'accepted_by_os');
+  assert.equal(opened.opened_in, 'fabric-dashboards');
+  assert.equal(opened.open_link, 'fabric-dashboards://service/example-agent.default?path=%2Fdashboard%3Ftab%3Djobs%23details');
+  await assert.rejects(tools.open(deps, { service: KEY, path: '//elsewhere.example/' }));
+  await assert.rejects(tools.open(deps, { service: 'missing.default' }));
+  assert.equal(discoveries, 1);
+  assert.equal(calls.open.length, 1);
+  assert.deepEqual(calls.run, []);
+  assert.deepEqual(calls.launchctl, []);
 });

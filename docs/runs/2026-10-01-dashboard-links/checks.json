@@ -1,0 +1,43 @@
+{
+  "at": "2026-10-01T16:37:06.285359+00:00",
+  "scope": "local source branch, not installed release",
+  "checks": [
+    {
+      "command": "npm run check",
+      "exit_code": 0,
+      "tests": 106,
+      "skipped": 0
+    },
+    {
+      "command": "npm run test:e2e",
+      "exit_code": 0,
+      "tests": 3
+    },
+    {
+      "command": "npm run typecheck",
+      "exit_code": 0
+    },
+    {
+      "command": "python3 docs/ux/lint.py",
+      "exit_code": 0
+    },
+    {
+      "command": "node --import tsx --test test/host.test.ts test/mcp.test.ts",
+      "exit_code": 0,
+      "tests": 18
+    },
+    {
+      "check": "real Claude Code host_status/link",
+      "receipt": "real-client.json",
+      "exit_code": 0
+    }
+  ],
+  "baseline": {
+    "test": "installed host open failure must not fall back to HTTP",
+    "exit_code_before_fix": 1,
+    "failure": "original code attempted HTTP after installed-host opening failed"
+  },
+  "hosted_ci": "NOT_RUN (nightly policy)",
+  "installed_app": "unchanged 0.3.1",
+  "fresh_checkout": "PENDING"
+}

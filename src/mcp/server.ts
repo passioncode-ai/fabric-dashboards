@@ -26,8 +26,13 @@ const INSTRUCTIONS = [
   'Fabric Dashboards watches the local agent services on this Mac (fabric-service/0.1).',
   'Hand a person a link to what you started: `link` or `open` turn a service key (id.instance)',
   'and a path, or the service\'s own http://127.0.0.1 URL, into a fabric-dashboards:// link that',
-  'opens that page inside the app, signed in. `open` opens it now (the default browser when the',
-  'app is not installed). `control`, `doctor` and `update` are the operator\'s administration —',
+  'opens that page inside the app, signed in. Return open_link as the primary dashboard link;',
+  'http_url is for diagnostics or a confirmed-absent browser fallback. Never hand-build links',
+  'or start another server/browser to show a registered dashboard. `host_status` checks this Mac.',
+  '`open` uses the installed host; an installed host failure never falls back to the browser.',
+  'Use fallback=never to forbid browser fallback even when absent. accepted_by_os is not page_ready.',
+  'Links open on the device receiving them; remote chats need an addressed local open action.',
+  '`control`, `doctor` and `update` are the operator\'s administration —',
   'say what you are about to do before calling them.',
 ].join(' ');
 
@@ -36,6 +41,12 @@ const pathArg = { type: 'string', description: 'A path on the service, starting 
 const urlArg = { type: 'string', description: 'The service\'s own URL, http://127.0.0.1:<port>/…, instead of service + path' };
 
 export const TOOLS = [
+  {
+    name: 'host_status',
+    description: 'Read this machine’s Fabric Dashboards installation, version and protocol handler without opening anything. Unknown is not absent.',
+    inputSchema: { type: 'object', properties: {}, additionalProperties: false },
+    annotations: { readOnlyHint: true },
+  },
   {
     name: 'list_services',
     description: 'Every installed local service: state (ready, degraded, down, stopped…), version, dashboard URL, a fabric-dashboards:// link, tiles, pending update.',
@@ -50,14 +61,14 @@ export const TOOLS = [
   },
   {
     name: 'link',
-    description: 'A fabric-dashboards:// link (and the plain http URL) for a service or one page of it. Opens nothing — give it to the person.',
+    description: 'Resolve a dashboard page. Give open_link as the primary action; http_url is diagnostic or confirmed-absent fallback. Opens nothing.',
     inputSchema: { type: 'object', properties: { service: serviceArg, path: pathArg, url: urlArg }, additionalProperties: false },
     annotations: { readOnlyHint: true },
   },
   {
     name: 'open',
-    description: 'Open a service, or one page of it, in Fabric Dashboards now (in the default browser when the app is not installed).',
-    inputSchema: { type: 'object', properties: { service: serviceArg, path: pathArg, url: urlArg }, additionalProperties: false },
+    description: 'Open in the existing Fabric Dashboards host. Browser fallback only for confirmed absence with if_absent; never after an installed host fails. The receipt proves OS dispatch, not page readiness.',
+    inputSchema: { type: 'object', properties: { service: serviceArg, path: pathArg, url: urlArg, fallback: { type: 'string', enum: ['if_absent', 'never'], default: 'if_absent' } }, additionalProperties: false },
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
   },
   {
@@ -99,10 +110,14 @@ const str = (a: Args, k: string): string | undefined => (typeof a[k] === 'string
 
 export async function call(deps: tools.Deps, name: string, args: Args): Promise<unknown> {
   switch (name) {
+    case 'host_status': return deps.host();
     case 'list_services': return tools.listServices(deps);
     case 'service_status': return tools.serviceStatus(deps, need(args, 'service'));
     case 'link': return tools.link(deps, { service: str(args, 'service'), path: str(args, 'path'), url: str(args, 'url') });
-    case 'open': return tools.open(deps, { service: str(args, 'service'), path: str(args, 'path'), url: str(args, 'url') });
+    case 'open': {
+      if (args.fallback !== undefined && args.fallback !== 'if_absent' && args.fallback !== 'never') throw new tools.ToolError('fallback must be if_absent or never');
+      return tools.open(deps, { service: str(args, 'service'), path: str(args, 'path'), url: str(args, 'url') }, args.fallback as tools.Fallback | undefined);
+    }
     case 'control': return tools.control(deps, need(args, 'service'), need(args, 'action') as 'start' | 'stop' | 'restart');
     case 'doctor': return tools.command(deps, need(args, 'service'), 'doctor');
     case 'update': return tools.command(deps, need(args, 'service'), 'update');
@@ -146,7 +161,8 @@ export async function handle(deps: tools.Deps, message: Message): Promise<Record
       } catch (error) {
         // A refusal is a tool result the agent reads, not a protocol failure (MCP «isError»).
         const text = error instanceof tools.ToolError ? error.message : `internal error: ${(error as Error).message}`;
-        return reply({ content: [{ type: 'text', text }], isError: true });
+        return reply({ content: [{ type: 'text', text: error instanceof tools.ToolError && error.details ? JSON.stringify(error.details, null, 2) : text }], isError: true,
+          ...(error instanceof tools.ToolError && error.details ? { structuredContent: error.details } : {}) });
       }
     }
     default: return fail(-32601, `method not found: ${method}`);
