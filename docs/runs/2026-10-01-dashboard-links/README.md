@@ -124,3 +124,18 @@ existing open invocation with `/usr/bin/env -u ELECTRON_RUN_AS_NODE`, preserving
 the app-path pin, single-instance policy and strict fallback. The MCP process
 environment is untouched. This correction requires 0.3.3; the 0.3.2 release and
 its successful already-running-host checks remain historical evidence.
+
+0.3.3 is signed, notarized/stapled and Gatekeeper accepted; [release receipt](release-0.3.3.json).
+It is installed on the operator Mac. With the GUI explicitly closed, a fresh
+Claude Code 2.1.287 client called the installed MCP host_status/link/open with
+fallback=never. The app transitioned from not running to running; its log records
+startup as 0.3.3. The final visual-page check is **unverified**: CUA screenshots
+and reconnection timed out, including after its session reset. Earlier warm
+0.3.2 and sanitized cold diagnostic pages were visually observed; they are not
+relabeled as a final 0.3.3 screenshot. Three source Electron page tests passed.
+
+[Failing baseline and passing regression](cold-launch-regression.json).
+The [runbook](../../RUNBOOK.md#installed-mcp-cold-start-check) now requires a cold
+GUI start as well as a warm open. Next verification when computer use responds:
+inspect the selected page in installed 0.3.3; no additional release action is
+required unless that check reveals a defect.

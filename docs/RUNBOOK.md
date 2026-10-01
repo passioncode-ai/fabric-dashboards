@@ -56,3 +56,19 @@ sidebar footer instead of updating.
 `ai.passioncode.fabric-dashboards.test.sample` and removes it afterwards. launchd keeps an
 enable/disable override for every label it has seen and offers no command to delete
 one; the fixed label keeps that to a single `enabled` entry.
+
+## Installed MCP cold-start check
+
+After an app update, quit the graphical Fabric Dashboards app while retaining a
+registered ready service. Use a fresh MCP process from the installed bundle:
+initialize, host_status, then open that service with `fallback=never`. Observe
+that the app is running before using a UI helper that could itself launch it,
+then verify the selected service and embedded page. Repeat from Overview while
+the host is running. Keep these UI observations separate from accepted_by_os.
+
+Version 0.3.2 exposed why a warm-open check alone is insufficient: the packaged
+MCP's ELECTRON_RUN_AS_NODE flag reached desktop dispatch, which accepted the URL
+but started no graphical window. Version 0.3.3 clears it only in the dispatch
+child. The process-boundary regression is in test/host.test.ts; the release
+[receipt](runs/2026-10-01-dashboard-links/cold-launch-regression.json) records its
+failing baseline. Never fix this by adding open -n or starting another service.

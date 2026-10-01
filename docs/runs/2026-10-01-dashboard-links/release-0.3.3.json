@@ -1,0 +1,60 @@
+{
+  "product": "Fabric Dashboards",
+  "version": "0.3.3",
+  "revision": "b47e00d01a3246298a9111604cccd5aabe91a8a2",
+  "electronVersion": "44.4.5",
+  "architectures": [
+    "arm64",
+    "x86_64"
+  ],
+  "builtAt": "2026-10-01T18:32:58.807Z",
+  "image": "Fabric-Dashboards-0.3.3.dmg",
+  "updateZip": "Fabric-Dashboards-0.3.3-mac.zip",
+  "signing": "Developer ID Application: Sergei Viktorovich Sheleg (KJ35UYYL22)",
+  "notarization": "accepted and stapled",
+  "gatekeeper": "accepted",
+  "checks": {
+    "appSignature": "codesign --verify --deep --strict: valid",
+    "hardenedRuntime": "present",
+    "architectures": "x86_64 arm64",
+    "mcpLauncher": "Contents/Resources/bin/fabric-dashboards-mcp answers initialize as fabric-dashboards 0.3.3",
+    "appStaple": "stapled",
+    "windowLayout": "icon view, app beside Applications (dmgbuild 1.6.7)",
+    "imageSignature": "valid"
+  },
+  "zipSha256": "4e0b80093bc23e31c4fce750de9524462f960a2618f9b01c775abb5da60245a7",
+  "sha256": "4ce3d9872fc965bbba403ee8585a8aad00080afec43dd4e909b939e34a02d048",
+  "bytes": 249531095,
+  "candidate_checks": {
+    "npm run check": {
+      "exit_code": 0,
+      "tests": 107
+    },
+    "npm run test:e2e": {
+      "exit_code": 0,
+      "tests": 3
+    }
+  },
+  "installed_checks": {
+    "signature": "valid",
+    "staple": "valid",
+    "real_client": "Claude Code 2.1.287; temporary strict config points to the existing installed MCP executable",
+    "host_version": "0.3.3",
+    "host_state": "available",
+    "tools": [
+      "host_status",
+      "link",
+      "open"
+    ],
+    "fallback": "never",
+    "open_status": "accepted_by_os",
+    "opened_in": "fabric-dashboards",
+    "permission_denials": [],
+    "cold_start": {
+      "before_gui_running": false,
+      "after_mcp_open_gui_running": true,
+      "app_log_started_version": "0.3.3"
+    },
+    "final_visual_page": "UNVERIFIED: CUA screenshot and reconnect timed out; warm 0.3.2 and sanitized cold diagnostic page were visually verified before tool outage; source Electron page tests passed"
+  }
+}

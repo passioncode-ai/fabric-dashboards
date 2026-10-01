@@ -1,0 +1,29 @@
+{
+  "date": "2026-10-01",
+  "baseline_version": "0.3.2",
+  "fixed_version": "0.3.3",
+  "baseline": {
+    "test": "MCP desktop dispatch removes RunAsNode in the child and preserves the server environment",
+    "exit_code": 1,
+    "actual": "1",
+    "expected": null
+  },
+  "mechanism": "Packaged MCP exports ELECTRON_RUN_AS_NODE=1; the OS dispatch child inherited it on cold GUI launch.",
+  "correction": "Remove ELECTRON_RUN_AS_NODE only in the desktop dispatch child through /usr/bin/env -u.",
+  "candidate_checks": {
+    "npm run check": {
+      "exit_code": 0,
+      "tests": 107,
+      "skipped": 0
+    },
+    "npm run test:e2e": {
+      "exit_code": 0,
+      "tests": 3
+    }
+  },
+  "live_pre_release_control": {
+    "closed_host_under_original_dispatch": "OS accepted; no graphical app running",
+    "closed_host_under_sanitized_dispatch": "graphical app running"
+  },
+  "installed_0_3_3_check": "recorded in release-0.3.3.json after installation"
+}
