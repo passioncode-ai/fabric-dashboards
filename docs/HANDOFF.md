@@ -1,6 +1,6 @@
 # Handoff — Fabric Dashboards
 
-Updated 2026-09-30 (repository standard and AGPL-3.0).
+Updated 2026-10-01 (final check).
 
 ## Objective
 
@@ -27,6 +27,24 @@ Cross-repository index: `passioncode-ai/org-index` → `docs/runs/2026-09-28-fab
 This repository was recreated from a clean tree on 2026-09-29 so that nothing about the
 operator's personal agents is public; the development history is kept privately in
 `passioncode-ai/fabric-dashboards-archive`.
+
+## Final check, 2026-10-01 (branch `agent/final-check-2026-10-01`)
+
+Objective: one pass over the description, licence wording, versions, links, manifests, the gate,
+private data and open issues on a fresh clone; fix what is found.
+
+- Fixed: README said the Fabric Agent Contract is private — it is public now; the README links its
+  `docs/specification/service.md`. `package.json` gains `repository`. `scripts/make-icon.mjs`
+  builds the `@2x` suffix from a constant, so org-index `check_private.py` no longer reads the
+  file name as an e-mail address (outputs byte-identical after `npm run icon`). `.gitleaksignore`
+  names the synthetic token in `test/mcp.test.ts`. The workflow moves to `actions/checkout@v5`
+  and `actions/setup-node@v5` (the Node 20 deprecation annotation).
+- Checks run: fresh clone, `npm ci`, `FD_SKIP_LAUNCHD=1 npm run check` exit 0; `check_private.py`
+  exit 0; `gitleaks detect --no-git` no leaks; the README's stdio proof against the installed
+  0.3.0 (`serverInfo` 0.3.0, `services` + `services_dir`, exit 0); the README's `claude -p` call
+  through a throwaway `--strict-mcp-config` answered with the number of installed services, exit 0.
+- Unchanged: v0.3.0 stays PolyForm (history). **Next task:** the next release (RUNBOOK) is the
+  first under AGPL-3.0 or commercial.
 
 ## Repository standard and AGPL-3.0, 2026-09-30 (branch `agent/standard-agpl`)
 

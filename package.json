@@ -10,6 +10,10 @@
     "url": "https://passioncode.ai/"
   },
   "homepage": "https://passioncode.ai/",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/passioncode-ai/fabric-dashboards.git"
+  },
   "main": "out/main/electron/main.js",
   "workspaces": [
     "packages/*"
