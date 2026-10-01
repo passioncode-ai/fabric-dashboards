@@ -54,9 +54,11 @@ Where each part landed (all on `main`):
 | project-observatory-dashboard | `d6ea9c8` (v0.10.1) | server `Standard`; no own banners beside this host |
 | fabric-workspace | `0d0c499` | `knowledge/products.md` |
 
-Next task: confirm the operator's installed Project Observatory reports 0.10.1 and its server plist
-says `ProcessType Standard` (`plutil -extract ProcessType raw <plist>`); then move
-SCN-001/015/020 out of `draft` after the operator has used 0.3.4.
+Project Observatory 0.10.1 is installed on the operator's Mac and its server plist says
+`ProcessType Standard` (after a manual `serverd.py --install`: `full update` does not rewrite the
+plist — recorded in that repository's `docs/runs/2026-10-02-release-0.10.1/`).
+
+Next task: move SCN-001/015/020 out of `draft` once the operator has used 0.3.4.
 
 ## Objective
 
