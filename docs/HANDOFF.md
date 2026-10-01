@@ -1,6 +1,6 @@
 # Handoff — Fabric Dashboards
 
-Updated 2026-10-01 (release 0.3.1).
+Updated 2026-10-01 (release 0.3.1, receipts).
 
 ## Objective
 
@@ -42,6 +42,49 @@ notifications. First release under AGPL-3.0 or commercial ([ADR-0007](adr/0007-a
   `v0.3.1`, `gh release create` with the DMG, update zip, feed, `.sha256` files and the receipt;
   the site names 0.3.1; the operator's `/Applications` copy is replaced. The receipts (notarization
   ids, SHA-256, release URL, site deploy, installed version) land in a follow-up section here.
+
+## Release 0.3.1 — receipts, 2026-10-01 (branch `agent/release-0.3.1-receipts`)
+
+- **Merged:** [PR #12](https://github.com/passioncode-ai/fabric-dashboards/pull/12), squash `51a7a80`, after the
+  `validate` workflow ran once on the branch head `31d84cb` (run 36842633838, `success`). Tag `v0.3.1` (annotated)
+  points at `51a7a80`.
+- **Built** from `main` at `51a7a80` with `npm run dist -- --notary-profile fabric-notary`: universal (arm64 + x86_64),
+  Electron 44.4.5; receipt: Developer ID signed, hardened runtime, `codesign --verify --deep --strict` valid,
+  notarization `accepted and stapled`, Gatekeeper `accepted`, the packaged MCP launcher answers `initialize` as
+  0.3.1. Notarization submissions, both `Accepted`: app `1368abd7-09d6-46d0-ad5d-e1b9e5fa0196`, disk image
+  `6801d6b2-a282-42e7-94a0-15feb3455fc4`. Independently: `spctl -a -vv` on the DMG and on the app inside it →
+  `source=Notarized Developer ID`; `stapler validate` passes on both.
+- **Published:** [release v0.3.1](https://github.com/passioncode-ai/fabric-dashboards/releases/tag/v0.3.1) (Latest),
+  six assets; SHA-256 equal to GitHub's asset digests:
+
+  | Asset | SHA-256 |
+  |---|---|
+  | `Fabric-Dashboards-0.3.1.dmg` | `4ef44362566c3c05e6603266f52ba018f70b384ab7f4487c2fc4b305afe8f3d1` |
+  | `Fabric-Dashboards-0.3.1-mac.zip` | `ae18b7ba6d195463c62981e6c9f753c9f2607614935620110685e33ae38b097a` |
+  | `update-feed.json` | `b75ea641292957124a2f2b1303e41286867657adf4e725b783a78d3d94166741` |
+  | `Fabric-Dashboards-0.3.1.receipt.json` | `8b6c2062d7df82f3fab3ce149707d06498412881420acd6abfdef518da0a9300` |
+  | `Fabric-Dashboards-0.3.1.dmg.sha256` | `6e283dc730e9f77db3e466e07e89e427d77c9aa26a03f5ca9d473239dd7397ea` |
+  | `Fabric-Dashboards-0.3.1-mac.zip.sha256` | `53ad2dfcbd7db1feeff229aee91bccf804e6ebeb9b442b97781e5f603e96b332` |
+
+  `releases/latest/download/update-feed.json` → `currentRelease: 0.3.1`; the zip downloads anonymously (HTTP 200);
+  the anonymous DMG download hashes to the value above.
+- **Website:** passioncode-ai.github.io [PR #24](https://github.com/passioncode-ai/passioncode-ai.github.io/pull/24),
+  squash `d7d1bdd`, deployed from `main` with `npm run deploy` (`CLOUDFLARE_ACCOUNT_ID` through Project Observatory):
+  Worker version `d2891821-703d-4d62-9d9c-8c397bb60839`; live: the homepage row says "Release 0.3.1" and links
+  `v0.3.1`, 29 of 29 live files equal the build, `www` 301 to the apex. Knowledge base: fabric-workspace
+  PR #10 (`24c8fba`), `knowledge/products.md` names 0.3.1; its publication is left to the scheduled sync.
+- **Installed on the operator's Mac:** 0.3.0 quit through `osascript` (bundle id `ai.passioncode.fabric-dashboards`),
+  `/Applications/Fabric Dashboards.app` replaced by the app from the notarized DMG (`spctl` accepted before and after
+  the copy; no quarantine attribute present, so none was removed), relaunched: `CFBundleShortVersionString` 0.3.1,
+  `main.log` → `started 0.3.1`. The installed `fabric-dashboards-mcp` answers `initialize` as 0.3.1 and
+  `list_services` with all 6 installed services. The `server.js` MCP children of Claude sessions started before the
+  swap keep running the 0.3.0 code until their session restarts; they were left alone.
+- Not run: `npm run test:e2e` (RUNBOOK step 2). It launches Electron from the checkout, and the run's rule was that no
+  app runs from a build directory that is deleted afterwards; `npm run check` and the hosted `validate` were the
+  gate, and the dist script's own packaged-launcher check ran.
+- **Next task:** watch the operator's notifications under load. A service that stays silent for 60 s or more
+  should still be reported, and a slow Mac should not be. Then move UX scenarios from `draft` once the operator
+  approves them from the running app.
 
 ## Probe confirmation, 2026-10-01 (branch `agent/probe-flap`, ADR-0008)
 
