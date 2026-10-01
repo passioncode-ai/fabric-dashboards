@@ -8,3 +8,7 @@ test/.debug/
 __pycache__/
 *.pyc
 packages/*/dist/
+
+# agent-sync: local state and the credentials file are never committed
+.env.agent-sync
+.agent-sync/
