@@ -140,7 +140,7 @@ hunt browser tabs to learn whether an agent is alive or what it did.
 - **Story:** As P-01, I want a notification when a service goes down or an event asks for me, so that I react without watching.
 - **Traces:** JTBD-03, JRN-01/#3
 - **Acceptance criteria:**
-  - Given a service is down for 30 s, when notifications are on, then one notification says so; when it returns, one says it is back.
+  - Given a service has not answered three probes in a row and a probe still fails after 60 s of silence, when notifications are on, then one notification says so; when it returns, one says it is back. Given it answers again before that, then no notification is shown, neither down nor back.
   - Given quiet hours are active, when an event would notify, then no notification is shown and the event still appears in Activity.
 - **Priority:** should
 - **Status:** proposed

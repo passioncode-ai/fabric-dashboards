@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+- **Fixed: "not answering" no longer flaps under load.** A probe waits 5 s instead of 2 s. A
+  service counts as not answering only after three probes in a row fail; a missed probe is
+  re-checked after 5 s, and until then the last answer stands. The notification needs a probe
+  that still fails after 60 s of silence (was 30 s), so a service that answers again before
+  that sends neither "not answering" nor "is back". Activity still records each outage
+  ([ADR-0008](docs/adr/0008-a-missed-probe-is-not-an-outage.md)).
+
 ## 0.3.0 — 2026-09-30
 
 - **Service links.** `fabric-dashboards://service/<id>.<instance>` opens that service in the app,

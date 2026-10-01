@@ -10,11 +10,13 @@ import { tail } from './fsutil';
 import { duration, t as tr, type Lang } from './i18n';
 import { Launchd } from './launchd';
 import { DOWN_NOTIFY_AFTER_MS, shouldNotify, type Happening } from './notify';
-import { fetchEvents, readToken } from './probe';
+import { fetchEvents, PROBE_TIMEOUT_MS, readToken } from './probe';
 import type { Busy, Reason, ServiceSnapshot, Settings } from './types';
 
 export const CONTROL_TIMEOUT_MS = 40_000;
 export const COMMAND_TIMEOUT_MS = 120_000;
+/** Consecutive failed probes before silence counts at all (ADR-0008). Fewer keep the last answer. */
+export const DOWN_AFTER_MISSES = 3;
 
 export interface Notice { serviceKey: string; title: string; body: string; link?: string; target: 'service' | 'activity' }
 
@@ -26,6 +28,8 @@ export interface MonitorOptions {
   launchd?: Launchd;
   now?: () => number;
   intervals?: { rescan: number; visible: number; background: number; events: number; maxBackoff: number };
+  /** The health probe. Default: the well-known document with PROBE_TIMEOUT_MS. */
+  wellKnown?: (origin: string) => Promise<WellKnownResult>;
 }
 
 interface Tracked {
@@ -34,6 +38,8 @@ interface Tracked {
   launchd: ServiceSnapshot['launchd'];
   firstUnansweredAt: number | null;
   lastAnswerAt: number | null;
+  misses: number; // consecutive probes without an answer
+  lastAnswer: Extract<WellKnownResult, { kind: 'answer' }> | null;
   nextProbeAt: number;
   backoff: number;
   busy: Busy;
@@ -52,6 +58,7 @@ export class Monitor extends EventEmitter {
   private readonly launchd: Launchd;
   private readonly now: () => number;
   private readonly intervals: typeof DEFAULT_INTERVALS;
+  private readonly wellKnown: (origin: string) => Promise<WellKnownResult>;
   private visible = true;
   private watcher: fs.FSWatcher | null = null;
   private timers: NodeJS.Timeout[] = [];
@@ -66,6 +73,7 @@ export class Monitor extends EventEmitter {
     this.launchd = o.launchd ?? new Launchd();
     this.now = o.now ?? Date.now;
     this.intervals = { ...DEFAULT_INTERVALS, ...(o.intervals ?? {}) };
+    this.wellKnown = o.wellKnown ?? ((origin) => fetchWellKnown(origin, PROBE_TIMEOUT_MS));
   }
 
   // --- lifecycle -----------------------------------------------------------------
@@ -120,7 +128,6 @@ export class Monitor extends EventEmitter {
         const table = due.some((t) => t.entry.descriptor?.lifecycle.manager === 'launchd') ? await this.launchd.disabledTable() : '';
         await Promise.all(due.map((t) => this.probe(t, table)));
       }
-      this.checkNotifications();
     } finally {
       this.ticking = false;
       this.scanning = false;
@@ -154,7 +161,7 @@ export class Monitor extends EventEmitter {
       }
       const t: Tracked = {
         entry, probe: null, launchd: { managed: entry.descriptor?.lifecycle.manager === 'launchd', loaded: false, pid: null, disabled: false },
-        firstUnansweredAt: null, lastAnswerAt: null, nextProbeAt: this.now(), backoff: 0, busy: null, lastAction: null,
+        firstUnansweredAt: null, lastAnswerAt: null, misses: 0, lastAnswer: null, nextProbeAt: this.now(), backoff: 0, busy: null, lastAction: null,
         feedError: null, downNotified: false, lastState: null, lastPid: null, baselined: false,
       };
       this.tracked.set(entry.key, t);
@@ -182,21 +189,46 @@ export class Monitor extends EventEmitter {
       t.launchd = { managed: false, loaded: false, pid: null, disabled: false };
     }
     const answeredBefore = t.probe?.kind === 'answer';
-    t.probe = await fetchWellKnown(d.origin);
+    let probe: WellKnownResult;
+    try {
+      probe = await this.wellKnown(d.origin);
+    } catch (error) {
+      probe = { kind: 'no-answer', detail: (error as Error).message };
+    }
+    t.probe = probe;
     const now = this.now();
     // A service that starts answering is read at once, not at the next 15-second poll.
-    if (t.probe.kind === 'answer' && !answeredBefore) queueMicrotask(() => void this.pollOne(t).finally(() => this.changed()));
-    if (t.probe.kind === 'no-answer') {
+    if (probe.kind === 'answer' && !answeredBefore) queueMicrotask(() => void this.pollOne(t).finally(() => this.changed()));
+    // #region probe-confirmation — docs: docs/adr/0008-a-missed-probe-is-not-an-outage.md#decision
+    const cadence = this.visible ? this.intervals.visible : this.intervals.background;
+    if (probe.kind === 'no-answer') {
       if (t.firstUnansweredAt === null) t.firstUnansweredAt = now;
+      t.misses += 1;
       t.backoff = Math.min(this.intervals.maxBackoff, Math.max(this.intervals.visible, t.backoff * 2 || this.intervals.visible));
+      // An unconfirmed miss is checked again soon, whatever the window: one slow answer is not a verdict.
+      t.nextProbeAt = now + (t.misses < DOWN_AFTER_MISSES ? this.intervals.visible : Math.max(cadence, !t.launchd.disabled ? Math.min(t.backoff, cadence * 2) : cadence));
     } else {
       t.firstUnansweredAt = null;
       t.lastAnswerAt = now;
+      t.misses = 0;
       t.backoff = 0;
+      t.lastAnswer = probe.kind === 'answer' ? probe : null;
+      t.nextProbeAt = now + cadence;
     }
-    const cadence = this.visible ? this.intervals.visible : this.intervals.background;
-    t.nextProbeAt = now + Math.max(cadence, t.probe.kind === 'no-answer' && !t.launchd.disabled ? Math.min(t.backoff, cadence * 2) : cadence);
     this.observe(t);
+    if (probe.kind === 'no-answer') this.checkDown(t, now);
+    // #endregion probe-confirmation
+  }
+
+  /** What the state is derived from. Until DOWN_AFTER_MISSES probes in a row have failed, a miss
+   *  keeps the last answer — unless launchd says that answer is gone (job off, or another pid). */
+  private evidence(t: Tracked): { probe: WellKnownResult | null; firstUnansweredAt: number | null } {
+    if (t.probe?.kind !== 'no-answer' || t.misses >= DOWN_AFTER_MISSES) return { probe: t.probe, firstUnansweredAt: t.firstUnansweredAt };
+    const l = t.launchd;
+    const off = l.managed && (l.disabled || !l.loaded);
+    const replaced = l.managed && l.pid !== null && t.lastAnswer !== null && t.lastAnswer.doc.process.pid !== l.pid;
+    if (t.lastAnswer && !off && !replaced) return { probe: t.lastAnswer, firstUnansweredAt: null };
+    return { probe: t.probe, firstUnansweredAt: this.now() }; // silence not yet counted: `starting`, reason waiting
   }
 
   /** Turn a state change into an app event; remember what the notification rules need. */
@@ -229,13 +261,12 @@ export class Monitor extends EventEmitter {
 
   private readonly outageStart = new Map<string, number>();
 
-  private checkNotifications(): void {
-    const now = this.now();
-    for (const t of this.tracked.values()) {
-      if (t.lastState === 'down' && !t.downNotified && t.firstUnansweredAt !== null && now - t.firstUnansweredAt >= DOWN_NOTIFY_AFTER_MS) {
-        t.downNotified = true;
-        this.notify({ kind: 'down', serviceKey: t.entry.key }, t, 'notify.down.title', 'notify.down.body', { since: new Date(t.firstUnansweredAt).toLocaleTimeString() });
-      }
+  /** Called right after a failed probe: the outage is notified only when that probe confirms it
+   *  has lasted past DOWN_NOTIFY_AFTER_MS. A tick without a probe never decides. */
+  private checkDown(t: Tracked, now: number): void {
+    if (t.lastState === 'down' && !t.downNotified && t.misses >= DOWN_AFTER_MISSES && t.firstUnansweredAt !== null && now - t.firstUnansweredAt >= DOWN_NOTIFY_AFTER_MS) {
+      t.downNotified = true;
+      this.notify({ kind: 'down', serviceKey: t.entry.key }, t, 'notify.down.title', 'notify.down.body', { since: new Date(t.firstUnansweredAt).toLocaleTimeString() });
     }
   }
 
@@ -334,6 +365,8 @@ export class Monitor extends EventEmitter {
         if (probe.kind === 'no-answer') {
           t.probe = probe;
           t.firstUnansweredAt = null;
+          t.misses = 0;
+          t.lastAnswer = null;
           const s = await this.launchd.status(label);
           t.launchd = { managed: true, ...s };
           t.lastState = 'stopped';
@@ -343,6 +376,8 @@ export class Monitor extends EventEmitter {
         t.probe = probe;
         t.firstUnansweredAt = null;
         t.lastAnswerAt = this.now();
+        t.misses = 0;
+        t.lastAnswer = probe;
         t.downNotified = false;
         t.lastPid = probe.doc.process.pid;
         return finish(true, { code: action === 'restart' ? 'result.restarted' : 'result.started', params: { name, pid: probe.doc.process.pid } });
@@ -391,11 +426,12 @@ export class Monitor extends EventEmitter {
 
   // --- reading state ----------------------------------------------------------------
   private snapshotOf(t: Tracked): ServiceSnapshot {
+    const seen = this.evidence(t);
     const { state, reasons } = deriveState({
       descriptor: t.entry.descriptor, problems: t.entry.problems, conflict: this.conflicts().get(t.entry.key),
-      launchd: t.launchd, probe: t.probe, firstUnansweredAt: t.firstUnansweredAt, now: this.now(), busy: t.busy,
+      launchd: t.launchd, probe: seen.probe, firstUnansweredAt: seen.firstUnansweredAt, now: this.now(), busy: t.busy,
     });
-    const wk = t.probe?.kind === 'answer' ? t.probe.doc : null;
+    const wk = seen.probe?.kind === 'answer' ? seen.probe.doc : null;
     if (wk?.update?.available) reasons.push({ code: 'reason.update', params: { version: wk.update.available } });
     return {
       key: t.entry.key, descriptorPath: t.entry.path, descriptor: t.entry.descriptor, problems: t.entry.problems, state, reasons,

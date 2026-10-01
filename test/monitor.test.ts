@@ -71,8 +71,8 @@ test('a service that stops answering becomes down, notifies once, and is back', 
     await waitFor('starting (grace)', () => monitor.snapshot('sample.default')?.state === 'starting');
     offset.ms += 16_000;
     await waitFor('down', () => monitor.snapshot('sample.default')?.state === 'down');
-    assert.equal(notices.length, 0, 'no notification before 30 s');
-    offset.ms += 31_000;
+    assert.equal(notices.length, 0, 'no notification before 60 s');
+    offset.ms += 45_000; // 61 s since the first miss: the next failed probe confirms the outage
     await waitFor('down notice', () => notices.find((n) => n.title === 'Sample Service is not answering'));
     proc = serve(port, data);
     await waitFor('back', () => monitor.snapshot('sample.default')?.state === 'ready');

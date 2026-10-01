@@ -49,7 +49,7 @@
   |-------|---------|-------------|----------|
   | ready | answers as itself | — | dashboard tab active |
   | degraded | degraded sources | — | reasons listed in the header, dashboard usable |
-  | down | no answer for 15 s | — | "Not answering since HH:MM" + Restart + Logs |
+  | down | three probes in a row unanswered and no answer for 15 s (ADR-0008) | — | "Not answering since HH:MM" + Restart + Logs |
   | off | launchd job disabled | — | Start |
   | duplicate / foreign / conflict / invalid | see SCN-011–SCN-013, SCN-004 | — | explanation, no dashboard, no token sent |
   | working | a control is running | — | progress label, other controls disabled |
