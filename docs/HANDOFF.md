@@ -1,6 +1,10 @@
 # Handoff — Fabric Dashboards
 
-Updated 2026-10-01 (release 0.3.1, receipts).
+Updated 2026-10-01 (release 0.3.2, installed verification).
+
+Current release: [dashboard routing 0.3.2](runs/2026-10-01-dashboard-links/README.md#released-and-installed--032),
+with [signed build and installed MCP/UI receipts](runs/2026-10-01-dashboard-links/release.json).
+Earlier releases below are preserved as dated evidence.
 
 ## Objective
 

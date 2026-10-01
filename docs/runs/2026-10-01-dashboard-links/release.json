@@ -1,0 +1,76 @@
+{
+  "product": "Fabric Dashboards",
+  "version": "0.3.2",
+  "revision": "648b71118ecbe52d823f40c04cbf5460d273f573",
+  "electronVersion": "44.4.5",
+  "architectures": [
+    "arm64",
+    "x86_64"
+  ],
+  "builtAt": "2026-10-01T18:08:10.414Z",
+  "image": "Fabric-Dashboards-0.3.2.dmg",
+  "updateZip": "Fabric-Dashboards-0.3.2-mac.zip",
+  "signing": "Developer ID Application: Sergei Viktorovich Sheleg (KJ35UYYL22)",
+  "notarization": "accepted and stapled",
+  "gatekeeper": "accepted",
+  "checks": {
+    "appSignature": "codesign --verify --deep --strict: valid",
+    "hardenedRuntime": "present",
+    "architectures": "x86_64 arm64",
+    "mcpLauncher": "Contents/Resources/bin/fabric-dashboards-mcp answers initialize as fabric-dashboards 0.3.2",
+    "appStaple": "stapled",
+    "windowLayout": "icon view, app beside Applications (dmgbuild 1.6.7)",
+    "imageSignature": "valid"
+  },
+  "zipSha256": "3ebb3defbdfcf8013ae278aad2db39c52e1bceccb6e4457b4a32149ee218acea",
+  "sha256": "6a0b305e5a659c4c1af0722c9a5cfc2634f94fe6c97a382d668406b6c00e963a",
+  "bytes": 249534726,
+  "installed_mcp": {
+    "initialize": {
+      "name": "fabric-dashboards",
+      "version": "0.3.2"
+    },
+    "host_status": {
+      "observed_at": "2026-10-01T18:14:00.663Z",
+      "application": {
+        "path": "/Applications/Fabric Dashboards.app",
+        "id": "ai.passioncode.fabric-dashboards",
+        "version": "0.3.2"
+      },
+      "state": "available"
+    }
+  },
+  "installed_verification": {
+    "codesign": "valid",
+    "staple": "valid",
+    "real_claude_client": {
+      "version": "2.1.287",
+      "tools": [
+        "host_status",
+        "link",
+        "open"
+      ],
+      "fallback": "never",
+      "is_error": false,
+      "permission_denials": []
+    },
+    "live_open": {
+      "status": "accepted_by_os",
+      "opened_in": "fabric-dashboards"
+    },
+    "ui_check": {
+      "overview_before_call": true,
+      "service_heading_after_call": true,
+      "embedded_dashboard_after_call": true,
+      "browser_opened_by_tool": false
+    },
+    "scope": "one operator Mac; existing direct MCP registration; no gateway changes"
+  },
+  "anonymous_download": {
+    "feed_version": "0.3.2",
+    "anonymous_zip_status": 200,
+    "bytes": 229982975,
+    "sha256": "3ebb3defbdfcf8013ae278aad2db39c52e1bceccb6e4457b4a32149ee218acea",
+    "matches_signed_build": true
+  }
+}
