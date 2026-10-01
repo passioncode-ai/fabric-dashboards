@@ -43,9 +43,11 @@ and the contract's fixtures are copied under [`test/fixtures/contract/`](test/fi
 has spoken it since 0.8.0 and is a public example
 ([its design note](https://github.com/passioncode-ai/project-observatory-dashboard/blob/main/docs/design/FABRIC-SERVICE.md)).
 
-The [Fabric Agent Adapter](https://github.com/passioncode-ai/fabric-agent-adapter), whose
-`building-fabric-services` skill builds or migrates a service, is public; the Fabric Agent
-Contract is a private repository for now.
+The protocol's specification is
+[`docs/specification/service.md`](https://github.com/passioncode-ai/fabric-agent-contract/blob/main/docs/specification/service.md)
+in the [Fabric Agent Contract](https://github.com/passioncode-ai/fabric-agent-contract); the
+[Fabric Agent Adapter](https://github.com/passioncode-ai/fabric-agent-adapter), whose
+`building-fabric-services` skill builds or migrates a service, is the kit. Both are public.
 
 ## Quick start for a new teammate
 

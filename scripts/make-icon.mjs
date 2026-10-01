@@ -40,9 +40,11 @@ const variants = {
   trayDegraded: panel(2, 2, false) + panel(10, 2, true) + panel(2, 10, false) + '<path d="M13 9.5 L16.5 16 H9.5 Z" fill="#000"/>',
   trayProblem: panel(2, 2, false) + panel(10, 2, true) + panel(2, 10, false) + '<circle cx="13" cy="13" r="3.6" fill="#000"/>',
 };
+// macOS picks the 2x tray image by this suffix.
+const RETINA = '@2x';
 for (const [name, body] of Object.entries(variants)) {
   const doc = Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 18 18">${body}</svg>`);
   await sharp(doc, { density: 72 }).resize(18, 18).png().toFile(path.join(root, `build/assets/${name}Template.png`));
-  await sharp(doc, { density: 144 }).resize(36, 36).png().toFile(path.join(root, `build/assets/${name}Template@2x.png`));
+  await sharp(doc, { density: 144 }).resize(36, 36).png().toFile(path.join(root, `build/assets/${name}Template${RETINA}.png`));
 }
 console.log('build/icon.icns, build/assets/tray*Template.png');
