@@ -1,6 +1,6 @@
 # Handoff — Fabric Dashboards
 
-Updated 2026-10-01 (probe confirmation, ADR-0008).
+Updated 2026-10-01 (release 0.3.1).
 
 ## Objective
 
@@ -27,6 +27,21 @@ Cross-repository index: `passioncode-ai/org-index` → `docs/runs/2026-09-28-fab
 This repository was recreated from a clean tree on 2026-09-29 so that nothing about the
 operator's personal agents is public; the development history is kept privately in
 `passioncode-ai/fabric-dashboards-archive`.
+
+## Release 0.3.1, 2026-10-01 (branch `agent/release-0.3.1`)
+
+Objective: the probe-confirmation fix ([ADR-0008](adr/0008-a-missed-probe-is-not-an-outage.md),
+`1b00ce4`, PR #10) reaches the operator, whose installed 0.3.0 sends false "not answering"
+notifications. First release under AGPL-3.0 or commercial ([ADR-0007](adr/0007-agpl-or-commercial.md)).
+
+- Version 0.3.1 (a fix, semver patch): `package.json`, both root entries of `package-lock.json`,
+  AGENTS.md; `CHANGELOG.md` `Unreleased` became `0.3.1 — 2026-10-01` with the *License* line.
+  `packages/service-host` stays 0.1.0 — nothing in it changed since v0.3.0.
+- Checks before the PR: fresh clone, `npm ci`, `npm run check` exit 0.
+- Then, from `main` after the squash-merge: `npm run dist -- --notary-profile fabric-notary`, tag
+  `v0.3.1`, `gh release create` with the DMG, update zip, feed, `.sha256` files and the receipt;
+  the site names 0.3.1; the operator's `/Applications` copy is replaced. The receipts (notarization
+  ids, SHA-256, release URL, site deploy, installed version) land in a follow-up section here.
 
 ## Probe confirmation, 2026-10-01 (branch `agent/probe-flap`, ADR-0008)
 
