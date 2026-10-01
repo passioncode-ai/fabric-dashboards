@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.2 — 2026-10-01
+
+- **Dashboard routing:** MCP `host_status` checks the installed app, its version and the URL handler without opening a window. `open` targets that verified app; an installed-host failure returns an error instead of opening the dashboard in a browser.
+- **Explicit fallback:** `fallback=never` prohibits browser opening. The default `if_absent` permits it only after confirmed app absence. Success means the OS accepted the request, not that the page has loaded.
+- **Agent handoff:** MCP instructions identify `open_link` as the primary dashboard link. [SCN-028](docs/ux/scenarios.md) and [verification](docs/runs/2026-10-01-dashboard-links/README.md) cover host discovery, failure handling and repeated-link view reuse.
+
 ## 0.3.1 — 2026-10-01
 
 - **Fixed: "not answering" no longer flaps under load.** A probe waits 5 s instead of 2 s. A

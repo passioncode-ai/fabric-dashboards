@@ -9,6 +9,7 @@
 // Reading — descriptors, claim conflicts, launchd status, the health probe, the state — is one
 // look through @passioncode-ai/fabric-service-host, the same code Fabric's registry reads with.
 import { execFile } from 'node:child_process';
+import { discoverHost, type HostStatus } from './host';
 import {
   APP_NAME, expand, lookAtServices, readDirectory, servicesDir as defaultServicesDir,
   type Descriptor, type DescriptorEntry, type ServiceLook, type ServiceState, type WellKnownResult,
@@ -24,10 +25,9 @@ export interface Deps {
   servicesDir: () => string;
   wellKnown: (origin: string) => Promise<WellKnownResult>;
   launchd: Launchd;
-  /** `open <target>`; resolves the exit code. */
-  open: (target: string) => Promise<number>;
-  /** Whether the app is installed (it then owns `fabric-dashboards://`). */
-  appInstalled: () => Promise<boolean>;
+  /** An explicit app path prevents dispatch to another handler; never use open -n. */
+  open: (target: string, application?: string) => Promise<number>;
+  host: () => Promise<HostStatus>;
   run: (argv: string[], timeoutMs: number) => Promise<{ code: number | null; output: string; timedOut: boolean }>;
   events: typeof fetchEvents;
   token: typeof readToken;
@@ -52,8 +52,8 @@ export function liveDeps(runner: Runner = execRunner): Deps {
     servicesDir: () => defaultServicesDir(),
     wellKnown: (origin) => fetchWellKnown(origin, PROBE_TIMEOUT_MS),
     launchd: new Launchd(runner),
-    open: async (target) => (await runner('open', [target])).code,
-    appInstalled: async () => process.platform === 'darwin' && (await runner('open', ['-Ra', APP_NAME])).code === 0,
+    open: async (target, application) => (await runner('/usr/bin/open', application ? ['-a', application, target] : [target])).code,
+    host: () => discoverHost(runner),
     run: runArgv,
     events: fetchEvents,
     token: readToken,
@@ -63,7 +63,9 @@ export function liveDeps(runner: Runner = execRunner): Deps {
   };
 }
 
-export class ToolError extends Error {}
+export class ToolError extends Error {
+  constructor(message: string, readonly details?: Record<string, unknown>) { super(message); }
+}
 
 // ── reading ─────────────────────────────────────────────────────────────────────────────
 
@@ -165,18 +167,36 @@ export async function link(deps: Deps, t: Target): Promise<{ service: string; op
   return { service: r.key, open_link: linkFor(r.key, r.path), http_url: r.http };
 }
 
-export async function open(deps: Deps, t: Target): Promise<{ opened_in: 'fabric-dashboards' | 'browser' | 'nothing'; open_link: string; http_url: string; note?: string }> {
+// #region strict-dashboard-open — docs: docs/runs/2026-10-01-dashboard-links/README.md#host-routing
+export type Fallback = 'if_absent' | 'never';
+export async function open(deps: Deps, t: Target, fallback: Fallback = 'if_absent'): Promise<{
+  opened_in: 'fabric-dashboards' | 'browser' | 'nothing'; open_link: string; http_url: string;
+  status: 'accepted_by_os' | 'unsupported'; note?: string;
+}> {
+  if (fallback !== 'if_absent' && fallback !== 'never') throw new ToolError('fallback must be if_absent or never');
   const r = resolveTarget(deps, t);
-  const deep = linkFor(r.key, r.path);
-  if (deps.platform !== 'darwin') return { opened_in: 'nothing', open_link: deep, http_url: r.http, note: 'opening is macOS-only; hand the person a link' };
-  if (await deps.appInstalled()) {
-    const code = await deps.open(deep);
-    if (code === 0) return { opened_in: 'fabric-dashboards', open_link: deep, http_url: r.http };
+  const links = { open_link: linkFor(r.key, r.path), http_url: r.http };
+  if (deps.platform !== 'darwin') return { ...links, opened_in: 'nothing', status: 'unsupported', note: 'opening is macOS-only; hand the person a link' };
+  const fail = (code: string): never => {
+    throw new ToolError(code, { ...links, opened_in: 'nothing', status: code });
+  };
+  let host: HostStatus;
+  try { host = await deps.host(); } catch { return fail('host_unknown'); }
+  if (host.state === 'available') {
+    if (!host.application) return fail('host_unknown');
+    let code: number;
+    try { code = await deps.open(links.open_link, host.application.path); } catch { return fail('open_failed'); }
+    if (code !== 0) return fail('open_failed');
+    return { ...links, opened_in: 'fabric-dashboards', status: 'accepted_by_os' };
   }
-  const code = await deps.open(r.http);
-  if (code !== 0) throw new ToolError(`open exited ${code} for ${r.http}`);
-  return { opened_in: 'browser', open_link: deep, http_url: r.http, note: `${APP_NAME} is not installed; opened in the default browser` };
+  if (host.state !== 'not_installed') return fail(`host_${host.state}`);
+  if (fallback === 'never') return fail('host_not_installed');
+  let code: number;
+  try { code = await deps.open(r.http); } catch { return fail('browser_open_failed'); }
+  if (code !== 0) return fail('browser_open_failed');
+  return { ...links, opened_in: 'browser', status: 'accepted_by_os', note: `${APP_NAME} is not installed; opened in the default browser` };
 }
+// #endregion strict-dashboard-open
 
 // ── administration ──────────────────────────────────────────────────────────────────────
 

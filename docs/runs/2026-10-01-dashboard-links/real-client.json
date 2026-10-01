@@ -1,0 +1,21 @@
+{
+  "scope": "real Claude Code client, disposable registry; host_status/link only; no GUI open",
+  "exit_code": 0,
+  "tools": [
+    {
+      "name": "mcp__dashboard-test__host_status",
+      "input": {}
+    },
+    {
+      "name": "mcp__dashboard-test__link",
+      "input": {
+        "service": "example-agent.default",
+        "path": "/dashboard"
+      }
+    }
+  ],
+  "results": [
+    "{\"observed_at\":\"2026-10-01T16:32:36.844Z\",\"application\":{\"path\":\"/Applications/Fabric Dashboards.app\",\"id\":\"ai.passioncode.fabric-dashboards\",\"version\":\"0.3.1\"},\"state\":\"available\"}",
+    "{\"service\":\"example-agent.default\",\"open_link\":\"fabric-dashboards://service/example-agent.default?path=%2Fdashboard\",\"http_url\":\"http://127.0.0.1:47195/dashboard\"}"
+  ]
+}
