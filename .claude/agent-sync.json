@@ -10,7 +10,9 @@
   "guardedFiles": [
     "docs/adr/*.md",
     "docs/HANDOFF.md",
-    "CHANGELOG.md"
+    "CHANGELOG.md",
+    "docs/backlog-sources.json",
+    "docs/backlog.md"
   ],
   "claimTags": {},
   "gates": [

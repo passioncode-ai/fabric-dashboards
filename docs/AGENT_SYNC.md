@@ -1,4 +1,4 @@
-<!-- agent-sync:generated source=fabric-dashboards@94b1240 cfg=977e4dd2b381 at=2026-09-30T23:50:30Z — regenerate with `agent_sync.py setup`, do not hand-edit -->
+<!-- agent-sync:generated source=fabric-dashboards@e73ac48 cfg=2d7e5cf69061 at=2026-10-01T15:52:10Z — regenerate with `agent_sync.py setup`, do not hand-edit -->
 
 # How documentation and coordination work in fabric-dashboards
 
@@ -30,6 +30,8 @@ None declared here. Ids live in the parent repository; reserve them there.
 - `docs/adr/*.md`
 - `docs/HANDOFF.md`
 - `CHANGELOG.md`
+- `docs/backlog-sources.json`
+- `docs/backlog.md`
 
 ### Gates run before a change is considered done
 

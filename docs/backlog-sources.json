@@ -1,0 +1,15 @@
+{
+  "schema": 1,
+  "repository": "https://github.com/passioncode-ai/fabric-dashboards",
+  "sources": [
+    {
+      "path": "docs/backlog.md",
+      "goal": "reliable-work",
+      "kind": "tasks",
+      "format": "table",
+      "idColumn": "ID",
+      "titleColumn": "Item",
+      "statusColumn": "Status"
+    }
+  ]
+}
