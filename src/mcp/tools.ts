@@ -15,7 +15,7 @@ import {
 } from '@passioncode-ai/fabric-service-host';
 import { fromServiceUrl, isServiceKey, linkFor, safePath } from '../core/deeplink';
 import { Launchd, execRunner, type Runner } from '../core/launchd';
-import { fetchEvents, fetchWellKnown, readToken } from '../core/probe';
+import { fetchEvents, fetchWellKnown, PROBE_TIMEOUT_MS, readToken } from '../core/probe';
 
 export const COMMAND_TIMEOUT_MS = 120_000;
 export const CONTROL_TIMEOUT_MS = 40_000;
@@ -50,7 +50,7 @@ function runArgv(argv: string[], timeoutMs: number): Promise<{ code: number | nu
 export function liveDeps(runner: Runner = execRunner): Deps {
   return {
     servicesDir: () => defaultServicesDir(),
-    wellKnown: (origin) => fetchWellKnown(origin),
+    wellKnown: (origin) => fetchWellKnown(origin, PROBE_TIMEOUT_MS),
     launchd: new Launchd(runner),
     open: async (target) => (await runner('open', [target])).code,
     appInstalled: async () => process.platform === 'darwin' && (await runner('open', ['-Ra', APP_NAME])).code === 0,

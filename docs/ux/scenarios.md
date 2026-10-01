@@ -397,16 +397,16 @@ first release; every sentence a service writes is shown as the service wrote it.
 - **Entry point:** app running in the background
 - **Preconditions:** notifications on for the service; not in quiet hours
 - **Steps:**
-  1. A service stops answering for 30 s -> one notification: "<Service> is not answering"
+  1. A service stops answering: three probes in a row fail and a probe still fails after 60 s of silence -> one notification: "<Service> is not answering"
   2. User clicks it -> the app opens the service view
   3. The service answers again -> one notification: "<Service> is back after 2 min"
 - **Expected result:** the operator learns about an outage and its end once each
-- **Alt paths:** the service returns within 30 s -> no notification, one Activity row
+- **Alt paths:** the service returns before a failed probe confirms 60 s of silence -> no notification, neither down nor back; Activity records it. One slow answer under load (a probe waits 5 s) changes nothing ([ADR-0008](../adr/0008-a-missed-probe-is-not-an-outage.md))
 - **UI elements:** macOS notifications
 - **States covered:** success
 - **Errors & recovery:** notifications denied by macOS -> Settings shows "Notifications are off in macOS Settings" with a button opening them
 - **Status:** draft
-- **Coverage:** src/core/monitor.ts, src/core/notify.ts, test/monitor.test.ts
+- **Coverage:** src/core/monitor.ts, src/core/notify.ts, test/monitor.test.ts, test/flap.test.ts
 - **Product:** unobserved
 
 ### SCN-020: Notification from a service event opens the item

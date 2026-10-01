@@ -1,6 +1,6 @@
 # Handoff — Fabric Dashboards
 
-Updated 2026-10-01 (final check).
+Updated 2026-10-01 (probe confirmation, ADR-0008).
 
 ## Objective
 
@@ -27,6 +27,23 @@ Cross-repository index: `passioncode-ai/org-index` → `docs/runs/2026-09-28-fab
 This repository was recreated from a clean tree on 2026-09-29 so that nothing about the
 operator's personal agents is public; the development history is kept privately in
 `passioncode-ai/fabric-dashboards-archive`.
+
+## Probe confirmation, 2026-10-01 (branch `agent/probe-flap`, ADR-0008)
+
+Objective: the installed 0.3.0 flapped "not answering" / "is back" for running services under a
+load average of 192, where one 2 s probe timeout decided the state.
+
+- Done: `PROBE_TIMEOUT_MS` 5 s (`src/core/probe.ts`, used by the monitor and the MCP server);
+  `DOWN_AFTER_MISSES` 3 and `Monitor#evidence` (the last answer stands until then, except a job
+  launchd reports off or a new pid) in `src/core/monitor.ts`; a miss is re-checked after 5 s;
+  `DOWN_NOTIFY_AFTER_MS` 60 s, decided only by a failed probe (`Monitor#checkDown`). The shared
+  `deriveState` and its vectors are unchanged.
+- Checks: `test/flap.test.ts` (6 tests, scripted clock and probes); planting
+  `DOWN_AFTER_MISSES = 1` fails three of them, planting a 2 s timeout fails the slow-probe test;
+  `npm run check` exit 0.
+- Not released: the fix is on `main` only. **Next task:** cut the next release through the RUNBOOK
+  (`npm run dist -- --notary-profile fabric-notary`, notarized DMG, update feed). It is the first
+  release under AGPL-3.0 or commercial, so its `CHANGELOG.md` section carries the *License* line.
 
 ## Final check, 2026-10-01 (branch `agent/final-check-2026-10-01`)
 

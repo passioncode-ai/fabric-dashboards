@@ -7,6 +7,10 @@ import { expand, request, type Descriptor, type ServiceEvent } from '@passioncod
 export { fetchWellKnown, request } from '@passioncode-ai/fabric-service-host';
 export type { WellKnownResult } from '@passioncode-ai/fabric-service-host';
 
+/** How long one health probe waits. A loaded Mac answers late, not never: 2 s gave a false
+ *  "not answering" under load (ADR-0008), so the window and the MCP server wait 5 s. */
+export const PROBE_TIMEOUT_MS = 5_000;
+
 /** Read the token with the same refusals as the kits: no symlink, owner only, 0600. */
 export function readToken(tokenFile: string): string {
   const file = expand(tokenFile);

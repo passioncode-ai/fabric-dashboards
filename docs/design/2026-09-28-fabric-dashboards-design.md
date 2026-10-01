@@ -307,13 +307,14 @@ Derived by the host from descriptor + launchd + well-known, in this precedence:
 | `conflict` | another descriptor claims the same port | ✕ naming both |
 | `foreign` | well-known answers with another `service.id`/`instance` | ✕ "another program answers on :port" |
 | `duplicate` | well-known pid ≠ launchd pid | ▲ "two copies", *Restart* |
-| `down` | loaded but no answer for > 15 s | ✕ since HH:MM, *Restart · Logs* |
+| `down` | loaded, three probes in a row unanswered and no answer for > 15 s ([ADR-0008](../adr/0008-a-missed-probe-is-not-an-outage.md)) | ✕ since HH:MM, *Restart · Logs* |
 | `starting` / `stopping` | as reported, or during a host action | ◌ |
 | `degraded` | `status: degraded` or non-empty `degraded` | ▲ with the reasons |
 | `ready` | otherwise | ● |
 
 Probe cadence: every 5 s while the window is visible, every 30 s in the background,
-exponential back-off to 60 s for `down`. A state change is an **app event** in the
+exponential back-off to 60 s for `down`. A probe waits 5 s; a missed probe is re-checked after
+5 s whatever the window, and until three have failed in a row the last answer stands (ADR-0008). A state change is an **app event** in the
 activity feed ("Example Agent stopped answering at 17:02", "…is back after 40 s").
 
 ### 3.4 Embedded dashboards — one view per service, never a copy
@@ -342,8 +343,8 @@ Each action writes an app event with the outcome sentence; a timeout says so and
 
 ### 3.6 Notifications and updates
 
-- **Notifications** (Electron `Notification`): a service went `down` for > 30 s, came
-  back, became `duplicate` or `foreign`; a service event with `notify: true`; an update
+- **Notifications** (Electron `Notification`): a service went `down` and a probe still
+  failed after 60 s of silence (ADR-0008), came back after such a notification, became `duplicate` or `foreign`; a service event with `notify: true`; an update
   is available. Clicking opens the service view at the link. Debounced per service,
   respecting quiet hours and per-service settings.
 - **App auto-update**: Squirrel.Mac through Electron's `autoUpdater` with a JSON feed

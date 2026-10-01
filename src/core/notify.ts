@@ -2,7 +2,9 @@
 // decides WHAT happened; this decides whether to raise a notification for it.
 import type { ServiceEvent, Settings } from './types';
 
-export const DOWN_NOTIFY_AFTER_MS = 30_000;
+/** A confirmed outage is notified once its silence, counted from the first missed probe, passes
+ *  this — decided by a probe that failed after it, never by the clock alone (ADR-0008). */
+export const DOWN_NOTIFY_AFTER_MS = 60_000;
 
 export type Happening =
   | { kind: 'down' | 'back' | 'duplicate' | 'foreign'; serviceKey: string }
