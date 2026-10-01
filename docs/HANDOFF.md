@@ -35,13 +35,28 @@ Objective: the operator saw an empty Dashboard tab, two sidebar rows with one na
   uninstalled on the operator's Mac and their runbooks now say an instance is temporary
   (private repositories, not named here).
 
-Checks run: `npm run check` (119 tests, regions, UX lint), `npm run test:e2e` (4 tests),
-`npm run dist -- --notary-profile fabric-notary` (receipt in the release).
+Checks run: `npm run check` (119 tests, regions, UX lint), `npm run test:e2e` (4 tests; the
+switching test also goes back by service link and asserts the page is visible),
+`npm run dist -- --notary-profile fabric-notary` from `e8e516c`: Developer ID, notarization
+`accepted and stapled`, Gatekeeper `accepted`, MCP launcher answers as 0.3.4, DMG sha256
+`1f945627…7610a`. Published as [v0.3.4](https://github.com/passioncode-ai/fabric-dashboards/releases/tag/v0.3.4)
+and installed in `/Applications` (`main.log`: `started 0.3.4`). The installed binary, driven
+through the same switch on the operator's real services with its window on screen, showed the
+dashboard; the operator's own window was off-screen at the time, so its pixels were not checked.
 
-Next task: once PR #110 has its three required checks green, merge it, release
-`project-observatory-dashboard` and reinstall the server so its plist is `Standard` (until then
-the installed plist still says `Background`). Then move SCN-001/015/020 out of `draft` after the
-operator has used 0.3.4.
+Where each part landed (all on `main`):
+
+| Repository | Commit | What |
+|---|---|---|
+| fabric-dashboards | `e8e516c` (v0.3.4), `25f91c7` | the app |
+| fabric-agent-adapter | `de21d95` (v0.5.7, npm) | kit: `Standard`, `lifecycle.priority`, notification rules |
+| passioncode | `7bc7797` (v0.1.18, npm) | pins adapter v0.5.7; this Mac updated |
+| project-observatory-dashboard | `d6ea9c8` (v0.10.1) | server `Standard`; no own banners beside this host |
+| fabric-workspace | `0d0c499` | `knowledge/products.md` |
+
+Next task: confirm the operator's installed Project Observatory reports 0.10.1 and its server plist
+says `ProcessType Standard` (`plutil -extract ProcessType raw <plist>`); then move
+SCN-001/015/020 out of `draft` after the operator has used 0.3.4.
 
 ## Objective
 
