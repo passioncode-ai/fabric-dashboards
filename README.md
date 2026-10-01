@@ -9,7 +9,7 @@ in, one live view per service — instead of a browser tab per port. It is the m
 [Fabric](https://passioncode.ai/), PassionCode.ai's CEO AI agent, and it also works on its own:
 agents drive it over MCP, people use the window.
 
-**Status (2026-10-01): 0.3.1 released** — [download](https://github.com/passioncode-ai/fabric-dashboards/releases/latest). See [HANDOFF](docs/HANDOFF.md)
+**Version 0.3.2** — [download](https://github.com/passioncode-ai/fabric-dashboards/releases/latest). See [HANDOFF](docs/HANDOFF.md)
 for what is released and what is next.
 
 ## What it does
@@ -155,4 +155,4 @@ version and the registered handler without launching anything. `open` accepts
 `fallback=if_absent` (default) or `never`: an installed host failure never opens
 a browser. Its `accepted_by_os` receipt is not proof of page readiness. See the
 [implementation and checks](docs/runs/2026-10-01-dashboard-links/README.md#host-routing).
-These additions are in this source branch, not the published 0.3.1 app.
+These additions require Fabric Dashboards 0.3.2 or later.
