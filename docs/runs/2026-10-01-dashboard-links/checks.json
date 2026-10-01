@@ -39,5 +39,30 @@
   },
   "hosted_ci": "NOT_RUN (nightly policy)",
   "installed_app": "unchanged 0.3.1",
-  "fresh_checkout": "PENDING"
+  "fresh_checkout": {
+    "commit": "ea4c3b5761d04b1a4af32ebc38c817e50a9509c1",
+    "checks": [
+      {
+        "command": "git clone remote branch",
+        "exit_code": 0
+      },
+      {
+        "command": "npm ci",
+        "exit_code": 0
+      },
+      {
+        "command": "npm run build:host",
+        "exit_code": 0
+      },
+      {
+        "command": "node --import tsx --test test/host.test.ts test/mcp.test.ts",
+        "exit_code": 0
+      },
+      {
+        "command": "python3 docs/ux/lint.py",
+        "exit_code": 0
+      }
+    ],
+    "status": "PASS"
+  }
 }
