@@ -278,6 +278,35 @@ test('switching between two loaded dashboards keeps the chosen dashboard on scre
     await new Promise((r) => setTimeout(r, 500));
     assert.deepEqual(await onScreen(), [`http://127.0.0.1:${ports[0]}/`], 'and it stays there');
     await shot(page, '10-switch-back');
+
+    // The same through service links, as an agent hands them over (a second process forwards it).
+    const env = { ...process.env, FABRIC_SERVICES_DIR: services, FABRIC_DASHBOARDS_USER_DATA: path.join(base, 'app'), LANG: 'en_US.UTF-8' };
+    const forward = (link: string) => {
+      const r = spawnSync(electronBinary as unknown as string, [ROOT, link], { env, encoding: 'utf8', timeout: 30_000 });
+      assert.equal(r.status, 0, r.stderr?.slice(0, 300));
+    };
+    const settle = async (i: number) => {
+      await page.getByRole('heading', { level: 1, name: names[i]! }).waitFor();
+      const origin = `http://127.0.0.1:${ports[i]}/`;
+      for (let n = 0; n < 50; n += 1) {
+        const urls = await onScreen();
+        if (urls.length === 1 && urls[0] === origin) break;
+        await new Promise((r) => setTimeout(r, 200));
+      }
+      await new Promise((r) => setTimeout(r, 700));
+      return onScreen();
+    };
+    forward('fabric-dashboards://service/sample.beta');
+    assert.deepEqual(await settle(1), [`http://127.0.0.1:${ports[1]}/`], 'a link to Beta shows Beta');
+    forward('fabric-dashboards://service/sample.alpha');
+    assert.deepEqual(await settle(0), [`http://127.0.0.1:${ports[0]}/`], 'a link back to Alpha shows Alpha, not a blank tab');
+    // Attached is not enough: Chromium must treat the page as visible, or it does not paint it.
+    const visibility = async () => app!.evaluate(async ({ BrowserWindow, webContents }) => {
+      const w = BrowserWindow.getAllWindows()[0]!;
+      const child = (w.contentView.children as unknown as { webContents?: { id: number } }[]).find((c) => c.webContents)!;
+      return webContents.fromId(child.webContents!.id)!.executeJavaScript('document.visibilityState');
+    });
+    assert.equal(await visibility(), 'visible', 'the page shown again is visible to Chromium, so it paints');
   } finally {
     await closeApp(app);
     for (const p of procs) await stopProcess(p);
