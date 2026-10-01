@@ -110,3 +110,17 @@ tests passed on the 0.3.2 candidate. No full hosted test suite was dispatched.
 Current next task: consume this installed contract from the communicator renderer
 and addressed remote-open transport. Native routing is shipped; a permanent
 communicator and lifecycle broker are not part of this release.
+
+## Cold-launch correction — 0.3.3
+
+A follow-up check after 0.3.2 installation closed the GUI before MCP open. macOS
+accepted the request but the application did not start. The packaged MCP exports
+`ELECTRON_RUN_AS_NODE=1`; desktop dispatch inherited it. Removing that variable
+from the dispatch child reproduced a successful graphical launch.
+
+Regression `MCP desktop dispatch removes RunAsNode in the child and preserves the
+server environment` failed before the fix (`1` versus null). The fix wraps the
+existing open invocation with `/usr/bin/env -u ELECTRON_RUN_AS_NODE`, preserving
+the app-path pin, single-instance policy and strict fallback. The MCP process
+environment is untouched. This correction requires 0.3.3; the 0.3.2 release and
+its successful already-running-host checks remain historical evidence.

@@ -52,7 +52,10 @@ export function liveDeps(runner: Runner = execRunner): Deps {
     servicesDir: () => defaultServicesDir(),
     wellKnown: (origin) => fetchWellKnown(origin, PROBE_TIMEOUT_MS),
     launchd: new Launchd(runner),
-    open: async (target, application) => (await runner('/usr/bin/open', application ? ['-a', application, target] : [target])).code,
+    // The packaged MCP runs Electron as Node. LaunchServices inherits this flag
+    // on a cold launch: open exits 0 while the GUI exits without making a window.
+    // Strip it only in the dispatch child; never mutate the serving MCP process.
+    open: async (target, application) => (await runner('/usr/bin/env', ['-u', 'ELECTRON_RUN_AS_NODE', '/usr/bin/open', ...(application ? ['-a', application, target] : [target])])).code,
     host: () => discoverHost(runner),
     run: runArgv,
     events: fetchEvents,

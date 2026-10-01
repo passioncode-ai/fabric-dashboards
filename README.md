@@ -9,7 +9,7 @@ in, one live view per service — instead of a browser tab per port. It is the m
 [Fabric](https://passioncode.ai/), PassionCode.ai's CEO AI agent, and it also works on its own:
 agents drive it over MCP, people use the window.
 
-**Version 0.3.2** — [download](https://github.com/passioncode-ai/fabric-dashboards/releases/latest). See [HANDOFF](docs/HANDOFF.md)
+**Version 0.3.3** — [download](https://github.com/passioncode-ai/fabric-dashboards/releases/latest). See [HANDOFF](docs/HANDOFF.md)
 for what is released and what is next.
 
 ## What it does
@@ -156,3 +156,6 @@ version and the registered handler without launching anything. `open` accepts
 a browser. Its `accepted_by_os` receipt is not proof of page readiness. See the
 [implementation and checks](docs/runs/2026-10-01-dashboard-links/README.md#host-routing).
 These additions require Fabric Dashboards 0.3.2 or later.
+
+Version 0.3.3 also clears the MCP-only Electron RunAsNode flag when dispatching a
+dashboard link, so a closed host starts as a graphical application.

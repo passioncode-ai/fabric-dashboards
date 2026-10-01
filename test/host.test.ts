@@ -34,6 +34,32 @@ test('live host adapter reads OS metadata without opening and pins opening to th
   if (process.platform === 'darwin') assert.equal(calls[0]![0], '/usr/bin/osascript');
   const deep = 'fabric-dashboards://service/example-agent.default';
   await deps.open(deep, app.path);
-  assert.deepEqual(calls.at(-1), ['/usr/bin/open', '-a', app.path, deep]);
+  assert.deepEqual(calls.at(-1), ['/usr/bin/env', '-u', 'ELECTRON_RUN_AS_NODE', '/usr/bin/open', '-a', app.path, deep]);
   assert.ok(calls.every((c) => !c.includes('-n')), 'never request a second application instance');
+});
+
+test('MCP desktop dispatch removes RunAsNode in the child and preserves the server environment', async () => {
+  const { execRunner } = await import('../src/core/launchd');
+  const previous = process.env.ELECTRON_RUN_AS_NODE;
+  process.env.ELECTRON_RUN_AS_NODE = '1';
+  let observed = '';
+  const probe = ['-e', 'process.stdout.write(JSON.stringify(process.env.ELECTRON_RUN_AS_NODE ?? null))'];
+  try {
+    const deps = liveDeps(async (command, args) => {
+      // Replace only the GUI command with an inert child. Keep the real environment
+      // boundary, so the pre-fix direct open path observably inherits RunAsNode.
+      const at = args.indexOf('/usr/bin/open');
+      const result = command === '/usr/bin/open'
+        ? await execRunner(process.execPath, probe)
+        : await execRunner(command, [...args.slice(0, at), process.execPath, ...probe]);
+      observed = result.stdout;
+      return result;
+    });
+    assert.equal(await deps.open('fabric-dashboards://service/example-agent.default', app.path), 0);
+    assert.equal(JSON.parse(observed), null, 'the GUI must not inherit the MCP launcher RunAsNode flag');
+    assert.equal(process.env.ELECTRON_RUN_AS_NODE, '1', 'do not mutate the live MCP process environment');
+  } finally {
+    if (previous === undefined) delete process.env.ELECTRON_RUN_AS_NODE;
+    else process.env.ELECTRON_RUN_AS_NODE = previous;
+  }
 });

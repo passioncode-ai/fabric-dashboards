@@ -581,3 +581,5 @@ first release; every sentence a service writes is shown as the service wrote it.
 - **Status:** draft
 - **Coverage:** src/mcp/tools.ts, src/mcp/server.ts, test/mcp.test.ts
 - **Product:** unobserved
+
+- **Cold-start acceptance:** from the packaged MCP, opening a link while the app is closed launches its graphical host and selected page. The MCP-only Electron RunAsNode flag is not inherited by desktop dispatch. Verify actual page readiness separately from the OS-acceptance receipt.
