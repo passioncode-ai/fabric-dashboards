@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.3.1 — 2026-10-01
 
 - **Fixed: "not answering" no longer flaps under load.** A probe waits 5 s instead of 2 s. A
   service counts as not answering only after three probes in a row fail; a missed probe is
@@ -8,6 +8,10 @@
   that still fails after 60 s of silence (was 30 s), so a service that answers again before
   that sends neither "not answering" nor "is back". Activity still records each outage
   ([ADR-0008](docs/adr/0008-a-missed-probe-is-not-an-outage.md)).
+- **License.** This is the first release under the GNU AGPL-3.0, with a commercial license
+  from PassionCode.ai for use the AGPL does not cover (`AGPL-3.0-only OR
+  LicenseRef-PassionCode-Commercial`, [ADR-0007](docs/adr/0007-agpl-or-commercial.md)).
+  v0.2.0 and v0.3.0 stay PolyForm Noncommercial or Internal Use, and v0.1.0 stays MIT.
 
 ## 0.3.0 — 2026-09-30
 
