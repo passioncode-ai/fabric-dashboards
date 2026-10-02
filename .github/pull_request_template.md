@@ -9,4 +9,4 @@
 
 ## Contributor License Agreement
 
-- [ ] I agree to [CLA.md](../CLA.md) for this contribution.
+Opening this pull request means you agree to the repository's `CLA.md` for this contribution. Nothing to tick.
