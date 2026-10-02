@@ -8,6 +8,9 @@ import path from 'node:path';
 import { ID_PATTERN, INSTANCE_PATTERN, PROTOCOL, type ClaimConflict, type Descriptor } from './protocol';
 
 const ORIGIN = /^http:\/\/127\.0\.0\.1:([0-9]{3,5})$/;
+// DEC-0019: a remote origin is https on a public DNS name, an optional port and nothing else.
+const REMOTE_ORIGIN = /^https:\/\/((?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63})(?::([0-9]{1,5}))?$/;
+const RESERVED_HOST = /(^|\.)(localhost|local|internal|home\.arpa|lan|localdomain)$/;
 const LABEL = /^[A-Za-z0-9][A-Za-z0-9._-]{2,254}$/;
 const HEADER = /^[A-Za-z][A-Za-z0-9-]{0,63}$/;
 const LOCAL_PATH = /^(~\/|\/)[^\0]*$/;
@@ -31,6 +34,20 @@ export function portOf(origin: string): number | null {
   return port >= 100 && port <= 65535 ? port : null;
 }
 
+/** DEC-0019: `local` unless the descriptor says `remote`. */
+export function placementOf(d: { placement?: unknown } | null | undefined): 'local' | 'remote' {
+  return d?.placement === 'remote' ? 'remote' : 'local';
+}
+
+/** The problem with a remote origin, or null. */
+export function remoteOriginProblem(origin: unknown): string | null {
+  const m = typeof origin === 'string' ? REMOTE_ORIGIN.exec(origin) : null;
+  if (!m) return 'a remote origin must be https://<dns-name>[:<port>] with no path, query or IP literal';
+  if (RESERVED_HOST.test(m[1]!)) return `a remote service cannot live on the reserved name ${m[1]}`;
+  if (m[2] !== undefined && (Number(m[2]) < 1 || Number(m[2]) > 65535)) return 'the origin port is out of range';
+  return null;
+}
+
 const isStr = (v: unknown): v is string => typeof v === 'string';
 const isObj = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 
@@ -39,7 +56,10 @@ export function validateDescriptor(raw: unknown): string[] {
   if (!isObj(raw)) return ['the file is not a JSON object'];
   const d = raw;
   const problems: string[] = [];
-  for (const key of ['protocol', 'id', 'instance', 'name', 'origin', 'auth', 'lifecycle', 'paths', 'installedAt', 'installedBy']) {
+  const remote = placementOf(d) === 'remote';
+  if (d.placement !== undefined && d.placement !== 'local' && d.placement !== 'remote') problems.push('placement must be local or remote');
+  const required = ['protocol', 'id', 'instance', 'name', 'origin', 'auth', 'lifecycle', 'installedAt', 'installedBy'];
+  for (const key of remote ? required : [...required, 'paths']) {
     if (!(key in d)) problems.push(`missing ${key}`);
   }
   if (problems.length) return problems;
@@ -47,7 +67,10 @@ export function validateDescriptor(raw: unknown): string[] {
   if (!isStr(d.id) || !ID_PATTERN.test(d.id)) problems.push('id must be lowercase letters, digits and dashes');
   if (!isStr(d.instance) || !INSTANCE_PATTERN.test(d.instance)) problems.push('instance must be lowercase letters, digits and dashes');
   if (!isStr(d.name) || !d.name || d.name.length > 80) problems.push('name must be 1 to 80 characters');
-  if (!isStr(d.origin) || portOf(d.origin) === null) problems.push('origin must be http://127.0.0.1:<port>');
+  if (remote) {
+    const problem = remoteOriginProblem(d.origin);
+    if (problem) problems.push(problem);
+  } else if (!isStr(d.origin) || portOf(d.origin) === null) problems.push('origin must be http://127.0.0.1:<port>');
   const auth = d.auth;
   if (!isObj(auth) || !isStr(auth.tokenFile) || !LOCAL_PATH.test(auth.tokenFile)) problems.push('auth.tokenFile must be an absolute or ~/ path');
   else {
@@ -63,9 +86,16 @@ export function validateDescriptor(raw: unknown): string[] {
     if (!isStr(life.label) || !LABEL.test(life.label)) problems.push('a launchd service declares lifecycle.label');
     if (!isStr(life.plist) || !LOCAL_PATH.test(life.plist) || !life.plist.endsWith('.plist')) problems.push('a launchd service declares lifecycle.plist');
   }
+  if (remote && isObj(life)) {
+    if (life.manager !== 'none') problems.push('a remote service is supervised by its platform: lifecycle.manager must be none');
+    for (const field of ['label', 'plist']) if (life[field] !== undefined) problems.push(`a remote service has no launchd ${field}`);
+  }
   const paths = d.paths;
-  if (!isObj(paths) || !isStr(paths.data) || !LOCAL_PATH.test(paths.data)) problems.push('paths.data must be an absolute or ~/ path');
+  if (remote && paths === undefined) {
+    // DEC-0019: a remote placement keeps no state on this computer.
+  } else if (!isObj(paths) || !isStr(paths.data) || !LOCAL_PATH.test(paths.data)) problems.push('paths.data must be an absolute or ~/ path');
   else if (!Array.isArray(paths.logs) || !paths.logs.every((p) => isStr(p) && LOCAL_PATH.test(p))) problems.push('paths.logs must list absolute or ~/ paths');
+  if (remote && isObj(d.commands) && d.commands.update !== undefined) problems.push('a remote service declares no update command');
   if (d.commands !== undefined) {
     if (!isObj(d.commands)) problems.push('commands must be an object');
     else {

@@ -1,1 +1,1 @@
-Copied from passioncode-ai/fabric-agent-contract@6cf2dc0e4ad3 fixtures/ (DEC-0015). Re-copy when the contract changes; never edit here.
+Copied from passioncode-ai/fabric-agent-contract@6cf2dc0e4ad3 fixtures/ (DEC-0015); the remote-placement descriptors (positive_service-descriptor-remote.json, negative_service-descriptor-remote-*, -https-without-placement, -local-without-paths) from @2ce3922 (DEC-0019). Re-copy when the contract changes; never edit here.

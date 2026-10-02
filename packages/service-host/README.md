@@ -49,17 +49,27 @@ return, so a host's message catalogue can be checked against it — `Busy`, `Lau
 - `readDirectory(dir)` → `DescriptorEntry[]` (`path`, `key` = `id.instance` or the file stem,
   `descriptor` or `null`, `problems`). A half-written, unreadable or misnamed file is an entry
   with its problem; an absent directory is `[]`; a directory that cannot be read at all throws.
-- `validateDescriptor(raw)` → every problem as one sentence (FAC-SEM-012 and the schema).
-- `claimConflicts(entries)` → `Map<key, ClaimConflict>` — two descriptors on one port, or one
-  `id.instance` claimed twice (FAC-SEM-010).
+- `validateDescriptor(raw)` → every problem as one sentence (FAC-SEM-012, FAC-SEM-024 and the schema),
+  placement-aware: a `remote` descriptor (DEC-0019) needs an `https://<dns-name>` origin, `lifecycle.manager:
+  "none"`, no launchd fields and no `update`; `paths` is optional for it.
+- `placementOf(d)`, `remoteOriginProblem(origin)`.
+- `claimConflicts(entries)` → `Map<key, ClaimConflict>` — two local descriptors on one port, or one
+  `id.instance` claimed twice (FAC-SEM-010); a remote origin claims no port.
 - `portOf(origin)`, `expand(path)`.
 
 ## Health
 
-`src/health.ts`. `fetchWellKnown(origin, timeoutMs = 2000)` → `WellKnownResult`; it never throws:
-silence (refused, timed out) is `no-answer`, any other answer that is not a valid well-known
-document is `not-protocol` with the reason (`checkWellKnown`). `request()` talks only to
-`http://127.0.0.1:<port>` and caps an answer at 2 MB.
+`src/health.ts`. `fetchWellKnown(origin, timeoutMs = 2000, options?)` → `WellKnownResult`; it never
+throws: silence (refused, timed out) is `no-answer`, any other answer that is not a valid well-known
+document is `not-protocol` with the reason (`checkWellKnown`). `request()` caps an answer at 2 MB and
+follows no redirect.
+
+A **remote origin** (DEC-0019) goes over https with the certificate verified against the system
+store; pass the token header in `options.headers` (`authHeaders(d, readToken(d.auth.tokenFile))`) and
+`REMOTE_TIMEOUT_MS`. A `401` is `refused`; a redirect, a TLS failure, a timeout or a network error is
+`no-answer` with its `cause`. `TlsOptions` (`ca`, `connect`) exist for tests only. A local result keeps
+its 0.1.0 shape. `readToken(tokenFile)` refuses a symlink, another owner and any mode wider than
+0600 — main process only.
 
 ## Launchd
 
@@ -69,6 +79,9 @@ print-disabled` per look) and `status(label, table?)` → `{ loaded, pid, disabl
 shell), `UNMANAGED`. Reading only: the verbs that change a job are Fabric Dashboards' own.
 
 ## State precedence
+
+A remote placement (DEC-0019) has no launchd and no `duplicate`: `refused`, TLS and a redirect are
+`down` at once with `reason.remote.*`; silence waits `REMOTE_DOWN_AFTER_MS` (60 s).
 
 `src/state.ts`. `deriveState(input)` → `{ state, reasons }`. The order, first match wins:
 

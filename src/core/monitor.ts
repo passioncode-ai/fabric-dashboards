@@ -5,12 +5,13 @@ import { EventEmitter } from 'node:events';
 import { execFile } from 'node:child_process';
 import fs from 'node:fs';
 import { ActivityStore } from './activity';
-import { claimConflicts, deriveState, expand, fetchWellKnown, readDirectory, type DescriptorEntry, type WellKnownResult } from '@passioncode-ai/fabric-service-host';
+import { authHeaders, claimConflicts, deriveState, expand, fetchWellKnown, readDirectory, REMOTE_TIMEOUT_MS, type DescriptorEntry, type WellKnownOptions, type WellKnownResult } from '@passioncode-ai/fabric-service-host';
 import { tail } from './fsutil';
 import { duration, t as tr, type Lang } from './i18n';
 import { Launchd } from './launchd';
 import { composeEventNotice, displayName, DOWN_NOTIFY_AFTER_MS, episodeKey, intentOf, NotifyLedger, shouldNotify, type Happening, type Intent } from './notify';
 import { fetchEvents, PROBE_TIMEOUT_MS, readToken } from './probe';
+import { tlsFor } from './testhooks';
 import type { Busy, Reason, ServiceSnapshot, Settings } from './types';
 
 export const CONTROL_TIMEOUT_MS = 40_000;
@@ -28,8 +29,8 @@ export interface MonitorOptions {
   launchd?: Launchd;
   now?: () => number;
   intervals?: { rescan: number; visible: number; background: number; events: number; maxBackoff: number };
-  /** The health probe. Default: the well-known document with PROBE_TIMEOUT_MS. */
-  wellKnown?: (origin: string) => Promise<WellKnownResult>;
+  /** The health probe. Default: the well-known document with PROBE_TIMEOUT_MS, or REMOTE_TIMEOUT_MS and the token for a remote placement (DEC-0019). */
+  wellKnown?: (origin: string, options?: WellKnownOptions) => Promise<WellKnownResult>;
   /** Which notification episodes were told and when (ADR-0010). Default: in memory. */
   ledger?: NotifyLedger;
 }
@@ -51,6 +52,7 @@ interface Tracked {
   lastState: ServiceSnapshot['state'] | null;
   lastPid: number | null;
   baselined: boolean; // first events poll records history without notifying
+  tokenProblem: string | null; // DEC-0019: a remote placement whose token cannot be read is invalid, never probed
 }
 
 const DEFAULT_INTERVALS = { rescan: 5_000, visible: 5_000, background: 30_000, events: 15_000, maxBackoff: 60_000 };
@@ -60,7 +62,7 @@ export class Monitor extends EventEmitter {
   private readonly launchd: Launchd;
   private readonly now: () => number;
   private readonly intervals: typeof DEFAULT_INTERVALS;
-  private readonly wellKnown: (origin: string) => Promise<WellKnownResult>;
+  private readonly wellKnown: (origin: string, options?: WellKnownOptions) => Promise<WellKnownResult>;
   private readonly ledger: NotifyLedger;
   private visible = true;
   private watcher: fs.FSWatcher | null = null;
@@ -76,7 +78,7 @@ export class Monitor extends EventEmitter {
     this.launchd = o.launchd ?? new Launchd();
     this.now = o.now ?? Date.now;
     this.intervals = { ...DEFAULT_INTERVALS, ...(o.intervals ?? {}) };
-    this.wellKnown = o.wellKnown ?? ((origin) => fetchWellKnown(origin, PROBE_TIMEOUT_MS));
+    this.wellKnown = o.wellKnown ?? ((origin, options) => fetchWellKnown(origin, options?.headers ? REMOTE_TIMEOUT_MS : PROBE_TIMEOUT_MS, options));
     this.ledger = o.ledger ?? new NotifyLedger(null);
   }
 
@@ -165,7 +167,7 @@ export class Monitor extends EventEmitter {
       }
       const t: Tracked = {
         entry, probe: null, launchd: { managed: entry.descriptor?.lifecycle.manager === 'launchd', loaded: false, pid: null, disabled: false },
-        firstUnansweredAt: null, lastAnswerAt: null, misses: 0, lastAnswer: null, nextProbeAt: this.now(), backoff: 0, busy: null, lastAction: null,
+        firstUnansweredAt: null, lastAnswerAt: null, misses: 0, lastAnswer: null, nextProbeAt: this.now(), backoff: 0, busy: null, lastAction: null, tokenProblem: null,
         feedError: null, downNotified: false, lastState: null, lastPid: null, baselined: false,
       };
       this.tracked.set(entry.key, t);
@@ -193,9 +195,22 @@ export class Monitor extends EventEmitter {
       t.launchd = { managed: false, loaded: false, pid: null, disabled: false };
     }
     const answeredBefore = t.probe?.kind === 'answer';
+    let options: WellKnownOptions | undefined;
+    t.tokenProblem = null;
+    if (d.placement === 'remote') {
+      try {
+        options = { headers: authHeaders(d, readToken(d.auth.tokenFile)), ...tlsFor(d.origin) };
+      } catch (error) {
+        t.tokenProblem = (error as Error).message;
+        t.probe = null;
+        t.nextProbeAt = this.now() + this.intervals.background;
+        this.observe(t);
+        return;
+      }
+    }
     let probe: WellKnownResult;
     try {
-      probe = await this.wellKnown(d.origin);
+      probe = await this.wellKnown(d.origin, options);
     } catch (error) {
       probe = { kind: 'no-answer', detail: (error as Error).message };
     }
@@ -426,7 +441,7 @@ export class Monitor extends EventEmitter {
   logs(key: string): { path: string; text?: string; error?: string }[] {
     const d = this.tracked.get(key)?.entry.descriptor;
     if (!d) return [];
-    return d.paths.logs.map((p) => {
+    return (d.paths?.logs ?? []).map((p) => { // a remote placement keeps no logs here (DEC-0019)
       const file = expand(p);
       try {
         return { path: file, text: tail(file) };
@@ -440,13 +455,13 @@ export class Monitor extends EventEmitter {
   private snapshotOf(t: Tracked): ServiceSnapshot {
     const seen = this.evidence(t);
     const { state, reasons } = deriveState({
-      descriptor: t.entry.descriptor, problems: t.entry.problems, conflict: this.conflicts().get(t.entry.key),
+      descriptor: t.entry.descriptor, problems: t.tokenProblem ? [...t.entry.problems, t.tokenProblem] : t.entry.problems, conflict: this.conflicts().get(t.entry.key),
       launchd: t.launchd, probe: seen.probe, firstUnansweredAt: seen.firstUnansweredAt, now: this.now(), busy: t.busy,
     });
     const wk = seen.probe?.kind === 'answer' ? seen.probe.doc : null;
     if (wk?.update?.available) reasons.push({ code: 'reason.update', params: { version: wk.update.available } });
     return {
-      key: t.entry.key, descriptorPath: t.entry.path, descriptor: t.entry.descriptor, problems: t.entry.problems, state, reasons,
+      key: t.entry.key, descriptorPath: t.entry.path, descriptor: t.entry.descriptor, problems: t.tokenProblem ? [...t.entry.problems, t.tokenProblem] : t.entry.problems, state, reasons,
       wellKnown: wk, launchd: t.launchd,
       firstUnansweredAt: t.firstUnansweredAt ? new Date(t.firstUnansweredAt).toISOString() : null,
       lastAnswerAt: t.lastAnswerAt ? new Date(t.lastAnswerAt).toISOString() : null,

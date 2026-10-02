@@ -19,7 +19,17 @@ test('contract fixtures: positive descriptors pass, negative ones fail with the 
     'negative_service-descriptor-shell-command.json': /argument array/,
     'negative_service-descriptor-launchd-without-label.json': /lifecycle.label/,
     'negative_service-descriptor-bearer-on-custom-header.json': /scheme must be none/,
+    // DEC-0019 — the remote placement (copied from the contract at 2ce3922)
+    'negative_service-descriptor-remote-http.json': /https/,
+    'negative_service-descriptor-remote-launchd.json': /supervised by its platform/,
+    'negative_service-descriptor-remote-ip-literal.json': /IP literal/,
+    'negative_service-descriptor-remote-path.json': /no path/,
+    'negative_service-descriptor-remote-update.json': /no update/,
+    'negative_service-descriptor-remote-loopback.json': /https/,
+    'negative_service-descriptor-https-without-placement.json': /127\.0\.0\.1/,
+    'negative_service-descriptor-local-without-paths.json': /missing paths/,
   };
+  assert.deepEqual(validateDescriptor(fx('positive_service-descriptor-remote.json')), []);
   for (const [file, pattern] of Object.entries(expect)) {
     const problems = validateDescriptor(fx(file));
     assert.ok(problems.some((p) => pattern.test(p)), `${file}: ${problems.join('; ')}`);

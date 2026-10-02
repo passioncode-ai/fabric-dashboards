@@ -7,6 +7,7 @@ import { t, type Lang } from '../core/i18n';
 import { loginUrl, readToken } from '../core/probe';
 import type { ServiceSnapshot } from '../core/types';
 import { clampRect, navigation, partitionFor, resolveLink, ViewSlot } from './policy';
+import { testRemote } from '../core/testhooks';
 
 interface Entry { view: WebContentsView; origin: string; crashes: number; loadedOnce: boolean }
 
@@ -25,6 +26,15 @@ export class ServiceViews {
     const d = snap.descriptor!;
     const partition = partitionFor(snap.key);
     const ses = session.fromPartition(partition);
+    // DEC-0019 test hook: trust exactly the test certificate for exactly the test name; every
+    // other request keeps Chromium's verification (-3). Never set in a packaged app.
+    const remote = testRemote();
+    if (remote) {
+      ses.setCertificateVerifyProc((request, callback) => {
+        if (request.hostname === remote.name && request.certificate.data.trim() === remote.caPem.trim()) callback(0);
+        else callback(-3);
+      });
+    }
     ses.setPermissionRequestHandler((_wc, _permission, callback) => callback(false));
     ses.setPermissionCheckHandler(() => false);
     const view = new WebContentsView({

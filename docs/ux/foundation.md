@@ -188,6 +188,16 @@ hunt browser tabs to learn whether an agent is alive or what it did.
 - **Priority:** should
 - **Status:** proposed
 
+### ST-013: Online agents and dashboards sit beside the local ones
+- **Story:** As P-01, I want an agent or dashboard that runs online (an `https` origin on a platform) to appear here beside my local services, signed in when I open it, so that I watch every agent I run in one place — local or not.
+- **Traces:** JTBD-01, JTBD-04, JRN-01/#1, JRN-01/#5; Fabric Agent Contract DEC-0019
+- **Acceptance criteria:**
+  - Given a remote descriptor (`placement: "remote"`) in the services directory, when the app reads it, then the service appears in an **Online** group with its state, version and tiles, and offers no start, stop or restart.
+  - Given I open an online service, when its dashboard loads, then I am signed in through a one-time code, as for a local service, and the page is its https origin.
+  - Given the online service refuses the token, has a certificate the system does not trust, redirects, or stays silent for a minute, when the app shows it, then it is `down` with that reason in a sentence — never `foreign` for a refused token, never a redirect followed.
+- **Priority:** should
+- **Status:** proposed
+
 ## Design tooling
 - **Figma:** disabled
 - **Figma file:** none — text-only design surface decided at intake (brief D-7); the PassionCode.ai design system tokens are vendored by hash.

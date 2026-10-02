@@ -5,8 +5,8 @@
 ## Index
 | ID | Screen | Used by | Figma | Status | Coverage |
 |----|--------|---------|-------|--------|----------|
-| SCR-01 | Overview | SCN-001, SCN-002, SCN-005, SCN-006 | none (text-only) | built | src/renderer/components/Overview.tsx |
-| SCR-02 | Service view | SCN-004, SCN-007–SCN-016, SCN-021, SCN-025, SCN-026, SCN-027 | none (text-only) | built | src/renderer/components/ServiceView.tsx |
+| SCR-01 | Overview | SCN-001, SCN-002, SCN-005, SCN-006, SCN-030 | none (text-only) | built | src/renderer/components/Overview.tsx |
+| SCR-02 | Service view | SCN-004, SCN-007–SCN-016, SCN-021, SCN-025, SCN-026, SCN-027, SCN-031, SCN-032 | none (text-only) | built | src/renderer/components/ServiceView.tsx |
 | SCR-03 | Activity | SCN-003, SCN-017, SCN-018 | none (text-only) | built | src/renderer/components/Activity.tsx |
 | SCR-04 | Settings | SCN-019, SCN-024 | none (text-only) | built | src/renderer/components/Settings.tsx |
 | SCR-05 | Stop confirmation | SCN-009 | none (text-only) | built | src/renderer/App.tsx |

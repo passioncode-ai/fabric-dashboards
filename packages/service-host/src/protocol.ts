@@ -1,6 +1,6 @@
 // #region protocol-shapes — docs: packages/service-host/README.md#protocol
 // The `fabric-service/0.1` shapes a host reads. They follow the Fabric Agent Contract's
-// schemas/service-*.schema.json (DEC-0015); the contract stays normative. Pure: no Node import,
+// schemas/service-*.schema.json (DEC-0015; the remote placement DEC-0019); the contract stays normative. Pure: no Node import,
 // so a renderer may import `@passioncode-ai/fabric-service-host/protocol`.
 
 export const PROTOCOL = 'fabric-service/0.1';
@@ -16,10 +16,13 @@ export interface Descriptor {
   instance: string;
   name: string;
   summary?: string;
+  /** DEC-0019: `local` (default) — http://127.0.0.1:<port> under launchd or nothing; `remote` — an online service at an https origin. */
+  placement?: 'local' | 'remote';
   origin: string;
   auth: { tokenFile: string; header?: string; scheme?: 'Bearer' | 'none' };
   lifecycle: { manager: 'launchd' | 'none'; label?: string; plist?: string };
-  paths: { data: string; logs: string[]; config?: string; cache?: string };
+  /** Required for a local placement; optional for a remote one. */
+  paths?: { data: string; logs: string[]; config?: string; cache?: string };
   commands?: { doctor?: string[]; update?: string[] };
   source?: { repository?: string };
   fabricManifest?: string;
@@ -46,7 +49,8 @@ export interface WellKnown {
 export type WellKnownResult =
   | { kind: 'answer'; doc: WellKnown; ms: number }
   | { kind: 'not-protocol'; detail: string } // something answers, but not fabric-service
-  | { kind: 'no-answer'; detail: string };
+  | { kind: 'refused'; detail: string } // DEC-0019: a remote service refused the token (401) — nothing disclosed
+  | { kind: 'no-answer'; detail: string; cause?: 'tls' | 'redirect' | 'timeout' | 'network' };
 
 export interface ServiceEvent {
   id: string;
@@ -76,6 +80,8 @@ export interface Reason {
 export const REASON_CODES = [
   'reason.invalid', 'reason.conflict.port', 'reason.conflict.key', 'reason.foreign.other', 'reason.foreign.protocol',
   'reason.duplicate', 'reason.degraded', 'reason.stopped', 'reason.not-loaded', 'reason.waiting', 'reason.down',
+  // DEC-0019 — a remote placement
+  'reason.remote.refused', 'reason.remote.tls', 'reason.remote.redirect', 'reason.remote.foreign', 'reason.remote.down',
 ] as const;
 
 /** An action the host has in flight for the service. */

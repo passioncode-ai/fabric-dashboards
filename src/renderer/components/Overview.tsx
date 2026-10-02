@@ -34,12 +34,17 @@ export function Overview({ status, open, act }: Props) {
 
   const action = (s: ServiceSnapshot) => {
     if (s.busy) return <span className="row meta"><Spinner /> {t(`busy.${s.busy}`)}</span>;
+    // DEC-0019: an online service is supervised by its platform — nothing here can restart it.
+    if (isOnline(s)) return <button className="btn" onClick={() => open(s.key)}>{t('action.open')}</button>;
     if (s.state === 'down' || s.state === 'duplicate') return <button className="btn btn-primary" onClick={() => act(s.key, 'restart')}>{t('action.restart')}</button>;
     if (s.wellKnown?.update?.available && s.descriptor?.commands?.update && s.state !== 'degraded') {
       return <button className="btn" onClick={() => act(s.key, 'update')}>{t('action.update', { version: s.wellKnown.update.available })}</button>;
     }
     return <button className="btn" onClick={() => open(s.key)}>{t('action.open')}</button>;
   };
+
+  const local = services.filter((s) => !isOnline(s));
+  const online = services.filter(isOnline);
 
   const attentionLine = (s: ServiceSnapshot) => {
     if (s.reasons.length) return s.reasons.map(reason).join(' ');
@@ -64,8 +69,16 @@ export function Overview({ status, open, act }: Props) {
         </section>
       )}
       <div className="cards">
-        {services.map((s) => <Card key={s.key} s={s} open={open} />)}
+        {local.map((s) => <Card key={s.key} s={s} open={open} />)}
       </div>
+      {online.length > 0 && (
+        <section className="online" aria-labelledby="online-title">
+          <h2 id="online-title">{t('overview.online')}</h2>
+          <div className="cards">
+            {online.map((s) => <Card key={s.key} s={s} open={open} />)}
+          </div>
+        </section>
+      )}
     </>
   );
 }
@@ -81,7 +94,8 @@ function Card({ s, open }: { s: ServiceSnapshot; open: (key: string) => void }) 
           <h3>{nameOf(s)}</h3>
           <div className="meta">
             {wk ? <span className="mono">{wk.service.version} · {shortBuild(s)}</span> : <span className="mono">{s.key}</span>}
-            {uptime !== null && <> · {t('card.uptime', { uptime: duration(uptime) })}</>}
+            {uptime !== null && !isOnline(s) && <> · {t('card.uptime', { uptime: duration(uptime) })}</>}
+            {isOnline(s) && <> · {t('card.online', { host: hostOf(s) })}</>}
           </div>
         </div>
         <StateBadge state={s.state} />
@@ -101,4 +115,13 @@ function Card({ s, open }: { s: ServiceSnapshot; open: (key: string) => void }) 
       </div>
     </button>
   );
+}
+
+/** DEC-0019: a remote placement — an online agent or dashboard at an https origin. */
+export function isOnline(s: ServiceSnapshot): boolean {
+  return s.descriptor?.placement === 'remote';
+}
+
+function hostOf(s: ServiceSnapshot): string {
+  try { return new URL(s.descriptor?.origin ?? '').host; } catch { return s.descriptor?.origin ?? ''; }
 }

@@ -8,6 +8,8 @@ import type { Busy, ClaimConflict, Descriptor, LaunchdStatus, Reason, ServiceSta
 
 /** Silence shorter than this after answering is `starting`; longer is `down`. */
 export const DOWN_AFTER_MS = 15_000;
+/** DEC-0019: an online service is reached over the internet; a minute of silence before `down` (ADR-0008). */
+export const REMOTE_DOWN_AFTER_MS = 60_000;
 
 export interface StateInput {
   descriptor: Descriptor | null;
@@ -34,6 +36,7 @@ export function deriveState(i: StateInput): StateOutput {
   if (i.busy === 'starting' || i.busy === 'restarting') return { state: 'starting', reasons: [] };
 
   const probe = i.probe;
+  if (d.placement === 'remote') return remoteState(d, probe, i);
   if (probe?.kind === 'answer') {
     const svc = probe.doc.service;
     if (svc.id !== d.id || svc.instance !== d.instance) {
@@ -54,6 +57,31 @@ export function deriveState(i: StateInput): StateOutput {
   const since = i.firstUnansweredAt ?? i.now;
   if (i.now - since < DOWN_AFTER_MS) return { state: 'starting', reasons: [{ code: 'reason.waiting' }] };
   return { state: 'down', reasons: [{ code: 'reason.down', params: { since: new Date(since).toISOString() } }] };
+}
+
+/**
+ * DEC-0019: a remote placement. No launchd, so no `stopped`/`duplicate` (several processes may
+ * answer one origin). A definite refusal — the token, TLS, a redirect — is `down` at once with its
+ * reason; silence waits REMOTE_DOWN_AFTER_MS, because a missed probe over the internet is not an
+ * outage.
+ */
+function remoteState(d: Descriptor, probe: WellKnownResult | null, i: StateInput): StateOutput {
+  if (probe?.kind === 'answer') {
+    const svc = probe.doc.service;
+    if (svc.id !== d.id || svc.instance !== d.instance) {
+      return { state: 'foreign', reasons: [{ code: 'reason.remote.foreign', params: { origin: d.origin, answer: `${svc.id}.${svc.instance}` } }] };
+    }
+    return fromWellKnown(probe.doc);
+  }
+  if (probe?.kind === 'not-protocol') {
+    return { state: 'foreign', reasons: [{ code: 'reason.foreign.protocol', params: { port: portNum(d.origin), detail: probe.detail } }] };
+  }
+  if (probe?.kind === 'refused') return { state: 'down', reasons: [{ code: 'reason.remote.refused', params: { origin: d.origin } }] };
+  if (probe?.kind === 'no-answer' && probe.cause === 'tls') return { state: 'down', reasons: [{ code: 'reason.remote.tls', params: { origin: d.origin, detail: probe.detail } }] };
+  if (probe?.kind === 'no-answer' && probe.cause === 'redirect') return { state: 'down', reasons: [{ code: 'reason.remote.redirect', params: { origin: d.origin } }] };
+  const since = i.firstUnansweredAt ?? i.now;
+  if (i.now - since < REMOTE_DOWN_AFTER_MS) return { state: 'starting', reasons: [{ code: 'reason.waiting' }] };
+  return { state: 'down', reasons: [{ code: 'reason.remote.down', params: { origin: d.origin, since: new Date(since).toISOString() } }] };
 }
 
 function fromWellKnown(doc: WellKnown): StateOutput {
