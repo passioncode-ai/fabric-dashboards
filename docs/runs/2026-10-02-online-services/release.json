@@ -1,0 +1,40 @@
+{
+  "product": "Fabric Dashboards",
+  "version": "0.4.0",
+  "revision": "f6cde6903aa372bb3e7e1839439f8e73d94f1d27",
+  "electronVersion": "44.4.5",
+  "architectures": [
+    "arm64",
+    "x86_64"
+  ],
+  "builtAt": "2026-10-02T22:59:58.277Z",
+  "image": "Fabric-Dashboards-0.4.0.dmg",
+  "updateZip": "Fabric-Dashboards-0.4.0-mac.zip",
+  "signing": "Developer ID Application: Sergei Viktorovich Sheleg (KJ35UYYL22)",
+  "notarization": "accepted and stapled",
+  "gatekeeper": "accepted",
+  "checks": {
+    "appSignature": "codesign --verify --deep --strict: valid",
+    "hardenedRuntime": "present",
+    "architectures": "x86_64 arm64",
+    "mcpLauncher": "Contents/Resources/bin/fabric-dashboards-mcp answers initialize as fabric-dashboards 0.4.0",
+    "appStaple": "stapled",
+    "windowLayout": "icon view, app beside Applications (dmgbuild 1.6.7)",
+    "imageSignature": "valid"
+  },
+  "zipSha256": "d1147b5310e11d2227de4948159fceab74d5e1fa1d5373f9c73f81abeea499e2",
+  "sha256": "ef088ca4b0f4de2dc52e63f536d1340542c3bd6f4d7325ae2a098ba69850439b",
+  "bytes": 249558515,
+  "published": "https://github.com/passioncode-ai/fabric-dashboards/releases/tag/v0.4.0",
+  "installed": {
+    "path": "/Applications/Fabric Dashboards.app",
+    "CFBundleShortVersionString": "0.4.0",
+    "spctl": "accepted, source=Notarized Developer ID",
+    "freshMcp": "initialize -> fabric-dashboards 0.4.0; list_services -> 7 local services, placement local, state ready"
+  },
+  "suite": {
+    "npm run check": "136/136, brand, regions, UX lint",
+    "npm run test:e2e": "5/5 incl. test/e2e/remote.test.ts",
+    "freshClone": "npm ci && npm run check on agent/remote-service f059d80: 136/136"
+  }
+}

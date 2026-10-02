@@ -1,8 +1,53 @@
 # Handoff — Fabric Dashboards
 
-Updated 2026-10-01 (release 0.3.4, blank dashboard and notification policy).
+Updated 2026-10-02 (release 0.4.0, online services).
 
-Current release: 0.3.4 (section below). Earlier releases below are preserved as dated evidence.
+Current release: 0.4.0 (section below). Earlier releases below are preserved as dated evidence.
+
+## Release 0.4.0, 2026-10-02 (PR #17, `f6cde69`)
+
+Objective: an agent or dashboard that runs online, not on this Mac, appears and opens in the
+app the way a local one does. The operator chose a remote placement in the contract, not a
+local bridge (Fabric Agent Contract DEC-0019, `2ce3922`); [ADR-0011](adr/0011-online-services.md)
+records the app's side and supersedes the never-merged ADR-0009.
+
+- The app reads an online service over verified TLS from the main process. The token goes only
+  to the descriptor's own https origin, no redirect is followed, and the login code opens the
+  dashboard signed in (SCN-030, SCN-031). Online services sit in an **Online** group with the
+  host on the card. The app offers no lifecycle control for them.
+- Each failure is `down` with its own reason: a refused token, a certificate that does not
+  verify, a redirect, or 60 s of silence (SCN-032). An unreadable token file is `invalid`, and
+  the service is never contacted.
+- MCP: `list_services.placement`, `control` refuses online services, `open?url=` accepts exactly
+  a registered online origin.
+- `@passioncode-ai/fabric-service-host` 0.2.0 carries the descriptor, request and precedence
+  rules, plus nine shared vectors (`test-vectors/state-precedence.json`).
+
+Checks run: `npm run check` 136/136 (in the worktree, on a fresh clone of the branch after
+`npm ci`, and on `f6cde69` before `dist`). `npm run test:e2e` 5/5, including
+`test/e2e/remote.test.ts`: a real Electron app against a TLS server. Mutations M1–M5 in
+service-host are killed. `npm run dist -- --notary-profile fabric-notary` from `f6cde69`
+produced: Developer ID, `accepted and stapled`, Gatekeeper `accepted`, DMG sha256 `ef088ca4…0439b`.
+It is published as [v0.4.0](https://github.com/passioncode-ai/fabric-dashboards/releases/tag/v0.4.0)
+and installed in `/Applications` (`spctl`: Notarized Developer ID). A fresh MCP process from the
+bundle answers as 0.4.0 and lists the seven local services `ready`. Receipt:
+[runs/2026-10-02-online-services/release.json](runs/2026-10-02-online-services/release.json).
+
+Where each part landed (all on `main`):
+
+| Repository | Commit | What |
+|---|---|---|
+| fabric-agent-contract | `2ce3922` | DEC-0019, schema, FAC-SEM-024, remote fixtures |
+| fabric-agent-adapter | `447b558` (v0.6.0, npm) | kit `registerRemote`, request guards, sample online service, probe |
+| passioncode | v0.1.20 (npm) | pins adapter v0.6.0 |
+| fabric-dashboards | `f6cde69` (v0.4.0) | the app and service-host 0.2.0 |
+
+Open work:
+
+- The first real online service is the operator's own panel, which is private. It is delivered
+  and verified in its own repository, not named here.
+- Sessions that were already open keep the 0.3.4 MCP server until they restart.
+
 
 ## Release 0.3.4, 2026-10-01 (branch `agent/view-race-stability`)
 
