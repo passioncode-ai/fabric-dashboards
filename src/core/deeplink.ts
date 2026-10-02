@@ -85,13 +85,25 @@ function installed(key: string, pathParam: string | null, known: Known): DeepLin
   return { ok: true, target: { page: 'service', key: entry.key, link: path } };
 }
 
-/** A service's own `http://127.0.0.1:<port>/…` URL → the installed service it belongs to. */
+/**
+ * A service's own URL → the installed service it belongs to: `http://127.0.0.1:<port>/…` for a
+ * local service, or exactly the registered `https` origin of a remote one (DEC-0019) — an https
+ * URL that no descriptor on this computer names is refused, never opened.
+ */
 export function fromServiceUrl(raw: string, known: Known): DeepLinkResult {
   let url: URL;
   try {
     url = new URL(raw);
   } catch {
     return { ok: false, reason: 'url is not a URL' };
+  }
+  if (url.protocol === 'https:') {
+    if (url.username || url.password) return { ok: false, reason: 'url must not carry credentials' };
+    const entry = known.find((k) => k.descriptor?.placement === 'remote' && new URL(k.descriptor.origin).origin === url.origin);
+    if (!entry) return { ok: false, reason: `url must be a local service on http://127.0.0.1:<port> or an installed online service; none is at ${url.origin}` };
+    const remotePath = safePath(`${url.pathname}${url.search}${url.hash}` || '/');
+    if (!remotePath) return { ok: false, reason: 'the url path is not a path on the service' };
+    return { ok: true, target: { page: 'service', key: entry.key, link: remotePath === '/' ? undefined : remotePath } };
   }
   const host = url.hostname.toLowerCase();
   if (url.protocol !== 'http:' || !['127.0.0.1', 'localhost', '[::1]'].includes(host)) {

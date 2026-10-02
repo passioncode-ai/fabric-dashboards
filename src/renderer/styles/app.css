@@ -83,6 +83,9 @@ h3 { font-size: var(--pc-type-card); margin: 0; font-weight: 600; }
 .attention ul { list-style: none; margin: 0; padding: 0 0 var(--pc-space-2); }
 .attention li { display: grid; grid-template-columns: 160px 1fr auto; gap: var(--pc-space-3); align-items: center; padding: var(--pc-space-2) var(--pc-space-4); border-top: 1px solid var(--pc-border); }
 .attention li:first-child { border-top: 0; }
+/* DEC-0019: online services — the same cards under their own heading, on the same tokens. */
+.online { margin-top: var(--pc-space-5); }
+.online h2 { font-size: var(--pc-type-card); margin: 0 0 var(--pc-space-3); }
 .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: var(--pc-space-4); }
 .card {
   display: flex; flex-direction: column; gap: var(--pc-space-3); text-align: left; cursor: pointer; width: 100%;

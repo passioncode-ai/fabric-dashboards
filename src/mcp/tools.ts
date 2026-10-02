@@ -12,7 +12,7 @@ import { execFile } from 'node:child_process';
 import { discoverHost, type HostStatus } from './host';
 import {
   APP_NAME, expand, lookAtServices, readDirectory, servicesDir as defaultServicesDir,
-  type Descriptor, type DescriptorEntry, type ServiceLook, type ServiceState, type WellKnownResult,
+  type Descriptor, type DescriptorEntry, type ServiceLook, type ServiceState, type WellKnownResult, authHeaders, REMOTE_TIMEOUT_MS, type WellKnownOptions,
 } from '@passioncode-ai/fabric-service-host';
 import { fromServiceUrl, isServiceKey, linkFor, safePath } from '../core/deeplink';
 import { Launchd, execRunner, type Runner } from '../core/launchd';
@@ -23,7 +23,8 @@ export const CONTROL_TIMEOUT_MS = 40_000;
 
 export interface Deps {
   servicesDir: () => string;
-  wellKnown: (origin: string) => Promise<WellKnownResult>;
+  /** The health probe; a remote placement (DEC-0019) passes its token header in `options`. */
+  wellKnown: (origin: string, options?: WellKnownOptions) => Promise<WellKnownResult>;
   launchd: Launchd;
   /** An explicit app path prevents dispatch to another handler; never use open -n. */
   open: (target: string, application?: string) => Promise<number>;
@@ -50,7 +51,7 @@ function runArgv(argv: string[], timeoutMs: number): Promise<{ code: number | nu
 export function liveDeps(runner: Runner = execRunner): Deps {
   return {
     servicesDir: () => defaultServicesDir(),
-    wellKnown: (origin) => fetchWellKnown(origin, PROBE_TIMEOUT_MS),
+    wellKnown: (origin, options) => fetchWellKnown(origin, options?.headers ? REMOTE_TIMEOUT_MS : PROBE_TIMEOUT_MS, options),
     launchd: new Launchd(runner),
     // The packaged MCP runs Electron as Node. LaunchServices inherits this flag
     // on a cold launch: open exits 0 while the GUI exits without making a window.
@@ -75,6 +76,8 @@ export class ToolError extends Error {
 export interface ServiceView {
   key: string;
   name: string;
+  /** DEC-0019: `local` or `remote` (an online agent or dashboard at an https origin). */
+  placement: 'local' | 'remote';
   state: ServiceState;
   reasons: { code: string; params?: Record<string, string | number> }[];
   version: string | null;
@@ -95,6 +98,7 @@ function view(s: ServiceLook): ServiceView {
   return {
     key: s.key,
     name: d?.name ?? s.key,
+    placement: d?.placement === 'remote' ? 'remote' : 'local',
     state: s.state,
     reasons: s.reasons,
     version: wk?.service.version ?? null,
@@ -112,7 +116,7 @@ function view(s: ServiceLook): ServiceView {
 
 /** One look, as the package reads it; an unreadable services directory is the tool's error. */
 async function look(deps: Deps, only?: string[]): Promise<ServiceLook[]> {
-  const out = await lookAtServices({ servicesDir: deps.servicesDir(), wellKnown: deps.wellKnown, launchd: deps.launchd, now: deps.now, only });
+  const out = await lookAtServices({ servicesDir: deps.servicesDir(), wellKnown: deps.wellKnown, launchd: deps.launchd, now: deps.now, only, token: deps.token });
   if (out.error) throw new ToolError(`cannot read the services directory ${out.servicesDir}: ${out.error}`);
   return out.services;
 }
@@ -203,10 +207,23 @@ export async function open(deps: Deps, t: Target, fallback: Fallback = 'if_absen
 
 // ── administration ──────────────────────────────────────────────────────────────────────
 
+/** One health probe of `d`, with its token when it is a remote placement (DEC-0019). */
+async function probe(deps: Deps, d: Descriptor): Promise<WellKnownResult> {
+  if (d.placement !== 'remote') return deps.wellKnown(d.origin);
+  let token: string;
+  try {
+    token = deps.token(d.auth.tokenFile);
+  } catch (error) {
+    throw new ToolError((error as Error).message);
+  }
+  return deps.wellKnown(d.origin, { headers: authHeaders(d, token) });
+}
+
 export async function control(deps: Deps, key: string, action: 'start' | 'stop' | 'restart'): Promise<{ ok: boolean; state: ServiceState; detail: string }> {
   if (!['start', 'stop', 'restart'].includes(action)) throw new ToolError('action is start, stop or restart');
   const entry = find(deps, key);
   const d = entry.descriptor;
+  if (d.placement === 'remote') throw new ToolError(`${d.name} runs online and is supervised by its platform; it cannot be ${action}ed from here`);
   if (d.lifecycle.manager !== 'launchd' || !d.lifecycle.label || !d.lifecycle.plist) {
     throw new ToolError(`${d.name} is not managed by launchd; it cannot be ${action}ed from here`);
   }
@@ -241,8 +258,8 @@ export async function command(deps: Deps, key: string, which: 'doctor' | 'update
 
 export async function activity(deps: Deps, key: string, limit = 20): Promise<{ events: { at: string; level: string; text: string; link?: string }[] }> {
   const d = find(deps, key).descriptor;
-  const probe = await deps.wellKnown(d.origin);
-  if (probe.kind !== 'answer') throw new ToolError(`${d.name} does not answer: ${probe.detail}`);
+  const answer = await probe(deps, d);
+  if (answer.kind !== 'answer') throw new ToolError(`${d.name} does not answer: ${answer.detail}`);
   let token: string;
   try {
     token = deps.token(d.auth.tokenFile);
@@ -250,6 +267,6 @@ export async function activity(deps: Deps, key: string, limit = 20): Promise<{ e
     throw new ToolError((error as Error).message);
   }
   const n = Math.max(1, Math.min(100, Math.floor(limit)));
-  const page = await deps.events(d, probe.doc.surfaces.events.path, token, null, n);
+  const page = await deps.events(d, answer.doc.surfaces.events.path, token, null, n);
   return { events: page.events.slice(-n).map((e) => ({ at: e.at, level: e.level, text: e.text, ...(e.link && safePath(e.link) ? { link: linkFor(key, e.link) } : {}) })) };
 }

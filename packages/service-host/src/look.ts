@@ -5,16 +5,18 @@
 // no earlier answer to measure silence from, a service that does not answer now is `down`, never
 // «starting». Fabric Dashboards' own monitor keeps history and uses the parts directly.
 import { claimConflicts, readDirectory, servicesDir as defaultServicesDir, type DescriptorEntry } from './descriptor';
-import { fetchWellKnown } from './health';
+import { authHeaders, fetchWellKnown, readToken, REMOTE_TIMEOUT_MS, type WellKnownOptions } from './health';
 import { LaunchdReader, UNMANAGED } from './launchd';
 import type { ClaimConflict, LaunchdStatus, Reason, ServiceState, WellKnown, WellKnownResult } from './protocol';
-import { DOWN_AFTER_MS, deriveState } from './state';
+import { DOWN_AFTER_MS, REMOTE_DOWN_AFTER_MS, deriveState } from './state';
 
 export interface LookOptions {
   /** Default: servicesDir() — FABRIC_SERVICES_DIR, else the OS location. */
   servicesDir?: string;
-  /** Default: fetchWellKnown with its 2 s timeout. */
-  wellKnown?: (origin: string) => Promise<WellKnownResult>;
+  /** Default: fetchWellKnown — 2 s for a local origin; for a remote one REMOTE_TIMEOUT_MS with the token (DEC-0019). */
+  wellKnown?: (origin: string, options?: WellKnownOptions) => Promise<WellKnownResult>;
+  /** Default: readToken. A remote placement's probe needs its token; a local one never reads it here. */
+  token?: (tokenFile: string) => string;
   /** Default: a LaunchdReader on launchctl. */
   launchd?: LaunchdReader;
   now?: () => number;
@@ -63,11 +65,21 @@ export async function lookAtServices(o: LookOptions = {}): Promise<Look> {
 async function lookAtEntry(entry: DescriptorEntry, conflict: ClaimConflict | null, table: string, reader: LaunchdReader, o: LookOptions): Promise<ServiceLook> {
   const d = entry.descriptor;
   const now = (o.now ?? Date.now)();
-  const probeOf = o.wellKnown ?? ((origin: string) => fetchWellKnown(origin));
+  const remote = d?.placement === 'remote';
+  const probeOf = o.wellKnown ?? ((origin: string, options?: WellKnownOptions) => fetchWellKnown(origin, remote ? REMOTE_TIMEOUT_MS : 2000, options));
+  const problems = [...entry.problems];
   let probe: WellKnownResult | null = null;
-  if (d && !conflict) {
+  let options: WellKnownOptions | undefined;
+  if (d && remote) {
     try {
-      probe = await probeOf(d.origin);
+      options = { headers: authHeaders(d, (o.token ?? readToken)(d.auth.tokenFile)) };
+    } catch (error) {
+      problems.push((error as Error).message); // a local configuration problem: invalid, never probed
+    }
+  }
+  if (d && !conflict && !problems.length) {
+    try {
+      probe = await probeOf(d.origin, options);
     } catch (error) {
       probe = { kind: 'no-answer', detail: (error as Error).message };
     }
@@ -76,11 +88,11 @@ async function lookAtEntry(entry: DescriptorEntry, conflict: ClaimConflict | nul
     ? { managed: true, ...(await reader.status(d.lifecycle.label, table)) }
     : { ...UNMANAGED };
   const { state, reasons } = deriveState({
-    descriptor: d, problems: entry.problems, conflict, launchd, probe,
-    firstUnansweredAt: now - DOWN_AFTER_MS, now, busy: null,
+    descriptor: d, problems, conflict, launchd, probe,
+    firstUnansweredAt: now - (remote ? REMOTE_DOWN_AFTER_MS : DOWN_AFTER_MS), now, busy: null,
   });
   return {
-    key: entry.key, path: entry.path, descriptor: d, problems: entry.problems, conflict, state, reasons,
+    key: entry.key, path: entry.path, descriptor: d, problems, conflict, state, reasons,
     wellKnown: probe?.kind === 'answer' ? probe.doc : null, probe, launchd,
   };
 }

@@ -35,6 +35,9 @@
 | SCN-027 | A link that cannot be opened | links | P-01 | ST-011 | draft | — |
 | SCN-028 | An agent reads and administers services through MCP | agents | P-01 | ST-012, ST-003 | draft | — |
 | SCN-029 | Open a service from Fabric's agent registry | links | P-01 | ST-011, ST-005, ST-003 | draft | — |
+| SCN-030 | Online services appear in their own group | overview | P-01 | ST-013, ST-002 | draft | — |
+| SCN-031 | Open an online service's dashboard, signed in | dashboards | P-01 | ST-013, ST-005 | draft | — |
+| SCN-032 | An online service that cannot be reached says why | health | P-01 | ST-013, ST-004 | draft | — |
 
 ## Personas
 
@@ -583,3 +586,63 @@ first release; every sentence a service writes is shown as the service wrote it.
 - **Product:** unobserved
 
 - **Cold-start acceptance:** from the packaged MCP, opening a link while the app is closed launches its graphical host and selected page. The MCP-only Electron RunAsNode flag is not inherited by desktop dispatch. Verify actual page readiness separately from the OS-acceptance receipt.
+
+## online
+
+### SCN-030: Online services appear in their own group
+- **Persona:** P-01
+- **Feature:** overview
+- **Traces:** ST-013, ST-002 (JTBD-01, JRN-01/#1)
+- **Entry point:** Overview, with a remote descriptor in the services directory (`placement: "remote"`, origin `https://…`)
+- **Preconditions:** the descriptor's token file is readable (0600, mine)
+- **Steps:**
+  1. The app reads the descriptor -> the service appears under **Online**, after the local services, with its state badge, version, build and tiles
+  2. I read the card -> it names the origin's host, so I know it runs online
+  3. I look for start, stop or restart -> there are none: its platform supervises it
+- **Expected result:** every agent I run, local or online, on one overview, each in the group that says where it runs
+- **Alt paths:** no online service -> the group is not shown; an online service that needs attention also appears in Needs attention, as a local one does
+- **UI elements:** Overview → Online group, service card (host line), state badge
+- **States covered:** success, empty
+- **Errors & recovery:** the token file is missing or readable by others -> the card is `invalid` with that sentence and the service is never contacted; fix the file and the next scan reads it
+- **Status:** draft
+- **Coverage:** src/renderer/components/Overview.tsx, packages/service-host/src/descriptor.ts, test/remote.test.ts
+- **Product:** unobserved
+
+### SCN-031: Open an online service's dashboard, signed in
+- **Persona:** P-01
+- **Feature:** dashboards
+- **Traces:** ST-013, ST-005 (JTBD-04, JRN-01/#5)
+- **Entry point:** an Online card, or a `fabric-dashboards://service/<id.instance>` link
+- **Preconditions:** the service is `ready` or `degraded`
+- **Steps:**
+  1. I open the service -> the app asks the service for a one-time login code with its token, in the main process
+  2. The dashboard opens inside the app at the service's https origin, signed in; the token never reaches the page
+- **Expected result:** the online dashboard behaves like a local one: one click, signed in, inside the app
+- **Alt paths:** the link names a path -> that page opens, as in SCN-026
+- **UI elements:** Service view → Dashboard tab
+- **States covered:** success, error
+- **Errors & recovery:** the login code is refused or the page cannot load -> the view says so in a sentence with Reload, as in SCN-016
+- **Status:** draft
+- **Coverage:** src/electron/views.ts, src/core/probe.ts, test/remote-e2e.test.ts
+- **Product:** unobserved
+
+### SCN-032: An online service that cannot be reached says why
+- **Persona:** P-01
+- **Feature:** health
+- **Traces:** ST-013, ST-004 (JTBD-01, JRN-01/#1)
+- **Entry point:** an Online card or its service view
+- **Preconditions:** a remote descriptor
+- **Steps:**
+  1. The service refuses the token -> `down`, «the service refused the token — set the same token on its platform and here»
+  2. The certificate does not verify -> `down`, the reason names TLS; the app does not connect around it
+  3. The service answers with a redirect -> `down`, «answered with a redirect, which the app does not follow»
+  4. Nothing answers for a minute -> `down` with the time it went quiet; one missed probe is not an outage (ADR-0008)
+- **Expected result:** I can tell a configuration problem from an outage without opening a terminal
+- **Alt paths:** another service answers the origin -> `foreign`, and the app does not send the token there again until the descriptor changes
+- **UI elements:** state badge, reason line, Health tab
+- **States covered:** error
+- **Errors & recovery:** each reason names the next action; none offers restart, because the platform supervises the service
+- **Status:** draft
+- **Coverage:** packages/service-host/src/state.ts, packages/service-host/test-vectors/state-precedence.json, src/core/i18n.ts
+- **Product:** unobserved
+

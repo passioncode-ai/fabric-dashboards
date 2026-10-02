@@ -18,6 +18,7 @@ import type { AppStatus, Settings } from '../core/types';
 import { AppTray } from './tray';
 import { Updater } from './updater';
 import { ServiceViews } from './views';
+import { parseTestRemote, setTestRemote } from '../core/testhooks';
 
 app.enableSandbox();
 app.setName('Fabric Dashboards');
@@ -26,6 +27,14 @@ if (process.env.FABRIC_DASHBOARDS_USER_DATA) {
   // app name, not from userData, so without this a test run writes into the operator's log.
   app.setPath('userData', process.env.FABRIC_DASHBOARDS_USER_DATA);
   app.setPath('logs', path.join(process.env.FABRIC_DASHBOARDS_USER_DATA, 'logs'));
+}
+
+// DEC-0019 test hook — an unpackaged build only (testhooks.ts). Chromium resolves the test name to
+// the dial address; the main process dials it directly. A packaged app ignores FD_TEST_REMOTE.
+if (!app.isPackaged && process.env.FD_TEST_REMOTE) {
+  const remote = parseTestRemote(process.env.FD_TEST_REMOTE);
+  setTestRemote(remote);
+  if (remote) app.commandLine.appendSwitch('host-resolver-rules', `MAP ${remote.name} ${remote.connectHost}`);
 }
 
 const assets = app.isPackaged ? path.join(process.resourcesPath, 'assets') : path.join(__dirname, '../../../build/assets');
@@ -194,7 +203,7 @@ if (!app.requestSingleInstanceLock()) {
       }
     });
     ipcMain.handle(CHANNELS.showPath, (_e, p: string) => {
-      const known = monitor.snapshots().flatMap((s) => [s.descriptorPath, s.descriptor?.paths.data, s.descriptor?.auth.tokenFile].filter(Boolean) as string[]);
+      const known = monitor.snapshots().flatMap((s) => [s.descriptorPath, s.descriptor?.paths?.data, s.descriptor?.auth.tokenFile].filter(Boolean) as string[]);
       const allowed = [monitor.meta().servicesDir, ...known].map((x) => x.replace(/^~\//, `${app.getPath('home')}/`));
       const target = p.replace(/^~\//, `${app.getPath('home')}/`);
       if (!allowed.includes(target)) throw new Error('not a path this app shows');

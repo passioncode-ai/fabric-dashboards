@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.4.0 — 2026-10-02
+
+- **Online services.** An agent or dashboard that runs online — an `https` origin on a platform —
+  appears beside the local ones, under **Online**, read directly over verified TLS
+  ([ADR-0011](docs/adr/0011-online-services.md); Fabric Agent Contract DEC-0019, `placement: "remote"`).
+  The well-known document, events and the one-time login code are the same; the token goes only to
+  the descriptor's own https origin; no redirect is followed; the dashboard opens signed in inside
+  the app (SCN-030, SCN-031). A refused token, a certificate that does not verify, a redirect and a
+  minute of silence are each `down` with their own reason (SCN-032); a token file that cannot be read
+  is `invalid` and the service is never contacted. No start, stop, restart or update is offered for
+  an online service — its platform supervises it.
+- **MCP:** `list_services` carries `placement`; `control` refuses an online service; `activity` and
+  the status read it with its token; `open?url=` accepts exactly a registered online origin.
+- **`@passioncode-ai/fabric-service-host` 0.2.0:** placement-aware descriptors, https requests,
+  `readToken`/`authHeaders` (moved from the app), `refused`, the remote state precedence and nine new
+  shared vectors.
+- Tests reach an online service through `FD_TEST_REMOTE`, honoured only in an unpackaged build.
+
 ## 0.3.4 — 2026-10-01
 
 - **Fixed: a blank Dashboard tab.** Switching between two services whose dashboards were both open

@@ -66,12 +66,12 @@ export function ServiceView({ s, link, nonce, overlayOpen, askStop }: Props) {
             <button className="btn" disabled={Boolean(s.busy)} onClick={() => void run('update')}>{t('action.update', { version: wk.update.available })}</button>
           )}
           {s.descriptor?.commands?.doctor && <button className="btn" disabled={Boolean(s.busy)} onClick={() => void run('doctor')}>{t('action.doctor')}</button>}
-          {s.descriptor && <button className="btn" onClick={() => void api().showPath(s.descriptor!.paths.data)}>{t('action.showData')}</button>}
+          {s.descriptor?.paths && <button className="btn" onClick={() => void api().showPath(s.descriptor!.paths!.data)}>{t('action.showData')}</button>}
           <button className="btn" onClick={() => void api().showPath(s.descriptorPath)}>{t('action.showFile')}</button>
         </div>
       </header>
       <div className="tabs" role="tablist">
-        {(['dashboard', 'activity', 'health', 'logs'] as Tab[]).map((x) => (
+        {(['dashboard', 'activity', 'health', ...(s.descriptor?.placement === 'remote' ? [] : ['logs'])] as Tab[]).map((x) => (
           <button key={x} role="tab" className="tab" aria-selected={tab === x} onClick={() => setTab(x)}>{t(`tab.${x}`)}</button>
         ))}
       </div>

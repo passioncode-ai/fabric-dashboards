@@ -2,6 +2,7 @@
   "schema": "fabric-service-host/state-precedence@1",
   "about": "The state a host derives for one service from its descriptor, its claim conflicts, launchd, one well-known probe and the host's own action in flight. Each case is `base` with the case's `input` keys replaced (a shallow merge); `expect.state` must equal the derived state and, when given, `expect.reasons` the derived reasons exactly. Any host that reads services/ runs these cases against its own use of deriveState: Fabric Dashboards in test/core.test.ts, the package in packages/service-host/test/state.test.ts.",
   "downAfterMs": 15000,
+  "remoteDownAfterMs": 60000,
   "base": {
     "descriptor": {
       "protocol": "fabric-service/0.1",
@@ -174,6 +175,51 @@
       "name": "not probed (the host skipped it) and loaded: waits, then down",
       "input": { "probe": null, "firstUnansweredAt": 0 },
       "expect": { "state": "down" }
+    },
+    {
+      "name": "remote (DEC-0019): answers as itself with the token, ready",
+      "input": { "descriptor": { "protocol": "fabric-service/0.1", "id": "example-agent", "instance": "default", "name": "Example Agent", "placement": "remote", "origin": "https://agent.example.com", "auth": { "tokenFile": "~/Library/Application Support/ai.passioncode.fabric/tokens/example-agent.default.token" }, "lifecycle": { "manager": "none" }, "installedAt": "2026-10-02T18:00:00Z", "installedBy": "fabric-service register-remote" }, "launchd": { "managed": false, "loaded": false, "pid": null, "disabled": false } },
+      "expect": { "state": "ready", "reasons": [] }
+    },
+    {
+      "name": "remote: a different pid than any launchd job is not a duplicate",
+      "input": { "descriptor": { "protocol": "fabric-service/0.1", "id": "example-agent", "instance": "default", "name": "Example Agent", "placement": "remote", "origin": "https://agent.example.com", "auth": { "tokenFile": "~/Library/Application Support/ai.passioncode.fabric/tokens/example-agent.default.token" }, "lifecycle": { "manager": "none" }, "installedAt": "2026-10-02T18:00:00Z", "installedBy": "fabric-service register-remote" }, "launchd": { "managed": true, "loaded": true, "pid": 1, "disabled": false } },
+      "expect": { "state": "ready", "reasons": [] }
+    },
+    {
+      "name": "remote: another service answers the origin — foreign",
+      "input": { "descriptor": { "protocol": "fabric-service/0.1", "id": "example-agent", "instance": "default", "name": "Example Agent", "placement": "remote", "origin": "https://agent.example.com", "auth": { "tokenFile": "~/Library/Application Support/ai.passioncode.fabric/tokens/example-agent.default.token" }, "lifecycle": { "manager": "none" }, "installedAt": "2026-10-02T18:00:00Z", "installedBy": "fabric-service register-remote" }, "launchd": { "managed": false, "loaded": false, "pid": null, "disabled": false }, "probe": { "kind": "answer", "ms": 40, "doc": { "protocol": "fabric-service/0.1", "service": { "id": "other-agent", "instance": "default", "name": "Example Agent", "version": "0.2.0", "build": { "commit": "8b80be9" } }, "process": { "pid": 51234, "startedAt": "2026-09-28T17:41:02Z" }, "status": "ready", "degraded": [], "surfaces": { "dashboard": { "path": "/dashboard", "login": true }, "events": { "path": "/fabric/v1/events" } } } } },
+      "expect": { "state": "foreign", "reasons": [{ "code": "reason.remote.foreign", "params": { "origin": "https://agent.example.com", "answer": "other-agent.default" } }] }
+    },
+    {
+      "name": "remote: the service refused the token (401) — down at once, never foreign",
+      "input": { "descriptor": { "protocol": "fabric-service/0.1", "id": "example-agent", "instance": "default", "name": "Example Agent", "placement": "remote", "origin": "https://agent.example.com", "auth": { "tokenFile": "~/Library/Application Support/ai.passioncode.fabric/tokens/example-agent.default.token" }, "lifecycle": { "manager": "none" }, "installedAt": "2026-10-02T18:00:00Z", "installedBy": "fabric-service register-remote" }, "launchd": { "managed": false, "loaded": false, "pid": null, "disabled": false }, "probe": { "kind": "refused", "detail": "HTTP 401 on /.well-known/fabric-service" } },
+      "expect": { "state": "down", "reasons": [{ "code": "reason.remote.refused", "params": { "origin": "https://agent.example.com" } }] }
+    },
+    {
+      "name": "remote: the certificate does not verify — down at once",
+      "input": { "descriptor": { "protocol": "fabric-service/0.1", "id": "example-agent", "instance": "default", "name": "Example Agent", "placement": "remote", "origin": "https://agent.example.com", "auth": { "tokenFile": "~/Library/Application Support/ai.passioncode.fabric/tokens/example-agent.default.token" }, "lifecycle": { "manager": "none" }, "installedAt": "2026-10-02T18:00:00Z", "installedBy": "fabric-service register-remote" }, "launchd": { "managed": false, "loaded": false, "pid": null, "disabled": false }, "probe": { "kind": "no-answer", "detail": "self-signed certificate", "cause": "tls" } },
+      "expect": { "state": "down", "reasons": [{ "code": "reason.remote.tls", "params": { "origin": "https://agent.example.com", "detail": "self-signed certificate" } }] }
+    },
+    {
+      "name": "remote: a redirect is not followed — down at once",
+      "input": { "descriptor": { "protocol": "fabric-service/0.1", "id": "example-agent", "instance": "default", "name": "Example Agent", "placement": "remote", "origin": "https://agent.example.com", "auth": { "tokenFile": "~/Library/Application Support/ai.passioncode.fabric/tokens/example-agent.default.token" }, "lifecycle": { "manager": "none" }, "installedAt": "2026-10-02T18:00:00Z", "installedBy": "fabric-service register-remote" }, "launchd": { "managed": false, "loaded": false, "pid": null, "disabled": false }, "probe": { "kind": "no-answer", "detail": "HTTP 302", "cause": "redirect" } },
+      "expect": { "state": "down", "reasons": [{ "code": "reason.remote.redirect", "params": { "origin": "https://agent.example.com" } }] }
+    },
+    {
+      "name": "remote: thirty seconds of silence is still waiting (ADR-0008)",
+      "input": { "descriptor": { "protocol": "fabric-service/0.1", "id": "example-agent", "instance": "default", "name": "Example Agent", "placement": "remote", "origin": "https://agent.example.com", "auth": { "tokenFile": "~/Library/Application Support/ai.passioncode.fabric/tokens/example-agent.default.token" }, "lifecycle": { "manager": "none" }, "installedAt": "2026-10-02T18:00:00Z", "installedBy": "fabric-service register-remote" }, "launchd": { "managed": false, "loaded": false, "pid": null, "disabled": false }, "probe": { "kind": "no-answer", "detail": "no answer within 8000 ms", "cause": "timeout" }, "firstUnansweredAt": 970000, "now": 1000000 },
+      "expect": { "state": "starting", "reasons": [{ "code": "reason.waiting" }] }
+    },
+    {
+      "name": "remote: ninety seconds of silence is down",
+      "input": { "descriptor": { "protocol": "fabric-service/0.1", "id": "example-agent", "instance": "default", "name": "Example Agent", "placement": "remote", "origin": "https://agent.example.com", "auth": { "tokenFile": "~/Library/Application Support/ai.passioncode.fabric/tokens/example-agent.default.token" }, "lifecycle": { "manager": "none" }, "installedAt": "2026-10-02T18:00:00Z", "installedBy": "fabric-service register-remote" }, "launchd": { "managed": false, "loaded": false, "pid": null, "disabled": false }, "probe": { "kind": "no-answer", "detail": "no answer within 8000 ms", "cause": "timeout" }, "firstUnansweredAt": 910000, "now": 1000000 },
+      "expect": { "state": "down" }
+    },
+    {
+      "name": "remote with an http origin is invalid and never probed",
+      "input": { "descriptor": null, "problems": ["a remote origin must be https://<dns-name>[:<port>] with no path, query or IP literal"], "launchd": { "managed": false, "loaded": false, "pid": null, "disabled": false }, "probe": null },
+      "expect": { "state": "invalid" }
     }
   ]
 }
