@@ -1,7 +1,7 @@
 # Contributing
 
-Contributions are accepted under the [Contributor License Agreement](CLA.md): tick its box in
-the pull request template. It lets PassionCode.ai offer Fabric Dashboards both under the
+Contributions are accepted under the [Contributor License Agreement](CLA.md): opening a pull
+request is how you agree to it, with no checkbox to tick. It lets PassionCode.ai offer Fabric Dashboards both under the
 [GNU AGPL-3.0](LICENSE) and under a [commercial license](COMMERCIAL-LICENSE.md).
 
 ```bash
