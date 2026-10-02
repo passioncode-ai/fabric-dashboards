@@ -45,6 +45,9 @@ service token; the session cookie is `__Host-` and `Secure`; the port claim is l
   with `TlsOptions`, `readToken`/`authHeaders` moved here from the app (one definition, R-005),
   `refused` and the remote state precedence, nine new shared vectors.
 - Fabric ADR-0088 item 7 is unaffected — the app stays a Mac host and opens no inbound port; it
-  adds outbound https reads. Fabric ADR-0083's wording «loopback only» is now narrower than the
-  contract and is left to Fabric to update (carry-over in the run brief).
+  adds outbound https reads. Fabric ADR-0083 is scoped to *local* agent services (an
+  unauthenticated well-known document, launchd as the only supervisor) and stays true for them;
+  an online service is a different placement, recorded here and in DEC-0019, not an exception
+  to ADR-0083. (Corrected 2026-10-03: the first text of this ADR said ADR-0083 reads «loopback
+  only»; it does not.)
 - A host older than 0.4.0 shows an online descriptor as invalid and never contacts it.
