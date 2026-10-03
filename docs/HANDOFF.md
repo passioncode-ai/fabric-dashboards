@@ -1,8 +1,24 @@
 # Handoff — Fabric Dashboards
 
-Updated 2026-10-02 (release 0.4.0, online services).
+Updated 2026-10-03 (release 0.4.1, MCP links to online services).
 
-Current release: 0.4.0 (section below). Earlier releases below are preserved as dated evidence.
+Current release: 0.4.1 (section below). Earlier releases below are preserved as dated evidence.
+
+## Release 0.4.1, 2026-10-03 (PR #19, `75eba78`)
+
+The first real online service exposed two MCP defects. First, `link` and `open` without a path
+returned the origin root as `http_url`, where that service answers 404 (its panel lives under a
+path). Now `http_url` follows the dashboard surface from the well-known document; if the service
+does not answer, `/` is kept, and `open_link` is unchanged. Second, the tool descriptions said
+"local" and `http://127.0.0.1` only; they now name online services, and `control` says it refuses
+them.
+
+Checks run: `npm run check` 137/137; `npm run test:e2e` 5/5; a new test in `test/remote.test.ts`
+catches a mutation that reverts the fix. `dist` from `75eba78`: Developer ID, `accepted and
+stapled`, Gatekeeper `accepted`, DMG sha256 `0688b1f3…4dca4`. Published as
+[v0.4.1](https://github.com/passioncode-ai/fabric-dashboards/releases/tag/v0.4.1) and installed in
+`/Applications`. A fresh installed MCP answers 0.4.1 and links the online service to its dashboard
+path. Receipt: [runs/2026-10-03-link-defaults/release.json](runs/2026-10-03-link-defaults/release.json).
 
 ## Release 0.4.0, 2026-10-02 (PR #17, `f6cde69`)
 
