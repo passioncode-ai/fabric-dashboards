@@ -65,6 +65,20 @@ test('MCP: list_services marks the placement and probes an online service with i
   t.diagnostic(`state ${svc.state}`);
 });
 
+test('MCP: a path-less link points http_url at the dashboard surface, not the origin root', async () => {
+  const { deps } = setup();
+  const answered = await tools.link(deps, { service: 'example-agent.default' });
+  assert.equal(answered.http_url, 'https://agent.example.com/', 'the fixture dashboard is at /');
+  const panelDoc = { ...WELL_KNOWN, surfaces: { ...WELL_KNOWN.surfaces, dashboard: { path: '/panel/', login: true } } };
+  const withPanel = { ...deps, wellKnown: async () => ({ kind: 'answer', doc: panelDoc, ms: 30 }) } as unknown as tools.Deps;
+  const r = await tools.link(withPanel, { service: 'example-agent.default' });
+  assert.equal(r.http_url, 'https://agent.example.com/panel/');
+  assert.equal(r.open_link, 'fabric-dashboards://service/example-agent.default', 'open_link is unchanged: the app opens the dashboard itself');
+  assert.equal((await tools.link(withPanel, { service: 'example-agent.default', path: '/jobs/1' })).http_url, 'https://agent.example.com/jobs/1', 'an explicit path wins');
+  const silent = { ...deps, wellKnown: async () => ({ kind: 'no-answer', detail: 'timeout' }) } as unknown as tools.Deps;
+  assert.equal((await tools.link(silent, { service: 'example-agent.default' })).http_url, 'https://agent.example.com/', 'no answer keeps the root');
+});
+
 test('MCP: an online service refuses start/stop/restart; activity reads it with the token', async () => {
   const { deps } = setup();
   await assert.rejects(tools.control(deps, 'example-agent.default', 'restart'), /supervised by its platform/);

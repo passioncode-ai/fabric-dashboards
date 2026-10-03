@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.4.1 - 2026-10-03
+
+- **MCP `link` and `open` without a path point `http_url` at the service's dashboard**, read from
+  its well-known document, instead of the origin root. An online service often serves its panel
+  under a path and answers 404 at `/`, so the diagnostic URL and the browser fallback led nowhere.
+  `open_link` is unchanged — the app already opened the dashboard. A service that does not answer
+  keeps the root. Found on the first real online service.
+- **MCP tool descriptions name online services**: the instructions, `list_services`, the `url`
+  argument and `control` (which refuses an online service) no longer say "local" and
+  `http://127.0.0.1` only.
+
 ## 0.4.0 — 2026-10-02
 
 - **Online services.** An agent or dashboard that runs online — an `https` origin on a platform —

@@ -169,8 +169,28 @@ export function resolveTarget(deps: Deps, t: Target): { key: string; path?: stri
   return { key: entry.key, path, http: `${entry.descriptor!.origin}${path ?? '/'}` };
 }
 
+/**
+ * The page a path-less target means is the service's dashboard, not its origin root: an online
+ * service often serves its panel under a path (`/panel/`) and answers 404 at `/`. The app already
+ * opens the dashboard surface for a path-less open_link; http_url (diagnostics, browser fallback)
+ * follows it here. One probe; a service that does not answer keeps the root.
+ */
+async function withDashboard(deps: Deps, r: { key: string; path?: string; http: string }): Promise<{ key: string; path?: string; http: string }> {
+  if (r.path !== undefined) return r;
+  const d = entries(deps).find((e) => e.key === r.key)?.descriptor;
+  if (!d) return r;
+  try {
+    const answer = await probe(deps, d);
+    const dash = answer.kind === 'answer' ? answer.doc.surfaces.dashboard?.path : undefined;
+    const safe = dash ? safePath(dash) : null;
+    return safe ? { ...r, http: `${d.origin}${safe}` } : r;
+  } catch {
+    return r;
+  }
+}
+
 export async function link(deps: Deps, t: Target): Promise<{ service: string; open_link: string; http_url: string }> {
-  const r = resolveTarget(deps, t);
+  const r = await withDashboard(deps, resolveTarget(deps, t));
   return { service: r.key, open_link: linkFor(r.key, r.path), http_url: r.http };
 }
 
@@ -181,7 +201,7 @@ export async function open(deps: Deps, t: Target, fallback: Fallback = 'if_absen
   status: 'accepted_by_os' | 'unsupported'; note?: string;
 }> {
   if (fallback !== 'if_absent' && fallback !== 'never') throw new ToolError('fallback must be if_absent or never');
-  const r = resolveTarget(deps, t);
+  const r = await withDashboard(deps, resolveTarget(deps, t));
   const links = { open_link: linkFor(r.key, r.path), http_url: r.http };
   if (deps.platform !== 'darwin') return { ...links, opened_in: 'nothing', status: 'unsupported', note: 'opening is macOS-only; hand the person a link' };
   const fail = (code: string): never => {
