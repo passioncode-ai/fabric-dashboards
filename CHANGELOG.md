@@ -3,8 +3,8 @@
 ## Unreleased
 
 - **Releases are signed only in GitHub Actions.** `.github/workflows/release.yml` runs on a
-  `vX.Y.Z` tag in the protected `release` environment, after an approval from `release-approvers`
-  (never the tag's author). It signs with the organization's CI Developer ID, notarizes and staples
+  `vX.Y.Z` tag in the protected `release` environment, after a person from `release-approvers`
+  approves (whoever pushed the tag may; an agent never does). It signs with the organization's CI Developer ID, notarizes and staples
   the app and then the image with the shared `notarize` action, attests every file (Sigstore), and
   publishes them with `SHA256SUMS` and its GPG signature. A `-rc` tag with `publish=false` rehearses
   the whole path without creating a release. A locally signed build is for debugging and is never

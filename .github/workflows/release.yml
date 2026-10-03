@@ -3,9 +3,9 @@
 # the app's own updater installs, both made from the stapled app; update-feed.json and the
 # build receipt. Then attested (Sigstore), summed and GPG-signed, and published.
 #
-# Signing happens only here, in the protected `release` environment: approved by
-# release-approvers, never by whoever pushed the tag (passioncode-ai/.github
-# release-signing/README.md). A build signed anywhere else is a debug build and is never
+# Signing happens only here, in the protected `release` environment: approved by a
+# person from release-approvers, who may be whoever pushed the tag; an agent never
+# approves (passioncode-ai/.github release-signing/README.md). A build signed anywhere else is a debug build and is never
 # published. A published release is never rewritten: a fix is a new tag. docs/RUNBOOK.md#release
 #
 # Release:    push an annotated vX.Y.Z tag on the reviewed release commit.
