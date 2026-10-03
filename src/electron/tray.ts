@@ -29,6 +29,7 @@ export interface TrayActions {
 export class AppTray {
   private readonly tray: Tray;
   private readonly icons: Record<TrayLevel, Electron.NativeImage>;
+  private shown = ''; // what the menu shows now; an identical update rebuilds nothing (LC-08)
 
   constructor(assets: string, private readonly actions: TrayActions, private readonly lang: () => Lang) {
     const load = (name: string) => {
@@ -44,6 +45,9 @@ export class AppTray {
   update(services: ServiceSnapshot[]): void {
     const lang = this.lang();
     const level = trayLevel(services);
+    const signature = JSON.stringify([lang, level, this.actions.paused(), services.map((s) => [s.key, s.state, s.descriptor?.name, attentionRank(s.state, s.wellKnown)])]);
+    if (signature === this.shown) return;
+    this.shown = signature;
     this.tray.setImage(this.icons[level]);
     const problems = services
       .map((s) => ({ s, rank: attentionRank(s.state, s.wellKnown) }))
@@ -64,6 +68,8 @@ export class AppTray {
         ? { label: t(lang, 'tray.resume'), click: () => this.actions.resume() }
         : { label: t(lang, 'tray.pause'), click: () => this.actions.pause() },
       { type: 'separator' },
+      // Said where it applies, not in a modal on the way out (lifecycle LC-07).
+      { label: t(lang, 'quit.note'), enabled: false },
       { label: t(lang, 'tray.quit'), click: () => this.actions.quit() },
     ];
     this.tray.setContextMenu(Menu.buildFromTemplate(template));

@@ -8,12 +8,12 @@
 //
 // Reading — descriptors, claim conflicts, launchd status, the health probe, the state — is one
 // look through @passioncode-ai/fabric-service-host, the same code Fabric's registry reads with.
-import { execFile } from 'node:child_process';
 import { discoverHost, type HostStatus } from './host';
 import {
   APP_NAME, expand, lookAtServices, readDirectory, servicesDir as defaultServicesDir,
   type Descriptor, type DescriptorEntry, type ServiceLook, type ServiceState, type WellKnownResult, authHeaders, REMOTE_TIMEOUT_MS, type WellKnownOptions,
 } from '@passioncode-ai/fabric-service-host';
+import { runOwned } from '../core/children';
 import { fromServiceUrl, isServiceKey, linkFor, safePath } from '../core/deeplink';
 import { Launchd, execRunner, type Runner } from '../core/launchd';
 import { fetchEvents, fetchWellKnown, PROBE_TIMEOUT_MS, readToken } from '../core/probe';
@@ -37,15 +37,11 @@ export interface Deps {
   platform: NodeJS.Platform;
 }
 
+/** A descriptor's own argv, in its own process group, without ELECTRON_RUN_AS_NODE or NODE_OPTIONS
+ *  (this process runs Electron as Node); killed with its group on timeout or session end (LC-10). */
 function runArgv(argv: string[], timeoutMs: number): Promise<{ code: number | null; output: string; timedOut: boolean }> {
   const [cmd, ...args] = argv.map((a, i) => (i === 0 ? expand(a) : a));
-  return new Promise((resolve) => {
-    execFile(cmd!, args, { timeout: timeoutMs, maxBuffer: 8 * 1024 * 1024, encoding: 'utf8', env: { ...process.env } }, (error, stdout, stderr) => {
-      const timedOut = Boolean(error && (error as { killed?: boolean }).killed);
-      const code = error ? (typeof (error as { code?: unknown }).code === 'number' ? (error as { code: number }).code : null) : 0;
-      resolve({ code, output: `${stdout ?? ''}${stderr ? `\n${stderr}` : ''}`.trim(), timedOut });
-    });
-  });
+  return runOwned(cmd!, args, { timeoutMs });
 }
 
 export function liveDeps(runner: Runner = execRunner): Deps {

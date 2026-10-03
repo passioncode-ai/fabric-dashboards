@@ -39,7 +39,11 @@
 1. Bump `version` in `package.json`, add the `CHANGELOG.md` section, commit.
 2. `npm ci && npm run check && npm run test:e2e`.
 3. `npm run dist -- --notary-profile fabric-notary` — read the receipt: signing names the
-   Developer ID, notarization `accepted and stapled`, Gatekeeper `accepted`.
+   Developer ID, notarization `accepted and stapled`, Gatekeeper `accepted`, `checks.fuses` the
+   release fuses in every slice (`scripts/fuses.mjs`; the build fails on a wrong one), `checks.mcpLauncher`
+   the launcher answering from the finished bundle, and `pruned` the older release files it removed
+   (`release/` keeps this release and the previous one). `node scripts/fuses.mjs "<path>.app"` reads
+   the fuses of any built or installed app.
 4. `git tag -a v<version> -m v<version> && git push origin v<version>`, then
    `gh release create v<version> release/Fabric-Dashboards-<version>.dmg release/Fabric-Dashboards-<version>-mac.zip release/update-feed.json --notes-file <section>`.
    The feed is served from `releases/latest/download/`, so the newest release is the feed.

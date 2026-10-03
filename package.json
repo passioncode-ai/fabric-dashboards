@@ -29,7 +29,8 @@
     "start": "npm run build && electron .",
     "icon": "node scripts/make-icon.mjs",
     "dist": "node scripts/dist-mac.mjs",
-    "build:host": "npm run build -w @passioncode-ai/fabric-service-host"
+    "build:host": "npm run build -w @passioncode-ai/fabric-service-host",
+    "clean": "node scripts/clean.mjs"
   },
   "engines": {
     "node": ">=20"

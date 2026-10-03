@@ -27,7 +27,7 @@
 ### SCR-01: Overview
 - **Used by:** SCN-001, SCN-002, SCN-005, SCN-006
 - **Purpose:** JTBD-01 — the state of every service and what needs the operator, in one screen
-- **Elements:** header with service count; Needs attention block (rows with one action each — the primary action of the screen when present); service cards (state, name, version+commit, uptime, tiles, latest event); empty state with "Show folder"
+- **Elements:** header with service count; the one-time launch-at-login question (Open at login, Not now) until it is answered; Needs attention block (rows with one action each — the primary action of the screen when present); service cards (state, name, version+commit, uptime, tiles, latest event); empty state with "Show folder"
 - **States:**
   | State | Trigger | Figma frame | Behavior |
   |-------|---------|-------------|----------|
@@ -76,12 +76,12 @@
 ### SCR-04: Settings
 - **Used by:** SCN-019, SCN-024
 - **Purpose:** fit notifications and startup to the operator's day
-- **Elements:** Launch at login; notifications per service with levels; quiet hours; services folder with Show; Unattributed listeners; macOS notification permission notice
+- **Elements:** Launch at login (off until chosen); notifications per service with levels; quiet hours; services folder with Show; Uninstall (confirmation dialog; removes login item, MCP entry and data, moves the app to the Trash); Unattributed listeners; macOS notification permission notice
 - **States:**
   | State | Trigger | Figma frame | Behavior |
   |-------|---------|-------------|----------|
   | success | default | — | settings apply immediately |
-  | error | login item refused, listener scan failed, notifications denied | — | reason beside the control |
+  | error | login item refused, listener scan failed, notifications denied, uninstall stopped | — | reason beside the control |
 - **Coverage:** src/renderer/components/Settings.tsx
 - **Scenarios:** SCN-019, SCN-024
 - **Status:** built
@@ -101,7 +101,7 @@
 ### SCR-06: Tray menu
 - **Used by:** SCN-023
 - **Purpose:** JTBD-01 without opening the window
-- **Elements:** icon in three states; problems first; every service with state; Open Fabric Dashboards; Pause notifications for 1 hour; Quit
+- **Elements:** icon in three states; problems first; every service with state; Open Fabric Dashboards; Pause notifications for 1 hour; "Quitting Dashboards does not stop your services." (disabled line); Quit
 - **States:**
   | State | Trigger | Figma frame | Behavior |
   |-------|---------|-------------|----------|

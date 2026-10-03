@@ -32,6 +32,9 @@ export interface FabricApi {
   notificationsAllowed(): Promise<boolean>;
   openNotificationSettings(): Promise<void>;
   locale(): Promise<string>;
+  /** Asks the person to confirm, then removes the login item, the MCP registration and the app's
+   *  data, moves the app to the Trash and quits (lifecycle LC-14). */
+  uninstall(): Promise<{ ok: boolean; cancelled?: boolean; error?: string }>;
 }
 
 export const CHANNELS = {
@@ -58,4 +61,5 @@ export const CHANNELS = {
   notificationsAllowed: 'fd:notifications-allowed',
   notificationSettings: 'fd:notification-settings',
   locale: 'fd:locale',
+  uninstall: 'fd:uninstall',
 } as const;

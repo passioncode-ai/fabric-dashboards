@@ -2,9 +2,9 @@
 // It reads the services directory, probes every service, controls them through
 // launchd only, and never starts a service process itself (ADR-0002).
 import { EventEmitter } from 'node:events';
-import { execFile } from 'node:child_process';
 import fs from 'node:fs';
 import { ActivityStore } from './activity';
+import { runOwned } from './children';
 import { authHeaders, claimConflicts, deriveState, expand, fetchWellKnown, readDirectory, REMOTE_TIMEOUT_MS, type DescriptorEntry, type WellKnownOptions, type WellKnownResult } from '@passioncode-ai/fabric-service-host';
 import { tail } from './fsutil';
 import { duration, t as tr, type Lang } from './i18n';
@@ -28,11 +28,19 @@ export interface MonitorOptions {
   lang: () => Lang;
   launchd?: Launchd;
   now?: () => number;
-  intervals?: { rescan: number; visible: number; background: number; events: number; maxBackoff: number };
+  /** Milliseconds. `rescan` is the safety net under the directory watcher; `visible`/`background` the
+   *  probe cadence with and without a visible window; `events`/`eventsBackground` the feed cadence;
+   *  `remote` the floor for an online service; `launchdRefresh` how stale launchd's view may get while
+   *  hidden and every probe answers with the same pid; `disabledTtl` how long one `print-disabled`
+   *  table serves. AGENTS.md ## Lifecycle states the resulting idle budget. */
+  intervals?: Partial<typeof DEFAULT_INTERVALS>;
   /** The health probe. Default: the well-known document with PROBE_TIMEOUT_MS, or REMOTE_TIMEOUT_MS and the token for a remote placement (DEC-0019). */
   wellKnown?: (origin: string, options?: WellKnownOptions) => Promise<WellKnownResult>;
   /** Which notification episodes were told and when (ADR-0010). Default: in memory. */
   ledger?: NotifyLedger;
+  /** The events feed reader and the token reader. Defaults: probe.ts. */
+  events?: typeof fetchEvents;
+  token?: typeof readToken;
 }
 
 interface Tracked {
@@ -53,9 +61,18 @@ interface Tracked {
   lastPid: number | null;
   baselined: boolean; // first events poll records history without notifying
   tokenProblem: string | null; // DEC-0019: a remote placement whose token cannot be read is invalid, never probed
+  launchdAt: number | null; // when launchd was last read for this service
+  polledAt: number | null; // when its events feed was last read
 }
 
-const DEFAULT_INTERVALS = { rescan: 5_000, visible: 5_000, background: 30_000, events: 15_000, maxBackoff: 60_000 };
+// #region idle-cadence — docs: AGENTS.md#lifecycle
+const DEFAULT_INTERVALS = {
+  rescan: 60_000, visible: 5_000, background: 30_000, events: 15_000, eventsBackground: 30_000,
+  remote: 60_000, launchdRefresh: 5 * 60_000, disabledTtl: 60_000, maxBackoff: 60_000,
+};
+/** The earliest a scheduled wake may come after the last one. */
+const MIN_WAKE_MS = 250;
+// #endregion idle-cadence
 
 export class Monitor extends EventEmitter {
   private readonly tracked = new Map<string, Tracked>();
@@ -64,14 +81,23 @@ export class Monitor extends EventEmitter {
   private readonly intervals: typeof DEFAULT_INTERVALS;
   private readonly wellKnown: (origin: string, options?: WellKnownOptions) => Promise<WellKnownResult>;
   private readonly ledger: NotifyLedger;
-  private visible = true;
+  private readonly events: typeof fetchEvents;
+  private readonly token: typeof readToken;
+  /** Hidden until a window says otherwise: a launch at login never shows one (LC-08). */
+  private visible = false;
+  private running = false;
   private watcher: fs.FSWatcher | null = null;
-  private timers: NodeJS.Timeout[] = [];
+  private wakeTimer: NodeJS.Timeout | null = null;
+  private pollTimer: NodeJS.Timeout | null = null;
+  private lastPollAt = 0;
   private scanning = true;
   private dirError: string | null = null;
   private ticking = false;
+  private rescanPending = false;
   private polling = false;
   private changeTimer: NodeJS.Timeout | null = null;
+  private lastEmitted: string | null = null;
+  private disabled: { at: number; table: string } | null = null;
 
   constructor(private readonly o: MonitorOptions) {
     super();
@@ -80,65 +106,145 @@ export class Monitor extends EventEmitter {
     this.intervals = { ...DEFAULT_INTERVALS, ...(o.intervals ?? {}) };
     this.wellKnown = o.wellKnown ?? ((origin, options) => fetchWellKnown(origin, options?.headers ? REMOTE_TIMEOUT_MS : PROBE_TIMEOUT_MS, options));
     this.ledger = o.ledger ?? new NotifyLedger(null);
+    this.events = o.events ?? fetchEvents;
+    this.token = o.token ?? readToken;
   }
 
   // --- lifecycle -----------------------------------------------------------------
+  // #region idle-scheduler — docs: AGENTS.md#lifecycle
+  // One timer for probes and rescans, armed for the earliest thing that is due — never a fixed
+  // 1-second poll — and one for the events feed. Hidden, both run at the background cadence (LC-08).
   start(): void {
-    void this.tick();
-    this.timers.push(setInterval(() => void this.tick(), Math.min(this.intervals.rescan, this.intervals.visible, 1000)));
-    this.timers.push(setInterval(() => void this.pollEvents(), this.intervals.events));
+    this.running = true;
     this.watch();
+    void this.tick();
+    this.armPoll(this.intervals.events);
   }
 
   stop(): void {
-    for (const timer of this.timers) clearInterval(timer);
-    this.timers = [];
+    this.running = false;
+    if (this.wakeTimer) clearTimeout(this.wakeTimer);
+    if (this.pollTimer) clearTimeout(this.pollTimer);
+    if (this.changeTimer) clearTimeout(this.changeTimer);
+    this.wakeTimer = this.pollTimer = this.changeTimer = null;
     this.watcher?.close();
     this.watcher = null;
   }
 
   setVisible(visible: boolean): void {
+    if (visible === this.visible) return;
     this.visible = visible;
-    if (visible) for (const t of this.tracked.values()) t.nextProbeAt = Math.min(t.nextProbeAt, this.now());
+    if (!visible) {
+      // A probe booked at the live cadence moves to the background one; an unconfirmed miss keeps
+      // its quick re-check (ADR-0008).
+      const shift = Math.max(0, this.intervals.background - this.intervals.visible);
+      for (const t of this.tracked.values()) if (t.misses === 0 && t.entry.descriptor?.placement !== 'remote') t.nextProbeAt += shift;
+      this.schedule();
+      this.armPoll(Math.max(0, this.lastPollAt + this.intervals.eventsBackground - this.now()));
+      return;
+    }
+    // A window that opens shows current states, not the last background read.
+    for (const t of this.tracked.values()) t.nextProbeAt = Math.min(t.nextProbeAt, this.now());
+    if (this.running) void this.tick();
+    this.armPoll(Math.max(0, this.lastPollAt + this.intervals.events - this.now()));
   }
 
   private watch(): void {
     try {
       fs.mkdirSync(this.o.servicesDir, { recursive: true, mode: 0o700 });
       this.watcher = fs.watch(this.o.servicesDir, { persistent: false }, () => void this.tick(true));
-      this.watcher.on('error', () => { this.watcher?.close(); this.watcher = null; });
+      this.watcher.on('error', () => { this.watcher?.close(); this.watcher = null; this.schedule(); });
     } catch {
-      this.watcher = null; // the periodic rescan still covers it
+      this.watcher = null; // the rescan below covers it, at the probe cadence
     }
   }
 
+  /** How often the directory is read when nothing told us it changed: at the probe cadence while a
+   *  window shows it (SCN-003's five seconds even if a watcher event is lost); hidden, the watcher
+   *  plus a slow safety net, or the background cadence when there is no watcher. */
+  private rescanEvery(): number {
+    if (this.visible) return this.intervals.visible;
+    return this.watcher ? this.intervals.rescan : this.intervals.background;
+  }
+
+  private schedule(delay?: number): void {
+    if (!this.running) return;
+    if (this.wakeTimer) clearTimeout(this.wakeTimer);
+    let wait = delay;
+    if (wait === undefined) {
+      const now = this.now();
+      let next = this.lastRescan + this.rescanEvery();
+      for (const t of this.tracked.values()) if (!t.busy) next = Math.min(next, t.nextProbeAt);
+      wait = Math.max(MIN_WAKE_MS, next - now);
+    }
+    this.wakeTimer = setTimeout(() => { this.wakeTimer = null; void this.tick(); }, wait);
+    this.wakeTimer.unref?.();
+  }
+
+  private armPoll(delay: number): void {
+    if (!this.running) return;
+    if (this.pollTimer) clearTimeout(this.pollTimer);
+    this.pollTimer = setTimeout(() => {
+      this.pollTimer = null;
+      void this.pollEvents().finally(() => this.armPoll(this.visible ? this.intervals.events : this.intervals.eventsBackground));
+    }, delay);
+    this.pollTimer.unref?.();
+  }
+  // #endregion idle-scheduler
+
+  /** What the window, the tray and the Dock show, minus what changes on every answer without
+   *  meaning anything (the time of the last answer). Equal fingerprints are not news. */
+  private fingerprint(): string {
+    return JSON.stringify([this.snapshots().map((s) => ({ ...s, lastAnswerAt: null })), this.meta(), this.o.activity.revision]);
+  }
+
+  /** Emit `change` only when what a person can see differs from the last emit (LC-08). */
   private changed(): void {
     if (this.changeTimer) return;
-    this.changeTimer = setTimeout(() => { this.changeTimer = null; this.emit('change'); }, 50);
+    this.changeTimer = setTimeout(() => {
+      this.changeTimer = null;
+      const now = this.fingerprint();
+      if (now === this.lastEmitted) return;
+      this.lastEmitted = now;
+      this.emit('change');
+    }, 50);
   }
 
   // --- reading and probing -------------------------------------------------------------
   private lastRescan = 0;
 
   async tick(forceRescan = false): Promise<void> {
-    if (this.ticking) return;
+    if (this.ticking) { if (forceRescan) this.rescanPending = true; return; }
     this.ticking = true;
     try {
       const now = this.now();
-      if (forceRescan || now - this.lastRescan >= this.intervals.rescan) {
+      if (forceRescan || this.rescanPending || now - this.lastRescan >= this.rescanEvery()) {
+        this.rescanPending = false;
         this.lastRescan = now;
         this.rescan();
       }
       const due = [...this.tracked.values()].filter((t) => t.nextProbeAt <= now && !t.busy);
       if (due.length) {
-        const table = due.some((t) => t.entry.descriptor?.lifecycle.manager === 'launchd') ? await this.launchd.disabledTable() : '';
-        await Promise.all(due.map((t) => this.probe(t, table)));
+        let table: Promise<string> | null = null;
+        const disabledTable = () => (table ??= this.disabledTable());
+        await Promise.all(due.map((t) => this.probe(t, disabledTable)));
       }
     } finally {
       this.ticking = false;
       this.scanning = false;
       this.changed();
+      if (this.rescanPending) this.schedule(0);
+      else this.schedule();
     }
+  }
+
+  /** One `launchctl print-disabled` serves every probe for `disabledTtl`; a control action clears it. */
+  private async disabledTable(): Promise<string> {
+    const now = this.now();
+    if (this.disabled && now - this.disabled.at < this.intervals.disabledTtl) return this.disabled.table;
+    const table = await this.launchd.disabledTable();
+    this.disabled = { at: now, table };
+    return table;
   }
 
   private rescan(): void {
@@ -155,6 +261,7 @@ export class Monitor extends EventEmitter {
       if (!seen.has(key)) {
         this.tracked.delete(key);
         this.appEvent(key, t, 'service.removed', 'info', 'app.event.removed');
+        this.emit('removed', key); // its view and its stored session go with it (LC-12)
       }
     }
     for (const entry of entries) {
@@ -168,7 +275,7 @@ export class Monitor extends EventEmitter {
       const t: Tracked = {
         entry, probe: null, launchd: { managed: entry.descriptor?.lifecycle.manager === 'launchd', loaded: false, pid: null, disabled: false },
         firstUnansweredAt: null, lastAnswerAt: null, misses: 0, lastAnswer: null, nextProbeAt: this.now(), backoff: 0, busy: null, lastAction: null, tokenProblem: null,
-        feedError: null, downNotified: false, lastState: null, lastPid: null, baselined: false,
+        feedError: null, downNotified: false, lastState: null, lastPid: null, baselined: false, launchdAt: null, polledAt: null,
       };
       this.tracked.set(entry.key, t);
       if (!this.scanning) this.appEvent(entry.key, t, 'service.installed', 'info', 'app.event.installed');
@@ -179,7 +286,7 @@ export class Monitor extends EventEmitter {
     return claimConflicts([...this.tracked.values()].map((t) => t.entry));
   }
 
-  private async probe(t: Tracked, disabledTable: string): Promise<void> {
+  private async probe(t: Tracked, disabledTable: () => Promise<string>): Promise<void> {
     const d = t.entry.descriptor;
     const conflict = this.conflicts().get(t.entry.key);
     if (!d || conflict) {
@@ -188,18 +295,13 @@ export class Monitor extends EventEmitter {
       this.observe(t);
       return;
     }
-    if (d.lifecycle.manager === 'launchd' && d.lifecycle.label) {
-      const s = await this.launchd.status(d.lifecycle.label, disabledTable);
-      t.launchd = { managed: true, ...s };
-    } else {
-      t.launchd = { managed: false, loaded: false, pid: null, disabled: false };
-    }
     const answeredBefore = t.probe?.kind === 'answer';
+    const pidBefore = t.probe?.kind === 'answer' ? t.probe.doc.process.pid : null;
     let options: WellKnownOptions | undefined;
     t.tokenProblem = null;
     if (d.placement === 'remote') {
       try {
-        options = { headers: authHeaders(d, readToken(d.auth.tokenFile)), ...tlsFor(d.origin) };
+        options = { headers: authHeaders(d, this.token(d.auth.tokenFile)), ...tlsFor(d.origin) };
       } catch (error) {
         t.tokenProblem = (error as Error).message;
         t.probe = null;
@@ -214,12 +316,29 @@ export class Monitor extends EventEmitter {
     } catch (error) {
       probe = { kind: 'no-answer', detail: (error as Error).message };
     }
+    // #region launchd-reads — docs: AGENTS.md#lifecycle
+    // launchd is read on every probe while a window shows it. Hidden, a `launchctl print` (a process
+    // spawn) runs only when it can change the verdict: the probe missed, the answering pid moved, or
+    // launchd's view is older than `launchdRefresh` (a duplicate behind a steady answer).
+    if (d.lifecycle.manager === 'launchd' && d.lifecycle.label) {
+      const steady = probe.kind === 'answer' && pidBefore === probe.doc.process.pid && t.launchd.managed;
+      const fresh = t.launchdAt !== null && this.now() - t.launchdAt < this.intervals.launchdRefresh;
+      if (this.visible || !steady || !fresh) {
+        const s = await this.launchd.status(d.lifecycle.label, await disabledTable());
+        t.launchd = { managed: true, ...s };
+        t.launchdAt = this.now();
+      }
+    } else {
+      t.launchd = { managed: false, loaded: false, pid: null, disabled: false };
+    }
+    // #endregion launchd-reads
     t.probe = probe;
     const now = this.now();
     // A service that starts answering is read at once, not at the next 15-second poll.
     if (probe.kind === 'answer' && !answeredBefore) queueMicrotask(() => void this.pollOne(t).finally(() => this.changed()));
     // #region probe-confirmation — docs: docs/adr/0008-a-missed-probe-is-not-an-outage.md#decision
-    const cadence = this.visible ? this.intervals.visible : this.intervals.background;
+    // An online service is never read faster than `remote`, window or not (DEC-0019, LC-08).
+    const cadence = Math.max(this.visible ? this.intervals.visible : this.intervals.background, d.placement === 'remote' ? this.intervals.remote : 0);
     if (probe.kind === 'no-answer') {
       if (t.firstUnansweredAt === null) t.firstUnansweredAt = now;
       t.misses += 1;
@@ -312,8 +431,12 @@ export class Monitor extends EventEmitter {
   async pollEvents(): Promise<void> {
     if (this.polling) return;
     this.polling = true;
+    const now = this.now();
+    this.lastPollAt = now;
     try {
-      await Promise.all([...this.tracked.values()].map((t) => this.pollOne(t)));
+      // An online service's feed is read no faster than `remote`, like its probe.
+      const due = [...this.tracked.values()].filter((t) => t.entry.descriptor?.placement !== 'remote' || t.polledAt === null || now - t.polledAt >= this.intervals.remote - MIN_WAKE_MS);
+      await Promise.all(due.map((t) => this.pollOne(t)));
     } finally {
       this.polling = false;
       this.changed();
@@ -323,10 +446,11 @@ export class Monitor extends EventEmitter {
   private async pollOne(t: Tracked): Promise<void> {
     const d = t.entry.descriptor;
     if (!d || t.probe?.kind !== 'answer' || this.snapshotOf(t).state === 'foreign') return;
+    t.polledAt = this.now();
     const path = t.probe.doc.surfaces.events.path;
     let token: string;
     try {
-      token = readToken(d.auth.tokenFile);
+      token = this.token(d.auth.tokenFile);
     } catch (error) {
       t.feedError = { code: 'raw', params: { text: (error as Error).message } };
       return;
@@ -336,7 +460,7 @@ export class Monitor extends EventEmitter {
       const firstEver = after === null;
       const fresh = [];
       for (let page = 0; page < 5; page += 1) {
-        const res = await fetchEvents(d, path, token, after, firstEver ? 50 : 100);
+        const res = await this.events(d, path, token, after, firstEver ? 50 : 100);
         fresh.push(...this.o.activity.addServiceEvents(t.entry.key, d.name, res.events, res.cursor));
         if (firstEver || res.events.length < 100 || res.cursor === after) break;
         after = res.cursor;
@@ -369,6 +493,8 @@ export class Monitor extends EventEmitter {
     const name = d.name;
     const finish = (ok: boolean, reason: Reason) => {
       t.busy = null;
+      this.disabled = null; // the action may have changed launchd's disabled table
+      t.launchdAt = null;
       t.lastAction = { action, ok, reason, at: new Date(this.now()).toISOString() };
       t.nextProbeAt = this.now();
       this.o.activity.addAppEvent(key, name, `service.${action}`, ok ? 'info' : 'warning', tr(this.o.lang(), reason.code, reason.params));
@@ -421,13 +547,8 @@ export class Monitor extends EventEmitter {
     t.busy = which === 'doctor' ? 'doctor' : 'updating';
     this.changed();
     const [cmd, ...args] = argv.map((a, i) => (i === 0 ? expand(a) : a));
-    const result = await new Promise<{ code: number | null; output: string; timedOut: boolean }>((resolve) => {
-      execFile(cmd!, args, { timeout: COMMAND_TIMEOUT_MS, maxBuffer: 8 * 1024 * 1024, encoding: 'utf8', env: { ...process.env } }, (error, stdout, stderr) => {
-        const timedOut = Boolean(error && (error as { killed?: boolean }).killed);
-        const code = error ? (typeof (error as { code?: unknown }).code === 'number' ? (error as { code: number }).code : null) : 0;
-        resolve({ code, output: `${stdout ?? ''}${stderr ? `\n${stderr}` : ''}`.trim(), timedOut });
-      });
-    });
+    // Its own process group, the descriptor-safe environment, killed with the group on timeout or quit (LC-02).
+    const result = await runOwned(cmd!, args, { timeoutMs: COMMAND_TIMEOUT_MS });
     t.busy = null;
     const name = t.entry.descriptor!.name;
     const reason: Reason = result.timedOut ? { code: 'result.commandTimeout', params: { command: which } } : { code: 'result.command', params: { command: which, code: result.code ?? 'none' } };

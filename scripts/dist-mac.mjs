@@ -11,10 +11,11 @@
 // receipt with hashes and the signing/notarization state is written beside them.
 import { execFileSync, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statfsSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statfsSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { applyReleaseFuses, verifyReleaseFuses } from './fuses.mjs';
 
 export const BUNDLE_ID = 'ai.passioncode.fabric-dashboards';
 export const PRODUCT = 'Fabric Dashboards';
@@ -77,6 +78,38 @@ export function pickIdentity(findIdentityOutput, wanted = '') {
     : `Expected exactly one Developer ID Application identity, found ${developerId.length}; name one with --identity.`);
   return matching[0];
 }
+
+// #region release-retention — docs: AGENTS.md#build-output-and-retention
+const RELEASE_BINARY = /^Fabric-Dashboards-(\d+)\.(\d+)\.(\d+)(-unsigned)?(\.dmg|-mac\.zip)$/;
+/**
+ * LC-15: a build leaves the current release and the one before it (for rollback), no more. Only
+ * the disk images and update zips this script names are pruned, by version order; receipts (small
+ * JSON) and anything else in the directory stay. Returns the file names it removed.
+ */
+export function pruneReleases(dir, keep = 2) {
+  if (!existsSync(dir)) return [];
+  const binaries = readdirSync(dir).map((name) => ({ name, m: RELEASE_BINARY.exec(name) })).filter((x) => x.m);
+  const versionOf = (m) => [Number(m[1]), Number(m[2]), Number(m[3])];
+  const key = (v) => v.join('.');
+  const versions = [...new Map(binaries.map((b) => [key(versionOf(b.m)), versionOf(b.m)])).values()]
+    .sort((a, b) => b[0] - a[0] || b[1] - a[1] || b[2] - a[2]);
+  const kept = new Set(versions.slice(0, keep).map(key));
+  const removed = [];
+  for (const b of binaries) {
+    if (kept.has(key(versionOf(b.m)))) continue;
+    rmSync(path.join(dir, b.name), { force: true });
+    removed.push(b.name);
+  }
+  return removed;
+}
+
+const LSREGISTER = '/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister';
+/** A bundle this build made and is about to delete must not stay registered with LaunchServices,
+ *  or a stale copy could answer an `open`. Best effort: a missing tool is not a failed build. */
+function unregisterBundle(app) {
+  if (existsSync(app) && existsSync(LSREGISTER)) spawnSync(LSREGISTER, ['-u', app], { stdio: 'ignore', timeout: 30_000 });
+}
+// #endregion release-retention
 
 /** The Squirrel.Mac JSON feed (serverType "json") the app's autoUpdater reads. */
 export function updateFeed(version, zipName, notes, date = new Date().toISOString()) {
@@ -142,6 +175,14 @@ async function main() {
     requireThat(existsSync(path.join(app, 'Contents/Resources/assets/trayTemplate.png')), 'The packaged app is missing its menu bar icons.');
     const mcp = path.join(app, 'Contents/Resources/bin/fabric-dashboards-mcp');
     requireThat(existsSync(mcp) && (statSync(mcp).mode & 0o111) !== 0, 'The packaged app is missing its executable MCP launcher.');
+    // LC-13: hardened fuses, set before any signature (a changed byte voids one) and read back
+    // from the finished binary below. An unsigned build re-seals the framework ad hoc, the way the
+    // packager does after writing the asar integrity digest, so Apple Silicon still loads it.
+    applyReleaseFuses(app);
+    if (!identity) {
+      run('codesign', ['--sign', '-', '--force', '--deep', '--preserve-metadata=entitlements,requirements,flags,runtime',
+        path.join(app, 'Contents/Frameworks/Electron Framework.framework')]);
+    }
     // Signed and notarized AFTER packaging, on the finished universal bundle: signing
     // inside the packager raced its own temporary directories (2026-09-28, ENOENT).
     if (identity) {
@@ -166,6 +207,7 @@ async function main() {
       requireThat(receipt.checks.hardenedRuntime === 'present', 'The app was signed without the hardened runtime; notarization would refuse it.');
     }
     receipt.checks.architectures = run('lipo', ['-archs', path.join(app, `Contents/MacOS/${PRODUCT}`)]).trim();
+    receipt.checks.fuses = `every slice reads ${[...new Set(verifyReleaseFuses(app))].join(', ')} (scripts/fuses.mjs WANTED_FUSES)`;
     // The MCP launcher answers `initialize` from inside the finished, signed bundle.
     const hello = spawnSync(mcp, [], { input: '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}\n', encoding: 'utf8', timeout: 20_000, env: { ...process.env, FABRIC_SERVICES_DIR: temp } });
     const answer = (() => { try { return JSON.parse(hello.stdout.split('\n')[0]); } catch { return null; } })();
@@ -210,11 +252,13 @@ async function main() {
     }
     receipt.sha256 = sha256(dmg);
     receipt.bytes = readFileSync(dmg).length;
+    if (!existsSync(dmg)) throw new Error('No disk image was produced.');
+    receipt.pruned = pruneReleases(out, 2); // LC-15: this release and the previous one stay
     writeFileSync(path.join(out, 'update-feed.json'), JSON.stringify(updateFeed(version, path.basename(zip), notes), null, 2) + '\n');
     writeFileSync(path.join(out, `${base}.receipt.json`), JSON.stringify(receipt, null, 2) + '\n');
     console.log(JSON.stringify(receipt, null, 2));
-    if (!existsSync(dmg)) throw new Error('No disk image was produced.');
   } finally {
+    unregisterBundle(path.join(temp, 'out', `${PRODUCT}-darwin-universal`, `${PRODUCT}.app`));
     rmSync(temp, { recursive: true, force: true });
   }
 }

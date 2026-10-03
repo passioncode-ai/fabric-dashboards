@@ -1,12 +1,14 @@
 // One live WebContentsView per service (SCN-015): created on first open, kept
-// while the app runs, swapped — never reloaded or duplicated — when the
-// operator switches services.
+// while the window is in use, swapped — never reloaded or duplicated — when the
+// operator switches services. A window hidden past the grace period releases
+// every view (releaseAll, lifecycle LC-08); showing it brings back the one that
+// was on screen, on the page it was on (resume).
 import { BrowserWindow, dialog, session, shell, WebContentsView } from 'electron';
 import type { Rect } from '../core/api';
 import { t, type Lang } from '../core/i18n';
 import { loginUrl, readToken } from '../core/probe';
 import type { ServiceSnapshot } from '../core/types';
-import { clampRect, navigation, partitionFor, resolveLink, ViewSlot } from './policy';
+import { clampRect, navigation, partitionFor, resolveLink, resumePath, ViewSlot } from './policy';
 import { testRemote } from '../core/testhooks';
 
 interface Entry { view: WebContentsView; origin: string; crashes: number; loadedOnce: boolean }
@@ -15,6 +17,8 @@ export class ServiceViews {
   private readonly views = new Map<string, Entry>();
   private shown: string | null = null;
   private readonly slot = new ViewSlot();
+  private bounds: Rect | null = null;
+  private released: { key: string; owner: string; rect: Rect; link?: string } | null = null;
 
   constructor(
     private readonly window: BrowserWindow,
@@ -126,12 +130,36 @@ export class ServiceViews {
     if (this.shown && this.shown !== snap.key) this.detach(this.shown);
     if (this.shown !== snap.key) this.window.contentView.addChildView(entry.view);
     this.shown = snap.key;
-    entry.view.setBounds(clampRect(rect));
+    this.released = null;
+    this.bounds = clampRect(rect);
+    entry.view.setBounds(this.bounds);
     return result;
   }
 
   setBounds(rect: Rect): void {
-    if (this.shown) this.views.get(this.shown)?.view.setBounds(clampRect(rect));
+    this.bounds = clampRect(rect);
+    if (this.shown) this.views.get(this.shown)?.view.setBounds(this.bounds);
+  }
+
+  /** Close every view and free its renderer. The one on screen is remembered — its host, place
+   *  and page — so `resume` can bring it back when the window shows again. */
+  releaseAll(): void {
+    const key = this.shown;
+    const owner = this.slot.owner();
+    const entry = key ? this.views.get(key) : undefined;
+    this.released = key && owner && entry && this.bounds
+      ? { key, owner, rect: this.bounds, link: resumePath(entry.view.webContents.getURL(), entry.origin) }
+      : null;
+    for (const k of [...this.views.keys()]) this.drop(k);
+  }
+
+  /** The window is shown again: re-open the released view for the host that still holds the slot. */
+  async resume(snapshotFor: (key: string) => ServiceSnapshot | null): Promise<void> {
+    const r = this.released;
+    this.released = null;
+    if (!r || this.slot.owner() !== r.owner || this.slot.wanted() !== r.key) return;
+    const snap = snapshotFor(r.key);
+    if (snap) await this.show(snap, r.rect, r.link, r.owner);
   }
 
   private detach(key: string): void {

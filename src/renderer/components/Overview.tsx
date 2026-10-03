@@ -1,6 +1,32 @@
 import { attentionRank } from '@passioncode-ai/fabric-service-host/state';
-import type { AppStatus, ServiceSnapshot } from '../../core/types';
+import { useEffect, useState } from 'react';
+import type { AppStatus, ServiceSnapshot, Settings } from '../../core/types';
 import { api, nameOf, shortBuild, Spinner, StateBadge, useT } from '../lib';
+
+/** The first-run question (SCN-024, lifecycle LC-07): launch at login is off until the person
+ *  answers here or in Settings; either answer registers or unregisters once, and the card is gone. */
+export function LoginQuestion() {
+  const { t } = useT();
+  const [settings, setSettings] = useState<Settings | null>(null);
+  const [error, setError] = useState('');
+  useEffect(() => { void api().settings().then(setSettings); }, []);
+  if (!settings || settings.launchAtLoginAsked) return error ? <p className="notice error" role="alert">{error}</p> : null;
+  const choose = async (launchAtLogin: boolean) => {
+    const r = await api().updateSettings({ launchAtLogin });
+    setSettings(r.settings);
+    setError(r.error ? t('settings.loginItemRefused', { error: r.error }) : '');
+  };
+  return (
+    <section className="notice info setup" aria-labelledby="setup-login-title">
+      <h2 id="setup-login-title">{t('setup.login.title')}</h2>
+      <p>{t('setup.login.body')}</p>
+      <div className="row">
+        <button className="btn btn-primary" onClick={() => void choose(true)}>{t('setup.login.yes')}</button>
+        <button className="btn" onClick={() => void choose(false)}>{t('setup.login.no')}</button>
+      </div>
+    </section>
+  );
+}
 
 interface Props { status: AppStatus; open: (key: string) => void; act: (key: string, action: 'restart' | 'start' | 'update') => void }
 

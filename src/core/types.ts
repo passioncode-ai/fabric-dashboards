@@ -33,7 +33,10 @@ export interface ActivityItem extends ServiceEvent {
 }
 
 export interface Settings {
+  /** Off until the person chooses (lifecycle LC-07); the launch never registers it on its own. */
   launchAtLogin: boolean;
+  /** Whether the person has answered the launch-at-login question (first-run card or Settings). */
+  launchAtLoginAsked: boolean;
   theme: 'dark' | 'light';
   notifications: {
     enabled: boolean;
@@ -44,7 +47,8 @@ export interface Settings {
 }
 
 export const DEFAULT_SETTINGS: Settings = {
-  launchAtLogin: true,
+  launchAtLogin: false,
+  launchAtLoginAsked: false,
   theme: 'dark',
   notifications: {
     enabled: true,
