@@ -1,6 +1,7 @@
 # Handoff — Fabric Dashboards
 
-Updated 2026-10-03 (releases move to CI signing; release 0.4.1, MCP links to online services).
+Updated 2026-10-04 (CI release rehearsal `v0.4.1-rc.1` green; releases move to CI signing; release
+0.4.1, MCP links to online services).
 
 Current release: 0.4.1 (section below). Earlier releases below are preserved as dated evidence.
 
@@ -50,6 +51,22 @@ With `publish=false` no release is created, and the signed set is kept as the ar
 
 Record the outcome here. If a step fails, the fix is a new `-rc.N` tag; an existing tag is never
 moved. The next real release (0.4.2 or later) is the operator's tag.
+
+**Rehearsal outcome, 2026-10-03: green.** A `release-approvers` member approved the `release`
+environment for `macos` and for `publish` on the operator's explicit instruction
+(`gh api repos/passioncode-ai/fabric-dashboards/actions/runs/37128282549/approvals`). All four
+jobs of run 37128282549 concluded `success`: `macos` 18:50–18:56 UTC, `publish / publish`
+18:56–18:57 UTC. The receipt the `seal` stage printed in the `macos` log names version 0.4.1 at
+revision `ec2a29f`, `signing` the CI Developer ID, `notarization` `accepted and stapled: app, update
+zip, image (the release workflow's notarize action)`, `gatekeeper` `accepted` (app and image both
+`source=Notarized Developer ID`), staples on all three, and the packaged MCP launcher answering
+`initialize` as 0.4.1; DMG sha256 `7f016bb3…b290fa`. With `publish=false` no GitHub release was
+created (the latest release is still `v0.4.1` of 08:25 UTC). The signed set is the artifact
+`signed-release-v0.4.1-rc.1`, kept until 2026-10-17.
+
+**Next task:** the first real release through CI, tracked as FD-09 in [backlog.md](backlog.md). It
+is the operator's annotated tag (0.4.2 or later), and an agent never approves the `release`
+environment.
 
 ## Release 0.4.1, 2026-10-03 (PR #19, `75eba78`)
 
