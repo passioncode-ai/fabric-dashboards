@@ -81,6 +81,93 @@ and `npm run check` on macOS every night and on manual dispatch, with `FD_SKIP_L
   reserved yet; a register that gains one is declared under `idRegisters` and taken with
   `agent_sync.py reserve <REG>`.
 
+## Lifecycle
+
+What runs, who starts it, what keeps running with no window and who stops it — the
+[lifecycle contract](https://github.com/passioncode-ai/fabric-workspace/blob/main/knowledge/lifecycle.md)
+LC-09 inventory for this product. The tests that hold each rule are in `test/lifecycle.test.ts`
+(the rule id is in each test name).
+
+| Process | Started by | Cadence and what runs with no window | Stopped by |
+|---|---|---|---|
+| `Fabric Dashboards` (main process, one instance) | the person (Finder, Dock, `open`), a `fabric-dashboards://` link, or macOS at login **only if the person chose it** — asked once on the first-run card or in Settings, off until then; a launch never registers it (LC-07) | menu-bar icon and Dock icon; the monitor starts hidden and stays at the background cadence until a window is actually shown (table below) | tray Quit, ⌘Q, logout, `SIGTERM`: `will-quit` stops every monitor timer, flushes the activity state and ends every command group it started |
+| Electron helpers: GPU, network, the app's renderer | Electron, with the main process | idle | the main process |
+| One renderer per opened service dashboard (`WebContentsView`, ~45 MB footprint each) | opening a service page | released 5 min after the window is hidden or minimized (`VIEW_RELEASE_GRACE_MS`); showing the window again re-opens the one that was on screen, on its page | the grace timer, the service's removal, quit |
+| MCP stdio server (`Resources/bin/fabric-dashboards-mcp` → the app binary as Node, `ELECTRON_RUN_AS_NODE=1`; ~15 MB footprint) | Claude Code, one per agent session (`claude mcp add --scope user …`) | nothing between calls except an unref'd 60 s check that the installed bundle is still the one it started from | stdin EOF or `SIGTERM`: exits within 1 s and kills its command groups (SIGTERM, SIGKILL after 300 ms); after an app update it answers the next call `stale` with both versions and exits (LC-10) |
+| A descriptor's `doctor` / `update` argv | the person (Health tab) or an agent (MCP) | its own process group, without `ELECTRON_RUN_AS_NODE` / `NODE_OPTIONS`, 120 s deadline (`src/core/children.ts`) | its deadline, quit, or the MCP session ending — the whole group |
+| `launchctl`, `lsof`, `osascript` (JXA, `host_status`), `/usr/bin/open` | the monitor, the listener scan, the MCP tools | short-lived; never more often than the table below | they exit by themselves |
+| Uninstall helper (`/bin/sh`) | Settings → Uninstall, after the person confirms | waits for the app's pid (at most 30 s), removes the app's data, ends | itself |
+
+The app **owns no launchd job and listens on no port** (ADR-0002, `SECURITY.md`). The only
+launchd label it ever touches as its own is the integration test's
+`ai.passioncode.fabric-dashboards.test.sample`, booted out and re-enabled by the test itself. The
+login item, when chosen, is the app's own Background Task Management record (`2.ai.passioncode.fabric-dashboards`).
+
+**Monitor cadence** (`src/core/monitor.ts`, `DEFAULT_INTERVALS`). One timer armed for the earliest
+due probe or rescan — no fixed 1-second poll — and one for the events feed:
+
+| What | Window visible | Hidden, or never shown (login launch) |
+|---|---|---|
+| Health probe, local service | 5 s | 30 s |
+| Health probe and events feed, online service | 60 s | 60 s |
+| Events feed, local service | 15 s | 30 s |
+| `launchctl print` per launchd service | with every probe | only after a missed probe, a changed pid, or 5 min |
+| `launchctl print-disabled` | at most once a minute, and only when a `print` runs | same |
+| Directory rescan (reads small JSON files, no spawn) | on `fs.watch`, plus every 5 s | on `fs.watch`, plus every 60 s (30 s if the watcher failed) |
+| Status push to the window / tray rebuild / Dock badge | only when what a person can see changed | no IPC to a hidden window; tray and badge only when they would differ |
+| Activity writes | appended rows when events arrive; state debounced 2 s | same |
+
+**Idle budget**, hidden, per hour, for *L* local launchd services and *R* online ones — counted on a
+fake clock by `test/lifecycle.test.ts` (*LC-08: … a quiet hour stays inside the idle budget*):
+probes ≤ 120 *L* + 60 *R*; event reads ≤ 120 *L* + 60 *R*; `launchctl print` ≤ 12 *L* plus one per
+missed probe; `print-disabled` ≤ 13; status pushes 0 when nothing changed. CPU and memory targets:
+main process ≤ 0.3 % average CPU over 10 hidden minutes; the app with no dashboard open ≤ 400 MB
+RSS; each MCP server ≤ 60 MB RSS. The CPU and RSS targets are not yet measured on a build that
+carries these changes — measure with `ps -o time,rss` over 10 hidden minutes on the next release
+and record the numbers in `docs/HANDOFF.md`. (Before this change, 0.4.1 measured 1.3 % CPU and about
+7,200 `launchctl` spawns an hour after a login launch: lifecycle audit 2026-10-03, F-2/F-4.)
+
+**Files it writes** (LC-12): `~/Library/Application Support/Fabric Dashboards/` — `settings.json`,
+`activity.jsonl` (appended, compacted to 5,000 rows at 10,000), `activity-state.json`,
+`notified.json`, the Chromium profile and one `Partitions/svc-<key>` per service ever opened;
+`~/Library/Logs/Fabric Dashboards/main.log` (0600, 5 × 5 MB). At start it removes temporary files
+left by a killed writer and the partitions of services that are no longer installed; a service
+removed while it runs takes its view and its stored session with it.
+
+**Uninstall** (LC-14): Settings → Uninstall removes the login item, the `fabric-dashboards` MCP
+entry from `~/.claude.json` (user and project scopes; a same-named server that runs something else
+is kept), the app's data (`productDataPaths` in `src/core/uninstall.ts`) once the app has exited,
+and moves the app to the Trash. Without the app: `fabric-dashboards-mcp --unregister` removes the
+MCP entry alone.
+
+**Fuses** (LC-13, `scripts/fuses.mjs`): `npm run dist` sets them before signing and reads them back
+from the finished binary; the release fails on a wrong one. Shipped: `EnableNodeOptionsEnvironmentVariable`
+off, `EnableNodeCliInspectArguments` off, `EnableEmbeddedAsarIntegrityValidation` on,
+`OnlyLoadAppFromAsar` on. Two declared exceptions:
+
+- `RunAsNode` stays **on**: the MCP server runs inside this binary as Node, which is what keeps it
+  at ~15 MB with no browser engine, no GUI lock and no profile access.
+- `EnableCookieEncryption` stays **off**: turning it on creates a «Fabric Dashboards Safe Storage»
+  Keychain item, and an upgrade with zero SecurityAgent prompts can only be shown on a signed
+  build. Service session cookies stay plaintext in 0600 files, the same trust level as the service
+  token files they are minted from (audit F-8).
+
+## Build output and retention
+
+LC-15. A build leaves at most the current and the previous release:
+
+| Output | Made by | Kept | Cap |
+|---|---|---|---|
+| `release/Fabric-Dashboards-<v>.dmg`, `…-mac.zip` | `npm run dist` | current + previous version; `dist-mac.mjs` prunes older ones itself (`pruneReleases`) | 2 releases |
+| `release/*.receipt.json`, `release/update-feed.json` | `npm run dist` | kept (small JSON) | — |
+| `$TMPDIR/fd-dist-*` (stage, unpacked `*-darwin-universal` bundle) | `npm run dist` | removed by the script, the bundle unregistered from LaunchServices first | 0 |
+| `out/`, `packages/service-host/dist/` | `npm run build`, `npm test` | regenerated | 50 MB |
+| `node_modules/.cache`, `test-results/`, `test/.debug/` | vite, Playwright e2e | regenerated | 200 MB |
+
+`npm run clean` brings a checkout back under the caps (`scripts/clean.mjs`: removes `out/`,
+`test-results/`, `test/.debug/`, `node_modules/.cache` and prunes `release/`). An agent that built
+runs it before ending its run.
+
 ## Organisation
 
 This repository is one of the `passioncode-ai` repositories. **The org map and onboarding live in [passioncode-ai/org-index](https://github.com/passioncode-ai/org-index)**

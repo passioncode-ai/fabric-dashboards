@@ -8,6 +8,7 @@ export function Settings({ status, onTheme }: { status: AppStatus; onTheme: (the
   const [error, setError] = useState('');
   const [allowed, setAllowed] = useState(true);
   const [listeners, setListeners] = useState<{ listeners: Listener[]; error?: string } | null>(null);
+  const [uninstallError, setUninstallError] = useState('');
 
   useEffect(() => {
     void api().settings().then(setValue);
@@ -97,6 +98,13 @@ export function Settings({ status, onTheme }: { status: AppStatus; onTheme: (the
         <h2 id="g-folder">{t('settings.folder')}</h2>
         <p className="mono">{status.servicesDir}</p>
         <div><button className="btn" onClick={() => void api().showPath(status.servicesDir)}>{t('overview.empty.show')}</button></div>
+      </section>
+
+      <section className="group" aria-labelledby="g-uninstall">
+        <h2 id="g-uninstall">{t('settings.uninstall')}</h2>
+        <p className="meta">{t('settings.uninstall.body')}</p>
+        {uninstallError && <p className="notice error" role="alert">{uninstallError}</p>}
+        <div><button className="btn btn-danger" onClick={() => void api().uninstall().then((r) => setUninstallError(r.ok || r.cancelled ? '' : r.error ?? ''))}>{t('settings.uninstall.action')}</button></div>
       </section>
 
       <section className="group" aria-labelledby="g-listeners">

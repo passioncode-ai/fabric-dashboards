@@ -61,8 +61,14 @@ prints `accepted`, `source=Notarized Developer ID`). macOS 13 or later.
 
 Open it from Applications. It lives in the menu bar and opens its window; with no service
 installed the overview says *No services yet* and **Show folder** opens the services folder. A
-service appears within five seconds of its installer writing a descriptor there. It opens at
-login from then on (Settings) and updates itself from GitHub releases.
+service appears within five seconds of its installer writing a descriptor there. The first
+window asks once whether to open it at login (off until you choose; Settings changes it later),
+and it updates itself from GitHub releases.
+
+To remove it: **Settings → Uninstall Fabric Dashboards…** removes the login item, its entry in
+Claude Code's MCP servers and its data, and moves the app to the Trash; your services and their
+data stay. `fabric-dashboards-mcp --unregister` removes only the MCP entry; once the app is
+already in the Trash, `claude mcp remove --scope user fabric-dashboards` does the same.
 
 ### Configure
 
@@ -100,7 +106,9 @@ printf '%s\n' \
 ```
 
 Two JSON lines come back — `serverInfo` with the app's version, then `services` and
-`services_dir` — and `exit 0`. Release 0.2.0 hands out links as `open?service=…`; later releases
+`services_dir` — and `exit 0`. The server exits by itself when stdin closes, and after an app
+update an old server answers its next call `stale` and exits: restart the agent session to load
+the new version (`AGENTS.md` → *Lifecycle*). Release 0.2.0 hands out links as `open?service=…`; later releases
 as `service/…` (below). Both open.
 
 ### Develop

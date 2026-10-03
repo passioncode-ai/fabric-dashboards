@@ -1,44 +1,109 @@
 // The merged activity feed: every service's events plus the app's own, kept
 // in the app's data directory so a restart neither loses nor repeats them.
+// #region activity-store — docs: AGENTS.md#lifecycle
+// Bounded and quiet on disk (lifecycle LC-08, LC-12): new rows are appended, never a rewrite of the
+// whole feed; the file is compacted to the newest KEEP rows once it holds twice that; the small
+// state (cursors, last seen, the app's id counter) is written on a debounce and on flush(). A crash
+// between an append and the state write is safe: the next poll re-reads the page from the older
+// cursor and the ids already on disk drop the repeats; the id counter resumes past every app id on
+// disk.
 import fs from 'node:fs';
 import path from 'node:path';
 import { atomicWrite, readJson } from './fsutil';
 import type { ActivityItem, ServiceEvent } from './types';
 
 const KEEP = 5000;
+const STATE_DELAY_MS = 2000;
+
+export interface ActivityOptions { keep?: number; stateDelayMs?: number }
 
 export class ActivityStore {
   private items: ActivityItem[] = [];
   private cursors: Record<string, string | null> = {};
   private lastSeen = '';
   private appCounter = 0;
+  private fileRows = 0; // rows in activity.jsonl, compacted or appended
+  private stateTimer: NodeJS.Timeout | null = null;
+  private rev = 0;
   private readonly file: string;
   private readonly stateFile: string;
+  private readonly keep: number;
+  private readonly stateDelayMs: number;
 
-  constructor(dir: string) {
+  constructor(dir: string, options: ActivityOptions = {}) {
+    this.keep = options.keep ?? KEEP;
+    this.stateDelayMs = options.stateDelayMs ?? STATE_DELAY_MS;
     this.file = path.join(dir, 'activity.jsonl');
     this.stateFile = path.join(dir, 'activity-state.json');
     const state = readJson<{ cursors?: Record<string, string | null>; lastSeen?: string; appCounter?: number }>(this.stateFile, {});
     this.cursors = state.cursors ?? {};
     this.lastSeen = state.lastSeen ?? '';
     this.appCounter = state.appCounter ?? 0;
-    try {
-      for (const line of fs.readFileSync(this.file, 'utf8').split('\n')) {
-        if (!line.trim()) continue;
-        try { this.items.push(JSON.parse(line) as ActivityItem); } catch { /* a torn last line is skipped */ }
-      }
-    } catch { /* first run */ }
+    let text = '';
+    try { text = fs.readFileSync(this.file, 'utf8'); } catch { /* first run */ }
+    let torn = false;
+    for (const line of text.split('\n')) {
+      if (!line.trim()) continue;
+      try { this.items.push(JSON.parse(line) as ActivityItem); } catch { torn = true; /* a torn line is skipped */ }
+    }
+    this.fileRows = this.items.length;
+    for (const i of this.items) {
+      const n = i.source === 'app' ? /^app-(\d+)$/.exec(i.id) : null;
+      if (n) this.appCounter = Math.max(this.appCounter, Number(n[1]));
+    }
+    const before = this.items.length;
     this.sort();
+    // A torn line, or a file past its bound, is rewritten once now, so appends land on a clean end.
+    if (torn || (text.length > 0 && !text.endsWith('\n')) || before > this.keep * 2) this.compact();
   }
 
   private sort(): void {
     this.items.sort((a, b) => (a.at === b.at ? (a.id < b.id ? -1 : 1) : a.at < b.at ? -1 : 1));
-    if (this.items.length > KEEP) this.items = this.items.slice(-KEEP);
+    if (this.items.length > this.keep) this.items = this.items.slice(-this.keep);
   }
 
-  private persist(): void {
-    atomicWrite(this.file, this.items.map((i) => JSON.stringify(i)).join('\n') + '\n');
-    atomicWrite(this.stateFile, JSON.stringify({ cursors: this.cursors, lastSeen: this.lastSeen, appCounter: this.appCounter }));
+  private compact(): void {
+    atomicWrite(this.file, this.items.length ? this.items.map((i) => JSON.stringify(i)).join('\n') + '\n' : '');
+    this.fileRows = this.items.length;
+  }
+
+  /** Append rows; past 2 × keep rows the file is compacted instead. */
+  private append(rows: ActivityItem[]): void {
+    if (!rows.length) return;
+    if (this.fileRows + rows.length > this.keep * 2) return this.compact();
+    fs.mkdirSync(path.dirname(this.file), { recursive: true, mode: 0o700 });
+    const fd = fs.openSync(this.file, 'a', 0o600);
+    try {
+      fs.writeSync(fd, rows.map((i) => JSON.stringify(i)).join('\n') + '\n');
+    } finally {
+      fs.closeSync(fd);
+    }
+    this.fileRows += rows.length;
+  }
+
+  private touched(): void {
+    this.rev += 1;
+    if (this.stateTimer) return;
+    this.stateTimer = setTimeout(() => { this.stateTimer = null; this.writeState(); }, this.stateDelayMs);
+    this.stateTimer.unref?.();
+  }
+
+  private writeState(): void {
+    try {
+      atomicWrite(this.stateFile, JSON.stringify({ cursors: this.cursors, lastSeen: this.lastSeen, appCounter: this.appCounter }));
+    } catch { /* a full disk loses a cursor, which only re-reads a page; never the app */ }
+  }
+
+  /** Write pending state now — on quit, and before another reader opens the same directory. */
+  flush(): void {
+    if (this.stateTimer) clearTimeout(this.stateTimer);
+    this.stateTimer = null;
+    this.writeState();
+  }
+
+  /** Grows on every change a person could see (rows, unread). */
+  get revision(): number {
+    return this.rev;
   }
 
   cursor(serviceKey: string): string | null {
@@ -49,11 +114,12 @@ export class ActivityStore {
   addServiceEvents(serviceKey: string, serviceName: string, events: ServiceEvent[], cursor: string | null): ActivityItem[] {
     const known = new Set(this.items.filter((i) => i.serviceKey === serviceKey && i.source === 'service').map((i) => i.id));
     const fresh = events.filter((e) => !known.has(e.id)).map((e) => ({ ...e, serviceKey, serviceName, source: 'service' as const }));
-    if (!fresh.length && this.cursors[serviceKey] === cursor) return fresh; // nothing new: no rewrite of the whole feed
+    if (!fresh.length && this.cursors[serviceKey] === cursor) return fresh; // nothing new: nothing written
     this.items.push(...fresh);
     this.cursors[serviceKey] = cursor;
     this.sort();
-    this.persist();
+    this.append(fresh);
+    this.touched();
     return fresh;
   }
 
@@ -63,7 +129,8 @@ export class ActivityStore {
     const item: ActivityItem = { id: `app-${this.appCounter}`, at: new Date().toISOString(), kind, level, text, serviceKey, serviceName, source: 'app' };
     this.items.push(item);
     this.sort();
-    this.persist();
+    this.append([item]);
+    this.touched();
     return item;
   }
 
@@ -87,6 +154,7 @@ export class ActivityStore {
 
   markSeen(): void {
     this.lastSeen = new Date().toISOString();
-    this.persist();
+    this.touched();
   }
 }
+// #endregion activity-store

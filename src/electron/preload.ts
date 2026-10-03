@@ -32,6 +32,7 @@ const api: FabricApi = {
   notificationsAllowed: () => ipcRenderer.invoke(CHANNELS.notificationsAllowed),
   openNotificationSettings: () => ipcRenderer.invoke(CHANNELS.notificationSettings),
   locale: () => ipcRenderer.invoke(CHANNELS.locale),
+  uninstall: () => ipcRenderer.invoke(CHANNELS.uninstall),
 };
 
 contextBridge.exposeInMainWorld('fabric', api);

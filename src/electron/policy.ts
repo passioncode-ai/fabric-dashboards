@@ -38,13 +38,13 @@ export function clampRect(rect: { x: number; y: number; width: number; height: n
  *  by who asked: a host (`owner`, one per mounted dashboard host) may hide only its own request,
  *  and a show that a newer show or a hide overtook while it loaded never attaches. */
 export class ViewSlot {
-  private owner: string | null = null;
+  private holder: string | null = null;
   private key: string | null = null;
   private seq = 0;
 
   /** A host asks to show a service; returns the ticket its show attaches with. */
   request(owner: string, key: string): number {
-    this.owner = owner;
+    this.holder = owner;
     this.key = key;
     this.seq += 1;
     return this.seq;
@@ -52,13 +52,13 @@ export class ViewSlot {
 
   /** May the show holding this ticket attach its view now? */
   current(ticket: number): boolean {
-    return ticket === this.seq && this.owner !== null;
+    return ticket === this.seq && this.holder !== null;
   }
 
   /** A hide. With an owner, only that host's own request is withdrawn; without, any. True: hide now. */
   release(owner?: string): boolean {
-    if (this.owner === null || (owner !== undefined && owner !== this.owner)) return false;
-    this.owner = null;
+    if (this.holder === null || (owner !== undefined && owner !== this.holder)) return false;
+    this.holder = null;
     this.key = null;
     this.seq += 1;
     return true;
@@ -68,5 +68,57 @@ export class ViewSlot {
   wanted(): string | null {
     return this.key;
   }
+
+  /** The host holding the slot, or null. */
+  owner(): string | null {
+    return this.holder;
+  }
 }
 // #endregion view-slot
+
+// #region view-release — docs: AGENTS.md#lifecycle
+/** Embedded dashboards are the heaviest thing the app holds (one renderer, ~45 MB footprint, per
+ *  service ever opened). A window hidden longer than the grace period gives them back (LC-08);
+ *  showing it again inside the grace cancels the release. Electron-free, so it is tested. */
+export const VIEW_RELEASE_GRACE_MS = 5 * 60_000;
+
+export class HiddenGrace {
+  private timer: NodeJS.Timeout | null = null;
+
+  constructor(private readonly graceMs: number, private readonly release: () => void) {}
+
+  hidden(): void {
+    if (this.timer) return; // minimize, then hide: one countdown
+    this.timer = setTimeout(() => { this.timer = null; this.release(); }, this.graceMs);
+    this.timer.unref?.();
+  }
+
+  shown(): void {
+    if (this.timer) clearTimeout(this.timer);
+    this.timer = null;
+  }
+
+  dispose(): void {
+    this.shown();
+  }
+}
+
+/** The page a released view was on, as a path on its origin; anything else resumes at the dashboard. */
+export function resumePath(currentUrl: string, serviceOrigin: string): string | undefined {
+  let url: URL;
+  try {
+    url = new URL(currentUrl);
+  } catch {
+    return undefined;
+  }
+  if (url.origin !== new URL(serviceOrigin).origin) return undefined;
+  return `${url.pathname}${url.search}${url.hash}`;
+}
+
+/** Partition directories (Partitions/<name>) that belong to no installed service (LC-12): a service
+ *  uninstalled while the app was not running leaves its cookies and caches behind otherwise. */
+export function stalePartitions(names: string[], keys: string[]): string[] {
+  const live = new Set(keys.map((k) => partitionFor(k).slice('persist:'.length)));
+  return names.filter((n) => /^svc-[a-z0-9.-]+$/.test(n) && !live.has(n));
+}
+// #endregion view-release

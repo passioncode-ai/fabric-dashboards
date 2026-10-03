@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { langFor, type Lang } from '../core/i18n';
 import type { AppStatus } from '../core/types';
 import { Activity } from './components/Activity';
-import { Overview } from './components/Overview';
+import { LoginQuestion, Overview } from './components/Overview';
 import { ServiceView } from './components/ServiceView';
 import { Settings } from './components/Settings';
 import mark from './brand/dashboards-mark.svg';
@@ -105,6 +105,7 @@ function Shell({ status, route, setRoute, stopKey, setStopKey }: ShellProps) {
                 <h1>{t(route.page === 'activity' ? 'activity.title' : route.page === 'settings' ? 'settings.title' : 'overview.title')}</h1>
                 {route.page === 'overview' && count > 0 && <span className="meta">{count === 1 ? t('overview.count.one') : t('overview.count', { count })}</span>}
               </div>
+              {route.page === 'overview' && <LoginQuestion />}
               {route.page === 'overview' && <Overview status={status} open={open} act={act} />}
               {route.page === 'activity' && <Activity status={status} openAt={open} />}
               {route.page === 'settings' && <Settings status={status} onTheme={applyTheme} />}

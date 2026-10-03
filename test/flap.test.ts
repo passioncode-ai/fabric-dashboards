@@ -126,6 +126,7 @@ test('a sustained outage notifies once, and its end once', async () => {
 test('a job the operator turned off is Off on the first miss; a stale answer never hides it', async () => {
   const job = { loaded: true, disabled: false };
   const r = rig(job);
+  r.monitor.setVisible(true); // the window is open: a probe every 5 s
   await r.probeAt(0, ANSWER);
   job.loaded = false;
   job.disabled = true;
@@ -135,6 +136,7 @@ test('a job the operator turned off is Off on the first miss; a stale answer nev
 test('a service launchd restarted under a new pid is not shown with the old answer', async () => {
   const job = { loaded: true, pid: READY.process.pid };
   const r = rig(job);
+  r.monitor.setVisible(true); // the window is open: a probe every 5 s
   assert.equal((await r.probeAt(0, ANSWER)).state, 'ready');
   // launchd now runs another process and it does not answer yet. Replaying the last answer would
   // name the old pid and read as two copies; the miss shows as waiting instead.

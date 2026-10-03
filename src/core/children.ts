@@ -1,0 +1,86 @@
+// Child processes the app or the MCP server starts on a person's or an agent's behalf — a
+// descriptor's `doctor` or `update` argv. Every one has an owner (this registry), a deadline and
+// its own process group, so a timeout or our own exit ends the command AND whatever it started
+// (lifecycle LC-02; LC-10 for the per-session MCP server). launchctl calls are not here: they are
+// short, bounded by their own runner and start nothing that outlives them.
+// #region owned-children — docs: AGENTS.md#lifecycle
+import { spawn, type ChildProcess } from 'node:child_process';
+
+/** Variables a descriptor's command must never inherit. The packaged MCP server runs Electron as
+ *  Node (`ELECTRON_RUN_AS_NODE=1`): passed on, any Electron or `open`-based step inside the command
+ *  would start in Node mode and silently do nothing. `NODE_OPTIONS` would inject flags into every
+ *  Node program the command runs. */
+export const STRIPPED_ENV = ['ELECTRON_RUN_AS_NODE', 'NODE_OPTIONS'] as const;
+
+export function commandEnv(env: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
+  const out: NodeJS.ProcessEnv = { ...env };
+  for (const name of STRIPPED_ENV) delete out[name];
+  return out;
+}
+
+export interface OwnedResult { code: number | null; output: string; timedOut: boolean }
+export interface OwnedOptions { timeoutMs: number; killGraceMs?: number; maxBuffer?: number; env?: NodeJS.ProcessEnv }
+
+const owned = new Set<ChildProcess>();
+const KILL_GRACE_MS = 2_000;
+
+/** SIGTERM to the whole group, SIGKILL after `graceMs` if anything in it is still there. */
+function killGroup(child: ChildProcess, graceMs: number): Promise<void> {
+  const pid = child.pid;
+  if (!pid) return Promise.resolve();
+  const signal = (s: NodeJS.Signals) => { try { process.kill(-pid, s); } catch { /* the group is already gone */ } };
+  const groupAlive = () => { try { process.kill(-pid, 0); return true; } catch { return false; } };
+  signal('SIGTERM');
+  return new Promise((resolve) => {
+    const started = Date.now();
+    const poll = () => {
+      if (!groupAlive()) return resolve();
+      if (Date.now() - started >= graceMs) { signal('SIGKILL'); return resolve(); }
+      setTimeout(poll, 25).unref();
+    };
+    poll();
+  });
+}
+
+/** Run `command args` in its own process group, with the descriptor-safe environment. */
+export function runOwned(command: string, args: string[], o: OwnedOptions): Promise<OwnedResult> {
+  const maxBuffer = o.maxBuffer ?? 8 * 1024 * 1024;
+  return new Promise((resolve) => {
+    let child: ChildProcess;
+    try {
+      child = spawn(command, args, { detached: true, stdio: ['ignore', 'pipe', 'pipe'], env: o.env ?? commandEnv() });
+    } catch (error) {
+      resolve({ code: null, output: (error as Error).message, timedOut: false });
+      return;
+    }
+    owned.add(child);
+    let stdout = '';
+    let stderr = '';
+    const take = (which: 'out' | 'err') => (chunk: Buffer) => {
+      if (stdout.length + stderr.length > maxBuffer) return;
+      if (which === 'out') stdout += String(chunk); else stderr += String(chunk);
+    };
+    child.stdout?.on('data', take('out'));
+    child.stderr?.on('data', take('err'));
+    let timedOut = false;
+    const timer = setTimeout(() => { timedOut = true; void killGroup(child, o.killGraceMs ?? KILL_GRACE_MS); }, o.timeoutMs);
+    timer.unref();
+    const finish = (code: number | null, extra = '') => {
+      clearTimeout(timer);
+      owned.delete(child);
+      resolve({ code, output: `${stdout}${stderr ? `\n${stderr}` : ''}${extra}`.trim(), timedOut });
+    };
+    child.once('error', (error) => finish(null, `\n${error.message}`));
+    child.once('close', (code) => finish(timedOut ? null : code));
+  });
+}
+
+/** End every owned command and its group — on quit, on stdin EOF, on SIGTERM. */
+export async function killOwned(graceMs = 300): Promise<void> {
+  await Promise.all([...owned].map((child) => killGroup(child, graceMs)));
+}
+
+export function ownedCount(): number {
+  return owned.size;
+}
+// #endregion owned-children

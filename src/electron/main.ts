@@ -1,20 +1,25 @@
 // Fabric Dashboards main process. Built like Fabric Inbox's shell: one main
 // process, sandboxed renderers, context isolation, a single instance. It owns
 // no service process — launchd does (ADR-0002) — so quitting stops nothing.
-import { app, BrowserWindow, dialog, ipcMain, Menu, Notification, shell, systemPreferences } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, Menu, Notification, session, shell } from 'electron';
 import fs from 'node:fs';
 import path from 'node:path';
 import { ActivityStore } from '../core/activity';
 import { CHANNELS, type Rect } from '../core/api';
+import { killOwned } from '../core/children';
+import { appendLog, sweepTemps } from '../core/fsutil';
 import { parseDeepLink, SCHEME } from '../core/deeplink';
 import { servicesDir } from '@passioncode-ai/fabric-service-host';
 import { langFor, t, type Lang } from '../core/i18n';
 import { execRunner } from '../core/launchd';
 import { listListeners, unattributed } from '../core/listeners';
+import { applyLoginItem, loginItemAtStartup, type LoginItemOs } from '../core/loginitem';
 import { Monitor, type Notice } from '../core/monitor';
 import { NotifyLedger } from '../core/notify';
 import { SettingsStore } from '../core/settings';
 import type { AppStatus, Settings } from '../core/types';
+import { productDataPaths, purgeAfterExit, removeMcpRegistrations } from '../core/uninstall';
+import { HiddenGrace, partitionFor, stalePartitions, VIEW_RELEASE_GRACE_MS } from './policy';
 import { AppTray } from './tray';
 import { Updater } from './updater';
 import { ServiceViews } from './views';
@@ -40,12 +45,9 @@ if (!app.isPackaged && process.env.FD_TEST_REMOTE) {
 const assets = app.isPackaged ? path.join(process.resourcesPath, 'assets') : path.join(__dirname, '../../../build/assets');
 const rendererIndex = path.join(__dirname, '../../renderer/index.html');
 
+/** ~/Library/Logs/Fabric Dashboards/main.log: timestamped, 0600, 5 × 5 MB at most (LC-12). */
 function log(message: string): void {
-  try {
-    const dir = path.join(app.getPath('logs'));
-    fs.mkdirSync(dir, { recursive: true });
-    fs.appendFileSync(path.join(dir, 'main.log'), `${new Date().toISOString()} ${message}\n`);
-  } catch { /* logging must never take the app down */ }
+  appendLog(path.join(app.getPath('logs'), 'main.log'), `${new Date().toISOString()} ${message}`);
 }
 
 // Deep links (docs/adr/0004-deep-links-and-mcp.md). macOS delivers `open-url` as early as
@@ -67,6 +69,8 @@ if (!app.requestSingleInstanceLock()) {
   let views: ServiceViews | null = null;
   let quitting = false;
   const userData = app.getPath('userData');
+  // A writer killed between write and rename leaves its temporary file; nothing else removes it (LC-12).
+  for (const name of sweepTemps(userData)) log(`removed a temporary file left by a stopped process: ${name}`);
   const settings = new SettingsStore(userData);
   const activity = new ActivityStore(userData);
   const lang = (): Lang => langFor(app.getPreferredSystemLanguages()[0] ?? app.getLocale());
@@ -78,17 +82,43 @@ if (!app.requestSingleInstanceLock()) {
     services: monitor.snapshots(), ...monitor.meta(), unread: activity.unread(), update: updater.state, version: app.getVersion(),
   });
 
+  // #region quiet-push — docs: AGENTS.md#lifecycle
+  // The monitor emits only real changes; here a hidden window gets no IPC (it is sent the current
+  // status the moment it shows), the tray rebuilds only when its menu would differ, and the Dock
+  // badge is set only when it changes (LC-08).
   let pushTimer: NodeJS.Timeout | null = null;
+  let badge: string | null = null;
+  const windowVisible = () => Boolean(window && !window.isDestroyed() && window.isVisible() && !window.isMinimized());
   function pushStatus(): void {
     if (pushTimer) return;
     pushTimer = setTimeout(() => {
       pushTimer = null;
       const s = status();
-      window?.webContents.send(CHANNELS.statusPush, s);
+      if (windowVisible()) window!.webContents.send(CHANNELS.statusPush, s);
       tray?.update(s.services);
-      app.dock?.setBadge(s.services.filter((x) => ['down', 'duplicate', 'foreign', 'conflict', 'invalid'].includes(x.state)).length ? '!' : '');
+      const next = s.services.filter((x) => ['down', 'duplicate', 'foreign', 'conflict', 'invalid'].includes(x.state)).length ? '!' : '';
+      if (next !== badge) { badge = next; app.dock?.setBadge(next); }
     }, 30);
   }
+
+  // Embedded dashboards are released once the window has been hidden for the grace period.
+  const viewGrace = new HiddenGrace(VIEW_RELEASE_GRACE_MS, () => {
+    const count = views?.keys().length ?? 0;
+    if (!count) return;
+    views?.releaseAll();
+    log(`released ${count} dashboard view(s) after ${VIEW_RELEASE_GRACE_MS / 60_000} min hidden`);
+  });
+  function windowShown(): void {
+    viewGrace.shown();
+    monitor.setVisible(true);
+    pushStatus();
+    void views?.resume((key) => monitor.snapshot(key));
+  }
+  function windowHidden(): void {
+    monitor.setVisible(false);
+    viewGrace.hidden();
+  }
+  // #endregion quiet-push
 
   function showWindow(): BrowserWindow {
     if (window && !window.isDestroyed()) {
@@ -110,10 +140,10 @@ if (!app.requestSingleInstanceLock()) {
     w.webContents.session.setPermissionRequestHandler((_wc, _p, callback) => callback(false));
     views = new ServiceViews(w, lang, (event) => w.webContents.send(CHANNELS.viewEvent, event));
     w.once('ready-to-show', () => w.show());
-    w.on('show', () => monitor.setVisible(true));
-    w.on('hide', () => monitor.setVisible(false));
-    w.on('minimize', () => monitor.setVisible(false));
-    w.on('restore', () => monitor.setVisible(true));
+    w.on('show', windowShown);
+    w.on('hide', windowHidden);
+    w.on('minimize', windowHidden);
+    w.on('restore', windowShown);
     w.on('close', (event) => {
       if (quitting) return;
       event.preventDefault(); // the window hides; the app keeps watching from the menu bar
@@ -142,25 +172,49 @@ if (!app.requestSingleInstanceLock()) {
     n.show();
   }
 
-  function applyLoginItem(value: Settings): string | undefined {
-    if (!app.isPackaged) return undefined; // a dev run must not register the Electron binary at login
-    try {
-      app.setLoginItemSettings({ openAtLogin: value.launchAtLogin });
-      const now = app.getLoginItemSettings();
-      if (value.launchAtLogin && now.status === 'requires-approval') return 'approve Fabric Dashboards in System Settings → General → Login Items';
-      if (value.launchAtLogin && !now.openAtLogin && now.status !== 'enabled') return now.status;
-    } catch (error) {
-      return (error as Error).message;
-    }
-    return undefined;
-  }
+  // A development run must never register the Electron binary at login: no OS port at all.
+  const loginOs: LoginItemOs | null = app.isPackaged
+    ? { get: () => app.getLoginItemSettings(), set: (openAtLogin) => app.setLoginItemSettings({ openAtLogin }) }
+    : null;
 
-  function quitNote(): void {
-    const flag = path.join(userData, 'quit-note-shown');
-    if (fs.existsSync(flag)) return;
-    fs.writeFileSync(flag, new Date().toISOString());
-    dialog.showMessageBoxSync({ type: 'info', message: t(lang(), 'quit.note'), buttons: ['OK'] });
+  // #region uninstall-flow — docs: docs/ux/scenarios.md#scn-024-settings-launch-at-login-notifications-quiet-hours
+  /** LC-14: undo what installing and running added. Registrations go first and stop the flow on
+   *  failure, so a half-uninstalled app never deletes its data and leaves an entry behind. */
+  async function uninstall(): Promise<{ ok: boolean; cancelled?: boolean; error?: string }> {
+    const l = lang();
+    const parent = window && !window.isDestroyed() ? window : undefined;
+    const ask = { type: 'warning' as const, buttons: [t(l, 'uninstall.confirm'), t(l, 'action.cancel')], defaultId: 1, cancelId: 1, message: t(l, 'uninstall.title'), detail: t(l, 'settings.uninstall.body') };
+    const { response } = parent ? await dialog.showMessageBox(parent, ask) : await dialog.showMessageBox(ask);
+    if (response !== 0) return { ok: false, cancelled: true };
+    try {
+      if (loginOs) {
+        const refused = applyLoginItem(false, loginOs);
+        if (refused) throw new Error(refused);
+      }
+      // A development build leaves the installed app's registration alone.
+      if (app.isPackaged) log(`uninstall: MCP registration removed from ${JSON.stringify(removeMcpRegistrations().removed)}`);
+    } catch (error) {
+      log(`uninstall stopped: ${(error as Error).message}`);
+      return { ok: false, error: t(l, 'uninstall.failed', { error: (error as Error).message }) };
+    }
+    // Data goes after this process exits — Chromium writes into userData until then (purgeAfterExit).
+    // A development run shares the installed app's profile name, so it purges nothing.
+    const targets = app.isPackaged ? [...new Set([...productDataPaths(app.getPath('home')), userData, app.getPath('logs')])] : [];
+    purgeAfterExit(process.pid, targets);
+    if (app.isPackaged) {
+      const bundle = path.resolve(process.execPath, '../../..');
+      try {
+        await shell.trashItem(bundle);
+      } catch (error) {
+        await dialog.showMessageBox({ type: 'info', message: t(l, 'uninstall.trashFailed', { error: (error as Error).message }), buttons: ['OK'] });
+      }
+    }
+    log('uninstall: login item and registration removed; data is removed after exit');
+    quitting = true;
+    setImmediate(() => app.quit());
+    return { ok: true };
   }
+  // #endregion uninstall-flow
 
   function registerIpc(): void {
     const snap = (key: string) => monitor.snapshot(key);
@@ -185,8 +239,10 @@ if (!app.requestSingleInstanceLock()) {
     ipcMain.handle(CHANNELS.activitySeen, () => { activity.markSeen(); pushStatus(); });
     ipcMain.handle(CHANNELS.settings, () => settings.get());
     ipcMain.handle(CHANNELS.settingsUpdate, (_e, patch: Partial<Settings>) => {
-      const next = settings.update(patch);
-      const error = 'launchAtLogin' in patch ? applyLoginItem(next) : undefined;
+      // Choosing launch at login — on the first-run card or in Settings — is the one moment it is registered (LC-07).
+      const choosing = 'launchAtLogin' in patch;
+      const next = settings.update(choosing ? { ...patch, launchAtLoginAsked: true } : patch);
+      const error = choosing && loginOs ? applyLoginItem(next.launchAtLogin, loginOs) : undefined;
       if (error) {
         const reverted = settings.update({ launchAtLogin: false });
         return { settings: reverted, error };
@@ -224,6 +280,7 @@ if (!app.requestSingleInstanceLock()) {
     ipcMain.handle(CHANNELS.notificationsAllowed, () => Notification.isSupported());
     ipcMain.handle(CHANNELS.notificationSettings, () => shell.openExternal('x-apple.systempreferences:com.apple.Notifications-Settings.extension'));
     ipcMain.handle(CHANNELS.locale, () => lang());
+    ipcMain.handle(CHANNELS.uninstall, () => uninstall());
     ipcMain.on(CHANNELS.viewBounds, (_e, rect: Rect) => views?.setBounds(rect));
   }
 
@@ -250,21 +307,47 @@ if (!app.requestSingleInstanceLock()) {
   });
   app.on('activate', () => showWindow());
   app.on('before-quit', () => { quitting = true; });
-  app.on('will-quit', () => monitor.stop());
+  app.on('will-quit', () => {
+    // Nothing starts after quit begins; pending state reaches disk; commands we started end with us (LC-01, LC-02).
+    monitor.stop();
+    viewGrace.dispose();
+    activity.flush();
+    void killOwned(300);
+  });
 
   void app.whenReady().then(() => {
     registerIpc();
     appMenu();
     tray = new AppTray(assets, {
       open: (key) => (key ? navigate({ page: 'service', key }) : showWindow()),
-      pause: () => { settings.update({ notifications: { ...settings.get().notifications, pausedUntil: new Date(Date.now() + 3600_000).toISOString() } }); pushStatus(); },
+      pause: () => {
+        settings.update({ notifications: { ...settings.get().notifications, pausedUntil: new Date(Date.now() + 3600_000).toISOString() } });
+        pushStatus();
+        setTimeout(pushStatus, 3600_000 + 1000).unref(); // the tray says Resume until the pause ends, then rebuilds once
+      },
       resume: () => { settings.update({ notifications: { ...settings.get().notifications, pausedUntil: null } }); pushStatus(); },
       paused: () => { const p = settings.get().notifications.pausedUntil; return Boolean(p && new Date(p) > new Date()); },
-      quit: () => { quitNote(); quitting = true; app.quit(); },
+      quit: () => { quitting = true; app.quit(); }, // the menu itself says quitting stops no service (LC-07)
     }, lang);
     monitor.on('change', pushStatus);
     monitor.on('notify', notify);
     monitor.on('restarted', (key: string) => views?.serviceRestarted(key));
+    // An uninstalled service takes its view and its stored session with it (LC-12).
+    monitor.on('removed', (key: string) => {
+      views?.drop(key);
+      const ses = session.fromPartition(partitionFor(key));
+      void Promise.all([ses.clearStorageData(), ses.clearCache()]).catch((error) => log(`could not clear the session of ${key}: ${(error as Error).message}`));
+    });
+    // Partitions of services removed while the app was not running: no session holds them yet.
+    monitor.once('change', () => {
+      if (monitor.meta().dirError) return; // an unreadable directory says nothing about what is installed
+      const dir = path.join(userData, 'Partitions');
+      let names: string[] = [];
+      try { names = fs.readdirSync(dir); } catch { return; }
+      for (const name of stalePartitions(names, monitor.snapshots().map((s) => s.key))) {
+        try { fs.rmSync(path.join(dir, name), { recursive: true, force: true }); log(`removed the stored session of a service that is gone: ${name}`); } catch (error) { log(`could not remove ${name}: ${(error as Error).message}`); }
+      }
+    });
     monitor.start();
     updater.start();
     if (app.isPackaged) app.setAsDefaultProtocolClient(SCHEME);
@@ -291,7 +374,9 @@ if (!app.requestSingleInstanceLock()) {
     const flush = () => { for (const raw of pendingLinks.splice(0)) handleLink?.(raw); };
     if (monitor.snapshots().length || !pendingLinks.length) flush();
     else monitor.once('change', flush);
-    applyLoginItem(settings.get());
+    // A launch registers nothing (LC-07): it only adopts a change the person made in System Settings.
+    const adopted = loginItemAtStartup(settings.get(), loginOs);
+    if (adopted) { settings.update(adopted); log(`login item changed in System Settings: launchAtLogin=${adopted.launchAtLogin}`); }
     // Opened at login: stay in the menu bar; the operator opens the window when they want it.
     const hidden = app.getLoginItemSettings().wasOpenedAtLogin || process.argv.includes('--hidden');
     if (!hidden) showWindow();

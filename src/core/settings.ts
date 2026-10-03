@@ -26,6 +26,8 @@ export function merge(raw: Partial<Settings>): Settings {
   const n = raw.notifications ?? DEFAULT_SETTINGS.notifications;
   return {
     launchAtLogin: typeof raw.launchAtLogin === 'boolean' ? raw.launchAtLogin : DEFAULT_SETTINGS.launchAtLogin,
+    // A file written by an earlier version never asked: its `launchAtLogin` was the old default, not a choice.
+    launchAtLoginAsked: raw.launchAtLoginAsked === true,
     theme: raw.theme === 'light' ? 'light' : 'dark',
     notifications: {
       enabled: typeof n.enabled === 'boolean' ? n.enabled : true,

@@ -1,8 +1,38 @@
 # Handoff — Fabric Dashboards
 
-Updated 2026-10-03 (release 0.4.1, MCP links to online services).
+Updated 2026-10-03 (lifecycle contract branch; release 0.4.1, MCP links to online services).
 
 Current release: 0.4.1 (section below). Earlier releases below are preserved as dated evidence.
+
+## Lifecycle contract, 2026-10-03 (branch `claude/lifecycle-contract`, unreleased)
+
+Objective: meet the organization's lifecycle contract (fabric-workspace `knowledge/lifecycle.md`,
+LC-07…LC-15) for the findings of the 2026-10-03 lifecycle audit (fabric-workspace
+`docs/reports/2026-10-03-lifecycle-audit/raw/fabric-dashboards.md`, F-1…F-12). Entry point:
+`AGENTS.md` → *Lifecycle* and *Build output and retention*; the tests are `test/lifecycle.test.ts`,
+one per rule, rule id in the name.
+
+Done: idle cadence and change-only pushes (F-2, F-4), dashboard views released after 5 min hidden
+(F-3), append-only activity store (F-5), launch at login asked once (F-6), no quit modal (F-7, the
+tray line), start-up sweeps and partition removal (F-9), MCP exit on EOF/SIGTERM with group kill,
+stale after update, clean command env (F-1, F-10), uninstall (F-11), fuses set and read back by
+`dist` (F-12), release pruning and `npm run clean` (LC-15), rotated 0600 `main.log`.
+
+Not done, with reasons: F-8 cookie encryption stays off (needs a signed upgrade test showing zero
+Keychain prompts); Dock icon while hidden (F-7 second half) unchanged — a behaviour choice for the
+operator; `NS*UsageDescription` boilerplate in Info.plist not stripped (LC-07 release gate, not in
+this packet). No signed build was made: the fuses with ASAR integrity and `OnlyLoadAppFromAsar` are
+proven only on a synthetic wire; `dist` fails the release if the packaged MCP launcher cannot answer
+`initialize` under them, which is the first real proof.
+
+Checks run: `FD_SKIP_LAUNCHD=1 npm run check` exit 0 (166 tests, 1 skipped = the launchd test, run
+separately without the skip: pass); `npm run build` exit 0. `npm run test:e2e` was not run (the
+worktree has no Electron binary).
+
+Next task: the coordinator builds and signs a release from this branch, then (1) reads
+`checks.fuses` and `checks.mcpLauncher` in the receipt, (2) launches the signed app once with the
+window and once with `--hidden`, (3) measures the idle budget in `AGENTS.md` (`ps -o time,rss`
+over 10 hidden minutes) and records the numbers here.
 
 ## Release 0.4.1, 2026-10-03 (PR #19, `75eba78`)
 

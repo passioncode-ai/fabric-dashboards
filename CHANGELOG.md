@@ -1,5 +1,44 @@
 # Changelog
 
+## Unreleased
+
+The organization's [lifecycle contract](https://github.com/passioncode-ai/fabric-workspace/blob/main/knowledge/lifecycle.md)
+(LC-07…LC-15), from the 2026-10-03 lifecycle audit. `AGENTS.md` → *Lifecycle* is the inventory and
+idle budget; `test/lifecycle.test.ts` holds each rule.
+
+- **Idle means idle (LC-08).** The monitor starts hidden — a launch at login shows no window, so it
+  now runs at the background cadence instead of the 5-second one forever — and wakes only when a
+  probe or a rescan is due instead of every second. Status reaches the window, the tray and the
+  Dock only when something a person can see changed; a hidden window gets no IPC. Hidden, the
+  events feed is read every 30 s, an online service at most once a minute, and `launchctl print`
+  runs only after a missed probe, a changed pid or every 5 minutes. Embedded dashboards are released
+  5 minutes after the window hides and come back on their page when it shows.
+- **Bounded files (LC-12).** The activity feed is appended, compacted at twice its 5,000-row cap,
+  and its state written on a 2-second debounce, not rewritten and fsynced on every event.
+  Start-up removes temporary files left by a killed writer and the stored sessions of services that
+  are no longer installed; a service removed while the app runs takes its view and session with it.
+  `main.log` is 0600 and rotates at 5 × 5 MB.
+- **The MCP server leaves with its session and its code (LC-10).** It exits within a second of
+  stdin closing or `SIGTERM`, ending every command it started with its whole process group. After an
+  app update it answers the next call `stale` with both versions and exits, instead of serving the
+  old code until the session restarts. A descriptor's `doctor`/`update` no longer inherits
+  `ELECTRON_RUN_AS_NODE` or `NODE_OPTIONS`, and runs in its own process group with a deadline, in the
+  app as well.
+- **Asked once (LC-07).** Launch at login is off until the person answers a one-time question on
+  Overview or sets it in Settings; a launch or an update never registers it, and a login item turned
+  off in System Settings stays off. Tray Quit no longer opens a dialog the first time; the menu says
+  that quitting stops no service.
+- **Uninstall (LC-14).** Settings → Uninstall removes the login item, the `fabric-dashboards` entry
+  in Claude Code's `~/.claude.json`, and the app's data once it has exited, then moves the app to
+  the Trash. `fabric-dashboards-mcp --unregister` removes the MCP entry alone.
+- **Hardened fuses (LC-13).** `npm run dist` turns off `NODE_OPTIONS` and the inspector arguments
+  and turns on ASAR integrity validation and `OnlyLoadAppFromAsar`, then reads the fuses back from
+  the built binary and fails on a wrong one. `RunAsNode` stays on (the MCP server runs in this binary)
+  and cookie encryption stays off (no Keychain item without a signed upgrade test); both are
+  declared in `AGENTS.md`.
+- **Builds clean up (LC-15).** `npm run dist` keeps the current and previous release in `release/`
+  and unregisters the bundle it built from LaunchServices; `npm run clean` removes regenerated output.
+
 ## 0.4.1 - 2026-10-03
 
 - **MCP `link` and `open` without a path point `http_url` at the service's dashboard**, read from

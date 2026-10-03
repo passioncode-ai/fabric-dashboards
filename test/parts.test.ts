@@ -62,6 +62,7 @@ test('activity store: merges, never repeats, survives a restart with its cursor,
   assert.equal(a.unread(), 3, 'info rows are not unread');
   a.markSeen();
   assert.equal(a.unread(), 0);
+  a.flush(); // what quitting does: the debounced cursor and counter reach disk
   const b = new ActivityStore(dir);
   assert.equal(b.cursor('store.default'), '2');
   assert.equal(b.list().length, 4);
@@ -80,9 +81,11 @@ test('activity store: a poll that brings nothing new writes nothing', () => {
   assert.equal(a.addServiceEvents('store.default', 'Store Agent', [], '1').length, 0);
   assert.equal(a.addServiceEvents('store.default', 'Store Agent', [ev], '1').length, 0, 'a repeated page');
   assert.equal(fs.statSync(file).ino, before, 'the ~1 MB feed is not rewritten every 15 s per service');
+  const size = fs.statSync(file).size;
   a.addServiceEvents('store.default', 'Store Agent', [], '2');
-  assert.notEqual(fs.statSync(file).ino, before, 'a moved cursor is kept');
-  assert.equal(new ActivityStore(dir).cursor('store.default'), '2');
+  assert.equal(fs.statSync(file).size, size, 'a moved cursor writes no row');
+  a.flush();
+  assert.equal(new ActivityStore(dir).cursor('store.default'), '2', 'a moved cursor is kept');
 });
 
 test('atomicWrite leaves no temporary file behind when the write fails', () => {
@@ -114,7 +117,7 @@ test('every interface string exists in English and Russian, and placeholders mat
 test('settings persist atomically and heal a damaged file', () => {
   const dir = tmp('fd-set-');
   const s = new SettingsStore(dir);
-  assert.equal(s.get().launchAtLogin, true);
+  assert.equal(s.get().launchAtLogin, false, 'off until the person chooses (LC-07)');
   s.update({ theme: 'light', notifications: { ...s.get().notifications, quietHours: { enabled: true, from: '23:00', to: '07:00' } } });
   assert.equal(new SettingsStore(dir).get().theme, 'light');
   assert.equal(new SettingsStore(dir).get().notifications.quietHours.from, '23:00');

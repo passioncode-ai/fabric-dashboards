@@ -58,6 +58,7 @@ first release; every sentence a service writes is shown as the service wrote it.
   1. User opens Fabric Dashboards for the first time -> system shows the window with the sidebar and Overview, a "Looking for services…" line while it reads the services directory
   2. System reads every descriptor and probes each service -> each service appears in the sidebar and as a card with its state, name and version within 5 seconds; a second instance of one agent carries its instance in the name ("Example Agent · preview")
   3. User looks at the menu bar -> system shows the Dashboards icon with the aggregate state
+  4. Above Overview, the app asks once: "Open Fabric Dashboards when you log in?" with Open at login and Not now -> either answer is kept, the card is gone, and Settings shows the choice (SCN-024)
 - **Expected result:** every installed service is listed with its real state without any setup
 - **Alt paths:** a service is installed but its launchd job is off -> it appears as "Off" with Start
 - **UI elements:** window, sidebar service list, Overview cards, loading line, menu bar icon
@@ -478,12 +479,12 @@ first release; every sentence a service writes is shown as the service wrote it.
 - **Preconditions:** app running (window may be closed)
 - **Steps:**
   1. User looks at the icon -> it shows one of three states: all ready, something degraded, something down or wrong
-  2. User clicks it -> the menu lists problems first, then every service with its state; items Open Fabric Dashboards, Pause notifications for 1 hour, Quit
+  2. User clicks it -> the menu lists problems first, then every service with its state; items Open Fabric Dashboards, Pause notifications for 1 hour, the line "Quitting Dashboards does not stop your services.", Quit
   3. User chooses a service -> the window opens at its view
 - **Expected result:** the state is known without opening the window
 - **UI elements:** menu bar icon, tray menu, service items, Pause notifications item
 - **States covered:** success, error
-- **Errors & recovery:** nothing can fail in the menu; quitting leaves every service running and says so the first time: "Quitting Dashboards does not stop your services."
+- **Errors & recovery:** nothing can fail in the menu; quitting leaves every service running and the menu says so above Quit — never a dialog on the way out
 - **Status:** draft
 - **Coverage:** src/electron/tray.ts
 - **Product:** unobserved
@@ -497,15 +498,17 @@ first release; every sentence a service writes is shown as the service wrote it.
 - **Entry point:** sidebar Settings
 - **Preconditions:** none
 - **Steps:**
-  1. User opens Settings -> system shows Launch at login (on by default), Notifications per service with levels, Quiet hours (from–to), the services folder, and Unattributed listeners
-  2. User changes a setting -> it applies immediately and is kept across restarts
+  1. User opens Settings -> system shows Launch at login (off until the person chooses, on the first-run card or here), Notifications per service with levels, Quiet hours (from–to), the services folder, Uninstall, and Unattributed listeners
+  2. User changes a setting -> it applies immediately and is kept across restarts; launch at login is registered with macOS only at this moment, never by a launch or an update
   3. User opens Unattributed listeners -> system lists local ports listening on all interfaces that no descriptor claims, with the program name and pid
-- **Expected result:** the app fits the operator's day, and stray network listeners are visible
-- **UI elements:** toggles, per-service rows, time pickers, folder path with Show, listeners list
+  4. User chooses Uninstall Fabric Dashboards… and confirms -> the app removes its login item and its entry in Claude Code's MCP servers, moves itself to the Trash and quits; its data is removed once it has exited; services and their data stay
+- **Expected result:** the app fits the operator's day, stray network listeners are visible, and leaving the app leaves nothing behind
+- **Alt paths:** the person turned the login item off in System Settings -> the next launch shows it off here and does not turn it back on
+- **UI elements:** toggles, per-service rows, time pickers, folder path with Show, Uninstall button and its confirmation, listeners list
 - **States covered:** empty, success, error
-- **Errors & recovery:** macOS refuses the login item -> the toggle returns to off with the reason; the listener scan is unavailable -> "Cannot list listeners: <reason>"
+- **Errors & recovery:** macOS refuses the login item -> the toggle returns to off with the reason; the listener scan is unavailable -> "Cannot list listeners: <reason>"; uninstall cannot remove the login item or the MCP entry -> "Nothing was removed: <reason>" and the app stays; the app cannot be moved to the Trash -> it says so and is still uninstalled
 - **Status:** draft
-- **Coverage:** src/renderer/components/Settings.tsx, src/core/settings.ts, src/core/listeners.ts, test/parts.test.ts
+- **Coverage:** src/renderer/components/Settings.tsx, src/renderer/components/Overview.tsx, src/core/settings.ts, src/core/loginitem.ts, src/core/uninstall.ts, src/core/listeners.ts, test/parts.test.ts, test/lifecycle.test.ts
 - **Product:** unobserved
 
 ## links

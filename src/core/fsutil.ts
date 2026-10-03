@@ -44,3 +44,63 @@ export function tail(file: string, maxLines = 300, maxBytes = 256 * 1024): strin
     fs.closeSync(fd);
   }
 }
+
+/** atomicWrite's temporary name: `.<file>.<pid>.<8 hex>`. */
+const TEMP = /^\..+\.(\d+)\.[0-9a-f]{8}$/;
+
+function alive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    return (error as NodeJS.ErrnoException).code === 'EPERM'; // someone else's live process
+  }
+}
+
+/**
+ * Remove atomicWrite temporaries left by a process that died between write and rename (a
+ * SIGKILL, a power cut). A live writer's temporary is kept. Run at start-up (lifecycle LC-12).
+ */
+export function sweepTemps(dir: string): string[] {
+  let names: string[];
+  try {
+    names = fs.readdirSync(dir);
+  } catch {
+    return [];
+  }
+  const removed: string[] = [];
+  for (const name of names) {
+    const m = TEMP.exec(name);
+    if (!m) continue;
+    const pid = Number(m[1]);
+    if (pid === process.pid || alive(pid)) continue;
+    try {
+      fs.rmSync(path.join(dir, name), { force: true });
+      removed.push(name);
+    } catch { /* unremovable now; the next start tries again */ }
+  }
+  return removed;
+}
+
+/**
+ * Append one line to a log, mode 0600, rotated by size (lifecycle LC-12): past `maxBytes` the file
+ * becomes `<name>.1`, older ones shift up, and at most `keep` files exist. Never throws — logging
+ * must not take the app down.
+ */
+export function appendLog(file: string, line: string, maxBytes = 5 * 1024 * 1024, keep = 5): void {
+  try {
+    fs.mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 });
+    let size = 0;
+    try {
+      const st = fs.statSync(file);
+      size = st.size;
+      if ((st.mode & 0o777) !== 0o600) fs.chmodSync(file, 0o600); // a log an earlier version left readable
+    } catch { /* a new log */ }
+    if (size >= maxBytes) {
+      fs.rmSync(`${file}.${keep - 1}`, { force: true });
+      for (let i = keep - 2; i >= 1; i -= 1) if (fs.existsSync(`${file}.${i}`)) fs.renameSync(`${file}.${i}`, `${file}.${i + 1}`);
+      fs.renameSync(file, `${file}.1`);
+    }
+    fs.appendFileSync(file, line.endsWith('\n') ? line : `${line}\n`, { mode: 0o600 });
+  } catch { /* logging must never take the app down */ }
+}

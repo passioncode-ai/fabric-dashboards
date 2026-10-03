@@ -6,6 +6,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import readline from 'node:readline';
+import { killOwned } from '../core/children';
+import { removeMcpRegistrations } from '../core/uninstall';
+import { codeFile, plistVersion, StaleWatch } from './stale';
 import * as tools from './tools';
 
 export const PROTOCOL_VERSIONS = ['2025-06-18', '2025-03-26', '2024-11-05'];
@@ -170,21 +173,119 @@ export async function handle(deps: tools.Deps, message: Message): Promise<Record
   }
 }
 
-export function serve(deps: tools.Deps = tools.liveDeps(), input = process.stdin, output = process.stdout): void {
+// #region session-lifecycle — docs: AGENTS.md#lifecycle
+/** How often an idle server checks whether an update replaced its bundle (unref'd: never keeps it alive). */
+export const STALE_CHECK_MS = 60_000;
+export const STALE_ACTION = 'Fabric Dashboards was updated. Restart this agent session to load the new version.';
+
+/** The watch for the code this process was started from: Info.plist inside the app, else this file. */
+export function liveStaleWatch(from = __filename): StaleWatch {
+  const file = codeFile(from);
+  return new StaleWatch(file, () => (file.endsWith('Info.plist') ? plistVersion(file) : appVersion(path.dirname(from))));
+}
+
+export interface ServeOptions {
+  /** Default: process.exit. Tests pass their own. */
+  exit?: (code: number) => void;
+  watch?: StaleWatch | null;
+  /** Exit on SIGTERM / SIGINT (default true for the real process). */
+  signals?: boolean;
+}
+
+/**
+ * The session loop (lifecycle LC-10). The server leaves with its session: stdin EOF or SIGTERM ends
+ * every command it started (their whole process groups) and exits within a second, whatever is in
+ * flight — nobody is left to read an answer. It leaves with its code: once an update has replaced
+ * the bundle, a call is answered `stale` (both versions, what to do) and the process exits when
+ * nothing is in flight; an idle server notices on an unref'd timer.
+ */
+export function serve(deps: tools.Deps = tools.liveDeps(), input: NodeJS.ReadableStream = process.stdin, output: NodeJS.WritableStream = process.stdout, options: ServeOptions = {}): void {
+  const exit = options.exit ?? ((code: number) => process.exit(code));
+  const watch = options.watch === undefined ? liveStaleWatch() : options.watch;
+  let inFlight = 0;
+  let unflushed = 0; // answers handed to stdout whose write has not completed (pipes are async on macOS)
+  let leaving = false;
+  const idle = () => inFlight === 0 && unflushed === 0;
+  const leave = (why: string) => {
+    if (leaving) return;
+    leaving = true;
+    clearInterval(timer);
+    process.stderr.write(`fabric-dashboards-mcp ${watch?.runningVersion ?? appVersion()}: leaving (${why})\n`);
+    // Up to 300 ms for calls already answering (an answer written just before EOF still lands), then
+    // every owned group gets SIGTERM and SIGKILL 300 ms later. The exit is never later than 900 ms.
+    const deadline = setTimeout(() => exit(0), 900);
+    deadline.unref?.();
+    const settled = new Promise<void>((resolve) => {
+      const started = Date.now();
+      const poll = () => (idle() || Date.now() - started >= 300 ? resolve() : void setTimeout(poll, 10).unref?.());
+      poll();
+    });
+    void settled.then(() => killOwned(300)).finally(() => {
+      const done = () => { clearTimeout(deadline); exit(0); };
+      if (unflushed === 0) done();
+      else output.write('', done); // the last answer reaches the pipe before the exit
+    });
+  };
+  const leaveIfStaleAndIdle = () => {
+    if (inFlight === 0 && watch?.check().stale) leave('stale: an update replaced the bundle');
+  };
+  const timer = setInterval(leaveIfStaleAndIdle, STALE_CHECK_MS);
+  timer.unref?.();
+  const write = (response: Record<string, unknown>, then?: () => void) => {
+    unflushed += 1;
+    output.write(`${JSON.stringify(response)}\n`, () => { unflushed -= 1; then?.(); });
+  };
   const rl = readline.createInterface({ input, crlfDelay: Infinity });
   rl.on('line', (line) => {
-    if (!line.trim()) return;
+    if (!line.trim() || leaving) return;
     let message: Message;
     try {
       message = JSON.parse(line) as Message;
     } catch {
-      output.write(`${JSON.stringify({ jsonrpc: '2.0', id: null, error: { code: -32700, message: 'parse error' } })}\n`);
+      write({ jsonrpc: '2.0', id: null, error: { code: -32700, message: 'parse error' } });
       return;
     }
-    void handle(deps, message).then((response) => {
-      if (response) output.write(`${JSON.stringify(response)}\n`);
-    });
+    if (message.method === 'tools/call' && message.id !== undefined && message.id !== null && watch) {
+      const s = watch.check();
+      if (s.stale) {
+        const details = { stale: true, running_version: s.running, installed_version: s.installed, action: STALE_ACTION };
+        write({ jsonrpc: '2.0', id: message.id, result: { content: [{ type: 'text', text: JSON.stringify(details, null, 2) }], isError: true, structuredContent: details } },
+          () => { if (inFlight === 0) leave(`stale: running ${s.running}, installed ${s.installed ?? 'unknown'}`); });
+        return;
+      }
+    }
+    inFlight += 1;
+    void handle(deps, message)
+      .then((response) => { if (response) write(response); })
+      .catch((error) => { write({ jsonrpc: '2.0', id: message.id ?? null, error: { code: -32603, message: `internal error: ${(error as Error).message}` } }); })
+      .finally(() => {
+        inFlight -= 1;
+        if (!leaving && inFlight === 0 && message.method === 'tools/call' && watch?.check().stale) leave('stale');
+      });
   });
+  rl.on('close', () => leave('stdin closed'));
+  if (options.signals ?? true) {
+    process.once('SIGTERM', () => leave('SIGTERM'));
+    process.once('SIGINT', () => leave('SIGINT'));
+  }
 }
 
-if (require.main === module) serve();
+/** `fabric-dashboards-mcp --unregister`: remove this server from Claude Code's ~/.claude.json (LC-14). */
+export function cli(argv: string[], out: (text: string) => void = (t) => process.stdout.write(t)): number | null {
+  if (!argv.includes('--unregister')) return null;
+  try {
+    const r = removeMcpRegistrations();
+    out(`${JSON.stringify({ ok: true, file: r.file, removed: r.removed })}\n`);
+    return 0;
+  } catch (error) {
+    out(`${JSON.stringify({ ok: false, error: (error as Error).message })}\n`);
+    return 1;
+  }
+}
+// #endregion session-lifecycle
+
+if (require.main === module) {
+  const code = cli(process.argv.slice(2));
+  if (code === null) serve();
+  else process.exitCode = code;
+}

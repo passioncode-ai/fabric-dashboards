@@ -106,6 +106,8 @@ h3 { font-size: var(--pc-type-card); margin: 0; font-weight: 600; }
 .notice.error { background: var(--pc-negative-soft); border-color: var(--pc-negative); }
 .notice.warning { background: var(--pc-warning-soft); border-color: var(--pc-warning); }
 .notice.info { background: var(--pc-info-soft); border-color: var(--pc-info); }
+.notice.setup h2 { margin: 0 0 var(--pc-space-2); font-size: inherit; }
+.notice.setup p { margin: 0 0 var(--pc-space-3); }
 
 /* service view */
 .svc { display: flex; flex-direction: column; height: 100%; min-height: 0; }
