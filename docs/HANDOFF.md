@@ -4,7 +4,7 @@ Updated 2026-10-03 (releases move to CI signing; release 0.4.1, MCP links to onl
 
 Current release: 0.4.1 (section below). Earlier releases below are preserved as dated evidence.
 
-## Releases signed only in CI, 2026-10-03 (branch `feat/release-in-ci`)
+## Releases signed only in CI, 2026-10-03 (PR #22, `ec2a29f`)
 
 Objective: the operator's organization rule of 2026-10-03. Every PassionCode.ai product signs its
 published builds only in GitHub Actions, in the protected `release` environment, approved by
@@ -30,11 +30,25 @@ order test was watched failing against a mutation that packages before the app i
 unsigned `npm run dist -- --unsigned --allow-dirty` ran all three stages and produced a DMG, the
 update zip, the feed and the receipt. No signed build was made locally.
 
-**Next task:** run the rehearsal (an annotated `v0.4.1-rc.1` tag on the merge commit, then
-`gh workflow run release.yml --ref v0.4.1-rc.1 -f publish=false`). A member of
-`release-approvers` approves `macos`, then `publish`. Read the kept artifact's receipt: `signing`
-names the CI Developer ID, `notarization` reads `accepted and stapled: app, update zip, image`,
-and `gatekeeper` reads `accepted`. The next real release (0.4.2 or later) is the operator's tag.
+**Rehearsal started.** The annotated tag `v0.4.1-rc.1` points at `ec2a29f`. Run
+[37128282549](https://github.com/passioncode-ai/fabric-dashboards/actions/runs/37128282549)
+(`gh workflow run release.yml --ref v0.4.1-rc.1 -f publish=false`) stood like this:
+- `version` passed: the tag names 0.4.1 and the CHANGELOG has its section.
+- `check / check` passed: `npm run check` on `macos-latest`.
+- `macos` is waiting for the `release` environment (reviewers `release-approvers`). The account
+  that dispatched it cannot approve it.
+- `publish` has not started; it needs `macos`.
+
+**Next task:** a member of `release-approvers` approves `macos`, then `publish`, on that run.
+With `publish=false` no release is created, and the signed set is kept as the artifact
+`signed-release-v0.4.1-rc.1` for 14 days. Read its receipt:
+- `signing` names the CI Developer ID;
+- `notarization` reads `accepted and stapled: app, update zip, image (the release workflow's
+  notarize action)`;
+- `gatekeeper` reads `accepted`.
+
+Record the outcome here. If a step fails, the fix is a new `-rc.N` tag; an existing tag is never
+moved. The next real release (0.4.2 or later) is the operator's tag.
 
 ## Release 0.4.1, 2026-10-03 (PR #19, `75eba78`)
 
