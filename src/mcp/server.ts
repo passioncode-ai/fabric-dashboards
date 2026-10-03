@@ -23,9 +23,10 @@ export function appVersion(from = __dirname): string {
 }
 
 const INSTRUCTIONS = [
-  'Fabric Dashboards watches the local agent services on this Mac (fabric-service/0.1).',
+  'Fabric Dashboards watches the agent services of this Mac (fabric-service/0.1): local ones and',
+  'online ones registered here (placement remote, an https origin supervised by its platform).',
   'Hand a person a link to what you started: `link` or `open` turn a service key (id.instance)',
-  'and a path, or the service\'s own http://127.0.0.1 URL, into a fabric-dashboards:// link that',
+  'and a path, or the service\'s own URL, into a fabric-dashboards:// link that',
   'opens that page inside the app, signed in. Return open_link as the primary dashboard link;',
   'http_url is for diagnostics or a confirmed-absent browser fallback. Never hand-build links',
   'or start another server/browser to show a registered dashboard. `host_status` checks this Mac.',
@@ -38,7 +39,7 @@ const INSTRUCTIONS = [
 
 const serviceArg = { type: 'string', description: 'The service key, id.instance, as list_services names it' };
 const pathArg = { type: 'string', description: 'A path on the service, starting with one / (for example /dashboard/job_1)' };
-const urlArg = { type: 'string', description: 'The service\'s own URL, http://127.0.0.1:<port>/…, instead of service + path' };
+const urlArg = { type: 'string', description: 'The service\'s own URL — http://127.0.0.1:<port>/… for a local service, its registered https origin for an online one — instead of service + path' };
 
 export const TOOLS = [
   {
@@ -49,7 +50,7 @@ export const TOOLS = [
   },
   {
     name: 'list_services',
-    description: 'Every installed local service: state (ready, degraded, down, stopped…), version, dashboard URL, a fabric-dashboards:// link, tiles, pending update.',
+    description: 'Every installed service, local and online: placement, state (ready, degraded, down, stopped…), version, dashboard URL, a fabric-dashboards:// link, tiles, pending update.',
     inputSchema: { type: 'object', properties: {}, additionalProperties: false },
     annotations: { readOnlyHint: true },
   },
@@ -73,7 +74,7 @@ export const TOOLS = [
   },
   {
     name: 'control',
-    description: 'Start, stop or restart a service through launchd, and wait for the expected answer. Stop keeps it off across logins.',
+    description: 'Start, stop or restart a local service through launchd, and wait for the expected answer. Stop keeps it off across logins. An online service is supervised by its platform and is refused.',
     inputSchema: {
       type: 'object',
       properties: { service: serviceArg, action: { type: 'string', enum: ['start', 'stop', 'restart'] } },
