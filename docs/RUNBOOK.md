@@ -50,8 +50,9 @@ published or attached to a release.
 3. `release.yml` starts. `version` checks that the tag names `package.json`'s version and that
    the CHANGELOG has its section; `check` runs `npm run check` (`validate.yml`). The `macos` job
    then waits for the `release` environment.
-4. Someone from `release-approvers` other than the tag's author approves it (*Review
-   deployments*). In the job:
+4. Someone from `release-approvers` approves it (*Review deployments*); that may be whoever
+   pushed the tag. An agent never approves a release run, even when its account could.
+   In the job:
    - `apple-signing` puts the CI Developer ID in a throwaway keychain. The identity and team come
      from the environment (`vars.APPLE_TEAM_ID`), never from this repository.
    - `node scripts/dist-mac.mjs --stage app --identity <from the action>` packages the universal

@@ -35,8 +35,9 @@ update zip, the feed and the receipt. No signed build was made locally.
 (`gh workflow run release.yml --ref v0.4.1-rc.1 -f publish=false`) stood like this:
 - `version` passed: the tag names 0.4.1 and the CHANGELOG has its section.
 - `check / check` passed: `npm run check` on `macos-latest`.
-- `macos` is waiting for the `release` environment (reviewers `release-approvers`). The account
-  that dispatched it cannot approve it.
+- `macos` is waiting for the `release` environment (reviewers `release-approvers`). Since the
+  operator's amendment of 2026-10-03 any member may approve it, the one who dispatched it
+  included; an agent never does.
 - `publish` has not started; it needs `macos`.
 
 **Next task:** a member of `release-approvers` approves `macos`, then `publish`, on that run.
