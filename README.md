@@ -57,7 +57,9 @@ Download `Fabric-Dashboards-<version>.dmg` from the
 [latest release](https://github.com/passioncode-ai/fabric-dashboards/releases/latest), open it and
 drag **Fabric Dashboards** to Applications. It is signed with a Developer ID and notarized, so it
 opens without a Gatekeeper warning (`spctl -a -vv -t exec "/Applications/Fabric Dashboards.app"`
-prints `accepted`, `source=Notarized Developer ID`). macOS 13 or later.
+prints `accepted`, `source=Notarized Developer ID`). macOS 13 or later. Releases after 0.4.1 are
+built and signed by GitHub Actions, and each carries `SHA256SUMS`, its GPG signature and a build
+attestation ([how to verify](docs/RUNBOOK.md#release)).
 
 Open it from Applications. It lives in the menu bar and opens its window; with no service
 installed the overview says *No services yet* and **Show folder** opens the services folder. A

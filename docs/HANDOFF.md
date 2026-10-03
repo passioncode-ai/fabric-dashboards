@@ -1,8 +1,40 @@
 # Handoff — Fabric Dashboards
 
-Updated 2026-10-03 (release 0.4.1, MCP links to online services).
+Updated 2026-10-03 (releases move to CI signing; release 0.4.1, MCP links to online services).
 
 Current release: 0.4.1 (section below). Earlier releases below are preserved as dated evidence.
+
+## Releases signed only in CI, 2026-10-03 (branch `feat/release-in-ci`)
+
+Objective: the operator's organization rule of 2026-10-03. Every PassionCode.ai product signs its
+published builds only in GitHub Actions, in the protected `release` environment, approved by
+`release-approvers` (passioncode-ai/.github `release-signing/`, shared actions `@v1`).
+
+- `.github/workflows/release.yml`: the jobs are `version` (the tag names `package.json`'s version,
+  the CHANGELOG has its section), `check` (`validate.yml`, i.e. `npm run check`), `macos` (in the
+  `release` environment) and `publish` (`release-publish.yml@v1`). In `macos`:
+  - `apple-signing` → `dist-mac.mjs --stage app --identity …` → `notarize` (app);
+  - `--stage package` makes the zip and the image from the stapled app → `notarize` (image);
+  - `--stage seal` measures and writes the feed and the receipt → upload `release-macos`.
+- `scripts/dist-mac.mjs` gained the stages and dropped the gaps the inventory found. Gatekeeper
+  now assesses the app as well as the image. Every notarization's status is read: the action
+  requires `Accepted`, and the local `--notary-profile` path parses `--output-format json`. The
+  seal also requires the app inside the update zip to be stapled. No team id or identity is
+  written in the repository; it comes from `vars.APPLE_TEAM_ID` and the action's `identity`
+  output.
+- The release is described in `docs/RUNBOOK.md#release`. The local `npm run dist` is debug only.
+
+Checks run: `npm run check` (green, see the PR); `actionlint` clean on both workflows. Seven new
+tests are in `test/dist.test.ts`; they were watched failing before the change, and the workflow
+order test was watched failing against a mutation that packages before the app is notarized. An
+unsigned `npm run dist -- --unsigned --allow-dirty` ran all three stages and produced a DMG, the
+update zip, the feed and the receipt. No signed build was made locally.
+
+**Next task:** run the rehearsal (an annotated `v0.4.1-rc.1` tag on the merge commit, then
+`gh workflow run release.yml --ref v0.4.1-rc.1 -f publish=false`). A member of
+`release-approvers` approves `macos`, then `publish`. Read the kept artifact's receipt: `signing`
+names the CI Developer ID, `notarization` reads `accepted and stapled: app, update zip, image`,
+and `gatekeeper` reads `accepted`. The next real release (0.4.2 or later) is the operator's tag.
 
 ## Release 0.4.1, 2026-10-03 (PR #19, `75eba78`)
 

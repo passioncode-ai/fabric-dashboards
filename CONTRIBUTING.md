@@ -10,8 +10,13 @@ npm run check        # typecheck, unit + integration tests, brand pins, code reg
 npm run test:e2e     # builds, then drives the real Electron app against a live sample service
 npm start            # run from source
 npm run icon         # re-render build/icon.icns and the menu bar templates from the vendored mark
-npm run dist -- --notary-profile fabric-notary   # signed, notarized DMG + update zip + feed
+npm run dist -- --unsigned                       # a local test build of the DMG + update zip (debug only)
 ```
+
+- Releases are built, signed, notarized and published only by `.github/workflows/release.yml`,
+  after a `v<version>` tag and an approval from `release-approvers`
+  ([RUNBOOK](docs/RUNBOOK.md#release)). A build signed on a laptop is a debug build and is never
+  published.
 
 - `packages/service-host` is an npm workspace (`@passioncode-ai/fabric-service-host`, shared with
   Fabric, not published). `npm ci` at the root links it; `npm test`, `typecheck` and `build` build

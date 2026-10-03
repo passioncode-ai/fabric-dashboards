@@ -1,5 +1,21 @@
 # Changelog
 
+## Unreleased
+
+- **Releases are signed only in GitHub Actions.** `.github/workflows/release.yml` runs on a
+  `vX.Y.Z` tag in the protected `release` environment, after an approval from `release-approvers`
+  (never the tag's author). It signs with the organization's CI Developer ID, notarizes and staples
+  the app and then the image with the shared `notarize` action, attests every file (Sigstore), and
+  publishes them with `SHA256SUMS` and its GPG signature. A `-rc` tag with `publish=false` rehearses
+  the whole path without creating a release. A locally signed build is for debugging and is never
+  published ([RUNBOOK](docs/RUNBOOK.md#release)).
+- `scripts/dist-mac.mjs` runs in stages (`--stage app|package|seal`), so the update zip and the
+  image are made from the stapled app. The identity is named with `--identity` and never picked
+  from a keychain in CI. The seal stage fails unless the app, the app inside the update zip and the
+  image are all stapled and Gatekeeper accepts the app as well as the image. The local
+  `--notary-profile` path now reads Apple's status (`Accepted`) instead of trusting the exit code.
+- `validate.yml` pins its actions by commit and runs before every release.
+
 ## 0.4.1 - 2026-10-03
 
 - **MCP `link` and `open` without a path point `http_url` at the service's dashboard**, read from

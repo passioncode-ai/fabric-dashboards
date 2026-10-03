@@ -28,12 +28,14 @@ These come from `CONTRIBUTING.md`:
 | Test (the gate) | `npm run check` — typecheck, unit + integration tests, brand pins, code regions, UX lint (`FD_SKIP_LAUNCHD=1` without a GUI login session) |
 | End-to-end | `npm run test:e2e` — builds, then drives the real Electron app against a live sample service |
 | Run from source | `npm start` |
-| Build a release | `npm run dist -- --notary-profile fabric-notary` — signed, notarized DMG + update zip + feed ([RUNBOOK](docs/RUNBOOK.md)) |
+| Release | push an annotated `v<version>` tag; `.github/workflows/release.yml` builds, signs, notarizes, attests and publishes after a `release-approvers` approval. Rehearsal: a `v<version>-rc.<n>` tag, then `gh workflow run release.yml --ref <tag> -f publish=false` ([RUNBOOK](docs/RUNBOOK.md#release)) |
+| Local build (debug only, never published) | `npm run dist -- --unsigned`, or signed: `npm run dist [-- --identity NAME] [--notary-profile NAME]` |
 | MCP (register + proving call) | `claude mcp add --scope user fabric-dashboards -- "/Applications/Fabric Dashboards.app/Contents/Resources/bin/fabric-dashboards-mcp"`, then `claude -p "Call the fabric-dashboards list_services tool once and reply with only the number of services it returned." --allowedTools mcp__fabric-dashboards__list_services --max-turns 3` |
 
 The integration test drives the real launchd with the fixed label
 `ai.passioncode.fabric-dashboards.test.sample`. `.github/workflows/validate.yml` runs `npm ci`
-and `npm run check` on macOS every night and on manual dispatch, with `FD_SKIP_LAUNCHD=1`.
+and `npm run check` on macOS every night, on manual dispatch and before every release, with
+`FD_SKIP_LAUNCHD=1`.
 
 ## Where things live
 

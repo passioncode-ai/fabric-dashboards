@@ -1,0 +1,128 @@
+# The release: Fabric Dashboards.app, universal, signed with the organization's CI Developer ID
+# and the hardened runtime, notarized and stapled; the drag-to-install image and the update zip
+# the app's own updater installs, both made from the stapled app; update-feed.json and the
+# build receipt. Then attested (Sigstore), summed and GPG-signed, and published.
+#
+# Signing happens only here, in the protected `release` environment: approved by
+# release-approvers, never by whoever pushed the tag (passioncode-ai/.github
+# release-signing/README.md). A build signed anywhere else is a debug build and is never
+# published. A published release is never rewritten: a fix is a new tag. docs/RUNBOOK.md#release
+#
+# Release:    push an annotated vX.Y.Z tag on the reviewed release commit.
+# Rehearsal:  push vX.Y.Z-rc.N (the push trigger ignores it), then
+#             gh workflow run release.yml --ref vX.Y.Z-rc.N -f publish=false
+#             The signed set is kept as a workflow artifact; no release is created.
+name: release
+
+on:
+  push:
+    tags: ["v[0-9]+.[0-9]+.[0-9]+"]
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: "false = rehearsal: build, sign, notarize and attest, create no release"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: The tag names package.json's version, and the CHANGELOG has its section
+        env:
+          REF_TYPE: ${{ github.ref_type }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          [[ "$REF_TYPE" == tag ]] || { echo "::error::a release runs from a tag (vX.Y.Z, or vX.Y.Z-rc.N to rehearse), not from the $REF_TYPE $TAG"; exit 1; }
+          [[ "$TAG" =~ ^v([0-9]+\.[0-9]+\.[0-9]+)(-rc\.[0-9]+)?$ ]] || { echo "::error::$TAG is not vX.Y.Z or vX.Y.Z-rc.N"; exit 1; }
+          tagged=${BASH_REMATCH[1]}
+          version=$(node -p "require('./package.json').version")
+          [[ "$tagged" == "$version" ]] || { echo "::error::$TAG does not match package.json's version $version"; exit 1; }
+          grep -Eq "^## ${version//./\\.}( |$)" CHANGELOG.md || { echo "::error::CHANGELOG.md has no section '## $version'"; exit 1; }
+          echo "$TAG builds Fabric Dashboards $version"
+
+  check:
+    uses: ./.github/workflows/validate.yml
+
+  # #region release-in-ci — docs: docs/RUNBOOK.md#release
+  macos:
+    needs: [version, check]
+    runs-on: macos-latest
+    environment: release
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "22"
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0 (uvx runs dmgbuild for the image's window layout)
+        with:
+          enable-cache: false
+      - run: npm ci
+      - id: version
+        run: |
+          version=$(node -p "require('./package.json').version")
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "dmg=release/Fabric-Dashboards-${version}.dmg" >> "$GITHUB_OUTPUT"
+      - id: sign
+        uses: passioncode-ai/.github/actions/apple-signing@v1
+        with:
+          developer-id-p12-b64: ${{ secrets.APPLE_DEVELOPER_ID_P12_B64 }}
+          p12-password: ${{ secrets.APPLE_DEVELOPER_ID_P12_PASSWORD }}
+          team-id: ${{ vars.APPLE_TEAM_ID }}
+      - name: Build the app, signed with the CI Developer ID
+        env:
+          IDENTITY: ${{ steps.sign.outputs.identity }}
+        run: node scripts/dist-mac.mjs --stage app --identity "$IDENTITY"
+      - name: Notarize, staple and assess the app
+        uses: passioncode-ai/.github/actions/notarize@v1
+        with:
+          path: release/stage/Fabric Dashboards.app
+          asc-key-id: ${{ secrets.ASC_KEY_ID }}
+          asc-issuer-id: ${{ secrets.ASC_ISSUER_ID }}
+          asc-key-p8-b64: ${{ secrets.ASC_API_KEY_P8_B64 }}
+      - name: The update zip and the signed image, from the stapled app
+        env:
+          IDENTITY: ${{ steps.sign.outputs.identity }}
+        run: node scripts/dist-mac.mjs --stage package --identity "$IDENTITY"
+      - name: Notarize, staple and assess the image
+        uses: passioncode-ai/.github/actions/notarize@v1
+        with:
+          path: ${{ steps.version.outputs.dmg }}
+          asc-key-id: ${{ secrets.ASC_KEY_ID }}
+          asc-issuer-id: ${{ secrets.ASC_ISSUER_ID }}
+          asc-key-p8-b64: ${{ secrets.ASC_API_KEY_P8_B64 }}
+      - name: Measure what ships, then write the update feed and the receipt
+        run: node scripts/dist-mac.mjs --stage seal
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-macos
+          path: |
+            release/Fabric-Dashboards-${{ steps.version.outputs.version }}.dmg
+            release/Fabric-Dashboards-${{ steps.version.outputs.version }}-mac.zip
+            release/update-feed.json
+            release/Fabric-Dashboards-${{ steps.version.outputs.version }}.receipt.json
+          if-no-files-found: error
+      - if: always()
+        uses: passioncode-ai/.github/actions/apple-signing/cleanup@v1
+  # #endregion release-in-ci
+
+  publish:
+    needs: [macos]
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+      artifact-metadata: write
+    uses: passioncode-ai/.github/.github/workflows/release-publish.yml@v1
+    with:
+      publish: ${{ github.event_name == 'push' || inputs.publish }}
+    secrets: inherit
