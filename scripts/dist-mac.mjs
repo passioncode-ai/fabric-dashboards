@@ -3,8 +3,20 @@
 // notarized and stapled, in a drag-to-install disk image — plus the signed zip
 // and update-feed.json that the app's own updater reads (SCN-022).
 //
+// A release is built ONLY by .github/workflows/release.yml, in the protected `release`
+// environment (passioncode-ai/.github release-signing). It runs the build in three stages so
+// the organization's notarize action can notarize and staple the app between them:
+//
+//   --stage app     --identity NAME   package, sign and check the app (release/stage/)
+//                                     … the workflow notarizes and staples the app …
+//   --stage package --identity NAME   the update zip and the signed image, from the stapled app
+//                                     … the workflow notarizes and staples the image …
+//   --stage seal                      measure what will ship, write update-feed.json + receipt
+//
+// Run on a Mac by hand, every stage runs in one go. That is a debug build, never published:
+//
 //   npm run dist                               signed with the one Developer ID identity found
-//   npm run dist -- --notary-profile NAME      notarized and stapled too
+//   npm run dist -- --notary-profile NAME      notarized and stapled too (a keychain profile)
 //   npm run dist -- --unsigned                 local test build, not for sharing
 //
 // Only a clean, committed tree is built, so the artifacts match one commit. A
@@ -51,27 +63,42 @@ function tryRun(command, args) {
 const both = (command, args) => { const r = spawnSync(command, args, { cwd: root, encoding: 'utf8' }); return `${r.stdout ?? ''}${r.stderr ?? ''}`; };
 const sha256 = (file) => createHash('sha256').update(readFileSync(file)).digest('hex');
 
+/** spctl and codesign speak on stderr: keep both streams and the verdict. */
+function assess(command, args) {
+  const r = spawnSync(command, args, { cwd: root, encoding: 'utf8' });
+  return { ok: r.status === 0, out: `${r.stdout ?? ''}${r.stderr ?? ''}`.trim() || String(r.error ?? '') };
+}
+
+const STAGES = ['app', 'package', 'seal'];
+
 export function parseArgs(argv) {
-  const args = { unsigned: false, notaryProfile: '', identity: '', allowDirty: false };
+  const args = { unsigned: false, notaryProfile: '', identity: '', allowDirty: false, stage: '' };
+  const takesValue = { '--notary-profile': 'notaryProfile', '--identity': 'identity', '--stage': 'stage' };
   for (let i = 0; i < argv.length; i += 1) {
     const a = argv[i];
     if (a === '--unsigned') args.unsigned = true;
     else if (a === '--allow-dirty') args.allowDirty = true;
-    else if (a === '--notary-profile' || a === '--identity') {
+    else if (Object.hasOwn(takesValue, a)) {
       requireThat(argv[i + 1] && !argv[i + 1].startsWith('--'), `Give a value for ${a}.`);
-      args[a === '--identity' ? 'identity' : 'notaryProfile'] = argv[++i];
-    } else throw new Error(`Unknown argument ${a}. Use --notary-profile NAME, --identity NAME, --unsigned or --allow-dirty.`);
+      args[takesValue[a]] = argv[++i];
+    } else throw new Error(`Unknown argument ${a}. Use --stage app|package|seal, --identity NAME, --notary-profile NAME, --unsigned or --allow-dirty.`);
   }
-  requireThat(!(args.unsigned && (args.notaryProfile || args.identity)), '--unsigned cannot be combined with signing options.');
+  requireThat(!(args.unsigned && (args.notaryProfile || args.identity || args.stage)), '--unsigned cannot be combined with signing options.');
+  requireThat(!args.stage || STAGES.includes(args.stage), 'A stage is app, package or seal.');
+  requireThat(!(args.stage && args.notaryProfile), "A staged build is notarized by its caller (the release workflow's notarize action); drop --notary-profile.");
+  requireThat(!['app', 'package'].includes(args.stage) || args.identity, `--stage ${args.stage} signs: name the identity with --identity.`);
   requireThat(!args.notaryProfile || /^[A-Za-z0-9._-]{1,64}$/.test(args.notaryProfile), 'A notary profile name has letters, digits, dot, dash or underscore.');
   return args;
 }
 
 /** The single valid Developer ID Application identity, or the named one. */
 export function pickIdentity(findIdentityOutput, wanted = '') {
-  const all = [...findIdentityOutput.matchAll(/^\s*\d+\) ([A-F0-9]{40}) "([^"\n]+)"\s*$/gm)].map((m) => ({ hash: m[1], name: m[2] }));
+  const listed = [...findIdentityOutput.matchAll(/^\s*\d+\) ([A-F0-9]{40}) "([^"\n]+)"\s*$/gm)].map((m) => ({ hash: m[1], name: m[2] }));
+  // One certificate is listed once per keychain that holds it; it is still one identity.
+  const all = [...new Map(listed.map((i) => [i.hash, i])).values()];
   const developerId = all.filter((i) => i.name.startsWith('Developer ID Application: '));
   const matching = wanted ? developerId.filter((i) => i.name === wanted) : developerId;
+  requireThat(!(wanted && matching.length > 1), `"${wanted}" names ${matching.length} different certificates here; remove the stale one.`);
   requireThat(matching.length === 1, wanted
     ? `The identity "${wanted}" is not a valid Developer ID Application identity here.`
     : `Expected exactly one Developer ID Application identity, found ${developerId.length}; name one with --identity.`);
@@ -90,8 +117,89 @@ function changelogSection(version) {
   return m ? m[1].trim() : '';
 }
 
-async function main() {
-  const args = parseArgs(process.argv.slice(2));
+// #region staged-release — docs: docs/RUNBOOK.md#release
+/** Where each stage reads and writes. release.yml names `app` and `dmg` literally. */
+export function stagePaths(base, version, unsigned = false) {
+  const out = path.join(base, 'release');
+  const stage = path.join(out, 'stage');
+  const name = `Fabric-Dashboards-${version}${unsigned ? '-unsigned' : ''}`;
+  return {
+    out, stage, app: path.join(stage, `${PRODUCT}.app`), record: path.join(stage, 'build.json'),
+    dmg: path.join(out, `${name}.dmg`), zip: path.join(out, `${name}-mac.zip`),
+    feed: path.join(out, 'update-feed.json'), receipt: path.join(out, `${name}.receipt.json`),
+  };
+}
+
+/**
+ * `notarytool submit --wait --output-format json` prints {id, status, message}. Its exit code
+ * does not say whether Apple accepted, so the status is read: only "Accepted" passes.
+ */
+export function notaryVerdict(text) {
+  let d;
+  try { d = JSON.parse(text); } catch { return { accepted: false, status: 'unreadable', id: '' }; }
+  const status = d && typeof d.status === 'string' && d.status ? d.status : 'unreadable';
+  const id = d && typeof d.id === 'string' ? d.id : '';
+  return { accepted: status === 'Accepted', status, id };
+}
+
+/**
+ * What the receipt says about signing, notarization and Gatekeeper, from measurements of the
+ * finished files. A build that was meant to be notarized (by a profile or by the release
+ * workflow) must have the ticket stapled on the app, on the app inside the update zip and on
+ * the image, and Gatekeeper must accept the app and the image; anything else is a problem
+ * that stops the seal. A signed build nobody notarized is recorded as such and is not a failure.
+ */
+export function assessRelease(record, m) {
+  if (record.signing === 'unsigned') return { signing: 'unsigned', notarization: 'not requested', gatekeeper: 'not assessed', checks: {}, problems: [] };
+  const problems = [];
+  const lines = (r) => r.out.split('\n').map((l) => l.trim()).filter(Boolean);
+  const source = (r) => lines(r).find((l) => l.startsWith('source=')) ?? lines(r)[0] ?? 'no answer';
+  const verdict = (r) => `${r.ok ? 'accepted' : 'not accepted'}, ${source(r)}`;
+  const checks = {
+    imageSignature: m.imageSignature ? 'valid' : 'invalid',
+    appGatekeeper: `spctl --type execute: ${verdict(m.appGatekeeper)}`,
+    imageGatekeeper: `spctl --type open --context context:primary-signature: ${verdict(m.imageGatekeeper)}`,
+  };
+  if (!m.appSignature) problems.push('The app failed strict signature verification.');
+  if (!m.imageSignature) problems.push('The image signature does not verify.');
+  const staples = [['app', m.appStaple], ['update zip', m.zipStaple], ['image', m.imageStaple]];
+  checks.staples = staples.map(([n, ok]) => `${n}: ${ok ? 'stapled' : 'not stapled'}`).join('; ');
+  const assessed = [['app', m.appGatekeeper], ['image', m.imageGatekeeper]];
+  const gatekeeper = assessed.every(([, r]) => r.ok) ? 'accepted' : `not accepted: ${assessed.filter(([, r]) => !r.ok).map(([n, r]) => `${n} ${source(r)}`).join('; ')}`;
+  let notarization = 'not requested';
+  if (record.notarizedBy !== 'none') {
+    const by = record.notarizedBy === 'caller' ? "the release workflow's notarize action" : `notarytool, keychain ${record.notarizedBy}`;
+    for (const [n, ok] of staples) if (!ok) problems.push(`The ${n} is not stapled: its notarization (${by}) did not complete.`);
+    for (const [n, r] of assessed) if (!r.ok) problems.push(`The ${n} is not accepted by Gatekeeper: ${source(r)}.`);
+    notarization = staples.every(([, ok]) => ok) ? `accepted and stapled: app, update zip, image (${by})` : `incomplete (${by})`;
+  }
+  return { signing: record.signing, notarization, gatekeeper, checks, problems };
+}
+
+/** Local debug path only: notarize with a keychain profile, read Apple's status, staple. */
+function notarizeWithProfile(file, profile) {
+  const temp = mkdtempSync(path.join(os.tmpdir(), 'fd-notary-'));
+  try {
+    let upload = file;
+    if (file.endsWith('.app')) {
+      upload = path.join(temp, 'upload.zip');
+      run('/usr/bin/ditto', ['-c', '-k', '--sequesterRsrc', '--keepParent', file, upload]);
+    }
+    const r = spawnSync('xcrun', ['notarytool', 'submit', upload, '--keychain-profile', profile, '--wait', '--timeout', '45m', '--output-format', 'json'],
+      { cwd: root, encoding: 'utf8', maxBuffer: 64 * 1024 ** 2, timeout: 50 * 60 * 1000 });
+    const v = notaryVerdict(r.stdout ?? '');
+    if (!v.accepted) {
+      const log = v.id ? both('xcrun', ['notarytool', 'log', v.id, '--keychain-profile', profile]) : `${r.stderr ?? ''}`;
+      throw new Error(`Apple answered ${v.status} for ${path.basename(file)}${v.id ? ` (submission ${v.id})` : ''}:\n${log.slice(0, 4000)}`);
+    }
+    run('xcrun', ['stapler', 'staple', file]);
+    return v.id;
+  } finally {
+    rmSync(temp, { recursive: true, force: true });
+  }
+}
+
+function context(args) {
   requireThat(process.platform === 'darwin', 'A macOS build is made on macOS.');
   requireThat(statfsSync(root).bavail * statfsSync(root).bsize > 3 * 1024 ** 3, 'At least 3 GB of free disk space is needed.');
   const revision = run('git', ['rev-parse', 'HEAD']).trim();
@@ -102,23 +210,33 @@ async function main() {
   requireThat(/^\d+\.\d+\.\d+$/.test(version), 'package.json needs a version like 1.2.3.');
   const electronVersion = JSON.parse(readFileSync(path.join(root, 'package-lock.json'), 'utf8')).packages?.['node_modules/electron']?.version;
   requireThat(/^\d+\.\d+\.\d+$/.test(electronVersion || ''), 'The committed lockfile must pin Electron.');
-  const notes = changelogSection(version);
-  requireThat(notes, `CHANGELOG.md has no section for ${version}.`);
+  requireThat(changelogSection(version), `CHANGELOG.md has no section for ${version}.`);
+  return { args, pkg, version, revision, electronVersion, paths: stagePaths(root, version, args.unsigned) };
+}
 
-  const identity = args.unsigned ? null : pickIdentity(run('security', ['find-identity', '-v', '-p', 'codesigning']), args.identity);
-  if (args.notaryProfile) {
-    requireThat(tryRun('xcrun', ['notarytool', 'history', '--keychain-profile', args.notaryProfile]).ok,
-      `The notary profile "${args.notaryProfile}" is not in this Mac's keychain. Create it once: xcrun notarytool store-credentials ${args.notaryProfile} --team-id <TEAM>.`);
-  }
+const signingIdentity = (wanted) => pickIdentity(run('security', ['find-identity', '-v', '-p', 'codesigning']), wanted);
 
+function readRecord(ctx) {
+  const { paths } = ctx;
+  requireThat(existsSync(paths.record) && existsSync(paths.app), `No staged app in ${path.relative(root, paths.stage)}; run --stage app first.`);
+  const record = JSON.parse(readFileSync(paths.record, 'utf8'));
+  requireThat(record.revision === ctx.revision && record.version === ctx.version,
+    `The staged app is ${record.version} from ${record.revision}; this tree is ${ctx.version} from ${ctx.revision}. Rebuild it with --stage app.`);
+  return record;
+}
+const writeRecord = (ctx, record) => writeFileSync(ctx.paths.record, JSON.stringify(record, null, 2) + '\n');
+
+/** Stage 1: package the universal app, sign it with the hardened runtime and check it. */
+async function stageApp(ctx, identity, notarizedBy) {
+  const { paths, pkg, version, electronVersion } = ctx;
+  rmSync(paths.stage, { recursive: true, force: true });
+  for (const f of [paths.dmg, paths.zip, paths.feed, paths.receipt]) rmSync(f, { force: true });
+  mkdirSync(paths.stage, { recursive: true });
   run('npm', ['run', 'build'], { stdio: ['ignore', 'pipe', 'pipe'] });
-  const out = path.join(root, 'release');
-  mkdirSync(out, { recursive: true });
-  const base = `Fabric-Dashboards-${version}${args.unsigned ? '-unsigned' : ''}`;
-  const dmg = path.join(out, `${base}.dmg`);
-  const zip = path.join(out, `${base}-mac.zip`);
-  rmSync(dmg, { force: true });
-  rmSync(zip, { force: true });
+  const record = {
+    product: PRODUCT, version, revision: ctx.revision, electronVersion, architectures: ['arm64', 'x86_64'], builtAt: new Date().toISOString(),
+    signing: identity ? identity.name : 'unsigned', notarizedBy: identity ? notarizedBy : 'none', checks: {},
+  };
   const temp = mkdtempSync(path.join(os.tmpdir(), 'fd-dist-'));
   try {
     // The renderer and preload are bundled; the main process uses Electron, Node built-ins and
@@ -138,45 +256,57 @@ async function main() {
       // `fabric-dashboards://` opens a service page here (docs/adr/0004-deep-links-and-mcp.md).
       protocols: [{ name: PRODUCT, schemes: ['fabric-dashboards'] }],
     });
-    const app = path.join(appDir, `${PRODUCT}.app`);
-    requireThat(existsSync(path.join(app, 'Contents/Resources/assets/trayTemplate.png')), 'The packaged app is missing its menu bar icons.');
-    const mcp = path.join(app, 'Contents/Resources/bin/fabric-dashboards-mcp');
-    requireThat(existsSync(mcp) && (statSync(mcp).mode & 0o111) !== 0, 'The packaged app is missing its executable MCP launcher.');
-    // Signed and notarized AFTER packaging, on the finished universal bundle: signing
-    // inside the packager raced its own temporary directories (2026-09-28, ENOENT).
-    if (identity) {
-      const { sign } = await import('@electron/osx-sign'); // 2.x: sign() returns a promise
-      await sign({ app, identity: identity.hash, optionsForFile: () => ({ hardenedRuntime: true, entitlements: path.join(root, 'build/entitlements.mac.plist') }) });
-    }
-    if (args.notaryProfile) {
-      const appZip = path.join(temp, 'notarize-app.zip');
-      run('/usr/bin/ditto', ['-c', '-k', '--sequesterRsrc', '--keepParent', app, appZip]);
-      run('xcrun', ['notarytool', 'submit', appZip, '--keychain-profile', args.notaryProfile, '--wait'], { timeout: 45 * 60 * 1000 });
-      run('xcrun', ['stapler', 'staple', app]);
-    }
-    const receipt = {
-      product: PRODUCT, version, revision, electronVersion, architectures: ['arm64', 'x86_64'], builtAt: new Date().toISOString(),
-      image: path.basename(dmg), updateZip: path.basename(zip), signing: 'unsigned', notarization: 'not requested', gatekeeper: 'not assessed', checks: {},
-    };
-    if (identity) {
-      requireThat(tryRun('codesign', ['--verify', '--deep', '--strict', app]).ok, 'The signed app failed strict signature verification.');
-      receipt.signing = identity.name;
-      receipt.checks.appSignature = 'codesign --verify --deep --strict: valid';
-      receipt.checks.hardenedRuntime = /flags=0x10000\(runtime\)/.test(both('codesign', ['-dv', '--verbose=2', app])) ? 'present' : 'missing';
-      requireThat(receipt.checks.hardenedRuntime === 'present', 'The app was signed without the hardened runtime; notarization would refuse it.');
-    }
-    receipt.checks.architectures = run('lipo', ['-archs', path.join(app, `Contents/MacOS/${PRODUCT}`)]).trim();
-    // The MCP launcher answers `initialize` from inside the finished, signed bundle.
-    const hello = spawnSync(mcp, [], { input: '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}\n', encoding: 'utf8', timeout: 20_000, env: { ...process.env, FABRIC_SERVICES_DIR: temp } });
+    // ditto keeps the bundle's symlinks, modes and extended attributes.
+    run('/usr/bin/ditto', [path.join(appDir, `${PRODUCT}.app`), paths.app]);
+  } finally {
+    rmSync(temp, { recursive: true, force: true });
+  }
+  const app = paths.app;
+  requireThat(existsSync(path.join(app, 'Contents/Resources/assets/trayTemplate.png')), 'The packaged app is missing its menu bar icons.');
+  const mcp = path.join(app, 'Contents/Resources/bin/fabric-dashboards-mcp');
+  requireThat(existsSync(mcp) && (statSync(mcp).mode & 0o111) !== 0, 'The packaged app is missing its executable MCP launcher.');
+  // Signed AFTER packaging, on the finished universal bundle: signing inside the packager
+  // raced its own temporary directories (2026-09-28, ENOENT).
+  if (identity) {
+    const { sign } = await import('@electron/osx-sign'); // 2.x: sign() returns a promise
+    await sign({ app, identity: identity.hash, optionsForFile: () => ({ hardenedRuntime: true, entitlements: path.join(root, 'build/entitlements.mac.plist') }) });
+    requireThat(tryRun('codesign', ['--verify', '--deep', '--strict', app]).ok, 'The signed app failed strict signature verification.');
+    record.checks.appSignature = 'codesign --verify --deep --strict: valid';
+    record.checks.hardenedRuntime = /flags=0x10000\(runtime\)/.test(both('codesign', ['-dv', '--verbose=2', app])) ? 'present' : 'missing';
+    requireThat(record.checks.hardenedRuntime === 'present', 'The app was signed without the hardened runtime; notarization would refuse it.');
+  }
+  record.checks.architectures = run('lipo', ['-archs', path.join(app, `Contents/MacOS/${PRODUCT}`)]).trim();
+  // The MCP launcher answers `initialize` from inside the finished, signed bundle.
+  const probeDir = mkdtempSync(path.join(os.tmpdir(), 'fd-mcp-'));
+  try {
+    const hello = spawnSync(mcp, [], { input: '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}\n', encoding: 'utf8', timeout: 20_000, env: { ...process.env, FABRIC_SERVICES_DIR: probeDir } });
     const answer = (() => { try { return JSON.parse(hello.stdout.split('\n')[0]); } catch { return null; } })();
     requireThat(answer?.result?.serverInfo?.version === version, `The packaged MCP launcher did not answer initialize: ${(hello.stderr || hello.stdout || String(hello.error)).slice(0, 300)}`);
-    receipt.checks.mcpLauncher = `Contents/Resources/bin/fabric-dashboards-mcp answers initialize as ${answer.result.serverInfo.name} ${version}`;
-    if (args.notaryProfile) receipt.checks.appStaple = tryRun('xcrun', ['stapler', 'validate', app]).ok ? 'stapled' : 'not stapled';
+    record.checks.mcpLauncher = `Contents/Resources/bin/fabric-dashboards-mcp answers initialize as ${answer.result.serverInfo.name} ${version}`;
+  } finally {
+    rmSync(probeDir, { recursive: true, force: true });
+  }
+  writeRecord(ctx, record);
+  console.error(`app: ${path.relative(root, app)} (${record.signing})`);
+}
 
-    // The update zip keeps the app's signature and staple: ditto, never zip(1).
-    run('/usr/bin/ditto', ['-c', '-k', '--sequesterRsrc', '--keepParent', app, zip]);
-    receipt.zipSha256 = sha256(zip);
-
+/** Stage 2: the update zip and the disk image, both made from the (stapled) app; the image signed. */
+function stagePackage(ctx, identity) {
+  const { paths } = ctx;
+  const record = readRecord(ctx);
+  const app = paths.app;
+  if (record.signing !== 'unsigned') {
+    requireThat(identity && identity.name === record.signing, `The image is signed by the identity that signed the app (${record.signing}).`);
+  }
+  if (record.notarizedBy !== 'none') {
+    requireThat(tryRun('xcrun', ['stapler', 'validate', app]).ok,
+      'The app is not stapled yet: notarize and staple it first, so the update zip and the image carry the ticket.');
+  }
+  for (const f of [paths.dmg, paths.zip, paths.feed, paths.receipt]) rmSync(f, { force: true });
+  // The update zip keeps the app's signature and staple: ditto, never zip(1).
+  run('/usr/bin/ditto', ['-c', '-k', '--sequesterRsrc', '--keepParent', app, paths.zip]);
+  const temp = mkdtempSync(path.join(os.tmpdir(), 'fd-dmg-'));
+  try {
     const settings = path.join(temp, 'dmg-settings.py');
     writeFileSync(settings, [
       `files = [${JSON.stringify(app)}]`, "symlinks = {'Applications': '/Applications'}",
@@ -185,39 +315,84 @@ async function main() {
       'show_status_bar = False', 'show_tab_view = False', 'show_toolbar = False', 'show_pathbar = False', 'show_sidebar = False',
       "format = 'UDZO'", "filesystem = 'HFS+'", '',
     ].join('\n'));
-    const built = tryRun('uvx', ['--from', 'dmgbuild==1.6.7', 'dmgbuild', '-s', settings, PRODUCT, dmg]);
-    if (built.ok) receipt.checks.windowLayout = 'icon view, app beside Applications (dmgbuild 1.6.7)';
+    const built = tryRun('uvx', ['--from', 'dmgbuild==1.6.7', 'dmgbuild', '-s', settings, PRODUCT, paths.dmg]);
+    if (built.ok) record.checks.windowLayout = 'icon view, app beside Applications (dmgbuild 1.6.7)';
     else {
-      receipt.checks.windowLayout = `default view: dmgbuild unavailable (${built.out.split('\n').pop()?.slice(0, 160)}); the image still installs by drag`;
+      record.checks.windowLayout = `default view: dmgbuild unavailable (${built.out.split('\n').pop()?.slice(0, 160)}); the image still installs by drag`;
       const dmgStage = path.join(temp, 'stage');
       mkdirSync(dmgStage);
       run('/usr/bin/ditto', [app, path.join(dmgStage, `${PRODUCT}.app`)]);
       symlinkSync('/Applications', path.join(dmgStage, 'Applications'));
-      run('hdiutil', ['create', '-volname', PRODUCT, '-srcfolder', dmgStage, '-fs', 'HFS+', '-format', 'UDZO', '-imagekey', 'zlib-level=9', '-ov', dmg]);
+      run('hdiutil', ['create', '-volname', PRODUCT, '-srcfolder', dmgStage, '-fs', 'HFS+', '-format', 'UDZO', '-imagekey', 'zlib-level=9', '-ov', paths.dmg]);
     }
-    if (identity) {
-      run('codesign', ['--sign', identity.hash, '--timestamp', dmg]);
-      receipt.checks.imageSignature = tryRun('codesign', ['--verify', '--strict', dmg]).ok ? 'valid' : 'invalid';
-    }
-    if (args.notaryProfile) {
-      run('xcrun', ['notarytool', 'submit', dmg, '--keychain-profile', args.notaryProfile, '--wait']);
-      run('xcrun', ['stapler', 'staple', dmg]);
-      receipt.notarization = tryRun('xcrun', ['stapler', 'validate', dmg]).ok ? 'accepted and stapled' : 'submitted; staple did not validate';
-    }
-    if (identity) {
-      const assess = tryRun('spctl', ['--assess', '--type', 'open', '--context', 'context:primary-signature', '-vv', dmg]);
-      receipt.gatekeeper = assess.ok ? 'accepted' : `not accepted: ${assess.out.split('\n').find((l) => l.includes('source=')) ?? assess.out.split('\n')[0]}`;
-    }
-    receipt.sha256 = sha256(dmg);
-    receipt.bytes = readFileSync(dmg).length;
-    writeFileSync(path.join(out, 'update-feed.json'), JSON.stringify(updateFeed(version, path.basename(zip), notes), null, 2) + '\n');
-    writeFileSync(path.join(out, `${base}.receipt.json`), JSON.stringify(receipt, null, 2) + '\n');
-    console.log(JSON.stringify(receipt, null, 2));
-    if (!existsSync(dmg)) throw new Error('No disk image was produced.');
   } finally {
     rmSync(temp, { recursive: true, force: true });
   }
+  requireThat(existsSync(paths.dmg), 'No disk image was produced.');
+  if (identity) run('codesign', ['--sign', identity.hash, '--timestamp', paths.dmg]);
+  record.packagedAt = new Date().toISOString();
+  writeRecord(ctx, record);
+  console.error(`image: ${path.relative(root, paths.dmg)}; update zip: ${path.relative(root, paths.zip)}`);
 }
+
+/** Stage 3: measure what will ship — app, the app inside the update zip, image — then the feed and receipt. */
+function stageSeal(ctx) {
+  const { paths, version } = ctx;
+  const record = readRecord(ctx);
+  requireThat(existsSync(paths.zip) && existsSync(paths.dmg), 'No update zip or image; run --stage package first.');
+  const m = {};
+  if (record.signing !== 'unsigned') {
+    const temp = mkdtempSync(path.join(os.tmpdir(), 'fd-seal-'));
+    try {
+      // The updater installs what is inside the zip, so that copy is the one measured.
+      run('/usr/bin/ditto', ['-x', '-k', paths.zip, temp]);
+      const zipped = path.join(temp, `${PRODUCT}.app`);
+      requireThat(tryRun('codesign', ['--verify', '--deep', '--strict', zipped]).ok, 'The app inside the update zip fails strict signature verification.');
+      m.zipStaple = tryRun('xcrun', ['stapler', 'validate', zipped]).ok;
+    } finally {
+      rmSync(temp, { recursive: true, force: true });
+    }
+    m.appSignature = tryRun('codesign', ['--verify', '--deep', '--strict', paths.app]).ok;
+    m.imageSignature = tryRun('codesign', ['--verify', '--strict', paths.dmg]).ok;
+    m.appStaple = tryRun('xcrun', ['stapler', 'validate', paths.app]).ok;
+    m.imageStaple = tryRun('xcrun', ['stapler', 'validate', paths.dmg]).ok;
+    m.appGatekeeper = assess('spctl', ['--assess', '--type', 'execute', '-vv', paths.app]);
+    m.imageGatekeeper = assess('spctl', ['--assess', '--type', 'open', '--context', 'context:primary-signature', '-vv', paths.dmg]);
+  }
+  const verdict = assessRelease(record, m);
+  requireThat(verdict.problems.length === 0, `Not releasable:\n- ${verdict.problems.join('\n- ')}`);
+  const receipt = {
+    product: PRODUCT, version, revision: record.revision, electronVersion: record.electronVersion, architectures: record.architectures, builtAt: record.builtAt,
+    image: path.basename(paths.dmg), updateZip: path.basename(paths.zip),
+    signing: verdict.signing, notarization: verdict.notarization, gatekeeper: verdict.gatekeeper,
+    checks: { ...record.checks, ...verdict.checks },
+    zipSha256: sha256(paths.zip), sha256: sha256(paths.dmg), bytes: statSync(paths.dmg).size,
+  };
+  writeFileSync(paths.feed, JSON.stringify(updateFeed(version, path.basename(paths.zip), changelogSection(version)), null, 2) + '\n');
+  writeFileSync(paths.receipt, JSON.stringify(receipt, null, 2) + '\n');
+  rmSync(paths.stage, { recursive: true, force: true });
+  console.log(JSON.stringify(receipt, null, 2));
+}
+
+async function main() {
+  const args = parseArgs(process.argv.slice(2));
+  const ctx = context(args);
+  if (args.stage === 'app') return stageApp(ctx, signingIdentity(args.identity), 'caller');
+  if (args.stage === 'package') return stagePackage(ctx, signingIdentity(args.identity));
+  if (args.stage === 'seal') return stageSeal(ctx);
+  // By hand, on a Mac: every stage in one go. A debug build — never published (RUNBOOK).
+  const identity = args.unsigned ? null : signingIdentity(args.identity);
+  if (args.notaryProfile) {
+    requireThat(tryRun('xcrun', ['notarytool', 'history', '--keychain-profile', args.notaryProfile]).ok,
+      `The notary profile "${args.notaryProfile}" is not in this Mac's keychain. Create it once: xcrun notarytool store-credentials ${args.notaryProfile} --team-id <TEAM>.`);
+  }
+  await stageApp(ctx, identity, args.notaryProfile ? `profile ${args.notaryProfile}` : 'none');
+  if (args.notaryProfile) notarizeWithProfile(ctx.paths.app, args.notaryProfile);
+  stagePackage(ctx, identity);
+  if (args.notaryProfile) notarizeWithProfile(ctx.paths.dmg, args.notaryProfile);
+  stageSeal(ctx);
+}
+// #endregion staged-release
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   let finished = false;
