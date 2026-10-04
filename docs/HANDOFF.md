@@ -1,3 +1,13 @@
+# FD-10 product presentation continuation — 2026-10-04
+
+Owner [FD-10](backlog.md), [cold plan](design/product-presentation-plan.md), [draft scenarios](ux/scenarios.md#product-navigation). Isolated `codex/product-presentation` from fetched `f7e806919c81f88d0fc7129c355c06c7036387ef`; shared main/untracked docs/audit untouched. User asks for one responsible Analytics agent/dashboard and separate inventory for independent background agents and technical services/connections. No private profile is compiled into this reusable host.
+
+Current bounded P3-A implements only pure presentation validation/derivation with exact primary binding, complete technical inventory, unassigned visibility and no privilege/control aliases. Worker source freeze and root independent review/check receipt pending at this entry; helper not wired to Settings/UI and not an installed fix. Draft ST-014/SCN-033…035 lint passes; authority-bearing main Proxy screening and settings write-before-publish are next exact allocation, not claimed implemented.
+
+First next host agent: read FD-10 issue/packet and source receipt, independently review pure helper then allocate P3-B Settings/status/typed IPC/nav/editor with same-change UX/copy/design and failure/authority tests. Preserve lifecycle source in this base. Detailed UI approval, full host checks, disposable Electron E2E, signed CI release and installed activation remain separate. No full hosted CI dispatch, merge, descriptor/restart/remove/auth/launchd mutation performed. Root acquired backlog/HANDOFF and resource claims before edits; releases are required before handoff.
+
+---
+
 # Handoff — Fabric Dashboards
 
 Updated 2026-10-04 (lifecycle contract landed from PR #21, unreleased; CI release rehearsal

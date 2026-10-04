@@ -198,6 +198,17 @@ hunt browser tabs to learn whether an agent is alive or what it did.
 - **Priority:** should
 - **Status:** proposed
 
+### ST-014: Products are distinct from their service connections
+- **Story:** As P-01, I want one entry per configured product and its internal connections in a technical inventory, so that read-only access and local proxies do not look like separate agents.
+- **Traces:** JTBD-01, JTBD-04, JRN-01/#2, JRN-01/#5, JRN-01/#7
+- **Acceptance criteria:**
+  - Given an explicit map with two primaries and three connections, navigation shows two products while technical inventory retains all five service identities.
+  - Missing or changed primary binding remains unavailable; no reader or running connection replaces it.
+  - Monitoring, notifications, MCP, deep links and controls retain exact original service keys and authority.
+  - Invalid or absent map restores ordinary all-service navigation; Save failure preserves last persisted map; Clear and restart restore defaults.
+- **Priority:** must
+- **Status:** proposed
+
 ## Design tooling
 - **Figma:** disabled
 - **Figma file:** none — text-only design surface decided at intake (brief D-7); the PassionCode.ai design system tokens are vendored by hash.

@@ -39,6 +39,10 @@
 | SCN-031 | Open an online service's dashboard, signed in | dashboards | P-01 | ST-013, ST-005 | draft | — |
 | SCN-032 | An online service that cannot be reached says why | health | P-01 | ST-013, ST-004 | draft | — |
 
+| SCN-033 | Configure products without hiding technical service identity | product-navigation | P-01 | ST-014 | draft | NOT_RUN |
+| SCN-034 | Open products and internal connections with unchanged authority | product-navigation | P-01 | ST-014, ST-011, ST-005 | draft | NOT_RUN |
+| SCN-035 | Recover from missing bindings or invalid product preferences | product-navigation | P-01 | ST-014, ST-002 | draft | NOT_RUN |
+
 ## Personas
 
 Defined in [foundation.md](foundation.md) → P-01.
@@ -649,3 +653,62 @@ first release; every sentence a service writes is shown as the service wrote it.
 - **Coverage:** packages/service-host/src/state.ts, packages/service-host/test-vectors/state-precedence.json, src/core/i18n.ts
 - **Product:** unobserved
 
+
+## product-navigation
+
+### SCN-033: Configure products without hiding technical service identity
+- **Persona:** P-01
+- **Feature:** product-navigation
+- **Traces:** ST-014 (JTBD-01, JTBD-04, JRN-01/#7)
+- **Entry point:** Settings / product navigation
+- **Preconditions:** discovered services; optional trusted local product map
+- **Steps:**
+  1. Choose label, primary service and internal connections -> show a bounded editable candidate from actual descriptors.
+  2. Save -> validate the whole map in main, persist before publishing, show product navigation and complete technical inventory.
+  3. Clear -> persist null map and restore all-service navigation after restart as well.
+- **Expected result:** five configured service bindings may appear as two products and five technical services; unknown services remain visible.
+- **Alt paths:** no map or empty products -> legacy layout; cancel editing -> active map unchanged; service arrives -> unassigned visible entry.
+- **UI elements:** labels, service selectors, Save, Clear, product list, internal services list
+- **States covered:** loading, empty, error, success
+- **Errors & recovery:** malformed map or write failure -> static error and previous persisted settings; no inferred grouping from remote metadata.
+- **Status:** draft
+- **Coverage:** none yet; pure helper preparation does not implement the UI
+- **Product:** unobserved
+
+### SCN-034: Open products and internal connections with unchanged authority
+- **Persona:** P-01
+- **Feature:** product-navigation
+- **Traces:** ST-014, ST-011, ST-005 (JTBD-04, JRN-01/#5)
+- **Entry point:** configured product, internal service entry or existing service deep link
+- **Preconditions:** valid map; exact key/origin/placement binding
+- **Steps:**
+  1. Open product -> open original primary service page with its existing session and identity.
+  2. Open internal service or its deep link -> reveal technical entry and open that exact service page.
+  3. Inspect full attention/activity list -> retain internal failure and unchanged service controls.
+- **Expected result:** grouping changes display only; primary Ready never asserts all dependencies healthy; product IDs confer no service authority.
+- **Alt paths:** stopped or degraded matching primary -> same primary state; build change -> same identity; unassigned service -> ordinary visible page.
+- **UI elements:** product entry, technical inventory, exact service header, dependency attention
+- **States covered:** loading, empty, error, success
+- **Errors & recovery:** read-only identity keeps read-only access; remote controls remain refused; no fallback connection is promoted.
+- **Status:** draft
+- **Coverage:** none yet
+- **Product:** unobserved
+
+### SCN-035: Recover from missing bindings or invalid product preferences
+- **Persona:** P-01
+- **Feature:** product-navigation
+- **Traces:** ST-014, ST-002 (JTBD-01, JRN-01/#2, JRN-01/#7)
+- **Entry point:** product navigation or startup
+- **Preconditions:** missing/changed/conflicting primary or malformed persisted product map
+- **Steps:**
+  1. Open workspace -> show unavailable product issue or legacy navigation with bounded invalid-map diagnostic.
+  2. Inspect technical services -> preserve discovered services and original reasons without hiding unknown entries.
+  3. Repair selection or Clear -> restore navigation only after valid persisted update.
+- **Expected result:** no wrong-origin navigation, reader promotion, discarded preferences or falsely healthy aggregate.
+- **Alt paths:** internal member missing -> primary remains exact; primary reinstalls with exact binding -> available; whole settings JSON invalid -> existing safe defaults.
+- **UI elements:** unavailable product, static diagnostic, repair/clear, technical inventory
+- **States covered:** loading, empty, error, success
+- **Errors & recovery:** failed Save/Clear preserves last persisted map; expired dashboard session follows existing sign-in recovery.
+- **Status:** draft
+- **Coverage:** none yet
+- **Product:** unobserved
