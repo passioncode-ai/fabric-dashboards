@@ -5,7 +5,7 @@ Updated 2026-10-04 (lifecycle contract landed from PR #21, unreleased; CI releas
 
 Current release: 0.4.1 (section below). Earlier releases below are preserved as dated evidence.
 
-## Lifecycle contract, 2026-10-03 (PR #21, `claude/lifecycle-contract`; landed on `main` 2026-10-04, unreleased)
+## Lifecycle contract, 2026-10-03 (PR #21, `56eccde`; landed on `main` 2026-10-04, unreleased)
 
 Objective: meet the organization's lifecycle contract (fabric-workspace `knowledge/lifecycle.md`,
 LC-07…LC-15) for the findings of the 2026-10-03 lifecycle audit (fabric-workspace
@@ -30,14 +30,19 @@ Checks run: `FD_SKIP_LAUNCHD=1 npm run check` exit 0 (166 tests, 1 skipped = the
 separately without the skip: pass); `npm run build` exit 0. `npm run test:e2e` was not run (the
 worktree has no Electron binary).
 
-Landing, 2026-10-04: `origin/main` (the CI-signing change, #22 `ec2a29f`, and the board sweep) was
+Landing, 2026-10-04 (merge commit `56eccde`, `main` fast-forwarded to it; board row FD-03 closed): `origin/main` (the CI-signing change, #22 `ec2a29f`, and the board sweep) was
 merged into the branch — no rebase. `scripts/dist-mac.mjs` had been split into stages on `main`, so
 the lifecycle steps moved into them: the fuses are set in `--stage app` before signing (ad hoc
 re-seal of the framework when unsigned) and read back into `checks.fuses`; the packager's
 temporary bundle is unregistered from LaunchServices before its directory is removed, and so is the
 staged app before `--stage app` replaces it and before `--stage seal` removes it; `--stage seal`
 prunes `release/` and records `pruned` in the receipt. `docs/RUNBOOK.md#release` says where each
-check is read. Deferred items are board rows FD-04…FD-07 in [backlog.md](backlog.md).
+check is read. `npm run clean` also removes a `release/stage/` left by a build stopped between
+stages (LC-15 test extended and watched red first). Gate on the merged tree:
+`FD_SKIP_LAUNCHD=1 npm run check` exit 0 — 173 tests, 172 pass, 1 skipped (the launchd test,
+`node --import tsx --test test/monitor.test.ts` unskipped: 7/7, label unloaded afterwards); brand
+pins, 32 code regions, UX lint pass. Deferred items stay open as board rows FD-04…FD-07 in
+[backlog.md](backlog.md); no version was bumped, so 0.4.1 remains current and this ships with FD-09.
 
 Next task: the first CI release that carries these changes (FD-09) is the first real proof of the
 fuses (FD-07): read `checks.fuses` and `checks.mcpLauncher` in its receipt, launch the signed app
