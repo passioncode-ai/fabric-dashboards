@@ -66,6 +66,7 @@ test('list_services shows the state, the dashboard and a deep link, and no token
   assert.equal(out.services.length, 1);
   const s = out.services[0]!;
   assert.equal(s.key, KEY);
+  assert.equal(s.product, 'example-agent', 'ADR-0012: the product is the id');
   assert.equal(s.state, 'degraded');
   assert.equal(s.version, '0.2.0');
   assert.equal(s.build, '8b80be9');

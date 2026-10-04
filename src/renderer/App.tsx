@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { langFor, type Lang } from '../core/i18n';
 import type { AppStatus } from '../core/types';
+import { groupProducts, productOf, type Product } from '../core/products';
 import { Activity } from './components/Activity';
 import { LoginQuestion, Overview } from './components/Overview';
 import { ServiceView } from './components/ServiceView';
@@ -64,6 +65,11 @@ function Shell({ status, route, setRoute, stopKey, setStopKey }: ShellProps) {
   const current = route.page === 'service' ? status.services.find((s) => s.key === route.key) : undefined;
   const stopping = stopKey ? status.services.find((s) => s.key === stopKey) : undefined;
   const count = status.services.length;
+  // ADR-0012: one sidebar entry per product; every member keeps its own key, state and controls.
+  const products = groupProducts(status.services);
+  const foreground = products.filter((p) => !p.background);
+  const background = products.filter((p) => p.background);
+  const currentProduct = route.page === 'service' ? productOf(products, route.key) : undefined;
 
   return (
     <div className="app">
@@ -79,15 +85,11 @@ function Shell({ status, route, setRoute, stopKey, setStopKey }: ShellProps) {
             {status.unread > 0 && <span className="count">{status.unread}</span>}
           </button>
         </div>
-        <div className="nav-section">{t('nav.services')}</div>
         <div className="nav nav-scroll">
-          {status.services.map((s) => (
-            <button key={s.key} className="nav-item" aria-current={route.page === 'service' && route.key === s.key ? 'page' : undefined} onClick={() => open(s.key)}>
-              <span className={`state state-${s.state}`} aria-hidden="true"><span className="glyph">{GLYPH[s.state]}</span></span>
-              <span className="nav-label">{nameOf(s)}</span>
-              <span className="visually-hidden">{t(`state.${s.state}`)}</span>
-            </button>
-          ))}
+          <div className="nav-section">{t('nav.services')}</div>
+          {foreground.map((p) => <ProductItem key={p.id} p={p} current={currentProduct === p} open={open} />)}
+          {background.length > 0 && <div className="nav-section">{t('nav.background')}</div>}
+          {background.map((p) => <ProductItem key={p.id} p={p} current={currentProduct === p} open={open} />)}
         </div>
         <div className="sidebar-footer">
           <UpdateLine status={status} />
@@ -98,7 +100,7 @@ function Shell({ status, route, setRoute, stopKey, setStopKey }: ShellProps) {
       </nav>
       <main className="main">
         {route.page === 'service' && current
-          ? <ServiceView key={current.key} s={current} link={route.link} nonce={route.nonce} overlayOpen={Boolean(stopKey)} askStop={setStopKey} />
+          ? <ServiceView key={current.key} s={current} members={currentProduct?.members ?? [current]} open={open} link={route.link} nonce={route.nonce} overlayOpen={Boolean(stopKey)} askStop={setStopKey} />
           : (
             <div className="page">
               <div className="page-head">
@@ -106,7 +108,7 @@ function Shell({ status, route, setRoute, stopKey, setStopKey }: ShellProps) {
                 {route.page === 'overview' && count > 0 && <span className="meta">{count === 1 ? t('overview.count.one') : t('overview.count', { count })}</span>}
               </div>
               {route.page === 'overview' && <LoginQuestion />}
-              {route.page === 'overview' && <Overview status={status} open={open} act={act} />}
+              {route.page === 'overview' && <Overview status={status} products={products} open={open} act={act} />}
               {route.page === 'activity' && <Activity status={status} openAt={open} />}
               {route.page === 'settings' && <Settings status={status} onTheme={applyTheme} />}
             </div>
@@ -125,6 +127,20 @@ function Shell({ status, route, setRoute, stopKey, setStopKey }: ShellProps) {
         </div>
       )}
     </div>
+  );
+}
+
+/** A product in the sidebar: the primary's name and state; a member in trouble adds a mark, never a changed state (ADR-0012). */
+function ProductItem({ p, current, open }: { p: Product; current: boolean; open: (key: string) => void }) {
+  const { t } = useT();
+  const s = p.primary;
+  return (
+    <button className="nav-item" aria-current={current ? 'page' : undefined} onClick={() => open(s.key)}>
+      <span className={`state state-${s.state}`} aria-hidden="true"><span className="glyph">{GLYPH[s.state]}</span></span>
+      <span className="nav-label">{nameOf(s)}</span>
+      {p.memberProblem && <span className="count alert" title={t('nav.memberProblem')} aria-hidden="true">!</span>}
+      <span className="visually-hidden">{t(`state.${s.state}`)}{p.memberProblem ? `, ${t('nav.memberProblem')}` : ''}</span>
+    </button>
   );
 }
 

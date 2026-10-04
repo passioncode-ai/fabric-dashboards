@@ -5,6 +5,28 @@ Updated 2026-10-04 (lifecycle contract landed from PR #21, unreleased; CI releas
 
 Current release: 0.4.1 (section below). Earlier releases below are preserved as dated evidence.
 
+## One entry per agent, 2026-10-04 (FD-10, ADR-0012, branch `feat/product-grouping`, unreleased)
+
+Objective: the operator saw five sidebar entries for two products (Growth ×3, Analytics ×2) and
+asked for one agent with its sections inside, with dashboard-less services apart. Entry point:
+[ADR-0012](adr/0012-one-entry-per-product.md); code `src/core/products.ts` (`groupProducts`),
+`src/renderer/App.tsx` (`ProductItem`), `ServiceView.tsx` (`InstanceSwitch`), `Overview.tsx`
+(product cards); scenarios SCN-033…035; MCP `list_services.product`.
+
+Recovered from a stopped Codex session: Codex (thread `01a10620`, working from `sshlg-growth`) drafted
+an explicit operator presentation map for this in worktree
+`~/DATA/.worktrees/fabric-dashboards-product-presentation` and stopped at its weekly rate limit
+(2026-10-04 15:42 UTC) with the work uncommitted. It is committed as found and pushed as
+`codex/product-presentation` `9e33f64` — a record, not for merge: grouping by id needs no map
+(the contract already says a second copy of a service is a second instance).
+
+Checks run: `FD_SKIP_LAUNCHD=1 npm run check` exit 0 (181 tests: 180 pass, 1 skipped = launchd);
+`npm run test:e2e` 5/5 (the switch test now opens Beta through the instance switch; the remote test
+was failing on `origin/main` too — its 40 s wait was shorter than the 60 s online probe of LC-08 —
+and passes with 75 s). Not run: the installed app; the change ships with the next CI release (FD-09).
+
+Next: merge the PR after review; then FD-02 covers walking SCN-033…035 on the running app.
+
 ## Lifecycle contract, 2026-10-03 (PR #21, `56eccde`; landed on `main` 2026-10-04, unreleased)
 
 Objective: meet the organization's lifecycle contract (fabric-workspace `knowledge/lifecycle.md`,

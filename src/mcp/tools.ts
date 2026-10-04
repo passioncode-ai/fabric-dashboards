@@ -17,6 +17,7 @@ import { runOwned } from '../core/children';
 import { fromServiceUrl, isServiceKey, linkFor, safePath } from '../core/deeplink';
 import { Launchd, execRunner, type Runner } from '../core/launchd';
 import { fetchEvents, fetchWellKnown, PROBE_TIMEOUT_MS, readToken } from '../core/probe';
+import { productIdOf } from '../core/products';
 
 export const COMMAND_TIMEOUT_MS = 120_000;
 export const CONTROL_TIMEOUT_MS = 40_000;
@@ -71,6 +72,8 @@ export class ToolError extends Error {
 
 export interface ServiceView {
   key: string;
+  /** ADR-0012: the product this service belongs to — its `id`; every instance of one id is one product. */
+  product: string;
   name: string;
   /** DEC-0019: `local` or `remote` (an online agent or dashboard at an https origin). */
   placement: 'local' | 'remote';
@@ -93,6 +96,7 @@ function view(s: ServiceLook): ServiceView {
   const dashPath = wk?.surfaces.dashboard?.path ?? null;
   return {
     key: s.key,
+    product: productIdOf(s.key),
     name: d?.name ?? s.key,
     placement: d?.placement === 'remote' ? 'remote' : 'local',
     state: s.state,

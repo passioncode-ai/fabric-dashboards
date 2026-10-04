@@ -236,6 +236,8 @@ test('service/<id>.<instance> links open the service, a stopped one on its Start
 
 // SCN-015: switching between two dashboards that are both loaded shows the chosen one. Before
 // the fix the old host's hide arrived after the new host's show and left the tab blank.
+// SCN-033/034 (ADR-0012): the two are instances of one id, so they are one product — Alpha is its
+// primary (no `default`, first by key), and Beta is reached through the instance switch.
 test('switching between two loaded dashboards keeps the chosen dashboard on screen', async () => {
   const base = tmp('fd-e2e-switch-');
   const services = path.join(base, 'services');
@@ -259,7 +261,8 @@ test('switching between two loaded dashboards keeps the chosen dashboard on scre
         .map((c) => webContents.fromId(c.webContents!.id)?.getURL() ?? '');
     });
     const open = async (i: number) => {
-      await page.getByRole('button', { name: new RegExp(`^${names[i]}`) }).first().click();
+      if (i === 0) await page.getByRole('button', { name: new RegExp(`^${names[i]}`) }).first().click();
+      else await page.getByRole('navigation', { name: /Connections of Alpha Service/ }).getByRole('button', { name: /^beta · this Mac/ }).click();
       await page.getByRole('heading', { level: 1, name: names[i]! }).waitFor();
       const origin = `http://127.0.0.1:${ports[i]}`;
       for (let n = 0; n < 75; n += 1) {
@@ -270,7 +273,8 @@ test('switching between two loaded dashboards keeps the chosen dashboard on scre
       return onScreen();
     };
     await page.getByRole('button', { name: /Alpha Service — Ready/ }).waitFor({ timeout: 20_000 });
-    await page.getByRole('button', { name: /Beta Service — Ready/ }).waitFor({ timeout: 20_000 });
+    assert.equal(await page.getByRole('button', { name: /Beta Service — / }).count(), 0, 'one card for the product, not one per instance');
+    await page.locator('.card-members').getByText('beta').waitFor({ timeout: 20_000 });
     assert.equal((await open(0))[0], `http://127.0.0.1:${ports[0]}/`, 'Alpha opens');
     assert.equal((await open(1))[0], `http://127.0.0.1:${ports[1]}/`, 'Beta opens');
     await new Promise((r) => setTimeout(r, 500)); // let every late hide arrive

@@ -118,6 +118,11 @@ h3 { font-size: var(--pc-type-card); margin: 0; font-weight: 600; }
 .facts span { font-size: var(--pc-type-meta); color: var(--pc-text-muted); }
 .facts b { font: 500 var(--pc-type-meta) var(--pc-font-data); color: var(--pc-text); }
 .reasons { margin: 0 0 var(--pc-space-3); padding-left: var(--pc-space-4); color: var(--pc-text-muted); }
+.instances { display: flex; flex-wrap: wrap; gap: var(--pc-space-1); padding: var(--pc-space-3) var(--pc-space-6) 0; }
+.instance { display: inline-flex; align-items: center; gap: var(--pc-space-1); border: 1px solid var(--pc-border); background: transparent; color: var(--pc-text-muted); border-radius: var(--pc-radius-pill); padding: var(--pc-space-1) var(--pc-space-3); cursor: pointer; font-size: var(--pc-type-meta); }
+.instance:hover { background: var(--pc-panel-raised); }
+.instance[aria-current='page'] { color: var(--pc-text); background: var(--pc-accent-soft); border-color: var(--pc-accent); }
+.card-members { font-size: var(--pc-type-meta); color: var(--pc-text-muted); display: flex; flex-wrap: wrap; gap: var(--pc-space-2); }
 .tabs { display: flex; gap: var(--pc-space-1); padding: 0 var(--pc-space-6); border-bottom: 1px solid var(--pc-border); }
 .tab { border: 0; background: transparent; padding: var(--pc-space-2) var(--pc-space-3); cursor: pointer; border-bottom: 2px solid transparent; color: var(--pc-text-muted); }
 .tab[aria-selected='true'] { color: var(--pc-text); border-bottom-color: var(--pc-accent); }

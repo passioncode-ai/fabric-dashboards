@@ -1,19 +1,23 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { ActivityItem, ServiceSnapshot } from '../../core/types';
-import { api, nameOf, portOf, shortBuild, Spinner, StateBadge, useT } from '../lib';
+import { instanceOf } from '../../core/products';
+import { api, GLYPH, nameOf, portOf, shortBuild, Spinner, StateBadge, useT } from '../lib';
 import { Feed } from './Activity';
 
 type Tab = 'dashboard' | 'activity' | 'health' | 'logs';
 
 interface Props {
   s: ServiceSnapshot;
+  /** Every instance of this service's product, primary first (ADR-0012); one entry means no switcher. */
+  members: ServiceSnapshot[];
+  open: (key: string) => void;
   link?: string;
   nonce?: number; // a new value re-opens the same link (a second click on one notification)
   overlayOpen: boolean;
   askStop: (key: string) => void;
 }
 
-export function ServiceView({ s, link, nonce, overlayOpen, askStop }: Props) {
+export function ServiceView({ s, members, open, link, nonce, overlayOpen, askStop }: Props) {
   const { t, reason, duration } = useT();
   const hasDashboard = Boolean(s.wellKnown?.surfaces.dashboard);
   const [tab, setTabState] = useState<Tab>(hasDashboard ? 'dashboard' : 'health');
@@ -38,6 +42,7 @@ export function ServiceView({ s, link, nonce, overlayOpen, askStop }: Props) {
 
   return (
     <div className="svc">
+      {members.length > 1 && <InstanceSwitch current={s} members={members} open={open} />}
       <header className="svc-head">
         <div className="svc-title">
           <h1>{nameOf(s)}</h1>
@@ -205,4 +210,26 @@ function ServiceActivity({ serviceKey }: { serviceKey: string }) {
   const [items, setItems] = useState<ActivityItem[] | null>(null);
   useEffect(() => { void api().activity({ serviceKey }).then(setItems); }, [serviceKey]);
   return <Feed items={items} />;
+}
+
+/** The instances of one product (ADR-0012): each opens its own page with its own key, session and
+ *  controls — switching never borrows another member's authority. */
+function InstanceSwitch({ current, members, open }: { current: ServiceSnapshot; members: ServiceSnapshot[]; open: (key: string) => void }) {
+  const { t } = useT();
+  const label = (m: ServiceSnapshot) => {
+    const instance = instanceOf(m.key);
+    const where = t(m.descriptor?.placement === 'remote' ? 'instance.remote' : 'instance.local');
+    return `${instance === 'default' ? t('instance.main') : instance} · ${where}`;
+  };
+  return (
+    <nav className="instances" aria-label={t('instance.switch', { name: nameOf(members[0] ?? current) })}>
+      {members.map((m) => (
+        <button key={m.key} className="instance" aria-current={m.key === current.key ? 'page' : undefined} onClick={() => open(m.key)}>
+          <span className={`state state-${m.state}`} aria-hidden="true"><span className="glyph">{GLYPH[m.state]}</span></span>
+          {label(m)}
+          <span className="visually-hidden">{t(`state.${m.state}`)}</span>
+        </button>
+      ))}
+    </nav>
+  );
 }

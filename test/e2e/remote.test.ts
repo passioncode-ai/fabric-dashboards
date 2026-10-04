@@ -123,7 +123,9 @@ test('an online service sits in the Online group, opens signed in over https, an
 
     state.token = 'f'.repeat(40); // the platform rotated the token; this computer still has the old one
     await page.getByRole('button', { name: 'Overview' }).click();
-    await page.getByRole('button', { name: /Example Online Agent — Not answering/ }).waitFor({ timeout: 40_000 });
+    // LC-08: an online service is probed once a minute even with the window visible (AGENTS.md →
+    // Lifecycle), so the refusal shows within one interval plus the 8 s remote probe timeout.
+    await page.getByRole('button', { name: /Example Online Agent — Not answering/ }).waitFor({ timeout: 75_000 });
     await page.getByText(/refused the token/).first().waitFor({ timeout: 10_000 });
   } finally {
     await closeApp(app);

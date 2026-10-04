@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+- **One entry per agent ([ADR-0012](docs/adr/0012-one-entry-per-product.md)).** Every instance of
+  one service id — the main endpoint, a local projection, a read-only access point — is one entry in
+  the sidebar and one card on Overview; the service page switches between the instances, each with
+  its own state, session and controls. The `default` instance is the one a click opens, and a down
+  default is never replaced by another instance. Services that answer without a dashboard are listed
+  under **Background**. Attention, Activity, notifications, the tray, deep links and start/stop/restart
+  still act on the exact instance; MCP `list_services` names each service's `product`
+  (SCN-033…035).
+- The online-service end-to-end test waits one full online probe interval (60 s, LC-08) for a
+  refused token; it had been failing on `main` since the lifecycle contract landed.
+
 - **Releases are signed only in GitHub Actions.** `.github/workflows/release.yml` runs on a
   `vX.Y.Z` tag in the protected `release` environment, after a person from `release-approvers`
   approves (whoever pushed the tag may; an agent never does). It signs with the organization's CI Developer ID, notarizes and staples

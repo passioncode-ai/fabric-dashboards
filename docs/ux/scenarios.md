@@ -38,6 +38,9 @@
 | SCN-030 | Online services appear in their own group | overview | P-01 | ST-013, ST-002 | draft | — |
 | SCN-031 | Open an online service's dashboard, signed in | dashboards | P-01 | ST-013, ST-005 | draft | — |
 | SCN-032 | An online service that cannot be reached says why | health | P-01 | ST-013, ST-004 | draft | — |
+| SCN-033 | Several instances of one agent read as one agent | products | P-01 | ST-014, ST-002 | draft | — |
+| SCN-034 | Switch between an agent's connections | products | P-01 | ST-014, ST-005 | draft | — |
+| SCN-035 | A connection fails while the agent is fine | products | P-01 | ST-014, ST-002, ST-004 | draft | — |
 
 ## Personas
 
@@ -56,7 +59,7 @@ first release; every sentence a service writes is shown as the service wrote it.
 - **Preconditions:** at least one service is installed and running
 - **Steps:**
   1. User opens Fabric Dashboards for the first time -> system shows the window with the sidebar and Overview, a "Looking for services…" line while it reads the services directory
-  2. System reads every descriptor and probes each service -> each service appears in the sidebar and as a card with its state, name and version within 5 seconds; a second instance of one agent carries its instance in the name ("Example Agent · preview")
+  2. System reads every descriptor and probes each service -> each agent appears in the sidebar and as a card with its state, name and version within 5 seconds; a second instance of one agent appears inside that agent, and where it is named alone it carries its instance ("Example Agent · preview", SCN-033)
   3. User looks at the menu bar -> system shows the Dashboards icon with the aggregate state
   4. Above Overview, the app asks once: "Open Fabric Dashboards when you log in?" with Open at login and Not now -> either answer is kept, the card is gone, and Settings shows the choice (SCN-024)
 - **Expected result:** every installed service is listed with its real state without any setup
@@ -649,3 +652,61 @@ first release; every sentence a service writes is shown as the service wrote it.
 - **Coverage:** packages/service-host/src/state.ts, packages/service-host/test-vectors/state-precedence.json, src/core/i18n.ts
 - **Product:** unobserved
 
+## products
+
+### SCN-033: Several instances of one agent read as one agent
+- **Persona:** P-01
+- **Feature:** products
+- **Traces:** ST-014, ST-002 (JTBD-01, JRN-01/#1)
+- **Entry point:** Overview and the sidebar, with `growth.default` (online), `growth.projection` (this Mac) and `growth.reader` (online) installed, and a communicator that answers without a dashboard
+- **Preconditions:** the instances share the service id `growth`
+- **Steps:**
+  1. User opens the app -> the sidebar lists one **Growth** entry with the default instance's state; Overview shows one Growth card with the default instance's tiles and an "also:" line naming `projection` and `reader`, each with its state glyph
+  2. User looks below the agents -> the communicator is listed under **Background**
+  3. User clicks the Growth entry -> the default instance's page opens on its dashboard
+- **Expected result:** five endpoints of two products read as two agents; nothing is hidden — every instance is one click away
+- **Alt paths:** no `default` instance -> the first instance with a dashboard is the primary; a service that has never answered stays among the agents, not under Background
+- **UI elements:** sidebar product entry, Background section, Overview product card, "also:" line
+- **States covered:** success, empty
+- **Errors & recovery:** an invalid descriptor of one instance keeps its own `invalid` state inside the product and in Attention
+- **Status:** draft
+- **Coverage:** src/core/products.ts, src/renderer/App.tsx, src/renderer/components/Overview.tsx, test/products.test.ts
+- **Product:** unobserved
+
+### SCN-034: Switch between an agent's connections
+- **Persona:** P-01
+- **Feature:** products
+- **Traces:** ST-014, ST-005 (JTBD-04, JRN-01/#5)
+- **Entry point:** a product's service page, or a `fabric-dashboards://service/growth.reader` link
+- **Preconditions:** the product has more than one instance
+- **Steps:**
+  1. User opens Growth -> above the header, a switch lists `Main · online`, `projection · this Mac`, `reader · online`, each with its state; Main is current
+  2. User chooses `reader · online` -> the reader's page opens with its own header, tabs, session and controls; the sidebar keeps Growth selected
+  3. User opens a link that names `growth.reader` directly -> the same page opens, with `reader` current in the switch
+- **Expected result:** each connection opens as itself — its own sign-in and its own authority; the switch never borrows the main instance's session
+- **Alt paths:** a product with one instance shows no switch
+- **UI elements:** instance switch above the service header
+- **States covered:** success
+- **Errors & recovery:** a connection whose dashboard cannot sign in shows the sign-in error of SCN-016 for that connection only
+- **Status:** draft
+- **Coverage:** src/renderer/components/ServiceView.tsx (InstanceSwitch), src/renderer/App.tsx
+- **Product:** unobserved
+
+### SCN-035: A connection fails while the agent is fine
+- **Persona:** P-01
+- **Feature:** products
+- **Traces:** ST-014, ST-002, ST-004 (JTBD-01, JRN-01/#2)
+- **Entry point:** the sidebar and Overview while `growth.projection` is down and `growth.default` is ready
+- **Preconditions:** the projection's launchd job has stopped answering
+- **Steps:**
+  1. User looks at the sidebar -> Growth shows ready, with a "!" mark that a connection needs attention
+  2. User looks at Overview -> Attention lists "Growth · projection" with its reason and Restart; the Growth card shows `projection` with the down glyph
+  3. User restarts it from Attention -> the projection comes back; the mark disappears
+- **Expected result:** the failing connection is named exactly and acted on exactly; the agent's own state is neither raised nor lowered to cover it
+- **Alt paths:** the default instance itself is down -> the product shows down, and no connection is promoted in its place
+- **UI elements:** sidebar mark, Attention row, card "also:" line
+- **States covered:** error, success
+- **Errors & recovery:** a restart that does not bring it back follows SCN-008 for that instance
+- **Status:** draft
+- **Coverage:** src/core/products.ts (memberProblem), src/renderer/App.tsx (ProductItem), test/products.test.ts
+- **Product:** unobserved

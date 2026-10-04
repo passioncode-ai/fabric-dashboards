@@ -198,6 +198,18 @@ hunt browser tabs to learn whether an agent is alive or what it did.
 - **Priority:** should
 - **Status:** proposed
 
+### ST-014: One entry per agent, with its connections inside
+- **Story:** As P-01, I want every instance of one agent — its main endpoint, a local projection, a read-only access point — to appear as one agent with its connections inside, and services without a dashboard to sit apart, so that the list reads as the agents I run, not as the endpoints they expose.
+- **Traces:** JTBD-01, JTBD-04, JRN-01/#1, JRN-01/#5; ADR-0012; Fabric Agent Contract service.md (a second copy of a service is a second instance)
+- **Acceptance criteria:**
+  - Given `growth.default`, `growth.projection` and `growth.reader`, when the app lists services, then the sidebar and Overview show one Growth entry, and its page switches between the three instances, each with its own state.
+  - Given the default instance is down, when I open the product, then the default instance opens with its down state; no other instance stands in for it.
+  - Given a second instance is down while the default is ready, when I look at the sidebar, then the product shows ready with a mark that a connection needs attention, and Attention names the exact instance.
+  - Given a service that answers without a dashboard surface, when the app lists services, then it is under Background.
+  - Notifications, Activity, the tray, MCP, deep links and start/stop/restart keep acting on the exact instance.
+- **Priority:** must
+- **Status:** proposed
+
 ## Design tooling
 - **Figma:** disabled
 - **Figma file:** none — text-only design surface decided at intake (brief D-7); the PassionCode.ai design system tokens are vendored by hash.

@@ -53,7 +53,7 @@ export const TOOLS = [
   },
   {
     name: 'list_services',
-    description: 'Every installed service, local and online: placement, state (ready, degraded, down, stopped…), version, dashboard URL, a fabric-dashboards:// link, tiles, pending update.',
+    description: 'Every installed service, local and online: its product (every instance of one id is one product), placement, state (ready, degraded, down, stopped…), version, dashboard URL, a fabric-dashboards:// link, tiles, pending update.',
     inputSchema: { type: 'object', properties: {}, additionalProperties: false },
     annotations: { readOnlyHint: true },
   },

@@ -1,7 +1,8 @@
 import { attentionRank } from '@passioncode-ai/fabric-service-host/state';
 import { useEffect, useState } from 'react';
+import { instanceOf, type Product } from '../../core/products';
 import type { AppStatus, ServiceSnapshot, Settings } from '../../core/types';
-import { api, nameOf, shortBuild, Spinner, StateBadge, useT } from '../lib';
+import { api, GLYPH, nameOf, shortBuild, Spinner, StateBadge, useT } from '../lib';
 
 /** The first-run question (SCN-024, lifecycle LC-07): launch at login is off until the person
  *  answers here or in Settings; either answer registers or unregisters once, and the card is gone. */
@@ -28,9 +29,9 @@ export function LoginQuestion() {
   );
 }
 
-interface Props { status: AppStatus; open: (key: string) => void; act: (key: string, action: 'restart' | 'start' | 'update') => void }
+interface Props { status: AppStatus; products: Product[]; open: (key: string) => void; act: (key: string, action: 'restart' | 'start' | 'update') => void }
 
-export function Overview({ status, open, act }: Props) {
+export function Overview({ status, products, open, act }: Props) {
   const { t, reason } = useT();
   const services = status.services;
   const attention = services
@@ -69,8 +70,9 @@ export function Overview({ status, open, act }: Props) {
     return <button className="btn" onClick={() => open(s.key)}>{t('action.open')}</button>;
   };
 
-  const local = services.filter((s) => !isOnline(s));
-  const online = services.filter(isOnline);
+  // ADR-0012: one card per product, placed by its primary; Attention above stays per instance.
+  const local = products.filter((p) => !isOnline(p.primary));
+  const online = products.filter((p) => isOnline(p.primary));
 
   const attentionLine = (s: ServiceSnapshot) => {
     if (s.reasons.length) return s.reasons.map(reason).join(' ');
@@ -95,13 +97,13 @@ export function Overview({ status, open, act }: Props) {
         </section>
       )}
       <div className="cards">
-        {local.map((s) => <Card key={s.key} s={s} open={open} />)}
+        {local.map((p) => <Card key={p.id} p={p} open={open} />)}
       </div>
       {online.length > 0 && (
         <section className="online" aria-labelledby="online-title">
           <h2 id="online-title">{t('overview.online')}</h2>
           <div className="cards">
-            {online.map((s) => <Card key={s.key} s={s} open={open} />)}
+            {online.map((p) => <Card key={p.id} p={p} open={open} />)}
           </div>
         </section>
       )}
@@ -109,8 +111,10 @@ export function Overview({ status, open, act }: Props) {
   );
 }
 
-function Card({ s, open }: { s: ServiceSnapshot; open: (key: string) => void }) {
+function Card({ p, open }: { p: Product; open: (key: string) => void }) {
   const { t, duration, time } = useT();
+  const s = p.primary;
+  const others = p.members.slice(1);
   const wk = s.wellKnown;
   const uptime = wk ? Date.now() - new Date(wk.process.startedAt).getTime() : null;
   return (
@@ -133,6 +137,17 @@ function Card({ s, open }: { s: ServiceSnapshot; open: (key: string) => void }) 
               <div className="v">{tile.value}</div>
               <div className="l">{tile.label}</div>
             </div>
+          ))}
+        </div>
+      )}
+      {others.length > 0 && (
+        <div className="card-members">
+          {t('card.members')}
+          {others.map((m) => (
+            <span key={m.key} className={`state state-${m.state}`}>
+              <span className="glyph" aria-hidden="true">{GLYPH[m.state]}</span> {instanceOf(m.key)}
+              <span className="visually-hidden">{t(`state.${m.state}`)}</span>
+            </span>
           ))}
         </div>
       )}
