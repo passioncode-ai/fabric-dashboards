@@ -36,19 +36,61 @@
 
 ## Release
 
-1. Bump `version` in `package.json`, add the `CHANGELOG.md` section, commit.
-2. `npm ci && npm run check && npm run test:e2e`.
-3. `npm run dist -- --notary-profile fabric-notary` — read the receipt: signing names the
-   Developer ID, notarization `accepted and stapled`, Gatekeeper `accepted`, `checks.fuses` the
-   release fuses in every slice (`scripts/fuses.mjs`; the build fails on a wrong one), `checks.mcpLauncher`
-   the launcher answering from the finished bundle, and `pruned` the older release files it removed
-   (`release/` keeps this release and the previous one). `node scripts/fuses.mjs "<path>.app"` reads
-   the fuses of any built or installed app.
-4. `git tag -a v<version> -m v<version> && git push origin v<version>`, then
-   `gh release create v<version> release/Fabric-Dashboards-<version>.dmg release/Fabric-Dashboards-<version>-mac.zip release/update-feed.json --notes-file <section>`.
-   The feed is served from `releases/latest/download/`, so the newest release is the feed.
-5. Installed apps pick the update up within six hours, or at once from
+A release is built, signed and published **only by GitHub Actions**, in this repository's
+protected `release` environment ([`.github/workflows/release.yml`](../.github/workflows/release.yml);
+the organization's rule and shared actions:
+[passioncode-ai/.github `release-signing/`](https://github.com/passioncode-ai/.github/blob/main/release-signing/README.md)).
+No laptop holds the release keys, and a build signed anywhere else is a debug build that is never
+published or attached to a release.
+
+1. Release pull request: bump `version` in `package.json`, add the `CHANGELOG.md` section
+   `## <version> - <date>`, run `npm ci && npm run check && npm run test:e2e`, merge to `main`.
+2. Tag the merge commit and push the tag:
+   `git tag -a v<version> <merge commit> -m v<version> && git push origin v<version>`.
+3. `release.yml` starts. `version` checks that the tag names `package.json`'s version and that
+   the CHANGELOG has its section; `check` runs `npm run check` (`validate.yml`). The `macos` job
+   then waits for the `release` environment.
+4. Someone from `release-approvers` approves it (*Review deployments*); that may be whoever
+   pushed the tag. An agent never approves a release run, even when its account could.
+   In the job:
+   - `apple-signing` puts the CI Developer ID in a throwaway keychain. The identity and team come
+     from the environment (`vars.APPLE_TEAM_ID`), never from this repository.
+   - `node scripts/dist-mac.mjs --stage app --identity <from the action>` packages the universal
+     app, sets the release fuses before signing, signs it with the hardened runtime and checks it
+     (strict signature, runtime flag, both architectures, `checks.fuses` — the release fuses read
+     back from every slice by `scripts/fuses.mjs`, a wrong one failing the build — and the MCP
+     launcher answers `initialize` from the finished bundle).
+   - `notarize` notarizes the app with the App Store Connect API key, requires `Accepted`
+     (Apple's log otherwise), staples it and runs `spctl --type execute`.
+   - `--stage package` makes the update zip and the image **from the stapled app**, and signs
+     the image.
+   - `notarize` then notarizes, staples and assesses the image (`context:primary-signature`).
+   - `--stage seal` measures what ships: the app, the app unpacked from the update zip and the
+     image must each be stapled, and Gatekeeper must accept the app and the image. It then
+     writes `update-feed.json` and the receipt; anything else fails the job. The receipt's
+     `pruned` names the older release files it removed: `release/` keeps this release and the
+     previous one (LC-15).
+5. `publish` waits for a second approval, because it holds the GPG key. It attests every file
+   (Sigstore), writes `SHA256SUMS` and `SHA256SUMS.asc`, and publishes the release with the
+   CHANGELOG section as its notes. Its files: `Fabric-Dashboards-<version>.dmg`,
+   `Fabric-Dashboards-<version>-mac.zip`, `update-feed.json`, the receipt, and the sums.
+6. The feed is served from `releases/latest/download/`, so the newest release is the feed.
+   Installed apps pick the update up within six hours, or at once from
    *Fabric Dashboards → Check for Updates…*.
+
+A published release is never rewritten; a fix is a new tag. Verify a download with
+`gpg --verify SHA256SUMS.asc SHA256SUMS`, `shasum -a 256 -c SHA256SUMS --ignore-missing` and
+`gh attestation verify <file> -R passioncode-ai/fabric-dashboards`.
+
+**Rehearsal.** Push an annotated `v<version>-rc.<n>` tag (the push trigger ignores it), then run
+`gh workflow run release.yml --ref v<version>-rc.<n> -f publish=false`. The same approvals
+apply. The signed set is kept as a workflow artifact for 14 days, and no release is created.
+
+**A local build is for debugging only.** `npm run dist` runs the same three stages in one go on
+this Mac with the one Developer ID it finds (or `--identity NAME`). `--notary-profile NAME`
+notarizes with a keychain profile and reads Apple's status, not the exit code. `--unsigned`
+makes a test build. Its receipt reads like a release's, but it is never published.
+`node scripts/fuses.mjs "<path>.app"` reads the fuses of any built or installed app.
 
 The update URL is public only while the repository is public; a private repository's
 release assets need authentication, and the updater then reports the error in the

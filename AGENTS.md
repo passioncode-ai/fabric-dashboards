@@ -28,12 +28,14 @@ These come from `CONTRIBUTING.md`:
 | Test (the gate) | `npm run check` — typecheck, unit + integration tests, brand pins, code regions, UX lint (`FD_SKIP_LAUNCHD=1` without a GUI login session) |
 | End-to-end | `npm run test:e2e` — builds, then drives the real Electron app against a live sample service |
 | Run from source | `npm start` |
-| Build a release | `npm run dist -- --notary-profile fabric-notary` — signed, notarized DMG + update zip + feed ([RUNBOOK](docs/RUNBOOK.md)) |
+| Release | push an annotated `v<version>` tag; `.github/workflows/release.yml` builds, signs, notarizes, attests and publishes after a `release-approvers` approval. Rehearsal: a `v<version>-rc.<n>` tag, then `gh workflow run release.yml --ref <tag> -f publish=false` ([RUNBOOK](docs/RUNBOOK.md#release)) |
+| Local build (debug only, never published) | `npm run dist -- --unsigned`, or signed: `npm run dist [-- --identity NAME] [--notary-profile NAME]` |
 | MCP (register + proving call) | `claude mcp add --scope user fabric-dashboards -- "/Applications/Fabric Dashboards.app/Contents/Resources/bin/fabric-dashboards-mcp"`, then `claude -p "Call the fabric-dashboards list_services tool once and reply with only the number of services it returned." --allowedTools mcp__fabric-dashboards__list_services --max-turns 3` |
 
 The integration test drives the real launchd with the fixed label
 `ai.passioncode.fabric-dashboards.test.sample`. `.github/workflows/validate.yml` runs `npm ci`
-and `npm run check` on macOS every night and on manual dispatch, with `FD_SKIP_LAUNCHD=1`.
+and `npm run check` on macOS every night, on manual dispatch and before every release, with
+`FD_SKIP_LAUNCHD=1`.
 
 ## Where things live
 
@@ -161,11 +163,12 @@ LC-15. A build leaves at most the current and the previous release:
 | `release/Fabric-Dashboards-<v>.dmg`, `…-mac.zip` | `npm run dist` | current + previous version; `dist-mac.mjs` prunes older ones itself (`pruneReleases`) | 2 releases |
 | `release/*.receipt.json`, `release/update-feed.json` | `npm run dist` | kept (small JSON) | — |
 | `$TMPDIR/fd-dist-*` (stage, unpacked `*-darwin-universal` bundle) | `npm run dist` | removed by the script, the bundle unregistered from LaunchServices first | 0 |
+| `release/stage/` (`Fabric Dashboards.app`, `build.json`) | `--stage app` | until `--stage seal`, which removes it, the bundle unregistered from LaunchServices first; a build stopped between stages leaves it for the next `--stage app` or `npm run clean` | 1 staged app |
 | `out/`, `packages/service-host/dist/` | `npm run build`, `npm test` | regenerated | 50 MB |
 | `node_modules/.cache`, `test-results/`, `test/.debug/` | vite, Playwright e2e | regenerated | 200 MB |
 
 `npm run clean` brings a checkout back under the caps (`scripts/clean.mjs`: removes `out/`,
-`test-results/`, `test/.debug/`, `node_modules/.cache` and prunes `release/`). An agent that built
+`test-results/`, `test/.debug/`, `node_modules/.cache` and `release/stage/`, and prunes `release/`). An agent that built
 runs it before ending its run.
 
 ## Organisation

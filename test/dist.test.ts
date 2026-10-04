@@ -7,7 +7,7 @@ import { tmp } from './helpers';
 
 test('dist: arguments, identity choice and the update feed', async () => {
   const dist = await import('../scripts/dist-mac.mjs');
-  assert.deepEqual(dist.parseArgs(['--notary-profile', 'fabric-notary']), { unsigned: false, notaryProfile: 'fabric-notary', identity: '', allowDirty: false });
+  assert.deepEqual(dist.parseArgs(['--notary-profile', 'fabric-notary']), { unsigned: false, notaryProfile: 'fabric-notary', identity: '', allowDirty: false, stage: '' });
   assert.throws(() => dist.parseArgs(['--unsigned', '--identity', 'x']), /cannot be combined/);
   assert.throws(() => dist.parseArgs(['--bogus']), /Unknown argument/);
   const out = '  1) ' + 'A'.repeat(40) + ' "Developer ID Application: Someone (TEAM)"\n  2) ' + 'B'.repeat(40) + ' "Apple Development: Someone (X)"\n';
@@ -36,3 +36,128 @@ test('dist: the workspace package is staged where the app\'s require finds it in
   assert.equal(r.status, 0, r.stderr);
   assert.deepEqual(JSON.parse(r.stdout), ['fabric-dashboards://service/a1.default', 15000, true]);
 });
+
+// #region release-in-ci — docs: docs/RUNBOOK.md#release
+// The release is signed only in CI (passioncode-ai/.github release-signing): the build is staged
+// so the organization's notarize action can notarize and staple the app before the update zip and
+// the disk image are made from it, then notarize the image. The local path stays for debugging.
+test('dist: staged CI arguments — the identity is named, the caller notarizes', async () => {
+  const dist = await import('../scripts/dist-mac.mjs');
+  const id = 'Developer ID Application: Example Org (TEAMID0000)';
+  assert.deepEqual(dist.parseArgs(['--stage', 'app', '--identity', id]), { unsigned: false, notaryProfile: '', identity: id, allowDirty: false, stage: 'app' });
+  assert.equal(dist.parseArgs(['--stage', 'package', '--identity', id]).stage, 'package');
+  assert.equal(dist.parseArgs(['--stage', 'seal']).stage, 'seal');
+  assert.throws(() => dist.parseArgs(['--stage', 'app']), /--identity/, 'a staged build never picks an identity from the keychain');
+  assert.throws(() => dist.parseArgs(['--stage', 'package']), /--identity/);
+  assert.throws(() => dist.parseArgs(['--stage', 'app', '--identity', id, '--notary-profile', 'p']), /notarized by its caller/);
+  assert.throws(() => dist.parseArgs(['--stage', 'app', '--unsigned']), /cannot be combined/);
+  assert.throws(() => dist.parseArgs(['--stage', 'zip', '--identity', id]), /app, package or seal/);
+  assert.throws(() => dist.parseArgs(['--stage']), /Give a value/);
+});
+
+test('dist: one certificate listed twice is one identity', async () => {
+  const dist = await import('../scripts/dist-mac.mjs');
+  // `security find-identity` lists a certificate once per keychain in the search list.
+  const twice = '  1) ' + 'C'.repeat(40) + ' "Developer ID Application: Example Org (TEAMID0000)"\n  2) ' + 'C'.repeat(40) + ' "Developer ID Application: Example Org (TEAMID0000)"\n     2 valid identities found\n';
+  assert.equal(dist.pickIdentity(twice).hash, 'C'.repeat(40));
+  assert.equal(dist.pickIdentity(twice, 'Developer ID Application: Example Org (TEAMID0000)').hash, 'C'.repeat(40));
+  const two = twice.replace(/^( {2}2\) )C{40}/m, `$1${'D'.repeat(40)}`);
+  assert.throws(() => dist.pickIdentity(two), /exactly one/);
+});
+
+test('dist: the notary status is read, not assumed from the exit code', async () => {
+  const dist = await import('../scripts/dist-mac.mjs');
+  assert.deepEqual(dist.notaryVerdict('{"id":"sub-1","status":"Accepted","message":"Processing complete"}'), { accepted: true, status: 'Accepted', id: 'sub-1' });
+  assert.deepEqual(dist.notaryVerdict('{"id":"sub-2","status":"Invalid","message":"Processing complete"}'), { accepted: false, status: 'Invalid', id: 'sub-2' });
+  assert.deepEqual(dist.notaryVerdict('Error: HTTP status code: 401'), { accepted: false, status: 'unreadable', id: '' });
+  assert.deepEqual(dist.notaryVerdict(''), { accepted: false, status: 'unreadable', id: '' });
+});
+
+test('dist: staged paths are the ones the release workflow hands the notarize action', async () => {
+  const dist = await import('../scripts/dist-mac.mjs');
+  const p = dist.stagePaths('/r', '1.2.3');
+  assert.deepEqual(p, {
+    out: '/r/release', stage: '/r/release/stage', app: '/r/release/stage/Fabric Dashboards.app', record: '/r/release/stage/build.json',
+    dmg: '/r/release/Fabric-Dashboards-1.2.3.dmg', zip: '/r/release/Fabric-Dashboards-1.2.3-mac.zip',
+    feed: '/r/release/update-feed.json', receipt: '/r/release/Fabric-Dashboards-1.2.3.receipt.json',
+  });
+  assert.equal(dist.stagePaths('/r', '1.2.3', true).dmg, '/r/release/Fabric-Dashboards-1.2.3-unsigned.dmg');
+});
+
+test('dist: the receipt asserts notarization and Gatekeeper on the app, the update zip and the image', async () => {
+  const dist = await import('../scripts/dist-mac.mjs');
+  const ok = { ok: true, out: 'accepted\nsource=Notarized Developer ID' };
+  const all = { appSignature: true, imageSignature: true, appStaple: true, zipStaple: true, imageStaple: true, appGatekeeper: ok, imageGatekeeper: ok };
+  const caller = { signing: 'Developer ID Application: Example Org (TEAMID0000)', notarizedBy: 'caller' };
+
+  const good = dist.assessRelease(caller, all);
+  assert.deepEqual(good.problems, []);
+  assert.equal(good.gatekeeper, 'accepted');
+  assert.match(good.notarization, /^accepted and stapled: app, update zip, image/);
+  assert.equal(good.checks.appGatekeeper, 'spctl --type execute: accepted, source=Notarized Developer ID');
+  assert.equal(good.checks.imageGatekeeper, 'spctl --type open --context context:primary-signature: accepted, source=Notarized Developer ID');
+
+  const rejected = { ok: false, out: 'rejected\nsource=Unnotarized Developer ID' };
+  const appNotAssessed = dist.assessRelease(caller, { ...all, appGatekeeper: rejected });
+  assert.match(appNotAssessed.problems.join('\n'), /app.*Gatekeeper/);
+  assert.match(appNotAssessed.gatekeeper, /^not accepted: app source=Unnotarized Developer ID/);
+  assert.match(dist.assessRelease(caller, { ...all, zipStaple: false }).problems.join('\n'), /update zip.*not stapled/);
+  assert.match(dist.assessRelease(caller, { ...all, imageStaple: false }).problems.join('\n'), /image.*not stapled/);
+  assert.match(dist.assessRelease(caller, { ...all, imageSignature: false }).problems.join('\n'), /image.*signature/);
+  assert.match(dist.assessRelease({ ...caller, notarizedBy: 'profile fabric-notary' }, { ...all, appStaple: false }).problems.join('\n'), /app.*not stapled/);
+
+  // Signed, not notarized (a local debug build): recorded honestly, not a failure.
+  const debug = dist.assessRelease({ ...caller, notarizedBy: 'none' }, { ...all, appStaple: false, zipStaple: false, imageStaple: false, appGatekeeper: rejected, imageGatekeeper: rejected });
+  assert.deepEqual(debug.problems, []);
+  assert.equal(debug.notarization, 'not requested');
+  assert.match(debug.gatekeeper, /^not accepted/);
+
+  const unsigned = dist.assessRelease({ signing: 'unsigned', notarizedBy: 'none' }, {});
+  assert.deepEqual(unsigned, { signing: 'unsigned', notarization: 'not requested', gatekeeper: 'not assessed', checks: {}, problems: [] });
+});
+
+test('dist: release.yml signs in the release environment and ships only what was made from the stapled app', async () => {
+  const dist = await import('../scripts/dist-mac.mjs');
+  const root = path.resolve(__dirname, '..');
+  const wf = fs.readFileSync(path.join(root, '.github/workflows/release.yml'), 'utf8');
+  const at = (needle: string) => { const i = wf.indexOf(needle); assert.ok(i >= 0, `release.yml lacks ${needle}`); return i; };
+  // Triggers: a vX.Y.Z tag publishes; an -rc tag does not trigger; a dispatch rehearses by default.
+  at('tags: ["v[0-9]+.[0-9]+.[0-9]+"]');
+  assert.match(wf, /workflow_dispatch:\s+inputs:\s+publish:[\s\S]*?type: boolean\s+default: false/);
+  at("publish: ${{ github.event_name == 'push' || inputs.publish }}");
+  at('environment: release');
+  at('team-id: ${{ vars.APPLE_TEAM_ID }}');
+  // The order that makes the update zip and the image come from the stapled app.
+  const order = [
+    at('uses: passioncode-ai/.github/actions/apple-signing@v1'),
+    at('--stage app --identity "$IDENTITY"'),
+    at('path: release/stage/Fabric Dashboards.app'),
+    at('--stage package --identity "$IDENTITY"'),
+    at('path: ${{ steps.version.outputs.dmg }}'),
+    at('--stage seal'),
+    at('name: release-macos'),
+    at('uses: passioncode-ai/.github/actions/apple-signing/cleanup@v1'),
+    at('uses: passioncode-ai/.github/.github/workflows/release-publish.yml@v1'),
+  ];
+  assert.deepEqual([...order].sort((a, b) => a - b), order, 'release.yml steps are out of order');
+  assert.equal(wf.split('uses: passioncode-ai/.github/actions/notarize@v1').length - 1, 2, 'the app and the image are each notarized once');
+  // The workflow's literal paths are the script's.
+  assert.equal(path.relative(root, dist.stagePaths(root, '1.2.3').app), 'release/stage/Fabric Dashboards.app');
+  at('release/Fabric-Dashboards-${version}.dmg');
+  for (const f of ['.dmg', '-mac.zip', 'update-feed.json', '.receipt.json']) assert.ok(new RegExp(`path:[\\s\\S]*release/[^\\n]*${f.replace('.', '\\.')}`).test(wf), `release-macos uploads ${f}`);
+  // No keychain profile, no login-keychain identity, no team id literal in the CI path.
+  assert.doesNotMatch(wf, /notary-profile|keychain-profile|find-identity/);
+  assert.doesNotMatch(wf, /\([A-Z0-9]{10}\)|KJ35UYYL22/);
+  // Third-party actions are pinned by commit.
+  for (const m of wf.matchAll(/uses: ([^\s]+)/g)) {
+    if (m[1].startsWith('passioncode-ai/.github/') || m[1].startsWith('./')) continue;
+    assert.match(m[1], /@[0-9a-f]{40}$/, `${m[1]} is not pinned by commit`);
+  }
+});
+
+test('dist: no team id or signing identity is written into the build script', () => {
+  const root = path.resolve(__dirname, '..');
+  const src = fs.readFileSync(path.join(root, 'scripts/dist-mac.mjs'), 'utf8');
+  assert.doesNotMatch(src, /KJ35UYYL22|Developer ID Application: [A-Z][a-z]/);
+});
+// #endregion release-in-ci

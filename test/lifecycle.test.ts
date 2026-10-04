@@ -597,11 +597,13 @@ test('LC-15: a release build keeps the current and the previous release and prun
 test('LC-15: npm run clean removes what a build regenerates and nothing git tracks', async () => {
   const { clean } = await import('../scripts/clean.mjs');
   const root = tmp('fd-clean-');
-  for (const d of ['out/main', 'test-results', 'node_modules/.cache/vite', 'node_modules/react', 'src', 'release']) fs.mkdirSync(path.join(root, d), { recursive: true });
+  for (const d of ['out/main', 'test-results', 'node_modules/.cache/vite', 'node_modules/react', 'src', 'release/stage/Fabric Dashboards.app/Contents']) fs.mkdirSync(path.join(root, d), { recursive: true });
   for (const v of ['0.1.0', '0.2.0', '0.3.0']) fs.writeFileSync(path.join(root, 'release', `Fabric-Dashboards-${v}.dmg`), 'x');
+  fs.writeFileSync(path.join(root, 'release/stage/build.json'), '{}'); // a staged build interrupted before --stage seal
   fs.writeFileSync(path.join(root, 'src/main.ts'), 'code');
   const removed = clean(root);
-  assert.deepEqual(removed.sort(), ['node_modules/.cache', 'out', 'release/Fabric-Dashboards-0.1.0.dmg', 'test-results'].sort());
+  assert.deepEqual(removed.sort(), ['node_modules/.cache', 'out', 'release/Fabric-Dashboards-0.1.0.dmg', 'release/stage', 'test-results'].sort());
+  assert.ok(fs.existsSync(path.join(root, 'release/Fabric-Dashboards-0.3.0.dmg')), 'the current release stays');
   assert.ok(fs.existsSync(path.join(root, 'node_modules/react')), 'dependencies stay');
   assert.ok(fs.existsSync(path.join(root, 'src/main.ts')), 'sources stay');
   assert.deepEqual(clean(root), [], 'idempotent');

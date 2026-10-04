@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+- **Releases are signed only in GitHub Actions.** `.github/workflows/release.yml` runs on a
+  `vX.Y.Z` tag in the protected `release` environment, after a person from `release-approvers`
+  approves (whoever pushed the tag may; an agent never does). It signs with the organization's CI Developer ID, notarizes and staples
+  the app and then the image with the shared `notarize` action, attests every file (Sigstore), and
+  publishes them with `SHA256SUMS` and its GPG signature. A `-rc` tag with `publish=false` rehearses
+  the whole path without creating a release. A locally signed build is for debugging and is never
+  published ([RUNBOOK](docs/RUNBOOK.md#release)).
+- `scripts/dist-mac.mjs` runs in stages (`--stage app|package|seal`), so the update zip and the
+  image are made from the stapled app. The identity is named with `--identity` and never picked
+  from a keychain in CI. The seal stage fails unless the app, the app inside the update zip and the
+  image are all stapled and Gatekeeper accepts the app as well as the image. The local
+  `--notary-profile` path now reads Apple's status (`Accepted`) instead of trusting the exit code.
+- `validate.yml` pins its actions by commit and runs before every release.
+
 The organization's [lifecycle contract](https://github.com/passioncode-ai/fabric-workspace/blob/main/knowledge/lifecycle.md)
 (LC-07…LC-15), from the 2026-10-03 lifecycle audit. `AGENTS.md` → *Lifecycle* is the inventory and
 idle budget; `test/lifecycle.test.ts` holds each rule.
@@ -31,13 +45,15 @@ idle budget; `test/lifecycle.test.ts` holds each rule.
 - **Uninstall (LC-14).** Settings → Uninstall removes the login item, the `fabric-dashboards` entry
   in Claude Code's `~/.claude.json`, and the app's data once it has exited, then moves the app to
   the Trash. `fabric-dashboards-mcp --unregister` removes the MCP entry alone.
-- **Hardened fuses (LC-13).** `npm run dist` turns off `NODE_OPTIONS` and the inspector arguments
-  and turns on ASAR integrity validation and `OnlyLoadAppFromAsar`, then reads the fuses back from
-  the built binary and fails on a wrong one. `RunAsNode` stays on (the MCP server runs in this binary)
+- **Hardened fuses (LC-13).** `npm run dist` (`--stage app`, before signing) turns off
+  `NODE_OPTIONS` and the inspector arguments and turns on ASAR integrity validation and
+  `OnlyLoadAppFromAsar`, then reads the fuses back from the built binary and fails on a wrong one. `RunAsNode` stays on (the MCP server runs in this binary)
   and cookie encryption stays off (no Keychain item without a signed upgrade test); both are
   declared in `AGENTS.md`.
 - **Builds clean up (LC-15).** `npm run dist` keeps the current and previous release in `release/`
-  and unregisters the bundle it built from LaunchServices; `npm run clean` removes regenerated output.
+  (`--stage seal` prunes the rest and names them in the receipt's `pruned`) and unregisters every
+  bundle it deletes from LaunchServices; `npm run clean` removes regenerated output, including a
+  `release/stage/` left by a build stopped between stages.
 
 ## 0.4.1 - 2026-10-03
 

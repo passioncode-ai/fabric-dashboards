@@ -1,10 +1,11 @@
 # Handoff — Fabric Dashboards
 
-Updated 2026-10-03 (lifecycle contract branch; release 0.4.1, MCP links to online services).
+Updated 2026-10-04 (lifecycle contract landed from PR #21, unreleased; CI release rehearsal
+`v0.4.1-rc.1` green; releases move to CI signing; release 0.4.1, MCP links to online services).
 
 Current release: 0.4.1 (section below). Earlier releases below are preserved as dated evidence.
 
-## Lifecycle contract, 2026-10-03 (branch `claude/lifecycle-contract`, unreleased)
+## Lifecycle contract, 2026-10-03 (PR #21, `claude/lifecycle-contract`; landed on `main` 2026-10-04, unreleased)
 
 Objective: meet the organization's lifecycle contract (fabric-workspace `knowledge/lifecycle.md`,
 LC-07…LC-15) for the findings of the 2026-10-03 lifecycle audit (fabric-workspace
@@ -29,10 +30,82 @@ Checks run: `FD_SKIP_LAUNCHD=1 npm run check` exit 0 (166 tests, 1 skipped = the
 separately without the skip: pass); `npm run build` exit 0. `npm run test:e2e` was not run (the
 worktree has no Electron binary).
 
-Next task: the coordinator builds and signs a release from this branch, then (1) reads
-`checks.fuses` and `checks.mcpLauncher` in the receipt, (2) launches the signed app once with the
-window and once with `--hidden`, (3) measures the idle budget in `AGENTS.md` (`ps -o time,rss`
-over 10 hidden minutes) and records the numbers here.
+Landing, 2026-10-04: `origin/main` (the CI-signing change, #22 `ec2a29f`, and the board sweep) was
+merged into the branch — no rebase. `scripts/dist-mac.mjs` had been split into stages on `main`, so
+the lifecycle steps moved into them: the fuses are set in `--stage app` before signing (ad hoc
+re-seal of the framework when unsigned) and read back into `checks.fuses`; the packager's
+temporary bundle is unregistered from LaunchServices before its directory is removed, and so is the
+staged app before `--stage app` replaces it and before `--stage seal` removes it; `--stage seal`
+prunes `release/` and records `pruned` in the receipt. `docs/RUNBOOK.md#release` says where each
+check is read. Deferred items are board rows FD-04…FD-07 in [backlog.md](backlog.md).
+
+Next task: the first CI release that carries these changes (FD-09) is the first real proof of the
+fuses (FD-07): read `checks.fuses` and `checks.mcpLauncher` in its receipt, launch the signed app
+once with the window and once with `--hidden`, measure the idle budget in `AGENTS.md`
+(`ps -o time,rss` over 10 hidden minutes) and record the numbers here.
+
+## Releases signed only in CI, 2026-10-03 (PR #22, `ec2a29f`)
+
+Objective: the operator's organization rule of 2026-10-03. Every PassionCode.ai product signs its
+published builds only in GitHub Actions, in the protected `release` environment, approved by
+`release-approvers` (passioncode-ai/.github `release-signing/`, shared actions `@v1`).
+
+- `.github/workflows/release.yml`: the jobs are `version` (the tag names `package.json`'s version,
+  the CHANGELOG has its section), `check` (`validate.yml`, i.e. `npm run check`), `macos` (in the
+  `release` environment) and `publish` (`release-publish.yml@v1`). In `macos`:
+  - `apple-signing` → `dist-mac.mjs --stage app --identity …` → `notarize` (app);
+  - `--stage package` makes the zip and the image from the stapled app → `notarize` (image);
+  - `--stage seal` measures and writes the feed and the receipt → upload `release-macos`.
+- `scripts/dist-mac.mjs` gained the stages and dropped the gaps the inventory found. Gatekeeper
+  now assesses the app as well as the image. Every notarization's status is read: the action
+  requires `Accepted`, and the local `--notary-profile` path parses `--output-format json`. The
+  seal also requires the app inside the update zip to be stapled. No team id or identity is
+  written in the repository; it comes from `vars.APPLE_TEAM_ID` and the action's `identity`
+  output.
+- The release is described in `docs/RUNBOOK.md#release`. The local `npm run dist` is debug only.
+
+Checks run: `npm run check` (green, see the PR); `actionlint` clean on both workflows. Seven new
+tests are in `test/dist.test.ts`; they were watched failing before the change, and the workflow
+order test was watched failing against a mutation that packages before the app is notarized. An
+unsigned `npm run dist -- --unsigned --allow-dirty` ran all three stages and produced a DMG, the
+update zip, the feed and the receipt. No signed build was made locally.
+
+**Rehearsal started.** The annotated tag `v0.4.1-rc.1` points at `ec2a29f`. Run
+[37128282549](https://github.com/passioncode-ai/fabric-dashboards/actions/runs/37128282549)
+(`gh workflow run release.yml --ref v0.4.1-rc.1 -f publish=false`) stood like this:
+- `version` passed: the tag names 0.4.1 and the CHANGELOG has its section.
+- `check / check` passed: `npm run check` on `macos-latest`.
+- `macos` is waiting for the `release` environment (reviewers `release-approvers`). Since the
+  operator's amendment of 2026-10-03 any member may approve it, the one who dispatched it
+  included; an agent never does.
+- `publish` has not started; it needs `macos`.
+
+**Next task:** a member of `release-approvers` approves `macos`, then `publish`, on that run.
+With `publish=false` no release is created, and the signed set is kept as the artifact
+`signed-release-v0.4.1-rc.1` for 14 days. Read its receipt:
+- `signing` names the CI Developer ID;
+- `notarization` reads `accepted and stapled: app, update zip, image (the release workflow's
+  notarize action)`;
+- `gatekeeper` reads `accepted`.
+
+Record the outcome here. If a step fails, the fix is a new `-rc.N` tag; an existing tag is never
+moved. The next real release (0.4.2 or later) is the operator's tag.
+
+**Rehearsal outcome, 2026-10-03: green.** A `release-approvers` member approved the `release`
+environment for `macos` and for `publish` on the operator's explicit instruction
+(`gh api repos/passioncode-ai/fabric-dashboards/actions/runs/37128282549/approvals`). All four
+jobs of run 37128282549 concluded `success`: `macos` 18:50–18:56 UTC, `publish / publish`
+18:56–18:57 UTC. The receipt the `seal` stage printed in the `macos` log names version 0.4.1 at
+revision `ec2a29f`, `signing` the CI Developer ID, `notarization` `accepted and stapled: app, update
+zip, image (the release workflow's notarize action)`, `gatekeeper` `accepted` (app and image both
+`source=Notarized Developer ID`), staples on all three, and the packaged MCP launcher answering
+`initialize` as 0.4.1; DMG sha256 `7f016bb3…b290fa`. With `publish=false` no GitHub release was
+created (the latest release is still `v0.4.1` of 08:25 UTC). The signed set is the artifact
+`signed-release-v0.4.1-rc.1`, kept until 2026-10-17.
+
+**Next task:** the first real release through CI, tracked as FD-09 in [backlog.md](backlog.md). It
+is the operator's annotated tag (0.4.2 or later), and an agent never approves the `release`
+environment.
 
 ## Release 0.4.1, 2026-10-03 (PR #19, `75eba78`)
 
