@@ -65,12 +65,12 @@ function Shell({ status, route, setRoute, stopKey, setStopKey }: ShellProps) {
   const problems = status.services.filter((s) => PROBLEM.has(s.state)).length;
   const current = route.page === 'service' ? status.services.find((s) => s.key === route.key) : undefined;
   const stopping = stopKey ? status.services.find((s) => s.key === stopKey) : undefined;
-  const count = status.services.length;
   // ADR-0012: one sidebar entry per product; every member keeps its own key, state and controls.
   const products = groupProducts(status.services);
   const foreground = products.filter((p) => !p.background);
   const background = products.filter((p) => p.background);
   const currentProduct = route.page === 'service' ? productOf(products, route.key) : undefined;
+  const count = products.length; // ADR-0012: the heading counts what the sidebar lists
 
   return (
     <div className="app">
