@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- **Spend ([ADR-0013](docs/adr/0013-spend-from-the-agents.md)).** A new page shows what every
+  agent spent today, in 7 and in 30 days, its own budget, and a per-model breakdown. The numbers
+  come from each agent's own usage report (Fabric Agent Contract DEC-0021, `surfaces.usage`). A sum
+  that includes unpriced calls reads «≥ $x», and a cost nobody knows reads «unknown», never $0.
+  Agents that cannot be read are named with the reason, and agents that do not report are named
+  too. Nothing is read while the page is closed. Agents get the same sums through the new MCP tool
+  `spend` (SCN-036…038).
+- `@passioncode-ai/fabric-service-host` 0.3.0: `…/usage` (`checkUsage`, `summarizeUsage`), and
+  `WellKnown.surfaces` carries `mcp.capabilities` and `usage`.
+
 - **One entry per agent ([ADR-0012](docs/adr/0012-one-entry-per-product.md)).** Every instance of
   one service id — the main endpoint, a local projection, a read-only access point — is one entry in
   the sidebar and one card on Overview; the service page switches between the instances, each with

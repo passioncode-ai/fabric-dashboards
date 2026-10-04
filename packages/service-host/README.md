@@ -24,6 +24,7 @@ Private to this repository's workspace and not published to npm; see
 | `…/protocol` | the shapes and constants only | none — safe in a renderer |
 | `…/state` | `deriveState`, `attentionRank`, `DOWN_AFTER_MS` | none — safe in a renderer |
 | `…/links` | the link builder and the key syntax | none — safe in a renderer |
+| `…/usage` | `checkUsage`, `summarizeUsage` and the usage-report shapes | none — safe in a renderer |
 | `…/test-vectors/state-precedence.json` | the shared state-precedence vectors | — |
 
 CommonJS with `.d.ts` types, built by `tsc` into `dist/` (`npm run build:host` from the
@@ -36,7 +37,7 @@ repository root). Node 20 or later.
 `SERVICE_STATES` (`invalid`, `stopped`, `conflict`, `foreign`, `duplicate`, `down`, `starting`,
 `stopping`, `degraded`, `ready`), `Reason` and `REASON_CODES` — every code `deriveState` can
 return, so a host's message catalogue can be checked against it — `Busy`, `LaunchdStatus`,
-`ClaimConflict`, `ID_PATTERN`, `INSTANCE_PATTERN`. The Fabric Agent Contract's
+`ClaimConflict`, `ID_PATTERN`, `INSTANCE_PATTERN`. `WellKnown.surfaces` carries `mcp.capabilities` and `usage` (DEC-0021). The Fabric Agent Contract's
 `schemas/service-*.schema.json` stay normative; these shapes follow them.
 
 ## Discovery
@@ -117,6 +118,19 @@ is not on the service's own origin — exactly what the app would refuse
 ([ADR-0005](../../docs/adr/0005-service-links.md)). `isServiceKey`, `safePath`, `SCHEME`,
 `APP_NAME` (`Fabric Dashboards`), `DOWNLOAD_URL` (the latest release, for a "not installed"
 note).
+
+## Usage
+
+`src/usage.ts`, Fabric Agent Contract DEC-0021. A service that declares `surfaces.usage.path`
+answers there, behind its token, with a report of its own spend: up to 31 UTC days of calls,
+tokens and USD cost per provider and model, and an optional day or month budget.
+`checkUsage(value, {id, instance})` returns the first problem a host relies on, or null. It
+checks identity, currency, dates running forward, counts, an all-unpriced row that claims a
+price, and the budget shape. `summarizeUsage(report, now)` returns `today`, `week` (7 days),
+`month` (30 days) and `models`, ranked by cost. **An unknown cost stays unknown**: a window
+with calls and no priced call has `costUsd: null`, a window with some unpriced calls is
+`partial` (a lower bound), and only a window with no calls is `0`. The token-gated read itself
+stays in the host (`fetchUsage` in the app's `src/core/probe.ts`), like the events feed.
 
 ## Shared test vectors
 

@@ -6,10 +6,11 @@ import { Activity } from './components/Activity';
 import { LoginQuestion, Overview } from './components/Overview';
 import { ServiceView } from './components/ServiceView';
 import { Settings } from './components/Settings';
+import { Spend } from './components/Spend';
 import mark from './brand/dashboards-mark.svg';
 import { api, GLYPH, LangContext, nameOf, Spinner, useT } from './lib';
 
-type Route = { page: 'overview' } | { page: 'activity' } | { page: 'settings' } | { page: 'service'; key: string; link?: string; nonce?: number };
+type Route = { page: 'overview' } | { page: 'activity' } | { page: 'spend' } | { page: 'settings' } | { page: 'service'; key: string; link?: string; nonce?: number };
 
 const PROBLEM = new Set(['down', 'duplicate', 'foreign', 'conflict', 'invalid']);
 
@@ -84,9 +85,12 @@ function Shell({ status, route, setRoute, stopKey, setStopKey }: ShellProps) {
             <span className="nav-label">{t('nav.activity')}</span>
             {status.unread > 0 && <span className="count">{status.unread}</span>}
           </button>
+          <button className="nav-item" aria-current={route.page === 'spend' ? 'page' : undefined} onClick={() => setRoute({ page: 'spend' })}>
+            <span className="nav-label">{t('nav.spend')}</span>
+          </button>
         </div>
         <div className="nav nav-scroll">
-          <div className="nav-section">{t('nav.services')}</div>
+          {foreground.length > 0 && <div className="nav-section">{t('nav.services')}</div>}
           {foreground.map((p) => <ProductItem key={p.id} p={p} current={currentProduct === p} open={open} />)}
           {background.length > 0 && <div className="nav-section">{t('nav.background')}</div>}
           {background.map((p) => <ProductItem key={p.id} p={p} current={currentProduct === p} open={open} />)}
@@ -104,12 +108,13 @@ function Shell({ status, route, setRoute, stopKey, setStopKey }: ShellProps) {
           : (
             <div className="page">
               <div className="page-head">
-                <h1>{t(route.page === 'activity' ? 'activity.title' : route.page === 'settings' ? 'settings.title' : 'overview.title')}</h1>
+                <h1>{t(route.page === 'activity' ? 'activity.title' : route.page === 'spend' ? 'spend.title' : route.page === 'settings' ? 'settings.title' : 'overview.title')}</h1>
                 {route.page === 'overview' && count > 0 && <span className="meta">{count === 1 ? t('overview.count.one') : t('overview.count', { count })}</span>}
               </div>
               {route.page === 'overview' && <LoginQuestion />}
               {route.page === 'overview' && <Overview status={status} products={products} open={open} act={act} />}
               {route.page === 'activity' && <Activity status={status} openAt={open} />}
+              {route.page === 'spend' && <Spend status={status} />}
               {route.page === 'settings' && <Settings status={status} onTheme={applyTheme} />}
             </div>
           )}

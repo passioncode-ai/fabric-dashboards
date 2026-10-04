@@ -39,8 +39,11 @@ export interface WellKnown {
   summary?: { label: string; value: number | string; attention?: boolean }[];
   surfaces: {
     dashboard?: { path: string; login: boolean };
-    mcp?: { path: string; transport: 'streamable-http' };
+    /** `capabilities` (contract DEC-0016/0020): the names the MCP surface serves, shown without the token. */
+    mcp?: { path: string; transport: 'streamable-http'; capabilities?: string[] };
     events: { path: string; stream?: string };
+    /** DEC-0021: the service's own spend report, behind the token (`./usage`). */
+    usage?: { path: string };
   };
   update?: { available: string | null };
 }

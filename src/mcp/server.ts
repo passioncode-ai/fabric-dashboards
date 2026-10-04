@@ -107,6 +107,16 @@ export const TOOLS = [
     },
     annotations: { readOnlyHint: true },
   },
+  {
+    name: 'spend',
+    description: 'What each agent spent, from its own usage report (Fabric Agent Contract DEC-0021): today, the last 7 and 30 UTC days, per model, and its budget. costUsd null means unknown, never $0; partial: true means a lower bound. One service, or every one.',
+    inputSchema: {
+      type: 'object',
+      properties: { service: { ...serviceArg, description: 'One service key (id.instance); omit for every service' } },
+      additionalProperties: false,
+    },
+    annotations: { readOnlyHint: true },
+  },
 ] as const;
 
 type Args = Record<string, unknown>;
@@ -126,6 +136,7 @@ export async function call(deps: tools.Deps, name: string, args: Args): Promise<
     case 'doctor': return tools.command(deps, need(args, 'service'), 'doctor');
     case 'update': return tools.command(deps, need(args, 'service'), 'update');
     case 'activity': return tools.activity(deps, need(args, 'service'), typeof args.limit === 'number' ? args.limit : 20);
+    case 'spend': return tools.spend(deps, str(args, 'service'));
     default: throw new tools.ToolError(`unknown tool ${JSON.stringify(name)}`);
   }
 }

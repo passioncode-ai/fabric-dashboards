@@ -1,5 +1,6 @@
 // The typed bridge between the renderer and the main process. The renderer
 // never sees a token, a file handle or a process: it asks, the main process acts.
+import type { SpendEntry } from './spend';
 import type { ActivityItem, AppStatus, Listener, Reason, Settings } from './types';
 
 export interface Rect { x: number; y: number; width: number; height: number }
@@ -10,6 +11,8 @@ export interface FabricApi {
   control(key: string, action: 'restart' | 'stop' | 'start'): Promise<{ ok: boolean; reason: Reason }>;
   command(key: string, which: 'doctor' | 'update'): Promise<{ code: number | null; output: string; timedOut: boolean }>;
   logs(key: string): Promise<{ path: string; text?: string; error?: string }[]>;
+  /** Every service's own usage report, read now and summed in the main process (ADR-0013). */
+  spend(): Promise<SpendEntry[]>;
   activity(filter: { serviceKey?: string; minLevel?: ActivityItem['level'] }): Promise<ActivityItem[]>;
   markActivitySeen(): Promise<void>;
   settings(): Promise<Settings>;
@@ -43,6 +46,7 @@ export const CHANNELS = {
   control: 'fd:control',
   command: 'fd:command',
   logs: 'fd:logs',
+  spend: 'fd:spend',
   activity: 'fd:activity',
   activitySeen: 'fd:activity-seen',
   settings: 'fd:settings',

@@ -1,0 +1,59 @@
+{
+  "protocol": "fabric-service/0.1",
+  "service": {
+    "id": "example-agent",
+    "instance": "default",
+    "name": "Example Agent",
+    "version": "0.2.0",
+    "build": {
+      "commit": "8b80be9",
+      "dirty": false,
+      "builtAt": "2026-09-28T17:40:00Z"
+    }
+  },
+  "process": {
+    "pid": 51234,
+    "startedAt": "2026-09-28T17:41:02Z"
+  },
+  "status": "degraded",
+  "degraded": [
+    {
+      "source": "llm",
+      "reason": "No model key: drafting is paused."
+    }
+  ],
+  "summary": [
+    {
+      "label": "Jobs running",
+      "value": 2
+    },
+    {
+      "label": "Awaiting you",
+      "value": 1,
+      "attention": true
+    }
+  ],
+  "surfaces": {
+    "dashboard": {
+      "path": "/dashboard",
+      "login": true
+    },
+    "mcp": {
+      "path": "/mcp",
+      "transport": "streamable-http",
+      "capabilities": [
+        "copy.write",
+        "research.topics"
+      ]
+    },
+    "events": {
+      "path": "/fabric/v1/events"
+    },
+    "usage": {
+      "path": "/fabric/v1/usage"
+    }
+  },
+  "update": {
+    "available": null
+  }
+}

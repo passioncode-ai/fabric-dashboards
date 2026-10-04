@@ -15,6 +15,8 @@ import { execRunner } from '../core/launchd';
 import { listListeners, unattributed } from '../core/listeners';
 import { applyLoginItem, loginItemAtStartup, type LoginItemOs } from '../core/loginitem';
 import { Monitor, type Notice } from '../core/monitor';
+import { fetchUsage, readToken } from '../core/probe';
+import { readSpend } from '../core/spend';
 import { NotifyLedger } from '../core/notify';
 import { SettingsStore } from '../core/settings';
 import type { AppStatus, Settings } from '../core/types';
@@ -235,6 +237,7 @@ if (!app.requestSingleInstanceLock()) {
       return monitor.command(key, which);
     });
     ipcMain.handle(CHANNELS.logs, (_e, key: string) => monitor.logs(key));
+    ipcMain.handle(CHANNELS.spend, () => readSpend(monitor.snapshots(), { token: readToken, fetchUsage, now: () => Date.now() }));
     ipcMain.handle(CHANNELS.activity, (_e, filter) => activity.list(filter ?? {}));
     ipcMain.handle(CHANNELS.activitySeen, () => { activity.markSeen(); pushStatus(); });
     ipcMain.handle(CHANNELS.settings, () => settings.get());

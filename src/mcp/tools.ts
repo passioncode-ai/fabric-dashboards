@@ -16,7 +16,8 @@ import {
 import { runOwned } from '../core/children';
 import { fromServiceUrl, isServiceKey, linkFor, safePath } from '../core/deeplink';
 import { Launchd, execRunner, type Runner } from '../core/launchd';
-import { fetchEvents, fetchWellKnown, PROBE_TIMEOUT_MS, readToken } from '../core/probe';
+import { fetchEvents, fetchUsage, fetchWellKnown, PROBE_TIMEOUT_MS, readToken } from '../core/probe';
+import { readSpend, type SpendEntry } from '../core/spend';
 import { productIdOf } from '../core/products';
 
 export const COMMAND_TIMEOUT_MS = 120_000;
@@ -32,6 +33,7 @@ export interface Deps {
   host: () => Promise<HostStatus>;
   run: (argv: string[], timeoutMs: number) => Promise<{ code: number | null; output: string; timedOut: boolean }>;
   events: typeof fetchEvents;
+  usage: typeof fetchUsage;
   token: typeof readToken;
   now: () => number;
   sleep: (ms: number) => Promise<void>;
@@ -57,6 +59,7 @@ export function liveDeps(runner: Runner = execRunner): Deps {
     host: () => discoverHost(runner),
     run: runArgv,
     events: fetchEvents,
+    usage: fetchUsage,
     token: readToken,
     now: () => Date.now(),
     sleep: (ms) => new Promise((r) => setTimeout(r, ms)),
@@ -290,3 +293,12 @@ export async function activity(deps: Deps, key: string, limit = 20): Promise<{ e
   const page = await deps.events(d, answer.doc.surfaces.events.path, token, null, n);
   return { events: page.events.slice(-n).map((e) => ({ at: e.at, level: e.level, text: e.text, ...(e.link && safePath(e.link) ? { link: linkFor(key, e.link) } : {}) })) };
 }
+
+/** What each agent spent, from its own usage report (contract DEC-0021, ADR-0013); one service or all.
+ *  A cost of null is unknown, never $0; `partial` marks a lower bound. */
+export async function spend(deps: Deps, key?: string): Promise<{ services: (SpendEntry & { product: string })[] }> {
+  const looks = await look(deps, key ? [find(deps, key).key] : undefined);
+  const entries = await readSpend(looks, { token: deps.token, fetchUsage: deps.usage, now: deps.now });
+  return { services: entries.map((e) => ({ ...e, product: productIdOf(e.key) })) };
+}
+

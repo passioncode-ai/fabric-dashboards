@@ -8,3 +8,4 @@ export * from './state';
 export * from './look';
 export * from './links';
 export * from './vectors';
+export * from './usage';

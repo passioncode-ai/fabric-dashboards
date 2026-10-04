@@ -16,9 +16,10 @@ for what is released and what is next.
 
 | | |
 |---|---|
-| **Overview** | a card per service — state, version and commit, uptime, the service's own tiles, its latest event — and *Needs attention* first |
+| **Overview** | a card per agent — its instances (main, projection, read-only) inside one card ([ADR-0012](docs/adr/0012-one-entry-per-product.md)), state, version and commit, uptime, the service's own tiles, its latest event — and *Needs attention* first, per instance; services without a dashboard under *Background* |
 | **Service view** | Restart · Stop/Start · Update · Doctor · Logs, with the service's dashboard embedded below |
 | **Activity** | every service's events and the app's own observations in one feed, filterable, each row opening the exact item |
+| **Spend** | what every agent spent today, in 7 and 30 days, on which models and against its own budget — from each agent's own usage report (contract DEC-0021); an unknown cost reads unknown, never $0 |
 | **Notifications** | not answering (three missed probes in a row and 60 s of silence — a slow answer under load is not an outage, [ADR-0008](docs/adr/0008-a-missed-probe-is-not-an-outage.md)), back, two copies, another program on the port, and, from the events a service marks for you, only a decision it waits for, a failure or a warning — once per subject, titled with the agent and what it wants ([ADR-0010](docs/adr/0010-notifications-only-when-it-matters.md)); quiet hours and per-service levels |
 | **Menu bar** | the aggregate state as a shape, problems first |
 | **Links from agents and Fabric** | `fabric-dashboards://service/<id.instance>?path=/…` opens that service, or that page of it, here, signed in — the link Fabric's "Open dashboard" opens |
@@ -134,7 +135,7 @@ window forward: quit the installed app first, or give the checkout its own profi
 ## For agents
 
 Tools: `host_status`, `list_services`, `service_status`, `link`, `open`, `control`, `doctor`, `update`,
-`activity`. An agent that starts work on a service hands the operator the `open_link` from
+`activity`, `spend`. An agent that starts work on a service hands the operator the `open_link` from
 `link` — `fabric-dashboards://service/<id.instance>?path=/…`, which opens that page inside the
 app. Keep `http_url` for diagnostics or confirmed-absent fallback. `open` opens it now;
 `fallback=never` forbids the browser, and installed-host failure never falls back. [ADR-0004](docs/adr/0004-deep-links-and-mcp.md) and

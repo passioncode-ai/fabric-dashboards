@@ -1,6 +1,6 @@
 {
   "name": "@passioncode-ai/fabric-service-host",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "description": "Reading local agent services that speak fabric-service/0.1: descriptor discovery in services/, claim conflicts, launchd status, the well-known health probe, the state precedence, and the fabric-dashboards://service/<id>.<instance> link. Shared by Fabric Dashboards and Fabric.",
   "license": "AGPL-3.0-only OR LicenseRef-PassionCode-Commercial",
@@ -20,6 +20,7 @@
     "./protocol": { "types": "./dist/protocol.d.ts", "default": "./dist/protocol.js" },
     "./state": { "types": "./dist/state.d.ts", "default": "./dist/state.js" },
     "./links": { "types": "./dist/links.d.ts", "default": "./dist/links.js" },
+    "./usage": { "types": "./dist/usage.d.ts", "default": "./dist/usage.js" },
     "./test-vectors/state-precedence.json": "./test-vectors/state-precedence.json",
     "./package.json": "./package.json"
   },
@@ -27,7 +28,8 @@
     "*": {
       "protocol": ["dist/protocol.d.ts"],
       "state": ["dist/state.d.ts"],
-      "links": ["dist/links.d.ts"]
+      "links": ["dist/links.d.ts"],
+      "usage": ["dist/usage.d.ts"]
     }
   },
   "files": [

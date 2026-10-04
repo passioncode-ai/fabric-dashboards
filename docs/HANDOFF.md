@@ -1,9 +1,31 @@
 # Handoff — Fabric Dashboards
 
-Updated 2026-10-04 (lifecycle contract landed from PR #21, unreleased; CI release rehearsal
+Updated 2026-10-04 (Spend and DEC-0021; one entry per agent, ADR-0012; lifecycle contract landed from PR #21, unreleased; CI release rehearsal
 `v0.4.1-rc.1` green; releases move to CI signing; release 0.4.1, MCP links to online services).
 
 Current release: 0.4.1 (section below). Earlier releases below are preserved as dated evidence.
+
+## Spend and the agent-estate architecture, 2026-10-04 (FD-11, ADR-0013, branch `feat/spend-view`)
+
+Objective: the operator asked for spend that the agents themselves report at the protocol level,
+shown in one place, and for the enterprise picture (employee workplaces, admin channel, agent
+chat, agent exchange) worked into the plan with owners. Entry points:
+
+- **Contract:** DEC-0021 `surfaces.usage` + `service-usage.schema.json` + `FAC-SEM-025`,
+  fabric-agent-contract [PR #10](https://github.com/passioncode-ai/fabric-agent-contract/pull/10),
+  branch `feat/service-usage` `c220147`, `pnpm run check` exit 0 (271 tests).
+- **Here:** `packages/service-host/src/usage.ts` (`checkUsage`, `summarizeUsage`, package 0.3.0),
+  `src/core/probe.ts` (`fetchUsage`), `src/core/spend.ts` (`readSpend`), `src/renderer/components/Spend.tsx`,
+  MCP `spend`; [ADR-0013](adr/0013-spend-from-the-agents.md); ST-015, SCN-036…038.
+- **Architecture:** [report](reports/2026-10-04-agent-estate-architecture/README.md). It maps the asks
+  onto the fleet tunnel CE-0…14, the ADR-0088 relay and the COM board, lists gaps G1…G8 and
+  decisions D1…D5.
+
+Checks run: `FD_SKIP_LAUNCHD=1 npm run check` exit 0 (195 tests, 194 pass, 1 skipped = launchd);
+`npm run test:e2e` 6/6, including the new `test/e2e/spend.test.ts` against a loopback agent.
+
+Open: contract PR #10 merge, then repin `test/fixtures/contract/SOURCE.txt` to the merge commit;
+agents adopt `surfaces.usage` (G7, kits first); FD-12 / COM-11 is blocked by COM-01.
 
 ## One entry per agent, 2026-10-04 (FD-10, ADR-0012, branch `feat/product-grouping`, unreleased)
 

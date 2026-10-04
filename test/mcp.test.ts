@@ -50,6 +50,11 @@ function world(opts: { installed?: boolean; platform?: NodeJS.Platform; loaded?:
       ];
       return { events, cursor: null };
     },
+    usage: async (_d, usagePath, token) => {
+      assert.equal(usagePath, '/fabric/v1/usage');
+      assert.equal(token, SECRET);
+      return fixture('positive_service-usage.json');
+    },
     token: () => SECRET,
     now: () => clock,
     sleep: async (ms) => { clock += ms; },
@@ -275,3 +280,22 @@ test('open reports only OS acceptance; invalid targets are rejected before disco
   assert.deepEqual(calls.run, []);
   assert.deepEqual(calls.launchctl, []);
 });
+
+test('spend reads each service\'s own usage report and sums it; a service without one says so', async () => {
+  const usageWk = fixture('positive_service-well-known-usage.json') as WellKnown;
+  const { deps } = world({ answers: [{ kind: 'answer', doc: usageWk, ms: 3 }] });
+  deps.now = () => Date.parse('2026-10-04T12:00:00Z');
+  const out = await tools.spend(deps);
+  assert.equal(out.services.length, 1);
+  const e = out.services[0]!;
+  assert.equal(e.product, 'example-agent');
+  assert.equal(e.kind, 'report');
+  if (e.kind !== 'report') return;
+  assert.equal(e.summary.today.costUsd, 0.31);
+  assert.equal(e.summary.today.partial, true, 'unpriced calls make a lower bound, not a zero');
+  assert.equal(JSON.stringify(out).includes(SECRET), false);
+  const plain = world();
+  assert.equal((await tools.spend(plain.deps, KEY)).services[0]!.kind, 'none', 'no surfaces.usage: nothing to read');
+  await assert.rejects(tools.spend(plain.deps, 'nobody.default'), /no installed service/);
+});
+

@@ -210,6 +210,18 @@ hunt browser tabs to learn whether an agent is alive or what it did.
 - **Priority:** must
 - **Status:** proposed
 
+### ST-015: See what every agent spent, counted by the agent itself
+- **Story:** As P-01, I want one page that shows what each agent spent today, this week and this month — and on which models — reported by the agents themselves, so that I know where the money goes without opening each provider's console.
+- **Traces:** JTBD-01, JRN-01/#2; ADR-0013; Fabric Agent Contract DEC-0021
+- **Acceptance criteria:**
+  - Given agents that publish a usage report, when I open Spend, then I see totals for today, 7 days and 30 days, one row per agent with its budget, and a per-model breakdown on expanding a row.
+  - Given some calls carry no price, when Spend shows a sum that includes them, then it reads «≥ $x», and a model with no priced call reads «unknown» — never $0.
+  - Given an agent's report cannot be read, when Spend opens, then that agent is listed with the reason and the totals are lower bounds.
+  - Given an agent publishes no report, then Spend names it as not reporting yet.
+  - Nothing is read while Spend is closed.
+- **Priority:** should
+- **Status:** proposed
+
 ## Design tooling
 - **Figma:** disabled
 - **Figma file:** none — text-only design surface decided at intake (brief D-7); the PassionCode.ai design system tokens are vendored by hash.

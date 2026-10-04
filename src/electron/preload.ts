@@ -14,6 +14,7 @@ const api: FabricApi = {
   control: (key, action) => ipcRenderer.invoke(CHANNELS.control, key, action),
   command: (key, which) => ipcRenderer.invoke(CHANNELS.command, key, which),
   logs: (key) => ipcRenderer.invoke(CHANNELS.logs, key),
+  spend: () => ipcRenderer.invoke(CHANNELS.spend),
   activity: (filter) => ipcRenderer.invoke(CHANNELS.activity, filter),
   markActivitySeen: () => ipcRenderer.invoke(CHANNELS.activitySeen),
   settings: () => ipcRenderer.invoke(CHANNELS.settings),

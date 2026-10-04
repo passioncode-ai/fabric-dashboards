@@ -41,6 +41,9 @@
 | SCN-033 | Several instances of one agent read as one agent | products | P-01 | ST-014, ST-002 | draft | — |
 | SCN-034 | Switch between an agent's connections | products | P-01 | ST-014, ST-005 | draft | — |
 | SCN-035 | A connection fails while the agent is fine | products | P-01 | ST-014, ST-002, ST-004 | draft | — |
+| SCN-036 | See what every agent spent | spend | P-01 | ST-015 | draft | — |
+| SCN-037 | A cost that is not known reads as unknown | spend | P-01 | ST-015 | draft | — |
+| SCN-038 | An agent's spend cannot be read | spend | P-01 | ST-015, ST-004 | draft | — |
 
 ## Personas
 
@@ -709,4 +712,63 @@ first release; every sentence a service writes is shown as the service wrote it.
 - **Errors & recovery:** a restart that does not bring it back follows SCN-008 for that instance
 - **Status:** draft
 - **Coverage:** src/core/products.ts (memberProblem), src/renderer/App.tsx (ProductItem), test/products.test.ts
+- **Product:** unobserved
+
+## spend
+
+### SCN-036: See what every agent spent
+- **Persona:** P-01
+- **Feature:** spend
+- **Traces:** ST-015 (JTBD-01, JRN-01/#2)
+- **Entry point:** sidebar → Spend
+- **Preconditions:** at least one agent declares `surfaces.usage` in its well-known document (contract DEC-0021)
+- **Steps:**
+  1. User clicks Spend -> system reads each agent's usage report with its token in the main process and shows totals for Today, 7 days and 30 days across agents
+  2. User reads the table -> one row per reporting agent: today, 7 days, 30 days, and its own budget ("$1.59 of $100.00 this month")
+  3. User clicks an agent's name -> the row expands to models: model, provider, calls, tokens in / out, cost over the last 31 days, most expensive first
+  4. User leaves the page open -> it is read again every minute; Refresh reads it now
+- **Expected result:** where the money goes, per agent and per model, without opening a provider console
+- **Alt paths:** no agent reports -> "No agent reports its spend yet" with what an agent must publish; some agents report and others do not -> "Not reporting spend yet: …" names the others; an agent asks through MCP `spend` -> the same sums
+- **UI elements:** Spend nav item, totals tiles, agents table, model breakdown, Refresh
+- **States covered:** loading, empty, success
+- **Errors & recovery:** see SCN-038
+- **Status:** draft
+- **Coverage:** src/renderer/components/Spend.tsx, src/core/spend.ts, packages/service-host/src/usage.ts, src/mcp/tools.ts (spend), test/e2e/spend.test.ts
+- **Product:** unobserved
+
+### SCN-037: A cost that is not known reads as unknown
+- **Persona:** P-01
+- **Feature:** spend
+- **Traces:** ST-015 (JTBD-01)
+- **Entry point:** Spend, with an agent whose report has unpriced calls (a local model with no price list)
+- **Preconditions:** the report counts `unpricedCalls` and gives `costUsd: null` for the unpriced model
+- **Steps:**
+  1. User opens Spend -> the agent's today and week read "≥ $0.31" and "≥ $1.59", and the totals read "≥" too
+  2. User expands the agent -> the unpriced model's cost reads "unknown"
+  3. User reads below the table -> "≥ means some calls carry no price… An unknown cost is never counted as $0."
+- **Expected result:** a partial sum is never shown as the whole, and an unknown cost never reads as free
+- **Alt paths:** every call in a window unpriced -> that window reads "unknown"; no calls in a window -> "$0.00"
+- **UI elements:** "≥" amounts, "unknown", the note
+- **States covered:** success
+- **Errors & recovery:** a report claiming a price for calls it marks unpriced is refused as malformed (SCN-038)
+- **Status:** draft
+- **Coverage:** packages/service-host/src/usage.ts (summarizeUsage), packages/service-host/test/usage.test.ts, test/e2e/spend.test.ts
+- **Product:** unobserved
+
+### SCN-038: An agent's spend cannot be read
+- **Persona:** P-01
+- **Feature:** spend
+- **Traces:** ST-015, ST-004 (JTBD-01)
+- **Entry point:** Spend, with an agent that refuses the token, cannot be reached, or answers a malformed report
+- **Preconditions:** the agent declares `surfaces.usage`
+- **Steps:**
+  1. User opens Spend -> "Could not read" lists the agent with the reason in a sentence ("the service refused the token (HTTP 401)", "the usage report is malformed: …")
+  2. User reads the totals -> they carry "≥", because one agent's spend is missing
+- **Expected result:** a failure is named and never silently counted as zero; the other agents still show
+- **Alt paths:** the token file is not 0600 -> the reason names it; the agent answers a report for another instance -> refused
+- **UI elements:** "Could not read" notice, "≥" totals
+- **States covered:** error
+- **Errors & recovery:** the next read (a minute later, or Refresh) shows the agent again once it answers
+- **Status:** draft
+- **Coverage:** src/core/spend.ts (readSpend), src/core/probe.ts (fetchUsage), test/spend.test.ts
 - **Product:** unobserved

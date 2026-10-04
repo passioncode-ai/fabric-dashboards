@@ -1,7 +1,7 @@
-// Talking to a service with its token: the events feed and the one-time login code. Runs in the
+// Talking to a service with its token: the events feed, the usage report and the one-time login code. Runs in the
 // main process only — the token never reaches a renderer. The unauthenticated health probe
 // (the well-known document) is shared with Fabric in @passioncode-ai/fabric-service-host.
-import { request, type Descriptor, type ServiceEvent } from '@passioncode-ai/fabric-service-host';
+import { checkUsage, request, type Descriptor, type ServiceEvent, type UsageReport } from '@passioncode-ai/fabric-service-host';
 import { tlsFor } from './testhooks';
 
 export { fetchWellKnown, request } from '@passioncode-ai/fabric-service-host';
@@ -38,4 +38,16 @@ export async function loginUrl(d: Descriptor, token: string): Promise<string> {
   const body = JSON.parse(res.body) as { url?: string };
   if (!body.url || !/^\/fabric\/v1\/login\?code=[A-Za-z0-9_-]{16,256}$/.test(body.url)) throw new Error('the login code answer is malformed');
   return d.origin + body.url;
+}
+
+/** GET the service's usage report (contract DEC-0021), checked against the descriptor's identity. */
+export async function fetchUsage(d: Descriptor, usagePath: string, token: string): Promise<UsageReport> {
+  const res = await request(d.origin, 'GET', usagePath, authHeaders(d, token), 5000, tlsFor(d.origin));
+  if (res.status === 401 || res.status === 403) throw new Error(`the service refused the token (HTTP ${res.status})`);
+  if (res.status !== 200) throw new Error(`HTTP ${res.status} from the usage report`);
+  let body: unknown;
+  try { body = JSON.parse(res.body); } catch { throw new Error('the usage report is not JSON'); }
+  const problem = checkUsage(body, { id: d.id, instance: d.instance });
+  if (problem) throw new Error(`the usage report is malformed: ${problem}`);
+  return body as UsageReport;
 }
