@@ -90,6 +90,7 @@ export function checkUsage(value: unknown, expected: { id: string; instance: str
     const p = totalsProblem(day as unknown as Record<string, unknown>, `days[${i}]`);
     if (p) return p;
     if (!Array.isArray(day.byModel) || day.byModel.length > 32) return `days[${i}].byModel is not a list of at most 32`;
+    if (day.byModel.length === 0 && (day.calls > 0 || day.inputTokens > 0 || day.outputTokens > 0 || (day.costUsd ?? 0) > 0)) return `days[${i}] has totals but names no model`;
     for (const [j, m] of day.byModel.entries()) {
       if (!m || typeof m.provider !== 'string' || typeof m.model !== 'string') return `days[${i}].byModel[${j}] names no provider and model`;
       const q = totalsProblem(m as unknown as Record<string, unknown>, `days[${i}].byModel[${j}]`);

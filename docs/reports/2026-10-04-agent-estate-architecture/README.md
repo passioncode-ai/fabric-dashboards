@@ -28,7 +28,7 @@ report:
     - name: "Telegram board transport research (fabric branch codex/telegram-board-transport-research, b9aa8bff)"
       path: "README.md#telegram-chat-of-agents-and-people"
       read_at: 2026-10-04
-    - name: "Fabric Agent Contract DEC-0021 usage report (PR #10, c220147)"
+    - name: "Fabric Agent Contract DEC-0021 usage report (PR #10, merged 9091d3d)"
       url: "https://github.com/passioncode-ai/fabric-agent-contract/pull/10"
       read_at: 2026-10-04
     - name: "Fabric Dashboards ADR-0012 and ADR-0013"
@@ -64,7 +64,7 @@ shows which agents spent how much.
 | Relay | Fabric ADR-0088 (accepted direction) | No. Hosting is open question O2 |
 | Agent exchange: Project board and mailbox, claims, cursor reads | Fabric COM-01…COM-14 (branch only) | No. All rows open, no schema in the contract |
 | Telegram mirror and replies, agents discussing in a group | COM-08/COM-09 + Telegram transport research (branches) | No. Live tests NOT_RUN |
-| Spend reported by the agents | Contract DEC-0021 `surfaces.usage` ([PR #10](https://github.com/passioncode-ai/fabric-agent-contract/pull/10)); Dashboards Spend page and MCP `spend` ([ADR-0013](../../adr/0013-spend-from-the-agents.md)) | **Yes, at source level.** Branches with green gates; no agent publishes a report yet |
+| Spend reported by the agents | Contract DEC-0021 `surfaces.usage` ([PR #10](https://github.com/passioncode-ai/fabric-agent-contract/pull/10), merged `9091d3d`); Dashboards Spend page and MCP `spend` ([ADR-0013](../../adr/0013-spend-from-the-agents.md)) | **Yes, at source level.** Contract on `main`; Dashboards unreleased; no agent publishes a report yet |
 | One entry per agent, connections inside | Dashboards [ADR-0012](../../adr/0012-one-entry-per-product.md) | **Yes**, on `main` `f294285`, unreleased |
 
 So the employee workplace is not a new architecture. It is the fleet tunnel's member node plus a
@@ -197,7 +197,7 @@ agent's reply is mirrored back. Two constraints:
 | G4 | Switchboard organisation pool: accounts issued by the organisation, quotas pushed by `config.push`, personal pool untouched | Fabric Switchboard | CE-9 |
 | G5 | Per-person credentials issued from the organisation vault to the node (Observatory doors), never copied operator keys | Fabric (issuer) + Project Observatory (node vault) | CE-8 |
 | G6 | Spend in `status.read`, budgets in `config.push`, fleet rollup with unknown kept unknown | Fabric console; service-host `summarizeUsage` shared | CE-9/CE-12; source of DEC-0021 built |
-| G7 | Agents adopt DEC-0021: the `building-fabric-services` kits emit `surfaces.usage` from the receipts an agent already keeps | fabric-agent-adapter, then each agent | after contract PR #10 merges |
+| G7 | Agents adopt DEC-0021: the `building-fabric-services` kits emit `surfaces.usage` from the receipts an agent already keeps | fabric-agent-adapter, then each agent | now (contract merged) |
 | G8 | COM-01 contract schemas and capability name, which unblock COM-11 (Dashboards), the board and the Telegram mirror | fabric-agent-contract + Fabric | COM-01 |
 
 ## Decisions for the operator
@@ -230,7 +230,7 @@ stays a local monitor with no inbound port, and the fleet reads machines through
 ## Источники
 
 See the header. Commit-addressed: fleet design at fabric-workspace `main` (merged `68904e1`,
-`e41029f`); COM plan `3b2878fc`; Telegram research `b9aa8bff`; contract DEC-0021 `c220147`;
+`e41029f`); COM plan `3b2878fc`; Telegram research `b9aa8bff`; contract DEC-0021 `9091d3d`;
 Dashboards `f294285` (ADR-0012) and branch `feat/spend-view` (ADR-0013).
 
 ## Поправки

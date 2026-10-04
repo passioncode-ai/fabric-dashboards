@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useState } from 'react';
 import type { SpendSum } from '@passioncode-ai/fabric-service-host/usage';
-import type { SpendEntry } from '../../core/spend';
+import { sumSpend, type SpendEntry, type SpendWindow } from '../../core/spend';
 import type { AppStatus, ServiceSnapshot } from '../../core/types';
 import { api, nameOf, Spinner, useT } from '../lib';
 
@@ -37,16 +37,7 @@ export function Spend({ status }: { status: AppStatus }) {
   const reports = entries.filter((e): e is Extract<SpendEntry, { kind: 'report' }> => e.kind === 'report');
   const errors = entries.filter((e): e is Extract<SpendEntry, { kind: 'error' }> => e.kind === 'error');
   const silent = entries.filter((e) => e.kind === 'none').map((e) => byKey.get(e.key)).filter((s): s is ServiceSnapshot => Boolean(s));
-  const total = (pick: (e: Extract<SpendEntry, { kind: 'report' }>) => SpendSum): SpendSum => {
-    const out: SpendSum = { calls: 0, inputTokens: 0, outputTokens: 0, costUsd: 0, partial: errors.length > 0 };
-    for (const e of reports) {
-      const x = pick(e);
-      out.calls += x.calls; out.inputTokens += x.inputTokens; out.outputTokens += x.outputTokens;
-      if (x.costUsd === null) out.partial = true; else out.costUsd = (out.costUsd ?? 0) + x.costUsd;
-      if (x.partial) out.partial = true;
-    }
-    return out;
-  };
+  const total = (window: SpendWindow): SpendSum => sumSpend(entries, window);
 
   return (
     <>
@@ -57,7 +48,7 @@ export function Spend({ status }: { status: AppStatus }) {
       {reports.length > 0 && (
         <div className="tiles spend-totals" aria-label={t('spend.totals')}>
           {(['today', 'week', 'month'] as const).map((k) => (
-            <div key={k} className="tile"><div className="v">{money(total((e) => e.summary[k]), t)}</div><div className="l">{t(`spend.${k}`)}</div></div>
+            <div key={k} className="tile"><div className="v">{money(total(k), t)}</div><div className="l">{t(`spend.${k}`)}</div></div>
           ))}
         </div>
       )}

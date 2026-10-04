@@ -38,6 +38,9 @@ test('days out of order, too many days, or more unpriced than calls are refused'
   const many = REPORT();
   many.days = Array.from({ length: 32 }, (_, i) => ({ ...many.days[0]!, date: `2026-08-${String(i + 1).padStart(2, '0')}` }));
   assert.match(checkUsage(many, ME)!, /at most 31/);
+  const rowless = REPORT();
+  rowless.days[0]!.byModel = [];
+  assert.match(checkUsage(rowless, ME)!, /names no model/);
   const over = REPORT();
   over.days[0]!.unpricedCalls = 99;
   assert.match(checkUsage(over, ME)!, /more unpriced/);

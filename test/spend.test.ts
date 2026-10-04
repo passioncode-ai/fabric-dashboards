@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
-import { readSpend, type SpendDeps } from '../src/core/spend';
+import { readSpend, sumSpend, type SpendDeps, type SpendEntry } from '../src/core/spend';
+import type { SpendSum } from '@passioncode-ai/fabric-service-host/usage';
 import type { Descriptor, WellKnown } from '../src/core/types';
 
 const fixture = (name: string) => JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures/contract', name), 'utf8'));
@@ -65,4 +66,17 @@ test('fetchUsage: the token in its header, the report checked against the descri
   } finally {
     await new Promise<void>((r) => server.close(() => r()));
   }
+});
+
+test('sumSpend: unknown stays unknown across agents, a failure makes a lower bound, no calls is $0', () => {
+  const sum = (costUsd: number | null, calls: number, partial = false): SpendSum => ({ calls, inputTokens: 0, outputTokens: 0, costUsd, partial });
+  const entry = (key: string, today: SpendSum): SpendEntry => ({ key, kind: 'report', summary: { today, week: today, month: today, models: [], budget: null, generatedAt: '2026-10-04T00:00:00Z' } });
+  assert.deepEqual(sumSpend([entry('a.default', sum(null, 3, true))], 'today'), { calls: 3, inputTokens: 0, outputTokens: 0, costUsd: null, partial: true }, 'all unpriced: unknown, not $0');
+  const mixed = sumSpend([entry('a.default', sum(null, 3, true)), entry('b.default', sum(1.5, 2))], 'today');
+  assert.equal(mixed.costUsd, 1.5);
+  assert.equal(mixed.partial, true);
+  const failed = sumSpend([entry('b.default', sum(1.5, 2)), { key: 'c.default', kind: 'error', error: 'x' }], 'today');
+  assert.equal(failed.costUsd, 1.5);
+  assert.equal(failed.partial, true, 'an unreadable agent makes the sum a lower bound');
+  assert.deepEqual(sumSpend([entry('d.default', sum(0, 0)), { key: 'e.default', kind: 'none' }], 'today'), { calls: 0, inputTokens: 0, outputTokens: 0, costUsd: 0, partial: false });
 });

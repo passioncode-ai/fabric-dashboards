@@ -1,8 +1,8 @@
 # ADR-0013 — Spend comes from the agents: each service reports its own, the app sums it
 
 Status: accepted · 2026-10-04 · depends on Fabric Agent Contract DEC-0021
-([PR #10](https://github.com/passioncode-ai/fabric-agent-contract/pull/10), source commit
-`c220147`, not merged at the time of writing)
+([PR #10](https://github.com/passioncode-ai/fabric-agent-contract/pull/10), merged to `main` as
+`9091d3d`)
 
 ## Context
 
@@ -43,8 +43,8 @@ provider and model, and **unknown cost as `null`, never `0`**.
 - An agent appears on Spend once it ships `surfaces.usage`. The kits
   (`building-fabric-services`) and each agent adopt it on their own schedule; until then the page
   names them as not reporting.
-- The contract fixtures are vendored from the PR's source commit `c220147`
-  (`test/fixtures/contract/SOURCE.txt`). They are repinned to the merge commit when PR #10 lands.
+- The contract fixtures are vendored from contract `main` `9091d3d`
+  (`test/fixtures/contract/SOURCE.txt`).
 - Organisation-wide spend across machines (an employee's agents seen by an administrator) is
   Fabric's aggregation over these same reports. It is not this app's job (see the agent-estate
   architecture report, `docs/reports/2026-10-04-agent-estate-architecture/`).

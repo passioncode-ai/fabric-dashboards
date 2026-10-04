@@ -13,7 +13,7 @@ chat, agent exchange) worked into the plan with owners. Entry points:
 
 - **Contract:** DEC-0021 `surfaces.usage` + `service-usage.schema.json` + `FAC-SEM-025`,
   fabric-agent-contract [PR #10](https://github.com/passioncode-ai/fabric-agent-contract/pull/10),
-  branch `feat/service-usage` `c220147`, `pnpm run check` exit 0 (271 tests).
+  merged to `main` as `9091d3d` after review (a day without model rows can only be empty), `pnpm run check` exit 0 (272 tests).
 - **Here:** `packages/service-host/src/usage.ts` (`checkUsage`, `summarizeUsage`, package 0.3.0),
   `src/core/probe.ts` (`fetchUsage`), `src/core/spend.ts` (`readSpend`), `src/renderer/components/Spend.tsx`,
   MCP `spend`; [ADR-0013](adr/0013-spend-from-the-agents.md); ST-015, SCN-036…038.
@@ -22,10 +22,9 @@ chat, agent exchange) worked into the plan with owners. Entry points:
   decisions D1…D5.
 
 Checks run: `FD_SKIP_LAUNCHD=1 npm run check` exit 0 (195 tests, 194 pass, 1 skipped = launchd);
-`npm run test:e2e` 6/6, including the new `test/e2e/spend.test.ts` against a loopback agent.
+`npm run test:e2e` 6/6, including the new `test/e2e/spend.test.ts` against a loopback agent. Review fix: a total whose calls are all unpriced reads unknown, not «≥ $0.00» (`sumSpend`, test/spend.test.ts); 196 tests.
 
-Open: contract PR #10 merge, then repin `test/fixtures/contract/SOURCE.txt` to the merge commit;
-agents adopt `surfaces.usage` (G7, kits first); FD-12 / COM-11 is blocked by COM-01.
+Fixtures pinned to `9091d3d`. Open: agents adopt `surfaces.usage` (G7, kits first); FD-12 / COM-11 is blocked by COM-01.
 
 ## One entry per agent, 2026-10-04 (FD-10, ADR-0012, branch `feat/product-grouping`, unreleased)
 
