@@ -5,6 +5,34 @@ Updated 2026-10-04 (Spend and DEC-0021; one entry per agent, ADR-0012; lifecycle
 
 Current release: 0.4.1 (section below). Earlier releases below are preserved as dated evidence.
 
+## Next — start here (2026-10-04, evening)
+
+**First task for the next agent:** merge fabric-agent-adapter
+[PR #34](https://github.com/passioncode-ai/fabric-agent-adapter/pull/34) (the DEC-0021 usage report
+in both service kits, 0.8.0) once its review is clean. Then make the first real agent publish
+`surfaces.usage`, so Spend shows a real number. Each agent is adopted in its own repository.
+
+State of the work streams from this session, with receipts:
+
+| Stream | Where | State |
+|---|---|---|
+| FD-10 one entry per agent | ADR-0012, `main` `f294285`, issue #27 closed | done, unreleased |
+| FD-11 Spend | ADR-0013, `main` `818fe7c`; contract DEC-0021 `9091d3d` | done, unreleased; no agent reports yet |
+| Kits publish usage (G7) | adapter PR #34, branch `feat/service-usage-kits` | in review |
+| FD-12 / COM-11 (#26) | backlog FD-12 | blocked on COM-01 (no capability name or schemas in the contract) |
+| Enterprise workplace, admin channel, agent chat | [estate report](reports/2026-10-04-agent-estate-architecture/README.md); fabric-workspace `knowledge/plans.md` `b2b5e38` (gaps G1…G8) | proposed; decisions D1…D5 wait for the operator |
+| FD-09 first CI release | backlog FD-09 | operator: push the `v0.4.2`+ tag and approve `release` |
+
+**The Codex session recovered here.** Codex thread `01a10620` (cwd `~/DATA/sshlg-growth`,
+working on M11/M12 for the analytics agent) stopped at its weekly rate limit at 2026-10-04 15:42 UTC
+in the middle of a turn. Its work here sat uncommitted in
+`~/DATA/.worktrees/fabric-dashboards-product-presentation`. It is now committed and pushed as
+`codex/product-presentation` `9e33f64`, kept as a record and superseded by ADR-0012. Its last
+commit in `sshlg-analytics-agent` (`3a9e983`, branch `codex/m12-continuation-review`) was local
+only and is now pushed. Its other worktrees were already pushed. The growth/analytics side of
+the continuation is owned by the `sshlg-growth` session, which records ADR-0012 as the FD-10
+authority.
+
 ## Spend and the agent-estate architecture, 2026-10-04 (FD-11, ADR-0013, branch `feat/spend-view`)
 
 Objective: the operator asked for spend that the agents themselves report at the protocol level,
