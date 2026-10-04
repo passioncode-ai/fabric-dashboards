@@ -13,10 +13,16 @@ decide C1–C9 (OQ-0008). Once accepted and merged, do FD-12 / COM-11 here: read
 the board service and show board health, responders and a link (`comms-status.schema.json`).
 Meanwhile, adopt `surfaces.usage` in more agents, in their own repositories.
 
-**Spend is live with real numbers.** Frame Agent (`ssheleg/frame-agent`, the operator's personal
-agent) publishes the DEC-0021 report from release `0.1.0-8994303ad0c4` on both instances. 30 days,
-read through this app's `spend` code: `default` $7.68 over 9 runs, `preview` $3.57 over 5 runs.
-The installed Dashboards 0.4.1 has no Spend page yet; it ships with FD-09.
+**Spend is live with real numbers.** Two of the operator's personal agents publish the DEC-0021
+report. Figures are for 30 days, read through this app's `spend` code on 2026-10-04:
+
+- **Frame Agent** (`ssheleg/frame-agent`, release `0.1.0-8994303ad0c4`, both instances):
+  `default` $7.68 over 9 runs, `preview` $3.57 over 5 runs.
+- **Asset Foundry** (`ssheleg/asset-foundry`, release `0.2.0-dffaff5e4fd1`): $5.75 over 53 provider
+  calls. An `unknown` ledger outcome is reported as unpriced, never $0.
+
+The analytics agent's owner session (`sshlg-growth`) has been offered the same. Research Agent is
+still at M0/M1. The installed Dashboards 0.4.1 has no Spend page yet; it ships with FD-09.
 
 **Probe bug found on the way:** the adapter probe sent no `Mcp-Method`/`Mcp-Name` headers (MCP
 2026-07-28 requires them), so servers on the official SDK answered HTTP 400. The fix is in
