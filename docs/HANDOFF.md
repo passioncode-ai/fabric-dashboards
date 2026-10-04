@@ -7,10 +7,13 @@ Current release: 0.4.1 (section below). Earlier releases below are preserved as 
 
 ## Next — start here (2026-10-04, evening)
 
-**First task for the next agent:** merge fabric-agent-adapter
-[PR #34](https://github.com/passioncode-ai/fabric-agent-adapter/pull/34) (the DEC-0021 usage report
-in both service kits, 0.8.0) once its review is clean. Then make the first real agent publish
-`surfaces.usage`, so Spend shows a real number. Each agent is adopted in its own repository.
+**First task for the next agent:** make the first real agent publish `surfaces.usage`, so Spend
+shows a real number. The kits can already do it: fabric-agent-adapter
+[PR #34](https://github.com/passioncode-ai/fabric-agent-adapter/pull/34) is merged on `main` and
+unreleased, and it ships with FAA-06. Each agent is adopted in its own repository: record one
+receipt per model call, serve `ledger.report(...)` behind the token, declare `surfaces.usage`
+(adapter `references/usage.md`), then confirm with `check_service.py <id>` → `usage.report PASS`.
+After the adapter release, FD-13 re-vendors the sample service.
 
 State of the work streams from this session, with receipts:
 
@@ -18,7 +21,7 @@ State of the work streams from this session, with receipts:
 |---|---|---|
 | FD-10 one entry per agent | ADR-0012, `main` `f294285`, issue #27 closed | done, unreleased |
 | FD-11 Spend | ADR-0013, `main` `818fe7c`; contract DEC-0021 `9091d3d` | done, unreleased; no agent reports yet |
-| Kits publish usage (G7) | adapter PR #34, branch `feat/service-usage-kits` | in review |
+| Kits publish usage (G7) | adapter PR #34 on `main`, 0.8.0 unreleased (FAA-06, FAA-07) | done in source; agents adopt next |
 | FD-12 / COM-11 (#26) | backlog FD-12 | blocked on COM-01 (no capability name or schemas in the contract) |
 | Enterprise workplace, admin channel, agent chat | [estate report](reports/2026-10-04-agent-estate-architecture/README.md); fabric-workspace `knowledge/plans.md` `b2b5e38` (gaps G1…G8) | proposed; decisions D1…D5 wait for the operator |
 | FD-09 first CI release | backlog FD-09 | operator: push the `v0.4.2`+ tag and approve `release` |
