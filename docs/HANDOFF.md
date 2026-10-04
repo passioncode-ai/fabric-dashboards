@@ -21,8 +21,11 @@ report. Figures are for 30 days, read through this app's `spend` code on 2026-10
 - **Asset Foundry** (`ssheleg/asset-foundry`, release `0.2.0-dffaff5e4fd1`): $5.75 over 53 provider
   calls. An `unknown` ledger outcome is reported as unpriced, never $0.
 
-The analytics agent's owner session (`sshlg-growth`) has been offered the same. Research Agent is
-still at M0/M1. The installed Dashboards 0.4.1 has no Spend page yet; it ships with FD-09.
+- **Analytics agent** (`sshlg-analytics.default`, online; production `64a805a`, done by its owner
+  session on 2026-10-05): $0.0067 over 14 calls today. Its budget is $20/month, the ceiling its
+  guard enforces. Receipt: `ssheleg/sshlg-analytics-agent` `docs/evidence/dec0021-usage-release.md`.
+
+Research Agent is still at M0/M1. The installed Dashboards 0.4.1 has no Spend page yet; it ships with FD-09.
 
 **Probe bug found on the way:** the adapter probe sent no `Mcp-Method`/`Mcp-Name` headers (MCP
 2026-07-28 requires them), so servers on the official SDK answered HTTP 400. The fix is in
