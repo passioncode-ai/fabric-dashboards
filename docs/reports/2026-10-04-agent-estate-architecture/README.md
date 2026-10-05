@@ -179,10 +179,9 @@ bot per agent. **The board stays the source of truth.** Telegram is a window ont
 person asks in the group becomes a board request addressed to a project or capability, and the
 agent's reply is mirrored back. Two constraints:
 
-- The operator's existing **Personal Communicator** (`ssheleg/sshlg-personal-os`) and its relay
-  bot are personal. They are not the base for an organisation product and are not to be moved or
-  bundled into one (operator rule 2026-09-29). The organisation's chat is the COM-08/09 adapter
-  service.
+- The operator's own Telegram relay is a personal tool, not the base for an organisation product,
+  and is not to be moved or bundled into one (operator rule 2026-09-29). The organisation's chat
+  is the COM-08/09 adapter service.
 - **Decision D4:** Telegram for enterprise teams, or Telegram for the operator plus a
   workplace chat (Slack, Teams) for customers. COM-08/09 are written transport-agnostic in the
   board. The mirror adapter is the only Telegram-specific part.
@@ -218,7 +217,7 @@ agent's reply is mirrored back. Two constraints:
 Read the fleet design, ADR-0088, the COM plan and the Telegram research at the commits named in
 the sources, plus the current Dashboards source. Two read-only searches across `fabric`,
 `fabric-workspace`, `fabric-agent-contract`, `fabric-switchboard`,
-`project-observatory-dashboard` and `sshlg-personal-os` (2026-10-04) established what is decided,
+`project-observatory-dashboard` and the operator's personal-OS repository (2026-10-04) established what is decided,
 what is only on a branch, and what is absent. No live system was changed for this report.
 
 ## Выводы для проекта

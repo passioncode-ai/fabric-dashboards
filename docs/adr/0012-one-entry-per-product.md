@@ -5,8 +5,9 @@ Status: accepted · 2026-10-04 · supersedes the explicit presentation map draft
 
 ## Context
 
-On 2026-10-04 the operator saw five entries in the sidebar for two products — `sshlg-growth.default`,
-`.projection`, `.reader` and `sshlg-analytics.default`, `.projection` — and asked for one agent with
+On 2026-10-04 the operator saw five entries in the sidebar for two products — a growth service's
+`default`, `projection` and `reader` instances and an analytics agent's `default` and `projection` —
+and asked for one agent with
 its sections inside, not several cards with the same interface. A service without a dashboard (for
 example a communicator that only answers a bot) should sit apart from the agents with one.
 
@@ -47,8 +48,7 @@ MUST be a second `instance`, never a second `id`». Every one of the five entrie
 - The explicit map is not needed for the case the operator raised. It stays on its branch as the
   record of the alternative; if two different ids ever have to read as one product, that is a
   contract question (a declared relation between services), not a local settings editor.
-- `sshlg-analytics.projection` groups under Analytics because of its id, although it projects
-  Growth's read-only API. That naming belongs to its owner (`sshlg-projection`, scheduled for
-  retirement), not to this app.
+- A projection that relays another product's API groups under the id it declares, not under the
+  product it relays. Naming the id belongs to the projection's owner, not to this app.
 - The tray keeps one line per instance: it is the place to act on one exact service from the menu
   bar, and its problem section already sorts by attention.

@@ -1,0 +1,160 @@
+{
+ "capabilities": [
+  "cargo",
+  "docker",
+  "gh",
+  "git",
+  "network",
+  "node",
+  "npm",
+  "python3"
+ ],
+ "counts": {
+  "findings": 1,
+  "probes_blind": 1,
+  "probes_run": 8
+ },
+ "findings": [
+  {
+   "blast": 3,
+   "detail": "branch tip (HEAD), git-tag v0.3.4, npm fabric-dashboards all answer to 0.3.4 and disagree on 2 path(s). Anything that compares version STRINGS stays green through this.",
+   "effort": 1,
+   "evidence": "differing: docs/HANDOFF.md, test/e2e/app.test.ts",
+   "first_seen": "2026-10-02",
+   "id": "f-81d7e8d2396c",
+   "incidence": "unknown",
+   "mechanism": "confirmed",
+   "observed_at": "2026-10-02T14:15:28Z",
+   "observed_scope": "local checkout",
+   "p": 3.0,
+   "probe": "channel-divergence",
+   "remedy": "tag the tree the channels should share — a patch release from the branch tip, or a revert of what landed after the tag; a version that identifies two artefacts cannot be reasoned about, and no version check comparing strings will ever say so",
+   "runs_open": 0,
+   "severity": "critical",
+   "title": "One version string, more than one tree",
+   "where": "v0.3.4"
+  }
+ ],
+ "generated_at": "2026-10-02T14:15:29Z",
+ "probes": [
+  {
+   "id": "secrets-tree",
+   "needs": [
+    "git"
+   ],
+   "phase": "probe",
+   "reason": "no credential pattern in the tracked tree",
+   "verdict": "clean"
+  },
+  {
+   "id": "secrets-history",
+   "needs": [
+    "git"
+   ],
+   "phase": "probe",
+   "reason": "no credential pattern in the last 400 commits",
+   "verdict": "clean"
+  },
+  {
+   "id": "worktree",
+   "needs": [
+    "git"
+   ],
+   "phase": "probe",
+   "reason": "working tree clean",
+   "verdict": "clean"
+  },
+  {
+   "id": "telemetry",
+   "needs": [],
+   "phase": "prod",
+   "reason": "no deploy target declared — a library or tool, for which absent telemetry is a design, not a gap",
+   "verdict": "clean"
+  },
+  {
+   "id": "ci-present",
+   "needs": [],
+   "phase": "prod",
+   "reason": "CI configured: github-actions",
+   "verdict": "clean"
+  },
+  {
+   "id": "docs-present",
+   "needs": [],
+   "phase": "seams",
+   "reason": "8 documentation marker(s): README.md, docs, CLAUDE.md, AGENTS.md, CONTRIBUTING.md, CHANGELOG.md, docs/adr, docs/evidence",
+   "verdict": "clean"
+  },
+  {
+   "id": "gitignore-secrets",
+   "needs": [
+    "git"
+   ],
+   "phase": "probe",
+   "reason": "no credential-shaped file is tracked",
+   "verdict": "clean"
+  },
+  {
+   "id": "channel-divergence",
+   "needs": [
+    "git"
+   ],
+   "phase": "prod",
+   "reason": "2 path(s) differ",
+   "verdict": "finding"
+  },
+  {
+   "id": "published-version",
+   "needs": [
+    "npm",
+    "network"
+   ],
+   "phase": "prod",
+   "reason": "npm view said nothing about fabric-dashboards — unpublished, private, or the registry is unreachable",
+   "verdict": "blind"
+  }
+ ],
+ "profile": {
+  "ci": [
+   "github-actions"
+  ],
+  "deploy": [],
+  "docs": [
+   "README.md",
+   "docs",
+   "CLAUDE.md",
+   "AGENTS.md",
+   "CONTRIBUTING.md",
+   "CHANGELOG.md",
+   "docs/adr",
+   "docs/evidence"
+  ],
+  "languages": [
+   "javascript"
+  ],
+  "managers": [
+   "npm"
+  ],
+  "monorepo": true,
+  "name": "fabric-dashboards",
+  "root": "/Users/sshlg/DATA/fabric-dashboards",
+  "submodules": [],
+  "telemetry": [],
+  "tracked_files": 141,
+  "vcs": "git",
+  "version": "0.3.4",
+  "workspaces": true
+ },
+ "ratchet": {
+  "carried": [],
+  "closed": [],
+  "first_run": true,
+  "new": [],
+  "unranked": [
+   "f-81d7e8d2396c"
+  ]
+ },
+ "root": "/Users/sshlg/DATA/fabric-dashboards",
+ "schema": "project-audit/1",
+ "sidecar": "/Users/sshlg/DATA/fabric-dashboards/docs/audit/2026-10-02-audit.json"
+}

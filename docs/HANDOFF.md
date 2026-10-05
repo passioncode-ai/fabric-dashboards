@@ -13,19 +13,12 @@ decide C1–C9 (OQ-0008). Once accepted and merged, do FD-12 / COM-11 here: read
 the board service and show board health, responders and a link (`comms-status.schema.json`).
 Meanwhile, adopt `surfaces.usage` in more agents, in their own repositories.
 
-**Spend is live with real numbers.** Two of the operator's personal agents publish the DEC-0021
-report. Figures are for 30 days, read through this app's `spend` code on 2026-10-04:
-
-- **Frame Agent** (`ssheleg/frame-agent`, release `0.1.0-8994303ad0c4`, both instances):
-  `default` $7.68 over 9 runs, `preview` $3.57 over 5 runs.
-- **Asset Foundry** (`ssheleg/asset-foundry`, release `0.2.0-dffaff5e4fd1`): $5.75 over 53 provider
-  calls. An `unknown` ledger outcome is reported as unpriced, never $0.
-
-- **Analytics agent** (`sshlg-analytics.default`, online; production `64a805a`, done by its owner
-  session on 2026-10-05): $0.0067 over 14 calls today. Its budget is $20/month, the ceiling its
-  guard enforces. Receipt: `ssheleg/sshlg-analytics-agent` `docs/evidence/dec0021-usage-release.md`.
-
-Research Agent is still at M0/M1. The installed Dashboards 0.4.1 has no Spend page yet; it ships with FD-09.
+**Spend is live with real numbers.** Three of the operator's own agents (private repositories,
+not named here) publish the DEC-0021 report, verified through this app's `spend` code on
+2026-10-04/05. One reports an `unknown` provider outcome as unpriced, never $0. One online agent
+states a monthly budget its guard enforces. The detailed receipts live in those private
+repositories and in the operator's projects wiki. The installed Dashboards 0.4.1 has no Spend
+page yet; it ships with FD-09.
 
 **Probe bug found on the way:** the adapter probe sent no `Mcp-Method`/`Mcp-Name` headers (MCP
 2026-07-28 requires them), so servers on the official SDK answered HTTP 400. The fix is in
@@ -43,14 +36,13 @@ State of the work streams from this session, with receipts:
 | Enterprise workplace, admin channel, agent chat | [estate report](reports/2026-10-04-agent-estate-architecture/README.md); fabric-workspace `knowledge/plans.md` `b2b5e38` (gaps G1…G8) | proposed; decisions D1…D5 wait for the operator |
 | FD-09 first CI release | backlog FD-09 | operator: push the `v0.4.2`+ tag and approve `release` |
 
-**The Codex session recovered here.** Codex thread `01a10620` (cwd `~/DATA/sshlg-growth`,
-working on M11/M12 for the analytics agent) stopped at its weekly rate limit at 2026-10-04 15:42 UTC
+**The Codex session recovered here.** Codex thread `01a10620` (working on the operator's analytics
+agent in its own private repository) stopped at its weekly rate limit at 2026-10-04 15:42 UTC
 in the middle of a turn. Its work here sat uncommitted in
 `~/DATA/.worktrees/fabric-dashboards-product-presentation`. It is now committed and pushed as
 `codex/product-presentation` `9e33f64`, kept as a record and superseded by ADR-0012. Its last
-commit in `sshlg-analytics-agent` (`3a9e983`, branch `codex/m12-continuation-review`) was local
-only and is now pushed. Its other worktrees were already pushed. The growth/analytics side of
-the continuation is owned by the `sshlg-growth` session, which records ADR-0012 as the FD-10
+commit in the analytics agent's private repository was local only and is now pushed. Its other
+worktrees were already pushed. The owner session of that agent records ADR-0012 as the FD-10
 authority.
 
 ## Spend and the agent-estate architecture, 2026-10-04 (FD-11, ADR-0013, branch `feat/spend-view`)
@@ -82,7 +74,7 @@ asked for one agent with its sections inside, with dashboard-less services apart
 `src/renderer/App.tsx` (`ProductItem`), `ServiceView.tsx` (`InstanceSwitch`), `Overview.tsx`
 (product cards); scenarios SCN-033…035; MCP `list_services.product`.
 
-Recovered from a stopped Codex session: Codex (thread `01a10620`, working from `sshlg-growth`) drafted
+Recovered from a stopped Codex session: Codex (thread `01a10620`, working from another repository) drafted
 an explicit operator presentation map for this in worktree
 `~/DATA/.worktrees/fabric-dashboards-product-presentation` and stopped at its weekly rate limit
 (2026-10-04 15:42 UTC) with the work uncommitted. It is committed as found and pushed as

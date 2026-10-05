@@ -10,7 +10,7 @@ On 2026-10-04 the operator asked for one place that shows which agents run, what
 and on what. The agents themselves should collect it, at the protocol level. Until then:
 
 - usage existed only per job, in the contract's interop `usage` block;
-- some agents put spend in a summary tile («Spend today, $» on Frame Agent), which a host can
+- some agents put spend in a summary tile («Spend today, $»), which a host can
   neither add up nor compare;
 - Fabric Switchboard reports provider quota percentages, not money.
 

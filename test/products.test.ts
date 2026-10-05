@@ -23,19 +23,19 @@ function snap(key: string, state: ServiceState = 'ready', dashboard: boolean | n
 }
 
 test('productIdOf and instanceOf split a key at its first dot', () => {
-  assert.equal(productIdOf('sshlg-growth.reader'), 'sshlg-growth');
-  assert.equal(instanceOf('sshlg-growth.reader'), 'reader');
+  assert.equal(productIdOf('growth.reader'), 'growth');
+  assert.equal(instanceOf('growth.reader'), 'reader');
   assert.equal(productIdOf('weird'), 'weird');
   assert.equal(instanceOf('weird'), 'default');
 });
 
 test('three instances of one id are one product; the default instance is its primary', () => {
-  const services = [snap('sshlg-growth.projection'), snap('asset-foundry.default'), snap('sshlg-growth.reader'), snap('sshlg-growth.default')];
+  const services = [snap('growth.projection'), snap('asset-maker.default'), snap('growth.reader'), snap('growth.default')];
   const products = groupProducts(services);
-  assert.deepEqual(products.map((p) => p.id), ['sshlg-growth', 'asset-foundry'], 'order of first appearance');
+  assert.deepEqual(products.map((p) => p.id), ['growth', 'asset-maker'], 'order of first appearance');
   const growth = products[0];
-  assert.equal(growth.primary.key, 'sshlg-growth.default');
-  assert.deepEqual(growth.members.map((m) => m.key), ['sshlg-growth.default', 'sshlg-growth.projection', 'sshlg-growth.reader']);
+  assert.equal(growth.primary.key, 'growth.default');
+  assert.deepEqual(growth.members.map((m) => m.key), ['growth.default', 'growth.projection', 'growth.reader']);
   for (const m of growth.members) assert.ok(services.includes(m), 'members are the original snapshots, unchanged');
 });
 
