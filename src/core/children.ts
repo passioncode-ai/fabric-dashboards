@@ -23,6 +23,8 @@ export interface OwnedOptions { timeoutMs: number; killGraceMs?: number; maxBuff
 
 const owned = new Set<ChildProcess>();
 const KILL_GRACE_MS = 2_000;
+/** How long a finished command's output streams may stay open before it counts as done. */
+const EXIT_STREAM_GRACE_MS = 1_000;
 
 /** SIGTERM to the whole group, SIGKILL after `graceMs` if anything in it is still there. */
 function killGroup(child: ChildProcess, graceMs: number): Promise<void> {
@@ -36,7 +38,9 @@ function killGroup(child: ChildProcess, graceMs: number): Promise<void> {
     const poll = () => {
       if (!groupAlive()) return resolve();
       if (Date.now() - started >= graceMs) { signal('SIGKILL'); return resolve(); }
-      setTimeout(poll, 25).unref();
+      // Not unref'd: a kill in progress keeps the process alive until SIGKILL is sent, so an
+      // exiting caller never abandons a group that ignored SIGTERM (seen in CI, 2026-10-05).
+      setTimeout(poll, 25);
     };
     poll();
   });
@@ -70,8 +74,21 @@ export function runOwned(command: string, args: string[], o: OwnedOptions): Prom
       owned.delete(child);
       resolve({ code, output: `${stdout}${stderr ? `\n${stderr}` : ''}${extra}`.trim(), timedOut });
     };
-    child.once('error', (error) => finish(null, `\n${error.message}`));
-    child.once('close', (code) => finish(timedOut ? null : code));
+    let done = false;
+    const settle = (code: number | null, extra = '') => { if (!done) { done = true; finish(code, extra); } };
+    child.once('error', (error) => settle(null, `\n${error.message}`));
+    child.once('close', (code) => settle(timedOut ? null : code));
+    // 'close' waits for stdout and stderr to end; a descendant that left the group can hold them
+    // open forever. Once the command itself has exited, give its streams a second, then stop
+    // reading them and finish — the command is over either way.
+    child.once('exit', (code) => {
+      setTimeout(() => {
+        if (done) return;
+        child.stdout?.destroy();
+        child.stderr?.destroy();
+        settle(timedOut ? null : code);
+      }, EXIT_STREAM_GRACE_MS);
+    });
   });
 }
 

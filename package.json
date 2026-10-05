@@ -1,7 +1,7 @@
 {
   "name": "fabric-dashboards",
   "productName": "Fabric Dashboards",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "private": true,
   "description": "Fabric Dashboards (PassionCode.ai): finds, watches and controls every local agent service on this Mac that speaks fabric-service/0.1.",
   "license": "AGPL-3.0-only OR LicenseRef-PassionCode-Commercial",

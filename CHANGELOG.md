@@ -1,6 +1,22 @@
 # Changelog
 
-## 0.5.0 - 2026-10-05
+## 0.5.1 - 2026-10-05
+
+The first release of everything below 0.4.1. The `v0.5.0` tag was never released: its CI check
+failed on the LC-02 test, and this version carries the fix.
+
+### Fixed
+
+- **A command that exited is done, even when a descendant holds its output open.** A `doctor` or
+  `update` command whose child left the process group (`setsid`) and kept stdout open used to
+  count as running until that child let go. Measured: 5054 ms against 1 s now
+  (`test/lifecycle.test.ts`, *LC-02: a command that exited is done…*). The command's streams get
+  one second after its exit, and then the command counts as finished.
+- **A kill in progress is never abandoned.** The SIGKILL fallback for a group that ignores SIGTERM
+  no longer rides an unreferenced timer, so an exiting MCP server or app still sends it. The LC-02
+  test had failed in CI since the lifecycle contract landed.
+
+## 0.5.0 - 2026-10-05 (tagged, not released)
 
 - **A toolbar over every embedded dashboard ([ADR-0014](docs/adr/0014-dashboard-toolbar.md)).**
   It has Back, Forward, Reload page and Dashboard home, shows the page's address, and offers two

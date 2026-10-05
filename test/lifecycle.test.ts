@@ -435,6 +435,17 @@ test('LC-02: a command past its timeout loses its whole group, and killOwned lea
   assert.equal(ownedCount(), 0);
 });
 
+test('LC-02: a command that exited is done even when a descendant that left its group holds its output open', async () => {
+  // perl forks a child that calls setsid (leaves the group) and keeps the inherited stdout for 5 s.
+  const started = Date.now();
+  const r = await runOwned('/usr/bin/perl', ['-e', 'use POSIX; if (fork() == 0) { setsid(); sleep 5; exit 0 } print "parent done\\n"; exit 0'], { timeoutMs: 10_000 });
+  assert.equal(r.code, 0);
+  assert.equal(r.timedOut, false);
+  assert.match(r.output, /parent done/);
+  assert.ok(Date.now() - started < 3_000, `finished ${Date.now() - started} ms after start, not when the descendant let go`);
+  assert.equal(ownedCount(), 0);
+});
+
 // ── LC-07 — ask once ────────────────────────────────────────────────────────────────────
 
 function fakeOs(openAtLogin = false): LoginItemOs & { sets: boolean[] } {
