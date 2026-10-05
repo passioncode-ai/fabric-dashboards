@@ -4,7 +4,7 @@ import { sumSpend, type SpendEntry, type SpendWindow } from '../../core/spend';
 import type { AppStatus, ServiceSnapshot } from '../../core/types';
 import { api, nameOf, Spinner, useT } from '../lib';
 
-/** Read again while the page is open; nothing is read when it is closed (lifecycle LC-08). */
+/** Read again while the page is open; a hidden window gets the last sums, not a new read (lifecycle LC-08). */
 const REFRESH_MS = 60_000;
 
 /** SCN-036…038 (ADR-0013): what every agent spent, from its own usage report. */
@@ -26,6 +26,7 @@ export function Spend({ status }: { status: AppStatus }) {
   };
   useEffect(() => {
     void read();
+    // LC-08: while the window is hidden the main process answers the last sums without reading.
     const timer = setInterval(() => void read(), REFRESH_MS);
     return () => clearInterval(timer);
   }, []);

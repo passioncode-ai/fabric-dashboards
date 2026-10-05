@@ -27,7 +27,9 @@ provider and model, and **unknown cost as `null`, never `0`**.
    and its own budget. A row expands to the per-model breakdown over the report.
 2. **Read on demand, in the main process.** The report is read when Spend opens, every 60 s while
    it stays open, and when an agent calls the MCP `spend` tool. It is never read in the
-   background. The idle budget of LC-08 is unchanged. The token is read in the main process like
+   background: while the window is hidden, the main process answers the last sums without
+   reading any service, because the renderer gets no visibility change when the window hides
+   (`test/e2e/spend.test.ts`). The idle budget of LC-08 is unchanged. The token is read in the main process like
    the events feed. The renderer receives only sums (`SpendEntry`).
 3. **Unknown is never $0.** A sum that includes unpriced calls reads «≥ $x». A window whose calls
    all lack a price reads «unknown». A service that could not be read is listed with its reason,

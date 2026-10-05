@@ -7,7 +7,7 @@
   come from each agent's own usage report (Fabric Agent Contract DEC-0021, `surfaces.usage`). A sum
   that includes unpriced calls reads «≥ $x», and a cost nobody knows reads «unknown», never $0.
   Agents that cannot be read are named with the reason, and agents that do not report are named
-  too. Nothing is read while the page is closed. Agents get the same sums through the new MCP tool
+  too. Nothing is read while the page is closed or the window is hidden. Agents get the same sums through the new MCP tool
   `spend` (SCN-036…038).
 - `@passioncode-ai/fabric-service-host` 0.3.0: `…/usage` (`checkUsage`, `summarizeUsage`), and
   `WellKnown.surfaces` carries `mcp.capabilities` and `usage`.

@@ -76,6 +76,14 @@ test('Spend shows what an agent reported, a lower bound where calls carry no pri
     await models.getByText('claude-sonnet-5-5').waitFor();
     assert.match(await models.innerText(), /llama-4-8b[\s\S]*unknown/, 'an unpriced model reads unknown, not $0.00');
     assert.ok(usageReads >= 1);
+    // LC-08: while the window is hidden, a refresh gets the last sums and reads no service.
+    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.hide());
+    const before = usageReads;
+    await page.evaluate(() => (window as unknown as { fabric: { spend(): Promise<unknown> } }).fabric.spend());
+    assert.equal(usageReads, before, 'a hidden window reads nothing');
+    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.show());
+    await page.evaluate(() => (window as unknown as { fabric: { spend(): Promise<unknown> } }).fabric.spend());
+    assert.ok(usageReads > before, 'shown again, it reads');
     if (process.env.FD_SCREENSHOTS) await page.screenshot({ path: path.join(process.env.FD_SCREENSHOTS, '20-spend.png') });
   } finally {
     await closeApp(app);
