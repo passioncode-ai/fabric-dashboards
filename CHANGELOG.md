@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+## 0.5.3 - 2026-10-05
+
+The first published release since 0.4.1. It carries everything listed under 0.5.2 in this
+changelog — one entry per agent, Spend, the dashboard toolbar and the at-a-glance Overview, the
+lifecycle contract — plus the items below. The `v0.5.2` run was cancelled before approval, so 0.5.2
+was never published on its own.
+
 - **A dashboard whose session ended signs in again by itself.** When the page answers 401, the app
   runs the login code again and reopens the same page, at most once a minute per view. Reload page
   covers the same case. Before this, the operator was left on the service's 401 text, and the only
