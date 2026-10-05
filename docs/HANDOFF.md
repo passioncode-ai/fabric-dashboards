@@ -7,11 +7,26 @@ Current release: 0.4.1 (section below). Earlier releases below are preserved as 
 
 ## Next — start here (2026-10-04, evening)
 
-**First task for the next agent:** fabric-agent-contract [PR #11](https://github.com/passioncode-ai/fabric-agent-contract/pull/11)
-(COM-01, `fabric-project-comms/0.1`, DEC-0022 **proposed**) waits for the operator and Fabric to
-decide C1–C9 (OQ-0008). Once accepted and merged, do FD-12 / COM-11 here: read `com.status` from
-the board service and show board health, responders and a link (`comms-status.schema.json`).
-Meanwhile, adopt `surfaces.usage` in more agents, in their own repositories.
+**First task for the next agent:** release `v0.5.2` is waiting for a `release-approvers` approval.
+Run [37256336416](https://github.com/passioncode-ai/fabric-dashboards/actions/runs/37256336416)
+needs two approvals: `macos`, then `publish`. Once it publishes, check the receipt (Developer ID,
+`accepted and stapled`, Gatekeeper `accepted`), update the installed app and walk SCN-033…042 on
+it (FD-02). The `v0.5.0` and `v0.5.1` tags failed their CI check on lifecycle tests and were never
+released. The fixes are in `3fb5010`: a command that exited is done even when a descendant holds
+its output, and a SIGKILL fallback is never abandoned. CI `validate` was green before `v0.5.2`.
+
+**What 0.5.2 carries:**
+- one entry per agent (ADR-0012);
+- Spend (ADR-0013);
+- the dashboard toolbar and the at-a-glance Overview (ADR-0014): status strip, one-line attention
+  rows, denser cards;
+- the lifecycle contract and CI-only signing.
+
+**Decided by the operator on 2026-10-05:**
+- COM-01 C1–C9 accepted: DEC-0022 on fabric-agent-contract `main` `d4c8831`.
+- D1–D5 answered: fabric-workspace `knowledge/plans.md` and the estate report.
+- Releases and tags approved. Adapter `v0.8.0` is published on npm.
+- The operator's personal agents may be named in these repositories; history stays as it is.
 
 **Spend is live with real numbers.** Three of the operator's own agents (private repositories,
 not named here) publish the DEC-0021 report, verified through this app's `spend` code on
