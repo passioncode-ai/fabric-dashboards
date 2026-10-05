@@ -166,7 +166,7 @@ Contributions are accepted under the [Contributor License Agreement](CLA.md).
 ## License
 
 Open source under the [GNU AGPL-3.0](LICENSE). A [commercial license](COMMERCIAL-LICENSE.md) is
-available for use that does not meet the AGPL's terms — contact@passioncode.ai.
+available for use that does not meet the AGPL's terms — [passioncode.ai/business](https://passioncode.ai/business/).
 Versions up to and including v0.3.0 were released under PolyForm Noncommercial or Internal Use (v0.2.0–v0.3.0) and the MIT License (v0.1.0 and earlier); those releases keep their licence.
 
 ## Dashboard handoff and strict opening
