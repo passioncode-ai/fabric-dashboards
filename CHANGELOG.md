@@ -1,9 +1,10 @@
 # Changelog
 
-## 0.5.1 - 2026-10-05
+## 0.5.2 - 2026-10-05
 
-The first release of everything below 0.4.1. The `v0.5.0` tag was never released: its CI check
-failed on the LC-02 test, and this version carries the fix.
+The first release of everything below 0.4.1. The `v0.5.0` and `v0.5.1` tags were never released:
+their CI check failed on lifecycle tests (LC-02, then LC-14). This version carries both fixes, and
+`validate` passed on its commit before it was tagged.
 
 ### Fixed
 
@@ -15,6 +16,8 @@ failed on the LC-02 test, and this version carries the fix.
 - **A kill in progress is never abandoned.** The SIGKILL fallback for a group that ignores SIGTERM
   no longer rides an unreferenced timer, so an exiting MCP server or app still sends it. The LC-02
   test had failed in CI since the lifecycle contract landed.
+- The LC-14 test holds the purge helper it waits for. The app lets that helper go on purpose so it
+  can quit, and in CI the test's own process ended first.
 
 ## 0.5.0 - 2026-10-05 (tagged, not released)
 
