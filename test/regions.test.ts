@@ -26,3 +26,14 @@ test('check-regions: closed markers with resolving references pass; each defect 
     assert.deepEqual(findings.map((f: { code: string }) => f.code), [code], name);
   }
 });
+
+test('check-regions: a vendored copy (a directory with SOURCE.txt) is skipped, its neighbours are not', async () => {
+  const { vendored } = await import('../scripts/check-regions.mjs');
+  const root = tmp('fd-regions-vendored-');
+  fs.mkdirSync(path.join(root, 'test/fixtures/kit/sub'), { recursive: true });
+  fs.writeFileSync(path.join(root, 'test/fixtures/kit/SOURCE.txt'), 'Copied from elsewhere.\n');
+  assert.equal(vendored(root, 'test/fixtures/kit/a.py'), true);
+  assert.equal(vendored(root, 'test/fixtures/kit/sub/b.py'), true);
+  assert.equal(vendored(root, 'test/fixtures/other.py'), false);
+  assert.equal(vendored(root, 'src/x.ts'), false);
+});

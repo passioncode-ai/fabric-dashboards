@@ -76,11 +76,19 @@ export function checkRegions({root, files}) {
   return {findings, regions}
 }
 
+/** A file inside a vendored copy: some directory between it and the root holds a SOURCE.txt. */
+export function vendored(root, file) {
+  for (let dir = path.dirname(file); dir !== '.' && dir !== path.dirname(dir); dir = path.dirname(dir)) {
+    if (existsSync(path.join(root, dir, 'SOURCE.txt'))) return true
+  }
+  return false
+}
+
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
   // Tracked and new, not ignored, text files: a build output or a dependency is not this repository's code.
   const files = execFileSync('git', ['-C', root, 'ls-files', '-z', '--cached', '--others', '--exclude-standard'], {encoding: 'utf8'})
-    .split('\0').filter(f => f && /\.(m?[jt]sx?|cjs|py|sh|sql|css|html|swift|rs|go|toml|ya?ml)$/.test(f) && !f.startsWith('docs/'))
+    .split('\0').filter(f => f && /\.(m?[jt]sx?|cjs|py|sh|sql|css|html|swift|rs|go|toml|ya?ml)$/.test(f) && !f.startsWith('docs/') && !vendored(root, f))
   const {findings, regions} = checkRegions({root, files})
   for (const f of findings) console.error(`FAIL ${f.file}:${f.line} ${f.code} — ${f.detail}`)
   if (findings.length) process.exit(1)
