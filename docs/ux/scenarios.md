@@ -486,17 +486,17 @@ first release; every sentence a service writes is shown as the service wrote it.
 - **Feature:** tray
 - **Traces:** ST-009 (JTBD-01, JRN-01/#2)
 - **Entry point:** menu bar icon
-- **Preconditions:** app running (window may be closed)
+- **Preconditions:** app running (window may be closed; while it is closed the app has no Dock icon and lives in the menu bar only)
 - **Steps:**
   1. User looks at the icon -> it shows one of three states: all ready, something degraded, something down or wrong
   2. User clicks it -> the menu lists problems first, then every service with its state; items Open Fabric Dashboards, Pause notifications for 1 hour, the line "Quitting Dashboards does not stop your services.", Quit
-  3. User chooses a service -> the window opens at its view
+  3. User chooses a service -> the window opens at its view, and the Dock icon comes back with it
 - **Expected result:** the state is known without opening the window
 - **UI elements:** menu bar icon, tray menu, service items, Pause notifications item
 - **States covered:** success, error
 - **Errors & recovery:** nothing can fail in the menu; quitting leaves every service running and the menu says so above Quit — never a dialog on the way out
 - **Status:** draft
-- **Coverage:** src/electron/tray.ts
+- **Coverage:** src/electron/tray.ts, src/electron/main.ts (`syncDock`), test/e2e/spend.test.ts
 - **Product:** unobserved
 
 ## settings

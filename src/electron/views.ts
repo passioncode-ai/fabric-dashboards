@@ -14,7 +14,7 @@ import { testRemote } from '../core/testhooks';
 /** A view signs in again after a 401 at most this often (copylot finding 2026-10-05). */
 const RESIGN_EVERY_MS = 60_000;
 
-interface Entry { view: WebContentsView; origin: string; crashes: number; loadedOnce: boolean; dashboardPath: string; resignedAt: number }
+interface Entry { view: WebContentsView; origin: string; crashes: number; loadedOnce: boolean; dashboardPath: string; resignedAt: number; resignTo: string | undefined | null }
 
 
 export class ServiceViews {
@@ -54,16 +54,17 @@ export class ServiceViews {
       if (!entry || !snap.wellKnown?.surfaces.dashboard?.login) return;
       if (Date.now() - entry.resignedAt < RESIGN_EVERY_MS) return;
       entry.resignedAt = Date.now();
-      void this.load(snap, resumePath(details.url, d.origin)).then((r) => {
-        if (!r.ok) this.emit({ key: snap.key, kind: 'error', error: r.error });
-      });
+      // The 401 page is still committing: a login started now races it and can lose. Sign in once
+      // the page has stopped loading (`did-stop-loading` below), or now if it already has.
+      entry.resignTo = resumePath(details.url, d.origin);
+      if (!entry.view.webContents.isLoading()) this.resign(snap, entry);
     });
     ses.setPermissionCheckHandler(() => false);
     const view = new WebContentsView({
       webPreferences: { partition, sandbox: true, contextIsolation: true, nodeIntegration: false, webSecurity: true, allowRunningInsecureContent: false },
     });
     view.setBackgroundColor('#0a070d');
-    const entry: Entry = { view, origin: d.origin, crashes: 0, loadedOnce: false, dashboardPath: snap.wellKnown?.surfaces.dashboard?.path ?? '/', resignedAt: 0 };
+    const entry: Entry = { view, origin: d.origin, crashes: 0, loadedOnce: false, dashboardPath: snap.wellKnown?.surfaces.dashboard?.path ?? '/', resignedAt: 0, resignTo: null };
     const wc = view.webContents;
     wc.setWindowOpenHandler(({ url }) => {
       void this.external(url, d.origin);
@@ -84,7 +85,7 @@ export class ServiceViews {
     wc.on('did-navigate', navigated);
     wc.on('did-navigate-in-page', navigated);
     wc.on('did-start-loading', navigated);
-    wc.on('did-stop-loading', navigated);
+    wc.on('did-stop-loading', () => { navigated(); this.resign(snap, entry); });
     wc.on('did-fail-load', (_e, code, description, _url, isMainFrame) => {
       if (isMainFrame && code !== -3) this.emit({ key: snap.key, kind: 'error', error: description });
     });
@@ -95,6 +96,16 @@ export class ServiceViews {
     });
     this.views.set(snap.key, entry);
     return entry;
+  }
+
+  /** Run a re-sign-in the 401 handler asked for, once. */
+  private resign(snap: ServiceSnapshot, entry: Entry): void {
+    const to = entry.resignTo;
+    if (to === null) return; // nothing asked; undefined asks for the dashboard's own page
+    entry.resignTo = null;
+    void this.load(snap, to).then((r) => {
+      if (!r.ok) this.emit({ key: snap.key, kind: 'error', error: r.error });
+    });
   }
 
   private async external(url: string, origin: string): Promise<void> {

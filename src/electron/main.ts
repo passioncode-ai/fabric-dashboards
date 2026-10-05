@@ -124,6 +124,17 @@ if (!app.requestSingleInstanceLock()) {
   }
   // #endregion quiet-push
 
+  // FD-05: dock.show() resolves later; a hide that lands meanwhile must still win, so the wanted
+  // state is re-read once the show has finished.
+  let dockWanted = true;
+  async function syncDock(): Promise<void> {
+    if (!app.dock) return;
+    if (!dockWanted) { app.dock.hide(); return; }
+    if (app.dock.isVisible()) return; // already there: a pending show would only race a later hide
+    await app.dock.show();
+    if (!dockWanted) app.dock.hide();
+  }
+
   function showWindow(): BrowserWindow {
     if (window && !window.isDestroyed()) {
       if (window.isMinimized()) window.restore();
@@ -144,8 +155,10 @@ if (!app.requestSingleInstanceLock()) {
     w.webContents.session.setPermissionRequestHandler((_wc, _p, callback) => callback(false));
     views = new ServiceViews(w, lang, (event) => w.webContents.send(CHANNELS.viewEvent, event));
     w.once('ready-to-show', () => w.show());
-    w.on('show', windowShown);
-    w.on('hide', windowHidden);
+    // FD-05 (operator decision 2026-10-05): a hidden window leaves only the menu-bar icon; showing
+    // it brings the Dock icon back. A minimized window keeps its Dock icon — that is where it lives.
+    w.on('show', () => { dockWanted = true; void syncDock(); windowShown(); });
+    w.on('hide', () => { windowHidden(); dockWanted = false; void syncDock(); });
     w.on('minimize', windowHidden);
     w.on('restore', windowShown);
     w.on('close', (event) => {
@@ -408,6 +421,7 @@ if (!app.requestSingleInstanceLock()) {
     // Opened at login: stay in the menu bar; the operator opens the window when they want it.
     const hidden = app.getLoginItemSettings().wasOpenedAtLogin || process.argv.includes('--hidden');
     if (!hidden) showWindow();
+    else { dockWanted = false; void syncDock(); } // opened at login: the menu bar only, as when the window is hidden (FD-05)
     log(`started ${app.getVersion()} watching ${monitor.meta().servicesDir}`);
   });
 

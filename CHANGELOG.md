@@ -8,6 +8,13 @@
   way back was Restart, then Reload. Reported by the Copylot owner session.
 - Embedded dashboards follow the app's light or dark theme (`nativeTheme`), not only the theme of
   macOS.
+- **No Dock icon while the window is hidden.** Closing the window leaves the app in the menu bar
+  only; opening it from the menu bar, a link or Finder brings the Dock icon back (FD-05,
+  `test/e2e/spend.test.ts`).
+- **The app no longer ships Electron's camera, microphone and Bluetooth purpose strings.** It asks
+  for none of these (every permission request is refused), and the release build now removes them
+  from the app's and every helper's `Info.plist` and fails if one remains (FD-06,
+  `checks.usageDescriptions`).
 
 ## 0.5.2 - 2026-10-05
 

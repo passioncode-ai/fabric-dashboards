@@ -56,7 +56,10 @@ published or attached to a release.
    - `apple-signing` puts the CI Developer ID in a throwaway keychain. The identity and team come
      from the environment (`vars.APPLE_TEAM_ID`), never from this repository.
    - `node scripts/dist-mac.mjs --stage app --identity <from the action>` packages the universal
-     app, sets the release fuses before signing, signs it with the hardened runtime and checks it
+     app, <a id="usage-descriptions"></a>removes Electron's `NS…UsageDescription` purpose strings
+     from the app's and every helper's `Info.plist` (the app asks for no camera, microphone or
+     Bluetooth; `checks.usageDescriptions`, one left failing the build — FD-06), sets the release
+     fuses before signing, signs it with the hardened runtime and checks it
      (strict signature, runtime flag, both architectures, `checks.fuses` — the release fuses read
      back from every slice by `scripts/fuses.mjs`, a wrong one failing the build — and the MCP
      launcher answers `initialize` from the finished bundle).

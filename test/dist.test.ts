@@ -161,3 +161,27 @@ test('dist: no team id or signing identity is written into the build script', ()
   assert.doesNotMatch(src, /KJ35UYYL22|Developer ID Application: [A-Z][a-z]/);
 });
 // #endregion release-in-ci
+
+// #region usage-descriptions — docs: docs/RUNBOOK.md#usage-descriptions
+test('dist: no NS…UsageDescription survives in the app or its helpers (FD-06)', async (t) => {
+  if (process.platform !== 'darwin') return t.skip('plutil is macOS');
+  const dist = await import('../scripts/dist-mac.mjs');
+  assert.deepEqual(dist.usageDescriptionKeys({ NSCameraUsageDescription: 'x', NSBluetoothAlwaysUsageDescription: 'y', NSHumanReadableCopyright: 'z', CFBundleName: 'A' }),
+    ['NSCameraUsageDescription', 'NSBluetoothAlwaysUsageDescription']);
+  const app = path.join(tmp('fd-plist-'), 'A.app');
+  const plist = (dir: string, body: Record<string, string>) => {
+    fs.mkdirSync(dir, { recursive: true });
+    const file = path.join(dir, 'Info.plist');
+    fs.writeFileSync(file, JSON.stringify(body));
+    assert.equal(spawnSync('plutil', ['-convert', 'xml1', file]).status, 0);
+    return file;
+  };
+  const main = plist(path.join(app, 'Contents'), { CFBundleName: 'A', NSMicrophoneUsageDescription: 'mic', NSCameraUsageDescription: 'cam' });
+  const helper = plist(path.join(app, 'Contents/Frameworks/A Helper (Renderer).app/Contents'), { CFBundleName: 'A Helper', NSAudioCaptureUsageDescription: 'audio' });
+  fs.mkdirSync(path.join(app, 'Contents/Frameworks/Electron Framework.framework'), { recursive: true });
+  assert.equal(dist.stripUsageDescriptions(app), 2);
+  const read = (f: string) => JSON.parse(spawnSync('plutil', ['-convert', 'json', '-o', '-', f], { encoding: 'utf8' }).stdout);
+  assert.deepEqual(read(main), { CFBundleName: 'A' });
+  assert.deepEqual(read(helper), { CFBundleName: 'A Helper' });
+});
+// #endregion usage-descriptions

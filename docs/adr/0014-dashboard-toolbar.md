@@ -51,7 +51,8 @@ On 2026-10-05 the operator reported five things about the main screen and the se
    the app runs the one-time login code again and reopens the same page. It does this at most once
    a minute per view, so a service that refuses every code cannot loop. The status is read from
    the service session's own requests, because a reload reports none through the navigation
-   events. The app's light or dark theme also reaches the pages, through `nativeTheme`.
+   events. The login starts once the 401 page has stopped loading: started while it still
+   committed, it lost the race in 2 of 3 end-to-end runs. The app's light or dark theme also reaches the pages, through `nativeTheme`.
 7. **No motion.** These surfaces are used tens of times a day (motion doctrine, frequency table).
    The only feedback is the Copy button reading "Copied" for 1.5 s. The visual layer stays the
    vendored PassionCode tokens, with no new colour, radius or type size.

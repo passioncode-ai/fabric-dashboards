@@ -113,6 +113,30 @@ const RELEASE_BINARY = /^Fabric-Dashboards-(\d+)\.(\d+)\.(\d+)(-unsigned)?(\.dmg
  * the disk images and update zips this script names are pruned, by version order; receipts (small
  * JSON) and anything else in the directory stay. Returns the file names it removed.
  */
+// #region usage-descriptions — docs: docs/RUNBOOK.md#usage-descriptions
+/** FD-06, LC-07: the `NS…UsageDescription` purpose strings Electron's template carries (camera,
+ *  microphone, Bluetooth, …). The app asks for none of these, so a shipped string would only
+ *  describe a permission it never requests. Returns the keys to remove. */
+export function usageDescriptionKeys(plist) {
+  return Object.keys(plist ?? {}).filter((key) => /^NS[A-Za-z]+UsageDescription$/.test(key));
+}
+
+/** Remove those keys from the app's Info.plist and every helper's, before anything is signed. */
+export function stripUsageDescriptions(app) {
+  const plists = [path.join(app, 'Contents/Info.plist')];
+  const frameworks = path.join(app, 'Contents/Frameworks');
+  for (const name of readdirSync(frameworks)) {
+    const helper = path.join(frameworks, name, 'Contents/Info.plist');
+    if (name.endsWith('.app') && existsSync(helper)) plists.push(helper);
+  }
+  for (const file of plists) {
+    for (const key of usageDescriptionKeys(JSON.parse(run('plutil', ['-convert', 'json', '-o', '-', file])))) run('plutil', ['-remove', key, file]);
+    requireThat(usageDescriptionKeys(JSON.parse(run('plutil', ['-convert', 'json', '-o', '-', file]))).length === 0, `${file} still carries a usage description.`);
+  }
+  return plists.length;
+}
+// #endregion usage-descriptions
+
 export function pruneReleases(dir, keep = 2) {
   if (!existsSync(dir)) return [];
   const binaries = readdirSync(dir).map((name) => ({ name, m: RELEASE_BINARY.exec(name) })).filter((x) => x.m);
@@ -303,6 +327,7 @@ async function stageApp(ctx, identity, notarizedBy) {
   // LC-13: hardened fuses, set before any signature (a changed byte voids one) and read back
   // from the finished binary below. An unsigned build re-seals the framework ad hoc, the way the
   // packager does after writing the asar integrity digest, so Apple Silicon still loads it.
+  record.checks.usageDescriptions = `none in ${stripUsageDescriptions(app)} Info.plist files (FD-06)`;
   applyReleaseFuses(app);
   if (!identity) {
     run('codesign', ['--sign', '-', '--force', '--deep', '--preserve-metadata=entitlements,requirements,flags,runtime',
