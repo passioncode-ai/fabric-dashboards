@@ -44,8 +44,12 @@ test('discovers a live service, opens its dashboard signed in, keeps one view, s
     assert.ok(logs.startsWith(path.join(base, 'app')), `a test run logs inside its own data, not the operator's (${logs})`);
     assert.ok(fs.readFileSync(path.join(logs, 'main.log'), 'utf8').includes(services), 'the start line names the test services dir');
 
+    // ADR-0016: what the agent is for, under its name, on the card and on its page; its tools there too.
+    await page.locator('.card-summary').getByText('Sample fabric-service/0.1 service.').waitFor();
     await page.getByRole('button', { name: /Sample Service — Ready/ }).click();
     await page.getByRole('heading', { name: 'Sample Service' }).waitFor();
+    await page.locator('.svc-summary').getByText('Sample fabric-service/0.1 service.').waitFor();
+    assert.deepEqual(await page.locator('.svc-tools code').allInnerTexts(), ['sample.echo', 'sample.draft']);
     const origin = `http://127.0.0.1:${port}`;
     const embedded = async () => app!.evaluate(({ webContents }, o) =>
       webContents.getAllWebContents().filter((wc) => wc.getURL().startsWith(o)).map((wc) => ({ id: wc.id, url: wc.getURL(), loading: wc.isLoading() })), origin);
@@ -356,6 +360,27 @@ test('switching between two loaded dashboards keeps the chosen dashboard on scre
       return webContents.fromId(child.webContents!.id)!.executeJavaScript('document.visibilityState');
     });
     assert.equal(await visibility(), 'visible', 'the page shown again is visible to Chromium, so it paints');
+
+    // ADR-0016: a dashboard links to another agent — a service link, or that agent's own address
+    // through window.open — and the app opens that agent here, signed in with its own session.
+    const inView = async (js: string) => app!.evaluate(async ({ BrowserWindow, webContents }, code) => {
+      const w = BrowserWindow.getAllWindows()[0]!;
+      const child = (w.contentView.children as unknown as { webContents?: { id: number }; getBounds(): { width: number } }[]).find((c) => c.webContents && c.getBounds().width > 0)!;
+      return webContents.fromId(child.webContents!.id)!.executeJavaScript(code);
+    }, js);
+    const lands = async (i: number, url: string) => {
+      await page.getByRole('heading', { level: 1, name: names[i]! }).waitFor();
+      for (let n = 0; n < 75; n += 1) {
+        const urls = await onScreen();
+        if (urls.length === 1 && urls[0] === url) return urls;
+        await new Promise((r) => setTimeout(r, 200));
+      }
+      return onScreen();
+    };
+    await inView(`location.href = 'fabric-dashboards://service/sample.beta?path=%2F%3Ffrom%3Dalpha'; 1`);
+    assert.deepEqual(await lands(1, `http://127.0.0.1:${ports[1]}/?from=alpha`), [`http://127.0.0.1:${ports[1]}/?from=alpha`], 'a service link inside Alpha opens Beta at the path');
+    await inView(`window.open('http://127.0.0.1:${ports[0]}/?from=beta'); 1`);
+    assert.deepEqual(await lands(0, `http://127.0.0.1:${ports[0]}/?from=beta`), [`http://127.0.0.1:${ports[0]}/?from=beta`], "Alpha's own address opened from Beta comes back to the app, not the browser");
   } finally {
     await closeApp(app);
     for (const p of procs) await stopProcess(p);

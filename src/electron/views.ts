@@ -8,7 +8,7 @@ import type { PageState, Rect } from '../core/api';
 import { t, type Lang } from '../core/i18n';
 import { loginUrl, readToken } from '../core/probe';
 import type { ServiceSnapshot } from '../core/types';
-import { clampRect, navigation, pageAddress, partitionFor, resolveLink, resumePath, ViewSlot } from './policy';
+import { clampRect, navigation, pageAddress, partitionFor, resolveLink, resumePath, routeLink, ViewSlot } from './policy';
 import { testRemote } from '../core/testhooks';
 
 /** A view signs in again after a 401 at most this often (copylot finding 2026-10-05). */
@@ -28,6 +28,10 @@ export class ServiceViews {
     private readonly window: BrowserWindow,
     private readonly lang: () => Lang,
     private readonly emit: (event: { key: string; kind: 'restarted' | 'crashed' | 'loaded' | 'error' | 'navigated'; error?: string; page?: PageState }) => void,
+    /** ADR-0016: a link to another service, handed to the app's deep-link check. */
+    private readonly appLink: (raw: string) => void = () => undefined,
+    /** The origins of every registered service, for routeLink. */
+    private readonly serviceOrigins: () => string[] = () => [],
   ) {}
 
   private create(snap: ServiceSnapshot): Entry {
@@ -66,15 +70,21 @@ export class ServiceViews {
     view.setBackgroundColor('#0a070d');
     const entry: Entry = { view, origin: d.origin, crashes: 0, loadedOnce: false, dashboardPath: snap.wellKnown?.surfaces.dashboard?.path ?? '/', resignedAt: 0, resignTo: null };
     const wc = view.webContents;
+    // ADR-0016: a link to another service opens it here, signed in with its own session.
+    const follow = (url: string): boolean => {
+      const route = routeLink(d.origin, url, this.serviceOrigins());
+      if (route.kind === 'allow') return true;
+      if (route.kind === 'app') this.appLink(route.link);
+      else if (route.kind === 'external') void this.external(url, d.origin);
+      return false;
+    };
     wc.setWindowOpenHandler(({ url }) => {
-      void this.external(url, d.origin);
+      // A new window on the service's own origin opens in place: the view is the service's window.
+      if (follow(url)) void wc.loadURL(url);
       return { action: 'deny' };
     });
     wc.on('will-navigate', (event, url) => {
-      const verdict = navigation(d.origin, url);
-      if (verdict === 'allow') return;
-      event.preventDefault();
-      if (verdict === 'external') void this.external(url, d.origin);
+      if (!follow(url)) event.preventDefault();
     });
     wc.on('will-redirect', (event, url) => {
       if (navigation(d.origin, url) !== 'allow') event.preventDefault();

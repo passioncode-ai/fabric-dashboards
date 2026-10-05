@@ -18,12 +18,12 @@ import { freePort, register, serve, stopProcess, tmp, waitAnswering } from '../t
 const ROOT = path.resolve(__dirname, '..');
 const OUT = path.resolve(process.argv[2] ?? path.join(ROOT, 'docs/images'));
 const AGENTS = [
-  { id: 'docs-writer', name: 'Docs Writer', serve: true, degraded: '' },
-  { id: 'release-bot', name: 'Release Bot', serve: true, degraded: '' },
-  { id: 'support-desk', name: 'Support Desk', serve: true, degraded: 'the mail provider answers slowly' },
-  { id: 'research-notes', name: 'Research Notes', serve: true, degraded: '' },
-  { id: 'calendar-helper', name: 'Calendar Helper', serve: true, degraded: '' },
-  { id: 'data-sync', name: 'Data Sync', serve: true, degraded: '', stops: true }, // answers, then stops: Needs attention
+  { id: 'docs-writer', name: 'Docs Writer', serve: true, degraded: '', summary: 'Keeps the product docs in step with each release.' },
+  { id: 'release-bot', name: 'Release Bot', serve: true, degraded: '', summary: 'Builds, signs and publishes releases after approval.' },
+  { id: 'support-desk', name: 'Support Desk', serve: true, degraded: 'the mail provider answers slowly', summary: 'Answers customer mail and drafts the hard replies for you.' },
+  { id: 'research-notes', name: 'Research Notes', serve: true, degraded: '', summary: 'Collects sources on a topic and writes short briefs.' },
+  { id: 'calendar-helper', name: 'Calendar Helper', serve: true, degraded: '', summary: 'Proposes meeting times and keeps the agenda current.' },
+  { id: 'data-sync', name: 'Data Sync', serve: true, degraded: '', summary: 'Copies analytics exports into the warehouse every hour.', stops: true }, // answers, then stops: Needs attention
 ];
 const SIZE = { width: 1440, height: 760 };
 
@@ -67,6 +67,12 @@ async function main(): Promise<void> {
         await waitAnswering(port);
       }
       register(port, data, services, ['--id', a.id, '--name', a.name]);
+      // The kit writes one generic summary; each example agent says what it is for (ADR-0016).
+      for (const f of fs.readdirSync(services).filter((n) => n.endsWith('.json'))) {
+        const file = path.join(services, f);
+        const d = JSON.parse(fs.readFileSync(file, 'utf8'));
+        if (d.id === a.id) fs.writeFileSync(file, JSON.stringify({ ...d, summary: a.summary }, null, 2));
+      }
     }
     // The first-run question is answered, as on any machine that has used the app for a day.
     const userData = path.join(base, 'app');

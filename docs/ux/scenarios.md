@@ -50,6 +50,7 @@
 | SCN-042 | Many problems stay compact | overview | P-01 | ST-016, ST-002 | draft | — |
 | SCN-043 | Reinstall picks up where I left off | settings | P-01 | ST-017, ST-010 | draft | — |
 | SCN-044 | A copy outside Applications moves itself so it can update | updates | P-01 | ST-017, ST-008 | draft | — |
+| SCN-045 | A dashboard hands me to another agent | dashboards | P-01 | ST-005, ST-011 | draft | — |
 
 ## Personas
 
@@ -142,7 +143,7 @@ first release; every sentence a service writes is shown as the service wrote it.
 - **Entry point:** Overview
 - **Preconditions:** every service answers ready
 - **Steps:**
-  1. User opens Overview -> system shows one card per service: state dot and word, name, version and short commit, uptime, up to six summary tiles, the latest event sentence with its time
+  1. User opens Overview -> system shows one card per service: state dot and word, name, version and short commit, uptime, what the agent is for (the descriptor's one-line summary, at most two lines), up to six summary tiles, the latest event sentence with its time
   2. User chooses a card -> system opens that service's view (SCN-014)
 - **Expected result:** the state of every service is readable in one screen; no Needs attention block is shown
 - **UI elements:** service cards, state dot and label, tiles, latest event line, header count "7 services"
@@ -323,15 +324,33 @@ first release; every sentence a service writes is shown as the service wrote it.
 - **Entry point:** a card, a sidebar row, an Activity row or a notification
 - **Preconditions:** the service is Ready or Degraded and declares a dashboard
 - **Steps:**
-  1. User chooses the service -> system shows the service view: header (state, version and commit, pid, uptime, port, controls) and the Dashboard tab with "Opening…"
+  1. User chooses the service -> system shows the service view: header (state, what the agent is for, version and commit, pid, uptime, port, its Tools — the MCP capabilities it serves, eight shown and "+N more" — and controls) and the Dashboard tab with "Opening…"
   2. When the dashboard needs a login, system obtains a one-time code with the service token and opens it -> the service's own page appears, signed in
 - **Expected result:** the agent's dashboard is usable in the app without a browser or a password, and no token is visible anywhere
 - **Alt paths:** the dashboard declares no login -> it opens directly; the service declares no dashboard -> the tab shows Health instead
 - **UI elements:** service view header, tabs Dashboard / Activity / Health / Logs, embedded page, loading line
 - **States covered:** loading, success, error
-- **Errors & recovery:** see SCN-016; a link inside the page to another site asks "Open <address> in your browser?" before leaving the app
+- **Errors & recovery:** see SCN-016; a link inside the page to another agent opens that agent here (SCN-045); a link to any other site asks "Open <address> in your browser?" before leaving the app
 - **Status:** draft
-- **Coverage:** src/electron/views.ts, src/electron/policy.ts, test/viewslot.test.ts, test/e2e/app.test.ts
+- **Coverage:** src/electron/views.ts, src/electron/policy.ts, src/renderer/components/ServiceView.tsx (Tools), test/viewslot.test.ts, test/e2e/app.test.ts
+- **Product:** unobserved
+
+### SCN-045: A dashboard hands me to another agent
+- **Persona:** P-01
+- **Feature:** dashboards
+- **Traces:** ST-005, ST-011 (JTBD-04, JRN-01/#5); ADR-0016
+- **Entry point:** a link or button inside one agent's embedded dashboard that points at another agent: "Approve in Growth", "Open in Analytics agent"
+- **Preconditions:** both agents are installed; the link is `fabric-dashboards://service/<id.instance>?path=…`, or the other agent's own address (`http://127.0.0.1:<port>/…` or its registered `https` origin)
+- **Steps:**
+  1. User clicks the link -> the app checks it against the installed descriptors, switches to the other agent's page and opens the path, signed in with that agent's own session
+  2. User goes back in the sidebar to the first agent -> its dashboard is still on the page it was on
+- **Expected result:** moving between agents is one click, inside the app, each with its own sign-in
+- **Alt paths:** the link opens a new window (`target=_blank`, `window.open`) -> the same; a new window on the agent's own origin opens in its view
+- **UI elements:** the other agent's service view and dashboard
+- **States covered:** success, error
+- **Errors & recovery:** the link names no installed agent or a path off its origin -> "This link cannot be opened" with the reason, nothing opens (SCN-027); the other agent is stopped -> its page opens on Start (SCN-010); a link to an unknown site -> the browser question of SCN-014
+- **Status:** draft
+- **Coverage:** src/electron/policy.ts (routeLink), src/electron/views.ts, src/electron/main.ts, test/parts.test.ts, test/e2e/app.test.ts
 - **Product:** unobserved
 
 ### SCN-015: Dashboard view keeps its place

@@ -18,6 +18,33 @@ export function navigation(serviceOrigin: string, target: string): NavigationVer
   return 'deny';
 }
 
+// #region cross-links — docs: docs/adr/0016-agent-summary-tools-and-cross-links.md#decision
+export type LinkRoute = { kind: 'allow' } | { kind: 'app'; link: string } | { kind: 'external' } | { kind: 'deny' };
+
+/**
+ * Where a link clicked (or window.open'ed) inside an embedded dashboard goes (ADR-0016). Its own
+ * origin: stays in the view. A `fabric-dashboards:` link, or the origin of another registered
+ * service: back to the app, which checks it with parseDeepLink and opens that service signed in
+ * with its own session. Any other web link: the system browser, after a question.
+ */
+export function routeLink(serviceOrigin: string, target: string, serviceOrigins: readonly string[]): LinkRoute {
+  let url: URL;
+  try {
+    url = new URL(target);
+  } catch {
+    return { kind: 'deny' };
+  }
+  const own = new URL(serviceOrigin).origin;
+  if (url.origin === own && url.protocol !== 'fabric-dashboards:') return { kind: 'allow' };
+  if (url.protocol === 'fabric-dashboards:') return { kind: 'app', link: target };
+  if ((url.protocol === 'http:' || url.protocol === 'https:') && serviceOrigins.some((o) => { try { return new URL(o).origin === url.origin; } catch { return false; } })) {
+    return { kind: 'app', link: `fabric-dashboards://open?url=${encodeURIComponent(target)}` };
+  }
+  if (url.protocol === 'https:' || url.protocol === 'http:' || url.protocol === 'mailto:') return { kind: 'external' };
+  return { kind: 'deny' };
+}
+// #endregion cross-links
+
 /** Every service gets its own persistent session, so cookies never cross between services. */
 export function partitionFor(serviceKey: string): string {
   return `persist:svc-${serviceKey.replace(/[^a-z0-9.-]/g, '-')}`;

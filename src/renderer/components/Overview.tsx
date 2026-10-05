@@ -142,6 +142,7 @@ function Card({ p, open }: { p: Product; open: (key: string) => void }) {
         </div>
         <StateBadge state={s.state} />
       </div>
+      {s.descriptor?.summary && <p className="card-summary" title={s.descriptor.summary}>{s.descriptor.summary}</p>}
       {wk?.summary && wk.summary.length > 0 && (
         <div className="tiles">
           {wk.summary.slice(0, 6).map((tile) => (

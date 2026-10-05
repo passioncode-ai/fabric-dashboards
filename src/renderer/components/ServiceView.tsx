@@ -50,6 +50,7 @@ export function ServiceView({ s, members, open, link, nonce, overlayOpen, askSto
           <StateBadge state={s.state} />
           {s.busy && <span className="row meta"><Spinner /> {t(`busy.${s.busy}`)}</span>}
         </div>
+        {s.descriptor?.summary && <p className="svc-summary">{s.descriptor.summary}</p>}
         <div className="facts">
           {wk && <span>{t('health.version')} <b>{wk.service.version}</b></span>}
           {wk && <span>{t('health.build')} <b>{shortBuild(s)}</b></span>}
@@ -57,6 +58,7 @@ export function ServiceView({ s, members, open, link, nonce, overlayOpen, askSto
           <span>{t('health.port')} <b>{portOf(s)}</b></span>
           {wk && <span>{t('card.uptime', { uptime: duration(Date.now() - new Date(wk.process.startedAt).getTime()) })}</span>}
         </div>
+        <Tools names={wk?.surfaces.mcp?.capabilities ?? []} />
         {s.reasons.length > 0 && <ul className="reasons">{s.reasons.map((r, i) => <li key={i}>{reason(r)}</li>)}</ul>}
         {s.lastAction && !s.busy && (
           <p className={`meta${s.lastAction.ok ? '' : ' state-down'}`} role="status">{reason(s.lastAction.reason)}</p>
@@ -272,5 +274,28 @@ function InstanceSwitch({ current, members, open }: { current: ServiceSnapshot; 
         </button>
       ))}
     </nav>
+  );
+}
+
+const TOOLS_VISIBLE = 8;
+
+/** The agent's MCP tools, as its well-known document names them (DEC-0016/0020): what an agent
+ *  session can ask of it. Eight show; the rest wait behind "+N more". */
+function Tools({ names }: { names: string[] }) {
+  const { t } = useT();
+  const [all, setAll] = useState(false);
+  useEffect(() => setAll(false), [names.join(',')]);
+  if (!names.length) return null;
+  const shown = all ? names : names.slice(0, TOOLS_VISIBLE);
+  return (
+    <div className="svc-tools" aria-label={t('svc.tools')}>
+      <span className="meta">{t('svc.tools')}</span>
+      {shown.map((n) => <code key={n} className="tool-chip">{n}</code>)}
+      {names.length > TOOLS_VISIBLE && (
+        <button className="btn-link btn btn-sm" aria-expanded={all} onClick={() => setAll(!all)}>
+          {all ? t('svc.tools.fewer') : t('svc.tools.more', { count: names.length - TOOLS_VISIBLE })}
+        </button>
+      )}
+    </div>
   );
 }

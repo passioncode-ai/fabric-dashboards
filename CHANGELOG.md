@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+## 0.5.5 - 2026-10-05
+
+- **Each agent says what it is for.** The descriptor's one-line summary shows under the name on
+  its Overview card and on its page. Until now only the summary tiles were drawn.
+- **An agent's page lists its tools.** These are the MCP capabilities from its well-known document,
+  eight shown and «+N more».
+- **One agent's dashboard can hand you to another.** A `fabric-dashboards://service/<id.instance>?path=…`
+  link, or another installed agent's own address, clicked or opened in a new window inside an
+  embedded dashboard, now opens that agent here at that page, signed in with its own session.
+  Before, the first was refused and the second went to the browser without a session. Links to
+  other sites still ask before opening the browser. A new window on the dashboard's own site opens
+  in place instead of being dropped. ([ADR-0016](docs/adr/0016-agent-summary-tools-and-cross-links.md))
+
 ## 0.5.4 - 2026-10-05
 
 The first published release since 0.4.1: it carries everything listed under 0.5.3 and 0.5.2 below

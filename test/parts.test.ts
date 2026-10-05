@@ -9,7 +9,7 @@ import { parseLsof, unattributed } from '../src/core/listeners';
 import { inQuietHours, shouldNotify } from '../src/core/notify';
 import { merge, SettingsStore } from '../src/core/settings';
 import { DEFAULT_SETTINGS, type Settings } from '../src/core/types';
-import { clampRect, navigation, partitionFor, resolveLink } from '../src/electron/policy';
+import { clampRect, navigation, partitionFor, resolveLink, routeLink } from '../src/electron/policy';
 import { tmp } from './helpers';
 
 test('navigation stays on the service origin; web links leave only through the browser', () => {
@@ -148,6 +148,22 @@ test('updates install by themselves unless the person turned it off; a file from
   assert.equal(merge({ autoUpdate: false }).autoUpdate, false);
   assert.equal(merge({ autoUpdate: 'no' as never }).autoUpdate, true);
   assert.equal(merge({}).moveToApplicationsAsked, false);
+});
+
+test('ADR-0016: a link inside a dashboard to another agent comes back to the app; other web links leave', () => {
+  const own = 'http://127.0.0.1:47195';
+  const others = [own, 'http://127.0.0.1:8796', 'https://growth.example.com'];
+  assert.deepEqual(routeLink(own, 'http://127.0.0.1:47195/dashboard#/x', others), { kind: 'allow' });
+  assert.deepEqual(routeLink(own, 'fabric-dashboards://service/growth.default?path=%2Fdashboard%2F', others), { kind: 'app', link: 'fabric-dashboards://service/growth.default?path=%2Fdashboard%2F' });
+  assert.deepEqual(routeLink(own, 'http://127.0.0.1:8796/x?y=1', others), { kind: 'app', link: 'fabric-dashboards://open?url=http%3A%2F%2F127.0.0.1%3A8796%2Fx%3Fy%3D1' });
+  assert.deepEqual(routeLink(own, 'https://growth.example.com/dashboard/?view=drafts', others), { kind: 'app', link: 'fabric-dashboards://open?url=https%3A%2F%2Fgrowth.example.com%2Fdashboard%2F%3Fview%3Ddrafts' });
+  assert.deepEqual(routeLink(own, 'https://growth.example.com.evil.test/', others), { kind: 'external' }, 'a look-alike host is not a registered origin');
+  assert.deepEqual(routeLink(own, 'http://127.0.0.1:9999/', others), { kind: 'external' }, 'a local port no descriptor names');
+  assert.deepEqual(routeLink(own, 'https://docs.example.org/', others), { kind: 'external' });
+  assert.deepEqual(routeLink(own, 'mailto:a@example.org', others), { kind: 'external' });
+  assert.deepEqual(routeLink(own, 'file:///etc/passwd', others), { kind: 'deny' });
+  assert.deepEqual(routeLink(own, 'javascript:alert(1)', others), { kind: 'deny' });
+  assert.deepEqual(routeLink(own, 'not a url', others), { kind: 'deny' });
 });
 
 test('listeners on every interface that no descriptor claims are unattributed', () => {

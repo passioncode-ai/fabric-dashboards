@@ -30,6 +30,13 @@ release.yml now refuses a full release that is not newer than the published one)
   (on by default); a copy outside Applications offers to move;
 - the lifecycle contract and CI-only signing.
 
+**0.5.5 is ready on `main`, not tagged** (ADR-0016, FD-17): the descriptor summary on cards and
+pages, the agent's tools, and links from one agent's dashboard to another routed back into the
+app. Tag `v0.5.5` only after 0.5.4 is published — release.yml refuses a release that is not newer
+than the published one, and 0.5.5 must not overtake 0.5.4 before 0.5.4's own receipt is checked.
+Then tell the growth/analytics owner session that the link format
+`fabric-dashboards://service/<id.instance>?path=<encoded>` ships.
+
 **Open after the release:** FD-16's field proof needs the *next* release installing itself on a
 0.5.4 copy with the window closed. Copies on 0.4.1–0.5.3 have no automatic install: they download
 0.5.4 and install it at their next quit or Restart.

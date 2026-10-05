@@ -172,7 +172,10 @@ if (!app.requestSingleInstanceLock()) {
     w.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
     w.webContents.on('will-navigate', (event) => event.preventDefault());
     w.webContents.session.setPermissionRequestHandler((_wc, _p, callback) => callback(false));
-    views = new ServiceViews(w, lang, (event) => w.webContents.send(CHANNELS.viewEvent, event));
+    views = new ServiceViews(w, lang, (event) => w.webContents.send(CHANNELS.viewEvent, event),
+      // ADR-0016: a dashboard's link to another service takes the same path as a link from outside.
+      (raw) => { if (handleLink) handleLink(raw); else pendingLinks.push(raw); },
+      () => monitor.snapshots().map((x) => x.descriptor?.origin).filter((o): o is string => Boolean(o)));
     w.once('ready-to-show', () => w.show());
     // FD-05 (operator decision 2026-10-05): a hidden window leaves only the menu-bar icon; showing
     // it brings the Dock icon back. A minimized window keeps its Dock icon — that is where it lives.
