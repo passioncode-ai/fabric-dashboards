@@ -14,7 +14,7 @@ report:
     agents, a Telegram chat where agents and people talk, a place where agents exchange requests,
     and spend reported by the agents — mapped onto what is already designed (fleet tunnel CE-0…14,
     relay ADR-0088, COM board, DEC-0021) with eight gaps, an owner per piece and five decisions
-    the operator must make. Only DEC-0021 and the Dashboards Spend page are built.
+    the operator made on 2026-10-05. Only DEC-0021 and the Dashboards Spend page are built.
   sources:
     - name: "Device control and the fleet tunnel (fabric-workspace, proposed, nothing built)"
       url: "https://github.com/passioncode-ai/fabric-workspace/blob/main/docs/reports/2026-10-03-device-control-and-fleet/README.md"
@@ -201,16 +201,19 @@ agent's reply is mirrored back. Two constraints:
 
 ## Decisions for the operator
 
-- **D1 — relay hosting default** (CE-0, ADR-0088 O2). The recommendation on record is a
-  Cloudflare Worker behind Access, with self-hosting for customers that require it.
-- **D2 — Switchboard in the workplace:** include it only for profiles whose agents need several
-  accounts (proposed), or always.
-- **D3 — content reads by the admin (G3):** in the first enterprise release or not, and under
-  which compliance regime.
-- **D4 — chat transport for customer teams:** Telegram only, or Telegram plus Slack/Teams through
-  the same board.
-- **D5 — what the employee sees of their own spend and of admin actions:** proposed — everything
-  the admin sees about their machine, and every admin action, in Dashboards and Fabric.
+Answered by the operator on 2026-10-05:
+
+- **D1 — relay hosting:** a Cloudflare Worker behind Access, hosted by PassionCode, by default.
+  A customer that requires it runs its own relay.
+- **D2 — Switchboard:** only in profiles whose agents need several accounts.
+- **D3 — content reads by the admin:** allowed in the first enterprise release, through the
+  agent's declared read capabilities, with consent and an audit visible to the employee. G3 is
+  in scope.
+- **D4 — chat transport:** Telegram plus Slack/Teams, as two mirrors of the same board.
+- **D5 — employee visibility:** everything the admin sees about their machine, including their own
+  spend and every admin action, in Dashboards and in Fabric.
+
+The COM choices C1–C9 were accepted the same day: DEC-0022 on fabric-agent-contract `main`.
 
 ## Данные и метод
 
