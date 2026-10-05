@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+- **A dashboard whose session ended signs in again by itself.** When the page answers 401, the app
+  runs the login code again and reopens the same page, at most once a minute per view. Reload page
+  covers the same case. Before this, the operator was left on the service's 401 text, and the only
+  way back was Restart, then Reload. Reported by the Copylot owner session.
+- Embedded dashboards follow the app's light or dark theme (`nativeTheme`), not only the theme of
+  macOS.
+
 ## 0.5.2 - 2026-10-05
 
 The first release of everything below 0.4.1. The `v0.5.0` and `v0.5.1` tags were never released:

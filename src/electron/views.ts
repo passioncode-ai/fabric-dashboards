@@ -11,7 +11,10 @@ import type { ServiceSnapshot } from '../core/types';
 import { clampRect, navigation, pageAddress, partitionFor, resolveLink, resumePath, ViewSlot } from './policy';
 import { testRemote } from '../core/testhooks';
 
-interface Entry { view: WebContentsView; origin: string; crashes: number; loadedOnce: boolean; dashboardPath: string }
+/** A view signs in again after a 401 at most this often (copylot finding 2026-10-05). */
+const RESIGN_EVERY_MS = 60_000;
+
+interface Entry { view: WebContentsView; origin: string; crashes: number; loadedOnce: boolean; dashboardPath: string; resignedAt: number }
 
 
 export class ServiceViews {
@@ -41,12 +44,26 @@ export class ServiceViews {
       });
     }
     ses.setPermissionRequestHandler((_wc, _permission, callback) => callback(false));
+    // A dashboard session that ended while the page was open answers 401 on the main frame: sign
+    // in again once, on the same page, instead of leaving the operator on the service's 401 text.
+    // At most once a minute, so a service that refuses every code cannot loop. Read from the
+    // session's own requests: a reload reports no status through the navigation events.
+    ses.webRequest.onCompleted({ urls: [`${new URL(d.origin).origin}/*`] }, (details) => {
+      if (details.resourceType !== 'mainFrame' || details.statusCode !== 401) return;
+      const entry = this.views.get(snap.key);
+      if (!entry || !snap.wellKnown?.surfaces.dashboard?.login) return;
+      if (Date.now() - entry.resignedAt < RESIGN_EVERY_MS) return;
+      entry.resignedAt = Date.now();
+      void this.load(snap, resumePath(details.url, d.origin)).then((r) => {
+        if (!r.ok) this.emit({ key: snap.key, kind: 'error', error: r.error });
+      });
+    });
     ses.setPermissionCheckHandler(() => false);
     const view = new WebContentsView({
       webPreferences: { partition, sandbox: true, contextIsolation: true, nodeIntegration: false, webSecurity: true, allowRunningInsecureContent: false },
     });
     view.setBackgroundColor('#0a070d');
-    const entry: Entry = { view, origin: d.origin, crashes: 0, loadedOnce: false, dashboardPath: snap.wellKnown?.surfaces.dashboard?.path ?? '/' };
+    const entry: Entry = { view, origin: d.origin, crashes: 0, loadedOnce: false, dashboardPath: snap.wellKnown?.surfaces.dashboard?.path ?? '/', resignedAt: 0 };
     const wc = view.webContents;
     wc.setWindowOpenHandler(({ url }) => {
       void this.external(url, d.origin);

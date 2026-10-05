@@ -77,6 +77,21 @@ test('discovers a live service, opens its dashboard signed in, keeps one view, s
     for (let i = 0; i < 50 && (await address.inputValue()) !== `${origin}/`; i += 1) await new Promise((r) => setTimeout(r, 200));
     assert.equal(await address.inputValue(), `${origin}/`, 'reload keeps the page');
     await app.evaluate(({ clipboard }, text) => clipboard.writeText(text), keptClipboard);
+
+    // A session that ended while the page was open (the service answers 401): the app signs in
+    // again by itself, on the same page, instead of leaving the service's 401 text on screen.
+    await app.evaluate(async ({ session }) => { await session.fromPartition('persist:svc-sample.default').clearStorageData({ storages: ['cookies'] }); });
+    await page.getByRole('button', { name: 'Reload page' }).click();
+    let signedIn = '';
+    for (let i = 0; i < 60; i += 1) {
+      const [v] = await embedded();
+      if (v && !v.loading) {
+        signedIn = await app.evaluate(async ({ webContents }, id) => webContents.fromId(id)!.executeJavaScript('document.body.innerText'), v.id);
+        if (/Sample Service started/.test(signedIn)) break;
+      }
+      await new Promise((r) => setTimeout(r, 250));
+    }
+    assert.match(signedIn, /Sample Service started/, `signed in again after the session ended; page: ${JSON.stringify((await embedded())[0])} ${signedIn.slice(0, 80)}`);
     const token = fs.readFileSync(path.join(data, 'service.token'), 'utf8').trim();
     const urls = await app.evaluate(({ webContents }) => webContents.getAllWebContents().map((wc) => wc.getURL()));
     assert.ok(urls.every((u) => !u.includes(token)), 'no URL carries the service token');

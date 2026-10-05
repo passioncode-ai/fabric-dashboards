@@ -1,7 +1,7 @@
 // Fabric Dashboards main process. Built like Fabric Inbox's shell: one main
 // process, sandboxed renderers, context isolation, a single instance. It owns
 // no service process — launchd does (ADR-0002) — so quitting stops nothing.
-import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, Notification, session, shell } from 'electron';
+import { app, BrowserWindow, clipboard, dialog, ipcMain, nativeTheme, Menu, Notification, session, shell } from 'electron';
 import fs from 'node:fs';
 import path from 'node:path';
 import { ActivityStore } from '../core/activity';
@@ -74,6 +74,8 @@ if (!app.requestSingleInstanceLock()) {
   // A writer killed between write and rename leaves its temporary file; nothing else removes it (LC-12).
   for (const name of sweepTemps(userData)) log(`removed a temporary file left by a stopped process: ${name}`);
   const settings = new SettingsStore(userData);
+  // Embedded dashboards follow the app's theme, not only macOS (prefers-color-scheme in every page).
+  nativeTheme.themeSource = settings.get().theme;
   const activity = new ActivityStore(userData);
   const lang = (): Lang => langFor(app.getPreferredSystemLanguages()[0] ?? app.getLocale());
   const monitor = new Monitor({ servicesDir: servicesDir(), activity, settings: () => settings.get(), lang, ledger: new NotifyLedger(path.join(userData, 'notified.json')) });
@@ -260,6 +262,7 @@ if (!app.requestSingleInstanceLock()) {
       // Choosing launch at login — on the first-run card or in Settings — is the one moment it is registered (LC-07).
       const choosing = 'launchAtLogin' in patch;
       const next = settings.update(choosing ? { ...patch, launchAtLoginAsked: true } : patch);
+      nativeTheme.themeSource = next.theme;
       const error = choosing && loginOs ? applyLoginItem(next.launchAtLogin, loginOs) : undefined;
       if (error) {
         const reverted = settings.update({ launchAtLogin: false });

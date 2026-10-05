@@ -46,7 +46,13 @@ On 2026-10-05 the operator reported five things about the main screen and the se
    - The grid fits four cards across a 1440 px window, and the cards in a row share one height.
    - Tile values take one line, labels at most two, and the full text is the tile's tooltip.
    - The latest event takes one line, at the card's foot.
-6. **No motion.** These surfaces are used tens of times a day (motion doctrine, frequency table).
+6. **A session that ended signs in again by itself** (added 2026-10-05, from a finding by the
+   Copylot owner session). When the main frame of a dashboard that requires sign-in answers `401`,
+   the app runs the one-time login code again and reopens the same page. It does this at most once
+   a minute per view, so a service that refuses every code cannot loop. The status is read from
+   the service session's own requests, because a reload reports none through the navigation
+   events. The app's light or dark theme also reaches the pages, through `nativeTheme`.
+7. **No motion.** These surfaces are used tens of times a day (motion doctrine, frequency table).
    The only feedback is the Copy button reading "Copied" for 1.5 s. The visual layer stays the
    vendored PassionCode tokens, with no new colour, radius or type size.
 

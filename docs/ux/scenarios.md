@@ -378,7 +378,7 @@ first release; every sentence a service writes is shown as the service wrote it.
   2. User filters by service or level -> the list narrows immediately; the filter is kept
   3. User chooses an event with a link -> system opens that service's view at the link (SCN-014)
 - **Expected result:** everything the agents did is readable in one place and the unread count clears
-- **Alt paths:** no events yet -> "Nothing has happened yet. Events appear here as your services work."
+- **Alt paths:** no events yet -> "Nothing has happened yet. Events appear here as your services work."; the session ended while the page was open (the service answers 401) -> the app signs in again by itself, once a minute at most, and reopens the same page (ADR-0014)
 - **UI elements:** Activity list, day headers, service and level filters, unread count
 - **States covered:** loading, empty, success
 - **Errors & recovery:** see SCN-018
