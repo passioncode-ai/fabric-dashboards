@@ -1,7 +1,7 @@
 // Fabric Dashboards main process. Built like Fabric Inbox's shell: one main
 // process, sandboxed renderers, context isolation, a single instance. It owns
 // no service process — launchd does (ADR-0002) — so quitting stops nothing.
-import { app, BrowserWindow, dialog, ipcMain, Menu, Notification, session, shell } from 'electron';
+import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, Notification, session, shell } from 'electron';
 import fs from 'node:fs';
 import path from 'node:path';
 import { ActivityStore } from '../core/activity';
@@ -240,9 +240,17 @@ if (!app.requestSingleInstanceLock()) {
     // LC-08: a hidden window reads nothing — the Spend page's timer may keep running while hidden,
     // and the renderer cannot tell (no visibility change on hide), so the main process answers the
     // last sums instead of reading every service again.
+    // Overview and Spend both ask; one read serves both for SPEND_FRESH_MS (ADR-0014).
     let lastSpend: SpendEntry[] = [];
+    let lastSpendAt = 0;
+    // Tests shorten it to see each read; honoured only when the app is not packaged (as FD_TEST_REMOTE).
+    const SPEND_FRESH_MS = !app.isPackaged && process.env.FD_TEST_SPEND_FRESH_MS ? Number(process.env.FD_TEST_SPEND_FRESH_MS) : 30_000;
     ipcMain.handle(CHANNELS.spend, async () => {
-      if (windowVisible() || !lastSpend.length) lastSpend = await readSpend(monitor.snapshots(), { token: readToken, fetchUsage, now: () => Date.now() });
+      const stale = Date.now() - lastSpendAt > SPEND_FRESH_MS;
+      if ((windowVisible() && stale) || !lastSpendAt) {
+        lastSpend = await readSpend(monitor.snapshots(), { token: readToken, fetchUsage, now: () => Date.now() });
+        lastSpendAt = Date.now();
+      }
       return lastSpend;
     });
     ipcMain.handle(CHANNELS.activity, (_e, filter) => activity.list(filter ?? {}));
@@ -285,6 +293,13 @@ if (!app.requestSingleInstanceLock()) {
     });
     ipcMain.handle(CHANNELS.viewHide, (_e, owner?: string) => views?.hide(typeof owner === 'string' ? owner : undefined));
     ipcMain.handle(CHANNELS.viewReload, async (_e, key: string) => { const s = snap(key); if (s) await views?.reload(s); });
+    ipcMain.handle(CHANNELS.viewPage, (_e, key: string) => views?.page(String(key)) ?? null);
+    ipcMain.handle(CHANNELS.viewNavigate, (_e, key: string, action: string) => {
+      if (!['back', 'forward', 'home', 'refresh'].includes(action)) throw new Error('unknown navigation');
+      views?.navigate(String(key), action as 'back' | 'forward' | 'home' | 'refresh');
+    });
+    // The toolbar copies only what it shows: a page address or an app link, never a token.
+    ipcMain.handle(CHANNELS.copyText, (_e, text: string) => { clipboard.writeText(String(text).slice(0, 4096)); });
     ipcMain.handle(CHANNELS.updateRestart, () => { quitting = true; updater.restart(); });
     ipcMain.handle(CHANNELS.updateCheck, () => updater.check());
     ipcMain.handle(CHANNELS.notificationsAllowed, () => Notification.isSupported());

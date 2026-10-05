@@ -112,7 +112,7 @@ function Shell({ status, route, setRoute, stopKey, setStopKey }: ShellProps) {
                 {route.page === 'overview' && count > 0 && <span className="meta">{count === 1 ? t('overview.count.one') : t('overview.count', { count })}</span>}
               </div>
               {route.page === 'overview' && <LoginQuestion />}
-              {route.page === 'overview' && <Overview status={status} products={products} open={open} act={act} />}
+              {route.page === 'overview' && <Overview status={status} products={products} open={open} act={act} goSpend={() => setRoute({ page: 'spend' })} />}
               {route.page === 'activity' && <Activity status={status} openAt={open} />}
               {route.page === 'spend' && <Spend status={status} />}
               {route.page === 'settings' && <Settings status={status} onTheme={applyTheme} />}

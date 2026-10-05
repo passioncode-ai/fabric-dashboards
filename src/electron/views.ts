@@ -4,14 +4,15 @@
 // every view (releaseAll, lifecycle LC-08); showing it brings back the one that
 // was on screen, on the page it was on (resume).
 import { BrowserWindow, dialog, session, shell, WebContentsView } from 'electron';
-import type { Rect } from '../core/api';
+import type { PageState, Rect } from '../core/api';
 import { t, type Lang } from '../core/i18n';
 import { loginUrl, readToken } from '../core/probe';
 import type { ServiceSnapshot } from '../core/types';
-import { clampRect, navigation, partitionFor, resolveLink, resumePath, ViewSlot } from './policy';
+import { clampRect, navigation, pageAddress, partitionFor, resolveLink, resumePath, ViewSlot } from './policy';
 import { testRemote } from '../core/testhooks';
 
-interface Entry { view: WebContentsView; origin: string; crashes: number; loadedOnce: boolean }
+interface Entry { view: WebContentsView; origin: string; crashes: number; loadedOnce: boolean; dashboardPath: string }
+
 
 export class ServiceViews {
   private readonly views = new Map<string, Entry>();
@@ -23,7 +24,7 @@ export class ServiceViews {
   constructor(
     private readonly window: BrowserWindow,
     private readonly lang: () => Lang,
-    private readonly emit: (event: { key: string; kind: 'restarted' | 'crashed' | 'loaded' | 'error'; error?: string }) => void,
+    private readonly emit: (event: { key: string; kind: 'restarted' | 'crashed' | 'loaded' | 'error' | 'navigated'; error?: string; page?: PageState }) => void,
   ) {}
 
   private create(snap: ServiceSnapshot): Entry {
@@ -45,7 +46,7 @@ export class ServiceViews {
       webPreferences: { partition, sandbox: true, contextIsolation: true, nodeIntegration: false, webSecurity: true, allowRunningInsecureContent: false },
     });
     view.setBackgroundColor('#0a070d');
-    const entry: Entry = { view, origin: d.origin, crashes: 0, loadedOnce: false };
+    const entry: Entry = { view, origin: d.origin, crashes: 0, loadedOnce: false, dashboardPath: snap.wellKnown?.surfaces.dashboard?.path ?? '/' };
     const wc = view.webContents;
     wc.setWindowOpenHandler(({ url }) => {
       void this.external(url, d.origin);
@@ -61,6 +62,12 @@ export class ServiceViews {
       if (navigation(d.origin, url) !== 'allow') event.preventDefault();
     });
     wc.on('did-finish-load', () => { entry.loadedOnce = true; this.emit({ key: snap.key, kind: 'loaded' }); });
+    // ADR-0014: the toolbar follows the page — a full navigation, an in-page route, loading on and off.
+    const navigated = () => { const page = this.page(snap.key); if (page) this.emit({ key: snap.key, kind: 'navigated', page }); };
+    wc.on('did-navigate', navigated);
+    wc.on('did-navigate-in-page', navigated);
+    wc.on('did-start-loading', navigated);
+    wc.on('did-stop-loading', navigated);
     wc.on('did-fail-load', (_e, code, description, _url, isMainFrame) => {
       if (isMainFrame && code !== -3) this.emit({ key: snap.key, kind: 'error', error: description });
     });
@@ -184,6 +191,26 @@ export class ServiceViews {
     entry.crashes = 0;
     entry.loadedOnce = false;
     await this.load(snap);
+  }
+
+  /** The toolbar's view of a service's page, or null when it has no view (ADR-0014). */
+  page(key: string): PageState | null {
+    const entry = this.views.get(key);
+    if (!entry || entry.view.webContents.isDestroyed()) return null;
+    const wc = entry.view.webContents;
+    const { address, link } = pageAddress(wc.getURL(), entry.origin, entry.dashboardPath, key);
+    return { key, address, link, canGoBack: wc.navigationHistory.canGoBack(), canGoForward: wc.navigationHistory.canGoForward(), loading: wc.isLoading() };
+  }
+
+  /** Back, forward, the dashboard's own page, or the current page again — never another origin. */
+  navigate(key: string, action: 'back' | 'forward' | 'home' | 'refresh'): void {
+    const entry = this.views.get(key);
+    if (!entry || entry.view.webContents.isDestroyed()) return;
+    const wc = entry.view.webContents;
+    if (action === 'back' && wc.navigationHistory.canGoBack()) wc.navigationHistory.goBack();
+    if (action === 'forward' && wc.navigationHistory.canGoForward()) wc.navigationHistory.goForward();
+    if (action === 'refresh') wc.reload();
+    if (action === 'home') void wc.loadURL(`${new URL(entry.origin).origin}${entry.dashboardPath}`).catch(() => undefined);
   }
 
   /** The service restarted: its session cookie may be gone; the page offers Reload instead of reloading itself. */

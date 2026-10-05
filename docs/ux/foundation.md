@@ -222,6 +222,16 @@ hunt browser tabs to learn whether an agent is alive or what it did.
 - **Priority:** should
 - **Status:** proposed
 
+### ST-016: The main screen reads at a glance, and every dashboard page can be handed on
+- **Story:** As P-01, I want Overview to tell me in one look what runs, what needs me and what was spent, and every embedded dashboard to have its own reload, history and copyable address, so that I steer my agents from one screen and can hand any page to an agent or a teammate.
+- **Traces:** JTBD-01, JTBD-04, JRN-01/#2, JRN-01/#5; ADR-0014
+- **Acceptance criteria:**
+  - Given Overview, when it opens, then a strip shows agents ready, not answering, needing attention, spent today and in 30 days, each as one number and one label.
+  - Given more than three problems, when I look at Needs attention, then three single-line rows show and "Show all" opens the rest.
+  - Given an embedded dashboard, when I use its toolbar, then I can go back, forward, reload, go home, see the page's address, and copy either the address or a fabric-dashboards:// link to this page — never a login code.
+- **Priority:** should
+- **Status:** proposed
+
 ## Design tooling
 - **Figma:** disabled
 - **Figma file:** none — text-only design surface decided at intake (brief D-7); the PassionCode.ai design system tokens are vendored by hash.

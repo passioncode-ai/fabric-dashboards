@@ -44,6 +44,10 @@
 | SCN-036 | See what every agent spent | spend | P-01 | ST-015 | draft | — |
 | SCN-037 | A cost that is not known reads as unknown | spend | P-01 | ST-015 | draft | — |
 | SCN-038 | An agent's spend cannot be read | spend | P-01 | ST-015, ST-004 | draft | — |
+| SCN-039 | Reload and move through an embedded dashboard | dashboards | P-01 | ST-016, ST-005 | draft | — |
+| SCN-040 | Copy a dashboard page's address or app link | dashboards | P-01 | ST-016, ST-011 | draft | — |
+| SCN-041 | Overview at a glance | overview | P-01 | ST-016, ST-002, ST-015 | draft | — |
+| SCN-042 | Many problems stay compact | overview | P-01 | ST-016, ST-002 | draft | — |
 
 ## Personas
 
@@ -153,7 +157,7 @@ first release; every sentence a service writes is shown as the service wrote it.
 - **Entry point:** Overview
 - **Preconditions:** at least one service is down, degraded, duplicated, foreign, conflicting, invalid, has an attention tile, or has an update
 - **Steps:**
-  1. User opens Overview -> system shows Needs attention above the cards, most severe first: one row per problem with the sentence ("Runner is not answering since 17:02") and its one action (Restart, Show, Update)
+  1. User opens Overview -> system shows Needs attention above the cards, most severe first: one single-line row per problem with the sentence ("Runner is not answering since 17:02") cut to the line, and its one action (Restart, Show, Update); more than three rows wait behind "Show all" (SCN-042)
   2. User chooses the action -> system performs it (SCN-007, SCN-011, SCN-021) and the row leaves when the problem clears
 - **Expected result:** problems are the first thing read, each with its next action
 - **Alt paths:** a degraded service lists its reasons, not an action, when the fix is inside the service ("Collector last ran 3 days ago")
@@ -772,3 +776,82 @@ first release; every sentence a service writes is shown as the service wrote it.
 - **Status:** draft
 - **Coverage:** src/core/spend.ts (readSpend), src/core/probe.ts (fetchUsage), test/spend.test.ts
 - **Product:** unobserved
+
+## dashboard-toolbar
+
+### SCN-039: Reload and move through an embedded dashboard
+- **Persona:** P-01
+- **Feature:** dashboards
+- **Traces:** ST-016, ST-005 (JTBD-04, JRN-01/#5)
+- **Entry point:** a service page, Dashboard tab
+- **Preconditions:** the service is ready and its dashboard is open
+- **Steps:**
+  1. User looks above the page -> a toolbar: Back, Forward (disabled until there is history), Reload page, Dashboard home, the page's address, Copy address, Copy app link
+  2. User clicks a link inside the dashboard -> the address follows the page, Back becomes available
+  3. User clicks Reload page -> the same page loads again, a spinner on the button while it loads
+  4. User clicks Dashboard home -> the service's dashboard path opens, signed in
+- **Expected result:** the operator controls the embedded page like a browser tab, without leaving the app
+- **Alt paths:** the page crashed or the service restarted -> the existing Reload overlay (SCN-016) still appears; a page on another origin is never shown in the address
+- **UI elements:** dashboard toolbar
+- **States covered:** loading, success, error
+- **Errors & recovery:** a reload that fails shows the existing sign-in error with Retry (SCN-016)
+- **Status:** draft
+- **Coverage:** src/renderer/components/ServiceView.tsx (DashboardToolbar), src/electron/views.ts (page, navigate), test/e2e/app.test.ts
+- **Product:** unobserved
+
+### SCN-040: Copy a dashboard page's address or app link
+- **Persona:** P-01
+- **Feature:** dashboards
+- **Traces:** ST-016, ST-011 (JTBD-04)
+- **Entry point:** the dashboard toolbar
+- **Preconditions:** a dashboard page is open
+- **Steps:**
+  1. User clicks Copy address -> the page's own address (`http://127.0.0.1:<port>/…` or the online `https://…`) is on the clipboard; the button reads "Copied" for a moment
+  2. User clicks Copy app link -> `fabric-dashboards://service/<id.instance>?path=…` is on the clipboard: pasted to an agent or a teammate on this Mac, it opens the same page here, signed in
+  3. User clicks the address -> the whole address is selected for a manual copy
+- **Expected result:** any page can be handed on in one click, in the form the receiver needs
+- **Alt paths:** the page is the one-time sign-in URL -> the dashboard's address is copied instead; no login code ever reaches the clipboard
+- **UI elements:** address field, Copy address, Copy app link
+- **States covered:** success
+- **Errors & recovery:** none needed — both values are computed locally
+- **Status:** draft
+- **Coverage:** src/electron/policy.ts (pageAddress), test/toolbar.test.ts, test/e2e/app.test.ts
+- **Product:** unobserved
+
+### SCN-041: Overview at a glance
+- **Persona:** P-01
+- **Feature:** overview
+- **Traces:** ST-016, ST-002, ST-015 (JTBD-01, JRN-01/#2)
+- **Entry point:** Overview
+- **Preconditions:** services are installed; some publish a usage report
+- **Steps:**
+  1. User opens Overview -> a strip of five cells: agents ready out of all, not answering or in conflict, need attention, spent today, spent in 30 days
+  2. User clicks a spend cell -> Spend opens (SCN-036)
+- **Expected result:** the state of the whole estate and its cost is read before any card
+- **Alt paths:** no agent reports spend -> the spend cells read "—" and do nothing; some calls unpriced -> «≥ $x»; everything unpriced -> "unknown"
+- **UI elements:** status strip
+- **States covered:** loading, success
+- **Errors & recovery:** a report that cannot be read makes the sums lower bounds («≥»), as on Spend
+- **Status:** draft
+- **Coverage:** src/renderer/components/Overview.tsx (StatusStrip), src/core/spend.ts (sumSpend)
+- **Product:** unobserved
+
+### SCN-042: Many problems stay compact
+- **Persona:** P-01
+- **Feature:** overview
+- **Traces:** ST-016, ST-002 (JTBD-01)
+- **Entry point:** Overview with more than three services needing attention
+- **Preconditions:** four or more rows in Needs attention
+- **Steps:**
+  1. User opens Overview -> Needs attention shows its count and the three most severe rows, each one line: state, name, reason cut to the line, action
+  2. User hovers a cut reason -> the full sentence shows
+  3. User clicks "Show all N" -> every row shows; "Show fewer" folds them back
+- **Expected result:** the block never pushes the agents off the first screen
+- **Alt paths:** three or fewer -> no toggle
+- **UI elements:** Needs attention block, Show all / Show fewer
+- **States covered:** error, success
+- **Errors & recovery:** as SCN-006
+- **Status:** draft
+- **Coverage:** src/renderer/components/Overview.tsx
+- **Product:** unobserved
+

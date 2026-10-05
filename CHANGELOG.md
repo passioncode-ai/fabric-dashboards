@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- **A toolbar over every embedded dashboard ([ADR-0014](docs/adr/0014-dashboard-toolbar.md)).**
+  It has Back, Forward, Reload page and Dashboard home, shows the page's address, and offers two
+  copies: **Copy address** (the page's own URL) and **Copy app link** (a `fabric-dashboards://`
+  link that opens the same page here, signed in). A one-time login code is never shown or copied
+  (SCN-039, SCN-040).
+- **Overview reads at a glance.** A status strip shows agents ready, not answering, needing
+  attention, and spend today and in 30 days. Needs attention takes one line per row, shows three
+  rows and folds the rest behind "Show all". The cards are denser: four across a wide window,
+  equal height in a row, one-line values and events (SCN-041, SCN-042).
+
 - **Spend ([ADR-0013](docs/adr/0013-spend-from-the-agents.md)).** A new page shows what every
   agent spent today, in 7 and in 30 days, its own budget, and a per-model breakdown. The numbers
   come from each agent's own usage report (Fabric Agent Contract DEC-0021, `surfaces.usage`). A sum

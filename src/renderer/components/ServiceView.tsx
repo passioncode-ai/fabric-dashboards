@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import type { PageState } from '../../core/api';
 import type { ActivityItem, ServiceSnapshot } from '../../core/types';
 import { instanceOf } from '../../core/products';
 import { api, GLYPH, nameOf, portOf, shortBuild, Spinner, StateBadge, useT } from '../lib';
@@ -135,6 +136,8 @@ function DashboardHost({ s, link, nonce, hidden }: { s: ServiceSnapshot; link?: 
 
   if (!s.wellKnown?.surfaces.dashboard && s.wellKnown) return <div className="dash-overlay muted">{t('view.noDashboard')}</div>;
   return (
+    <div className="dash-frame">
+    {available && (phase === 'open' || phase === 'restarted') && <DashboardToolbar serviceKey={s.key} />}
     <div className="dash-host" ref={ref}>
       {!available && <div className="dash-overlay muted">{t('view.unavailable')}</div>}
       {available && phase === 'opening' && <div className="dash-overlay muted row"><Spinner /> {t('view.opening')}</div>}
@@ -151,6 +154,44 @@ function DashboardHost({ s, link, nonce, hidden }: { s: ServiceSnapshot; link?: 
       {available && phase === 'restarted' && (
         <div className="reload-bar notice info"><span>{t('view.restartedReload')}</span><button className="btn" onClick={() => void reload()}>{t('action.reload')}</button></div>
       )}
+    </div>
+    </div>
+  );
+}
+
+/** ADR-0014, SCN-039/040: back, forward, reload, the dashboard's home, the page's address and the two
+ *  ways to hand it on. Instant — a toolbar used tens of times a day carries no animation. */
+function DashboardToolbar({ serviceKey }: { serviceKey: string }) {
+  const { t } = useT();
+  const [page, setPage] = useState<PageState | null>(null);
+  const [copied, setCopied] = useState<'address' | 'link' | null>(null);
+  useEffect(() => {
+    let alive = true;
+    void api().viewPage(serviceKey).then((p) => { if (alive) setPage(p); });
+    const off = api().onViewEvent((e) => { if (e.key === serviceKey && e.kind === 'navigated' && e.page) setPage(e.page); });
+    return () => { alive = false; off(); };
+  }, [serviceKey]);
+  useEffect(() => {
+    if (!copied) return;
+    const timer = setTimeout(() => setCopied(null), 1500);
+    return () => clearTimeout(timer);
+  }, [copied]);
+  const go = (action: 'back' | 'forward' | 'home' | 'refresh') => void api().viewNavigate(serviceKey, action);
+  const copy = async (which: 'address' | 'link') => {
+    if (!page) return;
+    await api().copyText(which === 'address' ? page.address : page.link);
+    setCopied(which);
+  };
+  return (
+    <div className="dash-toolbar" role="toolbar" aria-label={t('view.toolbar')}>
+      <button className="icon-btn" disabled={!page?.canGoBack} onClick={() => go('back')} aria-label={t('view.back')} title={t('view.back')}>‹</button>
+      <button className="icon-btn" disabled={!page?.canGoForward} onClick={() => go('forward')} aria-label={t('view.forward')} title={t('view.forward')}>›</button>
+      <button className="icon-btn" onClick={() => go('refresh')} aria-label={t('view.refresh')} title={t('view.refresh')}>{page?.loading ? <Spinner /> : '↻'}</button>
+      <button className="icon-btn" onClick={() => go('home')} aria-label={t('view.home')} title={t('view.home')}>⌂</button>
+      <input className="address mono" readOnly value={page?.address ?? ''} aria-label={t('view.address')} onFocus={(e) => e.currentTarget.select()} />
+      <button className="btn btn-sm" disabled={!page} onClick={() => void copy('address')}>{copied === 'address' ? t('view.copied') : t('view.copyAddress')}</button>
+      <button className="btn btn-sm" disabled={!page} onClick={() => void copy('link')} title={t('view.copyLinkHint')}>{copied === 'link' ? t('view.copied') : t('view.copyLink')}</button>
+      <span className="visually-hidden" role="status">{copied ? t('view.copied') : ''}</span>
     </div>
   );
 }

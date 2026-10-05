@@ -5,6 +5,9 @@ import type { ActivityItem, AppStatus, Listener, Reason, Settings } from './type
 
 export interface Rect { x: number; y: number; width: number; height: number }
 
+/** Where an embedded dashboard is now (ADR-0014). */
+export interface PageState { key: string; address: string; link: string; canGoBack: boolean; canGoForward: boolean; loading: boolean }
+
 export interface FabricApi {
   status(): Promise<AppStatus>;
   onStatus(listener: (status: AppStatus) => void): () => void;
@@ -26,7 +29,12 @@ export interface FabricApi {
   hideView(owner?: string): Promise<void>;
   viewBounds(rect: Rect): void;
   reloadView(key: string): Promise<void>;
-  onViewEvent(listener: (event: { key: string; kind: 'restarted' | 'crashed' | 'loaded' | 'error'; error?: string }) => void): () => void;
+  /** Where a service's embedded dashboard is now — address, app link, history (ADR-0014). */
+  viewPage(key: string): Promise<PageState | null>;
+  viewNavigate(key: string, action: 'back' | 'forward' | 'home' | 'refresh'): Promise<void>;
+  /** Put text on the clipboard from the main process (the toolbar's Copy buttons). */
+  copyText(text: string): Promise<void>;
+  onViewEvent(listener: (event: { key: string; kind: 'restarted' | 'crashed' | 'loaded' | 'error' | 'navigated'; error?: string; page?: PageState }) => void): () => void;
   onNavigate(listener: (target: { page: 'service' | 'activity'; key?: string; link?: string }) => void): () => void;
   /** Called once the renderer listens: the navigation that arrived before it did (a link at launch), if any. */
   takeNavigation(): Promise<{ page: 'service' | 'activity'; key?: string; link?: string } | null>;
@@ -57,6 +65,9 @@ export const CHANNELS = {
   viewHide: 'fd:view-hide',
   viewBounds: 'fd:view-bounds',
   viewReload: 'fd:view-reload',
+  viewPage: 'fd:view-page',
+  viewNavigate: 'fd:view-navigate',
+  copyText: 'fd:copy-text',
   viewEvent: 'fd:view-event',
   navigate: 'fd:navigate',
   navigateTake: 'fd:navigate-take',

@@ -58,6 +58,25 @@ test('discovers a live service, opens its dashboard signed in, keeps one view, s
     assert.equal(views[0]!.url, `${origin}/`, 'the login code was redeemed and the dashboard is open');
     const text = await app.evaluate(async ({ webContents }, id) => webContents.fromId(id)!.executeJavaScript('document.body.innerText'), views[0]!.id);
     assert.match(text, /Sample Service started/, 'the page is the signed-in dashboard, not the 401 text');
+
+    // ADR-0014, SCN-039/040: the toolbar shows the page's address and copies it, and the app link.
+    // The copy reaches the system clipboard: keep the operator's and put it back.
+    const keptClipboard = await app.evaluate(({ clipboard }) => clipboard.readText());
+    const address = page.locator('.dash-toolbar .address');
+    await address.waitFor({ timeout: 15_000 });
+    for (let i = 0; i < 50 && (await address.inputValue()) !== `${origin}/`; i += 1) await new Promise((r) => setTimeout(r, 200));
+    assert.equal(await address.inputValue(), `${origin}/`, 'the address is the page, never the one-time login URL');
+    await page.getByRole('button', { name: 'Copy address' }).click();
+    await page.getByRole('button', { name: 'Copied' }).waitFor();
+    assert.equal(await app.evaluate(({ clipboard }) => clipboard.readText()), `${origin}/`);
+    await page.getByRole('button', { name: 'Copy app link' }).click();
+    const copiedLink = await app.evaluate(({ clipboard }) => clipboard.readText());
+    assert.match(copiedLink, /^fabric-dashboards:\/\/service\/sample\.default\?path=%2F$/);
+    assert.equal(await page.getByRole('button', { name: 'Back' }).isDisabled(), true, 'nothing to go back to yet');
+    await page.getByRole('button', { name: 'Reload page' }).click();
+    for (let i = 0; i < 50 && (await address.inputValue()) !== `${origin}/`; i += 1) await new Promise((r) => setTimeout(r, 200));
+    assert.equal(await address.inputValue(), `${origin}/`, 'reload keeps the page');
+    await app.evaluate(({ clipboard }, text) => clipboard.writeText(text), keptClipboard);
     const token = fs.readFileSync(path.join(data, 'service.token'), 'utf8').trim();
     const urls = await app.evaluate(({ webContents }) => webContents.getAllWebContents().map((wc) => wc.getURL()));
     assert.ok(urls.every((u) => !u.includes(token)), 'no URL carries the service token');

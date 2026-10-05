@@ -1,6 +1,8 @@
 // Navigation rules for embedded service views. Pure, so they are tested
 // without Electron (the same shape as Fabric Inbox's policy.cjs).
 
+import { serviceLink } from '@passioncode-ai/fabric-service-host/links';
+
 export type NavigationVerdict = 'allow' | 'external' | 'deny';
 
 /** A view may move within its service origin only; web links leave through the browser, after a question. */
@@ -114,6 +116,21 @@ export function resumePath(currentUrl: string, serviceOrigin: string): string | 
   if (url.origin !== new URL(serviceOrigin).origin) return undefined;
   return `${url.pathname}${url.search}${url.hash}`;
 }
+
+// #region page-address — docs: docs/adr/0014-dashboard-toolbar.md#decision
+/** What the dashboard toolbar shows and copies for the page a view is on (ADR-0014): the page's
+ *  own https/http address and the fabric-dashboards:// link that opens it here, signed in. A page
+ *  off the service origin, or the one-time sign-in URL (it carries a login code), reads as the
+ *  dashboard itself — a login code is never shown or copied. */
+export function pageAddress(currentUrl: string, serviceOrigin: string, dashboardPath: string, key: string): { address: string; path: string; link: string } {
+  const origin = new URL(serviceOrigin).origin;
+  let path = resumePath(currentUrl, serviceOrigin) ?? dashboardPath;
+  if (path.startsWith('/fabric/v1/login')) path = dashboardPath;
+  let link: string;
+  try { link = serviceLink(key, path); } catch { path = dashboardPath; link = serviceLink(key, path); }
+  return { address: `${origin}${path}`, path, link };
+}
+// #endregion page-address
 
 /** Partition directories (Partitions/<name>) that belong to no installed service (LC-12): a service
  *  uninstalled while the app was not running leaves its cookies and caches behind otherwise. */

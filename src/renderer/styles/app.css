@@ -78,28 +78,48 @@ h3 { font-size: var(--pc-type-card); margin: 0; font-weight: 600; }
 .row { display: flex; align-items: center; gap: var(--pc-space-2); flex-wrap: wrap; }
 
 /* overview */
-.attention { background: var(--pc-panel); border: 1px solid var(--pc-border); border-radius: var(--pc-radius-panel); margin-bottom: var(--pc-space-5); }
-.attention h2 { padding: var(--pc-space-3) var(--pc-space-4) 0; font-size: var(--pc-type-card); }
-.attention ul { list-style: none; margin: 0; padding: 0 0 var(--pc-space-2); }
-.attention li { display: grid; grid-template-columns: 160px 1fr auto; gap: var(--pc-space-3); align-items: center; padding: var(--pc-space-2) var(--pc-space-4); border-top: 1px solid var(--pc-border); }
-.attention li:first-child { border-top: 0; }
+.attention { background: var(--pc-panel); border: 1px solid var(--pc-border); border-radius: var(--pc-radius-panel); margin-bottom: var(--pc-space-4); padding-bottom: var(--pc-space-1); }
+.attention h2 { display: flex; align-items: center; gap: var(--pc-space-2); padding: var(--pc-space-2) var(--pc-space-4); margin: 0; font-size: var(--pc-type-body); font-weight: 600; }
+.attention h2 .count { font-size: var(--pc-type-meta); color: var(--pc-text-muted); font-weight: 400; }
+.attention ul { list-style: none; margin: 0; padding: 0; }
+/* ADR-0014: one line per row — state, name, the reason cut to the line, the action. */
+.attention li { display: grid; grid-template-columns: max-content minmax(120px, max-content) minmax(0, 1fr) auto; gap: var(--pc-space-3); align-items: center; min-height: 40px; padding: 0 var(--pc-space-4); border-top: 1px solid var(--pc-border); }
+.attention li .name { font-weight: 600; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-decoration: none; }
+.attention li .why { color: var(--pc-text-muted); font-size: var(--pc-type-meta); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.attention li .btn { min-height: 28px; padding: 0 var(--pc-space-2); font-size: var(--pc-type-meta); }
+.attention .more { margin: var(--pc-space-1) var(--pc-space-4) var(--pc-space-1); font-size: var(--pc-type-meta); }
+/* ADR-0014: the strip — one number and one label per cell. */
+.strip { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: var(--pc-space-2); margin-bottom: var(--pc-space-4); }
+.strip .cell { display: flex; flex-direction: column; gap: 2px; text-align: left; padding: var(--pc-space-2) var(--pc-space-3); background: var(--pc-panel); border: 1px solid var(--pc-border); border-radius: var(--pc-radius-control); color: inherit; font: inherit; min-width: 0; }
+.strip button.cell { cursor: pointer; }
+.strip button.cell:hover:not(:disabled) { border-color: var(--pc-border-strong); }
+.strip button.cell:disabled { cursor: default; }
+.strip .v { font-size: var(--pc-type-section); font-weight: 600; font-variant-numeric: tabular-nums; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.strip .v .of { font-size: var(--pc-type-body); color: var(--pc-text-muted); font-weight: 400; }
+.strip .l { font-size: var(--pc-type-meta); color: var(--pc-text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.strip .cell.bad .v { color: var(--pc-negative); }
+.strip .cell.attn .v { color: var(--pc-accent); }
 /* DEC-0019: online services — the same cards under their own heading, on the same tokens. */
 .online { margin-top: var(--pc-space-5); }
 .online h2 { font-size: var(--pc-type-card); margin: 0 0 var(--pc-space-3); }
-.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: var(--pc-space-4); }
+.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(264px, 1fr)); gap: var(--pc-space-3); }
 .card {
-  display: flex; flex-direction: column; gap: var(--pc-space-3); text-align: left; cursor: pointer; width: 100%;
+  display: flex; flex-direction: column; gap: var(--pc-space-2); text-align: left; cursor: pointer; width: 100%; min-width: 0;
   background: var(--pc-panel); border: 1px solid var(--pc-border); border-radius: var(--pc-radius-panel);
-  padding: var(--pc-space-4); transition: border-color var(--pc-duration-hover) var(--pc-ease);
+  padding: var(--pc-space-3); transition: border-color var(--pc-duration-hover) var(--pc-ease);
 }
 .card:hover { border-color: var(--pc-border-strong); }
-.card-head { display: flex; justify-content: space-between; align-items: flex-start; gap: var(--pc-space-2); }
-.tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--pc-space-2); }
-.tile { background: var(--pc-panel-raised); border-radius: var(--pc-radius-control); padding: var(--pc-space-2); min-width: 0; }
-.tile .v { font-size: var(--pc-type-card); font-weight: 600; font-variant-numeric: tabular-nums; }
-.tile .l { font-size: var(--pc-type-meta); line-height: 1.3; color: var(--pc-text-muted); overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.card h3 { margin: 0; font-size: var(--pc-type-body); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.card-head { display: flex; justify-content: space-between; align-items: flex-start; gap: var(--pc-space-2); min-width: 0; }
+.card-head > div { min-width: 0; }
+.card-head .meta { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.card-head .state { font-size: var(--pc-type-meta); white-space: nowrap; }
+.tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--pc-space-1); }
+.tile { background: var(--pc-panel-raised); border-radius: var(--pc-radius-control); padding: var(--pc-space-1) var(--pc-space-2); min-width: 0; }
+.tile .v { font-size: var(--pc-type-body); font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tile .l { font-size: var(--pc-type-meta); line-height: 1.3; color: var(--pc-text-muted); overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow-wrap: anywhere; }
 .tile.attn { box-shadow: inset 0 0 0 1px var(--pc-accent); }
-.card .event { font-size: var(--pc-type-meta); color: var(--pc-text-muted); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.card .event { margin-top: auto; font-size: var(--pc-type-meta); color: var(--pc-text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .empty { max-width: 560px; padding: var(--pc-space-6); background: var(--pc-panel); border: 1px solid var(--pc-border); border-radius: var(--pc-radius-panel); }
 .empty p { color: var(--pc-text-muted); }
 .notice { padding: var(--pc-space-3) var(--pc-space-4); border-radius: var(--pc-radius-control); background: var(--pc-panel-raised); border: 1px solid var(--pc-border); margin-bottom: var(--pc-space-4); }
@@ -127,7 +147,17 @@ h3 { font-size: var(--pc-type-card); margin: 0; font-weight: 600; }
 .tab { border: 0; background: transparent; padding: var(--pc-space-2) var(--pc-space-3); cursor: pointer; border-bottom: 2px solid transparent; color: var(--pc-text-muted); }
 .tab[aria-selected='true'] { color: var(--pc-text); border-bottom-color: var(--pc-accent); }
 .svc-body { flex: 1; min-height: 0; position: relative; }
-.dash-host { position: absolute; inset: 0; background: var(--pc-bg); }
+/* ADR-0014: the dashboard toolbar sits above the embedded page; the page's bounds are the host below it. */
+.dash-frame { position: absolute; inset: 0; display: flex; flex-direction: column; }
+.dash-toolbar { display: flex; align-items: center; gap: var(--pc-space-1); padding: var(--pc-space-1) var(--pc-space-4); border-bottom: 1px solid var(--pc-border); background: var(--pc-panel); flex: none; }
+.dash-toolbar .address { flex: 1; min-width: 0; margin: 0 var(--pc-space-2); padding: var(--pc-space-1) var(--pc-space-2); background: var(--pc-bg); color: var(--pc-text-muted); border: 1px solid var(--pc-border); border-radius: var(--pc-radius-control); text-overflow: ellipsis; }
+.dash-toolbar .address:focus { color: var(--pc-text); outline: 2px solid var(--pc-focus); outline-offset: -1px; }
+.icon-btn { width: 28px; height: 28px; display: inline-flex; align-items: center; justify-content: center; border: 0; border-radius: var(--pc-radius-control); background: transparent; color: var(--pc-text-muted); font-size: var(--pc-type-card); line-height: 1; cursor: pointer; }
+.icon-btn:hover:not(:disabled) { background: var(--pc-panel-raised); color: var(--pc-text); }
+.icon-btn:disabled { opacity: .35; cursor: default; }
+.icon-btn:focus-visible, .btn:focus-visible { outline: 2px solid var(--pc-focus); outline-offset: 1px; }
+.btn-sm { min-height: 28px; padding: 0 var(--pc-space-2); font-size: var(--pc-type-meta); white-space: nowrap; }
+.dash-host { position: relative; flex: 1; min-height: 0; background: var(--pc-bg); }
 .dash-overlay { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: var(--pc-space-3); padding: var(--pc-space-6); text-align: center; }
 .reload-bar { position: absolute; left: var(--pc-space-4); right: var(--pc-space-4); top: var(--pc-space-3); z-index: 1; display: flex; gap: var(--pc-space-3); align-items: center; justify-content: space-between; }
 .pane { overflow: auto; height: 100%; padding: var(--pc-space-5) var(--pc-space-6); }
