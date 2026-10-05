@@ -40,11 +40,14 @@ export interface FabricApi {
   takeNavigation(): Promise<{ page: 'service' | 'activity'; key?: string; link?: string } | null>;
   restartToUpdate(): Promise<void>;
   checkForUpdates(): Promise<void>;
+  /** Moves the app into Applications, where updates can install, and relaunches it (ADR-0015). */
+  moveToApplications(): Promise<{ ok: boolean; error?: string }>;
   notificationsAllowed(): Promise<boolean>;
   openNotificationSettings(): Promise<void>;
   locale(): Promise<string>;
-  /** Asks the person to confirm, then removes the login item, the MCP registration and the app's
-   *  data, moves the app to the Trash and quits (lifecycle LC-14). */
+  /** Asks the person to confirm, then removes the login item and the MCP registration, moves the
+   *  app to the Trash and quits. Settings and history stay for a reinstall unless the person ticks
+   *  the box to delete them too (lifecycle LC-14, ADR-0015). */
   uninstall(): Promise<{ ok: boolean; cancelled?: boolean; error?: string }>;
 }
 
@@ -73,6 +76,7 @@ export const CHANNELS = {
   navigateTake: 'fd:navigate-take',
   updateRestart: 'fd:update-restart',
   updateCheck: 'fd:update-check',
+  moveToApplications: 'fd:move-to-applications',
   notificationsAllowed: 'fd:notifications-allowed',
   notificationSettings: 'fd:notification-settings',
   locale: 'fd:locale',

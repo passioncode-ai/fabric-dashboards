@@ -48,6 +48,8 @@
 | SCN-040 | Copy a dashboard page's address or app link | dashboards | P-01 | ST-016, ST-011 | draft | — |
 | SCN-041 | Overview at a glance | overview | P-01 | ST-016, ST-002, ST-015 | draft | — |
 | SCN-042 | Many problems stay compact | overview | P-01 | ST-016, ST-002 | draft | — |
+| SCN-043 | Reinstall picks up where I left off | settings | P-01 | ST-017, ST-010 | draft | — |
+| SCN-044 | A copy outside Applications moves itself so it can update | updates | P-01 | ST-017, ST-008 | draft | — |
 
 ## Personas
 
@@ -464,19 +466,20 @@ first release; every sentence a service writes is shown as the service wrote it.
 ### SCN-022: The app updates itself
 - **Persona:** P-01
 - **Feature:** updates
-- **Traces:** ST-008 (JTBD-01, JRN-01/#6)
+- **Traces:** ST-008, ST-017 (JTBD-01, JRN-01/#6)
 - **Entry point:** app running
-- **Preconditions:** a newer signed release is published
+- **Preconditions:** a newer signed release is published; the app is in Applications
 - **Steps:**
-  1. System checks at start and every 6 hours and downloads the update -> the sidebar footer shows "Update ready — Restart"
-  2. User chooses Restart -> the app installs and reopens on the same screen; services are untouched
-- **Expected result:** the app stays current without a manual download
-- **Alt paths:** user ignores it -> the update installs on the next quit
-- **UI elements:** footer update line, Restart button, "Check for updates" in the app menu
+  1. System checks 10 s after start and every 6 hours and downloads the update -> the sidebar footer and Settings → Updates show "Update <version> ready" with Restart
+  2. User closes the window and leaves it closed for ten minutes -> the app installs the update and reopens in the menu bar, with no window and no question; services are untouched
+  3. User opens the window later -> it is the new version, on the Overview
+- **Expected result:** every copy stays current with no action from the person
+- **Alt paths:** user chooses Restart -> it installs now and reopens on the same screen; the window stays open -> nothing installs under the person's eyes, and it installs at the next quit or the next ten closed minutes; a doctor or update command is running -> the install waits for it, checked every minute; "Install updates automatically" is off in Settings → Updates -> the update installs at quit or on Restart only; Settings → Updates → Check now checks at once
+- **UI elements:** footer update line, Restart button, Settings → Updates (Install updates automatically, state line, Check now), "Check for updates" in the app menu
 - **States covered:** loading, success, error
 - **Errors & recovery:** download or signature check fails -> footer "Update failed: <reason>" with Retry; the running app is unchanged
 - **Status:** draft
-- **Coverage:** src/electron/updater.ts, scripts/dist-mac.mjs
+- **Coverage:** src/electron/updater.ts, src/electron/policy.ts (autoInstallNow, relaunchHidden), src/electron/main.ts (auto-install-flow), src/renderer/components/Settings.tsx (UpdateState), scripts/dist-mac.mjs, test/lifecycle.test.ts, test/e2e/app.test.ts
 - **Product:** unobserved
 
 ## tray
@@ -508,17 +511,54 @@ first release; every sentence a service writes is shown as the service wrote it.
 - **Entry point:** sidebar Settings
 - **Preconditions:** none
 - **Steps:**
-  1. User opens Settings -> system shows Launch at login (off until the person chooses, on the first-run card or here), Notifications per service with levels, Quiet hours (from–to), the services folder, Uninstall, and Unattributed listeners
+  1. User opens Settings -> system shows Launch at login (off until the person chooses, on the first-run card or here), Updates (SCN-022), Notifications per service with levels, Quiet hours (from–to), the services folder, Uninstall, and Unattributed listeners
   2. User changes a setting -> it applies immediately and is kept across restarts; launch at login is registered with macOS only at this moment, never by a launch or an update
   3. User opens Unattributed listeners -> system lists local ports listening on all interfaces that no descriptor claims, with the program name and pid
-  4. User chooses Uninstall Fabric Dashboards… and confirms -> the app removes its login item and its entry in Claude Code's MCP servers, moves itself to the Trash and quits; its data is removed once it has exited; services and their data stay
-- **Expected result:** the app fits the operator's day, stray network listeners are visible, and leaving the app leaves nothing behind
-- **Alt paths:** the person turned the login item off in System Settings -> the next launch shows it off here and does not turn it back on
-- **UI elements:** toggles, per-service rows, time pickers, folder path with Show, Uninstall button and its confirmation, listeners list
+  4. User chooses Uninstall Fabric Dashboards… and confirms, leaving "Also delete my settings and activity history" unticked -> the app removes its login item and its entry in Claude Code's MCP servers, moves itself to the Trash and quits; once it has exited, its caches, logs and dashboard sessions are removed, and the settings, the activity history and a note of what to restore stay (SCN-043); services and their data always stay
+- **Expected result:** the app fits the operator's day, stray network listeners are visible, and leaving the app removes everything it added without losing what the person set up
+- **Alt paths:** the person turned the login item off in System Settings -> the next launch shows it off here and does not turn it back on; the person ticks "Also delete my settings and activity history" -> everything the app wrote is removed after it exits, nothing is restored later; settings.json is damaged -> the last good copy is restored and the log says so
+- **UI elements:** toggles, per-service rows, time pickers, folder path with Show, Uninstall button and its confirmation with the delete-data box, listeners list
 - **States covered:** empty, success, error
 - **Errors & recovery:** macOS refuses the login item -> the toggle returns to off with the reason; the listener scan is unavailable -> "Cannot list listeners: <reason>"; uninstall cannot remove the login item or the MCP entry -> "Nothing was removed: <reason>" and the app stays; the app cannot be moved to the Trash -> it says so and is still uninstalled
 - **Status:** draft
 - **Coverage:** src/renderer/components/Settings.tsx, src/renderer/components/Overview.tsx, src/core/settings.ts, src/core/loginitem.ts, src/core/uninstall.ts, src/core/listeners.ts, test/parts.test.ts, test/lifecycle.test.ts
+- **Product:** unobserved
+
+### SCN-043: Reinstall picks up where I left off
+- **Persona:** P-01
+- **Feature:** settings
+- **Traces:** ST-017, ST-010 (JTBD-03, JRN-01/#7)
+- **Entry point:** the app opened for the first time after an uninstall that kept the data, or after the app was dragged to the Trash and installed again
+- **Preconditions:** the earlier install had settings, history, launch at login on and the MCP entry registered
+- **Steps:**
+  1. User installs the app and opens it -> Settings show the earlier theme, notification choices and quiet hours; Activity shows the earlier history
+  2. System puts back the login item and the MCP entry the uninstall removed, pointed at this copy -> Settings shows Open at login on; an agent session started now finds the `fabric-dashboards` server
+  3. User installed the copy in another folder than before -> an MCP entry still pointing at the old copy is pointed at this one
+- **Expected result:** a reinstall needs no setup again
+- **Alt paths:** the person added their own `fabric-dashboards` MCP entry meanwhile -> it is kept; a project the entry belonged to is gone -> that entry is not recreated; the data was deleted on purpose -> the app starts fresh, with the first-run card
+- **UI elements:** none new (Settings, Activity)
+- **States covered:** success, error
+- **Errors & recovery:** macOS refuses the login item -> it stays off, the reason is logged, and it is not asked again on every launch; `~/.claude.json` cannot be edited -> the MCP entry is restored at the next launch
+- **Status:** draft
+- **Coverage:** src/core/uninstall.ts (restore-record, restoreMcpRegistrations, repairMcpRegistrations), src/electron/main.ts (reinstall), src/core/settings.ts, test/lifecycle.test.ts, test/parts.test.ts
+- **Product:** unobserved
+
+### SCN-044: A copy outside Applications moves itself so it can update
+- **Persona:** P-01
+- **Feature:** updates
+- **Traces:** ST-017, ST-008 (JTBD-01, JRN-01/#6)
+- **Entry point:** the app opened from the disk image, Downloads or any folder other than Applications
+- **Preconditions:** a packaged, signed copy
+- **Steps:**
+  1. User opens the app the first time -> a question: "Move Fabric Dashboards to Applications?" with Move to Applications and Not now
+  2. User chooses Move to Applications -> the app moves itself, reopens from Applications, and updates work (SCN-022)
+- **Expected result:** a downloaded copy ends up where it can keep itself current
+- **Alt paths:** user chooses Not now -> the question is not asked again; the sidebar footer and Settings → Updates say "Updates install only from the Applications folder." with Move to Applications
+- **UI elements:** move question, footer line and Settings → Updates notice with Move to Applications
+- **States covered:** error, success
+- **Errors & recovery:** the move fails -> a message names the reason and says to drag the app to Applications in Finder
+- **Status:** draft
+- **Coverage:** src/electron/updater.ts (misplaced), src/electron/main.ts (moveToApplications, offerMoveToApplications), src/renderer/App.tsx (UpdateLine), src/renderer/components/Settings.tsx (UpdateState)
 - **Product:** unobserved
 
 ## links

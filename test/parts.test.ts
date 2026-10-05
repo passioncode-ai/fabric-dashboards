@@ -122,9 +122,32 @@ test('settings persist atomically and heal a damaged file', () => {
   assert.equal(new SettingsStore(dir).get().theme, 'light');
   assert.equal(new SettingsStore(dir).get().notifications.quietHours.from, '23:00');
   assert.equal(fs.statSync(path.join(dir, 'settings.json')).mode & 0o777, 0o600);
+  // A damaged file is restored from the last good copy, not reset to the defaults (ADR-0015).
   fs.writeFileSync(path.join(dir, 'settings.json'), '{broken');
-  assert.deepEqual(new SettingsStore(dir).get(), DEFAULT_SETTINGS);
+  const healed = new SettingsStore(dir);
+  assert.equal(healed.get().theme, 'light');
+  assert.match(healed.recovered!, /not valid JSON; restored from settings.json.bak/);
+  assert.equal(JSON.parse(fs.readFileSync(path.join(dir, 'settings.json'), 'utf8')).theme, 'light', 'written back');
+  assert.equal(fs.readdirSync(dir).filter((n) => n.startsWith('settings.json.unreadable-')).length, 1, 'the damaged file is kept to look at');
+  assert.equal(new SettingsStore(dir).recovered, null, 'read as it is the next time');
+  // A missing settings.json with its copy present is restored too.
+  fs.rmSync(path.join(dir, 'settings.json'));
+  assert.equal(new SettingsStore(dir).get().notifications.quietHours.from, '23:00');
+  // Both damaged: the defaults, said out loud.
+  fs.writeFileSync(path.join(dir, 'settings.json'), '[]');
+  fs.writeFileSync(path.join(dir, 'settings.json.bak'), '{');
+  const lost = new SettingsStore(dir);
+  assert.deepEqual(lost.get(), DEFAULT_SETTINGS);
+  assert.match(lost.recovered!, /no readable copy; defaults in use/);
   assert.equal(merge({ theme: 'neon' as never }).theme, 'dark');
+});
+
+test('updates install by themselves unless the person turned it off; a file from an earlier version keeps it on', () => {
+  assert.equal(DEFAULT_SETTINGS.autoUpdate, true);
+  assert.equal(merge({}).autoUpdate, true, 'absent in a 0.5.2 file: on');
+  assert.equal(merge({ autoUpdate: false }).autoUpdate, false);
+  assert.equal(merge({ autoUpdate: 'no' as never }).autoUpdate, true);
+  assert.equal(merge({}).moveToApplicationsAsked, false);
 });
 
 test('listeners on every interface that no descriptor claims are unattributed', () => {

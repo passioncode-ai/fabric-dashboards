@@ -44,6 +44,15 @@ export function Settings({ status, onTheme }: { status: AppStatus; onTheme: (the
         <p className="meta">v{status.version}</p>
       </section>
 
+      <section className="group" aria-labelledby="g-updates">
+        <h2 id="g-updates">{t('settings.updates')}</h2>
+        <label className="setting">{t('settings.autoUpdate')}
+          <input type="checkbox" checked={value.autoUpdate} onChange={(e) => void save({ autoUpdate: e.target.checked })} />
+        </label>
+        <p className="meta">{t('settings.autoUpdate.body')}</p>
+        <UpdateState status={status} />
+      </section>
+
       <section className="group" aria-labelledby="g-notify">
         <h2 id="g-notify">{t('settings.notifications')}</h2>
         {!allowed && (
@@ -121,6 +130,22 @@ export function Settings({ status, onTheme }: { status: AppStatus; onTheme: (the
         )}
         <div><button className="btn" onClick={() => { setListeners(null); void api().listeners().then(setListeners); }}>{t('settings.listeners.scan')}</button></div>
       </section>
+    </div>
+  );
+}
+
+/** Where the self-update stands, with the one action that state needs (ADR-0015). */
+function UpdateState({ status }: { status: AppStatus }) {
+  const { t, time } = useT();
+  const u = status.update;
+  if (u.state === 'unsupported') return <p className="meta">{t('update.unsupported')}</p>;
+  if (u.state === 'misplaced') return <p className="notice warning">{t('update.misplaced')} <button className="btn" onClick={() => void api().moveToApplications()}>{t('move.confirm')}</button></p>;
+  if (u.state === 'ready') return <div className="row"><span className="meta">{t('update.ready', { version: u.version ?? '' })}</span><button className="btn btn-primary" onClick={() => void api().restartToUpdate()}>{t('update.restart')}</button></div>;
+  if (u.state === 'checking' || u.state === 'downloading') return <p className="meta row"><Spinner /> {t(`update.${u.state}`)}</p>;
+  return (
+    <div className="row">
+      <span className={u.state === 'error' ? 'meta state-down' : 'meta'}>{u.state === 'error' ? t('update.error', { error: u.error ?? '' }) : u.checkedAt ? t('update.idle', { time: time(u.checkedAt) }) : t('update.notChecked')}</span>
+      <button className="btn" onClick={() => void api().checkForUpdates()}>{t('settings.updates.check')}</button>
     </div>
   );
 }

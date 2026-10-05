@@ -155,6 +155,7 @@ function UpdateLine({ status }: { status: AppStatus }) {
   if (u.state === 'checking') return <p className="meta row"><Spinner /> {t('update.checking')}</p>;
   if (u.state === 'downloading') return <p className="meta row"><Spinner /> {t('update.downloading')}</p>;
   if (u.state === 'ready') return <div className="row"><span className="meta">{t('update.ready', { version: u.version ?? '' })}</span><button className="btn btn-primary" onClick={() => void api().restartToUpdate()}>{t('update.restart')}</button></div>;
+  if (u.state === 'misplaced') return <div className="row"><span className="meta state-down">{t('update.misplaced')}</span><button className="btn" onClick={() => void api().moveToApplications()}>{t('move.confirm')}</button></div>;
   if (u.state === 'error') return <div className="row"><span className="meta state-down">{t('update.error', { error: u.error ?? '' })}</span><button className="btn" onClick={() => void api().checkForUpdates()}>{t('update.retry')}</button></div>;
   return null;
 }

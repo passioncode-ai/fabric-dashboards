@@ -126,6 +126,13 @@ test('dist: release.yml signs in the release environment and ships only what was
   assert.match(wf, /workflow_dispatch:\s+inputs:\s+publish:[\s\S]*?type: boolean\s+default: false/);
   at("publish: ${{ github.event_name == 'push' || inputs.publish }}");
   at('environment: release');
+  // ADR-0015: Squirrel follows the latest release's feed even backwards, so a full release must be
+  // newer than the published one; a rehearsal (-rc) is exempt.
+  const guard = at('A full release is newer than the latest published one');
+  assert.ok(guard < at('  check:'), 'the version guard runs before anything is built');
+  at("if: ${{ !contains(github.ref_name, '-rc.') }}");
+  at('repos/$GITHUB_REPOSITORY/releases/latest');
+  at('sort -V');
   at('team-id: ${{ vars.APPLE_TEAM_ID }}');
   // The order that makes the update zip and the image come from the stapled app.
   const order = [

@@ -139,3 +139,23 @@ export function stalePartitions(names: string[], keys: string[]): string[] {
   return names.filter((n) => /^svc-[a-z0-9.-]+$/.test(n) && !live.has(n));
 }
 // #endregion view-release
+
+// #region auto-install — docs: docs/adr/0015-data-survives-uninstall-updates-install-themselves.md#decision
+/** How long the window stays hidden before a downloaded update installs by itself (ADR-0015). */
+export const UPDATE_IDLE_MS = 10 * 60_000;
+/** Written just before an automatic install: the relaunch that follows stays in the menu bar. */
+export const RELAUNCH_MARKER = '.relaunch-hidden';
+const RELAUNCH_FRESH_MS = 10 * 60_000;
+
+/** Install now: an update is ready, the person allows it, nobody is looking and nothing runs. */
+export function autoInstallNow(o: { ready: boolean; autoUpdate: boolean; visible: boolean; busy: number }): boolean {
+  return o.ready && o.autoUpdate && !o.visible && o.busy === 0;
+}
+
+/** The marker an automatic install wrote, if it was written recently enough to be this relaunch. */
+export function relaunchHidden(markerText: string | null, now: number): boolean {
+  if (markerText === null) return false;
+  const at = Date.parse(markerText.trim());
+  return Number.isFinite(at) && at <= now && now - at < RELAUNCH_FRESH_MS;
+}
+// #endregion auto-install

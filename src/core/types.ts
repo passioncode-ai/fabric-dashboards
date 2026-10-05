@@ -38,6 +38,10 @@ export interface Settings {
   /** Whether the person has answered the launch-at-login question (first-run card or Settings). */
   launchAtLoginAsked: boolean;
   theme: 'dark' | 'light';
+  /** Install a downloaded update by itself once the window has been hidden a while (ADR-0015). On by default. */
+  autoUpdate: boolean;
+  /** Whether the app has offered once to move itself into Applications, where updates can install. */
+  moveToApplicationsAsked: boolean;
   notifications: {
     enabled: boolean;
     perService: Record<string, { enabled: boolean; minLevel: 'notice' | 'warning' | 'error' }>;
@@ -50,6 +54,8 @@ export const DEFAULT_SETTINGS: Settings = {
   launchAtLogin: false,
   launchAtLoginAsked: false,
   theme: 'dark',
+  autoUpdate: true,
+  moveToApplicationsAsked: false,
   notifications: {
     enabled: true,
     perService: {},
@@ -71,6 +77,6 @@ export interface AppStatus {
   dirError: string | null;
   scanning: boolean;
   unread: number;
-  update: { state: 'idle' | 'checking' | 'downloading' | 'ready' | 'error' | 'unsupported'; version?: string; error?: string };
+  update: { state: 'idle' | 'checking' | 'downloading' | 'ready' | 'error' | 'unsupported' | 'misplaced'; version?: string; error?: string; checkedAt?: string };
   version: string;
 }

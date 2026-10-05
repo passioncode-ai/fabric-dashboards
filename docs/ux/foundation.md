@@ -232,6 +232,16 @@ hunt browser tabs to learn whether an agent is alive or what it did.
 - **Priority:** should
 - **Status:** proposed
 
+### ST-017: Nothing I set up is lost to an uninstall, and the app keeps itself current
+- **Story:** As P-01, I want my settings, history, login item and MCP entry to survive uninstalling and reinstalling the app, and every copy to install new versions by itself, so that I never redo setup and never run a stale app.
+- **Traces:** JTBD-03, JRN-01/#6, JRN-01/#7; ADR-0015
+- **Acceptance criteria:**
+  - Given I uninstall from Settings without ticking "Also delete my settings and activity history", when I install the app again, then my settings and history are there, and the login item and the MCP entry are back.
+  - Given an update has downloaded and the window has been closed for ten minutes, when nothing the app started is running, then it installs and the app reopens in the menu bar, unless I turned "Install updates automatically" off.
+  - Given the app runs outside Applications, when it checks for updates, then it says updates install only from Applications and offers to move itself.
+- **Priority:** must
+- **Status:** proposed
+
 ## Design tooling
 - **Figma:** disabled
 - **Figma file:** none — text-only design surface decided at intake (brief D-7); the PassionCode.ai design system tokens are vendored by hash.

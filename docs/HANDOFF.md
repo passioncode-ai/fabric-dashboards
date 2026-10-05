@@ -1,29 +1,38 @@
 # Handoff — Fabric Dashboards
 
-Updated 2026-10-05 (release 0.5.3: FD-05, FD-06, FD-13; Spend and DEC-0021; one entry per agent, ADR-0012; lifecycle contract landed from PR #21, unreleased; CI release rehearsal
+Updated 2026-10-05 (release 0.5.4: ADR-0015 data and updates, FD-05, FD-06, FD-13; Spend and DEC-0021; one entry per agent, ADR-0012; lifecycle contract landed from PR #21, unreleased; CI release rehearsal
 `v0.4.1-rc.1` green; releases move to CI signing; release 0.4.1, MCP links to online services).
 
 Current release: 0.4.1 (section below). Earlier releases below are preserved as dated evidence.
 
 ## Next — start here (2026-10-05)
 
-**First task for the next agent:** release `v0.5.3` waits for a `release-approvers` approval —
-two of them, `macos`, then `publish` (the agent never approves). Once it publishes, check the
-receipt (Developer ID, `accepted and stapled`, Gatekeeper `accepted`, `checks.usageDescriptions`),
-update the installed app, walk SCN-033…042 on it (FD-02) and measure FD-07 on that build. Then
-point the website's Dashboards page at it (`passioncode-ai.github.io`, `dashboards/release.json`
-and the Worker download route — see that repository's handoff).
+**First task for the next agent:** release `v0.5.4` waits for a `release-approvers` approval —
+`macos`, then `publish` (the agent never approves). Once it publishes, check the receipt
+(Developer ID, `accepted and stapled`, Gatekeeper `accepted`, `checks.usageDescriptions`), update
+the installed app, walk SCN-033…044 on it (FD-02) and measure FD-07 on that build. Then finish the
+website branch `agent/dashboards-0.5.3` in `passioncode-ai.github.io` (fill the SHA-256 from the
+release's `.dmg.sha256`, version 0.5.4, `docs/brand/facts.md` under its lease, PR, deploy).
 
-The `v0.5.2` run (37256336416) was cancelled before approval on 2026-10-05 and superseded by 0.5.3;
-`v0.5.0` and `v0.5.1` failed their CI check (LC-02, LC-14) and were never released.
+Superseded runs, all cancelled before publishing: `v0.5.2` (37256336416), `v0.5.3` (37291654717 —
+cancelled after `macos` was approved, so 0.5.3 could never become the latest feed after 0.5.4;
+release.yml now refuses a full release that is not newer than the published one). `v0.5.0` and
+`v0.5.1` failed their CI check (LC-02, LC-14).
 
-**What 0.5.3 carries:**
+**What 0.5.4 carries:**
 - one entry per agent (ADR-0012);
 - Spend (ADR-0013), checked end to end on the kit's own sample (FD-13, adapter `v0.8.0`);
-- the dashboard toolbar and the at-a-glance Overview (ADR-0014): status strip, one-line attention
-  rows, denser cards; a dashboard whose session ended signs in again by itself;
-- no Dock icon while the window is hidden (FD-05); no Electron purpose strings in the build (FD-06);
+- the dashboard toolbar and the at-a-glance Overview (ADR-0014); re-sign-in after a 401;
+- no Dock icon while the window is hidden (FD-05); no Electron purpose strings (FD-06);
+- **ADR-0015** (FD-15, FD-16): uninstall keeps settings and history unless asked; a reinstall
+  restores the login item and the MCP entries; broken MCP entries are repaired; a damaged
+  settings file is restored from its copy; updates install themselves after 10 hidden minutes
+  (on by default); a copy outside Applications offers to move;
 - the lifecycle contract and CI-only signing.
+
+**Open after the release:** FD-16's field proof needs the *next* release installing itself on a
+0.5.4 copy with the window closed. Copies on 0.4.1–0.5.3 have no automatic install: they download
+0.5.4 and install it at their next quit or Restart.
 
 **Decided by the operator on 2026-10-05:**
 - COM-01 C1–C9 accepted: DEC-0022 on fabric-agent-contract `main` `d4c8831`.
@@ -67,7 +76,7 @@ State of the work streams from this session, with receipts:
 | Kits publish usage (G7) | adapter PR #34 on `main`, 0.8.0 unreleased (FAA-06, FAA-07) | done in source; agents adopt next |
 | FD-12 / COM-11 (#26) | backlog FD-12 | COM-01 accepted (DEC-0022); waits for a service that answers `com.status` — Fabric's board (COM-02/03) |
 | Enterprise workplace, admin channel, agent chat | [estate report](reports/2026-10-04-agent-estate-architecture/README.md); fabric-workspace `knowledge/plans.md` (gaps G1…G8) | D1…D5 answered 2026-10-05 |
-| FD-09 first CI release | backlog FD-09 | `v0.5.3` tagged; waits for the operator's `macos` and `publish` approvals |
+| FD-09 first CI release | backlog FD-09 | `v0.5.4` tagged; waits for the operator's `macos` and `publish` approvals |
 
 **The Codex session recovered here.** Codex thread `01a10620` (working on the operator's analytics
 agent in its own private repository) stopped at its weekly rate limit at 2026-10-04 15:42 UTC

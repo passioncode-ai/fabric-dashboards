@@ -9,7 +9,7 @@ in, one live view per service — instead of a browser tab per port. It is the m
 [Fabric](https://passioncode.ai/), PassionCode.ai's CEO AI agent, and it also works on its own:
 agents drive it over MCP, people use the window.
 
-**Version 0.5.3** — [download](https://github.com/passioncode-ai/fabric-dashboards/releases/latest). See [HANDOFF](docs/HANDOFF.md)
+**Version 0.5.4** — [download](https://github.com/passioncode-ai/fabric-dashboards/releases/latest). See [HANDOFF](docs/HANDOFF.md)
 for what is released and what is next.
 
 ## What it does
@@ -65,12 +65,17 @@ attestation ([how to verify](docs/RUNBOOK.md#release)).
 Open it from Applications. It lives in the menu bar and opens its window; with no service
 installed the overview says *No services yet* and **Show folder** opens the services folder. A
 service appears within five seconds of its installer writing a descriptor there. The first
-window asks once whether to open it at login (off until you choose; Settings changes it later),
-and it updates itself from GitHub releases.
+window asks once whether to open it at login (off until you choose; Settings changes it later).
+It updates itself from GitHub releases: a new version downloads on its own and installs while
+the window is closed, and the app reopens in the menu bar (**Settings → Updates → Install updates
+automatically**, on by default). Updates install only into Applications; a copy opened from the
+disk image offers to move itself there ([ADR-0015](docs/adr/0015-data-survives-uninstall-updates-install-themselves.md)).
 
-To remove it: **Settings → Uninstall Fabric Dashboards…** removes the login item, its entry in
-Claude Code's MCP servers and its data, and moves the app to the Trash; your services and their
-data stay. `fabric-dashboards-mcp --unregister` removes only the MCP entry; once the app is
+To remove it: **Settings → Uninstall Fabric Dashboards…** removes the login item and its entry in
+Claude Code's MCP servers, and moves the app to the Trash. Your settings and activity history stay,
+so installing it again picks up where you left off, with the login item and the MCP entry back;
+tick **Also delete my settings and activity history** to remove them too. Your services and their
+data always stay. `fabric-dashboards-mcp --unregister` removes only the MCP entry; once the app is
 already in the Trash, `claude mcp remove --scope user fabric-dashboards` does the same.
 
 ### Configure

@@ -33,6 +33,7 @@ const api: FabricApi = {
   takeNavigation: () => ipcRenderer.invoke(CHANNELS.navigateTake),
   restartToUpdate: () => ipcRenderer.invoke(CHANNELS.updateRestart),
   checkForUpdates: () => ipcRenderer.invoke(CHANNELS.updateCheck),
+  moveToApplications: () => ipcRenderer.invoke(CHANNELS.moveToApplications),
   notificationsAllowed: () => ipcRenderer.invoke(CHANNELS.notificationsAllowed),
   openNotificationSettings: () => ipcRenderer.invoke(CHANNELS.notificationSettings),
   locale: () => ipcRenderer.invoke(CHANNELS.locale),

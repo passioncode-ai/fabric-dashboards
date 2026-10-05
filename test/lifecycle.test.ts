@@ -16,8 +16,10 @@ import { applyLoginItem, loginItemAtStartup, type LoginItemOs } from '../src/cor
 import { Monitor } from '../src/core/monitor';
 import { merge } from '../src/core/settings';
 import { DEFAULT_SETTINGS } from '../src/core/types';
-import { MCP_SERVER_NAME, productDataPaths, purgeAfterExit, purgeData, removeMcpRegistrations } from '../src/core/uninstall';
-import { HiddenGrace, resumePath, stalePartitions } from '../src/electron/policy';
+import { clearRestoreRecord, KEPT_FILES, MCP_SERVER_NAME, productDataPaths, purgeAfterExit, purgeData, readRestoreRecord, removeMcpRegistrations, repairMcpRegistrations, restoreMcpRegistrations, RESTORE_FILE, writeRestoreRecord } from '../src/core/uninstall';
+import { NotifyLedger } from '../src/core/notify';
+import { SettingsStore } from '../src/core/settings';
+import { autoInstallNow, HiddenGrace, relaunchHidden, resumePath, stalePartitions, UPDATE_IDLE_MS } from '../src/electron/policy';
 import { codeFile, StaleWatch } from '../src/mcp/stale';
 import { tmp } from './helpers';
 
@@ -553,6 +555,120 @@ test('LC-14: the app\'s data is removed only after the app has exited, and the h
   assert.equal(fs.existsSync(data), false, 'removed once the app exited');
   assert.ok(fs.existsSync(home), 'a path that is not a product path is never handed to rm');
   assert.equal(purgeAfterExit(process.pid, [home, '/']), null, 'nothing to remove: no helper');
+});
+
+// ── LC-14 / ADR-0015 — the person's data survives an uninstall unless they ask ──────────
+
+test('LC-14/ADR-0015: an uninstall that keeps the data removes everything else in the profile, after exit', async () => {
+  const home = tmp('fd-home-');
+  const data = path.join(home, 'Library/Application Support/Fabric Dashboards');
+  const logs = path.join(home, 'Library/Logs/Fabric Dashboards');
+  for (const d of [path.join(data, 'Partitions/svc-a.default'), path.join(data, 'Cache'), logs]) fs.mkdirSync(d, { recursive: true });
+  for (const name of KEPT_FILES) fs.writeFileSync(path.join(data, name), name);
+  for (const name of ['Local State', 'Cookies', '.hidden-chromium-file', 'SingletonLock']) fs.writeFileSync(path.join(data, name), 'x');
+  fs.writeFileSync(path.join(logs, 'main.log'), 'x');
+  const appProcess = spawn('/bin/sleep', ['0.3']);
+  const helper = purgeAfterExit(appProcess.pid!, [logs], { dir: data, names: KEPT_FILES })!;
+  helper.ref();
+  const helperDone = new Promise((resolve) => helper.once('exit', resolve));
+  await new Promise((resolve) => setTimeout(resolve, 100));
+  assert.ok(fs.existsSync(path.join(data, 'Cache')), 'nothing is removed while the app still runs');
+  await helperDone;
+  assert.deepEqual(fs.readdirSync(data).sort(), [...KEPT_FILES].sort(), 'only the settings, the history and the restore record stay');
+  for (const name of KEPT_FILES) assert.equal(fs.readFileSync(path.join(data, name), 'utf8'), name, `${name} is untouched`);
+  assert.equal(fs.existsSync(logs), false);
+  assert.throws(() => purgeAfterExit(process.pid, [], { dir: data, names: ['a;rm -rf /'] }), /plain file name/);
+});
+
+test('ADR-0015: every file the app keeps the person\'s choices and history in is on the kept list', () => {
+  const dir = tmp('fd-kept-');
+  new SettingsStore(dir).update({ theme: 'light' });
+  const activity = new ActivityStore(dir);
+  activity.addAppEvent('a.default', 'A', 'test', 'notice', 'x');
+  activity.markSeen();
+  activity.flush();
+  new NotifyLedger(path.join(dir, 'notified.json')).admit('a.default:down', 'attention', T0);
+  writeRestoreRecord(dir, { at: new Date(T0).toISOString(), loginItem: true, mcp: [] });
+  const written = fs.readdirSync(dir).filter((n) => !n.startsWith('.'));
+  assert.deepEqual(written.sort(), [...KEPT_FILES].sort(), 'each store wrote its file');
+  for (const name of written) assert.ok((KEPT_FILES as readonly string[]).includes(name), `${name} would be lost by an uninstall that keeps the data`);
+});
+
+test('ADR-0015: the MCP entries an uninstall removed come back on reinstall, pointed at the new launcher', () => {
+  const home = tmp('fd-home-');
+  const file = path.join(home, '.claude.json');
+  const old = '/Applications/Fabric Dashboards.app/Contents/Resources/bin/fabric-dashboards-mcp';
+  fs.writeFileSync(file, JSON.stringify({
+    mcpServers: { [MCP_SERVER_NAME]: { type: 'stdio', command: old, args: [], env: { A: '1' } } },
+    projects: { '/work/a': { mcpServers: { [MCP_SERVER_NAME]: { type: 'stdio', command: old } } }, '/work/gone': { mcpServers: { [MCP_SERVER_NAME]: { type: 'stdio', command: old } } } },
+  }), { mode: 0o600 });
+  const { entries } = removeMcpRegistrations(home);
+  assert.equal(entries.length, 3);
+  // Between uninstall and reinstall: a project scope disappears, the person adds their own entry in another.
+  const mid = JSON.parse(fs.readFileSync(file, 'utf8'));
+  delete mid.projects['/work/gone'];
+  mid.projects['/work/a'].mcpServers[MCP_SERVER_NAME] = { type: 'stdio', command: '/their/own' };
+  fs.writeFileSync(file, JSON.stringify(mid));
+  const fresh = '/Users/x/Applications/Fabric Dashboards.app/Contents/Resources/bin/fabric-dashboards-mcp';
+  assert.deepEqual(restoreMcpRegistrations(entries, fresh, home), ['user']);
+  const after = JSON.parse(fs.readFileSync(file, 'utf8'));
+  assert.deepEqual(after.mcpServers[MCP_SERVER_NAME], { type: 'stdio', command: fresh, args: [], env: { A: '1' } });
+  assert.deepEqual(after.projects['/work/a'].mcpServers[MCP_SERVER_NAME], { type: 'stdio', command: '/their/own' }, 'the person\'s own entry is kept');
+  assert.equal(after.projects['/work/gone'], undefined, 'a scope that is gone is not recreated');
+  assert.deepEqual(restoreMcpRegistrations(entries, fresh, home), [], 'a second run changes nothing');
+});
+
+test('ADR-0015: an MCP entry whose launcher is gone is pointed at this install; others are left alone', () => {
+  const home = tmp('fd-home-');
+  const file = path.join(home, '.claude.json');
+  const gone = '/Volumes/Old/Fabric Dashboards.app/Contents/Resources/bin/fabric-dashboards-mcp';
+  const here = '/Applications/Fabric Dashboards.app/Contents/Resources/bin/fabric-dashboards-mcp';
+  fs.writeFileSync(file, JSON.stringify({
+    mcpServers: { [MCP_SERVER_NAME]: { type: 'stdio', command: gone, args: [] } },
+    projects: {
+      '/dev': { mcpServers: { [MCP_SERVER_NAME]: { type: 'stdio', command: 'node', args: ['/src/out/main/mcp/server.js'] } } },
+      '/other': { mcpServers: { [MCP_SERVER_NAME]: { type: 'stdio', command: '/their/server' } } },
+    },
+  }));
+  const exists = (p: string) => p === here;
+  assert.deepEqual(repairMcpRegistrations(here, home, exists), ['user']);
+  const after = JSON.parse(fs.readFileSync(file, 'utf8'));
+  assert.equal(after.mcpServers[MCP_SERVER_NAME].command, here);
+  assert.equal(after.projects['/dev'].mcpServers[MCP_SERVER_NAME].command, 'node', 'a development entry is not ours to move');
+  assert.equal(after.projects['/other'].mcpServers[MCP_SERVER_NAME].command, '/their/server');
+  assert.deepEqual(repairMcpRegistrations(here, home, exists), [], 'nothing to repair the second time');
+  assert.deepEqual(repairMcpRegistrations(here, tmp('fd-home-empty-'), exists), [], 'no ~/.claude.json is not an error');
+});
+
+test('ADR-0015: the restore record round-trips; a damaged one is ignored, never trusted', () => {
+  const dir = tmp('fd-restore-');
+  assert.equal(readRestoreRecord(dir), null);
+  writeRestoreRecord(dir, { at: '2026-10-05T12:00:00Z', loginItem: true, mcp: [{ scope: 'user', entry: { command: '/x' } }] });
+  assert.deepEqual(readRestoreRecord(dir), { version: 1, at: '2026-10-05T12:00:00Z', loginItem: true, mcp: [{ scope: 'user', entry: { command: '/x' } }] });
+  assert.equal(fs.statSync(path.join(dir, RESTORE_FILE)).mode & 0o777, 0o600);
+  fs.writeFileSync(path.join(dir, RESTORE_FILE), '{"version":2}');
+  assert.equal(readRestoreRecord(dir), null);
+  fs.writeFileSync(path.join(dir, RESTORE_FILE), '{');
+  assert.equal(readRestoreRecord(dir), null);
+  clearRestoreRecord(dir);
+  assert.equal(fs.existsSync(path.join(dir, RESTORE_FILE)), false);
+  clearRestoreRecord(dir);
+});
+
+test('ADR-0015: a downloaded update installs only when allowed, unwatched and idle; the relaunch stays hidden', () => {
+  const base = { ready: true, autoUpdate: true, visible: false, busy: 0 };
+  assert.equal(autoInstallNow(base), true);
+  assert.equal(autoInstallNow({ ...base, ready: false }), false);
+  assert.equal(autoInstallNow({ ...base, autoUpdate: false }), false, 'the person turned it off: installs at quit');
+  assert.equal(autoInstallNow({ ...base, visible: true }), false, 'never under the person\'s eyes');
+  assert.equal(autoInstallNow({ ...base, busy: 1 }), false, 'a doctor or update command is running');
+  assert.equal(UPDATE_IDLE_MS, 10 * 60_000);
+  const now = T0;
+  assert.equal(relaunchHidden(new Date(now - 30_000).toISOString(), now), true);
+  assert.equal(relaunchHidden(null, now), false);
+  assert.equal(relaunchHidden(new Date(now - 11 * 60_000).toISOString(), now), false, 'a stale marker is not this relaunch');
+  assert.equal(relaunchHidden('garbage', now), false);
+  assert.equal(relaunchHidden(new Date(now + 60_000).toISOString(), now), false);
 });
 
 // ── LC-13 — hardened fuses, read back from the built binary ─────────────────────────────

@@ -47,8 +47,11 @@ published or attached to a release.
    `## <version> - <date>`, run `npm ci && npm run check && npm run test:e2e`, merge to `main`.
 2. Tag the merge commit and push the tag:
    `git tag -a v<version> <merge commit> -m v<version> && git push origin v<version>`.
-3. `release.yml` starts. `version` checks that the tag names `package.json`'s version and that
-   the CHANGELOG has its section; `check` runs `npm run check` (`validate.yml`). The `macos` job
+3. `release.yml` starts. `version` checks that the tag names `package.json`'s version, that
+   the CHANGELOG has its section and — for a full release — that the version is newer than the
+   latest published release: Squirrel installs whatever the latest feed names, so an older one
+   would move every installed copy backwards (ADR-0015). A superseded run waiting for approval is
+   cancelled, never approved. `check` runs `npm run check` (`validate.yml`). The `macos` job
    then waits for the `release` environment.
 4. Someone from `release-approvers` approves it (*Review deployments*); that may be whoever
    pushed the tag. An agent never approves a release run, even when its account could.

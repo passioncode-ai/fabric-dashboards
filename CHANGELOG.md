@@ -2,12 +2,35 @@
 
 ## Unreleased
 
+## 0.5.4 - 2026-10-05
+
+The first published release since 0.4.1: it carries everything listed under 0.5.3 and 0.5.2 below
+(neither was published on its own), plus:
+
+- **Updates install themselves.** A downloaded version installs once the window has been closed
+  for ten minutes and nothing the app started is running, and the app reopens in the menu bar.
+  **Settings → Updates** has **Install updates automatically** (on by default, also for settings
+  saved by an earlier version), the update state and **Check now**. Before this, an update waited
+  for a quit, which a menu-bar app rarely gets.
+- **A copy outside Applications says why it cannot update and moves itself.** Opened from the disk
+  image or Downloads, the app asks once to move to Applications; afterwards the footer and
+  Settings → Updates offer **Move to Applications**. Squirrel cannot replace a copy there, and it
+  used to fail with its own error text.
+- **Uninstall keeps your settings and history.** Settings → Uninstall still removes the login
+  item and the MCP entry and moves the app to the Trash. Caches, logs and dashboard sessions are
+  removed, but the settings and activity history stay unless you tick **Also delete my settings
+  and activity history** (lifecycle LC-14: data goes only on request).
+- **A reinstall puts back what the uninstall removed:** the login item and the `fabric-dashboards`
+  MCP entries, pointed at the new copy. An MCP entry that points at a moved or deleted copy is
+  repaired at every launch.
+- **A damaged `settings.json` is restored from its last good copy** (`settings.json.bak`). It no
+  longer resets to the defaults without a word, and the damaged file is kept beside it.
+
 ## 0.5.3 - 2026-10-05
 
-The first published release since 0.4.1. It carries everything listed under 0.5.2 in this
-changelog — one entry per agent, Spend, the dashboard toolbar and the at-a-glance Overview, the
-lifecycle contract — plus the items below. The `v0.5.2` run was cancelled before approval, so 0.5.2
-was never published on its own.
+Tagged, never published: its release run was superseded by 0.5.4. It carries everything listed
+under 0.5.2 — one entry per agent, Spend, the dashboard toolbar and the at-a-glance Overview, the
+lifecycle contract — plus the items below.
 
 - **A dashboard whose session ended signs in again by itself.** When the page answers 401, the app
   runs the login code again and reopens the same page, at most once a minute per view. Reload page

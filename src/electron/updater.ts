@@ -20,6 +20,13 @@ export class Updater {
       this.state = { state: 'unsupported' };
       return;
     }
+    // Squirrel replaces the bundle where it is: from a disk image or Downloads (often translocated,
+    // read-only) the install cannot happen, so nothing is downloaded until the app is moved (ADR-0015).
+    if (!app.isInApplicationsFolder()) {
+      this.state = { state: 'misplaced' };
+      this.log('update: the app runs outside Applications; updates wait until it is moved there');
+      return;
+    }
     const url = process.env.FABRIC_DASHBOARDS_UPDATE_URL || DEFAULT_FEED;
     try {
       autoUpdater.setFeedURL({ url, serverType: 'json' });
@@ -29,7 +36,7 @@ export class Updater {
     }
     autoUpdater.on('checking-for-update', () => this.set({ state: 'checking' }));
     autoUpdater.on('update-available', () => this.set({ state: 'downloading' }));
-    autoUpdater.on('update-not-available', () => this.set({ state: 'idle' }));
+    autoUpdater.on('update-not-available', () => this.set({ state: 'idle', checkedAt: new Date().toISOString() }));
     autoUpdater.on('update-downloaded', (_event, _notes, name) => this.set({ state: 'ready', version: String(name || '').replace(/^Fabric Dashboards\s*/, '') || undefined }));
     autoUpdater.on('error', (error) => this.set({ state: 'error', error: error.message }));
     setTimeout(() => this.check(), 10_000).unref();
@@ -38,7 +45,7 @@ export class Updater {
   }
 
   check(): void {
-    if (this.state.state === 'unsupported' || this.state.state === 'downloading' || this.state.state === 'ready') return;
+    if (['unsupported', 'misplaced', 'downloading', 'ready'].includes(this.state.state)) return;
     try {
       autoUpdater.checkForUpdates();
     } catch (error) {

@@ -48,6 +48,20 @@ jobs:
           [[ "$tagged" == "$version" ]] || { echo "::error::$TAG does not match package.json's version $version"; exit 1; }
           grep -Eq "^## ${version//./\\.}( |$)" CHANGELOG.md || { echo "::error::CHANGELOG.md has no section '## $version'"; exit 1; }
           echo "$TAG builds Fabric Dashboards $version"
+      # Squirrel installs whatever the latest release's feed names, older or not (ADR-0015): a full
+      # release must be newer than the one published, or every installed copy would go back.
+      - name: A full release is newer than the latest published one
+        if: ${{ !contains(github.ref_name, '-rc.') }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          latest=$(gh api "repos/$GITHUB_REPOSITORY/releases/latest" --jq .tag_name 2>/dev/null || true)
+          [[ -z "$latest" ]] && { echo "no published release yet"; exit 0; }
+          [[ "$latest" == "$TAG" ]] && { echo "::error::$TAG is already the latest published release"; exit 1; }
+          newest=$(printf '%s\n%s\n' "${latest#v}" "${TAG#v}" | sort -V | tail -1)
+          [[ "$newest" == "${TAG#v}" ]] || { echo "::error::$TAG is older than the published $latest; installed copies would update backwards"; exit 1; }
+          echo "$TAG is newer than the published $latest"
 
   check:
     uses: ./.github/workflows/validate.yml

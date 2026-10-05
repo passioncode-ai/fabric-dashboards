@@ -6,7 +6,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { ActivityStore } from '../core/activity';
 import { CHANNELS, type Rect } from '../core/api';
-import { killOwned } from '../core/children';
+import { killOwned, ownedCount } from '../core/children';
 import { appendLog, sweepTemps } from '../core/fsutil';
 import { parseDeepLink, SCHEME } from '../core/deeplink';
 import { servicesDir } from '@passioncode-ai/fabric-service-host';
@@ -20,8 +20,8 @@ import { readSpend, type SpendEntry } from '../core/spend';
 import { NotifyLedger } from '../core/notify';
 import { SettingsStore } from '../core/settings';
 import type { AppStatus, Settings } from '../core/types';
-import { productDataPaths, purgeAfterExit, removeMcpRegistrations } from '../core/uninstall';
-import { HiddenGrace, partitionFor, stalePartitions, VIEW_RELEASE_GRACE_MS } from './policy';
+import { clearRestoreRecord, KEPT_FILES, productDataPaths, purgeAfterExit, readRestoreRecord, removeMcpRegistrations, repairMcpRegistrations, restoreMcpRegistrations, writeRestoreRecord } from '../core/uninstall';
+import { autoInstallNow, HiddenGrace, partitionFor, RELAUNCH_MARKER, relaunchHidden, stalePartitions, UPDATE_IDLE_MS, VIEW_RELEASE_GRACE_MS } from './policy';
 import { AppTray } from './tray';
 import { Updater } from './updater';
 import { ServiceViews } from './views';
@@ -74,13 +74,14 @@ if (!app.requestSingleInstanceLock()) {
   // A writer killed between write and rename leaves its temporary file; nothing else removes it (LC-12).
   for (const name of sweepTemps(userData)) log(`removed a temporary file left by a stopped process: ${name}`);
   const settings = new SettingsStore(userData);
+  if (settings.recovered) log(`settings: ${settings.recovered}`);
   // Embedded dashboards follow the app's theme, not only macOS (prefers-color-scheme in every page).
   nativeTheme.themeSource = settings.get().theme;
   const activity = new ActivityStore(userData);
   const lang = (): Lang => langFor(app.getPreferredSystemLanguages()[0] ?? app.getLocale());
   const monitor = new Monitor({ servicesDir: servicesDir(), activity, settings: () => settings.get(), lang, ledger: new NotifyLedger(path.join(userData, 'notified.json')) });
   let tray: AppTray | null = null;
-  const updater = new Updater(() => pushStatus(), log);
+  const updater = new Updater(() => { pushStatus(); if (updater.state.state === 'ready' && !windowVisible()) updateGrace.hidden(); }, log);
 
   const status = (): AppStatus => ({
     services: monitor.snapshots(), ...monitor.meta(), unread: activity.unread(), update: updater.state, version: app.getVersion(),
@@ -112,7 +113,24 @@ if (!app.requestSingleInstanceLock()) {
     views?.releaseAll();
     log(`released ${count} dashboard view(s) after ${VIEW_RELEASE_GRACE_MS / 60_000} min hidden`);
   });
+  // #region auto-install-flow — docs: docs/adr/0015-data-survives-uninstall-updates-install-themselves.md#decision
+  // ADR-0015: a downloaded update installs by itself once the window has been hidden for
+  // UPDATE_IDLE_MS and no command the app started is running; the relaunch stays in the menu bar.
+  const updateGrace = new HiddenGrace(UPDATE_IDLE_MS, () => autoInstall());
+  function autoInstall(): void {
+    const busy = ownedCount();
+    if (!autoInstallNow({ ready: updater.state.state === 'ready', autoUpdate: settings.get().autoUpdate, visible: windowVisible(), busy })) {
+      if (busy && updater.state.state === 'ready') setTimeout(() => autoInstall(), 60_000).unref();
+      return;
+    }
+    try { fs.writeFileSync(path.join(userData, RELAUNCH_MARKER), new Date().toISOString(), { mode: 0o600 }); } catch (error) { log(`update: could not mark the relaunch hidden: ${(error as Error).message}`); }
+    log(`update: installing ${updater.state.version ?? 'the downloaded update'} while the window is hidden`);
+    quitting = true;
+    updater.restart();
+  }
+  // #endregion auto-install-flow
   function windowShown(): void {
+    updateGrace.shown();
     viewGrace.shown();
     monitor.setVisible(true);
     pushStatus();
@@ -121,6 +139,7 @@ if (!app.requestSingleInstanceLock()) {
   function windowHidden(): void {
     monitor.setVisible(false);
     viewGrace.hidden();
+    updateGrace.hidden();
   }
   // #endregion quiet-push
 
@@ -200,25 +219,45 @@ if (!app.requestSingleInstanceLock()) {
   async function uninstall(): Promise<{ ok: boolean; cancelled?: boolean; error?: string }> {
     const l = lang();
     const parent = window && !window.isDestroyed() ? window : undefined;
-    const ask = { type: 'warning' as const, buttons: [t(l, 'uninstall.confirm'), t(l, 'action.cancel')], defaultId: 1, cancelId: 1, message: t(l, 'uninstall.title'), detail: t(l, 'settings.uninstall.body') };
-    const { response } = parent ? await dialog.showMessageBox(parent, ask) : await dialog.showMessageBox(ask);
+    // LC-14: data goes only when the person asks. The box is unticked: settings and history stay,
+    // and a reinstall picks them up together with the login item and the MCP entry (ADR-0015).
+    const ask = {
+      type: 'warning' as const, buttons: [t(l, 'uninstall.confirm'), t(l, 'action.cancel')], defaultId: 1, cancelId: 1,
+      message: t(l, 'uninstall.title'), detail: t(l, 'settings.uninstall.body'), checkboxLabel: t(l, 'uninstall.deleteData'), checkboxChecked: false,
+    };
+    const { response, checkboxChecked: deleteData } = parent ? await dialog.showMessageBox(parent, ask) : await dialog.showMessageBox(ask);
     if (response !== 0) return { ok: false, cancelled: true };
+    const wasAtLogin = Boolean(loginOs && settings.get().launchAtLogin);
+    let mcp: ReturnType<typeof removeMcpRegistrations>['entries'] = [];
     try {
       if (loginOs) {
         const refused = applyLoginItem(false, loginOs);
         if (refused) throw new Error(refused);
       }
       // A development build leaves the installed app's registration alone.
-      if (app.isPackaged) log(`uninstall: MCP registration removed from ${JSON.stringify(removeMcpRegistrations().removed)}`);
+      if (app.isPackaged) {
+        const r = removeMcpRegistrations();
+        mcp = r.entries;
+        log(`uninstall: MCP registration removed from ${JSON.stringify(r.removed)}`);
+      }
     } catch (error) {
       log(`uninstall stopped: ${(error as Error).message}`);
       return { ok: false, error: t(l, 'uninstall.failed', { error: (error as Error).message }) };
     }
     // Data goes after this process exits — Chromium writes into userData until then (purgeAfterExit).
     // A development run shares the installed app's profile name, so it purges nothing.
-    const targets = app.isPackaged ? [...new Set([...productDataPaths(app.getPath('home')), userData, app.getPath('logs')])] : [];
-    purgeAfterExit(process.pid, targets);
     if (app.isPackaged) {
+      const all = [...new Set([...productDataPaths(app.getPath('home')), userData, app.getPath('logs')])];
+      if (deleteData) {
+        purgeAfterExit(process.pid, all);
+      } else {
+        try {
+          writeRestoreRecord(userData, { at: new Date().toISOString(), loginItem: wasAtLogin, mcp });
+        } catch (error) {
+          log(`uninstall: could not write the restore record: ${(error as Error).message}`);
+        }
+        purgeAfterExit(process.pid, all.filter((p) => path.resolve(p) !== path.resolve(userData)), { dir: userData, names: KEPT_FILES });
+      }
       const bundle = path.resolve(process.execPath, '../../..');
       try {
         await shell.trashItem(bundle);
@@ -226,12 +265,73 @@ if (!app.requestSingleInstanceLock()) {
         await dialog.showMessageBox({ type: 'info', message: t(l, 'uninstall.trashFailed', { error: (error as Error).message }), buttons: ['OK'] });
       }
     }
-    log('uninstall: login item and registration removed; data is removed after exit');
+    log(`uninstall: login item and registration removed; ${deleteData ? 'all data' : 'everything but settings and history'} is removed after exit`);
     quitting = true;
     setImmediate(() => app.quit());
     return { ok: true };
   }
   // #endregion uninstall-flow
+
+  // #region reinstall — docs: docs/adr/0015-data-survives-uninstall-updates-install-themselves.md#decision
+  /** The packaged MCP launcher of this install. */
+  const launcher = () => path.join(process.resourcesPath, 'bin', 'fabric-dashboards-mcp');
+
+  /** After an uninstall that kept the data: put back the login item and the MCP entries it removed.
+   *  Every launch also points an entry of ours whose launcher is gone at this install (ADR-0015). */
+  function restoreAfterReinstall(): void {
+    const record = readRestoreRecord(userData);
+    if (record) {
+      // The login item is tried once — a refusal is macOS's or the person's answer, and LC-07 never
+      // registers on every launch. The MCP entries are retried while ~/.claude.json cannot be edited.
+      if (record.loginItem && loginOs) {
+        const refused = applyLoginItem(true, loginOs);
+        if (refused) log(`reinstall: login item not restored: ${refused}`);
+        else { settings.update({ launchAtLogin: true, launchAtLoginAsked: true }); log('reinstall: login item restored'); }
+      }
+      try {
+        log(`reinstall: MCP registration restored in ${JSON.stringify(restoreMcpRegistrations(record.mcp, launcher()))}`);
+        clearRestoreRecord(userData);
+      } catch (error) {
+        log(`reinstall: MCP registration not restored, retried at the next launch: ${(error as Error).message}`);
+        try { writeRestoreRecord(userData, { at: record.at, loginItem: false, mcp: record.mcp }); } catch { /* the next launch tries the login item once more */ }
+      }
+    }
+    try {
+      const repaired = repairMcpRegistrations(launcher());
+      if (repaired.length) log(`MCP registration pointed at this install in ${JSON.stringify(repaired)}`);
+    } catch (error) {
+      log(`MCP registration not checked: ${(error as Error).message}`);
+    }
+  }
+
+  async function moveToApplications(): Promise<{ ok: boolean; error?: string }> {
+    if (!app.isPackaged || app.isInApplicationsFolder()) return { ok: true };
+    try {
+      quitting = true;
+      // An older copy already in Applications is replaced; a running one cannot be, since this
+      // copy holds the single-instance lock.
+      app.moveToApplicationsFolder({ conflictHandler: () => true });
+      return { ok: true };
+    } catch (error) {
+      quitting = false;
+      log(`move to Applications failed: ${(error as Error).message}`);
+      return { ok: false, error: (error as Error).message };
+    }
+  }
+
+  /** Asked once (LC-07): a copy outside Applications cannot update itself. */
+  async function offerMoveToApplications(): Promise<void> {
+    if (!app.isPackaged || app.isInApplicationsFolder() || settings.get().moveToApplicationsAsked) return;
+    settings.update({ moveToApplicationsAsked: true });
+    const l = lang();
+    const ask = { type: 'question' as const, buttons: [t(l, 'move.confirm'), t(l, 'move.later')], defaultId: 0, cancelId: 1, message: t(l, 'move.title'), detail: t(l, 'move.body') };
+    const { response } = window && !window.isDestroyed() ? await dialog.showMessageBox(window, ask) : await dialog.showMessageBox(ask);
+    if (response === 0) {
+      const r = await moveToApplications();
+      if (!r.ok) await dialog.showMessageBox({ type: 'warning', message: t(l, 'move.failed', { error: r.error ?? '' }), buttons: ['OK'] });
+    }
+  }
+  // #endregion reinstall
 
   function registerIpc(): void {
     const snap = (key: string) => monitor.snapshot(key);
@@ -318,6 +418,7 @@ if (!app.requestSingleInstanceLock()) {
     ipcMain.handle(CHANNELS.copyText, (_e, text: string) => { clipboard.writeText(String(text).slice(0, 4096)); });
     ipcMain.handle(CHANNELS.updateRestart, () => { quitting = true; updater.restart(); });
     ipcMain.handle(CHANNELS.updateCheck, () => updater.check());
+    ipcMain.handle(CHANNELS.moveToApplications, () => moveToApplications());
     ipcMain.handle(CHANNELS.notificationsAllowed, () => Notification.isSupported());
     ipcMain.handle(CHANNELS.notificationSettings, () => shell.openExternal('x-apple.systempreferences:com.apple.Notifications-Settings.extension'));
     ipcMain.handle(CHANNELS.locale, () => lang());
@@ -390,6 +491,7 @@ if (!app.requestSingleInstanceLock()) {
       }
     });
     monitor.start();
+    if (app.isPackaged) restoreAfterReinstall();
     updater.start();
     if (app.isPackaged) app.setAsDefaultProtocolClient(SCHEME);
     handleLink = (raw: string) => {
@@ -419,9 +521,16 @@ if (!app.requestSingleInstanceLock()) {
     const adopted = loginItemAtStartup(settings.get(), loginOs);
     if (adopted) { settings.update(adopted); log(`login item changed in System Settings: launchAtLogin=${adopted.launchAtLogin}`); }
     // Opened at login: stay in the menu bar; the operator opens the window when they want it.
-    const hidden = app.getLoginItemSettings().wasOpenedAtLogin || process.argv.includes('--hidden');
+    // Relaunched by an automatic update install: back in the menu bar, as it was (ADR-0015).
+    const marker = path.join(userData, RELAUNCH_MARKER);
+    let markerText: string | null = null;
+    try { markerText = fs.readFileSync(marker, 'utf8'); fs.rmSync(marker, { force: true }); } catch { /* none */ }
+    const afterUpdate = relaunchHidden(markerText, Date.now());
+    if (afterUpdate) log(`update: relaunched as ${app.getVersion()} after an automatic install`);
+    const hidden = afterUpdate || app.getLoginItemSettings().wasOpenedAtLogin || process.argv.includes('--hidden');
     if (!hidden) showWindow();
-    else { dockWanted = false; void syncDock(); } // opened at login: the menu bar only, as when the window is hidden (FD-05)
+    else { dockWanted = false; void syncDock(); updateGrace.hidden(); } // the menu bar only, as when the window is hidden (FD-05)
+    if (!hidden) void offerMoveToApplications();
     log(`started ${app.getVersion()} watching ${monitor.meta().servicesDir}`);
   });
 

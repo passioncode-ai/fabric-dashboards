@@ -19,7 +19,7 @@
 Fabric Dashboards: a macOS desktop app (Electron) that finds every local agent service speaking
 `fabric-service/0.1`, shows whether it is alive and what it did last, starts, stops and restarts
 it through launchd and opens each service's dashboard inside the app. Fabric's monitoring tool;
-also works on its own. The current version is 0.5.3 (`package.json`, `CHANGELOG.md`); the README
+also works on its own. The current version is 0.5.4 (`package.json`, `CHANGELOG.md`); the README
 *Quick start for a new teammate* is the path for a new user. Licence:
 `AGPL-3.0-only OR LicenseRef-PassionCode-Commercial` ([ADR-0007](docs/adr/0007-agpl-or-commercial.md)).
 
@@ -97,7 +97,7 @@ LC-09 inventory for this product. The tests that hold each rule are in `test/lif
 
 | Process | Started by | Cadence and what runs with no window | Stopped by |
 |---|---|---|---|
-| `Fabric Dashboards` (main process, one instance) | the person (Finder, Dock, `open`), a `fabric-dashboards://` link, or macOS at login **only if the person chose it** — asked once on the first-run card or in Settings, off until then; a launch never registers it (LC-07) | menu-bar icon always; the Dock icon only while the window is shown (FD-05); the monitor starts hidden and stays at the background cadence until a window is actually shown (table below) | tray Quit, ⌘Q, logout, `SIGTERM`: `will-quit` stops every monitor timer, flushes the activity state and ends every command group it started |
+| `Fabric Dashboards` (main process, one instance) | the person (Finder, Dock, `open`), a `fabric-dashboards://` link, or macOS at login **only if the person chose it** — asked once on the first-run card or in Settings, off until then; a launch never registers it (LC-07) | menu-bar icon always; the Dock icon only while the window is shown (FD-05); the monitor starts hidden and stays at the background cadence until a window is actually shown (table below) | tray Quit, ⌘Q, logout, `SIGTERM`: `will-quit` stops every monitor timer, flushes the activity state and ends every command group it started; an automatic update install (window hidden 10 min, no command running, `autoUpdate` on — ADR-0015) quits it the same way and Squirrel relaunches it in the menu bar |
 | Electron helpers: GPU, network, the app's renderer | Electron, with the main process | idle | the main process |
 | One renderer per opened service dashboard (`WebContentsView`, ~45 MB footprint each) | opening a service page | released 5 min after the window is hidden or minimized (`VIEW_RELEASE_GRACE_MS`); showing the window again re-opens the one that was on screen, on its page | the grace timer, the service's removal, quit |
 | MCP stdio server (`Resources/bin/fabric-dashboards-mcp` → the app binary as Node, `ELECTRON_RUN_AS_NODE=1`; ~15 MB footprint) | Claude Code, one per agent session (`claude mcp add --scope user …`) | nothing between calls except an unref'd 60 s check that the installed bundle is still the one it started from | stdin EOF or `SIGTERM`: exits within 1 s and kills its command groups (SIGTERM, SIGKILL after 300 ms); after an app update it answers the next call `stale` with both versions and exits (LC-10) |
@@ -123,6 +123,7 @@ due probe or rescan — no fixed 1-second poll — and one for the events feed:
 | Directory rescan (reads small JSON files, no spawn) | on `fs.watch`, plus every 5 s | on `fs.watch`, plus every 60 s (30 s if the watcher failed) |
 | Status push to the window / tray rebuild / Dock badge | only when what a person can see changed | no IPC to a hidden window; tray and badge only when they would differ |
 | Activity writes | appended rows when events arrive; state debounced 2 s | same |
+| Update check (Squirrel, `update-feed.json` of the latest release) | 10 s after start, then every 6 h; downloads by itself; none outside Applications (`misplaced`) | same; a downloaded update installs after 10 hidden minutes (ADR-0015) |
 | Usage reports (`surfaces.usage`, ADR-0013) | only while Spend is open: on opening, every 60 s and on Refresh | none — the main process answers the last sums without reading |
 
 **Idle budget**, hidden, per hour, for *L* local launchd services and *R* online ones — counted on a
@@ -135,17 +136,24 @@ carries these changes — measure with `ps -o time,rss` over 10 hidden minutes o
 and record the numbers in `docs/HANDOFF.md`. (Before this change, 0.4.1 measured 1.3 % CPU and about
 7,200 `launchctl` spawns an hour after a login launch: lifecycle audit 2026-10-03, F-2/F-4.)
 
-**Files it writes** (LC-12): `~/Library/Application Support/Fabric Dashboards/` — `settings.json`,
-`activity.jsonl` (appended, compacted to 5,000 rows at 10,000), `activity-state.json`,
+**Files it writes** (LC-12): `~/Library/Application Support/Fabric Dashboards/` — `settings.json`
+and its last good copy `settings.json.bak` (a damaged `settings.json` is restored from it, ADR-0015),
+`restore.json` (written only by an uninstall that kept the data), `.relaunch-hidden` (seconds-long
+marker of an automatic update install), `activity.jsonl` (appended, compacted to 5,000 rows at 10,000), `activity-state.json`,
 `notified.json`, the Chromium profile and one `Partitions/svc-<key>` per service ever opened;
 `~/Library/Logs/Fabric Dashboards/main.log` (0600, 5 × 5 MB). At start it removes temporary files
 left by a killed writer and the partitions of services that are no longer installed; a service
 removed while it runs takes its view and its stored session with it.
 
-**Uninstall** (LC-14): Settings → Uninstall removes the login item, the `fabric-dashboards` MCP
-entry from `~/.claude.json` (user and project scopes; a same-named server that runs something else
-is kept), the app's data (`productDataPaths` in `src/core/uninstall.ts`) once the app has exited,
-and moves the app to the Trash. Without the app: `fabric-dashboards-mcp --unregister` removes the
+**Uninstall** (LC-14, ADR-0015): Settings → Uninstall removes the login item and the
+`fabric-dashboards` MCP entry from `~/.claude.json` (user and project scopes; a same-named server
+that runs something else is kept) and moves the app to the Trash. Data goes only on request: by
+default, once the app has exited, everything it wrote is removed (`productDataPaths` in
+`src/core/uninstall.ts`) **except** `KEPT_FILES` — settings, their copy, the activity history, the
+notification ledger and `restore.json`, which makes the next install put the login item and the
+MCP entries back. Ticking «Also delete my settings and activity history» removes those too. Every
+packaged launch points an MCP entry of ours whose launcher is gone at the running copy. The
+services folder (descriptors and tokens) is never touched. Without the app: `fabric-dashboards-mcp --unregister` removes the
 MCP entry alone.
 
 **Fuses** (LC-13, `scripts/fuses.mjs`): `npm run dist` sets them before signing and reads them back

@@ -33,12 +33,17 @@ function strip(servers: unknown): boolean {
   return true;
 }
 
+/** One entry the uninstall took out of `~/.claude.json`, kept so a reinstall can put it back. */
+export interface McpRemoval { scope: string; entry: McpEntry & Record<string, unknown> }
+
+type ClaudeConfig = { mcpServers?: unknown; projects?: Record<string, { mcpServers?: unknown }> };
+
 /**
- * Remove the Fabric Dashboards MCP server from Claude Code's `~/.claude.json`, at user scope and in
- * every project scope. Claude Code rewrites that file often, so the edit is read → change →
- * atomic rename, retried when the file changed in between; an unreadable file is never overwritten.
+ * Read → change → atomic rename of Claude Code's `~/.claude.json`. Claude Code rewrites that file
+ * often, so the edit is retried when the file changed in between; an unreadable file is never
+ * overwritten. `change` returns whether it changed anything; a missing file is left missing.
  */
-export function removeMcpRegistrations(home = os.homedir()): { file: string; removed: string[] } {
+function editClaudeConfig<T>(home: string, change: (config: ClaudeConfig) => { changed: boolean; result: T }, missing: T): { file: string; result: T } {
   const file = path.join(home, '.claude.json');
   for (let attempt = 0; attempt < 5; attempt += 1) {
     let text: string;
@@ -47,26 +52,123 @@ export function removeMcpRegistrations(home = os.homedir()): { file: string; rem
       before = fs.statSync(file);
       text = fs.readFileSync(file, 'utf8');
     } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return { file, removed: [] };
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return { file, result: missing };
       throw new Error(`cannot read ${file}: ${(error as Error).message}`);
     }
-    let config: { mcpServers?: unknown; projects?: Record<string, { mcpServers?: unknown }> };
+    let config: ClaudeConfig;
     try {
       config = JSON.parse(text);
     } catch (error) {
       throw new Error(`cannot read ${file}: ${(error as Error).message}`);
     }
-    const removed: string[] = [];
-    if (strip(config.mcpServers)) removed.push('user');
-    for (const [project, scope] of Object.entries(config.projects ?? {})) if (scope && strip(scope.mcpServers)) removed.push(`projects.${project}`);
-    if (!removed.length) return { file, removed };
+    const { changed, result } = change(config);
+    if (!changed) return { file, result };
     const now = fs.statSync(file);
     if (now.mtimeMs !== before.mtimeMs || now.size !== before.size) continue; // written meanwhile: read again
     atomicWrite(file, `${JSON.stringify(config, null, 2)}\n`, before.mode & 0o777);
-    return { file, removed };
+    return { file, result };
   }
-  throw new Error(`${file} kept changing; nothing was removed`);
+  throw new Error(`${file} kept changing; nothing was changed`);
 }
+
+function scopes(config: ClaudeConfig): { scope: string; servers: Servers | undefined }[] {
+  const servers = (x: unknown) => (x && typeof x === 'object' ? (x as Servers) : undefined);
+  return [
+    { scope: 'user', servers: servers(config.mcpServers) },
+    ...Object.entries(config.projects ?? {}).map(([project, p]) => ({ scope: `projects.${project}`, servers: servers(p?.mcpServers) })),
+  ];
+}
+
+/**
+ * Remove the Fabric Dashboards MCP server from Claude Code's `~/.claude.json`, at user scope and in
+ * every project scope. Returns the scopes and the entries removed, so a reinstall can restore them.
+ */
+export function removeMcpRegistrations(home = os.homedir()): { file: string; removed: string[]; entries: McpRemoval[] } {
+  const { file, result } = editClaudeConfig(home, (config) => {
+    const entries: McpRemoval[] = [];
+    for (const { scope, servers } of scopes(config)) {
+      if (!servers || !isOurs(servers[MCP_SERVER_NAME])) continue;
+      entries.push({ scope, entry: structuredClone(servers[MCP_SERVER_NAME]) as McpRemoval['entry'] });
+      delete servers[MCP_SERVER_NAME];
+    }
+    return { changed: entries.length > 0, result: entries };
+  }, [] as McpRemoval[]);
+  return { file, removed: result.map((e) => e.scope), entries: result };
+}
+
+/**
+ * Put back the entries an uninstall removed, pointed at this install's launcher. A scope that has a
+ * `fabric-dashboards` entry again (the person added one) keeps it; a project scope that no longer
+ * exists is skipped. Returns the scopes restored.
+ */
+export function restoreMcpRegistrations(entries: McpRemoval[], launcher: string, home = os.homedir()): string[] {
+  if (!entries.length) return [];
+  return editClaudeConfig(home, (config) => {
+    const restored: string[] = [];
+    for (const { scope, entry } of entries) {
+      let holder: { mcpServers?: unknown } | undefined;
+      if (scope === 'user') holder = config;
+      else if (scope.startsWith('projects.')) holder = config.projects?.[scope.slice('projects.'.length)];
+      if (!holder) continue;
+      if (!holder.mcpServers || typeof holder.mcpServers !== 'object') holder.mcpServers = {};
+      const servers = holder.mcpServers as Servers;
+      if (servers[MCP_SERVER_NAME]) continue;
+      servers[MCP_SERVER_NAME] = { ...entry, command: launcher, args: [] };
+      restored.push(scope);
+    }
+    return { changed: restored.length > 0, result: restored };
+  }, [] as string[]).result;
+}
+
+/**
+ * An entry of ours whose launcher no longer exists — the app was moved, or reinstalled somewhere
+ * else after being dragged to the Trash — is pointed at this install's launcher. A development
+ * entry (`node …/server.js`) and any other server are left alone. Returns the scopes repaired.
+ */
+export function repairMcpRegistrations(launcher: string, home = os.homedir(), exists: (p: string) => boolean = fs.existsSync): string[] {
+  return editClaudeConfig(home, (config) => {
+    const repaired: string[] = [];
+    for (const { scope, servers } of scopes(config)) {
+      const entry = servers?.[MCP_SERVER_NAME];
+      if (!entry || typeof entry.command !== 'string' || path.basename(entry.command) !== LAUNCHER) continue;
+      if (entry.command === launcher || exists(entry.command)) continue;
+      entry.command = launcher;
+      repaired.push(scope);
+    }
+    return { changed: repaired.length > 0, result: repaired };
+  }, [] as string[]).result;
+}
+
+// #region restore-record — docs: docs/adr/0015-data-survives-uninstall-updates-install-themselves.md#decision
+/** What an uninstall that kept the data writes beside it, for the next install to put back. */
+export const RESTORE_FILE = 'restore.json';
+/** The person's choices and history: kept by an uninstall unless the person asks to delete them. */
+export const KEPT_FILES = ['settings.json', 'settings.json.bak', 'activity.jsonl', 'activity-state.json', 'notified.json', RESTORE_FILE] as const;
+
+export interface RestoreRecord { version: 1; at: string; loginItem: boolean; mcp: McpRemoval[] }
+
+export function writeRestoreRecord(dir: string, record: Omit<RestoreRecord, 'version'>): void {
+  atomicWrite(path.join(dir, RESTORE_FILE), JSON.stringify({ version: 1, ...record }, null, 2));
+}
+
+/** The record an uninstall left, or null: absent, unreadable or of another shape. */
+export function readRestoreRecord(dir: string): RestoreRecord | null {
+  let raw: unknown;
+  try {
+    raw = JSON.parse(fs.readFileSync(path.join(dir, RESTORE_FILE), 'utf8'));
+  } catch {
+    return null;
+  }
+  const r = raw as Partial<RestoreRecord> | null;
+  if (!r || r.version !== 1 || typeof r.loginItem !== 'boolean' || !Array.isArray(r.mcp)) return null;
+  const mcp = r.mcp.filter((m): m is McpRemoval => Boolean(m) && typeof m.scope === 'string' && Boolean(m.entry) && typeof m.entry === 'object');
+  return { version: 1, at: String(r.at ?? ''), loginItem: r.loginItem, mcp };
+}
+
+export function clearRestoreRecord(dir: string): void {
+  fs.rmSync(path.join(dir, RESTORE_FILE), { force: true });
+}
+// #endregion restore-record
 
 /** Every directory the app writes under `home` (Electron's userData, caches, logs, the updater's
  *  cache, the network store, saved window state). */
@@ -108,12 +210,19 @@ export function purgeData(paths: string[]): string[] {
  * Remove product data once process `pid` has exited — the app's own data cannot be deleted while
  * Chromium still writes into it. A detached `/bin/sh` waits for the pid (at most 30 s), removes the
  * paths isProductPath accepts and ends: the one process that deliberately outlives the app, bounded.
+ * With `keep`, everything inside `keep.dir` except the named files goes too — the uninstall that
+ * keeps the person's settings and history (LC-14: data goes only when the person asks).
  */
-export function purgeAfterExit(pid: number, paths: string[]): ChildProcess | null {
+export function purgeAfterExit(pid: number, paths: string[], keep?: { dir: string; names: readonly string[] }): ChildProcess | null {
   const checked = paths.filter((p) => isProductPath(p)).map((p) => path.resolve(p));
-  if (!checked.length) return null;
-  const script = 'i=0; while kill -0 "$0" 2>/dev/null && [ $i -lt 300 ]; do sleep 0.1; i=$((i+1)); done; rm -rf -- "$@"';
-  const helper = spawn('/bin/sh', ['-c', script, String(pid), ...checked], { detached: true, stdio: 'ignore' });
+  const keepDir = keep && isProductPath(keep.dir) ? path.resolve(keep.dir) : '';
+  if (!checked.length && !keepDir) return null;
+  const names = keep?.names ?? [];
+  if (names.some((n) => !/^[A-Za-z0-9._-]+$/.test(n))) throw new Error('a kept name is a plain file name');
+  const kept = names.length ? names.join('|') : '/';
+  const script = 'i=0; while kill -0 "$0" 2>/dev/null && [ $i -lt 300 ]; do sleep 0.1; i=$((i+1)); done; k="$1"; shift; rm -rf -- "$@"; '
+    + `if [ -n "$k" ] && [ -d "$k" ]; then for f in "$k"/* "$k"/.[!.]* "$k"/..?*; do [ -e "$f" ] || [ -L "$f" ] || continue; case "\${f##*/}" in ${kept}) ;; *) rm -rf -- "$f" ;; esac; done; fi`;
+  const helper = spawn('/bin/sh', ['-c', script, String(pid), keepDir, ...checked], { detached: true, stdio: 'ignore' });
   helper.unref();
   return helper;
 }
