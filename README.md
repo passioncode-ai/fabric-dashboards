@@ -12,6 +12,12 @@ agents drive it over MCP, people use the window.
 **Version 0.5.4** — [download](https://github.com/passioncode-ai/fabric-dashboards/releases/latest). See [HANDOFF](docs/HANDOFF.md)
 for what is released and what is next.
 
+![Fabric Dashboards: the overview with six agents — status strip, Needs attention, one card per agent](docs/images/overview.png)
+
+![An agent's own dashboard inside the app, signed in, with its toolbar: back, forward, reload, home, address, copy](docs/images/service-dashboard.png)
+
+Screenshots of the real app against the kit's sample service under example names (`npm run screenshots`, [scripts/screenshots.ts](scripts/screenshots.ts)).
+
 ## What it does
 
 | | |
