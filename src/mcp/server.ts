@@ -87,13 +87,14 @@ export const TOOLS = [
   },
   {
     name: 'doctor',
-    description: 'Run the service\'s own doctor command (its descriptor declares it) and return its output.',
+    description: 'Run the service\'s own doctor command (its descriptor declares it) and return its output. It runs a program the service ships: announce it first.',
     inputSchema: { type: 'object', properties: { service: serviceArg }, required: ['service'], additionalProperties: false },
-    annotations: { readOnlyHint: true },
+    // M-1: it executes the descriptor's program, so a client must not auto-approve it as read-only.
+    annotations: { readOnlyHint: false, destructiveHint: false },
   },
   {
     name: 'update',
-    description: 'Run the service\'s own update command (list_services shows update_available). Restarts the service onto the new code.',
+    description: 'Run the service\'s own update command (list_services shows update_available) and return its output. What the command does — install, restart — is the service\'s; call service_status afterwards to see the result.',
     inputSchema: { type: 'object', properties: { service: serviceArg }, required: ['service'], additionalProperties: false },
     annotations: { readOnlyHint: false, destructiveHint: true },
   },
@@ -170,6 +171,12 @@ export async function handle(deps: tools.Deps, message: Message): Promise<Record
     case 'tools/call': {
       const name = String(params.name ?? '');
       const args = (params.arguments && typeof params.arguments === 'object' ? params.arguments : {}) as Args;
+      // M-2: an unknown tool is a protocol error, and arguments a tool does not declare are refused.
+      const tool = TOOLS.find((x) => x.name === name);
+      if (!tool) return fail(-32602, `unknown tool ${JSON.stringify(name)}`);
+      const declared = Object.keys((tool.inputSchema as { properties?: Record<string, unknown> }).properties ?? {});
+      const extra = Object.keys(args).filter((k) => !declared.includes(k));
+      if (extra.length) return reply({ content: [{ type: 'text', text: `unknown argument ${JSON.stringify(extra[0])} for ${name}` }], isError: true });
       try {
         const result = await call(deps, name, args);
         return reply({ content: [{ type: 'text', text: JSON.stringify(result, null, 2) }], structuredContent: result });

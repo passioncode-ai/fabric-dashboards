@@ -79,6 +79,8 @@ export interface AppStatus {
   dirError: string | null;
   scanning: boolean;
   unread: number;
+  /** Grows with every activity row, so an open Activity page refreshes for app events too (U-8). */
+  activityRev?: number;
   update: { state: 'idle' | 'checking' | 'downloading' | 'ready' | 'error' | 'unsupported' | 'misplaced'; version?: string; error?: string; checkedAt?: string };
   version: string;
 }

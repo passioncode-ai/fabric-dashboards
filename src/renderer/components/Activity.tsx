@@ -2,16 +2,20 @@ import { useEffect, useState } from 'react';
 import type { ActivityItem, AppStatus } from '../../core/types';
 import { api, nameOf, Spinner, useT } from '../lib';
 
-interface Props { status: AppStatus; openAt: (key: string, link?: string) => void }
+export interface ActivityFilter { serviceKey: string; minLevel: '' | ActivityItem['level'] }
+interface Props { status: AppStatus; openAt: (key: string, link?: string) => void; filter: ActivityFilter; setFilter: (f: ActivityFilter) => void }
 
-export function Activity({ status, openAt }: Props) {
+export function Activity({ status, openAt, filter, setFilter }: Props) {
   const { t, reason } = useT();
-  const [serviceKey, setServiceKey] = useState('');
-  const [minLevel, setMinLevel] = useState<'' | ActivityItem['level']>('');
+  const { serviceKey, minLevel } = filter;
+  const setServiceKey = (k: string) => setFilter({ ...filter, serviceKey: k });
+  const setMinLevel = (l: '' | ActivityItem['level']) => setFilter({ ...filter, minLevel: l });
   const [items, setItems] = useState<ActivityItem[] | null>(null);
-  const tick = status.services.map((s) => s.latestEvent?.id ?? '').join('|') + status.unread;
+  // U-8: every new row counts, app events included — not only a service's latest event.
+  const tick = `${status.activityRev ?? ''}|${status.services.map((s) => s.latestEvent?.id ?? '').join('|')}|${status.unread}`;
 
-  useEffect(() => { void api().markActivitySeen(); }, []);
+  // Read while it is open: what arrives during reading is seen, so the count does not grow under the reader.
+  useEffect(() => { if (status.unread > 0 || items === null) void api().markActivitySeen(); }, [status.unread]);
   useEffect(() => {
     void api().activity({ serviceKey: serviceKey || undefined, minLevel: minLevel || undefined }).then(setItems);
   }, [serviceKey, minLevel, tick]);
@@ -43,7 +47,7 @@ export function Activity({ status, openAt }: Props) {
 
 export function Feed({ items, openAt }: { items: ActivityItem[] | null; openAt?: (key: string, link?: string) => void }) {
   const { t, time, lang } = useT();
-  if (!items) return <p className="row muted"><Spinner /></p>;
+  if (!items) return <p className="row muted" role="status"><Spinner /> {t('app.loading')}</p>;
   if (!items.length) return <p className="muted">{t('activity.empty')}</p>;
   const dayOf = (iso: string) => {
     const d = new Date(iso);

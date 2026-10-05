@@ -6,17 +6,15 @@ export function Settings({ status, onTheme }: { status: AppStatus; onTheme: (the
   const { t, time } = useT();
   const [value, setValue] = useState<SettingsValue | null>(null);
   const [error, setError] = useState('');
-  const [allowed, setAllowed] = useState(true);
   const [listeners, setListeners] = useState<{ listeners: Listener[]; error?: string } | null>(null);
   const [uninstallError, setUninstallError] = useState('');
 
   useEffect(() => {
     void api().settings().then(setValue);
-    void api().notificationsAllowed().then(setAllowed);
     void api().listeners().then(setListeners);
   }, []);
 
-  if (!value) return <p className="row muted"><Spinner /></p>;
+  if (!value) return <p className="row muted" role="status"><Spinner /> {t('app.loading')}</p>;
   const save = async (patch: Partial<SettingsValue>) => {
     const r = await api().updateSettings(patch);
     setValue(r.settings);
@@ -49,15 +47,18 @@ export function Settings({ status, onTheme }: { status: AppStatus; onTheme: (the
         <label className="setting">{t('settings.autoUpdate')}
           <input type="checkbox" checked={value.autoUpdate} onChange={(e) => void save({ autoUpdate: e.target.checked })} />
         </label>
-        <p className="meta">{t('settings.autoUpdate.body')}</p>
-        <UpdateState status={status} />
+        {/* U-11: the explanation and the state read as one note under the switch. */}
+        <div className="setting-note">
+          <p className="meta">{t('settings.autoUpdate.body')}</p>
+          <UpdateState status={status} />
+        </div>
       </section>
 
       <section className="group" aria-labelledby="g-notify">
         <h2 id="g-notify">{t('settings.notifications')}</h2>
-        {!allowed && (
-          <p className="notice warning">{t('settings.notifications.denied')} <button className="btn-link btn" onClick={() => void api().openNotificationSettings()}>{t('settings.notifications.openSystem')}</button></p>
-        )}
+        {/* U-10: Electron cannot read macOS's notification permission, so the app never claims it is
+            off; the way to check is always one click away. */}
+        <p className="meta row">{t('settings.notifications.system')} <button className="btn-link btn" onClick={() => void api().openNotificationSettings()}>{t('settings.notifications.openSystem')}</button></p>
         <label className="setting">{t('settings.notifications.enabled')}
           <input type="checkbox" checked={n.enabled} onChange={(e) => setN({ enabled: e.target.checked })} />
         </label>
@@ -119,12 +120,12 @@ export function Settings({ status, onTheme }: { status: AppStatus; onTheme: (the
       <section className="group" aria-labelledby="g-listeners">
         <h2 id="g-listeners">{t('settings.listeners')}</h2>
         <p className="meta">{t('settings.listeners.body')}</p>
-        {!listeners && <p className="row muted"><Spinner /></p>}
+        {!listeners && <p className="row muted" role="status"><Spinner /> {t('app.loading')}</p>}
         {listeners?.error && <p className="notice error">{t('settings.listeners.error', { error: listeners.error })}</p>}
         {listeners && !listeners.error && listeners.listeners.length === 0 && <p className="state state-ready">{t('settings.listeners.none')}</p>}
         {listeners && listeners.listeners.length > 0 && (
           <table>
-            <thead><tr><th>port</th><th>address</th><th>program</th><th>pid</th></tr></thead>
+            <thead><tr><th>{t('listeners.port')}</th><th>{t('listeners.address')}</th><th>{t('listeners.program')}</th><th>{t('listeners.pid')}</th></tr></thead>
             <tbody>{listeners.listeners.map((l) => <tr key={`${l.pid}-${l.port}-${l.address}`}><td className="mono">{l.port}</td><td className="mono">{l.address}</td><td>{l.command}</td><td className="mono">{l.pid}</td></tr>)}</tbody>
           </table>
         )}
@@ -140,7 +141,7 @@ function UpdateState({ status }: { status: AppStatus }) {
   const u = status.update;
   if (u.state === 'unsupported') return <p className="meta">{t('update.unsupported')}</p>;
   if (u.state === 'misplaced') return <p className="notice warning">{t('update.misplaced')} <button className="btn" onClick={() => void api().moveToApplications()}>{t('move.confirm')}</button></p>;
-  if (u.state === 'ready') return <div className="row"><span className="meta">{t('update.ready', { version: u.version ?? '' })}</span><button className="btn btn-primary" onClick={() => void api().restartToUpdate()}>{t('update.restart')}</button></div>;
+  if (u.state === 'ready') return <div className="row"><span className="meta">{(u.version ? t('update.ready', { version: u.version }) : t('update.readyUnnamed'))}</span><button className="btn btn-primary" onClick={() => void api().restartToUpdate()}>{t('update.restart')}</button></div>;
   if (u.state === 'checking' || u.state === 'downloading') return <p className="meta row"><Spinner /> {t(`update.${u.state}`)}</p>;
   return (
     <div className="row">

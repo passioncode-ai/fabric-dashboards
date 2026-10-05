@@ -46,11 +46,17 @@ if (!app.isPackaged && process.env.FD_TEST_REMOTE) {
 
 const assets = app.isPackaged ? path.join(process.resourcesPath, 'assets') : path.join(__dirname, '../../../build/assets');
 const rendererIndex = path.join(__dirname, '../../renderer/index.html');
+/** How a service joins (SCN-002): the kit that writes a descriptor on install. */
+const SERVICE_GUIDE = 'https://github.com/passioncode-ai/fabric-agent-adapter#readme';
 
 /** ~/Library/Logs/Fabric Dashboards/main.log: timestamped, 0600, 5 × 5 MB at most (LC-12). */
 function log(message: string): void {
   appendLog(path.join(app.getPath('logs'), 'main.log'), `${new Date().toISOString()} ${message}`);
 }
+// R-2: installed first — an exception during start-up is logged instead of leaving a process that
+// holds the single-instance lock with no window, tray or link handler.
+process.on('uncaughtException', (error) => log(`uncaught: ${error.stack ?? error.message}`));
+process.on('unhandledRejection', (error) => log(`unhandled: ${String(error)}`));
 
 // Deep links (docs/adr/0004-deep-links-and-mcp.md). macOS delivers `open-url` as early as
 // `will-finish-launching`, before the window or the monitor exists: the link waits in a queue.
@@ -73,18 +79,29 @@ if (!app.requestSingleInstanceLock()) {
   const userData = app.getPath('userData');
   // A writer killed between write and rename leaves its temporary file; nothing else removes it (LC-12).
   for (const name of sweepTemps(userData)) log(`removed a temporary file left by a stopped process: ${name}`);
-  const settings = new SettingsStore(userData);
+  const settings = new SettingsStore(userData, (message) => log(message));
   if (settings.recovered) log(`settings: ${settings.recovered}`);
   // Embedded dashboards follow the app's theme, not only macOS (prefers-color-scheme in every page).
   nativeTheme.themeSource = settings.get().theme;
-  const activity = new ActivityStore(userData);
+  const activity = new ActivityStore(userData, { onWriteError: (message) => log(message) });
   const lang = (): Lang => langFor(app.getPreferredSystemLanguages()[0] ?? app.getLocale());
   const monitor = new Monitor({ servicesDir: servicesDir(), activity, settings: () => settings.get(), lang, ledger: new NotifyLedger(path.join(userData, 'notified.json')) });
   let tray: AppTray | null = null;
-  const updater = new Updater(() => { pushStatus(); if (updater.state.state === 'ready' && !windowVisible()) updateGrace.hidden(); }, log);
+  // R-3: the window lets itself close only once a quit is really under way — before-quit, or
+  // Squirrel's before-quit-for-update. A failed install puts the window back to hiding on close.
+  const updater = new Updater(() => {
+    pushStatus();
+    if (updater.state.state === 'ready' && !windowVisible()) updateGrace.hidden();
+    if (updater.state.state === 'error' && installing) {
+      installing = false;
+      quitting = false;
+      try { fs.rmSync(path.join(userData, RELAUNCH_MARKER), { force: true }); } catch { /* gone */ }
+    }
+  }, log, () => { installing = true; quitting = true; });
+  let installing = false;
 
   const status = (): AppStatus => ({
-    services: monitor.snapshots(), ...monitor.meta(), unread: activity.unread(), update: updater.state, version: app.getVersion(),
+    services: monitor.snapshots(), ...monitor.meta(), unread: activity.unread(), activityRev: activity.revision, update: updater.state, version: app.getVersion(),
   });
 
   // #region quiet-push — docs: AGENTS.md#lifecycle
@@ -117,20 +134,23 @@ if (!app.requestSingleInstanceLock()) {
   // ADR-0015: a downloaded update installs by itself once the window has been hidden for
   // UPDATE_IDLE_MS and no command the app started is running; the relaunch stays in the menu bar.
   const updateGrace = new HiddenGrace(UPDATE_IDLE_MS, () => autoInstall());
+  let busyRetry: NodeJS.Timeout | null = null;
   function autoInstall(): void {
     const busy = ownedCount();
     if (!autoInstallNow({ ready: updater.state.state === 'ready', autoUpdate: settings.get().autoUpdate, visible: windowVisible(), busy })) {
-      if (busy && updater.state.state === 'ready') setTimeout(() => autoInstall(), 60_000).unref();
+      // R-10: one retry at a time, and showing the window cancels it — the 10 hidden minutes start again.
+      if (busy && updater.state.state === 'ready' && !busyRetry) busyRetry = setTimeout(() => { busyRetry = null; autoInstall(); }, 60_000);
+      busyRetry?.unref();
       return;
     }
     try { fs.writeFileSync(path.join(userData, RELAUNCH_MARKER), new Date().toISOString(), { mode: 0o600 }); } catch (error) { log(`update: could not mark the relaunch hidden: ${(error as Error).message}`); }
     log(`update: installing ${updater.state.version ?? 'the downloaded update'} while the window is hidden`);
-    quitting = true;
-    updater.restart();
+    if (!updater.restart()) { try { fs.rmSync(path.join(userData, RELAUNCH_MARKER), { force: true }); } catch { /* gone */ } }
   }
   // #endregion auto-install-flow
   function windowShown(): void {
     updateGrace.shown();
+    if (busyRetry) { clearTimeout(busyRetry); busyRetry = null; }
     viewGrace.shown();
     monitor.setVisible(true);
     pushStatus();
@@ -197,7 +217,7 @@ if (!app.requestSingleInstanceLock()) {
 
   // A navigation sent before the renderer subscribes is lost (a link at launch lands while React
   // is still mounting), so until the renderer takes it (CHANNELS.navigateTake) it waits here.
-  type NavTarget = { page: 'service' | 'activity'; key?: string; link?: string };
+  type NavTarget = { page: 'service' | 'activity' | 'overview'; key?: string; link?: string };
   let rendererListening = false;
   let pendingNav: NavTarget | null = null;
   function navigate(target: NavTarget): void {
@@ -206,10 +226,25 @@ if (!app.requestSingleInstanceLock()) {
     else pendingNav = target; // the latest wins, as a click would
   }
 
+  // U-7: when a notification pause ends — set from the tray or from Settings — the tray rebuilds once.
+  let pauseTimer: NodeJS.Timeout | null = null;
+  function schedulePauseEnd(): void {
+    if (pauseTimer) clearTimeout(pauseTimer);
+    pauseTimer = null;
+    const until = Date.parse(settings.get().notifications.pausedUntil ?? '');
+    if (!Number.isFinite(until) || until <= Date.now()) return;
+    pauseTimer = setTimeout(() => { pauseTimer = null; pushStatus(); }, Math.min(until - Date.now() + 1000, 2 ** 31 - 1));
+    pauseTimer.unref();
+  }
+  const shownNotices = new Set<Notification>();
   function notify(notice: Notice): void {
     if (!Notification.isSupported()) return;
     const n = new Notification({ title: notice.title, subtitle: notice.subtitle, body: notice.body, silent: false });
-    n.on('click', () => navigate({ page: notice.target, key: notice.serviceKey, link: notice.link }));
+    // R-12: kept until clicked or closed — a collected notification loses its click handler.
+    shownNotices.add(n);
+    const forget = () => shownNotices.delete(n);
+    n.on('click', () => { forget(); navigate({ page: notice.target, key: notice.serviceKey, link: notice.link }); });
+    n.on('close', forget);
     n.show();
   }
 
@@ -235,15 +270,19 @@ if (!app.requestSingleInstanceLock()) {
     const wasAtLogin = Boolean(loginOs && settings.get().launchAtLogin);
     let mcp: ReturnType<typeof removeMcpRegistrations>['entries'] = [];
     try {
-      if (loginOs) {
-        const refused = applyLoginItem(false, loginOs);
-        if (refused) throw new Error(refused);
-      }
-      // A development build leaves the installed app's registration alone.
+      // R-11: the MCP entry first — it is the step that can fail on a busy ~/.claude.json, and a
+      // failure then leaves nothing half-removed. The login item second; a refusal puts the MCP entries back.
       if (app.isPackaged) {
         const r = removeMcpRegistrations();
         mcp = r.entries;
         log(`uninstall: MCP registration removed from ${JSON.stringify(r.removed)}`);
+      }
+      if (loginOs) {
+        const refused = applyLoginItem(false, loginOs);
+        if (refused) {
+          try { restoreMcpRegistrations(mcp, launcher()); } catch (e) { log(`uninstall: MCP registration not put back: ${(e as Error).message}`); }
+          throw new Error(refused);
+        }
       }
     } catch (error) {
       log(`uninstall stopped: ${(error as Error).message}`);
@@ -271,8 +310,7 @@ if (!app.requestSingleInstanceLock()) {
       }
     }
     log(`uninstall: login item and registration removed; ${deleteData ? 'all data' : 'everything but settings and history'} is removed after exit`);
-    quitting = true;
-    setImmediate(() => app.quit());
+    setImmediate(() => app.quit()); // before-quit sets quitting, so the window lets itself close
     return { ok: true };
   }
   // #endregion uninstall-flow
@@ -309,19 +347,22 @@ if (!app.requestSingleInstanceLock()) {
     }
   }
 
+  /** U-6/R-3: a move that macOS refuses says so, and leaves the app as it was. A move that works
+   *  quits through app.quit (before-quit sets `quitting`) and relaunches from Applications. */
   async function moveToApplications(): Promise<{ ok: boolean; error?: string }> {
     if (!app.isPackaged || app.isInApplicationsFolder()) return { ok: true };
+    let error = '';
     try {
-      quitting = true;
       // An older copy already in Applications is replaced; a running one cannot be, since this
       // copy holds the single-instance lock.
-      app.moveToApplicationsFolder({ conflictHandler: () => true });
-      return { ok: true };
-    } catch (error) {
-      quitting = false;
-      log(`move to Applications failed: ${(error as Error).message}`);
-      return { ok: false, error: (error as Error).message };
+      if (app.moveToApplicationsFolder({ conflictHandler: () => true })) return { ok: true };
+      error = t(lang(), 'move.refused');
+    } catch (e) {
+      error = (e as Error).message;
     }
+    log(`move to Applications failed: ${error}`);
+    await dialog.showMessageBox({ type: 'warning', message: t(lang(), 'move.failed', { error }), buttons: ['OK'] });
+    return { ok: false, error };
   }
 
   /** Asked once (LC-07): a copy outside Applications cannot update itself. */
@@ -331,10 +372,7 @@ if (!app.requestSingleInstanceLock()) {
     const l = lang();
     const ask = { type: 'question' as const, buttons: [t(l, 'move.confirm'), t(l, 'move.later')], defaultId: 0, cancelId: 1, message: t(l, 'move.title'), detail: t(l, 'move.body') };
     const { response } = window && !window.isDestroyed() ? await dialog.showMessageBox(window, ask) : await dialog.showMessageBox(ask);
-    if (response === 0) {
-      const r = await moveToApplications();
-      if (!r.ok) await dialog.showMessageBox({ type: 'warning', message: t(l, 'move.failed', { error: r.error ?? '' }), buttons: ['OK'] });
-    }
+    if (response === 0) await moveToApplications(); // a refusal is shown by moveToApplications itself
   }
   // #endregion reinstall
 
@@ -365,13 +403,14 @@ if (!app.requestSingleInstanceLock()) {
     let lastSpendAt = 0;
     // Tests shorten it to see each read; honoured only when the app is not packaged (as FD_TEST_REMOTE).
     const SPEND_FRESH_MS = !app.isPackaged && process.env.FD_TEST_SPEND_FRESH_MS ? Number(process.env.FD_TEST_SPEND_FRESH_MS) : 30_000;
-    ipcMain.handle(CHANNELS.spend, async () => {
+    ipcMain.handle(CHANNELS.spend, async (_e, force?: boolean) => {
       const stale = Date.now() - lastSpendAt > SPEND_FRESH_MS;
-      if ((windowVisible() && stale) || !lastSpendAt) {
+      // D-4: Refresh reads now (a person asked); "read at" is the main process's own read time.
+      if ((windowVisible() && (stale || force === true)) || !lastSpendAt) {
         lastSpend = await readSpend(monitor.snapshots(), { token: readToken, fetchUsage, now: () => Date.now() });
         lastSpendAt = Date.now();
       }
-      return lastSpend;
+      return { entries: lastSpend, readAt: lastSpendAt ? new Date(lastSpendAt).toISOString() : null };
     });
     ipcMain.handle(CHANNELS.activity, (_e, filter) => activity.list(filter ?? {}));
     ipcMain.handle(CHANNELS.activitySeen, () => { activity.markSeen(); pushStatus(); });
@@ -380,6 +419,7 @@ if (!app.requestSingleInstanceLock()) {
       // Choosing launch at login — on the first-run card or in Settings — is the one moment it is registered (LC-07).
       const choosing = 'launchAtLogin' in patch;
       const next = settings.update(choosing ? { ...patch, launchAtLoginAsked: true } : patch);
+      if (patch.notifications) schedulePauseEnd(); // U-7: a pause set here also rebuilds the tray when it ends
       nativeTheme.themeSource = next.theme;
       const error = choosing && loginOs ? applyLoginItem(next.launchAtLogin, loginOs) : undefined;
       if (error) {
@@ -401,10 +441,18 @@ if (!app.requestSingleInstanceLock()) {
       const known = monitor.snapshots().flatMap((s) => [s.descriptorPath, s.descriptor?.paths?.data, s.descriptor?.auth.tokenFile].filter(Boolean) as string[]);
       const allowed = [monitor.meta().servicesDir, ...known].map((x) => x.replace(/^~\//, `${app.getPath('home')}/`));
       const target = p.replace(/^~\//, `${app.getPath('home')}/`);
-      if (!allowed.includes(target)) throw new Error('not a path this app shows');
-      if (target === monitor.meta().servicesDir) fs.mkdirSync(target, { recursive: true, mode: 0o700 });
-      if (fs.existsSync(target) && fs.statSync(target).isDirectory()) void shell.openPath(target);
-      else shell.showItemInFolder(target);
+      if (!allowed.includes(target)) return { ok: false, error: 'not a path this app shows' };
+      try {
+        if (target === monitor.meta().servicesDir) fs.mkdirSync(target, { recursive: true, mode: 0o700 });
+      } catch (error) {
+        return { ok: false, error: (error as Error).message };
+      }
+      // R-15: a bundle (`.app`) is a directory to the file system: reveal it, never launch it.
+      if (fs.existsSync(target) && fs.statSync(target).isDirectory() && !/\.app\/?$/i.test(target)) {
+        return shell.openPath(target).then((error) => (error ? { ok: false, error } : { ok: true }));
+      }
+      shell.showItemInFolder(target);
+      return { ok: true };
     });
     ipcMain.handle(CHANNELS.viewShow, async (_e, key: string, rect: Rect, link: string | undefined, owner: string, fresh?: boolean) => {
       const s = snap(key);
@@ -420,10 +468,11 @@ if (!app.requestSingleInstanceLock()) {
     });
     // The toolbar copies only what it shows: a page address or an app link, never a token.
     ipcMain.handle(CHANNELS.copyText, (_e, text: string) => { clipboard.writeText(String(text).slice(0, 4096)); });
-    ipcMain.handle(CHANNELS.updateRestart, () => { quitting = true; updater.restart(); });
+    ipcMain.handle(CHANNELS.rescan, () => monitor.tick(true));
+    ipcMain.handle(CHANNELS.serviceGuide, () => shell.openExternal(SERVICE_GUIDE));
+    ipcMain.handle(CHANNELS.updateRestart, () => { updater.restart(); });
     ipcMain.handle(CHANNELS.updateCheck, () => updater.check());
     ipcMain.handle(CHANNELS.moveToApplications, () => moveToApplications());
-    ipcMain.handle(CHANNELS.notificationsAllowed, () => Notification.isSupported());
     ipcMain.handle(CHANNELS.notificationSettings, () => shell.openExternal('x-apple.systempreferences:com.apple.Notifications-Settings.extension'));
     ipcMain.handle(CHANNELS.locale, () => lang());
     ipcMain.handle(CHANNELS.uninstall, () => uninstall());
@@ -435,7 +484,7 @@ if (!app.requestSingleInstanceLock()) {
     Menu.setApplicationMenu(Menu.buildFromTemplate([
       { role: 'appMenu', submenu: [
         { role: 'about' },
-        { label: l === 'ru' ? 'Проверить обновления…' : 'Check for Updates…', click: () => updater.check() },
+        { label: t(l, 'menu.checkUpdates'), click: () => updater.check() },
         { type: 'separator' }, { role: 'hide' }, { role: 'hideOthers' }, { role: 'unhide' }, { type: 'separator' },
         { role: 'quit' },
       ] },
@@ -449,16 +498,25 @@ if (!app.requestSingleInstanceLock()) {
   app.on('second-instance', (_event, argv) => {
     const raw = argv.find((a) => a.startsWith(`${SCHEME}:`));
     if (raw && handleLink) handleLink(raw);
-    else showWindow();
+    else if (raw) pendingLinks.push(raw); // R-14: before the first scan, the link waits like a launch link
+    else if (app.isReady()) showWindow();
   });
   app.on('activate', () => showWindow());
   app.on('before-quit', () => { quitting = true; });
-  app.on('will-quit', () => {
+  let killing = false;
+  app.on('will-quit', (event) => {
     // Nothing starts after quit begins; pending state reaches disk; commands we started end with us (LC-01, LC-02).
     monitor.stop();
     viewGrace.dispose();
+    updateGrace.dispose();
     activity.flush();
-    void killOwned(300);
+    // R-4: Electron does not wait for timers, so the SIGKILL that follows SIGTERM would never run.
+    // With a command still running, the quit waits for killOwned (≤ 300 ms + a beat), then exits.
+    if (ownedCount() > 0 && !killing) {
+      killing = true;
+      event.preventDefault();
+      void killOwned(300).finally(() => app.exit(0));
+    }
   });
 
   void app.whenReady().then(() => {
@@ -469,13 +527,14 @@ if (!app.requestSingleInstanceLock()) {
       pause: () => {
         settings.update({ notifications: { ...settings.get().notifications, pausedUntil: new Date(Date.now() + 3600_000).toISOString() } });
         pushStatus();
-        setTimeout(pushStatus, 3600_000 + 1000).unref(); // the tray says Resume until the pause ends, then rebuilds once
+        schedulePauseEnd();
       },
       resume: () => { settings.update({ notifications: { ...settings.get().notifications, pausedUntil: null } }); pushStatus(); },
       paused: () => { const p = settings.get().notifications.pausedUntil; return Boolean(p && new Date(p) > new Date()); },
       quit: () => { quitting = true; app.quit(); }, // the menu itself says quitting stops no service (LC-07)
     }, lang);
     monitor.on('change', pushStatus);
+    schedulePauseEnd(); // a pause that outlived a restart still ends with a tray rebuild
     monitor.on('notify', notify);
     monitor.on('restarted', (key: string) => views?.serviceRestarted(key));
     // An uninstalled service takes its view and its stored session with it (LC-12).
@@ -511,7 +570,7 @@ if (!app.requestSingleInstanceLock()) {
         return;
       }
       const { target } = result;
-      if (target.page === 'overview') showWindow();
+      if (target.page === 'overview') navigate({ page: 'overview' }); // U-5: the overview, not whatever page was open
       else navigate(target);
     };
     // The first scan fills the snapshots a link is checked against; a link that arrived with the
@@ -538,6 +597,4 @@ if (!app.requestSingleInstanceLock()) {
     log(`started ${app.getVersion()} watching ${monitor.meta().servicesDir}`);
   });
 
-  process.on('uncaughtException', (error) => log(`uncaught: ${error.stack ?? error.message}`));
-  process.on('unhandledRejection', (error) => log(`unhandled: ${String(error)}`));
 }

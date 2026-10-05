@@ -52,3 +52,16 @@ test('the shared state-precedence vectors hold for the app', () => {
     if (c.expect.reasons) assert.deepEqual(out.reasons, c.expect.reasons, c.name);
   }
 });
+
+test('F-1: an installed copy moves only forward — the feed\'s version must be newer', async () => {
+  const { isNewer } = await import('../src/core/version');
+  assert.equal(isNewer('0.5.5', '0.5.4'), true);
+  assert.equal(isNewer('0.5.4', '0.5.5'), false, 'an older release in the feed is never installed');
+  assert.equal(isNewer('0.5.5', '0.5.5'), false);
+  assert.equal(isNewer('0.10.0', '0.9.9'), true, 'numeric, not string, comparison');
+  assert.equal(isNewer('1.0.0', '1.0.0-rc.2'), true);
+  assert.equal(isNewer('1.0.0-rc.10', '1.0.0-rc.9'), true);
+  assert.equal(isNewer('1.0.0-rc.1', '1.0.0'), false);
+  assert.equal(isNewer('garbage', '0.5.4'), false);
+  assert.equal(isNewer('v0.6.0', '0.5.4'), true);
+});

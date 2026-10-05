@@ -58,6 +58,7 @@ function world(opts: { installed?: boolean; platform?: NodeJS.Platform; loaded?:
     token: () => SECRET,
     now: () => clock,
     sleep: async (ms) => { clock += ms; },
+    exists: () => true,
     platform: opts.platform ?? 'darwin',
   };
   return { deps, calls, answers };
@@ -186,8 +187,13 @@ test('the protocol: initialize, tools/list, a call, a refusal as isError, notifi
   const refused = await handle(deps, { jsonrpc: '2.0', id: 5, method: 'tools/call', params: { name: 'control', arguments: { service: KEY } } });
   assert.deepEqual(refused!.result, { content: [{ type: 'text', text: 'action is required' }], isError: true });
 
+  // M-2: an unknown tool is a JSON-RPC error (-32602); an undeclared argument is refused.
   const unknownTool = await handle(deps, { jsonrpc: '2.0', id: 6, method: 'tools/call', params: { name: 'rm_rf' } });
-  assert.equal((unknownTool!.result as { isError: boolean }).isError, true);
+  assert.deepEqual(unknownTool!.error, { code: -32602, message: 'unknown tool "rm_rf"' });
+  const extra = await handle(deps, { jsonrpc: '2.0', id: 8, method: 'tools/call', params: { name: 'link', arguments: { service: KEY, evil: 1 } } });
+  assert.deepEqual(extra!.result, { content: [{ type: 'text', text: 'unknown argument "evil" for link' }], isError: true });
+  const doctor = TOOLS.find((x) => x.name === 'doctor')!;
+  assert.equal((doctor.annotations as { readOnlyHint: boolean }).readOnlyHint, false, 'M-1: doctor runs a program; never auto-approved as read-only');
 
   assert.equal(await handle(deps, { jsonrpc: '2.0', method: 'notifications/initialized' }), null);
   assert.deepEqual((await handle(deps, { jsonrpc: '2.0', id: 7, method: 'nope' }))!.error, { code: -32601, message: 'method not found: nope' });
@@ -299,3 +305,8 @@ test('spend reads each service\'s own usage report and sums it; a service withou
   await assert.rejects(tools.spend(plain.deps, 'nobody.default'), /no installed service/);
 });
 
+
+test('M-3: start or restart with a missing plist is refused at once, as in the app', async () => {
+  const { deps } = world();
+  await assert.rejects(tools.control({ ...deps, exists: () => false }, KEY, 'restart'), /plist is missing/);
+});

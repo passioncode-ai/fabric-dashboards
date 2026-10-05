@@ -8,6 +8,7 @@
 //
 // Reading — descriptors, claim conflicts, launchd status, the health probe, the state — is one
 // look through @passioncode-ai/fabric-service-host, the same code Fabric's registry reads with.
+import fs from 'node:fs';
 import { discoverHost, type HostStatus } from './host';
 import {
   APP_NAME, expand, lookAtServices, readDirectory, servicesDir as defaultServicesDir,
@@ -38,6 +39,8 @@ export interface Deps {
   now: () => number;
   sleep: (ms: number) => Promise<void>;
   platform: NodeJS.Platform;
+  /** Whether a file exists (the launchd plist before start/restart). Default: fs.existsSync. */
+  exists?: (path: string) => boolean;
 }
 
 /** A descriptor's own argv, in its own process group, without ELECTRON_RUN_AS_NODE or NODE_OPTIONS
@@ -254,6 +257,8 @@ export async function control(deps: Deps, key: string, action: 'start' | 'stop' 
   const before = await deps.wellKnown(d.origin);
   const oldPid = before.kind === 'answer' ? before.doc.process.pid : null;
   const plist = expand(d.lifecycle.plist);
+  // M-3: the same refusal as the app — a missing plist is said at once, not retried by bootstrap.
+  if (action !== 'stop' && !(deps.exists ?? fs.existsSync)(plist)) throw new ToolError(`${d.name}: the launchd plist is missing at ${plist}; reinstall the service`);
   const r = action === 'restart' ? await deps.launchd.restart(d.lifecycle.label, plist)
     : action === 'stop' ? await deps.launchd.stop(d.lifecycle.label)
     : await deps.launchd.start(d.lifecycle.label, plist);
@@ -291,8 +296,14 @@ export async function activity(deps: Deps, key: string, limit = 20): Promise<{ e
     throw new ToolError((error as Error).message);
   }
   const n = Math.max(1, Math.min(100, Math.floor(limit)));
-  const page = await deps.events(d, answer.doc.surfaces.events.path, token, null, n);
-  return { events: page.events.slice(-n).map((e) => ({ at: e.at, level: e.level, text: e.text, ...(e.link && safePath(e.link) ? { link: linkFor(key, e.link) } : {}) })) };
+  let page: Awaited<ReturnType<Deps['events']>>;
+  try {
+    page = await deps.events(d, answer.doc.surfaces.events.path, token, null, n);
+  } catch (error) {
+    throw new ToolError(`${d.name}: the events feed could not be read: ${(error as Error).message}`); // M-2: a refusal, not "internal error"
+  }
+  const linkOf = (path: string) => { try { return linkFor(key, path); } catch { return undefined; } };
+  return { events: page.events.slice(-n).map((e) => { const link = e.link && safePath(e.link) ? linkOf(e.link) : undefined; return { at: e.at, level: e.level, text: e.text, ...(link ? { link } : {}) }; }) };
 }
 
 /** What each agent spent, from its own usage report (contract DEC-0021, ADR-0013); one service or all.

@@ -5,7 +5,7 @@ import test from 'node:test';
 import { ActivityStore } from '../src/core/activity';
 import { atomicWrite } from '../src/core/fsutil';
 import { allKeys, dictionary, duration, langFor, t } from '../src/core/i18n';
-import { parseLsof, unattributed } from '../src/core/listeners';
+import { listListeners, parseLsof, unattributed } from '../src/core/listeners';
 import { inQuietHours, shouldNotify } from '../src/core/notify';
 import { merge, SettingsStore } from '../src/core/settings';
 import { DEFAULT_SETTINGS, type Settings } from '../src/core/types';
@@ -197,4 +197,40 @@ ControlCe 679 alice   10u  IPv6 0x4      0t0  TCP *:7000 (LISTEN)`;
   assert.equal(all.length, 3);
   assert.deepEqual(unattributed(all, new Set([47110])).map((l) => [l.command, l.port]), [['ControlCe', 7000], ['Python', 47166]]);
   assert.deepEqual(unattributed(all, new Set([47166, 7000])), []);
+});
+
+test('R-1/R-2: a full disk never throws out of the activity or settings store; rows reach the file once a write succeeds', () => {
+  const dir = tmp('fd-fulldisk-');
+  const errors: string[] = [];
+  const store = new ActivityStore(dir, { onWriteError: (m) => errors.push(m) });
+  store.addAppEvent('a.default', 'A', 'service.down', 'error', 'A is not answering');
+  const file = path.join(dir, 'activity.jsonl');
+  fs.chmodSync(file, 0o400); // the next append fails, as on ENOSPC
+  assert.doesNotThrow(() => store.addAppEvent('a.default', 'A', 'service.back', 'notice', 'A is back'));
+  assert.equal(errors.length, 1);
+  assert.match(errors[0]!, /could not append/);
+  assert.equal(store.list({ serviceKey: 'a.default' }).length, 2, 'the row is kept in memory');
+  fs.chmodSync(file, 0o600);
+  store.addAppEvent('a.default', 'A', 'service.down', 'error', 'A is not answering');
+  const lines = fs.readFileSync(file, 'utf8').trim().split('\n');
+  assert.equal(lines.length, 3, 'the next write that succeeds rewrites the file with every row');
+  assert.ok(lines.every((l) => JSON.parse(l)));
+
+  const sdir = tmp('fd-fulldisk-set-');
+  const serrors: string[] = [];
+  const settings = new SettingsStore(sdir, (m) => serrors.push(m));
+  fs.chmodSync(sdir, 0o500);
+  try {
+    assert.doesNotThrow(() => settings.update({ theme: 'light' }));
+    assert.equal(settings.get().theme, 'light', 'kept in memory');
+    assert.match(serrors[0]!, /not saved/);
+  } finally {
+    fs.chmodSync(sdir, 0o700);
+  }
+});
+
+test('R-16: lsof that finds nothing (exit 1, no output) means no listeners, not a failure', async () => {
+  assert.deepEqual(await listListeners(async () => ({ code: 1, stdout: '', stderr: '' })), []);
+  await assert.rejects(listListeners(async () => ({ code: 1, stdout: '', stderr: 'lsof: permission denied' })), /permission denied/);
+  await assert.rejects(listListeners(async () => ({ code: 2, stdout: '', stderr: '' })), /exit 2/);
 });

@@ -133,6 +133,11 @@ test('dist: release.yml signs in the release environment and ships only what was
   at("if: ${{ !contains(github.ref_name, '-rc.') }}");
   at('repos/$GITHUB_REPOSITORY/releases/latest');
   at('sort -V');
+  // F-1/F-2: one release at a time, the check repeated right before publish, a failed lookup is not a tag.
+  at('group: release\n');
+  assert.ok(at('still-newest:') < at('uses: passioncode-ai/.github/.github/workflows/release-publish.yml@v1'));
+  at('needs: [macos, still-newest]');
+  at("grep -q 'HTTP 404' /tmp/gh-err");
   at('team-id: ${{ vars.APPLE_TEAM_ID }}');
   // The order that makes the update zip and the image come from the stapled app.
   const order = [

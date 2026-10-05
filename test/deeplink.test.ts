@@ -130,3 +130,12 @@ test('a refusal quotes at most a clipped, escaped piece of the link', () => {
   const quoted = parseDeepLink('fabric-dashboards://service/a"b.default', known) as { ok: false; reason: string };
   assert.match(quoted.reason, /\\"|%22/, 'a quote inside the key is escaped or still encoded');
 });
+
+test('U-17: the open forms refuse unknown or repeated parameters and a stray fragment', () => {
+
+  assert.equal(parseDeepLink('fabric-dashboards://open?service=example-agent.default&path=%2Fx', known).ok, true);
+  assert.match((parseDeepLink('fabric-dashboards://open?service=example-agent.default&evil=1', known) as { reason: string }).reason, /unknown parameter/);
+  assert.match((parseDeepLink('fabric-dashboards://open?service=example-agent.default&path=%2Fa&path=%2Fb', known) as { reason: string }).reason, /more than once/);
+  assert.match((parseDeepLink('fabric-dashboards://open?service=example-agent.default#x', known) as { reason: string }).reason, /fragment/);
+  assert.match((parseDeepLink('fabric-dashboards://open?url=http%3A%2F%2F127.0.0.1%3A47195%2F&path=%2Fx', known) as { reason: string }).reason, /drop path/);
+});

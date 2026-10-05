@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
-import { langFor, type Lang } from '../core/i18n';
+import { langFor, t as tr, type Lang } from '../core/i18n';
 import type { AppStatus } from '../core/types';
 import { groupProducts, productOf, type Product } from '../core/products';
-import { Activity } from './components/Activity';
+import { Activity, type ActivityFilter } from './components/Activity';
 import { LoginQuestion, Overview } from './components/Overview';
 import { ServiceView } from './components/ServiceView';
 import { Settings } from './components/Settings';
@@ -10,7 +10,7 @@ import { Spend } from './components/Spend';
 import mark from './brand/dashboards-mark.svg';
 import { api, GLYPH, LangContext, nameOf, Spinner, useT } from './lib';
 
-type Route = { page: 'overview' } | { page: 'activity' } | { page: 'spend' } | { page: 'settings' } | { page: 'service'; key: string; link?: string; nonce?: number };
+type Route = { page: 'overview' } | { page: 'activity'; serviceKey?: string; nonce?: number } | { page: 'spend' } | { page: 'settings' } | { page: 'service'; key: string; link?: string; nonce?: number; tab?: 'logs' | 'health' };
 
 const PROBLEM = new Set(['down', 'duplicate', 'foreign', 'conflict', 'invalid']);
 
@@ -19,15 +19,20 @@ export function App() {
   const [lang, setLang] = useState<Lang>('en');
   const [route, setRoute] = useState<Route>({ page: 'overview' });
   const [stopKey, setStopKey] = useState<string | null>(null);
+  // U-8: the Activity filter is kept between visits; a notification about one service presets it (U-19).
+  const [activityFilter, setActivityFilter] = useState<ActivityFilter>({ serviceKey: '', minLevel: '' });
 
   useEffect(() => {
     void api().locale().then((l) => { setLang(langFor(l)); document.documentElement.lang = langFor(l); });
     void api().status().then(setStatus);
     void api().settings().then((s) => applyTheme(s.theme));
     const offStatus = api().onStatus(setStatus);
-    const go = (target: { page: 'service' | 'activity'; key?: string; link?: string }) => {
-      if (target.page === 'activity') setRoute({ page: 'activity' });
-      else if (target.key) setRoute({ page: 'service', key: target.key, link: target.link, nonce: Date.now() });
+    const go = (target: { page: 'service' | 'activity' | 'overview'; key?: string; link?: string }) => {
+      if (target.page === 'overview') setRoute({ page: 'overview' });
+      else if (target.page === 'activity') {
+        if (target.key) setActivityFilter((f) => ({ ...f, serviceKey: target.key! }));
+        setRoute({ page: 'activity', serviceKey: target.key, nonce: Date.now() });
+      } else if (target.key) setRoute({ page: 'service', key: target.key, link: target.link, nonce: Date.now() });
     };
     const offNav = api().onNavigate(go);
     void api().takeNavigation().then((target) => { if (target) go(target); }); // after subscribing: nothing falls between
@@ -41,7 +46,7 @@ export function App() {
 
   return (
     <LangContext.Provider value={lang}>
-      {status ? <Shell status={status} route={route} setRoute={setRoute} stopKey={stopKey} setStopKey={setStopKey} /> : <div className="page muted row"><Spinner /></div>}
+      {status ? <Shell status={status} route={route} setRoute={setRoute} stopKey={stopKey} setStopKey={setStopKey} activityFilter={activityFilter} setActivityFilter={setActivityFilter} /> : <div className="page muted row" role="status"><Spinner /> {tr(lang, 'app.loading')}</div>}
     </LangContext.Provider>
   );
 }
@@ -53,13 +58,15 @@ function applyTheme(theme: 'dark' | 'light') {
 
 interface ShellProps {
   status: AppStatus; route: Route; setRoute: (r: Route) => void; stopKey: string | null; setStopKey: (k: string | null) => void;
+  activityFilter: ActivityFilter; setActivityFilter: (f: ActivityFilter) => void;
 }
 
-function Shell({ status, route, setRoute, stopKey, setStopKey }: ShellProps) {
+function Shell({ status, route, setRoute, stopKey, setStopKey, activityFilter, setActivityFilter }: ShellProps) {
   const { t } = useT();
-  const open = (key: string, link?: string) => setRoute({ page: 'service', key, link, nonce: Date.now() });
+  const open = (key: string, link?: string, tab?: 'logs' | 'health') => setRoute({ page: 'service', key, link, nonce: Date.now(), tab });
   const act = (key: string, action: 'restart' | 'start' | 'update') => {
-    if (action === 'update') { open(key); void api().command(key, 'update'); }
+    // U-2: an update started from Needs attention shows its output on the service's Health tab.
+    if (action === 'update') open(key, undefined, 'health');
     else void api().control(key, action);
   };
   const problems = status.services.filter((s) => PROBLEM.has(s.state)).length;
@@ -104,7 +111,7 @@ function Shell({ status, route, setRoute, stopKey, setStopKey }: ShellProps) {
       </nav>
       <main className="main">
         {route.page === 'service' && current
-          ? <ServiceView key={current.key} s={current} members={currentProduct?.members ?? [current]} open={open} link={route.link} nonce={route.nonce} overlayOpen={Boolean(stopKey)} askStop={setStopKey} />
+          ? <ServiceView key={current.key} s={current} all={status.services} members={currentProduct?.members ?? [current]} open={open} link={route.link} nonce={route.nonce} tab={route.tab} runUpdate={route.tab === 'health' && route.page === 'service'} overlayOpen={Boolean(stopKey)} askStop={setStopKey} />
           : (
             <div className="page">
               <div className="page-head">
@@ -113,7 +120,7 @@ function Shell({ status, route, setRoute, stopKey, setStopKey }: ShellProps) {
               </div>
               {route.page === 'overview' && <LoginQuestion />}
               {route.page === 'overview' && <Overview status={status} products={products} open={open} act={act} goSpend={() => setRoute({ page: 'spend' })} />}
-              {route.page === 'activity' && <Activity status={status} openAt={open} />}
+              {route.page === 'activity' && <Activity status={status} openAt={open} filter={activityFilter} setFilter={setActivityFilter} />}
               {route.page === 'spend' && <Spend status={status} />}
               {route.page === 'settings' && <Settings status={status} onTheme={applyTheme} />}
             </div>
@@ -154,7 +161,7 @@ function UpdateLine({ status }: { status: AppStatus }) {
   const u = status.update;
   if (u.state === 'checking') return <p className="meta row"><Spinner /> {t('update.checking')}</p>;
   if (u.state === 'downloading') return <p className="meta row"><Spinner /> {t('update.downloading')}</p>;
-  if (u.state === 'ready') return <div className="row"><span className="meta">{t('update.ready', { version: u.version ?? '' })}</span><button className="btn btn-primary" onClick={() => void api().restartToUpdate()}>{t('update.restart')}</button></div>;
+  if (u.state === 'ready') return <div className="row"><span className="meta">{(u.version ? t('update.ready', { version: u.version }) : t('update.readyUnnamed'))}</span><button className="btn btn-primary" onClick={() => void api().restartToUpdate()}>{t('update.restart')}</button></div>;
   if (u.state === 'misplaced') return <div className="row"><span className="meta state-down">{t('update.misplaced')}</span><button className="btn" onClick={() => void api().moveToApplications()}>{t('move.confirm')}</button></div>;
   if (u.state === 'error') return <div className="row"><span className="meta state-down">{t('update.error', { error: u.error ?? '' })}</span><button className="btn" onClick={() => void api().checkForUpdates()}>{t('update.retry')}</button></div>;
   return null;

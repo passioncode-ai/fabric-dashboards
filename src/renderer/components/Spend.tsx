@@ -9,17 +9,18 @@ const REFRESH_MS = 60_000;
 
 /** SCN-036…038 (ADR-0013): what every agent spent, from its own usage report. */
 export function Spend({ status }: { status: AppStatus }) {
-  const { t, time } = useT();
+  const { t, time, lang } = useT();
   const [entries, setEntries] = useState<SpendEntry[] | null>(null);
   const [readAt, setReadAt] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [open, setOpen] = useState<string | null>(null);
 
-  const read = async () => {
+  const read = async (force = false) => {
     setBusy(true);
     try {
-      setEntries(await api().spend());
-      setReadAt(new Date().toISOString());
+      const r = await api().spend(force);
+      setEntries(r.entries);
+      setReadAt(r.readAt);
     } finally {
       setBusy(false);
     }
@@ -44,7 +45,7 @@ export function Spend({ status }: { status: AppStatus }) {
     <>
       <div className="row spend-head">
         <span className="meta">{readAt ? t('spend.readAt', { time: time(readAt) }) : ''}</span>
-        <button className="btn" disabled={busy} onClick={() => void read()}>{busy ? <Spinner /> : null} {t('spend.refresh')}</button>
+        <button className="btn" disabled={busy} onClick={() => void read(true)}>{busy ? <Spinner /> : null} {t('spend.refresh')}</button>
       </div>
       {reports.length > 0 && (
         <div className="tiles spend-totals" aria-label={t('spend.totals')}>
@@ -87,7 +88,7 @@ export function Spend({ status }: { status: AppStatus }) {
                               <tr key={`${m.provider}/${m.model}`}>
                                 <td><span className="mono">{m.model}</span> <span className="muted">{m.provider}</span></td>
                                 <td>{m.calls}</td>
-                                <td>{t('spend.tokensValue', { input: m.inputTokens.toLocaleString(), output: m.outputTokens.toLocaleString() })}</td>
+                                <td>{t('spend.tokensValue', { input: m.inputTokens.toLocaleString(lang), output: m.outputTokens.toLocaleString(lang) })}</td>
                                 <td>{money(m, t)}</td>
                               </tr>
                             ))}
@@ -114,16 +115,16 @@ export function Spend({ status }: { status: AppStatus }) {
   );
 }
 
-type T = (key: string, params?: Record<string, string | number>) => string;
+export type T = (key: string, params?: Record<string, string | number>) => string;
 
-function usd(x: number | null, t: T): string {
+export function usd(x: number | null, t: T): string {
   if (x === null) return t('spend.unknown');
   if (x > 0 && x < 0.01) return '<$0.01';
   return `$${x.toFixed(2)}`;
 }
 
-/** Unknown is never $0: a sum with unpriced calls reads «≥ $x». */
-function money(s: Pick<SpendSum, 'costUsd' | 'partial'>, t: T): string {
+/** Unknown is never $0: a sum with unpriced calls reads «≥ $x». Shared with the Overview strip (D-3). */
+export function money(s: Pick<SpendSum, 'costUsd' | 'partial'>, t: T): string {
   if (s.costUsd === null) return t('spend.unknown');
   return s.partial ? `≥ ${usd(s.costUsd, t)}` : usd(s.costUsd, t);
 }

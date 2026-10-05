@@ -5,7 +5,7 @@ import { EventEmitter } from 'node:events';
 import fs from 'node:fs';
 import { ActivityStore } from './activity';
 import { runOwned } from './children';
-import { authHeaders, claimConflicts, deriveState, expand, fetchWellKnown, readDirectory, REMOTE_TIMEOUT_MS, type DescriptorEntry, type WellKnownOptions, type WellKnownResult } from '@passioncode-ai/fabric-service-host';
+import { authHeaders, claimConflicts, deriveState, expand, fetchWellKnown, portOf, readDirectory, REMOTE_TIMEOUT_MS, type DescriptorEntry, type WellKnownOptions, type WellKnownResult } from '@passioncode-ai/fabric-service-host';
 import { tail } from './fsutil';
 import { duration, t as tr, type Lang } from './i18n';
 import { Launchd } from './launchd';
@@ -277,7 +277,8 @@ export class Monitor extends EventEmitter {
         continue;
       }
       const t: Tracked = {
-        entry, probe: null, launchd: { managed: entry.descriptor?.lifecycle.manager === 'launchd', loaded: false, pid: null, disabled: false },
+        // R-18: launchd is not read yet — not "not loaded". Until the first probe it reads `starting`, never Off with Start.
+        entry, probe: null, launchd: { managed: entry.descriptor?.lifecycle.manager === 'launchd', loaded: true, pid: null, disabled: false },
         firstUnansweredAt: null, lastAnswerAt: null, misses: 0, lastAnswer: null, nextProbeAt: this.now(), backoff: 0, busy: null, lastAction: null, tokenProblem: null, usagePath: null, remoteForeignFor: null,
         feedError: null, downNotified: false, lastState: null, lastPid: null, baselined: false, launchdAt: null, polledAt: null,
       };
@@ -391,8 +392,11 @@ export class Monitor extends EventEmitter {
     const snap = this.snapshotOf(t);
     const prev = t.lastState;
     t.lastState = snap.state;
+    // R-8: a new pid is a restart even when the state did not change between two probes (ready → ready).
+    const pid = t.probe?.kind === 'answer' && snap.state !== 'foreign' ? t.probe.doc.process.pid : null;
+    if (pid && t.lastPid && pid !== t.lastPid) this.emit('restarted', t.entry.key);
+    if (pid) t.lastPid = pid;
     if (prev === null || prev === snap.state) return;
-    const pid = t.probe?.kind === 'answer' ? t.probe.doc.process.pid : null;
     if (snap.state === 'down' && !t.busy) this.appEvent(t.entry.key, t, 'service.down', 'error', 'app.event.down');
     if (prev === 'down' && (snap.state === 'ready' || snap.state === 'degraded')) {
       const outage = this.now() - (this.outageStart.get(t.entry.key) ?? this.now());
@@ -410,8 +414,6 @@ export class Monitor extends EventEmitter {
       this.appEvent(t.entry.key, t, 'service.foreign', 'warning', 'app.event.foreign');
       this.notify({ kind: 'foreign', serviceKey: t.entry.key }, t, 'notify.foreign.title', snap.reasons[0]?.code ?? 'reason.foreign.protocol', snap.reasons[0]?.params ?? {});
     }
-    if (pid && t.lastPid && pid !== t.lastPid) this.emit('restarted', t.entry.key);
-    if (pid) t.lastPid = pid;
   }
 
   private readonly outageStart = new Map<string, number>();
@@ -421,7 +423,7 @@ export class Monitor extends EventEmitter {
   private checkDown(t: Tracked, now: number): void {
     if (t.lastState === 'down' && !t.downNotified && t.misses >= DOWN_AFTER_MISSES && t.firstUnansweredAt !== null && now - t.firstUnansweredAt >= DOWN_NOTIFY_AFTER_MS) {
       t.downNotified = true;
-      this.notify({ kind: 'down', serviceKey: t.entry.key }, t, 'notify.down.title', 'notify.down.body', { since: new Date(t.firstUnansweredAt).toLocaleTimeString() });
+      this.notify({ kind: 'down', serviceKey: t.entry.key }, t, 'notify.down.title', 'notify.down.body', { since: new Date(t.firstUnansweredAt).toLocaleTimeString(this.o.lang(), { hour: '2-digit', minute: '2-digit' }) });
     }
   }
 
@@ -462,7 +464,9 @@ export class Monitor extends EventEmitter {
 
   private async pollOne(t: Tracked): Promise<void> {
     const d = t.entry.descriptor;
-    if (!d || t.probe?.kind !== 'answer' || this.snapshotOf(t).state === 'foreign') return;
+    // U-9: a service that does not answer (or a foreign one) is not read; an old feed error would
+    // only be stale beside its state, which says why.
+    if (!d || t.probe?.kind !== 'answer' || this.snapshotOf(t).state === 'foreign') { t.feedError = null; return; }
     t.polledAt = this.now();
     const path = t.probe.doc.surfaces.events.path;
     let token: string;
@@ -508,6 +512,8 @@ export class Monitor extends EventEmitter {
     const d = t?.entry.descriptor;
     if (!t || !d) return { ok: false, reason: { code: 'reason.invalid', params: { problem: 'unknown service' } } };
     const name = d.name;
+    // R-8: one action at a time — a double click or a second button never runs a second kickstart.
+    if (t.busy) return { ok: false, reason: { code: 'result.busy', params: { name } } };
     const finish = (ok: boolean, reason: Reason) => {
       t.busy = null;
       this.disabled = null; // the action may have changed launchd's disabled table
@@ -524,6 +530,9 @@ export class Monitor extends EventEmitter {
     const plist = expand(d.lifecycle.plist);
     if (action !== 'stop' && !fs.existsSync(plist)) return finish(false, { code: 'result.plistMissing', params: { name, path: plist } });
     const oldPid = t.probe?.kind === 'answer' ? t.probe.doc.process.pid : null;
+    // U-15: restarting a duplicate waits for a new pid; if the stray copy keeps the port, say so by its pid.
+    const strayPid = t.lastState === 'duplicate' ? oldPid : null;
+    let lastSeenPid: number | null = null;
     t.busy = action === 'restart' ? 'restarting' : action === 'stop' ? 'stopping' : 'starting';
     this.changed();
     const r = action === 'restart' ? await this.launchd.restart(label, plist) : action === 'stop' ? await this.launchd.stop(label) : await this.launchd.start(label, plist);
@@ -531,6 +540,7 @@ export class Monitor extends EventEmitter {
     const deadline = this.now() + CONTROL_TIMEOUT_MS;
     while (this.now() < deadline) {
       const probe = await fetchWellKnown(d.origin, 1500);
+      if (probe.kind === 'answer') lastSeenPid = probe.doc.process.pid;
       if (action === 'stop') {
         if (probe.kind === 'no-answer') {
           t.probe = probe;
@@ -550,9 +560,13 @@ export class Monitor extends EventEmitter {
         t.lastAnswer = probe;
         t.downNotified = false;
         t.lastPid = probe.doc.process.pid;
+        if (action === 'restart') this.emit('restarted', key); // its page's session may be gone: the page offers Reload
         return finish(true, { code: action === 'restart' ? 'result.restarted' : 'result.started', params: { name, pid: probe.doc.process.pid } });
       }
       await new Promise((resolve) => setTimeout(resolve, 400));
+    }
+    if (action === 'restart' && strayPid !== null && lastSeenPid === strayPid) {
+      return finish(false, { code: 'result.strayHolds', params: { name, pid: strayPid, port: portOf(d.origin) ?? 0 } });
     }
     return finish(false, { code: action === 'stop' ? 'result.stillAnswering' : 'result.timeout', params: { name } });
   }
@@ -561,6 +575,7 @@ export class Monitor extends EventEmitter {
     const t = this.tracked.get(key);
     const argv = t?.entry.descriptor?.commands?.[which];
     if (!t || !argv) return { code: null, output: '', timedOut: false };
+    if (t.busy) return { code: null, output: tr(this.o.lang(), 'result.busy', { name: t.entry.descriptor!.name }), timedOut: false };
     t.busy = which === 'doctor' ? 'doctor' : 'updating';
     this.changed();
     const [cmd, ...args] = argv.map((a, i) => (i === 0 ? expand(a) : a));
@@ -568,7 +583,8 @@ export class Monitor extends EventEmitter {
     const result = await runOwned(cmd!, args, { timeoutMs: COMMAND_TIMEOUT_MS });
     t.busy = null;
     const name = t.entry.descriptor!.name;
-    const reason: Reason = result.timedOut ? { code: 'result.commandTimeout', params: { command: which } } : { code: 'result.command', params: { command: which, code: result.code ?? 'none' } };
+    const command = tr(this.o.lang(), `command.${which}`);
+    const reason: Reason = result.timedOut ? { code: 'result.commandTimeout', params: { command } } : { code: 'result.command', params: { command, code: result.code ?? '—' } };
     t.lastAction = { action: which, ok: !result.timedOut && result.code === 0, reason, at: new Date(this.now()).toISOString() };
     this.o.activity.addAppEvent(key, name, `service.${which}`, t.lastAction.ok ? 'info' : 'warning', `${name}: ${tr(this.o.lang(), reason.code, reason.params)}`);
     t.nextProbeAt = this.now();

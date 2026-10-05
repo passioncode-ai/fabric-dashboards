@@ -164,6 +164,8 @@ export function resumePath(currentUrl: string, serviceOrigin: string): string | 
     return undefined;
   }
   if (url.origin !== new URL(serviceOrigin).origin) return undefined;
+  // R-9: the sign-in URL carries a one-time code that is spent: resuming there would land on a 401.
+  if (url.pathname.startsWith('/fabric/v1/login')) return undefined;
   return `${url.pathname}${url.search}${url.hash}`;
 }
 

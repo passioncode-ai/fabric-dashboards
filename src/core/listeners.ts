@@ -25,6 +25,8 @@ export function unattributed(listeners: Listener[], claimedPorts: Set<number>): 
 
 export async function listListeners(run: Runner): Promise<Listener[]> {
   const r = await run('lsof', ['-nP', '-iTCP', '-sTCP:LISTEN'], 10_000);
-  if (r.code !== 0 && !r.stdout) throw new Error(r.stderr.trim() || 'lsof failed');
+  // R-16: lsof exits 1 with nothing on stdout or stderr when nothing listens — that is "none", not a failure.
+  if (r.code !== 0 && !r.stdout && r.stderr.trim()) throw new Error(r.stderr.trim());
+  if (r.code !== 0 && !r.stdout && r.code !== 1) throw new Error(`lsof failed (exit ${r.code})`);
   return parseLsof(r.stdout);
 }

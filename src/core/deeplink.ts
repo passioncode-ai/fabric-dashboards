@@ -49,8 +49,15 @@ export function parseDeepLink(raw: string, known: Known): DeepLinkResult {
   if (verb === 'service' && url.hostname) return serviceForm(url, known);
   if (verb !== 'open') return { ok: false, reason: `unknown link verb ${quote(verb, 40)}` };
 
+  // U-17: the open forms are as strict as service/ — known parameters once each, no fragment outside them.
+  if (url.hash) return { ok: false, reason: 'a link carries no #fragment outside its parameters' };
+  for (const name of new Set(url.searchParams.keys())) {
+    if (!['service', 'path', 'url'].includes(name)) return { ok: false, reason: `unknown parameter ${quote(name, 40)}` };
+    if (url.searchParams.getAll(name).length > 1) return { ok: false, reason: `the parameter ${quote(name, 40)} appears more than once` };
+  }
   const service = url.searchParams.get('service');
   const target = url.searchParams.get('url');
+  if (target && url.searchParams.has('path')) return { ok: false, reason: 'a url names its own path; drop path=' };
   if (service && target) return { ok: false, reason: 'name a service or a url, not both' };
   if (target) return fromServiceUrl(target, known);
   if (!service) return { ok: false, reason: 'open needs service= or url=' };

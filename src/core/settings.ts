@@ -13,7 +13,8 @@ export class SettingsStore {
   /** What reading found, for the log: null when settings.json was read as it is. */
   readonly recovered: string | null = null;
 
-  constructor(dir: string) {
+  /** R-2: settings never throw on a full disk — the value is kept in memory and saved by the next write that succeeds. */
+  constructor(dir: string, private readonly onWriteError: (message: string) => void = () => undefined) {
     this.file = path.join(dir, 'settings.json');
     this.backup = `${this.file}.bak`;
     const main = readObject(this.file);
@@ -47,8 +48,12 @@ export class SettingsStore {
   /** settings.json first, then its copy: a failure between the two leaves the older good copy. */
   private persist(): void {
     const text = JSON.stringify(this.value, null, 2);
-    atomicWrite(this.file, text);
-    atomicWrite(this.backup, text);
+    try {
+      atomicWrite(this.file, text);
+      atomicWrite(this.backup, text);
+    } catch (error) {
+      this.onWriteError(`settings: not saved, kept in memory: ${(error as Error).message}`);
+    }
   }
 }
 

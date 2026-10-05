@@ -1,6 +1,7 @@
 // The menu bar glance (SCN-023): one icon in three states, problems first.
 import { Menu, nativeImage, Tray, type MenuItemConstructorOptions } from 'electron';
 import path from 'node:path';
+import { displayName } from '../core/names';
 import { t, type Lang } from '../core/i18n';
 import { attentionRank } from '@passioncode-ai/fabric-service-host/state';
 import type { ServiceSnapshot, ServiceState } from '../core/types';
@@ -53,12 +54,17 @@ export class AppTray {
       .map((s) => ({ s, rank: attentionRank(s.state, s.wellKnown) }))
       .filter((x) => x.rank !== null && x.rank < 6)
       .sort((a, b) => a.rank! - b.rank!);
+    // U-7: the name a person reads elsewhere, instance included, so two instances never read alike.
     const item = (s: ServiceSnapshot): MenuItemConstructorOptions => ({
-      label: `${MARK[s.state]}  ${s.descriptor?.name ?? s.key} — ${t(lang, `state.${s.state}`)}`,
+      label: `${MARK[s.state]}  ${s.descriptor ? displayName(s.descriptor.name, s.descriptor.instance) : s.key} — ${t(lang, `state.${s.state}`)}`,
       click: () => this.actions.open(s.key),
     });
+    // "All ready" only when it is true: a degraded, stopped or starting service is not ready.
+    const notReady = services.filter((s) => s.state !== 'ready').length;
+    const headline = problems.length ? t(lang, 'tray.problems', { count: problems.length })
+      : notReady ? t(lang, 'tray.notAllReady', { ready: services.length - notReady, total: services.length }) : t(lang, 'tray.allReady');
     const template: MenuItemConstructorOptions[] = [
-      { label: problems.length ? t(lang, 'tray.problems', { count: problems.length }) : t(lang, 'tray.allReady'), enabled: false },
+      { label: headline, enabled: false },
       ...problems.map((p) => item(p.s)),
       { type: 'separator' },
       ...services.filter((s) => !problems.some((p) => p.s.key === s.key)).map(item),
@@ -73,6 +79,6 @@ export class AppTray {
       { label: t(lang, 'tray.quit'), click: () => this.actions.quit() },
     ];
     this.tray.setContextMenu(Menu.buildFromTemplate(template));
-    this.tray.setToolTip(`Fabric Dashboards — ${problems.length ? t(lang, 'tray.problems', { count: problems.length }) : t(lang, 'tray.allReady')}`);
+    this.tray.setToolTip(`Fabric Dashboards — ${headline}`);
   }
 }

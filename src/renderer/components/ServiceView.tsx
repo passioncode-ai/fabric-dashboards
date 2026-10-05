@@ -9,37 +9,57 @@ type Tab = 'dashboard' | 'activity' | 'health' | 'logs';
 
 interface Props {
   s: ServiceSnapshot;
+  /** Every service, for a conflict's other descriptor (U-4). */
+  all: ServiceSnapshot[];
   /** Every instance of this service's product, primary first (ADR-0012); one entry means no switcher. */
   members: ServiceSnapshot[];
-  open: (key: string) => void;
+  open: (key: string, link?: string, tab?: 'logs' | 'health') => void;
   link?: string;
   nonce?: number; // a new value re-opens the same link (a second click on one notification)
+  /** The tab a navigation asks for (Logs after a failed action, Health for an update). */
+  tab?: 'logs' | 'health';
+  /** Needs attention's Update: run the update once this page shows (its output lands on Health). */
+  runUpdate?: boolean;
   overlayOpen: boolean;
   askStop: (key: string) => void;
 }
 
-export function ServiceView({ s, members, open, link, nonce, overlayOpen, askStop }: Props) {
+export function ServiceView({ s, all, members, open, link, nonce, tab: askedTab, runUpdate, overlayOpen, askStop }: Props) {
   const { t, reason, duration } = useT();
   const hasDashboard = Boolean(s.wellKnown?.surfaces.dashboard);
   const [tab, setTabState] = useState<Tab>(hasDashboard ? 'dashboard' : 'health');
   const chosen = useRef(false); // the operator picked a tab; stop choosing for them
   const setTab = (x: Tab) => { chosen.current = true; setTabState(x); };
-  const [output, setOutput] = useState<{ title: string; text: string } | null>(null);
+  const [output, setOutput] = useState<{ title: string; text: string; running: 'doctor' | 'update' | null } | null>(null);
   useEffect(() => { chosen.current = false; setOutput(null); }, [s.key]);
   // The first snapshot can arrive before the first answer: open the dashboard once it exists.
   useEffect(() => { if (!chosen.current) setTabState(hasDashboard ? 'dashboard' : 'health'); }, [s.key, hasDashboard]);
   useEffect(() => { if (link) setTabState('dashboard'); }, [link, nonce]);
+  useEffect(() => { if (askedTab) { chosen.current = true; setTabState(askedTab); } }, [askedTab, nonce]);
+  const updateRan = useRef<number | undefined>(undefined);
+  useEffect(() => {
+    if (runUpdate && s.descriptor?.commands?.update && updateRan.current !== nonce) { updateRan.current = nonce; void run('update'); }
+  }, [runUpdate, nonce]);
 
   const wk = s.wellKnown;
   const managed = s.descriptor?.lifecycle.manager === 'launchd';
   const running = ['ready', 'degraded', 'duplicate'].includes(s.state);
+  // U-2: an explicit running state, a failure that ends the spinner, and the output on Health for both commands.
   const run = async (which: 'doctor' | 'update') => {
-    setOutput({ title: which, text: '' });
-    const r = await api().command(s.key, which);
-    const status = r.timedOut ? t('result.commandTimeout', { command: which }) : t('result.command', { command: which, code: r.code ?? '—' });
-    setOutput({ title: status, text: r.output });
-    if (which === 'doctor') setTabState('health');
+    const command = t(`command.${which}`);
+    chosen.current = true;
+    setTabState('health');
+    setOutput({ title: '', text: '', running: which });
+    try {
+      const r = await api().command(s.key, which);
+      const status = r.timedOut ? t('result.commandTimeout', { command }) : r.code === null && r.output ? r.output : t('result.command', { command, code: r.code ?? '—' });
+      setOutput({ title: status, text: r.code === null && !r.timedOut ? '' : r.output, running: null });
+    } catch (error) {
+      setOutput({ title: t('result.commandFailed', { command, error: String((error as Error)?.message ?? error) }), text: '', running: null });
+    }
   };
+  const tabs = (['dashboard', 'activity', 'health', ...(s.descriptor?.placement === 'remote' ? [] : ['logs'])] as Tab[]);
+  const conflictWith = s.state === 'conflict' ? all.filter((o) => o.key !== s.key && o.state === 'conflict' && portOf(o) === portOf(s)) : [];
 
   return (
     <div className="svc">
@@ -61,7 +81,10 @@ export function ServiceView({ s, members, open, link, nonce, overlayOpen, askSto
         <Tools names={wk?.surfaces.mcp?.capabilities ?? []} />
         {s.reasons.length > 0 && <ul className="reasons">{s.reasons.map((r, i) => <li key={i}>{reason(r)}</li>)}</ul>}
         {s.lastAction && !s.busy && (
-          <p className={`meta${s.lastAction.ok ? '' : ' state-down'}`} role="status">{reason(s.lastAction.reason)}</p>
+          <p className={`meta row${s.lastAction.ok ? '' : ' state-down'}`} role="status">
+            {reason(s.lastAction.reason)}
+            {!s.lastAction.ok && s.descriptor?.paths?.logs?.length ? <button className="btn btn-sm" onClick={() => setTab('logs')}>{t('action.logs')}</button> : null}
+          </p>
         )}
         <div className="row">
           {managed && (s.state === 'stopped'
@@ -76,14 +99,24 @@ export function ServiceView({ s, members, open, link, nonce, overlayOpen, askSto
           {s.descriptor?.commands?.doctor && <button className="btn" disabled={Boolean(s.busy)} onClick={() => void run('doctor')}>{t('action.doctor')}</button>}
           {s.descriptor?.paths && <button className="btn" onClick={() => void api().showPath(s.descriptor!.paths!.data)}>{t('action.showData')}</button>}
           <button className="btn" onClick={() => void api().showPath(s.descriptorPath)}>{t('action.showFile')}</button>
+          {conflictWith.map((o) => (
+            <button key={o.key} className="btn" onClick={() => void api().showPath(o.descriptorPath)}>{t('action.showFileOf', { name: nameOf(o) })}</button>
+          ))}
         </div>
       </header>
-      <div className="tabs" role="tablist">
-        {(['dashboard', 'activity', 'health', ...(s.descriptor?.placement === 'remote' ? [] : ['logs'])] as Tab[]).map((x) => (
-          <button key={x} role="tab" className="tab" aria-selected={tab === x} onClick={() => setTab(x)}>{t(`tab.${x}`)}</button>
+      <div className="tabs" role="tablist" aria-label={nameOf(s)} onKeyDown={(e) => {
+        // U-14: arrow keys move between tabs, as a tab list should.
+        if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+        const i = tabs.indexOf(tab);
+        const next = tabs[(i + (e.key === 'ArrowRight' ? 1 : tabs.length - 1)) % tabs.length]!;
+        setTab(next);
+        (document.getElementById(`tab-${next}`) as HTMLButtonElement | null)?.focus();
+      }}>
+        {tabs.map((x) => (
+          <button key={x} id={`tab-${x}`} role="tab" className="tab" aria-selected={tab === x} aria-controls={`panel-${x}`} tabIndex={tab === x ? 0 : -1} onClick={() => setTab(x)}>{t(`tab.${x}`)}</button>
         ))}
       </div>
-      <div className="svc-body">
+      <div className="svc-body" role="tabpanel" id={`panel-${tab}`} aria-labelledby={`tab-${tab}`}>
         {tab === 'dashboard' && <DashboardHost s={s} link={link} nonce={nonce} hidden={overlayOpen} />}
         {tab === 'activity' && <div className="pane"><ServiceActivity serviceKey={s.key} /></div>}
         {tab === 'health' && <div className="pane"><Health s={s} output={output} /></div>}
@@ -213,8 +246,8 @@ function DashboardToolbar({ serviceKey }: { serviceKey: string }) {
   );
 }
 
-function Health({ s, output }: { s: ServiceSnapshot; output: { title: string; text: string } | null }) {
-  const { t } = useT();
+function Health({ s, output }: { s: ServiceSnapshot; output: { title: string; text: string; running: 'doctor' | 'update' | null } | null }) {
+  const { t, lang } = useT();
   const wk = s.wellKnown;
   return (
     <>
@@ -225,14 +258,14 @@ function Health({ s, output }: { s: ServiceSnapshot; output: { title: string; te
       {wk && wk.degraded.length > 0 && <ul>{wk.degraded.map((d) => <li key={d.source}><b>{d.source}</b>: {d.reason}</li>)}</ul>}
       <dl className="kv">
         <dt>{t('health.descriptor')}</dt><dd>{s.descriptorPath}</dd>
-        {s.descriptor && <><dt>origin</dt><dd>{s.descriptor.origin}</dd></>}
-        {s.descriptor?.lifecycle.label && <><dt>launchd</dt><dd>{s.descriptor.lifecycle.label}{s.launchd.pid ? ` · pid ${s.launchd.pid}` : ''}{s.launchd.disabled ? ' · disabled' : ''}</dd></>}
-        {wk && <><dt>{t('health.started')}</dt><dd>{new Date(wk.process.startedAt).toLocaleString()}</dd></>}
+        {s.descriptor && <><dt>{t('health.origin')}</dt><dd>{s.descriptor.origin}</dd></>}
+        {s.descriptor?.lifecycle.label && <><dt>{t('health.launchd')}</dt><dd>{s.descriptor.lifecycle.label}{s.launchd.pid ? ` · ${t('health.pid')} ${s.launchd.pid}` : ''}{s.launchd.disabled ? ` · ${t('health.disabled')}` : ''}</dd></>}
+        {wk && <><dt>{t('health.started')}</dt><dd>{new Date(wk.process.startedAt).toLocaleString(lang)}</dd></>}
         {wk && <><dt>{t('health.surfaces')}</dt><dd>{Object.entries(wk.surfaces).map(([k, v]) => `${k} ${(v as { path: string }).path}`).join(' · ')}</dd></>}
       </dl>
       {output && (
         <section>
-          <h3 className="row">{output.text === '' && output.title.length < 10 ? <><Spinner /> {t('busy.doctor')}</> : output.title}</h3>
+          <h3 className="row" role="status">{output.running ? <><Spinner /> {t(output.running === 'doctor' ? 'busy.doctor' : 'busy.updating')}</> : output.title}</h3>
           {output.text && <pre className="log">{output.text}</pre>}
         </section>
       )}
@@ -250,7 +283,7 @@ function Logs({ serviceKey }: { serviceKey: string }) {
     const timer = setInterval(() => { if (!document.hidden) load(); }, 3000);
     return () => { alive = false; clearInterval(timer); };
   }, [serviceKey]);
-  if (!logs) return <p className="row muted"><Spinner /></p>;
+  if (!logs) return <p className="row muted" role="status"><Spinner /> {t('app.loading')}</p>;
   if (!logs.length) return <p className="muted">{t('logs.none')}</p>;
   return (
     <>

@@ -162,6 +162,7 @@ test('LC-08: a released view comes back on the page it was on, never off its ori
   assert.equal(resumePath('http://127.0.0.1:47195/dashboard/job_1?tab=2#x', 'http://127.0.0.1:47195'), '/dashboard/job_1?tab=2#x');
   assert.equal(resumePath('http://127.0.0.1:47196/dashboard', 'http://127.0.0.1:47195'), undefined);
   assert.equal(resumePath('', 'http://127.0.0.1:47195'), undefined);
+  assert.equal(resumePath('http://127.0.0.1:47195/fabric/v1/login?code=abcdefghijklmnop', 'http://127.0.0.1:47195'), undefined, 'R-9: a spent login code is never resumed');
   assert.equal(resumePath('about:blank', 'http://127.0.0.1:47195'), undefined);
 });
 
@@ -736,4 +737,14 @@ test('LC-15: npm run clean removes what a build regenerates and nothing git trac
   assert.ok(fs.existsSync(path.join(root, 'node_modules/react')), 'dependencies stay');
   assert.ok(fs.existsSync(path.join(root, 'src/main.ts')), 'sources stay');
   assert.deepEqual(clean(root), [], 'idempotent');
+});
+
+test('R-17 (LC-02): what a finished command left running in its own group ends with it', async () => {
+  const marker = path.join(tmp('fd-grandchild-'), 'alive');
+  // The command starts a background sleeper in its own group and exits at once.
+  const r = await runOwned('/bin/sh', ['-c', `(sleep 30; touch ${marker}) & echo started`], { timeoutMs: 10_000, killGraceMs: 200 });
+  assert.equal(r.code, 0);
+  await new Promise((resolve) => setTimeout(resolve, 600));
+  const left = spawnSync('/bin/sh', ['-c', `pgrep -f "sleep 30; touch ${marker}" || true`], { encoding: 'utf8' }).stdout.trim();
+  assert.equal(left, '', 'no descendant of the finished command is still running');
 });

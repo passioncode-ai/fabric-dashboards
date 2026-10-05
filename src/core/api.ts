@@ -15,13 +15,15 @@ export interface FabricApi {
   command(key: string, which: 'doctor' | 'update'): Promise<{ code: number | null; output: string; timedOut: boolean }>;
   logs(key: string): Promise<{ path: string; text?: string; error?: string }[]>;
   /** Every service's own usage report, read now and summed in the main process (ADR-0013). */
-  spend(): Promise<SpendEntry[]>;
+  /** What every agent spent, and when the main process read it. `force` (Refresh) reads now, even inside the 30 s reuse window. */
+  spend(force?: boolean): Promise<{ entries: SpendEntry[]; readAt: string | null }>;
   activity(filter: { serviceKey?: string; minLevel?: ActivityItem['level'] }): Promise<ActivityItem[]>;
   markActivitySeen(): Promise<void>;
   settings(): Promise<Settings>;
   updateSettings(patch: Partial<Settings>): Promise<{ settings: Settings; error?: string }>;
   listeners(): Promise<{ listeners: Listener[]; error?: string }>;
-  showPath(path: string): Promise<void>;
+  /** Open a folder or reveal a file this app knows (the services folder, a descriptor, a service's data); never launches an app. */
+  showPath(path: string): Promise<{ ok: boolean; error?: string }>;
   /** `owner` names the dashboard host asking (one per mounted host), so its later hide cannot
    *  remove a view another host has shown since (ViewSlot in src/electron/policy.ts). */
   /** Show a service's dashboard for the host `owner`; `fresh` signs in and loads again (Retry, Reload). */
@@ -35,14 +37,17 @@ export interface FabricApi {
   /** Put text on the clipboard from the main process (the toolbar's Copy buttons). */
   copyText(text: string): Promise<void>;
   onViewEvent(listener: (event: { key: string; kind: 'restarted' | 'crashed' | 'loaded' | 'error' | 'navigated'; error?: string; page?: PageState }) => void): () => void;
-  onNavigate(listener: (target: { page: 'service' | 'activity'; key?: string; link?: string }) => void): () => void;
+  onNavigate(listener: (target: { page: 'service' | 'activity' | 'overview'; key?: string; link?: string }) => void): () => void;
   /** Called once the renderer listens: the navigation that arrived before it did (a link at launch), if any. */
-  takeNavigation(): Promise<{ page: 'service' | 'activity'; key?: string; link?: string } | null>;
+  takeNavigation(): Promise<{ page: 'service' | 'activity' | 'overview'; key?: string; link?: string } | null>;
+  /** Read the services folder again now (the unreadable-folder Retry). */
+  rescan(): Promise<void>;
+  /** Open how a service joins (the building-fabric-services kit) in the browser — a fixed address, never one from a page. */
+  openServiceGuide(): Promise<void>;
   restartToUpdate(): Promise<void>;
   checkForUpdates(): Promise<void>;
   /** Moves the app into Applications, where updates can install, and relaunches it (ADR-0015). */
   moveToApplications(): Promise<{ ok: boolean; error?: string }>;
-  notificationsAllowed(): Promise<boolean>;
   openNotificationSettings(): Promise<void>;
   locale(): Promise<string>;
   /** Asks the person to confirm, then removes the login item and the MCP registration, moves the
@@ -73,10 +78,11 @@ export const CHANNELS = {
   viewEvent: 'fd:view-event',
   navigate: 'fd:navigate',
   navigateTake: 'fd:navigate-take',
+  rescan: 'fd:rescan',
+  serviceGuide: 'fd:service-guide',
   updateRestart: 'fd:update-restart',
   updateCheck: 'fd:update-check',
   moveToApplications: 'fd:move-to-applications',
-  notificationsAllowed: 'fd:notifications-allowed',
   notificationSettings: 'fd:notification-settings',
   locale: 'fd:locale',
   uninstall: 'fd:uninstall',

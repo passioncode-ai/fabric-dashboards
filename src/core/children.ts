@@ -72,6 +72,9 @@ export function runOwned(command: string, args: string[], o: OwnedOptions): Prom
     const finish = (code: number | null, extra = '') => {
       clearTimeout(timer);
       owned.delete(child);
+      // R-17 (LC-02): what the command left running in its own group ends with it — nothing
+      // outlives the command's deadline or the app's quit. One that left the group (setsid) is not ours.
+      if (child.pid) { try { process.kill(-child.pid, 0); void killGroup(child, o.killGraceMs ?? KILL_GRACE_MS); } catch { /* the group is gone */ } }
       resolve({ code, output: `${stdout}${stderr ? `\n${stderr}` : ''}${extra}`.trim(), timedOut });
     };
     let done = false;

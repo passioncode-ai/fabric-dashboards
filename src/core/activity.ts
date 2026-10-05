@@ -15,7 +15,12 @@ import type { ActivityItem, ServiceEvent } from './types';
 const KEEP = 5000;
 const STATE_DELAY_MS = 2000;
 
-export interface ActivityOptions { keep?: number; stateDelayMs?: number }
+export interface ActivityOptions {
+  keep?: number;
+  stateDelayMs?: number;
+  /** R-1: a write that failed (a full disk). The store keeps the rows in memory and rewrites the file once a write succeeds; it never throws. */
+  onWriteError?: (message: string) => void;
+}
 
 export class ActivityStore {
   private items: ActivityItem[] = [];
@@ -29,10 +34,14 @@ export class ActivityStore {
   private readonly stateFile: string;
   private readonly keep: number;
   private readonly stateDelayMs: number;
+  private readonly onWriteError: (message: string) => void;
+  /** The file on disk is behind the rows in memory (a failed write): the next write compacts instead of appending. */
+  private dirty = false;
 
   constructor(dir: string, options: ActivityOptions = {}) {
     this.keep = options.keep ?? KEEP;
     this.stateDelayMs = options.stateDelayMs ?? STATE_DELAY_MS;
+    this.onWriteError = options.onWriteError ?? (() => undefined);
     this.file = path.join(dir, 'activity.jsonl');
     this.stateFile = path.join(dir, 'activity-state.json');
     const state = readJson<{ cursors?: Record<string, string | null>; lastSeen?: string; appCounter?: number }>(this.stateFile, {});
@@ -63,22 +72,39 @@ export class ActivityStore {
   }
 
   private compact(): void {
-    atomicWrite(this.file, this.items.length ? this.items.map((i) => JSON.stringify(i)).join('\n') + '\n' : '');
-    this.fileRows = this.items.length;
+    try {
+      atomicWrite(this.file, this.items.length ? this.items.map((i) => JSON.stringify(i)).join('\n') + '\n' : '');
+      this.fileRows = this.items.length;
+      this.dirty = false;
+    } catch (error) {
+      this.dirty = true;
+      this.onWriteError(`activity: could not rewrite ${path.basename(this.file)}: ${(error as Error).message}`);
+    }
   }
 
-  /** Append rows; past 2 × keep rows the file is compacted instead. */
+  /**
+   * Append rows; past 2 × keep rows, or after a failed write, the file is compacted instead.
+   * Never throws (R-1): a full disk loses no notification and no cursor move — the rows stay in
+   * memory and reach the file with the next write that succeeds.
+   */
   private append(rows: ActivityItem[]): void {
     if (!rows.length) return;
-    if (this.fileRows + rows.length > this.keep * 2) return this.compact();
-    fs.mkdirSync(path.dirname(this.file), { recursive: true, mode: 0o700 });
-    const fd = fs.openSync(this.file, 'a', 0o600);
+    if (this.dirty || this.fileRows + rows.length > this.keep * 2) return this.compact();
     try {
-      fs.writeSync(fd, rows.map((i) => JSON.stringify(i)).join('\n') + '\n');
-    } finally {
-      fs.closeSync(fd);
+      fs.mkdirSync(path.dirname(this.file), { recursive: true, mode: 0o700 });
+      const fd = fs.openSync(this.file, 'a', 0o600);
+      try {
+        const data = Buffer.from(rows.map((i) => JSON.stringify(i)).join('\n') + '\n', 'utf8');
+        let at = 0;
+        while (at < data.length) at += fs.writeSync(fd, data, at, data.length - at); // a short write is finished, not torn
+      } finally {
+        fs.closeSync(fd);
+      }
+      this.fileRows += rows.length;
+    } catch (error) {
+      this.dirty = true; // what reached the file may end mid-line: the next write rewrites it whole
+      this.onWriteError(`activity: could not append to ${path.basename(this.file)}: ${(error as Error).message}`);
     }
-    this.fileRows += rows.length;
   }
 
   private touched(): void {

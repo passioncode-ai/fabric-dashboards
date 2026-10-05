@@ -1,6 +1,7 @@
 import { attentionRank } from '@passioncode-ai/fabric-service-host/state';
 import { useEffect, useState } from 'react';
 import { sumSpend, type SpendEntry } from '../../core/spend';
+import { money as formatMoney } from './Spend';
 import { instanceOf, type Product } from '../../core/products';
 import type { AppStatus, ServiceSnapshot, Settings } from '../../core/types';
 import { api, GLYPH, nameOf, shortBuild, Spinner, StateBadge, useT } from '../lib';
@@ -30,7 +31,7 @@ export function LoginQuestion() {
   );
 }
 
-interface Props { status: AppStatus; products: Product[]; open: (key: string) => void; act: (key: string, action: 'restart' | 'start' | 'update') => void; goSpend: () => void }
+interface Props { status: AppStatus; products: Product[]; open: (key: string, link?: string, tab?: 'logs' | 'health') => void; act: (key: string, action: 'restart' | 'start' | 'update') => void; goSpend: () => void }
 
 /** Needs attention shows this many rows; the rest wait behind "Show all" (ADR-0014). */
 const ATTENTION_VISIBLE = 3;
@@ -38,9 +39,14 @@ const ATTENTION_VISIBLE = 3;
 export function Overview({ status, products, open, act, goSpend }: Props) {
   const { t, reason } = useT();
   const [showAll, setShowAll] = useState(false);
+  const [pathError, setPathError] = useState('');
+  const showFolder = () => void api().showPath(status.servicesDir).then((r) => setPathError(r.ok ? '' : t('overview.showFailed', { error: r.error ?? '', path: status.servicesDir })));
   const services = status.services;
+  // U-1: a row stays while its action runs ("Restarting…"), and comes back with the failure and Logs.
+  // A failure is news for half an hour; after that the service's own state speaks again.
+  const failed = (s: ServiceSnapshot) => Boolean(s.lastAction && !s.lastAction.ok && !s.busy && Date.now() - Date.parse(s.lastAction.at) < 30 * 60_000);
   const attention = services
-    .map((s) => ({ s, rank: attentionRank(s.state, s.wellKnown) }))
+    .map((s) => ({ s, rank: attentionRank(s.state, s.wellKnown) ?? (s.busy ? 0.5 : failed(s) ? 5 : null) }))
     .filter((x) => x.rank !== null)
     .sort((a, b) => a.rank! - b.rank!);
 
@@ -49,6 +55,7 @@ export function Overview({ status, products, open, act, goSpend }: Props) {
       <div className="notice error" role="alert">
         <p>{t('overview.dirError', { error: status.dirError })}</p>
         <p className="mono">{status.servicesDir}</p>
+        <button className="btn" onClick={() => void api().rescan()}>{t('overview.retry')}</button>
       </div>
     );
   }
@@ -59,20 +66,30 @@ export function Overview({ status, products, open, act, goSpend }: Props) {
         <h2 id="empty-title">{t('overview.empty.title')}</h2>
         <p>{t('overview.empty.body')}</p>
         <p className="mono">{status.servicesDir}</p>
-        <button className="btn btn-primary" onClick={() => void api().showPath(status.servicesDir)}>{t('overview.empty.show')}</button>
+        <div className="row">
+          <button className="btn btn-primary" onClick={showFolder}>{t('overview.empty.show')}</button>
+          <button className="btn" onClick={() => void api().openServiceGuide()}>{t('overview.empty.guide')}</button>
+        </div>
+        {pathError && <p className="notice error" role="alert">{pathError}</p>}
       </section>
     );
   }
 
   const action = (s: ServiceSnapshot) => {
-    if (s.busy) return <span className="row meta"><Spinner /> {t(`busy.${s.busy}`)}</span>;
+    if (s.busy) return <span className="row meta" role="status"><Spinner /> {t(`busy.${s.busy}`)}</span>;
+    const logs = failed(s) && s.descriptor?.paths?.logs?.length
+      ? <button className="btn" aria-label={`${t('action.logs')} — ${nameOf(s)}`} onClick={() => open(s.key, undefined, 'logs')}>{t('action.logs')}</button> : null;
+    if (logs && !(s.state === 'down' || s.state === 'duplicate')) return logs;
     // DEC-0019: an online service is supervised by its platform — nothing here can restart it.
     if (isOnline(s)) return <button className="btn" onClick={() => open(s.key)}>{t('action.open')}</button>;
-    if (s.state === 'down' || s.state === 'duplicate') return <button className="btn btn-primary" onClick={() => act(s.key, 'restart')}>{t('action.restart')}</button>;
+    // U-14: each action names the service it acts on, for a screen reader reading the button alone.
+    const label = (action: string) => `${action} — ${nameOf(s)}`;
+    if (s.state === 'down' || s.state === 'duplicate') return <span className="row">{logs}<button className="btn btn-primary" aria-label={label(t('action.restart'))} onClick={() => act(s.key, 'restart')}>{t('action.restart')}</button></span>;
     if (s.wellKnown?.update?.available && s.descriptor?.commands?.update && s.state !== 'degraded') {
-      return <button className="btn" onClick={() => act(s.key, 'update')}>{t('action.update', { version: s.wellKnown.update.available })}</button>;
+      const text = t('action.update', { version: s.wellKnown.update.available });
+      return <button className="btn" aria-label={label(text)} onClick={() => act(s.key, 'update')}>{text}</button>;
     }
-    return <button className="btn" onClick={() => open(s.key)}>{t('action.open')}</button>;
+    return <button className="btn" aria-label={label(t('action.open'))} onClick={() => open(s.key)}>{t('action.open')}</button>;
   };
 
   // ADR-0012: one card per product, placed by its primary; Attention above stays per instance.
@@ -80,7 +97,9 @@ export function Overview({ status, products, open, act, goSpend }: Props) {
   const online = products.filter((p) => isOnline(p.primary));
 
   const attentionLine = (s: ServiceSnapshot) => {
-    if (s.reasons.length) return s.reasons.map(reason).join(' ');
+    const lastFailure = failed(s) ? reason(s.lastAction!.reason) : '';
+    if (s.reasons.length) return [lastFailure, ...s.reasons.map(reason)].filter(Boolean).join(' ');
+    if (lastFailure) return lastFailure;
     const tile = s.wellKnown?.summary?.find((x) => x.attention);
     return tile ? t('reason.attention', { label: tile.label, value: tile.value }) : '';
   };
@@ -130,7 +149,8 @@ function Card({ p, open }: { p: Product; open: (key: string) => void }) {
   const wk = s.wellKnown;
   const uptime = wk ? Date.now() - new Date(wk.process.startedAt).getTime() : null;
   return (
-    <button className="card" onClick={() => open(s.key)} aria-label={`${nameOf(s)} — ${t(`state.${s.state}`)}`}>
+    // U-14: the label a screen reader reads carries what the card says first: name, state, purpose, connections.
+    <button className="card" onClick={() => open(s.key)} aria-label={[`${nameOf(s)} — ${t(`state.${s.state}`)}`, s.descriptor?.summary, ...others.map((m) => `${instanceOf(m.key)}: ${t(`state.${m.state}`)}`)].filter(Boolean).join('. ')}>
       <div className="card-head">
         <div>
           <h3>{nameOf(s)}</h3>
@@ -185,26 +205,30 @@ function hostOf(s: ServiceSnapshot): string {
 function StatusStrip({ status, products, attention, goSpend }: { status: AppStatus; products: Product[]; attention: number; goSpend: () => void }) {
   const { t } = useT();
   const [spend, setSpend] = useState<SpendEntry[] | null>(null);
-  useEffect(() => { let alive = true; void api().spend().then((e) => { if (alive) setSpend(e); }); return () => { alive = false; }; }, []);
+  // D-3: read on arrival and every minute while Overview is open; a hidden window gets the last sums (LC-08).
+  useEffect(() => {
+    let alive = true;
+    const read = () => void api().spend().then((r) => { if (alive) setSpend(r.entries); }, () => undefined);
+    read();
+    const timer = setInterval(read, 60_000);
+    return () => { alive = false; clearInterval(timer); };
+  }, []);
   const ready = products.filter((p) => p.primary.state === 'ready').length;
   const problems = status.services.filter((s) => ['down', 'duplicate', 'foreign', 'conflict', 'invalid'].includes(s.state)).length;
-  const reporting = spend?.some((e) => e.kind === 'report') ?? false;
-  const money = (window: 'today' | 'month') => {
-    const sum = sumSpend(spend ?? [], window);
-    if (sum.costUsd === null) return t('spend.unknown');
-    return `${sum.partial ? '≥ ' : ''}$${sum.costUsd.toFixed(2)}`;
-  };
+  // Reachable when anything reports or failed to report: Spend lists the failures (D-3).
+  const reporting = spend?.some((e) => e.kind === 'report' || e.kind === 'error') ?? false;
+  const sum = (window: 'today' | 'month') => formatMoney(sumSpend(spend ?? [], window), t);
   return (
-    <div className="strip" aria-label={t('overview.strip')}>
+    <section className="strip" aria-label={t('overview.strip')}>
       <div className="cell"><span className="v">{ready}<span className="of">/{products.length}</span></span><span className="l">{t('overview.strip.ready')}</span></div>
       <div className={`cell${problems ? ' bad' : ''}`}><span className="v">{problems}</span><span className="l">{t('overview.strip.down')}</span></div>
       <div className={`cell${attention ? ' attn' : ''}`}><span className="v">{attention}</span><span className="l">{t('overview.strip.attention')}</span></div>
       <button className="cell" onClick={goSpend} disabled={!reporting}>
-        <span className="v">{reporting ? money('today') : '—'}</span><span className="l">{t('overview.strip.spendToday')}</span>
+        <span className="v">{spend === null ? <Spinner /> : reporting ? sum('today') : '—'}</span><span className="l">{t('overview.strip.spendToday')}</span>
       </button>
       <button className="cell" onClick={goSpend} disabled={!reporting}>
-        <span className="v">{reporting ? money('month') : '—'}</span><span className="l">{t('overview.strip.spendMonth')}</span>
+        <span className="v">{spend === null ? <Spinner /> : reporting ? sum('month') : '—'}</span><span className="l">{t('overview.strip.spendMonth')}</span>
       </button>
-    </div>
+    </section>
   );
 }

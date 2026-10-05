@@ -213,3 +213,50 @@ test('S-2: an online origin that answered as another service gets no token again
   assert.equal(probes.length, 2, 'a changed descriptor is probed again');
   assert.equal(monitor.snapshot(KEY)!.state, 'ready');
 });
+
+// ── release audit R-8, R-18 ───────────────────────────────────────────────────────────────
+
+test('R-8: a new pid between two probes is a restart even when the state stays ready', async () => {
+  const job = { loaded: true, pid: READY.process.pid };
+  const r = rig(job);
+  const restarted: string[] = [];
+  r.monitor.on('restarted', (k: string) => restarted.push(k));
+  await r.probeAt(0, ANSWER);
+  assert.deepEqual(restarted, []);
+  job.pid = 5151; // launchd restarted it between two probes
+  const again: WellKnownResult = { kind: 'answer', doc: { ...READY, process: { ...READY.process, pid: 5151 } }, ms: 3 };
+  const snap = await r.probeAt(30, again);
+  assert.equal(snap.state, 'ready');
+  assert.deepEqual(restarted, [KEY], 'ready → ready with a new pid tells the page to offer Reload');
+});
+
+test('R-8: one action at a time — a second command while one runs is refused, not run twice', async () => {
+  const r = rig({ loaded: true }, { commands: { doctor: ['/bin/sleep', '0.3'] } });
+  await r.probeAt(0, ANSWER);
+  const first = r.monitor.command(KEY, 'doctor');
+  const second = await r.monitor.command(KEY, 'doctor');
+  assert.equal(second.code, null);
+  assert.match(second.output, /busy/);
+  assert.equal((await first).code, 0);
+});
+
+test('R-18: a launchd service not yet probed reads starting, never Off with Start', async () => {
+  const base = tmp('fd-unprobed-');
+  const services = path.join(base, 'services');
+  fs.mkdirSync(services);
+  fs.writeFileSync(path.join(services, `${KEY}.json`), JSON.stringify(DESCRIPTOR));
+  let release: (r: WellKnownResult) => void = () => undefined;
+  const monitor = new Monitor({
+    servicesDir: services, activity: new ActivityStore(path.join(base, 'app')), settings: () => DEFAULT_SETTINGS, lang: () => 'en', now: () => T0,
+    launchd: new Launchd(async () => ({ code: 0, stdout: `pid = ${READY.process.pid}\n`, stderr: '' }), 501),
+    wellKnown: () => new Promise<WellKnownResult>((resolve) => { release = resolve; }),
+  });
+  const ticking = monitor.tick(true);
+  await new Promise((r) => setTimeout(r, 20)); // the scan is done, the first probe is in flight
+  const before = monitor.snapshot(KEY)!;
+  assert.equal(before.state, 'starting', 'not "Off — the launchd job is not loaded"');
+  assert.deepEqual(before.reasons.map((x) => x.code), ['reason.waiting']);
+  release(ANSWER);
+  await ticking;
+  assert.equal(monitor.snapshot(KEY)!.state, 'ready');
+});
