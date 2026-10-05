@@ -543,6 +543,8 @@ test('LC-14: the app\'s data is removed only after the app has exited, and the h
   fs.writeFileSync(path.join(data, 'activity.jsonl'), 'x');
   const appProcess = spawn('/bin/sleep', ['0.4']);
   const helper = purgeAfterExit(appProcess.pid!, [data, home, '/'])!;
+  // The app lets the helper go (unref) so it can quit; this test waits for it, so it holds it.
+  helper.ref();
   const helperDone = new Promise((resolve) => helper.once('exit', resolve));
   await new Promise((resolve) => setTimeout(resolve, 150));
   assert.ok(fs.existsSync(data), 'nothing is removed while the app still runs');
