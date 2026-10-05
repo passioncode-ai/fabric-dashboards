@@ -4,12 +4,12 @@
 // only while someone looks at Spend or an agent asks — nothing runs when the window is hidden
 // (lifecycle LC-08).
 import { summarizeUsage, type SpendSum, type SpendSummary, type UsageReport } from '@passioncode-ai/fabric-service-host/usage';
-import type { Descriptor, WellKnown } from './types';
+import type { Descriptor, Reason, WellKnown } from './types';
 
 export type SpendEntry =
   | { key: string; kind: 'report'; summary: SpendSummary }
   | { key: string; kind: 'none' } // the service declares no usage surface, or has not answered yet
-  | { key: string; kind: 'error'; error: string };
+  | { key: string; kind: 'error'; error: string; reason?: Reason }; // `error` English (agents); `reason` for the window's language
 
 export interface SpendDeps {
   token: (tokenFile: string) => string;
@@ -28,14 +28,19 @@ export async function readSpend(services: readonly { key: string; state?: string
     const d = s.descriptor;
     const own = Boolean(d && s.wellKnown && s.wellKnown.service.id === d.id && s.wellKnown.service.instance === d.instance && s.state !== 'foreign');
     const usagePath = own ? s.wellKnown!.surfaces.usage?.path : undefined;
-    if (d && !usagePath && s.usagePath && (!own || !s.wellKnown)) return { key: s.key, kind: 'error', error: s.state === 'foreign' ? 'another program answers on its address, so its usage report is not read' : 'it does not answer now, so its usage report could not be read' };
+    if (d && !usagePath && s.usagePath && (!own || !s.wellKnown)) {
+      return s.state === 'foreign'
+        ? { key: s.key, kind: 'error', error: 'another program answers on its address, so its usage report is not read', reason: { code: 'spend.err.foreign' } }
+        : { key: s.key, kind: 'error', error: 'it does not answer now, so its usage report could not be read', reason: { code: 'spend.err.notAnswering' } };
+    }
     if (!d || !usagePath) return { key: s.key, kind: 'none' };
-    if (!usagePath.startsWith('/') || usagePath.startsWith('//')) return { key: s.key, kind: 'error', error: `the usage path ${JSON.stringify(usagePath)} is not a path on the service origin` };
+    if (!usagePath.startsWith('/') || usagePath.startsWith('//')) return { key: s.key, kind: 'error', error: `the usage path ${JSON.stringify(usagePath)} is not a path on the service origin`, reason: { code: 'spend.err.badPath', params: { path: usagePath.slice(0, 80) } } };
     try {
       const report = await deps.fetchUsage(d, usagePath, deps.token(d.auth.tokenFile));
       return { key: s.key, kind: 'report', summary: summarizeUsage(report, deps.now()) };
     } catch (error) {
-      return { key: s.key, kind: 'error', error: (error as Error).message };
+      const reason = (error as { reason?: Reason }).reason;
+      return { key: s.key, kind: 'error', error: (error as Error).message, ...(reason ? { reason } : {}) };
     }
   }));
 }

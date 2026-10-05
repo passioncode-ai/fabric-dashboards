@@ -9,7 +9,7 @@ const REFRESH_MS = 60_000;
 
 /** SCN-036…038 (ADR-0013): what every agent spent, from its own usage report. */
 export function Spend({ status }: { status: AppStatus }) {
-  const { t, time, lang } = useT();
+  const { t, time, lang, reason } = useT();
   const [entries, setEntries] = useState<SpendEntry[] | null>(null);
   const [readAt, setReadAt] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -107,7 +107,7 @@ export function Spend({ status }: { status: AppStatus }) {
       {errors.length > 0 && (
         <section className="notice error" aria-labelledby="spend-errors-title">
           <h2 id="spend-errors-title">{t('spend.errors')}</h2>
-          <ul>{errors.map((e) => <li key={e.key}><b>{name(e.key)}</b> — {e.error}</li>)}</ul>
+          <ul>{errors.map((e) => <li key={e.key}><b>{name(e.key)}</b> — {e.reason ? reason(e.reason) : e.error}</li>)}</ul>
         </section>
       )}
       {silent.length > 0 && <p className="meta">{t('spend.silent', { names: silent.map(nameOf).join(', ') })}</p>}

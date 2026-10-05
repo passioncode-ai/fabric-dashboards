@@ -108,3 +108,11 @@ test('D-1: an agent that reported spend and stopped answering is an error, never
   assert.equal(sumSpend(out, 'week').partial, true, '≥: one agent\'s spend is unknown');
   assert.deepEqual(dd.reads, ['example-agent.default/fabric/v1/usage']);
 });
+
+test('W-1: the reasons the app writes itself carry a code the window translates; the English text stays for agents', async () => {
+  const out = await readSpend([{ key: 'down.default', state: 'down', descriptor: { ...D, id: 'down' }, wellKnown: null, usagePath: '/fabric/v1/usage' }], deps());
+  assert.deepEqual(out[0], { key: 'down.default', kind: 'error', error: 'it does not answer now, so its usage report could not be read', reason: { code: 'spend.err.notAnswering' } });
+  const { UsageError } = await import('../src/core/probe');
+  const refused = await readSpend([{ key: 'example-agent.default', descriptor: D, wellKnown: WK }], deps({ fetchUsage: async () => { throw new UsageError('the service refused the token (HTTP 401)', { code: 'spend.err.refused', params: { status: 401 } }); } }));
+  assert.deepEqual((refused[0] as { reason: unknown }).reason, { code: 'spend.err.refused', params: { status: 401 } });
+});

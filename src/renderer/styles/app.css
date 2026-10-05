@@ -96,7 +96,7 @@ h3 { font-size: var(--pc-type-card); margin: 0; font-weight: 600; }
 .strip button.cell:disabled { cursor: default; }
 .strip .v { font-size: var(--pc-type-section); font-weight: 600; font-variant-numeric: tabular-nums; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .strip .v .of { font-size: var(--pc-type-body); color: var(--pc-text-muted); font-weight: 400; }
-.strip .l { font-size: var(--pc-type-meta); color: var(--pc-text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.strip .l { font-size: var(--pc-type-meta); color: var(--pc-text-muted); line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; } /* W-4: two lines before an ellipsis — Russian labels are long */
 .strip .cell.bad .v { color: var(--pc-negative); }
 .strip .cell.attn .v { color: var(--pc-accent); }
 /* DEC-0019: online services — the same cards under their own heading, on the same tokens. */

@@ -1,7 +1,7 @@
 // Talking to a service with its token: the events feed, the usage report and the one-time login code. Runs in the
 // main process only — the token never reaches a renderer. The unauthenticated health probe
 // (the well-known document) is shared with Fabric in @passioncode-ai/fabric-service-host.
-import { checkUsage, request, type Descriptor, type ServiceEvent, type UsageReport } from '@passioncode-ai/fabric-service-host';
+import { checkUsage, request, type Descriptor, type Reason, type ServiceEvent, type UsageReport } from '@passioncode-ai/fabric-service-host';
 import { tlsFor } from './testhooks';
 import { safePath } from '@passioncode-ai/fabric-service-host/links';
 
@@ -41,14 +41,19 @@ export async function loginUrl(d: Descriptor, token: string): Promise<string> {
   return d.origin + body.url;
 }
 
+/** A usage read that failed, with the reason a person reads in their language (W-1); `message` stays English for agents. */
+export class UsageError extends Error {
+  constructor(message: string, readonly reason: Reason) { super(message); }
+}
+
 /** GET the service's usage report (contract DEC-0021), checked against the descriptor's identity. */
 export async function fetchUsage(d: Descriptor, usagePath: string, token: string): Promise<UsageReport> {
   const res = await request(d.origin, 'GET', usagePath, authHeaders(d, token), 5000, tlsFor(d.origin));
-  if (res.status === 401 || res.status === 403) throw new Error(`the service refused the token (HTTP ${res.status})`);
-  if (res.status !== 200) throw new Error(`HTTP ${res.status} from the usage report`);
+  if (res.status === 401 || res.status === 403) throw new UsageError(`the service refused the token (HTTP ${res.status})`, { code: 'spend.err.refused', params: { status: res.status } });
+  if (res.status !== 200) throw new UsageError(`HTTP ${res.status} from the usage report`, { code: 'spend.err.http', params: { status: res.status } });
   let body: unknown;
-  try { body = JSON.parse(res.body); } catch { throw new Error('the usage report is not JSON'); }
+  try { body = JSON.parse(res.body); } catch { throw new UsageError('the usage report is not JSON', { code: 'spend.err.notJson' }); }
   const problem = checkUsage(body, { id: d.id, instance: d.instance });
-  if (problem) throw new Error(`the usage report is malformed: ${problem}`);
+  if (problem) throw new UsageError(`the usage report is malformed: ${problem}`, { code: 'spend.err.malformed', params: { problem } });
   return body as UsageReport;
 }

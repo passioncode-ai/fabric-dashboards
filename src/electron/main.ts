@@ -84,7 +84,10 @@ if (!app.requestSingleInstanceLock()) {
   // Embedded dashboards follow the app's theme, not only macOS (prefers-color-scheme in every page).
   nativeTheme.themeSource = settings.get().theme;
   const activity = new ActivityStore(userData, { onWriteError: (message) => log(message) });
-  const lang = (): Lang => langFor(app.getPreferredSystemLanguages()[0] ?? app.getLocale());
+  // The app speaks the system's first language. FD_TEST_LANG (`en`, `ru`) is honoured only when the
+  // app is not packaged, so a test can walk the Russian interface; a shipped app ignores it.
+  const testLang = !app.isPackaged ? process.env.FD_TEST_LANG : undefined;
+  const lang = (): Lang => langFor(testLang || app.getPreferredSystemLanguages()[0] || app.getLocale());
   const monitor = new Monitor({ servicesDir: servicesDir(), activity, settings: () => settings.get(), lang, ledger: new NotifyLedger(path.join(userData, 'notified.json')) });
   let tray: AppTray | null = null;
   // R-3: the window lets itself close only once a quit is really under way — before-quit, or
