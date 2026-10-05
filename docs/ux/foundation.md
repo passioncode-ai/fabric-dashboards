@@ -218,7 +218,7 @@ hunt browser tabs to learn whether an agent is alive or what it did.
   - Given some calls carry no price, when Spend shows a sum that includes them, then it reads «≥ $x», and a model with no priced call reads «unknown» — never $0.
   - Given an agent's report cannot be read, when Spend opens, then that agent is listed with the reason and the totals are lower bounds.
   - Given an agent publishes no report, then Spend names it as not reporting yet.
-  - Nothing is read while Spend is closed.
+  - Usage reports are read only while Spend or Overview is shown (ADR-0014): when Spend opens, on Refresh, and at most once a minute while either page is on screen; one read serves both for 30 s. Nothing is read while the window is hidden: the last sums are shown instead.
 - **Priority:** should
 - **Status:** proposed
 

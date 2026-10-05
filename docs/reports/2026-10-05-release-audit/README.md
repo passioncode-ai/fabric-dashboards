@@ -133,4 +133,16 @@ closed" claims (ST-015, AGENTS lifecycle row) — all fixed in the final documen
 
 ## Done
 
-Filled in as each task lands: ID → commit.
+| Commit | IDs |
+|---|---|
+| `d408450` | S-1, S-2, S-3, S-4, S-5, D-1, D-2, R-5, R-6, R-7, R-13 |
+| `7048ef2` | R-1, R-2, R-3, R-4, R-8, R-9, R-10, R-11, R-12, R-14, R-15, R-16, R-17, R-18, U-1, U-2, U-3, U-4, U-5, U-6, U-7, U-8, U-9, U-10, U-11, U-12, U-14 (except the dialog focus trap), U-15, U-17, U-19, D-3, D-4, M-1, M-2, M-3 (the plist check), F-1, F-2 |
+| `37dadc8` | live walk after the fixes: opening Spend reads now (the strip's 30-second cache showed a stopped agent as reported); Health labels share one case |
+| docs commit (this pass) | the documentation drift list above |
+
+Moved to the backlog with their reason: R-19, R-20, U-13 (FD-19), U-16, U-18, the U-14 focus
+trap, M-3's shared module (FD-20), M-4 (FD-21).
+
+Checks after the fixes: `FD_SKIP_LAUNCHD=1 npm run check` exit 0 (226 tests pass, 1 skipped = the
+launchd test, 7/7 when run unskipped); `npm run test:e2e` 6/6; a second live walk of every screen
+(the 17 screenshots were checked one by one; not kept in the repository).

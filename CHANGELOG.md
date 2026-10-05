@@ -2,7 +2,16 @@
 
 ## Unreleased
 
-## 0.5.5 - 2026-10-05
+## 0.5.5 - 2026-10-06
+
+The first published release since 0.4.1. It carries everything listed under 0.5.4, 0.5.3 and 0.5.2
+below — none of them was published on its own. In short: one entry per agent, Spend, a toolbar
+over every dashboard and an at-a-glance Overview, updates that install themselves, settings that
+survive an uninstall, and the lifecycle contract. On top of that, this release closes the
+[release audit of 2026-10-05](docs/reports/2026-10-05-release-audit/README.md): every screen and
+scenario, the code and the architecture were checked, and its findings are fixed below.
+
+### New
 
 - **Each agent says what it is for.** The descriptor's one-line summary shows under the name on
   its Overview card and on its page. Until now only the summary tiles were drawn.
@@ -15,10 +24,73 @@
   other sites still ask before opening the browser. A new window on the dashboard's own site opens
   in place instead of being dropped. ([ADR-0016](docs/adr/0016-agent-summary-tools-and-cross-links.md))
 
+### Security
+
+- **A service's token never goes to another program.** When something else answers on a service's
+  port, the app no longer reads its usage report with the service's token, and no longer shows its
+  version, tiles, tools or update offer as the service's own. An online service whose address
+  answered as another service gets no token again until its descriptor changes.
+- **A one-time sign-in code never appears in an error.** A failed page load shows the error's name,
+  not the address it was loading.
+- **A dashboard can only load its own site.** Links from events and notifications, and the
+  dashboard path a service declares, are checked so that `/\host` or `@host` cannot open another
+  site in the service's signed-in view.
+
+### Fixed
+
+- **Spend never turns unknown into $0.** An agent that reported spend and then stopped answering is
+  listed under "could not read", and the totals read «≥». A row with calls but no cost is a lower
+  bound. The Overview strip uses Spend's format (<$0.01), refreshes every minute, and leads to
+  Spend when an agent failed. Opening Spend or pressing Refresh reads now, and "read at" is the
+  time of that read.
+- **A dashboard that failed recovers.** Retry and Reload sign in again and show the page again,
+  instead of an empty pane. A page that cannot load says so, separately from a sign-in failure.
+  The "service restarted — Reload" bar is visible above the page. A link from a notification or
+  another agent is applied once, so switching tabs keeps your place.
+- **A full disk no longer silences outage alerts or freezes the app at start.** Activity and
+  settings are kept in memory until a write succeeds.
+- **Quitting, updating and moving the app behave.** After a failed update or move, closing the
+  window hides it again instead of quitting. Quit waits for a stubborn doctor/update command to
+  end. What such a command leaves running ends with it.
+- **One action at a time.** A double click no longer starts two restarts. A restart is noticed
+  even when the state did not change. Restarting a duplicate whose stray copy keeps the port names
+  that process.
+- **A service not yet checked reads "Starting"**, not "Off" with a Start button.
+- Needs attention keeps a row while its action runs, and shows a failure with a Logs button.
+  Doctor and Update show a running line, end on failure, and put their output on Health. That
+  includes an Update started from Needs attention.
+- An unreadable services folder has Retry. The empty state links to how a service joins.
+- A port conflict shows the other service's file. `fabric-dashboards://` opens the Overview.
+- The menu-bar icon says "Ready: n of m" when not everything is ready, names instances, and updates
+  when a notification pause ends.
+- Activity keeps its filter, shows new app events while open, and a notification about several
+  events of one service opens Activity filtered to it.
+- Settings no longer claims notifications are off in macOS (the app cannot know). It links to
+  System Settings → Notifications instead.
+- Russian: Health labels, listener table, command names, menu item and dates.
+- Accessibility: service tabs work with arrow keys, and buttons and cards name their service.
+- The `open?…` link forms refuse unknown or repeated parameters.
+- "Show data folder" reveals an app bundle instead of launching it. No listeners is "none", not an
+  error.
+- The uninstall removes the MCP entry before the login item, and puts it back if macOS refuses.
+
+### MCP
+
+- `doctor` is no longer marked read-only (it runs the service's program).
+- An unknown tool is a protocol error. Undeclared arguments are refused.
+- An unreadable events feed is a clear refusal.
+- `control` refuses a missing launchd plist, as the app does.
+
+### Updates and releases
+
+- **An installed copy only ever moves forward.** The app reads the update feed's version and
+  installs only a newer one, so a release published out of order can never pull it back. Releases
+  run one at a time, and the newer-than-published check runs again right before publishing.
+
 ## 0.5.4 - 2026-10-05
 
-The first published release since 0.4.1: it carries everything listed under 0.5.3 and 0.5.2 below
-(neither was published on its own), plus:
+Tagged, never published: its run was cancelled before publish, superseded by 0.5.5. What it
+added over 0.5.3:
 
 - **Updates install themselves.** A downloaded version installs once the window has been closed
   for ten minutes and nothing the app started is running, and the app reopens in the menu bar.
@@ -61,9 +133,9 @@ lifecycle contract — plus the items below.
 
 ## 0.5.2 - 2026-10-05
 
-The first release of everything below 0.4.1. The `v0.5.0` and `v0.5.1` tags were never released:
-their CI check failed on lifecycle tests (LC-02, then LC-14). This version carries both fixes, and
-`validate` passed on its commit before it was tagged.
+Tagged, never published: its run was cancelled before approval, superseded by 0.5.3. The `v0.5.0`
+and `v0.5.1` tags were never released either: their CI check failed on lifecycle tests (LC-02, then
+LC-14). This version carries both fixes.
 
 ### Fixed
 

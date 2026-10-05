@@ -124,7 +124,7 @@ due probe or rescan — no fixed 1-second poll — and one for the events feed:
 | Status push to the window / tray rebuild / Dock badge | only when what a person can see changed | no IPC to a hidden window; tray and badge only when they would differ |
 | Activity writes | appended rows when events arrive; state debounced 2 s | same |
 | Update check (Squirrel, `update-feed.json` of the latest release) | 10 s after start, then every 6 h; downloads by itself; none outside Applications (`misplaced`) | same; a downloaded update installs after 10 hidden minutes (ADR-0015) |
-| Usage reports (`surfaces.usage`, ADR-0013) | only while Spend is open: on opening, every 60 s and on Refresh | none — the main process answers the last sums without reading |
+| Usage reports (`surfaces.usage`, ADR-0013) | read now when Spend opens and on Refresh; every 60 s while Spend or Overview is shown (one read serves both for 30 s, ADR-0014) | none — the main process answers the last sums without reading |
 
 **Idle budget**, hidden, per hour, for *L* local launchd services and *R* online ones — counted on a
 fake clock by `test/lifecycle.test.ts` (*LC-08: … a quiet hour stays inside the idle budget*):
