@@ -1,1 +1,1 @@
-Copied from passioncode-ai/fabric-agent-adapter@e09551f20ed7 (tag v0.4.2) skills/building-fabric-services/scripts. Re-copy when the kit changes; never edit here.
+Copied from passioncode-ai/fabric-agent-adapter@726646da8b8d (tag v0.8.0) plugins/fabric-agent-adapter/skills/building-fabric-services/scripts: fabric_service.py, fabric_interop.py, sample_service.py. Re-copy when the kit changes; never edit here.

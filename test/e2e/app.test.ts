@@ -107,6 +107,14 @@ test('discovers a live service, opens its dashboard signed in, keeps one view, s
     await page.getByRole('button', { name: 'Activity' }).first().click();
     await page.getByText('Sample Service started on build 0000000.').waitFor({ timeout: 20_000 });
     await shot(page, '03-activity');
+    // FD-13: the kit's sample reports its own spend (DEC-0021): listed, $0 with no calls yet.
+    await page.getByRole('button', { name: 'Spend', exact: true }).click();
+    const spendRow = page.getByRole('row', { name: /Sample Service/ });
+    await spendRow.waitFor({ timeout: 20_000 });
+    assert.match(await spendRow.innerText(), /\$0\.00/);
+    await spendRow.getByRole('button', { name: 'Sample Service', exact: true }).click();
+    await page.getByText('No calls in the last 31 days.').waitFor();
+    assert.equal(await page.getByText(/Not reporting spend yet/).count(), 0, 'the sample is not listed as silent');
     await page.getByRole('button', { name: 'Settings' }).click();
     await page.getByText('Unattributed listeners').waitFor();
     await shot(page, '04-settings');

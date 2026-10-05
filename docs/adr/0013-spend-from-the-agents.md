@@ -47,6 +47,9 @@ provider and model, and **unknown cost as `null`, never `0`**.
   names them as not reporting.
 - The contract fixtures are vendored from contract `main` `9091d3d`
   (`test/fixtures/contract/SOURCE.txt`).
+- The kit's sample service is vendored from `fabric-agent-adapter` `v0.8.0`, which reports its own
+  spend; the main end-to-end test reads that report on Spend (FD-13,
+  `test/fixtures/sample-service/SOURCE.txt`).
 - Organisation-wide spend across machines (an employee's agents seen by an administrator) is
   Fabric's aggregation over these same reports. It is not this app's job (see the agent-estate
   architecture report, `docs/reports/2026-10-04-agent-estate-architecture/`).

@@ -3,6 +3,9 @@
 
 It is the worked example the skill points at, the target check_service.py tests
 itself against, and the fixture Fabric Dashboards runs its end-to-end tests on.
+Over MCP (fabric-interop/0.1) it serves two capabilities: `sample.echo` answers at
+once, and `sample.draft` is a job that stops for a titled choice before it completes.
+`register` also writes the service's manifest, which names this descriptor.
 
   sample_service.py serve --port 47190 --data-dir DIR [--id sample] [--instance default]
   sample_service.py register --port 47190 --data-dir DIR [--services-dir DIR]
@@ -11,25 +14,43 @@ itself against, and the fixture Fabric Dashboards runs its end-to-end tests on.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import html
 import json
 import os
 from http.server import BaseHTTPRequestHandler
 from pathlib import Path
-import signal
 import sys
-import threading
 from typing import Any, Dict, Optional
 from urllib.parse import parse_qs, urlparse
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import fabric_service as fs  # noqa: E402
+import fabric_interop as fi  # noqa: E402
 
 VERSION = "0.1.0"
 PAGE = """<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1"><title>{name}</title>
 <style>body{{font:15px system-ui;margin:2rem;color:#e9e4ec;background:#0a070d}}li{{margin:.3rem 0}}</style>
 </head><body><h1>{name}</h1><p>Status: {status}</p><ul>{rows}</ul></body></html>"""
+
+
+def _schema(name: str, body: Dict[str, Any]) -> Dict[str, Any]:
+    return {"$schema": "https://json-schema.org/draft/2020-12/schema", "$id": "urn:fabric:schema:%s" % name, **body}
+
+
+TEXT = {"type": "object", "additionalProperties": False, "properties": {"text": {"type": "string", "maxLength": 2000}}, "required": ["text"]}
+CAPABILITIES = [
+    {"name": "sample.echo", "effect": "none", "idempotency": "required", "job": False,
+     "description": "Returns the text it was given.",
+     "input": _schema("sample.echo-input", TEXT), "output": _schema("sample.echo-output", TEXT)},
+    {"name": "sample.draft", "effect": "draft", "idempotency": "none", "job": True,
+     "description": "Drafts a short note on a topic; asks which title to use.",
+     "input": _schema("sample.draft-input", {"type": "object", "additionalProperties": False,
+                                               "properties": {"topic": {"type": "string", "minLength": 1, "maxLength": 200}}, "required": ["topic"]}),
+     "output": _schema("sample.draft-output", {"type": "object", "additionalProperties": False,
+                                                 "properties": {"title": {"type": "string"}, "body": {"type": "string"}}, "required": ["title", "body"]})},
+]
 
 
 class Service:
@@ -43,21 +64,72 @@ class Service:
         self.degraded = [{"source": "demo", "reason": args.degraded}] if args.degraded else []
         self.started_at = fs.now_iso()
         self.build = {"commit": os.environ.get("FABRIC_BUILD_COMMIT", "0000000"), "builtAt": self.started_at}
+        self.drain = fs.Drain()  # LC-01: SIGTERM drains in-flight calls, then the server stops
 
     def start(self) -> None:
         # Rule: the lock comes before ANY side effect, including creating the token.
         self.lock = fs.hold_single_instance(self.data)
         self.token = fs.ensure_token(self.token_file)
         self.log = fs.JsonlEventLog(self.data / "events.jsonl")
+        self.usage = fs.JsonlUsageLedger(self.data / "usage.jsonl")  # DEC-0021
+        self.usage.prune()
         self.codes = fs.LoginCodes(self.data / "auth")
+        self.jobs = fi.JobStore(self.data / "jobs")
+        self.mcp = fi.McpToolServer(self.id, VERSION, jobs=self.jobs, on_job_started=self.draft_started, on_input=self.draft_answered)
+        for cap in CAPABILITIES:
+            handler = self.echo if cap["name"] == "sample.echo" else self.draft
+            self.mcp.add_tool(fi.tool_for_capability(cap, cap["input"], cap["output"]), handler)
         self.log.append("service.started", "info", "%s started on build %s." % (self.name, self.build["commit"]))
+
+    # --- fabric-interop/0.1: the two capabilities ------------------------------------
+    def echo(self, args: Dict[str, Any], ctx: fi.CallContext) -> Dict[str, Any]:
+        if not isinstance(args.get("text"), str):
+            raise fi.InteropError("sample.echo needs text.")
+        return {"text": args["text"]}
+
+    def draft(self, args: Dict[str, Any], ctx: fi.CallContext) -> Dict[str, Any]:
+        if not isinstance(args.get("topic"), str) or not args["topic"].strip():
+            raise fi.InteropError("sample.draft needs a topic.")
+        return ctx.start_job(poll_interval_ms=1000)
+
+    def draft_started(self, job_id: str, ctx: fi.CallContext) -> None:
+        topic = str(ctx.arguments.get("topic"))
+        titles = [("plain", "About %s" % topic), ("question", "What is %s?" % topic)]
+        self.jobs.request_input(job_id, {"title_choice": fi.choice_request("Pick the title for the note.", "title", titles, "Title")},
+                                "Two titles are ready.")
+        self.log.append("job.awaiting_choice", "notice", "A note about %s is waiting for you to pick its title." % topic,
+                        notify=True, **fi.trace_ids(ctx.traceparent))
+
+    def draft_answered(self, job_id: str, answers: Dict[str, Any], ctx: fi.CallContext) -> None:
+        answer = answers.get("title_choice", {})
+        topic = str(ctx.arguments.get("topic"))
+        if answer.get("action") != "accept":
+            self.jobs.cancel(job_id)
+            self.log.append("job.cancelled", "info", "The note about %s was dropped: no title was chosen." % topic, **fi.trace_ids(ctx.traceparent))
+            return
+        choice = str((answer.get("content") or {}).get("title"))
+        title = "About %s" % topic if choice == "plain" else "What is %s?" % topic
+        body = "%s. This sample note was written by the sample service." % title
+        self.jobs.complete(job_id, fi.result_envelope(
+            outcome="partial", traceparent=ctx.traceparent,
+            producer={"id": "urn:fabric:provider:%s" % self.id, "revision": 1, "contentHash": "sha256:" + "0" * 64},
+            done=[{"claimId": "NOTE", "statement": "A note titled %s was drafted." % title}], proof=[],
+            scope={"project": "urn:fabric:project:sample", "run": "urn:fabric:run:%s" % job_id, "node": "urn:fabric:node:draft",
+                   "binding": {"id": "urn:fabric:binding:sample.draft", "revision": 1, "contentHash": "sha256:" + "0" * 64}, "writeScopes": []},
+            not_verified=[{"claim": "NOTE", "reason": "no checker has read the note"}],
+            output={"title": title, "body": body}, usage={"inputTokens": 0, "outputTokens": 0, "wallMs": 1}))
+        # The sample writes from a template: one call that costs a known $0 (DEC-0021 usage report).
+        self.usage.record(fs.make_usage_receipt("local", "sample-template", input_tokens=0, output_tokens=0, cost_usd=0.0, cost_basis="price-list"))
+        self.log.append("job.completed", "info", "The note %s is drafted." % title, **fi.trace_ids(ctx.traceparent))
 
     def well_known(self) -> Dict[str, Any]:
         return fs.build_well_known(
             service_id=self.id, instance=self.instance, name=self.name, version=VERSION, build=self.build,
             started_at=self.started_at, status="ready", degraded=self.degraded,
             summary=[{"label": "Events", "value": len(self.log.fetch(None, fs.EVENTS_MAX_LIMIT))}],
-            surfaces={"dashboard": {"path": "/", "login": True}, "events": {"path": "/fabric/v1/events"}},
+            surfaces={"dashboard": {"path": "/", "login": True}, "events": {"path": "/fabric/v1/events"},
+                      "mcp": {"path": "/mcp", "transport": "streamable-http", "capabilities": [c["name"] for c in CAPABILITIES]},
+                      "usage": {"path": fs.USAGE_PATH}},
         )
 
 
@@ -119,6 +191,13 @@ def make_handler(svc: Service):
                 except fs.ServiceError as exc:
                     return self._send(400, {"error": str(exc)})
                 return self._send(200, page)
+            if url.path == fs.USAGE_PATH:
+                if not self._token_ok():
+                    return
+                return self._send(200, svc.usage.report(service_id=svc.id, instance=svc.instance))
+            if url.path == "/mcp":
+                # No server-to-client stream here: Streamable HTTP says 405 for a GET.
+                return self._send(405, {"error": "POST JSON-RPC to /mcp."}, {"Allow": "POST"})
             if url.path == "/fabric/v1/login":
                 cookie = svc.codes.redeem((query.get("code") or [None])[0])
                 if not cookie:
@@ -137,6 +216,23 @@ def make_handler(svc: Service):
             if not self._guard():
                 return
             url = urlparse(self.path)
+            if url.path == "/mcp":
+                if not self._token_ok():
+                    return
+                length = min(int(self.headers.get("Content-Length") or 0), 1048576)
+                try:
+                    message = json.loads(self.rfile.read(length) or b"null")
+                except ValueError:
+                    return self._send(400, {"jsonrpc": "2.0", "id": None, "error": {"code": -32700, "message": "Parse error."}})
+                try:
+                    with svc.drain.work():
+                        response = svc.mcp.handle(message, self.headers)
+                except fs.Stopping as exc:
+                    return self._send(503, {"jsonrpc": "2.0", "id": None, "error": {"code": -32000, "message": str(exc)}},
+                                      {"Retry-After": "5"})
+                if response is not None and (response.get("error") or {}).get("code") == fi.HEADER_MISMATCH:
+                    return self._send(400, response)
+                return self._send(202) if response is None else self._send(200, response)
             if url.path == "/fabric/v1/login-code":
                 if not self._token_ok():
                     return
@@ -166,12 +262,10 @@ def serve(args: argparse.Namespace) -> int:
     svc.start()
     server = make_server(svc)
 
-    def stop(signum: int, _frame: Any) -> None:
-        svc.log.append("service.stopping", "info", "%s is stopping." % svc.name)
-        threading.Thread(target=server.shutdown, daemon=True).start()
-
-    signal.signal(signal.SIGTERM, stop)
-    signal.signal(signal.SIGINT, stop)
+    # Stop taking calls, let in-flight ones finish (8 s at most), then end serve_forever; a
+    # hand-over that hangs is cut by the kit's hard exit, inside launchd's ExitTimeOut.
+    svc.drain.install(lambda drained: server.shutdown(),
+                      on_stopping=lambda: svc.log.append("service.stopping", "info", "%s is stopping." % svc.name))
     try:
         server.serve_forever(poll_interval=0.2)
     finally:
@@ -180,8 +274,46 @@ def serve(args: argparse.Namespace) -> int:
     return 0
 
 
+def write_manifest(args: argparse.Namespace, data: Path) -> Path:
+    """The provider manifest for this service, naming its descriptor (G-07), with its schemas beside it."""
+    schemas = data / "fabric" / "schemas"
+    for cap in CAPABILITIES:
+        for side in ("input", "output"):
+            fs.atomic_write(schemas / ("%s-%s.schema.json" % (cap["name"], side)),
+                            (json.dumps(cap[side], indent=2) + "\n").encode(), 0o600)
+    origin = "http://127.0.0.1:%d" % args.port
+    capabilities = []
+    for cap in CAPABILITIES:
+        capabilities.append({
+            "id": "urn:fabric:capability:%s" % cap["name"], "name": cap["name"], "description": cap["description"],
+            "inputSchema": cap["input"]["$id"], "outputSchema": cap["output"]["$id"],
+            "effect": cap["effect"], "idempotency": cap["idempotency"], "dataClasses": ["public"],
+            "profile": {"kind": "mcp", "protocolRevision": fi.MCP_REVISION,
+                        "connection": {"mode": "streamable-http", "url": origin + "/mcp"},
+                        "requiredFeatures": ["tool:%s" % cap["name"]],
+                        "probes": [{"id": "%s-shape" % cap["name"].replace(".", "-"), "inputFixture": "urn:fabric:fixture:%s" % cap["name"],
+                                    "outputSchema": cap["output"]["$id"], "timeoutMs": 5000, "sideEffectCeiling": "none",
+                                    "assertions": ["returns a value valid against its output schema"]}]},
+            "extensions": {fi.EXTENSION_KEY: {"job": cap["job"]}},
+        })
+    digest = hashlib.sha256(json.dumps(capabilities, sort_keys=True).encode()).hexdigest()
+    subject = "urn:fabric:provider:%s" % args.id
+    manifest = {
+        "contractVersion": "0.1.0",
+        "provider": {"id": subject, "revision": 1, "contentHash": "sha256:" + digest, "createdAt": fs.now_iso(),
+                     "createdBy": "urn:fabric:adapter:sample-service", "name": args.name,
+                     "identity": {"subject": subject, "method": "local-install"}, "supportedContractVersions": ["0.1.0"],
+                     "extensions": {fs.EXTENSION_KEY: {"descriptor": "%s.%s" % (args.id, args.instance)}}},
+        "capabilities": capabilities,
+    }
+    path = data / "fabric-agent.json"
+    fs.atomic_write(path, (json.dumps(manifest, indent=2) + "\n").encode(), 0o600)
+    return path
+
+
 def register(args: argparse.Namespace) -> int:
     data = Path(args.data_dir)
+    manifest = write_manifest(args, data)
     descriptor = {
         "protocol": fs.PROTOCOL, "id": args.id, "instance": args.instance, "name": args.name,
         "summary": "Sample fabric-service/0.1 service.",
@@ -190,6 +322,7 @@ def register(args: argparse.Namespace) -> int:
         "lifecycle": {"manager": "launchd", "label": args.label, "plist": args.plist} if args.label
         else {"manager": "none"},
         "paths": {"data": str(data), "logs": []},
+        "fabricManifest": str(manifest),
         "installedAt": fs.now_iso(), "installedBy": "sample_service.py register",
     }
     try:
