@@ -26,7 +26,8 @@ export function Spend({ status }: { status: AppStatus }) {
     }
   };
   useEffect(() => {
-    void read();
+    // Opening Spend is a person asking: it reads now, never the strip's cached sums (live walk, 2026-10-06).
+    void read(true);
     // LC-08: while the window is hidden the main process answers the last sums without reading.
     const timer = setInterval(() => void read(), REFRESH_MS);
     return () => clearInterval(timer);
