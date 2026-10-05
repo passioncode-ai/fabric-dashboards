@@ -89,3 +89,19 @@ test('a malformed budget is refused; an absent one is null in the summary', () =
   delete none.budget;
   assert.equal(summarizeUsage(none, AT('2026-10-04')).budget, null);
 });
+
+test('D-2: calls with no cost are a lower bound even when unpricedCalls says 0; a cost without calls is kept', () => {
+  const r = REPORT();
+  r.days = [r.days[1]!];
+  r.days[0]!.byModel = [{ ...r.days[0]!.byModel[0]!, calls: 5, unpricedCalls: 0, costUsd: null }];
+  Object.assign(r.days[0]!, { calls: 5, unpricedCalls: 0, costUsd: null });
+  const s = summarizeUsage(r, AT('2026-10-04'));
+  assert.equal(s.today.costUsd, null);
+  assert.equal(s.today.partial, true, 'five calls of unknown cost never read as complete');
+  const fee = REPORT();
+  fee.days = [fee.days[1]!];
+  fee.days[0]!.byModel = [{ ...fee.days[0]!.byModel[0]!, calls: 0, unpricedCalls: 0, costUsd: 2 }];
+  Object.assign(fee.days[0]!, { calls: 0, unpricedCalls: 0, costUsd: 2 });
+  assert.equal(checkUsage(fee, ME), null);
+  assert.equal(summarizeUsage(fee, AT('2026-10-04')).today.costUsd, 2, 'a cost reported without calls is not zeroed');
+});

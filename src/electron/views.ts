@@ -8,11 +8,14 @@ import type { PageState, Rect } from '../core/api';
 import { t, type Lang } from '../core/i18n';
 import { loginUrl, readToken } from '../core/probe';
 import type { ServiceSnapshot } from '../core/types';
-import { clampRect, navigation, pageAddress, partitionFor, resolveLink, resumePath, routeLink, ViewSlot } from './policy';
+import { clampRect, dashboardPathOf, loadErrorText, navigation, pageAddress, partitionFor, resolveLink, resumePath, routeLink, ViewSlot } from './policy';
 import { testRemote } from '../core/testhooks';
 
 /** A view signs in again after a 401 at most this often (copylot finding 2026-10-05). */
 const RESIGN_EVERY_MS = 60_000;
+
+/** What showing a dashboard came to; `stage` tells a sign-in that failed from a page that would not load. */
+export interface ShowResult { ok: boolean; error?: string; stage?: 'sign-in' | 'page' }
 
 interface Entry { view: WebContentsView; origin: string; crashes: number; loadedOnce: boolean; dashboardPath: string; resignedAt: number; resignTo: string | undefined | null }
 
@@ -68,7 +71,7 @@ export class ServiceViews {
       webPreferences: { partition, sandbox: true, contextIsolation: true, nodeIntegration: false, webSecurity: true, allowRunningInsecureContent: false },
     });
     view.setBackgroundColor('#0a070d');
-    const entry: Entry = { view, origin: d.origin, crashes: 0, loadedOnce: false, dashboardPath: snap.wellKnown?.surfaces.dashboard?.path ?? '/', resignedAt: 0, resignTo: null };
+    const entry: Entry = { view, origin: d.origin, crashes: 0, loadedOnce: false, dashboardPath: dashboardPathOf(snap.wellKnown?.surfaces.dashboard?.path), resignedAt: 0, resignTo: null };
     const wc = view.webContents;
     // ADR-0016: a link to another service opens it here, signed in with its own session.
     const follow = (url: string): boolean => {
@@ -129,32 +132,45 @@ export class ServiceViews {
   }
 
   /** Load the dashboard, signed in through a one-time code when the service asks for one. */
-  private async load(snap: ServiceSnapshot, link?: string): Promise<{ ok: boolean; error?: string }> {
+  private async load(snap: ServiceSnapshot, link?: string): Promise<ShowResult> {
     const entry = this.views.get(snap.key) ?? this.create(snap);
     const d = snap.descriptor!;
     const dash = snap.wellKnown?.surfaces.dashboard;
-    if (!dash) return { ok: false, error: 'no dashboard' };
+    if (!dash) return { ok: false, error: 'no dashboard', stage: 'page' };
+    let stage: ShowResult['stage'] = dash.login ? 'sign-in' : 'page';
     try {
       let url = resolveLink(d.origin, link, dash.path);
       if (dash.login) {
         const token = readToken(d.auth.tokenFile); // main process only
         url = await loginUrl(d, token);
         await entry.view.webContents.loadURL(url);
+        stage = 'page';
         if (link) await entry.view.webContents.loadURL(resolveLink(d.origin, link, dash.path));
         return { ok: true };
       }
       await entry.view.webContents.loadURL(url);
       return { ok: true };
     } catch (error) {
-      const message = (error as Error).message;
-      if (/ERR_ABORTED/.test(message)) return { ok: true };
-      return { ok: false, error: message };
+      const text = loadErrorText(error);
+      if (/ERR_ABORTED/.test(text)) return { ok: true };
+      return { ok: false, error: text, stage }; // S-3: never the URL — a sign-in URL is the login code
+    }
+  }
+
+  /** Open a path on an already loaded view; a failed navigation is a result, never a rejection (R-5). */
+  private async go(entry: Entry, url: string): Promise<ShowResult> {
+    try {
+      await entry.view.webContents.loadURL(url);
+      return { ok: true };
+    } catch (error) {
+      const text = loadErrorText(error);
+      return /ERR_ABORTED/.test(text) ? { ok: true } : { ok: false, error: text, stage: 'page' };
     }
   }
 
   /** Show a service's view for the dashboard host `owner`. A show overtaken while it loaded — by a
    *  newer show or a hide — returns without attaching, so a slow page never covers the current one. */
-  async show(snap: ServiceSnapshot, rect: Rect, link: string | undefined, owner: string): Promise<{ ok: boolean; error?: string }> {
+  async show(snap: ServiceSnapshot, rect: Rect, link: string | undefined, owner: string, fresh = false): Promise<ShowResult> {
     const ticket = this.slot.request(owner, snap.key);
     if (!snap.descriptor || !snap.wellKnown || (snap.state !== 'ready' && snap.state !== 'degraded')) {
       this.slot.release(owner);
@@ -164,14 +180,25 @@ export class ServiceViews {
     const existing = this.views.get(snap.key);
     if (existing && existing.origin !== snap.descriptor.origin) this.drop(snap.key);
     let entry = this.views.get(snap.key);
-    let result: { ok: boolean; error?: string } = { ok: true };
+    let result: ShowResult = { ok: true };
+    // Retry and Reload ask for a fresh load: the sign-in runs again and the view is attached again (R-6).
+    if (entry && fresh) {
+      entry.crashes = 0;
+      entry.loadedOnce = false;
+      if (link === undefined) link = resumePath(entry.view.webContents.getURL(), entry.origin);
+    }
     if (!entry || !entry.loadedOnce) {
       entry = entry ?? this.create(snap);
       result = await this.load(snap, link);
     } else if (link) {
-      await entry.view.webContents.loadURL(resolveLink(snap.descriptor.origin, link, snap.wellKnown.surfaces.dashboard?.path ?? '/'));
+      result = await this.go(entry, resolveLink(snap.descriptor.origin, link, entry.dashboardPath));
     }
     if (!this.slot.current(ticket) || !this.views.has(snap.key)) return result;
+    if (!result.ok) {
+      // A failed load leaves Chromium's error page in the view: the app's own message shows instead.
+      if (this.shown === snap.key) this.hideNow();
+      return result;
+    }
     if (this.shown && this.shown !== snap.key) this.detach(this.shown);
     if (this.shown !== snap.key) this.window.contentView.addChildView(entry.view);
     this.shown = snap.key;
@@ -223,12 +250,10 @@ export class ServiceViews {
     this.shown = null;
   }
 
-  async reload(snap: ServiceSnapshot): Promise<void> {
-    const entry = this.views.get(snap.key);
-    if (!entry) return;
-    entry.crashes = 0;
-    entry.loadedOnce = false;
-    await this.load(snap);
+  /** Tell the page host where its view stands again — after the window was hidden, view events
+   *  were not sent (LC-08), so the toolbar asks once it is visible. */
+  announce(): void {
+    if (this.shown) { const page = this.page(this.shown); if (page) this.emit({ key: this.shown, kind: 'navigated', page }); }
   }
 
   /** The toolbar's view of a service's page, or null when it has no view (ADR-0014). */
@@ -248,7 +273,7 @@ export class ServiceViews {
     if (action === 'back' && wc.navigationHistory.canGoBack()) wc.navigationHistory.goBack();
     if (action === 'forward' && wc.navigationHistory.canGoForward()) wc.navigationHistory.goForward();
     if (action === 'refresh') wc.reload();
-    if (action === 'home') void wc.loadURL(`${new URL(entry.origin).origin}${entry.dashboardPath}`).catch(() => undefined);
+    if (action === 'home') void wc.loadURL(resolveLink(entry.origin, undefined, entry.dashboardPath)).catch(() => undefined);
   }
 
   /** The service restarted: its session cookie may be gone; the page offers Reload instead of reloading itself. */

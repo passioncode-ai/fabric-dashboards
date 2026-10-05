@@ -97,7 +97,13 @@ function DashboardHost({ s, link, nonce, hidden }: { s: ServiceSnapshot; link?: 
   const { t } = useT();
   const ref = useRef<HTMLDivElement>(null);
   const [phase, setPhase] = useState<'opening' | 'open' | 'error' | 'restarted' | 'crashed'>('opening');
-  const [error, setError] = useState('');
+  const [error, setError] = useState<{ text: string; stage: 'sign-in' | 'page' }>({ text: '', stage: 'sign-in' });
+  // R-6: Retry and Reload run the show again, fresh, so the view is signed in and attached again.
+  const [attempt, setAttempt] = useState(0);
+  const fresh = useRef(false);
+  // R-7: a link from a notification or another agent is applied once; a tab switch or a remount
+  // afterwards keeps the page the person moved to.
+  const applied = useRef<string | null>(null);
   const owner = useRef(`host-${Math.random().toString(36).slice(2)}-${Date.now()}`).current; // this mount, for show/hide (ViewSlot)
   const available = Boolean(s.wellKnown?.surfaces.dashboard) && (s.state === 'ready' || s.state === 'degraded');
   const rect = () => {
@@ -109,13 +115,20 @@ function DashboardHost({ s, link, nonce, hidden }: { s: ServiceSnapshot; link?: 
     if (!available || hidden) { void api().hideView(owner); return; }
     let cancelled = false;
     setPhase('opening');
-    void api().showView(s.key, rect(), link, owner).then((r) => {
+    const linkId = link ? `${s.key}|${nonce ?? ''}|${link}` : null;
+    const useLink = linkId && linkId !== applied.current ? link : undefined;
+    const isFresh = fresh.current;
+    fresh.current = false;
+    api().showView(s.key, rect(), useLink, owner, isFresh).then((r) => {
       if (cancelled) return;
-      if (r.ok) setPhase('open');
-      else { setPhase('error'); setError(r.error ?? ''); void api().hideView(owner); }
+      if (r.ok) { setPhase('open'); if (useLink) applied.current = linkId; }
+      else { setPhase('error'); setError({ text: r.error ?? '', stage: r.stage ?? 'sign-in' }); void api().hideView(owner); }
+    }, (e: unknown) => {
+      if (cancelled) return;
+      setPhase('error'); setError({ text: String((e as Error)?.message ?? e), stage: 'page' }); void api().hideView(owner);
     });
     return () => { cancelled = true; };
-  }, [s.key, available, hidden, link, nonce]);
+  }, [s.key, available, hidden, link, nonce, attempt]);
 
   useEffect(() => {
     const el = ref.current;
@@ -131,30 +144,32 @@ function DashboardHost({ s, link, nonce, hidden }: { s: ServiceSnapshot; link?: 
     if (e.key !== s.key) return;
     if (e.kind === 'restarted') setPhase('restarted');
     if (e.kind === 'crashed') { setPhase('crashed'); void api().hideView(owner); }
-    if (e.kind === 'error') { setPhase('error'); setError(e.error ?? ''); }
+    // A page that failed to load: the view is hidden, so this message is what shows (R-6).
+    if (e.kind === 'error') { setPhase('error'); setError({ text: e.error ?? '', stage: 'page' }); void api().hideView(owner); }
   }), [s.key]);
 
-  const reload = async () => { await api().reloadView(s.key); setPhase('open'); api().viewBounds(rect()); };
+  const reload = () => { fresh.current = true; setAttempt((n) => n + 1); };
 
   if (!s.wellKnown?.surfaces.dashboard && s.wellKnown) return <div className="dash-overlay muted">{t('view.noDashboard')}</div>;
   return (
     <div className="dash-frame">
     {available && (phase === 'open' || phase === 'restarted') && <DashboardToolbar serviceKey={s.key} />}
+    {/* Above the host, never inside it: the embedded page covers the host's whole rectangle. */}
+    {available && phase === 'restarted' && (
+      <div className="reload-bar notice info" role="status"><span>{t('view.restartedReload')}</span><button className="btn" onClick={reload}>{t('action.reload')}</button></div>
+    )}
     <div className="dash-host" ref={ref}>
       {!available && <div className="dash-overlay muted">{t('view.unavailable')}</div>}
       {available && phase === 'opening' && <div className="dash-overlay muted row"><Spinner /> {t('view.opening')}</div>}
       {available && phase === 'error' && (
         <div className="dash-overlay">
-          <p role="alert">{t('view.signInError', { name: s.descriptor?.name ?? s.key, error })}</p>
-          {s.descriptor && <p className="mono muted">{s.descriptor.auth.tokenFile}</p>}
-          <button className="btn" onClick={() => void reload()}>{t('overview.retry')}</button>
+          <p role="alert">{error.stage === 'sign-in' ? t('view.signInError', { name: nameOf(s), error: error.text }) : t('view.loadError', { name: nameOf(s), error: error.text })}</p>
+          {s.descriptor && error.stage === 'sign-in' && <p className="mono muted">{s.descriptor.auth.tokenFile}</p>}
+          <button className="btn" onClick={reload}>{t('overview.retry')}</button>
         </div>
       )}
       {available && phase === 'crashed' && (
-        <div className="dash-overlay"><p>{t('view.crashed')}</p><button className="btn btn-primary" onClick={() => void reload()}>{t('action.reload')}</button></div>
-      )}
-      {available && phase === 'restarted' && (
-        <div className="reload-bar notice info"><span>{t('view.restartedReload')}</span><button className="btn" onClick={() => void reload()}>{t('action.reload')}</button></div>
+        <div className="dash-overlay"><p role="alert">{t('view.crashed')}</p><button className="btn btn-primary" onClick={reload}>{t('action.reload')}</button></div>
       )}
     </div>
     </div>

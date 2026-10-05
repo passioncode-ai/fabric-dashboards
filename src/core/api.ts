@@ -24,11 +24,11 @@ export interface FabricApi {
   showPath(path: string): Promise<void>;
   /** `owner` names the dashboard host asking (one per mounted host), so its later hide cannot
    *  remove a view another host has shown since (ViewSlot in src/electron/policy.ts). */
-  showView(key: string, rect: Rect, link: string | undefined, owner: string): Promise<{ ok: boolean; error?: string }>;
+  /** Show a service's dashboard for the host `owner`; `fresh` signs in and loads again (Retry, Reload). */
+  showView(key: string, rect: Rect, link: string | undefined, owner: string, fresh?: boolean): Promise<{ ok: boolean; error?: string; stage?: 'sign-in' | 'page' }>;
   /** With an owner, hide only that host's view; without, hide whatever is shown. */
   hideView(owner?: string): Promise<void>;
   viewBounds(rect: Rect): void;
-  reloadView(key: string): Promise<void>;
   /** Where a service's embedded dashboard is now — address, app link, history (ADR-0014). */
   viewPage(key: string): Promise<PageState | null>;
   viewNavigate(key: string, action: 'back' | 'forward' | 'home' | 'refresh'): Promise<void>;
@@ -67,7 +67,6 @@ export const CHANNELS = {
   viewShow: 'fd:view-show',
   viewHide: 'fd:view-hide',
   viewBounds: 'fd:view-bounds',
-  viewReload: 'fd:view-reload',
   viewPage: 'fd:view-page',
   viewNavigate: 'fd:view-navigate',
   copyText: 'fd:copy-text',

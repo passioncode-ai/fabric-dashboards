@@ -17,11 +17,18 @@ export interface SpendDeps {
   now: () => number;
 }
 
-/** One read per service that declares `surfaces.usage`, all at once; a failure is that service's entry, never the whole answer. */
-export async function readSpend(services: readonly { key: string; descriptor: Descriptor | null; wellKnown: WellKnown | null }[], deps: SpendDeps): Promise<SpendEntry[]> {
+/**
+ * One read per service that declares `surfaces.usage`, all at once; a failure is that service's
+ * entry, never the whole answer. The token goes only to a document that is this service's own
+ * (S-1): a foreign answer is never read. A service that declared usage and now does not answer is
+ * an error, not "not reporting" (D-1): its spend is unknown, and the totals become lower bounds.
+ */
+export async function readSpend(services: readonly { key: string; state?: string; descriptor: Descriptor | null; wellKnown: WellKnown | null; usagePath?: string | null }[], deps: SpendDeps): Promise<SpendEntry[]> {
   return Promise.all(services.map(async (s): Promise<SpendEntry> => {
     const d = s.descriptor;
-    const usagePath = s.wellKnown?.surfaces.usage?.path;
+    const own = Boolean(d && s.wellKnown && s.wellKnown.service.id === d.id && s.wellKnown.service.instance === d.instance && s.state !== 'foreign');
+    const usagePath = own ? s.wellKnown!.surfaces.usage?.path : undefined;
+    if (d && !usagePath && s.usagePath && (!own || !s.wellKnown)) return { key: s.key, kind: 'error', error: s.state === 'foreign' ? 'another program answers on its address, so its usage report is not read' : 'it does not answer now, so its usage report could not be read' };
     if (!d || !usagePath) return { key: s.key, kind: 'none' };
     if (!usagePath.startsWith('/') || usagePath.startsWith('//')) return { key: s.key, kind: 'error', error: `the usage path ${JSON.stringify(usagePath)} is not a path on the service origin` };
     try {
@@ -50,7 +57,7 @@ export function sumSpend(entries: readonly SpendEntry[], window: SpendWindow): S
     if (x.costUsd !== null) out.costUsd = (out.costUsd ?? 0) + x.costUsd;
     if (x.partial || x.costUsd === null) out.partial = true;
   }
-  if (out.calls === 0) out.costUsd = 0; // nothing was called: nothing was spent
+  if (out.calls === 0 && out.costUsd === null) out.costUsd = 0; // nothing was called and nothing priced: nothing was spent
   return out;
 }
 // #endregion spend-read

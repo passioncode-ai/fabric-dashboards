@@ -1,7 +1,7 @@
 // Navigation rules for embedded service views. Pure, so they are tested
 // without Electron (the same shape as Fabric Inbox's policy.cjs).
 
-import { serviceLink } from '@passioncode-ai/fabric-service-host/links';
+import { safePath, serviceLink } from '@passioncode-ai/fabric-service-host/links';
 
 export type NavigationVerdict = 'allow' | 'external' | 'deny';
 
@@ -50,10 +50,33 @@ export function partitionFor(serviceKey: string): string {
   return `persist:svc-${serviceKey.replace(/[^a-z0-9.-]/g, '-')}`;
 }
 
-/** A link from an event or a notification must be a path on the service origin. */
+/**
+ * A link from an event, a notification or the service's own well-known document must be a path
+ * on the service origin (S-4). `safePath` refuses `//host` and `/\host`; the result is checked
+ * against the origin once more, so nothing the service or a link says can load another host.
+ */
 export function resolveLink(serviceOrigin: string, link: string | undefined, fallbackPath: string): string {
-  const path = link && link.startsWith('/') && !link.startsWith('//') ? link : fallbackPath;
-  return new URL(path, serviceOrigin).toString();
+  const path = (link && safePath(link)) || safePath(fallbackPath) || '/';
+  const own = new URL(serviceOrigin).origin;
+  const url = new URL(path, own);
+  return url.origin === own ? url.toString() : new URL('/', own).toString();
+}
+
+/**
+ * What a failed page load says to a person (S-3). Electron's rejection reads
+ * "ERR_X (-n) loading '<url>'", and the URL of a sign-in is the one-time login code: only the
+ * error's name is kept, never the URL.
+ */
+export function loadErrorText(error: unknown): string {
+  const e = error as { code?: unknown; message?: unknown } | null;
+  if (e && typeof e.code === 'string' && /^ERR_[A-Z_]+$/.test(e.code)) return e.code;
+  const message = typeof e?.message === 'string' ? e.message : String(error);
+  return message.replace(/\s*loading\s+'[^']*'\s*$/s, '').replace(/https?:\/\/\S+/g, '<address>').slice(0, 200);
+}
+
+/** The dashboard path a well-known document declares, if it is a path on the origin; '/' otherwise. */
+export function dashboardPathOf(declared: string | undefined): string {
+  return (declared && safePath(declared)) || '/';
 }
 
 export function clampRect(rect: { x: number; y: number; width: number; height: number }): { x: number; y: number; width: number; height: number } {

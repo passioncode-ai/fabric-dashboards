@@ -80,3 +80,31 @@ test('sumSpend: unknown stays unknown across agents, a failure makes a lower bou
   assert.equal(failed.partial, true, 'an unreadable agent makes the sum a lower bound');
   assert.deepEqual(sumSpend([entry('d.default', sum(0, 0)), { key: 'e.default', kind: 'none' }], 'today'), { calls: 0, inputTokens: 0, outputTokens: 0, costUsd: 0, partial: false });
 });
+
+// ── release audit S-1, D-1 ────────────────────────────────────────────────────────────────
+
+test('S-1: the token goes only to the service\'s own document — a foreign answer is never read', async () => {
+  const dd = deps();
+  const squatter = { ...WK, service: { ...WK.service, id: 'someone-else' } };
+  const out = await readSpend([
+    { key: 'example-agent.default', state: 'foreign', descriptor: D, wellKnown: WK }, // a foreign snapshot, whatever it carries
+    { key: 'example-agent.preview', descriptor: { ...D, instance: 'preview' }, wellKnown: squatter }, // a document of another identity
+  ], dd);
+  assert.deepEqual(dd.reads, [], 'no usage request, so no token, to a program that is not the service');
+  assert.deepEqual(out.map((e) => e.kind), ['none', 'none']);
+});
+
+test('D-1: an agent that reported spend and stopped answering is an error, never "not reporting" — the totals become lower bounds', async () => {
+  const dd = deps();
+  const out = await readSpend([
+    { key: 'example-agent.default', state: 'ready', descriptor: D, wellKnown: WK, usagePath: '/fabric/v1/usage' },
+    { key: 'down.default', state: 'down', descriptor: { ...D, id: 'down' }, wellKnown: null, usagePath: '/fabric/v1/usage' },
+    { key: 'squat.default', state: 'foreign', descriptor: { ...D, id: 'squat' }, wellKnown: null, usagePath: '/fabric/v1/usage' },
+    { key: 'never.default', state: 'down', descriptor: { ...D, id: 'never' }, wellKnown: null, usagePath: null },
+  ], dd);
+  assert.deepEqual(out.map((e) => e.kind), ['report', 'error', 'error', 'none']);
+  assert.match((out[1] as { error: string }).error, /does not answer/);
+  assert.match((out[2] as { error: string }).error, /another program/);
+  assert.equal(sumSpend(out, 'week').partial, true, '≥: one agent\'s spend is unknown');
+  assert.deepEqual(dd.reads, ['example-agent.default/fabric/v1/usage']);
+});

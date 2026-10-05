@@ -134,7 +134,7 @@ if (!app.requestSingleInstanceLock()) {
     viewGrace.shown();
     monitor.setVisible(true);
     pushStatus();
-    void views?.resume((key) => monitor.snapshot(key));
+    void views?.resume((key) => monitor.snapshot(key)).then(() => views?.announce());
   }
   function windowHidden(): void {
     monitor.setVisible(false);
@@ -172,7 +172,9 @@ if (!app.requestSingleInstanceLock()) {
     w.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
     w.webContents.on('will-navigate', (event) => event.preventDefault());
     w.webContents.session.setPermissionRequestHandler((_wc, _p, callback) => callback(false));
-    views = new ServiceViews(w, lang, (event) => w.webContents.send(CHANNELS.viewEvent, event),
+    // LC-08 (R-13): page moves are not sent to a hidden window; `announce` catches the toolbar up on show.
+    // Errors, crashes and restarts are rare and always sent, so the page host never shows a dead view.
+    views = new ServiceViews(w, lang, (event) => { if (event.kind !== 'navigated' || windowVisible()) w.webContents.send(CHANNELS.viewEvent, event); },
       // ADR-0016: a dashboard's link to another service takes the same path as a link from outside.
       (raw) => { if (handleLink) handleLink(raw); else pendingLinks.push(raw); },
       () => monitor.snapshots().map((x) => x.descriptor?.origin).filter((o): o is string => Boolean(o)));
@@ -404,14 +406,13 @@ if (!app.requestSingleInstanceLock()) {
       if (fs.existsSync(target) && fs.statSync(target).isDirectory()) void shell.openPath(target);
       else shell.showItemInFolder(target);
     });
-    ipcMain.handle(CHANNELS.viewShow, async (_e, key: string, rect: Rect, link: string | undefined, owner: string) => {
+    ipcMain.handle(CHANNELS.viewShow, async (_e, key: string, rect: Rect, link: string | undefined, owner: string, fresh?: boolean) => {
       const s = snap(key);
-      if (!s || !views) return { ok: false, error: 'unknown service' };
+      if (!s || !views) return { ok: false, error: 'unknown service', stage: 'page' };
       if (typeof owner !== 'string' || !owner) throw new Error('a view is shown for a dashboard host');
-      return views.show(s, rect, link, owner);
+      return views.show(s, rect, typeof link === 'string' ? link : undefined, owner, fresh === true);
     });
     ipcMain.handle(CHANNELS.viewHide, (_e, owner?: string) => views?.hide(typeof owner === 'string' ? owner : undefined));
-    ipcMain.handle(CHANNELS.viewReload, async (_e, key: string) => { const s = snap(key); if (s) await views?.reload(s); });
     ipcMain.handle(CHANNELS.viewPage, (_e, key: string) => views?.page(String(key)) ?? null);
     ipcMain.handle(CHANNELS.viewNavigate, (_e, key: string, action: string) => {
       if (!['back', 'forward', 'home', 'refresh'].includes(action)) throw new Error('unknown navigation');

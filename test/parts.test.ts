@@ -9,7 +9,7 @@ import { parseLsof, unattributed } from '../src/core/listeners';
 import { inQuietHours, shouldNotify } from '../src/core/notify';
 import { merge, SettingsStore } from '../src/core/settings';
 import { DEFAULT_SETTINGS, type Settings } from '../src/core/types';
-import { clampRect, navigation, partitionFor, resolveLink, routeLink } from '../src/electron/policy';
+import { clampRect, dashboardPathOf, loadErrorText, navigation, partitionFor, resolveLink, routeLink } from '../src/electron/policy';
 import { tmp } from './helpers';
 
 test('navigation stays on the service origin; web links leave only through the browser', () => {
@@ -164,6 +164,27 @@ test('ADR-0016: a link inside a dashboard to another agent comes back to the app
   assert.deepEqual(routeLink(own, 'file:///etc/passwd', others), { kind: 'deny' });
   assert.deepEqual(routeLink(own, 'javascript:alert(1)', others), { kind: 'deny' });
   assert.deepEqual(routeLink(own, 'not a url', others), { kind: 'deny' });
+});
+
+test('S-4: no link, event path or declared dashboard path loads another host', () => {
+  const o = 'http://127.0.0.1:47195';
+  assert.equal(resolveLink(o, '/\\evil.example/x', '/dash'), 'http://127.0.0.1:47195/dash', 'a backslash path falls back to the dashboard');
+  assert.equal(resolveLink(o, '//evil.example/x', '/dash'), 'http://127.0.0.1:47195/dash');
+  assert.equal(resolveLink(o, undefined, '//evil.example/'), 'http://127.0.0.1:47195/', 'a hostile dashboard path becomes the root');
+  assert.equal(resolveLink(o, undefined, '/\\evil.example/'), 'http://127.0.0.1:47195/');
+  assert.equal(resolveLink(o, '/a?b=1#c', '/'), 'http://127.0.0.1:47195/a?b=1#c');
+  assert.equal(dashboardPathOf('@evil.example/'), '/');
+  assert.equal(dashboardPathOf('.evil.example/'), '/');
+  assert.equal(dashboardPathOf(undefined), '/');
+  assert.equal(dashboardPathOf('/dashboard/'), '/dashboard/');
+});
+
+test('S-3: a failed load says what failed, never the URL — a sign-in URL is the login code', () => {
+  const e = Object.assign(new Error("ERR_CONNECTION_REFUSED (-102) loading 'http://127.0.0.1:47195/fabric/v1/login?code=abcdefghijklmnop1234'"), { code: 'ERR_CONNECTION_REFUSED', errno: -102 });
+  assert.equal(loadErrorText(e), 'ERR_CONNECTION_REFUSED');
+  const bare = new Error("ERR_FAILED (-2) loading 'http://127.0.0.1:47195/fabric/v1/login?code=abcdefghijklmnop1234'");
+  assert.equal(loadErrorText(bare), 'ERR_FAILED (-2)');
+  assert.doesNotMatch(loadErrorText(new Error('see https://x.example/fabric/v1/login?code=abc')), /code=/);
 });
 
 test('listeners on every interface that no descriptor claims are unattributed', () => {

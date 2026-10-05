@@ -3,6 +3,7 @@
 // (the well-known document) is shared with Fabric in @passioncode-ai/fabric-service-host.
 import { checkUsage, request, type Descriptor, type ServiceEvent, type UsageReport } from '@passioncode-ai/fabric-service-host';
 import { tlsFor } from './testhooks';
+import { safePath } from '@passioncode-ai/fabric-service-host/links';
 
 export { fetchWellKnown, request } from '@passioncode-ai/fabric-service-host';
 export type { WellKnownResult } from '@passioncode-ai/fabric-service-host';
@@ -27,7 +28,7 @@ export async function fetchEvents(d: Descriptor, eventsPath: string, token: stri
   const page = JSON.parse(res.body) as EventsPage;
   if (!Array.isArray(page.events)) throw new Error('the events feed did not return an events page');
   const events = page.events.filter((e) => e && typeof e.id === 'string' && typeof e.text === 'string' && typeof e.at === 'string'
-    && ['info', 'notice', 'warning', 'error'].includes(e.level) && (e.link === undefined || (e.link.startsWith('/') && !e.link.startsWith('//'))));
+    && ['info', 'notice', 'warning', 'error'].includes(e.level) && (e.link === undefined || (typeof e.link === 'string' && safePath(e.link) !== null)));
   return { events, cursor: page.cursor ?? after };
 }
 

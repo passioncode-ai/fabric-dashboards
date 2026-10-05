@@ -93,7 +93,8 @@ async function lookAtEntry(entry: DescriptorEntry, conflict: ClaimConflict | nul
   });
   return {
     key: entry.key, path: entry.path, descriptor: d, problems, conflict, state, reasons,
-    wellKnown: probe?.kind === 'answer' ? probe.doc : null, probe, launchd,
+    // A foreign answer is another program's document: never this service's version, tiles or usage.
+    wellKnown: probe?.kind === 'answer' && state !== 'foreign' ? probe.doc : null, probe, launchd,
   };
 }
 // #endregion one-look

@@ -111,7 +111,8 @@ function add(sum: SpendSum, row: UsageTotals): void {
   sum.inputTokens += row.inputTokens;
   sum.outputTokens += row.outputTokens;
   if (row.costUsd !== null) sum.costUsd = (sum.costUsd ?? 0) + row.costUsd;
-  if (row.unpricedCalls > 0) sum.partial = true;
+  // A row with calls and no cost is unknown whatever its unpricedCalls says: a lower bound, never complete.
+  if (row.unpricedCalls > 0 || (row.calls > 0 && row.costUsd === null)) sum.partial = true;
 }
 
 /** The UTC date `days` days before `now` (0 = today). */
@@ -138,7 +139,8 @@ export function summarizeUsage(report: UsageReport, now: number): SpendSummary {
       models.set(k, sum);
     }
   }
-  for (const s of [out.today, out.week, out.month, ...models.values()]) if (s.calls === 0) s.costUsd = 0;
+  // No calls and no cost: nothing was spent. A cost reported without calls is kept, never zeroed.
+  for (const s of [out.today, out.week, out.month, ...models.values()]) if (s.calls === 0 && s.costUsd === null) s.costUsd = 0;
   const ranked = [...models.values()].sort((a, b) => (b.costUsd ?? -1) - (a.costUsd ?? -1) || b.calls - a.calls);
   return { ...out, models: ranked, budget: report.budget ?? null, generatedAt: report.generatedAt };
 }

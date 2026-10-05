@@ -169,3 +169,47 @@ test(`a probe that takes longer than 2 s still answers: the probe waits ${PROBE_
     server.close();
   }
 });
+
+// ── release audit S-5, S-2 ────────────────────────────────────────────────────────────────
+
+test('S-5: another program\'s document is never shown as this service\'s own — no version, tiles or update offer', async () => {
+  const r = rig();
+  const squatter: WellKnownResult = { kind: 'answer', doc: { ...READY, service: { ...READY.service, id: 'squatter' }, update: { available: '9.9.9' } } as WellKnown, ms: 2 };
+  const snap = await r.probeAt(0, squatter);
+  assert.equal(snap.state, 'foreign');
+  assert.equal(snap.wellKnown, null, 'the squatter\'s version, tiles, tools and summary stay out of the snapshot');
+  assert.ok(!snap.reasons.some((x) => x.code === 'reason.update'), 'no "Update to 9.9.9" on another program\'s claim');
+});
+
+test('S-2: an online origin that answered as another service gets no token again until the descriptor changes', async () => {
+  const base = tmp('fd-remote-foreign-');
+  const services = path.join(base, 'services');
+  fs.mkdirSync(services);
+  const tokenFile = path.join(base, 'svc.token');
+  fs.writeFileSync(tokenFile, 'tok-0123456789abcdef', { mode: 0o600 });
+  const remote = { ...(fixture('positive_service-descriptor-remote.json') as Descriptor), auth: { tokenFile } };
+  const file = path.join(services, 'example-agent.default.json');
+  fs.writeFileSync(file, JSON.stringify(remote));
+  const clock = { ms: T0 };
+  const probes: (Record<string, string> | undefined)[] = [];
+  let answer: WellKnownResult = { kind: 'answer', doc: { ...READY, service: { ...READY.service, id: 'other' } } as WellKnown, ms: 5 };
+  const monitor = new Monitor({
+    servicesDir: services, activity: new ActivityStore(path.join(base, 'app')), settings: () => DEFAULT_SETTINGS, lang: () => 'en', now: () => clock.ms,
+    wellKnown: async (_origin, options) => { probes.push(options?.headers as Record<string, string> | undefined); return answer; },
+  });
+  await monitor.tick();
+  assert.equal(monitor.snapshot(KEY)!.state, 'foreign');
+  assert.equal(probes.length, 1);
+  for (const s of [61, 122, 183]) { clock.ms = T0 + s * 1000; await monitor.tick(); }
+  assert.equal(probes.length, 1, 'no further probe carries the token to the foreign origin');
+  assert.equal(monitor.snapshot(KEY)!.state, 'foreign', 'and the verdict stays');
+  // The operator fixes the descriptor (here: a new token file path) — the service is probed again.
+  const tokenFile2 = path.join(base, 'svc2.token');
+  fs.writeFileSync(tokenFile2, 'tok-fedcba9876543210', { mode: 0o600 });
+  fs.writeFileSync(file, JSON.stringify({ ...remote, auth: { tokenFile: tokenFile2 } }));
+  answer = { kind: 'answer', doc: READY, ms: 5 };
+  clock.ms = T0 + 300_000;
+  await monitor.tick(true);
+  assert.equal(probes.length, 2, 'a changed descriptor is probed again');
+  assert.equal(monitor.snapshot(KEY)!.state, 'ready');
+});

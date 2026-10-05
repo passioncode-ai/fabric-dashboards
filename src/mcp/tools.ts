@@ -107,7 +107,8 @@ function view(s: ServiceLook): ServiceView {
     version: wk?.service.version ?? null,
     build: wk?.service.build.commit ?? wk?.service.build.digest ?? null,
     origin: d?.origin ?? null,
-    dashboard: d && dashPath ? `${d.origin}${dashPath}` : null,
+    // S-4: only a path on the origin; `${origin}@evil/` would name another host.
+    dashboard: d && dashPath && safePath(dashPath) ? new URL(dashPath, d.origin).toString() : null,
     // A descriptor that cannot be read names no service a link could open.
     open_link: d && isServiceKey(s.key) ? linkFor(s.key, dashPath && safePath(dashPath) ? dashPath : undefined) : null,
     tiles: wk?.summary ?? [],

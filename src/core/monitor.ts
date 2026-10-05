@@ -63,6 +63,10 @@ interface Tracked {
   tokenProblem: string | null; // DEC-0019: a remote placement whose token cannot be read is invalid, never probed
   launchdAt: number | null; // when launchd was last read for this service
   polledAt: number | null; // when its events feed was last read
+  /** The usage path its own last answer declared (ADR-0013): kept while it is down, so Spend says it could not read it instead of "not reporting". */
+  usagePath: string | null;
+  /** S-2: the descriptor (as JSON) whose online origin answered as another service — no token goes there again until it changes. */
+  remoteForeignFor: string | null;
 }
 
 // #region idle-cadence — docs: AGENTS.md#lifecycle
@@ -274,7 +278,7 @@ export class Monitor extends EventEmitter {
       }
       const t: Tracked = {
         entry, probe: null, launchd: { managed: entry.descriptor?.lifecycle.manager === 'launchd', loaded: false, pid: null, disabled: false },
-        firstUnansweredAt: null, lastAnswerAt: null, misses: 0, lastAnswer: null, nextProbeAt: this.now(), backoff: 0, busy: null, lastAction: null, tokenProblem: null,
+        firstUnansweredAt: null, lastAnswerAt: null, misses: 0, lastAnswer: null, nextProbeAt: this.now(), backoff: 0, busy: null, lastAction: null, tokenProblem: null, usagePath: null, remoteForeignFor: null,
         feedError: null, downNotified: false, lastState: null, lastPid: null, baselined: false, launchdAt: null, polledAt: null,
       };
       this.tracked.set(entry.key, t);
@@ -300,6 +304,14 @@ export class Monitor extends EventEmitter {
     let options: WellKnownOptions | undefined;
     t.tokenProblem = null;
     if (d.placement === 'remote') {
+      // S-2: an origin that answered as another service keeps that verdict, and gets no token,
+      // until the descriptor changes (reason.remote.foreign says so).
+      if (t.remoteForeignFor === JSON.stringify(d)) {
+        t.nextProbeAt = this.now() + this.intervals.remote;
+        this.observe(t);
+        return;
+      }
+      t.remoteForeignFor = null;
       try {
         options = { headers: authHeaders(d, this.token(d.auth.tokenFile)), ...tlsFor(d.origin) };
       } catch (error) {
@@ -333,6 +345,11 @@ export class Monitor extends EventEmitter {
     }
     // #endregion launchd-reads
     t.probe = probe;
+    if (probe.kind === 'answer') {
+      const own = probe.doc.service.id === d.id && probe.doc.service.instance === d.instance;
+      if (own) t.usagePath = probe.doc.surfaces.usage?.path ?? null;
+      else if (d.placement === 'remote') t.remoteForeignFor = JSON.stringify(d);
+    }
     const now = this.now();
     // A service that starts answering is read at once, not at the next 15-second poll.
     if (probe.kind === 'answer' && !answeredBefore) queueMicrotask(() => void this.pollOne(t).finally(() => this.changed()));
@@ -579,11 +596,12 @@ export class Monitor extends EventEmitter {
       descriptor: t.entry.descriptor, problems: t.tokenProblem ? [...t.entry.problems, t.tokenProblem] : t.entry.problems, conflict: this.conflicts().get(t.entry.key),
       launchd: t.launchd, probe: seen.probe, firstUnansweredAt: seen.firstUnansweredAt, now: this.now(), busy: t.busy,
     });
-    const wk = seen.probe?.kind === 'answer' ? seen.probe.doc : null;
+    // S-5: what another program says about itself is never shown as this service's own.
+    const wk = seen.probe?.kind === 'answer' && state !== 'foreign' ? seen.probe.doc : null;
     if (wk?.update?.available) reasons.push({ code: 'reason.update', params: { version: wk.update.available } });
     return {
       key: t.entry.key, descriptorPath: t.entry.path, descriptor: t.entry.descriptor, problems: t.tokenProblem ? [...t.entry.problems, t.tokenProblem] : t.entry.problems, state, reasons,
-      wellKnown: wk, launchd: t.launchd,
+      wellKnown: wk, launchd: t.launchd, usagePath: t.usagePath,
       firstUnansweredAt: t.firstUnansweredAt ? new Date(t.firstUnansweredAt).toISOString() : null,
       lastAnswerAt: t.lastAnswerAt ? new Date(t.lastAnswerAt).toISOString() : null,
       busy: t.busy, lastAction: t.lastAction, latestEvent: this.o.activity.latest(t.entry.key), feedError: t.feedError,

@@ -23,6 +23,8 @@ export interface ServiceSnapshot {
   lastAction: { action: string; ok: boolean; reason: Reason; at: string } | null;
   latestEvent: ServiceEvent | null;
   feedError: Reason | null;
+  /** The usage path the service's own last answer declared, kept while it does not answer (ADR-0013). */
+  usagePath?: string | null;
 }
 
 /** An activity row: a service event, or one the app itself recorded. */
