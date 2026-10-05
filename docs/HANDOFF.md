@@ -20,6 +20,17 @@ states a monthly budget its guard enforces. The detailed receipts live in those 
 repositories and in the operator's projects wiki. The installed Dashboards 0.4.1 has no Spend
 page yet; it ships with FD-09.
 
+**Protocol sweep, 2026-10-05.** The adapter probe (`main` `d14c147`) was run against all 16
+services installed on the operator's Mac.
+- **0 FAIL** apart from two local projections that are scheduled to retire. They relay a newer
+  schema than the manifest they register, and their owner accepts this until removal.
+- **DEC-0024 came out of the sweep.** Two services refused the host token on `/mcp` on purpose,
+  and the contract now allows that as `surfaces.mcp.auth: "own"`. Both declare it, and the probe
+  reports `interop.mcp-own-auth` PASS.
+- **Gaps still open across agents:**
+  - not every agent that calls paid models publishes `surfaces.usage` yet;
+  - several agents link no `fabricManifest`, so the probe's manifest rules stay NOT_RUN.
+
 **Probe bug found on the way:** the adapter probe sent no `Mcp-Method`/`Mcp-Name` headers (MCP
 2026-07-28 requires them), so servers on the official SDK answered HTTP 400. The fix is in
 fabric-agent-adapter [PR #35](https://github.com/passioncode-ai/fabric-agent-adapter/pull/35),

@@ -118,6 +118,7 @@ due probe or rescan — no fixed 1-second poll — and one for the events feed:
 | Directory rescan (reads small JSON files, no spawn) | on `fs.watch`, plus every 5 s | on `fs.watch`, plus every 60 s (30 s if the watcher failed) |
 | Status push to the window / tray rebuild / Dock badge | only when what a person can see changed | no IPC to a hidden window; tray and badge only when they would differ |
 | Activity writes | appended rows when events arrive; state debounced 2 s | same |
+| Usage reports (`surfaces.usage`, ADR-0013) | only while Spend is open: on opening, every 60 s and on Refresh | none — the main process answers the last sums without reading |
 
 **Idle budget**, hidden, per hour, for *L* local launchd services and *R* online ones — counted on a
 fake clock by `test/lifecycle.test.ts` (*LC-08: … a quiet hour stays inside the idle budget*):
