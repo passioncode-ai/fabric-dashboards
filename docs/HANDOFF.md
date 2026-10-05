@@ -28,7 +28,11 @@ services installed on the operator's Mac.
   and the contract now allows that as `surfaces.mcp.auth: "own"`. Both declare it, and the probe
   reports `interop.mcp-own-auth` PASS.
 - **Gaps still open across agents:**
-  - not every agent that calls paid models publishes `surfaces.usage` yet;
+  - not every agent that calls paid models publishes `surfaces.usage` yet. Measured
+    2026-10-05: Project Observatory (assistant and embeddings) and two personal agents, one of
+    them mid-milestone on a work-in-progress branch, call models without the report. The
+    Observatory owner session had ended before the offer could be sent; offer it again at
+    its next session;
   - several agents link no `fabricManifest`, so the probe's manifest rules stay NOT_RUN.
 
 **Probe bug found on the way:** the adapter probe sent no `Mcp-Method`/`Mcp-Name` headers (MCP
