@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.5.0 - 2026-10-05
 
 - **A toolbar over every embedded dashboard ([ADR-0014](docs/adr/0014-dashboard-toolbar.md)).**
   It has Back, Forward, Reload page and Dashboard home, shows the page's address, and offers two
