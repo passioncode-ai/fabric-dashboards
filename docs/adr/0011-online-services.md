@@ -51,3 +51,14 @@ service token; the session cookie is `__Host-` and `Secure`; the port claim is l
   to ADR-0083. (Corrected 2026-10-03: the first text of this ADR said ADR-0083 reads «loopback
   only»; it does not.)
 - A host older than 0.4.0 shows an online descriptor as invalid and never contacts it.
+
+## Amendment — 2026-10-06
+
+- **A platform that answers 5xx is not another program.** During a deploy or an outage an online
+  origin answers HTTP 502/503. That is silence with cause `http`: the service reads Starting for
+  `REMOTE_DOWN_AFTER_MS`, then Not answering with "{origin} is not up: its platform answers HTTP
+  503 …". Only a 2xx/4xx answer that is not the protocol is `foreign`, and its reason names the
+  origin (release audit P-1).
+- **The foreign verdict is kept.** Once the origin has answered as another service, no further
+  probe carries the token there until the descriptor changes, as `reason.remote.foreign` says
+  (release audit S-2). Its usage report is never read (S-1).

@@ -22,7 +22,9 @@ two states.
    it with their history.
 2. **What changes or authenticates stays in the app**: the launchd verbs (`Launchd extends
    LaunchdReader`, ADR-0002), the token, the events feed, the login code, the monitor's history.
-   The package never starts or stops anything, reads no token and opens no port.
+   The package never starts or stops anything, reads no token and opens no port. (Amended
+   2026-10-06: it reads an online service's token for that service's health probe — see the
+   amendment below.)
 3. **The state precedence has shared test vectors** (`test-vectors/state-precedence.json`). The
    package, this app and Fabric each run the same file against their own use of `deriveState`.
 4. **Not published to npm.** Fabric pins a commit and takes the package from its folder
@@ -42,3 +44,16 @@ two states.
 - Fabric's registry names six health values (`ready | degraded | stopped | down | foreign |
   unreadable`); the package derives ten states. The mapping (where `starting`, `stopping`,
   `duplicate`, `conflict` go) is Fabric's to decide; the package does not guess it.
+
+## Amendment — 2026-10-06
+
+- **Tokens.** Since ADR-0011 (online services, DEC-0019) the package does read a token, for one
+  purpose: the health probe of an online service, whose well-known document is behind the
+  token. `readToken` (0600, owner, no symlink) and `authHeaders` live in `src/health.ts`, and
+  `lookAtServices` reads an online service's token for its probe unless the caller passes its
+  own `token`. It still starts and stops nothing, opens no port, and never hands a token to a
+  page; reading a local service's events feed or usage report stays in the app.
+- **State vectors.** Three cases were added on 2026-10-06 (release audit P-1): a remote HTTP 5xx
+  is silence with cause `http` — waiting, then down with `reason.remote.http` — and a remote answer
+  without the protocol is `foreign` with `reason.remote.protocol`, naming the origin rather than a
+  port. Fabric runs the same file.

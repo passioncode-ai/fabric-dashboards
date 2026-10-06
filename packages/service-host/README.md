@@ -62,13 +62,14 @@ return, so a host's message catalogue can be checked against it — `Busy`, `Lau
 
 `src/health.ts`. `fetchWellKnown(origin, timeoutMs = 2000, options?)` → `WellKnownResult`; it never
 throws: silence (refused, timed out) is `no-answer`, any other answer that is not a valid well-known
-document is `not-protocol` with the reason (`checkWellKnown`). `request()` caps an answer at 2 MB and
+document is `not-protocol` with the reason (`checkWellKnown`). The kinds are `answer`,
+`no-answer`, `not-protocol` and, for a remote origin only, `refused`. `request()` caps an answer at 2 MB and
 follows no redirect.
 
 A **remote origin** (DEC-0019) goes over https with the certificate verified against the system
 store; pass the token header in `options.headers` (`authHeaders(d, readToken(d.auth.tokenFile))`) and
-`REMOTE_TIMEOUT_MS`. A `401` is `refused`; a redirect, a TLS failure, a timeout or a network error is
-`no-answer` with its `cause`. `TlsOptions` (`ca`, `connect`) exist for tests only. A local result keeps
+`REMOTE_TIMEOUT_MS`. A `401` is `refused`; a redirect, a TLS failure, a timeout, a network error or an
+HTTP 5xx (cause `http`: a deploy or an outage, not another program) is `no-answer` with its `cause`. `TlsOptions` (`ca`, `connect`) exist for tests only. A local result keeps
 its 0.1.0 shape. `readToken(tokenFile)` refuses a symlink, another owner and any mode wider than
 0600 — main process only.
 
@@ -102,7 +103,7 @@ nothing to show).
 
 ## One look
 
-`src/look.ts`. `lookAtServices({ servicesDir?, wellKnown?, launchd?, now?, only? })` →
+`src/look.ts`. `lookAtServices({ servicesDir?, wellKnown?, launchd?, now?, only?, token? })` →
 `{ servicesDir, error, services: ServiceLook[] }` — read the descriptors, find conflicts, read
 launchd once, probe each usable service once, derive each state. A reader with no history (a
 registry scan, an MCP call) has no earlier answer to measure silence from, so a service that

@@ -47,3 +47,16 @@ live view of the same service. Agents that want to check, restart or update a se
   the scheme needs no change to `fabric-service/0.1`.
 - `status` of a service is one look, not a watch: an unanswered service is `down`, never
   «starting» (the app's grace window needs a history the MCP process does not have).
+
+## Amendment — 2026-10-06
+
+- **Tools.** The server now has ten tools: the eight above plus `host_status` (whether and how
+  the app is installed here, without opening anything) and `spend` (every agent's own usage
+  report, ADR-0013). An unknown tool is a JSON-RPC error (`-32602`); an argument a tool does not
+  declare is refused. `doctor` and `update` run the service's own programs and are not marked
+  read-only. The control and command loops are the app's logic re-implemented for a reader with
+  no history; one shared module is backlog FD-20.
+- **Link forms.** The `open?service=` and `open?url=` forms are as strict as `service/`: an
+  unknown or repeated parameter, `path=` together with `url=`, and a `#fragment` are refused
+  (release audit U-17). `fabric-dashboards://` (the overview) opens the Overview, not only the
+  window (U-5).
