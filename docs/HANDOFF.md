@@ -7,8 +7,8 @@ Current release: 0.4.1 (section below). Earlier releases below are preserved as 
 
 ## Next — start here (2026-10-06)
 
-**First task for the next agent:** release `v0.5.6` waits for a `release-approvers` approval —
-`macos`, then `publish` (the agent never approves). `v0.5.5` was withdrawn before approval: its run
+**First task for the next agent:** release `v0.5.6` (run 37407706842, tag on `2909565`) waits for a
+`release-approvers` approval — `macos`, then `publish` (the agent never approves). `v0.5.5` was withdrawn before approval: its run
 37398766044 was cancelled, because a third review found two token leaks after the tag (T-1…T-4).
 Once 0.5.6 publishes, check the receipt (Developer ID, `accepted and stapled`, Gatekeeper
 `accepted`, `checks.usageDescriptions`), let the installed 0.4.1 update itself (it downloads 0.5.6

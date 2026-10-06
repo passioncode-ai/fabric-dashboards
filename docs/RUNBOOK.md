@@ -91,7 +91,9 @@ published or attached to a release.
 concurrency group `release` without cancel-in-progress: a new tag's run waits, without even running
 `version`, until the run ahead of it is approved, rejected or cancelled. GitHub keeps one *pending*
 run per group, so a third run silently cancels the second. To supersede a run that waits for
-approval, cancel it first (`gh run cancel <id>`), then push the new tag.
+approval, cancel it first, then push the new tag. A run waiting on an environment approval ignores
+`gh run cancel` (it stays `waiting`, measured 2026-10-06 on 37398766044); end it with
+`gh api -X POST repos/passioncode-ai/fabric-dashboards/actions/runs/<id>/force-cancel`.
 
 A published release is never rewritten; a fix is a new tag. Verify a download with
 `gpg --verify SHA256SUMS.asc SHA256SUMS`, `shasum -a 256 -c SHA256SUMS --ignore-missing` and
