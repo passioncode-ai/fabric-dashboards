@@ -47,9 +47,9 @@ and `npm run check` on macOS every night, on manual dispatch and before every re
 - [docs/HANDOFF.md](docs/HANDOFF.md) shows where each module stands, the next task and the checks
   that were run.
 - Code: `packages/service-host/` — the npm workspace `@passioncode-ai/fabric-service-host`, the
-  reading code Fabric also uses (descriptors, conflicts, launchd status, health, state
-  precedence, service links; [its README](packages/service-host/README.md),
-  [ADR-0006](docs/adr/0006-shared-service-host-package.md)); `src/core/` (monitor, launchd
+  reading code built for Fabric to share, which Fabric does not import yet (descriptors, conflicts,
+  launchd status, health, state precedence, service links; [its README](packages/service-host/README.md),
+  [ADR-0006](docs/adr/0006-shared-service-host-package.md), amended 2026-10-06); `src/core/` (monitor, launchd
   verbs, token-gated probes, links, activity, settings), `src/electron/` (main process, tray,
   updater) and `src/renderer/` (UI). Tests are in `test/` and `packages/service-host/test/`.
 - The design is
@@ -65,9 +65,9 @@ and `npm run check` on macOS every night, on manual dispatch and before every re
 
 - launchd is the only supervisor. The app never starts a service process itself
   ([ADR-0002](docs/adr/0002-launchd-is-the-only-supervisor.md)).
-- Reading a service belongs in `packages/service-host` (Fabric shares it); changing one, a token
+- Reading a service belongs in `packages/service-host` (built to be shared with Fabric); changing one, a token
   and the events feed stay in the app. A change to the state order updates
-  `test-vectors/state-precedence.json` in the same change — Fabric runs that file too (ADR-0006).
+  `test-vectors/state-precedence.json` in the same change — it is the shared contract for the day Fabric reads health (ADR-0006).
 - A user-facing change updates `docs/ux/scenarios.md` in the same change (`CONTRIBUTING.md`).
 - To change a brand file, update the canonical file on the website, copy it and repin
   (`CONTRIBUTING.md`).

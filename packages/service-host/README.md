@@ -3,8 +3,10 @@
 The reading half of hosting local agent services that speak `fabric-service/0.1`: find their
 descriptors in `services/`, find claim conflicts, read launchd, probe health, derive the one
 state each service is in, and build the `fabric-dashboards://service/<id>.<instance>` link that
-opens one in Fabric Dashboards. Fabric Dashboards runs on it; Fabric's agent registry reads
-`services/` with it (Fabric plan row AR-2.2), so both apps show a service in the same state.
+opens one in Fabric Dashboards. Fabric Dashboards and its MCP server run on it. It was built for
+Fabric's agent registry to share (Fabric plan row AR-2.2), but Fabric does not import it today: its
+registry reads `services/` with its own reader and probes nothing ([ADR-0006](../../docs/adr/0006-shared-service-host-package.md),
+amended 2026-10-06).
 
 It never starts, stops or changes a service and never opens a network port. It reads a token
 only to probe a remote placement's health (DEC-0019, `readToken`), and withholds it from an origin
@@ -179,7 +181,8 @@ and its bundled MCP server — finds it the way a checkout does.
 
 ## Consuming it from Fabric
 
-Pin a commit of this repository and take the package from its folder. With pnpm (Fabric uses
+Not in use as of 2026-10-06 (Fabric reads `services/` itself; see the top of this file). When Fabric
+adopts it: pin a commit of this repository and take the package from its folder. With pnpm (Fabric uses
 pnpm 11), in the consuming package's `package.json`:
 
 ```json

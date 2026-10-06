@@ -63,7 +63,8 @@ review found ([audit report, third pass](docs/reports/2026-10-05-release-audit/R
 ### Shared package and release
 
 - `@passioncode-ai/fabric-service-host` 0.3.1: `RemoteTokenLatch`, and `lookAtServices` takes a
-  `latch`. Fabric shares the package; it also carries the three remote-5xx state vectors of 0.5.5.
+  `latch`. It also carries the three remote-5xx state vectors of 0.5.5. Fabric does not import the
+  package today (its registry reads `services/` itself and probes nothing), so nothing changes there.
 - `npm run test:e2e` installs Electron's binary before its tests, so it no longer fails right after
   `npm ci`. The release workflow's publish step uses `!cancelled()`, and a rehearsal's signed set is
   kept 14 days.

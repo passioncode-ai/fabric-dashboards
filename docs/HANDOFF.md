@@ -20,9 +20,10 @@ Once 0.5.6 publishes, check the receipt (Developer ID, `accepted and stapled`, G
 `accepted`, `checks.usageDescriptions`), let the installed 0.4.1 update itself (it downloads 0.5.6
 and installs at its next quit or Restart — 0.4.1 has no automatic install), walk SCN-001…045 on
 the installed app (FD-02), measure FD-07 on it, and tell the growth/analytics owner session that
-the release is out (they click through the cross-agent links). Tell Fabric's owner session about
-`@passioncode-ai/fabric-service-host` 0.3.1 (`RemoteTokenLatch`; ADR-0006 amendment) and the three
-remote-5xx state vectors. The website follows releases by itself; the `fabric-workspace` session
+the release is out (they click through the cross-agent links). Fabric's owner session was told about
+`@passioncode-ai/fabric-service-host` 0.3.1 on 2026-10-06 and answered that Fabric does not import
+the package and probes nothing (ADR-0006 amendment *Who consumes the package today*); nothing to do
+there. The website follows releases by itself; the `fabric-workspace` session
 owns the Dashboards page.
 
 **What 0.5.6 adds over 0.5.5** — the [third review pass](reports/2026-10-05-release-audit/README.md#third-pass--2026-10-06-fix-list-for-056)
@@ -45,8 +46,8 @@ into swap; alone it passes 4/4.
   `37dadc8` and `eedb0e6`; 7 items moved to the backlog with reasons (FD-19…FD-21);
 - its **second pass of 2026-10-06** (same report): a Russian walk of every screen, a live walk of
   every MCP tool, the scenario/screen review applied; fixes in `11cec37`, `0159af9`, `812950a`, docs
-  in `4cf8863`, `9567a74`. Three new shared state vectors (remote HTTP 5xx) — Fabric runs the same
-  file, tell its owner session when 0.5.5 is out.
+  in `4cf8863`, `9567a74`. Three new shared state vectors (remote HTTP 5xx); Fabric does not run
+  them yet (ADR-0006 amendment).
 
 Superseded runs, all cancelled before publish: `v0.5.5` (37398766044, after its `macos` build — T-1…T-4), `v0.5.2` (37256336416), `v0.5.3` (37291654717),
 `v0.5.4` (37307011716 — cancelled after its `macos` approval because 0.5.5 carries the audit; an
