@@ -214,6 +214,10 @@ test('service/<id>.<instance> links open the service, a stopped one on its Start
   const port = await freePort();
   const restingPort = await freePort();
   const proc = serve(port, data, ['--name', 'Sample Service']);
+  // Answering, and launchd-managed under a label that does not exist: Ready with Stop enabled, and
+  // no launchctl verb runs because the test only opens the Stop dialog and cancels it.
+  const heldPort = await freePort();
+  const held = serve(heldPort, path.join(base, 'held'), ['--id', 'held', '--name', 'Held Service']);
   let app: ElectronApplication | null = null;
   const env = { ...process.env, FABRIC_SERVICES_DIR: services, FABRIC_DASHBOARDS_USER_DATA: path.join(base, 'app'), LANG: 'en_US.UTF-8' };
   // A second process with the same profile finds the running app, hands it the link and quits.
@@ -228,6 +232,9 @@ test('service/<id>.<instance> links open the service, a stopped one on its Start
     // launchctl verb runs — the label and the plist do not exist.
     register(restingPort, path.join(base, 'resting'), services, ['--id', 'resting', '--name', 'Resting Service',
       '--label', 'ai.passioncode.fabric-dashboards.test.absent', '--plist', path.join(base, 'absent.plist')]);
+    await waitAnswering(heldPort);
+    register(heldPort, path.join(base, 'held'), services, ['--id', 'held', '--name', 'Held Service',
+      '--label', 'ai.passioncode.fabric-dashboards.test.absent-held', '--plist', path.join(base, 'absent-held.plist')]);
 
     app = await electron.launch({ args: [ROOT, 'fabric-dashboards://service/sample.default'], env });
     const page = await app.firstWindow();
@@ -277,9 +284,27 @@ test('service/<id>.<instance> links open the service, a stopped one on its Start
     const logged = fs.readFileSync(path.join(logs, 'main.log'), 'utf8');
     assert.match(logged, /deep link refused: no installed service "nobody\.default"/);
     assert.ok(!logged.includes('evil.example'), 'the log names the reason, never the link');
+
+    // U-14: the Stop dialog holds focus — Tab never leaves it — and Escape puts focus back on Stop.
+    forward('fabric-dashboards://service/held.default');
+    await page.getByRole('heading', { level: 1, name: 'Held Service' }).waitFor({ timeout: 20_000 });
+    const stopButton = page.getByRole('button', { name: 'Stop', exact: true });
+    await page.waitForFunction(() => [...document.querySelectorAll('button')].some((b) => b.textContent === 'Stop' && !b.disabled), undefined, { timeout: 20_000 });
+    await stopButton.focus();
+    await page.keyboard.press('Enter');
+    const dialog = page.getByRole('alertdialog');
+    await dialog.waitFor();
+    for (let i = 0; i < 4; i += 1) {
+      await page.keyboard.press('Tab');
+      assert.ok(await dialog.evaluate((d) => d.contains(document.activeElement)), `Tab ${i + 1} stayed inside the dialog`);
+    }
+    await page.keyboard.press('Escape');
+    await dialog.waitFor({ state: 'detached' });
+    assert.ok(await stopButton.evaluate((b) => b === document.activeElement), 'focus is back on the Stop button');
   } finally {
     await closeApp(app);
     await stopProcess(proc);
+    await stopProcess(held);
   }
 });
 

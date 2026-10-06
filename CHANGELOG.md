@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+### Fixed
+
+- **The Stop dialog holds focus.** While it is open, Tab stays on its two buttons and nothing
+  behind it can be reached; closing it puts focus back on the Stop button (U-14, the last part of
+  that audit finding).
+
 ## 0.5.5 - 2026-10-06
 
 The first published release since 0.4.1. It carries everything listed under 0.5.4, 0.5.3 and 0.5.2

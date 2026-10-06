@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { langFor, t as tr, type Lang } from '../core/i18n';
 import type { AppStatus } from '../core/types';
 import { groupProducts, productOf, type Product } from '../core/products';
@@ -72,6 +72,18 @@ function Shell({ status, route, setRoute, stopKey, setStopKey, activityFilter, s
   const problems = status.services.filter((s) => PROBLEM.has(s.state)).length;
   const current = route.page === 'service' ? status.services.find((s) => s.key === route.key) : undefined;
   const stopping = stopKey ? status.services.find((s) => s.key === stopKey) : undefined;
+  // U-14: the Stop dialog holds focus. Everything behind it is inert while it is open (the embedded
+  // dashboard is a native view and hides itself on overlayOpen); closing it puts focus back on the
+  // control that opened it, when that control is still on screen.
+  const opener = useRef<HTMLElement | null>(null);
+  const askStop = (key: string) => { opener.current = document.activeElement instanceof HTMLElement ? document.activeElement : null; setStopKey(key); };
+  const stopOpen = Boolean(stopping);
+  useEffect(() => {
+    if (stopOpen) return;
+    const el = opener.current;
+    opener.current = null;
+    if (el?.isConnected && !(el as HTMLButtonElement).disabled) el.focus();
+  }, [stopOpen]);
   // ADR-0012: one sidebar entry per product; every member keeps its own key, state and controls.
   const products = groupProducts(status.services);
   const foreground = products.filter((p) => !p.background);
@@ -81,7 +93,7 @@ function Shell({ status, route, setRoute, stopKey, setStopKey, activityFilter, s
 
   return (
     <div className="app">
-      <nav className="sidebar" aria-label="Fabric Dashboards">
+      <nav className="sidebar" aria-label="Fabric Dashboards" inert={stopOpen}>
         <div className="brand"><img src={mark} alt="" /> {t('app.name')}</div>
         <div className="nav">
           <button className="nav-item" aria-current={route.page === 'overview' ? 'page' : undefined} onClick={() => setRoute({ page: 'overview' })}>
@@ -109,9 +121,9 @@ function Shell({ status, route, setRoute, stopKey, setStopKey, activityFilter, s
           </button>
         </div>
       </nav>
-      <main className="main">
+      <main className="main" inert={stopOpen}>
         {route.page === 'service' && current
-          ? <ServiceView key={current.key} s={current} all={status.services} members={currentProduct?.members ?? [current]} open={open} link={route.link} nonce={route.nonce} tab={route.tab} runUpdate={route.tab === 'health' && route.page === 'service'} activityRev={status.activityRev} overlayOpen={Boolean(stopKey)} askStop={setStopKey} />
+          ? <ServiceView key={current.key} s={current} all={status.services} members={currentProduct?.members ?? [current]} open={open} link={route.link} nonce={route.nonce} tab={route.tab} runUpdate={route.tab === 'health' && route.page === 'service'} activityRev={status.activityRev} overlayOpen={Boolean(stopKey)} askStop={askStop} />
           : (
             <div className="page">
               <div className="page-head">
