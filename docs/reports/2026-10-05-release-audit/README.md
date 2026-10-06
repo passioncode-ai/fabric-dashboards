@@ -170,3 +170,44 @@ the riskiest audit fixes.
 
 Still later: FD-19 (machine reasons translated, with Fabric), FD-20 (one control module), FD-21
 (small leftovers), FD-22 (A2A surface, after the contract decision; roadmap RM-17).
+
+## Third pass — 2026-10-06, open (fix list for 0.5.6)
+
+Four read-only reviews of `b8bdf57..eedb0e6` (main process; monitor/spend/MCP; renderer/i18n;
+docs and release.yml). Gate at `eedb0e6`: `FD_SKIP_LAUNCHD=1 npm run check` exit 0 (234 tests,
+233 pass, 1 skipped); `npm run test:e2e` 6/6 once the Electron binary is installed. Started:
+`RemoteTokenLatch` in the shared package (`packages/service-host/src/latch.ts`, tested, **not yet
+wired**). Everything else below is open.
+
+| ID | Finding | Evidence | Fix |
+|---|---|---|---|
+| T-1 | MCP `activity` sends the token to whatever answers on the port; `withDashboard` builds `http_url` from a squatter's dashboard path | `src/mcp/tools.ts:186-197,291-304` | refuse when `doc.service.id/instance` differ |
+| T-2 | A remote origin answering non-protocol (404, HTML) gets the token every probe; `reason.remote.protocol` says "Nothing is sent to it" | `monitor.ts:349-353`, `i18n.ts:41,332` | wire `RemoteTokenLatch` into the monitor (replaces `remoteForeignFor`), `lookAtServices` (option) and MCP `probe()` |
+| T-3 | Re-sign-in on a 401 uses the view's creation-time snapshot and POSTs the token to whatever now holds the port | `src/electron/views.ts:56-67,115-122,137-146` | read the current snapshot by key; refuse when `foreign` or no well-known |
+| T-4 | The MCP server has no S-2 latch: every call re-sends the token to a foreign remote | `look.ts:73-82`, `tools.ts:239-248` | T-2's latch, one per MCP process |
+| T-5 | Remote pid change reports `restarted` on every replica switch (R-8 regression) | `monitor.ts:395-398` | detect pid change only for local placements |
+| T-6 | A command killed by a signal reads "could not run" (P-4/M2-3) and MCP drops its output | `children.ts:83`, `monitor.ts:591`, `tools.ts:287` | record `spawn` and `signal` in `runOwned` |
+| T-7 | MCP `spend` treats `stopped` as not reporting ($0) | `tools.ts:320` | drop `stopped` from the exclusion |
+| T-8 | `open/anything?service=` and an empty `url=` are accepted (U-17) | `deeplink.ts:46-64` | refuse a path; use `has('url')` |
+| T-9 | MCP arguments of the wrong type are ignored silently | `server.ts:124-140` | refuse a present argument of the wrong type |
+| T-10 | A page crashing after each load reloads forever (P-14 resets `crashes` on load) | `views.ts:96,106-110` | reset only on a fresh show |
+| T-11 | `resume()` drops a failed `show()`: blank pane, no Retry | `views.ts:230-236`, `main.ts:160` | emit `error` when `!r.ok` |
+| T-12 | Leftover group kills are not counted: a child can outlive Quit within 2 s | `children.ts:74-77`, `main.ts:519` | keep the group in `owned` until `killGroup` resolves |
+| T-13 | `shownNotices` grows for the life of the app (`close` not guaranteed) | `main.ts:242-251` | cap ~50 |
+| T-14 | `loaded` view events still reach a hidden window (R-13) | `main.ts:200` | filter like `navigated` |
+| T-15 | Uninstall says "Nothing was removed" after the MCP entries were removed | `main.ts:283-292` | a message naming what was removed |
+| T-16 | R-7 not fixed: the applied-link ref lives in `DashboardHost`, which unmounts on a tab switch | `ServiceView.tsx:41,129,148,160-161` | keep it in `ServiceView`/`Shell` or drop `link` from the route after a good show |
+| T-17 | R-6 partial: showing again after error/crash re-attaches the dead page | `ServiceView.tsx:156-173`, `views.ts:186-196` | reset `loadedOnce` on fail/crash |
+| T-18 | `stopKey` not cleared when its service disappears; dashboards stay hidden, the dialog pops up later | `App.tsx:74,126,141` | `overlayOpen={stopOpen}`; clear a dangling key |
+| T-19 | The 30-minute expiry of a failed action never re-renders | `Overview.tsx:48`, `ServiceView.tsx:91` | a timer to the earliest expiry |
+| T-20 | Logs offered for remote services that have no Logs tab | `Overview.tsx:87-89`, `ServiceView.tsx:94` | gate on `placement !== 'remote'` |
+| T-21 | U-14: after a confirmed Stop focus drops to `body`; Escape dead once focus is on `body` | `App.tsx:81-86,142,148` | focus a stable target; document keydown while open |
+| T-22 | Strip shows "≥ $0.00" when every agent failed | `Overview.tsx:221-222` | show unknown when no report |
+| T-23 | The update can run again after a remount (ref in `ServiceView`) | `App.tsx:126`, `ServiceView.tsx:44-47` | consume the request in the route |
+| T-24 | `<h3 role="status">` loses its heading role | `ServiceView.tsx:277` | role on an inner span |
+| T-25 | Network/token Spend errors stay English in the Russian UI | `spend.ts:39-43`, `probe.ts:51` | `spend.err.unreachable` |
+| T-26 | ru wording «…её отчёт не читается» | `i18n.ts:360` | «…поэтому отчёт о расходах сервиса не читается» |
+| T-27 | Activity filter keeps a removed service's key | `Activity.tsx:187,207` | reset when absent |
+| T-28 | `npm ci && npm run check && npm run test:e2e` fails: Electron 44 downloads its binary lazily and the e2e files race to unpack it | `package.json` `test:e2e` | run `install-electron` before the tests |
+| T-29 | release.yml `publish` uses `always()`; rehearsal artifact has no `retention-days` though RUNBOOK says 14 | `release.yml:124-132,160` | `!cancelled()`; `retention-days: 14` |
+| T-30 | Docs: report/handoff/backlog still say U-14 trap is later; "53 fixes"/"8 items" counts; FD-16 "0.5.4 copy"; HANDOFF stream rows (Spend, adapter, v0.5.5); AGENTS "D-8 in HANDOFF" (it is in `docs/evidence/briefs/2026-09-28-brief.md:67`); shared package still 0.3.0 after state/usage changes; SCN-009 lacks the focus behaviour; RUNBOOK lacks the global `release` queue and `still-newest`; SECURITY.md omits Finder opens; README tool count without "`spend` from 0.5.5" | docs review | correct in the release change |

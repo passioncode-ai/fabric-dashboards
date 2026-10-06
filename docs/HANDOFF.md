@@ -7,6 +7,14 @@ Current release: 0.4.1 (section below). Earlier releases below are preserved as 
 
 ## Next — start here (2026-10-06)
 
+**Superseding note (2026-10-06, later):** do **not** approve `v0.5.5`. A third review found ~30
+defects after the tag, two of them token leaks (T-1…T-4). The next release is 0.5.6: fix the
+open list in [the audit report's third pass](reports/2026-10-05-release-audit/README.md#third-pass--2026-10-06-open-fix-list-for-056)
+in order (T-1…T-4 first — `RemoteTokenLatch` is written and tested, wire it), update the docs
+(T-30), bump `package.json` and `packages/service-host` (0.3.1), rename `## Unreleased` to
+`## 0.5.6`, then cancel run 37398766044 (the global `release` concurrency group queues a new tag
+behind it) and push `v0.5.6`. Approval of `macos` and `publish` is a human step.
+
 **First task for the next agent:** release `v0.5.5` waits for a `release-approvers` approval —
 `macos`, then `publish` (the agent never approves). Once it publishes, check the receipt
 (Developer ID, `accepted and stapled`, Gatekeeper `accepted`, `checks.usageDescriptions`), let the
