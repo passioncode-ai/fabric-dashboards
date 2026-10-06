@@ -152,8 +152,10 @@ test('REQ-07: a folder in a Switchboard project is bound; one in none is not; a 
   assert.equal(sb.calls.length, 1, 'no query for a runtime Switchboard holds no account for');
   const none = fakeSwitchboard({ '--json project show --path': ok({ path: '/y', project: null, rules: [{ provider: 'claude', effective: null }] }) });
   assert.deepEqual(await bindingFor(none.run, '/sb', '/y', 'claude'), { kind: 'none' });
-  const rule = fakeSwitchboard({ '--json project show --path': ok({ path: '/z', project: null, rules: [{ provider: 'codex', effective: { target: 'managed', enabled: true } }] }) });
-  assert.deepEqual(await bindingFor(rule.run, '/sb', '/z/repo', 'codex'), { kind: 'project', name: 'repo', pool: 'default' });
+  const rule = fakeSwitchboard({ '--json project show --path': ok({ path: '/z', project: null, rules: [{ provider: 'codex', effective: { target: 'managed', enabled: true, account: { id: 'a1', pool: 'work' } } }] }) });
+  assert.deepEqual(await bindingFor(rule.run, '/sb', '/z/repo', 'codex'), { kind: 'project', name: 'repo', pool: 'work' }, 'review R-2: the rule\'s account\'s pool, not default');
+  const blind = fakeSwitchboard({ '--json project show --path': ok({ path: '/z', project: null, rules: [{ provider: 'codex', effective: { target: 'managed', enabled: true, account: null } }] }) });
+  assert.equal((await bindingFor(blind.run, '/sb', '/z/repo', 'codex')).kind, 'error', 'a managed rule with no account is not guessed at');
 });
 
 test('REQ-07: an unreadable Switchboard answer is an error, never a silent fallback to the ordinary sign-in', async () => {
@@ -199,6 +201,7 @@ function fakePty() {
       kill: (s?: string) => { pty.killed.push(s ?? 'SIGHUP'); },
       emit: (d: string) => onData(d),
       exit: (code: number) => onExit({ exitCode: code }),
+      exitWith: (code: number, signal: number) => onExit({ exitCode: code, signal }),
     };
     spawned.push({ file, args, cwd: opts.cwd, env: opts.env, pty });
     return pty;
@@ -210,11 +213,11 @@ const CLAUDE = { id: 'claude-code', name: 'Claude Code', binary: 'claude', provi
 
 test('REQ-08: one session per service, its output kept and replayed, input and size passed through, exit reported', () => {
   const f = fakePty();
-  const m = new ConsoleManager({ spawn: f.spawn, env: () => ({ PATH: '/bin', ELECTRON_RUN_AS_NODE: '1', NODE_OPTIONS: '--inspect', HOME: '/h' }), ringChars: 10 });
+  const m = new ConsoleManager({ spawn: f.spawn, env: () => ({ PATH: '/bin', ELECTRON_RUN_AS_NODE: '1', NODE_OPTIONS: '--inspect', HOME: '/h' }), ringChars: 10, killGroup: () => { throw new Error('fake'); } });
   const events: string[] = [];
   m.on('data', (e: { key: string; data: string }) => events.push(`${e.key}:${e.data}`));
   m.on('exit', (e: { key: string; code: number | null }) => events.push(`${e.key}:exit ${e.code}`));
-  assert.deepEqual(m.start('a.default', { argv: ['/bin/claude', '--continue'], cwd: '/repo', label: 'Claude Code' }, { cols: 100, rows: 30 }), { ok: true });
+  assert.deepEqual(m.start('a.default', { argv: ['/bin/claude', '--continue'], cwd: '/repo', label: 'Claude Code', env: { PATH: '/login/path:/bin' } }, { cols: 100, rows: 30 }), { ok: true });
   assert.deepEqual(m.start('a.default', { argv: ['/bin/claude'], cwd: '/repo', label: 'Claude Code' }, { cols: 80, rows: 24 }), { ok: false, error: 'running' }, 'a second start while one runs is refused');
   const s = f.spawned[0]!;
   assert.equal(s.file, '/bin/claude');
@@ -224,9 +227,11 @@ test('REQ-08: one session per service, its output kept and replayed, input and s
   assert.equal(s.env.NODE_OPTIONS, undefined);
   assert.equal(s.env.TERM, 'xterm-256color');
   assert.equal(s.env.FABRIC_DASHBOARDS_SERVICE, 'a.default');
+  assert.equal(s.env.PATH, '/login/path:/bin', 'review R-1: the session gets the login shell\'s PATH, not the app\'s');
   s.pty.emit('hello ');
   s.pty.emit('world!!');
   assert.equal(m.snapshot('a.default').output, 'lo world!!', 'the ring keeps the last N characters');
+  assert.equal(m.snapshot('a.default').end, 13, 'the end counts everything printed, beyond the ring');
   m.input('a.default', 'ls\r');
   m.resize('a.default', 120, 40);
   assert.deepEqual(s.pty.written, ['ls\r']);
@@ -238,6 +243,7 @@ test('REQ-08: one session per service, its output kept and replayed, input and s
   assert.equal(snap.exitCode, 3);
   assert.equal(m.runningCount(), 0);
   assert.deepEqual(events, ['a.default:hello ', 'a.default:world!!', 'a.default:exit 3']);
+  assert.equal(m.snapshot('b.default').end, 0);
   assert.deepEqual(m.start('a.default', { argv: ['/bin/claude'], cwd: '/repo', label: 'Claude Code' }, { cols: 80, rows: 24 }), { ok: true }, 'exited: a new session may start');
   assert.equal(m.snapshot('a.default').output, '', 'a new session starts with a clean screen');
   assert.equal(m.snapshot('b.default').state, 'idle');
@@ -245,7 +251,8 @@ test('REQ-08: one session per service, its output kept and replayed, input and s
 
 test('REQ-08, LC-02: stop and quit end every session; a removed service takes its session with it', async () => {
   const f = fakePty();
-  const m = new ConsoleManager({ spawn: f.spawn, env: () => ({ PATH: '/bin' }), killGraceMs: 20 });
+  const noGroup = () => { throw new Error('no such process group'); };
+  const m = new ConsoleManager({ spawn: f.spawn, env: () => ({ PATH: '/bin' }), killGraceMs: 20, killGroup: noGroup });
   m.start('a.default', { argv: ['/bin/claude'], cwd: '/r', label: 'x' }, { cols: 80, rows: 24 });
   m.start('b.default', { argv: ['/bin/codex'], cwd: '/r', label: 'y' }, { cols: 80, rows: 24 });
   m.stop('a.default');
@@ -257,7 +264,7 @@ test('REQ-08, LC-02: stop and quit end every session; a removed service takes it
   assert.deepEqual(f.spawned[1]!.pty.killed, ['SIGHUP']);
   assert.equal(m.snapshot('b.default').state, 'idle');
   const g = fakePty();
-  const q = new ConsoleManager({ spawn: g.spawn, env: () => ({}), killGraceMs: 10 });
+  const q = new ConsoleManager({ spawn: g.spawn, env: () => ({}), killGraceMs: 10, killGroup: noGroup });
   q.start('a.default', { argv: ['/bin/claude'], cwd: '/r', label: 'x' }, { cols: 80, rows: 24 });
   const done = q.stopAll();
   g.spawned[0]!.pty.exit(0);
@@ -288,4 +295,34 @@ test('REQ-07, REQ-09: the start plan — plain runtime, Switchboard in place, Te
 test('REQ-10: Open in Terminal builds a quoted script — no string from a folder name runs as code', () => {
   assert.equal(shellQuote("it's here"), `'it'\\''s here'`);
   assert.equal(terminalScript(['/bin/claude', '--continue'], "/Users/me/my 'repo'"), `cd '/Users/me/my '\\''repo'\\''' && exec '/bin/claude' '--continue'`);
+});
+
+test('review R-6, R-7: Stop signals the whole process group; a removed service\'s dying session still holds quit', async () => {
+  const f = fakePty();
+  const groups: string[] = [];
+  const m = new ConsoleManager({ spawn: f.spawn, env: () => ({}), killGraceMs: 20, killGroup: (pid, sig) => { groups.push(`${pid}:${sig}`); } });
+  m.start('a.default', { argv: ['/bin/claude'], cwd: '/r', label: 'x' }, { cols: 80, rows: 24 });
+  m.stop('a.default');
+  assert.deepEqual(groups, ['4242:SIGHUP']);
+  assert.deepEqual(f.spawned[0]!.pty.killed, [], 'the group got it, not only the top process');
+  f.spawned[0]!.pty.exit(0);
+  m.start('b.default', { argv: ['/bin/codex'], cwd: '/r', label: 'y' }, { cols: 80, rows: 24 });
+  m.forget('b.default');
+  assert.equal(m.snapshot('b.default').state, 'idle', 'nothing of it is shown again');
+  assert.equal(m.runningCount(), 1, 'but it still counts until it exits');
+  const done = m.stopAll();
+  f.spawned[1]!.pty.exit(0);
+  await done;
+  assert.equal(m.runningCount(), 0);
+});
+
+test('review R-10: a session ended by a signal says so', () => {
+  const f = fakePty();
+  const m = new ConsoleManager({ spawn: f.spawn, env: () => ({}), killGroup: () => undefined });
+  const exits: unknown[] = [];
+  m.on('exit', (e) => exits.push(e));
+  m.start('a.default', { argv: ['/bin/claude'], cwd: '/r', label: 'x' }, { cols: 80, rows: 24 });
+  (f.spawned[0]!.pty as unknown as { exitWith: (c: number, s: number) => void }).exitWith(0, 1);
+  assert.deepEqual(exits, [{ key: 'a.default', code: 0, signal: 1 }]);
+  assert.equal(m.snapshot('a.default').signal, 1);
 });

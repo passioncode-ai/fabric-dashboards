@@ -33,6 +33,8 @@ export function ConsolePanel({ serviceKey, width, onWidth, onHide }: Props) {
   const host = useRef<HTMLDivElement>(null);
   const term = useRef<Terminal | null>(null);
   const fit = useRef<FitAddon | null>(null);
+  /** How far into the session's output the terminal shows: events and snapshots meet here. */
+  const shown = useRef(0);
   const [info, setInfo] = useState<ConsoleInfo | null>(null);
   const [notice, setNotice] = useState<{ text: string; terminalOnly?: boolean } | null>(null);
   const [confirmStop, setConfirmStop] = useState(false);
@@ -49,7 +51,12 @@ export function ConsolePanel({ serviceKey, width, onWidth, onHide }: Props) {
     }
     setInfo(next);
     const x = term.current;
-    if (x) { x.reset(); if (next.session.output) x.write(next.session.output); }
+    if (x) {
+      // Review R-5: the reset goes through the write queue (RIS), behind chunks still waiting there.
+      x.write('\x1bc');
+      if (next.session.output) x.write(next.session.output);
+      shown.current = next.session.end;
+    }
   }, [serviceKey]);
 
   useEffect(() => {
@@ -65,8 +72,13 @@ export function ConsolePanel({ serviceKey, width, onWidth, onHide }: Props) {
     if (host.current) observer.observe(host.current);
     const off = api().onConsoleEvent((e) => {
       if (e.key !== serviceKey) return;
-      if (e.kind === 'data') x.write(e.data);
-      else void refresh();
+      if (e.kind === 'data') {
+        // Only what the terminal has not shown yet: a chunk the last snapshot already held is skipped.
+        const start = e.end - e.data.length;
+        if (e.end <= shown.current) return;
+        x.write(start >= shown.current ? e.data : e.data.slice(shown.current - start));
+        shown.current = e.end;
+      } else void refresh();
     });
     const onVisible = () => { if (document.visibilityState === 'visible') void refresh(); };
     document.addEventListener('visibilitychange', onVisible);
@@ -92,7 +104,8 @@ export function ConsolePanel({ serviceKey, width, onWidth, onHide }: Props) {
     try {
       const x = term.current;
       try { fit.current?.fit(); } catch { /* not laid out */ }
-      x?.reset();
+      x?.write('\x1bc');
+      shown.current = 0; // a new session counts from its own first character
       say(await api().consoleStart(serviceKey, mode, { cols: x?.cols ?? 80, rows: x?.rows ?? 24 }));
       x?.focus();
     } catch (error) {
@@ -177,9 +190,12 @@ export function ConsolePanel({ serviceKey, width, onWidth, onHide }: Props) {
             : <>
                 <button className="btn btn-primary" disabled={starting} onClick={() => void start('new')}>{t('console.new')}</button>
                 {runtime.canContinue && <button className="btn" disabled={starting} onClick={() => void start('continue')}>{t('console.continue')}</button>}
-                <button className="btn" onClick={() => void openTerminal(runtime.canContinue ? 'continue' : 'new')}>{t('console.openTerminal')}</button>
+                {/* Review R-8: through Switchboard, Terminal opens a new session on the project's account. */}
+                {bound && runtime.viaSwitchboard
+                  ? <button className="btn" onClick={() => void openTerminal('new')}>{t('console.openTerminalSb')}</button>
+                  : <button className="btn" onClick={() => void openTerminal(runtime.canContinue ? 'continue' : 'new')}>{t('console.openTerminal')}</button>}
               </>}
-          {info.session.state === 'exited' && <span className="meta" role="status">{info.session.exitCode === null ? t('console.ended') : t('console.exited', { code: info.session.exitCode })}</span>}
+          {info.session.state === 'exited' && <span className="meta" role="status">{info.session.signal ? t('console.stopped') : info.session.exitCode === null ? t('console.ended') : t('console.exited', { code: info.session.exitCode })}</span>}
         </div>
       )}
       <div className="console-term" ref={host} onClick={() => term.current?.focus()} />

@@ -19,7 +19,7 @@ async function closeApp(app: ElectronApplication | null): Promise<void> {
 
 /** A stand-in runtime: says where it runs and with which arguments, echoes lines, exits on "bye". */
 const FAKE_CLAUDE = `#!/bin/sh
-printf 'fake-claude ready in %s args:[%s]\\r\\n' "$PWD" "$*"
+printf 'fake-claude ready in %s args:[%s] path:[%s]\\r\\n' "$PWD" "$*" "$PATH"
 while IFS= read -r line; do
   [ "$line" = bye ] && exit 0
   printf 'you said: %s\\r\\n' "$line"
@@ -79,6 +79,7 @@ test('ADR-0017: a one-line header, a folding sidebar, and an agent console besid
     // SCN-049: the runtime runs in the chosen folder; input reaches it; Continue passes its resume flag.
     await page.getByRole('button', { name: 'New session' }).click();
     await waitFor('the runtime to start', async () => (await termText(page)).includes(`fake-claude ready in ${fs.realpathSync(repo)} args:[]`) || (await termText(page)).includes(`fake-claude ready in ${repo} args:[]`));
+    assert.ok((await termText(page)).includes(`path:[${runtimes}]`), 'review R-1: the session runs on the PATH the runtimes were found on');
     await page.locator('.console-term').click();
     await page.keyboard.type('hello');
     await page.keyboard.press('Enter');
@@ -101,7 +102,7 @@ test('ADR-0017: a one-line header, a folding sidebar, and an agent console besid
     // Stop asks first, then ends the session.
     await page.getByRole('button', { name: 'Stop', exact: true }).click();
     await page.getByRole('group', { name: 'Stop this session?' }).getByRole('button', { name: 'Stop' }).click();
-    await page.getByText(/Exited \(code \d+\)\.|Ended\./).waitFor({ timeout: 15_000 });
+    await page.getByText('Stopped.').waitFor({ timeout: 15_000 });
 
     // SCN-047: the sidebar folds into a rail; entries keep their names for a screen reader.
     await page.getByRole('button', { name: 'Collapse sidebar' }).click();

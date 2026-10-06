@@ -16,7 +16,7 @@ export interface ConsoleInfo {
   folder: { path: string; source: 'saved' | 'found'; exists: boolean } | null;
   /** What Switchboard binds the folder to, for the chosen runtime. */
   binding: { kind: 'none' } | { kind: 'project'; name: string; pool: string; inPlace: boolean } | { kind: 'error'; detail: string } | { kind: 'absent' };
-  session: { state: 'idle' | 'running' | 'exited'; label: string; cwd: string; output: string; exitCode: number | null };
+  session: { state: 'idle' | 'running' | 'exited'; label: string; cwd: string; output: string; end: number; exitCode: number | null; signal: number | null };
 }
 
 /** Why a start did not run in the console, worded by the renderer. */
@@ -84,7 +84,7 @@ export interface FabricApi {
   /** Output and exits while the window is visible; a hidden window gets nothing and asks `consoleInfo` again. */
   /** View menu: fold or unfold a panel (ADR-0017). */
   onLayoutCommand(listener: (which: 'sidebar' | 'console' | 'details') => void): () => void;
-  onConsoleEvent(listener: (event: { key: string; kind: 'data'; data: string } | { key: string; kind: 'exit'; code: number | null }) => void): () => void;
+  onConsoleEvent(listener: (event: { key: string; kind: 'data'; data: string; end: number } | { key: string; kind: 'exit'; code: number | null; signal?: number | null }) => void): () => void;
   /** Asks the person to confirm, then removes the login item and the MCP registration, moves the
    *  app to the Trash and quits. Settings and history stay for a reinstall unless the person ticks
    *  the box to delete them too (lifecycle LC-14, ADR-0015). */

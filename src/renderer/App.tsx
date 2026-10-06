@@ -26,7 +26,8 @@ export function App() {
   const [layout, setLayout] = useState<AppSettings['layout']>(DEFAULT_SETTINGS.layout);
   const changeLayout = (patch: NonNullable<SettingsPatch['layout']>, persist = true) => {
     setLayout((l) => ({ ...l, ...patch, console: { ...l.console, ...(patch.console ?? {}) } }));
-    if (persist) void api().updateSettings({ layout: patch }).then((r) => setLayout(r.settings.layout), () => undefined);
+    // Review R-9: the screen is the truth while the person moves panels; a slower reply never undoes a later change.
+    if (persist) void api().updateSettings({ layout: patch }).catch(() => undefined);
   };
 
   useEffect(() => {

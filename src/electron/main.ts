@@ -93,7 +93,7 @@ if (!app.requestSingleInstanceLock()) {
   // ADR-0017: the agent consoles. FD_TEST_RUNTIME_DIRS replaces where runtimes are looked for, only
   // in a development run (the e2e suite's scripted runtime); a packaged app reads the login shell's PATH.
   const testRuntimeDirs = !app.isPackaged && process.env.FD_TEST_RUNTIME_DIRS ? process.env.FD_TEST_RUNTIME_DIRS.split(':').filter(Boolean) : undefined;
-  const consoles = new ConsoleHost({ settings, snapshot: (key) => monitor.snapshot(key), window: () => window, visible: () => windowVisible(), log: (line) => log(line), testDirs: testRuntimeDirs });
+  const consoles = new ConsoleHost({ settings, snapshot: (key) => monitor.snapshot(key), window: () => window, visible: () => windowVisible(), log: (line) => log(line), testDirs: testRuntimeDirs, scriptsDir: path.join(userData, 'console') });
   let tray: AppTray | null = null;
   // R-3: the window lets itself close only once a quit is really under way — before-quit, or
   // Squirrel's before-quit-for-update. A failed install puts the window back to hiding on close.
@@ -436,7 +436,10 @@ if (!app.requestSingleInstanceLock()) {
     ipcMain.handle(CHANNELS.activity, (_e, filter) => activity.list(filter ?? {}));
     ipcMain.handle(CHANNELS.activitySeen, () => { activity.markSeen(); pushStatus(); });
     ipcMain.handle(CHANNELS.settings, () => settings.get());
-    ipcMain.handle(CHANNELS.settingsUpdate, (_e, patch: SettingsPatch) => {
+    ipcMain.handle(CHANNELS.settingsUpdate, (_e, raw: SettingsPatch) => {
+      // Review R-4: a console's runtime and folder are set only through the console's own calls (a
+      // folder only from the folder dialog), never through a generic settings change.
+      const { consoles: _ignored, ...patch } = (raw && typeof raw === 'object' ? raw : {}) as SettingsPatch;
       // Choosing launch at login — on the first-run card or in Settings — is the one moment it is registered (LC-07).
       const choosing = 'launchAtLogin' in patch;
       const next = settings.update(choosing ? { ...patch, launchAtLoginAsked: true } : patch);

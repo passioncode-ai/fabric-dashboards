@@ -80,8 +80,14 @@ What exists today:
      - New starts fresh.
      - Continue resumes the runtime's last conversation in that folder: `claude --continue`,
        `codex resume --last`. Continue is offered only where the runtime has such a flag.
-   - **Open in Terminal** continues the same runtime and folder in Terminal.app, through the
-     same account rule.
+   - **Open in Terminal** continues the same runtime and folder in Terminal.app (Continue where the
+     runtime can). For a folder bound to a Switchboard project it is «Open in Terminal via
+     Switchboard»: Switchboard's own launch, a new session on the project's account (it takes no
+     resume argument until SB-75). Terminal is opened through LaunchServices with a one-shot
+     `.command` file (0700, removing itself), the way Switchboard does it — no Apple Events, so no
+     automation permission is asked for.
+   - **Stop** hangs up the runtime's whole process group (node-pty makes it a session leader) and
+     kills the group 2 s later; a removed service's session is still waited for at quit.
    - **Where it lives.** `src/core/runtimes.ts` (runtimes), `src/core/repofind.ts` (folder),
      `src/core/switchboard.ts` (account), `src/core/consoles.ts` (sessions on an injected PTY, the
      start plan, the Terminal line), `src/electron/console.ts` (IPC, node-pty, the login `PATH`),

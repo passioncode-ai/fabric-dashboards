@@ -46,6 +46,8 @@ export interface ConsoleHostOptions {
   log: (line: string) => void;
   /** Test-only search folders (never honoured by a packaged app — main.ts decides). */
   testDirs?: string[];
+  /** Where Open in Terminal writes its one-shot `.command` files (the app's data folder). */
+  scriptsDir: string;
   run?: Runner;
   spawn?: SpawnPty;
 }
@@ -53,20 +55,25 @@ export interface ConsoleHostOptions {
 export class ConsoleHost {
   readonly manager: ConsoleManager;
   private dirs: Promise<string[]> | null = null;
-  private catalog: Promise<{ runtimes: Runtime[]; switchboard: string | null; inPlace: boolean }> | null = null;
+  private catalog: Promise<Runtime[]> | null = null;
+  private inPlaceFor: { key: string; value: boolean } | null = null;
   private readonly run: Runner;
 
   constructor(private readonly o: ConsoleHostOptions) {
     this.run = o.run ?? execRunner;
+    // One-shot Terminal files remove themselves when they run; one Terminal never ran is removed here.
+    try {
+      for (const name of fs.readdirSync(o.scriptsDir)) if (/^open-.*\.command$/.test(name)) fs.rmSync(path.join(o.scriptsDir, name), { force: true });
+    } catch { /* no folder yet */ }
     let spawn: SpawnPty | null = o.spawn ?? null;
     this.manager = new ConsoleManager({
       spawn: (file, args, opts) => (spawn ??= loadSpawn())(file, args, opts),
       env: () => ({ ...process.env }),
     });
-    this.manager.on('data', (e: { key: string; data: string }) => this.send({ key: e.key, kind: 'data', data: e.data }));
-    this.manager.on('exit', (e: { key: string; code: number | null }) => {
-      this.o.log(`console: ${e.key} exited with ${e.code}`);
-      this.send({ key: e.key, kind: 'exit', code: e.code });
+    this.manager.on('data', (e: { key: string; data: string; end: number }) => this.send({ key: e.key, kind: 'data', data: e.data, end: e.end }));
+    this.manager.on('exit', (e: { key: string; code: number | null; signal: number | null }) => {
+      this.o.log(`console: ${e.key} exited with ${e.code}${e.signal ? ` (signal ${e.signal})` : ''}`);
+      this.send({ key: e.key, kind: 'exit', code: e.code, signal: e.signal });
     });
   }
 
@@ -81,27 +88,34 @@ export class ConsoleHost {
     return this.dirs;
   }
 
-  /** The runtimes installed now, and Switchboard; read once per launch (a new install shows after a relaunch, or when nothing was found). */
-  private async inventory(): Promise<{ runtimes: Runtime[]; switchboard: string | null; inPlace: boolean }> {
+  /** The runtimes installed, read once per launch (looked for again while none is found), and
+   *  Switchboard, looked for on every call: one installed later must bind its folders at once
+   *  (review R-3) — a stat per folder, and `launch --help` only when the binary changed. */
+  private async inventory(): Promise<{ runtimes: Runtime[]; switchboard: string | null; inPlace: boolean; dirs: string[] }> {
+    const dirs = await this.searchPath();
+    const switchboard = findSwitchboard(dirs);
     if (!this.catalog) {
       this.catalog = (async () => {
-        const dirs = await this.searchPath();
-        const switchboard = findSwitchboard(dirs);
         let extra: RuntimeSpec[] = [];
-        let inPlace = false;
         if (switchboard) {
           const r = await this.run(switchboard, ['--json', 'agents', 'list'], 10_000);
           try { extra = specsFromSwitchboard(JSON.parse(r.stdout)); } catch { extra = []; }
-          inPlace = await canLaunchInPlace(this.run, switchboard);
         }
         const runtimes = detectRuntimes(dirs, [...KNOWN_RUNTIMES, ...extra]);
-        this.o.log(`console: runtimes ${runtimes.map((r) => r.id).join(', ') || 'none'}; switchboard ${switchboard ? (inPlace ? 'in place' : 'Terminal only') : 'absent'}`);
-        return { runtimes, switchboard, inPlace };
+        this.o.log(`console: runtimes ${runtimes.map((r) => r.id).join(', ') || 'none'}; switchboard ${switchboard ?? 'absent'}`);
+        return runtimes;
       })();
     }
-    const inv = await this.catalog;
-    if (!inv.runtimes.length) this.catalog = null; // nothing found: look again next time
-    return inv;
+    const runtimes = await this.catalog;
+    if (!runtimes.length) this.catalog = null; // nothing found: look again next time
+    let inPlace = false;
+    if (switchboard) {
+      let stamp = switchboard;
+      try { stamp += `:${fs.statSync(switchboard).mtimeMs}`; } catch { /* checked below anyway */ }
+      if (this.inPlaceFor?.key !== stamp) this.inPlaceFor = { key: stamp, value: await canLaunchInPlace(this.run, switchboard) };
+      inPlace = this.inPlaceFor.value;
+    }
+    return { runtimes, switchboard, inPlace, dirs };
   }
 
   private folderOf(key: string): ConsoleInfo['folder'] {
@@ -137,7 +151,7 @@ export class ConsoleHost {
       runtime: runtime?.id ?? null,
       folder,
       binding: b.kind === 'project' ? { ...b, inPlace: inv.inPlace } : b,
-      session: { state: s.state, label: s.label, cwd: s.cwd, output: s.output, exitCode: s.exitCode },
+      session: { state: s.state, label: s.label, cwd: s.cwd, output: s.output, end: s.end, exitCode: s.exitCode, signal: s.signal },
     };
   }
 
@@ -152,7 +166,8 @@ export class ConsoleHost {
     const plan = planStart({ runtime, mode, folder: folder.path, binding: b.kind === 'absent' ? { kind: 'none' } : b, switchboard: inv.switchboard, inPlace: inv.inPlace });
     if (plan.kind === 'refused') return { ok: false, reason: plan.reason, detail: plan.detail };
     if (plan.kind === 'terminal-only') return { ok: false, reason: 'terminal-only', project: plan.project };
-    const r = this.manager.start(key, { argv: plan.argv, cwd: plan.cwd, label: runtime.name }, size);
+    // Review R-1: the session runs with the login shell's PATH, not the one an app opened from Finder has.
+    const r = this.manager.start(key, { argv: plan.argv, cwd: plan.cwd, label: runtime.name, env: { PATH: inv.dirs.join(':') } }, size);
     if (!r.ok) return { ok: false, reason: r.error === 'running' ? 'running' : 'spawn', detail: r.error };
     // Remember what was started, so the panel offers it next time.
     this.o.settings.update({ consoles: { [key]: { runtime: runtime.id, folder: folder.source === 'saved' ? folder.path : this.o.settings.get().consoles[key]?.folder ?? null } } });
@@ -177,7 +192,7 @@ export class ConsoleHost {
     }
     const plan = planStart({ runtime, mode, folder: folder.path, binding: { kind: 'none' }, switchboard: null, inPlace: false });
     if (plan.kind !== 'run') return { ok: false, error: plan.kind === 'refused' ? plan.detail : 'unavailable' };
-    return openInTerminal(terminalScript(plan.argv, folder.path));
+    return openInTerminal(this.o.scriptsDir, terminalScript(plan.argv, folder.path));
   }
 
   async pickFolder(key: string): Promise<ConsoleInfo> {
@@ -227,11 +242,21 @@ function expandHome(p: string): string {
   return p.startsWith('~/') ? path.join(process.env.HOME ?? '', p.slice(2)) : p;
 }
 
-/** Terminal runs the quoted line in a new window. The line is an argument to a fixed script, never part of it. */
-function openInTerminal(line: string): Promise<{ ok: boolean; error?: string }> {
-  const script = ['on run argv', 'tell application "Terminal"', 'activate', 'do script (item 1 of argv)', 'end tell', 'end run'];
+/** Terminal runs the quoted line in a new window: a one-shot `.command` file (0700, removing itself
+ *  first) opened with Terminal through LaunchServices — the way Switchboard opens its sessions. No
+ *  Apple Events, so no automation permission is asked of the person, signed build or not. */
+function openInTerminal(dir: string, line: string): Promise<{ ok: boolean; error?: string }> {
+  let file: string;
+  try {
+    fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+    file = path.join(dir, `open-${process.pid}-${Date.now().toString(36)}.command`);
+    fs.writeFileSync(file, `#!/bin/sh\nrm -f "$0"\n${line}\n`, { mode: 0o700 });
+  } catch (error) {
+    return Promise.resolve({ ok: false, error: (error as Error).message });
+  }
   return new Promise((resolve) => {
-    execFile('/usr/bin/osascript', [...script.flatMap((l) => ['-e', l]), line], { timeout: 15_000 }, (error, _out, stderr) => {
+    execFile('/usr/bin/open', ['-a', 'Terminal', file], { timeout: 15_000 }, (error, _out, stderr) => {
+      if (error) { try { fs.rmSync(file, { force: true }); } catch { /* gone */ } }
       resolve(error ? { ok: false, error: String(stderr || error.message).trim().slice(0, 300) } : { ok: true });
     });
   });

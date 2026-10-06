@@ -40,10 +40,15 @@ export async function bindingFor(run: Runner, sb: string, folder: string, provid
   if (!data) return { kind: 'error', detail: (r.stderr || r.stdout).trim().split('\n').pop()?.slice(0, 200) || `exit ${r.code}` };
   const project = data.project as { name?: unknown; pool?: unknown } | null;
   if (project && typeof project.name === 'string' && typeof project.pool === 'string') return { kind: 'project', name: project.name, pool: project.pool };
-  // A folder rule whose effective target is a managed session also routes through Switchboard.
-  const rules = Array.isArray(data.rules) ? (data.rules as { provider?: string; effective?: { target?: string; enabled?: boolean } | null }[]) : [];
+  // A folder rule whose effective target is a managed session also routes through Switchboard, in
+  // the pool of the account it names (review R-2); a rule that names no account is not guessed at.
+  const rules = Array.isArray(data.rules) ? (data.rules as { provider?: string; effective?: { target?: string; enabled?: boolean; account?: unknown } | null }[]) : [];
   const rule = rules.find((x) => x.provider === provider)?.effective;
-  if (rule && rule.target === 'managed' && rule.enabled !== false) return { kind: 'project', name: path.basename(folder), pool: 'default' };
+  if (rule && rule.target === 'managed' && rule.enabled !== false) {
+    const pool = (rule.account as { pool?: unknown } | null | undefined)?.pool;
+    if (typeof pool !== 'string' || !pool) return { kind: 'error', detail: 'a managed Switchboard rule for this folder names no account' };
+    return { kind: 'project', name: path.basename(folder), pool };
+  }
   return { kind: 'none' };
 }
 

@@ -976,7 +976,7 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
   3. User collapses the panel -> it closes; whatever runs in it keeps running; opening it again shows everything it printed
   4. User switches to another agent -> the panel shows that agent's console; each agent has its own
 - **Expected result:** a console that belongs to the agent sits beside its dashboard and gets out of the way when asked
-- **Alt paths:** the window is hidden while a console runs -> it keeps running and nothing is sent to the window; showing it replays what was printed; the agent is removed -> its console ends and says so
+- **Alt paths:** the window is hidden while a console runs -> it keeps running and nothing is sent to the window; showing it replays what was printed; the agent is removed -> its page closes and its console ends with it
 - **UI elements:** console panel, its edge handle, "Console" / "Hide console", View menu item
 - **States covered:** success, empty
 - **Errors & recovery:** n/a here; starting is SCN-049
@@ -1018,7 +1018,7 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **Alt paths:** the folder is in no project, or Switchboard is not installed -> the runtime runs on its ordinary sign-in, and the folder line says nothing about Switchboard
 - **UI elements:** folder line with the project name, "Open in Terminal via Switchboard"
 - **States covered:** success, error
-- **Errors & recovery:** Switchboard needs its app or `switchboard serve` running -> its own message in the console or a notice, with "Open Switchboard"; a managed session for the same project already runs -> Switchboard's refusal is shown as it says it; Switchboard's answer cannot be read -> "Switchboard did not answer; the session was not started" — never a silent fallback to the ordinary sign-in
+- **Errors & recovery:** Switchboard needs its app or `switchboard serve` running -> its own message, shown as it says it; a managed session for the same project already runs -> Switchboard's refusal is shown as it says it; Switchboard's answer cannot be read -> "Switchboard did not answer; the session was not started" — never a silent fallback to the ordinary sign-in
 - **Status:** validated
 - **Coverage:** src/core/switchboard.ts, src/core/consoles.ts, src/electron/console.ts, test/console.test.ts
 - **Product:** unobserved

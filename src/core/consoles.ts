@@ -26,11 +26,17 @@ export interface ConsoleSnapshot {
   label: string;
   cwd: string;
   output: string;
+  /** How many characters the session has printed in all: a reader that showed `output` up to here
+   *  appends only the part of a later `data` event past it (no gap, no repeat). */
+  end: number;
   exitCode: number | null;
+  /** The signal that ended it (a Stop), or null. */
+  signal: number | null;
   startedAt: number | null;
 }
 
-export interface StartPlan { argv: string[]; cwd: string; label: string }
+/** `env` is laid over the app's own environment: the login shell's PATH, above all (review R-1). */
+export interface StartPlan { argv: string[]; cwd: string; label: string; env?: Record<string, string> }
 
 /** What a press of New or Continue does, decided before anything is spawned. */
 export type Plan =
@@ -70,7 +76,9 @@ interface Session {
   cwd: string;
   chunks: string[];
   size: number;
+  emitted: number;
   exitCode: number | null;
+  signal: number | null;
   startedAt: number;
   killTimer: NodeJS.Timeout | null;
   exited: Promise<void>;
@@ -79,10 +87,14 @@ interface Session {
 
 export class ConsoleManager extends EventEmitter {
   private readonly sessions = new Map<string, Session>();
+  /** Sessions of removed services, kept until they have exited, so quit still waits for them. */
+  private readonly dying = new Set<Session>();
   private readonly ringChars: number;
   private readonly killGraceMs: number;
 
-  constructor(private readonly o: { spawn: SpawnPty; env: () => NodeJS.ProcessEnv; ringChars?: number; killGraceMs?: number; now?: () => number }) {
+  constructor(private readonly o: { spawn: SpawnPty; env: () => NodeJS.ProcessEnv; ringChars?: number; killGraceMs?: number; now?: () => number;
+    /** Signals a process group; default `process.kill(-pid)`. Tests pass a fake: a fake pid is not a real group. */
+    killGroup?: (pid: number, signal: NodeJS.Signals) => void }) {
     super();
     this.ringChars = o.ringChars ?? 1_000_000;
     this.killGraceMs = o.killGraceMs ?? 2_000;
@@ -96,6 +108,7 @@ export class ConsoleManager extends EventEmitter {
     for (const [k, v] of Object.entries(commandEnv(this.o.env()))) if (typeof v === 'string') env[k] = v;
     Object.assign(env, { TERM: 'xterm-256color', COLORTERM: 'truecolor', FABRIC_DASHBOARDS_SERVICE: key });
     if (!env.LANG) env.LANG = 'en_US.UTF-8';
+    Object.assign(env, plan.env ?? {});
     let pty: PtyLike;
     try {
       pty = this.o.spawn(file, args, { cwd: plan.cwd, env, cols: Math.max(2, size.cols), rows: Math.max(1, size.rows), name: 'xterm-256color' });
@@ -104,19 +117,22 @@ export class ConsoleManager extends EventEmitter {
     }
     let resolveExit: () => void = () => undefined;
     const exited = new Promise<void>((r) => { resolveExit = r; });
-    const s: Session = { pty, label: plan.label, cwd: plan.cwd, chunks: [], size: 0, exitCode: null, startedAt: (this.o.now ?? Date.now)(), killTimer: null, exited, resolveExit };
+    const s: Session = { pty, label: plan.label, cwd: plan.cwd, chunks: [], size: 0, emitted: 0, exitCode: null, signal: null, startedAt: (this.o.now ?? Date.now)(), killTimer: null, exited, resolveExit };
     this.sessions.set(key, s);
     pty.onData((data) => {
       if (this.sessions.get(key) !== s) return;
       this.keep(s, data);
-      this.emit('data', { key, data });
+      s.emitted += data.length;
+      this.emit('data', { key, data, end: s.emitted });
     });
-    pty.onExit(({ exitCode }) => {
+    pty.onExit(({ exitCode, signal }) => {
       if (s.killTimer) clearTimeout(s.killTimer);
       s.pty = null;
       s.exitCode = exitCode;
+      s.signal = signal ? signal : null;
       s.resolveExit();
-      if (this.sessions.get(key) === s) this.emit('exit', { key, code: exitCode });
+      this.dying.delete(s);
+      if (this.sessions.get(key) === s) this.emit('exit', { key, code: exitCode, signal: s.signal });
     });
     this.emit('state', { key });
     return { ok: true };
@@ -141,37 +157,47 @@ export class ConsoleManager extends EventEmitter {
     if (pty && cols > 1 && rows > 0) { try { pty.resize(Math.floor(cols), Math.floor(rows)); } catch { /* exited between the check and the call */ } }
   }
 
-  /** Hang up; a runtime that ignores it is killed after the grace. */
+  /** Hang up the whole process group (node-pty's helper makes the runtime a session leader, so its
+   *  pid is the group); whatever ignores it is killed after the grace (LC-02, as children.ts does). */
   stop(key: string): void {
     const s = this.sessions.get(key);
-    if (!s?.pty || s.killTimer) return;
-    const pty = s.pty;
-    try { pty.kill('SIGHUP'); } catch { /* already gone */ }
-    s.killTimer = setTimeout(() => { if (s.pty === pty) { try { pty.kill('SIGKILL'); } catch { /* gone */ } } }, this.killGraceMs);
+    if (s) this.end(s);
   }
 
-  /** The service is gone: its session ends and nothing of it is kept. */
+  private end(s: Session): void {
+    if (!s.pty || s.killTimer) return;
+    const pty = s.pty;
+    const signal = (sig: NodeJS.Signals) => {
+      try { (this.o.killGroup ?? ((pid, sg) => process.kill(-pid, sg)))(pty.pid, sig); } catch { try { pty.kill(sig); } catch { /* already gone */ } }
+    };
+    signal('SIGHUP');
+    s.killTimer = setTimeout(() => { if (s.pty === pty) signal('SIGKILL'); }, this.killGraceMs);
+  }
+
+  /** The service is gone: its session ends, and nothing of it is shown again; quit still waits for it. */
   forget(key: string): void {
-    this.stop(key);
+    const s = this.sessions.get(key);
+    if (!s) return;
     this.sessions.delete(key);
+    if (s.pty) { this.dying.add(s); this.end(s); }
     this.emit('state', { key });
   }
 
   snapshot(key: string): ConsoleSnapshot {
     const s = this.sessions.get(key);
-    if (!s) return { key, state: 'idle', label: '', cwd: '', output: '', exitCode: null, startedAt: null };
-    return { key, state: s.pty ? 'running' : 'exited', label: s.label, cwd: s.cwd, output: s.chunks.join(''), exitCode: s.exitCode, startedAt: s.startedAt };
+    if (!s) return { key, state: 'idle', label: '', cwd: '', output: '', end: 0, exitCode: null, signal: null, startedAt: null };
+    return { key, state: s.pty ? 'running' : 'exited', label: s.label, cwd: s.cwd, output: s.chunks.join(''), end: s.emitted, exitCode: s.exitCode, signal: s.signal, startedAt: s.startedAt };
   }
 
   runningCount(): number {
-    return [...this.sessions.values()].filter((s) => s.pty).length;
+    return [...this.sessions.values(), ...this.dying].filter((s) => s.pty).length;
   }
 
-  /** Quit (LC-02): every session ends; resolves once each has exited or been killed. */
+  /** Quit (LC-02): every session ends, a removed service's too; resolves once each has exited or been killed. */
   async stopAll(): Promise<void> {
-    const running = [...this.sessions.entries()].filter(([, s]) => s.pty);
-    for (const [key] of running) this.stop(key);
-    await Promise.all(running.map(([, s]) => Promise.race([s.exited, new Promise<void>((r) => setTimeout(r, this.killGraceMs + 200))])));
+    const running = [...this.sessions.values(), ...this.dying].filter((s) => s.pty);
+    for (const s of running) this.end(s);
+    await Promise.all(running.map((s) => Promise.race([s.exited, new Promise<void>((r) => setTimeout(r, this.killGraceMs + 200))])));
   }
 }
 // #endregion agent-console
