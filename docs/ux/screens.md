@@ -5,12 +5,15 @@
 ## Index
 | ID | Screen | Used by | Figma | Status | Coverage |
 |----|--------|---------|-------|--------|----------|
-| SCR-01 | Overview | SCN-001, SCN-002, SCN-005, SCN-006, SCN-030 | none (text-only) | built | src/renderer/components/Overview.tsx |
-| SCR-02 | Service view | SCN-004, SCN-007–SCN-016, SCN-021, SCN-025, SCN-026, SCN-027, SCN-031, SCN-032 | none (text-only) | built | src/renderer/components/ServiceView.tsx |
-| SCR-03 | Activity | SCN-003, SCN-017, SCN-018 | none (text-only) | built | src/renderer/components/Activity.tsx |
-| SCR-04 | Settings | SCN-019, SCN-024 | none (text-only) | built | src/renderer/components/Settings.tsx |
+| SCR-01 | Overview | SCN-001, SCN-002, SCN-003, SCN-005, SCN-006, SCN-007, SCN-021, SCN-024, SCN-030, SCN-033, SCN-035, SCN-041, SCN-042 | none (text-only) | built | src/renderer/components/Overview.tsx |
+| SCR-02 | Service view | SCN-004, SCN-007–SCN-016, SCN-021, SCN-025, SCN-026, SCN-027, SCN-029, SCN-031, SCN-032, SCN-034, SCN-039, SCN-040, SCN-045 | none (text-only) | built | src/renderer/components/ServiceView.tsx |
+| SCR-03 | Activity | SCN-003, SCN-017, SCN-018, SCN-020 | none (text-only) | built | src/renderer/components/Activity.tsx |
+| SCR-04 | Settings | SCN-019, SCN-022, SCN-024, SCN-043, SCN-044 | none (text-only) | built | src/renderer/components/Settings.tsx |
 | SCR-05 | Stop confirmation | SCN-009 | none (text-only) | built | src/renderer/App.tsx |
 | SCR-06 | Tray menu | SCN-023 | none (text-only) | built | src/electron/tray.ts |
+| SCR-07 | Spend | SCN-036, SCN-037, SCN-038, SCN-041 | none (text-only) | built | src/renderer/components/Spend.tsx |
+| SCR-08 | Sidebar | SCN-001, SCN-006, SCN-017, SCN-022, SCN-033, SCN-035, SCN-044 | none (text-only) | built | src/renderer/App.tsx |
+| SCR-09 | System dialogs | SCN-014, SCN-024, SCN-027, SCN-044 | none (text-only) | built | src/electron/main.ts, src/electron/views.ts |
 
 ## Design system
 - **Style pack:** custom — the PassionCode.ai design system v1.1.0 (`passioncode-ai.github.io/design-system/tokens.css`), the family's shared product pack (Fabric ADR-0070); calm product-UI rules from sheleg-design
@@ -25,71 +28,76 @@
 ## Screens
 
 ### SCR-01: Overview
-- **Used by:** SCN-001, SCN-002, SCN-005, SCN-006
-- **Purpose:** JTBD-01 — the state of every service and what needs the operator, in one screen
-- **Elements:** header with service count; the one-time launch-at-login question (Open at login, Not now) until it is answered; Needs attention block (rows with one action each — the primary action of the screen when present); service cards (state, name, version+commit, uptime, tiles, latest event); empty state with "Show folder"
+- **Used by:** SCN-001, SCN-002, SCN-003, SCN-005, SCN-006, SCN-007, SCN-021, SCN-024, SCN-030, SCN-033, SCN-035, SCN-041, SCN-042
+- **Purpose:** JTBD-01 — the state of every agent, what needs the operator and what was spent, in one screen
+- **Elements:** header with the agent count; the one-time launch-at-login question (Open at login, Not now) until it is answered; the status strip (agents ready, not answering or in conflict, need attention, spent today, spent in 30 days — the spend cells open Spend; labels wrap to two lines); Needs attention (count, three single-line rows — state, name, reason, one action: Restart, "Update to <v>", Open, Logs; "Restarting…" while it runs — then "Show all N" / "Show fewer"); agent cards (state, name, version+commit, uptime or "online · <host>", the agent's one-line summary, up to six tiles, "also:" with each other instance's state, latest event); the Online group; empty state with "Show folder" and "How a service joins"
 - **States:**
   | State | Trigger | Figma frame | Behavior |
   |-------|---------|-------------|----------|
   | loading | first read of the services directory | — | "Looking for services…" |
-  | empty | no descriptor | — | "No services yet" + how a service joins + Show folder |
-  | success | every service ready | — | cards only |
-  | attention | any service not ready or asking | — | Needs attention above the cards, most severe first |
+  | empty | no descriptor | — | "No services yet" + how a service joins + the folder path + Show folder + How a service joins; a Show folder failure reads "Could not open <path>: <reason>" |
+  | success | every agent ready | — | strip and cards |
+  | attention | any service not ready, asking, or with a failed action in the last 30 minutes | — | Needs attention between the strip and the cards, most severe first; three rows, then Show all |
   | error | services directory unreadable | — | sentence with path + Retry |
 - **Coverage:** src/renderer/components/Overview.tsx
-- **Scenarios:** SCN-001, SCN-002, SCN-005, SCN-006
+- **Scenarios:** SCN-001, SCN-002, SCN-003, SCN-005, SCN-006, SCN-007, SCN-021, SCN-024, SCN-030, SCN-033, SCN-035, SCN-041, SCN-042
 - **Status:** built
 
 ### SCR-02: Service view
-- **Used by:** SCN-004, SCN-007–SCN-016, SCN-021, SCN-025, SCN-026, SCN-027
+- **Used by:** SCN-004, SCN-007–SCN-016, SCN-021, SCN-025, SCN-026, SCN-027, SCN-029, SCN-031, SCN-032, SCN-034, SCN-039, SCN-040, SCN-045
 - **Purpose:** JTBD-02 and JTBD-04 — control one service and work in its dashboard
-- **Elements:** header (state, name, version+commit, pid, uptime, port; Restart — primary when down —, Stop/Start, Update when available, Doctor when declared, Show data folder); tabs Dashboard / Activity / Health / Logs; embedded dashboard; reload bar
+- **Elements:** instance switch (when an agent has more than one instance: "Main · online", "<instance> · this Mac"); header: name, state, progress ("Restarting…"), the agent's summary, facts (version, build, pid, port, uptime), Tools (eight, "+N more"), reasons, the last action's result for 30 minutes (with Logs after a failure), controls (Start, or Restart — primary when down or two copies — and Stop; "Update to <v>" when available; Doctor when declared; Show data folder; Show file; "Show the file of <other>" in a conflict; a path that cannot be shown says so); tabs Dashboard / Activity / Health / Logs (arrow keys move between them; no Logs for an online service); dashboard toolbar (Back, Forward, Reload page, Dashboard home, page address, Copy address, Copy app link); embedded dashboard; "The service restarted." bar with Reload above the page
 - **States:**
   | State | Trigger | Figma frame | Behavior |
   |-------|---------|-------------|----------|
   | ready | answers as itself | — | dashboard tab active |
   | degraded | degraded sources | — | reasons listed in the header, dashboard usable |
-  | down | three probes in a row unanswered and no answer for 15 s (ADR-0008) | — | "Not answering since HH:MM" + Restart + Logs |
-  | off | launchd job disabled | — | Start |
-  | duplicate / foreign / conflict / invalid | see SCN-011–SCN-013, SCN-004 | — | explanation, no dashboard, no token sent |
-  | working | a control is running | — | progress label, other controls disabled |
-  | sign-in error | SCN-016 | — | reason + token path + Retry |
-- **Coverage:** src/renderer/components/ServiceView.tsx
-- **Scenarios:** SCN-004, SCN-007, SCN-008, SCN-009, SCN-010, SCN-011, SCN-012, SCN-013, SCN-014, SCN-015, SCN-016, SCN-021, SCN-025, SCN-026, SCN-027
+  | starting | never probed, restarting, or silent under 15 s | — | "Starting", "Waiting for the first answer…" |
+  | down | three probes in a row unanswered and no answer for 15 s (ADR-0008) | — | "Not answering since HH:MM." + Restart (primary) + Logs tab |
+  | off | launchd job disabled or not loaded | — | "Stopped by you. It stays off until you start it." or "The launchd job is not loaded." + Start |
+  | duplicate / foreign / conflict / invalid | see SCN-011–SCN-013, SCN-004 | — | explanation; Dashboard tab "The dashboard opens when the service answers as itself."; no token sent; nothing of another program shown as the service's |
+  | working | a control or command is running | — | progress label, other controls disabled, a second action refused |
+  | no dashboard | no dashboard surface | — | opens on Health; Dashboard tab "This service has no dashboard." |
+  | sign-in error | SCN-016 | — | "Cannot sign in to <Service>: <reason>" + token path + Retry |
+  | page error | the page does not load | — | "The page of <Service> could not load: <reason>" + Retry |
+  | crashed | the page crashed twice | — | "The page stopped." + Reload |
+  | restarted | a new pid | — | "The service restarted." + Reload above the page |
+- **Coverage:** src/renderer/components/ServiceView.tsx, src/electron/views.ts
+- **Scenarios:** SCN-004, SCN-007, SCN-008, SCN-009, SCN-010, SCN-011, SCN-012, SCN-013, SCN-014, SCN-015, SCN-016, SCN-021, SCN-025, SCN-026, SCN-027, SCN-029, SCN-031, SCN-032, SCN-034, SCN-039, SCN-040, SCN-045
 - **Status:** built
 
 ### SCR-03: Activity
-- **Used by:** SCN-003, SCN-017, SCN-018
+- **Used by:** SCN-003, SCN-017, SCN-018, SCN-020
 - **Purpose:** JTBD-03 — everything the agents did, in one feed
-- **Elements:** filters (service, level); day groups; rows (time, service, level marker, sentence; opens the link); partial-failure line
+- **Elements:** filters (Service: All services or one; Level: All levels, Notice and above, Warnings and errors, Errors — kept between visits); day groups (Today, Yesterday, a date); rows (time, service, level, sentence; a service row opens its link); one line per feed that fails while its service answers
 - **States:**
   | State | Trigger | Figma frame | Behavior |
   |-------|---------|-------------|----------|
-  | loading | first fetch | — | skeleton rows |
-  | empty | no events | — | "Nothing has happened yet…" |
-  | success | events | — | newest first |
-  | partial | one feed failed | — | line naming the service and reason, others shown |
+  | loading | first fetch | — | "Loading…" with a spinner |
+  | empty | no events | — | "Nothing has happened yet. Events appear here as your services work." |
+  | success | events | — | newest first; new rows appear while open |
+  | partial | one feed failed while its service answers | — | line naming the service and reason, others shown |
 - **Coverage:** src/renderer/components/Activity.tsx
-- **Scenarios:** SCN-003, SCN-017, SCN-018
+- **Scenarios:** SCN-003, SCN-017, SCN-018, SCN-020
 - **Status:** built
 
 ### SCR-04: Settings
-- **Used by:** SCN-019, SCN-024
-- **Purpose:** fit notifications and startup to the operator's day
-- **Elements:** Launch at login (off until chosen); notifications per service with levels; quiet hours; services folder with Show; Uninstall (confirmation dialog; removes login item, MCP entry and data, moves the app to the Trash); Unattributed listeners; macOS notification permission notice
+- **Used by:** SCN-019, SCN-022, SCN-024, SCN-043, SCN-044
+- **Purpose:** fit startup, updates and notifications to the operator's day
+- **Elements:** Fabric Dashboards: Open at login (off until chosen), Theme, version; Updates: Install updates automatically, its explanation and the update state with its one action (Check now, Restart, Move to Applications); Notifications: "Whether macOS shows them is set in System Settings → Notifications." with Open macOS Settings, Show notifications, Quiet hours, Pause notifications for 1 hour / "Paused until HH:MM" + Resume, per service Show notifications and Events from; services folder with Show folder; Uninstall (confirmation with "Also delete my settings and activity history"; removes the login item and the MCP entry and moves the app to the Trash; settings and history stay unless ticked); Unattributed listeners (Port, Address, Program, pid; Scan again)
 - **States:**
   | State | Trigger | Figma frame | Behavior |
   |-------|---------|-------------|----------|
   | success | default | — | settings apply immediately |
-  | error | login item refused, listener scan failed, notifications denied, uninstall stopped | — | reason beside the control |
+  | error | login item refused, listener scan failed, uninstall stopped, a folder that cannot be shown | — | reason beside the control |
 - **Coverage:** src/renderer/components/Settings.tsx
-- **Scenarios:** SCN-019, SCN-024
+- **Scenarios:** SCN-019, SCN-022, SCN-024, SCN-043, SCN-044
 - **Status:** built
 
 ### SCR-05: Stop confirmation
 - **Used by:** SCN-009
 - **Purpose:** a destructive-feeling action is confirmed with its consequence
-- **Elements:** sentence naming the service and that it stays off across restarts; Stop (primary, destructive), Cancel
+- **Elements:** "Stop <Service>?" — "It stays off, also after the Mac restarts, until you start it. Agents that use it will get no answer."; Cancel (focused), Stop (destructive); Escape cancels; no focus trap yet (U-14, later)
 - **States:**
   | State | Trigger | Figma frame | Behavior |
   |-------|---------|-------------|----------|
@@ -101,12 +109,53 @@
 ### SCR-06: Tray menu
 - **Used by:** SCN-023
 - **Purpose:** JTBD-01 without opening the window
-- **Elements:** icon in three states; problems first; every service with state; Open Fabric Dashboards; Pause notifications for 1 hour; "Quitting Dashboards does not stop your services." (disabled line); Quit
+- **Elements:** icon in three states; headline line ("Needs attention: N", "Ready: n of m", "All services ready"); problems first; every service as "● <name · instance> — <state>"; Open Fabric Dashboards; Pause notifications for 1 hour / Resume notifications; "Quitting Dashboards does not stop your services." (disabled line); Quit
 - **States:**
   | State | Trigger | Figma frame | Behavior |
   |-------|---------|-------------|----------|
-  | success | all ready | — | calm icon |
+  | success | nothing degraded, starting or wrong (a service turned off keeps it calm) | — | calm icon, "All services ready" or "Ready: n of m" |
+  | degraded | degraded, starting or stopping | — | degraded icon |
   | error | something down or wrong | — | alert icon, problems first |
 - **Coverage:** src/electron/tray.ts
 - **Scenarios:** SCN-023
+- **Status:** built
+
+### SCR-07: Spend
+- **Used by:** SCN-036, SCN-037, SCN-038, SCN-041
+- **Purpose:** JTBD-01 — what every agent spent, per agent and per model, from its own report
+- **Elements:** "read at HH:MM", Refresh; All agents tiles (Today, 7 days, 30 days); the agents table (Agent, Today, 7 days, 30 days, Budget; a name expands Model, Calls, Tokens in / out, Cost); "Could not read" with each agent's reason; "Not reporting spend yet: …"; the ≥ note
+- **States:**
+  | State | Trigger | Figma frame | Behavior |
+  |-------|---------|-------------|----------|
+  | loading | first read | — | "Reading what each agent spent…" |
+  | empty | no agent reports or fails to report | — | "No agent reports its spend yet" with what an agent must publish |
+  | success | reports read | — | totals and table |
+  | partial | an unpriced call or an unreadable agent | — | «≥» amounts and the note |
+  | error | an agent's report could not be read | — | "Could not read" with the reason in the window's language |
+- **Coverage:** src/renderer/components/Spend.tsx, src/core/spend.ts
+- **Scenarios:** SCN-036, SCN-037, SCN-038, SCN-041
+- **Status:** built
+
+### SCR-08: Sidebar
+- **Used by:** SCN-001, SCN-006, SCN-017, SCN-022, SCN-033, SCN-035, SCN-044
+- **Purpose:** where everything is, and whether anything needs the operator
+- **Elements:** Overview (problem count), Activity (unread count), Spend, Services and Background sections (one entry per agent with the primary's state and "!" when another instance needs attention), footer update line ("Checking for updates…", "Downloading an update…", "Update <v> ready" + Restart, "Updates install only from the Applications folder." + Move to Applications, "Update failed: <reason>" + Retry), Settings
+- **States:**
+  | State | Trigger | Figma frame | Behavior |
+  |-------|---------|-------------|----------|
+  | success | default | — | entries and counts |
+- **Coverage:** src/renderer/App.tsx
+- **Scenarios:** SCN-001, SCN-006, SCN-017, SCN-022, SCN-033, SCN-035, SCN-044
+- **Status:** built
+
+### SCR-09: System dialogs
+- **Used by:** SCN-014, SCN-024, SCN-027, SCN-044
+- **Purpose:** the few moments the app asks before it acts
+- **Elements:** "Uninstall Fabric Dashboards?" with its explanation and "Also delete my settings and activity history"; "Move Fabric Dashboards to Applications?" (Move to Applications, Not now); "This link cannot be opened" with the reason and "Nothing was opened."; "Open in your browser?" — "<address> is outside this service. It opens in your default browser." (Open in browser, Cancel)
+- **States:**
+  | State | Trigger | Figma frame | Behavior |
+  |-------|---------|-------------|----------|
+  | success | the action that asks | — | native macOS dialog |
+- **Coverage:** src/electron/main.ts, src/electron/views.ts
+- **Scenarios:** SCN-014, SCN-024, SCN-027, SCN-044
 - **Status:** built

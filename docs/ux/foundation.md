@@ -76,7 +76,7 @@ hunt browser tabs to learn whether an agent is alive or what it did.
 | 3 | React | an agent is down or duplicated | notification, Needs attention | 2 | terminal, launchctl | one-button restart with a result |
 | 4 | Catch up | reads what agents did overnight | Activity | 3 | six logs in six shapes | one feed, open at the item |
 | 5 | Act | approves or edits inside an agent | service view | 4 | finding the tab, signing in | embedded dashboard, signed in |
-| 6 | Maintain | updates an agent or the app | update badge | 3 | stale code nobody noticed | update offered where it is visible |
+| 6 | Maintain | updates an agent or the app | Needs attention "Update to <v>", sidebar update line, automatic install (ADR-0015) | 3 | stale code nobody noticed | update offered where it is visible |
 | 7 | Tune | turns noise down | Settings | 3 | notifications for everything | per-service and quiet hours |
 
 ## 4. User stories
@@ -150,7 +150,7 @@ hunt browser tabs to learn whether an agent is alive or what it did.
 - **Traces:** JTBD-01, JRN-01/#6
 - **Acceptance criteria:**
   - Given a service reports an available update and declares an update command, when I choose Update, then the command runs and its output is shown.
-  - Given a newer app release exists, when it is downloaded, then the app offers Restart to update and installs on quit otherwise.
+  - Given a newer app release exists, when it is downloaded, then the app offers Restart to update, and otherwise installs it once the window has been closed for ten minutes (ST-017) or at quit.
 - **Priority:** should
 - **Status:** proposed
 
