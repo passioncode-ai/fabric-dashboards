@@ -19,7 +19,7 @@ import { fetchUsage, readToken } from '../core/probe';
 import { readSpend, type SpendEntry } from '../core/spend';
 import { NotifyLedger } from '../core/notify';
 import { SettingsStore } from '../core/settings';
-import type { AppStatus, Settings } from '../core/types';
+import type { AppStatus, Settings, SettingsPatch } from '../core/types';
 import { clearRestoreRecord, KEPT_FILES, productDataPaths, purgeAfterExit, readRestoreRecord, removeMcpRegistrations, repairMcpRegistrations, restoreMcpRegistrations, writeRestoreRecord } from '../core/uninstall';
 import { autoInstallNow, HiddenGrace, partitionFor, RELAUNCH_MARKER, relaunchHidden, stalePartitions, UPDATE_IDLE_MS, VIEW_RELEASE_GRACE_MS } from './policy';
 import { AppTray } from './tray';
@@ -430,7 +430,7 @@ if (!app.requestSingleInstanceLock()) {
     ipcMain.handle(CHANNELS.activity, (_e, filter) => activity.list(filter ?? {}));
     ipcMain.handle(CHANNELS.activitySeen, () => { activity.markSeen(); pushStatus(); });
     ipcMain.handle(CHANNELS.settings, () => settings.get());
-    ipcMain.handle(CHANNELS.settingsUpdate, (_e, patch: Partial<Settings>) => {
+    ipcMain.handle(CHANNELS.settingsUpdate, (_e, patch: SettingsPatch) => {
       // Choosing launch at login — on the first-run card or in Settings — is the one moment it is registered (LC-07).
       const choosing = 'launchAtLogin' in patch;
       const next = settings.update(choosing ? { ...patch, launchAtLoginAsked: true } : patch);

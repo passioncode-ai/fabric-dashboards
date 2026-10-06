@@ -66,9 +66,20 @@ hunt browser tabs to learn whether an agent is alive or what it did.
 - **validation_status:** unvalidated
 - **Status:** confirmed
 
+### JTBD-05: Direct an agent right beside its dashboard
+- **Statement:** When I see in a dashboard what an agent should change or do, I want to give that agent's code a task right there — in Claude Code, Codex or another runtime I use, in its repository, on the right account — so I never leave the dashboard to find a terminal, a folder and a sign-in.
+- **Personas:** P-01
+- **Type:** functional
+- **Forces:** push: a separate terminal, a `cd` to the right repository, the wrong account picked up; pull: the runtime's own console next to the data it is about; anxiety: a session on the wrong subscription, a token in the app; habit: a terminal window per repository
+- **Success metric:** from a service's dashboard, a runtime session in that service's repository is one action away, on the account Switchboard binds to the folder
+- **evidence_kind:** owner-belief (operator request 2026-10-06)
+- **decision_status:** accepted
+- **validation_status:** unvalidated
+- **Status:** confirmed
+
 ## 3. Customer journeys
 
-### JRN-01: P-01 — a working day with the agents (JTBD-01, JTBD-02, JTBD-03, JTBD-04)
+### JRN-01: P-01 — a working day with the agents (JTBD-01, JTBD-02, JTBD-03, JTBD-04, JTBD-05)
 | # | Stage | User action | Touchpoint | Emotion (1-5) | Pain | Opportunity |
 |---|-------|------------|------------|---------------|------|-------------|
 | 1 | Install | installs Fabric Dashboards and opens it | first launch | 3 | does it find my agents by itself? | discovery with no setup |
@@ -78,6 +89,7 @@ hunt browser tabs to learn whether an agent is alive or what it did.
 | 5 | Act | approves or edits inside an agent | service view | 4 | finding the tab, signing in | embedded dashboard, signed in |
 | 6 | Maintain | updates an agent or the app | Needs attention "Update to <v>", sidebar update line, automatic install (ADR-0015) | 3 | stale code nobody noticed | update offered where it is visible |
 | 7 | Tune | turns noise down | Settings | 3 | notifications for everything | per-service and quiet hours |
+| 8 | Direct | tells an agent's code what to change while looking at its dashboard | the console beside the dashboard (ADR-0017) | 3 | a separate terminal, the wrong folder or account | the runtime's own console, in the repository, on the right account |
 
 ## 4. User stories
 
@@ -239,6 +251,26 @@ hunt browser tabs to learn whether an agent is alive or what it did.
   - Given I uninstall from Settings without ticking "Also delete my settings and activity history", when I install the app again, then my settings and history are there, and the login item and the MCP entry are back.
   - Given an update has downloaded and the window has been closed for ten minutes, when nothing the app started is running, then it installs and the app reopens in the menu bar, unless I turned "Install updates automatically" off.
   - Given the app runs outside Applications, when it checks for updates, then it says updates install only from Applications and offers to move itself.
+- **Priority:** must
+- **Status:** proposed
+
+### ST-018: The dashboard gets the screen
+- **Story:** As P-01, I want the service header and the agents list to step aside — a one-line bar and a narrow rail that open when I need them — so that an agent's dashboard fills the window.
+- **Traces:** JTBD-04, JRN-01/#5; ADR-0017
+- **Acceptance criteria:**
+  - Given a service page is open, when the header is in its compact form, then it takes one line and holds the name, the state and the tabs, and pressing it shows the full card; the form is remembered.
+  - Given the service is not ready or its last action failed, when the header is compact, then a chip says so in the bar, and pressing it opens the full card.
+  - Given I collapse the sidebar, when I move between pages and relaunch, then it stays a rail with state marks and badges, each entry named on hover.
+- **Priority:** must
+- **Status:** proposed
+
+### ST-019: An agent's console beside its dashboard
+- **Story:** As P-01, I want a console next to a service's dashboard that runs the runtime I choose — Claude Code, Codex or another one installed — in that service's repository and on the account Switchboard binds to it, so that I can give the agent's code a task without leaving the dashboard.
+- **Traces:** JTBD-05, JRN-01/#8; ADR-0017
+- **Acceptance criteria:**
+  - Given a service whose descriptor names its repository, when I open its console, then the folder of its local checkout is proposed, the installed runtimes are offered, and New or Continue starts the runtime's own interface there.
+  - Given the folder belongs to a Switchboard project, when I start, then the session runs on that project's account — in the console once Switchboard can launch in place, otherwise in Terminal through Switchboard — and never on the ordinary sign-in.
+  - Given a console runs, when I switch services, hide the window or collapse the panel, then it keeps running and shows what it printed when I come back; when I quit the app, it ends.
 - **Priority:** must
 - **Status:** proposed
 

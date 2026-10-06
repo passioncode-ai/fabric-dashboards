@@ -2,7 +2,7 @@
 // never sees a token, a file handle or a process: it asks, the main process acts.
 import type { CommandResult } from './outcome';
 import type { SpendEntry } from './spend';
-import type { ActivityItem, AppStatus, Listener, Reason, Settings } from './types';
+import type { ActivityItem, AppStatus, Listener, Reason, Settings, SettingsPatch } from './types';
 
 export interface Rect { x: number; y: number; width: number; height: number }
 
@@ -22,7 +22,7 @@ export interface FabricApi {
   activity(filter: { serviceKey?: string; minLevel?: ActivityItem['level'] }): Promise<ActivityItem[]>;
   markActivitySeen(): Promise<void>;
   settings(): Promise<Settings>;
-  updateSettings(patch: Partial<Settings>): Promise<{ settings: Settings; error?: string }>;
+  updateSettings(patch: SettingsPatch): Promise<{ settings: Settings; error?: string }>;
   listeners(): Promise<{ listeners: Listener[]; error?: string }>;
   /** Open a folder or reveal a file this app knows (the services folder, a descriptor, a service's data); never launches an app. */
   showPath(path: string): Promise<{ ok: boolean; error?: string }>;

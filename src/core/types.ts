@@ -50,7 +50,24 @@ export interface Settings {
     quietHours: { enabled: boolean; from: string; to: string }; // "22:00" .. "08:00"
     pausedUntil: string | null;
   };
+  /** ADR-0017: how much of the window the dashboard gets. Remembered across services and launches. */
+  layout: {
+    sidebar: 'expanded' | 'collapsed';
+    header: 'compact' | 'full';
+    console: { open: boolean; width: number };
+  };
+  /** ADR-0017: per service key, the runtime and folder its console last used (null: not chosen yet). */
+  consoles: Record<string, { runtime: string | null; folder: string | null }>;
 }
+
+/** A change to the settings: any field, and any part of the layout or of one service's console alone. */
+export type SettingsPatch = Partial<Omit<Settings, 'layout' | 'notifications'>> & {
+  notifications?: Partial<Settings['notifications']>;
+  layout?: Partial<Omit<Settings['layout'], 'console'>> & { console?: Partial<Settings['layout']['console']> };
+};
+
+/** The console panel's width bounds, in CSS pixels (the window may make it narrower still). */
+export const CONSOLE_WIDTH = { min: 320, max: 1600, default: 440 } as const;
 
 export const DEFAULT_SETTINGS: Settings = {
   launchAtLogin: false,
@@ -64,6 +81,8 @@ export const DEFAULT_SETTINGS: Settings = {
     quietHours: { enabled: false, from: '22:00', to: '08:00' },
     pausedUntil: null,
   },
+  layout: { sidebar: 'expanded', header: 'compact', console: { open: false, width: CONSOLE_WIDTH.default } },
+  consoles: {},
 };
 
 export interface Listener {

@@ -7,6 +7,15 @@ Current release: 0.5.6 (2026-10-06, above); the 0.4.1 section below is the previ
 
 ## Next — start here (2026-10-06)
 
+**In progress — 0.6.0 on branch `agent/focus-console-060`** (task-pipeline run; operator-approved
+design [ADR-0017](adr/0017-focus-layout-and-agent-console.md), scenarios SCN-046…050 validated). Entry:
+the [brief](evidence/briefs/2026-10-06-focus-and-console-brief.md) and its
+[plan](evidence/briefs/2026-10-06-focus-and-console-plan.md) (T1…T14). Done: T1 (settings layout and
+consoles, `test/parts.test.ts` ADR-0017 cases), T4 (`src/core/runtimes.ts`, `test/console.test.ts` 5/5).
+Next task: T5 `src/core/repofind.ts`, then T6 switchboard, T7 console manager (node-pty), T2/T3/T9/T10 UI,
+T11 packaging, T12 e2e, T13 docs, T14 release. Switchboard SB-75 (`launch --provider … --in-place`) is
+promised; Fabric ADR-0123 records the same "console, not chat" rule.
+
 **Released: 0.5.6 on 2026-10-06 11:00 UTC** (run 37407706842, tag on `2909565`; GitHub release
 `v0.5.6`, marked Latest — the organization's publish workflow titles it by its tag, where earlier
 releases read "Fabric Dashboards 0.4.1"). `v0.5.5` was withdrawn before approval (run 37398766044

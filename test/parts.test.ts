@@ -234,3 +234,30 @@ test('R-16: lsof that finds nothing (exit 1, no output) means no listeners, not 
   await assert.rejects(listListeners(async () => ({ code: 1, stdout: '', stderr: 'lsof: permission denied' })), /permission denied/);
   await assert.rejects(listListeners(async () => ({ code: 2, stdout: '', stderr: '' })), /exit 2/);
 });
+
+// ── ADR-0017: layout and consoles are remembered, and a bad value never breaks the window ──
+
+test('ADR-0017: layout and per-service consoles merge with defaults and clamp what they cannot hold', () => {
+  const d = merge({});
+  assert.deepEqual(d.layout, { sidebar: 'expanded', header: 'compact', console: { open: false, width: 440 } });
+  assert.deepEqual(d.consoles, {});
+  const s = merge({
+    layout: { sidebar: 'collapsed', header: 'full', console: { open: true, width: 99999 } },
+    consoles: { 'a.default': { runtime: 'codex', folder: '/tmp/a' }, 'b.default': { runtime: 7, folder: 'relative/path' }, 'bad key': { runtime: 'claude', folder: null } },
+  } as never);
+  assert.deepEqual(s.layout, { sidebar: 'collapsed', header: 'full', console: { open: true, width: 1600 } });
+  assert.deepEqual(s.consoles, { 'a.default': { runtime: 'codex', folder: '/tmp/a' }, 'b.default': { runtime: null, folder: null } });
+  assert.equal(merge({ layout: { console: { width: 10 } } } as never).layout.console.width, 320);
+});
+
+test('ADR-0017: an update of one console or one layout field keeps the others', () => {
+  const dir = tmp('fd-settings-layout-');
+  const store = new SettingsStore(dir);
+  store.update({ consoles: { 'a.default': { runtime: 'claude', folder: '/tmp/a' } } });
+  store.update({ consoles: { 'b.default': { runtime: 'codex', folder: null } } });
+  store.update({ layout: { sidebar: 'collapsed' } } as never);
+  store.update({ layout: { console: { open: true } } } as never);
+  const v = store.get();
+  assert.deepEqual(Object.keys(v.consoles).sort(), ['a.default', 'b.default']);
+  assert.deepEqual(v.layout, { sidebar: 'collapsed', header: 'compact', console: { open: true, width: 440 } });
+});
