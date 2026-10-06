@@ -51,6 +51,11 @@
 | SCN-043 | Reinstall picks up where I left off | settings | P-01 | ST-017, ST-010 | draft | 2026-10-06 |
 | SCN-044 | A copy outside Applications moves itself so it can update | updates | P-01 | ST-017, ST-008 | draft | 2026-10-06 |
 | SCN-045 | A dashboard hands me to another agent | dashboards | P-01 | ST-005, ST-011 | draft | 2026-10-06 |
+| SCN-046 | The dashboard gets the screen: a one-line header that opens to the full card | focus | P-01 | ST-018 | validated | 2026-10-06 |
+| SCN-047 | The agents list folds into a rail | focus | P-01 | ST-018 | validated | 2026-10-06 |
+| SCN-048 | Open an agent's console beside its dashboard | console | P-01 | ST-019 | validated | 2026-10-06 |
+| SCN-049 | Start a runtime in the agent's repository | console | P-01 | ST-019 | validated | 2026-10-06 |
+| SCN-050 | A folder bound to a Switchboard project runs on that project's account | console | P-01 | ST-019 | validated | 2026-10-06 |
 
 ## Personas
 
@@ -917,3 +922,103 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **Coverage:** src/renderer/components/Overview.tsx
 - **Product:** unobserved
 
+## focus
+
+### SCN-046: The dashboard gets the screen: a one-line header that opens to the full card
+- **Persona:** P-01
+- **Feature:** focus
+- **Traces:** ST-018 (JTBD-04, JRN-01/#5); ADR-0017
+- **Entry point:** any service page; View → Show or Hide Service Details (⌃⌘D)
+- **Preconditions:** none
+- **Steps:**
+  1. User opens a service -> the header is one line: the state mark, the name, the state badge, the tabs (Dashboard, Activity, Health, Logs) and a "Show details" control; the dashboard fills the rest; pointing at the name shows the agent's summary
+  2. User presses "Show details" -> the full card opens under the bar: summary, version, build, pid, port, uptime, Tools, reasons, the last action and the actions (Restart, Stop, Update, Doctor, Show data folder, Show file); the control reads "Hide details"
+  3. User presses "Hide details" -> back to one line; the choice holds for every service and after a relaunch
+- **Expected result:** the embedded dashboard takes the window; everything in the header is one press away
+- **Alt paths:** the service is not ready, or its last action failed within half an hour -> the bar shows one chip with the first reason ("Not answering since 10:42", "Restart did not bring it back"); pressing the chip opens the full card; an action is running -> its spinner and label ("Restarting…") sit in the bar
+- **UI elements:** compact bar, state badge, problem chip, tabs, "Show details" / "Hide details", full card
+- **States covered:** success, error, loading
+- **Errors & recovery:** every error the full card shows (SCN-007, SCN-008, SCN-011, SCN-012, SCN-013, SCN-021) is reachable from the chip
+- **Status:** validated
+- **Coverage:** src/renderer/components/ServiceView.tsx, src/core/focus.ts, src/renderer/styles/app.css, test/parts.test.ts (ADR-0017 REQ-02), test/e2e/focus-console.test.ts
+- **Product:** unobserved
+
+### SCN-047: The agents list folds into a rail
+- **Persona:** P-01
+- **Feature:** focus
+- **Traces:** ST-018 (JTBD-04, JRN-01/#5); ADR-0017
+- **Entry point:** the sidebar's "Collapse sidebar" control, or View → Show or Hide Sidebar (⌃⌘S)
+- **Preconditions:** none
+- **Steps:**
+  1. User collapses the sidebar -> it becomes a narrow rail: the mark, icons for Overview, Activity, Spend and Settings, and one entry per agent with its state mark and initials; the Overview and Activity badges stay
+  2. User points at an entry -> its name (and state) shows as a tooltip; a screen reader reads the same
+  3. User presses "Expand sidebar" -> the full list returns; the choice holds after a relaunch
+- **Expected result:** the dashboard gains the sidebar's width, and every page and agent stays one press away
+- **Alt paths:** an agent needs attention -> its rail entry carries the same mark as in the full list
+- **UI elements:** rail, nav icons, agent entries with state marks and initials, tooltips, "Collapse sidebar" / "Expand sidebar", View menu item
+- **States covered:** success
+- **Errors & recovery:** n/a — a layout choice that never fails
+- **Status:** validated
+- **Coverage:** src/renderer/App.tsx, src/renderer/styles/app.css, src/electron/main.ts, test/e2e/focus-console.test.ts
+- **Product:** unobserved
+
+## console
+
+### SCN-048: Open an agent's console beside its dashboard
+- **Persona:** P-01
+- **Feature:** console
+- **Traces:** ST-019 (JTBD-05, JRN-01/#8); ADR-0017
+- **Entry point:** "Console" in a service page's bar, or View → Show or Hide Console (⌃⌘T)
+- **Preconditions:** none
+- **Steps:**
+  1. User opens the console -> a panel opens to the right of the dashboard with this agent's console; the dashboard narrows to the space left
+  2. User drags the panel's edge -> it widens or narrows (320 px up to half the window); the width is remembered
+  3. User collapses the panel -> it closes; whatever runs in it keeps running; opening it again shows everything it printed
+  4. User switches to another agent -> the panel shows that agent's console; each agent has its own
+- **Expected result:** a console that belongs to the agent sits beside its dashboard and gets out of the way when asked
+- **Alt paths:** the window is hidden while a console runs -> it keeps running and nothing is sent to the window; showing it replays what was printed; the agent is removed -> its page closes and its console ends with it
+- **UI elements:** console panel, its edge handle, "Console" / "Hide console", View menu item
+- **States covered:** success, empty
+- **Errors & recovery:** n/a here; starting is SCN-049
+- **Status:** validated
+- **Coverage:** src/renderer/components/ConsolePanel.tsx, src/core/consoles.ts, src/electron/console.ts, test/console.test.ts, test/e2e/focus-console.test.ts
+- **Product:** unobserved
+
+### SCN-049: Start a runtime in the agent's repository
+- **Persona:** P-01
+- **Feature:** console
+- **Traces:** ST-019 (JTBD-05, JRN-01/#8); ADR-0017
+- **Entry point:** an agent's console that runs nothing yet
+- **Preconditions:** at least one runtime (Claude Code, Codex or another known one) is installed
+- **Steps:**
+  1. User opens the console -> it shows the runtime (the last one used for this agent, else Claude Code, else the first one found), the folder found for this agent (its repository's local checkout) with "Other…", and "New session" and "Continue last"
+  2. User presses "New session" -> the runtime's own interface starts in that folder, in the console; the user types to it as in any terminal, and its permission questions appear there
+  3. User presses "Continue last" -> the runtime resumes its last conversation in that folder (`claude --continue`, `codex resume --last`)
+  4. The runtime exits -> the console says "Exited (code 0)" with "New session" and "Continue last" again
+- **Expected result:** the runtime the user chose runs in the agent's repository, with their settings and skills, one press from the dashboard
+- **Alt paths:** "Other…" -> a folder dialog; the choice is remembered for this agent; the user picks another runtime -> remembered for this agent; "Stop" -> the runtime ends after a confirmation if it is still running; "Open in Terminal" -> the same runtime continues in that folder in Terminal
+- **UI elements:** runtime picker, folder line with "Other…", "New session", "Continue last", "Stop", "Open in Terminal", terminal, exit line
+- **States covered:** empty, loading, success, error
+- **Errors & recovery:** no runtime installed -> "No supported runtime is installed" with the list it looks for; no repository found -> "Choose the folder this agent's code lives in" with "Choose folder…"; the folder no longer exists -> the same; the runtime cannot start -> its own error in the console, and "New session" again; a runtime with no resume flag -> "Continue last" is not offered
+- **Status:** validated
+- **Coverage:** src/core/runtimes.ts, src/core/repofind.ts, src/core/consoles.ts, src/electron/console.ts, src/renderer/components/ConsolePanel.tsx, test/console.test.ts, test/e2e/focus-console.test.ts
+- **Product:** unobserved
+
+### SCN-050: A folder bound to a Switchboard project runs on that project's account
+- **Persona:** P-01
+- **Feature:** console
+- **Traces:** ST-019 (JTBD-05, JRN-01/#8); ADR-0017
+- **Entry point:** an agent's console whose folder Fabric Switchboard binds to a project
+- **Preconditions:** Switchboard is installed; `switchboard project show --path <folder>` names a project
+- **Steps:**
+  1. User opens the console -> the folder line says "Switchboard project <name>"
+  2. User starts a session, and the installed Switchboard can launch in place -> the console runs the session through Switchboard on the project's account; no token passes through the app
+  3. User starts a session, and the installed Switchboard cannot launch in place yet -> the console says "This folder runs on Switchboard project <name>; this Switchboard opens it in Terminal" with "Open in Terminal via Switchboard"; pressing it starts the session there on the project's account
+- **Expected result:** a project folder never runs on the ordinary sign-in
+- **Alt paths:** the folder is in no project, or Switchboard is not installed -> the runtime runs on its ordinary sign-in, and the folder line says nothing about Switchboard
+- **UI elements:** folder line with the project name, "Open in Terminal via Switchboard"
+- **States covered:** success, error
+- **Errors & recovery:** Switchboard needs its app or `switchboard serve` running -> its own message, shown as it says it; a managed session for the same project already runs -> Switchboard's refusal is shown as it says it; Switchboard's answer cannot be read -> "Switchboard did not answer; the session was not started" — never a silent fallback to the ordinary sign-in
+- **Status:** validated
+- **Coverage:** src/core/switchboard.ts, src/core/consoles.ts, src/electron/console.ts, test/console.test.ts
+- **Product:** unobserved

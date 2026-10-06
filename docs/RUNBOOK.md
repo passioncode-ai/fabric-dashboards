@@ -64,8 +64,10 @@ published or attached to a release.
      Bluetooth; `checks.usageDescriptions`, one left failing the build — FD-06), sets the release
      fuses before signing, signs it with the hardened runtime and checks it
      (strict signature, runtime flag, both architectures, `checks.fuses` — the release fuses read
-     back from every slice by `scripts/fuses.mjs`, a wrong one failing the build — and the MCP
-     launcher answers `initialize` from the finished bundle).
+     back from every slice by `scripts/fuses.mjs`, a wrong one failing the build — the MCP
+     launcher answers `initialize` from the finished bundle, and the agent console's PTY spawns a
+     command from `app.asar` (`checks.pty`, ADR-0017; node-pty is staged by `stageNativeModules` and
+     unpacked from the asar)).
    - `notarize` notarizes the app with the App Store Connect API key, requires `Accepted`
      (Apple's log otherwise), staples it and runs `spctl --type execute`.
    - `--stage package` makes the update zip and the image **from the stapled app**, and signs

@@ -9,7 +9,7 @@ in, one live view per service — instead of a browser tab per port. It is the m
 [Fabric](https://passioncode.ai/), PassionCode.ai's CEO AI agent, and it also works on its own:
 agents drive it over MCP, people use the window.
 
-**Version 0.5.6** (2026-10-06) — [download the latest release](https://github.com/passioncode-ai/fabric-dashboards/releases/latest). An installed 0.4.1 updates itself to 0.5.6 at its next quit or restart. See [HANDOFF](docs/HANDOFF.md)
+**Version 0.6.0** — [download the latest release](https://github.com/passioncode-ai/fabric-dashboards/releases/latest) (until 0.6.0 is published there, that is 0.5.6, which updates itself to 0.6.0). An installed 0.4.1 updates itself at its next quit or restart. See [HANDOFF](docs/HANDOFF.md)
 for what is released and what is next.
 
 ![Fabric Dashboards: the overview with six agents — status strip, Needs attention, one card per agent](docs/images/overview.png)
@@ -23,7 +23,8 @@ Screenshots of the real app against the kit's sample service under example names
 | | |
 |---|---|
 | **Overview** | a status strip (agents ready, not answering, needing attention, spend today and in 30 days), compact *Needs attention* rows, then a card per agent — its instances (main, projection, read-only) inside one card ([ADR-0012](docs/adr/0012-one-entry-per-product.md)), state, version and commit, uptime, the service's own tiles, its latest event — and *Needs attention* first, per instance; services without a dashboard under *Background* |
-| **Service view** | Restart · Stop/Start · Update · Doctor · Logs, with the service's dashboard embedded below and a toolbar over it: Back, Forward, Reload, Home, the page's address, Copy address and Copy app link ([ADR-0014](docs/adr/0014-dashboard-toolbar.md)) |
+| **Service view** | the service's dashboard takes the window: a one-line header (state, name, the first problem, the tabs) that opens to the full card with Restart · Stop/Start · Update · Doctor · Logs; a toolbar over the dashboard: Back, Forward, Reload, Home, the page's address, Copy address and Copy app link ([ADR-0014](docs/adr/0014-dashboard-toolbar.md), [ADR-0017](docs/adr/0017-focus-layout-and-agent-console.md)); the sidebar folds into a rail |
+| **Agent console** | beside the dashboard, the agent's own runtime — Claude Code, Codex or another one installed — in the agent's repository, on the account Fabric Switchboard binds to it; New, Continue, Open in Terminal ([ADR-0017](docs/adr/0017-focus-layout-and-agent-console.md)) |
 | **Activity** | every service's events and the app's own observations in one feed, filterable, each row opening the exact item |
 | **Spend** | what every agent spent today, in 7 and 30 days, on which models and against its own budget — from each agent's own usage report (contract DEC-0021); an unknown cost reads unknown, never $0 |
 | **Notifications** | not answering (three missed probes in a row and 60 s of silence — a slow answer under load is not an outage, [ADR-0008](docs/adr/0008-a-missed-probe-is-not-an-outage.md)), back, two copies, another program on the port, and, from the events a service marks for you, only a decision it waits for, a failure or a warning — once per subject, titled with the agent and what it wants ([ADR-0010](docs/adr/0010-notifications-only-when-it-matters.md)); quiet hours and per-service levels |

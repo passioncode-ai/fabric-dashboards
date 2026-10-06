@@ -106,7 +106,10 @@ test('an online service sits in the Online group, opens signed in over https, an
 
     await card.click();
     await page.getByRole('heading', { name: 'Example Online Agent' }).waitFor();
+    await page.getByRole('button', { name: 'Show details' }).click(); // ADR-0017: the controls live in the full card
+    await page.getByRole('button', { name: 'Hide details' }).waitFor();
     assert.equal(await page.getByRole('button', { name: 'Restart' }).count(), 0, 'no lifecycle control for an online service');
+    await page.getByRole('button', { name: 'Hide details' }).click();
     const embedded = async () => app!.evaluate(({ webContents }, o) =>
       webContents.getAllWebContents().filter((wc) => wc.getURL().startsWith(o)).map((wc) => ({ id: wc.id, url: wc.getURL(), loading: wc.isLoading() })), origin);
     let views = await embedded();

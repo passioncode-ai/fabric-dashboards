@@ -4,7 +4,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { atomicWrite } from './fsutil';
-import { DEFAULT_SETTINGS, type Settings } from './types';
+import { CONSOLE_WIDTH, DEFAULT_SETTINGS, type Settings, type SettingsPatch } from './types';
 
 export class SettingsStore {
   private readonly file: string;
@@ -39,8 +39,15 @@ export class SettingsStore {
     return structuredClone(this.value);
   }
 
-  update(patch: Partial<Settings>): Settings {
-    this.value = merge({ ...this.value, ...patch, notifications: { ...this.value.notifications, ...(patch.notifications ?? {}) } });
+  update(patch: SettingsPatch): Settings {
+    const layout = patch.layout ?? {};
+    this.value = merge({
+      ...this.value, ...(patch as Partial<Settings>),
+      notifications: { ...this.value.notifications, ...(patch.notifications ?? {}) },
+      // ADR-0017: one field of the layout, or one service's console, changes alone.
+      layout: { ...this.value.layout, ...layout, console: { ...this.value.layout.console, ...(layout.console ?? {}) } },
+      consoles: { ...this.value.consoles, ...(patch.consoles ?? {}) },
+    });
     this.persist();
     return this.get();
   }
@@ -72,6 +79,35 @@ function readObject(file: string): { ok: true; value: Partial<Settings> } | { ok
   }
 }
 
+const SERVICE_KEY = /^[a-z0-9][a-z0-9-]*\.[a-z0-9][a-z0-9-]*$/;
+
+/** ADR-0017: a layout from any earlier or damaged file reads as a usable one. */
+function mergeLayout(raw: unknown): Settings['layout'] {
+  const l = (raw && typeof raw === 'object' ? raw : {}) as Partial<Settings['layout']>;
+  const c = (l.console && typeof l.console === 'object' ? l.console : {}) as Partial<Settings['layout']['console']>;
+  const width = typeof c.width === 'number' && Number.isFinite(c.width) ? Math.round(c.width) : CONSOLE_WIDTH.default;
+  return {
+    sidebar: l.sidebar === 'collapsed' ? 'collapsed' : 'expanded',
+    header: l.header === 'full' ? 'full' : 'compact',
+    console: { open: c.open === true, width: Math.min(CONSOLE_WIDTH.max, Math.max(CONSOLE_WIDTH.min, width)) },
+  };
+}
+
+/** ADR-0017: per-service console choices; a key that is not a service key, or a folder that is not absolute, is dropped. */
+function mergeConsoles(raw: unknown): Settings['consoles'] {
+  const out: Settings['consoles'] = {};
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return out;
+  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+    if (!SERVICE_KEY.test(key) || !value || typeof value !== 'object') continue;
+    const v = value as { runtime?: unknown; folder?: unknown };
+    out[key] = {
+      runtime: typeof v.runtime === 'string' && /^[a-z0-9][a-z0-9-]{0,40}$/.test(v.runtime) ? v.runtime : null,
+      folder: typeof v.folder === 'string' && v.folder.startsWith('/') ? v.folder : null,
+    };
+  }
+  return out;
+}
+
 export function merge(raw: Partial<Settings>): Settings {
   const n = raw.notifications ?? DEFAULT_SETTINGS.notifications;
   return {
@@ -92,5 +128,7 @@ export function merge(raw: Partial<Settings>): Settings {
       },
       pausedUntil: typeof n.pausedUntil === 'string' ? n.pausedUntil : null,
     },
+    layout: mergeLayout(raw.layout),
+    consoles: mergeConsoles(raw.consoles),
   };
 }

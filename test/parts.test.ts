@@ -234,3 +234,44 @@ test('R-16: lsof that finds nothing (exit 1, no output) means no listeners, not 
   await assert.rejects(listListeners(async () => ({ code: 1, stdout: '', stderr: 'lsof: permission denied' })), /permission denied/);
   await assert.rejects(listListeners(async () => ({ code: 2, stdout: '', stderr: '' })), /exit 2/);
 });
+
+// ── ADR-0017: layout and consoles are remembered, and a bad value never breaks the window ──
+
+test('ADR-0017: layout and per-service consoles merge with defaults and clamp what they cannot hold', () => {
+  const d = merge({});
+  assert.deepEqual(d.layout, { sidebar: 'expanded', header: 'compact', console: { open: false, width: 440 } });
+  assert.deepEqual(d.consoles, {});
+  const s = merge({
+    layout: { sidebar: 'collapsed', header: 'full', console: { open: true, width: 99999 } },
+    consoles: { 'a.default': { runtime: 'codex', folder: '/tmp/a' }, 'b.default': { runtime: 7, folder: 'relative/path' }, 'bad key': { runtime: 'claude', folder: null } },
+  } as never);
+  assert.deepEqual(s.layout, { sidebar: 'collapsed', header: 'full', console: { open: true, width: 1600 } });
+  assert.deepEqual(s.consoles, { 'a.default': { runtime: 'codex', folder: '/tmp/a' }, 'b.default': { runtime: null, folder: null } });
+  assert.equal(merge({ layout: { console: { width: 10 } } } as never).layout.console.width, 320);
+});
+
+test('ADR-0017: an update of one console or one layout field keeps the others', () => {
+  const dir = tmp('fd-settings-layout-');
+  const store = new SettingsStore(dir);
+  store.update({ consoles: { 'a.default': { runtime: 'claude', folder: '/tmp/a' } } });
+  store.update({ consoles: { 'b.default': { runtime: 'codex', folder: null } } });
+  store.update({ layout: { sidebar: 'collapsed' } } as never);
+  store.update({ layout: { console: { open: true } } } as never);
+  const v = store.get();
+  assert.deepEqual(Object.keys(v.consoles).sort(), ['a.default', 'b.default']);
+  assert.deepEqual(v.layout, { sidebar: 'collapsed', header: 'compact', console: { open: true, width: 440 } });
+});
+
+test('ADR-0017 REQ-02: the compact bar carries the first problem — a state that is not ready, else a failed action still news', async () => {
+  const { problemOf, NEWS_MS } = await import('../src/core/focus');
+  const now = Date.parse('2026-10-06T12:00:00Z');
+  const base = { state: 'ready' as const, reasons: [], lastAction: null, busy: null };
+  assert.equal(problemOf(base, now), null);
+  assert.deepEqual(problemOf({ ...base, state: 'down', reasons: [{ code: 'reason.down', params: { since: 'x' } }, { code: 'reason.other' }] }, now), { code: 'reason.down', params: { since: 'x' } });
+  assert.deepEqual(problemOf({ ...base, state: 'degraded', reasons: [] }, now), { code: 'state.degraded' }, 'a problem state with no reason still shows');
+  const failed = { action: 'restart', ok: false, reason: { code: 'result.notBack' }, at: new Date(now - 60_000).toISOString() };
+  assert.deepEqual(problemOf({ ...base, lastAction: failed }, now), { code: 'result.notBack' });
+  assert.equal(problemOf({ ...base, lastAction: { ...failed, at: new Date(now - NEWS_MS - 1).toISOString() } }, now), null, 'old news is gone');
+  assert.equal(problemOf({ ...base, state: 'down', reasons: [{ code: 'reason.down' }], busy: 'restarting' as never }, now), null, 'a running action shows its progress instead');
+  assert.equal(problemOf({ ...base, state: 'starting', reasons: [{ code: 'reason.waiting' }] }, now), null, 'starting is not a problem');
+});

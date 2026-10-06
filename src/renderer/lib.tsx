@@ -3,6 +3,7 @@ import type { FabricApi } from '../core/api';
 import { duration as fmtDuration, hasKey, t as translate, type Lang } from '../core/i18n';
 import type { Reason, ServiceSnapshot, ServiceState } from '../core/types';
 import { displayName } from '../core/names';
+import { NEWS_MS } from '../core/focus';
 
 declare global {
   interface Window { fabric: FabricApi }
@@ -10,8 +11,7 @@ declare global {
 
 export const api = (): FabricApi => window.fabric;
 
-/** How long a finished action stays news on Overview and the service page (U-1, P-15). */
-export const NEWS_MS = 30 * 60_000;
+export { NEWS_MS };
 
 /** T-19: re-render once at the earliest of `times` + `ms`, so news that expires leaves the screen
  *  even when no status push arrives. Returns the current time for the render to compare against. */
@@ -73,3 +73,23 @@ export const shortBuild = (s: ServiceSnapshot) => {
   if (!b) return '';
   return b.commit ? b.commit.slice(0, 7) + (b.dirty ? '+' : '') : (b.digest ?? '').replace('sha256:', '').slice(0, 7);
 };
+
+// ADR-0017: the few icons the folded panels need, drawn in currentColor so they follow the theme.
+const ICONS: Record<string, string> = {
+  overview: 'M3 3h6v6H3zM11 3h6v6h-6zM3 11h6v6H3zM11 11h6v6h-6z',
+  activity: 'M2 10h4l2-5 4 10 2-5h4',
+  spend: 'M10 2v16M14 5.5c-.8-1-2.2-1.5-4-1.5-2.2 0-4 1-4 3s1.8 2.6 4 3 4 1 4 3-1.8 3-4 3c-1.8 0-3.2-.5-4-1.5',
+  settings: 'M10 7a3 3 0 1 0 0 6 3 3 0 0 0 0-6zM10 1.5v2.5M10 16v2.5M1.5 10H4M16 10h2.5M4 4l1.8 1.8M14.2 14.2 16 16M4 16l1.8-1.8M14.2 5.8 16 4',
+  sidebar: 'M3 3h14v14H3zM8 3v14',
+  console: 'M2 4h16v12H2zM5 8l3 2-3 2M10 13h4',
+  chevronDown: 'M5 8l5 5 5-5',
+  chevronUp: 'M5 12l5-5 5 5',
+  close: 'M5 5l10 10M15 5 5 15',
+};
+export function Icon({ name }: { name: keyof typeof ICONS | string }) {
+  return (
+    <svg className="icon" viewBox="0 0 20 20" width="16" height="16" aria-hidden="true" focusable="false">
+      <path d={ICONS[name] ?? ''} fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}

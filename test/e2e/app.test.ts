@@ -48,8 +48,12 @@ test('discovers a live service, opens its dashboard signed in, keeps one view, s
     await page.locator('.card-summary').getByText('Sample fabric-service/0.1 service.').waitFor();
     await page.getByRole('button', { name: /Sample Service — Ready/ }).click();
     await page.getByRole('heading', { name: 'Sample Service' }).waitFor();
+    // ADR-0017: on the page the summary names the agent on hover, and sits in the full card with its tools.
+    assert.equal(await page.getByRole('heading', { level: 1, name: 'Sample Service' }).getAttribute('title'), 'Sample fabric-service/0.1 service.');
+    await page.getByRole('button', { name: 'Show details' }).click();
     await page.locator('.svc-summary').getByText('Sample fabric-service/0.1 service.').waitFor();
     assert.deepEqual(await page.locator('.svc-tools code').allInnerTexts(), ['sample.echo', 'sample.draft']);
+    await page.getByRole('button', { name: 'Hide details' }).click();
     const origin = `http://127.0.0.1:${port}`;
     const embedded = async () => app!.evaluate(({ webContents }, o) =>
       webContents.getAllWebContents().filter((wc) => wc.getURL().startsWith(o)).map((wc) => ({ id: wc.id, url: wc.getURL(), loading: wc.isLoading() })), origin);
@@ -240,6 +244,8 @@ test('service/<id>.<instance> links open the service, a stopped one on its Start
     const page = await app.firstWindow();
     await page.getByRole('tab', { name: 'Dashboard', selected: true }).waitFor({ timeout: 20_000 });
     await page.getByRole('heading', { level: 1, name: 'Sample Service' }).waitFor();
+    // ADR-0017: the controls live in the full card; it opens once and stays open (Settings.layout).
+    await page.getByRole('button', { name: 'Show details' }).click();
     const origin = `http://127.0.0.1:${port}`;
     let url = '';
     for (let i = 0; i < 75 && url !== `${origin}/`; i += 1) {

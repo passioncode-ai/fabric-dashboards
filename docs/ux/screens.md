@@ -6,13 +6,14 @@
 | ID | Screen | Used by | Figma | Status | Coverage |
 |----|--------|---------|-------|--------|----------|
 | SCR-01 | Overview | SCN-001, SCN-002, SCN-003, SCN-005, SCN-006, SCN-007, SCN-021, SCN-024, SCN-030, SCN-033, SCN-035, SCN-041, SCN-042 | none (text-only) | built | src/renderer/components/Overview.tsx |
-| SCR-02 | Service view | SCN-004, SCN-007–SCN-016, SCN-021, SCN-025, SCN-026, SCN-027, SCN-029, SCN-031, SCN-032, SCN-034, SCN-039, SCN-040, SCN-045 | none (text-only) | built | src/renderer/components/ServiceView.tsx |
+| SCR-02 | Service view | SCN-004, SCN-007–SCN-016, SCN-021, SCN-025, SCN-026, SCN-027, SCN-029, SCN-031, SCN-032, SCN-034, SCN-039, SCN-040, SCN-045, SCN-046 | none (text-only) | built | src/renderer/components/ServiceView.tsx |
 | SCR-03 | Activity | SCN-003, SCN-017, SCN-018, SCN-020 | none (text-only) | built | src/renderer/components/Activity.tsx |
 | SCR-04 | Settings | SCN-019, SCN-022, SCN-024, SCN-043, SCN-044 | none (text-only) | built | src/renderer/components/Settings.tsx |
 | SCR-05 | Stop confirmation | SCN-009 | none (text-only) | built | src/renderer/App.tsx |
 | SCR-06 | Tray menu | SCN-023 | none (text-only) | built | src/electron/tray.ts |
 | SCR-07 | Spend | SCN-036, SCN-037, SCN-038, SCN-041 | none (text-only) | built | src/renderer/components/Spend.tsx |
-| SCR-08 | Sidebar | SCN-001, SCN-006, SCN-017, SCN-022, SCN-033, SCN-035, SCN-044 | none (text-only) | built | src/renderer/App.tsx |
+| SCR-08 | Sidebar | SCN-001, SCN-006, SCN-017, SCN-022, SCN-033, SCN-035, SCN-044, SCN-047 | none (text-only) | built | src/renderer/App.tsx |
+| SCR-10 | Console panel | SCN-048, SCN-049, SCN-050 | none (text-only) | built | src/renderer/components/ConsolePanel.tsx |
 | SCR-09 | System dialogs | SCN-014, SCN-024, SCN-027, SCN-044 | none (text-only) | built | src/electron/main.ts, src/electron/views.ts |
 
 ## Design system
@@ -44,8 +45,9 @@
 - **Status:** built
 
 ### SCR-02: Service view
-- **Used by:** SCN-004, SCN-007–SCN-016, SCN-021, SCN-025, SCN-026, SCN-027, SCN-029, SCN-031, SCN-032, SCN-034, SCN-039, SCN-040, SCN-045
+- **Used by:** SCN-004, SCN-007–SCN-016, SCN-021, SCN-025, SCN-026, SCN-027, SCN-029, SCN-031, SCN-032, SCN-034, SCN-039, SCN-040, SCN-045, SCN-046
 - **Purpose:** JTBD-02 and JTBD-04 — control one service and work in its dashboard
+- **Layout (ADR-0017, SCN-046):** a compact bar by default — state mark, name, state badge, one problem chip when not ready or after a failed action, a running action's progress, the tabs, "Console", and "Show details" (View → Show or Hide Service Details, ⌃⌘D); the name carries the agent's summary on hover; "Show details" opens the full card below the bar (everything listed next), "Hide details" closes it; the choice is remembered. The console panel (SCR-10) sits to the right of the tab content.
 - **Elements:** instance switch (when an agent has more than one instance: "Main · online", "<instance> · this Mac"); header: name, state, progress ("Restarting…"), the agent's summary, facts (version, build, pid, port, uptime), Tools (eight, "+N more"), reasons, the last action's result for 30 minutes (with Logs after a failure), controls (Start, or Restart — primary when down or two copies — and Stop; "Update to <v>" when available; Doctor when declared; Show data folder; Show file; "Show the file of <other>" in a conflict; a path that cannot be shown says so); tabs Dashboard / Activity / Health / Logs (arrow keys move between them; no Logs for an online service); dashboard toolbar (Back, Forward, Reload page, Dashboard home, page address, Copy address, Copy app link); embedded dashboard; "The service restarted." bar with Reload above the page
 - **States:**
   | State | Trigger | Figma frame | Behavior |
@@ -63,7 +65,7 @@
   | crashed | the page crashed twice | — | "The page stopped." + Reload |
   | restarted | a new pid | — | "The service restarted." + Reload above the page |
 - **Coverage:** src/renderer/components/ServiceView.tsx, src/electron/views.ts
-- **Scenarios:** SCN-004, SCN-007, SCN-008, SCN-009, SCN-010, SCN-011, SCN-012, SCN-013, SCN-014, SCN-015, SCN-016, SCN-021, SCN-025, SCN-026, SCN-027, SCN-029, SCN-031, SCN-032, SCN-034, SCN-039, SCN-040, SCN-045
+- **Scenarios:** SCN-004, SCN-007, SCN-008, SCN-009, SCN-010, SCN-011, SCN-012, SCN-013, SCN-014, SCN-015, SCN-016, SCN-021, SCN-025, SCN-026, SCN-027, SCN-029, SCN-031, SCN-032, SCN-034, SCN-039, SCN-040, SCN-045, SCN-046
 - **Status:** built
 
 ### SCR-03: Activity
@@ -137,15 +139,17 @@
 - **Status:** built
 
 ### SCR-08: Sidebar
-- **Used by:** SCN-001, SCN-006, SCN-017, SCN-022, SCN-033, SCN-035, SCN-044
+- **Used by:** SCN-001, SCN-006, SCN-017, SCN-022, SCN-033, SCN-035, SCN-044, SCN-047
 - **Purpose:** where everything is, and whether anything needs the operator
+- **Rail (SCN-047):** collapsed, the sidebar is a narrow rail — the mark, icons for Overview, Activity, Spend and Settings with their badges, one entry per agent (state mark and initials, "!" when another instance needs attention), each named in a tooltip and to a screen reader; "Collapse sidebar" / "Expand sidebar", View → Show or Hide Sidebar (⌃⌘S); remembered
 - **Elements:** Overview (problem count), Activity (unread count), Spend, Services and Background sections (one entry per agent with the primary's state and "!" when another instance needs attention), footer update line ("Checking for updates…", "Downloading an update…", "Update <v> ready" + Restart, "Updates install only from the Applications folder." + Move to Applications, "Update failed: <reason>" + Retry), Settings
 - **States:**
   | State | Trigger | Figma frame | Behavior |
   |-------|---------|-------------|----------|
   | success | default | — | entries and counts |
+  | rail | collapsed | — | icons, state marks and initials; names in tooltips |
 - **Coverage:** src/renderer/App.tsx
-- **Scenarios:** SCN-001, SCN-006, SCN-017, SCN-022, SCN-033, SCN-035, SCN-044
+- **Scenarios:** SCN-001, SCN-006, SCN-017, SCN-022, SCN-033, SCN-035, SCN-044, SCN-047
 - **Status:** built
 
 ### SCR-09: System dialogs
@@ -158,4 +162,23 @@
   | success | the action that asks | — | native macOS dialog |
 - **Coverage:** src/electron/main.ts, src/electron/views.ts
 - **Scenarios:** SCN-014, SCN-024, SCN-027, SCN-044
+- **Status:** built
+
+### SCR-10: Console panel
+- **Used by:** SCN-048, SCN-049, SCN-050
+- **Purpose:** JTBD-05 — the agent's own runtime, in its repository, beside its dashboard
+- **Elements:** header: runtime picker (Claude Code, Codex, other installed runtimes), folder line (shortened path; full path on hover) with "Other…", "Switchboard project <name>" when bound; actions: "New session", "Continue last" (when the runtime can resume), "Stop", "Open in Terminal" ("Open in Terminal via Switchboard" for a project folder the installed Switchboard cannot run in place), "Hide console"; the terminal (the runtime's own interface); an exit line; the left edge drags the width (320 px to half the window)
+- **States:**
+  | State | Trigger | Figma frame | Behavior |
+  |-------|---------|-------------|----------|
+  | idle | nothing started for this agent | — | runtime, folder, "New session", "Continue last" |
+  | running | a session runs | — | the terminal takes the panel; "Stop", "Open in Terminal" |
+  | exited | the runtime ended | — | its output stays; "Exited (code N)" with "New session" and "Continue last" |
+  | no runtime | none installed | — | "No supported runtime is installed" and the list looked for |
+  | no folder | no checkout found, or the folder is gone | — | "Choose the folder this agent's code lives in" + "Choose folder…" |
+  | switchboard project, not in place | a project folder; Switchboard without `--in-place` | — | the explanation + "Open in Terminal via Switchboard"; no start in the panel |
+  | switchboard error | Switchboard did not answer | — | "Switchboard did not answer; the session was not started" |
+  | collapsed | hidden by the person | — | nothing drawn; the session keeps running |
+- **Coverage:** src/renderer/components/ConsolePanel.tsx, src/electron/console.ts, src/core/consoles.ts
+- **Scenarios:** SCN-048, SCN-049, SCN-050
 - **Status:** built

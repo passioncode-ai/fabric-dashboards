@@ -40,6 +40,16 @@ service data.
   (settings, activity) and logs under `~/Library/Logs/Fabric Dashboards/`. Uninstall removes the
   `fabric-dashboards` entry from Claude Code's `~/.claude.json`, and a later launch puts it back
   or points it at the installed copy; nothing else in that file is changed.
+- **Runs** the agent console's runtime (ADR-0017) only when the person presses New session or
+  Continue last: the runtime's own CLI found on the login shell's `PATH`, in the folder shown, with
+  `ELECTRON_RUN_AS_NODE` and `NODE_OPTIONS` removed. A folder bound to a Fabric Switchboard project
+  is started by `switchboard launch` itself, so no token passes through the app. The console is the
+  person's own terminal: the runtime has whatever their runtime settings allow. Reading which
+  account a folder uses runs `switchboard --json project show` and `accounts list` (no credentials
+  are printed by either).
+- **Allows inline styles** in its window (`style-src 'self' 'unsafe-inline'`), because the
+  terminal view (xterm.js) injects `<style>` elements and takes no nonce. Scripts stay `'self'`,
+  and `connect-src 'none'` and `img-src 'self' data:` mean injected CSS cannot send anything out.
 - **Listens** on no port. The MCP server (`Contents/Resources/bin/fabric-dashboards-mcp`)
   is started by an agent and speaks only over its stdin and stdout; it reads the same
   folder and token files, talks to the same origins and runs the same `launchctl` verbs and

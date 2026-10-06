@@ -19,7 +19,7 @@
 Fabric Dashboards: a macOS desktop app (Electron) that finds every local agent service speaking
 `fabric-service/0.1`, shows whether it is alive and what it did last, starts, stops and restarts
 it through launchd and opens each service's dashboard inside the app. Fabric's monitoring tool;
-also works on its own. The current version is 0.5.6 (`package.json`, `CHANGELOG.md`); the README
+also works on its own. The current version is 0.6.0 (`package.json`, `CHANGELOG.md`); the README
 *Quick start for a new teammate* is the path for a new user. Licence:
 `AGPL-3.0-only OR LicenseRef-PassionCode-Commercial` ([ADR-0007](docs/adr/0007-agpl-or-commercial.md)).
 
@@ -102,7 +102,8 @@ LC-09 inventory for this product. The tests that hold each rule are in `test/lif
 | One renderer per opened service dashboard (`WebContentsView`, ~45 MB footprint each) | opening a service page | released 5 min after the window is hidden or minimized (`VIEW_RELEASE_GRACE_MS`); showing the window again re-opens the one that was on screen, on its page | the grace timer, the service's removal, quit |
 | MCP stdio server (`Resources/bin/fabric-dashboards-mcp` → the app binary as Node, `ELECTRON_RUN_AS_NODE=1`; ~15 MB footprint) | Claude Code, one per agent session (`claude mcp add --scope user …`) | nothing between calls except an unref'd 60 s check that the installed bundle is still the one it started from | stdin EOF or `SIGTERM`: exits within 1 s and kills its command groups (SIGTERM, SIGKILL after 300 ms); after an app update it answers the next call `stale` with both versions and exits (LC-10) |
 | A descriptor's `doctor` / `update` argv | the person (Health tab) or an agent (MCP) | its own process group, without `ELECTRON_RUN_AS_NODE` / `NODE_OPTIONS`, 120 s deadline (`src/core/children.ts`) | its deadline, quit, or the MCP session ending — the whole group |
-| `launchctl`, `lsof`, `osascript` (JXA, `host_status`), `/usr/bin/open` | the monitor, the listener scan, the MCP tools | short-lived; never more often than the table below | they exit by themselves |
+| An agent console session (ADR-0017): the chosen runtime's own CLI on a PTY (`node-pty`; `spawn-helper` → the runtime), or `switchboard launch … --in-place` for a folder bound to a Switchboard project | the person, with New session or Continue last in a service's console | runs while the person works; nothing reaches a hidden window (its output waits in a 1 MB ring); a running console holds back an automatic update install | Stop (asks first; SIGHUP, SIGKILL 2 s later), the service's removal, quit (`will-quit` waits for every session to end) |
+| `launchctl`, `lsof`, `osascript` (JXA, `host_status`; Terminal for Open in Terminal), `/usr/bin/open`, `switchboard --json project show` / `accounts list` / `agents list` / `launch --help`, the login shell once (`$SHELL -ilc`, to read its `PATH`) | the monitor, the listener scan, the MCP tools, the agent console | short-lived; never more often than the table below | they exit by themselves |
 | Uninstall helper (`/bin/sh`) | Settings → Uninstall, after the person confirms | waits for the app's pid (at most 30 s), removes the app's data, ends | itself |
 
 The app **owns no launchd job and listens on no port** (ADR-0002, `SECURITY.md`). The only
@@ -136,7 +137,8 @@ carries these changes — measure with `ps -o time,rss` over 10 hidden minutes o
 and record the numbers in `docs/HANDOFF.md`. (Before this change, 0.4.1 measured 1.3 % CPU and about
 7,200 `launchctl` spawns an hour after a login launch: lifecycle audit 2026-10-03, F-2/F-4.)
 
-**Files it writes** (LC-12): `~/Library/Application Support/Fabric Dashboards/` — `settings.json`
+**Files it writes** (LC-12): `~/Library/Application Support/Fabric Dashboards/` — `settings.json` (with the panel layout and each
+service's console runtime and folder, ADR-0017)
 and its last good copy `settings.json.bak` (a damaged `settings.json` is restored from it, ADR-0015),
 `restore.json` (written only by an uninstall that kept the data), `.relaunch-hidden` (seconds-long
 marker of an automatic update install), `activity.jsonl` (appended, compacted to 5,000 rows at 10,000), `activity-state.json`,

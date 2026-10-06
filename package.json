@@ -1,7 +1,7 @@
 {
   "name": "fabric-dashboards",
   "productName": "Fabric Dashboards",
-  "version": "0.5.6",
+  "version": "0.6.0",
   "private": true,
   "description": "Fabric Dashboards (PassionCode.ai): finds, watches and controls every local agent service on this Mac that speaks fabric-service/0.1.",
   "license": "AGPL-3.0-only OR LicenseRef-PassionCode-Commercial",
@@ -43,6 +43,8 @@
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.1.1",
+    "@xterm/addon-fit": "0.11.0",
+    "@xterm/xterm": "6.0.0",
     "electron": "^44.4.5",
     "esbuild": "^0.28.2",
     "playwright": "^1.63.0",
@@ -54,6 +56,10 @@
     "vite": "^8.3.1"
   },
   "allowScripts": {
-    "esbuild@0.28.2": true
+    "esbuild@0.28.2": true,
+    "node-pty@1.1.0": true
+  },
+  "dependencies": {
+    "node-pty": "1.1.0"
   }
 }

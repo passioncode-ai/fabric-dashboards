@@ -3,7 +3,8 @@ import type { PageState } from '../../core/api';
 import type { ActivityItem, ServiceSnapshot } from '../../core/types';
 import { instanceOf } from '../../core/products';
 import { commandRan, commandReason } from '../../core/outcome';
-import { api, GLYPH, nameOf, NEWS_MS, portOf, shortBuild, Spinner, StateBadge, useExpiry, useT } from '../lib';
+import { problemOf } from '../../core/focus';
+import { api, GLYPH, Icon, nameOf, NEWS_MS, portOf, shortBuild, Spinner, StateBadge, useExpiry, useT } from '../lib';
 import { Feed } from './Activity';
 
 type Tab = 'dashboard' | 'activity' | 'health' | 'logs';
@@ -27,9 +28,14 @@ interface Props {
   askStop: (key: string) => void;
   /** T-23: the update a navigation asked for has started; the route forgets the request. */
   updateStarted?: () => void;
+  /** ADR-0017: the header's form and the console panel, both remembered by the shell. */
+  headerFull: boolean;
+  onToggleHeader: () => void;
+  consoleOpen: boolean;
+  onToggleConsole: () => void;
 }
 
-export function ServiceView({ s, all, members, open, link, nonce, tab: askedTab, runUpdate, activityRev, overlayOpen, askStop, updateStarted }: Props) {
+export function ServiceView({ s, all, members, open, link, nonce, tab: askedTab, runUpdate, activityRev, overlayOpen, askStop, updateStarted, headerFull, onToggleHeader, consoleOpen, onToggleConsole }: Props) {
   const [pathError, setPathError] = useState('');
   // P-6: a folder or file that cannot be shown says so here, as Overview's Show folder does.
   const show = (p: string) => void api().showPath(p).then((r) => setPathError(r.ok ? '' : t('overview.showFailed', { path: p, error: r.error ?? '' })));
@@ -53,6 +59,7 @@ export function ServiceView({ s, all, members, open, link, nonce, tab: askedTab,
   // dashboard host, which unmounts on every tab switch and would apply it again.
   const appliedLink = useRef<string | null>(null);
   const now = useExpiry([s.lastAction?.at]);
+  const problem = problemOf(s, now); // ADR-0017: the compact bar never hides a problem
   const wk = s.wellKnown;
   const managed = s.descriptor?.lifecycle.manager === 'launchd';
   const running = ['ready', 'degraded', 'duplicate'].includes(s.state);
@@ -77,59 +84,77 @@ export function ServiceView({ s, all, members, open, link, nonce, tab: askedTab,
   return (
     <div className="svc">
       {members.length > 1 && <InstanceSwitch current={s} members={members} open={open} />}
-      <header className="svc-head">
-        <div className="svc-title">
-          <h1 id="svc-title" tabIndex={-1}>{nameOf(s)}</h1>
+      {/* ADR-0017: one line by default — state, name, the first problem, the tabs — and the full card on demand. */}
+      <header className={`svc-head${headerFull ? ' full' : ''}`}>
+        <div className="svc-bar">
+          <h1 id="svc-title" tabIndex={-1} title={s.descriptor?.summary || undefined}>{nameOf(s)}</h1>
           <StateBadge state={s.state} />
-          {s.busy && <span className="row meta"><Spinner /> {t(`busy.${s.busy}`)}</span>}
-        </div>
-        {s.descriptor?.summary && <p className="svc-summary">{s.descriptor.summary}</p>}
-        <div className="facts">
-          {wk && <span>{t('health.version')} <b>{wk.service.version}</b></span>}
-          {wk && <span>{t('health.build')} <b>{shortBuild(s)}</b></span>}
-          {wk && <span>{t('health.pid')} <b>{wk.process.pid}</b></span>}
-          <span>{t('health.port')} <b>{portOf(s)}</b></span>
-          {wk && <span>{t('card.uptime', { uptime: duration(Date.now() - new Date(wk.process.startedAt).getTime()) })}</span>}
-        </div>
-        <Tools names={wk?.surfaces.mcp?.capabilities ?? []} />
-        {s.reasons.length > 0 && <ul className="reasons">{s.reasons.map((r, i) => <li key={i}>{reason(r)}</li>)}</ul>}
-        {s.lastAction && !s.busy && now - Date.parse(s.lastAction.at) < NEWS_MS && ( /* P-15: news for half an hour, as on Overview */
-          <p className={`meta row${s.lastAction.ok ? '' : ' state-down'}`} role="status">
-            {reason(s.lastAction.reason)}
-            {!s.lastAction.ok && tabs.includes('logs') && s.descriptor?.paths?.logs?.length ? <button className="btn btn-sm" onClick={() => setTab('logs')}>{t('action.logs')}</button> : null}
-          </p>
-        )}
-        <div className="row">
-          {managed && (s.state === 'stopped'
-            ? <button className="btn btn-primary" disabled={Boolean(s.busy)} onClick={() => void api().control(s.key, 'start')}>{t('action.start')}</button>
-            : <>
-                <button className={`btn${s.state === 'down' || s.state === 'duplicate' ? ' btn-primary' : ''}`} disabled={Boolean(s.busy) || s.state === 'invalid' || s.state === 'conflict'} onClick={() => void api().control(s.key, 'restart')}>{t('action.restart')}</button>
-                <button className="btn" disabled={Boolean(s.busy) || !running && s.state !== 'down'} onClick={() => askStop(s.key)}>{t('action.stop')}</button>
-              </>)}
-          {wk?.update?.available && s.descriptor?.commands?.update && (
-            <button className="btn" disabled={Boolean(s.busy)} onClick={() => void run('update')}>{t('action.update', { version: wk.update.available })}</button>
+          {s.busy && <span className="row meta" role="status"><Spinner /> {t(`busy.${s.busy}`)}</span>}
+          {!headerFull && problem && (
+            <button className="chip chip-problem" title={reason(problem)} aria-label={t('svc.problem', { reason: reason(problem) })} onClick={onToggleHeader}>
+              <span className="chip-text">{reason(problem)}</span>
+            </button>
           )}
-          {s.descriptor?.commands?.doctor && <button className="btn" disabled={Boolean(s.busy)} onClick={() => void run('doctor')}>{t('action.doctor')}</button>}
-          {s.descriptor?.paths && <button className="btn" onClick={() => show(s.descriptor!.paths!.data)}>{t('action.showData')}</button>}
-          <button className="btn" onClick={() => show(s.descriptorPath)}>{t('action.showFile')}</button>
-          {conflictWith.map((o) => (
-            <button key={o.key} className="btn" onClick={() => show(o.descriptorPath)}>{t('action.showFileOf', { name: nameOf(o) })}</button>
-          ))}
+          <div className="tabs" role="tablist" aria-label={nameOf(s)} onKeyDown={(e) => {
+            // U-14: arrow keys move between tabs, as a tab list should.
+            if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+            const i = tabs.indexOf(tab);
+            const next = tabs[(i + (e.key === 'ArrowRight' ? 1 : tabs.length - 1)) % tabs.length]!;
+            setTab(next);
+            (document.getElementById(`tab-${next}`) as HTMLButtonElement | null)?.focus();
+          }}>
+            {tabs.map((x) => (
+              <button key={x} id={`tab-${x}`} role="tab" className="tab" aria-selected={tab === x} aria-controls={tab === x ? `panel-${x}` : undefined} tabIndex={tab === x ? 0 : -1} onClick={() => setTab(x)}>{t(`tab.${x}`)}</button>
+            ))}
+          </div>
+          <span className="spacer" />
+          <button className="icon-btn" aria-pressed={consoleOpen} title={t(consoleOpen ? 'console.hide' : 'console.show')} onClick={onToggleConsole}>
+            <Icon name="console" /><span className="icon-btn-label">{t('console.show')}</span>
+          </button>
+          <button className="icon-btn" aria-expanded={headerFull} aria-controls="svc-card" title={t(headerFull ? 'svc.details.hide' : 'svc.details.show')} onClick={onToggleHeader}>
+            <Icon name={headerFull ? 'chevronUp' : 'chevronDown'} /><span className="visually-hidden">{t(headerFull ? 'svc.details.hide' : 'svc.details.show')}</span>
+          </button>
         </div>
-        {pathError && <p className="notice error" role="alert">{pathError}</p>}
+        {headerFull && (
+          <div className="svc-card" id="svc-card">
+            {s.descriptor?.summary && <p className="svc-summary">{s.descriptor.summary}</p>}
+            <div className="facts">
+              {wk && <span>{t('health.version')} <b>{wk.service.version}</b></span>}
+              {wk && <span>{t('health.build')} <b>{shortBuild(s)}</b></span>}
+              {wk && <span>{t('health.pid')} <b>{wk.process.pid}</b></span>}
+              <span>{t('health.port')} <b>{portOf(s)}</b></span>
+              {wk && <span>{t('card.uptime', { uptime: duration(Date.now() - new Date(wk.process.startedAt).getTime()) })}</span>}
+            </div>
+            <Tools names={wk?.surfaces.mcp?.capabilities ?? []} />
+            {s.reasons.length > 0 && <ul className="reasons">{s.reasons.map((r, i) => <li key={i}>{reason(r)}</li>)}</ul>}
+            {s.lastAction && !s.busy && now - Date.parse(s.lastAction.at) < NEWS_MS && ( /* P-15: news for half an hour, as on Overview */
+              <p className={`meta row${s.lastAction.ok ? '' : ' state-down'}`} role="status">
+                {reason(s.lastAction.reason)}
+                {!s.lastAction.ok && tabs.includes('logs') && s.descriptor?.paths?.logs?.length ? <button className="btn btn-sm" onClick={() => setTab('logs')}>{t('action.logs')}</button> : null}
+              </p>
+            )}
+            <div className="row">
+              {managed && (s.state === 'stopped'
+                ? <button className="btn btn-primary" disabled={Boolean(s.busy)} onClick={() => void api().control(s.key, 'start')}>{t('action.start')}</button>
+                : <>
+                    <button className={`btn${s.state === 'down' || s.state === 'duplicate' ? ' btn-primary' : ''}`} disabled={Boolean(s.busy) || s.state === 'invalid' || s.state === 'conflict'} onClick={() => void api().control(s.key, 'restart')}>{t('action.restart')}</button>
+                    <button className="btn" disabled={Boolean(s.busy) || !running && s.state !== 'down'} onClick={() => askStop(s.key)}>{t('action.stop')}</button>
+                  </>)}
+              {wk?.update?.available && s.descriptor?.commands?.update && (
+                <button className="btn" disabled={Boolean(s.busy)} onClick={() => void run('update')}>{t('action.update', { version: wk.update.available })}</button>
+              )}
+              {s.descriptor?.commands?.doctor && <button className="btn" disabled={Boolean(s.busy)} onClick={() => void run('doctor')}>{t('action.doctor')}</button>}
+              {s.descriptor?.paths && <button className="btn" onClick={() => show(s.descriptor!.paths!.data)}>{t('action.showData')}</button>}
+              <button className="btn" onClick={() => show(s.descriptorPath)}>{t('action.showFile')}</button>
+              {conflictWith.map((o) => (
+                <button key={o.key} className="btn" onClick={() => show(o.descriptorPath)}>{t('action.showFileOf', { name: nameOf(o) })}</button>
+              ))}
+            </div>
+            {pathError && <p className="notice error" role="alert">{pathError}</p>}
+          </div>
+        )}
+        {!headerFull && pathError && <p className="notice error" role="alert">{pathError}</p>}
       </header>
-      <div className="tabs" role="tablist" aria-label={nameOf(s)} onKeyDown={(e) => {
-        // U-14: arrow keys move between tabs, as a tab list should.
-        if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
-        const i = tabs.indexOf(tab);
-        const next = tabs[(i + (e.key === 'ArrowRight' ? 1 : tabs.length - 1)) % tabs.length]!;
-        setTab(next);
-        (document.getElementById(`tab-${next}`) as HTMLButtonElement | null)?.focus();
-      }}>
-        {tabs.map((x) => (
-          <button key={x} id={`tab-${x}`} role="tab" className="tab" aria-selected={tab === x} aria-controls={tab === x ? `panel-${x}` : undefined} tabIndex={tab === x ? 0 : -1} onClick={() => setTab(x)}>{t(`tab.${x}`)}</button>
-        ))}
-      </div>
       <div className="svc-body" role="tabpanel" id={`panel-${tab}`} aria-labelledby={`tab-${tab}`}>
         {tab === 'dashboard' && <DashboardHost s={s} link={link} nonce={nonce} hidden={overlayOpen} applied={appliedLink} />}
         {tab === 'activity' && <div className="pane"><ServiceActivity serviceKey={s.key} tick={`${activityRev ?? ''}|${s.latestEvent?.id ?? ''}`} /></div>}

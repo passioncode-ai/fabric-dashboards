@@ -2,6 +2,43 @@
 
 ## Unreleased
 
+## 0.6.0 - 2026-10-06
+
+The dashboard gets the screen, and the agent's own runtime sits beside it
+([ADR-0017](docs/adr/0017-focus-layout-and-agent-console.md)).
+
+### New
+
+- **The header steps aside.** A service page opens with a one-line bar: the state, the name, the
+  tabs, and «Show details» for the full card with the controls. A problem is never hidden: a
+  state that is not ready, or a failed action, shows as a chip in the bar that opens the card. The
+  name's hover text is the agent's summary. View → Show or Hide Service Details (⌃⌘D).
+- **The sidebar folds into a rail** of icons and agents' initials with their state marks and
+  badges, each named on hover. View → Show or Hide Sidebar (⌃⌘S).
+- **An agent console beside the dashboard.** «Console» opens a panel with a real terminal running
+  the runtime you choose — Claude Code, Codex, or another one installed and found on your login
+  `PATH` — in the agent's repository: the folder whose git `origin` is the descriptor's
+  `source.repository`, or one you choose. It is the runtime's own interface, with your settings and
+  skills; its permission questions appear in it. New session, Continue last (`claude --continue`,
+  `codex resume --last`), Stop (asks first), Open in Terminal. One console per agent; it keeps
+  running while folded, hidden or on another agent's page, and ends when the app quits. View →
+  Show or Hide Console (⌃⌘T).
+- **The right account.** A folder that Fabric Switchboard binds to a project never runs on the
+  ordinary sign-in: the session starts through Switchboard on the project's account — in the
+  console once Switchboard can launch in place (its SB-75), in Terminal until then. When
+  Switchboard cannot say, the session is not started.
+- Panel states, the console's width and each agent's runtime and folder are remembered.
+
+### Changed
+
+- An automatic update does not install while a console session runs (ADR-0015 treats it like a
+  running command).
+- The window's style policy allows inline styles, which the terminal view needs; scripts and
+  connections stay as strict as before (`SECURITY.md`).
+- The release build ships `node-pty` (N-API prebuilds for both architectures, unpacked from the
+  asar, `spawn-helper` made executable before signing) and proves a PTY runs from the finished
+  bundle (`checks.pty`).
+
 ## 0.5.6 - 2026-10-06
 
 The first published release since 0.4.1. It carries everything listed under 0.5.5, 0.5.4, 0.5.3
