@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import type { AppStatus, Listener, Settings as SettingsValue } from '../../core/types';
 import { api, nameOf, Spinner, useT } from '../lib';
 
-export function Settings({ status, onTheme }: { status: AppStatus; onTheme: (theme: 'dark' | 'light') => void }) {
+export function Settings({ status, onTheme, onLanguage }: { status: AppStatus; onTheme: (theme: 'dark' | 'light') => void; onLanguage: () => void }) {
   const { t, time } = useT();
   const [value, setValue] = useState<SettingsValue | null>(null);
   const [error, setError] = useState('');
@@ -21,6 +21,7 @@ export function Settings({ status, onTheme }: { status: AppStatus; onTheme: (the
     setValue(r.settings);
     setError(r.error ? t('settings.loginItemRefused', { error: r.error }) : '');
     if (patch.theme) onTheme(patch.theme);
+    if (patch.language) onLanguage();
   };
   const n = value.notifications;
   const setN = (patch: Partial<SettingsValue['notifications']>) => void save({ notifications: { ...n, ...patch } });
@@ -38,6 +39,13 @@ export function Settings({ status, onTheme }: { status: AppStatus; onTheme: (the
           <select value={value.theme} onChange={(e) => void save({ theme: e.target.value as 'dark' | 'light' })}>
             <option value="dark">{t('settings.theme.dark')}</option>
             <option value="light">{t('settings.theme.light')}</option>
+          </select>
+        </label>
+        <label className="setting">{t('settings.language')}
+          <select value={value.language} onChange={(e) => void save({ language: e.target.value as SettingsValue['language'] })}>
+            <option value="system">{t('settings.language.system')}</option>
+            <option value="en" lang="en">English</option>
+            <option value="ru" lang="ru">Русский</option>
           </select>
         </label>
         <p className="meta">v{status.version}</p>
@@ -143,6 +151,7 @@ function UpdateState({ status }: { status: AppStatus }) {
   const u = status.update;
   if (u.state === 'unsupported') return <p className="meta">{t('update.unsupported')}</p>;
   if (u.state === 'misplaced') return <p className="notice warning">{t('update.misplaced')} <button className="btn" onClick={() => void api().moveToApplications()}>{t('move.confirm')}</button></p>;
+  if (u.state === 'held') return <div className="row"><span className="meta">{t('update.held', { version: u.version ?? '' })}</span>{u.steps && <button className="btn" onClick={() => void api().openUpdateSteps()}>{t('update.steps')}</button>}<button className="btn btn-primary" onClick={() => void api().restartToUpdate()}>{t('update.installNow')}</button></div>;
   if (u.state === 'ready') return <div className="row"><span className="meta">{(u.version ? t('update.ready', { version: u.version }) : t('update.readyUnnamed'))}</span><button className="btn btn-primary" onClick={() => void api().restartToUpdate()}>{t('update.restart')}</button></div>;
   if (u.state === 'checking' || u.state === 'downloading') return <p className="meta row"><Spinner /> {t(`update.${u.state}`)}</p>;
   return (

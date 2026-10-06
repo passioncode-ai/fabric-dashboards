@@ -27,10 +27,17 @@ service data.
   service's state at that moment, not when its page was first opened.
 - **Fetches** the update feed
   (`https://github.com/passioncode-ai/fabric-dashboards/releases/latest/download/update-feed.json`,
-  or `FABRIC_DASHBOARDS_UPDATE_URL`) 10 s after start and every 6 hours, only in a packaged copy
-  inside Applications. It reads the feed's version first and downloads the signed release
-  (Squirrel.Mac) only when that version is newer than the running one. Nothing about services
-  or tokens is sent.
+  pinned in the code; no environment variable replaces it) 90 s after start and every 6 hours,
+  only in a packaged copy inside Applications and only while the `auto-update` switch is on. It
+  reads the feed's version first; for a newer one it downloads that release's `SHA256SUMS` and
+  `SHA256SUMS.asc`, verifies the signature against the organization's release key pinned in
+  `src/core/release-verify.ts` (ed25519, fingerprint `63b30dc324bd697487aa31944fafb8aec803b6a7`),
+  downloads the zip, checks its sha256 against the signed list, and requires the app inside to pass
+  `codesign --verify --deep --strict` as team `KJ35UYYL22` with the announced version. Only then
+  does Squirrel.Mac download and stage it, and the staged bundle must carry the same code-directory
+  hash, or it is deleted before any quit. Squirrel's own downgrade guard is on
+  (`ElectronSquirrelPreventDowngrades`). Nothing about services or tokens is sent (ADR-0015
+  amendment, LC-16).
 - **Runs** `launchctl` on the labels descriptors declare, `lsof -nP -iTCP -sTCP:LISTEN` for the
   listener scan, and the `doctor` and `update` argument arrays a descriptor declares — no shell,
   in their own process group, 120 s limit; whatever a finished command leaves running in that

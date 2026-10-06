@@ -8,7 +8,7 @@
 | App settings and activity | `~/Library/Application Support/Fabric Dashboards/` (`settings.json`, `activity.jsonl`, `activity-state.json`) |
 | App log | `~/Library/Logs/Fabric Dashboards/main.log` |
 | MCP server | `/Applications/Fabric Dashboards.app/Contents/Resources/bin/fabric-dashboards-mcp` (stdio; from a checkout: `npm run build:main && node out/main/mcp/server.js`) |
-| Update feed | `https://github.com/passioncode-ai/fabric-dashboards/releases/latest/download/update-feed.json` (`FABRIC_DASHBOARDS_UPDATE_URL` overrides) |
+| Update feed | `https://github.com/passioncode-ai/fabric-dashboards/releases/latest/download/update-feed.json` (pinned in `src/electron/updater.ts`; no override, LC-16) |
 
 ## A service is missing from the list
 
@@ -100,6 +100,17 @@ approval, cancel it first, then push the new tag. A run waiting on an environmen
 A published release is never rewritten; a fix is a new tag. Verify a download with
 `gpg --verify SHA256SUMS.asc SHA256SUMS`, `shasum -a 256 -c SHA256SUMS --ignore-missing` and
 `gh attestation verify <file> -R passioncode-ai/fabric-dashboards`.
+
+**The app verifies the same files before it updates** (LC-16, ADR-0015 amendment): `SHA256SUMS`
+must be signed by the key pinned in `src/core/release-verify.ts`, and the zip's hash and the app's
+signature must match. A release is installable only if its `SHA256SUMS` lists
+`Fabric-Dashboards-<v>-mac.zip` and is signed; when the organization rotates the release key, ship
+a release signed by the old key that pins the new one first. The receipt's
+`checks.updateVerifier` proves the finished bundle verifies v0.6.0's signature. A release that
+needs a person's step puts `"needsPerson": "https://…"` (its steps) in `update-feed.json`; the app
+then holds it until the person installs it. What the updater did is in `main.log` under the codes
+`update_check`, `update_download`, `update_install`, `update_restart`, `auto_update`
+(`grep -E 'update_|auto_update' ~/Library/Logs/Fabric\ Dashboards/main.log`).
 
 **Rehearsal.** Push an annotated `v<version>-rc.<n>` tag (the push trigger ignores it), then run
 `gh workflow run release.yml --ref v<version>-rc.<n> -f publish=false`. The same approvals

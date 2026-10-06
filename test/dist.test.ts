@@ -222,3 +222,22 @@ let out = ''; p.onData((d) => { out += d; }); p.onExit((e) => { process.stdout.w
   assert.equal(answer?.code, 0, r.stderr);
   assert.match(answer.out, /staged-ok/);
 });
+
+test('LC-16: the release Info.plist asks Squirrel to refuse downgrades', async () => {
+  const dist = await import('../scripts/dist-mac.mjs');
+  assert.deepEqual(dist.UPDATE_INFO, { ElectronSquirrelPreventDowngrades: true });
+});
+
+test('LC-16: openpgp is staged as its one CommonJS build with manifest and licence, and loads from the stage', async () => {
+  const dist = await import('../scripts/dist-mac.mjs');
+  const root = path.resolve(__dirname, '..');
+  const stage = tmp('fd-stage-gpg-');
+  const target = dist.stageVerifierModules(root, stage);
+  assert.equal(target, path.join(stage, 'node_modules/openpgp'));
+  const files = (dir: string): string[] => fs.readdirSync(dir, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? files(path.join(dir, e.name)) : [path.relative(target, path.join(dir, e.name))]));
+  assert.deepEqual(files(target).sort(), ['LICENSE', 'dist/node/openpgp.min.cjs', 'package.json']);
+  const manifest = JSON.parse(fs.readFileSync(path.join(target, 'package.json'), 'utf8'));
+  assert.equal(manifest.main, 'dist/node/openpgp.min.cjs');
+  const r = spawnSync(process.execPath, ['-e', `const o = require(${JSON.stringify(target)}); process.stdout.write(typeof o.verify)`], { encoding: 'utf8' });
+  assert.equal(r.stdout, 'function');
+});

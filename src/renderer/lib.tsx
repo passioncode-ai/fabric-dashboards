@@ -4,6 +4,7 @@ import { duration as fmtDuration, hasKey, t as translate, type Lang } from '../c
 import type { Reason, ServiceSnapshot, ServiceState } from '../core/types';
 import { displayName } from '../core/names';
 import { NEWS_MS } from '../core/focus';
+import { machineRu } from '../core/machine-ru';
 
 declare global {
   interface Window { fabric: FabricApi }
@@ -34,7 +35,7 @@ export function useT() {
   const t = (key: string, params?: Record<string, string | number>) => translate(lang, key, params);
   const reason = (r: Reason | null | undefined): string => {
     if (!r) return '';
-    if (r.code === 'raw') return String(r.params?.text ?? '');
+    if (r.code === 'raw') return lang === 'ru' ? machineRu(String(r.params?.text ?? '')) : String(r.params?.text ?? ''); // FD-19
     const params = { ...(r.params ?? {}) };
     if (typeof params.since === 'string' && /T/.test(params.since)) params.since = new Date(params.since).toLocaleTimeString(lang, { hour: '2-digit', minute: '2-digit' });
     return hasKey(r.code) ? translate(lang, r.code, params) : r.code;

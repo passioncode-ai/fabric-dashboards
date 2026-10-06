@@ -86,7 +86,7 @@
 ### SCR-04: Settings
 - **Used by:** SCN-019, SCN-022, SCN-024, SCN-043, SCN-044
 - **Purpose:** fit startup, updates and notifications to the operator's day
-- **Elements:** Fabric Dashboards: Open at login (off until chosen), Theme, version; Updates: Install updates automatically, its explanation and the update state with its one action (Check now, Restart, Move to Applications); Notifications: "Whether macOS shows them is set in System Settings → Notifications." with Open macOS Settings, Show notifications, Quiet hours, Pause notifications for 1 hour / "Paused until HH:MM" + Resume, per service Show notifications and Events from; services folder with Show folder; Uninstall (confirmation with "Also delete my settings and activity history"; removes the login item and the MCP entry and moves the app to the Trash; settings and history stay unless ticked); Unattributed listeners (Port, Address, Program, pid; Scan again)
+- **Elements:** Fabric Dashboards: Open at login (off until chosen), Theme, Language (As on this Mac / English / Русский), version; Updates: Install updates automatically, its explanation and the update state with its action (Check now, Restart to Update, Move to Applications; a held release: What to do + Install); Notifications: "Whether macOS shows them is set in System Settings → Notifications." with Open macOS Settings, Show notifications, Quiet hours, Pause notifications for 1 hour / "Paused until HH:MM" + Resume, per service Show notifications and Events from; services folder with Show folder; Uninstall (confirmation with "Also delete my settings and activity history"; removes the login item and the MCP entry and moves the app to the Trash; settings and history stay unless ticked); Unattributed listeners (Port, Address, Program, pid; Scan again)
 - **States:**
   | State | Trigger | Figma frame | Behavior |
   |-------|---------|-------------|----------|
@@ -142,7 +142,7 @@
 - **Used by:** SCN-001, SCN-006, SCN-017, SCN-022, SCN-033, SCN-035, SCN-044, SCN-047
 - **Purpose:** where everything is, and whether anything needs the operator
 - **Rail (SCN-047):** collapsed, the sidebar is a narrow rail — the mark, icons for Overview, Activity, Spend and Settings with their badges, one entry per agent (state mark and initials, "!" when another instance needs attention), each named in a tooltip and to a screen reader; "Collapse sidebar" / "Expand sidebar", View → Show or Hide Sidebar (⌃⌘S); remembered
-- **Elements:** Overview (problem count), Activity (unread count), Spend, Services and Background sections (one entry per agent with the primary's state and "!" when another instance needs attention), footer update line ("Checking for updates…", "Downloading an update…", "Update <v> ready" + Restart, "Updates install only from the Applications folder." + Move to Applications, "Update failed: <reason>" + Retry), Settings
+- **Elements:** Overview (problem count), Activity (unread count), Spend, Services and Background sections (one entry per agent with the primary's state and "!" when another instance needs attention), footer update line ("Checking for updates…", "Downloading an update…", "Update <v> ready" + Restart to Update, "Update <v> is verified and waits for you…" + What to do + Install, "Updates install only from the Applications folder." + Move to Applications, "Update failed: <reason>" + Retry), Settings
 - **States:**
   | State | Trigger | Figma frame | Behavior |
   |-------|---------|-------------|----------|

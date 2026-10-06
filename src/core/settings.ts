@@ -4,17 +4,20 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { atomicWrite } from './fsutil';
+import { autoUpdateOn, carryOverAutoUpdate, setAutoUpdate } from './autoupdate';
 import { CONSOLE_WIDTH, DEFAULT_SETTINGS, type Settings, type SettingsPatch } from './types';
 
 export class SettingsStore {
   private readonly file: string;
   private readonly backup: string;
+  private readonly dir: string;
   private value: Settings;
   /** What reading found, for the log: null when settings.json was read as it is. */
   readonly recovered: string | null = null;
 
   /** R-2: settings never throw on a full disk — the value is kept in memory and saved by the next write that succeeds. */
   constructor(dir: string, private readonly onWriteError: (message: string) => void = () => undefined) {
+    this.dir = dir;
     this.file = path.join(dir, 'settings.json');
     this.backup = `${this.file}.bak`;
     const main = readObject(this.file);
@@ -33,13 +36,19 @@ export class SettingsStore {
         this.persist();
       }
     }
+    // LC-16: the switch lives in its own file; an earlier `autoUpdate: false` is carried over once.
+    try { carryOverAutoUpdate(dir, main.ok && (main.value as { autoUpdate?: unknown }).autoUpdate === false); } catch (error) { this.onWriteError((error as Error).message); }
   }
 
   get(): Settings {
-    return structuredClone(this.value);
+    return { ...structuredClone(this.value), autoUpdate: autoUpdateOn(this.dir) };
   }
 
   update(patch: SettingsPatch): Settings {
+    // LC-16: the person's switch writes the `auto-update` file, never settings.json.
+    if (typeof patch.autoUpdate === 'boolean') {
+      try { setAutoUpdate(this.dir, patch.autoUpdate); } catch (error) { this.onWriteError((error as Error).message); }
+    }
     const layout = patch.layout ?? {};
     this.value = merge({
       ...this.value, ...(patch as Partial<Settings>),
@@ -115,6 +124,7 @@ export function merge(raw: Partial<Settings>): Settings {
     // A file written by an earlier version never asked: its `launchAtLogin` was the old default, not a choice.
     launchAtLoginAsked: raw.launchAtLoginAsked === true,
     theme: raw.theme === 'light' ? 'light' : 'dark',
+    language: raw.language === 'en' || raw.language === 'ru' ? raw.language : 'system',
     // Absent in a file from an earlier version: on, so every install keeps itself current.
     autoUpdate: raw.autoUpdate !== false,
     moveToApplicationsAsked: raw.moveToApplicationsAsked === true,

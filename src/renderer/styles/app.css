@@ -144,14 +144,30 @@ h3 { font-size: var(--pc-type-card); margin: 0; font-weight: 600; }
 
 /* service view */
 .svc { display: flex; flex-direction: column; height: 100%; min-height: 0; }
-.svc-head { border-bottom: 1px solid var(--pc-border); -webkit-app-region: drag; flex: none; }
+.svc-head { border-bottom: 1px solid var(--pc-border); -webkit-app-region: drag; flex: none; container: svchead / inline-size; }
 /* ADR-0017 (SCN-046): one line by default — the bar is also the window's drag region. */
 .svc-bar { display: flex; align-items: center; gap: var(--pc-space-3); min-height: 44px; padding: var(--pc-space-1) var(--pc-space-4) 0 var(--pc-space-6); }
 .svc-bar > * { -webkit-app-region: no-drag; }
 .svc-bar > .spacer { -webkit-app-region: drag; }
-.svc-bar h1 { font-size: var(--pc-type-section); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 28ch; }
-.svc-bar .tabs { border-bottom: 0; padding: 0; margin-left: var(--pc-space-3); align-self: stretch; }
+.svc-bar h1 { font-size: var(--pc-type-section); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 28ch; flex: 0 1 auto; min-width: 7ch; }
+.svc-bar > .state, .svc-bar > .icon-btn { flex: none; }
+.svc-bar .chip-problem { flex: 0 1 auto; min-width: 4ch; }
+.svc-bar .tabs { border-bottom: 0; padding: 0; margin-left: var(--pc-space-3); align-self: stretch; flex: 0 1 auto; min-width: 0; overflow-x: auto; scrollbar-width: none; }
+/* Before the container queries: same specificity, so the narrow-bar padding below must come later. */
 .svc-bar .tab { padding: 0 var(--pc-space-3); }
+/* Narrow bar (a console open, a small window): labels fold into icons, tabs tighten; the name stays. */
+@container svchead (max-width: 900px) {
+  .svc-bar .icon-btn-label { display: none; }
+  .svc-bar .tab { padding: 0 var(--pc-space-2); }
+  .svc-bar .tabs { margin-left: var(--pc-space-1); }
+}
+@container svchead (max-width: 720px) {
+  .svc-bar { gap: var(--pc-space-2); padding-left: var(--pc-space-4); }
+  .svc-bar > .state { font-size: 0; gap: 0; } /* the badge keeps its glyph; its word is in the chip or the card */
+  .svc-bar > .state .glyph { font-size: 11px; }
+  .svc-bar .chip-problem { max-width: 18ch; }
+  .svc-bar .tab { padding: 0 var(--pc-space-1); }
+}
 .svc-card { padding: var(--pc-space-2) var(--pc-space-6) var(--pc-space-3); border-top: 1px solid var(--pc-border); max-height: 50vh; overflow: auto; }
 .svc-card > * { -webkit-app-region: no-drag; }
 .spacer { flex: 1; min-width: var(--pc-space-3); align-self: stretch; }

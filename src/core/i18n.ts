@@ -1,6 +1,7 @@
 // Interface strings, English (primary) and Russian. Voice: the PassionCode.ai
 // brand pack (fabric/docs/brand) — specific, one builder to another; Russian
 // uses «вы» or a neutral form. Product names are never translated.
+import { machineRu } from './machine-ru';
 
 export type Lang = 'en' | 'ru';
 
@@ -293,7 +294,10 @@ const en = {
   'update.checking': 'Checking for updates…',
   'update.downloading': 'Downloading an update…',
   'update.ready': 'Update {version} ready',
-  'update.restart': 'Restart',
+  'update.restart': 'Restart to Update',
+  'update.held': 'Update {version} is verified and waits for you: it needs a step from you before it installs',
+  'update.steps': 'What to do',
+  'update.installNow': 'Install',
   'update.error': 'Update failed: {error}',
   'update.retry': 'Retry',
   'update.misplaced': 'Updates install only from the Applications folder.',
@@ -306,7 +310,9 @@ const en = {
   'update.unsupported': 'Updates come with the installed app, not a development run.',
   'settings.updates': 'Updates',
   'settings.autoUpdate': 'Install updates automatically',
-  'settings.autoUpdate.body': 'New versions download by themselves. With this on, one installs while the window is closed and the app reopens in the menu bar; with it off, it installs when you quit or choose Restart.',
+  'settings.language': 'Language',
+  'settings.language.system': 'As on this Mac',
+  'settings.autoUpdate.body': 'On: the app checks for a new version a minute and a half after it starts and then every 6 hours, downloads it, checks its signature, and installs it when you quit, choose Restart to Update, or after the window has been closed for 10 minutes with nothing running. Off: nothing is checked or downloaded on its own; Check for Updates still works.',
   'settings.updates.check': 'Check now',
   'move.title': 'Move Fabric Dashboards to Applications?',
   'move.body': 'It is not in the Applications folder, and updates install only there. The app moves itself and reopens.',
@@ -414,8 +420,8 @@ const ru: Record<Key, string> = {
   'menu.toggleSidebar': 'Показать или скрыть боковую панель',
   'menu.toggleConsole': 'Показать или скрыть консоль',
   'menu.toggleDetails': 'Показать или скрыть подробности сервиса',
-  'sidebar.collapse': 'Свернуть боковую панель',
-  'sidebar.expand': 'Развернуть боковую панель',
+  'sidebar.collapse': 'Свернуть панель',
+  'sidebar.expand': 'Развернуть панель',
   'svc.details.show': 'Подробнее',
   'svc.details.hide': 'Скрыть подробности',
   'svc.problem': 'Подробнее: {reason}',
@@ -430,8 +436,8 @@ const ru: Record<Key, string> = {
   'console.continue': 'Продолжить последнюю',
   'console.stop': 'Стоп',
   'console.stopConfirm': 'Остановить эту сессию?',
-  'console.openTerminal': 'Открыть в Terminal',
-  'console.openTerminalSb': 'Открыть в Terminal через Switchboard',
+  'console.openTerminal': 'Открыть в Терминале',
+  'console.openTerminalSb': 'Открыть в Терминале через Switchboard',
   'console.exited': 'Завершено (код {code}).',
   'console.ended': 'Завершено.',
   'console.stopped': 'Остановлено.',
@@ -440,10 +446,10 @@ const ru: Record<Key, string> = {
   'console.folderGone': 'Папки {path} больше нет.',
   'console.foundFrom': 'Найдена по репозиторию агента',
   'console.project': 'Проект Switchboard {name}',
-  'console.terminalOnly': 'Эта папка работает на проекте Switchboard {name}. Эта версия Switchboard открывает сессии в Terminal.',
+  'console.terminalOnly': 'Эта папка работает на проекте Switchboard {name}. Эта версия Switchboard открывает сессии в Терминале.',
   'console.sbError': 'Switchboard не ответил, поэтому сессия не запущена: {detail}',
   'console.spawnError': 'Рантайм не запустился: {detail}',
-  'console.terminalFailed': 'Не удалось открыть Terminal: {detail}',
+  'console.terminalFailed': 'Не удалось открыть Терминал: {detail}',
   'console.resize': 'Изменить ширину консоли',
   'console.running': 'Здесь уже идёт сессия.',
   'console.loading': 'Ищу рантаймы…',
@@ -624,7 +630,10 @@ const ru: Record<Key, string> = {
   'update.checking': 'Проверяем обновления…',
   'update.downloading': 'Загружаем обновление…',
   'update.ready': 'Обновление {version} готово',
-  'update.restart': 'Перезапустить',
+  'update.restart': 'Перезапустить для обновления',
+  'update.held': 'Обновление {version} проверено и ждёт вас: перед установкой нужен ваш шаг',
+  'update.steps': 'Что сделать',
+  'update.installNow': 'Установить',
   'update.error': 'Обновление не удалось: {error}',
   'update.retry': 'Повторить',
   'update.misplaced': 'Обновления устанавливаются только из папки «Программы».',
@@ -637,7 +646,9 @@ const ru: Record<Key, string> = {
   'update.unsupported': 'Обновления приходят в установленное приложение, не в запуск из исходников.',
   'settings.updates': 'Обновления',
   'settings.autoUpdate': 'Устанавливать обновления автоматически',
-  'settings.autoUpdate.body': 'Новые версии скачиваются сами. Когда это включено, версия устанавливается, пока окно закрыто, и приложение снова открывается в строке меню; когда выключено — при выходе или по кнопке «Перезапустить».',
+  'settings.language': 'Язык',
+  'settings.language.system': 'Как в системе',
+  'settings.autoUpdate.body': 'Включено: через полторы минуты после запуска и потом каждые 6 часов приложение проверяет новую версию, скачивает её, проверяет подпись и устанавливает при выходе, по кнопке «Перезапустить для обновления» или когда окно закрыто 10 минут и ничего не запущено. Выключено: само ничего не проверяется и не скачивается, «Проверить обновления» работает.',
   'settings.updates.check': 'Проверить сейчас',
   'move.title': 'Переместить Fabric Dashboards в «Программы»?',
   'move.body': 'Оно запущено не из папки «Программы», а обновления устанавливаются только туда. Приложение переместится туда само и откроется снова.',
@@ -648,11 +659,11 @@ const ru: Record<Key, string> = {
   'tray.open': 'Открыть Fabric Dashboards',
   'tray.pause': 'Приостановить уведомления на 1 час',
   'tray.resume': 'Возобновить уведомления',
-  'tray.quit': 'Выйти',
+  'tray.quit': 'Завершить',
   'tray.allReady': 'Все сервисы работают',
   'tray.problems': 'Требуют внимания: {count}',
   'tray.notAllReady': 'Работают: {ready} из {total}',
-  'quit.note': 'Выход из Dashboards не останавливает ваши сервисы.',
+  'quit.note': 'Завершение Dashboards не останавливает ваши сервисы.',
   'link.refused.title': 'Эту ссылку открыть нельзя',
   'link.refused.body': '{reason}. Ничего не открыто.',
   'external.title': 'Открыть в браузере?',
@@ -670,9 +681,21 @@ export function langFor(locale: string | undefined): Lang {
   return (locale ?? '').toLowerCase().startsWith('ru') ? 'ru' : 'en';
 }
 
+/** L10N-01: the person's choice wins (English or Русский); `system` or anything unknown follows the system language. */
+export function chooseLang(chosen: string | undefined, system: string | undefined): Lang {
+  return chosen === 'en' || chosen === 'ru' ? chosen : langFor(system);
+}
+
+/** Parameters that carry a machine-written sentence (FD-19): read in Russian in a Russian interface. */
+const MACHINE_PARAMS = new Set(['problem', 'detail', 'error', 'reason', 'text']);
+
 export function t(lang: Lang, key: Key | string, params: Record<string, string | number> = {}): string {
   const template = dictionaries[lang][key as Key] ?? en[key as Key] ?? key;
-  return template.replace(/\{(\w+)\}/g, (_, name: string) => (name in params ? String(params[name]) : `{${name}}`));
+  return template.replace(/\{(\w+)\}/g, (_, name: string) => {
+    if (!(name in params)) return `{${name}}`;
+    const value = String(params[name]);
+    return lang === 'ru' && MACHINE_PARAMS.has(name) ? machineRu(value) : value;
+  });
 }
 
 export function hasKey(key: string): key is Key {

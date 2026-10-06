@@ -30,8 +30,10 @@ export function App() {
     if (persist) void api().updateSettings({ layout: patch }).catch(() => undefined);
   };
 
+  // The language the main process speaks: the person's choice in Settings, else the system's.
+  const reloadLang = () => void api().locale().then((l) => { setLang(langFor(l)); document.documentElement.lang = langFor(l); });
   useEffect(() => {
-    void api().locale().then((l) => { setLang(langFor(l)); document.documentElement.lang = langFor(l); });
+    reloadLang();
     void api().status().then(setStatus);
     void api().settings().then((s) => { applyTheme(s.theme); setLayout(s.layout); });
     const offStatus = api().onStatus(setStatus);
@@ -61,7 +63,7 @@ export function App() {
 
   return (
     <LangContext.Provider value={lang}>
-      {status ? <Shell status={status} route={route} setRoute={setRoute} stopKey={stopKey} setStopKey={setStopKey} activityFilter={activityFilter} setActivityFilter={setActivityFilter} layout={layout} changeLayout={changeLayout} /> : <div className="page muted row" role="status"><Spinner /> {tr(lang, 'app.loading')}</div>}
+      {status ? <Shell status={status} route={route} setRoute={setRoute} stopKey={stopKey} setStopKey={setStopKey} activityFilter={activityFilter} setActivityFilter={setActivityFilter} layout={layout} changeLayout={changeLayout} onLanguage={reloadLang} /> : <div className="page muted row" role="status"><Spinner /> {tr(lang, 'app.loading')}</div>}
     </LangContext.Provider>
   );
 }
@@ -75,9 +77,10 @@ interface ShellProps {
   status: AppStatus; route: Route; setRoute: (r: Route) => void; stopKey: string | null; setStopKey: (k: string | null) => void;
   activityFilter: ActivityFilter; setActivityFilter: (f: ActivityFilter) => void;
   layout: AppSettings['layout']; changeLayout: (patch: NonNullable<SettingsPatch['layout']>, persist?: boolean) => void;
+  onLanguage: () => void;
 }
 
-function Shell({ status, route, setRoute, stopKey, setStopKey, activityFilter, setActivityFilter, layout, changeLayout }: ShellProps) {
+function Shell({ status, route, setRoute, stopKey, setStopKey, activityFilter, setActivityFilter, layout, changeLayout, onLanguage }: ShellProps) {
   const { t } = useT();
   const open = (key: string, link?: string, tab?: 'logs' | 'health') => setRoute({ page: 'service', key, link, nonce: Date.now(), tab });
   const act = (key: string, action: 'restart' | 'start' | 'update') => {
@@ -156,7 +159,7 @@ function Shell({ status, route, setRoute, stopKey, setStopKey, activityFilter, s
           {!rail && <UpdateLine status={status} />}
           <button className="nav-item" aria-current={route.page === 'settings' ? 'page' : undefined} title={rail ? t('nav.settings') : undefined} onClick={() => setRoute({ page: 'settings' })}>
             <Icon name="settings" /><span className="nav-label">{t('nav.settings')}</span>
-            {rail && ['ready', 'misplaced', 'error'].includes(status.update.state) && <span className="count alert" aria-hidden="true">!</span>}
+            {rail && ['ready', 'held', 'misplaced', 'error'].includes(status.update.state) && <span className="count alert" aria-hidden="true">!</span>}
           </button>
           {/* ADR-0017 (SCN-047): the list folds into a rail and back; remembered. */}
           <button className="nav-item nav-fold" aria-expanded={!rail} title={t(rail ? 'sidebar.expand' : 'sidebar.collapse')} onClick={() => changeLayout({ sidebar: rail ? 'expanded' : 'collapsed' })}>
@@ -186,7 +189,7 @@ function Shell({ status, route, setRoute, stopKey, setStopKey, activityFilter, s
               {route.page === 'overview' && <Overview status={status} products={products} open={open} act={act} goSpend={() => setRoute({ page: 'spend' })} />}
               {route.page === 'activity' && <Activity status={status} openAt={open} filter={activityFilter} setFilter={setActivityFilter} />}
               {route.page === 'spend' && <Spend status={status} />}
-              {route.page === 'settings' && <Settings status={status} onTheme={applyTheme} />}
+              {route.page === 'settings' && <Settings status={status} onTheme={applyTheme} onLanguage={onLanguage} />}
             </div>
           )}
       </main>
@@ -226,6 +229,7 @@ function UpdateLine({ status }: { status: AppStatus }) {
   const u = status.update;
   if (u.state === 'checking') return <p className="meta row"><Spinner /> {t('update.checking')}</p>;
   if (u.state === 'downloading') return <p className="meta row"><Spinner /> {t('update.downloading')}</p>;
+  if (u.state === 'held') return <div className="row"><span className="meta">{t('update.held', { version: u.version ?? '' })}</span>{u.steps && <button className="btn" onClick={() => void api().openUpdateSteps()}>{t('update.steps')}</button>}<button className="btn btn-primary" onClick={() => void api().restartToUpdate()}>{t('update.installNow')}</button></div>;
   if (u.state === 'ready') return <div className="row"><span className="meta">{(u.version ? t('update.ready', { version: u.version }) : t('update.readyUnnamed'))}</span><button className="btn btn-primary" onClick={() => void api().restartToUpdate()}>{t('update.restart')}</button></div>;
   if (u.state === 'misplaced') return <div className="row"><span className="meta state-down">{t('update.misplaced')}</span><button className="btn" onClick={() => void api().moveToApplications()}>{t('move.confirm')}</button></div>;
   if (u.state === 'error') return <div className="row"><span className="meta state-down">{t('update.error', { error: u.error ?? '' })}</span><button className="btn" onClick={() => void api().checkForUpdates()}>{t('update.retry')}</button></div>;

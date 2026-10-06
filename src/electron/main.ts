@@ -11,7 +11,7 @@ import { ConsoleHost } from './console';
 import { appendLog, sweepTemps } from '../core/fsutil';
 import { parseDeepLink, SCHEME } from '../core/deeplink';
 import { servicesDir } from '@passioncode-ai/fabric-service-host';
-import { langFor, t, type Lang } from '../core/i18n';
+import { chooseLang, langFor, t, type Lang } from '../core/i18n';
 import { execRunner } from '../core/launchd';
 import { listListeners, unattributed } from '../core/listeners';
 import { applyLoginItem, LOGIN_NEEDS_APPROVAL, loginItemAtStartup, type LoginItemOs } from '../core/loginitem';
@@ -21,7 +21,7 @@ import { readSpend, type SpendEntry } from '../core/spend';
 import { NotifyLedger } from '../core/notify';
 import { SettingsStore } from '../core/settings';
 import type { AppStatus, Settings, SettingsPatch } from '../core/types';
-import { clearRestoreRecord, KEPT_FILES, productDataPaths, purgeAfterExit, readRestoreRecord, removeMcpRegistrations, repairMcpRegistrations, restoreMcpRegistrations, writeRestoreRecord } from '../core/uninstall';
+import { ALWAYS_KEPT, clearRestoreRecord, KEPT_FILES, productDataPaths, purgeAfterExit, readRestoreRecord, removeMcpRegistrations, repairMcpRegistrations, restoreMcpRegistrations, writeRestoreRecord } from '../core/uninstall';
 import { autoInstallNow, HiddenGrace, partitionFor, RELAUNCH_MARKER, relaunchHidden, stalePartitions, UPDATE_IDLE_MS, VIEW_RELEASE_GRACE_MS } from './policy';
 import { AppTray } from './tray';
 import { Updater } from './updater';
@@ -88,7 +88,9 @@ if (!app.requestSingleInstanceLock()) {
   // The app speaks the system's first language. FD_TEST_LANG (`en`, `ru`) is honoured only when the
   // app is not packaged, so a test can walk the Russian interface; a shipped app ignores it.
   const testLang = !app.isPackaged ? process.env.FD_TEST_LANG : undefined;
-  const lang = (): Lang => langFor(testLang || app.getPreferredSystemLanguages()[0] || app.getLocale());
+  // The person's choice in Settings wins over the system's first language (a Mac set to English first
+  // with Russian second reads Russian when the person picks it).
+  const lang = (): Lang => (testLang ? langFor(testLang) : chooseLang(settings.get().language, app.getPreferredSystemLanguages()[0] || app.getLocale()));
   const monitor = new Monitor({ servicesDir: servicesDir(), activity, settings: () => settings.get(), lang, ledger: new NotifyLedger(path.join(userData, 'notified.json')) });
   // ADR-0017: the agent consoles. FD_TEST_RUNTIME_DIRS replaces where runtimes are looked for, only
   // in a development run (the e2e suite's scripted runtime); a packaged app reads the login shell's PATH.
@@ -105,7 +107,7 @@ if (!app.requestSingleInstanceLock()) {
       quitting = false;
       try { fs.rmSync(path.join(userData, RELAUNCH_MARKER), { force: true }); } catch { /* gone */ }
     }
-  }, log, () => { installing = true; quitting = true; });
+  }, log, () => { installing = true; quitting = true; }, () => settings.get().autoUpdate);
   let installing = false;
 
   const status = (): AppStatus => ({
@@ -313,7 +315,8 @@ if (!app.requestSingleInstanceLock()) {
     if (app.isPackaged) {
       const all = [...new Set([...productDataPaths(app.getPath('home')), userData, app.getPath('logs')])];
       if (deleteData) {
-        purgeAfterExit(process.pid, all);
+        // LC-16: even «delete my settings» leaves the automatic-update switch as the person set it.
+        purgeAfterExit(process.pid, all.filter((p) => path.resolve(p) !== path.resolve(userData)), { dir: userData, names: ALWAYS_KEPT });
       } else {
         try {
           writeRestoreRecord(userData, { at: new Date().toISOString(), loginItem: wasAtLogin, mcp });
@@ -442,8 +445,11 @@ if (!app.requestSingleInstanceLock()) {
       const { consoles: _ignored, ...patch } = (raw && typeof raw === 'object' ? raw : {}) as SettingsPatch;
       // Choosing launch at login — on the first-run card or in Settings — is the one moment it is registered (LC-07).
       const choosing = 'launchAtLogin' in patch;
+      const before = settings.get().autoUpdate;
       const next = settings.update(choosing ? { ...patch, launchAtLoginAsked: true } : patch);
       if (patch.notifications) schedulePauseEnd(); // U-7: a pause set here also rebuilds the tray when it ends
+      if (typeof patch.autoUpdate === 'boolean' && patch.autoUpdate !== before) updater.switched(patch.autoUpdate); // LC-16 auto_update on|off
+      if ('language' in patch) appMenu(); // the menu speaks the new language at once; the tray follows with pushStatus
       nativeTheme.themeSource = next.theme;
       const refusal = choosing && loginOs ? applyLoginItem(next.launchAtLogin, loginOs) : undefined;
       const error = refusal === LOGIN_NEEDS_APPROVAL ? t(lang(), 'login.approval') : refusal; // P-10
@@ -496,7 +502,8 @@ if (!app.requestSingleInstanceLock()) {
     ipcMain.handle(CHANNELS.rescan, () => monitor.tick(true));
     ipcMain.handle(CHANNELS.serviceGuide, () => shell.openExternal(SERVICE_GUIDE));
     ipcMain.handle(CHANNELS.updateRestart, () => { updater.restart(); });
-    ipcMain.handle(CHANNELS.updateCheck, () => updater.check());
+    ipcMain.handle(CHANNELS.updateSteps, () => { const steps = updater.state.state === 'held' ? updater.state.steps : undefined; if (steps && steps.startsWith('https://')) return shell.openExternal(steps); });
+    ipcMain.handle(CHANNELS.updateCheck, () => updater.check(true)); // the person asked: works with automatic updates off
     ipcMain.handle(CHANNELS.moveToApplications, () => moveToApplications());
     ipcMain.handle(CHANNELS.notificationSettings, () => shell.openExternal('x-apple.systempreferences:com.apple.Notifications-Settings.extension'));
     ipcMain.handle(CHANNELS.locale, () => lang());
@@ -513,7 +520,7 @@ if (!app.requestSingleInstanceLock()) {
     Menu.setApplicationMenu(Menu.buildFromTemplate([
       { role: 'appMenu', submenu: [
         { role: 'about' },
-        { label: t(l, 'menu.checkUpdates'), click: () => updater.check() },
+        { label: t(l, 'menu.checkUpdates'), click: () => updater.check(true) },
         { type: 'separator' }, { role: 'hide' }, { role: 'hideOthers' }, { role: 'unhide' }, { type: 'separator' },
         { role: 'quit' },
       ] },

@@ -275,3 +275,127 @@ test('ADR-0017 REQ-02: the compact bar carries the first problem — a state tha
   assert.equal(problemOf({ ...base, state: 'down', reasons: [{ code: 'reason.down' }], busy: 'restarting' as never }, now), null, 'a running action shows its progress instead');
   assert.equal(problemOf({ ...base, state: 'starting', reasons: [{ code: 'reason.waiting' }] }, now), null, 'starting is not a problem');
 });
+
+test('LC-16: the switch stops automatic checks; a check the person asks for always runs; busy states never stack', async () => {
+  const { mayCheck } = await import('../src/core/version');
+  assert.equal(mayCheck({ manual: false, enabled: true, state: 'idle' }), true);
+  assert.equal(mayCheck({ manual: false, enabled: false, state: 'idle' }), false, 'off: nothing automatic');
+  assert.equal(mayCheck({ manual: true, enabled: false, state: 'idle' }), true, 'Check for Updates works with it off');
+  assert.equal(mayCheck({ manual: false, enabled: true, state: 'error' }), true, 'a failed check is retried');
+  for (const state of ['checking', 'downloading', 'ready', 'unsupported', 'misplaced']) assert.equal(mayCheck({ manual: true, enabled: true, state }), false, state);
+  assert.equal(mayCheck({ manual: false, enabled: true, state: 'held' }), false, 'a held release is not downloaded again by the timer');
+  assert.equal(mayCheck({ manual: true, enabled: true, state: 'held' }), true, 'the person may look for a newer one');
+});
+
+test('LC-16: a downloaded update installs only if it is the announced, newer version signed by the organization', async () => {
+  const { stagedRefusal, stagedBundlePath, RELEASE_TEAM, FIRST_CHECK_MS, CHECK_EVERY_MS } = await import('../src/core/version');
+  assert.equal(FIRST_CHECK_MS, 90_000);
+  assert.equal(CHECK_EVERY_MS, 6 * 3_600_000);
+  const ok = { feedVersion: '0.6.1', stagedVersion: '0.6.1', team: RELEASE_TEAM, current: '0.6.0' };
+  assert.equal(stagedRefusal(ok), null);
+  assert.match(stagedRefusal({ ...ok, stagedVersion: '0.6.2' })!, /announced 0\.6\.1 but the download is 0\.6\.2/);
+  assert.match(stagedRefusal({ ...ok, feedVersion: '0.5.9', stagedVersion: '0.5.9' })!, /not newer than 0\.6\.0/, 'an older bundle is refused');
+  assert.match(stagedRefusal({ ...ok, team: 'ABCDE12345' })!, /signed by ABCDE12345/);
+  assert.match(stagedRefusal({ ...ok, team: null })!, /signed by no team/);
+  assert.match(stagedRefusal({ ...ok, stagedVersion: null })!, /carries no version/);
+  assert.equal(stagedBundlePath({ updateBundleURL: 'file:///Users/x/Library/Caches/ai.passioncode.fabric-dashboards.ShipIt/update.Ab1/Fabric%20Dashboards.app/' }), '/Users/x/Library/Caches/ai.passioncode.fabric-dashboards.ShipIt/update.Ab1/Fabric Dashboards.app');
+  assert.equal(stagedBundlePath({ updateBundleURL: 'https://evil.example/x.app' }), null);
+  assert.equal(stagedBundlePath({}), null);
+});
+
+test('LC-16: the release SHA256SUMS of 0.6.0 verifies against the pinned organization key; a change to it does not', async () => {
+  const v = await import('../src/core/release-verify');
+  const dir = path.join(__dirname, 'fixtures/release-0.6.0');
+  const sums = fs.readFileSync(path.join(dir, 'SHA256SUMS'));
+  const asc = fs.readFileSync(path.join(dir, 'SHA256SUMS.asc'), 'utf8');
+  assert.deepEqual(await v.sumsSignedByRelease(sums, asc), { ok: true });
+  const tampered = Buffer.from(sums.toString('utf8').replace('d562c397', 'e562c397'));
+  assert.equal((await v.sumsSignedByRelease(tampered, asc)).ok, false, 'a changed sum fails the signature');
+  const parsed = v.parseSums(sums.toString('utf8'));
+  assert.equal(parsed.get(v.zipName('0.6.0')), 'd562c397168f715ae8e55ceb0d06037c38a935c3fb95a247ce335d8ac9c23b45');
+  const feed = JSON.parse(fs.readFileSync(path.join(dir, 'update-feed.json'), 'utf8'));
+  assert.equal(v.feedNamesOwnRelease(feed, '0.6.0'), true);
+  assert.equal(v.feedNamesOwnRelease(feed, '0.6.1'), false, 'a feed naming another release\'s files is refused');
+  assert.equal(v.feedNamesOwnRelease({ releases: [{ version: '0.6.0', updateTo: { version: '0.6.0', url: 'https://evil.example/x.zip' } }] }, '0.6.0'), false);
+});
+
+test('LC-16: a signature by another key is refused, even a valid one', async () => {
+  const v = await import('../src/core/release-verify');
+  const openpgp = await import('openpgp');
+  const { privateKey, publicKey } = await openpgp.generateKey({ type: 'ecc', curve: 'curve25519', userIDs: [{ name: 'Not the org' }], format: 'armored' });
+  const sums = Buffer.from('00'.repeat(32) + '  Fabric-Dashboards-9.9.9-mac.zip\n');
+  const signature = await openpgp.sign({ message: await openpgp.createMessage({ binary: sums }), signingKeys: await openpgp.readPrivateKey({ armoredKey: privateKey }), detached: true });
+  const r = await v.sumsSignedByRelease(sums, signature as string);
+  assert.equal(r.ok, false, 'not the pinned key');
+  const r2 = await v.sumsSignedByRelease(sums, signature as string, publicKey);
+  assert.equal(r2.ok, false);
+  assert.match((r2 as { why: string }).why, /not the organization's/);
+});
+
+test('LC-16: the switch is the auto-update file — absent is on, only off is off; an earlier off is carried over once', async () => {
+  const { autoUpdateOn, AUTO_UPDATE_FILE } = await import('../src/core/autoupdate');
+  const { ALWAYS_KEPT, KEPT_FILES } = await import('../src/core/uninstall');
+  const dir = tmp('fd-autoupdate-');
+  assert.equal(autoUpdateOn(dir), true, 'absent = on');
+  fs.writeFileSync(path.join(dir, AUTO_UPDATE_FILE), 'OFF\n');
+  assert.equal(autoUpdateOn(dir), false, 'only the word off turns it off');
+  fs.writeFileSync(path.join(dir, AUTO_UPDATE_FILE), 'maybe');
+  assert.equal(autoUpdateOn(dir), true, 'anything else is on');
+  // The settings view reads and writes the file, not settings.json.
+  const store = new SettingsStore(dir);
+  store.update({ autoUpdate: false });
+  assert.equal(fs.readFileSync(path.join(dir, AUTO_UPDATE_FILE), 'utf8').trim(), 'off');
+  assert.equal(new SettingsStore(dir).get().autoUpdate, false);
+  store.update({ autoUpdate: true });
+  assert.equal(new SettingsStore(dir).get().autoUpdate, true);
+  // A copy that switched updates off before the file existed keeps that choice.
+  const old = tmp('fd-autoupdate-old-');
+  fs.writeFileSync(path.join(old, 'settings.json'), JSON.stringify({ autoUpdate: false }));
+  assert.equal(new SettingsStore(old).get().autoUpdate, false);
+  assert.equal(fs.readFileSync(path.join(old, AUTO_UPDATE_FILE), 'utf8').trim(), 'off');
+  // An uninstall never writes it: kept with the settings, and kept even when the person deletes them.
+  assert.ok((KEPT_FILES as readonly string[]).includes(AUTO_UPDATE_FILE));
+  assert.deepEqual([...ALWAYS_KEPT], [AUTO_UPDATE_FILE]);
+});
+
+// #region l10n — docs: docs/adr/0015-data-survives-uninstall-updates-install-themselves.md#decision
+test('L10N-01: the system language decides; the switch overrides; unknown values follow the system', async () => {
+  const { chooseLang } = await import('../src/core/i18n');
+  assert.equal(chooseLang('system', 'ru-RU'), 'ru');
+  assert.equal(chooseLang('system', 'ru'), 'ru');
+  assert.equal(chooseLang('system', 'en-US'), 'en');
+  assert.equal(chooseLang('system', ''), 'en');
+  assert.equal(chooseLang('system', undefined), 'en');
+  assert.equal(chooseLang('en', 'ru-RU'), 'en', 'English chosen on a Russian Mac');
+  assert.equal(chooseLang('ru', 'en-US'), 'ru', 'Русский chosen on an English Mac');
+  assert.equal(chooseLang('de', 'ru-RU'), 'ru', 'an unknown stored value follows the system');
+  
+  assert.equal(merge({ language: 'de' } as never).language, 'system');
+  assert.equal(merge({ language: 'ru' } as never).language, 'ru');
+});
+
+test('L10N-05: Russian follows the organization glossary (Терминал, Завершить, the update labels)', async () => {
+  const { t } = await import('../src/core/i18n');
+  assert.equal(t('ru', 'settings.autoUpdate'), 'Устанавливать обновления автоматически');
+  assert.equal(t('en', 'settings.autoUpdate'), 'Install updates automatically');
+  assert.equal(t('ru', 'update.restart'), 'Перезапустить для обновления');
+  assert.equal(t('ru', 'tray.quit'), 'Завершить');
+  assert.match(t('ru', 'console.openTerminal'), /Терминале/);
+  const { dictionary } = await import('../src/core/i18n');
+  const ru = Object.entries(dictionary('ru'));
+  assert.deepEqual(ru.filter(([, v]) => /\bTerminal\b|\bKeychain\b|System Settings/.test(v)).map(([k]) => k), [], 'macOS names in Russian');
+  assert.deepEqual(ru.filter(([, v]) => /логин|залогин|учётн(ая|ой) запис/i.test(v)).map(([k]) => k), [], 'аккаунт, войти — not логин or учётная запись');
+});
+
+test('FD-19: machine reasons read in Russian where they are known, and stay as written where not', async () => {
+  const { machineRu } = await import('../src/core/machine-ru');
+  assert.equal(machineRu('connect ECONNREFUSED 127.0.0.1:8787'), 'соединение отклонено (127.0.0.1:8787)');
+  assert.equal(machineRu('missing origin; protocol must be fabric-service/0.1, not x'), 'нет поля origin; protocol должен быть fabric-service/0.1, а не x');
+  assert.equal(machineRu('the token file ~/t is readable by others; set mode 0600'), 'файл токена ~/t доступен другим; поставьте права 0600', 'one sentence with a "; " inside');
+  assert.equal(machineRu('the usage report is malformed: days is not a list of at most 31'), 'отчёт о расходах некорректен: days — не список не длиннее 31');
+  assert.equal(machineRu('something nobody wrote down'), 'something nobody wrote down');
+  const { t } = await import('../src/core/i18n');
+  assert.equal(t('ru', 'update.error', { error: 'socket hang up' }).includes('соединение оборвалось'), true, 'a machine parameter is translated by t()');
+  assert.equal(t('en', 'update.error', { error: 'socket hang up' }).includes('socket hang up'), true);
+});
+// #endregion l10n

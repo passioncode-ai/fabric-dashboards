@@ -27,9 +27,9 @@
 | SCN-019 | Notification when a service goes down and comes back | notifications | P-01 | ST-007 | draft | 2026-10-06 |
 | SCN-020 | Notification from a service event opens the item | notifications | P-01 | ST-007, ST-006 | draft | 2026-10-06 |
 | SCN-021 | Update a service | updates | P-01 | ST-008 | draft | 2026-10-06 |
-| SCN-022 | The app updates itself | updates | P-01 | ST-008 | draft | 2026-10-06 |
+| SCN-022 | The app updates itself | updates | P-01 | ST-008 | draft | 2026-10-07 |
 | SCN-023 | Glance from the menu bar | tray | P-01 | ST-009 | draft | 2026-10-06 |
-| SCN-024 | Settings: launch at login, notifications, quiet hours | settings | P-01 | ST-010, ST-007 | draft | 2026-10-06 |
+| SCN-024 | Settings: launch at login, notifications, quiet hours | settings | P-01 | ST-010, ST-007 | draft | 2026-10-07 |
 | SCN-025 | Run doctor and read logs | control | P-01 | ST-003 | draft | 2026-10-06 |
 | SCN-026 | Open a service page from a link an agent handed over | links | P-01 | ST-011, ST-005 | draft | 2026-10-06 |
 | SCN-027 | A link that cannot be opened | links | P-01 | ST-011 | draft | 2026-10-06 |
@@ -496,16 +496,16 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **Entry point:** app running
 - **Preconditions:** a newer signed release is published; the app is in Applications
 - **Steps:**
-  1. System checks 10 s after start and every 6 hours and downloads the update -> the sidebar footer and Settings → Updates show "Update <version> ready" with Restart
+  1. System checks 90 s after start and every 6 hours, verifies the release (its SHA256SUMS signed by the organization's key, the zip's hash, the app's signature by team KJ35UYYL22 and its version) and lets it download -> the sidebar footer and Settings → Updates show "Update <version> ready" with Restart to Update
   2. User closes the window and leaves it closed for ten minutes -> the app installs the update and reopens in the menu bar, with no window and no question; services are untouched
   3. User opens the window later -> it is the new version, on the Overview
 - **Expected result:** every copy stays current with no action from the person
-- **Alt paths:** user chooses Restart -> it installs now and reopens on the Overview (U-18 keeps the screen later); the window stays open -> nothing installs under the person's eyes, and it installs at the next quit or the next ten closed minutes; a doctor or update command is running -> the install waits for it, checked every minute; "Install updates automatically" is off in Settings → Updates -> the update installs at quit or on Restart only; Settings → Updates → Check now checks at once; the feed names a version that is not newer than the installed one -> nothing installs (F-1)
-- **UI elements:** footer update line, Restart button, Settings → Updates (Install updates automatically, state line, Check now), "Check for updates" in the app menu
+- **Alt paths:** user chooses Restart to Update -> it installs now and reopens on the Overview (U-18 keeps the screen later); the window stays open -> nothing installs under the person's eyes, and it installs at the next quit or the next ten closed minutes; a doctor or update command is running -> the install waits for it, checked every minute; "Install updates automatically" is off in Settings → Updates -> nothing is checked, downloaded or installed on its own, and Check for updates still works (LC-16; the choice is kept in a file no update, reinstall or uninstall rewrites); the release needs a step from the person -> it is verified but held: "Update <version> is verified and waits for you" with What to do (opens the release's steps) and Install; Settings → Updates → Check now checks at once; the feed names a version that is not newer than the installed one -> nothing installs (F-1)
+- **UI elements:** footer update line, Restart to Update button, held line with What to do and Install, Settings → Updates (Install updates automatically, state line, Check now), "Check for updates" in the app menu
 - **States covered:** loading, success, error
-- **Errors & recovery:** download or signature check fails -> footer "Update failed: <reason>" with Retry; the running app is unchanged
+- **Errors & recovery:** download or signature check fails -> footer "Update failed: <reason>" with Retry, one automatic retry within the hour, and the running app is unchanged; the bundle Squirrel staged is not the verified one -> it is removed before any quit and the footer says so; every step is logged with the organization's update codes (ADR-0015 amendment)
 - **Status:** draft
-- **Coverage:** src/electron/updater.ts, src/electron/policy.ts (autoInstallNow, relaunchHidden), src/electron/main.ts (auto-install-flow), src/renderer/components/Settings.tsx (UpdateState), scripts/dist-mac.mjs, test/lifecycle.test.ts, test/e2e/app.test.ts
+- **Coverage:** src/electron/updater.ts, src/core/release-verify.ts, src/core/autoupdate.ts, src/core/version.ts (mayCheck, stagedRefusal), src/electron/policy.ts (autoInstallNow, relaunchHidden), src/electron/main.ts (auto-install-flow), src/renderer/components/Settings.tsx (UpdateState), scripts/dist-mac.mjs, test/lifecycle.test.ts, test/e2e/app.test.ts
 - **Product:** unobserved
 
 ## tray
@@ -537,17 +537,17 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **Entry point:** sidebar Settings
 - **Preconditions:** none
 - **Steps:**
-  1. User opens Settings -> system shows Launch at login (off until the person chooses, on the first-run card or here), Updates (SCN-022), Notifications per service with levels, Quiet hours (from–to), the services folder, Uninstall, and Unattributed listeners
+  1. User opens Settings -> system shows Launch at login (off until the person chooses, on the first-run card or here), Theme, Language (As on this Mac, English, Русский), Updates (SCN-022), Notifications per service with levels, Quiet hours (from–to), the services folder, Uninstall, and Unattributed listeners
   2. User changes a setting -> it applies immediately and is kept across restarts; launch at login is registered with macOS only at this moment, never by a launch or an update
   3. User opens Unattributed listeners -> system lists local ports listening on all interfaces that no descriptor claims, with the program name and pid
   4. User chooses Uninstall Fabric Dashboards… and confirms, leaving "Also delete my settings and activity history" unticked -> the app removes its login item and its entry in Claude Code's MCP servers, moves itself to the Trash and quits; once it has exited, its caches, logs and dashboard sessions are removed, and the settings, the activity history and a note of what to restore stay (SCN-043); services and their data always stay
 - **Expected result:** the app fits the operator's day, stray network listeners are visible, and leaving the app removes everything it added without losing what the person set up
-- **Alt paths:** the person turned the login item off in System Settings -> the next launch shows it off here and does not turn it back on; the person ticks "Also delete my settings and activity history" -> everything the app wrote is removed after it exits, nothing is restored later; settings.json is damaged -> the last good copy is restored and the log says so
-- **UI elements:** toggles, per-service rows, time pickers, folder path with Show, Uninstall button and its confirmation with the delete-data box, listeners list
+- **Alt paths:** user picks Русский (or English) under Language -> the window, the app menu and the tray switch at once, and machine reasons (a descriptor check, a network error) read in that language where they are known — a service's own words (tiles, events) stay as the service wrote them; As on this Mac follows the system language; the person turned the login item off in System Settings -> the next launch shows it off here and does not turn it back on; the person ticks "Also delete my settings and activity history" -> everything the app wrote is removed after it exits, nothing is restored later; settings.json is damaged -> the last good copy is restored and the log says so
+- **UI elements:** toggles, Language select, per-service rows, time pickers, folder path with Show, Uninstall button and its confirmation with the delete-data box, listeners list
 - **States covered:** empty, success, error
 - **Errors & recovery:** macOS refuses the login item -> the toggle returns to off with "macOS refused the login item: <reason>" ("approve Fabric Dashboards in System Settings → General → Login Items" when it needs approval); the listener scan fails -> "Cannot list listeners: <reason>", and nothing listening is "None", not an error; uninstall cannot remove the MCP entry or the login item -> "Nothing was removed: <reason>" and the app stays (a refused login item puts the MCP entry back); the app cannot be moved to the Trash -> it says so and is still uninstalled; Show folder fails -> "Could not open <path>: <reason>"
 - **Status:** draft
-- **Coverage:** src/renderer/components/Settings.tsx, src/renderer/components/Overview.tsx, src/core/settings.ts, src/core/loginitem.ts, src/core/uninstall.ts, src/core/listeners.ts, test/parts.test.ts, test/lifecycle.test.ts
+- **Coverage:** src/renderer/components/Settings.tsx, src/renderer/components/Overview.tsx, src/core/settings.ts, src/core/i18n.ts (chooseLang), src/core/machine-ru.ts, src/core/loginitem.ts, src/core/uninstall.ts, src/core/listeners.ts, test/parts.test.ts, test/lifecycle.test.ts
 - **Product:** unobserved
 
 ### SCN-043: Reinstall picks up where I left off
