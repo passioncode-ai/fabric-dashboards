@@ -3,11 +3,32 @@
 Updated 2026-10-07 (0.6.2: 0.6.1 withdrawn for audit HIGH-2, audit fixes, signed feed; 0.6.1: LC-16 in detail updater, Russian by choice; 0.6.0 published 2026-10-06 21:35 UTC; release 0.5.6: third review pass, token latch; release 0.5.5 withdrawn: release audit and its second pass, A2A plan, ADR-0016, ADR-0015 data and updates, FD-05, FD-06, FD-13; Spend and DEC-0021; one entry per agent, ADR-0012; lifecycle contract landed from PR #21, unreleased; CI release rehearsal
 `v0.4.1-rc.1` green; releases move to CI signing; release 0.4.1, MCP links to online services).
 
-Current release: 0.6.0 (published 2026-10-06 21:35 UTC, run 37505569449); 0.6.2 in progress (next section; 0.6.1 withdrawn). Before it, 0.5.6 (2026-10-06); the 0.4.1 section below is the previous one. Earlier releases below are preserved as dated evidence.
+Current release: 0.6.2 (published 2026-10-06 23:41 UTC, run 37541067349; 0.6.1 withdrawn). Before it, 0.6.0 (published 2026-10-06 21:35 UTC, run 37505569449); Before it, 0.5.6 (2026-10-06); the 0.4.1 section below is the previous one. Earlier releases below are preserved as dated evidence.
 
 ## Next — start here (2026-10-07)
 
-**0.6.2 — branch `agent/fixes-062`.** 0.6.1 (PR #34, `4f5cc11`, tag `v0.6.1`) was withdrawn before
+**Released: 0.6.2 on 2026-10-06 23:41 UTC** (run 37541067349, tag `v0.6.2` on `2c06fa8`; GitHub
+release `v0.6.2`, Latest). The receipt, read from the `release-macos` artifact: revision `2c06fa8`,
+Developer ID Application (KJ35UYYL22), `accepted and stapled: app, update zip, image`, both
+Gatekeeper checks `accepted, source=Notarized Developer ID`, fuses `100011011` on every slice,
+`checks.pty` (node-pty from app.asar), `checks.updateVerifier` (openpgp in app.asar accepts v0.6.0's
+signed SHA256SUMS and refuses one changed byte), `checks.downgradeGuard`, the MCP launcher answers
+`initialize` as 0.6.2. The published files, checked the way the 0.6.2 updater checks them:
+`sumsSignedByRelease` ok, `signedFeed` ok (`needsPerson` null), the zip matches SHA256SUMS,
+`codesign --verify --deep --strict` valid, team `KJ35UYYL22`, version 0.6.2, CDHash `a8505bbc…`;
+the `latest` feed answers 0.6.2. Knowledge base: fabric-workspace PR #61 (`b5d49f4`) — products.md
+0.6.2, roadmap Dashboards row, RM-19 and RM-25.
+
+**First task for the next agent:** the field proof. At 2026-10-07 01:41 local the installed copy was
+still 0.5.6; its 6-hourly check (about 04:05 local) downloads 0.6.2, and it installs after 10 hidden
+minutes with nothing running (0.5.6 has the automatic install). Never quit it yourself (lifecycle
+broker rule). Then on 0.6.2: `grep -E 'update_|auto_update' ~/Library/Logs/Fabric\ Dashboards/main.log`
+must show `auto_update on` at start, and `update_install installed from=0.5.6 to=0.6.2`; record the
+lines here and close FD-27's field proof for the first hop. Measure FD-07 (`ps -o time,rss` over 10
+hidden minutes) on 0.6.2 and record it. Then FD-25 once Switchboard 0.6.10 publishes, and FD-29's
+open item (the `file://` feed).
+
+**How 0.6.2 came about — branch `agent/fixes-062`, PR #35.** 0.6.1 (PR #34, `4f5cc11`, tag `v0.6.1`) was withdrawn before
 approval — run 37539041728 force-cancelled — because a read-only bug audit by the fabric-workspace
 session found that Restart to Update ended running agent consoles without asking (HIGH-2). 0.6.2
 carries all of 0.6.1 — FD-27 (updates by
