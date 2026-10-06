@@ -40,14 +40,19 @@ What exists today:
    - **The full card** is the current header: summary, facts, tools, reasons, last action, and
      the actions.
    - The compact bar is the default, and the choice is remembered across services and launches.
+     View → Show or Hide Service Details (⌃⌘D) does the same. The name's hover text is the agent's
+     summary (ADR-0016 amendment).
    - **Compact never hides a problem.** A state other than ready, or a failed action that is
      still news, shows as one chip with its first reason. Pressing the chip expands the card.
    - A running action (Starting…, Restarting…) shows its spinner in the bar.
 2. **The sidebar collapses to a rail** (SCN-047): the mark, icons for Overview, Activity, Spend
    and Settings, and one entry per product with its state mark and initials. Badges stay. Each
-   entry names itself in a tooltip and to a screen reader. The choice is remembered.
+   entry names itself in a tooltip and to a screen reader. The choice is remembered. View → Show or
+   Hide Sidebar (⌃⌘S). The rail is 76 px, as wide as the window's traffic lights.
 3. **A console panel sits to the right of the dashboard, one per service** (SCN-048…050).
-   - It can be collapsed and resized, and both its width and whether it is open are remembered.
+   - It can be collapsed and resized (320 px up to half the window; the edge also moves with the
+     arrow keys), and both its width and whether it is open are remembered. View → Show or Hide
+     Console (⌃⌘T).
    - It is a **terminal**: a PTY in the main process (`node-pty`) and an xterm.js view in the
      window. It runs the chosen runtime's own CLI in the service's folder. Prompts, permission
      questions and resume menus are the runtime's own.
@@ -77,6 +82,12 @@ What exists today:
        `codex resume --last`. Continue is offered only where the runtime has such a flag.
    - **Open in Terminal** continues the same runtime and folder in Terminal.app, through the
      same account rule.
+   - **Where it lives.** `src/core/runtimes.ts` (runtimes), `src/core/repofind.ts` (folder),
+     `src/core/switchboard.ts` (account), `src/core/consoles.ts` (sessions on an injected PTY, the
+     start plan, the Terminal line), `src/electron/console.ts` (IPC, node-pty, the login `PATH`),
+     `src/renderer/components/ConsolePanel.tsx` (the panel). Settings: `layout` and `consoles`.
+   - **Stop asks first**, inline in the panel, then hangs up; a runtime that ignores the hang-up is
+     killed 2 s later.
    - **Lifecycle.**
      - A console process is owned. It ends when the app quits, when the person stops it, or when
        its service is removed.
@@ -93,8 +104,15 @@ What exists today:
    - No token ever reaches the renderer. The console carries only what the runtime prints.
 5. **Packaging.** `node-pty` is N-API, and its macOS prebuilds cover arm64 and x64, so the
    universal app loads it in Electron without a rebuild.
-   - The module is unpacked from `app.asar`, because `spawn-helper` must be executable.
-   - The seal stage proves a PTY spawns from the finished bundle (`checks.pty`).
+   - The module is unpacked from `app.asar`, because `spawn-helper` must be executable. node-pty
+     1.1.0 ships `spawn-helper` without its executable bit and its postinstall never sets it: the
+     build sets it before signing (`stageNativeModules`), and a development checkout gets it on first
+     use (`ensureSpawnHelper`).
+   - Both architectures' prebuilds are in both halves of the universal app, byte for byte, so they
+     are declared to the universal merge (`osxUniversal.x64ArchFiles`) instead of being lipo'd.
+   - The app stage proves a PTY spawns from the finished bundle (`checks.pty`). Measured
+     2026-10-06 on an unsigned universal build: `checks.pty` passed, and the arm64 and x86_64
+     slices (the latter under Rosetta) each ran `uname -m` on a PTY from `app.asar`.
 6. **Fabric later.** When Fabric's harness can launch and control sessions, it becomes another
    way to start the same console: a launcher behind the panel, not a chat. Fabric recorded the
    same rule for itself on 2026-10-06: the conversation is the runtime's console, the CEO is a
@@ -111,5 +129,8 @@ What exists today:
   pool, so a second project console in the same pool is refused, in Switchboard's own words.
 - **A native module now ships.** Its prebuilds must keep covering both architectures. A
   `node-pty` upgrade is checked by `checks.pty`.
-- **Lifecycle (AGENTS.md).** The LC-09 table and the LC tests gain the console process. The data
-  list gains no file: the ring lives in memory.
+- **Lifecycle (AGENTS.md).** The LC-09 table gains the console process. The data list gains no
+  file: the ring lives in memory; the choices live in `settings.json` (`layout`, `consoles`).
+- **Tests.** `test/console.test.ts` (runtimes, folder, Switchboard, sessions on a fake PTY, the
+  start plan, the Terminal line), `test/parts.test.ts` (settings, the problem chip),
+  `test/dist.test.ts` (staging), `test/e2e/focus-console.test.ts` (the walk with a scripted runtime).

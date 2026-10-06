@@ -23,7 +23,7 @@
 // receipt with hashes and the signing/notarization state is written beside them.
 import { execFileSync, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statfsSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
+import { chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statfsSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -35,6 +35,23 @@ export const REPO = 'passioncode-ai/fabric-dashboards';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 function requireThat(condition, message) { if (!condition) throw new Error(message); }
+
+/** ADR-0017: the finished bundle's own Node loads node-pty from app.asar and runs a command on a PTY. */
+export function ptyCheck(app) {
+  const probeDir = mkdtempSync(path.join(os.tmpdir(), 'fd-pty-'));
+  try {
+    const module = path.join(app, 'Contents/Resources/app.asar/node_modules/node-pty');
+    const probe = path.join(probeDir, 'probe.js');
+    writeFileSync(probe, `const p = require(${JSON.stringify(module)}).spawn('/bin/echo', ['pty-ok'], { name: 'xterm-256color', cols: 40, rows: 5, cwd: '/', env: { PATH: '/bin:/usr/bin' } });
+let out = ''; p.onData((d) => { out += d; }); p.onExit((e) => { process.stdout.write(JSON.stringify({ out, code: e.exitCode })); process.exit(0); });`);
+    const r = spawnSync(path.join(app, `Contents/MacOS/${PRODUCT}`), [probe], { encoding: 'utf8', timeout: 20_000, env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' } });
+    const answer = (() => { try { return JSON.parse(r.stdout); } catch { return null; } })();
+    requireThat(answer && answer.code === 0 && /pty-ok/.test(answer.out), `The packaged console PTY did not run: ${(r.stderr || r.stdout || String(r.error)).slice(0, 300)}`);
+    return 'node-pty spawns /bin/echo from app.asar (spawn-helper unpacked and executable)';
+  } finally {
+    rmSync(probeDir, { recursive: true, force: true });
+  }
+}
 
 // #region stage-workspace-packages — docs: packages/service-host/README.md#inside-the-app
 /**
@@ -54,6 +71,35 @@ export function stageWorkspacePackages(from, stage) {
   return target;
 }
 // #endregion stage-workspace-packages
+
+// #region stage-native-modules — docs: docs/adr/0017-focus-layout-and-agent-console.md#decision
+/**
+ * ADR-0017: the agent console's PTY (`node-pty`, N-API — no rebuild per Electron). Staged with its
+ * runtime files only: `lib/` without tests and maps, the macOS prebuilds for both architectures
+ * (the universal app carries both), its manifest and licence. `spawn-helper` gets its executable
+ * bit here — node-pty 1.1.0 ships it 0644 and never sets it — before anything is signed. The
+ * packager unpacks the module from app.asar (NATIVE_UNPACK) so the helper can be executed.
+ */
+export const NATIVE_UNPACK = '**/node_modules/node-pty/**';
+export const NATIVE_BOTH_ARCHS = '**/node_modules/node-pty/prebuilds/darwin-*/*';
+export function stageNativeModules(from, stage) {
+  const src = path.join(from, 'node_modules/node-pty');
+  requireThat(existsSync(path.join(src, 'package.json')), 'node-pty is not installed; run npm ci first.');
+  const target = path.join(stage, 'node_modules/node-pty');
+  mkdirSync(target, { recursive: true });
+  const manifest = JSON.parse(readFileSync(path.join(src, 'package.json'), 'utf8'));
+  writeFileSync(path.join(target, 'package.json'), JSON.stringify({ name: manifest.name, version: manifest.version, license: manifest.license, main: manifest.main, types: manifest.types }, null, 2));
+  cpSync(path.join(src, 'LICENSE'), path.join(target, 'LICENSE'));
+  cpSync(path.join(src, 'lib'), path.join(target, 'lib'), { recursive: true, filter: (f) => !/\.test\.js(\.map)?$|\.map$/.test(f) });
+  for (const arch of ['arm64', 'x64']) {
+    const dir = path.join(src, 'prebuilds', `darwin-${arch}`);
+    requireThat(existsSync(path.join(dir, 'pty.node')) && existsSync(path.join(dir, 'spawn-helper')), `node-pty has no prebuild for darwin-${arch}.`);
+    cpSync(dir, path.join(target, 'prebuilds', `darwin-${arch}`), { recursive: true });
+    chmodSync(path.join(target, 'prebuilds', `darwin-${arch}`, 'spawn-helper'), 0o755);
+  }
+  return target;
+}
+// #endregion stage-native-modules
 function run(command, args, options = {}) {
   return execFileSync(command, args, { cwd: root, encoding: 'utf8', maxBuffer: 64 * 1024 ** 2, stdio: ['pipe', 'pipe', 'pipe'], ...options });
 }
@@ -304,11 +350,14 @@ async function stageApp(ctx, identity, notarizedBy) {
     writeFileSync(path.join(stage, 'package.json'), JSON.stringify({ name: pkg.name, productName: PRODUCT, version, main: pkg.main, license: pkg.license, author: pkg.author }, null, 2));
     cpSync(path.join(root, 'out'), path.join(stage, 'out'), { recursive: true });
     stageWorkspacePackages(root, stage);
+    stageNativeModules(root, stage);
     const { packager } = await import('@electron/packager');
     const [appDir] = await packager({
       dir: stage, name: PRODUCT, executableName: PRODUCT, appVersion: version, buildVersion: version,
       appBundleId: BUNDLE_ID, appCategoryType: 'public.app-category.developer-tools', icon: path.join(root, 'build/icon.icns'),
-      platform: 'darwin', arch: 'universal', electronVersion, out: path.join(temp, 'out'), overwrite: true, asar: true, prune: false,
+      platform: 'darwin', arch: 'universal', electronVersion, out: path.join(temp, 'out'), overwrite: true, asar: { unpack: NATIVE_UNPACK }, prune: false,
+      // Both builds carry both architectures' node-pty prebuilds, byte for byte: nothing to lipo.
+      osxUniversal: { x64ArchFiles: NATIVE_BOTH_ARCHS },
       extraResource: [path.join(root, 'build/assets'), path.join(root, 'build/bin')],
       extendInfo: { NSHumanReadableCopyright: `${PRODUCT} — PassionCode.ai`, NSRequiresAquaSystemAppearance: false, LSMinimumSystemVersion: '13.0', LSUIElement: false },
       // `fabric-dashboards://` opens a service page here (docs/adr/0004-deep-links-and-mcp.md).
@@ -355,6 +404,7 @@ async function stageApp(ctx, identity, notarizedBy) {
   } finally {
     rmSync(probeDir, { recursive: true, force: true });
   }
+  record.checks.pty = ptyCheck(app);
   writeRecord(ctx, record);
   console.error(`app: ${path.relative(root, app)} (${record.signing})`);
 }

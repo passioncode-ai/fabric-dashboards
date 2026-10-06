@@ -197,3 +197,28 @@ test('dist: no NS…UsageDescription survives in the app or its helpers (FD-06)'
   assert.deepEqual(read(helper), { CFBundleName: 'A Helper' });
 });
 // #endregion usage-descriptions
+
+test('ADR-0017: node-pty is staged with its runtime files only, both architectures, and an executable spawn-helper', async () => {
+  const dist = await import('../scripts/dist-mac.mjs');
+  const root = path.resolve(__dirname, '..');
+  const stage = tmp('fd-stage-pty-');
+  const target = dist.stageNativeModules(root, stage);
+  assert.equal(target, path.join(stage, 'node_modules/node-pty'));
+  for (const arch of ['arm64', 'x64']) {
+    const helper = path.join(target, 'prebuilds', `darwin-${arch}`, 'spawn-helper');
+    assert.ok(fs.existsSync(path.join(target, 'prebuilds', `darwin-${arch}`, 'pty.node')), arch);
+    assert.equal(fs.statSync(helper).mode & 0o111, 0o111, `${arch} spawn-helper is executable`);
+  }
+  const files = (dir: string): string[] => fs.readdirSync(dir, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? files(path.join(dir, e.name)) : [path.join(dir, e.name)]));
+  assert.ok(files(path.join(target, 'lib')).every((f) => !/\.test\.js$|\.map$/.test(f)), 'no tests or source maps ship');
+  assert.equal(fs.existsSync(path.join(target, 'src')), false, 'no C++ sources ship');
+  assert.equal(dist.NATIVE_UNPACK, '**/node_modules/node-pty/**');
+  // The staged module alone runs a command on a PTY.
+  const probe = path.join(stage, 'probe.js');
+  fs.writeFileSync(probe, `const p = require(${JSON.stringify(target)}).spawn('/bin/echo', ['staged-ok'], { cols: 40, rows: 5, cwd: '/', env: { PATH: '/bin' } });
+let out = ''; p.onData((d) => { out += d; }); p.onExit((e) => { process.stdout.write(JSON.stringify({ out, code: e.exitCode })); process.exit(0); });`);
+  const r = spawnSync(process.execPath, [probe], { encoding: 'utf8', timeout: 20_000 });
+  const answer = JSON.parse(r.stdout || 'null');
+  assert.equal(answer?.code, 0, r.stderr);
+  assert.match(answer.out, /staged-ok/);
+});

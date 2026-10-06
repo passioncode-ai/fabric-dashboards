@@ -7,6 +7,7 @@ import path from 'node:path';
 import { ActivityStore } from '../core/activity';
 import { CHANNELS, type Rect } from '../core/api';
 import { killOwned, ownedCount } from '../core/children';
+import { ConsoleHost } from './console';
 import { appendLog, sweepTemps } from '../core/fsutil';
 import { parseDeepLink, SCHEME } from '../core/deeplink';
 import { servicesDir } from '@passioncode-ai/fabric-service-host';
@@ -89,6 +90,10 @@ if (!app.requestSingleInstanceLock()) {
   const testLang = !app.isPackaged ? process.env.FD_TEST_LANG : undefined;
   const lang = (): Lang => langFor(testLang || app.getPreferredSystemLanguages()[0] || app.getLocale());
   const monitor = new Monitor({ servicesDir: servicesDir(), activity, settings: () => settings.get(), lang, ledger: new NotifyLedger(path.join(userData, 'notified.json')) });
+  // ADR-0017: the agent consoles. FD_TEST_RUNTIME_DIRS replaces where runtimes are looked for, only
+  // in a development run (the e2e suite's scripted runtime); a packaged app reads the login shell's PATH.
+  const testRuntimeDirs = !app.isPackaged && process.env.FD_TEST_RUNTIME_DIRS ? process.env.FD_TEST_RUNTIME_DIRS.split(':').filter(Boolean) : undefined;
+  const consoles = new ConsoleHost({ settings, snapshot: (key) => monitor.snapshot(key), window: () => window, visible: () => windowVisible(), log: (line) => log(line), testDirs: testRuntimeDirs });
   let tray: AppTray | null = null;
   // R-3: the window lets itself close only once a quit is really under way — before-quit, or
   // Squirrel's before-quit-for-update. A failed install puts the window back to hiding on close.
@@ -139,7 +144,7 @@ if (!app.requestSingleInstanceLock()) {
   const updateGrace = new HiddenGrace(UPDATE_IDLE_MS, () => autoInstall());
   let busyRetry: NodeJS.Timeout | null = null;
   function autoInstall(): void {
-    const busy = ownedCount();
+    const busy = ownedCount() + consoles.manager.runningCount(); // ADR-0017: a running console is work in progress
     if (!autoInstallNow({ ready: updater.state.state === 'ready', autoUpdate: settings.get().autoUpdate, visible: windowVisible(), busy })) {
       // R-10: one retry at a time, and showing the window cancels it — the 10 hidden minutes start again.
       if (busy && updater.state.state === 'ready' && !busyRetry) busyRetry = setTimeout(() => { busyRetry = null; autoInstall(); }, 60_000);
@@ -392,6 +397,7 @@ if (!app.requestSingleInstanceLock()) {
   // #endregion reinstall
 
   function registerIpc(): void {
+    consoles.register();
     const snap = (key: string) => monitor.snapshot(key);
     ipcMain.handle(CHANNELS.status, () => status());
     ipcMain.handle(CHANNELS.navigateTake, () => {
@@ -495,6 +501,10 @@ if (!app.requestSingleInstanceLock()) {
     ipcMain.on(CHANNELS.viewBounds, (_e, rect: Rect) => views?.setBounds(rect));
   }
 
+  function layoutCommand(which: 'sidebar' | 'console' | 'details'): void {
+    if (window && !window.isDestroyed()) window.webContents.send(CHANNELS.layoutCommand, which);
+  }
+
   function appMenu(): void {
     const l = lang();
     Menu.setApplicationMenu(Menu.buildFromTemplate([
@@ -505,6 +515,12 @@ if (!app.requestSingleInstanceLock()) {
         { role: 'quit' },
       ] },
       { role: 'editMenu' },
+      // ADR-0017: the panels fold away from the menu too; the window holds the state (Settings.layout).
+      { label: t(l, 'menu.view'), submenu: [
+        { label: t(l, 'menu.toggleSidebar'), accelerator: 'Ctrl+Cmd+S', click: () => layoutCommand('sidebar') },
+        { label: t(l, 'menu.toggleConsole'), accelerator: 'Ctrl+Cmd+T', click: () => layoutCommand('console') },
+        { label: t(l, 'menu.toggleDetails'), accelerator: 'Ctrl+Cmd+D', click: () => layoutCommand('details') },
+      ] },
       { role: 'windowMenu' },
     ]));
   }
@@ -528,10 +544,11 @@ if (!app.requestSingleInstanceLock()) {
     activity.flush();
     // R-4: Electron does not wait for timers, so the SIGKILL that follows SIGTERM would never run.
     // With a command still running, the quit waits for killOwned (≤ 300 ms + a beat), then exits.
-    if (ownedCount() > 0 && !killing) {
+    // ADR-0017: an agent console ends with the app too (hang-up, then kill after its grace).
+    if ((ownedCount() > 0 || consoles.manager.runningCount() > 0) && !killing) {
       killing = true;
       event.preventDefault();
-      void killOwned(300).finally(() => app.exit(0));
+      void Promise.allSettled([killOwned(300), consoles.manager.stopAll()]).finally(() => app.exit(0));
     }
   });
 
@@ -556,6 +573,7 @@ if (!app.requestSingleInstanceLock()) {
     // An uninstalled service takes its view and its stored session with it (LC-12).
     monitor.on('removed', (key: string) => {
       views?.drop(key);
+      consoles.manager.forget(key); // ADR-0017: its console ends with it
       const ses = session.fromPartition(partitionFor(key));
       void Promise.all([ses.clearStorageData(), ses.clearCache()]).catch((error) => log(`could not clear the session of ${key}: ${(error as Error).message}`));
     });

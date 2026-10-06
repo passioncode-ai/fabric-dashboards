@@ -261,3 +261,17 @@ test('ADR-0017: an update of one console or one layout field keeps the others', 
   assert.deepEqual(Object.keys(v.consoles).sort(), ['a.default', 'b.default']);
   assert.deepEqual(v.layout, { sidebar: 'collapsed', header: 'compact', console: { open: true, width: 440 } });
 });
+
+test('ADR-0017 REQ-02: the compact bar carries the first problem — a state that is not ready, else a failed action still news', async () => {
+  const { problemOf, NEWS_MS } = await import('../src/core/focus');
+  const now = Date.parse('2026-10-06T12:00:00Z');
+  const base = { state: 'ready' as const, reasons: [], lastAction: null, busy: null };
+  assert.equal(problemOf(base, now), null);
+  assert.deepEqual(problemOf({ ...base, state: 'down', reasons: [{ code: 'reason.down', params: { since: 'x' } }, { code: 'reason.other' }] }, now), { code: 'reason.down', params: { since: 'x' } });
+  assert.deepEqual(problemOf({ ...base, state: 'degraded', reasons: [] }, now), { code: 'state.degraded' }, 'a problem state with no reason still shows');
+  const failed = { action: 'restart', ok: false, reason: { code: 'result.notBack' }, at: new Date(now - 60_000).toISOString() };
+  assert.deepEqual(problemOf({ ...base, lastAction: failed }, now), { code: 'result.notBack' });
+  assert.equal(problemOf({ ...base, lastAction: { ...failed, at: new Date(now - NEWS_MS - 1).toISOString() } }, now), null, 'old news is gone');
+  assert.equal(problemOf({ ...base, state: 'down', reasons: [{ code: 'reason.down' }], busy: 'restarting' as never }, now), null, 'a running action shows its progress instead');
+  assert.equal(problemOf({ ...base, state: 'starting', reasons: [{ code: 'reason.waiting' }] }, now), null, 'starting is not a problem');
+});

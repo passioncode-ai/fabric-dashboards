@@ -66,3 +66,10 @@ What 0.5.4 did:
   The end-to-end test covers the summary on the card and the page, and the tools. In the
   two-service test, Alpha's dashboard opens Beta at a path through a service link, and Beta opens
   Alpha's own address through `window.open`; both land in the app.
+
+## Amendment — 2026-10-06 (ADR-0017)
+
+The service page's header is one line by default ([ADR-0017](0017-focus-layout-and-agent-console.md)).
+On the page, the summary is the name's hover text and sits, with the tools, in the full card that
+"Show details" opens. The Overview card still shows it under the name. `test/e2e/app.test.ts`
+checks the hover text and the card.

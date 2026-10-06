@@ -928,10 +928,10 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **Persona:** P-01
 - **Feature:** focus
 - **Traces:** ST-018 (JTBD-04, JRN-01/#5); ADR-0017
-- **Entry point:** any service page
+- **Entry point:** any service page; View → Show or Hide Service Details (⌃⌘D)
 - **Preconditions:** none
 - **Steps:**
-  1. User opens a service -> the header is one line: the state mark, the name, the state badge, the tabs (Dashboard, Activity, Health, Logs) and a "Show details" control; the dashboard fills the rest
+  1. User opens a service -> the header is one line: the state mark, the name, the state badge, the tabs (Dashboard, Activity, Health, Logs) and a "Show details" control; the dashboard fills the rest; pointing at the name shows the agent's summary
   2. User presses "Show details" -> the full card opens under the bar: summary, version, build, pid, port, uptime, Tools, reasons, the last action and the actions (Restart, Stop, Update, Doctor, Show data folder, Show file); the control reads "Hide details"
   3. User presses "Hide details" -> back to one line; the choice holds for every service and after a relaunch
 - **Expected result:** the embedded dashboard takes the window; everything in the header is one press away
@@ -940,14 +940,14 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **States covered:** success, error, loading
 - **Errors & recovery:** every error the full card shows (SCN-007, SCN-008, SCN-011, SCN-012, SCN-013, SCN-021) is reachable from the chip
 - **Status:** validated
-- **Coverage:** src/renderer/components/ServiceView.tsx, src/renderer/styles/app.css, test/e2e/app.test.ts
+- **Coverage:** src/renderer/components/ServiceView.tsx, src/core/focus.ts, src/renderer/styles/app.css, test/parts.test.ts (ADR-0017 REQ-02), test/e2e/focus-console.test.ts
 - **Product:** unobserved
 
 ### SCN-047: The agents list folds into a rail
 - **Persona:** P-01
 - **Feature:** focus
 - **Traces:** ST-018 (JTBD-04, JRN-01/#5); ADR-0017
-- **Entry point:** the sidebar's "Collapse sidebar" control, or View → Hide Sidebar (⌃⌘S)
+- **Entry point:** the sidebar's "Collapse sidebar" control, or View → Show or Hide Sidebar (⌃⌘S)
 - **Preconditions:** none
 - **Steps:**
   1. User collapses the sidebar -> it becomes a narrow rail: the mark, icons for Overview, Activity, Spend and Settings, and one entry per agent with its state mark and initials; the Overview and Activity badges stay
@@ -959,7 +959,7 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **States covered:** success
 - **Errors & recovery:** n/a — a layout choice that never fails
 - **Status:** validated
-- **Coverage:** src/renderer/App.tsx, src/renderer/styles/app.css, src/electron/main.ts, test/e2e/app.test.ts
+- **Coverage:** src/renderer/App.tsx, src/renderer/styles/app.css, src/electron/main.ts, test/e2e/focus-console.test.ts
 - **Product:** unobserved
 
 ## console
@@ -968,7 +968,7 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **Persona:** P-01
 - **Feature:** console
 - **Traces:** ST-019 (JTBD-05, JRN-01/#8); ADR-0017
-- **Entry point:** "Console" in a service page's bar, or View → Show Console (⌃⌘T)
+- **Entry point:** "Console" in a service page's bar, or View → Show or Hide Console (⌃⌘T)
 - **Preconditions:** none
 - **Steps:**
   1. User opens the console -> a panel opens to the right of the dashboard with this agent's console; the dashboard narrows to the space left
@@ -981,7 +981,7 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **States covered:** success, empty
 - **Errors & recovery:** n/a here; starting is SCN-049
 - **Status:** validated
-- **Coverage:** none yet
+- **Coverage:** src/renderer/components/ConsolePanel.tsx, src/core/consoles.ts, src/electron/console.ts, test/console.test.ts, test/e2e/focus-console.test.ts
 - **Product:** unobserved
 
 ### SCN-049: Start a runtime in the agent's repository
@@ -1001,7 +1001,7 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **States covered:** empty, loading, success, error
 - **Errors & recovery:** no runtime installed -> "No supported runtime is installed" with the list it looks for; no repository found -> "Choose the folder this agent's code lives in" with "Choose folder…"; the folder no longer exists -> the same; the runtime cannot start -> its own error in the console, and "New session" again; a runtime with no resume flag -> "Continue last" is not offered
 - **Status:** validated
-- **Coverage:** none yet
+- **Coverage:** src/core/runtimes.ts, src/core/repofind.ts, src/core/consoles.ts, src/electron/console.ts, src/renderer/components/ConsolePanel.tsx, test/console.test.ts, test/e2e/focus-console.test.ts
 - **Product:** unobserved
 
 ### SCN-050: A folder bound to a Switchboard project runs on that project's account
@@ -1020,5 +1020,5 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **States covered:** success, error
 - **Errors & recovery:** Switchboard needs its app or `switchboard serve` running -> its own message in the console or a notice, with "Open Switchboard"; a managed session for the same project already runs -> Switchboard's refusal is shown as it says it; Switchboard's answer cannot be read -> "Switchboard did not answer; the session was not started" — never a silent fallback to the ordinary sign-in
 - **Status:** validated
-- **Coverage:** none yet
+- **Coverage:** src/core/switchboard.ts, src/core/consoles.ts, src/electron/console.ts, test/console.test.ts
 - **Product:** unobserved

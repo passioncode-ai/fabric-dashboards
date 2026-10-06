@@ -38,6 +38,16 @@ const api: FabricApi = {
   openNotificationSettings: () => ipcRenderer.invoke(CHANNELS.notificationSettings),
   locale: () => ipcRenderer.invoke(CHANNELS.locale),
   uninstall: () => ipcRenderer.invoke(CHANNELS.uninstall),
+  consoleInfo: (key) => ipcRenderer.invoke(CHANNELS.consoleInfo, key),
+  consoleChoose: (key, choice) => ipcRenderer.invoke(CHANNELS.consoleChoose, key, choice),
+  consolePickFolder: (key) => ipcRenderer.invoke(CHANNELS.consolePickFolder, key),
+  consoleStart: (key, mode, size) => ipcRenderer.invoke(CHANNELS.consoleStart, key, mode, size),
+  consoleInput: (key, data) => ipcRenderer.send(CHANNELS.consoleInput, key, data),
+  consoleResize: (key, cols, rows) => ipcRenderer.send(CHANNELS.consoleResize, key, cols, rows),
+  consoleStop: (key) => ipcRenderer.invoke(CHANNELS.consoleStop, key),
+  consoleOpenTerminal: (key, mode) => ipcRenderer.invoke(CHANNELS.consoleOpenTerminal, key, mode),
+  onConsoleEvent: (l) => subscribe(CHANNELS.consoleEvent, l),
+  onLayoutCommand: (l) => subscribe(CHANNELS.layoutCommand, l),
 };
 
 contextBridge.exposeInMainWorld('fabric', api);

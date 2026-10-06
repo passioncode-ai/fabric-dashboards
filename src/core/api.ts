@@ -6,6 +6,24 @@ import type { ActivityItem, AppStatus, Listener, Reason, Settings, SettingsPatch
 
 export interface Rect { x: number; y: number; width: number; height: number }
 
+/** ADR-0017: what a service's console shows before and while it runs. */
+export interface ConsoleInfo {
+  key: string;
+  runtimes: { id: string; name: string; canContinue: boolean; viaSwitchboard: boolean }[];
+  /** The runtime chosen for this service (saved, else Claude Code, else the first found); null when none is installed. */
+  runtime: string | null;
+  /** The folder: saved by the person, or found from the descriptor's repository; null when neither. */
+  folder: { path: string; source: 'saved' | 'found'; exists: boolean } | null;
+  /** What Switchboard binds the folder to, for the chosen runtime. */
+  binding: { kind: 'none' } | { kind: 'project'; name: string; pool: string; inPlace: boolean } | { kind: 'error'; detail: string } | { kind: 'absent' };
+  session: { state: 'idle' | 'running' | 'exited'; label: string; cwd: string; output: string; exitCode: number | null };
+}
+
+/** Why a start did not run in the console, worded by the renderer. */
+export type ConsoleStartResult =
+  | { ok: true }
+  | { ok: false; reason: 'running' | 'no-runtime' | 'no-folder' | 'no-continue' | 'switchboard' | 'terminal-only' | 'spawn'; detail?: string; project?: string };
+
 /** Where an embedded dashboard is now (ADR-0014). */
 export interface PageState { key: string; address: string; link: string; canGoBack: boolean; canGoForward: boolean; loading: boolean }
 
@@ -52,6 +70,21 @@ export interface FabricApi {
   moveToApplications(): Promise<{ ok: boolean; error?: string }>;
   openNotificationSettings(): Promise<void>;
   locale(): Promise<string>;
+  // ── ADR-0017: the agent console beside a service's dashboard ──
+  consoleInfo(key: string): Promise<ConsoleInfo>;
+  consoleChoose(key: string, choice: { runtime?: string }): Promise<ConsoleInfo>;
+  /** A folder dialog; the choice is saved for this service. */
+  consolePickFolder(key: string): Promise<ConsoleInfo>;
+  consoleStart(key: string, mode: 'new' | 'continue', size: { cols: number; rows: number }): Promise<ConsoleStartResult>;
+  consoleInput(key: string, data: string): void;
+  consoleResize(key: string, cols: number, rows: number): void;
+  consoleStop(key: string): Promise<void>;
+  /** Continue the same runtime and folder in Terminal (through Switchboard for a bound folder). */
+  consoleOpenTerminal(key: string, mode: 'new' | 'continue'): Promise<{ ok: boolean; error?: string }>;
+  /** Output and exits while the window is visible; a hidden window gets nothing and asks `consoleInfo` again. */
+  /** View menu: fold or unfold a panel (ADR-0017). */
+  onLayoutCommand(listener: (which: 'sidebar' | 'console' | 'details') => void): () => void;
+  onConsoleEvent(listener: (event: { key: string; kind: 'data'; data: string } | { key: string; kind: 'exit'; code: number | null }) => void): () => void;
   /** Asks the person to confirm, then removes the login item and the MCP registration, moves the
    *  app to the Trash and quits. Settings and history stay for a reinstall unless the person ticks
    *  the box to delete them too (lifecycle LC-14, ADR-0015). */
@@ -88,4 +121,14 @@ export const CHANNELS = {
   notificationSettings: 'fd:notification-settings',
   locale: 'fd:locale',
   uninstall: 'fd:uninstall',
+  consoleInfo: 'fd:console-info',
+  consoleChoose: 'fd:console-choose',
+  consolePickFolder: 'fd:console-pick-folder',
+  consoleStart: 'fd:console-start',
+  consoleInput: 'fd:console-input',
+  consoleResize: 'fd:console-resize',
+  consoleStop: 'fd:console-stop',
+  consoleOpenTerminal: 'fd:console-open-terminal',
+  consoleEvent: 'fd:console-event',
+  layoutCommand: 'fd:layout-command',
 } as const;

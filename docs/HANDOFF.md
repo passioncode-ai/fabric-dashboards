@@ -7,14 +7,20 @@ Current release: 0.5.6 (2026-10-06, above); the 0.4.1 section below is the previ
 
 ## Next — start here (2026-10-06)
 
-**In progress — 0.6.0 on branch `agent/focus-console-060`** (task-pipeline run; operator-approved
-design [ADR-0017](adr/0017-focus-layout-and-agent-console.md), scenarios SCN-046…050 validated). Entry:
+**0.6.0 — built on branch `agent/focus-console-060`** (task-pipeline run; operator-approved design
+[ADR-0017](adr/0017-focus-layout-and-agent-console.md), scenarios SCN-046…050 validated; FD-24). Entry:
 the [brief](evidence/briefs/2026-10-06-focus-and-console-brief.md) and its
-[plan](evidence/briefs/2026-10-06-focus-and-console-plan.md) (T1…T14). Done: T1 (settings layout and
-consoles, `test/parts.test.ts` ADR-0017 cases), T4 (`src/core/runtimes.ts`, `test/console.test.ts` 5/5).
-Next task: T5 `src/core/repofind.ts`, then T6 switchboard, T7 console manager (node-pty), T2/T3/T9/T10 UI,
-T11 packaging, T12 e2e, T13 docs, T14 release. Switchboard SB-75 (`launch --provider … --in-place`) is
-promised; Fabric ADR-0123 records the same "console, not chat" rule.
+[plan](evidence/briefs/2026-10-06-focus-and-console-plan.md). T1…T13 done: a one-line service header
+with a problem chip, a sidebar rail, and a per-service agent console (node-pty + xterm.js) running
+the chosen runtime in the agent's repository, Switchboard deciding the account. Checks:
+`FD_SKIP_LAUNCHD=1 npm run check` green; `test/e2e/focus-console.test.ts` passes; `npm run test:e2e`
+green except FD-05's Dock assertion in `test/e2e/spend.test.ts`, which cannot pass while the screen
+is locked (macOS sends windows no show/hide events then — measured 2026-10-06 with a bare Electron
+window, `CGSSessionScreenIsLocked = Yes`; the same assertion fails on `origin/main`); an unsigned
+universal build passed `checks.pty`, and both slices ran a PTY. **Next task:** T14 — open the PR,
+merge on a green gate, tag `v0.6.0`, the operator approves `macos` and `publish`; then re-run
+`npm run test:e2e` on an unlocked screen. Open seams: Switchboard SB-75 (FD-25); Fabric ADR-0123 makes
+this console a session its harness will launch later.
 
 **Released: 0.5.6 on 2026-10-06 11:00 UTC** (run 37407706842, tag on `2909565`; GitHub release
 `v0.5.6`, marked Latest — the organization's publish workflow titles it by its tag, where earlier

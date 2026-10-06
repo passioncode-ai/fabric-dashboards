@@ -1,14 +1,15 @@
 import { useEffect, useRef, useState } from 'react';
 import { langFor, t as tr, type Lang } from '../core/i18n';
-import type { AppStatus } from '../core/types';
+import { CONSOLE_WIDTH, DEFAULT_SETTINGS, type AppStatus, type Settings as AppSettings, type SettingsPatch } from '../core/types';
 import { groupProducts, productOf, type Product } from '../core/products';
 import { Activity, type ActivityFilter } from './components/Activity';
 import { LoginQuestion, Overview } from './components/Overview';
 import { ServiceView } from './components/ServiceView';
 import { Settings } from './components/Settings';
 import { Spend } from './components/Spend';
+import { ConsolePanel } from './components/ConsolePanel';
 import mark from './brand/dashboards-mark.svg';
-import { api, GLYPH, LangContext, nameOf, Spinner, useT } from './lib';
+import { api, GLYPH, Icon, LangContext, nameOf, Spinner, useT } from './lib';
 
 type Route = { page: 'overview' } | { page: 'activity'; serviceKey?: string; nonce?: number } | { page: 'spend' } | { page: 'settings' } | { page: 'service'; key: string; link?: string; nonce?: number; tab?: 'logs' | 'health' };
 
@@ -21,11 +22,17 @@ export function App() {
   const [stopKey, setStopKey] = useState<string | null>(null);
   // U-8: the Activity filter is kept between visits; a notification about one service presets it (U-19).
   const [activityFilter, setActivityFilter] = useState<ActivityFilter>({ serviceKey: '', minLevel: '' });
+  // ADR-0017: how much of the window the dashboard gets, remembered in Settings.layout.
+  const [layout, setLayout] = useState<AppSettings['layout']>(DEFAULT_SETTINGS.layout);
+  const changeLayout = (patch: NonNullable<SettingsPatch['layout']>, persist = true) => {
+    setLayout((l) => ({ ...l, ...patch, console: { ...l.console, ...(patch.console ?? {}) } }));
+    if (persist) void api().updateSettings({ layout: patch }).then((r) => setLayout(r.settings.layout), () => undefined);
+  };
 
   useEffect(() => {
     void api().locale().then((l) => { setLang(langFor(l)); document.documentElement.lang = langFor(l); });
     void api().status().then(setStatus);
-    void api().settings().then((s) => applyTheme(s.theme));
+    void api().settings().then((s) => { applyTheme(s.theme); setLayout(s.layout); });
     const offStatus = api().onStatus(setStatus);
     const go = (target: { page: 'service' | 'activity' | 'overview'; key?: string; link?: string }) => {
       if (target.page === 'overview') setRoute({ page: 'overview' });
@@ -35,8 +42,15 @@ export function App() {
       } else if (target.key) setRoute({ page: 'service', key: target.key, link: target.link, nonce: Date.now() });
     };
     const offNav = api().onNavigate(go);
+    const offLayout = api().onLayoutCommand((which) => setLayout((l) => {
+      const patch = which === 'sidebar' ? { sidebar: l.sidebar === 'collapsed' ? 'expanded' as const : 'collapsed' as const }
+        : which === 'console' ? { console: { open: !l.console.open } }
+        : { header: l.header === 'full' ? 'compact' as const : 'full' as const };
+      void api().updateSettings({ layout: patch }).catch(() => undefined);
+      return { ...l, ...patch, console: { ...l.console, ...('console' in patch ? patch.console : {}) } };
+    }));
     void api().takeNavigation().then((target) => { if (target) go(target); }); // after subscribing: nothing falls between
-    return () => { offStatus(); offNav(); };
+    return () => { offStatus(); offNav(); offLayout(); };
   }, []);
 
   useEffect(() => { if (route.page !== 'service') void api().hideView(); }, [route.page]);
@@ -46,7 +60,7 @@ export function App() {
 
   return (
     <LangContext.Provider value={lang}>
-      {status ? <Shell status={status} route={route} setRoute={setRoute} stopKey={stopKey} setStopKey={setStopKey} activityFilter={activityFilter} setActivityFilter={setActivityFilter} /> : <div className="page muted row" role="status"><Spinner /> {tr(lang, 'app.loading')}</div>}
+      {status ? <Shell status={status} route={route} setRoute={setRoute} stopKey={stopKey} setStopKey={setStopKey} activityFilter={activityFilter} setActivityFilter={setActivityFilter} layout={layout} changeLayout={changeLayout} /> : <div className="page muted row" role="status"><Spinner /> {tr(lang, 'app.loading')}</div>}
     </LangContext.Provider>
   );
 }
@@ -59,9 +73,10 @@ function applyTheme(theme: 'dark' | 'light') {
 interface ShellProps {
   status: AppStatus; route: Route; setRoute: (r: Route) => void; stopKey: string | null; setStopKey: (k: string | null) => void;
   activityFilter: ActivityFilter; setActivityFilter: (f: ActivityFilter) => void;
+  layout: AppSettings['layout']; changeLayout: (patch: NonNullable<SettingsPatch['layout']>, persist?: boolean) => void;
 }
 
-function Shell({ status, route, setRoute, stopKey, setStopKey, activityFilter, setActivityFilter }: ShellProps) {
+function Shell({ status, route, setRoute, stopKey, setStopKey, activityFilter, setActivityFilter, layout, changeLayout }: ShellProps) {
   const { t } = useT();
   const open = (key: string, link?: string, tab?: 'logs' | 'health') => setRoute({ page: 'service', key, link, nonce: Date.now(), tab });
   const act = (key: string, action: 'restart' | 'start' | 'update') => {
@@ -107,40 +122,59 @@ function Shell({ status, route, setRoute, stopKey, setStopKey, activityFilter, s
   const background = products.filter((p) => p.background);
   const currentProduct = route.page === 'service' ? productOf(products, route.key) : undefined;
   const count = products.length; // ADR-0012: the heading counts what the sidebar lists
+  const rail = layout.sidebar === 'collapsed';
+  // The console never takes more than half the window, whatever width was remembered.
+  const [windowWidth, setWindowWidth] = useState(window.innerWidth);
+  useEffect(() => { const on = () => setWindowWidth(window.innerWidth); window.addEventListener('resize', on); return () => window.removeEventListener('resize', on); }, []);
+  const consoleWidth = Math.max(CONSOLE_WIDTH.min, Math.min(layout.console.width, Math.floor(windowWidth / 2)));
 
   return (
-    <div className="app">
+    <div className={`app${rail ? ' rail' : ''}`}>
       <nav className="sidebar" aria-label="Fabric Dashboards" inert={stopOpen}>
-        <div className="brand"><img src={mark} alt="" /> {t('app.name')}</div>
+        <div className="brand"><img src={mark} alt="" /> <span className="brand-name">{t('app.name')}</span></div>
         <div className="nav">
-          <button className="nav-item" aria-current={route.page === 'overview' ? 'page' : undefined} onClick={() => setRoute({ page: 'overview' })}>
-            <span className="nav-label">{t('nav.overview')}</span>
+          <button className="nav-item" aria-current={route.page === 'overview' ? 'page' : undefined} title={rail ? t('nav.overview') : undefined} onClick={() => setRoute({ page: 'overview' })}>
+            <Icon name="overview" /><span className="nav-label">{t('nav.overview')}</span>
             {problems > 0 && <span className="count alert">{problems}</span>}
           </button>
-          <button className="nav-item" aria-current={route.page === 'activity' ? 'page' : undefined} onClick={() => setRoute({ page: 'activity' })}>
-            <span className="nav-label">{t('nav.activity')}</span>
+          <button className="nav-item" aria-current={route.page === 'activity' ? 'page' : undefined} title={rail ? t('nav.activity') : undefined} onClick={() => setRoute({ page: 'activity' })}>
+            <Icon name="activity" /><span className="nav-label">{t('nav.activity')}</span>
             {status.unread > 0 && <span className="count">{status.unread}</span>}
           </button>
-          <button className="nav-item" aria-current={route.page === 'spend' ? 'page' : undefined} onClick={() => setRoute({ page: 'spend' })}>
-            <span className="nav-label">{t('nav.spend')}</span>
+          <button className="nav-item" aria-current={route.page === 'spend' ? 'page' : undefined} title={rail ? t('nav.spend') : undefined} onClick={() => setRoute({ page: 'spend' })}>
+            <Icon name="spend" /><span className="nav-label">{t('nav.spend')}</span>
           </button>
         </div>
         <div className="nav nav-scroll">
           {foreground.length > 0 && <div className="nav-section">{t('nav.services')}</div>}
-          {foreground.map((p) => <ProductItem key={p.id} p={p} current={currentProduct === p} open={open} />)}
+          {foreground.map((p) => <ProductItem key={p.id} p={p} current={currentProduct === p} open={open} rail={rail} />)}
           {background.length > 0 && <div className="nav-section">{t('nav.background')}</div>}
-          {background.map((p) => <ProductItem key={p.id} p={p} current={currentProduct === p} open={open} />)}
+          {background.map((p) => <ProductItem key={p.id} p={p} current={currentProduct === p} open={open} rail={rail} />)}
         </div>
         <div className="sidebar-footer">
-          <UpdateLine status={status} />
-          <button className="nav-item" aria-current={route.page === 'settings' ? 'page' : undefined} onClick={() => setRoute({ page: 'settings' })}>
-            <span className="nav-label">{t('nav.settings')}</span>
+          {!rail && <UpdateLine status={status} />}
+          <button className="nav-item" aria-current={route.page === 'settings' ? 'page' : undefined} title={rail ? t('nav.settings') : undefined} onClick={() => setRoute({ page: 'settings' })}>
+            <Icon name="settings" /><span className="nav-label">{t('nav.settings')}</span>
+            {rail && ['ready', 'misplaced', 'error'].includes(status.update.state) && <span className="count alert" aria-hidden="true">!</span>}
+          </button>
+          {/* ADR-0017 (SCN-047): the list folds into a rail and back; remembered. */}
+          <button className="nav-item nav-fold" aria-expanded={!rail} title={t(rail ? 'sidebar.expand' : 'sidebar.collapse')} onClick={() => changeLayout({ sidebar: rail ? 'expanded' : 'collapsed' })}>
+            <Icon name="sidebar" /><span className="nav-label">{t(rail ? 'sidebar.expand' : 'sidebar.collapse')}</span>
           </button>
         </div>
       </nav>
       <main className="main" inert={stopOpen}>
         {route.page === 'service' && current
-          ? <ServiceView key={current.key} s={current} all={status.services} members={currentProduct?.members ?? [current]} open={open} link={route.link} nonce={route.nonce} tab={route.tab} runUpdate={route.tab === 'health' && route.page === 'service'} activityRev={status.activityRev} overlayOpen={stopOpen} askStop={askStop} updateStarted={() => setRoute({ ...route, tab: undefined })} />
+          ? <div className="svc-split">
+            <ServiceView key={current.key} s={current} all={status.services} members={currentProduct?.members ?? [current]} open={open} link={route.link} nonce={route.nonce} tab={route.tab} runUpdate={route.tab === 'health' && route.page === 'service'} activityRev={status.activityRev} overlayOpen={stopOpen} askStop={askStop} updateStarted={() => setRoute({ ...route, tab: undefined })}
+              headerFull={layout.header === 'full'} onToggleHeader={() => changeLayout({ header: layout.header === 'full' ? 'compact' : 'full' })}
+              consoleOpen={layout.console.open} onToggleConsole={() => changeLayout({ console: { open: !layout.console.open } })} />
+            {layout.console.open && (
+              <ConsolePanel serviceKey={current.key} width={consoleWidth}
+                onWidth={(w, commit) => changeLayout({ console: { width: Math.round(Math.min(CONSOLE_WIDTH.max, Math.max(CONSOLE_WIDTH.min, w))) } }, commit)}
+                onHide={() => changeLayout({ console: { open: false } })} />
+            )}
+          </div>
           : (
             <div className="page">
               <div className="page-head">
@@ -172,12 +206,13 @@ function Shell({ status, route, setRoute, stopKey, setStopKey, activityFilter, s
 }
 
 /** A product in the sidebar: the primary's name and state; a member in trouble adds a mark, never a changed state (ADR-0012). */
-function ProductItem({ p, current, open }: { p: Product; current: boolean; open: (key: string) => void }) {
+function ProductItem({ p, current, open, rail }: { p: Product; current: boolean; open: (key: string) => void; rail: boolean }) {
   const { t } = useT();
   const s = p.primary;
   return (
-    <button className="nav-item" aria-current={current ? 'page' : undefined} onClick={() => open(s.key)}>
+    <button className="nav-item" aria-current={current ? 'page' : undefined} title={rail ? `${nameOf(s)} — ${t(`state.${s.state}`)}` : undefined} onClick={() => open(s.key)}>
       <span className={`state state-${s.state}`} aria-hidden="true"><span className="glyph">{GLYPH[s.state]}</span></span>
+      {rail && <span className="initials" aria-hidden="true">{initialsOf(nameOf(s))}</span>}
       <span className="nav-label">{nameOf(s)}</span>
       {p.memberProblem && <span className="count alert" title={t('nav.memberProblem')} aria-hidden="true">!</span>}
       <span className="visually-hidden">{t(`state.${s.state}`)}{p.memberProblem ? `, ${t('nav.memberProblem')}` : ''}</span>
@@ -194,4 +229,11 @@ function UpdateLine({ status }: { status: AppStatus }) {
   if (u.state === 'misplaced') return <div className="row"><span className="meta state-down">{t('update.misplaced')}</span><button className="btn" onClick={() => void api().moveToApplications()}>{t('move.confirm')}</button></div>;
   if (u.state === 'error') return <div className="row"><span className="meta state-down">{t('update.error', { error: u.error ?? '' })}</span><button className="btn" onClick={() => void api().checkForUpdates()}>{t('update.retry')}</button></div>;
   return null;
+}
+
+/** Two letters for a rail entry: the first letters of the first two words, else the first two letters. */
+export function initialsOf(name: string): string {
+  const words = name.trim().split(/[\s._-]+/).filter(Boolean);
+  const letters = words.length > 1 ? words[0]![0]! + words[1]![0]! : (words[0] ?? '?').slice(0, 2);
+  return letters.toUpperCase();
 }
