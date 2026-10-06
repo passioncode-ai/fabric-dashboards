@@ -85,7 +85,7 @@ export function Overview({ status, products, open, act, goSpend }: Props) {
     // U-14: each action names the service it acts on, for a screen reader reading the button alone.
     const label = (action: string) => `${action} — ${nameOf(s)}`;
     if (s.state === 'down' || s.state === 'duplicate') return <span className="row">{logs}<button className="btn btn-primary" aria-label={label(t('action.restart'))} onClick={() => act(s.key, 'restart')}>{t('action.restart')}</button></span>;
-    if (s.wellKnown?.update?.available && s.descriptor?.commands?.update && s.state !== 'degraded') {
+    if (s.wellKnown?.update?.available && s.descriptor?.commands?.update) { // P-9: also when degraded — the update may be the fix
       const text = t('action.update', { version: s.wellKnown.update.available });
       return <button className="btn" aria-label={label(text)} onClick={() => act(s.key, 'update')}>{text}</button>;
     }

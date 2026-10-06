@@ -53,7 +53,7 @@ export type WellKnownResult =
   | { kind: 'answer'; doc: WellKnown; ms: number }
   | { kind: 'not-protocol'; detail: string } // something answers, but not fabric-service
   | { kind: 'refused'; detail: string } // DEC-0019: a remote service refused the token (401) — nothing disclosed
-  | { kind: 'no-answer'; detail: string; cause?: 'tls' | 'redirect' | 'timeout' | 'network' };
+  | { kind: 'no-answer'; detail: string; cause?: 'tls' | 'redirect' | 'timeout' | 'network' | 'http' };
 
 export interface ServiceEvent {
   id: string;

@@ -111,7 +111,7 @@ function Shell({ status, route, setRoute, stopKey, setStopKey, activityFilter, s
       </nav>
       <main className="main">
         {route.page === 'service' && current
-          ? <ServiceView key={current.key} s={current} all={status.services} members={currentProduct?.members ?? [current]} open={open} link={route.link} nonce={route.nonce} tab={route.tab} runUpdate={route.tab === 'health' && route.page === 'service'} overlayOpen={Boolean(stopKey)} askStop={setStopKey} />
+          ? <ServiceView key={current.key} s={current} all={status.services} members={currentProduct?.members ?? [current]} open={open} link={route.link} nonce={route.nonce} tab={route.tab} runUpdate={route.tab === 'health' && route.page === 'service'} activityRev={status.activityRev} overlayOpen={Boolean(stopKey)} askStop={setStopKey} />
           : (
             <div className="page">
               <div className="page-head">

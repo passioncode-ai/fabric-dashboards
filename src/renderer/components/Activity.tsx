@@ -27,12 +27,12 @@ export function Activity({ status, openAt, filter, setFilter }: Props) {
         <p key={s.key} className="notice warning" role="status">{t('activity.feedError', { name: nameOf(s), error: reason(s.feedError) })}</p>
       ))}
       <div className="filters">
-        <label className="visually-hidden" htmlFor="flt-svc">{t('activity.all')}</label>
+        <label className="visually-hidden" htmlFor="flt-svc">{t('activity.filter.service')}</label>
         <select id="flt-svc" value={serviceKey} onChange={(e) => setServiceKey(e.target.value)}>
           <option value="">{t('activity.all')}</option>
           {status.services.map((s) => <option key={s.key} value={s.key}>{nameOf(s)}</option>)}
         </select>
-        <label className="visually-hidden" htmlFor="flt-lvl">{t('activity.level.all')}</label>
+        <label className="visually-hidden" htmlFor="flt-lvl">{t('activity.filter.level')}</label>
         <select id="flt-lvl" value={minLevel} onChange={(e) => setMinLevel(e.target.value as ActivityItem['level'] | '')}>
           <option value="">{t('activity.level.all')}</option>
           <option value="notice">{t('activity.level.notice')}</option>

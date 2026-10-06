@@ -8,6 +8,7 @@ export function Settings({ status, onTheme }: { status: AppStatus; onTheme: (the
   const [error, setError] = useState('');
   const [listeners, setListeners] = useState<{ listeners: Listener[]; error?: string } | null>(null);
   const [uninstallError, setUninstallError] = useState('');
+  const [pathError, setPathError] = useState('');
 
   useEffect(() => {
     void api().settings().then(setValue);
@@ -107,7 +108,8 @@ export function Settings({ status, onTheme }: { status: AppStatus; onTheme: (the
       <section className="group" aria-labelledby="g-folder">
         <h2 id="g-folder">{t('settings.folder')}</h2>
         <p className="mono">{status.servicesDir}</p>
-        <div><button className="btn" onClick={() => void api().showPath(status.servicesDir)}>{t('overview.empty.show')}</button></div>
+        <div><button className="btn" onClick={() => void api().showPath(status.servicesDir).then((r) => setPathError(r.ok ? '' : t('overview.showFailed', { path: status.servicesDir, error: r.error ?? '' })))}>{t('overview.empty.show')}</button></div>
+        {pathError && <p className="notice error" role="alert">{pathError}</p>}
       </section>
 
       <section className="group" aria-labelledby="g-uninstall">

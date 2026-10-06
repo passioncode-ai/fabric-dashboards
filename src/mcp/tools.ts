@@ -311,6 +311,20 @@ export async function activity(deps: Deps, key: string, limit = 20): Promise<{ e
 export async function spend(deps: Deps, key?: string): Promise<{ services: (SpendEntry & { product: string })[] }> {
   const looks = await look(deps, key ? [find(deps, key).key] : undefined);
   const entries = await readSpend(looks, { token: deps.token, fetchUsage: deps.usage, now: deps.now });
-  return { services: entries.map((e) => ({ ...e, product: productIdOf(e.key) })) };
+  // P-3 (D-1 for MCP): this server keeps no memory of what a service declared, so a service that
+  // does not answer, or whose address another program answers, has unknown spend — an error, never
+  // "not reporting", so an agent never adds it up as $0.
+  const unknown = new Map(looks.filter((l) => l.descriptor && !l.wellKnown && !['invalid', 'conflict', 'stopped'].includes(l.state)).map((l) => [l.key, l.state]));
+  return {
+    services: entries.map((e) => {
+      const state = unknown.get(e.key);
+      const out: SpendEntry = e.kind === 'none' && state
+        ? state === 'foreign'
+          ? { key: e.key, kind: 'error', error: 'another program answers on its address, so its spend is unknown', reason: { code: 'spend.err.foreign' } }
+          : { key: e.key, kind: 'error', error: `it does not answer now (${state}), so its spend is unknown`, reason: { code: 'spend.err.notAnswering' } }
+        : e;
+      return { ...out, product: productIdOf(e.key) };
+    }),
+  };
 }
 

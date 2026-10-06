@@ -92,7 +92,8 @@ export class ServiceViews {
     wc.on('will-redirect', (event, url) => {
       if (navigation(d.origin, url) !== 'allow') event.preventDefault();
     });
-    wc.on('did-finish-load', () => { entry.loadedOnce = true; this.emit({ key: snap.key, kind: 'loaded' }); });
+    // P-14: a page that loads again has earned its one automatic recreate back.
+    wc.on('did-finish-load', () => { entry.loadedOnce = true; entry.crashes = 0; this.emit({ key: snap.key, kind: 'loaded' }); });
     // ADR-0014: the toolbar follows the page — a full navigation, an in-page route, loading on and off.
     const navigated = () => { const page = this.page(snap.key); if (page) this.emit({ key: snap.key, kind: 'navigated', page }); };
     wc.on('did-navigate', navigated);
@@ -175,7 +176,7 @@ export class ServiceViews {
     if (!snap.descriptor || !snap.wellKnown || (snap.state !== 'ready' && snap.state !== 'degraded')) {
       this.slot.release(owner);
       this.hideNow();
-      return { ok: false, error: 'unavailable' };
+      return { ok: false, error: 'unavailable', stage: 'page' }; // P-5: not a sign-in failure
     }
     const existing = this.views.get(snap.key);
     if (existing && existing.origin !== snap.descriptor.origin) this.drop(snap.key);

@@ -423,7 +423,9 @@ export class Monitor extends EventEmitter {
   private checkDown(t: Tracked, now: number): void {
     if (t.lastState === 'down' && !t.downNotified && t.misses >= DOWN_AFTER_MISSES && t.firstUnansweredAt !== null && now - t.firstUnansweredAt >= DOWN_NOTIFY_AFTER_MS) {
       t.downNotified = true;
-      this.notify({ kind: 'down', serviceKey: t.entry.key }, t, 'notify.down.title', 'notify.down.body', { since: new Date(t.firstUnansweredAt).toLocaleTimeString(this.o.lang(), { hour: '2-digit', minute: '2-digit' }) });
+      // P-8: an online service is restarted by its platform, not here — its notification says so.
+      const body = t.entry.descriptor?.placement === 'remote' ? 'notify.down.bodyRemote' : 'notify.down.body';
+      this.notify({ kind: 'down', serviceKey: t.entry.key }, t, 'notify.down.title', body, { since: new Date(t.firstUnansweredAt).toLocaleTimeString(this.o.lang(), { hour: '2-digit', minute: '2-digit' }) });
     }
   }
 
@@ -482,7 +484,7 @@ export class Monitor extends EventEmitter {
       const fresh = [];
       for (let page = 0; page < 5; page += 1) {
         const res = await this.events(d, path, token, after, firstEver ? 50 : 100);
-        fresh.push(...this.o.activity.addServiceEvents(t.entry.key, d.name, res.events, res.cursor));
+        fresh.push(...this.o.activity.addServiceEvents(t.entry.key, this.name(t), res.events, res.cursor)); // P-2: the instance is named
         if (firstEver || res.events.length < 100 || res.cursor === after) break;
         after = res.cursor;
       }
@@ -511,7 +513,7 @@ export class Monitor extends EventEmitter {
     const t = this.tracked.get(key);
     const d = t?.entry.descriptor;
     if (!t || !d) return { ok: false, reason: { code: 'reason.invalid', params: { problem: 'unknown service' } } };
-    const name = d.name;
+    const name = this.name(t); // P-2: "Growth · projection restarted", never two instances that read alike
     // R-8: one action at a time — a double click or a second button never runs a second kickstart.
     if (t.busy) return { ok: false, reason: { code: 'result.busy', params: { name } } };
     const finish = (ok: boolean, reason: Reason) => {
@@ -571,20 +573,23 @@ export class Monitor extends EventEmitter {
     return finish(false, { code: action === 'stop' ? 'result.stillAnswering' : 'result.timeout', params: { name } });
   }
 
-  async command(key: string, which: 'doctor' | 'update'): Promise<{ code: number | null; output: string; timedOut: boolean }> {
+  async command(key: string, which: 'doctor' | 'update'): Promise<{ code: number | null; output: string; timedOut: boolean; refused?: string }> {
     const t = this.tracked.get(key);
     const argv = t?.entry.descriptor?.commands?.[which];
-    if (!t || !argv) return { code: null, output: '', timedOut: false };
-    if (t.busy) return { code: null, output: tr(this.o.lang(), 'result.busy', { name: t.entry.descriptor!.name }), timedOut: false };
+    if (!t || !argv) return { code: null, output: '', timedOut: false, refused: tr(this.o.lang(), 'result.noCommand', { command: tr(this.o.lang(), `command.${which}`) }) };
+    if (t.busy) return { code: null, output: '', timedOut: false, refused: tr(this.o.lang(), 'result.busy', { name: this.name(t) }) };
     t.busy = which === 'doctor' ? 'doctor' : 'updating';
     this.changed();
     const [cmd, ...args] = argv.map((a, i) => (i === 0 ? expand(a) : a));
     // Its own process group, the descriptor-safe environment, killed with the group on timeout or quit (LC-02).
     const result = await runOwned(cmd!, args, { timeoutMs: COMMAND_TIMEOUT_MS });
     t.busy = null;
-    const name = t.entry.descriptor!.name;
+    const name = this.name(t);
     const command = tr(this.o.lang(), `command.${which}`);
-    const reason: Reason = result.timedOut ? { code: 'result.commandTimeout', params: { command } } : { code: 'result.command', params: { command, code: result.code ?? '—' } };
+    // P-4: a command that could not start (no such file, no permission) says so, not "exit code —".
+    const reason: Reason = result.timedOut ? { code: 'result.commandTimeout', params: { command } }
+      : result.code === null ? { code: 'result.commandFailed', params: { command, error: result.output.trim().split('\n').pop()?.slice(0, 200) ?? '' } }
+      : { code: 'result.command', params: { command, code: result.code } };
     t.lastAction = { action: which, ok: !result.timedOut && result.code === 0, reason, at: new Date(this.now()).toISOString() };
     this.o.activity.addAppEvent(key, name, `service.${which}`, t.lastAction.ok ? 'info' : 'warning', `${name}: ${tr(this.o.lang(), reason.code, reason.params)}`);
     t.nextProbeAt = this.now();
@@ -612,6 +617,8 @@ export class Monitor extends EventEmitter {
       descriptor: t.entry.descriptor, problems: t.tokenProblem ? [...t.entry.problems, t.tokenProblem] : t.entry.problems, conflict: this.conflicts().get(t.entry.key),
       launchd: t.launchd, probe: seen.probe, firstUnansweredAt: seen.firstUnansweredAt, now: this.now(), busy: t.busy,
     });
+    // P-12: an unreadable token file is a problem of this computer's file, not of the descriptor.
+    if (t.tokenProblem && state === 'invalid' && !t.entry.problems.length) reasons.splice(0, reasons.length, { code: 'reason.token', params: { problem: t.tokenProblem } });
     // S-5: what another program says about itself is never shown as this service's own.
     const wk = seen.probe?.kind === 'answer' && state !== 'foreign' ? seen.probe.doc : null;
     if (wk?.update?.available) reasons.push({ code: 'reason.update', params: { version: wk.update.available } });

@@ -13,7 +13,7 @@ import { servicesDir } from '@passioncode-ai/fabric-service-host';
 import { langFor, t, type Lang } from '../core/i18n';
 import { execRunner } from '../core/launchd';
 import { listListeners, unattributed } from '../core/listeners';
-import { applyLoginItem, loginItemAtStartup, type LoginItemOs } from '../core/loginitem';
+import { applyLoginItem, LOGIN_NEEDS_APPROVAL, loginItemAtStartup, type LoginItemOs } from '../core/loginitem';
 import { Monitor, type Notice } from '../core/monitor';
 import { fetchUsage, readToken } from '../core/probe';
 import { readSpend, type SpendEntry } from '../core/spend';
@@ -424,7 +424,8 @@ if (!app.requestSingleInstanceLock()) {
       const next = settings.update(choosing ? { ...patch, launchAtLoginAsked: true } : patch);
       if (patch.notifications) schedulePauseEnd(); // U-7: a pause set here also rebuilds the tray when it ends
       nativeTheme.themeSource = next.theme;
-      const error = choosing && loginOs ? applyLoginItem(next.launchAtLogin, loginOs) : undefined;
+      const refusal = choosing && loginOs ? applyLoginItem(next.launchAtLogin, loginOs) : undefined;
+      const error = refusal === LOGIN_NEEDS_APPROVAL ? t(lang(), 'login.approval') : refusal; // P-10
       if (error) {
         const reverted = settings.update({ launchAtLogin: false });
         return { settings: reverted, error };

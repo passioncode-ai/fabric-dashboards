@@ -236,7 +236,7 @@ test('R-8: one action at a time — a second command while one runs is refused, 
   const first = r.monitor.command(KEY, 'doctor');
   const second = await r.monitor.command(KEY, 'doctor');
   assert.equal(second.code, null);
-  assert.match(second.output, /busy/);
+  assert.match(second.refused ?? '', /busy/);
   assert.equal((await first).code, 0);
 });
 
@@ -259,4 +259,15 @@ test('R-18: a launchd service not yet probed reads starting, never Off with Star
   release(ANSWER);
   await ticking;
   assert.equal(monitor.snapshot(KEY)!.state, 'ready');
+});
+
+test('P-4: a command that cannot start says so, not "exit code —"; an undeclared one is refused', async () => {
+  const r = rig({ loaded: true }, { commands: { doctor: ['/nonexistent/doctor-binary'] } });
+  await r.probeAt(0, ANSWER);
+  const out = await r.monitor.command(KEY, 'doctor');
+  assert.equal(out.code, null);
+  assert.equal(out.timedOut, false);
+  assert.equal(r.monitor.snapshot(KEY)!.lastAction!.reason.code, 'result.commandFailed');
+  const none = await r.monitor.command(KEY, 'update');
+  assert.match(none.refused ?? '', /declares no Update command/);
 });

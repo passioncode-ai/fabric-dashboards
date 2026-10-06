@@ -486,7 +486,7 @@ test('LC-07: settings written by an earlier version count as not yet asked', () 
 
 test('LC-07: a refused login item reports the reason instead of throwing', () => {
   const refusing: LoginItemOs = { get: () => ({ openAtLogin: false, status: 'requires-approval' }), set: () => {} };
-  assert.match(applyLoginItem(true, refusing)!, /System Settings/);
+  assert.equal(applyLoginItem(true, refusing), 'requires-approval', 'P-10: a code the window words in its language (login.approval)');
   const throwing: LoginItemOs = { get: () => ({ openAtLogin: false }), set: () => { throw new Error('nope'); } };
   assert.equal(applyLoginItem(true, throwing), 'nope');
 });

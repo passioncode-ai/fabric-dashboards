@@ -217,6 +217,21 @@
       "expect": { "state": "down" }
     },
     {
+      "name": "remote: an HTTP 5xx (a deploy, an outage) is silence, not another program — waiting at first",
+      "input": { "descriptor": { "protocol": "fabric-service/0.1", "id": "example-agent", "instance": "default", "name": "Example Agent", "placement": "remote", "origin": "https://agent.example.com", "auth": { "tokenFile": "~/Library/Application Support/ai.passioncode.fabric/tokens/example-agent.default.token" }, "lifecycle": { "manager": "none" }, "installedAt": "2026-10-02T18:00:00Z", "installedBy": "fabric-service register-remote" }, "launchd": { "managed": false, "loaded": false, "pid": null, "disabled": false }, "probe": { "kind": "no-answer", "detail": "HTTP 503 on /.well-known/fabric-service", "cause": "http" }, "firstUnansweredAt": 970000, "now": 1000000 },
+      "expect": { "state": "starting", "reasons": [{ "code": "reason.waiting" }] }
+    },
+    {
+      "name": "remote: an HTTP 5xx past the remote grace is down, with the status",
+      "input": { "descriptor": { "protocol": "fabric-service/0.1", "id": "example-agent", "instance": "default", "name": "Example Agent", "placement": "remote", "origin": "https://agent.example.com", "auth": { "tokenFile": "~/Library/Application Support/ai.passioncode.fabric/tokens/example-agent.default.token" }, "lifecycle": { "manager": "none" }, "installedAt": "2026-10-02T18:00:00Z", "installedBy": "fabric-service register-remote" }, "launchd": { "managed": false, "loaded": false, "pid": null, "disabled": false }, "probe": { "kind": "no-answer", "detail": "HTTP 503 on /.well-known/fabric-service", "cause": "http" }, "firstUnansweredAt": 910000, "now": 1000000 },
+      "expect": { "state": "down", "reasons": [{ "code": "reason.remote.http", "params": { "origin": "https://agent.example.com", "detail": "HTTP 503 on /.well-known/fabric-service" } }] }
+    },
+    {
+      "name": "remote: an answer without the protocol names the origin, never a port",
+      "input": { "descriptor": { "protocol": "fabric-service/0.1", "id": "example-agent", "instance": "default", "name": "Example Agent", "placement": "remote", "origin": "https://agent.example.com", "auth": { "tokenFile": "~/Library/Application Support/ai.passioncode.fabric/tokens/example-agent.default.token" }, "lifecycle": { "manager": "none" }, "installedAt": "2026-10-02T18:00:00Z", "installedBy": "fabric-service register-remote" }, "launchd": { "managed": false, "loaded": false, "pid": null, "disabled": false }, "probe": { "kind": "not-protocol", "detail": "HTTP 404 on /.well-known/fabric-service" } },
+      "expect": { "state": "foreign", "reasons": [{ "code": "reason.remote.protocol", "params": { "origin": "https://agent.example.com", "detail": "HTTP 404 on /.well-known/fabric-service" } }] }
+    },
+    {
       "name": "remote with an http origin is invalid and never probed",
       "input": { "descriptor": null, "problems": ["a remote origin must be https://<dns-name>[:<port>] with no path, query or IP literal"], "launchd": { "managed": false, "loaded": false, "pid": null, "disabled": false }, "probe": null },
       "expect": { "state": "invalid" }

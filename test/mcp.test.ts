@@ -310,3 +310,10 @@ test('M-3: start or restart with a missing plist is refused at once, as in the a
   const { deps } = world();
   await assert.rejects(tools.control({ ...deps, exists: () => false }, KEY, 'restart'), /plist is missing/);
 });
+
+test('P-3: MCP spend of a service that does not answer is unknown (an error), never "not reporting"', async () => {
+  const { deps } = world({ answers: [{ kind: 'no-answer', detail: 'connection refused' }] });
+  const e = (await tools.spend(deps, KEY)).services[0]!;
+  assert.equal(e.kind, 'error');
+  assert.match((e as { error: string }).error, /spend is unknown/);
+});

@@ -4,6 +4,9 @@
 // #region login-item — docs: docs/ux/scenarios.md#scn-024-settings-launch-at-login-notifications-quiet-hours
 import type { Settings } from './types';
 
+/** macOS asks the person to approve the login item first (System Settings → General → Login Items). */
+export const LOGIN_NEEDS_APPROVAL = 'requires-approval';
+
 export interface LoginItemOs {
   get(): { openAtLogin: boolean; status?: string };
   set(openAtLogin: boolean): void;
@@ -31,7 +34,7 @@ export function applyLoginItem(openAtLogin: boolean, os: LoginItemOs): string | 
   try {
     os.set(openAtLogin);
     const now = os.get();
-    if (openAtLogin && now.status === 'requires-approval') return 'approve Fabric Dashboards in System Settings → General → Login Items';
+    if (openAtLogin && now.status === 'requires-approval') return LOGIN_NEEDS_APPROVAL; // the caller words it in the window's language
     if (openAtLogin && !now.openAtLogin && now.status !== 'enabled') return now.status ?? 'not registered';
   } catch (error) {
     return (error as Error).message;

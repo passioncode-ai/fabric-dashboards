@@ -74,13 +74,15 @@ function remoteState(d: Descriptor, probe: WellKnownResult | null, i: StateInput
     return fromWellKnown(probe.doc);
   }
   if (probe?.kind === 'not-protocol') {
-    return { state: 'foreign', reasons: [{ code: 'reason.foreign.protocol', params: { port: portNum(d.origin), detail: probe.detail } }] };
+    return { state: 'foreign', reasons: [{ code: 'reason.remote.protocol', params: { origin: d.origin, detail: probe.detail } }] };
   }
   if (probe?.kind === 'refused') return { state: 'down', reasons: [{ code: 'reason.remote.refused', params: { origin: d.origin } }] };
   if (probe?.kind === 'no-answer' && probe.cause === 'tls') return { state: 'down', reasons: [{ code: 'reason.remote.tls', params: { origin: d.origin, detail: probe.detail } }] };
   if (probe?.kind === 'no-answer' && probe.cause === 'redirect') return { state: 'down', reasons: [{ code: 'reason.remote.redirect', params: { origin: d.origin } }] };
   const since = i.firstUnansweredAt ?? i.now;
   if (i.now - since < REMOTE_DOWN_AFTER_MS) return { state: 'starting', reasons: [{ code: 'reason.waiting' }] };
+  // An HTTP 5xx is the platform answering for a service that is not up: down with the status, after the same grace as silence.
+  if (probe?.kind === 'no-answer' && probe.cause === 'http') return { state: 'down', reasons: [{ code: 'reason.remote.http', params: { origin: d.origin, detail: probe.detail } }] };
   return { state: 'down', reasons: [{ code: 'reason.remote.down', params: { origin: d.origin, since: new Date(since).toISOString() } }] };
 }
 

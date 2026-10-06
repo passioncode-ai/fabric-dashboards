@@ -20,11 +20,16 @@ interface Props {
   tab?: 'logs' | 'health';
   /** Needs attention's Update: run the update once this page shows (its output lands on Health). */
   runUpdate?: boolean;
+  /** Grows with every activity row (P-7). */
+  activityRev?: number;
   overlayOpen: boolean;
   askStop: (key: string) => void;
 }
 
-export function ServiceView({ s, all, members, open, link, nonce, tab: askedTab, runUpdate, overlayOpen, askStop }: Props) {
+export function ServiceView({ s, all, members, open, link, nonce, tab: askedTab, runUpdate, activityRev, overlayOpen, askStop }: Props) {
+  const [pathError, setPathError] = useState('');
+  // P-6: a folder or file that cannot be shown says so here, as Overview's Show folder does.
+  const show = (p: string) => void api().showPath(p).then((r) => setPathError(r.ok ? '' : t('overview.showFailed', { path: p, error: r.error ?? '' })));
   const { t, reason, duration } = useT();
   const hasDashboard = Boolean(s.wellKnown?.surfaces.dashboard);
   const [tab, setTabState] = useState<Tab>(hasDashboard ? 'dashboard' : 'health');
@@ -52,7 +57,10 @@ export function ServiceView({ s, all, members, open, link, nonce, tab: askedTab,
     setOutput({ title: '', text: '', running: which });
     try {
       const r = await api().command(s.key, which);
-      const status = r.timedOut ? t('result.commandTimeout', { command }) : r.code === null && r.output ? r.output : t('result.command', { command, code: r.code ?? '—' });
+      if (r.refused) { setOutput({ title: r.refused, text: '', running: null }); return; }
+      const status = r.timedOut ? t('result.commandTimeout', { command })
+        : r.code === null ? t('result.commandFailed', { command, error: r.output.trim().split('\n').pop() ?? '' })
+        : t('result.command', { command, code: r.code });
       setOutput({ title: status, text: r.code === null && !r.timedOut ? '' : r.output, running: null });
     } catch (error) {
       setOutput({ title: t('result.commandFailed', { command, error: String((error as Error)?.message ?? error) }), text: '', running: null });
@@ -80,7 +88,7 @@ export function ServiceView({ s, all, members, open, link, nonce, tab: askedTab,
         </div>
         <Tools names={wk?.surfaces.mcp?.capabilities ?? []} />
         {s.reasons.length > 0 && <ul className="reasons">{s.reasons.map((r, i) => <li key={i}>{reason(r)}</li>)}</ul>}
-        {s.lastAction && !s.busy && (
+        {s.lastAction && !s.busy && Date.now() - Date.parse(s.lastAction.at) < 30 * 60_000 && ( /* P-15: news for half an hour, as on Overview */
           <p className={`meta row${s.lastAction.ok ? '' : ' state-down'}`} role="status">
             {reason(s.lastAction.reason)}
             {!s.lastAction.ok && s.descriptor?.paths?.logs?.length ? <button className="btn btn-sm" onClick={() => setTab('logs')}>{t('action.logs')}</button> : null}
@@ -97,12 +105,13 @@ export function ServiceView({ s, all, members, open, link, nonce, tab: askedTab,
             <button className="btn" disabled={Boolean(s.busy)} onClick={() => void run('update')}>{t('action.update', { version: wk.update.available })}</button>
           )}
           {s.descriptor?.commands?.doctor && <button className="btn" disabled={Boolean(s.busy)} onClick={() => void run('doctor')}>{t('action.doctor')}</button>}
-          {s.descriptor?.paths && <button className="btn" onClick={() => void api().showPath(s.descriptor!.paths!.data)}>{t('action.showData')}</button>}
-          <button className="btn" onClick={() => void api().showPath(s.descriptorPath)}>{t('action.showFile')}</button>
+          {s.descriptor?.paths && <button className="btn" onClick={() => show(s.descriptor!.paths!.data)}>{t('action.showData')}</button>}
+          <button className="btn" onClick={() => show(s.descriptorPath)}>{t('action.showFile')}</button>
           {conflictWith.map((o) => (
-            <button key={o.key} className="btn" onClick={() => void api().showPath(o.descriptorPath)}>{t('action.showFileOf', { name: nameOf(o) })}</button>
+            <button key={o.key} className="btn" onClick={() => show(o.descriptorPath)}>{t('action.showFileOf', { name: nameOf(o) })}</button>
           ))}
         </div>
+        {pathError && <p className="notice error" role="alert">{pathError}</p>}
       </header>
       <div className="tabs" role="tablist" aria-label={nameOf(s)} onKeyDown={(e) => {
         // U-14: arrow keys move between tabs, as a tab list should.
@@ -113,12 +122,12 @@ export function ServiceView({ s, all, members, open, link, nonce, tab: askedTab,
         (document.getElementById(`tab-${next}`) as HTMLButtonElement | null)?.focus();
       }}>
         {tabs.map((x) => (
-          <button key={x} id={`tab-${x}`} role="tab" className="tab" aria-selected={tab === x} aria-controls={`panel-${x}`} tabIndex={tab === x ? 0 : -1} onClick={() => setTab(x)}>{t(`tab.${x}`)}</button>
+          <button key={x} id={`tab-${x}`} role="tab" className="tab" aria-selected={tab === x} aria-controls={tab === x ? `panel-${x}` : undefined} tabIndex={tab === x ? 0 : -1} onClick={() => setTab(x)}>{t(`tab.${x}`)}</button>
         ))}
       </div>
       <div className="svc-body" role="tabpanel" id={`panel-${tab}`} aria-labelledby={`tab-${tab}`}>
         {tab === 'dashboard' && <DashboardHost s={s} link={link} nonce={nonce} hidden={overlayOpen} />}
-        {tab === 'activity' && <div className="pane"><ServiceActivity serviceKey={s.key} /></div>}
+        {tab === 'activity' && <div className="pane"><ServiceActivity serviceKey={s.key} tick={`${activityRev ?? ''}|${s.latestEvent?.id ?? ''}`} /></div>}
         {tab === 'health' && <div className="pane"><Health s={s} output={output} /></div>}
         {tab === 'logs' && <div className="pane"><Logs serviceKey={s.key} /></div>}
       </div>
@@ -297,9 +306,10 @@ function Logs({ serviceKey }: { serviceKey: string }) {
   );
 }
 
-function ServiceActivity({ serviceKey }: { serviceKey: string }) {
+function ServiceActivity({ serviceKey, tick }: { serviceKey: string; tick: string }) {
   const [items, setItems] = useState<ActivityItem[] | null>(null);
-  useEffect(() => { void api().activity({ serviceKey }).then(setItems); }, [serviceKey]);
+  // P-7: new rows appear while the tab is open, as on the Activity page.
+  useEffect(() => { void api().activity({ serviceKey }).then(setItems); }, [serviceKey, tick]);
   return <Feed items={items} />;
 }
 
@@ -336,7 +346,7 @@ function Tools({ names }: { names: string[] }) {
   if (!names.length) return null;
   const shown = all ? names : names.slice(0, TOOLS_VISIBLE);
   return (
-    <div className="svc-tools" aria-label={t('svc.tools')}>
+    <div className="svc-tools" role="group" aria-label={t('svc.tools')}>
       <span className="meta">{t('svc.tools')}</span>
       {shown.map((n) => <code key={n} className="tool-chip">{n}</code>)}
       {names.length > TOOLS_VISIBLE && (
