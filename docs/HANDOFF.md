@@ -1,31 +1,35 @@
 # Handoff — Fabric Dashboards
 
-Updated 2026-10-07 (0.6.1: LC-16 in detail updater, Russian by choice; 0.6.0 published 2026-10-06 21:35 UTC; release 0.5.6: third review pass, token latch; release 0.5.5 withdrawn: release audit and its second pass, A2A plan, ADR-0016, ADR-0015 data and updates, FD-05, FD-06, FD-13; Spend and DEC-0021; one entry per agent, ADR-0012; lifecycle contract landed from PR #21, unreleased; CI release rehearsal
+Updated 2026-10-07 (0.6.2: 0.6.1 withdrawn for audit HIGH-2, audit fixes, signed feed; 0.6.1: LC-16 in detail updater, Russian by choice; 0.6.0 published 2026-10-06 21:35 UTC; release 0.5.6: third review pass, token latch; release 0.5.5 withdrawn: release audit and its second pass, A2A plan, ADR-0016, ADR-0015 data and updates, FD-05, FD-06, FD-13; Spend and DEC-0021; one entry per agent, ADR-0012; lifecycle contract landed from PR #21, unreleased; CI release rehearsal
 `v0.4.1-rc.1` green; releases move to CI signing; release 0.4.1, MCP links to online services).
 
-Current release: 0.6.0 (published 2026-10-06 21:35 UTC, run 37505569449); 0.6.1 in progress (next section). Before it, 0.5.6 (2026-10-06); the 0.4.1 section below is the previous one. Earlier releases below are preserved as dated evidence.
+Current release: 0.6.0 (published 2026-10-06 21:35 UTC, run 37505569449); 0.6.2 in progress (next section; 0.6.1 withdrawn). Before it, 0.5.6 (2026-10-06); the 0.4.1 section below is the previous one. Earlier releases below are preserved as dated evidence.
 
 ## Next — start here (2026-10-07)
 
-**0.6.1 — branch `agent/lc16-ru-061`** (operator request 2026-10-06: «перевод на русский, исправить
-баги, автоапдейтер по дефолту включен, одинаково для всех наших продуктов»). FD-27 (updates by
+**0.6.2 — branch `agent/fixes-062`.** 0.6.1 (PR #34, `4f5cc11`, tag `v0.6.1`) was withdrawn before
+approval — run 37539041728 force-cancelled — because a read-only bug audit by the fabric-workspace
+session found that Restart to Update ended running agent consoles without asking (HIGH-2). 0.6.2
+carries all of 0.6.1 — FD-27 (updates by
 [LC-16 in detail](https://github.com/passioncode-ai/fabric-workspace/blob/main/knowledge/lifecycle.md),
 [ADR-0015 amendment](adr/0015-data-survives-uninstall-updates-install-themselves.md#lc-16)), FD-28
-(Settings → Language, glossary), FD-19 (machine reasons in Russian, app-side table), and the compact
-bar fix (a padding rule overrode the narrow-bar rules: the name vanished and «Логи» was cut off with
-the console open). Checks run: `FD_SKIP_LAUNCHD=1 npm run check` — 279 tests, 278 pass, 1 skipped
-(launchd); `npm run test:e2e` 7/7 on an unlocked screen (FD-05's Dock assertion passes — it failed
-only under a locked screen); a Russian walk of every screen through the Language setting on the
-built app (name and four tabs visible with the console open, Settings shows the glossary label); an
-independent review of the updater (one finding — a write-stream error hung the download — fixed,
-plus a held release no longer re-downloaded by the timer). **Next task:** open the PR, merge on a
-green gate, tag `v0.6.1`, hand the operator the `macos` and `publish` approval links; read the
-receipt (`checks.pty`, `checks.updateVerifier`, `checks.downgradeGuard`). Field proof: the installed
-copy goes 0.5.6 → 0.6.0 → 0.6.1 by itself (at 2026-10-07 00:08 local it was still 0.5.6; 0.5.6's
-next 6-hourly check is about 04:05 local); on 0.6.1, `grep -E 'update_|auto_update' main.log` must
-show `auto_update on` at start. The other products' LC-16 gaps (Fabric desktop and fabric-vr: no
-updater; Inbox: no 6 h timer, no newer-only guard, stdout-only log; Switchboard: replaces its bundle
-while running, no manual check; Observatory: daily check, no switch) go to their owners as a matrix.
+(Settings → Language, glossary), FD-19 (machine reasons in Russian), the compact-bar fix — plus FD-29:
+the audit's fixes (Restart/Quit ask and name the work, the probe deadline in
+`@passioncode-ai/fabric-service-host` 0.3.2, removal debounce, uninstall never purges under a live
+app, `~/.claude.json` symlink kept, login-shell group killed, Switchboard Terminal refuses Continue,
+45-min update watchdog, flaky test margins) and the signed feed (`signedFeed`, from Fabric Inbox's
+design). Checks run: `FD_SKIP_LAUNCHD=1 npm run check` — 286 tests, 285 pass, 1 skipped (launchd);
+`npm run test:e2e` 7/7 on an unlocked screen; the trickle test watched failing without its fix;
+openpgp verified from a packed `app.asar` under Electron's Node (0.6.1). **Next task:** reproduce CI
+on a clean checkout, merge on a green gate, tag `v0.6.2`, give the operator the `macos` and `publish`
+approval links, read the receipt (`checks.pty`, `checks.updateVerifier`, `checks.downgradeGuard`).
+Then: tell Fabric (fabric-a6) that service-host 0.3.2 bounds the whole probe; field proof — the
+installed copy 0.5.6 → 0.6.0 → 0.6.2 by itself (still 0.5.6 at 2026-10-07 00:08 local), and on 0.6.2
+`grep -E 'update_|auto_update' main.log` shows `auto_update on`. FD-29 open item: the `file://` feed.
+The LC-16 matrix went to Inbox (already compliant on its 0.12.0 branch, 95af4f7), Switchboard,
+Observatory and Fabric (fabric-a6, also for fabric-vr). Ops: about 20 MCP servers from 0.4.1 stay
+alive, held by open agent sessions (0.4.1 predates the stale exit, d604b07); they end with those
+sessions — not killed from here.
 
 ## Previous — 0.6.0 (2026-10-06)
 

@@ -60,4 +60,22 @@ export function feedNamesOwnRelease(feed: unknown, version: string): boolean {
 }
 
 export const sha256 = (data: Buffer) => createHash('sha256').update(data).digest('hex');
+
+export const FEED_FILE = 'update-feed.json';
+
+/** The release's own feed, as its signed SHA256SUMS names it: the version it announces and whether
+ *  it needs a person come from bytes the organization signed, not from the `latest` redirect
+ *  (fabric-inbox 95af4f7 does the same). `needsPerson` counts only as an https address. */
+export function signedFeed(feedBytes: Buffer, sums: Map<string, string>, version: string): { ok: true; needsPerson: string | null } | { ok: false; why: string } {
+  const expected = sums.get(FEED_FILE);
+  if (!expected) return { ok: false, why: `SHA256SUMS of ${version} names no ${FEED_FILE}` };
+  const actual = sha256(feedBytes);
+  if (actual !== expected) return { ok: false, why: `${FEED_FILE} of ${version} has sha256 ${actual}, SHA256SUMS says ${expected}` };
+  let feed: { currentRelease?: unknown; needsPerson?: unknown };
+  try { feed = JSON.parse(feedBytes.toString('utf8')); } catch { return { ok: false, why: `${FEED_FILE} of ${version} is not JSON` }; }
+  if (feed.currentRelease !== version) return { ok: false, why: `${FEED_FILE} of ${version} announces ${String(feed.currentRelease)}` };
+  if (!feedNamesOwnRelease(feed, version)) return { ok: false, why: `${FEED_FILE} of ${version} names a file outside its own release` };
+  const steps = typeof feed.needsPerson === 'string' && /^https:\/\/[^\s]+$/.test(feed.needsPerson) ? feed.needsPerson : null;
+  return { ok: true, needsPerson: steps };
+}
 // #endregion release-verify

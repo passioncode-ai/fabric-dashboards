@@ -6,6 +6,7 @@
 // node-pty in the app, a fake in tests.
 import { EventEmitter } from 'node:events';
 import { commandEnv } from './children';
+import { t, type Lang } from './i18n';
 import { runtimeArgs, type Runtime } from './runtimes';
 import { inPlaceArgv, type Binding } from './switchboard';
 
@@ -83,6 +84,19 @@ interface Session {
   killTimer: NodeJS.Timeout | null;
   exited: Promise<void>;
   resolveExit: () => void;
+}
+
+/** What a restart or a quit would end, named for the person (audit 2026-10-07, HIGH-2): each agent
+ *  whose console session runs, and how many other commands the app started; null when nothing would be lost. */
+export function endWorkQuestion(lang: Lang, o: { kind: 'restart' | 'quit'; consoles: string[]; commands: number }): { message: string; detail: string; confirm: string } | null {
+  if (o.consoles.length === 0 && o.commands === 0) return null;
+  const lines = o.consoles.map((name) => t(lang, 'endWork.console', { name }));
+  if (o.commands > 0) lines.push(t(lang, 'endWork.commands', { count: o.commands }));
+  return {
+    message: t(lang, o.kind === 'restart' ? 'endWork.restart.title' : 'endWork.quit.title'),
+    detail: `${lines.join('\n')}\n\n${t(lang, 'endWork.body')}`,
+    confirm: t(lang, o.kind === 'restart' ? 'endWork.restart.confirm' : 'endWork.quit.confirm'),
+  };
 }
 
 export class ConsoleManager extends EventEmitter {
@@ -187,6 +201,11 @@ export class ConsoleManager extends EventEmitter {
     const s = this.sessions.get(key);
     if (!s) return { key, state: 'idle', label: '', cwd: '', output: '', end: 0, exitCode: null, signal: null, startedAt: null };
     return { key, state: s.pty ? 'running' : 'exited', label: s.label, cwd: s.cwd, output: s.chunks.join(''), end: s.emitted, exitCode: s.exitCode, signal: s.signal, startedAt: s.startedAt };
+  }
+
+  /** The services whose console session runs now (a removed service's dying session is not named). */
+  runningKeys(): string[] {
+    return [...this.sessions.entries()].filter(([, s]) => s.pty).map(([k]) => k);
   }
 
   runningCount(): number {

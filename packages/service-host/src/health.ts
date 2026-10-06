@@ -42,6 +42,13 @@ export function request(origin: string, method: 'GET' | 'POST', path: string, he
     : { host: '127.0.0.1', port: port!, method, path, headers: { Host: `127.0.0.1:${port}`, Accept: 'application/json', ...headers }, timeout: timeoutMs };
   return new Promise((resolve, reject) => {
     const client = remote ? https : http;
+    // `timeout` above is only the socket's idle time: a service that trickles a byte now and then
+    // would hold the probe — and a host's monitor awaiting it — for ever. This deadline is the whole
+    // request, answer included (audit 2026-10-07, MEDIUM-4).
+    const deadline = setTimeout(() => req.destroy(new Error(`no answer within ${timeoutMs} ms`)), timeoutMs);
+    const done = <T>(fn: (v: T) => void) => (v: T) => { clearTimeout(deadline); fn(v); };
+    resolve = done(resolve);
+    reject = done(reject);
     const req = client.request(options, (res) => {
       const chunks: Buffer[] = [];
       let size = 0;

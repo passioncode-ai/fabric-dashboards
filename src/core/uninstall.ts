@@ -66,7 +66,11 @@ function editClaudeConfig<T>(home: string, change: (config: ClaudeConfig) => { c
     if (!changed) return { file, result };
     const now = fs.statSync(file);
     if (now.mtimeMs !== before.mtimeMs || now.size !== before.size) continue; // written meanwhile: read again
-    atomicWrite(file, `${JSON.stringify(config, null, 2)}\n`, before.mode & 0o777);
+    // A dotfiles setup may keep ~/.claude.json as a symlink: the rename lands on its target, so the
+    // link stays a link (audit 2026-10-07).
+    let target = file;
+    try { target = fs.realpathSync(file); } catch { /* read a moment ago; the write below reports a failure */ }
+    atomicWrite(target, `${JSON.stringify(config, null, 2)}\n`, before.mode & 0o777);
     return { file, result };
   }
   throw new Error(`${file} kept changing; nothing was changed`);
@@ -213,17 +217,20 @@ export function purgeData(paths: string[]): string[] {
  * Remove product data once process `pid` has exited — the app's own data cannot be deleted while
  * Chromium still writes into it. A detached `/bin/sh` waits for the pid (at most 30 s), removes the
  * paths isProductPath accepts and ends: the one process that deliberately outlives the app, bounded.
+ * An app still running after 30 s keeps its data: nothing is removed from under a live process
+ * (audit 2026-10-07); a later uninstall or the person removes it.
  * With `keep`, everything inside `keep.dir` except the named files goes too — the uninstall that
  * keeps the person's settings and history (LC-14: data goes only when the person asks).
  */
-export function purgeAfterExit(pid: number, paths: string[], keep?: { dir: string; names: readonly string[] }): ChildProcess | null {
+export function purgeAfterExit(pid: number, paths: string[], keep?: { dir: string; names: readonly string[] }, waitMs = 30_000): ChildProcess | null {
   const checked = paths.filter((p) => isProductPath(p)).map((p) => path.resolve(p));
   const keepDir = keep && isProductPath(keep.dir) ? path.resolve(keep.dir) : '';
   if (!checked.length && !keepDir) return null;
   const names = keep?.names ?? [];
   if (names.some((n) => !/^[A-Za-z0-9._-]+$/.test(n))) throw new Error('a kept name is a plain file name');
   const kept = names.length ? names.join('|') : '/';
-  const script = 'i=0; while kill -0 "$0" 2>/dev/null && [ $i -lt 300 ]; do sleep 0.1; i=$((i+1)); done; k="$1"; shift; rm -rf -- "$@"; '
+  const ticks = Math.max(1, Math.round(waitMs / 100));
+  const script = 'i=0; while kill -0 "$0" 2>/dev/null && [ $i -lt ' + ticks + ' ]; do sleep 0.1; i=$((i+1)); done; kill -0 "$0" 2>/dev/null && exit 0; k="$1"; shift; rm -rf -- "$@"; '
     + `if [ -n "$k" ] && [ -d "$k" ]; then for f in "$k"/* "$k"/.[!.]* "$k"/..?*; do [ -e "$f" ] || [ -L "$f" ] || continue; case "\${f##*/}" in ${kept}) ;; *) rm -rf -- "$f" ;; esac; done; fi`;
   const helper = spawn('/bin/sh', ['-c', script, String(pid), keepDir, ...checked], { detached: true, stdio: 'ignore' });
   helper.unref();

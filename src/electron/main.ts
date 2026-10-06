@@ -7,6 +7,8 @@ import path from 'node:path';
 import { ActivityStore } from '../core/activity';
 import { CHANNELS, type Rect } from '../core/api';
 import { killOwned, ownedCount } from '../core/children';
+import { endWorkQuestion } from '../core/consoles';
+import { displayName } from '../core/names';
 import { ConsoleHost } from './console';
 import { appendLog, sweepTemps } from '../core/fsutil';
 import { parseDeepLink, SCHEME } from '../core/deeplink';
@@ -158,6 +160,29 @@ if (!app.requestSingleInstanceLock()) {
     if (!updater.restart()) { try { fs.rmSync(path.join(userData, RELAUNCH_MARKER), { force: true }); } catch { /* gone */ } }
   }
   // #endregion auto-install-flow
+  // #region end-work-question — docs: docs/adr/0017-focus-layout-and-agent-console.md#decision
+  // Audit 2026-10-07 HIGH-2: a restart to update or a quit the person asks for never ends an agent's
+  // console session or a running command silently — it names them and waits for a yes. The automatic
+  // install never asks: it waits until nothing runs (auto-install-flow).
+  async function mayEndWork(kind: 'restart' | 'quit'): Promise<boolean> {
+    const names = consoles.manager.runningKeys().map((key) => {
+      const d = monitor.snapshot(key)?.descriptor;
+      return d ? displayName(d.name, d.instance) : key;
+    });
+    const q = endWorkQuestion(lang(), { kind, consoles: names, commands: ownedCount() });
+    if (!q) return true;
+    const ask = { type: 'warning' as const, message: q.message, detail: q.detail, buttons: [q.confirm, t(lang(), 'action.cancel')], defaultId: 1, cancelId: 1 };
+    const parent = window && !window.isDestroyed() && window.isVisible() ? window : null;
+    const { response } = parent ? await dialog.showMessageBox(parent, ask) : await dialog.showMessageBox(ask);
+    log(`${kind === 'restart' ? 'update_restart' : 'quit'} ${response === 0 ? 'confirmed' : 'refused'} consoles=${names.length} commands=${ownedCount()}`);
+    return response === 0;
+  }
+  async function quitAsked(): Promise<void> {
+    if (!(await mayEndWork('quit'))) return;
+    quitting = true;
+    app.quit();
+  }
+  // #endregion end-work-question
   function windowShown(): void {
     updateGrace.shown();
     if (busyRetry) { clearTimeout(busyRetry); busyRetry = null; }
@@ -501,7 +526,11 @@ if (!app.requestSingleInstanceLock()) {
     ipcMain.handle(CHANNELS.copyText, (_e, text: string) => { clipboard.writeText(String(text).slice(0, 4096)); });
     ipcMain.handle(CHANNELS.rescan, () => monitor.tick(true));
     ipcMain.handle(CHANNELS.serviceGuide, () => shell.openExternal(SERVICE_GUIDE));
-    ipcMain.handle(CHANNELS.updateRestart, () => { updater.restart(); });
+    ipcMain.handle(CHANNELS.updateRestart, async () => {
+      // A held release only hands the verified build to Squirrel: nothing quits, nothing to ask.
+      if (updater.state.state === 'ready' && !(await mayEndWork('restart'))) return;
+      updater.restart();
+    });
     ipcMain.handle(CHANNELS.updateSteps, () => { const steps = updater.state.state === 'held' ? updater.state.steps : undefined; if (steps && steps.startsWith('https://')) return shell.openExternal(steps); });
     ipcMain.handle(CHANNELS.updateCheck, () => updater.check(true)); // the person asked: works with automatic updates off
     ipcMain.handle(CHANNELS.moveToApplications, () => moveToApplications());
@@ -522,7 +551,7 @@ if (!app.requestSingleInstanceLock()) {
         { role: 'about' },
         { label: t(l, 'menu.checkUpdates'), click: () => updater.check(true) },
         { type: 'separator' }, { role: 'hide' }, { role: 'hideOthers' }, { role: 'unhide' }, { type: 'separator' },
-        { role: 'quit' },
+        { label: t(l, 'menu.quit'), accelerator: 'Command+Q', click: () => void quitAsked() },
       ] },
       { role: 'editMenu' },
       // ADR-0017: the panels fold away from the menu too; the window holds the state (Settings.layout).
@@ -574,7 +603,7 @@ if (!app.requestSingleInstanceLock()) {
       },
       resume: () => { settings.update({ notifications: { ...settings.get().notifications, pausedUntil: null } }); pushStatus(); },
       paused: () => { const p = settings.get().notifications.pausedUntil; return Boolean(p && new Date(p) > new Date()); },
-      quit: () => { quitting = true; app.quit(); }, // the menu itself says quitting stops no service (LC-07)
+      quit: () => void quitAsked(), // the menu itself says quitting stops no service (LC-07)
     }, lang);
     monitor.on('change', pushStatus);
     schedulePauseEnd(); // a pause that outlived a restart still ends with a tray rebuild

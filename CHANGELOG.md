@@ -2,7 +2,42 @@
 
 ## Unreleased
 
-## 0.6.1 - 2026-10-07
+## 0.6.2 - 2026-10-07
+
+The first published release since 0.6.0. It carries everything listed under 0.6.1 below — 0.6.1 was
+tagged and built, but a bug audit by the fabric-workspace session found that Restart to Update ended
+running agent consoles without asking, so it was withdrawn before approval (run 37539041728
+cancelled). This release fixes that and the rest of the audit.
+
+### Fixed
+
+- **Restart to Update and Quit ask before ending work.** With an agent's console session or a
+  command running, «Restart to Update», the app menu's Quit and the tray's Quit name what would be
+  stopped and wait for a yes. Nothing running, no question. The automatic install never asks: it
+  waits until nothing runs, as before.
+- **A slow service no longer freezes the monitor.** A health probe now ends at its deadline even
+  when the service keeps trickling bytes (`@passioncode-ai/fabric-service-host` 0.3.2).
+- **Rewriting a descriptor no longer removes the service.** A writer that deletes and recreates the
+  file (no atomic rename) used to end that service's console and wipe its stored session; a service
+  now counts as removed only when its descriptor stays absent for 1.5 s across two scans.
+- **Uninstall never deletes data from under a running app.** If the app is still running after the
+  30-second wait, the helper leaves its data in place.
+- **A `~/.claude.json` kept as a symlink stays a symlink** when uninstall or a repair edits it.
+- **The login shell read for the console's `PATH`** ends at its deadline together with everything
+  its startup files launched, not just the shell itself.
+- **Open in Terminal through Switchboard** says it cannot continue the last session instead of
+  quietly starting a new one.
+- **An update check or download that stops moving fails after 45 minutes** instead of showing
+  «Checking…» forever.
+
+### Changed
+
+- **The update's version and its "needs your step" mark are signed.** The app reads the release's
+  own `update-feed.json` and requires its hash to match the signed `SHA256SUMS` (the same check as
+  Fabric Inbox 95af4f7). A mark added after signing makes the update fail with `signature_failed`.
+- Updater errors read in Russian in a Russian interface.
+
+## 0.6.1 - 2026-10-07 (withdrawn — not published)
 
 Updates by the organization's standard, and the interface in Russian by choice.
 

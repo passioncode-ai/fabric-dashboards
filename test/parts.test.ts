@@ -399,3 +399,23 @@ test('FD-19: machine reasons read in Russian where they are known, and stay as w
   assert.equal(t('en', 'update.error', { error: 'socket hang up' }).includes('socket hang up'), true);
 });
 // #endregion l10n
+
+test('LC-16 (fabric-inbox 95af4f7): the version and the needs-a-person mark come from the release\'s signed feed', async () => {
+  const { signedFeed, parseSums } = await import('../src/core/release-verify');
+  const dir = path.join(__dirname, 'fixtures/release-0.6.0');
+  const feed = fs.readFileSync(path.join(dir, 'update-feed.json'));
+  const sums = parseSums(fs.readFileSync(path.join(dir, 'SHA256SUMS'), 'utf8'));
+  assert.deepEqual(signedFeed(feed, sums, '0.6.0'), { ok: true, needsPerson: null }, 'the real v0.6.0 feed matches its signed SHA256SUMS');
+  const held = Buffer.from(JSON.stringify({ ...JSON.parse(feed.toString('utf8')), needsPerson: 'https://example.com/steps' }));
+  const r = signedFeed(held, sums, '0.6.0');
+  assert.equal(r.ok, false, 'a needsPerson mark added after signing is refused');
+  assert.match(!r.ok ? r.why : '', /has sha256 .* SHA256SUMS says/);
+  assert.match((signedFeed(feed, sums, '0.6.1') as { why: string }).why, /announces 0\.6\.0/, 'a feed for another version is refused');
+  assert.match((signedFeed(feed, new Map(), '0.6.0') as { why: string }).why, /names no update-feed\.json/);
+  const withSteps = Buffer.from(JSON.stringify({ ...JSON.parse(feed.toString('utf8')), needsPerson: 'https://example.com/steps' }));
+  const signedSteps = new Map(sums); signedSteps.set('update-feed.json', (await import('../src/core/release-verify')).sha256(withSteps));
+  assert.deepEqual(signedFeed(withSteps, signedSteps, '0.6.0'), { ok: true, needsPerson: 'https://example.com/steps' });
+  const httpSteps = Buffer.from(JSON.stringify({ ...JSON.parse(feed.toString('utf8')), needsPerson: 'javascript:alert(1)' }));
+  const signedHttp = new Map(sums); signedHttp.set('update-feed.json', (await import('../src/core/release-verify')).sha256(httpSteps));
+  assert.deepEqual(signedFeed(httpSteps, signedHttp, '0.6.0'), { ok: true, needsPerson: null }, 'only an https address counts as steps');
+});

@@ -14,7 +14,7 @@ import { commandRan, commandReason } from '../src/core/outcome';
 import { appendLog, sweepTemps } from '../src/core/fsutil';
 import { Launchd } from '../src/core/launchd';
 import { applyLoginItem, loginItemAtStartup, type LoginItemOs } from '../src/core/loginitem';
-import { Monitor } from '../src/core/monitor';
+import { Monitor, REMOVAL_GRACE_MS } from '../src/core/monitor';
 import { merge } from '../src/core/settings';
 import { DEFAULT_SETTINGS } from '../src/core/types';
 import { clearRestoreRecord, KEPT_FILES, MCP_SERVER_NAME, productDataPaths, purgeAfterExit, purgeData, readRestoreRecord, removeMcpRegistrations, repairMcpRegistrations, restoreMcpRegistrations, RESTORE_FILE, writeRestoreRecord } from '../src/core/uninstall';
@@ -257,8 +257,9 @@ test('LC-12: a removed descriptor tells the app, so its view and its partition g
   fs.mkdirSync(services);
   const file = path.join(services, 'example-agent.default.json');
   fs.writeFileSync(file, JSON.stringify({ ...DESCRIPTOR, lifecycle: { manager: 'none' } }));
+  let clock = 1_000_000;
   const monitor = new Monitor({
-    servicesDir: services, activity: new ActivityStore(path.join(base, 'app')), settings: () => DEFAULT_SETTINGS, lang: () => 'en',
+    servicesDir: services, activity: new ActivityStore(path.join(base, 'app')), settings: () => DEFAULT_SETTINGS, lang: () => 'en', now: () => clock,
     wellKnown: async () => ({ kind: 'no-answer', detail: 'closed' }),
   });
   const removed: string[] = [];
@@ -266,7 +267,36 @@ test('LC-12: a removed descriptor tells the app, so its view and its partition g
   await monitor.tick(true);
   fs.unlinkSync(file);
   await monitor.tick(true);
+  assert.deepEqual(removed, [], 'one scan without the file is not a removal yet');
+  clock += REMOVAL_GRACE_MS;
+  await monitor.tick(true);
   assert.deepEqual(removed, ['example-agent.default']);
+});
+
+test('audit MEDIUM-5: a descriptor deleted and written again between scans is not a removal', async () => {
+  const base = tmp('fd-rewrite-');
+  const services = path.join(base, 'services');
+  fs.mkdirSync(services);
+  const file = path.join(services, 'example-agent.default.json');
+  const body = JSON.stringify({ ...DESCRIPTOR, lifecycle: { manager: 'none' } });
+  fs.writeFileSync(file, body);
+  let clock = 1_000_000;
+  const monitor = new Monitor({
+    servicesDir: services, activity: new ActivityStore(path.join(base, 'app')), settings: () => DEFAULT_SETTINGS, lang: () => 'en', now: () => clock,
+    wellKnown: async () => ({ kind: 'no-answer', detail: 'closed' }),
+  });
+  const removed: string[] = [];
+  monitor.on('removed', (key: string) => removed.push(key));
+  await monitor.tick(true);
+  fs.unlinkSync(file); // a non-atomic rewrite: the watcher fires between unlink and write
+  await monitor.tick(true);
+  clock += 200;
+  fs.writeFileSync(file, body);
+  await monitor.tick(true);
+  clock += REMOVAL_GRACE_MS * 2;
+  await monitor.tick(true);
+  assert.deepEqual(removed, [], 'the service, its console and its session stay');
+  assert.equal(monitor.snapshots().length, 1);
 });
 
 // ── LC-10 — a per-session server leaves with its session and with its code ────────────────
@@ -440,13 +470,14 @@ test('LC-02: a command past its timeout loses its whole group, and killOwned lea
 });
 
 test('LC-02: a command that exited is done even when a descendant that left its group holds its output open', async () => {
-  // perl forks a child that calls setsid (leaves the group) and keeps the inherited stdout for 5 s.
+  // perl forks a child that calls setsid (leaves the group) and keeps the inherited stdout for 20 s.
+  // The bound (10 s) sits far from both a slow machine and the descendant (audit: 4.9 s seen under load).
   const started = Date.now();
-  const r = await runOwned('/usr/bin/perl', ['-e', 'use POSIX; if (fork() == 0) { setsid(); sleep 5; exit 0 } print "parent done\\n"; exit 0'], { timeoutMs: 10_000 });
+  const r = await runOwned('/usr/bin/perl', ['-e', 'use POSIX; if (fork() == 0) { setsid(); sleep 20; exit 0 } print "parent done\\n"; exit 0'], { timeoutMs: 30_000 });
   assert.equal(r.code, 0);
   assert.equal(r.timedOut, false);
   assert.match(r.output, /parent done/);
-  assert.ok(Date.now() - started < 3_000, `finished ${Date.now() - started} ms after start, not when the descendant let go`);
+  assert.ok(Date.now() - started < 10_000, `finished ${Date.now() - started} ms after start, not when the descendant let go`);
   assert.equal(ownedCount(), 0);
 });
 
@@ -585,6 +616,33 @@ test('LC-14: the app\'s data is removed only after the app has exited, and the h
   assert.equal(fs.existsSync(data), false, 'removed once the app exited');
   assert.ok(fs.existsSync(home), 'a path that is not a product path is never handed to rm');
   assert.equal(purgeAfterExit(process.pid, [home, '/']), null, 'nothing to remove: no helper');
+});
+
+test('audit 2026-10-07: an app still running when the wait ends keeps its data', async () => {
+  const home = tmp('fd-home-');
+  const data = path.join(home, 'Library/Application Support/Fabric Dashboards');
+  fs.mkdirSync(data, { recursive: true });
+  fs.writeFileSync(path.join(data, 'activity.jsonl'), 'x');
+  const appProcess = spawn('/bin/sleep', ['5']);
+  try {
+    const helper = purgeAfterExit(appProcess.pid!, [data], undefined, 300)!;
+    helper.ref();
+    await new Promise((resolve) => helper.once('exit', resolve));
+    assert.ok(fs.existsSync(path.join(data, 'activity.jsonl')), 'nothing is removed from under a live app');
+  } finally {
+    appProcess.kill('SIGKILL');
+  }
+});
+
+test('audit 2026-10-07: a ~/.claude.json kept as a symlink stays a symlink after the MCP entry goes', () => {
+  const home = tmp('fd-home-');
+  const real = path.join(home, 'dotfiles-claude.json');
+  const launcher = '/Applications/Fabric Dashboards.app/Contents/Resources/bin/fabric-dashboards-mcp';
+  fs.writeFileSync(real, JSON.stringify({ mcpServers: { [MCP_SERVER_NAME]: { type: 'stdio', command: launcher } } }), { mode: 0o600 });
+  fs.symlinkSync(real, path.join(home, '.claude.json'));
+  assert.deepEqual(removeMcpRegistrations(home).removed, ['user']);
+  assert.ok(fs.lstatSync(path.join(home, '.claude.json')).isSymbolicLink(), 'the link is kept');
+  assert.deepEqual(JSON.parse(fs.readFileSync(real, 'utf8')).mcpServers, {}, 'its target carries the change');
 });
 
 // ── LC-14 / ADR-0015 — the person's data survives an uninstall unless they ask ──────────

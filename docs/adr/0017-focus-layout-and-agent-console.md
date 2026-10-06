@@ -140,3 +140,20 @@ What exists today:
 - **Tests.** `test/console.test.ts` (runtimes, folder, Switchboard, sessions on a fake PTY, the
   start plan, the Terminal line), `test/parts.test.ts` (settings, the problem chip),
   `test/dist.test.ts` (staging), `test/e2e/focus-console.test.ts` (the walk with a scripted runtime).
+
+## Amendment — 2026-10-07 (0.6.2): ending a console needs a yes
+
+A bug audit (fabric-workspace session, 2026-10-07, HIGH-2) found that «Restart to Update» ended every
+running console session and command without asking, although Stop asks and the automatic install
+waits. From 0.6.2 every path the person takes that would end them asks first:
+
+- «Restart to Update», the app menu's Quit (⌘Q) and the tray's Quit show a warning naming each agent
+  whose console runs and the count of running commands, with the confirming action and Cancel
+  (Cancel is the default). Nothing running: no question (`endWorkQuestion`, `src/core/consoles.ts`;
+  `mayEndWork`, `src/electron/main.ts`). The answer is logged.
+- Logout, `SIGTERM` and the automatic install do not ask: the first two are the system's, and the
+  install waits until nothing runs.
+- A service whose descriptor disappears for less than 1.5 s (a non-atomic rewrite) keeps its console;
+  only a descriptor absent across two scans that far apart ends it (`REMOVAL_GRACE_MS`,
+  `src/core/monitor.ts`).
+- Tests: `test/console.test.ts` *audit HIGH-2*, `test/lifecycle.test.ts` *audit MEDIUM-5*.

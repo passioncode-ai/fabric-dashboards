@@ -2,7 +2,7 @@
 // ADR-0017: the coding-agent runtimes the console can start — the ones installed and executable on
 // this Mac. A runtime is offered only when its binary is found on the login shell's PATH (or one of
 // the folders installers put CLIs in); it is started as its own unchanged CLI.
-import { execFile } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -90,8 +90,26 @@ export function loginPathFrom(output: string): string[] {
  *  Read once, with a deadline; a shell that fails or hangs leaves the known install folders. */
 export function readLoginPath(timeoutMs = 5000, shell = process.env.SHELL || '/bin/zsh'): Promise<string[]> {
   return new Promise((resolve) => {
-    execFile(shell, ['-ilc', `printf '\\n${MARK}%s\\n' "$PATH"`], { timeout: timeoutMs, env: { HOME: os.homedir(), USER: os.userInfo().username, SHELL: shell, TERM: 'dumb' } },
-      (_error, stdout) => resolve(loginPathFrom(String(stdout ?? ''))));
+    // Its own process group: a deadline ends whatever the rc files started too, not only the shell (audit 2026-10-07).
+    let child: ReturnType<typeof spawn>;
+    try {
+      child = spawn(shell, ['-ilc', `printf '\\n${MARK}%s\\n' "$PATH"`], { detached: true, stdio: ['ignore', 'pipe', 'ignore'], env: { HOME: os.homedir(), USER: os.userInfo().username, SHELL: shell, TERM: 'dumb' } });
+    } catch {
+      resolve([]);
+      return;
+    }
+    let out = '';
+    let settled = false;
+    const finish = () => { if (settled) return; settled = true; clearTimeout(timer); child.stdout?.destroy(); resolve(loginPathFrom(out)); };
+    const timer = setTimeout(() => {
+      try { process.kill(-child.pid!, 'SIGKILL'); } catch { /* already gone */ }
+      // What the shell printed before the deadline may still sit in the pipe: `close` delivers it
+      // once the killed group lets go; this bound covers a descendant that left the group.
+      setTimeout(finish, 500).unref();
+    }, timeoutMs);
+    child.stdout?.on('data', (c: Buffer) => { if (out.length < 256 * 1024) out += c.toString('utf8'); });
+    child.on('error', finish);
+    child.on('close', finish);
   });
 }
 
