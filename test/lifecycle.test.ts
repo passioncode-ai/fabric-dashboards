@@ -612,7 +612,7 @@ test('LC-14/ADR-0015: an uninstall that keeps the data removes everything else i
 
 test('ADR-0015: every file the app keeps the person\'s choices and history in is on the kept list', () => {
   const dir = tmp('fd-kept-');
-  new SettingsStore(dir).update({ theme: 'light' });
+  new SettingsStore(dir).update({ theme: 'light', autoUpdate: false }); // the LC-16 switch file is written once the person turns it
   const activity = new ActivityStore(dir);
   activity.addAppEvent('a.default', 'A', 'test', 'notice', 'x');
   activity.markSeen();

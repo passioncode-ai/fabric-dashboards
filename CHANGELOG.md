@@ -2,6 +2,50 @@
 
 ## Unreleased
 
+## 0.6.1 - 2026-10-07
+
+Updates by the organization's standard, and the interface in Russian by choice.
+
+### New
+
+- **Language in Settings:** As on this Mac, English or Русский. The window, the app menu and the
+  tray switch at once. In Russian, machine reasons — a descriptor check, a refused token, a network
+  error — read in Russian where the sentence is known; a service's own words stay as it wrote them.
+- **A release that needs your step waits for you.** It is downloaded and verified, then held with
+  «What to do» (its steps) and «Install».
+
+### Changed
+
+- **Updates follow LC-16 in detail** ([ADR-0015 amendment](docs/adr/0015-data-survives-uninstall-updates-install-themselves.md#lc-16)):
+  - nothing reaches Squirrel unverified: the release's `SHA256SUMS` must be signed by the
+    organization's key, the zip must match it, and the app inside must be signed by team
+    `KJ35UYYL22` with the announced, newer version; the bundle Squirrel stages must be that same
+    build (code-directory hash), or it is removed before any quit;
+  - the first check runs 90 s after start, then every 6 hours, with one retry within the hour after
+    a failure;
+  - **Install updates automatically** off now stops every automatic check and download («Check for
+    Updates…» still works). The choice lives in the `auto-update` file, which no update, reinstall
+    or uninstall rewrites; a 0.6.0 choice of off is carried over;
+  - the update feed can no longer be replaced by an environment variable; Squirrel's own downgrade
+    guard is on;
+  - `main.log` records every step with the organization's codes (`update_check`,
+    `update_download`, `update_install`, `update_restart`, `auto_update`).
+- Russian follows the organization's glossary: «Устанавливать обновления автоматически»,
+  «Перезапустить для обновления», «Завершить», «Открыть в Терминале».
+
+### Fixed
+
+- With the console open, the compact service bar lost the service's name and hid the last tab: a
+  padding rule after the narrow-bar rules overrode them. The name and every tab now fit; labels fold
+  into icons first.
+- The collapsed sidebar's «Свернуть панель» / «Развернуть панель» no longer truncate.
+- A full disk during an update download fails the check instead of hanging it.
+
+### Build
+
+- The release build ships `openpgp` (its one CommonJS file) and proves the finished bundle verifies a
+  real release's signature and refuses one changed byte (`checks.updateVerifier`).
+
 ## 0.6.0 - 2026-10-06
 
 The dashboard gets the screen, and the agent's own runtime sits beside it

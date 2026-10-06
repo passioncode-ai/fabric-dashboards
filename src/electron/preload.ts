@@ -34,6 +34,7 @@ const api: FabricApi = {
   openServiceGuide: () => ipcRenderer.invoke(CHANNELS.serviceGuide),
   restartToUpdate: () => ipcRenderer.invoke(CHANNELS.updateRestart),
   checkForUpdates: () => ipcRenderer.invoke(CHANNELS.updateCheck),
+  openUpdateSteps: () => ipcRenderer.invoke(CHANNELS.updateSteps),
   moveToApplications: () => ipcRenderer.invoke(CHANNELS.moveToApplications),
   openNotificationSettings: () => ipcRenderer.invoke(CHANNELS.notificationSettings),
   locale: () => ipcRenderer.invoke(CHANNELS.locale),

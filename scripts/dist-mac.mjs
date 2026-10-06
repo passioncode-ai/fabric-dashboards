@@ -81,6 +81,9 @@ export function stageWorkspacePackages(from, stage) {
  * packager unpacks the module from app.asar (NATIVE_UNPACK) so the helper can be executed.
  */
 export const NATIVE_UNPACK = '**/node_modules/node-pty/**';
+
+/** LC-16: Squirrel.Mac itself refuses an update older than the running app, beside the app's own feed check. */
+export const UPDATE_INFO = { ElectronSquirrelPreventDowngrades: true };
 export const NATIVE_BOTH_ARCHS = '**/node_modules/node-pty/prebuilds/darwin-*/*';
 export function stageNativeModules(from, stage) {
   const src = path.join(from, 'node_modules/node-pty');
@@ -100,6 +103,46 @@ export function stageNativeModules(from, stage) {
   return target;
 }
 // #endregion stage-native-modules
+
+// #region stage-verifier — docs: docs/adr/0015-data-survives-uninstall-updates-install-themselves.md#decision
+/**
+ * LC-16: the updater checks the release's SHA256SUMS signature with openpgp in the main process.
+ * Staged as its single CommonJS build (no browser builds, maps or types), with its manifest and
+ * licence; `verifierCheck` then proves the finished bundle verifies a real release's signature.
+ */
+export const VERIFIER_FILES = ['dist/node/openpgp.min.cjs', 'LICENSE'];
+export function stageVerifierModules(from, stage) {
+  const src = path.join(from, 'node_modules/openpgp');
+  requireThat(existsSync(path.join(src, 'package.json')), 'openpgp is not installed; run npm ci first.');
+  const target = path.join(stage, 'node_modules/openpgp');
+  const manifest = JSON.parse(readFileSync(path.join(src, 'package.json'), 'utf8'));
+  for (const f of VERIFIER_FILES) {
+    mkdirSync(path.dirname(path.join(target, f)), { recursive: true });
+    cpSync(path.join(src, f), path.join(target, f));
+  }
+  writeFileSync(path.join(target, 'package.json'), JSON.stringify({ name: manifest.name, version: manifest.version, license: manifest.license, main: 'dist/node/openpgp.min.cjs' }, null, 2));
+  return target;
+}
+
+/** The finished bundle's own Node verifies v0.6.0's SHA256SUMS against the pinned key, and refuses a changed byte. */
+export function verifierCheck(app, fixtures = path.join(root, 'test/fixtures/release-0.6.0')) {
+  const probeDir = mkdtempSync(path.join(os.tmpdir(), 'fd-gpg-'));
+  try {
+    const module = path.join(app, 'Contents/Resources/app.asar/out/main/core/release-verify.js');
+    const probe = path.join(probeDir, 'probe.js');
+    writeFileSync(probe, `const fs = require('node:fs'); const v = require(${JSON.stringify(module)});
+const sums = fs.readFileSync(${JSON.stringify(path.join(fixtures, 'SHA256SUMS'))}); const asc = fs.readFileSync(${JSON.stringify(path.join(fixtures, 'SHA256SUMS.asc'))}, 'utf8');
+const bad = Buffer.from(sums); bad[0] = bad[0] ^ 1;
+Promise.all([v.sumsSignedByRelease(sums, asc), v.sumsSignedByRelease(bad, asc)]).then(([good, tampered]) => { process.stdout.write(JSON.stringify({ good: good.ok, tampered: tampered.ok })); });`);
+    const r = spawnSync(path.join(app, `Contents/MacOS/${PRODUCT}`), [probe], { encoding: 'utf8', timeout: 30_000, env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' } });
+    const answer = (() => { try { return JSON.parse(r.stdout); } catch { return null; } })();
+    requireThat(answer && answer.good === true && answer.tampered === false, `The packaged update verifier did not check signatures: ${(r.stderr || r.stdout || String(r.error)).slice(0, 300)}`);
+    return 'openpgp in app.asar accepts v0.6.0 SHA256SUMS signed by the organization key and refuses one changed byte';
+  } finally {
+    rmSync(probeDir, { recursive: true, force: true });
+  }
+}
+// #endregion stage-verifier
 function run(command, args, options = {}) {
   return execFileSync(command, args, { cwd: root, encoding: 'utf8', maxBuffer: 64 * 1024 ** 2, stdio: ['pipe', 'pipe', 'pipe'], ...options });
 }
@@ -351,6 +394,7 @@ async function stageApp(ctx, identity, notarizedBy) {
     cpSync(path.join(root, 'out'), path.join(stage, 'out'), { recursive: true });
     stageWorkspacePackages(root, stage);
     stageNativeModules(root, stage);
+    stageVerifierModules(root, stage);
     const { packager } = await import('@electron/packager');
     const [appDir] = await packager({
       dir: stage, name: PRODUCT, executableName: PRODUCT, appVersion: version, buildVersion: version,
@@ -359,7 +403,7 @@ async function stageApp(ctx, identity, notarizedBy) {
       // Both builds carry both architectures' node-pty prebuilds, byte for byte: nothing to lipo.
       osxUniversal: { x64ArchFiles: NATIVE_BOTH_ARCHS },
       extraResource: [path.join(root, 'build/assets'), path.join(root, 'build/bin')],
-      extendInfo: { NSHumanReadableCopyright: `${PRODUCT} — PassionCode.ai`, NSRequiresAquaSystemAppearance: false, LSMinimumSystemVersion: '13.0', LSUIElement: false },
+      extendInfo: { NSHumanReadableCopyright: `${PRODUCT} — PassionCode.ai`, NSRequiresAquaSystemAppearance: false, LSMinimumSystemVersion: '13.0', LSUIElement: false, ...UPDATE_INFO },
       // `fabric-dashboards://` opens a service page here (docs/adr/0004-deep-links-and-mcp.md).
       protocols: [{ name: PRODUCT, schemes: ['fabric-dashboards'] }],
     });
@@ -405,6 +449,11 @@ async function stageApp(ctx, identity, notarizedBy) {
     rmSync(probeDir, { recursive: true, force: true });
   }
   record.checks.pty = ptyCheck(app);
+  record.checks.updateVerifier = verifierCheck(app);
+  // LC-16: the downgrade guard reached the shipped Info.plist.
+  const guard = tryRun('plutil', ['-extract', 'ElectronSquirrelPreventDowngrades', 'raw', '-o', '-', path.join(app, 'Contents/Info.plist')]);
+  requireThat(guard.ok && guard.out.trim() === 'true', 'Info.plist does not carry ElectronSquirrelPreventDowngrades = true.');
+  record.checks.downgradeGuard = 'ElectronSquirrelPreventDowngrades = true (LC-16)';
   writeRecord(ctx, record);
   console.error(`app: ${path.relative(root, app)} (${record.signing})`);
 }

@@ -19,3 +19,42 @@ export function isNewer(candidate: string, current: string): boolean {
   if (b.pre === null) return false;
   return a.pre.localeCompare(b.pre, 'en', { numeric: true }) > 0;
 }
+
+// #region update-verify — docs: docs/adr/0015-data-survives-uninstall-updates-install-themselves.md#decision
+/** LC-16: the Developer ID team every release of the organization is signed by. */
+export const RELEASE_TEAM = 'KJ35UYYL22';
+/** LC-16: first automatic check after start, then the interval. */
+export const FIRST_CHECK_MS = 90_000;
+export const CHECK_EVERY_MS = 6 * 60 * 60 * 1000;
+
+/** Whether an automatic check may run now: the person's switch (LC-16 opt-out); a manual one always may.
+ *  A held release (verified, waiting for the person's step) is not downloaded again by the timer;
+ *  the person's own check looks for a newer one. */
+export function mayCheck(o: { manual: boolean; enabled: boolean; state: string }): boolean {
+  if (['unsupported', 'misplaced', 'downloading', 'ready', 'checking'].includes(o.state)) return false;
+  if (o.state === 'held' && !o.manual) return false;
+  return o.manual || o.enabled;
+}
+
+/** The staged bundle Squirrel.Mac will install at quit, from its ShipItState.plist (as JSON). */
+export function stagedBundlePath(state: unknown): string | null {
+  const raw = (state as { updateBundleURL?: unknown } | null)?.updateBundleURL;
+  if (typeof raw !== 'string') return null;
+  try {
+    const u = new URL(raw);
+    return u.protocol === 'file:' ? decodeURIComponent(u.pathname).replace(/\/$/, '') : null;
+  } catch {
+    return null;
+  }
+}
+
+/** LC-16: why a downloaded update must not install, or null when it may: the bundle's version is the
+ *  one the feed announced and newer than this copy, and it is signed by the organization's team. */
+export function stagedRefusal(o: { feedVersion: string | null; stagedVersion: string | null; team: string | null; current: string }): string | null {
+  if (!o.stagedVersion) return 'the downloaded update carries no version';
+  if (o.feedVersion && o.stagedVersion !== o.feedVersion) return `the feed announced ${o.feedVersion} but the download is ${o.stagedVersion}`;
+  if (!isNewer(o.stagedVersion, o.current)) return `the download is ${o.stagedVersion}, not newer than ${o.current}`;
+  if (o.team !== RELEASE_TEAM) return `the download is signed by ${o.team ?? 'no team'}, not ${RELEASE_TEAM}`;
+  return null;
+}
+// #endregion update-verify

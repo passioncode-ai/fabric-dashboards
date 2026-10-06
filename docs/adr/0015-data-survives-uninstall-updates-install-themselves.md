@@ -101,3 +101,59 @@ What already held, and stays:
   list against the files the stores write, MCP restore and repair, restore record, auto-install
   rules), `test/parts.test.ts` (settings recovery, `autoUpdate` default), `test/e2e/app.test.ts`
   (Settings → Updates).
+
+## Amendment — 2026-10-07: LC-16 in detail (0.6.1)
+
+<a id="lc-16"></a>
+
+The organization fixed how every product updates itself — the
+[lifecycle contract](https://github.com/passioncode-ai/fabric-workspace/blob/main/knowledge/lifecycle.md),
+*LC-16 in detail* (fabric-workspace #57). Point 5 above changes to match it; points 1–4 and 6 stand.
+
+- **The switch is a file, not a setting.** `auto-update` in the app's data folder: absent means on,
+  only `off` means off. The app writes it only when the person turns the switch; an update, a
+  reinstall and an uninstall never write it, and even the full purge keeps it (`ALWAYS_KEPT`,
+  `src/core/uninstall.ts`). A 0.6.0 `settings.json` with `autoUpdate: false` is carried over to
+  `off` once (`carryOverAutoUpdate`, `src/core/autoupdate.ts`). The label is the organization's:
+  **Install updates automatically** / «Устанавливать обновления автоматически».
+- **Off stops everything automatic** — no check, no download, no install. «Check for Updates…»
+  always works (`mayCheck`, `src/core/version.ts`). This replaces "with the setting off: installs on
+  quit or on Restart".
+- **Cadence:** the first check 90 s after start (`FIRST_CHECK_MS`), then every 6 h while the process
+  runs (`CHECK_EVERY_MS`) — the resident-app reading of LC-16, since a menu-bar app is rarely
+  started anew. After a failed check, one retry within the hour (45 min), then the 6-hour rhythm.
+- **Nothing reaches Squirrel unverified.** The feed URL is pinned in the code; no environment
+  variable overrides it. Before `autoUpdater.checkForUpdates()` the app itself, in the main process
+  (`src/electron/updater.ts`, `src/core/release-verify.ts`):
+  1. reads the feed, and goes on only for a strictly newer version whose feed names a file of its
+     own release and nothing else (`feedNamesOwnRelease`);
+  2. downloads that release's `SHA256SUMS` and `SHA256SUMS.asc` and verifies the signature against
+     the organization's release key, pinned in the code (ed25519, fingerprint
+     `63b30dc324bd697487aa31944fafb8aec803b6a7`, `passioncode-ai/.github` `release-signing/`);
+  3. downloads the zip, compares its sha256 with the one the signed `SHA256SUMS` names, unpacks it
+     with `ditto`, and requires `codesign --verify --deep --strict`, team `KJ35UYYL22` and the
+     announced version (`stagedRefusal`); it records the code-directory hash.
+  Squirrel then downloads and stages the update itself. On `update-downloaded` the staged bundle
+  (`ShipItState.plist` → `updateBundleURL`) must carry the same code-directory hash and version;
+  otherwise the state file and the bundle are removed before any quit, and the check reports
+  `signature_failed`. Squirrel's own downgrade guard is on too (`ElectronSquirrelPreventDowngrades`
+  in `Info.plist`, read back by the release build).
+- **A release that needs a person** (`needsPerson` in the feed, an `https` address of its steps) is
+  downloaded and verified but held: the window shows «Update X is verified and waits for you», a
+  «What to do» button that opens those steps (the address comes from the verified feed in the main
+  process, never from a page), and «Install». The timer does not download a held release again.
+- **Activation only at a safe point**, as before: quit, Restart to Update, or the window hidden
+  10 minutes with no command or console session running.
+- **Log events, by the organization's codes** (`main.log`): `update_check` (`current`, `ready`,
+  `check_failed`, `download_failed`, `signature_failed`, `needs_migration`), `update_download`
+  (`started`, `done`), `update_install` (`started`, and `installed` on the first start of the new
+  version, from `.last-version`), `update_restart` (`requested`, `refused`), `auto_update` (`on`,
+  `off`, at start and on every change).
+- **Tests:** `test/parts.test.ts` — *LC-16* cases: the switch stops automatic checks and a held
+  release, a manual check always runs; a tampered `SHA256SUMS`, one signed by another key, another
+  team, an unsigned bundle, an older or a different version are refused, the announced newer one
+  passes; the real v0.6.0 `SHA256SUMS` verifies (`test/fixtures/release-0.6.0/`); the switch file,
+  its carry-over and its place on both kept lists. `test/dist.test.ts` — openpgp staged; the release
+  build's `checks.updateVerifier` proves the finished bundle verifies v0.6.0's signature and refuses
+  one changed byte. No end-to-end Squirrel install runs in CI (two signed releases needed): 0.6.0 →
+  0.6.1 is the field proof, recorded in `docs/HANDOFF.md`.

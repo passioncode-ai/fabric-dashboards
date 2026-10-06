@@ -8,6 +8,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { atomicWrite } from './fsutil';
+import { AUTO_UPDATE_FILE } from './autoupdate';
 
 export const MCP_SERVER_NAME = 'fabric-dashboards';
 export const BUNDLE_ID = 'ai.passioncode.fabric-dashboards';
@@ -143,7 +144,9 @@ export function repairMcpRegistrations(launcher: string, home = os.homedir(), ex
 /** What an uninstall that kept the data writes beside it, for the next install to put back. */
 export const RESTORE_FILE = 'restore.json';
 /** The person's choices and history: kept by an uninstall unless the person asks to delete them. */
-export const KEPT_FILES = ['settings.json', 'settings.json.bak', 'activity.jsonl', 'activity-state.json', 'notified.json', RESTORE_FILE] as const;
+export const KEPT_FILES = ['settings.json', 'settings.json.bak', 'activity.jsonl', 'activity-state.json', 'notified.json', RESTORE_FILE, AUTO_UPDATE_FILE] as const;
+/** LC-16: what even «delete my settings» keeps — the automatic-update switch is never written by an uninstall. */
+export const ALWAYS_KEPT = [AUTO_UPDATE_FILE] as const;
 
 export interface RestoreRecord { version: 1; at: string; loginItem: boolean; mcp: McpRemoval[] }
 

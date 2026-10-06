@@ -1,0 +1,15 @@
+{
+  "currentRelease": "0.6.0",
+  "releases": [
+    {
+      "version": "0.6.0",
+      "updateTo": {
+        "version": "0.6.0",
+        "name": "0.6.0",
+        "notes": "The dashboard gets the screen, and the agent's own runtime sits beside it\n([ADR-0017](docs/adr/0017-focus-layout-and-agent-console.md)).\n\n### New\n\n- **The header steps aside.** A service page opens with a one-line bar: the state, the name, the\n  tabs, and «Show details» for the full card with the controls. A problem is never hidden: a\n  state that is not ready, or a failed action, shows as a chip in the bar that opens the card. The\n  name's hover text is the agent's summary. View → Show or Hide Service Details (⌃⌘D).\n- **The sidebar folds into a rail** of icons and agents' initials with their state marks and\n  badges, each named on hover. View → Show or Hide Sidebar (⌃⌘S).\n- **An agent console beside the dashboard.** «Console» opens a panel with a real terminal running\n  the runtime you choose — Claude Code, Codex, or another one installed and found on your login\n  `PATH` — in the agent's repository: the folder whose git `origin` is the descriptor's\n  `source.repository`, or one you choose. It is the runtime's own interface, with your settings and\n  skills; its permission questions appear in it. New session, Continue last (`claude --continue`,\n  `codex resume --last`), Stop (asks first), Open in Terminal. One console per agent; it keeps\n  running while folded, hidden or on another agent's page, and ends when the app quits. View →\n  Show or Hide Console (⌃⌘T).\n- **The right account.** A folder that Fabric Switchboard binds to a project never runs on the\n  ordinary sign-in: the session starts through Switchboard on the project's account — in the\n  console once Switchboard can launch in place (its SB-75), in Terminal until then. When\n  Switchboard cannot say, the session is not started.\n- Panel states, the console's width and each agent's runtime and folder are remembered.\n\n### Changed\n\n- An automatic update does not install while a console session runs (ADR-0015 treats it like a\n  running command).\n- The window's style policy allows inline styles, which the terminal view needs; scripts and\n  connections stay as strict as before (`SECURITY.md`).\n- The release build ships `node-pty` (N-API prebuilds for both architectures, unpacked from the\n  asar, `spawn-helper` made executable before signing) and proves a PTY runs from the finished\n  bundle (`checks.pty`).",
+        "pub_date": "2026-10-06T19:17:05.475Z",
+        "url": "https://github.com/passioncode-ai/fabric-dashboards/releases/download/v0.6.0/Fabric-Dashboards-0.6.0-mac.zip"
+      }
+    }
+  ]
+}

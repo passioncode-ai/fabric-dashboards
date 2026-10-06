@@ -66,6 +66,8 @@ export interface FabricApi {
   openServiceGuide(): Promise<void>;
   restartToUpdate(): Promise<void>;
   checkForUpdates(): Promise<void>;
+  /** Open the steps of a held release (LC-16 `needsPerson`) — the address comes from the verified feed in the main process, never from a page. */
+  openUpdateSteps(): Promise<void>;
   /** Moves the app into Applications, where updates can install, and relaunches it (ADR-0015). */
   moveToApplications(): Promise<{ ok: boolean; error?: string }>;
   openNotificationSettings(): Promise<void>;
@@ -117,6 +119,7 @@ export const CHANNELS = {
   serviceGuide: 'fd:service-guide',
   updateRestart: 'fd:update-restart',
   updateCheck: 'fd:update-check',
+  updateSteps: 'fd:update-steps',
   moveToApplications: 'fd:move-to-applications',
   notificationSettings: 'fd:notification-settings',
   locale: 'fd:locale',

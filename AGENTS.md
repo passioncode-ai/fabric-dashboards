@@ -19,7 +19,7 @@
 Fabric Dashboards: a macOS desktop app (Electron) that finds every local agent service speaking
 `fabric-service/0.1`, shows whether it is alive and what it did last, starts, stops and restarts
 it through launchd and opens each service's dashboard inside the app. Fabric's monitoring tool;
-also works on its own. The current version is 0.6.0 (`package.json`, `CHANGELOG.md`); the README
+also works on its own. The current version is 0.6.1 (`package.json`, `CHANGELOG.md`); the README
 *Quick start for a new teammate* is the path for a new user. Licence:
 `AGPL-3.0-only OR LicenseRef-PassionCode-Commercial` ([ADR-0007](docs/adr/0007-agpl-or-commercial.md)).
 
@@ -78,6 +78,13 @@ and `npm run check` on macOS every night, on manual dispatch and before every re
 - A feature, module or special condition is fenced `// #region <slug> — docs: <path>#<anchor>` …
   `// #endregion <slug>`; `scripts/check-regions.mjs` (in `npm run check`) fails an unclosed
   region or a reference that does not open ([org CONTRIBUTING](https://github.com/passioncode-ai/.github/blob/main/CONTRIBUTING.md) §4).
+- **Interface language** ([localization](https://github.com/passioncode-ai/fabric-workspace/blob/main/knowledge/localization.md)):
+  the system language decides, Settings → Language overrides (`chooseLang`, `src/core/i18n.ts`); every
+  string exists in English and Russian (parity test). Declared deviation from L10N-02: keys are dot
+  identifiers (`settings.autoUpdate`), not the English text, with English as the source dictionary.
+  Russian strings put counts after a label («Сервисов: 3»), so no plural forms are needed (L10N-03).
+  Machine reasons are translated by the table in `src/core/machine-ru.ts`; an unknown sentence stays
+  in English, and a service's own words stay as the service wrote them.
 - **Shared registers are edited under a lease.** [docs/AGENT_SYNC.md](docs/AGENT_SYNC.md)
   (generated from `.claude/agent-sync.json` by `agent_sync.py setup`; never edited by hand) lists
   the guarded files and the gate. Run `agent_sync.py acquire <file>` before editing one and
@@ -97,7 +104,7 @@ LC-09 inventory for this product. The tests that hold each rule are in `test/lif
 
 | Process | Started by | Cadence and what runs with no window | Stopped by |
 |---|---|---|---|
-| `Fabric Dashboards` (main process, one instance) | the person (Finder, Dock, `open`), a `fabric-dashboards://` link, or macOS at login **only if the person chose it** — asked once on the first-run card or in Settings, off until then; a launch never registers it (LC-07) | menu-bar icon always; the Dock icon only while the window is shown (FD-05); the monitor starts hidden and stays at the background cadence until a window is actually shown (table below) | tray Quit, ⌘Q, logout, `SIGTERM`: `will-quit` stops every monitor timer, flushes the activity state and ends every command group it started; an automatic update install (window hidden 10 min, no command running, `autoUpdate` on — ADR-0015) quits it the same way and Squirrel relaunches it in the menu bar |
+| `Fabric Dashboards` (main process, one instance) | the person (Finder, Dock, `open`), a `fabric-dashboards://` link, or macOS at login **only if the person chose it** — asked once on the first-run card or in Settings, off until then; a launch never registers it (LC-07) | menu-bar icon always; the Dock icon only while the window is shown (FD-05); the monitor starts hidden and stays at the background cadence until a window is actually shown (table below) | tray Quit, ⌘Q, logout, `SIGTERM`: `will-quit` stops every monitor timer, flushes the activity state and ends every command group it started; an automatic update install (window hidden 10 min, no command or console running, the `auto-update` switch on — ADR-0015) quits it the same way and Squirrel relaunches it in the menu bar |
 | Electron helpers: GPU, network, the app's renderer | Electron, with the main process | idle | the main process |
 | One renderer per opened service dashboard (`WebContentsView`, ~45 MB footprint each) | opening a service page | released 5 min after the window is hidden or minimized (`VIEW_RELEASE_GRACE_MS`); showing the window again re-opens the one that was on screen, on its page | the grace timer, the service's removal, quit |
 | MCP stdio server (`Resources/bin/fabric-dashboards-mcp` → the app binary as Node, `ELECTRON_RUN_AS_NODE=1`; ~15 MB footprint) | Claude Code, one per agent session (`claude mcp add --scope user …`) | nothing between calls except an unref'd 60 s check that the installed bundle is still the one it started from | stdin EOF or `SIGTERM`: exits within 1 s and kills its command groups (SIGTERM, SIGKILL after 300 ms); after an app update it answers the next call `stale` with both versions and exits (LC-10) |
@@ -124,7 +131,7 @@ due probe or rescan — no fixed 1-second poll — and one for the events feed:
 | Directory rescan (reads small JSON files, no spawn) | on `fs.watch`, plus every 5 s | on `fs.watch`, plus every 60 s (30 s if the watcher failed) |
 | Status push to the window / tray rebuild / Dock badge | only when what a person can see changed | no IPC to a hidden window; tray and badge only when they would differ |
 | Activity writes | appended rows when events arrive; state debounced 2 s | same |
-| Update check (Squirrel, `update-feed.json` of the latest release) | 10 s after start, then every 6 h; downloads by itself; none outside Applications (`misplaced`) | same; a downloaded update installs after 10 hidden minutes (ADR-0015) |
+| Update check (LC-16 in detail, ADR-0015 amendment: the pinned `update-feed.json` of the latest release, then that release's signed `SHA256SUMS`, its zip and the app's signature verified before Squirrel stages it) | 90 s after start, then every 6 h — the resident-app reading of LC-16; one retry within the hour after a failure; nothing automatic while the `auto-update` file says `off`; none outside Applications (`misplaced`); a release with `needsPerson` is verified and held | same; a downloaded update installs after 10 hidden minutes (ADR-0015) |
 | Usage reports (`surfaces.usage`, ADR-0013) | read now when Spend opens and on Refresh; every 60 s while Spend or Overview is shown (one read serves both for 30 s, ADR-0014) | none, except a first read when nothing has been read yet — then the main process answers the last sums without reading |
 
 **Idle budget**, hidden, per hour, for *L* local launchd services and *R* online ones — counted on a
@@ -140,7 +147,7 @@ and record the numbers in `docs/HANDOFF.md`. (Before this change, 0.4.1 measured
 **Files it writes** (LC-12): `~/Library/Application Support/Fabric Dashboards/` — `settings.json` (with the panel layout and each
 service's console runtime and folder, ADR-0017)
 and its last good copy `settings.json.bak` (a damaged `settings.json` is restored from it, ADR-0015),
-`restore.json` (written only by an uninstall that kept the data), `.relaunch-hidden` (seconds-long
+`auto-update` (the LC-16 switch: written only when the person turns it, kept by every uninstall), `.last-version` (the version that ran last, to log a finished install), `restore.json` (written only by an uninstall that kept the data), `.relaunch-hidden` (seconds-long
 marker of an automatic update install), `activity.jsonl` (appended, compacted to 5,000 rows at 10,000), `activity-state.json`,
 `notified.json`, the Chromium profile and one `Partitions/svc-<key>` per service ever opened;
 `~/Library/Logs/Fabric Dashboards/main.log` (0600, 5 × 5 MB). At start it removes temporary files
@@ -152,8 +159,8 @@ removed while it runs takes its view and its stored session with it.
 that runs something else is kept) and moves the app to the Trash. Data goes only on request: by
 default, once the app has exited, everything it wrote is removed (`productDataPaths` in
 `src/core/uninstall.ts`) **except** `KEPT_FILES` — settings, their copy, the activity history, the
-notification ledger and `restore.json`, which makes the next install put the login item and the
-MCP entries back. Ticking «Also delete my settings and activity history» removes those too. Every
+notification ledger, the `auto-update` switch and `restore.json`, which makes the next install put the login item and the
+MCP entries back. Ticking «Also delete my settings and activity history» removes those too, except the `auto-update` switch (`ALWAYS_KEPT`, LC-16). Every
 packaged launch points an MCP entry of ours whose launcher is gone at the running copy. The
 services folder (descriptors and tokens) is never touched. Without the app: `fabric-dashboards-mcp --unregister` removes the
 MCP entry alone.

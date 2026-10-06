@@ -40,6 +40,8 @@ export interface Settings {
   /** Whether the person has answered the launch-at-login question (first-run card or Settings). */
   launchAtLoginAsked: boolean;
   theme: 'dark' | 'light';
+  /** The app's language: the system's first one, or a choice that overrides it. */
+  language: 'system' | 'en' | 'ru';
   /** Install a downloaded update by itself once the window has been hidden a while (ADR-0015). On by default. */
   autoUpdate: boolean;
   /** Whether the app has offered once to move itself into Applications, where updates can install. */
@@ -73,6 +75,7 @@ export const DEFAULT_SETTINGS: Settings = {
   launchAtLogin: false,
   launchAtLoginAsked: false,
   theme: 'dark',
+  language: 'system',
   autoUpdate: true,
   moveToApplicationsAsked: false,
   notifications: {
@@ -100,6 +103,7 @@ export interface AppStatus {
   unread: number;
   /** Grows with every activity row, so an open Activity page refreshes for app events too (U-8). */
   activityRev?: number;
-  update: { state: 'idle' | 'checking' | 'downloading' | 'ready' | 'error' | 'unsupported' | 'misplaced'; version?: string; error?: string; checkedAt?: string };
+  /** `held`: a release that needs a person's step first (LC-16), verified, not installed; `steps` is its runbook. */
+  update: { state: 'idle' | 'checking' | 'downloading' | 'ready' | 'held' | 'error' | 'unsupported' | 'misplaced'; version?: string; error?: string; checkedAt?: string; steps?: string };
   version: string;
 }
