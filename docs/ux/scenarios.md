@@ -56,7 +56,7 @@
 | SCN-048 | Open an agent's console beside its dashboard | console | P-01 | ST-019 | validated | 2026-10-06 |
 | SCN-049 | Start a runtime in the agent's repository | console | P-01 | ST-019 | validated | 2026-10-06 |
 | SCN-050 | A folder bound to a Switchboard project runs on that project's account | console | P-01 | ST-019 | validated | 2026-10-06 |
-
+| SCN-051 | The app watches contract and skill versions | estate | P-01 | ST-008, ST-017 | draft | 2026-10-07 |
 ## Personas
 
 Defined in [foundation.md](foundation.md) → P-01.
@@ -506,6 +506,28 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **Errors & recovery:** download or signature check fails -> footer "Update failed: <reason>" with Retry, one automatic retry within the hour, and the running app is unchanged; the bundle Squirrel staged is not the verified one -> it is removed before any quit and the footer says so; every step is logged with the organization's update codes (ADR-0015 amendment)
 - **Status:** draft
 - **Coverage:** src/electron/updater.ts, src/core/release-verify.ts, src/core/autoupdate.ts, src/core/version.ts (mayCheck, stagedRefusal), src/electron/policy.ts (autoInstallNow, relaunchHidden), src/electron/main.ts (auto-install-flow), src/renderer/components/Settings.tsx (UpdateState), scripts/dist-mac.mjs, test/lifecycle.test.ts, test/e2e/app.test.ts
+- **Product:** unobserved
+
+## estate
+
+### SCN-051: The app watches contract and skill versions
+- **Persona:** P-01
+- **Feature:** estate
+- **Traces:** ST-008, ST-017 (JTBD-01, JRN-01/#6)
+- **Entry point:** app running; Settings → Estate updates
+- **Preconditions:** "Watch the contract and skill versions" is on (default)
+- **Steps:**
+  1. System checks 90 s after start and every 6 hours: the contract clone named in Settings (`git ls-remote origin main` against the local `main`) and the published sshlg-skills version against the installed-version record -> Settings → Estate updates shows when the contract is behind and which consumer pins (the adapter's lock file, Fabric's and Dashboards' fixtures) lag the remote tip; one retry within the hour after a failure
+  2. System finds the clone behind -> it runs `git fetch origin` only — never pull, reset or rebase — and the pins are reported as drift, never rewritten
+  3. User turns on "Update skills by themselves" -> before applying, the app checks the package maintainers (they must list the expected owner), then runs the update in the background and records the new installed version; off (default): a newer version is only reported
+  4. User turns "Watch the contract and skill versions" off -> nothing runs until it is back on
+- **Expected result:** the operator's estate — the contract and the skill family — stays visible, and only the safe steps ever run by themselves
+- **Alt paths:** no clone named -> the section says so and nothing runs; the named folder is not a fabric-agent-contract clone -> the section says so and the folder is never probed; the installed-skills record does not exist yet -> "updates are tracked from the first run or update"
+- **UI elements:** Settings → Estate updates (watch switch, auto-update skills switch, clone path field, status lines for the contract, the pins and the skills)
+- **States covered:** loading, success, error
+- **Errors & recovery:** a probe fails -> the section shows "could not be checked", `estate_check failed` is logged with one retry within the hour; the publisher check fails -> the apply is refused, `estate_update refused` is logged, nothing runs; every check and update is logged with the codes `estate_check` / `estate_update` (LC-12)
+- **Status:** draft
+- **Coverage:** src/core/estate-update.ts, src/electron/estate-updater.ts, src/electron/main.ts (estate-update), src/renderer/components/Settings.tsx (ClonePath, EstateState), test/estate-update.test.ts
 - **Product:** unobserved
 
 ## tray

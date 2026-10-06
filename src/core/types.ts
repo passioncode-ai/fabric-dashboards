@@ -4,6 +4,7 @@
 // fabric-agent-contract schemas/service-*.schema.json (DEC-0015). Type-only re-exports keep the
 // renderer free of the package's Node code.
 import type { Busy, Descriptor, LaunchdStatus, Reason, ServiceEvent, ServiceState, WellKnown } from '@passioncode-ai/fabric-service-host/protocol';
+import type { EstateStatus } from './estate-update';
 
 export { PROTOCOL } from '@passioncode-ai/fabric-service-host/protocol';
 export type { Busy, Descriptor, LaunchdStatus, Reason, ServiceEvent, ServiceState, WellKnown, WellKnownResult } from '@passioncode-ai/fabric-service-host/protocol';
@@ -60,6 +61,17 @@ export interface Settings {
   };
   /** ADR-0017: per service key, the runtime and folder its console last used (null: not chosen yet). */
   consoles: Record<string, { runtime: string | null; folder: string | null }>;
+  // #region estate-update — docs: docs/adr/0018-estate-updates-from-inside-the-app.md#decision
+  /** ADR-0018: the estate watcher — the contract clone and the skill family. */
+  estate: {
+    /** Master switch. Off: nothing runs, no probes, no children (default on). */
+    enabled: boolean;
+    /** Apply sshlg-skills updates by itself after the publisher check (default off: report only). */
+    autoSkills: boolean;
+    /** Absolute path to a local fabric-agent-contract clone; empty = the contract is not watched. */
+    contractClone: string;
+  };
+  // #endregion estate-update
 }
 
 /** A change to the settings: any field, and any part of the layout or of one service's console alone. */
@@ -86,6 +98,9 @@ export const DEFAULT_SETTINGS: Settings = {
   },
   layout: { sidebar: 'expanded', header: 'compact', console: { open: false, width: CONSOLE_WIDTH.default } },
   consoles: {},
+  // #region estate-update — docs: docs/adr/0018-estate-updates-from-inside-the-app.md#decision
+  estate: { enabled: true, autoSkills: false, contractClone: '' },
+  // #endregion estate-update
 };
 
 export interface Listener {
@@ -105,5 +120,9 @@ export interface AppStatus {
   activityRev?: number;
   /** `held`: a release that needs a person's step first (LC-16), verified, not installed; `steps` is its runbook. */
   update: { state: 'idle' | 'checking' | 'downloading' | 'ready' | 'held' | 'error' | 'unsupported' | 'misplaced'; version?: string; error?: string; checkedAt?: string; steps?: string };
+  // #region estate-update — docs: docs/adr/0018-estate-updates-from-inside-the-app.md#decision
+  /** ADR-0018: what the estate watcher saw last — the contract clone vs the remote, consumer pins, skills. */
+  estate: EstateStatus;
+  // #endregion estate-update
   version: string;
 }

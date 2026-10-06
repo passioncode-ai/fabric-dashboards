@@ -63,6 +63,25 @@ export function Settings({ status, onTheme, onLanguage }: { status: AppStatus; o
         </div>
       </section>
 
+      {/* #region estate-update — docs: docs/adr/0018-estate-updates-from-inside-the-app.md#decision */}
+      <section className="group" aria-labelledby="g-estate">
+        <h2 id="g-estate">{t('settings.estate')}</h2>
+        <label className="setting">{t('settings.estate.enabled')}
+          <input type="checkbox" checked={value.estate.enabled} onChange={(e) => void save({ estate: { ...value.estate, enabled: e.target.checked } })} />
+        </label>
+        <p className="meta">{t('settings.estate.enabled.body')}</p>
+        <label className="setting">{t('settings.estate.autoSkills')}
+          <input type="checkbox" checked={value.estate.autoSkills} onChange={(e) => void save({ estate: { ...value.estate, autoSkills: e.target.checked } })} />
+        </label>
+        <p className="meta">{t('settings.estate.autoSkills.body')}</p>
+        <label className="setting">{t('settings.estate.contractClone')}
+          <ClonePath value={value.estate.contractClone} onSave={(contractClone) => void save({ estate: { ...value.estate, contractClone } })} />
+        </label>
+        <p className="meta">{t('settings.estate.contractClone.body')}</p>
+        <EstateState status={status} />
+      </section>
+      {/* #endregion estate-update */}
+
       <section className="group" aria-labelledby="g-notify">
         <h2 id="g-notify">{t('settings.notifications')}</h2>
         {/* U-10: Electron cannot read macOS's notification permission, so the app never claims it is
@@ -161,3 +180,55 @@ function UpdateState({ status }: { status: AppStatus }) {
     </div>
   );
 }
+
+// #region estate-update — docs: docs/adr/0018-estate-updates-from-inside-the-app.md#decision
+/** The clone path is typed locally and committed on blur or Enter, so settings.json is not
+ *  rewritten on every keystroke; the person's spelling is kept while they type. */
+function ClonePath({ value, onSave }: { value: string; onSave: (next: string) => void }) {
+  const [text, setText] = useState(value);
+  const commit = () => { if (text.trim() !== value) onSave(text.trim()); };
+  return (
+    <input
+      type="text"
+      className="mono"
+      value={text}
+      placeholder="~/DATA/fabric-agent-contract"
+      onChange={(e) => setText(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+    />
+  );
+}
+
+/** What the estate watcher saw last: the contract clone vs the remote, the consumer pins, the skills. */
+function EstateState({ status }: { status: AppStatus }) {
+  const { t, time } = useT();
+  const e = status.estate;
+  const short = (sha: string | null) => (sha ? sha.slice(0, 12) : '');
+  const contractLine = () => {
+    const c = e.contract;
+    if (c.state === 'unconfigured') return <span className="meta">{t('estate.contract')}: {t('estate.contract.unconfigured')}</span>;
+    if (c.state === 'not-a-clone') return <span className="meta state-down">{t('estate.contract')}: {t('estate.contract.notAClone')}</span>;
+    if (c.state === 'current') return <span className="meta">{t('estate.contract')}: {t('estate.contract.current', { sha: short(c.remoteTip) })}</span>;
+    if (c.state === 'behind') return <span className="meta state-down">{t('estate.contract')}: {t('estate.contract.behind', { local: short(c.localTip), remote: short(c.remoteTip) })}</span>;
+    return <span className="meta state-down">{t('estate.contract')}: {t('estate.contract.unknown')}</span>;
+  };
+  const skillsLine = () => {
+    const s = e.skills;
+    if (s.state === 'updating') return <span className="meta">{t('estate.skills')}: {t('estate.skills.updating', { latest: s.latest ?? '?' })}</span>;
+    if (s.state === 'current') return <span className="meta">{t('estate.skills')}: {t('estate.skills.current', { version: s.installed ?? '?' })}</span>;
+    if (s.state === 'update-available') return <span className="meta state-down">{t('estate.skills')}: {t('estate.skills.behind', { installed: s.installed ?? '?', latest: s.latest ?? '?' })}</span>;
+    return <span className="meta">{t('estate.skills')}: {t('estate.skills.unknown')}</span>;
+  };
+  return (
+    <div className="setting-note">
+      <p className="meta">{e.checkedAt ? t('estate.checked', { time: time(e.checkedAt) }) : t('estate.notChecked')}</p>
+      <p className="meta">{contractLine()}</p>
+      {e.pins.length > 0 && (
+        <p className="meta">{t('estate.pins')}: {e.pins.map((p) => `${p.key}: ${p.pinned ? short(p.pinned) : t('estate.pin.unknown')}${p.state === 'behind' ? ' ↑' : ''}`).join(' · ')}</p>
+      )}
+      <p className="meta">{skillsLine()}</p>
+    </div>
+  );
+}
+// #endregion estate-update

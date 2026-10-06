@@ -346,6 +346,30 @@ const en = {
   'duration.m': '{n} min',
   'duration.h': '{n} h',
   'duration.d': '{n} d',
+  // #region estate-update — docs: docs/adr/0018-estate-updates-from-inside-the-app.md#decision
+  'settings.estate': 'Estate updates',
+  'settings.estate.enabled': 'Watch the contract and skill versions',
+  'settings.estate.enabled.body': 'On: 90 seconds after the app starts and then every 6 hours the app checks the contract clone and the published skills, and writes estate_check / estate_update to the log. Off: nothing runs.',
+  'settings.estate.autoSkills': 'Update skills by themselves',
+  'settings.estate.autoSkills.body': 'Off by default: a newer sshlg-skills is reported, never installed on its own. On: after the publisher check (the package maintainers must list the expected owner) the app runs the update in the background.',
+  'settings.estate.contractClone': 'Contract clone',
+  'settings.estate.contractClone.body': 'Absolute path to a local clone of fabric-agent-contract. Empty: the contract is not watched. When the clone is behind, the app fetches new commits — it never pulls, and consumer pins move only by a reviewed decision.',
+  'estate.notChecked': 'Not checked yet',
+  'estate.checked': 'Checked {time}',
+  'estate.contract': 'Contract',
+  'estate.contract.unconfigured': 'no clone named in Settings',
+  'estate.contract.notAClone': 'the named folder is not a fabric-agent-contract clone',
+  'estate.contract.current': 'up to date — main at {sha}',
+  'estate.contract.behind': 'behind the remote — local {local}, remote {remote}',
+  'estate.contract.unknown': 'could not be checked',
+  'estate.pins': 'Consumer pins',
+  'estate.pin.unknown': 'unknown',
+  'estate.skills': 'Skills',
+  'estate.skills.unknown': 'updates are tracked from the first run or update',
+  'estate.skills.current': 'up to date — {version}',
+  'estate.skills.behind': '{installed} installed, {latest} available',
+  'estate.skills.updating': 'updating to {latest}…',
+  // #endregion estate-update
 };
 
 export type Key = keyof typeof en;
@@ -691,6 +715,30 @@ const ru: Record<Key, string> = {
   'duration.m': '{n} мин',
   'duration.h': '{n} ч',
   'duration.d': '{n} дн',
+  // #region estate-update — docs: docs/adr/0018-estate-updates-from-inside-the-app.md#decision
+  'settings.estate': 'Обновления инфраструктуры',
+  'settings.estate.enabled': 'Следить за версиями контракта и скилов',
+  'settings.estate.enabled.body': 'Включено: через полторы минуты после запуска и потом каждые 6 часов приложение проверяет клон контракта и опубликованные скилы и пишет в журнал estate_check / estate_update. Выключено: ничего не запускается.',
+  'settings.estate.autoSkills': 'Обновлять скилы автоматически',
+  'settings.estate.autoSkills.body': 'По умолчанию выключено: о новой версии sshlg-skills только сообщается, сама она не устанавливается. Включено: после проверки издателя (в списке maintainers должен быть ожидаемый владелец) приложение запускает обновление в фоне.',
+  'settings.estate.contractClone': 'Клон контракта',
+  'settings.estate.contractClone.body': 'Абсолютный путь к локальному клону fabric-agent-contract. Пусто: контракт не отслеживается. Если клон отстаёт, приложение делает fetch новых коммитов — никогда pull, а закрепления потребителей меняются только осознанным решением.',
+  'estate.notChecked': 'Ещё не проверялось',
+  'estate.checked': 'Проверено: {time}',
+  'estate.contract': 'Контракт',
+  'estate.contract.unconfigured': 'клон в настройках не указан',
+  'estate.contract.notAClone': 'указанная папка — не клон fabric-agent-contract',
+  'estate.contract.current': 'актуален — main: {sha}',
+  'estate.contract.behind': 'отстаёт от удалённого — локально: {local}, удалённо: {remote}',
+  'estate.contract.unknown': 'не удалось проверить',
+  'estate.pins': 'Закрепления потребителей',
+  'estate.pin.unknown': 'неизвестно',
+  'estate.skills': 'Скилы',
+  'estate.skills.unknown': 'обновления отслеживаются с первого запуска или обновления',
+  'estate.skills.current': 'актуальны — {version}',
+  'estate.skills.behind': 'установлены {installed}, доступны {latest}',
+  'estate.skills.updating': 'обновляем до {latest}…',
+  // #endregion estate-update
 };
 
 const dictionaries: Record<Lang, Record<Key, string>> = { en, ru };

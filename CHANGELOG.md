@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+### Added
+
+- **Estate updates (FD-30, [ADR-0018](docs/adr/0018-estate-updates-from-inside-the-app.md)).** The
+  app watches the versions of the Fabric Agent Contract and of the operator's skills, and updates
+  them where safe. Settings → Estate updates: name a local contract clone to watch its `main`
+  against the sibling consumer pins — the only automatic step is `git fetch`; a pin move stays a
+  reviewed decision in each consumer. Skills: a background `npx sshlg-skills update` behind the
+  auto-update switch (off by default), after the package's publisher is checked. LC-16 cadence
+  (90 s, then every 6 h), activity codes `estate_check` / `estate_update`, status on the Settings
+  page. Starts and stops with the app — no port, no launchd job, child `git`/`npm` processes only.
+
 ## 0.6.2 - 2026-10-07
 
 The first published release since 0.6.0. It carries everything listed under 0.6.1 below — 0.6.1 was
