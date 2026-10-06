@@ -18,10 +18,15 @@ export function commandEnv(env: NodeJS.ProcessEnv = process.env): NodeJS.Process
   return out;
 }
 
-export interface OwnedResult { code: number | null; output: string; timedOut: boolean }
+/** `started` is false only when the command never ran (no such file, no permission); `signal` names
+ *  what ended one that did (T-6). */
+export interface OwnedResult { code: number | null; output: string; timedOut: boolean; started?: boolean; signal?: NodeJS.Signals | null }
 export interface OwnedOptions { timeoutMs: number; killGraceMs?: number; maxBuffer?: number; env?: NodeJS.ProcessEnv }
 
 const owned = new Set<ChildProcess>();
+/** T-12: groups a finished command left behind, until their SIGTERM/SIGKILL is done. Counted as
+ *  owned, so a quit or an automatic install never leaves them running. */
+const lingering = new Set<ChildProcess>();
 const KILL_GRACE_MS = 2_000;
 /** How long a finished command's output streams may stay open before it counts as done. */
 const EXIT_STREAM_GRACE_MS = 1_000;
@@ -54,7 +59,7 @@ export function runOwned(command: string, args: string[], o: OwnedOptions): Prom
     try {
       child = spawn(command, args, { detached: true, stdio: ['ignore', 'pipe', 'pipe'], env: o.env ?? commandEnv() });
     } catch (error) {
-      resolve({ code: null, output: (error as Error).message, timedOut: false });
+      resolve({ code: null, output: (error as Error).message, timedOut: false, started: false, signal: null });
       return;
     }
     owned.add(child);
@@ -67,29 +72,37 @@ export function runOwned(command: string, args: string[], o: OwnedOptions): Prom
     child.stdout?.on('data', take('out'));
     child.stderr?.on('data', take('err'));
     let timedOut = false;
+    let started = false;
+    child.once('spawn', () => { started = true; });
     const timer = setTimeout(() => { timedOut = true; void killGroup(child, o.killGraceMs ?? KILL_GRACE_MS); }, o.timeoutMs);
     timer.unref();
-    const finish = (code: number | null, extra = '') => {
+    const finish = (code: number | null, signal: NodeJS.Signals | null, extra = '') => {
       clearTimeout(timer);
       owned.delete(child);
       // R-17 (LC-02): what the command left running in its own group ends with it — nothing
       // outlives the command's deadline or the app's quit. One that left the group (setsid) is not ours.
-      if (child.pid) { try { process.kill(-child.pid, 0); void killGroup(child, o.killGraceMs ?? KILL_GRACE_MS); } catch { /* the group is gone */ } }
-      resolve({ code, output: `${stdout}${stderr ? `\n${stderr}` : ''}${extra}`.trim(), timedOut });
+      if (child.pid) {
+        try {
+          process.kill(-child.pid, 0);
+          lingering.add(child);
+          void killGroup(child, o.killGraceMs ?? KILL_GRACE_MS).finally(() => lingering.delete(child));
+        } catch { /* the group is gone */ }
+      }
+      resolve({ code, output: `${stdout}${stderr ? `\n${stderr}` : ''}${extra}`.trim(), timedOut, started, signal });
     };
     let done = false;
-    const settle = (code: number | null, extra = '') => { if (!done) { done = true; finish(code, extra); } };
-    child.once('error', (error) => settle(null, `\n${error.message}`));
-    child.once('close', (code) => settle(timedOut ? null : code));
+    const settle = (code: number | null, signal: NodeJS.Signals | null, extra = '') => { if (!done) { done = true; finish(code, signal, extra); } };
+    child.once('error', (error) => settle(null, null, `\n${error.message}`));
+    child.once('close', (code, signal) => settle(timedOut ? null : code, timedOut ? null : signal));
     // 'close' waits for stdout and stderr to end; a descendant that left the group can hold them
     // open forever. Once the command itself has exited, give its streams a second, then stop
     // reading them and finish — the command is over either way.
-    child.once('exit', (code) => {
+    child.once('exit', (code, signal) => {
       setTimeout(() => {
         if (done) return;
         child.stdout?.destroy();
         child.stderr?.destroy();
-        settle(timedOut ? null : code);
+        settle(timedOut ? null : code, timedOut ? null : signal);
       }, EXIT_STREAM_GRACE_MS);
     });
   });
@@ -97,10 +110,10 @@ export function runOwned(command: string, args: string[], o: OwnedOptions): Prom
 
 /** End every owned command and its group — on quit, on stdin EOF, on SIGTERM. */
 export async function killOwned(graceMs = 300): Promise<void> {
-  await Promise.all([...owned].map((child) => killGroup(child, graceMs)));
+  await Promise.all([...owned, ...lingering].map((child) => killGroup(child, graceMs)));
 }
 
 export function ownedCount(): number {
-  return owned.size;
+  return owned.size + lingering.size;
 }
 // #endregion owned-children

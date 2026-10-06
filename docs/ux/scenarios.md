@@ -219,12 +219,12 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
   1. User chooses Stop -> system asks to confirm: "Stop <Service>?" — "It stays off, also after the Mac restarts, until you start it. Agents that use it will get no answer." with Cancel (focused) and Stop
   2. User confirms -> system unloads and disables the job and waits until it no longer answers -> state becomes Off; Activity gains "<Service> stopped by you"
 - **Expected result:** the service is off and stays off across logins
-- **Alt paths:** user cancels -> nothing changes
-- **UI elements:** Stop button, confirmation dialog with Stop and Cancel, Off badge
+- **Alt paths:** user cancels (Cancel, or Escape wherever focus is) -> nothing changes and focus returns to Stop; the service disappears while the dialog is open -> the dialog closes
+- **UI elements:** Stop button, confirmation dialog with Stop and Cancel (focus stays in it while it is open; after Stop it moves to the service's name), Off badge
 - **States covered:** loading, success, error
 - **Errors & recovery:** still answering after 40 s -> "<Service> is still answering; another copy may run outside launchd." with Logs when declared
 - **Status:** draft
-- **Coverage:** src/core/launchd.ts, src/renderer/App.tsx, test/monitor.test.ts
+- **Coverage:** src/core/launchd.ts, src/renderer/App.tsx, test/monitor.test.ts, test/e2e/app.test.ts
 - **Product:** unobserved
 
 ### SCN-010: Start a stopped service
@@ -713,7 +713,7 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
   3. The service answers with a redirect -> Not answering, "<origin> answered with a redirect, which the app does not follow."; its platform answers HTTP 5xx (a deploy, an outage) -> after a minute, "<origin> is not up: its platform answers HTTP 503 …"
   4. Nothing answers for a minute -> Not answering, "<origin> has not answered since HH:MM."; one missed probe is not an outage (ADR-0008)
 - **Expected result:** I can tell a configuration problem from an outage without opening a terminal
-- **Alt paths:** another service answers the origin -> "Wrong program on port", "<origin> answers as <id.instance>, not as this service. The token is not sent there again." until the descriptor changes; the origin answers without the protocol -> "<origin> answers without fabric-service/0.1 (<detail>). Nothing is sent to it."
+- **Alt paths:** another service answers the origin -> "Wrong program on port", "<origin> answers as <id.instance>, not as this service. The token is not sent there again." until the descriptor changes; the origin answers without the protocol -> "<origin> answers without fabric-service/0.1 (<detail>). The token is not sent there again until it asks for one." — later checks go without the token until the origin answers 401 or as this service (RemoteTokenLatch)
 - **UI elements:** state badge, reason line, Health tab
 - **States covered:** error
 - **Errors & recovery:** each reason names the next action; none offers restart, because the platform supervises the service

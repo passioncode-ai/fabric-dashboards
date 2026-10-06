@@ -2,7 +2,8 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { PageState } from '../../core/api';
 import type { ActivityItem, ServiceSnapshot } from '../../core/types';
 import { instanceOf } from '../../core/products';
-import { api, GLYPH, nameOf, portOf, shortBuild, Spinner, StateBadge, useT } from '../lib';
+import { commandRan, commandReason } from '../../core/outcome';
+import { api, GLYPH, nameOf, NEWS_MS, portOf, shortBuild, Spinner, StateBadge, useExpiry, useT } from '../lib';
 import { Feed } from './Activity';
 
 type Tab = 'dashboard' | 'activity' | 'health' | 'logs';
@@ -24,9 +25,11 @@ interface Props {
   activityRev?: number;
   overlayOpen: boolean;
   askStop: (key: string) => void;
+  /** T-23: the update a navigation asked for has started; the route forgets the request. */
+  updateStarted?: () => void;
 }
 
-export function ServiceView({ s, all, members, open, link, nonce, tab: askedTab, runUpdate, activityRev, overlayOpen, askStop }: Props) {
+export function ServiceView({ s, all, members, open, link, nonce, tab: askedTab, runUpdate, activityRev, overlayOpen, askStop, updateStarted }: Props) {
   const [pathError, setPathError] = useState('');
   // P-6: a folder or file that cannot be shown says so here, as Overview's Show folder does.
   const show = (p: string) => void api().showPath(p).then((r) => setPathError(r.ok ? '' : t('overview.showFailed', { path: p, error: r.error ?? '' })));
@@ -43,9 +46,13 @@ export function ServiceView({ s, all, members, open, link, nonce, tab: askedTab,
   useEffect(() => { if (askedTab) { chosen.current = true; setTabState(askedTab); } }, [askedTab, nonce]);
   const updateRan = useRef<number | undefined>(undefined);
   useEffect(() => {
-    if (runUpdate && s.descriptor?.commands?.update && updateRan.current !== nonce) { updateRan.current = nonce; void run('update'); }
+    if (runUpdate && s.descriptor?.commands?.update && updateRan.current !== nonce) { updateRan.current = nonce; updateStarted?.(); void run('update'); }
   }, [runUpdate, nonce]);
 
+  // R-7, T-16: the link a navigation carried is applied once per navigation. Kept here, not in the
+  // dashboard host, which unmounts on every tab switch and would apply it again.
+  const appliedLink = useRef<string | null>(null);
+  const now = useExpiry([s.lastAction?.at]);
   const wk = s.wellKnown;
   const managed = s.descriptor?.lifecycle.manager === 'launchd';
   const running = ['ready', 'degraded', 'duplicate'].includes(s.state);
@@ -58,10 +65,8 @@ export function ServiceView({ s, all, members, open, link, nonce, tab: askedTab,
     try {
       const r = await api().command(s.key, which);
       if (r.refused) { setOutput({ title: r.refused, text: '', running: null }); return; }
-      const status = r.timedOut ? t('result.commandTimeout', { command })
-        : r.code === null ? t('result.commandFailed', { command, error: r.output.trim().split('\n').pop() ?? '' })
-        : t('result.command', { command, code: r.code });
-      setOutput({ title: status, text: r.code === null && !r.timedOut ? '' : r.output, running: null });
+      const reason = commandReason(r, command);
+      setOutput({ title: t(reason.code, reason.params), text: commandRan(r) ? r.output : '', running: null });
     } catch (error) {
       setOutput({ title: t('result.commandFailed', { command, error: String((error as Error)?.message ?? error) }), text: '', running: null });
     }
@@ -74,7 +79,7 @@ export function ServiceView({ s, all, members, open, link, nonce, tab: askedTab,
       {members.length > 1 && <InstanceSwitch current={s} members={members} open={open} />}
       <header className="svc-head">
         <div className="svc-title">
-          <h1>{nameOf(s)}</h1>
+          <h1 id="svc-title" tabIndex={-1}>{nameOf(s)}</h1>
           <StateBadge state={s.state} />
           {s.busy && <span className="row meta"><Spinner /> {t(`busy.${s.busy}`)}</span>}
         </div>
@@ -88,10 +93,10 @@ export function ServiceView({ s, all, members, open, link, nonce, tab: askedTab,
         </div>
         <Tools names={wk?.surfaces.mcp?.capabilities ?? []} />
         {s.reasons.length > 0 && <ul className="reasons">{s.reasons.map((r, i) => <li key={i}>{reason(r)}</li>)}</ul>}
-        {s.lastAction && !s.busy && Date.now() - Date.parse(s.lastAction.at) < 30 * 60_000 && ( /* P-15: news for half an hour, as on Overview */
+        {s.lastAction && !s.busy && now - Date.parse(s.lastAction.at) < NEWS_MS && ( /* P-15: news for half an hour, as on Overview */
           <p className={`meta row${s.lastAction.ok ? '' : ' state-down'}`} role="status">
             {reason(s.lastAction.reason)}
-            {!s.lastAction.ok && s.descriptor?.paths?.logs?.length ? <button className="btn btn-sm" onClick={() => setTab('logs')}>{t('action.logs')}</button> : null}
+            {!s.lastAction.ok && tabs.includes('logs') && s.descriptor?.paths?.logs?.length ? <button className="btn btn-sm" onClick={() => setTab('logs')}>{t('action.logs')}</button> : null}
           </p>
         )}
         <div className="row">
@@ -126,7 +131,7 @@ export function ServiceView({ s, all, members, open, link, nonce, tab: askedTab,
         ))}
       </div>
       <div className="svc-body" role="tabpanel" id={`panel-${tab}`} aria-labelledby={`tab-${tab}`}>
-        {tab === 'dashboard' && <DashboardHost s={s} link={link} nonce={nonce} hidden={overlayOpen} />}
+        {tab === 'dashboard' && <DashboardHost s={s} link={link} nonce={nonce} hidden={overlayOpen} applied={appliedLink} />}
         {tab === 'activity' && <div className="pane"><ServiceActivity serviceKey={s.key} tick={`${activityRev ?? ''}|${s.latestEvent?.id ?? ''}`} /></div>}
         {tab === 'health' && <div className="pane"><Health s={s} output={output} /></div>}
         {tab === 'logs' && <div className="pane"><Logs serviceKey={s.key} /></div>}
@@ -135,7 +140,7 @@ export function ServiceView({ s, all, members, open, link, nonce, tab: askedTab,
   );
 }
 
-function DashboardHost({ s, link, nonce, hidden }: { s: ServiceSnapshot; link?: string; nonce?: number; hidden: boolean }) {
+function DashboardHost({ s, link, nonce, hidden, applied }: { s: ServiceSnapshot; link?: string; nonce?: number; hidden: boolean; applied: { current: string | null } }) {
   const { t } = useT();
   const ref = useRef<HTMLDivElement>(null);
   const [phase, setPhase] = useState<'opening' | 'open' | 'error' | 'restarted' | 'crashed'>('opening');
@@ -143,9 +148,8 @@ function DashboardHost({ s, link, nonce, hidden }: { s: ServiceSnapshot; link?: 
   // R-6: Retry and Reload run the show again, fresh, so the view is signed in and attached again.
   const [attempt, setAttempt] = useState(0);
   const fresh = useRef(false);
-  // R-7: a link from a notification or another agent is applied once; a tab switch or a remount
-  // afterwards keeps the page the person moved to.
-  const applied = useRef<string | null>(null);
+  // R-7: a link from a notification or another agent is applied once (`applied`, owned by the
+  // service page); a tab switch or a remount afterwards keeps the page the person moved to.
   const owner = useRef(`host-${Math.random().toString(36).slice(2)}-${Date.now()}`).current; // this mount, for show/hide (ViewSlot)
   const available = Boolean(s.wellKnown?.surfaces.dashboard) && (s.state === 'ready' || s.state === 'degraded');
   const rect = () => {
@@ -164,9 +168,10 @@ function DashboardHost({ s, link, nonce, hidden }: { s: ServiceSnapshot; link?: 
     api().showView(s.key, rect(), useLink, owner, isFresh).then((r) => {
       if (cancelled) return;
       if (r.ok) { setPhase('open'); if (useLink) applied.current = linkId; }
-      else { setPhase('error'); setError({ text: r.error ?? '', stage: r.stage ?? 'sign-in' }); void api().hideView(owner); }
+      else { fresh.current = true; setPhase('error'); setError({ text: r.error ?? '', stage: r.stage ?? 'sign-in' }); void api().hideView(owner); }
     }, (e: unknown) => {
       if (cancelled) return;
+      fresh.current = true;
       setPhase('error'); setError({ text: String((e as Error)?.message ?? e), stage: 'page' }); void api().hideView(owner);
     });
     return () => { cancelled = true; };
@@ -185,9 +190,10 @@ function DashboardHost({ s, link, nonce, hidden }: { s: ServiceSnapshot; link?: 
   useEffect(() => api().onViewEvent((e) => {
     if (e.key !== s.key) return;
     if (e.kind === 'restarted') setPhase('restarted');
-    if (e.kind === 'crashed') { setPhase('crashed'); void api().hideView(owner); }
+    // R-6, T-17: after a crash or a failed load the next show loads again, fresh — never re-attaches the dead page.
+    if (e.kind === 'crashed') { fresh.current = true; setPhase('crashed'); void api().hideView(owner); }
     // A page that failed to load: the view is hidden, so this message is what shows (R-6).
-    if (e.kind === 'error') { setPhase('error'); setError({ text: e.error ?? '', stage: 'page' }); void api().hideView(owner); }
+    if (e.kind === 'error') { fresh.current = true; setPhase('error'); setError({ text: e.error ?? '', stage: 'page' }); void api().hideView(owner); }
   }), [s.key]);
 
   const reload = () => { fresh.current = true; setAttempt((n) => n + 1); };
@@ -274,7 +280,7 @@ function Health({ s, output }: { s: ServiceSnapshot; output: { title: string; te
       </dl>
       {output && (
         <section>
-          <h3 className="row" role="status">{output.running ? <><Spinner /> {t(output.running === 'doctor' ? 'busy.doctor' : 'busy.updating')}</> : output.title}</h3>
+          <h3 className="row"><span className="row" role="status">{output.running ? <><Spinner /> {t(output.running === 'doctor' ? 'busy.doctor' : 'busy.updating')}</> : output.title}</span></h3>
           {output.text && <pre className="log">{output.text}</pre>}
         </section>
       )}

@@ -4,7 +4,7 @@ import { sumSpend, type SpendEntry } from '../../core/spend';
 import { money as formatMoney } from './Spend';
 import { instanceOf, type Product } from '../../core/products';
 import type { AppStatus, ServiceSnapshot, Settings } from '../../core/types';
-import { api, GLYPH, nameOf, shortBuild, Spinner, StateBadge, useT } from '../lib';
+import { api, GLYPH, nameOf, NEWS_MS, shortBuild, Spinner, StateBadge, useExpiry, useT } from '../lib';
 
 /** The first-run question (SCN-024, lifecycle LC-07): launch at login is off until the person
  *  answers here or in Settings; either answer registers or unregisters once, and the card is gone. */
@@ -44,7 +44,8 @@ export function Overview({ status, products, open, act, goSpend }: Props) {
   const services = status.services;
   // U-1: a row stays while its action runs ("Restarting…"), and comes back with the failure and Logs.
   // A failure is news for half an hour; after that the service's own state speaks again.
-  const failed = (s: ServiceSnapshot) => Boolean(s.lastAction && !s.lastAction.ok && !s.busy && Date.now() - Date.parse(s.lastAction.at) < 30 * 60_000);
+  const now = useExpiry(services.map((s) => (s.lastAction && !s.lastAction.ok ? s.lastAction.at : undefined)));
+  const failed = (s: ServiceSnapshot) => Boolean(s.lastAction && !s.lastAction.ok && !s.busy && now - Date.parse(s.lastAction.at) < NEWS_MS);
   const attention = services
     .map((s) => ({ s, rank: attentionRank(s.state, s.wellKnown) ?? (s.busy ? 0.5 : failed(s) ? 5 : null) }))
     .filter((x) => x.rank !== null)
@@ -77,7 +78,8 @@ export function Overview({ status, products, open, act, goSpend }: Props) {
 
   const action = (s: ServiceSnapshot) => {
     if (s.busy) return <span className="row meta" role="status"><Spinner /> {t(`busy.${s.busy}`)}</span>;
-    const logs = failed(s) && s.descriptor?.paths?.logs?.length
+    // T-20: an online service has no Logs tab.
+    const logs = failed(s) && !isOnline(s) && s.descriptor?.paths?.logs?.length
       ? <button className="btn" aria-label={`${t('action.logs')} — ${nameOf(s)}`} onClick={() => open(s.key, undefined, 'logs')}>{t('action.logs')}</button> : null;
     if (logs && !(s.state === 'down' || s.state === 'duplicate')) return logs;
     // DEC-0019: an online service is supervised by its platform — nothing here can restart it.
@@ -215,9 +217,11 @@ function StatusStrip({ status, products, attention, goSpend }: { status: AppStat
   }, []);
   const ready = products.filter((p) => p.primary.state === 'ready').length;
   const problems = status.services.filter((s) => ['down', 'duplicate', 'foreign', 'conflict', 'invalid'].includes(s.state)).length;
-  // Reachable when anything reports or failed to report: Spend lists the failures (D-3).
+  // Reachable when anything reports or failed to report: Spend lists the failures (D-3). With no
+  // report at all the sum is unknown, never "≥ $0.00" (T-22).
   const reporting = spend?.some((e) => e.kind === 'report' || e.kind === 'error') ?? false;
-  const sum = (window: 'today' | 'month') => formatMoney(sumSpend(spend ?? [], window), t);
+  const reported = spend?.some((e) => e.kind === 'report') ?? false;
+  const sum = (window: 'today' | 'month') => (reported ? formatMoney(sumSpend(spend ?? [], window), t) : t('spend.unknown'));
   return (
     <section className="strip" aria-label={t('overview.strip')}>
       <div className="cell"><span className="v">{ready}<span className="of">/{products.length}</span></span><span className="l">{t('overview.strip.ready')}</span></div>

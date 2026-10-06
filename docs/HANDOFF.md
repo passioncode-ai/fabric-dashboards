@@ -1,47 +1,54 @@
 # Handoff — Fabric Dashboards
 
-Updated 2026-10-06 (release 0.5.5: release audit and its second pass, A2A plan, ADR-0016, ADR-0015 data and updates, FD-05, FD-06, FD-13; Spend and DEC-0021; one entry per agent, ADR-0012; lifecycle contract landed from PR #21, unreleased; CI release rehearsal
+Updated 2026-10-06 (release 0.5.6: third review pass, token latch; release 0.5.5 withdrawn: release audit and its second pass, A2A plan, ADR-0016, ADR-0015 data and updates, FD-05, FD-06, FD-13; Spend and DEC-0021; one entry per agent, ADR-0012; lifecycle contract landed from PR #21, unreleased; CI release rehearsal
 `v0.4.1-rc.1` green; releases move to CI signing; release 0.4.1, MCP links to online services).
 
 Current release: 0.4.1 (section below). Earlier releases below are preserved as dated evidence.
 
 ## Next — start here (2026-10-06)
 
-**Superseding note (2026-10-06, later):** do **not** approve `v0.5.5`. A third review found ~30
-defects after the tag, two of them token leaks (T-1…T-4). The next release is 0.5.6: fix the
-open list in [the audit report's third pass](reports/2026-10-05-release-audit/README.md#third-pass--2026-10-06-open-fix-list-for-056)
-in order (T-1…T-4 first — `RemoteTokenLatch` is written and tested, wire it), update the docs
-(T-30), bump `package.json` and `packages/service-host` (0.3.1), rename `## Unreleased` to
-`## 0.5.6`, then cancel run 37398766044 (the global `release` concurrency group queues a new tag
-behind it) and push `v0.5.6`. Approval of `macos` and `publish` is a human step.
+**First task for the next agent:** release `v0.5.6` waits for a `release-approvers` approval —
+`macos`, then `publish` (the agent never approves). `v0.5.5` was withdrawn before approval: its run
+37398766044 was cancelled, because a third review found two token leaks after the tag (T-1…T-4).
+Once 0.5.6 publishes, check the receipt (Developer ID, `accepted and stapled`, Gatekeeper
+`accepted`, `checks.usageDescriptions`), let the installed 0.4.1 update itself (it downloads 0.5.6
+and installs at its next quit or Restart — 0.4.1 has no automatic install), walk SCN-001…045 on
+the installed app (FD-02), measure FD-07 on it, and tell the growth/analytics owner session that
+the release is out (they click through the cross-agent links). Tell Fabric's owner session about
+`@passioncode-ai/fabric-service-host` 0.3.1 (`RemoteTokenLatch`; ADR-0006 amendment) and the three
+remote-5xx state vectors. The website follows releases by itself; the `fabric-workspace` session
+owns the Dashboards page.
 
-**First task for the next agent:** release `v0.5.5` waits for a `release-approvers` approval —
-`macos`, then `publish` (the agent never approves). Once it publishes, check the receipt
-(Developer ID, `accepted and stapled`, Gatekeeper `accepted`, `checks.usageDescriptions`), let the
-installed 0.4.1 update itself (it downloads 0.5.5 and installs at its next quit or Restart), walk
-SCN-001…045 on the installed app (FD-02), measure FD-07 on it, and tell the growth/analytics owner
-session that 0.5.5 is out (they click through the cross-agent links). The website follows releases
-by itself; the `fabric-workspace` session owns the Dashboards page.
+**What 0.5.6 adds over 0.5.5** — the [third review pass](reports/2026-10-05-release-audit/README.md#third-pass--2026-10-06-fix-list-for-056)
+(FD-23): four read-only reviews of `b8bdf57..eedb0e6`, T-1…T-30 fixed. The token now goes only to
+the service itself — never to another program on its port through MCP `activity`, never again to
+an online address that answered without the protocol, never in a re-sign-in to whatever holds the
+port now (`RemoteTokenLatch` in the shared package, held by the monitor and once per MCP process).
+Plus a crash-reload loop, R-7/R-6 finished, the Stop dialog finished, signal-ended commands, MCP
+argument types, `npm run test:e2e` right after `npm ci`, and the documentation drift. Checks:
+`FD_SKIP_LAUNCHD=1 npm run check` exit 0 (246 tests, 245 pass, 1 skipped), `npm run test:e2e` 6/6.
+Known flake: LC-10's 1000 ms session-exit bound failed once at 1288 ms with the machine 6.5 GB
+into swap; alone it passes 4/4.
 
-**What 0.5.5 carries** — the first published release since 0.4.1:
+**What 0.5.5 carried** (all of it ships in 0.5.6, the first published release since 0.4.1):
 - one entry per agent (ADR-0012); Spend (ADR-0013); the dashboard toolbar and the at-a-glance
   Overview (ADR-0014); updates that install themselves and data that survives an uninstall
   (ADR-0015); agent summaries, tools and cross-agent links (ADR-0016); the lifecycle contract;
 - the **release audit of 2026-10-05** ([report](reports/2026-10-05-release-audit/README.md)): four
-  read-only reviews plus a live walk of every screen; 53 fixes landed in `d408450`, `7048ef2` and
-  `37dadc8`; 8 items moved to the backlog with reasons (FD-19…FD-21);
+  read-only reviews plus a live walk of every screen; 49 audit IDs fixed in `d408450`, `7048ef2`,
+  `37dadc8` and `eedb0e6`; 7 items moved to the backlog with reasons (FD-19…FD-21);
 - its **second pass of 2026-10-06** (same report): a Russian walk of every screen, a live walk of
   every MCP tool, the scenario/screen review applied; fixes in `11cec37`, `0159af9`, `812950a`, docs
   in `4cf8863`, `9567a74`. Three new shared state vectors (remote HTTP 5xx) — Fabric runs the same
   file, tell its owner session when 0.5.5 is out.
 
-Superseded runs, all cancelled before publish: `v0.5.2` (37256336416), `v0.5.3` (37291654717),
+Superseded runs, all cancelled before publish: `v0.5.5` (37398766044, after its `macos` build — T-1…T-4), `v0.5.2` (37256336416), `v0.5.3` (37291654717),
 `v0.5.4` (37307011716 — cancelled after its `macos` approval because 0.5.5 carries the audit; an
 older run published after a newer one would have pulled installed copies back). Since this
 release, release.yml runs one release at a time and checks again right before publish, and the
 app installs only a feed version newer than its own (`src/core/version.ts`).
 
-**Open after the release:** FD-16's field proof (the next release installing itself on a 0.5.5
+**Open after the release:** FD-16's field proof (the next release installing itself on a 0.5.6
 copy with the window closed); FD-19 (reason codes, with Fabric); FD-20 (one control module);
 FD-21 (small leftovers); FD-22 (show an agent's A2A surface — roadmap RM-17, adapter FAA-10
 [PR #39](https://github.com/passioncode-ai/fabric-agent-adapter/pull/39), waits for the contract's
@@ -85,11 +92,11 @@ State of the work streams from this session, with receipts:
 | Stream | Where | State |
 |---|---|---|
 | FD-10 one entry per agent | ADR-0012, `main` `f294285`, issue #27 closed | done, unreleased |
-| FD-11 Spend | ADR-0013, `main` `818fe7c`; contract DEC-0021 `9091d3d` | done, unreleased; no agent reports yet |
-| Kits publish usage (G7) | adapter PR #34 on `main`, 0.8.0 unreleased (FAA-06, FAA-07) | done in source; agents adopt next |
+| FD-11 Spend | ADR-0013, `main` `818fe7c`; contract DEC-0021 `9091d3d` | done, ships in 0.5.6; three agents report real numbers (see *Spend is live*) |
+| Kits publish usage (G7) | adapter PR #34 on `main`, `v0.8.0` published on npm (FAA-06, FAA-07) | done; agents adopt it |
 | FD-12 / COM-11 (#26) | backlog FD-12 | COM-01 accepted (DEC-0022); waits for a service that answers `com.status` — Fabric's board (COM-02/03) |
 | Enterprise workplace, admin channel, agent chat | [estate report](reports/2026-10-04-agent-estate-architecture/README.md); fabric-workspace `knowledge/plans.md` (gaps G1…G8) | D1…D5 answered 2026-10-05 |
-| FD-09 first CI release | backlog FD-09 | `v0.5.5` to be tagged after the audit; waits for the operator's `macos` and `publish` approvals |
+| FD-09 first CI release | backlog FD-09 | `v0.5.5` withdrawn (run cancelled); `v0.5.6` tagged, waits for the operator's `macos` and `publish` approvals |
 
 **The Codex session recovered here.** Codex thread `01a10620` (working on the operator's analytics
 agent in its own private repository) stopped at its weekly rate limit at 2026-10-04 15:42 UTC

@@ -6,8 +6,9 @@ state each service is in, and build the `fabric-dashboards://service/<id>.<insta
 opens one in Fabric Dashboards. Fabric Dashboards runs on it; Fabric's agent registry reads
 `services/` with it (Fabric plan row AR-2.2), so both apps show a service in the same state.
 
-It never starts, stops or changes a service, never reads a token and never opens a network
-port. Controlling a service (launchd verbs), reading its events feed and signing in to its
+It never starts, stops or changes a service and never opens a network port. It reads a token
+only to probe a remote placement's health (DEC-0019, `readToken`), and withholds it from an origin
+that is not the service ([Remote token latch](#remote-token-latch)). Controlling a service (launchd verbs), reading its events feed and signing in to its
 dashboard stay in Fabric Dashboards ([ADR-0002](../../docs/adr/0002-launchd-is-the-only-supervisor.md),
 [ADR-0006](../../docs/adr/0006-shared-service-host-package.md)).
 
@@ -73,6 +74,25 @@ HTTP 5xx (cause `http`: a deploy or an outage, not another program) is `no-answe
 its 0.1.0 shape. `readToken(tokenFile)` refuses a symlink, another owner and any mode wider than
 0600 — main process only.
 
+## Remote token latch
+
+`src/latch.ts`. `new RemoteTokenLatch()`, then `latch.probe(d, send)` for every health probe of a
+remote placement, where `send(true)` probes with the token and `send(false)` without it; a local
+placement is probed as is. `latch.withheld(d)` says why the token is withheld now (`foreign`,
+`not-protocol`) or `null`.
+
+- An origin that answers as **another service** keeps that answer as its verdict until the
+  descriptor changes; nothing is requested again (`reason.remote.foreign`).
+- An origin that answers **without the protocol** (a 404, an HTML page: a parked domain or a
+  taken-over subdomain) is probed again without the token. When it answers 401 (it asks for a token
+  again) or as this service, the latch opens and the same probe repeats with the token; anything
+  else keeps it withheld (`reason.remote.protocol`).
+- A changed descriptor is a new claim and starts clear.
+
+Only the first answer that reveals the origin is not the service ever carried the token. Keep one
+latch for as long as the reader lives: the app's monitor holds one, the MCP server one per process,
+and `lookAtServices` takes one as `latch` (third review pass T-2, T-4).
+
 ## Launchd
 
 `src/launchd.ts`. `LaunchdReader(run?, uid?)` with `disabledTable()` (one `launchctl
@@ -103,7 +123,7 @@ nothing to show).
 
 ## One look
 
-`src/look.ts`. `lookAtServices({ servicesDir?, wellKnown?, launchd?, now?, only?, token? })` →
+`src/look.ts`. `lookAtServices({ servicesDir?, wellKnown?, launchd?, now?, only?, token?, latch? })` →
 `{ servicesDir, error, services: ServiceLook[] }` — read the descriptors, find conflicts, read
 launchd once, probe each usable service once, derive each state. A reader with no history (a
 registry scan, an MCP call) has no earlier answer to measure silence from, so a service that

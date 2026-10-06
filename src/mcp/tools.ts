@@ -12,7 +12,7 @@ import fs from 'node:fs';
 import { discoverHost, type HostStatus } from './host';
 import {
   APP_NAME, expand, lookAtServices, readDirectory, servicesDir as defaultServicesDir,
-  type Descriptor, type DescriptorEntry, type ServiceLook, type ServiceState, type WellKnownResult, authHeaders, REMOTE_TIMEOUT_MS, type WellKnownOptions,
+  type Descriptor, type DescriptorEntry, type ServiceLook, type ServiceState, type WellKnownResult, authHeaders, portOf, RemoteTokenLatch, REMOTE_TIMEOUT_MS, type WellKnownOptions,
 } from '@passioncode-ai/fabric-service-host';
 import { runOwned } from '../core/children';
 import { fromServiceUrl, isServiceKey, linkFor, safePath } from '../core/deeplink';
@@ -33,7 +33,7 @@ export interface Deps {
   /** An explicit app path prevents dispatch to another handler; never use open -n. */
   open: (target: string, application?: string) => Promise<number>;
   host: () => Promise<HostStatus>;
-  run: (argv: string[], timeoutMs: number) => Promise<{ code: number | null; output: string; timedOut: boolean }>;
+  run: (argv: string[], timeoutMs: number) => Promise<{ code: number | null; output: string; timedOut: boolean; started?: boolean; signal?: string | null }>;
   events: typeof fetchEvents;
   usage: typeof fetchUsage;
   token: typeof readToken;
@@ -42,11 +42,20 @@ export interface Deps {
   platform: NodeJS.Platform;
   /** Whether a file exists (the launchd plist before start/restart). Default: fs.existsSync. */
   exists?: (path: string) => boolean;
+  /** S-2 for this server: one latch for the process's lifetime (T-4). Default: created on first use. */
+  latch?: RemoteTokenLatch;
 }
+
+const latchOf = (deps: Deps): RemoteTokenLatch => (deps.latch ??= new RemoteTokenLatch());
+
+/** T-1: an answer is this service's only when it names this service; another program's document
+ *  gets no token, and its paths are never used. */
+const answersAs = (d: Descriptor, a: WellKnownResult): boolean =>
+  a.kind === 'answer' && a.doc.service.id === d.id && a.doc.service.instance === d.instance;
 
 /** A descriptor's own argv, in its own process group, without ELECTRON_RUN_AS_NODE or NODE_OPTIONS
  *  (this process runs Electron as Node); killed with its group on timeout or session end (LC-10). */
-function runArgv(argv: string[], timeoutMs: number): Promise<{ code: number | null; output: string; timedOut: boolean }> {
+function runArgv(argv: string[], timeoutMs: number): ReturnType<Deps['run']> {
   const [cmd, ...args] = argv.map((a, i) => (i === 0 ? expand(a) : a));
   return runOwned(cmd!, args, { timeoutMs });
 }
@@ -54,7 +63,7 @@ function runArgv(argv: string[], timeoutMs: number): Promise<{ code: number | nu
 export function liveDeps(runner: Runner = execRunner): Deps {
   return {
     servicesDir: () => defaultServicesDir(),
-    wellKnown: (origin, options) => fetchWellKnown(origin, options?.headers ? REMOTE_TIMEOUT_MS : PROBE_TIMEOUT_MS, options),
+    wellKnown: (origin, options) => fetchWellKnown(origin, portOf(origin) === null ? REMOTE_TIMEOUT_MS : PROBE_TIMEOUT_MS, options),
     launchd: new Launchd(runner),
     // The packaged MCP runs Electron as Node. LaunchServices inherits this flag
     // on a cold launch: open exits 0 while the GUI exits without making a window.
@@ -68,6 +77,7 @@ export function liveDeps(runner: Runner = execRunner): Deps {
     now: () => Date.now(),
     sleep: (ms) => new Promise((r) => setTimeout(r, ms)),
     platform: process.platform,
+    latch: new RemoteTokenLatch(),
   };
 }
 
@@ -124,7 +134,7 @@ function view(s: ServiceLook): ServiceView {
 
 /** One look, as the package reads it; an unreadable services directory is the tool's error. */
 async function look(deps: Deps, only?: string[]): Promise<ServiceLook[]> {
-  const out = await lookAtServices({ servicesDir: deps.servicesDir(), wellKnown: deps.wellKnown, launchd: deps.launchd, now: deps.now, only, token: deps.token });
+  const out = await lookAtServices({ servicesDir: deps.servicesDir(), wellKnown: deps.wellKnown, launchd: deps.launchd, now: deps.now, only, token: deps.token, latch: latchOf(deps) });
   if (out.error) throw new ToolError(`cannot read the services directory ${out.servicesDir}: ${out.error}`);
   return out.services;
 }
@@ -189,7 +199,7 @@ async function withDashboard(deps: Deps, r: { key: string; path?: string; http: 
   if (!d) return r;
   try {
     const answer = await probe(deps, d);
-    const dash = answer.kind === 'answer' ? answer.doc.surfaces.dashboard?.path : undefined;
+    const dash = answer.kind === 'answer' && answersAs(d, answer) ? answer.doc.surfaces.dashboard?.path : undefined;
     const safe = dash ? safePath(dash) : null;
     return safe ? { ...r, http: `${d.origin}${safe}` } : r;
   } catch {
@@ -244,7 +254,7 @@ async function probe(deps: Deps, d: Descriptor): Promise<WellKnownResult> {
   } catch (error) {
     throw new ToolError((error as Error).message);
   }
-  return deps.wellKnown(d.origin, { headers: authHeaders(d, token) });
+  return latchOf(deps).probe(d, (withToken) => deps.wellKnown(d.origin, withToken ? { headers: authHeaders(d, token) } : undefined));
 }
 
 export async function control(deps: Deps, key: string, action: 'start' | 'stop' | 'restart'): Promise<{ ok: boolean; state: ServiceState; detail: string }> {
@@ -277,21 +287,23 @@ export async function control(deps: Deps, key: string, action: 'start' | 'stop' 
   return { ok: false, state: (await serviceStatus(deps, key)).state, detail: `no expected answer within ${CONTROL_TIMEOUT_MS / 1000} s` };
 }
 
-export async function command(deps: Deps, key: string, which: 'doctor' | 'update'): Promise<{ code: number | null; output: string; timed_out: boolean }> {
+export async function command(deps: Deps, key: string, which: 'doctor' | 'update'): Promise<{ code: number | null; output: string; timed_out: boolean; signal?: string }> {
   if (which !== 'doctor' && which !== 'update') throw new ToolError('command is doctor or update');
   const d = find(deps, key).descriptor;
   const argv = d.commands?.[which];
   if (!argv) throw new ToolError(`${d.name} declares no ${which} command`);
   const r = await deps.run(argv, COMMAND_TIMEOUT_MS);
   // M2-3: a command that never started is a refusal an agent reads as one, not a result with code null.
-  if (r.code === null && !r.timedOut) throw new ToolError(`${d.name}: the ${which} command could not run: ${r.output.trim().split('\n').pop() ?? ''}`);
-  return { code: r.code, output: r.output.slice(-20_000), timed_out: r.timedOut };
+  // T-6: only a command that never started is a refusal; one ended by a signal returns its output and the signal.
+  if (r.code === null && !r.timedOut && !r.signal && r.started !== true) throw new ToolError(`${d.name}: the ${which} command could not run: ${r.output.trim().split('\n').pop() ?? ''}`);
+  return { code: r.code, output: r.output.slice(-20_000), timed_out: r.timedOut, ...(r.signal ? { signal: r.signal } : {}) };
 }
 
 export async function activity(deps: Deps, key: string, limit = 20): Promise<{ events: { at: string; level: string; text: string; link?: string }[] }> {
   const d = find(deps, key).descriptor;
   const answer = await probe(deps, d);
   if (answer.kind !== 'answer') throw new ToolError(`${d.name} does not answer: ${answer.detail}`);
+  if (!answersAs(d, answer)) throw new ToolError(`${d.name}: another program answers on its address (as ${answer.doc.service.id}.${answer.doc.service.instance}); its activity is not read and no token is sent`);
   let token: string;
   try {
     token = deps.token(d.auth.tokenFile);
@@ -317,7 +329,7 @@ export async function spend(deps: Deps, key?: string): Promise<{ services: (Spen
   // P-3 (D-1 for MCP): this server keeps no memory of what a service declared, so a service that
   // does not answer, or whose address another program answers, has unknown spend — an error, never
   // "not reporting", so an agent never adds it up as $0.
-  const unknown = new Map(looks.filter((l) => l.descriptor && !l.wellKnown && !['invalid', 'conflict', 'stopped'].includes(l.state)).map((l) => [l.key, l.state]));
+  const unknown = new Map(looks.filter((l) => l.descriptor && !l.wellKnown && !['invalid', 'conflict'].includes(l.state)).map((l) => [l.key, l.state]));
   return {
     services: entries.map((e) => {
       const state = unknown.get(e.key);

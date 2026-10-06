@@ -1,5 +1,6 @@
 // The typed bridge between the renderer and the main process. The renderer
 // never sees a token, a file handle or a process: it asks, the main process acts.
+import type { CommandResult } from './outcome';
 import type { SpendEntry } from './spend';
 import type { ActivityItem, AppStatus, Listener, Reason, Settings } from './types';
 
@@ -13,7 +14,7 @@ export interface FabricApi {
   onStatus(listener: (status: AppStatus) => void): () => void;
   control(key: string, action: 'restart' | 'stop' | 'start'): Promise<{ ok: boolean; reason: Reason }>;
   /** Run the descriptor's doctor or update. `refused` says why nothing ran (busy, not declared); `code: null` without `timedOut` means it could not start. */
-  command(key: string, which: 'doctor' | 'update'): Promise<{ code: number | null; output: string; timedOut: boolean; refused?: string }>;
+  command(key: string, which: 'doctor' | 'update'): Promise<CommandResult & { refused?: string }>;
   logs(key: string): Promise<{ path: string; text?: string; error?: string }[]>;
   /** Every service's own usage report, read now and summed in the main process (ADR-0013). */
   /** What every agent spent, and when the main process read it. `force` (Refresh) reads now, even inside the 30 s reuse window. */

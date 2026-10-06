@@ -76,13 +76,22 @@ published or attached to a release.
      writes `update-feed.json` and the receipt; anything else fails the job. The receipt's
      `pruned` names the older release files it removed: `release/` keeps this release and the
      previous one (LC-15).
-5. `publish` waits for a second approval, because it holds the GPG key. It attests every file
+5. `still-newest` repeats step 3's guard right before publishing: hours may pass between the
+   first check and the approvals, and a newer release may have been published meanwhile. A
+   rehearsal skips it.
+6. `publish` waits for a second approval, because it holds the GPG key. It attests every file
    (Sigstore), writes `SHA256SUMS` and `SHA256SUMS.asc`, and publishes the release with the
    CHANGELOG section as its notes. Its files: `Fabric-Dashboards-<version>.dmg`,
    `Fabric-Dashboards-<version>-mac.zip`, `update-feed.json`, the receipt, and the sums.
-6. The feed is served from `releases/latest/download/`, so the newest release is the feed.
+7. The feed is served from `releases/latest/download/`, so the newest release is the feed.
    Installed apps pick the update up within six hours, or at once from
    *Fabric Dashboards → Check for Updates…*.
+
+**One release run at a time.** Every run of `release.yml` — rehearsals included — shares the
+concurrency group `release` without cancel-in-progress: a new tag's run waits, without even running
+`version`, until the run ahead of it is approved, rejected or cancelled. GitHub keeps one *pending*
+run per group, so a third run silently cancels the second. To supersede a run that waits for
+approval, cancel it first (`gh run cancel <id>`), then push the new tag.
 
 A published release is never rewritten; a fix is a new tag. Verify a download with
 `gpg --verify SHA256SUMS.asc SHA256SUMS`, `shasum -a 256 -c SHA256SUMS --ignore-missing` and

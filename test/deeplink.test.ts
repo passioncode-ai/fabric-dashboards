@@ -139,3 +139,10 @@ test('U-17: the open forms refuse unknown or repeated parameters and a stray fra
   assert.match((parseDeepLink('fabric-dashboards://open?service=example-agent.default#x', known) as { reason: string }).reason, /fragment/);
   assert.match((parseDeepLink('fabric-dashboards://open?url=http%3A%2F%2F127.0.0.1%3A47195%2F&path=%2Fx', known) as { reason: string }).reason, /drop path/);
 });
+
+test('T-8: open takes parameters only, and an empty url= still counts as naming a url', () => {
+  assert.equal(parseDeepLink('fabric-dashboards://open/anything/else?service=example-agent.default', known).ok, false);
+  const both = parseDeepLink('fabric-dashboards://open?service=example-agent.default&url=', known);
+  assert.deepEqual(both, { ok: false, reason: 'name a service or a url, not both' });
+  assert.equal(parseDeepLink('fabric-dashboards://open/?service=example-agent.default', known).ok, true, 'one trailing slash stays fine');
+});

@@ -9,7 +9,7 @@ in, one live view per service — instead of a browser tab per port. It is the m
 [Fabric](https://passioncode.ai/), PassionCode.ai's CEO AI agent, and it also works on its own:
 agents drive it over MCP, people use the window.
 
-**Version 0.5.5** — [download the latest release](https://github.com/passioncode-ai/fabric-dashboards/releases/latest) (until 0.5.5 is published there, that is 0.4.1, which updates itself to 0.5.5). See [HANDOFF](docs/HANDOFF.md)
+**Version 0.5.6** — [download the latest release](https://github.com/passioncode-ai/fabric-dashboards/releases/latest) (until 0.5.6 is published there, that is 0.4.1, which updates itself to 0.5.6 at its next quit or restart). See [HANDOFF](docs/HANDOFF.md)
 for what is released and what is next.
 
 ![Fabric Dashboards: the overview with six agents — status strip, Needs attention, one card per agent](docs/images/overview.png)
@@ -146,13 +146,15 @@ window forward: quit the installed app first, or give the checkout its own profi
 ## For agents
 
 Tools: `host_status`, `list_services`, `service_status`, `link`, `open`, `control`, `doctor`, `update`,
-`activity`, `spend`. An agent that starts work on a service hands the operator the `open_link` from
+`activity`, `spend` (`spend` from 0.5.6; the published 0.4.1 has the first nine). An agent that starts work on a service hands the operator the `open_link` from
 `link` — `fabric-dashboards://service/<id.instance>?path=/…`, which opens that page inside the
 app. Keep `http_url` for diagnostics or confirmed-absent fallback. `open` opens it now;
 `fallback=never` forbids the browser, and installed-host failure never falls back. `spend` gives
 each agent's own usage entries; a service that does not answer is an error entry (unknown spend),
 never "not reporting". `doctor` and `update` run the service's own programs: announce them first.
-An unknown tool is a JSON-RPC error; an argument a tool does not declare is refused.
+An unknown tool is a JSON-RPC error; an argument a tool does not declare, or of the wrong type, is
+refused. A token goes only to the service itself: never to another program on its port, and never
+again to an online address that answered as something else.
 [ADR-0004](docs/adr/0004-deep-links-and-mcp.md) and [ADR-0005](docs/adr/0005-service-links.md)
 have the rules.
 

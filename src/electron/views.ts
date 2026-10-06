@@ -8,16 +8,17 @@ import type { PageState, Rect } from '../core/api';
 import { t, type Lang } from '../core/i18n';
 import { loginUrl, readToken } from '../core/probe';
 import type { ServiceSnapshot } from '../core/types';
-import { clampRect, dashboardPathOf, loadErrorText, navigation, pageAddress, partitionFor, resolveLink, resumePath, routeLink, ViewSlot } from './policy';
+import { afterCrash, clampRect, dashboardPathOf, loadErrorText, navigation, pageAddress, partitionFor, resolveLink, resumePath, routeLink, ViewSlot } from './policy';
 import { testRemote } from '../core/testhooks';
 
 /** A view signs in again after a 401 at most this often (copylot finding 2026-10-05). */
 const RESIGN_EVERY_MS = 60_000;
 
+
 /** What showing a dashboard came to; `stage` tells a sign-in that failed from a page that would not load. */
 export interface ShowResult { ok: boolean; error?: string; stage?: 'sign-in' | 'page' }
 
-interface Entry { view: WebContentsView; origin: string; crashes: number; loadedOnce: boolean; dashboardPath: string; resignedAt: number; resignTo: string | undefined | null }
+interface Entry { view: WebContentsView; origin: string; crashes: number; loadedOnce: boolean; loadedAt: number; dashboardPath: string; resignedAt: number; resignTo: string | undefined | null }
 
 
 export class ServiceViews {
@@ -35,7 +36,16 @@ export class ServiceViews {
     private readonly appLink: (raw: string) => void = () => undefined,
     /** The origins of every registered service, for routeLink. */
     private readonly serviceOrigins: () => string[] = () => [],
+    /** The monitor's snapshot now. A sign-in or a recreate reads it, never the one the view was made
+     *  from: whatever answers on the port now may not be the service any more (T-3). */
+    private readonly snapshotFor: (key: string) => ServiceSnapshot | null = () => null,
   ) {}
+
+  /** The service as it is now, when it may get a token: answering as itself, with its well-known. */
+  private live(key: string): ServiceSnapshot | null {
+    const snap = this.snapshotFor(key);
+    return snap?.descriptor && snap.wellKnown && (snap.state === 'ready' || snap.state === 'degraded') ? snap : null;
+  }
 
   private create(snap: ServiceSnapshot): Entry {
     const d = snap.descriptor!;
@@ -58,20 +68,20 @@ export class ServiceViews {
     ses.webRequest.onCompleted({ urls: [`${new URL(d.origin).origin}/*`] }, (details) => {
       if (details.resourceType !== 'mainFrame' || details.statusCode !== 401) return;
       const entry = this.views.get(snap.key);
-      if (!entry || !snap.wellKnown?.surfaces.dashboard?.login) return;
+      if (!entry || !this.live(snap.key)?.wellKnown?.surfaces.dashboard?.login) return;
       if (Date.now() - entry.resignedAt < RESIGN_EVERY_MS) return;
       entry.resignedAt = Date.now();
       // The 401 page is still committing: a login started now races it and can lose. Sign in once
       // the page has stopped loading (`did-stop-loading` below), or now if it already has.
       entry.resignTo = resumePath(details.url, d.origin);
-      if (!entry.view.webContents.isLoading()) this.resign(snap, entry);
+      if (!entry.view.webContents.isLoading()) this.resign(snap.key, entry);
     });
     ses.setPermissionCheckHandler(() => false);
     const view = new WebContentsView({
       webPreferences: { partition, sandbox: true, contextIsolation: true, nodeIntegration: false, webSecurity: true, allowRunningInsecureContent: false },
     });
     view.setBackgroundColor('#0a070d');
-    const entry: Entry = { view, origin: d.origin, crashes: 0, loadedOnce: false, dashboardPath: dashboardPathOf(snap.wellKnown?.surfaces.dashboard?.path), resignedAt: 0, resignTo: null };
+    const entry: Entry = { view, origin: d.origin, crashes: 0, loadedOnce: false, loadedAt: 0, dashboardPath: dashboardPathOf(snap.wellKnown?.surfaces.dashboard?.path), resignedAt: 0, resignTo: null };
     const wc = view.webContents;
     // ADR-0016: a link to another service opens it here, signed in with its own session.
     const follow = (url: string): boolean => {
@@ -92,20 +102,25 @@ export class ServiceViews {
     wc.on('will-redirect', (event, url) => {
       if (navigation(d.origin, url) !== 'allow') event.preventDefault();
     });
-    // P-14: a page that loads again has earned its one automatic recreate back.
-    wc.on('did-finish-load', () => { entry.loadedOnce = true; entry.crashes = 0; this.emit({ key: snap.key, kind: 'loaded' }); });
+    wc.on('did-finish-load', () => { entry.loadedOnce = true; entry.loadedAt = Date.now(); this.emit({ key: snap.key, kind: 'loaded' }); });
     // ADR-0014: the toolbar follows the page — a full navigation, an in-page route, loading on and off.
     const navigated = () => { const page = this.page(snap.key); if (page) this.emit({ key: snap.key, kind: 'navigated', page }); };
     wc.on('did-navigate', navigated);
     wc.on('did-navigate-in-page', navigated);
     wc.on('did-start-loading', navigated);
-    wc.on('did-stop-loading', () => { navigated(); this.resign(snap, entry); });
+    wc.on('did-stop-loading', () => { navigated(); this.resign(snap.key, entry); });
     wc.on('did-fail-load', (_e, code, description, _url, isMainFrame) => {
-      if (isMainFrame && code !== -3) this.emit({ key: snap.key, kind: 'error', error: description });
+      if (!isMainFrame || code === -3) return;
+      entry.loadedOnce = false; // T-17: showing it again loads it again, never attaches Chromium's error page
+      this.emit({ key: snap.key, kind: 'error', error: description });
     });
     wc.on('render-process-gone', () => {
-      entry.crashes += 1;
-      if (entry.crashes === 1) void this.load(snap);
+      const next = afterCrash(entry.crashes, entry.loadedAt, Date.now());
+      entry.crashes = next.crashes;
+      entry.loadedOnce = false;
+      entry.loadedAt = 0;
+      const now = next.recreate ? this.live(snap.key) : null;
+      if (now) void this.load(now);
       else this.emit({ key: snap.key, kind: 'crashed' });
     });
     this.views.set(snap.key, entry);
@@ -113,12 +128,14 @@ export class ServiceViews {
   }
 
   /** Run a re-sign-in the 401 handler asked for, once. */
-  private resign(snap: ServiceSnapshot, entry: Entry): void {
+  private resign(key: string, entry: Entry): void {
     const to = entry.resignTo;
     if (to === null) return; // nothing asked; undefined asks for the dashboard's own page
     entry.resignTo = null;
+    const snap = this.live(key);
+    if (!snap) return; // T-3: no token for whatever answers there now; the monitor's state says why
     void this.load(snap, to).then((r) => {
-      if (!r.ok) this.emit({ key: snap.key, kind: 'error', error: r.error });
+      if (!r.ok) this.emit({ key, kind: 'error', error: r.error });
     });
   }
 
@@ -232,7 +249,10 @@ export class ServiceViews {
     this.released = null;
     if (!r || this.slot.owner() !== r.owner || this.slot.wanted() !== r.key) return;
     const snap = snapshotFor(r.key);
-    if (snap) await this.show(snap, r.rect, r.link, r.owner);
+    if (!snap) return;
+    // T-11: a show that fails here has no caller waiting; the page host hears it as an error.
+    const result = await this.show(snap, r.rect, r.link, r.owner);
+    if (!result.ok && result.error !== 'unavailable') this.emit({ key: r.key, kind: 'error', error: result.error });
   }
 
   private detach(key: string): void {

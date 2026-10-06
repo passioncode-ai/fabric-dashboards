@@ -10,6 +10,9 @@ export function Activity({ status, openAt, filter, setFilter }: Props) {
   const { serviceKey, minLevel } = filter;
   const setServiceKey = (k: string) => setFilter({ ...filter, serviceKey: k });
   const setMinLevel = (l: '' | ActivityItem['level']) => setFilter({ ...filter, minLevel: l });
+  // T-27: a filter on a service that is gone would read "All services" and show nothing.
+  const gone = Boolean(serviceKey) && !status.services.some((s) => s.key === serviceKey);
+  useEffect(() => { if (gone) setFilter({ ...filter, serviceKey: '' }); }, [gone]);
   const [items, setItems] = useState<ActivityItem[] | null>(null);
   // U-8: every new row counts, app events included — not only a service's latest event.
   const tick = `${status.activityRev ?? ''}|${status.services.map((s) => s.latestEvent?.id ?? '').join('|')}|${status.unread}`;

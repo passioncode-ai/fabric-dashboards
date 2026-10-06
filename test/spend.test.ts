@@ -32,7 +32,8 @@ test('a service that declares surfaces.usage is read and summed; one that does n
 
 test('one service failing — refused token, unreadable token file, malformed report — is that entry, not the answer', async () => {
   const out = await readSpend([{ key: 'example-agent.default', descriptor: D, wellKnown: WK }], deps({ fetchUsage: async () => { throw new Error('the service refused the token (HTTP 401)'); } }));
-  assert.deepEqual(out, [{ key: 'example-agent.default', kind: 'error', error: 'the service refused the token (HTTP 401)' }]);
+  assert.deepEqual(out, [{ key: 'example-agent.default', kind: 'error', error: 'the service refused the token (HTTP 401)',
+    reason: { code: 'spend.err.unreachable', params: { error: 'the service refused the token (HTTP 401)' } } }], 'T-25: a failure with no reason of its own is still worded in the app\'s language');
   const noToken = await readSpend([{ key: 'example-agent.default', descriptor: D, wellKnown: WK }], deps({ token: () => { throw new Error('the token file is readable by others; set mode 0600'); } }));
   assert.equal(noToken[0]!.kind, 'error');
 });

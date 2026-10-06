@@ -20,8 +20,11 @@ service data.
   online origin is reached over https with the certificate verified against the system store,
   and no redirect is followed. An answer from another program carries none of its document
   into the app: an online origin that answered as another service gets no token again until
-  its descriptor changes, and a usage report is never read from a port or origin that answers
-  as something else.
+  its descriptor changes; one that answered without the protocol is checked again without the
+  token until it asks for one (HTTP 401) or answers as the service — in the app and in the MCP
+  server alike (`RemoteTokenLatch`). A usage report, an events feed or a dashboard sign-in is
+  never read from a port or origin that answers as something else, and a sign-in reads the
+  service's state at that moment, not when its page was first opened.
 - **Fetches** the update feed
   (`https://github.com/passioncode-ai/fabric-dashboards/releases/latest/download/update-feed.json`,
   or `FABRIC_DASHBOARDS_UPDATE_URL`) 10 s after start and every 6 hours, only in a packaged copy
@@ -50,7 +53,9 @@ service data.
 - **Opens** `fabric-dashboards://` links only for an installed service and a path on that
   service's own origin; any other link is refused with the reason and opens nothing
   ([ADR-0004](docs/adr/0004-deep-links-and-mcp.md)). Outside the app it opens only a
-  dashboard link to another site, in the default browser after the person confirms; the
+  dashboard link to another site, in the default browser after the person confirms; in Finder,
+  the services folder, the app's data folder and a descriptor file the person asks to see
+  (`shell.openPath` / `showItemInFolder`); the
   fabric-agent-adapter README ("How a service joins"); and macOS System Settings →
   Notifications.
 

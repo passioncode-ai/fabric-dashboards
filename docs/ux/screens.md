@@ -97,7 +97,7 @@
 ### SCR-05: Stop confirmation
 - **Used by:** SCN-009
 - **Purpose:** a destructive-feeling action is confirmed with its consequence
-- **Elements:** "Stop <Service>?" — "It stays off, also after the Mac restarts, until you start it. Agents that use it will get no answer."; Cancel (focused), Stop (destructive); Escape cancels; focus stays in the dialog while it is open and returns to Stop when it closes (U-14)
+- **Elements:** "Stop <Service>?" — "It stays off, also after the Mac restarts, until you start it. Agents that use it will get no answer."; Cancel (focused), Stop (destructive); Escape cancels wherever focus is; focus stays in the dialog while it is open, returns to Stop on Cancel and moves to the service's name after Stop (U-14, T-21); a service that disappears closes the dialog (T-18)
 - **States:**
   | State | Trigger | Figma frame | Behavior |
   |-------|---------|-------------|----------|

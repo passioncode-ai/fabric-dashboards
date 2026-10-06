@@ -84,6 +84,23 @@ function Shell({ status, route, setRoute, stopKey, setStopKey, activityFilter, s
     opener.current = null;
     if (el?.isConnected && !(el as HTMLButtonElement).disabled) el.focus();
   }, [stopOpen]);
+  // T-18: a service removed while its Stop dialog is open takes the dialog with it — never a hidden
+  // dashboard behind an invisible dialog, never the dialog coming back by itself when it returns.
+  useEffect(() => { if (stopKey && !stopping) setStopKey(null); }, [stopKey, stopping]);
+  // T-21: Escape closes the dialog wherever focus is, including after a click on the backdrop.
+  useEffect(() => {
+    if (!stopOpen) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setStopKey(null); };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [stopOpen]);
+  const confirmStop = (key: string) => {
+    // T-21: Stop turns into a disabled Stop and then Start, so focus goes to the service's title,
+    // which stays on screen, instead of falling to the page.
+    opener.current = document.getElementById('svc-title');
+    setStopKey(null);
+    void api().control(key, 'stop');
+  };
   // ADR-0012: one sidebar entry per product; every member keeps its own key, state and controls.
   const products = groupProducts(status.services);
   const foreground = products.filter((p) => !p.background);
@@ -123,7 +140,7 @@ function Shell({ status, route, setRoute, stopKey, setStopKey, activityFilter, s
       </nav>
       <main className="main" inert={stopOpen}>
         {route.page === 'service' && current
-          ? <ServiceView key={current.key} s={current} all={status.services} members={currentProduct?.members ?? [current]} open={open} link={route.link} nonce={route.nonce} tab={route.tab} runUpdate={route.tab === 'health' && route.page === 'service'} activityRev={status.activityRev} overlayOpen={Boolean(stopKey)} askStop={askStop} />
+          ? <ServiceView key={current.key} s={current} all={status.services} members={currentProduct?.members ?? [current]} open={open} link={route.link} nonce={route.nonce} tab={route.tab} runUpdate={route.tab === 'health' && route.page === 'service'} activityRev={status.activityRev} overlayOpen={stopOpen} askStop={askStop} updateStarted={() => setRoute({ ...route, tab: undefined })} />
           : (
             <div className="page">
               <div className="page-head">
@@ -139,13 +156,13 @@ function Shell({ status, route, setRoute, stopKey, setStopKey, activityFilter, s
           )}
       </main>
       {stopping && (
-        <div className="scrim" role="presentation" onKeyDown={(e) => e.key === 'Escape' && setStopKey(null)}>
+        <div className="scrim" role="presentation">
           <div className="dialog" role="alertdialog" aria-modal="true" aria-labelledby="stop-title" aria-describedby="stop-body">
             <h2 id="stop-title">{t('stop.title', { name: nameOf(stopping) })}</h2>
             <p id="stop-body">{t('stop.body')}</p>
             <div className="row">
               <button className="btn" autoFocus onClick={() => setStopKey(null)}>{t('action.cancel')}</button>
-              <button className="btn btn-danger" onClick={() => { const k = stopping.key; setStopKey(null); void api().control(k, 'stop'); }}>{t('action.stop')}</button>
+              <button className="btn btn-danger" onClick={() => confirmStop(stopping.key)}>{t('action.stop')}</button>
             </div>
           </div>
         </div>

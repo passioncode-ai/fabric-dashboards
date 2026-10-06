@@ -121,6 +121,22 @@ export const TOOLS = [
 ] as const;
 
 type Args = Record<string, unknown>;
+type Schema = { properties?: Record<string, { type?: string; enum?: readonly string[]; minimum?: number; maximum?: number }> };
+
+/** T-9: an argument that is present must be what the schema declares; a wrong one is refused, never
+ *  silently replaced by its default (a numeric path, a string limit, an empty service key). */
+export function wrongArgument(schema: Schema, args: Args): string | null {
+  for (const [key, value] of Object.entries(args)) {
+    const p = schema.properties?.[key];
+    if (!p || value === undefined) continue;
+    if (p.type === 'string' && typeof value !== 'string') return `${key} must be a string`;
+    if (p.type === 'string' && key === 'service' && value === '') return 'service must be a service key, id.instance';
+    if (p.type === 'integer' && (typeof value !== 'number' || !Number.isInteger(value))) return `${key} must be an integer`;
+    if (typeof value === 'number' && ((p.minimum !== undefined && value < p.minimum) || (p.maximum !== undefined && value > p.maximum))) return `${key} must be between ${p.minimum} and ${p.maximum}`;
+    if (p.enum && !p.enum.includes(value as string)) return `${key} must be one of ${p.enum.join(', ')}`;
+  }
+  return null;
+}
 const str = (a: Args, k: string): string | undefined => (typeof a[k] === 'string' ? (a[k] as string) : undefined);
 
 export async function call(deps: tools.Deps, name: string, args: Args): Promise<unknown> {
@@ -177,6 +193,8 @@ export async function handle(deps: tools.Deps, message: Message): Promise<Record
       const declared = Object.keys((tool.inputSchema as { properties?: Record<string, unknown> }).properties ?? {});
       const extra = Object.keys(args).filter((k) => !declared.includes(k));
       if (extra.length) return reply({ content: [{ type: 'text', text: `unknown argument ${JSON.stringify(extra[0])} for ${name}` }], isError: true });
+      const wrong = wrongArgument(tool.inputSchema as Schema, args);
+      if (wrong) return reply({ content: [{ type: 'text', text: `${wrong} for ${name}` }], isError: true });
       try {
         const result = await call(deps, name, args);
         return reply({ content: [{ type: 'text', text: JSON.stringify(result, null, 2) }], structuredContent: result });

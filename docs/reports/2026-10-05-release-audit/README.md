@@ -103,7 +103,7 @@ the backlog with a reason.
 | U-11 | Settings → Updates: the explanation and the state line sit far apart (two paragraphs with margins). `update.ready` with no version reads "Update  ready". | live walk 04-settings; `App.tsx:157` | fix |
 | U-12 | Russian UI: English literals (Health `origin`/`launchd`/`disabled`, listener table headers, `doctor`/`update` in result lines, a menu label), dates without the app language, wording (ru «За последние 31 день», «Читаю…», `tray.problems` "1 need", ru "Копировать ссылку"). | `ServiceView.tsx:39,213-215`, `Settings.tsx:127`, `main.ts:437`, `i18n.ts` | fix |
 | U-13 | Machine-written reasons (descriptor problems, token refusals, feed/usage/link errors) are English in the Russian UI. | `descriptor.ts:55-109`, `health.ts`, `probe.ts`, `deeplink.ts` | later — needs reason codes in `@passioncode-ai/fabric-service-host`, shared with Fabric (ADR-0006) |
-| U-14 | Accessibility: tabs without tabpanel or arrow keys; the card's `aria-label` hides its content; attention buttons do not name their service; spinners without text; no `role="alert"` on overlays; the Stop dialog does not hold focus. | `ServiceView.tsx:81-85`, `Overview.tsx:70-75,133`, `App.tsx:122-133` | fix (all but the dialog focus trap: later, needs a dialog component) |
+| U-14 | Accessibility: tabs without tabpanel or arrow keys; the card's `aria-label` hides its content; attention buttons do not name their service; spinners without text; no `role="alert"` on overlays; the Stop dialog does not hold focus. | `ServiceView.tsx:81-85`, `Overview.tsx:70-75,133`, `App.tsx:122-133` | fix (the dialog focus trap followed in `eedb0e6`, finished by T-18/T-21) |
 | U-15 | Duplicate restart always ends with "did not come back within 40 s" and never names the stray pid. | `monitor.ts:509-540` | fix |
 | U-16 | A misnamed descriptor collides with the real one's key; a half-written file flashes Invalid and logs "installed". | `descriptor.ts:136-146`, `monitor.ts:267-281` | later — low impact; the installers write atomically |
 | U-17 | `open?service=`/`open?url=` accept extra parameters and ignore a fragment. | `deeplink.ts:51-57` | fix — the scenario is narrowed to the forms; extra parameters refused like the `service/` form |
@@ -139,9 +139,10 @@ closed" claims (ST-015, AGENTS lifecycle row) — all fixed in the final documen
 | `7048ef2` | R-1, R-2, R-3, R-4, R-8, R-9, R-10, R-11, R-12, R-14, R-15, R-16, R-17, R-18, U-1, U-2, U-3, U-4, U-5, U-6, U-7, U-8, U-9, U-10, U-11, U-12, U-14 (except the dialog focus trap), U-15, U-17, U-19, D-3, D-4, M-1, M-2, M-3 (the plist check), F-1, F-2 |
 | `37dadc8` | live walk after the fixes: opening Spend reads now (the strip's 30-second cache showed a stopped agent as reported); Health labels share one case |
 | docs commit (this pass) | the documentation drift list above |
+| `eedb0e6` | U-14: the Stop dialog's focus trap (ships in 0.5.6) |
 
-Moved to the backlog with their reason: R-19, R-20, U-13 (FD-19), U-16, U-18, the U-14 focus
-trap, M-3's shared module (FD-20), M-4 (FD-21).
+Moved to the backlog with their reason: R-19, R-20, U-13 (FD-19), U-16, U-18, M-3's shared module
+(FD-20), M-4 (FD-21). The U-14 focus trap, first moved too, landed in `eedb0e6`.
 
 Checks after the fixes: `FD_SKIP_LAUNCHD=1 npm run check` exit 0 (226 tests pass, 1 skipped = the
 launchd test, 7/7 when run unskipped); `npm run test:e2e` 6/6; a second live walk of every screen
@@ -171,15 +172,31 @@ the riskiest audit fixes.
 Still later: FD-19 (machine reasons translated, with Fabric), FD-20 (one control module), FD-21
 (small leftovers), FD-22 (A2A surface, after the contract decision; roadmap RM-17).
 
-## Third pass — 2026-10-06, open (fix list for 0.5.6)
+## Third pass — 2026-10-06 (fix list for 0.5.6)
 
 Four read-only reviews of `b8bdf57..eedb0e6` (main process; monitor/spend/MCP; renderer/i18n;
 docs and release.yml). Gate at `eedb0e6`: `FD_SKIP_LAUNCHD=1 npm run check` exit 0 (234 tests,
-233 pass, 1 skipped); `npm run test:e2e` 6/6 once the Electron binary is installed. Started:
-`RemoteTokenLatch` in the shared package (`packages/service-host/src/latch.ts`, tested, **not yet
-wired**). Everything else below is open.
+233 pass, 1 skipped); `npm run test:e2e` 6/6 once the Electron binary is installed (T-28).
 
-| ID | Finding | Evidence | Fix |
+**All thirty are fixed in 0.5.6**, each with a test where the code allows one (named after its ID:
+`T-2: …` in `test/flap.test.ts`, `T-1`/`T-4`/`T-7`/`T-9` in `test/mcp.test.ts`, `T-6`/`T-12` in
+`test/lifecycle.test.ts`, `T-8` in `test/deeplink.test.ts`, `T-10` in `test/viewslot.test.ts`, the
+latch in `packages/service-host/test/latch.test.ts`); the renderer items are covered by the e2e
+walk. Checks after the fixes: `FD_SKIP_LAUNCHD=1 npm run check` exit 0 — 246 tests, 245 pass, 1
+skipped (launchd); `npm run test:e2e` 6/6. One run of the full gate failed LC-10's 1000 ms exit
+bound at 1288 ms with the machine 6.5 GB into swap; the test passes alone 4/4 and the next full run
+was green — a timing bound under load, not a regression.
+
+Decisions taken while fixing:
+- T-2: a non-protocol answer is not latched for good (a deploy can serve a 404 for a minute); later
+  probes go without the token, and a 401 or the service's own answer reopens it.
+- T-10: one automatic recreate per crash streak; a page that stayed up 60 s starts a new streak
+  (`afterCrash`, `CRASH_FORGIVEN_AFTER_MS`).
+- T-13: the newest 50 notifications are kept for their click.
+- T-15: the message names the removed MCP entry and how to add it again; the app does not
+  re-register by itself.
+
+| ID | Finding | Evidence | Fix (done) |
 |---|---|---|---|
 | T-1 | MCP `activity` sends the token to whatever answers on the port; `withDashboard` builds `http_url` from a squatter's dashboard path | `src/mcp/tools.ts:186-197,291-304` | refuse when `doc.service.id/instance` differ |
 | T-2 | A remote origin answering non-protocol (404, HTML) gets the token every probe; `reason.remote.protocol` says "Nothing is sent to it" | `monitor.ts:349-353`, `i18n.ts:41,332` | wire `RemoteTokenLatch` into the monitor (replaces `remoteForeignFor`), `lookAtServices` (option) and MCP `probe()` |

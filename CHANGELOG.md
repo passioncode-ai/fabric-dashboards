@@ -2,15 +2,76 @@
 
 ## Unreleased
 
+## 0.5.6 - 2026-10-06
+
+The first published release since 0.4.1. It carries everything listed under 0.5.5, 0.5.4, 0.5.3
+and 0.5.2 below — none of them was published on its own. 0.5.5 was tagged and built, but a third
+review of the release found that a service's token could still reach an address that is not the
+service, so it was withdrawn before approval. This release fixes that and everything else the
+review found ([audit report, third pass](docs/reports/2026-10-05-release-audit/README.md#third-pass--2026-10-06-fix-list-for-056)).
+
+### Security
+
+- **An online address that is not the service gets no token again.** An online service's address
+  that answers without the Fabric protocol (an error page, a parked domain) used to receive the
+  token with every health check, once a minute, while the page said nothing was sent. Now only the
+  check that found out carries it; later checks go without the token until the address asks for one
+  again. The MCP server keeps the same rule for its whole session, where before every call sent the
+  token again to an address that had answered as another service.
+- **Another program on a service's port never gets its token.** The MCP `activity` tool read the
+  events feed of whatever answered on the port, with the service's token, and `link`/`open` could
+  build the browser address from that program's dashboard path. Both now refuse it.
+- **Signing in again checks who answers now.** A dashboard whose session ended signs in again with
+  the service as the app sees it at that moment, so a program that took the port after the service
+  stopped never receives the token.
+
 ### Fixed
 
-- **The Stop dialog holds focus.** While it is open, Tab stays on its two buttons and nothing
-  behind it can be reached; closing it puts focus back on the Stop button (U-14, the last part of
-  that audit finding).
+- **A page that crashes right after every load stops at "The page stopped".** It used to reload
+  itself forever, starting a new page process each time. One automatic reload per crash streak
+  stays; a page that ran for a minute earns it back.
+- **The page you moved to in a dashboard stays when you switch tabs.** Switching to Health and back,
+  or a short outage, no longer sends you back to the page a notification opened.
+- **Showing a dashboard again after an error or a crash loads it again.** It no longer puts the dead
+  page back on screen; a sign-in that fails while the window comes back says so with Retry.
+- **The Stop dialog.** While it is open, Tab stays on its two buttons and nothing behind it can be
+  reached; Escape closes it wherever focus is; closing it puts focus back on Stop, and confirming
+  puts it on the service's name. A service that disappears while the dialog is open closes it,
+  instead of leaving its dashboard hidden and the dialog popping up later (U-14).
+- **A failed action leaves Needs attention after half an hour** even when nothing else changes on
+  screen. An online service no longer offers Logs it does not have.
+- **Spend.** When no agent has reported, the strip says the sum is unknown instead of «≥ $0.00». A
+  report that cannot be read for a network or token-file reason is worded in the app's language.
+- **Commands.** A doctor or update ended by a signal says so and keeps its output; only a command
+  that never started reads «could not run». What a finished command left running counts as owned
+  until it is gone, so quitting right after it ends it too.
+- **An update a notification started runs once,** also when its page is opened again.
+- **Small things:** the update output keeps its heading; the Activity filter forgets a service that
+  is gone; notifications no longer pile up in memory over weeks; an uninstall that stopped halfway
+  says what it already removed; a hidden window gets no page-load events; an online service that
+  answers from several replicas no longer reads as restarted every minute; a Russian Spend reason
+  reads correctly.
+
+### MCP
+
+- `spend` reports a stopped agent's spend as unknown, never as not reporting.
+- An argument of the wrong type — a numeric path, a string limit, an empty service — is refused
+  instead of silently replaced by its default.
+- `fabric-dashboards://open/<anything>?…` and `open?service=…&url=` are refused like the other
+  malformed links.
+
+### Shared package and release
+
+- `@passioncode-ai/fabric-service-host` 0.3.1: `RemoteTokenLatch`, and `lookAtServices` takes a
+  `latch`. Fabric shares the package; it also carries the three remote-5xx state vectors of 0.5.5.
+- `npm run test:e2e` installs Electron's binary before its tests, so it no longer fails right after
+  `npm ci`. The release workflow's publish step uses `!cancelled()`, and a rehearsal's signed set is
+  kept 14 days.
 
 ## 0.5.5 - 2026-10-06
 
-The first published release since 0.4.1. It carries everything listed under 0.5.4, 0.5.3 and 0.5.2
+Tagged, never published: its run was cancelled before approval, superseded by 0.5.6 after a third
+review found token leaks. It carries everything listed under 0.5.4, 0.5.3 and 0.5.2
 below — none of them was published on its own. In short: one entry per agent, Spend, a toolbar
 over every dashboard and an at-a-glance Overview, updates that install themselves, settings that
 survive an uninstall, and the lifecycle contract. On top of that, this release closes the

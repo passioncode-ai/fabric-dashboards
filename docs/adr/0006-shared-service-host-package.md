@@ -57,3 +57,9 @@ two states.
   is silence with cause `http` — waiting, then down with `reason.remote.http` — and a remote answer
   without the protocol is `foreign` with `reason.remote.protocol`, naming the origin rather than a
   port. Fabric runs the same file.
+- **Remote token latch** (amended 2026-10-06, third review pass T-2/T-4; package 0.3.1).
+  `RemoteTokenLatch` (`src/latch.ts`) withholds an online service's token from an origin that
+  answered as another service (kept until the descriptor changes) or without the protocol (checked
+  again without the token until it answers 401 or as this service). The app's monitor holds one,
+  the MCP server one per process, and `lookAtServices` accepts one as `latch`. Fabric should hold
+  one per registry for the same reason; it changes no state and no vector.

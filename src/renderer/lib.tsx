@@ -1,4 +1,4 @@
-import { createContext, useContext } from 'react';
+import { createContext, useContext, useEffect, useState } from 'react';
 import type { FabricApi } from '../core/api';
 import { duration as fmtDuration, hasKey, t as translate, type Lang } from '../core/i18n';
 import type { Reason, ServiceSnapshot, ServiceState } from '../core/types';
@@ -9,6 +9,23 @@ declare global {
 }
 
 export const api = (): FabricApi => window.fabric;
+
+/** How long a finished action stays news on Overview and the service page (U-1, P-15). */
+export const NEWS_MS = 30 * 60_000;
+
+/** T-19: re-render once at the earliest of `times` + `ms`, so news that expires leaves the screen
+ *  even when no status push arrives. Returns the current time for the render to compare against. */
+export function useExpiry(times: (string | undefined)[], ms = NEWS_MS): number {
+  const [now, setNow] = useState(() => Date.now());
+  const due = times.map((at) => Date.parse(at ?? '') + ms).filter((t) => Number.isFinite(t) && t > now);
+  const next = due.length ? Math.min(...due) : null;
+  useEffect(() => {
+    if (next === null) return;
+    const timer = setTimeout(() => setNow(Date.now()), Math.min(next - Date.now() + 50, 2 ** 31 - 1));
+    return () => clearTimeout(timer);
+  }, [next]);
+  return Math.max(now, Date.now());
+}
 
 export const LangContext = createContext<Lang>('en');
 

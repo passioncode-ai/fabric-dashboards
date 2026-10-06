@@ -1,7 +1,7 @@
 {
   "name": "fabric-dashboards",
   "productName": "Fabric Dashboards",
-  "version": "0.5.5",
+  "version": "0.5.6",
   "private": true,
   "description": "Fabric Dashboards (PassionCode.ai): finds, watches and controls every local agent service on this Mac that speaks fabric-service/0.1.",
   "license": "AGPL-3.0-only OR LicenseRef-PassionCode-Commercial",
@@ -24,14 +24,14 @@
     "build": "npm run build:main && npm run build:renderer",
     "typecheck": "npm run build:host && tsc -p tsconfig.main.json --noEmit && tsc -p tsconfig.renderer.json --noEmit",
     "test": "npm run build:host && node --import tsx --test test/*.test.ts packages/service-host/test/*.test.ts",
-    "test:e2e": "npm run build && node --import tsx --test test/e2e/*.test.ts",
+    "test:e2e": "npm run build && install-electron && node --import tsx --test test/e2e/*.test.ts",
     "check": "npm run typecheck && npm test && node scripts/check-brand.mjs && node scripts/check-regions.mjs && python3 docs/ux/lint.py",
     "start": "npm run build && electron .",
     "icon": "node scripts/make-icon.mjs",
     "dist": "node scripts/dist-mac.mjs",
     "build:host": "npm run build -w @passioncode-ai/fabric-service-host",
     "clean": "node scripts/clean.mjs",
-    "screenshots": "npm run build && node --import tsx scripts/screenshots.ts"
+    "screenshots": "npm run build && install-electron && node --import tsx scripts/screenshots.ts"
   },
   "engines": {
     "node": ">=20"

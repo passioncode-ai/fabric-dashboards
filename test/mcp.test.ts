@@ -326,3 +326,48 @@ test('M2-1…M2-3: instances are named apart, link without a target says what to
   deps.run = async () => ({ code: null, output: 'spawn /nonexistent/x ENOENT', timedOut: false });
   await assert.rejects(tools.command(deps, KEY, 'update'), /update command could not run: spawn \/nonexistent\/x ENOENT/);
 });
+
+// ── third review pass T-1, T-4 ────────────────────────────────────────────────────────────
+
+test('T-1: activity and dashboard links never use another program that answers on the port', async () => {
+  const squatter: WellKnownResult = { kind: 'answer', ms: 2, doc: { ...WELL_KNOWN, service: { ...WELL_KNOWN.service, id: 'evil' }, surfaces: { ...WELL_KNOWN.surfaces, events: { path: '/steal' }, dashboard: { path: '/evil' } } } as WellKnown };
+  const w = world({ answers: [squatter] });
+  let fed = false;
+  w.deps.events = async () => { fed = true; return { events: [], cursor: null }; };
+  await assert.rejects(tools.activity(w.deps, KEY), /another program answers on its address/);
+  assert.equal(fed, false, 'the token never goes to the squatter\'s events path');
+  const l = await tools.link(w.deps, { service: KEY });
+  assert.equal(l.http_url, `${DESCRIPTOR.origin}/`, 'the squatter\'s dashboard path is not used');
+});
+
+test('T-4: a remote origin that answered without the protocol gets no token on later calls', async () => {
+  const remote = fixture('positive_service-descriptor-remote.json') as Descriptor;
+  const w = world({ descriptor: remote });
+  const sent: boolean[] = [];
+  w.deps.wellKnown = async (_o, options) => { sent.push(Boolean(options?.headers)); return { kind: 'not-protocol', detail: 'HTTP 404 on /.well-known/fabric-service' }; };
+  for (let i = 0; i < 3; i += 1) assert.equal((await tools.listServices(w.deps)).services[0]!.state, 'foreign');
+  await assert.rejects(tools.activity(w.deps, `${remote.id}.${remote.instance}`));
+  assert.deepEqual(sent, [true, false, false, false], 'only the first probe carried the token');
+});
+
+test('T-7: a stopped agent has unknown spend, never "not reporting"', async () => {
+  const w = world({ loaded: false, answers: [{ kind: 'no-answer', detail: 'ECONNREFUSED' }] });
+  const out = await tools.spend(w.deps, KEY);
+  assert.equal(out.services[0]!.kind, 'error');
+});
+
+test('T-9: an argument of the wrong type is refused, never replaced by its default', async () => {
+  const { deps } = world();
+  for (const [name, args, text] of [
+    ['link', { service: KEY, path: 123 }, /path must be a string/],
+    ['activity', { service: KEY, limit: '5' }, /limit must be an integer/],
+    ['activity', { service: KEY, limit: 500 }, /limit must be between 1 and 100/],
+    ['spend', { service: 42 }, /service must be a string/],
+    ['spend', { service: '' }, /service must be a service key/],
+    ['open', { service: KEY, fallback: 'always' }, /fallback must be one of/],
+  ] as const) {
+    const r = await handle(deps, { jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name, arguments: args } }) as { result: { isError?: boolean; content: { text: string }[] } };
+    assert.equal(r.result.isError, true, `${name} ${JSON.stringify(args)}`);
+    assert.match(r.result.content[0]!.text, text);
+  }
+});

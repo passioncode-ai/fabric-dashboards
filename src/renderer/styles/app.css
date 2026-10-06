@@ -51,6 +51,7 @@ a { color: var(--pc-link); text-decoration: underline; }
 .page-head { display: flex; align-items: baseline; gap: var(--pc-space-3); margin-bottom: var(--pc-space-5); -webkit-app-region: drag; }
 .page-head > * { -webkit-app-region: no-drag; }
 h1 { font-size: var(--pc-type-page); line-height: 1.15; margin: 0; font-weight: 650; letter-spacing: -.01em; }
+h1[tabindex="-1"]:focus { outline: none; } /* focus lands here after Stop (T-21); it is a place, not a control */
 h2 { font-size: var(--pc-type-section); margin: 0 0 var(--pc-space-3); font-weight: 600; }
 h3 { font-size: var(--pc-type-card); margin: 0; font-weight: 600; }
 

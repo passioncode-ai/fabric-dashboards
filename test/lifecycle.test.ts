@@ -10,6 +10,7 @@ import test from 'node:test';
 import type { Descriptor, RunResult, WellKnown, WellKnownResult } from '@passioncode-ai/fabric-service-host';
 import { ActivityStore } from '../src/core/activity';
 import { commandEnv, killOwned, ownedCount, runOwned } from '../src/core/children';
+import { commandRan, commandReason } from '../src/core/outcome';
 import { appendLog, sweepTemps } from '../src/core/fsutil';
 import { Launchd } from '../src/core/launchd';
 import { applyLoginItem, loginItemAtStartup, type LoginItemOs } from '../src/core/loginitem';
@@ -446,6 +447,34 @@ test('LC-02: a command that exited is done even when a descendant that left its 
   assert.equal(r.timedOut, false);
   assert.match(r.output, /parent done/);
   assert.ok(Date.now() - started < 3_000, `finished ${Date.now() - started} ms after start, not when the descendant let go`);
+  assert.equal(ownedCount(), 0);
+});
+
+test('T-6: a command killed by a signal ran — it names the signal and keeps its output; one that never started did not', async () => {
+  const r = await runOwned('/bin/sh', ['-c', 'echo working; kill -9 $$'], { timeoutMs: 5000 });
+  assert.equal(r.code, null);
+  assert.equal(r.started, true);
+  assert.equal(r.signal, 'SIGKILL');
+  assert.match(r.output, /working/);
+  assert.deepEqual(commandReason(r, 'doctor'), { code: 'result.commandSignal', params: { command: 'doctor', signal: 'SIGKILL' } });
+  const none = await runOwned('/no/such/command', [], { timeoutMs: 5000 });
+  assert.equal(none.started, false);
+  assert.equal(commandReason(none, 'doctor').code, 'result.commandFailed');
+  assert.equal(commandRan(none), false);
+});
+
+test('T-12: what a finished command left in its group counts as owned until it is gone, and killOwned ends it', async () => {
+  const dir = tmp('fd-linger-');
+  const pidFile = path.join(dir, 'g.pid');
+  // The command exits at once; its child ignores SIGTERM and would live 60 s.
+  const r = await runOwned('/bin/sh', ['-c', `(trap '' TERM; exec sleep 60) & echo $! > '${pidFile}'; exit 0`], { timeoutMs: 5000, killGraceMs: 2000 });
+  assert.equal(r.code, 0);
+  const left = Number(fs.readFileSync(pidFile, 'utf8'));
+  assert.equal(ownedCount(), 1, 'the leftover group is still counted while its kill runs');
+  await killOwned(100);
+  await new Promise((resolve) => setTimeout(resolve, 100));
+  assert.throws(() => process.kill(left, 0), 'the leftover is gone after killOwned');
+  await new Promise((resolve) => setTimeout(resolve, 2100));
   assert.equal(ownedCount(), 0);
 });
 

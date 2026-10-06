@@ -5,8 +5,9 @@ import { EventEmitter } from 'node:events';
 import fs from 'node:fs';
 import { ActivityStore } from './activity';
 import { runOwned } from './children';
-import { authHeaders, claimConflicts, deriveState, expand, fetchWellKnown, portOf, readDirectory, REMOTE_TIMEOUT_MS, type DescriptorEntry, type WellKnownOptions, type WellKnownResult } from '@passioncode-ai/fabric-service-host';
+import { authHeaders, claimConflicts, deriveState, expand, fetchWellKnown, portOf, readDirectory, RemoteTokenLatch, REMOTE_TIMEOUT_MS, type DescriptorEntry, type WellKnownOptions, type WellKnownResult } from '@passioncode-ai/fabric-service-host';
 import { tail } from './fsutil';
+import { commandReason, type CommandResult } from './outcome';
 import { duration, t as tr, type Lang } from './i18n';
 import { Launchd } from './launchd';
 import { composeEventNotice, displayName, DOWN_NOTIFY_AFTER_MS, episodeKey, intentOf, NotifyLedger, shouldNotify, type Happening, type Intent } from './notify';
@@ -66,7 +67,6 @@ interface Tracked {
   /** The usage path its own last answer declared (ADR-0013): kept while it is down, so Spend says it could not read it instead of "not reporting". */
   usagePath: string | null;
   /** S-2: the descriptor (as JSON) whose online origin answered as another service — no token goes there again until it changes. */
-  remoteForeignFor: string | null;
 }
 
 // #region idle-cadence — docs: AGENTS.md#lifecycle
@@ -87,6 +87,7 @@ export class Monitor extends EventEmitter {
   private readonly ledger: NotifyLedger;
   private readonly events: typeof fetchEvents;
   private readonly token: typeof readToken;
+  private readonly latch = new RemoteTokenLatch();
   /** Hidden until a window says otherwise: a launch at login never shows one (LC-08). */
   private visible = false;
   private running = false;
@@ -108,7 +109,7 @@ export class Monitor extends EventEmitter {
     this.launchd = o.launchd ?? new Launchd();
     this.now = o.now ?? Date.now;
     this.intervals = { ...DEFAULT_INTERVALS, ...(o.intervals ?? {}) };
-    this.wellKnown = o.wellKnown ?? ((origin, options) => fetchWellKnown(origin, options?.headers ? REMOTE_TIMEOUT_MS : PROBE_TIMEOUT_MS, options));
+    this.wellKnown = o.wellKnown ?? ((origin, options) => fetchWellKnown(origin, portOf(origin) === null ? REMOTE_TIMEOUT_MS : PROBE_TIMEOUT_MS, options));
     this.ledger = o.ledger ?? new NotifyLedger(null);
     this.events = o.events ?? fetchEvents;
     this.token = o.token ?? readToken;
@@ -279,7 +280,7 @@ export class Monitor extends EventEmitter {
       const t: Tracked = {
         // R-18: launchd is not read yet — not "not loaded". Until the first probe it reads `starting`, never Off with Start.
         entry, probe: null, launchd: { managed: entry.descriptor?.lifecycle.manager === 'launchd', loaded: true, pid: null, disabled: false },
-        firstUnansweredAt: null, lastAnswerAt: null, misses: 0, lastAnswer: null, nextProbeAt: this.now(), backoff: 0, busy: null, lastAction: null, tokenProblem: null, usagePath: null, remoteForeignFor: null,
+        firstUnansweredAt: null, lastAnswerAt: null, misses: 0, lastAnswer: null, nextProbeAt: this.now(), backoff: 0, busy: null, lastAction: null, tokenProblem: null, usagePath: null,
         feedError: null, downNotified: false, lastState: null, lastPid: null, baselined: false, launchdAt: null, polledAt: null,
       };
       this.tracked.set(entry.key, t);
@@ -305,14 +306,6 @@ export class Monitor extends EventEmitter {
     let options: WellKnownOptions | undefined;
     t.tokenProblem = null;
     if (d.placement === 'remote') {
-      // S-2: an origin that answered as another service keeps that verdict, and gets no token,
-      // until the descriptor changes (reason.remote.foreign says so).
-      if (t.remoteForeignFor === JSON.stringify(d)) {
-        t.nextProbeAt = this.now() + this.intervals.remote;
-        this.observe(t);
-        return;
-      }
-      t.remoteForeignFor = null;
       try {
         options = { headers: authHeaders(d, this.token(d.auth.tokenFile)), ...tlsFor(d.origin) };
       } catch (error) {
@@ -323,12 +316,18 @@ export class Monitor extends EventEmitter {
         return;
       }
     }
-    let probe: WellKnownResult;
-    try {
-      probe = await this.wellKnown(d.origin, options);
-    } catch (error) {
-      probe = { kind: 'no-answer', detail: (error as Error).message };
-    }
+    const ask = async (o?: WellKnownOptions): Promise<WellKnownResult> => {
+      try {
+        return await this.wellKnown(d.origin, o);
+      } catch (error) {
+        return { kind: 'no-answer', detail: (error as Error).message };
+      }
+    };
+    // S-2, T-2: an online origin that answered as another service, or without the protocol, gets no
+    // token again (RemoteTokenLatch: reason.remote.foreign and reason.remote.protocol say so).
+    const probe = d.placement === 'remote'
+      ? await this.latch.probe(d, (withToken) => ask(withToken ? options : tlsFor(d.origin)))
+      : await ask(options);
     // #region launchd-reads — docs: AGENTS.md#lifecycle
     // launchd is read on every probe while a window shows it. Hidden, a `launchctl print` (a process
     // spawn) runs only when it can change the verdict: the probe missed, the answering pid moved, or
@@ -349,7 +348,6 @@ export class Monitor extends EventEmitter {
     if (probe.kind === 'answer') {
       const own = probe.doc.service.id === d.id && probe.doc.service.instance === d.instance;
       if (own) t.usagePath = probe.doc.surfaces.usage?.path ?? null;
-      else if (d.placement === 'remote') t.remoteForeignFor = JSON.stringify(d);
     }
     const now = this.now();
     // A service that starts answering is read at once, not at the next 15-second poll.
@@ -393,7 +391,8 @@ export class Monitor extends EventEmitter {
     const prev = t.lastState;
     t.lastState = snap.state;
     // R-8: a new pid is a restart even when the state did not change between two probes (ready → ready).
-    const pid = t.probe?.kind === 'answer' && snap.state !== 'foreign' ? t.probe.doc.process.pid : null;
+    // T-5: only a local placement has one process; an online origin may answer from several replicas.
+    const pid = t.probe?.kind === 'answer' && snap.state !== 'foreign' && t.entry.descriptor?.placement !== 'remote' ? t.probe.doc.process.pid : null;
     if (pid && t.lastPid && pid !== t.lastPid) this.emit('restarted', t.entry.key);
     if (pid) t.lastPid = pid;
     if (prev === null || prev === snap.state) return;
@@ -573,7 +572,7 @@ export class Monitor extends EventEmitter {
     return finish(false, { code: action === 'stop' ? 'result.stillAnswering' : 'result.timeout', params: { name } });
   }
 
-  async command(key: string, which: 'doctor' | 'update'): Promise<{ code: number | null; output: string; timedOut: boolean; refused?: string }> {
+  async command(key: string, which: 'doctor' | 'update'): Promise<CommandResult & { refused?: string }> {
     const t = this.tracked.get(key);
     const argv = t?.entry.descriptor?.commands?.[which];
     if (!t || !argv) return { code: null, output: '', timedOut: false, refused: tr(this.o.lang(), 'result.noCommand', { command: tr(this.o.lang(), `command.${which}`) }) };
@@ -586,10 +585,8 @@ export class Monitor extends EventEmitter {
     t.busy = null;
     const name = this.name(t);
     const command = tr(this.o.lang(), `command.${which}`);
-    // P-4: a command that could not start (no such file, no permission) says so, not "exit code —".
-    const reason: Reason = result.timedOut ? { code: 'result.commandTimeout', params: { command } }
-      : result.code === null ? { code: 'result.commandFailed', params: { command, error: result.output.trim().split('\n').pop()?.slice(0, 200) ?? '' } }
-      : { code: 'result.command', params: { command, code: result.code } };
+    // P-4, T-6: a command that could not start says so; one ended by a signal names the signal.
+    const reason: Reason = commandReason(result, command);
     t.lastAction = { action: which, ok: !result.timedOut && result.code === 0, reason, at: new Date(this.now()).toISOString() };
     this.o.activity.addAppEvent(key, name, `service.${which}`, t.lastAction.ok ? 'info' : 'warning', `${name}: ${tr(this.o.lang(), reason.code, reason.params)}`);
     t.nextProbeAt = this.now();

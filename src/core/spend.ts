@@ -39,8 +39,9 @@ export async function readSpend(services: readonly { key: string; state?: string
       const report = await deps.fetchUsage(d, usagePath, deps.token(d.auth.tokenFile));
       return { key: s.key, kind: 'report', summary: summarizeUsage(report, deps.now()) };
     } catch (error) {
-      const reason = (error as { reason?: Reason }).reason;
-      return { key: s.key, kind: 'error', error: (error as Error).message, ...(reason ? { reason } : {}) };
+      // T-25: a failure with no reason of its own (the network, the token file) is still worded in the app's language.
+      const reason = (error as { reason?: Reason }).reason ?? { code: 'spend.err.unreachable', params: { error: String((error as Error).message).slice(0, 200) } };
+      return { key: s.key, kind: 'error', error: (error as Error).message, reason };
     }
   }));
 }

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { ViewSlot } from '../src/electron/policy';
+import { afterCrash, CRASH_FORGIVEN_AFTER_MS, ViewSlot } from '../src/electron/policy';
 
 // The renderer sends show and hide over IPC in the order React commits effects: the new
 // dashboard's layout effect (show) runs before the old one's passive cleanup (hide). The slot
@@ -42,4 +42,14 @@ test('the host that asked may hide its own view (error, crash, overlay)', () => 
   assert.equal(slot.release('host-a'), true);
   assert.equal(slot.current(t), false);
   assert.equal(slot.release('host-a'), false, 'a second hide from the same host changes nothing');
+});
+
+test('T-10: a page that dies right after every load is recreated once, then shows crashed', () => {
+  let s = afterCrash(0, 0, 1_000);
+  assert.deepEqual(s, { crashes: 1, recreate: true });
+  // It loads again (loadedAt) and dies two seconds later: the streak goes on, no second recreate.
+  s = afterCrash(s.crashes, 2_000, 4_000);
+  assert.deepEqual(s, { crashes: 2, recreate: false });
+  // A page that stayed up more than a minute has earned its recreate back.
+  assert.deepEqual(afterCrash(2, 10_000, 10_000 + CRASH_FORGIVEN_AFTER_MS + 1), { crashes: 1, recreate: true });
 });

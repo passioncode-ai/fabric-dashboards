@@ -19,7 +19,7 @@
 Fabric Dashboards: a macOS desktop app (Electron) that finds every local agent service speaking
 `fabric-service/0.1`, shows whether it is alive and what it did last, starts, stops and restarts
 it through launchd and opens each service's dashboard inside the app. Fabric's monitoring tool;
-also works on its own. The current version is 0.5.5 (`package.json`, `CHANGELOG.md`); the README
+also works on its own. The current version is 0.5.6 (`package.json`, `CHANGELOG.md`); the README
 *Quick start for a new teammate* is the path for a new user. Licence:
 `AGPL-3.0-only OR LicenseRef-PassionCode-Commercial` ([ADR-0007](docs/adr/0007-agpl-or-commercial.md)).
 
@@ -31,7 +31,7 @@ These come from `CONTRIBUTING.md`:
 |---|---|
 | Install | `npm ci` |
 | Test (the gate) | `npm run check` — typecheck, unit + integration tests, brand pins, code regions, UX lint (`FD_SKIP_LAUNCHD=1` without a GUI login session) |
-| End-to-end | `npm run test:e2e` — builds, then drives the real Electron app against a live sample service |
+| End-to-end | `npm run test:e2e` — builds, installs Electron's binary (Electron 44 fetches it on first use; parallel test files would race for it), then drives the real Electron app against a live sample service |
 | Run from source | `npm start` |
 | Release | push an annotated `v<version>` tag; `.github/workflows/release.yml` builds, signs, notarizes, attests and publishes after a `release-approvers` approval. Rehearsal: a `v<version>-rc.<n>` tag, then `gh workflow run release.yml --ref <tag> -f publish=false` ([RUNBOOK](docs/RUNBOOK.md#release)) |
 | Local build (debug only, never published) | `npm run dist -- --unsigned`, or signed: `npm run dist [-- --identity NAME] [--notary-profile NAME]` |
@@ -74,7 +74,7 @@ and `npm run check` on macOS every night, on manual dispatch and before every re
 - Tokens are read in the main process only. They never reach a page, a URL or a log, and the app
   listens on no port (`SECURITY.md`).
 - The repository's visibility decides whether the update feed is reachable (D-8 in
-  `docs/HANDOFF.md`, and `docs/RUNBOOK.md`).
+  `docs/evidence/briefs/2026-09-28-brief.md`, and `docs/RUNBOOK.md`).
 - A feature, module or special condition is fenced `// #region <slug> — docs: <path>#<anchor>` …
   `// #endregion <slug>`; `scripts/check-regions.mjs` (in `npm run check`) fails an unclosed
   region or a reference that does not open ([org CONTRIBUTING](https://github.com/passioncode-ai/.github/blob/main/CONTRIBUTING.md) §4).
@@ -124,7 +124,7 @@ due probe or rescan — no fixed 1-second poll — and one for the events feed:
 | Status push to the window / tray rebuild / Dock badge | only when what a person can see changed | no IPC to a hidden window; tray and badge only when they would differ |
 | Activity writes | appended rows when events arrive; state debounced 2 s | same |
 | Update check (Squirrel, `update-feed.json` of the latest release) | 10 s after start, then every 6 h; downloads by itself; none outside Applications (`misplaced`) | same; a downloaded update installs after 10 hidden minutes (ADR-0015) |
-| Usage reports (`surfaces.usage`, ADR-0013) | read now when Spend opens and on Refresh; every 60 s while Spend or Overview is shown (one read serves both for 30 s, ADR-0014) | none — the main process answers the last sums without reading |
+| Usage reports (`surfaces.usage`, ADR-0013) | read now when Spend opens and on Refresh; every 60 s while Spend or Overview is shown (one read serves both for 30 s, ADR-0014) | none, except a first read when nothing has been read yet — then the main process answers the last sums without reading |
 
 **Idle budget**, hidden, per hour, for *L* local launchd services and *R* online ones — counted on a
 fake clock by `test/lifecycle.test.ts` (*LC-08: … a quiet hour stays inside the idle budget*):

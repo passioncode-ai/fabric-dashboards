@@ -211,3 +211,14 @@ export function relaunchHidden(markerText: string | null, now: number): boolean 
   return Number.isFinite(at) && at <= now && now - at < RELAUNCH_FRESH_MS;
 }
 // #endregion auto-install
+
+/** A page that stayed up this long after loading has earned its one automatic recreate back. */
+export const CRASH_FORGIVEN_AFTER_MS = 60_000;
+
+/** P-14, T-10: what a renderer crash does. The first crash of a streak recreates the page once; the
+ *  next one shows "crashed". A page that loaded and stayed up a minute starts a new streak — a page
+ *  that dies right after every load never does, so it cannot reload forever. */
+export function afterCrash(crashes: number, loadedAt: number, now: number): { crashes: number; recreate: boolean } {
+  const streak = loadedAt > 0 && now - loadedAt > CRASH_FORGIVEN_AFTER_MS ? 1 : crashes + 1;
+  return { crashes: streak, recreate: streak === 1 };
+}

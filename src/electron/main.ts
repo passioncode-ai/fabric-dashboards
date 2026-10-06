@@ -195,12 +195,14 @@ if (!app.requestSingleInstanceLock()) {
     w.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
     w.webContents.on('will-navigate', (event) => event.preventDefault());
     w.webContents.session.setPermissionRequestHandler((_wc, _p, callback) => callback(false));
-    // LC-08 (R-13): page moves are not sent to a hidden window; `announce` catches the toolbar up on show.
-    // Errors, crashes and restarts are rare and always sent, so the page host never shows a dead view.
-    views = new ServiceViews(w, lang, (event) => { if (event.kind !== 'navigated' || windowVisible()) w.webContents.send(CHANNELS.viewEvent, event); },
+    // LC-08 (R-13, T-14): page moves and loads are not sent to a hidden window; `announce` catches the
+    // toolbar up on show. Errors, crashes and restarts are rare and always sent, so the page host never
+    // shows a dead view.
+    views = new ServiceViews(w, lang, (event) => { if ((event.kind !== 'navigated' && event.kind !== 'loaded') || windowVisible()) w.webContents.send(CHANNELS.viewEvent, event); },
       // ADR-0016: a dashboard's link to another service takes the same path as a link from outside.
       (raw) => { if (handleLink) handleLink(raw); else pendingLinks.push(raw); },
-      () => monitor.snapshots().map((x) => x.descriptor?.origin).filter((o): o is string => Boolean(o)));
+      () => monitor.snapshots().map((x) => x.descriptor?.origin).filter((o): o is string => Boolean(o)),
+      (key) => monitor.snapshot(key));
     w.once('ready-to-show', () => w.show());
     // FD-05 (operator decision 2026-10-05): a hidden window leaves only the menu-bar icon; showing
     // it brings the Dock icon back. A minimized window keeps its Dock icon — that is where it lives.
@@ -239,12 +241,16 @@ if (!app.requestSingleInstanceLock()) {
     pauseTimer = setTimeout(() => { pauseTimer = null; pushStatus(); }, Math.min(until - Date.now() + 1000, 2 ** 31 - 1));
     pauseTimer.unref();
   }
+  const MAX_KEPT_NOTICES = 50;
   const shownNotices = new Set<Notification>();
   function notify(notice: Notice): void {
     if (!Notification.isSupported()) return;
     const n = new Notification({ title: notice.title, subtitle: notice.subtitle, body: notice.body, silent: false });
-    // R-12: kept until clicked or closed — a collected notification loses its click handler.
+    // R-12: kept until clicked or closed — a collected notification loses its click handler. T-13:
+    // macOS does not always send close (a banner that times out into Notification Center), so only
+    // the newest MAX_KEPT_NOTICES are kept; an older one's click is the one that may be lost.
     shownNotices.add(n);
+    for (const old of shownNotices) { if (shownNotices.size <= MAX_KEPT_NOTICES) break; shownNotices.delete(old); }
     const forget = () => shownNotices.delete(n);
     n.on('click', () => { forget(); navigate({ page: notice.target, key: notice.serviceKey, link: notice.link }); });
     n.on('close', forget);
@@ -283,7 +289,13 @@ if (!app.requestSingleInstanceLock()) {
       if (loginOs) {
         const refused = applyLoginItem(false, loginOs);
         if (refused) {
-          try { restoreMcpRegistrations(mcp, launcher()); } catch (e) { log(`uninstall: MCP registration not put back: ${(e as Error).message}`); }
+          try {
+            restoreMcpRegistrations(mcp, launcher());
+          } catch (e) {
+            // T-15: the MCP entry is gone and could not be put back — say so, never "Nothing was removed".
+            log(`uninstall: MCP registration not put back: ${(e as Error).message}`);
+            return { ok: false, error: t(l, 'uninstall.partial', { error: refused }) };
+          }
           throw new Error(refused);
         }
       }

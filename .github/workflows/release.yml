@@ -130,6 +130,8 @@ jobs:
             release/update-feed.json
             release/Fabric-Dashboards-${{ steps.version.outputs.version }}.receipt.json
           if-no-files-found: error
+          # A rehearsal's signed set is kept 14 days (docs/RUNBOOK.md#release); publish reads it within hours.
+          retention-days: 14
       - if: always()
         uses: passioncode-ai/.github/actions/apple-signing/cleanup@v1
   # #endregion release-in-ci
@@ -157,7 +159,8 @@ jobs:
 
   publish:
     needs: [macos, still-newest]
-    if: ${{ always() && needs.macos.result == 'success' && (needs.still-newest.result == 'success' || needs.still-newest.result == 'skipped') }}
+    # !cancelled(), not always(): a run cancelled between still-newest and publish never starts publishing (T-29).
+    if: ${{ !cancelled() && needs.macos.result == 'success' && (needs.still-newest.result == 'success' || needs.still-newest.result == 'skipped') }}
     permissions:
       contents: write
       id-token: write

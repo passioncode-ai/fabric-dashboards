@@ -7,6 +7,7 @@
 import { claimConflicts, readDirectory, servicesDir as defaultServicesDir, type DescriptorEntry } from './descriptor';
 import { authHeaders, fetchWellKnown, readToken, REMOTE_TIMEOUT_MS, type WellKnownOptions } from './health';
 import { LaunchdReader, UNMANAGED } from './launchd';
+import type { RemoteTokenLatch } from './latch';
 import type { ClaimConflict, LaunchdStatus, Reason, ServiceState, WellKnown, WellKnownResult } from './protocol';
 import { DOWN_AFTER_MS, REMOTE_DOWN_AFTER_MS, deriveState } from './state';
 
@@ -22,6 +23,9 @@ export interface LookOptions {
   now?: () => number;
   /** Look only at these keys (id.instance); claim conflicts are still found across every descriptor. */
   only?: readonly string[];
+  /** A reader that looks more than once (the MCP server) passes one latch for its lifetime: an online
+   *  origin that answered as something else then gets no token again (RemoteTokenLatch). */
+  latch?: RemoteTokenLatch;
 }
 
 export interface ServiceLook {
@@ -79,7 +83,9 @@ async function lookAtEntry(entry: DescriptorEntry, conflict: ClaimConflict | nul
   }
   if (d && !conflict && !problems.length) {
     try {
-      probe = await probeOf(d.origin, options);
+      probe = remote && o.latch
+        ? await o.latch.probe(d, (withToken) => probeOf(d.origin, withToken ? options : undefined))
+        : await probeOf(d.origin, options);
     } catch (error) {
       probe = { kind: 'no-answer', detail: (error as Error).message };
     }

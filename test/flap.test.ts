@@ -271,3 +271,57 @@ test('P-4: a command that cannot start says so, not "exit code —"; an undeclar
   const none = await r.monitor.command(KEY, 'update');
   assert.match(none.refused ?? '', /declares no Update command/);
 });
+
+// ── third review pass T-2, T-5 ────────────────────────────────────────────────────────────
+
+test('T-2: an online origin answering without the protocol gets no token until it asks for one again', async () => {
+  const base = tmp('fd-remote-np-');
+  const services = path.join(base, 'services');
+  fs.mkdirSync(services);
+  const tokenFile = path.join(base, 'svc.token');
+  fs.writeFileSync(tokenFile, 'tok-0123456789abcdef', { mode: 0o600 });
+  const remote = { ...(fixture('positive_service-descriptor-remote.json') as Descriptor), auth: { tokenFile } };
+  fs.writeFileSync(path.join(services, 'example-agent.default.json'), JSON.stringify(remote));
+  const clock = { ms: T0 };
+  const sent: boolean[] = [];
+  const queue: WellKnownResult[] = [
+    { kind: 'not-protocol', detail: 'HTTP 404 on /.well-known/fabric-service' },
+    { kind: 'not-protocol', detail: 'HTTP 404 on /.well-known/fabric-service' },
+    { kind: 'refused', detail: 'HTTP 401 on /.well-known/fabric-service' },
+    { kind: 'answer', doc: READY, ms: 5 },
+  ];
+  const monitor = new Monitor({
+    servicesDir: services, activity: new ActivityStore(path.join(base, 'app')), settings: () => DEFAULT_SETTINGS, lang: () => 'en', now: () => clock.ms,
+    wellKnown: async (_origin, options) => { sent.push(Boolean(options?.headers)); return queue.shift()!; },
+  });
+  await monitor.tick();
+  assert.equal(monitor.snapshot(KEY)!.state, 'foreign');
+  clock.ms = T0 + 61_000;
+  await monitor.tick();
+  assert.equal(monitor.snapshot(KEY)!.state, 'foreign');
+  assert.deepEqual(sent, [true, false], 'the second probe went without the token');
+  clock.ms = T0 + 122_000;
+  await monitor.tick();
+  assert.deepEqual(sent, [true, false, false, true], 'a 401 asks for the token again: the same probe repeats with it');
+  assert.equal(monitor.snapshot(KEY)!.state, 'ready');
+});
+
+test('T-5: an online service answering from another replica is not a restart', async () => {
+  const base = tmp('fd-remote-pid-');
+  const services = path.join(base, 'services');
+  fs.mkdirSync(services);
+  const tokenFile = path.join(base, 'svc.token');
+  fs.writeFileSync(tokenFile, 'tok-0123456789abcdef', { mode: 0o600 });
+  const remote = { ...(fixture('positive_service-descriptor-remote.json') as Descriptor), auth: { tokenFile } };
+  fs.writeFileSync(path.join(services, 'example-agent.default.json'), JSON.stringify(remote));
+  const clock = { ms: T0 };
+  let pid = 100;
+  const monitor = new Monitor({
+    servicesDir: services, activity: new ActivityStore(path.join(base, 'app')), settings: () => DEFAULT_SETTINGS, lang: () => 'en', now: () => clock.ms,
+    wellKnown: async () => ({ kind: 'answer', doc: { ...READY, process: { ...READY.process, pid: pid++ } }, ms: 5 }),
+  });
+  const restarted: string[] = [];
+  monitor.on('restarted', (k: string) => restarted.push(k));
+  for (const s of [0, 61, 122, 183]) { clock.ms = T0 + s * 1000; await monitor.tick(); }
+  assert.deepEqual(restarted, []);
+});
