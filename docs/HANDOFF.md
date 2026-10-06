@@ -22,7 +22,11 @@ fabric-workspace `4ad4d5f` (products.md 0.5.6, roadmap row released).
 2026-10-06 13:20 local it was still 0.4.1, started 03:35, with an empty ShipIt cache: its last
 6-hourly check ran before the publish. It downloads at its next check (about 15:35 local) or on
 *Fabric Dashboards → Check for Updates…*, and installs at its next quit or Restart (0.4.1 has no
-automatic install). Never quit it yourself (lifecycle broker rule: the person started it). Then
+automatic install). Never quit it yourself (lifecycle broker rule: the person started it). Observed 15:52 local: the
+expected 15:35 check left no trace (ShipIt cache empty, Squirrel's `Cache.db-wal` last written 09:35)
+while the machine ran at load average 241; 0.4.1 logs nothing about updates, so the cause is not
+visible. The public feed answers 0.5.6 and its zip downloads (HTTP 200, 229,900,003 bytes). The
+dependable path is the person's: *Fabric Dashboards → Check for Updates…*, then Restart. Then
 walk SCN-001…045 on the installed 0.5.6 (FD-02) and measure FD-07 (`ps -o time,rss` over 10 hidden
 minutes; record the numbers here). Tell the growth/analytics owner session that 0.5.6 is out (cross-
 agent links, Spend): it had ended when the release published.
