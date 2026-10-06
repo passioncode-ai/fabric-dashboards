@@ -70,6 +70,9 @@ interface Tracked {
 }
 
 // #region idle-cadence — docs: AGENTS.md#lifecycle
+/** How long a descriptor must stay absent before the service counts as removed (audit MEDIUM-5). */
+export const REMOVAL_GRACE_MS = 1500;
+
 const DEFAULT_INTERVALS = {
   rescan: 60_000, visible: 5_000, background: 30_000, events: 15_000, eventsBackground: 30_000,
   remote: 60_000, launchdRefresh: 5 * 60_000, disabledTtl: 60_000, maxBackoff: 60_000,
@@ -99,6 +102,8 @@ export class Monitor extends EventEmitter {
   private dirError: string | null = null;
   private ticking = false;
   private rescanPending = false;
+  /** Descriptors absent from the folder since this time; one is gone only once it stays absent (REMOVAL_GRACE_MS). */
+  private readonly missingSince = new Map<string, number>();
   private polling = false;
   private changeTimer: NodeJS.Timeout | null = null;
   private lastEmitted: string | null = null;
@@ -179,6 +184,7 @@ export class Monitor extends EventEmitter {
     if (wait === undefined) {
       const now = this.now();
       let next = this.lastRescan + this.rescanEvery();
+      for (const since of this.missingSince.values()) next = Math.min(next, since + REMOVAL_GRACE_MS); // confirm a removal
       for (const t of this.tracked.values()) if (!t.busy) next = Math.min(next, t.nextProbeAt);
       wait = Math.max(MIN_WAKE_MS, next - now);
     }
@@ -223,7 +229,8 @@ export class Monitor extends EventEmitter {
     this.ticking = true;
     try {
       const now = this.now();
-      if (forceRescan || this.rescanPending || now - this.lastRescan >= this.rescanEvery()) {
+      const confirmRemoval = [...this.missingSince.values()].some((since) => now - since >= REMOVAL_GRACE_MS);
+      if (forceRescan || this.rescanPending || confirmRemoval || now - this.lastRescan >= this.rescanEvery()) {
         this.rescanPending = false;
         this.lastRescan = now;
         this.rescan();
@@ -262,8 +269,17 @@ export class Monitor extends EventEmitter {
       return;
     }
     const seen = new Set(entries.map((e) => e.key));
+    const now = this.now();
+    for (const key of [...this.missingSince.keys()]) if (seen.has(key)) this.missingSince.delete(key);
     for (const [key, t] of this.tracked) {
       if (!seen.has(key)) {
+        // Audit 2026-10-07 MEDIUM-5: a writer that deletes and recreates its descriptor (no atomic
+        // rename) is not a removal — a removal ends the service's console and its stored session.
+        // Gone means absent on two scans at least REMOVAL_GRACE_MS apart.
+        const since = this.missingSince.get(key);
+        if (since === undefined) { this.missingSince.set(key, now); continue; }
+        if (now - since < REMOVAL_GRACE_MS) continue;
+        this.missingSince.delete(key);
         this.tracked.delete(key);
         this.appEvent(key, t, 'service.removed', 'info', 'app.event.removed');
         this.emit('removed', key); // its view and its stored session go with it (LC-12)

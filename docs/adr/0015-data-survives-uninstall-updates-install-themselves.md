@@ -157,3 +157,19 @@ The organization fixed how every product updates itself — the
   build's `checks.updateVerifier` proves the finished bundle verifies v0.6.0's signature and refuses
   one changed byte. No end-to-end Squirrel install runs in CI (two signed releases needed): 0.6.0 →
   0.6.1 is the field proof, recorded in `docs/HANDOFF.md`.
+
+### Addendum — 2026-10-07 (0.6.2)
+
+- **The feed's own bytes are signed too.** After `SHA256SUMS` verifies, the app downloads the
+  release's `update-feed.json` (not the `latest` redirect) and requires its sha256 to match the
+  signed list, its `currentRelease` to equal the version, and its entry to name its own zip
+  (`signedFeed`, `src/core/release-verify.ts`). `needsPerson` is read from these bytes only, and only
+  as an `https` address. Fabric Inbox does the same (95af4f7).
+- **No stuck state.** A check or a download with no progress for 45 minutes fails
+  (`check_failed`/`download_failed`) and takes the one retry within the hour.
+- **Known limit, kept on purpose:** once an update is `ready` (staged by Squirrel), the app does not
+  look for a newer one until it installs — Squirrel holds one staged update. It installs at the next
+  safe point, and the newer release follows at the next check.
+- **Next step, not yet taken (FD-29):** hand Squirrel the verified zip through a local `file://` feed,
+  as Fabric Inbox does, so the zip is not downloaded twice and the window between our check and
+  Squirrel's fetch disappears by construction. The code-directory pin stays as a second check.

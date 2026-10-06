@@ -184,7 +184,9 @@ export class ConsoleHost {
     const b = await this.bindingFor(runtime, folder.path, inv);
     if (b.kind === 'error') return { ok: false, error: b.detail };
     if (b.kind === 'project' && runtime.provider && inv.switchboard) {
-      // Switchboard opens Terminal itself, on the project's account.
+      // Switchboard opens Terminal itself, on the project's account. Its Terminal launch takes no
+      // runtime arguments, so it cannot resume: say so rather than start a fresh session (audit 2026-10-07).
+      if (mode === 'continue') return { ok: false, error: 'continue-unsupported' };
       const t = await terminalLaunchArgv(this.run, inv.switchboard, runtime.provider, b.pool, folder.path);
       if ('error' in t) return { ok: false, error: t.error };
       const r = await this.run(t.argv[0]!, t.argv.slice(1), 30_000);

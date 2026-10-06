@@ -63,6 +63,22 @@ test('a service that never answers is no-answer within the timeout', async () =>
   }
 });
 
+test('a service that trickles its answer is no-answer at the deadline, not when it pauses (audit MEDIUM-4)', async () => {
+  const s = await server((_req, res) => {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    const tick = setInterval(() => { if (!res.writableEnded) res.write(' '); }, 100); // never idle for 300 ms
+    res.on('close', () => clearInterval(tick));
+  });
+  try {
+    const started = Date.now();
+    const r = await fetchWellKnown(s.origin, 400);
+    assert.deepEqual(r, { kind: 'no-answer', detail: 'no answer within 400 ms' });
+    assert.ok(Date.now() - started < 1500, `ended after ${Date.now() - started} ms`);
+  } finally {
+    s.close().catch(() => undefined);
+  }
+});
+
 test('request refuses an origin that is not the loopback, and an oversized answer', async () => {
   await assert.rejects(request('http://example.com:80', 'GET', '/'), /not http:\/\/127\.0\.0\.1/);
   const big = Buffer.alloc(2 * 1024 * 1024 + 10, 'x');

@@ -6,8 +6,8 @@ import path from 'node:path';
 import test from 'node:test';
 import { findCheckout, originOf, repoId } from '../src/core/repofind';
 import { bindingFor, canLaunchInPlace, findSwitchboard, inPlaceArgv, terminalLaunchArgv } from '../src/core/switchboard';
-import { detectRuntimes, KNOWN_RUNTIMES, loginPathFrom, runtimeArgs, searchDirs, type RuntimeSpec } from '../src/core/runtimes';
-import { ConsoleManager, planStart, shellQuote, terminalScript, type PtyLike, type SpawnPty } from '../src/core/consoles';
+import { detectRuntimes, KNOWN_RUNTIMES, loginPathFrom, readLoginPath, runtimeArgs, searchDirs, type RuntimeSpec } from '../src/core/runtimes';
+import { ConsoleManager, endWorkQuestion, planStart, shellQuote, terminalScript, type PtyLike, type SpawnPty } from '../src/core/consoles';
 import { tmp } from './helpers';
 
 function bin(dir: string, name: string, mode = 0o755): string {
@@ -325,4 +325,32 @@ test('review R-10: a session ended by a signal says so', () => {
   (f.spawned[0]!.pty as unknown as { exitWith: (c: number, s: number) => void }).exitWith(0, 1);
   assert.deepEqual(exits, [{ key: 'a.default', code: 0, signal: 1 }]);
   assert.equal(m.snapshot('a.default').signal, 1);
+});
+
+test('audit 2026-10-07: a login shell that hangs is cut at the deadline with everything its rc files started', async () => {
+  const dir = tmp('fd-shell-');
+  const pidFile = path.join(dir, 'child.pid');
+  const shell = path.join(dir, 'fake-shell');
+  // Prints first, then hangs with a background child: the deadline (2 s, roomy under a loaded suite) cuts both.
+  fs.writeFileSync(shell, `#!/bin/sh\nprintf '\\n__FD_PATH__/opt/a:/opt/b\\n'\nsleep 30 &\necho $! > ${JSON.stringify(pidFile)}\nwait\n`, { mode: 0o755 });
+  const started = Date.now();
+  const dirs = await readLoginPath(2000, shell);
+  assert.deepEqual(dirs, ['/opt/a', '/opt/b'], 'what was printed before the deadline is kept');
+  assert.ok(Date.now() - started < 5000, `ended after ${Date.now() - started} ms`);
+  const pid = Number(fs.readFileSync(pidFile, 'utf8'));
+  await new Promise((r) => setTimeout(r, 200));
+  assert.throws(() => process.kill(pid, 0), /ESRCH/, 'the shell\'s background child is gone too');
+});
+
+test('audit HIGH-2: a restart or a quit asks before ending consoles or commands, and names them', () => {
+  assert.equal(endWorkQuestion('en', { kind: 'restart', consoles: [], commands: 0 }), null, 'nothing running: no question');
+  const q = endWorkQuestion('en', { kind: 'restart', consoles: ['Growth · projection'], commands: 2 })!;
+  assert.match(q.message, /Restart to update/);
+  assert.match(q.detail, /The console of Growth · projection is running/);
+  assert.match(q.detail, /Commands still running: 2/);
+  assert.equal(q.confirm, 'Restart to Update');
+  const ru = endWorkQuestion('ru', { kind: 'quit', consoles: ['Research'], commands: 0 })!;
+  assert.match(ru.message, /^Завершить Fabric Dashboards/);
+  assert.match(ru.detail, /Работает консоль агента Research/);
+  assert.equal(ru.confirm, 'Завершить');
 });

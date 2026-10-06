@@ -117,7 +117,7 @@ export function ConsolePanel({ serviceKey, width, onWidth, onHide }: Props) {
   };
   const openTerminal = async (mode: 'new' | 'continue') => {
     const r = await api().consoleOpenTerminal(serviceKey, mode).catch((e: unknown) => ({ ok: false, error: String((e as Error)?.message ?? e) }));
-    if (!r.ok) setNotice({ text: t('console.terminalFailed', { detail: r.error ?? '' }) });
+    if (!r.ok) setNotice({ text: r.error === 'continue-unsupported' ? t('console.continueUnsupported') : t('console.terminalFailed', { detail: r.error ?? '' }) });
   };
 
   // The left edge drags the width; the shell keeps it between the bounds and remembers it on release.

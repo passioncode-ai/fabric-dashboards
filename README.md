@@ -9,7 +9,7 @@ in, one live view per service — instead of a browser tab per port. It is the m
 [Fabric](https://passioncode.ai/), PassionCode.ai's CEO AI agent, and it also works on its own:
 agents drive it over MCP, people use the window.
 
-**Version 0.6.1** — [download the latest release](https://github.com/passioncode-ai/fabric-dashboards/releases/latest) (until 0.6.1 is published there, that is 0.6.0, which updates itself to 0.6.1). Updates install themselves, on by default; the interface speaks English and Russian. See [HANDOFF](docs/HANDOFF.md)
+**Version 0.6.2** — [download the latest release](https://github.com/passioncode-ai/fabric-dashboards/releases/latest) (until 0.6.2 is published there, that is 0.6.0, which updates itself to 0.6.2). Updates install themselves, on by default; the interface speaks English and Russian. See [HANDOFF](docs/HANDOFF.md)
 for what is released and what is next.
 
 ![Fabric Dashboards: the overview with six agents — status strip, Needs attention, one card per agent](docs/images/overview.png)

@@ -66,8 +66,9 @@ return, so a host's message catalogue can be checked against it — `Busy`, `Lau
 `src/health.ts`. `fetchWellKnown(origin, timeoutMs = 2000, options?)` → `WellKnownResult`; it never
 throws: silence (refused, timed out) is `no-answer`, any other answer that is not a valid well-known
 document is `not-protocol` with the reason (`checkWellKnown`). The kinds are `answer`,
-`no-answer`, `not-protocol` and, for a remote origin only, `refused`. `request()` caps an answer at 2 MB and
-follows no redirect.
+`no-answer`, `not-protocol` and, for a remote origin only, `refused`. `request()` caps an answer at 2 MB,
+follows no redirect, and ends at `timeoutMs` for the whole request — answer included — so a service that
+trickles bytes cannot hold a host's monitor (0.3.2; before, only the socket's idle time was bounded).
 
 A **remote origin** (DEC-0019) goes over https with the certificate verified against the system
 store; pass the token header in `options.headers` (`authHeaders(d, readToken(d.auth.tokenFile))`) and

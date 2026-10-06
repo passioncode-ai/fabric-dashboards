@@ -22,7 +22,7 @@ import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { feedNamesOwnRelease, parseSums, releaseFile, sumsSignedByRelease, zipName } from '../core/release-verify';
+import { FEED_FILE, feedNamesOwnRelease, parseSums, releaseFile, signedFeed, sumsSignedByRelease, zipName } from '../core/release-verify';
 import { CHECK_EVERY_MS, FIRST_CHECK_MS, isNewer, mayCheck, stagedBundlePath, stagedRefusal } from '../core/version';
 import type { AppStatus } from '../core/types';
 
@@ -31,11 +31,13 @@ export const DEFAULT_FEED = 'https://github.com/passioncode-ai/fabric-dashboards
 const FEED_TIMEOUT_MS = 20_000;
 const DOWNLOAD_TIMEOUT_MS = 15 * 60_000;
 const RETRY_AFTER_FAILURE_MS = 45 * 60_000;
+/** A check or a download that shows no progress this long is a failure, never a state that sticks (audit 2026-10-07). */
+const STUCK_MS = 45 * 60_000;
 const BUNDLE_ID = 'ai.passioncode.fabric-dashboards';
 
 export type UpdateState = AppStatus['update'];
 type Feed = { currentRelease?: unknown; needsPerson?: unknown };
-type Verified = { version: string; cdhash: string };
+type Verified = { version: string; cdhash: string; needsPerson: string | null };
 
 function run(file: string, args: string[]): Promise<{ code: number; out: string }> {
   return new Promise((resolve) => {
@@ -63,6 +65,7 @@ export class Updater {
   private timer: NodeJS.Timeout | null = null;
   private retry: NodeJS.Timeout | null = null;
   private verified: Verified | null = null;
+  private stuck: NodeJS.Timeout | null = null;
 
   constructor(
     private readonly onChange: () => void,
@@ -152,7 +155,7 @@ export class Updater {
     const verified = await this.verify(version);
     if ('error' in verified) return this.fail(verified.code, verified.error);
     this.verified = verified;
-    const steps = typeof feed.needsPerson === 'string' && /^https:\/\//.test(feed.needsPerson) ? feed.needsPerson : null;
+    const steps = verified.needsPerson; // from the release's signed feed, not the `latest` redirect
     if (steps) {
       this.event('update_check', 'needs_migration', `version=${version}`);
       this.set({ state: 'held', version, steps });
@@ -184,7 +187,12 @@ export class Updater {
       try { [sums, asc] = [await get('SHA256SUMS'), (await get('SHA256SUMS.asc')).toString('utf8')]; } catch (error) { return { code: 'download_failed', error: (error as Error).message }; }
       const signed = await sumsSignedByRelease(sums, asc);
       if (!signed.ok) return { code: 'signature_failed', error: `SHA256SUMS of ${version} is not signed by the organization: ${signed.why}` };
-      const expected = parseSums(sums.toString('utf8')).get(zipName(version));
+      const listed = parseSums(sums.toString('utf8'));
+      let feedBytes: Buffer;
+      try { feedBytes = await get(FEED_FILE); } catch (error) { return { code: 'download_failed', error: (error as Error).message }; }
+      const feed = signedFeed(feedBytes, listed, version);
+      if (!feed.ok) return { code: 'signature_failed', error: feed.why };
+      const expected = listed.get(zipName(version));
       if (!expected) return { code: 'signature_failed', error: `SHA256SUMS of ${version} names no ${zipName(version)}` };
       this.event('update_download', 'started', `version=${version}`);
       const zip = path.join(dir, zipName(version));
@@ -227,7 +235,7 @@ export class Updater {
       if (refusal) return { code: 'signature_failed', error: refusal };
       if (!seen.cdhash) return { code: 'signature_failed', error: 'the app in the zip has no code-directory hash' };
       this.event('update_download', 'done', `version=${version} sha256=${actual.slice(0, 12)} team=${seen.team} cdhash=${seen.cdhash.slice(0, 12)}`);
-      return { version, cdhash: seen.cdhash };
+      return { version, cdhash: seen.cdhash, needsPerson: feed.needsPerson };
     } finally {
       fs.rmSync(dir, { recursive: true, force: true });
     }
@@ -286,6 +294,15 @@ export class Updater {
   }
 
   private set(state: UpdateState): void {
+    if (this.stuck) { clearTimeout(this.stuck); this.stuck = null; }
+    if (state.state === 'checking' || state.state === 'downloading') {
+      const at = state.state;
+      this.stuck = setTimeout(() => {
+        this.stuck = null;
+        if (this.state.state === at) this.fail(at === 'checking' ? 'check_failed' : 'download_failed', `no progress for ${STUCK_MS / 60_000} minutes`);
+      }, STUCK_MS);
+      this.stuck.unref();
+    }
     this.state = state;
     this.onChange();
   }

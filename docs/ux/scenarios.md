@@ -28,7 +28,7 @@
 | SCN-020 | Notification from a service event opens the item | notifications | P-01 | ST-007, ST-006 | draft | 2026-10-06 |
 | SCN-021 | Update a service | updates | P-01 | ST-008 | draft | 2026-10-06 |
 | SCN-022 | The app updates itself | updates | P-01 | ST-008 | draft | 2026-10-07 |
-| SCN-023 | Glance from the menu bar | tray | P-01 | ST-009 | draft | 2026-10-06 |
+| SCN-023 | Glance from the menu bar | tray | P-01 | ST-009 | draft | 2026-10-07 |
 | SCN-024 | Settings: launch at login, notifications, quiet hours | settings | P-01 | ST-010, ST-007 | draft | 2026-10-07 |
 | SCN-025 | Run doctor and read logs | control | P-01 | ST-003 | draft | 2026-10-06 |
 | SCN-026 | Open a service page from a link an agent handed over | links | P-01 | ST-011, ST-005 | draft | 2026-10-06 |
@@ -500,7 +500,7 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
   2. User closes the window and leaves it closed for ten minutes -> the app installs the update and reopens in the menu bar, with no window and no question; services are untouched
   3. User opens the window later -> it is the new version, on the Overview
 - **Expected result:** every copy stays current with no action from the person
-- **Alt paths:** user chooses Restart to Update -> it installs now and reopens on the Overview (U-18 keeps the screen later); the window stays open -> nothing installs under the person's eyes, and it installs at the next quit or the next ten closed minutes; a doctor or update command is running -> the install waits for it, checked every minute; "Install updates automatically" is off in Settings → Updates -> nothing is checked, downloaded or installed on its own, and Check for updates still works (LC-16; the choice is kept in a file no update, reinstall or uninstall rewrites); the release needs a step from the person -> it is verified but held: "Update <version> is verified and waits for you" with What to do (opens the release's steps) and Install; Settings → Updates → Check now checks at once; the feed names a version that is not newer than the installed one -> nothing installs (F-1)
+- **Alt paths:** user chooses Restart to Update while an agent's console or a command runs -> the app names them and asks; Cancel keeps everything running, Restart to Update stops them and installs; user chooses Restart to Update -> it installs now and reopens on the Overview (U-18 keeps the screen later); the window stays open -> nothing installs under the person's eyes, and it installs at the next quit or the next ten closed minutes; a doctor or update command is running -> the install waits for it, checked every minute; "Install updates automatically" is off in Settings → Updates -> nothing is checked, downloaded or installed on its own, and Check for updates still works (LC-16; the choice is kept in a file no update, reinstall or uninstall rewrites); the release needs a step from the person -> it is verified but held: "Update <version> is verified and waits for you" with What to do (opens the release's steps) and Install; Settings → Updates → Check now checks at once; the feed names a version that is not newer than the installed one -> nothing installs (F-1)
 - **UI elements:** footer update line, Restart to Update button, held line with What to do and Install, Settings → Updates (Install updates automatically, state line, Check now), "Check for updates" in the app menu
 - **States covered:** loading, success, error
 - **Errors & recovery:** download or signature check fails -> footer "Update failed: <reason>" with Retry, one automatic retry within the hour, and the running app is unchanged; the bundle Squirrel staged is not the verified one -> it is removed before any quit and the footer says so; every step is logged with the organization's update codes (ADR-0015 amendment)
@@ -523,7 +523,7 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **Expected result:** the state is known without opening the window
 - **UI elements:** menu bar icon, tray menu, service items, Pause notifications item
 - **States covered:** success, error
-- **Errors & recovery:** nothing can fail in the menu; quitting leaves every service running and the menu says so above Quit — never a dialog on the way out
+- **Errors & recovery:** nothing can fail in the menu; quitting leaves every service running and the menu says so above Quit — no dialog on the way out, except when an agent's console session or a command the app started is running: then Quit names them and asks (Cancel keeps them; ADR-0017 amendment 2026-10-07)
 - **Status:** draft
 - **Coverage:** src/electron/tray.ts, src/electron/main.ts (`syncDock`), test/e2e/spend.test.ts
 - **Product:** unobserved

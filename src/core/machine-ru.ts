@@ -87,6 +87,16 @@ const RULES: Rule[] = [
   [/^Hostname\/IP does not match certificate's altnames.*$/, () => 'имя не совпадает с сертификатом'],
   [/^ENOENT: no such file or directory, \w+ '(.+)'$/, (_, f) => `файла нет: ${f}`],
   [/^EACCES: permission denied, \w+ '(.+)'$/, (_, f) => `нет доступа: ${f}`],
+  // the updater (src/electron/updater.ts, release-verify.ts)
+  [/^the update feed answered HTTP (\d+)$/, (_, c) => `лента обновлений ответила HTTP ${c}`],
+  [/^the update feed could not be read: (.+)$/, (_, e) => `ленту обновлений не удалось прочитать: ${machineRu(e)}`],
+  [/^the update feed names no release$/, () => 'лента обновлений не называет версию'],
+  [/^no progress for (\d+) minutes$/, (_, n) => `нет движения ${n} мин`],
+  [/^SHA256SUMS of (\S+) is not signed by the organization: (.+)$/, (_, v, w) => `SHA256SUMS версии ${v} не подписан ключом организации: ${w}`],
+  [/^(\S+) has sha256 (\S+), SHA256SUMS says (\S+)$/, (_, f, a, b) => `у ${f} sha256 ${a}, а в SHA256SUMS — ${b}`],
+  [/^the staged update could not be found$/, () => 'подготовленное обновление не найдено'],
+  [/^(.+); the staged update was removed$/, (_, r) => `${machineRu(r)}; подготовленное обновление удалено`],
+  [/^This operation was aborted$|^The operation was aborted due to timeout$/, () => 'время ожидания истекло'],
   // link refusals (deeplink.ts)
   [/^not a URL$/, () => 'это не адрес'],
   [/^no installed service (.+)$/, (_, k) => `нет установленного сервиса ${k}`],
