@@ -31,6 +31,10 @@ by the task's nouns, not read in full.
 7. **Read the target repository's own merge and release rules before touching its version or
    changelog, and fetch before choosing a version number.** *Retire when* a pre-push hook
    refuses both.
+8. **A UI end-to-end run on this Mac checks the screen lock first** (`ioreg -n Root -d1 | grep
+   CGSSessionScreenIsLocked`): while it is locked, macOS sends windows no show, hide or focus
+   events, so every visibility assertion (FD-05's Dock, LC-08) fails for reasons no code has.
+   *Retire when* the e2e suite skips those assertions itself on a locked session.
 
 ## Run stamps
 
@@ -38,8 +42,23 @@ by the task's nouns, not read in full.
 |---|---|---|
 | Fabric Dashboards 0.1.0 + fabric-service/0.1 + passioncode launcher | `41facd4` | 2026-09-29 |
 | Close-out: Observatory 0.8.0, adapter 0.4.2, passioncode 0.1.2, local reinstalls | `10948f5` | 2026-09-29 |
+| 0.6.0 focus layout and agent console (ADR-0017) | `36bf759` | 2026-10-06 |
 
 ## Recent log
+
+### 2026-10-06 — 0.6.0: the run diverged three times
+
+- **Guarded files edited before their lease, again** (`docs/HANDOFF.md` and `CHANGELOG.md` in the
+  0.5.6 close-out). Surfaced at stage 9; owned by stage 5. Standing instruction 4 already says it;
+  a class seen twice becomes a script: board row to add a pre-commit check that refuses an unleased
+  guarded path (instruction 4's own retirement trigger).
+- **A doc claimed a consumer that does not exist** — "Fabric shares the package and runs the
+  vectors". Surfaced when the Fabric session answered; owned by stage 1 (a cross-repository claim
+  was never measured in the other repository). Fix: grade *docs* — ADR-0006 amendment with the
+  `git grep` receipt.
+- **A locked screen read as a regression.** FD-05 failed on `main` and on the branch alike; a bare
+  Electron window got no show/hide events either. Surfaced at stage 6; owned by stage 6. Fix: grade
+  *process* → standing instruction 8.
 
 ### 2026-09-29 — the run diverged four times
 

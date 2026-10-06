@@ -87,3 +87,33 @@ Frozen at stage 0: adding is free, removing needs the operator.
 |---|---|---|
 | Switchboard in-place launch for project-bound folders | fabric-switchboard (requested) | open |
 | Fabric as the launcher/controller of console sessions once its harness and board exist | Fabric (FD-12 neighbourhood) | open |
+
+## Close-out — 2026-10-06
+
+Ladder walk (decision → spec → contract and its failure → task → change → test → docs), ordered by
+seam. Absences it found, now rows: the console's process `PATH` (contract said login `PATH`; the
+spawn used the app's) and Terminal through Apple Events on a hardened build — both fixed in
+`6e54d2b` with the other review findings (R-1…R-11).
+
+| REQ | Evidence | State |
+|---|---|---|
+| REQ-01 | `ServiceView.tsx` compact bar; `test/e2e/focus-console.test.ts` (one line < 64 px, card opens and closes, `layout.header` saved) | done |
+| REQ-02 | `src/core/focus.ts` `problemOf`; `test/parts.test.ts` *ADR-0017 REQ-02* | done |
+| REQ-03 | `App.tsx` rail; e2e (`.app.rail`, ≤ 80 px, names kept, `layout.sidebar` saved) | done |
+| REQ-04 | `ConsolePanel.tsx`; e2e (opens, folds while running, replays, `layout.console.open` saved) | done |
+| REQ-05 | `src/core/runtimes.ts`; `test/console.test.ts` REQ-05 ×3 | done |
+| REQ-06 | `src/core/repofind.ts`; `test/console.test.ts` REQ-06 ×3; 11 of 16 real descriptors resolved in 101 ms | done |
+| REQ-07 | `src/core/switchboard.ts`, `planStart`; `test/console.test.ts` REQ-07 ×4, R-2 | done (in place waits for Switchboard SB-75 — FD-25) |
+| REQ-08 | `src/core/consoles.ts`, `src/electron/console.ts`; unit (fake PTY) + e2e (input, echo, exit, Stop → "Stopped.", login `PATH`) | done |
+| REQ-09 | `runtimeArgs`; unit; e2e `args:[--continue]` | done |
+| REQ-10 | `openInTerminal` (`.command` via LaunchServices), `terminalScript` quoting unit-tested | done; not yet run on a signed build (HANDOFF next task) |
+| REQ-11 | e2e: native view width equals the host's after the console opens | done |
+| REQ-12 | no token in renderer (review checked); AGENTS LC-09 row; settings data path | done |
+| REQ-13 | `stageNativeModules`, `NATIVE_UNPACK`, `NATIVE_BOTH_ARCHS`, `ptyCheck`; `test/dist.test.ts`; unsigned universal build `checks.pty`, arm64 + x86_64 PTY runs | done; signed run in release 37505569449 |
+| REQ-14 | ADR-0017, ADR-0016 amendment, SCN-046…050, SCR-02/08/10, CONTEXT, README, AGENTS, SECURITY, RUNBOOK, CHANGELOG 0.6.0, HANDOFF, FD-24/25; `npm run check` (UX lint, regions) | done |
+| REQ-15 | `i18n.ts` en + ru; parity tests green | done |
+| REQ-16 | tag `v0.6.0` on `36bf759`; run 37505569449 `version`, `check` green, `macos` waits for the operator | open — the operator's approvals |
+
+Gate counts: `FD_SKIP_LAUNCHD=1 npm run check` 269 tests (268 pass, 1 skipped, the launchd test);
+`npm run test:e2e` green except FD-05's Dock assertion, which needs an unlocked screen. Carry-over:
+FD-25 (Switchboard SB-75) open; Fabric's harness launching consoles — Fabric P-13.
