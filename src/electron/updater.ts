@@ -7,6 +7,7 @@ import type { AppStatus } from '../core/types';
 
 export const DEFAULT_FEED = 'https://github.com/passioncode-ai/fabric-dashboards/releases/latest/download/update-feed.json';
 const EVERY_MS = 6 * 60 * 60 * 1000;
+const FEED_TIMEOUT_MS = 20_000;
 
 export type UpdateState = AppStatus['update'];
 
@@ -75,7 +76,8 @@ export class Updater {
 
   private async newerInFeed(): Promise<'newer' | 'same-or-older' | { error: string }> {
     try {
-      const res = await net.fetch(this.url, { cache: 'no-store' });
+      // A feed that never answers must not leave the state at checking, which blocks every later check.
+      const res = await net.fetch(this.url, { cache: 'no-store', signal: AbortSignal.timeout(FEED_TIMEOUT_MS) });
       if (!res.ok) return { error: `the update feed answered HTTP ${res.status}` };
       const feed = (await res.json()) as { currentRelease?: unknown };
       if (typeof feed.currentRelease !== 'string') return { error: 'the update feed names no release' };

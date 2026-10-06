@@ -16,6 +16,7 @@ import {
 } from '@passioncode-ai/fabric-service-host';
 import { runOwned } from '../core/children';
 import { fromServiceUrl, isServiceKey, linkFor, safePath } from '../core/deeplink';
+import { displayName } from '../core/names';
 import { Launchd, execRunner, type Runner } from '../core/launchd';
 import { fetchEvents, fetchUsage, fetchWellKnown, PROBE_TIMEOUT_MS, readToken } from '../core/probe';
 import { readSpend, type SpendEntry } from '../core/spend';
@@ -103,7 +104,7 @@ function view(s: ServiceLook): ServiceView {
   return {
     key: s.key,
     product: productIdOf(s.key),
-    name: d?.name ?? s.key,
+    name: d ? displayName(d.name, d.instance) : s.key, // M2-1: two instances never read alike (ADR-0010)
     placement: d?.placement === 'remote' ? 'remote' : 'local',
     state: s.state,
     reasons: s.reasons,
@@ -164,7 +165,7 @@ export function resolveTarget(deps: Deps, t: Target): { key: string; path?: stri
     const d = known.find((k) => k.key === target.key)!.descriptor!;
     return { key: target.key, path: target.link, http: `${d.origin}${target.link ?? '/'}` };
   }
-  if (!t.service) throw new ToolError('open needs service (id.instance) or url');
+  if (!t.service) throw new ToolError('give service (id.instance) or url'); // M2-2: link and open share this
   const entry = known.find((k) => k.key === t.service && k.descriptor);
   if (!entry) throw new ToolError(`no installed service ${JSON.stringify(t.service)}`);
   let path: string | undefined;
@@ -282,6 +283,8 @@ export async function command(deps: Deps, key: string, which: 'doctor' | 'update
   const argv = d.commands?.[which];
   if (!argv) throw new ToolError(`${d.name} declares no ${which} command`);
   const r = await deps.run(argv, COMMAND_TIMEOUT_MS);
+  // M2-3: a command that never started is a refusal an agent reads as one, not a result with code null.
+  if (r.code === null && !r.timedOut) throw new ToolError(`${d.name}: the ${which} command could not run: ${r.output.trim().split('\n').pop() ?? ''}`);
   return { code: r.code, output: r.output.slice(-20_000), timed_out: r.timedOut };
 }
 

@@ -317,3 +317,12 @@ test('P-3: MCP spend of a service that does not answer is unknown (an error), ne
   assert.equal(e.kind, 'error');
   assert.match((e as { error: string }).error, /spend is unknown/);
 });
+
+test('M2-1…M2-3: instances are named apart, link without a target says what to give, a command that cannot start is a refusal', async () => {
+  const preview = world({ descriptor: { instance: 'preview' }, answers: [{ kind: 'answer', doc: { ...WELL_KNOWN, service: { ...WELL_KNOWN.service, instance: 'preview' } }, ms: 3 }] });
+  assert.equal((await tools.listServices(preview.deps)).services[0]!.name, 'Example Agent · preview');
+  const { deps } = world({ descriptor: { commands: { update: ['/nonexistent/x'] } } });
+  await assert.rejects(tools.link(deps, {}), /give service \(id\.instance\) or url/);
+  deps.run = async () => ({ code: null, output: 'spawn /nonexistent/x ENOENT', timedOut: false });
+  await assert.rejects(tools.command(deps, KEY, 'update'), /update command could not run: spawn \/nonexistent\/x ENOENT/);
+});
