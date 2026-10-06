@@ -3,28 +3,40 @@
 Updated 2026-10-06 (release 0.5.6: third review pass, token latch; release 0.5.5 withdrawn: release audit and its second pass, A2A plan, ADR-0016, ADR-0015 data and updates, FD-05, FD-06, FD-13; Spend and DEC-0021; one entry per agent, ADR-0012; lifecycle contract landed from PR #21, unreleased; CI release rehearsal
 `v0.4.1-rc.1` green; releases move to CI signing; release 0.4.1, MCP links to online services).
 
-Current release: 0.4.1 (section below). Earlier releases below are preserved as dated evidence.
+Current release: 0.5.6 (2026-10-06, above); the 0.4.1 section below is the previous one. Earlier releases below are preserved as dated evidence.
 
 ## Next — start here (2026-10-06)
 
-**First task for the next agent:** release `v0.5.6` (run 37407706842, tag on `2909565`) waits for
-the operator's `publish` approval (the agent never approves). `macos` was approved and built on
-2026-10-06; `still-newest` passed. Its receipt, read from the `release-macos` artifact: revision
-`2909565`, Developer ID Application (KJ35UYYL22), `accepted and stapled: app, update zip, image`,
-both Gatekeeper checks `accepted, source=Notarized Developer ID`, `checks.usageDescriptions` none in 5
-Info.plist files, fuses `100011011` on every slice, the MCP launcher answers `initialize` as 0.5.6;
-locally `xcrun stapler validate` and `spctl -a -t open --context context:primary-signature` accept
-the image. `v0.5.5` was withdrawn before approval: its run
-37398766044 was cancelled, because a third review found two token leaks after the tag (T-1…T-4).
-Once 0.5.6 publishes, check the receipt (Developer ID, `accepted and stapled`, Gatekeeper
-`accepted`, `checks.usageDescriptions`), let the installed 0.4.1 update itself (it downloads 0.5.6
-and installs at its next quit or Restart — 0.4.1 has no automatic install), walk SCN-001…045 on
-the installed app (FD-02), measure FD-07 on it, and tell the growth/analytics owner session that
-the release is out (they click through the cross-agent links). Fabric's owner session was told about
-`@passioncode-ai/fabric-service-host` 0.3.1 on 2026-10-06 and answered that Fabric does not import
-the package and probes nothing (ADR-0006 amendment *Who consumes the package today*); nothing to do
-there. The website follows releases by itself; the `fabric-workspace` session
-owns the Dashboards page.
+**Released: 0.5.6 on 2026-10-06 11:00 UTC** (run 37407706842, tag on `2909565`; GitHub release
+`v0.5.6`, marked Latest — the organization's publish workflow titles it by its tag, where earlier
+releases read "Fabric Dashboards 0.4.1"). `v0.5.5` was withdrawn before approval (run 37398766044
+cancelled) because a third review found two token leaks after its tag (T-1…T-4). The receipt, read
+from the `release-macos` artifact: revision `2909565`, Developer ID Application (KJ35UYYL22),
+`accepted and stapled: app, update zip, image`, both Gatekeeper checks `accepted, source=Notarized
+Developer ID`, `checks.usageDescriptions` none in 5 Info.plist files, fuses `100011011` on every
+slice, the MCP launcher answers `initialize` as 0.5.6; locally `xcrun stapler validate` and
+`spctl -a -t open --context context:primary-signature` accept the image. Knowledge base updated:
+fabric-workspace `4ad4d5f` (products.md 0.5.6, roadmap row released).
+
+**First task for the next agent:** confirm the operator's installed copy moved to 0.5.6. At
+2026-10-06 13:20 local it was still 0.4.1, started 03:35, with an empty ShipIt cache: its last
+6-hourly check ran before the publish. It downloads at its next check (about 15:35 local) or on
+*Fabric Dashboards → Check for Updates…*, and installs at its next quit or Restart (0.4.1 has no
+automatic install). Never quit it yourself (lifecycle broker rule: the person started it). Then
+walk SCN-001…045 on the installed 0.5.6 (FD-02) and measure FD-07 (`ps -o time,rss` over 10 hidden
+minutes; record the numbers here). Tell the growth/analytics owner session that 0.5.6 is out (cross-
+agent links, Spend): it had ended when the release published.
+
+**Organization backlog publication is blocked, not by this repository.** The scheduled workspace
+sync (`ai.passioncode.fabric-workspace-sync`) failed every run since 2026-10-05 11:17 UTC. Fixed
+here: the website's malformed SITE-011 row (passioncode-ai.github.io PR #58); another session fixed
+its duplicate SITE-012 (PR #60). Still failing: `passioncode-platform` is in org-index
+`repositories.json` but is no workspace source, and the verifier requires every registered
+repository — a policy call for the fabric-workspace/Fabric owners (it is a private commercial module
+"never linked from a public surface"); handed to the fabric-workspace session. Each failed run
+leaves its rejected export in `~/.cache/fabric-workspace/sync-checkout/workspace/content`, which
+blocks later runs until cleared (suggested to Fabric: drop a content-only leftover like
+`syncLeftovers`).
 
 **What 0.5.6 adds over 0.5.5** — the [third review pass](reports/2026-10-05-release-audit/README.md#third-pass--2026-10-06-fix-list-for-056)
 (FD-23): four read-only reviews of `b8bdf57..eedb0e6`, T-1…T-30 fixed. The token now goes only to
@@ -103,7 +115,7 @@ State of the work streams from this session, with receipts:
 | Kits publish usage (G7) | adapter PR #34 on `main`, `v0.8.0` published on npm (FAA-06, FAA-07) | done; agents adopt it |
 | FD-12 / COM-11 (#26) | backlog FD-12 | COM-01 accepted (DEC-0022); waits for a service that answers `com.status` — Fabric's board (COM-02/03) |
 | Enterprise workplace, admin channel, agent chat | [estate report](reports/2026-10-04-agent-estate-architecture/README.md); fabric-workspace `knowledge/plans.md` (gaps G1…G8) | D1…D5 answered 2026-10-05 |
-| FD-09 first CI release | backlog FD-09 | `v0.5.5` withdrawn (run cancelled); `v0.5.6` tagged, waits for the operator's `macos` and `publish` approvals |
+| FD-09 first CI release | backlog FD-09 | released as `v0.5.6` on 2026-10-06 (run 37407706842); `v0.5.5` withdrawn |
 
 **The Codex session recovered here.** Codex thread `01a10620` (working on the operator's analytics
 agent in its own private repository) stopped at its weekly rate limit at 2026-10-04 15:42 UTC
