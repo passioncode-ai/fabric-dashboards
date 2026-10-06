@@ -25,7 +25,7 @@ on a clean checkout, merge on a green gate, tag `v0.6.2`, give the operator the 
 approval links, read the receipt (`checks.pty`, `checks.updateVerifier`, `checks.downgradeGuard`).
 Then: tell Fabric (fabric-a6) that service-host 0.3.2 bounds the whole probe; field proof — the
 installed copy 0.5.6 → 0.6.0 → 0.6.2 by itself (still 0.5.6 at 2026-10-07 00:08 local), and on 0.6.2
-`grep -E 'update_|auto_update' main.log` shows `auto_update on`. FD-29 open item: the `file://` feed.
+`grep -E 'update_|auto_update' main.log` shows `auto_update on`. FD-29 open item: the `file://` feed. Switchboard 0.6.9 will not be published (Windows job failed); SB-75 ships in 0.6.10 — FD-25 waits for it, and nothing in Switchboard needs the operator's approval until then.
 The LC-16 matrix went to Inbox (already compliant on its 0.12.0 branch, 95af4f7), Switchboard,
 Observatory and Fabric (fabric-a6, also for fabric-vr). Ops: about 20 MCP servers from 0.4.1 stay
 alive, held by open agent sessions (0.4.1 predates the stale exit, d604b07); they end with those
