@@ -1,6 +1,6 @@
 # Handoff — Fabric Dashboards
 
-Updated 2026-10-06 (release 0.5.5: release audit, ADR-0016, ADR-0015 data and updates, FD-05, FD-06, FD-13; Spend and DEC-0021; one entry per agent, ADR-0012; lifecycle contract landed from PR #21, unreleased; CI release rehearsal
+Updated 2026-10-06 (release 0.5.5: release audit and its second pass, A2A plan, ADR-0016, ADR-0015 data and updates, FD-05, FD-06, FD-13; Spend and DEC-0021; one entry per agent, ADR-0012; lifecycle contract landed from PR #21, unreleased; CI release rehearsal
 `v0.4.1-rc.1` green; releases move to CI signing; release 0.4.1, MCP links to online services).
 
 Current release: 0.4.1 (section below). Earlier releases below are preserved as dated evidence.
@@ -21,7 +21,11 @@ by itself; the `fabric-workspace` session owns the Dashboards page.
   (ADR-0015); agent summaries, tools and cross-agent links (ADR-0016); the lifecycle contract;
 - the **release audit of 2026-10-05** ([report](reports/2026-10-05-release-audit/README.md)): four
   read-only reviews plus a live walk of every screen; 53 fixes landed in `d408450`, `7048ef2` and
-  `37dadc8`; 8 items moved to the backlog with reasons (FD-19…FD-21).
+  `37dadc8`; 8 items moved to the backlog with reasons (FD-19…FD-21);
+- its **second pass of 2026-10-06** (same report): a Russian walk of every screen, a live walk of
+  every MCP tool, the scenario/screen review applied; fixes in `11cec37`, `0159af9`, `812950a`, docs
+  in `4cf8863`, `9567a74`. Three new shared state vectors (remote HTTP 5xx) — Fabric runs the same
+  file, tell its owner session when 0.5.5 is out.
 
 Superseded runs, all cancelled before publish: `v0.5.2` (37256336416), `v0.5.3` (37291654717),
 `v0.5.4` (37307011716 — cancelled after its `macos` approval because 0.5.5 carries the audit; an
@@ -31,7 +35,9 @@ app installs only a feed version newer than its own (`src/core/version.ts`).
 
 **Open after the release:** FD-16's field proof (the next release installing itself on a 0.5.5
 copy with the window closed); FD-19 (reason codes, with Fabric); FD-20 (one control module);
-FD-21 (small leftovers).
+FD-21 (small leftovers); FD-22 (show an agent's A2A surface — roadmap RM-17, adapter FAA-10
+[PR #39](https://github.com/passioncode-ai/fabric-agent-adapter/pull/39), waits for the contract's
+`surfaces.a2a` decision).
 
 **Decided by the operator on 2026-10-05:**
 - COM-01 C1–C9 accepted: DEC-0022 on fabric-agent-contract `main` `d4c8831`.

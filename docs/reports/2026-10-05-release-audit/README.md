@@ -146,3 +146,27 @@ trap, M-3's shared module (FD-20), M-4 (FD-21).
 Checks after the fixes: `FD_SKIP_LAUNCHD=1 npm run check` exit 0 (226 tests pass, 1 skipped = the
 launchd test, 7/7 when run unskipped); `npm run test:e2e` 6/6; a second live walk of every screen
 (the 17 screenshots were checked one by one; not kept in the repository).
+
+## Second pass — 2026-10-06
+
+The operator asked for a second walk of every scenario, the whole interface and MCP, with
+documentation mismatches. Of the planned reviews, only the scenario/screen/story review finished;
+three hit the subagent spend limit. Their work was done directly instead: a live walk of every MCP
+tool against sample services, a Russian walk of every screen (`FD_TEST_LANG=ru`), and a review of
+the riskiest audit fixes.
+
+| ID | Finding | Done |
+|---|---|---|
+| W-1 | The app's own Spend reasons were English in the Russian UI | `11cec37` |
+| W-4 | Russian strip labels were cut | `11cec37` |
+| P-1 | An online HTTP 5xx read as "Wrong program on port" ("port 0") | `0159af9` (+3 shared state vectors) |
+| P-2 | Activity rows and action results did not name the instance | `0159af9` |
+| P-3 | MCP `spend` called a silent service "not reporting" | `0159af9` |
+| P-4 | A command that could not start read "exit code —" | `0159af9` |
+| P-5…P-16 | sign-in stage, path errors, service Activity refresh, online down notification, update when degraded, login approval wording, Russian grammar, token reason, a11y labels, crash counter reset, header result expiry, a dead key | `0159af9` |
+| M2-1…M2-3 | MCP: instance names, link wording, a command that cannot start | `812950a` |
+| — | The update check could stick at "Checking…" on a feed that never answers | `812950a` |
+| docs | scenarios.md (all 45, Last audit 2026-10-06), screens.md (Spend, Sidebar, System dialogs), foundation, ADR-0004/0006/0011 amendments, package README, CONTEXT.md, README MCP | `4cf8863`, `9567a74`, this change |
+
+Still later: FD-19 (machine reasons translated, with Fabric), FD-20 (one control module), FD-21
+(small leftovers), FD-22 (A2A surface, after the contract decision; roadmap RM-17).

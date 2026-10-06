@@ -149,8 +149,12 @@ Tools: `host_status`, `list_services`, `service_status`, `link`, `open`, `contro
 `activity`, `spend`. An agent that starts work on a service hands the operator the `open_link` from
 `link` — `fabric-dashboards://service/<id.instance>?path=/…`, which opens that page inside the
 app. Keep `http_url` for diagnostics or confirmed-absent fallback. `open` opens it now;
-`fallback=never` forbids the browser, and installed-host failure never falls back. [ADR-0004](docs/adr/0004-deep-links-and-mcp.md) and
-[ADR-0005](docs/adr/0005-service-links.md) have the rules.
+`fallback=never` forbids the browser, and installed-host failure never falls back. `spend` gives
+each agent's own usage entries; a service that does not answer is an error entry (unknown spend),
+never "not reporting". `doctor` and `update` run the service's own programs: announce them first.
+An unknown tool is a JSON-RPC error; an argument a tool does not declare is refused.
+[ADR-0004](docs/adr/0004-deep-links-and-mcp.md) and [ADR-0005](docs/adr/0005-service-links.md)
+have the rules.
 
 ## Design and decisions
 

@@ -74,6 +74,25 @@ scenario, the code and the architecture were checked, and its findings are fixed
   error.
 - The uninstall removes the MCP entry before the login item, and puts it back if macOS refuses.
 
+### Second pass (2026-10-06)
+
+A second walk of every scenario, the interface in English and Russian, and every MCP tool against
+live sample services:
+- **An online service whose platform answers 5xx** (a deploy, an outage) reads "not up", then
+  Not answering — never "Wrong program on port". An origin answering without the protocol is named
+  by its address, not "port 0".
+- Activity rows and action results name the instance ("Growth · projection"). A doctor/update
+  that cannot start says "could not run: <reason>". An undeclared command or a busy service says
+  so.
+- The service page's Activity tab shows new rows while open. Show data folder and Show file say
+  when they cannot open a path. Needs attention offers an update for a degraded service too.
+  An online service's down notification says its platform runs it.
+- Russian: the app's own Spend reasons, the login-item approval, command results and Overview
+  strip labels (they wrap to two lines).
+- MCP: instances are named apart, `spend` treats a service that does not answer as unknown, and a
+  command that cannot start is a refusal.
+- The update check times out instead of sticking at "Checking…".
+
 ### MCP
 
 - `doctor` is no longer marked read-only (it runs the service's program).
