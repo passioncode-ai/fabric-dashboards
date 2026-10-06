@@ -7,8 +7,14 @@ Current release: 0.4.1 (section below). Earlier releases below are preserved as 
 
 ## Next — start here (2026-10-06)
 
-**First task for the next agent:** release `v0.5.6` (run 37407706842, tag on `2909565`) waits for a
-`release-approvers` approval — `macos`, then `publish` (the agent never approves). `v0.5.5` was withdrawn before approval: its run
+**First task for the next agent:** release `v0.5.6` (run 37407706842, tag on `2909565`) waits for
+the operator's `publish` approval (the agent never approves). `macos` was approved and built on
+2026-10-06; `still-newest` passed. Its receipt, read from the `release-macos` artifact: revision
+`2909565`, Developer ID Application (KJ35UYYL22), `accepted and stapled: app, update zip, image`,
+both Gatekeeper checks `accepted, source=Notarized Developer ID`, `checks.usageDescriptions` none in 5
+Info.plist files, fuses `100011011` on every slice, the MCP launcher answers `initialize` as 0.5.6;
+locally `xcrun stapler validate` and `spctl -a -t open --context context:primary-signature` accept
+the image. `v0.5.5` was withdrawn before approval: its run
 37398766044 was cancelled, because a third review found two token leaks after the tag (T-1…T-4).
 Once 0.5.6 publishes, check the receipt (Developer ID, `accepted and stapled`, Gatekeeper
 `accepted`, `checks.usageDescriptions`), let the installed 0.4.1 update itself (it downloads 0.5.6
