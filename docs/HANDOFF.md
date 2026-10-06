@@ -30,13 +30,11 @@ agent links, Spend): it had ended when the release published.
 **Organization backlog publication is blocked, not by this repository.** The scheduled workspace
 sync (`ai.passioncode.fabric-workspace-sync`) failed every run since 2026-10-05 11:17 UTC. Fixed
 here: the website's malformed SITE-011 row (passioncode-ai.github.io PR #58); another session fixed
-its duplicate SITE-012 (PR #60). Still failing: `passioncode-platform` is in org-index
-`repositories.json` but is no workspace source, and the verifier requires every registered
-repository — a policy call for the fabric-workspace/Fabric owners (it is a private commercial module
-"never linked from a public surface"); handed to the fabric-workspace session. Each failed run
-leaves its rejected export in `~/.cache/fabric-workspace/sync-checkout/workspace/content`, which
-blocks later runs until cleared (suggested to Fabric: drop a content-only leftover like
-`syncLeftovers`).
+its duplicate SITE-012 (PR #60). Last error: `passioncode-platform` is in org-index `repositories.json` but was no workspace
+source. Fabric carries the fix — the source line (`9372880b`, from fabric-workspace's #14) and a
+sync that drops a rejected export from its own checkout (`bea40bc3`) — on `agent/release-032-work`,
+landing with Fabric's 0.3.2 release PR (Fabric owner session, 2026-10-06). Until then each run fails
+on that error; nothing to do here. A duplicate fabric PR #15 was closed.
 
 **What 0.5.6 adds over 0.5.5** — the [third review pass](reports/2026-10-05-release-audit/README.md#third-pass--2026-10-06-fix-list-for-056)
 (FD-23): four read-only reviews of `b8bdf57..eedb0e6`, T-1…T-30 fixed. The token now goes only to
