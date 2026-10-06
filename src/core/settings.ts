@@ -53,6 +53,8 @@ export class SettingsStore {
     this.value = merge({
       ...this.value, ...(patch as Partial<Settings>),
       notifications: { ...this.value.notifications, ...(patch.notifications ?? {}) },
+      // ADR-0018: one estate field changes alone; a partial patch never resets the others.
+      estate: { ...this.value.estate, ...(patch.estate ?? {}) },
       // ADR-0017: one field of the layout, or one service's console, changes alone.
       layout: { ...this.value.layout, ...layout, console: { ...this.value.layout.console, ...(layout.console ?? {}) } },
       consoles: { ...this.value.consoles, ...(patch.consoles ?? {}) },
@@ -117,6 +119,20 @@ function mergeConsoles(raw: unknown): Settings['consoles'] {
   return out;
 }
 
+/** ADR-0018: the estate watcher; the clone path must be absolute or empty (a relative one would
+ *  resolve against the app's own working directory, which is never what the person meant). */
+// #region estate-update — docs: docs/adr/0018-estate-updates-from-inside-the-app.md#decision
+function mergeEstate(raw: unknown): Settings['estate'] {
+  const e = (raw && typeof raw === 'object' ? raw : {}) as Partial<Settings['estate']>;
+  const clone = typeof e.contractClone === 'string' ? e.contractClone.trim() : '';
+  return {
+    enabled: typeof e.enabled === 'boolean' ? e.enabled : DEFAULT_SETTINGS.estate.enabled,
+    autoSkills: typeof e.autoSkills === 'boolean' ? e.autoSkills : DEFAULT_SETTINGS.estate.autoSkills,
+    contractClone: clone.startsWith('/') ? clone : '',
+  };
+}
+// #endregion estate-update
+
 export function merge(raw: Partial<Settings>): Settings {
   const n = raw.notifications ?? DEFAULT_SETTINGS.notifications;
   return {
@@ -140,5 +156,6 @@ export function merge(raw: Partial<Settings>): Settings {
     },
     layout: mergeLayout(raw.layout),
     consoles: mergeConsoles(raw.consoles),
+    estate: mergeEstate(raw.estate),
   };
 }

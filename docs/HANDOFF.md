@@ -52,6 +52,20 @@ Observatory and Fabric (fabric-a6, also for fabric-vr). Ops: about 20 MCP server
 alive, held by open agent sessions (0.4.1 predates the stale exit, d604b07); they end with those
 sessions — not killed from here.
 
+## Estate updater (FD-30, 2026-10-07)
+
+**Branch `agent/estate-updater-20261007`.** The operator asked for version watching and auto-update
+for the Fabric Agent Contract and the skills, inside this app, started with it. Landed as an
+in-process component next to the Updater ([ADR-0018](adr/0018-estate-updates-from-inside-the-app.md),
+[brief](evidence/briefs/2026-10-07-estate-updater-brief.md), scenario SCN-051): contract watch is
+opt-in (Settings → Estate updates names a local clone; `git ls-remote` vs local `main`; sibling pins
+read from fabric-agent-adapter/fabric-dashboards/fabric checkouts; the only automatic mutation is
+`git fetch`), skills update behind a switch (default off) with a publisher check before
+`npx --yes sshlg-skills update`. LC-16 cadence; activity codes `estate_check` / `estate_update`.
+Checks: `FD_SKIP_LAUNCHD=1 npm run check` — 307 tests, 306 pass, 1 launchd skip; `npm run
+test:e2e` not run (needs an unlocked screen). **Next task:** review and merge on the green gate, then
+the operator names the contract clone path; an e2e pass when a screen is available.
+
 ## Previous — 0.6.0 (2026-10-06)
 
 **0.6.0 — merged (PR #33, `main` `36bf759`), tagged `v0.6.0`, release run 37505569449 waits for the operator's `macos` and `publish` approvals** (task-pipeline run; operator-approved design

@@ -26,6 +26,7 @@ import type { AppStatus, Settings, SettingsPatch } from '../core/types';
 import { ALWAYS_KEPT, clearRestoreRecord, KEPT_FILES, productDataPaths, purgeAfterExit, readRestoreRecord, removeMcpRegistrations, repairMcpRegistrations, restoreMcpRegistrations, writeRestoreRecord } from '../core/uninstall';
 import { autoInstallNow, HiddenGrace, partitionFor, RELAUNCH_MARKER, relaunchHidden, stalePartitions, UPDATE_IDLE_MS, VIEW_RELEASE_GRACE_MS } from './policy';
 import { AppTray } from './tray';
+import { EstateUpdater } from './estate-updater';
 import { Updater } from './updater';
 import { ServiceViews } from './views';
 import { parseTestRemote, setTestRemote } from '../core/testhooks';
@@ -111,9 +112,14 @@ if (!app.requestSingleInstanceLock()) {
     }
   }, log, () => { installing = true; quitting = true; }, () => settings.get().autoUpdate);
   let installing = false;
+  // #region estate-update — docs: docs/adr/0018-estate-updates-from-inside-the-app.md#decision
+  // ADR-0018: the estate watcher lives in this process next to the Updater — git/npm tool spawns on
+  // the LC-16 cadence, started in whenReady, stopped in will-quit, nothing while its switch is off.
+  const estate = new EstateUpdater({ settings: () => settings.get(), log, onChange: () => pushStatus(), dataDir: userData });
+  // #endregion estate-update
 
   const status = (): AppStatus => ({
-    services: monitor.snapshots(), ...monitor.meta(), unread: activity.unread(), activityRev: activity.revision, update: updater.state, version: app.getVersion(),
+    services: monitor.snapshots(), ...monitor.meta(), unread: activity.unread(), activityRev: activity.revision, update: updater.state, estate: estate.state, version: app.getVersion(),
   });
 
   // #region quiet-push — docs: AGENTS.md#lifecycle
@@ -474,6 +480,9 @@ if (!app.requestSingleInstanceLock()) {
       const next = settings.update(choosing ? { ...patch, launchAtLoginAsked: true } : patch);
       if (patch.notifications) schedulePauseEnd(); // U-7: a pause set here also rebuilds the tray when it ends
       if (typeof patch.autoUpdate === 'boolean' && patch.autoUpdate !== before) updater.switched(patch.autoUpdate); // LC-16 auto_update on|off
+      // #region estate-update — docs: docs/adr/0018-estate-updates-from-inside-the-app.md#decision
+      if (patch.estate) estate.switched(next.estate.enabled); // ADR-0018: the switch starts/stops the timers at once
+      // #endregion estate-update
       if ('language' in patch) appMenu(); // the menu speaks the new language at once; the tray follows with pushStatus
       nativeTheme.themeSource = next.theme;
       const refusal = choosing && loginOs ? applyLoginItem(next.launchAtLogin, loginOs) : undefined;
@@ -580,6 +589,9 @@ if (!app.requestSingleInstanceLock()) {
     monitor.stop();
     viewGrace.dispose();
     updateGrace.dispose();
+    // #region estate-update — docs: docs/adr/0018-estate-updates-from-inside-the-app.md#decision
+    estate.stop(); // ADR-0018: no estate check or retry past this point
+    // #endregion estate-update
     activity.flush();
     // R-4: Electron does not wait for timers, so the SIGKILL that follows SIGTERM would never run.
     // With a command still running, the quit waits for killOwned (≤ 300 ms + a beat), then exits.
@@ -629,6 +641,9 @@ if (!app.requestSingleInstanceLock()) {
     monitor.start();
     if (app.isPackaged) restoreAfterReinstall();
     updater.start();
+    // #region estate-update — docs: docs/adr/0018-estate-updates-from-inside-the-app.md#decision
+    estate.start(); // ADR-0018: first estate check 90 s after start, then every 6 h — only when the switch is on
+    // #endregion estate-update
     if (app.isPackaged) app.setAsDefaultProtocolClient(SCHEME);
     handleLink = (raw: string) => {
       const known = monitor.snapshots().map((s) => ({ key: s.key, descriptor: s.descriptor }));
