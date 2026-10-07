@@ -78,4 +78,23 @@ export function signedFeed(feedBytes: Buffer, sums: Map<string, string>, version
   const steps = typeof feed.needsPerson === 'string' && /^https:\/\/[^\s]+$/.test(feed.needsPerson) ? feed.needsPerson : null;
   return { ok: true, needsPerson: steps };
 }
+
+/** FD-29: the feed Squirrel.Mac reads after verification — it names the verified zip on this disk,
+ *  so the bytes the organization signed are the bytes that get installed, the zip is not downloaded
+ *  twice, and there is no window between our check and Squirrel's fetch (fabric-inbox 95af4f7's
+ *  shape: currentRelease plus one releases entry whose updateTo.url is a file). `entry` carries the
+ *  signed feed's notes and pub_date for Squirrel's "what's new" when they are there. */
+export function localFeed(version: string, zipUrl: string, entry?: { notes?: unknown; pub_date?: unknown }): string {
+  if (!zipUrl.startsWith('file://')) throw new Error(`the local feed names a zip on this disk, got ${zipUrl}`);
+  return `${JSON.stringify({
+    currentRelease: version,
+    releases: [{ version, updateTo: {
+      version,
+      name: version,
+      notes: typeof entry?.notes === 'string' ? entry.notes : '',
+      pub_date: typeof entry?.pub_date === 'string' ? entry.pub_date : new Date(0).toISOString(),
+      url: zipUrl,
+    } }],
+  })}\n`;
+}
 // #endregion release-verify

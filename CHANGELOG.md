@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+## 0.6.5 - 2026-10-07
+
+### Fixed
+
+- **An update is downloaded once, and the bytes that were checked are the bytes that install**
+  (FD-29). The app used to verify its own download and then let Squirrel fetch the zip again from
+  the network; now Squirrel is handed a local feed that names the verified file on this disk, so the
+  window between the app's check and Squirrel's fetch is gone by construction. The bundle Squirrel
+  stages is still compared against the verified code-directory hash before it may install.
+
 ## 0.6.4 - 2026-10-07
 
 The first published release since 0.6.2. It carries everything listed under 0.6.3 below — 0.6.3 was
