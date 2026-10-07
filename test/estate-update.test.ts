@@ -154,9 +154,21 @@ interface Rig {
 }
 
 /** A runner whose every command answers per the responder, defaulting to success with no output. */
-function rig(o?: { settings?: Settings; cloneDir?: string; record?: string | null }) {
+/** The skills family's folder as its launcher leaves it: a runtime of `version`, and optionally its own update check. */
+function familyAt(version: string | null, check?: { at: number; latest: string }): string {
+  const dir = tmp('fd-estate-family-');
+  if (version !== null) {
+    fs.mkdirSync(path.join(dir, 'runtime'), { recursive: true });
+    fs.writeFileSync(path.join(dir, 'runtime', 'package.json'), JSON.stringify({ name: 'sshlg-skills', version }));
+  }
+  if (check) fs.writeFileSync(path.join(dir, 'state.json'), JSON.stringify({ updateCheck: check }));
+  return dir;
+}
+
+function rig(o?: { settings?: Settings; cloneDir?: string; record?: string | null; familyDir?: string; now?: () => number }) {
   const dir = tmp('fd-estate-run-');
   if (o?.record !== undefined && o.record !== null) fs.writeFileSync(path.join(dir, 'estate-skills.json'), o.record);
+  const familyDir = o?.familyDir ?? familyAt('1.52.5');
   const settings: Settings = o?.settings ?? { ...DEFAULT_SETTINGS, estate: { enabled: true, autoSkills: false, contractClone: o?.cloneDir ?? '' } };
   const calls: Rig['calls'] = [];
   const log: string[] = [];
@@ -167,7 +179,7 @@ function rig(o?: { settings?: Settings; cloneDir?: string; record?: string | nul
     calls.push(call);
     return responder(call) ?? { code: 0, output: '', timedOut: false, started: true, signal: null };
   };
-  const updater = new EstateUpdater({ settings: () => settings, log: (m) => log.push(m), onChange: () => { changes += 1; }, dataDir: dir, run });
+  const updater = new EstateUpdater({ settings: () => settings, log: (m) => log.push(m), onChange: () => { changes += 1; }, dataDir: dir, run, familyDir, now: o?.now });
   return { updater, calls, log, changes: () => changes, dir, respond: (r) => { responder = r; } } satisfies Rig;
 }
 
@@ -330,7 +342,7 @@ test('skills: no record yet — with the switch on and the publisher trusted the
   }
 });
 
-test('skills: no record yet with the switch off reports unknown and nothing runs', async (t) => {
+test('skills: with the switch off a newer version is reported and nothing runs', async (t) => {
   t.mock.timers.enable({ apis: ['setTimeout', 'setInterval', 'Date'], now: T0 });
   const { updater, calls, respond } = rig();
   respond((call) => (call.command === 'npm' && call.args[2] === 'version' ? ok('1.52.6\n') : undefined));
@@ -338,7 +350,7 @@ test('skills: no record yet with the switch off reports unknown and nothing runs
     updater.start();
     t.mock.timers.tick(FIRST_CHECK_MS);
     await flush();
-    assert.equal(updater.state.skills.state, 'unknown');
+    assert.equal(updater.state.skills.state, 'update-available', 'the installed version is the family runtime\'s, record or not (FD-34)');
     assert.ok(!calls.some((c) => c.command === 'npx'), 'no apply without the switch');
   } finally {
     updater.stop();
@@ -392,21 +404,76 @@ test('skills: a failed apply leaves the record and the state so the next check t
   }
 });
 
-test('skills: without a record the state is unknown — tracked from the first run or apply', async (t) => {
+test('skills: without the family installed nothing is asked about it — no registry, no failure (FD-34)', async (t) => {
   t.mock.timers.enable({ apis: ['setTimeout', 'setInterval', 'Date'], now: T0 });
-  const { updater, calls, respond } = rig();
+  const { updater, calls, log } = rig({ familyDir: familyAt(null) });
+  try {
+    updater.start();
+    t.mock.timers.tick(FIRST_CHECK_MS);
+    await flush();
+    assert.equal(updater.state.skills.state, 'absent');
+    assert.ok(!calls.some((c) => c.command === 'npm' || c.command === 'npx'), 'a public install never asks npm about the operator\'s family');
+    assert.ok(log.some((l) => l.startsWith('estate_check ok') && l.includes('skills=absent')));
+  } finally {
+    updater.stop();
+  }
+});
+
+test('skills: the launcher\'s own check, under a day old, answers without the registry; an older one does not (FD-34)', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout', 'setInterval', 'Date'], now: T0 });
+  const at = T0 + FIRST_CHECK_MS - 60_000;
+  const fresh = rig({ familyDir: familyAt('1.53.0', { at, latest: '1.53.0' }), now: () => T0 + FIRST_CHECK_MS });
+  try {
+    fresh.updater.start();
+    t.mock.timers.tick(FIRST_CHECK_MS);
+    await flush();
+    assert.equal(fresh.updater.state.skills.state, 'current');
+    assert.ok(!fresh.calls.some((c) => c.command === 'npm'), 'a fresh launcher check is the answer');
+  } finally {
+    fresh.updater.stop();
+  }
+  const stale = rig({ familyDir: familyAt('1.53.0', { at: at - 2 * 24 * 60 * 60_000, latest: '1.53.0' }), now: () => T0 + FIRST_CHECK_MS });
+  stale.respond((call) => (call.command === 'npm' ? ok('1.54.0\n') : undefined));
+  try {
+    stale.updater.start();
+    t.mock.timers.tick(FIRST_CHECK_MS);
+    await flush();
+    assert.ok(stale.calls.some((c) => c.command === 'npm'), 'a stale launcher check sends the question to the registry');
+    assert.equal(stale.updater.state.skills.state, 'update-available');
+    assert.equal(stale.updater.state.skills.installed, '1.53.0');
+  } finally {
+    stale.updater.stop();
+  }
+});
+
+test('skills: an update the person or an agent ran is seen — the runtime, not this app\'s record, is installed (FD-34)', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout', 'setInterval', 'Date'], now: T0 });
+  const record = estate.serializeSkillsRecord({ installed: '1.40.0', updatedAt: null });
+  const { updater, calls, respond } = rig({ record, familyDir: familyAt('1.52.6') });
   respond((call) => (call.command === 'npm' && call.args[2] === 'version' ? ok('1.52.6\n') : undefined));
   try {
     updater.start();
     t.mock.timers.tick(FIRST_CHECK_MS);
     await flush();
-    assert.equal(updater.state.skills.state, 'unknown');
-    assert.equal(updater.state.skills.installed, null);
-    assert.equal(updater.state.skills.latest, '1.52.6');
-    assert.ok(!calls.some((c) => c.command === 'npx'), 'nothing to apply against an unknown record');
+    assert.equal(updater.state.skills.state, 'current');
+    assert.equal(updater.state.skills.installed, '1.52.6');
+    assert.ok(!calls.some((c) => c.command === 'npx'));
   } finally {
     updater.stop();
   }
+});
+
+test('familyRuntimeVersion, launcherLatest and compareReleases read only what they should', () => {
+  assert.equal(estate.familyRuntimeVersion(JSON.stringify({ name: 'sshlg-skills', version: '1.53.0' })), '1.53.0');
+  assert.equal(estate.familyRuntimeVersion(JSON.stringify({ name: 'other', version: '1.53.0' })), null);
+  assert.equal(estate.familyRuntimeVersion(JSON.stringify({ name: 'sshlg-skills', version: '1.54.0-rc.1' })), null);
+  assert.equal(estate.familyRuntimeVersion('{broken'), null);
+  assert.equal(estate.launcherLatest(JSON.stringify({ updateCheck: { at: 1000, latest: '1.53.0' } }), 2000, 5000), '1.53.0');
+  assert.equal(estate.launcherLatest(JSON.stringify({ updateCheck: { at: 1000, latest: '1.53.0' } }), 9000, 5000), null, 'too old');
+  assert.equal(estate.launcherLatest(JSON.stringify({ updateCheck: { at: 9000, latest: '1.53.0' } }), 1000, 5000), null, 'from the future is not fresh');
+  assert.equal(estate.compareReleases('1.10.0', '1.9.9'), 1);
+  assert.equal(estate.compareReleases('1.53.0', '1.53.0'), 0);
+  assert.equal(estate.compareReleases('0.9.0', '1.0.0'), -1);
 });
 
 test('one retry within the hour after a failed check, then back to the 6-hour rhythm', async (t) => {
@@ -448,7 +515,7 @@ test('the default runner resolves the search path once and passes it to every ch
   const dir = tmp('fd-estate-path-');
   const settings: Settings = { ...DEFAULT_SETTINGS, estate: { enabled: true, autoSkills: false, contractClone: '' } };
   const updater = new EstateUpdater({ settings: () => settings, log: () => {}, onChange: () => {}, dataDir: dir,
-    searchPath: async () => { asked += 1; return ['/nowhere-estate-test']; } });
+    familyDir: familyAt('1.52.5'), searchPath: async () => { asked += 1; return ['/nowhere-estate-test']; } });
   // `npm` is not in /nowhere-estate-test, so the probe fails to start — the point is that it looked there.
   await (updater as unknown as { check: () => Promise<void> }).check();
   await (updater as unknown as { check: () => Promise<void> }).check();

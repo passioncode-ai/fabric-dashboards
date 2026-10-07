@@ -142,6 +142,43 @@ export function publisherTrusted(json: string, version: string, owners: readonly
   return names.length > 0 && names.every((n) => n !== null && owners.includes(n)) && publisher !== null && owners.includes(publisher);
 }
 
+/**
+ * FD-34: the skills family keeps its own runtime at `~/.sshlg-skills/runtime/package.json`, updated by
+ * its launcher whoever ran the update — this app, an agent or the person. Its version is the installed
+ * version; no such file means the family is not installed here, and nothing about it is checked.
+ */
+export function familyRuntimeVersion(text: string | null): string | null {
+  if (!text) return null;
+  try {
+    const j = JSON.parse(text) as { name?: unknown; version?: unknown };
+    return j.name === SKILLS_PACKAGE && typeof j.version === 'string' && RELEASE.test(j.version) ? j.version : null;
+  } catch {
+    return null;
+  }
+}
+
+/** FD-34: the launcher's own update check (`~/.sshlg-skills/state.json` `updateCheck`), when it is fresher
+ *  than `maxAgeMs` — then the registry need not be asked at all. */
+export function launcherLatest(text: string | null, nowMs: number, maxAgeMs: number): string | null {
+  if (!text) return null;
+  try {
+    const check = (JSON.parse(text) as { updateCheck?: { at?: unknown; latest?: unknown } }).updateCheck;
+    const at = typeof check?.at === 'number' ? check.at : Number.NaN;
+    const latest = typeof check?.latest === 'string' && RELEASE.test(check.latest) ? check.latest : null;
+    return latest && nowMs - at >= 0 && nowMs - at <= maxAgeMs ? latest : null;
+  } catch {
+    return null;
+  }
+}
+
+/** -1, 0 or 1 for two release versions, compared numerically part by part. */
+export function compareReleases(a: string, b: string): number {
+  const x = a.split('.').map(Number);
+  const y = b.split('.').map(Number);
+  for (let i = 0; i < 3; i += 1) if ((x[i] ?? 0) !== (y[i] ?? 0)) return (x[i] ?? 0) < (y[i] ?? 0) ? -1 : 1;
+  return 0;
+}
+
 /** The installed-version record this app keeps in userData (`estate-skills.json`, LC-12). */
 export interface SkillsRecord {
   installed: string | null;
@@ -200,7 +237,8 @@ export interface EstateStatus {
   pins: SiblingPin[];
   skills: {
     /** `error`: the registry could not be asked — never shown as the harmless "not tracked yet". */
-    state: 'unknown' | 'error' | 'current' | 'update-available' | 'updating';
+    /** `absent`: the family is not installed on this computer, so nothing about it is checked (FD-34). */
+    state: 'absent' | 'unknown' | 'error' | 'current' | 'update-available' | 'updating';
     installed: string | null;
     latest: string | null;
   };
