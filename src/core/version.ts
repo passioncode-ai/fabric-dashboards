@@ -58,7 +58,7 @@ export function stagedRefusal(o: { feedVersion: string | null; stagedVersion: st
   return null;
 }
 
-/** FD-30: a fresh launch while Squirrel's ShipIt is installing a newer build must step aside — opening
+/** FD-31: a fresh launch while Squirrel's ShipIt is installing a newer build must step aside — opening
  *  the old bundle mid-install aborted the 0.5.6 → 0.6.2 install twice (2026-10-07). A second copy of a
  *  running app never gets here (single-instance lock), so ShipIt alive with a newer staged build at a
  *  launch means an install is under way or starts as soon as no copy runs. */

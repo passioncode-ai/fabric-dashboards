@@ -1,5 +1,5 @@
 // #region pending-install — docs: docs/adr/0015-data-survives-uninstall-updates-install-themselves.md#lc-16
-// FD-30: never open the old bundle while ShipIt replaces it. A launch that finds ShipIt running with a
+// FD-31: never open the old bundle while ShipIt replaces it. A launch that finds ShipIt running with a
 // newer staged build tells the person, quits before doing anything else, and leaves a bounded helper
 // that opens the app again once ShipIt has finished (at most 10 minutes) — the new version, or the old
 // one if the install failed, which then runs normally because ShipIt is gone.

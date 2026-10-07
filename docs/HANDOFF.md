@@ -7,7 +7,7 @@ Current release: 0.6.2 (published 2026-10-06 23:41 UTC, run 37541067349; 0.6.1 w
 
 ## Next — start here (2026-10-07)
 
-**0.6.3 — branch `agent/fd30-pending-install`** (FD-30). The field proof of 0.6.2 found that opening
+**0.6.3 — branch `agent/fd30-pending-install`** (FD-31; FD-30 is the estate updater, also in 0.6.3). The field proof of 0.6.2 found that opening
 the old app while ShipIt installs aborts the install: on the operator's Mac 0.5.6 → 0.6.2 failed
 twice at 02:11–02:13 local (ADR-0015 addendum 0.6.3 has the log lines). 0.6.3 makes a launch step
 aside while ShipIt installs a newer build and reopens the app afterwards. **The operator's copy is

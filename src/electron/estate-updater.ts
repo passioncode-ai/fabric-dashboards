@@ -215,17 +215,17 @@ export class EstateUpdater {
       failures.push(`npm view ${estate.SKILLS_PACKAGE} version failed: ${this.clip(view.output)}`);
       return { state: 'unknown', installed: record.installed, latest: null };
     }
-    if (record.installed === null) return { state: 'unknown', installed: null, latest };
     if (record.installed === latest) return { state: 'current', installed: record.installed, latest };
-    if (!autoSkills) return { state: 'update-available', installed: record.installed, latest };
-    // The person's switch is on: the publisher check decides whether the apply may run.
+    if (!autoSkills) return { state: record.installed === null ? 'unknown' : 'update-available', installed: record.installed, latest };
+    // The person's switch is on: the publisher check decides whether the apply may run — also for
+    // the first run, whose record does not exist yet (the reconcile reconciles, it never removes).
     const maintainers = await this.run('npm', ['view', estate.SKILLS_PACKAGE, 'maintainers'], PROBE_TIMEOUT_MS);
     const trusted = maintainers.code === 0 && estate.maintainersTrusted(maintainers.output);
     if (maintainers.code !== 0) failures.push(`npm view ${estate.SKILLS_PACKAGE} maintainers failed: ${this.clip(maintainers.output)}`);
     const decision = estate.decideSkillsApply({ autoSkills, trusted, updateAvailable: true });
     if (!decision.apply) {
       this.event('estate_update', 'refused', `target=skills reason=${decision.why}${maintainers.code === 0 ? '' : ' (probe failed)'}`);
-      return { state: 'update-available', installed: record.installed, latest };
+      return { state: record.installed === null ? 'unknown' : 'update-available', installed: record.installed, latest };
     }
     return this.applySkills(latest, record);
   }

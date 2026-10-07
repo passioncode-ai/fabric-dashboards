@@ -174,7 +174,7 @@ The organization fixed how every product updates itself — the
   as Fabric Inbox does, so the zip is not downloaded twice and the window between our check and
   Squirrel's fetch disappears by construction. The code-directory pin stays as a second check.
 
-### Addendum — 2026-10-07 (0.6.3): never open the old bundle mid-install (FD-30)
+### Addendum — 2026-10-07 (0.6.3): never open the old bundle mid-install (FD-31)
 
 Field evidence, the operator's Mac, 0.5.6 → 0.6.2: Restart to Update at 02:11:18 started ShipIt's
 install; 0.5.6 was opened again at 02:11:22 and at 02:12:30 (`main.log` "started 0.5.6" twice), and
@@ -193,5 +193,5 @@ the 509 MB bundle's strict signature check alone took 20 s. From 0.6.3:
   open it» before quitting.
 - This guards installs started by 0.6.3 and later: a 0.6.2 copy updating to 0.6.3 still runs 0.6.2's
   code at that launch.
-- Tests: `test/parts.test.ts` *FD-30* (the decision, and the `launchctl list` format read from the
+- Tests: `test/parts.test.ts` *FD-31* (the decision, and the `launchctl list` format read from the
   real job on 2026-10-07).

@@ -540,7 +540,7 @@ if (!app.requestSingleInstanceLock()) {
       // A held release only hands the verified build to Squirrel: nothing quits, nothing to ask.
       if (updater.state.state === 'ready' && !(await mayEndWork('restart'))) return;
       if (updater.state.state === 'ready') {
-        // FD-30: the person should not open the old copy while ShipIt installs — say it reopens by itself.
+        // FD-31: the person should not open the old copy while ShipIt installs — say it reopens by itself.
         const version = updater.state.version ?? '';
         try { new Notification({ title: t(lang(), 'update.installing.title', { version }), body: t(lang(), 'update.installing.body'), silent: true }).show(); } catch { /* no notification centre */ }
       }
@@ -610,7 +610,7 @@ if (!app.requestSingleInstanceLock()) {
   });
 
   void app.whenReady().then(() => {
-    // FD-30: ShipIt is replacing this bundle — stay out of its way; the helper reopens the app after.
+    // FD-31: ShipIt is replacing this bundle — stay out of its way; the helper reopens the app after.
     const pending = pendingInstallVersion();
     if (pending) { stepAside(pending, lang(), log); return; }
     registerIpc();

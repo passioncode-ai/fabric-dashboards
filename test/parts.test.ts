@@ -420,7 +420,7 @@ test('LC-16 (fabric-inbox 95af4f7): the version and the needs-a-person mark come
   assert.deepEqual(signedFeed(httpSteps, signedHttp, '0.6.0'), { ok: true, needsPerson: null }, 'only an https address counts as steps');
 });
 
-test('FD-30: a launch steps aside only while ShipIt installs a newer build', async () => {
+test('FD-31: a launch steps aside only while ShipIt installs a newer build', async () => {
   const { stepAsideForInstall, launchdJobRunning } = await import('../src/core/version');
   assert.equal(stepAsideForInstall({ stagedVersion: '0.6.2', running: '0.5.6', shipItRunning: true }), true, 'the 2026-10-07 case');
   assert.equal(stepAsideForInstall({ stagedVersion: '0.6.2', running: '0.5.6', shipItRunning: false }), false, 'a failed install leaves no ShipIt: start normally');

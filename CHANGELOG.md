@@ -19,7 +19,8 @@
   them where safe. Settings → Estate updates: name a local contract clone to watch its `main`
   against the sibling consumer pins — the only automatic step is `git fetch`; a pin move stays a
   reviewed decision in each consumer. Skills: a background `npx sshlg-skills update` behind the
-  auto-update switch (off by default), after the package's publisher is checked. LC-16 cadence
+  auto-update switch (off by default), after the package's publisher is checked; the first run
+  bootstraps the installed-version record through the same trusted apply. LC-16 cadence
   (90 s, then every 6 h), activity codes `estate_check` / `estate_update`, status on the Settings
   page. Starts and stops with the app — no port, no launchd job, child `git`/`npm` processes only.
 

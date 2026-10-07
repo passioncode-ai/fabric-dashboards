@@ -281,6 +281,42 @@ test('skills: a newer registry version is reported; with the switch on and the p
   }
 });
 
+test('skills: no record yet — with the switch on and the publisher trusted the first apply bootstraps the record', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout', 'setInterval', 'Date'], now: T0 });
+  const settings: Settings = { ...DEFAULT_SETTINGS, estate: { enabled: true, autoSkills: true, contractClone: '' } };
+  const { updater, calls, dir, respond } = rig({ settings });
+  respond((call) => {
+    if (call.command === 'npm' && call.args[2] === 'version') return ok('1.52.6\n');
+    if (call.command === 'npm' && call.args[2] === 'maintainers') return ok('ssheleg <sergeysheleg4@gmail.com>');
+    return undefined;
+  });
+  try {
+    updater.start();
+    t.mock.timers.tick(FIRST_CHECK_MS);
+    await flush();
+    assert.ok(calls.some((c) => c.command === 'npx'), 'the first apply runs with no record yet — the reconcile reconciles, it never removes');
+    assert.equal(estate.parseSkillsRecord(fs.readFileSync(path.join(dir, 'estate-skills.json'), 'utf8')).installed, '1.52.6', 'the record bootstraps on exit 0');
+    assert.equal(updater.state.skills.state, 'current');
+  } finally {
+    updater.stop();
+  }
+});
+
+test('skills: no record yet with the switch off reports unknown and nothing runs', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout', 'setInterval', 'Date'], now: T0 });
+  const { updater, calls, respond } = rig();
+  respond((call) => (call.command === 'npm' && call.args[2] === 'version' ? ok('1.52.6\n') : undefined));
+  try {
+    updater.start();
+    t.mock.timers.tick(FIRST_CHECK_MS);
+    await flush();
+    assert.equal(updater.state.skills.state, 'unknown');
+    assert.ok(!calls.some((c) => c.command === 'npx'), 'no apply without the switch');
+  } finally {
+    updater.stop();
+  }
+});
+
 test('skills: the publisher check refuses an unexpected owner and nothing runs', async (t) => {
   t.mock.timers.enable({ apis: ['setTimeout', 'setInterval', 'Date'], now: T0 });
   const record = estate.serializeSkillsRecord({ installed: '1.52.5', updatedAt: null });
