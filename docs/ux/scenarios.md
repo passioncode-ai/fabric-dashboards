@@ -496,7 +496,7 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **Entry point:** app running
 - **Preconditions:** a newer signed release is published; the app is in Applications
 - **Steps:**
-  1. System checks 90 s after start and every 6 hours, verifies the release (its SHA256SUMS signed by the organization's key, the zip's hash, the app's signature by team KJ35UYYL22 and its version) and lets it download -> the sidebar footer and Settings → Updates show "Update <version> ready" with Restart to Update
+  1. System checks 90 s after start and every 6 hours, downloads the release's zip once and verifies it (its SHA256SUMS signed by the organization's key, the zip's hash, the app's signature by team KJ35UYYL22 and its version), then hands the verified file itself to Squirrel through a local feed -> the sidebar footer and Settings → Updates show "Update <version> ready" with Restart to Update
   2. User closes the window and leaves it closed for ten minutes -> the app installs the update and reopens in the menu bar, with no window and no question; services are untouched
   3. User opens the window later -> it is the new version, on the Overview
 - **Expected result:** every copy stays current with no action from the person

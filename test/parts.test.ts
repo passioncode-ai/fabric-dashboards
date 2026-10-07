@@ -420,6 +420,28 @@ test('LC-16 (fabric-inbox 95af4f7): the version and the needs-a-person mark come
   assert.deepEqual(signedFeed(httpSteps, signedHttp, '0.6.0'), { ok: true, needsPerson: null }, 'only an https address counts as steps');
 });
 
+test('LC-16 (FD-29): the feed Squirrel reads names the verified zip on this disk — nothing is fetched twice', async () => {
+  const { localFeed } = await import('../src/core/release-verify');
+  const zip = 'file:///Users/x/Library/Caches/ai.passioncode.fabric-dashboards/verified-update/Fabric-Dashboards-0.6.5-mac.zip';
+  const feed = JSON.parse(localFeed('0.6.5', zip, { notes: 'the notes', pub_date: '2026-10-07T00:00:00.000Z' })) as {
+    currentRelease?: unknown;
+    releases?: { version?: unknown; updateTo?: { version?: unknown; name?: unknown; notes?: unknown; pub_date?: unknown; url?: unknown } }[];
+  };
+  assert.equal(feed.currentRelease, '0.6.5');
+  assert.equal(feed.releases?.length, 1);
+  const to = feed.releases![0]!.updateTo!;
+  assert.equal(to.version, '0.6.5');
+  assert.equal(to.name, '0.6.5');
+  assert.equal(to.url, zip, 'Squirrel stages the verified file, not a network copy');
+  assert.ok(to.url.startsWith('file://'));
+  assert.equal(to.notes, 'the notes', 'the signed feed\'s notes carry over for Squirrel\'s "what\'s new"');
+  assert.equal(to.pub_date, '2026-10-07T00:00:00.000Z');
+  const bare = JSON.parse(localFeed('0.6.5', zip)) as { releases?: { updateTo?: { notes?: unknown; pub_date?: unknown } }[] };
+  assert.equal(bare.releases![0]!.updateTo!.notes, '');
+  assert.ok(!Number.isNaN(Date.parse(bare.releases![0]!.updateTo!.pub_date as string)), 'pub_date always parses');
+  assert.throws(() => localFeed('0.6.5', 'https://github.com/passioncode-ai/fabric-dashboards/releases/download/v0.6.5/Fabric-Dashboards-0.6.5-mac.zip'), /on this disk/, 'a remote address never goes into the local feed');
+});
+
 test('FD-31: a launch steps aside only while ShipIt installs a newer build', async () => {
   const { stepAsideForInstall, launchdJobRunning } = await import('../src/core/version');
   assert.equal(stepAsideForInstall({ stagedVersion: '0.6.2', running: '0.5.6', shipItRunning: true }), true, 'the 2026-10-07 case');

@@ -7,6 +7,28 @@ Current release: 0.6.2 (published 2026-10-06 23:41 UTC, run 37541067349; 0.6.1 w
 
 ## Next — start here (2026-10-07)
 
+**The installed copy is current: 0.5.6 → 0.6.2 → 0.6.4 on 2026-10-07, by itself.** The staged 0.6.2
+installed at 02:31 UTC (ShipIt «Successfully launched application»; `main.log`: `started 0.6.2`,
+`auto_update on` — no `update_install installed from=0.5.6` line, because 0.5.6 predates
+`.last-version`). 90 s later 0.6.2's updater found 0.6.4: `update_download done version=0.6.4
+sha256=7905d6bca5cd team=KJ35UYYL22 cdhash=20e16df0082d` (the published build's CDHash),
+`update_check ready version=0.6.4`, `update_restart confirmed consoles=1 commands=0` (the person
+confirmed; one running console was named), `update_install installed from=0.6.2 to=0.6.4` at
+02:34:06 UTC. FD-27's and FD-31's field proofs are done.
+
+**FD-07 measured on 0.6.4** (main process, window hidden, 10 min, `ps -o time,rss` every 30 s):
+1.77 s CPU in total = 0.295 % average (target ≤ 0.3 %), RSS ~167 MB average.
+
+**0.6.5 (unreleased, this checkout) — FD-29's local feed.** Squirrel now gets the verified zip
+through a local `file://` feed (`localFeed` in `src/core/release-verify.ts`; the verified-update
+cache lifecycle in `src/electron/updater.ts`: emptied at start, before each verification, and once
+Squirrel has staged or refused its copy). The code-directory pin on the staged bundle stays as the
+second check. **Next task:** merge on a green gate (`FD_SKIP_LAUNCHD=1 npm run check`); the
+0.6.4 → 0.6.5 update on this Mac will exercise the old path once more, and the update after it is
+the local feed's field proof (a 0.6.5+ copy downloading). FD-25 waits for the operator to name an
+account and a project folder (declined 2026-10-07: «никаких тестовых клауд кодов») and for
+Switchboard on this Mac to reach 0.6.10 (still 0.6.8, no projects, at 04:53 local).
+
 **Released: 0.6.4 on 2026-10-07 01:57 UTC** (run 37558793926, tag `v0.6.4` on `77c91f4`; Latest). It
 carries 0.6.3 (FD-31, FD-30; superseded before approval) and FD-32. Receipt: Developer ID (KJ35UYYL22),
 `accepted and stapled: app, update zip, image`, Gatekeeper accepted, fuses `100011011`, `checks.pty`,
@@ -14,13 +36,6 @@ carries 0.6.3 (FD-31, FD-30; superseded before approval) and FD-32. Receipt: Dev
 the updater checks them: signature ok, `signedFeed` ok, zip matches, strict codesign, team
 `KJ35UYYL22`, CDHash `20e16df0…`; `latest` feed answers 0.6.4. Knowledge base: fabric-workspace PR #64
 (`ccd6eaf`).
-
-**First task for the next agent:** the installed copy. At 04:10 local it was still 0.5.6 (pid 90452,
-started 02:12:30) with 0.6.2 staged by ShipIt; it needs one Restart to Update without reopening the
-app (FD-31 protects only installs started by 0.6.3+). After it reaches 0.6.2, 0.6.2's own updater
-moves it to 0.6.4 (first check 90 s after start). Record `update_install installed` and
-`auto_update on` from `main.log`. Then FD-25 once Switchboard on this Mac is 0.6.10 and a project
-folder exists (the operator's account decision), and FD-29's `file://` feed.
 
 **0.6.4 — branch `agent/budgets-064`** (FD-32): every limit an agent applies is visible on Spend
 (contract DEC-0027, `94b1829`; service-host 0.3.3). 0.6.3 (FD-31 step-aside + FD-30 estate updater) was

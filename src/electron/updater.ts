@@ -22,7 +22,8 @@ import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { FEED_FILE, feedNamesOwnRelease, parseSums, releaseFile, signedFeed, sumsSignedByRelease, zipName } from '../core/release-verify';
+import { pathToFileURL } from 'node:url';
+import { FEED_FILE, feedNamesOwnRelease, localFeed, parseSums, releaseFile, signedFeed, sumsSignedByRelease, zipName } from '../core/release-verify';
 import { CHECK_EVERY_MS, FIRST_CHECK_MS, isNewer, mayCheck, stagedBundlePath, stagedRefusal } from '../core/version';
 import type { AppStatus } from '../core/types';
 
@@ -35,9 +36,23 @@ const RETRY_AFTER_FAILURE_MS = 45 * 60_000;
 const STUCK_MS = 45 * 60_000;
 const BUNDLE_ID = 'ai.passioncode.fabric-dashboards';
 
+// #region local-feed — docs: docs/adr/0015-data-survives-uninstall-updates-install-themselves.md#lc-16
+/** FD-29: the verified zip waits for Squirrel here, so the bytes verified are the bytes Squirrel
+ *  stages, the zip is not downloaded twice, and no fetch of Squirrel's follows our check. One
+ *  folder: emptied before each verification, once Squirrel has staged or refused its copy, and at
+ *  start (what a stopped run left). */
+function verifiedCacheDir(): string {
+  return path.join(os.homedir(), 'Library', 'Caches', BUNDLE_ID, 'verified-update');
+}
+
+function emptyVerifiedCache(): void {
+  fs.rmSync(verifiedCacheDir(), { recursive: true, force: true });
+}
+// #endregion local-feed
+
 export type UpdateState = AppStatus['update'];
 type Feed = { currentRelease?: unknown; needsPerson?: unknown };
-type Verified = { version: string; cdhash: string; needsPerson: string | null };
+type Verified = { version: string; cdhash: string; needsPerson: string | null; feedUrl: string };
 
 function run(file: string, args: string[]): Promise<{ code: number; out: string }> {
   return new Promise((resolve) => {
@@ -101,10 +116,11 @@ export class Updater {
       this.fail('check_failed', (error as Error).message);
       return;
     }
+    emptyVerifiedCache();
     autoUpdater.on('update-available', () => { this.event('update_download', 'started', `version=${this.verified?.version ?? '?'} by=squirrel`); this.set({ state: 'downloading', version: this.verified?.version }); });
     autoUpdater.on('update-not-available', () => { this.event('update_check', 'current', `version=${app.getVersion()} by=squirrel`); this.set({ state: 'idle', checkedAt: new Date().toISOString() }); });
     autoUpdater.on('update-downloaded', () => void this.checkStaged());
-    autoUpdater.on('error', (error) => this.fail(this.state.state === 'downloading' ? 'download_failed' : 'check_failed', error.message));
+    autoUpdater.on('error', (error) => { if (this.state.state === 'downloading') emptyVerifiedCache(); this.fail(this.state.state === 'downloading' ? 'download_failed' : 'check_failed', error.message); });
     autoUpdater.on('before-quit-for-update', () => { this.event('update_install', 'started', `version=${this.state.version ?? '?'}`); this.onQuitForUpdate(); });
     this.switched(this.enabled());
     setTimeout(() => this.check(), FIRST_CHECK_MS).unref();
@@ -164,18 +180,24 @@ export class Updater {
     this.stage();
   }
 
-  /** Hand the verified release to Squirrel; the bundle it stages is checked against what was verified. */
+  /** Hand the verified release to Squirrel: its feed is the local one naming the verified zip
+   *  (FD-29), and the bundle it stages is checked against what was verified. */
   private stage(): void {
     try {
+      if (this.verified) autoUpdater.setFeedURL({ url: this.verified.feedUrl, serverType: 'json' });
       autoUpdater.checkForUpdates();
     } catch (error) {
       this.fail('download_failed', (error as Error).message);
     }
   }
 
-  /** The release's own files, verified end to end, before Squirrel touches anything. */
+  /** The release's own files, verified end to end, before Squirrel touches anything. The zip stays
+   *  in the verified-update cache for the local feed; a failure empties the folder. */
   private async verify(version: string): Promise<Verified | { code: string; error: string }> {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'fd-update-'));
+    const dir = verifiedCacheDir();
+    emptyVerifiedCache();
+    fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+    let keep = false;
     try {
       const get = async (name: string, timeout = FEED_TIMEOUT_MS) => {
         const res = await net.fetch(releaseFile(version, name), { cache: 'no-store', signal: AbortSignal.timeout(timeout) });
@@ -234,15 +256,22 @@ export class Updater {
       const refusal = stagedRefusal({ feedVersion: version, stagedVersion: seen.version, team: seen.team, current: app.getVersion() });
       if (refusal) return { code: 'signature_failed', error: refusal };
       if (!seen.cdhash) return { code: 'signature_failed', error: 'the app in the zip has no code-directory hash' };
+      fs.rmSync(path.join(dir, 'app'), { recursive: true, force: true });
+      const entry = (JSON.parse(feedBytes.toString('utf8')) as { releases?: { version?: unknown; updateTo?: { notes?: unknown; pub_date?: unknown } }[] })
+        .releases?.find((r) => r.version === version)?.updateTo;
+      const feedFile = path.join(dir, FEED_FILE);
+      fs.writeFileSync(feedFile, localFeed(version, pathToFileURL(zip).href, entry), { mode: 0o600 });
       this.event('update_download', 'done', `version=${version} sha256=${actual.slice(0, 12)} team=${seen.team} cdhash=${seen.cdhash.slice(0, 12)}`);
-      return { version, cdhash: seen.cdhash, needsPerson: feed.needsPerson };
+      keep = true;
+      return { version, cdhash: seen.cdhash, needsPerson: feed.needsPerson, feedUrl: pathToFileURL(feedFile).href };
     } finally {
-      fs.rmSync(dir, { recursive: true, force: true });
+      if (!keep) fs.rmSync(dir, { recursive: true, force: true });
     }
   }
 
   /** The bundle Squirrel staged must be the one verified (same code-directory hash and version); else it is removed. */
   private async checkStaged(): Promise<void> {
+    emptyVerifiedCache();
     const shipIt = path.join(os.homedir(), 'Library/Caches', `${BUNDLE_ID}.ShipIt`);
     const stateFile = path.join(shipIt, 'ShipItState.plist');
     let bundle: string | null = null;

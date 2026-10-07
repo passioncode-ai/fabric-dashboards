@@ -170,9 +170,11 @@ The organization fixed how every product updates itself — the
 - **Known limit, kept on purpose:** once an update is `ready` (staged by Squirrel), the app does not
   look for a newer one until it installs — Squirrel holds one staged update. It installs at the next
   safe point, and the newer release follows at the next check.
-- **Next step, not yet taken (FD-29):** hand Squirrel the verified zip through a local `file://` feed,
-  as Fabric Inbox does, so the zip is not downloaded twice and the window between our check and
-  Squirrel's fetch disappears by construction. The code-directory pin stays as a second check.
+- **FD-29, taken in 0.6.5:** Squirrel gets the verified zip through a local `file://` feed, as Fabric
+  Inbox does (`localFeed`, `src/core/release-verify.ts`; the verified-update cache lifecycle in
+  `src/electron/updater.ts`), so the zip is not downloaded twice and the window between our check and
+  Squirrel's fetch is gone by construction. The code-directory pin stays as a second check. Its field
+  proof is the first update a 0.6.5+ copy downloads.
 
 ### Addendum — 2026-10-07 (0.6.3): never open the old bundle mid-install (FD-31)
 
