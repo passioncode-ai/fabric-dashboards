@@ -5,7 +5,26 @@ Updated 2026-10-07 (0.6.2: 0.6.1 withdrawn for audit HIGH-2, audit fixes, signed
 
 Current release: 0.6.4 (published 2026-10-07 01:57 UTC, run 37558793926; carries 0.6.3, superseded before approval). Before it, 0.6.2 (published 2026-10-06 23:41 UTC, run 37541067349; 0.6.1 withdrawn). Before it, 0.6.0 (published 2026-10-06 21:35 UTC, run 37505569449); Before it, 0.5.6 (2026-10-06); the 0.4.1 section below is the previous one. Earlier releases below are preserved as dated evidence.
 
-## Next — start here (2026-10-07)
+## Next — start here (2026-10-08)
+
+**Release 0.6.5 — branch `agent/release-065`.** 0.6.5 was bumped by PR #44 (FD-29, the local feed)
+but never tagged; FD-33 (PR #45) landed after it under `Unreleased`, so the installed 0.6.4 kept
+logging `estate_check failed … spawn npm ENOENT` every 6 h (`main.log`, last 2026-10-07 20:34 UTC).
+This branch folds FD-33 into the 0.6.5 section of `CHANGELOG.md` (dated 2026-10-08) so one release
+carries both. Checks: `npm ci`; `FD_SKIP_LAUNCHD=1 npm run check` exit 0 (320 tests, 319 pass,
+1 launchd skip; brand, regions, UX lint); `npm run test:e2e` on an unlocked screen: first run 6/7 —
+*FD-05: a hidden window leaves no Dock icon* (`test/e2e/spend.test.ts:87`) failed — then
+`spend.test.ts` alone 2/2 and the full suite again 7/7 (exit 0); the flake is FD-35. **Next task:** merge, tag
+`v0.6.5` on the merge commit, the operator's approval of the release run; then read the receipt,
+check the published files as the updater does, and watch this Mac's 0.6.4 → 0.6.5 update (the old
+download path, once more) and the first `estate_check` after it (expected: no `spawn npm ENOENT`).
+FD-34 (two estate decisions) and FD-25 (an account and a project folder; Switchboard here is still
+0.6.8 on 2026-10-08) stay with the operator. Housekeeping on 2026-10-08: the merged worktree
+`../fabric-dashboards-estate-updater` (`agent/estate-bootstrap-fix-20261007`, 0 commits ahead of
+`main`, idle) removed; branches left: `codex/product-presentation` (unmerged FD-10 WIP, its own
+worktree) and `docs/remote-projection-cloud-mark` (unmerged proposed ADR-0009).
+
+## Previous — 2026-10-07
 
 **The installed copy is current: 0.5.6 → 0.6.2 → 0.6.4 on 2026-10-07, by itself.** The staged 0.6.2
 installed at 02:31 UTC (ShipIt «Successfully launched application»; `main.log`: `started 0.6.2`,
