@@ -19,7 +19,7 @@
 Fabric Dashboards: a macOS desktop app (Electron) that finds every local agent service speaking
 `fabric-service/0.1`, shows whether it is alive and what it did last, starts, stops and restarts
 it through launchd and opens each service's dashboard inside the app. Fabric's monitoring tool;
-also works on its own. The current version is 0.6.2 (`package.json`, `CHANGELOG.md`); the README
+also works on its own. The current version is 0.6.3 (`package.json`, `CHANGELOG.md`); the README
 *Quick start for a new teammate* is the path for a new user. Licence:
 `AGPL-3.0-only OR LicenseRef-PassionCode-Commercial` ([ADR-0007](docs/adr/0007-agpl-or-commercial.md)).
 
@@ -111,6 +111,7 @@ LC-09 inventory for this product. The tests that hold each rule are in `test/lif
 | A descriptor's `doctor` / `update` argv | the person (Health tab) or an agent (MCP) | its own process group, without `ELECTRON_RUN_AS_NODE` / `NODE_OPTIONS`, 120 s deadline (`src/core/children.ts`) | its deadline, quit, or the MCP session ending — the whole group |
 | An agent console session (ADR-0017): the chosen runtime's own CLI on a PTY (`node-pty`; `spawn-helper` → the runtime), or `switchboard launch … --in-place` for a folder bound to a Switchboard project | the person, with New session or Continue last in a service's console | runs while the person works; nothing reaches a hidden window (its output waits in a 1 MB ring); a running console holds back an automatic update install | Stop (asks first; SIGHUP, SIGKILL 2 s later), the service's removal, quit (`will-quit` waits for every session to end) |
 | `launchctl`, `lsof`, `osascript` (JXA, `host_status`; Terminal for Open in Terminal), `/usr/bin/open`, `switchboard --json project show` / `accounts list` / `agents list` / `launch --help`, the login shell once (`$SHELL -ilc`, to read its `PATH`) | the monitor, the listener scan, the MCP tools, the agent console | short-lived; never more often than the table below | they exit by themselves |
+| Reopen helper (`/bin/sh`, FD-30) | a launch that finds ShipIt installing a newer build (it quits at once and leaves this) | waits while the `ai.passioncode.fabric-dashboards.ShipIt` job runs (at most 10 min), then `open -b ai.passioncode.fabric-dashboards`, ends | itself |
 | Uninstall helper (`/bin/sh`) | Settings → Uninstall, after the person confirms | waits for the app's pid (at most 30 s), removes the app's data, ends; an app still running after 30 s keeps its data | itself |
 
 The app **owns no launchd job and listens on no port** (ADR-0002, `SECURITY.md`). The only

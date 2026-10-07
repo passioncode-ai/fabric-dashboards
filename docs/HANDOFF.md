@@ -7,6 +7,16 @@ Current release: 0.6.2 (published 2026-10-06 23:41 UTC, run 37541067349; 0.6.1 w
 
 ## Next — start here (2026-10-07)
 
+**0.6.3 — branch `agent/fd30-pending-install`** (FD-30). The field proof of 0.6.2 found that opening
+the old app while ShipIt installs aborts the install: on the operator's Mac 0.5.6 → 0.6.2 failed
+twice at 02:11–02:13 local (ADR-0015 addendum 0.6.3 has the log lines). 0.6.3 makes a launch step
+aside while ShipIt installs a newer build and reopens the app afterwards. **The operator's copy is
+still 0.5.6 with 0.6.2 staged** (ShipIt job running, staged CDHash `a8505bbc…` = the published build):
+it needs one Restart to Update without reopening, or 10 hidden minutes with nothing running — 0.5.6
+logs nothing about updates, so why its own automatic install did not fire after 02:23 is not visible.
+**Next task:** gate, merge, tag `v0.6.3`, the operator's approvals; then check the installed version and
+`main.log` for `update_install installed`.
+
 **Released: 0.6.2 on 2026-10-06 23:41 UTC** (run 37541067349, tag `v0.6.2` on `2c06fa8`; GitHub
 release `v0.6.2`, Latest). The receipt, read from the `release-macos` artifact: revision `2c06fa8`,
 Developer ID Application (KJ35UYYL22), `accepted and stapled: app, update zip, image`, both

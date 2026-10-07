@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+## 0.6.3 - 2026-10-07
+
+### Fixed
+
+- **Opening the app during an update no longer breaks the install.** On 2026-10-07 the 0.5.6 → 0.6.2
+  install on the operator's Mac was aborted twice because the old copy was opened again while it was
+  being replaced. Now a launch that finds an install under way says «Finishing the update to X —
+  Fabric Dashboards reopens by itself», steps aside, and the app opens by itself when the install has
+  finished. «Restart to Update» says the same before it quits.
+
 ### Added
 
 - **Estate updates (FD-30, [ADR-0018](docs/adr/0018-estate-updates-from-inside-the-app.md)).** The
