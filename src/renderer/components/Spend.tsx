@@ -1,5 +1,6 @@
 import { Fragment, useEffect, useState } from 'react';
 import type { SpendSum } from '@passioncode-ai/fabric-service-host/usage';
+import { limitAmount, limitHeadline, limitName, limitWindow } from '../../core/limits';
 import { sumSpend, type SpendEntry, type SpendWindow } from '../../core/spend';
 import type { AppStatus, ServiceSnapshot } from '../../core/types';
 import { api, nameOf, Spinner, useT } from '../lib';
@@ -10,6 +11,7 @@ const REFRESH_MS = 60_000;
 /** SCN-036…038 (ADR-0013): what every agent spent, from its own usage report. */
 export function Spend({ status }: { status: AppStatus }) {
   const { t, time, lang, reason } = useT();
+  const day = (iso: string) => new Date(iso).toLocaleDateString(lang, { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
   const [entries, setEntries] = useState<SpendEntry[] | null>(null);
   const [readAt, setReadAt] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -76,11 +78,31 @@ export function Spend({ status }: { status: AppStatus }) {
                   <td>{money(e.summary.today, t)}</td>
                   <td>{money(e.summary.week, t)}</td>
                   <td>{money(e.summary.month, t)}</td>
-                  <td>{e.summary.budget ? t(`spend.budget.${e.summary.budget.period}`, { spent: usd(e.summary.budget.spentUsd, t), limit: usd(e.summary.budget.limitUsd, t) }) : '—'}</td>
+                  <td>{(() => {
+                    // DEC-0027: the limit that most needs a person; a report with only the older `budget` keeps that line.
+                    const head = limitHeadline(e.summary.limits ?? [], t);
+                    if (head) return <span className={head.state === 'tripped' || head.state === 'breach' ? 'state-down' : head.state === 'near' ? 'state-degraded' : undefined}>{head.text}</span>;
+                    return e.summary.budget ? t(`spend.budget.${e.summary.budget.period}`, { spent: usd(e.summary.budget.spentUsd, t), limit: usd(e.summary.budget.limitUsd, t) }) : '—';
+                  })()}</td>
                 </tr>
                 {open === e.key && (
                   <tr className="spend-models">
                     <td colSpan={5}>
+                      {(e.summary.limits ?? []).length > 0 && (
+                        <table className="spend-limits" aria-label={t('spend.limits')}>
+                          <thead><tr><th scope="col">{t('spend.limits.limit')}</th><th scope="col">{t('spend.limits.window')}</th><th scope="col">{t('spend.limits.amount')}</th><th scope="col">{t('spend.limits.state')}</th></tr></thead>
+                          <tbody>
+                            {(e.summary.limits ?? []).map((l) => (
+                              <tr key={l.id} className={l.state === 'off' ? 'muted' : undefined}>
+                                <td>{limitName(l, t)}</td>
+                                <td>{limitWindow(l, t, day)}</td>
+                                <td>{limitAmount(l, t)}</td>
+                                <td className={l.state === 'tripped' || l.state === 'breach' ? 'state-down' : l.state === 'near' ? 'state-degraded' : undefined}>{t(`limit.state.${l.state}`)}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      )}
                       {e.summary.models.length === 0 ? <span className="muted">{t('spend.noCalls')}</span> : (
                         <table>
                           <thead><tr><th scope="col">{t('spend.model')}</th><th scope="col">{t('spend.calls')}</th><th scope="col">{t('spend.tokens')}</th><th scope="col">{t('spend.cost')}</th></tr></thead>

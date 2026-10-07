@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
-import { checkUsage, summarizeUsage, type UsageReport } from '../src/usage';
+import { checkUsage, rankLimits, summarizeUsage, type UsageReport } from '../src/usage';
 
 const fixture = (name: string) => JSON.parse(fs.readFileSync(path.join(__dirname, '../../../test/fixtures/contract', name), 'utf8'));
 const REPORT = (): UsageReport => fixture('positive_service-usage.json');
@@ -104,4 +104,42 @@ test('D-2: calls with no cost are a lower bound even when unpricedCalls says 0; 
   Object.assign(fee.days[0]!, { calls: 0, unpricedCalls: 0, costUsd: 2 });
   assert.equal(checkUsage(fee, ME), null);
   assert.equal(summarizeUsage(fee, AT('2026-10-04')).today.costUsd, 2, 'a cost reported without calls is not zeroed');
+});
+
+test('DEC-0027: budgets — the positive fixture reads, each negative names its problem, and a breach is shown, not refused', () => {
+  const good = fixture('positive_service-usage-budgets.json');
+  assert.equal(checkUsage(good, ME), null);
+  assert.match(checkUsage(fixture('negative_service-usage-budgets-bad-scope.json'), ME)!, /scope is not machine, project, pool or job/);
+  assert.match(checkUsage(fixture('negative_service-usage-budgets-unknown-field.json'), ME)!, /unknown field note/);
+  assert.match(checkUsage(fixture('negative_service-usage-budgets-zero-limit.json'), ME)!, /limitUsd is not a positive amount/);
+  const base = good.budgets as Record<string, unknown>[];
+  const withOne = (patch: Record<string, unknown>, i = 0) => ({ ...good, budgets: base.map((l, j) => (j === i ? { ...l, ...patch } : l)) });
+  assert.match(checkUsage({ ...good, budgets: [...base, base[0]] }, ME)!, /appears twice/);
+  assert.match(checkUsage(withOne({ subject: undefined }, 2), ME)!, /without its subject/);
+  assert.match(checkUsage(withOne({ subject: 'x' }), ME)!, /machine limit with a subject/);
+  assert.match(checkUsage(withOne({ windowSeconds: 60 }), ME)!, /more than one window/);
+  assert.match(checkUsage(withOne({ tripped: true, enforced: false }), ME)!, /stopped work but is not enforced/);
+  assert.match(checkUsage(withOne({ spentUsd: 1 }, 3), ME)!, /per_job limit with a window or a spend/);
+  assert.match(checkUsage(withOne({ period: undefined, windowSeconds: 3600 }, 0), ME)!, /monthly limit that does not count a month/);
+  assert.match(checkUsage(withOne({ limitUsd: null }, 0), ME)!, /monthly limit without an amount/);
+  assert.equal(checkUsage(withOne({ spentUsd: 150 }), ME), null, 'a breach is a truthful report');
+  assert.equal(checkUsage(withOne({ kind: 'something_new', period: undefined }, 7), ME), null, 'an unknown kind is shown, never refused');
+});
+
+test('DEC-0027: limits read stopped work first, then breaches, then the closest; approval is a threshold, not a breach', () => {
+  const ranked = rankLimits([
+    { id: 'a.ok', scope: 'machine', kind: 'monthly', period: 'month', limitUsd: 100, spentUsd: 10, enforced: true },
+    { id: 'b.off', scope: 'project', subject: 'p', kind: 'daily', period: 'day', limitUsd: 1, spentUsd: 5, enforced: false },
+    { id: 'c.breach', scope: 'project', subject: 'p', kind: 'daily', period: 'day', limitUsd: 5, spentUsd: 6, enforced: true },
+    { id: 'd.approval', scope: 'project', subject: 'p', kind: 'approval', limitUsd: 1, spentUsd: null, enforced: true },
+    { id: 'e.tripped', scope: 'machine', kind: 'emergency', windowSeconds: 86400, limitUsd: 500, spentUsd: 501, enforced: true, tripped: true },
+    { id: 'f.near', scope: 'pool', subject: 't', kind: 'pool', since: '2026-10-01T00:00:00Z', limitUsd: 10, spentUsd: 9, enforced: true },
+    { id: 'g.unknown', scope: 'machine', kind: 'rate_card_review', limitUsd: 25, spentUsd: null, enforced: true },
+    { id: 'h.per_job', scope: 'project', subject: 'p', kind: 'per_job', limitUsd: 2, spentUsd: null, enforced: true },
+  ]);
+  assert.deepEqual(ranked.map((l) => `${l.id}:${l.state}`), ['e.tripped:tripped', 'c.breach:breach', 'f.near:near', 'a.ok:ok', 'g.unknown:unknown', 'h.per_job:cap', 'd.approval:threshold', 'b.off:off']);
+  assert.equal(ranked.find((l) => l.id === 'b.off')!.share, 5, 'a limit that is not enforced keeps its numbers and is still shown');
+  const summary = summarizeUsage(fixture('positive_service-usage-budgets.json'), AT('2026-10-05'));
+  assert.equal(summary.limits.length, 8, 'every limit of the report is kept');
+  assert.equal(summarizeUsage(REPORT(), AT('2026-10-05')).limits.length, 0, 'a report without budgets has none');
 });

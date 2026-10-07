@@ -53,3 +53,23 @@ provider and model, and **unknown cost as `null`, never `0`**.
 - Organisation-wide spend across machines (an employee's agents seen by an administrator) is
   Fabric's aggregation over these same reports. It is not this app's job (see the agent-estate
   architecture report, `docs/reports/2026-10-04-agent-estate-architecture/`).
+
+## Amendment — 2026-10-07: every limit, not one budget (DEC-0027)
+
+The operator, 2026-10-07: «надо чтобы всегда лимиты все были видны в коста агентов» — every limit an
+agent applies must always be visible on Spend. An agent such as Asset Foundry applies many (per order,
+approval, daily, monthly, velocity, pools, emergency stops, each enforced or skipped); DEC-0021's one
+`budget` could not carry them. Shape proposed here and agreed with Asset Foundry, merged in the
+contract as DEC-0027 (fabric-agent-contract `94b1829`, rule FAC-SEM-031). Dashboards 0.6.4:
+
+- `@passioncode-ai/fabric-service-host` 0.3.3 reads `budgets[]` (`limitsProblem`, `rankLimits`); the
+  contract fixtures are re-copied at `94b1829` (29 files, four of them DEC-0027's).
+- Spend's last column is **Limits**: the limit that most needs a person — red when it stopped work or
+  is breached, amber at 80 % — with how many more; an agent with only the older `budget` keeps that
+  line. Expanding an agent lists every limit (which one and for whom, its window, spent of limit, its
+  state) above the models. A limit that is not enforced is muted, never hidden; an approval threshold
+  is never a breach; an unknown kind shows by the agent's own name (`src/core/limits.ts`).
+- MCP `spend` returns the ranked `limits` with each agent's summary.
+- Tests: `packages/service-host/test/usage.test.ts` *DEC-0027* (the contract's positive and three
+  negative fixtures, the ranking), `test/spend.test.ts` *DEC-0027* (wording in English and Russian),
+  `test/e2e/spend.test.ts` (a breached limit leads the row; all eight listed in the running app).

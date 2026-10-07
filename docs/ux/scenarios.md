@@ -41,7 +41,7 @@
 | SCN-033 | Several instances of one agent read as one agent | products | P-01 | ST-014, ST-002 | draft | 2026-10-06 |
 | SCN-034 | Switch between an agent's connections | products | P-01 | ST-014, ST-005 | draft | 2026-10-06 |
 | SCN-035 | A connection fails while the agent is fine | products | P-01 | ST-014, ST-002, ST-004 | draft | 2026-10-06 |
-| SCN-036 | See what every agent spent | spend | P-01 | ST-015 | draft | 2026-10-06 |
+| SCN-036 | See what every agent spent | spend | P-01 | ST-015 | draft | 2026-10-07 |
 | SCN-037 | A cost that is not known reads as unknown | spend | P-01 | ST-015 | draft | 2026-10-06 |
 | SCN-038 | An agent's spend cannot be read | spend | P-01 | ST-015, ST-004 | draft | 2026-10-06 |
 | SCN-039 | Reload and move through an embedded dashboard | dashboards | P-01 | ST-016, ST-005 | draft | 2026-10-06 |
@@ -677,7 +677,7 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
   2. Agent calls `link` for a job it started -> it receives the deep link as the primary dashboard action and the plain address for diagnostics; `host_status` distinguishes installed/absent/unknown/version/handler; `open` uses the existing host (browser only for confirmed absence with `fallback=if_absent`, never with `fallback=never`)
   3. Agent calls `control` (start, stop, restart), `doctor` or `update` -> the same launchd verbs and descriptor commands as the app run, and the tool returns the result it observed
   4. Agent calls `activity` -> recent events as sentences, each with a deep link when it points at a page
-  5. Agent calls `spend` -> each agent's own usage entries (today, 7 and 30 days, per model, budget; a null cost is unknown, `partial` a lower bound); a service that does not answer, or whose address another program answers, is an error entry — its spend is unknown, never "not reporting"
+  5. Agent calls `spend` -> each agent's own usage entries (today, 7 and 30 days, per model, budget and every limit with its state; a null cost is unknown, `partial` a lower bound); a service that does not answer, or whose address another program answers, is an error entry — its spend is unknown, never "not reporting"
 - **Expected result:** agents hand the operator the exact page and use the app's rules for administration instead of launchctl by hand
 - **Alt paths:** an online service or one without launchd lifecycle -> `control` refuses; a missing launchd plist -> `control` refuses before calling launchctl; no declared doctor or update -> the tool refuses; an unknown tool -> a JSON-RPC error (-32602); an argument the tool does not declare -> refused; the app was updated under a running session -> the next call answers stale with both versions, and the server exits; `doctor` and `update` run the service's programs and are not marked read-only
 - **UI elements:** none (agent tool results); the opened service view
@@ -817,16 +817,16 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **Preconditions:** at least one agent declares `surfaces.usage` in its well-known document (contract DEC-0021)
 - **Steps:**
   1. User clicks Spend -> system reads each agent's usage report now, with its token in the main process, and shows "read at HH:MM", Refresh and totals for Today, 7 days and 30 days across agents (when at least one agent reports)
-  2. User reads the table -> one row per reporting agent: today, 7 days, 30 days, and its own budget ("$1.59 of $100.00 this month")
-  3. User clicks an agent's name -> the row expands to models: model, provider, calls, tokens in / out, cost over the last 31 days, most expensive first
+  2. User reads the table -> one row per reporting agent: today, 7 days, 30 days, and Limits — the limit that most needs a person ("Over the limit: $6.00 of $5.00 · Daily · project demo (+7 more)"; a limit that stopped work or is breached shows first and in red, one at 80 % or more in amber), or the older single budget ("$1.59 of $100.00 this month") from an agent that lists no limits
+  3. User clicks an agent's name -> the row expands to every limit the agent applies (DEC-0027) — which limit and for whom, its window, spent of limit, and its state (Stopped work, Over the limit, Close to the limit, Within, Spend not counted, Caps each order, Orders above it wait for you, Not enforced) — and below it the models: model, provider, calls, tokens in / out, cost over the last 31 days, most expensive first
   4. User leaves the page open -> it is read again every minute while the window shows; a hidden window gets the last sums; Refresh reads now
 - **Expected result:** where the money goes, per agent and per model, without opening a provider console
-- **Alt paths:** no agent reports -> "No agent reports its spend yet" with what an agent must publish; some agents report and others do not -> "Not reporting spend yet: …" names the others; an agent asks through MCP `spend` -> the same sums
-- **UI elements:** Spend nav item, totals tiles, agents table, model breakdown, Refresh
+- **Alt paths:** a limit the operator chose not to apply -> still listed, muted, "Not enforced"; an approval threshold crossed -> "Orders above it wait for you", never a breach; a kind of limit the app does not know -> listed by the agent's own name for it; no agent reports -> "No agent reports its spend yet" with what an agent must publish; some agents report and others do not -> "Not reporting spend yet: …" names the others; an agent asks through MCP `spend` -> the same sums
+- **UI elements:** Spend nav item, totals tiles, agents table with the Limits column, limits table, model breakdown, Refresh
 - **States covered:** loading, empty, success
 - **Errors & recovery:** see SCN-038
 - **Status:** draft
-- **Coverage:** src/renderer/components/Spend.tsx, src/core/spend.ts, packages/service-host/src/usage.ts, src/mcp/tools.ts (spend), test/e2e/spend.test.ts
+- **Coverage:** src/renderer/components/Spend.tsx, src/core/spend.ts, src/core/limits.ts, packages/service-host/src/usage.ts (limitsProblem, rankLimits), src/mcp/tools.ts (spend), test/e2e/spend.test.ts
 - **Product:** unobserved
 
 ### SCN-037: A cost that is not known reads as unknown
