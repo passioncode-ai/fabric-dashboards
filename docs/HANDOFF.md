@@ -3,7 +3,7 @@
 Updated 2026-10-07 (0.6.2: 0.6.1 withdrawn for audit HIGH-2, audit fixes, signed feed; 0.6.1: LC-16 in detail updater, Russian by choice; 0.6.0 published 2026-10-06 21:35 UTC; release 0.5.6: third review pass, token latch; release 0.5.5 withdrawn: release audit and its second pass, A2A plan, ADR-0016, ADR-0015 data and updates, FD-05, FD-06, FD-13; Spend and DEC-0021; one entry per agent, ADR-0012; lifecycle contract landed from PR #21, unreleased; CI release rehearsal
 `v0.4.1-rc.1` green; releases move to CI signing; release 0.4.1, MCP links to online services).
 
-Current release: 0.6.2 (published 2026-10-06 23:41 UTC, run 37541067349; 0.6.1 withdrawn). Before it, 0.6.0 (published 2026-10-06 21:35 UTC, run 37505569449); Before it, 0.5.6 (2026-10-06); the 0.4.1 section below is the previous one. Earlier releases below are preserved as dated evidence.
+Current release: 0.6.4 (published 2026-10-07 01:57 UTC, run 37558793926; carries 0.6.3, superseded before approval). Before it, 0.6.2 (published 2026-10-06 23:41 UTC, run 37541067349; 0.6.1 withdrawn). Before it, 0.6.0 (published 2026-10-06 21:35 UTC, run 37505569449); Before it, 0.5.6 (2026-10-06); the 0.4.1 section below is the previous one. Earlier releases below are preserved as dated evidence.
 
 ## Next — start here (2026-10-07)
 
@@ -19,15 +19,19 @@ confirmed; one running console was named), `update_install installed from=0.6.2 
 **FD-07 measured on 0.6.4** (main process, window hidden, 10 min, `ps -o time,rss` every 30 s):
 1.77 s CPU in total = 0.295 % average (target ≤ 0.3 %), RSS ~167 MB average.
 
-**0.6.5 (unreleased, this checkout) — FD-29's local feed.** Squirrel now gets the verified zip
-through a local `file://` feed (`localFeed` in `src/core/release-verify.ts`; the verified-update
-cache lifecycle in `src/electron/updater.ts`: emptied at start, before each verification, and once
-Squirrel has staged or refused its copy). The code-directory pin on the staged bundle stays as the
-second check. **Next task:** merge on a green gate (`FD_SKIP_LAUNCHD=1 npm run check`); the
+**0.6.5 (unreleased; FD-29 merged 2026-10-07 as PR #44, `d8c6d67`) — the local feed.** Squirrel now
+gets the verified zip through a local `file://` feed (`localFeed` in `src/core/release-verify.ts`;
+the verified-update cache lifecycle in `src/electron/updater.ts`: emptied at start, before each
+verification, and once Squirrel has staged or refused its copy). The code-directory pin on the
+staged bundle stays as the second check. Gate green at merge (`FD_SKIP_LAUNCHD=1 npm run check`,
+314 tests, 313 pass, 1 launchd skip). **Next task:** tag `v0.6.5` and run the release; the
 0.6.4 → 0.6.5 update on this Mac will exercise the old path once more, and the update after it is
-the local feed's field proof (a 0.6.5+ copy downloading). FD-25 waits for the operator to name an
-account and a project folder (declined 2026-10-07: «никаких тестовых клауд кодов») and for
-Switchboard on this Mac to reach 0.6.10 (still 0.6.8, no projects, at 04:53 local).
+the local feed's field proof (a 0.6.5+ copy downloading). Field finding on the installed 0.6.4:
+the estate updater's skills check fails in the packaged app — `estate_check failed … spawn npm
+ENOENT` (`main.log` 02:35, 03:20, 08:34 UTC; `npm` is not on the packaged PATH) — backlog FD-33.
+FD-25 waits for the operator to name an account and a project folder (declined 2026-10-07:
+«никаких тестовых клауд кодов») and for Switchboard on this Mac to reach 0.6.10 (still 0.6.8, no
+projects, at 04:53 local).
 
 **Released: 0.6.4 on 2026-10-07 01:57 UTC** (run 37558793926, tag `v0.6.4` on `77c91f4`; Latest). It
 carries 0.6.3 (FD-31, FD-30; superseded before approval) and FD-32. Receipt: Developer ID (KJ35UYYL22),
