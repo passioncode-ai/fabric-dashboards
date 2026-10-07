@@ -4,6 +4,10 @@
 
 ## 0.6.4 - 2026-10-07
 
+The first published release since 0.6.2. It carries everything listed under 0.6.3 below — 0.6.3 was
+tagged and built, then superseded by this release before approval (run 37557707038 cancelled), so
+the operator approves one release instead of two.
+
 ### New
 
 - **Every limit an agent applies is visible on Spend** (contract DEC-0027). The Limits column shows
@@ -13,7 +17,7 @@
   is never shown as a breach; a kind of limit the app does not know shows by the agent's own name.
   MCP `spend` returns the same list.
 
-## 0.6.3 - 2026-10-07
+## 0.6.3 - 2026-10-07 (superseded by 0.6.4 — not published)
 
 ### Fixed
 
