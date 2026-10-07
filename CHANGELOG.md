@@ -1,9 +1,14 @@
 # Changelog
 
-## Unreleased
+## 0.6.5 - 2026-10-08
 
 ### Fixed
 
+- **An update is downloaded once, and the bytes that were checked are the bytes that install**
+  (FD-29). The app used to verify its own download and then let Squirrel fetch the zip again from
+  the network; now Squirrel is handed a local feed that names the verified file on this disk, so the
+  window between the app's check and Squirrel's fetch is gone by construction. The bundle Squirrel
+  stages is still compared against the verified code-directory hash before it may install.
 - **Estate updates work in the installed app, and only what was checked runs** (FD-33, FD-30 review,
   [ADR-0018 amendment](docs/adr/0018-estate-updates-from-inside-the-app.md)). The skills check failed on
   every run with `spawn npm ENOENT`, because an app opened from Finder has no `npm` on its PATH; `git`,
@@ -16,16 +21,6 @@
   check reads "could not be checked" instead of "tracked from the first run", a failed update is a
   failed check with its retry, a `~/` clone path is kept, a settings change checks again within
   seconds, and nothing starts after quit.
-
-## 0.6.5 - 2026-10-07
-
-### Fixed
-
-- **An update is downloaded once, and the bytes that were checked are the bytes that install**
-  (FD-29). The app used to verify its own download and then let Squirrel fetch the zip again from
-  the network; now Squirrel is handed a local feed that names the verified file on this disk, so the
-  window between the app's check and Squirrel's fetch is gone by construction. The bundle Squirrel
-  stages is still compared against the verified code-directory hash before it may install.
 
 ## 0.6.4 - 2026-10-07
 
