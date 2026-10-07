@@ -7,6 +7,21 @@ Current release: 0.6.2 (published 2026-10-06 23:41 UTC, run 37541067349; 0.6.1 w
 
 ## Next — start here (2026-10-07)
 
+**Released: 0.6.4 on 2026-10-07 01:57 UTC** (run 37558793926, tag `v0.6.4` on `77c91f4`; Latest). It
+carries 0.6.3 (FD-31, FD-30; superseded before approval) and FD-32. Receipt: Developer ID (KJ35UYYL22),
+`accepted and stapled: app, update zip, image`, Gatekeeper accepted, fuses `100011011`, `checks.pty`,
+`checks.updateVerifier`, `checks.downgradeGuard`, MCP `initialize` as 0.6.4. Published files checked as
+the updater checks them: signature ok, `signedFeed` ok, zip matches, strict codesign, team
+`KJ35UYYL22`, CDHash `20e16df0…`; `latest` feed answers 0.6.4. Knowledge base: fabric-workspace PR #64
+(`ccd6eaf`).
+
+**First task for the next agent:** the installed copy. At 04:10 local it was still 0.5.6 (pid 90452,
+started 02:12:30) with 0.6.2 staged by ShipIt; it needs one Restart to Update without reopening the
+app (FD-31 protects only installs started by 0.6.3+). After it reaches 0.6.2, 0.6.2's own updater
+moves it to 0.6.4 (first check 90 s after start). Record `update_install installed` and
+`auto_update on` from `main.log`. Then FD-25 once Switchboard on this Mac is 0.6.10 and a project
+folder exists (the operator's account decision), and FD-29's `file://` feed.
+
 **0.6.4 — branch `agent/budgets-064`** (FD-32): every limit an agent applies is visible on Spend
 (contract DEC-0027, `94b1829`; service-host 0.3.3). 0.6.3 (FD-31 step-aside + FD-30 estate updater) was
 tagged on `5683d51` and superseded by 0.6.4 before approval (run 37557707038 cancelled); e2e on its `main`:
