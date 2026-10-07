@@ -25,6 +25,17 @@ service data.
   server alike (`RemoteTokenLatch`). A usage report, an events feed or a dashboard sign-in is
   never read from a port or origin that answers as something else, and a sign-in reads the
   service's state at that moment, not when its page was first opened.
+- **Watches the estate's versions** (FD-30, [ADR-0018](docs/adr/0018-estate-updates-from-inside-the-app.md)),
+  90 s after start and every 6 hours while *Watch the contract and skill versions* is on (on by
+  default; FD-34 holds whether it should be): it asks the public npm registry (`registry.npmjs.org`)
+  for the published `sshlg-skills` version, and — only when Settings names a contract clone — runs
+  `git ls-remote` and `git fetch` in that clone against its own `origin`, which must be
+  `passioncode-ai/fabric-agent-contract`. These are `git` and `npm` from the login shell's PATH, in
+  their own process group, with a deadline, without a terminal prompt (`GIT_TERMINAL_PROMPT=0`); the
+  clone's own git configuration applies to them. Nothing about services or tokens is sent. With
+  *Update skills by themselves* on (off by default) it **runs code from the registry**:
+  `npx --yes sshlg-skills@<version> update`, exactly the version it checked, and only after every
+  maintainer and the publisher of that version are on the allowlist in `src/core/estate-update.ts`.
 - **Fetches** the update feed
   (`https://github.com/passioncode-ai/fabric-dashboards/releases/latest/download/update-feed.json`,
   pinned in the code; no environment variable replaces it) 90 s after start and every 6 hours,

@@ -26,9 +26,10 @@ verification, and once Squirrel has staged or refused its copy). The code-direct
 staged bundle stays as the second check. Gate green at merge (`FD_SKIP_LAUNCHD=1 npm run check`,
 314 tests, 313 pass, 1 launchd skip). **Next task:** tag `v0.6.5` and run the release; the
 0.6.4 → 0.6.5 update on this Mac will exercise the old path once more, and the update after it is
-the local feed's field proof (a 0.6.5+ copy downloading). Field finding on the installed 0.6.4:
-the estate updater's skills check fails in the packaged app — `estate_check failed … spawn npm
-ENOENT` (`main.log` 02:35, 03:20, 08:34 UTC; `npm` is not on the packaged PATH) — backlog FD-33.
+the local feed's field proof (a 0.6.5+ copy downloading). The field finding behind it — the estate
+updater's skills check failing in the packaged app (`estate_check failed … spawn npm ENOENT`,
+`main.log` 02:35, 03:20, 08:34 UTC) — is fixed: FD-33 merged as PR #45 (`9862e53`, unreleased), and
+it leaves FD-34 to the operator (watch-by-default, and where the installed skills version is read).
 FD-25 waits for the operator to name an account and a project folder (declined 2026-10-07:
 «никаких тестовых клауд кодов») and for Switchboard on this Mac to reach 0.6.10 (still 0.6.8, no
 projects, at 04:53 local).
@@ -114,8 +115,13 @@ read from fabric-agent-adapter/fabric-dashboards/fabric checkouts; the only auto
 `git fetch`), skills update behind a switch (default off) with a publisher check before
 `npx --yes sshlg-skills update`. LC-16 cadence; activity codes `estate_check` / `estate_update`.
 Checks: `FD_SKIP_LAUNCHD=1 npm run check` — 307 tests, 306 pass, 1 launchd skip; `npm run
-test:e2e` not run (needs an unlocked screen). **Next task:** review and merge on the green gate, then
-the operator names the contract clone path; an e2e pass when a screen is available.
+test:e2e` not run (needs an unlocked screen). Merged (PR #38, #39) and released in 0.6.3/0.6.4.
+
+**Review and fixes — branch `agent/fd30-estate-fixes-20261007` (FD-33).** A read-only review of
+`d8c6d67` found 17 defects; the first was in the field log on every check (`spawn npm ENOENT`). All
+fixed except two operator decisions (FD-34); see the [ADR-0018 amendment](adr/0018-estate-updates-from-inside-the-app.md).
+**Next task:** merge on the green gate and ship with the next release; then the operator names the
+contract clone (`~/DATA/fabric-agent-contract` works now) and decides FD-34; an estate e2e test is still to write.
 
 ## Previous — 0.6.0 (2026-10-06)
 

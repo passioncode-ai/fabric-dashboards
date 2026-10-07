@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+### Fixed
+
+- **Estate updates work in the installed app, and only what was checked runs** (FD-33, FD-30 review,
+  [ADR-0018 amendment](docs/adr/0018-estate-updates-from-inside-the-app.md)). The skills check failed on
+  every run with `spawn npm ENOENT`, because an app opened from Finder has no `npm` on its PATH; `git`,
+  `npm` and `npx` now run with the login shell's PATH, git without a terminal prompt. The automatic
+  skills update runs `sshlg-skills@<the checked version>` and only when every maintainer and the
+  publisher of that version are the expected owner, never whatever copy `npx` finds. A clone whose
+  remote merely contains the contract's name is refused; after a fetch the clone reads as up to date,
+  and its own `main` is shown, never moved. A short pin that names the tip (`main @94b1829`) is no
+  longer reported as behind, and every `fabric-contract.lock.json` beside the clone is read. A failed
+  check reads "could not be checked" instead of "tracked from the first run", a failed update is a
+  failed check with its retry, a `~/` clone path is kept, a settings change checks again within
+  seconds, and nothing starts after quit.
+
 ## 0.6.5 - 2026-10-07
 
 ### Fixed
