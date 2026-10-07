@@ -9,7 +9,7 @@ import path from 'node:path';
 import test from 'node:test';
 import type { OwnedResult } from '../src/core/children';
 import * as estate from '../src/core/estate-update';
-import { EstateUpdater, readSiblingPins, siblingPinFiles, type Run } from '../src/electron/estate-updater';
+import { EstateUpdater, estateEnv, expandHome, readSiblingPins, siblingPinFiles, type Run } from '../src/electron/estate-updater';
 import { merge } from '../src/core/settings';
 import { CHECK_EVERY_MS, FIRST_CHECK_MS } from '../src/core/version';
 import { DEFAULT_SETTINGS, type Settings } from '../src/core/types';
@@ -36,19 +36,29 @@ test('pinFromSourceTxt reads "main @<sha>"', () => {
   assert.equal(estate.pinFromSourceTxt('no pin here'), null);
 });
 
-test('readSiblingPins reports each consumer pin and never fails on a missing file', () => {
+test('readSiblingPins reads every lock beside the clone, then the fixture pins, and never fails on a missing file', () => {
   const clone = path.join(tmp('fd-estate-pins-'), 'fabric-agent-contract');
-  const files = siblingPinFiles(clone);
-  assert.deepEqual(files.map((f) => f.key), ['fabric-agent-adapter', 'fabric', 'fabric-dashboards']);
-  const read = (file: string) => file.includes('fabric-agent-adapter') ? JSON.stringify({ commit: REMOTE })
+  const list = () => ['fabric-agent-contract', 'fabric-agent-adapter', 'research-agent', 'fabric', '.hidden'];
+  const files = siblingPinFiles(clone, list);
+  assert.deepEqual(files.map((f) => f.key), ['fabric', 'fabric-agent-adapter', 'research-agent', 'fabric', 'fabric-dashboards']);
+  const read = (file: string) => file.endsWith(path.join('fabric-agent-adapter', 'fabric-contract.lock.json')) ? JSON.stringify({ commit: REMOTE })
+    : file.endsWith(path.join('research-agent', 'fabric-contract.lock.json')) ? JSON.stringify({ commit: REMOTE.slice(0, 7) })
     : file.includes('SOURCE.json') ? JSON.stringify({ currentCommit: LOCAL })
-    : null; // dashboards SOURCE.txt missing
-  const pins = readSiblingPins(read, clone, REMOTE);
+    : null; // fabric has no lock; dashboards SOURCE.txt missing
+  const pins = readSiblingPins(read, clone, REMOTE, list);
   assert.deepEqual(pins, [
     { key: 'fabric-agent-adapter', pinned: REMOTE, state: 'current' },
+    { key: 'research-agent', pinned: REMOTE.slice(0, 7), state: 'current' },
     { key: 'fabric', pinned: LOCAL, state: 'behind' },
     { key: 'fabric-dashboards', pinned: null, state: 'unknown' },
   ]);
+});
+
+test('a short pin naming the tip is current, as the real SOURCE.txt `main @94b1829` is (review finding 4)', () => {
+  const tip = '94b1829c1816' + 'f'.repeat(28);
+  assert.equal(estate.pinState(estate.pinFromSourceTxt('byte-identical to main @94b1829 (checked)'), tip), 'current');
+  assert.equal(estate.pinState('94b182', tip), 'behind', 'fewer than seven characters is not a pin');
+  assert.equal(estate.pinState('0000000', tip), 'behind');
 });
 
 // ── clone trust and tips ─────────────────────────────────────────────────────────────────
@@ -58,6 +68,10 @@ test('contractCloneState refuses anything that is not the contract repository', 
   assert.equal(estate.contractCloneState({ clonePath: '/x', remoteUrl: 'git@github.com:passioncode-ai/fabric-agent-contract.git' }), 'ready');
   assert.equal(estate.contractCloneState({ clonePath: '/x', remoteUrl: 'https://github.com/someone/else.git' }), 'not-a-clone');
   assert.equal(estate.contractCloneState({ clonePath: '/x', remoteUrl: null }), 'not-a-clone', 'no origin is not a clone');
+  assert.equal(estate.contractCloneState({ clonePath: '/x', remoteUrl: 'https://github.com/evil/fabric-agent-contract-fork.git' }), 'not-a-clone', 'a name inside the URL is not the repository (review finding 12)');
+  assert.equal(estate.contractCloneState({ clonePath: '/x', remoteUrl: 'https://github.com/evil/fabric-agent-contract.git' }), 'not-a-clone', 'another owner is another repository');
+  assert.equal(estate.contractCloneState({ clonePath: '/x', remoteUrl: 'https://github.com/passioncode-ai/fabric-agent-contract' }), 'ready');
+  assert.equal(estate.contractCloneState({ clonePath: '/x', remoteUrl: 'ssh://git@github.com/passioncode-ai/fabric-agent-contract.git' }), 'ready');
 });
 
 test('parseLsRemote and parseRevParse read the tips', () => {
@@ -78,19 +92,24 @@ test('compareTips: equal is current, different is behind, a missing tip is unkno
 
 // ── the skills registry ──────────────────────────────────────────────────────────────────
 
-test('parseRegistryVersion reads the first version-looking line', () => {
-  assert.equal(estate.parseRegistryVersion('\n1.52.6\n'), '1.52.6');
-  assert.equal(estate.parseRegistryVersion('npm warn ignored\n1.2.3-rc.1\n'), '1.2.3-rc.1');
-  assert.equal(estate.parseRegistryVersion('npm ERR! 404'), null);
+test('parseRegistryVersion reads the first release version; a prerelease is never installed by itself', () => {
+  assert.equal(estate.parseRegistryVersion('npm warn something\n1.52.6\n'), '1.52.6');
+  assert.equal(estate.parseRegistryVersion('1.53.0-rc.1\n'), null);
+  assert.equal(estate.parseRegistryVersion(''), null);
 });
 
-test('maintainersTrusted checks the publisher against the real registry output', () => {
-  // The value `npm view sshlg-skills maintainers` returned on 2026-10-07:
-  assert.equal(estate.maintainersTrusted('ssheleg <sergeysheleg4@gmail.com>'), true);
-  assert.equal(estate.maintainersTrusted('someone <other@example.com>\nssheleg <sergeysheleg4@gmail.com>'), true);
-  assert.equal(estate.maintainersTrusted('someone <other@example.com>'), false);
-  assert.equal(estate.maintainersTrusted('["ssheleg <sergeysheleg4@gmail.com>"]'), true, 'the JSON array shape npm can print');
-  assert.equal(estate.maintainersTrusted('{broken'), false);
+const publisher = (o: Record<string, unknown>) => JSON.stringify({ version: '1.52.6', maintainers: ['ssheleg <sergeysheleg4@gmail.com>'], _npmUser: 'ssheleg <sergeysheleg4@gmail.com>', ...o });
+
+test('publisherTrusted: every maintainer and the publisher of the checked version, from the real --json shape (review finding 3)', () => {
+  assert.equal(estate.publisherTrusted(publisher({}), '1.52.6'), true, 'the registry answer of 2026-10-07');
+  assert.equal(estate.publisherTrusted(publisher({ maintainers: ['ssheleg <a@b>', 'someone <c@d>'] }), '1.52.6'), false, 'one extra maintainer stops the automatic install');
+  assert.equal(estate.publisherTrusted(publisher({ _npmUser: 'someone <c@d>' }), '1.52.6'), false, 'published by someone else');
+  assert.equal(estate.publisherTrusted(publisher({ maintainers: 'ssheleg <a@b>' }), '1.52.6'), true, 'a single maintainer may come as a string');
+  assert.equal(estate.publisherTrusted(publisher({ maintainers: [{ name: 'ssheleg' }], _npmUser: { name: 'ssheleg' } }), '1.52.6'), true, 'the object form');
+  assert.equal(estate.publisherTrusted(publisher({ version: '1.52.5' }), '1.52.6'), false, 'not the version that was checked');
+  assert.equal(estate.publisherTrusted(publisher({ version: '1.53.0-rc.1' }), '1.53.0-rc.1'), false, 'never a prerelease');
+  assert.equal(estate.publisherTrusted(publisher({ maintainers: [] }), '1.52.6'), false, 'nobody named is not trust');
+  assert.equal(estate.publisherTrusted('{broken', '1.52.6'), false);
 });
 
 test('the skills record heals to unknown and round-trips', () => {
@@ -115,6 +134,9 @@ test('estate settings: defaults, a file from an earlier version, and the clone p
     { enabled: false, autoSkills: true, contractClone: '/work/fabric-agent-contract' });
   assert.deepEqual(merge({ estate: { contractClone: 'relative/path' } }).estate.contractClone, '', 'a relative path is never used: git -C would resolve it against the app');
   assert.deepEqual(merge({ estate: { enabled: 'yes' } }).estate.enabled, true, 'a wrong type falls back to the default');
+  assert.equal(merge({ estate: { contractClone: '~/DATA/fabric-agent-contract' } }).estate.contractClone, '~/DATA/fabric-agent-contract', 'the placeholder\'s own spelling is kept (review finding 7)');
+  assert.equal(expandHome('~/DATA/x', '/Users/p'), '/Users/p/DATA/x');
+  assert.equal(expandHome('/abs', '/Users/p'), '/abs');
 });
 
 // ── the runner ───────────────────────────────────────────────────────────────────────────
@@ -204,10 +226,13 @@ test('a contract behind the remote is fetched and never pulled; pins are read, n
   const clone = path.join(tmp('fd-estate-clone-'), 'fabric-agent-contract');
   fs.mkdirSync(clone, { recursive: true });
   const { updater, calls, log, respond } = rig({ cloneDir: clone });
+  let fetchedYet = false;
   respond((call) => {
     if (call.args[2] === 'remote') return ok('git@github.com:passioncode-ai/fabric-agent-contract.git');
     if (call.args[2] === 'ls-remote') return ok(`${REMOTE}\trefs/heads/main`);
+    if (call.args[2] === 'rev-parse' && call.args.includes('refs/remotes/origin/main')) return ok(fetchedYet ? REMOTE : LOCAL);
     if (call.args[2] === 'rev-parse') return ok(LOCAL);
+    if (call.args[2] === 'fetch') { fetchedYet = true; return ok(); }
     if (call.command === 'npm') return ok('1.52.6\n');
     return undefined;
   });
@@ -223,12 +248,14 @@ test('a contract behind the remote is fetched and never pulled; pins are read, n
     assert.deepEqual(fetched!.args, ['-C', clone, 'fetch', 'origin']);
     assert.equal(fetched!.timeoutMs, 30_000);
     assert.ok(!calls.some((c) => ['pull', 'reset', 'rebase', 'checkout'].some((w) => c.args.includes(w))), 'never pull, reset or rebase');
-    assert.ok(log.some((l) => l.startsWith('estate_check ok') && l.includes('contract=behind')), 'the check logged the state');
+    assert.ok(argv('refs/heads/main') && calls.some((c) => c.args.includes('--verify')), 'tips are read by full ref, never an ambiguous name (review finding 13)');
+    assert.ok(log.some((l) => l.startsWith('estate_check ok') && l.includes('contract=current fetched=yes')), 'after the fetch the clone knows the remote main (review finding 14)');
     assert.ok(log.some((l) => l.startsWith('estate_update done') && l.includes('target=contract')), 'the fetch logged as an update');
-    assert.equal(updater.state.contract.state, 'behind');
+    assert.equal(updater.state.contract.state, 'current');
     assert.equal(updater.state.contract.remoteTip, REMOTE);
-    assert.equal(updater.state.contract.localTip, LOCAL);
-    assert.deepEqual(updater.state.pins.map((p) => p.key), ['fabric-agent-adapter', 'fabric', 'fabric-dashboards']);
+    assert.equal(updater.state.contract.knownTip, REMOTE);
+    assert.equal(updater.state.contract.localTip, LOCAL, 'the clone\'s own main is reported and never moved');
+    assert.deepEqual(updater.state.pins.map((p) => p.key), ['fabric', 'fabric-dashboards'], 'no lock beside this clone: only the fixture pins');
     assert.ok(updater.state.pins.every((p) => p.state === 'unknown'), 'no sibling checkouts here: every pin reads as unknown, not a failure');
   } finally {
     updater.stop();
@@ -259,8 +286,8 @@ test('skills: a newer registry version is reported; with the switch on and the p
   const settings: Settings = { ...DEFAULT_SETTINGS, estate: { enabled: true, autoSkills: true, contractClone: '' } };
   const { updater, calls, log, dir, respond } = rig({ settings, record });
   respond((call) => {
+    if (call.command === 'npm' && call.args.includes('--json')) return ok(publisher({}));
     if (call.command === 'npm' && call.args[2] === 'version') return ok('1.52.6\n');
-    if (call.command === 'npm' && call.args[2] === 'maintainers') return ok('ssheleg <sergeysheleg4@gmail.com>');
     return undefined;
   });
   try {
@@ -269,7 +296,8 @@ test('skills: a newer registry version is reported; with the switch on and the p
     await flush();
     const apply = calls.find((c) => c.command === 'npx');
     assert.ok(apply, 'the apply ran');
-    assert.deepEqual(apply!.args, ['--yes', 'sshlg-skills', 'update']);
+    assert.deepEqual(apply!.args, ['--yes', 'sshlg-skills@1.52.6', 'update'], 'exactly the version that was checked runs (review finding 2)');
+    assert.ok(calls.some((c) => c.command === 'npm' && c.args.join(' ') === 'view sshlg-skills@1.52.6 version maintainers _npmUser --json'), 'the publisher of that version is checked');
     assert.equal(apply!.timeoutMs, 10 * 60_000, 'the apply gets the 10-minute bound');
     assert.deepEqual(estate.parseSkillsRecord(fs.readFileSync(path.join(dir, 'estate-skills.json'), 'utf8')),
       { installed: '1.52.6', updatedAt: new Date(T0 + FIRST_CHECK_MS).toISOString() }, 'the record moved only on exit 0');
@@ -286,8 +314,8 @@ test('skills: no record yet — with the switch on and the publisher trusted the
   const settings: Settings = { ...DEFAULT_SETTINGS, estate: { enabled: true, autoSkills: true, contractClone: '' } };
   const { updater, calls, dir, respond } = rig({ settings });
   respond((call) => {
+    if (call.command === 'npm' && call.args.includes('--json')) return ok(publisher({}));
     if (call.command === 'npm' && call.args[2] === 'version') return ok('1.52.6\n');
-    if (call.command === 'npm' && call.args[2] === 'maintainers') return ok('ssheleg <sergeysheleg4@gmail.com>');
     return undefined;
   });
   try {
@@ -323,8 +351,8 @@ test('skills: the publisher check refuses an unexpected owner and nothing runs',
   const settings: Settings = { ...DEFAULT_SETTINGS, estate: { enabled: true, autoSkills: true, contractClone: '' } };
   const { updater, calls, log, dir, respond } = rig({ settings, record });
   respond((call) => {
+    if (call.command === 'npm' && call.args.includes('--json')) return ok(publisher({ maintainers: ['intruder <intruder@example.com>'], _npmUser: 'intruder <intruder@example.com>' }));
     if (call.command === 'npm' && call.args[2] === 'version') return ok('1.52.6\n');
-    if (call.command === 'npm' && call.args[2] === 'maintainers') return ok('intruder <intruder@example.com>');
     return undefined;
   });
   try {
@@ -346,8 +374,8 @@ test('skills: a failed apply leaves the record and the state so the next check t
   const settings: Settings = { ...DEFAULT_SETTINGS, estate: { enabled: true, autoSkills: true, contractClone: '' } };
   const { updater, log, dir, respond } = rig({ settings, record });
   respond((call) => {
+    if (call.command === 'npm' && call.args.includes('--json')) return ok(publisher({}));
     if (call.command === 'npm' && call.args[2] === 'version') return ok('1.52.6\n');
-    if (call.command === 'npm' && call.args[2] === 'maintainers') return ok('ssheleg <sergeysheleg4@gmail.com>');
     if (call.command === 'npx') return fail('update crashed');
     return undefined;
   });
@@ -358,6 +386,7 @@ test('skills: a failed apply leaves the record and the state so the next check t
     assert.ok(log.some((l) => l.startsWith('estate_update failed') && l.includes('target=skills')));
     assert.equal(JSON.parse(fs.readFileSync(path.join(dir, 'estate-skills.json'), 'utf8')).installed, '1.52.5', 'no exit 0, no record move');
     assert.equal(updater.state.skills.state, 'update-available');
+    assert.ok(log.some((l) => l.startsWith('estate_check failed')), 'a failed apply is a failed check, which earns the LC-16 retry (review finding 10)');
   } finally {
     updater.stop();
   }
@@ -390,6 +419,7 @@ test('one retry within the hour after a failed check, then back to the 6-hour rh
     await flush();
     const afterFirst = calls.length;
     assert.ok(log.some((l) => l.startsWith('estate_check failed')));
+    assert.equal(updater.state.skills.state, 'error', 'a registry that did not answer is an error, not "not tracked yet" (review finding 5)');
     t.mock.timers.tick(45 * 60_000); // LC-16: one retry within the hour
     await flush();
     assert.ok(calls.length > afterFirst, 'the retry ran');
@@ -400,6 +430,73 @@ test('one retry within the hour after a failed check, then back to the 6-hour rh
     t.mock.timers.tick(CHECK_EVERY_MS - 90 * 60_000);
     await flush();
     assert.ok(calls.length > afterRetry, 'the interval check ran again');
+  } finally {
+    updater.stop();
+  }
+});
+
+test('every estate child gets the login shell\'s PATH and never a git prompt (review finding 1, FD-33)', () => {
+  const env = estateEnv(['/opt/homebrew/bin', '/usr/bin'], { PATH: '/usr/bin:/bin', ELECTRON_RUN_AS_NODE: '1', HOME: '/Users/p' });
+  assert.equal(env.PATH, '/opt/homebrew/bin:/usr/bin', 'launchd\'s PATH is replaced, so npm, npx and node resolve');
+  assert.equal(env.GIT_TERMINAL_PROMPT, '0');
+  assert.equal(env.ELECTRON_RUN_AS_NODE, undefined, 'the descriptor-safe stripping still applies');
+  assert.equal(env.HOME, '/Users/p');
+});
+
+test('the default runner resolves the search path once and passes it to every child', async () => {
+  let asked = 0;
+  const dir = tmp('fd-estate-path-');
+  const settings: Settings = { ...DEFAULT_SETTINGS, estate: { enabled: true, autoSkills: false, contractClone: '' } };
+  const updater = new EstateUpdater({ settings: () => settings, log: () => {}, onChange: () => {}, dataDir: dir,
+    searchPath: async () => { asked += 1; return ['/nowhere-estate-test']; } });
+  // `npm` is not in /nowhere-estate-test, so the probe fails to start — the point is that it looked there.
+  await (updater as unknown as { check: () => Promise<void> }).check();
+  await (updater as unknown as { check: () => Promise<void> }).check();
+  assert.equal(asked, 1, 'read once, reused');
+  assert.equal(updater.state.skills.state, 'error');
+});
+
+test('stop() means nothing starts afterwards: no child, no retry (review finding 11)', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout', 'setInterval', 'Date'], now: T0 });
+  const { updater, calls, respond } = rig();
+  respond((call) => (call.command === 'npm' ? fail('registry unreachable') : undefined));
+  updater.start();
+  updater.stop();
+  t.mock.timers.tick(FIRST_CHECK_MS + CHECK_EVERY_MS);
+  await flush();
+  assert.equal(calls.length, 0);
+  updater.switched(true);
+  updater.checkSoon();
+  t.mock.timers.tick(FIRST_CHECK_MS);
+  await flush();
+  assert.equal(calls.length, 0, 'a switch or a settings change after quit does not restart it');
+});
+
+test('a settings change checks again within seconds, not hours (review finding 7)', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout', 'setInterval', 'Date'], now: T0 });
+  const { updater, calls, respond } = rig();
+  respond((call) => (call.command === 'npm' ? ok('1.52.6\n') : undefined));
+  try {
+    updater.start();
+    updater.checkSoon();
+    updater.checkSoon();
+    t.mock.timers.tick(5_000);
+    await flush();
+    assert.equal(calls.filter((c) => c.command === 'npm').length, 1, 'a burst of edits is one check');
+  } finally {
+    updater.stop();
+  }
+});
+
+test('a named folder that does not exist is reported as missing, not as "not a clone" (review finding 16)', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout', 'setInterval', 'Date'], now: T0 });
+  const { updater, calls } = rig({ cloneDir: path.join(tmp('fd-estate-missing-'), 'nope') });
+  try {
+    updater.start();
+    t.mock.timers.tick(FIRST_CHECK_MS);
+    await flush();
+    assert.equal(updater.state.contract.state, 'missing');
+    assert.ok(!calls.some((c) => c.command === 'git'), 'no git runs against a folder that is not there');
   } finally {
     updater.stop();
   }

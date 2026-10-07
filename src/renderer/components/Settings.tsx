@@ -185,18 +185,28 @@ function UpdateState({ status }: { status: AppStatus }) {
 /** The clone path is typed locally and committed on blur or Enter, so settings.json is not
  *  rewritten on every keystroke; the person's spelling is kept while they type. */
 function ClonePath({ value, onSave }: { value: string; onSave: (next: string) => void }) {
+  const { t } = useT();
   const [text, setText] = useState(value);
-  const commit = () => { if (text.trim() !== value) onSave(text.trim()); };
+  // The saved value is the truth: a save that was refused, or a change from another window, shows here
+  // instead of the typed text staying on screen as if it had been kept (review finding 7).
+  useEffect(() => { setText(value); }, [value]);
+  const trimmed = text.trim();
+  const invalid = trimmed !== '' && !trimmed.startsWith('/') && !trimmed.startsWith('~/');
+  const commit = () => { if (!invalid && trimmed !== value) onSave(trimmed); };
   return (
-    <input
-      type="text"
-      className="mono"
-      value={text}
-      placeholder="~/DATA/fabric-agent-contract"
-      onChange={(e) => setText(e.target.value)}
-      onBlur={commit}
-      onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
-    />
+    <>
+      <input
+        type="text"
+        className="mono"
+        value={text}
+        placeholder="~/DATA/fabric-agent-contract"
+        aria-invalid={invalid}
+        onChange={(e) => setText(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+      />
+      {invalid && <span className="meta state-down" role="alert">{t('settings.estate.contractClone.invalid')}</span>}
+    </>
   );
 }
 
@@ -208,9 +218,13 @@ function EstateState({ status }: { status: AppStatus }) {
   const contractLine = () => {
     const c = e.contract;
     if (c.state === 'unconfigured') return <span className="meta">{t('estate.contract')}: {t('estate.contract.unconfigured')}</span>;
+    if (c.state === 'missing') return <span className="meta state-down">{t('estate.contract')}: {t('estate.contract.missing')}</span>;
     if (c.state === 'not-a-clone') return <span className="meta state-down">{t('estate.contract')}: {t('estate.contract.notAClone')}</span>;
-    if (c.state === 'current') return <span className="meta">{t('estate.contract')}: {t('estate.contract.current', { sha: short(c.remoteTip) })}</span>;
-    if (c.state === 'behind') return <span className="meta state-down">{t('estate.contract')}: {t('estate.contract.behind', { local: short(c.localTip), remote: short(c.remoteTip) })}</span>;
+    const fetched = c.fetched === 'yes' ? ` · ${t('estate.contract.fetched')}` : c.fetched === 'failed' ? ` · ${t('estate.contract.fetchFailed')}` : '';
+    // The clone's own main is reported, never moved: a pull stays the person's choice.
+    const local = c.localTip && c.remoteTip && c.localTip !== c.remoteTip ? ` · ${t('estate.contract.localMain', { sha: short(c.localTip) })}` : '';
+    if (c.state === 'current') return <span className="meta">{t('estate.contract')}: {t('estate.contract.current', { sha: short(c.remoteTip) })}{fetched}{local}</span>;
+    if (c.state === 'behind') return <span className="meta state-down">{t('estate.contract')}: {t('estate.contract.behind', { local: short(c.knownTip ?? c.localTip), remote: short(c.remoteTip) })}{fetched}</span>;
     return <span className="meta state-down">{t('estate.contract')}: {t('estate.contract.unknown')}</span>;
   };
   const skillsLine = () => {
@@ -218,6 +232,9 @@ function EstateState({ status }: { status: AppStatus }) {
     if (s.state === 'updating') return <span className="meta">{t('estate.skills')}: {t('estate.skills.updating', { latest: s.latest ?? '?' })}</span>;
     if (s.state === 'current') return <span className="meta">{t('estate.skills')}: {t('estate.skills.current', { version: s.installed ?? '?' })}</span>;
     if (s.state === 'update-available') return <span className="meta state-down">{t('estate.skills')}: {t('estate.skills.behind', { installed: s.installed ?? '?', latest: s.latest ?? '?' })}</span>;
+    // A failed probe is never shown as the harmless "not tracked yet" (review finding 5, SCN-051).
+    if (s.state === 'error') return <span className="meta state-down">{t('estate.skills')}: {t('estate.skills.error')}</span>;
+    if (s.latest) return <span className="meta">{t('estate.skills')}: {t('estate.skills.untracked', { latest: s.latest })}</span>;
     return <span className="meta">{t('estate.skills')}: {t('estate.skills.unknown')}</span>;
   };
   return (
@@ -225,7 +242,7 @@ function EstateState({ status }: { status: AppStatus }) {
       <p className="meta">{e.checkedAt ? t('estate.checked', { time: time(e.checkedAt) }) : t('estate.notChecked')}</p>
       <p className="meta">{contractLine()}</p>
       {e.pins.length > 0 && (
-        <p className="meta">{t('estate.pins')}: {e.pins.map((p) => `${p.key}: ${p.pinned ? short(p.pinned) : t('estate.pin.unknown')}${p.state === 'behind' ? ' ↑' : ''}`).join(' · ')}</p>
+        <p className="meta">{t('estate.pins')}: {e.pins.map((p) => `${p.key}: ${p.pinned ? short(p.pinned) : t('estate.pin.unknown')}${p.state === 'behind' ? ` (${t('estate.pin.older')})` : ''}`).join(' · ')}</p>
       )}
       <p className="meta">{skillsLine()}</p>
     </div>
