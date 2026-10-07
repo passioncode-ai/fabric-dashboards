@@ -482,7 +482,10 @@ if (!app.requestSingleInstanceLock()) {
       if (patch.notifications) schedulePauseEnd(); // U-7: a pause set here also rebuilds the tray when it ends
       if (typeof patch.autoUpdate === 'boolean' && patch.autoUpdate !== before) updater.switched(patch.autoUpdate); // LC-16 auto_update on|off
       // #region estate-update — docs: docs/adr/0018-estate-updates-from-inside-the-app.md#decision
-      if (patch.estate) estate.switched(next.estate.enabled); // ADR-0018: the switch starts/stops the timers at once
+      if (patch.estate) {
+        estate.switched(next.estate.enabled); // ADR-0018: the switch starts/stops the timers at once
+        estate.checkSoon(); // what is watched changed: the status line follows within seconds, not hours
+      }
       // #endregion estate-update
       if ('language' in patch) appMenu(); // the menu speaks the new language at once; the tray follows with pushStatus
       nativeTheme.themeSource = next.theme;

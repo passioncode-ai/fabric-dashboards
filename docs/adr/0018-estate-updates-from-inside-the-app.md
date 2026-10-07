@@ -70,3 +70,31 @@ What exists today:
 - Out of scope: moving any consumer's contract pin (a reviewed decision per
   consumer), updating the app itself (LC-16), Fabric-side aggregation
   (ADR-0013 boundary).
+
+## Amendment — 2026-10-07, after a review of the shipped code
+
+A read-only review of `origin/main` `d8c6d67` (fabric-agent-contract session, reviewing the Kimi Code
+run that built this) found 17 defects; the field log showed the first one on every check. What
+changed, and where this record was wrong:
+
+- **The children run with the login shell's PATH** (`estateEnv`). An app opened from Finder has
+  `/usr/bin:/bin:/usr/sbin:/sbin`, so every skills check failed with `spawn npm ENOENT` (`main.log`,
+  2026-10-07 02:35, 03:20, 08:34) — FD-33. Git runs with `GIT_TERMINAL_PROMPT=0`.
+- **§3 is replaced:** the publisher check reads `npm view sshlg-skills@<v> version maintainers _npmUser
+  --json` and requires every maintainer and the publisher on the allowlist and a plain release; the
+  apply runs `npx --yes sshlg-skills@<v> update` — exactly the version checked, never a bare name,
+  which npx resolves to any copy already on the machine.
+- **§2 is refined:** the clone's `origin` must be `passioncode-ai/fabric-agent-contract` (a URL that
+  merely contains the name is not); the state compares the remote's `main` with what the clone has
+  fetched (`refs/remotes/origin/main`), so a successful fetch reads as current and the clone's own
+  `main` is reported, never moved; pins are read from every `fabric-contract.lock.json` beside the
+  clone plus the two fixture pins, and a short pin naming the tip is current.
+- **§4 is corrected:** the events go to `main.log`, not to the activity log. A failed update counts as
+  a failed check and earns the LC-16 retry. The skills state `error` says a probe failed; it is never
+  shown as "tracked from the first run".
+- **Consequences, corrected:** at most eight short children a check (remote, ls-remote, two rev-parse,
+  fetch, two `npm view`, the update), not "two per 6 h"; a settings change checks again after 5 s;
+  nothing starts after `stop()`. `~/` in the clone path is resolved against the home folder.
+- **Open:** whether the watch should be on by default in a public product, and where the installed
+  skills version is read from when this app did not run the update — FD-34.
+

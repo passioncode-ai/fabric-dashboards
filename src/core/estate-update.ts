@@ -42,11 +42,21 @@ export const SKILLS_EXPECTED_OWNER = 'ssheleg';
 /** What the contract watch may do with the clone, from the person's setting and the remote it names. */
 export type ContractCloneState = 'unconfigured' | 'not-a-clone' | 'ready';
 
-/** Only a directory whose origin is the contract repository is ever probed (ADR-0018 §2). */
+/** The contract's repository, as the contract-pin schema names it (contract-pin.schema.json `repository`). */
+export const CONTRACT_REPOSITORY = 'passioncode-ai/fabric-agent-contract';
+
+/** `owner/name` of a GitHub remote in its https, scp-like ssh or ssh:// spelling; null for anything else. */
+export function githubRepository(url: string): string | null {
+  const m = /^(?:https:\/\/github\.com\/|git@github\.com:|ssh:\/\/git@github\.com\/)([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+?)(?:\.git)?\/?$/.exec(url.trim());
+  return m ? `${m[1]}/${m[2]}`.toLowerCase() : null;
+}
+
+/** Only a directory whose origin IS the contract repository is ever probed (ADR-0018 §2) — a fork or
+ *  any other remote whose URL merely contains the name is not (review 2026-10-07, finding 12). */
 export function contractCloneState(o: { clonePath: string; remoteUrl: string | null }): ContractCloneState {
   if (!o.clonePath) return 'unconfigured';
   if (o.remoteUrl === null) return 'not-a-clone';
-  return o.remoteUrl.includes('fabric-agent-contract') ? 'ready' : 'not-a-clone';
+  return githubRepository(o.remoteUrl) === CONTRACT_REPOSITORY ? 'ready' : 'not-a-clone';
 }
 
 /** The remote tip from `git ls-remote origin main`: the sha of the refs/heads/main line. */
@@ -82,36 +92,54 @@ export interface SiblingPin {
   state: SiblingPinState;
 }
 
-export function pinState(pinned: string | null, remoteTip: string | null): SiblingPinState {
-  if (!pinned || !remoteTip) return 'unknown';
-  return pinned.toLowerCase() === remoteTip.toLowerCase() ? 'current' : 'behind';
+/** A pin names a commit in full or abbreviated to at least seven characters (contract versioning.md, G-11). */
+export function samePin(pinned: string, tip: string): boolean {
+  const a = pinned.toLowerCase();
+  const b = tip.toLowerCase();
+  return a.length >= 7 && (a === b || b.startsWith(a) || a.startsWith(b));
 }
 
-/** The latest version from `npm view sshlg-skills version`: the first line that looks like a version. */
+export function pinState(pinned: string | null, remoteTip: string | null): SiblingPinState {
+  if (!pinned || !remoteTip) return 'unknown';
+  return samePin(pinned, remoteTip) ? 'current' : 'behind';
+}
+
+/** A release version: plain x.y.z. A prerelease is never installed by itself. */
+const RELEASE = /^\d+\.\d+\.\d+$/;
+
+/** The latest version from `npm view sshlg-skills version`: the first line that is a release version. */
 export function parseRegistryVersion(text: string): string | null {
   for (const line of text.split('\n')) {
     const v = line.trim();
-    if (/^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/.test(v)) return v;
+    if (RELEASE.test(v)) return v;
   }
   return null;
 }
 
-/** The publisher trust check: the maintainers listing must name the expected owner. The registry
- *  prints one `name <email>` per line; a JSON array (another npm view shape) is read too. */
-export function maintainersTrusted(text: string, owner: string = SKILLS_EXPECTED_OWNER): boolean {
-  const trimmed = text.trim();
-  if (trimmed.startsWith('[')) {
-    try {
-      const list = JSON.parse(trimmed) as unknown;
-      return Array.isArray(list) && list.some((m) => typeof m === 'string' && (m.trim() === owner || m.trim().startsWith(`${owner} <`)));
-    } catch {
-      return false;
-    }
-  }
-  return trimmed.split('\n').some((line) => {
-    const m = /^([^\s<]+)(?:\s*<[^>]*>)?\s*$/.exec(line.trim());
-    return m?.[1] === owner;
-  });
+/** A maintainer or publisher entry, in the registry's `name <email>` or `{ name }` form, reduced to its name. */
+function personName(entry: unknown): string | null {
+  if (typeof entry === 'string') return /^([^\s<]+)/.exec(entry.trim())?.[1] ?? null;
+  if (entry && typeof entry === 'object' && typeof (entry as { name?: unknown }).name === 'string') return (entry as { name: string }).name;
+  return null;
+}
+
+/**
+ * The publisher trust check (ADR-0018 §3, review finding 3), over the JSON of
+ * `npm view sshlg-skills@<version> version maintainers _npmUser --json`: the version is the one
+ * checked and a plain release, EVERY maintainer is on the allowlist, and so is the account that
+ * published that version. One extra maintainer is enough to stop the automatic install — the person
+ * can still update by hand.
+ */
+export function publisherTrusted(json: string, version: string, owners: readonly string[] = [SKILLS_EXPECTED_OWNER]): boolean {
+  let data: unknown;
+  try { data = JSON.parse(json); } catch { return false; }
+  if (!data || typeof data !== 'object' || Array.isArray(data)) return false;
+  const d = data as { version?: unknown; maintainers?: unknown; _npmUser?: unknown };
+  if (d.version !== version || !RELEASE.test(version)) return false;
+  const maintainers = Array.isArray(d.maintainers) ? d.maintainers : d.maintainers === undefined ? [] : [d.maintainers];
+  const names = maintainers.map(personName);
+  const publisher = personName(d._npmUser);
+  return names.length > 0 && names.every((n) => n !== null && owners.includes(n)) && publisher !== null && owners.includes(publisher);
 }
 
 /** The installed-version record this app keeps in userData (`estate-skills.json`, LC-12). */
@@ -158,15 +186,21 @@ export function shouldFetchContract(state: TipState): boolean {
 export interface EstateStatus {
   checkedAt: string | null;
   contract: {
-    state: 'unconfigured' | 'not-a-clone' | 'unknown' | 'current' | 'behind';
+    /** `current`: the clone knows the remote's main (`refs/remotes/origin/main` equals it); `behind`: it does
+     *  not, even after the fetch; `missing`: the named folder does not exist. */
+    state: 'unconfigured' | 'missing' | 'not-a-clone' | 'unknown' | 'current' | 'behind';
     remoteTip: string | null;
+    /** What the clone has fetched: `refs/remotes/origin/main`. */
+    knownTip?: string | null;
+    /** The clone's own `main`, reported, never moved: a pull is the person's choice. */
     localTip: string | null;
     /** Whether the behind-clone fetch ran and how it ended (null: nothing to fetch). */
     fetched: 'yes' | 'failed' | null;
   };
   pins: SiblingPin[];
   skills: {
-    state: 'unknown' | 'current' | 'update-available' | 'updating';
+    /** `error`: the registry could not be asked — never shown as the harmless "not tracked yet". */
+    state: 'unknown' | 'error' | 'current' | 'update-available' | 'updating';
     installed: string | null;
     latest: string | null;
   };
@@ -175,7 +209,7 @@ export interface EstateStatus {
 export function initialEstateStatus(): EstateStatus {
   return {
     checkedAt: null,
-    contract: { state: 'unconfigured', remoteTip: null, localTip: null, fetched: null },
+    contract: { state: 'unconfigured', remoteTip: null, knownTip: null, localTip: null, fetched: null },
     pins: [],
     skills: { state: 'unknown', installed: null, latest: null },
   };

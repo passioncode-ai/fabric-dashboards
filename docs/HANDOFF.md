@@ -110,8 +110,13 @@ read from fabric-agent-adapter/fabric-dashboards/fabric checkouts; the only auto
 `git fetch`), skills update behind a switch (default off) with a publisher check before
 `npx --yes sshlg-skills update`. LC-16 cadence; activity codes `estate_check` / `estate_update`.
 Checks: `FD_SKIP_LAUNCHD=1 npm run check` — 307 tests, 306 pass, 1 launchd skip; `npm run
-test:e2e` not run (needs an unlocked screen). **Next task:** review and merge on the green gate, then
-the operator names the contract clone path; an e2e pass when a screen is available.
+test:e2e` not run (needs an unlocked screen). Merged (PR #38, #39) and released in 0.6.3/0.6.4.
+
+**Review and fixes — branch `agent/fd30-estate-fixes-20261007` (FD-33).** A read-only review of
+`d8c6d67` found 17 defects; the first was in the field log on every check (`spawn npm ENOENT`). All
+fixed except two operator decisions (FD-34); see the [ADR-0018 amendment](adr/0018-estate-updates-from-inside-the-app.md).
+**Next task:** merge on the green gate and ship with the next release; then the operator names the
+contract clone (`~/DATA/fabric-agent-contract` works now) and decides FD-34; an estate e2e test is still to write.
 
 ## Previous — 0.6.0 (2026-10-06)
 

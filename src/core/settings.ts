@@ -119,8 +119,9 @@ function mergeConsoles(raw: unknown): Settings['consoles'] {
   return out;
 }
 
-/** ADR-0018: the estate watcher; the clone path must be absolute or empty (a relative one would
- *  resolve against the app's own working directory, which is never what the person meant). */
+/** ADR-0018: the estate watcher; the clone path is absolute, `~/…` (resolved against the home folder
+ *  when used — the field's own placeholder is written that way), or empty. A relative one would
+ *  resolve against the app's own working directory, which is never what the person meant. */
 // #region estate-update — docs: docs/adr/0018-estate-updates-from-inside-the-app.md#decision
 function mergeEstate(raw: unknown): Settings['estate'] {
   const e = (raw && typeof raw === 'object' ? raw : {}) as Partial<Settings['estate']>;
@@ -128,7 +129,7 @@ function mergeEstate(raw: unknown): Settings['estate'] {
   return {
     enabled: typeof e.enabled === 'boolean' ? e.enabled : DEFAULT_SETTINGS.estate.enabled,
     autoSkills: typeof e.autoSkills === 'boolean' ? e.autoSkills : DEFAULT_SETTINGS.estate.autoSkills,
-    contractClone: clone.startsWith('/') ? clone : '',
+    contractClone: clone.startsWith('/') || clone.startsWith('~/') ? clone : '',
   };
 }
 // #endregion estate-update
