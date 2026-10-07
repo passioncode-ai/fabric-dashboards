@@ -281,3 +281,6 @@ table.spend th[scope='row'] { color: var(--pc-text); }
 @media (prefers-reduced-motion: reduce) {
   .spinner { animation: none; border-top-color: var(--pc-border-strong); }
 }
+/* DEC-0027: every limit of an agent, above its models; a limit that is not enforced is muted, never hidden. */
+.spend-limits { margin-bottom: var(--pc-space-3); }
+.spend-limits tr.muted td { color: var(--pc-text-muted); }

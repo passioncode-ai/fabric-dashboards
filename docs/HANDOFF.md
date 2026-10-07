@@ -7,6 +7,13 @@ Current release: 0.6.2 (published 2026-10-06 23:41 UTC, run 37541067349; 0.6.1 w
 
 ## Next — start here (2026-10-07)
 
+**0.6.4 — branch `agent/budgets-064`** (FD-32): every limit an agent applies is visible on Spend
+(contract DEC-0027, `94b1829`; service-host 0.3.3). 0.6.3 (FD-31 step-aside + FD-30 estate updater) is
+tagged on `5683d51`, run 37557707038 waits for the operator's `macos` approval; e2e on its `main`:
+7/7. Switchboard 0.6.10 is published, but the installed copy was still 0.6.8 with no projects at
+03:30 local, so FD-25 cannot run until it updates and a project folder exists (creating one is the
+operator's account decision). **Next task:** gate, merge, tag `v0.6.4` after 0.6.3 publishes.
+
 **0.6.3 — branch `agent/fd30-pending-install`** (FD-31; FD-30 is the estate updater, also in 0.6.3). The field proof of 0.6.2 found that opening
 the old app while ShipIt installs aborts the install: on the operator's Mac 0.5.6 → 0.6.2 failed
 twice at 02:11–02:13 local (ADR-0015 addendum 0.6.3 has the log lines). 0.6.3 makes a launch step

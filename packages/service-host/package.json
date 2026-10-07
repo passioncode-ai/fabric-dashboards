@@ -1,6 +1,6 @@
 {
   "name": "@passioncode-ai/fabric-service-host",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "private": true,
   "description": "Reading local agent services that speak fabric-service/0.1: descriptor discovery in services/, claim conflicts, launchd status, the well-known health probe, the state precedence, and the fabric-dashboards://service/<id>.<instance> link. Shared by Fabric Dashboards and Fabric.",
   "license": "AGPL-3.0-only OR LicenseRef-PassionCode-Commercial",

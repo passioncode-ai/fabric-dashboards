@@ -19,8 +19,12 @@ async function closeApp(app: ElectronApplication | null): Promise<void> {
   if (!closed) app.process().kill('SIGKILL');
 }
 
+let withLimits = false;
+
 function report(): unknown {
-  const r = JSON.parse(fs.readFileSync(path.join(ROOT, 'test/fixtures/contract/positive_service-usage.json'), 'utf8'));
+  // DEC-0027: later in the walk the agent lists all its limits, one of them over its line.
+  const r = JSON.parse(fs.readFileSync(path.join(ROOT, `test/fixtures/contract/${withLimits ? 'positive_service-usage-budgets.json' : 'positive_service-usage.json'}`), 'utf8'));
+  if (withLimits) r.budgets = r.budgets.map((l: { id: string }) => (l.id === 'project.demo.daily' ? { ...l, spentUsd: 6 } : l));
   const day = (back: number) => new Date(Date.now() - back * 86_400_000).toISOString().slice(0, 10);
   r.service = { id: 'spender', instance: 'default' };
   r.days[0].date = day(1);
@@ -89,6 +93,17 @@ test('Spend shows what an agent reported, a lower bound where calls carry no pri
     assert.equal(await app.evaluate(({ app: a }) => a.dock?.isVisible()), true, 'FD-05: shown again, the Dock icon is back');
     await page.evaluate(() => (window as unknown as { fabric: { spend(): Promise<unknown> } }).fabric.spend());
     assert.ok(usageReads > before, 'shown again, it reads');
+    // DEC-0027: every limit — the breached one leads the row, the expanded table lists all eight.
+    withLimits = true;
+    await page.getByRole('button', { name: 'Refresh' }).click();
+    await row.getByText('Over the limit: $6.00 of $5.00 · Daily · project demo (+7 more)').waitFor({ timeout: 15_000 });
+    const limits = page.getByRole('table', { name: 'Limits' });
+    await limits.waitFor();
+    const lines = await limits.locator('tbody tr').allInnerTexts();
+    assert.equal(lines.length, 8, 'every limit is listed');
+    assert.match(lines[0]!, /Daily · project demo[\s\S]*Over the limit/);
+    assert.ok(lines.some((l) => /Approval threshold · project demo[\s\S]*Not enforced/.test(l)), 'a limit that is not enforced is still shown');
+    assert.ok(lines.some((l) => /rate_card_review · all projects/.test(l)), 'an unknown kind shows by its own name');
     if (process.env.FD_SCREENSHOTS) await page.screenshot({ path: path.join(process.env.FD_SCREENSHOTS, '20-spend.png') });
   } finally {
     await closeApp(app);

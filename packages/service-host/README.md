@@ -156,6 +156,16 @@ with calls and no priced call has `costUsd: null`, a window with some unpriced c
 `partial` (a lower bound), and only a window with no calls is `0`. The token-gated read itself
 stays in the host (`fetchUsage` in the app's `src/core/probe.ts`), like the events feed.
 
+**Limits (DEC-0027, 0.3.3).** A report may list every spending limit in `budgets` (at most 64:
+`id`, `scope`, `subject`, `kind`, one window, `limitUsd`, `spentUsd`, `enforced`, `tripped`).
+`checkUsage` refuses a list a host cannot read — `limitsProblem`: an unknown field, a repeated id,
+a scope outside `machine`/`project`/`pool`/`job`, a subject missing or present against its scope,
+two windows, a non-positive amount, a per-order limit with a window or a spend, a known kind whose
+window disagrees (FAC-SEM-031) — and accepts an unknown `kind` and a breach. `summarizeUsage`
+returns `limits`, ranked by `rankLimits`: `tripped`, `breach` (an enforced ceiling spent past its
+line), `near` (80 % or more), `ok`, `unknown` (spend not counted), `cap` (per order), `threshold`
+(approval — never a breach), `off` (not enforced, still listed).
+
 ## Shared test vectors
 
 `test-vectors/state-precedence.json` (`fabric-service-host/state-precedence@1`): a `base` input

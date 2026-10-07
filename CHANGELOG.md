@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+## 0.6.4 - 2026-10-07
+
+### New
+
+- **Every limit an agent applies is visible on Spend** (contract DEC-0027). The Limits column shows
+  the limit that most needs you — red when it stopped work or is over its line, amber at 80 % — and
+  expanding an agent lists all of them: which limit and for whom, its window, spent of limit, and its
+  state. Limits the operator chose not to apply stay listed as «Not enforced»; an approval threshold
+  is never shown as a breach; a kind of limit the app does not know shows by the agent's own name.
+  MCP `spend` returns the same list.
+
 ## 0.6.3 - 2026-10-07
 
 ### Fixed

@@ -125,7 +125,7 @@
 ### SCR-07: Spend
 - **Used by:** SCN-036, SCN-037, SCN-038, SCN-041
 - **Purpose:** JTBD-01 — what every agent spent, per agent and per model, from its own report
-- **Elements:** "read at HH:MM", Refresh; All agents tiles (Today, 7 days, 30 days); the agents table (Agent, Today, 7 days, 30 days, Budget; a name expands Model, Calls, Tokens in / out, Cost); "Could not read" with each agent's reason; "Not reporting spend yet: …"; the ≥ note
+- **Elements:** "read at HH:MM", Refresh; All agents tiles (Today, 7 days, 30 days); the agents table (Agent, Today, 7 days, 30 days, Limits — the limit that most needs a person, red when it stopped work or is breached, amber at 80 %; a name expands the limits table — Limit, Window, Spent, State, not-enforced rows muted — then Model, Calls, Tokens in / out, Cost); "Could not read" with each agent's reason; "Not reporting spend yet: …"; the ≥ note
 - **States:**
   | State | Trigger | Figma frame | Behavior |
   |-------|---------|-------------|----------|
