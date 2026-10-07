@@ -57,4 +57,17 @@ export function stagedRefusal(o: { feedVersion: string | null; stagedVersion: st
   if (o.team !== RELEASE_TEAM) return `the download is signed by ${o.team ?? 'no team'}, not ${RELEASE_TEAM}`;
   return null;
 }
+
+/** FD-31: a fresh launch while Squirrel's ShipIt is installing a newer build must step aside — opening
+ *  the old bundle mid-install aborted the 0.5.6 → 0.6.2 install twice (2026-10-07). A second copy of a
+ *  running app never gets here (single-instance lock), so ShipIt alive with a newer staged build at a
+ *  launch means an install is under way or starts as soon as no copy runs. */
+export function stepAsideForInstall(o: { stagedVersion: string | null; running: string; shipItRunning: boolean }): boolean {
+  return o.shipItRunning && !!o.stagedVersion && isNewer(o.stagedVersion, o.running);
+}
+
+/** Whether `launchctl list <label>` describes a running job (it prints `"PID" = n;` only then). */
+export function launchdJobRunning(listOutput: string): boolean {
+  return /"PID"\s*=\s*\d+/.test(listOutput);
+}
 // #endregion update-verify

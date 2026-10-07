@@ -419,3 +419,17 @@ test('LC-16 (fabric-inbox 95af4f7): the version and the needs-a-person mark come
   const signedHttp = new Map(sums); signedHttp.set('update-feed.json', (await import('../src/core/release-verify')).sha256(httpSteps));
   assert.deepEqual(signedFeed(httpSteps, signedHttp, '0.6.0'), { ok: true, needsPerson: null }, 'only an https address counts as steps');
 });
+
+test('FD-31: a launch steps aside only while ShipIt installs a newer build', async () => {
+  const { stepAsideForInstall, launchdJobRunning } = await import('../src/core/version');
+  assert.equal(stepAsideForInstall({ stagedVersion: '0.6.2', running: '0.5.6', shipItRunning: true }), true, 'the 2026-10-07 case');
+  assert.equal(stepAsideForInstall({ stagedVersion: '0.6.2', running: '0.5.6', shipItRunning: false }), false, 'a failed install leaves no ShipIt: start normally');
+  assert.equal(stepAsideForInstall({ stagedVersion: '0.6.2', running: '0.6.2', shipItRunning: true }), false, 'Squirrel relaunching the new build starts normally');
+  assert.equal(stepAsideForInstall({ stagedVersion: '0.6.1', running: '0.6.2', shipItRunning: true }), false, 'an older staged build never holds a launch');
+  assert.equal(stepAsideForInstall({ stagedVersion: null, running: '0.6.2', shipItRunning: true }), false);
+  assert.equal(launchdJobRunning('{\n\t"LimitLoadToSessionType" = "Aqua";\n\t"Label" = "ai.passioncode.fabric-dashboards.ShipIt";\n\t"PID" = 94300;\n};'), true);
+  assert.equal(launchdJobRunning('{\n\t"Label" = "ai.passioncode.fabric-dashboards.ShipIt";\n\t"LastExitStatus" = 0;\n};'), false, 'loaded, not running');
+  assert.equal(launchdJobRunning(''), false, 'no such job');
+  const { t } = await import('../src/core/i18n');
+  assert.match(t('ru', 'update.installing.body'), /откроется само/);
+});

@@ -173,3 +173,25 @@ The organization fixed how every product updates itself — the
 - **Next step, not yet taken (FD-29):** hand Squirrel the verified zip through a local `file://` feed,
   as Fabric Inbox does, so the zip is not downloaded twice and the window between our check and
   Squirrel's fetch disappears by construction. The code-directory pin stays as a second check.
+
+### Addendum — 2026-10-07 (0.6.3): never open the old bundle mid-install (FD-31)
+
+Field evidence, the operator's Mac, 0.5.6 → 0.6.2: Restart to Update at 02:11:18 started ShipIt's
+install; 0.5.6 was opened again at 02:11:22 and at 02:12:30 (`main.log` "started 0.5.6" twice), and
+each launch of the old bundle aborted the install (`ShipIt_stderr.log`: "Beginning installation",
+"Resuming installation attempt 2", then a new install request) under a load average near 580, where
+the 509 MB bundle's strict signature check alone took 20 s. From 0.6.3:
+
+- A launch that finds Squirrel's ShipIt job running (`launchctl list ai.passioncode.fabric-dashboards.ShipIt`
+  shows a `PID`) with a staged build newer than itself (`ShipItState.plist` → `updateBundleURL`) steps
+  aside: it notifies «Finishing the update to X — Fabric Dashboards reopens by itself», logs
+  `update_install resumed`, quits before opening anything, and leaves a `/bin/sh` helper that waits
+  while the ShipIt job runs (at most 10 minutes) and then opens the app (`src/electron/pending-install.ts`,
+  `stepAsideForInstall`). A failed install leaves no ShipIt, so the reopened old copy starts normally:
+  no loop. Any launcher is covered — the person, a `fabric-dashboards://` link, an agent's MCP `open`.
+- «Restart to Update» notifies «Installing update X — reopens by itself in a minute or two, no need to
+  open it» before quitting.
+- This guards installs started by 0.6.3 and later: a 0.6.2 copy updating to 0.6.3 still runs 0.6.2's
+  code at that launch.
+- Tests: `test/parts.test.ts` *FD-31* (the decision, and the `launchctl list` format read from the
+  real job on 2026-10-07).

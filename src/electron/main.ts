@@ -8,6 +8,7 @@ import { ActivityStore } from '../core/activity';
 import { CHANNELS, type Rect } from '../core/api';
 import { killOwned, ownedCount } from '../core/children';
 import { endWorkQuestion } from '../core/consoles';
+import { pendingInstallVersion, stepAside } from './pending-install';
 import { displayName } from '../core/names';
 import { ConsoleHost } from './console';
 import { appendLog, sweepTemps } from '../core/fsutil';
@@ -538,6 +539,11 @@ if (!app.requestSingleInstanceLock()) {
     ipcMain.handle(CHANNELS.updateRestart, async () => {
       // A held release only hands the verified build to Squirrel: nothing quits, nothing to ask.
       if (updater.state.state === 'ready' && !(await mayEndWork('restart'))) return;
+      if (updater.state.state === 'ready') {
+        // FD-31: the person should not open the old copy while ShipIt installs — say it reopens by itself.
+        const version = updater.state.version ?? '';
+        try { new Notification({ title: t(lang(), 'update.installing.title', { version }), body: t(lang(), 'update.installing.body'), silent: true }).show(); } catch { /* no notification centre */ }
+      }
       updater.restart();
     });
     ipcMain.handle(CHANNELS.updateSteps, () => { const steps = updater.state.state === 'held' ? updater.state.steps : undefined; if (steps && steps.startsWith('https://')) return shell.openExternal(steps); });
@@ -604,6 +610,9 @@ if (!app.requestSingleInstanceLock()) {
   });
 
   void app.whenReady().then(() => {
+    // FD-31: ShipIt is replacing this bundle — stay out of its way; the helper reopens the app after.
+    const pending = pendingInstallVersion();
+    if (pending) { stepAside(pending, lang(), log); return; }
     registerIpc();
     appMenu();
     tray = new AppTray(assets, {
