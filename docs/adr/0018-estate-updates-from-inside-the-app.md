@@ -98,3 +98,14 @@ changed, and where this record was wrong:
 - **Open:** whether the watch should be on by default in a public product, and where the installed
   skills version is read from when this app did not run the update — FD-34.
 
+## Amendment — 2026-10-08, FD-34
+
+The two questions the first amendment left open are settled. **The skills watch runs only where the
+family is installed**: its launcher keeps `~/.sshlg-skills/runtime/package.json`, and without that file
+the app reads and asks nothing about the family (state `absent`), so a public install of this app
+never queries the registry for someone else's skills. **The installed version is that runtime's**, not
+this app's own record, so an update an agent or the person ran is seen. **The latest version is the
+launcher's own check** (`~/.sshlg-skills/state.json` `updateCheck`) while it is under a day old; only an
+older check sends the question to the registry. The master switch stays on by default: with no family
+and no clone named, it runs nothing.
+

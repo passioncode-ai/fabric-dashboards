@@ -413,6 +413,7 @@ const en = {
   'estate.skills.behind': '{installed} installed, {latest} available',
   'estate.skills.updating': 'updating to {latest}…',
   'estate.skills.error': 'could not be checked, see estate_check in the log',
+  'estate.skills.absent': 'the sshlg-skills family is not installed on this computer, so nothing is checked',
   'estate.skills.untracked': '{latest} published; the installed version is recorded once this app runs an update',
   'settings.estate.contractClone.invalid': 'Use an absolute path or one that starts with ~/. This one was not saved.',
   // #endregion estate-update
@@ -828,6 +829,7 @@ const ru: Record<Key, string> = {
   'estate.skills.behind': 'установлены {installed}, доступны {latest}',
   'estate.skills.updating': 'обновляем до {latest}…',
   'estate.skills.error': 'не удалось проверить, см. estate_check в журнале',
+  'estate.skills.absent': 'семейство sshlg-skills на этом компьютере не установлено, поэтому ничего не проверяется',
   'estate.skills.untracked': 'опубликована {latest}; установленная версия запишется, когда приложение само выполнит обновление',
   'settings.estate.contractClone.invalid': 'Укажите абсолютный путь или путь, начинающийся с ~/. Этот не сохранён.',
   // #endregion estate-update

@@ -24,6 +24,8 @@ const RETRY_AFTER_FAILURE_MS = 45 * 60_000;
 /** After the person changes the estate settings: soon enough to see the answer, late enough to batch a burst of edits. */
 const CHECK_SOON_MS = 5_000;
 const SKILLS_RECORD_FILE = 'estate-skills.json';
+/** FD-34: how old the launcher's own update check may be before the registry is asked instead. */
+const LAUNCHER_CHECK_MAX_AGE_MS = 24 * 60 * 60_000;
 
 export type EstateState = estate.EstateStatus;
 export type Run = (command: string, args: string[], timeoutMs: number) => Promise<OwnedResult>;
@@ -107,6 +109,9 @@ export interface EstateUpdaterOptions {
   readFile?: (file: string) => string | null;
   isDir?: (dir: string) => boolean;
   listDirs?: (dir: string) => string[];
+  /** The skills family's own folder (`~/.sshlg-skills`): its runtime says whether it is installed here. */
+  familyDir?: string;
+  now?: () => number;
 }
 
 export class EstateUpdater {
@@ -278,17 +283,30 @@ export class EstateUpdater {
     return { part: { state, remoteTip, knownTip, localTip, fetched }, pins };
   }
 
-  /** The skills watch (ADR-0018 §3): probe the registry, apply only behind the switch and the trust check. */
+  /**
+   * The skills watch (ADR-0018 §3, FD-34). Only where the family is installed — its launcher keeps
+   * `~/.sshlg-skills/runtime/package.json` — so an install of this app without it never asks anybody
+   * about it. The installed version is that runtime's, whoever updated it; the latest is the launcher's
+   * own check while it is under a day old, and the registry is asked only when it is not. An update
+   * runs only behind the switch and the publisher check.
+   */
   private async checkSkills(autoSkills: boolean, failures: string[]): Promise<EstateState['skills']> {
-    const record = estate.parseSkillsRecord(this.readFile(path.join(this.o.dataDir, SKILLS_RECORD_FILE)));
-    const view = await this.child('npm', ['view', estate.SKILLS_PACKAGE, 'version'], PROBE_TIMEOUT_MS);
-    const latest = view.code === 0 ? estate.parseRegistryVersion(view.output) : null;
+    const familyDir = this.o.familyDir ?? path.join(os.homedir(), '.sshlg-skills');
+    const runtime = estate.familyRuntimeVersion(this.readFile(path.join(familyDir, 'runtime', 'package.json')));
+    if (runtime === null) return { state: 'absent', installed: null, latest: null };
+    const stored = estate.parseSkillsRecord(this.readFile(path.join(this.o.dataDir, SKILLS_RECORD_FILE)));
+    const record: estate.SkillsRecord = { installed: runtime, updatedAt: stored.updatedAt };
+    let latest = estate.launcherLatest(this.readFile(path.join(familyDir, 'state.json')), (this.o.now ?? Date.now)(), LAUNCHER_CHECK_MAX_AGE_MS);
     if (latest === null) {
-      failures.push(`npm view ${estate.SKILLS_PACKAGE} version failed: ${this.clip(view.output)}`);
-      return { state: 'error', installed: record.installed, latest: null };
+      const view = await this.child('npm', ['view', estate.SKILLS_PACKAGE, 'version'], PROBE_TIMEOUT_MS);
+      latest = view.code === 0 ? estate.parseRegistryVersion(view.output) : null;
+      if (latest === null) {
+        failures.push(`npm view ${estate.SKILLS_PACKAGE} version failed: ${this.clip(view.output)}`);
+        return { state: 'error', installed: runtime, latest: null };
+      }
     }
-    if (record.installed === latest) return { state: 'current', installed: record.installed, latest };
-    if (!autoSkills) return { state: record.installed === null ? 'unknown' : 'update-available', installed: record.installed, latest };
+    if (estate.compareReleases(runtime, latest) >= 0) return { state: 'current', installed: runtime, latest };
+    if (!autoSkills) return { state: 'update-available', installed: runtime, latest };
     // The person's switch is on: the publisher check decides whether the apply may run — also for
     // the first run, whose record does not exist yet (the reconcile reconciles, it never removes).
     const spec = `${estate.SKILLS_PACKAGE}@${latest}`;
@@ -298,7 +316,7 @@ export class EstateUpdater {
     const decision = estate.decideSkillsApply({ autoSkills, trusted, updateAvailable: true });
     if (!decision.apply) {
       this.event('estate_update', 'refused', `target=skills reason=${decision.why}${publisher.code === 0 ? '' : ' (probe failed)'}`);
-      return { state: record.installed === null ? 'unknown' : 'update-available', installed: record.installed, latest };
+      return { state: 'update-available', installed: runtime, latest };
     }
     return this.applySkills(latest, record, failures);
   }

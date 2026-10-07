@@ -140,7 +140,7 @@ test:e2e` not run (needs an unlocked screen). Merged (PR #38, #39) and released 
 `d8c6d67` found 17 defects; the first was in the field log on every check (`spawn npm ENOENT`). All
 fixed except two operator decisions (FD-34); see the [ADR-0018 amendment](adr/0018-estate-updates-from-inside-the-app.md).
 **Next task:** merge on the green gate and ship with the next release; then the operator names the
-contract clone (`~/DATA/fabric-agent-contract` works now) and decides FD-34; an estate e2e test is still to write.
+contract clone (`~/DATA/fabric-agent-contract` works now); FD-34 is decided (2026-10-08: the skills watch runs only where the family is installed, reads its runtime and the launcher's own check); an estate e2e test is still to write.
 
 ## Previous — 0.6.0 (2026-10-06)
 

@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- **The skills watch runs only where the skills family is installed, and asks the registry only
+  when it must** (FD-34). An install without `~/.sshlg-skills/runtime/package.json` reads and asks
+  nothing about the family, and Settings says so. Where it is installed, the installed version is
+  that runtime's — so an update the person or an agent ran is seen — and the latest version comes
+  from the launcher's own update check while it is under a day old; npm is asked only otherwise.
+
 ## 0.6.5 - 2026-10-08
 
 ### Fixed
