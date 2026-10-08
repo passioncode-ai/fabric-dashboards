@@ -28,9 +28,9 @@ Full e2e on 2026-10-08 ran on an overloaded machine (load
 `app.test.ts:384` (*switching between two loaded dashboards*) and FD-05 once; not accepted as a
 release gate. **Next task:** when the load falls (a background check in this session waits for
 load < 30 and runs it), three full `npm run test:e2e` runs green, then bump 0.6.6, release, verify
-as above. FD-25: the in-place launch is refused by Switchboard 0.6.10 itself — also at load 4.6 (backlog
-FD-25 has the command and the analysis); reported to the fabric-switchboard owner session; re-run on its
-fix. **e2e needs an unlocked screen:** `npm run test:e2e` now refuses at once on a locked one
+as above. FD-25: the in-place launch was refused because the running Switchboard desktop is still 0.6.8 (it
+started before 0.6.10 was installed into its bundle; found by the fabric-switchboard owner session) — one
+restart of Switchboard by the operator, then the backlog row's command. **e2e needs an unlocked screen:** `npm run test:e2e` now refuses at once on a locked one
 (`scripts/check-screen.mjs`) — three runs at 05:52 UTC failed FD-05 only because the screen was locked.
 **Field, 2026-10-08 02:34 UTC:** the installed 0.6.4 downloaded and verified 0.6.5 (`update_download done
 version=0.6.5 sha256=4cd7d8e0591a team=KJ35UYYL22 cdhash=dbd629669b7d`, `update_check ready`); it installs
