@@ -10,6 +10,13 @@
   that runtime's — so an update the person or an agent ran is seen — and the latest version comes
   from the launcher's own update check while it is under a day old; npm is asked only otherwise.
 
+### Fixed
+
+- **A hidden window always takes its Dock icon with it** (FD-35, FD-05). Electron drops a Dock hide
+  asked for within a second of a show, and a show that is still settling can put the icon back; the
+  hide is now asked again until the Dock reports it gone (bounded), and re-asserted after every
+  show. A hide that still does not take is written to `main.log` as `dock_hide failed`.
+
 ## 0.6.5 - 2026-10-08
 
 ### Fixed
