@@ -31,7 +31,7 @@ These come from `CONTRIBUTING.md`:
 |---|---|
 | Install | `npm ci` |
 | Test (the gate) | `npm run check` — typecheck, unit + integration tests, brand pins, code regions, UX lint (`FD_SKIP_LAUNCHD=1` without a GUI login session) |
-| End-to-end | `npm run test:e2e` — builds, installs Electron's binary (Electron 44 fetches it on first use; parallel test files would race for it), then drives the real Electron app against a live sample service |
+| End-to-end | `npm run test:e2e` — refuses at once on a locked screen (`scripts/check-screen.mjs`: macOS sends windows no show/hide events then), builds, installs Electron's binary (Electron 44 fetches it on first use; parallel test files would race for it), then drives the real Electron app against a live sample service |
 | Run from source | `npm start` |
 | Release | push an annotated `v<version>` tag; `.github/workflows/release.yml` builds, signs, notarizes, attests and publishes after a `release-approvers` approval. Rehearsal: a `v<version>-rc.<n>` tag, then `gh workflow run release.yml --ref <tag> -f publish=false` ([RUNBOOK](docs/RUNBOOK.md#release)) |
 | Local build (debug only, never published) | `npm run dist -- --unsigned`, or signed: `npm run dist [-- --identity NAME] [--notary-profile NAME]` |
