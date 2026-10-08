@@ -5,7 +5,20 @@ Updated 2026-10-07 (0.6.2: 0.6.1 withdrawn for audit HIGH-2, audit fixes, signed
 
 Current release: 0.6.5 (published 2026-10-08 01:18 UTC, run 37703405621; FD-29, FD-33). Before it, 0.6.4 (published 2026-10-07 01:57 UTC, run 37558793926; carries 0.6.3, superseded before approval). Before it, 0.6.2 (published 2026-10-06 23:41 UTC, run 37541067349; 0.6.1 withdrawn). Before it, 0.6.0 (published 2026-10-06 21:35 UTC, run 37505569449); Before it, 0.5.6 (2026-10-06); the 0.4.1 section below is the previous one. Earlier releases below are preserved as dated evidence.
 
-## Next — start here (2026-10-08, after 0.6.5)
+## Next — start here (2026-10-09)
+
+**Field, 2026-10-08:** the operator's copy installed 0.6.5 at 11:25 UTC (`update_install installed
+from=0.6.4 to=0.6.5`); its estate checks since log `estate_check ok` — FD-33's field proof. FD-29's
+local feed is proven by the first update a 0.6.5+ copy downloads (0.6.6).
+**FD-25 done 2026-10-09:** Switchboard restarted to 0.6.14 (22:10 UTC) and the in-place proof exited 0
+(`2.1.295 (Claude Code)` through `switchboard launch … --in-place -- --version`); backlog FD-25 has
+the detail. **Next task:** three full `npm run test:e2e` runs on an unlocked screen at a normal load
+(on 2026-10-09 00:18 local the screen was unlocked but the load was 262), then bump 0.6.6 (FD-34,
+FD-35), release, verify as for 0.6.5. Outside this repository: Switchboard's Windows installer is
+unsigned until the operator's Azure identity validation completes (fabric-switchboard
+`docs/DISTRIBUTION.md`, PRs #126/#127).
+
+## Earlier — start here (2026-10-08, after 0.6.5)
 
 **Released: 0.6.5 on 2026-10-08 01:18 UTC** (run 37703405621, tag `v0.6.5` on `518cb63`; Latest; the
 operator approved). Receipt: Developer ID (KJ35UYYL22), `accepted and stapled: app, update zip,
