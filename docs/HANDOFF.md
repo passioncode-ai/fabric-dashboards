@@ -3,9 +3,40 @@
 Updated 2026-10-07 (0.6.2: 0.6.1 withdrawn for audit HIGH-2, audit fixes, signed feed; 0.6.1: LC-16 in detail updater, Russian by choice; 0.6.0 published 2026-10-06 21:35 UTC; release 0.5.6: third review pass, token latch; release 0.5.5 withdrawn: release audit and its second pass, A2A plan, ADR-0016, ADR-0015 data and updates, FD-05, FD-06, FD-13; Spend and DEC-0021; one entry per agent, ADR-0012; lifecycle contract landed from PR #21, unreleased; CI release rehearsal
 `v0.4.1-rc.1` green; releases move to CI signing; release 0.4.1, MCP links to online services).
 
-Current release: 0.6.4 (published 2026-10-07 01:57 UTC, run 37558793926; carries 0.6.3, superseded before approval). Before it, 0.6.2 (published 2026-10-06 23:41 UTC, run 37541067349; 0.6.1 withdrawn). Before it, 0.6.0 (published 2026-10-06 21:35 UTC, run 37505569449); Before it, 0.5.6 (2026-10-06); the 0.4.1 section below is the previous one. Earlier releases below are preserved as dated evidence.
+Current release: 0.6.5 (published 2026-10-08 01:18 UTC, run 37703405621; FD-29, FD-33). Before it, 0.6.4 (published 2026-10-07 01:57 UTC, run 37558793926; carries 0.6.3, superseded before approval). Before it, 0.6.2 (published 2026-10-06 23:41 UTC, run 37541067349; 0.6.1 withdrawn). Before it, 0.6.0 (published 2026-10-06 21:35 UTC, run 37505569449); Before it, 0.5.6 (2026-10-06); the 0.4.1 section below is the previous one. Earlier releases below are preserved as dated evidence.
 
-## Next — start here (2026-10-08)
+## Next — start here (2026-10-08, after 0.6.5)
+
+**Released: 0.6.5 on 2026-10-08 01:18 UTC** (run 37703405621, tag `v0.6.5` on `518cb63`; Latest; the
+operator approved). Receipt: Developer ID (KJ35UYYL22), `accepted and stapled: app, update zip,
+image`, both Gatekeeper checks `accepted, source=Notarized Developer ID`, fuses `100011011` on every
+slice, `checks.pty`, `checks.updateVerifier`, `checks.downgradeGuard`, MCP `initialize` as 0.6.5.
+Published files checked as the updater checks them (`src/core/release-verify.ts` run on the
+downloads): `SHA256SUMS` signature ok, `signedFeed` ok, zip hash matches, `codesign --strict` ok,
+team `KJ35UYYL22`, `spctl` accepted; attestations of the zip and the image verify with
+`--signer-repo passioncode-ai/.github` (signer `release-publish.yml@refs/tags/v1`, ref
+`refs/tags/v0.6.5`) — the RUNBOOK command lacked that flag and is fixed; the `latest` feed names
+0.6.5 (`currentRelease`).
+
+**Unreleased on `main` — FD-34 (PR #48, another session) and FD-35** (branch `agent/fd35-dock`). FD-34:
+the skills watch runs only where `~/.sshlg-skills/runtime/package.json` exists and reads the installed
+version from it (backlog FD-34, ADR-0018). FD-35: `DockSync` (`src/electron/dock.ts`) — Electron drops a Dock hide within 1 s of a show
+(`browser_mac.mm:441-504`, v44.4.5), so the hide is asked again until it takes. Checks:
+`FD_SKIP_LAUNCHD=1 npm run check` exit 0 (329 tests, 328 pass, 1 launchd skip; brand, regions, UX lint); `test/dock.test.ts` 6/6.
+Full e2e on 2026-10-08 ran on an overloaded machine (load
+69–234, swap 16.6/17.4 GB): 7/7, 6/7, 5/7 — the failures were a 30 s timeout in
+`app.test.ts:384` (*switching between two loaded dashboards*) and FD-05 once; not accepted as a
+release gate. **Next task:** when the load falls (a background check in this session waits for
+load < 30 and runs it), three full `npm run test:e2e` runs green, then bump 0.6.6, release, verify
+as above. In the same window: FD-25's in-place proof (the backlog row has the exact command) — the
+03:40 attempt was refused by Switchboard while the machine was at load 234.
+
+**Housekeeping 2026-10-08:** two untracked session transcripts in the checkout root
+(`2026-10-06-035607-…txt`, `kimi-export-session_-…md`) moved to
+`~/DATA/_archive/session-exports/fabric-dashboards/`, so Observatory's Stop hook stops recording
+them as this repository's changes.
+
+## Earlier on 2026-10-08 — release 0.6.5
 
 **Release 0.6.5 — branch `agent/release-065`.** 0.6.5 was bumped by PR #44 (FD-29, the local feed)
 but never tagged; FD-33 (PR #45) landed after it under `Unreleased`, so the installed 0.6.4 kept

@@ -99,7 +99,9 @@ approval, cancel it first, then push the new tag. A run waiting on an environmen
 
 A published release is never rewritten; a fix is a new tag. Verify a download with
 `gpg --verify SHA256SUMS.asc SHA256SUMS`, `shasum -a 256 -c SHA256SUMS --ignore-missing` and
-`gh attestation verify <file> -R passioncode-ai/fabric-dashboards`.
+`gh attestation verify <file> -R passioncode-ai/fabric-dashboards --signer-repo passioncode-ai/.github`
+(the attestation is signed by the organization's reusable `release-publish.yml`, so without
+`--signer-repo` the check fails with `verifying with issuer "sigstore.dev"` — measured on 0.6.5).
 
 **The app verifies the same files before it updates** (LC-16, ADR-0015 amendment): `SHA256SUMS`
 must be signed by the key pinned in `src/core/release-verify.ts`, and the zip's hash and the app's
