@@ -107,6 +107,12 @@ export interface EstateUpdaterOptions {
   readFile?: (file: string) => string | null;
   isDir?: (dir: string) => boolean;
   listDirs?: (dir: string) => string[];
+  /**
+   * FD-34: whether the sshlg-skills family is installed on this Mac (its launcher keeps
+   * `~/.sshlg-skills`). Without it, and without a record this app wrote, the registry is never
+   * asked: a public install that does not use the family makes no request about it.
+   */
+  familyInstalled?: () => boolean;
 }
 
 export class EstateUpdater {
@@ -123,6 +129,7 @@ export class EstateUpdater {
   private readonly run: Run;
   private readonly readFile: (file: string) => string | null;
   private readonly isDir: (dir: string) => boolean;
+  private readonly familyInstalled: () => boolean;
 
   constructor(private readonly o: EstateUpdaterOptions) {
     const searchPath = o.searchPath ?? (() => readLoginPath().then((p) => searchDirs(p)));
@@ -132,6 +139,7 @@ export class EstateUpdater {
     });
     this.readFile = o.readFile ?? ((file) => { try { return fs.readFileSync(file, 'utf8'); } catch { return null; } });
     this.isDir = o.isDir ?? ((dir) => { try { return fs.statSync(dir).isDirectory(); } catch { return false; } });
+    this.familyInstalled = o.familyInstalled ?? (() => this.isDir(path.join(os.homedir(), estate.SKILLS_HOME_DIR)));
   }
 
   private event(name: string, outcome: string, detail = ''): void {
@@ -281,6 +289,8 @@ export class EstateUpdater {
   /** The skills watch (ADR-0018 §3): probe the registry, apply only behind the switch and the trust check. */
   private async checkSkills(autoSkills: boolean, failures: string[]): Promise<EstateState['skills']> {
     const record = estate.parseSkillsRecord(this.readFile(path.join(this.o.dataDir, SKILLS_RECORD_FILE)));
+    // FD-34: nothing to watch, nothing asked — the family is not here and this app never installed it.
+    if (record.installed === null && !this.familyInstalled()) return { state: 'absent', installed: null, latest: null };
     const view = await this.child('npm', ['view', estate.SKILLS_PACKAGE, 'version'], PROBE_TIMEOUT_MS);
     const latest = view.code === 0 ? estate.parseRegistryVersion(view.output) : null;
     if (latest === null) {

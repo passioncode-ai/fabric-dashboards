@@ -234,6 +234,7 @@ function EstateState({ status }: { status: AppStatus }) {
     if (s.state === 'update-available') return <span className="meta state-down">{t('estate.skills')}: {t('estate.skills.behind', { installed: s.installed ?? '?', latest: s.latest ?? '?' })}</span>;
     // A failed probe is never shown as the harmless "not tracked yet" (review finding 5, SCN-051).
     if (s.state === 'error') return <span className="meta state-down">{t('estate.skills')}: {t('estate.skills.error')}</span>;
+    if (s.state === 'absent') return <span className="meta">{t('estate.skills')}: {t('estate.skills.absent')}</span>;
     if (s.latest) return <span className="meta">{t('estate.skills')}: {t('estate.skills.untracked', { latest: s.latest })}</span>;
     return <span className="meta">{t('estate.skills')}: {t('estate.skills.unknown')}</span>;
   };

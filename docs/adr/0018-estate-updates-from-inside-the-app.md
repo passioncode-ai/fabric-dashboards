@@ -96,5 +96,25 @@ changed, and where this record was wrong:
   fetch, two `npm view`, the update), not "two per 6 h"; a settings change checks again after 5 s;
   nothing starts after `stop()`. `~/` in the clone path is resolved against the home folder.
 - **Open:** whether the watch should be on by default in a public product, and where the installed
-  skills version is read from when this app did not run the update — FD-34.
+  skills version is read from when this app did not run the update — FD-34, decided below.
+
+## Decision — 2026-10-08 (FD-34)
+
+The operator delegated both questions («сам реши»); decided on what the code can prove.
+
+- **The watch stays on by default, and watches only what is on this Mac.** The contract is probed
+  only when Settings names a clone (already so). The skills are probed only when the family is
+  installed here — its launcher keeps `~/.sshlg-skills` (`SKILLS_HOME_DIR`) — or when this app wrote
+  its own record by installing it. Otherwise the state is `absent` («not installed on this Mac —
+  nothing is checked») and **no process starts**: a public install that does not use the family
+  makes no request about it. Rejected: off by default — it would silence the one person the feature
+  exists for until they find the switch; and asking npm on every install — traffic about a family
+  most people never installed.
+- **The installed version comes only from this app's record.** The launcher keeps no installed
+  version (`~/.sshlg-skills/state.json` holds `updateCheck.latest`, the registry's answer, not what
+  is installed — read 2026-10-08), and member plugin versions do not name the family release. A
+  version guessed from either would be presented as fact; so an update run outside this app leaves
+  the installed version unknown («tracked from the first run or update»), shown as such.
+- Tests: `test/estate-update.test.ts` *FD-34* (no family and no record: no child at all, `absent`,
+  a clean check; a record this app wrote keeps the skills watched).
 

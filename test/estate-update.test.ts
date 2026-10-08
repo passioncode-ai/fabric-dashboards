@@ -154,7 +154,7 @@ interface Rig {
 }
 
 /** A runner whose every command answers per the responder, defaulting to success with no output. */
-function rig(o?: { settings?: Settings; cloneDir?: string; record?: string | null }) {
+function rig(o?: { settings?: Settings; cloneDir?: string; record?: string | null; family?: boolean }) {
   const dir = tmp('fd-estate-run-');
   if (o?.record !== undefined && o.record !== null) fs.writeFileSync(path.join(dir, 'estate-skills.json'), o.record);
   const settings: Settings = o?.settings ?? { ...DEFAULT_SETTINGS, estate: { enabled: true, autoSkills: false, contractClone: o?.cloneDir ?? '' } };
@@ -167,7 +167,7 @@ function rig(o?: { settings?: Settings; cloneDir?: string; record?: string | nul
     calls.push(call);
     return responder(call) ?? { code: 0, output: '', timedOut: false, started: true, signal: null };
   };
-  const updater = new EstateUpdater({ settings: () => settings, log: (m) => log.push(m), onChange: () => { changes += 1; }, dataDir: dir, run });
+  const updater = new EstateUpdater({ settings: () => settings, log: (m) => log.push(m), onChange: () => { changes += 1; }, dataDir: dir, run, familyInstalled: () => o?.family ?? true });
   return { updater, calls, log, changes: () => changes, dir, respond: (r) => { responder = r; } } satisfies Rig;
 }
 
@@ -340,6 +340,38 @@ test('skills: no record yet with the switch off reports unknown and nothing runs
     await flush();
     assert.equal(updater.state.skills.state, 'unknown');
     assert.ok(!calls.some((c) => c.command === 'npx'), 'no apply without the switch');
+  } finally {
+    updater.stop();
+  }
+});
+
+test('FD-34: no skill family on this Mac and no record — the registry is never asked, the state says so', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout', 'setInterval', 'Date'], now: T0 });
+  const settings: Settings = { ...DEFAULT_SETTINGS, estate: { enabled: true, autoSkills: true, contractClone: '' } };
+  const { updater, calls, log } = rig({ settings, family: false });
+  try {
+    updater.start();
+    t.mock.timers.tick(FIRST_CHECK_MS);
+    await flush();
+    assert.deepEqual(calls, [], 'a public install without the family makes no outbound request: no npm, no npx, no git');
+    assert.equal(updater.state.skills.state, 'absent');
+    assert.ok(log.some((l) => l.startsWith('estate_check ok') && l.includes('skills=absent')), 'a clean check, not a failure');
+  } finally {
+    updater.stop();
+  }
+});
+
+test('FD-34: a record this app wrote keeps the skills watched even if the launcher folder is gone', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout', 'setInterval', 'Date'], now: T0 });
+  const record = estate.serializeSkillsRecord({ installed: '1.52.6', updatedAt: null });
+  const { updater, calls, respond } = rig({ record, family: false });
+  respond((call) => (call.command === 'npm' && call.args[2] === 'version' ? ok('1.52.6\n') : undefined));
+  try {
+    updater.start();
+    t.mock.timers.tick(FIRST_CHECK_MS);
+    await flush();
+    assert.ok(calls.some((c) => c.command === 'npm'), 'the app installed the family itself, so it keeps asking');
+    assert.equal(updater.state.skills.state, 'current');
   } finally {
     updater.stop();
   }

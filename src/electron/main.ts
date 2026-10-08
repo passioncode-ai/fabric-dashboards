@@ -27,6 +27,7 @@ import type { AppStatus, Settings, SettingsPatch } from '../core/types';
 import { ALWAYS_KEPT, clearRestoreRecord, KEPT_FILES, productDataPaths, purgeAfterExit, readRestoreRecord, removeMcpRegistrations, repairMcpRegistrations, restoreMcpRegistrations, writeRestoreRecord } from '../core/uninstall';
 import { autoInstallNow, HiddenGrace, partitionFor, RELAUNCH_MARKER, relaunchHidden, stalePartitions, UPDATE_IDLE_MS, VIEW_RELEASE_GRACE_MS } from './policy';
 import { AppTray } from './tray';
+import { DockSync } from './dock';
 import { EstateUpdater } from './estate-updater';
 import { Updater } from './updater';
 import { ServiceViews } from './views';
@@ -205,15 +206,10 @@ if (!app.requestSingleInstanceLock()) {
   }
   // #endregion quiet-push
 
-  // FD-05: dock.show() resolves later; a hide that lands meanwhile must still win, so the wanted
-  // state is re-read once the show has finished.
-  let dockWanted = true;
-  async function syncDock(): Promise<void> {
-    if (!app.dock) return;
-    if (!dockWanted) { app.dock.hide(); return; }
-    if (app.dock.isVisible()) return; // already there: a pending show would only race a later hide
-    await app.dock.show();
-    if (!dockWanted) app.dock.hide();
+  // FD-05 / FD-35: the Dock follows the window, and a hide always wins (src/electron/dock.ts).
+  const dockSync = new DockSync(app.dock);
+  function syncDock(visible: boolean): void {
+    void dockSync.want(visible).then((ok) => { if (!ok && !visible) log('dock_hide failed: the Dock still shows the icon after the window hid'); });
   }
 
   function showWindow(): BrowserWindow {
@@ -245,8 +241,8 @@ if (!app.requestSingleInstanceLock()) {
     w.once('ready-to-show', () => w.show());
     // FD-05 (operator decision 2026-10-05): a hidden window leaves only the menu-bar icon; showing
     // it brings the Dock icon back. A minimized window keeps its Dock icon — that is where it lives.
-    w.on('show', () => { dockWanted = true; void syncDock(); windowShown(); });
-    w.on('hide', () => { windowHidden(); dockWanted = false; void syncDock(); });
+    w.on('show', () => { syncDock(true); windowShown(); });
+    w.on('hide', () => { windowHidden(); syncDock(false); });
     w.on('minimize', windowHidden);
     w.on('restore', windowShown);
     w.on('close', (event) => {
@@ -692,7 +688,7 @@ if (!app.requestSingleInstanceLock()) {
     if (afterUpdate) log(`update: relaunched as ${app.getVersion()} after an automatic install`);
     const hidden = afterUpdate || app.getLoginItemSettings().wasOpenedAtLogin || process.argv.includes('--hidden');
     if (!hidden) showWindow();
-    else { dockWanted = false; void syncDock(); updateGrace.hidden(); } // the menu bar only, as when the window is hidden (FD-05)
+    else { syncDock(false); updateGrace.hidden(); } // the menu bar only, as when the window is hidden (FD-05)
     if (!hidden) void offerMoveToApplications();
     log(`started ${app.getVersion()} watching ${monitor.meta().servicesDir}`);
   });

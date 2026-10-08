@@ -36,6 +36,8 @@ export function pinFromSourceTxt(text: string): string | null {
 
 /** The skills family on the public registry (ADR-0018 §3). */
 export const SKILLS_PACKAGE = 'sshlg-skills';
+/** The launcher's own folder in the home directory: its presence means the family is installed (FD-34). */
+export const SKILLS_HOME_DIR = '.sshlg-skills';
 /** The publisher the trust check expects, from `npm view sshlg-skills maintainers` (verified 2026-10-07). */
 export const SKILLS_EXPECTED_OWNER = 'ssheleg';
 
@@ -199,8 +201,11 @@ export interface EstateStatus {
   };
   pins: SiblingPin[];
   skills: {
-    /** `error`: the registry could not be asked — never shown as the harmless "not tracked yet". */
-    state: 'unknown' | 'error' | 'current' | 'update-available' | 'updating';
+    /**
+     * `error`: the registry could not be asked — never shown as the harmless "not tracked yet".
+     * `absent`: the family is not installed here and this app never installed it, so nothing was asked (FD-34).
+     */
+    state: 'absent' | 'unknown' | 'error' | 'current' | 'update-available' | 'updating';
     installed: string | null;
     latest: string | null;
   };

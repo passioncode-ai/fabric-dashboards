@@ -27,8 +27,10 @@ service data.
   service's state at that moment, not when its page was first opened.
 - **Watches the estate's versions** (FD-30, [ADR-0018](docs/adr/0018-estate-updates-from-inside-the-app.md)),
   90 s after start and every 6 hours while *Watch the contract and skill versions* is on (on by
-  default; FD-34 holds whether it should be): it asks the public npm registry (`registry.npmjs.org`)
-  for the published `sshlg-skills` version, and — only when Settings names a contract clone — runs
+  default): it asks the public npm registry (`registry.npmjs.org`) for the published `sshlg-skills`
+  version **only when the family is installed on this Mac** (its launcher's `~/.sshlg-skills` folder
+  exists) or this app installed it before (FD-34) — an install without the family asks nothing —
+  and — only when Settings names a contract clone — runs
   `git ls-remote` and `git fetch` in that clone against its own `origin`, which must be
   `passioncode-ai/fabric-agent-contract`. These are `git` and `npm` from the login shell's PATH, in
   their own process group, with a deadline, without a terminal prompt (`GIT_TERMINAL_PROMPT=0`); the

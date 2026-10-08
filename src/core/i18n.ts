@@ -414,6 +414,7 @@ const en = {
   'estate.skills.updating': 'updating to {latest}…',
   'estate.skills.error': 'could not be checked, see estate_check in the log',
   'estate.skills.untracked': '{latest} published; the installed version is recorded once this app runs an update',
+  'estate.skills.absent': 'not installed on this Mac — nothing is checked',
   'settings.estate.contractClone.invalid': 'Use an absolute path or one that starts with ~/. This one was not saved.',
   // #endregion estate-update
 };
@@ -829,6 +830,7 @@ const ru: Record<Key, string> = {
   'estate.skills.updating': 'обновляем до {latest}…',
   'estate.skills.error': 'не удалось проверить, см. estate_check в журнале',
   'estate.skills.untracked': 'опубликована {latest}; установленная версия запишется, когда приложение само выполнит обновление',
+  'estate.skills.absent': 'на этом Mac не установлены — ничего не проверяется',
   'settings.estate.contractClone.invalid': 'Укажите абсолютный путь или путь, начинающийся с ~/. Этот не сохранён.',
   // #endregion estate-update
 };

@@ -84,7 +84,12 @@ test('Spend shows what an agent reported, a lower bound where calls carry no pri
     // LC-08: while the window is hidden, a refresh gets the last sums and reads no service.
     await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.hide());
     for (let i = 0; i < 100 && (await app.evaluate(({ app: a }) => a.dock?.isVisible())); i += 1) await new Promise((r) => setTimeout(r, 100));
-    assert.equal(await app.evaluate(({ app: a }) => a.dock?.isVisible()), false, 'FD-05: a hidden window leaves no Dock icon');
+    if (await app.evaluate(({ app: a }) => a.dock?.isVisible())) {
+      // FD-35: a failure carries the app's own account of the Dock, since the run's folder is removed.
+      let logged = '';
+      try { logged = fs.readFileSync(path.join(base, 'app', 'logs', 'main.log'), 'utf8').split('\n').filter((l) => l.includes('dock_')).join('\n'); } catch { logged = '(no main.log)'; }
+      assert.fail(`FD-05: a hidden window leaves no Dock icon; main.log dock lines: ${logged || '(none)'}`);
+    }
     const before = usageReads;
     await page.evaluate(() => (window as unknown as { fabric: { spend(): Promise<unknown> } }).fabric.spend());
     assert.equal(usageReads, before, 'a hidden window reads nothing');
