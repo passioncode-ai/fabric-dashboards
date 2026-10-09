@@ -3,9 +3,24 @@
 Updated 2026-10-07 (0.6.2: 0.6.1 withdrawn for audit HIGH-2, audit fixes, signed feed; 0.6.1: LC-16 in detail updater, Russian by choice; 0.6.0 published 2026-10-06 21:35 UTC; release 0.5.6: third review pass, token latch; release 0.5.5 withdrawn: release audit and its second pass, A2A plan, ADR-0016, ADR-0015 data and updates, FD-05, FD-06, FD-13; Spend and DEC-0021; one entry per agent, ADR-0012; lifecycle contract landed from PR #21, unreleased; CI release rehearsal
 `v0.4.1-rc.1` green; releases move to CI signing; release 0.4.1, MCP links to online services).
 
-Current release: 0.6.5 (published 2026-10-08 01:18 UTC, run 37703405621; FD-29, FD-33). Before it, 0.6.4 (published 2026-10-07 01:57 UTC, run 37558793926; carries 0.6.3, superseded before approval). Before it, 0.6.2 (published 2026-10-06 23:41 UTC, run 37541067349; 0.6.1 withdrawn). Before it, 0.6.0 (published 2026-10-06 21:35 UTC, run 37505569449); Before it, 0.5.6 (2026-10-06); the 0.4.1 section below is the previous one. Earlier releases below are preserved as dated evidence.
+Current release: 0.6.5 (0.6.6 in release; published 2026-10-08 01:18 UTC, run 37703405621; FD-29, FD-33). Before it, 0.6.4 (published 2026-10-07 01:57 UTC, run 37558793926; carries 0.6.3, superseded before approval). Before it, 0.6.2 (published 2026-10-06 23:41 UTC, run 37541067349; 0.6.1 withdrawn). Before it, 0.6.0 (published 2026-10-06 21:35 UTC, run 37505569449); Before it, 0.5.6 (2026-10-06); the 0.4.1 section below is the previous one. Earlier releases below are preserved as dated evidence.
 
-## Next — start here (2026-10-09)
+## Next — start here (2026-10-09, release 0.6.6)
+
+**Release 0.6.6 — branch `agent/release-066`:** FD-34 (the skills watch only where the family is
+installed) and FD-35 (a hidden window always hides its Dock icon). Checks: `npm ci`;
+`FD_SKIP_LAUNCHD=1 npm run check` exit 0 (330 tests, 329 pass, 1 launchd skip; brand, regions, UX lint); `npm run test:e2e` three full runs on an
+unlocked screen: 7/7, 7/7, 7/7. **Next task:** the operator's approvals of the release run, then the
+receipt, the published files checked as the updater checks them (RUNBOOK, with `--signer-repo` for
+attestations), the knowledge base row, and this Mac's 0.6.5 → 0.6.6 update — FD-29's field proof:
+the first update downloaded by a 0.6.5+ copy goes through the local `file://` feed.
+**Before it, on 2026-10-09:** a disk cleanup outside this session removed `node_modules`, `out/`,
+`release/` and the tracked `build/` (9 files: tray icons, `icon.icns`, entitlements, the MCP launcher)
+from this checkout; `build/` was restored from git and `npm ci` reinstalled. The same sweep left
+deleted tracked files in other `~/DATA` repositories (`vendor/`, `third-party/`, `build/`); those are
+not this repository's to restore.
+
+## Earlier — 2026-10-09
 
 **Field, 2026-10-08:** the operator's copy installed 0.6.5 at 11:25 UTC (`update_install installed
 from=0.6.4 to=0.6.5`); its estate checks since log `estate_check ok` — FD-33's field proof. FD-29's
