@@ -3,9 +3,22 @@
 Updated 2026-10-07 (0.6.2: 0.6.1 withdrawn for audit HIGH-2, audit fixes, signed feed; 0.6.1: LC-16 in detail updater, Russian by choice; 0.6.0 published 2026-10-06 21:35 UTC; release 0.5.6: third review pass, token latch; release 0.5.5 withdrawn: release audit and its second pass, A2A plan, ADR-0016, ADR-0015 data and updates, FD-05, FD-06, FD-13; Spend and DEC-0021; one entry per agent, ADR-0012; lifecycle contract landed from PR #21, unreleased; CI release rehearsal
 `v0.4.1-rc.1` green; releases move to CI signing; release 0.4.1, MCP links to online services).
 
-Current release: 0.6.6 (published 2026-10-09 10:08 UTC, run 37864378854; FD-34, FD-35). Before it, 0.6.5 (published 2026-10-08 01:18 UTC, run 37703405621; FD-29, FD-33). Before it, 0.6.4 (published 2026-10-07 01:57 UTC, run 37558793926; carries 0.6.3, superseded before approval). Before it, 0.6.2 (published 2026-10-06 23:41 UTC, run 37541067349; 0.6.1 withdrawn). Before it, 0.6.0 (published 2026-10-06 21:35 UTC, run 37505569449); Before it, 0.5.6 (2026-10-06); the 0.4.1 section below is the previous one. Earlier releases below are preserved as dated evidence.
+Current release: 0.6.7 (published 2026-10-09 17:07 UTC, run 37955575384; FD-36, FD-35, FD-38). Before it, 0.6.6 (published 2026-10-09 10:08 UTC, run 37864378854; FD-34, FD-35). Before it, 0.6.5 (published 2026-10-08 01:18 UTC, run 37703405621; FD-29, FD-33). Before it, 0.6.4 (published 2026-10-07 01:57 UTC, run 37558793926; carries 0.6.3, superseded before approval). Before it, 0.6.2 (published 2026-10-06 23:41 UTC, run 37541067349; 0.6.1 withdrawn). Before it, 0.6.0 (published 2026-10-06 21:35 UTC, run 37505569449); Before it, 0.5.6 (2026-10-06); the 0.4.1 section below is the previous one. Earlier releases below are preserved as dated evidence.
 
-## Next — start here (2026-10-09, release 0.6.7)
+## Next — start here (2026-10-10, after 0.6.7)
+
+**Released: 0.6.7 on 2026-10-09 17:07 UTC** (run 37955575384, tag `v0.6.7` on `bd136b9`; Latest). Receipt:
+`checks.universal` — every Mach-O in the bundle carries arm64 and x86_64 (FD-36) — plus notarized and
+stapled app, zip and image, fuses `100011011`, `checks.pty`, `checks.updateVerifier`,
+`checks.downgradeGuard`, MCP `initialize` as 0.6.7. Published files checked as the updater checks them
+(signature, `signedFeed`, zip hash, `codesign --strict`, team `KJ35UYYL22`, `spctl` accepted,
+attestations with `--signer-repo passioncode-ai/.github`); every `node-pty` prebuild in the zip reads
+`x86_64 arm64`; the `latest` feed names 0.6.7. This Mac's 0.6.6 downloaded and verified 0.6.7 at
+2026-10-09 21:24 UTC (`update_check ready`) and installs it at the next idle moment.
+**Next task:** FD-37 — Windows and Linux builds (operator, 2026-10-10: «адаптация сборки под Windows,
+чтобы всё корректно работало, и под линукс тоже»).
+
+## Earlier — start here (2026-10-09, release 0.6.7)
 
 **Release 0.6.7 — branch `agent/release-067`:** FD-36 — no Intel-only Mach-O in the universal app
 (PR #56, from the fabric-switchboard-93 session; the installed 0.6.6 carried thin x86_64
