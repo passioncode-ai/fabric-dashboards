@@ -59,30 +59,40 @@ The generic automatic 401 behavior remains; a 404 alone does nothing.
 
 `test/dashboard-refresh.test.ts` executes production `ServiceViews` with a
 recording Electron module boundary and an actual local HTTP login-code fixture.
-It covers 20 cases including 401/404/500 failure, refusal, network error,
+It covers 26 cases including 401/404/500 failure, refusal, network error,
 coalescing, loading state, stale owner/identity/drop, fresh reopen retry,
 non-login reload and the retained automatic 401 bound. It does not launch
 Electron, reproduce Chromium cookies or prove a native window rendered.
 
 Validation, 2026-10-09, Node 26.10.0:
 
-- `FD_SKIP_LAUNCHD=1 npm run check`: exit 0, **349 passed / 1 skipped / 0 failed**
-  (350 total). The explicit skip is the real launchd integration test. Typechecks,
+- `FD_SKIP_LAUNCHD=1 npm run check`: exit 0, **355 passed / 1 skipped / 0 failed**
+  (356 total). The explicit skip is the real launchd integration test. Typechecks,
   brand pins, 74 code-region markers and UX consistency also passed. Full output:
   [raw/check.log](raw/check.log).
 - `git diff --check`: exit 0.
 - `npm ci --ignore-scripts`: installed dependencies without native install hooks;
-  npm reported one high advisory. No dependency change is included in this fix.
+  npm reported one high advisory: development-only `source-map-js <1.2.2`,
+  GHSA-68fv-2mgg-jv7q (indexed source-map denial of service). `npm audit --omit=dev
+  --json` reported zero vulnerabilities. No dependency change is included in this fix.
 - Native `npm run test:e2e`: **NOT_RUN**, because this task excludes UI actions.
   Installed app, Nicegram runtime, estate memberships and service tokens were not
   changed. Local checks do not establish the cause of the earlier blank window.
 
 ## Handoff status and next task
 
-REF-1–4 have local implementation evidence above. REF-5 awaits the parent's
-independent diff review and the draft PR receipt. Next: inspect this branch's diff
-against `a7a92aa`, resolve review findings, then push the branch and create the
-draft PR. Before integration, perform native Electron acceptance for SCN-015/039:
+Independent reader `/root/v2_protection` reproduced four important edge cases
+against `2c51cd8`: an in-flight automatic login overwrote a newer explicit one;
+a fresh view could start a second login on 401; fresh reopen did not recheck live
+service identity; a failed fresh HTTP page could remain cached as successfully
+loaded. This revision addresses all four with navigation generation, current
+service checks, suppression on newly created views, and failure invalidation.
+The last six cases in `test/dashboard-refresh.test.ts` cover these findings.
+The reader's final recheck is pending.
+
+REF-1–4 have local implementation evidence above. Draft PR:
+https://github.com/passioncode-ai/fabric-dashboards/pull/58. Next: independently
+recheck the amended revision, then record acceptance and leave the PR draft. Before integration, perform native Electron acceptance for SCN-015/039:
 existing authorized service with an expired session, explicit Refresh, same page,
 visible refusal, and switch-away during pending sign-in. Use existing identity
 only; absent membership is an access decision and is not repaired by this patch.

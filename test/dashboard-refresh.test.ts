@@ -96,7 +96,7 @@ async function fixture(t: any, login = true) {
     assert.ok(release, 'fixture received one login request');
   }
   return { view, wc, events, origin, base, get snap() { return snap; }, get logins() { return logins; }, settled, waiting,
-    hold: () => { hold = true; }, release: finish, refuse: () => { refuse = true; },
+    hold: () => { hold = true; }, release: finish, takeRelease: () => { const reply = release!; release = undefined; return reply; }, refuse: () => { refuse = true; },
     state: (state: string) => { snap = { ...snap, state } as ServiceSnapshot; },
     changedToken: () => { snap = { ...snap, descriptor: { ...snap.descriptor!, auth: { tokenFile: `${token}-changed` } } }; },
     foreign: () => { snap = { ...snap, descriptor: { ...snap.descriptor!, origin: 'https://different.invalid' } }; },
@@ -214,4 +214,44 @@ test('existing automatic 401 recovery still signs in once and preserves the page
   completed({ resourceType: 'mainFrame', statusCode: 401, url: `${f.origin}/answers` });
   await new Promise((r) => setTimeout(r, 10));
   assert.equal(f.logins - f.base, 1, 'existing one-minute automatic retry bound remains');
+});
+
+test('a late automatic 401 login cannot overwrite a newer explicit refresh', async (t) => {
+  const f = await fixture(t); f.hold();
+  completed({ resourceType: 'mainFrame', statusCode: 401, url: `${f.origin}/old-page` });
+  await f.waiting(); const finishOld = f.takeRelease();
+  f.view.navigate('fixture.default', 'refresh'); await f.waiting();
+  f.release(); await f.settled(); const before = f.wc.calls.length;
+  finishOld(); await new Promise((r) => setTimeout(r, 30));
+  assert.equal(f.wc.calls.length, before);
+  assert.equal(f.wc.url, `${f.origin}/answers?tab=open#thread`);
+});
+
+test('fresh reopen after a dropped view cannot start a second login on HTTP 401', async (t) => {
+  const f = await fixture(t); f.view.drop('fixture.default'); responseStatus = 401;
+  const result = await f.view.show(f.snap, { x: 0, y: 0, width: 400, height: 300 }, '/answers', 'owner', true);
+  await new Promise((r) => setTimeout(r, 30));
+  assert.equal(result.ok, false);
+  assert.equal(f.logins - f.base, 1);
+});
+
+for (const change of ['origin', 'token', 'down']) test(`fresh reopen stops before navigation when ${change} changes`, async (t) => {
+  const f = await fixture(t); f.hold(); const before = f.wc.calls.length;
+  const reopening = f.view.show(f.snap, { x: 0, y: 0, width: 400, height: 300 }, '/answers', 'owner', true);
+  await f.waiting();
+  if (change === 'origin') f.foreign();
+  if (change === 'token') f.changedToken();
+  if (change === 'down') f.state('down');
+  f.release();
+  assert.equal((await reopening).ok, false);
+  assert.equal(f.wc.calls.length, before);
+});
+
+test('ordinary reopen after failed fresh HTTP load signs in instead of attaching an error page', async (t) => {
+  const f = await fixture(t); responseStatus = 404;
+  const rect = { x: 0, y: 0, width: 400, height: 300 };
+  assert.equal((await f.view.show(f.snap, rect, '/answers', 'owner', true)).ok, false);
+  responseStatus = 200;
+  assert.deepEqual(await f.view.show(f.snap, rect, undefined, 'new-owner'), { ok: true });
+  assert.equal(f.logins - f.base, 2);
 });
