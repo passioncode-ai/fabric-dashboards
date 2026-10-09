@@ -6,6 +6,7 @@
 // stop(). Every run is logged in the organization's event style with the codes estate_check /
 // estate_update.
 // #region estate-update — docs: docs/adr/0018-estate-updates-from-inside-the-app.md#decision
+import { expand } from '@passioncode-ai/fabric-service-host';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -38,12 +39,12 @@ export type Run = (command: string, args: string[], timeoutMs: number) => Promis
  * question nobody can answer: no terminal prompt, no password dialog.
  */
 export function estateEnv(dirs: readonly string[], base: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
-  return { ...commandEnv(base), PATH: dirs.join(':'), GIT_TERMINAL_PROMPT: '0' };
+  return { ...commandEnv(base), PATH: dirs.join(path.delimiter), GIT_TERMINAL_PROMPT: '0' };
 }
 
-/** `~/…` as the person typed it, resolved against their home. Anything else is returned unchanged. */
-export function expandHome(dir: string, home = os.homedir()): string {
-  return dir === '~' ? home : dir.startsWith('~/') ? path.join(home, dir.slice(2)) : dir;
+/** `~/…` (and on Windows `~\\…`) as the person typed it, resolved against their home. Anything else is returned unchanged. */
+export function expandHome(dir: string, home = os.homedir(), platform: NodeJS.Platform = process.platform): string {
+  return dir === '~' ? home : expand(dir, home, platform);
 }
 
 export interface SiblingPinFile {

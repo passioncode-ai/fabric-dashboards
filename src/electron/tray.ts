@@ -1,4 +1,5 @@
 // The menu bar glance (SCN-023): one icon in three states, problems first.
+import { trayIcon } from '../core/platform';
 import { Menu, nativeImage, Tray, type MenuItemConstructorOptions } from 'electron';
 import path from 'node:path';
 import { displayName } from '../core/names';
@@ -33,12 +34,14 @@ export class AppTray {
   private shown = ''; // what the menu shows now; an identical update rebuilds nothing (LC-08)
 
   constructor(assets: string, private readonly actions: TrayActions, private readonly lang: () => Lang) {
-    const load = (name: string) => {
-      const image = nativeImage.createFromPath(path.join(assets, `${name}Template.png`));
-      image.setTemplateImage(true);
+    // FD-37: macOS tints a monochrome template; Windows and Linux show the colour set (trayIcon).
+    const load = (level: TrayLevel) => {
+      const icon = trayIcon(process.platform, level);
+      const image = nativeImage.createFromPath(path.join(assets, icon.file));
+      image.setTemplateImage(icon.template);
       return image;
     };
-    this.icons = { ok: load('tray'), degraded: load('trayDegraded'), problem: load('trayProblem') };
+    this.icons = { ok: load('ok'), degraded: load('degraded'), problem: load('problem') };
     this.tray = new Tray(this.icons.ok);
     this.tray.setToolTip('Fabric Dashboards');
   }

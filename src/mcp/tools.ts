@@ -8,6 +8,7 @@
 //
 // Reading — descriptors, claim conflicts, launchd status, the health probe, the state — is one
 // look through @passioncode-ai/fabric-service-host, the same code Fabric's registry reads with.
+import { supervises } from '../core/platform';
 import fs from 'node:fs';
 import { discoverHost, type HostStatus } from './host';
 import {
@@ -262,6 +263,10 @@ export async function control(deps: Deps, key: string, action: 'start' | 'stop' 
   const entry = find(deps, key);
   const d = entry.descriptor;
   if (d.placement === 'remote') throw new ToolError(`${d.name} runs online and is supervised by its platform; it cannot be ${action}ed from here`);
+  // ADR-0019 §7: launchd is macOS's; elsewhere the service is shown, never controlled, and the agent is told why.
+  if (d.lifecycle.manager === 'launchd' && !supervises(process.platform, d.lifecycle.manager)) {
+    throw new ToolError(`${d.name} is supervised by launchd, which this system does not have; start and stop it on the system that runs it`);
+  }
   if (d.lifecycle.manager !== 'launchd' || !d.lifecycle.label || !d.lifecycle.plist) {
     throw new ToolError(`${d.name} is not managed by launchd; it cannot be ${action}ed from here`);
   }

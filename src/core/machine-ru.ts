@@ -53,6 +53,9 @@ const RULES: Rule[] = [
   [/^the token file (.+) belongs to another user$/, (_, f) => `файл токена ${f} принадлежит другому пользователю`],
   [/^the token file (.+) is readable by others; set mode 0600$/, (_, f) => `файл токена ${f} доступен другим; поставьте права 0600`],
   [/^the token file (.+) holds no usable token$/, (_, f) => `в файле токена ${f} нет пригодного токена`],
+  [/^the token file (.+) is outside your user profile, so Windows does not keep it private to you$/, (_, f) => `файл токена ${f} лежит вне вашего профиля, поэтому Windows не защищает его от других`],
+  // FD-37: this app on a system it does not fully support yet (src/electron/console.ts)
+  [/^Opening a terminal window is not available on this system yet\.$/, () => 'Открыть окно терминала в этой системе пока нельзя.'],
   // this app's feeds (probe.ts)
   [/^the service refused the token \(HTTP (\d+)\)$/, (_, c) => `сервис отклонил токен (HTTP ${c})`],
   [/^HTTP (\d+) from the events feed$/, (_, c) => `HTTP ${c} от ленты событий`],

@@ -5,7 +5,22 @@ Updated 2026-10-07 (0.6.2: 0.6.1 withdrawn for audit HIGH-2, audit fixes, signed
 
 Current release: 0.6.7 (published 2026-10-09 17:07 UTC, run 37955575384; FD-36, FD-35, FD-38). Before it, 0.6.6 (published 2026-10-09 10:08 UTC, run 37864378854; FD-34, FD-35). Before it, 0.6.5 (published 2026-10-08 01:18 UTC, run 37703405621; FD-29, FD-33). Before it, 0.6.4 (published 2026-10-07 01:57 UTC, run 37558793926; carries 0.6.3, superseded before approval). Before it, 0.6.2 (published 2026-10-06 23:41 UTC, run 37541067349; 0.6.1 withdrawn). Before it, 0.6.0 (published 2026-10-06 21:35 UTC, run 37505569449); Before it, 0.5.6 (2026-10-06); the 0.4.1 section below is the previous one. Earlier releases below are preserved as dated evidence.
 
-## Next — start here (2026-10-10, after 0.6.7)
+## Next — start here (2026-10-10, FD-37 Windows and Linux)
+
+**FD-37 in progress** — [brief](evidence/briefs/2026-10-10-windows-linux-brief.md) (source ledger, 12 risky
+seams, decisions D-1..D-9, REQ table, modules M1..M6) and [ADR-0019](adr/0019-windows-and-linux.md); shared
+rules: fabric-workspace `knowledge/platforms.md` PL-01..PL-08 (PR #86).
+**M1a merged (branch `agent/fd37-m1-portable-core`):** `src/core/platform.ts` and its wiring, service-host
+0.4.0 (Windows services folder, descriptor paths, token check, look without launchctl off macOS), tray/ico/png
+assets, SCN-052. Checks: `FD_SKIP_LAUNCHD=1 npm run check` exit 0 (346 tests, 345 pass, 1 launchd skip);
+e2e 7/7 on macOS. **Next task — M1b:** make the unit suite pass on Windows and Linux (the inventory lists the
+macOS-assuming tests: `/bin/sh` stubs, 0600 mode asserts, `lipo`, `/usr/bin/env`), add the nightly OS matrix
+to `validate.yml` (macos-latest, windows-latest, windows-11-arm, ubuntu-24.04, ubuntu-24.04-arm) and run it by
+dispatch; then the Windows (NSIS) and Linux (AppImage + .deb) packaging from the packager's app directory with
+receipts and a packaged smoke check. **Open seam:** supervision and the Windows services folder await fabric-90's
+answer (proposal sent 2026-10-10; ADR-0019 §7).
+
+## Earlier — start here (2026-10-10, after 0.6.7)
 
 **Released: 0.6.7 on 2026-10-09 17:07 UTC** (run 37955575384, tag `v0.6.7` on `bd136b9`; Latest). Receipt:
 `checks.universal` — every Mach-O in the bundle carries arm64 and x86_64 (FD-36) — plus notarized and

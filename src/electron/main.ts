@@ -2,6 +2,7 @@
 // process, sandboxed renderers, context isolation, a single instance. It owns
 // no service process — launchd does (ADR-0002) — so quitting stops nothing.
 import { app, BrowserWindow, clipboard, dialog, ipcMain, nativeTheme, Menu, Notification, session, shell } from 'electron';
+import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { ActivityStore } from '../core/activity';
@@ -28,6 +29,7 @@ import { ALWAYS_KEPT, clearRestoreRecord, KEPT_FILES, productDataPaths, purgeAft
 import { autoInstallNow, HiddenGrace, partitionFor, RELAUNCH_MARKER, relaunchHidden, stalePartitions, UPDATE_IDLE_MS, VIEW_RELEASE_GRACE_MS } from './policy';
 import { AppTray } from './tray';
 import { DockSync } from './dock';
+import { menuKeys, notificationSettingsUrl, startHidden, uninstallCommand, uninstallTarget, windowChrome } from '../core/platform';
 import { EstateUpdater } from './estate-updater';
 import { Updater } from './updater';
 import { ServiceViews } from './views';
@@ -103,7 +105,7 @@ if (!app.requestSingleInstanceLock()) {
     intervals: Number.isFinite(testRemoteMs) && testRemoteMs >= 1_000 ? { remote: testRemoteMs } : undefined });
   // ADR-0017: the agent consoles. FD_TEST_RUNTIME_DIRS replaces where runtimes are looked for, only
   // in a development run (the e2e suite's scripted runtime); a packaged app reads the login shell's PATH.
-  const testRuntimeDirs = !app.isPackaged && process.env.FD_TEST_RUNTIME_DIRS ? process.env.FD_TEST_RUNTIME_DIRS.split(':').filter(Boolean) : undefined;
+  const testRuntimeDirs = !app.isPackaged && process.env.FD_TEST_RUNTIME_DIRS ? process.env.FD_TEST_RUNTIME_DIRS.split(path.delimiter).filter(Boolean) : undefined;
   const consoles = new ConsoleHost({ settings, snapshot: (key) => monitor.snapshot(key), window: () => window, visible: () => windowVisible(), log: (line) => log(line), testDirs: testRuntimeDirs, scriptsDir: path.join(userData, 'console') });
   let tray: AppTray | null = null;
   // R-3: the window lets itself close only once a quit is really under way — before-quit, or
@@ -225,7 +227,7 @@ if (!app.requestSingleInstanceLock()) {
     }
     window = new BrowserWindow({
       width: 1280, height: 820, minWidth: 960, minHeight: 600, show: false, title: 'Fabric Dashboards',
-      titleBarStyle: 'hiddenInset', backgroundColor: settings.get().theme === 'light' ? '#ffffff' : '#0a070d',
+      ...windowChrome(process.platform), backgroundColor: settings.get().theme === 'light' ? '#ffffff' : '#0a070d',
       webPreferences: { preload: path.join(__dirname, 'preload.js'), sandbox: true, contextIsolation: true, nodeIntegration: false, webSecurity: true, spellcheck: false },
     });
     const w = window;
@@ -297,8 +299,11 @@ if (!app.requestSingleInstanceLock()) {
   }
 
   // A development run must never register the Electron binary at login: no OS port at all.
-  const loginOs: LoginItemOs | null = app.isPackaged
-    ? { get: () => app.getLoginItemSettings(), set: (openAtLogin) => app.setLoginItemSettings({ openAtLogin }) }
+  // FD-37: Windows keeps the login item in the Run key with `--hidden` (Electron compares the same args
+  // when reading it back); Linux has no Electron login item — its XDG autostart file comes with FD-37 M3.
+  const loginArgs = process.platform === 'win32' ? { args: ['--hidden'] } : {};
+  const loginOs: LoginItemOs | null = app.isPackaged && process.platform !== 'linux'
+    ? { get: () => app.getLoginItemSettings(loginArgs), set: (openAtLogin) => app.setLoginItemSettings({ openAtLogin, ...loginArgs }) }
     : null;
 
   // #region uninstall-flow — docs: docs/ux/scenarios.md#scn-024-settings-launch-at-login-notifications-quiet-hours
@@ -357,9 +362,18 @@ if (!app.requestSingleInstanceLock()) {
         }
         purgeAfterExit(process.pid, all.filter((p) => path.resolve(p) !== path.resolve(userData)), { dir: userData, names: KEPT_FILES });
       }
-      const bundle = path.resolve(process.execPath, '../../..');
+      // FD-37: only what this install is — never a parent folder (uninstallTarget, ADR-0019).
+      const target = uninstallTarget(process.platform, process.execPath, process.env, (p) => fs.existsSync(p));
+      log(`uninstall: ${target.kind}${'path' in target ? ` ${target.path}` : ''}`);
       try {
-        await shell.trashItem(bundle);
+        if (target.kind === 'trash-bundle' || target.kind === 'trash-file') await shell.trashItem(target.path);
+        else if (target.kind === 'run-uninstaller') {
+          // After this app exits (uninstallCommand); a failure to start it is said, never thrown.
+          const cmd = uninstallCommand(target, process.pid);
+          const child = spawn(cmd.file, cmd.args, { detached: true, stdio: 'ignore', windowsHide: true });
+          child.on('error', (error) => log(`uninstall: the uninstaller could not start: ${error.message}`));
+          child.unref();
+        } else await dialog.showMessageBox({ type: 'info', message: t(l, 'uninstall.manual', { how: target.kind === 'package' ? target.command : t(l, target.reason) }), buttons: ['OK'] });
       } catch (error) {
         await dialog.showMessageBox({ type: 'info', message: t(l, 'uninstall.trashFailed', { error: (error as Error).message }), buttons: ['OK'] });
       }
@@ -405,7 +419,7 @@ if (!app.requestSingleInstanceLock()) {
   /** U-6/R-3: a move that macOS refuses says so, and leaves the app as it was. A move that works
    *  quits through app.quit (before-quit sets `quitting`) and relaunches from Applications. */
   async function moveToApplications(): Promise<{ ok: boolean; error?: string }> {
-    if (!app.isPackaged || app.isInApplicationsFolder()) return { ok: true };
+    if (!app.isPackaged || process.platform !== 'darwin' || app.isInApplicationsFolder()) return { ok: true }; // the Applications folder is macOS's
     let error = '';
     try {
       // An older copy already in Applications is replaced; a running one cannot be, since this
@@ -422,7 +436,7 @@ if (!app.requestSingleInstanceLock()) {
 
   /** Asked once (LC-07): a copy outside Applications cannot update itself. */
   async function offerMoveToApplications(): Promise<void> {
-    if (!app.isPackaged || app.isInApplicationsFolder() || settings.get().moveToApplicationsAsked) return;
+    if (!app.isPackaged || process.platform !== 'darwin' || app.isInApplicationsFolder() || settings.get().moveToApplicationsAsked) return;
     settings.update({ moveToApplicationsAsked: true });
     const l = lang();
     const ask = { type: 'question' as const, buttons: [t(l, 'move.confirm'), t(l, 'move.later')], defaultId: 0, cancelId: 1, message: t(l, 'move.title'), detail: t(l, 'move.body') };
@@ -552,7 +566,7 @@ if (!app.requestSingleInstanceLock()) {
     ipcMain.handle(CHANNELS.updateSteps, () => { const steps = updater.state.state === 'held' ? updater.state.steps : undefined; if (steps && steps.startsWith('https://')) return shell.openExternal(steps); });
     ipcMain.handle(CHANNELS.updateCheck, () => updater.check(true)); // the person asked: works with automatic updates off
     ipcMain.handle(CHANNELS.moveToApplications, () => moveToApplications());
-    ipcMain.handle(CHANNELS.notificationSettings, () => shell.openExternal('x-apple.systempreferences:com.apple.Notifications-Settings.extension'));
+    ipcMain.handle(CHANNELS.notificationSettings, async () => { const url = notificationSettingsUrl(process.platform); if (url) await shell.openExternal(url); });
     ipcMain.handle(CHANNELS.locale, () => lang());
     ipcMain.handle(CHANNELS.uninstall, () => uninstall());
     ipcMain.on(CHANNELS.viewBounds, (_e, rect: Rect) => views?.setBounds(rect));
@@ -564,21 +578,26 @@ if (!app.requestSingleInstanceLock()) {
 
   function appMenu(): void {
     const l = lang();
+    const keys = menuKeys(process.platform);
+    // FD-37: the app menu and the Command key are macOS's; elsewhere a File menu holds updates and Quit.
+    const quit: Electron.MenuItemConstructorOptions = { label: t(l, 'menu.quit'), accelerator: keys.quit, click: () => void quitAsked() };
+    const checkUpdates: Electron.MenuItemConstructorOptions = { label: t(l, 'menu.checkUpdates'), click: () => updater.check(true) };
     Menu.setApplicationMenu(Menu.buildFromTemplate([
-      { role: 'appMenu', submenu: [
-        { role: 'about' },
-        { label: t(l, 'menu.checkUpdates'), click: () => updater.check(true) },
-        { type: 'separator' }, { role: 'hide' }, { role: 'hideOthers' }, { role: 'unhide' }, { type: 'separator' },
-        { label: t(l, 'menu.quit'), accelerator: 'Command+Q', click: () => void quitAsked() },
-      ] },
+      keys.appMenu
+        ? { role: 'appMenu', submenu: [
+          { role: 'about' }, checkUpdates,
+          { type: 'separator' }, { role: 'hide' }, { role: 'hideOthers' }, { role: 'unhide' }, { type: 'separator' }, quit,
+        ] }
+        : { label: t(l, 'menu.file'), submenu: [checkUpdates, { type: 'separator' }, quit] },
       { role: 'editMenu' },
       // ADR-0017: the panels fold away from the menu too; the window holds the state (Settings.layout).
       { label: t(l, 'menu.view'), submenu: [
-        { label: t(l, 'menu.toggleSidebar'), accelerator: 'Ctrl+Cmd+S', click: () => layoutCommand('sidebar') },
-        { label: t(l, 'menu.toggleConsole'), accelerator: 'Ctrl+Cmd+T', click: () => layoutCommand('console') },
-        { label: t(l, 'menu.toggleDetails'), accelerator: 'Ctrl+Cmd+D', click: () => layoutCommand('details') },
+        { label: t(l, 'menu.toggleSidebar'), accelerator: keys.sidebar, click: () => layoutCommand('sidebar') },
+        { label: t(l, 'menu.toggleConsole'), accelerator: keys.console, click: () => layoutCommand('console') },
+        { label: t(l, 'menu.toggleDetails'), accelerator: keys.details, click: () => layoutCommand('details') },
       ] },
       { role: 'windowMenu' },
+      ...(keys.appMenu ? [] : [{ role: 'help' as const, submenu: [{ role: 'about' as const }] }]),
     ]));
   }
 
@@ -690,7 +709,7 @@ if (!app.requestSingleInstanceLock()) {
     try { markerText = fs.readFileSync(marker, 'utf8'); fs.rmSync(marker, { force: true }); } catch { /* none */ }
     const afterUpdate = relaunchHidden(markerText, Date.now());
     if (afterUpdate) log(`update: relaunched as ${app.getVersion()} after an automatic install`);
-    const hidden = afterUpdate || app.getLoginItemSettings().wasOpenedAtLogin || process.argv.includes('--hidden');
+    const hidden = startHidden(process.platform, { argv: process.argv, wasOpenedAtLogin: process.platform === 'darwin' ? app.getLoginItemSettings().wasOpenedAtLogin : undefined, afterUpdate });
     if (!hidden) showWindow();
     else { syncDock(false); updateGrace.hidden(); } // the menu bar only, as when the window is hidden (FD-05)
     if (!hidden) void offerMoveToApplications();

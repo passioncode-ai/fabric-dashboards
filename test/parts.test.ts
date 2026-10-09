@@ -390,6 +390,9 @@ test('L10N-05: Russian follows the organization glossary (Терминал, За
 test('FD-19: machine reasons read in Russian where they are known, and stay as written where not', async () => {
   const { machineRu } = await import('../src/core/machine-ru');
   assert.equal(machineRu('connect ECONNREFUSED 127.0.0.1:8787'), 'соединение отклонено (127.0.0.1:8787)');
+  // FD-37
+  assert.equal(machineRu('the token file C:\\x\\t is outside your user profile, so Windows does not keep it private to you'), 'файл токена C:\\x\\t лежит вне вашего профиля, поэтому Windows не защищает его от других');
+  assert.equal(machineRu('Opening a terminal window is not available on this system yet.'), 'Открыть окно терминала в этой системе пока нельзя.');
   assert.equal(machineRu('missing origin; protocol must be fabric-service/0.1, not x'), 'нет поля origin; protocol должен быть fabric-service/0.1, а не x');
   assert.equal(machineRu('the token file ~/t is readable by others; set mode 0600'), 'файл токена ~/t доступен другим; поставьте права 0600', 'one sentence with a "; " inside');
   assert.equal(machineRu('the usage report is malformed: days is not a list of at most 31'), 'отчёт о расходах некорректен: days — не список не длиннее 31');

@@ -187,3 +187,34 @@ test('an unmanaged service cannot be controlled, and says why', async () => {
 test('request refuses a non-loopback origin', async () => {
   await assert.rejects(request('http://0.0.0.0:47166', 'GET', '/'), /127\.0\.0\.1/);
 });
+
+// FD-37 / ADR-0019 §7: launchd exists only on macOS. Elsewhere a launchd descriptor is shown read-only:
+// no `launchctl` spawn on any probe, and a control request says why instead of failing with "exit 1".
+test('FD-37: off macOS a launchd service is never asked of launchctl, and control says why', async () => {
+  const base = tmp('fd-mon-');
+  const services = path.join(base, 'services');
+  const port = await freePort();
+  register(port, path.join(base, 'svc'), services);
+  const file = path.join(services, fs.readdirSync(services).find((f) => f.endsWith('.json'))!);
+  const d = JSON.parse(fs.readFileSync(file, 'utf8'));
+  d.lifecycle = { manager: 'launchd', label: 'ai.example.sample', plist: path.join(base, 'sample.plist') };
+  fs.writeFileSync(file, JSON.stringify(d), { mode: 0o600 });
+  let calls = 0;
+  const launchd = {
+    status: async () => { calls += 1; return { loaded: true, pid: null, disabled: false }; },
+    disabledTable: async () => { calls += 1; return ''; },
+    start: async () => { calls += 1; return { code: 0, stdout: '', stderr: '' }; },
+    stop: async () => { calls += 1; return { code: 0, stdout: '', stderr: '' }; },
+    restart: async () => { calls += 1; return { code: 0, stdout: '', stderr: '' }; },
+  } as unknown as Launchd;
+  const monitor = new Monitor({ servicesDir: services, activity: new ActivityStore(path.join(base, 'app')), settings: () => DEFAULT_SETTINGS, lang: () => 'en', intervals: FAST, launchd, platform: 'linux' });
+  monitor.setVisible(true);
+  await monitor.tick(true);
+  await monitor.tick(true);
+  assert.equal(calls, 0, 'no launchctl on Linux, even with the window visible');
+  assert.equal(monitor.snapshot('sample.default')?.launchd.managed, false, 'shown read-only');
+  const r = await monitor.control('sample.default', 'restart');
+  assert.equal(r.ok, false);
+  assert.equal(r.reason.code, 'result.unsupervisedHere');
+  assert.equal(calls, 0);
+});

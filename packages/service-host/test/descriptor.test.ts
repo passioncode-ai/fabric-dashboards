@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import { claimConflicts, portOf, readDirectory, servicesDir, validateDescriptor } from '../src/descriptor';
+import { claimConflicts, expand, portOf, readDirectory, servicesDir, validateDescriptor } from '../src/descriptor';
 
 const FIXTURES = path.join(__dirname, '../../../test/fixtures/contract');
 const fx = (name: string) => JSON.parse(fs.readFileSync(path.join(FIXTURES, name), 'utf8'));
@@ -86,4 +86,36 @@ test('FAC-SEM-010: two services on one port name each other; a key claimed twice
   assert.deepEqual(conflicts.get('maker.preview'), { port: 47191, with: ['writer.default'] });
   assert.deepEqual(conflicts.get('twice.default'), { with: ['twice.default'] });
   assert.equal(conflicts.has('plan.default'), false);
+});
+
+// FD-37: Windows and Linux. The services directory and the path grammar follow the operating system the
+// descriptor was written on; Windows paths are drive-absolute or `~\`, never a network share.
+test('FD-37: the Windows services directory is %LOCALAPPDATA%\\passioncode-fabric\\services', () => {
+  assert.equal(servicesDir({ LOCALAPPDATA: 'C:\\Users\\example\\AppData\\Local' }, 'win32', 'C:\\Users\\example'), 'C:\\Users\\example\\AppData\\Local\\passioncode-fabric\\services');
+  assert.equal(servicesDir({}, 'win32', 'C:\\Users\\example'), 'C:\\Users\\example\\AppData\\Local\\passioncode-fabric\\services', 'LOCALAPPDATA missing: the profile default');
+  assert.equal(servicesDir({ FABRIC_SERVICES_DIR: '~\\svc' }, 'win32', 'C:\\Users\\example'), 'C:\\Users\\example\\svc');
+});
+
+test('FD-37: expand resolves ~/ everywhere and ~\\ on Windows only', () => {
+  assert.equal(expand('~/t', '/home/example', 'linux'), '/home/example/t');
+  assert.equal(expand('~\\t', 'C:\\Users\\example', 'win32'), 'C:\\Users\\example\\t');
+  assert.equal(expand('~/t', 'C:\\Users\\example', 'win32'), 'C:\\Users\\example\\t');
+  assert.equal(expand('~\\t', '/home/example', 'linux'), '~\\t', 'a backslash is a file-name character on Linux');
+});
+
+test('FD-37: descriptor paths are drive-absolute or ~\\ on Windows, never a share; POSIX elsewhere', () => {
+  const win = (paths: { token: string; data: string; logs: string[]; doctor: string }) => ({
+    ...fx('positive_service-descriptor.json'),
+    auth: { tokenFile: paths.token },
+    lifecycle: { manager: 'none' },
+    paths: { data: paths.data, logs: paths.logs },
+    commands: { doctor: [paths.doctor, 'doctor'] },
+  });
+  const good = win({ token: 'C:\\Users\\example\\AppData\\Local\\example-agent\\token', data: '~\\AppData\\Local\\example-agent', logs: ['C:/Users/example/AppData/Local/example-agent/logs'], doctor: 'C:\\Program Files\\Example\\example-agent.exe' });
+  assert.deepEqual(validateDescriptor(good, 'win32'), []);
+  assert.ok(validateDescriptor(good, 'darwin').some((p) => /tokenFile/.test(p)), 'a Windows path is not a path on macOS');
+  for (const share of ['\\\\server\\share\\token', '//server/share/token']) {
+    assert.ok(validateDescriptor(win({ ...{ token: share, data: '~\\d', logs: [], doctor: 'C:\\x.exe' } }), 'win32').some((p) => /tokenFile/.test(p)), share);
+  }
+  assert.ok(validateDescriptor(win({ token: 'token', data: '~\\d', logs: [], doctor: 'C:\\x.exe' }), 'win32').some((p) => /tokenFile/.test(p)), 'a relative path is refused');
 });

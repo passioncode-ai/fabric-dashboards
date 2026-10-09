@@ -57,6 +57,7 @@
 | SCN-049 | Start a runtime in the agent's repository | console | P-01 | ST-019 | validated | 2026-10-06 |
 | SCN-050 | A folder bound to a Switchboard project runs on that project's account | console | P-01 | ST-019 | validated | 2026-10-06 |
 | SCN-051 | The app watches contract and skill versions | estate | P-01 | ST-008, ST-017 | draft | 2026-10-07 |
+| SCN-052 | Fabric Dashboards on Windows or Linux | platform | P-01 | ST-001, ST-008 | draft | 2026-10-10 |
 ## Personas
 
 Defined in [foundation.md](foundation.md) → P-01.
@@ -1043,4 +1044,24 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **Errors & recovery:** Switchboard needs its app or `switchboard serve` running -> its own message, shown as it says it; a managed session for the same project already runs -> Switchboard's refusal is shown as it says it; Switchboard's answer cannot be read -> "Switchboard did not answer; the session was not started" — never a silent fallback to the ordinary sign-in
 - **Status:** validated
 - **Coverage:** src/core/switchboard.ts, src/core/consoles.ts, src/electron/console.ts, test/console.test.ts
+- **Product:** unobserved
+
+### SCN-052: Fabric Dashboards on Windows or Linux
+- **Persona:** P-01
+- **Feature:** platform
+- **Traces:** ST-001, ST-008 (JTBD-01, JRN-01/#1); ADR-0019
+- **Entry point:** the app installed on Windows (NSIS) or Linux (AppImage or .deb)
+- **Preconditions:** none
+- **Steps:**
+  1. User starts the app -> the window has the system's own frame and a File menu (Check for Updates, Quit — Ctrl+Q); the services found in this computer's services folder are listed as on macOS
+  2. User closes the window -> the app stays in the system tray with the colour mark; its state shows as a shape and a colour (amber triangle: degraded, red dot: a problem); the tray menu opens the window again
+  3. User opens a local service -> its dashboard, events and spend work as on macOS; start, stop and restart are not offered yet, and the service's facts say why (supervision on this system comes with the contract decision, ADR-0019)
+  4. User chooses Settings → Uninstall -> on Windows this install's own uninstaller runs after the app quits; on Linux the AppImage goes to the trash, or for a .deb the app shows `sudo apt remove fabric-dashboards`
+- **Expected result:** the same monitoring as on macOS, nothing macOS-only offered, and nothing removed but this app
+- **Alt paths:** Windows: Settings → Launch at login starts the app hidden in the tray at sign-in; Linux: launch at login is not offered until the autostart file lands (FD-37 M3); notification settings open Windows Settings, on Linux the app says to look in the desktop's own settings
+- **UI elements:** system window frame, File / View / Window / Help menus, tray icon and menu, Settings → Uninstall
+- **States covered:** success, error
+- **Errors & recovery:** a Windows copy with no uninstaller beside it, or a Linux copy that is neither an AppImage nor a package -> "Fabric Dashboards is uninstalled from your settings. To remove the app itself: …" with what to do; updates on Windows and Linux -> reported as unsupported until the per-OS updater lands (ADR-0019 §6)
+- **Status:** draft
+- **Coverage:** src/core/platform.ts, src/electron/main.ts, src/electron/tray.ts, test/platform.test.ts
 - **Product:** unobserved
