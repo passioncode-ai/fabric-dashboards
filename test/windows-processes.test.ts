@@ -35,21 +35,23 @@ test('FD-37 LC-02 (Windows): a command past its timeout loses its whole tree', W
 });
 
 test('FD-37 LC-02 (Windows): killOwned ends a running command and leaves no child', WINDOWS_ONLY, async () => {
+  await until('the previous test\'s leftovers are done', () => ownedCount() === 0, 60_000);
   const pending = runOwned(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], { timeoutMs: 60_000 });
   await new Promise((r) => setTimeout(r, 300));
   assert.equal(ownedCount(), 1);
   await killOwned(200);
   const r = await pending;
   assert.notEqual(r.code, 0, 'ended, not finished');
-  await until('nothing is owned', () => ownedCount() === 0, 15_000);
+  await until('nothing is owned', () => ownedCount() === 0, 60_000);
 });
 
 test('FD-37 T-12 (Windows): what a finished command left running counts as owned until it is gone', WINDOWS_ONLY, async () => {
+  await until('the previous test\'s leftovers are done', () => ownedCount() === 0, 60_000);
   const pidFile = path.join(tmp('fd-win-'), 'g.pid');
   const r = await runOwned(process.execPath, withGrandchild(pidFile, 'exit'), { timeoutMs: 15_000 });
   assert.equal(r.code, 0);
   assert.match(r.output, /started/);
   const left = Number(fs.readFileSync(pidFile, 'utf8'));
-  await until('the leftover is gone', () => !alive(left), 20_000);
-  await until('nothing is owned', () => ownedCount() === 0, 20_000);
+  await until('the leftover is gone', () => !alive(left), 60_000); // WMI's first snapshot on a CI runner takes seconds
+  await until('nothing is owned', () => ownedCount() === 0, 60_000);
 });

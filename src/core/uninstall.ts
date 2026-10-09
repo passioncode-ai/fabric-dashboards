@@ -276,7 +276,9 @@ function purgeAfterExitWindows(pid: number, paths: string[], keepDir: string, na
     `$k = ${lit(keepDir)}; $kept = @(${names.map(lit).join(',')})`,
     'if ($k -and (Test-Path -LiteralPath $k -PathType Container)) { Get-ChildItem -LiteralPath $k -Force | Where-Object { $kept -notcontains $_.Name } | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue }',
   ].join('; ');
-  const helper = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-WindowStyle', 'Hidden', '-Command', script], { detached: true, stdio: 'ignore', windowsHide: true });
+  // Not detached: a DETACHED_PROCESS PowerShell has no console and does not start with a window style;
+  // windowsHide keeps it out of sight, and Windows lets a child outlive its parent anyway.
+  const helper = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], { stdio: 'ignore', windowsHide: true });
   helper.unref();
   return helper;
 }

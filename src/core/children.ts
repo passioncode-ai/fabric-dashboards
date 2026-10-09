@@ -55,7 +55,7 @@ async function killWindowsLeftovers(child: ChildProcess): Promise<void> {
   const pid = child.pid;
   const since = startedAt.get(child);
   if (!pid || since === undefined) return;
-  const rows = parseSnapshot(await quiet('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', SNAPSHOT_SCRIPT]));
+  const rows = parseSnapshot(await quiet('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', SNAPSHOT_SCRIPT], 30_000)); // WMI's first query on a cold runner takes seconds
   for (const left of descendantsOf(rows, pid, since - CLOCK_ALLOWANCE_MS)) await quiet('taskkill', ['/PID', String(left), '/T', '/F']);
 }
 

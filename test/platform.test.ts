@@ -70,7 +70,7 @@ test('FD-37: the Windows uninstaller starts only after this app has exited, by i
   const target = { kind: 'run-uninstaller' as const, path: "C:\\Users\\o'brien\\AppData\\Local\\Programs\\Fabric Dashboards\\Uninstall Fabric Dashboards.exe", args: ['/S'] };
   const cmd = uninstallCommand(target, 4242);
   assert.equal(cmd.file, 'powershell.exe');
-  assert.deepEqual(cmd.args.slice(0, 4), ['-NoProfile', '-NonInteractive', '-WindowStyle', 'Hidden']);
+  assert.deepEqual(cmd.args.slice(0, 3), ['-NoProfile', '-NonInteractive', '-Command'], 'no window style: the helper runs without a console (windowsHide hides it)');
   const script = cmd.args[cmd.args.length - 1]!;
   assert.match(script, /Wait-Process -Id 4242 -Timeout 30/);
   assert.match(script, /Start-Process -FilePath 'C:\\Users\\o''brien\\.*Uninstall Fabric Dashboards\.exe' -ArgumentList '\/S'/, 'single quotes doubled: a path cannot end the literal');

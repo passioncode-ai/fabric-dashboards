@@ -64,14 +64,14 @@ test('FD-37 REQ-05: the install folders searched on Windows and on Linux', () =>
   assert.ok(!linux.includes('/opt/homebrew/bin'), 'Homebrew\'s macOS prefix is not searched on Linux');
 });
 
-test('REQ-05: the first PATH entry wins, as in a shell', () => {
+test('REQ-05: the first PATH entry wins, as in a shell', { skip: process.platform === 'win32' && 'POSIX execute bits; Windows lookup is tested by the PATHEXT test' }, () => {
   const base = tmp('fd-rt-order-');
   bin(path.join(base, 'first'), 'claude');
   bin(path.join(base, 'second'), 'claude');
   assert.equal(detectRuntimes([path.join(base, 'first'), path.join(base, 'second')], KNOWN_RUNTIMES)[0]!.path, path.join(base, 'first', 'claude'));
 });
 
-test('REQ-05: a catalog from Switchboard extends the list; IDE-only entries and duplicates are left out', () => {
+test('REQ-05: a catalog from Switchboard extends the list; IDE-only entries and duplicates are left out', { skip: process.platform === 'win32' && 'POSIX execute bits; Windows lookup is tested by the PATHEXT test' }, () => {
   const base = tmp('fd-rt-cat-');
   bin(base, 'claude');
   bin(base, 'hermes');

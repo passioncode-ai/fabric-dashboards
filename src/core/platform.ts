@@ -55,7 +55,7 @@ export function uninstallTarget(platform: NodeJS.Platform, execPath: string, env
 export function uninstallCommand(target: { path: string; args: string[] }, pid: number): { file: string; args: string[] } {
   const lit = (s: string) => `'${s.replace(/'/g, "''")}'`;
   const script = `Wait-Process -Id ${Math.trunc(pid)} -Timeout 30 -ErrorAction SilentlyContinue; Start-Process -FilePath ${lit(target.path)} -ArgumentList ${target.args.map(lit).join(',')}`;
-  return { file: 'powershell.exe', args: ['-NoProfile', '-NonInteractive', '-WindowStyle', 'Hidden', '-Command', script] };
+  return { file: 'powershell.exe', args: ['-NoProfile', '-NonInteractive', '-Command', script] };
 }
 
 /** A folder path a setting may keep: absolute in the grammar of `platform`, never a network share. */

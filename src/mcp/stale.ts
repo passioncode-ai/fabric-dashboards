@@ -16,7 +16,9 @@ const ASAR_MARK = /[\\/]Contents[\\/]Resources[\\/]app\.asar[\\/]/;
  */
 export function codeFile(from = __filename): string {
   const m = ASAR_MARK.exec(from);
-  return m ? path.join(from.slice(0, m.index), 'Contents', 'Info.plist') : from;
+  if (!m) return from;
+  const sep = m[0][0]!; // the path keeps the separators it came with, on any system
+  return [from.slice(0, m.index), 'Contents', 'Info.plist'].join(sep);
 }
 
 /** CFBundleShortVersionString from an XML Info.plist, read with plain fs. */

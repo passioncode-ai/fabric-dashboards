@@ -116,7 +116,7 @@ test('dist: the receipt asserts notarization and Gatekeeper on the app, the upda
   assert.deepEqual(unsigned, { signing: 'unsigned', notarization: 'not requested', gatekeeper: 'not assessed', checks: {}, problems: [] });
 });
 
-test('dist: release.yml signs in the release environment and ships only what was made from the stapled app', async () => {
+test('dist: release.yml signs in the release environment and ships only what was made from the stapled app', { skip: process.platform === 'win32' && 'the macOS release\'s POSIX staging paths' }, async () => {
   const dist = await import('../scripts/dist-mac.mjs');
   const root = path.resolve(__dirname, '..');
   const wf = fs.readFileSync(path.join(root, '.github/workflows/release.yml'), 'utf8');

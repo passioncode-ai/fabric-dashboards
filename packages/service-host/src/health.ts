@@ -162,7 +162,9 @@ const TRUSTED_SIDS = new Set(['S-1-5-18', 'S-1-5-32-544']);
  * or Administrators. A deny ACE does not decide. The refusal names the SID, never the contents.
  */
 export function windowsAclProblem(acl: WindowsAcl, userSid: string): string | null {
-  if (acl.owner !== userSid) return `is owned by ${acl.owner}, not by you`;
+  // An elevated administrator's new files are owned by BUILTIN\\Administrators, not the user (Windows'
+  // default for that group); owner SYSTEM or Administrators is the trust an ACE may already hold.
+  if (acl.owner !== userSid && !TRUSTED_SIDS.has(acl.owner)) return `is owned by ${acl.owner}, not by you`;
   for (const ace of acl.aces) {
     if (!/^allow$/i.test(ace.type) || !(ace.rights > 0)) continue;
     if (ace.sid !== userSid && !TRUSTED_SIDS.has(ace.sid)) return `grants access to ${ace.sid}, but only you, SYSTEM and Administrators may hold it`;

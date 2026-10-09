@@ -17,7 +17,7 @@ import { UNMANAGED, type LaunchdReader } from '../src/launchd';
 
 const remote = (over: Record<string, unknown> = {}) => ({
   protocol: 'fabric-service/0.1', id: 'example-agent', instance: 'default', name: 'Example Agent', placement: 'remote',
-  origin: 'https://agent.example.com', auth: { tokenFile: '/tmp/x/t.token' }, lifecycle: { manager: 'none' },
+  origin: 'https://agent.example.com', auth: { tokenFile: '~/x/t.token' }, lifecycle: { manager: 'none' },
   installedAt: '2026-10-02T18:00:00Z', installedBy: 'test', ...over,
 });
 
@@ -106,7 +106,7 @@ test('one look at a remote service reads its token, probes with it, and is inval
   const probe = (origin: string, options?: Parameters<typeof fetchWellKnown>[2]) => fetchWellKnown(origin, 3000, { ...options, ca: s.ca, connect: { host: '127.0.0.1', port: s.port } });
   try {
     const look = await lookAtServices({ servicesDir: services, launchd, wellKnown: probe });
-    assert.equal(look.services[0]!.state, 'ready');
+    assert.equal(look.services[0]!.state, 'ready', look.services[0]!.problems.join('; '));
     // POSIX widens the mode; Windows grants Everyone (S-1-1-0) read access — DEC-0032's refusal names it.
     const windows = process.platform === 'win32';
     if (windows) execFileSync('icacls', [tokenFile, '/grant', '*S-1-1-0:R'], { stdio: 'ignore' });

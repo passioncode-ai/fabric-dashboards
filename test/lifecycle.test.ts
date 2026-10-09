@@ -633,7 +633,7 @@ test('LC-14: the app\'s data is removed only after the app has exited, and the h
   fs.mkdirSync(data, { recursive: true });
   fs.writeFileSync(path.join(data, 'activity.jsonl'), 'x');
   const appProcess = spawn('/bin/sleep', ['0.4']);
-  const helper = purgeAfterExit(appProcess.pid!, [data, home, '/'])!;
+  const helper = purgeAfterExit(appProcess.pid!, [data, home, '/'], undefined, 30_000, { platform: 'darwin' })!; // the macOS profile's shape (Library), on any POSIX system
   // The app lets the helper go (unref) so it can quit; this test waits for it, so it holds it.
   helper.ref();
   const helperDone = new Promise((resolve) => helper.once('exit', resolve));
@@ -643,7 +643,7 @@ test('LC-14: the app\'s data is removed only after the app has exited, and the h
   await helperDone;
   assert.equal(fs.existsSync(data), false, 'removed once the app exited');
   assert.ok(fs.existsSync(home), 'a path that is not a product path is never handed to rm');
-  assert.equal(purgeAfterExit(process.pid, [home, '/']), null, 'nothing to remove: no helper');
+  assert.equal(purgeAfterExit(process.pid, [home, '/'], undefined, 30_000, { platform: 'darwin' }), null, 'nothing to remove: no helper');
 });
 
 test('audit 2026-10-07: an app still running when the wait ends keeps its data', { skip: process.platform === 'win32' && 'POSIX process groups and /bin/sh — the Windows twin is test/windows-processes.test.ts' }, async () => {
@@ -653,7 +653,7 @@ test('audit 2026-10-07: an app still running when the wait ends keeps its data',
   fs.writeFileSync(path.join(data, 'activity.jsonl'), 'x');
   const appProcess = spawn('/bin/sleep', ['5']);
   try {
-    const helper = purgeAfterExit(appProcess.pid!, [data], undefined, 300)!;
+    const helper = purgeAfterExit(appProcess.pid!, [data], undefined, 300, { platform: 'darwin' })!;
     helper.ref();
     await new Promise((resolve) => helper.once('exit', resolve));
     assert.ok(fs.existsSync(path.join(data, 'activity.jsonl')), 'nothing is removed from under a live app');
@@ -684,7 +684,7 @@ test('LC-14/ADR-0015: an uninstall that keeps the data removes everything else i
   for (const name of ['Local State', 'Cookies', '.hidden-chromium-file', 'SingletonLock']) fs.writeFileSync(path.join(data, name), 'x');
   fs.writeFileSync(path.join(logs, 'main.log'), 'x');
   const appProcess = spawn('/bin/sleep', ['0.3']);
-  const helper = purgeAfterExit(appProcess.pid!, [logs], { dir: data, names: KEPT_FILES })!;
+  const helper = purgeAfterExit(appProcess.pid!, [logs], { dir: data, names: KEPT_FILES }, 30_000, { platform: 'darwin' })!;
   helper.ref();
   const helperDone = new Promise((resolve) => helper.once('exit', resolve));
   await new Promise((resolve) => setTimeout(resolve, 100));
@@ -693,7 +693,7 @@ test('LC-14/ADR-0015: an uninstall that keeps the data removes everything else i
   assert.deepEqual(fs.readdirSync(data).sort(), [...KEPT_FILES].sort(), 'only the settings, the history and the restore record stay');
   for (const name of KEPT_FILES) assert.equal(fs.readFileSync(path.join(data, name), 'utf8'), name, `${name} is untouched`);
   assert.equal(fs.existsSync(logs), false);
-  assert.throws(() => purgeAfterExit(process.pid, [], { dir: data, names: ['a;rm -rf /'] }), /plain file name/);
+  assert.throws(() => purgeAfterExit(process.pid, [], { dir: data, names: ['a;rm -rf /'] }, 30_000, { platform: 'darwin' }), /plain file name/);
 });
 
 test('ADR-0015: every file the app keeps the person\'s choices and history in is on the kept list', () => {
