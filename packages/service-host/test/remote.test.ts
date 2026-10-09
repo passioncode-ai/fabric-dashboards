@@ -2,7 +2,7 @@
 // reads it. TLS is real (a certificate made for this run with openssl); only the dial address is
 // redirected to 127.0.0.1, while the name, SNI, certificate and Host stay the origin's.
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import http from 'node:http';
 import https from 'node:https';
@@ -107,12 +107,15 @@ test('one look at a remote service reads its token, probes with it, and is inval
   try {
     const look = await lookAtServices({ servicesDir: services, launchd, wellKnown: probe });
     assert.equal(look.services[0]!.state, 'ready');
-    fs.chmodSync(tokenFile, 0o644);
+    // POSIX widens the mode; Windows grants Everyone (S-1-1-0) read access — DEC-0032's refusal names it.
+    const windows = process.platform === 'win32';
+    if (windows) execFileSync('icacls', [tokenFile, '/grant', '*S-1-1-0:R'], { stdio: 'ignore' });
+    else fs.chmodSync(tokenFile, 0o644);
     const bad = await lookAtServices({ servicesDir: services, launchd, wellKnown: probe });
     assert.equal(bad.services[0]!.state, 'invalid');
-    assert.match(bad.services[0]!.problems.join(' '), /readable by others/);
+    assert.match(bad.services[0]!.problems.join(' '), windows ? /S-1-1-0/ : /readable by others/);
     assert.equal(bad.services[0]!.probe, null, 'a service whose token cannot be read is never contacted');
-    assert.throws(() => readToken(tokenFile), /0600/);
+    assert.throws(() => readToken(tokenFile), windows ? /S-1-1-0/ : /0600/);
   } finally {
     await s.close();
   }

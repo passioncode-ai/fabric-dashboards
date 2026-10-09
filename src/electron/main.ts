@@ -4,6 +4,7 @@
 import { app, BrowserWindow, clipboard, dialog, ipcMain, nativeTheme, Menu, Notification, session, shell } from 'electron';
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { ActivityStore } from '../core/activity';
 import { CHANNELS, type Rect } from '../core/api';
@@ -29,7 +30,7 @@ import { ALWAYS_KEPT, clearRestoreRecord, KEPT_FILES, productDataPaths, purgeAft
 import { autoInstallNow, HiddenGrace, partitionFor, RELAUNCH_MARKER, relaunchHidden, stalePartitions, UPDATE_IDLE_MS, VIEW_RELEASE_GRACE_MS } from './policy';
 import { AppTray } from './tray';
 import { DockSync } from './dock';
-import { menuKeys, notificationSettingsUrl, startHidden, uninstallCommand, uninstallTarget, windowChrome } from '../core/platform';
+import { menuKeys, notificationSettingsUrl, places, startHidden, uninstallCommand, uninstallTarget, windowChrome } from '../core/platform';
 import { EstateUpdater } from './estate-updater';
 import { Updater } from './updater';
 import { ServiceViews } from './views';
@@ -37,6 +38,13 @@ import { parseTestRemote, setTestRemote } from '../core/testhooks';
 
 app.enableSandbox();
 app.setName('Fabric Dashboards');
+// FD-37 / PL-06: Windows keeps the app's data in LOCALAPPDATA (Electron's default is the roaming
+// profile) and Linux in the XDG data and state folders; macOS keeps Electron's own places.
+const ownPlaces = places(process.platform, process.env, os.homedir());
+if (ownPlaces && !process.env.FABRIC_DASHBOARDS_USER_DATA) {
+  app.setPath('userData', ownPlaces.userData);
+  app.setPath('logs', ownPlaces.logs);
+}
 if (process.env.FABRIC_DASHBOARDS_USER_DATA) {
   // A test or second profile keeps its logs beside its data; Electron derives `logs` from the
   // app name, not from userData, so without this a test run writes into the operator's log.

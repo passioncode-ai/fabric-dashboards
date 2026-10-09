@@ -5,7 +5,7 @@ import http from 'node:http';
 import type { AddressInfo } from 'node:net';
 import path from 'node:path';
 import test from 'node:test';
-import { checkWellKnown, fetchWellKnown, request, tokenFileProblem } from '../src/health';
+import { checkWellKnown, fetchWellKnown, request, tokenFileProblem, windowsAclProblem } from '../src/health';
 
 const WELL_KNOWN = JSON.parse(fs.readFileSync(path.join(__dirname, '../../../test/fixtures/contract/positive_service-well-known.json'), 'utf8'));
 
@@ -105,4 +105,17 @@ test('FD-37: tokenFileProblem — POSIX owner and mode; Windows: no link, inside
   assert.match(tokenFileProblem('C:\\ProgramData\\agent\\token', win, opts) ?? '', /outside your user profile/);
   assert.match(tokenFileProblem('C:\\Users\\everyone\\token', win, opts) ?? '', /outside your user profile/, 'a sibling profile with a shared prefix is outside');
   assert.match(tokenFileProblem('C:\\Users\\e\\token', { ...win, symlink: true }, opts) ?? '', /symlink/);
+});
+
+// DEC-0032 (contract service.md, Windows token files): owner = the current user; every ACE that grants
+// anything names the user, SYSTEM or Administrators; deny ACEs do not decide; a refusal names the SID.
+test('DEC-0032: windowsAclProblem accepts the user, SYSTEM and Administrators, and names any other SID', () => {
+  const user = 'S-1-5-21-1-2-3-1001';
+  const own = { owner: user, aces: [{ sid: user, type: 'Allow', rights: 2032127 }, { sid: 'S-1-5-18', type: 'Allow', rights: 2032127 }, { sid: 'S-1-5-32-544', type: 'Allow', rights: 2032127 }] };
+  assert.equal(windowsAclProblem(own, user), null);
+  assert.equal(windowsAclProblem({ ...own, aces: [...own.aces, { sid: 'S-1-1-0', type: 'Deny', rights: 1179785 }] }, user), null, 'a deny ACE does not decide');
+  assert.match(windowsAclProblem({ ...own, aces: [...own.aces, { sid: 'S-1-1-0', type: 'Allow', rights: 1179785 }] }, user) ?? '', /S-1-1-0/);
+  assert.match(windowsAclProblem({ ...own, aces: [...own.aces, { sid: 'S-1-5-32-545', type: 'Allow', rights: 1179785 }] }, user) ?? '', /S-1-5-32-545/);
+  assert.match(windowsAclProblem({ ...own, owner: 'S-1-5-21-9-9-9-1002' }, user) ?? '', /owned by S-1-5-21-9-9-9-1002/);
+  assert.equal(windowsAclProblem({ ...own, aces: [...own.aces, { sid: 'S-1-5-11', type: 'Allow', rights: 0 }] }, user), null, 'an ACE that grants nothing is no grant');
 });

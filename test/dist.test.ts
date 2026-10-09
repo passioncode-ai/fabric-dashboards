@@ -73,7 +73,7 @@ test('dist: the notary status is read, not assumed from the exit code', async ()
   assert.deepEqual(dist.notaryVerdict(''), { accepted: false, status: 'unreadable', id: '' });
 });
 
-test('dist: staged paths are the ones the release workflow hands the notarize action', async () => {
+test('dist: staged paths are the ones the release workflow hands the notarize action', { skip: process.platform === 'win32' && 'the macOS build\'s POSIX staging paths' }, async () => {
   const dist = await import('../scripts/dist-mac.mjs');
   const p = dist.stagePaths('/r', '1.2.3');
   assert.deepEqual(p, {
@@ -247,7 +247,7 @@ test('LC-16: openpgp is staged as its one CommonJS build with manifest and licen
   const target = dist.stageVerifierModules(root, stage);
   assert.equal(target, path.join(stage, 'node_modules/openpgp'));
   const files = (dir: string): string[] => fs.readdirSync(dir, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? files(path.join(dir, e.name)) : [path.relative(target, path.join(dir, e.name))]));
-  assert.deepEqual(files(target).sort(), ['LICENSE', 'dist/node/openpgp.min.cjs', 'package.json']);
+  assert.deepEqual(files(target).map((f) => f.split(path.sep).join('/')).sort(), ['LICENSE', 'dist/node/openpgp.min.cjs', 'package.json']);
   const manifest = JSON.parse(fs.readFileSync(path.join(target, 'package.json'), 'utf8'));
   assert.equal(manifest.main, 'dist/node/openpgp.min.cjs');
   const r = spawnSync(process.execPath, ['-e', `const o = require(${JSON.stringify(target)}); process.stdout.write(typeof o.verify)`], { encoding: 'utf8' });

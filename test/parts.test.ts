@@ -393,6 +393,7 @@ test('FD-19: machine reasons read in Russian where they are known, and stay as w
   // FD-37
   assert.equal(machineRu('the token file C:\\x\\t is outside your user profile, so Windows does not keep it private to you'), 'файл токена C:\\x\\t лежит вне вашего профиля, поэтому Windows не защищает его от других');
   assert.equal(machineRu('Opening a terminal window is not available on this system yet.'), 'Открыть окно терминала в этой системе пока нельзя.');
+  assert.equal(machineRu('the token file ~/t grants access to S-1-1-0, but only you, SYSTEM and Administrators may hold it'), 'файл токена ~/t даёт доступ S-1-1-0, а доступ допустим только у вас, SYSTEM и администраторов');
   assert.equal(machineRu('missing origin; protocol must be fabric-service/0.1, not x'), 'нет поля origin; protocol должен быть fabric-service/0.1, а не x');
   assert.equal(machineRu('the token file ~/t is readable by others; set mode 0600'), 'файл токена ~/t доступен другим; поставьте права 0600', 'one sentence with a "; " inside');
   assert.equal(machineRu('the usage report is malformed: days is not a list of at most 31'), 'отчёт о расходах некорректен: days — не список не длиннее 31');

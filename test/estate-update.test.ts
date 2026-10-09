@@ -130,13 +130,14 @@ test('decideSkillsApply: the switch first, then a real update, then the trust ch
 
 test('estate settings: defaults, a file from an earlier version, and the clone path rule', () => {
   assert.deepEqual(merge({}).estate, { enabled: true, autoSkills: false, contractClone: '' });
-  assert.deepEqual(merge({ estate: { enabled: false, autoSkills: true, contractClone: '/work/fabric-agent-contract' } }).estate,
-    { enabled: false, autoSkills: true, contractClone: '/work/fabric-agent-contract' });
+  const absolute = process.platform === 'win32' ? 'C:\\work\\fabric-agent-contract' : '/work/fabric-agent-contract'; // FD-37: each system's own form
+  assert.deepEqual(merge({ estate: { enabled: false, autoSkills: true, contractClone: absolute } }).estate,
+    { enabled: false, autoSkills: true, contractClone: absolute });
   assert.deepEqual(merge({ estate: { contractClone: 'relative/path' } }).estate.contractClone, '', 'a relative path is never used: git -C would resolve it against the app');
   assert.deepEqual(merge({ estate: { enabled: 'yes' } }).estate.enabled, true, 'a wrong type falls back to the default');
   assert.equal(merge({ estate: { contractClone: '~/DATA/fabric-agent-contract' } }).estate.contractClone, '~/DATA/fabric-agent-contract', 'the placeholder\'s own spelling is kept (review finding 7)');
-  assert.equal(expandHome('~/DATA/x', '/Users/p'), '/Users/p/DATA/x');
-  assert.equal(expandHome('/abs', '/Users/p'), '/abs');
+  assert.equal(expandHome('~/DATA/x', '/Users/p', 'darwin'), '/Users/p/DATA/x');
+  assert.equal(expandHome('/abs', '/Users/p', 'darwin'), '/abs');
 });
 
 // ── the runner ───────────────────────────────────────────────────────────────────────────
@@ -504,7 +505,7 @@ test('one retry within the hour after a failed check, then back to the 6-hour rh
 
 test('every estate child gets the login shell\'s PATH and never a git prompt (review finding 1, FD-33)', () => {
   const env = estateEnv(['/opt/homebrew/bin', '/usr/bin'], { PATH: '/usr/bin:/bin', ELECTRON_RUN_AS_NODE: '1', HOME: '/Users/p' });
-  assert.equal(env.PATH, '/opt/homebrew/bin:/usr/bin', 'launchd\'s PATH is replaced, so npm, npx and node resolve');
+  assert.equal(env.PATH, ['/opt/homebrew/bin', '/usr/bin'].join(path.delimiter), 'launchd\'s PATH is replaced, so npm, npx and node resolve');
   assert.equal(env.GIT_TERMINAL_PROMPT, '0');
   assert.equal(env.ELECTRON_RUN_AS_NODE, undefined, 'the descriptor-safe stripping still applies');
   assert.equal(env.HOME, '/Users/p');

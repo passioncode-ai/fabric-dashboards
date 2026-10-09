@@ -2,7 +2,7 @@
 // branch is tested on any operating system.
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { isAbsoluteFolder, menuKeys, notificationSettingsUrl, startHidden, trayIcon, uninstallCommand, uninstallTarget, windowChrome } from '../src/core/platform';
+import { isAbsoluteFolder, menuKeys, notificationSettingsUrl, places, startHidden, trayIcon, uninstallCommand, uninstallTarget, windowChrome } from '../src/core/platform';
 
 const none = () => false;
 
@@ -74,4 +74,14 @@ test('FD-37: the Windows uninstaller starts only after this app has exited, by i
   const script = cmd.args[cmd.args.length - 1]!;
   assert.match(script, /Wait-Process -Id 4242 -Timeout 30/);
   assert.match(script, /Start-Process -FilePath 'C:\\Users\\o''brien\\.*Uninstall Fabric Dashboards\.exe' -ArgumentList '\/S'/, 'single quotes doubled: a path cannot end the literal');
+});
+
+test('FD-37 / PL-06: where the app keeps its data and logs on Windows and Linux; macOS keeps Electron\'s own places', () => {
+  assert.equal(places('darwin', {}, '/Users/e'), null);
+  assert.deepEqual(places('win32', { LOCALAPPDATA: 'C:\\Users\\e\\AppData\\Local' }, 'C:\\Users\\e'),
+    { userData: 'C:\\Users\\e\\AppData\\Local\\Fabric Dashboards', logs: 'C:\\Users\\e\\AppData\\Local\\Fabric Dashboards\\Logs' });
+  assert.deepEqual(places('win32', {}, 'C:\\Users\\e'),
+    { userData: 'C:\\Users\\e\\AppData\\Local\\Fabric Dashboards', logs: 'C:\\Users\\e\\AppData\\Local\\Fabric Dashboards\\Logs' }, 'not the roaming profile');
+  assert.deepEqual(places('linux', {}, '/home/e'), { userData: '/home/e/.local/share/fabric-dashboards', logs: '/home/e/.local/state/fabric-dashboards' });
+  assert.deepEqual(places('linux', { XDG_DATA_HOME: '/d', XDG_STATE_HOME: '/s' }, '/home/e'), { userData: '/d/fabric-dashboards', logs: '/s/fabric-dashboards' });
 });

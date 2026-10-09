@@ -2,6 +2,7 @@
 // One look at a service's health: the well-known document on its own origin. A local service
 // answers it without a token on loopback; a remote one (DEC-0019) only over verified https and
 // only to the bearer of its token — a host passes the token's header in `options.headers`.
+import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import http from 'node:http';
 import os from 'node:os';
@@ -149,6 +150,55 @@ export function tokenFileProblem(file: string, info: TokenFileInfo, o: { platfor
   return null;
 }
 
+/** A Windows file's ACL, SIDs only (no account names: those are localised and can be renamed). */
+export interface WindowsAcl { owner: string; aces: { sid: string; type: string; rights: number }[] }
+
+/** DEC-0032's allow-list beside the current user: SYSTEM and BUILTIN\Administrators — the trust of root on POSIX. */
+const TRUSTED_SIDS = new Set(['S-1-5-18', 'S-1-5-32-544']);
+
+/**
+ * Why a Windows token file's ACL must not be trusted, or null (contract service.md, Windows token
+ * files): the owner is the current user, and every ACE that grants any right names the user, SYSTEM
+ * or Administrators. A deny ACE does not decide. The refusal names the SID, never the contents.
+ */
+export function windowsAclProblem(acl: WindowsAcl, userSid: string): string | null {
+  if (acl.owner !== userSid) return `is owned by ${acl.owner}, not by you`;
+  for (const ace of acl.aces) {
+    if (!/^allow$/i.test(ace.type) || !(ace.rights > 0)) continue;
+    if (ace.sid !== userSid && !TRUSTED_SIDS.has(ace.sid)) return `grants access to ${ace.sid}, but only you, SYSTEM and Administrators may hold it`;
+  }
+  return null;
+}
+
+const ACL_SCRIPT = (file: string) => `$a = Get-Acl -LiteralPath '${file.replace(/'/g, "''")}'; ` +
+  "$s = [System.Security.Principal.SecurityIdentifier]; " +
+  "$r = @($a.GetAccessRules($true, $true, $s) | ForEach-Object { @{ sid = $_.IdentityReference.Value; type = $_.AccessControlType.ToString(); rights = [long]$_.FileSystemRights } }); " +
+  "@{ user = [System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value; owner = $a.GetOwner($s).Value; aces = $r } | ConvertTo-Json -Compress -Depth 4";
+
+/** DEC-0032: one PowerShell read per file at most every ACL_TTL_MS, or when its metadata changes —
+ *  readToken is synchronous and runs in the main process, which must not wait on PowerShell per probe. */
+const ACL_TTL_MS = 5 * 60_000;
+const aclCache = new Map<string, { key: string; at: number; problem: string | null }>();
+
+function windowsTokenAclProblem(file: string, label: string, info: fs.Stats): string | null {
+  const key = `${info.ctimeMs}|${info.mtimeMs}|${info.size}`;
+  const hit = aclCache.get(file);
+  if (hit && hit.key === key && Date.now() - hit.at < ACL_TTL_MS) return hit.problem;
+  const r = spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', ACL_SCRIPT(file)], { encoding: 'utf8', timeout: 15_000, windowsHide: true });
+  let problem: string | null;
+  try {
+    const parsed = JSON.parse(r.stdout) as WindowsAcl & { user: string };
+    const aces = Array.isArray(parsed.aces) ? parsed.aces : parsed.aces ? [parsed.aces] : [];
+    const why = windowsAclProblem({ owner: parsed.owner, aces }, parsed.user);
+    problem = why ? `the token file ${label} ${why}` : null;
+  } catch {
+    // The ACL could not be read: refuse, never fall back to trusting the file.
+    problem = `the token file ${label}'s permissions could not be read`;
+  }
+  aclCache.set(file, { key, at: Date.now(), problem });
+  return problem;
+}
+
 /** Read a service token with the kits' refusals (`tokenFileProblem`). Main process only. */
 export function readToken(tokenFile: string): string {
   const file = expand(tokenFile);
@@ -161,6 +211,10 @@ export function readToken(tokenFile: string): string {
   const problem = tokenFileProblem(where, { symlink: info.isSymbolicLink(), uid: info.uid, mode: info.mode },
     { platform: process.platform, uid: typeof process.getuid === 'function' ? process.getuid() : undefined, home }, tokenFile);
   if (problem) throw new Error(problem);
+  if (win) {
+    const acl = windowsTokenAclProblem(where, tokenFile, fs.statSync(where));
+    if (acl) throw new Error(acl);
+  }
   const token = fs.readFileSync(file, 'utf8').trim();
   if (token.length < 16) throw new Error(`the token file ${tokenFile} holds no usable token`);
   return token;

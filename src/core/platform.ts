@@ -105,4 +105,20 @@ export function notificationSettingsUrl(platform: NodeJS.Platform): string | nul
 export function supervises(platform: NodeJS.Platform, manager: string | undefined): boolean {
   return manager === 'launchd' && platform === 'darwin';
 }
+/** Where the app keeps its data and logs (PL-06): Windows `%LOCALAPPDATA%\\Fabric Dashboards` (never the
+ *  roaming profile) with `Logs` inside; Linux the XDG data and state folders. null on macOS: Electron's
+ *  own places (`~/Library/Application Support`, `~/Library/Logs`) are already the platform's. */
+export function places(platform: NodeJS.Platform, env: NodeJS.ProcessEnv, home: string): { userData: string; logs: string } | null {
+  if (platform === 'win32') {
+    const userData = path.win32.join(env.LOCALAPPDATA || path.win32.join(home, 'AppData', 'Local'), PRODUCT);
+    return { userData, logs: path.win32.join(userData, 'Logs') };
+  }
+  if (platform === 'linux') {
+    return {
+      userData: path.posix.join(env.XDG_DATA_HOME || path.posix.join(home, '.local/share'), 'fabric-dashboards'),
+      logs: path.posix.join(env.XDG_STATE_HOME || path.posix.join(home, '.local/state'), 'fabric-dashboards'),
+    };
+  }
+  return null;
+}
 // #endregion platform-policy

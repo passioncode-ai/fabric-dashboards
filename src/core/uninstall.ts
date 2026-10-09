@@ -9,6 +9,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { atomicWrite } from './fsutil';
 import { AUTO_UPDATE_FILE } from './autoupdate';
+import { places } from './platform';
 
 export const MCP_SERVER_NAME = 'fabric-dashboards';
 export const BUNDLE_ID = 'ai.passioncode.fabric-dashboards';
@@ -178,8 +179,21 @@ export function clearRestoreRecord(dir: string): void {
 // #endregion restore-record
 
 /** Every directory the app writes under `home` (Electron's userData, caches, logs, the updater's
- *  cache, the network store, saved window state). */
-export function productDataPaths(home = os.homedir()): string[] {
+ *  cache, the network store, saved window state) — per operating system (FD-37, PL-06). */
+export function productDataPaths(home = os.homedir(), platform: NodeJS.Platform = process.platform, env: NodeJS.ProcessEnv = process.env): string[] {
+  if (platform === 'win32') {
+    const p = places('win32', env, home)!;
+    const roaming = env.APPDATA || path.win32.join(home, 'AppData', 'Roaming');
+    const local = env.LOCALAPPDATA || path.win32.join(home, 'AppData', 'Local');
+    // The roaming folder is where an Electron app writes by default; this app moves to LOCALAPPDATA at start.
+    return [p.userData, path.win32.join(roaming, PRODUCT), path.win32.join(local, 'fabric-dashboards-updater')];
+  }
+  if (platform === 'linux') {
+    const p = places('linux', env, home)!;
+    return [p.userData, p.logs,
+      path.posix.join(env.XDG_CONFIG_HOME || path.posix.join(home, '.config'), PRODUCT),
+      path.posix.join(env.XDG_CACHE_HOME || path.posix.join(home, '.cache'), 'fabric-dashboards')];
+  }
   const lib = path.join(home, 'Library');
   return [
     path.join(lib, 'Application Support', PRODUCT),
@@ -192,21 +206,28 @@ export function productDataPaths(home = os.homedir()): string[] {
   ];
 }
 
-/** A path purge may remove: at least ~/Library/<dir>/<name> deep. Never a home, a root or a bare
- *  Library directory. A test profile outside ~/Library is therefore never purged by the app. */
-export function isProductPath(p: string): boolean {
-  const resolved = path.resolve(p);
-  const parts = resolved.split(path.sep).filter(Boolean);
-  const lib = parts.lastIndexOf('Library');
-  return lib >= 0 && parts.length - lib >= 3;
+/** A path purge may remove. macOS: at least ~/Library/<dir>/<name> deep — never a home, a root or a bare
+ *  Library directory. Windows and Linux (FD-37): one of this app's own folders (`productDataPaths`) or
+ *  something inside one, after resolving — never a parent, a sibling with a shared prefix or another app. */
+export function isProductPath(p: string, platform: NodeJS.Platform = process.platform, env: NodeJS.ProcessEnv = process.env, home = os.homedir()): boolean {
+  if (platform === 'darwin') {
+    const parts = path.resolve(p).split(/[\\/]/).filter(Boolean);
+    const lib = parts.lastIndexOf('Library');
+    return lib >= 0 && parts.length - lib >= 3;
+  }
+  const win = platform === 'win32';
+  const norm = (x: string) => (win ? path.win32.resolve(x).toLowerCase() : path.posix.resolve(x));
+  const sep = win ? '\\' : '/';
+  const target = norm(p);
+  return productDataPaths(home, platform, env).some((base) => { const b = norm(base); return target === b || target.startsWith(b + sep); });
 }
 
 /** Remove the given product paths. Refuses anything isProductPath does not accept. */
-export function purgeData(paths: string[]): string[] {
+export function purgeData(paths: string[], platform: NodeJS.Platform = process.platform): string[] {
   const removed: string[] = [];
   for (const p of paths) {
     const resolved = path.resolve(p);
-    if (!isProductPath(resolved)) throw new Error(`purge refuses ${resolved}: not a product path inside ~/Library`);
+    if (!isProductPath(resolved, platform)) throw new Error(`purge refuses ${resolved}: not one of this app's own folders`);
     if (!fs.existsSync(resolved)) continue;
     fs.rmSync(resolved, { recursive: true, force: true });
     removed.push(resolved);
@@ -222,17 +243,40 @@ export function purgeData(paths: string[]): string[] {
  * With `keep`, everything inside `keep.dir` except the named files goes too — the uninstall that
  * keeps the person's settings and history (LC-14: data goes only when the person asks).
  */
-export function purgeAfterExit(pid: number, paths: string[], keep?: { dir: string; names: readonly string[] }, waitMs = 30_000): ChildProcess | null {
-  const checked = paths.filter((p) => isProductPath(p)).map((p) => path.resolve(p));
-  const keepDir = keep && isProductPath(keep.dir) ? path.resolve(keep.dir) : '';
+export function purgeAfterExit(pid: number, paths: string[], keep?: { dir: string; names: readonly string[] }, waitMs = 30_000,
+  o: { platform?: NodeJS.Platform; env?: NodeJS.ProcessEnv; home?: string } = {}): ChildProcess | null {
+  const platform = o.platform ?? process.platform;
+  const env = o.env ?? process.env;
+  const home = o.home ?? os.homedir();
+  const accepted = (p: string) => isProductPath(p, platform, env, home);
+  const checked = paths.filter(accepted).map((p) => path.resolve(p));
+  const keepDir = keep && accepted(keep.dir) ? path.resolve(keep.dir) : '';
   if (!checked.length && !keepDir) return null;
   const names = keep?.names ?? [];
   if (names.some((n) => !/^[A-Za-z0-9._-]+$/.test(n))) throw new Error('a kept name is a plain file name');
+  if (process.platform === 'win32') return purgeAfterExitWindows(pid, checked, keepDir, names, waitMs);
   const kept = names.length ? names.join('|') : '/';
   const ticks = Math.max(1, Math.round(waitMs / 100));
   const script = 'i=0; while kill -0 "$0" 2>/dev/null && [ $i -lt ' + ticks + ' ]; do sleep 0.1; i=$((i+1)); done; kill -0 "$0" 2>/dev/null && exit 0; k="$1"; shift; rm -rf -- "$@"; '
     + `if [ -n "$k" ] && [ -d "$k" ]; then for f in "$k"/* "$k"/.[!.]* "$k"/..?*; do [ -e "$f" ] || [ -L "$f" ] || continue; case "\${f##*/}" in ${kept}) ;; *) rm -rf -- "$f" ;; esac; done; fi`;
   const helper = spawn('/bin/sh', ['-c', script, String(pid), keepDir, ...checked], { detached: true, stdio: 'ignore' });
+  helper.unref();
+  return helper;
+}
+/** FD-37: the Windows helper — a hidden PowerShell that waits for `pid` (at most `waitMs`), then removes the
+ *  paths and, inside `keepDir`, everything but `names`. Every path is a single-quoted literal with its
+ *  quotes doubled, so none can end the literal; nothing passes through cmd.exe. */
+function purgeAfterExitWindows(pid: number, paths: string[], keepDir: string, names: readonly string[], waitMs: number): ChildProcess {
+  const lit = (x: string) => `'${x.replace(/'/g, "''")}'`;
+  const script = [
+    `$p = ${Math.trunc(pid)}; $deadline = (Get-Date).AddMilliseconds(${Math.trunc(waitMs)})`,
+    'while ((Get-Process -Id $p -ErrorAction SilentlyContinue) -and (Get-Date) -lt $deadline) { Start-Sleep -Milliseconds 100 }',
+    'if (Get-Process -Id $p -ErrorAction SilentlyContinue) { exit 0 }',
+    `foreach ($x in @(${paths.map(lit).join(',')})) { Remove-Item -LiteralPath $x -Recurse -Force -ErrorAction SilentlyContinue }`,
+    `$k = ${lit(keepDir)}; $kept = @(${names.map(lit).join(',')})`,
+    'if ($k -and (Test-Path -LiteralPath $k -PathType Container)) { Get-ChildItem -LiteralPath $k -Force | Where-Object { $kept -notcontains $_.Name } | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue }',
+  ].join('; ');
+  const helper = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-WindowStyle', 'Hidden', '-Command', script], { detached: true, stdio: 'ignore', windowsHide: true });
   helper.unref();
   return helper;
 }

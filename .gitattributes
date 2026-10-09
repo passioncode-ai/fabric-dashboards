@@ -1,0 +1,11 @@
+# FD-37: the repository builds and tests on macOS, Windows and Linux. Text is LF everywhere — a
+# CRLF checkout on Windows broke text checks (release.yml) and would break the Linux sh launcher —
+# except Windows command scripts, which cmd.exe reads as CRLF.
+* text=auto eol=lf
+*.cmd text eol=crlf
+*.bat text eol=crlf
+*.png binary
+*.ico binary
+*.icns binary
+*.dmg binary
+*.zip binary

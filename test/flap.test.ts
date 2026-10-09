@@ -231,7 +231,7 @@ test('R-8: a new pid between two probes is a restart even when the state stays r
 });
 
 test('R-8: one action at a time — a second command while one runs is refused, not run twice', async () => {
-  const r = rig({ loaded: true }, { commands: { doctor: ['/bin/sleep', '0.3'] } });
+  const r = rig({ loaded: true }, { commands: { doctor: [process.execPath, '-e', 'setTimeout(() => {}, 300)'] } });
   await r.probeAt(0, ANSWER);
   const first = r.monitor.command(KEY, 'doctor');
   const second = await r.monitor.command(KEY, 'doctor');
@@ -262,7 +262,7 @@ test('R-18: a launchd service not yet probed reads starting, never Off with Star
 });
 
 test('P-4: a command that cannot start says so, not "exit code —"; an undeclared one is refused', async () => {
-  const r = rig({ loaded: true }, { commands: { doctor: ['/nonexistent/doctor-binary'] } });
+  const r = rig({ loaded: true }, { commands: { doctor: [path.join(tmp('fd-flap-none-'), 'no-such-doctor')] } });
   await r.probeAt(0, ANSWER);
   const out = await r.monitor.command(KEY, 'doctor');
   assert.equal(out.code, null);

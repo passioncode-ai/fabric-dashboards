@@ -54,6 +54,10 @@ const RULES: Rule[] = [
   [/^the token file (.+) is readable by others; set mode 0600$/, (_, f) => `файл токена ${f} доступен другим; поставьте права 0600`],
   [/^the token file (.+) holds no usable token$/, (_, f) => `в файле токена ${f} нет пригодного токена`],
   [/^the token file (.+) is outside your user profile, so Windows does not keep it private to you$/, (_, f) => `файл токена ${f} лежит вне вашего профиля, поэтому Windows не защищает его от других`],
+  // DEC-0032: Windows token files (health.ts windowsAclProblem)
+  [/^the token file (.+) is owned by (\S+), not by you$/, (_, f, sid) => `файл токена ${f} принадлежит ${sid}, а не вам`],
+  [/^the token file (.+) grants access to (\S+), but only you, SYSTEM and Administrators may hold it$/, (_, f, sid) => `файл токена ${f} даёт доступ ${sid}, а доступ допустим только у вас, SYSTEM и администраторов`],
+  [/^the token file (.+)'s permissions could not be read$/, (_, f) => `не удалось прочитать права файла токена ${f}`],
   // FD-37: this app on a system it does not fully support yet (src/electron/console.ts)
   [/^Opening a terminal window is not available on this system yet\.$/, () => 'Открыть окно терминала в этой системе пока нельзя.'],
   // this app's feeds (probe.ts)
