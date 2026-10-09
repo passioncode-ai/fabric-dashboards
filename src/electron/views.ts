@@ -169,7 +169,7 @@ export class ServiceViews {
     const page = async (url: string) => {
       entry.lastStatus = undefined;
       await entry.view.webContents.loadURL(url);
-      if (checkHttp && entry.lastStatus !== undefined && entry.lastStatus >= 400) throw new Error(`HTTP ${entry.lastStatus} from dashboard`);
+      if (checkHttp && entry.lastStatus !== undefined && entry.lastStatus >= 400) throw new Error(`HTTP ${entry.lastStatus}`);
     };
     try {
       if (!current()) return { ok: true };

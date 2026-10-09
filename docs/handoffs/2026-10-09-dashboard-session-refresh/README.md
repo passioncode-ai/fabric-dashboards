@@ -99,4 +99,6 @@ only; absent membership is an access decision and is not repaired by this patch.
 
 Routes actually used: task-pipeline (bounded brief/delivery), agent-sync (isolated
 branch and exclusive leases), super-ux/ux-scenarios Update (SCN-015/039 and SCR-02),
-evidence-docs (local receipts and native acceptance boundary).
+evidence-docs (local receipts and native acceptance boundary), copywriting
+(boundary check: no local voice pack; reused the existing localized error/Retry
+copy and a locale-neutral HTTP status, with no new prose shipped).
