@@ -3,9 +3,27 @@
 Updated 2026-10-07 (0.6.2: 0.6.1 withdrawn for audit HIGH-2, audit fixes, signed feed; 0.6.1: LC-16 in detail updater, Russian by choice; 0.6.0 published 2026-10-06 21:35 UTC; release 0.5.6: third review pass, token latch; release 0.5.5 withdrawn: release audit and its second pass, A2A plan, ADR-0016, ADR-0015 data and updates, FD-05, FD-06, FD-13; Spend and DEC-0021; one entry per agent, ADR-0012; lifecycle contract landed from PR #21, unreleased; CI release rehearsal
 `v0.4.1-rc.1` green; releases move to CI signing; release 0.4.1, MCP links to online services).
 
-Current release: 0.6.5 (0.6.6 in release; published 2026-10-08 01:18 UTC, run 37703405621; FD-29, FD-33). Before it, 0.6.4 (published 2026-10-07 01:57 UTC, run 37558793926; carries 0.6.3, superseded before approval). Before it, 0.6.2 (published 2026-10-06 23:41 UTC, run 37541067349; 0.6.1 withdrawn). Before it, 0.6.0 (published 2026-10-06 21:35 UTC, run 37505569449); Before it, 0.5.6 (2026-10-06); the 0.4.1 section below is the previous one. Earlier releases below are preserved as dated evidence.
+Current release: 0.6.6 (published 2026-10-09 10:08 UTC, run 37864378854; FD-34, FD-35). Before it, 0.6.5 (published 2026-10-08 01:18 UTC, run 37703405621; FD-29, FD-33). Before it, 0.6.4 (published 2026-10-07 01:57 UTC, run 37558793926; carries 0.6.3, superseded before approval). Before it, 0.6.2 (published 2026-10-06 23:41 UTC, run 37541067349; 0.6.1 withdrawn). Before it, 0.6.0 (published 2026-10-06 21:35 UTC, run 37505569449); Before it, 0.5.6 (2026-10-06); the 0.4.1 section below is the previous one. Earlier releases below are preserved as dated evidence.
 
-## Next — start here (2026-10-09, release 0.6.6)
+## Next — start here (2026-10-09, after 0.6.6)
+
+**Released: 0.6.6 on 2026-10-09 10:08 UTC** (run 37864378854, tag `v0.6.6` on `27699db`; Latest; the
+operator approved both gates). Receipt: Developer ID (KJ35UYYL22), `accepted and stapled: app, update
+zip, image`, fuses `100011011` on every slice, `checks.pty`, `checks.updateVerifier`,
+`checks.downgradeGuard`, MCP `initialize` as 0.6.6. Published files checked as the updater checks them
+(`src/core/release-verify.ts` on the downloads): `SHA256SUMS` signature ok, `signedFeed` ok, zip hash
+matches, `codesign --strict` ok, team `KJ35UYYL22`, stapled, `spctl` accepted (Notarized Developer
+ID); attestations of the zip and the image verify with `--signer-repo passioncode-ai/.github`; the
+`latest` feed names 0.6.6.
+**Field:** this Mac's 0.6.5 installed 0.6.6 by itself at 10:40:36 UTC (`update_install installed
+from=0.6.5 to=0.6.6`); its first estate check logged `skills=current latest=1.54.2` (FD-34 reads the
+family's runtime). FD-29's local feed: Squirrel took the verified 230 MB zip in 2.8 s after the app's
+own 33 s download (backlog FD-29). **Open:** FD-07's CPU/RSS measurement on a build carrying the
+lifecycle changes (AGENTS.md *Idle budget*); FD-02 scenario review; FD-04 cookie encryption.
+Outside this repository: Switchboard's Windows installer stays unsigned until the operator's Azure
+identity validation completes (fabric-switchboard `docs/DISTRIBUTION.md`).
+
+## Earlier — start here (2026-10-09, release 0.6.6)
 
 **Release 0.6.6 — branch `agent/release-066`:** FD-34 (the skills watch only where the family is
 installed) and FD-35 (a hidden window always hides its Dock icon). Checks: `npm ci`;
