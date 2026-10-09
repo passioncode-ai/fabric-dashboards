@@ -18,12 +18,13 @@ const RESIGN_EVERY_MS = 60_000;
 /** What showing a dashboard came to; `stage` tells a sign-in that failed from a page that would not load. */
 export interface ShowResult { ok: boolean; error?: string; stage?: 'sign-in' | 'page' }
 
-interface Entry { view: WebContentsView; origin: string; crashes: number; loadedOnce: boolean; loadedAt: number; dashboardPath: string; resignedAt: number; resignTo: string | undefined | null }
+interface Entry { view: WebContentsView; origin: string; crashes: number; loadedOnce: boolean; loadedAt: number; dashboardPath: string; resignedAt: number; resignTo: string | undefined | null; lastStatus?: number }
 
 
 export class ServiceViews {
   private readonly views = new Map<string, Entry>();
   private shown: string | null = null;
+  private readonly refreshes = new Map<string, symbol>();
   private readonly slot = new ViewSlot();
   private bounds: Rect | null = null;
   private released: { key: string; owner: string; rect: Rect; link?: string } | null = null;
@@ -66,7 +67,7 @@ export class ServiceViews {
     // At most once a minute, so a service that refuses every code cannot loop. Read from the
     // session's own requests: a reload reports no status through the navigation events.
     ses.webRequest.onCompleted({ urls: [`${new URL(d.origin).origin}/*`] }, (details) => {
-      if (details.resourceType !== 'mainFrame' || details.statusCode !== 401) return;
+      if (details.resourceType !== 'mainFrame' || details.statusCode !== 401 || this.refreshes.has(snap.key)) return;
       const entry = this.views.get(snap.key);
       if (!entry || !this.live(snap.key)?.wellKnown?.surfaces.dashboard?.login) return;
       if (Date.now() - entry.resignedAt < RESIGN_EVERY_MS) return;
@@ -105,7 +106,7 @@ export class ServiceViews {
     wc.on('did-finish-load', () => { entry.loadedOnce = true; entry.loadedAt = Date.now(); this.emit({ key: snap.key, kind: 'loaded' }); });
     // ADR-0014: the toolbar follows the page — a full navigation, an in-page route, loading on and off.
     const navigated = () => { const page = this.page(snap.key); if (page) this.emit({ key: snap.key, kind: 'navigated', page }); };
-    wc.on('did-navigate', navigated);
+    wc.on('did-navigate', (_event, _url, status) => { entry.lastStatus = status; navigated(); });
     wc.on('did-navigate-in-page', navigated);
     wc.on('did-start-loading', navigated);
     wc.on('did-stop-loading', () => { navigated(); this.resign(snap.key, entry); });
@@ -150,23 +151,31 @@ export class ServiceViews {
   }
 
   /** Load the dashboard, signed in through a one-time code when the service asks for one. */
-  private async load(snap: ServiceSnapshot, link?: string): Promise<ShowResult> {
+  private async load(snap: ServiceSnapshot, link?: string, current: () => boolean = () => true, checkHttp = false): Promise<ShowResult> {
     const entry = this.views.get(snap.key) ?? this.create(snap);
     const d = snap.descriptor!;
     const dash = snap.wellKnown?.surfaces.dashboard;
     if (!dash) return { ok: false, error: 'no dashboard', stage: 'page' };
     let stage: ShowResult['stage'] = dash.login ? 'sign-in' : 'page';
+    const page = async (url: string) => {
+      entry.lastStatus = undefined;
+      await entry.view.webContents.loadURL(url);
+      if (checkHttp && entry.lastStatus !== undefined && entry.lastStatus >= 400) throw new Error(`HTTP ${entry.lastStatus} from dashboard`);
+    };
     try {
+      if (!current()) return { ok: true };
       let url = resolveLink(d.origin, link, dash.path);
       if (dash.login) {
         const token = readToken(d.auth.tokenFile); // main process only
         url = await loginUrl(d, token);
-        await entry.view.webContents.loadURL(url);
+        if (!current()) return { ok: true };
+        await page(url);
+        if (!current()) return { ok: true };
         stage = 'page';
-        if (link) await entry.view.webContents.loadURL(resolveLink(d.origin, link, dash.path));
+        if (link) await page(resolveLink(d.origin, link, dash.path));
         return { ok: true };
       }
-      await entry.view.webContents.loadURL(url);
+      await page(url);
       return { ok: true };
     } catch (error) {
       const text = loadErrorText(error);
@@ -189,6 +198,7 @@ export class ServiceViews {
   /** Show a service's view for the dashboard host `owner`. A show overtaken while it loaded — by a
    *  newer show or a hide — returns without attaching, so a slow page never covers the current one. */
   async show(snap: ServiceSnapshot, rect: Rect, link: string | undefined, owner: string, fresh = false): Promise<ShowResult> {
+    this.refreshes.delete(snap.key);
     const ticket = this.slot.request(owner, snap.key);
     if (!snap.descriptor || !snap.wellKnown || (snap.state !== 'ready' && snap.state !== 'degraded')) {
       this.slot.release(owner);
@@ -203,11 +213,13 @@ export class ServiceViews {
     if (entry && fresh) {
       entry.crashes = 0;
       entry.loadedOnce = false;
+      entry.resignedAt = Date.now();
+      entry.resignTo = null;
       if (link === undefined) link = resumePath(entry.view.webContents.getURL(), entry.origin);
     }
     if (!entry || !entry.loadedOnce) {
       entry = entry ?? this.create(snap);
-      result = await this.load(snap, link);
+      result = await this.load(snap, link, () => this.slot.current(ticket) && this.views.get(snap.key) === entry, fresh);
     } else if (link) {
       result = await this.go(entry, resolveLink(snap.descriptor.origin, link, entry.dashboardPath));
     }
@@ -283,7 +295,7 @@ export class ServiceViews {
     if (!entry || entry.view.webContents.isDestroyed()) return null;
     const wc = entry.view.webContents;
     const { address, link } = pageAddress(wc.getURL(), entry.origin, entry.dashboardPath, key);
-    return { key, address, link, canGoBack: wc.navigationHistory.canGoBack(), canGoForward: wc.navigationHistory.canGoForward(), loading: wc.isLoading() };
+    return { key, address, link, canGoBack: wc.navigationHistory.canGoBack(), canGoForward: wc.navigationHistory.canGoForward(), loading: this.refreshes.has(key) || wc.isLoading() };
   }
 
   /** Back, forward, the dashboard's own page, or the current page again — never another origin. */
@@ -293,9 +305,46 @@ export class ServiceViews {
     const wc = entry.view.webContents;
     if (action === 'back' && wc.navigationHistory.canGoBack()) wc.navigationHistory.goBack();
     if (action === 'forward' && wc.navigationHistory.canGoForward()) wc.navigationHistory.goForward();
-    if (action === 'refresh') wc.reload();
+    if (action === 'refresh') { void this.refresh(key, entry); return; }
+    this.refreshes.delete(key);
     if (action === 'home') void wc.loadURL(resolveLink(entry.origin, undefined, entry.dashboardPath)).catch(() => undefined);
   }
+
+  // #region dashboard-session-refresh — docs: docs/handoffs/2026-10-09-dashboard-session-refresh/README.md#requirements-and-delivery-profile
+  /** Explicit recovery uses existing service authority once; an HTTP 404 never starts it. */
+  private async refresh(key: string, entry: Entry): Promise<void> {
+    if (this.refreshes.has(key) || this.shown !== key) return;
+    const owner = this.slot.owner();
+    const snap = this.live(key);
+    if (!owner || !snap?.descriptor || snap.descriptor.origin !== entry.origin) {
+      this.emit({ key, kind: 'error', error: 'unavailable' });
+      return;
+    }
+    if (!snap.wellKnown?.surfaces.dashboard?.login) { entry.view.webContents.reload(); return; }
+    const attempt = Symbol('refresh');
+    this.refreshes.set(key, attempt);
+    const current = () => this.refreshes.get(key) === attempt && this.views.get(key) === entry
+      && this.shown === key && this.slot.owner() === owner
+      && this.live(key)?.descriptor?.origin === entry.origin
+      && this.live(key)?.descriptor?.auth.tokenFile === snap.descriptor!.auth.tokenFile
+      && this.live(key)?.wellKnown?.surfaces.dashboard?.login === true;
+    const link = resumePath(entry.view.webContents.getURL(), entry.origin);
+    entry.resignedAt = Date.now();
+    entry.resignTo = null; // the explicit attempt supersedes a queued automatic 401 recovery
+    entry.loadedOnce = false;
+    const page = this.page(key);
+    if (page) this.emit({ key, kind: 'navigated', page });
+    try {
+      const result = await this.load(snap, link, current, true);
+      if (current() && !result.ok) { entry.loadedOnce = false; this.emit({ key, kind: 'error', error: result.error }); }
+    } finally {
+      const active = current();
+      if (this.refreshes.get(key) === attempt) this.refreshes.delete(key);
+      const page = active ? this.page(key) : null;
+      if (page) this.emit({ key, kind: 'navigated', page });
+    }
+  }
+  // #endregion dashboard-session-refresh
 
   /** The service restarted: its session cookie may be gone; the page offers Reload instead of reloading itself. */
   serviceRestarted(key: string): void {
@@ -303,6 +352,7 @@ export class ServiceViews {
   }
 
   drop(key: string): void {
+    this.refreshes.delete(key);
     const entry = this.views.get(key);
     if (!entry) return;
     if (this.shown === key) this.hideNow();

@@ -47,5 +47,46 @@ requires a second approval (`docs/RUNBOOK.md:84`). Required release path: checks
 and native E2E, reviewed PR to main, annotated version tag, signed/notarized CI,
 two human approvals. This task stops at a reviewable draft PR.
 
-Next: implement REF-1–4, run checks without launchd/UI side effects, request the
-parent's independent diff review, resolve findings, record exact receipts here.
+## Implementation and local receipt
+
+`src/electron/views.ts` implements the existing SCN-039 recovery path: one fresh
+sign-in on explicit Refresh, current same-origin route retained, overlapping
+clicks coalesced, spinner through sign-in, and HTTP failure surfaced through the
+existing error/Retry panel. Pending attempts stop before navigation if the view,
+owner, service origin, token-file identity or live state changed. Explicit fresh
+reopen suppresses the automatic 401 retry for the existing one-minute window.
+The generic automatic 401 behavior remains; a 404 alone does nothing.
+
+`test/dashboard-refresh.test.ts` executes production `ServiceViews` with a
+recording Electron module boundary and an actual local HTTP login-code fixture.
+It covers 20 cases including 401/404/500 failure, refusal, network error,
+coalescing, loading state, stale owner/identity/drop, fresh reopen retry,
+non-login reload and the retained automatic 401 bound. It does not launch
+Electron, reproduce Chromium cookies or prove a native window rendered.
+
+Validation, 2026-10-09, Node 26.10.0:
+
+- `FD_SKIP_LAUNCHD=1 npm run check`: exit 0, **349 passed / 1 skipped / 0 failed**
+  (350 total). The explicit skip is the real launchd integration test. Typechecks,
+  brand pins, 74 code-region markers and UX consistency also passed. Full output:
+  [raw/check.log](raw/check.log).
+- `git diff --check`: exit 0.
+- `npm ci --ignore-scripts`: installed dependencies without native install hooks;
+  npm reported one high advisory. No dependency change is included in this fix.
+- Native `npm run test:e2e`: **NOT_RUN**, because this task excludes UI actions.
+  Installed app, Nicegram runtime, estate memberships and service tokens were not
+  changed. Local checks do not establish the cause of the earlier blank window.
+
+## Handoff status and next task
+
+REF-1–4 have local implementation evidence above. REF-5 awaits the parent's
+independent diff review and the draft PR receipt. Next: inspect this branch's diff
+against `a7a92aa`, resolve review findings, then push the branch and create the
+draft PR. Before integration, perform native Electron acceptance for SCN-015/039:
+existing authorized service with an expired session, explicit Refresh, same page,
+visible refusal, and switch-away during pending sign-in. Use existing identity
+only; absent membership is an access decision and is not repaired by this patch.
+
+Routes actually used: task-pipeline (bounded brief/delivery), agent-sync (isolated
+branch and exclusive leases), super-ux/ux-scenarios Update (SCN-015/039 and SCR-02),
+evidence-docs (local receipts and native acceptance boundary).
