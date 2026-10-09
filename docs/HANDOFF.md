@@ -10,8 +10,8 @@ Current release: 0.6.6 (published 2026-10-09 10:08 UTC, run 37864378854; FD-34, 
 **Release 0.6.7 — branch `agent/release-067`:** FD-36 — no Intel-only Mach-O in the universal app
 (PR #56, from the fabric-switchboard-93 session; the installed 0.6.6 carried thin x86_64
 `node-pty` prebuilds, confirmed with `lipo -archs`). Checks: `FD_SKIP_LAUNCHD=1 npm run check` exit 0
-(330 tests, 329 pass, 1 launchd skip); `npm run test:e2e` three full runs on an unlocked screen:
-E2E067. **Next task:** the operator's two approvals (macos, publish), then the receipt — it must carry
+(331 tests, 330 pass, 1 launchd skip); `npm run test:e2e` three full runs on an unlocked screen:
+7/7, 7/7, 7/7 (load 10, 9, 9) after FD-35's second cause and FD-38 were fixed — the first attempts failed once each on those. **Next task:** the operator's two approvals (macos, publish), then the receipt — it must carry
 `checks.universal` — the published files checked as for 0.6.6, `lipo -archs` on the installed
 0.6.7's prebuilds (both `arm64 x86_64`), the knowledge base row. FD-37 (Windows and Linux) is a
 product port and needs its own design first.
