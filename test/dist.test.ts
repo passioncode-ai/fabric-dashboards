@@ -198,7 +198,7 @@ test('dist: no NS…UsageDescription survives in the app or its helpers (FD-06)'
 });
 // #endregion usage-descriptions
 
-test('ADR-0017: node-pty is staged with its runtime files only, universal in both folders, and an executable spawn-helper', async () => {
+test('ADR-0017: node-pty is staged with its runtime files only, universal in both folders, and an executable spawn-helper', { skip: process.platform !== 'darwin' && 'the macOS staging joins prebuilds with lipo, which only macOS has' }, async () => {
   const dist = await import('../scripts/dist-mac.mjs');
   const root = path.resolve(__dirname, '..');
   const stage = tmp('fd-stage-pty-');

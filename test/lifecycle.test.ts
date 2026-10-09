@@ -826,12 +826,14 @@ test('LC-15: npm run clean removes what a build regenerates and nothing git trac
   assert.deepEqual(clean(root), [], 'idempotent');
 });
 
-test('R-17 (LC-02): what a finished command left running in its own group ends with it', async () => {
+test('R-17 (LC-02): what a finished command left running in its own group ends with it', { skip: process.platform === 'win32' && 'Windows has no process groups: its tree kill is FD-37 M2' }, async () => {
   const marker = path.join(tmp('fd-grandchild-'), 'alive');
   // The command starts a background sleeper in its own group and exits at once.
   const r = await runOwned('/bin/sh', ['-c', `(sleep 30; touch ${marker}) & echo started`], { timeoutMs: 10_000, killGraceMs: 200 });
   assert.equal(r.code, 0);
   await new Promise((resolve) => setTimeout(resolve, 600));
-  const left = spawnSync('/bin/sh', ['-c', `pgrep -f "sleep 30; touch ${marker}" || true`], { encoding: 'utf8' }).stdout.trim();
+  // `[s]leep`: the pattern still matches the sleeper, but not this command's own `sh -c` line — Linux's pgrep
+  // excludes only itself, so a literal pattern found its own wrapper shell (FD-37, ubuntu-24.04).
+  const left = spawnSync('/bin/sh', ['-c', `pgrep -f "[s]leep 30; touch ${marker}" || true`], { encoding: 'utf8' }).stdout.trim();
   assert.equal(left, '', 'no descendant of the finished command is still running');
 });

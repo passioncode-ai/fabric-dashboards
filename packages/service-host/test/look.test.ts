@@ -35,7 +35,7 @@ function world() {
 
 test('every descriptor gets one state; invalid and conflicting ones are never probed', async () => {
   const w = world();
-  const look = await lookAtServices({ servicesDir: w.dir, wellKnown: w.wellKnown, launchd: w.launchd, now: () => 1_000_000 });
+  const look = await lookAtServices({ servicesDir: w.dir, wellKnown: w.wellKnown, launchd: w.launchd, now: () => 1_000_000, platform: 'darwin' });
   assert.equal(look.servicesDir, w.dir);
   assert.equal(look.error, null);
   const states = Object.fromEntries(look.services.map((s) => [s.key, s.state]));
@@ -51,17 +51,17 @@ test('every descriptor gets one state; invalid and conflicting ones are never pr
 test('one look has no history: a loaded service that does not answer now is down', async () => {
   const w = world();
   const run: Runner = async (_c, args) => (args[0] === 'print' ? { code: 0, stdout: 'pid = 9\n', stderr: '' } : { code: 0, stdout: '', stderr: '' });
-  const look = await lookAtServices({ servicesDir: w.dir, wellKnown: w.wellKnown, launchd: new LaunchdReader(run, 501), now: () => 1_000_000 });
+  const look = await lookAtServices({ servicesDir: w.dir, wellKnown: w.wellKnown, launchd: new LaunchdReader(run, 501), now: () => 1_000_000, platform: 'darwin' });
   assert.equal(look.services.find((s) => s.key === 'off-one.default')!.state, 'down');
 });
 
 test('an absent services directory is an empty look; an unreadable one is reported, not thrown', async () => {
   const w = world();
-  const absent = await lookAtServices({ servicesDir: path.join(w.dir, 'none'), wellKnown: w.wellKnown, launchd: w.launchd });
+  const absent = await lookAtServices({ servicesDir: path.join(w.dir, 'none'), wellKnown: w.wellKnown, launchd: w.launchd, platform: 'darwin' });
   assert.deepEqual(absent.services, []);
   assert.equal(absent.error, null);
   const file = path.join(w.dir, 'broken.default.json');
-  const unreadable = await lookAtServices({ servicesDir: file, wellKnown: w.wellKnown, launchd: w.launchd });
+  const unreadable = await lookAtServices({ servicesDir: file, wellKnown: w.wellKnown, launchd: w.launchd, platform: 'darwin' });
   assert.deepEqual(unreadable.services, []);
   assert.match(unreadable.error!, /ENOTDIR/);
 });
@@ -74,12 +74,12 @@ test('a probe that throws is a no-answer, never a failed look', async () => {
 
 test('only= looks at the named services, and still sees the claims of the others', async () => {
   const w = world();
-  const look = await lookAtServices({ servicesDir: w.dir, wellKnown: w.wellKnown, launchd: w.launchd, now: () => 1_000_000, only: ['clash-a.default', 'ready-one.default'] });
+  const look = await lookAtServices({ servicesDir: w.dir, wellKnown: w.wellKnown, launchd: w.launchd, now: () => 1_000_000, only: ['clash-a.default', 'ready-one.default'], platform: 'darwin' });
   assert.deepEqual(look.services.map((s) => [s.key, s.state]), [['clash-a.default', 'conflict'], ['ready-one.default', 'ready']]);
   assert.deepEqual(look.services[0]!.conflict, { port: 47303, with: ['clash-b.default'] });
   assert.deepEqual(w.probed, ['http://127.0.0.1:47301']);
   const unmanaged = world();
-  await lookAtServices({ servicesDir: unmanaged.dir, wellKnown: unmanaged.wellKnown, launchd: unmanaged.launchd, only: ['ready-one.default'] });
+  await lookAtServices({ servicesDir: unmanaged.dir, wellKnown: unmanaged.wellKnown, launchd: unmanaged.launchd, only: ['ready-one.default'], platform: 'darwin' });
   assert.deepEqual(unmanaged.launchctl, [], 'no launchd job among the chosen: launchctl is not run');
 });
 

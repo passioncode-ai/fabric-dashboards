@@ -264,7 +264,7 @@ export async function control(deps: Deps, key: string, action: 'start' | 'stop' 
   const d = entry.descriptor;
   if (d.placement === 'remote') throw new ToolError(`${d.name} runs online and is supervised by its platform; it cannot be ${action}ed from here`);
   // ADR-0019 §7: launchd is macOS's; elsewhere the service is shown, never controlled, and the agent is told why.
-  if (d.lifecycle.manager === 'launchd' && !supervises(process.platform, d.lifecycle.manager)) {
+  if (d.lifecycle.manager === 'launchd' && !supervises(deps.platform, d.lifecycle.manager)) {
     throw new ToolError(`${d.name} is supervised by launchd, which this system does not have; start and stop it on the system that runs it`);
   }
   if (d.lifecycle.manager !== 'launchd' || !d.lifecycle.label || !d.lifecycle.plist) {
