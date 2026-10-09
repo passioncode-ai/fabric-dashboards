@@ -198,7 +198,7 @@ test('dist: no NS…UsageDescription survives in the app or its helpers (FD-06)'
 });
 // #endregion usage-descriptions
 
-test('ADR-0017: node-pty is staged with its runtime files only, both architectures, and an executable spawn-helper', async () => {
+test('ADR-0017: node-pty is staged with its runtime files only, universal in both folders, and an executable spawn-helper', async () => {
   const dist = await import('../scripts/dist-mac.mjs');
   const root = path.resolve(__dirname, '..');
   const stage = tmp('fd-stage-pty-');
@@ -208,7 +208,19 @@ test('ADR-0017: node-pty is staged with its runtime files only, both architectur
     const helper = path.join(target, 'prebuilds', `darwin-${arch}`, 'spawn-helper');
     assert.ok(fs.existsSync(path.join(target, 'prebuilds', `darwin-${arch}`, 'pty.node')), arch);
     assert.equal(fs.statSync(helper).mode & 0o111, 0o111, `${arch} spawn-helper is executable`);
+    // No thin Intel-only file ships: macOS 26 warns about one ("Support Ending for Intel-Based Apps").
+    for (const file of ['pty.node', 'spawn-helper']) {
+      const archs = spawnSync('lipo', ['-archs', path.join(target, 'prebuilds', `darwin-${arch}`, file)], { encoding: 'utf8' }).stdout.trim().split(/\s+/).sort();
+      assert.deepEqual(archs, ['arm64', 'x86_64'], `${arch}/${file} is universal`);
+    }
   }
+  assert.deepEqual(dist.thinMachO(target), [], 'the staged module has no thin Mach-O');
+  // The check finds a thin Intel-only binary the way the 0.6.6 bundle carried one.
+  const thin = path.join(stage, 'thin');
+  fs.mkdirSync(thin);
+  spawnSync('lipo', [path.join(target, 'prebuilds/darwin-x64/pty.node'), '-thin', 'x86_64', '-output', path.join(thin, 'pty.node')]);
+  fs.writeFileSync(path.join(thin, 'notes.txt'), 'not a binary');
+  assert.deepEqual(dist.thinMachO(thin), ['pty.node [x86_64]']);
   const files = (dir: string): string[] => fs.readdirSync(dir, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? files(path.join(dir, e.name)) : [path.join(dir, e.name)]));
   assert.ok(files(path.join(target, 'lib')).every((f) => !/\.test\.js$|\.map$/.test(f)), 'no tests or source maps ship');
   assert.equal(fs.existsSync(path.join(target, 'src')), false, 'no C++ sources ship');

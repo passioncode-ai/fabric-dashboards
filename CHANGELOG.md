@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- **No Intel-only component ships in the universal app** (operator decision 2026-10-09: every
+  PassionCode product runs natively on Apple silicon and Intel Macs). 0.6.6 carried node-pty's
+  `prebuilds/darwin-x64/{pty.node,spawn-helper}` as thin x86_64 files, which macOS reports as
+  "Support Ending for Intel-Based Apps". Each is now joined with `lipo` into one universal file
+  placed in both prebuild folders, and the build refuses a bundle that holds any Mach-O without
+  both slices (`thinMachO`, receipt `checks.universal`). Measured on an unsigned build: the agent
+  console's PTY spawns on the x86_64 slice (Rosetta) and on arm64.
+
 ## 0.6.6 - 2026-10-09
 
 ### Changed
