@@ -5,7 +5,18 @@ Updated 2026-10-07 (0.6.2: 0.6.1 withdrawn for audit HIGH-2, audit fixes, signed
 
 Current release: 0.6.6 (published 2026-10-09 10:08 UTC, run 37864378854; FD-34, FD-35). Before it, 0.6.5 (published 2026-10-08 01:18 UTC, run 37703405621; FD-29, FD-33). Before it, 0.6.4 (published 2026-10-07 01:57 UTC, run 37558793926; carries 0.6.3, superseded before approval). Before it, 0.6.2 (published 2026-10-06 23:41 UTC, run 37541067349; 0.6.1 withdrawn). Before it, 0.6.0 (published 2026-10-06 21:35 UTC, run 37505569449); Before it, 0.5.6 (2026-10-06); the 0.4.1 section below is the previous one. Earlier releases below are preserved as dated evidence.
 
-## Next — start here (2026-10-09, after 0.6.6)
+## Next — start here (2026-10-09, release 0.6.7)
+
+**Release 0.6.7 — branch `agent/release-067`:** FD-36 — no Intel-only Mach-O in the universal app
+(PR #56, from the fabric-switchboard-93 session; the installed 0.6.6 carried thin x86_64
+`node-pty` prebuilds, confirmed with `lipo -archs`). Checks: `FD_SKIP_LAUNCHD=1 npm run check` exit 0
+(330 tests, 329 pass, 1 launchd skip); `npm run test:e2e` three full runs on an unlocked screen:
+E2E067. **Next task:** the operator's two approvals (macos, publish), then the receipt — it must carry
+`checks.universal` — the published files checked as for 0.6.6, `lipo -archs` on the installed
+0.6.7's prebuilds (both `arm64 x86_64`), the knowledge base row. FD-37 (Windows and Linux) is a
+product port and needs its own design first.
+
+## Earlier — start here (2026-10-09, after 0.6.6)
 
 **Released: 0.6.6 on 2026-10-09 10:08 UTC** (run 37864378854, tag `v0.6.6` on `27699db`; Latest; the
 operator approved both gates). Receipt: Developer ID (KJ35UYYL22), `accepted and stapled: app, update
