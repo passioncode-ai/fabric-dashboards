@@ -96,7 +96,11 @@ if (!app.requestSingleInstanceLock()) {
   // The person's choice in Settings wins over the system's first language (a Mac set to English first
   // with Russian second reads Russian when the person picks it).
   const lang = (): Lang => (testLang ? langFor(testLang) : chooseLang(settings.get().language, app.getPreferredSystemLanguages()[0] || app.getLocale()));
-  const monitor = new Monitor({ servicesDir: servicesDir(), activity, settings: () => settings.get(), lang, ledger: new NotifyLedger(path.join(userData, 'notified.json')) });
+  // FD_TEST_REMOTE_MS shortens the online-service probe interval (60 s) so the e2e suite does not
+  // depend on a minute of wall clock; honoured only when the app is not packaged (as FD_TEST_REMOTE).
+  const testRemoteMs = !app.isPackaged ? Number(process.env.FD_TEST_REMOTE_MS) : Number.NaN;
+  const monitor = new Monitor({ servicesDir: servicesDir(), activity, settings: () => settings.get(), lang, ledger: new NotifyLedger(path.join(userData, 'notified.json')),
+    intervals: Number.isFinite(testRemoteMs) && testRemoteMs >= 1_000 ? { remote: testRemoteMs } : undefined });
   // ADR-0017: the agent consoles. FD_TEST_RUNTIME_DIRS replaces where runtimes are looked for, only
   // in a development run (the e2e suite's scripted runtime); a packaged app reads the login shell's PATH.
   const testRuntimeDirs = !app.isPackaged && process.env.FD_TEST_RUNTIME_DIRS ? process.env.FD_TEST_RUNTIME_DIRS.split(':').filter(Boolean) : undefined;

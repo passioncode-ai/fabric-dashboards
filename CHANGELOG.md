@@ -1,9 +1,13 @@
 # Changelog
 
-## Unreleased
+## 0.6.7 - 2026-10-09
 
 ### Fixed
 
+- **The Dock icon leaves with the window under load too** (FD-35, second cause). Electron ignores a
+  Dock hide within a second of a show, and macOS updates the Dock state the app reads only a moment
+  later, so a hide asked right after a show could be dropped and still read as done. The hide now
+  waits out that second and reads the state only after it has settled.
 - **No Intel-only component ships in the universal app** (operator decision 2026-10-09: every
   PassionCode product runs natively on Apple silicon and Intel Macs). 0.6.6 carried node-pty's
   `prebuilds/darwin-x64/{pty.node,spawn-helper}` as thin x86_64 files, which macOS reports as

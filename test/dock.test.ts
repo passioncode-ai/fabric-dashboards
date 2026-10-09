@@ -66,7 +66,7 @@ test('FD-35: a hide that never takes stops after its bounded tries and says so',
   const sync = new DockSync(dock, () => { waits += 1; return Promise.resolve(); }, { tries: 5, retryMs: 1 });
   assert.equal(await sync.want(false), false, 'reported, never a silent success');
   assert.equal(dock.hides, 5);
-  assert.equal(waits, 4, 'waits between tries only');
+  assert.equal(waits, 5, 'every ask is followed by a settle pause before the state is read');
 });
 
 test('FD-35: a show asked for while a hide retries ends the retries', async () => {
@@ -77,6 +77,34 @@ test('FD-35: a show asked for while a hide retries ends the retries', async () =
   sync = new DockSync(dock, () => { waits += 1; if (waits === 2) void sync.want(true); return Promise.resolve(); }, { tries: 25, retryMs: 1 });
   assert.equal(await sync.want(false), false, 'superseded, not hidden');
   assert.ok(dock.hides <= 3, `stopped retrying once the window came back (hides=${dock.hides})`);
+});
+
+/**
+ * Electron 44's Dock as `shell/browser/browser_mac.mm:441-504` builds it, for an app that is not
+ * frontmost: show() transforms at once and records the time; hide() is a no-op within 1 s of a show;
+ * isVisible() reads NSRunningApplication's activationPolicy, which macOS updates only after the run
+ * loop turns — here, after the next wait.
+ */
+class ElectronDock implements DockApi {
+  clock = 0;
+  visible = false;
+  reported = false;
+  lastShow = Number.NEGATIVE_INFINITY;
+  show(): void { this.lastShow = this.clock; this.visible = true; }
+  hide(): void { if (this.clock - this.lastShow < 1000) return; this.visible = false; }
+  isVisible(): boolean { return this.reported; }
+  wait = (ms: number): Promise<void> => { this.clock += ms; this.reported = this.visible; return Promise.resolve(); };
+}
+
+test('FD-35: a hide right after a show waits out Electron\'s 1-second guard instead of trusting a stale "hidden"', async () => {
+  const dock = new ElectronDock();
+  const sync = new DockSync(dock, dock.wait, {}, () => dock.clock);
+  assert.equal(await sync.want(true), true);
+  assert.equal(dock.visible, true);
+  // The window hides at once — inside the guard, while activationPolicy still reads "not regular".
+  assert.equal(await sync.want(false), true);
+  assert.equal(dock.visible, false, 'the icon is really gone, not only reported gone');
+  assert.ok(dock.clock - dock.lastShow >= 1000, 'the hide was asked after the guard');
 });
 
 test('no Dock (not macOS): nothing to do, and that is not a failure', async () => {
