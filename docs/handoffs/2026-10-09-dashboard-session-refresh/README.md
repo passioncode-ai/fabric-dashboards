@@ -75,7 +75,8 @@ Validation, 2026-10-09, Node 26.10.0:
   npm reported one high advisory: development-only `source-map-js <1.2.2`,
   GHSA-68fv-2mgg-jv7q (indexed source-map denial of service). `npm audit --omit=dev
   --json` reported zero vulnerabilities. No dependency change is included in this fix.
-- Native `npm run test:e2e`: **NOT_RUN**, because this task excludes UI actions.
+- Native `npm run test:e2e`: initially **NOT_RUN** under the original no-UI scope;
+  a subsequently authorized isolated attempt was blocked at preflight (below).
   Installed app, Nicegram runtime, estate memberships and service tokens were not
   changed. Local checks do not establish the cause of the earlier blank window.
 
@@ -110,3 +111,38 @@ branch and exclusive leases), super-ux/ux-scenarios Update (SCN-015/039 and SCR-
 evidence-docs (local receipts and native acceptance boundary), copywriting
 (boundary check: no local voice pack; reused the existing localized error/Retry
 copy and a locale-neutral HTTP status, with no new prose shipped).
+
+
+## Authorized native attempt — 2026-10-09 15:09 UTC
+
+The parent subsequently authorized native testing only with temporary fixture
+services and profiles, without changes to the installed app, operator sessions,
+tokens or launchd. Inspection established:
+
+- `test/e2e/app.test.ts:27–42` creates temporary fixture/service/profile paths;
+  `src/electron/main.ts:38–42` also isolates logs under that profile.
+- `src/electron/main.ts:295–298` disables login-item registration in development;
+  `src/electron/main.ts:650–655` limits reinstall/default-protocol registration to
+  packaged apps. These source checks are not an assertion that every full-suite
+  operating-system interaction is isolated: `test/e2e/app.test.ts:71–86` exercises
+  the system clipboard and restores its text afterward.
+- The native fixture's protected page is `/`, returning 401 without its test
+  cookie (`test/fixtures/sample-service/sample_service.py:205–208`). The existing
+  native session-expiry test (`test/e2e/app.test.ts:87–102`) therefore does not
+  cover a protected `/answers` route returning 404. The vendored fixture must not
+  be edited (`AGENTS.md`). A narrow new test needs an owned fixture or test-only
+  wrapper, with no clipboard or installed-profile interaction.
+
+Actual command: `npm run test:e2e`, exit **1**, at final source `f7f948b` / delivery
+head `2ca245c`. [Exact output](raw/native-preflight.log):
+
+> e2e preflight: the screen is locked — macOS sends windows no show/hide events, so the e2e run would measure the lock. Unlock the screen and run again.
+
+The package command chains preflight before build, Electron installation and
+native tests with `&&`; none of those subsequent stages ran. No lock bypass,
+installed-app launch, cookie access or user-session modification was attempted.
+Native acceptance is **BLOCKED_AT_PREFLIGHT / NOT_RUN**, not a product-test
+failure and not native acceptance. Next: once an unlocked GUI session is
+available, create the narrow temporary-fixture 404→explicit Refresh→same
+`/answers` regression and run it before integration. PR #58 remains draft; the
+two human release approvals remain required separately.
