@@ -88,11 +88,19 @@ service identity; a failed fresh HTTP page could remain cached as successfully
 loaded. This revision addresses all four with navigation generation, current
 service checks, suppression on newly created views, and failure invalidation.
 The last six cases in `test/dashboard-refresh.test.ts` cover these findings.
-The reader's final recheck is pending.
+Final independent re-review by `/root/v2_protection` **PASS** at source commit
+`f7f948bdca85020a81735985cf1b3ae889bf24b3`: original four independent reproductions
+4/4 passed; committed refresh tests 26/26 passed; diff check clean; no remaining
+Critical/Important finding in the bounded diff. The reviewer inspected the full
+355-pass/1-skip gate receipt but did not rerun that full gate. Native acceptance
+was not run by either reader. This final documentation commit changes no source.
 
-REF-1–4 have local implementation evidence above. Draft PR:
-https://github.com/passioncode-ai/fabric-dashboards/pull/58. Next: independently
-recheck the amended revision, then record acceptance and leave the PR draft. Before integration, perform native Electron acceptance for SCN-015/039:
+Fresh authorized shallow clone of the pushed branch at `f7f948b` resolved all six
+source/scenario/handoff/evidence files. The PR was verified draft with that head.
+`npm run clean` reported nothing to remove.
+
+REF-1–5 are complete through the authorized draft-PR handoff. Draft PR:
+https://github.com/passioncode-ai/fabric-dashboards/pull/58. Next: perform native Electron acceptance before integration for SCN-015/039:
 existing authorized service with an expired session, explicit Refresh, same page,
 visible refusal, and switch-away during pending sign-in. Use existing identity
 only; absent membership is an access decision and is not repaired by this patch.
