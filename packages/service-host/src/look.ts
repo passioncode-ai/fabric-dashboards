@@ -20,6 +20,8 @@ export interface LookOptions {
   token?: (tokenFile: string) => string;
   /** Default: a LaunchdReader on launchctl. */
   launchd?: LaunchdReader;
+  /** FD-37: launchd is read only on macOS (default `process.platform`); elsewhere a launchd service is unmanaged here. */
+  platform?: NodeJS.Platform;
   now?: () => number;
   /** Look only at these keys (id.instance); claim conflicts are still found across every descriptor. */
   only?: readonly string[];
@@ -59,7 +61,8 @@ export async function lookAtServices(o: LookOptions = {}): Promise<Look> {
   }
   const conflicts = claimConflicts(entries);
   const reader = o.launchd ?? new LaunchdReader();
-  const managed = (e: DescriptorEntry) => e.descriptor?.lifecycle.manager === 'launchd' && Boolean(e.descriptor.lifecycle.label);
+  const onLaunchd = (o.platform ?? process.platform) === 'darwin';
+  const managed = (e: DescriptorEntry) => onLaunchd && e.descriptor?.lifecycle.manager === 'launchd' && Boolean(e.descriptor.lifecycle.label);
   const chosen = o.only ? entries.filter((e) => o.only!.includes(e.key)) : entries;
   const table = chosen.some(managed) ? await reader.disabledTable() : '';
   const services = await Promise.all(chosen.map((e) => lookAtEntry(e, conflicts.get(e.key) ?? null, table, reader, o)));
@@ -90,7 +93,7 @@ async function lookAtEntry(entry: DescriptorEntry, conflict: ClaimConflict | nul
       probe = { kind: 'no-answer', detail: (error as Error).message };
     }
   }
-  const launchd: LaunchdStatus = d && d.lifecycle.manager === 'launchd' && d.lifecycle.label
+  const launchd: LaunchdStatus = d && (o.platform ?? process.platform) === 'darwin' && d.lifecycle.manager === 'launchd' && d.lifecycle.label
     ? { managed: true, ...(await reader.status(d.lifecycle.label, table)) }
     : { ...UNMANAGED };
   const { state, reasons } = deriveState({

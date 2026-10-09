@@ -4,6 +4,8 @@
 // only to the bearer of its token — a host passes the token's header in `options.headers`.
 import fs from 'node:fs';
 import http from 'node:http';
+import os from 'node:os';
+import path from 'node:path';
 import https from 'node:https';
 import { expand, portOf, remoteOriginProblem } from './descriptor';
 import { PROTOCOL, type WellKnown, type WellKnownResult } from './protocol';
@@ -126,13 +128,39 @@ export async function fetchWellKnown(origin: string, timeoutMs = 2000, options: 
 }
 // #endregion health-probe
 
-/** Read a service token with the kits' refusals: no symlink, owner only, mode 0600. Main process only. */
+/** What `readToken` needs to know about a token file, from `fs.lstatSync`. */
+export interface TokenFileInfo { symlink: boolean; uid: number; mode: number }
+
+/**
+ * Why a token file must not be read, or null. POSIX: no symlink, owned by this user, mode 0600.
+ * FD-37 — Windows has no POSIX owner or mode (`fs.stat` reads 0o666): the guard is the user
+ * profile's ACL, so the file must not be a link and must sit inside the profile.
+ */
+export function tokenFileProblem(file: string, info: TokenFileInfo, o: { platform: NodeJS.Platform; uid: number | undefined; home: string }, label = file): string | null {
+  if (info.symlink) return `the token file ${label} is a symlink`;
+  if (o.platform === 'win32') {
+    const norm = (p: string) => path.win32.resolve(p).toLowerCase();
+    const home = norm(o.home);
+    const root = home.endsWith('\\') ? home : `${home}\\`;
+    return norm(file).startsWith(root) ? null : `the token file ${label} is outside your user profile, so Windows does not keep it private to you`;
+  }
+  if (o.uid !== undefined && info.uid !== o.uid) return `the token file ${label} belongs to another user`;
+  if (info.mode & 0o077) return `the token file ${label} is readable by others; set mode 0600`;
+  return null;
+}
+
+/** Read a service token with the kits' refusals (`tokenFileProblem`). Main process only. */
 export function readToken(tokenFile: string): string {
   const file = expand(tokenFile);
   const info = fs.lstatSync(file);
-  if (info.isSymbolicLink()) throw new Error(`the token file ${tokenFile} is a symlink`);
-  if (typeof process.getuid === 'function' && info.uid !== process.getuid()) throw new Error(`the token file ${tokenFile} belongs to another user`);
-  if (info.mode & 0o077) throw new Error(`the token file ${tokenFile} is readable by others; set mode 0600`);
+  // FD-37: on Windows the profile check compares real paths, so a junction inside the profile that leads
+  // outside it is caught (lstat looks only at the last component).
+  const win = process.platform === 'win32';
+  const where = win ? fs.realpathSync.native(file) : file;
+  const home = win ? fs.realpathSync.native(os.homedir()) : os.homedir();
+  const problem = tokenFileProblem(where, { symlink: info.isSymbolicLink(), uid: info.uid, mode: info.mode },
+    { platform: process.platform, uid: typeof process.getuid === 'function' ? process.getuid() : undefined, home }, tokenFile);
+  if (problem) throw new Error(problem);
   const token = fs.readFileSync(file, 'utf8').trim();
   if (token.length < 16) throw new Error(`the token file ${tokenFile} holds no usable token`);
   return token;

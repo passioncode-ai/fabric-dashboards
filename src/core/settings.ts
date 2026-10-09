@@ -1,6 +1,7 @@
 // The person's settings (SCN-024). Written atomically, with the last good copy beside it: a file
 // that cannot be read — a partial copy from another machine, an editor, a full disk at the wrong
 // moment — is restored from that copy instead of silently becoming the defaults (ADR-0015).
+import { isAbsoluteFolder } from './platform';
 import fs from 'node:fs';
 import path from 'node:path';
 import { atomicWrite } from './fsutil';
@@ -113,7 +114,7 @@ function mergeConsoles(raw: unknown): Settings['consoles'] {
     const v = value as { runtime?: unknown; folder?: unknown };
     out[key] = {
       runtime: typeof v.runtime === 'string' && /^[a-z0-9][a-z0-9-]{0,40}$/.test(v.runtime) ? v.runtime : null,
-      folder: typeof v.folder === 'string' && v.folder.startsWith('/') ? v.folder : null,
+      folder: typeof v.folder === 'string' && isAbsoluteFolder(v.folder, process.platform) ? v.folder : null,
     };
   }
   return out;
@@ -129,7 +130,7 @@ function mergeEstate(raw: unknown): Settings['estate'] {
   return {
     enabled: typeof e.enabled === 'boolean' ? e.enabled : DEFAULT_SETTINGS.estate.enabled,
     autoSkills: typeof e.autoSkills === 'boolean' ? e.autoSkills : DEFAULT_SETTINGS.estate.autoSkills,
-    contractClone: clone.startsWith('/') || clone.startsWith('~/') ? clone : '',
+    contractClone: isAbsoluteFolder(clone, process.platform) || clone.startsWith('~/') || (process.platform === 'win32' && clone.startsWith('~\\')) ? clone : '',
   };
 }
 // #endregion estate-update

@@ -47,19 +47,22 @@ return, so a host's message catalogue can be checked against it — `Busy`, `Lau
 
 `src/descriptor.ts`.
 
-- `servicesDir(env?, platform?, home?)` — `FABRIC_SERVICES_DIR` (a leading `~/` expanded), else
-  `~/Library/Application Support/ai.passioncode.fabric/services` on macOS, else
-  `$XDG_DATA_HOME/passioncode-fabric/services`.
+- `servicesDir(env?, platform?, home?)` — `FABRIC_SERVICES_DIR` (a leading `~/`, on Windows also `~\`,
+  expanded), else `~/Library/Application Support/ai.passioncode.fabric/services` on macOS,
+  `%LOCALAPPDATA%\passioncode-fabric\services` on Windows (0.4.0, FD-37 — proposed to the contract with
+  Fabric's port), else `$XDG_DATA_HOME/passioncode-fabric/services`.
 - `readDirectory(dir)` → `DescriptorEntry[]` (`path`, `key` = `id.instance` or the file stem,
   `descriptor` or `null`, `problems`). A half-written, unreadable or misnamed file is an entry
   with its problem; an absent directory is `[]`; a directory that cannot be read at all throws.
-- `validateDescriptor(raw)` → every problem as one sentence (FAC-SEM-012, FAC-SEM-024 and the schema),
+- `validateDescriptor(raw, platform?)` → every problem as one sentence (FAC-SEM-012, FAC-SEM-024 and the schema),
   placement-aware: a `remote` descriptor (DEC-0019) needs an `https://<dns-name>` origin, `lifecycle.manager:
   "none"`, no launchd fields and no `update`; `paths` is optional for it.
 - `placementOf(d)`, `remoteOriginProblem(origin)`.
 - `claimConflicts(entries)` → `Map<key, ClaimConflict>` — two local descriptors on one port, or one
   `id.instance` claimed twice (FAC-SEM-010); a remote origin claims no port.
-- `portOf(origin)`, `expand(path)`.
+- `portOf(origin)`, `expand(path, home?, platform?)` (`~/`, and `~\` on Windows), `isLocalPath(p, platform?)` —
+  the path grammar of the OS the descriptor was written on: `/` or `~/` on macOS and Linux; on Windows a
+  drive-absolute path (`C:\` or `C:/`) or `~\`/`~/`, never a network share (0.4.0).
 
 ## Health
 
@@ -74,8 +77,10 @@ A **remote origin** (DEC-0019) goes over https with the certificate verified aga
 store; pass the token header in `options.headers` (`authHeaders(d, readToken(d.auth.tokenFile))`) and
 `REMOTE_TIMEOUT_MS`. A `401` is `refused`; a redirect, a TLS failure, a timeout, a network error or an
 HTTP 5xx (cause `http`: a deploy or an outage, not another program) is `no-answer` with its `cause`. `TlsOptions` (`ca`, `connect`) exist for tests only. A local result keeps
-its 0.1.0 shape. `readToken(tokenFile)` refuses a symlink, another owner and any mode wider than
-0600 — main process only.
+its 0.1.0 shape. `readToken(tokenFile)` refuses what `tokenFileProblem(file, info, { platform, uid, home })`
+names — main process only: on macOS and Linux a symlink, another owner and any mode wider than 0600; on
+Windows (0.4.0), which reports no POSIX owner or mode, a link and a file whose real path lies outside the
+user's profile, since the profile's ACL is what keeps it private.
 
 ## Remote token latch
 
@@ -126,9 +131,9 @@ nothing to show).
 
 ## One look
 
-`src/look.ts`. `lookAtServices({ servicesDir?, wellKnown?, launchd?, now?, only?, token?, latch? })` →
+`src/look.ts`. `lookAtServices({ servicesDir?, wellKnown?, launchd?, now?, only?, token?, latch?, platform? })` →
 `{ servicesDir, error, services: ServiceLook[] }` — read the descriptors, find conflicts, read
-launchd once, probe each usable service once, derive each state. A reader with no history (a
+launchd once (on macOS only: elsewhere a launchd descriptor is unmanaged and no `launchctl` runs, 0.4.0), probe each usable service once, derive each state. A reader with no history (a
 registry scan, an MCP call) has no earlier answer to measure silence from, so a service that
 does not answer now is `down`, never «starting». An invalid or conflicting descriptor is never
 probed; a probe that throws counts as silence; an unreadable directory is `error`, not a throw.

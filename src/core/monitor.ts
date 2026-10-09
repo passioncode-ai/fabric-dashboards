@@ -1,6 +1,7 @@
 // The monitor: descriptors in, service snapshots, activity and notifications out.
 // It reads the services directory, probes every service, controls them through
 // launchd only, and never starts a service process itself (ADR-0002).
+import { supervises } from './platform';
 import { EventEmitter } from 'node:events';
 import fs from 'node:fs';
 import { ActivityStore } from './activity';
@@ -23,6 +24,8 @@ export const DOWN_AFTER_MISSES = 3;
 export interface Notice { serviceKey: string; title: string; subtitle?: string; body: string; link?: string; target: 'service' | 'activity' }
 
 export interface MonitorOptions {
+  /** The operating system whose supervisor runs services (default `process.platform`; ADR-0019 §7). */
+  platform?: NodeJS.Platform;
   servicesDir: string;
   activity: ActivityStore;
   settings: () => Settings;
@@ -85,6 +88,7 @@ export class Monitor extends EventEmitter {
   private readonly tracked = new Map<string, Tracked>();
   private readonly launchd: Launchd;
   private readonly now: () => number;
+  private readonly platform: NodeJS.Platform;
   private readonly intervals: typeof DEFAULT_INTERVALS;
   private readonly wellKnown: (origin: string, options?: WellKnownOptions) => Promise<WellKnownResult>;
   private readonly ledger: NotifyLedger;
@@ -112,6 +116,7 @@ export class Monitor extends EventEmitter {
   constructor(private readonly o: MonitorOptions) {
     super();
     this.launchd = o.launchd ?? new Launchd();
+    this.platform = o.platform ?? process.platform;
     this.now = o.now ?? Date.now;
     this.intervals = { ...DEFAULT_INTERVALS, ...(o.intervals ?? {}) };
     this.wellKnown = o.wellKnown ?? ((origin, options) => fetchWellKnown(origin, portOf(origin) === null ? REMOTE_TIMEOUT_MS : PROBE_TIMEOUT_MS, options));
@@ -295,7 +300,7 @@ export class Monitor extends EventEmitter {
       }
       const t: Tracked = {
         // R-18: launchd is not read yet — not "not loaded". Until the first probe it reads `starting`, never Off with Start.
-        entry, probe: null, launchd: { managed: entry.descriptor?.lifecycle.manager === 'launchd', loaded: true, pid: null, disabled: false },
+        entry, probe: null, launchd: { managed: supervises(this.platform, entry.descriptor?.lifecycle.manager), loaded: true, pid: null, disabled: false },
         firstUnansweredAt: null, lastAnswerAt: null, misses: 0, lastAnswer: null, nextProbeAt: this.now(), backoff: 0, busy: null, lastAction: null, tokenProblem: null, usagePath: null,
         feedError: null, downNotified: false, lastState: null, lastPid: null, baselined: false, launchdAt: null, polledAt: null,
       };
@@ -348,7 +353,7 @@ export class Monitor extends EventEmitter {
     // launchd is read on every probe while a window shows it. Hidden, a `launchctl print` (a process
     // spawn) runs only when it can change the verdict: the probe missed, the answering pid moved, or
     // launchd's view is older than `launchdRefresh` (a duplicate behind a steady answer).
-    if (d.lifecycle.manager === 'launchd' && d.lifecycle.label) {
+    if (supervises(this.platform, d.lifecycle.manager) && d.lifecycle.label) {
       const steady = probe.kind === 'answer' && pidBefore === probe.doc.process.pid && t.launchd.managed;
       const fresh = t.launchdAt !== null && this.now() - t.launchdAt < this.intervals.launchdRefresh;
       if (this.visible || !steady || !fresh) {
@@ -542,6 +547,7 @@ export class Monitor extends EventEmitter {
       void this.tick();
       return { ok, reason };
     };
+    if (d.lifecycle.manager === 'launchd' && !supervises(this.platform, d.lifecycle.manager)) return finish(false, { code: 'result.unsupervisedHere', params: { name } });
     if (d.lifecycle.manager !== 'launchd' || !d.lifecycle.label || !d.lifecycle.plist) return finish(false, { code: 'result.unmanaged', params: { name } });
     const label = d.lifecycle.label;
     const plist = expand(d.lifecycle.plist);

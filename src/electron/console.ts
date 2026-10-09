@@ -3,6 +3,7 @@
 // which account (Switchboard) a service's console uses, spawns it on a PTY through ConsoleManager,
 // and talks to the window only through typed IPC. No token passes through here: a session bound to
 // a Switchboard project is started by Switchboard itself.
+import { expand } from '@passioncode-ai/fabric-service-host';
 import { BrowserWindow, dialog, ipcMain } from 'electron';
 import { execFile } from 'node:child_process';
 import fs from 'node:fs';
@@ -19,7 +20,8 @@ import type { ServiceSnapshot } from '../core/types';
 /** node-pty 1.1.0 ships its macOS `spawn-helper` without the executable bit, and its postinstall
  *  does not set it: without it every spawn fails with `posix_spawnp failed`. A development checkout
  *  is fixed here; the release build sets it before signing (scripts/dist-mac.mjs). */
-export function ensureSpawnHelper(moduleDir: string, arch = process.arch): string | null {
+export function ensureSpawnHelper(moduleDir: string, arch = process.arch, platform: NodeJS.Platform = process.platform): string | null {
+  if (platform !== 'darwin') return null; // FD-37: only macOS's node-pty spawns through spawn-helper (Windows: conpty; Linux: built from source)
   const helper = path.join(moduleDir, 'prebuilds', `darwin-${arch}`, 'spawn-helper').replace('app.asar', 'app.asar.unpacked');
   try {
     fs.accessSync(helper, fs.constants.X_OK);
@@ -167,7 +169,7 @@ export class ConsoleHost {
     if (plan.kind === 'refused') return { ok: false, reason: plan.reason, detail: plan.detail };
     if (plan.kind === 'terminal-only') return { ok: false, reason: 'terminal-only', project: plan.project };
     // Review R-1: the session runs with the login shell's PATH, not the one an app opened from Finder has.
-    const r = this.manager.start(key, { argv: plan.argv, cwd: plan.cwd, label: runtime.name, env: { PATH: inv.dirs.join(':') } }, size);
+    const r = this.manager.start(key, { argv: plan.argv, cwd: plan.cwd, label: runtime.name, env: { PATH: inv.dirs.join(path.delimiter) } }, size);
     if (!r.ok) return { ok: false, reason: r.error === 'running' ? 'running' : 'spawn', detail: r.error };
     // Remember what was started, so the panel offers it next time.
     this.o.settings.update({ consoles: { [key]: { runtime: runtime.id, folder: folder.source === 'saved' ? folder.path : this.o.settings.get().consoles[key]?.folder ?? null } } });
@@ -176,6 +178,8 @@ export class ConsoleHost {
   }
 
   async openTerminal(key: string, mode: 'new' | 'continue'): Promise<{ ok: boolean; error?: string }> {
+    // FD-37: Terminal through LaunchServices is macOS's; a Windows or Linux terminal comes with M2.
+    if (process.platform !== 'darwin') return { ok: false, error: 'Opening a terminal window is not available on this system yet.' };
     const inv = await this.inventory();
     const runtime = this.chosen(key, inv.runtimes);
     const folder = this.folderOf(key);
@@ -241,7 +245,7 @@ function isDir(p: string): boolean {
 }
 
 function expandHome(p: string): string {
-  return p.startsWith('~/') ? path.join(process.env.HOME ?? '', p.slice(2)) : p;
+  return expand(p); // FD-37: os.homedir(), and `~\` on Windows — HOME is unset there
 }
 
 /** Terminal runs the quoted line in a new window: a one-shot `.command` file (0700, removing itself

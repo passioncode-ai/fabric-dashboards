@@ -5,7 +5,7 @@ import http from 'node:http';
 import type { AddressInfo } from 'node:net';
 import path from 'node:path';
 import test from 'node:test';
-import { checkWellKnown, fetchWellKnown, request } from '../src/health';
+import { checkWellKnown, fetchWellKnown, request, tokenFileProblem } from '../src/health';
 
 const WELL_KNOWN = JSON.parse(fs.readFileSync(path.join(__dirname, '../../../test/fixtures/contract/positive_service-well-known.json'), 'utf8'));
 
@@ -88,4 +88,21 @@ test('request refuses an origin that is not the loopback, and an oversized answe
   } finally {
     await s.close();
   }
+});
+
+// FD-37: a token file is refused for the same reasons on every OS, by the means each OS has.
+test('FD-37: tokenFileProblem — POSIX owner and mode; Windows: no link, inside the profile', () => {
+  const posix = { symlink: false, uid: 501, mode: 0o100600 };
+  assert.equal(tokenFileProblem('/home/e/t', posix, { platform: 'linux', uid: 501, home: '/home/e' }), null);
+  assert.match(tokenFileProblem('/home/e/t', { ...posix, mode: 0o100644 }, { platform: 'linux', uid: 501, home: '/home/e' }) ?? '', /0600/);
+  assert.match(tokenFileProblem('/home/e/t', { ...posix, uid: 0 }, { platform: 'darwin', uid: 501, home: '/Users/e' }) ?? '', /another user/);
+  assert.match(tokenFileProblem('/home/e/t', { ...posix, symlink: true }, { platform: 'linux', uid: 501, home: '/home/e' }) ?? '', /symlink/);
+  // Windows has no POSIX mode or owner in fs.stat (mode reads 0o666): the profile's ACL is the guard.
+  const win = { symlink: false, uid: 0, mode: 0o100666 };
+  const opts = { platform: 'win32' as const, uid: undefined, home: 'C:\\Users\\e' };
+  assert.equal(tokenFileProblem('C:\\Users\\e\\AppData\\Local\\agent\\token', win, opts), null);
+  assert.equal(tokenFileProblem('c:\\users\\E\\AppData\\Local\\agent\\token', win, opts), null, 'drive letters and case do not matter on Windows');
+  assert.match(tokenFileProblem('C:\\ProgramData\\agent\\token', win, opts) ?? '', /outside your user profile/);
+  assert.match(tokenFileProblem('C:\\Users\\everyone\\token', win, opts) ?? '', /outside your user profile/, 'a sibling profile with a shared prefix is outside');
+  assert.match(tokenFileProblem('C:\\Users\\e\\token', { ...win, symlink: true }, opts) ?? '', /symlink/);
 });

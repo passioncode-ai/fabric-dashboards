@@ -13,17 +13,29 @@ const REMOTE_ORIGIN = /^https:\/\/((?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a
 const RESERVED_HOST = /(^|\.)(localhost|local|internal|home\.arpa|lan|localdomain)$/;
 const LABEL = /^[A-Za-z0-9][A-Za-z0-9._-]{2,254}$/;
 const HEADER = /^[A-Za-z][A-Za-z0-9-]{0,63}$/;
-const LOCAL_PATH = /^(~\/|\/)[^\0]*$/;
+const POSIX_LOCAL_PATH = /^(~\/|\/)[^\0]*$/;
+// FD-37: on Windows a descriptor path is drive-absolute (`C:\` or `C:/`) or under `~\`/`~/` — never a
+// network share (`\\server\share`), which would make a token or a command depend on another machine.
+const WIN32_LOCAL_PATH = /^(~[\\/]|[A-Za-z]:[\\/])[^\0]*$/;
+
+/** Whether `p` is a local absolute (or home-relative) path in the grammar of `platform`. */
+export function isLocalPath(p: unknown, platform: NodeJS.Platform = process.platform): p is string {
+  return typeof p === 'string' && (platform === 'win32' ? WIN32_LOCAL_PATH : POSIX_LOCAL_PATH).test(p);
+}
 
 /** Where installers write descriptors: FABRIC_SERVICES_DIR, else the OS location. */
 export function servicesDir(env: NodeJS.ProcessEnv = process.env, platform = process.platform, home = os.homedir()): string {
-  if (env.FABRIC_SERVICES_DIR) return expand(env.FABRIC_SERVICES_DIR, home);
-  if (platform === 'darwin') return path.join(home, 'Library/Application Support/ai.passioncode.fabric/services');
-  return path.join(env.XDG_DATA_HOME || path.join(home, '.local/share'), 'passioncode-fabric/services');
+  if (env.FABRIC_SERVICES_DIR) return expand(env.FABRIC_SERVICES_DIR, home, platform);
+  if (platform === 'darwin') return path.posix.join(home, 'Library/Application Support/ai.passioncode.fabric/services');
+  // FD-37 (proposed to the contract with Fabric's port): LOCALAPPDATA, because token files must not roam.
+  if (platform === 'win32') return path.win32.join(env.LOCALAPPDATA || path.win32.join(home, 'AppData', 'Local'), 'passioncode-fabric', 'services');
+  return path.posix.join(env.XDG_DATA_HOME || path.posix.join(home, '.local/share'), 'passioncode-fabric/services');
 }
 
-export function expand(p: string, home = os.homedir()): string {
-  return p.startsWith('~/') ? path.join(home, p.slice(2)) : p;
+/** `~/` (and on Windows `~\`) resolved against the home folder; any other path unchanged. */
+export function expand(p: string, home = os.homedir(), platform: NodeJS.Platform = process.platform): string {
+  const join = platform === 'win32' ? path.win32.join : path.posix.join;
+  return p.startsWith('~/') || (platform === 'win32' && p.startsWith('~\\')) ? join(home, p.slice(2)) : p;
 }
 
 /** The port of an `http://127.0.0.1:<port>` origin, or null for anything else. */
@@ -52,7 +64,7 @@ const isStr = (v: unknown): v is string => typeof v === 'string';
 const isObj = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 
 /** Every problem as one sentence; an empty list means the descriptor is usable. */
-export function validateDescriptor(raw: unknown): string[] {
+export function validateDescriptor(raw: unknown, platform: NodeJS.Platform = process.platform): string[] {
   if (!isObj(raw)) return ['the file is not a JSON object'];
   const d = raw;
   const problems: string[] = [];
@@ -72,7 +84,7 @@ export function validateDescriptor(raw: unknown): string[] {
     if (problem) problems.push(problem);
   } else if (!isStr(d.origin) || portOf(d.origin) === null) problems.push('origin must be http://127.0.0.1:<port>');
   const auth = d.auth;
-  if (!isObj(auth) || !isStr(auth.tokenFile) || !LOCAL_PATH.test(auth.tokenFile)) problems.push('auth.tokenFile must be an absolute or ~/ path');
+  if (!isObj(auth) || !isLocalPath(auth.tokenFile, platform)) problems.push('auth.tokenFile must be an absolute or ~/ path');
   else {
     const header = auth.header ?? 'Authorization';
     const scheme = auth.scheme ?? 'Bearer';
@@ -84,7 +96,7 @@ export function validateDescriptor(raw: unknown): string[] {
   if (!isObj(life) || (life.manager !== 'launchd' && life.manager !== 'none')) problems.push('lifecycle.manager must be launchd or none');
   else if (life.manager === 'launchd') {
     if (!isStr(life.label) || !LABEL.test(life.label)) problems.push('a launchd service declares lifecycle.label');
-    if (!isStr(life.plist) || !LOCAL_PATH.test(life.plist) || !life.plist.endsWith('.plist')) problems.push('a launchd service declares lifecycle.plist');
+    if (!isLocalPath(life.plist, platform) || !life.plist.endsWith('.plist')) problems.push('a launchd service declares lifecycle.plist');
   }
   if (remote && isObj(life)) {
     if (life.manager !== 'none') problems.push('a remote service is supervised by its platform: lifecycle.manager must be none');
@@ -93,8 +105,8 @@ export function validateDescriptor(raw: unknown): string[] {
   const paths = d.paths;
   if (remote && paths === undefined) {
     // DEC-0019: a remote placement keeps no state on this computer.
-  } else if (!isObj(paths) || !isStr(paths.data) || !LOCAL_PATH.test(paths.data)) problems.push('paths.data must be an absolute or ~/ path');
-  else if (!Array.isArray(paths.logs) || !paths.logs.every((p) => isStr(p) && LOCAL_PATH.test(p))) problems.push('paths.logs must list absolute or ~/ paths');
+  } else if (!isObj(paths) || !isLocalPath(paths.data, platform)) problems.push('paths.data must be an absolute or ~/ path');
+  else if (!Array.isArray(paths.logs) || !paths.logs.every((p) => isLocalPath(p, platform))) problems.push('paths.logs must list absolute or ~/ paths');
   if (remote && isObj(d.commands) && d.commands.update !== undefined) problems.push('a remote service declares no update command');
   if (d.commands !== undefined) {
     if (!isObj(d.commands)) problems.push('commands must be an object');
@@ -102,7 +114,7 @@ export function validateDescriptor(raw: unknown): string[] {
       for (const [name, argv] of Object.entries(d.commands)) {
         if (name !== 'doctor' && name !== 'update') problems.push(`unknown command ${name}`);
         else if (!Array.isArray(argv) || !argv.length || !argv.every(isStr)) problems.push(`command ${name} must be an argument array, not a shell string`);
-        else if (!LOCAL_PATH.test(argv[0] as string)) problems.push(`command ${name} must start with an absolute or ~/ executable`);
+        else if (!isLocalPath(argv[0], platform)) problems.push(`command ${name} must start with an absolute or ~/ executable`);
       }
     }
   }

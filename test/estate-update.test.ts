@@ -569,3 +569,9 @@ test('a named folder that does not exist is reported as missing, not as "not a c
   }
 });
 // #endregion estate-update
+
+test('FD-37: a contract clone typed as ~\\ resolves against the home folder on Windows', () => {
+  assert.equal(expandHome('~\\DATA\\fabric-agent-contract', 'C:\\Users\\e', 'win32'), 'C:\\Users\\e\\DATA\\fabric-agent-contract');
+  assert.equal(expandHome('~', 'C:\\Users\\e', 'win32'), 'C:\\Users\\e');
+  assert.equal(expandHome('~/x', '/home/e', 'linux'), '/home/e/x');
+});

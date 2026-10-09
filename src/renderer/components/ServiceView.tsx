@@ -61,7 +61,7 @@ export function ServiceView({ s, all, members, open, link, nonce, tab: askedTab,
   const now = useExpiry([s.lastAction?.at]);
   const problem = problemOf(s, now); // ADR-0017: the compact bar never hides a problem
   const wk = s.wellKnown;
-  const managed = s.descriptor?.lifecycle.manager === 'launchd';
+  const managed = s.launchd.managed; // ADR-0019 §7: the monitor decides — launchd is macOS's
   const running = ['ready', 'degraded', 'duplicate'].includes(s.state);
   // U-2: an explicit running state, a failure that ends the spinner, and the output on Health for both commands.
   const run = async (which: 'doctor' | 'update') => {

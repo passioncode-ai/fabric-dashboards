@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- **Groundwork for Windows and Linux** (FD-37, [ADR-0019](docs/adr/0019-windows-and-linux.md)). Nothing
+  changes on macOS. What differs by system is decided in one place: uninstall removes only this
+  install (the old rule would have trashed `%LOCALAPPDATA%` on Windows or `/` on Linux), settings keep
+  folder paths in each system's own form, the window uses the system frame and a File menu where there
+  is no app menu, the tray shows a colour mark on Windows and Linux, a login launch starts hidden, and a
+  service supervised by launchd is shown read-only on a system without launchd, saying why. The shared
+  service-host package reads Windows services from `%LOCALAPPDATA%\passioncode-fabric\services`,
+  accepts Windows paths in descriptors written there, and checks a Windows token file by where it lives.
+
 ## 0.6.7 - 2026-10-09
 
 ### Fixed

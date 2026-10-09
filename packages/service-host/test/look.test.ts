@@ -82,3 +82,14 @@ test('only= looks at the named services, and still sees the claims of the others
   await lookAtServices({ servicesDir: unmanaged.dir, wellKnown: unmanaged.wellKnown, launchd: unmanaged.launchd, only: ['ready-one.default'] });
   assert.deepEqual(unmanaged.launchctl, [], 'no launchd job among the chosen: launchctl is not run');
 });
+
+// FD-37 / ADR-0019 §7: launchd is macOS's. A look on Windows or Linux spawns no launchctl and shows a
+// launchd descriptor read-only — a service that does not answer is down, never "stopped".
+test('FD-37: off macOS a look never runs launchctl and reads a launchd service as unmanaged', async () => {
+  const w = world();
+  const look = await lookAtServices({ servicesDir: w.dir, wellKnown: w.wellKnown, launchd: w.launchd, now: () => 1_000_000, platform: 'linux' });
+  assert.deepEqual(w.launchctl, [], 'no print-disabled, no print');
+  const off = look.services.find((s) => s.key === 'off-one.default')!;
+  assert.equal(off.launchd.managed, false);
+  assert.notEqual(off.state, 'stopped');
+});
