@@ -23,7 +23,7 @@
 // receipt with hashes and the signing/notarization state is written beside them.
 import { execFileSync, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statfsSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
+import { chmodSync, closeSync, cpSync, existsSync, mkdirSync, mkdtempSync, openSync, readdirSync, readFileSync, readSync, rmSync, statfsSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -35,6 +35,32 @@ export const REPO = 'passioncode-ai/fabric-dashboards';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 function requireThat(condition, message) { if (!condition) throw new Error(message); }
+
+/**
+ * Every Mach-O in `dir` that does not carry both arm64 and x86_64, relative to `dir`. A universal
+ * app must have none: a thin x86_64 file trips macOS's "Support Ending for Intel-Based Apps", a
+ * thin arm64 one breaks the Intel slice. Files `lipo` cannot read are not Mach-O and are skipped.
+ */
+export function thinMachO(dir) {
+  const found = [];
+  const walk = (at) => {
+    for (const entry of readdirSync(at, { withFileTypes: true })) {
+      const full = path.join(at, entry.name);
+      if (entry.isSymbolicLink()) continue;
+      if (entry.isDirectory()) { walk(full); continue; }
+      const head = Buffer.alloc(4); const fd = openSync(full, 'r');
+      try { readSync(fd, head, 0, 4, 0); } finally { closeSync(fd); }
+      const magic = head.readUInt32BE(0);
+      if (![0xcafebabe, 0xfeedface, 0xfeedfacf, 0xcefaedfe, 0xcffaedfe].includes(magic)) continue;
+      const archs = spawnSync('lipo', ['-archs', full], { encoding: 'utf8' });
+      if (archs.status !== 0) continue;
+      const list = archs.stdout.trim().split(/\s+/);
+      if (!(list.includes('arm64') && list.includes('x86_64'))) found.push(`${path.relative(dir, full)} [${list.join(' ')}]`);
+    }
+  };
+  walk(dir);
+  return found;
+}
 
 /** ADR-0017: the finished bundle's own Node loads node-pty from app.asar and runs a command on a PTY. */
 export function ptyCheck(app) {
@@ -75,10 +101,14 @@ export function stageWorkspacePackages(from, stage) {
 // #region stage-native-modules — docs: docs/adr/0017-focus-layout-and-agent-console.md#decision
 /**
  * ADR-0017: the agent console's PTY (`node-pty`, N-API — no rebuild per Electron). Staged with its
- * runtime files only: `lib/` without tests and maps, the macOS prebuilds for both architectures
- * (the universal app carries both), its manifest and licence. `spawn-helper` gets its executable
- * bit here — node-pty 1.1.0 ships it 0644 and never sets it — before anything is signed. The
- * packager unpacks the module from app.asar (NATIVE_UNPACK) so the helper can be executed.
+ * runtime files only: `lib/` without tests and maps, the macOS prebuilds, its manifest and licence.
+ * node-pty ships each architecture as a thin binary in its own `prebuilds/darwin-<arch>/`; a thin
+ * x86_64 file inside the bundle makes macOS warn "Support Ending for Intel-Based Apps" (seen on
+ * 0.6.6, 2026-10-09). So each file is joined with `lipo` into one universal binary and that same
+ * file is placed in both folders: node-pty still finds `darwin-${process.arch}`, and no thin
+ * Mach-O ships (`thinMachO` checks the finished bundle). `spawn-helper` gets its executable bit
+ * here — node-pty 1.1.0 ships it 0644 and never sets it — before anything is signed. The packager
+ * unpacks the module from app.asar (NATIVE_UNPACK) so the helper can be executed.
  */
 export const NATIVE_UNPACK = '**/node_modules/node-pty/**';
 
@@ -97,8 +127,14 @@ export function stageNativeModules(from, stage) {
   for (const arch of ['arm64', 'x64']) {
     const dir = path.join(src, 'prebuilds', `darwin-${arch}`);
     requireThat(existsSync(path.join(dir, 'pty.node')) && existsSync(path.join(dir, 'spawn-helper')), `node-pty has no prebuild for darwin-${arch}.`);
-    cpSync(dir, path.join(target, 'prebuilds', `darwin-${arch}`), { recursive: true });
-    chmodSync(path.join(target, 'prebuilds', `darwin-${arch}`, 'spawn-helper'), 0o755);
+    mkdirSync(path.join(target, 'prebuilds', `darwin-${arch}`), { recursive: true });
+  }
+  for (const file of ['pty.node', 'spawn-helper']) {
+    const universal = path.join(target, 'prebuilds', `darwin-arm64`, file);
+    run('lipo', ['-create', path.join(src, 'prebuilds/darwin-arm64', file), path.join(src, 'prebuilds/darwin-x64', file), '-output', universal]);
+    requireThat(run('lipo', ['-archs', universal]).trim().split(/\s+/).sort().join(' ') === 'arm64 x86_64', `node-pty ${file} did not become universal.`);
+    cpSync(universal, path.join(target, 'prebuilds', 'darwin-x64', file));
+    for (const arch of ['arm64', 'x64']) chmodSync(path.join(target, 'prebuilds', `darwin-${arch}`, file), file === 'spawn-helper' ? 0o755 : 0o644);
   }
   return target;
 }
@@ -437,6 +473,9 @@ async function stageApp(ctx, identity, notarizedBy) {
     requireThat(record.checks.hardenedRuntime === 'present', 'The app was signed without the hardened runtime; notarization would refuse it.');
   }
   record.checks.architectures = run('lipo', ['-archs', path.join(app, `Contents/MacOS/${PRODUCT}`)]).trim();
+  const thin = thinMachO(app);
+  requireThat(thin.length === 0, `The universal app carries Mach-O files without both slices: ${thin.slice(0, 5).join(', ')}`);
+  record.checks.universal = 'every Mach-O in the bundle carries arm64 and x86_64';
   record.checks.fuses = `every slice reads ${[...new Set(verifyReleaseFuses(app))].join(', ')} (scripts/fuses.mjs WANTED_FUSES)`;
   // The MCP launcher answers `initialize` from inside the finished, signed bundle.
   const probeDir = mkdtempSync(path.join(os.tmpdir(), 'fd-mcp-'));
