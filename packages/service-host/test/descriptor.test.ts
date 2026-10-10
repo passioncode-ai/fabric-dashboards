@@ -119,3 +119,11 @@ test('FD-37: descriptor paths are drive-absolute or ~\\ on Windows, never a shar
   }
   assert.ok(validateDescriptor(win({ token: 'token', data: '~\\d', logs: [], doctor: 'C:\\x.exe' }), 'win32').some((p) => /tokenFile/.test(p)), 'a relative path is refused');
 });
+
+test('FD-37: readDirectory judges paths by the host system it is given, not the one the test runs on', () => {
+  const dir = tmp();
+  const posix = fx('positive_service-descriptor-unmanaged.json');
+  fs.writeFileSync(path.join(dir, `${posix.id}.${posix.instance}.json`), JSON.stringify({ ...posix, paths: { data: '/var/x', logs: [] } }));
+  assert.deepEqual(readDirectory(dir, 'darwin')[0]!.problems, []);
+  assert.ok(readDirectory(dir, 'win32')[0]!.problems.length, 'a POSIX path is not a Windows path');
+});

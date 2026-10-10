@@ -51,8 +51,9 @@ published or attached to a release.
    the CHANGELOG has its section and — for a full release — that the version is newer than the
    latest published release: Squirrel installs whatever the latest feed names, so an older one
    would move every installed copy backwards (ADR-0015). A superseded run waiting for approval is
-   cancelled, never approved. `check` runs `npm run check` (`validate.yml`). The `macos` job
-   then waits for the `release` environment.
+   cancelled, never approved. `check` runs `npm run check` (`validate.yml`) on every native runner
+   the release ships for — macOS, Windows x64 and arm64, Linux x64 and arm64 (PL-08). The `macos`
+   job then waits for the `release` environment, and `packages` starts beside it (step 4a).
 4. Someone from `release-approvers` approves it (*Review deployments*); that may be whoever
    pushed the tag. An agent never approves a release run, even when its account could.
    In the job:
@@ -78,13 +79,27 @@ published or attached to a release.
      writes `update-feed.json` and the receipt; anything else fails the job. The receipt's
      `pruned` names the older release files it removed: `release/` keeps this release and the
      previous one (LC-15).
+4a. <a id="windows-and-linux-packages"></a>`packages` ([`packages.yml`](../.github/workflows/packages.yml), FD-37,
+   ADR-0019) needs no approval, because nothing in it is signed: on `windows-latest`,
+   `windows-11-arm`, `ubuntu-24.04` and `ubuntu-24.04-arm`, `node scripts/dist-other.mjs` packages
+   the app directory, writes the fuses and reads them back (ASAR integrity is off on Linux, where
+   Electron does not validate it), and has the finished binary prove three things — the MCP launcher
+   answers `initialize`, node-pty runs a command from `app.asar`, the update verifier accepts a real
+   release's signature and refuses one changed byte. electron-builder `--prepackaged` then makes
+   `Fabric-Dashboards-<version>-windows-<arch>-setup.exe` (NSIS, per user, no elevation) or
+   `…-linux-<arch>.AppImage` and `.deb`, and a receipt with each file's SHA-256. Windows files carry
+   `windows_authenticode: NOT_SIGNED` until the organization's Azure certificate profile exists
+   (platforms.md PL-03); SmartScreen warns until then. Rehearse from any branch without a tag:
+   `gh workflow run validate.yml --ref <branch> -f os=all -f packages=true`.
 5. `still-newest` repeats step 3's guard right before publishing: hours may pass between the
    first check and the approvals, and a newer release may have been published meanwhile. A
    rehearsal skips it.
 6. `publish` waits for a second approval, because it holds the GPG key. It attests every file
    (Sigstore), writes `SHA256SUMS` and `SHA256SUMS.asc`, and publishes the release with the
    CHANGELOG section as its notes. Its files: `Fabric-Dashboards-<version>.dmg`,
-   `Fabric-Dashboards-<version>-mac.zip`, `update-feed.json`, the receipt, and the sums.
+   `Fabric-Dashboards-<version>-mac.zip`, `update-feed.json`, the receipt, the Windows and Linux
+   packages with their receipts (step 4a), and the sums. It publishes only when every system's
+   packages were made.
 7. The feed is served from `releases/latest/download/`, so the newest release is the feed.
    Installed apps pick the update up within six hours, or at once from
    *Fabric Dashboards → Check for Updates…*.

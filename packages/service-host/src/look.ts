@@ -5,7 +5,7 @@
 // no earlier answer to measure silence from, a service that does not answer now is `down`, never
 // «starting». Fabric Dashboards' own monitor keeps history and uses the parts directly.
 import { claimConflicts, readDirectory, servicesDir as defaultServicesDir, type DescriptorEntry } from './descriptor';
-import { authHeaders, fetchWellKnown, readToken, REMOTE_TIMEOUT_MS, type WellKnownOptions } from './health';
+import { authHeaders, fetchWellKnown, readTokenAsync, REMOTE_TIMEOUT_MS, type WellKnownOptions } from './health';
 import { LaunchdReader, UNMANAGED } from './launchd';
 import type { RemoteTokenLatch } from './latch';
 import type { ClaimConflict, LaunchdStatus, Reason, ServiceState, WellKnown, WellKnownResult } from './protocol';
@@ -16,8 +16,8 @@ export interface LookOptions {
   servicesDir?: string;
   /** Default: fetchWellKnown — 2 s for a local origin; for a remote one REMOTE_TIMEOUT_MS with the token (DEC-0019). */
   wellKnown?: (origin: string, options?: WellKnownOptions) => Promise<WellKnownResult>;
-  /** Default: readToken. A remote placement's probe needs its token; a local one never reads it here. */
-  token?: (tokenFile: string) => string;
+  /** Default: readTokenAsync. A remote placement's probe needs its token; a local one never reads it here. */
+  token?: (tokenFile: string) => string | Promise<string>;
   /** Default: a LaunchdReader on launchctl. */
   launchd?: LaunchdReader;
   /** FD-37: launchd is read only on macOS (default `process.platform`); elsewhere a launchd service is unmanaged here. */
@@ -55,7 +55,7 @@ export async function lookAtServices(o: LookOptions = {}): Promise<Look> {
   const dir = o.servicesDir ?? defaultServicesDir();
   let entries: DescriptorEntry[];
   try {
-    entries = readDirectory(dir);
+    entries = readDirectory(dir, o.platform ?? process.platform);
   } catch (error) {
     return { servicesDir: dir, error: (error as Error).message, services: [] };
   }
@@ -79,7 +79,7 @@ async function lookAtEntry(entry: DescriptorEntry, conflict: ClaimConflict | nul
   let options: WellKnownOptions | undefined;
   if (d && remote) {
     try {
-      options = { headers: authHeaders(d, (o.token ?? readToken)(d.auth.tokenFile)) };
+      options = { headers: authHeaders(d, await (o.token ?? readTokenAsync)(d.auth.tokenFile)) };
     } catch (error) {
       problems.push((error as Error).message); // a local configuration problem: invalid, never probed
     }

@@ -110,8 +110,7 @@ test('LC-08: a shown window probes at once and at the live cadence; hiding it re
     await advance(t, 120);
     reset();
     monitor.setVisible(true);
-    // The tick it starts rescans the folder first — real file I/O, slower on Windows than three turns.
-    for (let i = 0; i < 200 && counts.probes < local; i += 1) await flush(1);
+    await flush();
     assert.ok(counts.probes >= local, 'the window shows current states, not the last background read');
     reset();
     await advance(t, 60);

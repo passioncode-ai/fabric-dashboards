@@ -20,8 +20,9 @@ import { chooseLang, langFor, t, type Lang } from '../core/i18n';
 import { execRunner } from '../core/launchd';
 import { listListeners, unattributed } from '../core/listeners';
 import { applyLoginItem, LOGIN_NEEDS_APPROVAL, loginItemAtStartup, type LoginItemOs } from '../core/loginitem';
+import { xdgLoginItem } from '../core/autostart';
 import { Monitor, type Notice } from '../core/monitor';
-import { fetchUsage, readToken } from '../core/probe';
+import { fetchUsage, readTokenAsync } from '../core/probe';
 import { readSpend, type SpendEntry } from '../core/spend';
 import { NotifyLedger } from '../core/notify';
 import { SettingsStore } from '../core/settings';
@@ -30,7 +31,7 @@ import { ALWAYS_KEPT, clearRestoreRecord, KEPT_FILES, productDataPaths, purgeAft
 import { autoInstallNow, HiddenGrace, partitionFor, RELAUNCH_MARKER, relaunchHidden, stalePartitions, UPDATE_IDLE_MS, VIEW_RELEASE_GRACE_MS } from './policy';
 import { AppTray } from './tray';
 import { DockSync } from './dock';
-import { menuKeys, notificationSettingsUrl, places, startHidden, uninstallCommand, uninstallTarget, windowChrome } from '../core/platform';
+import { linkInArgv, menuKeys, notificationSettingsUrl, places, startHidden, uninstallCommand, uninstallTarget, windowChrome } from '../core/platform';
 import { EstateUpdater } from './estate-updater';
 import { Updater } from './updater';
 import { ServiceViews } from './views';
@@ -85,6 +86,9 @@ app.on('will-finish-launching', () => {
     else pendingLinks.push(raw);
   });
 });
+// FD-37: Windows and Linux start the app WITH the link as an argument when it is not running yet.
+const launchLink = linkInArgv(process.platform, process.argv, SCHEME, true);
+if (launchLink) pendingLinks.push(launchLink);
 
 if (!app.requestSingleInstanceLock()) {
   app.quit();
@@ -308,11 +312,11 @@ if (!app.requestSingleInstanceLock()) {
 
   // A development run must never register the Electron binary at login: no OS port at all.
   // FD-37: Windows keeps the login item in the Run key with `--hidden` (Electron compares the same args
-  // when reading it back); Linux has no Electron login item — its XDG autostart file comes with FD-37 M3.
+  // when reading it back); Linux has no Electron login item, so it is an XDG autostart entry (autostart.ts).
   const loginArgs = process.platform === 'win32' ? { args: ['--hidden'] } : {};
-  const loginOs: LoginItemOs | null = app.isPackaged && process.platform !== 'linux'
-    ? { get: () => app.getLoginItemSettings(loginArgs), set: (openAtLogin) => app.setLoginItemSettings({ openAtLogin, ...loginArgs }) }
-    : null;
+  const loginOs: LoginItemOs | null = !app.isPackaged ? null
+    : process.platform === 'linux' ? xdgLoginItem(process.env, os.homedir(), process.execPath)
+    : { get: () => app.getLoginItemSettings(loginArgs), set: (openAtLogin) => app.setLoginItemSettings({ openAtLogin, ...loginArgs }) };
 
   // #region uninstall-flow — docs: docs/ux/scenarios.md#scn-024-settings-launch-at-login-notifications-quiet-hours
   /** LC-14: undo what installing and running added. Registrations go first and stop the flow on
@@ -485,7 +489,7 @@ if (!app.requestSingleInstanceLock()) {
       const stale = Date.now() - lastSpendAt > SPEND_FRESH_MS;
       // D-4: Refresh reads now (a person asked); "read at" is the main process's own read time.
       if ((windowVisible() && (stale || force === true)) || !lastSpendAt) {
-        lastSpend = await readSpend(monitor.snapshots(), { token: readToken, fetchUsage, now: () => Date.now() });
+        lastSpend = await readSpend(monitor.snapshots(), { token: readTokenAsync, fetchUsage, now: () => Date.now() });
         lastSpendAt = Date.now();
       }
       return { entries: lastSpend, readAt: lastSpendAt ? new Date(lastSpendAt).toISOString() : null };
@@ -612,7 +616,7 @@ if (!app.requestSingleInstanceLock()) {
   // A link opened while the app runs reaches the first instance as an argument (and through
   // `open-url` on macOS); a second process only forwards it and exits.
   app.on('second-instance', (_event, argv) => {
-    const raw = argv.find((a) => a.startsWith(`${SCHEME}:`));
+    const raw = linkInArgv(process.platform, argv, SCHEME, false);
     if (raw && handleLink) handleLink(raw);
     else if (raw) pendingLinks.push(raw); // R-14: before the first scan, the link waits like a launch link
     else if (app.isReady()) showWindow();

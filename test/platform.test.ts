@@ -2,7 +2,7 @@
 // branch is tested on any operating system.
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { isAbsoluteFolder, menuKeys, notificationSettingsUrl, places, startHidden, trayIcon, uninstallCommand, uninstallTarget, windowChrome } from '../src/core/platform';
+import { isAbsoluteFolder, linkInArgv, menuKeys, notificationSettingsUrl, places, startHidden, trayIcon, uninstallCommand, uninstallTarget, windowChrome } from '../src/core/platform';
 
 const none = () => false;
 
@@ -84,4 +84,14 @@ test('FD-37 / PL-06: where the app keeps its data and logs on Windows and Linux;
     { userData: 'C:\\Users\\e\\AppData\\Local\\Fabric Dashboards', logs: 'C:\\Users\\e\\AppData\\Local\\Fabric Dashboards\\Logs' }, 'not the roaming profile');
   assert.deepEqual(places('linux', {}, '/home/e'), { userData: '/home/e/.local/share/fabric-dashboards', logs: '/home/e/.local/state/fabric-dashboards' });
   assert.deepEqual(places('linux', { XDG_DATA_HOME: '/d', XDG_STATE_HOME: '/s' }, '/home/e'), { userData: '/d/fabric-dashboards', logs: '/s/fabric-dashboards' });
+});
+
+test('FD-37: a link that starts the app on Windows or Linux is read from its arguments; macOS sends open-url', () => {
+  const win = ['C:\\Users\\me\\AppData\\Local\\Programs\\Fabric Dashboards\\Fabric Dashboards.exe', 'fabric-dashboards://service/runner.dev'];
+  assert.equal(linkInArgv('win32', win, 'fabric-dashboards', true), 'fabric-dashboards://service/runner.dev');
+  assert.equal(linkInArgv('linux', ['/opt/Fabric Dashboards/fabric-dashboards', '--no-sandbox', 'FABRIC-DASHBOARDS://service/x'], 'fabric-dashboards', true), 'FABRIC-DASHBOARDS://service/x', 'a scheme is case-insensitive');
+  assert.equal(linkInArgv('darwin', ['/Applications/Fabric Dashboards.app/Contents/MacOS/Fabric Dashboards', 'fabric-dashboards://x'], 'fabric-dashboards', true), null, 'macOS: open-url delivers it');
+  assert.equal(linkInArgv('darwin', ['x', 'fabric-dashboards://service/a'], 'fabric-dashboards', false), 'fabric-dashboards://service/a', 'a second instance forwards it on every system');
+  assert.equal(linkInArgv('win32', ['x', '--hidden'], 'fabric-dashboards', true), null);
+  assert.equal(linkInArgv('win32', ['x', 'fabric-dashboards-other:y'], 'fabric-dashboards', true), null, 'only this scheme');
 });

@@ -14,7 +14,7 @@ export const PROBE_TIMEOUT_MS = 5_000;
 
 // One definition of each boundary (R-005): token reading and its header live in the shared package,
 // which a remote placement's probe needs too (DEC-0019).
-export { readToken, authHeaders } from '@passioncode-ai/fabric-service-host';
+export { readToken, readTokenAsync, authHeaders } from '@passioncode-ai/fabric-service-host';
 import { authHeaders } from '@passioncode-ai/fabric-service-host';
 
 export interface EventsPage { events: ServiceEvent[]; cursor: string | null }

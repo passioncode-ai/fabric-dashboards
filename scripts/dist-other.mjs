@@ -147,7 +147,8 @@ function checks(appDir, t, version) {
   requireThat(existsSync(launcher), 'The packaged app is missing its MCP launcher.');
   const services = mkdtempSync(path.join(os.tmpdir(), 'fd-mcp-'));
   try {
-    const [cmd, args] = t.platform === 'win32' ? [process.env.ComSpec || 'cmd.exe', ['/d', '/s', '/c', `"${launcher}"`]] : [launcher, []];
+    // cmd /s strips one pair of outer quotes, so the path (it has a space) is quoted twice.
+    const [cmd, args] = t.platform === 'win32' ? [process.env.ComSpec || 'cmd.exe', ['/d', '/s', '/c', `""${launcher}""`]] : [launcher, []];
     const hello = spawnSync(cmd, args, { input: '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}\n', encoding: 'utf8', timeout: 30_000, windowsHide: true, windowsVerbatimArguments: t.platform === 'win32', env: { ...process.env, FABRIC_SERVICES_DIR: services } });
     const answer = (() => { try { return JSON.parse(hello.stdout.split('\n')[0]); } catch { return null; } })();
     requireThat(answer?.result?.serverInfo?.version === version, `The packaged MCP launcher did not answer initialize: ${(hello.stderr || hello.stdout || String(hello.error)).slice(0, 400)}`);

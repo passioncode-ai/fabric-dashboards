@@ -12,7 +12,7 @@ export type SpendEntry =
   | { key: string; kind: 'error'; error: string; reason?: Reason }; // `error` English (agents); `reason` for the window's language
 
 export interface SpendDeps {
-  token: (tokenFile: string) => string;
+  token: (tokenFile: string) => string | Promise<string>;
   fetchUsage: (d: Descriptor, usagePath: string, token: string) => Promise<UsageReport>;
   now: () => number;
 }
@@ -36,7 +36,7 @@ export async function readSpend(services: readonly { key: string; state?: string
     if (!d || !usagePath) return { key: s.key, kind: 'none' };
     if (!usagePath.startsWith('/') || usagePath.startsWith('//')) return { key: s.key, kind: 'error', error: `the usage path ${JSON.stringify(usagePath)} is not a path on the service origin`, reason: { code: 'spend.err.badPath', params: { path: usagePath.slice(0, 80) } } };
     try {
-      const report = await deps.fetchUsage(d, usagePath, deps.token(d.auth.tokenFile));
+      const report = await deps.fetchUsage(d, usagePath, await deps.token(d.auth.tokenFile));
       return { key: s.key, kind: 'report', summary: summarizeUsage(report, deps.now()) };
     } catch (error) {
       // T-25: a failure with no reason of its own (the network, the token file) is still worded in the app's language.

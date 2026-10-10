@@ -93,6 +93,15 @@ export function menuKeys(platform: NodeJS.Platform): { appMenu: boolean; quit: s
 export function startHidden(platform: NodeJS.Platform, o: { argv: string[]; wasOpenedAtLogin: boolean | undefined; afterUpdate: boolean }): boolean {
   return o.afterUpdate || o.argv.includes('--hidden') || (platform === 'darwin' && o.wasOpenedAtLogin === true);
 }
+/**
+ * The `fabric-dashboards:` link in a process's arguments (ADR-0004). Windows and Linux hand a link to the
+ * program as an argument — to the first instance at launch, and to a second one that forwards it — where
+ * macOS sends `open-url` instead; on macOS a launch's own arguments never carry one.
+ */
+export function linkInArgv(platform: NodeJS.Platform, argv: readonly string[], scheme: string, launch: boolean): string | null {
+  if (launch && platform === 'darwin') return null;
+  return argv.find((a) => a.toLowerCase().startsWith(`${scheme}:`)) ?? null;
+}
 /** Where the system's notification settings open: macOS System Settings, Windows Settings; Linux has no
  *  standard address, so the app opens nothing and says where to look (`notificationSettingsUrl` is null). */
 export function notificationSettingsUrl(platform: NodeJS.Platform): string | null {
