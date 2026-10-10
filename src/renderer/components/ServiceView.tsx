@@ -1,3 +1,4 @@
+import { offersAgentUpdate, offersFix } from '../../core/offers';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { PageState } from '../../core/api';
 import type { ActivityItem, ServiceSnapshot } from '../../core/types';
@@ -33,9 +34,11 @@ interface Props {
   onToggleHeader: () => void;
   consoleOpen: boolean;
   onToggleConsole: () => void;
+  /** FD-39 D-3: hand a fix or an update to the coding agent, with the context. */
+  onAgent?: (key: string, task: { kind: 'fix' | 'update'; output?: string }) => void;
 }
 
-export function ServiceView({ s, all, members, open, link, nonce, tab: askedTab, runUpdate, activityRev, overlayOpen, askStop, updateStarted, headerFull, onToggleHeader, consoleOpen, onToggleConsole }: Props) {
+export function ServiceView({ s, all, members, open, link, nonce, tab: askedTab, runUpdate, activityRev, overlayOpen, askStop, updateStarted, headerFull, onToggleHeader, consoleOpen, onToggleConsole, onAgent }: Props) {
   const [pathError, setPathError] = useState('');
   // P-6: a folder or file that cannot be shown says so here, as Overview's Show folder does.
   const show = (p: string) => void api().showPath(p).then((r) => setPathError(r.ok ? '' : t('overview.showFailed', { path: p, error: r.error ?? '' })));
@@ -45,6 +48,7 @@ export function ServiceView({ s, all, members, open, link, nonce, tab: askedTab,
   const chosen = useRef(false); // the operator picked a tab; stop choosing for them
   const setTab = (x: Tab) => { chosen.current = true; setTabState(x); };
   const [output, setOutput] = useState<{ title: string; text: string; running: 'doctor' | 'update' | null } | null>(null);
+  const [updateFailure, setUpdateFailure] = useState<string | null>(null);
   useEffect(() => { chosen.current = false; setOutput(null); }, [s.key]);
   // The first snapshot can arrive before the first answer: open the dashboard once it exists.
   useEffect(() => { if (!chosen.current) setTabState(hasDashboard ? 'dashboard' : 'health'); }, [s.key, hasDashboard]);
@@ -74,6 +78,7 @@ export function ServiceView({ s, all, members, open, link, nonce, tab: askedTab,
       if (r.refused) { setOutput({ title: r.refused, text: '', running: null }); return; }
       const reason = commandReason(r, command);
       setOutput({ title: t(reason.code, reason.params), text: commandRan(r) ? r.output : '', running: null });
+      if (which === 'update') setUpdateFailure(r.code === 0 && !r.timedOut ? null : (commandRan(r) ? r.output : t(reason.code, reason.params)));
     } catch (error) {
       setOutput({ title: t('result.commandFailed', { command, error: String((error as Error)?.message ?? error) }), text: '', running: null });
     }
@@ -94,6 +99,10 @@ export function ServiceView({ s, all, members, open, link, nonce, tab: askedTab,
             <button className="chip chip-problem" title={reason(problem)} aria-label={t('svc.problem', { reason: reason(problem) })} onClick={onToggleHeader}>
               <span className="chip-text">{reason(problem)}</span>
             </button>
+          )}
+          {/* FD-39 SCN-054: the problem and its one-click fix sit together, even in the one-line header. */}
+          {!headerFull && problem && onAgent && offersFix(s) && !s.busy && (
+            <button className="btn btn-sm" title={t('agent.fix')} aria-label={t('agent.fix')} onClick={() => onAgent(s.key, { kind: 'fix' })}>{t('agent.fixShort')}</button>
           )}
           <div className="tabs" role="tablist" aria-label={nameOf(s)} onKeyDown={(e) => {
             // U-14: arrow keys move between tabs, as a tab list should.
@@ -144,6 +153,8 @@ export function ServiceView({ s, all, members, open, link, nonce, tab: askedTab,
                 <button className="btn" disabled={Boolean(s.busy)} onClick={() => void run('update')}>{t('action.update', { version: wk.update.available })}</button>
               )}
               {s.descriptor?.commands?.doctor && <button className="btn" disabled={Boolean(s.busy)} onClick={() => void run('doctor')}>{t('action.doctor')}</button>}
+              {onAgent && offersFix(s) && <button className="btn" onClick={() => onAgent(s.key, { kind: 'fix' })}>{t('agent.fix')}</button>}
+              {onAgent && offersAgentUpdate(s, updateFailure !== null) && <button className="btn" onClick={() => onAgent(s.key, { kind: 'update', ...(updateFailure ? { output: updateFailure } : {}) })}>{t('agent.update')}</button>}
               {s.descriptor?.paths && <button className="btn" onClick={() => show(s.descriptor!.paths!.data)}>{t('action.showData')}</button>}
               <button className="btn" onClick={() => show(s.descriptorPath)}>{t('action.showFile')}</button>
               {conflictWith.map((o) => (

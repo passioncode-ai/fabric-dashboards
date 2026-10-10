@@ -374,3 +374,22 @@ test('T-9: an argument of the wrong type is refused, never replaced by its defau
     assert.match(r.result.content[0]!.text, text);
   }
 });
+
+test('FD-39 REQ-004: service_context hands a coding agent the live picture — state, reasons as sentences, repository, events — never the auth block', async () => {
+  const { deps } = world({ descriptor: { source: { repository: 'https://github.com/example/agent' }, commands: { update: ['/x/update'] } } });
+  const c = await tools.serviceContext(deps, KEY);
+  assert.equal(c.key, KEY);
+  assert.equal(c.state, (await tools.serviceStatus(deps, KEY)).state, 'the same state service_status reads');
+  assert.equal(c.repository, 'https://github.com/example/agent');
+  assert.equal(c.can_update, true);
+  assert.equal((c.descriptor as Record<string, unknown>).auth, undefined, 'the token file is not the agent\'s to read');
+  assert.ok(!JSON.stringify(c).includes(SECRET), 'nor the token');
+  assert.deepEqual((c.events as { text: string }[]).map((e) => e.text), ['Job job_1 started', 'Job job_1 delivered']);
+  assert.equal(c.events_error, null);
+  for (const r of c.reasons as string[]) assert.doesNotMatch(r, /^reason\./, 'sentences, not codes');
+  const down = world({ answers: [{ kind: 'no-answer', detail: 'connection refused', cause: 'network' }] });
+  const d = await tools.serviceContext(down.deps, KEY);
+  assert.ok(!['ready', 'degraded'].includes(String(d.state)));
+  assert.match(String(d.events_error), /does not answer/, 'a service that does not answer still gets its context, and says why there are no events');
+  assert.ok(TOOLS.some((x) => x.name === 'service_context'));
+});

@@ -33,6 +33,7 @@ import { AppTray } from './tray';
 import { DockSync } from './dock';
 import { linkInArgv, menuKeys, notificationSettingsUrl, places, startHidden, uninstallCommand, uninstallTarget, windowChrome } from '../core/platform';
 import { EstateUpdater } from './estate-updater';
+import { readSetupState } from '../core/setup';
 import { Updater } from './updater';
 import { ServiceViews } from './views';
 import { parseTestRemote, setTestRemote } from '../core/testhooks';
@@ -118,7 +119,16 @@ if (!app.requestSingleInstanceLock()) {
   // ADR-0017: the agent consoles. FD_TEST_RUNTIME_DIRS replaces where runtimes are looked for, only
   // in a development run (the e2e suite's scripted runtime); a packaged app reads the login shell's PATH.
   const testRuntimeDirs = !app.isPackaged && process.env.FD_TEST_RUNTIME_DIRS ? process.env.FD_TEST_RUNTIME_DIRS.split(path.delimiter).filter(Boolean) : undefined;
-  const consoles = new ConsoleHost({ settings, snapshot: (key) => monitor.snapshot(key), window: () => window, visible: () => windowVisible(), log: (line) => log(line), testDirs: testRuntimeDirs, scriptsDir: path.join(userData, 'console') });
+  // FD-39 (ADR-0020): every console start writes its context pack under userData/consoles/<key>, and the
+  // agent reaches this app's MCP server as Node inside this binary (the RunAsNode fuse), on every OS.
+  const mcpServer = () => ({
+    command: process.execPath,
+    args: [app.isPackaged ? path.join(process.resourcesPath, 'app.asar', 'out', 'main', 'mcp', 'server.js') : path.join(__dirname, '../mcp/server.js')],
+    env: { ELECTRON_RUN_AS_NODE: '1' },
+  });
+  const consoles = new ConsoleHost({ settings, snapshot: (key) => monitor.snapshot(key), window: () => window, visible: () => windowVisible(), log: (line) => log(line), testDirs: testRuntimeDirs, scriptsDir: path.join(userData, 'console'),
+    packRoot: path.join(userData, 'consoles'), activity: (key) => activity.list({ serviceKey: key }, 200), mcpServer,
+    setupState: () => readSetupState(os.homedir(), monitor.snapshots().length) });
   let tray: AppTray | null = null;
   // R-3: the window lets itself close only once a quit is really under way — before-quit, or
   // Squirrel's before-quit-for-update. A failed install puts the window back to hiding on close.
@@ -497,6 +507,7 @@ if (!app.requestSingleInstanceLock()) {
     ipcMain.handle(CHANNELS.activity, (_e, filter) => activity.list(filter ?? {}));
     ipcMain.handle(CHANNELS.activitySeen, () => { activity.markSeen(); pushStatus(); });
     ipcMain.handle(CHANNELS.settings, () => settings.get());
+    ipcMain.handle(CHANNELS.setupState, () => readSetupState(os.homedir(), monitor.snapshots().length));
     ipcMain.handle(CHANNELS.settingsUpdate, (_e, raw: SettingsPatch) => {
       // Review R-4: a console's runtime and folder are set only through the console's own calls (a
       // folder only from the folder dialog), never through a generic settings change.

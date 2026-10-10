@@ -30,6 +30,20 @@
 - **Windows installers are signed** with the organization's Authenticode certificate, once signing is
   switched on for this app. Until then a release says in its notes that they are not.
 
+- **Agents first** (FD-39, ADR-0020). The coding agent does the work; the app shows the result.
+  - The console starts your coding agent already knowing the agent it was opened for: its state and
+    why, errors, recent events, version, repository and descriptor (never its token), and this app's
+    tools. Claude Code and Codex get it before their first turn.
+  - *Fix with agent* sits beside a problem, and *Update with agent* appears when an agent's own update
+    command can't apply an update. Either one opens the console with the job already described.
+  - Pin agents to the top of the list, and sort the rest by name, by what needs attention, or by
+    recent activity.
+  - On a first launch, your coding agent sets everything up in a console beside Overview: this app's
+    tools, the Fabric skills, the products you agree to, your first agent. You answer only sign-ins,
+    consents and secrets.
+  - Later launches open on what changed since your last visit, with *Continue* for the agents you
+    worked with.
+
 ### Fixed
 
 - The test suite removes its temporary folders when it ends; 4,810 had piled up (592 MB) on a

@@ -22,6 +22,7 @@ import { Launchd, execRunner, type Runner } from '../core/launchd';
 import { fetchEvents, fetchUsage, fetchWellKnown, PROBE_TIMEOUT_MS, readTokenAsync } from '../core/probe';
 import { readSpend, type SpendEntry } from '../core/spend';
 import { productIdOf } from '../core/products';
+import { t as tr } from '../core/i18n';
 
 export const COMMAND_TIMEOUT_MS = 120_000;
 export const CONTROL_TIMEOUT_MS = 40_000;
@@ -325,6 +326,30 @@ export async function activity(deps: Deps, key: string, limit = 20): Promise<{ e
   const linkOf = (path: string) => { try { return linkFor(key, path); } catch { return undefined; } };
   return { events: page.events.slice(-n).map((e) => { const link = e.link && safePath(e.link) ? linkOf(e.link) : undefined; return { at: e.at, level: e.level, text: e.text, ...(link ? { link } : {}) }; }) };
 }
+
+// #region agent-handoff — docs: docs/adr/0020-agents-first-handoff-and-setup.md#decision
+/** FD-39 (ADR-0020): everything a coding agent needs about one service, read now — the live twin of the
+ *  console's context.md. The descriptor's auth block is left out: the token is never the agent's to read. */
+export async function serviceContext(deps: Deps, key: string): Promise<Record<string, unknown>> {
+  const k = find(deps, key).key;
+  const [l] = await look(deps, [k]);
+  if (!l) throw new ToolError(`no service ${k}`);
+  const d = l.descriptor;
+  let descriptor: Record<string, unknown> | null = null;
+  if (d) { const { auth: _auth, ...rest } = d as unknown as Record<string, unknown>; descriptor = rest; }
+  let events: { at: string; level: string; text: string; link?: string }[] = [];
+  let eventsError: string | null = null;
+  try { events = (await activity(deps, k, 20)).events; } catch (error) { eventsError = (error as Error).message; }
+  const v = view(l);
+  return {
+    key: k, name: v.name, summary: d?.summary ?? null, placement: v.placement, state: l.state,
+    reasons: l.reasons.map((r) => tr('en', r.code, r.params)), problems: l.problems,
+    version: v.version, update_available: v.update_available, can_update: Boolean(d?.commands?.update?.length),
+    origin: v.origin, repository: d?.source?.repository ?? null, dashboard: v.dashboard, open_link: v.open_link,
+    descriptor, events, events_error: eventsError,
+  };
+}
+// #endregion agent-handoff
 
 /** What each agent spent, from its own usage report (contract DEC-0021, ADR-0013); one service or all.
  *  A cost of null is unknown, never $0; `partial` marks a lower bound. */

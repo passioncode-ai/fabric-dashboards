@@ -1,3 +1,5 @@
+import { offersAgentUpdate, offersFix } from '../../core/offers';
+import type { SinceLastVisit } from '../../core/visit';
 import { attentionRank } from '@passioncode-ai/fabric-service-host/state';
 import { useEffect, useState } from 'react';
 import { sumSpend, type SpendEntry } from '../../core/spend';
@@ -6,14 +8,50 @@ import { instanceOf, type Product } from '../../core/products';
 import type { AppStatus, ServiceSnapshot, Settings } from '../../core/types';
 import { api, GLYPH, nameOf, NEWS_MS, shortBuild, Spinner, StateBadge, useExpiry, useT } from '../lib';
 
+/** FD-39 SCN-058: the setup the person's coding agent runs. The card shows what is done — read every few
+ *  seconds while it is on screen — and opens the Setup console; the app runs none of the steps itself. */
+export function SetupCard({ onOpen, consoleOpen }: { onOpen: () => void; consoleOpen: boolean }) {
+  const { t } = useT();
+  const [settings, setSettings] = useState<Settings | null>(null);
+  const [state, setState] = useState<{ mcp: boolean; skills: boolean; firstAgent: boolean } | null>(null);
+  useEffect(() => { void api().settings().then(setSettings); }, []);
+  useEffect(() => {
+    if (!settings || settings.setupDone) return undefined;
+    const read = () => void api().setupState().then(setState).catch(() => undefined);
+    read();
+    const timer = setInterval(read, 5000);
+    return () => clearInterval(timer);
+  }, [settings]);
+  if (!settings || settings.setupDone || !state) return null;
+  const done = state.mcp && state.skills && state.firstAgent;
+  const hide = async () => setSettings((await api().updateSettings({ setupDone: true })).settings);
+  const item = (ok: boolean, key: string) => <li className={ok ? 'done' : ''}><span aria-hidden="true">{ok ? '✓' : '○'}</span> {t(key)}<span className="visually-hidden">{ok ? ' ✓' : ''}</span></li>;
+  return (
+    <section className="notice info setup setup-agent" aria-labelledby="setup-agent-title">
+      <h2 id="setup-agent-title">{t('setup.agent.title')}</h2>
+      <p>{done ? t('setup.agent.complete') : t('setup.agent.body')}</p>
+      <ul className="checklist">
+        {item(state.mcp, 'setup.agent.mcp')}
+        {item(state.skills, 'setup.agent.skills')}
+        {item(state.firstAgent, 'setup.agent.firstAgent')}
+      </ul>
+      <div className="row">
+        {!done && !consoleOpen && <button className="btn btn-primary" onClick={onOpen}>{t('setup.agent.start')}</button>}
+        <button className="btn" onClick={() => void hide()}>{t('setup.agent.hide')}</button>
+      </div>
+    </section>
+  );
+}
+
 /** The first-run question (SCN-024, lifecycle LC-07): launch at login is off until the person
  *  answers here or in Settings; either answer registers or unregisters once, and the card is gone. */
-export function LoginQuestion() {
+/** FD-39: `defer` while the Setup console is open — one first-run task at a time; the question comes after. */
+export function LoginQuestion({ defer = false }: { defer?: boolean } = {}) {
   const { t } = useT();
   const [settings, setSettings] = useState<Settings | null>(null);
   const [error, setError] = useState('');
   useEffect(() => { void api().settings().then(setSettings); }, []);
-  if (!settings || settings.launchAtLoginAsked) return error ? <p className="notice error" role="alert">{error}</p> : null;
+  if (!settings || settings.launchAtLoginAsked || defer) return error ? <p className="notice error" role="alert">{error}</p> : null;
   const choose = async (launchAtLogin: boolean) => {
     const r = await api().updateSettings({ launchAtLogin });
     setSettings(r.settings);
@@ -31,12 +69,16 @@ export function LoginQuestion() {
   );
 }
 
-interface Props { status: AppStatus; products: Product[]; open: (key: string, link?: string, tab?: 'logs' | 'health') => void; act: (key: string, action: 'restart' | 'start' | 'update') => void; goSpend: () => void }
+interface Props { status: AppStatus; products: Product[]; open: (key: string, link?: string, tab?: 'logs' | 'health') => void; act: (key: string, action: 'restart' | 'start' | 'update') => void; goSpend: () => void;
+  /** FD-39 D-3: Fix / Update with agent. */
+  agent?: (key: string, task: { kind: 'fix' | 'update' }) => void;
+  /** FD-39 SCN-059: what changed since the last visit, and Continue for the agents the person worked with. */
+  visit?: SinceLastVisit | null; onContinue?: (key: string) => void }
 
 /** Needs attention shows this many rows; the rest wait behind "Show all" (ADR-0014). */
 const ATTENTION_VISIBLE = 3;
 
-export function Overview({ status, products, open, act, goSpend }: Props) {
+export function Overview({ status, products, open, act, goSpend, agent, visit, onContinue }: Props) {
   const { t, reason } = useT();
   const [showAll, setShowAll] = useState(false);
   const [pathError, setPathError] = useState('');
@@ -109,6 +151,38 @@ export function Overview({ status, products, open, act, goSpend }: Props) {
   return (
     <>
       <StatusStrip status={status} products={products} attention={attention.length} goSpend={goSpend} />
+      {visit?.since && (() => {
+        const byKey = new Map(services.map((x) => [x.key, x]));
+        const names = (keys: string[]) => keys.map((k) => (byKey.get(k) ? nameOf(byKey.get(k)!) : k)).join(', ');
+        const worked = visit.continueKeys.filter((k) => byKey.has(k));
+        const changed = visit.added.length + visit.removed.length + visit.alerts.length > 0;
+        if (!changed && !worked.length) return null;
+        return (
+          <section className="visit" aria-labelledby="visit-title">
+            <h2 id="visit-title">{t('visit.title')}</h2>
+            {!changed && <p className="meta">{t('visit.nothing', { when: new Date(visit.since).toLocaleString() })}</p>}
+            <ul>
+              {visit.alerts.map((a) => byKey.has(a.key) && (
+                <li key={a.key} className={`state-${a.level === 'error' ? 'down' : 'degraded'}`}>
+                  <button className="linkish name" onClick={() => open(a.key)}>{nameOf(byKey.get(a.key)!)}</button>
+                  <span className="why" title={a.text}>{a.text}</span>
+                  {agent && offersFix(byKey.get(a.key)!) && <button className="btn" aria-label={`${t('agent.fix')} — ${nameOf(byKey.get(a.key)!)}`} onClick={() => agent(a.key, { kind: 'fix' })}>{t('agent.fix')}</button>}
+                </li>
+              ))}
+              {visit.added.length > 0 && <li className="meta">{t('visit.added', { names: names(visit.added) })}</li>}
+              {visit.removed.length > 0 && <li className="meta">{t('visit.removed', { names: names(visit.removed) })}</li>}
+            </ul>
+            {onContinue && worked.length > 0 && (
+              <div className="row wrap">
+                <span className="meta">{t('visit.worked')}</span>
+                {worked.slice(0, 6).map((k) => (
+                  <button key={k} className="btn" aria-label={t('visit.continueWith', { name: nameOf(byKey.get(k)!) })} onClick={() => onContinue(k)}>{t('visit.continue')} · {nameOf(byKey.get(k)!)}</button>
+                ))}
+              </div>
+            )}
+          </section>
+        );
+      })()}
       {attention.length > 0 && (
         <section className="attention" aria-labelledby="attention-title">
           <h2 id="attention-title">{t('overview.attention')} <span className="count">{attention.length}</span></h2>
@@ -119,6 +193,8 @@ export function Overview({ status, products, open, act, goSpend }: Props) {
                 <button className="linkish name" onClick={() => open(s.key)}>{nameOf(s)}</button>
                 <span className="why" title={attentionLine(s)}>{attentionLine(s)}</span>
                 {action(s)}
+                {agent && !s.busy && offersFix(s) && <button className="btn" aria-label={`${t('agent.fix')} — ${nameOf(s)}`} onClick={() => agent(s.key, { kind: 'fix' })}>{t('agent.fix')}</button>}
+                {agent && !s.busy && !offersFix(s) && offersAgentUpdate(s, false) && <button className="btn" aria-label={`${t('agent.update')} — ${nameOf(s)}`} onClick={() => agent(s.key, { kind: 'update' })}>{t('agent.update')}</button>}
               </li>
             ))}
           </ul>

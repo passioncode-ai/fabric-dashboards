@@ -147,8 +147,10 @@ carries these changes — measure with `ps -o time,rss` over 10 hidden minutes o
 and record the numbers in `docs/HANDOFF.md`. (Before this change, 0.4.1 measured 1.3 % CPU and about
 7,200 `launchctl` spawns an hour after a login launch: lifecycle audit 2026-10-03, F-2/F-4.)
 
-**Files it writes** (LC-12): `~/Library/Application Support/Fabric Dashboards/` — `settings.json` (with the panel layout and each
-service's console runtime and folder, ADR-0017)
+**Files it writes** (LC-12): `~/Library/Application Support/Fabric Dashboards/` — `settings.json` (with the panel layout, pinned agents and
+the list's sort, each service's console runtime and folder, ADR-0017, and the previous visit and setup state, ADR-0020),
+`consoles/<key>/` (FD-39, ADR-0020: the context pack each console start writes — `context.md`, `task.md` for a Fix/Update, `mcp.json`,
+and `setup.md` for the Setup console; 0700 folder, 0600 files, rewritten at each start, never in the agent's repository)
 and its last good copy `settings.json.bak` (a damaged `settings.json` is restored from it, ADR-0015),
 `auto-update` (the LC-16 switch: written only when the person turns it, kept by every uninstall), `.last-version` (the version that ran last, to log a finished install), `restore.json` (written only by an uninstall that kept the data), `.relaunch-hidden` (seconds-long
 marker of an automatic update install), `activity.jsonl` (appended, compacted to 5,000 rows at 10,000), `activity-state.json`,

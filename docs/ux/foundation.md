@@ -77,6 +77,17 @@ hunt browser tabs to learn whether an agent is alive or what it did.
 - **validation_status:** unvalidated
 - **Status:** confirmed
 
+### JTBD-06: Hand the work to my coding agent, and see the result
+- **Statement:** When an agent needs fixing, updating or setting up — or the whole system does — I want my coding agent (Claude Code, Codex or another) to do it already knowing which agent, its state, errors, events and repository, so I decide and watch the result instead of typing commands or explaining the situation.
+- **Personas:** P-01
+- **Type:** functional
+- **Forces:** push: re-explaining the problem to an agent that sees nothing, copying commands from READMEs, a setup wizard per product; pull: one click that opens the runtime already holding the context and a task; anxiety: an agent doing something destructive, a token reaching it, a subscription spent without asking; habit: setting up each product by hand
+- **Success metric:** from a problem, an update or a first launch, a coding-agent session that already holds the agent's context (and the task) is one click away; the person types no command to set the system up
+- **evidence_kind:** owner-belief (operator request 2026-10-10, knowledge/agents-first.md)
+- **decision_status:** accepted
+- **validation_status:** unvalidated
+- **Status:** confirmed
+
 ## 3. Customer journeys
 
 ### JRN-01: P-01 — a working day with the agents (JTBD-01, JTBD-02, JTBD-03, JTBD-04, JTBD-05)
@@ -90,6 +101,15 @@ hunt browser tabs to learn whether an agent is alive or what it did.
 | 6 | Maintain | updates an agent or the app | Needs attention "Update to <v>", sidebar update line, automatic install (ADR-0015) | 3 | stale code nobody noticed | update offered where it is visible |
 | 7 | Tune | turns noise down | Settings | 3 | notifications for everything | per-service and quiet hours |
 | 8 | Direct | tells an agent's code what to change while looking at its dashboard | the console beside the dashboard (ADR-0017) | 3 | a separate terminal, the wrong folder or account | the runtime's own console, in the repository, on the right account |
+
+### JRN-02: P-01 — the first day, set up by my coding agent, and every day after (JTBD-06, JTBD-01, JTBD-02)
+| # | Stage | User action | Touchpoint | Emotion (1-5) | Pain | Opportunity |
+|---|-------|------------|------------|---------------|------|-------------|
+| 1 | First launch | opens the app with nothing installed | Overview with a Setup console | 3 | an empty list and a README link | one click: my coding agent sets the system up while I watch |
+| 2 | Setup | answers the agent's questions, signs in where asked, consents to each product | the Setup console; agents appearing in the list | 4 | a wizard per product, commands to copy | the agent runs every command; only sign-ins and consents are mine |
+| 3 | Second day | opens the app | Overview "since you were last here" | 4 | hunting for what changed | what broke, what updated, Continue where I left off |
+| 4 | Fix | an agent is down | "Fix with agent" | 3 | explaining the problem again in a terminal | the agent starts holding the reasons, events and repository |
+| 5 | Focus | keeps the agents I work with on top | pinned agents, sort | 4 | an alphabetical list | my agents first, the rest by status or activity |
 
 ## 4. User stories
 
@@ -271,6 +291,35 @@ hunt browser tabs to learn whether an agent is alive or what it did.
   - Given a service whose descriptor names its repository, when I open its console, then the folder of its local checkout is proposed, the installed runtimes are offered, and New or Continue starts the runtime's own interface there.
   - Given the folder belongs to a Switchboard project, when I start, then the session runs on that project's account — in the console once Switchboard can launch in place, otherwise in Terminal through Switchboard — and never on the ordinary sign-in.
   - Given a console runs, when I switch services, hide the window or collapse the panel, then it keeps running and shows what it printed when I come back; when I quit the app, it ends.
+- **Priority:** must
+- **Status:** proposed
+
+### ST-020: The console starts knowing the agent, and work goes to it with the context
+- **Story:** As P-01, I want the console of an agent — and a *Fix with agent* or *Update with agent* — to start my coding agent already holding that agent's state, reasons, errors, recent events, repository and descriptor, and this app's MCP tools, so that I give it the task, not the situation.
+- **Traces:** JTBD-06, JRN-02/#4; ADR-0020
+- **Acceptance criteria:**
+  - Given an agent's console, when I start a runtime, then it receives the agent's context before its first turn (Claude: system prompt and MCP; Codex: MCP and a first prompt; any: an environment variable naming the file), and nothing of the agent's token.
+  - Given an agent with a problem, when I press *Fix with agent*, then its console opens and the runtime starts with the problem as its task.
+  - Given an update the agent's own command cannot apply, when I press *Update with agent*, then the runtime starts with the update as its task.
+- **Priority:** must
+- **Status:** proposed
+
+### ST-021: My agents on top, the rest in the order I choose
+- **Story:** As P-01, I want to pin the agents I work with to the top of the list and sort the rest by name, status or recent activity, so that the list starts where my work is.
+- **Traces:** JTBD-01, JRN-02/#5; ADR-0020
+- **Acceptance criteria:**
+  - Given an agent, when I pin it, then it moves to a Pinned section above the rest, after the ones pinned before it, and stays there after a restart.
+  - Given the sort control, when I choose Status, then agents needing attention come first; Name and Recent activity order the same section otherwise; the choice is remembered.
+- **Priority:** should
+- **Status:** proposed
+
+### ST-022: My coding agent sets the system up; later visits show what changed
+- **Story:** As P-01, I want my first session to be a setup my coding agent runs in a console — this app's MCP, the skills, the products I consent to, my first agent — and every later session to open on what changed since my last visit, so that I never follow a setup manual and always start from what needs me.
+- **Traces:** JTBD-06, JRN-02/#1, JRN-02/#2, JRN-02/#3; ADR-0020
+- **Acceptance criteria:**
+  - Given a first launch, when the window opens, then a Setup console is ready with my default coding agent and starts on one click; with no coding agent installed, the install commands are shown to copy.
+  - Given a setup run, when the agent asks for a sign-in, a consent or a secret, then I answer in its console (a secret in a hidden prompt); everything else it runs itself.
+  - Given a later launch, when the window opens, then Overview leads with problems, updates and *Continue* for the agents I worked with since my last visit.
 - **Priority:** must
 - **Status:** proposed
 

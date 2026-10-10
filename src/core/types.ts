@@ -47,6 +47,12 @@ export interface Settings {
   autoUpdate: boolean;
   /** Whether the app has offered once to move itself into Applications, where updates can install. */
   moveToApplicationsAsked: boolean;
+  /** FD-39 SCN-058: the person finished or hid the setup card; the Setup console stays reachable from Settings. */
+  setupDone: boolean;
+  /** FD-39 SCN-059: the previous visit — when, which agents it saw, which one was selected last. */
+  lastVisitAt: string | null;
+  knownServices: string[];
+  lastService: string | null;
   notifications: {
     enabled: boolean;
     perService: Record<string, { enabled: boolean; minLevel: 'notice' | 'warning' | 'error' }>;
@@ -58,6 +64,8 @@ export interface Settings {
     sidebar: 'expanded' | 'collapsed';
     header: 'compact' | 'full';
     console: { open: boolean; width: number };
+    /** FD-39 (ADR-0020): pinned products in pin order (product ids, ADR-0012), and how the rest is sorted. */
+    list: { sort: ListSort; pinned: string[] };
   };
   /** ADR-0017: per service key, the runtime and folder its console last used (null: not chosen yet). */
   consoles: Record<string, { runtime: string | null; folder: string | null }>;
@@ -74,10 +82,13 @@ export interface Settings {
   // #endregion estate-update
 }
 
+/** FD-39: the order of the agents list below the pinned ones. */
+export type ListSort = 'name' | 'status' | 'activity';
+
 /** A change to the settings: any field, and any part of the layout or of one service's console alone. */
 export type SettingsPatch = Partial<Omit<Settings, 'layout' | 'notifications'>> & {
   notifications?: Partial<Settings['notifications']>;
-  layout?: Partial<Omit<Settings['layout'], 'console'>> & { console?: Partial<Settings['layout']['console']> };
+  layout?: Partial<Omit<Settings['layout'], 'console' | 'list'>> & { console?: Partial<Settings['layout']['console']>; list?: Partial<Settings['layout']['list']> };
 };
 
 /** The console panel's width bounds, in CSS pixels (the window may make it narrower still). */
@@ -90,13 +101,17 @@ export const DEFAULT_SETTINGS: Settings = {
   language: 'system',
   autoUpdate: true,
   moveToApplicationsAsked: false,
+  setupDone: false,
+  lastVisitAt: null,
+  knownServices: [],
+  lastService: null,
   notifications: {
     enabled: true,
     perService: {},
     quietHours: { enabled: false, from: '22:00', to: '08:00' },
     pausedUntil: null,
   },
-  layout: { sidebar: 'expanded', header: 'compact', console: { open: false, width: CONSOLE_WIDTH.default } },
+  layout: { sidebar: 'expanded', header: 'compact', console: { open: false, width: CONSOLE_WIDTH.default }, list: { sort: 'name', pinned: [] } },
   consoles: {},
   // #region estate-update — docs: docs/adr/0018-estate-updates-from-inside-the-app.md#decision
   estate: { enabled: true, autoSkills: false, contractClone: '' },

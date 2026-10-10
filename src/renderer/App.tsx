@@ -1,13 +1,16 @@
 import { useEffect, useRef, useState } from 'react';
 import { langFor, t as tr, type Lang } from '../core/i18n';
-import { CONSOLE_WIDTH, DEFAULT_SETTINGS, type AppStatus, type Settings as AppSettings, type SettingsPatch } from '../core/types';
-import { groupProducts, productOf, type Product } from '../core/products';
+import { CONSOLE_WIDTH, DEFAULT_SETTINGS, type AppStatus, type Settings as AppSettings, type SettingsPatch, type ListSort } from '../core/types';
+import { groupProducts, productOf, type Product, arrangeProducts, togglePin } from '../core/products';
 import { Activity, type ActivityFilter } from './components/Activity';
-import { LoginQuestion, Overview } from './components/Overview';
+import { LoginQuestion, SetupCard, Overview } from './components/Overview';
 import { ServiceView } from './components/ServiceView';
 import { Settings } from './components/Settings';
 import { Spend } from './components/Spend';
 import { ConsolePanel } from './components/ConsolePanel';
+import { SETUP_KEY } from '../core/offers';
+import { sinceLastVisit, type SinceLastVisit } from '../core/visit';
+import type { ConsoleTask } from '../core/api';
 import mark from './brand/dashboards-mark.svg';
 import { api, GLYPH, Icon, LangContext, nameOf, Spinner, useT } from './lib';
 
@@ -25,7 +28,7 @@ export function App() {
   // ADR-0017: how much of the window the dashboard gets, remembered in Settings.layout.
   const [layout, setLayout] = useState<AppSettings['layout']>(DEFAULT_SETTINGS.layout);
   const changeLayout = (patch: NonNullable<SettingsPatch['layout']>, persist = true) => {
-    setLayout((l) => ({ ...l, ...patch, console: { ...l.console, ...(patch.console ?? {}) } }));
+    setLayout((l) => ({ ...l, ...patch, console: { ...l.console, ...(patch.console ?? {}) }, list: { ...l.list, ...(patch.list ?? {}) } }));
     // Review R-9: the screen is the truth while the person moves panels; a slower reply never undoes a later change.
     if (persist) void api().updateSettings({ layout: patch }).catch(() => undefined);
   };
@@ -83,6 +86,9 @@ interface ShellProps {
 function Shell({ status, route, setRoute, stopKey, setStopKey, activityFilter, setActivityFilter, layout, changeLayout, onLanguage }: ShellProps) {
   const { t } = useT();
   const open = (key: string, link?: string, tab?: 'logs' | 'health') => setRoute({ page: 'service', key, link, nonce: Date.now(), tab });
+  // SCN-059: the agent selected last leads the next visit's Continue list.
+  const routeKey = route.page === 'service' ? route.key : null;
+  useEffect(() => { if (routeKey) void api().updateSettings({ lastService: routeKey }).catch(() => undefined); }, [routeKey]);
   const act = (key: string, action: 'restart' | 'start' | 'update') => {
     // U-2: an update started from Needs attention shows its output on the service's Health tab.
     if (action === 'update') open(key, undefined, 'health');
@@ -122,8 +128,39 @@ function Shell({ status, route, setRoute, stopKey, setStopKey, activityFilter, s
   };
   // ADR-0012: one sidebar entry per product; every member keeps its own key, state and controls.
   const products = groupProducts(status.services);
-  const foreground = products.filter((p) => !p.background);
-  const background = products.filter((p) => p.background);
+  // FD-39 (ADR-0020): pinned first in pin order, the rest in the chosen sort.
+  const { pinned, foreground, background } = arrangeProducts(products, layout.list);
+  const pin = (id: string) => changeLayout({ list: { pinned: togglePin(layout.list.pinned, id) } });
+  // FD-39 D-3: Fix / Update with agent opens the agent's page and console; the console starts the task once it is ready.
+  const [agentTask, setAgentTask] = useState<{ key: string; task?: ConsoleTask; mode?: 'new' | 'continue'; nonce: number } | null>(null);
+  // FD-39 SCN-059: Continue resumes the agent's last console session, with its context written fresh.
+  const continueWith = (key: string) => {
+    setRoute({ page: 'service', key });
+    if (!layout.console.open) changeLayout({ console: { open: true } });
+    setAgentTask({ key, mode: 'continue', nonce: Date.now() });
+  };
+  const [visit, setVisit] = useState<SinceLastVisit | null>(null);
+  // FD-39 SCN-058: the Setup console sits beside Overview; on a first launch with nothing set up it opens by itself
+  // (the runtime starts on the person's click: it spends their subscription).
+  const [setupOpen, setSetupOpen] = useState(false);
+  const setupDecided = useRef(false);
+  useEffect(() => {
+    // Decided once, after the first scan: an agent found then means this is not a first session.
+    if (setupDecided.current || status.scanning) return;
+    setupDecided.current = true;
+    void Promise.all([api().settings(), api().setupState()]).then(([s, st]) => {
+      if (!s.setupDone && status.services.length === 0 && !(st.mcp && st.skills && st.firstAgent)) setSetupOpen(true);
+      // SCN-059: what changed since the previous launch, computed once; this launch becomes the next one's baseline.
+      setVisit(sinceLastVisit({ services: status.services, lastVisitAt: s.lastVisitAt, known: s.knownServices, consoles: s.consoles, lastService: s.lastService }));
+      void api().updateSettings({ lastVisitAt: new Date().toISOString(), knownServices: status.services.map((x) => x.key) }).catch(() => undefined);
+    }).catch(() => undefined);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status.scanning]);
+  const handToAgent = (key: string, task: ConsoleTask) => {
+    setRoute({ page: 'service', key });
+    if (!layout.console.open) changeLayout({ console: { open: true } });
+    setAgentTask({ key, task, nonce: Date.now() });
+  };
   const currentProduct = route.page === 'service' ? productOf(products, route.key) : undefined;
   const count = products.length; // ADR-0012: the heading counts what the sidebar lists
   const rail = layout.sidebar === 'collapsed';
@@ -150,10 +187,23 @@ function Shell({ status, route, setRoute, stopKey, setStopKey, activityFilter, s
           </button>
         </div>
         <div className="nav nav-scroll">
-          {foreground.length > 0 && <div className="nav-section">{t('nav.services')}</div>}
-          {foreground.map((p) => <ProductItem key={p.id} p={p} current={currentProduct === p} open={open} rail={rail} />)}
+          {pinned.length > 0 && <div className="nav-section">{t('nav.pinned')}</div>}
+          {pinned.map((p) => <ProductItem key={p.id} p={p} current={currentProduct === p} open={open} rail={rail} pinned onPin={pin} />)}
+          {foreground.length > 0 && (
+            <div className="nav-section nav-section-row">
+              <span>{t('nav.services')}</span>
+              {!rail && products.length > 1 && (
+                <select className="sort-select" aria-label={t('list.sort')} value={layout.list.sort} onChange={(e) => changeLayout({ list: { sort: e.target.value as ListSort } })}>
+                  <option value="name">{t('list.sort.name')}</option>
+                  <option value="status">{t('list.sort.status')}</option>
+                  <option value="activity">{t('list.sort.activity')}</option>
+                </select>
+              )}
+            </div>
+          )}
+          {foreground.map((p) => <ProductItem key={p.id} p={p} current={currentProduct === p} open={open} rail={rail} pinned={false} onPin={pin} />)}
           {background.length > 0 && <div className="nav-section">{t('nav.background')}</div>}
-          {background.map((p) => <ProductItem key={p.id} p={p} current={currentProduct === p} open={open} rail={rail} />)}
+          {background.map((p) => <ProductItem key={p.id} p={p} current={currentProduct === p} open={open} rail={rail} pinned={false} onPin={pin} />)}
         </div>
         <div className="sidebar-footer">
           {!rail && <UpdateLine status={status} />}
@@ -172,24 +222,32 @@ function Shell({ status, route, setRoute, stopKey, setStopKey, activityFilter, s
           ? <div className="svc-split">
             <ServiceView key={current.key} s={current} all={status.services} members={currentProduct?.members ?? [current]} open={open} link={route.link} nonce={route.nonce} tab={route.tab} runUpdate={route.tab === 'health' && route.page === 'service'} activityRev={status.activityRev} overlayOpen={stopOpen} askStop={askStop} updateStarted={() => setRoute({ ...route, tab: undefined })}
               headerFull={layout.header === 'full'} onToggleHeader={() => changeLayout({ header: layout.header === 'full' ? 'compact' : 'full' })}
-              consoleOpen={layout.console.open} onToggleConsole={() => changeLayout({ console: { open: !layout.console.open } })} />
+              consoleOpen={layout.console.open} onToggleConsole={() => changeLayout({ console: { open: !layout.console.open } })} onAgent={handToAgent} />
             {layout.console.open && (
               <ConsolePanel serviceKey={current.key} width={consoleWidth}
                 onWidth={(w, commit) => changeLayout({ console: { width: Math.round(Math.min(CONSOLE_WIDTH.max, Math.max(CONSOLE_WIDTH.min, w))) } }, commit)}
-                onHide={() => changeLayout({ console: { open: false } })} />
+                onHide={() => changeLayout({ console: { open: false } })} task={agentTask?.key === current.key ? agentTask : null} onTaskTaken={() => setAgentTask(null)} />
             )}
           </div>
           : (
+            <div className={route.page === 'overview' && setupOpen ? 'svc-split' : 'page-wrap'}>
             <div className="page">
               <div className="page-head">
                 <h1>{t(route.page === 'activity' ? 'activity.title' : route.page === 'spend' ? 'spend.title' : route.page === 'settings' ? 'settings.title' : 'overview.title')}</h1>
                 {route.page === 'overview' && count > 0 && <span className="meta">{count === 1 ? t('overview.count.one') : t('overview.count', { count })}</span>}
               </div>
-              {route.page === 'overview' && <LoginQuestion />}
-              {route.page === 'overview' && <Overview status={status} products={products} open={open} act={act} goSpend={() => setRoute({ page: 'spend' })} />}
+              {route.page === 'overview' && <SetupCard onOpen={() => setSetupOpen(true)} consoleOpen={setupOpen} />}
+              {route.page === 'overview' && <LoginQuestion defer={setupOpen} />}
+              {route.page === 'overview' && <Overview status={status} products={products} open={open} act={act} agent={handToAgent} visit={visit} onContinue={continueWith} goSpend={() => setRoute({ page: 'spend' })} />}
               {route.page === 'activity' && <Activity status={status} openAt={open} filter={activityFilter} setFilter={setActivityFilter} />}
               {route.page === 'spend' && <Spend status={status} />}
               {route.page === 'settings' && <Settings status={status} onTheme={applyTheme} onLanguage={onLanguage} />}
+            </div>
+            {route.page === 'overview' && setupOpen && (
+              <ConsolePanel serviceKey={SETUP_KEY} width={consoleWidth}
+                onWidth={(w, commit) => changeLayout({ console: { width: Math.round(Math.min(CONSOLE_WIDTH.max, Math.max(CONSOLE_WIDTH.min, w))) } }, commit)}
+                onHide={() => setSetupOpen(false)} />
+            )}
             </div>
           )}
       </main>
@@ -210,10 +268,11 @@ function Shell({ status, route, setRoute, stopKey, setStopKey, activityFilter, s
 }
 
 /** A product in the sidebar: the primary's name and state; a member in trouble adds a mark, never a changed state (ADR-0012). */
-function ProductItem({ p, current, open, rail }: { p: Product; current: boolean; open: (key: string) => void; rail: boolean }) {
+function ProductItem({ p, current, open, rail, pinned, onPin }: { p: Product; current: boolean; open: (key: string) => void; rail: boolean; pinned: boolean; onPin: (id: string) => void }) {
   const { t } = useT();
   const s = p.primary;
   return (
+    <div className={`nav-row${pinned ? ' pinned' : ''}`}>
     <button className="nav-item" aria-current={current ? 'page' : undefined} title={rail ? `${nameOf(s)} — ${t(`state.${s.state}`)}` : undefined} onClick={() => open(s.key)}>
       <span className={`state state-${s.state}`} aria-hidden="true"><span className="glyph">{GLYPH[s.state]}</span></span>
       {rail && <span className="initials" aria-hidden="true">{initialsOf(nameOf(s))}</span>}
@@ -221,6 +280,12 @@ function ProductItem({ p, current, open, rail }: { p: Product; current: boolean;
       {p.memberProblem && <span className="count alert" title={t('nav.memberProblem')} aria-hidden="true">!</span>}
       <span className="visually-hidden">{t(`state.${s.state}`)}{p.memberProblem ? `, ${t('nav.memberProblem')}` : ''}</span>
     </button>
+    {!rail && (
+      <button className="pin-btn" aria-pressed={pinned} title={t(pinned ? 'list.unpin' : 'list.pin', { name: nameOf(s) })} aria-label={t(pinned ? 'list.unpin' : 'list.pin', { name: nameOf(s) })} onClick={() => onPin(p.id)}>
+        <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true"><path d="M6 1h4l-.5 4 2.5 2.5V9H8.6L8 15l-.6-6H4V7.5L6.5 5z" fill={pinned ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" /></svg>
+      </button>
+    )}
+    </div>
   );
 }
 

@@ -4,6 +4,9 @@ import type { CommandResult } from './outcome';
 import type { SpendEntry } from './spend';
 import type { ActivityItem, AppStatus, Listener, Reason, Settings, SettingsPatch } from './types';
 
+/** A job a console is opened to do (FD-39 D-3): fix what is wrong, or update; `output` is a failed command's. */
+export interface ConsoleTask { kind: 'fix' | 'update'; output?: string }
+
 export interface Rect { x: number; y: number; width: number; height: number }
 
 /** ADR-0017: what a service's console shows before and while it runs. */
@@ -40,6 +43,8 @@ export interface FabricApi {
   activity(filter: { serviceKey?: string; minLevel?: ActivityItem['level'] }): Promise<ActivityItem[]>;
   markActivitySeen(): Promise<void>;
   settings(): Promise<Settings>;
+  /** FD-39 SCN-058: what is set up already (read only). */
+  setupState(): Promise<{ mcp: boolean; skills: boolean; firstAgent: boolean }>;
   updateSettings(patch: SettingsPatch): Promise<{ settings: Settings; error?: string }>;
   listeners(): Promise<{ listeners: Listener[]; error?: string }>;
   /** Open a folder or reveal a file this app knows (the services folder, a descriptor, a service's data); never launches an app. */
@@ -77,7 +82,8 @@ export interface FabricApi {
   consoleChoose(key: string, choice: { runtime?: string }): Promise<ConsoleInfo>;
   /** A folder dialog; the choice is saved for this service. */
   consolePickFolder(key: string): Promise<ConsoleInfo>;
-  consoleStart(key: string, mode: 'new' | 'continue', size: { cols: number; rows: number }): Promise<ConsoleStartResult>;
+  /** FD-39: `task` hands a job with the context (Fix / Update with agent, ADR-0020). */
+  consoleStart(key: string, mode: 'new' | 'continue', size: { cols: number; rows: number }, task?: ConsoleTask): Promise<ConsoleStartResult>;
   consoleInput(key: string, data: string): void;
   consoleResize(key: string, cols: number, rows: number): void;
   consoleStop(key: string): Promise<void>;
@@ -104,6 +110,7 @@ export const CHANNELS = {
   activitySeen: 'fd:activity-seen',
   settings: 'fd:settings',
   settingsUpdate: 'fd:settings-update',
+  setupState: 'fd:setup-state',
   listeners: 'fd:listeners',
   showPath: 'fd:show-path',
   viewShow: 'fd:view-show',
