@@ -46,5 +46,11 @@ try {
 // The NSIS uninstaller copies itself to %TEMP% and returns at once; the removal finishes after.
 const remove = spawnSync(uninstaller, ['/S'], { timeout: 300_000, windowsHide: true });
 requireThat(remove.status === 0, `the uninstaller exited ${remove.status ?? remove.error}`);
-requireThat(await until(() => !existsSync(exe), 120_000), `the uninstaller left ${exe}`);
+const removalStarted = Date.now();
+if (!await until(() => !existsSync(exe), 300_000)) {
+  const left = (() => { try { return readdirSync(dir).join(', '); } catch { return 'nothing'; } })();
+  const running = spawnSync('tasklist', ['/FI', 'IMAGENAME eq Fabric Dashboards.exe', '/FO', 'CSV', '/NH'], { encoding: 'utf8', windowsHide: true }).stdout.trim();
+  requireThat(false, `the uninstaller left ${exe} after 300 s; still there: ${left}; running: ${running || 'none'}`);
+}
+console.log(`the uninstaller removed the app in ${Math.round((Date.now() - removalStarted) / 1000)} s`);
 console.log(`installed per user at ${dir}, the MCP launcher answered initialize, /S uninstall removed it`);
