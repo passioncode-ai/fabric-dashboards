@@ -58,6 +58,13 @@
 | SCN-050 | A folder bound to a Switchboard project runs on that project's account | console | P-01 | ST-019 | validated | 2026-10-06 |
 | SCN-051 | The app watches contract and skill versions | estate | P-01 | ST-008, ST-017 | draft | 2026-10-07 |
 | SCN-052 | Fabric Dashboards on Windows or Linux | platform | P-01 | ST-001, ST-008 | draft | 2026-10-10 |
+| SCN-053 | The console's agent already knows which agent it works on | console | P-01 | ST-020 | draft | 2026-10-10 |
+| SCN-054 | Fix with agent | console | P-01 | ST-020 | draft | 2026-10-10 |
+| SCN-055 | Update with agent | console | P-01 | ST-020 | draft | 2026-10-10 |
+| SCN-056 | Pin an agent to the top of the list | list | P-01 | ST-021 | draft | 2026-10-10 |
+| SCN-057 | Sort the agents list | list | P-01 | ST-021 | draft | 2026-10-10 |
+| SCN-058 | First session: my coding agent sets the system up | setup | P-01 | ST-022 | draft | 2026-10-10 |
+| SCN-059 | A later session opens on what changed | overview | P-01 | ST-022 | draft | 2026-10-10 |
 ## Personas
 
 Defined in [foundation.md](foundation.md) → P-01.
@@ -1065,3 +1072,137 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **Status:** draft
 - **Coverage:** src/core/platform.ts, src/electron/main.ts, src/electron/tray.ts, test/platform.test.ts
 - **Product:** unobserved
+
+### SCN-053: The console's agent already knows which agent it works on
+- **Persona:** P-01
+- **Feature:** console
+- **Traces:** ST-020 (JTBD-06, JRN-02/#4); ADR-0020
+- **Entry point:** New or Continue in an agent's console (SCN-049)
+- **Preconditions:** a runtime is installed; the agent's folder is known
+- **Steps:**
+  1. User presses New -> the app writes the agent's context (state and reasons, problems, last events, version and update, repository, folder, descriptor without its token) into its own data folder and starts the runtime with it: Claude Code with it as its system prompt and this app's MCP tools; Codex with the MCP tools and a first prompt that reads it; any other runtime with FABRIC_DASHBOARDS_CONTEXT naming the file
+  2. User asks "why is it degraded?" -> the agent answers from the context, or calls `service_context` for the live state
+  3. User presses Continue later -> the context is written again, fresh, before the session resumes
+- **Expected result:** the person gives the agent a task, never the situation
+- **Alt paths:** the context cannot be written (disk full) -> the session starts without it and the app's log says why; a Switchboard-bound folder -> the same context goes through Switchboard's in-place launch
+- **UI elements:** console panel (unchanged); the runtime's own interface
+- **States covered:** success, error
+- **Errors & recovery:** context not written -> logged, session still starts; nothing of the token ever reaches the context
+- **Status:** draft
+- **Coverage:** src/core/handoff.ts, src/electron/console.ts, src/mcp/tools.ts (service_context), test/handoff.test.ts, test/mcp.test.ts
+- **Product:** unobserved
+
+### SCN-054: Fix with agent
+- **Persona:** P-01
+- **Feature:** console
+- **Traces:** ST-020 (JTBD-06, JRN-02/#4); ADR-0020
+- **Entry point:** "Fix with agent" beside a problem in Overview's Needs attention, in a service's reasons, or after a failed command
+- **Preconditions:** the agent has a problem (down, degraded, invalid, a failed doctor or update)
+- **Steps:**
+  1. User presses "Fix with agent" -> the agent's page opens with its console; the runtime starts with the context and a task: what is wrong, and that fixed means `service_status` says ready
+  2. User watches -> the runtime's own interface shows what it reads and runs; it asks before anything destructive, any sign-in or secret
+  3. The agent fixes it -> the agent's state turns ready in the list and the page, with no refresh
+- **Expected result:** a problem becomes a running fix in one click, and the person sees it resolve
+- **Alt paths:** a console already runs for this agent -> the app says so and offers to show it, never a second session; no runtime installed -> the console's install guidance (SCN-049)
+- **UI elements:** "Fix with agent" button; console panel
+- **States covered:** success, error, loading
+- **Errors & recovery:** the runtime fails to start -> the console says why (SCN-049's errors)
+- **Status:** draft
+- **Coverage:** src/core/handoff.ts (fixTask)
+- **Product:** unobserved
+
+### SCN-055: Update with agent
+- **Persona:** P-01
+- **Feature:** console
+- **Traces:** ST-020 (JTBD-06, JRN-02/#4); ADR-0020
+- **Entry point:** "Update with agent" where an update is offered and the agent has no update command, or its update command failed
+- **Preconditions:** the agent reports a newer version, or its update failed
+- **Steps:**
+  1. User presses "Update with agent" -> the console starts the runtime with the context and a task: from which version to which, how (the descriptor's command, or the repository's own instructions), and the failed output when there is one
+  2. The agent updates and restarts it -> the page shows the new version
+- **Expected result:** every update has a way through, even one the agent's own command cannot do
+- **Alt paths:** the agent's update command exists and has not failed -> "Update to <v>" runs it as before (no coding agent needed)
+- **UI elements:** "Update with agent" button
+- **States covered:** success, error
+- **Errors & recovery:** as SCN-054
+- **Status:** draft
+- **Coverage:** src/core/handoff.ts (updateTask)
+- **Product:** unobserved
+
+### SCN-056: Pin an agent to the top of the list
+- **Persona:** P-01
+- **Feature:** list
+- **Traces:** ST-021 (JTBD-01, JRN-02/#5); ADR-0020
+- **Entry point:** an agent's context menu in the list, or the pin button on its row
+- **Preconditions:** at least one agent
+- **Steps:**
+  1. User pins an agent -> a Pinned section appears above the rest with it; pinning another adds it below the first
+  2. User unpins it -> it returns to its place in the sorted rest; an empty Pinned section disappears
+  3. User restarts the app -> the Pinned section is as it was
+- **Expected result:** the agents the person works with are always first
+- **Alt paths:** a pinned agent is removed -> it leaves the list; reinstalled with the same id, it is pinned again
+- **UI elements:** pin control on the row, Pinned section header, rail mode keeps pinned first
+- **States covered:** success, empty
+- **Errors & recovery:** n/a
+- **Status:** draft
+- **Coverage:** none yet
+- **Product:** unobserved
+
+### SCN-057: Sort the agents list
+- **Persona:** P-01
+- **Feature:** list
+- **Traces:** ST-021 (JTBD-01, JRN-02/#5); ADR-0020
+- **Entry point:** the sort control at the top of the list
+- **Preconditions:** two or more agents
+- **Steps:**
+  1. User chooses Status -> agents needing attention come first, then the rest by name
+  2. User chooses Recent activity -> the agent with the newest event comes first
+  3. User chooses Name -> alphabetical, as before
+- **Expected result:** the list is in the order the person works in; the choice is remembered
+- **Alt paths:** pinned agents keep pin order whatever the sort; Background keeps its section
+- **UI elements:** sort control (Name, Status, Recent activity)
+- **States covered:** success
+- **Errors & recovery:** n/a
+- **Status:** draft
+- **Coverage:** none yet
+- **Product:** unobserved
+
+### SCN-058: First session: my coding agent sets the system up
+- **Persona:** P-01
+- **Feature:** setup
+- **Traces:** ST-022 (JTBD-06, JRN-02/#1, JRN-02/#2); ADR-0020
+- **Entry point:** the first launch (and Settings -> Setup, until it is done)
+- **Preconditions:** none
+- **Steps:**
+  1. User opens the app for the first time -> Overview shows the setup card and the console opens with a Setup session for the default coding agent
+  2. User presses "Start setup" -> the runtime starts in the Setup console with the setup brief: register this app's MCP and make the proving call; check or install the Fabric Agent Adapter skills; offer Switchboard, Observatory and Fabric one at a time; create or adapt a first agent; make it a service
+  3. The agent asks for a consent, a sign-in or a secret -> the user answers in the console (a secret in a hidden prompt)
+  4. A service lands -> it appears in the list while the setup runs; the setup card ticks what is done (MCP registered, skills found, first agent)
+- **Expected result:** a working system without a manual, and every step visible
+- **Alt paths:** no coding agent installed -> the card shows each vendor's install command to copy, and Start setup appears once one is found; the person declines a product -> the agent moves on; the person closes the app mid-setup -> the next launch offers Continue setup
+- **UI elements:** setup card with its checklist, Setup console, "Start setup", "Continue setup"
+- **States covered:** success, empty, error, loading
+- **Errors & recovery:** a step fails -> the agent says why in the console; the checklist shows what is done and what is not
+- **Status:** draft
+- **Coverage:** none yet
+- **Product:** unobserved
+
+### SCN-059: A later session opens on what changed
+- **Persona:** P-01
+- **Feature:** overview
+- **Traces:** ST-022 (JTBD-06, JRN-02/#3); ADR-0020
+- **Entry point:** any launch after setup
+- **Preconditions:** the person has used the app before
+- **Steps:**
+  1. User opens the app -> Overview leads with "Since you were last here": agents that broke (each with Fix with agent), updates (Update, or Update with agent), and new or removed agents
+  2. User sees the agents they worked with -> each offers Continue (the last console session, resumed with fresh context)
+  3. User opens one -> the agent they had selected last time is selected
+- **Expected result:** the person starts from what needs them, not from the whole list
+- **Alt paths:** nothing changed -> the section says so in one line and Overview reads as before
+- **UI elements:** "Since you were last here" section, Continue buttons
+- **States covered:** success, empty
+- **Errors & recovery:** n/a
+- **Status:** draft
+- **Coverage:** none yet
+- **Product:** unobserved
+
