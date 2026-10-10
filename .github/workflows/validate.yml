@@ -3,7 +3,7 @@ name: validate
 # Hosted checks run nightly (23:00 Europe/Warsaw) and on demand — machine CI policy
 # of 2026-09-25: no full suite on every push. release.yml calls it before a release is signed.
 # FD-37 / platforms.md PL-08: the nightly and a dispatch run the gate on every native runner the
-# product ships for; a release keeps `os: macos` until the suite is green on all of them.
+# product ships for, and so does release.yml before a release (it passes `os: all`).
 on:
   schedule:
     - cron: '0 21 * * *'

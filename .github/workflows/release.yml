@@ -1,7 +1,8 @@
 # The release: Fabric Dashboards.app, universal, signed with the organization's CI Developer ID
 # and the hardened runtime, notarized and stapled; the drag-to-install image and the update zip
 # the app's own updater installs, both made from the stapled app; update-feed.json and the
-# build receipt. Then attested (Sigstore), summed and GPG-signed, and published.
+# build receipt. Beside it the Windows and Linux packages (packages.yml, FD-37; unsigned until
+# PL-03's certificate profile exists). Then attested (Sigstore), summed and GPG-signed, and published.
 #
 # Signing happens only here, in the protected `release` environment: approved by a
 # person from release-approvers, who may be whoever pushed the tag; an agent never
@@ -70,6 +71,13 @@ jobs:
 
   check:
     uses: ./.github/workflows/validate.yml
+    with:
+      os: all # the release ships for every system, so the gate runs on each one's native runner (PL-08)
+
+  # FD-37: Windows (NSIS x64, arm64) and Linux (AppImage + .deb x64, arm64), each on its native runner.
+  packages:
+    needs: [version, check]
+    uses: ./.github/workflows/packages.yml
 
   # #region release-in-ci — docs: docs/RUNBOOK.md#release
   macos:
@@ -139,7 +147,7 @@ jobs:
   # F-1: the same check again right before publishing — hours may pass between the first one and
   # the approvals, and a newer release may have been published meanwhile. A rehearsal is exempt.
   still-newest:
-    needs: [macos]
+    needs: [macos, packages]
     if: ${{ !contains(github.ref_name, '-rc.') }}
     runs-on: ubuntu-latest
     steps:
@@ -158,9 +166,10 @@ jobs:
           [[ "$newest" == "${TAG#v}" ]] || { echo "::error::$TAG is older than the published $latest; it must not be published"; exit 1; }
 
   publish:
-    needs: [macos, still-newest]
+    needs: [macos, packages, still-newest]
     # !cancelled(), not always(): a run cancelled between still-newest and publish never starts publishing (T-29).
-    if: ${{ !cancelled() && needs.macos.result == 'success' && (needs.still-newest.result == 'success' || needs.still-newest.result == 'skipped') }}
+    # Every system's packages or none: a release missing one would leave its copies behind.
+    if: ${{ !cancelled() && needs.macos.result == 'success' && needs.packages.result == 'success' && (needs.still-newest.result == 'success' || needs.still-newest.result == 'skipped') }}
     permissions:
       contents: write
       id-token: write
