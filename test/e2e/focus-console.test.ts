@@ -19,7 +19,9 @@ async function closeApp(app: ElectronApplication | null): Promise<void> {
 
 /** A stand-in runtime: says where it runs and with which arguments, echoes lines, exits on "bye". */
 const FAKE_CLAUDE = `#!/bin/sh
-printf 'fake-claude ready in %s args:[%s] path:[%s]\\r\\n' "$PWD" "$*" "$PATH"
+printf 'fake-claude ready in %s path:[%s]\\r\\n' "$PWD" "$PATH"
+[ -f "$FABRIC_DASHBOARDS_CONTEXT" ] && printf 'ctx:[present]\\r\\n'
+printf 'args:[%s]\\r\\n' "$*"
 while IFS= read -r line; do
   [ "$line" = bye ] && exit 0
   printf 'you said: %s\\r\\n' "$line"
@@ -78,7 +80,15 @@ test('ADR-0017: a one-line header, a folding sidebar, and an agent console besid
 
     // SCN-049: the runtime runs in the chosen folder; input reaches it; Continue passes its resume flag.
     await page.getByRole('button', { name: 'New session' }).click();
-    await waitFor('the runtime to start', async () => (await termText(page)).includes(`fake-claude ready in ${fs.realpathSync(repo)} args:[]`) || (await termText(page)).includes(`fake-claude ready in ${repo} args:[]`));
+    await waitFor('the runtime to start', async () => (await termText(page)).includes(`fake-claude ready in ${fs.realpathSync(repo)}`) || (await termText(page)).includes(`fake-claude ready in ${repo}`));
+    // FD-39 SCN-053 (ADR-0020): the runtime starts holding the agent's context — its MCP and a brief naming it.
+    const pack = path.join(userData, 'consoles', 'sample.default');
+    await waitFor('the context pack to reach the runtime', async () => { const x = await termText(page); return x.includes('ctx:[present]') && x.includes(`args:[--mcp-config ${pack}/mcp.json --append-system-prompt You are working on the Fabric agent "Sample Service" (sample.default)`); });
+    const context = fs.readFileSync(path.join(pack, 'context.md'), 'utf8');
+    assert.match(context, /# Sample Service \(sample\.default\)/);
+    assert.match(context, /\*\*State:\*\* (ready|degraded)/);
+    assert.ok(!context.includes('tokenFile'), 'the token file is never in the context');
+    assert.equal(fs.statSync(path.join(pack, 'context.md')).mode & 0o777, 0o600);
     assert.ok((await termText(page)).includes(`path:[${runtimes}]`), 'review R-1: the session runs on the PATH the runtimes were found on');
     await page.locator('.console-term').click();
     await page.keyboard.type('hello');
@@ -97,12 +107,19 @@ test('ADR-0017: a one-line header, a folding sidebar, and an agent console besid
     await page.keyboard.press('Enter');
     await page.getByText('Exited (code 0).').waitFor({ timeout: 15_000 });
     await page.getByRole('button', { name: 'Continue last' }).click();
-    await waitFor('the resumed runtime', async () => (await termText(page)).includes('args:[--continue]'));
+    await waitFor('the resumed runtime', async () => /--continue\]/.test(await termText(page)));
 
     // Stop asks first, then ends the session.
     await page.getByRole('button', { name: 'Stop', exact: true }).click();
     await page.getByRole('group', { name: 'Stop this session?' }).getByRole('button', { name: 'Stop' }).click();
     await page.getByText('Stopped.').waitFor({ timeout: 15_000 });
+
+    // FD-39 SCN-056: pin the agent to the top; a Pinned section holds it, and the choice is remembered.
+    await page.locator('.nav-row').filter({ hasText: 'Sample Service' }).hover();
+    await page.getByRole('button', { name: 'Pin Sample Service to the top' }).click();
+    await page.locator('.nav-section', { hasText: 'Pinned' }).waitFor();
+    await page.getByRole('button', { name: 'Unpin Sample Service' }).waitFor();
+    await shot(page, '23-pinned');
 
     // SCN-047: the sidebar folds into a rail; entries keep their names for a screen reader.
     await page.getByRole('button', { name: 'Collapse sidebar' }).click();
@@ -118,6 +135,7 @@ test('ADR-0017: a one-line header, a folding sidebar, and an agent console besid
     assert.equal(saved.layout.console.open, true);
     assert.equal(saved.consoles['sample.default'].runtime, 'claude-code');
     assert.equal(saved.consoles['sample.default'].folder, repo);
+    assert.deepEqual(saved.layout.list.pinned, ['sample'], 'SCN-056: the pin is remembered');
   } finally {
     await closeApp(app);
     await stopProcess(proc);

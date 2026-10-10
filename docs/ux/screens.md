@@ -5,15 +5,15 @@
 ## Index
 | ID | Screen | Used by | Figma | Status | Coverage |
 |----|--------|---------|-------|--------|----------|
-| SCR-01 | Overview | SCN-001, SCN-002, SCN-003, SCN-005, SCN-006, SCN-007, SCN-021, SCN-024, SCN-030, SCN-033, SCN-035, SCN-041, SCN-042 | none (text-only) | built | src/renderer/components/Overview.tsx |
+| SCR-01 | Overview | SCN-001, SCN-002, SCN-003, SCN-005, SCN-006, SCN-007, SCN-021, SCN-024, SCN-030, SCN-033, SCN-035, SCN-041, SCN-042, SCN-054, SCN-058, SCN-059 | none (text-only) | built | src/renderer/components/Overview.tsx |
 | SCR-02 | Service view | SCN-004, SCN-007–SCN-016, SCN-021, SCN-025, SCN-026, SCN-027, SCN-029, SCN-031, SCN-032, SCN-034, SCN-039, SCN-040, SCN-045, SCN-046 | none (text-only) | built | src/renderer/components/ServiceView.tsx |
 | SCR-03 | Activity | SCN-003, SCN-017, SCN-018, SCN-020 | none (text-only) | built | src/renderer/components/Activity.tsx |
 | SCR-04 | Settings | SCN-019, SCN-022, SCN-024, SCN-043, SCN-044 | none (text-only) | built | src/renderer/components/Settings.tsx |
 | SCR-05 | Stop confirmation | SCN-009 | none (text-only) | built | src/renderer/App.tsx |
 | SCR-06 | Tray menu | SCN-023 | none (text-only) | built | src/electron/tray.ts |
 | SCR-07 | Spend | SCN-036, SCN-037, SCN-038, SCN-041 | none (text-only) | built | src/renderer/components/Spend.tsx |
-| SCR-08 | Sidebar | SCN-001, SCN-006, SCN-017, SCN-022, SCN-033, SCN-035, SCN-044, SCN-047 | none (text-only) | built | src/renderer/App.tsx |
-| SCR-10 | Console panel | SCN-048, SCN-049, SCN-050 | none (text-only) | built | src/renderer/components/ConsolePanel.tsx |
+| SCR-08 | Sidebar | SCN-001, SCN-006, SCN-017, SCN-022, SCN-033, SCN-035, SCN-044, SCN-047, SCN-056, SCN-057 | none (text-only) | built | src/renderer/App.tsx |
+| SCR-10 | Console panel | SCN-048, SCN-049, SCN-050, SCN-053, SCN-054, SCN-055, SCN-058 | none (text-only) | built | src/renderer/components/ConsolePanel.tsx |
 | SCR-09 | System dialogs | SCN-014, SCN-024, SCN-027, SCN-044 | none (text-only) | built | src/electron/main.ts, src/electron/views.ts |
 
 ## Design system

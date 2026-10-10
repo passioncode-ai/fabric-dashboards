@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { langFor, t as tr, type Lang } from '../core/i18n';
-import { CONSOLE_WIDTH, DEFAULT_SETTINGS, type AppStatus, type Settings as AppSettings, type SettingsPatch } from '../core/types';
-import { groupProducts, productOf, type Product } from '../core/products';
+import { CONSOLE_WIDTH, DEFAULT_SETTINGS, type AppStatus, type Settings as AppSettings, type SettingsPatch, type ListSort } from '../core/types';
+import { groupProducts, productOf, type Product, arrangeProducts, togglePin } from '../core/products';
 import { Activity, type ActivityFilter } from './components/Activity';
 import { LoginQuestion, Overview } from './components/Overview';
 import { ServiceView } from './components/ServiceView';
@@ -25,7 +25,7 @@ export function App() {
   // ADR-0017: how much of the window the dashboard gets, remembered in Settings.layout.
   const [layout, setLayout] = useState<AppSettings['layout']>(DEFAULT_SETTINGS.layout);
   const changeLayout = (patch: NonNullable<SettingsPatch['layout']>, persist = true) => {
-    setLayout((l) => ({ ...l, ...patch, console: { ...l.console, ...(patch.console ?? {}) } }));
+    setLayout((l) => ({ ...l, ...patch, console: { ...l.console, ...(patch.console ?? {}) }, list: { ...l.list, ...(patch.list ?? {}) } }));
     // Review R-9: the screen is the truth while the person moves panels; a slower reply never undoes a later change.
     if (persist) void api().updateSettings({ layout: patch }).catch(() => undefined);
   };
@@ -122,8 +122,9 @@ function Shell({ status, route, setRoute, stopKey, setStopKey, activityFilter, s
   };
   // ADR-0012: one sidebar entry per product; every member keeps its own key, state and controls.
   const products = groupProducts(status.services);
-  const foreground = products.filter((p) => !p.background);
-  const background = products.filter((p) => p.background);
+  // FD-39 (ADR-0020): pinned first in pin order, the rest in the chosen sort.
+  const { pinned, foreground, background } = arrangeProducts(products, layout.list);
+  const pin = (id: string) => changeLayout({ list: { pinned: togglePin(layout.list.pinned, id) } });
   const currentProduct = route.page === 'service' ? productOf(products, route.key) : undefined;
   const count = products.length; // ADR-0012: the heading counts what the sidebar lists
   const rail = layout.sidebar === 'collapsed';
@@ -150,10 +151,23 @@ function Shell({ status, route, setRoute, stopKey, setStopKey, activityFilter, s
           </button>
         </div>
         <div className="nav nav-scroll">
-          {foreground.length > 0 && <div className="nav-section">{t('nav.services')}</div>}
-          {foreground.map((p) => <ProductItem key={p.id} p={p} current={currentProduct === p} open={open} rail={rail} />)}
+          {pinned.length > 0 && <div className="nav-section">{t('nav.pinned')}</div>}
+          {pinned.map((p) => <ProductItem key={p.id} p={p} current={currentProduct === p} open={open} rail={rail} pinned onPin={pin} />)}
+          {foreground.length > 0 && (
+            <div className="nav-section nav-section-row">
+              <span>{t('nav.services')}</span>
+              {!rail && products.length > 1 && (
+                <select className="sort-select" aria-label={t('list.sort')} value={layout.list.sort} onChange={(e) => changeLayout({ list: { sort: e.target.value as ListSort } })}>
+                  <option value="name">{t('list.sort.name')}</option>
+                  <option value="status">{t('list.sort.status')}</option>
+                  <option value="activity">{t('list.sort.activity')}</option>
+                </select>
+              )}
+            </div>
+          )}
+          {foreground.map((p) => <ProductItem key={p.id} p={p} current={currentProduct === p} open={open} rail={rail} pinned={false} onPin={pin} />)}
           {background.length > 0 && <div className="nav-section">{t('nav.background')}</div>}
-          {background.map((p) => <ProductItem key={p.id} p={p} current={currentProduct === p} open={open} rail={rail} />)}
+          {background.map((p) => <ProductItem key={p.id} p={p} current={currentProduct === p} open={open} rail={rail} pinned={false} onPin={pin} />)}
         </div>
         <div className="sidebar-footer">
           {!rail && <UpdateLine status={status} />}
@@ -210,10 +224,11 @@ function Shell({ status, route, setRoute, stopKey, setStopKey, activityFilter, s
 }
 
 /** A product in the sidebar: the primary's name and state; a member in trouble adds a mark, never a changed state (ADR-0012). */
-function ProductItem({ p, current, open, rail }: { p: Product; current: boolean; open: (key: string) => void; rail: boolean }) {
+function ProductItem({ p, current, open, rail, pinned, onPin }: { p: Product; current: boolean; open: (key: string) => void; rail: boolean; pinned: boolean; onPin: (id: string) => void }) {
   const { t } = useT();
   const s = p.primary;
   return (
+    <div className={`nav-row${pinned ? ' pinned' : ''}`}>
     <button className="nav-item" aria-current={current ? 'page' : undefined} title={rail ? `${nameOf(s)} — ${t(`state.${s.state}`)}` : undefined} onClick={() => open(s.key)}>
       <span className={`state state-${s.state}`} aria-hidden="true"><span className="glyph">{GLYPH[s.state]}</span></span>
       {rail && <span className="initials" aria-hidden="true">{initialsOf(nameOf(s))}</span>}
@@ -221,6 +236,12 @@ function ProductItem({ p, current, open, rail }: { p: Product; current: boolean;
       {p.memberProblem && <span className="count alert" title={t('nav.memberProblem')} aria-hidden="true">!</span>}
       <span className="visually-hidden">{t(`state.${s.state}`)}{p.memberProblem ? `, ${t('nav.memberProblem')}` : ''}</span>
     </button>
+    {!rail && (
+      <button className="pin-btn" aria-pressed={pinned} title={t(pinned ? 'list.unpin' : 'list.pin', { name: nameOf(s) })} aria-label={t(pinned ? 'list.unpin' : 'list.pin', { name: nameOf(s) })} onClick={() => onPin(p.id)}>
+        <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true"><path d="M6 1h4l-.5 4 2.5 2.5V9H8.6L8 15l-.6-6H4V7.5L6.5 5z" fill={pinned ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" /></svg>
+      </button>
+    )}
+    </div>
   );
 }
 

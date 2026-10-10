@@ -57,7 +57,7 @@ export class SettingsStore {
       // ADR-0018: one estate field changes alone; a partial patch never resets the others.
       estate: { ...this.value.estate, ...(patch.estate ?? {}) },
       // ADR-0017: one field of the layout, or one service's console, changes alone.
-      layout: { ...this.value.layout, ...layout, console: { ...this.value.layout.console, ...(layout.console ?? {}) } },
+      layout: { ...this.value.layout, ...layout, console: { ...this.value.layout.console, ...(layout.console ?? {}) }, list: mergeList({ ...this.value.layout.list, ...(layout.list ?? {}) }) },
       consoles: { ...this.value.consoles, ...(patch.consoles ?? {}) },
     });
     this.persist();
@@ -102,7 +102,16 @@ function mergeLayout(raw: unknown): Settings['layout'] {
     sidebar: l.sidebar === 'collapsed' ? 'collapsed' : 'expanded',
     header: l.header === 'full' ? 'full' : 'compact',
     console: { open: c.open === true, width: Math.min(CONSOLE_WIDTH.max, Math.max(CONSOLE_WIDTH.min, width)) },
+    list: mergeList(l.list),
   };
+}
+
+/** FD-39: a sort the app knows, and pinned product ids — each a valid id, once, at most 200. */
+function mergeList(raw: unknown): Settings['layout']['list'] {
+  const l = (raw && typeof raw === 'object' ? raw : {}) as { sort?: unknown; pinned?: unknown };
+  const sort = l.sort === 'status' || l.sort === 'activity' ? l.sort : 'name';
+  const pinned = Array.isArray(l.pinned) ? [...new Set(l.pinned.filter((x): x is string => typeof x === 'string' && /^[a-z0-9][a-z0-9-]{0,63}$/.test(x)))].slice(0, 200) : [];
+  return { sort, pinned };
 }
 
 /** ADR-0017: per-service console choices; a key that is not a service key, or a folder that is not absolute, is dropped. */

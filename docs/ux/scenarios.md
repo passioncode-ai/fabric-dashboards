@@ -1089,7 +1089,7 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **States covered:** success, error
 - **Errors & recovery:** context not written -> logged, session still starts; nothing of the token ever reaches the context
 - **Status:** draft
-- **Coverage:** src/core/handoff.ts, src/electron/console.ts, src/mcp/tools.ts (service_context), test/handoff.test.ts, test/mcp.test.ts
+- **Coverage:** src/core/handoff.ts, src/electron/console.ts, src/mcp/tools.ts (service_context), test/handoff.test.ts, test/mcp.test.ts, test/e2e/focus-console.test.ts
 - **Product:** unobserved
 
 ### SCN-054: Fix with agent
@@ -1145,7 +1145,7 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **States covered:** success, empty
 - **Errors & recovery:** n/a
 - **Status:** draft
-- **Coverage:** none yet
+- **Coverage:** src/core/products.ts (arrangeProducts, togglePin), src/core/settings.ts, src/renderer/App.tsx, test/listorder.test.ts, test/e2e/focus-console.test.ts
 - **Product:** unobserved
 
 ### SCN-057: Sort the agents list
@@ -1164,7 +1164,7 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **States covered:** success
 - **Errors & recovery:** n/a
 - **Status:** draft
-- **Coverage:** none yet
+- **Coverage:** src/core/products.ts (arrangeProducts), src/renderer/App.tsx, test/listorder.test.ts
 - **Product:** unobserved
 
 ### SCN-058: First session: my coding agent sets the system up
