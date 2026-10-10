@@ -130,6 +130,11 @@ test('FD-37 packages.yml: every system and architecture on its native runner, un
   assert.ok(wf.includes('if-no-files-found: error'));
   // Each Linux .deb is installed on a clean Ubuntu and asked `initialize` (scripts/deb-smoke.sh).
   assert.ok(wf.includes('docker run --rm -v "$PWD:/w:ro" ubuntu:24.04 bash /w/scripts/deb-smoke.sh "/w/$deb"'));
+  // The Windows installer is installed, asked `initialize` and removed with the uninstaller the app runs.
+  assert.ok(wf.includes('run: node scripts/nsis-smoke.mjs release/Fabric-Dashboards-*-windows-${{ matrix.arch }}-setup.exe'));
+  const nsis = fs.readFileSync(path.join(root, 'scripts/nsis-smoke.mjs'), 'utf8');
+  assert.ok(nsis.includes("'Uninstall Fabric Dashboards.exe'"), 'the name uninstallTarget looks for');
+  assert.ok(wf.includes('!release/*.blockmap'), 'electron-updater\'s blockmap is not ours to publish');
   const smoke = fs.readFileSync(path.join(root, 'scripts/deb-smoke.sh'), 'utf8');
   for (const step of ['apt-get install -y -qq "$deb"', "grep 'not found'", '"method":"initialize"', 'apt-get remove -y -qq fabric-dashboards']) assert.ok(smoke.includes(step), step);
   for (const m of wf.matchAll(/uses: ([^\s]+)/g)) assert.match(m[1], /@[0-9a-f]{40}$/, `${m[1]} is not pinned by commit`);

@@ -57,6 +57,11 @@ jobs:
         run: |
           deb=$(ls release/Fabric-Dashboards-*-linux-${{ matrix.arch }}.deb)
           docker run --rm -v "$PWD:/w:ro" ubuntu:24.04 bash /w/scripts/deb-smoke.sh "/w/$deb"
+      # The installer on the runner that built it: per-user install, MCP answers, the app's own /S uninstall removes it.
+      - name: The installer installs per user, its MCP server answers, and /S uninstalls it
+        if: matrix.os == 'windows'
+        shell: bash
+        run: node scripts/nsis-smoke.mjs release/Fabric-Dashboards-*-windows-${{ matrix.arch }}-setup.exe
       - id: version
         shell: bash
         run: echo "version=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
@@ -65,6 +70,7 @@ jobs:
           name: release-${{ matrix.os }}-${{ matrix.arch }}
           path: |
             release/Fabric-Dashboards-${{ steps.version.outputs.version }}-${{ matrix.os }}-${{ matrix.arch }}*
+            !release/*.blockmap
           if-no-files-found: error
           retention-days: 14
   # #endregion packages-in-ci
