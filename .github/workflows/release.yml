@@ -77,7 +77,12 @@ jobs:
   # FD-37: Windows (NSIS x64, arm64) and Linux (AppImage + .deb x64, arm64), each on its native runner.
   packages:
     needs: [version, check]
+    permissions:
+      contents: read
+      id-token: write # packages.yml's Windows signing (OIDC); unused unless it signs
     uses: ./.github/workflows/packages.yml
+    with:
+      sign: true
 
   # #region release-in-ci — docs: docs/RUNBOOK.md#release
   macos:

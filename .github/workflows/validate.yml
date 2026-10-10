@@ -53,5 +53,8 @@ jobs:
   # (a workflow dispatched by name must exist on the default branch; one it calls need not).
   packages:
     needs: [check]
+    permissions:
+      contents: read
+      id-token: write # packages.yml's Windows signing (OIDC); unused unless it signs
     if: ${{ !cancelled() && inputs.packages == true }} # a rehearsal shows the packages even when a check failed
     uses: ./.github/workflows/packages.yml
