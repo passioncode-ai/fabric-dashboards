@@ -85,6 +85,8 @@ jobs:
           endpoint: ${{ vars.AZURE_SIGNING_ENDPOINT }}
           account: ${{ vars.AZURE_SIGNING_ACCOUNT }}
           certificate-profile: ${{ vars.AZURE_CERTIFICATE_PROFILE }}
+          # The organization's Public Trust subject (release-signing README); any other signer fails the job.
+          expected-subject: O=Siarhei Sheleh
       - name: The installers
         run: node scripts/dist-other.mjs --stage installer
       # Signing pass 2: the installer itself.
@@ -100,6 +102,8 @@ jobs:
           endpoint: ${{ vars.AZURE_SIGNING_ENDPOINT }}
           account: ${{ vars.AZURE_SIGNING_ACCOUNT }}
           certificate-profile: ${{ vars.AZURE_CERTIFICATE_PROFILE }}
+          # The organization's Public Trust subject (release-signing README); any other signer fails the job.
+          expected-subject: O=Siarhei Sheleh
       - name: Check the signatures and write the receipt
         shell: bash
         env:

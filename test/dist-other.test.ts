@@ -145,6 +145,7 @@ test('FD-37 packages.yml: every system and architecture on its native runner, si
   assert.equal(wf.split("if: env.FD_WINDOWS_SIGNING == 'true'").length - 1, 2, 'both signing passes only when signing is on');
   assert.equal(wf.split('uses: passioncode-ai/.github/actions/windows-signing@v1').length - 1, 2, 'the organization\'s action signs and verifies (PL-03)');
   assert.doesNotMatch(wf, /artifact-signing-action|azure\/login/, 'no copied signing steps (PL-10)');
+  assert.equal(wf.split('expected-subject: O=Siarhei Sheleh').length - 1, 2, 'both passes pin the organization\'s signer');
   assert.ok(wf.includes("FD_WINDOWS_RELEASE: ${{ inputs.sign && matrix.os == 'windows' }}"));
   const release = fs.readFileSync(path.join(root, '.github/workflows/release.yml'), 'utf8');
   assert.ok(release.includes('uses: ./.github/workflows/packages.yml\n    with:\n      sign: true\n      os: windows'), 'the release signs its windows stage');
