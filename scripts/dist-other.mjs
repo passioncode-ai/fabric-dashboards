@@ -18,7 +18,7 @@
 // covered by the release's GPG-signed SHA256SUMS and its Sigstore attestations.
 import { execFileSync, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statfsSync, writeFileSync } from 'node:fs';
+import { chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statfsSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -116,13 +116,16 @@ export function builderConfig(t, version, out) {
   }
   return {
     ...common,
+    // /opt/fabric-dashboards: Chromium's zygote cannot start from a path with a space (`/opt/Fabric Dashboards`,
+    // Inbox, platforms.md); the window, the menu entry and the .desktop Name still say Fabric Dashboards.
+    productName: 'fabric-dashboards',
     linux: {
       target: [{ target: 'AppImage', arch: [t.arch] }, { target: 'deb', arch: [t.arch] }],
       icon: t.icon, category: 'Development', executableName: t.executableName,
       synopsis: 'Every local agent service, watched and opened in one window',
       maintainer: 'PassionCode.ai <https://passioncode.ai/>',
       // `fabric-dashboards://` opens a service page here (ADR-0004; PL-07: the .desktop file's MimeType).
-      desktop: { entry: { MimeType: 'x-scheme-handler/fabric-dashboards;', StartupWMClass: 'fabric-dashboards' } },
+      desktop: { entry: { Name: PRODUCT, MimeType: 'x-scheme-handler/fabric-dashboards;', StartupWMClass: 'fabric-dashboards' } },
     },
     appImage: { artifactName: t.artifacts[0] },
     deb: { artifactName: t.artifacts[1], packageName: 'fabric-dashboards', depends: DEB_DEPENDS },
@@ -266,6 +269,8 @@ async function stageApp(t, version, pkg, allowDirty) {
       win32metadata: { CompanyName: 'PassionCode.ai', ProductName: PRODUCT, FileDescription: PRODUCT, OriginalFilename: t.executable, InternalName: PRODUCT },
     });
     cpSync(packaged, sp.app, { recursive: true, verbatimSymlinks: true });
+    // A folder made under mkdtemp is 0700; a .deb would install /opt/<app> unreadable to everyone but root (Inbox, platforms.md).
+    if (t.platform === 'linux') chmodSync(sp.app, 0o755);
   } finally {
     rmSync(temp, { recursive: true, force: true });
   }
@@ -273,8 +278,9 @@ async function stageApp(t, version, pkg, allowDirty) {
   requireThat(existsSync(exe), `The packaged app has no ${t.executable}.`);
   requireThat(existsSync(path.join(sp.app, 'resources/assets/tray-ok.png')), 'The packaged app is missing its tray icons.');
   const record = {
-    product: PRODUCT, version, revision, electronVersion, platform: t.platform, architecture: t.arch, builtAt: new Date().toISOString(),
-    checks: {},
+    // PL-10 keys: version, commit, arch, macos_notarization, windows_authenticode, checks.
+    product: PRODUCT, version, commit: revision, arch: t.arch, platform: t.platform, electronVersion, builtAt: new Date().toISOString(),
+    macos_notarization: null, windows_authenticode: null, checks: {},
   };
   record.checks.fuses = `the executable reads ${[...new Set(applyFuses(exe, wantedFuses(t.platform)))].join(', ')} (scripts/fuses.mjs; ASAR integrity ${t.platform === 'linux' ? 'off on Linux, which Electron does not validate' : 'on'})`;
   Object.assign(record.checks, checks(sp.app, t, version));
@@ -286,7 +292,7 @@ function stageInstaller(t, version) {
   const sp = stagePaths(root, t);
   requireThat(existsSync(sp.build), `Nothing is staged at ${sp.dir}; run --stage app first.`);
   const record = JSON.parse(readFileSync(sp.build, 'utf8'));
-  requireThat(record.version === version && record.platform === t.platform && record.architecture === t.arch, 'The staged build is for another version or system.');
+  requireThat(record.version === version && record.platform === t.platform && record.arch === t.arch, 'The staged build is for another version or system.');
   const exe = path.join(sp.app, t.executable);
   // Signing (between the stages) appends a signature; the fuses it was checked with must still be there.
   const problems = fuseProblems(readFileSync(exe), wantedFuses(t.platform));
@@ -298,9 +304,23 @@ function stageInstaller(t, version) {
   // The CLI through Node, never a shell: the staged folder's path can hold a space.
   const flag = t.platform === 'win32' ? '--win' : '--linux';
   execFileSync(process.execPath, [path.join(root, 'node_modules/electron-builder/cli.js'), flag, `--${t.arch}`, '--prepackaged', sp.app, '--config', config, '--publish', 'never'],
-    { cwd: root, stdio: ['ignore', 'inherit', 'inherit'], env: { ...process.env, CSC_IDENTITY_AUTO_DISCOVERY: 'false' } });
+    // ELECTRON_BUILDER_7Z_FILTER=BCJ: nsis7z cannot decode 7-Zip's ARM64 filter and silently drops every .exe/.dll from an
+    // arm64 payload (Inbox, platforms.md); BCJ decodes everywhere.
+    { cwd: root, stdio: ['ignore', 'inherit', 'inherit'], env: { ...process.env, CSC_IDENTITY_AUTO_DISCOVERY: 'false', ...(t.platform === 'win32' ? { ELECTRON_BUILDER_7Z_FILTER: 'BCJ' } : {}) } });
   for (const f of t.artifacts) requireThat(existsSync(path.join(out, f)), `electron-builder did not make ${f}.`);
   console.error(`made ${t.artifacts.join(', ')}`);
+}
+
+/** PL-03: the line an unsigned Windows release says in its notes (the release-signing README's wording). */
+export const UNSIGNED_NOTE = 'Windows installers are not Authenticode-signed yet';
+
+/** Whether the CHANGELOG section `## <version>` says the Windows installers are unsigned. */
+export function saysUnsigned(changelog, version) {
+  const lines = changelog.split(/\r?\n/);
+  const start = lines.findIndex((l) => l.startsWith(`## ${version} `) || l === `## ${version}`);
+  if (start < 0) return false;
+  const end = lines.findIndex((l, i) => i > start && l.startsWith('## '));
+  return lines.slice(start, end < 0 ? undefined : end).join('\n').includes(UNSIGNED_NOTE);
 }
 
 function stageSeal(t) {
@@ -313,9 +333,17 @@ function stageSeal(t) {
   if (t.platform === 'win32') {
     const sig = signatures([path.join(sp.app, t.executable), ...files], t);
     record.windows_authenticode = sig.status;
+    // PL-03: a release that ships unsigned Windows files says so in its notes.
+    if (sig.status === 'NOT_SIGNED' && process.env.FD_WINDOWS_RELEASE === 'true') {
+      requireThat(saysUnsigned(readFileSync(path.join(root, 'CHANGELOG.md'), 'utf8'), record.version),
+        `Windows signing is off, so CHANGELOG.md's ## ${record.version} section must say "${UNSIGNED_NOTE}; SmartScreen warns once. Verify them with SHA256SUMS." (PL-03).`);
+    }
     record.authenticode = sig.status === 'SIGNED'
       ? { status: 'SIGNED', files: sig.files, note: 'The app and the installer carry Azure Artifact Signing signatures; the uninstaller the installer writes does not (electron-builder makes it inside the installer).' }
       : { status: 'NOT_SIGNED', reason: 'This build was made without Windows signing (FD_WINDOWS_SIGNING is not true): a rehearsal or a local build.', files: sig.files };
+    // windows-signing@v1 writes a report per pass (Valid, timestamped, signer); the receipt carries them.
+    const reports = (process.env.FD_SIGNATURE_REPORTS ?? '').split(path.delimiter).filter((f) => f && existsSync(f));
+    if (reports.length) record.authenticode.reports = reports.map((f) => JSON.parse(readFileSync(f, 'utf8').replace(/^\uFEFF/, '')));
   }
   record.files = Object.fromEntries(files.map((f) => [path.basename(f), sha256(f)]));
   writeFileSync(path.join(out, t.receipt), `${JSON.stringify(record, null, 2)}\n`);

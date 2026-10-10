@@ -24,6 +24,12 @@
   (any file an elevated administrator writes) is accepted, as the contract now says (DEC-0033), and its
   permissions are read without the window ever waiting on PowerShell.
 
+- **Linux installs to `/opt/fabric-dashboards`** (was `/opt/Fabric Dashboards`): Chromium cannot start
+  an app from a path with a space. Before shipping, each `.deb` is installed on a clean Ubuntu, and the
+  app itself is started there by an ordinary user.
+- **Windows installers are signed** with the organization's Authenticode certificate, once signing is
+  switched on for this app. Until then a release says in its notes that they are not.
+
 ### Fixed
 
 - The test suite removes its temporary folders when it ends; 4,810 had piled up (592 MB) on a

@@ -180,6 +180,22 @@ off, `EnableNodeCliInspectArguments` off, `EnableEmbeddedAsarIntegrityValidation
   build. Service session cookies stay plaintext in 0600 files, the same trust level as the service
   token files they are minted from (audit F-8).
 
+## Release pipeline (PL-10) — where this product differs, and why
+
+fabric-workspace `knowledge/platforms.md` PL-10 sets one release pipeline for every product. This one
+has its stages and receipt keys (`release.yml`: `preflight` → `check` → `macos`, `windows`, `linux` →
+`still-newest` → `publish`; receipts carry `version`, `commit`, `arch`, `macos_notarization`,
+`windows_authenticode`, `checks`). It differs in these ways:
+
+- **The update-feed check covers macOS only.** Windows and Linux copies do not update themselves yet:
+  the updater says `unsupported` off macOS, and PL-04 there is module M4 of FD-37. Each platform gains
+  its feed and its check with M4.
+- **`check`** is the five-runner unit gate (`validate.yml`, `os: all`), a stage the template does not
+  name; it runs before any platform job.
+- **Windows signs between build stages, not inside electron-builder.** The app is packaged by
+  `@electron/packager` and only then installed by electron-builder `--prepackaged`, so it uses
+  `windows-signing@v1` twice (the Tauri/native pattern), not `login` + `azureSignOptions` + `verify`.
+
 ## Build output and retention
 
 LC-15. A build leaves at most the current and the previous release:

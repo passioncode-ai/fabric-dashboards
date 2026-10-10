@@ -34,7 +34,8 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  version:
+  # PL-10 stage names, the same in every product: preflight → macos → windows → linux → still-newest → publish.
+  preflight:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -74,19 +75,9 @@ jobs:
     with:
       os: all # the release ships for every system, so the gate runs on each one's native runner (PL-08)
 
-  # FD-37: Windows (NSIS x64, arm64) and Linux (AppImage + .deb x64, arm64), each on its native runner.
-  packages:
-    needs: [version, check]
-    permissions:
-      contents: read
-      id-token: write # packages.yml's Windows signing (OIDC); unused unless it signs
-    uses: ./.github/workflows/packages.yml
-    with:
-      sign: true
-
   # #region release-in-ci — docs: docs/RUNBOOK.md#release
   macos:
-    needs: [version, check]
+    needs: [preflight, check]
     runs-on: macos-latest
     environment: release
     timeout-minutes: 120
@@ -149,10 +140,28 @@ jobs:
         uses: passioncode-ai/.github/actions/apple-signing/cleanup@v1
   # #endregion release-in-ci
 
+  # FD-37: Windows (NSIS x64, arm64; Authenticode where AZURE_SIGNING_ENABLED is on — PL-03) and Linux
+  # (AppImage + .deb x64, arm64), each on its native runner (packages.yml).
+  windows:
+    needs: [preflight, check]
+    permissions:
+      contents: read
+      id-token: write # packages.yml's Windows signing (OIDC)
+    uses: ./.github/workflows/packages.yml
+    with:
+      sign: true
+      os: windows
+
+  linux:
+    needs: [preflight, check]
+    uses: ./.github/workflows/packages.yml
+    with:
+      os: linux
+
   # F-1: the same check again right before publishing — hours may pass between the first one and
   # the approvals, and a newer release may have been published meanwhile. A rehearsal is exempt.
   still-newest:
-    needs: [macos, packages]
+    needs: [macos, windows, linux]
     if: ${{ !contains(github.ref_name, '-rc.') }}
     runs-on: ubuntu-latest
     steps:
@@ -171,10 +180,10 @@ jobs:
           [[ "$newest" == "${TAG#v}" ]] || { echo "::error::$TAG is older than the published $latest; it must not be published"; exit 1; }
 
   publish:
-    needs: [macos, packages, still-newest]
+    needs: [macos, windows, linux, still-newest]
     # !cancelled(), not always(): a run cancelled between still-newest and publish never starts publishing (T-29).
     # Every system's packages or none: a release missing one would leave its copies behind.
-    if: ${{ !cancelled() && needs.macos.result == 'success' && needs.packages.result == 'success' && (needs.still-newest.result == 'success' || needs.still-newest.result == 'skipped') }}
+    if: ${{ !cancelled() && needs.macos.result == 'success' && needs.windows.result == 'success' && needs.linux.result == 'success' && (needs.still-newest.result == 'success' || needs.still-newest.result == 'skipped') }}
     permissions:
       contents: write
       id-token: write
