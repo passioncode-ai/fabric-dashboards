@@ -1,0 +1,110 @@
+// FD-39 / ADR-0020: a console starts knowing the Fabric agent it was opened for.
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import { brief, contextMarkdown, firstPrompt, fixTask, handoffArgs, handoffContext, mcpConfig, taskMarkdown, updateTask } from '../src/core/handoff';
+import type { ActivityItem, ServiceSnapshot } from '../src/core/types';
+
+const SECRET_PATH = '/Users/me/.config/runner/service.token';
+
+function snap(over: Partial<ServiceSnapshot> = {}): ServiceSnapshot {
+  return {
+    key: 'runner.dev', descriptorPath: '/x/runner.dev.json',
+    descriptor: {
+      protocol: 'fabric-service/0.1', id: 'runner', instance: 'dev', name: 'Runner', summary: 'Runs things', origin: 'http://127.0.0.1:47301',
+      auth: { tokenFile: SECRET_PATH, header: 'X-Runner-Token' }, lifecycle: { manager: 'launchd', label: 'ai.example.runner' },
+      paths: { data: '~/runner', logs: ['~/runner/log.txt'] }, commands: { update: ['~/runner/bin/update'] }, source: { repository: 'https://github.com/example/runner' },
+      installedAt: '2026-10-01T00:00:00Z', installedBy: 'test',
+    },
+    problems: [], state: 'down', reasons: [{ code: 'reason.down' }],
+    wellKnown: null, launchd: { managed: true, loaded: true, pid: null, disabled: false },
+    firstUnansweredAt: '2026-10-10T10:00:00Z', lastAnswerAt: '2026-10-10T09:55:00Z', busy: null,
+    lastAction: null, latestEvent: null, feedError: null,
+    ...over,
+  } as ServiceSnapshot;
+}
+
+const ev = (at: string, level: ActivityItem['level'], text: string, serviceKey = 'runner.dev'): ActivityItem =>
+  ({ id: at, at, kind: 'x', level, text, serviceKey, serviceName: 'Runner', source: 'service' });
+
+test('FD-39 REQ-001: the context names the agent, its state and why, its repository and folder — and never its token', () => {
+  const c = handoffContext(snap(), [], '/Users/me/DATA/runner');
+  assert.equal(c.key, 'runner.dev');
+  assert.equal(c.state, 'down');
+  assert.equal(c.reasons.length, 1);
+  assert.ok(c.reasons[0]!.length > 0 && !c.reasons[0]!.startsWith('reason.'), 'reasons are sentences, not codes');
+  assert.equal(c.repository, 'https://github.com/example/runner');
+  assert.equal(c.folder, '/Users/me/DATA/runner');
+  assert.equal(c.canUpdate, true);
+  assert.equal((c.descriptor as Record<string, unknown>).auth, undefined, 'the auth block is left out');
+  const md = contextMarkdown(c, '2026-10-10T12:00:00Z');
+  assert.ok(!md.includes(SECRET_PATH), 'the token file path never reaches the agent');
+  assert.ok(!md.includes('X-Runner-Token'), 'nor the header that carries it');
+  for (const s of ['# Runner (runner.dev)', '**State:** down', 'https://github.com/example/runner', '/Users/me/DATA/runner', 'service_context', '"id": "runner"']) assert.ok(md.includes(s), s);
+});
+
+test('FD-39 REQ-001: recent events are this agent\'s, newest first, and warnings survive a flood of info rows', () => {
+  const rows = [
+    ev('2026-10-10T09:00:00Z', 'error', 'database locked'),
+    ...Array.from({ length: 50 }, (_, i) => ev(`2026-10-10T10:${String(i).padStart(2, '0')}:00Z`, 'info', `tick ${i}`)),
+    ev('2026-10-10T11:00:00Z', 'info', 'other agent', 'other.default'),
+  ];
+  const c = handoffContext(snap(), rows, null, 'en', 20);
+  assert.equal(c.events.length, 20);
+  assert.ok(c.events.some((e) => e.text === 'database locked'), 'the error is kept');
+  assert.ok(!c.events.some((e) => e.text === 'other agent'), 'only this agent');
+  assert.deepEqual([...c.events].sort((a, b) => (a.at < b.at ? 1 : -1)), c.events, 'newest first');
+});
+
+test('FD-39 REQ-002: Claude gets the MCP config and the brief before its first turn; nothing bare follows --mcp-config', () => {
+  const server = { command: '/Applications/Fabric Dashboards.app/Contents/Resources/bin/fabric-dashboards-mcp', args: [] };
+  const a = handoffArgs('claude-code', { mcp: '/data/consoles/runner.dev/mcp.json', mcpServer: server, brief: 'B', prompt: 'P' });
+  assert.deepEqual(a.before, ['--mcp-config', '/data/consoles/runner.dev/mcp.json', '--append-system-prompt', 'B']);
+  assert.deepEqual(a.after, ['P']);
+  assert.equal(a.before[a.before.indexOf('--mcp-config') + 2], '--append-system-prompt', 'a variadic --mcp-config is closed by an option (Switchboard SB-94)');
+  const none = handoffArgs('claude-code', { mcp: 'm', mcpServer: server, brief: 'B', prompt: null });
+  assert.deepEqual(none.after, [], 'no task: the agent waits for the person');
+});
+
+test('FD-39 REQ-002: Codex gets the MCP server as -c overrides before its subcommand, and a first prompt; Gemini gets -i; others the env path only', () => {
+  const server = { command: '/x/electron', args: ['/x/out/main/mcp/server.js'], env: { ELECTRON_RUN_AS_NODE: '1' } };
+  const c = handoffArgs('codex', { mcp: 'm', mcpServer: server, brief: 'B', prompt: 'P' });
+  assert.deepEqual(c.before, ['-c', 'mcp_servers.fabric-dashboards.command="/x/electron"', '-c', 'mcp_servers.fabric-dashboards.args=["/x/out/main/mcp/server.js"]', '-c', 'mcp_servers.fabric-dashboards.env.ELECTRON_RUN_AS_NODE="1"']);
+  assert.deepEqual(c.after, ['P']);
+  assert.deepEqual(handoffArgs('gemini-cli', { mcp: 'm', mcpServer: server, brief: 'B', prompt: 'P' }).after, ['-i', 'P']);
+  assert.deepEqual(handoffArgs('aider', { mcp: 'm', mcpServer: server, brief: 'B', prompt: 'P' }), { before: [], after: [], env: {} });
+});
+
+test('FD-39 REQ-003: every argument fits Switchboard\'s in-place limits (≤ 1024 characters, ≤ 16 after --)', () => {
+  const long = snap({ descriptor: { ...snap().descriptor!, name: 'N'.repeat(2000) } });
+  const c = handoffContext(long, [], null);
+  const files = { context: `/Users/${'u'.repeat(60)}/Library/Application Support/Fabric Dashboards/consoles/runner.dev/context.md`, task: `/Users/${'u'.repeat(60)}/Library/Application Support/Fabric Dashboards/consoles/runner.dev/task.md` };
+  const b = brief(c, files);
+  assert.ok(b.length <= 1000, `brief ${b.length}`);
+  const a = handoffArgs('claude-code', { mcp: files.context, mcpServer: { command: 'x', args: [] }, brief: b, prompt: firstPrompt(files) });
+  const all = [...a.before, '--continue', ...a.after];
+  assert.ok(all.length <= 16);
+  for (const arg of all) assert.ok(arg.length <= 1024, `${arg.length}: ${arg.slice(0, 40)}`);
+});
+
+test('FD-39 REQ-005/006: a fix task names the problem and what fixed means; an update task says how to update', () => {
+  const c = handoffContext(snap(), [], null);
+  const fix = fixTask(c);
+  assert.equal(fix.kind, 'fix');
+  assert.match(fix.title, /Runner is down/);
+  assert.match(fix.body, /service_status/);
+  assert.match(fix.body, /hidden prompt/);
+  assert.match(taskMarkdown(fix), /^# Task: Runner is down/);
+  const withCmd = updateTask({ ...c, updateAvailable: '2.0.0', version: '1.0.0' }, null);
+  assert.match(withCmd.title, /Update Runner to 2\.0\.0/);
+  assert.match(withCmd.body, /MCP tool `update`/);
+  const failed = updateTask({ ...c, updateAvailable: '2.0.0' }, 'npm ERR! 404');
+  assert.match(failed.body, /npm ERR! 404/);
+  const noCmd = updateTask({ ...c, canUpdate: false }, null);
+  assert.match(noCmd.body, /no `update` command/);
+});
+
+test('FD-39 REQ-001: mcp.json starts this app\'s MCP server, with its env when it runs as Node', () => {
+  const j = JSON.parse(mcpConfig({ command: '/x/electron', args: ['/x/server.js'], env: { ELECTRON_RUN_AS_NODE: '1' } }));
+  assert.deepEqual(j, { mcpServers: { 'fabric-dashboards': { type: 'stdio', command: '/x/electron', args: ['/x/server.js'], env: { ELECTRON_RUN_AS_NODE: '1' } } } });
+  assert.equal(JSON.parse(mcpConfig({ command: '/l', args: [] })).mcpServers['fabric-dashboards'].env, undefined);
+});

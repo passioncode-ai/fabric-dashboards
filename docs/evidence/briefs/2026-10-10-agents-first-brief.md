@@ -119,3 +119,9 @@ pieces: an `onboard` guide, MCP registration plus a proving call, and a context 
 | C-2 | A console for an agent that lives on a server (remote placement) has no local folder; its context pack still applies, and the folder is the person's choice | M1 |
 | C-3 | No brand pack for Dashboards (`docs/brand/` absent); copy follows i18n's established voice | backlog |
 | C-4 | RM-09 and RM-07 status changes belong to their owners in the roadmap | M5 messages |
+
+## Run state (2026-10-10, stopped at the usage limit)
+
+- Done: this brief; FD-39 board row; M5 messages. Owners' board ids: Inbox B-79/B-80/B-81 (fabric-inbox #59), Switchboard SB-93/SB-94/SB-95 (fabric-switchboard #139; SB-94 asks for our exact argv shape: keep an option right after `--mcp-config`), Observatory OBS-54, adapter issue passioncode-ai/fabric-agent-adapter#49; replies pending from fabric-90 (pack format) and fabric-workspace-91 (principle PR).
+- M1 started: `src/core/handoff.ts` (context, task, brief ≤ 1000 chars, mcp.json, per-runtime args) with `test/handoff.test.ts` 7/7 green.
+- **Next task:** wire M1 into `src/electron/console.ts` — write the pack to `userData/consoles/<key>/` (0600), pass `handoffArgs` around `runtimeArgs` in `planStart` (Codex `-c` before `resume`), set `FABRIC_DASHBOARDS_CONTEXT`, add the MCP tool `service_context`, write ADR-0020; then M3, M2, M4. Run `npm run check` before any commit beyond this one.
