@@ -5,6 +5,27 @@ Updated 2026-10-07 (0.6.2: 0.6.1 withdrawn for audit HIGH-2, audit fixes, signed
 
 Current release: 0.6.7 (published 2026-10-09 17:07 UTC, run 37955575384; FD-36, FD-35, FD-38). Before it, 0.6.6 (published 2026-10-09 10:08 UTC, run 37864378854; FD-34, FD-35). Before it, 0.6.5 (published 2026-10-08 01:18 UTC, run 37703405621; FD-29, FD-33). Before it, 0.6.4 (published 2026-10-07 01:57 UTC, run 37558793926; carries 0.6.3, superseded before approval). Before it, 0.6.2 (published 2026-10-06 23:41 UTC, run 37541067349; 0.6.1 withdrawn). Before it, 0.6.0 (published 2026-10-06 21:35 UTC, run 37505569449); Before it, 0.5.6 (2026-10-06); the 0.4.1 section below is the previous one. Earlier releases below are preserved as dated evidence.
 
+## Next — start here (2026-10-11, FD-39 agents first)
+
+**Branch `agent/fd39-agents-first`** ([brief](evidence/briefs/2026-10-10-agents-first-brief.md), [ADR-0020](adr/0020-agents-first-handoff-and-setup.md)).
+Operator 2026-10-10: the coding agent does everything it can; the interface shows the result.
+- **M1 context handoff:** each console start writes `userData/consoles/<key>/` (`context.md`, `task.md`, `mcp.json`;
+  0700/0600; never the repo). Claude gets `--mcp-config` + `--append-system-prompt`, Codex `-c` + a first prompt,
+  Gemini `-i`, every runtime `FABRIC_DASHBOARDS_CONTEXT`; new MCP tool `service_context` (`src/core/handoff.ts`).
+- **M2:** *Fix with agent* (header, card, Needs attention) and *Update with agent* (`src/core/offers.ts`).
+- **M3:** Pinned section + sort Name / Needs attention / Recent activity (`arrangeProducts`, `settings.layout.list`).
+- **M4:** first launch opens the Setup console with `setup.md` (`src/core/setup.ts`, SCN-058); later launches
+  open on "Since you were last here" with Continue (`src/core/visit.ts`, SCN-059).
+- **M5:** each product's part is filed by its owner: Switchboard SB-93/94/95 (#139/#140), Inbox B-79/80/81 (#59),
+  Observatory OBS-54, adapter#49; the principle is fabric-workspace `knowledge/agents-first.md` (#96/#97).
+  **Fabric (fabric-90) has not answered yet** about the shared pack format and its RM-09 row.
+- Checks: `FD_SKIP_LAUNCHD=1 npm run check` exit 0 (401 tests, 395 pass, 6 skipped); `npm run test:e2e` 9/9. One flake
+  seen once under load: the Spend e2e's FD-05 Dock check (passed twice alone) — the FD-35 family.
+
+**Next task:** merge the branch (PR), send fabric-workspace-91 the brief's main path; then a release with FD-37 + FD-39.
+Open: SCN-058 "Continue setup" after a quit mid-setup and a Settings → Setup entry once hidden; *Open in Terminal*
+without the pack; Codex `experimental_instructions_file` (C-1); conform the pack to Fabric's format when fabric-90 answers.
+
 ## Next — start here (2026-10-10 evening, FD-37: Windows signed, one release pipeline)
 
 **Windows Authenticode is on** and its first signed rehearsal passed: `v0.6.7-rc.2`, run

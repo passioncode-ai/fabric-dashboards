@@ -146,8 +146,8 @@ window forward: quit the installed app first, or give the checkout its own profi
 
 ## For agents
 
-Tools: `host_status`, `list_services`, `service_status`, `link`, `open`, `control`, `doctor`, `update`,
-`activity`, `spend` (`spend` from 0.5.6; the published 0.4.1 has the first nine). An agent that starts work on a service hands the operator the `open_link` from
+Tools: `host_status`, `list_services`, `service_status`, `service_context`, `link`, `open`, `control`, `doctor`, `update`,
+`activity`, `spend` (`spend` from 0.5.6; `service_context` — everything about one service a coding agent needs before working on it, its descriptor without `auth` — from FD-39). A console the app starts for a service already holds that context and this server (ADR-0020). An agent that starts work on a service hands the operator the `open_link` from
 `link` — `fabric-dashboards://service/<id.instance>?path=/…`, which opens that page inside the
 app. Keep `http_url` for diagnostics or confirmed-absent fallback. `open` opens it now;
 `fallback=never` forbids the browser, and installed-host failure never falls back. `spend` gives
