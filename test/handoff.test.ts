@@ -108,3 +108,57 @@ test('FD-39 REQ-001: mcp.json starts this app\'s MCP server, with its env when i
   assert.deepEqual(j, { mcpServers: { 'fabric-dashboards': { type: 'stdio', command: '/x/electron', args: ['/x/server.js'], env: { ELECTRON_RUN_AS_NODE: '1' } } } });
   assert.equal(JSON.parse(mcpConfig({ command: '/l', args: [] })).mcpServers['fabric-dashboards'].env, undefined);
 });
+
+test('FD-39 REQ-001: the pack is written whole, owner-only, outside the repository, and an old task does not linger', async () => {
+  const fs = await import('node:fs');
+  const path = await import('node:path');
+  const { tmp } = await import('./helpers');
+  const { writePack } = await import('../src/core/handoff');
+  const dir = path.join(tmp('fd-pack-'), 'consoles', 'runner.dev');
+  const first = writePack(dir, { context: 'C', task: 'T', mcp: '{}' });
+  assert.equal(fs.readFileSync(first.context, 'utf8'), 'C');
+  assert.equal(fs.readFileSync(first.task!, 'utf8'), 'T');
+  if (process.platform !== 'win32') {
+    assert.equal(fs.statSync(dir).mode & 0o777, 0o700);
+    for (const f of [first.context, first.task!, first.mcp]) assert.equal(fs.statSync(f).mode & 0o777, 0o600, f);
+  }
+  const second = writePack(dir, { context: 'C2', task: null, mcp: '{}' });
+  assert.equal(second.task, null);
+  assert.equal(fs.existsSync(path.join(dir, 'task.md')), false, 'a plain start after a Fix start carries no stale task');
+  assert.deepEqual(fs.readdirSync(dir).sort(), ['context.md', 'mcp.json'], 'no temporary file left');
+});
+
+test('FD-39 REQ-003 (Switchboard SB-94): a bound folder carries the pack after --, each argument an option or its value, no bare value after --mcp-config', async () => {
+  const { planStart } = await import('../src/core/consoles');
+  const runtime = { id: 'claude-code', name: 'Claude Code', binary: 'claude', provider: 'claude' as const, continueArgs: ['--continue'], path: '/bin/claude' };
+  const h = handoffArgs('claude-code', { mcp: '/d/mcp.json', mcpServer: { command: 'x', args: [] }, brief: 'B', prompt: null });
+  const p = planStart({ runtime, mode: 'continue', folder: '/w', binding: { kind: 'project', name: 'P', pool: 'p' }, switchboard: '/bin/switchboard', inPlace: true, handoff: h });
+  assert.equal(p.kind, 'run');
+  const argv = (p as { argv: string[] }).argv;
+  const after = argv.slice(argv.indexOf('--') + 1);
+  assert.deepEqual(after, ['--mcp-config', '/d/mcp.json', '--append-system-prompt', 'B', '--continue']);
+  const codex = { ...runtime, id: 'codex', binary: 'codex', provider: 'codex' as const, continueArgs: ['resume', '--last'] };
+  const hc = handoffArgs('codex', { mcp: 'm', mcpServer: { command: 'x', args: [] }, brief: 'B', prompt: 'P' });
+  const pc = planStart({ runtime: codex, mode: 'continue', folder: '/w', binding: { kind: 'none' }, switchboard: null, inPlace: false, handoff: hc });
+  assert.deepEqual((pc as { argv: string[] }).argv.slice(1), ['-c', 'mcp_servers.fabric-dashboards.command="x"', '-c', 'mcp_servers.fabric-dashboards.args=[]', 'resume', '--last', 'P'], 'Codex options come before its subcommand');
+});
+
+test('FD-39 REQ-001/002/005: a console start writes the pack and carries it — Claude with a fix task gets the MCP config, the brief and the task as its first prompt', async () => {
+  const fs = await import('node:fs');
+  const path = await import('node:path');
+  const { tmp } = await import('./helpers');
+  const { prepareHandoff } = await import('../src/core/handoff');
+  const dir = path.join(tmp('fd-prep-'), 'runner.dev');
+  const r = prepareHandoff({ snapshot: snap(), activity: [ev('2026-10-10T09:00:00Z', 'error', 'database locked')], folder: '/w/runner', runtimeId: 'claude-code', dir,
+    server: { command: '/x/electron', args: ['/x/server.js'], env: { ELECTRON_RUN_AS_NODE: '1' } }, task: { kind: 'fix' }, now: () => new Date('2026-10-10T12:00:00Z') });
+  assert.equal(r.env.FABRIC_DASHBOARDS_CONTEXT, path.join(dir, 'context.md'));
+  assert.equal(r.env.FABRIC_DASHBOARDS_TASK, path.join(dir, 'task.md'));
+  assert.deepEqual(r.handoff.before.slice(0, 2), ['--mcp-config', path.join(dir, 'mcp.json')]);
+  assert.match(r.handoff.before[3]!, /Runner.*runner\.dev.*context\.md.*task\.md/s, 'the brief names the agent, the context and the task');
+  assert.match(r.handoff.after[0]!, /task\.md.*then do the task/, 'a fix starts working at once');
+  assert.match(fs.readFileSync(r.files.context, 'utf8'), /database locked/);
+  assert.match(fs.readFileSync(r.files.task!, 'utf8'), /^# Task: Runner is down/);
+  const plain = prepareHandoff({ snapshot: snap(), activity: [], folder: '/w/runner', runtimeId: 'claude-code', dir, server: { command: 'x', args: [] } });
+  assert.deepEqual(plain.handoff.after, [], 'a plain start: Claude waits for the person');
+  assert.equal(plain.env.FABRIC_DASHBOARDS_TASK, undefined);
+});

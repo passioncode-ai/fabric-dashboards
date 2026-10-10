@@ -9,7 +9,9 @@ import { execFile } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { execRunner, type Runner } from '@passioncode-ai/fabric-service-host';
-import { CHANNELS, type ConsoleInfo, type ConsoleStartResult } from '../core/api';
+import { CHANNELS, type ConsoleInfo, type ConsoleStartResult, type ConsoleTask } from '../core/api';
+import { prepareHandoff, type McpCommand } from '../core/handoff';
+import type { ActivityItem } from '../core/types';
 import { ConsoleManager, planStart, terminalScript, type SpawnPty } from '../core/consoles';
 import { findCheckout } from '../core/repofind';
 import { detectRuntimes, KNOWN_RUNTIMES, readLoginPath, searchDirs, specsFromSwitchboard, type Runtime, type RuntimeSpec } from '../core/runtimes';
@@ -52,6 +54,11 @@ export interface ConsoleHostOptions {
   scriptsDir: string;
   run?: Runner;
   spawn?: SpawnPty;
+  /** FD-39 (ADR-0020): the context pack — where it is written (the app's data, never the repository),
+   *  the agent's recent activity, and how this app's MCP server starts. Absent: no pack (older callers, tests). */
+  packRoot?: string;
+  activity?: (key: string) => ActivityItem[];
+  mcpServer?: () => McpCommand;
 }
 
 export class ConsoleHost {
@@ -157,7 +164,21 @@ export class ConsoleHost {
     };
   }
 
-  async start(key: string, mode: 'new' | 'continue', size: { cols: number; rows: number }): Promise<ConsoleStartResult> {
+  /** The context pack for this start, written now; null when there is no snapshot or no pack root.
+   *  A pack that cannot be written is logged and the session starts without it — never blocked by it. */
+  private pack(key: string, runtime: Runtime, folder: string, task?: ConsoleTask): { handoff: { before: string[]; after: string[] }; env: Record<string, string> } | null {
+    const snap = this.o.snapshot(key);
+    if (!snap || !this.o.packRoot || !this.o.mcpServer) return null;
+    try {
+      const r = prepareHandoff({ snapshot: snap, activity: this.o.activity?.(key) ?? [], folder, runtimeId: runtime.id, dir: path.join(this.o.packRoot, key), server: this.o.mcpServer(), task });
+      return { handoff: r.handoff, env: r.env };
+    } catch (error) {
+      this.o.log(`console: ${key} starts without its context pack: ${(error as Error).message}`);
+      return null;
+    }
+  }
+
+  async start(key: string, mode: 'new' | 'continue', size: { cols: number; rows: number }, task?: ConsoleTask): Promise<ConsoleStartResult> {
     if (this.manager.snapshot(key).state === 'running') return { ok: false, reason: 'running' };
     const inv = await this.inventory();
     const runtime = this.chosen(key, inv.runtimes);
@@ -165,15 +186,16 @@ export class ConsoleHost {
     const folder = this.folderOf(key);
     if (!folder?.exists) return { ok: false, reason: 'no-folder' };
     const b = await this.bindingFor(runtime, folder.path, inv);
-    const plan = planStart({ runtime, mode, folder: folder.path, binding: b.kind === 'absent' ? { kind: 'none' } : b, switchboard: inv.switchboard, inPlace: inv.inPlace });
+    const pack = this.pack(key, runtime, folder.path, task);
+    const plan = planStart({ runtime, mode, folder: folder.path, binding: b.kind === 'absent' ? { kind: 'none' } : b, switchboard: inv.switchboard, inPlace: inv.inPlace, handoff: pack?.handoff });
     if (plan.kind === 'refused') return { ok: false, reason: plan.reason, detail: plan.detail };
     if (plan.kind === 'terminal-only') return { ok: false, reason: 'terminal-only', project: plan.project };
     // Review R-1: the session runs with the login shell's PATH, not the one an app opened from Finder has.
-    const r = this.manager.start(key, { argv: plan.argv, cwd: plan.cwd, label: runtime.name, env: { PATH: inv.dirs.join(path.delimiter) } }, size);
+    const r = this.manager.start(key, { argv: plan.argv, cwd: plan.cwd, label: runtime.name, env: { PATH: inv.dirs.join(path.delimiter), ...(pack?.env ?? {}) } }, size);
     if (!r.ok) return { ok: false, reason: r.error === 'running' ? 'running' : 'spawn', detail: r.error };
     // Remember what was started, so the panel offers it next time.
     this.o.settings.update({ consoles: { [key]: { runtime: runtime.id, folder: folder.source === 'saved' ? folder.path : this.o.settings.get().consoles[key]?.folder ?? null } } });
-    this.o.log(`console: ${key} started ${runtime.id} (${mode}) in ${folder.path}${plan.argv[0] === inv.switchboard ? ' through Switchboard' : ''}`);
+    this.o.log(`console: ${key} started ${runtime.id} (${mode}) in ${folder.path}${plan.argv[0] === inv.switchboard ? ' through Switchboard' : ''}${pack ? ` with its context${task ? ` and a ${task.kind} task` : ''}` : ''}`);
     return { ok: true };
   }
 
@@ -228,7 +250,12 @@ export class ConsoleHost {
     ipcMain.handle(CHANNELS.consoleInfo, (_e, key) => (keyOk(key) ? this.info(key) : Promise.reject(new Error('not a service key'))));
     ipcMain.handle(CHANNELS.consoleChoose, (_e, key, choice) => (keyOk(key) ? this.choose(key, choice ?? {}) : Promise.reject(new Error('not a service key'))));
     ipcMain.handle(CHANNELS.consolePickFolder, (_e, key) => (keyOk(key) ? this.pickFolder(key) : Promise.reject(new Error('not a service key'))));
-    ipcMain.handle(CHANNELS.consoleStart, (_e, key, mode, s) => (keyOk(key) ? this.start(key, mode === 'continue' ? 'continue' : 'new', size(s)) : Promise.reject(new Error('not a service key'))));
+    const taskOf = (v: unknown): ConsoleTask | undefined => {
+      const x = (v ?? null) as { kind?: unknown; output?: unknown } | null;
+      if (!x || (x.kind !== 'fix' && x.kind !== 'update')) return undefined;
+      return { kind: x.kind, ...(typeof x.output === 'string' ? { output: x.output.slice(-20_000) } : {}) };
+    };
+    ipcMain.handle(CHANNELS.consoleStart, (_e, key, mode, s, task) => (keyOk(key) ? this.start(key, mode === 'continue' ? 'continue' : 'new', size(s), taskOf(task)) : Promise.reject(new Error('not a service key'))));
     ipcMain.handle(CHANNELS.consoleStop, (_e, key) => { if (keyOk(key)) this.manager.stop(key); });
     ipcMain.handle(CHANNELS.consoleOpenTerminal, (_e, key, mode) => (keyOk(key) ? this.openTerminal(key, mode === 'continue' ? 'continue' : 'new') : Promise.reject(new Error('not a service key'))));
     ipcMain.on(CHANNELS.consoleInput, (_e, key, data) => { if (keyOk(key) && typeof data === 'string' && data.length <= 1_000_000) this.manager.input(key, data); });

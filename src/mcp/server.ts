@@ -99,6 +99,12 @@ export const TOOLS = [
     annotations: { readOnlyHint: false, destructiveHint: true },
   },
   {
+    name: 'service_context',
+    description: 'Everything about one service a coding agent needs before working on it, read now: state and reasons as sentences, descriptor problems, version and pending update, repository, origin, dashboard, its descriptor (auth left out) and its recent events. Call it first when a console was opened for this service.',
+    inputSchema: { type: 'object', properties: { service: serviceArg }, required: ['service'], additionalProperties: false },
+    annotations: { readOnlyHint: true },
+  },
+  {
     name: 'activity',
     description: 'The service\'s recent events as sentences, newest last; each with a link when it points at a page.',
     inputSchema: {
@@ -152,6 +158,7 @@ export async function call(deps: tools.Deps, name: string, args: Args): Promise<
     case 'control': return tools.control(deps, need(args, 'service'), need(args, 'action') as 'start' | 'stop' | 'restart');
     case 'doctor': return tools.command(deps, need(args, 'service'), 'doctor');
     case 'update': return tools.command(deps, need(args, 'service'), 'update');
+    case 'service_context': return tools.serviceContext(deps, need(args, 'service'));
     case 'activity': return tools.activity(deps, need(args, 'service'), typeof args.limit === 'number' ? args.limit : 20);
     case 'spend': return tools.spend(deps, str(args, 'service'));
     default: throw new tools.ToolError(`unknown tool ${JSON.stringify(name)}`);

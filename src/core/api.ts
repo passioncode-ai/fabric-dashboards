@@ -4,6 +4,9 @@ import type { CommandResult } from './outcome';
 import type { SpendEntry } from './spend';
 import type { ActivityItem, AppStatus, Listener, Reason, Settings, SettingsPatch } from './types';
 
+/** A job a console is opened to do (FD-39 D-3): fix what is wrong, or update; `output` is a failed command's. */
+export interface ConsoleTask { kind: 'fix' | 'update'; output?: string }
+
 export interface Rect { x: number; y: number; width: number; height: number }
 
 /** ADR-0017: what a service's console shows before and while it runs. */
@@ -77,7 +80,8 @@ export interface FabricApi {
   consoleChoose(key: string, choice: { runtime?: string }): Promise<ConsoleInfo>;
   /** A folder dialog; the choice is saved for this service. */
   consolePickFolder(key: string): Promise<ConsoleInfo>;
-  consoleStart(key: string, mode: 'new' | 'continue', size: { cols: number; rows: number }): Promise<ConsoleStartResult>;
+  /** FD-39: `task` hands a job with the context (Fix / Update with agent, ADR-0020). */
+  consoleStart(key: string, mode: 'new' | 'continue', size: { cols: number; rows: number }, task?: ConsoleTask): Promise<ConsoleStartResult>;
   consoleInput(key: string, data: string): void;
   consoleResize(key: string, cols: number, rows: number): void;
   consoleStop(key: string): Promise<void>;

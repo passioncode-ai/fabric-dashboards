@@ -45,10 +45,12 @@ export type Plan =
   | { kind: 'terminal-only'; project: string; pool: string } // a bound folder this Switchboard cannot run in place
   | { kind: 'refused'; reason: 'switchboard' | 'no-continue'; detail: string };
 
-export function planStart(o: { runtime: Runtime; mode: 'new' | 'continue'; folder: string; binding: Binding; switchboard: string | null; inPlace: boolean }): Plan {
+export function planStart(o: { runtime: Runtime; mode: 'new' | 'continue'; folder: string; binding: Binding; switchboard: string | null; inPlace: boolean;
+  /** FD-39: the context pack's arguments, around the runtime's own (Codex's `-c` before its `resume`). */
+  handoff?: { before: string[]; after: string[] } }): Plan {
   let args: string[];
   try {
-    args = runtimeArgs(o.runtime, o.mode);
+    args = [...(o.handoff?.before ?? []), ...runtimeArgs(o.runtime, o.mode), ...(o.handoff?.after ?? [])];
   } catch (error) {
     return { kind: 'refused', reason: 'no-continue', detail: (error as Error).message };
   }

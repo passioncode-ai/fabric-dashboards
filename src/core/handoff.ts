@@ -7,6 +7,8 @@
 // before its first turn: Claude Code through --mcp-config and --append-system-prompt, Codex through -c
 // and a first prompt, Gemini through -i, any other through FABRIC_DASHBOARDS_CONTEXT. Fabric's own
 // sessionBundle has the same shape, on purpose: one convention across products. Pure: tested on any OS.
+import fs from 'node:fs';
+import path from 'node:path';
 import { t, type Lang } from './i18n';
 import type { ActivityItem, ServiceSnapshot } from './types';
 
@@ -184,5 +186,35 @@ export function handoffArgs(runtimeId: string, o: { mcp: string; mcpServer: McpC
     default:
       return { before: [], after: [], env };
   }
+}
+/** Writes the pack: the folder 0700, each file 0600, each written whole (a temp file renamed), and a
+ *  task left from an earlier start removed. Returns the paths the runtime is given. */
+export function writePack(dir: string, files: { context: string; task: string | null; mcp: string }): { context: string; task: string | null; mcp: string } {
+  fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+  try { fs.chmodSync(dir, 0o700); } catch { /* Windows: the profile's ACL */ }
+  const put = (name: string, text: string) => {
+    const file = path.join(dir, name);
+    const temp = `${file}.${process.pid}.tmp`;
+    fs.writeFileSync(temp, text, { mode: 0o600 });
+    fs.renameSync(temp, file);
+    return file;
+  };
+  const out = { context: put('context.md', files.context), mcp: put('mcp.json', files.mcp), task: null as string | null };
+  if (files.task) out.task = put('task.md', files.task);
+  else fs.rmSync(path.join(dir, 'task.md'), { force: true });
+  return out;
+}
+/** Everything one console start needs from the pack: written now, and the arguments and environment that
+ *  carry it. Claude reads the brief as its system prompt and waits; a runtime without one gets a first prompt. */
+export function prepareHandoff(o: {
+  snapshot: ServiceSnapshot; activity: ActivityItem[]; folder: string; runtimeId: string; dir: string;
+  server: McpCommand; task?: { kind: 'fix' | 'update'; output?: string }; now?: () => Date;
+}): { handoff: { before: string[]; after: string[] }; env: Record<string, string>; files: { context: string; task: string | null; mcp: string } } {
+  const ctx = handoffContext(o.snapshot, o.activity, o.folder);
+  const job = o.task ? (o.task.kind === 'fix' ? fixTask(ctx) : updateTask(ctx, o.task.output ?? null)) : null;
+  const files = writePack(o.dir, { context: contextMarkdown(ctx, (o.now ?? (() => new Date()))().toISOString()), task: job ? taskMarkdown(job) : null, mcp: mcpConfig(o.server) });
+  const prompt = job || o.runtimeId === 'codex' || o.runtimeId === 'gemini-cli' ? firstPrompt(files) : null;
+  const h = handoffArgs(o.runtimeId, { mcp: files.mcp, mcpServer: o.server, brief: brief(ctx, files), prompt });
+  return { handoff: { before: h.before, after: h.after }, env: { ...h.env, FABRIC_DASHBOARDS_CONTEXT: files.context, ...(files.task ? { FABRIC_DASHBOARDS_TASK: files.task } : {}) }, files };
 }
 // #endregion agent-handoff
