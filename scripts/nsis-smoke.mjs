@@ -4,7 +4,7 @@
 // uninstaller sits where the app's own Settings → Uninstall looks for it (src/core/platform.ts
 // uninstallTarget), and running it the way the app does (/S) removes the install.
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdtempSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readdirSync, rmSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
@@ -15,14 +15,19 @@ async function until(ok, ms) { const end = Date.now() + ms; while (!ok() && Date
 requireThat(process.platform === 'win32', 'nsis-smoke runs on Windows.');
 const setup = path.resolve(process.argv[2] ?? '');
 requireThat(existsSync(setup), `no installer at ${setup}`);
-const dir = path.join(process.env.LOCALAPPDATA ?? '', 'Programs', 'Fabric Dashboards');
-const exe = path.join(dir, 'Fabric Dashboards.exe');
-const uninstaller = path.join(dir, 'Uninstall Fabric Dashboards.exe');
-const launcher = path.join(dir, 'resources', 'bin', 'fabric-dashboards-mcp.cmd');
+// A per-user NSIS install goes under %LOCALAPPDATA%\Programs; the folder is found, not assumed, and printed.
+const programs = path.join(process.env.LOCALAPPDATA ?? '', 'Programs');
+const installed = () => { try { return readdirSync(programs).map((d) => path.join(programs, d)).find((d) => existsSync(path.join(d, 'Fabric Dashboards.exe'))); } catch { return undefined; } };
 
 const install = spawnSync(setup, ['/S'], { timeout: 300_000, windowsHide: true });
 requireThat(install.status === 0, `the installer exited ${install.status ?? install.error}`);
-requireThat(await until(() => existsSync(exe), 60_000), `the installer put no app at ${exe}`);
+const found = await until(() => Boolean(installed()), 180_000);
+requireThat(found, `the installer put no app under ${programs} (it holds: ${(() => { try { return readdirSync(programs).join(', '); } catch { return 'nothing'; } })()})`);
+const dir = installed();
+const exe = path.join(dir, 'Fabric Dashboards.exe');
+const uninstaller = path.join(dir, 'Uninstall Fabric Dashboards.exe');
+const launcher = path.join(dir, 'resources', 'bin', 'fabric-dashboards-mcp.cmd');
+console.log(`installed at ${dir}`);
 requireThat(existsSync(uninstaller), `no uninstaller where Settings → Uninstall looks: ${uninstaller}`);
 
 const services = mkdtempSync(path.join(os.tmpdir(), 'fd-nsis-'));
