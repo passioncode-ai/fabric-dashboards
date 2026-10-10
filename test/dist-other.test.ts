@@ -194,3 +194,18 @@ test('FD-37 PL-03: an unsigned Windows release says so in its CHANGELOG section,
   assert.equal(d.saysUnsigned(`## 1.2.30\n\n- ${note}\n`, '1.2.3'), false, 'another version');
   assert.equal(d.saysUnsigned('## Unreleased\n', '1.2.3'), false);
 });
+
+test('FD-37: every release job that calls a workflow grants what that workflow\'s jobs ask for, or the run never starts', () => {
+  // A called workflow may not exceed its caller's permissions; GitHub refuses the whole run at startup
+  // (v0.6.7-rc.1, run 38073408992: startup_failure) — even for a nested job that would be skipped.
+  const read = (f: string) => fs.readFileSync(path.join(root, '.github/workflows', f), 'utf8');
+  const asksIdToken = (f: string): boolean => /id-token: write/.test(read(f)) || [...read(f).matchAll(/uses: \.\/\.github\/workflows\/([\w.-]+)/g)].some((m) => asksIdToken(m[1]!));
+  const release = read('release.yml');
+  const jobs = release.slice(release.indexOf('\njobs:\n')).split(/\n(?= {2}[a-z-]+:\n)/).slice(1).map((chunk) => ({ name: /^ {2}([a-z-]+):/.exec(chunk)![1]!, body: chunk }));
+  const callers = jobs.filter((j) => /uses: \.\/\.github\/workflows\//.test(j.body));
+  assert.deepEqual(callers.map((j) => j.name).sort(), ['check', 'linux', 'windows']);
+  for (const j of callers) {
+    const called = /uses: \.\/\.github\/workflows\/([\w.-]+)/.exec(j.body)![1]!;
+    if (asksIdToken(called)) assert.match(j.body, /id-token: write/, `${j.name} calls ${called}, whose jobs ask for id-token: write`);
+  }
+});
