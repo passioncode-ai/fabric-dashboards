@@ -71,6 +71,11 @@ jobs:
           echo "$TAG is newer than the published $latest"
 
   check:
+    # A called workflow may not ask for more than its caller grants, and GitHub checks that before any
+    # job runs — even for validate.yml's packages job, which a release never starts.
+    permissions:
+      contents: read
+      id-token: write
     uses: ./.github/workflows/validate.yml
     with:
       os: all # the release ships for every system, so the gate runs on each one's native runner (PL-08)
@@ -154,6 +159,9 @@ jobs:
 
   linux:
     needs: [preflight, check]
+    permissions:
+      contents: read
+      id-token: write # packages.yml's job asks for it (Windows signing); Linux never signs
     uses: ./.github/workflows/packages.yml
     with:
       os: linux
