@@ -13,4 +13,6 @@ export function offersFix(s: Pick<ServiceSnapshot, 'state' | 'problems' | 'lastA
 export function offersAgentUpdate(s: Pick<ServiceSnapshot, 'wellKnown' | 'descriptor'>, updateFailed: boolean): boolean {
   return Boolean(s.wellKnown?.update?.available) && (!s.descriptor?.commands?.update?.length || updateFailed);
 }
+/** FD-39 SCN-058: the Setup console's key, shaped like a service key so the console host treats it as one. */
+export const SETUP_KEY = 'fabric-dashboards.setup';
 // #endregion agent-handoff

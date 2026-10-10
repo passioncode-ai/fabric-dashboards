@@ -43,6 +43,8 @@ export interface FabricApi {
   activity(filter: { serviceKey?: string; minLevel?: ActivityItem['level'] }): Promise<ActivityItem[]>;
   markActivitySeen(): Promise<void>;
   settings(): Promise<Settings>;
+  /** FD-39 SCN-058: what is set up already (read only). */
+  setupState(): Promise<{ mcp: boolean; skills: boolean; firstAgent: boolean }>;
   updateSettings(patch: SettingsPatch): Promise<{ settings: Settings; error?: string }>;
   listeners(): Promise<{ listeners: Listener[]; error?: string }>;
   /** Open a folder or reveal a file this app knows (the services folder, a descriptor, a service's data); never launches an app. */
@@ -108,6 +110,7 @@ export const CHANNELS = {
   activitySeen: 'fd:activity-seen',
   settings: 'fd:settings',
   settingsUpdate: 'fd:settings-update',
+  setupState: 'fd:setup-state',
   listeners: 'fd:listeners',
   showPath: 'fd:show-path',
   viewShow: 'fd:view-show',

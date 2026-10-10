@@ -295,3 +295,11 @@ table.spend th[scope='row'] { color: var(--pc-text); }
 /* DEC-0027: every limit of an agent, above its models; a limit that is not enforced is muted, never hidden. */
 .spend-limits { margin-bottom: var(--pc-space-3); }
 .spend-limits tr.muted td { color: var(--pc-text-muted); }
+
+/* FD-39 SCN-058: the Overview's wrapper (a split when the Setup console is open) and the setup checklist. */
+.page-wrap { display: flex; flex-direction: column; min-height: 0; min-width: 0; flex: 1; }
+.checklist { list-style: none; padding: 0; margin: var(--pc-space-2) 0 var(--pc-space-3); display: flex; flex-direction: column; gap: var(--pc-space-1); }
+.checklist li { display: flex; gap: var(--pc-space-2); align-items: baseline; }
+.checklist li.done { color: var(--pc-text-muted); }
+.checklist li.done > span:first-child { color: var(--pc-accent); }
+.svc-split > .page { flex: 1; min-width: 0; }

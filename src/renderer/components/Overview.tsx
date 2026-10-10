@@ -7,14 +7,50 @@ import { instanceOf, type Product } from '../../core/products';
 import type { AppStatus, ServiceSnapshot, Settings } from '../../core/types';
 import { api, GLYPH, nameOf, NEWS_MS, shortBuild, Spinner, StateBadge, useExpiry, useT } from '../lib';
 
+/** FD-39 SCN-058: the setup the person's coding agent runs. The card shows what is done — read every few
+ *  seconds while it is on screen — and opens the Setup console; the app runs none of the steps itself. */
+export function SetupCard({ onOpen, consoleOpen }: { onOpen: () => void; consoleOpen: boolean }) {
+  const { t } = useT();
+  const [settings, setSettings] = useState<Settings | null>(null);
+  const [state, setState] = useState<{ mcp: boolean; skills: boolean; firstAgent: boolean } | null>(null);
+  useEffect(() => { void api().settings().then(setSettings); }, []);
+  useEffect(() => {
+    if (!settings || settings.setupDone) return undefined;
+    const read = () => void api().setupState().then(setState).catch(() => undefined);
+    read();
+    const timer = setInterval(read, 5000);
+    return () => clearInterval(timer);
+  }, [settings]);
+  if (!settings || settings.setupDone || !state) return null;
+  const done = state.mcp && state.skills && state.firstAgent;
+  const hide = async () => setSettings((await api().updateSettings({ setupDone: true })).settings);
+  const item = (ok: boolean, key: string) => <li className={ok ? 'done' : ''}><span aria-hidden="true">{ok ? '✓' : '○'}</span> {t(key)}<span className="visually-hidden">{ok ? ' ✓' : ''}</span></li>;
+  return (
+    <section className="notice info setup setup-agent" aria-labelledby="setup-agent-title">
+      <h2 id="setup-agent-title">{t('setup.agent.title')}</h2>
+      <p>{done ? t('setup.agent.complete') : t('setup.agent.body')}</p>
+      <ul className="checklist">
+        {item(state.mcp, 'setup.agent.mcp')}
+        {item(state.skills, 'setup.agent.skills')}
+        {item(state.firstAgent, 'setup.agent.firstAgent')}
+      </ul>
+      <div className="row">
+        {!done && !consoleOpen && <button className="btn btn-primary" onClick={onOpen}>{t('setup.agent.start')}</button>}
+        <button className="btn" onClick={() => void hide()}>{t('setup.agent.hide')}</button>
+      </div>
+    </section>
+  );
+}
+
 /** The first-run question (SCN-024, lifecycle LC-07): launch at login is off until the person
  *  answers here or in Settings; either answer registers or unregisters once, and the card is gone. */
-export function LoginQuestion() {
+/** FD-39: `defer` while the Setup console is open — one first-run task at a time; the question comes after. */
+export function LoginQuestion({ defer = false }: { defer?: boolean } = {}) {
   const { t } = useT();
   const [settings, setSettings] = useState<Settings | null>(null);
   const [error, setError] = useState('');
   useEffect(() => { void api().settings().then(setSettings); }, []);
-  if (!settings || settings.launchAtLoginAsked) return error ? <p className="notice error" role="alert">{error}</p> : null;
+  if (!settings || settings.launchAtLoginAsked || defer) return error ? <p className="notice error" role="alert">{error}</p> : null;
   const choose = async (launchAtLogin: boolean) => {
     const r = await api().updateSettings({ launchAtLogin });
     setSettings(r.settings);

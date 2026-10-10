@@ -3,11 +3,12 @@ import { langFor, t as tr, type Lang } from '../core/i18n';
 import { CONSOLE_WIDTH, DEFAULT_SETTINGS, type AppStatus, type Settings as AppSettings, type SettingsPatch, type ListSort } from '../core/types';
 import { groupProducts, productOf, type Product, arrangeProducts, togglePin } from '../core/products';
 import { Activity, type ActivityFilter } from './components/Activity';
-import { LoginQuestion, Overview } from './components/Overview';
+import { LoginQuestion, SetupCard, Overview } from './components/Overview';
 import { ServiceView } from './components/ServiceView';
 import { Settings } from './components/Settings';
 import { Spend } from './components/Spend';
 import { ConsolePanel } from './components/ConsolePanel';
+import { SETUP_KEY } from '../core/offers';
 import type { ConsoleTask } from '../core/api';
 import mark from './brand/dashboards-mark.svg';
 import { api, GLYPH, Icon, LangContext, nameOf, Spinner, useT } from './lib';
@@ -128,6 +129,19 @@ function Shell({ status, route, setRoute, stopKey, setStopKey, activityFilter, s
   const pin = (id: string) => changeLayout({ list: { pinned: togglePin(layout.list.pinned, id) } });
   // FD-39 D-3: Fix / Update with agent opens the agent's page and console; the console starts the task once it is ready.
   const [agentTask, setAgentTask] = useState<{ key: string; task: ConsoleTask; nonce: number } | null>(null);
+  // FD-39 SCN-058: the Setup console sits beside Overview; on a first launch with nothing set up it opens by itself
+  // (the runtime starts on the person's click: it spends their subscription).
+  const [setupOpen, setSetupOpen] = useState(false);
+  const setupDecided = useRef(false);
+  useEffect(() => {
+    // Decided once, after the first scan: an agent found then means this is not a first session.
+    if (setupDecided.current || status.scanning) return;
+    setupDecided.current = true;
+    void Promise.all([api().settings(), api().setupState()]).then(([s, st]) => {
+      if (!s.setupDone && status.services.length === 0 && !(st.mcp && st.skills && st.firstAgent)) setSetupOpen(true);
+    }).catch(() => undefined);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status.scanning]);
   const handToAgent = (key: string, task: ConsoleTask) => {
     setRoute({ page: 'service', key });
     if (!layout.console.open) changeLayout({ console: { open: true } });
@@ -202,16 +216,24 @@ function Shell({ status, route, setRoute, stopKey, setStopKey, activityFilter, s
             )}
           </div>
           : (
+            <div className={route.page === 'overview' && setupOpen ? 'svc-split' : 'page-wrap'}>
             <div className="page">
               <div className="page-head">
                 <h1>{t(route.page === 'activity' ? 'activity.title' : route.page === 'spend' ? 'spend.title' : route.page === 'settings' ? 'settings.title' : 'overview.title')}</h1>
                 {route.page === 'overview' && count > 0 && <span className="meta">{count === 1 ? t('overview.count.one') : t('overview.count', { count })}</span>}
               </div>
-              {route.page === 'overview' && <LoginQuestion />}
+              {route.page === 'overview' && <SetupCard onOpen={() => setSetupOpen(true)} consoleOpen={setupOpen} />}
+              {route.page === 'overview' && <LoginQuestion defer={setupOpen} />}
               {route.page === 'overview' && <Overview status={status} products={products} open={open} act={act} agent={handToAgent} goSpend={() => setRoute({ page: 'spend' })} />}
               {route.page === 'activity' && <Activity status={status} openAt={open} filter={activityFilter} setFilter={setActivityFilter} />}
               {route.page === 'spend' && <Spend status={status} />}
               {route.page === 'settings' && <Settings status={status} onTheme={applyTheme} onLanguage={onLanguage} />}
+            </div>
+            {route.page === 'overview' && setupOpen && (
+              <ConsolePanel serviceKey={SETUP_KEY} width={consoleWidth}
+                onWidth={(w, commit) => changeLayout({ console: { width: Math.round(Math.min(CONSOLE_WIDTH.max, Math.max(CONSOLE_WIDTH.min, w))) } }, commit)}
+                onHide={() => setSetupOpen(false)} />
+            )}
             </div>
           )}
       </main>

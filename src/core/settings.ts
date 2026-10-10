@@ -155,6 +155,7 @@ export function merge(raw: Partial<Settings>): Settings {
     // Absent in a file from an earlier version: on, so every install keeps itself current.
     autoUpdate: raw.autoUpdate !== false,
     moveToApplicationsAsked: raw.moveToApplicationsAsked === true,
+    setupDone: raw.setupDone === true,
     notifications: {
       enabled: typeof n.enabled === 'boolean' ? n.enabled : true,
       perService: typeof n.perService === 'object' && n.perService ? n.perService : {},

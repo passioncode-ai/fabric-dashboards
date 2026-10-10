@@ -11,6 +11,7 @@ import path from 'node:path';
 import { execRunner, type Runner } from '@passioncode-ai/fabric-service-host';
 import { CHANNELS, type ConsoleInfo, type ConsoleStartResult, type ConsoleTask } from '../core/api';
 import { prepareHandoff, type McpCommand } from '../core/handoff';
+import { prepareSetup, SETUP_KEY, setupFolder, type SetupState } from '../core/setup';
 import type { ActivityItem } from '../core/types';
 import { ConsoleManager, planStart, terminalScript, type SpawnPty } from '../core/consoles';
 import { findCheckout } from '../core/repofind';
@@ -59,6 +60,8 @@ export interface ConsoleHostOptions {
   packRoot?: string;
   activity?: (key: string) => ActivityItem[];
   mcpServer?: () => McpCommand;
+  /** FD-39 SCN-058: what is set up already, for the Setup console's brief. */
+  setupState?: () => SetupState;
 }
 
 export class ConsoleHost {
@@ -130,6 +133,8 @@ export class ConsoleHost {
   private folderOf(key: string): ConsoleInfo['folder'] {
     const saved = this.o.settings.get().consoles[key]?.folder;
     if (saved) return { path: saved, source: 'saved', exists: isDir(saved) };
+    // FD-39: the Setup console belongs to no agent; it runs in the home folder unless the person chose another.
+    if (key === SETUP_KEY) return { path: setupFolder(), source: 'found', exists: true };
     const d = this.o.snapshot(key)?.descriptor;
     if (!d) return null;
     const commandPaths = Object.values(d.commands ?? {}).map((argv) => String(argv?.[0] ?? '')).filter(Boolean).map(expandHome);
@@ -167,6 +172,15 @@ export class ConsoleHost {
   /** The context pack for this start, written now; null when there is no snapshot or no pack root.
    *  A pack that cannot be written is logged and the session starts without it — never blocked by it. */
   private pack(key: string, runtime: Runtime, folder: string, task?: ConsoleTask): { handoff: { before: string[]; after: string[] }; env: Record<string, string> } | null {
+    if (key === SETUP_KEY && this.o.packRoot && this.o.mcpServer) {
+      try {
+        const r = prepareSetup({ dir: path.join(this.o.packRoot, key), runtimeId: runtime.id, runtimeName: runtime.name, server: this.o.mcpServer(), state: this.o.setupState?.() ?? { mcp: false, skills: false, firstAgent: false } });
+        return { handoff: r.handoff, env: r.env };
+      } catch (error) {
+        this.o.log(`console: setup starts without its brief: ${(error as Error).message}`);
+        return null;
+      }
+    }
     const snap = this.o.snapshot(key);
     if (!snap || !this.o.packRoot || !this.o.mcpServer) return null;
     try {

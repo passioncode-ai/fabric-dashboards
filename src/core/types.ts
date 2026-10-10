@@ -47,6 +47,8 @@ export interface Settings {
   autoUpdate: boolean;
   /** Whether the app has offered once to move itself into Applications, where updates can install. */
   moveToApplicationsAsked: boolean;
+  /** FD-39 SCN-058: the person finished or hid the setup card; the Setup console stays reachable from Settings. */
+  setupDone: boolean;
   notifications: {
     enabled: boolean;
     perService: Record<string, { enabled: boolean; minLevel: 'notice' | 'warning' | 'error' }>;
@@ -95,6 +97,7 @@ export const DEFAULT_SETTINGS: Settings = {
   language: 'system',
   autoUpdate: true,
   moveToApplicationsAsked: false,
+  setupDone: false,
   notifications: {
     enabled: true,
     perService: {},

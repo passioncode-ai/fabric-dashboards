@@ -153,3 +153,39 @@ test('ADR-0017: a one-line header, a folding sidebar, and an agent console besid
     await stopProcess(proc);
   }
 });
+
+test('FD-39 SCN-058: a first launch opens the setup beside Overview; the coding agent starts on setup.md with one click', { timeout: 120_000 }, async () => {
+  const base = tmp('fd-e2e-setup-');
+  const services = path.join(base, 'services');
+  const runtimes = path.join(base, 'bin');
+  const home = path.join(base, 'home');
+  const userData = path.join(base, 'app');
+  for (const d of [services, runtimes, home, userData]) fs.mkdirSync(d, { recursive: true });
+  fs.writeFileSync(path.join(runtimes, 'claude'), FAKE_CLAUDE, { mode: 0o755 });
+  let app: ElectronApplication | null = null;
+  try {
+    // HOME is a fresh one: nothing registered, no skills — the checklist must show every step open.
+    const env = { ...process.env, HOME: home, FABRIC_SERVICES_DIR: services, FABRIC_DASHBOARDS_USER_DATA: userData, FD_TEST_RUNTIME_DIRS: runtimes, LANG: 'en_US.UTF-8' };
+    app = await electron.launch({ args: [ROOT], env });
+    const page = await app.firstWindow();
+    await page.getByRole('heading', { name: 'Set up Fabric with your coding agent' }).waitFor({ timeout: 20_000 });
+    assert.equal(await page.locator('.checklist li.done').count(), 0, 'nothing is set up yet');
+    const panel = page.getByRole('complementary', { name: 'Console' });
+    await panel.waitFor({ timeout: 10_000 }); // it opened by itself, and runs nothing until the click
+    assert.equal(await page.getByRole('button', { name: 'Set up with my coding agent' }).count(), 0, 'the console is already open');
+    await page.getByRole('button', { name: 'New session' }).click();
+    const pack = path.join(userData, 'consoles', 'fabric-dashboards.setup');
+    await waitFor('the agent to start on setup.md', async () => { const x = await termText(page); return x.includes(`fake-claude ready in ${home}`) && x.includes(`${pack}/setup.md and run the setup with me, step by step.]`) && x.includes('--mcp-config'); });
+    assert.match(fs.readFileSync(path.join(pack, 'setup.md'), 'utf8'), /claude mcp add --scope user fabric-dashboards -e ELECTRON_RUN_AS_NODE=1 -- /);
+    await shot(page, '25-setup');
+    await page.locator('.console-term').click();
+    await page.keyboard.type('bye');
+    await page.keyboard.press('Enter');
+    await page.getByText('Exited (code 0).').waitFor({ timeout: 15_000 });
+    await page.getByRole('button', { name: 'Hide', exact: true }).click();
+    await page.getByRole('heading', { name: 'Set up Fabric with your coding agent' }).waitFor({ state: 'detached' });
+    assert.equal(JSON.parse(fs.readFileSync(path.join(userData, 'settings.json'), 'utf8')).setupDone, true, 'hidden for good');
+  } finally {
+    await closeApp(app);
+  }
+});

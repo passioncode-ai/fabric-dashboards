@@ -1184,7 +1184,7 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **States covered:** success, empty, error, loading
 - **Errors & recovery:** a step fails -> the agent says why in the console; the checklist shows what is done and what is not
 - **Status:** draft
-- **Coverage:** none yet
+- **Coverage:** src/core/setup.ts, src/core/offers.ts (SETUP_KEY), src/electron/console.ts, src/renderer/components/Overview.tsx (SetupCard), src/renderer/App.tsx, test/setup.test.ts, test/e2e/focus-console.test.ts
 - **Product:** unobserved
 
 ### SCN-059: A later session opens on what changed
