@@ -128,7 +128,11 @@ export function builderConfig(t, version, out) {
       desktop: { entry: { Name: PRODUCT, MimeType: 'x-scheme-handler/fabric-dashboards;', StartupWMClass: 'fabric-dashboards' } },
     },
     appImage: { artifactName: t.artifacts[0] },
-    deb: { artifactName: t.artifacts[1], packageName: 'fabric-dashboards', depends: DEB_DEPENDS },
+    deb: {
+      artifactName: t.artifacts[1], packageName: 'fabric-dashboards', depends: DEB_DEPENDS,
+      // The sandbox helper setuid root always, the folder 755, the PATH link (build/linux/after-install.sh).
+      afterInstall: path.join(root, 'build/linux/after-install.sh'), afterRemove: path.join(root, 'build/linux/after-remove.sh'),
+    },
   };
 }
 

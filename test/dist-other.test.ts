@@ -103,6 +103,12 @@ test('FD-37 dist-other: Linux makes an AppImage and a .deb that open fabric-dash
   assert.equal(c.deb.packageName, 'fabric-dashboards', 'the name `sudo apt remove` uses (uninstallTarget)');
   assert.equal(c.productName, 'fabric-dashboards', '/opt/fabric-dashboards: Chromium\'s zygote cannot start from a path with a space');
   assert.equal(c.linux.desktop.entry.Name, 'Fabric Dashboards', 'people still see the product name');
+  // Ubuntu 24.04: ordinary users may not create user namespaces, so the sandbox helper must be setuid root.
+  const after = fs.readFileSync(c.deb.afterInstall, 'utf8');
+  assert.ok(after.includes("APP_DIR='/opt/fabric-dashboards'"), 'the folder the .deb installs');
+  assert.match(after, /chown root:root "\$APP_DIR\/chrome-sandbox"\n\s+chmod 4755 "\$APP_DIR\/chrome-sandbox"/, 'always, not only where root cannot unshare');
+  assert.ok(after.includes('ln -sf "$APP_DIR/fabric-dashboards" /usr/bin/fabric-dashboards'));
+  assert.ok(fs.readFileSync(c.deb.afterRemove, 'utf8').includes('rm -f /usr/bin/fabric-dashboards'));
   assert.ok(c.deb.depends.includes('libasound2t64 | libasound2'), 'ALSA, which a clean Ubuntu lacked');
   for (const lib of ['libgtk-3-0', 'libnss3', 'libgbm1']) assert.ok(c.deb.depends.includes(lib), lib);
   assert.equal(c.extraMetadata.version, '1.2.3');
