@@ -5,7 +5,35 @@ Updated 2026-10-07 (0.6.2: 0.6.1 withdrawn for audit HIGH-2, audit fixes, signed
 
 Current release: 0.6.7 (published 2026-10-09 17:07 UTC, run 37955575384; FD-36, FD-35, FD-38). Before it, 0.6.6 (published 2026-10-09 10:08 UTC, run 37864378854; FD-34, FD-35). Before it, 0.6.5 (published 2026-10-08 01:18 UTC, run 37703405621; FD-29, FD-33). Before it, 0.6.4 (published 2026-10-07 01:57 UTC, run 37558793926; carries 0.6.3, superseded before approval). Before it, 0.6.2 (published 2026-10-06 23:41 UTC, run 37541067349; 0.6.1 withdrawn). Before it, 0.6.0 (published 2026-10-06 21:35 UTC, run 37505569449); Before it, 0.5.6 (2026-10-06); the 0.4.1 section below is the previous one. Earlier releases below are preserved as dated evidence.
 
-## Next — start here (2026-10-10, FD-37: Windows and Linux build and run)
+## Next — start here (2026-10-10 evening, FD-37: Windows signed, one release pipeline)
+
+**Windows Authenticode is on** and its first signed rehearsal passed: `v0.6.7-rc.2`, run
+[38073564774](https://github.com/passioncode-ai/fabric-dashboards/actions/runs/38073564774), approved by the
+operator.
+- **Jobs:** preflight, the gate on five runners, macos, windows x64/arm64 and linux x64/arm64 are all green;
+  `publish` waits for its own approval and is a rehearsal (`publish=false`).
+- **Windows receipt:** `windows_authenticode: SIGNED`. `Fabric Dashboards.exe` and the setup are `Valid`,
+  signer `CN=Siarhei Sheleh, O=Siarhei Sheleh`, Microsoft RFC 3161 timestamp, and the setup's SHA-256 matches.
+
+**Landed today on `main`:**
+- #62: staged Windows build.
+- #63: PL-10 pipeline. `windows-signing@v1` with the subject pinned, stage names `preflight → check → macos,
+  windows, linux → still-newest → publish`, receipt keys `version/commit/arch/macos_notarization/
+  windows_authenticode/checks`; differences in AGENTS.md *Release pipeline (PL-10)*. Linux `.deb` at
+  `/opt/fabric-dashboards`, `chrome-sandbox` setuid root via `build/linux/after-install.sh`; the
+  clean-Ubuntu check starts the GUI as an ordinary user under Xvfb.
+- #64: `id-token` granted to release jobs that call workflows; rc.1 had a `startup_failure`.
+
+**Elsewhere:**
+- Identity: `github-release-signing-fabric-dashboards`, made by the project-observatory-3d session.
+- `.github` #33: switch on in `products.json`, applied with `setup-release-env.py`.
+- fabric-workspace #94: three lessons in platforms.md.
+
+**Next task:** the first real release with Windows and Linux files. Bump the version and write its CHANGELOG
+section; signing is on, so no NOT_SIGNED line is needed. Then FD-37 M3 rest, M4 (updates per OS; the feed
+check is macOS-only until then), M5 and M6, as below.
+
+## Earlier — start here (2026-10-10, FD-37: Windows and Linux build and run)
 
 **Branch `agent/fd37-m1b-ci-matrix`** — CI evidence: run [38010248791](https://github.com/passioncode-ai/fabric-dashboards/actions/runs/38010248791) (the gate green on all five runners) and run [38012299256](https://github.com/passioncode-ai/fabric-dashboards/actions/runs/38012299256) (macOS gate + all four packages green with their install checks). Done on it:
 
