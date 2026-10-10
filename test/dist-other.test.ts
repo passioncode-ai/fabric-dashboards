@@ -116,13 +116,25 @@ test('FD-37 dist-other: the uninstall target names the package the .deb installs
   assert.match(JSON.stringify(t), new RegExp(c.deb.packageName));
 });
 
-test('FD-37 packages.yml: every system and architecture on its native runner, unsigned, no push trigger, collected by publish', () => {
+test('FD-37 packages.yml: every system and architecture on its native runner, signed only for a release, no push trigger, collected by publish', () => {
   const wf = fs.readFileSync(path.join(root, '.github/workflows/packages.yml'), 'utf8');
   for (const row of ['{ runner: windows-latest, os: windows, arch: x64 }', '{ runner: windows-11-arm, os: windows, arch: arm64 }', '{ runner: ubuntu-24.04, os: linux, arch: x64 }', '{ runner: ubuntu-24.04-arm, os: linux, arch: arm64 }']) {
     assert.ok(wf.includes(row), `packages.yml builds ${row}`);
   }
-  assert.match(wf, /on:\n {2}workflow_dispatch:\n {2}workflow_call:\n\n/, 'dispatch and call only (CI policy 2026-09-25)');
-  assert.doesNotMatch(wf, /^\s+environment:|\$\{\{ secrets\./m, 'nothing here signs, so nothing reaches a secret');
+  assert.match(wf, /\non:\n {2}workflow_dispatch:\n {2}workflow_call:\n {4}inputs:\n {6}sign:\n[^]*?\n\npermissions:/, 'dispatch and call only (CI policy 2026-09-25)');
+  assert.doesNotMatch(wf, /\n {2}(push|pull_request|schedule):/);
+  assert.doesNotMatch(wf, /\$\{\{ secrets\./, 'Windows signs over OIDC: no secret reaches this workflow');
+  // PL-03: only a signing Windows job enters the release environment, and only release.yml asks for it.
+  assert.ok(wf.includes("environment: ${{ inputs.sign && matrix.os == 'windows' && 'release' || '' }}"));
+  assert.ok(wf.includes("FD_WINDOWS_SIGNING: ${{ inputs.sign && matrix.os == 'windows' && vars.AZURE_SIGNING_ENABLED == 'true' }}"));
+  const order = ['--stage app', 'Sign the app\'s executable', '--stage installer', 'Sign the installer', '--stage seal', 'nsis-smoke.mjs', 'upload-artifact'].map((n) => wf.indexOf(n));
+  assert.ok(order.every((i) => i > 0), 'every stage and signing step is there');
+  assert.deepEqual([...order].sort((x, y) => x - y), order, 'sign between the stages, check the installer after sealing');
+  assert.equal(wf.split("if: env.FD_WINDOWS_SIGNING == 'true'").length - 1, 3, 'login and both signing passes only when signing is on');
+  const release = fs.readFileSync(path.join(root, '.github/workflows/release.yml'), 'utf8');
+  assert.ok(release.includes('uses: ./.github/workflows/packages.yml\n    with:\n      sign: true'), 'the release signs');
+  const validate = fs.readFileSync(path.join(root, '.github/workflows/validate.yml'), 'utf8');
+  assert.ok(!validate.includes('sign: true'), 'a rehearsal never signs');
   assert.ok(wf.includes('run: node scripts/dist-other.mjs'));
   // release-publish.yml collects `release-*`; the upload names match the script's artifacts and receipt.
   assert.ok(wf.includes('name: release-${{ matrix.os }}-${{ matrix.arch }}'));
@@ -138,4 +150,17 @@ test('FD-37 packages.yml: every system and architecture on its native runner, un
   const smoke = fs.readFileSync(path.join(root, 'scripts/deb-smoke.sh'), 'utf8');
   for (const step of ['apt-get install -y -qq "$deb"', "grep 'not found'", '"method":"initialize"', 'apt-get remove -y -qq fabric-dashboards']) assert.ok(smoke.includes(step), step);
   for (const m of wf.matchAll(/uses: ([^\s]+)/g)) assert.match(m[1], /@[0-9a-f]{40}$/, `${m[1]} is not pinned by commit`);
+});
+
+test('FD-37 PL-03: the Windows build runs in stages so the workflow can sign between them', async () => {
+  const d = await import('../scripts/dist-other.mjs');
+  assert.deepEqual(d.parseArgs([]), { stage: '', allowDirty: false }, 'no --stage runs all three');
+  assert.deepEqual(d.parseArgs(['--stage', 'installer', '--allow-dirty']), { stage: 'installer', allowDirty: true });
+  assert.throws(() => d.parseArgs(['--stage', 'sign']), /app, installer or seal/);
+  assert.throws(() => d.parseArgs(['--unsigned']), /Unknown argument/);
+  const sp = d.stagePaths('/r', d.target('win32', 'arm64', '1.2.3'));
+  assert.equal(sp.app, path.join('/r', 'release', 'stage-windows-arm64', 'app'), 'release.yml signs the executable here');
+  assert.equal(sp.build, path.join('/r', 'release', 'stage-windows-arm64', 'build.json'));
+  assert.equal(d.signingExpected({ FD_WINDOWS_SIGNING: 'true' }), true);
+  for (const v of [undefined, 'false', '1', 'TRUE']) assert.equal(d.signingExpected({ FD_WINDOWS_SIGNING: v }), false, `FD_WINDOWS_SIGNING=${v}`);
 });

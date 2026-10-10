@@ -3,7 +3,10 @@
 // .github/workflows/release.yml, on the native runner of each system and architecture; run by hand it is
 // a debug build, never published.
 //
-//   node scripts/dist-other.mjs [--allow-dirty]     on Windows or Linux, for this machine's architecture
+//   node scripts/dist-other.mjs [--allow-dirty] [--stage app|installer|seal]   on Windows or Linux, this machine's architecture
+//
+// With no --stage it runs all three. release.yml runs them one by one on Windows and signs between them:
+// the app's executable after `app`, the installer after `installer` (Azure Artifact Signing, PL-03).
 //
 // Stages, each checked: the app directory (@electron/packager, the same staging as macOS: this
 // repository's service-host package, node-pty for this system, the openpgp verifier, the MCP launcher),
@@ -183,22 +186,65 @@ Promise.all([v.sumsSignedByRelease(sums, asc), v.sumsSignedByRelease(bad, asc)])
   return out;
 }
 
-async function main() {
-  const args = new Set(process.argv.slice(2));
-  const platform = process.platform;
-  const arch = process.arch;
-  const pkg = JSON.parse(readFileSync(path.join(root, 'package.json'), 'utf8'));
-  const version = pkg.version;
-  const t = target(platform, arch, version);
+/** `--stage app|installer|seal`, or none for all three; `--allow-dirty`. */
+export function parseArgs(argv) {
+  const out = { stage: '', allowDirty: false };
+  for (let i = 0; i < argv.length; i += 1) {
+    if (argv[i] === '--allow-dirty') out.allowDirty = true;
+    else if (argv[i] === '--stage') out.stage = argv[++i] ?? '';
+    else throw new Error(`Unknown argument ${argv[i]}`);
+  }
+  requireThat(['', 'app', 'installer', 'seal'].includes(out.stage), `--stage is app, installer or seal, not ${out.stage}.`);
+  return out;
+}
+
+/** Where a staged build waits between stages (release.yml signs in between, PL-03). */
+export function stagePaths(rootDir, t) {
+  const dir = path.join(rootDir, 'release', `stage-${t.os}-${t.arch}`);
+  return { dir, app: path.join(dir, 'app'), build: path.join(dir, 'build.json') };
+}
+
+/** What `Get-AuthenticodeSignature` says of each file: `Valid`, `NotSigned`, … (Windows only). */
+export function authenticodeStatus(files) {
+  const list = files.map((f) => `'${f.replace(/'/g, "''")}'`).join(',');
+  const r = spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command',
+    `@(${list}) | ForEach-Object { $s = Get-AuthenticodeSignature -LiteralPath $_; [pscustomobject]@{ file = $_; status = $s.Status.ToString(); subject = $s.SignerCertificate.Subject } } | ConvertTo-Json -Compress`],
+  { encoding: 'utf8', timeout: 120_000, windowsHide: true, env: Object.fromEntries(Object.entries(process.env).filter(([k]) => k.toUpperCase() !== 'PSMODULEPATH')) });
+  let rows;
+  try { rows = JSON.parse(r.stdout); } catch { throw new Error(`Get-AuthenticodeSignature did not answer: ${(r.stderr || String(r.error)).slice(0, 300)}`); }
+  return (Array.isArray(rows) ? rows : [rows]).map((x) => ({ file: path.basename(x.file), status: x.status, subject: x.subject ?? null }));
+}
+
+/**
+ * Whether this Windows build must be signed: release.yml sets FD_WINDOWS_SIGNING=true only where the
+ * release environment's AZURE_SIGNING_ENABLED is on; anything else is an unsigned build that says so.
+ */
+export const signingExpected = (env = process.env) => env.FD_WINDOWS_SIGNING === 'true';
+
+function signatures(files, t) {
+  if (t.platform !== 'win32') return { status: undefined, files: [] };
+  const rows = authenticodeStatus(files);
+  if (signingExpected()) {
+    const bad = rows.filter((x) => x.status !== 'Valid');
+    requireThat(!bad.length, `Windows signing is on, but these are not validly signed: ${bad.map((x) => `${x.file} ${x.status}`).join(', ')}`);
+    return { status: 'SIGNED', files: rows };
+  }
+  return { status: 'NOT_SIGNED', files: rows };
+}
+
+async function stageApp(t, version, pkg, allowDirty) {
   requireThat(statfsSync(root).bavail * statfsSync(root).bsize > 3 * 1024 ** 3, 'At least 3 GB of free disk space is needed.');
   const revision = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim();
   const dirty = execFileSync('git', ['status', '--porcelain', '--untracked-files=no'], { cwd: root, encoding: 'utf8' }).trim();
-  requireThat(!dirty || args.has('--allow-dirty'), `The tree has uncommitted changes; commit them first (or --allow-dirty for a local test):\n${dirty}`);
+  requireThat(!dirty || allowDirty, `The tree has uncommitted changes; commit them first (or --allow-dirty for a local test):\n${dirty}`);
   const electronVersion = JSON.parse(readFileSync(path.join(root, 'package-lock.json'), 'utf8')).packages?.['node_modules/electron']?.version;
   requireThat(/^\d+\.\d+\.\d+$/.test(electronVersion || ''), 'The committed lockfile must pin Electron.');
   const out = path.join(root, 'release');
   mkdirSync(out, { recursive: true });
   for (const f of [...t.artifacts, t.receipt]) rmSync(path.join(out, f), { force: true });
+  const sp = stagePaths(root, t);
+  rmSync(sp.dir, { recursive: true, force: true });
+  mkdirSync(sp.dir, { recursive: true });
   // npm is a .cmd shim on Windows; its arguments have no spaces, so the shell is safe here.
   execFileSync('npm', ['run', 'build'], { cwd: root, stdio: ['ignore', 'inherit', 'inherit'], shell: process.platform === 'win32' });
   const temp = mkdtempSync(path.join(os.tmpdir(), 'fd-dist-'));
@@ -208,45 +254,83 @@ async function main() {
     writeFileSync(path.join(stage, 'package.json'), JSON.stringify({ name: pkg.name, productName: PRODUCT, version, main: pkg.main, license: pkg.license, author: pkg.author, description: pkg.description }, null, 2));
     cpSync(path.join(root, 'out'), path.join(stage, 'out'), { recursive: true });
     stageWorkspacePackages(root, stage);
-    stageNativeModulesFor(root, stage, platform, arch);
+    stageNativeModulesFor(root, stage, t.platform, t.arch);
     stageVerifierModules(root, stage);
     const bin = path.join(temp, 'bin');
     cpSync(t.launcherDir, bin, { recursive: true });
     const { packager } = await import('@electron/packager');
-    const [appDir] = await packager({
+    const [packaged] = await packager({
       dir: stage, name: PRODUCT, executableName: t.executableName, appVersion: version, buildVersion: version,
-      platform, arch, electronVersion, out: path.join(temp, 'out'), overwrite: true, asar: { unpack: NATIVE_UNPACK }, prune: false,
+      platform: t.platform, arch: t.arch, electronVersion, out: path.join(temp, 'out'), overwrite: true, asar: { unpack: NATIVE_UNPACK }, prune: false,
       icon: t.icon, extraResource: [path.join(root, 'build/assets'), bin],
       win32metadata: { CompanyName: 'PassionCode.ai', ProductName: PRODUCT, FileDescription: PRODUCT, OriginalFilename: t.executable, InternalName: PRODUCT },
     });
-    const exe = path.join(appDir, t.executable);
-    requireThat(existsSync(exe), `The packaged app has no ${t.executable}.`);
-    requireThat(existsSync(path.join(appDir, 'resources/assets/tray-ok.png')), 'The packaged app is missing its tray icons.');
-    const record = {
-      product: PRODUCT, version, revision, electronVersion, platform, architecture: arch, builtAt: new Date().toISOString(),
-      windows_authenticode: platform === 'win32' ? 'NOT_SIGNED' : undefined,
-      authenticode: platform === 'win32' ? { status: 'NOT_SIGNED', reason: 'Windows signing (Azure Artifact Signing) waits for the certificate profile — platforms.md PL-03.' } : undefined,
-      checks: {},
-    };
-    record.checks.fuses = `the executable reads ${[...new Set(applyFuses(exe, wantedFuses(platform)))].join(', ')} (scripts/fuses.mjs; ASAR integrity ${platform === 'linux' ? 'off on Linux, which Electron does not validate' : 'on'})`;
-    Object.assign(record.checks, checks(appDir, t, version));
-    // The installers, from the checked directory.
-    const config = path.join(temp, 'builder.json');
-    writeFileSync(config, JSON.stringify(builderConfig(t, version, out), null, 2));
-    // The CLI through Node, never a shell: the packaged folder's name has a space ("Fabric Dashboards-win32-x64").
-    const flag = platform === 'win32' ? '--win' : '--linux';
-    execFileSync(process.execPath, [path.join(root, 'node_modules/electron-builder/cli.js'), flag, `--${arch}`, '--prepackaged', appDir, '--config', config, '--publish', 'never'],
-      { cwd: root, stdio: ['ignore', 'inherit', 'inherit'], env: { ...process.env, CSC_IDENTITY_AUTO_DISCOVERY: 'false' } });
-    record.files = Object.fromEntries(t.artifacts.map((f) => {
-      const file = path.join(out, f);
-      requireThat(existsSync(file), `electron-builder did not make ${f}.`);
-      return [f, sha256(file)];
-    }));
-    writeFileSync(path.join(out, t.receipt), `${JSON.stringify(record, null, 2)}\n`);
-    console.error(`made ${t.artifacts.join(', ')} and ${t.receipt}`);
+    cpSync(packaged, sp.app, { recursive: true, verbatimSymlinks: true });
   } finally {
     rmSync(temp, { recursive: true, force: true });
   }
+  const exe = path.join(sp.app, t.executable);
+  requireThat(existsSync(exe), `The packaged app has no ${t.executable}.`);
+  requireThat(existsSync(path.join(sp.app, 'resources/assets/tray-ok.png')), 'The packaged app is missing its tray icons.');
+  const record = {
+    product: PRODUCT, version, revision, electronVersion, platform: t.platform, architecture: t.arch, builtAt: new Date().toISOString(),
+    checks: {},
+  };
+  record.checks.fuses = `the executable reads ${[...new Set(applyFuses(exe, wantedFuses(t.platform)))].join(', ')} (scripts/fuses.mjs; ASAR integrity ${t.platform === 'linux' ? 'off on Linux, which Electron does not validate' : 'on'})`;
+  Object.assign(record.checks, checks(sp.app, t, version));
+  writeFileSync(sp.build, `${JSON.stringify(record, null, 2)}\n`);
+  console.error(`staged ${sp.app}`);
+}
+
+function stageInstaller(t, version) {
+  const sp = stagePaths(root, t);
+  requireThat(existsSync(sp.build), `Nothing is staged at ${sp.dir}; run --stage app first.`);
+  const record = JSON.parse(readFileSync(sp.build, 'utf8'));
+  requireThat(record.version === version && record.platform === t.platform && record.architecture === t.arch, 'The staged build is for another version or system.');
+  const exe = path.join(sp.app, t.executable);
+  // Signing (between the stages) appends a signature; the fuses it was checked with must still be there.
+  const problems = fuseProblems(readFileSync(exe), wantedFuses(t.platform));
+  requireThat(!problems.length, `The staged app's fuses changed after it was checked:\n${problems.join('\n')}`);
+  if (t.platform === 'win32') signatures([exe], t); // with signing on, an unsigned app never reaches the installer
+  const out = path.join(root, 'release');
+  const config = path.join(sp.dir, 'builder.json');
+  writeFileSync(config, JSON.stringify(builderConfig(t, version, out), null, 2));
+  // The CLI through Node, never a shell: the staged folder's path can hold a space.
+  const flag = t.platform === 'win32' ? '--win' : '--linux';
+  execFileSync(process.execPath, [path.join(root, 'node_modules/electron-builder/cli.js'), flag, `--${t.arch}`, '--prepackaged', sp.app, '--config', config, '--publish', 'never'],
+    { cwd: root, stdio: ['ignore', 'inherit', 'inherit'], env: { ...process.env, CSC_IDENTITY_AUTO_DISCOVERY: 'false' } });
+  for (const f of t.artifacts) requireThat(existsSync(path.join(out, f)), `electron-builder did not make ${f}.`);
+  console.error(`made ${t.artifacts.join(', ')}`);
+}
+
+function stageSeal(t) {
+  const sp = stagePaths(root, t);
+  requireThat(existsSync(sp.build), `Nothing is staged at ${sp.dir}; run --stage app first.`);
+  const record = JSON.parse(readFileSync(sp.build, 'utf8'));
+  const out = path.join(root, 'release');
+  const files = t.artifacts.map((f) => path.join(out, f));
+  for (const f of files) requireThat(existsSync(f), `${path.basename(f)} is missing; run --stage installer first.`);
+  if (t.platform === 'win32') {
+    const sig = signatures([path.join(sp.app, t.executable), ...files], t);
+    record.windows_authenticode = sig.status;
+    record.authenticode = sig.status === 'SIGNED'
+      ? { status: 'SIGNED', files: sig.files, note: 'The app and the installer carry Azure Artifact Signing signatures; the uninstaller the installer writes does not (electron-builder makes it inside the installer).' }
+      : { status: 'NOT_SIGNED', reason: 'This build was made without Windows signing (FD_WINDOWS_SIGNING is not true): a rehearsal or a local build.', files: sig.files };
+  }
+  record.files = Object.fromEntries(files.map((f) => [path.basename(f), sha256(f)]));
+  writeFileSync(path.join(out, t.receipt), `${JSON.stringify(record, null, 2)}\n`);
+  rmSync(sp.dir, { recursive: true, force: true });
+  console.error(`sealed ${t.receipt}${record.windows_authenticode ? ` (${record.windows_authenticode})` : ''}`);
+}
+
+async function main() {
+  const o = parseArgs(process.argv.slice(2));
+  const pkg = JSON.parse(readFileSync(path.join(root, 'package.json'), 'utf8'));
+  const version = pkg.version;
+  const t = target(process.platform, process.arch, version);
+  if (!o.stage || o.stage === 'app') await stageApp(t, version, pkg, o.allowDirty);
+  if (!o.stage || o.stage === 'installer') stageInstaller(t, version);
+  if (!o.stage || o.stage === 'seal') stageSeal(t);
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {

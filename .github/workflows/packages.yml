@@ -3,18 +3,26 @@
 # built by scripts/dist-other.mjs on the native runner of its system and architecture, checked by the
 # finished binary itself, with a receipt naming every file's SHA-256.
 #
-# Nothing here is signed, so it needs no protected environment: Windows ships `windows_authenticode:
-# NOT_SIGNED` until the organization's Azure certificate profile exists (PL-03), and every file is covered
-# by the release's GPG-signed SHA256SUMS and Sigstore attestations, which release-publish.yml makes from
-# every `release-*` artifact.
+# Windows signing (PL-03): release.yml calls this with `sign: true`. Its Windows jobs then run in the
+# protected `release` environment (approved by release-approvers; an agent never approves) and, where that
+# environment's AZURE_SIGNING_ENABLED is true, sign with Azure Artifact Signing over OIDC — no secret: the
+# environment's federated credential — between dist-other's stages: the app's executable after `app`, the
+# installer after `installer`; `seal` refuses a file that is not `Valid` and writes `windows_authenticode:
+# SIGNED`. Otherwise the receipt says NOT_SIGNED. Linux packages are not Authenticode material. Every file is
+# covered by the release's GPG-signed SHA256SUMS and Sigstore attestations (release-publish.yml, `release-*`).
 #
-# release.yml calls this before publishing. Dispatched by hand it is a rehearsal: the packages are kept as
-# workflow artifacts for 14 days and no release is touched (machine CI policy of 2026-09-25: no push trigger).
+# Dispatched by hand, or by validate.yml's `packages` flag, it is an unsigned rehearsal: the packages are
+# kept as workflow artifacts for 14 days and no release is touched (machine CI policy of 2026-09-25: no push trigger).
 name: packages
 
 on:
   workflow_dispatch:
   workflow_call:
+    inputs:
+      sign:
+        description: 'true from release.yml: Windows jobs run in the release environment and sign when AZURE_SIGNING_ENABLED is on'
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -31,7 +39,14 @@ jobs:
           - { runner: ubuntu-24.04, os: linux, arch: x64 }
           - { runner: ubuntu-24.04-arm, os: linux, arch: arm64 }
     runs-on: ${{ matrix.runner }}
-    timeout-minutes: 60
+    # Only a signing Windows job enters the protected environment; an empty name is no environment.
+    environment: ${{ inputs.sign && matrix.os == 'windows' && 'release' || '' }}
+    timeout-minutes: 75
+    permissions:
+      contents: read
+      id-token: write # azure/login (OIDC), used only when Windows signing is on
+    env:
+      FD_WINDOWS_SIGNING: ${{ inputs.sign && matrix.os == 'windows' && vars.AZURE_SIGNING_ENABLED == 'true' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -48,8 +63,66 @@ jobs:
           echo "USE_SYSTEM_FPM=true" >> "$GITHUB_ENV"
       # npm ci builds node-pty on Linux with node-gyp (python3, make, g++ are on the runner); Windows uses its prebuild.
       - run: npm ci
-      - name: Build, check and package
-        run: node scripts/dist-other.mjs
+      - id: version
+        shell: bash
+        run: echo "version=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
+      - name: Build and check the app
+        run: node scripts/dist-other.mjs --stage app
+      # Signing pass 1: the app's executable, before the installer packs it.
+      - name: Azure login (OIDC)
+        if: env.FD_WINDOWS_SIGNING == 'true'
+        uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      - name: Sign the app's executable
+        if: env.FD_WINDOWS_SIGNING == 'true'
+        uses: Azure/artifact-signing-action@c7ab2a863ab5f9a846ddb8265964877ef296ee82 # v2.0.0
+        with:
+          files: ${{ github.workspace }}\release\stage-windows-${{ matrix.arch }}\app\Fabric Dashboards.exe
+          endpoint: ${{ vars.AZURE_SIGNING_ENDPOINT }}
+          signing-account-name: ${{ vars.AZURE_SIGNING_ACCOUNT }}
+          certificate-profile-name: ${{ vars.AZURE_CERTIFICATE_PROFILE }}
+          file-digest: SHA256
+          timestamp-rfc3161: http://timestamp.acs.microsoft.com
+          timestamp-digest: SHA256
+          exclude-environment-credential: true
+          exclude-workload-identity-credential: true
+          exclude-managed-identity-credential: true
+          exclude-shared-token-cache-credential: true
+          exclude-visual-studio-credential: true
+          exclude-visual-studio-code-credential: true
+          exclude-azure-cli-credential: false
+          exclude-azure-powershell-credential: true
+          exclude-azure-developer-cli-credential: true
+          exclude-interactive-browser-credential: true
+      - name: The installers
+        run: node scripts/dist-other.mjs --stage installer
+      # Signing pass 2: the installer itself.
+      - name: Sign the installer
+        if: env.FD_WINDOWS_SIGNING == 'true'
+        uses: Azure/artifact-signing-action@c7ab2a863ab5f9a846ddb8265964877ef296ee82 # v2.0.0
+        with:
+          files: ${{ github.workspace }}\release\Fabric-Dashboards-${{ steps.version.outputs.version }}-windows-${{ matrix.arch }}-setup.exe
+          endpoint: ${{ vars.AZURE_SIGNING_ENDPOINT }}
+          signing-account-name: ${{ vars.AZURE_SIGNING_ACCOUNT }}
+          certificate-profile-name: ${{ vars.AZURE_CERTIFICATE_PROFILE }}
+          file-digest: SHA256
+          timestamp-rfc3161: http://timestamp.acs.microsoft.com
+          timestamp-digest: SHA256
+          exclude-environment-credential: true
+          exclude-workload-identity-credential: true
+          exclude-managed-identity-credential: true
+          exclude-shared-token-cache-credential: true
+          exclude-visual-studio-credential: true
+          exclude-visual-studio-code-credential: true
+          exclude-azure-cli-credential: false
+          exclude-azure-powershell-credential: true
+          exclude-azure-developer-cli-credential: true
+          exclude-interactive-browser-credential: true
+      - name: Check the signatures and write the receipt
+        run: node scripts/dist-other.mjs --stage seal
       # The .deb on a clean system: it installs with its own dependencies and its MCP server answers.
       - name: The .deb installs on a clean Ubuntu 24.04 and its MCP server answers
         if: matrix.os == 'linux'
@@ -62,9 +135,6 @@ jobs:
         if: matrix.os == 'windows'
         shell: bash
         run: node scripts/nsis-smoke.mjs release/Fabric-Dashboards-*-windows-${{ matrix.arch }}-setup.exe
-      - id: version
-        shell: bash
-        run: echo "version=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: release-${{ matrix.os }}-${{ matrix.arch }}
