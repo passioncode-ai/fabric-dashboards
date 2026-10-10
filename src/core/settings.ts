@@ -156,6 +156,9 @@ export function merge(raw: Partial<Settings>): Settings {
     autoUpdate: raw.autoUpdate !== false,
     moveToApplicationsAsked: raw.moveToApplicationsAsked === true,
     setupDone: raw.setupDone === true,
+    lastVisitAt: typeof raw.lastVisitAt === 'string' && !Number.isNaN(Date.parse(raw.lastVisitAt)) ? raw.lastVisitAt : null,
+    knownServices: Array.isArray(raw.knownServices) ? [...new Set(raw.knownServices.filter((k): k is string => typeof k === 'string' && SERVICE_KEY.test(k)))].slice(0, 500) : [],
+    lastService: typeof raw.lastService === 'string' && SERVICE_KEY.test(raw.lastService) ? raw.lastService : null,
     notifications: {
       enabled: typeof n.enabled === 'boolean' ? n.enabled : true,
       perService: typeof n.perService === 'object' && n.perService ? n.perService : {},

@@ -1,4 +1,5 @@
 import { offersAgentUpdate, offersFix } from '../../core/offers';
+import type { SinceLastVisit } from '../../core/visit';
 import { attentionRank } from '@passioncode-ai/fabric-service-host/state';
 import { useEffect, useState } from 'react';
 import { sumSpend, type SpendEntry } from '../../core/spend';
@@ -70,12 +71,14 @@ export function LoginQuestion({ defer = false }: { defer?: boolean } = {}) {
 
 interface Props { status: AppStatus; products: Product[]; open: (key: string, link?: string, tab?: 'logs' | 'health') => void; act: (key: string, action: 'restart' | 'start' | 'update') => void; goSpend: () => void;
   /** FD-39 D-3: Fix / Update with agent. */
-  agent?: (key: string, task: { kind: 'fix' | 'update' }) => void }
+  agent?: (key: string, task: { kind: 'fix' | 'update' }) => void;
+  /** FD-39 SCN-059: what changed since the last visit, and Continue for the agents the person worked with. */
+  visit?: SinceLastVisit | null; onContinue?: (key: string) => void }
 
 /** Needs attention shows this many rows; the rest wait behind "Show all" (ADR-0014). */
 const ATTENTION_VISIBLE = 3;
 
-export function Overview({ status, products, open, act, goSpend, agent }: Props) {
+export function Overview({ status, products, open, act, goSpend, agent, visit, onContinue }: Props) {
   const { t, reason } = useT();
   const [showAll, setShowAll] = useState(false);
   const [pathError, setPathError] = useState('');
@@ -148,6 +151,38 @@ export function Overview({ status, products, open, act, goSpend, agent }: Props)
   return (
     <>
       <StatusStrip status={status} products={products} attention={attention.length} goSpend={goSpend} />
+      {visit?.since && (() => {
+        const byKey = new Map(services.map((x) => [x.key, x]));
+        const names = (keys: string[]) => keys.map((k) => (byKey.get(k) ? nameOf(byKey.get(k)!) : k)).join(', ');
+        const worked = visit.continueKeys.filter((k) => byKey.has(k));
+        const changed = visit.added.length + visit.removed.length + visit.alerts.length > 0;
+        if (!changed && !worked.length) return null;
+        return (
+          <section className="visit" aria-labelledby="visit-title">
+            <h2 id="visit-title">{t('visit.title')}</h2>
+            {!changed && <p className="meta">{t('visit.nothing', { when: new Date(visit.since).toLocaleString() })}</p>}
+            <ul>
+              {visit.alerts.map((a) => byKey.has(a.key) && (
+                <li key={a.key} className={`state-${a.level === 'error' ? 'down' : 'degraded'}`}>
+                  <button className="linkish name" onClick={() => open(a.key)}>{nameOf(byKey.get(a.key)!)}</button>
+                  <span className="why" title={a.text}>{a.text}</span>
+                  {agent && offersFix(byKey.get(a.key)!) && <button className="btn" aria-label={`${t('agent.fix')} — ${nameOf(byKey.get(a.key)!)}`} onClick={() => agent(a.key, { kind: 'fix' })}>{t('agent.fix')}</button>}
+                </li>
+              ))}
+              {visit.added.length > 0 && <li className="meta">{t('visit.added', { names: names(visit.added) })}</li>}
+              {visit.removed.length > 0 && <li className="meta">{t('visit.removed', { names: names(visit.removed) })}</li>}
+            </ul>
+            {onContinue && worked.length > 0 && (
+              <div className="row wrap">
+                <span className="meta">{t('visit.worked')}</span>
+                {worked.slice(0, 6).map((k) => (
+                  <button key={k} className="btn" aria-label={t('visit.continueWith', { name: nameOf(byKey.get(k)!) })} onClick={() => onContinue(k)}>{t('visit.continue')} · {nameOf(byKey.get(k)!)}</button>
+                ))}
+              </div>
+            )}
+          </section>
+        );
+      })()}
       {attention.length > 0 && (
         <section className="attention" aria-labelledby="attention-title">
           <h2 id="attention-title">{t('overview.attention')} <span className="count">{attention.length}</span></h2>

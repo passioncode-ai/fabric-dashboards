@@ -14,7 +14,7 @@ interface Props {
   onWidth: (width: number, commit: boolean) => void;
   onHide: () => void;
   /** FD-39 D-3: a job to start with (Fix / Update with agent); taken once, then cleared by the shell. */
-  task?: { task: ConsoleTask; nonce: number } | null;
+  task?: { task?: ConsoleTask; mode?: 'new' | 'continue'; nonce: number } | null;
   onTaskTaken?: () => void;
 }
 
@@ -124,7 +124,7 @@ export function ConsolePanel({ serviceKey, width, onWidth, onHide, task, onTaskT
     if (!task || !info || info.key !== serviceKey || starting) return;
     onTaskTaken?.();
     if (info.session.state === 'running') { setNotice({ text: t('console.running') }); return; }
-    void start('new', task.task);
+    void start(task.mode ?? 'new', task.task);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [task?.nonce, info?.key]);
 

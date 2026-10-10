@@ -1203,6 +1203,6 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **States covered:** success, empty
 - **Errors & recovery:** n/a
 - **Status:** draft
-- **Coverage:** none yet
+- **Coverage:** src/core/visit.ts, src/core/settings.ts, src/renderer/App.tsx (continueWith), src/renderer/components/Overview.tsx, test/visit.test.ts, test/e2e/focus-console.test.ts
 - **Product:** unobserved
 

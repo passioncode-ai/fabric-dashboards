@@ -49,6 +49,10 @@ export interface Settings {
   moveToApplicationsAsked: boolean;
   /** FD-39 SCN-058: the person finished or hid the setup card; the Setup console stays reachable from Settings. */
   setupDone: boolean;
+  /** FD-39 SCN-059: the previous visit — when, which agents it saw, which one was selected last. */
+  lastVisitAt: string | null;
+  knownServices: string[];
+  lastService: string | null;
   notifications: {
     enabled: boolean;
     perService: Record<string, { enabled: boolean; minLevel: 'notice' | 'warning' | 'error' }>;
@@ -98,6 +102,9 @@ export const DEFAULT_SETTINGS: Settings = {
   autoUpdate: true,
   moveToApplicationsAsked: false,
   setupDone: false,
+  lastVisitAt: null,
+  knownServices: [],
+  lastService: null,
   notifications: {
     enabled: true,
     perService: {},

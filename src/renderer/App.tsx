@@ -9,6 +9,7 @@ import { Settings } from './components/Settings';
 import { Spend } from './components/Spend';
 import { ConsolePanel } from './components/ConsolePanel';
 import { SETUP_KEY } from '../core/offers';
+import { sinceLastVisit, type SinceLastVisit } from '../core/visit';
 import type { ConsoleTask } from '../core/api';
 import mark from './brand/dashboards-mark.svg';
 import { api, GLYPH, Icon, LangContext, nameOf, Spinner, useT } from './lib';
@@ -85,6 +86,9 @@ interface ShellProps {
 function Shell({ status, route, setRoute, stopKey, setStopKey, activityFilter, setActivityFilter, layout, changeLayout, onLanguage }: ShellProps) {
   const { t } = useT();
   const open = (key: string, link?: string, tab?: 'logs' | 'health') => setRoute({ page: 'service', key, link, nonce: Date.now(), tab });
+  // SCN-059: the agent selected last leads the next visit's Continue list.
+  const routeKey = route.page === 'service' ? route.key : null;
+  useEffect(() => { if (routeKey) void api().updateSettings({ lastService: routeKey }).catch(() => undefined); }, [routeKey]);
   const act = (key: string, action: 'restart' | 'start' | 'update') => {
     // U-2: an update started from Needs attention shows its output on the service's Health tab.
     if (action === 'update') open(key, undefined, 'health');
@@ -128,7 +132,14 @@ function Shell({ status, route, setRoute, stopKey, setStopKey, activityFilter, s
   const { pinned, foreground, background } = arrangeProducts(products, layout.list);
   const pin = (id: string) => changeLayout({ list: { pinned: togglePin(layout.list.pinned, id) } });
   // FD-39 D-3: Fix / Update with agent opens the agent's page and console; the console starts the task once it is ready.
-  const [agentTask, setAgentTask] = useState<{ key: string; task: ConsoleTask; nonce: number } | null>(null);
+  const [agentTask, setAgentTask] = useState<{ key: string; task?: ConsoleTask; mode?: 'new' | 'continue'; nonce: number } | null>(null);
+  // FD-39 SCN-059: Continue resumes the agent's last console session, with its context written fresh.
+  const continueWith = (key: string) => {
+    setRoute({ page: 'service', key });
+    if (!layout.console.open) changeLayout({ console: { open: true } });
+    setAgentTask({ key, mode: 'continue', nonce: Date.now() });
+  };
+  const [visit, setVisit] = useState<SinceLastVisit | null>(null);
   // FD-39 SCN-058: the Setup console sits beside Overview; on a first launch with nothing set up it opens by itself
   // (the runtime starts on the person's click: it spends their subscription).
   const [setupOpen, setSetupOpen] = useState(false);
@@ -139,6 +150,9 @@ function Shell({ status, route, setRoute, stopKey, setStopKey, activityFilter, s
     setupDecided.current = true;
     void Promise.all([api().settings(), api().setupState()]).then(([s, st]) => {
       if (!s.setupDone && status.services.length === 0 && !(st.mcp && st.skills && st.firstAgent)) setSetupOpen(true);
+      // SCN-059: what changed since the previous launch, computed once; this launch becomes the next one's baseline.
+      setVisit(sinceLastVisit({ services: status.services, lastVisitAt: s.lastVisitAt, known: s.knownServices, consoles: s.consoles, lastService: s.lastService }));
+      void api().updateSettings({ lastVisitAt: new Date().toISOString(), knownServices: status.services.map((x) => x.key) }).catch(() => undefined);
     }).catch(() => undefined);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status.scanning]);
@@ -224,7 +238,7 @@ function Shell({ status, route, setRoute, stopKey, setStopKey, activityFilter, s
               </div>
               {route.page === 'overview' && <SetupCard onOpen={() => setSetupOpen(true)} consoleOpen={setupOpen} />}
               {route.page === 'overview' && <LoginQuestion defer={setupOpen} />}
-              {route.page === 'overview' && <Overview status={status} products={products} open={open} act={act} agent={handToAgent} goSpend={() => setRoute({ page: 'spend' })} />}
+              {route.page === 'overview' && <Overview status={status} products={products} open={open} act={act} agent={handToAgent} visit={visit} onContinue={continueWith} goSpend={() => setRoute({ page: 'spend' })} />}
               {route.page === 'activity' && <Activity status={status} openAt={open} filter={activityFilter} setFilter={setActivityFilter} />}
               {route.page === 'spend' && <Spend status={status} />}
               {route.page === 'settings' && <Settings status={status} onTheme={applyTheme} onLanguage={onLanguage} />}

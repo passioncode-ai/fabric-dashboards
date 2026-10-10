@@ -189,3 +189,45 @@ test('FD-39 SCN-058: a first launch opens the setup beside Overview; the coding 
     await closeApp(app);
   }
 });
+
+test('FD-39 SCN-059: a later visit opens on what changed, and Continue resumes the agent\'s console with fresh context', { timeout: 120_000 }, async () => {
+  const base = tmp('fd-e2e-visit-');
+  const services = path.join(base, 'services');
+  const runtimes = path.join(base, 'bin');
+  const repo = path.join(base, 'sample-repo');
+  const userData = path.join(base, 'app');
+  for (const d of [services, runtimes, repo, userData]) fs.mkdirSync(d, { recursive: true });
+  fs.writeFileSync(path.join(runtimes, 'claude'), FAKE_CLAUDE, { mode: 0o755 });
+  // The previous visit: a day ago, before Sample Service was installed; its console was used since.
+  fs.writeFileSync(path.join(userData, 'settings.json'), JSON.stringify({
+    setupDone: true, launchAtLoginAsked: true, lastVisitAt: new Date(Date.now() - 86_400_000).toISOString(), knownServices: ['gone.default'],
+    lastService: 'sample.default', consoles: { 'sample.default': { runtime: 'claude-code', folder: repo } },
+  }), { mode: 0o600 });
+  const port = await freePort();
+  const proc = serve(port, path.join(base, 'data'), ['--name', 'Sample Service']);
+  let app: ElectronApplication | null = null;
+  try {
+    await waitAnswering(port);
+    register(port, path.join(base, 'data'), services);
+    const env = { ...process.env, FABRIC_SERVICES_DIR: services, FABRIC_DASHBOARDS_USER_DATA: userData, FD_TEST_RUNTIME_DIRS: runtimes, LANG: 'en_US.UTF-8' };
+    app = await electron.launch({ args: [ROOT], env });
+    const page = await app.firstWindow();
+    await page.getByRole('heading', { name: 'Since you were last here' }).waitFor({ timeout: 20_000 });
+    await page.getByText('New: Sample Service').waitFor();
+    await page.getByText('Gone: gone.default').waitFor();
+    await shot(page, '26-since-last-visit');
+    await page.getByRole('button', { name: 'Continue with Sample Service' }).click();
+    await waitFor('the resumed session with its context', async () => { const x = await termText(page); return x.includes('ctx:[present]') && /--continue\]/.test(x); });
+    const saved = JSON.parse(fs.readFileSync(path.join(userData, 'settings.json'), 'utf8'));
+    assert.ok(Date.now() - Date.parse(saved.lastVisitAt) < 120_000, 'this visit is the next one\'s baseline');
+    assert.deepEqual(saved.knownServices, ['sample.default']);
+    assert.equal(saved.lastService, 'sample.default');
+    await page.locator('.console-term').click();
+    await page.keyboard.type('bye');
+    await page.keyboard.press('Enter');
+    await page.getByText('Exited (code 0).').waitFor({ timeout: 15_000 });
+  } finally {
+    await closeApp(app);
+    await stopProcess(proc);
+  }
+});
