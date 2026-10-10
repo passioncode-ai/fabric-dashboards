@@ -53,20 +53,10 @@ jobs:
       # The .deb on a clean system: it installs with its own dependencies and its MCP server answers.
       - name: The .deb installs on a clean Ubuntu 24.04 and its MCP server answers
         if: matrix.os == 'linux'
+        shell: bash
         run: |
           deb=$(ls release/Fabric-Dashboards-*-linux-${{ matrix.arch }}.deb)
-          docker run --rm -v "$PWD/release:/pkg:ro" ubuntu:24.04 bash -euo pipefail -c '
-            export DEBIAN_FRONTEND=noninteractive
-            apt-get update -qq && apt-get install -y -qq "/pkg/'"$(basename "$deb")"'" > /tmp/apt.log || { tail -30 /tmp/apt.log; exit 1; }
-            missing=$(ldd "/opt/Fabric Dashboards/fabric-dashboards" | grep "not found" || true)
-            [ -z "$missing" ] || { echo "::error::the installed app lacks: $missing"; exit 1; }
-            mkdir -p /tmp/svc
-            answer=$(printf "%s
-" "{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}" | FABRIC_SERVICES_DIR=/tmp/svc timeout 30 "/opt/Fabric Dashboards/resources/bin/fabric-dashboards-mcp" | head -1)
-            echo "$answer" | grep -q ""serverInfo"" || { echo "::error::the installed MCP server did not answer: $answer"; exit 1; }
-            apt-get remove -y -qq fabric-dashboards > /dev/null
-            [ ! -e "/opt/Fabric Dashboards" ] || { echo "::error::apt remove left /opt/Fabric Dashboards"; exit 1; }
-            echo "installed, answered initialize, removed cleanly"'
+          docker run --rm -v "$PWD:/w:ro" ubuntu:24.04 bash /w/scripts/deb-smoke.sh "/w/$deb"
       - id: version
         shell: bash
         run: echo "version=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
