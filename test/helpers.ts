@@ -6,7 +6,12 @@ import path from 'node:path';
 
 export const SAMPLE = path.join(__dirname, 'fixtures/sample-service/sample_service.py');
 
-export const tmp = (prefix = 'fd-') => fs.mkdtempSync(path.join(os.tmpdir(), prefix));
+const made: string[] = [];
+process.on('exit', () => {
+  for (const dir of made) try { fs.rmSync(dir, { recursive: true, force: true }); } catch { /* a file still held open (Windows) stays */ }
+});
+/** A temporary directory removed when the test process exits (each test file is its own process). */
+export const tmp = (prefix = 'fd-') => { const dir = fs.mkdtempSync(path.join(os.tmpdir(), prefix)); made.push(dir); return dir; };
 
 export async function freePort(): Promise<number> {
   return new Promise((resolve) => {

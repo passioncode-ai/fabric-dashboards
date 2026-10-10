@@ -41,11 +41,11 @@ function idleRig() {
   fs.mkdirSync(services);
   const local = [1, 2, 3].map((n) => ({
     ...DESCRIPTOR, id: `idle-${n}`, origin: `http://127.0.0.1:${47200 + n}`,
-    lifecycle: { manager: 'launchd' as const, label: `com.example.idle-${n}`, plist: `/tmp/never-${n}.plist` },
+    lifecycle: { manager: 'launchd' as const, label: `com.example.idle-${n}`, plist: path.join(base, `never-${n}.plist`) },
   }));
   const remote = {
     protocol: 'fabric-service/0.1', id: 'idle-online', instance: 'default', name: 'Online', placement: 'remote' as const,
-    origin: 'https://agent.example.com', auth: { tokenFile: '/tmp/never-read.token' }, lifecycle: { manager: 'none' as const },
+    origin: 'https://agent.example.com', auth: { tokenFile: path.join(base, 'never-read.token') }, lifecycle: { manager: 'none' as const },
     installedAt: '2026-10-02T18:00:00Z', installedBy: 'test',
   };
   for (const d of [...local, remote]) fs.writeFileSync(path.join(services, `${d.id}.${d.instance}.json`), JSON.stringify(d));
@@ -92,6 +92,7 @@ test('LC-08: a launch with no window runs at background cadence; a quiet hour st
     // Budget for one hidden hour, per AGENTS.md ## Lifecycle: probes every 30 s per local service and
     // every 60 s per online one; launchd is read only every 5 min while every probe answers with the
     // same pid; events at the probe cadence; nothing pushed to the UI when nothing changed.
+    assert.ok(counts.probes >= local * 100, `the rig probes at all (every descriptor valid on this system): ${counts.probes}`);
     assert.ok(counts.probes <= local * 120 + remote * 60 + local + remote, `probes/h ${counts.probes}`);
     assert.ok(counts.events <= local * 120 + remote * 60 + local + remote, `event polls/h ${counts.events}`);
     assert.ok(counts.spawns - counts.disabled <= local * 12 + local, `launchctl print/h ${counts.spawns - counts.disabled}`);

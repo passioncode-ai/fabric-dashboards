@@ -55,7 +55,7 @@ export async function lookAtServices(o: LookOptions = {}): Promise<Look> {
   const dir = o.servicesDir ?? defaultServicesDir();
   let entries: DescriptorEntry[];
   try {
-    entries = readDirectory(dir, o.platform ?? process.platform);
+    entries = readDirectory(dir);
   } catch (error) {
     return { servicesDir: dir, error: (error as Error).message, services: [] };
   }

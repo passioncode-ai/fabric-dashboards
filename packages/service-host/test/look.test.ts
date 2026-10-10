@@ -5,12 +5,13 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { LaunchdReader, lookAtServices, type Runner, type WellKnownResult } from '../src/index';
+import { tmpDir } from './tmp';
 
 const FIXTURES = path.join(__dirname, '../../../test/fixtures/contract');
 const fx = (name: string) => JSON.parse(fs.readFileSync(path.join(FIXTURES, name), 'utf8'));
 
 function world() {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'fsh-look-'));
+  const dir = tmpDir('fsh-look-');
   const write = (d: Record<string, unknown>, name = `${d.id}.${d.instance}.json`) => fs.writeFileSync(path.join(dir, name), JSON.stringify(d));
   const base = fx('positive_service-descriptor.json');
   const wk = fx('positive_service-well-known.json');

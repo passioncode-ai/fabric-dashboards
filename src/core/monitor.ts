@@ -267,7 +267,7 @@ export class Monitor extends EventEmitter {
   private rescan(): void {
     let entries: DescriptorEntry[];
     try {
-      entries = readDirectory(this.o.servicesDir, this.platform);
+      entries = readDirectory(this.o.servicesDir); // paths in this machine's own grammar; `platform` models the supervisor
       this.dirError = null;
     } catch (error) {
       this.dirError = (error as Error).message;

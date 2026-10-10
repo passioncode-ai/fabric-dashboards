@@ -6,10 +6,11 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { claimConflicts, expand, portOf, readDirectory, servicesDir, validateDescriptor } from '../src/descriptor';
+import { tmpDir } from './tmp';
 
 const FIXTURES = path.join(__dirname, '../../../test/fixtures/contract');
 const fx = (name: string) => JSON.parse(fs.readFileSync(path.join(FIXTURES, name), 'utf8'));
-const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'fsh-descriptor-'));
+const tmp = () => tmpDir('fsh-descriptor-');
 
 test('contract fixtures: positive descriptors pass, negative ones fail with the reason', () => {
   assert.deepEqual(validateDescriptor(fx('positive_service-descriptor.json')), []);

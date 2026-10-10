@@ -88,6 +88,16 @@ export function stageNativeModulesFor(from, stage, platform, arch) {
   return out;
 }
 
+/**
+ * The .deb's dependencies: electron-builder's defaults (FpmTarget) plus the libraries Electron links that
+ * those do not pull in — a clean Ubuntu 24.04 install failed on libasound.so.2 (FD-37 rehearsal). Ubuntu
+ * 24.04 renamed some to `t64`; the alternative keeps Debian 12 and Ubuntu 22.04 installing.
+ */
+export const DEB_DEPENDS = [
+  'libgtk-3-0', 'libnotify4', 'libnss3', 'libxss1', 'libxtst6', 'xdg-utils', 'libatspi2.0-0', 'libuuid1', 'libsecret-1-0',
+  'libasound2t64 | libasound2', 'libgbm1', 'libdrm2', 'libxkbcommon0', 'libcups2t64 | libcups2', 'libxcomposite1', 'libxdamage1', 'libxrandr2',
+];
+
 /** electron-builder's configuration for the installers, from the packaged directory (PL-02). */
 export function builderConfig(t, version, out) {
   const protocols = [{ name: PRODUCT, schemes: ['fabric-dashboards'] }];
@@ -112,7 +122,7 @@ export function builderConfig(t, version, out) {
       desktop: { entry: { MimeType: 'x-scheme-handler/fabric-dashboards;', StartupWMClass: 'fabric-dashboards' } },
     },
     appImage: { artifactName: t.artifacts[0] },
-    deb: { artifactName: t.artifacts[1], packageName: 'fabric-dashboards' },
+    deb: { artifactName: t.artifacts[1], packageName: 'fabric-dashboards', depends: DEB_DEPENDS },
   };
 }
 

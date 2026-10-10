@@ -14,6 +14,7 @@ import { claimConflicts, placementOf, readDirectory, validateDescriptor } from '
 import { fetchWellKnown, readToken } from '../src/health';
 import { lookAtServices } from '../src/look';
 import { UNMANAGED, type LaunchdReader } from '../src/launchd';
+import { tmpDir } from './tmp';
 
 const remote = (over: Record<string, unknown> = {}) => ({
   protocol: 'fabric-service/0.1', id: 'example-agent', instance: 'default', name: 'Example Agent', placement: 'remote',
@@ -34,7 +35,7 @@ test('a remote descriptor is valid without paths and refuses everything that is 
 });
 
 test('a remote origin claims no port: same number as a local service, no conflict', () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'svc-remote-'));
+  const dir = tmpDir('svc-remote-');
   fs.writeFileSync(path.join(dir, 'maker.default.json'), JSON.stringify({ ...remote({ id: 'maker', placement: undefined, origin: 'http://127.0.0.1:8443' }), paths: { data: path.join(dir, 'm'), logs: [] } }));
   fs.writeFileSync(path.join(dir, 'example-agent.default.json'), JSON.stringify(remote({ origin: 'https://agent.example.com:8443' })));
   const entries = readDirectory(dir);
@@ -67,7 +68,7 @@ async function tlsServer(dir: string, handler: (req: http.IncomingMessage, res: 
 }
 
 test('fetchWellKnown over verified TLS: refused without the token, the document with it, never a redirect', { skip: !haveOpenssl && 'openssl not available' }, async () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'svc-tls-'));
+  const dir = tmpDir('svc-tls-');
   const seen: string[] = [];
   const s = await tlsServer(dir, (req, res) => {
     seen.push(String(req.headers.host));
@@ -92,7 +93,7 @@ test('fetchWellKnown over verified TLS: refused without the token, the document 
 });
 
 test('one look at a remote service reads its token, probes with it, and is invalid when the token is unreadable', { skip: !haveOpenssl && 'openssl not available' }, async () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'svc-look-'));
+  const dir = tmpDir('svc-look-');
   const s = await tlsServer(dir, (req, res) => {
     if (req.headers.authorization === `Bearer ${TOKEN}`) { res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(WELL_KNOWN)); return; }
     res.writeHead(401); res.end();

@@ -101,6 +101,8 @@ test('FD-37 dist-other: Linux makes an AppImage and a .deb that open fabric-dash
   assert.equal(c.appImage.artifactName, t.artifacts[0]);
   assert.equal(c.deb.artifactName, t.artifacts[1]);
   assert.equal(c.deb.packageName, 'fabric-dashboards', 'the name `sudo apt remove` uses (uninstallTarget)');
+  assert.ok(c.deb.depends.includes('libasound2t64 | libasound2'), 'ALSA, which a clean Ubuntu lacked');
+  for (const lib of ['libgtk-3-0', 'libnss3', 'libgbm1']) assert.ok(c.deb.depends.includes(lib), lib);
   assert.equal(c.extraMetadata.version, '1.2.3');
   assert.equal(c.win, undefined);
 });
