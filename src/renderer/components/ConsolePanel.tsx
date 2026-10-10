@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import '@xterm/xterm/css/xterm.css';
-import type { ConsoleInfo, ConsoleStartResult } from '../../core/api';
+import type { ConsoleInfo, ConsoleStartResult, ConsoleTask } from '../../core/api';
 import { CONSOLE_WIDTH } from '../../core/types';
 import { api, Icon, Spinner, useT } from '../lib';
 
@@ -13,6 +13,9 @@ interface Props {
   width: number;
   onWidth: (width: number, commit: boolean) => void;
   onHide: () => void;
+  /** FD-39 D-3: a job to start with (Fix / Update with agent); taken once, then cleared by the shell. */
+  task?: { task: ConsoleTask; nonce: number } | null;
+  onTaskTaken?: () => void;
 }
 
 /** The terminal's colours, from the app's theme tokens. */
@@ -28,7 +31,7 @@ function shortPath(p: string): string {
   return home ? `~${p.slice(home.length)}` : p;
 }
 
-export function ConsolePanel({ serviceKey, width, onWidth, onHide }: Props) {
+export function ConsolePanel({ serviceKey, width, onWidth, onHide, task, onTaskTaken }: Props) {
   const { t } = useT();
   const host = useRef<HTMLDivElement>(null);
   const term = useRef<Terminal | null>(null);
@@ -99,14 +102,14 @@ export function ConsolePanel({ serviceKey, width, onWidth, onHide }: Props) {
     else setNotice(null); // no-runtime, no-folder: the panel's own state says it
   };
 
-  const start = async (mode: 'new' | 'continue') => {
+  const start = async (mode: 'new' | 'continue', job?: ConsoleTask) => {
     setStarting(true);
     try {
       const x = term.current;
       try { fit.current?.fit(); } catch { /* not laid out */ }
       x?.write('\x1bc');
       shown.current = 0; // a new session counts from its own first character
-      say(await api().consoleStart(serviceKey, mode, { cols: x?.cols ?? 80, rows: x?.rows ?? 24 }));
+      say(await api().consoleStart(serviceKey, mode, { cols: x?.cols ?? 80, rows: x?.rows ?? 24 }, job));
       x?.focus();
     } catch (error) {
       setNotice({ text: t('console.spawnError', { detail: String((error as Error)?.message ?? error) }) });
@@ -115,6 +118,16 @@ export function ConsolePanel({ serviceKey, width, onWidth, onHide }: Props) {
       void refresh();
     }
   };
+  // FD-39 SCN-054/055: a handed-over task starts once the panel knows its session; a running session
+  // is never doubled — the person sees it and the notice says why.
+  useEffect(() => {
+    if (!task || !info || info.key !== serviceKey || starting) return;
+    onTaskTaken?.();
+    if (info.session.state === 'running') { setNotice({ text: t('console.running') }); return; }
+    void start('new', task.task);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [task?.nonce, info?.key]);
+
   const openTerminal = async (mode: 'new' | 'continue') => {
     const r = await api().consoleOpenTerminal(serviceKey, mode).catch((e: unknown) => ({ ok: false, error: String((e as Error)?.message ?? e) }));
     if (!r.ok) setNotice({ text: r.error === 'continue-unsupported' ? t('console.continueUnsupported') : t('console.terminalFailed', { detail: r.error ?? '' }) });

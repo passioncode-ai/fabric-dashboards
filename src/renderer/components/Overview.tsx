@@ -1,3 +1,4 @@
+import { offersAgentUpdate, offersFix } from '../../core/offers';
 import { attentionRank } from '@passioncode-ai/fabric-service-host/state';
 import { useEffect, useState } from 'react';
 import { sumSpend, type SpendEntry } from '../../core/spend';
@@ -31,12 +32,14 @@ export function LoginQuestion() {
   );
 }
 
-interface Props { status: AppStatus; products: Product[]; open: (key: string, link?: string, tab?: 'logs' | 'health') => void; act: (key: string, action: 'restart' | 'start' | 'update') => void; goSpend: () => void }
+interface Props { status: AppStatus; products: Product[]; open: (key: string, link?: string, tab?: 'logs' | 'health') => void; act: (key: string, action: 'restart' | 'start' | 'update') => void; goSpend: () => void;
+  /** FD-39 D-3: Fix / Update with agent. */
+  agent?: (key: string, task: { kind: 'fix' | 'update' }) => void }
 
 /** Needs attention shows this many rows; the rest wait behind "Show all" (ADR-0014). */
 const ATTENTION_VISIBLE = 3;
 
-export function Overview({ status, products, open, act, goSpend }: Props) {
+export function Overview({ status, products, open, act, goSpend, agent }: Props) {
   const { t, reason } = useT();
   const [showAll, setShowAll] = useState(false);
   const [pathError, setPathError] = useState('');
@@ -119,6 +122,8 @@ export function Overview({ status, products, open, act, goSpend }: Props) {
                 <button className="linkish name" onClick={() => open(s.key)}>{nameOf(s)}</button>
                 <span className="why" title={attentionLine(s)}>{attentionLine(s)}</span>
                 {action(s)}
+                {agent && !s.busy && offersFix(s) && <button className="btn" aria-label={`${t('agent.fix')} — ${nameOf(s)}`} onClick={() => agent(s.key, { kind: 'fix' })}>{t('agent.fix')}</button>}
+                {agent && !s.busy && !offersFix(s) && offersAgentUpdate(s, false) && <button className="btn" aria-label={`${t('agent.update')} — ${nameOf(s)}`} onClick={() => agent(s.key, { kind: 'update' })}>{t('agent.update')}</button>}
               </li>
             ))}
           </ul>

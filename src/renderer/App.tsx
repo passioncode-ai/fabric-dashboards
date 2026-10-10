@@ -8,6 +8,7 @@ import { ServiceView } from './components/ServiceView';
 import { Settings } from './components/Settings';
 import { Spend } from './components/Spend';
 import { ConsolePanel } from './components/ConsolePanel';
+import type { ConsoleTask } from '../core/api';
 import mark from './brand/dashboards-mark.svg';
 import { api, GLYPH, Icon, LangContext, nameOf, Spinner, useT } from './lib';
 
@@ -125,6 +126,13 @@ function Shell({ status, route, setRoute, stopKey, setStopKey, activityFilter, s
   // FD-39 (ADR-0020): pinned first in pin order, the rest in the chosen sort.
   const { pinned, foreground, background } = arrangeProducts(products, layout.list);
   const pin = (id: string) => changeLayout({ list: { pinned: togglePin(layout.list.pinned, id) } });
+  // FD-39 D-3: Fix / Update with agent opens the agent's page and console; the console starts the task once it is ready.
+  const [agentTask, setAgentTask] = useState<{ key: string; task: ConsoleTask; nonce: number } | null>(null);
+  const handToAgent = (key: string, task: ConsoleTask) => {
+    setRoute({ page: 'service', key });
+    if (!layout.console.open) changeLayout({ console: { open: true } });
+    setAgentTask({ key, task, nonce: Date.now() });
+  };
   const currentProduct = route.page === 'service' ? productOf(products, route.key) : undefined;
   const count = products.length; // ADR-0012: the heading counts what the sidebar lists
   const rail = layout.sidebar === 'collapsed';
@@ -186,11 +194,11 @@ function Shell({ status, route, setRoute, stopKey, setStopKey, activityFilter, s
           ? <div className="svc-split">
             <ServiceView key={current.key} s={current} all={status.services} members={currentProduct?.members ?? [current]} open={open} link={route.link} nonce={route.nonce} tab={route.tab} runUpdate={route.tab === 'health' && route.page === 'service'} activityRev={status.activityRev} overlayOpen={stopOpen} askStop={askStop} updateStarted={() => setRoute({ ...route, tab: undefined })}
               headerFull={layout.header === 'full'} onToggleHeader={() => changeLayout({ header: layout.header === 'full' ? 'compact' : 'full' })}
-              consoleOpen={layout.console.open} onToggleConsole={() => changeLayout({ console: { open: !layout.console.open } })} />
+              consoleOpen={layout.console.open} onToggleConsole={() => changeLayout({ console: { open: !layout.console.open } })} onAgent={handToAgent} />
             {layout.console.open && (
               <ConsolePanel serviceKey={current.key} width={consoleWidth}
                 onWidth={(w, commit) => changeLayout({ console: { width: Math.round(Math.min(CONSOLE_WIDTH.max, Math.max(CONSOLE_WIDTH.min, w))) } }, commit)}
-                onHide={() => changeLayout({ console: { open: false } })} />
+                onHide={() => changeLayout({ console: { open: false } })} task={agentTask?.key === current.key ? agentTask : null} onTaskTaken={() => setAgentTask(null)} />
             )}
           </div>
           : (
@@ -200,7 +208,7 @@ function Shell({ status, route, setRoute, stopKey, setStopKey, activityFilter, s
                 {route.page === 'overview' && count > 0 && <span className="meta">{count === 1 ? t('overview.count.one') : t('overview.count', { count })}</span>}
               </div>
               {route.page === 'overview' && <LoginQuestion />}
-              {route.page === 'overview' && <Overview status={status} products={products} open={open} act={act} goSpend={() => setRoute({ page: 'spend' })} />}
+              {route.page === 'overview' && <Overview status={status} products={products} open={open} act={act} agent={handToAgent} goSpend={() => setRoute({ page: 'spend' })} />}
               {route.page === 'activity' && <Activity status={status} openAt={open} filter={activityFilter} setFilter={setActivityFilter} />}
               {route.page === 'spend' && <Spend status={status} />}
               {route.page === 'settings' && <Settings status={status} onTheme={applyTheme} onLanguage={onLanguage} />}

@@ -162,3 +162,16 @@ test('FD-39 REQ-001/002/005: a console start writes the pack and carries it — 
   assert.deepEqual(plain.handoff.after, [], 'a plain start: Claude waits for the person');
   assert.equal(plain.env.FABRIC_DASHBOARDS_TASK, undefined);
 });
+
+test('FD-39 SCN-054/055: Fix is offered where something is wrong; Update with agent where the agent\'s own command cannot apply the update', async () => {
+  const { offersFix, offersAgentUpdate } = await import('../src/core/offers');
+  for (const state of ['down', 'duplicate', 'foreign', 'conflict', 'invalid', 'degraded'] as const) assert.equal(offersFix({ state, problems: [], lastAction: null }), true, state);
+  assert.equal(offersFix({ state: 'ready', problems: [], lastAction: null }), false);
+  assert.equal(offersFix({ state: 'ready', problems: ['bad path'], lastAction: null }), true, 'a descriptor problem');
+  assert.equal(offersFix({ state: 'stopped', problems: [], lastAction: { action: 'start', ok: false, reason: { code: 'x' }, at: '' } }), true, 'a failed action');
+  const update = { wellKnown: { update: { available: '2.0.0' } }, descriptor: { commands: { update: ['/x'] } } } as unknown as Parameters<typeof offersAgentUpdate>[0];
+  assert.equal(offersAgentUpdate(update, false), false, 'its own command runs first');
+  assert.equal(offersAgentUpdate(update, true), true, 'after it failed');
+  assert.equal(offersAgentUpdate({ ...update, descriptor: { commands: {} } } as typeof update, false), true, 'no command at all');
+  assert.equal(offersAgentUpdate({ ...update, wellKnown: { update: null } } as unknown as typeof update, true), false, 'no update, nothing to offer');
+});

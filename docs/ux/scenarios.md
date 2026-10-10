@@ -1108,7 +1108,7 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **States covered:** success, error, loading
 - **Errors & recovery:** the runtime fails to start -> the console says why (SCN-049's errors)
 - **Status:** draft
-- **Coverage:** src/core/handoff.ts (fixTask)
+- **Coverage:** src/core/offers.ts (offersFix), src/core/handoff.ts (fixTask), src/renderer/App.tsx (handToAgent), src/renderer/components/ConsolePanel.tsx, ServiceView.tsx (header and card), Overview.tsx (Needs attention), test/handoff.test.ts, test/e2e/focus-console.test.ts
 - **Product:** unobserved
 
 ### SCN-055: Update with agent
@@ -1126,7 +1126,7 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **States covered:** success, error
 - **Errors & recovery:** as SCN-054
 - **Status:** draft
-- **Coverage:** src/core/handoff.ts (updateTask)
+- **Coverage:** src/core/offers.ts (offersAgentUpdate), src/core/handoff.ts (updateTask), ServiceView.tsx, Overview.tsx, test/handoff.test.ts
 - **Product:** unobserved
 
 ### SCN-056: Pin an agent to the top of the list

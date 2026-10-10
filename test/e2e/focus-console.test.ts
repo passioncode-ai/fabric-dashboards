@@ -114,6 +114,18 @@ test('ADR-0017: a one-line header, a folding sidebar, and an agent console besid
     await page.getByRole('group', { name: 'Stop this session?' }).getByRole('button', { name: 'Stop' }).click();
     await page.getByText('Stopped.').waitFor({ timeout: 15_000 });
 
+    // FD-39 SCN-054: the agent stops answering; "Fix with agent" starts the runtime with the context and the task.
+    await stopProcess(proc);
+    await page.getByRole('button', { name: 'Fix with agent' }).first().waitFor({ timeout: 60_000 });
+    await shot(page, '24-fix-with-agent');
+    await page.getByRole('button', { name: 'Fix with agent' }).first().click();
+    await waitFor('the runtime to start on the task', async () => /task\.md \(your task\), then do the task\.\]/.test(await termText(page)));
+    assert.match(fs.readFileSync(path.join(pack, 'task.md'), 'utf8'), /^# Task: Sample Service is (down|stopped)/);
+    await page.locator('.console-term').click();
+    await page.keyboard.type('bye');
+    await page.keyboard.press('Enter');
+    await page.getByText('Exited (code 0).').waitFor({ timeout: 15_000 });
+
     // FD-39 SCN-056: pin the agent to the top; a Pinned section holds it, and the choice is remembered.
     await page.locator('.nav-row').filter({ hasText: 'Sample Service' }).hover();
     await page.getByRole('button', { name: 'Pin Sample Service to the top' }).click();
