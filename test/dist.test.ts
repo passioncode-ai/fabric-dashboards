@@ -136,11 +136,14 @@ test('dist: release.yml signs in the release environment and ships only what was
   // F-1/F-2: one release at a time, the check repeated right before publish, a failed lookup is not a tag.
   at('group: release\n');
   assert.ok(at('still-newest:') < at('uses: passioncode-ai/.github/.github/workflows/release-publish.yml@v1'));
-  at('needs: [macos, packages, still-newest]');
+  at('needs: [macos, windows, linux, still-newest]');
+  // PL-10: the same stage names in every product.
+  for (const job of ['preflight', 'check', 'macos', 'windows', 'linux', 'still-newest', 'publish']) at(`\n  ${job}:\n`);
   // FD-37: the Windows and Linux packages are built after the gate ran on every system, and publish waits for them.
   at('uses: ./.github/workflows/validate.yml\n    with:\n      os: all');
-  assert.ok(at('  packages:\n    needs: [version, check]') < at('uses: passioncode-ai/.github/.github/workflows/release-publish.yml@v1'));
-  at("needs.packages.result == 'success'");
+  assert.ok(at('  windows:\n    needs: [preflight, check]') < at('uses: passioncode-ai/.github/.github/workflows/release-publish.yml@v1'));
+  at('  linux:\n    needs: [preflight, check]');
+  at("needs.windows.result == 'success' && needs.linux.result == 'success'");
   at("grep -q 'HTTP 404' /tmp/gh-err");
   at('team-id: ${{ vars.APPLE_TEAM_ID }}');
   // The order that makes the update zip and the image come from the stapled app.

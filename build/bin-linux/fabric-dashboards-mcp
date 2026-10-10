@@ -1,7 +1,7 @@
 #!/bin/sh
 # fabric-dashboards-mcp — the Fabric Dashboards MCP server over stdio (docs/adr/0004-deep-links-and-mcp.md).
 # Runs the app's own binary as Node (the RunAsNode fuse), so nothing beyond the app is installed.
-# Register it once (the .deb):  claude mcp add fabric-dashboards -- "/opt/Fabric Dashboards/resources/bin/fabric-dashboards-mcp"
+# Register it once (the .deb):  claude mcp add fabric-dashboards -- "/opt/fabric-dashboards/resources/bin/fabric-dashboards-mcp"
 set -eu
 self=$(readlink -f "$0")
 resources=$(dirname "$(dirname "$self")")

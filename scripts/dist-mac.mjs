@@ -569,9 +569,10 @@ function stageSeal(ctx) {
   const verdict = assessRelease(record, m);
   requireThat(verdict.problems.length === 0, `Not releasable:\n- ${verdict.problems.join('\n- ')}`);
   const receipt = {
-    product: PRODUCT, version, revision: record.revision, electronVersion: record.electronVersion, architectures: record.architectures, builtAt: record.builtAt,
+    // PL-10: every product's platform receipts carry version, commit, arch, macos_notarization, windows_authenticode, checks.
+    product: PRODUCT, version, commit: record.revision, arch: 'universal', architectures: record.architectures, electronVersion: record.electronVersion, builtAt: record.builtAt,
     image: path.basename(paths.dmg), updateZip: path.basename(paths.zip),
-    signing: verdict.signing, notarization: verdict.notarization, gatekeeper: verdict.gatekeeper,
+    signing: verdict.signing, macos_notarization: verdict.notarization, windows_authenticode: null, gatekeeper: verdict.gatekeeper,
     checks: { ...record.checks, ...verdict.checks },
     zipSha256: sha256(paths.zip), sha256: sha256(paths.dmg), bytes: statSync(paths.dmg).size,
   };

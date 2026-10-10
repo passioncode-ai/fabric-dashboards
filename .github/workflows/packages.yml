@@ -6,7 +6,7 @@
 # Windows signing (PL-03): release.yml calls this with `sign: true`. Its Windows jobs then run in the
 # protected `release` environment (approved by release-approvers; an agent never approves) and, where that
 # environment's AZURE_SIGNING_ENABLED is true, sign with Azure Artifact Signing over OIDC — no secret: the
-# environment's federated credential — between dist-other's stages: the app's executable after `app`, the
+# environment's federated credential; passioncode-ai/.github actions/windows-signing@v1 — between dist-other's stages: the app's executable after `app`, the
 # installer after `installer`; `seal` refuses a file that is not `Valid` and writes `windows_authenticode:
 # SIGNED`. Otherwise the receipt says NOT_SIGNED. Linux packages are not Authenticode material. Every file is
 # covered by the release's GPG-signed SHA256SUMS and Sigstore attestations (release-publish.yml, `release-*`).
@@ -23,6 +23,10 @@ on:
         description: 'true from release.yml: Windows jobs run in the release environment and sign when AZURE_SIGNING_ENABLED is on'
         type: boolean
         default: false
+      os:
+        description: 'windows, linux, or all'
+        type: string
+        default: all
 
 permissions:
   contents: read
@@ -33,20 +37,19 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - { runner: windows-latest, os: windows, arch: x64 }
-          - { runner: windows-11-arm, os: windows, arch: arm64 }
-          - { runner: ubuntu-24.04, os: linux, arch: x64 }
-          - { runner: ubuntu-24.04-arm, os: linux, arch: arm64 }
+        # Every row, filtered by `os` (release.yml runs its windows and linux stages as separate jobs, PL-10).
+        include: ${{ fromJSON(inputs.os == 'windows' && '[{"runner":"windows-latest","os":"windows","arch":"x64"},{"runner":"windows-11-arm","os":"windows","arch":"arm64"}]' || inputs.os == 'linux' && '[{"runner":"ubuntu-24.04","os":"linux","arch":"x64"},{"runner":"ubuntu-24.04-arm","os":"linux","arch":"arm64"}]' || '[{"runner":"windows-latest","os":"windows","arch":"x64"},{"runner":"windows-11-arm","os":"windows","arch":"arm64"},{"runner":"ubuntu-24.04","os":"linux","arch":"x64"},{"runner":"ubuntu-24.04-arm","os":"linux","arch":"arm64"}]') }}
     runs-on: ${{ matrix.runner }}
     # Only a signing Windows job enters the protected environment; an empty name is no environment.
     environment: ${{ inputs.sign && matrix.os == 'windows' && 'release' || '' }}
     timeout-minutes: 75
     permissions:
       contents: read
-      id-token: write # azure/login (OIDC), used only when Windows signing is on
+      id-token: write # windows-signing@v1 (OIDC), used only when Windows signing is on
     env:
       FD_WINDOWS_SIGNING: ${{ inputs.sign && matrix.os == 'windows' && vars.AZURE_SIGNING_ENABLED == 'true' }}
+      # A release (not a rehearsal): an unsigned Windows build must say so in the CHANGELOG (PL-03).
+      FD_WINDOWS_RELEASE: ${{ inputs.sign && matrix.os == 'windows' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -68,68 +71,53 @@ jobs:
         run: echo "version=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
       - name: Build and check the app
         run: node scripts/dist-other.mjs --stage app
-      # Signing pass 1: the app's executable, before the installer packs it.
-      - name: Azure login (OIDC)
+      # Signing pass 1: the app's executable, before the installer packs it — the organization's action
+      # (passioncode-ai/.github, PL-03): OIDC sign-in, SHA-256 + RFC 3161 timestamp, fails unless Valid and timestamped.
+      - name: Sign the app's executable
         if: env.FD_WINDOWS_SIGNING == 'true'
-        uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
+        uses: passioncode-ai/.github/actions/windows-signing@v1
         with:
+          files: ${{ github.workspace }}\release\stage-windows-${{ matrix.arch }}\app\Fabric Dashboards.exe
+          report: ${{ runner.temp }}/signatures-app.json
           client-id: ${{ vars.AZURE_CLIENT_ID }}
           tenant-id: ${{ vars.AZURE_TENANT_ID }}
           subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
-      - name: Sign the app's executable
-        if: env.FD_WINDOWS_SIGNING == 'true'
-        uses: Azure/artifact-signing-action@c7ab2a863ab5f9a846ddb8265964877ef296ee82 # v2.0.0
-        with:
-          files: ${{ github.workspace }}\release\stage-windows-${{ matrix.arch }}\app\Fabric Dashboards.exe
           endpoint: ${{ vars.AZURE_SIGNING_ENDPOINT }}
-          signing-account-name: ${{ vars.AZURE_SIGNING_ACCOUNT }}
-          certificate-profile-name: ${{ vars.AZURE_CERTIFICATE_PROFILE }}
-          file-digest: SHA256
-          timestamp-rfc3161: http://timestamp.acs.microsoft.com
-          timestamp-digest: SHA256
-          exclude-environment-credential: true
-          exclude-workload-identity-credential: true
-          exclude-managed-identity-credential: true
-          exclude-shared-token-cache-credential: true
-          exclude-visual-studio-credential: true
-          exclude-visual-studio-code-credential: true
-          exclude-azure-cli-credential: false
-          exclude-azure-powershell-credential: true
-          exclude-azure-developer-cli-credential: true
-          exclude-interactive-browser-credential: true
+          account: ${{ vars.AZURE_SIGNING_ACCOUNT }}
+          certificate-profile: ${{ vars.AZURE_CERTIFICATE_PROFILE }}
+          # The organization's Public Trust subject (release-signing README); any other signer fails the job.
+          expected-subject: O=Siarhei Sheleh
       - name: The installers
         run: node scripts/dist-other.mjs --stage installer
       # Signing pass 2: the installer itself.
       - name: Sign the installer
         if: env.FD_WINDOWS_SIGNING == 'true'
-        uses: Azure/artifact-signing-action@c7ab2a863ab5f9a846ddb8265964877ef296ee82 # v2.0.0
+        uses: passioncode-ai/.github/actions/windows-signing@v1
         with:
           files: ${{ github.workspace }}\release\Fabric-Dashboards-${{ steps.version.outputs.version }}-windows-${{ matrix.arch }}-setup.exe
+          report: ${{ runner.temp }}/signatures-installer.json
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
           endpoint: ${{ vars.AZURE_SIGNING_ENDPOINT }}
-          signing-account-name: ${{ vars.AZURE_SIGNING_ACCOUNT }}
-          certificate-profile-name: ${{ vars.AZURE_CERTIFICATE_PROFILE }}
-          file-digest: SHA256
-          timestamp-rfc3161: http://timestamp.acs.microsoft.com
-          timestamp-digest: SHA256
-          exclude-environment-credential: true
-          exclude-workload-identity-credential: true
-          exclude-managed-identity-credential: true
-          exclude-shared-token-cache-credential: true
-          exclude-visual-studio-credential: true
-          exclude-visual-studio-code-credential: true
-          exclude-azure-cli-credential: false
-          exclude-azure-powershell-credential: true
-          exclude-azure-developer-cli-credential: true
-          exclude-interactive-browser-credential: true
+          account: ${{ vars.AZURE_SIGNING_ACCOUNT }}
+          certificate-profile: ${{ vars.AZURE_CERTIFICATE_PROFILE }}
+          # The organization's Public Trust subject (release-signing README); any other signer fails the job.
+          expected-subject: O=Siarhei Sheleh
       - name: Check the signatures and write the receipt
+        shell: bash
+        env:
+          # The two signing passes' reports; seal embeds the ones that exist.
+          FD_SIGNATURE_REPORTS: ${{ runner.temp }}/signatures-app.json${{ runner.os == 'Windows' && ';' || ':' }}${{ runner.temp }}/signatures-installer.json
         run: node scripts/dist-other.mjs --stage seal
       # The .deb on a clean system: it installs with its own dependencies and its MCP server answers.
-      - name: The .deb installs on a clean Ubuntu 24.04 and its MCP server answers
+      - name: The .deb installs on a clean Ubuntu 24.04, its MCP server answers and the app starts
         if: matrix.os == 'linux'
         shell: bash
         run: |
           deb=$(ls release/Fabric-Dashboards-*-linux-${{ matrix.arch }}.deb)
-          docker run --rm -v "$PWD:/w:ro" ubuntu:24.04 bash /w/scripts/deb-smoke.sh "/w/$deb"
+          # The app starts its Chromium sandbox as a desktop would: the setuid helper needs these inside a container.
+          docker run --rm --cap-add SYS_ADMIN --security-opt seccomp=unconfined --security-opt apparmor=unconfined -v "$PWD:/w:ro" ubuntu:24.04 bash /w/scripts/deb-smoke.sh "/w/$deb"
       # The installer on the runner that built it: per-user install, MCP answers, the app's own /S uninstall removes it.
       - name: The installer installs per user, its MCP server answers, and /S uninstalls it
         if: matrix.os == 'windows'

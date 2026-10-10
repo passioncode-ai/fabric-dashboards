@@ -101,6 +101,14 @@ test('FD-37 dist-other: Linux makes an AppImage and a .deb that open fabric-dash
   assert.equal(c.appImage.artifactName, t.artifacts[0]);
   assert.equal(c.deb.artifactName, t.artifacts[1]);
   assert.equal(c.deb.packageName, 'fabric-dashboards', 'the name `sudo apt remove` uses (uninstallTarget)');
+  assert.equal(c.productName, 'fabric-dashboards', '/opt/fabric-dashboards: Chromium\'s zygote cannot start from a path with a space');
+  assert.equal(c.linux.desktop.entry.Name, 'Fabric Dashboards', 'people still see the product name');
+  // Ubuntu 24.04: ordinary users may not create user namespaces, so the sandbox helper must be setuid root.
+  const after = fs.readFileSync(c.deb.afterInstall, 'utf8');
+  assert.ok(after.includes("APP_DIR='/opt/fabric-dashboards'"), 'the folder the .deb installs');
+  assert.match(after, /chown root:root "\$APP_DIR\/chrome-sandbox"\n\s+chmod 4755 "\$APP_DIR\/chrome-sandbox"/, 'always, not only where root cannot unshare');
+  assert.ok(after.includes('ln -sf "$APP_DIR/fabric-dashboards" /usr/bin/fabric-dashboards'));
+  assert.ok(fs.readFileSync(c.deb.afterRemove, 'utf8').includes('rm -f /usr/bin/fabric-dashboards'));
   assert.ok(c.deb.depends.includes('libasound2t64 | libasound2'), 'ALSA, which a clean Ubuntu lacked');
   for (const lib of ['libgtk-3-0', 'libnss3', 'libgbm1']) assert.ok(c.deb.depends.includes(lib), lib);
   assert.equal(c.extraMetadata.version, '1.2.3');
@@ -118,9 +126,13 @@ test('FD-37 dist-other: the uninstall target names the package the .deb installs
 
 test('FD-37 packages.yml: every system and architecture on its native runner, signed only for a release, no push trigger, collected by publish', () => {
   const wf = fs.readFileSync(path.join(root, '.github/workflows/packages.yml'), 'utf8');
-  for (const row of ['{ runner: windows-latest, os: windows, arch: x64 }', '{ runner: windows-11-arm, os: windows, arch: arm64 }', '{ runner: ubuntu-24.04, os: linux, arch: x64 }', '{ runner: ubuntu-24.04-arm, os: linux, arch: arm64 }']) {
-    assert.ok(wf.includes(row), `packages.yml builds ${row}`);
-  }
+  const rows = (os: string) => [...wf.matchAll(/'(\[\{"runner"[^']*\])'/g)].map((m) => JSON.parse(m[1]!)).find((list: { os: string }[]) => list.every((r) => r.os === os) || os === 'all' && list.length === 4);
+  assert.deepEqual(rows('all'), [
+    { runner: 'windows-latest', os: 'windows', arch: 'x64' }, { runner: 'windows-11-arm', os: 'windows', arch: 'arm64' },
+    { runner: 'ubuntu-24.04', os: 'linux', arch: 'x64' }, { runner: 'ubuntu-24.04-arm', os: 'linux', arch: 'arm64' },
+  ], 'every system and architecture on its native runner');
+  assert.deepEqual(rows('windows').map((r: { arch: string }) => r.arch), ['x64', 'arm64']);
+  assert.deepEqual(rows('linux').map((r: { arch: string }) => r.arch), ['x64', 'arm64']);
   assert.match(wf, /\non:\n {2}workflow_dispatch:\n {2}workflow_call:\n {4}inputs:\n {6}sign:\n[^]*?\n\npermissions:/, 'dispatch and call only (CI policy 2026-09-25)');
   assert.doesNotMatch(wf, /\n {2}(push|pull_request|schedule):/);
   assert.doesNotMatch(wf, /\$\{\{ secrets\./, 'Windows signs over OIDC: no secret reaches this workflow');
@@ -130,9 +142,14 @@ test('FD-37 packages.yml: every system and architecture on its native runner, si
   const order = ['--stage app', 'Sign the app\'s executable', '--stage installer', 'Sign the installer', '--stage seal', 'nsis-smoke.mjs', 'upload-artifact'].map((n) => wf.indexOf(n));
   assert.ok(order.every((i) => i > 0), 'every stage and signing step is there');
   assert.deepEqual([...order].sort((x, y) => x - y), order, 'sign between the stages, check the installer after sealing');
-  assert.equal(wf.split("if: env.FD_WINDOWS_SIGNING == 'true'").length - 1, 3, 'login and both signing passes only when signing is on');
+  assert.equal(wf.split("if: env.FD_WINDOWS_SIGNING == 'true'").length - 1, 2, 'both signing passes only when signing is on');
+  assert.equal(wf.split('uses: passioncode-ai/.github/actions/windows-signing@v1').length - 1, 2, 'the organization\'s action signs and verifies (PL-03)');
+  assert.doesNotMatch(wf, /artifact-signing-action|azure\/login/, 'no copied signing steps (PL-10)');
+  assert.equal(wf.split('expected-subject: O=Siarhei Sheleh').length - 1, 2, 'both passes pin the organization\'s signer');
+  assert.ok(wf.includes("FD_WINDOWS_RELEASE: ${{ inputs.sign && matrix.os == 'windows' }}"));
   const release = fs.readFileSync(path.join(root, '.github/workflows/release.yml'), 'utf8');
-  assert.ok(release.includes('uses: ./.github/workflows/packages.yml\n    with:\n      sign: true'), 'the release signs');
+  assert.ok(release.includes('uses: ./.github/workflows/packages.yml\n    with:\n      sign: true\n      os: windows'), 'the release signs its windows stage');
+  assert.ok(release.includes('uses: ./.github/workflows/packages.yml\n    with:\n      os: linux'), 'the linux stage never asks to sign');
   const validate = fs.readFileSync(path.join(root, '.github/workflows/validate.yml'), 'utf8');
   assert.ok(!validate.includes('sign: true'), 'a rehearsal never signs');
   assert.ok(wf.includes('run: node scripts/dist-other.mjs'));
@@ -141,15 +158,19 @@ test('FD-37 packages.yml: every system and architecture on its native runner, si
   assert.ok(wf.includes('release/Fabric-Dashboards-${{ steps.version.outputs.version }}-${{ matrix.os }}-${{ matrix.arch }}'));
   assert.ok(wf.includes('if-no-files-found: error'));
   // Each Linux .deb is installed on a clean Ubuntu and asked `initialize` (scripts/deb-smoke.sh).
-  assert.ok(wf.includes('docker run --rm -v "$PWD:/w:ro" ubuntu:24.04 bash /w/scripts/deb-smoke.sh "/w/$deb"'));
+  assert.ok(wf.includes('docker run --rm --cap-add SYS_ADMIN --security-opt seccomp=unconfined --security-opt apparmor=unconfined -v "$PWD:/w:ro" ubuntu:24.04 bash /w/scripts/deb-smoke.sh "/w/$deb"'), 'a clean Ubuntu, with what Chromium\'s sandbox needs');
   // The Windows installer is installed, asked `initialize` and removed with the uninstaller the app runs.
   assert.ok(wf.includes('run: node scripts/nsis-smoke.mjs release/Fabric-Dashboards-*-windows-${{ matrix.arch }}-setup.exe'));
   const nsis = fs.readFileSync(path.join(root, 'scripts/nsis-smoke.mjs'), 'utf8');
   assert.ok(nsis.includes("'Uninstall Fabric Dashboards.exe'"), 'the name uninstallTarget looks for');
   assert.ok(wf.includes('!release/*.blockmap'), 'electron-updater\'s blockmap is not ours to publish');
   const smoke = fs.readFileSync(path.join(root, 'scripts/deb-smoke.sh'), 'utf8');
-  for (const step of ['apt-get install -y -qq "$deb"', "grep 'not found'", '"method":"initialize"', 'apt-get remove -y -qq fabric-dashboards']) assert.ok(smoke.includes(step), step);
-  for (const m of wf.matchAll(/uses: ([^\s]+)/g)) assert.match(m[1], /@[0-9a-f]{40}$/, `${m[1]} is not pinned by commit`);
+  for (const step of ['apt-get install -y -qq "$deb" xvfb xauth', 'app=/opt/fabric-dashboards', "grep 'not found'", 'useradd -m smoke', 'initialize', 'xvfb-run -a /usr/bin/fabric-dashboards', 'started $version', 'apt-get remove -y -qq fabric-dashboards']) assert.ok(smoke.includes(step), step);
+  // Third-party actions by commit; the organization's own at @v1, as release.yml uses them (PL-10).
+  for (const m of wf.matchAll(/uses: ([^\s]+)/g)) {
+    if (m[1]!.startsWith('passioncode-ai/.github/')) assert.match(m[1]!, /@v1$/);
+    else assert.match(m[1]!, /@[0-9a-f]{40}$/, `${m[1]} is not pinned by commit`);
+  }
 });
 
 test('FD-37 PL-03: the Windows build runs in stages so the workflow can sign between them', async () => {
@@ -163,4 +184,13 @@ test('FD-37 PL-03: the Windows build runs in stages so the workflow can sign bet
   assert.equal(sp.build, path.join('/r', 'release', 'stage-windows-arm64', 'build.json'));
   assert.equal(d.signingExpected({ FD_WINDOWS_SIGNING: 'true' }), true);
   for (const v of [undefined, 'false', '1', 'TRUE']) assert.equal(d.signingExpected({ FD_WINDOWS_SIGNING: v }), false, `FD_WINDOWS_SIGNING=${v}`);
+});
+
+test('FD-37 PL-03: an unsigned Windows release says so in its CHANGELOG section, and only that section counts', async () => {
+  const d = await import('../scripts/dist-other.mjs');
+  const note = `${d.UNSIGNED_NOTE}; SmartScreen warns once. Verify them with SHA256SUMS.`;
+  assert.equal(d.saysUnsigned(`# Changelog\n\n## 1.2.3 - 2026-10-11\n\n- ${note}\n\n## 1.2.2 - 2026-10-01\n`, '1.2.3'), true);
+  assert.equal(d.saysUnsigned(`## 1.2.3 - 2026-10-11\n\n- Fixes.\n\n## 1.2.2 - 2026-10-01\n\n- ${note}\n`, '1.2.3'), false, 'an older release\'s line is not this one\'s');
+  assert.equal(d.saysUnsigned(`## 1.2.30\n\n- ${note}\n`, '1.2.3'), false, 'another version');
+  assert.equal(d.saysUnsigned('## Unreleased\n', '1.2.3'), false);
 });
