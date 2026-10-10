@@ -61,7 +61,8 @@
   | working | a control or command is running | — | progress label, other controls disabled, a second action refused |
   | no dashboard | no dashboard surface | — | opens on Health; Dashboard tab "This service has no dashboard." |
   | sign-in error | SCN-016 | — | "Cannot sign in to <Service>: <reason>" + token path + Retry |
-  | page error | the page does not load | — | "The page of <Service> could not load: <reason>" + Retry |
+  | refreshing | explicit Reload page, SCN-039 | — | spinner includes one fresh sign-in for registered login-capable services, then the current safe page; concurrent clicks share the attempt |
+  | page error | the page does not load, or explicit refresh returns an HTTP error | — | "The page of <Service> could not load: <reason>" + Retry |
   | crashed | the page crashed twice | — | "The page stopped." + Reload |
   | restarted | a new pid | — | "The service restarted." + Reload above the page |
 - **Coverage:** src/renderer/components/ServiceView.tsx, src/electron/views.ts

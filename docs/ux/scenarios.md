@@ -44,7 +44,7 @@
 | SCN-036 | See what every agent spent | spend | P-01 | ST-015 | draft | 2026-10-07 |
 | SCN-037 | A cost that is not known reads as unknown | spend | P-01 | ST-015 | draft | 2026-10-06 |
 | SCN-038 | An agent's spend cannot be read | spend | P-01 | ST-015, ST-004 | draft | 2026-10-06 |
-| SCN-039 | Reload and move through an embedded dashboard | dashboards | P-01 | ST-016, ST-005 | draft | 2026-10-06 |
+| SCN-039 | Reload and move through an embedded dashboard | dashboards | P-01 | ST-016, ST-005 | draft | 2026-10-09 |
 | SCN-040 | Copy a dashboard page's address or app link | dashboards | P-01 | ST-016, ST-011 | draft | 2026-10-06 |
 | SCN-041 | Overview at a glance | overview | P-01 | ST-016, ST-002, ST-015 | draft | 2026-10-06 |
 | SCN-042 | Many problems stay compact | overview | P-01 | ST-016, ST-002 | draft | 2026-10-06 |
@@ -367,7 +367,7 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **Preconditions:** none
 - **Steps:**
   1. User switches to another service and back -> system shows the same page, scrolled and filled as it was; a link from a notification or another agent is applied once, so a tab switch afterwards keeps the page the person moved to
-  2. The service restarts -> above the page, with the toolbar still there: "The service restarted." with Reload; Reload signs in again and reopens the same page
+  2. The service restarts -> above the page, with the toolbar still there: "The service restarted." with Reload; Reload signs in again once and reopens the same page; an HTTP failure shows Retry (SCN-039)
 - **Expected result:** one live view per service, never duplicated
 - **UI elements:** embedded page, "The service restarted." bar above it
 - **Alt paths:** the session ended while the page was open (the service answers 401) -> the app signs in again by itself, once a minute at most, and reopens the same page (ADR-0014); the window stays hidden for 5 minutes -> every dashboard is released, and showing the window again reopens the one that was on screen, on its page
@@ -878,15 +878,15 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **Steps:**
   1. User looks above the page -> a toolbar: Back, Forward (disabled until there is history), Reload page, Dashboard home, the page's address, Copy address, Copy app link
   2. User clicks a link inside the dashboard -> the address follows the page, Back becomes available
-  3. User clicks Reload page -> the same page loads again, a spinner on the button while it loads
+  3. User clicks Reload page -> for a registered live service that requires sign-in, the app performs one fresh sign-in using its existing service token, then reloads the current same-origin page; concurrent clicks share the attempt, with a spinner through sign-in and page loading. A service without sign-in uses its ordinary reload
   4. User clicks Dashboard home -> the service's dashboard path opens, signed in
 - **Expected result:** the operator controls the embedded page like a browser tab, without leaving the app
 - **Alt paths:** the page crashed -> "The page stopped." with Reload replaces the page and the toolbar (SCN-015); the service restarted -> "The service restarted." with Reload above the page, the toolbar stays; a page on another origin is never shown in the address
 - **UI elements:** dashboard toolbar
 - **States covered:** loading, success, error
-- **Errors & recovery:** a reload that fails -> "The page of <Service> could not load: <reason>" with Retry (SCN-016)
+- **Errors & recovery:** a reload or renewed sign-in that fails (including an HTTP error page) -> the existing page-error message with Retry (SCN-016); no automatic retry on a 404. A service no longer answering as the registered identity gets no token. Switching away while sign-in is pending prevents the completed attempt from taking over the current view
 - **Status:** draft
-- **Coverage:** src/renderer/components/ServiceView.tsx (DashboardToolbar), src/electron/views.ts (page, navigate), test/e2e/app.test.ts
+- **Coverage:** src/renderer/components/ServiceView.tsx (DashboardToolbar), src/electron/views.ts (page, navigate, refresh), test/dashboard-refresh.test.ts, test/e2e/app.test.ts; native refresh acceptance pending
 - **Product:** unobserved
 
 ### SCN-040: Copy a dashboard page's address or app link

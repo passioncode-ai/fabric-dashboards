@@ -18,12 +18,13 @@ const RESIGN_EVERY_MS = 60_000;
 /** What showing a dashboard came to; `stage` tells a sign-in that failed from a page that would not load. */
 export interface ShowResult { ok: boolean; error?: string; stage?: 'sign-in' | 'page' }
 
-interface Entry { view: WebContentsView; origin: string; crashes: number; loadedOnce: boolean; loadedAt: number; dashboardPath: string; resignedAt: number; resignTo: string | undefined | null }
+interface Entry { view: WebContentsView; origin: string; crashes: number; loadedOnce: boolean; loadedAt: number; dashboardPath: string; resignedAt: number; resignTo: string | undefined | null; navigationEpoch: number; lastStatus?: number }
 
 
 export class ServiceViews {
   private readonly views = new Map<string, Entry>();
   private shown: string | null = null;
+  private readonly refreshes = new Map<string, symbol>();
   private readonly slot = new ViewSlot();
   private bounds: Rect | null = null;
   private released: { key: string; owner: string; rect: Rect; link?: string } | null = null;
@@ -47,6 +48,13 @@ export class ServiceViews {
     return snap?.descriptor && snap.wellKnown && (snap.state === 'ready' || snap.state === 'degraded') ? snap : null;
   }
 
+  private sameLiveService(snap: ServiceSnapshot): boolean {
+    const now = this.live(snap.key);
+    return !!now && now.descriptor!.origin === snap.descriptor!.origin
+      && now.descriptor!.auth.tokenFile === snap.descriptor!.auth.tokenFile
+      && now.wellKnown?.surfaces.dashboard?.login === snap.wellKnown?.surfaces.dashboard?.login;
+  }
+
   private create(snap: ServiceSnapshot): Entry {
     const d = snap.descriptor!;
     const partition = partitionFor(snap.key);
@@ -66,7 +74,7 @@ export class ServiceViews {
     // At most once a minute, so a service that refuses every code cannot loop. Read from the
     // session's own requests: a reload reports no status through the navigation events.
     ses.webRequest.onCompleted({ urls: [`${new URL(d.origin).origin}/*`] }, (details) => {
-      if (details.resourceType !== 'mainFrame' || details.statusCode !== 401) return;
+      if (details.resourceType !== 'mainFrame' || details.statusCode !== 401 || this.refreshes.has(snap.key)) return;
       const entry = this.views.get(snap.key);
       if (!entry || !this.live(snap.key)?.wellKnown?.surfaces.dashboard?.login) return;
       if (Date.now() - entry.resignedAt < RESIGN_EVERY_MS) return;
@@ -81,7 +89,7 @@ export class ServiceViews {
       webPreferences: { partition, sandbox: true, contextIsolation: true, nodeIntegration: false, webSecurity: true, allowRunningInsecureContent: false },
     });
     view.setBackgroundColor('#0a070d');
-    const entry: Entry = { view, origin: d.origin, crashes: 0, loadedOnce: false, loadedAt: 0, dashboardPath: dashboardPathOf(snap.wellKnown?.surfaces.dashboard?.path), resignedAt: 0, resignTo: null };
+    const entry: Entry = { view, origin: d.origin, crashes: 0, loadedOnce: false, loadedAt: 0, dashboardPath: dashboardPathOf(snap.wellKnown?.surfaces.dashboard?.path), resignedAt: 0, resignTo: null, navigationEpoch: 0 };
     const wc = view.webContents;
     // ADR-0016: a link to another service opens it here, signed in with its own session.
     const follow = (url: string): boolean => {
@@ -105,7 +113,7 @@ export class ServiceViews {
     wc.on('did-finish-load', () => { entry.loadedOnce = true; entry.loadedAt = Date.now(); this.emit({ key: snap.key, kind: 'loaded' }); });
     // ADR-0014: the toolbar follows the page — a full navigation, an in-page route, loading on and off.
     const navigated = () => { const page = this.page(snap.key); if (page) this.emit({ key: snap.key, kind: 'navigated', page }); };
-    wc.on('did-navigate', navigated);
+    wc.on('did-navigate', (_event, _url, status) => { entry.lastStatus = status; navigated(); });
     wc.on('did-navigate-in-page', navigated);
     wc.on('did-start-loading', navigated);
     wc.on('did-stop-loading', () => { navigated(); this.resign(snap.key, entry); });
@@ -134,8 +142,10 @@ export class ServiceViews {
     entry.resignTo = null;
     const snap = this.live(key);
     if (!snap) return; // T-3: no token for whatever answers there now; the monitor's state says why
-    void this.load(snap, to).then((r) => {
-      if (!r.ok) this.emit({ key, kind: 'error', error: r.error });
+    const epoch = entry.navigationEpoch;
+    const current = () => this.views.get(key) === entry && entry.navigationEpoch === epoch;
+    void this.load(snap, to, current).then((r) => {
+      if (current() && !r.ok) this.emit({ key, kind: 'error', error: r.error });
     });
   }
 
@@ -150,23 +160,31 @@ export class ServiceViews {
   }
 
   /** Load the dashboard, signed in through a one-time code when the service asks for one. */
-  private async load(snap: ServiceSnapshot, link?: string): Promise<ShowResult> {
+  private async load(snap: ServiceSnapshot, link?: string, current: () => boolean = () => true, checkHttp = false): Promise<ShowResult> {
     const entry = this.views.get(snap.key) ?? this.create(snap);
     const d = snap.descriptor!;
     const dash = snap.wellKnown?.surfaces.dashboard;
     if (!dash) return { ok: false, error: 'no dashboard', stage: 'page' };
     let stage: ShowResult['stage'] = dash.login ? 'sign-in' : 'page';
+    const page = async (url: string) => {
+      entry.lastStatus = undefined;
+      await entry.view.webContents.loadURL(url);
+      if (checkHttp && entry.lastStatus !== undefined && entry.lastStatus >= 400) throw new Error(`HTTP ${entry.lastStatus}`);
+    };
     try {
+      if (!current()) return { ok: true };
       let url = resolveLink(d.origin, link, dash.path);
       if (dash.login) {
         const token = await readTokenAsync(d.auth.tokenFile); // main process only
         url = await loginUrl(d, token);
-        await entry.view.webContents.loadURL(url);
+        if (!current()) return { ok: true };
+        await page(url);
+        if (!current()) return { ok: true };
         stage = 'page';
-        if (link) await entry.view.webContents.loadURL(resolveLink(d.origin, link, dash.path));
+        if (link) await page(resolveLink(d.origin, link, dash.path));
         return { ok: true };
       }
-      await entry.view.webContents.loadURL(url);
+      await page(url);
       return { ok: true };
     } catch (error) {
       const text = loadErrorText(error);
@@ -189,6 +207,7 @@ export class ServiceViews {
   /** Show a service's view for the dashboard host `owner`. A show overtaken while it loaded — by a
    *  newer show or a hide — returns without attaching, so a slow page never covers the current one. */
   async show(snap: ServiceSnapshot, rect: Rect, link: string | undefined, owner: string, fresh = false): Promise<ShowResult> {
+    this.refreshes.delete(snap.key);
     const ticket = this.slot.request(owner, snap.key);
     if (!snap.descriptor || !snap.wellKnown || (snap.state !== 'ready' && snap.state !== 'degraded')) {
       this.slot.release(owner);
@@ -199,6 +218,7 @@ export class ServiceViews {
     if (existing && existing.origin !== snap.descriptor.origin) this.drop(snap.key);
     let entry = this.views.get(snap.key);
     let result: ShowResult = { ok: true };
+    if (entry) entry.navigationEpoch += 1;
     // Retry and Reload ask for a fresh load: the sign-in runs again and the view is attached again (R-6).
     if (entry && fresh) {
       entry.crashes = 0;
@@ -207,12 +227,16 @@ export class ServiceViews {
     }
     if (!entry || !entry.loadedOnce) {
       entry = entry ?? this.create(snap);
-      result = await this.load(snap, link);
+      if (fresh) { entry.resignedAt = Date.now(); entry.resignTo = null; }
+      result = await this.load(snap, link, () => this.slot.current(ticket)
+        && this.views.get(snap.key) === entry && (!fresh || this.sameLiveService(snap)), fresh);
     } else if (link) {
       result = await this.go(entry, resolveLink(snap.descriptor.origin, link, entry.dashboardPath));
     }
     if (!this.slot.current(ticket) || !this.views.has(snap.key)) return result;
+    if (fresh && !this.sameLiveService(snap)) result = { ok: false, error: 'unavailable', stage: 'page' };
     if (!result.ok) {
+      entry.loadedOnce = false;
       // A failed load leaves Chromium's error page in the view: the app's own message shows instead.
       if (this.shown === snap.key) this.hideNow();
       return result;
@@ -283,7 +307,7 @@ export class ServiceViews {
     if (!entry || entry.view.webContents.isDestroyed()) return null;
     const wc = entry.view.webContents;
     const { address, link } = pageAddress(wc.getURL(), entry.origin, entry.dashboardPath, key);
-    return { key, address, link, canGoBack: wc.navigationHistory.canGoBack(), canGoForward: wc.navigationHistory.canGoForward(), loading: wc.isLoading() };
+    return { key, address, link, canGoBack: wc.navigationHistory.canGoBack(), canGoForward: wc.navigationHistory.canGoForward(), loading: this.refreshes.has(key) || wc.isLoading() };
   }
 
   /** Back, forward, the dashboard's own page, or the current page again — never another origin. */
@@ -293,9 +317,46 @@ export class ServiceViews {
     const wc = entry.view.webContents;
     if (action === 'back' && wc.navigationHistory.canGoBack()) wc.navigationHistory.goBack();
     if (action === 'forward' && wc.navigationHistory.canGoForward()) wc.navigationHistory.goForward();
-    if (action === 'refresh') wc.reload();
+    if (action === 'refresh') { void this.refresh(key, entry); return; }
+    this.refreshes.delete(key);
+    entry.navigationEpoch += 1;
     if (action === 'home') void wc.loadURL(resolveLink(entry.origin, undefined, entry.dashboardPath)).catch(() => undefined);
   }
+
+  // #region dashboard-session-refresh — docs: docs/handoffs/2026-10-09-dashboard-session-refresh/README.md#requirements-and-delivery-profile
+  /** Explicit recovery uses existing service authority once; an HTTP 404 never starts it. */
+  private async refresh(key: string, entry: Entry): Promise<void> {
+    if (this.refreshes.has(key) || this.shown !== key) return;
+    const owner = this.slot.owner();
+    const snap = this.live(key);
+    if (!owner || !snap?.descriptor || snap.descriptor.origin !== entry.origin) {
+      this.emit({ key, kind: 'error', error: 'unavailable' });
+      return;
+    }
+    if (!snap.wellKnown?.surfaces.dashboard?.login) { entry.view.webContents.reload(); return; }
+    const attempt = Symbol('refresh');
+    this.refreshes.set(key, attempt);
+    entry.navigationEpoch += 1;
+    const current = () => this.refreshes.get(key) === attempt && this.views.get(key) === entry
+      && this.shown === key && this.slot.owner() === owner && this.slot.wanted() === key
+      && this.sameLiveService(snap);
+    const link = resumePath(entry.view.webContents.getURL(), entry.origin);
+    entry.resignedAt = Date.now();
+    entry.resignTo = null; // the explicit attempt supersedes a queued automatic 401 recovery
+    entry.loadedOnce = false;
+    const page = this.page(key);
+    if (page) this.emit({ key, kind: 'navigated', page });
+    try {
+      const result = await this.load(snap, link, current, true);
+      if (current() && !result.ok) { entry.loadedOnce = false; this.emit({ key, kind: 'error', error: result.error }); }
+    } finally {
+      const active = current();
+      if (this.refreshes.get(key) === attempt) this.refreshes.delete(key);
+      const page = active ? this.page(key) : null;
+      if (page) this.emit({ key, kind: 'navigated', page });
+    }
+  }
+  // #endregion dashboard-session-refresh
 
   /** The service restarted: its session cookie may be gone; the page offers Reload instead of reloading itself. */
   serviceRestarted(key: string): void {
@@ -303,6 +364,7 @@ export class ServiceViews {
   }
 
   drop(key: string): void {
+    this.refreshes.delete(key);
     const entry = this.views.get(key);
     if (!entry) return;
     if (this.shown === key) this.hideNow();
