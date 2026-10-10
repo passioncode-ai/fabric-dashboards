@@ -9,6 +9,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { atomicWrite } from './fsutil';
 import { AUTO_UPDATE_FILE } from './autoupdate';
+import { windowsPowerShellEnv } from '@passioncode-ai/fabric-service-host';
 import { places } from './platform';
 
 export const MCP_SERVER_NAME = 'fabric-dashboards';
@@ -278,7 +279,7 @@ function purgeAfterExitWindows(pid: number, paths: string[], keepDir: string, na
   ].join('; ');
   // Not detached: a DETACHED_PROCESS PowerShell has no console and does not start with a window style;
   // windowsHide keeps it out of sight, and Windows lets a child outlive its parent anyway.
-  const helper = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], { stdio: 'ignore', windowsHide: true });
+  const helper = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], { stdio: 'ignore', windowsHide: true, env: windowsPowerShellEnv() });
   helper.unref();
   return helper;
 }

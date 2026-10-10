@@ -395,6 +395,8 @@ test('FD-19: machine reasons read in Russian where they are known, and stay as w
   assert.equal(machineRu('connect ECONNREFUSED 127.0.0.1:8787'), 'соединение отклонено (127.0.0.1:8787)');
   // FD-37
   assert.equal(machineRu('the token file C:\\x\\t is outside your user profile, so Windows does not keep it private to you'), 'файл токена C:\\x\\t лежит вне вашего профиля, поэтому Windows не защищает его от других');
+  assert.equal(machineRu("the token file ~/t's permissions could not be read"), 'не удалось прочитать права файла токена ~/t');
+  assert.equal(machineRu("the token file ~/t's permissions could not be read: Exception calling \"GetAccessControl\""), 'не удалось прочитать права файла токена ~/t: Exception calling "GetAccessControl"', 'PowerShell\'s words stay as it wrote them');
   assert.equal(machineRu('Opening a terminal window is not available on this system yet.'), 'Открыть окно терминала в этой системе пока нельзя.');
   assert.equal(machineRu('the token file ~/t grants access to S-1-1-0, but only you, SYSTEM and Administrators may hold it'), 'файл токена ~/t даёт доступ S-1-1-0, а доступ допустим только у вас, SYSTEM и администраторов');
   assert.equal(machineRu('missing origin; protocol must be fabric-service/0.1, not x'), 'нет поля origin; protocol должен быть fabric-service/0.1, а не x');

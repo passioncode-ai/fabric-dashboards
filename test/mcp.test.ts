@@ -327,7 +327,7 @@ test('M2-1…M2-3: instances are named apart, link without a target says what to
   const { deps } = world({ descriptor: { commands: { update: [MISSING] } } });
   await assert.rejects(tools.link(deps, {}), /give service \(id\.instance\) or url/);
   deps.run = async () => ({ code: null, output: `spawn ${MISSING} ENOENT`, timedOut: false });
-  await assert.rejects(tools.command(deps, KEY, 'update'), /update command could not run: spawn \/nonexistent\/x ENOENT/);
+  await assert.rejects(tools.command(deps, KEY, 'update'), new RegExp(`update command could not run: spawn ${MISSING.replace(/[\\/]/g, '\\$&')} ENOENT`));
 });
 
 // ── third review pass T-1, T-4 ────────────────────────────────────────────────────────────

@@ -172,7 +172,17 @@ export function windowsAclProblem(acl: WindowsAcl, userSid: string): string | nu
   return null;
 }
 
-const ACL_SCRIPT = (file: string) => `$a = Get-Acl -LiteralPath '${file.replace(/'/g, "''")}'; ` +
+/**
+ * The environment for Windows PowerShell 5.1 (`powershell.exe`), without `PSModulePath`: a parent
+ * PowerShell 7 (pwsh — a GitHub runner's shell, or a person's terminal an agent was started from) sets it
+ * to its own module folders, and 5.1 then fails to load its built-in modules. Unset, 5.1 uses its own.
+ */
+export function windowsPowerShellEnv(env: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
+  return Object.fromEntries(Object.entries(env).filter(([k]) => k.toUpperCase() !== 'PSMODULEPATH'));
+}
+
+// .NET directly, not Get-Acl: no PowerShell module has to load for it.
+const ACL_SCRIPT = (file: string) => `$a = [System.IO.File]::GetAccessControl('${file.replace(/'/g, "''")}'); ` +
   "$s = [System.Security.Principal.SecurityIdentifier]; " +
   "$r = @($a.GetAccessRules($true, $true, $s) | ForEach-Object { @{ sid = $_.IdentityReference.Value; type = $_.AccessControlType.ToString(); rights = [long]$_.FileSystemRights } }); " +
   "@{ user = [System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value; owner = $a.GetOwner($s).Value; aces = $r } | ConvertTo-Json -Compress -Depth 4";
@@ -186,7 +196,7 @@ function windowsTokenAclProblem(file: string, label: string, info: fs.Stats): st
   const key = `${info.ctimeMs}|${info.mtimeMs}|${info.size}`;
   const hit = aclCache.get(file);
   if (hit && hit.key === key && Date.now() - hit.at < ACL_TTL_MS) return hit.problem;
-  const r = spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', ACL_SCRIPT(file)], { encoding: 'utf8', timeout: 15_000, windowsHide: true });
+  const r = spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', ACL_SCRIPT(file)], { encoding: 'utf8', timeout: 15_000, windowsHide: true, env: windowsPowerShellEnv() });
   let problem: string | null;
   try {
     const parsed = JSON.parse(r.stdout) as WindowsAcl & { user: string };
@@ -194,8 +204,9 @@ function windowsTokenAclProblem(file: string, label: string, info: fs.Stats): st
     const why = windowsAclProblem({ owner: parsed.owner, aces }, parsed.user);
     problem = why ? `the token file ${label} ${why}` : null;
   } catch {
-    // The ACL could not be read: refuse, never fall back to trusting the file.
-    problem = `the token file ${label}'s permissions could not be read`;
+    // The ACL could not be read: refuse, never fall back to trusting the file — and say what PowerShell said.
+    const said = (r.stderr || '').split(/\r?\n/).map((l) => l.trim()).find(Boolean) ?? (r.error ? r.error.message : '');
+    problem = `the token file ${label}'s permissions could not be read${said ? `: ${said.slice(0, 200)}` : ''}`;
   }
   aclCache.set(file, { key, at: Date.now(), problem });
   return problem;

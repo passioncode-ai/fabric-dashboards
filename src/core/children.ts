@@ -5,6 +5,7 @@
 // short, bounded by their own runner and start nothing that outlives them.
 // #region owned-children — docs: AGENTS.md#lifecycle
 import { execFile, spawn, type ChildProcess } from 'node:child_process';
+import { windowsPowerShellEnv } from '@passioncode-ai/fabric-service-host';
 import { descendantsOf, parseSnapshot, SNAPSHOT_SCRIPT } from './proctree';
 
 /** Variables a descriptor's command must never inherit. The packaged MCP server runs Electron as
@@ -37,9 +38,9 @@ const startedAt = new WeakMap<ChildProcess, number>();
 /** How far a process's creation time may precede the moment we recorded its start (clock granularity). */
 const CLOCK_ALLOWANCE_MS = 1_000;
 
-function quiet(file: string, args: string[], timeoutMs = 15_000): Promise<string> {
+function quiet(file: string, args: string[], timeoutMs = 15_000, env: NodeJS.ProcessEnv = process.env): Promise<string> {
   return new Promise((resolve) => {
-    execFile(file, args, { timeout: timeoutMs, windowsHide: true, maxBuffer: 32 * 1024 * 1024 }, (_error, stdout) => resolve(String(stdout ?? '')));
+    execFile(file, args, { timeout: timeoutMs, windowsHide: true, maxBuffer: 32 * 1024 * 1024, env }, (_error, stdout) => resolve(String(stdout ?? '')));
   });
 }
 
@@ -55,7 +56,7 @@ async function killWindowsLeftovers(child: ChildProcess): Promise<void> {
   const pid = child.pid;
   const since = startedAt.get(child);
   if (!pid || since === undefined) return;
-  const rows = parseSnapshot(await quiet('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', SNAPSHOT_SCRIPT], 30_000)); // WMI's first query on a cold runner takes seconds
+  const rows = parseSnapshot(await quiet('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', SNAPSHOT_SCRIPT], 30_000, windowsPowerShellEnv())); // WMI's first query on a cold runner takes seconds
   for (const left of descendantsOf(rows, pid, since - CLOCK_ALLOWANCE_MS)) await quiet('taskkill', ['/PID', String(left), '/T', '/F']);
 }
 

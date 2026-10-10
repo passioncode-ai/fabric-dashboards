@@ -15,7 +15,7 @@ import { displayName } from '../core/names';
 import { ConsoleHost } from './console';
 import { appendLog, sweepTemps } from '../core/fsutil';
 import { parseDeepLink, SCHEME } from '../core/deeplink';
-import { servicesDir } from '@passioncode-ai/fabric-service-host';
+import { servicesDir, windowsPowerShellEnv } from '@passioncode-ai/fabric-service-host';
 import { chooseLang, langFor, t, type Lang } from '../core/i18n';
 import { execRunner } from '../core/launchd';
 import { listListeners, unattributed } from '../core/listeners';
@@ -378,7 +378,7 @@ if (!app.requestSingleInstanceLock()) {
         else if (target.kind === 'run-uninstaller') {
           // After this app exits (uninstallCommand); a failure to start it is said, never thrown.
           const cmd = uninstallCommand(target, process.pid);
-          const child = spawn(cmd.file, cmd.args, { stdio: 'ignore', windowsHide: true }); // see purgeAfterExitWindows: not detached
+          const child = spawn(cmd.file, cmd.args, { stdio: 'ignore', windowsHide: true, env: windowsPowerShellEnv() }); // see purgeAfterExitWindows: not detached
           child.on('error', (error) => log(`uninstall: the uninstaller could not start: ${error.message}`));
           child.unref();
         } else await dialog.showMessageBox({ type: 'info', message: t(l, 'uninstall.manual', { how: target.kind === 'package' ? target.command : t(l, target.reason) }), buttons: ['OK'] });

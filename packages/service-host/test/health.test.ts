@@ -5,7 +5,7 @@ import http from 'node:http';
 import type { AddressInfo } from 'node:net';
 import path from 'node:path';
 import test from 'node:test';
-import { checkWellKnown, fetchWellKnown, request, tokenFileProblem, windowsAclProblem } from '../src/health';
+import { checkWellKnown, fetchWellKnown, request, tokenFileProblem, windowsAclProblem, windowsPowerShellEnv } from '../src/health';
 
 const WELL_KNOWN = JSON.parse(fs.readFileSync(path.join(__dirname, '../../../test/fixtures/contract/positive_service-well-known.json'), 'utf8'));
 
@@ -119,4 +119,9 @@ test('DEC-0032: windowsAclProblem accepts the user, SYSTEM and Administrators, a
   assert.match(windowsAclProblem({ ...own, owner: 'S-1-5-21-9-9-9-1002' }, user) ?? '', /owned by S-1-5-21-9-9-9-1002/);
   assert.equal(windowsAclProblem({ ...own, owner: 'S-1-5-32-544' }, user), null, 'an elevated administrator\'s file is owned by Administrators');
   assert.equal(windowsAclProblem({ ...own, aces: [...own.aces, { sid: 'S-1-5-11', type: 'Allow', rights: 0 }] }, user), null, 'an ACE that grants nothing is no grant');
+});
+
+test('FD-37: Windows PowerShell 5.1 runs without the PSModulePath a parent PowerShell 7 set, in any spelling', () => {
+  const env = windowsPowerShellEnv({ Path: 'C:\\Windows', PSModulePath: 'C:\\Program Files\\PowerShell\\7\\Modules', psmodulepath: 'x', USERPROFILE: 'C:\\Users\\me' });
+  assert.deepEqual(env, { Path: 'C:\\Windows', USERPROFILE: 'C:\\Users\\me' });
 });

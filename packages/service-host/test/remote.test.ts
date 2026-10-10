@@ -35,7 +35,7 @@ test('a remote descriptor is valid without paths and refuses everything that is 
 
 test('a remote origin claims no port: same number as a local service, no conflict', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'svc-remote-'));
-  fs.writeFileSync(path.join(dir, 'maker.default.json'), JSON.stringify({ ...remote({ id: 'maker', placement: undefined, origin: 'http://127.0.0.1:8443' }), paths: { data: '/tmp/m', logs: [] } }));
+  fs.writeFileSync(path.join(dir, 'maker.default.json'), JSON.stringify({ ...remote({ id: 'maker', placement: undefined, origin: 'http://127.0.0.1:8443' }), paths: { data: path.join(dir, 'm'), logs: [] } }));
   fs.writeFileSync(path.join(dir, 'example-agent.default.json'), JSON.stringify(remote({ origin: 'https://agent.example.com:8443' })));
   const entries = readDirectory(dir);
   assert.equal(entries.filter((e) => e.descriptor).length, 2);
