@@ -12,6 +12,22 @@
   service supervised by launchd is shown read-only on a system without launchd, saying why. The shared
   service-host package reads Windows services from `%LOCALAPPDATA%\passioncode-fabric\services`,
   accepts Windows paths in descriptors written there, and checks a Windows token file by where it lives.
+- **Windows and Linux builds** (FD-37, platforms.md PL-02, PL-08). Each release now carries a Windows
+  installer for x64 and arm64 (per user, no administrator rights; not yet Authenticode-signed, PL-03) and
+  a Linux AppImage and `.deb` for x64 and arm64, each built on its own system and checked by the finished
+  app before it ships; every `.deb` is installed on a clean Ubuntu 24.04 and asked to answer as an MCP
+  server. The test suite runs on all five systems before a release.
+- **On Windows and Linux** (FD-37 M2/M3): commands an agent or the Health tab runs end with their whole
+  process tree; the console finds runtimes the way the system does (PATHEXT on Windows); a
+  `fabric-dashboards://` link that starts the app opens its page; *Open at login* works on Linux (an
+  XDG autostart entry, written only when you choose it); a Windows token file owned by Administrators
+  (any file an elevated administrator writes) is accepted, as the contract now says (DEC-0033), and its
+  permissions are read without the window ever waiting on PowerShell.
+
+### Fixed
+
+- The test suite removes its temporary folders when it ends; 4,810 had piled up (592 MB) on a
+  developer's machine.
 
 ## 0.6.7 - 2026-10-09
 

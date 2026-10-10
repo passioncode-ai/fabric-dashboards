@@ -2,6 +2,7 @@
 // One look at a service's health: the well-known document on its own origin. A local service
 // answers it without a token on loopback; a remote one (DEC-0019) only over verified https and
 // only to the bearer of its token — a host passes the token's header in `options.headers`.
+import { execFile, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import http from 'node:http';
 import os from 'node:os';
@@ -149,8 +150,103 @@ export function tokenFileProblem(file: string, info: TokenFileInfo, o: { platfor
   return null;
 }
 
-/** Read a service token with the kits' refusals (`tokenFileProblem`). Main process only. */
-export function readToken(tokenFile: string): string {
+/** A Windows file's ACL, SIDs only (no account names: those are localised and can be renamed). */
+export interface WindowsAcl { owner: string; aces: { sid: string; type: string; rights: number }[] }
+
+/** DEC-0032's allow-list beside the current user: SYSTEM and BUILTIN\Administrators — the trust of root on POSIX. */
+const TRUSTED_SIDS = new Set(['S-1-5-18', 'S-1-5-32-544']);
+
+/**
+ * Why a Windows token file's ACL must not be trusted, or null (contract service.md, Windows token
+ * files): the owner is the current user, and every ACE that grants any right names the user, SYSTEM
+ * or Administrators. A deny ACE does not decide. The refusal names the SID, never the contents.
+ */
+export function windowsAclProblem(acl: WindowsAcl, userSid: string): string | null {
+  // An elevated administrator's new files are owned by BUILTIN\\Administrators, not the user (Windows'
+  // default for that group); owner SYSTEM or Administrators is the trust an ACE may already hold.
+  if (acl.owner !== userSid && !TRUSTED_SIDS.has(acl.owner)) return `is owned by ${acl.owner}, not by you`;
+  for (const ace of acl.aces) {
+    if (!/^allow$/i.test(ace.type) || !(ace.rights > 0)) continue;
+    if (ace.sid !== userSid && !TRUSTED_SIDS.has(ace.sid)) return `grants access to ${ace.sid}, but only you, SYSTEM and Administrators may hold it`;
+  }
+  return null;
+}
+
+/**
+ * The environment for Windows PowerShell 5.1 (`powershell.exe`), without `PSModulePath`: a parent
+ * PowerShell 7 (pwsh — a GitHub runner's shell, or a person's terminal an agent was started from) sets it
+ * to its own module folders, and 5.1 then fails to load its built-in modules. Unset, 5.1 uses its own.
+ */
+export function windowsPowerShellEnv(env: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
+  return Object.fromEntries(Object.entries(env).filter(([k]) => k.toUpperCase() !== 'PSMODULEPATH'));
+}
+
+// .NET directly, not Get-Acl: no PowerShell module has to load for it.
+const ACL_SCRIPT = (file: string) => `$a = [System.IO.File]::GetAccessControl('${file.replace(/'/g, "''")}'); ` +
+  "$s = [System.Security.Principal.SecurityIdentifier]; " +
+  "$r = @($a.GetAccessRules($true, $true, $s) | ForEach-Object { @{ sid = $_.IdentityReference.Value; type = $_.AccessControlType.ToString(); rights = [long]$_.FileSystemRights } }); " +
+  "@{ user = [System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value; owner = $a.GetOwner($s).Value; aces = $r } | ConvertTo-Json -Compress -Depth 4";
+
+/** DEC-0032: one PowerShell read per file at most every ACL_TTL_MS, or when its metadata changes. The read
+ *  runs asynchronously (`readTokenAsync`) so the main process never waits on PowerShell — whose cold start
+ *  on a Windows arm64 machine passed 15 s in CI; a synchronous `readToken` uses that verdict when it has one. */
+const ACL_TTL_MS = 5 * 60_000;
+const ACL_SYNC_TIMEOUT_MS = 15_000;
+const ACL_ASYNC_TIMEOUT_MS = 60_000;
+const aclCache = new Map<string, { key: string; at: number; problem: string | null }>();
+const aclReading = new Map<string, Promise<void>>();
+const aclKey = (info: fs.Stats) => `${info.ctimeMs}|${info.mtimeMs}|${info.size}`;
+const POWERSHELL_ARGS = (file: string) => ['-NoProfile', '-NonInteractive', '-Command', ACL_SCRIPT(file)];
+
+/** What PowerShell's answer means for the token file; `cache` is false for a timeout, which says nothing about the file. */
+function aclVerdict(stdout: string, stderr: string, error: Error | undefined, label: string): { problem: string | null; cache: boolean } {
+  try {
+    const parsed = JSON.parse(stdout) as WindowsAcl & { user: string };
+    const aces = Array.isArray(parsed.aces) ? parsed.aces : parsed.aces ? [parsed.aces] : [];
+    const why = windowsAclProblem({ owner: parsed.owner, aces }, parsed.user);
+    return { problem: why ? `the token file ${label} ${why}` : null, cache: true };
+  } catch {
+    // The ACL could not be read: refuse, never fall back to trusting the file — and say what PowerShell said.
+    const said = (stderr || '').split(/\r?\n/).map((l) => l.trim()).find(Boolean) ?? (error ? error.message : '');
+    const timedOut = (error as NodeJS.ErrnoException | undefined)?.code === 'ETIMEDOUT' || /ETIMEDOUT/.test(error?.message ?? '');
+    return { problem: `the token file ${label}'s permissions could not be read${said ? `: ${said.slice(0, 200)}` : ''}`, cache: !timedOut };
+  }
+}
+
+function freshAcl(file: string, info: fs.Stats): { problem: string | null } | undefined {
+  const hit = aclCache.get(file);
+  return hit && hit.key === aclKey(info) && Date.now() - hit.at < ACL_TTL_MS ? hit : undefined;
+}
+
+function windowsTokenAclProblem(file: string, label: string, info: fs.Stats): string | null {
+  const hit = freshAcl(file, info);
+  if (hit) return hit.problem;
+  const r = spawnSync('powershell.exe', POWERSHELL_ARGS(file), { encoding: 'utf8', timeout: ACL_SYNC_TIMEOUT_MS, windowsHide: true, env: windowsPowerShellEnv() });
+  const v = aclVerdict(r.stdout ?? '', r.stderr ?? '', r.error, label);
+  if (v.cache) aclCache.set(file, { key: aclKey(info), at: Date.now(), problem: v.problem });
+  return v.problem;
+}
+
+/** Read the file's ACL into the cache without blocking; one read per file at a time. */
+function readWindowsAcl(file: string, label: string, info: fs.Stats): Promise<void> {
+  if (freshAcl(file, info)) return Promise.resolve();
+  const running = aclReading.get(file);
+  if (running) return running;
+  const reading = new Promise<void>((resolve) => {
+    execFile('powershell.exe', POWERSHELL_ARGS(file), { encoding: 'utf8', timeout: ACL_ASYNC_TIMEOUT_MS, windowsHide: true, env: windowsPowerShellEnv() }, (error, stdout, stderr) => {
+      // execFile names its own timeout `killed` with signal SIGTERM.
+      const timedOut = error && (error as { killed?: boolean }).killed ? Object.assign(new Error('powershell.exe ETIMEDOUT'), { code: 'ETIMEDOUT' }) : error ?? undefined;
+      const v = aclVerdict(stdout, stderr, timedOut, label);
+      if (v.cache) aclCache.set(file, { key: aclKey(info), at: Date.now(), problem: v.problem });
+      resolve();
+    });
+  }).finally(() => aclReading.delete(file));
+  aclReading.set(file, reading);
+  return reading;
+}
+
+/** The checks both readers share; returns the path to read and the real path the ACL is read from. */
+function checkedTokenFile(tokenFile: string): { file: string; where: string; win: boolean } {
   const file = expand(tokenFile);
   const info = fs.lstatSync(file);
   // FD-37: on Windows the profile check compares real paths, so a junction inside the profile that leads
@@ -161,9 +257,37 @@ export function readToken(tokenFile: string): string {
   const problem = tokenFileProblem(where, { symlink: info.isSymbolicLink(), uid: info.uid, mode: info.mode },
     { platform: process.platform, uid: typeof process.getuid === 'function' ? process.getuid() : undefined, home }, tokenFile);
   if (problem) throw new Error(problem);
+  return { file, where, win };
+}
+
+function tokenOf(file: string, tokenFile: string): string {
   const token = fs.readFileSync(file, 'utf8').trim();
   if (token.length < 16) throw new Error(`the token file ${tokenFile} holds no usable token`);
   return token;
+}
+
+/** Read a service token with the kits' refusals (`tokenFileProblem`). Main process only. On Windows it may
+ *  wait for PowerShell when no verdict is cached; prefer `readTokenAsync` wherever the caller can await. */
+export function readToken(tokenFile: string): string {
+  const { file, where, win } = checkedTokenFile(tokenFile);
+  if (win) {
+    const acl = windowsTokenAclProblem(where, tokenFile, fs.statSync(where));
+    if (acl) throw new Error(acl);
+  }
+  return tokenOf(file, tokenFile);
+}
+
+/** `readToken` without blocking: on Windows the ACL is read by an asynchronous PowerShell first. */
+export async function readTokenAsync(tokenFile: string): Promise<string> {
+  const { file, where, win } = checkedTokenFile(tokenFile);
+  if (win) {
+    const info = fs.statSync(where);
+    await readWindowsAcl(where, tokenFile, info);
+    const hit = freshAcl(where, info);
+    const acl = hit ? hit.problem : `the token file ${tokenFile}'s permissions could not be read: powershell.exe ETIMEDOUT`;
+    if (acl) throw new Error(acl);
+  }
+  return tokenOf(file, tokenFile);
 }
 
 /** The header that carries a descriptor's token. */

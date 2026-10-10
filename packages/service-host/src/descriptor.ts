@@ -133,7 +133,7 @@ export interface DescriptorEntry {
  * problem, never a throw; an absent directory is an empty list. Anything else the directory
  * itself refuses (not a directory, no permission) is thrown for the caller to report.
  */
-export function readDirectory(dir: string): DescriptorEntry[] {
+export function readDirectory(dir: string, platform: NodeJS.Platform = process.platform): DescriptorEntry[] {
   let names: string[];
   try {
     names = fs.readdirSync(dir).filter((n) => n.endsWith('.json') && !n.startsWith('.')).sort();
@@ -150,7 +150,7 @@ export function readDirectory(dir: string): DescriptorEntry[] {
     } catch (error) {
       return { path: file, key: stem, descriptor: null, problems: [`the file cannot be read as JSON: ${(error as Error).message}`] };
     }
-    const problems = validateDescriptor(raw);
+    const problems = validateDescriptor(raw, platform);
     const d = raw as Descriptor;
     const key = isStr(d?.id) && isStr(d?.instance) ? `${d.id}.${d.instance}` : stem;
     if (!problems.length && `${d.id}.${d.instance}` !== stem) {

@@ -5,7 +5,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-const ASAR_MARK = `${path.sep}Contents${path.sep}Resources${path.sep}app.asar${path.sep}`;
+// Either separator: the code is the same on every system, the tests run on all of them (FD-37).
+const ASAR_MARK = /[\\/]Contents[\\/]Resources[\\/]app\.asar[\\/]/;
 
 /**
  * The file whose identity stands for "the installed code". Inside the packaged app that is
@@ -14,8 +15,10 @@ const ASAR_MARK = `${path.sep}Contents${path.sep}Resources${path.sep}app.asar${p
  * a checkout it is the server's own compiled file.
  */
 export function codeFile(from = __filename): string {
-  const i = from.indexOf(ASAR_MARK);
-  return i >= 0 ? path.join(from.slice(0, i), 'Contents', 'Info.plist') : from;
+  const m = ASAR_MARK.exec(from);
+  if (!m) return from;
+  const sep = m[0][0]!; // the path keeps the separators it came with, on any system
+  return [from.slice(0, m.index), 'Contents', 'Info.plist'].join(sep);
 }
 
 /** CFBundleShortVersionString from an XML Info.plist, read with plain fs. */

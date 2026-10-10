@@ -23,7 +23,7 @@ function setup(offset = { ms: 0 }) {
   return { base, services, activity, monitor, notices, offset };
 }
 
-test('discovers a service, reads its events and notifies only on new ones', async () => {
+test('discovers a service, reads its events and notifies only on new ones', { skip: process.platform === 'win32' && 'the adapter kit\'s sample service is POSIX-only (fcntl, getuid); its Windows port belongs to fabric-agent-adapter (contract DEC-0032)' }, async () => {
   const { base, services, activity, monitor, notices } = setup();
   const port = await freePort();
   const data = path.join(base, 'svc');
@@ -63,7 +63,7 @@ test('discovers a service, reads its events and notifies only on new ones', asyn
   }
 });
 
-test('a service that stops answering becomes down, notifies once, and is back', async () => {
+test('a service that stops answering becomes down, notifies once, and is back', { skip: process.platform === 'win32' && 'the adapter kit\'s sample service is POSIX-only (fcntl, getuid); its Windows port belongs to fabric-agent-adapter (contract DEC-0032)' }, async () => {
   const offset = { ms: 0 };
   const { base, services, activity, monitor, notices } = setup(offset);
   const port = await freePort();
@@ -93,7 +93,7 @@ test('a service that stops answering becomes down, notifies once, and is back', 
   }
 });
 
-test('another program on the port is foreign and gets no token; a shared port is a conflict', async () => {
+test('another program on the port is foreign and gets no token; a shared port is a conflict', { skip: process.platform === 'win32' && 'the adapter kit\'s sample service is POSIX-only (fcntl, getuid); its Windows port belongs to fabric-agent-adapter (contract DEC-0032)' }, async () => {
   const { base, services, monitor } = setup();
   const port = await freePort();
   const data = path.join(base, 'svc');

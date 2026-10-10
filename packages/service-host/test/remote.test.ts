@@ -2,7 +2,7 @@
 // reads it. TLS is real (a certificate made for this run with openssl); only the dial address is
 // redirected to 127.0.0.1, while the name, SNI, certificate and Host stay the origin's.
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import http from 'node:http';
 import https from 'node:https';
@@ -14,10 +14,11 @@ import { claimConflicts, placementOf, readDirectory, validateDescriptor } from '
 import { fetchWellKnown, readToken } from '../src/health';
 import { lookAtServices } from '../src/look';
 import { UNMANAGED, type LaunchdReader } from '../src/launchd';
+import { tmpDir } from './tmp';
 
 const remote = (over: Record<string, unknown> = {}) => ({
   protocol: 'fabric-service/0.1', id: 'example-agent', instance: 'default', name: 'Example Agent', placement: 'remote',
-  origin: 'https://agent.example.com', auth: { tokenFile: '/tmp/x/t.token' }, lifecycle: { manager: 'none' },
+  origin: 'https://agent.example.com', auth: { tokenFile: '~/x/t.token' }, lifecycle: { manager: 'none' },
   installedAt: '2026-10-02T18:00:00Z', installedBy: 'test', ...over,
 });
 
@@ -34,8 +35,8 @@ test('a remote descriptor is valid without paths and refuses everything that is 
 });
 
 test('a remote origin claims no port: same number as a local service, no conflict', () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'svc-remote-'));
-  fs.writeFileSync(path.join(dir, 'maker.default.json'), JSON.stringify({ ...remote({ id: 'maker', placement: undefined, origin: 'http://127.0.0.1:8443' }), paths: { data: '/tmp/m', logs: [] } }));
+  const dir = tmpDir('svc-remote-');
+  fs.writeFileSync(path.join(dir, 'maker.default.json'), JSON.stringify({ ...remote({ id: 'maker', placement: undefined, origin: 'http://127.0.0.1:8443' }), paths: { data: path.join(dir, 'm'), logs: [] } }));
   fs.writeFileSync(path.join(dir, 'example-agent.default.json'), JSON.stringify(remote({ origin: 'https://agent.example.com:8443' })));
   const entries = readDirectory(dir);
   assert.equal(entries.filter((e) => e.descriptor).length, 2);
@@ -67,7 +68,7 @@ async function tlsServer(dir: string, handler: (req: http.IncomingMessage, res: 
 }
 
 test('fetchWellKnown over verified TLS: refused without the token, the document with it, never a redirect', { skip: !haveOpenssl && 'openssl not available' }, async () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'svc-tls-'));
+  const dir = tmpDir('svc-tls-');
   const seen: string[] = [];
   const s = await tlsServer(dir, (req, res) => {
     seen.push(String(req.headers.host));
@@ -92,7 +93,7 @@ test('fetchWellKnown over verified TLS: refused without the token, the document 
 });
 
 test('one look at a remote service reads its token, probes with it, and is invalid when the token is unreadable', { skip: !haveOpenssl && 'openssl not available' }, async () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'svc-look-'));
+  const dir = tmpDir('svc-look-');
   const s = await tlsServer(dir, (req, res) => {
     if (req.headers.authorization === `Bearer ${TOKEN}`) { res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(WELL_KNOWN)); return; }
     res.writeHead(401); res.end();
@@ -106,13 +107,16 @@ test('one look at a remote service reads its token, probes with it, and is inval
   const probe = (origin: string, options?: Parameters<typeof fetchWellKnown>[2]) => fetchWellKnown(origin, 3000, { ...options, ca: s.ca, connect: { host: '127.0.0.1', port: s.port } });
   try {
     const look = await lookAtServices({ servicesDir: services, launchd, wellKnown: probe });
-    assert.equal(look.services[0]!.state, 'ready');
-    fs.chmodSync(tokenFile, 0o644);
+    assert.equal(look.services[0]!.state, 'ready', look.services[0]!.problems.join('; '));
+    // POSIX widens the mode; Windows grants Everyone (S-1-1-0) read access — DEC-0032's refusal names it.
+    const windows = process.platform === 'win32';
+    if (windows) execFileSync('icacls', [tokenFile, '/grant', '*S-1-1-0:R'], { stdio: 'ignore' });
+    else fs.chmodSync(tokenFile, 0o644);
     const bad = await lookAtServices({ servicesDir: services, launchd, wellKnown: probe });
     assert.equal(bad.services[0]!.state, 'invalid');
-    assert.match(bad.services[0]!.problems.join(' '), /readable by others/);
+    assert.match(bad.services[0]!.problems.join(' '), windows ? /S-1-1-0/ : /readable by others/);
     assert.equal(bad.services[0]!.probe, null, 'a service whose token cannot be read is never contacted');
-    assert.throws(() => readToken(tokenFile), /0600/);
+    assert.throws(() => readToken(tokenFile), windows ? /S-1-1-0/ : /0600/);
   } finally {
     await s.close();
   }

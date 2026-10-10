@@ -1,0 +1,76 @@
+# The Windows and Linux packages (FD-37, ADR-0019, fabric-workspace knowledge/platforms.md PL-02, PL-03, PL-08):
+# an NSIS per-user installer for Windows x64 and arm64, an AppImage and a .deb for Linux x64 and arm64, each
+# built by scripts/dist-other.mjs on the native runner of its system and architecture, checked by the
+# finished binary itself, with a receipt naming every file's SHA-256.
+#
+# Nothing here is signed, so it needs no protected environment: Windows ships `windows_authenticode:
+# NOT_SIGNED` until the organization's Azure certificate profile exists (PL-03), and every file is covered
+# by the release's GPG-signed SHA256SUMS and Sigstore attestations, which release-publish.yml makes from
+# every `release-*` artifact.
+#
+# release.yml calls this before publishing. Dispatched by hand it is a rehearsal: the packages are kept as
+# workflow artifacts for 14 days and no release is touched (machine CI policy of 2026-09-25: no push trigger).
+name: packages
+
+on:
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  # #region packages-in-ci — docs: docs/RUNBOOK.md#release
+  package:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { runner: windows-latest, os: windows, arch: x64 }
+          - { runner: windows-11-arm, os: windows, arch: arm64 }
+          - { runner: ubuntu-24.04, os: linux, arch: x64 }
+          - { runner: ubuntu-24.04-arm, os: linux, arch: arm64 }
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '22'
+      # electron-builder's bundled fpm (which makes the .deb) is an x86-64 binary; on arm64 it uses the
+      # system's, installed from RubyGems at a fixed version.
+      - name: fpm for the arm64 .deb
+        if: matrix.os == 'linux' && matrix.arch == 'arm64'
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q ruby ruby-dev build-essential
+          sudo gem install fpm -v 1.16.0 --no-document
+          echo "USE_SYSTEM_FPM=true" >> "$GITHUB_ENV"
+      # npm ci builds node-pty on Linux with node-gyp (python3, make, g++ are on the runner); Windows uses its prebuild.
+      - run: npm ci
+      - name: Build, check and package
+        run: node scripts/dist-other.mjs
+      # The .deb on a clean system: it installs with its own dependencies and its MCP server answers.
+      - name: The .deb installs on a clean Ubuntu 24.04 and its MCP server answers
+        if: matrix.os == 'linux'
+        shell: bash
+        run: |
+          deb=$(ls release/Fabric-Dashboards-*-linux-${{ matrix.arch }}.deb)
+          docker run --rm -v "$PWD:/w:ro" ubuntu:24.04 bash /w/scripts/deb-smoke.sh "/w/$deb"
+      # The installer on the runner that built it: per-user install, MCP answers, the app's own /S uninstall removes it.
+      - name: The installer installs per user, its MCP server answers, and /S uninstalls it
+        if: matrix.os == 'windows'
+        shell: bash
+        run: node scripts/nsis-smoke.mjs release/Fabric-Dashboards-*-windows-${{ matrix.arch }}-setup.exe
+      - id: version
+        shell: bash
+        run: echo "version=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-${{ matrix.os }}-${{ matrix.arch }}
+          path: |
+            release/Fabric-Dashboards-${{ steps.version.outputs.version }}-${{ matrix.os }}-${{ matrix.arch }}*
+            !release/*.blockmap
+          if-no-files-found: error
+          retention-days: 14
+  # #endregion packages-in-ci

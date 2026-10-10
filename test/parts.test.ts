@@ -121,7 +121,7 @@ test('settings persist atomically and heal a damaged file', () => {
   s.update({ theme: 'light', notifications: { ...s.get().notifications, quietHours: { enabled: true, from: '23:00', to: '07:00' } } });
   assert.equal(new SettingsStore(dir).get().theme, 'light');
   assert.equal(new SettingsStore(dir).get().notifications.quietHours.from, '23:00');
-  assert.equal(fs.statSync(path.join(dir, 'settings.json')).mode & 0o777, 0o600);
+  if (process.platform !== 'win32') assert.equal(fs.statSync(path.join(dir, 'settings.json')).mode & 0o777, 0o600); // Windows: the profile's ACL
   // A damaged file is restored from the last good copy, not reset to the defaults (ADR-0015).
   fs.writeFileSync(path.join(dir, 'settings.json'), '{broken');
   const healed = new SettingsStore(dir);
@@ -199,7 +199,7 @@ ControlCe 679 alice   10u  IPv6 0x4      0t0  TCP *:7000 (LISTEN)`;
   assert.deepEqual(unattributed(all, new Set([47166, 7000])), []);
 });
 
-test('R-1/R-2: a full disk never throws out of the activity or settings store; rows reach the file once a write succeeds', () => {
+test('R-1/R-2: a full disk never throws out of the activity or settings store; rows reach the file once a write succeeds', { skip: (process.platform === 'win32' && 'read-only file modes are POSIX') || (process.getuid?.() === 0 && 'root ignores the read-only modes this test uses to fill the disk') }, () => {
   const dir = tmp('fd-fulldisk-');
   const errors: string[] = [];
   const store = new ActivityStore(dir, { onWriteError: (m) => errors.push(m) });
@@ -237,16 +237,19 @@ test('R-16: lsof that finds nothing (exit 1, no output) means no listeners, not 
 
 // ── ADR-0017: layout and consoles are remembered, and a bad value never breaks the window ──
 
+/** An absolute folder in this system's own form (FD-37). */
+const ABS_A = process.platform === 'win32' ? 'C:\\tmp\\a' : '/tmp/a';
+
 test('ADR-0017: layout and per-service consoles merge with defaults and clamp what they cannot hold', () => {
   const d = merge({});
   assert.deepEqual(d.layout, { sidebar: 'expanded', header: 'compact', console: { open: false, width: 440 } });
   assert.deepEqual(d.consoles, {});
   const s = merge({
     layout: { sidebar: 'collapsed', header: 'full', console: { open: true, width: 99999 } },
-    consoles: { 'a.default': { runtime: 'codex', folder: '/tmp/a' }, 'b.default': { runtime: 7, folder: 'relative/path' }, 'bad key': { runtime: 'claude', folder: null } },
+    consoles: { 'a.default': { runtime: 'codex', folder: ABS_A }, 'b.default': { runtime: 7, folder: 'relative/path' }, 'bad key': { runtime: 'claude', folder: null } },
   } as never);
   assert.deepEqual(s.layout, { sidebar: 'collapsed', header: 'full', console: { open: true, width: 1600 } });
-  assert.deepEqual(s.consoles, { 'a.default': { runtime: 'codex', folder: '/tmp/a' }, 'b.default': { runtime: null, folder: null } });
+  assert.deepEqual(s.consoles, { 'a.default': { runtime: 'codex', folder: ABS_A }, 'b.default': { runtime: null, folder: null } });
   assert.equal(merge({ layout: { console: { width: 10 } } } as never).layout.console.width, 320);
 });
 
@@ -392,7 +395,10 @@ test('FD-19: machine reasons read in Russian where they are known, and stay as w
   assert.equal(machineRu('connect ECONNREFUSED 127.0.0.1:8787'), 'соединение отклонено (127.0.0.1:8787)');
   // FD-37
   assert.equal(machineRu('the token file C:\\x\\t is outside your user profile, so Windows does not keep it private to you'), 'файл токена C:\\x\\t лежит вне вашего профиля, поэтому Windows не защищает его от других');
+  assert.equal(machineRu("the token file ~/t's permissions could not be read"), 'не удалось прочитать права файла токена ~/t');
+  assert.equal(machineRu("the token file ~/t's permissions could not be read: Exception calling \"GetAccessControl\""), 'не удалось прочитать права файла токена ~/t: Exception calling "GetAccessControl"', 'PowerShell\'s words stay as it wrote them');
   assert.equal(machineRu('Opening a terminal window is not available on this system yet.'), 'Открыть окно терминала в этой системе пока нельзя.');
+  assert.equal(machineRu('the token file ~/t grants access to S-1-1-0, but only you, SYSTEM and Administrators may hold it'), 'файл токена ~/t даёт доступ S-1-1-0, а доступ допустим только у вас, SYSTEM и администраторов');
   assert.equal(machineRu('missing origin; protocol must be fabric-service/0.1, not x'), 'нет поля origin; protocol должен быть fabric-service/0.1, а не x');
   assert.equal(machineRu('the token file ~/t is readable by others; set mode 0600'), 'файл токена ~/t доступен другим; поставьте права 0600', 'one sentence with a "; " inside');
   assert.equal(machineRu('the usage report is malformed: days is not a list of at most 31'), 'отчёт о расходах некорректен: days — не список не длиннее 31');

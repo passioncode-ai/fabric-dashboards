@@ -35,12 +35,13 @@ These come from `CONTRIBUTING.md`:
 | Run from source | `npm start` |
 | Release | push an annotated `v<version>` tag; `.github/workflows/release.yml` builds, signs, notarizes, attests and publishes after a `release-approvers` approval. Rehearsal: a `v<version>-rc.<n>` tag, then `gh workflow run release.yml --ref <tag> -f publish=false` ([RUNBOOK](docs/RUNBOOK.md#release)) |
 | Local build (debug only, never published) | `npm run dist -- --unsigned`, or signed: `npm run dist [-- --identity NAME] [--notary-profile NAME]` |
+| Windows and Linux packages (FD-37) | built only in CI on each native runner by `scripts/dist-other.mjs` (`packages.yml`, called by the release); rehearsal from any branch: `gh workflow run validate.yml --ref <branch> -f os=all -f packages=true` ([RUNBOOK](docs/RUNBOOK.md#windows-and-linux-packages)). By hand on Windows or Linux: `node scripts/dist-other.mjs --allow-dirty` (debug, never published) |
 | MCP (register + proving call) | `claude mcp add --scope user fabric-dashboards -- "/Applications/Fabric Dashboards.app/Contents/Resources/bin/fabric-dashboards-mcp"`, then `claude -p "Call the fabric-dashboards list_services tool once and reply with only the number of services it returned." --allowedTools mcp__fabric-dashboards__list_services --max-turns 3` |
 
 The integration test drives the real launchd with the fixed label
 `ai.passioncode.fabric-dashboards.test.sample`. `.github/workflows/validate.yml` runs `npm ci`
-and `npm run check` on macOS every night, on manual dispatch and before every release, with
-`FD_SKIP_LAUNCHD=1`.
+and `npm run check` every night, on manual dispatch and before every release on macOS, Windows x64
+and arm64 and Linux x64 and arm64 (PL-08), with `FD_SKIP_LAUNCHD=1`.
 
 ## Where things live
 

@@ -12,7 +12,7 @@ import { commandReason, type CommandResult } from './outcome';
 import { duration, t as tr, type Lang } from './i18n';
 import { Launchd } from './launchd';
 import { composeEventNotice, displayName, DOWN_NOTIFY_AFTER_MS, episodeKey, intentOf, NotifyLedger, shouldNotify, type Happening, type Intent } from './notify';
-import { fetchEvents, PROBE_TIMEOUT_MS, readToken } from './probe';
+import { fetchEvents, PROBE_TIMEOUT_MS, readTokenAsync } from './probe';
 import { tlsFor } from './testhooks';
 import type { Busy, Reason, ServiceSnapshot, Settings } from './types';
 
@@ -44,7 +44,7 @@ export interface MonitorOptions {
   ledger?: NotifyLedger;
   /** The events feed reader and the token reader. Defaults: probe.ts. */
   events?: typeof fetchEvents;
-  token?: typeof readToken;
+  token?: (tokenFile: string) => string | Promise<string>;
 }
 
 interface Tracked {
@@ -93,7 +93,7 @@ export class Monitor extends EventEmitter {
   private readonly wellKnown: (origin: string, options?: WellKnownOptions) => Promise<WellKnownResult>;
   private readonly ledger: NotifyLedger;
   private readonly events: typeof fetchEvents;
-  private readonly token: typeof readToken;
+  private readonly token: (tokenFile: string) => string | Promise<string>;
   private readonly latch = new RemoteTokenLatch();
   /** Hidden until a window says otherwise: a launch at login never shows one (LC-08). */
   private visible = false;
@@ -122,7 +122,7 @@ export class Monitor extends EventEmitter {
     this.wellKnown = o.wellKnown ?? ((origin, options) => fetchWellKnown(origin, portOf(origin) === null ? REMOTE_TIMEOUT_MS : PROBE_TIMEOUT_MS, options));
     this.ledger = o.ledger ?? new NotifyLedger(null);
     this.events = o.events ?? fetchEvents;
-    this.token = o.token ?? readToken;
+    this.token = o.token ?? readTokenAsync;
   }
 
   // --- lifecycle -----------------------------------------------------------------
@@ -267,7 +267,7 @@ export class Monitor extends EventEmitter {
   private rescan(): void {
     let entries: DescriptorEntry[];
     try {
-      entries = readDirectory(this.o.servicesDir);
+      entries = readDirectory(this.o.servicesDir); // paths in this machine's own grammar; `platform` models the supervisor
       this.dirError = null;
     } catch (error) {
       this.dirError = (error as Error).message;
@@ -328,7 +328,7 @@ export class Monitor extends EventEmitter {
     t.tokenProblem = null;
     if (d.placement === 'remote') {
       try {
-        options = { headers: authHeaders(d, this.token(d.auth.tokenFile)), ...tlsFor(d.origin) };
+        options = { headers: authHeaders(d, await this.token(d.auth.tokenFile)), ...tlsFor(d.origin) };
       } catch (error) {
         t.tokenProblem = (error as Error).message;
         t.probe = null;
@@ -493,7 +493,7 @@ export class Monitor extends EventEmitter {
     const path = t.probe.doc.surfaces.events.path;
     let token: string;
     try {
-      token = this.token(d.auth.tokenFile);
+      token = await this.token(d.auth.tokenFile);
     } catch (error) {
       t.feedError = { code: 'raw', params: { text: (error as Error).message } };
       return;

@@ -19,7 +19,7 @@ import { runOwned } from '../core/children';
 import { fromServiceUrl, isServiceKey, linkFor, safePath } from '../core/deeplink';
 import { displayName } from '../core/names';
 import { Launchd, execRunner, type Runner } from '../core/launchd';
-import { fetchEvents, fetchUsage, fetchWellKnown, PROBE_TIMEOUT_MS, readToken } from '../core/probe';
+import { fetchEvents, fetchUsage, fetchWellKnown, PROBE_TIMEOUT_MS, readTokenAsync } from '../core/probe';
 import { readSpend, type SpendEntry } from '../core/spend';
 import { productIdOf } from '../core/products';
 
@@ -37,7 +37,7 @@ export interface Deps {
   run: (argv: string[], timeoutMs: number) => Promise<{ code: number | null; output: string; timedOut: boolean; started?: boolean; signal?: string | null }>;
   events: typeof fetchEvents;
   usage: typeof fetchUsage;
-  token: typeof readToken;
+  token: (tokenFile: string) => string | Promise<string>;
   now: () => number;
   sleep: (ms: number) => Promise<void>;
   platform: NodeJS.Platform;
@@ -74,7 +74,7 @@ export function liveDeps(runner: Runner = execRunner): Deps {
     run: runArgv,
     events: fetchEvents,
     usage: fetchUsage,
-    token: readToken,
+    token: readTokenAsync,
     now: () => Date.now(),
     sleep: (ms) => new Promise((r) => setTimeout(r, ms)),
     platform: process.platform,
@@ -251,7 +251,7 @@ async function probe(deps: Deps, d: Descriptor): Promise<WellKnownResult> {
   if (d.placement !== 'remote') return deps.wellKnown(d.origin);
   let token: string;
   try {
-    token = deps.token(d.auth.tokenFile);
+    token = await deps.token(d.auth.tokenFile);
   } catch (error) {
     throw new ToolError((error as Error).message);
   }
@@ -264,7 +264,7 @@ export async function control(deps: Deps, key: string, action: 'start' | 'stop' 
   const d = entry.descriptor;
   if (d.placement === 'remote') throw new ToolError(`${d.name} runs online and is supervised by its platform; it cannot be ${action}ed from here`);
   // ADR-0019 §7: launchd is macOS's; elsewhere the service is shown, never controlled, and the agent is told why.
-  if (d.lifecycle.manager === 'launchd' && !supervises(process.platform, d.lifecycle.manager)) {
+  if (d.lifecycle.manager === 'launchd' && !supervises(deps.platform, d.lifecycle.manager)) {
     throw new ToolError(`${d.name} is supervised by launchd, which this system does not have; start and stop it on the system that runs it`);
   }
   if (d.lifecycle.manager !== 'launchd' || !d.lifecycle.label || !d.lifecycle.plist) {
@@ -311,7 +311,7 @@ export async function activity(deps: Deps, key: string, limit = 20): Promise<{ e
   if (!answersAs(d, answer)) throw new ToolError(`${d.name}: another program answers on its address (as ${answer.doc.service.id}.${answer.doc.service.instance}); its activity is not read and no token is sent`);
   let token: string;
   try {
-    token = deps.token(d.auth.tokenFile);
+    token = await deps.token(d.auth.tokenFile);
   } catch (error) {
     throw new ToolError((error as Error).message);
   }

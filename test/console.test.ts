@@ -20,7 +20,7 @@ function bin(dir: string, name: string, mode = 0o755): string {
 
 // ── runtimes ─────────────────────────────────────────────────────────────────────────────
 
-test('REQ-05: only installed, executable runtimes are offered — Claude Code and Codex first, then the rest in catalog order', () => {
+test('REQ-05: only installed, executable runtimes are offered — Claude Code and Codex first, then the rest in catalog order', { skip: process.platform === 'win32' && 'POSIX execute bits; the Windows variant follows' }, () => {
   const base = tmp('fd-rt-');
   const a = path.join(base, 'a');
   const b = path.join(base, 'b');
@@ -36,14 +36,42 @@ test('REQ-05: only installed, executable runtimes are offered — Claude Code an
   assert.equal(found[2]!.provider, null, 'Switchboard binds accounts for Claude Code and Codex only');
 });
 
-test('REQ-05: the first PATH entry wins, as in a shell', () => {
+test('FD-37 REQ-05: on Windows a runtime is found by PATHEXT — claude.exe, codex.cmd — and a bare name or a folder is not', () => {
+  const base = tmp('fd-rt-win-');
+  const a = path.join(base, 'a');
+  const b = path.join(base, 'b');
+  fs.mkdirSync(a, { recursive: true });
+  fs.mkdirSync(b, { recursive: true });
+  fs.writeFileSync(path.join(a, 'codex.cmd'), '@echo off\r\n');
+  fs.writeFileSync(path.join(b, 'claude.exe'), 'MZ');
+  fs.writeFileSync(path.join(b, 'gemini.CMD'), '@echo off\r\n');
+  fs.writeFileSync(path.join(a, 'goose'), 'no extension'); // not runnable on Windows
+  fs.mkdirSync(path.join(a, 'aider.exe')); // a folder with the name: not offered
+  const exists = (p: string) => { try { return fs.statSync(p).isFile(); } catch { return false; } };
+  const found = detectRuntimes([a, b], KNOWN_RUNTIMES, 'win32', { PATHEXT: '.COM;.EXE;.BAT;.CMD' }, exists);
+  assert.deepEqual(found.map((r) => r.id), ['claude-code', 'codex', 'gemini-cli']);
+  assert.equal(found[0]!.path, path.join(b, 'claude.exe'));
+  assert.equal(found[1]!.path, path.join(a, 'codex.cmd'));
+});
+
+test('FD-37 REQ-05: the install folders searched on Windows and on Linux', () => {
+  const win = searchDirs(['C:\\Windows\\system32'], 'C:\\Users\\x', 'win32', { APPDATA: 'C:\\Users\\x\\AppData\\Roaming', LOCALAPPDATA: 'C:\\Users\\x\\AppData\\Local' });
+  assert.equal(win[0], 'C:\\Windows\\system32');
+  for (const d of ['C:\\Users\\x\\AppData\\Roaming\\npm', 'C:\\Users\\x\\.cargo\\bin', 'C:\\Users\\x\\.bun\\bin', 'C:\\Users\\x\\scoop\\shims', 'C:\\Users\\x\\AppData\\Local\\Microsoft\\WinGet\\Links']) assert.ok(win.includes(d), d);
+  assert.ok(!win.some((d) => d.startsWith('/')), 'no POSIX folder on Windows');
+  const linux = searchDirs(['/usr/bin'], '/home/x', 'linux', {});
+  for (const d of ['/home/x/.local/bin', '/home/linuxbrew/.linuxbrew/bin', '/snap/bin', '/usr/local/bin']) assert.ok(linux.includes(d), d);
+  assert.ok(!linux.includes('/opt/homebrew/bin'), 'Homebrew\'s macOS prefix is not searched on Linux');
+});
+
+test('REQ-05: the first PATH entry wins, as in a shell', { skip: process.platform === 'win32' && 'POSIX execute bits; Windows lookup is tested by the PATHEXT test' }, () => {
   const base = tmp('fd-rt-order-');
   bin(path.join(base, 'first'), 'claude');
   bin(path.join(base, 'second'), 'claude');
   assert.equal(detectRuntimes([path.join(base, 'first'), path.join(base, 'second')], KNOWN_RUNTIMES)[0]!.path, path.join(base, 'first', 'claude'));
 });
 
-test('REQ-05: a catalog from Switchboard extends the list; IDE-only entries and duplicates are left out', () => {
+test('REQ-05: a catalog from Switchboard extends the list; IDE-only entries and duplicates are left out', { skip: process.platform === 'win32' && 'POSIX execute bits; Windows lookup is tested by the PATHEXT test' }, () => {
   const base = tmp('fd-rt-cat-');
   bin(base, 'claude');
   bin(base, 'hermes');
@@ -69,7 +97,7 @@ test('REQ-05: the login PATH is read from the shell\'s marked line; the known in
   const out = 'motd noise\n__FD_PATH__/opt/homebrew/bin:/usr/bin:/Users/x/.local/bin\nmore noise\n';
   assert.deepEqual(loginPathFrom(out), ['/opt/homebrew/bin', '/usr/bin', '/Users/x/.local/bin']);
   assert.deepEqual(loginPathFrom('no marker here'), []);
-  const dirs = searchDirs(['/opt/homebrew/bin', '/usr/bin', '/Users/x/.local/bin'], home);
+  const dirs = searchDirs(['/opt/homebrew/bin', '/usr/bin', '/Users/x/.local/bin'], home, 'darwin', {});
   assert.equal(dirs[0], '/opt/homebrew/bin');
   assert.equal(dirs.filter((d) => d === '/Users/x/.local/bin').length, 1);
   for (const d of ['/Users/x/.cargo/bin', '/Users/x/.bun/bin', '/Users/x/.npm-global/bin', '/usr/local/bin', '/bin']) assert.ok(dirs.includes(d), d);
@@ -327,7 +355,7 @@ test('review R-10: a session ended by a signal says so', () => {
   assert.equal(m.snapshot('a.default').signal, 1);
 });
 
-test('audit 2026-10-07: a login shell that hangs is cut at the deadline with everything its rc files started', async () => {
+test('audit 2026-10-07: a login shell that hangs is cut at the deadline with everything its rc files started', { skip: process.platform === 'win32' && 'Windows reads PATH from the environment, with no login shell' }, async () => {
   const dir = tmp('fd-shell-');
   const pidFile = path.join(dir, 'child.pid');
   const shell = path.join(dir, 'fake-shell');

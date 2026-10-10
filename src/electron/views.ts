@@ -6,7 +6,7 @@
 import { BrowserWindow, dialog, session, shell, WebContentsView } from 'electron';
 import type { PageState, Rect } from '../core/api';
 import { t, type Lang } from '../core/i18n';
-import { loginUrl, readToken } from '../core/probe';
+import { loginUrl, readTokenAsync } from '../core/probe';
 import type { ServiceSnapshot } from '../core/types';
 import { afterCrash, clampRect, dashboardPathOf, loadErrorText, navigation, pageAddress, partitionFor, resolveLink, resumePath, routeLink, ViewSlot } from './policy';
 import { testRemote } from '../core/testhooks';
@@ -159,7 +159,7 @@ export class ServiceViews {
     try {
       let url = resolveLink(d.origin, link, dash.path);
       if (dash.login) {
-        const token = readToken(d.auth.tokenFile); // main process only
+        const token = await readTokenAsync(d.auth.tokenFile); // main process only
         url = await loginUrl(d, token);
         await entry.view.webContents.loadURL(url);
         stage = 'page';

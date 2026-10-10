@@ -41,11 +41,11 @@ function idleRig() {
   fs.mkdirSync(services);
   const local = [1, 2, 3].map((n) => ({
     ...DESCRIPTOR, id: `idle-${n}`, origin: `http://127.0.0.1:${47200 + n}`,
-    lifecycle: { manager: 'launchd' as const, label: `com.example.idle-${n}`, plist: `/tmp/never-${n}.plist` },
+    lifecycle: { manager: 'launchd' as const, label: `com.example.idle-${n}`, plist: path.join(base, `never-${n}.plist`) },
   }));
   const remote = {
     protocol: 'fabric-service/0.1', id: 'idle-online', instance: 'default', name: 'Online', placement: 'remote' as const,
-    origin: 'https://agent.example.com', auth: { tokenFile: '/tmp/never-read.token' }, lifecycle: { manager: 'none' as const },
+    origin: 'https://agent.example.com', auth: { tokenFile: path.join(base, 'never-read.token') }, lifecycle: { manager: 'none' as const },
     installedAt: '2026-10-02T18:00:00Z', installedBy: 'test',
   };
   for (const d of [...local, remote]) fs.writeFileSync(path.join(services, `${d.id}.${d.instance}.json`), JSON.stringify(d));
@@ -58,7 +58,7 @@ function idleRig() {
     return { code: 0, stdout: `pid = ${pidOf(label.replace('com.example.', ''))}\n`, stderr: '' };
   };
   const byOrigin = new Map([...local, remote].map((d) => [d.origin, d]));
-  const monitor = new Monitor({
+  const monitor = new Monitor({ platform: 'darwin',
     servicesDir: services, activity: new ActivityStore(path.join(base, 'app')), settings: () => DEFAULT_SETTINGS, lang: () => 'en',
     launchd: new Launchd(runner, 501),
     wellKnown: async (origin): Promise<WellKnownResult> => {
@@ -92,6 +92,7 @@ test('LC-08: a launch with no window runs at background cadence; a quiet hour st
     // Budget for one hidden hour, per AGENTS.md ## Lifecycle: probes every 30 s per local service and
     // every 60 s per online one; launchd is read only every 5 min while every probe answers with the
     // same pid; events at the probe cadence; nothing pushed to the UI when nothing changed.
+    assert.ok(counts.probes >= local * 100, `the rig probes at all (every descriptor valid on this system): ${counts.probes}`);
     assert.ok(counts.probes <= local * 120 + remote * 60 + local + remote, `probes/h ${counts.probes}`);
     assert.ok(counts.events <= local * 120 + remote * 60 + local + remote, `event polls/h ${counts.events}`);
     assert.ok(counts.spawns - counts.disabled <= local * 12 + local, `launchctl print/h ${counts.spawns - counts.disabled}`);
@@ -240,7 +241,7 @@ test('LC-12: the log is 0600 and rotates by size, keeping at most five files', (
   assert.deepEqual(files, ['main.log', 'main.log.1', 'main.log.2', 'main.log.3', 'main.log.4']);
   for (const f of files) {
     assert.ok(fs.statSync(path.join(dir, 'logs', f)).size <= 200 + 60, `${f} stays near its cap`);
-    assert.equal(fs.statSync(path.join(dir, 'logs', f)).mode & 0o777, 0o600, `${f} is 0600`);
+    if (process.platform !== 'win32') assert.equal(fs.statSync(path.join(dir, 'logs', f)).mode & 0o777, 0o600, `${f} is 0600`); // Windows: the profile's ACL, no POSIX mode
   }
   assert.match(fs.readFileSync(file, 'utf8'), /line 39/, 'the newest line is in the live file');
 });
@@ -350,7 +351,8 @@ function speak(server: string, env: NodeJS.ProcessEnv = {}) {
 test('LC-10: the stdio server exits within 1 s of stdin closing, and within 1 s of SIGTERM', async () => {
   const app = fakeInstall('1.0.0');
   const services = tmp('fd-mcp-svc-');
-  for (const how of ['eof', 'sigterm'] as const) {
+  // Windows delivers no SIGTERM (a kill is TerminateProcess): there the end of stdin is the way out.
+  for (const how of (process.platform === 'win32' ? ['eof'] : ['eof', 'sigterm']) as const) {
     const s = speak(app.server, { FABRIC_SERVICES_DIR: services });
     s.send({ jsonrpc: '2.0', id: 1, method: 'initialize', params: {} });
     assert.equal((await s.reply(1)).result!.serverInfo!.version, '1.0.0');
@@ -374,7 +376,7 @@ test('LC-10: a call written just before stdin closes is still answered, then the
   assert.deepEqual((await s.reply(1, 100)).result!.structuredContent, { services: [], services_dir: services });
 });
 
-test('LC-10: a session that ends mid-command takes the command\'s whole process group with it', async () => {
+test('LC-10: a session that ends mid-command takes the command\'s whole process group with it', { skip: process.platform === 'win32' && 'POSIX process groups and /bin/sh — the Windows twin is test/windows-processes.test.ts' }, async () => {
   const app = fakeInstall('1.0.0');
   const services = tmp('fd-mcp-svc-');
   const pidFile = path.join(services, 'grandchild.pid');
@@ -397,6 +399,30 @@ test('LC-10: a session that ends mid-command takes the command\'s whole process 
   const alive = () => { try { process.kill(grandchild, 0); return true; } catch { return false; } };
   const gone = Date.now() + 2000;
   while (alive() && Date.now() < gone) await new Promise((r) => setTimeout(r, 20));
+  assert.equal(alive(), false, 'no orphan survives the session');
+});
+
+test('FD-37 LC-10 (Windows): a session that ends mid-command takes the command\'s whole tree with it', { skip: process.platform !== 'win32' && 'the Windows tree kill; POSIX groups are tested above' }, async () => {
+  const app = fakeInstall('1.0.0');
+  const services = tmp('fd-mcp-svc-');
+  const pidFile = path.join(services, 'grandchild.pid');
+  const grandchild = `require('fs').writeFileSync(${JSON.stringify(pidFile)}, String(process.pid)); setInterval(() => {}, 1000)`;
+  const doctor = [process.execPath, '-e', `require('child_process').spawn(process.execPath, ['-e', ${JSON.stringify(grandchild)}], { detached: true, stdio: 'ignore' }).unref(); setInterval(() => {}, 1000)`];
+  fs.writeFileSync(path.join(services, 'example-agent.default.json'), JSON.stringify({ ...DESCRIPTOR, commands: { doctor } }));
+  const s = speak(app.server, { FABRIC_SERVICES_DIR: services });
+  s.send({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'doctor', arguments: { service: 'example-agent.default' } } });
+  const deadline = Date.now() + 15_000;
+  while (!fs.existsSync(pidFile) || !fs.readFileSync(pidFile, 'utf8').trim()) {
+    assert.ok(Date.now() < deadline, 'the doctor started');
+    await new Promise((r) => setTimeout(r, 20));
+  }
+  const pid = Number(fs.readFileSync(pidFile, 'utf8'));
+  s.child.stdin.end();
+  const exit = await s.exited;
+  assert.equal(exit.code, 0);
+  const alive = () => { try { process.kill(pid, 0); return true; } catch { return false; } };
+  const gone = Date.now() + 20_000;
+  while (alive() && Date.now() < gone) await new Promise((r) => setTimeout(r, 50));
   assert.equal(alive(), false, 'no orphan survives the session');
 });
 
@@ -443,17 +469,18 @@ test('LC-10: descriptor commands run without ELECTRON_RUN_AS_NODE or NODE_OPTION
   process.env.ELECTRON_RUN_AS_NODE = '1';
   process.env.NODE_OPTIONS = '--max-old-space-size=64';
   try {
-    const r = await runOwned('/usr/bin/env', [], { timeoutMs: 5000 });
+    // Node prints its own environment: the same check on every system (Windows names it `Path`).
+    const r = await runOwned(process.execPath, ['-e', 'for (const [k, v] of Object.entries(process.env)) console.log(`${k}=${v}`)'], { timeoutMs: 15_000 });
     assert.equal(r.code, 0);
     assert.doesNotMatch(r.output, /ELECTRON_RUN_AS_NODE|NODE_OPTIONS/);
-    assert.match(r.output, /PATH=/);
+    assert.match(r.output, /^PATH=/im);
   } finally {
     if (saved.a === undefined) delete process.env.ELECTRON_RUN_AS_NODE; else process.env.ELECTRON_RUN_AS_NODE = saved.a;
     if (saved.b === undefined) delete process.env.NODE_OPTIONS; else process.env.NODE_OPTIONS = saved.b;
   }
 });
 
-test('LC-02: a command past its timeout loses its whole group, and killOwned leaves no child', async () => {
+test('LC-02: a command past its timeout loses its whole group, and killOwned leaves no child', { skip: process.platform === 'win32' && 'POSIX process groups and /bin/sh — the Windows twin is test/windows-processes.test.ts' }, async () => {
   const dir = tmp('fd-owned-');
   const pidFile = path.join(dir, 'g.pid');
   const r = await runOwned('/bin/sh', ['-c', `trap '' TERM; sleep 60 & echo $! > '${pidFile}'; wait`], { timeoutMs: 300, killGraceMs: 200 });
@@ -469,7 +496,7 @@ test('LC-02: a command past its timeout loses its whole group, and killOwned lea
   assert.equal(ownedCount(), 0);
 });
 
-test('LC-02: a command that exited is done even when a descendant that left its group holds its output open', async () => {
+test('LC-02: a command that exited is done even when a descendant that left its group holds its output open', { skip: process.platform === 'win32' && 'POSIX process groups and /bin/sh — the Windows twin is test/windows-processes.test.ts' }, async () => {
   // perl forks a child that calls setsid (leaves the group) and keeps the inherited stdout for 20 s.
   // The bound (10 s) sits far from both a slow machine and the descendant (audit: 4.9 s seen under load).
   const started = Date.now();
@@ -482,19 +509,21 @@ test('LC-02: a command that exited is done even when a descendant that left its 
 });
 
 test('T-6: a command killed by a signal ran — it names the signal and keeps its output; one that never started did not', async () => {
-  const r = await runOwned('/bin/sh', ['-c', 'echo working; kill -9 $$'], { timeoutMs: 5000 });
-  assert.equal(r.code, null);
-  assert.equal(r.started, true);
-  assert.equal(r.signal, 'SIGKILL');
-  assert.match(r.output, /working/);
-  assert.deepEqual(commandReason(r, 'doctor'), { code: 'result.commandSignal', params: { command: 'doctor', signal: 'SIGKILL' } });
+  if (process.platform !== 'win32') { // Windows has no signals: a killed command reports its exit code
+    const r = await runOwned('/bin/sh', ['-c', 'echo working; kill -9 $$'], { timeoutMs: 5000 });
+    assert.equal(r.code, null);
+    assert.equal(r.started, true);
+    assert.equal(r.signal, 'SIGKILL');
+    assert.match(r.output, /working/);
+    assert.deepEqual(commandReason(r, 'doctor'), { code: 'result.commandSignal', params: { command: 'doctor', signal: 'SIGKILL' } });
+  }
   const none = await runOwned('/no/such/command', [], { timeoutMs: 5000 });
   assert.equal(none.started, false);
   assert.equal(commandReason(none, 'doctor').code, 'result.commandFailed');
   assert.equal(commandRan(none), false);
 });
 
-test('T-12: what a finished command left in its group counts as owned until it is gone, and killOwned ends it', async () => {
+test('T-12: what a finished command left in its group counts as owned until it is gone, and killOwned ends it', { skip: process.platform === 'win32' && 'POSIX process groups and /bin/sh — the Windows twin is test/windows-processes.test.ts' }, async () => {
   const dir = tmp('fd-linger-');
   const pidFile = path.join(dir, 'g.pid');
   // The command exits at once; its child ignores SIGTERM and would live 60 s.
@@ -573,7 +602,7 @@ test('LC-14: uninstall removes the MCP registration from ~/.claude.json and noth
   assert.deepEqual(after.projects['/work/a'], { mcpServers: {}, allowedTools: [] });
   assert.deepEqual(after.projects['/work/b'], before.projects['/work/b'], 'a server of the same name that is not ours is kept');
   assert.equal(after.numStartups, 42);
-  assert.equal(fs.statSync(file).mode & 0o777, 0o600, 'the file keeps its mode');
+  if (process.platform !== 'win32') assert.equal(fs.statSync(file).mode & 0o777, 0o600, 'the file keeps its mode');
   assert.deepEqual(removeMcpRegistrations(home).removed, [], 'a second run changes nothing');
   assert.deepEqual(removeMcpRegistrations(tmp('fd-home-empty-')).removed, [], 'no ~/.claude.json is not an error');
   fs.writeFileSync(file, '{broken');
@@ -583,7 +612,7 @@ test('LC-14: uninstall removes the MCP registration from ~/.claude.json and noth
 
 test('LC-14: uninstall names every directory the app writes and purges only inside the given home', () => {
   const home = tmp('fd-home-');
-  const paths = productDataPaths(home);
+  const paths = productDataPaths(home, 'darwin');
   for (const p of paths) assert.ok(p.startsWith(home + path.sep), p);
   assert.ok(paths.includes(path.join(home, 'Library/Application Support/Fabric Dashboards')));
   assert.ok(paths.includes(path.join(home, 'Library/Logs/Fabric Dashboards')));
@@ -591,21 +620,21 @@ test('LC-14: uninstall names every directory the app writes and purges only insi
   for (const p of paths.slice(0, 3)) { fs.mkdirSync(p, { recursive: true }); fs.writeFileSync(path.join(p, 'x'), 'x'); }
   const keep = path.join(home, 'Library/Application Support/Another App');
   fs.mkdirSync(keep, { recursive: true });
-  const removed = purgeData(paths);
+  const removed = purgeData(paths, 'darwin');
   assert.equal(removed.length, 3);
   for (const p of paths) assert.equal(fs.existsSync(p), false, p);
   assert.ok(fs.existsSync(keep));
-  assert.throws(() => purgeData(['/']), /refuses/);
-  assert.throws(() => purgeData([os.homedir()]), /refuses/);
+  assert.throws(() => purgeData(['/'], 'darwin'), /refuses/);
+  assert.throws(() => purgeData([os.homedir()], 'darwin'), /refuses/);
 });
 
-test('LC-14: the app\'s data is removed only after the app has exited, and the helper ends', async () => {
+test('LC-14: the app\'s data is removed only after the app has exited, and the helper ends', { skip: process.platform === 'win32' && 'POSIX process groups and /bin/sh — the Windows twin is test/windows-processes.test.ts' }, async () => {
   const home = tmp('fd-home-');
   const data = path.join(home, 'Library/Application Support/Fabric Dashboards');
   fs.mkdirSync(data, { recursive: true });
   fs.writeFileSync(path.join(data, 'activity.jsonl'), 'x');
   const appProcess = spawn('/bin/sleep', ['0.4']);
-  const helper = purgeAfterExit(appProcess.pid!, [data, home, '/'])!;
+  const helper = purgeAfterExit(appProcess.pid!, [data, home, '/'], undefined, 30_000, { platform: 'darwin' })!; // the macOS profile's shape (Library), on any POSIX system
   // The app lets the helper go (unref) so it can quit; this test waits for it, so it holds it.
   helper.ref();
   const helperDone = new Promise((resolve) => helper.once('exit', resolve));
@@ -615,17 +644,17 @@ test('LC-14: the app\'s data is removed only after the app has exited, and the h
   await helperDone;
   assert.equal(fs.existsSync(data), false, 'removed once the app exited');
   assert.ok(fs.existsSync(home), 'a path that is not a product path is never handed to rm');
-  assert.equal(purgeAfterExit(process.pid, [home, '/']), null, 'nothing to remove: no helper');
+  assert.equal(purgeAfterExit(process.pid, [home, '/'], undefined, 30_000, { platform: 'darwin' }), null, 'nothing to remove: no helper');
 });
 
-test('audit 2026-10-07: an app still running when the wait ends keeps its data', async () => {
+test('audit 2026-10-07: an app still running when the wait ends keeps its data', { skip: process.platform === 'win32' && 'POSIX process groups and /bin/sh — the Windows twin is test/windows-processes.test.ts' }, async () => {
   const home = tmp('fd-home-');
   const data = path.join(home, 'Library/Application Support/Fabric Dashboards');
   fs.mkdirSync(data, { recursive: true });
   fs.writeFileSync(path.join(data, 'activity.jsonl'), 'x');
   const appProcess = spawn('/bin/sleep', ['5']);
   try {
-    const helper = purgeAfterExit(appProcess.pid!, [data], undefined, 300)!;
+    const helper = purgeAfterExit(appProcess.pid!, [data], undefined, 300, { platform: 'darwin' })!;
     helper.ref();
     await new Promise((resolve) => helper.once('exit', resolve));
     assert.ok(fs.existsSync(path.join(data, 'activity.jsonl')), 'nothing is removed from under a live app');
@@ -647,7 +676,7 @@ test('audit 2026-10-07: a ~/.claude.json kept as a symlink stays a symlink after
 
 // ── LC-14 / ADR-0015 — the person's data survives an uninstall unless they ask ──────────
 
-test('LC-14/ADR-0015: an uninstall that keeps the data removes everything else in the profile, after exit', async () => {
+test('LC-14/ADR-0015: an uninstall that keeps the data removes everything else in the profile, after exit', { skip: process.platform === 'win32' && 'POSIX process groups and /bin/sh — the Windows twin is test/windows-processes.test.ts' }, async () => {
   const home = tmp('fd-home-');
   const data = path.join(home, 'Library/Application Support/Fabric Dashboards');
   const logs = path.join(home, 'Library/Logs/Fabric Dashboards');
@@ -656,7 +685,7 @@ test('LC-14/ADR-0015: an uninstall that keeps the data removes everything else i
   for (const name of ['Local State', 'Cookies', '.hidden-chromium-file', 'SingletonLock']) fs.writeFileSync(path.join(data, name), 'x');
   fs.writeFileSync(path.join(logs, 'main.log'), 'x');
   const appProcess = spawn('/bin/sleep', ['0.3']);
-  const helper = purgeAfterExit(appProcess.pid!, [logs], { dir: data, names: KEPT_FILES })!;
+  const helper = purgeAfterExit(appProcess.pid!, [logs], { dir: data, names: KEPT_FILES }, 30_000, { platform: 'darwin' })!;
   helper.ref();
   const helperDone = new Promise((resolve) => helper.once('exit', resolve));
   await new Promise((resolve) => setTimeout(resolve, 100));
@@ -665,7 +694,7 @@ test('LC-14/ADR-0015: an uninstall that keeps the data removes everything else i
   assert.deepEqual(fs.readdirSync(data).sort(), [...KEPT_FILES].sort(), 'only the settings, the history and the restore record stay');
   for (const name of KEPT_FILES) assert.equal(fs.readFileSync(path.join(data, name), 'utf8'), name, `${name} is untouched`);
   assert.equal(fs.existsSync(logs), false);
-  assert.throws(() => purgeAfterExit(process.pid, [], { dir: data, names: ['a;rm -rf /'] }), /plain file name/);
+  assert.throws(() => purgeAfterExit(process.pid, [], { dir: data, names: ['a;rm -rf /'] }, 30_000, { platform: 'darwin' }), /plain file name/);
 });
 
 test('ADR-0015: every file the app keeps the person\'s choices and history in is on the kept list', () => {
@@ -733,7 +762,7 @@ test('ADR-0015: the restore record round-trips; a damaged one is ignored, never 
   assert.equal(readRestoreRecord(dir), null);
   writeRestoreRecord(dir, { at: '2026-10-05T12:00:00Z', loginItem: true, mcp: [{ scope: 'user', entry: { command: '/x' } }] });
   assert.deepEqual(readRestoreRecord(dir), { version: 1, at: '2026-10-05T12:00:00Z', loginItem: true, mcp: [{ scope: 'user', entry: { command: '/x' } }] });
-  assert.equal(fs.statSync(path.join(dir, RESTORE_FILE)).mode & 0o777, 0o600);
+  if (process.platform !== 'win32') assert.equal(fs.statSync(path.join(dir, RESTORE_FILE)).mode & 0o777, 0o600);
   fs.writeFileSync(path.join(dir, RESTORE_FILE), '{"version":2}');
   assert.equal(readRestoreRecord(dir), null);
   fs.writeFileSync(path.join(dir, RESTORE_FILE), '{');
@@ -826,12 +855,14 @@ test('LC-15: npm run clean removes what a build regenerates and nothing git trac
   assert.deepEqual(clean(root), [], 'idempotent');
 });
 
-test('R-17 (LC-02): what a finished command left running in its own group ends with it', async () => {
+test('R-17 (LC-02): what a finished command left running in its own group ends with it', { skip: process.platform === 'win32' && 'Windows has no process groups: its tree kill is FD-37 M2' }, async () => {
   const marker = path.join(tmp('fd-grandchild-'), 'alive');
   // The command starts a background sleeper in its own group and exits at once.
   const r = await runOwned('/bin/sh', ['-c', `(sleep 30; touch ${marker}) & echo started`], { timeoutMs: 10_000, killGraceMs: 200 });
   assert.equal(r.code, 0);
   await new Promise((resolve) => setTimeout(resolve, 600));
-  const left = spawnSync('/bin/sh', ['-c', `pgrep -f "sleep 30; touch ${marker}" || true`], { encoding: 'utf8' }).stdout.trim();
+  // `[s]leep`: the pattern still matches the sleeper, but not this command's own `sh -c` line — Linux's pgrep
+  // excludes only itself, so a literal pattern found its own wrapper shell (FD-37, ubuntu-24.04).
+  const left = spawnSync('/bin/sh', ['-c', `pgrep -f "[s]leep 30; touch ${marker}" || true`], { encoding: 'utf8' }).stdout.trim();
   assert.equal(left, '', 'no descendant of the finished command is still running');
 });

@@ -55,7 +55,7 @@ export function uninstallTarget(platform: NodeJS.Platform, execPath: string, env
 export function uninstallCommand(target: { path: string; args: string[] }, pid: number): { file: string; args: string[] } {
   const lit = (s: string) => `'${s.replace(/'/g, "''")}'`;
   const script = `Wait-Process -Id ${Math.trunc(pid)} -Timeout 30 -ErrorAction SilentlyContinue; Start-Process -FilePath ${lit(target.path)} -ArgumentList ${target.args.map(lit).join(',')}`;
-  return { file: 'powershell.exe', args: ['-NoProfile', '-NonInteractive', '-WindowStyle', 'Hidden', '-Command', script] };
+  return { file: 'powershell.exe', args: ['-NoProfile', '-NonInteractive', '-Command', script] };
 }
 
 /** A folder path a setting may keep: absolute in the grammar of `platform`, never a network share. */
@@ -93,6 +93,15 @@ export function menuKeys(platform: NodeJS.Platform): { appMenu: boolean; quit: s
 export function startHidden(platform: NodeJS.Platform, o: { argv: string[]; wasOpenedAtLogin: boolean | undefined; afterUpdate: boolean }): boolean {
   return o.afterUpdate || o.argv.includes('--hidden') || (platform === 'darwin' && o.wasOpenedAtLogin === true);
 }
+/**
+ * The `fabric-dashboards:` link in a process's arguments (ADR-0004). Windows and Linux hand a link to the
+ * program as an argument — to the first instance at launch, and to a second one that forwards it — where
+ * macOS sends `open-url` instead; on macOS a launch's own arguments never carry one.
+ */
+export function linkInArgv(platform: NodeJS.Platform, argv: readonly string[], scheme: string, launch: boolean): string | null {
+  if (launch && platform === 'darwin') return null;
+  return argv.find((a) => a.toLowerCase().startsWith(`${scheme}:`)) ?? null;
+}
 /** Where the system's notification settings open: macOS System Settings, Windows Settings; Linux has no
  *  standard address, so the app opens nothing and says where to look (`notificationSettingsUrl` is null). */
 export function notificationSettingsUrl(platform: NodeJS.Platform): string | null {
@@ -104,5 +113,21 @@ export function notificationSettingsUrl(platform: NodeJS.Platform): string | nul
  *  Windows and Linux supervisors wait for the contract decision, so they are shown read-only until then. */
 export function supervises(platform: NodeJS.Platform, manager: string | undefined): boolean {
   return manager === 'launchd' && platform === 'darwin';
+}
+/** Where the app keeps its data and logs (PL-06): Windows `%LOCALAPPDATA%\\Fabric Dashboards` (never the
+ *  roaming profile) with `Logs` inside; Linux the XDG data and state folders. null on macOS: Electron's
+ *  own places (`~/Library/Application Support`, `~/Library/Logs`) are already the platform's. */
+export function places(platform: NodeJS.Platform, env: NodeJS.ProcessEnv, home: string): { userData: string; logs: string } | null {
+  if (platform === 'win32') {
+    const userData = path.win32.join(env.LOCALAPPDATA || path.win32.join(home, 'AppData', 'Local'), PRODUCT);
+    return { userData, logs: path.win32.join(userData, 'Logs') };
+  }
+  if (platform === 'linux') {
+    return {
+      userData: path.posix.join(env.XDG_DATA_HOME || path.posix.join(home, '.local/share'), 'fabric-dashboards'),
+      logs: path.posix.join(env.XDG_STATE_HOME || path.posix.join(home, '.local/state'), 'fabric-dashboards'),
+    };
+  }
+  return null;
 }
 // #endregion platform-policy

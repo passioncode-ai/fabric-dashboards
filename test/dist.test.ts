@@ -73,7 +73,7 @@ test('dist: the notary status is read, not assumed from the exit code', async ()
   assert.deepEqual(dist.notaryVerdict(''), { accepted: false, status: 'unreadable', id: '' });
 });
 
-test('dist: staged paths are the ones the release workflow hands the notarize action', async () => {
+test('dist: staged paths are the ones the release workflow hands the notarize action', { skip: process.platform === 'win32' && 'the macOS build\'s POSIX staging paths' }, async () => {
   const dist = await import('../scripts/dist-mac.mjs');
   const p = dist.stagePaths('/r', '1.2.3');
   assert.deepEqual(p, {
@@ -116,7 +116,7 @@ test('dist: the receipt asserts notarization and Gatekeeper on the app, the upda
   assert.deepEqual(unsigned, { signing: 'unsigned', notarization: 'not requested', gatekeeper: 'not assessed', checks: {}, problems: [] });
 });
 
-test('dist: release.yml signs in the release environment and ships only what was made from the stapled app', async () => {
+test('dist: release.yml signs in the release environment and ships only what was made from the stapled app', { skip: process.platform === 'win32' && 'the macOS release\'s POSIX staging paths' }, async () => {
   const dist = await import('../scripts/dist-mac.mjs');
   const root = path.resolve(__dirname, '..');
   const wf = fs.readFileSync(path.join(root, '.github/workflows/release.yml'), 'utf8');
@@ -136,7 +136,11 @@ test('dist: release.yml signs in the release environment and ships only what was
   // F-1/F-2: one release at a time, the check repeated right before publish, a failed lookup is not a tag.
   at('group: release\n');
   assert.ok(at('still-newest:') < at('uses: passioncode-ai/.github/.github/workflows/release-publish.yml@v1'));
-  at('needs: [macos, still-newest]');
+  at('needs: [macos, packages, still-newest]');
+  // FD-37: the Windows and Linux packages are built after the gate ran on every system, and publish waits for them.
+  at('uses: ./.github/workflows/validate.yml\n    with:\n      os: all');
+  assert.ok(at('  packages:\n    needs: [version, check]') < at('uses: passioncode-ai/.github/.github/workflows/release-publish.yml@v1'));
+  at("needs.packages.result == 'success'");
   at("grep -q 'HTTP 404' /tmp/gh-err");
   at('team-id: ${{ vars.APPLE_TEAM_ID }}');
   // The order that makes the update zip and the image come from the stapled app.
@@ -198,7 +202,7 @@ test('dist: no NS…UsageDescription survives in the app or its helpers (FD-06)'
 });
 // #endregion usage-descriptions
 
-test('ADR-0017: node-pty is staged with its runtime files only, universal in both folders, and an executable spawn-helper', async () => {
+test('ADR-0017: node-pty is staged with its runtime files only, universal in both folders, and an executable spawn-helper', { skip: process.platform !== 'darwin' && 'the macOS staging joins prebuilds with lipo, which only macOS has' }, async () => {
   const dist = await import('../scripts/dist-mac.mjs');
   const root = path.resolve(__dirname, '..');
   const stage = tmp('fd-stage-pty-');
@@ -247,7 +251,7 @@ test('LC-16: openpgp is staged as its one CommonJS build with manifest and licen
   const target = dist.stageVerifierModules(root, stage);
   assert.equal(target, path.join(stage, 'node_modules/openpgp'));
   const files = (dir: string): string[] => fs.readdirSync(dir, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? files(path.join(dir, e.name)) : [path.relative(target, path.join(dir, e.name))]));
-  assert.deepEqual(files(target).sort(), ['LICENSE', 'dist/node/openpgp.min.cjs', 'package.json']);
+  assert.deepEqual(files(target).map((f) => f.split(path.sep).join('/')).sort(), ['LICENSE', 'dist/node/openpgp.min.cjs', 'package.json']);
   const manifest = JSON.parse(fs.readFileSync(path.join(target, 'package.json'), 'utf8'));
   assert.equal(manifest.main, 'dist/node/openpgp.min.cjs');
   const r = spawnSync(process.execPath, ['-e', `const o = require(${JSON.stringify(target)}); process.stdout.write(typeof o.verify)`], { encoding: 'utf8' });

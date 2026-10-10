@@ -38,7 +38,7 @@ test('live host adapter reads OS metadata without opening and pins opening to th
   assert.ok(calls.every((c) => !c.includes('-n')), 'never request a second application instance');
 });
 
-test('MCP desktop dispatch removes RunAsNode in the child and preserves the server environment', async () => {
+test('MCP desktop dispatch removes RunAsNode in the child and preserves the server environment', { skip: process.platform !== 'darwin' && 'macOS dispatch through /usr/bin/open; Windows and Linux open links in FD-37 M3' }, async () => {
   const { execRunner } = await import('../src/core/launchd');
   const previous = process.env.ELECTRON_RUN_AS_NODE;
   process.env.ELECTRON_RUN_AS_NODE = '1';

@@ -4,6 +4,7 @@
 import { app, BrowserWindow, clipboard, dialog, ipcMain, nativeTheme, Menu, Notification, session, shell } from 'electron';
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { ActivityStore } from '../core/activity';
 import { CHANNELS, type Rect } from '../core/api';
@@ -14,13 +15,14 @@ import { displayName } from '../core/names';
 import { ConsoleHost } from './console';
 import { appendLog, sweepTemps } from '../core/fsutil';
 import { parseDeepLink, SCHEME } from '../core/deeplink';
-import { servicesDir } from '@passioncode-ai/fabric-service-host';
+import { servicesDir, windowsPowerShellEnv } from '@passioncode-ai/fabric-service-host';
 import { chooseLang, langFor, t, type Lang } from '../core/i18n';
 import { execRunner } from '../core/launchd';
 import { listListeners, unattributed } from '../core/listeners';
 import { applyLoginItem, LOGIN_NEEDS_APPROVAL, loginItemAtStartup, type LoginItemOs } from '../core/loginitem';
+import { xdgLoginItem } from '../core/autostart';
 import { Monitor, type Notice } from '../core/monitor';
-import { fetchUsage, readToken } from '../core/probe';
+import { fetchUsage, readTokenAsync } from '../core/probe';
 import { readSpend, type SpendEntry } from '../core/spend';
 import { NotifyLedger } from '../core/notify';
 import { SettingsStore } from '../core/settings';
@@ -29,7 +31,7 @@ import { ALWAYS_KEPT, clearRestoreRecord, KEPT_FILES, productDataPaths, purgeAft
 import { autoInstallNow, HiddenGrace, partitionFor, RELAUNCH_MARKER, relaunchHidden, stalePartitions, UPDATE_IDLE_MS, VIEW_RELEASE_GRACE_MS } from './policy';
 import { AppTray } from './tray';
 import { DockSync } from './dock';
-import { menuKeys, notificationSettingsUrl, startHidden, uninstallCommand, uninstallTarget, windowChrome } from '../core/platform';
+import { linkInArgv, menuKeys, notificationSettingsUrl, places, startHidden, uninstallCommand, uninstallTarget, windowChrome } from '../core/platform';
 import { EstateUpdater } from './estate-updater';
 import { Updater } from './updater';
 import { ServiceViews } from './views';
@@ -37,6 +39,13 @@ import { parseTestRemote, setTestRemote } from '../core/testhooks';
 
 app.enableSandbox();
 app.setName('Fabric Dashboards');
+// FD-37 / PL-06: Windows keeps the app's data in LOCALAPPDATA (Electron's default is the roaming
+// profile) and Linux in the XDG data and state folders; macOS keeps Electron's own places.
+const ownPlaces = places(process.platform, process.env, os.homedir());
+if (ownPlaces && !process.env.FABRIC_DASHBOARDS_USER_DATA) {
+  app.setPath('userData', ownPlaces.userData);
+  app.setPath('logs', ownPlaces.logs);
+}
 if (process.env.FABRIC_DASHBOARDS_USER_DATA) {
   // A test or second profile keeps its logs beside its data; Electron derives `logs` from the
   // app name, not from userData, so without this a test run writes into the operator's log.
@@ -77,6 +86,9 @@ app.on('will-finish-launching', () => {
     else pendingLinks.push(raw);
   });
 });
+// FD-37: Windows and Linux start the app WITH the link as an argument when it is not running yet.
+const launchLink = linkInArgv(process.platform, process.argv, SCHEME, true);
+if (launchLink) pendingLinks.push(launchLink);
 
 if (!app.requestSingleInstanceLock()) {
   app.quit();
@@ -300,11 +312,11 @@ if (!app.requestSingleInstanceLock()) {
 
   // A development run must never register the Electron binary at login: no OS port at all.
   // FD-37: Windows keeps the login item in the Run key with `--hidden` (Electron compares the same args
-  // when reading it back); Linux has no Electron login item — its XDG autostart file comes with FD-37 M3.
+  // when reading it back); Linux has no Electron login item, so it is an XDG autostart entry (autostart.ts).
   const loginArgs = process.platform === 'win32' ? { args: ['--hidden'] } : {};
-  const loginOs: LoginItemOs | null = app.isPackaged && process.platform !== 'linux'
-    ? { get: () => app.getLoginItemSettings(loginArgs), set: (openAtLogin) => app.setLoginItemSettings({ openAtLogin, ...loginArgs }) }
-    : null;
+  const loginOs: LoginItemOs | null = !app.isPackaged ? null
+    : process.platform === 'linux' ? xdgLoginItem(process.env, os.homedir(), process.execPath)
+    : { get: () => app.getLoginItemSettings(loginArgs), set: (openAtLogin) => app.setLoginItemSettings({ openAtLogin, ...loginArgs }) };
 
   // #region uninstall-flow — docs: docs/ux/scenarios.md#scn-024-settings-launch-at-login-notifications-quiet-hours
   /** LC-14: undo what installing and running added. Registrations go first and stop the flow on
@@ -370,7 +382,7 @@ if (!app.requestSingleInstanceLock()) {
         else if (target.kind === 'run-uninstaller') {
           // After this app exits (uninstallCommand); a failure to start it is said, never thrown.
           const cmd = uninstallCommand(target, process.pid);
-          const child = spawn(cmd.file, cmd.args, { detached: true, stdio: 'ignore', windowsHide: true });
+          const child = spawn(cmd.file, cmd.args, { stdio: 'ignore', windowsHide: true, env: windowsPowerShellEnv() }); // see purgeAfterExitWindows: not detached
           child.on('error', (error) => log(`uninstall: the uninstaller could not start: ${error.message}`));
           child.unref();
         } else await dialog.showMessageBox({ type: 'info', message: t(l, 'uninstall.manual', { how: target.kind === 'package' ? target.command : t(l, target.reason) }), buttons: ['OK'] });
@@ -477,7 +489,7 @@ if (!app.requestSingleInstanceLock()) {
       const stale = Date.now() - lastSpendAt > SPEND_FRESH_MS;
       // D-4: Refresh reads now (a person asked); "read at" is the main process's own read time.
       if ((windowVisible() && (stale || force === true)) || !lastSpendAt) {
-        lastSpend = await readSpend(monitor.snapshots(), { token: readToken, fetchUsage, now: () => Date.now() });
+        lastSpend = await readSpend(monitor.snapshots(), { token: readTokenAsync, fetchUsage, now: () => Date.now() });
         lastSpendAt = Date.now();
       }
       return { entries: lastSpend, readAt: lastSpendAt ? new Date(lastSpendAt).toISOString() : null };
@@ -604,7 +616,7 @@ if (!app.requestSingleInstanceLock()) {
   // A link opened while the app runs reaches the first instance as an argument (and through
   // `open-url` on macOS); a second process only forwards it and exits.
   app.on('second-instance', (_event, argv) => {
-    const raw = argv.find((a) => a.startsWith(`${SCHEME}:`));
+    const raw = linkInArgv(process.platform, argv, SCHEME, false);
     if (raw && handleLink) handleLink(raw);
     else if (raw) pendingLinks.push(raw); // R-14: before the first scan, the link waits like a launch link
     else if (app.isReady()) showWindow();

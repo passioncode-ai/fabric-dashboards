@@ -5,7 +5,40 @@ Updated 2026-10-07 (0.6.2: 0.6.1 withdrawn for audit HIGH-2, audit fixes, signed
 
 Current release: 0.6.7 (published 2026-10-09 17:07 UTC, run 37955575384; FD-36, FD-35, FD-38). Before it, 0.6.6 (published 2026-10-09 10:08 UTC, run 37864378854; FD-34, FD-35). Before it, 0.6.5 (published 2026-10-08 01:18 UTC, run 37703405621; FD-29, FD-33). Before it, 0.6.4 (published 2026-10-07 01:57 UTC, run 37558793926; carries 0.6.3, superseded before approval). Before it, 0.6.2 (published 2026-10-06 23:41 UTC, run 37541067349; 0.6.1 withdrawn). Before it, 0.6.0 (published 2026-10-06 21:35 UTC, run 37505569449); Before it, 0.5.6 (2026-10-06); the 0.4.1 section below is the previous one. Earlier releases below are preserved as dated evidence.
 
-## Next — start here (2026-10-10, FD-37 Windows and Linux)
+## Next — start here (2026-10-10, FD-37: Windows and Linux build and run)
+
+**Branch `agent/fd37-m1b-ci-matrix`** — CI evidence: run [38010248791](https://github.com/passioncode-ai/fabric-dashboards/actions/runs/38010248791) (the gate green on all five runners) and run [38012299256](https://github.com/passioncode-ai/fabric-dashboards/actions/runs/38012299256) (macOS gate + all four packages green with their install checks). Done on it:
+
+- **Unit suite on five native runners** — `validate.yml` matrix (macos-latest, windows-latest, windows-11-arm,
+  ubuntu-24.04, ubuntu-24.04-arm), nightly and on dispatch; `release.yml` now calls it with `os: all`.
+  Windows-only twins: `test/windows-processes.test.ts` (LC-02, T-12). Local gate: `FD_SKIP_LAUNCHD=1 npm run
+  check` exit 0 (378 tests, 372 pass, 6 skipped with reasons).
+- **Packages** — `scripts/dist-other.mjs` (packager app dir → fuses read back → three checks run by the finished
+  binary → electron-builder `--prepackaged` → receipt), `packages.yml` (dispatch or called; release `packages`
+  job; publish needs it). Every `.deb` is installed on a clean `ubuntu:24.04` (`scripts/deb-smoke.sh`); every
+  Windows installer is installed, asked `initialize` and uninstalled with `/S` (`scripts/nsis-smoke.mjs`).
+  Measured: the per-user install folder is `%LOCALAPPDATA%\Programs\fabric-dashboards` (electron-builder
+  uses the package name); `/S` uninstall takes 2 s on x64 and 225 s on windows-11-arm (the x86 NSIS
+  uninstaller under emulation).
+  Rehearse from any branch: `gh workflow run validate.yml --ref <branch> -f os=all -f packages=true`.
+  Windows ships `windows_authenticode: NOT_SIGNED` (PL-03, waits for the Azure certificate profile).
+- **Windows correctness found by CI:** token ACL read through .NET without pwsh's `PSModulePath` and
+  asynchronously (`readTokenAsync`, a cold PowerShell on arm64 took > 15 s); owner Administrators/SYSTEM
+  accepted — contract **DEC-0033, fabric-agent-contract PR #24** (open; agreed with fabric-90, who cites it in
+  platforms.md PL-09, fabric-workspace PR #86). Uninstall helpers no longer detached. Launch links on
+  Windows/Linux (`linkInArgv`), XDG autostart on Linux (`src/core/autostart.ts`).
+- **Linux `.deb` fixed:** a clean Ubuntu install failed on `libasound.so.2`; `DEB_DEPENDS` names the libraries.
+- Tests remove their temp folders at exit (4,810 had piled up, 592 MB, while the disk ran full).
+
+**Next task — M3 rest** (the branch is merged through its PR; see `git log`): MCP launcher path for an AppImage
+(its mount moves every run — register `$APPIMAGE` with an `--mcp` entry), the stale-bundle watch off macOS,
+host discovery and `open` per OS, notification AppUserModelId on Windows, *Open in Terminal* per OS, `.cmd`
+runtimes in the console via `cmd.exe /c`; then M4 updates (PL-04, a feed naming every platform), M5 systemd /
+Task Scheduler supervisors (DEC-0032), M6 the platform claim in README, `package.json` description and i18n
+strings that still say "this Mac". **Human gates:** a release still needs a `release-approvers` approval; Windows
+signing needs the Azure Artifact Signing profile (operator).
+
+## Earlier — start here (2026-10-10, FD-37 Windows and Linux)
 
 **FD-37 in progress** — [brief](evidence/briefs/2026-10-10-windows-linux-brief.md) (source ledger, 12 risky
 seams, decisions D-1..D-9, REQ table, modules M1..M6) and [ADR-0019](adr/0019-windows-and-linux.md); shared

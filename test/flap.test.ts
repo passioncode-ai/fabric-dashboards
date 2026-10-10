@@ -37,7 +37,7 @@ function rig(job: { loaded: boolean; disabled?: boolean; pid?: number } = { load
   const clock = { ms: T0 };
   const queue: WellKnownResult[] = [];
   const activity = new ActivityStore(path.join(base, 'app'));
-  const monitor = new Monitor({
+  const monitor = new Monitor({ platform: 'darwin',
     servicesDir: services, activity, settings: () => DEFAULT_SETTINGS, lang: () => 'en', now: () => clock.ms,
     launchd: new Launchd(runner, 501),
     wellKnown: async () => {
@@ -162,7 +162,7 @@ test(`a probe that takes longer than 2 s still answers: the probe waits ${PROBE_
     fs.writeFileSync(path.join(services, 'runner.dev.json'), JSON.stringify({ ...fixture('positive_service-descriptor-unmanaged.json'), origin }));
     // A frozen clock makes the first tick's probe due at once; the probe itself is the real one.
     const at = Date.now();
-    const monitor = new Monitor({ servicesDir: services, activity: new ActivityStore(path.join(base, 'app')), settings: () => DEFAULT_SETTINGS, lang: () => 'en', now: () => at });
+    const monitor = new Monitor({ platform: 'darwin', servicesDir: services, activity: new ActivityStore(path.join(base, 'app')), settings: () => DEFAULT_SETTINGS, lang: () => 'en', now: () => at });
     await monitor.tick();
     assert.equal(monitor.snapshot('runner.dev')?.state, 'ready');
   } finally {
@@ -193,7 +193,7 @@ test('S-2: an online origin that answered as another service gets no token again
   const clock = { ms: T0 };
   const probes: (Record<string, string> | undefined)[] = [];
   let answer: WellKnownResult = { kind: 'answer', doc: { ...READY, service: { ...READY.service, id: 'other' } } as WellKnown, ms: 5 };
-  const monitor = new Monitor({
+  const monitor = new Monitor({ platform: 'darwin',
     servicesDir: services, activity: new ActivityStore(path.join(base, 'app')), settings: () => DEFAULT_SETTINGS, lang: () => 'en', now: () => clock.ms,
     wellKnown: async (_origin, options) => { probes.push(options?.headers as Record<string, string> | undefined); return answer; },
   });
@@ -231,7 +231,7 @@ test('R-8: a new pid between two probes is a restart even when the state stays r
 });
 
 test('R-8: one action at a time — a second command while one runs is refused, not run twice', async () => {
-  const r = rig({ loaded: true }, { commands: { doctor: ['/bin/sleep', '0.3'] } });
+  const r = rig({ loaded: true }, { commands: { doctor: [process.execPath, '-e', 'setTimeout(() => {}, 300)'] } });
   await r.probeAt(0, ANSWER);
   const first = r.monitor.command(KEY, 'doctor');
   const second = await r.monitor.command(KEY, 'doctor');
@@ -246,7 +246,7 @@ test('R-18: a launchd service not yet probed reads starting, never Off with Star
   fs.mkdirSync(services);
   fs.writeFileSync(path.join(services, `${KEY}.json`), JSON.stringify(DESCRIPTOR));
   let release: (r: WellKnownResult) => void = () => undefined;
-  const monitor = new Monitor({
+  const monitor = new Monitor({ platform: 'darwin',
     servicesDir: services, activity: new ActivityStore(path.join(base, 'app')), settings: () => DEFAULT_SETTINGS, lang: () => 'en', now: () => T0,
     launchd: new Launchd(async () => ({ code: 0, stdout: `pid = ${READY.process.pid}\n`, stderr: '' }), 501),
     wellKnown: () => new Promise<WellKnownResult>((resolve) => { release = resolve; }),
@@ -262,7 +262,7 @@ test('R-18: a launchd service not yet probed reads starting, never Off with Star
 });
 
 test('P-4: a command that cannot start says so, not "exit code —"; an undeclared one is refused', async () => {
-  const r = rig({ loaded: true }, { commands: { doctor: ['/nonexistent/doctor-binary'] } });
+  const r = rig({ loaded: true }, { commands: { doctor: [path.join(tmp('fd-flap-none-'), 'no-such-doctor')] } });
   await r.probeAt(0, ANSWER);
   const out = await r.monitor.command(KEY, 'doctor');
   assert.equal(out.code, null);
@@ -290,7 +290,7 @@ test('T-2: an online origin answering without the protocol gets no token until i
     { kind: 'refused', detail: 'HTTP 401 on /.well-known/fabric-service' },
     { kind: 'answer', doc: READY, ms: 5 },
   ];
-  const monitor = new Monitor({
+  const monitor = new Monitor({ platform: 'darwin',
     servicesDir: services, activity: new ActivityStore(path.join(base, 'app')), settings: () => DEFAULT_SETTINGS, lang: () => 'en', now: () => clock.ms,
     wellKnown: async (_origin, options) => { sent.push(Boolean(options?.headers)); return queue.shift()!; },
   });
@@ -316,7 +316,7 @@ test('T-5: an online service answering from another replica is not a restart', a
   fs.writeFileSync(path.join(services, 'example-agent.default.json'), JSON.stringify(remote));
   const clock = { ms: T0 };
   let pid = 100;
-  const monitor = new Monitor({
+  const monitor = new Monitor({ platform: 'darwin',
     servicesDir: services, activity: new ActivityStore(path.join(base, 'app')), settings: () => DEFAULT_SETTINGS, lang: () => 'en', now: () => clock.ms,
     wellKnown: async () => ({ kind: 'answer', doc: { ...READY, process: { ...READY.process, pid: pid++ } }, ms: 5 }),
   });

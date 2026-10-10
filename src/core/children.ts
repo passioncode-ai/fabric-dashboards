@@ -4,7 +4,9 @@
 // (lifecycle LC-02; LC-10 for the per-session MCP server). launchctl calls are not here: they are
 // short, bounded by their own runner and start nothing that outlives them.
 // #region owned-children — docs: AGENTS.md#lifecycle
-import { spawn, type ChildProcess } from 'node:child_process';
+import { execFile, spawn, type ChildProcess } from 'node:child_process';
+import { windowsPowerShellEnv } from '@passioncode-ai/fabric-service-host';
+import { descendantsOf, parseSnapshot, SNAPSHOT_SCRIPT } from './proctree';
 
 /** Variables a descriptor's command must never inherit. The packaged MCP server runs Electron as
  *  Node (`ELECTRON_RUN_AS_NODE=1`): passed on, any Electron or `open`-based step inside the command
@@ -28,6 +30,40 @@ const owned = new Set<ChildProcess>();
  *  owned, so a quit or an automatic install never leaves them running. */
 const lingering = new Set<ChildProcess>();
 const KILL_GRACE_MS = 2_000;
+/** FD-37: Windows has no process groups or SIGTERM (platforms.md PL-07) — a tree is ended with
+ *  `taskkill /T /F`, and what a finished command left behind is found by parent chain and creation time. */
+const WIN = process.platform === 'win32';
+/** When each owned command started (epoch ms), for the Windows identity check. */
+const startedAt = new WeakMap<ChildProcess, number>();
+/** How far a process's creation time may precede the moment we recorded its start (clock granularity). */
+const CLOCK_ALLOWANCE_MS = 1_000;
+
+function quiet(file: string, args: string[], timeoutMs = 15_000, env: NodeJS.ProcessEnv = process.env): Promise<string> {
+  return new Promise((resolve) => {
+    execFile(file, args, { timeout: timeoutMs, windowsHide: true, maxBuffer: 32 * 1024 * 1024, env }, (_error, stdout) => resolve(String(stdout ?? '')));
+  });
+}
+
+/** Windows: the whole tree of a live command, at once (there is no gentler signal to send). */
+async function killWindowsTree(child: ChildProcess): Promise<void> {
+  const pid = child.pid;
+  if (!pid || child.exitCode !== null || child.signalCode !== null) return;
+  await quiet('taskkill', ['/PID', String(pid), '/T', '/F']);
+}
+
+/** Windows: what a finished command left running — its descendants created since it started. */
+async function killWindowsLeftovers(child: ChildProcess): Promise<void> {
+  const pid = child.pid;
+  const since = startedAt.get(child);
+  if (!pid || since === undefined) return;
+  const rows = parseSnapshot(await quiet('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', SNAPSHOT_SCRIPT], 30_000, windowsPowerShellEnv())); // WMI's first query on a cold runner takes seconds
+  for (const left of descendantsOf(rows, pid, since - CLOCK_ALLOWANCE_MS)) await quiet('taskkill', ['/PID', String(left), '/T', '/F']);
+}
+
+/** The platform's way to end a command and everything it started. */
+function killTree(child: ChildProcess, graceMs: number): Promise<void> {
+  return WIN ? killWindowsTree(child) : killGroup(child, graceMs);
+}
 /** How long a finished command's output streams may stay open before it counts as done. */
 const EXIT_STREAM_GRACE_MS = 1_000;
 
@@ -57,12 +93,17 @@ export function runOwned(command: string, args: string[], o: OwnedOptions): Prom
   return new Promise((resolve) => {
     let child: ChildProcess;
     try {
-      child = spawn(command, args, { detached: true, stdio: ['ignore', 'pipe', 'pipe'], env: o.env ?? commandEnv() });
+      // POSIX: its own process group (detached). Windows: `detached` would open a console window; the
+      // tree is followed by parent chain instead (killWindowsTree, killWindowsLeftovers).
+      child = spawn(command, args, WIN
+        ? { stdio: ['ignore', 'pipe', 'pipe'], env: o.env ?? commandEnv(), windowsHide: true }
+        : { detached: true, stdio: ['ignore', 'pipe', 'pipe'], env: o.env ?? commandEnv() });
     } catch (error) {
       resolve({ code: null, output: (error as Error).message, timedOut: false, started: false, signal: null });
       return;
     }
     owned.add(child);
+    startedAt.set(child, Date.now());
     let stdout = '';
     let stderr = '';
     const take = (which: 'out' | 'err') => (chunk: Buffer) => {
@@ -74,14 +115,17 @@ export function runOwned(command: string, args: string[], o: OwnedOptions): Prom
     let timedOut = false;
     let started = false;
     child.once('spawn', () => { started = true; });
-    const timer = setTimeout(() => { timedOut = true; void killGroup(child, o.killGraceMs ?? KILL_GRACE_MS); }, o.timeoutMs);
+    const timer = setTimeout(() => { timedOut = true; void killTree(child, o.killGraceMs ?? KILL_GRACE_MS); }, o.timeoutMs);
     timer.unref();
     const finish = (code: number | null, signal: NodeJS.Signals | null, extra = '') => {
       clearTimeout(timer);
       owned.delete(child);
       // R-17 (LC-02): what the command left running in its own group ends with it — nothing
       // outlives the command's deadline or the app's quit. One that left the group (setsid) is not ours.
-      if (child.pid) {
+      if (child.pid && WIN) {
+        lingering.add(child);
+        void killWindowsLeftovers(child).finally(() => lingering.delete(child));
+      } else if (child.pid) {
         try {
           process.kill(-child.pid, 0);
           lingering.add(child);
@@ -110,6 +154,11 @@ export function runOwned(command: string, args: string[], o: OwnedOptions): Prom
 
 /** End every owned command and its group — on quit, on stdin EOF, on SIGTERM. */
 export async function killOwned(graceMs = 300): Promise<void> {
+  if (WIN) {
+    await Promise.all([...owned].map((child) => killWindowsTree(child)));
+    await Promise.all([...owned, ...lingering].map((child) => killWindowsLeftovers(child)));
+    return;
+  }
   await Promise.all([...owned, ...lingering].map((child) => killGroup(child, graceMs)));
 }
 

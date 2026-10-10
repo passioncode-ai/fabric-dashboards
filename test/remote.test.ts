@@ -13,7 +13,7 @@ import { tmp } from './helpers';
 
 const REMOTE = {
   protocol: 'fabric-service/0.1', id: 'example-agent', instance: 'default', name: 'Example Agent', placement: 'remote' as const,
-  origin: 'https://agent.example.com', auth: { tokenFile: '/tmp/never-read.token' }, lifecycle: { manager: 'none' as const },
+  origin: 'https://agent.example.com', auth: { tokenFile: '~/.never-read.token' }, lifecycle: { manager: 'none' as const },
   installedAt: '2026-10-02T18:00:00Z', installedBy: 'test',
 };
 const WELL_KNOWN: WellKnown = {
