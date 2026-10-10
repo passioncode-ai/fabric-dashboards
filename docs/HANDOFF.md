@@ -11,7 +11,8 @@ Current release: 0.6.7 (published 2026-10-09 17:07 UTC, run 37955575384; FD-36, 
 [38073564774](https://github.com/passioncode-ai/fabric-dashboards/actions/runs/38073564774), approved by the
 operator.
 - **Jobs:** preflight, the gate on five runners, macos, windows x64/arm64 and linux x64/arm64 are all green;
-  `publish` waits for its own approval and is a rehearsal (`publish=false`).
+  `publish` (approved too; a rehearsal, `publish=false`) attested 14 files — macOS 4, Windows 2 + 2, Linux 3 + 3 —
+  and kept the signed set as the artifact `signed-release-v0.6.7-rc.2`; no release was created.
 - **Windows receipt:** `windows_authenticode: SIGNED`. `Fabric Dashboards.exe` and the setup are `Valid`,
   signer `CN=Siarhei Sheleh, O=Siarhei Sheleh`, Microsoft RFC 3161 timestamp, and the setup's SHA-256 matches.
 
