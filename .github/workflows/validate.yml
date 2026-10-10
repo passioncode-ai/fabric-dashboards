@@ -12,6 +12,10 @@ on:
       os:
         description: 'macos, or all (macOS, Windows x64/arm64, Linux x64/arm64)'
         default: all
+      packages:
+        description: 'then build the Windows and Linux packages (packages.yml) — a rehearsal from any branch'
+        type: boolean
+        default: false
   workflow_call:
     inputs:
       os:
@@ -44,3 +48,10 @@ jobs:
           python-version: '3.13'
       - run: npm ci
       - run: npm run check
+
+  # FD-37: a dispatched rehearsal of the Windows and Linux packages, from any branch
+  # (a workflow dispatched by name must exist on the default branch; one it calls need not).
+  packages:
+    needs: [check]
+    if: ${{ !cancelled() && inputs.packages == true }} # a rehearsal shows the packages even when a check failed
+    uses: ./.github/workflows/packages.yml
