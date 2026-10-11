@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.7.0 - 2026-10-11
 
 ### Changed
 
@@ -21,7 +21,7 @@
   service-host package reads Windows services from `%LOCALAPPDATA%\passioncode-fabric\services`,
   accepts Windows paths in descriptors written there, and checks a Windows token file by where it lives.
 - **Windows and Linux builds** (FD-37, platforms.md PL-02, PL-08). Each release now carries a Windows
-  installer for x64 and arm64 (per user, no administrator rights; not yet Authenticode-signed, PL-03) and
+  installer for x64 and arm64 (per user, no administrator rights) and
   a Linux AppImage and `.deb` for x64 and arm64, each built on its own system and checked by the finished
   app before it ships; every `.deb` is installed on a clean Ubuntu 24.04 and asked to answer as an MCP
   server. The test suite runs on all five systems before a release.
@@ -35,8 +35,9 @@
 - **Linux installs to `/opt/fabric-dashboards`** (was `/opt/Fabric Dashboards`): Chromium cannot start
   an app from a path with a space. Before shipping, each `.deb` is installed on a clean Ubuntu, and the
   app itself is started there by an ordinary user.
-- **Windows installers are signed** with the organization's Authenticode certificate, once signing is
-  switched on for this app. Until then a release says in its notes that they are not.
+- **Windows installers are signed** with the organization's Authenticode certificate (PL-03): the app
+  and its setup are each `Valid` and timestamped before they ship (first proven on the `v0.6.7-rc.2`
+  rehearsal).
 
 - **Agents first** (FD-39, ADR-0020). The coding agent does the work; the app shows the result.
   - The console starts your coding agent already knowing the agent it was opened for: its state and

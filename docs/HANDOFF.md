@@ -3,9 +3,23 @@
 Updated 2026-10-07 (0.6.2: 0.6.1 withdrawn for audit HIGH-2, audit fixes, signed feed; 0.6.1: LC-16 in detail updater, Russian by choice; 0.6.0 published 2026-10-06 21:35 UTC; release 0.5.6: third review pass, token latch; release 0.5.5 withdrawn: release audit and its second pass, A2A plan, ADR-0016, ADR-0015 data and updates, FD-05, FD-06, FD-13; Spend and DEC-0021; one entry per agent, ADR-0012; lifecycle contract landed from PR #21, unreleased; CI release rehearsal
 `v0.4.1-rc.1` green; releases move to CI signing; release 0.4.1, MCP links to online services).
 
-Current release: 0.6.7 (published 2026-10-09 17:07 UTC, run 37955575384; FD-36, FD-35, FD-38). Before it, 0.6.6 (published 2026-10-09 10:08 UTC, run 37864378854; FD-34, FD-35). Before it, 0.6.5 (published 2026-10-08 01:18 UTC, run 37703405621; FD-29, FD-33). Before it, 0.6.4 (published 2026-10-07 01:57 UTC, run 37558793926; carries 0.6.3, superseded before approval). Before it, 0.6.2 (published 2026-10-06 23:41 UTC, run 37541067349; 0.6.1 withdrawn). Before it, 0.6.0 (published 2026-10-06 21:35 UTC, run 37505569449); Before it, 0.5.6 (2026-10-06); the 0.4.1 section below is the previous one. Earlier releases below are preserved as dated evidence.
+Current release: 0.6.7 (0.7.0 in preparation, see Next) (published 2026-10-09 17:07 UTC, run 37955575384; FD-36, FD-35, FD-38). Before it, 0.6.6 (published 2026-10-09 10:08 UTC, run 37864378854; FD-34, FD-35). Before it, 0.6.5 (published 2026-10-08 01:18 UTC, run 37703405621; FD-29, FD-33). Before it, 0.6.4 (published 2026-10-07 01:57 UTC, run 37558793926; carries 0.6.3, superseded before approval). Before it, 0.6.2 (published 2026-10-06 23:41 UTC, run 37541067349; 0.6.1 withdrawn). Before it, 0.6.0 (published 2026-10-06 21:35 UTC, run 37505569449); Before it, 0.5.6 (2026-10-06); the 0.4.1 section below is the previous one. Earlier releases below are preserved as dated evidence.
 
-## Next — start here (2026-10-11, FD-41: the ED-7 host floor; FD-42 opened)
+## Next — start here (2026-10-11, release 0.7.0: FD-37 + FD-39 + FD-41)
+
+**Branch `agent/release-070`.** 0.7.0 is the first release with Windows (signed NSIS x64/arm64) and Linux
+(AppImage + `.deb` x64/arm64) files (FD-37 M1–M3), agents first (FD-39) and the ED-7 host floor (FD-41).
+`package.json` and `package-lock.json` at 0.7.0; `CHANGELOG.md` `## 0.7.0 - 2026-10-11` (the stale "not yet
+Authenticode-signed" wording replaced: signing is on since the `v0.6.7-rc.2` rehearsal).
+Checks on the branch (2026-10-11 02:30 UTC, macOS arm64): `npm ci` 0; `npm run check` 0 — 417 tests, 412 pass,
+5 skipped (Windows-only), brand pins, 86 code regions, UX lint; `npm run test:e2e` 0 — 9/9.
+After merge: tag `v0.7.0` on the merge commit, push it, watch `release.yml`; the `macos` and `windows` jobs
+wait for a `release-approvers` approval (send its run link). Then record the run, the published files and
+the receipts here and in FD-37/FD-39/FD-41.
+
+**Next task:** tag and release 0.7.0; then FD-42 once `codex/dashboard-session-refresh` (PR #58) is on `main`.
+
+## Earlier — start here (2026-10-11, FD-41: the ED-7 host floor; FD-42 opened)
 
 **Branch `agent/fd39-dashboard-host-floor`, PR open, not merged.** Fabric Agent Contract DEC-0036
 (profile `fabric-dashboard/0.1`, [contract PR #27](https://github.com/passioncode-ai/fabric-agent-contract/pull/27),
