@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import { PLATFORMS, platformOf, withPlatforms } from '../scripts/release-feed.mjs';
+import { FEED_FILE, sha256, signedFeed } from '../src/core/release-verify';
 
 const dir = path.join(__dirname, 'fixtures', 'release-0.7.3');
 const feed = JSON.parse(fs.readFileSync(path.join(dir, 'update-feed.json'), 'utf8'));
@@ -35,4 +36,10 @@ test('FD-37 M4a: receipts from another version or another commit, or a receipt w
   assert.throws(() => withPlatforms(feed, [...rest, { ...linux, files: {} }]), /linux-x64 receipt names no update file/);
   assert.throws(() => withPlatforms(feed, [...receipts, linux]), /two receipts for linux-x64/);
   assert.throws(() => withPlatforms({}, receipts), /no currentRelease/);
+});
+
+test('FD-37 M4a: an installed macOS copy still accepts the feed with platforms (the same signedFeed check it runs today)', () => {
+  const bytes = Buffer.from(`${JSON.stringify(withPlatforms(feed, receipts), null, 2)}\n`);
+  const sums = new Map([[FEED_FILE, sha256(bytes)]]);
+  assert.deepEqual(signedFeed(bytes, sums, '0.7.3'), { ok: true, needsPerson: null });
 });
