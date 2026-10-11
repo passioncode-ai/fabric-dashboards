@@ -77,7 +77,9 @@ export function observe(prev: OutageState, services: readonly Watched[], now: nu
     // A source marked `setup: true` (DEC-0044) is answered by its flag, so it never enters the baseline either.
     const sources = s.degraded.filter((d) => d.setup !== true).map((d) => d.source);
     const base = state.baselines[s.key];
-    if (s.startedAt && base?.startedAt !== s.startedAt) state.baselines[s.key] = { startedAt: s.startedAt, sources };
+    // The baseline is the first look after the service LEFT `starting`: a service fills its degraded list during
+    // start-up (its first health check), so a look while it still starts would see an empty list.
+    if (s.startedAt && base?.startedAt !== s.startedAt) { if (s.state !== 'starting') state.baselines[s.key] = { startedAt: s.startedAt, sources }; }
     else if (base && s.state !== 'down') state.baselines[s.key] = { ...base, sources: base.sources.filter((x) => sources.includes(x)) };
     const baseline = new Set(state.baselines[s.key]?.sources ?? []);
     // DEC-0044 first: an entry marked `setup: true` waits for a person and never opens an episode. The start baseline

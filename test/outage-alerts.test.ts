@@ -158,3 +158,13 @@ test('FD-48 DEC-0044: an entry marked setup: true never opens an episode, even w
   assert.deepEqual(failing.sent.map((m) => m.subject), ['Copy: execution is failing'], 'the same source without the flag is a failure, even though it was there at the start');
 });
 
+test('FD-48: the start baseline is taken after the service left starting, so a setup state filled in during start-up is not an outage', () => {
+  const setup = { source: 'execution', reason: 'generation not configured' };
+  const r = run([
+    { at: 0, services: [svc({ state: 'starting', degraded: [] })] },
+    { at: 1 * MIN, services: [svc({ state: 'degraded', degraded: [setup] })] },
+    { at: 30 * MIN, services: [svc({ state: 'degraded', degraded: [setup] })] },
+  ]);
+  assert.deepEqual(r.sent, []);
+});
+
