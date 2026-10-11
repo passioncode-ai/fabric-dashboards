@@ -83,7 +83,7 @@ test('ADR-0017: a one-line header, a folding sidebar, and an agent console besid
     await waitFor('the runtime to start', async () => (await termText(page)).includes(`fake-claude ready in ${fs.realpathSync(repo)}`) || (await termText(page)).includes(`fake-claude ready in ${repo}`));
     // FD-39 SCN-053 (ADR-0020): the runtime starts holding the agent's context — its MCP and a brief naming it.
     const pack = path.join(userData, 'consoles', 'sample.default');
-    await waitFor('the context pack to reach the runtime', async () => { const x = await termText(page); return x.includes('ctx:[present]') && x.includes(`args:[--mcp-config ${pack}/mcp.json --append-system-prompt You are working on the Fabric agent "Sample Service" (sample.default)`); });
+    await waitFor('the context pack to reach the runtime', async () => { const x = await termText(page); return x.includes('ctx:[present]') && x.includes(`args:[--mcp-config=${pack}/mcp.json --append-system-prompt You are working on the Fabric agent "Sample Service" (sample.default)`); });
     const context = fs.readFileSync(path.join(pack, 'context.md'), 'utf8');
     assert.match(context, /# Sample Service \(sample\.default\)/);
     assert.match(context, /\*\*State:\*\* (ready|degraded)/);

@@ -58,9 +58,9 @@ test('FD-39 REQ-001: recent events are this agent\'s, newest first, and warnings
 test('FD-39 REQ-002: Claude gets the MCP config and the brief before its first turn; nothing bare follows --mcp-config', () => {
   const server = { command: '/Applications/Fabric Dashboards.app/Contents/Resources/bin/fabric-dashboards-mcp', args: [] };
   const a = handoffArgs('claude-code', { mcp: '/data/consoles/runner.dev/mcp.json', mcpServer: server, brief: 'B', prompt: 'P' });
-  assert.deepEqual(a.before, ['--mcp-config', '/data/consoles/runner.dev/mcp.json', '--append-system-prompt', 'B']);
+  assert.deepEqual(a.before, ['--mcp-config=/data/consoles/runner.dev/mcp.json', '--append-system-prompt', 'B']);
   assert.deepEqual(a.after, ['P']);
-  assert.equal(a.before[a.before.indexOf('--mcp-config') + 2], '--append-system-prompt', 'a variadic --mcp-config is closed by an option (Switchboard SB-94)');
+  assert.ok(!a.before.includes('--mcp-config'), 'the joined form: nothing after it can be read as another config (Switchboard SB-94, measured on the CLI)');
   const none = handoffArgs('claude-code', { mcp: 'm', mcpServer: server, brief: 'B', prompt: null });
   assert.deepEqual(none.after, [], 'no task: the agent waits for the person');
 });
@@ -136,7 +136,7 @@ test('FD-39 REQ-003 (Switchboard SB-94): a bound folder carries the pack after -
   assert.equal(p.kind, 'run');
   const argv = (p as { argv: string[] }).argv;
   const after = argv.slice(argv.indexOf('--') + 1);
-  assert.deepEqual(after, ['--mcp-config', '/d/mcp.json', '--append-system-prompt', 'B', '--continue']);
+  assert.deepEqual(after, ['--mcp-config=/d/mcp.json', '--append-system-prompt', 'B', '--continue']);
   const codex = { ...runtime, id: 'codex', binary: 'codex', provider: 'codex' as const, continueArgs: ['resume', '--last'] };
   const hc = handoffArgs('codex', { mcp: 'm', mcpServer: { command: 'x', args: [] }, brief: 'B', prompt: 'P' });
   const pc = planStart({ runtime: codex, mode: 'continue', folder: '/w', binding: { kind: 'none' }, switchboard: null, inPlace: false, handoff: hc });
@@ -153,8 +153,8 @@ test('FD-39 REQ-001/002/005: a console start writes the pack and carries it — 
     server: { command: '/x/electron', args: ['/x/server.js'], env: { ELECTRON_RUN_AS_NODE: '1' } }, task: { kind: 'fix' }, now: () => new Date('2026-10-10T12:00:00Z') });
   assert.equal(r.env.FABRIC_DASHBOARDS_CONTEXT, path.join(dir, 'context.md'));
   assert.equal(r.env.FABRIC_DASHBOARDS_TASK, path.join(dir, 'task.md'));
-  assert.deepEqual(r.handoff.before.slice(0, 2), ['--mcp-config', path.join(dir, 'mcp.json')]);
-  assert.match(r.handoff.before[3]!, /Runner.*runner\.dev.*context\.md.*task\.md/s, 'the brief names the agent, the context and the task');
+  assert.equal(r.handoff.before[0], `--mcp-config=${path.join(dir, 'mcp.json')}`);
+  assert.match(r.handoff.before[2]!, /Runner.*runner\.dev.*context\.md.*task\.md/s, 'the brief names the agent, the context and the task');
   assert.match(r.handoff.after[0]!, /task\.md.*then do the task/, 'a fix starts working at once');
   assert.match(fs.readFileSync(r.files.context, 'utf8'), /database locked/);
   assert.match(fs.readFileSync(r.files.task!, 'utf8'), /^# Task: Runner is down/);

@@ -41,7 +41,7 @@ test('FD-39 SCN-058: setup.md orders the steps, marks what is done, keeps human 
   const dir = path.join(tmp('fd-setup-pack-'), 'consoles', SETUP_KEY);
   const r = prepareSetup({ dir, runtimeId: 'claude-code', runtimeName: 'Claude Code', server, state: { mcp: false, skills: false, firstAgent: false } });
   assert.ok(fs.existsSync(r.files.setup) && !fs.existsSync(path.join(dir, 'context.md')));
-  assert.deepEqual(r.handoff.before.slice(0, 2), ['--mcp-config', r.files.mcp]);
+  assert.equal(r.handoff.before[0], `--mcp-config=${r.files.mcp}`);
   assert.match(r.handoff.after[0]!, /setup\.md and run the setup with me/, 'the setup starts on the click, not on a second prompt');
   for (const a of [...r.handoff.before, ...r.handoff.after]) assert.ok(a.length <= 1024);
   assert.equal(r.env.FABRIC_DASHBOARDS_SETUP, r.files.setup);

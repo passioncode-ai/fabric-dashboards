@@ -169,13 +169,15 @@ const toml = (v: string | string[]) => JSON.stringify(v);
 /**
  * The arguments that carry the pack, around the runtime's own (`before` precede `continueArgs`, which
  * for Codex is a subcommand; `after` follow them). `--mcp-config` takes several values, so nothing
- * positional follows it directly. Every argument stays under Switchboard's 1024-character limit.
+ * positional follows it directly, and the joined `--mcp-config=<path>` closes it on its own. Every argument stays under Switchboard's 1024-character limit.
  */
 export function handoffArgs(runtimeId: string, o: { mcp: string; mcpServer: McpCommand; brief: string; prompt: string | null }): { before: string[]; after: string[]; env: Record<string, string> } {
   const env: Record<string, string> = {};
   switch (runtimeId) {
     case 'claude-code':
-      return { before: ['--mcp-config', o.mcp, '--append-system-prompt', o.brief], after: o.prompt ? [o.prompt] : [], env };
+      // `--mcp-config=<path>`: the joined form closes the variadic list by itself; a value right after the
+      // spaced form is read as one more config (measured on the real CLI by Switchboard, SB-94, 2026-10-11).
+      return { before: [`--mcp-config=${o.mcp}`, '--append-system-prompt', o.brief], after: o.prompt ? [o.prompt] : [], env };
     case 'codex': {
       const before = ['-c', `mcp_servers.fabric-dashboards.command=${toml(o.mcpServer.command)}`, '-c', `mcp_servers.fabric-dashboards.args=${toml(o.mcpServer.args)}`];
       for (const [k, v] of Object.entries(o.mcpServer.env ?? {})) before.push('-c', `mcp_servers.fabric-dashboards.env.${k}=${toml(v)}`);
