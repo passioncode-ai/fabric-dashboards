@@ -26,6 +26,7 @@ import { pathToFileURL } from 'node:url';
 import { FEED_FILE, feedNamesOwnRelease, localFeed, parseSums, releaseFile, signedFeed, sumsSignedByRelease, zipName } from '../core/release-verify';
 import { CHECK_EVERY_MS, FIRST_CHECK_MS, isNewer, mayCheck, stagedBundlePath, stagedRefusal } from '../core/version';
 import type { AppStatus } from '../core/types';
+import { platformKey, platformUpdate, replaceAppImage, stagedAppImage, updateChannel } from '../core/self-update';
 
 /** The one feed this app reads: pinned, never taken from the environment. */
 export const DEFAULT_FEED = 'https://github.com/passioncode-ai/fabric-dashboards/releases/latest/download/update-feed.json';
@@ -62,6 +63,35 @@ function run(file: string, args: string[]): Promise<{ code: number; out: string 
   });
 }
 
+/** Stream a release file to `file` (0600), returning its sha256. A write error (a full disk, no permission)
+ *  ends the wait for `drain` instead of hanging it; a failure removes nothing — the caller decides. */
+async function downloadTo(url: string, file: string, timeoutMs: number): Promise<string> {
+  const res = await net.fetch(url, { cache: 'no-store', signal: AbortSignal.timeout(timeoutMs) });
+  if (!res.ok || !res.body) throw new Error(`${path.basename(file)} answered HTTP ${res.status}`);
+  const hash = createHash('sha256');
+  const out = fs.createWriteStream(file, { mode: 0o600 });
+  let failed: Error | null = null;
+  const failure = new Promise<never>((_, reject) => out.once('error', (e) => { failed = e; reject(e); }));
+  failure.catch(() => undefined);
+  const reader = res.body.getReader();
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (failed) throw failed;
+      hash.update(value);
+      if (!out.write(value)) await Promise.race([new Promise((r) => out.once('drain', r)), failure]);
+    }
+    await Promise.race([new Promise<void>((resolve) => out.end(() => resolve())), failure]);
+    if (failed) throw failed;
+  } catch (error) {
+    void reader.cancel().catch(() => undefined);
+    out.destroy();
+    throw error;
+  }
+  return hash.digest('hex');
+}
+
 /** What codesign and the Info.plist say about a bundle. */
 async function inspect(bundle: string): Promise<{ strict: boolean; team: string | null; cdhash: string | null; version: string | null }> {
   const strict = (await run('/usr/bin/codesign', ['--verify', '--deep', '--strict', bundle])).code === 0;
@@ -81,6 +111,13 @@ export class Updater {
   private retry: NodeJS.Timeout | null = null;
   private verified: Verified | null = null;
   private stuck: NodeJS.Timeout | null = null;
+  /** FD-37 M4: how this copy updates, from how it was installed (`src/core/self-update.ts`). */
+  private readonly channel = updateChannel({
+    platform: process.platform, packaged: app.isPackaged, appImage: process.env.APPIMAGE, appDir: process.env.APPDIR, execPath: process.execPath,
+    appImageIsFile: (() => { try { return Boolean(process.env.APPIMAGE) && fs.lstatSync(process.env.APPIMAGE!).isFile(); } catch { return false; } })(),
+  });
+  /** A Linux AppImage held by `needsPerson`: the version the person may install with Install now. */
+  private heldAppImage: string | null = null;
 
   constructor(
     private readonly onChange: () => void,
@@ -99,8 +136,22 @@ export class Updater {
 
   start(): void {
     this.noteInstalled();
-    if (!app.isPackaged || process.platform !== 'darwin') {
+    if (this.channel === 'development') {
       this.state = { state: 'unsupported' };
+      return;
+    }
+    // PL-04: a .deb copy never checks — a newer .deb updates it; Windows does not update itself until M4c.
+    if (this.channel === 'package' || this.channel === 'not-yet') {
+      this.state = { state: this.channel === 'package' ? 'package' : 'notyet' };
+      this.event('update_check', 'unsupported', `channel=${this.channel}`);
+      return;
+    }
+    if (this.channel === 'appimage') {
+      this.sweepAppImageParts();
+      this.switched(this.enabled());
+      setTimeout(() => this.check(), FIRST_CHECK_MS).unref();
+      this.timer = setInterval(() => this.check(), CHECK_EVERY_MS);
+      this.timer.unref();
       return;
     }
     // Squirrel replaces the bundle where it is: from a disk image or Downloads (often translocated,
@@ -167,6 +218,7 @@ export class Updater {
       return;
     }
     if (!feedNamesOwnRelease(feed, version)) return this.fail('signature_failed', `the feed for ${version} names a file outside its own release`);
+    if (this.channel === 'appimage') return this.applyAppImage(version, false);
     this.set({ state: 'downloading', version });
     const verified = await this.verify(version);
     if ('error' in verified) return this.fail(verified.code, verified.error);
@@ -220,31 +272,7 @@ export class Updater {
       const zip = path.join(dir, zipName(version));
       let actual: string;
       try {
-        const res = await net.fetch(releaseFile(version, zipName(version)), { cache: 'no-store', signal: AbortSignal.timeout(DOWNLOAD_TIMEOUT_MS) });
-        if (!res.ok || !res.body) throw new Error(`${zipName(version)} answered HTTP ${res.status}`);
-        const hash = createHash('sha256');
-        const out = fs.createWriteStream(zip, { mode: 0o600 });
-        // A write error (a full disk, no permission) ends the wait for `drain` instead of hanging it.
-        let failed: Error | null = null;
-        const failure = new Promise<never>((_, reject) => out.once('error', (e) => { failed = e; reject(e); }));
-        failure.catch(() => undefined);
-        const reader = res.body.getReader();
-        try {
-          for (;;) {
-            const { done, value } = await reader.read();
-            if (done) break;
-            if (failed) throw failed;
-            hash.update(value);
-            if (!out.write(value)) await Promise.race([new Promise((r) => out.once('drain', r)), failure]);
-          }
-          await Promise.race([new Promise<void>((resolve) => out.end(() => resolve())), failure]);
-          if (failed) throw failed;
-        } catch (error) {
-          void reader.cancel().catch(() => undefined);
-          out.destroy();
-          throw error;
-        }
-        actual = hash.digest('hex');
+        actual = await downloadTo(releaseFile(version, zipName(version)), zip, DOWNLOAD_TIMEOUT_MS);
       } catch (error) {
         return { code: 'download_failed', error: (error as Error).message };
       }
@@ -295,8 +323,99 @@ export class Updater {
     this.set({ state: 'ready', version: seen!.version ?? undefined });
   }
 
+  // #region appimage-update — docs: docs/adr/0019-windows-and-linux.md#amendment-2026-10-11--updates-on-linux-fd-37-m4b
+  /** A `.part` a killed download left beside this AppImage. */
+  private sweepAppImageParts(): void {
+    const target = process.env.APPIMAGE!;
+    try {
+      for (const name of fs.readdirSync(path.dirname(target))) {
+        if (name.startsWith(`.${path.basename(target)}.`) && name.endsWith('.part')) fs.rmSync(path.join(path.dirname(target), name), { force: true });
+      }
+    } catch { /* an unreadable folder is reported when an update is written there */ }
+  }
+
+  /**
+   * FD-37 M4b (PL-04 on Linux): the release's SHA256SUMS signed by the organization, its feed as SHA256SUMS
+   * names it, this platform's AppImage as both name it — then the new AppImage replaces this file. The running
+   * copy keeps its mount; the next start runs the new version. `person`: Install now on a held release.
+   */
+  private async applyAppImage(version: string, person: boolean): Promise<void> {
+    const target = process.env.APPIMAGE!;
+    const key = platformKey(process.platform, process.arch);
+    this.set({ state: 'downloading', version });
+    const get = async (name: string) => {
+      const res = await net.fetch(releaseFile(version, name), { cache: 'no-store', signal: AbortSignal.timeout(FEED_TIMEOUT_MS) });
+      if (!res.ok) throw new Error(`${name} answered HTTP ${res.status}`);
+      return Buffer.from(await res.arrayBuffer());
+    };
+    let sums: Buffer;
+    let asc: string;
+    let feedBytes: Buffer;
+    try { [sums, asc, feedBytes] = [await get('SHA256SUMS'), (await get('SHA256SUMS.asc')).toString('utf8'), await get(FEED_FILE)]; } catch (error) { return this.fail('download_failed', (error as Error).message); }
+    const signed = await sumsSignedByRelease(sums, asc);
+    if (!signed.ok) return this.fail('signature_failed', `SHA256SUMS of ${version} is not signed by the organization: ${signed.why}`);
+    const listed = parseSums(sums.toString('utf8'));
+    const feed = signedFeed(feedBytes, listed, version);
+    if (!feed.ok) return this.fail('signature_failed', feed.why);
+    const mine = platformUpdate(JSON.parse(feedBytes.toString('utf8')), key, version);
+    if (!mine.ok) return this.fail('signature_failed', mine.why);
+    const expected = listed.get(mine.file);
+    if (!expected || expected !== mine.sha256) return this.fail('signature_failed', `SHA256SUMS of ${version} gives ${mine.file} ${expected ?? 'no'} sha256, the feed ${mine.sha256}`);
+    if (feed.needsPerson && !person) {
+      this.heldAppImage = version;
+      this.event('update_check', 'needs_migration', `version=${version}`);
+      this.set({ state: 'held', version, steps: feed.needsPerson });
+      return;
+    }
+    const staged = stagedAppImage(target, version);
+    // A folder this user cannot write fails now, not after a download.
+    try { fs.accessSync(path.dirname(target), fs.constants.W_OK); } catch { return this.fail('download_failed', `the folder of this AppImage (${path.dirname(target)}) is not writable: the update cannot replace it`); }
+    this.event('update_download', 'started', `version=${version} file=${mine.file}`);
+    let actual: string;
+    try {
+      fs.rmSync(staged, { force: true });
+      actual = await downloadTo(releaseFile(version, mine.file), staged, DOWNLOAD_TIMEOUT_MS);
+    } catch (error) {
+      fs.rmSync(staged, { force: true });
+      return this.fail('download_failed', `the new AppImage could not be written beside ${target}: ${(error as Error).message}`);
+    }
+    if (actual !== expected) {
+      fs.rmSync(staged, { force: true });
+      return this.fail('signature_failed', `${mine.file} has sha256 ${actual}, SHA256SUMS says ${expected}`);
+    }
+    try {
+      replaceAppImage(target, staged);
+    } catch (error) {
+      return this.fail('download_failed', `${target} could not be replaced: ${(error as Error).message}`);
+    }
+    this.heldAppImage = null;
+    this.event('update_download', 'done', `version=${version} sha256=${actual.slice(0, 12)} replaced=${target}`);
+    this.event('update_check', 'ready', `version=${version}`);
+    this.set({ state: 'ready', version });
+  }
+  // #endregion appimage-update
+
   /** Install now: a ready update restarts into the new version; a held one is handed to Squirrel. */
   restart(): boolean {
+    if (this.channel === 'appimage') {
+      if (this.state.state === 'held' && this.heldAppImage) {
+        this.event('update_restart', 'requested', `version=${this.heldAppImage} held=yes`);
+        void this.applyAppImage(this.heldAppImage, true);
+        return true;
+      }
+      if (this.state.state !== 'ready') {
+        this.event('update_restart', 'refused', `state=${this.state.state}`);
+        return false;
+      }
+      // The new AppImage is already in place: starting it again is the install.
+      this.event('update_restart', 'requested', `version=${this.state.version ?? '?'}`);
+      this.event('update_install', 'started', `version=${this.state.version ?? '?'}`);
+      this.onQuitForUpdate();
+      // Electron passes this run's arguments again (flags, --hidden) and starts the new copy once this one exits.
+      app.relaunch({ execPath: process.env.APPIMAGE! });
+      app.quit();
+      return true;
+    }
     if (this.state.state === 'held' && this.verified) {
       this.event('update_restart', 'requested', `version=${this.verified.version} held=yes`);
       this.set({ state: 'downloading', version: this.verified.version });

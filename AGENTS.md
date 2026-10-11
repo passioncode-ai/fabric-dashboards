@@ -200,7 +200,8 @@ has its stages and receipt keys (`release.yml`: `guard` + `preflight` → `check
 - **The feed names every platform; only macOS reads it yet.** Since FD-37 M4a the `feed` job adds a
   `platforms` entry per OS and architecture from the receipts (`scripts/release-feed.mjs`) and refuses a release
   that lacks one (PL-04). Windows and Linux copies do not update themselves yet: the updater says `unsupported`
-  off macOS until M4b (Linux) and M4c (Windows).
+  on Windows until M4c. On Linux an AppImage updates itself since M4b (ADR-0019 amendment); a `.deb` copy never
+  checks and says that a newer `.deb` updates it.
 - **`check`** is the five-runner unit gate (`validate.yml`, `os: all`), a stage the template does not
   name; it runs before any platform job.
 - **Windows signs between build stages, not inside electron-builder.** The app is packaged by

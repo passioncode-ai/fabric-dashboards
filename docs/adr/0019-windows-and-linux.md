@@ -59,3 +59,36 @@ M5 supervision, M6 documentation. Each module updates this record's status line 
   `validateDescriptor`, `tokenFileProblem`); macOS behaviour is unchanged and its tests stay as they were.
 - Supervision on Windows and Linux is a cross-repository decision, not this app's alone; until the
   contract records it, the app claims no start/stop there.
+
+## Amendment 2026-10-11 — updates on Linux (FD-37 M4b)
+
+PL-04 on Linux, after M4a made every release's feed name each platform (`platforms`, `scripts/release-feed.mjs`).
+
+- **How the copy was installed decides** (`src/core/self-update.ts` `updateChannel`). An AppImage updates itself:
+  `$APPIMAGE` is absolute and a regular file, and this process runs from inside `$APPDIR`. Both variables are
+  inherited by children, so a `.deb` copy started from an AppImage's shell is a `package` copy and never overwrites
+  that file. A `.deb` copy never checks: Settings says that a newer `.deb` from the releases
+  page updates it. Windows says it does not update itself yet, until M4c. A development run still says updates
+  come with the installed app (0.7.1–0.7.3 showed that sentence on installed Windows and Linux copies too, which
+  was wrong).
+- **The trust is macOS's.** The AppImage follows the same checks, in order:
+  1. the release's `SHA256SUMS` is signed by the pinned organization key;
+  2. its `update-feed.json` is the one `SHA256SUMS` names;
+  3. that feed's `platforms.linux-<arch>` names exactly `Fabric-Dashboards-<v>-linux-<arch>.AppImage`, with the
+     hash `SHA256SUMS` gives;
+  4. the downloaded file has that hash.
+
+  A release whose feed says `needsPerson` is verified and held, as on macOS.
+- **Replacing the file.** The new AppImage is written beside this one (`.<name>.<version>.part`, so the rename stays
+  on one file system), made executable, flushed to disk, and renamed over `$APPIMAGE` in one step; the folder is
+  flushed after the rename. A folder this user cannot write fails before any download. The running copy keeps its old
+  mount and runs on. *Restart to update*, or the ten hidden minutes of ADR-0015, starts `$APPIMAGE` again. A
+  `.part` left by a killed download is removed at the next start. A folder this user cannot write fails the update
+  and says so; the old AppImage is untouched.
+- **Proof.** The pure parts are tested on the published 0.7.3 receipts (`test/self-update.test.ts`). The network
+  path runs through Electron's `net` and the pinned feed address, which no test may redirect. The end-to-end proof
+  is therefore the first real update: an AppImage of the first release that carries M4a and M4b updating to the
+  release after it, on `ubuntu-24.04` and `ubuntu-24.04-arm` (board row FD-37). That run also confirms that
+  Electron's relaunch starts the new copy only after this one has exited (otherwise the single-instance lock would
+  end it), and that this run's arguments come back.
+

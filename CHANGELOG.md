@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- **The Linux AppImage updates itself** (FD-37 M4b). It goes through the same checks as on a Mac: the release's
+  signed SHA256SUMS, then the file's own hash. Then the new AppImage replaces the old one and starts at the next
+  restart. A copy installed from a `.deb` says that a newer `.deb` updates it, and Windows says it does not
+  update itself yet. Until now both wrongly said that updates come only with the installed app.
+- **Every release's update feed names each platform it ships** (FD-37 M4a). A release that lacks one is not
+  published.
+
 ## 0.7.3 - 2026-10-11
 
 Carries everything listed under 0.7.2 below. 0.7.2 was tagged, then stopped by its own test gate before anything
