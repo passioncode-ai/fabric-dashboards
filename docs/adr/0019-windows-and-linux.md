@@ -119,6 +119,8 @@ PL-04 on Windows, on the same feed and checks as M4b.
   process the way a quit does, and requires three things: the waiter exits 0, every old process is gone and a new
   one runs, and the app and its uninstaller are still in place. Only that run's processes are stopped, and a
   survivor fails the check. It installs the same version over itself, so a version change is part of the owed
-  end-to-end proof. The download path has the same limit as M4b: its
+  end-to-end proof.
+  Measured in run 38166001899: the update took 12 s on `windows-latest` and 486 s on `windows-11-arm`, where the
+  installer's 7-Zip decoding is slow. On an arm64 PC the app comes back by itself, minutes later. The download path has the same limit as M4b: its
   end-to-end proof is the first real update from a release that carries M4c.
 

@@ -11,7 +11,15 @@ Current release: 0.7.3 (published 2026-10-11 16:59 UTC, run 38156472858; FD-45, 
 An NSIS install (its uninstaller beside the app) is channel `nsis`. `Updater.prepareFile`, shared with the
 AppImage, verifies the installer and keeps it in `pending-update/`. Restart, or ten hidden minutes, starts it
 detached with `--updated /S --force-run` and quits. `scripts/nsis-smoke.mjs` now runs that update over a running
-copy on both Windows runners.
+copy on both Windows runners. An independent review (1 bug, 7 risks, 1 question) was fixed:
+- a PowerShell waiter (`nsisUpdateCommand`) runs the installer only after the app exits, and only if its SHA256 is
+  still the verified one; the app quits only after the waiter has started;
+- `nsis` only for a copy in `%LOCALAPPDATA%\Programs\<name>`;
+- the cleanup at start cannot crash it;
+- the smoke follows the real order, stops only its own processes and fails on survivors.
+
+Rehearsal run 38166001899 on all five runners with packages was green. The update took 12 s on x64 and 486 s on
+arm64.
 
 **Next task:** merge, release (0.7.4 carries M4a, M4b and M4c), then the owed end-to-end proof once the release
 after it exists. FD-37 M5 (systemd / Task Scheduler supervision) waits on its contract with Fabric.
