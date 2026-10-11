@@ -81,7 +81,9 @@ from Fabric with the same folder. What changed here:
   runtime's, sit between them on the command line, and are not recorded. A Terminal window opened while a console
   session of the same agent runs gets no pack: the folder is one per agent key, and that session owns it.
   Other runtimes get no manifest: the brief does not reach them, so a manifest would declare a delivery that
-  does not happen. The Setup console is not an agent session and writes none.
+  does not happen. The Setup console writes none either: it does start the person's coding agent, but on no
+  agent, so there is no key for `service_context`, the only first call `session-handoff/1` allows a console. Fabric's
+  own Setup console is a Fabric session and does write one (the Fabric owner, 2026-10-11).
 - **The preamble holds no rule** (SH-6). The brief is the task's path, when there is a task, then one line naming
   `service_context` alone. The rules that used to be in the brief (do the work yourself; ask only for decisions,
   sign-ins, consents and secrets; secrets only in a hidden prompt; confirm a fix with `service_status`) are now
