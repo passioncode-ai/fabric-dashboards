@@ -34,6 +34,21 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # Approval by checks (passioncode-ai/.github docs/release-signing/DESIGN.md, operator 2026-10-11):
+  # every job that holds the release environment's keys needs this one, which passes a publishing
+  # run only when main contains the tagged commit and CI passed on that exact commit.
+  guard:
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    permissions:
+      contents: read
+      actions: write   # starts CI on the tag when none ran on the commit
+    steps:
+      - uses: passioncode-ai/.github/actions/release-guard@v1
+        with:
+          workflows: ""   # the gate job of this workflow runs before signing
+          publish: ${{ github.event_name == 'push' || inputs.publish }}
+
   # PL-10 stage names, the same in every product: preflight → macos → windows → linux → still-newest → publish.
   preflight:
     runs-on: ubuntu-latest
@@ -82,7 +97,7 @@ jobs:
 
   # #region release-in-ci — docs: docs/RUNBOOK.md#release
   macos:
-    needs: [preflight, check]
+    needs: [guard, preflight, check]
     runs-on: macos-latest
     environment: release
     timeout-minutes: 120
@@ -148,7 +163,7 @@ jobs:
   # FD-37: Windows (NSIS x64, arm64; Authenticode where AZURE_SIGNING_ENABLED is on — PL-03) and Linux
   # (AppImage + .deb x64, arm64), each on its native runner (packages.yml).
   windows:
-    needs: [preflight, check]
+    needs: [guard, preflight, check]   # packages.yml signs in the release environment
     permissions:
       contents: read
       id-token: write # packages.yml's Windows signing (OIDC)
@@ -158,7 +173,7 @@ jobs:
       os: windows
 
   linux:
-    needs: [preflight, check]
+    needs: [guard, preflight, check]   # packages.yml signs in the release environment
     permissions:
       contents: read
       id-token: write # packages.yml's job asks for it (Windows signing); Linux never signs
