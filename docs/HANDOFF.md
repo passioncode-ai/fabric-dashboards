@@ -11,6 +11,8 @@ Current release: 0.6.7 (0.7.0 in preparation, see Next) (published 2026-10-09 17
 (AppImage + `.deb` x64/arm64) files (FD-37 M1–M3), agents first (FD-39) and the ED-7 host floor (FD-41).
 `package.json` and `package-lock.json` at 0.7.0; `CHANGELOG.md` `## 0.7.0 - 2026-10-11` (the stale "not yet
 Authenticode-signed" wording replaced: signing is on since the `v0.6.7-rc.2` rehearsal).
+Checks on the branch (2026-10-11 02:30 UTC, macOS arm64): `npm ci` 0; `npm run check` 0 — 417 tests, 412 pass,
+5 skipped (Windows-only), brand pins, 86 code regions, UX lint; `npm run test:e2e` 0 — 9/9.
 After merge: tag `v0.7.0` on the merge commit, push it, watch `release.yml`; the `macos` and `windows` jobs
 wait for a `release-approvers` approval (send its run link). Then record the run, the published files and
 the receipts here and in FD-37/FD-39/FD-41.
