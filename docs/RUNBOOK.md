@@ -56,6 +56,9 @@ published or attached to a release.
    job then waits for the `release` environment, and `windows` and `linux` start beside it (step 4a).
 4. Someone from `release-approvers` approves it (*Review deployments*); that may be whoever
    pushed the tag. An agent never approves a release run, even when its account could.
+   An agent that asks for the approval sends the run's direct link
+   (`gh run list -w release.yml -L 1 --json url`) with the tag and the waiting jobs, after checking
+   that the run is `waiting` (operator, 2026-10-11).
    In the job:
    - `apple-signing` puts the CI Developer ID in a throwaway keychain. The identity and team come
      from the environment (`vars.APPLE_TEAM_ID`), never from this repository.
