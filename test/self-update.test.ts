@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import { withPlatforms } from '../scripts/release-feed.mjs';
-import { platformKey, platformUpdate, replaceAppImage, stagedAppImage, updateChannel, updateFileName } from '../src/core/self-update';
+import { NSIS_UPDATE_ARGS, platformKey, platformUpdate, replaceAppImage, stagedAppImage, updateChannel, updateFileName } from '../src/core/self-update';
 import { mayCheck } from '../src/core/version';
 import { tmp } from './helpers';
 
@@ -23,7 +23,8 @@ test('FD-37 M4 PL-04: the channel follows how the copy was installed', () => {
   assert.equal(updateChannel({ platform: 'linux', packaged: true }), 'package', 'a .deb copy (no APPIMAGE) never checks');
   assert.equal(updateChannel({ platform: 'linux', packaged: true, ...image, appImage: 'relative.AppImage' }), 'package', 'only an absolute AppImage path is replaced');
   assert.equal(updateChannel({ platform: 'linux', packaged: true, ...image, appImage: '/tmp/not-an-image' }), 'package');
-  assert.equal(updateChannel({ platform: 'win32', packaged: true }), 'not-yet', 'Windows until M4c');
+  assert.equal(updateChannel({ platform: 'win32', packaged: true, nsisUninstaller: true }), 'nsis', 'M4c: an NSIS install updates itself');
+  assert.equal(updateChannel({ platform: 'win32', packaged: true }), 'not-yet', 'a copy without the installer\'s uninstaller beside it does not');
   assert.equal(updateChannel({ platform: 'linux', packaged: false, appImage: '/x.AppImage' }), 'development');
   for (const state of ['package', 'notyet']) assert.equal(mayCheck({ manual: true, enabled: true, state }), false, `${state} never checks`);
 });
@@ -62,4 +63,10 @@ test('FD-37 M4b: the new AppImage replaces this one in one step, executable; a f
   assert.throws(() => replaceAppImage(target, path.join(folder, 'missing.part')));
   assert.equal(fs.readFileSync(target, 'utf8'), 'new', 'the old file stays when the replacement fails');
   assert.deepEqual(fs.readdirSync(folder).filter((n) => n.endsWith('.part')), []);
+});
+
+test('FD-37 M4c: a Windows copy finds its own installer in the 0.7.3 feed, and runs it as an update — silent, in place, the app started again', () => {
+  assert.deepEqual(platformUpdate(feed, 'win32-x64', '0.7.3'), { ok: true, file: 'Fabric-Dashboards-0.7.3-windows-x64-setup.exe', sha256: '19322ee2ba495ec862ee6b425d944ee27a8331110562ff75b56fca3d5c57548f' });
+  assert.equal(platformUpdate(feed, 'win32-arm64', '0.7.3').ok, true);
+  assert.deepEqual([...NSIS_UPDATE_ARGS], ['--updated', '/S', '--force-run'], 'electron-builder\'s update flags; never an uninstall');
 });

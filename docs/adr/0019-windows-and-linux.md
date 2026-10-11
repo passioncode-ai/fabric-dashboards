@@ -92,3 +92,24 @@ PL-04 on Linux, after M4a made every release's feed name each platform (`platfor
   Electron's relaunch starts the new copy only after this one has exited (otherwise the single-instance lock would
   end it), and that this run's arguments come back.
 
+## Amendment 2026-10-11 — updates on Windows (FD-37 M4c)
+
+PL-04 on Windows, on the same feed and checks as M4b.
+
+- **An NSIS install updates itself** (`updateChannel` → `nsis`): the installer's `Uninstall Fabric Dashboards.exe`
+  sits beside the app, which is the same test `uninstallTarget` uses. Any other Windows copy says it was not set up
+  by the installer and does not update itself.
+- **The installer is verified, then waits.** It goes through the same checks as Linux: the signed SHA256SUMS, the
+  signed feed's `platforms.win32-<arch>` (exactly `Fabric-Dashboards-<v>-windows-<arch>-setup.exe`), and the file's
+  hash. It is then kept in the app's data (`pending-update/`, removed at every start and by uninstall).
+  Authenticode is not checked again here: the release pipeline signs and verifies it (`windows_authenticode:
+  SIGNED`), and the GPG-signed SHA256SUMS is the trust on every OS (PL-04).
+- **It runs as an update.** *Restart to update*, or the ten hidden minutes of ADR-0015, starts the installer
+  detached with electron-builder's own update flags (`--updated /S --force-run`, as electron-updater's NsisUpdater
+  passes them), then quits. The installer installs over the copy in place and starts the app again. It never
+  uninstalls and never touches the app's data. The hidden-relaunch marker keeps an automatic install in the tray.
+- **Proof.** `scripts/nsis-smoke.mjs` (packages.yml, both Windows runners) installs the app and starts it. It then
+  runs the same installer with those flags over the running copy and requires that every old process has gone and
+  a new one runs, with the app and its uninstaller still in place. The download path has the same limit as M4b: its
+  end-to-end proof is the first real update from a release that carries M4c.
+

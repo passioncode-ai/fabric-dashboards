@@ -9,12 +9,14 @@ import path from 'node:path';
  * - `squirrel`: macOS, Squirrel.Mac (ADR-0015).
  * - `appimage`: Linux AppImage — the verified new AppImage replaces this file; it runs from the next start.
  * - `package`: Linux `.deb` — never checks (PL-04); a newer `.deb` updates it, through the package manager.
- * - `not-yet`: Windows until M4c — this copy does not update itself and says where the newer installer is.
+ * - `nsis`: Windows, installed by the NSIS installer (its uninstaller beside the app) — the verified new installer
+ *   runs silently in update mode once the app quits, and starts the app again (M4c).
+ * - `not-yet`: any other Windows copy — it does not update itself and says where the newer installer is.
  * - `development`: not packaged — updates come with the installed app.
  */
-export type UpdateChannel = 'squirrel' | 'appimage' | 'package' | 'not-yet' | 'development';
+export type UpdateChannel = 'squirrel' | 'appimage' | 'package' | 'nsis' | 'not-yet' | 'development';
 
-export function updateChannel(o: { platform: NodeJS.Platform; packaged: boolean; appImage?: string; appDir?: string; execPath?: string; appImageIsFile?: boolean }): UpdateChannel {
+export function updateChannel(o: { platform: NodeJS.Platform; packaged: boolean; appImage?: string; appDir?: string; execPath?: string; appImageIsFile?: boolean; nsisUninstaller?: boolean }): UpdateChannel {
   if (!o.packaged) return 'development';
   if (o.platform === 'darwin') return 'squirrel';
   if (o.platform === 'linux') {
@@ -24,8 +26,19 @@ export function updateChannel(o: { platform: NodeJS.Platform; packaged: boolean;
     const inside = Boolean(o.appDir && o.execPath && path.isAbsolute(o.appDir) && path.resolve(o.execPath).startsWith(path.resolve(o.appDir) + path.sep));
     return o.appImage && /\.AppImage$/i.test(o.appImage) && path.isAbsolute(o.appImage) && inside && o.appImageIsFile === true ? 'appimage' : 'package';
   }
+  if (o.platform === 'win32') return o.nsisUninstaller === true ? 'nsis' : 'not-yet';
   return 'not-yet';
 }
+
+/** Where a Windows copy keeps a verified installer until it runs (inside the app's data, so uninstall removes it). */
+export const PENDING_UPDATE_DIR = 'pending-update';
+
+/**
+ * How a verified NSIS installer runs as an update (electron-builder's own flags, as electron-updater's
+ * NsisUpdater passes them): `--updated` installs over the copy in place, `/S` without a window, `--force-run`
+ * starts the app again when it is done. Never an uninstall, never app data (PL-04).
+ */
+export const NSIS_UPDATE_ARGS: readonly string[] = ['--updated', '/S', '--force-run'];
 
 /** The feed's key for this copy (`scripts/release-feed.mjs` PLATFORMS). */
 export const platformKey = (platform: NodeJS.Platform, arch: string): string => (platform === 'darwin' ? 'darwin-universal' : `${platform}-${arch}`);

@@ -2,8 +2,10 @@
 //   node scripts/nsis-smoke.mjs release/Fabric-Dashboards-<v>-windows-<arch>-setup.exe
 // It installs per user without elevation (/S), the installed MCP launcher answers `initialize`, the
 // uninstaller sits where the app's own Settings → Uninstall looks for it (src/core/platform.ts
-// uninstallTarget), and running it the way the app does (/S) removes the install.
-import { spawnSync } from 'node:child_process';
+// uninstallTarget), and running it the way the app does (/S) removes the install. FD-37 M4c: the same
+// installer, run the way the app runs an update (src/core/self-update.ts NSIS_UPDATE_ARGS) over a running copy,
+// installs in place and starts the app again.
+import { spawn, spawnSync } from 'node:child_process';
 import { existsSync, mkdtempSync, readdirSync, rmSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -43,6 +45,31 @@ try {
   rmSync(services, { recursive: true, force: true });
 }
 
+// FD-37 M4c: an update over a running copy. The app runs from the install with its own data and services
+// folders; the installer gets --updated /S --force-run, as the app passes them, and must leave a new process.
+const appPids = () => spawnSync('tasklist', ['/FI', 'IMAGENAME eq Fabric Dashboards.exe', '/FO', 'CSV', '/NH'], { encoding: 'utf8', windowsHide: true }).stdout
+  .split('\n').map((l) => /^"[^"]+","(\d+)"/.exec(l.trim())?.[1]).filter(Boolean);
+const data = mkdtempSync(path.join(os.tmpdir(), 'fd-nsis-data-'));
+const watched = mkdtempSync(path.join(os.tmpdir(), 'fd-nsis-svc-'));
+const appEnv = { ...process.env, FABRIC_DASHBOARDS_USER_DATA: data, FABRIC_SERVICES_DIR: watched };
+try {
+  spawn(exe, ['--hidden'], { detached: true, stdio: 'ignore', env: appEnv, windowsHide: true }).unref();
+  requireThat(await until(() => appPids().length > 0, 60_000), 'the installed app did not start');
+  const before = new Set(appPids());
+  const updateStarted = Date.now();
+  const update = spawnSync(setup, ['--updated', '/S', '--force-run'], { timeout: 300_000, windowsHide: true, env: appEnv });
+  requireThat(update.status === 0, `the installer in update mode exited ${update.status ?? update.error}`);
+  const anew = await until(() => { const now = appPids(); return now.length > 0 && now.every((pid) => !before.has(pid)); }, 180_000);
+  requireThat(anew, `after the update the app is not running anew (before: ${[...before].join(' ')}; now: ${appPids().join(' ') || 'none'})`);
+  requireThat(existsSync(exe) && existsSync(uninstaller), 'the update left no app or no uninstaller in place');
+  console.log(`the installer updated the running copy in place and started it again in ${Math.round((Date.now() - updateStarted) / 1000)} s`);
+} finally {
+  spawnSync('taskkill', ['/F', '/T', '/IM', 'Fabric Dashboards.exe'], { windowsHide: true });
+  await until(() => appPids().length === 0, 30_000);
+  rmSync(data, { recursive: true, force: true });
+  rmSync(watched, { recursive: true, force: true });
+}
+
 // The NSIS uninstaller copies itself to %TEMP% and returns at once; the removal finishes after.
 const remove = spawnSync(uninstaller, ['/S'], { timeout: 300_000, windowsHide: true });
 requireThat(remove.status === 0, `the uninstaller exited ${remove.status ?? remove.error}`);
@@ -53,4 +80,4 @@ if (!await until(() => !existsSync(exe), 300_000)) {
   requireThat(false, `the uninstaller left ${exe} after 300 s; still there: ${left}; running: ${running || 'none'}`);
 }
 console.log(`the uninstaller removed the app in ${Math.round((Date.now() - removalStarted) / 1000)} s`);
-console.log(`installed per user at ${dir}, the MCP launcher answered initialize, /S uninstall removed it`);
+console.log(`installed per user at ${dir}, the MCP launcher answered initialize, an update over the running copy restarted it, /S uninstall removed it`);

@@ -120,6 +120,7 @@ LC-09 inventory for this product. The tests that hold each rule are in `test/lif
 | An agent console session (ADR-0017): the chosen runtime's own CLI on a PTY (`node-pty`; `spawn-helper` → the runtime), or `switchboard launch … --in-place` for a folder bound to a Switchboard project | the person, with New session or Continue last in a service's console | runs while the person works; nothing reaches a hidden window (its output waits in a 1 MB ring); a running console holds back an automatic update install | Stop (asks first; SIGHUP, SIGKILL 2 s later), the service's removal, quit (`will-quit` waits for every session to end) |
 | `launchctl`, `lsof`, `osascript` (JXA, `host_status`; Terminal for Open in Terminal), `/usr/bin/open`, `switchboard --json project show` / `accounts list` / `agents list` / `launch --help`, the login shell once (`$SHELL -ilc`, to read its `PATH`) | the monitor, the listener scan, the MCP tools, the agent console | short-lived; never more often than the table below | they exit by themselves |
 | Estate probes (FD-30, ADR-0018): `git -C <clone> remote get-url / ls-remote / rev-parse --verify / fetch origin`, `npm view sshlg-skills …`, and with *Update skills by themselves* on `npx --yes sshlg-skills@<version> update` | the estate updater in the main process, while its switch is on | 90 s after start, then every 6 h, one retry within the hour after a failure, and 5 s after the person changes what is watched: at most 8 short processes a check (30 s deadline each; the update 10 min), own process group, the login shell's PATH (`src/electron/estate-updater.ts`); writes `estate-skills.json` in userData | the run's deadline, or `will-quit` (nothing starts after `stop()`) |
+| Windows update installer (FD-37 M4c) | Restart to update, or an automatic install after 10 hidden minutes, on an NSIS install | the verified `pending-update/Fabric-Dashboards-<v>-windows-<arch>-setup.exe`, detached, `--updated /S --force-run`; installs in place and starts the app again | itself |
 | Reopen helper (`/bin/sh`, FD-31) | a launch that finds ShipIt installing a newer build (it quits at once and leaves this) | waits while the `ai.passioncode.fabric-dashboards.ShipIt` job runs (at most 10 min), then `open -b ai.passioncode.fabric-dashboards`, ends | itself |
 | Uninstall helper (`/bin/sh`) | Settings → Uninstall, after the person confirms | waits for the app's pid (at most 30 s), removes the app's data, ends; an app still running after 30 s keeps its data | itself |
 
@@ -162,7 +163,7 @@ and `setup.md` for the Setup console; 0700 folder, 0600 files, rewritten at each
 and its last good copy `settings.json.bak` (a damaged `settings.json` is restored from it, ADR-0015),
 `auto-update` (the LC-16 switch: written only when the person turns it, kept by every uninstall), `.last-version` (the version that ran last, to log a finished install), `restore.json` (written only by an uninstall that kept the data), `.relaunch-hidden` (seconds-long
 marker of an automatic update install), `activity.jsonl` (appended, compacted to 5,000 rows at 10,000), `activity-state.json`,
-`notified.json`, the Chromium profile and one `Partitions/svc-<key>` per service ever opened;
+`notified.json`, `pending-update/` (Windows, FD-37 M4c: the verified installer until it runs; removed at every start), the Chromium profile and one `Partitions/svc-<key>` per service ever opened;
 `~/Library/Logs/Fabric Dashboards/main.log` (0600, 5 × 5 MB). At start it removes temporary files
 left by a killed writer and the partitions of services that are no longer installed; a service
 removed while it runs takes its view and its stored session with it.
@@ -200,8 +201,8 @@ has its stages and receipt keys (`release.yml`: `guard` + `preflight` → `check
 - **The feed names every platform; only macOS reads it yet.** Since FD-37 M4a the `feed` job adds a
   `platforms` entry per OS and architecture from the receipts (`scripts/release-feed.mjs`) and refuses a release
   that lacks one (PL-04). Windows and Linux copies do not update themselves yet: the updater says `unsupported`
-  on Windows until M4c. On Linux an AppImage updates itself since M4b (ADR-0019 amendment); a `.deb` copy never
-  checks and says that a newer `.deb` updates it.
+  An NSIS install on Windows (M4c) and a Linux AppImage (M4b) update themselves (ADR-0019 amendments); a `.deb`
+  copy never checks and says that a newer `.deb` updates it.
 - **`check`** is the five-runner unit gate (`validate.yml`, `os: all`), a stage the template does not
   name; it runs before any platform job.
 - **Windows signs between build stages, not inside electron-builder.** The app is packaged by

@@ -4,10 +4,11 @@
 
 ### Added
 
+- **Windows updates itself** (FD-37 M4c). A copy set up by the installer verifies the next installer the same way,
+  then runs it silently when the app quits: it installs in place and starts the app again.
 - **The Linux AppImage updates itself** (FD-37 M4b). It goes through the same checks as on a Mac: the release's
   signed SHA256SUMS, then the file's own hash. Then the new AppImage replaces the old one and starts at the next
-  restart. A copy installed from a `.deb` says that a newer `.deb` updates it, and Windows says it does not
-  update itself yet. Until now both wrongly said that updates come only with the installed app.
+  restart. A copy installed from a `.deb` says that a newer `.deb` updates it. Until now both wrongly said that updates come only with the installed app.
 - **Every release's update feed names each platform it ships** (FD-37 M4a). A release that lacks one is not
   published.
 
