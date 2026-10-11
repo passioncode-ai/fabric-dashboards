@@ -141,8 +141,12 @@ test('dist: release.yml signs in the release environment and ships only what was
   for (const job of ['preflight', 'check', 'macos', 'windows', 'linux', 'still-newest', 'publish']) at(`\n  ${job}:\n`);
   // FD-37: the Windows and Linux packages are built after the gate ran on every system, and publish waits for them.
   at('uses: ./.github/workflows/validate.yml\n    with:\n      os: all');
-  assert.ok(at('  windows:\n    needs: [preflight, check]') < at('uses: passioncode-ai/.github/.github/workflows/release-publish.yml@v1'));
-  at('  linux:\n    needs: [preflight, check]');
+  assert.ok(at('  windows:\n    needs: [guard, preflight, check]') < at('uses: passioncode-ai/.github/.github/workflows/release-publish.yml@v1'));
+  at('  linux:\n    needs: [guard, preflight, check]');
+  // Approval by checks (operator 2026-10-11, #81): the release environment has no reviewers, so every job
+  // that holds its keys needs the guard, which passes a tag only when main contains its commit.
+  at('uses: passioncode-ai/.github/actions/release-guard@v1');
+  at('  macos:\n    needs: [guard, preflight, check]');
   at("needs.windows.result == 'success' && needs.linux.result == 'success'");
   at("grep -q 'HTTP 404' /tmp/gh-err");
   at('team-id: ${{ vars.APPLE_TEAM_ID }}');

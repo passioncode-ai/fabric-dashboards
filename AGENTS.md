@@ -33,7 +33,7 @@ These come from `CONTRIBUTING.md`:
 | Test (the gate) | `npm run check` — typecheck, unit + integration tests, brand pins, code regions, UX lint (`FD_SKIP_LAUNCHD=1` without a GUI login session) |
 | End-to-end | `npm run test:e2e` — refuses at once on a locked screen (`scripts/check-screen.mjs`: macOS sends windows no show/hide events then), builds, installs Electron's binary (Electron 44 fetches it on first use; parallel test files would race for it), then drives the real Electron app against a live sample service |
 | Run from source | `npm start` |
-| Release | push an annotated `v<version>` tag; `.github/workflows/release.yml` builds, signs, notarizes, attests and publishes after a `release-approvers` approval. Rehearsal: a `v<version>-rc.<n>` tag, then `gh workflow run release.yml --ref <tag> -f publish=false` ([RUNBOOK](docs/RUNBOOK.md#release)) |
+| Release | push an annotated `v<version>` tag; `.github/workflows/release.yml` builds, signs, notarizes, attests and publishes once `guard` passes — approval by checks, no click (operator 2026-10-11; only `release-approvers` can push a `v*` tag). Rehearsal: a `v<version>-rc.<n>` tag, then `gh workflow run release.yml --ref <tag> -f publish=false` ([RUNBOOK](docs/RUNBOOK.md#release)) |
 | Local build (debug only, never published) | `npm run dist -- --unsigned`, or signed: `npm run dist [-- --identity NAME] [--notary-profile NAME]` |
 | Windows and Linux packages (FD-37) | built only in CI on each native runner by `scripts/dist-other.mjs` (`packages.yml`, called by the release); rehearsal from any branch: `gh workflow run validate.yml --ref <branch> -f os=all -f packages=true` ([RUNBOOK](docs/RUNBOOK.md#windows-and-linux-packages)). By hand on Windows or Linux: `node scripts/dist-other.mjs --allow-dirty` (debug, never published) |
 | MCP (register + proving call) | `claude mcp add --scope user fabric-dashboards -- "/Applications/Fabric Dashboards.app/Contents/Resources/bin/fabric-dashboards-mcp"`, then `claude -p "Call the fabric-dashboards list_services tool once and reply with only the number of services it returned." --allowedTools mcp__fabric-dashboards__list_services --max-turns 3` |
@@ -185,7 +185,7 @@ off, `EnableNodeCliInspectArguments` off, `EnableEmbeddedAsarIntegrityValidation
 ## Release pipeline (PL-10) — where this product differs, and why
 
 fabric-workspace `knowledge/platforms.md` PL-10 sets one release pipeline for every product. This one
-has its stages and receipt keys (`release.yml`: `preflight` → `check` → `macos`, `windows`, `linux` →
+has its stages and receipt keys (`release.yml`: `guard` + `preflight` → `check` → `macos`, `windows`, `linux` →
 `still-newest` → `publish`; receipts carry `version`, `commit`, `arch`, `macos_notarization`,
 `windows_authenticode`, `checks`). It differs in these ways:
 

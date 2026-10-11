@@ -4,9 +4,9 @@
 # build receipt. Beside it the Windows and Linux packages (packages.yml, FD-37; unsigned until
 # PL-03's certificate profile exists). Then attested (Sigstore), summed and GPG-signed, and published.
 #
-# Signing happens only here, in the protected `release` environment: approved by a
-# person from release-approvers, who may be whoever pushed the tag; an agent never
-# approves (passioncode-ai/.github release-signing/README.md). A build signed anywhere else is a debug build and is never
+# Signing happens only here, in the protected `release` environment, approved by checks
+# (operator 2026-10-11): every job holding its keys needs `guard`, and only team
+# release-approvers can push a v* tag (passioncode-ai/.github docs/release-signing/DESIGN.md). A build signed anywhere else is a debug build and is never
 # published. A published release is never rewritten: a fix is a new tag. docs/RUNBOOK.md#release
 #
 # Release:    push an annotated vX.Y.Z tag on the reviewed release commit.
@@ -182,7 +182,7 @@ jobs:
       os: linux
 
   # F-1: the same check again right before publishing — hours may pass between the first one and
-  # the approvals, and a newer release may have been published meanwhile. A rehearsal is exempt.
+  # the publish, and a newer release may have been published meanwhile. A rehearsal is exempt.
   still-newest:
     needs: [macos, windows, linux]
     if: ${{ !contains(github.ref_name, '-rc.') }}

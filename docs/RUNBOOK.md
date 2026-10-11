@@ -47,19 +47,27 @@ published or attached to a release.
    `## <version> - <date>`, run `npm ci && npm run check && npm run test:e2e`, merge to `main`.
 2. Tag the merge commit and push the tag:
    `git tag -a v<version> <merge commit> -m v<version> && git push origin v<version>`.
+   **Pushing the tag is the release decision** (operator, 2026-10-11): the tag ruleset `release-tags`
+   lets only team `release-approvers` create, move or delete a `v*` tag, and nothing after it waits
+   for a click.
 3. `release.yml` starts. `version` checks that the tag names `package.json`'s version, that
    the CHANGELOG has its section and — for a full release — that the version is newer than the
    latest published release: Squirrel installs whatever the latest feed names, so an older one
-   would move every installed copy backwards (ADR-0015). A superseded run waiting for approval is
-   cancelled, never approved. `check` runs `npm run check` (`validate.yml`) on every native runner
-   the release ships for — macOS, Windows x64 and arm64, Linux x64 and arm64 (PL-08). The `macos`
-   job then waits for the `release` environment, and `windows` and `linux` start beside it (step 4a).
-4. Someone from `release-approvers` approves it (*Review deployments*); that may be whoever
-   pushed the tag. An agent never approves a release run, even when its account could.
-   An agent that asks for the approval sends the run's direct link
-   (`gh run list -w release.yml -L 1 --json url`) with the tag and the waiting jobs, after checking
-   that the run is `waiting` (operator, 2026-10-11).
-   In the job:
+   would move every installed copy backwards (ADR-0015). `guard` ([release-guard@v1](https://github.com/passioncode-ai/.github/blob/main/docs/release-signing/DESIGN.md),
+   *Approval by checks*) passes the tag only when `main` contains the tagged commit; every job that
+   holds the `release` environment's keys needs it, and its list of CI workflows is empty because
+   `check` below runs before any signing. `check` runs `npm run check` (`validate.yml`) on every native runner
+   the release ships for — macOS, Windows x64 and arm64, Linux x64 and arm64 (PL-08). `macos`,
+   `windows` and `linux` (step 4a) then run in the `release` environment.
+4. **Nobody approves the run** (operator, 2026-10-11, *Approval by checks*): the `release`
+   environment has no reviewers since `guard` landed (#81, 10473c0); it keeps only its `v*` tag
+   policy. Before that, `release-approvers` approved twice, and run 38106066248 (0.7.1) shows the
+   cost: signed builds waited hours for a click nobody saw. An agent never approves a deployment with
+   a person's account; under checks there is nothing to approve, so the agent watches the run and
+   reports it. Should the organization return to `"approval": "people"` (`products.json`), the
+   reviewers come back, and an agent that asks for an approval sends the run's direct link with the
+   tag and the waiting jobs after checking the run is `waiting`.
+   In the `macos` job:
    - `apple-signing` puts the CI Developer ID in a throwaway keychain. The identity and team come
      from the environment (`vars.APPLE_TEAM_ID`), never from this repository.
    - `node scripts/dist-mac.mjs --stage app --identity <from the action>` packages the universal
@@ -97,8 +105,8 @@ published or attached to a release.
    - `--stage seal` writes the receipt with the PL-10 keys (`version`, `commit`, `arch`,
      `macos_notarization`, `windows_authenticode`, `checks`) and each file's SHA-256.
 
-   **Windows signing.** The `windows` job runs in the `release` environment and waits for the same
-   approval as `macos`. Where the environment's `AZURE_SIGNING_ENABLED` is `true`, the organization's
+   **Windows signing.** The `windows` job runs in the `release` environment and needs `guard`, as
+   `macos` does. Where the environment's `AZURE_SIGNING_ENABLED` is `true`, the organization's
    `windows-signing@v1` signs `Fabric Dashboards.exe` between `app` and `installer`, then the installer
    after `installer`, over OIDC (no secret), and fails unless each file is `Valid` and timestamped;
    `seal` checks again and embeds both reports. The uninstaller the installer writes stays unsigned.
@@ -118,9 +126,9 @@ published or attached to a release.
    Rehearse from any branch without a tag; a rehearsal never signs:
    `gh workflow run validate.yml --ref <branch> -f os=all -f packages=true`.
 5. `still-newest` repeats step 3's guard right before publishing: hours may pass between the
-   first check and the approvals, and a newer release may have been published meanwhile. A
+   first check and the publish, and a newer release may have been published meanwhile. A
    rehearsal skips it.
-6. `publish` waits for a second approval, because it holds the GPG key. It attests every file
+6. `publish` holds the GPG key, so it runs in the `release` environment too, after `still-newest`. It attests every file
    (Sigstore), writes `SHA256SUMS` and `SHA256SUMS.asc`, and publishes the release with the
    CHANGELOG section as its notes. Its files: `Fabric-Dashboards-<version>.dmg`,
    `Fabric-Dashboards-<version>-mac.zip`, `update-feed.json`, the receipt, the Windows and Linux
@@ -132,9 +140,9 @@ published or attached to a release.
 
 **One release run at a time.** Every run of `release.yml` — rehearsals included — shares the
 concurrency group `release` without cancel-in-progress: a new tag's run waits, without even running
-`version`, until the run ahead of it is approved, rejected or cancelled. GitHub keeps one *pending*
-run per group, so a third run silently cancels the second. To supersede a run that waits for
-approval, cancel it first, then push the new tag. A run waiting on an environment approval ignores
+`version`, until the run ahead of it ends. GitHub keeps one *pending*
+run per group, so a third run silently cancels the second. To supersede a queued run, cancel it
+first, then push the new tag. A run waiting on an environment approval (only under `"approval": "people"`) ignores
 `gh run cancel` (it stays `waiting`, measured 2026-10-06 on 37398766044); end it with
 `gh api -X POST repos/passioncode-ai/fabric-dashboards/actions/runs/<id>/force-cancel`.
 
@@ -156,8 +164,8 @@ then holds it until the person installs it. What the updater did is in `main.log
 (`grep -E 'update_|auto_update' ~/Library/Logs/Fabric\ Dashboards/main.log`).
 
 **Rehearsal.** Push an annotated `v<version>-rc.<n>` tag (the push trigger ignores it), then run
-`gh workflow run release.yml --ref v<version>-rc.<n> -f publish=false`. The same approvals
-apply. The signed set is kept as a workflow artifact for 14 days, and no release is created.
+`gh workflow run release.yml --ref v<version>-rc.<n> -f publish=false`. The same `guard` and
+`check` apply. The signed set is kept as a workflow artifact for 14 days, and no release is created.
 
 **A local build is for debugging only.** `npm run dist` runs the same three stages in one go on
 this Mac with the one Developer ID it finds (or `--identity NAME`). `--notary-profile NAME`
