@@ -5,7 +5,24 @@ Updated 2026-10-07 (0.6.2: 0.6.1 withdrawn for audit HIGH-2, audit fixes, signed
 
 Current release: 0.7.3 (published 2026-10-11 16:59 UTC, run 38156472858; FD-45, FD-47; carries 0.7.2, tagged and not published). Before it, 0.7.1 (published 2026-10-11 11:34 UTC, run 38106066248; FD-37 M1–M3, FD-39, FD-41; carries 0.7.0, tagged and not published). Before it, 0.6.7 (published 2026-10-09 17:07 UTC, run 37955575384; FD-36, FD-35, FD-38). Before it, 0.6.6 (published 2026-10-09 10:08 UTC, run 37864378854; FD-34, FD-35). Before it, 0.6.5 (published 2026-10-08 01:18 UTC, run 37703405621; FD-29, FD-33). Before it, 0.6.4 (published 2026-10-07 01:57 UTC, run 37558793926; carries 0.6.3, superseded before approval). Before it, 0.6.2 (published 2026-10-06 23:41 UTC, run 37541067349; 0.6.1 withdrawn). Before it, 0.6.0 (published 2026-10-06 21:35 UTC, run 37505569449); Before it, 0.5.6 (2026-10-06); the 0.4.1 section below is the previous one. Earlier releases below are preserved as dated evidence.
 
-## Next — start here (2026-10-11, after 0.7.3)
+## Next — start here (2026-10-11, FD-37 M4a: the feed names every platform)
+
+**Branch `agent/fd37-m4a-feed`.** PL-04's first half, in CI. The macOS seal's feed is staged as `feed-macos`. A
+new `feed` job in `release.yml` (`scripts/release-feed.mjs`) adds `platforms` from every receipt:
+- `darwin-universal`, `win32-x64`, `win32-arm64`, `linux-x64` and `linux-arm64`, each with its update file and hash;
+- the `.deb` as well for Linux.
+It refuses a release that lacks a platform or whose receipts disagree, and `publish` needs it. A macOS copy's
+`signedFeed` accepts the new feed (test). Checks:
+- `test/release-feed.test.ts` 4/4, on the published 0.7.3 receipts (`test/fixtures/release-0.7.3/`);
+- `npm run check` 0;
+- rehearsal `v0.7.3-rc.1` with `release.yml -f publish=false`, run
+  [38160558530](https://github.com/passioncode-ai/fabric-dashboards/actions/runs/38160558530): every job green,
+  `feed` logged all five platforms, and the artifact `release-feed` names them for 0.7.3.
+
+**Next task:** M4b, the Linux AppImage updater: read the `linux-<arch>` entry, verify against SHA256SUMS, replace
+`$APPIMAGE`, apply at restart. A `.deb` copy says a newer `.deb` updates it. Then M4c, Windows NSIS at an idle exit.
+
+## Earlier — start here (2026-10-11, after 0.7.3)
 
 **Released: 0.7.3 on 2026-10-11 16:59 UTC** (run [38156472858](https://github.com/passioncode-ai/fabric-dashboards/actions/runs/38156472858),
 tag `v0.7.3` on `5b15816`; Latest). It is the first release under approval by checks: `guard` → `check` (5 runners)

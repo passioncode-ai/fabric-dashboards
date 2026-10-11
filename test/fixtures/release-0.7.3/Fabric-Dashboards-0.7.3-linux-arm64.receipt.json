@@ -1,0 +1,21 @@
+{
+  "product": "Fabric Dashboards",
+  "version": "0.7.3",
+  "commit": "5b158161ef475a020c75a0040e7f1332e280390f",
+  "arch": "arm64",
+  "platform": "linux",
+  "electronVersion": "44.4.5",
+  "builtAt": "2026-10-11T16:45:55.018Z",
+  "macos_notarization": null,
+  "windows_authenticode": null,
+  "checks": {
+    "fuses": "the executable reads 100001011 (scripts/fuses.mjs; ASAR integrity off on Linux, which Electron does not validate)",
+    "mcpLauncher": "resources/bin/fabric-dashboards-mcp answers initialize as fabric-dashboards 0.7.3",
+    "pty": "node-pty spawns /bin/echo from app.asar",
+    "updateVerifier": "openpgp in app.asar accepts v0.6.0 SHA256SUMS signed by the organization key and refuses one changed byte"
+  },
+  "files": {
+    "Fabric-Dashboards-0.7.3-linux-arm64.AppImage": "09284dddc27cd4999a6b067c22ffa4cf4321e4a769ac2b13de0fec0fbee6b214",
+    "Fabric-Dashboards-0.7.3-linux-arm64.deb": "507e587db983c58bb0cc5a81e912047dc997fac951e985981bd0889d58ddcbef"
+  }
+}

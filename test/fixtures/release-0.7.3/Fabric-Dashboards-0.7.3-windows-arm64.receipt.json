@@ -1,0 +1,58 @@
+{
+  "product": "Fabric Dashboards",
+  "version": "0.7.3",
+  "commit": "5b158161ef475a020c75a0040e7f1332e280390f",
+  "arch": "arm64",
+  "platform": "win32",
+  "electronVersion": "44.4.5",
+  "builtAt": "2026-10-11T16:47:12.600Z",
+  "macos_notarization": null,
+  "windows_authenticode": "SIGNED",
+  "checks": {
+    "fuses": "the executable reads 100011011 (scripts/fuses.mjs; ASAR integrity on)",
+    "mcpLauncher": "resources/bin/fabric-dashboards-mcp.cmd answers initialize as fabric-dashboards 0.7.3",
+    "pty": "node-pty spawns cmd.exe from app.asar",
+    "updateVerifier": "openpgp in app.asar accepts v0.6.0 SHA256SUMS signed by the organization key and refuses one changed byte"
+  },
+  "authenticode": {
+    "status": "SIGNED",
+    "files": [
+      {
+        "file": "Fabric Dashboards.exe",
+        "status": "Valid",
+        "subject": "CN=Siarhei Sheleh, O=Siarhei Sheleh, L=Warsaw, S=Mazowieckie, C=PL"
+      },
+      {
+        "file": "Fabric-Dashboards-0.7.3-windows-arm64-setup.exe",
+        "status": "Valid",
+        "subject": "CN=Siarhei Sheleh, O=Siarhei Sheleh, L=Warsaw, S=Mazowieckie, C=PL"
+      }
+    ],
+    "note": "The app and the installer carry Azure Artifact Signing signatures; the uninstaller the installer writes does not (electron-builder makes it inside the installer).",
+    "reports": [
+      [
+        {
+          "file": "Fabric Dashboards.exe",
+          "status": "Valid",
+          "signer": "CN=Siarhei Sheleh, O=Siarhei Sheleh, L=Warsaw, S=Mazowieckie, C=PL",
+          "thumbprint": "19998B24EE1B13B9DE72342D486119C0BB42E4EC",
+          "timestamper": "CN=Microsoft Public RSA Time Stamping Authority, OU=nShield TSS ESN:7800-05E0-D947, OU=Microsoft America Operations, O=Microsoft Corporation, L=Redmond, S=Washington, C=US",
+          "sha256": "a80cc9acf6c2e769edcd955231fe761ed5b42dba6884a30a39ef58c403d0e9e5"
+        }
+      ],
+      [
+        {
+          "file": "Fabric-Dashboards-0.7.3-windows-arm64-setup.exe",
+          "status": "Valid",
+          "signer": "CN=Siarhei Sheleh, O=Siarhei Sheleh, L=Warsaw, S=Mazowieckie, C=PL",
+          "thumbprint": "19998B24EE1B13B9DE72342D486119C0BB42E4EC",
+          "timestamper": "CN=Microsoft Public RSA Time Stamping Authority, OU=nShield TSS ESN:7A00-05E0-D947, OU=Microsoft America Operations, O=Microsoft Corporation, L=Redmond, S=Washington, C=US",
+          "sha256": "e00c56fa1f713ccb5ccb57d738f71123c8cf2ff6afb9dcb4511c1a6ae46cb025"
+        }
+      ]
+    ]
+  },
+  "files": {
+    "Fabric-Dashboards-0.7.3-windows-arm64-setup.exe": "e00c56fa1f713ccb5ccb57d738f71123c8cf2ff6afb9dcb4511c1a6ae46cb025"
+  }
+}

@@ -151,10 +151,16 @@ jobs:
           path: |
             release/Fabric-Dashboards-${{ steps.version.outputs.version }}.dmg
             release/Fabric-Dashboards-${{ steps.version.outputs.version }}-mac.zip
-            release/update-feed.json
             release/Fabric-Dashboards-${{ steps.version.outputs.version }}.receipt.json
           if-no-files-found: error
           # A rehearsal's signed set is kept 14 days (docs/RUNBOOK.md#release); publish reads it within hours.
+          retention-days: 14
+      # FD-37 M4a: the macOS feed is not a release file yet — the `feed` job adds every platform to it first.
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: feed-macos
+          path: release/update-feed.json
+          if-no-files-found: error
           retention-days: 14
       - if: always()
         uses: passioncode-ai/.github/actions/apple-signing/cleanup@v1
@@ -202,11 +208,42 @@ jobs:
           newest=$(printf '%s\n%s\n' "${latest#v}" "${TAG#v}" | sort -V | tail -1)
           [[ "$newest" == "${TAG#v}" ]] || { echo "::error::$TAG is older than the published $latest; it must not be published"; exit 1; }
 
+  # FD-37 M4a (platforms.md PL-04): the feed names every platform the release ships, from their receipts; a
+  # release whose feed would lack one fails here, before anything is published (scripts/release-feed.mjs).
+  feed:
+    needs: [macos, windows, linux]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "22"
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: release-*
+          path: dist
+          merge-multiple: true
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: feed-macos
+          path: feed
+      - name: Add every platform to the update feed, or refuse the release
+        run: node scripts/release-feed.mjs --feed feed/update-feed.json --receipts dist --out out/update-feed.json
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-feed
+          path: out/update-feed.json
+          if-no-files-found: error
+          retention-days: 14
+
   publish:
-    needs: [macos, windows, linux, still-newest]
+    needs: [macos, windows, linux, feed, still-newest]
     # !cancelled(), not always(): a run cancelled between still-newest and publish never starts publishing (T-29).
     # Every system's packages or none: a release missing one would leave its copies behind.
-    if: ${{ !cancelled() && needs.macos.result == 'success' && needs.windows.result == 'success' && needs.linux.result == 'success' && (needs.still-newest.result == 'success' || needs.still-newest.result == 'skipped') }}
+    if: ${{ !cancelled() && needs.macos.result == 'success' && needs.windows.result == 'success' && needs.linux.result == 'success' && needs.feed.result == 'success' && (needs.still-newest.result == 'success' || needs.still-newest.result == 'skipped') }}
     permissions:
       contents: write
       id-token: write

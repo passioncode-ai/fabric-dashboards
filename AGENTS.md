@@ -193,13 +193,14 @@ off, `EnableNodeCliInspectArguments` off, `EnableEmbeddedAsarIntegrityValidation
 ## Release pipeline (PL-10) — where this product differs, and why
 
 fabric-workspace `knowledge/platforms.md` PL-10 sets one release pipeline for every product. This one
-has its stages and receipt keys (`release.yml`: `guard` + `preflight` → `check` → `macos`, `windows`, `linux` →
+has its stages and receipt keys (`release.yml`: `guard` + `preflight` → `check` → `macos`, `windows`, `linux` → `feed` →
 `still-newest` → `publish`; receipts carry `version`, `commit`, `arch`, `macos_notarization`,
 `windows_authenticode`, `checks`). It differs in these ways:
 
-- **The update-feed check covers macOS only.** Windows and Linux copies do not update themselves yet:
-  the updater says `unsupported` off macOS, and PL-04 there is module M4 of FD-37. Each platform gains
-  its feed and its check with M4.
+- **The feed names every platform; only macOS reads it yet.** Since FD-37 M4a the `feed` job adds a
+  `platforms` entry per OS and architecture from the receipts (`scripts/release-feed.mjs`) and refuses a release
+  that lacks one (PL-04). Windows and Linux copies do not update themselves yet: the updater says `unsupported`
+  off macOS until M4b (Linux) and M4c (Windows).
 - **`check`** is the five-runner unit gate (`validate.yml`, `os: all`), a stage the template does not
   name; it runs before any platform job.
 - **Windows signs between build stages, not inside electron-builder.** The app is packaged by
