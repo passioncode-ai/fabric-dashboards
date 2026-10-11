@@ -3,9 +3,24 @@
 Updated 2026-10-07 (0.6.2: 0.6.1 withdrawn for audit HIGH-2, audit fixes, signed feed; 0.6.1: LC-16 in detail updater, Russian by choice; 0.6.0 published 2026-10-06 21:35 UTC; release 0.5.6: third review pass, token latch; release 0.5.5 withdrawn: release audit and its second pass, A2A plan, ADR-0016, ADR-0015 data and updates, FD-05, FD-06, FD-13; Spend and DEC-0021; one entry per agent, ADR-0012; lifecycle contract landed from PR #21, unreleased; CI release rehearsal
 `v0.4.1-rc.1` green; releases move to CI signing; release 0.4.1, MCP links to online services).
 
-Current release: 0.7.3 (published 2026-10-11 16:59 UTC, run 38156472858; FD-45, FD-47; carries 0.7.2, tagged and not published). Before it, 0.7.1 (published 2026-10-11 11:34 UTC, run 38106066248; FD-37 M1–M3, FD-39, FD-41; carries 0.7.0, tagged and not published). Before it, 0.6.7 (published 2026-10-09 17:07 UTC, run 37955575384; FD-36, FD-35, FD-38). Before it, 0.6.6 (published 2026-10-09 10:08 UTC, run 37864378854; FD-34, FD-35). Before it, 0.6.5 (published 2026-10-08 01:18 UTC, run 37703405621; FD-29, FD-33). Before it, 0.6.4 (published 2026-10-07 01:57 UTC, run 37558793926; carries 0.6.3, superseded before approval). Before it, 0.6.2 (published 2026-10-06 23:41 UTC, run 37541067349; 0.6.1 withdrawn). Before it, 0.6.0 (published 2026-10-06 21:35 UTC, run 37505569449); Before it, 0.5.6 (2026-10-06); the 0.4.1 section below is the previous one. Earlier releases below are preserved as dated evidence.
+Current release: 0.7.4 (published 2026-10-11 20:01 UTC, run 38168481474; FD-37 M4a–M4c). Before it, 0.7.3 (published 2026-10-11 16:59 UTC, run 38156472858; FD-45, FD-47; carries 0.7.2, tagged and not published). Before it, 0.7.1 (published 2026-10-11 11:34 UTC, run 38106066248; FD-37 M1–M3, FD-39, FD-41; carries 0.7.0, tagged and not published). Before it, 0.6.7 (published 2026-10-09 17:07 UTC, run 37955575384; FD-36, FD-35, FD-38). Before it, 0.6.6 (published 2026-10-09 10:08 UTC, run 37864378854; FD-34, FD-35). Before it, 0.6.5 (published 2026-10-08 01:18 UTC, run 37703405621; FD-29, FD-33). Before it, 0.6.4 (published 2026-10-07 01:57 UTC, run 37558793926; carries 0.6.3, superseded before approval). Before it, 0.6.2 (published 2026-10-06 23:41 UTC, run 37541067349; 0.6.1 withdrawn). Before it, 0.6.0 (published 2026-10-06 21:35 UTC, run 37505569449); Before it, 0.5.6 (2026-10-06); the 0.4.1 section below is the previous one. Earlier releases below are preserved as dated evidence.
 
-## Next — start here (2026-10-11, release 0.7.4: FD-37 M4)
+## Next — start here (2026-10-11, after 0.7.4)
+
+**Released: 0.7.4 on 2026-10-11 20:01 UTC** (run [38168481474](https://github.com/passioncode-ai/fabric-dashboards/actions/runs/38168481474),
+tag `v0.7.4` on `09e1c41`; Latest). It is the first release whose feed names every platform. Checked:
+- `SHA256SUMS` has a good GPG signature;
+- all five receipts are 0.7.4 on `09e1c41`, with no failed check; Windows `SIGNED`;
+- `update-feed.json` matches `SHA256SUMS` and names `darwin-universal`, `win32-x64`, `win32-arm64`, `linux-x64`
+  and `linux-arm64`, each file's hash equal to `SHA256SUMS`.
+
+**Owed (FD-37 M4):** with the next release, an AppImage (both Linux runners) and an NSIS install (both Windows
+runners) of 0.7.4 must update to it by themselves.
+
+**Next task:** FD-42, the theme picker (DEC-0036 ED-8/ED-10). First find out whether `codex/dashboard-session-refresh`
+(PR #58) is alive.
+
+## Earlier — start here (2026-10-11, release 0.7.4: FD-37 M4)
 
 **Branch `agent/release-074`.** 0.7.4 carries FD-37 M4:
 - M4a: the feed names every platform;
