@@ -66,6 +66,7 @@
 | SCN-058 | First session: my coding agent sets the system up | setup | P-01 | ST-022 | draft | 2026-10-10 |
 | SCN-059 | A later session opens on what changed | overview | P-01 | ST-022 | draft | 2026-10-10 |
 | SCN-060 | The dashboard keeps its floor while the console widens | console | P-01 | ST-019 | draft | 2026-10-11 |
+| SCN-061 | Talk to Fabric about this agent | console | P-01 | ST-020 | draft | 2026-10-11 |
 ## Personas
 
 Defined in [foundation.md](foundation.md) → P-01.
@@ -1224,5 +1225,23 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **Errors & recovery:** n/a
 - **Status:** draft
 - **Coverage:** src/core/visit.ts, src/core/settings.ts, src/renderer/App.tsx (continueWith), src/renderer/components/Overview.tsx, test/visit.test.ts, test/e2e/focus-console.test.ts
+- **Product:** unobserved
+
+### SCN-061: Talk to Fabric about this agent
+- **Persona:** P-01
+- **Feature:** console
+- **Traces:** ST-020 (JTBD-06, JRN-02/#4); ADR-0021; Fabric Agent Contract DEC-0040 FB-1…FB-8, FL-1…FL-7 ([PR #30](https://github.com/passioncode-ai/fabric-agent-contract/pull/30)); Fabric 0.4.0 REQ-42
+- **Entry point:** a service page's header, the **Fabric** button (the mark and the word; the mark alone in a narrow bar), on every tab
+- **Preconditions:** the service's id is an agent id Fabric's links can carry (lowercase, `id.instance`)
+- **Steps:**
+  1. User presses Fabric (or focuses it and presses Return or Space) -> Fabric comes forward with its conversation about this agent (`fabric://chat?service=<id>.<instance>`); Fabric finds the agent's project from the agent's repository and asks inside the conversation when it cannot tell
+  2. User talks to Fabric there, or opens a coding session from it -> nothing in this app changes; Fabric links back to the agent's page here (`fabric-dashboards://service/…`, SCN-029)
+- **Expected result:** one press reaches the manager agent about the agent on screen, without copying a name or a link
+- **Alt paths:** Fabric is not installed -> the press opens a small menu with one line, "Fabric is not installed — get it at passioncode.ai/fabric", and choosing it opens that page in the browser; nothing downloads and nothing is retried; Fabric is installed later -> the next press opens it; the dashboard page has its own Fabric button -> it is hidden inside this app (the page is told the app draws one), and it still shows in a browser; an id outside Fabric's grammar -> no button
+- **UI elements:** Fabric button in the service header (accessible name "Open Fabric"), the native menu when Fabric is absent
+- **States covered:** success, empty (Fabric not installed)
+- **Errors & recovery:** the OS names a handler but it cannot open the link -> the same "not installed" menu, and `main.log` has `fabric_button failed` with the reason
+- **Status:** draft
+- **Coverage:** src/core/fabric-button.ts, src/core/fabric-links.ts (the contract's copy), src/electron/main.ts (fabricButton, fabricPress), src/electron/views.ts (fabricCookie), src/renderer/components/ServiceView.tsx (FabricButton), test/fabric-button.test.ts, test/e2e/app.test.ts (FD-45, present and absent)
 - **Product:** unobserved
 

@@ -8,6 +8,7 @@ import type { PageState, Rect } from '../core/api';
 import { t, type Lang } from '../core/i18n';
 import { loginUrl, readTokenAsync } from '../core/probe';
 import type { ServiceSnapshot } from '../core/types';
+import { fabricButtonCookie, fabricPress } from '../core/fabric-button';
 import { afterCrash, clampRect, dashboardPathOf, loadErrorText, navigation, pageAddress, partitionFor, resolveLink, resumePath, routeLink, ViewSlot } from './policy';
 import { testRemote } from '../core/testhooks';
 
@@ -39,7 +40,21 @@ export class ServiceViews {
     /** The monitor's snapshot now. A sign-in or a recreate reads it, never the one the view was made
      *  from: whatever answers on the port now may not be the service any more (T-3). */
     private readonly snapshotFor: (key: string) => ServiceSnapshot | null = () => null,
+    /** FD-45: whether a `fabric://` handler is installed, for the `fabric_button` cookie (ADR-0021). */
+    private readonly fabricPresent: () => boolean = () => false,
   ) {}
+
+  /** FB-6 (ADR-0021 decision 5): before a show or a reload, tell the page whether the host draws Fabric's
+   *  button and whether Fabric is here now — it may have been installed or removed since the last load. */
+  private async fabricCookie(key: string, origin: string): Promise<void> {
+    try {
+      const present = this.fabricPresent();
+      const cookie = fabricButtonCookie(origin, { hostDraws: fabricPress(key, present).kind !== 'none', fabricPresent: present });
+      await session.fromPartition(partitionFor(key)).cookies.set(cookie);
+    } catch {
+      // Best effort: without it the page may show its own button beside ours, which costs nothing else.
+    }
+  }
 
   /** The service as it is now, when it may get a token: answering as itself, with its well-known. */
   private live(key: string): ServiceSnapshot | null {
@@ -156,6 +171,7 @@ export class ServiceViews {
     const dash = snap.wellKnown?.surfaces.dashboard;
     if (!dash) return { ok: false, error: 'no dashboard', stage: 'page' };
     let stage: ShowResult['stage'] = dash.login ? 'sign-in' : 'page';
+    await this.fabricCookie(snap.key, d.origin);
     try {
       let url = resolveLink(d.origin, link, dash.path);
       if (dash.login) {
@@ -205,6 +221,7 @@ export class ServiceViews {
       entry.loadedOnce = false;
       if (link === undefined) link = resumePath(entry.view.webContents.getURL(), entry.origin);
     }
+    await this.fabricCookie(snap.key, snap.descriptor.origin);
     if (!entry || !entry.loadedOnce) {
       entry = entry ?? this.create(snap);
       result = await this.load(snap, link);
@@ -293,8 +310,9 @@ export class ServiceViews {
     const wc = entry.view.webContents;
     if (action === 'back' && wc.navigationHistory.canGoBack()) wc.navigationHistory.goBack();
     if (action === 'forward' && wc.navigationHistory.canGoForward()) wc.navigationHistory.goForward();
-    if (action === 'refresh') wc.reload();
-    if (action === 'home') void wc.loadURL(resolveLink(entry.origin, undefined, entry.dashboardPath)).catch(() => undefined);
+    // FB-6: a reload reads the cookie again, so it says what is true now.
+    if (action === 'refresh') void this.fabricCookie(key, entry.origin).then(() => wc.reload());
+    if (action === 'home') void this.fabricCookie(key, entry.origin).then(() => wc.loadURL(resolveLink(entry.origin, undefined, entry.dashboardPath))).catch(() => undefined);
   }
 
   /** The service restarted: its session cookie may be gone; the page offers Reload instead of reloading itself. */

@@ -35,7 +35,7 @@ test('discovers a live service, opens its dashboard signed in, keeps one view, s
     register(port, data, services);
     app = await electron.launch({
       args: [ROOT],
-      env: { ...process.env, FABRIC_SERVICES_DIR: services, FABRIC_DASHBOARDS_USER_DATA: path.join(base, 'app'), LANG: 'en_US.UTF-8' },
+      env: { ...process.env, FABRIC_SERVICES_DIR: services, FABRIC_DASHBOARDS_USER_DATA: path.join(base, 'app'), LANG: 'en_US.UTF-8', FD_TEST_FABRIC: 'present' },
     });
     const page = await app.firstWindow();
     await page.getByRole('button', { name: /Sample Service — Ready/ }).waitFor({ timeout: 20_000 });
@@ -66,6 +66,24 @@ test('discovers a live service, opens its dashboard signed in, keeps one view, s
     assert.equal(views[0]!.url, `${origin}/`, 'the login code was redeemed and the dashboard is open');
     const text = await app.evaluate(async ({ webContents }, id) => webContents.fromId(id)!.executeJavaScript('document.body.innerText'), views[0]!.id);
     assert.match(text, /Sample Service started/, 'the page is the signed-in dashboard, not the 401 text');
+
+    // FD-45 (DEC-0040, ADR-0021): Fabric's button in the header, the host cookie on the page, and a press
+    // that opens Fabric's conversation about this service — the service id only, no project, no secret.
+    const fabricButton = page.getByRole('button', { name: 'Open Fabric' });
+    await fabricButton.waitFor();
+    assert.equal(await fabricButton.getAttribute('aria-haspopup'), null, 'one action: the button opens the link at once (FB-4)');
+    const fabricCookie = await app.evaluate(async ({ session }, o) => (await session.fromPartition('persist:svc-sample.default').cookies.get({ url: o, name: 'fabric_button' }))[0] ?? null, origin);
+    assert.equal(fabricCookie?.value, 'v=1&owner=host&fabric=present', 'FB-6: the page hides its own button');
+    assert.equal(fabricCookie?.sameSite, 'strict');
+    assert.equal(fabricCookie?.httpOnly, false);
+    assert.equal(await app.evaluate(async ({ webContents }, id) => webContents.fromId(id)!.executeJavaScript('document.cookie'), views[0]!.id) as string, 'fabric_button=v=1&owner=host&fabric=present', 'the page can read it');
+    await fabricButton.click();
+    let opened = '';
+    for (let i = 0; i < 50 && !opened; i += 1) {
+      opened = fs.readFileSync(path.join(logs, 'main.log'), 'utf8').split('\n').find((l) => l.includes('fabric_open ')) ?? '';
+      if (!opened) await new Promise((r) => setTimeout(r, 100));
+    }
+    assert.match(opened, / fabric_open fabric:\/\/chat\?service=sample\.default$/);
 
     // ADR-0014, SCN-039/040: the toolbar shows the page's address and copies it, and the app link.
     // The copy reaches the system clipboard: keep the operator's and put it back.
@@ -223,7 +241,7 @@ test('service/<id>.<instance> links open the service, a stopped one on its Start
   const heldPort = await freePort();
   const held = serve(heldPort, path.join(base, 'held'), ['--id', 'held', '--name', 'Held Service']);
   let app: ElectronApplication | null = null;
-  const env = { ...process.env, FABRIC_SERVICES_DIR: services, FABRIC_DASHBOARDS_USER_DATA: path.join(base, 'app'), LANG: 'en_US.UTF-8' };
+  const env = { ...process.env, FABRIC_SERVICES_DIR: services, FABRIC_DASHBOARDS_USER_DATA: path.join(base, 'app'), LANG: 'en_US.UTF-8', FD_TEST_FABRIC: 'absent' };
   // A second process with the same profile finds the running app, hands it the link and quits.
   const forward = (link: string) => {
     const r = spawnSync(electronBinary as unknown as string, [ROOT, link], { env, encoding: 'utf8', timeout: 30_000 });
@@ -254,6 +272,22 @@ test('service/<id>.<instance> links open the service, a stopped one on its Start
     }
     assert.equal(url, `${origin}/`, 'the plan form opens the service\'s dashboard, signed in');
     await shot(page, '06-service-link');
+
+    // FD-45 FB-5 (ADR-0021 decision 4): with no fabric:// handler the button is a menu that says so, and the
+    // page is told Fabric is absent; nothing is opened, nothing downloads.
+    const fabricButton = page.getByRole('button', { name: 'Open Fabric' });
+    assert.equal(await fabricButton.getAttribute('aria-haspopup'), 'menu');
+    const fabricCookie = await app.evaluate(async ({ session }, o) => (await session.fromPartition('persist:svc-sample.default').cookies.get({ url: o, name: 'fabric_button' }))[0]?.value ?? '', origin);
+    assert.equal(fabricCookie, 'v=1&owner=host&fabric=absent');
+    await fabricButton.click();
+    const fabricLogs = await app.evaluate(({ app: a }) => a.getPath('logs'));
+    let menu = '';
+    for (let i = 0; i < 50 && !menu; i += 1) {
+      menu = fs.readFileSync(path.join(fabricLogs, 'main.log'), 'utf8').split('\n').find((l) => l.includes('fabric_menu ')) ?? '';
+      if (!menu) await new Promise((r) => setTimeout(r, 100));
+    }
+    assert.match(menu, / fabric_menu Fabric is not installed — get it at passioncode\.ai\/fabric$/);
+    assert.ok(!fs.readFileSync(path.join(fabricLogs, 'main.log'), 'utf8').includes('fabric_open'), 'a press without Fabric opens nothing by itself');
 
     // Refusals are shown in a native dialog; capture it instead of leaving one on the screen.
     await app.evaluate(({ dialog }) => {

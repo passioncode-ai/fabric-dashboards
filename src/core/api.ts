@@ -61,6 +61,10 @@ export interface FabricApi {
   viewNavigate(key: string, action: 'back' | 'forward' | 'home' | 'refresh'): Promise<void>;
   /** Put text on the clipboard from the main process (the toolbar's Copy buttons). */
   copyText(text: string): Promise<void>;
+  /** FD-45 (ADR-0021): what Fabric's button does for a service now — open Fabric at once, say it is not installed, or no button. */
+  fabricButton(key: string): Promise<'direct' | 'absent' | 'none'>;
+  /** FD-45: press it. The main process opens the `fabric://` link, or a native menu under `anchor` (window coordinates, CSS px). */
+  fabricPress(key: string, anchor: { x: number; y: number }): Promise<{ opened: 'fabric' | 'menu' | 'none' }>;
   onViewEvent(listener: (event: { key: string; kind: 'restarted' | 'crashed' | 'loaded' | 'error' | 'navigated'; error?: string; page?: PageState }) => void): () => void;
   onNavigate(listener: (target: { page: 'service' | 'activity' | 'overview'; key?: string; link?: string }) => void): () => void;
   /** Called once the renderer listens: the navigation that arrived before it did (a link at launch), if any. */
@@ -119,6 +123,8 @@ export const CHANNELS = {
   viewPage: 'fd:view-page',
   viewNavigate: 'fd:view-navigate',
   copyText: 'fd:copy-text',
+  fabricButton: 'fd:fabric-button',
+  fabricPress: 'fd:fabric-press',
   viewEvent: 'fd:view-event',
   navigate: 'fd:navigate',
   navigateTake: 'fd:navigate-take',

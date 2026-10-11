@@ -1,0 +1,4 @@
+{
+  "action": "session.new",
+  "runner": "codex"
+}

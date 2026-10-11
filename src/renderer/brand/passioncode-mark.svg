@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-labelledby="passioncode-mark-title passioncode-mark-desc">
+  <title id="passioncode-mark-title">PassionCode.ai passion fruit mark</title>
+  <desc id="passioncode-mark-desc">A symmetric passion fruit cross-section with five broad golden chambers, five dark seeds and a round golden centre.</desc>
+  <defs>
+    <linearGradient id="rind-gradient" x1="250" y1="140" x2="790" y2="900" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#2D0039"/>
+      <stop offset="1" stop-color="#4B0354"/>
+    </linearGradient>
+    <linearGradient id="interior-gradient" x1="300" y1="220" x2="730" y2="870" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#F20673"/>
+      <stop offset="1" stop-color="#D90066"/>
+    </linearGradient>
+    <linearGradient id="flesh-gradient" x1="410" y1="250" x2="620" y2="510" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFD21A"/>
+      <stop offset="1" stop-color="#F5B800"/>
+    </linearGradient>
+    <linearGradient id="seed-gradient" x1="470" y1="300" x2="555" y2="440" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#41054B"/>
+      <stop offset="1" stop-color="#26002F"/>
+    </linearGradient>
+  </defs>
+  <path id="rind" fill="url(#rind-gradient)" d="M512 92c-23 0-42 12-53 32-16 29-54 53-110 98-110 89-177 208-177 342 0 214 134 352 340 368 206-16 340-154 340-368 0-134-67-253-177-342-56-45-94-69-110-98-11-20-30-32-53-32Z"/>
+  <path id="interior" fill="url(#interior-gradient)" d="M512 181c-18 0-37 7-58 17-145 70-239 213-239 365 0 185 115 306 297 324 182-18 297-139 297-324 0-152-94-295-239-365-21-10-40-17-58-17Z"/>
+  <g id="chambers" fill="url(#flesh-gradient)">
+    <path id="chamber-top" d="M512 230c-62 0-113 42-113 101 0 64 52 136 98 155 9 4 21 4 30 0 46-19 98-91 98-155 0-59-51-101-113-101Z"/>
+    <path id="chamber-upper-left" d="M355 359c-20-1-41 18-62 48-32 45-51 90-46 141 5 52 31 76 69 66 35-9 91-35 119-54 20-13 23-38 9-65l-58-105c-10-18-19-30-31-31Z"/>
+    <use href="#chamber-upper-left" transform="translate(1024 0) scale(-1 1)"/>
+    <path id="chamber-lower-left" d="M437 599c-30 1-66 18-99 41-40 28-58 61-53 93 5 40 46 66 88 81 48 17 90 16 112-4 16-15 14-42 13-72l-2-78c-1-39-24-62-59-61Z"/>
+    <use href="#chamber-lower-left" transform="translate(1024 0) scale(-1 1)"/>
+    <circle cx="512" cy="555" r="43"/>
+  </g>
+  <g id="seeds" fill="url(#seed-gradient)">
+    <ellipse id="seed-top" cx="512" cy="366" rx="43" ry="76"/>
+    <ellipse id="seed-upper-left" cx="350" cy="500" rx="70" ry="37" transform="rotate(20 350 500)"/>
+    <ellipse id="seed-upper-right" cx="674" cy="500" rx="70" ry="37" transform="rotate(-20 674 500)"/>
+    <ellipse id="seed-lower-left" cx="408" cy="699" rx="35" ry="68" transform="rotate(36 408 699)"/>
+    <ellipse id="seed-lower-right" cx="616" cy="699" rx="35" ry="68" transform="rotate(-36 616 699)"/>
+  </g>
+</svg>

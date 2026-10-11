@@ -1,0 +1,5 @@
+{
+  "action": "session.new",
+  "project": "urn:project:a",
+  "runner": "claude-code"
+}

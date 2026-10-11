@@ -1,0 +1,5 @@
+{
+  "action": "chat",
+  "service": "example-agent",
+  "token": "opaque-login-code"
+}
