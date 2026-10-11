@@ -31,7 +31,7 @@ export const CHECK_EVERY_MS = 6 * 60 * 60 * 1000;
  *  A held release (verified, waiting for the person's step) is not downloaded again by the timer;
  *  the person's own check looks for a newer one. */
 export function mayCheck(o: { manual: boolean; enabled: boolean; state: string }): boolean {
-  if (['unsupported', 'misplaced', 'downloading', 'ready', 'checking'].includes(o.state)) return false;
+  if (['unsupported', 'misplaced', 'package', 'notyet', 'downloading', 'ready', 'checking'].includes(o.state)) return false;
   if (o.state === 'held' && !o.manual) return false;
   return o.manual || o.enabled;
 }

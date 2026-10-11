@@ -136,7 +136,7 @@ export interface AppStatus {
   /** Grows with every activity row, so an open Activity page refreshes for app events too (U-8). */
   activityRev?: number;
   /** `held`: a release that needs a person's step first (LC-16), verified, not installed; `steps` is its runbook. */
-  update: { state: 'idle' | 'checking' | 'downloading' | 'ready' | 'held' | 'error' | 'unsupported' | 'misplaced'; version?: string; error?: string; checkedAt?: string; steps?: string };
+  update: { state: 'idle' | 'checking' | 'downloading' | 'ready' | 'held' | 'error' | 'unsupported' | 'misplaced' | 'package' | 'notyet'; version?: string; error?: string; checkedAt?: string; steps?: string };
   // #region estate-update — docs: docs/adr/0018-estate-updates-from-inside-the-app.md#decision
   /** ADR-0018: what the estate watcher saw last — the contract clone vs the remote, consumer pins, skills. */
   estate: EstateStatus;
