@@ -3,9 +3,25 @@
 Updated 2026-10-07 (0.6.2: 0.6.1 withdrawn for audit HIGH-2, audit fixes, signed feed; 0.6.1: LC-16 in detail updater, Russian by choice; 0.6.0 published 2026-10-06 21:35 UTC; release 0.5.6: third review pass, token latch; release 0.5.5 withdrawn: release audit and its second pass, A2A plan, ADR-0016, ADR-0015 data and updates, FD-05, FD-06, FD-13; Spend and DEC-0021; one entry per agent, ADR-0012; lifecycle contract landed from PR #21, unreleased; CI release rehearsal
 `v0.4.1-rc.1` green; releases move to CI signing; release 0.4.1, MCP links to online services).
 
-Current release: 0.7.1 (published 2026-10-11 11:34 UTC, run 38106066248; FD-37 M1–M3, FD-39, FD-41; carries 0.7.0, tagged and not published). Before it, 0.6.7 (published 2026-10-09 17:07 UTC, run 37955575384; FD-36, FD-35, FD-38). Before it, 0.6.6 (published 2026-10-09 10:08 UTC, run 37864378854; FD-34, FD-35). Before it, 0.6.5 (published 2026-10-08 01:18 UTC, run 37703405621; FD-29, FD-33). Before it, 0.6.4 (published 2026-10-07 01:57 UTC, run 37558793926; carries 0.6.3, superseded before approval). Before it, 0.6.2 (published 2026-10-06 23:41 UTC, run 37541067349; 0.6.1 withdrawn). Before it, 0.6.0 (published 2026-10-06 21:35 UTC, run 37505569449); Before it, 0.5.6 (2026-10-06); the 0.4.1 section below is the previous one. Earlier releases below are preserved as dated evidence.
+Current release: 0.7.3 (published 2026-10-11 16:59 UTC, run 38156472858; FD-45, FD-47; carries 0.7.2, tagged and not published). Before it, 0.7.1 (published 2026-10-11 11:34 UTC, run 38106066248; FD-37 M1–M3, FD-39, FD-41; carries 0.7.0, tagged and not published). Before it, 0.6.7 (published 2026-10-09 17:07 UTC, run 37955575384; FD-36, FD-35, FD-38). Before it, 0.6.6 (published 2026-10-09 10:08 UTC, run 37864378854; FD-34, FD-35). Before it, 0.6.5 (published 2026-10-08 01:18 UTC, run 37703405621; FD-29, FD-33). Before it, 0.6.4 (published 2026-10-07 01:57 UTC, run 37558793926; carries 0.6.3, superseded before approval). Before it, 0.6.2 (published 2026-10-06 23:41 UTC, run 37541067349; 0.6.1 withdrawn). Before it, 0.6.0 (published 2026-10-06 21:35 UTC, run 37505569449); Before it, 0.5.6 (2026-10-06); the 0.4.1 section below is the previous one. Earlier releases below are preserved as dated evidence.
 
-## Next — start here (2026-10-11, release 0.7.3: carries 0.7.2)
+## Next — start here (2026-10-11, after 0.7.3)
+
+**Released: 0.7.3 on 2026-10-11 16:59 UTC** (run [38156472858](https://github.com/passioncode-ai/fabric-dashboards/actions/runs/38156472858),
+tag `v0.7.3` on `5b15816`; Latest). It is the first release under approval by checks: `guard` → `check` (5 runners)
+→ builds → `still-newest` → `publish`, with no click. Before the tag, the branch was rehearsed with
+`validate.yml -f os=all` (run 38156101828, green). Checked:
+- 16 files; `SHA256SUMS` (14 lines) has a good GPG signature from key `63B3…B6A7`;
+- all five receipts are 0.7.3 on `5b15816`, with no failed check;
+- Windows `SIGNED`, x64 and arm64; macOS notarized;
+- the feed names 0.7.3.
+
+This Mac ran 0.6.7 at 17:01 UTC. Its updater's next check is at about 17:09 UTC.
+
+**Next task:** confirm this Mac moved to 0.7.3 (and measure CPU/RSS); then FD-37 M4 (updates on Windows and
+Linux).
+
+## Earlier — start here (2026-10-11, release 0.7.3: carries 0.7.2)
 
 **Branch `agent/release-073`.** Tag `v0.7.2` started run
 [38155693835](https://github.com/passioncode-ai/fabric-dashboards/actions/runs/38155693835). `guard` passed, the
