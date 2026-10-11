@@ -189,8 +189,8 @@ h3 { font-size: var(--pc-type-card); margin: 0; font-weight: 600; }
 .icon-btn-label { margin-left: var(--pc-space-1); font-size: var(--pc-type-meta); }
 .svc-bar .icon-btn { width: auto; min-width: 28px; padding: 0 var(--pc-space-1); }
 /* FD-45 (ADR-0021, DEC-0040 FB-3): Fabric's button — the mark and the word; the mark alone in a narrow bar.
-   44 px wide and the bar's full 40 px tall, so the one-line header keeps its height (ADR-0017). */
-.svc-bar .fabric-btn { min-width: 44px; height: 40px; padding: 0 var(--pc-space-2); }
+   A 44 × 44 target that reaches up into the bar's top padding, so the one-line header keeps its 44 px (ADR-0017). */
+.svc-bar .fabric-btn { min-width: 44px; height: 44px; margin-top: calc(-1 * var(--pc-space-1)); padding: var(--pc-space-1) var(--pc-space-2) 0; }
 .fabric-mark { width: 18px; height: 18px; flex: none; }
 .icon-btn[aria-pressed='true'] { color: var(--pc-text); background: var(--pc-accent-soft); }
 /* ADR-0017 (SCN-048): the console panel sits to the right of the service page. */

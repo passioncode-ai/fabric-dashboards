@@ -25,8 +25,8 @@ are open (`overlayOpen`, `src/renderer/App.tsx`).
    This is a declared deviation from FB-2's bottom-right placement. FB-2 places a *page's* button in its own
    viewport. A host's chrome is never part of the page, so the header button never covers page content, which
    is what FB-2 protects. The page keeps its whole viewport.
-   Its target is 44 CSS px wide and the bar's full 40 px tall, so the one-line header keeps its height
-   (ADR-0017); FB-3's 44 × 44 is a page's floating button.
+   Its target is 44 × 44 CSS px (FB-3). It reaches up into the bar's top padding, so the one-line header
+   keeps its 44 px (ADR-0017).
 2. **Its menu is a native menu** (`Menu.popup`), anchored under the button. A native menu paints above the
    dashboard view, takes the keyboard (arrows, Return, Escape) and is read by VoiceOver, Narrator and Orca
    without an app-drawn focus trap (FB-4's keyboard rules, given by the OS). The page is never hidden to show it.
@@ -41,10 +41,13 @@ are open (`overlayOpen`, `src/renderer/App.tsx`).
 4. **Fabric's presence is asked of the OS, not guessed.** The main process asks
    `app.getApplicationNameForProtocol('fabric://chat')`; a non-empty name means a handler is installed. With
    none, a press opens the menu with exactly *Fabric is not installed — get it at passioncode.ai/fabric*
-   (FB-5); choosing it opens `https://passioncode.ai/fabric` in the browser. A handler that is named but fails
+   (FB-5); choosing it opens `https://passioncode.ai/fabric` in the browser. In Russian the app shows the same
+   sentence translated («Fabric не установлен — скачайте его на passioncode.ai/fabric»), as every string here
+   follows the interface language (AGENTS.md, localization L10N). FB-5's "exactly" fixes the English words;
+   the address stays verbatim in both languages. A handler that is named but fails
    to open the link gets the same menu, so the 1,500 ms test of FB-5 is not needed in a host that is told.
    Nothing is downloaded, and nothing retries.
-5. **The cookie.** Before every load of a dashboard, the host sets `fabric_button=v=1&owner=host&fabric=present|absent`
+5. **The cookie.** Before every show of a dashboard and before its Reload and Home, the host sets `fabric_button=v=1&owner=host&fabric=present|absent`
    on the page's origin in that service's partition: path `/`, `SameSite=Strict`, not HttpOnly, `Secure` on
    https (FB-6, the ED-8 attributes). It carries no secret and no identity. For a service whose id falls outside
    the hub's agent-id grammar, the host draws no button, and the cookie says `owner=page`.

@@ -409,13 +409,18 @@ function Tools({ names }: { names: string[] }) {
 function FabricButton({ serviceKey }: { serviceKey: string }) {
   const { t } = useT();
   const [kind, setKind] = useState<'direct' | 'absent' | 'none' | null>(null);
-  const ask = () => api().fabricButton(serviceKey).then(setKind, () => setKind('none'));
-  useEffect(() => { setKind(null); void ask(); }, [serviceKey]);
+  // The answer belongs to the key it was asked for: a late one for the previous agent is dropped.
+  const current = useRef(serviceKey);
+  current.current = serviceKey;
+  const ask = (key: string) => api().fabricButton(key).then(
+    (k) => { if (current.current === key) setKind(k); },
+    () => { if (current.current === key) setKind('none'); });
+  useEffect(() => { setKind(null); void ask(serviceKey); }, [serviceKey]);
   if (kind === null || kind === 'none') return null;
   const press = (e: React.MouseEvent<HTMLButtonElement>) => {
     const r = e.currentTarget.getBoundingClientRect();
-    // Fabric may have been installed or removed since: ask again after every press.
-    void api().fabricPress(serviceKey, { x: r.left, y: r.bottom }).finally(() => void ask());
+    // Fabric may have been installed or removed since: ask again after every press, failed or not.
+    void api().fabricPress(serviceKey, { x: r.left, y: r.bottom }).catch(() => undefined).finally(() => void ask(serviceKey));
   };
   return (
     <button className="icon-btn fabric-btn" aria-label={t('fabric.open')} title={t('fabric.open')} aria-haspopup={kind === 'absent' ? 'menu' : undefined} onClick={press}>

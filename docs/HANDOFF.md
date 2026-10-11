@@ -20,7 +20,11 @@ it); this glyph is the mark; FB-4 is normative, so Fabric moves its SCN-142 to i
 Checks (2026-10-11, macOS arm64): `test/fabric-button.test.ts` 6/6, and fails with a planted defect (cookie
 `Secure` forced off: 1 fail). `npm run test:e2e`: 8/9. The FD-45 assertions passed for both present and absent.
 The failure was FD-05's Dock assertion in `spend.test.ts`, with no `dock_` line (the FD-35 shape); alone it
-passed 1/1 with the screen unlocked. `npm run check` 0: 423 tests, 418 pass, 5 skipped (Windows-only); 3 brand pins; 89 code regions; UX lint consistent.
+passed 1/1 with the screen unlocked. `npm run check` 0: 423 tests, 418 pass, 5 skipped (Windows-only); 3 brand pins; 89 code regions; UX lint consistent. An independent review (4 risks, 1 nit,
+1 question) was fixed in the same PR: the cookie is refreshed before every show and before Reload/Home, a late
+answer for the previous agent is dropped, a failed press is caught, the target is 44 × 44 without growing the
+header, the cookie can never fail a show, and ADR-0021 declares the Russian FB-5 sentence. After the fixes:
+`npm run check` 0, `npm run test:e2e` 9/9; the header was checked on a screenshot (Fabric beside Console, one line).
 
 **Next task:** merge, then release with the next version. FD-37 M4 after that.
 

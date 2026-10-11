@@ -44,12 +44,16 @@ export class ServiceViews {
     private readonly fabricPresent: () => boolean = () => false,
   ) {}
 
-  /** FB-6 (ADR-0021 decision 5): before a load, tell the page whether the host draws Fabric's button. */
+  /** FB-6 (ADR-0021 decision 5): before a show or a reload, tell the page whether the host draws Fabric's
+   *  button and whether Fabric is here now — it may have been installed or removed since the last load. */
   private async fabricCookie(key: string, origin: string): Promise<void> {
-    const present = this.fabricPresent();
-    const cookie = fabricButtonCookie(origin, { hostDraws: fabricPress(key, present).kind !== 'none', fabricPresent: present });
-    // Best effort: without it the page may show its own button beside ours, which costs nothing else.
-    await session.fromPartition(partitionFor(key)).cookies.set(cookie).catch(() => undefined);
+    try {
+      const present = this.fabricPresent();
+      const cookie = fabricButtonCookie(origin, { hostDraws: fabricPress(key, present).kind !== 'none', fabricPresent: present });
+      await session.fromPartition(partitionFor(key)).cookies.set(cookie);
+    } catch {
+      // Best effort: without it the page may show its own button beside ours, which costs nothing else.
+    }
   }
 
   /** The service as it is now, when it may get a token: answering as itself, with its well-known. */
@@ -217,6 +221,7 @@ export class ServiceViews {
       entry.loadedOnce = false;
       if (link === undefined) link = resumePath(entry.view.webContents.getURL(), entry.origin);
     }
+    await this.fabricCookie(snap.key, snap.descriptor.origin);
     if (!entry || !entry.loadedOnce) {
       entry = entry ?? this.create(snap);
       result = await this.load(snap, link);
@@ -305,8 +310,9 @@ export class ServiceViews {
     const wc = entry.view.webContents;
     if (action === 'back' && wc.navigationHistory.canGoBack()) wc.navigationHistory.goBack();
     if (action === 'forward' && wc.navigationHistory.canGoForward()) wc.navigationHistory.goForward();
-    if (action === 'refresh') wc.reload();
-    if (action === 'home') void wc.loadURL(resolveLink(entry.origin, undefined, entry.dashboardPath)).catch(() => undefined);
+    // FB-6: a reload reads the cookie again, so it says what is true now.
+    if (action === 'refresh') void this.fabricCookie(key, entry.origin).then(() => wc.reload());
+    if (action === 'home') void this.fabricCookie(key, entry.origin).then(() => wc.loadURL(resolveLink(entry.origin, undefined, entry.dashboardPath))).catch(() => undefined);
   }
 
   /** The service restarted: its session cookie may be gone; the page offers Reload instead of reloading itself. */
