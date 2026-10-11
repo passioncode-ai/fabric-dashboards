@@ -382,8 +382,11 @@ test('T-9: an argument of the wrong type is refused, never replaced by its defau
   }
 });
 
+// A descriptor's command must start with an absolute executable, and '/x/update' is not absolute on Windows (release run 38105334997 failed there on it).
+const UPDATE_CMD = process.platform === 'win32' ? 'C:\\x\\update' : '/x/update';
+
 test('FD-39 REQ-004: service_context hands a coding agent the live picture — state, reasons as sentences, repository, events — never the auth block', async () => {
-  const { deps } = world({ descriptor: { source: { repository: 'https://github.com/example/agent' }, commands: { update: ['/x/update'] } } });
+  const { deps } = world({ descriptor: { source: { repository: 'https://github.com/example/agent' }, commands: { update: [UPDATE_CMD] } } });
   const c = await tools.serviceContext(deps, KEY);
   assert.equal(c.key, KEY);
   assert.equal(c.state, (await tools.serviceStatus(deps, KEY)).state, 'the same state service_status reads');
