@@ -1,0 +1,5 @@
+{
+  "action": "chat",
+  "service": "example-agent.default",
+  "project": "project-a"
+}

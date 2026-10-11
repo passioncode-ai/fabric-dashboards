@@ -7,6 +7,7 @@ import { commandRan, commandReason } from '../../core/outcome';
 import { problemOf } from '../../core/focus';
 import { api, GLYPH, Icon, nameOf, NEWS_MS, portOf, shortBuild, Spinner, StateBadge, useExpiry, useT } from '../lib';
 import { Feed } from './Activity';
+import fabricMark from '../brand/passioncode-mark.svg';
 
 type Tab = 'dashboard' | 'activity' | 'health' | 'logs';
 
@@ -117,6 +118,7 @@ export function ServiceView({ s, all, members, open, link, nonce, tab: askedTab,
             ))}
           </div>
           <span className="spacer" />
+          <FabricButton serviceKey={s.key} />
           <button className="icon-btn" aria-pressed={consoleOpen} title={t(consoleOpen ? 'console.hide' : 'console.show')} onClick={onToggleConsole}>
             <Icon name="console" /><span className="icon-btn-label">{t('console.show')}</span>
           </button>
@@ -399,3 +401,26 @@ function Tools({ names }: { names: string[] }) {
     </div>
   );
 }
+
+// #region fabric-button — docs: docs/adr/0021-fabrics-button-in-the-host.md#decision
+/** FD-45 (DEC-0040 FB-3/FB-4, ADR-0021): Fabric's button. The main process decides what a press does —
+ *  open Fabric's conversation about this service at once, or a native menu saying Fabric is not installed —
+ *  so a menu never sits under the dashboard view. No button for an id Fabric's links cannot carry. */
+function FabricButton({ serviceKey }: { serviceKey: string }) {
+  const { t } = useT();
+  const [kind, setKind] = useState<'direct' | 'absent' | 'none' | null>(null);
+  const ask = () => api().fabricButton(serviceKey).then(setKind, () => setKind('none'));
+  useEffect(() => { setKind(null); void ask(); }, [serviceKey]);
+  if (kind === null || kind === 'none') return null;
+  const press = (e: React.MouseEvent<HTMLButtonElement>) => {
+    const r = e.currentTarget.getBoundingClientRect();
+    // Fabric may have been installed or removed since: ask again after every press.
+    void api().fabricPress(serviceKey, { x: r.left, y: r.bottom }).finally(() => void ask());
+  };
+  return (
+    <button className="icon-btn fabric-btn" aria-label={t('fabric.open')} title={t('fabric.open')} aria-haspopup={kind === 'absent' ? 'menu' : undefined} onClick={press}>
+      <img className="fabric-mark" src={fabricMark} alt="" /><span className="icon-btn-label">{t('fabric.button')}</span>
+    </button>
+  );
+}
+// #endregion fabric-button

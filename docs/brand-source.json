@@ -14,6 +14,13 @@
       "note": "added in passioncode-ai.github.io#6",
       "copy": "src/renderer/brand/dashboards-mark.svg",
       "sha256": "1d3788630cbe511cb0d927893ebfd4a3b3944ed9fd5da45a4cec4375837bbd37"
+    },
+    {
+      "source": "assets/passioncode-mark.svg",
+      "commit": "428fb080",
+      "note": "Fabric's mark (ADR-0021 decision 6): the vector fabric's app icon centres on its tile",
+      "copy": "src/renderer/brand/passioncode-mark.svg",
+      "sha256": "8b49637faa386ce9658029a142d48e8a8c3ee4ed2d44ccb611cd03051046e1aa"
     }
   ]
 }

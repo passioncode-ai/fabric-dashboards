@@ -8,6 +8,7 @@ import type { PageState, Rect } from '../core/api';
 import { t, type Lang } from '../core/i18n';
 import { loginUrl, readTokenAsync } from '../core/probe';
 import type { ServiceSnapshot } from '../core/types';
+import { fabricButtonCookie, fabricPress } from '../core/fabric-button';
 import { afterCrash, clampRect, dashboardPathOf, loadErrorText, navigation, pageAddress, partitionFor, resolveLink, resumePath, routeLink, ViewSlot } from './policy';
 import { testRemote } from '../core/testhooks';
 
@@ -39,7 +40,17 @@ export class ServiceViews {
     /** The monitor's snapshot now. A sign-in or a recreate reads it, never the one the view was made
      *  from: whatever answers on the port now may not be the service any more (T-3). */
     private readonly snapshotFor: (key: string) => ServiceSnapshot | null = () => null,
+    /** FD-45: whether a `fabric://` handler is installed, for the `fabric_button` cookie (ADR-0021). */
+    private readonly fabricPresent: () => boolean = () => false,
   ) {}
+
+  /** FB-6 (ADR-0021 decision 5): before a load, tell the page whether the host draws Fabric's button. */
+  private async fabricCookie(key: string, origin: string): Promise<void> {
+    const present = this.fabricPresent();
+    const cookie = fabricButtonCookie(origin, { hostDraws: fabricPress(key, present).kind !== 'none', fabricPresent: present });
+    // Best effort: without it the page may show its own button beside ours, which costs nothing else.
+    await session.fromPartition(partitionFor(key)).cookies.set(cookie).catch(() => undefined);
+  }
 
   /** The service as it is now, when it may get a token: answering as itself, with its well-known. */
   private live(key: string): ServiceSnapshot | null {
@@ -156,6 +167,7 @@ export class ServiceViews {
     const dash = snap.wellKnown?.surfaces.dashboard;
     if (!dash) return { ok: false, error: 'no dashboard', stage: 'page' };
     let stage: ShowResult['stage'] = dash.login ? 'sign-in' : 'page';
+    await this.fabricCookie(snap.key, d.origin);
     try {
       let url = resolveLink(d.origin, link, dash.path);
       if (dash.login) {

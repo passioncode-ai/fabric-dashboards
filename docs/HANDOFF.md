@@ -5,7 +5,26 @@ Updated 2026-10-07 (0.6.2: 0.6.1 withdrawn for audit HIGH-2, audit fixes, signed
 
 Current release: 0.7.1 (published 2026-10-11 11:34 UTC, run 38106066248; FD-37 M1–M3, FD-39, FD-41; carries 0.7.0, tagged and not published). Before it, 0.6.7 (published 2026-10-09 17:07 UTC, run 37955575384; FD-36, FD-35, FD-38). Before it, 0.6.6 (published 2026-10-09 10:08 UTC, run 37864378854; FD-34, FD-35). Before it, 0.6.5 (published 2026-10-08 01:18 UTC, run 37703405621; FD-29, FD-33). Before it, 0.6.4 (published 2026-10-07 01:57 UTC, run 37558793926; carries 0.6.3, superseded before approval). Before it, 0.6.2 (published 2026-10-06 23:41 UTC, run 37541067349; 0.6.1 withdrawn). Before it, 0.6.0 (published 2026-10-06 21:35 UTC, run 37505569449); Before it, 0.5.6 (2026-10-06); the 0.4.1 section below is the previous one. Earlier releases below are preserved as dated evidence.
 
-## Next — start here (2026-10-11, after 0.7.1)
+## Next — start here (2026-10-11, FD-45: Fabric's button)
+
+**Branch `agent/fd45-fabric-button-impl`.** Fabric Agent Contract DEC-0040 (merged `8e49fbd`) as host:
+[ADR-0021](adr/0021-fabrics-button-in-the-host.md), SCN-061. A **Fabric** button in the service header
+(`src/renderer/components/ServiceView.tsx` `FabricButton`) opens `fabric://chat?service=<id>.<instance>`
+(`src/core/fabric-button.ts`, links built by the contract's copied `src/core/fabric-links.ts`). Presence
+comes from `app.getApplicationNameForProtocol`; with none, a native menu says *Fabric is not installed — get it
+at passioncode.ai/fabric*. Before every dashboard load the host sets `fabric_button=v=1&owner=host&fabric=…`
+in the service's partition (FB-6). The mark is the website's `passioncode-mark.svg` (pinned): Fabric's app icon
+is that vector on a tile. The Fabric owner's answers: no project in the link (Fabric's REQ-05 resolver finds
+it); this glyph is the mark; FB-4 is normative, so Fabric moves its SCN-142 to it in its wave 5.
+
+Checks (2026-10-11, macOS arm64): `test/fabric-button.test.ts` 6/6, and fails with a planted defect (cookie
+`Secure` forced off: 1 fail). `npm run test:e2e`: 8/9. The FD-45 assertions passed for both present and absent.
+The failure was FD-05's Dock assertion in `spend.test.ts`, with no `dock_` line (the FD-35 shape); alone it
+passed 1/1 with the screen unlocked. `npm run check` 0: 423 tests, 418 pass, 5 skipped (Windows-only); 3 brand pins; 89 code regions; UX lint consistent.
+
+**Next task:** merge, then release with the next version. FD-37 M4 after that.
+
+## Earlier — start here (2026-10-11, after 0.7.1)
 
 **Released: 0.7.1 on 2026-10-11 11:34 UTC** (run [38106066248](https://github.com/passioncode-ai/fabric-dashboards/actions/runs/38106066248),
 tag `v0.7.1` on `e1593bb`; Latest). 16 files: DMG, mac zip, Windows setup x64/arm64, Linux AppImage + `.deb`

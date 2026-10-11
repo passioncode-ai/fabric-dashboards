@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- **Fabric's button** (FD-45, [ADR-0021](docs/adr/0021-fabrics-button-in-the-host.md), Fabric Agent Contract
+  DEC-0040). Every agent's page has a **Fabric** button in its header. One press opens Fabric's conversation
+  about that agent; Fabric finds the agent's project itself. Without Fabric, the button says *Fabric is not
+  installed — get it at passioncode.ai/fabric*. An agent's dashboard that has its own Fabric button hides it
+  inside the app, so there is only ever one.
+
 ## 0.7.1 - 2026-10-11
 
 The first published release since 0.6.7. It carries everything listed under 0.7.0 below — 0.7.0 was

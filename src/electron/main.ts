@@ -36,6 +36,7 @@ import { EstateUpdater } from './estate-updater';
 import { readSetupState } from '../core/setup';
 import { Updater } from './updater';
 import { ServiceViews } from './views';
+import { FABRIC_GET_URL, fabricPress, fabricPresentFrom } from '../core/fabric-button';
 import { parseTestRemote, setTestRemote } from '../core/testhooks';
 
 app.enableSandbox();
@@ -114,6 +115,15 @@ if (!app.requestSingleInstanceLock()) {
   // FD_TEST_REMOTE_MS shortens the online-service probe interval (60 s) so the e2e suite does not
   // depend on a minute of wall clock; honoured only when the app is not packaged (as FD_TEST_REMOTE).
   const testRemoteMs = !app.isPackaged ? Number(process.env.FD_TEST_REMOTE_MS) : Number.NaN;
+  // FD-45 (ADR-0021): whether anything handles `fabric://`, asked of the OS. FD_TEST_FABRIC (`present`,
+  // `absent`) stands in for the OS, and makes a press log what it would open or show instead of opening
+  // it (a native menu runs a nested loop the e2e suite cannot drive); honoured only when not packaged.
+  const testFabric = !app.isPackaged && (process.env.FD_TEST_FABRIC === 'present' || process.env.FD_TEST_FABRIC === 'absent') ? process.env.FD_TEST_FABRIC : undefined;
+  const fabricPresent = (): boolean => (testFabric ? testFabric === 'present' : fabricPresentFrom(app.getApplicationNameForProtocol('fabric://chat')));
+  const openOutside = async (url: string): Promise<void> => {
+    if (testFabric) { log(`fabric_open ${url}`); return; }
+    await shell.openExternal(url);
+  };
   const monitor = new Monitor({ servicesDir: servicesDir(), activity, settings: () => settings.get(), lang, ledger: new NotifyLedger(path.join(userData, 'notified.json')),
     intervals: Number.isFinite(testRemoteMs) && testRemoteMs >= 1_000 ? { remote: testRemoteMs } : undefined });
   // ADR-0017: the agent consoles. FD_TEST_RUNTIME_DIRS replaces where runtimes are looked for, only
@@ -265,7 +275,8 @@ if (!app.requestSingleInstanceLock()) {
       // ADR-0016: a dashboard's link to another service takes the same path as a link from outside.
       (raw) => { if (handleLink) handleLink(raw); else pendingLinks.push(raw); },
       () => monitor.snapshots().map((x) => x.descriptor?.origin).filter((o): o is string => Boolean(o)),
-      (key) => monitor.snapshot(key));
+      (key) => monitor.snapshot(key),
+      fabricPresent);
     w.once('ready-to-show', () => w.show());
     // FD-05 (operator decision 2026-10-05): a hidden window leaves only the menu-bar icon; showing
     // it brings the Dock icon back. A minimized window keeps its Dock icon — that is where it lives.
@@ -574,6 +585,31 @@ if (!app.requestSingleInstanceLock()) {
     });
     // The toolbar copies only what it shows: a page address or an app link, never a token.
     ipcMain.handle(CHANNELS.copyText, (_e, text: string) => { clipboard.writeText(String(text).slice(0, 4096)); });
+    // FD-45 (DEC-0040, ADR-0021): Fabric's button. A press opens a view in Fabric and nothing more (FB-8);
+    // the link carries the service id only, and Fabric finds the project itself.
+    ipcMain.handle(CHANNELS.fabricButton, (_e, key: string) => fabricPress(String(key), fabricPresent()).kind);
+    ipcMain.handle(CHANNELS.fabricPress, async (_e, key: string, anchor: { x?: unknown; y?: unknown }) => {
+      const press = fabricPress(String(key), fabricPresent());
+      if (press.kind === 'none') return { opened: 'none' };
+      if (press.kind === 'direct') {
+        try {
+          await openOutside(press.url);
+          log(`fabric_button opened chat service=${String(key)}`);
+          return { opened: 'fabric' };
+        } catch (error) {
+          // A handler the OS names but that cannot open the link: the same answer as no Fabric (FB-5).
+          log(`fabric_button failed service=${String(key)}: ${(error as Error).message}`);
+        }
+      }
+      const label = t(lang(), 'fabric.notInstalled');
+      const get = () => void openOutside(FABRIC_GET_URL).catch((error: Error) => log(`fabric_button get failed: ${error.message}`));
+      if (testFabric) { log(`fabric_menu ${label}`); return { opened: 'menu' }; }
+      const w = window;
+      if (!w || w.isDestroyed()) return { opened: 'none' };
+      const at = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? Math.max(0, Math.round(v)) : 0);
+      Menu.buildFromTemplate([{ label, click: get }]).popup({ window: w, x: at(anchor?.x), y: at(anchor?.y) });
+      return { opened: 'menu' };
+    });
     ipcMain.handle(CHANNELS.rescan, () => monitor.tick(true));
     ipcMain.handle(CHANNELS.serviceGuide, () => shell.openExternal(SERVICE_GUIDE));
     ipcMain.handle(CHANNELS.updateRestart, async () => {
