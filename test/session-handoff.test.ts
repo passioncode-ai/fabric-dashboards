@@ -95,3 +95,38 @@ test('FD-47: the checker refuses a folder with a stray file — it is not checki
   assert.equal(v.valid, false);
   assert.ok(v.problems.some((p) => /notes\.txt/.test(p)), v.problems.join('\n'));
 });
+
+test('FD-47 SH-3: a write that fails leaves no temporary file, and a temporary file a killed writer left is swept', async () => {
+  const { dir } = start('claude-code');
+  fs.writeFileSync(path.join(dir, 'context.md.4242.tmp'), 'half', { mode: 0o600 });
+  start('claude-code', { dir });
+  assert.ok(!fs.readdirSync(dir).some((n) => n.endsWith('.tmp')));
+  assert.deepEqual((await verdict(dir)).problems, []);
+  fs.chmodSync(dir, 0o500); // the folder refuses new files: the write fails part-way
+  try {
+    assert.throws(() => start('claude-code', { dir }));
+  } finally {
+    fs.chmodSync(dir, 0o700);
+  }
+  assert.ok(!fs.readdirSync(dir).some((n) => n.endsWith('.tmp')), 'nothing half-written is left');
+});
+
+test('FD-47: a start that fails before its manifest leaves no manifest of an earlier start', () => {
+  const { dir } = start('claude-code');
+  assert.ok(fs.existsSync(path.join(dir, 'handoff.json')));
+  fs.rmSync(path.join(dir, 'context.md'));
+  fs.mkdirSync(path.join(dir, 'context.md')); // the write of context.md now fails
+  assert.throws(() => start('claude-code', { dir }));
+  assert.ok(!fs.existsSync(path.join(dir, 'handoff.json')), 'the old manifest no longer describes a launch that did not happen');
+  assert.ok(!fs.readdirSync(dir).some((n) => n.endsWith('.tmp')), 'and nothing half-written is left');
+});
+
+test('FD-47 SH-8: a control character in the brief sends it as brief.md, never inline', async () => {
+  const { briefFitsInline } = await import('../src/core/handoff');
+  assert.equal(briefFitsInline('one line'), true);
+  assert.equal(briefFitsInline('two\nlines'), false);
+  assert.equal(briefFitsInline('a\u0007bell'), false);
+  assert.equal(briefFitsInline('x'.repeat(1000)), true);
+  assert.equal(briefFitsInline('x'.repeat(1001)), false);
+});
+

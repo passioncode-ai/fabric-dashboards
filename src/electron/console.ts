@@ -234,8 +234,12 @@ export class ConsoleHost {
       const r = await this.run(t.argv[0]!, t.argv.slice(1), 30_000);
       return r.code === 0 ? { ok: true } : { ok: false, error: (r.stderr || r.stdout).trim().split('\n').pop()?.slice(0, 300) || `exit ${r.code}` };
     }
-    // FD-39: a Terminal window gets the same context pack as the console (arguments and environment).
-    const pack = this.pack(key, runtime, folder.path);
+    // FD-39: a Terminal window gets the same context pack as the console (arguments and environment) —
+    // unless a console session of this agent is running: the pack is one per agent key (DEC-0042 SH-5), and
+    // rewriting it would take that session's task and brief from under it.
+    const busy = this.manager.snapshot(key).state === 'running';
+    if (busy) this.o.log(`console: ${key} opens in Terminal without its context pack: a console session holds it`);
+    const pack = busy ? null : this.pack(key, runtime, folder.path);
     const plan = planStart({ runtime, mode, folder: folder.path, binding: { kind: 'none' }, switchboard: null, inPlace: false, handoff: pack?.handoff });
     if (plan.kind !== 'run') return { ok: false, error: plan.kind === 'refused' ? plan.detail : 'unavailable' };
     return openInTerminal(this.o.scriptsDir, terminalScript(plan.argv, folder.path, pack?.env ?? {}));

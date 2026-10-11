@@ -416,4 +416,9 @@ test('FD-47 DEC-0042 SH-7: service_context takes the key a session handoff\'s fi
   const none = await handle(deps, { jsonrpc: '2.0', id: 3, method: 'tools/call', params: { name: 'service_context', arguments: {} } }) as { result: { isError?: boolean; content: { text: string }[] } };
   assert.equal(none.result.isError, true);
   assert.match(none.result.content[0]!.text, /key is required/);
+  const both = await handle(deps, { jsonrpc: '2.0', id: 4, method: 'tools/call', params: { name: 'service_context', arguments: { key: KEY, service: 'other.default' } } }) as { result: { isError?: boolean; content: { text: string }[] } };
+  assert.equal(both.result.isError, true, 'two different services is a mistake, not a choice');
+  assert.match(both.result.content[0]!.text, /name different services/);
+  const empty = await handle(deps, { jsonrpc: '2.0', id: 5, method: 'tools/call', params: { name: 'service_context', arguments: { key: '', service: KEY } } }) as { result: { isError?: boolean } };
+  assert.notEqual(empty.result.isError, true, 'an empty key is no key: service is used');
 });

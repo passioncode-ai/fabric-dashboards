@@ -77,6 +77,9 @@ from Fabric with the same folder. What changed here:
   declares `lifetime: agent-key` (the folder is kept per agent and rewritten), `firstCall: service_context` on
   `fabric-dashboards` with `arguments.key`, `mcp: {auth: none, strict: false}` (the stdio launcher, no secret;
   the person's own servers stay loaded), the brief's delivery, and what the launch adds (`args` in order, `env`).
+  `launch.args` are the handoff's own arguments (SH-10): Continue's `--continue` or Codex's `resume --last` are the
+  runtime's, sit between them on the command line, and are not recorded. A Terminal window opened while a console
+  session of the same agent runs gets no pack: the folder is one per agent key, and that session owns it.
   Other runtimes get no manifest: the brief does not reach them, so a manifest would declare a delivery that
   does not happen. The Setup console is not an agent session and writes none.
 - **The preamble holds no rule** (SH-6). The brief is the task's path, when there is a task, then one line naming

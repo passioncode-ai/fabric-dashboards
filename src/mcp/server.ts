@@ -102,7 +102,7 @@ export const TOOLS = [
     name: 'service_context',
     description: 'Everything about one service a coding agent needs before working on it, read now: state and reasons as sentences, descriptor problems, version and pending update, repository, origin, dashboard, its descriptor (auth left out), its recent events and the rules for a console session. Call it first when a console was opened for this service (the first call of a session-handoff/1 pack, with key).',
     // FD-47 (DEC-0042 SH-7): the handoff's first call passes the agent's key as `key`; `service` is kept for older callers.
-    inputSchema: { type: 'object', properties: { key: serviceArg, service: serviceArg }, additionalProperties: false },
+    inputSchema: { type: 'object', properties: { key: serviceArg, service: serviceArg }, anyOf: [{ required: ['key'] }, { required: ['service'] }], additionalProperties: false },
     annotations: { readOnlyHint: true },
   },
   {
@@ -160,7 +160,10 @@ export async function call(deps: tools.Deps, name: string, args: Args): Promise<
     case 'doctor': return tools.command(deps, need(args, 'service'), 'doctor');
     case 'update': return tools.command(deps, need(args, 'service'), 'update');
     case 'service_context': {
-      const key = str(args, 'key') ?? str(args, 'service');
+      const k = str(args, 'key') || undefined;
+      const s = str(args, 'service') || undefined;
+      if (k && s && k !== s) throw new tools.ToolError('key and service name different services; give one');
+      const key = k ?? s;
       if (!key) throw new tools.ToolError('key is required');
       return tools.serviceContext(deps, key);
     }

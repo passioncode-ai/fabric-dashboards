@@ -205,8 +205,13 @@ export function handoffArgs(runtimeId: string, o: { mcp: string; mcpServer: McpC
 function put(dir: string, name: string, text: string): string {
   const file = path.join(dir, name);
   const temp = `${file}.${process.pid}.tmp`;
-  fs.writeFileSync(temp, text, { mode: 0o600 });
-  fs.renameSync(temp, file);
+  try {
+    fs.writeFileSync(temp, text, { mode: 0o600 });
+    fs.renameSync(temp, file);
+  } catch (error) {
+    fs.rmSync(temp, { force: true }); // SH-3: never leave a file the manifest does not list
+    throw error;
+  }
   return file;
 }
 
@@ -217,6 +222,8 @@ export function writePack(dir: string, files: { context: string; task: string | 
   try { fs.chmodSync(dir, 0o700); } catch { /* Windows: the profile's ACL */ }
   // The manifest goes first and comes back last: a folder caught half-written never claims to be a handoff.
   fs.rmSync(path.join(dir, 'handoff.json'), { force: true });
+  // A temporary file a killed writer left behind (SH-3: nothing the manifest does not list).
+  for (const name of fs.readdirSync(dir)) if (name.endsWith('.tmp')) fs.rmSync(path.join(dir, name), { force: true });
   const out = { context: put(dir, 'context.md', files.context), mcp: put(dir, 'mcp.json', files.mcp), task: null as string | null, brief: null as string | null };
   for (const [name, text] of [['task.md', files.task], ['brief.md', files.brief ?? null]] as const) {
     if (text) out[name === 'task.md' ? 'task' : 'brief'] = put(dir, name, text);
@@ -234,6 +241,8 @@ export function prepareHandoff(o: {
   snapshot: ServiceSnapshot; activity: ActivityItem[]; folder: string; runtimeId: string; dir: string;
   server: McpCommand; version: string; task?: { kind: 'fix' | 'update'; output?: string }; now?: () => Date;
 }): { handoff: { before: string[]; after: string[] }; env: Record<string, string>; files: { context: string; task: string | null; mcp: string; brief: string | null; manifest: string | null } } {
+  // A start that fails before the manifest is written again must not leave the last start's manifest behind.
+  fs.rmSync(path.join(o.dir, 'handoff.json'), { force: true });
   const now = (o.now ?? (() => new Date()))().toISOString();
   const ctx = handoffContext(o.snapshot, o.activity, o.folder);
   const job = o.task ? (o.task.kind === 'fix' ? fixTask(ctx) : updateTask(ctx, o.task.output ?? null)) : null;
@@ -256,6 +265,8 @@ export function prepareHandoff(o: {
       preamble: preamble(ctx.key),
       mcp: { auth: 'none', strict: false },
       brief: inline ? { delivery: 'inline', text } : { delivery: 'file' },
+      // SH-10: what the handoff adds, in order. The runtime's own arguments (Continue's `--continue`, Codex's
+      // `resume --last`) sit between `before` and `after` on the command line and are not the handoff's.
       launch: { runtime, args: [...h.before, ...h.after], env },
     }, null, 2)}\n`);
   }
