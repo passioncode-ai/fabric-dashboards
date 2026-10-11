@@ -5,7 +5,24 @@ Updated 2026-10-07 (0.6.2: 0.6.1 withdrawn for audit HIGH-2, audit fixes, signed
 
 Current release: 0.7.1 (published 2026-10-11 11:34 UTC, run 38106066248; FD-37 M1–M3, FD-39, FD-41; carries 0.7.0, tagged and not published). Before it, 0.6.7 (published 2026-10-09 17:07 UTC, run 37955575384; FD-36, FD-35, FD-38). Before it, 0.6.6 (published 2026-10-09 10:08 UTC, run 37864378854; FD-34, FD-35). Before it, 0.6.5 (published 2026-10-08 01:18 UTC, run 37703405621; FD-29, FD-33). Before it, 0.6.4 (published 2026-10-07 01:57 UTC, run 37558793926; carries 0.6.3, superseded before approval). Before it, 0.6.2 (published 2026-10-06 23:41 UTC, run 37541067349; 0.6.1 withdrawn). Before it, 0.6.0 (published 2026-10-06 21:35 UTC, run 37505569449); Before it, 0.5.6 (2026-10-06); the 0.4.1 section below is the previous one. Earlier releases below are preserved as dated evidence.
 
-## Next — start here (2026-10-11, FD-45 re-pinned to DEC-0041)
+## Next — start here (2026-10-11, FD-47: session-handoff/1)
+
+**Branch `agent/fd47-session-handoff`.** The console's pack is the contract's `session-handoff/1` (DEC-0042,
+merged `213e5a3a2f4d`). [ADR-0020 amendment](adr/0020-agents-first-handoff-and-setup.md#amendment-2026-10-11--the-pack-is-session-handoff1-fd-47).
+`handoff.json` is written for Claude Code, Codex and Gemini CLI (`agent-key`, `service_context` with `key`,
+`mcp.auth: none`, not strict). The preamble holds no rule, and the rules are `service_context`'s `rules`. The brief
+is inline or `brief.md`. The contract's checker runs in the suite (`test/session-handoff.test.ts`, the copy in
+`test/contract/`, schemas in `test/fixtures/contract/schema_*.json`).
+
+Checks (2026-10-11): `npm run check` 0, 425 of 430 tests (5 skipped, Windows-only). `test/session-handoff.test.ts`
+5/5, and it fails when a rule (a second tool name) is planted in the preamble (FAC-SEM-053). The screen was
+locked, so `npm run test:e2e` refused at its preflight. `test/e2e/focus-console.test.ts`, run directly, passed 3/3:
+the console reaches the runtime with the new preamble, `handoff.json` is there, and a Fix starts with
+`Do the task in …task.md.`.
+
+**Next task:** release 0.7.2 (FD-45 + FD-47); then FD-37 M4.
+
+## Earlier — start here (2026-10-11, FD-45 re-pinned to DEC-0041)
 
 `src/core/fabric-links.ts` is re-copied from fabric-agent-contract `7931c1dbb6e6` (DEC-0041, CO-260: credential
 words are matched as whole words of a name). The `fabric-link-*` fixtures are unchanged there. Test *FD-45

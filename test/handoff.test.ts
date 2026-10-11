@@ -1,7 +1,7 @@
 // FD-39 / ADR-0020: a console starts knowing the Fabric agent it was opened for.
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { brief, contextMarkdown, firstPrompt, fixTask, handoffArgs, handoffContext, mcpConfig, taskMarkdown, updateTask } from '../src/core/handoff';
+import { brief, briefFitsInline, contextMarkdown, fixTask, handoffArgs, handoffContext, mcpConfig, preamble, taskMarkdown, updateTask } from '../src/core/handoff';
 import type { ActivityItem, ServiceSnapshot } from '../src/core/types';
 
 const SECRET_PATH = '/Users/me/.config/runner/service.token';
@@ -57,30 +57,34 @@ test('FD-39 REQ-001: recent events are this agent\'s, newest first, and warnings
 
 test('FD-39 REQ-002: Claude gets the MCP config and the brief before its first turn; nothing bare follows --mcp-config', () => {
   const server = { command: '/Applications/Fabric Dashboards.app/Contents/Resources/bin/fabric-dashboards-mcp', args: [] };
-  const a = handoffArgs('claude-code', { mcp: '/data/consoles/runner.dev/mcp.json', mcpServer: server, brief: 'B', prompt: 'P' });
+  const a = handoffArgs('claude-code', { mcp: '/data/consoles/runner.dev/mcp.json', mcpServer: server, brief: { inline: 'B' }, task: '/data/consoles/runner.dev/task.md' });
   assert.deepEqual(a.before, ['--mcp-config=/data/consoles/runner.dev/mcp.json', '--append-system-prompt', 'B']);
-  assert.deepEqual(a.after, ['P']);
+  assert.deepEqual(a.after, ['Do the task in /data/consoles/runner.dev/task.md.'], 'a task starts at once');
   assert.ok(!a.before.includes('--mcp-config'), 'the joined form: nothing after it can be read as another config (Switchboard SB-94, measured on the CLI)');
-  const none = handoffArgs('claude-code', { mcp: 'm', mcpServer: server, brief: 'B', prompt: null });
+  assert.ok(!a.before.includes('--strict-mcp-config'), 'DEC-0042 SH-9: the console keeps the person\'s own servers (mcp.strict false)');
+  const none = handoffArgs('claude-code', { mcp: 'm', mcpServer: server, brief: { inline: 'B' }, task: null });
   assert.deepEqual(none.after, [], 'no task: the agent waits for the person');
+  const file = handoffArgs('claude-code', { mcp: 'm', mcpServer: server, brief: { file: '/d/brief.md' }, task: null });
+  assert.deepEqual(file.before, ['--mcp-config=m', '--append-system-prompt-file', '/d/brief.md'], 'SH-8: a long brief travels as brief.md');
 });
 
 test('FD-39 REQ-002: Codex gets the MCP server as -c overrides before its subcommand, and a first prompt; Gemini gets -i; others the env path only', () => {
   const server = { command: '/x/electron', args: ['/x/out/main/mcp/server.js'], env: { ELECTRON_RUN_AS_NODE: '1' } };
-  const c = handoffArgs('codex', { mcp: 'm', mcpServer: server, brief: 'B', prompt: 'P' });
+  const c = handoffArgs('codex', { mcp: 'm', mcpServer: server, brief: { inline: 'B' }, task: null });
   assert.deepEqual(c.before, ['-c', 'mcp_servers.fabric-dashboards.command="/x/electron"', '-c', 'mcp_servers.fabric-dashboards.args=["/x/out/main/mcp/server.js"]', '-c', 'mcp_servers.fabric-dashboards.env.ELECTRON_RUN_AS_NODE="1"']);
-  assert.deepEqual(c.after, ['P']);
-  assert.deepEqual(handoffArgs('gemini-cli', { mcp: 'm', mcpServer: server, brief: 'B', prompt: 'P' }).after, ['-i', 'P']);
-  assert.deepEqual(handoffArgs('aider', { mcp: 'm', mcpServer: server, brief: 'B', prompt: 'P' }), { before: [], after: [], env: {} });
+  assert.deepEqual(c.after, ['B'], 'DEC-0042 SH-11: Codex\'s brief is its first prompt');
+  assert.deepEqual(handoffArgs('gemini-cli', { mcp: 'm', mcpServer: server, brief: { inline: 'B' }, task: null }).after, ['-i', 'B']);
+  assert.deepEqual(handoffArgs('aider', { mcp: 'm', mcpServer: server, brief: { inline: 'B' }, task: null }), { before: [], after: [] });
 });
 
 test('FD-39 REQ-003: every argument fits Switchboard\'s in-place limits (≤ 1024 characters, ≤ 16 after --)', () => {
   const long = snap({ descriptor: { ...snap().descriptor!, name: 'N'.repeat(2000) } });
   const c = handoffContext(long, [], null);
-  const files = { context: `/Users/${'u'.repeat(60)}/Library/Application Support/Fabric Dashboards/consoles/runner.dev/context.md`, task: `/Users/${'u'.repeat(60)}/Library/Application Support/Fabric Dashboards/consoles/runner.dev/task.md` };
-  const b = brief(c, files);
-  assert.ok(b.length <= 1000, `brief ${b.length}`);
-  const a = handoffArgs('claude-code', { mcp: files.context, mcpServer: { command: 'x', args: [] }, brief: b, prompt: firstPrompt(files) });
+  const files = { mcp: `/Users/${'u'.repeat(60)}/Library/Application Support/Fabric Dashboards/consoles/runner.dev/mcp.json`, task: `/Users/${'u'.repeat(60)}/Library/Application Support/Fabric Dashboards/consoles/runner.dev/task.md` };
+  const b = brief(c.key, files);
+  assert.ok(briefFitsInline(b), `brief ${b.length}`);
+  assert.ok(b.endsWith(preamble(c.key)), 'DEC-0042 SH-6: the brief ends with the preamble');
+  const a = handoffArgs('claude-code', { mcp: files.mcp, mcpServer: { command: 'x', args: [] }, brief: { inline: b }, task: files.task });
   const all = [...a.before, '--continue', ...a.after];
   assert.ok(all.length <= 16);
   for (const arg of all) assert.ok(arg.length <= 1024, `${arg.length}: ${arg.slice(0, 40)}`);
@@ -131,14 +135,14 @@ test('FD-39 REQ-001: the pack is written whole, owner-only, outside the reposito
 test('FD-39 REQ-003 (Switchboard SB-94): a bound folder carries the pack after --, each argument an option or its value, no bare value after --mcp-config', async () => {
   const { planStart } = await import('../src/core/consoles');
   const runtime = { id: 'claude-code', name: 'Claude Code', binary: 'claude', provider: 'claude' as const, continueArgs: ['--continue'], path: '/bin/claude' };
-  const h = handoffArgs('claude-code', { mcp: '/d/mcp.json', mcpServer: { command: 'x', args: [] }, brief: 'B', prompt: null });
+  const h = handoffArgs('claude-code', { mcp: '/d/mcp.json', mcpServer: { command: 'x', args: [] }, brief: { inline: 'B' }, task: null });
   const p = planStart({ runtime, mode: 'continue', folder: '/w', binding: { kind: 'project', name: 'P', pool: 'p' }, switchboard: '/bin/switchboard', inPlace: true, handoff: h });
   assert.equal(p.kind, 'run');
   const argv = (p as { argv: string[] }).argv;
   const after = argv.slice(argv.indexOf('--') + 1);
   assert.deepEqual(after, ['--mcp-config=/d/mcp.json', '--append-system-prompt', 'B', '--continue']);
   const codex = { ...runtime, id: 'codex', binary: 'codex', provider: 'codex' as const, continueArgs: ['resume', '--last'] };
-  const hc = handoffArgs('codex', { mcp: 'm', mcpServer: { command: 'x', args: [] }, brief: 'B', prompt: 'P' });
+  const hc = handoffArgs('codex', { mcp: 'm', mcpServer: { command: 'x', args: [] }, brief: { inline: 'P' }, task: null });
   const pc = planStart({ runtime: codex, mode: 'continue', folder: '/w', binding: { kind: 'none' }, switchboard: null, inPlace: false, handoff: hc });
   assert.deepEqual((pc as { argv: string[] }).argv.slice(1), ['-c', 'mcp_servers.fabric-dashboards.command="x"', '-c', 'mcp_servers.fabric-dashboards.args=[]', 'resume', '--last', 'P'], 'Codex options come before its subcommand');
 });
@@ -150,15 +154,15 @@ test('FD-39 REQ-001/002/005: a console start writes the pack and carries it — 
   const { prepareHandoff } = await import('../src/core/handoff');
   const dir = path.join(tmp('fd-prep-'), 'runner.dev');
   const r = prepareHandoff({ snapshot: snap(), activity: [ev('2026-10-10T09:00:00Z', 'error', 'database locked')], folder: '/w/runner', runtimeId: 'claude-code', dir,
-    server: { command: '/x/electron', args: ['/x/server.js'], env: { ELECTRON_RUN_AS_NODE: '1' } }, task: { kind: 'fix' }, now: () => new Date('2026-10-10T12:00:00Z') });
+    server: { command: '/x/electron', args: ['/x/server.js'], env: { ELECTRON_RUN_AS_NODE: '1' } }, version: '0.7.2', task: { kind: 'fix' }, now: () => new Date('2026-10-10T12:00:00Z') });
   assert.equal(r.env.FABRIC_DASHBOARDS_CONTEXT, path.join(dir, 'context.md'));
   assert.equal(r.env.FABRIC_DASHBOARDS_TASK, path.join(dir, 'task.md'));
   assert.equal(r.handoff.before[0], `--mcp-config=${path.join(dir, 'mcp.json')}`);
-  assert.match(r.handoff.before[2]!, /Runner.*runner\.dev.*context\.md.*task\.md/s, 'the brief names the agent, the context and the task');
-  assert.match(r.handoff.after[0]!, /task\.md.*then do the task/, 'a fix starts working at once');
+  assert.match(r.handoff.before[2]!, /task\.md.*service_context with key runner\.dev/s, 'the brief names the task, then the first call with the agent\'s key');
+  assert.match(r.handoff.after[0]!, /^Do the task in .*task\.md\.$/, 'a fix starts working at once');
   assert.match(fs.readFileSync(r.files.context, 'utf8'), /database locked/);
   assert.match(fs.readFileSync(r.files.task!, 'utf8'), /^# Task: Runner is down/);
-  const plain = prepareHandoff({ snapshot: snap(), activity: [], folder: '/w/runner', runtimeId: 'claude-code', dir, server: { command: 'x', args: [] } });
+  const plain = prepareHandoff({ snapshot: snap(), activity: [], folder: '/w/runner', runtimeId: 'claude-code', dir, server: { command: 'x', args: [] }, version: '0.7.2' });
   assert.deepEqual(plain.handoff.after, [], 'a plain start: Claude waits for the person');
   assert.equal(plain.env.FABRIC_DASHBOARDS_TASK, undefined);
 });

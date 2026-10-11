@@ -1,0 +1,165 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://fabric.passioncode.ai/agent-contract/0.1.0/schemas/session-handoff.schema.json",
+  "title": "Session handoff manifest, session-handoff/1 (DEC-0042)",
+  "description": "handoff.json: the manifest of the folder a host hands a coding-agent session before its first turn. The folder holds context.md and mcp.json, optionally brief.md and task.md, lives in the host's user-data folder (never a repository), is 0700 with every file 0600. The manifest declares the lifetime, the first live call, the preamble, how the MCP server is reached and authenticated, how the brief is delivered and what the launch adds to the runtime's command line. Cross-field rules (FAC-SEM-053) and the folder's own rules (FAC-SEM-054, FAC-SEM-055) are in docs/specification/session-handoff.md. Fabric's execution-packet/1 integrity manifest stays underneath, named in integrity.",
+  "type": "object",
+  "required": ["format", "writer", "writtenAt", "lifetime", "files", "firstCall", "preamble", "mcp", "brief", "launch"],
+  "properties": {
+    "format": { "const": "session-handoff/1" },
+    "writer": {
+      "type": "object",
+      "description": "The product that wrote the folder.",
+      "required": ["product", "version"],
+      "properties": {
+        "product": { "type": "string", "pattern": "^[a-z][a-z0-9-]{1,62}$", "description": "The writing product's id, e.g. fabric or fabric-dashboards." },
+        "version": { "$ref": "common.schema.json#/$defs/semver" }
+      },
+      "additionalProperties": false
+    },
+    "writtenAt": { "$ref": "common.schema.json#/$defs/timestamp" },
+    "lifetime": {
+      "description": "How long the folder lives: one session (removed when it ends, the only lifetime a bearer may have), or one agent key (kept and rewritten on each start).",
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["kind", "session"],
+          "properties": {
+            "kind": { "const": "session" },
+            "session": { "$ref": "#/$defs/sessionId" }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": ["kind", "agentKey"],
+          "properties": {
+            "kind": { "const": "agent-key" },
+            "agentKey": { "$ref": "common.schema.json#/$defs/agentId" }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "files": {
+      "type": "array",
+      "description": "The files of the handoff besides handoff.json itself. context.md and mcp.json always; brief.md when the brief is delivered as a file; task.md when the session is opened for a task.",
+      "items": { "enum": ["context.md", "mcp.json", "brief.md", "task.md"] },
+      "uniqueItems": true,
+      "allOf": [
+        { "contains": { "const": "context.md" } },
+        { "contains": { "const": "mcp.json" } }
+      ]
+    },
+    "firstCall": {
+      "description": "The one tool the session calls before anything else: fabric_whoami on Fabric's server, or service_context on a service console's server.",
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["server", "tool"],
+          "properties": {
+            "server": { "const": "fabric" },
+            "tool": { "const": "fabric_whoami" }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": ["server", "tool", "arguments"],
+          "properties": {
+            "server": { "const": "fabric-dashboards" },
+            "tool": { "const": "service_context" },
+            "arguments": {
+              "type": "object",
+              "required": ["key"],
+              "properties": { "key": { "$ref": "common.schema.json#/$defs/agentId" } },
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "preamble": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 600,
+      "description": "The host's text that ends every brief: it names the first call and holds no rule; the rules are what the first call returns."
+    },
+    "mcp": {
+      "type": "object",
+      "required": ["auth", "strict"],
+      "properties": {
+        "auth": {
+          "enum": ["bearer", "none"],
+          "description": "bearer: mcp.json reaches the server over HTTP with a one-shot bearer minted for this session (lifetime session only). none: mcp.json starts the server as a stdio command and holds no secret."
+        },
+        "strict": {
+          "type": "boolean",
+          "description": "Whether the runtime is told to load only the servers in mcp.json (Claude Code --strict-mcp-config, Hermes HERMES_ACP_SKIP_CONFIGURED_MCP=1). false where the runtime offers no such switch."
+        }
+      },
+      "additionalProperties": false
+    },
+    "brief": {
+      "description": "How the brief (the agent's own text, then the preamble) reaches the runtime: inline in one launch argument, at most 1000 characters and no control character, or as brief.md.",
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["delivery", "text"],
+          "properties": {
+            "delivery": { "const": "inline" },
+            "text": { "type": "string", "minLength": 1, "maxLength": 1000 }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": ["delivery"],
+          "properties": {
+            "delivery": { "const": "file" }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "launch": {
+      "type": "object",
+      "description": "What the handoff adds to the runtime's own command: its arguments, in order, and the environment variables it sets. A value that carries a credential or a document holding one is withheld as null.",
+      "required": ["runtime", "args", "env"],
+      "properties": {
+        "runtime": { "enum": ["claude-code", "codex", "cursor-agent", "gemini-cli", "goose", "hermes", "kilo", "kimi-code", "kiro", "opencode", "cline"], "description": "A shared runner kind name (runners.md, Kind names are shared). A runner not listed there takes a new name in the runner catalogue before a host hands it a session." },
+        "args": {
+          "type": "array",
+          "maxItems": 16,
+          "items": { "type": "string", "maxLength": 1024 }
+        },
+        "env": {
+          "type": "object",
+          "propertyNames": { "pattern": "^[A-Z_][A-Z0-9_]*$" },
+          "additionalProperties": { "anyOf": [{ "type": "string", "maxLength": 1024 }, { "type": "null" }] }
+        }
+      },
+      "additionalProperties": false
+    },
+    "integrity": {
+      "type": "object",
+      "description": "Optional: the integrity layer underneath. Fabric names its execution-packet/1 manifest and the digest of each handoff file it materialised there.",
+      "required": ["packet", "parts"],
+      "properties": {
+        "packet": { "const": "execution-packet/1" },
+        "parts": {
+          "type": "object",
+          "minProperties": 1,
+          "propertyNames": { "enum": ["context.md", "brief.md", "task.md"] },
+          "additionalProperties": { "$ref": "common.schema.json#/$defs/sha256" }
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "sessionId": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$", "description": "The host's session id." }
+  }
+}

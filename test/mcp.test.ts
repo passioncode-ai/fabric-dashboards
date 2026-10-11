@@ -403,3 +403,17 @@ test('FD-39 REQ-004: service_context hands a coding agent the live picture — s
   assert.match(String(d.events_error), /does not answer/, 'a service that does not answer still gets its context, and says why there are no events');
   assert.ok(TOOLS.some((x) => x.name === 'service_context'));
 });
+
+test('FD-47 DEC-0042 SH-7: service_context takes the key a session handoff\'s first call passes, and returns the console\'s rules (SH-6)', async () => {
+  const { deps } = world();
+  const r = await handle(deps, { jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'service_context', arguments: { key: KEY } } }) as { result: { isError?: boolean; content: { text: string }[] } };
+  assert.notEqual(r.result.isError, true, r.result.content[0]!.text);
+  const c = JSON.parse(r.result.content[0]!.text) as { key: string; rules: string[] };
+  assert.equal(c.key, KEY);
+  assert.ok(c.rules.length >= 3 && c.rules.some((x) => /secret/i.test(x)), 'the rules live in the answer, not in the preamble');
+  const old = await handle(deps, { jsonrpc: '2.0', id: 2, method: 'tools/call', params: { name: 'service_context', arguments: { service: KEY } } }) as { result: { isError?: boolean } };
+  assert.notEqual(old.result.isError, true, 'service still works for older callers');
+  const none = await handle(deps, { jsonrpc: '2.0', id: 3, method: 'tools/call', params: { name: 'service_context', arguments: {} } }) as { result: { isError?: boolean; content: { text: string }[] } };
+  assert.equal(none.result.isError, true);
+  assert.match(none.result.content[0]!.text, /key is required/);
+});

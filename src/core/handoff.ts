@@ -138,27 +138,32 @@ export function updateTask(c: HandoffContext, failedOutput: string | null): Hand
   };
 }
 
-/** The appended system prompt: short (Switchboard passes at most 1024 characters per argument),
- *  pointing at the pack, like Fabric's PREAMBLE points at `fabric_whoami`. */
-export function brief(c: HandoffContext, files: { context: string; task: string | null }): string {
-  const text = `You are working on the Fabric agent "${c.name}" (${c.key}), opened from Fabric Dashboards. `
-    + `Its state, errors, events, repository and descriptor are in ${files.context}; read it first, `
-    + `or call the fabric-dashboards MCP tool service_context with key ${c.key} for the live state. `
-    + (files.task ? `Your task is in ${files.task}. ` : '')
-    + 'Do the work yourself and show the person the result; ask only for decisions, sign-ins and secrets (hidden prompt, never printed).';
-  return text.length <= 1000 ? text : `${text.slice(0, 997)}...`;
+/**
+ * FD-47 (contract DEC-0042, `session-handoff/1` SH-6/SH-7): the preamble that ends every brief. One line that
+ * names one tool, the first call, and holds no rule: the rules for this console are what `service_context`
+ * returns (`rules`), so a rule is never in two places.
+ */
+export function preamble(key: string): string {
+  return `You are working on a Fabric agent, opened from Fabric Dashboards. Call the fabric-dashboards tool service_context with key ${key} before you do anything else: it returns the agent's live state, its errors, events, repository and descriptor, and the rules for this console. If the call fails, say so and stop rather than guessing what it would have said.`;
 }
 
-/** The first prompt for a runtime that has no system-prompt flag, or for a task. */
-export function firstPrompt(files: { context: string; task: string | null }): string {
-  return files.task
-    ? `Read ${files.context} (the Fabric agent you are working on) and ${files.task} (your task), then do the task.`
-    : `Read ${files.context}: it describes the Fabric agent you are working on. Then wait for my instruction.`;
+/** The brief (SH-8): the agent's own text — where its task is, when it has one — then the preamble. */
+export function brief(key: string, files: { task: string | null }): string {
+  return `${files.task ? `Your task is in ${files.task}. ` : ''}${preamble(key)}`;
+}
+
+/** Whether a brief travels in one argument (SH-8): at most 1000 characters, no control character. */
+export const briefFitsInline = (text: string) => text.length <= 1000 && !/[\u0000-\u001f\u007f]/.test(text);
+
+/** The first prompt that starts a task at once in a runtime that also takes a system prompt (Claude Code). */
+export function taskPrompt(task: string): string {
+  return `Do the task in ${task}.`;
 }
 
 /** How this app's MCP server is started: its launcher in a packaged app, the binary as Node in development. */
 export interface McpCommand { command: string; args: string[]; env?: Record<string, string> }
 
+/** `mcp.json` (SH-9, `mcp.auth: none`): the stdio launcher, no header and no credential. */
 export function mcpConfig(server: McpCommand): string {
   return `${JSON.stringify({ mcpServers: { 'fabric-dashboards': { type: 'stdio', command: server.command, args: server.args, ...(server.env ? { env: server.env } : {}) } } }, null, 2)}\n`;
 }
@@ -166,57 +171,94 @@ export function mcpConfig(server: McpCommand): string {
 /** TOML for one value: JSON's string and array forms are valid TOML. */
 const toml = (v: string | string[]) => JSON.stringify(v);
 
+/** The runtimes the brief reaches, by their shared runner kind (runners.md): only these get a `handoff.json`. */
+export const HANDOFF_RUNTIMES: Readonly<Record<string, string>> = { 'claude-code': 'claude-code', codex: 'codex', 'gemini-cli': 'gemini-cli' };
+
 /**
- * The arguments that carry the pack, around the runtime's own (`before` precede `continueArgs`, which
- * for Codex is a subcommand; `after` follow them). `--mcp-config` takes several values, so nothing
- * positional follows it directly, and the joined `--mcp-config=<path>` closes it on its own. Every argument stays under Switchboard's 1024-character limit.
+ * The arguments that carry the pack (SH-11), around the runtime's own (`before` precede `continueArgs`, which
+ * for Codex is a subcommand; `after` follow them). Claude Code: the joined `--mcp-config=<path>` (the spaced
+ * form leaves its variadic list open — Switchboard SB-94), the brief inline or as `brief.md`, and a task's first
+ * prompt. Codex: the stdio server as `-c mcp_servers.fabric-dashboards.*`, the brief as its first prompt. Gemini
+ * CLI: the brief as `-i`. Every argument stays under Switchboard's 1024-character limit.
  */
-export function handoffArgs(runtimeId: string, o: { mcp: string; mcpServer: McpCommand; brief: string; prompt: string | null }): { before: string[]; after: string[]; env: Record<string, string> } {
-  const env: Record<string, string> = {};
+export function handoffArgs(runtimeId: string, o: { mcp: string; mcpServer: McpCommand; brief: { inline: string } | { file: string }; task: string | null }): { before: string[]; after: string[] } {
+  const prompt = 'inline' in o.brief ? o.brief.inline : `Read ${o.brief.file} and follow it.`;
   switch (runtimeId) {
     case 'claude-code':
-      // `--mcp-config=<path>`: the joined form closes the variadic list by itself; a value right after the
-      // spaced form is read as one more config (measured on the real CLI by Switchboard, SB-94, 2026-10-11).
-      return { before: [`--mcp-config=${o.mcp}`, '--append-system-prompt', o.brief], after: o.prompt ? [o.prompt] : [], env };
+      return {
+        before: [`--mcp-config=${o.mcp}`, ...('inline' in o.brief ? ['--append-system-prompt', o.brief.inline] : ['--append-system-prompt-file', o.brief.file])],
+        after: o.task ? [taskPrompt(o.task)] : [],
+      };
     case 'codex': {
       const before = ['-c', `mcp_servers.fabric-dashboards.command=${toml(o.mcpServer.command)}`, '-c', `mcp_servers.fabric-dashboards.args=${toml(o.mcpServer.args)}`];
       for (const [k, v] of Object.entries(o.mcpServer.env ?? {})) before.push('-c', `mcp_servers.fabric-dashboards.env.${k}=${toml(v)}`);
-      return { before, after: o.prompt ? [o.prompt] : [], env };
+      return { before, after: [prompt] };
     }
     case 'gemini-cli':
-      return { before: [], after: o.prompt ? ['-i', o.prompt] : [], env };
+      return { before: [], after: ['-i', prompt] };
     default:
-      return { before: [], after: [], env };
+      return { before: [], after: [] };
   }
 }
-/** Writes the pack: the folder 0700, each file 0600, each written whole (a temp file renamed), and a
- *  task left from an earlier start removed. Returns the paths the runtime is given. */
-export function writePack(dir: string, files: { context: string; task: string | null; mcp: string }): { context: string; task: string | null; mcp: string } {
+
+/** Writes one file of the pack whole: a temporary file renamed over it, 0600 (SH-2, SH-3). */
+function put(dir: string, name: string, text: string): string {
+  const file = path.join(dir, name);
+  const temp = `${file}.${process.pid}.tmp`;
+  fs.writeFileSync(temp, text, { mode: 0o600 });
+  fs.renameSync(temp, file);
+  return file;
+}
+
+/** Writes the pack: the folder 0700, each file 0600, each written whole, and an optional file left from an
+ *  earlier start removed (a task, a brief, a manifest). Returns the paths the runtime is given. */
+export function writePack(dir: string, files: { context: string; task: string | null; mcp: string; brief?: string | null }): { context: string; task: string | null; mcp: string; brief: string | null } {
   fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
   try { fs.chmodSync(dir, 0o700); } catch { /* Windows: the profile's ACL */ }
-  const put = (name: string, text: string) => {
-    const file = path.join(dir, name);
-    const temp = `${file}.${process.pid}.tmp`;
-    fs.writeFileSync(temp, text, { mode: 0o600 });
-    fs.renameSync(temp, file);
-    return file;
-  };
-  const out = { context: put('context.md', files.context), mcp: put('mcp.json', files.mcp), task: null as string | null };
-  if (files.task) out.task = put('task.md', files.task);
-  else fs.rmSync(path.join(dir, 'task.md'), { force: true });
+  // The manifest goes first and comes back last: a folder caught half-written never claims to be a handoff.
+  fs.rmSync(path.join(dir, 'handoff.json'), { force: true });
+  const out = { context: put(dir, 'context.md', files.context), mcp: put(dir, 'mcp.json', files.mcp), task: null as string | null, brief: null as string | null };
+  for (const [name, text] of [['task.md', files.task], ['brief.md', files.brief ?? null]] as const) {
+    if (text) out[name === 'task.md' ? 'task' : 'brief'] = put(dir, name, text);
+    else fs.rmSync(path.join(dir, name), { force: true });
+  }
   return out;
 }
-/** Everything one console start needs from the pack: written now, and the arguments and environment that
- *  carry it. Claude reads the brief as its system prompt and waits; a runtime without one gets a first prompt. */
+
+/**
+ * Everything one console start needs from the pack (FD-47, `session-handoff/1`): the files written now, the
+ * arguments and environment that carry them, and — for a runtime the brief reaches — `handoff.json`, the
+ * manifest Fabric reads the same way (`lifetime: agent-key`, `mcp.auth: none`, `strict: false`).
+ */
 export function prepareHandoff(o: {
   snapshot: ServiceSnapshot; activity: ActivityItem[]; folder: string; runtimeId: string; dir: string;
-  server: McpCommand; task?: { kind: 'fix' | 'update'; output?: string }; now?: () => Date;
-}): { handoff: { before: string[]; after: string[] }; env: Record<string, string>; files: { context: string; task: string | null; mcp: string } } {
+  server: McpCommand; version: string; task?: { kind: 'fix' | 'update'; output?: string }; now?: () => Date;
+}): { handoff: { before: string[]; after: string[] }; env: Record<string, string>; files: { context: string; task: string | null; mcp: string; brief: string | null; manifest: string | null } } {
+  const now = (o.now ?? (() => new Date()))().toISOString();
   const ctx = handoffContext(o.snapshot, o.activity, o.folder);
   const job = o.task ? (o.task.kind === 'fix' ? fixTask(ctx) : updateTask(ctx, o.task.output ?? null)) : null;
-  const files = writePack(o.dir, { context: contextMarkdown(ctx, (o.now ?? (() => new Date()))().toISOString()), task: job ? taskMarkdown(job) : null, mcp: mcpConfig(o.server) });
-  const prompt = job || o.runtimeId === 'codex' || o.runtimeId === 'gemini-cli' ? firstPrompt(files) : null;
-  const h = handoffArgs(o.runtimeId, { mcp: files.mcp, mcpServer: o.server, brief: brief(ctx, files), prompt });
-  return { handoff: { before: h.before, after: h.after }, env: { ...h.env, FABRIC_DASHBOARDS_CONTEXT: files.context, ...(files.task ? { FABRIC_DASHBOARDS_TASK: files.task } : {}) }, files };
+  const taskPath = job ? path.join(o.dir, 'task.md') : null;
+  const text = brief(ctx.key, { task: taskPath });
+  const inline = briefFitsInline(text);
+  const files = writePack(o.dir, { context: contextMarkdown(ctx, now), task: job ? taskMarkdown(job) : null, mcp: mcpConfig(o.server), brief: inline ? null : `${text}\n` });
+  const h = handoffArgs(o.runtimeId, { mcp: files.mcp, mcpServer: o.server, brief: inline ? { inline: text } : { file: files.brief! }, task: files.task });
+  const env: Record<string, string> = { FABRIC_DASHBOARDS_CONTEXT: files.context, ...(files.task ? { FABRIC_DASHBOARDS_TASK: files.task } : {}) };
+  const runtime = HANDOFF_RUNTIMES[o.runtimeId];
+  let manifest: string | null = null;
+  if (runtime) {
+    manifest = put(o.dir, 'handoff.json', `${JSON.stringify({
+      format: 'session-handoff/1',
+      writer: { product: 'fabric-dashboards', version: o.version },
+      writtenAt: now,
+      lifetime: { kind: 'agent-key', agentKey: ctx.key },
+      files: ['context.md', 'mcp.json', ...(files.brief ? ['brief.md'] : []), ...(files.task ? ['task.md'] : [])],
+      firstCall: { server: 'fabric-dashboards', tool: 'service_context', arguments: { key: ctx.key } },
+      preamble: preamble(ctx.key),
+      mcp: { auth: 'none', strict: false },
+      brief: inline ? { delivery: 'inline', text } : { delivery: 'file' },
+      launch: { runtime, args: [...h.before, ...h.after], env },
+    }, null, 2)}\n`);
+  }
+  return { handoff: h, env, files: { ...files, manifest } };
 }
 // #endregion agent-handoff
