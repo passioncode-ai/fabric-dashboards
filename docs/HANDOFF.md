@@ -5,7 +5,23 @@ Updated 2026-10-07 (0.6.2: 0.6.1 withdrawn for audit HIGH-2, audit fixes, signed
 
 Current release: 0.7.4 (published 2026-10-11 20:01 UTC, run 38168481474; FD-37 M4a–M4c). Before it, 0.7.3 (published 2026-10-11 16:59 UTC, run 38156472858; FD-45, FD-47; carries 0.7.2, tagged and not published). Before it, 0.7.1 (published 2026-10-11 11:34 UTC, run 38106066248; FD-37 M1–M3, FD-39, FD-41; carries 0.7.0, tagged and not published). Before it, 0.6.7 (published 2026-10-09 17:07 UTC, run 37955575384; FD-36, FD-35, FD-38). Before it, 0.6.6 (published 2026-10-09 10:08 UTC, run 37864378854; FD-34, FD-35). Before it, 0.6.5 (published 2026-10-08 01:18 UTC, run 37703405621; FD-29, FD-33). Before it, 0.6.4 (published 2026-10-07 01:57 UTC, run 37558793926; carries 0.6.3, superseded before approval). Before it, 0.6.2 (published 2026-10-06 23:41 UTC, run 37541067349; 0.6.1 withdrawn). Before it, 0.6.0 (published 2026-10-06 21:35 UTC, run 37505569449); Before it, 0.5.6 (2026-10-06); the 0.4.1 section below is the previous one. Earlier releases below are preserved as dated evidence.
 
-## Next — start here (2026-10-11, FD-48: outages to the operator channel)
+## Next — start here (2026-10-11, release 0.7.5: FD-48 + #101)
+
+**Branch `agent/release-075`.** 0.7.5 carries FD-48 (outages reach the operator channel) and
+PR #101 (an explicit Reload signs in again). Per RUNBOOK step 1 the branch runs `validate.yml -f os=all` before merging.
+The screen was locked, so the full `npm run test:e2e` refused at its preflight. Run directly:
+- FD-48's branch: e2e app/remote/console 8/8;
+- #101: e2e app/focus-console/spend 8/8.
+
+**Next task:**
+1. Tag and watch.
+2. The owed FD-37 M4 end-to-end proof: an AppImage and an NSIS install of 0.7.4 update to 0.7.5 by themselves, on
+   their runners.
+3. FD-49 (LC-17). Its 5 GB floor would refuse every console start on this Mac today (3.5–6 GB free), so the
+   threshold and its message need care.
+4. FD-42.
+
+## Earlier — start here (2026-10-11, FD-48: outages to the operator channel)
 
 **Branch `agent/fd48-outage-alerts`.** This is the operator decision of 2026-10-11, after a service's live database
 was down 3 h 07 min unnoticed. [ADR-0010 amendment](adr/0010-notifications-only-when-it-matters.md#amendment-2026-10-11--outages-reach-the-operator-away-from-the-mac-fd-48), SCN-062.
