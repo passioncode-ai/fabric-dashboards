@@ -1,0 +1,5 @@
+
+> fabric-dashboards@0.6.6 test:e2e
+> node scripts/check-screen.mjs && npm run build && install-electron && node --import tsx --test test/e2e/*.test.ts
+
+e2e preflight: the screen is locked — macOS sends windows no show/hide events, so the e2e run would measure the lock. Unlock the screen and run again.
