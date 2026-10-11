@@ -1,2 +1,3 @@
 Copied from passioncode-ai/fabric-agent-contract fixtures/ — every file byte-identical to main @94b1829 (checked 2026-10-07: 29 of 29), covering DEC-0015 (service), DEC-0019 (remote placement), DEC-0021 (usage report) and DEC-0027 (budgets). A file named <kind>_<name>.json is fixtures/<kind>/<name>.json there. Re-copy when the contract changes; never edit here.
 Added 2026-10-11 (FD-45): the four fabric-link-* files (positive_fabric-link-chat, positive_fabric-link-session, negative_fabric-link-chat-with-token, negative_fabric-link-session-without-project), byte-identical to fixtures/<kind>/<name>.json at 8e49fbd (DEC-0040).
+Re-checked 2026-10-11 at 7931c1dbb6e6 (DEC-0041): the four fabric-link-* files are unchanged there.

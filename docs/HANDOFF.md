@@ -5,7 +5,16 @@ Updated 2026-10-07 (0.6.2: 0.6.1 withdrawn for audit HIGH-2, audit fixes, signed
 
 Current release: 0.7.1 (published 2026-10-11 11:34 UTC, run 38106066248; FD-37 M1–M3, FD-39, FD-41; carries 0.7.0, tagged and not published). Before it, 0.6.7 (published 2026-10-09 17:07 UTC, run 37955575384; FD-36, FD-35, FD-38). Before it, 0.6.6 (published 2026-10-09 10:08 UTC, run 37864378854; FD-34, FD-35). Before it, 0.6.5 (published 2026-10-08 01:18 UTC, run 37703405621; FD-29, FD-33). Before it, 0.6.4 (published 2026-10-07 01:57 UTC, run 37558793926; carries 0.6.3, superseded before approval). Before it, 0.6.2 (published 2026-10-06 23:41 UTC, run 37541067349; 0.6.1 withdrawn). Before it, 0.6.0 (published 2026-10-06 21:35 UTC, run 37505569449); Before it, 0.5.6 (2026-10-06); the 0.4.1 section below is the previous one. Earlier releases below are preserved as dated evidence.
 
-## Next — start here (2026-10-11, FD-45: Fabric's button)
+## Next — start here (2026-10-11, FD-45 re-pinned to DEC-0041)
+
+`src/core/fabric-links.ts` is re-copied from fabric-agent-contract `7931c1dbb6e6` (DEC-0041, CO-260: credential
+words are matched as whole words of a name). The `fabric-link-*` fixtures are unchanged there. Test *FD-45
+DEC-0041* covers `themeCode`, `sortKey` and `#auth-settings`, which pass, and `authToken`, `clientSecret` and a
+JWT in a value or the fragment, which are refused.
+
+**Next task:** release 0.7.2 with FD-45 (Fabric's button); then FD-37 M4.
+
+## Earlier — start here (2026-10-11, FD-45: Fabric's button)
 
 **Branch `agent/fd45-fabric-button-impl`.** Fabric Agent Contract DEC-0040 (merged `8e49fbd`) as host:
 [ADR-0021](adr/0021-fabrics-button-in-the-host.md), SCN-061. A **Fabric** button in the service header

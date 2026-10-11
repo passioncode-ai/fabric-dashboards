@@ -63,3 +63,13 @@ test('FD-45 FB-6: the host cookie says who draws the button and whether Fabric i
   assert.equal(online.value, 'v=1&owner=page&fabric=absent');
   assert.deepEqual([...new URLSearchParams(online.value).keys()], ['v', 'owner', 'fabric'], 'three fields, no identity, no token');
 });
+
+test('FD-45 DEC-0041: a credential word must be a whole word of a name — harmless names pass, credential ones still refuse the link', () => {
+  for (const url of ['fabric://chat?service=example-agent.default&themeCode=ocean', 'fabric://chat?service=example-agent.default&sortKey=name', 'fabric://chat?service=example-agent.default#auth-settings']) {
+    assert.equal(parseFabricLink(url).ok, true, url);
+  }
+  const jwt = 'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ4In0.c2ln';
+  for (const url of ['fabric://chat?service=example-agent.default&authToken=x', 'fabric://chat?service=example-agent.default&clientSecret=x', `fabric://chat?service=example-agent.default&ref=${jwt}`, `fabric://chat?service=example-agent.default#${jwt}`]) {
+    assert.equal(parseFabricLink(url).ok, false, url);
+  }
+});
