@@ -16,6 +16,20 @@ was down 3 h 07 min unnoticed. [ADR-0010 amendment](adr/0010-notifications-only-
 - Failed and attention banners go there too.
 - The person's rules gate the channel.
 - `outage-alerts.json` keeps state across restarts.
+- An independent review (5 bugs, 14 risks) changed the model.
+  - The state is the queue. Delivery is recorded only when the channel answered, so a recovery never precedes its
+    failure, and a missed outage is told once afterwards.
+  - There is one episode per service, closed after a 2-minute calm.
+  - A baseline source that recovered counts again.
+  - The MCP client takes host and port from the origin only, caps the body, has one deadline, joins SSE lines and
+    closes its session.
+- Checks:
+  - `test/outage-alerts.test.ts` 7/7;
+  - `npm run check` 0 (472);
+  - e2e app/remote/console 8/8 run directly (the screen was locked);
+  - five runners green (run 38178081413);
+  - a read-only `<id>.status` call to this Mac's real channel answered `connected`.
+  - No test message was sent to the operator.
 
 Also on `main` since 0.7.4: PR #101, an explicit Reload signs in again (taken over from #58).
 
