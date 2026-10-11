@@ -3,9 +3,34 @@
 Updated 2026-10-07 (0.6.2: 0.6.1 withdrawn for audit HIGH-2, audit fixes, signed feed; 0.6.1: LC-16 in detail updater, Russian by choice; 0.6.0 published 2026-10-06 21:35 UTC; release 0.5.6: third review pass, token latch; release 0.5.5 withdrawn: release audit and its second pass, A2A plan, ADR-0016, ADR-0015 data and updates, FD-05, FD-06, FD-13; Spend and DEC-0021; one entry per agent, ADR-0012; lifecycle contract landed from PR #21, unreleased; CI release rehearsal
 `v0.4.1-rc.1` green; releases move to CI signing; release 0.4.1, MCP links to online services).
 
-Current release: 0.6.7 (0.7.1 in preparation, see Next; 0.7.0 superseded, not published) (published 2026-10-09 17:07 UTC, run 37955575384; FD-36, FD-35, FD-38). Before it, 0.6.6 (published 2026-10-09 10:08 UTC, run 37864378854; FD-34, FD-35). Before it, 0.6.5 (published 2026-10-08 01:18 UTC, run 37703405621; FD-29, FD-33). Before it, 0.6.4 (published 2026-10-07 01:57 UTC, run 37558793926; carries 0.6.3, superseded before approval). Before it, 0.6.2 (published 2026-10-06 23:41 UTC, run 37541067349; 0.6.1 withdrawn). Before it, 0.6.0 (published 2026-10-06 21:35 UTC, run 37505569449); Before it, 0.5.6 (2026-10-06); the 0.4.1 section below is the previous one. Earlier releases below are preserved as dated evidence.
+Current release: 0.7.1 (published 2026-10-11 11:34 UTC, run 38106066248; FD-37 M1–M3, FD-39, FD-41; carries 0.7.0, tagged and not published). Before it, 0.6.7 (published 2026-10-09 17:07 UTC, run 37955575384; FD-36, FD-35, FD-38). Before it, 0.6.6 (published 2026-10-09 10:08 UTC, run 37864378854; FD-34, FD-35). Before it, 0.6.5 (published 2026-10-08 01:18 UTC, run 37703405621; FD-29, FD-33). Before it, 0.6.4 (published 2026-10-07 01:57 UTC, run 37558793926; carries 0.6.3, superseded before approval). Before it, 0.6.2 (published 2026-10-06 23:41 UTC, run 37541067349; 0.6.1 withdrawn). Before it, 0.6.0 (published 2026-10-06 21:35 UTC, run 37505569449); Before it, 0.5.6 (2026-10-06); the 0.4.1 section below is the previous one. Earlier releases below are preserved as dated evidence.
 
-## Next — start here (2026-10-11, release 0.7.1: carries 0.7.0)
+## Next — start here (2026-10-11, after 0.7.1)
+
+**Released: 0.7.1 on 2026-10-11 11:34 UTC** (run [38106066248](https://github.com/passioncode-ai/fabric-dashboards/actions/runs/38106066248),
+tag `v0.7.1` on `e1593bb`; Latest). 16 files: DMG, mac zip, Windows setup x64/arm64, Linux AppImage + `.deb`
+x64/arm64, five receipts, `SHA256SUMS` (14 lines) + `.asc`, `update-feed.json` (names 0.7.1). Checked:
+`gpg --verify` good signature from key `63B30DC324BD697487AA31944FAFB8AEC803B6A7`; every receipt `version`
+0.7.1 and `commit` e1593bb with no failed check; Windows `windows_authenticode: SIGNED` on both; macOS
+notarization "accepted and stapled: app, update zip, image".
+
+**How it went.** `check` passed on all five runners. The person approved `macos` and both `windows` (one approval).
+`publish` then waited on the `release` environment again and was cancelled with "Required reviewers
+protection rule deleted.": the environment's required-reviewers rule was removed while it waited. The
+`release` environment now has only its `v*` tag policy and **no required reviewers**, so `RUNBOOK.md` step 4
+("someone from `release-approvers` approves it") no longer describes it. The rule was not restored and the
+docs not changed: whether releases still need a person is the operator's decision (asked 2026-10-11).
+`gh run rerun 38106066248 --failed` re-ran `publish` against the already-signed artifacts; it succeeded.
+
+**This Mac** runs 0.6.7 (`startedBy: other`, so the lifecycle broker does not restart it). Its updater
+checks every 6 h (last 11:09 UTC, before the publish) and installs after 10 hidden minutes (ADR-0015); expect
+`update_check` naming 0.7.1 around 17:09 UTC in `main.log`, then the install. Record it here when seen,
+with the CPU and RSS measurement the lifecycle section asks for.
+
+**Next task:** confirm this Mac moved to 0.7.1; the operator's answer on the release gate (restore the
+reviewers rule, or update RUNBOOK step 4 and AGENTS.md); FD-37 M4 (updates on Windows and Linux).
+
+## Earlier — start here (2026-10-11, release 0.7.1: carries 0.7.0)
 
 **Branch `agent/release-071`.** Tag `v0.7.0` (on `fe23c6b`, PR #78) started release run
 [38105334997](https://github.com/passioncode-ai/fabric-dashboards/actions/runs/38105334997), which failed in
