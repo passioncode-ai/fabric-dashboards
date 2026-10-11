@@ -102,13 +102,17 @@ test('FD-47 SH-3: a write that fails leaves no temporary file, and a temporary f
   start('claude-code', { dir });
   assert.ok(!fs.readdirSync(dir).some((n) => n.endsWith('.tmp')));
   assert.deepEqual((await verdict(dir)).problems, []);
-  fs.chmodSync(dir, 0o500); // the folder refuses new files: the write fails part-way
-  try {
-    assert.throws(() => start('claude-code', { dir }));
-  } finally {
-    fs.chmodSync(dir, 0o700);
+  // A folder that refuses new files makes the write fail part-way. POSIX modes do that; Windows ignores them
+  // (release run 38155693835 failed there on it), where the next test's failing rename covers the same path.
+  if (process.platform !== 'win32') {
+    fs.chmodSync(dir, 0o500);
+    try {
+      assert.throws(() => start('claude-code', { dir }));
+    } finally {
+      fs.chmodSync(dir, 0o700);
+    }
+    assert.ok(!fs.readdirSync(dir).some((n) => n.endsWith('.tmp')), 'nothing half-written is left');
   }
-  assert.ok(!fs.readdirSync(dir).some((n) => n.endsWith('.tmp')), 'nothing half-written is left');
 });
 
 test('FD-47: a start that fails before its manifest leaves no manifest of an earlier start', () => {

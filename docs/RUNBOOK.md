@@ -44,7 +44,10 @@ No laptop holds the release keys, and a build signed anywhere else is a debug bu
 published or attached to a release.
 
 1. Release pull request: bump `version` in `package.json`, add the `CHANGELOG.md` section
-   `## <version> - <date>`, run `npm ci && npm run check && npm run test:e2e`, merge to `main`.
+   `## <version> - <date>`, run `npm ci && npm run check && npm run test:e2e`, then the same gate on every
+   system the release ships for, from the branch: `gh workflow run validate.yml --ref <branch> -f os=all`, read
+   green before merging. A tag is the release decision: a Windows-only test failure found by `check` after the
+   tag costs a version (0.7.0 and 0.7.2, both stopped that way on 2026-10-11). Merge to `main`.
 2. Tag the merge commit and push the tag:
    `git tag -a v<version> <merge commit> -m v<version> && git push origin v<version>`.
    **Pushing the tag is the release decision** (operator, 2026-10-11): the tag ruleset `release-tags`
