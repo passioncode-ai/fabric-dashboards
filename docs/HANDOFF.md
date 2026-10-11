@@ -3,9 +3,23 @@
 Updated 2026-10-07 (0.6.2: 0.6.1 withdrawn for audit HIGH-2, audit fixes, signed feed; 0.6.1: LC-16 in detail updater, Russian by choice; 0.6.0 published 2026-10-06 21:35 UTC; release 0.5.6: third review pass, token latch; release 0.5.5 withdrawn: release audit and its second pass, A2A plan, ADR-0016, ADR-0015 data and updates, FD-05, FD-06, FD-13; Spend and DEC-0021; one entry per agent, ADR-0012; lifecycle contract landed from PR #21, unreleased; CI release rehearsal
 `v0.4.1-rc.1` green; releases move to CI signing; release 0.4.1, MCP links to online services).
 
-Current release: 0.6.7 (0.7.0 in preparation, see Next) (published 2026-10-09 17:07 UTC, run 37955575384; FD-36, FD-35, FD-38). Before it, 0.6.6 (published 2026-10-09 10:08 UTC, run 37864378854; FD-34, FD-35). Before it, 0.6.5 (published 2026-10-08 01:18 UTC, run 37703405621; FD-29, FD-33). Before it, 0.6.4 (published 2026-10-07 01:57 UTC, run 37558793926; carries 0.6.3, superseded before approval). Before it, 0.6.2 (published 2026-10-06 23:41 UTC, run 37541067349; 0.6.1 withdrawn). Before it, 0.6.0 (published 2026-10-06 21:35 UTC, run 37505569449); Before it, 0.5.6 (2026-10-06); the 0.4.1 section below is the previous one. Earlier releases below are preserved as dated evidence.
+Current release: 0.6.7 (0.7.1 in preparation, see Next; 0.7.0 superseded, not published) (published 2026-10-09 17:07 UTC, run 37955575384; FD-36, FD-35, FD-38). Before it, 0.6.6 (published 2026-10-09 10:08 UTC, run 37864378854; FD-34, FD-35). Before it, 0.6.5 (published 2026-10-08 01:18 UTC, run 37703405621; FD-29, FD-33). Before it, 0.6.4 (published 2026-10-07 01:57 UTC, run 37558793926; carries 0.6.3, superseded before approval). Before it, 0.6.2 (published 2026-10-06 23:41 UTC, run 37541067349; 0.6.1 withdrawn). Before it, 0.6.0 (published 2026-10-06 21:35 UTC, run 37505569449); Before it, 0.5.6 (2026-10-06); the 0.4.1 section below is the previous one. Earlier releases below are preserved as dated evidence.
 
-## Next — start here (2026-10-11, release 0.7.0: FD-37 + FD-39 + FD-41)
+## Next — start here (2026-10-11, release 0.7.1: carries 0.7.0)
+
+**Branch `agent/release-071`.** Tag `v0.7.0` (on `fe23c6b`, PR #78) started release run
+[38105334997](https://github.com/passioncode-ai/fabric-dashboards/actions/runs/38105334997), which failed in
+`check` on `windows-latest` and `windows-11-arm` before any build: `test/mcp.test.ts` *FD-39 REQ-004* gave the
+descriptor `update: ['/x/update']`, which is not absolute on Windows, so `serviceContext` refused the descriptor
+(`command update must start with an absolute or ~/ executable`). macOS and both Linux runners passed. The test
+now uses a native absolute path (`UPDATE_CMD`); the app is unchanged. As with 0.6.3 → 0.6.4, the `v0.7.0` tag
+stays and 0.7.1 carries everything (`CHANGELOG.md`). Before tagging, the branch's Windows gate is rehearsed with
+`gh workflow run validate.yml --ref agent/release-071 -f os=all` (all five runners).
+
+**Next task:** merge, tag `v0.7.1`, watch `release.yml`, send the approval link (reply + communicator); then
+record the run, files and receipts here and in FD-37/FD-39/FD-41.
+
+## Earlier — start here (2026-10-11, release 0.7.0: FD-37 + FD-39 + FD-41)
 
 **Branch `agent/release-070`.** 0.7.0 is the first release with Windows (signed NSIS x64/arm64) and Linux
 (AppImage + `.deb` x64/arm64) files (FD-37 M1–M3), agents first (FD-39) and the ED-7 host floor (FD-41).

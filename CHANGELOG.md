@@ -1,6 +1,12 @@
 # Changelog
 
-## 0.7.0 - 2026-10-11
+## 0.7.1 - 2026-10-11
+
+The first published release since 0.6.7. It carries everything listed under 0.7.0 below — 0.7.0 was
+tagged, then stopped by its own test gate before anything was built (run 38105334997: one test fixture
+used a path that is not absolute on Windows), so it was never published.
+
+## 0.7.0 - 2026-10-11 (superseded by 0.7.1 — not published)
 
 ### Changed
 
