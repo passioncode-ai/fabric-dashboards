@@ -26,9 +26,10 @@ import { pathToFileURL } from 'node:url';
 import { FEED_FILE, feedNamesOwnRelease, localFeed, parseSums, releaseFile, signedFeed, sumsSignedByRelease, zipName } from '../core/release-verify';
 import { CHECK_EVERY_MS, FIRST_CHECK_MS, isNewer, mayCheck, stagedBundlePath, stagedRefusal } from '../core/version';
 import type { AppStatus } from '../core/types';
-import { NSIS_UPDATE_ARGS, PENDING_UPDATE_DIR, platformKey, platformUpdate, replaceAppImage, stagedAppImage, updateChannel } from '../core/self-update';
+import { nsisInstalledAt, nsisUpdateCommand, PENDING_UPDATE_DIR, platformKey, platformUpdate, replaceAppImage, stagedAppImage, updateChannel } from '../core/self-update';
 import { uninstallTarget } from '../core/platform';
 import { spawn } from 'node:child_process';
+import { windowsPowerShellEnv } from '@passioncode-ai/fabric-service-host';
 
 /** The one feed this app reads: pinned, never taken from the environment. */
 export const DEFAULT_FEED = 'https://github.com/passioncode-ai/fabric-dashboards/releases/latest/download/update-feed.json';
@@ -117,12 +118,12 @@ export class Updater {
   private readonly channel = updateChannel({
     platform: process.platform, packaged: app.isPackaged, appImage: process.env.APPIMAGE, appDir: process.env.APPDIR, execPath: process.execPath,
     appImageIsFile: (() => { try { return Boolean(process.env.APPIMAGE) && fs.lstatSync(process.env.APPIMAGE!).isFile(); } catch { return false; } })(),
-    nsisUninstaller: process.platform === 'win32' && uninstallTarget('win32', process.execPath, process.env, fs.existsSync).kind === 'run-uninstaller',
+    nsisUninstaller: process.platform === 'win32' && uninstallTarget('win32', process.execPath, process.env, fs.existsSync).kind === 'run-uninstaller' && nsisInstalledAt(process.execPath, process.env.LOCALAPPDATA),
   });
   /** A Linux or Windows release held by `needsPerson`: the version the person may install with Install now. */
   private heldFile: string | null = null;
-  /** Windows (M4c): the verified installer waiting for the app to quit. */
-  private pendingInstaller: string | null = null;
+  /** Windows (M4c): the verified installer waiting for the app to quit, and its sha256 (checked again before it runs). */
+  private pendingInstaller: { file: string; sha256: string } | null = null;
 
   constructor(
     private readonly onChange: () => void,
@@ -153,8 +154,9 @@ export class Updater {
     }
     if (this.channel === 'appimage' || this.channel === 'nsis') {
       if (this.channel === 'appimage') this.sweepAppImageParts();
-      // An installer from an earlier run has either run (this is the new version) or was never started: gone.
-      else fs.rmSync(path.join(this.dataDir, PENDING_UPDATE_DIR), { recursive: true, force: true });
+      // An installer from an earlier run has either run (this is the new version) or was never started: gone. The
+      // installer that just ran may still hold its file for a moment; a removal that fails waits for the next start.
+      else { try { fs.rmSync(path.join(this.dataDir, PENDING_UPDATE_DIR), { recursive: true, force: true }); } catch (error) { this.log(`update: ${PENDING_UPDATE_DIR} stays until the next start: ${(error as Error).message}`); } }
       this.switched(this.enabled());
       setTimeout(() => this.check(), FIRST_CHECK_MS).unref();
       this.timer = setInterval(() => this.check(), CHECK_EVERY_MS);
@@ -395,7 +397,7 @@ export class Updater {
       return this.fail('signature_failed', `${mine.file} has sha256 ${actual}, SHA256SUMS says ${expected}`);
     }
     if (nsis) {
-      this.pendingInstaller = staged;
+      this.pendingInstaller = { file: staged, sha256: actual };
     } else {
       try {
         replaceAppImage(target, staged);
@@ -423,21 +425,29 @@ export class Updater {
         return false;
       }
       this.event('update_restart', 'requested', `version=${this.state.version ?? '?'}`);
-      this.event('update_install', 'started', `version=${this.state.version ?? '?'}`);
       if (this.channel === 'nsis') {
-        // The installer waits for this app to exit, installs over it and starts it again (--force-run).
-        const installer = this.pendingInstaller;
-        if (!installer || !fs.existsSync(installer)) { this.fail('download_failed', 'the verified installer is gone; it is downloaded again'); return false; }
-        try {
-          spawn(installer, [...NSIS_UPDATE_ARGS], { detached: true, stdio: 'ignore', windowsHide: true }).unref();
-        } catch (error) {
-          this.fail('download_failed', `the installer could not start: ${(error as Error).message}`);
+        // A waiter runs the installer once this app has exited, after checking its hash again (nsisUpdateCommand);
+        // the app quits only once the waiter has started, so a waiter that cannot start leaves the app running.
+        const pending = this.pendingInstaller;
+        let now = '';
+        try { if (pending) now = createHash('sha256').update(fs.readFileSync(pending.file)).digest('hex'); } catch { now = ''; }
+        if (!pending || now !== pending.sha256) {
+          this.pendingInstaller = null;
+          this.fail('signature_failed', 'the verified installer is gone or changed since it was checked; it is downloaded again');
           return false;
         }
-        this.onQuitForUpdate();
-        app.quit();
+        const cmd = nsisUpdateCommand(pending.file, pending.sha256, process.pid);
+        const child = spawn(cmd.file, cmd.args, { stdio: 'ignore', windowsHide: true, env: windowsPowerShellEnv() }); // not detached: as the uninstall waiter
+        child.once('error', (error) => this.fail('download_failed', `the installer could not start: ${error.message}`));
+        child.once('spawn', () => {
+          this.event('update_install', 'started', `version=${this.state.version ?? '?'} waiter=${child.pid ?? '?'}`);
+          this.onQuitForUpdate();
+          app.quit();
+        });
+        child.unref();
         return true;
       }
+      this.event('update_install', 'started', `version=${this.state.version ?? '?'}`);
       // The new AppImage is already in place: starting it again is the install.
       this.onQuitForUpdate();
       // Electron passes this run's arguments again (flags, --hidden) and starts the new copy once this one exits.

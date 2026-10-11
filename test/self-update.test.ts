@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import { withPlatforms } from '../scripts/release-feed.mjs';
-import { NSIS_UPDATE_ARGS, platformKey, platformUpdate, replaceAppImage, stagedAppImage, updateChannel, updateFileName } from '../src/core/self-update';
+import { NSIS_UPDATE_ARGS, nsisInstalledAt, nsisUpdateCommand, platformKey, platformUpdate, replaceAppImage, stagedAppImage, updateChannel, updateFileName } from '../src/core/self-update';
 import { mayCheck } from '../src/core/version';
 import { tmp } from './helpers';
 
@@ -69,4 +69,27 @@ test('FD-37 M4c: a Windows copy finds its own installer in the 0.7.3 feed, and r
   assert.deepEqual(platformUpdate(feed, 'win32-x64', '0.7.3'), { ok: true, file: 'Fabric-Dashboards-0.7.3-windows-x64-setup.exe', sha256: '19322ee2ba495ec862ee6b425d944ee27a8331110562ff75b56fca3d5c57548f' });
   assert.equal(platformUpdate(feed, 'win32-arm64', '0.7.3').ok, true);
   assert.deepEqual([...NSIS_UPDATE_ARGS], ['--updated', '/S', '--force-run'], 'electron-builder\'s update flags; never an uninstall');
+});
+
+test('FD-37 M4c: only a copy where the one-click installer puts it updates (an --updated install writes there)', () => {
+  const lad = 'C:\\Users\\runner\\AppData\\Local';
+  assert.equal(nsisInstalledAt(`${lad}\\Programs\\fabric-dashboards\\Fabric Dashboards.exe`, lad), true);
+  assert.equal(nsisInstalledAt(`${lad.toUpperCase()}\\PROGRAMS\\fabric-dashboards\\Fabric Dashboards.exe`, lad), true, 'Windows paths compare without case');
+  assert.equal(nsisInstalledAt('D:\\Portable\\fabric-dashboards\\Fabric Dashboards.exe', lad), false);
+  assert.equal(nsisInstalledAt(`${lad}\\Programs\\x\\fabric-dashboards\\Fabric Dashboards.exe`, lad), false);
+  assert.equal(nsisInstalledAt(`${lad}\\Programs\\fabric-dashboards\\Fabric Dashboards.exe`, undefined), false);
+});
+
+test('FD-37 M4c: the waiter runs the installer only after the app exits, and only if its hash is still the verified one', () => {
+  const sha = 'a'.repeat(64);
+  const cmd = nsisUpdateCommand("C:\\Users\\o'brien\\AppData\\Local\\Fabric Dashboards\\pending-update\\setup.exe", sha, 4242);
+  assert.equal(cmd.file, 'powershell.exe');
+  assert.deepEqual(cmd.args.slice(0, 3), ['-NoProfile', '-NonInteractive', '-Command']);
+  const script = cmd.args[3]!;
+  const at = (s: string) => { const i = script.indexOf(s); assert.ok(i >= 0, s); return i; };
+  assert.ok(at('Wait-Process -Id 4242') < at('if (Get-Process -Id 4242') && at('if (Get-Process -Id 4242') < at('Get-FileHash -Algorithm SHA256') && at('Get-FileHash') < at('Start-Process'), 'wait, refuse a live app, check the hash, then run');
+  at("'C:\\Users\\o''brien\\AppData");
+  at(`-ne '${sha}') { exit 2 }`);
+  at("-ArgumentList '--updated','/S','--force-run'");
+  assert.throws(() => nsisUpdateCommand('C:\\x.exe', 'not-a-hash', 1));
 });

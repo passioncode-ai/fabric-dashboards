@@ -40,6 +40,34 @@ export const PENDING_UPDATE_DIR = 'pending-update';
  */
 export const NSIS_UPDATE_ARGS: readonly string[] = ['--updated', '/S', '--force-run'];
 
+/** Whether this Windows copy sits where the per-user one-click installer puts it (%LOCALAPPDATA%\Programs\<name>):
+ *  an `--updated` install writes there, so a copy anywhere else would never change and update forever. */
+export function nsisInstalledAt(execPath: string, localAppData: string | undefined): boolean {
+  if (!localAppData) return false;
+  const programs = path.win32.join(localAppData, 'Programs').toLowerCase();
+  return path.win32.dirname(path.win32.dirname(execPath)).toLowerCase() === programs;
+}
+
+/**
+ * How the verified installer is run as an update: a hidden PowerShell that waits for this app's process to exit
+ * (NSIS cannot replace files the running app holds), refuses if it is still running, checks the installer's
+ * SHA256 again right before it runs — nothing may swap it between the app's check and the install — and only then
+ * starts it with the update flags. Paths go in single-quoted literals with quotes doubled; nothing passes through
+ * cmd.exe (as `uninstallCommand`).
+ */
+export function nsisUpdateCommand(installer: string, sha256: string, pid: number, waitSeconds = 120): { file: string; args: string[] } {
+  if (!/^[0-9a-f]{64}$/.test(sha256)) throw new Error('the installer\'s sha256 is 64 hex digits');
+  const lit = (s: string) => `'${s.replace(/'/g, "''")}'`;
+  const id = Math.trunc(pid);
+  const script = [
+    `Wait-Process -Id ${id} -Timeout ${Math.trunc(waitSeconds)} -ErrorAction SilentlyContinue`,
+    `if (Get-Process -Id ${id} -ErrorAction SilentlyContinue) { exit 3 }`,
+    `if ((Get-FileHash -Algorithm SHA256 -LiteralPath ${lit(installer)}).Hash.ToLowerInvariant() -ne ${lit(sha256)}) { exit 2 }`,
+    `Start-Process -FilePath ${lit(installer)} -ArgumentList ${NSIS_UPDATE_ARGS.map(lit).join(',')}`,
+  ].join('; ');
+  return { file: 'powershell.exe', args: ['-NoProfile', '-NonInteractive', '-Command', script] };
+}
+
 /** The feed's key for this copy (`scripts/release-feed.mjs` PLATFORMS). */
 export const platformKey = (platform: NodeJS.Platform, arch: string): string => (platform === 'darwin' ? 'darwin-universal' : `${platform}-${arch}`);
 
