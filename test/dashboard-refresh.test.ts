@@ -58,6 +58,16 @@ after(() => {
   else delete require.cache[electronModule];
 });
 
+let tokenDir: string | null = null;
+function sharedToken(): string {
+  if (!tokenDir) {
+    tokenDir = fs.mkdtempSync(path.join(os.tmpdir(), 'fd-refresh-'));
+    fs.writeFileSync(path.join(tokenDir, 'token'), 'fixture-token-for-dashboard-refresh-tests', { mode: 0o600 });
+  }
+  return path.join(tokenDir, 'token');
+}
+after(() => { if (tokenDir) fs.rmSync(tokenDir, { recursive: true, force: true }); });
+
 async function fixture(t: any, login = true) {
   created.length = 0; responseStatus = 200; loadFailure = false;
   let logins = 0, refuse = false, release: (() => void) | undefined;
@@ -76,9 +86,10 @@ async function fixture(t: any, login = true) {
   });
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   const origin = `http://127.0.0.1:${(server.address() as any).port}`;
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'fd-refresh-'));
-  const token = path.join(dir, 'token'); fs.writeFileSync(token, 'fixture-token-for-dashboard-refresh-tests', { mode: 0o600 });
-  t.after(async () => { finish(); server.closeAllConnections(); await new Promise<void>((resolve) => server.close(() => resolve())); fs.rmSync(dir, { recursive: true, force: true }); });
+  // One token file for the whole file: on Windows its ACL is read by a cold PowerShell once and then cached by path
+  // and stat (service-host freshAcl), as for a real service; a file per fixture took over 120 s on windows-11-arm.
+  const token = sharedToken();
+  t.after(async () => { finish(); server.closeAllConnections(); await new Promise<void>((resolve) => server.close(() => resolve())); });
   let snap = { key: 'fixture.default', state: 'ready', descriptor: { origin, auth: { tokenFile: token } },
     wellKnown: { surfaces: { dashboard: { path: '/dashboard', ...(login ? { login: true } : {}) } } },
   } as unknown as ServiceSnapshot;
