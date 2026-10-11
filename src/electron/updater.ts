@@ -112,7 +112,10 @@ export class Updater {
   private verified: Verified | null = null;
   private stuck: NodeJS.Timeout | null = null;
   /** FD-37 M4: how this copy updates, from how it was installed (`src/core/self-update.ts`). */
-  private readonly channel = updateChannel({ platform: process.platform, packaged: app.isPackaged, appImage: process.env.APPIMAGE });
+  private readonly channel = updateChannel({
+    platform: process.platform, packaged: app.isPackaged, appImage: process.env.APPIMAGE, appDir: process.env.APPDIR, execPath: process.execPath,
+    appImageIsFile: (() => { try { return Boolean(process.env.APPIMAGE) && fs.lstatSync(process.env.APPIMAGE!).isFile(); } catch { return false; } })(),
+  });
   /** A Linux AppImage held by `needsPerson`: the version the person may install with Install now. */
   private heldAppImage: string | null = null;
 
@@ -365,6 +368,8 @@ export class Updater {
       return;
     }
     const staged = stagedAppImage(target, version);
+    // A folder this user cannot write fails now, not after a download.
+    try { fs.accessSync(path.dirname(target), fs.constants.W_OK); } catch { return this.fail('download_failed', `the folder of this AppImage (${path.dirname(target)}) is not writable: the update cannot replace it`); }
     this.event('update_download', 'started', `version=${version} file=${mine.file}`);
     let actual: string;
     try {
@@ -406,7 +411,8 @@ export class Updater {
       this.event('update_restart', 'requested', `version=${this.state.version ?? '?'}`);
       this.event('update_install', 'started', `version=${this.state.version ?? '?'}`);
       this.onQuitForUpdate();
-      app.relaunch({ execPath: process.env.APPIMAGE!, args: [] });
+      // Electron passes this run's arguments again (flags, --hidden) and starts the new copy once this one exits.
+      app.relaunch({ execPath: process.env.APPIMAGE! });
       app.quit();
       return true;
     }

@@ -14,10 +14,16 @@ import path from 'node:path';
  */
 export type UpdateChannel = 'squirrel' | 'appimage' | 'package' | 'not-yet' | 'development';
 
-export function updateChannel(o: { platform: NodeJS.Platform; packaged: boolean; appImage?: string }): UpdateChannel {
+export function updateChannel(o: { platform: NodeJS.Platform; packaged: boolean; appImage?: string; appDir?: string; execPath?: string; appImageIsFile?: boolean }): UpdateChannel {
   if (!o.packaged) return 'development';
   if (o.platform === 'darwin') return 'squirrel';
-  if (o.platform === 'linux') return o.appImage && /\.AppImage$/i.test(o.appImage) && path.isAbsolute(o.appImage) ? 'appimage' : 'package';
+  if (o.platform === 'linux') {
+    // `APPIMAGE` and `APPDIR` are inherited by children: this copy is an AppImage only when it runs from inside
+    // that image's mount, and the image is a regular file. Anything else — a .deb started from an AppImage's
+    // shell — is never allowed to overwrite the file the variable names.
+    const inside = Boolean(o.appDir && o.execPath && path.isAbsolute(o.appDir) && path.resolve(o.execPath).startsWith(path.resolve(o.appDir) + path.sep));
+    return o.appImage && /\.AppImage$/i.test(o.appImage) && path.isAbsolute(o.appImage) && inside && o.appImageIsFile === true ? 'appimage' : 'package';
+  }
   return 'not-yet';
 }
 
@@ -54,10 +60,15 @@ export const stagedAppImage = (target: string, version: string): string => path.
 export function replaceAppImage(target: string, staged: string): void {
   try {
     fs.chmodSync(staged, 0o755);
+    // On disk before it takes the name: a power loss after the rename must not leave a truncated AppImage.
+    const fd = fs.openSync(staged, 'r+'); // r+: Windows flushes only a handle that may write
+    try { fs.fsyncSync(fd); } finally { fs.closeSync(fd); }
     fs.renameSync(staged, target);
   } catch (error) {
     fs.rmSync(staged, { force: true });
     throw error;
   }
+  // The rename itself, on disk (POSIX; a folder cannot be opened this way on Windows, where it is not needed).
+  try { const dir = fs.openSync(path.dirname(target), 'r'); try { fs.fsyncSync(dir); } finally { fs.closeSync(dir); } } catch { /* best effort */ }
 }
 // #endregion self-update

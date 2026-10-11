@@ -14,10 +14,15 @@ const feed = withPlatforms(JSON.parse(fs.readFileSync(path.join(dir, 'update-fee
 
 test('FD-37 M4 PL-04: the channel follows how the copy was installed', () => {
   assert.equal(updateChannel({ platform: 'darwin', packaged: true }), 'squirrel');
-  assert.equal(updateChannel({ platform: 'linux', packaged: true, appImage: '/home/me/Apps/Fabric-Dashboards-0.7.3-linux-x64.AppImage' }), 'appimage');
+  const image = { appImage: '/home/me/Apps/Fabric-Dashboards-0.7.3-linux-x64.AppImage', appDir: '/tmp/.mount_FabricAbC', execPath: '/tmp/.mount_FabricAbC/fabric-dashboards', appImageIsFile: true };
+  assert.equal(updateChannel({ platform: 'linux', packaged: true, ...image }), 'appimage');
+  assert.equal(updateChannel({ platform: 'linux', packaged: true, ...image, execPath: '/opt/fabric-dashboards/fabric-dashboards' }), 'package', 'a .deb copy started from an AppImage\'s shell inherits APPIMAGE and must not overwrite it');
+  assert.equal(updateChannel({ platform: 'linux', packaged: true, ...image, appDir: undefined }), 'package');
+  assert.equal(updateChannel({ platform: 'linux', packaged: true, ...image, appImageIsFile: false }), 'package', 'a link or a missing file is not replaced');
+  assert.equal(updateChannel({ platform: 'linux', packaged: true, ...image, execPath: '/tmp/.mount_FabricAbCx/fabric-dashboards' }), 'package', 'a sibling folder with the same prefix is not inside');
   assert.equal(updateChannel({ platform: 'linux', packaged: true }), 'package', 'a .deb copy (no APPIMAGE) never checks');
-  assert.equal(updateChannel({ platform: 'linux', packaged: true, appImage: 'relative.AppImage' }), 'package', 'only an absolute AppImage path is replaced');
-  assert.equal(updateChannel({ platform: 'linux', packaged: true, appImage: '/tmp/not-an-image' }), 'package');
+  assert.equal(updateChannel({ platform: 'linux', packaged: true, ...image, appImage: 'relative.AppImage' }), 'package', 'only an absolute AppImage path is replaced');
+  assert.equal(updateChannel({ platform: 'linux', packaged: true, ...image, appImage: '/tmp/not-an-image' }), 'package');
   assert.equal(updateChannel({ platform: 'win32', packaged: true }), 'not-yet', 'Windows until M4c');
   assert.equal(updateChannel({ platform: 'linux', packaged: false, appImage: '/x.AppImage' }), 'development');
   for (const state of ['package', 'notyet']) assert.equal(mayCheck({ manual: true, enabled: true, state }), false, `${state} never checks`);
