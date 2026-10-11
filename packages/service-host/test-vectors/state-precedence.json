@@ -47,6 +47,11 @@
       "expect": { "state": "degraded", "reasons": [{ "code": "reason.degraded", "params": { "source": "llm", "reason": "No model key: drafting is paused." } }] }
     },
     {
+      "name": "a degraded source marked setup (DEC-0044) is said as waiting for setup, not as a failure",
+      "input": { "probe": { "kind": "answer", "ms": 3, "doc": { "protocol": "fabric-service/0.1", "service": { "id": "example-agent", "instance": "default", "name": "Example Agent", "version": "0.2.0", "build": {} }, "process": { "pid": 51234, "startedAt": "2026-09-28T17:41:02Z" }, "status": "ready", "degraded": [{ "source": "llm", "reason": "No model key: drafting is paused.", "setup": true }, { "source": "database", "reason": "Unreachable." }], "surfaces": { "events": { "path": "/fabric/v1/events" } } } } },
+      "expect": { "state": "degraded", "reasons": [{ "code": "reason.setup", "params": { "source": "llm", "reason": "No model key: drafting is paused." } }, { "code": "reason.degraded", "params": { "source": "database", "reason": "Unreachable." } }] }
+    },
+    {
       "name": "status degraded with an empty list is still degraded",
       "input": { "probe": { "kind": "answer", "ms": 3, "doc": { "protocol": "fabric-service/0.1", "service": { "id": "example-agent", "instance": "default", "name": "Example Agent", "version": "0.2.0", "build": {} }, "process": { "pid": 51234, "startedAt": "2026-09-28T17:41:02Z" }, "status": "degraded", "degraded": [], "surfaces": { "events": { "path": "/fabric/v1/events" } } } } },
       "expect": { "state": "degraded", "reasons": [] }

@@ -75,6 +75,9 @@ comes back; the shared service watcher in Fabric Dashboards sends it, not each s
   (`src/core/mcp-client.ts`). The tool is found in the session's `tools/list` under either spelling
   (`relay.notify` or `relay_notify`).
 - **An episode.** One per service, open while it has a cause: a confirmed outage (`down`, ADR-0008), or a degraded
+  source that is not setup. First the contract's flag (DEC-0044, fabric-agent-contract `c6c5af1`): an entry with
+  `setup: true` waits for a person and never opens an episode, nor enters the baseline; the service page says it as
+  waiting for setup (`reason.setup`). For a service that does not send the flag yet, the fallback is a degraded
   source the service did not report when it started. The baseline is the degraded sources at the service's
   `process.startedAt`. It is kept across the app's restarts, and a baseline source that recovers leaves it, so its
   next failure counts. A setup state present since the start is never an outage; a source that appears later is.
@@ -98,8 +101,8 @@ comes back; the shared service watcher in Fabric Dashboards sends it, not each s
   the channel as they gate banners. An episode they muted is not sent, and neither is its recovery.
 - **Known limit.** A failure that appears under a source before the watcher's first look after the service started
   becomes part of the baseline, until that source recovers once. A failure that is already there when the service
-  restarts does too. A `down` still counts. The services' own report after recovery (a `notify: true` warning) covers the rest, and an explicit
-  `degraded[].setup` flag is proposed to the contract, which would end the guess.
+  restarts does too. A `down` still counts. The services' own report after recovery (a `notify: true` warning) covers the rest, and a service that sends
+  DEC-0044's `setup` flag is never guessed about.
 - **Proof.** `test/outage-alerts.test.ts` covers the episodes on a fake clock: the five-minute rule, a flicker, down to
   degraded, setup baselines, delivery that fails or whose channel is down, removal, muting and eventId length. It
   also runs the client against a local streamable-HTTP server: JSON and multi-line SSE, both tool spellings,

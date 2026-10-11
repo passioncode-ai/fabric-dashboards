@@ -89,7 +89,8 @@ function remoteState(d: Descriptor, probe: WellKnownResult | null, i: StateInput
 function fromWellKnown(doc: WellKnown): StateOutput {
   if (doc.status === 'starting' || doc.status === 'stopping') return { state: doc.status, reasons: [] };
   if (doc.degraded.length || doc.status === 'degraded') {
-    return { state: 'degraded', reasons: doc.degraded.map((x) => ({ code: 'reason.degraded', params: { source: x.source, reason: x.reason } })) };
+    // DEC-0044: a source waiting for a person's setup is said as such, not as a failure.
+    return { state: 'degraded', reasons: doc.degraded.map((x) => ({ code: x.setup === true ? 'reason.setup' : 'reason.degraded', params: { source: x.source, reason: x.reason } })) };
   }
   return { state: 'ready', reasons: [] };
 }
