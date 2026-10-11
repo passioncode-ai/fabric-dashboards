@@ -56,7 +56,8 @@ are open (`overlayOpen`, `src/renderer/App.tsx`).
    `assets/passioncode-mark.svg`, compared 2026-10-11). The Fabric owner agreed that this glyph is the mark.
    It is vendored from the website and pinned like the other brand files (`docs/brand-source.json`).
 7. **Links are built by the contract's code.** `src/core/fabric-links.ts` is a copy of the contract's
-   `src/fabric-links.ts` at `8e49fbd`. `buildFabricLink` refuses any link the grammar refuses, and the contract's
+   `src/fabric-links.ts`, re-pinned to `7931c1dbb6e6` (DEC-0041: a credential word must be a whole word of a
+   parameter name, so `themeCode` and `sortKey` pass and `authToken` is refused). `buildFabricLink` refuses any link the grammar refuses, and the contract's
    `fabric-link` fixtures are checked against it (`test/fabric-button.test.ts`). A press opens a view in Fabric
    and nothing more (FB-8): no message, no process, no spend.
 
