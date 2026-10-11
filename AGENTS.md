@@ -74,8 +74,11 @@ and arm64 and Linux x64 and arm64 (PL-08), with `FD_SKIP_LAUNCHD=1`.
   (`CONTRIBUTING.md`).
 - A descriptor token is for reading a service as its host (health, events, well-known, usage) and for
   `POST /fabric/v1/login-code` (a host operation, contract `service.md` §Surfaces). Calling a service's
-  capability uses a Fabric delegation token (Fabric ADR-0144), never a descriptor token — its own or another
-  service's (FD-44).
+  capability across the machine boundary or for an outside person (trust tier T2) uses a Fabric delegation token
+  (Fabric ADR-0144), never a descriptor token — its own or another service's (FD-44). On the operator's own
+  machines (T0, T1) a token is optional and serves attribution only (operator 2026-10-11, ADR-0144 amendment 4,
+  fabric-workspace `knowledge/authority.md` "Trust by machine"). Money limits, human gates and never spending
+  another agent's key hold on every tier.
 - Tokens are read in the main process only. They never reach a page, a URL or a log, and the app
   listens on no port (`SECURITY.md`).
 - The repository's visibility decides whether the update feed is reachable (D-8 in
