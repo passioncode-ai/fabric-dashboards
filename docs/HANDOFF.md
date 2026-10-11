@@ -5,7 +5,19 @@ Updated 2026-10-07 (0.6.2: 0.6.1 withdrawn for audit HIGH-2, audit fixes, signed
 
 Current release: 0.7.1 (published 2026-10-11 11:34 UTC, run 38106066248; FD-37 M1–M3, FD-39, FD-41; carries 0.7.0, tagged and not published). Before it, 0.6.7 (published 2026-10-09 17:07 UTC, run 37955575384; FD-36, FD-35, FD-38). Before it, 0.6.6 (published 2026-10-09 10:08 UTC, run 37864378854; FD-34, FD-35). Before it, 0.6.5 (published 2026-10-08 01:18 UTC, run 37703405621; FD-29, FD-33). Before it, 0.6.4 (published 2026-10-07 01:57 UTC, run 37558793926; carries 0.6.3, superseded before approval). Before it, 0.6.2 (published 2026-10-06 23:41 UTC, run 37541067349; 0.6.1 withdrawn). Before it, 0.6.0 (published 2026-10-06 21:35 UTC, run 37505569449); Before it, 0.5.6 (2026-10-06); the 0.4.1 section below is the previous one. Earlier releases below are preserved as dated evidence.
 
-## Next — start here (2026-10-11, release 0.7.2: FD-45 + FD-47)
+## Next — start here (2026-10-11, release 0.7.3: carries 0.7.2)
+
+**Branch `agent/release-073`.** Tag `v0.7.2` started run
+[38155693835](https://github.com/passioncode-ai/fabric-dashboards/actions/runs/38155693835). `guard` passed, the
+first run under approval by checks. `check` then failed on both Windows runners: *FD-47 SH-3* expected a write
+into a `chmod 0500` folder to throw, and Windows ignores POSIX modes. That part now runs off Windows only. The next
+test (a failing rename) covers the same path everywhere. As with 0.7.0, `v0.7.2` stays tagged and unpublished,
+and 0.7.3 carries it. **The cause is the process, not the test:** neither tag was rehearsed on Windows first.
+RUNBOOK step 1 now runs `validate.yml -f os=all` on the release branch before merging.
+
+**Next task:** rehearse on all five runners, merge, tag `v0.7.3`, watch, verify; then FD-37 M4.
+
+## Earlier — start here (2026-10-11, release 0.7.2: FD-45 + FD-47)
 
 **Branch `agent/release-072`.** 0.7.2 carries Fabric's button (FD-45, ADR-0021) and the `session-handoff/1` pack
 (FD-47, the ADR-0020 amendment); `package.json` and `CHANGELOG.md` say 0.7.2. The first release under approval by

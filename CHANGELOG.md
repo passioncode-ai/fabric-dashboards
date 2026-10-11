@@ -1,6 +1,12 @@
 # Changelog
 
-## 0.7.2 - 2026-10-11
+## 0.7.3 - 2026-10-11
+
+Carries everything listed under 0.7.2 below. 0.7.2 was tagged, then stopped by its own test gate before anything
+was built (run 38155693835: one test relied on a folder's POSIX mode, which Windows ignores), so it was never
+published.
+
+## 0.7.2 - 2026-10-11 (superseded by 0.7.3 — not published)
 
 ### Added
 
