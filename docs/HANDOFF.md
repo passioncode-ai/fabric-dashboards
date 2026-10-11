@@ -5,7 +5,20 @@ Updated 2026-10-07 (0.6.2: 0.6.1 withdrawn for audit HIGH-2, audit fixes, signed
 
 Current release: 0.7.3 (published 2026-10-11 16:59 UTC, run 38156472858; FD-45, FD-47; carries 0.7.2, tagged and not published). Before it, 0.7.1 (published 2026-10-11 11:34 UTC, run 38106066248; FD-37 M1–M3, FD-39, FD-41; carries 0.7.0, tagged and not published). Before it, 0.6.7 (published 2026-10-09 17:07 UTC, run 37955575384; FD-36, FD-35, FD-38). Before it, 0.6.6 (published 2026-10-09 10:08 UTC, run 37864378854; FD-34, FD-35). Before it, 0.6.5 (published 2026-10-08 01:18 UTC, run 37703405621; FD-29, FD-33). Before it, 0.6.4 (published 2026-10-07 01:57 UTC, run 37558793926; carries 0.6.3, superseded before approval). Before it, 0.6.2 (published 2026-10-06 23:41 UTC, run 37541067349; 0.6.1 withdrawn). Before it, 0.6.0 (published 2026-10-06 21:35 UTC, run 37505569449); Before it, 0.5.6 (2026-10-06); the 0.4.1 section below is the previous one. Earlier releases below are preserved as dated evidence.
 
-## Next — start here (2026-10-11, FD-37 M4c: Windows updates)
+## Next — start here (2026-10-11, release 0.7.4: FD-37 M4)
+
+**Branch `agent/release-074`.** 0.7.4 carries FD-37 M4:
+- M4a: the feed names every platform;
+- M4b: the Linux AppImage updates itself; `.deb` and Windows say how they update;
+- M4c: an NSIS install on Windows updates itself.
+
+It is the first release whose own feed carries `platforms`. Per RUNBOOK step 1, the branch runs `validate.yml -f
+os=all` before merging.
+
+**Next task:** tag and watch. Then the owed end-to-end proof: when the release after 0.7.4 exists, an AppImage
+(both Linux runners) and an NSIS install (both Windows runners) of 0.7.4 update to it by themselves.
+
+## Earlier — start here (2026-10-11, FD-37 M4c: Windows updates)
 
 **Branch `agent/fd37-m4c-windows`.** [ADR-0019 amendment](adr/0019-windows-and-linux.md#amendment-2026-10-11--updates-on-windows-fd-37-m4c).
 An NSIS install (its uninstaller beside the app) is channel `nsis`. `Updater.prepareFile`, shared with the
