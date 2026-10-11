@@ -141,7 +141,7 @@ export interface AppStatus {
   /** `held`: a release that needs a person's step first (LC-16), verified, not installed; `steps` is its runbook. */
   update: { state: 'idle' | 'checking' | 'downloading' | 'ready' | 'held' | 'error' | 'unsupported' | 'misplaced' | 'package' | 'notyet'; version?: string; error?: string; checkedAt?: string; steps?: string };
   /** FD-48: the operator channel outages go to, why there is none, and the last delivery. */
-  alerts?: { channel: { key: string; capability: string } | null; none?: 'off' | 'none-installed' | 'several' | 'chosen-gone'; candidates: string[]; last?: { at: string; ok: boolean; subject: string; error?: string } };
+  alerts?: { channel: { key: string; capability: string } | null; none?: 'off' | 'none-installed' | 'several' | 'chosen-gone' | 'chosen-unreachable'; candidates: string[]; last?: { at: string; ok: boolean; subject: string; error?: string } };
   // #region estate-update — docs: docs/adr/0018-estate-updates-from-inside-the-app.md#decision
   /** ADR-0018: what the estate watcher saw last — the contract clone vs the remote, consumer pins, skills. */
   estate: EstateStatus;

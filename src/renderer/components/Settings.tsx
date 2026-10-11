@@ -278,11 +278,11 @@ function AlertChannel({ status, choice, onChoose }: { status: AppStatus; choice:
       <select id="alert-channel" value={choice} onChange={(e) => onChoose(e.target.value)}>
         <option value="auto">{autoName ? t('settings.alerts.autoNamed', { name: autoName }) : t('settings.alerts.auto')}</option>
         {(a?.candidates ?? []).map((key) => <option key={key} value={key}>{name(key)}</option>)}
-        {choice !== 'auto' && choice !== 'off' && !(a?.candidates ?? []).includes(choice) && <option value={choice}>{choice}</option>}
+        {choice !== 'auto' && choice !== 'off' && !(a?.candidates ?? []).includes(choice) && <option value={choice}>{name(choice)}</option>}
         <option value="off">{t('settings.alerts.off')}</option>
       </select>
       <p className="meta">{t('settings.alerts.help')}</p>
-      {a?.none && <p className={a.none === 'off' ? 'meta' : 'notice warning'}>{t(`settings.alerts.none.${a.none}`)}</p>}
+      {a?.none && <p className={a.none === 'off' ? 'meta' : 'notice warning'} role="status">{t(`settings.alerts.none.${a.none}`)}</p>}
       {a?.last && <p className={a.last.ok ? 'meta' : 'meta state-down'} role="status">{a.last.ok ? t('settings.alerts.lastOk', { time: time(a.last.at), subject: a.last.subject }) : t('settings.alerts.lastFailed', { time: time(a.last.at), error: a.last.error ?? '' })}</p>}
     </div>
   );

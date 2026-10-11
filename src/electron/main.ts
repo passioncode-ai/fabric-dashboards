@@ -174,6 +174,8 @@ if (!app.requestSingleInstanceLock()) {
         back: (name) => t(l, 'alerts.back', { name }),
         since: (minutes, reason) => t(l, 'alerts.since', { minutes, reason }),
         after: (minutes) => t(l, 'alerts.after', { minutes }),
+        removed: (name) => t(l, 'alerts.removed', { name }),
+        wasDown: (minutes, reason) => t(l, 'alerts.wasDown', { minutes, reason }),
       };
     },
     changed: () => pushStatus(),
