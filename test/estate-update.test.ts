@@ -38,17 +38,17 @@ test('pinFromSourceTxt reads "main @<sha>"', () => {
 
 test('readSiblingPins reads every lock beside the clone, then the fixture pins, and never fails on a missing file', () => {
   const clone = path.join(tmp('fd-estate-pins-'), 'fabric-agent-contract');
-  const list = () => ['fabric-agent-contract', 'fabric-agent-adapter', 'research-agent', 'fabric', '.hidden'];
+  const list = () => ['fabric-agent-contract', 'fabric-agent-adapter', 'sample-agent', 'fabric', '.hidden'];
   const files = siblingPinFiles(clone, list);
-  assert.deepEqual(files.map((f) => f.key), ['fabric', 'fabric-agent-adapter', 'research-agent', 'fabric', 'fabric-dashboards']);
+  assert.deepEqual(files.map((f) => f.key), ['fabric', 'fabric-agent-adapter', 'sample-agent', 'fabric', 'fabric-dashboards']);
   const read = (file: string) => file.endsWith(path.join('fabric-agent-adapter', 'fabric-contract.lock.json')) ? JSON.stringify({ commit: REMOTE })
-    : file.endsWith(path.join('research-agent', 'fabric-contract.lock.json')) ? JSON.stringify({ commit: REMOTE.slice(0, 7) })
+    : file.endsWith(path.join('sample-agent', 'fabric-contract.lock.json')) ? JSON.stringify({ commit: REMOTE.slice(0, 7) })
     : file.includes('SOURCE.json') ? JSON.stringify({ currentCommit: LOCAL })
     : null; // fabric has no lock; dashboards SOURCE.txt missing
   const pins = readSiblingPins(read, clone, REMOTE, list);
   assert.deepEqual(pins, [
     { key: 'fabric-agent-adapter', pinned: REMOTE, state: 'current' },
-    { key: 'research-agent', pinned: REMOTE.slice(0, 7), state: 'current' },
+    { key: 'sample-agent', pinned: REMOTE.slice(0, 7), state: 'current' },
     { key: 'fabric', pinned: LOCAL, state: 'behind' },
     { key: 'fabric-dashboards', pinned: null, state: 'unknown' },
   ]);

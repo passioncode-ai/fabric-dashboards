@@ -220,7 +220,7 @@ The COM choices C1–C9 were accepted the same day: DEC-0022 on fabric-agent-con
 Read the fleet design, ADR-0088, the COM plan and the Telegram research at the commits named in
 the sources, plus the current Dashboards source. Two read-only searches across `fabric`,
 `fabric-workspace`, `fabric-agent-contract`, `fabric-switchboard`,
-`project-observatory-dashboard` and the operator's personal-OS repository (2026-10-04) established what is decided,
+`project-observatory-dashboard` and one of the operator's private repositories (2026-10-04) established what is decided,
 what is only on a branch, and what is absent. No live system was changed for this report.
 
 ## Выводы для проекта

@@ -462,7 +462,7 @@ lifecycle contract — plus the items below.
 - **A dashboard whose session ended signs in again by itself.** When the page answers 401, the app
   runs the login code again and reopens the same page, at most once a minute per view. Reload page
   covers the same case. Before this, the operator was left on the service's 401 text, and the only
-  way back was Restart, then Reload. Reported by the Copylot owner session.
+  way back was Restart, then Reload. Reported by an agent's owner session.
 - Embedded dashboards follow the app's light or dark theme (`nativeTheme`), not only the theme of
   macOS.
 - **No Dock icon while the window is hidden.** Closing the window leaves the app in the menu bar

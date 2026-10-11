@@ -60,7 +60,7 @@ What 0.5.4 did:
   agent's session on another's page.
 - A look-alike host (`growth.example.com.evil.test`) or a local port that no descriptor names is
   not a registered origin, so it gets the browser question, never the app. This is tested.
-- The read-only `sshlg-analytics.projection` instance groups under the analytics agent by service id
+- A read-only `<agent>.projection` instance groups under its agent by service id
   (ADR-0012) until it retires. It needs no re-key.
 - Tests: `test/parts.test.ts` (*ADR-0016: a link inside a dashboard…*) and `test/e2e/app.test.ts`.
   The end-to-end test covers the summary on the card and the page, and the tools. In the

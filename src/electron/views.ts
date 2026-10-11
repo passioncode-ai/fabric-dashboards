@@ -11,7 +11,7 @@ import type { ServiceSnapshot } from '../core/types';
 import { afterCrash, clampRect, dashboardPathOf, loadErrorText, navigation, pageAddress, partitionFor, resolveLink, resumePath, routeLink, ViewSlot } from './policy';
 import { testRemote } from '../core/testhooks';
 
-/** A view signs in again after a 401 at most this often (copylot finding 2026-10-05). */
+/** A view signs in again after a 401 at most this often (an agent owner's finding, 2026-10-05). */
 const RESIGN_EVERY_MS = 60_000;
 
 

@@ -57,9 +57,9 @@ provider and model, and **unknown cost as `null`, never `0`**.
 ## Amendment — 2026-10-07: every limit, not one budget (DEC-0027)
 
 The operator, 2026-10-07: «надо чтобы всегда лимиты все были видны в коста агентов» — every limit an
-agent applies must always be visible on Spend. An agent such as Asset Foundry applies many (per order,
+agent applies must always be visible on Spend. An agent that orders paid work applies many (per order,
 approval, daily, monthly, velocity, pools, emergency stops, each enforced or skipped); DEC-0021's one
-`budget` could not carry them. Shape proposed here and agreed with Asset Foundry, merged in the
+`budget` could not carry them. Shape proposed here and agreed with that agent's owner, merged in the
 contract as DEC-0027 (fabric-agent-contract `94b1829`, rule FAC-SEM-031). Dashboards 0.6.4:
 
 - `@passioncode-ai/fabric-service-host` 0.3.3 reads `budgets[]` (`limitsProblem`, `rankLimits`); the
