@@ -105,7 +105,12 @@ test('ADR-0017: a one-line header, a folding sidebar, and an agent console besid
     await waitFor('the runtime to start', async () => (await termText(page)).includes(`fake-claude ready in ${fs.realpathSync(repo)}`) || (await termText(page)).includes(`fake-claude ready in ${repo}`));
     // FD-39 SCN-053 (ADR-0020): the runtime starts holding the agent's context — its MCP and a brief naming it.
     const pack = path.join(userData, 'consoles', 'sample.default');
-    await waitFor('the context pack to reach the runtime', async () => { const x = await termText(page); return x.includes('ctx:[present]') && x.includes(`args:[--mcp-config=${pack}/mcp.json --append-system-prompt You are working on the Fabric agent "Sample Service" (sample.default)`); });
+    await waitFor('the context pack to reach the runtime', async () => { const x = await termText(page); return x.includes('ctx:[present]') && x.includes(`args:[--mcp-config=${pack}/mcp.json --append-system-prompt You are working on a Fabric agent, opened from Fabric Dashboards. Call the fabric-dashboards tool service_context with key sample.default`); });
+    // FD-47 (DEC-0042): the same folder carries the contract's manifest, which Fabric reads the same way.
+    const manifest = JSON.parse(fs.readFileSync(path.join(pack, 'handoff.json'), 'utf8')) as { format: string; firstCall: { arguments: { key: string } }; launch: { runtime: string } };
+    assert.equal(manifest.format, 'session-handoff/1');
+    assert.equal(manifest.firstCall.arguments.key, 'sample.default');
+    assert.equal(manifest.launch.runtime, 'claude-code');
     const context = fs.readFileSync(path.join(pack, 'context.md'), 'utf8');
     assert.match(context, /# Sample Service \(sample\.default\)/);
     assert.match(context, /\*\*State:\*\* (ready|degraded)/);
@@ -141,7 +146,7 @@ test('ADR-0017: a one-line header, a folding sidebar, and an agent console besid
     await page.getByRole('button', { name: 'Fix with agent' }).first().waitFor({ timeout: 60_000 });
     await shot(page, '24-fix-with-agent');
     await page.getByRole('button', { name: 'Fix with agent' }).first().click();
-    await waitFor('the runtime to start on the task', async () => /task\.md \(your task\), then do the task\.\]/.test(await termText(page)));
+    await waitFor('the runtime to start on the task', async () => /Do the task in [^\]]*task\.md\.\]/.test(await termText(page)));
     assert.match(fs.readFileSync(path.join(pack, 'task.md'), 'utf8'), /^# Task: Sample Service is (down|stopped)/);
     await page.locator('.console-term').click();
     await page.keyboard.type('bye');

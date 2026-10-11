@@ -99,8 +99,11 @@ export function prepareSetup(o: { dir: string; runtimeId: string; runtimeName: s
     + `The steps, with this machine's commands, are in ${setup}; the fabric-dashboards MCP server is loaded in this session. `
     + 'Run every command yourself; ask the person only for consents, sign-ins and secrets (hidden prompt, never printed), one question at a time.';
   const prompt = `Read ${setup} and run the setup with me, step by step.`;
-  const h = handoffArgs(o.runtimeId, { mcp: packed.mcp, mcpServer: o.server, brief: brief.slice(0, 1000), prompt });
-  return { handoff: { before: h.before, after: h.after }, env: { ...h.env, FABRIC_DASHBOARDS_SETUP: setup }, files: { setup, mcp: packed.mcp } };
+  // Not a session-handoff/1 folder (no agent, no first call, no manifest): Claude Code reads the brief as its
+  // system prompt and starts on the prompt; Codex and Gemini CLI start on the prompt alone.
+  const claude = o.runtimeId === 'claude-code';
+  const h = handoffArgs(o.runtimeId, { mcp: packed.mcp, mcpServer: o.server, brief: { inline: claude ? brief.slice(0, 1000) : prompt }, task: null });
+  return { handoff: { before: h.before, after: claude ? [prompt] : h.after }, env: { FABRIC_DASHBOARDS_SETUP: setup }, files: { setup, mcp: packed.mcp } };
 }
 
 /** Where the Setup console runs: the person's home folder, unless they chose another. */

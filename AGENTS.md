@@ -154,6 +154,7 @@ and record the numbers in `docs/HANDOFF.md`. (Before this change, 0.4.1 measured
 **Files it writes** (LC-12): `~/Library/Application Support/Fabric Dashboards/` — `settings.json` (with the panel layout, pinned agents and
 the list's sort, each service's console runtime and folder, ADR-0017, and the previous visit and setup state, ADR-0020),
 `consoles/<key>/` (FD-39, ADR-0020: the context pack each console start writes — `context.md`, `task.md` for a Fix/Update, `mcp.json`,
+`brief.md` when the brief exceeds one argument and `handoff.json`, the contract's `session-handoff/1` manifest (FD-47, DEC-0042), for Claude Code, Codex and Gemini CLI;
 and `setup.md` for the Setup console; 0700 folder, 0600 files, rewritten at each start, never in the agent's repository)
 and its last good copy `settings.json.bak` (a damaged `settings.json` is restored from it, ADR-0015),
 `auto-update` (the LC-16 switch: written only when the person turns it, kept by every uninstall), `.last-version` (the version that ran last, to log a finished install), `restore.json` (written only by an uninstall that kept the data), `.relaunch-hidden` (seconds-long

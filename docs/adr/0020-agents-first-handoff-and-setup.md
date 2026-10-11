@@ -66,3 +66,30 @@ showed an empty list.
 - Other products get their own parts of this decision through their owners: Fabric (fabric-90, waiting on the
   shared pack format), Switchboard SB-93..95, Inbox B-79..81, Observatory OBS-54, and adapter#49. All of them are
   listed in `knowledge/agents-first.md`.
+
+## Amendment 2026-10-11 — the pack is `session-handoff/1` (FD-47)
+
+Fabric Agent Contract DEC-0042 (merged `213e5a3a2f4d`; Fabric ADR-0140, Fabric 0.4.0 REQ-06) makes the pack one
+format that Fabric and this app both write, so a Fabric agent opens in this console and a Dashboards agent opens
+from Fabric with the same folder. What changed here:
+
+- **`handoff.json`**, the manifest, is written last at each start, for Claude Code, Codex and Gemini CLI. It
+  declares `lifetime: agent-key` (the folder is kept per agent and rewritten), `firstCall: service_context` on
+  `fabric-dashboards` with `arguments.key`, `mcp: {auth: none, strict: false}` (the stdio launcher, no secret;
+  the person's own servers stay loaded), the brief's delivery, and what the launch adds (`args` in order, `env`).
+  `launch.args` are the handoff's own arguments (SH-10): Continue's `--continue` or Codex's `resume --last` are the
+  runtime's, sit between them on the command line, and are not recorded. A Terminal window opened while a console
+  session of the same agent runs gets no pack: the folder is one per agent key, and that session owns it.
+  Other runtimes get no manifest: the brief does not reach them, so a manifest would declare a delivery that
+  does not happen. The Setup console is not an agent session and writes none.
+- **The preamble holds no rule** (SH-6). The brief is the task's path, when there is a task, then one line naming
+  `service_context` alone. The rules that used to be in the brief (do the work yourself; ask only for decisions,
+  sign-ins, consents and secrets; secrets only in a hidden prompt; confirm a fix with `service_status`) are now
+  `rules` in `service_context`'s answer (`CONSOLE_RULES`, `src/mcp/tools.ts`). This replaces decision 2's brief.
+- **The brief is inline up to 1000 characters on one line, otherwise `brief.md`** (SH-8), named by its absolute
+  path in `--append-system-prompt-file`. Codex's brief is its first prompt, and Gemini CLI's is its `-i` prompt.
+  Claude Code with a task gets the brief as its system prompt and `Do the task in <task.md>.` as its first prompt.
+- **`service_context` takes `key`**, the argument the handoff's first call passes; `service` still works.
+- **Conformance is a test**: `test/session-handoff.test.ts` runs the contract's own `validateSessionHandoff`
+  (copied in `test/contract/`) against the folders `prepareHandoff` writes.
+

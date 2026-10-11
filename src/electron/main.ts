@@ -137,7 +137,7 @@ if (!app.requestSingleInstanceLock()) {
     env: { ELECTRON_RUN_AS_NODE: '1' },
   });
   const consoles = new ConsoleHost({ settings, snapshot: (key) => monitor.snapshot(key), window: () => window, visible: () => windowVisible(), log: (line) => log(line), testDirs: testRuntimeDirs, scriptsDir: path.join(userData, 'console'),
-    packRoot: path.join(userData, 'consoles'), activity: (key) => activity.list({ serviceKey: key }, 200), mcpServer,
+    packRoot: path.join(userData, 'consoles'), version: app.getVersion(), activity: (key) => activity.list({ serviceKey: key }, 200), mcpServer,
     setupState: () => readSetupState(os.homedir(), monitor.snapshots().length) });
   let tray: AppTray | null = null;
   // R-3: the window lets itself close only once a quit is really under way — before-quit, or

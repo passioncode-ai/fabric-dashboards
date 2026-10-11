@@ -4,6 +4,11 @@
 
 ### Added
 
+- **One pack format with Fabric** (FD-47, Fabric Agent Contract DEC-0042, `session-handoff/1`). A console
+  now writes its context pack the way Fabric writes its own, with a manifest (`handoff.json`). An agent opened
+  here or from Fabric is handed the same folder. The coding agent is told to call `service_context` first. The
+  console's rules now come back in that answer instead of being repeated in the system prompt, and a long brief
+  travels as a file instead of being cut.
 - **Fabric's button** (FD-45, [ADR-0021](docs/adr/0021-fabrics-button-in-the-host.md), Fabric Agent Contract
   DEC-0040). Every agent's page has a **Fabric** button in its header. One press opens Fabric's conversation
   about that agent; Fabric finds the agent's project itself. Without Fabric, the button says *Fabric is not

@@ -350,8 +350,18 @@ export async function serviceContext(deps: Deps, key: string): Promise<Record<st
     version: v.version, update_available: v.update_available, can_update: Boolean(d?.commands?.update?.length),
     origin: v.origin, repository: d?.source?.repository ?? null, dashboard: v.dashboard, open_link: v.open_link,
     descriptor, events, events_error: eventsError,
+    rules: CONSOLE_RULES,
   };
 }
+
+/** FD-47 (DEC-0042 SH-6): the rules for a console session live here, in the first call's answer, and nowhere
+ *  in the preamble, so a session never works from a stale copy. */
+export const CONSOLE_RULES: readonly string[] = [
+  'Do the work yourself: run the commands, edit the files, check the result. The person watches the result in Fabric Dashboards.',
+  'Ask the person only for a decision that is theirs, a sign-in in their browser, a consent, or a secret.',
+  'A secret is typed by the person into a hidden prompt. Never print it, put it in an argument or a file you show, or ask for it in the chat.',
+  'Confirm a fix with service_status before you say it is done.',
+];
 // #endregion agent-handoff
 
 /** What each agent spent, from its own usage report (contract DEC-0021, ADR-0013); one service or all.

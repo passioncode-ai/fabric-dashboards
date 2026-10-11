@@ -100,8 +100,9 @@ export const TOOLS = [
   },
   {
     name: 'service_context',
-    description: 'Everything about one service a coding agent needs before working on it, read now: state and reasons as sentences, descriptor problems, version and pending update, repository, origin, dashboard, its descriptor (auth left out) and its recent events. Call it first when a console was opened for this service.',
-    inputSchema: { type: 'object', properties: { service: serviceArg }, required: ['service'], additionalProperties: false },
+    description: 'Everything about one service a coding agent needs before working on it, read now: state and reasons as sentences, descriptor problems, version and pending update, repository, origin, dashboard, its descriptor (auth left out), its recent events and the rules for a console session. Call it first when a console was opened for this service (the first call of a session-handoff/1 pack, with key).',
+    // FD-47 (DEC-0042 SH-7): the handoff's first call passes the agent's key as `key`; `service` is kept for older callers.
+    inputSchema: { type: 'object', properties: { key: serviceArg, service: serviceArg }, anyOf: [{ required: ['key'] }, { required: ['service'] }], additionalProperties: false },
     annotations: { readOnlyHint: true },
   },
   {
@@ -158,7 +159,14 @@ export async function call(deps: tools.Deps, name: string, args: Args): Promise<
     case 'control': return tools.control(deps, need(args, 'service'), need(args, 'action') as 'start' | 'stop' | 'restart');
     case 'doctor': return tools.command(deps, need(args, 'service'), 'doctor');
     case 'update': return tools.command(deps, need(args, 'service'), 'update');
-    case 'service_context': return tools.serviceContext(deps, need(args, 'service'));
+    case 'service_context': {
+      const k = str(args, 'key') || undefined;
+      const s = str(args, 'service') || undefined;
+      if (k && s && k !== s) throw new tools.ToolError('key and service name different services; give one');
+      const key = k ?? s;
+      if (!key) throw new tools.ToolError('key is required');
+      return tools.serviceContext(deps, key);
+    }
     case 'activity': return tools.activity(deps, need(args, 'service'), typeof args.limit === 'number' ? args.limit : 20);
     case 'spend': return tools.spend(deps, str(args, 'service'));
     default: throw new tools.ToolError(`unknown tool ${JSON.stringify(name)}`);

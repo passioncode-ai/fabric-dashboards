@@ -58,6 +58,8 @@ export interface ConsoleHostOptions {
   /** FD-39 (ADR-0020): the context pack — where it is written (the app's data, never the repository),
    *  the agent's recent activity, and how this app's MCP server starts. Absent: no pack (older callers, tests). */
   packRoot?: string;
+  /** This app's version, the `writer.version` of each `handoff.json` (FD-47). */
+  version?: string;
   activity?: (key: string) => ActivityItem[];
   mcpServer?: () => McpCommand;
   /** FD-39 SCN-058: what is set up already, for the Setup console's brief. */
@@ -184,7 +186,7 @@ export class ConsoleHost {
     const snap = this.o.snapshot(key);
     if (!snap || !this.o.packRoot || !this.o.mcpServer) return null;
     try {
-      const r = prepareHandoff({ snapshot: snap, activity: this.o.activity?.(key) ?? [], folder, runtimeId: runtime.id, dir: path.join(this.o.packRoot, key), server: this.o.mcpServer(), task });
+      const r = prepareHandoff({ snapshot: snap, activity: this.o.activity?.(key) ?? [], folder, runtimeId: runtime.id, dir: path.join(this.o.packRoot, key), server: this.o.mcpServer(), version: this.o.version ?? '0.0.0', task });
       return { handoff: r.handoff, env: r.env };
     } catch (error) {
       this.o.log(`console: ${key} starts without its context pack: ${(error as Error).message}`);
@@ -232,8 +234,12 @@ export class ConsoleHost {
       const r = await this.run(t.argv[0]!, t.argv.slice(1), 30_000);
       return r.code === 0 ? { ok: true } : { ok: false, error: (r.stderr || r.stdout).trim().split('\n').pop()?.slice(0, 300) || `exit ${r.code}` };
     }
-    // FD-39: a Terminal window gets the same context pack as the console (arguments and environment).
-    const pack = this.pack(key, runtime, folder.path);
+    // FD-39: a Terminal window gets the same context pack as the console (arguments and environment) —
+    // unless a console session of this agent is running: the pack is one per agent key (DEC-0042 SH-5), and
+    // rewriting it would take that session's task and brief from under it.
+    const busy = this.manager.snapshot(key).state === 'running';
+    if (busy) this.o.log(`console: ${key} opens in Terminal without its context pack: a console session holds it`);
+    const pack = busy ? null : this.pack(key, runtime, folder.path);
     const plan = planStart({ runtime, mode, folder: folder.path, binding: { kind: 'none' }, switchboard: null, inPlace: false, handoff: pack?.handoff });
     if (plan.kind !== 'run') return { ok: false, error: plan.kind === 'refused' ? plan.detail : 'unavailable' };
     return openInTerminal(this.o.scriptsDir, terminalScript(plan.argv, folder.path, pack?.env ?? {}));
