@@ -26,7 +26,10 @@ import { pathToFileURL } from 'node:url';
 import { FEED_FILE, feedNamesOwnRelease, localFeed, parseSums, releaseFile, signedFeed, sumsSignedByRelease, zipName } from '../core/release-verify';
 import { CHECK_EVERY_MS, FIRST_CHECK_MS, isNewer, mayCheck, stagedBundlePath, stagedRefusal } from '../core/version';
 import type { AppStatus } from '../core/types';
-import { platformKey, platformUpdate, replaceAppImage, stagedAppImage, updateChannel } from '../core/self-update';
+import { nsisInstalledAt, nsisUpdateCommand, PENDING_UPDATE_DIR, platformKey, platformUpdate, replaceAppImage, stagedAppImage, updateChannel } from '../core/self-update';
+import { uninstallTarget } from '../core/platform';
+import { spawn } from 'node:child_process';
+import { windowsPowerShellEnv } from '@passioncode-ai/fabric-service-host';
 
 /** The one feed this app reads: pinned, never taken from the environment. */
 export const DEFAULT_FEED = 'https://github.com/passioncode-ai/fabric-dashboards/releases/latest/download/update-feed.json';
@@ -115,9 +118,12 @@ export class Updater {
   private readonly channel = updateChannel({
     platform: process.platform, packaged: app.isPackaged, appImage: process.env.APPIMAGE, appDir: process.env.APPDIR, execPath: process.execPath,
     appImageIsFile: (() => { try { return Boolean(process.env.APPIMAGE) && fs.lstatSync(process.env.APPIMAGE!).isFile(); } catch { return false; } })(),
+    nsisUninstaller: process.platform === 'win32' && uninstallTarget('win32', process.execPath, process.env, fs.existsSync).kind === 'run-uninstaller' && nsisInstalledAt(process.execPath, process.env.LOCALAPPDATA),
   });
-  /** A Linux AppImage held by `needsPerson`: the version the person may install with Install now. */
-  private heldAppImage: string | null = null;
+  /** A Linux or Windows release held by `needsPerson`: the version the person may install with Install now. */
+  private heldFile: string | null = null;
+  /** Windows (M4c): the verified installer waiting for the app to quit, and its sha256 (checked again before it runs). */
+  private pendingInstaller: { file: string; sha256: string } | null = null;
 
   constructor(
     private readonly onChange: () => void,
@@ -146,8 +152,11 @@ export class Updater {
       this.event('update_check', 'unsupported', `channel=${this.channel}`);
       return;
     }
-    if (this.channel === 'appimage') {
-      this.sweepAppImageParts();
+    if (this.channel === 'appimage' || this.channel === 'nsis') {
+      if (this.channel === 'appimage') this.sweepAppImageParts();
+      // An installer from an earlier run has either run (this is the new version) or was never started: gone. The
+      // installer that just ran may still hold its file for a moment; a removal that fails waits for the next start.
+      else { try { fs.rmSync(path.join(this.dataDir, PENDING_UPDATE_DIR), { recursive: true, force: true }); } catch (error) { this.log(`update: ${PENDING_UPDATE_DIR} stays until the next start: ${(error as Error).message}`); } }
       this.switched(this.enabled());
       setTimeout(() => this.check(), FIRST_CHECK_MS).unref();
       this.timer = setInterval(() => this.check(), CHECK_EVERY_MS);
@@ -218,7 +227,7 @@ export class Updater {
       return;
     }
     if (!feedNamesOwnRelease(feed, version)) return this.fail('signature_failed', `the feed for ${version} names a file outside its own release`);
-    if (this.channel === 'appimage') return this.applyAppImage(version, false);
+    if (this.channel === 'appimage' || this.channel === 'nsis') return this.prepareFile(version, false);
     this.set({ state: 'downloading', version });
     const verified = await this.verify(version);
     if ('error' in verified) return this.fail(verified.code, verified.error);
@@ -335,12 +344,14 @@ export class Updater {
   }
 
   /**
-   * FD-37 M4b (PL-04 on Linux): the release's SHA256SUMS signed by the organization, its feed as SHA256SUMS
-   * names it, this platform's AppImage as both name it — then the new AppImage replaces this file. The running
-   * copy keeps its mount; the next start runs the new version. `person`: Install now on a held release.
+   * FD-37 M4b/M4c (PL-04 on Linux and Windows): the release's SHA256SUMS signed by the organization, its feed as
+   * SHA256SUMS names it, this platform's file as both name it, then the file's own hash. Linux: the new AppImage
+   * replaces this file; the next start runs it. Windows: the verified installer waits in the app's data and runs
+   * once the app quits. `person`: Install now on a held release.
    */
-  private async applyAppImage(version: string, person: boolean): Promise<void> {
-    const target = process.env.APPIMAGE!;
+  private async prepareFile(version: string, person: boolean): Promise<void> {
+    const nsis = this.channel === 'nsis';
+    const target = nsis ? '' : process.env.APPIMAGE!;
     const key = platformKey(process.platform, process.arch);
     this.set({ state: 'downloading', version });
     const get = async (name: string) => {
@@ -362,14 +373,16 @@ export class Updater {
     const expected = listed.get(mine.file);
     if (!expected || expected !== mine.sha256) return this.fail('signature_failed', `SHA256SUMS of ${version} gives ${mine.file} ${expected ?? 'no'} sha256, the feed ${mine.sha256}`);
     if (feed.needsPerson && !person) {
-      this.heldAppImage = version;
+      this.heldFile = version;
       this.event('update_check', 'needs_migration', `version=${version}`);
       this.set({ state: 'held', version, steps: feed.needsPerson });
       return;
     }
-    const staged = stagedAppImage(target, version);
+    const pending = path.join(this.dataDir, PENDING_UPDATE_DIR);
+    if (nsis) { fs.rmSync(pending, { recursive: true, force: true }); fs.mkdirSync(pending, { recursive: true }); }
+    const staged = nsis ? path.join(pending, mine.file) : stagedAppImage(target, version);
     // A folder this user cannot write fails now, not after a download.
-    try { fs.accessSync(path.dirname(target), fs.constants.W_OK); } catch { return this.fail('download_failed', `the folder of this AppImage (${path.dirname(target)}) is not writable: the update cannot replace it`); }
+    if (!nsis) { try { fs.accessSync(path.dirname(target), fs.constants.W_OK); } catch { return this.fail('download_failed', `the folder of this AppImage (${path.dirname(target)}) is not writable: the update cannot replace it`); } }
     this.event('update_download', 'started', `version=${version} file=${mine.file}`);
     let actual: string;
     try {
@@ -377,19 +390,23 @@ export class Updater {
       actual = await downloadTo(releaseFile(version, mine.file), staged, DOWNLOAD_TIMEOUT_MS);
     } catch (error) {
       fs.rmSync(staged, { force: true });
-      return this.fail('download_failed', `the new AppImage could not be written beside ${target}: ${(error as Error).message}`);
+      return this.fail('download_failed', `the update could not be written to ${path.dirname(staged)}: ${(error as Error).message}`);
     }
     if (actual !== expected) {
       fs.rmSync(staged, { force: true });
       return this.fail('signature_failed', `${mine.file} has sha256 ${actual}, SHA256SUMS says ${expected}`);
     }
-    try {
-      replaceAppImage(target, staged);
-    } catch (error) {
-      return this.fail('download_failed', `${target} could not be replaced: ${(error as Error).message}`);
+    if (nsis) {
+      this.pendingInstaller = { file: staged, sha256: actual };
+    } else {
+      try {
+        replaceAppImage(target, staged);
+      } catch (error) {
+        return this.fail('download_failed', `${target} could not be replaced: ${(error as Error).message}`);
+      }
     }
-    this.heldAppImage = null;
-    this.event('update_download', 'done', `version=${version} sha256=${actual.slice(0, 12)} replaced=${target}`);
+    this.heldFile = null;
+    this.event('update_download', 'done', `version=${version} sha256=${actual.slice(0, 12)} ${nsis ? `installer=${staged}` : `replaced=${target}`}`);
     this.event('update_check', 'ready', `version=${version}`);
     this.set({ state: 'ready', version });
   }
@@ -397,19 +414,41 @@ export class Updater {
 
   /** Install now: a ready update restarts into the new version; a held one is handed to Squirrel. */
   restart(): boolean {
-    if (this.channel === 'appimage') {
-      if (this.state.state === 'held' && this.heldAppImage) {
-        this.event('update_restart', 'requested', `version=${this.heldAppImage} held=yes`);
-        void this.applyAppImage(this.heldAppImage, true);
+    if (this.channel === 'appimage' || this.channel === 'nsis') {
+      if (this.state.state === 'held' && this.heldFile) {
+        this.event('update_restart', 'requested', `version=${this.heldFile} held=yes`);
+        void this.prepareFile(this.heldFile, true);
         return true;
       }
       if (this.state.state !== 'ready') {
         this.event('update_restart', 'refused', `state=${this.state.state}`);
         return false;
       }
-      // The new AppImage is already in place: starting it again is the install.
       this.event('update_restart', 'requested', `version=${this.state.version ?? '?'}`);
+      if (this.channel === 'nsis') {
+        // A waiter runs the installer once this app has exited, after checking its hash again (nsisUpdateCommand);
+        // the app quits only once the waiter has started, so a waiter that cannot start leaves the app running.
+        const pending = this.pendingInstaller;
+        let now = '';
+        try { if (pending) now = createHash('sha256').update(fs.readFileSync(pending.file)).digest('hex'); } catch { now = ''; }
+        if (!pending || now !== pending.sha256) {
+          this.pendingInstaller = null;
+          this.fail('signature_failed', 'the verified installer is gone or changed since it was checked; it is downloaded again');
+          return false;
+        }
+        const cmd = nsisUpdateCommand(pending.file, pending.sha256, process.pid);
+        const child = spawn(cmd.file, cmd.args, { stdio: 'ignore', windowsHide: true, env: windowsPowerShellEnv() }); // not detached: as the uninstall waiter
+        child.once('error', (error) => this.fail('download_failed', `the installer could not start: ${error.message}`));
+        child.once('spawn', () => {
+          this.event('update_install', 'started', `version=${this.state.version ?? '?'} waiter=${child.pid ?? '?'}`);
+          this.onQuitForUpdate();
+          app.quit();
+        });
+        child.unref();
+        return true;
+      }
       this.event('update_install', 'started', `version=${this.state.version ?? '?'}`);
+      // The new AppImage is already in place: starting it again is the install.
       this.onQuitForUpdate();
       // Electron passes this run's arguments again (flags, --hidden) and starts the new copy once this one exits.
       app.relaunch({ execPath: process.env.APPIMAGE! });

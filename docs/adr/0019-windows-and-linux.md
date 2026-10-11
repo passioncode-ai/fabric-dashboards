@@ -92,3 +92,35 @@ PL-04 on Linux, after M4a made every release's feed name each platform (`platfor
   Electron's relaunch starts the new copy only after this one has exited (otherwise the single-instance lock would
   end it), and that this run's arguments come back.
 
+## Amendment 2026-10-11 — updates on Windows (FD-37 M4c)
+
+PL-04 on Windows, on the same feed and checks as M4b.
+
+- **An NSIS install updates itself** (`updateChannel` → `nsis`): the installer's `Uninstall Fabric Dashboards.exe`
+  sits beside the app, which is the same test `uninstallTarget` uses. Any other Windows copy says it was not set up
+  by the installer and does not update itself.
+- **The installer is verified, then waits.** It goes through the same checks as Linux: the signed SHA256SUMS, the
+  signed feed's `platforms.win32-<arch>` (exactly `Fabric-Dashboards-<v>-windows-<arch>-setup.exe`), and the file's
+  hash. It is then kept in the app's data (`pending-update/`, removed at every start and by uninstall).
+  Authenticode is not checked again here: the release pipeline signs and verifies it (`windows_authenticode:
+  SIGNED`), and the GPG-signed SHA256SUMS is the trust on every OS (PL-04).
+- **It runs as an update, after the app exits.** *Restart to update*, or the ten hidden minutes of ADR-0015,
+  checks the installer's hash again and starts a hidden PowerShell waiter (`nsisUpdateCommand`, the uninstall
+  waiter's pattern). The app quits only once the waiter has started. The waiter waits for the app's process to exit
+  (at most 120 s) and refuses if it is still running. It checks the hash once more, so nothing can swap the file
+  between the app's check and the install; only a few milliseconds remain before the installer opens it. It then
+  runs the installer with electron-builder's update flags (`--updated /S --force-run`, as electron-updater's
+  NsisUpdater passes them). The installer installs in place and starts the app again. It never uninstalls and never
+  touches the app's data. The hidden-relaunch marker keeps an automatic install in the tray.
+- **Only where the installer puts it.** `nsis` also requires the app to sit in `%LOCALAPPDATA%\Programs\<name>`
+  (`nsisInstalledAt`). An `--updated` install writes there, so a copy anywhere else would never change.
+- **Proof.** `scripts/nsis-smoke.mjs` (packages.yml, both Windows runners) installs the app and starts it. It
+  builds the app's own waiter (`nsisUpdateCommand` from the compiled `out/`) for the app's main process, ends that
+  process the way a quit does, and requires three things: the waiter exits 0, every old process is gone and a new
+  one runs, and the app and its uninstaller are still in place. Only that run's processes are stopped, and a
+  survivor fails the check. It installs the same version over itself, so a version change is part of the owed
+  end-to-end proof.
+  Measured in run 38166001899: the update took 12 s on `windows-latest` and 486 s on `windows-11-arm`, where the
+  installer's 7-Zip decoding is slow. On an arm64 PC the app comes back by itself, minutes later. The download path has the same limit as M4b: its
+  end-to-end proof is the first real update from a release that carries M4c.
+

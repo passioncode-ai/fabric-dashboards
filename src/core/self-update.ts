@@ -9,12 +9,14 @@ import path from 'node:path';
  * - `squirrel`: macOS, Squirrel.Mac (ADR-0015).
  * - `appimage`: Linux AppImage — the verified new AppImage replaces this file; it runs from the next start.
  * - `package`: Linux `.deb` — never checks (PL-04); a newer `.deb` updates it, through the package manager.
- * - `not-yet`: Windows until M4c — this copy does not update itself and says where the newer installer is.
+ * - `nsis`: Windows, installed by the NSIS installer (its uninstaller beside the app) — the verified new installer
+ *   runs silently in update mode once the app quits, and starts the app again (M4c).
+ * - `not-yet`: any other Windows copy — it does not update itself and says where the newer installer is.
  * - `development`: not packaged — updates come with the installed app.
  */
-export type UpdateChannel = 'squirrel' | 'appimage' | 'package' | 'not-yet' | 'development';
+export type UpdateChannel = 'squirrel' | 'appimage' | 'package' | 'nsis' | 'not-yet' | 'development';
 
-export function updateChannel(o: { platform: NodeJS.Platform; packaged: boolean; appImage?: string; appDir?: string; execPath?: string; appImageIsFile?: boolean }): UpdateChannel {
+export function updateChannel(o: { platform: NodeJS.Platform; packaged: boolean; appImage?: string; appDir?: string; execPath?: string; appImageIsFile?: boolean; nsisUninstaller?: boolean }): UpdateChannel {
   if (!o.packaged) return 'development';
   if (o.platform === 'darwin') return 'squirrel';
   if (o.platform === 'linux') {
@@ -24,7 +26,46 @@ export function updateChannel(o: { platform: NodeJS.Platform; packaged: boolean;
     const inside = Boolean(o.appDir && o.execPath && path.isAbsolute(o.appDir) && path.resolve(o.execPath).startsWith(path.resolve(o.appDir) + path.sep));
     return o.appImage && /\.AppImage$/i.test(o.appImage) && path.isAbsolute(o.appImage) && inside && o.appImageIsFile === true ? 'appimage' : 'package';
   }
+  if (o.platform === 'win32') return o.nsisUninstaller === true ? 'nsis' : 'not-yet';
   return 'not-yet';
+}
+
+/** Where a Windows copy keeps a verified installer until it runs (inside the app's data, so uninstall removes it). */
+export const PENDING_UPDATE_DIR = 'pending-update';
+
+/**
+ * How a verified NSIS installer runs as an update (electron-builder's own flags, as electron-updater's
+ * NsisUpdater passes them): `--updated` installs over the copy in place, `/S` without a window, `--force-run`
+ * starts the app again when it is done. Never an uninstall, never app data (PL-04).
+ */
+export const NSIS_UPDATE_ARGS: readonly string[] = ['--updated', '/S', '--force-run'];
+
+/** Whether this Windows copy sits where the per-user one-click installer puts it (%LOCALAPPDATA%\Programs\<name>):
+ *  an `--updated` install writes there, so a copy anywhere else would never change and update forever. */
+export function nsisInstalledAt(execPath: string, localAppData: string | undefined): boolean {
+  if (!localAppData) return false;
+  const programs = path.win32.join(localAppData, 'Programs').toLowerCase();
+  return path.win32.dirname(path.win32.dirname(execPath)).toLowerCase() === programs;
+}
+
+/**
+ * How the verified installer is run as an update: a hidden PowerShell that waits for this app's process to exit
+ * (NSIS cannot replace files the running app holds), refuses if it is still running, checks the installer's
+ * SHA256 again right before it runs — nothing may swap it between the app's check and the install — and only then
+ * starts it with the update flags. Paths go in single-quoted literals with quotes doubled; nothing passes through
+ * cmd.exe (as `uninstallCommand`).
+ */
+export function nsisUpdateCommand(installer: string, sha256: string, pid: number, waitSeconds = 120): { file: string; args: string[] } {
+  if (!/^[0-9a-f]{64}$/.test(sha256)) throw new Error('the installer\'s sha256 is 64 hex digits');
+  const lit = (s: string) => `'${s.replace(/'/g, "''")}'`;
+  const id = Math.trunc(pid);
+  const script = [
+    `Wait-Process -Id ${id} -Timeout ${Math.trunc(waitSeconds)} -ErrorAction SilentlyContinue`,
+    `if (Get-Process -Id ${id} -ErrorAction SilentlyContinue) { exit 3 }`,
+    `if ((Get-FileHash -Algorithm SHA256 -LiteralPath ${lit(installer)}).Hash.ToLowerInvariant() -ne ${lit(sha256)}) { exit 2 }`,
+    `Start-Process -FilePath ${lit(installer)} -ArgumentList ${NSIS_UPDATE_ARGS.map(lit).join(',')}`,
+  ].join('; ');
+  return { file: 'powershell.exe', args: ['-NoProfile', '-NonInteractive', '-Command', script] };
 }
 
 /** The feed's key for this copy (`scripts/release-feed.mjs` PLATFORMS). */

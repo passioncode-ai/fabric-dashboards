@@ -2,13 +2,19 @@
 //   node scripts/nsis-smoke.mjs release/Fabric-Dashboards-<v>-windows-<arch>-setup.exe
 // It installs per user without elevation (/S), the installed MCP launcher answers `initialize`, the
 // uninstaller sits where the app's own Settings → Uninstall looks for it (src/core/platform.ts
-// uninstallTarget), and running it the way the app does (/S) removes the install.
-import { spawnSync } from 'node:child_process';
-import { existsSync, mkdtempSync, readdirSync, rmSync } from 'node:fs';
+// uninstallTarget), and running it the way the app does (/S) removes the install. FD-37 M4c: the same
+// installer, run the way the app runs an update — the waiter of src/core/self-update.ts nsisUpdateCommand, after
+// the app exits — installs in place and starts the app again.
+import { spawn, spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import os from 'node:os';
 import path from 'node:path';
 
-function requireThat(condition, message) { if (!condition) { console.error(`::error::${message}`); process.exit(1); } }
+// A failed check throws, so every `finally` below cleans up; the top level reports it and exits 1.
+function requireThat(condition, message) { if (!condition) throw new Error(message); }
+for (const event of ['unhandledRejection', 'uncaughtException']) process.on(event, (error) => { console.error(`::error::${error?.message ?? error}`); process.exit(1); });
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 async function until(ok, ms) { const end = Date.now() + ms; while (!ok() && Date.now() < end) await sleep(500); return ok(); }
 
@@ -43,6 +49,50 @@ try {
   rmSync(services, { recursive: true, force: true });
 }
 
+// FD-37 M4c: an update the way the app runs one. The app runs from the install with its own data and services
+// folders. The waiter the app builds (nsisUpdateCommand, from the compiled out/) waits for its main process; the
+// app then exits; the waiter checks the installer's hash and runs it with --updated /S --force-run, which installs
+// in place and starts the app again. Only this run's processes are stopped, and a survivor fails the check.
+const { nsisUpdateCommand } = createRequire(import.meta.url)(path.resolve('out/main/core/self-update.js'));
+const appPids = () => spawnSync('tasklist', ['/FI', 'IMAGENAME eq Fabric Dashboards.exe', '/FO', 'CSV', '/NH'], { encoding: 'utf8', windowsHide: true }).stdout
+  .split('\n').map((l) => /^"[^"]+","(\d+)"/.exec(l.trim())?.[1]).filter(Boolean);
+const stable = async (ms) => { let last = ''; let since = Date.now(); const end = Date.now() + 60_000; while (Date.now() < end) { const now = appPids().sort().join(' '); if (now !== last) { last = now; since = Date.now(); } else if (now && Date.now() - since >= ms) return now.split(' '); await sleep(500); } return appPids(); };
+const stop = (pids) => { for (const pid of pids) spawnSync('taskkill', ['/PID', pid, '/T', '/F'], { windowsHide: true }); };
+const data = mkdtempSync(path.join(os.tmpdir(), 'fd-nsis-data-'));
+const watched = mkdtempSync(path.join(os.tmpdir(), 'fd-nsis-svc-'));
+const appEnv = { ...process.env, FABRIC_DASHBOARDS_USER_DATA: data, FABRIC_SERVICES_DIR: watched };
+const started = new Set();
+try {
+  const app = spawn(exe, ['--hidden'], { detached: true, stdio: 'ignore', env: appEnv, windowsHide: true });
+  app.unref();
+  const before = await stable(5_000);
+  before.forEach((pid) => started.add(pid));
+  requireThat(before.includes(String(app.pid)), `the installed app did not start (pid ${app.pid}; running: ${before.join(' ') || 'none'})`);
+  const sha = createHash('sha256').update(readFileSync(setup)).digest('hex');
+  const cmd = nsisUpdateCommand(setup, sha, app.pid, 60);
+  const psEnv = { ...appEnv }; delete psEnv.PSModulePath; // as windowsPowerShellEnv: a Windows PowerShell under pwsh
+  const waiter = spawn(cmd.file, cmd.args, { stdio: 'ignore', windowsHide: true, env: psEnv });
+  const waited = new Promise((resolve) => waiter.once('exit', (code) => resolve(code)));
+  await sleep(3_000);
+  const updateStarted = Date.now();
+  spawnSync('taskkill', ['/PID', String(app.pid), '/T', '/F'], { windowsHide: true }); // the app quits
+  const code = await Promise.race([waited, sleep(180_000).then(() => 'timeout')]);
+  requireThat(code === 0, `the waiter ended ${code} (2: the hash changed; 3: the app was still running)`);
+  // The installer runs on its own after the waiter (Start-Process returns at once): 12 s on windows-latest, 486 s on
+  // windows-11-arm (run 38166001899), whose 7-Zip decoding is slow.
+  const anew = await until(() => { const now = appPids(); return now.length > 0 && now.every((pid) => !before.includes(pid)); }, 900_000);
+  appPids().forEach((pid) => started.add(pid));
+  requireThat(anew, `after the update the app is not running anew (before: ${before.join(' ')}; now: ${appPids().join(' ') || 'none'})`);
+  requireThat(existsSync(exe) && existsSync(uninstaller), 'the update left no app or no uninstaller in place');
+  console.log(`the waiter ran the installer after the app exited; it installed in place and started the app again in ${Math.round((Date.now() - updateStarted) / 1000)} s`);
+} finally {
+  stop([...started]);
+  const survivors = await until(() => appPids().every((pid) => !started.has(pid)), 30_000);
+  rmSync(data, { recursive: true, force: true });
+  rmSync(watched, { recursive: true, force: true });
+  requireThat(survivors, `processes of this run survived taskkill: ${appPids().filter((pid) => started.has(pid)).join(' ')}`);
+}
+
 // The NSIS uninstaller copies itself to %TEMP% and returns at once; the removal finishes after.
 const remove = spawnSync(uninstaller, ['/S'], { timeout: 300_000, windowsHide: true });
 requireThat(remove.status === 0, `the uninstaller exited ${remove.status ?? remove.error}`);
@@ -53,4 +103,4 @@ if (!await until(() => !existsSync(exe), 300_000)) {
   requireThat(false, `the uninstaller left ${exe} after 300 s; still there: ${left}; running: ${running || 'none'}`);
 }
 console.log(`the uninstaller removed the app in ${Math.round((Date.now() - removalStarted) / 1000)} s`);
-console.log(`installed per user at ${dir}, the MCP launcher answered initialize, /S uninstall removed it`);
+console.log(`installed per user at ${dir}, the MCP launcher answered initialize, an update after the app exited restarted it, /S uninstall removed it`);

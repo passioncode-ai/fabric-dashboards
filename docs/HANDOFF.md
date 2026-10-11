@@ -5,7 +5,26 @@ Updated 2026-10-07 (0.6.2: 0.6.1 withdrawn for audit HIGH-2, audit fixes, signed
 
 Current release: 0.7.3 (published 2026-10-11 16:59 UTC, run 38156472858; FD-45, FD-47; carries 0.7.2, tagged and not published). Before it, 0.7.1 (published 2026-10-11 11:34 UTC, run 38106066248; FD-37 M1–M3, FD-39, FD-41; carries 0.7.0, tagged and not published). Before it, 0.6.7 (published 2026-10-09 17:07 UTC, run 37955575384; FD-36, FD-35, FD-38). Before it, 0.6.6 (published 2026-10-09 10:08 UTC, run 37864378854; FD-34, FD-35). Before it, 0.6.5 (published 2026-10-08 01:18 UTC, run 37703405621; FD-29, FD-33). Before it, 0.6.4 (published 2026-10-07 01:57 UTC, run 37558793926; carries 0.6.3, superseded before approval). Before it, 0.6.2 (published 2026-10-06 23:41 UTC, run 37541067349; 0.6.1 withdrawn). Before it, 0.6.0 (published 2026-10-06 21:35 UTC, run 37505569449); Before it, 0.5.6 (2026-10-06); the 0.4.1 section below is the previous one. Earlier releases below are preserved as dated evidence.
 
-## Next — start here (2026-10-11, FD-37 M4b: Linux updates)
+## Next — start here (2026-10-11, FD-37 M4c: Windows updates)
+
+**Branch `agent/fd37-m4c-windows`.** [ADR-0019 amendment](adr/0019-windows-and-linux.md#amendment-2026-10-11--updates-on-windows-fd-37-m4c).
+An NSIS install (its uninstaller beside the app) is channel `nsis`. `Updater.prepareFile`, shared with the
+AppImage, verifies the installer and keeps it in `pending-update/`. Restart, or ten hidden minutes, starts it
+detached with `--updated /S --force-run` and quits. `scripts/nsis-smoke.mjs` now runs that update over a running
+copy on both Windows runners. An independent review (1 bug, 7 risks, 1 question) was fixed:
+- a PowerShell waiter (`nsisUpdateCommand`) runs the installer only after the app exits, and only if its SHA256 is
+  still the verified one; the app quits only after the waiter has started;
+- `nsis` only for a copy in `%LOCALAPPDATA%\Programs\<name>`;
+- the cleanup at start cannot crash it;
+- the smoke follows the real order, stops only its own processes and fails on survivors.
+
+Rehearsal run 38166001899 on all five runners with packages was green. The update took 12 s on x64 and 486 s on
+arm64.
+
+**Next task:** merge, release (0.7.4 carries M4a, M4b and M4c), then the owed end-to-end proof once the release
+after it exists. FD-37 M5 (systemd / Task Scheduler supervision) waits on its contract with Fabric.
+
+## Earlier — start here (2026-10-11, FD-37 M4b: Linux updates)
 
 **Branch `agent/fd37-m4b-appimage`.** [ADR-0019 amendment](adr/0019-windows-and-linux.md#amendment-2026-10-11--updates-on-linux-fd-37-m4b).
 `src/core/self-update.ts` decides the update channel from how the copy was installed: `squirrel`, `appimage`,
