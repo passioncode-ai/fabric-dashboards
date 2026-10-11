@@ -140,6 +140,13 @@ function Shell({ status, route, setRoute, stopKey, setStopKey, activityFilter, s
     setAgentTask({ key, mode: 'continue', nonce: Date.now() });
   };
   const [visit, setVisit] = useState<SinceLastVisit | null>(null);
+  // FD-39 SCN-058: the Setup console from the card or from Settings; Continue resumes a setup stopped midway.
+  const openSetup = (mode: 'new' | 'continue') => {
+    void api().updateSettings({ setupDone: false }).catch(() => undefined);
+    setRoute({ page: 'overview' });
+    setSetupOpen(true);
+    if (mode === 'continue') setAgentTask({ key: SETUP_KEY, mode: 'continue', nonce: Date.now() });
+  };
   // FD-39 SCN-058: the Setup console sits beside Overview; on a first launch with nothing set up it opens by itself
   // (the runtime starts on the person's click: it spends their subscription).
   const [setupOpen, setSetupOpen] = useState(false);
@@ -236,17 +243,17 @@ function Shell({ status, route, setRoute, stopKey, setStopKey, activityFilter, s
                 <h1>{t(route.page === 'activity' ? 'activity.title' : route.page === 'spend' ? 'spend.title' : route.page === 'settings' ? 'settings.title' : 'overview.title')}</h1>
                 {route.page === 'overview' && count > 0 && <span className="meta">{count === 1 ? t('overview.count.one') : t('overview.count', { count })}</span>}
               </div>
-              {route.page === 'overview' && <SetupCard onOpen={() => setSetupOpen(true)} consoleOpen={setupOpen} />}
+              {route.page === 'overview' && <SetupCard onOpen={openSetup} consoleOpen={setupOpen} />}
               {route.page === 'overview' && <LoginQuestion defer={setupOpen} />}
               {route.page === 'overview' && <Overview status={status} products={products} open={open} act={act} agent={handToAgent} visit={visit} onContinue={continueWith} goSpend={() => setRoute({ page: 'spend' })} />}
               {route.page === 'activity' && <Activity status={status} openAt={open} filter={activityFilter} setFilter={setActivityFilter} />}
               {route.page === 'spend' && <Spend status={status} />}
-              {route.page === 'settings' && <Settings status={status} onTheme={applyTheme} onLanguage={onLanguage} />}
+              {route.page === 'settings' && <Settings status={status} onTheme={applyTheme} onLanguage={onLanguage} onSetup={() => openSetup('new')} />}
             </div>
             {route.page === 'overview' && setupOpen && (
               <ConsolePanel serviceKey={SETUP_KEY} width={consoleWidth}
                 onWidth={(w, commit) => changeLayout({ console: { width: Math.round(Math.min(CONSOLE_WIDTH.max, Math.max(CONSOLE_WIDTH.min, w))) } }, commit)}
-                onHide={() => setSetupOpen(false)} />
+                onHide={() => setSetupOpen(false)} task={agentTask?.key === SETUP_KEY ? agentTask : null} onTaskTaken={() => setAgentTask(null)} />
             )}
             </div>
           )}

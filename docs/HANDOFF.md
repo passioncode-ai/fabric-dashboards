@@ -22,9 +22,14 @@ Operator 2026-10-10: the coding agent does everything it can; the interface show
 - Checks: `FD_SKIP_LAUNCHD=1 npm run check` exit 0 (401 tests, 395 pass, 6 skipped); `npm run test:e2e` 9/9. One flake
   seen once under load: the Spend e2e's FD-05 Dock check (passed twice alone) — the FD-35 family.
 
-**Next task:** merge the branch (PR), send fabric-workspace-91 the brief's main path; then a release with FD-37 + FD-39.
-Open: SCN-058 "Continue setup" after a quit mid-setup and a Settings → Setup entry once hidden; *Open in Terminal*
-without the pack; Codex `experimental_instructions_file` (C-1); conform the pack to Fabric's format when fabric-90 answers.
+**Done since:** merged #67 (FD-39), #68 (`--mcp-config=<path>`, Switchboard SB-94 asserts it), #69 (FD-40 spend-policy
+proposal brief), and this branch: Settings → Setup, *Continue setup* / *Start over*, *Open in Terminal* carries the pack
+(arguments and `export` of its environment), setup.md verifies every download with `gpg --verify SHA256SUMS.asc` + the
+org key fingerprint and offers Fabric Inbox.
+**Next task:** a release with FD-37 + FD-39 (needs a release-approvers approval). Then conform the pack to
+`session-handoff/1` when fabric-90's contract PR lands (Fabric P-16 REQ-06), and FD-40's Dashboards part once
+Observatory's grant registry exists. Open: Codex `experimental_instructions_file` (C-1); the operator's four money
+defaults for FD-40 (brief §Decisions).
 
 ## Next — start here (2026-10-10 evening, FD-37: Windows signed, one release pipeline)
 

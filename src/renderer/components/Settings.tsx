@@ -2,7 +2,9 @@ import { useEffect, useState } from 'react';
 import type { AppStatus, Listener, Settings as SettingsValue } from '../../core/types';
 import { api, nameOf, Spinner, useT } from '../lib';
 
-export function Settings({ status, onTheme, onLanguage }: { status: AppStatus; onTheme: (theme: 'dark' | 'light') => void; onLanguage: () => void }) {
+export function Settings({ status, onTheme, onLanguage, onSetup }: { status: AppStatus; onTheme: (theme: 'dark' | 'light') => void; onLanguage: () => void;
+  /** FD-39 SCN-058: the Setup console stays reachable after the card is hidden. */
+  onSetup?: () => void }) {
   const { t, time } = useT();
   const [value, setValue] = useState<SettingsValue | null>(null);
   const [error, setError] = useState('');
@@ -138,6 +140,14 @@ export function Settings({ status, onTheme, onLanguage }: { status: AppStatus; o
         <div><button className="btn" onClick={() => void api().showPath(status.servicesDir).then((r) => setPathError(r.ok ? '' : t('overview.showFailed', { path: status.servicesDir, error: r.error ?? '' })))}>{t('overview.empty.show')}</button></div>
         {pathError && <p className="notice error" role="alert">{pathError}</p>}
       </section>
+
+      {onSetup && (
+        <section className="group" aria-labelledby="g-setup">
+          <h2 id="g-setup">{t('settings.setup')}</h2>
+          <p className="meta">{t('settings.setup.body')}</p>
+          <div><button className="btn" onClick={onSetup}>{t('setup.agent.start')}</button></div>
+        </section>
+      )}
 
       <section className="group" aria-labelledby="g-uninstall">
         <h2 id="g-uninstall">{t('settings.uninstall')}</h2>

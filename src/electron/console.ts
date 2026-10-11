@@ -232,9 +232,11 @@ export class ConsoleHost {
       const r = await this.run(t.argv[0]!, t.argv.slice(1), 30_000);
       return r.code === 0 ? { ok: true } : { ok: false, error: (r.stderr || r.stdout).trim().split('\n').pop()?.slice(0, 300) || `exit ${r.code}` };
     }
-    const plan = planStart({ runtime, mode, folder: folder.path, binding: { kind: 'none' }, switchboard: null, inPlace: false });
+    // FD-39: a Terminal window gets the same context pack as the console (arguments and environment).
+    const pack = this.pack(key, runtime, folder.path);
+    const plan = planStart({ runtime, mode, folder: folder.path, binding: { kind: 'none' }, switchboard: null, inPlace: false, handoff: pack?.handoff });
     if (plan.kind !== 'run') return { ok: false, error: plan.kind === 'refused' ? plan.detail : 'unavailable' };
-    return openInTerminal(this.o.scriptsDir, terminalScript(plan.argv, folder.path));
+    return openInTerminal(this.o.scriptsDir, terminalScript(plan.argv, folder.path, pack?.env ?? {}));
   }
 
   async pickFolder(key: string): Promise<ConsoleInfo> {
