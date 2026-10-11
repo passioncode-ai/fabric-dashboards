@@ -5,7 +5,28 @@ Updated 2026-10-07 (0.6.2: 0.6.1 withdrawn for audit HIGH-2, audit fixes, signed
 
 Current release: 0.6.7 (published 2026-10-09 17:07 UTC, run 37955575384; FD-36, FD-35, FD-38). Before it, 0.6.6 (published 2026-10-09 10:08 UTC, run 37864378854; FD-34, FD-35). Before it, 0.6.5 (published 2026-10-08 01:18 UTC, run 37703405621; FD-29, FD-33). Before it, 0.6.4 (published 2026-10-07 01:57 UTC, run 37558793926; carries 0.6.3, superseded before approval). Before it, 0.6.2 (published 2026-10-06 23:41 UTC, run 37541067349; 0.6.1 withdrawn). Before it, 0.6.0 (published 2026-10-06 21:35 UTC, run 37505569449); Before it, 0.5.6 (2026-10-06); the 0.4.1 section below is the previous one. Earlier releases below are preserved as dated evidence.
 
-## Next — start here (2026-10-11, FD-39 agents first)
+## Next — start here (2026-10-11, FD-41: the ED-7 host floor; FD-42 opened)
+
+**Branch `agent/fd39-dashboard-host-floor`, PR open, not merged.** Fabric Agent Contract DEC-0036
+(profile `fabric-dashboard/0.1`, [contract PR #27](https://github.com/passioncode-ai/fabric-agent-contract/pull/27),
+not merged when this was written) ED-7 and ED-9:
+- **Done (FD-41):** the console stops where the dashboard keeps `max(480, minWidth)` px of the measured
+  split (`src/core/layout.ts`, `src/renderer/App.tsx`, the separator's `aria-valuemax`); the remembered width
+  survives a narrower window. `minWidth` is read and validated from the well-known `extensions`
+  (`dashboardMinWidth`, `packages/service-host` 0.5.0) and carried as `ServiceSnapshot.dashboardMinWidth` and
+  MCP `dashboard_min_width`. SCN-060; ADR-0017 amendment 2026-10-11.
+- **Checks run:** `npm run check` exit 0 (397 tests, 392 pass, 5 skipped); a planted defect (the floor dropped
+  from `consoleMaxFor`) turned 7 of 10 `test/layout.test.ts` tests red, restored green. e2e: see the PR.
+- **IDs:** FD-39 is `agent/fd39-agents-first` (merged as PR #67; it holds SCN-053…059), so this work is FD-41 and
+  SCN-060; the branch name keeps the `fd39` it was created with. Rebased on that merge: the Setup console beside
+  Overview (SCN-058) uses the same rule, with Overview held at 480.
+- **Open (FD-42):** the appearance carrier and theme picker (ED-8, ED-10). It needs `src/electron/views.ts`,
+  which `codex/dashboard-session-refresh` edits: start it only after that branch lands.
+
+**Next task:** review and merge this PR; then FD-42 once
+`codex/dashboard-session-refresh` is on `main`. The release with FD-37 + FD-39 (sections below) can carry FD-41.
+
+## Earlier — start here (2026-10-11, FD-39 agents first; merged as PR #67)
 
 **Branch `agent/fd39-agents-first`** ([brief](evidence/briefs/2026-10-10-agents-first-brief.md), [ADR-0020](adr/0020-agents-first-handoff-and-setup.md)).
 Operator 2026-10-10: the coding agent does everything it can; the interface shows the result.
@@ -31,7 +52,7 @@ org key fingerprint and offers Fabric Inbox.
 Observatory's grant registry exists. Open: Codex `experimental_instructions_file` (C-1); the operator's four money
 defaults for FD-40 (brief §Decisions).
 
-## Next — start here (2026-10-10 evening, FD-37: Windows signed, one release pipeline)
+## Earlier — start here (2026-10-10 evening, FD-37: Windows signed, one release pipeline)
 
 **Windows Authenticode is on** and its first signed rehearsal passed: `v0.6.7-rc.2`, run
 [38073564774](https://github.com/passioncode-ai/fabric-dashboards/actions/runs/38073564774), approved by the

@@ -65,6 +65,7 @@
 | SCN-057 | Sort the agents list | list | P-01 | ST-021 | draft | 2026-10-10 |
 | SCN-058 | First session: my coding agent sets the system up | setup | P-01 | ST-022 | draft | 2026-10-10 |
 | SCN-059 | A later session opens on what changed | overview | P-01 | ST-022 | draft | 2026-10-10 |
+| SCN-060 | The dashboard keeps its floor while the console widens | console | P-01 | ST-019 | draft | 2026-10-11 |
 ## Personas
 
 Defined in [foundation.md](foundation.md) → P-01.
@@ -1002,7 +1003,7 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **Preconditions:** none
 - **Steps:**
   1. User opens the console -> a panel opens to the right of the dashboard with this agent's console; the dashboard narrows to the space left
-  2. User drags the panel's edge -> it widens or narrows (320 px up to half the window); the width is remembered
+  2. User drags the panel's edge -> it widens or narrows, from 320 px up to where the dashboard keeps its floor (SCN-060); the width is remembered
   3. User collapses the panel -> it closes; whatever runs in it keeps running; opening it again shows everything it printed
   4. User switches to another agent -> the panel shows that agent's console; each agent has its own
 - **Expected result:** a console that belongs to the agent sits beside its dashboard and gets out of the way when asked
@@ -1051,6 +1052,25 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **Errors & recovery:** Switchboard needs its app or `switchboard serve` running -> its own message, shown as it says it; a managed session for the same project already runs -> Switchboard's refusal is shown as it says it; Switchboard's answer cannot be read -> "Switchboard did not answer; the session was not started" — never a silent fallback to the ordinary sign-in
 - **Status:** validated
 - **Coverage:** src/core/switchboard.ts, src/core/consoles.ts, src/electron/console.ts, test/console.test.ts
+- **Product:** unobserved
+
+### SCN-060: The dashboard keeps its floor while the console widens
+- **Persona:** P-01
+- **Feature:** console
+- **Traces:** ST-019 (JTBD-05, JRN-01/#8); ADR-0017; Fabric Agent Contract DEC-0036 ED-7, ED-9 ([PR #27](https://github.com/passioncode-ai/fabric-agent-contract/pull/27))
+- **Entry point:** the console panel's left edge, dragged or moved with the arrow keys, beside a service's dashboard
+- **Preconditions:** the console is open
+- **Steps:**
+  1. User drags the console's edge to the left -> the console widens and the dashboard narrows until the dashboard is 480 px wide, or as wide as the service declares its page needs (its `minWidth`, 360 to 1280 px) when that is more; there the edge stops, and a screen reader hears the separator at its maximum
+  2. User makes the window narrower -> the console gives way first and the dashboard keeps its floor; the width the user dragged to is still remembered
+  3. User makes the window wider again -> the console returns to the width the user dragged to
+- **Expected result:** the console never squeezes a dashboard below the width the page was built for; the page is never zoomed to fit
+- **Alt paths:** the window is too narrow for both the console's 320 px and the dashboard's floor (for example the smallest window, 960 px, with the full sidebar) -> the console keeps its 320 px and the dashboard gets what is left, laid out by the page itself (it scrolls sideways rather than collapse); collapsing the sidebar (SCN-047) or the console gives the dashboard its floor back; a service that declares nothing, or a `minWidth` outside 360 to 1280, gets the 480 px every dashboard gets; the user presses the right arrow key at the floor -> the console narrows by 24 px, and the left arrow key there changes nothing and keeps the remembered width
+- **UI elements:** console panel, its edge handle (separator with its current maximum)
+- **States covered:** success
+- **Errors & recovery:** n/a — a layout rule that never fails; an invalid declaration is treated as no declaration
+- **Status:** draft
+- **Coverage:** src/core/layout.ts, src/renderer/App.tsx, src/renderer/components/ConsolePanel.tsx, packages/service-host/src/protocol.ts, src/core/monitor.ts, test/layout.test.ts, packages/service-host/test/protocol.test.ts, test/flap.test.ts (DEC-0036 ED-9), test/mcp.test.ts (DEC-0036 ED-9)
 - **Product:** unobserved
 
 ### SCN-052: Fabric Dashboards on Windows or Linux

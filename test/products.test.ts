@@ -18,7 +18,7 @@ function snap(key: string, state: ServiceState = 'ready', dashboard: boolean | n
   return {
     key, descriptorPath: `/d/${key}.json`, descriptor: null, problems: [], state, reasons: [], wellKnown,
     launchd: { managed: false, loaded: false, pid: null, disabled: false },
-    firstUnansweredAt: null, lastAnswerAt: null, busy: null, lastAction: null, latestEvent: null, feedError: null,
+    firstUnansweredAt: null, lastAnswerAt: null, busy: null, lastAction: null, latestEvent: null, feedError: null, dashboardMinWidth: null,
   };
 }
 

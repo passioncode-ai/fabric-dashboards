@@ -11,6 +11,8 @@ import { api, Icon, Spinner, useT } from '../lib';
 interface Props {
   serviceKey: string;
   width: number;
+  /** The widest the panel may be now: what the dashboard's host floor leaves (DEC-0036 ED-7, src/core/layout.ts). */
+  max: number;
   onWidth: (width: number, commit: boolean) => void;
   onHide: () => void;
   /** FD-39 D-3: a job to start with (Fix / Update with agent); taken once, then cleared by the shell. */
@@ -31,7 +33,7 @@ function shortPath(p: string): string {
   return home ? `~${p.slice(home.length)}` : p;
 }
 
-export function ConsolePanel({ serviceKey, width, onWidth, onHide, task, onTaskTaken }: Props) {
+export function ConsolePanel({ serviceKey, width, max, onWidth, onHide, task, onTaskTaken }: Props) {
   const { t } = useT();
   const host = useRef<HTMLDivElement>(null);
   const term = useRef<Terminal | null>(null);
@@ -133,7 +135,8 @@ export function ConsolePanel({ serviceKey, width, onWidth, onHide, task, onTaskT
     if (!r.ok) setNotice({ text: r.error === 'continue-unsupported' ? t('console.continueUnsupported') : t('console.terminalFailed', { detail: r.error ?? '' }) });
   };
 
-  // The left edge drags the width; the shell keeps it between the bounds and remembers it on release.
+  // The left edge drags the width; the shell keeps it between the bounds (the dashboard's host floor
+  // stops it, ED-7) and remembers it on release.
   const drag = (e: React.PointerEvent<HTMLDivElement>) => {
     const startX = e.clientX;
     const startW = width;
@@ -157,7 +160,7 @@ export function ConsolePanel({ serviceKey, width, onWidth, onHide, task, onTaskT
 
   return (
     <aside className="console-panel" style={{ width }} aria-label={t('console.title')}>
-      <div className="console-edge" role="separator" aria-orientation="vertical" aria-label={t('console.resize')} aria-valuemin={CONSOLE_WIDTH.min} aria-valuemax={CONSOLE_WIDTH.max} aria-valuenow={width} tabIndex={0} onPointerDown={drag} onKeyDown={nudge} />
+      <div className="console-edge" role="separator" aria-orientation="vertical" aria-label={t('console.resize')} aria-valuemin={CONSOLE_WIDTH.min} aria-valuemax={max} aria-valuenow={width} tabIndex={0} onPointerDown={drag} onKeyDown={nudge} />
       <div className="console-head">
         <div className="console-row">
           <label className="visually-hidden" htmlFor="console-runtime">{t('console.runtime')}</label>

@@ -325,3 +325,11 @@ test('T-5: an online service answering from another replica is not a restart', a
   for (const s of [0, 61, 122, 183]) { clock.ms = T0 + s * 1000; await monitor.tick(); }
   assert.deepEqual(restarted, []);
 });
+
+test('DEC-0036 ED-9: the service status carries the dashboard\'s declared floor; a legacy or invalid one is null', async () => {
+  const declaring = (minWidth: unknown): WellKnownResult => ({ kind: 'answer', ms: 3, doc: { ...READY, extensions: { 'https://fabric.passioncode.ai/agent-contract/extensions/dashboard/0.1': { minWidth } } } });
+  assert.equal((await rig().probeAt(0, declaring(720))).dashboardMinWidth, 720);
+  assert.equal((await rig().probeAt(0, declaring(240))).dashboardMinWidth, null);
+  assert.equal((await rig().probeAt(0, ANSWER)).dashboardMinWidth, null);
+  assert.equal((await rig().probeAt(0, MISS)).dashboardMinWidth, null, 'no answer, no declaration');
+});

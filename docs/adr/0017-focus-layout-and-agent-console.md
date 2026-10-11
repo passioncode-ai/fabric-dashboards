@@ -50,7 +50,8 @@ What exists today:
    entry names itself in a tooltip and to a screen reader. The choice is remembered. View → Show or
    Hide Sidebar (⌃⌘S). The rail is 76 px, as wide as the window's traffic lights.
 3. **A console panel sits to the right of the dashboard, one per service** (SCN-048…050).
-   - It can be collapsed and resized (320 px up to half the window; the edge also moves with the
+   - It can be collapsed and resized (320 px up to half the window — replaced by the dashboard's floor,
+     [amendment 2026-10-11](#amendment--2026-10-11-fd-40-the-console-stops-at-the-dashboards-floor); the edge also moves with the
      arrow keys), and both its width and whether it is open are remembered. View → Show or Hide
      Console (⌃⌘T).
    - It is a **terminal**: a PTY in the main process (`node-pty`) and an xterm.js view in the
@@ -157,3 +158,24 @@ waits. From 0.6.2 every path the person takes that would end them asks first:
   only a descriptor absent across two scans that far apart ends it (`REMOVAL_GRACE_MS`,
   `src/core/monitor.ts`).
 - Tests: `test/console.test.ts` *audit HIGH-2*, `test/lifecycle.test.ts` *audit MEDIUM-5*.
+
+## Amendment — 2026-10-11 (FD-41): the console stops at the dashboard's floor
+
+Decision 3 said the console resizes from 320 px "up to half the window". Fabric Agent Contract DEC-0036,
+profile `fabric-dashboard/0.1`, ED-7 ([PR #27](https://github.com/passioncode-ai/fabric-agent-contract/pull/27),
+`docs/specification/embedded-dashboard.md`), sets the host rule instead, and it replaces the half:
+
+- The console is as wide as the person dragged it, but never so wide that the dashboard beside it gets
+  less than `max(480, minWidth)` CSS px of the area beside the sidebar (measured, not the window).
+  `minWidth` is what the service declares in its well-known document under
+  `extensions["https://fabric.passioncode.ai/agent-contract/extensions/dashboard/0.1"]`, an integer
+  360…1280; anything else is a legacy dashboard, held at 480 (`src/core/layout.ts`;
+  `dashboardMinWidth`, `packages/service-host/src/protocol.ts`).
+- The edge stops there; its `aria-valuemax` is that limit. A push against the limit saves nothing, so
+  the remembered width survives a narrower window and comes back with a wider one.
+- When the area cannot hold both the console's 320 px and the dashboard's floor (the smallest window,
+  960 px, with the full 240 px sidebar leaves 720 px), the console keeps 320 px and the page lays itself
+  out below its floor (ED-2). The page is never zoomed. The sidebar does not grow, so it satisfies ED-7
+  as it is; it does not fold by itself.
+- Tests: `test/layout.test.ts`, `packages/service-host/test/protocol.test.ts`, `test/flap.test.ts` and
+  `test/mcp.test.ts` *DEC-0036 ED-9*. Scenario SCN-060.

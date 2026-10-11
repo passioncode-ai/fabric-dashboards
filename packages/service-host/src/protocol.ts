@@ -46,6 +46,8 @@ export interface WellKnown {
     usage?: { path: string };
   };
   update?: { available: string | null };
+  /** Contract extensions by key URL; preserved and ignored by a reader that does not know a key. */
+  extensions?: Record<string, unknown>;
 }
 
 /** One health probe: the service answered, something else answered, or nothing did. */
@@ -96,3 +98,25 @@ export interface LaunchdStatus { managed: boolean; loaded: boolean; pid: number 
 /** Two descriptors claim the same port (`port` set) or the same id.instance (FAC-SEM-010). */
 export interface ClaimConflict { port?: number; with: string[] }
 // #endregion protocol-shapes
+
+// #region dashboard-profile — docs: packages/service-host/README.md#embedded-dashboard-profile
+// Fabric Agent Contract DEC-0036, profile `fabric-dashboard/0.1`, ED-9: a service whose dashboard
+// meets the profile declares it in its well-known document under `extensions`, with `minWidth` (the
+// page's floor in CSS pixels, an integer 360…1280). A host floor of max(480, minWidth) follows (ED-7).
+
+/** The `extensions` key of the embedded dashboard profile (DEC-0036 ED-9). */
+export const DASHBOARD_EXTENSION = 'https://fabric.passioncode.ai/agent-contract/extensions/dashboard/0.1';
+
+/** The bounds of a declared `minWidth`, in CSS pixels (service-dashboard-extension.schema.json). */
+export const DASHBOARD_MIN_WIDTH = { min: 360, max: 1280 } as const;
+
+/** The dashboard's declared floor, or null for a legacy dashboard: no declaration, or one whose `minWidth` is not an integer in 360…1280. */
+export function dashboardMinWidth(doc: Pick<WellKnown, 'extensions'> | null | undefined): number | null {
+  const ext = doc?.extensions;
+  if (!ext || typeof ext !== 'object' || Array.isArray(ext)) return null;
+  const decl = (ext as Record<string, unknown>)[DASHBOARD_EXTENSION];
+  if (!decl || typeof decl !== 'object' || Array.isArray(decl)) return null;
+  const w = (decl as { minWidth?: unknown }).minWidth;
+  return typeof w === 'number' && Number.isInteger(w) && w >= DASHBOARD_MIN_WIDTH.min && w <= DASHBOARD_MIN_WIDTH.max ? w : null;
+}
+// #endregion dashboard-profile

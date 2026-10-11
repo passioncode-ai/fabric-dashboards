@@ -4,6 +4,14 @@
 
 ### Changed
 
+- **The console never squeezes a dashboard below its floor** (FD-41, Fabric Agent Contract DEC-0036 ED-7,
+  [PR #27](https://github.com/passioncode-ai/fabric-agent-contract/pull/27)). Dragging the console wider
+  stops where the dashboard keeps 480 px, or the larger width the service declares its page needs
+  (`minWidth`, 360 to 1280 px, in its well-known document). A narrower window narrows the console first
+  and keeps the width you dragged to; widening the window gives it back. A window too small for both
+  keeps the console at 320 px and lets the page lay itself out; the page is never zoomed. This replaces
+  the old limit of half the window. The MCP tools `list_services` and `service_status` report the declared
+  floor as `dashboard_min_width`.
 - **Groundwork for Windows and Linux** (FD-37, [ADR-0019](docs/adr/0019-windows-and-linux.md)). Nothing
   changes on macOS. What differs by system is decided in one place: uninstall removes only this
   install (the old rule would have trashed `%LOCALAPPDATA%` on Windows or `/` on Linux), settings keep
