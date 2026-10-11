@@ -128,6 +128,12 @@ published or attached to a release.
 
    Rehearse from any branch without a tag; a rehearsal never signs:
    `gh workflow run validate.yml --ref <branch> -f os=all -f packages=true`.
+4b. <a id="feed"></a>`feed` (FD-37 M4a, PL-04) runs once `macos`, `windows` and `linux` are done. It takes the macOS
+   `update-feed.json` (staged as the artifact `feed-macos`, outside `release-*`) and every receipt, and writes the
+   release's feed with `platforms`: for each of `darwin-universal`, `win32-x64`, `win32-arm64`, `linux-x64` and
+   `linux-arm64`, the file that copy updates from and its hash (Linux also names its `.deb`). A release whose feed
+   would lack a platform, or whose receipts disagree on the version or the commit, fails here, and `publish` never
+   starts (`scripts/release-feed.mjs`, `test/release-feed.test.ts`).
 5. `still-newest` repeats step 3's guard right before publishing: hours may pass between the
    first check and the publish, and a newer release may have been published meanwhile. A
    rehearsal skips it.

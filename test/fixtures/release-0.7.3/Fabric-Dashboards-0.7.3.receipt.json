@@ -1,0 +1,39 @@
+{
+  "product": "Fabric Dashboards",
+  "version": "0.7.3",
+  "commit": "5b158161ef475a020c75a0040e7f1332e280390f",
+  "arch": "universal",
+  "architectures": [
+    "arm64",
+    "x86_64"
+  ],
+  "electronVersion": "44.4.5",
+  "builtAt": "2026-10-11T16:45:31.731Z",
+  "image": "Fabric-Dashboards-0.7.3.dmg",
+  "updateZip": "Fabric-Dashboards-0.7.3-mac.zip",
+  "signing": "Developer ID Application: Sergei Viktorovich Sheleg (KJ35UYYL22)",
+  "macos_notarization": "accepted and stapled: app, update zip, image (the release workflow's notarize action)",
+  "windows_authenticode": null,
+  "gatekeeper": "accepted",
+  "checks": {
+    "usageDescriptions": "none in 5 Info.plist files (FD-06)",
+    "appSignature": "codesign --verify --deep --strict: valid",
+    "hardenedRuntime": "present",
+    "architectures": "x86_64 arm64",
+    "universal": "every Mach-O in the bundle carries arm64 and x86_64",
+    "fuses": "every slice reads 100011011 (scripts/fuses.mjs WANTED_FUSES)",
+    "mcpLauncher": "Contents/Resources/bin/fabric-dashboards-mcp answers initialize as fabric-dashboards 0.7.3",
+    "pty": "node-pty spawns /bin/echo from app.asar (spawn-helper unpacked and executable)",
+    "updateVerifier": "openpgp in app.asar accepts v0.6.0 SHA256SUMS signed by the organization key and refuses one changed byte",
+    "downgradeGuard": "ElectronSquirrelPreventDowngrades = true (LC-16)",
+    "windowLayout": "icon view, app beside Applications (dmgbuild 1.6.7)",
+    "imageSignature": "valid",
+    "appGatekeeper": "spctl --type execute: accepted, source=Notarized Developer ID",
+    "imageGatekeeper": "spctl --type open --context context:primary-signature: accepted, source=Notarized Developer ID",
+    "staples": "app: stapled; update zip: stapled; image: stapled"
+  },
+  "zipSha256": "aeee02b1c5ada432eb472bf7f6ec371bfcdc072e6699786766f09d48732f42a2",
+  "sha256": "71a75fbbbf819d041bca4d9546001bf612b6d35bf22f756a0e2326caa51760e9",
+  "bytes": 250179758,
+  "pruned": []
+}

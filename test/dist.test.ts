@@ -136,7 +136,7 @@ test('dist: release.yml signs in the release environment and ships only what was
   // F-1/F-2: one release at a time, the check repeated right before publish, a failed lookup is not a tag.
   at('group: release\n');
   assert.ok(at('still-newest:') < at('uses: passioncode-ai/.github/.github/workflows/release-publish.yml@v1'));
-  at('needs: [macos, windows, linux, still-newest]');
+  at('needs: [macos, windows, linux, feed, still-newest]');
   // PL-10: the same stage names in every product.
   for (const job of ['preflight', 'check', 'macos', 'windows', 'linux', 'still-newest', 'publish']) at(`\n  ${job}:\n`);
   // FD-37: the Windows and Linux packages are built after the gate ran on every system, and publish waits for them.
@@ -168,6 +168,14 @@ test('dist: release.yml signs in the release environment and ships only what was
   assert.equal(path.relative(root, dist.stagePaths(root, '1.2.3').app), 'release/stage/Fabric Dashboards.app');
   at('release/Fabric-Dashboards-${version}.dmg');
   for (const f of ['.dmg', '-mac.zip', 'update-feed.json', '.receipt.json']) assert.ok(new RegExp(`path:[\\s\\S]*release/[^\\n]*${f.replace('.', '\\.')}`).test(wf), `release-macos uploads ${f}`);
+  // FD-37 M4a (PL-04): the macOS feed is staged outside release-*, every platform is added in `feed`, and
+  // publish needs it — a release whose feed lacks a platform is never published.
+  at('name: feed-macos');
+  assert.ok(!'feed-macos'.startsWith('release-'), 'the staged feed is not a release file');
+  assert.ok(at('  feed:\n    needs: [macos, windows, linux]') < at('  publish:\n    needs: [macos, windows, linux, feed, still-newest]'));
+  at('node scripts/release-feed.mjs --feed feed/update-feed.json --receipts dist --out out/update-feed.json');
+  at('name: release-feed');
+  at("needs.feed.result == 'success'");
   // No keychain profile, no login-keychain identity, no team id literal in the CI path.
   assert.doesNotMatch(wf, /notary-profile|keychain-profile|find-identity/);
   assert.doesNotMatch(wf, /\([A-Z0-9]{10}\)|KJ35UYYL22/);

@@ -1,0 +1,15 @@
+{
+  "currentRelease": "0.7.3",
+  "releases": [
+    {
+      "version": "0.7.3",
+      "updateTo": {
+        "version": "0.7.3",
+        "name": "0.7.3",
+        "notes": "Carries everything listed under 0.7.2 below. 0.7.2 was tagged, then stopped by its own test gate before anything\nwas built (run 38155693835: one test relied on a folder's POSIX mode, which Windows ignores), so it was never\npublished.",
+        "pub_date": "2026-10-11T16:51:02.151Z",
+        "url": "https://github.com/passioncode-ai/fabric-dashboards/releases/download/v0.7.3/Fabric-Dashboards-0.7.3-mac.zip"
+      }
+    }
+  ]
+}
