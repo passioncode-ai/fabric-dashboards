@@ -142,3 +142,19 @@ test('FD-48: the MCP client initializes, finds the capability\'s tool by either 
   assert.deepEqual(multi, { jsonrpc: '2.0', id: 7, result: {} }, 'an event\'s data lines are one message');
   assert.deepEqual(rpcResult({ headers: { 'content-type': 'application/json' }, body: '{"jsonrpc":"2.0","id":2,"result":{"ok":1}}' }, 2), { jsonrpc: '2.0', id: 2, result: { ok: 1 } });
 });
+
+test('FD-48 DEC-0044: an entry marked setup: true never opens an episode, even when it appears after the start', () => {
+  const setupLater = run([
+    { at: 0, services: [svc({ state: 'ready' })] },
+    { at: 1 * MIN, services: [svc({ state: 'degraded', degraded: [{ source: 'execution', reason: 'generation not configured', setup: true }] })] },
+    { at: 30 * MIN, services: [svc({ state: 'degraded', degraded: [{ source: 'execution', reason: 'generation not configured', setup: true }] })] },
+  ]);
+  assert.deepEqual(setupLater.sent, [], 'a key not entered is not an outage');
+  const failing = run([
+    { at: 0, services: [svc({ state: 'degraded', degraded: [{ source: 'execution', reason: 'generation not configured', setup: true }] })] },
+    { at: 1 * MIN, services: [svc({ state: 'degraded', degraded: [{ source: 'execution', reason: 'pinned model unavailable' }] })] },
+    { at: 7 * MIN, services: [svc({ state: 'degraded', degraded: [{ source: 'execution', reason: 'pinned model unavailable' }] })] },
+  ]);
+  assert.deepEqual(failing.sent.map((m) => m.subject), ['Copy: execution is failing'], 'the same source without the flag is a failure, even though it was there at the start');
+});
+

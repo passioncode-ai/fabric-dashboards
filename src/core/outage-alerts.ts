@@ -46,7 +46,7 @@ export interface OutageState {
 export const emptyOutageState = (): OutageState => ({ baselines: {}, episodes: {} });
 
 /** What the watcher needs of a service. */
-export interface Watched { key: string; name: string; state: ServiceState; startedAt: string | null; degraded: { source: string; reason: string }[]; reason: string }
+export interface Watched { key: string; name: string; state: ServiceState; startedAt: string | null; degraded: { source: string; reason: string; setup?: boolean }[]; reason: string }
 
 export function watchedOf(s: ServiceSnapshot, name: string, reason: string): Watched {
   return { key: s.key, name, state: s.state, startedAt: s.wellKnown?.process.startedAt ?? null, degraded: s.wellKnown?.degraded ?? [], reason };
@@ -74,12 +74,15 @@ export function observe(prev: OutageState, services: readonly Watched[], now: nu
   }
   for (const key of Object.keys(state.baselines)) if (!present.has(key)) delete state.baselines[key];
   for (const s of services) {
-    const sources = s.degraded.map((d) => d.source);
+    // A source marked `setup: true` (DEC-0044) is answered by its flag, so it never enters the baseline either.
+    const sources = s.degraded.filter((d) => d.setup !== true).map((d) => d.source);
     const base = state.baselines[s.key];
     if (s.startedAt && base?.startedAt !== s.startedAt) state.baselines[s.key] = { startedAt: s.startedAt, sources };
     else if (base && s.state !== 'down') state.baselines[s.key] = { ...base, sources: base.sources.filter((x) => sources.includes(x)) };
     const baseline = new Set(state.baselines[s.key]?.sources ?? []);
-    const fresh = s.state === 'degraded' ? s.degraded.filter((d) => !baseline.has(d.source)) : [];
+    // DEC-0044 first: an entry marked `setup: true` waits for a person and never opens an episode. The start baseline
+    // stays the fallback for a service that does not send the flag yet.
+    const fresh = s.state === 'degraded' ? s.degraded.filter((d) => d.setup !== true && !baseline.has(d.source)) : [];
     const cause: Pick<Episode, 'cause' | 'why' | 'source'> | null = s.state === 'down'
       ? { cause: 'down', why: s.reason }
       : fresh.length ? { cause: 'degraded', why: fresh[0]!.reason, source: fresh[0]!.source } : null;

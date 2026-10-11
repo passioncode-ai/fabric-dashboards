@@ -35,7 +35,8 @@ export interface WellKnown {
   service: { id: string; instance: string; name: string; version: string; build: { commit?: string; digest?: string; dirty?: boolean; builtAt?: string } };
   process: { pid: number; startedAt: string };
   status: 'starting' | 'ready' | 'degraded' | 'stopping';
-  degraded: { source: string; reason: string }[];
+  /** DEC-0044: `setup: true` — the source waits for a person to finish setting it up; not an outage. */
+  degraded: { source: string; reason: string; setup?: boolean }[];
   summary?: { label: string; value: number | string; attention?: boolean }[];
   surfaces: {
     dashboard?: { path: string; login: boolean };
@@ -84,7 +85,7 @@ export interface Reason {
 /** Every reason code deriveState can return; a host's message catalogue covers each one. */
 export const REASON_CODES = [
   'reason.invalid', 'reason.conflict.port', 'reason.conflict.key', 'reason.foreign.other', 'reason.foreign.protocol',
-  'reason.duplicate', 'reason.degraded', 'reason.stopped', 'reason.not-loaded', 'reason.waiting', 'reason.down',
+  'reason.duplicate', 'reason.degraded', 'reason.setup', 'reason.stopped', 'reason.not-loaded', 'reason.waiting', 'reason.down',
   // DEC-0019 — a remote placement
   'reason.remote.refused', 'reason.remote.tls', 'reason.remote.redirect', 'reason.remote.foreign', 'reason.remote.down',
 ] as const;
