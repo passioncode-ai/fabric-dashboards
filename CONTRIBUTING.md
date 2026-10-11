@@ -14,7 +14,7 @@ npm run dist -- --unsigned                       # a local test build of the DMG
 ```
 
 - Releases are built, signed, notarized and published only by `.github/workflows/release.yml`,
-  after a `v<version>` tag and an approval from `release-approvers`
+  after a `v<version>` tag, which only team `release-approvers` can push, and the `guard` check (approval by checks)
   ([RUNBOOK](docs/RUNBOOK.md#release)). A build signed on a laptop is a debug build and is never
   published.
 

@@ -4,7 +4,7 @@
 # finished binary itself, with a receipt naming every file's SHA-256.
 #
 # Windows signing (PL-03): release.yml calls this with `sign: true`. Its Windows jobs then run in the
-# protected `release` environment (approved by release-approvers; an agent never approves) and, where that
+# protected `release` environment (approved by checks: release.yml's `guard`) and, where that
 # environment's AZURE_SIGNING_ENABLED is true, sign with Azure Artifact Signing over OIDC — no secret: the
 # environment's federated credential; passioncode-ai/.github actions/windows-signing@v1 — between dist-other's stages: the app's executable after `app`, the
 # installer after `installer`; `seal` refuses a file that is not `Valid` and writes `windows_authenticode:

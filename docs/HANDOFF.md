@@ -18,8 +18,11 @@ notarization "accepted and stapled: app, update zip, image".
 `publish` then waited on the `release` environment again and was cancelled with "Required reviewers
 protection rule deleted.": the environment's required-reviewers rule was removed while it waited. The
 `release` environment now has only its `v*` tag policy and **no required reviewers**, so `RUNBOOK.md` step 4
-("someone from `release-approvers` approves it") no longer describes it. The rule was not restored and the
-docs not changed: whether releases still need a person is the operator's decision (asked 2026-10-11).
+("someone from `release-approvers` approves it") no longer describes it. This was the operator's decision
+(2026-10-11, *Approval by checks*, relayed by the Observatory session): #81 (10473c0) added the `guard` job
+(`release-guard@v1`) that every signing job needs, and only team `release-approvers` can push a `v*` tag.
+RUNBOOK step 4, CONTRIBUTING, AGENTS.md and the workflow comments now say so (branch
+`agent/runbook-approval-by-checks`).
 `gh run rerun 38106066248 --failed` re-ran `publish` against the already-signed artifacts; it succeeded.
 
 **This Mac** runs 0.6.7 (`startedBy: other`, so the lifecycle broker does not restart it). Its updater
@@ -27,8 +30,8 @@ checks every 6 h (last 11:09 UTC, before the publish) and installs after 10 hidd
 `update_check` naming 0.7.1 around 17:09 UTC in `main.log`, then the install. Record it here when seen,
 with the CPU and RSS measurement the lifecycle section asks for.
 
-**Next task:** confirm this Mac moved to 0.7.1; the operator's answer on the release gate (restore the
-reviewers rule, or update RUNBOOK step 4 and AGENTS.md); FD-37 M4 (updates on Windows and Linux).
+**Next task:** confirm this Mac moved to 0.7.1 (and measure CPU/RSS); then FD-37 M4 (updates on Windows
+and Linux). The next release is the first under approval by checks: tag, watch, report — no approval link.
 
 ## Earlier — start here (2026-10-11, release 0.7.1: carries 0.7.0)
 
