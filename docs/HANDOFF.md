@@ -13,7 +13,15 @@ Current release: 0.7.3 (published 2026-10-11 16:59 UTC, run 38156472858; FD-45, 
 feed's `platforms.linux-<arch>`, then the file's hash. It replaces `$APPIMAGE`, and a restart runs it. Settings
 gives a `.deb` copy and Windows their own sentences (0.7.1–0.7.3 told installed copies "not a development run").
 The macOS download now goes through the shared `downloadTo` and behaves the same.
-Checks: `test/self-update.test.ts` 4/4 on the published 0.7.3 receipts; `npm run check` 0 (436 pass).
+Checks: `test/self-update.test.ts` 4/4 on the published 0.7.3 receipts; `npm run check` 0 (436 pass). An independent review (4 risks and 1 question) was fixed:
+- an AppImage only from inside `$APPDIR` with `$APPIMAGE` a regular file, so an inherited variable cannot make a
+  `.deb` copy overwrite it;
+- fsync before and after the rename;
+- writability is checked before the download;
+- the restart keeps this run's arguments.
+
+The relaunch order goes to the end-to-end proof. Rehearsal on all five runners with packages:
+run 38162827076, green.
 
 **Owed:** the end-to-end proof of M4b is the first real update. An AppImage of the release that first carries
 M4a+M4b must update to the release after it, on both Linux runners. No test can redirect the pinned feed.
