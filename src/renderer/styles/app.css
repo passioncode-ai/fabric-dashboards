@@ -271,6 +271,8 @@ button.feed-row:hover { background: var(--pc-panel); }
 .group { background: var(--pc-panel); border: 1px solid var(--pc-border); border-radius: var(--pc-radius-panel); padding: var(--pc-space-4); display: flex; flex-direction: column; gap: var(--pc-space-3); }
 .group h2 { font-size: var(--pc-type-card); margin: 0; }
 .setting { display: flex; align-items: center; justify-content: space-between; gap: var(--pc-space-3); min-height: 32px; }
+/* FD-48: a setting whose control, help and status stack under its label. */
+.setting-stack { display: grid; gap: var(--pc-space-1); justify-items: start; }
 .setting input[type='checkbox'] { width: 18px; height: 18px; accent-color: var(--pc-accent); }
 table { width: 100%; border-collapse: collapse; font-size: var(--pc-type-meta); }
 th, td { text-align: left; padding: var(--pc-space-1) var(--pc-space-2); border-bottom: 1px solid var(--pc-border); }

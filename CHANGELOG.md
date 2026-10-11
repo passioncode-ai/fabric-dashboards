@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- **Outages reach you away from the Mac** (FD-48). When an agent has been down for five minutes, or a part of it
+  has failed that was fine when it started, one message goes to the agent you use as your channel (for example
+  your Telegram channel), and one more when it is back. Settings → Notifications → *Also send outages to* chooses
+  it: automatic, a specific agent, or off. Failure and warning banners go there too. Your pause, quiet hours and
+  per-agent switches apply.
+
+### Fixed
+
+- **Reload signs a dashboard in again** when its session has ended, once, and returns to the same page (PR #101).
+
 ## 0.7.4 - 2026-10-11
 
 ### Added

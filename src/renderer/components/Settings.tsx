@@ -108,6 +108,7 @@ export function Settings({ status, onTheme, onLanguage, onSetup }: { status: App
             ? <button className="btn" onClick={() => setN({ pausedUntil: null })}>{t('settings.resume')}</button>
             : <button className="btn" onClick={() => setN({ pausedUntil: new Date(Date.now() + 3600_000).toISOString() })}>{t('settings.pause')}</button>}
         </div>
+        <AlertChannel status={status} choice={n.channel} onChoose={(channel) => setN({ channel })} />
         {status.services.length > 0 && (
           <table>
             <thead><tr><th>{t('settings.perService')}</th><th>{t('settings.notifications.enabled')}</th><th>{t('settings.minLevel')}</th></tr></thead>
@@ -263,3 +264,27 @@ function EstateState({ status }: { status: AppStatus }) {
   );
 }
 // #endregion estate-update
+
+// #region outage-alerts — docs: docs/adr/0010-notifications-only-when-it-matters.md#amendment-2026-10-11--outages-reach-the-operator-away-from-the-mac-fd-48
+/** FD-48: where outages also go — automatic (the one agent offering a notify capability), off, or a chosen agent. */
+function AlertChannel({ status, choice, onChoose }: { status: AppStatus; choice: string; onChoose: (channel: string) => void }) {
+  const { t, time } = useT();
+  const a = status.alerts;
+  const name = (key: string) => { const s = status.services.find((x) => x.key === key); return s ? nameOf(s) : key; };
+  const autoName = choice === 'auto' && a?.channel ? name(a.channel.key) : null;
+  return (
+    <div className="setting setting-stack">
+      <label htmlFor="alert-channel">{t('settings.alerts.label')}</label>
+      <select id="alert-channel" value={choice} onChange={(e) => onChoose(e.target.value)}>
+        <option value="auto">{autoName ? t('settings.alerts.autoNamed', { name: autoName }) : t('settings.alerts.auto')}</option>
+        {(a?.candidates ?? []).map((key) => <option key={key} value={key}>{name(key)}</option>)}
+        {choice !== 'auto' && choice !== 'off' && !(a?.candidates ?? []).includes(choice) && <option value={choice}>{name(choice)}</option>}
+        <option value="off">{t('settings.alerts.off')}</option>
+      </select>
+      <p className="meta">{t('settings.alerts.help')}</p>
+      {a?.none && <p className={a.none === 'off' ? 'meta' : 'notice warning'} role="status">{t(`settings.alerts.none.${a.none}`)}</p>}
+      {a?.last && <p className={a.last.ok ? 'meta' : 'meta state-down'} role="status">{a.last.ok ? t('settings.alerts.lastOk', { time: time(a.last.at), subject: a.last.subject }) : t('settings.alerts.lastFailed', { time: time(a.last.at), error: a.last.error ?? '' })}</p>}
+    </div>
+  );
+}
+// #endregion outage-alerts

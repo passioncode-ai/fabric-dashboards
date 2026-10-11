@@ -73,7 +73,7 @@ test('display name: the instance is named when it is not the default, and only o
 
 test('compose: who (the agent), what it wants (subtitle) and the sentence; several at once say the most urgent', () => {
   const one = composeEventNotice('ru', 'Store Agent', [{ intent: 'ask', text: 'The Q3 listing waits for your choice of markets.', link: '/dashboard#/jobs/7' }]);
-  assert.deepEqual(one, { title: 'Store Agent', subtitle: 'Ждёт вашего решения', body: 'The Q3 listing waits for your choice of markets.', link: '/dashboard#/jobs/7', target: 'service' });
+  assert.deepEqual(one, { title: 'Store Agent', subtitle: 'Ждёт вашего решения', body: 'The Q3 listing waits for your choice of markets.', link: '/dashboard#/jobs/7', target: 'service', intent: 'ask' });
   assert.equal(composeEventNotice('en', 'Maker', [{ intent: 'failed', text: 'Job 7 failed at verify.' }]).subtitle, 'Failed');
   assert.equal(composeEventNotice('en', 'Maker', [{ intent: 'attention', text: 'Only 4 GB free.' }]).subtitle, 'Needs attention');
   const many = composeEventNotice('en', 'Example Agent', [
@@ -81,5 +81,5 @@ test('compose: who (the agent), what it wants (subtitle) and the sentence; sever
     { intent: 'failed', text: 'Order icon-7 failed.' },
     { intent: 'ask', text: 'Order icon-8 waits for your pick.', link: '/dashboard/icon-8' },
   ]);
-  assert.deepEqual(many, { title: 'Example Agent', subtitle: '3 need you · needs your decision', body: 'Order icon-8 waits for your pick.', link: undefined, target: 'activity' });
+  assert.deepEqual(many, { title: 'Example Agent', subtitle: '3 need you · needs your decision', body: 'Order icon-8 waits for your pick.', link: undefined, target: 'activity', intent: 'ask' });
 });

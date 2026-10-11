@@ -21,7 +21,7 @@ export const COMMAND_TIMEOUT_MS = 120_000;
 /** Consecutive failed probes before silence counts at all (ADR-0008). Fewer keep the last answer. */
 export const DOWN_AFTER_MISSES = 3;
 
-export interface Notice { serviceKey: string; title: string; subtitle?: string; body: string; link?: string; target: 'service' | 'activity' }
+export interface Notice { serviceKey: string; title: string; subtitle?: string; body: string; link?: string; target: 'service' | 'activity'; /** FD-48: set on an events-feed banner — what it wants (ADR-0010). */ intent?: Exclude<Intent, 'quiet'> }
 
 export interface MonitorOptions {
   /** The operating system whose supervisor runs services (default `process.platform`; ADR-0019 §7). */

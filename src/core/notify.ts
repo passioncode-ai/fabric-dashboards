@@ -113,10 +113,10 @@ const RANK: Record<Exclude<Intent, 'quiet'>, number> = { ask: 0, failed: 1, atte
 
 /** The banner for one service's admitted events: the agent in the title, what it wants in the
  *  subtitle, its own sentence in the body. Several at once tell the most urgent and open Activity. */
-export function composeEventNotice(lang: Lang, name: string, items: { intent: Exclude<Intent, 'quiet'>; text: string; link?: string }[]): { title: string; subtitle: string; body: string; link?: string; target: 'service' | 'activity' } {
+export function composeEventNotice(lang: Lang, name: string, items: { intent: Exclude<Intent, 'quiet'>; text: string; link?: string }[]): { title: string; subtitle: string; body: string; link?: string; target: 'service' | 'activity'; intent: Exclude<Intent, 'quiet'> } {
   const top = [...items].sort((a, b) => RANK[a.intent] - RANK[b.intent])[0]!;
   const what = t(lang, `notify.intent.${top.intent}`);
-  if (items.length === 1) return { title: name, subtitle: what, body: top.text, link: top.link, target: 'service' };
-  return { title: name, subtitle: t(lang, 'notify.many', { count: items.length, what: what.toLocaleLowerCase(lang) }), body: top.text, link: undefined, target: 'activity' };
+  if (items.length === 1) return { title: name, subtitle: what, body: top.text, link: top.link, target: 'service', intent: top.intent };
+  return { title: name, subtitle: t(lang, 'notify.many', { count: items.length, what: what.toLocaleLowerCase(lang) }), body: top.text, link: undefined, target: 'activity', intent: top.intent };
 }
 // #endregion notification-policy

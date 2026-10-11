@@ -168,6 +168,7 @@ export function merge(raw: Partial<Settings>): Settings {
         to: /^\d{1,2}:\d{2}$/.test(n.quietHours?.to ?? '') ? n.quietHours!.to : '08:00',
       },
       pausedUntil: typeof n.pausedUntil === 'string' ? n.pausedUntil : null,
+      channel: n.channel === 'off' || (typeof n.channel === 'string' && SERVICE_KEY.test(n.channel)) ? n.channel : 'auto',
     },
     layout: mergeLayout(raw.layout),
     consoles: mergeConsoles(raw.consoles),
