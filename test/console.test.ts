@@ -323,6 +323,8 @@ test('REQ-07, REQ-09: the start plan — plain runtime, Switchboard in place, Te
 test('REQ-10: Open in Terminal builds a quoted script — no string from a folder name runs as code', () => {
   assert.equal(shellQuote("it's here"), `'it'\\''s here'`);
   assert.equal(terminalScript(['/bin/claude', '--continue'], "/Users/me/my 'repo'"), `cd '/Users/me/my '\\''repo'\\''' && exec '/bin/claude' '--continue'`);
+  // FD-39: a Terminal window gets the context pack's environment too, quoted; a malformed name is dropped.
+  assert.equal(terminalScript(['/bin/claude'], '/w', { FABRIC_DASHBOARDS_CONTEXT: "/d/it's/context.md", 'bad name': 'x' }), `cd '/w' && export FABRIC_DASHBOARDS_CONTEXT='/d/it'\\''s/context.md' && exec '/bin/claude'`);
 });
 
 test('review R-6, R-7: Stop signals the whole process group; a removed service\'s dying session still holds quit', async () => {

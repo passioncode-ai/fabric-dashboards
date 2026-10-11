@@ -1,4 +1,4 @@
-import { offersAgentUpdate, offersFix } from '../../core/offers';
+import { offersAgentUpdate, offersFix, SETUP_KEY } from '../../core/offers';
 import type { SinceLastVisit } from '../../core/visit';
 import { attentionRank } from '@passioncode-ai/fabric-service-host/state';
 import { useEffect, useState } from 'react';
@@ -10,7 +10,7 @@ import { api, GLYPH, nameOf, NEWS_MS, shortBuild, Spinner, StateBadge, useExpiry
 
 /** FD-39 SCN-058: the setup the person's coding agent runs. The card shows what is done — read every few
  *  seconds while it is on screen — and opens the Setup console; the app runs none of the steps itself. */
-export function SetupCard({ onOpen, consoleOpen }: { onOpen: () => void; consoleOpen: boolean }) {
+export function SetupCard({ onOpen, consoleOpen }: { onOpen: (mode: 'new' | 'continue') => void; consoleOpen: boolean }) {
   const { t } = useT();
   const [settings, setSettings] = useState<Settings | null>(null);
   const [state, setState] = useState<{ mcp: boolean; skills: boolean; firstAgent: boolean } | null>(null);
@@ -36,7 +36,10 @@ export function SetupCard({ onOpen, consoleOpen }: { onOpen: () => void; console
         {item(state.firstAgent, 'setup.agent.firstAgent')}
       </ul>
       <div className="row">
-        {!done && !consoleOpen && <button className="btn btn-primary" onClick={onOpen}>{t('setup.agent.start')}</button>}
+        {/* A setup stopped midway (the app quit, the runtime ended) continues where it was; it can also start over. */}
+        {!done && !consoleOpen && (settings.consoles[SETUP_KEY]?.runtime
+          ? <><button className="btn btn-primary" onClick={() => onOpen('continue')}>{t('setup.agent.continue')}</button><button className="btn" onClick={() => onOpen('new')}>{t('setup.agent.restart')}</button></>
+          : <button className="btn btn-primary" onClick={() => onOpen('new')}>{t('setup.agent.start')}</button>)}
         <button className="btn" onClick={() => void hide()}>{t('setup.agent.hide')}</button>
       </div>
     </section>

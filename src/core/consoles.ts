@@ -69,8 +69,9 @@ export function shellQuote(s: string): string {
 }
 
 /** The line Terminal runs to continue a session: `cd` into the folder, then the runtime, all quoted. */
-export function terminalScript(argv: string[], folder: string): string {
-  return `cd ${shellQuote(folder)} && exec ${argv.map(shellQuote).join(' ')}`;
+export function terminalScript(argv: string[], folder: string, env: Record<string, string> = {}): string {
+  const exports = Object.entries(env).filter(([k]) => /^[A-Z_][A-Z0-9_]*$/.test(k)).map(([k, v]) => `export ${k}=${shellQuote(v)} && `).join('');
+  return `cd ${shellQuote(folder)} && ${exports}exec ${argv.map(shellQuote).join(' ')}`;
 }
 
 interface Session {

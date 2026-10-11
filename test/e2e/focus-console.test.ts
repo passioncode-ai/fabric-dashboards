@@ -185,6 +185,14 @@ test('FD-39 SCN-058: a first launch opens the setup beside Overview; the coding 
     await page.getByRole('button', { name: 'Hide', exact: true }).click();
     await page.getByRole('heading', { name: 'Set up Fabric with your coding agent' }).waitFor({ state: 'detached' });
     assert.equal(JSON.parse(fs.readFileSync(path.join(userData, 'settings.json'), 'utf8')).setupDone, true, 'hidden for good');
+    // Settings keeps the setup reachable; a setup that ran before continues where it was.
+    await page.getByRole('button', { name: 'Settings' }).click();
+    await page.getByRole('heading', { name: 'Setup', exact: true }).waitFor();
+    await page.getByRole('button', { name: 'Set up with my coding agent' }).click();
+    await page.getByRole('heading', { name: 'Set up Fabric with your coding agent' }).waitFor();
+    await page.getByRole('button', { name: 'Hide console' }).first().click(); // the card offers Continue once the console is closed
+    await page.getByRole('button', { name: 'Continue setup' }).click();
+    await waitFor('the setup to continue', async () => { const x = await termText(page); return x.includes('--continue') && x.includes('setup.md and run the setup with me'); });
   } finally {
     await closeApp(app);
   }

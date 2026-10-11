@@ -37,7 +37,8 @@ test('FD-39 SCN-058: setup.md orders the steps, marks what is done, keeps human 
   assert.deepEqual([...order].sort((a, b) => a - b), order, 'in order');
   assert.match(md, /MCP server, for every session\*\* — \*\*already done/);
   assert.doesNotMatch(md, /Adapter skills\*\* — \*\*already done/);
-  for (const gate of ['consent', 'sign-in', 'hidden', 'SHA256SUMS', 'list_services']) assert.ok(md.includes(gate), gate);
+  for (const gate of ['consent', 'sign-in', 'hidden', 'SHA256SUMS', 'gpg --verify SHA256SUMS.asc', '63B3 0DC3 24BD 6974 87AA 3194 4FAF B8AE C803 B6A7', 'list_services', 'knowledge/agents-first.md']) assert.ok(md.includes(gate), gate);
+  for (const product of ['Fabric Switchboard', 'Project Observatory', '**Fabric**', 'Fabric Inbox']) assert.ok(md.includes(product), product);
   const dir = path.join(tmp('fd-setup-pack-'), 'consoles', SETUP_KEY);
   const r = prepareSetup({ dir, runtimeId: 'claude-code', runtimeName: 'Claude Code', server, state: { mcp: false, skills: false, firstAgent: false } });
   assert.ok(fs.existsSync(r.files.setup) && !fs.existsSync(path.join(dir, 'context.md')));
