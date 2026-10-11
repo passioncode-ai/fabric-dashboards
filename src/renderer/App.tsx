@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { langFor, t as tr, type Lang } from '../core/i18n';
-import { CONSOLE_WIDTH, DEFAULT_SETTINGS, type AppStatus, type Settings as AppSettings, type SettingsPatch, type ListSort } from '../core/types';
+import { DEFAULT_SETTINGS, type AppStatus, type Settings as AppSettings, type SettingsPatch, type ListSort } from '../core/types';
 import { groupProducts, productOf, type Product, arrangeProducts, togglePin } from '../core/products';
+import { consoleMaxFor, consoleWidthAfterResize, consoleWidthFor, hostFloorFor } from '../core/layout';
 import { Activity, type ActivityFilter } from './components/Activity';
 import { LoginQuestion, SetupCard, Overview } from './components/Overview';
 import { ServiceView } from './components/ServiceView';
@@ -171,10 +172,34 @@ function Shell({ status, route, setRoute, stopKey, setStopKey, activityFilter, s
   const currentProduct = route.page === 'service' ? productOf(products, route.key) : undefined;
   const count = products.length; // ADR-0012: the heading counts what the sidebar lists
   const rail = layout.sidebar === 'collapsed';
-  // The console never takes more than half the window, whatever width was remembered.
-  const [windowWidth, setWindowWidth] = useState(window.innerWidth);
-  useEffect(() => { const on = () => setWindowWidth(window.innerWidth); window.addEventListener('resize', on); return () => window.removeEventListener('resize', on); }, []);
-  const consoleWidth = Math.max(CONSOLE_WIDTH.min, Math.min(layout.console.width, Math.floor(windowWidth / 2)));
+  // #region host-floor — docs: docs/ux/scenarios.md#scn-060-the-dashboard-keeps-its-floor-while-the-console-widens
+  // DEC-0036 ED-7: the dashboard keeps max(480, its declared minWidth) beside the console whenever the
+  // area beside the sidebar allows it; the console stops growing there. The remembered width stays
+  // what the person dragged to: a narrower window holds it back, a wider one gives it back.
+  const [splitWidth, setSplitWidth] = useState(0);
+  const splitObserver = useRef<ResizeObserver | null>(null);
+  const splitRef = useCallback((el: HTMLDivElement | null) => {
+    splitObserver.current?.disconnect();
+    splitObserver.current = null;
+    if (!el) return;
+    setSplitWidth(el.getBoundingClientRect().width);
+    const observer = new ResizeObserver(() => setSplitWidth(el.getBoundingClientRect().width));
+    observer.observe(el);
+    splitObserver.current = observer;
+  }, []);
+  useEffect(() => () => splitObserver.current?.disconnect(), []);
+  const hostFloor = hostFloorFor(current?.dashboardMinWidth);
+  const consoleWidth = consoleWidthFor({ saved: layout.console.width, splitWidth, hostFloor });
+  const consoleMax = consoleMaxFor(splitWidth, hostFloor);
+  // A drag keeps the handler of the render it started in; it reads the current sizes from here.
+  const sizes = useRef({ consoleWidth, saved: layout.console.width, splitWidth, hostFloor });
+  sizes.current = { consoleWidth, saved: layout.console.width, splitWidth, hostFloor };
+  const onConsoleWidth = (w: number, commit: boolean) => {
+    const now = sizes.current;
+    const next = consoleWidthAfterResize({ requested: w, shown: now.consoleWidth, saved: now.saved, splitWidth: now.splitWidth, hostFloor: now.hostFloor });
+    if (next !== null) changeLayout({ console: { width: next } }, commit);
+  };
+  // #endregion host-floor
 
   return (
     <div className={`app${rail ? ' rail' : ''}`}>
@@ -226,18 +251,17 @@ function Shell({ status, route, setRoute, stopKey, setStopKey, activityFilter, s
       </nav>
       <main className="main" inert={stopOpen}>
         {route.page === 'service' && current
-          ? <div className="svc-split">
+          ? <div className="svc-split" ref={splitRef}>
             <ServiceView key={current.key} s={current} all={status.services} members={currentProduct?.members ?? [current]} open={open} link={route.link} nonce={route.nonce} tab={route.tab} runUpdate={route.tab === 'health' && route.page === 'service'} activityRev={status.activityRev} overlayOpen={stopOpen} askStop={askStop} updateStarted={() => setRoute({ ...route, tab: undefined })}
               headerFull={layout.header === 'full'} onToggleHeader={() => changeLayout({ header: layout.header === 'full' ? 'compact' : 'full' })}
               consoleOpen={layout.console.open} onToggleConsole={() => changeLayout({ console: { open: !layout.console.open } })} onAgent={handToAgent} />
             {layout.console.open && (
-              <ConsolePanel serviceKey={current.key} width={consoleWidth}
-                onWidth={(w, commit) => changeLayout({ console: { width: Math.round(Math.min(CONSOLE_WIDTH.max, Math.max(CONSOLE_WIDTH.min, w))) } }, commit)}
+              <ConsolePanel serviceKey={current.key} width={consoleWidth} max={consoleMax} onWidth={onConsoleWidth}
                 onHide={() => changeLayout({ console: { open: false } })} task={agentTask?.key === current.key ? agentTask : null} onTaskTaken={() => setAgentTask(null)} />
             )}
           </div>
           : (
-            <div className={route.page === 'overview' && setupOpen ? 'svc-split' : 'page-wrap'}>
+            <div className={route.page === 'overview' && setupOpen ? 'svc-split' : 'page-wrap'} ref={route.page === 'overview' && setupOpen ? splitRef : undefined}>
             <div className="page">
               <div className="page-head">
                 <h1>{t(route.page === 'activity' ? 'activity.title' : route.page === 'spend' ? 'spend.title' : route.page === 'settings' ? 'settings.title' : 'overview.title')}</h1>
@@ -251,8 +275,7 @@ function Shell({ status, route, setRoute, stopKey, setStopKey, activityFilter, s
               {route.page === 'settings' && <Settings status={status} onTheme={applyTheme} onLanguage={onLanguage} onSetup={() => openSetup('new')} />}
             </div>
             {route.page === 'overview' && setupOpen && (
-              <ConsolePanel serviceKey={SETUP_KEY} width={consoleWidth}
-                onWidth={(w, commit) => changeLayout({ console: { width: Math.round(Math.min(CONSOLE_WIDTH.max, Math.max(CONSOLE_WIDTH.min, w))) } }, commit)}
+              <ConsolePanel serviceKey={SETUP_KEY} width={consoleWidth} max={consoleMax} onWidth={onConsoleWidth}
                 onHide={() => setSetupOpen(false)} task={agentTask?.key === SETUP_KEY ? agentTask : null} onTaskTaken={() => setAgentTask(null)} />
             )}
             </div>

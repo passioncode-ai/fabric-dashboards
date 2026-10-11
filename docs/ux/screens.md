@@ -165,9 +165,9 @@
 - **Status:** built
 
 ### SCR-10: Console panel
-- **Used by:** SCN-048, SCN-049, SCN-050
+- **Used by:** SCN-048, SCN-049, SCN-050, SCN-060
 - **Purpose:** JTBD-05 — the agent's own runtime, in its repository, beside its dashboard
-- **Elements:** header: runtime picker (Claude Code, Codex, other installed runtimes), folder line (shortened path; full path on hover) with "Other…", "Switchboard project <name>" when bound; actions: "New session", "Continue last" (when the runtime can resume), "Stop", "Open in Terminal" ("Open in Terminal via Switchboard" for a project folder the installed Switchboard cannot run in place), "Hide console"; the terminal (the runtime's own interface); an exit line; the left edge drags the width (320 px to half the window)
+- **Elements:** header: runtime picker (Claude Code, Codex, other installed runtimes), folder line (shortened path; full path on hover) with "Other…", "Switchboard project <name>" when bound; actions: "New session", "Continue last" (when the runtime can resume), "Stop", "Open in Terminal" ("Open in Terminal via Switchboard" for a project folder the installed Switchboard cannot run in place), "Hide console"; the terminal (the runtime's own interface); an exit line; the left edge drags the width (320 px up to where the dashboard keeps max(480, its declared `minWidth`) px, DEC-0036 ED-7; SCN-060)
 - **States:**
   | State | Trigger | Figma frame | Behavior |
   |-------|---------|-------------|----------|

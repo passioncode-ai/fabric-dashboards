@@ -152,7 +152,10 @@ Tools: `host_status`, `list_services`, `service_status`, `service_context`, `lin
 app. Keep `http_url` for diagnostics or confirmed-absent fallback. `open` opens it now;
 `fallback=never` forbids the browser, and installed-host failure never falls back. `spend` gives
 each agent's own usage entries; a service that does not answer is an error entry (unknown spend),
-never "not reporting". `doctor` and `update` run the service's own programs: announce them first.
+never "not reporting". `list_services` and `service_status` carry `dashboard_min_width`: the floor a
+service declares for its dashboard (contract DEC-0036 ED-9), `null` when it declares none; the app
+keeps every dashboard at least `max(480, dashboard_min_width)` px wide beside the console (ED-7).
+`doctor` and `update` run the service's own programs: announce them first.
 An unknown tool is a JSON-RPC error; an argument a tool does not declare, or of the wrong type, is
 refused. A token goes only to the service itself: never to another program on its port, and never
 again to an online address that answered as something else.

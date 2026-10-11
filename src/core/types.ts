@@ -17,6 +17,8 @@ export interface ServiceSnapshot {
   state: ServiceState;
   reasons: Reason[];
   wellKnown: WellKnown | null;
+  /** DEC-0036 ED-9: the dashboard's declared floor in CSS pixels (360…1280), null for a legacy dashboard; the host floor is max(480, it) (ED-7, src/core/layout.ts). */
+  dashboardMinWidth: number | null;
   launchd: LaunchdStatus;
   firstUnansweredAt: string | null; // when the service stopped answering (null while answering)
   lastAnswerAt: string | null;

@@ -43,6 +43,17 @@ return, so a host's message catalogue can be checked against it — `Busy`, `Lau
 `ClaimConflict`, `ID_PATTERN`, `INSTANCE_PATTERN`. `WellKnown.surfaces` carries `mcp.capabilities` and `usage` (DEC-0021). The Fabric Agent Contract's
 `schemas/service-*.schema.json` stay normative; these shapes follow them.
 
+## Embedded dashboard profile
+
+`src/protocol.ts` (0.5.0, FD-41). Fabric Agent Contract DEC-0036, profile `fabric-dashboard/0.1`
+([PR passioncode-ai/fabric-agent-contract#27](https://github.com/passioncode-ai/fabric-agent-contract/pull/27),
+`docs/specification/embedded-dashboard.md`), ED-9: a service declares its dashboard's floor in the
+well-known document under `extensions[DASHBOARD_EXTENSION].minWidth`, an integer 360…1280
+(`DASHBOARD_MIN_WIDTH`). `dashboardMinWidth(doc)` returns that number, or `null` for a legacy
+dashboard: no `extensions`, no key, or a `minWidth` that is not an integer in range. `WellKnown.extensions`
+carries every extension as the service sent it. A host turns the declaration into its floor with
+`max(480, minWidth)` (ED-7; Fabric Dashboards: `src/core/layout.ts`).
+
 ## Discovery
 
 `src/descriptor.ts`.

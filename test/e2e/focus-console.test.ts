@@ -1,4 +1,4 @@
-// ADR-0017 end to end (SCN-046…049): the one-line header, the sidebar rail, and an agent console
+// ADR-0017 end to end (SCN-046…049, SCN-060): the one-line header, the sidebar rail, and an agent console
 // beside the dashboard, driven against the real app with a scripted runtime standing in for Claude Code.
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -77,6 +77,28 @@ test('ADR-0017: a one-line header, a folding sidebar, and an agent console besid
     const panel = page.getByRole('complementary', { name: 'Console' });
     await panel.waitFor();
     await waitFor('the view to narrow', async () => { const v = await viewWidth(); const h = await hostWidth(); return v < before && Math.abs(v - h) <= 2 ? v : 0; });
+
+    // SCN-060 (DEC-0036 ED-7): the console's edge stops where the dashboard keeps its 480 px floor; a
+    // narrower window narrows the console first, and a wider one gives back the width dragged to.
+    const setWindowWidth = (width: number) => app!.evaluate(({ BrowserWindow }, w) => { const win = BrowserWindow.getAllWindows()[0]!; win.setSize(w, win.getSize()[1]!); }, width);
+    const splitWidth = () => page.locator('.svc-split').evaluate((el) => el.getBoundingClientRect().width);
+    const edge = page.locator('.console-edge');
+    const valueOf = async (name: 'aria-valuenow' | 'aria-valuemax') => Number(await edge.getAttribute(name));
+    await setWindowWidth(1400);
+    await waitFor('the window to widen', async () => (await splitWidth()) > 1100);
+    await edge.focus();
+    for (let i = 0; i < 60; i++) await page.keyboard.press('ArrowLeft');
+    const max = Math.floor((await splitWidth()) - 480);
+    assert.equal(await valueOf('aria-valuemax'), max, 'the separator says where it stops');
+    await waitFor('the console to stop at the floor', async () => (await valueOf('aria-valuenow')) === max);
+    await waitFor('the dashboard view to keep 480 px', async () => { const v = await viewWidth(); return v >= 480 && v <= 482 && Math.abs(v - await hostWidth()) <= 2; });
+    await shot(page, '25-console-at-the-floor');
+    await setWindowWidth(1100);
+    await waitFor('the console to give way first', async () => (await valueOf('aria-valuenow')) === Math.floor((await splitWidth()) - 480));
+    assert.ok((await hostWidth()) >= 480, 'the dashboard keeps its floor in a narrower window');
+    await setWindowWidth(1400);
+    await waitFor('the remembered width to come back', async () => (await valueOf('aria-valuenow')) === max);
+    for (let i = 0; i < 20; i++) await page.keyboard.press('ArrowRight'); // back to a narrow console for the steps below
 
     // SCN-049: the runtime runs in the chosen folder; input reaches it; Continue passes its resume flag.
     await page.getByRole('button', { name: 'New session' }).click();

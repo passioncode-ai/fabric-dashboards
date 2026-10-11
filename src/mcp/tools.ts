@@ -12,7 +12,7 @@ import { supervises } from '../core/platform';
 import fs from 'node:fs';
 import { discoverHost, type HostStatus } from './host';
 import {
-  APP_NAME, expand, lookAtServices, readDirectory, servicesDir as defaultServicesDir,
+  APP_NAME, dashboardMinWidth, expand, lookAtServices, readDirectory, servicesDir as defaultServicesDir,
   type Descriptor, type DescriptorEntry, type ServiceLook, type ServiceState, type WellKnownResult, authHeaders, portOf, RemoteTokenLatch, REMOTE_TIMEOUT_MS, type WellKnownOptions,
 } from '@passioncode-ai/fabric-service-host';
 import { runOwned } from '../core/children';
@@ -102,6 +102,8 @@ export interface ServiceView {
   build: string | null;
   origin: string | null;
   dashboard: string | null;
+  /** DEC-0036 ED-9: the dashboard's declared floor in CSS pixels; null for a legacy dashboard (the host gives it 480). */
+  dashboard_min_width: number | null;
   open_link: string | null;
   tiles: { label: string; value: number | string; attention?: boolean }[];
   update_available: string | null;
@@ -125,6 +127,7 @@ function view(s: ServiceLook): ServiceView {
     origin: d?.origin ?? null,
     // S-4: only a path on the origin; `${origin}@evil/` would name another host.
     dashboard: d && dashPath && safePath(dashPath) ? new URL(dashPath, d.origin).toString() : null,
+    dashboard_min_width: dashboardMinWidth(wk),
     // A descriptor that cannot be read names no service a link could open.
     open_link: d && isServiceKey(s.key) ? linkFor(s.key, dashPath && safePath(dashPath) ? dashPath : undefined) : null,
     tiles: wk?.summary ?? [],

@@ -82,6 +82,13 @@ test('list_services shows the state, the dashboard and a deep link, and no token
   assert.equal(JSON.stringify(out).includes(SECRET), false);
 });
 
+test('DEC-0036 ED-9: list_services gives the dashboard\'s declared floor, null for a legacy or invalid declaration', async () => {
+  assert.equal((await tools.listServices(world().deps)).services[0]!.dashboard_min_width, null);
+  const declaring = (minWidth: unknown): WellKnownResult => ({ kind: 'answer', ms: 1, doc: { ...WELL_KNOWN, extensions: { 'https://fabric.passioncode.ai/agent-contract/extensions/dashboard/0.1': { minWidth } } } });
+  assert.equal((await tools.listServices(world({ answers: [declaring(720)] }).deps)).services[0]!.dashboard_min_width, 720);
+  assert.equal((await tools.listServices(world({ answers: [declaring(2000)] }).deps)).services[0]!.dashboard_min_width, null);
+});
+
 test('a service that does not answer is down, not starting', async () => {
   const { deps } = world({ answers: [{ kind: 'no-answer', detail: 'ECONNREFUSED' }] });
   assert.equal((await tools.serviceStatus(deps, KEY)).state, 'down');

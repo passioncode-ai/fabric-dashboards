@@ -6,7 +6,7 @@ import { EventEmitter } from 'node:events';
 import fs from 'node:fs';
 import { ActivityStore } from './activity';
 import { runOwned } from './children';
-import { authHeaders, claimConflicts, deriveState, expand, fetchWellKnown, portOf, readDirectory, RemoteTokenLatch, REMOTE_TIMEOUT_MS, type DescriptorEntry, type WellKnownOptions, type WellKnownResult } from '@passioncode-ai/fabric-service-host';
+import { authHeaders, claimConflicts, dashboardMinWidth, deriveState, expand, fetchWellKnown, portOf, readDirectory, RemoteTokenLatch, REMOTE_TIMEOUT_MS, type DescriptorEntry, type WellKnownOptions, type WellKnownResult } from '@passioncode-ai/fabric-service-host';
 import { tail } from './fsutil';
 import { commandReason, type CommandResult } from './outcome';
 import { duration, t as tr, type Lang } from './i18n';
@@ -643,7 +643,7 @@ export class Monitor extends EventEmitter {
     if (wk?.update?.available) reasons.push({ code: 'reason.update', params: { version: wk.update.available } });
     return {
       key: t.entry.key, descriptorPath: t.entry.path, descriptor: t.entry.descriptor, problems: t.tokenProblem ? [...t.entry.problems, t.tokenProblem] : t.entry.problems, state, reasons,
-      wellKnown: wk, launchd: t.launchd, usagePath: t.usagePath,
+      wellKnown: wk, dashboardMinWidth: dashboardMinWidth(wk), launchd: t.launchd, usagePath: t.usagePath,
       firstUnansweredAt: t.firstUnansweredAt ? new Date(t.firstUnansweredAt).toISOString() : null,
       lastAnswerAt: t.lastAnswerAt ? new Date(t.lastAnswerAt).toISOString() : null,
       busy: t.busy, lastAction: t.lastAction, latestEvent: this.o.activity.latest(t.entry.key), feedError: t.feedError,
