@@ -5,7 +5,20 @@ Updated 2026-10-07 (0.6.2: 0.6.1 withdrawn for audit HIGH-2, audit fixes, signed
 
 Current release: 0.7.1 (published 2026-10-11 11:34 UTC, run 38106066248; FD-37 M1–M3, FD-39, FD-41; carries 0.7.0, tagged and not published). Before it, 0.6.7 (published 2026-10-09 17:07 UTC, run 37955575384; FD-36, FD-35, FD-38). Before it, 0.6.6 (published 2026-10-09 10:08 UTC, run 37864378854; FD-34, FD-35). Before it, 0.6.5 (published 2026-10-08 01:18 UTC, run 37703405621; FD-29, FD-33). Before it, 0.6.4 (published 2026-10-07 01:57 UTC, run 37558793926; carries 0.6.3, superseded before approval). Before it, 0.6.2 (published 2026-10-06 23:41 UTC, run 37541067349; 0.6.1 withdrawn). Before it, 0.6.0 (published 2026-10-06 21:35 UTC, run 37505569449); Before it, 0.5.6 (2026-10-06); the 0.4.1 section below is the previous one. Earlier releases below are preserved as dated evidence.
 
-## Next — start here (2026-10-11, FD-47: session-handoff/1)
+## Next — start here (2026-10-11, release 0.7.2: FD-45 + FD-47)
+
+**Branch `agent/release-072`.** 0.7.2 carries Fabric's button (FD-45, ADR-0021) and the `session-handoff/1` pack
+(FD-47, the ADR-0020 amendment); `package.json` and `CHANGELOG.md` say 0.7.2. The first release under approval by
+checks: tag, then `guard` → `check` → builds → publish, nobody approves.
+Checks before tagging (2026-10-11): `npm run check` 0 (428 of 433, 5 skipped Windows-only).
+The screen was locked, so `npm run test:e2e` refused at its preflight. The e2e files run directly:
+- `app` and `remote`: 5/5;
+- `focus-console`: 3/3;
+- `spend` (FD-05's Dock assertion, which needs an unlocked screen): not run. Its code is unchanged since 0.7.1, where it passed.
+
+**Next task:** watch the release run; verify the published files and receipts; then FD-37 M4.
+
+## Earlier — start here (2026-10-11, FD-47: session-handoff/1)
 
 **Branch `agent/fd47-session-handoff`.** The console's pack is the contract's `session-handoff/1` (DEC-0042,
 merged `213e5a3a2f4d`). [ADR-0020 amendment](adr/0020-agents-first-handoff-and-setup.md#amendment-2026-10-11--the-pack-is-session-handoff1-fd-47).
