@@ -9,7 +9,7 @@ Current release: 0.6.7 (published 2026-10-09 17:07 UTC, run 37955575384; FD-36, 
 
 **Branch `agent/fd39-dashboard-host-floor`, PR open, not merged.** Fabric Agent Contract DEC-0036
 (profile `fabric-dashboard/0.1`, [contract PR #27](https://github.com/passioncode-ai/fabric-agent-contract/pull/27),
-not merged when this was written) ED-7 and ED-9:
+merged as `a83bec6`) ED-7 and ED-9:
 - **Done (FD-41):** the console stops where the dashboard keeps `max(480, minWidth)` px of the measured
   split (`src/core/layout.ts`, `src/renderer/App.tsx`, the separator's `aria-valuemax`); the remembered width
   survives a narrower window. `minWidth` is read and validated from the well-known `extensions`
