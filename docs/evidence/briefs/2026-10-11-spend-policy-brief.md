@@ -77,15 +77,23 @@ explicit share grant, never listed.
 | **fabric-workspace** (fabric-workspace-91) | The principle "authority is a record agents check, not a question". The no-borrowing rule. Approvals never block. RM-03, RM-04, RM-17 and RM-21 link here. |
 | **Global agent rules** (`~/.claude/CLAUDE.md`, the operator's file) | Until the registry exists: before asking, check the decision records of the agent that owns the capability. Never spend another agent's key; call its capability. Above a threshold, file the request and continue. |
 
-## Decisions that are the operator's (with recommended defaults)
+## The operator's decisions (2026-10-11)
 
-1. **The default at a project's first paid run:** offer $10 / $30 / $100 a month, or "no project limit", with $30
-   preselected.
-2. **The default auto-approve threshold per task:** $1. Above it, one durable request.
-3. **Who pays for a share grant:** the owner, within the grant's limit. A guest wallet comes with commerce
-   (PR #34).
-4. **The estate total across all keys:** the sum of today's ceilings is $750/month (12 keys). Recommended: start at that, and
-   alert at 80%.
+The operator answered: «динамические в зависимости от проекта, ОБЩИЙ ПОТОЛОК 1К В МЕСЯЦ, не переписывать историю»
+("dynamic depending on the project; an estate total of 1K a month; do not rewrite the history").
+
+1. **Project limits are dynamic: computed per project, never one fixed list.** This replaces the recommended
+   $10 / $30 / $100. Mechanism (recommended; the owners may refine it): at a project's first paid run the launcher
+   proposes options computed from that project. Inputs: the presets its agents declare (`costPresets`), its
+   recent spend (the usage reports, DEC-0021) and the kind of work. Example options: about the expected month,
+   twice that, four times that, or "no project limit". The expected month is preselected. The auto-approve
+   threshold per task is derived the same way, for example the cost of the project's Standard preset. Every
+   proposal names its inputs, so the person can see why.
+2. **Estate total across all keys: USD 1,000 a month** (L0). Today's 12 keys' own ceilings sum to $750. Alert at
+   80% ($800). At the total, paid starts stop until the next month or the operator raises it.
+3. **Public history is not rewritten.** The first version of this brief (commit 52b1a45, PR #69) stays in the
+   history. The tree uses neutral names since #71.
+4. **Still open:** who pays for a share grant. Recommended: the owner, within the grant's limit.
 
 ## Immediate case: the Chinese-model translation
 
