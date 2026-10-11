@@ -72,6 +72,10 @@ and arm64 and Linux x64 and arm64 (PL-08), with `FD_SKIP_LAUNCHD=1`.
 - A user-facing change updates `docs/ux/scenarios.md` in the same change (`CONTRIBUTING.md`).
 - To change a brand file, update the canonical file on the website, copy it and repin
   (`CONTRIBUTING.md`).
+- A descriptor token is for reading a service as its host (health, events, well-known, usage) and for
+  `POST /fabric/v1/login-code` (a host operation, contract `service.md` §Surfaces). Calling a service's
+  capability uses a Fabric delegation token (Fabric ADR-0144), never a descriptor token — its own or another
+  service's (FD-44).
 - Tokens are read in the main process only. They never reach a page, a URL or a log, and the app
   listens on no port (`SECURITY.md`).
 - The repository's visibility decides whether the update feed is reachable (D-8 in
