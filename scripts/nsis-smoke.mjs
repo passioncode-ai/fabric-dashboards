@@ -78,7 +78,8 @@ try {
   spawnSync('taskkill', ['/PID', String(app.pid), '/T', '/F'], { windowsHide: true }); // the app quits
   const code = await Promise.race([waited, sleep(180_000).then(() => 'timeout')]);
   requireThat(code === 0, `the waiter ended ${code} (2: the hash changed; 3: the app was still running)`);
-  const anew = await until(() => { const now = appPids(); return now.length > 0 && now.every((pid) => !before.includes(pid)); }, 240_000);
+  // The installer runs on its own after the waiter (Start-Process returns at once): about four minutes on windows-11-arm.
+  const anew = await until(() => { const now = appPids(); return now.length > 0 && now.every((pid) => !before.includes(pid)); }, 600_000);
   appPids().forEach((pid) => started.add(pid));
   requireThat(anew, `after the update the app is not running anew (before: ${before.join(' ')}; now: ${appPids().join(' ') || 'none'})`);
   requireThat(existsSync(exe) && existsSync(uninstaller), 'the update left no app or no uninstaller in place');
