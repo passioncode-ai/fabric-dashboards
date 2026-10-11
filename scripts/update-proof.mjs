@@ -47,10 +47,27 @@ if (process.platform === 'linux') {
   chmodSync(image, 0o755);
   const expected = sums(to)[name(to)];
   requireThat(Boolean(expected), `SHA256SUMS of ${to} names no ${name(to)}`);
-  // The AppImage starts under Xvfb as a person would start it; --no-sandbox because Ubuntu 24.04 confines user
+  // A display that outlives the app, as a desktop session does: `xvfb-run` would stop its X server when the first
+  // copy exits and leave the restarted one nowhere to open. --no-sandbox because Ubuntu 24.04 confines user
   // namespaces, which an AppImage's Chromium needs (no setuid helper is possible inside a read-only image).
-  const app = spawn('xvfb-run', ['-a', image, '--hidden', '--no-sandbox'], { env, stdio: 'ignore', detached: true });
+  if (!process.env.DISPLAY) {
+    spawn('Xvfb', [':99', '-screen', '0', '1280x800x24', '-nolisten', 'tcp'], { stdio: 'ignore', detached: true }).unref();
+    env.DISPLAY = ':99';
+    await sleep(2_000);
+  }
+  const app = spawn(image, ['--hidden', '--no-sandbox'], { env, stdio: 'ignore', detached: true });
   app.unref();
+  // What runs around the restart, for the record (the relaunch is the step a desktop session cannot show).
+  const watchRestart = async () => {
+    while (!/update_install started/.test(logText())) await sleep(5_000);
+    for (let i = 0; i < 12; i += 1) {
+      const ps = spawnSync('ps', ['-eo', 'pid,ppid,stat,args'], { encoding: 'utf8' }).stdout.split('\n').filter((l) => /Fabric|fabric-dashboards|AppRun|mount_/i.test(l) && !/update-proof/.test(l));
+      console.log(`[restart +${i * 10}s]\n${ps.join('\n') || '(no app process)'}`);
+      if (installed.test(logText())) break;
+      await sleep(10_000);
+    }
+  };
+  void watchRestart();
   await waitFor(`${name(from)} replacing itself with ${name(to)}`, () => existsSync(image) && statSync(image).size > 0 && sha256(image) === expected);
   console.log(`the AppImage replaced its own file with ${name(to)} (sha256 ${expected.slice(0, 12)}, as SHA256SUMS)`);
   await waitFor(`the restart as ${to}`, () => installed.test(logText()));

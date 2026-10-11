@@ -13,6 +13,9 @@ on:
       to:
         description: "the version it must update to (the latest release)"
         required: true
+      os:
+        description: "linux, windows, or all"
+        default: all
 
 permissions:
   contents: read
@@ -22,7 +25,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        runner: [ubuntu-24.04, ubuntu-24.04-arm, windows-latest, windows-11-arm]
+        runner: ${{ fromJSON(inputs.os == 'linux' && '["ubuntu-24.04","ubuntu-24.04-arm"]' || inputs.os == 'windows' && '["windows-latest","windows-11-arm"]' || '["ubuntu-24.04","ubuntu-24.04-arm","windows-latest","windows-11-arm"]') }}
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 50
     steps:
