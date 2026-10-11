@@ -85,9 +85,9 @@
 - **Status:** built
 
 ### SCR-04: Settings
-- **Used by:** SCN-019, SCN-022, SCN-024, SCN-043, SCN-044
+- **Used by:** SCN-019, SCN-022, SCN-024, SCN-043, SCN-044, SCN-062
 - **Purpose:** fit startup, updates and notifications to the operator's day
-- **Elements:** Fabric Dashboards: Open at login (off until chosen), Theme, Language (As on this Mac / English / Русский), version; Updates: Install updates automatically, its explanation and the update state with its action (Check now, Restart to Update, Move to Applications; a held release: What to do + Install); Notifications: "Whether macOS shows them is set in System Settings → Notifications." with Open macOS Settings, Show notifications, Quiet hours, Pause notifications for 1 hour / "Paused until HH:MM" + Resume, per service Show notifications and Events from; services folder with Show folder; Uninstall (confirmation with "Also delete my settings and activity history"; removes the login item and the MCP entry and moves the app to the Trash; settings and history stay unless ticked); Unattributed listeners (Port, Address, Program, pid; Scan again)
+- **Elements:** Fabric Dashboards: Open at login (off until chosen), Theme, Language (As on this Mac / English / Русский), version; Updates: Install updates automatically, its explanation and the update state with its action (Check now, Restart to Update, Move to Applications; a held release: What to do + Install); Notifications: "Whether macOS shows them is set in System Settings → Notifications." with Open macOS Settings, Show notifications, Quiet hours, Pause notifications for 1 hour / "Paused until HH:MM" + Resume, Also send outages to (Automatic / an agent offering a notify capability / Off, its help and last-delivery lines, SCN-062), per service Show notifications and Events from; services folder with Show folder; Uninstall (confirmation with "Also delete my settings and activity history"; removes the login item and the MCP entry and moves the app to the Trash; settings and history stay unless ticked); Unattributed listeners (Port, Address, Program, pid; Scan again)
 - **States:**
   | State | Trigger | Figma frame | Behavior |
   |-------|---------|-------------|----------|

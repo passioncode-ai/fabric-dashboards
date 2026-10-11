@@ -24,7 +24,8 @@ import { xdgLoginItem } from '../core/autostart';
 import { Monitor, type Notice } from '../core/monitor';
 import { fetchUsage, readTokenAsync } from '../core/probe';
 import { readSpend, type SpendEntry } from '../core/spend';
-import { NotifyLedger } from '../core/notify';
+import { NotifyLedger, shouldNotify } from '../core/notify';
+import { OutageAlerts } from './outage-alerts';
 import { SettingsStore } from '../core/settings';
 import type { AppStatus, Settings, SettingsPatch } from '../core/types';
 import { ALWAYS_KEPT, clearRestoreRecord, KEPT_FILES, productDataPaths, purgeAfterExit, readRestoreRecord, removeMcpRegistrations, repairMcpRegistrations, restoreMcpRegistrations, writeRestoreRecord } from '../core/uninstall';
@@ -158,8 +159,29 @@ if (!app.requestSingleInstanceLock()) {
   const estate = new EstateUpdater({ settings: () => settings.get(), log, onChange: () => pushStatus(), dataDir: userData });
   // #endregion estate-update
 
+  // #region outage-alerts — docs: docs/adr/0010-notifications-only-when-it-matters.md#amendment-2026-10-11--outages-reach-the-operator-away-from-the-mac-fd-48
+  // FD-48: outages and failed/attention banners also reach the operator channel (a service offering `<id>.notify`).
+  const alerts = new OutageAlerts({
+    dataDir: userData, snapshots: () => monitor.snapshots(), settings: () => settings.get(), version: app.getVersion(), log,
+    nameOf: (s) => displayName(s.wellKnown?.service.name ?? s.descriptor?.name ?? s.key, s.descriptor?.instance ?? s.key.split('.')[1] ?? 'default'),
+    reasonOf: (s) => (s.reasons[0] ? t(lang(), s.reasons[0].code, s.reasons[0].params) : s.state),
+    allowed: (key, now) => shouldNotify(settings.get(), { kind: 'down', serviceKey: key }, now),
+    words: () => {
+      const l = lang();
+      return {
+        down: (name) => t(l, 'alerts.down', { name }),
+        failing: (name, source) => t(l, 'alerts.failing', { name, source }),
+        back: (name) => t(l, 'alerts.back', { name }),
+        since: (minutes, reason) => t(l, 'alerts.since', { minutes, reason }),
+        after: (minutes) => t(l, 'alerts.after', { minutes }),
+      };
+    },
+    changed: () => pushStatus(),
+  });
+  // #endregion outage-alerts
   const status = (): AppStatus => ({
     services: monitor.snapshots(), ...monitor.meta(), unread: activity.unread(), activityRev: activity.revision, update: updater.state, estate: estate.state, version: app.getVersion(),
+    alerts: alerts.status(),
   });
 
   // #region quiet-push — docs: AGENTS.md#lifecycle
@@ -318,6 +340,7 @@ if (!app.requestSingleInstanceLock()) {
   const MAX_KEPT_NOTICES = 50;
   const shownNotices = new Set<Notification>();
   function notify(notice: Notice): void {
+    alerts.notice(notice); // FD-48: away from the Mac too
     if (!Notification.isSupported()) return;
     const n = new Notification({ title: notice.title, subtitle: notice.subtitle, body: notice.body, silent: false });
     // R-12: kept until clicked or closed — a collected notification loses its click handler. T-13:
@@ -674,6 +697,7 @@ if (!app.requestSingleInstanceLock()) {
   app.on('will-quit', (event) => {
     // Nothing starts after quit begins; pending state reaches disk; commands we started end with us (LC-01, LC-02).
     monitor.stop();
+    alerts.stop(); // FD-48: no tick after quit begins
     viewGrace.dispose();
     updateGrace.dispose();
     // #region estate-update — docs: docs/adr/0018-estate-updates-from-inside-the-app.md#decision
@@ -708,6 +732,8 @@ if (!app.requestSingleInstanceLock()) {
       quit: () => void quitAsked(), // the menu itself says quitting stops no service (LC-07)
     }, lang);
     monitor.on('change', pushStatus);
+    monitor.on('change', () => alerts.tick());
+    alerts.start();
     schedulePauseEnd(); // a pause that outlived a restart still ends with a tray rebuild
     monitor.on('notify', notify);
     monitor.on('restarted', (key: string) => views?.serviceRestarted(key));

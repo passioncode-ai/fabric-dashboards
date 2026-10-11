@@ -59,3 +59,38 @@ from a sender that was not Fabric Dashboards. Counted from
   must say so in its kind (`*.awaiting_*`, `*.approval_*`, `human_step.opened`).
 - `test/notify.test.ts` holds the 2026-10-01 cases; `test/monitor.test.ts` checks a repeated
   question and a delivery against a live sample service.
+
+## Amendment 2026-10-11 — outages reach the operator away from the Mac (FD-48)
+
+The operator decided on 2026-10-11, after a service's live database was down for 3 h 07 min and nobody was told: *if a
+service is unavailable for more than five minutes, one message goes to the operator's channel, and a second when it
+comes back; the shared service watcher in Fabric Dashboards sends it, not each service on its own.*
+
+- **The channel.** An installed service on this machine that declares an MCP capability `<id>.notify` on a
+  streamable-HTTP surface (the contract's operator channel, OC-4; `notifyChannelOf` in `src/core/outage-alerts.ts`).
+  Settings → Notifications → *Also send outages to*: **Automatic** (the one service that offers it; none or several
+  is no channel, and Settings says which), **Off**, or a chosen service. The call goes to `127.0.0.1` only (trust
+  tier T0, ADR-0144 amendment 4) with the service's own descriptor header when it names a token file
+  (`src/core/mcp-client.ts`). The tool is found in the session's `tools/list` under either spelling
+  (`relay.notify` or `relay_notify`).
+- **An episode.** A confirmed outage (`down`, ADR-0008), or a degraded source the service did not report when it
+  started. The baseline is the degraded sources at the service's `process.startedAt`, kept across the app's
+  restarts. A setup state present since the start is never an outage; a source that appears later is. It is sent
+  once it has lasted five minutes (`OUTAGE_ALERT_AFTER_MS`): one `failure` message, and one `recovery` when it ends.
+  A service removed from the folder closes its episodes without a message. Each message has one eventId per
+  episode and step (`outage:<key>:<cause>:<start s>`, `…:back`, with no `/`), so a retry never doubles it. State
+  survives a restart (`outage-alerts.json`). A failed delivery is retried every minute, at most five times.
+- **Banners too.** An events-feed banner whose intent is *failed* or *attention* (decision 1) is also sent: a
+  `failure` and a `result` respectively. An *ask* stays on the Mac, because a question needs its own record in the
+  channel.
+- **The person's rules apply.** The switch, the pause, quiet hours and the per-service switch (`shouldNotify`) gate
+  the channel as they gate banners. An episode they muted is not sent, and neither is its recovery.
+- **Known limit.** A failure that appears under a source before the watcher's first look after the service started
+  becomes part of the baseline. A failure that is already there when the service restarts does too. A `down` still
+  counts. The services' own report after recovery (a `notify: true` warning) covers the rest, and an explicit
+  `degraded[].setup` flag is proposed to the contract, which would end the guess.
+- **Proof.** `test/outage-alerts.test.ts` covers the episodes on a fake clock and the client against a local
+  streamable-HTTP server (JSON and SSE, both tool spellings, refusals). On 2026-10-11 a read-only call
+  (`<id>.status`) to this Mac's real operator-channel service answered through `callCapability`. No test message was
+  sent to the operator.
+

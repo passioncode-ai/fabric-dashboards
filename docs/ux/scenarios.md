@@ -67,6 +67,7 @@
 | SCN-059 | A later session opens on what changed | overview | P-01 | ST-022 | draft | 2026-10-10 |
 | SCN-060 | The dashboard keeps its floor while the console widens | console | P-01 | ST-019 | draft | 2026-10-11 |
 | SCN-061 | Talk to Fabric about this agent | console | P-01 | ST-020 | draft | 2026-10-11 |
+| SCN-062 | Outages reach me away from the Mac | notifications | P-01 | ST-002 | draft | 2026-10-11 |
 ## Personas
 
 Defined in [foundation.md](foundation.md) → P-01.
@@ -1243,5 +1244,24 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **Errors & recovery:** the OS names a handler but it cannot open the link -> the same "not installed" menu, and `main.log` has `fabric_button failed` with the reason
 - **Status:** draft
 - **Coverage:** src/core/fabric-button.ts, src/core/fabric-links.ts (the contract's copy), src/electron/main.ts (fabricButton, fabricPress), src/electron/views.ts (fabricCookie), src/renderer/components/ServiceView.tsx (FabricButton), test/fabric-button.test.ts, test/e2e/app.test.ts (FD-45, present and absent)
+- **Product:** unobserved
+
+### SCN-062: Outages reach me away from the Mac
+- **Persona:** P-01
+- **Feature:** notifications
+- **Traces:** ST-002 (JTBD-01); ADR-0010 amendment 2026-10-11 (FD-48); operator decision 2026-10-11
+- **Entry point:** nothing — the watcher acts; Settings → Notifications → Also send outages to
+- **Preconditions:** an installed agent offers a notify capability (for example the person's Telegram channel)
+- **Steps:**
+  1. An agent stops answering, or a part of it fails (a degraded source it did not report when it started), and stays so for 5 minutes -> one message reaches the channel: "<Agent> is down" (or "<Agent>: <part> is failing") with how long and why
+  2. The agent works again -> one more message: "<Agent> is back", after how many minutes
+  3. User opens Settings → Notifications -> Also send outages to: Automatic (<channel>), the agents that offer it, Off; under it what it does and the last delivery ("Last sent HH:MM: …" or "Sending failed HH:MM: …")
+- **Expected result:** an outage longer than five minutes is known within minutes wherever the person is, once, and its end too
+- **Alt paths:** shorter than 5 minutes -> nothing is sent (the Mac banner of ADR-0008 still shows after a minute); a setup state the agent has had since it started -> never sent; the person paused notifications, is in quiet hours or switched the agent off -> nothing is sent for it, nor its recovery; no agent offers the capability -> Settings says outages are shown on this Mac only; several do -> Settings asks to choose; an events-feed failure or warning banner -> the same text goes to the channel too
+- **UI elements:** Settings → Notifications: Also send outages to (select), its help line and its last-delivery line
+- **States covered:** success, error, empty
+- **Errors & recovery:** the channel does not answer -> retried every minute, at most five times; the last failure shows in Settings with its reason; the app's log has `alerts:` lines
+- **Status:** draft
+- **Coverage:** src/core/outage-alerts.ts, src/core/mcp-client.ts, src/electron/outage-alerts.ts, src/electron/main.ts (outage-alerts), src/renderer/components/Settings.tsx (AlertChannel), test/outage-alerts.test.ts
 - **Product:** unobserved
 
