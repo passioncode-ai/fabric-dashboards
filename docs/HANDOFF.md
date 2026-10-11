@@ -5,7 +5,16 @@ Updated 2026-10-07 (0.6.2: 0.6.1 withdrawn for audit HIGH-2, audit fixes, signed
 
 Current release: 0.7.4 (published 2026-10-11 20:01 UTC, run 38168481474; FD-37 M4a–M4c). Before it, 0.7.3 (published 2026-10-11 16:59 UTC, run 38156472858; FD-45, FD-47; carries 0.7.2, tagged and not published). Before it, 0.7.1 (published 2026-10-11 11:34 UTC, run 38106066248; FD-37 M1–M3, FD-39, FD-41; carries 0.7.0, tagged and not published). Before it, 0.6.7 (published 2026-10-09 17:07 UTC, run 37955575384; FD-36, FD-35, FD-38). Before it, 0.6.6 (published 2026-10-09 10:08 UTC, run 37864378854; FD-34, FD-35). Before it, 0.6.5 (published 2026-10-08 01:18 UTC, run 37703405621; FD-29, FD-33). Before it, 0.6.4 (published 2026-10-07 01:57 UTC, run 37558793926; carries 0.6.3, superseded before approval). Before it, 0.6.2 (published 2026-10-06 23:41 UTC, run 37541067349; 0.6.1 withdrawn). Before it, 0.6.0 (published 2026-10-06 21:35 UTC, run 37505569449); Before it, 0.5.6 (2026-10-06); the 0.4.1 section below is the previous one. Earlier releases below are preserved as dated evidence.
 
-## Next — start here (2026-10-11, release 0.7.5: FD-48 + #101)
+## Next — start here (2026-10-12, FD-48: DEC-0044 setup flag)
+
+**Branch `agent/fd48-setup-flag`.** Contract DEC-0044 (`c6c5af1`). A `degraded[]` entry with `setup: true` never opens
+an outage episode, nor enters the start baseline (`src/core/outage-alerts.ts`). `service-host` says it as
+`reason.setup` ("<source> waits for you to set it up: …"), and the shared state vectors carry the case. The start
+baseline stays the fallback for services that do not send the flag. `checkWellKnown` accepts unknown fields
+(structural only), so a service may send the flag now. Tests: `test/outage-alerts.test.ts` 8/8,
+`packages/service-host/test/state.test.ts` 43/43, `npm run check` 0 (473).
+
+## Earlier — start here (2026-10-11, release 0.7.5: FD-48 + #101)
 
 **Branch `agent/release-075`.** 0.7.5 carries FD-48 (outages reach the operator channel) and
 PR #101 (an explicit Reload signs in again). Per RUNBOOK step 1 the branch runs `validate.yml -f os=all` before merging.
