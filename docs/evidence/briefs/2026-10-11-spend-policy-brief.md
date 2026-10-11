@@ -93,7 +93,10 @@ The operator answered: «динамические в зависимости от
    80% ($800). At the total, paid starts stop until the next month or the operator raises it.
 3. **Public history is not rewritten.** The first version of this brief (commit 52b1a45, PR #69) stays in the
    history. The tree uses neutral names since #71.
-4. **Still open:** who pays for a share grant. Recommended: the owner, within the grant's limit.
+4. **The owner pays, and access is given unlimited or within limits** (the operator, later the same day: «да платит
+   владелец, доступ выдается по лимиту либо анлим, лимит тотал, на задачу, на проект, в месяц, в день, в неделю»).
+   A grant is `unlimited`, or `limited` by one or more windows that apply together: total, task, project, day,
+   week, month. The contract records it as DEC-0038 (fabric-agent-contract #29).
 
 ## Immediate case: the Chinese-model translation
 
