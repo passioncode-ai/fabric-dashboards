@@ -5,7 +5,34 @@ Updated 2026-10-07 (0.6.2: 0.6.1 withdrawn for audit HIGH-2, audit fixes, signed
 
 Current release: 0.7.4 (published 2026-10-11 20:01 UTC, run 38168481474; FD-37 M4a–M4c). Before it, 0.7.3 (published 2026-10-11 16:59 UTC, run 38156472858; FD-45, FD-47; carries 0.7.2, tagged and not published). Before it, 0.7.1 (published 2026-10-11 11:34 UTC, run 38106066248; FD-37 M1–M3, FD-39, FD-41; carries 0.7.0, tagged and not published). Before it, 0.6.7 (published 2026-10-09 17:07 UTC, run 37955575384; FD-36, FD-35, FD-38). Before it, 0.6.6 (published 2026-10-09 10:08 UTC, run 37864378854; FD-34, FD-35). Before it, 0.6.5 (published 2026-10-08 01:18 UTC, run 37703405621; FD-29, FD-33). Before it, 0.6.4 (published 2026-10-07 01:57 UTC, run 37558793926; carries 0.6.3, superseded before approval). Before it, 0.6.2 (published 2026-10-06 23:41 UTC, run 37541067349; 0.6.1 withdrawn). Before it, 0.6.0 (published 2026-10-06 21:35 UTC, run 37505569449); Before it, 0.5.6 (2026-10-06); the 0.4.1 section below is the previous one. Earlier releases below are preserved as dated evidence.
 
-## Next — start here (2026-10-12, FD-48: DEC-0044 setup flag)
+## Next — start here (2026-10-12, bug wave: updates on Windows and Linux)
+
+**Branch `agent/bugwave`.** The operator asked for a bug wave: find, design, fix, validate and release.
+- **Found.** The first end-to-end update proof (`update-proof.yml` run 38183686112, 0.7.4 → 0.7.5) failed on all four
+  Windows and Linux runners.
+  - Windows: the update waiter died with the app (libuv job object). The same defect hit the uninstaller's waiter
+    and the data purge. A detached PowerShell does not run at all.
+  - Linux: Electron's relauncher ran inside the AppImage mount and died with it.
+- **Fixed** (`src/core/after-exit.ts`, ADR-0019 amendment 2026-10-12).
+  - Windows helpers run as a grandchild through `cmd.exe` `start "" /b`, outside the job (`powerShellAfterExit`).
+  - The AppImage restarts through a detached `/bin/sh` (`appImageRelaunchCommand`).
+  - The hidden-relaunch marker lasts 30 min and is cleared on any failed install.
+  - Settings shows "no channel installed" as a plain line.
+- **Proof.**
+  - `test/after-exit.test.ts`: with the helper planted as a direct child, it fails on both Windows runners and passes
+    on POSIX (run 38193798324).
+  - Five runners green (run 38193790867).
+  - `update-proof.yml` with `build: true` (the fixed code numbered 0.7.4) updated itself to the published 0.7.5 on
+    Linux x64 and arm64 (run 38190268316) and on Windows arm64 (run 38193793066). Windows x64 is run 38196625136.
+- **For people on 0.7.4/0.7.5.** A Windows copy must install 0.7.6 by hand once (CHANGELOG). An AppImage has
+  already replaced its file and runs 0.7.6 at its next start.
+- **Correction.** An earlier note said a planted `detached: false` was caught on Windows; that run failed on an
+  import path. The ADR records it.
+
+**Next task:** release 0.7.6, then `update-proof.yml -f from=0.7.6 -f to=<next>` after the next release (no build
+needed then).
+
+## Earlier — start here (2026-10-12, FD-48: DEC-0044 setup flag)
 
 **Branch `agent/fd48-setup-flag`.** Contract DEC-0044 (`c6c5af1`). A `degraded[]` entry with `setup: true` never opens
 an outage episode, nor enters the start baseline (`src/core/outage-alerts.ts`). `service-host` says it as
