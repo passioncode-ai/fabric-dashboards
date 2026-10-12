@@ -6,6 +6,8 @@
 // same SHA-256 as the release's SHA256SUMS) and start again as <to>. Windows: <from>'s installer is installed per
 // user; the app runs hidden; it must run <to>'s installer through its waiter and start again as <to>. Each copy has
 // its own data folder, and the proof is read from its own log: `update_install installed from=<from> to=<to>`.
+// FD_PROOF_FROM_DIR: take the <from> copy from this folder (a debug build of the current code, built with <from>'s
+// version number by update-proof.yml `build`), so a fix is proven before it is released.
 import { execFileSync, spawn, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { chmodSync, existsSync, mkdtempSync, readdirSync, readFileSync, statSync } from 'node:fs';
@@ -21,6 +23,8 @@ const arch = process.arch === 'arm64' ? 'arm64' : 'x64';
 const work = mkdtempSync(path.join(os.tmpdir(), 'fd-update-proof-'));
 const data = path.join(work, 'data');
 const gh = (args) => execFileSync('gh', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] });
+const fromDir = process.env.FD_PROOF_FROM_DIR ? path.resolve(process.env.FD_PROOF_FROM_DIR) : null;
+const fromFile = (name) => (fromDir ? path.join(fromDir, name) : path.join(download(from, name), name));
 const download = (version, pattern) => { gh(['release', 'download', `v${version}`, '-R', 'passioncode-ai/fabric-dashboards', '-p', pattern, '-D', path.join(work, version), '--clobber']); return path.join(work, version); };
 const sha256 = (file) => createHash('sha256').update(readFileSync(file)).digest('hex');
 const sums = (version) => Object.fromEntries(readFileSync(path.join(download(version, 'SHA256SUMS'), 'SHA256SUMS'), 'utf8').trim().split('\n').map((l) => l.split(/\s+/)).map(([h, n]) => [n.replace(/^\*/, ''), h]));
@@ -43,7 +47,7 @@ async function waitFor(label, ok) {
 if (process.platform === 'linux') {
   const name = (v) => `Fabric-Dashboards-${v}-linux-${arch}.AppImage`;
   const image = path.join(work, 'Fabric Dashboards.AppImage');
-  execFileSync('cp', [path.join(download(from, name(from)), name(from)), image]);
+  execFileSync('cp', [fromFile(name(from)), image]);
   chmodSync(image, 0o755);
   const expected = sums(to)[name(to)];
   requireThat(Boolean(expected), `SHA256SUMS of ${to} names no ${name(to)}`);
@@ -75,7 +79,7 @@ if (process.platform === 'linux') {
   try { process.kill(-app.pid, 'SIGTERM'); } catch { /* gone */ }
 } else if (process.platform === 'win32') {
   const name = `Fabric-Dashboards-${from}-windows-${arch}-setup.exe`;
-  const setup = path.join(download(from, name), name);
+  const setup = fromFile(name);
   const install = spawnSync(setup, ['/S'], { timeout: 600_000, windowsHide: true });
   requireThat(install.status === 0, `the ${from} installer exited ${install.status ?? install.error}`);
   const programs = path.join(process.env.LOCALAPPDATA ?? '', 'Programs');

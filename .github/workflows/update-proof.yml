@@ -16,6 +16,10 @@ on:
       os:
         description: "linux, windows, or all"
         default: all
+      build:
+        description: "true: the installed copy is THIS ref's code, built unsigned with the `from` version number (proves a fix before its release)"
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -36,6 +40,20 @@ jobs:
       - name: An AppImage needs FUSE 2 and a display
         if: runner.os == 'Linux'
         run: sudo apt-get update -q && sudo apt-get install -y -q libfuse2t64 xvfb
+      - name: fpm for the arm64 .deb (a build only)
+        if: inputs.build && runner.os == 'Linux' && runner.arch == 'ARM64'
+        run: |
+          sudo apt-get install -y -q ruby ruby-dev build-essential
+          sudo gem install fpm -v 1.16.0 --no-document
+          echo "USE_SYSTEM_FPM=true" >> "$GITHUB_ENV"
+      - name: Build this ref as the installed copy, numbered as the older release
+        if: inputs.build
+        shell: bash
+        run: |
+          npm ci
+          npm version "${{ inputs.from }}" --no-git-tag-version --workspaces-update=false --allow-same-version
+          node scripts/dist-other.mjs --allow-dirty
+          echo "FD_PROOF_FROM_DIR=$PWD/release" >> "$GITHUB_ENV"
       - name: The installed copy updates itself
         env:
           GH_TOKEN: ${{ github.token }}

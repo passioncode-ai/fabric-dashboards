@@ -26,7 +26,7 @@ import { pathToFileURL } from 'node:url';
 import { FEED_FILE, feedNamesOwnRelease, localFeed, parseSums, releaseFile, signedFeed, sumsSignedByRelease, zipName } from '../core/release-verify';
 import { CHECK_EVERY_MS, FIRST_CHECK_MS, isNewer, mayCheck, stagedBundlePath, stagedRefusal } from '../core/version';
 import type { AppStatus } from '../core/types';
-import { nsisInstalledAt, nsisUpdateCommand, PENDING_UPDATE_DIR, platformKey, platformUpdate, replaceAppImage, stagedAppImage, updateChannel } from '../core/self-update';
+import { appImageRelaunchCommand, nsisInstalledAt, nsisUpdateCommand, PENDING_UPDATE_DIR, platformKey, platformUpdate, replaceAppImage, stagedAppImage, updateChannel } from '../core/self-update';
 import { uninstallTarget } from '../core/platform';
 import { spawnAfterExit } from '../core/after-exit';
 import { windowsPowerShellEnv } from '@passioncode-ai/fabric-service-host';
@@ -449,11 +449,15 @@ export class Updater {
         return true;
       }
       this.event('update_install', 'started', `version=${this.state.version ?? '?'}`);
-      // The new AppImage is already in place: starting it again is the install.
-      this.onQuitForUpdate();
-      // Electron passes this run's arguments again (flags, --hidden) and starts the new copy once this one exits.
-      app.relaunch({ execPath: process.env.APPIMAGE! });
-      app.quit();
+      // The new AppImage is already in place: starting it again is the install. A system shell outside the image
+      // waits for this process to exit and starts it (appImageRelaunchCommand); the app quits once the shell runs.
+      const relaunch = appImageRelaunchCommand(process.pid, process.env.APPIMAGE!, process.argv.slice(1));
+      const shell = spawnAfterExit(relaunch.file, relaunch.args);
+      shell.once('error', (error) => this.fail('download_failed', `the new AppImage could not be started: ${error.message}`));
+      shell.once('spawn', () => {
+        this.onQuitForUpdate();
+        app.quit();
+      });
       return true;
     }
     if (this.state.state === 'held' && this.verified) {

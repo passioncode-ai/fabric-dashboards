@@ -89,6 +89,17 @@ export function platformUpdate(feed: unknown, key: string, version: string): { o
   return { ok: true, file: expected, sha256: entry.sha256 };
 }
 
+/**
+ * How a replaced AppImage starts again (FD-37, found by the 0.7.4 → 0.7.5 update proof): a system `/bin/sh`, started
+ * detached (`spawnAfterExit`), waits for this process to exit (at most 120 s), then runs the new `$APPIMAGE` with this
+ * run's arguments. Not Electron's `app.relaunch`: its relauncher runs from inside this image's mount, which the
+ * AppImage runtime serves and stops with the app — the relauncher died with it and nothing started.
+ */
+export function appImageRelaunchCommand(pid: number, appImage: string, args: readonly string[]): { file: string; args: string[] } {
+  const script = 'p=$1; i=$2; shift 2; n=0; while kill -0 "$p" 2>/dev/null && [ $n -lt 600 ]; do sleep 0.2; n=$((n+1)); done; kill -0 "$p" 2>/dev/null && exit 3; exec "$i" "$@"';
+  return { file: '/bin/sh', args: ['-c', script, 'fabric-dashboards-relaunch', String(Math.trunc(pid)), appImage, ...args] };
+}
+
 /** Where a new AppImage is written before it replaces this one: beside it (same file system, so the rename is
  *  atomic), hidden, named for its version. */
 export const stagedAppImage = (target: string, version: string): string => path.join(path.dirname(target), `.${path.basename(target)}.${version}.part`);
