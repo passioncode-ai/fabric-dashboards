@@ -1,0 +1,29 @@
+{
+  "run": "board waves 2026-10-12 (operator: «давай закроем все задачи из бэклога — выполняй до конца»)",
+  "base": "cdb624a",
+  "source": "docs/backlog-sources.json -> docs/backlog.md",
+  "surveyed": "2026-10-12",
+  "items": [
+    {"id": "FD-01", "source": "docs/backlog.md:9", "status": "open; measurable now from activity.jsonl / notified.json / main.log", "area": "notifications", "node": "ops-evidence", "wave": 4, "release": "0.7.7"},
+    {"id": "FD-02", "source": "docs/backlog.md:10", "status": "open; scenarios walk against the built app (e2e) is possible now", "area": "ux", "node": "ops-evidence", "wave": 4, "release": "0.7.7"},
+    {"id": "FD-04", "source": "docs/backlog.md:12", "status": "open; needs an upgrade between two signed builds watched for SecurityAgent prompts", "area": "fuses", "node": "ops-evidence", "wave": 4, "release": "0.7.7", "notes": "attempt in CI on a macOS runner; if the runner cannot show a keychain prompt, carry with that reason"},
+    {"id": "FD-07", "source": "docs/backlog.md:15", "status": "open; installed copy measurable (ps -o time,rss over 10 hidden minutes)", "area": "lifecycle", "node": "ops-evidence", "wave": 4, "release": "0.7.7"},
+    {"id": "FD-12", "source": "docs/backlog.md:20", "status": "blocked — verified 2026-10-12: no fabric-service well-known on this machine advertises the board (no Fabric descriptor among 22), contract has no com surface", "area": "integration", "node": "blocked", "wave": null, "release": "program", "blocked_by": "Fabric COM-03/COM-07 well-known entry"},
+    {"id": "FD-20", "source": "docs/backlog.md:28", "status": "open; refactor of app + MCP control loops", "area": "control", "node": "core-control", "wave": 1, "release": "0.7.7"},
+    {"id": "FD-21", "source": "docs/backlog.md:29", "status": "open; U-16, U-18, M-4 buildable; R-19/R-20 re-checked", "area": "audit-leftovers", "node": "core-control", "wave": 1, "release": "0.7.7"},
+    {"id": "FD-22", "source": "docs/backlog.md:30", "status": "blocked — verified 2026-10-12: service-well-known.schema.json at fabric-agent-contract 0656aa1 has no surfaces.a2a (a2a only as a binding/manifest profileKind)", "area": "integration", "node": "blocked", "wave": null, "release": "program", "blocked_by": "contract surfaces.a2a"},
+    {"id": "FD-26", "source": "docs/backlog.md:34", "status": "open; pre-commit lease guard", "area": "tooling", "node": "tooling", "wave": 1, "release": "0.7.7"},
+    {"id": "FD-37", "source": "docs/backlog.md:45", "status": "M1–M4, M6 released (0.7.1–0.7.6); M5 re-scoped to the Observatory node (architecture v4 §5), not built anywhere yet", "area": "platforms", "node": "ops-evidence", "wave": 4, "release": "0.7.7", "notes": "close M1–M4/M6 with receipts; M5 becomes its own row blocked by node.lifecycle"},
+    {"id": "FD-40", "source": "docs/backlog.md:48", "status": "blocked — verified 2026-10-12: Observatory 0.24.1 serves grant.check (callee side) only; no read of a project's policy, budget left or grants for a host", "area": "spend", "node": "blocked", "wave": null, "release": "program", "blocked_by": "Observatory policy/budget read surface"},
+    {"id": "FD-42", "source": "docs/backlog.md:50", "status": "unblocked — codex/dashboard-session-refresh merged (619b2f1, #101)", "area": "appearance", "node": "appearance", "wave": 3, "release": "0.7.7"},
+    {"id": "FD-43", "source": "docs/backlog.md:51", "status": "unblocked — Switchboard 0.6.20 installed, `switchboard --json sessions` answers", "area": "console", "node": "console-switchboard", "wave": 2, "release": "0.7.7"},
+    {"id": "FD-46", "source": "docs/backlog.md:54", "status": "partly unblocked — DEC-0046 well-known configuration.resolved exists (frame-agent serves it); budget left waits for Observatory's read", "area": "spend", "node": "agent-profile", "wave": 3, "release": "0.7.7", "notes": "profile + spend by model + Fabric link now; budget-left carried to FD-40's blocker"},
+    {"id": "FD-49", "source": "docs/backlog.md:57", "status": "open; LC-17 admission", "area": "console", "node": "console-switchboard", "wave": 2, "release": "0.7.7"},
+    {"id": "FD-50", "source": "docs/backlog.md:58", "status": "unblocked — SB-95 and SB-65 released (Switchboard 0.6.18+)", "area": "console", "node": "console-switchboard", "wave": 2, "release": "0.7.7"},
+    {"id": "FD-51", "source": "docs/backlog.md:59", "status": "unblocked — SB-98 released (tag v0.6.17+)", "area": "console", "node": "console-switchboard", "wave": 2, "release": "0.7.7"},
+    {"id": "FD-52", "source": "docs/backlog.md:60", "status": "blocked — modelled now, built later (operator 2026-10-12); no context field in the contract, no node.*", "area": "machine-view", "node": "blocked", "wave": null, "release": "program", "blocked_by": "contract CX-11 context field, Observatory node, Vesta listings"},
+    {"id": "FD-53", "source": "docs/backlog.md:61", "status": "blocked — verified 2026-10-12: no Vesta descriptor or origin on this machine", "area": "embedding", "node": "blocked", "wave": null, "release": "program", "blocked_by": "Vesta's pages and origin"},
+    {"id": "FD-55", "source": "docs/backlog.md:63", "status": "open; descriptor lifecycle.manager enum has systemd, task-scheduler, node", "area": "state", "node": "appearance", "wave": 3, "release": "0.7.7"},
+    {"id": "FD-56", "source": "docs/backlog.md:64", "status": "open; with FD-42", "area": "appearance", "node": "appearance", "wave": 3, "release": "0.7.7"}
+  ]
+}
