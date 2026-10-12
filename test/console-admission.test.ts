@@ -29,21 +29,21 @@ function rig(machine: { freeDisk: number | null; swap: null; running: number }) 
   return { host, spawned };
 }
 
-test('FD-49 (LC-17): a start on a disk with less than 5 GB free is deferred before anything spawns', async () => {
+test('FD-49 (LC-17): a start on a disk with less than 5 GB free is deferred before anything spawns', { skip: process.platform === 'win32' && 'POSIX execute bits: the fake runtime is a shell script; Windows lookup is tested by the PATHEXT test' }, async () => {
   const { host, spawned } = rig({ freeDisk: 2.4 * GB, swap: null, running: 0 });
   const r = await host.start('example-agent.default', 'new', { cols: 80, rows: 24 });
   assert.deepEqual(r, { ok: false, reason: 'admission', why: 'disk', freeGb: 2.4 });
   assert.deepEqual(spawned, []);
 });
 
-test('FD-49 (LC-17): at the session cap the start is deferred and names the cap', async () => {
+test('FD-49 (LC-17): at the session cap the start is deferred and names the cap', { skip: process.platform === 'win32' && 'POSIX execute bits: the fake runtime is a shell script; Windows lookup is tested by the PATHEXT test' }, async () => {
   const { host, spawned } = rig({ freeDisk: 50 * GB, swap: null, running: 6 });
   const r = await host.start('example-agent.default', 'new', { cols: 80, rows: 24 });
   assert.deepEqual(r, { ok: false, reason: 'admission', why: 'cap', running: 6, cap: 6 });
   assert.deepEqual(spawned, []);
 });
 
-test('FD-49 (LC-17): a machine with room starts the session', async () => {
+test('FD-49 (LC-17): a machine with room starts the session', { skip: process.platform === 'win32' && 'POSIX execute bits: the fake runtime is a shell script; Windows lookup is tested by the PATHEXT test' }, async () => {
   const { host, spawned } = rig({ freeDisk: 50 * GB, swap: null, running: 0 });
   const r = await host.start('example-agent.default', 'new', { cols: 80, rows: 24 });
   assert.deepEqual(r, { ok: true });

@@ -68,7 +68,7 @@ test('FD-51 (LC-20): with a Switchboard route for the provider, an unbound folde
   assert.equal(managesProvider({ routes: { 'claude:team': 'x' }, labels: {} }, 'claude'), true);
 });
 
-test('FD-51 (LC-20): the console start itself goes through Switchboard when it manages the provider', async () => {
+test('FD-51 (LC-20): the console start itself goes through Switchboard when it manages the provider', { skip: process.platform === 'win32' && 'POSIX execute bits: the fake runtime is a shell script; Windows lookup is tested by the PATHEXT test' }, async () => {
   const base = tmp('fd-sb-host-');
   const bin = path.join(base, 'bin');
   const folder = path.join(base, 'agent');
@@ -91,7 +91,7 @@ test('FD-51 (LC-20): the console start itself goes through Switchboard when it m
   assert.ok('sessions' in listed);
 });
 
-test('FD-50 (LC-18): a session idle for 30 minutes is saved with its account and closed; the next start clears it', async () => {
+test('FD-50 (LC-18): a session idle for 30 minutes is saved with its account and closed; the next start clears it', { skip: process.platform === 'win32' && 'POSIX execute bits: the fake runtime is a shell script; Windows lookup is tested by the PATHEXT test' }, async () => {
   const base = tmp('fd-idle-');
   const bin = path.join(base, 'bin');
   const folder = path.join(base, 'agent');
