@@ -51,3 +51,22 @@ Operator 2026-10-12: «давай закроем все задачи из бэк
 | D2 | LC-18 idle time | 30 minutes without input or output | assumed — stated in AGENTS.md's lifecycle table |
 | D3 | Blocked rows | stay open with the dependency measured today, not closed | resolved from the sources (backlog contract: close only with a receipt) |
 | D4 | Release | 0.7.7 after wave 4, by tag, approval by checks | resolved from the sources (AGENTS.md *Release*, operator 2026-10-11) |
+
+## Progress — resume here (2026-10-12, run stopped at a usage limit)
+
+Branch `agent/board-waves` (worktree `~/DATA/.worktrees/fd-waves`), pushed; not merged, nothing released.
+
+- **Wave 1 done** (code, tests, docs; `FD_SKIP_LAUNCHD=1 npm run check` exit 0, 499 pass at `3e51666`):
+  FD-26 `f12992a`+`55612d1` (pre-commit lease guard, installed by `prepare`); FD-20 `62c29af`
+  (`src/core/control.ts`); FD-21 `dcb9527` (U-16, U-18, R-19, R-20 — R-20 has no live two-release proof, M-4).
+- **Wave 2 started:** FD-49's pure module `src/core/admission.ts` + `test/admission.test.ts` (6 pass), not yet
+  wired into `ConsoleHost.start` (`src/electron/console.ts`).
+- **Not yet done:** the backlog rows and CHANGELOG for wave 1 (guarded: take the leases), retro standing
+  instruction 4's retirement (FD-26 lands it).
+
+**Exact next task:** wire `machineProbe` + `admit` into `ConsoleHost.start` before `manager.start` (a refusal
+returns `{ ok: false, reason: 'admission', detail }`, the console notice says why and what frees it, en+ru
+strings), then FD-43/FD-51 in `src/core/switchboard.ts` (`--json sessions` filtered by folder; managed start
+via `inPlaceArgv` for any Claude/Codex folder when `accounts list` has a `<provider>:default` route; "moved" =
+the pool's route ≠ the session's `account_id`), then FD-50 (30-minute idle save/close/resume), then waves 3–4
+and the 0.7.7 release as the table above says.
