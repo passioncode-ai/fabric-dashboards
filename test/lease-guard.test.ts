@@ -4,20 +4,20 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 // @ts-expect-error plain ESM script without types
 import { check, globToRegExp, guardedAmong } from '../scripts/lease-guard.mjs';
 // @ts-expect-error plain ESM script without types
 import { install } from '../scripts/install-hooks.mjs';
+import { tmp } from './helpers';
 
 const ROOT = path.resolve(__dirname, '..');
 const PY = process.platform === 'win32' ? 'python' : 'python3';
 const hasPython = spawnSync(PY, ['--version']).status === 0;
 
 function repo(): string {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'fd-lease-'));
+  const dir = tmp('fd-lease-');
   const git = (...a: string[]) => spawnSync('git', a, { cwd: dir, encoding: 'utf8' });
   git('init', '-q', '-b', 'main');
   git('config', 'user.email', 't@example.com'); git('config', 'user.name', 't');
@@ -102,6 +102,6 @@ test('FD-26: a checkout without the guard script still commits (the hook is shar
 });
 
 test('FD-26: outside a git checkout the installer does nothing', () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'fd-nogit-'));
+  const dir = tmp('fd-nogit-');
   assert.equal(install(dir, () => {}), 'not-a-checkout');
 });

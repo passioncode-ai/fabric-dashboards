@@ -4,7 +4,6 @@ import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
-import os from 'node:os';
 import { cancelStagedUpdate, isProductPath, productDataPaths, purgeAfterExit } from '../src/core/uninstall';
 import { tmp } from './helpers';
 
@@ -56,7 +55,7 @@ test('FD-37: on Windows the data goes only after the app exits, and the kept fil
 });
 
 test('R-20 (FD-21): uninstall removes the staged update before quitting, so ShipIt has nothing to put back', () => {
-  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'fd-shipit-'));
+  const home = tmp('fd-shipit-');
   const shipIt = path.join(home, 'Library', 'Caches', 'ai.passioncode.fabric-dashboards.ShipIt');
   fs.mkdirSync(path.join(shipIt, 'update.AbC123', 'Fabric Dashboards.app'), { recursive: true });
   fs.writeFileSync(path.join(shipIt, 'ShipItState.plist'), '<plist/>');
