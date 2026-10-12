@@ -109,6 +109,10 @@ export class Monitor extends EventEmitter {
   private rescanPending = false;
   /** Descriptors absent from the folder since this time; one is gone only once it stays absent (REMOVAL_GRACE_MS). */
   private readonly missingSince = new Map<string, number>();
+  /** U-16: a NEW descriptor that does not parse or validate yet, since this time. A writer that is not
+   *  atomic leaves a half-written file for a moment; it is shown (and logged as installed) only once it
+   *  stays invalid for REMOVAL_GRACE_MS — a file that becomes valid meanwhile simply appears. */
+  private readonly unsettledSince = new Map<string, number>();
   private polling = false;
   private changeTimer: NodeJS.Timeout | null = null;
   private lastEmitted: string | null = null;
@@ -191,6 +195,7 @@ export class Monitor extends EventEmitter {
       const now = this.now();
       let next = this.lastRescan + this.rescanEvery();
       for (const since of this.missingSince.values()) next = Math.min(next, since + REMOVAL_GRACE_MS); // confirm a removal
+      for (const since of this.unsettledSince.values()) next = Math.min(next, since + REMOVAL_GRACE_MS); // U-16: settle a new file
       for (const t of this.tracked.values()) if (!t.busy) next = Math.min(next, t.nextProbeAt);
       wait = Math.max(MIN_WAKE_MS, next - now);
     }
@@ -235,7 +240,7 @@ export class Monitor extends EventEmitter {
     this.ticking = true;
     try {
       const now = this.now();
-      const confirmRemoval = [...this.missingSince.values()].some((since) => now - since >= REMOVAL_GRACE_MS);
+      const confirmRemoval = [...this.missingSince.values(), ...this.unsettledSince.values()].some((since) => now - since >= REMOVAL_GRACE_MS);
       if (forceRescan || this.rescanPending || confirmRemoval || now - this.lastRescan >= this.rescanEvery()) {
         this.rescanPending = false;
         this.lastRescan = now;
@@ -277,6 +282,7 @@ export class Monitor extends EventEmitter {
     const seen = new Set(entries.map((e) => e.key));
     const now = this.now();
     for (const key of [...this.missingSince.keys()]) if (seen.has(key)) this.missingSince.delete(key);
+    for (const key of [...this.unsettledSince.keys()]) if (!seen.has(key)) this.unsettledSince.delete(key);
     for (const [key, t] of this.tracked) {
       if (!seen.has(key)) {
         // Audit 2026-10-07 MEDIUM-5: a writer that deletes and recreates its descriptor (no atomic
@@ -299,6 +305,12 @@ export class Monitor extends EventEmitter {
         if (JSON.stringify(entry) !== before) existing.nextProbeAt = this.now();
         continue;
       }
+      if (!entry.descriptor && !this.scanning) {
+        const since = this.unsettledSince.get(entry.key);
+        if (since === undefined) { this.unsettledSince.set(entry.key, now); continue; }
+        if (now - since < REMOVAL_GRACE_MS) continue;
+      }
+      this.unsettledSince.delete(entry.key);
       const t: Tracked = {
         // R-18: launchd is not read yet — not "not loaded". Until the first probe it reads `starting`, never Off with Start.
         entry, probe: null, launchd: { managed: supervises(this.platform, entry.descriptor?.lifecycle.manager), loaded: true, pid: null, disabled: false },
@@ -400,6 +412,9 @@ export class Monitor extends EventEmitter {
    *  keeps the last answer — unless launchd says that answer is gone (job off, or another pid). */
   private evidence(t: Tracked): { probe: WellKnownResult | null; firstUnansweredAt: number | null } {
     if (t.probe?.kind !== 'no-answer' || t.misses >= DOWN_AFTER_MISSES) return { probe: t.probe, firstUnansweredAt: t.firstUnansweredAt };
+    // R-19 (FD-21): a TLS refusal or a redirect is the origin's own verdict, not a slow host — the state
+    // vectors already read it as down at once (state.ts); the grace for silence must not hide it.
+    if (t.probe.cause === 'tls' || t.probe.cause === 'redirect') return { probe: t.probe, firstUnansweredAt: t.firstUnansweredAt };
     const l = t.launchd;
     const off = l.managed && (l.disabled || !l.loaded);
     const replaced = l.managed && l.pid !== null && t.lastAnswer !== null && t.lastAnswer.doc.process.pid !== l.pid;

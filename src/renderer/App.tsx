@@ -41,8 +41,9 @@ export function App() {
     void api().status().then(setStatus);
     void api().settings().then((s) => { applyTheme(s.theme); setLayout(s.layout); });
     const offStatus = api().onStatus(setStatus);
-    const go = (target: { page: 'service' | 'activity' | 'overview'; key?: string; link?: string }) => {
+    const go = (target: { page: 'service' | 'activity' | 'overview' | 'spend' | 'settings'; key?: string; link?: string }) => {
       if (target.page === 'overview') setRoute({ page: 'overview' });
+      else if (target.page === 'spend' || target.page === 'settings') setRoute({ page: target.page });
       else if (target.page === 'activity') {
         if (target.key) setActivityFilter((f) => ({ ...f, serviceKey: target.key! }));
         setRoute({ page: 'activity', serviceKey: target.key, nonce: Date.now() });
@@ -61,6 +62,8 @@ export function App() {
   }, []);
 
   useEffect(() => { if (route.page !== 'service') void api().hideView(); }, [route.page]);
+  // U-18: the main process keeps the screen on show, so Restart to update reopens on it.
+  useEffect(() => { api().routeChanged(route.page === 'service' ? { page: 'service', key: route.key } : { page: route.page }); }, [route.page, route.page === 'service' ? route.key : '']);
   useEffect(() => {
     if (route.page === 'service' && status && !status.services.some((s) => s.key === route.key)) setRoute({ page: 'overview' }); // SCN-003: removed
   }, [status, route]);

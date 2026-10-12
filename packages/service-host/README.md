@@ -157,7 +157,9 @@ probed; a probe that throws counts as silence; an unreadable directory is `error
 is not on the service's own origin — exactly what the app would refuse
 ([ADR-0005](../../docs/adr/0005-service-links.md)). `isServiceKey`, `safePath`, `SCHEME`,
 `APP_NAME` (`Fabric Dashboards`), `DOWNLOAD_URL` (the latest release, for a "not installed"
-note).
+note). `productIdOf(key)` and `instanceOf(key)` split a key into its product `id` and its
+`instance` (`default` when absent) — the grouping of [ADR-0012](../../docs/adr/0012-one-entry-per-product.md),
+so Fabric groups services into products exactly as Dashboards does (audit M-4).
 
 ## Usage
 

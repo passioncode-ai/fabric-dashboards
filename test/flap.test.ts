@@ -214,6 +214,32 @@ test('S-2: an online origin that answered as another service gets no token again
   assert.equal(monitor.snapshot(KEY)!.state, 'ready');
 });
 
+test('R-19 (FD-21): an online origin that refuses TLS or redirects is down at once, not after three misses', async () => {
+  for (const failure of [
+    { kind: 'no-answer', detail: 'certificate has expired', cause: 'tls' },
+    { kind: 'no-answer', detail: 'HTTP 302: the service answered with a redirect, which a host does not follow', cause: 'redirect' },
+  ] as WellKnownResult[]) {
+    const base = tmp('fd-remote-tls-');
+    const services = path.join(base, 'services');
+    fs.mkdirSync(services);
+    const tokenFile = path.join(base, 'svc.token');
+    fs.writeFileSync(tokenFile, 'tok-0123456789abcdef', { mode: 0o600 });
+    fs.writeFileSync(path.join(services, 'example-agent.default.json'), JSON.stringify({ ...(fixture('positive_service-descriptor-remote.json') as Descriptor), auth: { tokenFile } }));
+    const clock = { ms: T0 };
+    let answer: WellKnownResult = { kind: 'answer', doc: READY, ms: 5 };
+    const monitor = new Monitor({ platform: 'darwin',
+      servicesDir: services, activity: new ActivityStore(path.join(base, 'app')), settings: () => DEFAULT_SETTINGS, lang: () => 'en', now: () => clock.ms,
+      wellKnown: async () => answer,
+    });
+    await monitor.tick();
+    assert.equal(monitor.snapshot(KEY)!.state, 'ready');
+    answer = failure;
+    clock.ms = T0 + 61_000;
+    await monitor.tick();
+    assert.equal(monitor.snapshot(KEY)!.state, 'down', `${(failure as { cause: string }).cause}: down on the first refusal`);
+  }
+});
+
 // ── release audit R-8, R-18 ───────────────────────────────────────────────────────────────
 
 test('R-8: a new pid between two probes is a restart even when the state stays ready', async () => {

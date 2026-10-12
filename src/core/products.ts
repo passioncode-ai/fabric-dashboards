@@ -21,16 +21,9 @@ export interface Product {
 
 const PROBLEM = new Set(['down', 'duplicate', 'foreign', 'conflict', 'invalid']);
 
-/** The `id` part of a service key: an id carries no dot (ID_PATTERN), so the first dot splits it. */
-export function productIdOf(key: string): string {
-  const dot = key.indexOf('.');
-  return dot > 0 ? key.slice(0, dot) : key;
-}
-
-export const instanceOf = (key: string): string => {
-  const dot = key.indexOf('.');
-  return dot > 0 ? key.slice(dot + 1) : 'default';
-};
+// FD-21 (audit M-4): the key grammar lives in the shared package, so Fabric splits keys the same way.
+import { instanceOf, productIdOf } from '@passioncode-ai/fabric-service-host/links';
+export { instanceOf, productIdOf };
 
 const hasDashboard = (s: ServiceSnapshot) => Boolean(s.wellKnown?.surfaces.dashboard);
 

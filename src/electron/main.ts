@@ -29,8 +29,8 @@ import { OutageAlerts } from './outage-alerts';
 import { powerShellAfterExit } from '../core/after-exit';
 import { SettingsStore } from '../core/settings';
 import type { AppStatus, Settings, SettingsPatch } from '../core/types';
-import { ALWAYS_KEPT, clearRestoreRecord, KEPT_FILES, productDataPaths, purgeAfterExit, readRestoreRecord, removeMcpRegistrations, repairMcpRegistrations, restoreMcpRegistrations, writeRestoreRecord } from '../core/uninstall';
-import { autoInstallNow, HiddenGrace, partitionFor, RELAUNCH_MARKER, relaunchHidden, stalePartitions, UPDATE_IDLE_MS, VIEW_RELEASE_GRACE_MS } from './policy';
+import { ALWAYS_KEPT, cancelStagedUpdate, clearRestoreRecord, KEPT_FILES, productDataPaths, purgeAfterExit, readRestoreRecord, removeMcpRegistrations, repairMcpRegistrations, restoreMcpRegistrations, writeRestoreRecord } from '../core/uninstall';
+import { autoInstallNow, HiddenGrace, partitionFor, RELAUNCH_MARKER, relaunchHidden, RESUME_ROUTE_MARKER, resumeRoute, type ResumeRoute, stalePartitions, UPDATE_IDLE_MS, VIEW_RELEASE_GRACE_MS } from './policy';
 import { AppTray } from './tray';
 import { DockSync } from './dock';
 import { linkInArgv, menuKeys, notificationSettingsUrl, places, startHidden, uninstallCommand, uninstallTarget, windowChrome } from '../core/platform';
@@ -322,7 +322,9 @@ if (!app.requestSingleInstanceLock()) {
 
   // A navigation sent before the renderer subscribes is lost (a link at launch lands while React
   // is still mounting), so until the renderer takes it (CHANNELS.navigateTake) it waits here.
-  type NavTarget = { page: 'service' | 'activity' | 'overview'; key?: string; link?: string };
+  type NavTarget = { page: 'service' | 'activity' | 'overview' | 'spend' | 'settings'; key?: string; link?: string };
+  /** U-18: the screen on show, reported by the renderer; Restart to update writes it for the next copy. */
+  let shownRoute: ResumeRoute = { page: 'overview' };
   let rendererListening = false;
   let pendingNav: NavTarget | null = null;
   function navigate(target: NavTarget): void {
@@ -425,6 +427,12 @@ if (!app.requestSingleInstanceLock()) {
         }
         awaitHelper(purgeAfterExit(process.pid, all.filter((p) => path.resolve(p) !== path.resolve(userData)), { dir: userData, names: KEPT_FILES }));
       }
+      // R-20 (FD-21): a downloaded update would be installed by ShipIt as this app quits, putting the
+      // trashed bundle back — its record goes first.
+      if (process.platform === 'darwin') {
+        const cancelled = cancelStagedUpdate(app.getPath('home'));
+        if (cancelled.length) log(`uninstall: the staged update was removed (${cancelled.length} item(s)) so it cannot reinstall the app`);
+      }
       // FD-37: only what this install is — never a parent folder (uninstallTarget, ADR-0019).
       const target = uninstallTarget(process.platform, process.execPath, process.env, (p) => fs.existsSync(p));
       log(`uninstall: ${target.kind}${'path' in target ? ` ${target.path}` : ''}`);
@@ -512,6 +520,10 @@ if (!app.requestSingleInstanceLock()) {
     consoles.register();
     const snap = (key: string) => monitor.snapshot(key);
     ipcMain.handle(CHANNELS.status, () => status());
+    ipcMain.on(CHANNELS.routeChanged, (_e, route: unknown) => {
+      const r = resumeRoute(JSON.stringify({ at: new Date().toISOString(), route }), Date.now());
+      if (r) shownRoute = r;
+    });
     ipcMain.handle(CHANNELS.navigateTake, () => {
       rendererListening = true;
       const target = pendingNav;
@@ -650,7 +662,14 @@ if (!app.requestSingleInstanceLock()) {
         const version = updater.state.version ?? '';
         try { new Notification({ title: t(lang(), 'update.installing.title', { version }), body: t(lang(), 'update.installing.body'), silent: true }).show(); } catch { /* no notification centre */ }
       }
-      updater.restart();
+      // U-18 (FD-21): the next copy opens on this screen. Only when the app is about to quit for the
+      // install; a held release staying in place keeps the person where they are anyway.
+      const resume = path.join(userData, RESUME_ROUTE_MARKER);
+      const quitting = updater.state.state === 'ready';
+      if (quitting) {
+        try { fs.writeFileSync(resume, JSON.stringify({ at: new Date().toISOString(), route: shownRoute }), { mode: 0o600 }); } catch (error) { log(`update: could not keep the screen for the relaunch: ${(error as Error).message}`); }
+      }
+      if (!updater.restart() && quitting) { try { fs.rmSync(resume, { force: true }); } catch { /* gone */ } }
     });
     ipcMain.handle(CHANNELS.updateSteps, () => { const steps = updater.state.state === 'held' ? updater.state.steps : undefined; if (steps && steps.startsWith('https://')) return shell.openExternal(steps); });
     ipcMain.handle(CHANNELS.updateCheck, () => updater.check(true)); // the person asked: works with automatic updates off
@@ -802,7 +821,13 @@ if (!app.requestSingleInstanceLock()) {
     const afterUpdate = relaunchHidden(markerText, Date.now());
     if (afterUpdate) log(`update: relaunched as ${app.getVersion()} after an automatic install`);
     const hidden = startHidden(process.platform, { argv: process.argv, wasOpenedAtLogin: process.platform === 'darwin' ? app.getLoginItemSettings().wasOpenedAtLogin : undefined, afterUpdate });
-    if (!hidden) showWindow();
+    // U-18: after Restart to update, back on the screen the person left (never for a hidden relaunch).
+    let resumeText: string | null = null;
+    const resumeFile = path.join(userData, RESUME_ROUTE_MARKER);
+    try { resumeText = fs.readFileSync(resumeFile, 'utf8'); fs.rmSync(resumeFile, { force: true }); } catch { /* none */ }
+    const resume = hidden ? null : resumeRoute(resumeText, Date.now());
+    if (resume && resume.page !== 'overview') { navigate(resume); log(`update: reopened on ${resume.page} after Restart to update`); }
+    else if (!hidden) showWindow();
     else { syncDock(false); updateGrace.hidden(); } // the menu bar only, as when the window is hidden (FD-05)
     if (!hidden) void offerMoveToApplications();
     log(`started ${app.getVersion()} watching ${monitor.meta().servicesDir}`);

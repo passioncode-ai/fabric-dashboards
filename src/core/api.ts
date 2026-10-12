@@ -66,9 +66,11 @@ export interface FabricApi {
   /** FD-45: press it. The main process opens the `fabric://` link, or a native menu under `anchor` (window coordinates, CSS px). */
   fabricPress(key: string, anchor: { x: number; y: number }): Promise<{ opened: 'fabric' | 'menu' | 'none' }>;
   onViewEvent(listener: (event: { key: string; kind: 'restarted' | 'crashed' | 'loaded' | 'error' | 'navigated'; error?: string; page?: PageState }) => void): () => void;
-  onNavigate(listener: (target: { page: 'service' | 'activity' | 'overview'; key?: string; link?: string }) => void): () => void;
+  onNavigate(listener: (target: { page: 'service' | 'activity' | 'overview' | 'spend' | 'settings'; key?: string; link?: string }) => void): () => void;
   /** Called once the renderer listens: the navigation that arrived before it did (a link at launch), if any. */
-  takeNavigation(): Promise<{ page: 'service' | 'activity' | 'overview'; key?: string; link?: string } | null>;
+  takeNavigation(): Promise<{ page: 'service' | 'activity' | 'overview' | 'spend' | 'settings'; key?: string; link?: string } | null>;
+  /** U-18: the screen on show, so Restart to update can reopen on it. */
+  routeChanged(route: { page: string; key?: string }): void;
   /** Read the services folder again now (the unreadable-folder Retry). */
   rescan(): Promise<void>;
   /** Open how a service joins (the building-fabric-services kit) in the browser — a fixed address, never one from a page. */
@@ -128,6 +130,7 @@ export const CHANNELS = {
   viewEvent: 'fd:view-event',
   navigate: 'fd:navigate',
   navigateTake: 'fd:navigate-take',
+  routeChanged: 'fd:route-changed',
   rescan: 'fd:rescan',
   serviceGuide: 'fd:service-guide',
   updateRestart: 'fd:update-restart',

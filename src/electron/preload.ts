@@ -32,6 +32,7 @@ const api: FabricApi = {
   onViewEvent: (l) => subscribe(CHANNELS.viewEvent, l),
   onNavigate: (l) => subscribe(CHANNELS.navigate, l),
   takeNavigation: () => ipcRenderer.invoke(CHANNELS.navigateTake),
+  routeChanged: (route) => ipcRenderer.send(CHANNELS.routeChanged, route),
   rescan: () => ipcRenderer.invoke(CHANNELS.rescan),
   openServiceGuide: () => ipcRenderer.invoke(CHANNELS.serviceGuide),
   restartToUpdate: () => ipcRenderer.invoke(CHANNELS.updateRestart),

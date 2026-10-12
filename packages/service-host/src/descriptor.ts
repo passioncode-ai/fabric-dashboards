@@ -152,7 +152,10 @@ export function readDirectory(dir: string, platform: NodeJS.Platform = process.p
     }
     const problems = validateDescriptor(raw, platform);
     const d = raw as Descriptor;
-    const key = isStr(d?.id) && isStr(d?.instance) ? `${d.id}.${d.instance}` : stem;
+    // U-16: a file whose name does not match what it describes keeps its OWN name as its key, so it
+    // never takes the key of the real descriptor it imitates (which would make both a conflict).
+    // The contract names the file `<id>.<instance>.json`, so its stem IS the key of a valid entry.
+    const key = stem;
     if (!problems.length && `${d.id}.${d.instance}` !== stem) {
       problems.push(`the file is named ${name} but describes ${d.id}.${d.instance}`);
     }

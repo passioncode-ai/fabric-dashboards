@@ -1,7 +1,7 @@
 // The link Fabric (or anyone) hands Fabric Dashboards: fabric-dashboards://service/<id>.<instance>.
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { DOWNLOAD_URL, isServiceKey, safePath, SCHEME, serviceLink } from '../src/links';
+import { DOWNLOAD_URL, instanceOf, isServiceKey, productIdOf, safePath, SCHEME, serviceLink } from '../src/links';
 
 test('a service link names the service in the path, a page in path=', () => {
   assert.equal(SCHEME, 'fabric-dashboards');
@@ -36,4 +36,12 @@ test('safePath keeps a page on the service\'s own origin', () => {
 
 test('the download page is the app\'s latest release', () => {
   assert.equal(DOWNLOAD_URL, 'https://github.com/passioncode-ai/fabric-dashboards/releases/latest');
+});
+
+test('audit M-4: a key splits into its product id and its instance here, for Fabric and the app alike', () => {
+  assert.equal(productIdOf('example-agent.preview'), 'example-agent');
+  assert.equal(instanceOf('example-agent.preview'), 'preview');
+  assert.equal(instanceOf('example-agent.default'), 'default');
+  assert.equal(productIdOf('loose'), 'loose');
+  assert.equal(instanceOf('loose'), 'default');
 });

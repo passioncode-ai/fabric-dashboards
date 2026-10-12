@@ -69,6 +69,7 @@ test('readDirectory reports unreadable and misnamed files instead of throwing', 
   const misnamed = entries.find((e) => e.path.endsWith('wrong.name.json'))!;
   assert.equal(misnamed.descriptor, null);
   assert.match(misnamed.problems.join(), /named wrong\.name\.json/);
+  assert.equal(misnamed.key, 'wrong.name', 'U-16: a misnamed file keeps its own key, never the key of what it describes');
   assert.deepEqual(readDirectory(path.join(dir, 'absent')), []);
 });
 
