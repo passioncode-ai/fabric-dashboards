@@ -21,9 +21,9 @@
 | SCN-013 | Two services claim one port | health | P-01 | ST-004 | draft | 2026-10-06 |
 | SCN-014 | Open a dashboard inside the app, signed in | dashboards | P-01 | ST-005 | validated | 2026-10-12 |
 | SCN-015 | Dashboard view keeps its place | dashboards | P-01 | ST-005 | validated | 2026-10-12 |
-| SCN-016 | Dashboard cannot sign in | dashboards | P-01 | ST-005 | draft | 2026-10-06 |
+| SCN-016 | Dashboard cannot sign in | dashboards | P-01 | ST-005 | validated | 2026-10-13 |
 | SCN-017 | Catch up in Activity | activity | P-01 | ST-006 | validated | 2026-10-12 |
-| SCN-018 | Activity when a service's feed cannot be read | activity | P-01 | ST-006 | draft | 2026-10-06 |
+| SCN-018 | Activity when a service's feed cannot be read | activity | P-01 | ST-006 | validated | 2026-10-13 |
 | SCN-019 | Notification when a service goes down and comes back | notifications | P-01 | ST-007 | draft | 2026-10-06 |
 | SCN-020 | Notification from a service event opens the item | notifications | P-01 | ST-007, ST-006 | draft | 2026-10-06 |
 | SCN-021 | Update a service | updates | P-01 | ST-008 | draft | 2026-10-06 |
@@ -38,16 +38,16 @@
 | SCN-030 | Online services appear in their own group | overview | P-01 | ST-013, ST-002 | validated | 2026-10-13 |
 | SCN-031 | Open an online service's dashboard, signed in | dashboards | P-01 | ST-013, ST-005 | validated | 2026-10-12 |
 | SCN-032 | An online service that cannot be reached says why | health | P-01 | ST-013, ST-004 | draft | 2026-10-06 |
-| SCN-033 | Several instances of one agent read as one agent | products | P-01 | ST-014, ST-002 | draft | 2026-10-06 |
-| SCN-034 | Switch between an agent's connections | products | P-01 | ST-014, ST-005 | draft | 2026-10-06 |
+| SCN-033 | Several instances of one agent read as one agent | products | P-01 | ST-014, ST-002 | validated | 2026-10-13 |
+| SCN-034 | Switch between an agent's connections | products | P-01 | ST-014, ST-005 | validated | 2026-10-13 |
 | SCN-035 | A connection fails while the agent is fine | products | P-01 | ST-014, ST-002, ST-004 | draft | 2026-10-06 |
 | SCN-036 | See what every agent spent | spend | P-01 | ST-015 | validated | 2026-10-12 |
 | SCN-037 | A cost that is not known reads as unknown | spend | P-01 | ST-015 | validated | 2026-10-12 |
-| SCN-038 | An agent's spend cannot be read | spend | P-01 | ST-015, ST-004 | draft | 2026-10-06 |
+| SCN-038 | An agent's spend cannot be read | spend | P-01 | ST-015, ST-004 | validated | 2026-10-13 |
 | SCN-039 | Reload and move through an embedded dashboard | dashboards | P-01 | ST-016, ST-005 | validated | 2026-10-12 |
 | SCN-040 | Copy a dashboard page's address or app link | dashboards | P-01 | ST-016, ST-011 | validated | 2026-10-12 |
 | SCN-041 | Overview at a glance | overview | P-01 | ST-016, ST-002, ST-015 | validated | 2026-10-13 |
-| SCN-042 | Many problems stay compact | overview | P-01 | ST-016, ST-002 | draft | 2026-10-06 |
+| SCN-042 | Many problems stay compact | overview | P-01 | ST-016, ST-002 | validated | 2026-10-13 |
 | SCN-043 | Reinstall picks up where I left off | settings | P-01 | ST-017, ST-010 | draft | 2026-10-06 |
 | SCN-044 | A copy outside Applications moves itself so it can update | updates | P-01 | ST-017, ST-008 | draft | 2026-10-06 |
 | SCN-045 | A dashboard hands me to another agent | dashboards | P-01 | ST-005, ST-011 | validated | 2026-10-12 |
@@ -406,8 +406,8 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **UI elements:** sign-in error panel, path, Retry
 - **States covered:** error
 - **Errors & recovery:** Retry signs in again and shows the page again (R-6); Doctor when declared
-- **Status:** draft
-- **Coverage:** src/renderer/components/ServiceView.tsx, src/core/probe.ts
+- **Status:** validated
+- **Coverage:** src/renderer/components/ServiceView.tsx, src/core/probe.ts, test/e2e/products-problems.test.ts
 - **Product:** unobserved
 
 ## activity
@@ -443,8 +443,8 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **UI elements:** partial-failure line
 - **States covered:** error, success
 - **Errors & recovery:** the line clears when the feed reads again; events resume from the stored cursor, none are duplicated
-- **Status:** draft
-- **Coverage:** src/renderer/components/Activity.tsx, src/core/monitor.ts
+- **Status:** validated
+- **Coverage:** src/renderer/components/Activity.tsx, src/core/monitor.ts, test/e2e/products-problems.test.ts
 - **Product:** unobserved
 
 ## notifications
@@ -782,8 +782,8 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **UI elements:** sidebar product entry, Background section, Overview product card, "also:" line
 - **States covered:** success, empty
 - **Errors & recovery:** an invalid descriptor of one instance keeps its own `invalid` state inside the product and in Attention
-- **Status:** draft
-- **Coverage:** src/core/products.ts, src/renderer/App.tsx, src/renderer/components/Overview.tsx, test/products.test.ts
+- **Status:** validated
+- **Coverage:** src/core/products.ts, src/renderer/App.tsx, src/renderer/components/Overview.tsx, test/products.test.ts, test/e2e/products-problems.test.ts
 - **Product:** unobserved
 
 ### SCN-034: Switch between an agent's connections
@@ -801,8 +801,8 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **UI elements:** instance switch above the service header
 - **States covered:** success
 - **Errors & recovery:** a connection whose dashboard cannot sign in shows the sign-in error of SCN-016 for that connection only
-- **Status:** draft
-- **Coverage:** src/renderer/components/ServiceView.tsx (InstanceSwitch), src/renderer/App.tsx
+- **Status:** validated
+- **Coverage:** src/renderer/components/ServiceView.tsx (InstanceSwitch), src/renderer/App.tsx, test/e2e/products-problems.test.ts
 - **Product:** unobserved
 
 ### SCN-035: A connection fails while the agent is fine
@@ -879,8 +879,8 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **UI elements:** "Could not read" notice, "≥" totals
 - **States covered:** error
 - **Errors & recovery:** the next read (a minute later, or Refresh) shows the agent again once it answers
-- **Status:** draft
-- **Coverage:** src/core/spend.ts (readSpend), src/core/probe.ts (fetchUsage), test/spend.test.ts
+- **Status:** validated
+- **Coverage:** src/core/spend.ts (readSpend), src/core/probe.ts (fetchUsage), test/spend.test.ts, test/e2e/products-problems.test.ts
 - **Product:** unobserved
 
 ## dashboard-toolbar
@@ -957,8 +957,8 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **UI elements:** Needs attention block, Show all / Show fewer
 - **States covered:** error, success
 - **Errors & recovery:** as SCN-006
-- **Status:** draft
-- **Coverage:** src/renderer/components/Overview.tsx
+- **Status:** validated
+- **Coverage:** src/renderer/components/Overview.tsx, test/e2e/products-problems.test.ts
 - **Product:** unobserved
 
 ## focus
