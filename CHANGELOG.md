@@ -7,6 +7,11 @@
 - **Skills updates: "another update is running" is no longer an error.** From sshlg-skills 1.56.0 one update
   runs at a time and a second one refuses with exit 75. The app now logs that as `estate_update busy`, keeps
   the version it showed and tries again within the hour, instead of reporting a failed update.
+- **The Russian interface reads as Russian.** After the operator's review, 164 of the 471 Russian strings and 16
+  translated machine reasons were rewritten. Each thing now has one name («агент для кода», «скилы», «События»).
+  Sentences agree with any service name, and calques and rhetorical dashes are gone. One string had lost half of its
+  meaning and says it again: a port that answers without fabric-service/0.1 gets the token again only when it asks
+  for one. The "since you were last here" date now follows the interface language, not the system's.
 
 ## 0.7.6 - 2026-10-12
 
