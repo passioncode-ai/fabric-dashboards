@@ -3,6 +3,7 @@
 // agent keeps spawning a binary that is gone. Pure over a home directory, so tests run against a
 // temporary HOME and never touch the operator's files.
 // #region uninstall — docs: docs/ux/scenarios.md#scn-024-settings-launch-at-login-notifications-quiet-hours
+import { spawnAfterExit } from './after-exit';
 import { spawn, type ChildProcess } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -277,10 +278,7 @@ function purgeAfterExitWindows(pid: number, paths: string[], keepDir: string, na
     `$k = ${lit(keepDir)}; $kept = @(${names.map(lit).join(',')})`,
     'if ($k -and (Test-Path -LiteralPath $k -PathType Container)) { Get-ChildItem -LiteralPath $k -Force | Where-Object { $kept -notcontains $_.Name } | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue }',
   ].join('; ');
-  // Not detached: a DETACHED_PROCESS PowerShell has no console and does not start with a window style;
-  // windowsHide keeps it out of sight, and Windows lets a child outlive its parent anyway.
-  const helper = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], { stdio: 'ignore', windowsHide: true, env: windowsPowerShellEnv() });
-  helper.unref();
-  return helper;
+  // Detached, or Windows kills it the moment the app exits (libuv's job object; src/core/after-exit.ts).
+  return spawnAfterExit('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], windowsPowerShellEnv());
 }
 // #endregion uninstall
