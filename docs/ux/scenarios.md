@@ -68,6 +68,10 @@
 | SCN-060 | The dashboard keeps its floor while the console widens | console | P-01 | ST-019 | draft | 2026-10-11 |
 | SCN-061 | Talk to Fabric about this agent | console | P-01 | ST-020 | draft | 2026-10-11 |
 | SCN-062 | Outages reach me away from the Mac | notifications | P-01 | ST-002 | draft | 2026-10-11 |
+| SCN-063 | A session starts only when the Mac can carry it | console | P-01 | ST-019 | draft | 2026-10-12 |
+| SCN-064 | See what Switchboard runs for this agent | console | P-01 | ST-019 | draft | 2026-10-12 |
+| SCN-065 | A provider limit does not stop the agent | console | P-01 | ST-019 | draft | 2026-10-12 |
+| SCN-066 | An idle session closes and comes back | console | P-01 | ST-019 | draft | 2026-10-12 |
 ## Personas
 
 Defined in [foundation.md](foundation.md) → P-01.
@@ -1048,12 +1052,84 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
   2. User starts a session, and the installed Switchboard can launch in place -> the console runs the session through Switchboard on the project's account; no token passes through the app
   3. User starts a session, and the installed Switchboard cannot launch in place yet -> the console says "This folder runs on Switchboard project <name>; this Switchboard opens it in Terminal" with "Open in Terminal via Switchboard"; pressing it starts the session there on the project's account
 - **Expected result:** a project folder never runs on the ordinary sign-in
-- **Alt paths:** the folder is in no project, or Switchboard is not installed -> the runtime runs on its ordinary sign-in, and the folder line says nothing about Switchboard
+- **Alt paths:** the folder is in no project but Switchboard holds an account for the runtime's provider -> the session still runs through Switchboard, managed, on the account it selects for the folder (SCN-065); Switchboard is not installed, or holds no account for the provider -> the runtime runs on its ordinary sign-in, and the folder line says nothing about Switchboard
 - **UI elements:** folder line with the project name, "Open in Terminal via Switchboard"
 - **States covered:** success, error
 - **Errors & recovery:** Switchboard needs its app or `switchboard serve` running -> its own message, shown as it says it; a managed session for the same project already runs -> Switchboard's refusal is shown as it says it; Switchboard's answer cannot be read -> "Switchboard did not answer; the session was not started" — never a silent fallback to the ordinary sign-in
 - **Status:** validated
 - **Coverage:** src/core/switchboard.ts, src/core/consoles.ts, src/electron/console.ts, test/console.test.ts
+- **Product:** unobserved
+
+### SCN-063: A session starts only when the Mac can carry it
+- **Persona:** P-01
+- **Feature:** console
+- **Traces:** ST-019; lifecycle LC-17; FD-49
+- **Entry point:** an agent's console that runs nothing yet
+- **Preconditions:** a runtime is installed and the folder exists
+- **Steps:**
+  1. User presses "New session" or "Continue last" -> the app checks the disk the folder is on (at least 5 GB free), the swap, and how many console sessions run (at most six at once)
+  2. The Mac has room -> the session starts as in SCN-049
+- **Expected result:** a session never starts only to make the Mac and its neighbours fail
+- **Alt paths:** less than 5 GB free -> "Not started: only <n> GB is free on this disk, and a session needs 5 GB. Free some space, then start again."; six sessions already run -> "Not started: 6 console sessions already run, the most this Mac carries at once. Stop one, then start again."; Linux swap is nearly exhausted -> "Not started: the system has run out of swap…" (macOS grows its swap while the disk has room, so the disk check covers it)
+- **UI elements:** the console's notice line
+- **States covered:** success, error
+- **Errors & recovery:** the disk or swap cannot be read -> the start is not refused for it; the person frees space or stops a session and presses the button again
+- **Status:** draft
+- **Coverage:** src/core/admission.ts, src/electron/console.ts, src/renderer/components/ConsolePanel.tsx, test/admission.test.ts, test/console-admission.test.ts
+- **Product:** unobserved
+
+### SCN-064: See what Switchboard runs for this agent
+- **Persona:** P-01
+- **Feature:** console
+- **Traces:** ST-019; Switchboard SB-95; FD-43
+- **Entry point:** an agent's console, shown
+- **Preconditions:** Switchboard 0.6.18 or later is installed
+- **Steps:**
+  1. User opens the console -> under the folder line, each session Switchboard launched in this folder that starts or runs: "Switchboard: running", its account's label, its mode (managed or isolated) and since when
+  2. The console stays open -> the list is read again every 15 seconds, and only while the console is on screen
+- **Expected result:** the person sees which account and mode the agent's sessions use without opening Switchboard
+- **Alt paths:** Switchboard is not installed and the runtime is one it serves -> "Switchboard is not installed, so sessions run on the ordinary sign-in and a provider limit pauses them."; an older Switchboard -> "This Switchboard cannot list its sessions yet; update Switchboard to see them here."; nothing launched here -> no line
+- **UI elements:** session lines under the folder line
+- **States covered:** empty, success, error
+- **Errors & recovery:** Switchboard's answer cannot be read -> "Switchboard did not list its sessions: <its words>"
+- **Status:** draft
+- **Coverage:** src/core/switchboard.ts, src/electron/console.ts, src/renderer/components/ConsolePanel.tsx, test/switchboard-sessions.test.ts
+- **Product:** unobserved
+
+### SCN-065: A provider limit does not stop the agent
+- **Persona:** P-01
+- **Feature:** console
+- **Traces:** ST-019; lifecycle LC-20; Switchboard SB-98; FD-51
+- **Entry point:** an agent's console with Claude Code or Codex chosen
+- **Preconditions:** Switchboard can launch in place and holds an account for the provider
+- **Steps:**
+  1. User starts a session -> it runs through Switchboard in managed mode, in the console, whether or not the folder is in a Switchboard project
+  2. A request is refused for a limit -> Switchboard moves the session once to its pool's next account and the agent goes on; the session line says "Switchboard moved this session to <account> after a limit; the agent goes on."
+- **Expected result:** the agent keeps working while any account in the pool has room
+- **Alt paths:** Switchboard holds no account for the provider, or cannot launch in place -> the runtime runs on its ordinary sign-in (SCN-049)
+- **UI elements:** session line with the moved notice
+- **States covered:** success
+- **Errors & recovery:** Switchboard refuses the launch -> its own words in the console, and "New session" again
+- **Status:** draft
+- **Coverage:** src/core/consoles.ts, src/core/switchboard.ts, src/electron/console.ts, test/switchboard-sessions.test.ts
+- **Product:** unobserved
+
+### SCN-066: An idle session closes and comes back
+- **Persona:** P-01
+- **Feature:** console
+- **Traces:** ST-019; lifecycle LC-18; FD-50
+- **Entry point:** a console session running with no input or output
+- **Preconditions:** none
+- **Steps:**
+  1. Thirty minutes pass with nothing typed and nothing printed -> the app saves when it closed and the Switchboard account it ran on, and closes the session, which frees its memory and its MCP servers
+  2. User opens the agent's console again -> the session continues ("Continue last") with "This session was closed after 30 idle minutes to free memory and is continued now. Account: <account>"
+- **Expected result:** a session nobody uses holds nothing, and coming back costs one look
+- **Alt paths:** the runtime cannot continue a conversation -> "This session was closed after 30 idle minutes to free memory. New session starts a fresh one."; the person starts a session themselves first -> the saved mark is cleared
+- **UI elements:** the console's notice line
+- **States covered:** success
+- **Errors & recovery:** the continue cannot start (no room, SCN-063) -> that notice instead
+- **Status:** draft
+- **Coverage:** src/core/consoles.ts, src/electron/console.ts, src/core/settings.ts, src/renderer/components/ConsolePanel.tsx, test/switchboard-sessions.test.ts
 - **Product:** unobserved
 
 ### SCN-060: The dashboard keeps its floor while the console widens
