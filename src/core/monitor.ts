@@ -7,7 +7,7 @@ import { EventEmitter } from 'node:events';
 import fs from 'node:fs';
 import { ActivityStore } from './activity';
 import { runOwned } from './children';
-import { authHeaders, claimConflicts, dashboardMinWidth, deriveState, expand, fetchWellKnown, portOf, readDirectory, RemoteTokenLatch, REMOTE_TIMEOUT_MS, type DescriptorEntry, type WellKnownOptions, type WellKnownResult } from '@passioncode-ai/fabric-service-host';
+import { SystemdReader, authHeaders, claimConflicts, dashboardMinWidth, deriveState, expand, fetchWellKnown, portOf, readDirectory, RemoteTokenLatch, REMOTE_TIMEOUT_MS, type DescriptorEntry, type WellKnownOptions, type WellKnownResult } from '@passioncode-ai/fabric-service-host';
 import { tail } from './fsutil';
 import { commandReason, type CommandResult } from './outcome';
 import { duration, t as tr, type Lang } from './i18n';
@@ -32,6 +32,8 @@ export interface MonitorOptions {
   settings: () => Settings;
   lang: () => Lang;
   launchd?: Launchd;
+  /** FD-55: systemd's MainPID on Linux (a fake in tests). */
+  systemd?: Pick<SystemdReader, 'status'>;
   now?: () => number;
   /** Milliseconds. `rescan` is the safety net under the directory watcher; `visible`/`background` the
    *  probe cadence with and without a visible window; `events`/`eventsBackground` the feed cadence;
@@ -88,6 +90,7 @@ const MIN_WAKE_MS = 250;
 export class Monitor extends EventEmitter {
   private readonly tracked = new Map<string, Tracked>();
   private readonly launchd: Launchd;
+  private readonly systemd: Pick<SystemdReader, 'status'>;
   private readonly now: () => number;
   private readonly platform: NodeJS.Platform;
   private readonly intervals: typeof DEFAULT_INTERVALS;
@@ -121,6 +124,7 @@ export class Monitor extends EventEmitter {
   constructor(private readonly o: MonitorOptions) {
     super();
     this.launchd = o.launchd ?? new Launchd();
+    this.systemd = o.systemd ?? new SystemdReader();
     this.platform = o.platform ?? process.platform;
     this.now = o.now ?? Date.now;
     this.intervals = { ...DEFAULT_INTERVALS, ...(o.intervals ?? {}) };
@@ -374,7 +378,16 @@ export class Monitor extends EventEmitter {
         t.launchd = { managed: true, ...s };
         t.launchdAt = this.now();
       }
+    } else if (this.platform === 'linux' && d.lifecycle.manager === 'systemd' && d.lifecycle.unit) {
+      // FD-55 (DEC-0057): systemd's MainPID is the supervisor's pid, read on the same cadence as launchd.
+      const steady = probe.kind === 'answer' && pidBefore === probe.doc.process.pid && t.launchd.managed;
+      const fresh = t.launchdAt !== null && this.now() - t.launchdAt < this.intervals.launchdRefresh;
+      if (this.visible || !steady || !fresh) {
+        t.launchd = { managed: true, by: 'systemd', ...(await this.systemd.status(d.lifecycle.unit)) };
+        t.launchdAt = this.now();
+      }
     } else {
+      // The Task Scheduler (and no supervisor) gives no pid: a waiting copy is not shown, never an outage.
       t.launchd = { managed: false, loaded: false, pid: null, disabled: false };
     }
     // #endregion launchd-reads

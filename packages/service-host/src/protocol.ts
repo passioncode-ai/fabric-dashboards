@@ -20,7 +20,9 @@ export interface Descriptor {
   placement?: 'local' | 'remote';
   origin: string;
   auth: { tokenFile: string; header?: string; scheme?: 'Bearer' | 'none' };
-  lifecycle: { manager: 'launchd' | 'none'; label?: string; plist?: string };
+  /** DEC-0032, DEC-0057, DEC-0061, DEC-0069: the one supervisor and its own fields. `person` is an app's
+   *  descriptor, which `readDirectory` keeps out of the services it returns. */
+  lifecycle: { manager: 'launchd' | 'systemd' | 'task-scheduler' | 'node' | 'person' | 'none'; label?: string; plist?: string; unit?: string; task?: string; app?: string };
   /** Required for a local placement; optional for a remote one. */
   paths?: { data: string; logs: string[]; config?: string; cache?: string };
   commands?: { doctor?: string[]; update?: string[] };
@@ -94,7 +96,9 @@ export const REASON_CODES = [
 export type Busy = 'restarting' | 'stopping' | 'starting' | 'updating' | 'doctor' | null;
 
 /** What launchd says of the service's job; `managed: false` when the descriptor names no launchd job. */
-export interface LaunchdStatus { managed: boolean; loaded: boolean; pid: number | null; disabled: boolean }
+/** What the service's supervisor says. `by` names which one was read (FD-55): launchd, the only one this
+ *  app also controls, or systemd, read for its MainPID only; absent means launchd, as before. */
+export interface LaunchdStatus { managed: boolean; loaded: boolean; pid: number | null; disabled: boolean; by?: 'launchd' | 'systemd' }
 
 /** Two descriptors claim the same port (`port` set) or the same id.instance (FAC-SEM-010). */
 export interface ClaimConflict { port?: number; with: string[] }

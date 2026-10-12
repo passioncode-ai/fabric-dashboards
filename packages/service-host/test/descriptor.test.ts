@@ -129,3 +129,33 @@ test('FD-37: readDirectory judges paths by the host system it is given, not the 
   assert.deepEqual(readDirectory(dir, 'darwin')[0]!.problems, []);
   assert.ok(readDirectory(dir, 'win32')[0]!.problems.length, 'a POSIX path is not a Windows path');
 });
+
+// FD-57: every descriptor fixture of the contract at fe55fc6 (vendored, byte-identical). A positive is accepted
+// on the system whose paths it uses (a Windows path on Windows, a bundle in /Applications on macOS); a negative
+// is refused on every system.
+test('FD-57: the contract\'s descriptor fixtures — every positive accepted on its system, every negative refused', () => {
+  const dir = path.join(__dirname, '../../../test/fixtures/contract/descriptors');
+  const files = fs.readdirSync(dir).filter((f) => f.endsWith('.json'));
+  assert.ok(files.length >= 70, `only ${files.length} fixtures`);
+  for (const f of files) {
+    const doc = JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8'));
+    const text = JSON.stringify(doc);
+    const systems: NodeJS.Platform[] = /[A-Z]:\\\\|%LOCALAPPDATA%|task-scheduler/.test(text) ? ['win32'] : /\/Applications\//.test(text) ? ['darwin'] : ['darwin', 'linux', 'win32'];
+    for (const platform of f.startsWith('positive') ? systems : ['darwin', 'linux', 'win32'] as NodeJS.Platform[]) {
+      const problems = validateDescriptor(doc, platform);
+      if (f.startsWith('positive')) assert.deepEqual(problems, [], `${f} on ${platform}`);
+      else assert.ok(problems.length > 0, `${f} accepted on ${platform}`);
+    }
+  }
+});
+
+test('DEC-0069: an app\'s descriptor (manager person, no origin) is skipped, and the directory still reads', () => {
+  const dir = tmpDir('fd-app-');
+  const fx = (n: string) => fs.readFileSync(path.join(__dirname, '../../../test/fixtures/contract/descriptors', n), 'utf8');
+  fs.writeFileSync(path.join(dir, 'example-app.default.json'), fx('positive_service-descriptor-person-app.json'));
+  fs.writeFileSync(path.join(dir, 'example-agent.default.json'), fx('positive_service-descriptor.json'));
+  const entries = readDirectory(dir, 'darwin');
+  assert.deepEqual(entries.map((e) => e.key), ['example-agent.default'], 'the app is not a service to probe');
+  assert.ok(entries[0]!.descriptor);
+  assert.equal(claimConflicts(entries).size, 0, 'an app claims no port');
+});

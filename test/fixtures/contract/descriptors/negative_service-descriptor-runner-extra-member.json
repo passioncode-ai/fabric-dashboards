@@ -1,0 +1,33 @@
+{
+  "protocol": "fabric-service/0.1",
+  "id": "example-inbox",
+  "instance": "default",
+  "name": "Example Inbox",
+  "summary": "A mail agent in the organization's own cloud account, offered to its members.",
+  "placement": "remote",
+  "origin": "https://inbox.example.com",
+  "peer": {
+    "endpoint": "https://inbox.example.com/mcp",
+    "custody": "organization-managed",
+    "residency": [
+      "EU"
+    ],
+    "maxDataClass": "confidential"
+  },
+  "auth": {
+    "tokenFile": "~/Library/Application Support/ai.passioncode.fabric/tokens/example-inbox.default.token"
+  },
+  "lifecycle": {
+    "manager": "none"
+  },
+  "runner": {
+    "credentialKind": "platform-metered",
+    "account": "example"
+  },
+  "installedAt": "2026-10-12T09:00:00Z",
+  "installedBy": {
+    "by": "person",
+    "role": "administrator",
+    "tool": "example-inbox register-remote 1.0.0"
+  }
+}

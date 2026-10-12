@@ -1,0 +1,35 @@
+{
+  "protocol": "fabric-service/0.1",
+  "id": "example-agent",
+  "instance": "default",
+  "name": "Example Agent",
+  "summary": "Drafts and files reports for its operator.",
+  "origin": "http://127.0.0.1:47195",
+  "auth": {
+    "tokenFile": "~/.local/share/example-agent/service.token",
+    "header": "X-Example-Token",
+    "scheme": "none"
+  },
+  "lifecycle": {
+    "manager": "systemd",
+    "unit": "example-agent.default.service"
+  },
+  "paths": {
+    "data": "~/.local/share/example-agent",
+    "logs": [
+      "~/.local/state/example-agent/service.log"
+    ]
+  },
+  "commands": {
+    "doctor": [
+      "~/.local/share/example-agent/bin/example-agent",
+      "doctor",
+      "--json"
+    ]
+  },
+  "source": {
+    "repository": "https://github.com/example/example-agent"
+  },
+  "installedAt": "2026-09-28T18:00:00Z",
+  "installedBy": "example-agent service install 0.2.0"
+}

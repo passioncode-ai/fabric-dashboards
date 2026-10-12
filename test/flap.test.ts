@@ -240,6 +240,35 @@ test('R-19 (FD-21): an online origin that refuses TLS or redirects is down at on
   }
 });
 
+test('FD-55 (DEC-0057): a copy waiting on the lock is duplicate under systemd (MainPID), and nothing under the Task Scheduler', async () => {
+  const cases: { platform: NodeJS.Platform; fixture: string; mainPid: number | null; expect: string }[] = [
+    { platform: 'linux', fixture: 'positive_service-descriptor-systemd.json', mainPid: 5151, expect: 'duplicate' },
+    { platform: 'linux', fixture: 'positive_service-descriptor-systemd.json', mainPid: READY.process.pid, expect: 'ready' },
+    // The Task Scheduler's descriptor with this machine's paths: the monitor reads paths in its own grammar.
+    { platform: 'win32', fixture: 'positive_service-descriptor-systemd.json', mainPid: null, expect: 'ready' },
+  ];
+  for (const c of cases) {
+    const base = tmp('fd-supervisor-');
+    const services = path.join(base, 'services');
+    fs.mkdirSync(services);
+    const d = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures/contract/descriptors', c.fixture), 'utf8')) as Descriptor;
+    if (c.platform === 'win32') d.lifecycle = { manager: 'task-scheduler', task: '\\PassionCode\\example-agent.default' };
+    const key = `${d.id}.${d.instance}`;
+    fs.writeFileSync(path.join(services, `${key}.json`), JSON.stringify(d));
+    const answer: WellKnownResult = { kind: 'answer', doc: { ...READY, service: { ...READY.service, id: d.id, instance: d.instance } }, ms: 3 };
+    let asked = 0;
+    const monitor = new Monitor({ platform: c.platform,
+      servicesDir: services, activity: new ActivityStore(path.join(base, 'app')), settings: () => DEFAULT_SETTINGS, lang: () => 'en', now: () => T0,
+      wellKnown: async () => answer,
+      systemd: { status: async () => { asked++; return { loaded: true, pid: c.mainPid, disabled: false }; } },
+    });
+    monitor.setVisible(true);
+    await monitor.tick();
+    assert.equal(monitor.snapshot(key)?.state, c.expect, `${c.platform} ${c.fixture} MainPID ${c.mainPid}`);
+    if (c.platform === 'win32') assert.equal(asked, 0, 'the Task Scheduler has no supervisor pid to read');
+  }
+});
+
 // ── release audit R-8, R-18 ───────────────────────────────────────────────────────────────
 
 test('R-8: a new pid between two probes is a restart even when the state stays ready', async () => {
