@@ -7,9 +7,9 @@
 | ID | Title | Feature | Persona | Traces | Status | Last audit |
 |----|-------|---------|---------|--------|--------|------------|
 | SCN-001 | First launch finds installed services | discovery | P-01 | ST-001 | validated | 2026-10-12 |
-| SCN-002 | First launch with no service installed | discovery | P-01 | ST-001 | draft | 2026-10-06 |
-| SCN-003 | A service is installed or removed while the app runs | discovery | P-01 | ST-001 | draft | 2026-10-06 |
-| SCN-004 | A descriptor is invalid | discovery | P-01 | ST-001, ST-004 | draft | 2026-10-06 |
+| SCN-002 | First launch with no service installed | discovery | P-01 | ST-001 | validated | 2026-10-13 |
+| SCN-003 | A service is installed or removed while the app runs | discovery | P-01 | ST-001 | validated | 2026-10-13 |
+| SCN-004 | A descriptor is invalid | discovery | P-01 | ST-001, ST-004 | validated | 2026-10-13 |
 | SCN-005 | Overview when everything is ready | overview | P-01 | ST-002 | validated | 2026-10-12 |
 | SCN-006 | Overview lists what needs attention | overview | P-01 | ST-002 | draft | 2026-10-06 |
 | SCN-007 | Restart a service that is down | control | P-01 | ST-003 | draft | 2026-10-06 |
@@ -67,12 +67,12 @@
 | SCN-059 | A later session opens on what changed | overview | P-01 | ST-022 | validated | 2026-10-12 |
 | SCN-060 | The dashboard keeps its floor while the console widens | console | P-01 | ST-019 | draft | 2026-10-11 |
 | SCN-061 | Talk to Fabric about this agent | console | P-01 | ST-020 | validated | 2026-10-12 |
-| SCN-062 | Outages reach me away from the Mac | notifications | P-01 | ST-002 | draft | 2026-10-11 |
+| SCN-062 | Outages reach me away from the Mac | notifications | P-01 | ST-002 | validated | 2026-10-13 |
 | SCN-063 | A session starts only when the Mac can carry it | console | P-01 | ST-019 | draft | 2026-10-12 |
 | SCN-064 | See what Switchboard runs for this agent | console | P-01 | ST-019 | draft | 2026-10-12 |
 | SCN-065 | A provider limit does not stop the agent | console | P-01 | ST-019 | draft | 2026-10-12 |
 | SCN-066 | An idle session closes and comes back | console | P-01 | ST-019 | draft | 2026-10-12 |
-| SCN-067 | Dashboards take my scheme and theme | settings | P-01 | ST-019 | draft | 2026-10-12 |
+| SCN-067 | Dashboards take my scheme and theme | settings | P-01 | ST-019 | validated | 2026-10-13 |
 | SCN-068 | See which runner and model an agent uses | service | P-01 | ST-019 | draft | 2026-10-12 |
 ## Personas
 
@@ -117,8 +117,8 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **UI elements:** empty state, "Show folder" button, "How a service joins" (opens the fabric-agent-adapter guide in the browser)
 - **States covered:** empty
 - **Errors & recovery:** Finder cannot open the folder -> "Could not open <path>: <reason>" below the buttons
-- **Status:** draft
-- **Coverage:** src/renderer/components/Overview.tsx
+- **Status:** validated
+- **Coverage:** src/renderer/components/Overview.tsx, test/e2e/discovery.test.ts
 - **Product:** unobserved
 
 ### SCN-003: A service is installed or removed while the app runs
@@ -135,8 +135,8 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **UI elements:** sidebar, Overview cards, Activity rows
 - **States covered:** success
 - **Errors & recovery:** a half-written file shows as Invalid ("the file cannot be read as JSON: …") until it parses, and Activity may record it as installed (U-16, later); nothing else can fail visibly beyond SCN-004
-- **Status:** draft
-- **Coverage:** src/core/monitor.ts, test/monitor.test.ts
+- **Status:** validated
+- **Coverage:** src/core/monitor.ts, test/monitor.test.ts, test/e2e/discovery.test.ts
 - **Product:** unobserved
 
 ### SCN-004: A descriptor is invalid
@@ -152,8 +152,8 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **UI elements:** Invalid badge, problem list, "Show file" button
 - **States covered:** error
 - **Errors & recovery:** the operator fixes or reinstalls; the state clears within 5 seconds of a valid rewrite
-- **Status:** draft
-- **Coverage:** packages/service-host/src/descriptor.ts, packages/service-host/src/state.ts, test/monitor.test.ts, packages/service-host/test/descriptor.test.ts
+- **Status:** validated
+- **Coverage:** packages/service-host/src/descriptor.ts, packages/service-host/src/state.ts, test/monitor.test.ts, packages/service-host/test/descriptor.test.ts, test/e2e/discovery.test.ts
 - **Product:** unobserved
 
 ## overview
@@ -1149,8 +1149,8 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **UI elements:** Settings → colour scheme, dashboard theme, the hint under them
 - **States covered:** success
 - **Errors & recovery:** the cookie cannot be written -> the dashboard follows macOS's light or dark, which every dashboard must handle
-- **Status:** draft
-- **Coverage:** src/core/appearance.ts, src/electron/views.ts, src/renderer/components/Settings.tsx, src/renderer/App.tsx, test/appearance.test.ts, packages/service-host/test/look.test.ts
+- **Status:** validated
+- **Coverage:** src/core/appearance.ts, src/electron/views.ts, src/renderer/components/Settings.tsx, src/renderer/App.tsx, test/appearance.test.ts, packages/service-host/test/look.test.ts, test/e2e/app.test.ts
 - **Product:** unobserved
 
 ### SCN-068: See which runner and model an agent uses
@@ -1376,7 +1376,7 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **UI elements:** Settings → Notifications: Also send outages to (select), its help line and its last-delivery line
 - **States covered:** success, error, empty
 - **Errors & recovery:** the channel does not answer -> retried every minute, at most five times; the last failure shows in Settings with its reason; the app's log has `alerts:` lines
-- **Status:** draft
+- **Status:** validated
 - **Coverage:** src/core/outage-alerts.ts, src/core/mcp-client.ts, src/electron/outage-alerts.ts, src/electron/main.ts (outage-alerts), src/renderer/components/Settings.tsx (AlertChannel), test/outage-alerts.test.ts
-- **Product:** unobserved
+- **Product:** observed 2026-10-12 on this Mac: 22 failure alerts sent 5.0–5.4 min after an outage began, none for the 34 shorter episodes (FD-01)
 
