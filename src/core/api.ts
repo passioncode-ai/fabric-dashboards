@@ -25,7 +25,9 @@ export interface ConsoleInfo {
 /** Why a start did not run in the console, worded by the renderer. */
 export type ConsoleStartResult =
   | { ok: true }
-  | { ok: false; reason: 'running' | 'no-runtime' | 'no-folder' | 'no-continue' | 'switchboard' | 'terminal-only' | 'spawn'; detail?: string; project?: string };
+  | { ok: false; reason: 'running' | 'no-runtime' | 'no-folder' | 'no-continue' | 'switchboard' | 'terminal-only' | 'spawn'; detail?: string; project?: string }
+  /** FD-49 (LC-17): deferred — the machine cannot carry another session now. */
+  | { ok: false; reason: 'admission'; why: 'disk' | 'swap' | 'cap'; freeGb?: number; running?: number; cap?: number };
 
 /** Where an embedded dashboard is now (ADR-0014). */
 export interface PageState { key: string; address: string; link: string; canGoBack: boolean; canGoForward: boolean; loading: boolean }

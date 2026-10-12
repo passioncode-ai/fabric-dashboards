@@ -14,6 +14,7 @@ import { prepareHandoff, type McpCommand } from '../core/handoff';
 import { prepareSetup, SETUP_KEY, setupFolder, type SetupState } from '../core/setup';
 import type { ActivityItem } from '../core/types';
 import { ConsoleManager, planStart, terminalScript, type SpawnPty } from '../core/consoles';
+import { admit, machineProbe, type MachineState } from '../core/admission';
 import { findCheckout } from '../core/repofind';
 import { detectRuntimes, KNOWN_RUNTIMES, readLoginPath, searchDirs, specsFromSwitchboard, type Runtime, type RuntimeSpec } from '../core/runtimes';
 import type { SettingsStore } from '../core/settings';
@@ -64,6 +65,8 @@ export interface ConsoleHostOptions {
   mcpServer?: () => McpCommand;
   /** FD-39 SCN-058: what is set up already, for the Setup console's brief. */
   setupState?: () => SetupState;
+  /** FD-49 (LC-17): the machine before a start; the real probe by default, a stub in tests. */
+  machine?: (folder: string, running: number) => Promise<MachineState>;
 }
 
 export class ConsoleHost {
@@ -201,6 +204,14 @@ export class ConsoleHost {
     if (!runtime) return { ok: false, reason: 'no-runtime' };
     const folder = this.folderOf(key);
     if (!folder?.exists) return { ok: false, reason: 'no-folder' };
+    // FD-49 (LC-17): start only what the machine can carry; otherwise defer, saying why.
+    const a = admit(await (this.o.machine ?? machineProbe)(folder.path, this.manager.runningCount()));
+    if (!a.ok) {
+      this.o.log(`console: ${key} start deferred (LC-17): ${a.why}`);
+      if (a.why === 'disk') return { ok: false, reason: 'admission', why: 'disk', freeGb: Math.round((a.freeDisk / 1024 ** 3) * 10) / 10 };
+      if (a.why === 'cap') return { ok: false, reason: 'admission', why: 'cap', running: a.running, cap: a.cap };
+      return { ok: false, reason: 'admission', why: 'swap' };
+    }
     const b = await this.bindingFor(runtime, folder.path, inv);
     const pack = this.pack(key, runtime, folder.path, task);
     const plan = planStart({ runtime, mode, folder: folder.path, binding: b.kind === 'absent' ? { kind: 'none' } : b, switchboard: inv.switchboard, inPlace: inv.inPlace, handoff: pack?.handoff });

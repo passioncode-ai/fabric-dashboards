@@ -95,6 +95,11 @@ export function ConsolePanel({ serviceKey, width, max, onWidth, onHide, task, on
 
   const say = (r: ConsoleStartResult) => {
     if (r.ok) { setNotice(null); return; }
+    if (r.reason === 'admission') {
+      // FD-49 (LC-17): what the machine lacks, and what frees it.
+      setNotice({ text: r.why === 'disk' ? t('console.admission.disk', { free: r.freeGb ?? 0 }) : r.why === 'cap' ? t('console.admission.cap', { cap: r.cap ?? 0 }) : t('console.admission.swap') });
+      return;
+    }
     const detail = r.detail ?? '';
     if (r.reason === 'terminal-only') setNotice({ text: t('console.terminalOnly', { name: r.project ?? '' }), terminalOnly: true });
     else if (r.reason === 'switchboard') setNotice({ text: t('console.sbError', { detail }) });
