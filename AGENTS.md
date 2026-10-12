@@ -164,7 +164,7 @@ the list's sort, each service's console runtime and folder, ADR-0017, and the pr
 and `setup.md` for the Setup console; 0700 folder, 0600 files, rewritten at each start, never in the agent's repository)
 and its last good copy `settings.json.bak` (a damaged `settings.json` is restored from it, ADR-0015),
 `auto-update` (the LC-16 switch: written only when the person turns it, kept by every uninstall), `.last-version` (the version that ran last, to log a finished install), `restore.json` (written only by an uninstall that kept the data), `.relaunch-hidden` (seconds-long
-marker of an automatic update install), `activity.jsonl` (appended, compacted to 5,000 rows at 10,000), `activity-state.json`,
+marker of an automatic update install), `.resume-route.json` (written by Restart to update: the screen the next copy opens on, read and removed at its start, FD-21 U-18), `activity.jsonl` (appended, compacted to 5,000 rows at 10,000), `activity-state.json`,
 `notified.json`, `outage-alerts.json` (FD-48: open outage episodes and each service's start baseline), `pending-update/` (Windows, FD-37 M4c: the verified installer until it runs; removed at every start), the Chromium profile and one `Partitions/svc-<key>` per service ever opened;
 `~/Library/Logs/Fabric Dashboards/main.log` (0600, 5 × 5 MB). At start it removes temporary files
 left by a killed writer and the partitions of services that are no longer installed; a service
@@ -172,7 +172,8 @@ removed while it runs takes its view and its stored session with it.
 
 **Uninstall** (LC-14, ADR-0015): Settings → Uninstall removes the login item and the
 `fabric-dashboards` MCP entry from `~/.claude.json` (user and project scopes; a same-named server
-that runs something else is kept) and moves the app to the Trash. Data goes only on request: by
+that runs something else is kept), removes an update Squirrel has staged (its `ShipItState.plist` and
+`update.*` bundle, so ShipIt cannot put the app back as it quits, FD-21 R-20) and moves the app to the Trash. Data goes only on request: by
 default, once the app has exited, everything it wrote is removed (`productDataPaths` in
 `src/core/uninstall.ts`) **except** `KEPT_FILES` — settings, their copy, the activity history, the
 notification ledger, the `auto-update` switch and `restore.json`, which makes the next install put the login item and the
