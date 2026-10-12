@@ -35,7 +35,7 @@
 | SCN-027 | A link that cannot be opened | links | P-01 | ST-011 | validated | 2026-10-12 |
 | SCN-028 | An agent reads and administers services through MCP | agents | P-01 | ST-012, ST-003 | draft | 2026-10-06 |
 | SCN-029 | Open a service from Fabric's agent registry | links | P-01 | ST-011, ST-005, ST-003 | validated | 2026-10-12 |
-| SCN-030 | Online services appear in their own group | overview | P-01 | ST-013, ST-002 | draft | 2026-10-06 |
+| SCN-030 | Online services appear in their own group | overview | P-01 | ST-013, ST-002 | validated | 2026-10-13 |
 | SCN-031 | Open an online service's dashboard, signed in | dashboards | P-01 | ST-013, ST-005 | validated | 2026-10-12 |
 | SCN-032 | An online service that cannot be reached says why | health | P-01 | ST-013, ST-004 | draft | 2026-10-06 |
 | SCN-033 | Several instances of one agent read as one agent | products | P-01 | ST-014, ST-002 | draft | 2026-10-06 |
@@ -723,8 +723,8 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **UI elements:** Overview → Online group, service card (host line), state badge
 - **States covered:** success, empty
 - **Errors & recovery:** the token file is missing or readable by others -> the card is Invalid with "The token file cannot be used: <reason>" and the service is never contacted; fix the file and the next scan reads it
-- **Status:** draft
-- **Coverage:** src/renderer/components/Overview.tsx, packages/service-host/src/descriptor.ts, test/remote.test.ts
+- **Status:** validated
+- **Coverage:** src/renderer/components/Overview.tsx, packages/service-host/src/descriptor.ts, test/remote.test.ts, test/e2e/remote.test.ts
 - **Product:** unobserved
 
 ### SCN-031: Open an online service's dashboard, signed in
@@ -753,7 +753,7 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **Preconditions:** a remote descriptor
 - **Steps:**
   1. The service refuses the token -> Not answering, "<origin> refused the token. Set the same token on its platform and in this computer's token file."
-  2. The certificate does not verify -> Not answering, "The certificate of <origin> does not verify: <detail>. The app does not connect around it." — after three probes in a row when it answered before (R-19, later)
+  2. The certificate does not verify -> Not answering, "The certificate of <origin> does not verify: <detail>. The app does not connect around it." — at once, even when it answered before: a certificate refusal is the origin's own verdict, not a slow host (R-19, FD-21)
   3. The service answers with a redirect -> Not answering, "<origin> answered with a redirect, which the app does not follow."; its platform answers HTTP 5xx (a deploy, an outage) -> after a minute, "<origin> is not up: its platform answers HTTP 503 …"
   4. Nothing answers for a minute -> Not answering, "<origin> has not answered since HH:MM."; one missed probe is not an outage (ADR-0008)
 - **Expected result:** I can tell a configuration problem from an outage without opening a terminal
