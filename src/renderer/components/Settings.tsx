@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import type { AppStatus, Listener, Settings as SettingsValue } from '../../core/types';
 import { api, nameOf, Spinner, useT } from '../lib';
+import { REFERENCE_THEMES } from '../../core/appearance';
 
-export function Settings({ status, onTheme, onLanguage, onSetup }: { status: AppStatus; onTheme: (theme: 'dark' | 'light') => void; onLanguage: () => void;
+export function Settings({ status, onTheme, onLanguage, onSetup }: { status: AppStatus; onTheme: (theme: SettingsValue['theme']) => void; onLanguage: () => void;
   /** FD-39 SCN-058: the Setup console stays reachable after the card is hidden. */
   onSetup?: () => void }) {
   const { t, time } = useT();
@@ -38,11 +39,19 @@ export function Settings({ status, onTheme, onLanguage, onSetup }: { status: App
         </label>
         {error && <p className="notice error" role="alert">{error}</p>}
         <label className="setting">{t('settings.theme')}
-          <select value={value.theme} onChange={(e) => void save({ theme: e.target.value as 'dark' | 'light' })}>
+          <select value={value.theme} onChange={(e) => void save({ theme: e.target.value as SettingsValue['theme'] })}>
+            <option value="system">{t('settings.theme.system')}</option>
             <option value="dark">{t('settings.theme.dark')}</option>
             <option value="light">{t('settings.theme.light')}</option>
           </select>
         </label>
+        {/* FD-42 (ED-8, ED-10): the theme dashboards are asked to use, carried with the scheme above. */}
+        <label className="setting">{t('settings.pageTheme')}
+          <select value={value.pageTheme} onChange={(e) => void save({ pageTheme: e.target.value })}>
+            {REFERENCE_THEMES.map((id) => <option key={id} value={id}>{t(`settings.pageTheme.${id}`)}</option>)}
+          </select>
+        </label>
+        <p className="meta">{t('settings.pageTheme.hint')}</p>
         <label className="setting">{t('settings.language')}
           <select value={value.language} onChange={(e) => void save({ language: e.target.value as SettingsValue['language'] })}>
             <option value="system">{t('settings.language.system')}</option>

@@ -4,7 +4,7 @@ import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
-import { isProductPath, productDataPaths, purgeAfterExit } from '../src/core/uninstall';
+import { cancelStagedUpdate, isProductPath, productDataPaths, purgeAfterExit } from '../src/core/uninstall';
 import { tmp } from './helpers';
 
 const WIN_ENV = { LOCALAPPDATA: 'C:\\Users\\e\\AppData\\Local', APPDATA: 'C:\\Users\\e\\AppData\\Roaming' };
@@ -52,4 +52,18 @@ test('FD-37: on Windows the data goes only after the app exits, and the kept fil
   assert.ok(fs.existsSync(path.join(data, 'Cache')), 'nothing is removed while the app still runs');
   for (let i = 0; i < 450 && fs.readdirSync(data).length > 1; i += 1) await new Promise((resolve) => setTimeout(resolve, 100));
   assert.deepEqual(fs.readdirSync(data), ['settings.json']);
+});
+
+test('R-20 (FD-21): uninstall removes the staged update before quitting, so ShipIt has nothing to put back', () => {
+  const home = tmp('fd-shipit-');
+  const shipIt = path.join(home, 'Library', 'Caches', 'ai.passioncode.fabric-dashboards.ShipIt');
+  fs.mkdirSync(path.join(shipIt, 'update.AbC123', 'Fabric Dashboards.app'), { recursive: true });
+  fs.writeFileSync(path.join(shipIt, 'ShipItState.plist'), '<plist/>');
+  fs.writeFileSync(path.join(shipIt, 'ShipIt_stderr.log'), 'kept for the purge after exit');
+  const removed = cancelStagedUpdate(home);
+  assert.deepEqual(removed.map((p) => path.basename(p)), ['ShipItState.plist', 'update.AbC123'], 'the record first, then the staged bundle');
+  assert.ok(!fs.existsSync(path.join(shipIt, 'ShipItState.plist')));
+  assert.ok(!fs.existsSync(path.join(shipIt, 'update.AbC123')));
+  assert.ok(fs.existsSync(path.join(shipIt, 'ShipIt_stderr.log')), 'the rest goes with the data after exit');
+  assert.deepEqual(cancelStagedUpdate(path.join(home, 'nobody')), [], 'nothing staged: nothing to do');
 });

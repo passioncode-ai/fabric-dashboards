@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import { LaunchdReader, lookAtServices, type Runner, type WellKnownResult } from '../src/index';
+import { hostView, LaunchdReader, lookAtServices, type Runner, type WellKnownResult } from '../src/index';
 import { tmpDir } from './tmp';
 
 const FIXTURES = path.join(__dirname, '../../../test/fixtures/contract');
@@ -93,4 +93,15 @@ test('FD-37: off macOS a look never runs launchctl and reads a launchd service a
   const off = look.services.find((s) => s.key === 'off-one.default')!;
   assert.equal(off.launchd.managed, false);
   assert.notEqual(off.state, 'stopped');
+});
+
+// FD-56 (DEC-0059): the contract's dashboard-declaration vectors, run against this host's port of hostView.
+test('FD-56: every dashboard-declaration vector of the contract gets the contract\'s view', () => {
+  const v = JSON.parse(fs.readFileSync(path.join(__dirname, '../../../test/fixtures/contract/vectors_dashboard-declaration.json'), 'utf8'));
+  for (const c of v.cases) {
+    const doc = c.wellKnownJson !== undefined ? JSON.parse(c.wellKnownJson) : c.wellKnown;
+    const { errors, ...view } = hostView(doc);
+    assert.deepEqual(view, (({ errors: _e, ...rest }) => rest)(c.expect), c.name);
+    assert.equal(errors.length > 0, c.expect.reported, `${c.name}: errors iff reported`);
+  }
 });

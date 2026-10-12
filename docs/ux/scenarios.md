@@ -6,51 +6,51 @@
 
 | ID | Title | Feature | Persona | Traces | Status | Last audit |
 |----|-------|---------|---------|--------|--------|------------|
-| SCN-001 | First launch finds installed services | discovery | P-01 | ST-001 | draft | 2026-10-06 |
-| SCN-002 | First launch with no service installed | discovery | P-01 | ST-001 | draft | 2026-10-06 |
-| SCN-003 | A service is installed or removed while the app runs | discovery | P-01 | ST-001 | draft | 2026-10-06 |
-| SCN-004 | A descriptor is invalid | discovery | P-01 | ST-001, ST-004 | draft | 2026-10-06 |
-| SCN-005 | Overview when everything is ready | overview | P-01 | ST-002 | draft | 2026-10-06 |
+| SCN-001 | First launch finds installed services | discovery | P-01 | ST-001 | validated | 2026-10-12 |
+| SCN-002 | First launch with no service installed | discovery | P-01 | ST-001 | validated | 2026-10-13 |
+| SCN-003 | A service is installed or removed while the app runs | discovery | P-01 | ST-001 | validated | 2026-10-13 |
+| SCN-004 | A descriptor is invalid | discovery | P-01 | ST-001, ST-004 | validated | 2026-10-13 |
+| SCN-005 | Overview when everything is ready | overview | P-01 | ST-002 | validated | 2026-10-12 |
 | SCN-006 | Overview lists what needs attention | overview | P-01 | ST-002 | draft | 2026-10-06 |
 | SCN-007 | Restart a service that is down | control | P-01 | ST-003 | draft | 2026-10-06 |
 | SCN-008 | Restart does not bring the service back | control | P-01 | ST-003 | draft | 2026-10-06 |
-| SCN-009 | Stop a service so it stays off | control | P-01 | ST-003 | draft | 2026-10-06 |
+| SCN-009 | Stop a service so it stays off | control | P-01 | ST-003 | validated | 2026-10-12 |
 | SCN-010 | Start a stopped service | control | P-01 | ST-003 | draft | 2026-10-06 |
 | SCN-011 | Two copies of one service | health | P-01 | ST-004 | draft | 2026-10-06 |
 | SCN-012 | Another program answers on the service's port | health | P-01 | ST-004 | draft | 2026-10-06 |
 | SCN-013 | Two services claim one port | health | P-01 | ST-004 | draft | 2026-10-06 |
-| SCN-014 | Open a dashboard inside the app, signed in | dashboards | P-01 | ST-005 | draft | 2026-10-06 |
-| SCN-015 | Dashboard view keeps its place | dashboards | P-01 | ST-005 | draft | 2026-10-06 |
+| SCN-014 | Open a dashboard inside the app, signed in | dashboards | P-01 | ST-005 | validated | 2026-10-12 |
+| SCN-015 | Dashboard view keeps its place | dashboards | P-01 | ST-005 | validated | 2026-10-12 |
 | SCN-016 | Dashboard cannot sign in | dashboards | P-01 | ST-005 | draft | 2026-10-06 |
-| SCN-017 | Catch up in Activity | activity | P-01 | ST-006 | draft | 2026-10-06 |
+| SCN-017 | Catch up in Activity | activity | P-01 | ST-006 | validated | 2026-10-12 |
 | SCN-018 | Activity when a service's feed cannot be read | activity | P-01 | ST-006 | draft | 2026-10-06 |
 | SCN-019 | Notification when a service goes down and comes back | notifications | P-01 | ST-007 | draft | 2026-10-06 |
 | SCN-020 | Notification from a service event opens the item | notifications | P-01 | ST-007, ST-006 | draft | 2026-10-06 |
 | SCN-021 | Update a service | updates | P-01 | ST-008 | draft | 2026-10-06 |
-| SCN-022 | The app updates itself | updates | P-01 | ST-008 | draft | 2026-10-07 |
-| SCN-023 | Glance from the menu bar | tray | P-01 | ST-009 | draft | 2026-10-07 |
+| SCN-022 | The app updates itself | updates | P-01 | ST-008 | validated | 2026-10-12 |
+| SCN-023 | Glance from the menu bar | tray | P-01 | ST-009 | validated | 2026-10-12 |
 | SCN-024 | Settings: launch at login, notifications, quiet hours | settings | P-01 | ST-010, ST-007 | draft | 2026-10-07 |
 | SCN-025 | Run doctor and read logs | control | P-01 | ST-003 | draft | 2026-10-06 |
-| SCN-026 | Open a service page from a link an agent handed over | links | P-01 | ST-011, ST-005 | draft | 2026-10-06 |
-| SCN-027 | A link that cannot be opened | links | P-01 | ST-011 | draft | 2026-10-06 |
+| SCN-026 | Open a service page from a link an agent handed over | links | P-01 | ST-011, ST-005 | validated | 2026-10-12 |
+| SCN-027 | A link that cannot be opened | links | P-01 | ST-011 | validated | 2026-10-12 |
 | SCN-028 | An agent reads and administers services through MCP | agents | P-01 | ST-012, ST-003 | draft | 2026-10-06 |
-| SCN-029 | Open a service from Fabric's agent registry | links | P-01 | ST-011, ST-005, ST-003 | draft | 2026-10-06 |
-| SCN-030 | Online services appear in their own group | overview | P-01 | ST-013, ST-002 | draft | 2026-10-06 |
-| SCN-031 | Open an online service's dashboard, signed in | dashboards | P-01 | ST-013, ST-005 | draft | 2026-10-06 |
+| SCN-029 | Open a service from Fabric's agent registry | links | P-01 | ST-011, ST-005, ST-003 | validated | 2026-10-12 |
+| SCN-030 | Online services appear in their own group | overview | P-01 | ST-013, ST-002 | validated | 2026-10-13 |
+| SCN-031 | Open an online service's dashboard, signed in | dashboards | P-01 | ST-013, ST-005 | validated | 2026-10-12 |
 | SCN-032 | An online service that cannot be reached says why | health | P-01 | ST-013, ST-004 | draft | 2026-10-06 |
 | SCN-033 | Several instances of one agent read as one agent | products | P-01 | ST-014, ST-002 | draft | 2026-10-06 |
 | SCN-034 | Switch between an agent's connections | products | P-01 | ST-014, ST-005 | draft | 2026-10-06 |
 | SCN-035 | A connection fails while the agent is fine | products | P-01 | ST-014, ST-002, ST-004 | draft | 2026-10-06 |
-| SCN-036 | See what every agent spent | spend | P-01 | ST-015 | draft | 2026-10-07 |
-| SCN-037 | A cost that is not known reads as unknown | spend | P-01 | ST-015 | draft | 2026-10-06 |
+| SCN-036 | See what every agent spent | spend | P-01 | ST-015 | validated | 2026-10-12 |
+| SCN-037 | A cost that is not known reads as unknown | spend | P-01 | ST-015 | validated | 2026-10-12 |
 | SCN-038 | An agent's spend cannot be read | spend | P-01 | ST-015, ST-004 | draft | 2026-10-06 |
-| SCN-039 | Reload and move through an embedded dashboard | dashboards | P-01 | ST-016, ST-005 | draft | 2026-10-09 |
-| SCN-040 | Copy a dashboard page's address or app link | dashboards | P-01 | ST-016, ST-011 | draft | 2026-10-06 |
+| SCN-039 | Reload and move through an embedded dashboard | dashboards | P-01 | ST-016, ST-005 | validated | 2026-10-12 |
+| SCN-040 | Copy a dashboard page's address or app link | dashboards | P-01 | ST-016, ST-011 | validated | 2026-10-12 |
 | SCN-041 | Overview at a glance | overview | P-01 | ST-016, ST-002, ST-015 | draft | 2026-10-06 |
 | SCN-042 | Many problems stay compact | overview | P-01 | ST-016, ST-002 | draft | 2026-10-06 |
 | SCN-043 | Reinstall picks up where I left off | settings | P-01 | ST-017, ST-010 | draft | 2026-10-06 |
 | SCN-044 | A copy outside Applications moves itself so it can update | updates | P-01 | ST-017, ST-008 | draft | 2026-10-06 |
-| SCN-045 | A dashboard hands me to another agent | dashboards | P-01 | ST-005, ST-011 | draft | 2026-10-06 |
+| SCN-045 | A dashboard hands me to another agent | dashboards | P-01 | ST-005, ST-011 | validated | 2026-10-12 |
 | SCN-046 | The dashboard gets the screen: a one-line header that opens to the full card | focus | P-01 | ST-018 | validated | 2026-10-06 |
 | SCN-047 | The agents list folds into a rail | focus | P-01 | ST-018 | validated | 2026-10-06 |
 | SCN-048 | Open an agent's console beside its dashboard | console | P-01 | ST-019 | validated | 2026-10-06 |
@@ -58,16 +58,22 @@
 | SCN-050 | A folder bound to a Switchboard project runs on that project's account | console | P-01 | ST-019 | validated | 2026-10-06 |
 | SCN-051 | The app watches contract and skill versions | estate | P-01 | ST-008, ST-017 | draft | 2026-10-07 |
 | SCN-052 | Fabric Dashboards on Windows or Linux | platform | P-01 | ST-001, ST-008 | draft | 2026-10-10 |
-| SCN-053 | The console's agent already knows which agent it works on | console | P-01 | ST-020 | draft | 2026-10-10 |
-| SCN-054 | Fix with agent | console | P-01 | ST-020 | draft | 2026-10-10 |
+| SCN-053 | The console's agent already knows which agent it works on | console | P-01 | ST-020 | validated | 2026-10-12 |
+| SCN-054 | Fix with agent | console | P-01 | ST-020 | validated | 2026-10-12 |
 | SCN-055 | Update with agent | console | P-01 | ST-020 | draft | 2026-10-10 |
-| SCN-056 | Pin an agent to the top of the list | list | P-01 | ST-021 | draft | 2026-10-10 |
+| SCN-056 | Pin an agent to the top of the list | list | P-01 | ST-021 | validated | 2026-10-12 |
 | SCN-057 | Sort the agents list | list | P-01 | ST-021 | draft | 2026-10-10 |
-| SCN-058 | First session: my coding agent sets the system up | setup | P-01 | ST-022 | draft | 2026-10-10 |
-| SCN-059 | A later session opens on what changed | overview | P-01 | ST-022 | draft | 2026-10-10 |
+| SCN-058 | First session: my coding agent sets the system up | setup | P-01 | ST-022 | validated | 2026-10-12 |
+| SCN-059 | A later session opens on what changed | overview | P-01 | ST-022 | validated | 2026-10-12 |
 | SCN-060 | The dashboard keeps its floor while the console widens | console | P-01 | ST-019 | draft | 2026-10-11 |
-| SCN-061 | Talk to Fabric about this agent | console | P-01 | ST-020 | draft | 2026-10-11 |
-| SCN-062 | Outages reach me away from the Mac | notifications | P-01 | ST-002 | draft | 2026-10-11 |
+| SCN-061 | Talk to Fabric about this agent | console | P-01 | ST-020 | validated | 2026-10-12 |
+| SCN-062 | Outages reach me away from the Mac | notifications | P-01 | ST-002 | validated | 2026-10-13 |
+| SCN-063 | A session starts only when the Mac can carry it | console | P-01 | ST-019 | draft | 2026-10-12 |
+| SCN-064 | See what Switchboard runs for this agent | console | P-01 | ST-019 | draft | 2026-10-12 |
+| SCN-065 | A provider limit does not stop the agent | console | P-01 | ST-019 | draft | 2026-10-12 |
+| SCN-066 | An idle session closes and comes back | console | P-01 | ST-019 | draft | 2026-10-12 |
+| SCN-067 | Dashboards take my scheme and theme | settings | P-01 | ST-019 | validated | 2026-10-13 |
+| SCN-068 | See which runner and model an agent uses | service | P-01 | ST-019 | draft | 2026-10-12 |
 ## Personas
 
 Defined in [foundation.md](foundation.md) → P-01.
@@ -93,7 +99,7 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **UI elements:** window, sidebar service list, Overview cards, loading line, menu bar icon
 - **States covered:** loading, success
 - **Errors & recovery:** services directory unreadable -> Overview shows "Cannot read the services folder: <reason>" with the path and Retry
-- **Status:** draft
+- **Status:** validated
 - **Coverage:** src/core/monitor.ts, packages/service-host/src/descriptor.ts, src/renderer/components/Overview.tsx, test/e2e/app.test.ts
 - **Product:** unobserved
 
@@ -111,8 +117,8 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **UI elements:** empty state, "Show folder" button, "How a service joins" (opens the fabric-agent-adapter guide in the browser)
 - **States covered:** empty
 - **Errors & recovery:** Finder cannot open the folder -> "Could not open <path>: <reason>" below the buttons
-- **Status:** draft
-- **Coverage:** src/renderer/components/Overview.tsx
+- **Status:** validated
+- **Coverage:** src/renderer/components/Overview.tsx, test/e2e/discovery.test.ts
 - **Product:** unobserved
 
 ### SCN-003: A service is installed or removed while the app runs
@@ -129,8 +135,8 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **UI elements:** sidebar, Overview cards, Activity rows
 - **States covered:** success
 - **Errors & recovery:** a half-written file shows as Invalid ("the file cannot be read as JSON: …") until it parses, and Activity may record it as installed (U-16, later); nothing else can fail visibly beyond SCN-004
-- **Status:** draft
-- **Coverage:** src/core/monitor.ts, test/monitor.test.ts
+- **Status:** validated
+- **Coverage:** src/core/monitor.ts, test/monitor.test.ts, test/e2e/discovery.test.ts
 - **Product:** unobserved
 
 ### SCN-004: A descriptor is invalid
@@ -146,8 +152,8 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **UI elements:** Invalid badge, problem list, "Show file" button
 - **States covered:** error
 - **Errors & recovery:** the operator fixes or reinstalls; the state clears within 5 seconds of a valid rewrite
-- **Status:** draft
-- **Coverage:** packages/service-host/src/descriptor.ts, packages/service-host/src/state.ts, test/monitor.test.ts, packages/service-host/test/descriptor.test.ts
+- **Status:** validated
+- **Coverage:** packages/service-host/src/descriptor.ts, packages/service-host/src/state.ts, test/monitor.test.ts, packages/service-host/test/descriptor.test.ts, test/e2e/discovery.test.ts
 - **Product:** unobserved
 
 ## overview
@@ -165,7 +171,7 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **UI elements:** service cards, state dot and label, the agent's one-line summary, tiles, latest event line, header count "7 services" (one per agent, ADR-0012)
 - **States covered:** loading, success
 - **Errors & recovery:** nothing can fail on this screen itself; per-service failures are SCN-006
-- **Status:** draft
+- **Status:** validated
 - **Coverage:** src/renderer/components/Overview.tsx, test/e2e/app.test.ts
 - **Product:** unobserved
 
@@ -239,7 +245,7 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **UI elements:** Stop button, confirmation dialog with Stop and Cancel (focus stays in it while it is open; after Stop it moves to the service's name), Off badge
 - **States covered:** loading, success, error
 - **Errors & recovery:** still answering after 40 s -> "<Service> is still answering; another copy may run outside launchd." with Logs when declared
-- **Status:** draft
+- **Status:** validated
 - **Coverage:** src/core/launchd.ts, src/renderer/App.tsx, test/monitor.test.ts, test/e2e/app.test.ts
 - **Product:** unobserved
 
@@ -347,7 +353,7 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **UI elements:** service view header, tabs Dashboard / Activity / Health / Logs, embedded page, loading line
 - **States covered:** loading, success, error
 - **Errors & recovery:** see SCN-016; a link inside the page to another agent opens that agent here (SCN-045); a link to any other site asks "Open in your browser?" — "<address> is outside this service. It opens in your default browser." with Open in browser and Cancel
-- **Status:** draft
+- **Status:** validated
 - **Coverage:** src/electron/views.ts, src/electron/policy.ts, src/renderer/components/ServiceView.tsx (Tools), test/viewslot.test.ts, test/e2e/app.test.ts
 - **Product:** unobserved
 
@@ -365,7 +371,7 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **UI elements:** the other agent's service view and dashboard
 - **States covered:** success, error
 - **Errors & recovery:** the link names no installed agent or a path off its origin -> "This link cannot be opened" with the reason, nothing opens (SCN-027); the other agent is stopped -> its page opens on Start (SCN-010); a link to an unknown site -> the browser question of SCN-014
-- **Status:** draft
+- **Status:** validated
 - **Coverage:** src/electron/policy.ts (routeLink), src/electron/views.ts, src/electron/main.ts, test/parts.test.ts, test/e2e/app.test.ts
 - **Product:** unobserved
 
@@ -383,7 +389,7 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **Alt paths:** the session ended while the page was open (the service answers 401) -> the app signs in again by itself, once a minute at most, and reopens the same page (ADR-0014); the window stays hidden for 5 minutes -> every dashboard is released, and showing the window again reopens the one that was on screen, on its page
 - **States covered:** success
 - **Errors & recovery:** the page crashes -> the app recreates it once (again after every page that loads), then shows "The page stopped." with Reload
-- **Status:** draft
+- **Status:** validated
 - **Coverage:** src/electron/views.ts, src/electron/policy.ts (ViewSlot, resumePath), src/renderer/components/ServiceView.tsx (DashboardHost), test/viewslot.test.ts, test/e2e/app.test.ts
 - **Product:** unobserved
 
@@ -421,7 +427,7 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **UI elements:** Activity list, day headers, service and level filters (labelled Service and Level), unread count (notice, warning and error rows since the page was last open; reading marks new rows seen)
 - **States covered:** loading, empty, success
 - **Errors & recovery:** see SCN-018
-- **Status:** draft
+- **Status:** validated
 - **Coverage:** src/core/activity.ts, src/renderer/components/Activity.tsx, test/e2e/app.test.ts
 - **Product:** unobserved
 
@@ -511,11 +517,11 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
   2. User closes the window and leaves it closed for ten minutes -> the app installs the update and reopens in the menu bar, with no window and no question; services are untouched
   3. User opens the window later -> it is the new version, on the Overview
 - **Expected result:** every copy stays current with no action from the person
-- **Alt paths:** user chooses Restart to Update while an agent's console or a command runs -> the app names them and asks; Cancel keeps everything running, Restart to Update stops them and installs; user chooses Restart to Update -> a notification says the app reopens by itself and it installs now; the app is opened (by the person, a link or an agent) while the update installs -> it says «Finishing the update to <version> — reopens by itself», steps aside, and reopens when the install has finished and reopens on the Overview (U-18 keeps the screen later); the window stays open -> nothing installs under the person's eyes, and it installs at the next quit or the next ten closed minutes; a doctor or update command is running -> the install waits for it, checked every minute; "Install updates automatically" is off in Settings → Updates -> nothing is checked, downloaded or installed on its own, and Check for updates still works (LC-16; the choice is kept in a file no update, reinstall or uninstall rewrites); the release needs a step from the person -> it is verified but held: "Update <version> is verified and waits for you" with What to do (opens the release's steps) and Install; Settings → Updates → Check now checks at once; the feed names a version that is not newer than the installed one -> nothing installs (F-1); on Linux from an AppImage -> the same checks, then the new AppImage replaces this one and Restart to Update (or ten hidden minutes) starts it (FD-37 M4b); on Linux from a .deb -> Settings → Updates says a newer .deb from the releases page updates it, and nothing is checked; on Windows, installed by the installer -> the same checks, then Restart to Update (or ten hidden minutes) runs the verified installer silently in update mode, which installs in place and starts the app again (FD-37 M4c); on Windows without the installer's uninstaller beside the app -> Settings → Updates says this copy was not set up by the installer and where the newer version is
+- **Alt paths:** user chooses Restart to Update while an agent's console or a command runs -> the app names them and asks; Cancel keeps everything running, Restart to Update stops them and installs; user chooses Restart to Update -> a notification says the app reopens by itself and it installs now, and the new copy opens on the screen the person left — the agent's page, Activity, Spend or Settings (FD-21 U-18); the app is opened (by the person, a link or an agent) while the update installs -> it says «Finishing the update to <version> — reopens by itself», steps aside, and reopens when the install has finished; the window stays open -> nothing installs under the person's eyes, and it installs at the next quit or the next ten closed minutes; a doctor or update command is running -> the install waits for it, checked every minute; "Install updates automatically" is off in Settings → Updates -> nothing is checked, downloaded or installed on its own, and Check for updates still works (LC-16; the choice is kept in a file no update, reinstall or uninstall rewrites); the release needs a step from the person -> it is verified but held: "Update <version> is verified and waits for you" with What to do (opens the release's steps) and Install; Settings → Updates → Check now checks at once; the feed names a version that is not newer than the installed one -> nothing installs (F-1); on Linux from an AppImage -> the same checks, then the new AppImage replaces this one and Restart to Update (or ten hidden minutes) starts it (FD-37 M4b); on Linux from a .deb -> Settings → Updates says a newer .deb from the releases page updates it, and nothing is checked; on Windows, installed by the installer -> the same checks, then Restart to Update (or ten hidden minutes) runs the verified installer silently in update mode, which installs in place and starts the app again (FD-37 M4c); on Windows without the installer's uninstaller beside the app -> Settings → Updates says this copy was not set up by the installer and where the newer version is
 - **UI elements:** footer update line, Restart to Update button, held line with What to do and Install, Settings → Updates (Install updates automatically, state line, Check now), "Check for updates" in the app menu
 - **States covered:** loading, success, error
 - **Errors & recovery:** download or signature check fails -> footer "Update failed: <reason>" with Retry, one automatic retry within the hour, and the running app is unchanged; the bundle Squirrel staged is not the verified one -> it is removed before any quit and the footer says so; every step is logged with the organization's update codes (ADR-0015 amendment)
-- **Status:** draft
+- **Status:** validated
 - **Coverage:** src/electron/updater.ts, src/core/self-update.ts, test/self-update.test.ts, src/core/release-verify.ts, src/core/autoupdate.ts, src/core/version.ts (mayCheck, stagedRefusal), src/electron/policy.ts (autoInstallNow, relaunchHidden), src/electron/main.ts (auto-install-flow), src/renderer/components/Settings.tsx (UpdateState), scripts/dist-mac.mjs, test/lifecycle.test.ts, test/e2e/app.test.ts
 - **Product:** unobserved
 
@@ -557,7 +563,7 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **UI elements:** menu bar icon, tray menu, service items, Pause notifications item
 - **States covered:** success, error
 - **Errors & recovery:** nothing can fail in the menu; quitting leaves every service running and the menu says so above Quit — no dialog on the way out, except when an agent's console session or a command the app started is running: then Quit names them and asks (Cancel keeps them; ADR-0017 amendment 2026-10-07)
-- **Status:** draft
+- **Status:** validated
 - **Coverage:** src/electron/tray.ts, src/electron/main.ts (`syncDock`), test/e2e/spend.test.ts
 - **Product:** unobserved
 
@@ -636,7 +642,7 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **UI elements:** service view, embedded dashboard
 - **States covered:** loading, success
 - **Errors & recovery:** see SCN-027; a dashboard that cannot sign in -> SCN-016
-- **Status:** draft
+- **Status:** validated
 - **Coverage:** src/core/deeplink.ts, src/electron/main.ts, test/deeplink.test.ts, test/e2e/app.test.ts
 - **Product:** unobserved
 
@@ -652,7 +658,7 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **UI elements:** warning message, OK
 - **States covered:** error
 - **Errors & recovery:** install or start the service, then open the link again
-- **Status:** draft
+- **Status:** validated
 - **Coverage:** src/core/deeplink.ts, src/electron/main.ts, test/deeplink.test.ts, test/e2e/app.test.ts
 - **Product:** unobserved
 
@@ -671,7 +677,7 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **UI elements:** service view, state badge, Start, embedded dashboard
 - **States covered:** loading, success, error
 - **Errors & recovery:** a service that is not installed, or a malformed or foreign link -> SCN-027 with the reason; nothing opens in a browser tab
-- **Status:** draft
+- **Status:** validated
 - **Coverage:** src/core/deeplink.ts#parseDeepLink, test/deeplink.test.ts, test/e2e/app.test.ts
 - **Product:** unobserved
 
@@ -717,8 +723,8 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **UI elements:** Overview → Online group, service card (host line), state badge
 - **States covered:** success, empty
 - **Errors & recovery:** the token file is missing or readable by others -> the card is Invalid with "The token file cannot be used: <reason>" and the service is never contacted; fix the file and the next scan reads it
-- **Status:** draft
-- **Coverage:** src/renderer/components/Overview.tsx, packages/service-host/src/descriptor.ts, test/remote.test.ts
+- **Status:** validated
+- **Coverage:** src/renderer/components/Overview.tsx, packages/service-host/src/descriptor.ts, test/remote.test.ts, test/e2e/remote.test.ts
 - **Product:** unobserved
 
 ### SCN-031: Open an online service's dashboard, signed in
@@ -735,7 +741,7 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **UI elements:** Service view → Dashboard tab
 - **States covered:** success, error
 - **Errors & recovery:** the login code is refused or the page cannot load -> the view says so in a sentence with Retry, as in SCN-016
-- **Status:** draft
+- **Status:** validated
 - **Coverage:** src/electron/views.ts, src/core/probe.ts, test/e2e/remote.test.ts
 - **Product:** unobserved
 
@@ -747,7 +753,7 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **Preconditions:** a remote descriptor
 - **Steps:**
   1. The service refuses the token -> Not answering, "<origin> refused the token. Set the same token on its platform and in this computer's token file."
-  2. The certificate does not verify -> Not answering, "The certificate of <origin> does not verify: <detail>. The app does not connect around it." — after three probes in a row when it answered before (R-19, later)
+  2. The certificate does not verify -> Not answering, "The certificate of <origin> does not verify: <detail>. The app does not connect around it." — at once, even when it answered before: a certificate refusal is the origin's own verdict, not a slow host (R-19, FD-21)
   3. The service answers with a redirect -> Not answering, "<origin> answered with a redirect, which the app does not follow."; its platform answers HTTP 5xx (a deploy, an outage) -> after a minute, "<origin> is not up: its platform answers HTTP 503 …"
   4. Nothing answers for a minute -> Not answering, "<origin> has not answered since HH:MM."; one missed probe is not an outage (ADR-0008)
 - **Expected result:** I can tell a configuration problem from an outage without opening a terminal
@@ -836,7 +842,7 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **UI elements:** Spend nav item, totals tiles, agents table with the Limits column, limits table, model breakdown, Refresh
 - **States covered:** loading, empty, success
 - **Errors & recovery:** see SCN-038
-- **Status:** draft
+- **Status:** validated
 - **Coverage:** src/renderer/components/Spend.tsx, src/core/spend.ts, src/core/limits.ts, packages/service-host/src/usage.ts (limitsProblem, rankLimits), src/mcp/tools.ts (spend), test/e2e/spend.test.ts
 - **Product:** unobserved
 
@@ -855,7 +861,7 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **UI elements:** "≥" amounts, "unknown", the note
 - **States covered:** success
 - **Errors & recovery:** a report claiming a price for calls it marks unpriced is refused as malformed (SCN-038)
-- **Status:** draft
+- **Status:** validated
 - **Coverage:** packages/service-host/src/usage.ts (summarizeUsage), packages/service-host/test/usage.test.ts, test/e2e/spend.test.ts
 - **Product:** unobserved
 
@@ -895,7 +901,7 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **UI elements:** dashboard toolbar
 - **States covered:** loading, success, error
 - **Errors & recovery:** a reload or renewed sign-in that fails (including an HTTP error page) -> the existing page-error message with Retry (SCN-016); no automatic retry on a 404. A service no longer answering as the registered identity gets no token. Switching away while sign-in is pending prevents the completed attempt from taking over the current view
-- **Status:** draft
+- **Status:** validated
 - **Coverage:** src/renderer/components/ServiceView.tsx (DashboardToolbar), src/electron/views.ts (page, navigate, refresh), test/dashboard-refresh.test.ts, test/e2e/app.test.ts; native refresh acceptance pending
 - **Product:** unobserved
 
@@ -914,7 +920,7 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **UI elements:** address field, Copy address, Copy app link
 - **States covered:** success
 - **Errors & recovery:** none needed — both values are computed locally
-- **Status:** draft
+- **Status:** validated
 - **Coverage:** src/electron/policy.ts (pageAddress), test/toolbar.test.ts, test/e2e/app.test.ts
 - **Product:** unobserved
 
@@ -1048,12 +1054,121 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
   2. User starts a session, and the installed Switchboard can launch in place -> the console runs the session through Switchboard on the project's account; no token passes through the app
   3. User starts a session, and the installed Switchboard cannot launch in place yet -> the console says "This folder runs on Switchboard project <name>; this Switchboard opens it in Terminal" with "Open in Terminal via Switchboard"; pressing it starts the session there on the project's account
 - **Expected result:** a project folder never runs on the ordinary sign-in
-- **Alt paths:** the folder is in no project, or Switchboard is not installed -> the runtime runs on its ordinary sign-in, and the folder line says nothing about Switchboard
+- **Alt paths:** the folder is in no project but Switchboard holds an account for the runtime's provider -> the session still runs through Switchboard, managed, on the account it selects for the folder (SCN-065); Switchboard is not installed, or holds no account for the provider -> the runtime runs on its ordinary sign-in, and the folder line says nothing about Switchboard
 - **UI elements:** folder line with the project name, "Open in Terminal via Switchboard"
 - **States covered:** success, error
 - **Errors & recovery:** Switchboard needs its app or `switchboard serve` running -> its own message, shown as it says it; a managed session for the same project already runs -> Switchboard's refusal is shown as it says it; Switchboard's answer cannot be read -> "Switchboard did not answer; the session was not started" — never a silent fallback to the ordinary sign-in
 - **Status:** validated
 - **Coverage:** src/core/switchboard.ts, src/core/consoles.ts, src/electron/console.ts, test/console.test.ts
+- **Product:** unobserved
+
+### SCN-063: A session starts only when the Mac can carry it
+- **Persona:** P-01
+- **Feature:** console
+- **Traces:** ST-019; lifecycle LC-17; FD-49
+- **Entry point:** an agent's console that runs nothing yet
+- **Preconditions:** a runtime is installed and the folder exists
+- **Steps:**
+  1. User presses "New session" or "Continue last" -> the app checks the disk the folder is on (at least 5 GB free), the swap, and how many console sessions run (at most six at once)
+  2. The Mac has room -> the session starts as in SCN-049
+- **Expected result:** a session never starts only to make the Mac and its neighbours fail
+- **Alt paths:** less than 5 GB free -> "Not started: only <n> GB is free on this disk, and a session needs 5 GB. Free some space, then start again."; six sessions already run -> "Not started: 6 console sessions already run, the most this Mac carries at once. Stop one, then start again."; Linux swap is nearly exhausted -> "Not started: the system has run out of swap…" (macOS grows its swap while the disk has room, so the disk check covers it)
+- **UI elements:** the console's notice line
+- **States covered:** success, error
+- **Errors & recovery:** the disk or swap cannot be read -> the start is not refused for it; the person frees space or stops a session and presses the button again
+- **Status:** draft
+- **Coverage:** src/core/admission.ts, src/electron/console.ts, src/renderer/components/ConsolePanel.tsx, test/admission.test.ts, test/console-admission.test.ts
+- **Product:** unobserved
+
+### SCN-064: See what Switchboard runs for this agent
+- **Persona:** P-01
+- **Feature:** console
+- **Traces:** ST-019; Switchboard SB-95; FD-43
+- **Entry point:** an agent's console, shown
+- **Preconditions:** Switchboard 0.6.18 or later is installed
+- **Steps:**
+  1. User opens the console -> under the folder line, each session Switchboard launched in this folder that starts or runs: "Switchboard: running", its account's label, its mode (managed or isolated) and since when
+  2. The console stays open -> the list is read again every 15 seconds, and only while the console is on screen
+- **Expected result:** the person sees which account and mode the agent's sessions use without opening Switchboard
+- **Alt paths:** Switchboard is not installed and the runtime is one it serves -> "Switchboard is not installed, so sessions run on the ordinary sign-in and a provider limit pauses them."; an older Switchboard -> "This Switchboard cannot list its sessions yet; update Switchboard to see them here."; nothing launched here -> no line
+- **UI elements:** session lines under the folder line
+- **States covered:** empty, success, error
+- **Errors & recovery:** Switchboard's answer cannot be read -> "Switchboard did not list its sessions: <its words>"
+- **Status:** draft
+- **Coverage:** src/core/switchboard.ts, src/electron/console.ts, src/renderer/components/ConsolePanel.tsx, test/switchboard-sessions.test.ts
+- **Product:** unobserved
+
+### SCN-065: A provider limit does not stop the agent
+- **Persona:** P-01
+- **Feature:** console
+- **Traces:** ST-019; lifecycle LC-20; Switchboard SB-98; FD-51
+- **Entry point:** an agent's console with Claude Code or Codex chosen
+- **Preconditions:** Switchboard can launch in place and holds an account for the provider
+- **Steps:**
+  1. User starts a session -> it runs through Switchboard in managed mode, in the console, whether or not the folder is in a Switchboard project
+  2. A request is refused for a limit -> Switchboard moves the session once to its pool's next account and the agent goes on; the session line says "Switchboard moved this session to <account> after a limit; the agent goes on."
+- **Expected result:** the agent keeps working while any account in the pool has room
+- **Alt paths:** Switchboard holds no account for the provider, or cannot launch in place -> the runtime runs on its ordinary sign-in (SCN-049)
+- **UI elements:** session line with the moved notice
+- **States covered:** success
+- **Errors & recovery:** Switchboard refuses the launch -> its own words in the console, and "New session" again
+- **Status:** draft
+- **Coverage:** src/core/consoles.ts, src/core/switchboard.ts, src/electron/console.ts, test/switchboard-sessions.test.ts
+- **Product:** unobserved
+
+### SCN-066: An idle session closes and comes back
+- **Persona:** P-01
+- **Feature:** console
+- **Traces:** ST-019; lifecycle LC-18; FD-50
+- **Entry point:** a console session running with no input or output
+- **Preconditions:** none
+- **Steps:**
+  1. Thirty minutes pass with nothing typed and nothing printed -> the app saves when it closed and the Switchboard account it ran on, and closes the session, which frees its memory and its MCP servers
+  2. User opens the agent's console again -> the session continues ("Continue last") with "This session was closed after 30 idle minutes to free memory and is continued now. Account: <account>"
+- **Expected result:** a session nobody uses holds nothing, and coming back costs one look
+- **Alt paths:** the runtime cannot continue a conversation -> "This session was closed after 30 idle minutes to free memory. New session starts a fresh one."; the person starts a session themselves first -> the saved mark is cleared
+- **UI elements:** the console's notice line
+- **States covered:** success
+- **Errors & recovery:** the continue cannot start (no room, SCN-063) -> that notice instead
+- **Status:** draft
+- **Coverage:** src/core/consoles.ts, src/electron/console.ts, src/core/settings.ts, src/renderer/components/ConsolePanel.tsx, test/switchboard-sessions.test.ts
+- **Product:** unobserved
+
+### SCN-067: Dashboards take my scheme and theme
+- **Persona:** P-01
+- **Feature:** settings
+- **Traces:** ST-019; contract DEC-0036 ED-8/ED-10, DEC-0059; FD-42, FD-56
+- **Entry point:** Settings → the app group
+- **Preconditions:** none
+- **Steps:**
+  1. User picks the colour scheme: Same as macOS, Dark or Light -> the app follows it at once
+  2. User picks the dashboard theme: Graphite, Fabric, Paper, Forest, Ocean, Ember or High contrast -> every open dashboard that follows the app takes the scheme and the theme without a reload; the others keep their own
+  3. User opens a dashboard later -> it opens in that scheme and theme, and the empty view behind it is already the right colour
+- **Expected result:** one choice in one place sets the look of every dashboard that follows the app
+- **Alt paths:** a dashboard declares the themes it ships and the chosen one is not among them -> it gets the scheme only and keeps its own default theme; a dashboard declares nothing, or an invalid profile -> it follows macOS's light or dark only, and an invalid profile is written to the log once per load; Same as macOS -> macOS switching light/dark is followed live
+- **UI elements:** Settings → colour scheme, dashboard theme, the hint under them
+- **States covered:** success
+- **Errors & recovery:** the cookie cannot be written -> the dashboard follows macOS's light or dark, which every dashboard must handle
+- **Status:** validated
+- **Coverage:** src/core/appearance.ts, src/electron/views.ts, src/renderer/components/Settings.tsx, src/renderer/App.tsx, test/appearance.test.ts, packages/service-host/test/look.test.ts, test/e2e/app.test.ts
+- **Product:** unobserved
+
+### SCN-068: See which runner and model an agent uses
+- **Persona:** P-01
+- **Feature:** service
+- **Traces:** ST-019; contract DEC-0046; FD-46
+- **Entry point:** an agent's page → Health
+- **Preconditions:** the agent declares `configuration` in its well-known document
+- **Steps:**
+  1. User opens Health -> "Runner and model": the runner (kind, profile, subscription or API key), the model profile and its models, who set it (this agent, the project, the default), what it spent per model over 31 days, and the budget left
+  2. User presses "Change in Fabric" -> Fabric opens a conversation about this agent, where the profile is changed
+- **Expected result:** the person sees what the agent runs on and what it costs, one press from changing it
+- **Alt paths:** the agent declares no configuration -> no section; it reports no usage -> "No usage reported"; budget left -> "Shown here once Project Observatory publishes its budgets" until it does (FD-40); Fabric is not installed -> Fabric's button offers its download (ADR-0021)
+- **UI elements:** Health → Runner and model, Change in Fabric
+- **States covered:** empty, loading, success
+- **Errors & recovery:** the usage report cannot be read -> no spend line beyond "No usage reported"; Spend says why
+- **Status:** draft
+- **Coverage:** src/renderer/components/ServiceView.tsx, packages/service-host/src/protocol.ts
 - **Product:** unobserved
 
 ### SCN-060: The dashboard keeps its floor while the console widens
@@ -1110,7 +1225,7 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **UI elements:** console panel (unchanged); the runtime's own interface
 - **States covered:** success, error
 - **Errors & recovery:** context not written -> logged, session still starts; nothing of the token ever reaches the context
-- **Status:** draft
+- **Status:** validated
 - **Coverage:** src/core/handoff.ts, src/electron/console.ts, src/mcp/tools.ts (service_context), test/handoff.test.ts, test/mcp.test.ts, test/e2e/focus-console.test.ts
 - **Product:** unobserved
 
@@ -1129,7 +1244,7 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **UI elements:** "Fix with agent" button; console panel
 - **States covered:** success, error, loading
 - **Errors & recovery:** the runtime fails to start -> the console says why (SCN-049's errors)
-- **Status:** draft
+- **Status:** validated
 - **Coverage:** src/core/offers.ts (offersFix), src/core/handoff.ts (fixTask), src/renderer/App.tsx (handToAgent), src/renderer/components/ConsolePanel.tsx, ServiceView.tsx (header and card), Overview.tsx (Needs attention), test/handoff.test.ts, test/e2e/focus-console.test.ts
 - **Product:** unobserved
 
@@ -1166,7 +1281,7 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **UI elements:** pin control on the row, Pinned section header, rail mode keeps pinned first
 - **States covered:** success, empty
 - **Errors & recovery:** n/a
-- **Status:** draft
+- **Status:** validated
 - **Coverage:** src/core/products.ts (arrangeProducts, togglePin), src/core/settings.ts, src/renderer/App.tsx, test/listorder.test.ts, test/e2e/focus-console.test.ts
 - **Product:** unobserved
 
@@ -1205,7 +1320,7 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **UI elements:** setup card with its checklist, Setup console, "Start setup", "Continue setup"
 - **States covered:** success, empty, error, loading
 - **Errors & recovery:** a step fails -> the agent says why in the console; the checklist shows what is done and what is not
-- **Status:** draft
+- **Status:** validated
 - **Coverage:** src/core/setup.ts, src/core/offers.ts (SETUP_KEY), src/electron/console.ts, src/renderer/components/Overview.tsx (SetupCard), src/renderer/App.tsx, test/setup.test.ts, test/e2e/focus-console.test.ts
 - **Product:** unobserved
 
@@ -1224,7 +1339,7 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **UI elements:** "Since you were last here" section, Continue buttons
 - **States covered:** success, empty
 - **Errors & recovery:** n/a
-- **Status:** draft
+- **Status:** validated
 - **Coverage:** src/core/visit.ts, src/core/settings.ts, src/renderer/App.tsx (continueWith), src/renderer/components/Overview.tsx, test/visit.test.ts, test/e2e/focus-console.test.ts
 - **Product:** unobserved
 
@@ -1242,7 +1357,7 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **UI elements:** Fabric button in the service header (accessible name "Open Fabric"), the native menu when Fabric is absent
 - **States covered:** success, empty (Fabric not installed)
 - **Errors & recovery:** the OS names a handler but it cannot open the link -> the same "not installed" menu, and `main.log` has `fabric_button failed` with the reason
-- **Status:** draft
+- **Status:** validated
 - **Coverage:** src/core/fabric-button.ts, src/core/fabric-links.ts (the contract's copy), src/electron/main.ts (fabricButton, fabricPress), src/electron/views.ts (fabricCookie), src/renderer/components/ServiceView.tsx (FabricButton), test/fabric-button.test.ts, test/e2e/app.test.ts (FD-45, present and absent)
 - **Product:** unobserved
 
@@ -1261,7 +1376,7 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **UI elements:** Settings → Notifications: Also send outages to (select), its help line and its last-delivery line
 - **States covered:** success, error, empty
 - **Errors & recovery:** the channel does not answer -> retried every minute, at most five times; the last failure shows in Settings with its reason; the app's log has `alerts:` lines
-- **Status:** draft
+- **Status:** validated
 - **Coverage:** src/core/outage-alerts.ts, src/core/mcp-client.ts, src/electron/outage-alerts.ts, src/electron/main.ts (outage-alerts), src/renderer/components/Settings.tsx (AlertChannel), test/outage-alerts.test.ts
-- **Product:** unobserved
+- **Product:** observed 2026-10-12 on this Mac: 22 failure alerts sent 5.0–5.4 min after an outage began, none for the 34 shorter episodes (FD-01)
 

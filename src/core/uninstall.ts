@@ -208,6 +208,24 @@ export function productDataPaths(home = os.homedir(), platform: NodeJS.Platform 
   ];
 }
 
+/**
+ * R-20 (FD-21): an update Squirrel.Mac has staged is installed by ShipIt when this app quits — after
+ * an uninstall that would put the trashed bundle back. Uninstall removes the staged update's record
+ * (and the bundle staged inside ShipIt's cache) BEFORE it quits, the way a refused update is removed
+ * (updater.ts checkStaged); the cache itself goes with the data after exit. macOS only.
+ */
+export function cancelStagedUpdate(home: string, rm: (p: string) => void = (p) => fs.rmSync(p, { recursive: true, force: true })): string[] {
+  const shipIt = path.join(home, 'Library', 'Caches', `${BUNDLE_ID}.ShipIt`);
+  const removed: string[] = [];
+  let staged: string[] = [];
+  try { staged = fs.readdirSync(shipIt).filter((n) => n.startsWith('update.')).map((n) => path.join(shipIt, n)); } catch { /* no ShipIt cache: nothing staged */ }
+  // The record first: without it ShipIt has nothing to install, whatever is left on disk.
+  for (const p of [path.join(shipIt, 'ShipItState.plist'), ...staged]) {
+    try { if (fs.existsSync(p)) { rm(p); removed.push(p); } } catch { /* reported by the caller's log line */ }
+  }
+  return removed;
+}
+
 /** A path purge may remove. macOS: at least ~/Library/<dir>/<name> deep — never a home, a root or a bare
  *  Library directory. Windows and Linux (FD-37): one of this app's own folders (`productDataPaths`) or
  *  something inside one, after resolving — never a parent, a sibling with a shared prefix or another app. */

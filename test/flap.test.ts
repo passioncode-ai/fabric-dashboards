@@ -214,6 +214,64 @@ test('S-2: an online origin that answered as another service gets no token again
   assert.equal(monitor.snapshot(KEY)!.state, 'ready');
 });
 
+test('R-19 (FD-21): an online origin that refuses TLS or redirects is down at once, not after three misses', async () => {
+  for (const failure of [
+    { kind: 'no-answer', detail: 'certificate has expired', cause: 'tls' },
+    { kind: 'no-answer', detail: 'HTTP 302: the service answered with a redirect, which a host does not follow', cause: 'redirect' },
+  ] as WellKnownResult[]) {
+    const base = tmp('fd-remote-tls-');
+    const services = path.join(base, 'services');
+    fs.mkdirSync(services);
+    const tokenFile = path.join(base, 'svc.token');
+    fs.writeFileSync(tokenFile, 'tok-0123456789abcdef', { mode: 0o600 });
+    fs.writeFileSync(path.join(services, 'example-agent.default.json'), JSON.stringify({ ...(fixture('positive_service-descriptor-remote.json') as Descriptor), auth: { tokenFile } }));
+    const clock = { ms: T0 };
+    let answer: WellKnownResult = { kind: 'answer', doc: READY, ms: 5 };
+    const monitor = new Monitor({ platform: 'darwin',
+      servicesDir: services, activity: new ActivityStore(path.join(base, 'app')), settings: () => DEFAULT_SETTINGS, lang: () => 'en', now: () => clock.ms,
+      wellKnown: async () => answer,
+      // The token is read here as a constant: what this test holds is the verdict, and a Windows ACL read
+      // (PowerShell, tens of seconds cold on arm64) would only spend the file's time budget.
+      token: async () => 'tok-0123456789abcdef',
+    });
+    await monitor.tick();
+    assert.equal(monitor.snapshot(KEY)!.state, 'ready');
+    answer = failure;
+    clock.ms = T0 + 61_000;
+    await monitor.tick();
+    assert.equal(monitor.snapshot(KEY)!.state, 'down', `${(failure as { cause: string }).cause}: down on the first refusal`);
+  }
+});
+
+test('FD-55 (DEC-0057): a copy waiting on the lock is duplicate under systemd (MainPID), and nothing under the Task Scheduler', async () => {
+  const cases: { platform: NodeJS.Platform; fixture: string; mainPid: number | null; expect: string }[] = [
+    { platform: 'linux', fixture: 'positive_service-descriptor-systemd.json', mainPid: 5151, expect: 'duplicate' },
+    { platform: 'linux', fixture: 'positive_service-descriptor-systemd.json', mainPid: READY.process.pid, expect: 'ready' },
+    // The Task Scheduler's descriptor with this machine's paths: the monitor reads paths in its own grammar.
+    { platform: 'win32', fixture: 'positive_service-descriptor-systemd.json', mainPid: null, expect: 'ready' },
+  ];
+  for (const c of cases) {
+    const base = tmp('fd-supervisor-');
+    const services = path.join(base, 'services');
+    fs.mkdirSync(services);
+    const d = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures/contract/descriptors', c.fixture), 'utf8')) as Descriptor;
+    if (c.platform === 'win32') d.lifecycle = { manager: 'task-scheduler', task: '\\PassionCode\\example-agent.default' };
+    const key = `${d.id}.${d.instance}`;
+    fs.writeFileSync(path.join(services, `${key}.json`), JSON.stringify(d));
+    const answer: WellKnownResult = { kind: 'answer', doc: { ...READY, service: { ...READY.service, id: d.id, instance: d.instance } }, ms: 3 };
+    let asked = 0;
+    const monitor = new Monitor({ platform: c.platform,
+      servicesDir: services, activity: new ActivityStore(path.join(base, 'app')), settings: () => DEFAULT_SETTINGS, lang: () => 'en', now: () => T0,
+      wellKnown: async () => answer,
+      systemd: { status: async () => { asked++; return { loaded: true, pid: c.mainPid, disabled: false }; } },
+    });
+    monitor.setVisible(true);
+    await monitor.tick();
+    assert.equal(monitor.snapshot(key)?.state, c.expect, `${c.platform} ${c.fixture} MainPID ${c.mainPid}`);
+    if (c.platform === 'win32') assert.equal(asked, 0, 'the Task Scheduler has no supervisor pid to read');
+  }
+});
+
 // ── release audit R-8, R-18 ───────────────────────────────────────────────────────────────
 
 test('R-8: a new pid between two probes is a restart even when the state stays ready', async () => {

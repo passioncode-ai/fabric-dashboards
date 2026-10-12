@@ -46,6 +46,9 @@ export type Plan =
   | { kind: 'refused'; reason: 'switchboard' | 'no-continue'; detail: string };
 
 export function planStart(o: { runtime: Runtime; mode: 'new' | 'continue'; folder: string; binding: Binding; switchboard: string | null; inPlace: boolean;
+  /** FD-51 (LC-20): Switchboard holds a route for this runtime's provider, so even an unbound folder runs
+   *  managed — a request refused for a limit moves once to the pool's next account (SB-98). */
+  managed?: boolean;
   /** FD-39: the context pack's arguments, around the runtime's own (Codex's `-c` before its `resume`). */
   handoff?: { before: string[]; after: string[] } }): Plan {
   let args: string[];
@@ -59,6 +62,9 @@ export function planStart(o: { runtime: Runtime; mode: 'new' | 'continue'; folde
   if (o.binding.kind === 'project' && o.runtime.provider) {
     if (o.switchboard && o.inPlace) return { kind: 'run', argv: inPlaceArgv(o.switchboard, o.runtime.provider, o.folder, args), cwd: o.folder };
     return { kind: 'terminal-only', project: o.binding.name, pool: o.binding.pool };
+  }
+  if (o.binding.kind === 'none' && o.managed && o.runtime.provider && o.switchboard && o.inPlace) {
+    return { kind: 'run', argv: inPlaceArgv(o.switchboard, o.runtime.provider, o.folder, args), cwd: o.folder };
   }
   return { kind: 'run', argv: [o.runtime.path, ...args], cwd: o.folder };
 }
@@ -84,6 +90,8 @@ interface Session {
   exitCode: number | null;
   signal: number | null;
   startedAt: number;
+  /** FD-50 (LC-18): the last input or output, for the idle close. */
+  lastActivity: number;
   killTimer: NodeJS.Timeout | null;
   exited: Promise<void>;
   resolveExit: () => void;
@@ -134,12 +142,14 @@ export class ConsoleManager extends EventEmitter {
     }
     let resolveExit: () => void = () => undefined;
     const exited = new Promise<void>((r) => { resolveExit = r; });
-    const s: Session = { pty, label: plan.label, cwd: plan.cwd, chunks: [], size: 0, emitted: 0, exitCode: null, signal: null, startedAt: (this.o.now ?? Date.now)(), killTimer: null, exited, resolveExit };
+    const startedAt = (this.o.now ?? Date.now)();
+    const s: Session = { pty, label: plan.label, cwd: plan.cwd, chunks: [], size: 0, emitted: 0, exitCode: null, signal: null, startedAt, lastActivity: startedAt, killTimer: null, exited, resolveExit };
     this.sessions.set(key, s);
     pty.onData((data) => {
       if (this.sessions.get(key) !== s) return;
       this.keep(s, data);
       s.emitted += data.length;
+      s.lastActivity = (this.o.now ?? Date.now)();
       this.emit('data', { key, data, end: s.emitted });
     });
     pty.onExit(({ exitCode, signal }) => {
@@ -166,7 +176,15 @@ export class ConsoleManager extends EventEmitter {
   }
 
   input(key: string, data: string): void {
-    this.sessions.get(key)?.pty?.write(data);
+    const s = this.sessions.get(key);
+    if (!s?.pty) return;
+    s.lastActivity = (this.o.now ?? Date.now)();
+    s.pty.write(data);
+  }
+
+  /** FD-50 (LC-18): the running sessions with no input or output for `idleMs`. */
+  idleKeys(idleMs: number, now = (this.o.now ?? Date.now)()): string[] {
+    return [...this.sessions.entries()].filter(([, s]) => s.pty && !s.killTimer && now - s.lastActivity >= idleMs).map(([k]) => k);
   }
 
   resize(key: string, cols: number, rows: number): void {

@@ -9,6 +9,8 @@ import { t, type Lang } from '../core/i18n';
 import { loginUrl, readTokenAsync } from '../core/probe';
 import type { ServiceSnapshot } from '../core/types';
 import { fabricButtonCookie, fabricPress } from '../core/fabric-button';
+import { appearanceCookie, appearanceValue, viewBackground, type Scheme } from '../core/appearance';
+import { hostView } from '@passioncode-ai/fabric-service-host';
 import { afterCrash, clampRect, dashboardPathOf, loadErrorText, navigation, pageAddress, partitionFor, resolveLink, resumePath, routeLink, ViewSlot } from './policy';
 import { testRemote } from '../core/testhooks';
 
@@ -43,7 +45,34 @@ export class ServiceViews {
     private readonly snapshotFor: (key: string) => ServiceSnapshot | null = () => null,
     /** FD-45: whether a `fabric://` handler is installed, for the `fabric_button` cookie (ADR-0021). */
     private readonly fabricPresent: () => boolean = () => false,
+    /** FD-42: the operator's scheme and dashboard theme, and whether macOS is dark now (for `system`). */
+    private readonly appearance: () => { scheme: Scheme; theme: string; systemDark: boolean } = () => ({ scheme: 'dark', theme: 'graphite', systemDark: true }),
+    private readonly log: (line: string) => void = () => undefined,
   ) {}
+
+  /** FD-42 (ED-8, DEC-0059): write `fabric_appearance` into the service's own partition before a load, with
+   *  only the theme its declaration admits; and log an invalid declaration once per load (ED-9). */
+  private async appearanceCookie(key: string, origin: string): Promise<void> {
+    const snap = this.snapshotFor(key);
+    const view = snap?.wellKnown ? hostView(snap.wellKnown) : null;
+    if (view?.reported) this.log(`dashboard: ${key} declares an invalid dashboard profile, read as not declared (ED-9): ${view.errors.join('; ')}`);
+    try {
+      await session.fromPartition(partitionFor(key)).cookies.set(appearanceCookie(origin, appearanceValue(this.appearance(), view)));
+    } catch {
+      // Best effort: without it the page follows prefers-color-scheme, which ED-6 requires it to handle.
+    }
+  }
+
+  /** FD-42: the operator changed the scheme or the theme — rewrite every open page's cookie and repaint
+   *  the views' background. Nothing is reloaded: a page applies a field it declares when the cookie changes
+   *  or when it is shown again, and a page that declares none reads no cookie (DEC-0059). */
+  async applyAppearance(): Promise<void> {
+    const a = this.appearance();
+    for (const [key, entry] of this.views) {
+      entry.view.setBackgroundColor(viewBackground(a.scheme, a.systemDark));
+      try { await session.fromPartition(partitionFor(key)).cookies.set(appearanceCookie(entry.origin, appearanceValue(a, (() => { const w = this.snapshotFor(key)?.wellKnown; return w ? hostView(w) : null; })()))); } catch { /* best effort */ }
+    }
+  }
 
   /** FB-6 (ADR-0021 decision 5): before a show or a reload, tell the page whether the host draws Fabric's
    *  button and whether Fabric is here now — it may have been installed or removed since the last load. */
@@ -103,7 +132,7 @@ export class ServiceViews {
     const view = new WebContentsView({
       webPreferences: { partition, sandbox: true, contextIsolation: true, nodeIntegration: false, webSecurity: true, allowRunningInsecureContent: false },
     });
-    view.setBackgroundColor('#0a070d');
+    { const a = this.appearance(); view.setBackgroundColor(viewBackground(a.scheme, a.systemDark)); } // FD-42: before the page paints
     const entry: Entry = { view, origin: d.origin, crashes: 0, loadedOnce: false, loadedAt: 0, dashboardPath: dashboardPathOf(snap.wellKnown?.surfaces.dashboard?.path), resignedAt: 0, resignTo: null, navigationEpoch: 0 };
     const wc = view.webContents;
     // ADR-0016: a link to another service opens it here, signed in with its own session.
@@ -182,6 +211,7 @@ export class ServiceViews {
     if (!dash) return { ok: false, error: 'no dashboard', stage: 'page' };
     let stage: ShowResult['stage'] = dash.login ? 'sign-in' : 'page';
     await this.fabricCookie(snap.key, d.origin);
+    await this.appearanceCookie(snap.key, d.origin);
     const page = async (url: string) => {
       entry.lastStatus = undefined;
       await entry.view.webContents.loadURL(url);
@@ -242,6 +272,7 @@ export class ServiceViews {
       if (link === undefined) link = resumePath(entry.view.webContents.getURL(), entry.origin);
     }
     await this.fabricCookie(snap.key, snap.descriptor.origin);
+    await this.appearanceCookie(snap.key, snap.descriptor.origin);
     if (!entry || !entry.loadedOnce) {
       entry = entry ?? this.create(snap);
       if (fresh) { entry.resignedAt = Date.now(); entry.resignTo = null; }
@@ -339,7 +370,7 @@ export class ServiceViews {
     if (action === 'refresh') { void this.refresh(key, entry); return; }
     this.refreshes.delete(key);
     entry.navigationEpoch += 1;
-    if (action === 'home') void this.fabricCookie(key, entry.origin).then(() => wc.loadURL(resolveLink(entry.origin, undefined, entry.dashboardPath))).catch(() => undefined);
+    if (action === 'home') void this.fabricCookie(key, entry.origin).then(() => this.appearanceCookie(key, entry.origin)).then(() => wc.loadURL(resolveLink(entry.origin, undefined, entry.dashboardPath))).catch(() => undefined);
   }
 
   // #region dashboard-session-refresh — docs: docs/handoffs/2026-10-09-dashboard-session-refresh/README.md#requirements-and-delivery-profile
@@ -352,7 +383,7 @@ export class ServiceViews {
       this.emit({ key, kind: 'error', error: 'unavailable' });
       return;
     }
-    if (!snap.wellKnown?.surfaces.dashboard?.login) { void this.fabricCookie(key, entry.origin); entry.view.webContents.reload(); return; }
+    if (!snap.wellKnown?.surfaces.dashboard?.login) { void this.fabricCookie(key, entry.origin); void this.appearanceCookie(key, entry.origin); entry.view.webContents.reload(); return; }
     const attempt = Symbol('refresh');
     this.refreshes.set(key, attempt);
     entry.navigationEpoch += 1;

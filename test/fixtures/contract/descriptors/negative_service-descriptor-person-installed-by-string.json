@@ -1,0 +1,22 @@
+{
+  "protocol": "fabric-service/0.1",
+  "id": "example-app",
+  "instance": "default",
+  "name": "Example App",
+  "summary": "A desktop app a person installs and starts.",
+  "auth": {
+    "tokenFile": "~/Library/Application Support/example-app/service.token"
+  },
+  "lifecycle": {
+    "manager": "person",
+    "app": "/Applications/Example App.app"
+  },
+  "paths": {
+    "data": "~/Library/Application Support/example-app",
+    "logs": [
+      "~/Library/Logs/example-app/app.log"
+    ]
+  },
+  "installedAt": "2026-10-12T18:00:00Z",
+  "installedBy": "Example App 0.4.0"
+}

@@ -1,0 +1,1357 @@
+{
+  "about": "fabric-dashboard/0.1 declaration vectors (DEC-0036, DEC-0059): what a host takes from a well-known document's dashboard declaration. A present but invalid declaration is treated as not declared and reported (ED-9). hostView in src/dashboard-declaration.ts runs them; a host's port runs the same cases. `errors` are the validator's own and are not compared. A case with `wellKnownJson` gives the document as raw JSON text, because the number form matters there: a port parses that text as its host would, instead of reading `wellKnown`.",
+  "key": "https://fabric.passioncode.ai/agent-contract/extensions/dashboard/0.1",
+  "cases": [
+    {
+      "name": "full",
+      "about": "Every field declared: the host floor is 480, the page applies both carrier fields.",
+      "wellKnown": {
+        "protocol": "fabric-service/0.1",
+        "service": {
+          "id": "example-agent",
+          "instance": "default",
+          "name": "Example Agent",
+          "version": "0.2.0",
+          "build": {
+            "commit": "8b80be9",
+            "dirty": false,
+            "builtAt": "2026-09-28T17:40:00Z"
+          }
+        },
+        "process": {
+          "pid": 51234,
+          "startedAt": "2026-09-28T17:41:02Z"
+        },
+        "status": "ready",
+        "degraded": [],
+        "summary": [
+          {
+            "label": "Jobs running",
+            "value": 2
+          },
+          {
+            "label": "Awaiting you",
+            "value": 1,
+            "attention": true
+          }
+        ],
+        "surfaces": {
+          "dashboard": {
+            "path": "/dashboard",
+            "login": true
+          },
+          "mcp": {
+            "path": "/mcp",
+            "transport": "streamable-http"
+          },
+          "events": {
+            "path": "/fabric/v1/events"
+          }
+        },
+        "update": {
+          "available": null
+        },
+        "extensions": {
+          "https://fabric.passioncode.ai/agent-contract/extensions/dashboard/0.1": {
+            "minWidth": 360,
+            "appearance": [
+              "scheme",
+              "theme"
+            ],
+            "themes": [
+              "graphite",
+              "fabric",
+              "paper",
+              "forest",
+              "ocean",
+              "ember",
+              "contrast"
+            ],
+            "kit": "fabric-dashboard-kit@1.0.0"
+          }
+        }
+      },
+      "expect": {
+        "declared": true,
+        "reported": false,
+        "pageFloor": 360,
+        "hostFloor": 480,
+        "appearance": [
+          "scheme",
+          "theme"
+        ],
+        "themes": [
+          "graphite",
+          "fabric",
+          "paper",
+          "forest",
+          "ocean",
+          "ember",
+          "contrast"
+        ],
+        "kit": "fabric-dashboard-kit@1.0.0"
+      }
+    },
+    {
+      "name": "floor-360",
+      "about": "The lowest floor; no appearance: the page follows prefers-color-scheme only (ED-6).",
+      "wellKnown": {
+        "protocol": "fabric-service/0.1",
+        "service": {
+          "id": "example-agent",
+          "instance": "default",
+          "name": "Example Agent",
+          "version": "0.2.0",
+          "build": {
+            "commit": "8b80be9",
+            "dirty": false,
+            "builtAt": "2026-09-28T17:40:00Z"
+          }
+        },
+        "process": {
+          "pid": 51234,
+          "startedAt": "2026-09-28T17:41:02Z"
+        },
+        "status": "ready",
+        "degraded": [],
+        "summary": [
+          {
+            "label": "Jobs running",
+            "value": 2
+          },
+          {
+            "label": "Awaiting you",
+            "value": 1,
+            "attention": true
+          }
+        ],
+        "surfaces": {
+          "dashboard": {
+            "path": "/dashboard",
+            "login": true
+          },
+          "mcp": {
+            "path": "/mcp",
+            "transport": "streamable-http"
+          },
+          "events": {
+            "path": "/fabric/v1/events"
+          }
+        },
+        "update": {
+          "available": null
+        },
+        "extensions": {
+          "https://fabric.passioncode.ai/agent-contract/extensions/dashboard/0.1": {
+            "minWidth": 360
+          }
+        }
+      },
+      "expect": {
+        "declared": true,
+        "reported": false,
+        "pageFloor": 360,
+        "hostFloor": 480,
+        "appearance": [],
+        "themes": null,
+        "kit": null
+      }
+    },
+    {
+      "name": "floor-359",
+      "about": "One below the lowest floor: invalid, so a legacy dashboard, reported.",
+      "wellKnown": {
+        "protocol": "fabric-service/0.1",
+        "service": {
+          "id": "example-agent",
+          "instance": "default",
+          "name": "Example Agent",
+          "version": "0.2.0",
+          "build": {
+            "commit": "8b80be9",
+            "dirty": false,
+            "builtAt": "2026-09-28T17:40:00Z"
+          }
+        },
+        "process": {
+          "pid": 51234,
+          "startedAt": "2026-09-28T17:41:02Z"
+        },
+        "status": "ready",
+        "degraded": [],
+        "summary": [
+          {
+            "label": "Jobs running",
+            "value": 2
+          },
+          {
+            "label": "Awaiting you",
+            "value": 1,
+            "attention": true
+          }
+        ],
+        "surfaces": {
+          "dashboard": {
+            "path": "/dashboard",
+            "login": true
+          },
+          "mcp": {
+            "path": "/mcp",
+            "transport": "streamable-http"
+          },
+          "events": {
+            "path": "/fabric/v1/events"
+          }
+        },
+        "update": {
+          "available": null
+        },
+        "extensions": {
+          "https://fabric.passioncode.ai/agent-contract/extensions/dashboard/0.1": {
+            "minWidth": 359
+          }
+        }
+      },
+      "expect": {
+        "declared": false,
+        "reported": true,
+        "pageFloor": 360,
+        "hostFloor": 480,
+        "appearance": [],
+        "themes": null,
+        "kit": null
+      }
+    },
+    {
+      "name": "floor-360-point-0",
+      "about": "minWidth written 360.0 in the raw JSON: an integer under JSON Schema 2020-12 (a number with a zero fractional part), so declared. A parser that keeps it as a float (Python's json) still validates it as an integer and reads the floor as 360.",
+      "wellKnownJson": "{\"protocol\":\"fabric-service/0.1\",\"service\":{\"id\":\"example-agent\",\"instance\":\"default\",\"name\":\"Example Agent\",\"version\":\"0.2.0\",\"build\":{\"commit\":\"8b80be9\",\"dirty\":false,\"builtAt\":\"2026-09-28T17:40:00Z\"}},\"process\":{\"pid\":51234,\"startedAt\":\"2026-09-28T17:41:02Z\"},\"status\":\"ready\",\"degraded\":[],\"summary\":[{\"label\":\"Jobs running\",\"value\":2},{\"label\":\"Awaiting you\",\"value\":1,\"attention\":true}],\"surfaces\":{\"dashboard\":{\"path\":\"/dashboard\",\"login\":true},\"mcp\":{\"path\":\"/mcp\",\"transport\":\"streamable-http\"},\"events\":{\"path\":\"/fabric/v1/events\"}},\"update\":{\"available\":null},\"extensions\":{\"https://fabric.passioncode.ai/agent-contract/extensions/dashboard/0.1\":{\"minWidth\":360.0}}}",
+      "expect": {
+        "declared": true,
+        "reported": false,
+        "pageFloor": 360,
+        "hostFloor": 480,
+        "appearance": [],
+        "themes": null,
+        "kit": null
+      }
+    },
+    {
+      "name": "floor-480",
+      "about": "The page floor equals the host floor.",
+      "wellKnown": {
+        "protocol": "fabric-service/0.1",
+        "service": {
+          "id": "example-agent",
+          "instance": "default",
+          "name": "Example Agent",
+          "version": "0.2.0",
+          "build": {
+            "commit": "8b80be9",
+            "dirty": false,
+            "builtAt": "2026-09-28T17:40:00Z"
+          }
+        },
+        "process": {
+          "pid": 51234,
+          "startedAt": "2026-09-28T17:41:02Z"
+        },
+        "status": "ready",
+        "degraded": [],
+        "summary": [
+          {
+            "label": "Jobs running",
+            "value": 2
+          },
+          {
+            "label": "Awaiting you",
+            "value": 1,
+            "attention": true
+          }
+        ],
+        "surfaces": {
+          "dashboard": {
+            "path": "/dashboard",
+            "login": true
+          },
+          "mcp": {
+            "path": "/mcp",
+            "transport": "streamable-http"
+          },
+          "events": {
+            "path": "/fabric/v1/events"
+          }
+        },
+        "update": {
+          "available": null
+        },
+        "extensions": {
+          "https://fabric.passioncode.ai/agent-contract/extensions/dashboard/0.1": {
+            "minWidth": 480
+          }
+        }
+      },
+      "expect": {
+        "declared": true,
+        "reported": false,
+        "pageFloor": 480,
+        "hostFloor": 480,
+        "appearance": [],
+        "themes": null,
+        "kit": null
+      }
+    },
+    {
+      "name": "floor-481",
+      "about": "One above 480: the host floor follows minWidth.",
+      "wellKnown": {
+        "protocol": "fabric-service/0.1",
+        "service": {
+          "id": "example-agent",
+          "instance": "default",
+          "name": "Example Agent",
+          "version": "0.2.0",
+          "build": {
+            "commit": "8b80be9",
+            "dirty": false,
+            "builtAt": "2026-09-28T17:40:00Z"
+          }
+        },
+        "process": {
+          "pid": 51234,
+          "startedAt": "2026-09-28T17:41:02Z"
+        },
+        "status": "ready",
+        "degraded": [],
+        "summary": [
+          {
+            "label": "Jobs running",
+            "value": 2
+          },
+          {
+            "label": "Awaiting you",
+            "value": 1,
+            "attention": true
+          }
+        ],
+        "surfaces": {
+          "dashboard": {
+            "path": "/dashboard",
+            "login": true
+          },
+          "mcp": {
+            "path": "/mcp",
+            "transport": "streamable-http"
+          },
+          "events": {
+            "path": "/fabric/v1/events"
+          }
+        },
+        "update": {
+          "available": null
+        },
+        "extensions": {
+          "https://fabric.passioncode.ai/agent-contract/extensions/dashboard/0.1": {
+            "minWidth": 481
+          }
+        }
+      },
+      "expect": {
+        "declared": true,
+        "reported": false,
+        "pageFloor": 481,
+        "hostFloor": 481,
+        "appearance": [],
+        "themes": null,
+        "kit": null
+      }
+    },
+    {
+      "name": "floor-720",
+      "about": "A wider page that applies the scheme only; its theme stays its own.",
+      "wellKnown": {
+        "protocol": "fabric-service/0.1",
+        "service": {
+          "id": "example-agent",
+          "instance": "default",
+          "name": "Example Agent",
+          "version": "0.2.0",
+          "build": {
+            "commit": "8b80be9",
+            "dirty": false,
+            "builtAt": "2026-09-28T17:40:00Z"
+          }
+        },
+        "process": {
+          "pid": 51234,
+          "startedAt": "2026-09-28T17:41:02Z"
+        },
+        "status": "ready",
+        "degraded": [],
+        "summary": [
+          {
+            "label": "Jobs running",
+            "value": 2
+          },
+          {
+            "label": "Awaiting you",
+            "value": 1,
+            "attention": true
+          }
+        ],
+        "surfaces": {
+          "dashboard": {
+            "path": "/dashboard",
+            "login": true
+          },
+          "mcp": {
+            "path": "/mcp",
+            "transport": "streamable-http"
+          },
+          "events": {
+            "path": "/fabric/v1/events"
+          }
+        },
+        "update": {
+          "available": null
+        },
+        "extensions": {
+          "https://fabric.passioncode.ai/agent-contract/extensions/dashboard/0.1": {
+            "minWidth": 720,
+            "appearance": [
+              "scheme"
+            ]
+          }
+        }
+      },
+      "expect": {
+        "declared": true,
+        "reported": false,
+        "pageFloor": 720,
+        "hostFloor": 720,
+        "appearance": [
+          "scheme"
+        ],
+        "themes": null,
+        "kit": null
+      }
+    },
+    {
+      "name": "floor-1280",
+      "about": "The highest floor.",
+      "wellKnown": {
+        "protocol": "fabric-service/0.1",
+        "service": {
+          "id": "example-agent",
+          "instance": "default",
+          "name": "Example Agent",
+          "version": "0.2.0",
+          "build": {
+            "commit": "8b80be9",
+            "dirty": false,
+            "builtAt": "2026-09-28T17:40:00Z"
+          }
+        },
+        "process": {
+          "pid": 51234,
+          "startedAt": "2026-09-28T17:41:02Z"
+        },
+        "status": "ready",
+        "degraded": [],
+        "summary": [
+          {
+            "label": "Jobs running",
+            "value": 2
+          },
+          {
+            "label": "Awaiting you",
+            "value": 1,
+            "attention": true
+          }
+        ],
+        "surfaces": {
+          "dashboard": {
+            "path": "/dashboard",
+            "login": true
+          },
+          "mcp": {
+            "path": "/mcp",
+            "transport": "streamable-http"
+          },
+          "events": {
+            "path": "/fabric/v1/events"
+          }
+        },
+        "update": {
+          "available": null
+        },
+        "extensions": {
+          "https://fabric.passioncode.ai/agent-contract/extensions/dashboard/0.1": {
+            "minWidth": 1280
+          }
+        }
+      },
+      "expect": {
+        "declared": true,
+        "reported": false,
+        "pageFloor": 1280,
+        "hostFloor": 1280,
+        "appearance": [],
+        "themes": null,
+        "kit": null
+      }
+    },
+    {
+      "name": "floor-1281",
+      "about": "One above the highest floor: invalid, reported.",
+      "wellKnown": {
+        "protocol": "fabric-service/0.1",
+        "service": {
+          "id": "example-agent",
+          "instance": "default",
+          "name": "Example Agent",
+          "version": "0.2.0",
+          "build": {
+            "commit": "8b80be9",
+            "dirty": false,
+            "builtAt": "2026-09-28T17:40:00Z"
+          }
+        },
+        "process": {
+          "pid": 51234,
+          "startedAt": "2026-09-28T17:41:02Z"
+        },
+        "status": "ready",
+        "degraded": [],
+        "summary": [
+          {
+            "label": "Jobs running",
+            "value": 2
+          },
+          {
+            "label": "Awaiting you",
+            "value": 1,
+            "attention": true
+          }
+        ],
+        "surfaces": {
+          "dashboard": {
+            "path": "/dashboard",
+            "login": true
+          },
+          "mcp": {
+            "path": "/mcp",
+            "transport": "streamable-http"
+          },
+          "events": {
+            "path": "/fabric/v1/events"
+          }
+        },
+        "update": {
+          "available": null
+        },
+        "extensions": {
+          "https://fabric.passioncode.ai/agent-contract/extensions/dashboard/0.1": {
+            "minWidth": 1281
+          }
+        }
+      },
+      "expect": {
+        "declared": false,
+        "reported": true,
+        "pageFloor": 360,
+        "hostFloor": 480,
+        "appearance": [],
+        "themes": null,
+        "kit": null
+      }
+    },
+    {
+      "name": "fractional",
+      "about": "minWidth is an integer.",
+      "wellKnown": {
+        "protocol": "fabric-service/0.1",
+        "service": {
+          "id": "example-agent",
+          "instance": "default",
+          "name": "Example Agent",
+          "version": "0.2.0",
+          "build": {
+            "commit": "8b80be9",
+            "dirty": false,
+            "builtAt": "2026-09-28T17:40:00Z"
+          }
+        },
+        "process": {
+          "pid": 51234,
+          "startedAt": "2026-09-28T17:41:02Z"
+        },
+        "status": "ready",
+        "degraded": [],
+        "summary": [
+          {
+            "label": "Jobs running",
+            "value": 2
+          },
+          {
+            "label": "Awaiting you",
+            "value": 1,
+            "attention": true
+          }
+        ],
+        "surfaces": {
+          "dashboard": {
+            "path": "/dashboard",
+            "login": true
+          },
+          "mcp": {
+            "path": "/mcp",
+            "transport": "streamable-http"
+          },
+          "events": {
+            "path": "/fabric/v1/events"
+          }
+        },
+        "update": {
+          "available": null
+        },
+        "extensions": {
+          "https://fabric.passioncode.ai/agent-contract/extensions/dashboard/0.1": {
+            "minWidth": 480.5
+          }
+        }
+      },
+      "expect": {
+        "declared": false,
+        "reported": true,
+        "pageFloor": 360,
+        "hostFloor": 480,
+        "appearance": [],
+        "themes": null,
+        "kit": null
+      }
+    },
+    {
+      "name": "theme-only",
+      "about": "A page that applies the theme only.",
+      "wellKnown": {
+        "protocol": "fabric-service/0.1",
+        "service": {
+          "id": "example-agent",
+          "instance": "default",
+          "name": "Example Agent",
+          "version": "0.2.0",
+          "build": {
+            "commit": "8b80be9",
+            "dirty": false,
+            "builtAt": "2026-09-28T17:40:00Z"
+          }
+        },
+        "process": {
+          "pid": 51234,
+          "startedAt": "2026-09-28T17:41:02Z"
+        },
+        "status": "ready",
+        "degraded": [],
+        "summary": [
+          {
+            "label": "Jobs running",
+            "value": 2
+          },
+          {
+            "label": "Awaiting you",
+            "value": 1,
+            "attention": true
+          }
+        ],
+        "surfaces": {
+          "dashboard": {
+            "path": "/dashboard",
+            "login": true
+          },
+          "mcp": {
+            "path": "/mcp",
+            "transport": "streamable-http"
+          },
+          "events": {
+            "path": "/fabric/v1/events"
+          }
+        },
+        "update": {
+          "available": null
+        },
+        "extensions": {
+          "https://fabric.passioncode.ai/agent-contract/extensions/dashboard/0.1": {
+            "minWidth": 360,
+            "appearance": [
+              "theme"
+            ]
+          }
+        }
+      },
+      "expect": {
+        "declared": true,
+        "reported": false,
+        "pageFloor": 360,
+        "hostFloor": 480,
+        "appearance": [
+          "theme"
+        ],
+        "themes": null,
+        "kit": null
+      }
+    },
+    {
+      "name": "audit-probe",
+      "about": "The audit's probe (F-B-216): a floor no window holds and an unknown field.",
+      "wellKnown": {
+        "protocol": "fabric-service/0.1",
+        "service": {
+          "id": "example-agent",
+          "instance": "default",
+          "name": "Example Agent",
+          "version": "0.2.0",
+          "build": {
+            "commit": "8b80be9",
+            "dirty": false,
+            "builtAt": "2026-09-28T17:40:00Z"
+          }
+        },
+        "process": {
+          "pid": 51234,
+          "startedAt": "2026-09-28T17:41:02Z"
+        },
+        "status": "ready",
+        "degraded": [],
+        "summary": [
+          {
+            "label": "Jobs running",
+            "value": 2
+          },
+          {
+            "label": "Awaiting you",
+            "value": 1,
+            "attention": true
+          }
+        ],
+        "surfaces": {
+          "dashboard": {
+            "path": "/dashboard",
+            "login": true
+          },
+          "mcp": {
+            "path": "/mcp",
+            "transport": "streamable-http"
+          },
+          "events": {
+            "path": "/fabric/v1/events"
+          }
+        },
+        "update": {
+          "available": null
+        },
+        "extensions": {
+          "https://fabric.passioncode.ai/agent-contract/extensions/dashboard/0.1": {
+            "minWidth": 99999,
+            "zoom": 3
+          }
+        }
+      },
+      "expect": {
+        "declared": false,
+        "reported": true,
+        "pageFloor": 360,
+        "hostFloor": 480,
+        "appearance": [],
+        "themes": null,
+        "kit": null
+      }
+    },
+    {
+      "name": "no-min-width",
+      "about": "minWidth is required.",
+      "wellKnown": {
+        "protocol": "fabric-service/0.1",
+        "service": {
+          "id": "example-agent",
+          "instance": "default",
+          "name": "Example Agent",
+          "version": "0.2.0",
+          "build": {
+            "commit": "8b80be9",
+            "dirty": false,
+            "builtAt": "2026-09-28T17:40:00Z"
+          }
+        },
+        "process": {
+          "pid": 51234,
+          "startedAt": "2026-09-28T17:41:02Z"
+        },
+        "status": "ready",
+        "degraded": [],
+        "summary": [
+          {
+            "label": "Jobs running",
+            "value": 2
+          },
+          {
+            "label": "Awaiting you",
+            "value": 1,
+            "attention": true
+          }
+        ],
+        "surfaces": {
+          "dashboard": {
+            "path": "/dashboard",
+            "login": true
+          },
+          "mcp": {
+            "path": "/mcp",
+            "transport": "streamable-http"
+          },
+          "events": {
+            "path": "/fabric/v1/events"
+          }
+        },
+        "update": {
+          "available": null
+        },
+        "extensions": {
+          "https://fabric.passioncode.ai/agent-contract/extensions/dashboard/0.1": {
+            "appearance": [
+              "scheme"
+            ]
+          }
+        }
+      },
+      "expect": {
+        "declared": false,
+        "reported": true,
+        "pageFloor": 360,
+        "hostFloor": 480,
+        "appearance": [],
+        "themes": null,
+        "kit": null
+      }
+    },
+    {
+      "name": "duplicate-appearance",
+      "about": "A carrier field named twice.",
+      "wellKnown": {
+        "protocol": "fabric-service/0.1",
+        "service": {
+          "id": "example-agent",
+          "instance": "default",
+          "name": "Example Agent",
+          "version": "0.2.0",
+          "build": {
+            "commit": "8b80be9",
+            "dirty": false,
+            "builtAt": "2026-09-28T17:40:00Z"
+          }
+        },
+        "process": {
+          "pid": 51234,
+          "startedAt": "2026-09-28T17:41:02Z"
+        },
+        "status": "ready",
+        "degraded": [],
+        "summary": [
+          {
+            "label": "Jobs running",
+            "value": 2
+          },
+          {
+            "label": "Awaiting you",
+            "value": 1,
+            "attention": true
+          }
+        ],
+        "surfaces": {
+          "dashboard": {
+            "path": "/dashboard",
+            "login": true
+          },
+          "mcp": {
+            "path": "/mcp",
+            "transport": "streamable-http"
+          },
+          "events": {
+            "path": "/fabric/v1/events"
+          }
+        },
+        "update": {
+          "available": null
+        },
+        "extensions": {
+          "https://fabric.passioncode.ai/agent-contract/extensions/dashboard/0.1": {
+            "minWidth": 360,
+            "appearance": [
+              "scheme",
+              "scheme"
+            ]
+          }
+        }
+      },
+      "expect": {
+        "declared": false,
+        "reported": true,
+        "pageFloor": 360,
+        "hostFloor": 480,
+        "appearance": [],
+        "themes": null,
+        "kit": null
+      }
+    },
+    {
+      "name": "valid-floor-duplicate-field",
+      "about": "A valid floor beside a carrier field named twice: the whole value is invalid, so the host keeps 480 (a reader that checks only minWidth would keep 900).",
+      "wellKnown": {
+        "protocol": "fabric-service/0.1",
+        "service": {
+          "id": "example-agent",
+          "instance": "default",
+          "name": "Example Agent",
+          "version": "0.2.0",
+          "build": {
+            "commit": "8b80be9",
+            "dirty": false,
+            "builtAt": "2026-09-28T17:40:00Z"
+          }
+        },
+        "process": {
+          "pid": 51234,
+          "startedAt": "2026-09-28T17:41:02Z"
+        },
+        "status": "ready",
+        "degraded": [],
+        "summary": [
+          {
+            "label": "Jobs running",
+            "value": 2
+          },
+          {
+            "label": "Awaiting you",
+            "value": 1,
+            "attention": true
+          }
+        ],
+        "surfaces": {
+          "dashboard": {
+            "path": "/dashboard",
+            "login": true
+          },
+          "mcp": {
+            "path": "/mcp",
+            "transport": "streamable-http"
+          },
+          "events": {
+            "path": "/fabric/v1/events"
+          }
+        },
+        "update": {
+          "available": null
+        },
+        "extensions": {
+          "https://fabric.passioncode.ai/agent-contract/extensions/dashboard/0.1": {
+            "minWidth": 900,
+            "appearance": [
+              "scheme",
+              "scheme"
+            ]
+          }
+        }
+      },
+      "expect": {
+        "declared": false,
+        "reported": true,
+        "pageFloor": 360,
+        "hostFloor": 480,
+        "appearance": [],
+        "themes": null,
+        "kit": null
+      }
+    },
+    {
+      "name": "null",
+      "about": "The key holds null.",
+      "wellKnown": {
+        "protocol": "fabric-service/0.1",
+        "service": {
+          "id": "example-agent",
+          "instance": "default",
+          "name": "Example Agent",
+          "version": "0.2.0",
+          "build": {
+            "commit": "8b80be9",
+            "dirty": false,
+            "builtAt": "2026-09-28T17:40:00Z"
+          }
+        },
+        "process": {
+          "pid": 51234,
+          "startedAt": "2026-09-28T17:41:02Z"
+        },
+        "status": "ready",
+        "degraded": [],
+        "summary": [
+          {
+            "label": "Jobs running",
+            "value": 2
+          },
+          {
+            "label": "Awaiting you",
+            "value": 1,
+            "attention": true
+          }
+        ],
+        "surfaces": {
+          "dashboard": {
+            "path": "/dashboard",
+            "login": true
+          },
+          "mcp": {
+            "path": "/mcp",
+            "transport": "streamable-http"
+          },
+          "events": {
+            "path": "/fabric/v1/events"
+          }
+        },
+        "update": {
+          "available": null
+        },
+        "extensions": {
+          "https://fabric.passioncode.ai/agent-contract/extensions/dashboard/0.1": null
+        }
+      },
+      "expect": {
+        "declared": false,
+        "reported": true,
+        "pageFloor": 360,
+        "hostFloor": 480,
+        "appearance": [],
+        "themes": null,
+        "kit": null
+      }
+    },
+    {
+      "name": "string",
+      "about": "The key holds a string.",
+      "wellKnown": {
+        "protocol": "fabric-service/0.1",
+        "service": {
+          "id": "example-agent",
+          "instance": "default",
+          "name": "Example Agent",
+          "version": "0.2.0",
+          "build": {
+            "commit": "8b80be9",
+            "dirty": false,
+            "builtAt": "2026-09-28T17:40:00Z"
+          }
+        },
+        "process": {
+          "pid": 51234,
+          "startedAt": "2026-09-28T17:41:02Z"
+        },
+        "status": "ready",
+        "degraded": [],
+        "summary": [
+          {
+            "label": "Jobs running",
+            "value": 2
+          },
+          {
+            "label": "Awaiting you",
+            "value": 1,
+            "attention": true
+          }
+        ],
+        "surfaces": {
+          "dashboard": {
+            "path": "/dashboard",
+            "login": true
+          },
+          "mcp": {
+            "path": "/mcp",
+            "transport": "streamable-http"
+          },
+          "events": {
+            "path": "/fabric/v1/events"
+          }
+        },
+        "update": {
+          "available": null
+        },
+        "extensions": {
+          "https://fabric.passioncode.ai/agent-contract/extensions/dashboard/0.1": "360"
+        }
+      },
+      "expect": {
+        "declared": false,
+        "reported": true,
+        "pageFloor": 360,
+        "hostFloor": 480,
+        "appearance": [],
+        "themes": null,
+        "kit": null
+      }
+    },
+    {
+      "name": "no-extensions",
+      "about": "No extensions: a legacy dashboard, nothing to report.",
+      "wellKnown": {
+        "protocol": "fabric-service/0.1",
+        "service": {
+          "id": "example-agent",
+          "instance": "default",
+          "name": "Example Agent",
+          "version": "0.2.0",
+          "build": {
+            "commit": "8b80be9",
+            "dirty": false,
+            "builtAt": "2026-09-28T17:40:00Z"
+          }
+        },
+        "process": {
+          "pid": 51234,
+          "startedAt": "2026-09-28T17:41:02Z"
+        },
+        "status": "ready",
+        "degraded": [],
+        "summary": [
+          {
+            "label": "Jobs running",
+            "value": 2
+          },
+          {
+            "label": "Awaiting you",
+            "value": 1,
+            "attention": true
+          }
+        ],
+        "surfaces": {
+          "dashboard": {
+            "path": "/dashboard",
+            "login": true
+          },
+          "mcp": {
+            "path": "/mcp",
+            "transport": "streamable-http"
+          },
+          "events": {
+            "path": "/fabric/v1/events"
+          }
+        },
+        "update": {
+          "available": null
+        }
+      },
+      "expect": {
+        "declared": false,
+        "reported": false,
+        "pageFloor": 360,
+        "hostFloor": 480,
+        "appearance": [],
+        "themes": null,
+        "kit": null
+      }
+    },
+    {
+      "name": "other-key",
+      "about": "Extensions without the dashboard key.",
+      "wellKnown": {
+        "protocol": "fabric-service/0.1",
+        "service": {
+          "id": "example-agent",
+          "instance": "default",
+          "name": "Example Agent",
+          "version": "0.2.0",
+          "build": {
+            "commit": "8b80be9",
+            "dirty": false,
+            "builtAt": "2026-09-28T17:40:00Z"
+          }
+        },
+        "process": {
+          "pid": 51234,
+          "startedAt": "2026-09-28T17:41:02Z"
+        },
+        "status": "ready",
+        "degraded": [],
+        "summary": [
+          {
+            "label": "Jobs running",
+            "value": 2
+          },
+          {
+            "label": "Awaiting you",
+            "value": 1,
+            "attention": true
+          }
+        ],
+        "surfaces": {
+          "dashboard": {
+            "path": "/dashboard",
+            "login": true
+          },
+          "mcp": {
+            "path": "/mcp",
+            "transport": "streamable-http"
+          },
+          "events": {
+            "path": "/fabric/v1/events"
+          }
+        },
+        "update": {
+          "available": null
+        },
+        "extensions": {
+          "https://fabric.passioncode.ai/agent-contract/extensions/service/0.1": {}
+        }
+      },
+      "expect": {
+        "declared": false,
+        "reported": false,
+        "pageFloor": 360,
+        "hostFloor": 480,
+        "appearance": [],
+        "themes": null,
+        "kit": null
+      }
+    },
+    {
+      "name": "extensions-array",
+      "about": "Extensions that are not an object are no declaration.",
+      "wellKnown": {
+        "protocol": "fabric-service/0.1",
+        "service": {
+          "id": "example-agent",
+          "instance": "default",
+          "name": "Example Agent",
+          "version": "0.2.0",
+          "build": {
+            "commit": "8b80be9",
+            "dirty": false,
+            "builtAt": "2026-09-28T17:40:00Z"
+          }
+        },
+        "process": {
+          "pid": 51234,
+          "startedAt": "2026-09-28T17:41:02Z"
+        },
+        "status": "ready",
+        "degraded": [],
+        "summary": [
+          {
+            "label": "Jobs running",
+            "value": 2
+          },
+          {
+            "label": "Awaiting you",
+            "value": 1,
+            "attention": true
+          }
+        ],
+        "surfaces": {
+          "dashboard": {
+            "path": "/dashboard",
+            "login": true
+          },
+          "mcp": {
+            "path": "/mcp",
+            "transport": "streamable-http"
+          },
+          "events": {
+            "path": "/fabric/v1/events"
+          }
+        },
+        "update": {
+          "available": null
+        },
+        "extensions": [
+          {
+            "https://fabric.passioncode.ai/agent-contract/extensions/dashboard/0.1": {
+              "minWidth": 720
+            }
+          }
+        ]
+      },
+      "expect": {
+        "declared": false,
+        "reported": false,
+        "pageFloor": 360,
+        "hostFloor": 480,
+        "appearance": [],
+        "themes": null,
+        "kit": null
+      }
+    },
+    {
+      "name": "constructor-key",
+      "about": "A key named like an Object.prototype member is not the dashboard key.",
+      "wellKnown": {
+        "protocol": "fabric-service/0.1",
+        "service": {
+          "id": "example-agent",
+          "instance": "default",
+          "name": "Example Agent",
+          "version": "0.2.0",
+          "build": {
+            "commit": "8b80be9",
+            "dirty": false,
+            "builtAt": "2026-09-28T17:40:00Z"
+          }
+        },
+        "process": {
+          "pid": 51234,
+          "startedAt": "2026-09-28T17:41:02Z"
+        },
+        "status": "ready",
+        "degraded": [],
+        "summary": [
+          {
+            "label": "Jobs running",
+            "value": 2
+          },
+          {
+            "label": "Awaiting you",
+            "value": 1,
+            "attention": true
+          }
+        ],
+        "surfaces": {
+          "dashboard": {
+            "path": "/dashboard",
+            "login": true
+          },
+          "mcp": {
+            "path": "/mcp",
+            "transport": "streamable-http"
+          },
+          "events": {
+            "path": "/fabric/v1/events"
+          }
+        },
+        "update": {
+          "available": null
+        },
+        "extensions": {
+          "constructor": {
+            "minWidth": 720
+          }
+        }
+      },
+      "expect": {
+        "declared": false,
+        "reported": false,
+        "pageFloor": 360,
+        "hostFloor": 480,
+        "appearance": [],
+        "themes": null,
+        "kit": null
+      }
+    }
+  ]
+}

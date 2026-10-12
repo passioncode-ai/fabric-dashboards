@@ -1,7 +1,7 @@
 {
   "name": "fabric-dashboards",
   "productName": "Fabric Dashboards",
-  "version": "0.7.6",
+  "version": "0.7.7",
   "private": true,
   "description": "Fabric Dashboards (PassionCode.ai): finds, watches and controls every local agent service on this Mac that speaks fabric-service/0.1.",
   "license": "AGPL-3.0-only OR LicenseRef-PassionCode-Commercial",
@@ -19,6 +19,7 @@
     "packages/*"
   ],
   "scripts": {
+    "prepare": "node scripts/install-hooks.mjs",
     "build:main": "npm run build:host && tsc -p tsconfig.main.json && esbuild src/electron/preload.ts --bundle --platform=node --external:electron --format=cjs --target=node22 --outfile=out/main/electron/preload.js --log-level=warning",
     "build:renderer": "vite build",
     "build": "npm run build:main && npm run build:renderer",

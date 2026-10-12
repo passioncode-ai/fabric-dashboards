@@ -19,7 +19,7 @@
 Fabric Dashboards: a macOS desktop app (Electron) that finds every local agent service speaking
 `fabric-service/0.1`, shows whether it is alive and what it did last, starts, stops and restarts
 it through launchd and opens each service's dashboard inside the app. Fabric's monitoring tool;
-also works on its own. The current version is 0.7.6 (`package.json`, `CHANGELOG.md`); the README
+also works on its own. The current version is 0.7.7 (`package.json`, `CHANGELOG.md`); the README
 *Quick start for a new teammate* is the path for a new user. Licence:
 `AGPL-3.0-only OR LicenseRef-PassionCode-Commercial` ([ADR-0007](docs/adr/0007-agpl-or-commercial.md)).
 
@@ -117,8 +117,8 @@ LC-09 inventory for this product. The tests that hold each rule are in `test/lif
 | One renderer per opened service dashboard (`WebContentsView`, ~45 MB footprint each) | opening a service page | released 5 min after the window is hidden or minimized (`VIEW_RELEASE_GRACE_MS`); showing the window again re-opens the one that was on screen, on its page | the grace timer, the service's removal, quit |
 | MCP stdio server (`Resources/bin/fabric-dashboards-mcp` → the app binary as Node, `ELECTRON_RUN_AS_NODE=1`; ~15 MB footprint) | Claude Code, one per agent session (`claude mcp add --scope user …`) | nothing between calls except an unref'd 60 s check that the installed bundle is still the one it started from | stdin EOF or `SIGTERM`: exits within 1 s and kills its command groups (SIGTERM, SIGKILL after 300 ms); after an app update it answers the next call `stale` with both versions and exits (LC-10) |
 | A descriptor's `doctor` / `update` argv | the person (Health tab) or an agent (MCP) | its own process group, without `ELECTRON_RUN_AS_NODE` / `NODE_OPTIONS`, 120 s deadline (`src/core/children.ts`) | its deadline, quit, or the MCP session ending — the whole group |
-| An agent console session (ADR-0017): the chosen runtime's own CLI on a PTY (`node-pty`; `spawn-helper` → the runtime), or `switchboard launch … --in-place` for a folder bound to a Switchboard project | the person, with New session or Continue last in a service's console | runs while the person works; nothing reaches a hidden window (its output waits in a 1 MB ring); a running console holds back an automatic update install | Stop (asks first; SIGHUP, SIGKILL 2 s later), the service's removal, quit (`will-quit` waits for every session to end) |
-| `launchctl`, `lsof`, `osascript` (JXA, `host_status`; Terminal for Open in Terminal), `/usr/bin/open`, `switchboard --json project show` / `accounts list` / `agents list` / `launch --help`, the login shell once (`$SHELL -ilc`, to read its `PATH`) | the monitor, the listener scan, the MCP tools, the agent console | short-lived; never more often than the table below | they exit by themselves |
+| An agent console session (ADR-0017): the chosen runtime's own CLI on a PTY (`node-pty`; `spawn-helper` → the runtime), or `switchboard launch … --in-place` for a folder bound to a Switchboard project | the person, with New session or Continue last in a service's console — only when the Mac can carry it (LC-17, FD-49: ≥ 5 GB free on the folder's disk, swap not exhausted, at most **6** console sessions at once); Claude Code and Codex through `switchboard launch … --mode managed --in-place` whenever Switchboard holds an account for the provider (LC-20, FD-51) | runs while the person works; nothing reaches a hidden window (its output waits in a 1 MB ring); a running console holds back an automatic update install; **after 30 minutes with no input or output it is saved (when, and the Switchboard account) and closed, and opening the console continues it** (LC-18, FD-50; checked once a minute) | Stop (asks first; SIGHUP, SIGKILL 2 s later), the idle close, the service's removal, quit (`will-quit` waits for every session to end) |
+| `launchctl`, `lsof`, `osascript` (JXA, `host_status`; Terminal for Open in Terminal), `/usr/bin/open`, `switchboard --json project show` / `accounts list` / `agents list` / `sessions` (every 15 s while a console is on screen, FD-43) / `launch --help`, the login shell once (`$SHELL -ilc`, to read its `PATH`) | the monitor, the listener scan, the MCP tools, the agent console | short-lived; never more often than the table below | they exit by themselves |
 | Estate probes (FD-30, ADR-0018): `git -C <clone> remote get-url / ls-remote / rev-parse --verify / fetch origin`, `npm view sshlg-skills …`, and with *Update skills by themselves* on `npx --yes sshlg-skills@<version> update` | the estate updater in the main process, while its switch is on | 90 s after start, then every 6 h, one retry within the hour after a failure, and 5 s after the person changes what is watched: at most 8 short processes a check (30 s deadline each; the update 10 min), own process group, the login shell's PATH (`src/electron/estate-updater.ts`); writes `estate-skills.json` in userData | the run's deadline, or `will-quit` (nothing starts after `stop()`) |
 | Windows update waiter and installer (FD-37 M4c) | Restart to update, or an automatic install after 10 hidden minutes, on an NSIS install; the app quits once the waiter runs | a hidden `cmd.exe` starts `powershell.exe` with `start "" /b … -EncodedCommand` and exits, so the waiter runs outside the app's job and outlives it (`powerShellAfterExit`, ADR-0019 amendment 2026-10-12); the waiter (`nsisUpdateCommand`) waits for the app's exit (at most 120 s), checks the installer's SHA256 again, then starts the verified `pending-update/Fabric-Dashboards-<v>-windows-<arch>-setup.exe` with `--updated /S --force-run`; it installs in place and starts the app again | themselves |
 | Outage alerts to the operator channel (FD-48) | the monitor's changes and a 30 s tick | an HTTP MCP call (initialize, tools/list, tools/call) to the local service offering `<id>.notify`, only when an episode opens or closes (5 min) or a failed/attention banner shows; retried every minute, at most five times | quit (`alerts.stop()`) |
@@ -152,9 +152,11 @@ fake clock by `test/lifecycle.test.ts` (*LC-08: … a quiet hour stays inside th
 probes ≤ 120 *L* + 60 *R*; event reads ≤ 120 *L* + 60 *R*; `launchctl print` ≤ 12 *L* plus one per
 missed probe; `print-disabled` ≤ 13; status pushes 0 when nothing changed. CPU and memory targets:
 main process ≤ 0.3 % average CPU over 10 hidden minutes; the app with no dashboard open ≤ 400 MB
-RSS; each MCP server ≤ 60 MB RSS. The CPU and RSS targets are not yet measured on a build that
-carries these changes — measure with `ps -o time,rss` over 10 hidden minutes on the next release
-and record the numbers in `docs/HANDOFF.md`. (Before this change, 0.4.1 measured 1.3 % CPU and about
+RSS; each MCP server ≤ 60 MB RSS. Measured 2026-10-13 on the signed 0.7.6 with 13 local and 9 online
+services (FD-07, FD-60): RSS ≈ 230 MB for the app and 32–56 MB per MCP server (both inside); main-process
+CPU **0.258 % hidden** and 0.386 % shown on Overview (`node --import tsx scripts/measure-idle.ts 180` after
+`npm run build`: the built app on the real services in an isolated profile with notifications paused); the
+monitor costs about 1.7 ms of CPU per probe or events read. (Before this change, 0.4.1 measured 1.3 % CPU and about
 7,200 `launchctl` spawns an hour after a login launch: lifecycle audit 2026-10-03, F-2/F-4.)
 
 **Files it writes** (LC-12): `~/Library/Application Support/Fabric Dashboards/` — `settings.json` (with the panel layout, pinned agents and
@@ -164,7 +166,7 @@ the list's sort, each service's console runtime and folder, ADR-0017, and the pr
 and `setup.md` for the Setup console; 0700 folder, 0600 files, rewritten at each start, never in the agent's repository)
 and its last good copy `settings.json.bak` (a damaged `settings.json` is restored from it, ADR-0015),
 `auto-update` (the LC-16 switch: written only when the person turns it, kept by every uninstall), `.last-version` (the version that ran last, to log a finished install), `restore.json` (written only by an uninstall that kept the data), `.relaunch-hidden` (seconds-long
-marker of an automatic update install), `activity.jsonl` (appended, compacted to 5,000 rows at 10,000), `activity-state.json`,
+marker of an automatic update install), `.resume-route.json` (written by Restart to update: the screen the next copy opens on, read and removed at its start, FD-21 U-18), `activity.jsonl` (appended, compacted to 5,000 rows at 10,000), `activity-state.json`,
 `notified.json`, `outage-alerts.json` (FD-48: open outage episodes and each service's start baseline), `pending-update/` (Windows, FD-37 M4c: the verified installer until it runs; removed at every start), the Chromium profile and one `Partitions/svc-<key>` per service ever opened;
 `~/Library/Logs/Fabric Dashboards/main.log` (0600, 5 × 5 MB). At start it removes temporary files
 left by a killed writer and the partitions of services that are no longer installed; a service
@@ -172,7 +174,8 @@ removed while it runs takes its view and its stored session with it.
 
 **Uninstall** (LC-14, ADR-0015): Settings → Uninstall removes the login item and the
 `fabric-dashboards` MCP entry from `~/.claude.json` (user and project scopes; a same-named server
-that runs something else is kept) and moves the app to the Trash. Data goes only on request: by
+that runs something else is kept), removes an update Squirrel has staged (its `ShipItState.plist` and
+`update.*` bundle, so ShipIt cannot put the app back as it quits, FD-21 R-20) and moves the app to the Trash. Data goes only on request: by
 default, once the app has exited, everything it wrote is removed (`productDataPaths` in
 `src/core/uninstall.ts`) **except** `KEPT_FILES` — settings, their copy, the activity history, the
 notification ledger, the `auto-update` switch and `restore.json`, which makes the next install put the login item and the

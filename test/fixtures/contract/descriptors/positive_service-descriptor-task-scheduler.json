@@ -1,0 +1,35 @@
+{
+  "protocol": "fabric-service/0.1",
+  "id": "example-agent",
+  "instance": "default",
+  "name": "Example Agent",
+  "summary": "Drafts and files reports for its operator.",
+  "origin": "http://127.0.0.1:47195",
+  "auth": {
+    "tokenFile": "~\\AppData\\Local\\example-agent\\service.token",
+    "header": "X-Example-Token",
+    "scheme": "none"
+  },
+  "lifecycle": {
+    "manager": "task-scheduler",
+    "task": "\\PassionCode\\example-agent.default"
+  },
+  "paths": {
+    "data": "C:\\Users\\example\\AppData\\Local\\example-agent",
+    "logs": [
+      "C:\\Users\\example\\AppData\\Local\\example-agent\\Logs\\service.log"
+    ]
+  },
+  "commands": {
+    "doctor": [
+      "C:\\Users\\example\\AppData\\Local\\Programs\\example-agent\\example-agent.exe",
+      "doctor",
+      "--json"
+    ]
+  },
+  "source": {
+    "repository": "https://github.com/example/example-agent"
+  },
+  "installedAt": "2026-09-28T18:00:00Z",
+  "installedBy": "example-agent service install 0.2.0"
+}

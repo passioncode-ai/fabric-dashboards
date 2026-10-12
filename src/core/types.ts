@@ -42,7 +42,11 @@ export interface Settings {
   launchAtLogin: boolean;
   /** Whether the person has answered the launch-at-login question (first-run card or Settings). */
   launchAtLoginAsked: boolean;
-  theme: 'dark' | 'light';
+  /** The colour scheme of the app and, through `fabric_appearance`, of every dashboard (FD-42): `system`
+   *  follows macOS. */
+  theme: 'system' | 'dark' | 'light';
+  /** FD-42 (ED-10): the theme dashboards are asked to use; one of the reference ids, `graphite` by default. */
+  pageTheme: string;
   /** The app's language: the system's first one, or a choice that overrides it. */
   language: 'system' | 'en' | 'ru';
   /** Install a downloaded update by itself once the window has been hidden a while (ADR-0015). On by default. */
@@ -72,7 +76,10 @@ export interface Settings {
     list: { sort: ListSort; pinned: string[] };
   };
   /** ADR-0017: per service key, the runtime and folder its console last used (null: not chosen yet). */
-  consoles: Record<string, { runtime: string | null; folder: string | null }>;
+  consoles: Record<string, { runtime: string | null; folder: string | null;
+    /** FD-50 (LC-18): the session closed after the idle time — when, and the Switchboard account it ran on;
+     *  opening the console again continues it. Cleared by the next start. */
+    idle?: { at: string; account: string | null } | null }>;
   // #region estate-update — docs: docs/adr/0018-estate-updates-from-inside-the-app.md#decision
   /** ADR-0018: the estate watcher — the contract clone and the skill family. */
   estate: {
@@ -102,6 +109,7 @@ export const DEFAULT_SETTINGS: Settings = {
   launchAtLogin: false,
   launchAtLoginAsked: false,
   theme: 'dark',
+  pageTheme: 'graphite',
   language: 'system',
   autoUpdate: true,
   moveToApplicationsAsked: false,

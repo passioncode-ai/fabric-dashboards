@@ -30,3 +30,13 @@ npm run dist -- --unsigned                       # a local test build of the DMG
 - Protocol fixtures under `test/fixtures/contract/` and the sample service under
   `test/fixtures/sample-service/` are copies with a `SOURCE.txt`; never edit them here.
 - A user-facing change updates `docs/ux/scenarios.md` in the same change.
+
+## Leases
+
+Shared registers (`.claude/agent-sync.json` `guardedFiles`: the ADRs, `docs/HANDOFF.md`,
+`CHANGELOG.md`, `docs/backlog.md`, `docs/backlog-sources.json`) are edited under an agent-sync
+lease ([docs/AGENT_SYNC.md](docs/AGENT_SYNC.md)). `npm ci` installs a `pre-commit` hook
+(`scripts/install-hooks.mjs`, FD-26) that runs `scripts/lease-guard.mjs`: a commit staging a
+guarded path is refused unless `agent_sync.py guard <path>` allows it, and refused with the
+install command where agent-sync is absent. Take the lease first (`agent_sync.py acquire <file>`),
+release it after. A pre-commit hook another tool installed is left alone and named.

@@ -4,6 +4,7 @@ export * from './protocol';
 export * from './descriptor';
 export * from './health';
 export * from './launchd';
+export * from './systemd';
 export * from './state';
 export * from './look';
 export * from './links';

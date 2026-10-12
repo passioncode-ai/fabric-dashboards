@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import '@xterm/xterm/css/xterm.css';
-import type { ConsoleInfo, ConsoleStartResult, ConsoleTask } from '../../core/api';
+import type { ConsoleInfo, ConsoleSessions, ConsoleStartResult, ConsoleTask } from '../../core/api';
 import { CONSOLE_WIDTH } from '../../core/types';
 import { api, Icon, Spinner, useT } from '../lib';
 
@@ -44,6 +44,21 @@ export function ConsolePanel({ serviceKey, width, max, onWidth, onHide, task, on
   const [notice, setNotice] = useState<{ text: string; terminalOnly?: boolean } | null>(null);
   const [confirmStop, setConfirmStop] = useState(false);
   const [starting, setStarting] = useState(false);
+  const [sessions, setSessions] = useState<ConsoleSessions | null>(null);
+
+  // FD-43: what Switchboard launched in this folder, read at the console's cadence (15 s) and only while
+  // the console is on screen in a visible window (LC-08); FD-51: where each managed session runs now.
+  useEffect(() => {
+    let stop = false;
+    const read = () => {
+      if (document.visibilityState !== 'visible') return;
+      void api().consoleSessions(serviceKey).then((s) => { if (!stop) setSessions(s); }).catch(() => undefined);
+    };
+    read();
+    const timer = setInterval(read, 15_000);
+    document.addEventListener('visibilitychange', read);
+    return () => { stop = true; clearInterval(timer); document.removeEventListener('visibilitychange', read); };
+  }, [serviceKey]);
 
   // Replays what the session printed: on mount, on another service, when the window shows again.
   const refresh = useCallback(async () => {
@@ -95,6 +110,11 @@ export function ConsolePanel({ serviceKey, width, max, onWidth, onHide, task, on
 
   const say = (r: ConsoleStartResult) => {
     if (r.ok) { setNotice(null); return; }
+    if (r.reason === 'admission') {
+      // FD-49 (LC-17): what the machine lacks, and what frees it.
+      setNotice({ text: r.why === 'disk' ? t('console.admission.disk', { free: r.freeGb ?? 0 }) : r.why === 'cap' ? t('console.admission.cap', { cap: r.cap ?? 0 }) : t('console.admission.swap') });
+      return;
+    }
     const detail = r.detail ?? '';
     if (r.reason === 'terminal-only') setNotice({ text: t('console.terminalOnly', { name: r.project ?? '' }), terminalOnly: true });
     else if (r.reason === 'switchboard') setNotice({ text: t('console.sbError', { detail }) });
@@ -120,6 +140,21 @@ export function ConsolePanel({ serviceKey, width, max, onWidth, onHide, task, on
       void refresh();
     }
   };
+  // FD-50 (LC-18): a session closed after the idle time continues when the console is opened again —
+  // once per opening, and only with a runtime that can continue; otherwise the panel says New starts afresh.
+  const resumed = useRef<string | null>(null);
+  useEffect(() => {
+    if (!info?.idle || info.key !== serviceKey || resumed.current === serviceKey || task || starting) return;
+    if (info.session.state === 'running') return;
+    resumed.current = serviceKey;
+    const rt = info.runtimes.find((r) => r.id === info.runtime);
+    if (rt?.canContinue && info.folder?.exists) {
+      setNotice({ text: t('console.idle.resumed', { account: info.idle.account ?? '—' }) });
+      void start('continue').then(() => setNotice({ text: t('console.idle.resumed', { account: info.idle?.account ?? '—' }) }));
+    } else setNotice({ text: t('console.idle.closed') });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [info?.key, info?.idle?.at]);
+
   // FD-39 SCN-054/055: a handed-over task starts once the panel knows its session; a running session
   // is never doubled — the person sees it and the notice says why.
   useEffect(() => {
@@ -195,6 +230,16 @@ export function ConsolePanel({ serviceKey, width, max, onWidth, onHide, task, on
         </div>
       )}
       {info?.binding.kind === 'error' && <p className="console-state notice error" role="alert">{t('console.sbError', { detail: info.binding.detail })}</p>}
+      {sessions && 'sessions' in sessions && sessions.sessions.filter((x) => x.state === 'starting' || x.state === 'running').map((x, i) => (
+        <div key={i} className="console-row meta" role="status">
+          <span className="chip">{t(`console.sb.state.${x.state}`)}</span>
+          <span>{t('console.sb.session', { label: x.label, mode: x.mode, since: x.launchedAt ? new Date(x.launchedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—' })}</span>
+          {x.movedTo && <span className="notice">{t('console.sb.moved', { label: x.movedTo })}</span>}
+        </div>
+      ))}
+      {sessions && 'unavailable' in sessions && (sessions.unavailable === 'old' || sessions.unavailable === 'error' || (sessions.unavailable === 'absent' && runtime?.viaSwitchboard)) && (
+        <p className="console-row meta muted">{sessions.unavailable === 'old' ? t('console.sb.old') : sessions.unavailable === 'absent' ? t('console.sb.absent') : t('console.sb.error', { detail: sessions.detail })}</p>
+      )}
       {notice && <div className={`console-state notice${notice.terminalOnly ? '' : ' error'}`} role="alert">
         <p>{notice.text}</p>
         {notice.terminalOnly && <button className="btn btn-primary" onClick={() => void openTerminal('new')}>{t('console.openTerminalSb')}</button>}

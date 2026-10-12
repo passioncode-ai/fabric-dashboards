@@ -7,6 +7,7 @@ import path from 'node:path';
 import { atomicWrite } from './fsutil';
 import { autoUpdateOn, carryOverAutoUpdate, setAutoUpdate } from './autoupdate';
 import { CONSOLE_WIDTH, DEFAULT_SETTINGS, type Settings, type SettingsPatch } from './types';
+import { DEFAULT_PAGE_THEME, REFERENCE_THEMES } from './appearance';
 
 export class SettingsStore {
   private readonly file: string;
@@ -120,10 +121,13 @@ function mergeConsoles(raw: unknown): Settings['consoles'] {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return out;
   for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
     if (!SERVICE_KEY.test(key) || !value || typeof value !== 'object') continue;
-    const v = value as { runtime?: unknown; folder?: unknown };
+    const v = value as { runtime?: unknown; folder?: unknown; idle?: unknown };
+    const idle = v.idle as { at?: unknown; account?: unknown } | null | undefined;
     out[key] = {
       runtime: typeof v.runtime === 'string' && /^[a-z0-9][a-z0-9-]{0,40}$/.test(v.runtime) ? v.runtime : null,
       folder: typeof v.folder === 'string' && isAbsoluteFolder(v.folder, process.platform) ? v.folder : null,
+      ...(idle && typeof idle === 'object' && typeof idle.at === 'string' && Number.isFinite(Date.parse(idle.at))
+        ? { idle: { at: idle.at, account: typeof idle.account === 'string' ? idle.account.slice(0, 120) : null } } : {}),
     };
   }
   return out;
@@ -150,7 +154,8 @@ export function merge(raw: Partial<Settings>): Settings {
     launchAtLogin: typeof raw.launchAtLogin === 'boolean' ? raw.launchAtLogin : DEFAULT_SETTINGS.launchAtLogin,
     // A file written by an earlier version never asked: its `launchAtLogin` was the old default, not a choice.
     launchAtLoginAsked: raw.launchAtLoginAsked === true,
-    theme: raw.theme === 'light' ? 'light' : 'dark',
+    theme: raw.theme === 'light' || raw.theme === 'system' ? raw.theme : 'dark',
+    pageTheme: typeof raw.pageTheme === 'string' && (REFERENCE_THEMES as readonly string[]).includes(raw.pageTheme) ? raw.pageTheme : DEFAULT_PAGE_THEME,
     language: raw.language === 'en' || raw.language === 'ru' ? raw.language : 'system',
     // Absent in a file from an earlier version: on, so every install keeps itself current.
     autoUpdate: raw.autoUpdate !== false,

@@ -211,6 +211,26 @@ export function relaunchHidden(markerText: string | null, now: number): boolean 
   const at = Date.parse(markerText.trim());
   return Number.isFinite(at) && at <= now && now - at < RELAUNCH_FRESH_MS;
 }
+
+/** U-18 (FD-21): the screen the person was on when they chose Restart to update; the copy that
+ *  starts after the install opens on it, not on Overview. */
+export const RESUME_ROUTE_MARKER = '.resume-route.json';
+export type ResumeRoute = { page: 'overview' | 'activity' | 'spend' | 'settings' } | { page: 'service'; key: string };
+
+/** The route in a resume marker, if it is well-formed and was written for this relaunch. */
+export function resumeRoute(markerText: string | null, now: number): ResumeRoute | null {
+  if (markerText === null) return null;
+  let raw: { at?: unknown; route?: { page?: unknown; key?: unknown } };
+  try { raw = JSON.parse(markerText); } catch { return null; }
+  const at = typeof raw.at === 'string' ? Date.parse(raw.at) : NaN;
+  if (!Number.isFinite(at) || at > now || now - at >= RELAUNCH_FRESH_MS) return null;
+  const page = raw.route?.page;
+  if (page === 'service') {
+    const key = raw.route?.key;
+    return typeof key === 'string' && /^[a-z0-9-]+\.[a-z0-9-]+$/.test(key) ? { page, key } : null;
+  }
+  return page === 'overview' || page === 'activity' || page === 'spend' || page === 'settings' ? { page } : null;
+}
 // #endregion auto-install
 
 /** A page that stayed up this long after loading has earned its one automatic recreate back. */

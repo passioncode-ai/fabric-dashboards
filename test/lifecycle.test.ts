@@ -20,7 +20,7 @@ import { DEFAULT_SETTINGS } from '../src/core/types';
 import { clearRestoreRecord, KEPT_FILES, MCP_SERVER_NAME, productDataPaths, purgeAfterExit, purgeData, readRestoreRecord, removeMcpRegistrations, repairMcpRegistrations, restoreMcpRegistrations, RESTORE_FILE, writeRestoreRecord } from '../src/core/uninstall';
 import { NotifyLedger } from '../src/core/notify';
 import { SettingsStore } from '../src/core/settings';
-import { autoInstallNow, HiddenGrace, relaunchHidden, resumePath, stalePartitions, UPDATE_IDLE_MS } from '../src/electron/policy';
+import { autoInstallNow, HiddenGrace, relaunchHidden, resumePath, resumeRoute, stalePartitions, UPDATE_IDLE_MS } from '../src/electron/policy';
 import { codeFile, StaleWatch } from '../src/mcp/stale';
 import { tmp } from './helpers';
 
@@ -298,6 +298,36 @@ test('audit MEDIUM-5: a descriptor deleted and written again between scans is no
   await monitor.tick(true);
   assert.deepEqual(removed, [], 'the service, its console and its session stay');
   assert.equal(monitor.snapshots().length, 1);
+});
+
+test('U-16 (FD-21): a half-written new descriptor neither flashes Invalid nor logs installed; one that stays broken is shown', async () => {
+  const base = tmp('fd-halfwritten-');
+  const services = path.join(base, 'services');
+  fs.mkdirSync(services);
+  let clock = 1_000_000;
+  const activity = new ActivityStore(path.join(base, 'app'));
+  const monitor = new Monitor({
+    servicesDir: services, activity, settings: () => DEFAULT_SETTINGS, lang: () => 'en', now: () => clock,
+    wellKnown: async () => ({ kind: 'no-answer', detail: 'closed' }),
+  });
+  await monitor.tick(true); // the first scan is done; what arrives now is a new install
+  const file = path.join(services, 'example-agent.default.json');
+  fs.writeFileSync(file, '{"protocol": "fabric-'); // the writer is mid-write
+  await monitor.tick(true);
+  assert.equal(monitor.snapshots().length, 0, 'a half-written file is not shown as Invalid');
+  clock += 200;
+  fs.writeFileSync(file, JSON.stringify({ ...DESCRIPTOR, lifecycle: { manager: 'none' } }));
+  await monitor.tick(true);
+  assert.equal(monitor.snapshots().length, 1, 'the finished file appears');
+  const installed = () => activity.list({}, 50).filter((e) => /installed/i.test(JSON.stringify(e))).length;
+  assert.equal(installed(), 1, 'installed is logged once, for the finished file');
+  const broken = path.join(services, 'broken.default.json');
+  fs.writeFileSync(broken, '{ not json');
+  await monitor.tick(true);
+  assert.equal(monitor.snapshots().length, 1);
+  clock += REMOVAL_GRACE_MS;
+  await monitor.tick(true);
+  assert.equal(monitor.snapshots().length, 2, 'a file that stays broken is shown, so its problem can be read');
 });
 
 // ── LC-10 — a per-session server leaves with its session and with its code ────────────────
@@ -787,6 +817,20 @@ test('ADR-0015: a downloaded update installs only when allowed, unwatched and id
   assert.equal(relaunchHidden(new Date(now - 31 * 60_000).toISOString(), now), false, 'a stale marker is not this relaunch');
   assert.equal(relaunchHidden('garbage', now), false);
   assert.equal(relaunchHidden(new Date(now + 60_000).toISOString(), now), false);
+});
+
+test('U-18 (FD-21): Restart to update reopens on the screen the person left, and only a fresh, well-formed one', () => {
+  const now = T0;
+  const marker = (route: unknown, at = new Date(now - 60_000).toISOString()) => JSON.stringify({ at, route });
+  assert.deepEqual(resumeRoute(marker({ page: 'service', key: 'example-agent.default' }), now), { page: 'service', key: 'example-agent.default' });
+  assert.deepEqual(resumeRoute(marker({ page: 'settings' }), now), { page: 'settings' });
+  assert.deepEqual(resumeRoute(marker({ page: 'spend' }), now), { page: 'spend' });
+  assert.equal(resumeRoute(marker({ page: 'service' }), now), null, 'a service page names its service');
+  assert.equal(resumeRoute(marker({ page: 'service', key: '../etc' }), now), null, 'a key is id.instance');
+  assert.equal(resumeRoute(marker({ page: 'elsewhere' }), now), null);
+  assert.equal(resumeRoute(marker({ page: 'settings' }, new Date(now - 31 * 60_000).toISOString()), now), null, 'stale: not this relaunch');
+  assert.equal(resumeRoute('{"at":', now), null);
+  assert.equal(resumeRoute(null, now), null);
 });
 
 // ── LC-13 — hardened fuses, read back from the built binary ─────────────────────────────

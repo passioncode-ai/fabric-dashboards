@@ -1,6 +1,32 @@
 # Changelog
 
-## Unreleased
+## 0.7.7 - 2026-10-13
+
+### Added
+
+- **The agent console starts only what the Mac can carry** (FD-49, lifecycle LC-17): at least 5 GB free on the
+  folder's disk, swap not exhausted, at most six console sessions at once; otherwise the start is deferred and the
+  console says why and what frees it.
+- **Switchboard sessions beside the agent** (FD-43): the console lists what Switchboard launched in its folder —
+  state, account, mode, since when — read every 15 s only while the console is on screen.
+- **A provider limit does not stop the agent** (FD-51, LC-20): with a Switchboard account for the provider, every
+  Claude Code and Codex start runs through Switchboard's managed mode, and a session Switchboard moved to the
+  pool's next account says so.
+- **An idle console session closes and comes back** (FD-50, LC-18): after 30 minutes with no input or output it is
+  saved (when, and the Switchboard account) and closed; opening the console continues it.
+- **Dashboards take the scheme and the theme** (FD-42, FD-56): Settings offers Same as macOS, Dark and Light, and
+  the dashboard theme (Graphite, Fabric, Paper, Forest, Ocean, Ember, High contrast). Each dashboard gets
+  `fabric_appearance` in its own partition before every load and on a change, without a reload; a theme the page
+  says it does not ship is not sent; an invalid dashboard profile counts as undeclared and is logged once per load.
+- **Runner and model on an agent's Health** (FD-46, DEC-0046): the profile that applies, who set it, spend per
+  model, and Change in Fabric.
+- **Every supervisor the contract names** (FD-55, FD-57): descriptors under systemd, the Task Scheduler and the
+  Observatory node — and with `runner`, `channels`, `peer` and the object form of `installedBy` — are read instead
+  of shown Invalid (proven on the contract's 78 descriptor fixtures at fe55fc6). On Linux a copy waiting on its
+  lock reads Duplicate from systemd's MainPID; the Task Scheduler gives no pid, so a waiting copy is never an
+  outage. An app's own descriptor (`manager: person`, DEC-0069) is skipped, never probed.
+- **A pre-commit check for leases** (FD-26): `npm ci` installs a hook that refuses a commit staging a guarded
+  register without this run's agent-sync lease.
 
 ### Security
 
@@ -13,6 +39,14 @@
 
 ### Fixed
 
+- **Restart to update reopens on the screen the person left** (FD-21 U-18), not on Overview.
+- **A half-written new descriptor no longer flashes Invalid** or logs "installed" (U-16); a misnamed one keeps its
+  own key instead of colliding with the real one.
+- **An online service that refuses TLS or redirects is down at once** (R-19), not after three missed probes.
+- **Uninstall removes an update Squirrel has staged** (R-20), so ShipIt cannot put the app back as it quits.
+- **One start/stop/restart sequence for the app and MCP** (FD-20): the MCP tool now also names a stray copy that
+  keeps the port.
+- **An event's `data` is not kept in the history** (DEC-0070); every member the protocol names still is.
 - **Skills updates: "another update is running" is no longer an error.** From sshlg-skills 1.56.0 one update
   runs at a time and a second one refuses with exit 75. The app now logs that as `estate_update busy`, keeps
   the version it showed and tries again within the hour, instead of reporting a failed update.

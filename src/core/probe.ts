@@ -28,7 +28,16 @@ export async function fetchEvents(d: Descriptor, eventsPath: string, token: stri
   const page = JSON.parse(res.body) as EventsPage;
   if (!Array.isArray(page.events)) throw new Error('the events feed did not return an events page');
   const events = page.events.filter((e) => e && typeof e.id === 'string' && typeof e.text === 'string' && typeof e.at === 'string'
-    && ['info', 'notice', 'warning', 'error'].includes(e.level) && (e.link === undefined || (typeof e.link === 'string' && safePath(e.link) !== null)));
+    && ['info', 'notice', 'warning', 'error'].includes(e.level) && (e.link === undefined || (typeof e.link === 'string' && safePath(e.link) !== null)))
+    // DEC-0070: an event may carry `data` (and later members); the activity history keeps only what it shows,
+    // so a service's payload never grows activity.jsonl.
+    .map((e) => {
+      const kept: ServiceEvent = { id: e.id, at: e.at, kind: e.kind, level: e.level, text: e.text };
+      if (e.subject !== undefined) kept.subject = e.subject;
+      if (e.link !== undefined) kept.link = e.link;
+      if (e.notify !== undefined) kept.notify = e.notify;
+      return kept;
+    });
   return { events, cursor: page.cursor ?? after };
 }
 

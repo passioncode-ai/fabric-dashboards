@@ -17,6 +17,22 @@ export function isServiceKey(key: string): boolean {
   return dot > 0 && ID_PATTERN.test(key.slice(0, dot)) && INSTANCE_PATTERN.test(key.slice(dot + 1));
 }
 
+/**
+ * The `id` part of a service key (ADR-0012: every instance of one `id` is one product). An id
+ * carries no dot (ID_PATTERN), so the first dot splits it. Shared so Fabric groups services into
+ * products exactly as Dashboards does (audit M-4).
+ */
+export function productIdOf(key: string): string {
+  const dot = key.indexOf('.');
+  return dot > 0 ? key.slice(0, dot) : key;
+}
+
+/** The `instance` part of a service key; `default` when the key carries none. */
+export function instanceOf(key: string): string {
+  const dot = key.indexOf('.');
+  return dot > 0 ? key.slice(dot + 1) : 'default';
+}
+
 /** A path on the service's own origin: `/…`, not `//host`, no backslash, no control character. */
 export function safePath(path: string): string | null {
   if (!path.startsWith('/') || path.startsWith('//') || path.length > MAX_PATH) return null;

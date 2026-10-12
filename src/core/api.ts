@@ -20,12 +20,21 @@ export interface ConsoleInfo {
   /** What Switchboard binds the folder to, for the chosen runtime. */
   binding: { kind: 'none' } | { kind: 'project'; name: string; pool: string; inPlace: boolean } | { kind: 'error'; detail: string } | { kind: 'absent' };
   session: { state: 'idle' | 'running' | 'exited'; label: string; cwd: string; output: string; end: number; exitCode: number | null; signal: number | null };
+  /** FD-50 (LC-18): the session was closed after the idle time; opening the console continues it. */
+  idle: { at: string; account: string | null } | null;
 }
+
+/** FD-43/FD-51: the Switchboard sessions of a console's folder, or why there are none to show. */
+export type ConsoleSessions =
+  | { sessions: { state: 'starting' | 'running' | 'ended' | 'unknown'; label: string; mode: string; provider: string; launchedAt: number | null; movedTo: string | null }[] }
+  | { unavailable: 'absent' | 'no-folder' | 'old' | 'error'; detail: string };
 
 /** Why a start did not run in the console, worded by the renderer. */
 export type ConsoleStartResult =
   | { ok: true }
-  | { ok: false; reason: 'running' | 'no-runtime' | 'no-folder' | 'no-continue' | 'switchboard' | 'terminal-only' | 'spawn'; detail?: string; project?: string };
+  | { ok: false; reason: 'running' | 'no-runtime' | 'no-folder' | 'no-continue' | 'switchboard' | 'terminal-only' | 'spawn'; detail?: string; project?: string }
+  /** FD-49 (LC-17): deferred — the machine cannot carry another session now. */
+  | { ok: false; reason: 'admission'; why: 'disk' | 'swap' | 'cap'; freeGb?: number; running?: number; cap?: number };
 
 /** Where an embedded dashboard is now (ADR-0014). */
 export interface PageState { key: string; address: string; link: string; canGoBack: boolean; canGoForward: boolean; loading: boolean }
@@ -66,9 +75,11 @@ export interface FabricApi {
   /** FD-45: press it. The main process opens the `fabric://` link, or a native menu under `anchor` (window coordinates, CSS px). */
   fabricPress(key: string, anchor: { x: number; y: number }): Promise<{ opened: 'fabric' | 'menu' | 'none' }>;
   onViewEvent(listener: (event: { key: string; kind: 'restarted' | 'crashed' | 'loaded' | 'error' | 'navigated'; error?: string; page?: PageState }) => void): () => void;
-  onNavigate(listener: (target: { page: 'service' | 'activity' | 'overview'; key?: string; link?: string }) => void): () => void;
+  onNavigate(listener: (target: { page: 'service' | 'activity' | 'overview' | 'spend' | 'settings'; key?: string; link?: string }) => void): () => void;
   /** Called once the renderer listens: the navigation that arrived before it did (a link at launch), if any. */
-  takeNavigation(): Promise<{ page: 'service' | 'activity' | 'overview'; key?: string; link?: string } | null>;
+  takeNavigation(): Promise<{ page: 'service' | 'activity' | 'overview' | 'spend' | 'settings'; key?: string; link?: string } | null>;
+  /** U-18: the screen on show, so Restart to update can reopen on it. */
+  routeChanged(route: { page: string; key?: string }): void;
   /** Read the services folder again now (the unreadable-folder Retry). */
   rescan(): Promise<void>;
   /** Open how a service joins (the building-fabric-services kit) in the browser — a fixed address, never one from a page. */
@@ -91,6 +102,8 @@ export interface FabricApi {
   consoleInput(key: string, data: string): void;
   consoleResize(key: string, cols: number, rows: number): void;
   consoleStop(key: string): Promise<void>;
+  /** FD-43: what Switchboard launched in this console's folder; asked only while the console is shown. */
+  consoleSessions(key: string): Promise<ConsoleSessions>;
   /** Continue the same runtime and folder in Terminal (through Switchboard for a bound folder). */
   consoleOpenTerminal(key: string, mode: 'new' | 'continue'): Promise<{ ok: boolean; error?: string }>;
   /** Output and exits while the window is visible; a hidden window gets nothing and asks `consoleInfo` again. */
@@ -128,6 +141,7 @@ export const CHANNELS = {
   viewEvent: 'fd:view-event',
   navigate: 'fd:navigate',
   navigateTake: 'fd:navigate-take',
+  routeChanged: 'fd:route-changed',
   rescan: 'fd:rescan',
   serviceGuide: 'fd:service-guide',
   updateRestart: 'fd:update-restart',
@@ -144,6 +158,7 @@ export const CHANNELS = {
   consoleInput: 'fd:console-input',
   consoleResize: 'fd:console-resize',
   consoleStop: 'fd:console-stop',
+  consoleSessions: 'fd:console-sessions',
   consoleOpenTerminal: 'fd:console-open-terminal',
   consoleEvent: 'fd:console-event',
   layoutCommand: 'fd:layout-command',

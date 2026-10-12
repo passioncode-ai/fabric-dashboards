@@ -76,7 +76,25 @@ test('discovers a live service, opens its dashboard signed in, keeps one view, s
     assert.equal(fabricCookie?.value, 'v=1&owner=host&fabric=present', 'FB-6: the page hides its own button');
     assert.equal(fabricCookie?.sameSite, 'strict');
     assert.equal(fabricCookie?.httpOnly, false);
-    assert.equal(await app.evaluate(async ({ webContents }, id) => webContents.fromId(id)!.executeJavaScript('document.cookie'), views[0]!.id) as string, 'fabric_button=v=1&owner=host&fabric=present', 'the page can read it');
+    // FD-42 (ED-8): the appearance carrier sits beside it in the service's own partition, readable by the page.
+    const appearance = await app.evaluate(async ({ session }, o) => (await session.fromPartition('persist:svc-sample.default').cookies.get({ url: o, name: 'fabric_appearance' }))[0] ?? null, origin);
+    assert.equal(appearance?.value, 'v=1&scheme=dark&theme=graphite', 'the default scheme and theme reach the page');
+    assert.equal(appearance?.sameSite, 'strict');
+    assert.equal(appearance?.httpOnly, false);
+    assert.equal(appearance?.path, '/');
+    const cookies = String(await app.evaluate(async ({ webContents }, id) => webContents.fromId(id)!.executeJavaScript('document.cookie'), views[0]!.id)).split('; ').sort();
+    assert.deepEqual(cookies, ['fabric_appearance=v=1&scheme=dark&theme=graphite', 'fabric_button=v=1&owner=host&fabric=present'], 'the page can read both');
+    // FD-42 (DEC-0059): a change in Settings rewrites the cookie of the open page at once, and reloads nothing.
+    const loadsBefore = await app.evaluate(({ webContents }, id) => webContents.fromId(id)!.getURL(), views[0]!.id);
+    await page.evaluate(() => (window as unknown as { fabric: { updateSettings(p: unknown): Promise<unknown> } }).fabric.updateSettings({ theme: 'light', pageTheme: 'ocean' }));
+    let changed = '';
+    for (let i = 0; i < 40 && changed !== 'v=1&scheme=light&theme=ocean'; i += 1) {
+      changed = (await app.evaluate(async ({ session }, o) => (await session.fromPartition('persist:svc-sample.default').cookies.get({ url: o, name: 'fabric_appearance' }))[0]?.value ?? '', origin)) as string;
+      if (changed !== 'v=1&scheme=light&theme=ocean') await new Promise((r) => setTimeout(r, 100));
+    }
+    assert.equal(changed, 'v=1&scheme=light&theme=ocean', 'the open page\'s cookie follows the choice');
+    assert.equal(await app.evaluate(({ webContents }, id) => webContents.fromId(id)!.getURL(), views[0]!.id), loadsBefore, 'the page stays where it was');
+    await page.evaluate(() => (window as unknown as { fabric: { updateSettings(p: unknown): Promise<unknown> } }).fabric.updateSettings({ theme: 'dark', pageTheme: 'graphite' }));
     await fabricButton.click();
     let opened = '';
     for (let i = 0; i < 50 && !opened; i += 1) {

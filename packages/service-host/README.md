@@ -119,6 +119,11 @@ print-disabled` per look) and `status(label, table?)` → `{ loaded, pid, disabl
 `launchctl` that fails reads as not loaded. `parsePrint`, `parseDisabled`, `execRunner` (no
 shell), `UNMANAGED`. Reading only: the verbs that change a job are Fabric Dashboards' own.
 
+
+`src/systemd.ts` (FD-55, contract DEC-0057): `SystemdReader.status(unit)` reads `systemctl --user show`
+(`LoadState`, `ActiveState`, `MainPID`, `UnitFileState`) into the same `JobStatus`, so a copy waiting on the
+lock reads `duplicate` under systemd as it does under launchd. The Task Scheduler has no supervisor pid: a
+waiting copy there is not shown and is never an outage. Read only — systemd is controlled by the node.
 ## State precedence
 
 A remote placement (DEC-0019) has no launchd and no `duplicate`: `refused`, TLS and a redirect are
@@ -157,7 +162,9 @@ probed; a probe that throws counts as silence; an unreadable directory is `error
 is not on the service's own origin — exactly what the app would refuse
 ([ADR-0005](../../docs/adr/0005-service-links.md)). `isServiceKey`, `safePath`, `SCHEME`,
 `APP_NAME` (`Fabric Dashboards`), `DOWNLOAD_URL` (the latest release, for a "not installed"
-note).
+note). `productIdOf(key)` and `instanceOf(key)` split a key into its product `id` and its
+`instance` (`default` when absent) — the grouping of [ADR-0012](../../docs/adr/0012-one-entry-per-product.md),
+so Fabric groups services into products exactly as Dashboards does (audit M-4).
 
 ## Usage
 

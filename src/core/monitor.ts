@@ -2,11 +2,12 @@
 // It reads the services directory, probes every service, controls them through
 // launchd only, and never starts a service process itself (ADR-0002).
 import { supervises } from './platform';
+import { controlService } from './control';
 import { EventEmitter } from 'node:events';
 import fs from 'node:fs';
 import { ActivityStore } from './activity';
 import { runOwned } from './children';
-import { authHeaders, claimConflicts, dashboardMinWidth, deriveState, expand, fetchWellKnown, portOf, readDirectory, RemoteTokenLatch, REMOTE_TIMEOUT_MS, type DescriptorEntry, type WellKnownOptions, type WellKnownResult } from '@passioncode-ai/fabric-service-host';
+import { SystemdReader, authHeaders, claimConflicts, dashboardMinWidth, deriveState, expand, fetchWellKnown, portOf, readDirectory, RemoteTokenLatch, REMOTE_TIMEOUT_MS, type DescriptorEntry, type WellKnownOptions, type WellKnownResult } from '@passioncode-ai/fabric-service-host';
 import { tail } from './fsutil';
 import { commandReason, type CommandResult } from './outcome';
 import { duration, t as tr, type Lang } from './i18n';
@@ -16,7 +17,7 @@ import { fetchEvents, PROBE_TIMEOUT_MS, readTokenAsync } from './probe';
 import { tlsFor } from './testhooks';
 import type { Busy, Reason, ServiceSnapshot, Settings } from './types';
 
-export const CONTROL_TIMEOUT_MS = 40_000;
+export { CONTROL_TIMEOUT_MS } from './control';
 export const COMMAND_TIMEOUT_MS = 120_000;
 /** Consecutive failed probes before silence counts at all (ADR-0008). Fewer keep the last answer. */
 export const DOWN_AFTER_MISSES = 3;
@@ -31,6 +32,8 @@ export interface MonitorOptions {
   settings: () => Settings;
   lang: () => Lang;
   launchd?: Launchd;
+  /** FD-55: systemd's MainPID on Linux (a fake in tests). */
+  systemd?: Pick<SystemdReader, 'status'>;
   now?: () => number;
   /** Milliseconds. `rescan` is the safety net under the directory watcher; `visible`/`background` the
    *  probe cadence with and without a visible window; `events`/`eventsBackground` the feed cadence;
@@ -87,6 +90,7 @@ const MIN_WAKE_MS = 250;
 export class Monitor extends EventEmitter {
   private readonly tracked = new Map<string, Tracked>();
   private readonly launchd: Launchd;
+  private readonly systemd: Pick<SystemdReader, 'status'>;
   private readonly now: () => number;
   private readonly platform: NodeJS.Platform;
   private readonly intervals: typeof DEFAULT_INTERVALS;
@@ -108,6 +112,10 @@ export class Monitor extends EventEmitter {
   private rescanPending = false;
   /** Descriptors absent from the folder since this time; one is gone only once it stays absent (REMOVAL_GRACE_MS). */
   private readonly missingSince = new Map<string, number>();
+  /** U-16: a NEW descriptor that does not parse or validate yet, since this time. A writer that is not
+   *  atomic leaves a half-written file for a moment; it is shown (and logged as installed) only once it
+   *  stays invalid for REMOVAL_GRACE_MS — a file that becomes valid meanwhile simply appears. */
+  private readonly unsettledSince = new Map<string, number>();
   private polling = false;
   private changeTimer: NodeJS.Timeout | null = null;
   private lastEmitted: string | null = null;
@@ -116,6 +124,7 @@ export class Monitor extends EventEmitter {
   constructor(private readonly o: MonitorOptions) {
     super();
     this.launchd = o.launchd ?? new Launchd();
+    this.systemd = o.systemd ?? new SystemdReader();
     this.platform = o.platform ?? process.platform;
     this.now = o.now ?? Date.now;
     this.intervals = { ...DEFAULT_INTERVALS, ...(o.intervals ?? {}) };
@@ -190,6 +199,7 @@ export class Monitor extends EventEmitter {
       const now = this.now();
       let next = this.lastRescan + this.rescanEvery();
       for (const since of this.missingSince.values()) next = Math.min(next, since + REMOVAL_GRACE_MS); // confirm a removal
+      for (const since of this.unsettledSince.values()) next = Math.min(next, since + REMOVAL_GRACE_MS); // U-16: settle a new file
       for (const t of this.tracked.values()) if (!t.busy) next = Math.min(next, t.nextProbeAt);
       wait = Math.max(MIN_WAKE_MS, next - now);
     }
@@ -234,7 +244,7 @@ export class Monitor extends EventEmitter {
     this.ticking = true;
     try {
       const now = this.now();
-      const confirmRemoval = [...this.missingSince.values()].some((since) => now - since >= REMOVAL_GRACE_MS);
+      const confirmRemoval = [...this.missingSince.values(), ...this.unsettledSince.values()].some((since) => now - since >= REMOVAL_GRACE_MS);
       if (forceRescan || this.rescanPending || confirmRemoval || now - this.lastRescan >= this.rescanEvery()) {
         this.rescanPending = false;
         this.lastRescan = now;
@@ -276,6 +286,7 @@ export class Monitor extends EventEmitter {
     const seen = new Set(entries.map((e) => e.key));
     const now = this.now();
     for (const key of [...this.missingSince.keys()]) if (seen.has(key)) this.missingSince.delete(key);
+    for (const key of [...this.unsettledSince.keys()]) if (!seen.has(key)) this.unsettledSince.delete(key);
     for (const [key, t] of this.tracked) {
       if (!seen.has(key)) {
         // Audit 2026-10-07 MEDIUM-5: a writer that deletes and recreates its descriptor (no atomic
@@ -298,6 +309,12 @@ export class Monitor extends EventEmitter {
         if (JSON.stringify(entry) !== before) existing.nextProbeAt = this.now();
         continue;
       }
+      if (!entry.descriptor && !this.scanning) {
+        const since = this.unsettledSince.get(entry.key);
+        if (since === undefined) { this.unsettledSince.set(entry.key, now); continue; }
+        if (now - since < REMOVAL_GRACE_MS) continue;
+      }
+      this.unsettledSince.delete(entry.key);
       const t: Tracked = {
         // R-18: launchd is not read yet — not "not loaded". Until the first probe it reads `starting`, never Off with Start.
         entry, probe: null, launchd: { managed: supervises(this.platform, entry.descriptor?.lifecycle.manager), loaded: true, pid: null, disabled: false },
@@ -361,7 +378,16 @@ export class Monitor extends EventEmitter {
         t.launchd = { managed: true, ...s };
         t.launchdAt = this.now();
       }
+    } else if (this.platform === 'linux' && d.lifecycle.manager === 'systemd' && d.lifecycle.unit) {
+      // FD-55 (DEC-0057): systemd's MainPID is the supervisor's pid, read on the same cadence as launchd.
+      const steady = probe.kind === 'answer' && pidBefore === probe.doc.process.pid && t.launchd.managed;
+      const fresh = t.launchdAt !== null && this.now() - t.launchdAt < this.intervals.launchdRefresh;
+      if (this.visible || !steady || !fresh) {
+        t.launchd = { managed: true, by: 'systemd', ...(await this.systemd.status(d.lifecycle.unit)) };
+        t.launchdAt = this.now();
+      }
     } else {
+      // The Task Scheduler (and no supervisor) gives no pid: a waiting copy is not shown, never an outage.
       t.launchd = { managed: false, loaded: false, pid: null, disabled: false };
     }
     // #endregion launchd-reads
@@ -399,6 +425,9 @@ export class Monitor extends EventEmitter {
    *  keeps the last answer — unless launchd says that answer is gone (job off, or another pid). */
   private evidence(t: Tracked): { probe: WellKnownResult | null; firstUnansweredAt: number | null } {
     if (t.probe?.kind !== 'no-answer' || t.misses >= DOWN_AFTER_MISSES) return { probe: t.probe, firstUnansweredAt: t.firstUnansweredAt };
+    // R-19 (FD-21): a TLS refusal or a redirect is the origin's own verdict, not a slow host — the state
+    // vectors already read it as down at once (state.ts); the grace for silence must not hide it.
+    if (t.probe.cause === 'tls' || t.probe.cause === 'redirect') return { probe: t.probe, firstUnansweredAt: t.firstUnansweredAt };
     const l = t.launchd;
     const off = l.managed && (l.disabled || !l.loaded);
     const replaced = l.managed && l.pid !== null && t.lastAnswer !== null && t.lastAnswer.doc.process.pid !== l.pid;
@@ -547,51 +576,54 @@ export class Monitor extends EventEmitter {
       void this.tick();
       return { ok, reason };
     };
-    if (d.lifecycle.manager === 'launchd' && !supervises(this.platform, d.lifecycle.manager)) return finish(false, { code: 'result.unsupervisedHere', params: { name } });
-    if (d.lifecycle.manager !== 'launchd' || !d.lifecycle.label || !d.lifecycle.plist) return finish(false, { code: 'result.unmanaged', params: { name } });
-    const label = d.lifecycle.label;
-    const plist = expand(d.lifecycle.plist);
-    if (action !== 'stop' && !fs.existsSync(plist)) return finish(false, { code: 'result.plistMissing', params: { name, path: plist } });
+    // FD-20: the sequence is src/core/control.ts's, shared with the MCP tool; here it becomes a Reason
+    // and the tracked state the window shows.
     const oldPid = t.probe?.kind === 'answer' ? t.probe.doc.process.pid : null;
-    // U-15: restarting a duplicate waits for a new pid; if the stray copy keeps the port, say so by its pid.
-    const strayPid = t.lastState === 'duplicate' ? oldPid : null;
-    let lastSeenPid: number | null = null;
-    t.busy = action === 'restart' ? 'restarting' : action === 'stop' ? 'stopping' : 'starting';
-    this.changed();
-    const r = action === 'restart' ? await this.launchd.restart(label, plist) : action === 'stop' ? await this.launchd.stop(label) : await this.launchd.start(label, plist);
-    if (r.code !== 0) return finish(false, { code: 'result.launchctl', params: { detail: (r.stderr || r.stdout).trim() || `exit ${r.code}` } });
-    const deadline = this.now() + CONTROL_TIMEOUT_MS;
-    while (this.now() < deadline) {
-      const probe = await fetchWellKnown(d.origin, 1500);
-      if (probe.kind === 'answer') lastSeenPid = probe.doc.process.pid;
-      if (action === 'stop') {
-        if (probe.kind === 'no-answer') {
-          t.probe = probe;
-          t.firstUnansweredAt = null;
-          t.misses = 0;
-          t.lastAnswer = null;
-          const s = await this.launchd.status(label);
-          t.launchd = { managed: true, ...s };
-          t.lastState = 'stopped';
-          return finish(true, { code: 'result.stopped', params: { name } });
-        }
-      } else if (probe.kind === 'answer' && probe.doc.service.id === d.id && probe.doc.service.instance === d.instance && (action !== 'restart' || probe.doc.process.pid !== oldPid)) {
-        t.probe = probe;
+    const out = await controlService(d, action, {
+      platform: this.platform,
+      launchd: this.launchd,
+      wellKnown: (origin) => fetchWellKnown(origin, 1500),
+      now: () => this.now(),
+      sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+      onLaunch: () => {
+        t.busy = action === 'restart' ? 'restarting' : action === 'stop' ? 'stopping' : 'starting';
+        this.changed();
+      },
+    }, { oldPid, duplicate: t.lastState === 'duplicate' });
+    switch (out.kind) {
+      case 'refused':
+        if (out.why === 'unsupervised-here') return finish(false, { code: 'result.unsupervisedHere', params: { name } });
+        if (out.why === 'plist-missing') return finish(false, { code: 'result.plistMissing', params: { name, path: out.plist } });
+        return finish(false, { code: 'result.unmanaged', params: { name } });
+      case 'launchctl-failed':
+        return finish(false, { code: 'result.launchctl', params: { detail: out.detail } });
+      case 'stopped': {
+        t.probe = out.probe;
+        t.firstUnansweredAt = null;
+        t.misses = 0;
+        t.lastAnswer = null;
+        const s = await this.launchd.status(d.lifecycle.label!);
+        t.launchd = { managed: true, ...s };
+        t.lastState = 'stopped';
+        return finish(true, { code: 'result.stopped', params: { name } });
+      }
+      case 'answered':
+        t.probe = out.probe;
         t.firstUnansweredAt = null;
         t.lastAnswerAt = this.now();
         t.misses = 0;
-        t.lastAnswer = probe;
+        t.lastAnswer = out.probe;
         t.downNotified = false;
-        t.lastPid = probe.doc.process.pid;
+        t.lastPid = out.pid;
         if (action === 'restart') this.emit('restarted', key); // its page's session may be gone: the page offers Reload
-        return finish(true, { code: action === 'restart' ? 'result.restarted' : 'result.started', params: { name, pid: probe.doc.process.pid } });
-      }
-      await new Promise((resolve) => setTimeout(resolve, 400));
+        return finish(true, { code: action === 'restart' ? 'result.restarted' : 'result.started', params: { name, pid: out.pid } });
+      case 'stray-holds':
+        return finish(false, { code: 'result.strayHolds', params: { name, pid: out.pid, port: out.port } });
+      case 'still-answering':
+        return finish(false, { code: 'result.stillAnswering', params: { name } });
+      default:
+        return finish(false, { code: 'result.timeout', params: { name } });
     }
-    if (action === 'restart' && strayPid !== null && lastSeenPid === strayPid) {
-      return finish(false, { code: 'result.strayHolds', params: { name, pid: strayPid, port: portOf(d.origin) ?? 0 } });
-    }
-    return finish(false, { code: action === 'stop' ? 'result.stillAnswering' : 'result.timeout', params: { name } });
   }
 
   async command(key: string, which: 'doctor' | 'update'): Promise<CommandResult & { refused?: string }> {

@@ -14,10 +14,11 @@ import { prepareHandoff, type McpCommand } from '../core/handoff';
 import { prepareSetup, SETUP_KEY, setupFolder, type SetupState } from '../core/setup';
 import type { ActivityItem } from '../core/types';
 import { ConsoleManager, planStart, terminalScript, type SpawnPty } from '../core/consoles';
+import { admit, machineProbe, type MachineState } from '../core/admission';
 import { findCheckout } from '../core/repofind';
 import { detectRuntimes, KNOWN_RUNTIMES, readLoginPath, searchDirs, specsFromSwitchboard, type Runtime, type RuntimeSpec } from '../core/runtimes';
 import type { SettingsStore } from '../core/settings';
-import { bindingFor, canLaunchInPlace, findSwitchboard, terminalLaunchArgv, type Binding } from '../core/switchboard';
+import { accountsOf, bindingFor, canLaunchInPlace, findSwitchboard, managesProvider, sessionsIn, terminalLaunchArgv, type Binding, type SbSessions } from '../core/switchboard';
 import type { ServiceSnapshot } from '../core/types';
 
 /** node-pty 1.1.0 ships its macOS `spawn-helper` without the executable bit, and its postinstall
@@ -64,7 +65,17 @@ export interface ConsoleHostOptions {
   mcpServer?: () => McpCommand;
   /** FD-39 SCN-058: what is set up already, for the Setup console's brief. */
   setupState?: () => SetupState;
+  /** FD-50 (LC-18): how long a session may sit without input or output before it is saved and closed
+   *  (default IDLE_CLOSE_MS; 0 turns the sweep off, as tests that do not test it do). */
+  idleMs?: number;
+  /** Signals a session's process group; tests pass a fake — a fake pid is never a real group. */
+  killGroup?: (pid: number, signal: NodeJS.Signals) => void;
+  /** FD-49 (LC-17): the machine before a start; the real probe by default, a stub in tests. */
+  machine?: (folder: string, running: number) => Promise<MachineState>;
 }
+
+/** D2 of the 2026-10-12 board waves, stated in AGENTS.md's lifecycle table (LC-18). */
+export const IDLE_CLOSE_MS = 30 * 60_000;
 
 export class ConsoleHost {
   readonly manager: ConsoleManager;
@@ -83,8 +94,12 @@ export class ConsoleHost {
     this.manager = new ConsoleManager({
       spawn: (file, args, opts) => (spawn ??= loadSpawn())(file, args, opts),
       env: () => ({ ...process.env }),
+      killGroup: o.killGroup,
     });
     this.manager.on('data', (e: { key: string; data: string; end: number }) => this.send({ key: e.key, kind: 'data', data: e.data, end: e.end }));
+    // FD-50 (LC-18): an idle session is saved and closed, checked once a minute; nothing else wakes.
+    const idleMs = o.idleMs ?? IDLE_CLOSE_MS;
+    if (idleMs > 0) setInterval(() => void this.closeIdle(idleMs), 60_000).unref();
     this.manager.on('exit', (e: { key: string; code: number | null; signal: number | null }) => {
       this.o.log(`console: ${e.key} exited with ${e.code}${e.signal ? ` (signal ${e.signal})` : ''}`);
       this.send({ key: e.key, kind: 'exit', code: e.code, signal: e.signal });
@@ -168,6 +183,7 @@ export class ConsoleHost {
       folder,
       binding: b.kind === 'project' ? { ...b, inPlace: inv.inPlace } : b,
       session: { state: s.state, label: s.label, cwd: s.cwd, output: s.output, end: s.end, exitCode: s.exitCode, signal: s.signal },
+      idle: this.o.settings.get().consoles[key]?.idle ?? null,
     };
   }
 
@@ -201,18 +217,56 @@ export class ConsoleHost {
     if (!runtime) return { ok: false, reason: 'no-runtime' };
     const folder = this.folderOf(key);
     if (!folder?.exists) return { ok: false, reason: 'no-folder' };
+    // FD-49 (LC-17): start only what the machine can carry; otherwise defer, saying why.
+    const a = admit(await (this.o.machine ?? machineProbe)(folder.path, this.manager.runningCount()));
+    if (!a.ok) {
+      this.o.log(`console: ${key} start deferred (LC-17): ${a.why}`);
+      if (a.why === 'disk') return { ok: false, reason: 'admission', why: 'disk', freeGb: Math.round((a.freeDisk / 1024 ** 3) * 10) / 10 };
+      if (a.why === 'cap') return { ok: false, reason: 'admission', why: 'cap', running: a.running, cap: a.cap };
+      return { ok: false, reason: 'admission', why: 'swap' };
+    }
     const b = await this.bindingFor(runtime, folder.path, inv);
     const pack = this.pack(key, runtime, folder.path, task);
-    const plan = planStart({ runtime, mode, folder: folder.path, binding: b.kind === 'absent' ? { kind: 'none' } : b, switchboard: inv.switchboard, inPlace: inv.inPlace, handoff: pack?.handoff });
+    // FD-51 (LC-20): with a Switchboard route for this provider, every start runs managed.
+    const managed = inv.switchboard && runtime.provider && inv.inPlace ? managesProvider(await accountsOf(this.run, inv.switchboard), runtime.provider) : false;
+    const plan = planStart({ runtime, mode, folder: folder.path, binding: b.kind === 'absent' ? { kind: 'none' } : b, switchboard: inv.switchboard, inPlace: inv.inPlace, managed, handoff: pack?.handoff });
     if (plan.kind === 'refused') return { ok: false, reason: plan.reason, detail: plan.detail };
     if (plan.kind === 'terminal-only') return { ok: false, reason: 'terminal-only', project: plan.project };
     // Review R-1: the session runs with the login shell's PATH, not the one an app opened from Finder has.
     const r = this.manager.start(key, { argv: plan.argv, cwd: plan.cwd, label: runtime.name, env: { PATH: inv.dirs.join(path.delimiter), ...(pack?.env ?? {}) } }, size);
     if (!r.ok) return { ok: false, reason: r.error === 'running' ? 'running' : 'spawn', detail: r.error };
     // Remember what was started, so the panel offers it next time.
-    this.o.settings.update({ consoles: { [key]: { runtime: runtime.id, folder: folder.source === 'saved' ? folder.path : this.o.settings.get().consoles[key]?.folder ?? null } } });
+    this.o.settings.update({ consoles: { [key]: { runtime: runtime.id, folder: folder.source === 'saved' ? folder.path : this.o.settings.get().consoles[key]?.folder ?? null, idle: null } } });
     this.o.log(`console: ${key} started ${runtime.id} (${mode}) in ${folder.path}${plan.argv[0] === inv.switchboard ? ' through Switchboard' : ''}${pack ? ` with its context${task ? ` and a ${task.kind} task` : ''}` : ''}`);
     return { ok: true };
+  }
+
+  /** FD-50 (LC-18): save each idle session (when, and the Switchboard account it ran on) and close it, so it
+   *  holds neither memory nor MCP servers; opening the console again continues it. */
+  async closeIdle(idleMs: number, now = Date.now()): Promise<string[]> {
+    const keys = this.manager.idleKeys(idleMs, now);
+    for (const key of keys) {
+      let account: string | null = null;
+      try {
+        const listed = await this.sessions(key);
+        if ('sessions' in listed) account = listed.sessions.find((x) => x.state === 'running')?.movedTo ?? listed.sessions.find((x) => x.state === 'running')?.label ?? null;
+      } catch { /* the account is a nicety; the close is not */ }
+      const entry = this.o.settings.get().consoles[key] ?? { runtime: null, folder: null };
+      this.o.settings.update({ consoles: { [key]: { ...entry, idle: { at: new Date(now).toISOString(), account } } } });
+      this.manager.stop(key);
+      this.o.log(`console: ${key} closed after ${Math.round(idleMs / 60_000)} idle minutes (LC-18); opening it again continues it`);
+    }
+    return keys;
+  }
+
+  /** FD-43: the sessions Switchboard launched in this console's folder, and where each runs now (FD-51).
+   *  Read only while the console is shown (the renderer asks at its cadence); nothing without Switchboard. */
+  async sessions(key: string): Promise<SbSessions | { unavailable: 'absent' | 'no-folder'; detail: string }> {
+    const inv = await this.inventory();
+    if (!inv.switchboard) return { unavailable: 'absent', detail: '' };
+    const folder = this.folderOf(key);
+    if (!folder?.exists) return { unavailable: 'no-folder', detail: '' };
+    return sessionsIn(this.run, inv.switchboard, folder.path, await accountsOf(this.run, inv.switchboard));
   }
 
   async openTerminal(key: string, mode: 'new' | 'continue'): Promise<{ ok: boolean; error?: string }> {
@@ -279,6 +333,7 @@ export class ConsoleHost {
     };
     ipcMain.handle(CHANNELS.consoleStart, (_e, key, mode, s, task) => (keyOk(key) ? this.start(key, mode === 'continue' ? 'continue' : 'new', size(s), taskOf(task)) : Promise.reject(new Error('not a service key'))));
     ipcMain.handle(CHANNELS.consoleStop, (_e, key) => { if (keyOk(key)) this.manager.stop(key); });
+    ipcMain.handle(CHANNELS.consoleSessions, (_e, key) => (keyOk(key) ? this.sessions(key) : Promise.reject(new Error('not a service key'))));
     ipcMain.handle(CHANNELS.consoleOpenTerminal, (_e, key, mode) => (keyOk(key) ? this.openTerminal(key, mode === 'continue' ? 'continue' : 'new') : Promise.reject(new Error('not a service key'))));
     ipcMain.on(CHANNELS.consoleInput, (_e, key, data) => { if (keyOk(key) && typeof data === 'string' && data.length <= 1_000_000) this.manager.input(key, data); });
     ipcMain.on(CHANNELS.consoleResize, (_e, key, cols, rows) => { if (keyOk(key)) { const s = size({ cols, rows }); this.manager.resize(key, s.cols, s.rows); } });
