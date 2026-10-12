@@ -17,8 +17,8 @@
 | SCN-009 | Stop a service so it stays off | control | P-01 | ST-003 | validated | 2026-10-12 |
 | SCN-010 | Start a stopped service | control | P-01 | ST-003 | draft | 2026-10-06 |
 | SCN-011 | Two copies of one service | health | P-01 | ST-004 | draft | 2026-10-06 |
-| SCN-012 | Another program answers on the service's port | health | P-01 | ST-004 | draft | 2026-10-06 |
-| SCN-013 | Two services claim one port | health | P-01 | ST-004 | draft | 2026-10-06 |
+| SCN-012 | Another program answers on the service's port | health | P-01 | ST-004 | validated | 2026-10-13 |
+| SCN-013 | Two services claim one port | health | P-01 | ST-004 | validated | 2026-10-13 |
 | SCN-014 | Open a dashboard inside the app, signed in | dashboards | P-01 | ST-005 | validated | 2026-10-12 |
 | SCN-015 | Dashboard view keeps its place | dashboards | P-01 | ST-005 | validated | 2026-10-12 |
 | SCN-016 | Dashboard cannot sign in | dashboards | P-01 | ST-005 | validated | 2026-10-13 |
@@ -30,7 +30,7 @@
 | SCN-022 | The app updates itself | updates | P-01 | ST-008 | validated | 2026-10-12 |
 | SCN-023 | Glance from the menu bar | tray | P-01 | ST-009 | validated | 2026-10-12 |
 | SCN-024 | Settings: launch at login, notifications, quiet hours | settings | P-01 | ST-010, ST-007 | validated | 2026-10-13 |
-| SCN-025 | Run doctor and read logs | control | P-01 | ST-003 | draft | 2026-10-06 |
+| SCN-025 | Run doctor and read logs | control | P-01 | ST-003 | validated | 2026-10-13 |
 | SCN-026 | Open a service page from a link an agent handed over | links | P-01 | ST-011, ST-005 | validated | 2026-10-12 |
 | SCN-027 | A link that cannot be opened | links | P-01 | ST-011 | validated | 2026-10-12 |
 | SCN-028 | An agent reads and administers services through MCP | agents | P-01 | ST-012, ST-003 | draft | 2026-10-06 |
@@ -40,7 +40,7 @@
 | SCN-032 | An online service that cannot be reached says why | health | P-01 | ST-013, ST-004 | draft | 2026-10-06 |
 | SCN-033 | Several instances of one agent read as one agent | products | P-01 | ST-014, ST-002 | validated | 2026-10-13 |
 | SCN-034 | Switch between an agent's connections | products | P-01 | ST-014, ST-005 | validated | 2026-10-13 |
-| SCN-035 | A connection fails while the agent is fine | products | P-01 | ST-014, ST-002, ST-004 | draft | 2026-10-06 |
+| SCN-035 | A connection fails while the agent is fine | products | P-01 | ST-014, ST-002, ST-004 | validated | 2026-10-13 |
 | SCN-036 | See what every agent spent | spend | P-01 | ST-015 | validated | 2026-10-12 |
 | SCN-037 | A cost that is not known reads as unknown | spend | P-01 | ST-015 | validated | 2026-10-12 |
 | SCN-038 | An agent's spend cannot be read | spend | P-01 | ST-015, ST-004 | validated | 2026-10-13 |
@@ -280,8 +280,8 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **UI elements:** Logs tab, log panes, Doctor button, output panel
 - **States covered:** loading, empty, success, error
 - **Errors & recovery:** the command times out after 120 s -> "Doctor did not finish within 120 s." and the partial output; the command cannot start -> "Doctor could not run: <reason>"; the service is busy with another action -> "<Service> is busy with another action…"; a log file is unreadable -> "Cannot read <path>: <reason>"; an online service has no Logs tab
-- **Status:** draft
-- **Coverage:** src/core/monitor.ts, src/renderer/components/ServiceView.tsx
+- **Status:** validated
+- **Coverage:** src/core/monitor.ts, src/renderer/components/ServiceView.tsx, test/e2e/health-states.test.ts
 - **Product:** unobserved
 
 ## health
@@ -316,8 +316,8 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **UI elements:** "Wrong program on port" badge, reason line, Dashboard tab notice
 - **States covered:** error
 - **Errors & recovery:** resolved when the port answers as the service again
-- **Status:** draft
-- **Coverage:** packages/service-host/src/state.ts, test/monitor.test.ts, test/flap.test.ts
+- **Status:** validated
+- **Coverage:** packages/service-host/src/state.ts, test/monitor.test.ts, test/flap.test.ts, test/e2e/health-states.test.ts
 - **Product:** unobserved
 
 ### SCN-013: Two services claim one port
@@ -333,8 +333,8 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **UI elements:** "Port conflict" badge, both names, "Show file" and "Show the file of <other>" buttons
 - **States covered:** error
 - **Errors & recovery:** clears when one descriptor is rewritten with another port
-- **Status:** draft
-- **Coverage:** packages/service-host/src/descriptor.ts (claimConflicts), src/renderer/components/ServiceView.tsx, test/monitor.test.ts
+- **Status:** validated
+- **Coverage:** packages/service-host/src/descriptor.ts (claimConflicts), src/renderer/components/ServiceView.tsx, test/monitor.test.ts, test/e2e/health-states.test.ts
 - **Product:** unobserved
 
 ## dashboards
@@ -820,8 +820,8 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **UI elements:** sidebar mark, Attention row, card "also:" line
 - **States covered:** error, success
 - **Errors & recovery:** a restart that does not bring it back follows SCN-008 for that instance
-- **Status:** draft
-- **Coverage:** src/core/products.ts (memberProblem), src/renderer/App.tsx (ProductItem), test/products.test.ts
+- **Status:** validated
+- **Coverage:** src/core/products.ts (memberProblem), src/renderer/App.tsx (ProductItem), test/products.test.ts, test/e2e/health-states.test.ts
 - **Product:** unobserved
 
 ## spend
