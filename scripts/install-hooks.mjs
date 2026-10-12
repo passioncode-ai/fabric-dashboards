@@ -11,7 +11,9 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const MARK = '# fabric-dashboards lease-guard (FD-26)';
-const HOOK = `#!/bin/sh\n${MARK}\nexec node "$(git rev-parse --show-toplevel)/scripts/lease-guard.mjs"\n`;
+// A checkout of an older commit has no guard script: the hook is shared by every worktree, so it
+// must let such a checkout commit rather than fail on a missing file.
+const HOOK = `#!/bin/sh\n${MARK}\nguard="$(git rev-parse --show-toplevel)/scripts/lease-guard.mjs"\n[ -f "$guard" ] || exit 0\nexec node "$guard"\n`;
 
 export function install(cwd = process.cwd(), log = (s) => console.log(s)) {
   const git = (...a) => spawnSync('git', a, { cwd, encoding: 'utf8' });

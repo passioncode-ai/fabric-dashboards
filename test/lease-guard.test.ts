@@ -91,6 +91,16 @@ test('FD-26: another tool\'s pre-commit hook is left alone and named', () => {
   assert.match(notes.join('\n'), /belongs to another tool/);
 });
 
+test('FD-26: a checkout without the guard script still commits (the hook is shared by every worktree)', () => {
+  const dir = repo();
+  install(dir, () => {});
+  fs.rmSync(path.join(dir, 'scripts', 'lease-guard.mjs'));
+  fs.writeFileSync(path.join(dir, 'CHANGELOG.md'), '# x\n');
+  spawnSync('git', ['add', 'CHANGELOG.md', '.claude'], { cwd: dir });
+  const r = spawnSync('git', ['commit', '-q', '-m', 'old checkout'], { cwd: dir, encoding: 'utf8' });
+  assert.equal(r.status, 0, r.stderr);
+});
+
 test('FD-26: outside a git checkout the installer does nothing', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'fd-nogit-'));
   assert.equal(install(dir, () => {}), 'not-a-checkout');
