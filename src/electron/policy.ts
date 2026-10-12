@@ -197,7 +197,8 @@ export function stalePartitions(names: string[], keys: string[]): string[] {
 export const UPDATE_IDLE_MS = 10 * 60_000;
 /** Written just before an automatic install: the relaunch that follows stays in the menu bar. */
 export const RELAUNCH_MARKER = '.relaunch-hidden';
-const RELAUNCH_FRESH_MS = 10 * 60_000;
+/** Long enough for the slowest install measured: 486 s for the Windows arm64 installer (FD-37 M4c). */
+const RELAUNCH_FRESH_MS = 30 * 60_000;
 
 /** Install now: an update is ready, the person allows it, nobody is looking and nothing runs. */
 export function autoInstallNow(o: { ready: boolean; autoUpdate: boolean; visible: boolean; busy: number }): boolean {

@@ -147,9 +147,10 @@ if (!app.requestSingleInstanceLock()) {
   const updater = new Updater(() => {
     pushStatus();
     if (updater.state.state === 'ready' && !windowVisible()) updateGrace.hidden();
-    if (updater.state.state === 'error' && installing) {
-      installing = false;
-      quitting = false;
+    if (updater.state.state === 'error') {
+      // A failed install: the window hides on close again, and no later launch starts hidden because of a marker
+      // written for an install that never happened (the waiter or shell may fail before the quit began).
+      if (installing) { installing = false; quitting = false; }
       try { fs.rmSync(path.join(userData, RELAUNCH_MARKER), { force: true }); } catch { /* gone */ }
     }
   }, log, () => { installing = true; quitting = true; }, () => settings.get().autoUpdate);
