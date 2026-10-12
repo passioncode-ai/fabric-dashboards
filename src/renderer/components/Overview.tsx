@@ -82,7 +82,7 @@ interface Props { status: AppStatus; products: Product[]; open: (key: string, li
 const ATTENTION_VISIBLE = 3;
 
 export function Overview({ status, products, open, act, goSpend, agent, visit, onContinue }: Props) {
-  const { t, reason } = useT();
+  const { t, reason, lang } = useT();
   const [showAll, setShowAll] = useState(false);
   const [pathError, setPathError] = useState('');
   const showFolder = () => void api().showPath(status.servicesDir).then((r) => setPathError(r.ok ? '' : t('overview.showFailed', { error: r.error ?? '', path: status.servicesDir })));
@@ -163,7 +163,7 @@ export function Overview({ status, products, open, act, goSpend, agent, visit, o
         return (
           <section className="visit" aria-labelledby="visit-title">
             <h2 id="visit-title">{t('visit.title')}</h2>
-            {!changed && <p className="meta">{t('visit.nothing', { when: new Date(visit.since).toLocaleString() })}</p>}
+            {!changed && <p className="meta">{t('visit.nothing', { when: new Date(visit.since).toLocaleString(lang, { dateStyle: 'medium', timeStyle: 'short' }) })}</p>}
             <ul>
               {visit.alerts.map((a) => byKey.has(a.key) && (
                 <li key={a.key} className={`state-${a.level === 'error' ? 'down' : 'degraded'}`}>
