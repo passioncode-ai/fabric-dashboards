@@ -25,7 +25,8 @@ import { productIdOf } from '../core/products';
 import { t as tr } from '../core/i18n';
 
 export const COMMAND_TIMEOUT_MS = 120_000;
-export const CONTROL_TIMEOUT_MS = 40_000;
+import { CONTROL_TIMEOUT_MS, controlService } from '../core/control';
+export { CONTROL_TIMEOUT_MS };
 
 export interface Deps {
   servicesDir: () => string;
@@ -266,34 +267,32 @@ export async function control(deps: Deps, key: string, action: 'start' | 'stop' 
   if (!['start', 'stop', 'restart'].includes(action)) throw new ToolError('action is start, stop or restart');
   const entry = find(deps, key);
   const d = entry.descriptor;
-  if (d.placement === 'remote') throw new ToolError(`${d.name} runs online and is supervised by its platform; it cannot be ${action}ed from here`);
-  // ADR-0019 §7: launchd is macOS's; elsewhere the service is shown, never controlled, and the agent is told why.
-  if (d.lifecycle.manager === 'launchd' && !supervises(deps.platform, d.lifecycle.manager)) {
-    throw new ToolError(`${d.name} is supervised by launchd, which this system does not have; start and stop it on the system that runs it`);
+  const before = d.placement === 'remote' ? null : await deps.wellKnown(d.origin);
+  // FD-20: the sequence is src/core/control.ts's, shared with the app; here it becomes a result or a refusal.
+  const out = await controlService(d, action, {
+    platform: deps.platform, launchd: deps.launchd, wellKnown: (origin) => deps.wellKnown(origin), exists: deps.exists,
+    now: deps.now, sleep: deps.sleep, pollMs: 500,
+  }, { oldPid: before?.kind === 'answer' ? before.doc.process.pid : null });
+  switch (out.kind) {
+    case 'refused':
+      if (out.why === 'remote') throw new ToolError(`${d.name} runs online and is supervised by its platform; it cannot be ${action}ed from here`);
+      // ADR-0019 §7: launchd is macOS's; elsewhere the service is shown, never controlled, and the agent is told why.
+      if (out.why === 'unsupervised-here') throw new ToolError(`${d.name} is supervised by launchd, which this system does not have; start and stop it on the system that runs it`);
+      if (out.why === 'plist-missing') throw new ToolError(`${d.name}: the launchd plist is missing at ${out.plist}; reinstall the service`);
+      throw new ToolError(`${d.name} is not managed by launchd; it cannot be ${action}ed from here`);
+    case 'launchctl-failed':
+      return { ok: false, state: (await serviceStatus(deps, key)).state, detail: out.detail };
+    case 'stopped':
+      return { ok: true, state: 'stopped', detail: `${d.name} stopped and stays off across logins` };
+    case 'answered':
+      return { ok: true, state: (await serviceStatus(deps, key)).state, detail: `${d.name} answers as pid ${out.pid}` };
+    case 'stray-holds':
+      return { ok: false, state: (await serviceStatus(deps, key)).state, detail: `${d.name}: a stray copy (pid ${out.pid}) still holds port ${out.port}` };
+    case 'still-answering':
+      return { ok: false, state: (await serviceStatus(deps, key)).state, detail: `${d.name} still answers ${CONTROL_TIMEOUT_MS / 1000} s after stop` };
+    default:
+      return { ok: false, state: (await serviceStatus(deps, key)).state, detail: `no expected answer within ${CONTROL_TIMEOUT_MS / 1000} s` };
   }
-  if (d.lifecycle.manager !== 'launchd' || !d.lifecycle.label || !d.lifecycle.plist) {
-    throw new ToolError(`${d.name} is not managed by launchd; it cannot be ${action}ed from here`);
-  }
-  const before = await deps.wellKnown(d.origin);
-  const oldPid = before.kind === 'answer' ? before.doc.process.pid : null;
-  const plist = expand(d.lifecycle.plist);
-  // M-3: the same refusal as the app — a missing plist is said at once, not retried by bootstrap.
-  if (action !== 'stop' && !(deps.exists ?? fs.existsSync)(plist)) throw new ToolError(`${d.name}: the launchd plist is missing at ${plist}; reinstall the service`);
-  const r = action === 'restart' ? await deps.launchd.restart(d.lifecycle.label, plist)
-    : action === 'stop' ? await deps.launchd.stop(d.lifecycle.label)
-    : await deps.launchd.start(d.lifecycle.label, plist);
-  if (r.code !== 0) return { ok: false, state: (await serviceStatus(deps, key)).state, detail: (r.stderr || r.stdout).trim() || `launchctl exit ${r.code}` };
-  const deadline = deps.now() + CONTROL_TIMEOUT_MS;
-  while (deps.now() < deadline) {
-    const probe = await deps.wellKnown(d.origin);
-    if (action === 'stop' && probe.kind === 'no-answer') return { ok: true, state: 'stopped', detail: `${d.name} stopped and stays off across logins` };
-    if (action !== 'stop' && probe.kind === 'answer' && probe.doc.service.id === d.id && probe.doc.service.instance === d.instance
-      && (action !== 'restart' || probe.doc.process.pid !== oldPid)) {
-      return { ok: true, state: (await serviceStatus(deps, key)).state, detail: `${d.name} answers as pid ${probe.doc.process.pid}` };
-    }
-    await deps.sleep(500);
-  }
-  return { ok: false, state: (await serviceStatus(deps, key)).state, detail: `no expected answer within ${CONTROL_TIMEOUT_MS / 1000} s` };
 }
 
 export async function command(deps: Deps, key: string, which: 'doctor' | 'update'): Promise<{ code: number | null; output: string; timed_out: boolean; signal?: string }> {
