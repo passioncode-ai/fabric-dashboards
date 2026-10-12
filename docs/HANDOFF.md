@@ -19,6 +19,10 @@ and stapled, both Windows `SIGNED`; `update-feed.json` names darwin-universal, w
 linux-arm64, each with its SHA-256; `releases/latest` is `v0.7.6`. The Windows proof with the fixed code is complete:
 run 38199490293, win32-x64 and win32-arm64 updated themselves 0.7.4 → 0.7.5 and started again.
 
+**On main, unreleased:** B-163 (sshlg-skills 1.56.0's update lock) — a skills update refused with exit 75 is
+`estate_update busy`, not a failure, and is retried within the hour (PR #113, `be8b2cf`, ADR-0018 amendment
+2026-10-12). It ships with the next release.
+
 **Next task:** when the release after 0.7.6 exists, run `gh workflow run update-proof.yml -f from=0.7.6 -f to=<next>
 -f os=all` (no build: 0.7.6 carries the fix) — the first proof on released code end to end. Then FD-42 (theme picker)
 and FD-49 (LC-17 admission; this Mac had 0.5 GB free during this release, so measure before choosing the floor).
