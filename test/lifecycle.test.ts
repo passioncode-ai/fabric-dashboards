@@ -783,7 +783,8 @@ test('ADR-0015: a downloaded update installs only when allowed, unwatched and id
   const now = T0;
   assert.equal(relaunchHidden(new Date(now - 30_000).toISOString(), now), true);
   assert.equal(relaunchHidden(null, now), false);
-  assert.equal(relaunchHidden(new Date(now - 11 * 60_000).toISOString(), now), false, 'a stale marker is not this relaunch');
+  assert.equal(relaunchHidden(new Date(now - 9 * 60_000).toISOString(), now), true, 'a Windows arm64 install takes about 8 minutes (FD-37 M4c)');
+  assert.equal(relaunchHidden(new Date(now - 31 * 60_000).toISOString(), now), false, 'a stale marker is not this relaunch');
   assert.equal(relaunchHidden('garbage', now), false);
   assert.equal(relaunchHidden(new Date(now + 60_000).toISOString(), now), false);
 });

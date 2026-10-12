@@ -55,7 +55,7 @@ export function nsisInstalledAt(execPath: string, localAppData: string | undefin
  * starts it with the update flags. Paths go in single-quoted literals with quotes doubled; nothing passes through
  * cmd.exe (as `uninstallCommand`).
  */
-export function nsisUpdateCommand(installer: string, sha256: string, pid: number, waitSeconds = 120): { file: string; args: string[] } {
+export function nsisUpdateCommand(installer: string, sha256: string, pid: number, waitSeconds = 120): { file: string; args: string[]; script: string } {
   if (!/^[0-9a-f]{64}$/.test(sha256)) throw new Error('the installer\'s sha256 is 64 hex digits');
   const lit = (s: string) => `'${s.replace(/'/g, "''")}'`;
   const id = Math.trunc(pid);
@@ -65,7 +65,7 @@ export function nsisUpdateCommand(installer: string, sha256: string, pid: number
     `if ((Get-FileHash -Algorithm SHA256 -LiteralPath ${lit(installer)}).Hash.ToLowerInvariant() -ne ${lit(sha256)}) { exit 2 }`,
     `Start-Process -FilePath ${lit(installer)} -ArgumentList ${NSIS_UPDATE_ARGS.map(lit).join(',')}`,
   ].join('; ');
-  return { file: 'powershell.exe', args: ['-NoProfile', '-NonInteractive', '-Command', script] };
+  return { file: 'powershell.exe', args: ['-NoProfile', '-NonInteractive', '-Command', script], script };
 }
 
 /** The feed's key for this copy (`scripts/release-feed.mjs` PLATFORMS). */
@@ -87,6 +87,17 @@ export function platformUpdate(feed: unknown, key: string, version: string): { o
   if (!expected || entry.update !== expected) return { ok: false, why: `the feed of ${version} names ${String(entry.update)} for ${key}, not ${expected ?? 'a known file'}` };
   if (typeof entry.sha256 !== 'string' || !/^[0-9a-f]{64}$/.test(entry.sha256)) return { ok: false, why: `the feed of ${version} gives no sha256 for ${expected}` };
   return { ok: true, file: expected, sha256: entry.sha256 };
+}
+
+/**
+ * How a replaced AppImage starts again (FD-37, found by the 0.7.4 → 0.7.5 update proof): a system `/bin/sh`, started
+ * detached (`spawnAfterExit`), waits for this process to exit (at most 120 s), then runs the new `$APPIMAGE` with this
+ * run's arguments. Not Electron's `app.relaunch`: its relauncher runs from inside this image's mount, which the
+ * AppImage runtime serves and stops with the app — the relauncher died with it and nothing started.
+ */
+export function appImageRelaunchCommand(pid: number, appImage: string, args: readonly string[]): { file: string; args: string[] } {
+  const script = 'p=$1; i=$2; shift 2; n=0; while kill -0 "$p" 2>/dev/null && [ $n -lt 600 ]; do sleep 0.2; n=$((n+1)); done; kill -0 "$p" 2>/dev/null && exit 3; exec "$i" "$@"';
+  return { file: '/bin/sh', args: ['-c', script, 'fabric-dashboards-relaunch', String(Math.trunc(pid)), appImage, ...args] };
 }
 
 /** Where a new AppImage is written before it replaces this one: beside it (same file system, so the rename is

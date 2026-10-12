@@ -282,7 +282,8 @@ function AlertChannel({ status, choice, onChoose }: { status: AppStatus; choice:
         <option value="off">{t('settings.alerts.off')}</option>
       </select>
       <p className="meta">{t('settings.alerts.help')}</p>
-      {a?.none && <p className={a.none === 'off' ? 'meta' : 'notice warning'} role="status">{t(`settings.alerts.none.${a.none}`)}</p>}
+      {/* Off, or nothing to send to, is a plain fact; a choice that is gone or does not answer needs the person. */}
+      {a?.none && <p className={a.none === 'off' || a.none === 'none-installed' ? 'meta' : 'notice warning'} role="status">{t(`settings.alerts.none.${a.none}`)}</p>}
       {a?.last && <p className={a.last.ok ? 'meta' : 'meta state-down'} role="status">{a.last.ok ? t('settings.alerts.lastOk', { time: time(a.last.at), subject: a.last.subject }) : t('settings.alerts.lastFailed', { time: time(a.last.at), error: a.last.error ?? '' })}</p>}
     </div>
   );

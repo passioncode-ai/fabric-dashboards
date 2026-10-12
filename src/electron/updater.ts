@@ -26,9 +26,9 @@ import { pathToFileURL } from 'node:url';
 import { FEED_FILE, feedNamesOwnRelease, localFeed, parseSums, releaseFile, signedFeed, sumsSignedByRelease, zipName } from '../core/release-verify';
 import { CHECK_EVERY_MS, FIRST_CHECK_MS, isNewer, mayCheck, stagedBundlePath, stagedRefusal } from '../core/version';
 import type { AppStatus } from '../core/types';
-import { nsisInstalledAt, nsisUpdateCommand, PENDING_UPDATE_DIR, platformKey, platformUpdate, replaceAppImage, stagedAppImage, updateChannel } from '../core/self-update';
+import { appImageRelaunchCommand, nsisInstalledAt, nsisUpdateCommand, PENDING_UPDATE_DIR, platformKey, platformUpdate, replaceAppImage, stagedAppImage, updateChannel } from '../core/self-update';
 import { uninstallTarget } from '../core/platform';
-import { spawn } from 'node:child_process';
+import { powerShellAfterExit, spawnAfterExit } from '../core/after-exit';
 import { windowsPowerShellEnv } from '@passioncode-ai/fabric-service-host';
 
 /** The one feed this app reads: pinned, never taken from the environment. */
@@ -437,22 +437,25 @@ export class Updater {
           return false;
         }
         const cmd = nsisUpdateCommand(pending.file, pending.sha256, process.pid);
-        const child = spawn(cmd.file, cmd.args, { stdio: 'ignore', windowsHide: true, env: windowsPowerShellEnv() }); // not detached: as the uninstall waiter
-        child.once('error', (error) => this.fail('download_failed', `the installer could not start: ${error.message}`));
-        child.once('spawn', () => {
-          this.event('update_install', 'started', `version=${this.state.version ?? '?'} waiter=${child.pid ?? '?'}`);
+        // A grandchild outside this app's job, or Windows kills it when the app exits (src/core/after-exit.ts); the
+        // app quits only once it runs.
+        powerShellAfterExit(cmd.script, windowsPowerShellEnv()).then(() => {
+          this.event('update_install', 'started', `version=${this.state.version ?? '?'}`);
           this.onQuitForUpdate();
           app.quit();
-        });
-        child.unref();
+        }, (error: Error) => this.fail('download_failed', `the installer could not start: ${error.message}`));
         return true;
       }
       this.event('update_install', 'started', `version=${this.state.version ?? '?'}`);
-      // The new AppImage is already in place: starting it again is the install.
-      this.onQuitForUpdate();
-      // Electron passes this run's arguments again (flags, --hidden) and starts the new copy once this one exits.
-      app.relaunch({ execPath: process.env.APPIMAGE! });
-      app.quit();
+      // The new AppImage is already in place: starting it again is the install. A system shell outside the image
+      // waits for this process to exit and starts it (appImageRelaunchCommand); the app quits once the shell runs.
+      const relaunch = appImageRelaunchCommand(process.pid, process.env.APPIMAGE!, process.argv.slice(1));
+      const shell = spawnAfterExit(relaunch.file, relaunch.args);
+      shell.once('error', (error) => this.fail('download_failed', `the new AppImage could not be started: ${error.message}`));
+      shell.once('spawn', () => {
+        this.onQuitForUpdate();
+        app.quit();
+      });
       return true;
     }
     if (this.state.state === 'held' && this.verified) {

@@ -6,6 +6,8 @@
 // same SHA-256 as the release's SHA256SUMS) and start again as <to>. Windows: <from>'s installer is installed per
 // user; the app runs hidden; it must run <to>'s installer through its waiter and start again as <to>. Each copy has
 // its own data folder, and the proof is read from its own log: `update_install installed from=<from> to=<to>`.
+// FD_PROOF_FROM_DIR: take the <from> copy from this folder (a debug build of the current code, built with <from>'s
+// version number by update-proof.yml `build`), so a fix is proven before it is released.
 import { execFileSync, spawn, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { chmodSync, existsSync, mkdtempSync, readdirSync, readFileSync, statSync } from 'node:fs';
@@ -21,6 +23,8 @@ const arch = process.arch === 'arm64' ? 'arm64' : 'x64';
 const work = mkdtempSync(path.join(os.tmpdir(), 'fd-update-proof-'));
 const data = path.join(work, 'data');
 const gh = (args) => execFileSync('gh', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] });
+const fromDir = process.env.FD_PROOF_FROM_DIR ? path.resolve(process.env.FD_PROOF_FROM_DIR) : null;
+const fromFile = (name) => (fromDir ? path.join(fromDir, name) : path.join(download(from, name), name));
 const download = (version, pattern) => { gh(['release', 'download', `v${version}`, '-R', 'passioncode-ai/fabric-dashboards', '-p', pattern, '-D', path.join(work, version), '--clobber']); return path.join(work, version); };
 const sha256 = (file) => createHash('sha256').update(readFileSync(file)).digest('hex');
 const sums = (version) => Object.fromEntries(readFileSync(path.join(download(version, 'SHA256SUMS'), 'SHA256SUMS'), 'utf8').trim().split('\n').map((l) => l.split(/\s+/)).map(([h, n]) => [n.replace(/^\*/, ''), h]));
@@ -43,14 +47,31 @@ async function waitFor(label, ok) {
 if (process.platform === 'linux') {
   const name = (v) => `Fabric-Dashboards-${v}-linux-${arch}.AppImage`;
   const image = path.join(work, 'Fabric Dashboards.AppImage');
-  execFileSync('cp', [path.join(download(from, name(from)), name(from)), image]);
+  execFileSync('cp', [fromFile(name(from)), image]);
   chmodSync(image, 0o755);
   const expected = sums(to)[name(to)];
   requireThat(Boolean(expected), `SHA256SUMS of ${to} names no ${name(to)}`);
-  // The AppImage starts under Xvfb as a person would start it; --no-sandbox because Ubuntu 24.04 confines user
+  // A display that outlives the app, as a desktop session does: `xvfb-run` would stop its X server when the first
+  // copy exits and leave the restarted one nowhere to open. --no-sandbox because Ubuntu 24.04 confines user
   // namespaces, which an AppImage's Chromium needs (no setuid helper is possible inside a read-only image).
-  const app = spawn('xvfb-run', ['-a', image, '--hidden', '--no-sandbox'], { env, stdio: 'ignore', detached: true });
+  if (!process.env.DISPLAY) {
+    spawn('Xvfb', [':99', '-screen', '0', '1280x800x24', '-nolisten', 'tcp'], { stdio: 'ignore', detached: true }).unref();
+    env.DISPLAY = ':99';
+    await sleep(2_000);
+  }
+  const app = spawn(image, ['--hidden', '--no-sandbox'], { env, stdio: 'ignore', detached: true });
   app.unref();
+  // What runs around the restart, for the record (the relaunch is the step a desktop session cannot show).
+  const watchRestart = async () => {
+    while (!/update_install started/.test(logText())) await sleep(5_000);
+    for (let i = 0; i < 12; i += 1) {
+      const ps = spawnSync('ps', ['-eo', 'pid,ppid,stat,args'], { encoding: 'utf8' }).stdout.split('\n').filter((l) => /Fabric|fabric-dashboards|AppRun|mount_/i.test(l) && !/update-proof/.test(l));
+      console.log(`[restart +${i * 10}s]\n${ps.join('\n') || '(no app process)'}`);
+      if (installed.test(logText())) break;
+      await sleep(10_000);
+    }
+  };
+  void watchRestart();
   await waitFor(`${name(from)} replacing itself with ${name(to)}`, () => existsSync(image) && statSync(image).size > 0 && sha256(image) === expected);
   console.log(`the AppImage replaced its own file with ${name(to)} (sha256 ${expected.slice(0, 12)}, as SHA256SUMS)`);
   await waitFor(`the restart as ${to}`, () => installed.test(logText()));
@@ -58,7 +79,7 @@ if (process.platform === 'linux') {
   try { process.kill(-app.pid, 'SIGTERM'); } catch { /* gone */ }
 } else if (process.platform === 'win32') {
   const name = `Fabric-Dashboards-${from}-windows-${arch}-setup.exe`;
-  const setup = path.join(download(from, name), name);
+  const setup = fromFile(name);
   const install = spawnSync(setup, ['/S'], { timeout: 600_000, windowsHide: true });
   requireThat(install.status === 0, `the ${from} installer exited ${install.status ?? install.error}`);
   const programs = path.join(process.env.LOCALAPPDATA ?? '', 'Programs');
@@ -70,9 +91,14 @@ if (process.platform === 'linux') {
   spawn(exe, ['--hidden'], { env, detached: true, stdio: 'ignore', windowsHide: true }).unref();
   await waitFor(`the install of ${to} over ${from}`, () => version().startsWith(to));
   console.log(`the app ran ${to}'s installer through its waiter: ${exe} is ${version()}`);
-  // The installer starts the app again as the signed-in user, whose own data folder may be the default one.
-  const defaultLog = path.join(process.env.APPDATA ?? '', 'Fabric Dashboards', 'logs', 'main.log');
-  await waitFor(`the restart as ${to}`, () => installed.test(logText()) || (() => { try { return installed.test(readFileSync(defaultLog, 'utf8')); } catch { return false; } })());
+  // The installer starts the app again through Explorer, with the signed-in user's own environment: it then logs
+  // where Windows copies do by default (src/core/platform.ts places: %LOCALAPPDATA%\Fabric Dashboards\Logs).
+  const defaultLog = path.join(process.env.LOCALAPPDATA ?? '', 'Fabric Dashboards', 'Logs', 'main.log');
+  // A first run in that default profile has no `.last-version`, so it logs `started <to>` rather than `installed`; a
+  // running process of the (now <to>) exe counts too.
+  const startedAgain = new RegExp(` started ${to.replace(/\./g, '\\.')} `);
+  const running = () => /Fabric Dashboards\.exe/i.test(spawnSync('tasklist', ['/FI', 'IMAGENAME eq Fabric Dashboards.exe', '/FO', 'CSV', '/NH'], { encoding: 'utf8', windowsHide: true }).stdout);
+  await waitFor(`the restart as ${to}`, () => installed.test(logText()) || (() => { try { const d = readFileSync(defaultLog, 'utf8'); return installed.test(d) || startedAgain.test(d); } catch { return false; } })() || (version().startsWith(to) && running()));
   console.log(`it started again as ${to}`);
   spawnSync('taskkill', ['/F', '/T', '/IM', 'Fabric Dashboards.exe'], { windowsHide: true });
 } else {

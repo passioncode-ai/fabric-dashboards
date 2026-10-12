@@ -26,6 +26,7 @@ import { fetchUsage, readTokenAsync } from '../core/probe';
 import { readSpend, type SpendEntry } from '../core/spend';
 import { NotifyLedger, shouldNotify } from '../core/notify';
 import { OutageAlerts } from './outage-alerts';
+import { powerShellAfterExit } from '../core/after-exit';
 import { SettingsStore } from '../core/settings';
 import type { AppStatus, Settings, SettingsPatch } from '../core/types';
 import { ALWAYS_KEPT, clearRestoreRecord, KEPT_FILES, productDataPaths, purgeAfterExit, readRestoreRecord, removeMcpRegistrations, repairMcpRegistrations, restoreMcpRegistrations, writeRestoreRecord } from '../core/uninstall';
@@ -146,9 +147,10 @@ if (!app.requestSingleInstanceLock()) {
   const updater = new Updater(() => {
     pushStatus();
     if (updater.state.state === 'ready' && !windowVisible()) updateGrace.hidden();
-    if (updater.state.state === 'error' && installing) {
-      installing = false;
-      quitting = false;
+    if (updater.state.state === 'error') {
+      // A failed install: the window hides on close again, and no later launch starts hidden because of a marker
+      // written for an install that never happened (the waiter or shell may fail before the quit began).
+      if (installing) { installing = false; quitting = false; }
       try { fs.rmSync(path.join(userData, RELAUNCH_MARKER), { force: true }); } catch { /* gone */ }
     }
   }, log, () => { installing = true; quitting = true; }, () => settings.get().autoUpdate);
@@ -407,18 +409,21 @@ if (!app.requestSingleInstanceLock()) {
     }
     // Data goes after this process exits — Chromium writes into userData until then (purgeAfterExit).
     // A development run shares the installed app's profile name, so it purges nothing.
+    // Windows helpers start through a launcher that must have finished before this app quits (src/core/after-exit.ts).
+    const helpers: Promise<void>[] = [];
+    const awaitHelper = (h: ReturnType<typeof purgeAfterExit>) => { if (h instanceof Promise) helpers.push(h.catch((error: Error) => log(`uninstall: a helper could not start: ${error.message}`))); };
     if (app.isPackaged) {
       const all = [...new Set([...productDataPaths(app.getPath('home')), userData, app.getPath('logs')])];
       if (deleteData) {
         // LC-16: even «delete my settings» leaves the automatic-update switch as the person set it.
-        purgeAfterExit(process.pid, all.filter((p) => path.resolve(p) !== path.resolve(userData)), { dir: userData, names: ALWAYS_KEPT });
+        awaitHelper(purgeAfterExit(process.pid, all.filter((p) => path.resolve(p) !== path.resolve(userData)), { dir: userData, names: ALWAYS_KEPT }));
       } else {
         try {
           writeRestoreRecord(userData, { at: new Date().toISOString(), loginItem: wasAtLogin, mcp });
         } catch (error) {
           log(`uninstall: could not write the restore record: ${(error as Error).message}`);
         }
-        purgeAfterExit(process.pid, all.filter((p) => path.resolve(p) !== path.resolve(userData)), { dir: userData, names: KEPT_FILES });
+        awaitHelper(purgeAfterExit(process.pid, all.filter((p) => path.resolve(p) !== path.resolve(userData)), { dir: userData, names: KEPT_FILES }));
       }
       // FD-37: only what this install is — never a parent folder (uninstallTarget, ADR-0019).
       const target = uninstallTarget(process.platform, process.execPath, process.env, (p) => fs.existsSync(p));
@@ -428,15 +433,15 @@ if (!app.requestSingleInstanceLock()) {
         else if (target.kind === 'run-uninstaller') {
           // After this app exits (uninstallCommand); a failure to start it is said, never thrown.
           const cmd = uninstallCommand(target, process.pid);
-          const child = spawn(cmd.file, cmd.args, { stdio: 'ignore', windowsHide: true, env: windowsPowerShellEnv() }); // see purgeAfterExitWindows: not detached
-          child.on('error', (error) => log(`uninstall: the uninstaller could not start: ${error.message}`));
-          child.unref();
+          // A grandchild outside this app's job, or Windows kills the waiter when the app exits (src/core/after-exit.ts).
+          helpers.push(powerShellAfterExit(cmd.args[3]!, windowsPowerShellEnv()).catch((error: Error) => log(`uninstall: the uninstaller could not start: ${error.message}`)));
         } else await dialog.showMessageBox({ type: 'info', message: t(l, 'uninstall.manual', { how: target.kind === 'package' ? target.command : t(l, target.reason) }), buttons: ['OK'] });
       } catch (error) {
         await dialog.showMessageBox({ type: 'info', message: t(l, 'uninstall.trashFailed', { error: (error as Error).message }), buttons: ['OK'] });
       }
     }
     log(`uninstall: login item and registration removed; ${deleteData ? 'all data' : 'everything but settings and history'} is removed after exit`);
+    await Promise.all(helpers); // every helper runs outside this app before it quits (bounded: cmd.exe returns at once)
     setImmediate(() => app.quit()); // before-quit sets quitting, so the window lets itself close
     return { ok: true };
   }

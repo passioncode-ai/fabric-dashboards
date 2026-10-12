@@ -1,5 +1,30 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- **Windows: an update installs, and Uninstall runs its uninstaller** (found by the first end-to-end update test).
+  The helpers that must work after the app quits were stopped together with it: the update waiter, the
+  uninstaller's waiter and the data clean-up. 0.7.4 and 0.7.5 downloaded and verified an update on Windows but
+  never installed it. They now run on their own after the app has quit.
+  **On Windows, if you run 0.7.4 or 0.7.5, install 0.7.6 once by hand** from the releases page: those versions
+  cannot finish an update themselves (their Restart to Update closes the app without installing). From 0.7.6 on,
+  updates install by themselves.
+- **Linux AppImage: an update starts the new version.** The AppImage replaced its own file but did not start
+  again; now the new version starts once the old one has quit. A 0.7.4 or 0.7.5 AppImage has already replaced
+  itself with the newer file: start it once by hand and it runs the new version.
+- **An automatic install stays in the menu bar or tray** even when the installer takes several minutes (Windows on
+  Arm), and a failed install never leaves a later launch hidden.
+- Settings → Notifications says plainly that outages are shown on this computer only when no agent offers a
+  channel, instead of a warning.
+
+### Added
+
+- **An agent that waits for you to finish its setup is not an outage** (FD-48, Fabric Agent Contract DEC-0044). A
+  part of an agent marked as waiting for setup shows as "waits for you to set it up" and never sends an outage
+  message.
+
 ## 0.7.5 - 2026-10-11
 
 ### Added
