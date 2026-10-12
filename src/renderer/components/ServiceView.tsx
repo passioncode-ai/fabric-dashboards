@@ -316,6 +316,7 @@ function Health({ s, output }: { s: ServiceSnapshot; output: { title: string; te
         {wk && <><dt>{t('health.started')}</dt><dd>{new Date(wk.process.startedAt).toLocaleString(lang)}</dd></>}
         {wk && <><dt>{t('health.surfaces')}</dt><dd>{Object.entries(wk.surfaces).map(([k, v]) => `${k} ${(v as { path: string }).path}`).join(' · ')}</dd></>}
       </dl>
+      <Profile s={s} />
       {output && (
         <section>
           <h3 className="row"><span className="row" role="status">{output.running ? <><Spinner /> {t(output.running === 'doctor' ? 'busy.doctor' : 'busy.updating')}</> : output.title}</span></h3>
@@ -323,6 +324,42 @@ function Health({ s, output }: { s: ServiceSnapshot; output: { title: string; te
         </section>
       )}
     </>
+  );
+}
+
+/** FD-46 (DEC-0046): the agent's runner and model profile as it applies now, what it spent per model, and
+ *  where to change it — in Fabric, which owns the profile; nothing is changed here. */
+function Profile({ s }: { s: ServiceSnapshot }) {
+  const { t } = useT();
+  const [models, setModels] = useState<{ provider: string; model: string; costUsd: number | null; calls: number }[] | null>(null);
+  useEffect(() => {
+    let alive = true;
+    void api().spend().then((r) => {
+      const mine = r.entries.find((e) => e.key === s.key);
+      if (alive) setModels(mine && mine.kind === 'report' ? mine.summary.models.slice(0, 5) : []);
+    }).catch(() => alive && setModels([]));
+    return () => { alive = false; };
+  }, [s.key]);
+  const c = s.wellKnown?.configuration;
+  if (!c) return null; // an agent that declares no configurable profile shows none
+  const r = c.resolved ?? {};
+  const change = (e: React.MouseEvent<HTMLButtonElement>) => {
+    const b = e.currentTarget.getBoundingClientRect();
+    void api().fabricPress(s.key, { x: b.left, y: b.bottom }).catch(() => undefined);
+  };
+  return (
+    <section aria-labelledby={`profile-${s.key}`}>
+      <h3 id={`profile-${s.key}`}>{t('profile.title')}</h3>
+      <dl className="kv">
+        {c.slots.includes('runner') && <><dt>{t('profile.runner')}</dt><dd>{[r.runnerKind, r.runnerProfile, r.route && t(`profile.route.${r.route}`)].filter(Boolean).join(' · ') || '—'}</dd></>}
+        {c.slots.includes('model') && <><dt>{t('profile.model')}</dt><dd>{[r.modelProfile, r.models?.join(', ')].filter(Boolean).join(' · ') || '—'}</dd></>}
+        {r.from && <><dt>{t('profile.from')}</dt><dd>{t(`profile.from.${r.from}`)}</dd></>}
+        <dt>{t('profile.spend')}</dt>
+        <dd>{models === null ? <Spinner /> : models.length ? models.map((m) => `${m.model} ${m.costUsd === null ? '—' : `$${m.costUsd.toFixed(2)}`}`).join(' · ') : t('profile.spend.none')}</dd>
+        <dt>{t('profile.budget')}</dt><dd className="muted">{t('profile.budget.pending')}</dd>
+      </dl>
+      <button className="btn btn-sm" onClick={change}>{t('profile.change')}</button>
+    </section>
   );
 }
 

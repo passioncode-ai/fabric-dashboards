@@ -73,6 +73,7 @@
 | SCN-065 | A provider limit does not stop the agent | console | P-01 | ST-019 | draft | 2026-10-12 |
 | SCN-066 | An idle session closes and comes back | console | P-01 | ST-019 | draft | 2026-10-12 |
 | SCN-067 | Dashboards take my scheme and theme | settings | P-01 | ST-019 | draft | 2026-10-12 |
+| SCN-068 | See which runner and model an agent uses | service | P-01 | ST-019 | draft | 2026-10-12 |
 ## Personas
 
 Defined in [foundation.md](foundation.md) → P-01.
@@ -1150,6 +1151,24 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **Errors & recovery:** the cookie cannot be written -> the dashboard follows macOS's light or dark, which every dashboard must handle
 - **Status:** draft
 - **Coverage:** src/core/appearance.ts, src/electron/views.ts, src/renderer/components/Settings.tsx, src/renderer/App.tsx, test/appearance.test.ts, packages/service-host/test/look.test.ts
+- **Product:** unobserved
+
+### SCN-068: See which runner and model an agent uses
+- **Persona:** P-01
+- **Feature:** service
+- **Traces:** ST-019; contract DEC-0046; FD-46
+- **Entry point:** an agent's page → Health
+- **Preconditions:** the agent declares `configuration` in its well-known document
+- **Steps:**
+  1. User opens Health -> "Runner and model": the runner (kind, profile, subscription or API key), the model profile and its models, who set it (this agent, the project, the default), what it spent per model over 31 days, and the budget left
+  2. User presses "Change in Fabric" -> Fabric opens a conversation about this agent, where the profile is changed
+- **Expected result:** the person sees what the agent runs on and what it costs, one press from changing it
+- **Alt paths:** the agent declares no configuration -> no section; it reports no usage -> "No usage reported"; budget left -> "Shown here once Project Observatory publishes its budgets" until it does (FD-40); Fabric is not installed -> Fabric's button offers its download (ADR-0021)
+- **UI elements:** Health → Runner and model, Change in Fabric
+- **States covered:** empty, loading, success
+- **Errors & recovery:** the usage report cannot be read -> no spend line beyond "No usage reported"; Spend says why
+- **Status:** draft
+- **Coverage:** src/renderer/components/ServiceView.tsx, packages/service-host/src/protocol.ts
 - **Product:** unobserved
 
 ### SCN-060: The dashboard keeps its floor while the console widens

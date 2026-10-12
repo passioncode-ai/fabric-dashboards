@@ -51,6 +51,9 @@ export interface WellKnown {
   update?: { available: string | null };
   /** Contract extensions by key URL; preserved and ignored by a reader that does not know a key. */
   extensions?: Record<string, unknown>;
+  /** DEC-0046: what the operator can configure for this agent and what applies now — read-only here; a
+   *  change is made in Fabric (FD-46). */
+  configuration?: { slots: ('runner' | 'model')[]; resolved: { from?: 'request' | 'agent' | 'binding' | 'estate'; runnerProfile?: string; runnerKind?: string; route?: 'subscription' | 'key'; modelProfile?: string; models?: string[] } };
 }
 
 /** One health probe: the service answered, something else answered, or nothing did. */
