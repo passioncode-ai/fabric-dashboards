@@ -94,7 +94,11 @@ if (process.platform === 'linux') {
   // The installer starts the app again through Explorer, with the signed-in user's own environment: it then logs
   // where Windows copies do by default (src/core/platform.ts places: %LOCALAPPDATA%\Fabric Dashboards\Logs).
   const defaultLog = path.join(process.env.LOCALAPPDATA ?? '', 'Fabric Dashboards', 'Logs', 'main.log');
-  await waitFor(`the restart as ${to}`, () => installed.test(logText()) || (() => { try { return installed.test(readFileSync(defaultLog, 'utf8')); } catch { return false; } })());
+  // A first run in that default profile has no `.last-version`, so it logs `started <to>` rather than `installed`; a
+  // running process of the (now <to>) exe counts too.
+  const startedAgain = new RegExp(` started ${to.replace(/\./g, '\\.')} `);
+  const running = () => /Fabric Dashboards\.exe/i.test(spawnSync('tasklist', ['/FI', 'IMAGENAME eq Fabric Dashboards.exe', '/FO', 'CSV', '/NH'], { encoding: 'utf8', windowsHide: true }).stdout);
+  await waitFor(`the restart as ${to}`, () => installed.test(logText()) || (() => { try { const d = readFileSync(defaultLog, 'utf8'); return installed.test(d) || startedAgain.test(d); } catch { return false; } })() || (version().startsWith(to) && running()));
   console.log(`it started again as ${to}`);
   spawnSync('taskkill', ['/F', '/T', '/IM', 'Fabric Dashboards.exe'], { windowsHide: true });
 } else {
