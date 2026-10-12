@@ -23,7 +23,7 @@ Current release: 0.7.4 (published 2026-10-11 20:01 UTC, run 38168481474; FD-37 M
     on POSIX (run 38193798324).
   - Five runners green (run 38193790867).
   - `update-proof.yml` with `build: true` (the fixed code numbered 0.7.4) updated itself to the published 0.7.5 on
-    Linux x64 and arm64 (run 38190268316) and on Windows arm64 (run 38193793066). Windows x64 is run 38196625136.
+    Linux x64 and arm64 (run 38190268316) and on Windows arm64 (run 38193793066). Windows x64 installed 0.7.5 (runs 38193793066, 38196625136); its restart signal is re-checked in run 38199490293 (the copy restarted by the installer runs in a fresh default profile).
 - **For people on 0.7.4/0.7.5.** A Windows copy must install 0.7.6 by hand once (CHANGELOG). An AppImage has
   already replaced its file and runs 0.7.6 at its next start.
 - **Correction.** An earlier note said a planted `detached: false` was caught on Windows; that run failed on an
