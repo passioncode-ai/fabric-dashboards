@@ -230,6 +230,9 @@ test('R-19 (FD-21): an online origin that refuses TLS or redirects is down at on
     const monitor = new Monitor({ platform: 'darwin',
       servicesDir: services, activity: new ActivityStore(path.join(base, 'app')), settings: () => DEFAULT_SETTINGS, lang: () => 'en', now: () => clock.ms,
       wellKnown: async () => answer,
+      // The token is read here as a constant: what this test holds is the verdict, and a Windows ACL read
+      // (PowerShell, tens of seconds cold on arm64) would only spend the file's time budget.
+      token: async () => 'tok-0123456789abcdef',
     });
     await monitor.tick();
     assert.equal(monitor.snapshot(KEY)!.state, 'ready');
