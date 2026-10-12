@@ -11,7 +11,7 @@
 | SCN-003 | A service is installed or removed while the app runs | discovery | P-01 | ST-001 | validated | 2026-10-13 |
 | SCN-004 | A descriptor is invalid | discovery | P-01 | ST-001, ST-004 | validated | 2026-10-13 |
 | SCN-005 | Overview when everything is ready | overview | P-01 | ST-002 | validated | 2026-10-12 |
-| SCN-006 | Overview lists what needs attention | overview | P-01 | ST-002 | draft | 2026-10-06 |
+| SCN-006 | Overview lists what needs attention | overview | P-01 | ST-002 | validated | 2026-10-13 |
 | SCN-007 | Restart a service that is down | control | P-01 | ST-003 | draft | 2026-10-06 |
 | SCN-008 | Restart does not bring the service back | control | P-01 | ST-003 | draft | 2026-10-06 |
 | SCN-009 | Stop a service so it stays off | control | P-01 | ST-003 | validated | 2026-10-12 |
@@ -29,7 +29,7 @@
 | SCN-021 | Update a service | updates | P-01 | ST-008 | draft | 2026-10-06 |
 | SCN-022 | The app updates itself | updates | P-01 | ST-008 | validated | 2026-10-12 |
 | SCN-023 | Glance from the menu bar | tray | P-01 | ST-009 | validated | 2026-10-12 |
-| SCN-024 | Settings: launch at login, notifications, quiet hours | settings | P-01 | ST-010, ST-007 | draft | 2026-10-07 |
+| SCN-024 | Settings: launch at login, notifications, quiet hours | settings | P-01 | ST-010, ST-007 | validated | 2026-10-13 |
 | SCN-025 | Run doctor and read logs | control | P-01 | ST-003 | draft | 2026-10-06 |
 | SCN-026 | Open a service page from a link an agent handed over | links | P-01 | ST-011, ST-005 | validated | 2026-10-12 |
 | SCN-027 | A link that cannot be opened | links | P-01 | ST-011 | validated | 2026-10-12 |
@@ -46,7 +46,7 @@
 | SCN-038 | An agent's spend cannot be read | spend | P-01 | ST-015, ST-004 | draft | 2026-10-06 |
 | SCN-039 | Reload and move through an embedded dashboard | dashboards | P-01 | ST-016, ST-005 | validated | 2026-10-12 |
 | SCN-040 | Copy a dashboard page's address or app link | dashboards | P-01 | ST-016, ST-011 | validated | 2026-10-12 |
-| SCN-041 | Overview at a glance | overview | P-01 | ST-016, ST-002, ST-015 | draft | 2026-10-06 |
+| SCN-041 | Overview at a glance | overview | P-01 | ST-016, ST-002, ST-015 | validated | 2026-10-13 |
 | SCN-042 | Many problems stay compact | overview | P-01 | ST-016, ST-002 | draft | 2026-10-06 |
 | SCN-043 | Reinstall picks up where I left off | settings | P-01 | ST-017, ST-010 | draft | 2026-10-06 |
 | SCN-044 | A copy outside Applications moves itself so it can update | updates | P-01 | ST-017, ST-008 | draft | 2026-10-06 |
@@ -62,7 +62,7 @@
 | SCN-054 | Fix with agent | console | P-01 | ST-020 | validated | 2026-10-12 |
 | SCN-055 | Update with agent | console | P-01 | ST-020 | draft | 2026-10-10 |
 | SCN-056 | Pin an agent to the top of the list | list | P-01 | ST-021 | validated | 2026-10-12 |
-| SCN-057 | Sort the agents list | list | P-01 | ST-021 | draft | 2026-10-10 |
+| SCN-057 | Sort the agents list | list | P-01 | ST-021 | validated | 2026-10-13 |
 | SCN-058 | First session: my coding agent sets the system up | setup | P-01 | ST-022 | validated | 2026-10-12 |
 | SCN-059 | A later session opens on what changed | overview | P-01 | ST-022 | validated | 2026-10-12 |
 | SCN-060 | The dashboard keeps its floor while the console widens | console | P-01 | ST-019 | draft | 2026-10-11 |
@@ -189,8 +189,8 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **UI elements:** Needs attention block, problem rows, action buttons (each names its service for a screen reader), the problem count on Overview in the sidebar (not answering, two copies, wrong program, conflict, invalid)
 - **States covered:** error, success
 - **Errors & recovery:** the action fails -> the row keeps its place with the failure sentence and Logs
-- **Status:** draft
-- **Coverage:** packages/service-host/src/state.ts (attentionRank), src/renderer/components/Overview.tsx
+- **Status:** validated
+- **Coverage:** packages/service-host/src/state.ts (attentionRank), src/renderer/components/Overview.tsx, test/e2e/overview-settings.test.ts
 - **Product:** unobserved
 
 ## control
@@ -585,8 +585,8 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **UI elements:** toggles, Language select, per-service rows, time pickers, folder path with Show, Uninstall button and its confirmation with the delete-data box, listeners list
 - **States covered:** empty, success, error
 - **Errors & recovery:** macOS refuses the login item -> the toggle returns to off with "macOS refused the login item: <reason>" ("approve Fabric Dashboards in System Settings → General → Login Items" when it needs approval); the listener scan fails -> "Cannot list listeners: <reason>", and nothing listening is "None", not an error; uninstall cannot remove the MCP entry or the login item -> "Nothing was removed: <reason>" and the app stays (a refused login item puts the MCP entry back); the app cannot be moved to the Trash -> it says so and is still uninstalled; Show folder fails -> "Could not open <path>: <reason>"
-- **Status:** draft
-- **Coverage:** src/renderer/components/Settings.tsx, src/renderer/components/Overview.tsx, src/core/settings.ts, src/core/i18n.ts (chooseLang), src/core/machine-ru.ts, src/core/loginitem.ts, src/core/uninstall.ts, src/core/listeners.ts, test/parts.test.ts, test/lifecycle.test.ts
+- **Status:** validated
+- **Coverage:** src/renderer/components/Settings.tsx, src/renderer/components/Overview.tsx, src/core/settings.ts, src/core/i18n.ts (chooseLang), src/core/machine-ru.ts, src/core/loginitem.ts, src/core/uninstall.ts, src/core/listeners.ts, test/parts.test.ts, test/lifecycle.test.ts, test/e2e/overview-settings.test.ts
 - **Product:** unobserved
 
 ### SCN-043: Reinstall picks up where I left off
@@ -938,8 +938,8 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **UI elements:** status strip
 - **States covered:** loading, success
 - **Errors & recovery:** a report that cannot be read makes the sums lower bounds («≥»), as on Spend
-- **Status:** draft
-- **Coverage:** src/renderer/components/Overview.tsx (StatusStrip), src/core/spend.ts (sumSpend)
+- **Status:** validated
+- **Coverage:** src/renderer/components/Overview.tsx (StatusStrip), src/core/spend.ts (sumSpend), test/e2e/overview-settings.test.ts
 - **Product:** unobserved
 
 ### SCN-042: Many problems stay compact
@@ -1300,8 +1300,8 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **UI elements:** sort control (Name, Status, Recent activity)
 - **States covered:** success
 - **Errors & recovery:** n/a
-- **Status:** draft
-- **Coverage:** src/core/products.ts (arrangeProducts), src/renderer/App.tsx, test/listorder.test.ts
+- **Status:** validated
+- **Coverage:** src/core/products.ts (arrangeProducts), src/renderer/App.tsx, test/listorder.test.ts, test/e2e/overview-settings.test.ts
 - **Product:** unobserved
 
 ### SCN-058: First session: my coding agent sets the system up
