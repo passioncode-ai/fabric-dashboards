@@ -38,7 +38,11 @@ service data.
   clone's own git configuration applies to them. Nothing about services or tokens is sent. With
   *Update skills by themselves* on (off by default) it **runs code from the registry**:
   `npx --yes sshlg-skills@<version> update`, exactly the version it checked, and only after every
-  maintainer and the publisher of that version are on the allowlist in `src/core/estate-update.ts`.
+  maintainer and the publisher of that version are on the allowlist in `src/core/estate-update.ts`. From
+  sshlg-skills 1.56.0 that run also re-wires the family's hooks in `~/.claude/settings.json` (it backs the file
+  up first and keeps fields the operator added) and refreshes the family's routing block in the agents'
+  instruction files (`CLAUDE.md`, `AGENTS.md` and their kind); a second run while one holds the family's update
+  lock exits 75 and is retried later, not reported as a failure.
 - **Fetches** the update feed
   (`https://github.com/passioncode-ai/fabric-dashboards/releases/latest/download/update-feed.json`,
   pinned in the code; no environment variable replaces it) 90 s after start and every 6 hours,

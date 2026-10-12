@@ -109,3 +109,14 @@ launcher's own check** (`~/.sshlg-skills/state.json` `updateCheck`) while it is 
 older check sends the question to the registry. The master switch stays on by default: with no family
 and no clone named, it runs nothing.
 
+## Amendment — 2026-10-12, a busy skills update (B-163 in ssheleg/sshlg-skills)
+
+sshlg-skills 1.56.0 holds a single-instance lock (`~/.sshlg-skills/update.lock`) around `update`. A second run
+refuses with exit 75 (EX_TEMPFAIL) and the line `update: refused — another update is running (pid …, started …
+ago)`; exit 2 stays a usage error. The apply treats 75 as **busy**: it logs `estate_update busy`, keeps the record
+and the state (`update-available`), counts no failure (`estate_check ok`) and arms the same LC-16 retry within the
+hour as a failure does. Every other non-zero code is still a failed apply. Since 1.56.0 the bare `update` this app
+runs also re-wires the family's hooks in `~/.claude/settings.json` (after a backup, keeping fields the operator
+added) and refreshes the routing block in the instruction files; SECURITY.md names both. Test:
+`test/estate-update.test.ts` *skills: another family update running (exit 75) is busy, not failed*.
+

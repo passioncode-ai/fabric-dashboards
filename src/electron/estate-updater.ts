@@ -22,6 +22,8 @@ const PROBE_TIMEOUT_MS = 30_000;
 const APPLY_TIMEOUT_MS = 10 * 60_000;
 /** LC-16: one retry within the hour after a failure, then back to the 6-hour rhythm. */
 const RETRY_AFTER_FAILURE_MS = 45 * 60_000;
+/** `sshlg-skills update` refuses with EX_TEMPFAIL while another update holds its lock (sshlg-skills 1.56.0, B-163). */
+const SKILLS_UPDATE_BUSY = 75;
 /** After the person changes the estate settings: soon enough to see the answer, late enough to batch a burst of edits. */
 const CHECK_SOON_MS = 5_000;
 const SKILLS_RECORD_FILE = 'estate-skills.json';
@@ -120,6 +122,8 @@ export class EstateUpdater {
   private timer: NodeJS.Timeout | null = null;
   private first: NodeJS.Timeout | null = null;
   private retry: NodeJS.Timeout | null = null;
+  /** The last apply found another family update running (exit 75): not a failure, but worth the retry. */
+  private busy = false;
   private soon: NodeJS.Timeout | null = null;
   private retried = false;
   private checking = false;
@@ -200,6 +204,7 @@ export class EstateUpdater {
     if (this.stopped || !this.o.settings().estate.enabled) return; // nothing runs while the switch is off
     this.checking = true;
     const failures: string[] = [];
+    this.busy = false;
     try {
       const s = this.o.settings().estate;
       const contract = await this.checkContract(expandHome(s.contractClone), failures);
@@ -216,10 +221,10 @@ export class EstateUpdater {
       ].join(' ');
       if (failures.length) this.event('estate_check', 'failed', `${this.clip(failures.join('; '))} ${detail}`);
       else {
-        this.retried = false; // a clean check earns the one retry back
+        if (!this.busy) this.retried = false; // a clean check earns the one retry back
         this.event('estate_check', 'ok', detail);
       }
-      if (failures.length) this.armRetry();
+      if (failures.length || this.busy) this.armRetry();
     } catch (error) {
       this.event('estate_check', 'failed', this.clip((error as Error).message));
       this.armRetry();
@@ -341,6 +346,13 @@ export class EstateUpdater {
       }
       this.event('estate_update', 'done', `target=skills version=${latest}`);
       return { state: 'current', installed: latest, latest };
+    }
+    if (applied.code === SKILLS_UPDATE_BUSY && !applied.timedOut) {
+      // sshlg-skills ≥ 1.56.0 holds ~/.sshlg-skills/update.lock: another update is running. Busy, not failed —
+      // the record and the state stay, and the LC-16 retry tries again within the hour.
+      this.busy = true;
+      this.event('estate_update', 'busy', `target=skills version=${latest} ${this.clip(applied.output)}`);
+      return failedState;
     }
     failures.push(`npx ${estate.SKILLS_PACKAGE}@${latest} update failed`);
     this.event('estate_update', 'failed', `target=skills code=${applied.code ?? 'signal'}${applied.timedOut ? ' timedOut=yes' : ''} ${this.clip(applied.output)}`);

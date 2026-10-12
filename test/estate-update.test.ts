@@ -405,6 +405,39 @@ test('skills: a failed apply leaves the record and the state so the next check t
   }
 });
 
+test('skills: another family update running (exit 75) is busy, not failed — the state stays and the retry applies it (B-163)', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout', 'setInterval', 'Date'], now: T0 });
+  const record = estate.serializeSkillsRecord({ installed: '1.52.5', updatedAt: null });
+  const settings: Settings = { ...DEFAULT_SETTINGS, estate: { enabled: true, autoSkills: true, contractClone: '' } };
+  const { updater, calls, log, dir, respond } = rig({ settings, record });
+  let applies = 0;
+  respond((call) => {
+    if (call.command === 'npm' && call.args.includes('--json')) return ok(publisher({}));
+    if (call.command === 'npm' && call.args[2] === 'version') return ok('1.52.6\n');
+    if (call.command === 'npx') {
+      applies += 1;
+      return applies === 1 ? { code: 75, output: 'update: refused — another update is running (pid 4242, started 3s ago)', timedOut: false, started: true, signal: null } : ok();
+    }
+    return undefined;
+  });
+  try {
+    updater.start();
+    t.mock.timers.tick(FIRST_CHECK_MS);
+    await flush();
+    assert.ok(log.some((l) => l.startsWith('estate_update busy') && l.includes('target=skills')), 'a held lock is logged as busy');
+    assert.ok(!log.some((l) => l.startsWith('estate_update failed') || l.startsWith('estate_check failed')), 'busy is not a failure');
+    assert.equal(updater.state.skills.state, 'update-available', 'the prior state stays');
+    assert.equal(JSON.parse(fs.readFileSync(path.join(dir, 'estate-skills.json'), 'utf8')).installed, '1.52.5', 'no exit 0, no record move');
+    t.mock.timers.tick(45 * 60_000); // the LC-16 retry within the hour
+    await flush();
+    assert.equal(calls.filter((c) => c.command === 'npx').length, 2, 'the retry runs the update again');
+    assert.equal(updater.state.skills.state, 'current');
+    assert.equal(JSON.parse(fs.readFileSync(path.join(dir, 'estate-skills.json'), 'utf8')).installed, '1.52.6');
+  } finally {
+    updater.stop();
+  }
+});
+
 test('skills: without the family installed nothing is asked about it — no registry, no failure (FD-34)', async (t) => {
   t.mock.timers.enable({ apis: ['setTimeout', 'setInterval', 'Date'], now: T0 });
   const { updater, calls, log } = rig({ familyDir: familyAt(null) });
