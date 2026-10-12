@@ -141,6 +141,6 @@ test('DEC-0027: every limit reads in words — stopped work and breaches lead, a
   assert.equal(byId.get('project.demo.approval')!.state, 'off');
   const breached = summarizeUsage({ ...report, budgets: report.budgets.map((l: { id: string }) => (l.id === 'project.demo.daily' ? { ...l, spentUsd: 6 } : l)) }, Date.parse('2026-10-05T12:00:00Z')).limits;
   assert.deepEqual(limitHeadline(breached, en), { text: 'Over the limit: $6.00 of $5.00 · Daily · project demo (+7 more)', state: 'breach' });
-  assert.equal(limitHeadline(breached, ru)!.text, 'Превышен: $6.00 из $5.00 · В сутки · проект demo (ещё 7)');
+  assert.equal(limitHeadline(breached, ru)!.text, 'Лимит превышен: $6.00 из $5.00 · В сутки · проект demo (ещё 7)');
   assert.equal(limitHeadline([], en), null, 'no limits: the page falls back to the older budget line');
 });

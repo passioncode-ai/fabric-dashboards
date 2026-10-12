@@ -401,7 +401,7 @@ test('FD-19: machine reasons read in Russian where they are known, and stay as w
   assert.equal(machineRu('the token file ~/t grants access to S-1-1-0, but only you, SYSTEM and Administrators may hold it'), 'файл токена ~/t даёт доступ S-1-1-0, а доступ допустим только у вас, SYSTEM и администраторов');
   assert.equal(machineRu('missing origin; protocol must be fabric-service/0.1, not x'), 'нет поля origin; protocol должен быть fabric-service/0.1, а не x');
   assert.equal(machineRu('the token file ~/t is readable by others; set mode 0600'), 'файл токена ~/t доступен другим; поставьте права 0600', 'one sentence with a "; " inside');
-  assert.equal(machineRu('the usage report is malformed: days is not a list of at most 31'), 'отчёт о расходах некорректен: days — не список не длиннее 31');
+  assert.equal(machineRu('the usage report is malformed: days is not a list of at most 31'), 'в отчёте о расходах ошибка: days должен быть списком не длиннее 31');
   assert.equal(machineRu('something nobody wrote down'), 'something nobody wrote down');
   const { t } = await import('../src/core/i18n');
   assert.equal(t('ru', 'update.error', { error: 'socket hang up' }).includes('соединение оборвалось'), true, 'a machine parameter is translated by t()');
