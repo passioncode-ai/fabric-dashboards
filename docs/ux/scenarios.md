@@ -12,11 +12,11 @@
 | SCN-004 | A descriptor is invalid | discovery | P-01 | ST-001, ST-004 | validated | 2026-10-13 |
 | SCN-005 | Overview when everything is ready | overview | P-01 | ST-002 | validated | 2026-10-12 |
 | SCN-006 | Overview lists what needs attention | overview | P-01 | ST-002 | validated | 2026-10-13 |
-| SCN-007 | Restart a service that is down | control | P-01 | ST-003 | draft | 2026-10-06 |
-| SCN-008 | Restart does not bring the service back | control | P-01 | ST-003 | draft | 2026-10-06 |
+| SCN-007 | Restart a service that is down | control | P-01 | ST-003 | validated | 2026-10-13 |
+| SCN-008 | Restart does not bring the service back | control | P-01 | ST-003 | validated | 2026-10-13 |
 | SCN-009 | Stop a service so it stays off | control | P-01 | ST-003 | validated | 2026-10-12 |
-| SCN-010 | Start a stopped service | control | P-01 | ST-003 | draft | 2026-10-06 |
-| SCN-011 | Two copies of one service | health | P-01 | ST-004 | draft | 2026-10-06 |
+| SCN-010 | Start a stopped service | control | P-01 | ST-003 | validated | 2026-10-13 |
+| SCN-011 | Two copies of one service | health | P-01 | ST-004 | validated | 2026-10-13 |
 | SCN-012 | Another program answers on the service's port | health | P-01 | ST-004 | validated | 2026-10-13 |
 | SCN-013 | Two services claim one port | health | P-01 | ST-004 | validated | 2026-10-13 |
 | SCN-014 | Open a dashboard inside the app, signed in | dashboards | P-01 | ST-005 | validated | 2026-10-12 |
@@ -210,8 +210,8 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **States covered:** loading, success, error
 - **Errors & recovery:** see SCN-008
 - **Telemetry:** none — the app sends nothing off the Mac
-- **Status:** draft
-- **Coverage:** src/core/monitor.ts, src/core/launchd.ts, test/monitor.test.ts
+- **Status:** validated
+- **Coverage:** src/core/monitor.ts, src/core/launchd.ts, test/monitor.test.ts, test/e2e/launchd-control.test.ts
 - **Product:** unobserved
 
 ### SCN-008: Restart does not bring the service back
@@ -227,8 +227,8 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **UI elements:** failure message, Logs button, Doctor button
 - **States covered:** error
 - **Errors & recovery:** launchctl itself refuses -> "launchctl refused: <its message>"
-- **Status:** draft
-- **Coverage:** src/core/monitor.ts
+- **Status:** validated
+- **Coverage:** src/core/monitor.ts, test/e2e/launchd-control.test.ts
 - **Product:** unobserved
 
 ### SCN-009: Stop a service so it stays off
@@ -262,8 +262,8 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **UI elements:** Start button, progress label, state badge
 - **States covered:** loading, success, error
 - **Errors & recovery:** no answer in 40 s -> as SCN-008; plist missing -> "The launchd file is missing: reinstall <Service>. (<path>)"
-- **Status:** draft
-- **Coverage:** src/core/launchd.ts, test/monitor.test.ts
+- **Status:** validated
+- **Coverage:** src/core/launchd.ts, test/monitor.test.ts, test/e2e/launchd-control.test.ts
 - **Product:** unobserved
 
 ### SCN-025: Run doctor and read logs
@@ -299,8 +299,8 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **UI elements:** Two copies badge, attention row, Restart button
 - **States covered:** error, success
 - **Errors & recovery:** the app never kills a process it did not start through launchd
-- **Status:** draft
-- **Coverage:** packages/service-host/src/state.ts, src/core/monitor.ts, test/core.test.ts
+- **Status:** validated
+- **Coverage:** packages/service-host/src/state.ts, src/core/monitor.ts, test/core.test.ts, test/e2e/launchd-control.test.ts
 - **Product:** unobserved
 
 ### SCN-012: Another program answers on the service's port
