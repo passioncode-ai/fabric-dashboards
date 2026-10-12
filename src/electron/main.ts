@@ -107,6 +107,8 @@ if (!app.requestSingleInstanceLock()) {
   if (settings.recovered) log(`settings: ${settings.recovered}`);
   // Embedded dashboards follow the app's theme, not only macOS (prefers-color-scheme in every page).
   nativeTheme.themeSource = settings.get().theme;
+  // FD-42: with `system`, macOS switching light/dark repaints the dashboards' background at once.
+  nativeTheme.on('updated', () => void views?.applyAppearance());
   const activity = new ActivityStore(userData, { onWriteError: (message) => log(message) });
   // The app speaks the system's first language. FD_TEST_LANG (`en`, `ru`) is honoured only when the
   // app is not packaged, so a test can walk the Russian interface; a shipped app ignores it.
@@ -302,7 +304,10 @@ if (!app.requestSingleInstanceLock()) {
       (raw) => { if (handleLink) handleLink(raw); else pendingLinks.push(raw); },
       () => monitor.snapshots().map((x) => x.descriptor?.origin).filter((o): o is string => Boolean(o)),
       (key) => monitor.snapshot(key),
-      fabricPresent);
+      fabricPresent,
+      // FD-42: the scheme and the dashboard theme the operator chose, for `fabric_appearance`.
+      () => ({ scheme: settings.get().theme, theme: settings.get().pageTheme, systemDark: nativeTheme.shouldUseDarkColors }),
+      log);
     w.once('ready-to-show', () => w.show());
     // FD-05 (operator decision 2026-10-05): a hidden window leaves only the menu-bar icon; showing
     // it brings the Dock icon back. A minimized window keeps its Dock icon — that is where it lives.
@@ -579,6 +584,7 @@ if (!app.requestSingleInstanceLock()) {
       // #endregion estate-update
       if ('language' in patch) appMenu(); // the menu speaks the new language at once; the tray follows with pushStatus
       nativeTheme.themeSource = next.theme;
+      void views?.applyAppearance(); // FD-42: every open dashboard's cookie and background follow at once
       const refusal = choosing && loginOs ? applyLoginItem(next.launchAtLogin, loginOs) : undefined;
       const error = refusal === LOGIN_NEEDS_APPROVAL ? t(lang(), 'login.approval') : refusal; // P-10
       if (error) {

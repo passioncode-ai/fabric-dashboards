@@ -31,7 +31,13 @@ export async function fetchEvents(d: Descriptor, eventsPath: string, token: stri
     && ['info', 'notice', 'warning', 'error'].includes(e.level) && (e.link === undefined || (typeof e.link === 'string' && safePath(e.link) !== null)))
     // DEC-0070: an event may carry `data` (and later members); the activity history keeps only what it shows,
     // so a service's payload never grows activity.jsonl.
-    .map((e) => ({ id: e.id, at: e.at, level: e.level, text: e.text, ...(e.link !== undefined ? { link: e.link } : {}) }));
+    .map((e) => {
+      const kept: ServiceEvent = { id: e.id, at: e.at, kind: e.kind, level: e.level, text: e.text };
+      if (e.subject !== undefined) kept.subject = e.subject;
+      if (e.link !== undefined) kept.link = e.link;
+      if (e.notify !== undefined) kept.notify = e.notify;
+      return kept;
+    });
   return { events, cursor: page.cursor ?? after };
 }
 

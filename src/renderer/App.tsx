@@ -75,9 +75,18 @@ export function App() {
   );
 }
 
-function applyTheme(theme: 'dark' | 'light') {
-  if (theme === 'light') document.documentElement.dataset.theme = 'light';
+// FD-42: `system` follows macOS (nativeTheme reports it to prefers-color-scheme), live.
+const systemLight = typeof window !== 'undefined' && window.matchMedia ? window.matchMedia('(prefers-color-scheme: light)') : null;
+let chosenTheme: 'system' | 'dark' | 'light' = 'dark';
+function paintTheme() {
+  const light = chosenTheme === 'light' || (chosenTheme === 'system' && Boolean(systemLight?.matches));
+  if (light) document.documentElement.dataset.theme = 'light';
   else delete document.documentElement.dataset.theme;
+}
+systemLight?.addEventListener?.('change', paintTheme);
+function applyTheme(theme: 'system' | 'dark' | 'light') {
+  chosenTheme = theme;
+  paintTheme();
 }
 
 interface ShellProps {

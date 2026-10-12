@@ -72,6 +72,7 @@
 | SCN-064 | See what Switchboard runs for this agent | console | P-01 | ST-019 | draft | 2026-10-12 |
 | SCN-065 | A provider limit does not stop the agent | console | P-01 | ST-019 | draft | 2026-10-12 |
 | SCN-066 | An idle session closes and comes back | console | P-01 | ST-019 | draft | 2026-10-12 |
+| SCN-067 | Dashboards take my scheme and theme | settings | P-01 | ST-019 | draft | 2026-10-12 |
 ## Personas
 
 Defined in [foundation.md](foundation.md) → P-01.
@@ -1130,6 +1131,25 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **Errors & recovery:** the continue cannot start (no room, SCN-063) -> that notice instead
 - **Status:** draft
 - **Coverage:** src/core/consoles.ts, src/electron/console.ts, src/core/settings.ts, src/renderer/components/ConsolePanel.tsx, test/switchboard-sessions.test.ts
+- **Product:** unobserved
+
+### SCN-067: Dashboards take my scheme and theme
+- **Persona:** P-01
+- **Feature:** settings
+- **Traces:** ST-019; contract DEC-0036 ED-8/ED-10, DEC-0059; FD-42, FD-56
+- **Entry point:** Settings → the app group
+- **Preconditions:** none
+- **Steps:**
+  1. User picks the colour scheme: Same as macOS, Dark or Light -> the app follows it at once
+  2. User picks the dashboard theme: Graphite, Fabric, Paper, Forest, Ocean, Ember or High contrast -> every open dashboard that follows the app takes the scheme and the theme without a reload; the others keep their own
+  3. User opens a dashboard later -> it opens in that scheme and theme, and the empty view behind it is already the right colour
+- **Expected result:** one choice in one place sets the look of every dashboard that follows the app
+- **Alt paths:** a dashboard declares the themes it ships and the chosen one is not among them -> it gets the scheme only and keeps its own default theme; a dashboard declares nothing, or an invalid profile -> it follows macOS's light or dark only, and an invalid profile is written to the log once per load; Same as macOS -> macOS switching light/dark is followed live
+- **UI elements:** Settings → colour scheme, dashboard theme, the hint under them
+- **States covered:** success
+- **Errors & recovery:** the cookie cannot be written -> the dashboard follows macOS's light or dark, which every dashboard must handle
+- **Status:** draft
+- **Coverage:** src/core/appearance.ts, src/electron/views.ts, src/renderer/components/Settings.tsx, src/renderer/App.tsx, test/appearance.test.ts, packages/service-host/test/look.test.ts
 - **Product:** unobserved
 
 ### SCN-060: The dashboard keeps its floor while the console widens
