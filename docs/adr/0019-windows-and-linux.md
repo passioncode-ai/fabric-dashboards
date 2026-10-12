@@ -124,3 +124,22 @@ PL-04 on Windows, on the same feed and checks as M4b.
   installer's 7-Zip decoding is slow. On an arm64 PC the app comes back by itself, minutes later. The download path has the same limit as M4b: its
   end-to-end proof is the first real update from a release that carries M4c.
 
+## Amendment 2026-10-12 — helpers that outlive the app
+
+**Found** by the first end-to-end update proof (0.7.4 → 0.7.5, `update-proof.yml` run 38183686112). On both Windows
+runners the app logged `update_install started … waiter=<pid>`, quit, and no installer ever ran.
+
+**Cause.** On Windows, libuv puts every child that is not `detached` into one job object created with
+`JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE`. The child is therefore killed the moment the parent exits — the exact moment
+the update waiter waits for. The earlier comment in `src/core/uninstall.ts` ("Windows lets a child outlive its parent
+anyway") was wrong. The same defect broke two more helpers that must run after the app exits:
+- the uninstaller's waiter (Settings → Uninstall);
+- the data purge after an uninstall.
+
+**Decision.** Every such helper starts through one function, `spawnAfterExit` (`src/core/after-exit.ts`): detached,
+no stdio, hidden. A detached PowerShell has no console, so no window can flash. On POSIX a detached child leads its
+own session. `test/after-exit.test.ts` makes the failure small: a parent starts a helper through `spawnAfterExit` and
+exits, and the helper must write its file after the parent is gone. With `detached: false` planted, it failed on
+`windows-latest` and `windows-11-arm` and passed on macOS and Linux (run 38186475486). With the fix it passes on all
+five.
+
