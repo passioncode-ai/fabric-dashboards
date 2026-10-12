@@ -19,6 +19,7 @@
     "packages/*"
   ],
   "scripts": {
+    "prepare": "node scripts/install-hooks.mjs",
     "build:main": "npm run build:host && tsc -p tsconfig.main.json && esbuild src/electron/preload.ts --bundle --platform=node --external:electron --format=cjs --target=node22 --outfile=out/main/electron/preload.js --log-level=warning",
     "build:renderer": "vite build",
     "build": "npm run build:main && npm run build:renderer",
