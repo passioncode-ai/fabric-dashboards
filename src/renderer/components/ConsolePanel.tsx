@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import '@xterm/xterm/css/xterm.css';
-import type { ConsoleInfo, ConsoleStartResult, ConsoleTask } from '../../core/api';
+import type { ConsoleInfo, ConsoleSessions, ConsoleStartResult, ConsoleTask } from '../../core/api';
 import { CONSOLE_WIDTH } from '../../core/types';
 import { api, Icon, Spinner, useT } from '../lib';
 
@@ -44,6 +44,21 @@ export function ConsolePanel({ serviceKey, width, max, onWidth, onHide, task, on
   const [notice, setNotice] = useState<{ text: string; terminalOnly?: boolean } | null>(null);
   const [confirmStop, setConfirmStop] = useState(false);
   const [starting, setStarting] = useState(false);
+  const [sessions, setSessions] = useState<ConsoleSessions | null>(null);
+
+  // FD-43: what Switchboard launched in this folder, read at the console's cadence (15 s) and only while
+  // the console is on screen in a visible window (LC-08); FD-51: where each managed session runs now.
+  useEffect(() => {
+    let stop = false;
+    const read = () => {
+      if (document.visibilityState !== 'visible') return;
+      void api().consoleSessions(serviceKey).then((s) => { if (!stop) setSessions(s); }).catch(() => undefined);
+    };
+    read();
+    const timer = setInterval(read, 15_000);
+    document.addEventListener('visibilitychange', read);
+    return () => { stop = true; clearInterval(timer); document.removeEventListener('visibilitychange', read); };
+  }, [serviceKey]);
 
   // Replays what the session printed: on mount, on another service, when the window shows again.
   const refresh = useCallback(async () => {
@@ -200,6 +215,16 @@ export function ConsolePanel({ serviceKey, width, max, onWidth, onHide, task, on
         </div>
       )}
       {info?.binding.kind === 'error' && <p className="console-state notice error" role="alert">{t('console.sbError', { detail: info.binding.detail })}</p>}
+      {sessions && 'sessions' in sessions && sessions.sessions.filter((x) => x.state === 'starting' || x.state === 'running').map((x, i) => (
+        <div key={i} className="console-row meta" role="status">
+          <span className="chip">{t(`console.sb.state.${x.state}`)}</span>
+          <span>{t('console.sb.session', { label: x.label, mode: x.mode, since: x.launchedAt ? new Date(x.launchedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—' })}</span>
+          {x.movedTo && <span className="notice">{t('console.sb.moved', { label: x.movedTo })}</span>}
+        </div>
+      ))}
+      {sessions && 'unavailable' in sessions && (sessions.unavailable === 'old' || sessions.unavailable === 'error' || (sessions.unavailable === 'absent' && runtime?.viaSwitchboard)) && (
+        <p className="console-row meta muted">{sessions.unavailable === 'old' ? t('console.sb.old') : sessions.unavailable === 'absent' ? t('console.sb.absent') : t('console.sb.error', { detail: sessions.detail })}</p>
+      )}
       {notice && <div className={`console-state notice${notice.terminalOnly ? '' : ' error'}`} role="alert">
         <p>{notice.text}</p>
         {notice.terminalOnly && <button className="btn btn-primary" onClick={() => void openTerminal('new')}>{t('console.openTerminalSb')}</button>}

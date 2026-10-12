@@ -50,6 +50,7 @@ const api: FabricApi = {
   consoleInput: (key, data) => ipcRenderer.send(CHANNELS.consoleInput, key, data),
   consoleResize: (key, cols, rows) => ipcRenderer.send(CHANNELS.consoleResize, key, cols, rows),
   consoleStop: (key) => ipcRenderer.invoke(CHANNELS.consoleStop, key),
+  consoleSessions: (key) => ipcRenderer.invoke(CHANNELS.consoleSessions, key),
   consoleOpenTerminal: (key, mode) => ipcRenderer.invoke(CHANNELS.consoleOpenTerminal, key, mode),
   onConsoleEvent: (l) => subscribe(CHANNELS.consoleEvent, l),
   onLayoutCommand: (l) => subscribe(CHANNELS.layoutCommand, l),

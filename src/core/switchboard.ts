@@ -75,3 +75,78 @@ export async function terminalLaunchArgv(run: Runner, sb: string, provider: 'cla
   return { argv: [sb, 'launch', account, '--mode', 'managed', '--working-directory', folder] };
 }
 // #endregion switchboard-binding
+
+// #region switchboard-sessions — docs: docs/adr/0017-focus-layout-and-agent-console.md#decision
+/** Switchboard's accounts as the console needs them: which account each `<provider>:<pool>` route
+ *  selects now, and each account's label. Never a credential (`accounts list` carries none). */
+export interface SbAccounts { routes: Record<string, string>; labels: Record<string, string> }
+
+export async function accountsOf(run: Runner, sb: string): Promise<SbAccounts | null> {
+  const r = await run(sb, ['--json', 'accounts', 'list'], 10_000);
+  const data = r.code === 0 ? parse(r.stdout) : null;
+  if (!data) return null;
+  const routes: Record<string, string> = {};
+  for (const [k, v] of Object.entries((data.routes ?? {}) as Record<string, unknown>)) if (typeof v === 'string') routes[k] = v;
+  const labels: Record<string, string> = {};
+  for (const a of Array.isArray(data.accounts) ? (data.accounts as { id?: unknown; label?: unknown }[]) : []) {
+    if (typeof a.id === 'string') labels[a.id] = typeof a.label === 'string' && a.label ? a.label : a.id;
+  }
+  return { routes, labels };
+}
+
+/** FD-51 (LC-20): Switchboard can run this provider's sessions in managed mode — it has a route for it. */
+export function managesProvider(accounts: SbAccounts | null, provider: RuntimeSpec['provider']): boolean {
+  return Boolean(provider && accounts && Object.keys(accounts.routes).some((k) => k.startsWith(`${provider}:`)));
+}
+
+/** One session Switchboard launched in a folder (FD-43, SB-95), with where it runs now (FD-51). */
+export interface SbSession {
+  state: 'starting' | 'running' | 'ended' | 'unknown';
+  label: string;
+  mode: string;
+  provider: string;
+  /** Milliseconds since the epoch, or null. */
+  launchedAt: number | null;
+  /** SB-98: a managed session follows its pool's selected account; when that is no longer the one it
+   *  was launched on, Switchboard moved it — to this account's label. */
+  movedTo: string | null;
+}
+
+export type SbSessions = { sessions: SbSession[] } | { unavailable: 'old' | 'error'; detail: string };
+
+const ms = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) && v > 0 ? (v < 1e12 ? v * 1000 : v) : null);
+const samePath = (a: string, b: string) => {
+  const real = (p: string) => { try { return fs.realpathSync(p); } catch { return path.resolve(p); } };
+  return real(a) === real(b);
+};
+
+/** The sessions Switchboard launched in `folder`, newest first. A Switchboard without `sessions` (before
+ *  SB-95) says so rather than showing nothing as if nothing ran. */
+export async function sessionsIn(run: Runner, sb: string, folder: string, accounts: SbAccounts | null): Promise<SbSessions> {
+  const r = await run(sb, ['--json', 'sessions'], 10_000);
+  const text = `${r.stdout}\n${r.stderr}`;
+  const data = r.code === 0 ? parse(r.stdout) : null;
+  if (!data) {
+    const old = /unrecognized subcommand|unexpected argument|invalid value.*sessions/i.test(text);
+    return { unavailable: old ? 'old' : 'error', detail: text.trim().split('\n').pop()?.slice(0, 200) || `exit ${r.code}` };
+  }
+  const list = Array.isArray(data.sessions) ? (data.sessions as Record<string, unknown>[]) : [];
+  const sessions: SbSession[] = [];
+  for (const x of list) {
+    if (typeof x.working_directory !== 'string' || !samePath(x.working_directory, folder)) continue;
+    const provider = typeof x.provider === 'string' ? x.provider : '';
+    const pool = typeof x.pool === 'string' ? x.pool : 'default';
+    const accountId = typeof x.account_id === 'string' ? x.account_id : '';
+    const now = accounts?.routes[`${provider}:${pool}`];
+    const state = x.state === 'starting' || x.state === 'running' || x.state === 'ended' ? x.state : 'unknown';
+    sessions.push({
+      state, mode: typeof x.mode === 'string' ? x.mode : '', provider,
+      label: typeof x.label === 'string' && x.label ? x.label : accounts?.labels[accountId] ?? accountId,
+      launchedAt: ms(x.launched_at),
+      movedTo: x.mode === 'managed' && now && accountId && now !== accountId ? accounts?.labels[now] ?? now : null,
+    });
+  }
+  sessions.sort((a, b) => (b.launchedAt ?? 0) - (a.launchedAt ?? 0));
+  return { sessions };
+}
+// #endregion switchboard-sessions

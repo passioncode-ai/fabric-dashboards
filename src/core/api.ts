@@ -22,6 +22,11 @@ export interface ConsoleInfo {
   session: { state: 'idle' | 'running' | 'exited'; label: string; cwd: string; output: string; end: number; exitCode: number | null; signal: number | null };
 }
 
+/** FD-43/FD-51: the Switchboard sessions of a console's folder, or why there are none to show. */
+export type ConsoleSessions =
+  | { sessions: { state: 'starting' | 'running' | 'ended' | 'unknown'; label: string; mode: string; provider: string; launchedAt: number | null; movedTo: string | null }[] }
+  | { unavailable: 'absent' | 'no-folder' | 'old' | 'error'; detail: string };
+
 /** Why a start did not run in the console, worded by the renderer. */
 export type ConsoleStartResult =
   | { ok: true }
@@ -95,6 +100,8 @@ export interface FabricApi {
   consoleInput(key: string, data: string): void;
   consoleResize(key: string, cols: number, rows: number): void;
   consoleStop(key: string): Promise<void>;
+  /** FD-43: what Switchboard launched in this console's folder; asked only while the console is shown. */
+  consoleSessions(key: string): Promise<ConsoleSessions>;
   /** Continue the same runtime and folder in Terminal (through Switchboard for a bound folder). */
   consoleOpenTerminal(key: string, mode: 'new' | 'continue'): Promise<{ ok: boolean; error?: string }>;
   /** Output and exits while the window is visible; a hidden window gets nothing and asks `consoleInfo` again. */
@@ -149,6 +156,7 @@ export const CHANNELS = {
   consoleInput: 'fd:console-input',
   consoleResize: 'fd:console-resize',
   consoleStop: 'fd:console-stop',
+  consoleSessions: 'fd:console-sessions',
   consoleOpenTerminal: 'fd:console-open-terminal',
   consoleEvent: 'fd:console-event',
   layoutCommand: 'fd:layout-command',

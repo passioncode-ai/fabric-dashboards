@@ -46,6 +46,9 @@ export type Plan =
   | { kind: 'refused'; reason: 'switchboard' | 'no-continue'; detail: string };
 
 export function planStart(o: { runtime: Runtime; mode: 'new' | 'continue'; folder: string; binding: Binding; switchboard: string | null; inPlace: boolean;
+  /** FD-51 (LC-20): Switchboard holds a route for this runtime's provider, so even an unbound folder runs
+   *  managed — a request refused for a limit moves once to the pool's next account (SB-98). */
+  managed?: boolean;
   /** FD-39: the context pack's arguments, around the runtime's own (Codex's `-c` before its `resume`). */
   handoff?: { before: string[]; after: string[] } }): Plan {
   let args: string[];
@@ -59,6 +62,9 @@ export function planStart(o: { runtime: Runtime; mode: 'new' | 'continue'; folde
   if (o.binding.kind === 'project' && o.runtime.provider) {
     if (o.switchboard && o.inPlace) return { kind: 'run', argv: inPlaceArgv(o.switchboard, o.runtime.provider, o.folder, args), cwd: o.folder };
     return { kind: 'terminal-only', project: o.binding.name, pool: o.binding.pool };
+  }
+  if (o.binding.kind === 'none' && o.managed && o.runtime.provider && o.switchboard && o.inPlace) {
+    return { kind: 'run', argv: inPlaceArgv(o.switchboard, o.runtime.provider, o.folder, args), cwd: o.folder };
   }
   return { kind: 'run', argv: [o.runtime.path, ...args], cwd: o.folder };
 }

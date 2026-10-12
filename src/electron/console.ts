@@ -18,7 +18,7 @@ import { admit, machineProbe, type MachineState } from '../core/admission';
 import { findCheckout } from '../core/repofind';
 import { detectRuntimes, KNOWN_RUNTIMES, readLoginPath, searchDirs, specsFromSwitchboard, type Runtime, type RuntimeSpec } from '../core/runtimes';
 import type { SettingsStore } from '../core/settings';
-import { bindingFor, canLaunchInPlace, findSwitchboard, terminalLaunchArgv, type Binding } from '../core/switchboard';
+import { accountsOf, bindingFor, canLaunchInPlace, findSwitchboard, managesProvider, sessionsIn, terminalLaunchArgv, type Binding, type SbSessions } from '../core/switchboard';
 import type { ServiceSnapshot } from '../core/types';
 
 /** node-pty 1.1.0 ships its macOS `spawn-helper` without the executable bit, and its postinstall
@@ -214,7 +214,9 @@ export class ConsoleHost {
     }
     const b = await this.bindingFor(runtime, folder.path, inv);
     const pack = this.pack(key, runtime, folder.path, task);
-    const plan = planStart({ runtime, mode, folder: folder.path, binding: b.kind === 'absent' ? { kind: 'none' } : b, switchboard: inv.switchboard, inPlace: inv.inPlace, handoff: pack?.handoff });
+    // FD-51 (LC-20): with a Switchboard route for this provider, every start runs managed.
+    const managed = inv.switchboard && runtime.provider && inv.inPlace ? managesProvider(await accountsOf(this.run, inv.switchboard), runtime.provider) : false;
+    const plan = planStart({ runtime, mode, folder: folder.path, binding: b.kind === 'absent' ? { kind: 'none' } : b, switchboard: inv.switchboard, inPlace: inv.inPlace, managed, handoff: pack?.handoff });
     if (plan.kind === 'refused') return { ok: false, reason: plan.reason, detail: plan.detail };
     if (plan.kind === 'terminal-only') return { ok: false, reason: 'terminal-only', project: plan.project };
     // Review R-1: the session runs with the login shell's PATH, not the one an app opened from Finder has.
@@ -224,6 +226,16 @@ export class ConsoleHost {
     this.o.settings.update({ consoles: { [key]: { runtime: runtime.id, folder: folder.source === 'saved' ? folder.path : this.o.settings.get().consoles[key]?.folder ?? null } } });
     this.o.log(`console: ${key} started ${runtime.id} (${mode}) in ${folder.path}${plan.argv[0] === inv.switchboard ? ' through Switchboard' : ''}${pack ? ` with its context${task ? ` and a ${task.kind} task` : ''}` : ''}`);
     return { ok: true };
+  }
+
+  /** FD-43: the sessions Switchboard launched in this console's folder, and where each runs now (FD-51).
+   *  Read only while the console is shown (the renderer asks at its cadence); nothing without Switchboard. */
+  async sessions(key: string): Promise<SbSessions | { unavailable: 'absent' | 'no-folder'; detail: string }> {
+    const inv = await this.inventory();
+    if (!inv.switchboard) return { unavailable: 'absent', detail: '' };
+    const folder = this.folderOf(key);
+    if (!folder?.exists) return { unavailable: 'no-folder', detail: '' };
+    return sessionsIn(this.run, inv.switchboard, folder.path, await accountsOf(this.run, inv.switchboard));
   }
 
   async openTerminal(key: string, mode: 'new' | 'continue'): Promise<{ ok: boolean; error?: string }> {
@@ -290,6 +302,7 @@ export class ConsoleHost {
     };
     ipcMain.handle(CHANNELS.consoleStart, (_e, key, mode, s, task) => (keyOk(key) ? this.start(key, mode === 'continue' ? 'continue' : 'new', size(s), taskOf(task)) : Promise.reject(new Error('not a service key'))));
     ipcMain.handle(CHANNELS.consoleStop, (_e, key) => { if (keyOk(key)) this.manager.stop(key); });
+    ipcMain.handle(CHANNELS.consoleSessions, (_e, key) => (keyOk(key) ? this.sessions(key) : Promise.reject(new Error('not a service key'))));
     ipcMain.handle(CHANNELS.consoleOpenTerminal, (_e, key, mode) => (keyOk(key) ? this.openTerminal(key, mode === 'continue' ? 'continue' : 'new') : Promise.reject(new Error('not a service key'))));
     ipcMain.on(CHANNELS.consoleInput, (_e, key, data) => { if (keyOk(key) && typeof data === 'string' && data.length <= 1_000_000) this.manager.input(key, data); });
     ipcMain.on(CHANNELS.consoleResize, (_e, key, cols, rows) => { if (keyOk(key)) { const s = size({ cols, rows }); this.manager.resize(key, s.cols, s.rows); } });
