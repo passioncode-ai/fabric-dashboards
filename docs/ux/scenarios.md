@@ -73,7 +73,7 @@
 | SCN-065 | A provider limit does not stop the agent | console | P-01 | ST-019 | draft | 2026-10-12 |
 | SCN-066 | An idle session closes and comes back | console | P-01 | ST-019 | draft | 2026-10-12 |
 | SCN-067 | Dashboards take my scheme and theme | settings | P-01 | ST-019 | validated | 2026-10-13 |
-| SCN-068 | See which runner and model an agent uses | service | P-01 | ST-019 | draft | 2026-10-12 |
+| SCN-068 | See which runner and model an agent uses | service | P-01 | ST-019 | validated | 2026-10-13 |
 ## Personas
 
 Defined in [foundation.md](foundation.md) → P-01.
@@ -1167,8 +1167,8 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **UI elements:** Health → Runner and model, Change in Fabric
 - **States covered:** empty, loading, success
 - **Errors & recovery:** the usage report cannot be read -> no spend line beyond "No usage reported"; Spend says why
-- **Status:** draft
-- **Coverage:** src/renderer/components/ServiceView.tsx, packages/service-host/src/protocol.ts
+- **Status:** validated
+- **Coverage:** src/renderer/components/ServiceView.tsx, packages/service-host/src/protocol.ts, test/e2e/profile.test.ts
 - **Product:** unobserved
 
 ### SCN-060: The dashboard keeps its floor while the console widens
