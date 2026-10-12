@@ -28,7 +28,7 @@ import { CHECK_EVERY_MS, FIRST_CHECK_MS, isNewer, mayCheck, stagedBundlePath, st
 import type { AppStatus } from '../core/types';
 import { appImageRelaunchCommand, nsisInstalledAt, nsisUpdateCommand, PENDING_UPDATE_DIR, platformKey, platformUpdate, replaceAppImage, stagedAppImage, updateChannel } from '../core/self-update';
 import { uninstallTarget } from '../core/platform';
-import { spawnAfterExit } from '../core/after-exit';
+import { powerShellAfterExit, spawnAfterExit } from '../core/after-exit';
 import { windowsPowerShellEnv } from '@passioncode-ai/fabric-service-host';
 
 /** The one feed this app reads: pinned, never taken from the environment. */
@@ -437,15 +437,13 @@ export class Updater {
           return false;
         }
         const cmd = nsisUpdateCommand(pending.file, pending.sha256, process.pid);
-        // Detached, or Windows kills the waiter the moment this app exits (src/core/after-exit.ts).
-        const child = spawnAfterExit(cmd.file, cmd.args, windowsPowerShellEnv());
-        child.once('error', (error) => this.fail('download_failed', `the installer could not start: ${error.message}`));
-        child.once('spawn', () => {
-          this.event('update_install', 'started', `version=${this.state.version ?? '?'} waiter=${child.pid ?? '?'}`);
+        // A grandchild outside this app's job, or Windows kills it when the app exits (src/core/after-exit.ts); the
+        // app quits only once it runs.
+        powerShellAfterExit(cmd.script, windowsPowerShellEnv()).then(() => {
+          this.event('update_install', 'started', `version=${this.state.version ?? '?'}`);
           this.onQuitForUpdate();
           app.quit();
-        });
-        child.unref();
+        }, (error: Error) => this.fail('download_failed', `the installer could not start: ${error.message}`));
         return true;
       }
       this.event('update_install', 'started', `version=${this.state.version ?? '?'}`);

@@ -46,11 +46,10 @@ test('FD-37: on Windows the data goes only after the app exits, and the kept fil
   fs.writeFileSync(path.join(data, 'settings.json'), '{}');
   fs.writeFileSync(path.join(data, 'Cookies'), 'x');
   const appProcess = spawn(process.execPath, ['-e', 'setTimeout(() => {}, 1500)']);
-  const helper = purgeAfterExit(appProcess.pid!, [], { dir: data, names: ['settings.json'] }, 30_000, { platform: 'win32', env, home: path.dirname(local) })!;
-  helper.ref();
-  const helperDone = new Promise((resolve) => helper.once('exit', resolve));
-  await new Promise((resolve) => setTimeout(resolve, 500));
+  // The helper runs outside this process's job (src/core/after-exit.ts): the launcher returns once it runs.
+  await (purgeAfterExit(appProcess.pid!, [], { dir: data, names: ['settings.json'] }, 30_000, { platform: 'win32', env, home: path.dirname(local) }) as Promise<void>);
+  await new Promise((resolve) => setTimeout(resolve, 300));
   assert.ok(fs.existsSync(path.join(data, 'Cache')), 'nothing is removed while the app still runs');
-  await helperDone;
+  for (let i = 0; i < 450 && fs.readdirSync(data).length > 1; i += 1) await new Promise((resolve) => setTimeout(resolve, 100));
   assert.deepEqual(fs.readdirSync(data), ['settings.json']);
 });

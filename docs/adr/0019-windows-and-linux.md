@@ -126,20 +126,40 @@ PL-04 on Windows, on the same feed and checks as M4b.
 
 ## Amendment 2026-10-12 — helpers that outlive the app
 
-**Found** by the first end-to-end update proof (0.7.4 → 0.7.5, `update-proof.yml` run 38183686112). On both Windows
-runners the app logged `update_install started … waiter=<pid>`, quit, and no installer ever ran.
+**Found** by the first end-to-end update proof (0.7.4 → 0.7.5, `update-proof.yml` run 38183686112):
+- On both Windows runners the app logged `update_install started … waiter=<pid>`, quit, and no installer ran.
+- On both Linux runners the AppImage replaced its own file, logged `update_install started`, and no new copy started.
 
-**Cause.** On Windows, libuv puts every child that is not `detached` into one job object created with
-`JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE`. The child is therefore killed the moment the parent exits — the exact moment
-the update waiter waits for. The earlier comment in `src/core/uninstall.ts` ("Windows lets a child outlive its parent
-anyway") was wrong. The same defect broke two more helpers that must run after the app exits:
-- the uninstaller's waiter (Settings → Uninstall);
-- the data purge after an uninstall.
+**Causes, measured.**
+- **Windows, not detached.** libuv puts every child that is not `detached` into one job object created with
+  `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE`. The waiter was killed the moment the app exited, which is the moment it waits
+  for. The same defect broke two more helpers: the uninstaller's waiter (Settings → Uninstall) and the data purge
+  after an uninstall. The earlier comment in `uninstall.ts` ("Windows lets a child outlive its parent anyway") was
+  wrong.
+- **Windows, detached.** A `DETACHED_PROCESS` PowerShell has no console and exits at once without running its
+  script (run 38190266069: the purge test then found the data untouched).
+- **Linux AppImage.** Electron's `app.relaunch` starts its relauncher from this executable, inside the image's FUSE
+  mount. The AppImage runtime serves that mount and stops with the app, so the relauncher died, and process
+  listings around the restart showed nothing running (run 38186311237).
 
-**Decision.** Every such helper starts through one function, `spawnAfterExit` (`src/core/after-exit.ts`): detached,
-no stdio, hidden. A detached PowerShell has no console, so no window can flash. On POSIX a detached child leads its
-own session. `test/after-exit.test.ts` makes the failure small: a parent starts a helper through `spawnAfterExit` and
-exits, and the helper must write its file after the parent is gone. With `detached: false` planted, it failed on
-`windows-latest` and `windows-11-arm` and passed on macOS and Linux (run 38186475486). With the fix it passes on all
-five.
+**Decision** (`src/core/after-exit.ts`).
+- **Windows.** The helper is a grandchild. libuv's job also sets `SILENT_BREAKAWAY_OK`, so a process the child starts
+  is not in the job. A hidden `cmd.exe` starts PowerShell with `start "" /b … -EncodedCommand <script>`; PowerShell
+  shares cmd's hidden console and runs outside the job. The app quits only once `cmd.exe` exited 0
+  (`powerShellAfterExit`), so the helper is running by then. The update waiter, the uninstaller's waiter and the
+  purge all go this way.
+- **POSIX.** The helper is a detached child (`spawnAfterExit`). A replaced AppImage is started again by a system
+  `/bin/sh` that waits for the app's pid and then runs the new `$APPIMAGE` with this run's arguments
+  (`appImageRelaunchCommand`), not by `app.relaunch`.
+
+**Proof.**
+- `test/after-exit.test.ts`: a parent starts the helper through the real function and exits, and the helper must do
+  its work after the parent is gone. On Windows that is a PowerShell through `powerShellAfterExit`; on POSIX a
+  detached child and the AppImage shell.
+- `test/uninstall-platforms.test.ts` waits for the Windows purge to happen, not for a process to exit.
+- `update-proof.yml` with `build: true` builds the fixed code numbered as 0.7.4 and lets it update itself to the
+  published 0.7.5. On both Linux runners: `update_install installed from=0.7.4 to=0.7.5` (run 38190268316).
+
+A first attempt claimed that a planted `detached: false` was caught on Windows. It was not: that run failed on an
+import path (`ERR_UNSUPPORTED_ESM_URL_SCHEME`) before reaching the point, and this record corrects it.
 

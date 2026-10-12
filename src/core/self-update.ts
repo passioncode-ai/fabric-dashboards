@@ -55,7 +55,7 @@ export function nsisInstalledAt(execPath: string, localAppData: string | undefin
  * starts it with the update flags. Paths go in single-quoted literals with quotes doubled; nothing passes through
  * cmd.exe (as `uninstallCommand`).
  */
-export function nsisUpdateCommand(installer: string, sha256: string, pid: number, waitSeconds = 120): { file: string; args: string[] } {
+export function nsisUpdateCommand(installer: string, sha256: string, pid: number, waitSeconds = 120): { file: string; args: string[]; script: string } {
   if (!/^[0-9a-f]{64}$/.test(sha256)) throw new Error('the installer\'s sha256 is 64 hex digits');
   const lit = (s: string) => `'${s.replace(/'/g, "''")}'`;
   const id = Math.trunc(pid);
@@ -65,7 +65,7 @@ export function nsisUpdateCommand(installer: string, sha256: string, pid: number
     `if ((Get-FileHash -Algorithm SHA256 -LiteralPath ${lit(installer)}).Hash.ToLowerInvariant() -ne ${lit(sha256)}) { exit 2 }`,
     `Start-Process -FilePath ${lit(installer)} -ArgumentList ${NSIS_UPDATE_ARGS.map(lit).join(',')}`,
   ].join('; ');
-  return { file: 'powershell.exe', args: ['-NoProfile', '-NonInteractive', '-Command', script] };
+  return { file: 'powershell.exe', args: ['-NoProfile', '-NonInteractive', '-Command', script], script };
 }
 
 /** The feed's key for this copy (`scripts/release-feed.mjs` PLATFORMS). */

@@ -53,7 +53,7 @@ jobs:
           npm ci
           npm version "${{ inputs.from }}" --no-git-tag-version --workspaces-update=false --allow-same-version
           node scripts/dist-other.mjs --allow-dirty
-          echo "FD_PROOF_FROM_DIR=$PWD/release" >> "$GITHUB_ENV"
+          echo "FD_PROOF_FROM_DIR=${{ github.workspace }}/release" >> "$GITHUB_ENV"
       - name: The installed copy updates itself
         env:
           GH_TOKEN: ${{ github.token }}

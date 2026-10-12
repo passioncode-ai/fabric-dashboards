@@ -3,7 +3,7 @@
 // agent keeps spawning a binary that is gone. Pure over a home directory, so tests run against a
 // temporary HOME and never touch the operator's files.
 // #region uninstall — docs: docs/ux/scenarios.md#scn-024-settings-launch-at-login-notifications-quiet-hours
-import { spawnAfterExit } from './after-exit';
+import { powerShellAfterExit } from './after-exit';
 import { spawn, type ChildProcess } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -246,7 +246,7 @@ export function purgeData(paths: string[], platform: NodeJS.Platform = process.p
  * keeps the person's settings and history (LC-14: data goes only when the person asks).
  */
 export function purgeAfterExit(pid: number, paths: string[], keep?: { dir: string; names: readonly string[] }, waitMs = 30_000,
-  o: { platform?: NodeJS.Platform; env?: NodeJS.ProcessEnv; home?: string } = {}): ChildProcess | null {
+  o: { platform?: NodeJS.Platform; env?: NodeJS.ProcessEnv; home?: string } = {}): ChildProcess | Promise<void> | null {
   const platform = o.platform ?? process.platform;
   const env = o.env ?? process.env;
   const home = o.home ?? os.homedir();
@@ -268,7 +268,7 @@ export function purgeAfterExit(pid: number, paths: string[], keep?: { dir: strin
 /** FD-37: the Windows helper — a hidden PowerShell that waits for `pid` (at most `waitMs`), then removes the
  *  paths and, inside `keepDir`, everything but `names`. Every path is a single-quoted literal with its
  *  quotes doubled, so none can end the literal; nothing passes through cmd.exe. */
-function purgeAfterExitWindows(pid: number, paths: string[], keepDir: string, names: readonly string[], waitMs: number): ChildProcess {
+function purgeAfterExitWindows(pid: number, paths: string[], keepDir: string, names: readonly string[], waitMs: number): Promise<void> {
   const lit = (x: string) => `'${x.replace(/'/g, "''")}'`;
   const script = [
     `$p = ${Math.trunc(pid)}; $deadline = (Get-Date).AddMilliseconds(${Math.trunc(waitMs)})`,
@@ -278,7 +278,7 @@ function purgeAfterExitWindows(pid: number, paths: string[], keepDir: string, na
     `$k = ${lit(keepDir)}; $kept = @(${names.map(lit).join(',')})`,
     'if ($k -and (Test-Path -LiteralPath $k -PathType Container)) { Get-ChildItem -LiteralPath $k -Force | Where-Object { $kept -notcontains $_.Name } | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue }',
   ].join('; ');
-  // Detached, or Windows kills it the moment the app exits (libuv's job object; src/core/after-exit.ts).
-  return spawnAfterExit('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], windowsPowerShellEnv());
+  // A grandchild outside the app's job, or Windows kills it the moment the app exits (src/core/after-exit.ts).
+  return powerShellAfterExit(script, windowsPowerShellEnv());
 }
 // #endregion uninstall
