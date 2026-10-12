@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- **Skills updates: "another update is running" is no longer an error.** From sshlg-skills 1.56.0 one update
+  runs at a time and a second one refuses with exit 75. The app now logs that as `estate_update busy`, keeps
+  the version it showed and tries again within the hour, instead of reporting a failed update.
+
 ## 0.7.6 - 2026-10-12
 
 ### Fixed
