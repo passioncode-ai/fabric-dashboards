@@ -150,26 +150,60 @@ export function tokenFileProblem(file: string, info: TokenFileInfo, o: { platfor
   return null;
 }
 
-/** A Windows file's ACL, SIDs only (no account names: those are localised and can be renamed). */
-export interface WindowsAcl { owner: string; aces: { sid: string; type: string; rights: number }[] }
+/**
+ * A Windows file's ACL, SIDs only (no account names: those are localised and can be renamed). `mask` is the
+ * ACE's unsigned 32-bit access mask (DEC-0057): .NET's `FileSystemRights` is a signed `int`, so GENERIC_READ
+ * (0x80000000) arrives negative unless the reader converts it first, as `ACL_SCRIPT` does.
+ */
+export interface WindowsAcl { owner: string; aces: { sid: string; type: string; mask: number }[] }
 
 /** DEC-0032's allow-list beside the current user: SYSTEM and BUILTIN\Administrators — the trust of root on POSIX. */
-const TRUSTED_SIDS = new Set(['S-1-5-18', 'S-1-5-32-544']);
+const TRUSTED_SIDS = ['S-1-5-18', 'S-1-5-32-544'];
+
+/** A string SID, revision 1, sub-authorities of 32 bits; upper-cased, since a SID compares case-insensitively on its S (DEC-0057). */
+const SID = /^S-1-\d{1,15}(-\d{1,10}){0,15}$/i;
+const sidOf = (value: unknown): string | undefined =>
+  typeof value === 'string' && SID.test(value) && value.split('-').slice(3).every((part) => Number(part) <= 0xffffffff) ? value.toUpperCase() : undefined;
+
+/** The contract's refusal codes for an ACL (`windowsTokenAclProblem`, contract src/windows-token.ts). */
+export type WindowsAclProblemCode = 'unreadable' | 'owner' | 'ace-type' | 'ace-sid';
 
 /**
- * Why a Windows token file's ACL must not be trusted, or null (contract service.md, Windows token
- * files): the owner is the current user, and every ACE that grants any right names the user, SYSTEM
- * or Administrators. A deny ACE does not decide. The refusal names the SID, never the contents.
+ * Why a Windows token file's ACL must not be trusted, or null (contract service.md, Windows token files,
+ * DEC-0032, DEC-0033, DEC-0057): the owner is the current user, SYSTEM or Administrators, and every ACE that
+ * grants any right (an allow ACE with a non-zero mask) names one of those three. A deny ACE does not decide; an
+ * ACE of any other type is refused, and anything unreadable — a SID, a mask that is not an unsigned 32-bit
+ * integer — is refused. The refusal names the SID, never the contents. The file checks (a symlink, a path outside
+ * the profile) are `tokenFileProblem`'s.
  */
-export function windowsAclProblem(acl: WindowsAcl, userSid: string): string | null {
-  // An elevated administrator's new files are owned by BUILTIN\\Administrators, not the user (Windows'
+export function windowsAclRefusal(acl: WindowsAcl, userSid: string): { problem: WindowsAclProblemCode; message: string } | null {
+  const user = sidOf(userSid);
+  if (user === undefined) return { problem: 'unreadable', message: "names a current user whose SID is unreadable" };
+  const trusted = new Set([user, ...TRUSTED_SIDS]);
+  // An elevated administrator's new files are owned by BUILTIN\Administrators, not the user (Windows'
   // default for that group); owner SYSTEM or Administrators is the trust an ACE may already hold.
-  if (acl.owner !== userSid && !TRUSTED_SIDS.has(acl.owner)) return `is owned by ${acl.owner}, not by you`;
-  for (const ace of acl.aces) {
-    if (!/^allow$/i.test(ace.type) || !(ace.rights > 0)) continue;
-    if (ace.sid !== userSid && !TRUSTED_SIDS.has(ace.sid)) return `grants access to ${ace.sid}, but only you, SYSTEM and Administrators may hold it`;
+  const owner = sidOf(acl.owner);
+  if (owner === undefined) return { problem: 'unreadable', message: 'has an owner whose SID is unreadable' };
+  if (!trusted.has(owner)) return { problem: 'owner', message: `is owned by ${owner}, not by you` };
+  if (!Array.isArray(acl.aces)) return { problem: 'unreadable', message: 'has an ACL that is unreadable' };
+  for (const [index, ace] of acl.aces.entries()) {
+    if (!ace || typeof ace !== 'object' || typeof ace.type !== 'string') return { problem: 'unreadable', message: `has an ACE ${index} whose type is unreadable` };
+    const sid = sidOf(ace.sid);
+    if (sid === undefined) return { problem: 'unreadable', message: `has an ACE ${index} whose SID is unreadable` };
+    const mask = ace.mask;
+    if (typeof mask !== 'number' || !Number.isInteger(mask) || mask < 0 || mask > 0xffffffff) return { problem: 'unreadable', message: `has an ACE ${index} whose access mask is unreadable` };
+    const type = ace.type.toLowerCase();
+    if (type === 'deny') continue;
+    if (type !== 'allow') return { problem: 'ace-type', message: `has an ACE for ${sid} of a type the reader does not read` };
+    if (mask === 0) continue;
+    if (!trusted.has(sid)) return { problem: 'ace-sid', message: `grants access to ${sid}, but only you, SYSTEM and Administrators may hold it` };
   }
   return null;
+}
+
+/** `windowsAclRefusal`'s message alone, or null. */
+export function windowsAclProblem(acl: WindowsAcl, userSid: string): string | null {
+  return windowsAclRefusal(acl, userSid)?.message ?? null;
 }
 
 /**
@@ -184,7 +218,7 @@ export function windowsPowerShellEnv(env: NodeJS.ProcessEnv = process.env): Node
 // .NET directly, not Get-Acl: no PowerShell module has to load for it.
 const ACL_SCRIPT = (file: string) => `$a = [System.IO.File]::GetAccessControl('${file.replace(/'/g, "''")}'); ` +
   "$s = [System.Security.Principal.SecurityIdentifier]; " +
-  "$r = @($a.GetAccessRules($true, $true, $s) | ForEach-Object { @{ sid = $_.IdentityReference.Value; type = $_.AccessControlType.ToString(); rights = [long]$_.FileSystemRights } }); " +
+  "$r = @($a.GetAccessRules($true, $true, $s) | ForEach-Object { @{ sid = $_.IdentityReference.Value; type = $_.AccessControlType.ToString(); mask = ([int64][int]$_.FileSystemRights) -band 4294967295 } }); " +
   "@{ user = [System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value; owner = $a.GetOwner($s).Value; aces = $r } | ConvertTo-Json -Compress -Depth 4";
 
 /** DEC-0032: one PowerShell read per file at most every ACL_TTL_MS, or when its metadata changes. The read
