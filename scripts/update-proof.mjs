@@ -91,8 +91,9 @@ if (process.platform === 'linux') {
   spawn(exe, ['--hidden'], { env, detached: true, stdio: 'ignore', windowsHide: true }).unref();
   await waitFor(`the install of ${to} over ${from}`, () => version().startsWith(to));
   console.log(`the app ran ${to}'s installer through its waiter: ${exe} is ${version()}`);
-  // The installer starts the app again as the signed-in user, whose own data folder may be the default one.
-  const defaultLog = path.join(process.env.APPDATA ?? '', 'Fabric Dashboards', 'logs', 'main.log');
+  // The installer starts the app again through Explorer, with the signed-in user's own environment: it then logs
+  // where Windows copies do by default (src/core/platform.ts places: %LOCALAPPDATA%\Fabric Dashboards\Logs).
+  const defaultLog = path.join(process.env.LOCALAPPDATA ?? '', 'Fabric Dashboards', 'Logs', 'main.log');
   await waitFor(`the restart as ${to}`, () => installed.test(logText()) || (() => { try { return installed.test(readFileSync(defaultLog, 'utf8')); } catch { return false; } })());
   console.log(`it started again as ${to}`);
   spawnSync('taskkill', ['/F', '/T', '/IM', 'Fabric Dashboards.exe'], { windowsHide: true });
