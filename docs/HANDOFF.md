@@ -5,6 +5,28 @@ Updated 2026-10-07 (0.6.2: 0.6.1 withdrawn for audit HIGH-2, audit fixes, signed
 
 Current release: 0.7.6 (published 2026-10-12 04:12 UTC, run 38200511483, tag on `5f2fcbe`; the bug wave: Windows helpers outlive the app, the AppImage restarts itself; DEC-0044 setup flag). Before it, 0.7.5 (FD-48 outage alerts, Reload signs in). Before it, 0.7.4 (published 2026-10-11 20:01 UTC, run 38168481474; FD-37 M4a–M4c). Before it, 0.7.3 (published 2026-10-11 16:59 UTC, run 38156472858; FD-45, FD-47; carries 0.7.2, tagged and not published). Before it, 0.7.1 (published 2026-10-11 11:34 UTC, run 38106066248; FD-37 M1–M3, FD-39, FD-41; carries 0.7.0, tagged and not published). Before it, 0.6.7 (published 2026-10-09 17:07 UTC, run 37955575384; FD-36, FD-35, FD-38). Before it, 0.6.6 (published 2026-10-09 10:08 UTC, run 37864378854; FD-34, FD-35). Before it, 0.6.5 (published 2026-10-08 01:18 UTC, run 37703405621; FD-29, FD-33). Before it, 0.6.4 (published 2026-10-07 01:57 UTC, run 37558793926; carries 0.6.3, superseded before approval). Before it, 0.6.2 (published 2026-10-06 23:41 UTC, run 37541067349; 0.6.1 withdrawn). Before it, 0.6.0 (published 2026-10-06 21:35 UTC, run 37505569449); Before it, 0.5.6 (2026-10-06); the 0.4.1 section below is the previous one. Earlier releases below are preserved as dated evidence.
 
+## Next — start here (2026-10-13, board waves → 0.7.7)
+
+**Branch `agent/board-waves`** — the operator asked to close every backlog row (2026-10-12, «давай закроем все
+задачи из бэклога — выполняй до конца»), run as `/task-pipeline waves`: survey, inventory and plan in
+[docs/evidence/specs/2026-10-12-board-waves-plan.md](evidence/specs/2026-10-12-board-waves-plan.md).
+
+**Done (each row in [backlog.md](backlog.md) carries its receipt):** FD-01 (outage notices observed: no notice for
+the 34 short episodes, every alert 5.0–5.4 min after the start), FD-07 and FD-60 (idle numbers; 0.258 % hidden),
+FD-20 (one control sequence), FD-21 (U-16, U-18, R-19, R-20, M-4), FD-26 (pre-commit lease guard, retires retro
+instruction 4), FD-37 (M1–M4, M6; M5 → FD-58), FD-42 + FD-56 (scheme and theme carrier, hostView on the contract's
+vectors), FD-43 (Switchboard sessions), FD-46 (runner and model on Health), FD-49 (LC-17 admission), FD-50 (LC-18
+idle close), FD-51 (LC-20 managed starts), FD-55 (systemd MainPID), FD-57 (contract fe55fc6 descriptors, DEC-0069,
+DEC-0070). `npm run check` exit 0 (527 pass); `npm run test:e2e` 9/9 on this Mac.
+
+**Still open, and why:** FD-02 in part (40 draft scenarios no e2e walks; listed in its row); FD-04 needs the
+operator (a keychain prompt is shown to the person — the procedure is in its row); FD-12, FD-22, FD-40, FD-52,
+FD-53, FD-58, FD-59 wait for other products (Fabric's board surface, the contract's `surfaces.a2a`, Observatory's
+budget read and node, Vesta's pages), each re-verified 2026-10-12.
+
+**Next task:** release 0.7.7 from this branch (five-runner `validate.yml`, merge, tag `v0.7.7`, release run), then
+`update-proof.yml -f from=0.7.6 -f to=0.7.7 -f os=all`, then walk FD-02's 40 drafts.
+
 ## Next — start here (2026-10-12, CT-21 from the contract)
 
 **Branch `agent/ct21-windows-token-acl`.** The contract session closed wave 4 (fabric-agent-contract `7688304`) and

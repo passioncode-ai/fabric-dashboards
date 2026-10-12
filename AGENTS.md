@@ -152,9 +152,11 @@ fake clock by `test/lifecycle.test.ts` (*LC-08: … a quiet hour stays inside th
 probes ≤ 120 *L* + 60 *R*; event reads ≤ 120 *L* + 60 *R*; `launchctl print` ≤ 12 *L* plus one per
 missed probe; `print-disabled` ≤ 13; status pushes 0 when nothing changed. CPU and memory targets:
 main process ≤ 0.3 % average CPU over 10 hidden minutes; the app with no dashboard open ≤ 400 MB
-RSS; each MCP server ≤ 60 MB RSS. The CPU and RSS targets are not yet measured on a build that
-carries these changes — measure with `ps -o time,rss` over 10 hidden minutes on the next release
-and record the numbers in `docs/HANDOFF.md`. (Before this change, 0.4.1 measured 1.3 % CPU and about
+RSS; each MCP server ≤ 60 MB RSS. Measured 2026-10-13 on the signed 0.7.6 with 13 local and 9 online
+services (FD-07, FD-60): RSS ≈ 230 MB for the app and 32–56 MB per MCP server (both inside); main-process
+CPU **0.258 % hidden** and 0.386 % shown on Overview (`node --import tsx scripts/measure-idle.ts 180` after
+`npm run build`: the built app on the real services in an isolated profile with notifications paused); the
+monitor costs about 1.7 ms of CPU per probe or events read. (Before this change, 0.4.1 measured 1.3 % CPU and about
 7,200 `launchctl` spawns an hour after a login launch: lifecycle audit 2026-10-03, F-2/F-4.)
 
 **Files it writes** (LC-12): `~/Library/Application Support/Fabric Dashboards/` — `settings.json` (with the panel layout, pinned agents and

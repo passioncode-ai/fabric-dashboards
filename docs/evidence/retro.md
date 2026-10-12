@@ -18,23 +18,26 @@ by the task's nouns, not read in full.
    merely implements the public protocol belongs to whoever wrote it, not to this org.
    Public examples use `example-agent`. *Retire when* the org index carries an ownership
    column that a gate checks.
-4. **Guarded files take the lease before the edit, not after.** *Retire when* the
-   pre-commit hook refuses an unleased guarded path.
-5. **A build writes to the scratchpad and deletes what it made.** A universal Electron
+4. **A build writes to the scratchpad and deletes what it made.** A universal Electron
    build plus notarization zips is several gigabytes; a full disk takes down unrelated
    live services. Check free space before `npm run dist`. *Retire when* `dist-mac.mjs`
    refuses to start below a free-space floor.
-6. **A test that times out says what it saw.** A wait loop reports the last answer and, for a
+5. **A test that times out says what it saw.** A wait loop reports the last answer and, for a
    child process, its output and a faulthandler stack dump. The first macOS failure said only
    "did not become ready" and cost three CI rounds; the dump named `socket.getfqdn` at once.
    *Retire when* the kit ships a wait helper that does this and every repository uses it.
-7. **Read the target repository's own merge and release rules before touching its version or
+6. **Read the target repository's own merge and release rules before touching its version or
    changelog, and fetch before choosing a version number.** *Retire when* a pre-push hook
    refuses both.
-8. **A UI end-to-end run on this Mac checks the screen lock first** (`ioreg -n Root -d1 | grep
+7. **A UI end-to-end run on this Mac checks the screen lock first** (`ioreg -n Root -d1 | grep
    CGSSessionScreenIsLocked`): while it is locked, macOS sends windows no show, hide or focus
    events, so every visibility assertion (FD-05's Dock, LC-08) fails for reasons no code has.
    *Retire when* the e2e suite skips those assertions itself on a locked session.
+
+8. **Commit only after `npm run typecheck`, not after a `tsx` test of the file you changed.** `tsx` strips
+   types and runs, so a test can pass on code that does not compile; on 2026-10-12 a DEC-0070 change dropped
+   the required `kind`, `subject` and `notify` of every event (notify drives notifications) and was committed
+   green. *Retire when* the pre-commit hook runs the typecheck on a staged `.ts` change.
 
 ## Run stamps
 
@@ -43,8 +46,20 @@ by the task's nouns, not read in full.
 | Fabric Dashboards 0.1.0 + fabric-service/0.1 + passioncode launcher | `41facd4` | 2026-09-29 |
 | Close-out: Observatory 0.8.0, adapter 0.4.2, passioncode 0.1.2, local reinstalls | `10948f5` | 2026-09-29 |
 | 0.6.0 focus layout and agent console (ADR-0017) | `36bf759` | 2026-10-06 |
+| Board waves 2026-10-12 (FD-01…FD-60) | `agent/board-waves` | 2026-10-13 |
 
 ## Recent log
+
+### 2026-10-13 — board waves: the run diverged twice
+
+- **Retired standing instruction 4** (guarded files take the lease first): FD-26's pre-commit hook now refuses
+  an unleased guarded path; it refused this run's own CHANGELOG commit before the lease was taken.
+- **A change was committed green that did not compile** (DEC-0070: events lost `kind`, `subject`, `notify`).
+  Surfaced at the next typecheck; owned by stage 5 (the change was tested with `tsx`, which strips types).
+  Fixed in `f04ad09`; new standing instruction 8.
+- **A refactor moved a guard past the call it guards** (FD-20: `busy` set after launchctl instead of
+  before). Caught in review of the same change, before commit; a test that failed on the planted defect holds
+  it (`test/control.test.ts`, R-8).
 
 ### 2026-10-06 — 0.6.0: the run diverged three times
 
