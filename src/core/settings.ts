@@ -120,10 +120,13 @@ function mergeConsoles(raw: unknown): Settings['consoles'] {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return out;
   for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
     if (!SERVICE_KEY.test(key) || !value || typeof value !== 'object') continue;
-    const v = value as { runtime?: unknown; folder?: unknown };
+    const v = value as { runtime?: unknown; folder?: unknown; idle?: unknown };
+    const idle = v.idle as { at?: unknown; account?: unknown } | null | undefined;
     out[key] = {
       runtime: typeof v.runtime === 'string' && /^[a-z0-9][a-z0-9-]{0,40}$/.test(v.runtime) ? v.runtime : null,
       folder: typeof v.folder === 'string' && isAbsoluteFolder(v.folder, process.platform) ? v.folder : null,
+      ...(idle && typeof idle === 'object' && typeof idle.at === 'string' && Number.isFinite(Date.parse(idle.at))
+        ? { idle: { at: idle.at, account: typeof idle.account === 'string' ? idle.account.slice(0, 120) : null } } : {}),
     };
   }
   return out;

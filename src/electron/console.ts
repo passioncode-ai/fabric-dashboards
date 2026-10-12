@@ -65,9 +65,17 @@ export interface ConsoleHostOptions {
   mcpServer?: () => McpCommand;
   /** FD-39 SCN-058: what is set up already, for the Setup console's brief. */
   setupState?: () => SetupState;
+  /** FD-50 (LC-18): how long a session may sit without input or output before it is saved and closed
+   *  (default IDLE_CLOSE_MS; 0 turns the sweep off, as tests that do not test it do). */
+  idleMs?: number;
+  /** Signals a session's process group; tests pass a fake — a fake pid is never a real group. */
+  killGroup?: (pid: number, signal: NodeJS.Signals) => void;
   /** FD-49 (LC-17): the machine before a start; the real probe by default, a stub in tests. */
   machine?: (folder: string, running: number) => Promise<MachineState>;
 }
+
+/** D2 of the 2026-10-12 board waves, stated in AGENTS.md's lifecycle table (LC-18). */
+export const IDLE_CLOSE_MS = 30 * 60_000;
 
 export class ConsoleHost {
   readonly manager: ConsoleManager;
@@ -86,8 +94,12 @@ export class ConsoleHost {
     this.manager = new ConsoleManager({
       spawn: (file, args, opts) => (spawn ??= loadSpawn())(file, args, opts),
       env: () => ({ ...process.env }),
+      killGroup: o.killGroup,
     });
     this.manager.on('data', (e: { key: string; data: string; end: number }) => this.send({ key: e.key, kind: 'data', data: e.data, end: e.end }));
+    // FD-50 (LC-18): an idle session is saved and closed, checked once a minute; nothing else wakes.
+    const idleMs = o.idleMs ?? IDLE_CLOSE_MS;
+    if (idleMs > 0) setInterval(() => void this.closeIdle(idleMs), 60_000).unref();
     this.manager.on('exit', (e: { key: string; code: number | null; signal: number | null }) => {
       this.o.log(`console: ${e.key} exited with ${e.code}${e.signal ? ` (signal ${e.signal})` : ''}`);
       this.send({ key: e.key, kind: 'exit', code: e.code, signal: e.signal });
@@ -171,6 +183,7 @@ export class ConsoleHost {
       folder,
       binding: b.kind === 'project' ? { ...b, inPlace: inv.inPlace } : b,
       session: { state: s.state, label: s.label, cwd: s.cwd, output: s.output, end: s.end, exitCode: s.exitCode, signal: s.signal },
+      idle: this.o.settings.get().consoles[key]?.idle ?? null,
     };
   }
 
@@ -223,9 +236,27 @@ export class ConsoleHost {
     const r = this.manager.start(key, { argv: plan.argv, cwd: plan.cwd, label: runtime.name, env: { PATH: inv.dirs.join(path.delimiter), ...(pack?.env ?? {}) } }, size);
     if (!r.ok) return { ok: false, reason: r.error === 'running' ? 'running' : 'spawn', detail: r.error };
     // Remember what was started, so the panel offers it next time.
-    this.o.settings.update({ consoles: { [key]: { runtime: runtime.id, folder: folder.source === 'saved' ? folder.path : this.o.settings.get().consoles[key]?.folder ?? null } } });
+    this.o.settings.update({ consoles: { [key]: { runtime: runtime.id, folder: folder.source === 'saved' ? folder.path : this.o.settings.get().consoles[key]?.folder ?? null, idle: null } } });
     this.o.log(`console: ${key} started ${runtime.id} (${mode}) in ${folder.path}${plan.argv[0] === inv.switchboard ? ' through Switchboard' : ''}${pack ? ` with its context${task ? ` and a ${task.kind} task` : ''}` : ''}`);
     return { ok: true };
+  }
+
+  /** FD-50 (LC-18): save each idle session (when, and the Switchboard account it ran on) and close it, so it
+   *  holds neither memory nor MCP servers; opening the console again continues it. */
+  async closeIdle(idleMs: number, now = Date.now()): Promise<string[]> {
+    const keys = this.manager.idleKeys(idleMs, now);
+    for (const key of keys) {
+      let account: string | null = null;
+      try {
+        const listed = await this.sessions(key);
+        if ('sessions' in listed) account = listed.sessions.find((x) => x.state === 'running')?.movedTo ?? listed.sessions.find((x) => x.state === 'running')?.label ?? null;
+      } catch { /* the account is a nicety; the close is not */ }
+      const entry = this.o.settings.get().consoles[key] ?? { runtime: null, folder: null };
+      this.o.settings.update({ consoles: { [key]: { ...entry, idle: { at: new Date(now).toISOString(), account } } } });
+      this.manager.stop(key);
+      this.o.log(`console: ${key} closed after ${Math.round(idleMs / 60_000)} idle minutes (LC-18); opening it again continues it`);
+    }
+    return keys;
   }
 
   /** FD-43: the sessions Switchboard launched in this console's folder, and where each runs now (FD-51).

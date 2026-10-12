@@ -22,7 +22,8 @@ function rig(machine: { freeDisk: number | null; swap: null; running: number }) 
     snapshot: () => null, window: () => null, visible: () => false, log: () => {},
     testDirs: [bin], scriptsDir: path.join(base, 'scripts'),
     run: async () => ({ code: 1, stdout: '', stderr: '' }),
-    spawn: (file) => { spawned.push(file); return { pid: 1, onData: () => ({ dispose() {} }), onExit: () => ({ dispose() {} }), write() {}, resize() {}, kill() {} }; },
+    spawn: (file) => { spawned.push(file); return { pid: 999_999_999, onData: () => ({ dispose() {} }), onExit: () => ({ dispose() {} }), write() {}, resize() {}, kill() {} }; },
+    killGroup: () => {},
     machine: async () => machine,
   });
   return { host, spawned };

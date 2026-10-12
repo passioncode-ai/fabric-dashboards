@@ -20,6 +20,8 @@ export interface ConsoleInfo {
   /** What Switchboard binds the folder to, for the chosen runtime. */
   binding: { kind: 'none' } | { kind: 'project'; name: string; pool: string; inPlace: boolean } | { kind: 'error'; detail: string } | { kind: 'absent' };
   session: { state: 'idle' | 'running' | 'exited'; label: string; cwd: string; output: string; end: number; exitCode: number | null; signal: number | null };
+  /** FD-50 (LC-18): the session was closed after the idle time; opening the console continues it. */
+  idle: { at: string; account: string | null } | null;
 }
 
 /** FD-43/FD-51: the Switchboard sessions of a console's folder, or why there are none to show. */

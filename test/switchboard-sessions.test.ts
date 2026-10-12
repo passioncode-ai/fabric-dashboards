@@ -80,7 +80,8 @@ test('FD-51 (LC-20): the console start itself goes through Switchboard when it m
     settings: { get: () => settings, update: (p: Record<string, unknown>) => { settings = { ...settings, ...p }; } } as never,
     snapshot: () => null, window: () => null, visible: () => false, log: () => {},
     testDirs: [bin], scriptsDir: path.join(base, 'scripts'), run: runner(folder, []),
-    spawn: (file, args) => { spawned.push([file, ...args]); return { pid: 1, onData: () => ({ dispose() {} }), onExit: () => ({ dispose() {} }), write() {}, resize() {}, kill() {} }; },
+    spawn: (file, args) => { spawned.push([file, ...args]); return { pid: 999_999_999, onData: () => ({ dispose() {} }), onExit: () => ({ dispose() {} }), write() {}, resize() {}, kill() {} }; },
+    killGroup: () => {},
     machine: async () => ({ freeDisk: null, swap: null, running: 0 }),
   });
   assert.deepEqual(await host.start('example-agent.default', 'new', { cols: 80, rows: 24 }), { ok: true });
@@ -88,4 +89,31 @@ test('FD-51 (LC-20): the console start itself goes through Switchboard when it m
   assert.ok(spawned[0]!.includes('managed') && spawned[0]!.includes('--in-place'), spawned[0]!.join(' '));
   const listed = await host.sessions('example-agent.default');
   assert.ok('sessions' in listed);
+});
+
+test('FD-50 (LC-18): a session idle for 30 minutes is saved with its account and closed; the next start clears it', async () => {
+  const base = tmp('fd-idle-');
+  const bin = path.join(base, 'bin');
+  const folder = path.join(base, 'agent');
+  fs.mkdirSync(bin); fs.mkdirSync(folder);
+  fs.writeFileSync(path.join(bin, 'claude'), '#!/bin/sh\n', { mode: 0o755 });
+  let settings = { consoles: { 'example-agent.default': { runtime: 'claude-code', folder } } } as { consoles: Record<string, Record<string, unknown>> };
+  const signals: string[] = [];
+  const host = new ConsoleHost({
+    settings: { get: () => settings, update: (p: { consoles?: Record<string, Record<string, unknown>> }) => { settings = { ...settings, consoles: { ...settings.consoles, ...(p.consoles ?? {}) } }; } } as never,
+    snapshot: () => null, window: () => null, visible: () => false, log: () => {},
+    testDirs: [bin], scriptsDir: path.join(base, 'scripts'), run: async () => ({ code: 1, stdout: '', stderr: '' }), idleMs: 0,
+    spawn: () => ({ pid: 999_999_999, onData: () => ({ dispose() {} }), onExit: () => ({ dispose() {} }), write() {}, resize() {}, kill() {} }),
+    killGroup: (_pid, sig) => { signals.push(sig); },
+    machine: async () => ({ freeDisk: null, swap: null, running: 0 }),
+  });
+  assert.deepEqual(await host.start('example-agent.default', 'new', { cols: 80, rows: 24 }), { ok: true });
+  const now = Date.now();
+  assert.deepEqual(await host.closeIdle(30 * 60_000, now + 29 * 60_000), [], 'not idle yet');
+  assert.deepEqual(await host.closeIdle(30 * 60_000, now + 31 * 60_000), ['example-agent.default']);
+  assert.deepEqual(signals, ['SIGHUP'], 'closed the way Stop closes it');
+  const idle = settings.consoles['example-agent.default']!.idle as { at: string; account: string | null };
+  assert.equal(Date.parse(idle.at), now + 31 * 60_000);
+  assert.equal(idle.account, null, 'no Switchboard here: no account to name');
+  assert.equal((await host.info('example-agent.default')).idle?.at, idle.at, 'the panel learns it was closed for idleness');
 });

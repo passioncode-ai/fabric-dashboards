@@ -140,6 +140,21 @@ export function ConsolePanel({ serviceKey, width, max, onWidth, onHide, task, on
       void refresh();
     }
   };
+  // FD-50 (LC-18): a session closed after the idle time continues when the console is opened again —
+  // once per opening, and only with a runtime that can continue; otherwise the panel says New starts afresh.
+  const resumed = useRef<string | null>(null);
+  useEffect(() => {
+    if (!info?.idle || info.key !== serviceKey || resumed.current === serviceKey || task || starting) return;
+    if (info.session.state === 'running') return;
+    resumed.current = serviceKey;
+    const rt = info.runtimes.find((r) => r.id === info.runtime);
+    if (rt?.canContinue && info.folder?.exists) {
+      setNotice({ text: t('console.idle.resumed', { account: info.idle.account ?? '—' }) });
+      void start('continue').then(() => setNotice({ text: t('console.idle.resumed', { account: info.idle?.account ?? '—' }) }));
+    } else setNotice({ text: t('console.idle.closed') });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [info?.key, info?.idle?.at]);
+
   // FD-39 SCN-054/055: a handed-over task starts once the panel knows its session; a running session
   // is never doubled — the person sees it and the notice says why.
   useEffect(() => {

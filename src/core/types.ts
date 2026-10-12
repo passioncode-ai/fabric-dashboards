@@ -72,7 +72,10 @@ export interface Settings {
     list: { sort: ListSort; pinned: string[] };
   };
   /** ADR-0017: per service key, the runtime and folder its console last used (null: not chosen yet). */
-  consoles: Record<string, { runtime: string | null; folder: string | null }>;
+  consoles: Record<string, { runtime: string | null; folder: string | null;
+    /** FD-50 (LC-18): the session closed after the idle time — when, and the Switchboard account it ran on;
+     *  opening the console again continues it. Cleared by the next start. */
+    idle?: { at: string; account: string | null } | null }>;
   // #region estate-update — docs: docs/adr/0018-estate-updates-from-inside-the-app.md#decision
   /** ADR-0018: the estate watcher — the contract clone and the skill family. */
   estate: {
