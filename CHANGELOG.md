@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+### Security
+
+- **Windows: a token file that grants Everyone GENERIC_READ is refused** (CT-21, contract DEC-0057). The ACL reader
+  took .NET's signed `FileSystemRights`, so an ACE carrying GENERIC_READ (0x80000000) came out negative and was
+  skipped as granting nothing: such a token file passed. The mask is now read as an unsigned 32-bit number
+  (`-band 4294967295` in the PowerShell read), and a mask that is not one is refused rather than skipped. An ACE of
+  any type other than allow or deny is refused, SIDs compare case-insensitively, and an unreadable owner, SID or
+  type refuses the file. The contract's `fixtures/vectors/windows-token.json` runs in the tests, vendored at 7688304.
+
 ### Fixed
 
 - **Skills updates: "another update is running" is no longer an error.** From sshlg-skills 1.56.0 one update

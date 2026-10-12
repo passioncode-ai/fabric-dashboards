@@ -5,7 +5,7 @@ import http from 'node:http';
 import type { AddressInfo } from 'node:net';
 import path from 'node:path';
 import test from 'node:test';
-import { checkWellKnown, fetchWellKnown, request, tokenFileProblem, windowsAclProblem, windowsPowerShellEnv } from '../src/health';
+import { checkWellKnown, fetchWellKnown, request, tokenFileProblem, windowsAclProblem, windowsAclRefusal, windowsPowerShellEnv } from '../src/health';
 
 const WELL_KNOWN = JSON.parse(fs.readFileSync(path.join(__dirname, '../../../test/fixtures/contract/positive_service-well-known.json'), 'utf8'));
 
@@ -111,14 +111,47 @@ test('FD-37: tokenFileProblem — POSIX owner and mode; Windows: no link, inside
 // anything names the user, SYSTEM or Administrators; deny ACEs do not decide; a refusal names the SID.
 test('DEC-0032: windowsAclProblem accepts the user, SYSTEM and Administrators, and names any other SID', () => {
   const user = 'S-1-5-21-1-2-3-1001';
-  const own = { owner: user, aces: [{ sid: user, type: 'Allow', rights: 2032127 }, { sid: 'S-1-5-18', type: 'Allow', rights: 2032127 }, { sid: 'S-1-5-32-544', type: 'Allow', rights: 2032127 }] };
+  const own = { owner: user, aces: [{ sid: user, type: 'Allow', mask: 2032127 }, { sid: 'S-1-5-18', type: 'Allow', mask: 2032127 }, { sid: 'S-1-5-32-544', type: 'Allow', mask: 2032127 }] };
   assert.equal(windowsAclProblem(own, user), null);
-  assert.equal(windowsAclProblem({ ...own, aces: [...own.aces, { sid: 'S-1-1-0', type: 'Deny', rights: 1179785 }] }, user), null, 'a deny ACE does not decide');
-  assert.match(windowsAclProblem({ ...own, aces: [...own.aces, { sid: 'S-1-1-0', type: 'Allow', rights: 1179785 }] }, user) ?? '', /S-1-1-0/);
-  assert.match(windowsAclProblem({ ...own, aces: [...own.aces, { sid: 'S-1-5-32-545', type: 'Allow', rights: 1179785 }] }, user) ?? '', /S-1-5-32-545/);
+  assert.equal(windowsAclProblem({ ...own, aces: [...own.aces, { sid: 'S-1-1-0', type: 'Deny', mask: 1179785 }] }, user), null, 'a deny ACE does not decide');
+  assert.match(windowsAclProblem({ ...own, aces: [...own.aces, { sid: 'S-1-1-0', type: 'Allow', mask: 1179785 }] }, user) ?? '', /S-1-1-0/);
+  assert.match(windowsAclProblem({ ...own, aces: [...own.aces, { sid: 'S-1-5-32-545', type: 'Allow', mask: 1179785 }] }, user) ?? '', /S-1-5-32-545/);
   assert.match(windowsAclProblem({ ...own, owner: 'S-1-5-21-9-9-9-1002' }, user) ?? '', /owned by S-1-5-21-9-9-9-1002/);
   assert.equal(windowsAclProblem({ ...own, owner: 'S-1-5-32-544' }, user), null, 'an elevated administrator\'s file is owned by Administrators');
-  assert.equal(windowsAclProblem({ ...own, aces: [...own.aces, { sid: 'S-1-5-11', type: 'Allow', rights: 0 }] }, user), null, 'an ACE that grants nothing is no grant');
+  assert.equal(windowsAclProblem({ ...own, aces: [...own.aces, { sid: 'S-1-5-11', type: 'Allow', mask: 0 }] }, user), null, 'an ACE that grants nothing is no grant');
+});
+
+// CT-21 / DEC-0057: the contract's vectors (fixtures/vectors/windows-token.json, vendored byte-identical). The ACL
+// cases run through windowsAclRefusal; the file cases (reparse point, outside the profile) through tokenFileProblem,
+// and "not a regular file" is refused by the read itself (EISDIR), which no vector can stand in for.
+const WINDOWS_TOKEN = JSON.parse(fs.readFileSync(path.join(__dirname, '../../../test/fixtures/contract/vectors_windows-token.json'), 'utf8'));
+test('DEC-0057: every windows-token vector of the contract gets the contract\'s answer', () => {
+  const home = 'C:\\Users\\me';
+  const opts = { platform: 'win32' as NodeJS.Platform, uid: undefined, home };
+  let ran = 0;
+  for (const c of WINDOWS_TOKEN.cases) {
+    const f = c.file;
+    if (f.isReparsePoint || !f.realPathInProfile) {
+      const where = f.realPathInProfile ? `${home}\\token` : 'C:\\ProgramData\\agent\\token';
+      assert.ok(tokenFileProblem(where, { symlink: f.isReparsePoint, uid: 0, mode: 0 }, opts), c.name);
+      ran++;
+      continue;
+    }
+    if (!f.isRegularFile) continue;
+    const got = windowsAclRefusal({ owner: f.ownerSid, aces: f.aces }, WINDOWS_TOKEN.currentUserSid);
+    assert.equal(got ? got.problem : null, c.problem, c.name);
+    ran++;
+  }
+  assert.ok(ran >= WINDOWS_TOKEN.cases.length - 1, `ran ${ran} of ${WINDOWS_TOKEN.cases.length}`);
+});
+
+test('DEC-0057: GENERIC_READ for Everyone is refused once the mask is read unsigned', () => {
+  const user = 'S-1-5-21-1-2-3-1001';
+  const genericRead = 0x80000000;
+  assert.match(windowsAclProblem({ owner: user, aces: [{ sid: user, type: 'Allow', mask: 2032127 }, { sid: 'S-1-1-0', type: 'Allow', mask: genericRead }] }, user) ?? '', /S-1-1-0/);
+  assert.match(windowsAclProblem({ owner: user, aces: [{ sid: 'S-1-1-0', type: 'Allow', mask: -2147483648 }] }, user) ?? '', /mask is unreadable/, 'a signed mask is refused, never skipped');
+  assert.match(windowsAclProblem({ owner: user, aces: [{ sid: user, type: 'AllowCallback', mask: 2032127 }] }, user) ?? '', /type the reader does not read/);
+  assert.equal(windowsAclProblem({ owner: user.toLowerCase(), aces: [{ sid: user, type: 'Allow', mask: 2032127 }] }, user), null, 'SIDs compare case-insensitively');
 });
 
 test('FD-37: Windows PowerShell 5.1 runs without the PSModulePath a parent PowerShell 7 set, in any spelling', () => {

@@ -57,6 +57,13 @@ const RULES: Rule[] = [
   // DEC-0032: Windows token files (health.ts windowsAclProblem)
   [/^the token file (.+) is owned by (\S+), not by you$/, (_, f, sid) => `файл токена ${f} принадлежит ${sid}, а не вам`],
   [/^the token file (.+) grants access to (\S+), but only you, SYSTEM and Administrators may hold it$/, (_, f, sid) => `файл токена ${f} даёт доступ ${sid}, а доступ допустим только у вас, SYSTEM и администраторов`],
+  [/^the token file (.+) has an owner whose SID is unreadable$/, (_, f) => `у файла токена ${f} не читается SID владельца`],
+  [/^the token file (.+) has an ACL that is unreadable$/, (_, f) => `у файла токена ${f} не читается список доступа`],
+  [/^the token file (.+) has an ACE (\d+) whose type is unreadable$/, (_, f, n) => `у файла токена ${f} не читается тип записи доступа ${n}`],
+  [/^the token file (.+) has an ACE (\d+) whose SID is unreadable$/, (_, f, n) => `у файла токена ${f} не читается SID в записи доступа ${n}`],
+  [/^the token file (.+) has an ACE (\d+) whose access mask is unreadable$/, (_, f, n) => `у файла токена ${f} не читается маска в записи доступа ${n}`],
+  [/^the token file (.+) has an ACE for (\S+) of a type the reader does not read$/, (_, f, sid) => `у файла токена ${f} есть запись доступа для ${sid} неизвестного типа`],
+  [/^the token file (.+) names a current user whose SID is unreadable$/, (_, f) => `для файла токена ${f} не читается SID текущего пользователя`],
   [/^the token file (.+?)'s permissions could not be read(?:: (.+))?$/, (_, f, e) => `не удалось прочитать права файла токена ${f}${e ? `: ${e}` : ''}`],
   // FD-37: this app on a system it does not fully support yet (src/electron/console.ts)
   [/^Opening a terminal window is not available on this system yet\.$/, () => 'Открыть окно терминала в этой системе пока нельзя.'],

@@ -2,3 +2,4 @@ Copied from passioncode-ai/fabric-agent-contract fixtures/ — every file byte-i
 Added 2026-10-11 (FD-45): the four fabric-link-* files (positive_fabric-link-chat, positive_fabric-link-session, negative_fabric-link-chat-with-token, negative_fabric-link-session-without-project), byte-identical to fixtures/<kind>/<name>.json at 8e49fbd (DEC-0040).
 Re-checked 2026-10-11 at 7931c1dbb6e6 (DEC-0041): the four fabric-link-* files are unchanged there.
 Added 2026-10-11 (FD-47): schema_session-handoff.json and schema_common.json, byte-identical to schemas/session-handoff.schema.json and schemas/common.schema.json at 213e5a3a2f4d (DEC-0042); the checker itself is test/contract/session-handoff.ts.
+Added 2026-10-12 (CT-21, DEC-0057): vectors_windows-token.json, byte-identical to fixtures/vectors/windows-token.json at 7688304; the checker is windowsAclRefusal in packages/service-host/src/health.ts (test/health.test.ts).
