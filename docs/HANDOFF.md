@@ -23,6 +23,13 @@ run 38199490293, win32-x64 and win32-arm64 updated themselves 0.7.4 → 0.7.5 an
 `estate_update busy`, not a failure, and is retried within the hour (PR #113, `be8b2cf`, ADR-0018 amendment
 2026-10-12). It ships with the next release.
 
+**On main, unreleased:** the Russian copy pass (operator 2026-10-12, [PR #115](https://github.com/passioncode-ai/fabric-dashboards/pull/115)):
+164 of 471 Russian strings in `src/core/i18n.ts` and 16 machine reasons in `src/core/machine-ru.ts` rewritten against
+Fabric's `docs/brand/` and the org localization glossary (this repo has no brand pack); the since-last-visit date
+follows the interface language. `npm run check` exit 0. Only Overview was seen rendered in Russian (the disk was full);
+walk Settings, Spend, Health and the console in Russian on the next release candidate. The decisions a Dashboards
+brand pack should own are listed in the PR.
+
 **Next task:** when the release after 0.7.6 exists, run `gh workflow run update-proof.yml -f from=0.7.6 -f to=<next>
 -f os=all` (no build: 0.7.6 carries the fix) — the first proof on released code end to end. Then FD-42 (theme picker)
 and FD-49 (LC-17 admission; this Mac had 0.5 GB free during this release, so measure before choosing the floor).
