@@ -32,6 +32,14 @@ SCN-055. The installed copy picks 0.7.7 up by itself (6-hourly check, then 10 hi
 10 GB in use; this checkout's own temp files total under 1 MB), so `update.test.ts` passed on its SCN-063 branch
 (start deferred, nothing spawned) and SCN-055 stays a draft. Rerun when `df` shows ≥ 5 GB right before the test.
 
+2026-10-13, later: FD-63 (#124: the pre-commit hook runs org-index `check_private.py`; #123 removed the 12 real
+findings from this public tree; earlier commits in its history still hold them; a history rewrite is the operator's call)
+and FD-64 (#125, unreleased, in `CHANGELOG.md` *Unreleased*: ⌘H fires no window event, so a ready update never
+started its grace). The installed 0.7.6 has had 0.7.7 verified and ready since 04:29 UTC. It installs when the window is
+shown and then closed, or at quit (Squirrel), or by itself once a build with FD-64 runs.
+**Next task:** release 0.7.8 with FD-64 when the next change is ready (or alone, if the installed copies keep holding),
+then the items above.
+
 ## Next — start here (2026-10-12, CT-21 from the contract)
 
 **Branch `agent/ct21-windows-token-acl`.** The contract session closed wave 4 (fabric-agent-contract `7688304`) and
