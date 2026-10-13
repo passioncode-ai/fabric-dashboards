@@ -17,7 +17,7 @@ Operator 2026-10-12: «давай закроем все задачи из бэк
 | Fabric board in a fabric-service well-known | no Fabric descriptor among the 22 on this Mac | FD-12 stays blocked |
 | Observatory read of policy, budget left, grants | 0.24.1 serves `grant.check` (callee side) only; no host read | FD-40 stays blocked; FD-46's budget-left part waits with it |
 | Observatory node (`node.lifecycle.*`) | not served | FD-37 M5 and FD-52 wait |
-| Vesta pages and origin | no Vesta descriptor on this Mac | FD-53 stays blocked |
+| The first organization server's pages and origin | no descriptor of the first organization server on this Mac | FD-53 stays blocked |
 
 ## Canvas — target state per node
 
