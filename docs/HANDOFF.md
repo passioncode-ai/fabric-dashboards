@@ -45,8 +45,22 @@ runtime path was not walked on this Mac. After the release: update-proof 0.7.7 �
 Linux x64/arm64 (run 38427268115). On this Mac, the installed 0.7.7 had 0.7.8 verified and ready at 16:16 UTC. 0.7.7
 still has the ⌘H defect, so it installs after a window close or a quit if the window was hidden with ⌘H.
 fabric-workspace `knowledge/roadmap.md` and `products.md` name 0.7.8 (#201).
-**Next task:** walk the console's runtime path (`test/e2e/focus-console.test.ts`, `update.test.ts` for SCN-055) on a
-disk with ≥ 5 GB free, then the items above.
+**0.7.9 released 2026-10-13/14** (tag on `bd9e90e`, release run 38470000938, all stages green, 16 assets): FD-62, hand-overs
+from Switchboard (SB-108, Switchboard 0.6.28 carries `handovers`) open in the console, not in Terminal (PR #130; SCN-069
+draft; `test/handovers.test.ts` 7/7, and it fails against a planted re-take defect). Before the tag: five-runner `validate.yml`
+green (run 38469141900); `npm run check` 541 pass / 0 fail. e2e on the FD-62 code: first full run 18/19 (Spend timed out once
+with swap at 21 of 22.5 GB), then Spend alone and a second full run 19/19. After the release: update-proof 0.7.8 → 0.7.9
+green on Windows x64/arm64 and Linux x64/arm64 (run 38473748939). The installed copy on this Mac reached 0.7.8 and takes
+0.7.9 by itself.
+
+RM-28 pilot (operator 2026-10-13): Dashboards answered the pilot packet §4 (fabric-workspace #205). Its answer changes the
+proposed part: it shows and embeds the organization server's admin agents and pages, and installs nothing. FD-52 and
+FD-53 are marked `RM-28 pilot`.
+
+**Next task:** the live FD-62 check. The fabric-switchboard session turns `switchboard handovers set on` once its app runs 0.6.28
+(held by a visible window) and Dashboards runs 0.7.9. It then runs one hand-over end to end: the console takes it exactly once,
+and no Terminal opens. Validate SCN-069 from that run. Then walk the console's runtime path (`test/e2e/focus-console.test.ts`,
+`update.test.ts` for SCN-055) on a disk with ≥ 5 GB free, then the items above.
 
 ## Next — start here (2026-10-12, CT-21 from the contract)
 
