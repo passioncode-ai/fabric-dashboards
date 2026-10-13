@@ -142,6 +142,7 @@ due probe or rescan — no fixed 1-second poll — and one for the events feed:
 | `launchctl print` per launchd service | with every probe | only after a missed probe, a changed pid, or 5 min |
 | `launchctl print-disabled` | at most once a minute, and only when a `print` runs | same |
 | Directory rescan (reads small JSON files, no spawn) | on `fs.watch`, plus every 5 s | on `fs.watch`, plus every 60 s (30 s if the watcher failed) |
+| Window visibility check (FD-64: ⌘H fires no window event; one boolean, no spawn, no IPC) | 0.5 s after the app becomes or stops being active, plus every 15 s | same |
 | Status push to the window / tray rebuild / Dock badge | only when what a person can see changed | no IPC to a hidden window; tray and badge only when they would differ |
 | Activity writes | appended rows when events arrive; state debounced 2 s | same |
 | Update check (LC-16 in detail, ADR-0015 amendment: the pinned `update-feed.json` of the latest release, then that release's signed `SHA256SUMS`, its zip and the app's signature verified before Squirrel stages it) | 90 s after start, then every 6 h — the resident-app reading of LC-16; one retry within the hour after a failure; nothing automatic while the `auto-update` file says `off`; none outside Applications (`misplaced`); a release with `needsPerson` is verified and held | same; a downloaded update installs after 10 hidden minutes (ADR-0015) |

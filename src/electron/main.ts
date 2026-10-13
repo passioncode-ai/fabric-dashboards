@@ -30,7 +30,7 @@ import { powerShellAfterExit } from '../core/after-exit';
 import { SettingsStore } from '../core/settings';
 import type { AppStatus, Settings, SettingsPatch } from '../core/types';
 import { ALWAYS_KEPT, cancelStagedUpdate, clearRestoreRecord, KEPT_FILES, productDataPaths, purgeAfterExit, readRestoreRecord, removeMcpRegistrations, repairMcpRegistrations, restoreMcpRegistrations, writeRestoreRecord } from '../core/uninstall';
-import { autoInstallNow, HiddenGrace, partitionFor, RELAUNCH_MARKER, relaunchHidden, RESUME_ROUTE_MARKER, resumeRoute, type ResumeRoute, stalePartitions, UPDATE_IDLE_MS, VIEW_RELEASE_GRACE_MS } from './policy';
+import { autoInstallNow, autoInstallWait, HiddenGrace, partitionFor, RELAUNCH_MARKER, relaunchHidden, RESUME_ROUTE_MARKER, resumeRoute, type ResumeRoute, stalePartitions, UPDATE_IDLE_MS, VIEW_RELEASE_GRACE_MS, VISIBILITY_SYNC_MS, VisibilitySync } from './policy';
 import { AppTray } from './tray';
 import { DockSync } from './dock';
 import { linkInArgv, menuKeys, notificationSettingsUrl, places, startHidden, uninstallCommand, uninstallTarget, windowChrome } from '../core/platform';
@@ -221,9 +221,15 @@ if (!app.requestSingleInstanceLock()) {
   // UPDATE_IDLE_MS and no command the app started is running; the relaunch stays in the menu bar.
   const updateGrace = new HiddenGrace(UPDATE_IDLE_MS, () => autoInstall());
   let busyRetry: NodeJS.Timeout | null = null;
+  let waitSaid: string | null = null;
   function autoInstall(): void {
     const busy = ownedCount() + consoles.manager.runningCount(); // ADR-0017: a running console is work in progress
-    if (!autoInstallNow({ ready: updater.state.state === 'ready', autoUpdate: settings.get().autoUpdate, visible: windowVisible(), busy })) {
+    const now = { ready: updater.state.state === 'ready', autoUpdate: settings.get().autoUpdate, visible: windowVisible(), busy };
+    if (!autoInstallNow(now)) {
+      // FD-64: a held install says why, once per reason — 0.7.7 waited two silent hours on this Mac.
+      const why = autoInstallWait(now);
+      if (why && why !== waitSaid) log(`update: the automatic install of ${updater.state.version ?? 'the update'} waits: ${why}`);
+      waitSaid = why;
       // R-10: one retry at a time, and showing the window cancels it — the 10 hidden minutes start again.
       if (busy && updater.state.state === 'ready' && !busyRetry) busyRetry = setTimeout(() => { busyRetry = null; autoInstall(); }, 60_000);
       busyRetry?.unref();
@@ -258,6 +264,7 @@ if (!app.requestSingleInstanceLock()) {
   }
   // #endregion end-work-question
   function windowShown(): void {
+    visibility.note(true);
     updateGrace.shown();
     if (busyRetry) { clearTimeout(busyRetry); busyRetry = null; }
     viewGrace.shown();
@@ -266,10 +273,19 @@ if (!app.requestSingleInstanceLock()) {
     void views?.resume((key) => monitor.snapshot(key)).then(() => views?.announce());
   }
   function windowHidden(): void {
+    visibility.note(false);
     monitor.setVisible(false);
     viewGrace.hidden();
     updateGrace.hidden();
   }
+  // FD-64: ⌘H and the return from it send the window no hide or show event, so what is on screen is
+  // compared after every activation change and on a slow tick (one boolean, no spawn, no IPC).
+  const visibility = new VisibilitySync(windowVisible, windowShown, windowHidden, false);
+  const syncVisibility = () => { if (visibility.sync()) log(`window ${windowVisible() ? 'shown' : 'hidden'} without a window event (FD-64)`); };
+  app.on('did-resign-active', () => setTimeout(syncVisibility, 500));
+  app.on('did-become-active', () => setTimeout(syncVisibility, 500));
+  const visibilityTick = setInterval(syncVisibility, VISIBILITY_SYNC_MS);
+  visibilityTick.unref();
   // #endregion quiet-push
 
   // FD-05 / FD-35: the Dock follows the window, and a hide always wins (src/electron/dock.ts).
@@ -732,6 +748,7 @@ if (!app.requestSingleInstanceLock()) {
     alerts.stop(); // FD-48: no tick after quit begins
     viewGrace.dispose();
     updateGrace.dispose();
+    clearInterval(visibilityTick); // FD-64
     // #region estate-update — docs: docs/adr/0018-estate-updates-from-inside-the-app.md#decision
     estate.stop(); // ADR-0018: no estate check or retry past this point
     // #endregion estate-update

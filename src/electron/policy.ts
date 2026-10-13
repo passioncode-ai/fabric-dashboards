@@ -155,6 +155,34 @@ export class HiddenGrace {
   }
 }
 
+/** FD-64: on macOS, ⌘H (`app.hide()`) and the return from it fire no BrowserWindow `hide` or `show`
+ *  event — measured on Electron 44.4.5: `isVisible()` turns false and no event comes. The window events
+ *  can then drift from what is on screen, and the monitor's cadence, the view release and the update
+ *  grace drift with them. `sync()` compares the two and calls the matching handler once per change. */
+export const VISIBILITY_SYNC_MS = 15_000;
+
+export class VisibilitySync {
+  private last: boolean;
+
+  constructor(private readonly visible: () => boolean, private readonly onShown: () => void, private readonly onHidden: () => void, initial: boolean) {
+    this.last = initial;
+  }
+
+  /** A window event already handled this change: the next sync must not repeat it. */
+  note(visible: boolean): void {
+    this.last = visible;
+  }
+
+  /** Handles a change no event reported. True when a handler ran. */
+  sync(): boolean {
+    const now = this.visible();
+    if (now === this.last) return false;
+    this.last = now;
+    (now ? this.onShown : this.onHidden)();
+    return true;
+  }
+}
+
 /** The page a released view was on, as a path on its origin; anything else resumes at the dashboard. */
 export function resumePath(currentUrl: string, serviceOrigin: string): string | undefined {
   let url: URL;
@@ -203,6 +231,15 @@ const RELAUNCH_FRESH_MS = 30 * 60_000;
 /** Install now: an update is ready, the person allows it, nobody is looking and nothing runs. */
 export function autoInstallNow(o: { ready: boolean; autoUpdate: boolean; visible: boolean; busy: number }): boolean {
   return o.ready && o.autoUpdate && !o.visible && o.busy === 0;
+}
+
+/** FD-64: why a ready update is not installing by itself, for the log; null when nothing is ready or nothing holds it. */
+export function autoInstallWait(o: { ready: boolean; autoUpdate: boolean; visible: boolean; busy: number }): string | null {
+  if (!o.ready) return null;
+  if (!o.autoUpdate) return 'automatic updates are off';
+  if (o.visible) return 'the window is shown';
+  if (o.busy > 0) return `${o.busy} console session(s) or command(s) running`;
+  return null;
 }
 
 /** The marker an automatic install wrote, if it was written recently enough to be this relaunch. */
