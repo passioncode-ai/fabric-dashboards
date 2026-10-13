@@ -1,6 +1,6 @@
 # Dashboard session refresh — bounded implementation brief
 
-Base: `a7a92aa` on `origin/main`. Operator task via Nicegram community-manager
+Base: `a7a92aa` on `origin/main`. Operator task via a client community-manager
 release, 2026-10-09. Scope: an explicit dashboard refresh/reopen uses the existing
 registered service's sign-in flow once, preserves the validated same-origin
 page, and shows failure. No generic 404 retry, grant, secret change, service
@@ -23,7 +23,7 @@ Native E2E and signed release are separate outstanding gates, not local test cla
 
 ## Source evidence and decisions
 
-- `src/electron/views.ts:68` only retries main-frame 401; parent Nicegram owner
+- `src/electron/views.ts:68` only retries main-frame 401; parent service owner
   HTTP checks establish anonymous protected pages return 404. The handler body
   is identical in installed release tag `v0.6.6` and inspected head `e9fe13b`.
 - Read-only source-derived listener replay: HTTP200 → zero reauth; HTTP401 → one;
@@ -77,7 +77,7 @@ Validation, 2026-10-09, Node 26.10.0:
   --json` reported zero vulnerabilities. No dependency change is included in this fix.
 - Native `npm run test:e2e`: initially **NOT_RUN** under the original no-UI scope;
   a subsequently authorized isolated attempt was blocked at preflight (below).
-  Installed app, Nicegram runtime, estate memberships and service tokens were not
+  Installed app, the client runtime, estate memberships and service tokens were not
   changed. Local checks do not establish the cause of the earlier blank window.
 
 ## Handoff status and next task

@@ -137,7 +137,7 @@
   ],
   "monorepo": true,
   "name": "fabric-dashboards",
-  "root": "/Users/sshlg/DATA/fabric-dashboards",
+  "root": "~/DATA/fabric-dashboards",
   "submodules": [],
   "telemetry": [],
   "tracked_files": 141,
@@ -154,7 +154,7 @@
    "f-81d7e8d2396c"
   ]
  },
- "root": "/Users/sshlg/DATA/fabric-dashboards",
+ "root": "~/DATA/fabric-dashboards",
  "schema": "project-audit/1",
- "sidecar": "/Users/sshlg/DATA/fabric-dashboards/docs/audit/2026-10-02-audit.json"
+ "sidecar": "~/DATA/fabric-dashboards/docs/audit/2026-10-02-audit.json"
 }
