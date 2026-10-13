@@ -12,7 +12,7 @@ import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 /** `docs/adr/*.md` style globs: `*` stays inside one path segment, nothing else is special. */
 export function globToRegExp(glob) {
@@ -67,6 +67,15 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.a
   const root = spawnSync('git', ['rev-parse', '--show-toplevel'], { encoding: 'utf8' }).stdout.trim();
   const staged = spawnSync('git', ['diff', '--cached', '--name-only', '--diff-filter=ACMRD'], { cwd: root, encoding: 'utf8' })
     .stdout.split('\n').filter(Boolean);
-  process.exit(check({ root, staged, agentSync: findAgentSync() }));
+  const lease = check({ root, staged, agentSync: findAgentSync() });
+  if (lease !== 0) process.exit(lease);
+  // FD-63: the private-data check runs next. A checkout that predates it has no private-guard.mjs and commits as before.
+  const guard = path.join(path.dirname(fileURLToPath(import.meta.url)), 'private-guard.mjs');
+  // A promise, not a top-level await: tests load this file through tsx, which compiles it to CommonJS.
+  if (!fs.existsSync(guard)) process.exit(0);
+  import(pathToFileURL(guard).href).then(
+    ({ checkPrivate, findCheckPrivate }) => process.exit(checkPrivate({ root, script: findCheckPrivate(root) })),
+    (e) => { process.stderr.write(`private-guard: could not load (${e.message}); the commit goes on unchecked.\n`); process.exit(0); },
+  );
 }
 // #endregion lease-guard
