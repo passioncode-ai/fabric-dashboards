@@ -28,6 +28,10 @@ wait for other products (each re-verified 2026-10-12).
 free, run `node --import tsx --test test/e2e/update.test.ts` (it then walks SCN-055's agent start) and validate
 SCN-055. The installed copy picks 0.7.7 up by itself (6-hourly check, then 10 hidden minutes).
 
+2026-10-13 00:56 UTC: tried. The disk had 5.52 GB free before the build, 3.80 GB once the test started (swap 9.1 of
+10 GB in use; this checkout's own temp files total under 1 MB), so `update.test.ts` passed on its SCN-063 branch
+(start deferred, nothing spawned) and SCN-055 stays a draft. Rerun when `df` shows ≥ 5 GB right before the test.
+
 ## Next — start here (2026-10-12, CT-21 from the contract)
 
 **Branch `agent/ct21-windows-token-acl`.** The contract session closed wave 4 (fabric-agent-contract `7688304`) and
