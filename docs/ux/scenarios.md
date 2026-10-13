@@ -26,14 +26,14 @@
 | SCN-018 | Activity when a service's feed cannot be read | activity | P-01 | ST-006 | validated | 2026-10-13 |
 | SCN-019 | Notification when a service goes down and comes back | notifications | P-01 | ST-007 | draft | 2026-10-06 |
 | SCN-020 | Notification from a service event opens the item | notifications | P-01 | ST-007, ST-006 | draft | 2026-10-06 |
-| SCN-021 | Update a service | updates | P-01 | ST-008 | draft | 2026-10-06 |
+| SCN-021 | Update a service | updates | P-01 | ST-008 | validated | 2026-10-13 |
 | SCN-022 | The app updates itself | updates | P-01 | ST-008 | validated | 2026-10-12 |
 | SCN-023 | Glance from the menu bar | tray | P-01 | ST-009 | validated | 2026-10-12 |
 | SCN-024 | Settings: launch at login, notifications, quiet hours | settings | P-01 | ST-010, ST-007 | validated | 2026-10-13 |
 | SCN-025 | Run doctor and read logs | control | P-01 | ST-003 | validated | 2026-10-13 |
 | SCN-026 | Open a service page from a link an agent handed over | links | P-01 | ST-011, ST-005 | validated | 2026-10-12 |
 | SCN-027 | A link that cannot be opened | links | P-01 | ST-011 | validated | 2026-10-12 |
-| SCN-028 | An agent reads and administers services through MCP | agents | P-01 | ST-012, ST-003 | draft | 2026-10-06 |
+| SCN-028 | An agent reads and administers services through MCP | agents | P-01 | ST-012, ST-003 | validated | 2026-10-13 |
 | SCN-029 | Open a service from Fabric's agent registry | links | P-01 | ST-011, ST-005, ST-003 | validated | 2026-10-12 |
 | SCN-030 | Online services appear in their own group | overview | P-01 | ST-013, ST-002 | validated | 2026-10-13 |
 | SCN-031 | Open an online service's dashboard, signed in | dashboards | P-01 | ST-013, ST-005 | validated | 2026-10-12 |
@@ -68,7 +68,7 @@
 | SCN-060 | The dashboard keeps its floor while the console widens | console | P-01 | ST-019 | draft | 2026-10-11 |
 | SCN-061 | Talk to Fabric about this agent | console | P-01 | ST-020 | validated | 2026-10-12 |
 | SCN-062 | Outages reach me away from the Mac | notifications | P-01 | ST-002 | validated | 2026-10-13 |
-| SCN-063 | A session starts only when the Mac can carry it | console | P-01 | ST-019 | draft | 2026-10-12 |
+| SCN-063 | A session starts only when the Mac can carry it | console | P-01 | ST-019 | validated | 2026-10-13 |
 | SCN-064 | See what Switchboard runs for this agent | console | P-01 | ST-019 | draft | 2026-10-12 |
 | SCN-065 | A provider limit does not stop the agent | console | P-01 | ST-019 | draft | 2026-10-12 |
 | SCN-066 | An idle session closes and comes back | console | P-01 | ST-019 | draft | 2026-10-12 |
@@ -502,8 +502,8 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **UI elements:** Update button, output panel, version label
 - **States covered:** loading, success, error
 - **Errors & recovery:** non-zero exit -> the output stays visible; the service keeps its previous state
-- **Status:** draft
-- **Coverage:** src/core/monitor.ts, src/renderer/components/ServiceView.tsx
+- **Status:** validated
+- **Coverage:** src/core/monitor.ts, src/renderer/components/ServiceView.tsx, test/e2e/update.test.ts
 - **Product:** unobserved
 
 ### SCN-022: The app updates itself
@@ -700,8 +700,8 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **UI elements:** none (agent tool results); the opened service view
 - **States covered:** success, error
 - **Errors & recovery:** installed-host open failure, unknown discovery, incompatible version and wrong handler open no browser; OS acceptance is not page readiness; a restart that gets no new answer within 40 s is reported as not done, with the state it left; a refusal is a tool error the agent reads, not a crash
-- **Status:** draft
-- **Coverage:** src/mcp/tools.ts, src/mcp/server.ts, test/mcp.test.ts
+- **Status:** validated
+- **Coverage:** src/mcp/tools.ts, src/mcp/server.ts, test/mcp.test.ts, test/e2e/mcp-admin.test.ts, test/e2e/app.test.ts
 - **Product:** unobserved
 
 - **Cold-start acceptance:** from the packaged MCP, opening a link while the app is closed launches its graphical host and selected page. The MCP-only Electron RunAsNode flag is not inherited by desktop dispatch. Verify actual page readiness separately from the OS-acceptance receipt.
@@ -1076,8 +1076,8 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **UI elements:** the console's notice line
 - **States covered:** success, error
 - **Errors & recovery:** the disk or swap cannot be read -> the start is not refused for it; the person frees space or stops a session and presses the button again
-- **Status:** draft
-- **Coverage:** src/core/admission.ts, src/electron/console.ts, src/renderer/components/ConsolePanel.tsx, test/admission.test.ts, test/console-admission.test.ts
+- **Status:** validated
+- **Coverage:** src/core/admission.ts, src/electron/console.ts, src/renderer/components/ConsolePanel.tsx, test/admission.test.ts, test/console-admission.test.ts, test/e2e/update.test.ts (the deferral observed on this Mac with 2.3 GB free, 2026-10-13)
 - **Product:** unobserved
 
 ### SCN-064: See what Switchboard runs for this agent
