@@ -40,3 +40,21 @@ lease ([docs/AGENT_SYNC.md](docs/AGENT_SYNC.md)). `npm ci` installs a `pre-commi
 guarded path is refused unless `agent_sync.py guard <path>` allows it, and refused with the
 install command where agent-sync is absent. Take the lease first (`agent_sync.py acquire <file>`),
 release it after. A pre-commit hook another tool installed is left alone and named.
+
+## Private data
+
+This repository is public. The same `pre-commit` hook then runs `scripts/private-guard.mjs` (FD-63). It finds org-index
+`scripts/check_private.py` (Fabric ADR-0092): `$CHECK_PRIVATE_PY` first, then an `org-index` clone beside this checkout,
+then `~/DATA/org-index`. With it, the hook refuses a commit while any tracked file holds one of these:
+- a private name from the local denylist (P1);
+- an address outside the allowed set (P2);
+- a home path (P3);
+- an account id (P4).
+
+The findings are printed. Replace the value. A reviewed synthetic P2–P4 finding, such as a made-up test home folder, goes into
+`.check-private-allow` by the fingerprint the checker prints; a P1 term never does.
+
+The denylist is private and lives only on the operator's machines, so CI cannot run this check:
+- With no denylist (the checker's exit 2) or no checker, the commit goes on silently.
+- A checker that cannot run is named, and the commit goes on.
+- `CHECK_PRIVATE_PY=none` turns the check off.
