@@ -98,7 +98,7 @@ test('parseRegistryVersion reads the first release version; a prerelease is neve
   assert.equal(estate.parseRegistryVersion(''), null);
 });
 
-const publisher = (o: Record<string, unknown>) => JSON.stringify({ version: '1.52.6', maintainers: ['ssheleg <sergeysheleg4@gmail.com>'], _npmUser: 'ssheleg <sergeysheleg4@gmail.com>', ...o });
+const publisher = (o: Record<string, unknown>) => JSON.stringify({ version: '1.52.6', maintainers: ['ssheleg <owner@example.com>'], _npmUser: 'ssheleg <owner@example.com>', ...o });
 
 test('publisherTrusted: every maintainer and the publisher of the checked version, from the real --json shape (review finding 3)', () => {
   assert.equal(estate.publisherTrusted(publisher({}), '1.52.6'), true, 'the registry answer of 2026-10-07');

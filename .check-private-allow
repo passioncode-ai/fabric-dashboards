@@ -1,0 +1,20 @@
+# Reviewed synthetic findings (org-index scripts/check_private.py, Fabric ADR-0092), 2026-10-13.
+# P2 in package-lock.json: a third-party npm author's address in the published package metadata.
+# P3 in tests: made-up home folders (/Users/x, /Users/me, /Users/e, /Users/p) that exercise path handling.
+# P3 /home/linuxbrew: Homebrew's standard Linux prefix, not a person's folder.
+P2:package-lock.json:b0373516d594ddd1
+P3:packages/service-host/test/health.test.ts:793ca68cbafbc06a
+P3:src/core/runtimes.ts:dc2370f3919b6b5e
+P3:test/autostart.test.ts:9c1db200d6946643
+P3:test/console.test.ts:73de225f29dce8dc
+P3:test/console.test.ts:bf272c476e9403bb
+P3:test/console.test.ts:da4de8c7a5751230
+P3:test/estate-update.test.ts:793ca68cbafbc06a
+P3:test/estate-update.test.ts:e21f0b006090b388
+P3:test/handoff.test.ts:73de225f29dce8dc
+P3:test/lifecycle.test.ts:da4de8c7a5751230
+P3:test/parts.test.ts:da4de8c7a5751230
+P3:test/platform.test.ts:76e10e3a79f62610
+P3:test/platform.test.ts:793ca68cbafbc06a
+P3:test/self-update.test.ts:9c1db200d6946643
+P3:test/uninstall-platforms.test.ts:793ca68cbafbc06a

@@ -85,7 +85,7 @@ test('FD-48: the channel is a local service offering <id>.notify over streamable
   assert.deepEqual(notifyChannelOf(channel), { key: 'relay.default', origin: 'http://127.0.0.1:47832', path: '/mcp', capability: 'relay.notify' });
   assert.equal(notifyChannelOf(ready('far.default', ['far.notify'], 'https://far.example.com')), null, 'this machine only');
   assert.equal(notifyChannelOf(ready('x.default', ['x.notifyAll'])), null);
-  const other = ready('copy.default', ['copylot.write']);
+  const other = ready('writer.default', ['writer.write']);
   assert.equal((chooseChannel([channel, other], 'auto') as { key: string }).key, 'relay.default');
   assert.deepEqual(chooseChannel([other], 'auto'), { none: 'none-installed' });
   assert.deepEqual(chooseChannel([channel, ready('b.default', ['b.notify'])], 'auto'), { none: 'several' });

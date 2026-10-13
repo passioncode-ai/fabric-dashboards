@@ -10,7 +10,7 @@ Operator 2026-10-12: «давай закроем все задачи из бэк
 |---|---|---|
 | Switchboard SB-95 `sessions`, SB-65 restart-safe sign-ins, SB-98 limit failover | `switchboard --version` → 0.6.20 (release v0.6.20 2026-10-12); `switchboard --json sessions` → `{"ok":true,"data":{"sessions":[]}}`; SB-98 commit `4f98b72` is in tags v0.6.17+ | FD-43, FD-50, FD-51 unblocked |
 | `codex/dashboard-session-refresh` | merged (`619b2f1`, PR #101) | FD-42 unblocked |
-| Contract runner/model profile field | `service-well-known.schema.json` `configuration.resolved.{runnerProfile,runnerKind,route,modelProfile,models}` (DEC-0046) at fabric-agent-contract `0656aa1`; frame-agent serves `configuration` | FD-46 unblocked except budget left |
+| Contract runner/model profile field | `service-well-known.schema.json` `configuration.resolved.{runnerProfile,runnerKind,route,modelProfile,models}` (DEC-0046) at fabric-agent-contract `0656aa1`; a service on this Mac serves `configuration` | FD-46 unblocked except budget left |
 | Contract `lifecycle.manager` per supervisor | enum `launchd, systemd, task-scheduler, node, none` (DEC-0032/0057/0061) | FD-55 buildable |
 | Contract `surfaces.a2a` in the service well-known | absent (a2a only a binding/manifest `profileKind`) | FD-22 stays blocked |
 | Contract instance context / audience (CX-11) | absent | FD-52 stays blocked |

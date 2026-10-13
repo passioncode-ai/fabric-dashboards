@@ -394,4 +394,4 @@ fabric-dashboards-mcp 0.6.6: leaving (SIGTERM)
 ℹ duration_ms 9722.508834
 PASS brand: 2 vendored files match their pins
 PASS code regions: 74 marker(s), every one closed and every docs reference resolves
-OK — docs/ux is consistent (/Users/sshlg/DATA/fabric-dashboards-session-refresh/docs/ux)
+OK — docs/ux is consistent (~/DATA/fabric-dashboards-session-refresh/docs/ux)
