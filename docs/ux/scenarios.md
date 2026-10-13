@@ -74,6 +74,7 @@
 | SCN-066 | An idle session closes and comes back | console | P-01 | ST-019 | draft | 2026-10-12 |
 | SCN-067 | Dashboards take my scheme and theme | settings | P-01 | ST-019 | validated | 2026-10-13 |
 | SCN-068 | See which runner and model an agent uses | service | P-01 | ST-019 | validated | 2026-10-13 |
+| SCN-069 | A hand-over opens in the console | console | P-01 | ST-019 | draft | 2026-10-13 |
 ## Personas
 
 Defined in [foundation.md](foundation.md) → P-01.
@@ -1169,6 +1170,26 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **Errors & recovery:** the usage report cannot be read -> no spend line beyond "No usage reported"; Spend says why
 - **Status:** validated
 - **Coverage:** src/renderer/components/ServiceView.tsx, packages/service-host/src/protocol.ts, test/e2e/profile.test.ts
+- **Product:** unobserved
+
+### SCN-069: A hand-over opens in the console
+- **Persona:** P-01
+- **Feature:** console
+- **Traces:** ST-019; Switchboard SB-108; FD-62 (operator 2026-10-12: «открывать агентов внутри Фабрики, чтобы не копились терминалы»)
+- **Entry point:** none — Switchboard hands a continuing session over while Fabric Dashboards runs
+- **Preconditions:** Switchboard 0.6.26 or later with "Open hand-overs in Fabric" on (`switchboard handovers set on`); the running Switchboard app is as new as its CLI
+- **Steps:**
+  1. Switchboard's automatic fallback prepares a continuing session and leaves it as a hand-over -> within 15 seconds (60 while the window is hidden) the app takes it with `switchboard handovers run <id>` on a console
+  2. The hand-over's folder is a registered agent's console folder and that console runs nothing -> the session runs in that agent's console, under "Handed over by Switchboard: <workflow>, on <account>."
+  3. Otherwise -> the session runs in a console of its own, listed in the sidebar under "Hand-overs" with its workflow; opening it shows the agent, the account and the folder beside the console
+  4. The session ends -> its entry says "Ended"; Close removes it from the list
+- **Expected result:** Switchboard's continuing sessions run inside the app, not in a new Terminal window each
+- **Alt paths:** less than 5 GB free, six sessions already run, or the folder is not on this Mac -> the app leaves the hand-over, and Switchboard opens it in Terminal after two minutes as before; the offer has lapsed -> nothing is taken; another console or Terminal took it first -> the console shows Switchboard's own message; Switchboard is not installed -> nothing is read; the running Switchboard is older than its CLI -> nothing is taken, and the reason is logged once
+- **UI elements:** the sidebar's Hand-overs section, the hand-over page, the console's hand-over line, Close
+- **States covered:** empty, success, error
+- **Errors & recovery:** a hand-over that cannot be read or taken goes to Terminal on Switchboard's side after two minutes; nothing is lost
+- **Status:** draft
+- **Coverage:** src/core/switchboard.ts, src/electron/console.ts, src/electron/main.ts, src/renderer/App.tsx, src/renderer/components/ConsolePanel.tsx, test/handovers.test.ts
 - **Product:** unobserved
 
 ### SCN-060: The dashboard keeps its floor while the console widens

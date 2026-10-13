@@ -22,6 +22,8 @@ export interface ConsoleInfo {
   session: { state: 'idle' | 'running' | 'exited'; label: string; cwd: string; output: string; end: number; exitCode: number | null; signal: number | null };
   /** FD-50 (LC-18): the session was closed after the idle time; opening the console continues it. */
   idle: { at: string; account: string | null } | null;
+  /** FD-62: the session this console runs came from a Switchboard hand-over (SB-108). */
+  handover?: { id: string; workflow: string; agent: string; account: string; dir: string } | null;
 }
 
 /** FD-43/FD-51: the Switchboard sessions of a console's folder, or why there are none to show. */
@@ -104,6 +106,8 @@ export interface FabricApi {
   consoleStop(key: string): Promise<void>;
   /** FD-43: what Switchboard launched in this console's folder; asked only while the console is shown. */
   consoleSessions(key: string): Promise<ConsoleSessions>;
+  /** FD-62: a finished hand-over console leaves the list. */
+  consoleDismissHandover(key: string): Promise<void>;
   /** Continue the same runtime and folder in Terminal (through Switchboard for a bound folder). */
   consoleOpenTerminal(key: string, mode: 'new' | 'continue'): Promise<{ ok: boolean; error?: string }>;
   /** Output and exits while the window is visible; a hidden window gets nothing and asks `consoleInfo` again. */
@@ -159,6 +163,7 @@ export const CHANNELS = {
   consoleResize: 'fd:console-resize',
   consoleStop: 'fd:console-stop',
   consoleSessions: 'fd:console-sessions',
+  consoleDismissHandover: 'fd:console-dismiss-handover',
   consoleOpenTerminal: 'fd:console-open-terminal',
   consoleEvent: 'fd:console-event',
   layoutCommand: 'fd:layout-command',

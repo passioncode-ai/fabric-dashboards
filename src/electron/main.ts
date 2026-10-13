@@ -12,7 +12,7 @@ import { killOwned, ownedCount } from '../core/children';
 import { endWorkQuestion } from '../core/consoles';
 import { pendingInstallVersion, stepAside } from './pending-install';
 import { displayName } from '../core/names';
-import { ConsoleHost } from './console';
+import { ConsoleHost, HANDOVER_POLL_MS } from './console';
 import { appendLog, sweepTemps } from '../core/fsutil';
 import { parseDeepLink, SCHEME } from '../core/deeplink';
 import { servicesDir, windowsPowerShellEnv } from '@passioncode-ai/fabric-service-host';
@@ -142,7 +142,8 @@ if (!app.requestSingleInstanceLock()) {
   });
   const consoles = new ConsoleHost({ settings, snapshot: (key) => monitor.snapshot(key), window: () => window, visible: () => windowVisible(), log: (line) => log(line), testDirs: testRuntimeDirs, scriptsDir: path.join(userData, 'console'),
     packRoot: path.join(userData, 'consoles'), version: app.getVersion(), activity: (key) => activity.list({ serviceKey: key }, 200), mcpServer,
-    setupState: () => readSetupState(os.homedir(), monitor.snapshots().length) });
+    setupState: () => readSetupState(os.homedir(), monitor.snapshots().length),
+    keys: () => monitor.snapshots().map((x) => x.key), changed: () => pushStatus() });
   let tray: AppTray | null = null;
   // R-3: the window lets itself close only once a quit is really under way — before-quit, or
   // Squirrel's before-quit-for-update. A failed install puts the window back to hiding on close.
@@ -187,7 +188,7 @@ if (!app.requestSingleInstanceLock()) {
   // #endregion outage-alerts
   const status = (): AppStatus => ({
     services: monitor.snapshots(), ...monitor.meta(), unread: activity.unread(), activityRev: activity.revision, update: updater.state, estate: estate.state, version: app.getVersion(),
-    alerts: alerts.status(),
+    alerts: alerts.status(), handovers: consoles.handoverConsoles(),
   });
 
   // #region quiet-push — docs: AGENTS.md#lifecycle
@@ -286,6 +287,19 @@ if (!app.requestSingleInstanceLock()) {
   app.on('did-become-active', () => setTimeout(syncVisibility, 500));
   const visibilityTick = setInterval(syncVisibility, VISIBILITY_SYNC_MS);
   visibilityTick.unref();
+  // FD-62 (SB-108): hand-overs Switchboard leaves for a console — every 15 s while the window is shown, every
+  // 60 s while it is hidden, nothing without Switchboard (ConsoleHost.pollHandovers).
+  let handoverTimer: NodeJS.Timeout | null = null;
+  const pollHandovers = () => {
+    handoverTimer = null;
+    void consoles.pollHandovers().catch((error) => log(`console: hand-over read failed: ${(error as Error).message}`)).finally(() => {
+      if (quitting) return;
+      handoverTimer = setTimeout(pollHandovers, windowVisible() ? HANDOVER_POLL_MS.visible : HANDOVER_POLL_MS.hidden);
+      handoverTimer.unref();
+    });
+  };
+  handoverTimer = setTimeout(pollHandovers, HANDOVER_POLL_MS.visible);
+  handoverTimer.unref();
   // #endregion quiet-push
 
   // FD-05 / FD-35: the Dock follows the window, and a hide always wins (src/electron/dock.ts).
@@ -749,6 +763,7 @@ if (!app.requestSingleInstanceLock()) {
     viewGrace.dispose();
     updateGrace.dispose();
     clearInterval(visibilityTick); // FD-64
+    if (handoverTimer) clearTimeout(handoverTimer); handoverTimer = null; // FD-62: no read after quit begins
     // #region estate-update — docs: docs/adr/0018-estate-updates-from-inside-the-app.md#decision
     estate.stop(); // ADR-0018: no estate check or retry past this point
     // #endregion estate-update

@@ -192,16 +192,23 @@ export function ConsolePanel({ serviceKey, width, max, onWidth, onHide, task, on
   const bound = info?.binding.kind === 'project' ? info.binding : null;
   const terminalOnly = Boolean(bound && runtime?.viaSwitchboard && !bound.inPlace);
   const folderOk = Boolean(info?.folder?.exists);
+  // FD-62 (SB-108): a hand-over's own console runs only what Switchboard handed over — no runtime, folder or start of its own.
+  const ownHandover = /^handover\./.test(serviceKey);
+  const handover = info?.handover ?? null;
 
   return (
     <aside className="console-panel" style={{ width }} aria-label={t('console.title')}>
       <div className="console-edge" role="separator" aria-orientation="vertical" aria-label={t('console.resize')} aria-valuemin={CONSOLE_WIDTH.min} aria-valuemax={max} aria-valuenow={width} tabIndex={0} onPointerDown={drag} onKeyDown={nudge} />
       <div className="console-head">
         <div className="console-row">
-          <label className="visually-hidden" htmlFor="console-runtime">{t('console.runtime')}</label>
-          <select id="console-runtime" value={info?.runtime ?? ''} disabled={!info?.runtimes.length || running} onChange={(e) => void api().consoleChoose(serviceKey, { runtime: e.target.value }).then((i) => { setInfo(i); setNotice(null); })}>
-            {info?.runtimes.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
-          </select>
+          {ownHandover
+            ? <span className="chip">{handover?.agent || t('console.title')}</span>
+            : <>
+              <label className="visually-hidden" htmlFor="console-runtime">{t('console.runtime')}</label>
+              <select id="console-runtime" value={info?.runtime ?? ''} disabled={!info?.runtimes.length || running} onChange={(e) => void api().consoleChoose(serviceKey, { runtime: e.target.value }).then((i) => { setInfo(i); setNotice(null); })}>
+                {info?.runtimes.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
+              </select>
+            </>}
           <span className="spacer" />
           {running && !confirmStop && <button className="btn btn-sm" onClick={() => setConfirmStop(true)}>{t('console.stop')}</button>}
           {running && confirmStop && (
@@ -213,17 +220,18 @@ export function ConsolePanel({ serviceKey, width, max, onWidth, onHide, task, on
           )}
           <button className="icon-btn" title={t('console.hide')} onClick={onHide}><Icon name="close" /><span className="visually-hidden">{t('console.hide')}</span></button>
         </div>
-        <div className="console-row meta">
+        {handover && <p className="console-row meta" role="status">{t('console.handover', { workflow: handover.workflow || handover.agent, account: handover.account || '—' })}</p>}
+        {!ownHandover && <div className="console-row meta">
           {info?.folder
             ? <span className="console-folder" title={`${info.folder.path}${info.folder.source === 'found' ? ` — ${t('console.foundFrom')}` : ''}`}>{shortPath(info.folder.path)}</span>
             : <span className="console-folder muted">{t('console.folder')}: —</span>}
           <button className="btn btn-sm" disabled={running} onClick={() => void api().consolePickFolder(serviceKey).then((i) => { setInfo(i); setNotice(null); })}>{info?.folder ? t('console.other') : t('console.chooseFolder')}</button>
           {bound && <span className="chip" title={t('console.project', { name: bound.name })}>{t('console.project', { name: bound.name })}</span>}
-        </div>
+        </div>}
       </div>
       {!info && <p className="console-state muted row" role="status"><Spinner /> {t('console.loading')}</p>}
-      {info && !info.runtimes.length && <p className="console-state notice">{t('console.noRuntime', { list: 'claude, codex, gemini, opencode, qwen, goose, aider, agent, copilot, amp' })}</p>}
-      {info && info.runtimes.length > 0 && !folderOk && (
+      {info && !ownHandover && !info.runtimes.length && <p className="console-state notice">{t('console.noRuntime', { list: 'claude, codex, gemini, opencode, qwen, goose, aider, agent, copilot, amp' })}</p>}
+      {info && !ownHandover && info.runtimes.length > 0 && !folderOk && (
         <div className="console-state notice">
           <p>{info.folder && !info.folder.exists ? t('console.folderGone', { path: info.folder.path }) : t('console.noFolder')}</p>
           <button className="btn" onClick={() => void api().consolePickFolder(serviceKey).then(setInfo)}>{t('console.chooseFolder')}</button>
@@ -244,7 +252,8 @@ export function ConsolePanel({ serviceKey, width, max, onWidth, onHide, task, on
         <p>{notice.text}</p>
         {notice.terminalOnly && <button className="btn btn-primary" onClick={() => void openTerminal('new')}>{t('console.openTerminalSb')}</button>}
       </div>}
-      {info && runtime && folderOk && !running && (
+      {ownHandover && info?.session.state === 'exited' && <p className="console-actions meta" role="status">{info.session.signal ? t('console.stopped') : info.session.exitCode === null ? t('console.ended') : t('console.exited', { code: info.session.exitCode })}</p>}
+      {info && !ownHandover && runtime && folderOk && !running && (
         <div className="console-actions row">
           {terminalOnly
             ? <button className="btn btn-primary" onClick={() => void openTerminal('new')}>{t('console.openTerminalSb')}</button>

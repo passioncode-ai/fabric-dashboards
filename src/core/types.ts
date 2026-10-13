@@ -154,5 +154,7 @@ export interface AppStatus {
   /** ADR-0018: what the estate watcher saw last — the contract clone vs the remote, consumer pins, skills. */
   estate: EstateStatus;
   // #endregion estate-update
+  /** FD-62: the consoles of their own that run or ran a Switchboard hand-over (SB-108). */
+  handovers?: { key: string; workflow: string; agent: string; account: string; dir: string; state: 'running' | 'exited' }[];
   version: string;
 }
