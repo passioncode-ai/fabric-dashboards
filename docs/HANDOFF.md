@@ -37,8 +37,16 @@ findings from this public tree; earlier commits in its history still hold them; 
 and FD-64 (#125, unreleased, in `CHANGELOG.md` *Unreleased*: ⌘H fires no window event, so a ready update never
 started its grace). The installed 0.7.6 has had 0.7.7 verified and ready since 04:29 UTC. It installs when the window is
 shown and then closed, or at quit (Squirrel), or by itself once a build with FD-64 runs.
-**Next task:** release 0.7.8 with FD-64 when the next change is ready (or alone, if the installed copies keep holding),
-then the items above.
+**0.7.8 released 2026-10-13** (tag on `e55e383`, release run 38423010876, all stages green, 16 assets): FD-64 and FD-63.
+Before the tag: five-runner `validate.yml` green (run 38386152677); local `npm run check` 534 pass / 0 fail and
+`npm run test:e2e` 19/19. `test/e2e/focus-console.test.ts` now proves the LC-17 deferral where the disk has under 5 GB free
+(it had 1.8 GB: the three console tests timed out waiting for a runtime that admission had refused). The full console
+runtime path was not walked on this Mac. After the release: update-proof 0.7.7 → 0.7.8 green on Windows x64/arm64 and
+Linux x64/arm64 (run 38427268115). On this Mac, the installed 0.7.7 had 0.7.8 verified and ready at 16:16 UTC. 0.7.7
+still has the ⌘H defect, so it installs after a window close or a quit if the window was hidden with ⌘H.
+fabric-workspace `knowledge/roadmap.md` and `products.md` name 0.7.8 (#201).
+**Next task:** walk the console's runtime path (`test/e2e/focus-console.test.ts`, `update.test.ts` for SCN-055) on a
+disk with ≥ 5 GB free, then the items above.
 
 ## Next — start here (2026-10-12, CT-21 from the contract)
 
