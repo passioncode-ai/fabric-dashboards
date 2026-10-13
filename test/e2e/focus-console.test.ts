@@ -31,6 +31,15 @@ done
 /** The terminal's text with its rows joined: a narrow console wraps long lines across rows. */
 const termText = (page: Page) => page.locator('.console-term .xterm-rows').innerText().then((t) => t.replace(/\n/g, ''), () => '');
 
+// SCN-063 (LC-17, FD-49): with less than 5 GB free on the folder's disk the console defers every start and says
+// why. The steps that need a running runtime are then walked only where there is room, as update.test.ts does;
+// on a short disk each test proves the deferral instead.
+const roomy = (dir: string) => { const st = fs.statfsSync(dir); return st.bavail * st.bsize >= 5 * 1024 ** 3; };
+async function deferred(page: Page): Promise<void> {
+  await page.getByText(/Not started: only [\d.]+ GB is free on this disk, and a session needs 5 GB\. Free some space, then start again\./).first().waitFor({ timeout: 20_000 });
+  assert.doesNotMatch(await termText(page), /fake-claude ready/, 'nothing was spawned');
+}
+
 test('ADR-0017: a one-line header, a folding sidebar, and an agent console beside the dashboard', { timeout: 180_000 }, async () => {
   const base = tmp('fd-e2e-focus-');
   const services = path.join(base, 'services');
@@ -102,6 +111,7 @@ test('ADR-0017: a one-line header, a folding sidebar, and an agent console besid
 
     // SCN-049: the runtime runs in the chosen folder; input reaches it; Continue passes its resume flag.
     await page.getByRole('button', { name: 'New session' }).click();
+    if (!roomy(repo)) { await deferred(page); return; }
     await waitFor('the runtime to start', async () => (await termText(page)).includes(`fake-claude ready in ${fs.realpathSync(repo)}`) || (await termText(page)).includes(`fake-claude ready in ${repo}`));
     // FD-39 SCN-053 (ADR-0020): the runtime starts holding the agent's context — its MCP and a brief naming it.
     const pack = path.join(userData, 'consoles', 'sample.default');
@@ -201,6 +211,7 @@ test('FD-39 SCN-058: a first launch opens the setup beside Overview; the coding 
     await panel.waitFor({ timeout: 10_000 }); // it opened by itself, and runs nothing until the click
     assert.equal(await page.getByRole('button', { name: 'Set up with my coding agent' }).count(), 0, 'the console is already open');
     await page.getByRole('button', { name: 'New session' }).click();
+    if (!roomy(home)) { await deferred(page); return; }
     const pack = path.join(userData, 'consoles', 'fabric-dashboards.setup');
     await waitFor('the agent to start on setup.md', async () => { const x = await termText(page); return x.includes(`fake-claude ready in ${home}`) && x.includes(`${pack}/setup.md and run the setup with me, step by step.]`) && x.includes('--mcp-config'); });
     assert.match(fs.readFileSync(path.join(pack, 'setup.md'), 'utf8'), /claude mcp add --scope user fabric-dashboards -e ELECTRON_RUN_AS_NODE=1 -- /);
@@ -252,6 +263,7 @@ test('FD-39 SCN-059: a later visit opens on what changed, and Continue resumes t
     await page.getByText('Gone: gone.default').waitFor();
     await shot(page, '26-since-last-visit');
     await page.getByRole('button', { name: 'Continue with Sample Service' }).click();
+    if (!roomy(repo)) { await deferred(page); return; }
     await waitFor('the resumed session with its context', async () => { const x = await termText(page); return x.includes('ctx:[present]') && /--continue\]/.test(x); });
     const saved = JSON.parse(fs.readFileSync(path.join(userData, 'settings.json'), 'utf8'));
     assert.ok(Date.now() - Date.parse(saved.lastVisitAt) < 120_000, 'this visit is the next one\'s baseline');
