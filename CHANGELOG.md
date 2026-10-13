@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.7.8 - 2026-10-13
 
 ### Fixed
 
@@ -9,6 +9,11 @@
   ten hidden minutes before an automatic update: 0.7.7, downloaded and verified at 04:29, waited on this Mac
   with nothing running. What is on screen is now checked when the app becomes or stops being active, and
   every 15 s. A held automatic install also says in the log why it waits.
+
+### Contributors
+
+- **The pre-commit hook refuses private data in this public tree** (FD-63): org-index `check_private.py` runs
+  after the lease check when it is found; see CONTRIBUTING.md *Private data*.
 
 ## 0.7.7 - 2026-10-13
 
