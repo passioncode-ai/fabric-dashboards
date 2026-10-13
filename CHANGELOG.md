@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- **A window hidden with ⌘H counts as hidden** (FD-64). macOS sends the window no hide or show event for ⌘H.
+  The app therefore stayed at the shown cadence, kept the embedded dashboards and never started the
+  ten hidden minutes before an automatic update: 0.7.7, downloaded and verified at 04:29, waited on this Mac
+  with nothing running. What is on screen is now checked when the app becomes or stops being active, and
+  every 15 s. A held automatic install also says in the log why it waits.
+
 ## 0.7.7 - 2026-10-13
 
 ### Added

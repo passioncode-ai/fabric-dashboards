@@ -20,7 +20,7 @@ import { DEFAULT_SETTINGS } from '../src/core/types';
 import { clearRestoreRecord, KEPT_FILES, MCP_SERVER_NAME, productDataPaths, purgeAfterExit, purgeData, readRestoreRecord, removeMcpRegistrations, repairMcpRegistrations, restoreMcpRegistrations, RESTORE_FILE, writeRestoreRecord } from '../src/core/uninstall';
 import { NotifyLedger } from '../src/core/notify';
 import { SettingsStore } from '../src/core/settings';
-import { autoInstallNow, HiddenGrace, relaunchHidden, resumePath, resumeRoute, stalePartitions, UPDATE_IDLE_MS } from '../src/electron/policy';
+import { autoInstallNow, autoInstallWait, HiddenGrace, relaunchHidden, resumePath, resumeRoute, stalePartitions, UPDATE_IDLE_MS, VisibilitySync } from '../src/electron/policy';
 import { codeFile, StaleWatch } from '../src/mcp/stale';
 import { tmp } from './helpers';
 
@@ -800,6 +800,38 @@ test('ADR-0015: the restore record round-trips; a damaged one is ignored, never 
   clearRestoreRecord(dir);
   assert.equal(fs.existsSync(path.join(dir, RESTORE_FILE)), false);
   clearRestoreRecord(dir);
+});
+
+test('FD-64: a window hidden with ⌘H (no window event) is still seen as hidden, once, and the update grace starts from it', (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  // The 0.7.7 case on this Mac: the update became ready while the window was shown, then ⌘H hid it with no event.
+  let onScreen = true;
+  let installs = 0;
+  const calls: string[] = [];
+  const grace = new HiddenGrace(UPDATE_IDLE_MS, () => { if (autoInstallNow({ ready: true, autoUpdate: true, visible: onScreen, busy: 0 })) installs += 1; });
+  const sync = new VisibilitySync(() => onScreen, () => { calls.push('shown'); grace.shown(); }, () => { calls.push('hidden'); grace.hidden(); }, true);
+  assert.equal(sync.sync(), false, 'nothing changed: no handler');
+  onScreen = false; // ⌘H: isVisible() is false and no hide event came
+  t.mock.timers.tick(60 * 60_000);
+  assert.equal(installs, 0, 'without the sync the grace never starts — the defect');
+  assert.equal(sync.sync(), true);
+  assert.equal(sync.sync(), false, 'one handler call per change');
+  t.mock.timers.tick(UPDATE_IDLE_MS);
+  assert.equal(installs, 1, 'ten hidden minutes after the sync noticed, the update installs');
+  onScreen = true; sync.sync();
+  sync.note(false); // a real hide event was handled already: the next sync repeats nothing
+  onScreen = false;
+  assert.equal(sync.sync(), false);
+  assert.deepEqual(calls, ['hidden', 'shown']);
+});
+
+test('FD-64: a held automatic install names why, and nothing when it is not held', () => {
+  const base = { ready: true, autoUpdate: true, visible: false, busy: 0 };
+  assert.equal(autoInstallWait(base), null);
+  assert.equal(autoInstallWait({ ...base, ready: false, visible: true }), null, 'nothing ready: nothing to say');
+  assert.equal(autoInstallWait({ ...base, autoUpdate: false }), 'automatic updates are off');
+  assert.equal(autoInstallWait({ ...base, visible: true }), 'the window is shown');
+  assert.equal(autoInstallWait({ ...base, busy: 2 }), '2 console session(s) or command(s) running');
 });
 
 test('ADR-0015: a downloaded update installs only when allowed, unwatched and idle; the relaunch stays hidden', () => {
