@@ -15,7 +15,7 @@ import type { ConsoleTask } from '../core/api';
 import mark from './brand/dashboards-mark.svg';
 import { api, GLYPH, Icon, LangContext, nameOf, Spinner, useT } from './lib';
 
-type Route = { page: 'overview' } | { page: 'activity'; serviceKey?: string; nonce?: number } | { page: 'spend' } | { page: 'settings' } | { page: 'service'; key: string; link?: string; nonce?: number; tab?: 'logs' | 'health' };
+type Route = { page: 'overview' } | { page: 'handover'; key: string } | { page: 'activity'; serviceKey?: string; nonce?: number } | { page: 'spend' } | { page: 'settings' } | { page: 'service'; key: string; link?: string; nonce?: number; tab?: 'logs' | 'health' };
 
 const PROBLEM = new Set(['down', 'duplicate', 'foreign', 'conflict', 'invalid']);
 
@@ -109,6 +109,7 @@ function Shell({ status, route, setRoute, stopKey, setStopKey, activityFilter, s
   };
   const problems = status.services.filter((s) => PROBLEM.has(s.state)).length;
   const current = route.page === 'service' ? status.services.find((s) => s.key === route.key) : undefined;
+  const handover = route.page === 'handover' ? (status.handovers ?? []).find((h) => h.key === route.key) : undefined;
   const stopping = stopKey ? status.services.find((s) => s.key === stopKey) : undefined;
   // U-14: the Stop dialog holds focus. Everything behind it is inert while it is open (the embedded
   // dashboard is a native view and hides itself on overlayOpen); closing it puts focus back on the
@@ -231,6 +232,15 @@ function Shell({ status, route, setRoute, stopKey, setStopKey, activityFilter, s
           </button>
         </div>
         <div className="nav nav-scroll">
+          {/* FD-62 (SB-108): the consoles that took a Switchboard hand-over of their own. */}
+          {(status.handovers ?? []).length > 0 && <div className="nav-section">{t('nav.handovers')}</div>}
+          {(status.handovers ?? []).map((h) => (
+            <button key={h.key} className="nav-item" aria-current={route.page === 'handover' && route.key === h.key ? 'page' : undefined} title={rail ? h.workflow : undefined} onClick={() => setRoute({ page: 'handover', key: h.key })}>
+              <span className={`state state-${h.state === 'running' ? 'ready' : 'stopped'}`} aria-hidden="true"><span className="glyph">{GLYPH[h.state === 'running' ? 'ready' : 'stopped']}</span></span>
+              <span className="nav-label">{h.workflow || h.agent}</span>
+              <span className="visually-hidden">{t(h.state === 'running' ? 'handover.running' : 'handover.ended')}</span>
+            </button>
+          ))}
           {pinned.length > 0 && <div className="nav-section">{t('nav.pinned')}</div>}
           {pinned.map((p) => <ProductItem key={p.id} p={p} current={currentProduct === p} open={open} rail={rail} pinned onPin={pin} />)}
           {foreground.length > 0 && (
@@ -262,7 +272,17 @@ function Shell({ status, route, setRoute, stopKey, setStopKey, activityFilter, s
         </div>
       </nav>
       <main className="main" inert={stopOpen}>
-        {route.page === 'service' && current
+        {route.page === 'handover' && handover
+          ? <div className="svc-split" ref={splitRef}>
+            <div className="page">
+              <div className="page-head"><h1>{handover.workflow || handover.agent}</h1></div>
+              <p className="meta">{t('handover.what', { agent: handover.agent, account: handover.account || '—', dir: handover.dir })}</p>
+              <p>{t(handover.state === 'running' ? 'handover.body' : 'handover.done')}</p>
+              {handover.state === 'exited' && <button className="btn" onClick={() => { void api().consoleDismissHandover(handover.key); setRoute({ page: 'overview' }); }}>{t('handover.close')}</button>}
+            </div>
+            <ConsolePanel serviceKey={handover.key} width={consoleWidth} max={consoleMax} onWidth={onConsoleWidth} onHide={() => setRoute({ page: 'overview' })} />
+          </div>
+        : route.page === 'service' && current
           ? <div className="svc-split" ref={splitRef}>
             <ServiceView key={current.key} s={current} all={status.services} members={currentProduct?.members ?? [current]} open={open} link={route.link} nonce={route.nonce} tab={route.tab} runUpdate={route.tab === 'health' && route.page === 'service'} activityRev={status.activityRev} overlayOpen={stopOpen} askStop={askStop} updateStarted={() => setRoute({ ...route, tab: undefined })}
               headerFull={layout.header === 'full'} onToggleHeader={() => changeLayout({ header: layout.header === 'full' ? 'compact' : 'full' })}

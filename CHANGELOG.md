@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- **Switchboard's hand-overs open in the console, not in Terminal** (FD-62, Switchboard SB-108). With "Open
+  hand-overs in Fabric" on in Switchboard 0.6.26 or later, each continuing session Switchboard prepares is taken
+  once with `switchboard handovers run <id>`. It runs in the free console of the agent whose folder it is, or in a
+  console of its own listed under Hand-overs. Hand-overs are read every 15 s with the window shown and every 60 s
+  hidden, only where Switchboard is installed. One the Mac cannot carry (LC-17) goes to Terminal on Switchboard's
+  side after two minutes, as before.
+
 ## 0.7.8 - 2026-10-13
 
 ### Fixed

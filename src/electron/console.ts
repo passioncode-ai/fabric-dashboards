@@ -18,7 +18,7 @@ import { admit, machineProbe, type MachineState } from '../core/admission';
 import { findCheckout } from '../core/repofind';
 import { detectRuntimes, KNOWN_RUNTIMES, readLoginPath, searchDirs, specsFromSwitchboard, type Runtime, type RuntimeSpec } from '../core/runtimes';
 import type { SettingsStore } from '../core/settings';
-import { accountsOf, bindingFor, canLaunchInPlace, findSwitchboard, managesProvider, sessionsIn, terminalLaunchArgv, type Binding, type SbSessions } from '../core/switchboard';
+import { accountsOf, bindingFor, canLaunchInPlace, findSwitchboard, handoverKey, handoverRunArgv, handoversOf, isHandoverKey, managesProvider, sessionsIn, terminalLaunchArgv, type Binding, type SbHandover, type SbSessions } from '../core/switchboard';
 import type { ServiceSnapshot } from '../core/types';
 
 /** node-pty 1.1.0 ships its macOS `spawn-helper` without the executable bit, and its postinstall
@@ -72,7 +72,17 @@ export interface ConsoleHostOptions {
   killGroup?: (pid: number, signal: NodeJS.Signals) => void;
   /** FD-49 (LC-17): the machine before a start; the real probe by default, a stub in tests. */
   machine?: (folder: string, running: number) => Promise<MachineState>;
+  /** FD-62: the registered services' keys, to find the console a hand-over belongs in. */
+  keys?: () => string[];
+  /** FD-62: a hand-over console opened or went away — the shell's status changed. */
+  changed?: () => void;
 }
+
+/** FD-62: how often hand-overs are read, in AGENTS.md's lifecycle table. */
+export const HANDOVER_POLL_MS = { visible: 15_000, hidden: 60_000 };
+
+/** FD-62: a console that runs a hand-over, as the shell lists it. */
+export interface HandoverConsole { key: string; workflow: string; agent: string; account: string; dir: string; state: 'running' | 'exited' }
 
 /** D2 of the 2026-10-12 board waves, stated in AGENTS.md's lifecycle table (LC-18). */
 export const IDLE_CLOSE_MS = 30 * 60_000;
@@ -83,6 +93,11 @@ export class ConsoleHost {
   private catalog: Promise<Runtime[]> | null = null;
   private inPlaceFor: { key: string; value: boolean } | null = null;
   private readonly run: Runner;
+  /** FD-62: the hand-overs this launch acted on (taken or deferred), by id — each is acted on once. */
+  private readonly seenHandovers = new Set<string>();
+  /** FD-62: the hand-over each console key runs, for its header and the shell's list. */
+  private readonly handoverOf = new Map<string, SbHandover>();
+  private handoversUnavailable: string | null = null;
 
   constructor(private readonly o: ConsoleHostOptions) {
     this.run = o.run ?? execRunner;
@@ -103,6 +118,7 @@ export class ConsoleHost {
     this.manager.on('exit', (e: { key: string; code: number | null; signal: number | null }) => {
       this.o.log(`console: ${e.key} exited with ${e.code}${e.signal ? ` (signal ${e.signal})` : ''}`);
       this.send({ key: e.key, kind: 'exit', code: e.code, signal: e.signal });
+      if (this.handoverOf.has(e.key)) this.o.changed?.(); // FD-62: the shell's list shows it ended
     });
   }
 
@@ -184,7 +200,13 @@ export class ConsoleHost {
       binding: b.kind === 'project' ? { ...b, inPlace: inv.inPlace } : b,
       session: { state: s.state, label: s.label, cwd: s.cwd, output: s.output, end: s.end, exitCode: s.exitCode, signal: s.signal },
       idle: this.o.settings.get().consoles[key]?.idle ?? null,
+      handover: this.handoverInfo(key),
     };
+  }
+
+  private handoverInfo(key: string): ConsoleInfo['handover'] {
+    const h = this.handoverOf.get(key);
+    return h ? { id: h.id, workflow: h.workflow, agent: h.agent, account: h.account, dir: h.dir } : null;
   }
 
   /** The context pack for this start, written now; null when there is no snapshot or no pack root.
@@ -235,6 +257,7 @@ export class ConsoleHost {
     // Review R-1: the session runs with the login shell's PATH, not the one an app opened from Finder has.
     const r = this.manager.start(key, { argv: plan.argv, cwd: plan.cwd, label: runtime.name, env: { PATH: inv.dirs.join(path.delimiter), ...(pack?.env ?? {}) } }, size);
     if (!r.ok) return { ok: false, reason: r.error === 'running' ? 'running' : 'spawn', detail: r.error };
+    this.handoverOf.delete(key); // FD-62: this console now runs the person's own session
     // Remember what was started, so the panel offers it next time.
     this.o.settings.update({ consoles: { [key]: { runtime: runtime.id, folder: folder.source === 'saved' ? folder.path : this.o.settings.get().consoles[key]?.folder ?? null, idle: null } } });
     this.o.log(`console: ${key} started ${runtime.id} (${mode}) in ${folder.path}${plan.argv[0] === inv.switchboard ? ' through Switchboard' : ''}${pack ? ` with its context${task ? ` and a ${task.kind} task` : ''}` : ''}`);
@@ -268,6 +291,69 @@ export class ConsoleHost {
     if (!folder?.exists) return { unavailable: 'no-folder', detail: '' };
     return sessionsIn(this.run, inv.switchboard, folder.path, await accountsOf(this.run, inv.switchboard));
   }
+
+  // #region console-handovers — docs: docs/ux/scenarios.md#scn-069-a-hand-over-opens-in-the-console
+  /** FD-62 (SB-108): takes each hand-over Switchboard left for a console, once, on a console PTY. One the
+   *  machine cannot carry now (LC-17) is left alone: Switchboard opens it in Terminal after two minutes.
+   *  Nothing runs without Switchboard. Returns the console keys that took one. */
+  async pollHandovers(now = Date.now()): Promise<string[]> {
+    const inv = await this.inventory();
+    if (!inv.switchboard) return [];
+    const r = await handoversOf(this.run, inv.switchboard);
+    if ('unavailable' in r) {
+      if (this.handoversUnavailable !== r.unavailable) this.o.log(`console: hand-overs cannot be read (${r.unavailable}): ${r.detail}`);
+      this.handoversUnavailable = r.unavailable;
+      return [];
+    }
+    this.handoversUnavailable = null;
+    const taken: string[] = [];
+    for (const h of r.handovers) {
+      if (this.seenHandovers.has(h.id) || h.offeredUntil <= now) continue;
+      this.seenHandovers.add(h.id);
+      if (this.seenHandovers.size > 512) this.seenHandovers.delete(this.seenHandovers.values().next().value!);
+      const key = await this.takeHandover(h, inv.switchboard, inv.dirs);
+      if (key) taken.push(key);
+    }
+    return taken;
+  }
+
+  private async takeHandover(h: SbHandover, sb: string, dirs: string[]): Promise<string | null> {
+    if (!isDir(h.dir)) { this.o.log(`console: hand-over ${h.id} left to Terminal: its folder is not here`); return null; }
+    const consoles = (this.o.keys?.() ?? []).map((key) => {
+      const folder = this.folderOf(key);
+      return { key, folder: folder?.exists ? folder.path : null, running: this.manager.snapshot(key).state === 'running' };
+    });
+    const key = handoverKey(h, consoles);
+    const a = admit(await (this.o.machine ?? machineProbe)(h.dir, this.manager.runningCount()));
+    if (!a.ok) { this.o.log(`console: hand-over ${h.id} left to Terminal (LC-17: ${a.why})`); return null; }
+    const r = this.manager.start(key, { argv: handoverRunArgv(sb, h.id), cwd: h.dir, label: h.agent || 'agent', env: { PATH: dirs.join(path.delimiter) } }, { cols: 100, rows: 30 });
+    if (!r.ok) { this.o.log(`console: hand-over ${h.id} not taken in ${key}: ${r.error}`); return null; }
+    this.handoverOf.set(key, h);
+    this.o.log(`console: hand-over ${h.id} (${h.agent}, ${h.workflow}) taken in ${key}`);
+    this.o.changed?.();
+    return key;
+  }
+
+  /** The consoles of their own that run or ran a hand-over, for the shell's list. */
+  handoverConsoles(): HandoverConsole[] {
+    const out: HandoverConsole[] = [];
+    for (const [key, h] of this.handoverOf) {
+      if (!isHandoverKey(key)) continue;
+      const state = this.manager.snapshot(key).state;
+      if (state === 'idle') continue;
+      out.push({ key, workflow: h.workflow, agent: h.agent, account: h.account, dir: h.dir, state });
+    }
+    return out;
+  }
+
+  /** The person closes a finished hand-over console: it leaves the list. A running one is stopped first. */
+  dismissHandover(key: string): void {
+    if (!isHandoverKey(key) || this.manager.snapshot(key).state === 'running') return;
+    this.manager.forget(key);
+    this.handoverOf.delete(key);
+    this.o.changed?.();
+  }
+  // #endregion console-handovers
 
   async openTerminal(key: string, mode: 'new' | 'continue'): Promise<{ ok: boolean; error?: string }> {
     // FD-37: Terminal through LaunchServices is macOS's; a Windows or Linux terminal comes with M2.
@@ -333,6 +419,7 @@ export class ConsoleHost {
     };
     ipcMain.handle(CHANNELS.consoleStart, (_e, key, mode, s, task) => (keyOk(key) ? this.start(key, mode === 'continue' ? 'continue' : 'new', size(s), taskOf(task)) : Promise.reject(new Error('not a service key'))));
     ipcMain.handle(CHANNELS.consoleStop, (_e, key) => { if (keyOk(key)) this.manager.stop(key); });
+    ipcMain.handle(CHANNELS.consoleDismissHandover, (_e, key) => { if (keyOk(key)) this.dismissHandover(key); });
     ipcMain.handle(CHANNELS.consoleSessions, (_e, key) => (keyOk(key) ? this.sessions(key) : Promise.reject(new Error('not a service key'))));
     ipcMain.handle(CHANNELS.consoleOpenTerminal, (_e, key, mode) => (keyOk(key) ? this.openTerminal(key, mode === 'continue' ? 'continue' : 'new') : Promise.reject(new Error('not a service key'))));
     ipcMain.on(CHANNELS.consoleInput, (_e, key, data) => { if (keyOk(key) && typeof data === 'string' && data.length <= 1_000_000) this.manager.input(key, data); });

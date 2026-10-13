@@ -150,3 +150,65 @@ export async function sessionsIn(run: Runner, sb: string, folder: string, accoun
   return { sessions };
 }
 // #endregion switchboard-sessions
+
+// #region switchboard-handovers — docs: docs/ux/scenarios.md#scn-069-a-hand-over-opens-in-the-console
+/** FD-62 (SB-108): a session Switchboard prepared and left for a console to take instead of opening Terminal.
+ *  Ids, a label and folders only: the record never holds a token or the prompt (Switchboard's contract). */
+export interface SbHandover {
+  id: string;
+  workflow: string;
+  /** Switchboard's catalog id of the agent that continues it (`claude-code`, `codex`, …). */
+  agent: string;
+  account: string;
+  /** The workflow's checkout the session runs in. */
+  dir: string;
+  /** Milliseconds since the epoch; past it, Switchboard no longer offers it. */
+  offeredUntil: number;
+}
+
+export type SbHandovers = { enabled: boolean; handovers: SbHandover[] } | { unavailable: 'old' | 'error'; detail: string };
+
+const HANDOVER_ID = /^ho-[0-9a-f]{12}$/;
+
+/** The hand-overs waiting for a console, oldest first. A Switchboard without them (before SB-108, or a running
+ *  app older than its CLI) says so; a malformed record is skipped, never guessed at. */
+export async function handoversOf(run: Runner, sb: string): Promise<SbHandovers> {
+  const r = await run(sb, ['--json', 'handovers'], 10_000);
+  const text = `${r.stdout}\n${r.stderr}`;
+  const data = r.code === 0 ? parse(r.stdout) : null;
+  if (!data) {
+    const old = /unrecognized subcommand|unexpected argument|earlier version than this command/i.test(text);
+    let detail = text.trim().split('\n').pop()?.slice(0, 200) || `exit ${r.code}`;
+    try { const e = JSON.parse(r.stdout) as { error?: unknown }; if (typeof e.error === 'string') detail = e.error.slice(0, 300); } catch { /* plain text */ }
+    return { unavailable: old ? 'old' : 'error', detail };
+  }
+  const handovers: SbHandover[] = [];
+  for (const x of Array.isArray(data.handovers) ? (data.handovers as Record<string, unknown>[]) : []) {
+    const until = typeof x.offered_until === 'string' ? Date.parse(x.offered_until) : Number.NaN;
+    if (typeof x.id !== 'string' || !HANDOVER_ID.test(x.id) || typeof x.dir !== 'string' || !path.isAbsolute(x.dir) || !Number.isFinite(until)) continue;
+    handovers.push({
+      id: x.id, dir: x.dir, offeredUntil: until,
+      workflow: typeof x.workflow === 'string' ? x.workflow.slice(0, 200) : '',
+      agent: typeof x.agent === 'string' ? x.agent.slice(0, 64) : '',
+      account: typeof x.account_label === 'string' ? x.account_label.slice(0, 200) : '',
+    });
+  }
+  return { enabled: data.enabled === true, handovers };
+}
+
+/** The console key of a hand-over's own console (like Setup's): `handover.<id>`. */
+export const handoverOwnKey = (id: string) => `handover.${id}`;
+export const isHandoverKey = (key: string) => /^handover\.ho-[0-9a-f]{12}$/.test(key);
+
+/** Where a hand-over opens: the registered service whose console folder is its `dir`, unless that console runs a
+ *  session already; otherwise a console of its own. */
+export function handoverKey(h: SbHandover, consoles: { key: string; folder: string | null; running: boolean }[]): string {
+  const match = consoles.find((c) => c.folder && !c.running && samePath(c.folder, h.dir));
+  return match?.key ?? handoverOwnKey(h.id);
+}
+
+/** The command a console runs to take the hand-over: Switchboard takes it once and runs its session here. */
+export function handoverRunArgv(sb: string, id: string): string[] {
+  return [sb, 'handovers', 'run', id];
+}
+// #endregion switchboard-handovers
