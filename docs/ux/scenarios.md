@@ -11,43 +11,43 @@
 | SCN-003 | A service is installed or removed while the app runs | discovery | P-01 | ST-001 | validated | 2026-10-13 |
 | SCN-004 | A descriptor is invalid | discovery | P-01 | ST-001, ST-004 | validated | 2026-10-13 |
 | SCN-005 | Overview when everything is ready | overview | P-01 | ST-002 | validated | 2026-10-12 |
-| SCN-006 | Overview lists what needs attention | overview | P-01 | ST-002 | draft | 2026-10-06 |
-| SCN-007 | Restart a service that is down | control | P-01 | ST-003 | draft | 2026-10-06 |
-| SCN-008 | Restart does not bring the service back | control | P-01 | ST-003 | draft | 2026-10-06 |
+| SCN-006 | Overview lists what needs attention | overview | P-01 | ST-002 | validated | 2026-10-13 |
+| SCN-007 | Restart a service that is down | control | P-01 | ST-003 | validated | 2026-10-13 |
+| SCN-008 | Restart does not bring the service back | control | P-01 | ST-003 | validated | 2026-10-13 |
 | SCN-009 | Stop a service so it stays off | control | P-01 | ST-003 | validated | 2026-10-12 |
-| SCN-010 | Start a stopped service | control | P-01 | ST-003 | draft | 2026-10-06 |
-| SCN-011 | Two copies of one service | health | P-01 | ST-004 | draft | 2026-10-06 |
-| SCN-012 | Another program answers on the service's port | health | P-01 | ST-004 | draft | 2026-10-06 |
-| SCN-013 | Two services claim one port | health | P-01 | ST-004 | draft | 2026-10-06 |
+| SCN-010 | Start a stopped service | control | P-01 | ST-003 | validated | 2026-10-13 |
+| SCN-011 | Two copies of one service | health | P-01 | ST-004 | validated | 2026-10-13 |
+| SCN-012 | Another program answers on the service's port | health | P-01 | ST-004 | validated | 2026-10-13 |
+| SCN-013 | Two services claim one port | health | P-01 | ST-004 | validated | 2026-10-13 |
 | SCN-014 | Open a dashboard inside the app, signed in | dashboards | P-01 | ST-005 | validated | 2026-10-12 |
 | SCN-015 | Dashboard view keeps its place | dashboards | P-01 | ST-005 | validated | 2026-10-12 |
-| SCN-016 | Dashboard cannot sign in | dashboards | P-01 | ST-005 | draft | 2026-10-06 |
+| SCN-016 | Dashboard cannot sign in | dashboards | P-01 | ST-005 | validated | 2026-10-13 |
 | SCN-017 | Catch up in Activity | activity | P-01 | ST-006 | validated | 2026-10-12 |
-| SCN-018 | Activity when a service's feed cannot be read | activity | P-01 | ST-006 | draft | 2026-10-06 |
+| SCN-018 | Activity when a service's feed cannot be read | activity | P-01 | ST-006 | validated | 2026-10-13 |
 | SCN-019 | Notification when a service goes down and comes back | notifications | P-01 | ST-007 | draft | 2026-10-06 |
 | SCN-020 | Notification from a service event opens the item | notifications | P-01 | ST-007, ST-006 | draft | 2026-10-06 |
-| SCN-021 | Update a service | updates | P-01 | ST-008 | draft | 2026-10-06 |
+| SCN-021 | Update a service | updates | P-01 | ST-008 | validated | 2026-10-13 |
 | SCN-022 | The app updates itself | updates | P-01 | ST-008 | validated | 2026-10-12 |
 | SCN-023 | Glance from the menu bar | tray | P-01 | ST-009 | validated | 2026-10-12 |
-| SCN-024 | Settings: launch at login, notifications, quiet hours | settings | P-01 | ST-010, ST-007 | draft | 2026-10-07 |
-| SCN-025 | Run doctor and read logs | control | P-01 | ST-003 | draft | 2026-10-06 |
+| SCN-024 | Settings: launch at login, notifications, quiet hours | settings | P-01 | ST-010, ST-007 | validated | 2026-10-13 |
+| SCN-025 | Run doctor and read logs | control | P-01 | ST-003 | validated | 2026-10-13 |
 | SCN-026 | Open a service page from a link an agent handed over | links | P-01 | ST-011, ST-005 | validated | 2026-10-12 |
 | SCN-027 | A link that cannot be opened | links | P-01 | ST-011 | validated | 2026-10-12 |
-| SCN-028 | An agent reads and administers services through MCP | agents | P-01 | ST-012, ST-003 | draft | 2026-10-06 |
+| SCN-028 | An agent reads and administers services through MCP | agents | P-01 | ST-012, ST-003 | validated | 2026-10-13 |
 | SCN-029 | Open a service from Fabric's agent registry | links | P-01 | ST-011, ST-005, ST-003 | validated | 2026-10-12 |
 | SCN-030 | Online services appear in their own group | overview | P-01 | ST-013, ST-002 | validated | 2026-10-13 |
 | SCN-031 | Open an online service's dashboard, signed in | dashboards | P-01 | ST-013, ST-005 | validated | 2026-10-12 |
 | SCN-032 | An online service that cannot be reached says why | health | P-01 | ST-013, ST-004 | draft | 2026-10-06 |
-| SCN-033 | Several instances of one agent read as one agent | products | P-01 | ST-014, ST-002 | draft | 2026-10-06 |
-| SCN-034 | Switch between an agent's connections | products | P-01 | ST-014, ST-005 | draft | 2026-10-06 |
-| SCN-035 | A connection fails while the agent is fine | products | P-01 | ST-014, ST-002, ST-004 | draft | 2026-10-06 |
+| SCN-033 | Several instances of one agent read as one agent | products | P-01 | ST-014, ST-002 | validated | 2026-10-13 |
+| SCN-034 | Switch between an agent's connections | products | P-01 | ST-014, ST-005 | validated | 2026-10-13 |
+| SCN-035 | A connection fails while the agent is fine | products | P-01 | ST-014, ST-002, ST-004 | validated | 2026-10-13 |
 | SCN-036 | See what every agent spent | spend | P-01 | ST-015 | validated | 2026-10-12 |
 | SCN-037 | A cost that is not known reads as unknown | spend | P-01 | ST-015 | validated | 2026-10-12 |
-| SCN-038 | An agent's spend cannot be read | spend | P-01 | ST-015, ST-004 | draft | 2026-10-06 |
+| SCN-038 | An agent's spend cannot be read | spend | P-01 | ST-015, ST-004 | validated | 2026-10-13 |
 | SCN-039 | Reload and move through an embedded dashboard | dashboards | P-01 | ST-016, ST-005 | validated | 2026-10-12 |
 | SCN-040 | Copy a dashboard page's address or app link | dashboards | P-01 | ST-016, ST-011 | validated | 2026-10-12 |
-| SCN-041 | Overview at a glance | overview | P-01 | ST-016, ST-002, ST-015 | draft | 2026-10-06 |
-| SCN-042 | Many problems stay compact | overview | P-01 | ST-016, ST-002 | draft | 2026-10-06 |
+| SCN-041 | Overview at a glance | overview | P-01 | ST-016, ST-002, ST-015 | validated | 2026-10-13 |
+| SCN-042 | Many problems stay compact | overview | P-01 | ST-016, ST-002 | validated | 2026-10-13 |
 | SCN-043 | Reinstall picks up where I left off | settings | P-01 | ST-017, ST-010 | draft | 2026-10-06 |
 | SCN-044 | A copy outside Applications moves itself so it can update | updates | P-01 | ST-017, ST-008 | draft | 2026-10-06 |
 | SCN-045 | A dashboard hands me to another agent | dashboards | P-01 | ST-005, ST-011 | validated | 2026-10-12 |
@@ -62,18 +62,18 @@
 | SCN-054 | Fix with agent | console | P-01 | ST-020 | validated | 2026-10-12 |
 | SCN-055 | Update with agent | console | P-01 | ST-020 | draft | 2026-10-10 |
 | SCN-056 | Pin an agent to the top of the list | list | P-01 | ST-021 | validated | 2026-10-12 |
-| SCN-057 | Sort the agents list | list | P-01 | ST-021 | draft | 2026-10-10 |
+| SCN-057 | Sort the agents list | list | P-01 | ST-021 | validated | 2026-10-13 |
 | SCN-058 | First session: my coding agent sets the system up | setup | P-01 | ST-022 | validated | 2026-10-12 |
 | SCN-059 | A later session opens on what changed | overview | P-01 | ST-022 | validated | 2026-10-12 |
 | SCN-060 | The dashboard keeps its floor while the console widens | console | P-01 | ST-019 | draft | 2026-10-11 |
 | SCN-061 | Talk to Fabric about this agent | console | P-01 | ST-020 | validated | 2026-10-12 |
 | SCN-062 | Outages reach me away from the Mac | notifications | P-01 | ST-002 | validated | 2026-10-13 |
-| SCN-063 | A session starts only when the Mac can carry it | console | P-01 | ST-019 | draft | 2026-10-12 |
+| SCN-063 | A session starts only when the Mac can carry it | console | P-01 | ST-019 | validated | 2026-10-13 |
 | SCN-064 | See what Switchboard runs for this agent | console | P-01 | ST-019 | draft | 2026-10-12 |
 | SCN-065 | A provider limit does not stop the agent | console | P-01 | ST-019 | draft | 2026-10-12 |
 | SCN-066 | An idle session closes and comes back | console | P-01 | ST-019 | draft | 2026-10-12 |
 | SCN-067 | Dashboards take my scheme and theme | settings | P-01 | ST-019 | validated | 2026-10-13 |
-| SCN-068 | See which runner and model an agent uses | service | P-01 | ST-019 | draft | 2026-10-12 |
+| SCN-068 | See which runner and model an agent uses | service | P-01 | ST-019 | validated | 2026-10-13 |
 ## Personas
 
 Defined in [foundation.md](foundation.md) → P-01.
@@ -189,8 +189,8 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **UI elements:** Needs attention block, problem rows, action buttons (each names its service for a screen reader), the problem count on Overview in the sidebar (not answering, two copies, wrong program, conflict, invalid)
 - **States covered:** error, success
 - **Errors & recovery:** the action fails -> the row keeps its place with the failure sentence and Logs
-- **Status:** draft
-- **Coverage:** packages/service-host/src/state.ts (attentionRank), src/renderer/components/Overview.tsx
+- **Status:** validated
+- **Coverage:** packages/service-host/src/state.ts (attentionRank), src/renderer/components/Overview.tsx, test/e2e/overview-settings.test.ts
 - **Product:** unobserved
 
 ## control
@@ -210,8 +210,8 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **States covered:** loading, success, error
 - **Errors & recovery:** see SCN-008
 - **Telemetry:** none — the app sends nothing off the Mac
-- **Status:** draft
-- **Coverage:** src/core/monitor.ts, src/core/launchd.ts, test/monitor.test.ts
+- **Status:** validated
+- **Coverage:** src/core/monitor.ts, src/core/launchd.ts, test/monitor.test.ts, test/e2e/launchd-control.test.ts
 - **Product:** unobserved
 
 ### SCN-008: Restart does not bring the service back
@@ -227,8 +227,8 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **UI elements:** failure message, Logs button, Doctor button
 - **States covered:** error
 - **Errors & recovery:** launchctl itself refuses -> "launchctl refused: <its message>"
-- **Status:** draft
-- **Coverage:** src/core/monitor.ts
+- **Status:** validated
+- **Coverage:** src/core/monitor.ts, test/e2e/launchd-control.test.ts
 - **Product:** unobserved
 
 ### SCN-009: Stop a service so it stays off
@@ -262,8 +262,8 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **UI elements:** Start button, progress label, state badge
 - **States covered:** loading, success, error
 - **Errors & recovery:** no answer in 40 s -> as SCN-008; plist missing -> "The launchd file is missing: reinstall <Service>. (<path>)"
-- **Status:** draft
-- **Coverage:** src/core/launchd.ts, test/monitor.test.ts
+- **Status:** validated
+- **Coverage:** src/core/launchd.ts, test/monitor.test.ts, test/e2e/launchd-control.test.ts
 - **Product:** unobserved
 
 ### SCN-025: Run doctor and read logs
@@ -280,8 +280,8 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **UI elements:** Logs tab, log panes, Doctor button, output panel
 - **States covered:** loading, empty, success, error
 - **Errors & recovery:** the command times out after 120 s -> "Doctor did not finish within 120 s." and the partial output; the command cannot start -> "Doctor could not run: <reason>"; the service is busy with another action -> "<Service> is busy with another action…"; a log file is unreadable -> "Cannot read <path>: <reason>"; an online service has no Logs tab
-- **Status:** draft
-- **Coverage:** src/core/monitor.ts, src/renderer/components/ServiceView.tsx
+- **Status:** validated
+- **Coverage:** src/core/monitor.ts, src/renderer/components/ServiceView.tsx, test/e2e/health-states.test.ts
 - **Product:** unobserved
 
 ## health
@@ -299,8 +299,8 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **UI elements:** Two copies badge, attention row, Restart button
 - **States covered:** error, success
 - **Errors & recovery:** the app never kills a process it did not start through launchd
-- **Status:** draft
-- **Coverage:** packages/service-host/src/state.ts, src/core/monitor.ts, test/core.test.ts
+- **Status:** validated
+- **Coverage:** packages/service-host/src/state.ts, src/core/monitor.ts, test/core.test.ts, test/e2e/launchd-control.test.ts
 - **Product:** unobserved
 
 ### SCN-012: Another program answers on the service's port
@@ -316,8 +316,8 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **UI elements:** "Wrong program on port" badge, reason line, Dashboard tab notice
 - **States covered:** error
 - **Errors & recovery:** resolved when the port answers as the service again
-- **Status:** draft
-- **Coverage:** packages/service-host/src/state.ts, test/monitor.test.ts, test/flap.test.ts
+- **Status:** validated
+- **Coverage:** packages/service-host/src/state.ts, test/monitor.test.ts, test/flap.test.ts, test/e2e/health-states.test.ts
 - **Product:** unobserved
 
 ### SCN-013: Two services claim one port
@@ -333,8 +333,8 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **UI elements:** "Port conflict" badge, both names, "Show file" and "Show the file of <other>" buttons
 - **States covered:** error
 - **Errors & recovery:** clears when one descriptor is rewritten with another port
-- **Status:** draft
-- **Coverage:** packages/service-host/src/descriptor.ts (claimConflicts), src/renderer/components/ServiceView.tsx, test/monitor.test.ts
+- **Status:** validated
+- **Coverage:** packages/service-host/src/descriptor.ts (claimConflicts), src/renderer/components/ServiceView.tsx, test/monitor.test.ts, test/e2e/health-states.test.ts
 - **Product:** unobserved
 
 ## dashboards
@@ -406,8 +406,8 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **UI elements:** sign-in error panel, path, Retry
 - **States covered:** error
 - **Errors & recovery:** Retry signs in again and shows the page again (R-6); Doctor when declared
-- **Status:** draft
-- **Coverage:** src/renderer/components/ServiceView.tsx, src/core/probe.ts
+- **Status:** validated
+- **Coverage:** src/renderer/components/ServiceView.tsx, src/core/probe.ts, test/e2e/products-problems.test.ts
 - **Product:** unobserved
 
 ## activity
@@ -443,8 +443,8 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **UI elements:** partial-failure line
 - **States covered:** error, success
 - **Errors & recovery:** the line clears when the feed reads again; events resume from the stored cursor, none are duplicated
-- **Status:** draft
-- **Coverage:** src/renderer/components/Activity.tsx, src/core/monitor.ts
+- **Status:** validated
+- **Coverage:** src/renderer/components/Activity.tsx, src/core/monitor.ts, test/e2e/products-problems.test.ts
 - **Product:** unobserved
 
 ## notifications
@@ -502,8 +502,8 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **UI elements:** Update button, output panel, version label
 - **States covered:** loading, success, error
 - **Errors & recovery:** non-zero exit -> the output stays visible; the service keeps its previous state
-- **Status:** draft
-- **Coverage:** src/core/monitor.ts, src/renderer/components/ServiceView.tsx
+- **Status:** validated
+- **Coverage:** src/core/monitor.ts, src/renderer/components/ServiceView.tsx, test/e2e/update.test.ts
 - **Product:** unobserved
 
 ### SCN-022: The app updates itself
@@ -585,8 +585,8 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **UI elements:** toggles, Language select, per-service rows, time pickers, folder path with Show, Uninstall button and its confirmation with the delete-data box, listeners list
 - **States covered:** empty, success, error
 - **Errors & recovery:** macOS refuses the login item -> the toggle returns to off with "macOS refused the login item: <reason>" ("approve Fabric Dashboards in System Settings → General → Login Items" when it needs approval); the listener scan fails -> "Cannot list listeners: <reason>", and nothing listening is "None", not an error; uninstall cannot remove the MCP entry or the login item -> "Nothing was removed: <reason>" and the app stays (a refused login item puts the MCP entry back); the app cannot be moved to the Trash -> it says so and is still uninstalled; Show folder fails -> "Could not open <path>: <reason>"
-- **Status:** draft
-- **Coverage:** src/renderer/components/Settings.tsx, src/renderer/components/Overview.tsx, src/core/settings.ts, src/core/i18n.ts (chooseLang), src/core/machine-ru.ts, src/core/loginitem.ts, src/core/uninstall.ts, src/core/listeners.ts, test/parts.test.ts, test/lifecycle.test.ts
+- **Status:** validated
+- **Coverage:** src/renderer/components/Settings.tsx, src/renderer/components/Overview.tsx, src/core/settings.ts, src/core/i18n.ts (chooseLang), src/core/machine-ru.ts, src/core/loginitem.ts, src/core/uninstall.ts, src/core/listeners.ts, test/parts.test.ts, test/lifecycle.test.ts, test/e2e/overview-settings.test.ts
 - **Product:** unobserved
 
 ### SCN-043: Reinstall picks up where I left off
@@ -700,8 +700,8 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **UI elements:** none (agent tool results); the opened service view
 - **States covered:** success, error
 - **Errors & recovery:** installed-host open failure, unknown discovery, incompatible version and wrong handler open no browser; OS acceptance is not page readiness; a restart that gets no new answer within 40 s is reported as not done, with the state it left; a refusal is a tool error the agent reads, not a crash
-- **Status:** draft
-- **Coverage:** src/mcp/tools.ts, src/mcp/server.ts, test/mcp.test.ts
+- **Status:** validated
+- **Coverage:** src/mcp/tools.ts, src/mcp/server.ts, test/mcp.test.ts, test/e2e/mcp-admin.test.ts, test/e2e/app.test.ts
 - **Product:** unobserved
 
 - **Cold-start acceptance:** from the packaged MCP, opening a link while the app is closed launches its graphical host and selected page. The MCP-only Electron RunAsNode flag is not inherited by desktop dispatch. Verify actual page readiness separately from the OS-acceptance receipt.
@@ -782,8 +782,8 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **UI elements:** sidebar product entry, Background section, Overview product card, "also:" line
 - **States covered:** success, empty
 - **Errors & recovery:** an invalid descriptor of one instance keeps its own `invalid` state inside the product and in Attention
-- **Status:** draft
-- **Coverage:** src/core/products.ts, src/renderer/App.tsx, src/renderer/components/Overview.tsx, test/products.test.ts
+- **Status:** validated
+- **Coverage:** src/core/products.ts, src/renderer/App.tsx, src/renderer/components/Overview.tsx, test/products.test.ts, test/e2e/products-problems.test.ts
 - **Product:** unobserved
 
 ### SCN-034: Switch between an agent's connections
@@ -801,8 +801,8 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **UI elements:** instance switch above the service header
 - **States covered:** success
 - **Errors & recovery:** a connection whose dashboard cannot sign in shows the sign-in error of SCN-016 for that connection only
-- **Status:** draft
-- **Coverage:** src/renderer/components/ServiceView.tsx (InstanceSwitch), src/renderer/App.tsx
+- **Status:** validated
+- **Coverage:** src/renderer/components/ServiceView.tsx (InstanceSwitch), src/renderer/App.tsx, test/e2e/products-problems.test.ts
 - **Product:** unobserved
 
 ### SCN-035: A connection fails while the agent is fine
@@ -820,8 +820,8 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **UI elements:** sidebar mark, Attention row, card "also:" line
 - **States covered:** error, success
 - **Errors & recovery:** a restart that does not bring it back follows SCN-008 for that instance
-- **Status:** draft
-- **Coverage:** src/core/products.ts (memberProblem), src/renderer/App.tsx (ProductItem), test/products.test.ts
+- **Status:** validated
+- **Coverage:** src/core/products.ts (memberProblem), src/renderer/App.tsx (ProductItem), test/products.test.ts, test/e2e/health-states.test.ts
 - **Product:** unobserved
 
 ## spend
@@ -879,8 +879,8 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **UI elements:** "Could not read" notice, "≥" totals
 - **States covered:** error
 - **Errors & recovery:** the next read (a minute later, or Refresh) shows the agent again once it answers
-- **Status:** draft
-- **Coverage:** src/core/spend.ts (readSpend), src/core/probe.ts (fetchUsage), test/spend.test.ts
+- **Status:** validated
+- **Coverage:** src/core/spend.ts (readSpend), src/core/probe.ts (fetchUsage), test/spend.test.ts, test/e2e/products-problems.test.ts
 - **Product:** unobserved
 
 ## dashboard-toolbar
@@ -938,8 +938,8 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **UI elements:** status strip
 - **States covered:** loading, success
 - **Errors & recovery:** a report that cannot be read makes the sums lower bounds («≥»), as on Spend
-- **Status:** draft
-- **Coverage:** src/renderer/components/Overview.tsx (StatusStrip), src/core/spend.ts (sumSpend)
+- **Status:** validated
+- **Coverage:** src/renderer/components/Overview.tsx (StatusStrip), src/core/spend.ts (sumSpend), test/e2e/overview-settings.test.ts
 - **Product:** unobserved
 
 ### SCN-042: Many problems stay compact
@@ -957,8 +957,8 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **UI elements:** Needs attention block, Show all / Show fewer
 - **States covered:** error, success
 - **Errors & recovery:** as SCN-006
-- **Status:** draft
-- **Coverage:** src/renderer/components/Overview.tsx
+- **Status:** validated
+- **Coverage:** src/renderer/components/Overview.tsx, test/e2e/products-problems.test.ts
 - **Product:** unobserved
 
 ## focus
@@ -1076,8 +1076,8 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **UI elements:** the console's notice line
 - **States covered:** success, error
 - **Errors & recovery:** the disk or swap cannot be read -> the start is not refused for it; the person frees space or stops a session and presses the button again
-- **Status:** draft
-- **Coverage:** src/core/admission.ts, src/electron/console.ts, src/renderer/components/ConsolePanel.tsx, test/admission.test.ts, test/console-admission.test.ts
+- **Status:** validated
+- **Coverage:** src/core/admission.ts, src/electron/console.ts, src/renderer/components/ConsolePanel.tsx, test/admission.test.ts, test/console-admission.test.ts, test/e2e/update.test.ts (the deferral observed on this Mac with 2.3 GB free, 2026-10-13)
 - **Product:** unobserved
 
 ### SCN-064: See what Switchboard runs for this agent
@@ -1167,8 +1167,8 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **UI elements:** Health → Runner and model, Change in Fabric
 - **States covered:** empty, loading, success
 - **Errors & recovery:** the usage report cannot be read -> no spend line beyond "No usage reported"; Spend says why
-- **Status:** draft
-- **Coverage:** src/renderer/components/ServiceView.tsx, packages/service-host/src/protocol.ts
+- **Status:** validated
+- **Coverage:** src/renderer/components/ServiceView.tsx, packages/service-host/src/protocol.ts, test/e2e/profile.test.ts
 - **Product:** unobserved
 
 ### SCN-060: The dashboard keeps its floor while the console widens
@@ -1300,8 +1300,8 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **UI elements:** sort control (Name, Status, Recent activity)
 - **States covered:** success
 - **Errors & recovery:** n/a
-- **Status:** draft
-- **Coverage:** src/core/products.ts (arrangeProducts), src/renderer/App.tsx, test/listorder.test.ts
+- **Status:** validated
+- **Coverage:** src/core/products.ts (arrangeProducts), src/renderer/App.tsx, test/listorder.test.ts, test/e2e/overview-settings.test.ts
 - **Product:** unobserved
 
 ### SCN-058: First session: my coding agent sets the system up
