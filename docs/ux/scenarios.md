@@ -60,7 +60,7 @@
 | SCN-052 | Fabric Dashboards on Windows or Linux | platform | P-01 | ST-001, ST-008 | draft | 2026-10-10 |
 | SCN-053 | The console's agent already knows which agent it works on | console | P-01 | ST-020 | validated | 2026-10-12 |
 | SCN-054 | Fix with agent | console | P-01 | ST-020 | validated | 2026-10-12 |
-| SCN-055 | Update with agent | console | P-01 | ST-020 | draft | 2026-10-10 |
+| SCN-055 | Update with agent | console | P-01 | ST-020 | validated | 2026-10-14 |
 | SCN-056 | Pin an agent to the top of the list | list | P-01 | ST-021 | validated | 2026-10-12 |
 | SCN-057 | Sort the agents list | list | P-01 | ST-021 | validated | 2026-10-13 |
 | SCN-058 | First session: my coding agent sets the system up | setup | P-01 | ST-022 | validated | 2026-10-12 |
@@ -1283,8 +1283,8 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **UI elements:** "Update with agent" button
 - **States covered:** success, error
 - **Errors & recovery:** as SCN-054
-- **Status:** draft
-- **Coverage:** src/core/offers.ts (offersAgentUpdate), src/core/handoff.ts (updateTask), ServiceView.tsx, Overview.tsx, test/handoff.test.ts
+- **Status:** validated
+- **Coverage:** src/core/offers.ts (offersAgentUpdate), src/core/handoff.ts (updateTask), ServiceView.tsx, Overview.tsx, test/handoff.test.ts, test/e2e/update.test.ts (the agent started on `task.md` naming 0.3.0 and the failed output, on the running app with 7.1 GB free, 2026-10-14)
 - **Product:** unobserved
 
 ### SCN-056: Pin an agent to the top of the list
