@@ -57,6 +57,12 @@ RM-28 pilot (operator 2026-10-13): Dashboards answered the pilot packet §4 (fab
 proposed part: it shows and embeds the organization server's admin agents and pages, and installs nothing. FD-52 and
 FD-53 are marked `RM-28 pilot`.
 
+2026-10-14: SCN-055, SCN-032 and SCN-060 validated on the running app (#133–#135; FD-02 at 56 of 69). FD-68 (route events,
+DEC-0076; blocked on Fabric's journal) filed: first as FD-65 in #136, renumbered in #138 because #129 had already taken FD-65.
+The installed copy runs 0.7.9 since 12:33 UTC. `switchboard --json handovers` answers `enabled: false`, so no hand-over has reached
+the console yet. FD-67 (a `test/handovers.test.ts` flake, filed in open PR #137) did not reproduce: 12 parallel runs passed, and
+3 parallel full suites failed only in the launchd integration test, which shares one fixed label across runs.
+
 **Next task:** the live FD-62 check. The fabric-switchboard session turns `switchboard handovers set on` once its app runs 0.6.28
 (held by a visible window) and Dashboards runs 0.7.9. It then runs one hand-over end to end: the console takes it exactly once,
 and no Terminal opens. Validate SCN-069 from that run. Then walk the console's runtime path (`test/e2e/focus-console.test.ts`,
