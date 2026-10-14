@@ -1,3 +1,4 @@
+import { SetupCheck } from './Overview';
 import { useEffect, useState } from 'react';
 import type { AppStatus, Listener, Settings as SettingsValue } from '../../core/types';
 import { api, nameOf, Spinner, useT } from '../lib';
@@ -156,6 +157,7 @@ export function Settings({ status, onTheme, onLanguage, onSetup }: { status: App
           <h2 id="g-setup">{t('settings.setup')}</h2>
           <p className="meta">{t('settings.setup.body')}</p>
           <div><button className="btn" onClick={onSetup}>{t('setup.agent.start')}</button></div>
+          <SetupCheck onRepair={onSetup} />
         </section>
       )}
 

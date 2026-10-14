@@ -1,7 +1,7 @@
 // Reading launchd: `print` and `print-disabled` only — this package never changes a job.
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { LaunchdReader, parseDisabled, parsePrint, UNMANAGED, type Runner } from '../src/launchd';
+import { execRunner, LaunchdReader, parseDisabled, parsePrint, UNMANAGED, type Runner } from '../src/launchd';
 
 test('launchctl output parsing', () => {
   assert.deepEqual(parsePrint('gui/501/x = {\n\tstate = running\n\tpid = 5542\n}'), { pid: 5542 });
@@ -38,4 +38,13 @@ test('a launchctl that fails reads as not loaded, never throws', async () => {
   assert.equal(await reader.disabledTable(), '');
   assert.deepEqual(await reader.status('com.x'), { loaded: false, pid: null, disabled: false });
   assert.deepEqual(UNMANAGED, { managed: false, loaded: false, pid: null, disabled: false });
+});
+
+test('FD-69: a command killed at its deadline says so — the reason is not dropped for an empty stderr', { skip: process.platform === 'win32' && 'POSIX sleep' }, async () => {
+  const r = await execRunner('/bin/sleep', ['5'], 200);
+  assert.notEqual(r.code, 0);
+  assert.equal(r.stdout, '');
+  assert.match(r.stderr, /killed|SIGTERM|timed out|Command failed/i, `stderr was ${JSON.stringify(r.stderr)}`);
+  const ok = await execRunner('/bin/sh', ['-c', 'echo out; echo err >&2; exit 3'], 5000);
+  assert.deepEqual(ok, { code: 3, stdout: 'out\n', stderr: 'err\n' }, 'a command that wrote stderr keeps its own words');
 });

@@ -125,3 +125,18 @@ test('FD-62: without Switchboard nothing is read', POSIX, async () => {
   assert.deepEqual(await r.host.pollHandovers(), []);
   assert.deepEqual(r.calls, []);
 });
+
+test('FD-69: a hand-over read that failed and then works again is said once each way', POSIX, async () => {
+  const r = rig();
+  let fail = true;
+  const host = r.host as unknown as { run: Runner };
+  const real = host.run;
+  host.run = async (file, args, ms) => (fail && args.join(' ') === '--json handovers' ? { code: 1, stdout: '', stderr: 'killed' } : real(file, args, ms));
+  await r.host.pollHandovers();
+  await r.host.pollHandovers();
+  fail = false;
+  await r.host.pollHandovers();
+  await r.host.pollHandovers();
+  assert.equal(r.logs.filter((l) => /hand-overs cannot be read \(error\): killed/.test(l)).length, 1, 'the failure is logged once, with its reason');
+  assert.equal(r.logs.filter((l) => /hand-overs can be read again/.test(l)).length, 1, 'the recovery is logged once');
+});

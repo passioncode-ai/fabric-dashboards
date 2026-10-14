@@ -1,0 +1,56 @@
+{
+ "version": "0.2.2",
+ "platform": "darwin",
+ "at": "2026-10-14T17:07:55.573Z",
+ "checks": [
+  {
+   "fix": null,
+   "repair": null,
+   "product": null,
+   "id": "prereq.node",
+   "area": "prerequisites",
+   "state": "ok",
+   "detail": "Node 26.10.0"
+  },
+  {
+   "fix": "quit Fabric Inbox, then run `npx @passioncode-ai/passioncode@latest setup`",
+   "repair": null,
+   "product": "inbox",
+   "id": "app.inbox",
+   "area": "apps",
+   "state": "warn",
+   "detail": "Fabric Inbox 0.12.0; 0.17.0 is out"
+  },
+  {
+   "fix": null,
+   "repair": null,
+   "product": "dashboards",
+   "id": "app.dashboards.running",
+   "area": "apps",
+   "state": "info",
+   "detail": "Fabric Dashboards: in use"
+  },
+  {
+   "fix": "claude mcp add --scope user fabric-dashboards -- \"/Applications/Fabric Dashboards.app/Contents/Resources/bin/fabric-dashboards-mcp\"",
+   "repair": "update",
+   "product": "dashboards",
+   "id": "mcp.claude.fabric-dashboards",
+   "area": "mcp",
+   "state": "fail",
+   "detail": "Claude Code: fabric-dashboards points at a missing file"
+  },
+  {
+   "id": "bad.check",
+   "area": "nowhere",
+   "state": "ok",
+   "detail": "dropped"
+  }
+ ],
+ "summary": {
+  "ok": 2,
+  "warn": 1,
+  "fail": 1,
+  "info": 1
+ },
+ "ok": false
+}

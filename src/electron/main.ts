@@ -8,7 +8,9 @@ import os from 'node:os';
 import path from 'node:path';
 import { ActivityStore } from '../core/activity';
 import { CHANNELS, type Rect } from '../core/api';
-import { killOwned, ownedCount } from '../core/children';
+import { commandEnv, killOwned, ownedCount, runOwned } from '../core/children';
+import { doctorArgv, doctorResult, DOCTOR_TIMEOUT_MS, type SetupCheckResult } from '../core/doctor';
+import { readLoginPath, searchDirs } from '../core/runtimes';
 import { endWorkQuestion } from '../core/consoles';
 import { pendingInstallVersion, stepAside } from './pending-install';
 import { displayName } from '../core/names';
@@ -140,9 +142,13 @@ if (!app.requestSingleInstanceLock()) {
     args: [app.isPackaged ? path.join(process.resourcesPath, 'app.asar', 'out', 'main', 'mcp', 'server.js') : path.join(__dirname, '../mcp/server.js')],
     env: { ELECTRON_RUN_AS_NODE: '1' },
   });
+  // FD-65: the last Check setup, kept until the next press; a run in progress is shared, never doubled.
+  let lastSetupCheck: SetupCheckResult | null = null;
+  let setupCheckRun: Promise<SetupCheckResult> | null = null;
   const consoles = new ConsoleHost({ settings, snapshot: (key) => monitor.snapshot(key), window: () => window, visible: () => windowVisible(), log: (line) => log(line), testDirs: testRuntimeDirs, scriptsDir: path.join(userData, 'console'),
     packRoot: path.join(userData, 'consoles'), version: app.getVersion(), activity: (key) => activity.list({ serviceKey: key }, 200), mcpServer,
     setupState: () => readSetupState(os.homedir(), monitor.snapshots().length),
+    doctor: () => (lastSetupCheck?.kind === 'report' ? lastSetupCheck.report : null),
     keys: () => monitor.snapshots().map((x) => x.key), changed: () => pushStatus() });
   let tray: AppTray | null = null;
   // R-3: the window lets itself close only once a quit is really under way — before-quit, or
@@ -596,6 +602,25 @@ if (!app.requestSingleInstanceLock()) {
     ipcMain.handle(CHANNELS.activitySeen, () => { activity.markSeen(); pushStatus(); });
     ipcMain.handle(CHANNELS.settings, () => settings.get());
     ipcMain.handle(CHANNELS.setupState, () => readSetupState(os.homedir(), monitor.snapshots().length));
+    // #region setup-check — docs: docs/ux/scenarios.md#scn-070-check-what-is-set-up
+    // FD-65: the launcher's read-only doctor, run only when the person presses Check setup, one at a time.
+    ipcMain.handle(CHANNELS.setupCheckLast, () => lastSetupCheck);
+    ipcMain.handle(CHANNELS.setupCheck, () => {
+      setupCheckRun ??= (async () => {
+        const dirs = searchDirs(await readLoginPath());
+        const testDoctor = !app.isPackaged ? process.env.FD_TEST_DOCTOR : undefined; // e2e: a fixture stands in for npx
+        const npx = testDoctor ?? dirs.map((d) => path.join(d, process.platform === 'win32' ? 'npx.cmd' : 'npx')).find((f) => fs.existsSync(f)) ?? null;
+        if (!npx) return { kind: 'no-node' } as SetupCheckResult;
+        const [cmd, args] = doctorArgv(npx);
+        const env = { ...commandEnv(), PATH: dirs.join(path.delimiter) };
+        const r = await runOwned(cmd, args, { timeoutMs: DOCTOR_TIMEOUT_MS, env });
+        const result = doctorResult(r);
+        log(`setup_check ${result.kind}${result.kind === 'report' ? ` ok=${result.report.ok} fail=${result.report.summary.fail} warn=${result.report.summary.warn}` : result.kind === 'error' ? ` ${result.detail}` : ''}`);
+        return result;
+      })().then((result) => { lastSetupCheck = result; return result; }).finally(() => { setupCheckRun = null; });
+      return setupCheckRun;
+    });
+    // #endregion setup-check
     ipcMain.handle(CHANNELS.settingsUpdate, (_e, raw: SettingsPatch) => {
       // Review R-4: a console's runtime and folder are set only through the console's own calls (a
       // folder only from the folder dialog), never through a generic settings change.

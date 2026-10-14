@@ -1,5 +1,6 @@
 // The typed bridge between the renderer and the main process. The renderer
 // never sees a token, a file handle or a process: it asks, the main process acts.
+import type { SetupCheckResult } from './doctor';
 import type { CommandResult } from './outcome';
 import type { SpendEntry } from './spend';
 import type { ActivityItem, AppStatus, Listener, Reason, Settings, SettingsPatch } from './types';
@@ -56,6 +57,9 @@ export interface FabricApi {
   settings(): Promise<Settings>;
   /** FD-39 SCN-058: what is set up already (read only). */
   setupState(): Promise<{ mcp: boolean; skills: boolean; firstAgent: boolean }>;
+  /** FD-65: runs the launcher's read-only doctor now (up to two minutes); the last result until the next press. */
+  setupCheck(): Promise<SetupCheckResult>;
+  setupCheckLast(): Promise<SetupCheckResult | null>;
   updateSettings(patch: SettingsPatch): Promise<{ settings: Settings; error?: string }>;
   listeners(): Promise<{ listeners: Listener[]; error?: string }>;
   /** Open a folder or reveal a file this app knows (the services folder, a descriptor, a service's data); never launches an app. */
@@ -132,6 +136,8 @@ export const CHANNELS = {
   settings: 'fd:settings',
   settingsUpdate: 'fd:settings-update',
   setupState: 'fd:setup-state',
+  setupCheck: 'fd:setup-check',
+  setupCheckLast: 'fd:setup-check-last',
   listeners: 'fd:listeners',
   showPath: 'fd:show-path',
   viewShow: 'fd:view-show',

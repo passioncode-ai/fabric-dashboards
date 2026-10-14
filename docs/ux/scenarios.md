@@ -56,7 +56,7 @@
 | SCN-048 | Open an agent's console beside its dashboard | console | P-01 | ST-019 | validated | 2026-10-06 |
 | SCN-049 | Start a runtime in the agent's repository | console | P-01 | ST-019 | validated | 2026-10-06 |
 | SCN-050 | A folder bound to a Switchboard project runs on that project's account | console | P-01 | ST-019 | validated | 2026-10-06 |
-| SCN-051 | The app watches contract and skill versions | estate | P-01 | ST-008, ST-017 | draft | 2026-10-07 |
+| SCN-051 | The app watches contract and skill versions | estate | P-01 | ST-008, ST-017 | validated | 2026-10-14 |
 | SCN-052 | Fabric Dashboards on Windows or Linux | platform | P-01 | ST-001, ST-008 | draft | 2026-10-10 |
 | SCN-053 | The console's agent already knows which agent it works on | console | P-01 | ST-020 | validated | 2026-10-12 |
 | SCN-054 | Fix with agent | console | P-01 | ST-020 | validated | 2026-10-12 |
@@ -75,6 +75,7 @@
 | SCN-067 | Dashboards take my scheme and theme | settings | P-01 | ST-019 | validated | 2026-10-13 |
 | SCN-068 | See which runner and model an agent uses | service | P-01 | ST-019 | validated | 2026-10-13 |
 | SCN-069 | A hand-over opens in the console | console | P-01 | ST-019 | draft | 2026-10-13 |
+| SCN-070 | Check what is set up | settings | P-01 | ST-017 | validated | 2026-10-14 |
 ## Personas
 
 Defined in [foundation.md](foundation.md) → P-01.
@@ -544,8 +545,8 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **UI elements:** Settings → Estate updates (watch switch, auto-update skills switch, clone path field, status lines for the contract, the pins and the skills)
 - **States covered:** loading, success, error
 - **Errors & recovery:** a probe fails -> the section shows "could not be checked", `estate_check failed` is logged with one retry within the hour; the publisher check fails -> the apply is refused, `estate_update refused` is logged, nothing runs; an update that fails -> `estate_update failed` and a failed check, retried within the hour; every check and update is logged in `main.log` with the codes `estate_check` / `estate_update`
-- **Status:** draft
-- **Coverage:** src/core/estate-update.ts, src/electron/estate-updater.ts, src/electron/main.ts (estate-update), src/renderer/components/Settings.tsx (ClonePath, EstateState), test/estate-update.test.ts
+- **Status:** validated
+- **Coverage:** src/core/estate-update.ts, src/electron/estate-updater.ts, src/electron/main.ts (estate-update), src/renderer/components/Settings.tsx (ClonePath, EstateState), test/estate-update.test.ts, test/e2e/overview-settings.test.ts *SCN-051* (a real clone of the contract named in Settings on the running app: the remote read, the commits fetched, the local main left where it was — it fails when the fetch is replaced by a pull, 2026-10-14); the installed app logs `estate_check ok` every 6 hours (main.log)
 - **Product:** unobserved
 
 ## tray
@@ -1190,6 +1191,25 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **Errors & recovery:** a hand-over that cannot be read or taken goes to Terminal on Switchboard's side after two minutes; nothing is lost
 - **Status:** draft
 - **Coverage:** src/core/switchboard.ts, src/electron/console.ts, src/electron/main.ts, src/renderer/App.tsx, src/renderer/components/ConsolePanel.tsx, test/handovers.test.ts
+- **Product:** unobserved
+
+### SCN-070: Check what is set up
+- **Persona:** P-01
+- **Feature:** settings
+- **Traces:** ST-017; FD-65; PassionCode launcher ADR-0004 (`doctor`), roadmap RM-09
+- **Entry point:** Settings → Setup → "Check setup", or the setup card on Overview
+- **Preconditions:** none; Node.js 18 or later is needed for the check itself
+- **Steps:**
+  1. User presses "Check setup" -> "Checking… this can take up to two minutes." while the app runs the PassionCode launcher's read-only `doctor` at a pinned version (`npx --yes @passioncode-ai/passioncode@0.2.2 doctor --json`, no shell, two-minute cap)
+  2. The check ends -> one line: "Failing: <n> · Warnings: <n> · OK: <n> · checked at HH:MM"; below it every failing and warning check, grouped by area (Prerequisites, Skills, Apps, MCP servers, Services), an area with a failure first and failures first within it, each with its own words and "Fix:" followed by the launcher's fix
+  3. User presses "Repair with my coding agent" -> the Setup console opens beside Overview; its brief starts with what the check found, failures first, each with its fix
+- **Expected result:** the person sees in one place what is not set up on this computer and hands the repair to their coding agent; the app runs no repair itself
+- **Alt paths:** every check passes -> "Every check passed." and no repair button; Node.js is not installed -> "Node.js 18 or later is not installed, so the check cannot run. Install it from nodejs.org, then check again."; the launcher answers anything but its report -> "The check could not run: <its first line>"; no answer in two minutes -> "The check could not run: no answer within 120 s"; a second press while a check runs joins it; the last result stays until the next press and is never re-run on its own
+- **UI elements:** Check setup button, the summary line, the grouped lines with their fixes, Repair with my coding agent
+- **States covered:** loading, success, error
+- **Errors & recovery:** each error names what to do; the check is read-only, so pressing again is always safe
+- **Status:** validated
+- **Coverage:** src/core/doctor.ts, src/electron/main.ts (setup-check), src/renderer/components/Overview.tsx (SetupCheck), src/core/setup.ts (the brief), test/doctor.test.ts, test/e2e/overview-settings.test.ts *SCN-070* (on the running app, with a fixture standing in for npx that refuses any other arguments, 2026-10-14); the real launcher's `doctor --json` 0.2.2 answered on this Mac in 27 s (44 checks, 0 failing)
 - **Product:** unobserved
 
 ### SCN-060: The dashboard keeps its floor while the console widens
