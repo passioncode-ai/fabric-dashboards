@@ -422,3 +422,11 @@ test('FD-47 DEC-0042 SH-7: service_context takes the key a session handoff\'s fi
   const empty = await handle(deps, { jsonrpc: '2.0', id: 5, method: 'tools/call', params: { name: 'service_context', arguments: { key: '', service: KEY } } }) as { result: { isError?: boolean } };
   assert.notEqual(empty.result.isError, true, 'an empty key is no key: service is used');
 });
+
+test('every tool\'s input schema is one a model API accepts: an object with no anyOf, oneOf, allOf, not or enum at its top level (Claude Code drops such a tool silently)', () => {
+  for (const t of TOOLS) {
+    const s = t.inputSchema as Record<string, unknown>;
+    assert.equal(s.type, 'object', t.name);
+    for (const k of ['anyOf', 'oneOf', 'allOf', 'not', 'enum']) assert.ok(!(k in s), `${t.name} has ${k} at the top of its input schema`);
+  }
+});

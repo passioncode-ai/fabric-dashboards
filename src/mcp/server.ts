@@ -102,7 +102,8 @@ export const TOOLS = [
     name: 'service_context',
     description: 'Everything about one service a coding agent needs before working on it, read now: state and reasons as sentences, descriptor problems, version and pending update, repository, origin, dashboard, its descriptor (auth left out), its recent events and the rules for a console session. Call it first when a console was opened for this service (the first call of a session-handoff/1 pack, with key).',
     // FD-47 (DEC-0042 SH-7): the handoff's first call passes the agent's key as `key`; `service` is kept for older callers.
-    inputSchema: { type: 'object', properties: { key: serviceArg, service: serviceArg }, anyOf: [{ required: ['key'] }, { required: ['service'] }], additionalProperties: false },
+    // One of them is required, checked in `call`: a top-level anyOf makes the Anthropic API refuse the schema, so Claude Code drops the tool.
+    inputSchema: { type: 'object', properties: { key: serviceArg, service: serviceArg }, additionalProperties: false },
     annotations: { readOnlyHint: true },
   },
   {

@@ -344,7 +344,7 @@ An independent review (5 risks, 1 nit) was fixed in the same PR:
 - a failed write leaves no `.tmp`, and one a killed writer left is swept;
 - the old manifest is removed before anything else;
 - a Terminal window does not rewrite the pack of a running console session;
-- `service_context` refuses `key` and `service` naming different services, and treats an empty one as absent (schema `anyOf`);
+- `service_context` refuses `key` and `service` naming different services, and treats an empty one as absent (checked in `call`; the schema has no top-level `anyOf`, which the Anthropic API refuses — FD-66);
 - `launch.args` excluding the runtime's own Continue arguments is declared (SH-10).
 
 After the fixes: `npm run check` 0 (428 of 433 tests), console e2e 3/3. `app` and `remote` e2e, run directly, passed 5/5.

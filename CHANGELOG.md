@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- **Claude Code sees `service_context`** (FD-66). Its input schema had `anyOf` at the top level, which the Anthropic
+  API refuses, so Claude Code dropped the tool and a console's agent could not make its first call. One of `key` or
+  `service` is still required; the server checks it.
+
 ## 0.7.9 - 2026-10-13
 
 ### Added
