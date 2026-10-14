@@ -12,6 +12,7 @@ import { execRunner, type Runner } from '@passioncode-ai/fabric-service-host';
 import { CHANNELS, type ConsoleInfo, type ConsoleStartResult, type ConsoleTask } from '../core/api';
 import { prepareHandoff, type McpCommand } from '../core/handoff';
 import { prepareSetup, SETUP_KEY, setupFolder, type SetupState } from '../core/setup';
+import type { DoctorReport } from '../core/doctor';
 import type { ActivityItem } from '../core/types';
 import { ConsoleManager, planStart, terminalScript, type SpawnPty } from '../core/consoles';
 import { admit, machineProbe, type MachineState } from '../core/admission';
@@ -65,6 +66,8 @@ export interface ConsoleHostOptions {
   mcpServer?: () => McpCommand;
   /** FD-39 SCN-058: what is set up already, for the Setup console's brief. */
   setupState?: () => SetupState;
+  /** FD-65: the last Check setup's report, so Repair with my coding agent starts from it. */
+  doctor?: () => DoctorReport | null;
   /** FD-50 (LC-18): how long a session may sit without input or output before it is saved and closed
    *  (default IDLE_CLOSE_MS; 0 turns the sweep off, as tests that do not test it do). */
   idleMs?: number;
@@ -214,7 +217,7 @@ export class ConsoleHost {
   private pack(key: string, runtime: Runtime, folder: string, task?: ConsoleTask): { handoff: { before: string[]; after: string[] }; env: Record<string, string> } | null {
     if (key === SETUP_KEY && this.o.packRoot && this.o.mcpServer) {
       try {
-        const r = prepareSetup({ dir: path.join(this.o.packRoot, key), runtimeId: runtime.id, runtimeName: runtime.name, server: this.o.mcpServer(), state: this.o.setupState?.() ?? { mcp: false, skills: false, firstAgent: false } });
+        const r = prepareSetup({ dir: path.join(this.o.packRoot, key), runtimeId: runtime.id, runtimeName: runtime.name, server: this.o.mcpServer(), state: this.o.setupState?.() ?? { mcp: false, skills: false, firstAgent: false }, doctor: this.o.doctor?.() ?? null });
         return { handoff: r.handoff, env: r.env };
       } catch (error) {
         this.o.log(`console: setup starts without its brief: ${(error as Error).message}`);
@@ -305,6 +308,7 @@ export class ConsoleHost {
       this.handoversUnavailable = r.unavailable;
       return [];
     }
+    if (this.handoversUnavailable) this.o.log('console: hand-overs can be read again'); // FD-69: a recovery is said, not silent
     this.handoversUnavailable = null;
     const taken: string[] = [];
     for (const h of r.handovers) {

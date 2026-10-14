@@ -1,5 +1,6 @@
 import { offersAgentUpdate, offersFix, SETUP_KEY } from '../../core/offers';
 import type { SinceLastVisit } from '../../core/visit';
+import { areasInOrder, attention, type SetupCheckResult } from '../../core/doctor';
 import { attentionRank } from '@passioncode-ai/fabric-service-host/state';
 import { useEffect, useState } from 'react';
 import { sumSpend, type SpendEntry } from '../../core/spend';
@@ -42,6 +43,7 @@ export function SetupCard({ onOpen, consoleOpen }: { onOpen: (mode: 'new' | 'con
           : <button className="btn btn-primary" onClick={() => onOpen('new')}>{t('setup.agent.start')}</button>)}
         <button className="btn" onClick={() => void hide()}>{t('setup.agent.hide')}</button>
       </div>
+      <SetupCheck onRepair={() => onOpen('new')} />
     </section>
   );
 }
@@ -315,3 +317,50 @@ function StatusStrip({ status, products, attention, goSpend }: { status: AppStat
     </section>
   );
 }
+
+// #region setup-check — docs: docs/ux/scenarios.md#scn-070-check-what-is-set-up
+/** FD-65 (SCN-070): Check setup runs the PassionCode launcher's read-only doctor and lists what needs the person,
+ *  grouped by area, each with its fix; Repair with my coding agent opens the Setup console with those lines. */
+export function SetupCheck({ onRepair }: { onRepair: () => void }) {
+  const { t, lang } = useT();
+  const [result, setResult] = useState<SetupCheckResult | null>(null);
+  const [running, setRunning] = useState(false);
+  useEffect(() => { void api().setupCheckLast().then((r) => setResult((x) => x ?? r)).catch(() => undefined); }, []);
+  const check = async () => {
+    setRunning(true);
+    try { setResult(await api().setupCheck()); } catch (error) { setResult({ kind: 'error', detail: String((error as Error)?.message ?? error), checkedAt: new Date().toISOString() }); } finally { setRunning(false); }
+  };
+  const lines = result?.kind === 'report' ? attention(result.report) : [];
+  const time = (iso: string) => new Date(iso).toLocaleTimeString(lang, { hour: '2-digit', minute: '2-digit' });
+  return (
+    <div className="setup-check">
+      <div className="row">
+        <button className="btn" disabled={running} onClick={() => void check()}>{t('setupCheck.run')}</button>
+        {running && <span className="meta row" role="status"><Spinner /> {t('setupCheck.running')}</span>}
+        {!running && result?.kind === 'report' && <span className="meta" role="status">{t('setupCheck.summary', { fail: result.report.summary.fail, warn: result.report.summary.warn, ok: result.report.summary.ok, at: time(result.checkedAt) })}</span>}
+      </div>
+      {!running && result?.kind === 'no-node' && <p className="notice error" role="alert">{t('setupCheck.noNode')}</p>}
+      {!running && result?.kind === 'error' && <p className="notice error" role="alert">{t('setupCheck.error', { detail: result.detail })}</p>}
+      {!running && result?.kind === 'report' && !lines.length && <p className="meta">{t('setupCheck.clean')}</p>}
+      {!running && lines.length > 0 && (
+        <>
+          {areasInOrder(lines).map((a) => (
+            <div key={a} className="setup-check-area">
+              <h3>{t(`setupCheck.area.${a}`)}</h3>
+              <ul>
+                {lines.filter((c) => c.area === a).map((c) => (
+                  <li key={c.id} className={`setup-check-${c.state}`}>
+                    <span className="chip">{t(`setupCheck.state.${c.state}`)}</span> {c.detail}
+                    {c.fix && <div className="meta setup-check-fix">{t('setupCheck.fix')} <code>{c.fix}</code></div>}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+          <button className="btn btn-primary" onClick={onRepair}>{t('setupCheck.repair')}</button>
+        </>
+      )}
+    </div>
+  );
+}
+// #endregion setup-check

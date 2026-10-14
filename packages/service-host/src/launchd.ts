@@ -13,7 +13,8 @@ export const execRunner: Runner = (command, args, timeoutMs = 30_000) =>
   new Promise((resolve) => {
     execFile(command, args, { timeout: timeoutMs, maxBuffer: 4 * 1024 * 1024, encoding: 'utf8' }, (error, stdout, stderr) => {
       const code = error ? (typeof (error as NodeJS.ErrnoException & { code?: unknown }).code === 'number' ? Number((error as { code: number }).code) : 1) : 0;
-      resolve({ code, stdout: String(stdout ?? ''), stderr: String(stderr ?? (error ? error.message : '')) });
+      // FD-69: a killed or timed-out command leaves stderr empty; its reason is in the error, never dropped.
+      resolve({ code, stdout: String(stdout ?? ''), stderr: String(stderr || (error ? error.message : '')) });
     });
   });
 

@@ -8,6 +8,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { handoffArgs, mcpConfig, writePack, type McpCommand } from './handoff';
+import { doctorMarkdown, type DoctorReport } from './doctor';
 
 export { SETUP_KEY } from './offers';
 
@@ -47,7 +48,7 @@ export function registerCommand(runtimeId: string, server: McpCommand): string |
 }
 
 /** `setup.md`: the steps, in order, with this machine's commands; done steps are marked, not repeated. */
-export function setupMarkdown(o: { runtimeId: string; runtimeName: string; server: McpCommand; state: SetupState; platform: NodeJS.Platform }): string {
+export function setupMarkdown(o: { runtimeId: string; runtimeName: string; server: McpCommand; state: SetupState; platform: NodeJS.Platform; doctor?: DoctorReport | null }): string {
   const reg = registerCommand(o.runtimeId, o.server);
   const done = (b: boolean) => (b ? ' — **already done; check it, do not repeat it**' : '');
   return [
@@ -59,6 +60,8 @@ export function setupMarkdown(o: { runtimeId: string; runtimeName: string; serve
     'prompt — never printed, never in an argument or a file you show), a choice only they can make. One question at',
     'a time. Say what you are about to do before each step, and what happened after it.',
     '',
+    // FD-65: a Check setup the person ran before opening this console comes first: it names what is broken now.
+    ...(o.doctor ? [doctorMarkdown(o.doctor)].filter(Boolean) : []),
     '## Steps, in order',
     '',
     `1. **Fabric Dashboards' MCP server, for every session**${done(o.state.mcp)}.`,
@@ -91,7 +94,7 @@ export function setupMarkdown(o: { runtimeId: string; runtimeName: string; serve
 }
 
 /** The Setup console's start: setup.md written, and the runtime told to begin with it. */
-export function prepareSetup(o: { dir: string; runtimeId: string; runtimeName: string; server: McpCommand; state: SetupState; platform?: NodeJS.Platform }): { handoff: { before: string[]; after: string[] }; env: Record<string, string>; files: { setup: string; mcp: string } } {
+export function prepareSetup(o: { dir: string; runtimeId: string; runtimeName: string; server: McpCommand; state: SetupState; platform?: NodeJS.Platform; doctor?: DoctorReport | null }): { handoff: { before: string[]; after: string[] }; env: Record<string, string>; files: { setup: string; mcp: string } } {
   const packed = writePack(o.dir, { context: setupMarkdown({ ...o, platform: o.platform ?? process.platform }), task: null, mcp: mcpConfig(o.server) });
   const setup = path.join(o.dir, 'setup.md');
   fs.renameSync(packed.context, setup);

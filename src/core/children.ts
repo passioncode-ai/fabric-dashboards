@@ -22,7 +22,7 @@ export function commandEnv(env: NodeJS.ProcessEnv = process.env): NodeJS.Process
 
 /** `started` is false only when the command never ran (no such file, no permission); `signal` names
  *  what ended one that did (T-6). */
-export interface OwnedResult { code: number | null; output: string; timedOut: boolean; started?: boolean; signal?: NodeJS.Signals | null }
+export interface OwnedResult { code: number | null; output: string; timedOut: boolean; started?: boolean; signal?: NodeJS.Signals | null; stdout?: string; stderr?: string }
 export interface OwnedOptions { timeoutMs: number; killGraceMs?: number; maxBuffer?: number; env?: NodeJS.ProcessEnv }
 
 const owned = new Set<ChildProcess>();
@@ -132,7 +132,7 @@ export function runOwned(command: string, args: string[], o: OwnedOptions): Prom
           void killGroup(child, o.killGraceMs ?? KILL_GRACE_MS).finally(() => lingering.delete(child));
         } catch { /* the group is gone */ }
       }
-      resolve({ code, output: `${stdout}${stderr ? `\n${stderr}` : ''}${extra}`.trim(), timedOut, started, signal });
+      resolve({ code, output: `${stdout}${stderr ? `\n${stderr}` : ''}${extra}`.trim(), timedOut, started, signal, stdout, stderr: `${stderr}${extra}` });
     };
     let done = false;
     const settle = (code: number | null, signal: NodeJS.Signals | null, extra = '') => { if (!done) { done = true; finish(code, signal, extra); } };

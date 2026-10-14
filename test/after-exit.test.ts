@@ -13,7 +13,9 @@ import { tmp } from './helpers';
 
 const moduleUrl = (name: string) => pathToFileURL(path.resolve(__dirname, '..', 'src', 'core', name)).href;
 const runParent = (code: string) => spawnSync(process.execPath, ['--import', 'tsx', '-e', code], { encoding: 'utf8', timeout: 60_000 });
-const waitFor = async (file: string, ms: number) => { for (let i = 0; i < ms / 100 && !fs.existsSync(file); i += 1) await new Promise((x) => setTimeout(x, 100)); };
+// The helper's writeFileSync creates the file before it fills it: under load a reader can see it empty. Wait for content.
+const written = (file: string) => { try { return fs.readFileSync(file, 'utf8').trim().length > 0; } catch { return false; } };
+const waitFor = async (file: string, ms: number) => { for (let i = 0; i < ms / 100 && !written(file); i += 1) await new Promise((x) => setTimeout(x, 100)); };
 
 test('a helper outlives the process that started it and runs after that process exited', async () => {
   const dir = tmp('fd-after-exit-');

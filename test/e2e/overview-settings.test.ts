@@ -80,3 +80,32 @@ test('SCN-041, SCN-006, SCN-057, SCN-024: the strip, needs attention, the list\'
     await stopProcess(proc);
   }
 });
+
+// SCN-070 (FD-65): Check setup runs the pinned, read-only doctor (a fixture stands in for npx here: it refuses any other
+// arguments), lists what needs the person — failures first, grouped by area, each with its fix — and Repair with my
+// coding agent opens the Setup console beside Overview.
+test('SCN-070: Check setup lists what needs the person and hands the repair to the coding agent', { timeout: 120_000, skip: process.platform === 'win32' && 'POSIX fake npx' }, async () => {
+  const base = tmp('fd-e2e-doctor-');
+  const services = path.join(base, 'services');
+  fs.mkdirSync(services);
+  let app: ElectronApplication | null = null;
+  try {
+    app = await electron.launch({ args: [ROOT], env: { ...process.env, FABRIC_SERVICES_DIR: services, FABRIC_DASHBOARDS_USER_DATA: path.join(base, 'app'), LANG: 'en_US.UTF-8', FD_TEST_DOCTOR: path.join(ROOT, 'test/fixtures/doctor/fake-npx.sh') } });
+    const page = await app.firstWindow();
+    await page.getByRole('button', { name: 'Settings' }).first().click({ timeout: 20_000 });
+    await page.getByRole('heading', { name: 'Setup', exact: true }).waitFor();
+    const group = page.locator('section[aria-labelledby="g-setup"]');
+    await group.getByRole('button', { name: 'Check setup' }).click();
+    await group.getByText(/Failing: 1 · Warnings: 1 · OK: 1 · checked at/).waitFor({ timeout: 30_000 });
+    const items = await group.locator('.setup-check-area li').allInnerTexts();
+    assert.equal(items.length, 2, JSON.stringify(items));
+    assert.match(items[0]!, /Failing.*points at a missing file/s, 'the failure first');
+    assert.match(items[1]!, /Warning.*0\.17\.0 is out/s);
+    await group.getByText('claude mcp add --scope user fabric-dashboards', { exact: false }).waitFor();
+    assert.deepEqual(await group.locator('.setup-check-area h3').allInnerTexts(), ['MCP servers', 'Apps'], 'the area with a failure comes first');
+    await group.getByRole('button', { name: 'Repair with my coding agent' }).click();
+    await page.getByRole('complementary', { name: 'Console' }).waitFor({ timeout: 10_000 });
+  } finally {
+    await closeApp(app);
+  }
+});

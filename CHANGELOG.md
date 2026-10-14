@@ -2,7 +2,17 @@
 
 ## Unreleased
 
+### Added
+
+- **Check setup** (FD-65, SCN-070). Settings → Setup and the setup card run the PassionCode launcher's read-only
+  check at a pinned version and list what is not set up on this computer, grouped by area, each with its fix.
+  **Repair with my coding agent** opens the Setup console, and its brief starts from those lines. The check runs only
+  when you press it.
+
 ### Fixed
+
+- **A failed read says why** (FD-69). A command killed at its deadline now logs its reason instead of a bare
+  "exit 1", and the console logs once when Switchboard's hand-overs can be read again.
 
 - **Claude Code sees `service_context`** (FD-66). Its input schema had `anyOf` at the top level, which the Anthropic
   API refuses, so Claude Code dropped the tool and a console's agent could not make its first call. One of `key` or
