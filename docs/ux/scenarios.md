@@ -65,7 +65,7 @@
 | SCN-057 | Sort the agents list | list | P-01 | ST-021 | validated | 2026-10-13 |
 | SCN-058 | First session: my coding agent sets the system up | setup | P-01 | ST-022 | validated | 2026-10-12 |
 | SCN-059 | A later session opens on what changed | overview | P-01 | ST-022 | validated | 2026-10-12 |
-| SCN-060 | The dashboard keeps its floor while the console widens | console | P-01 | ST-019 | draft | 2026-10-11 |
+| SCN-060 | The dashboard keeps its floor while the console widens | console | P-01 | ST-019 | validated | 2026-10-14 |
 | SCN-061 | Talk to Fabric about this agent | console | P-01 | ST-020 | validated | 2026-10-12 |
 | SCN-062 | Outages reach me away from the Mac | notifications | P-01 | ST-002 | validated | 2026-10-13 |
 | SCN-063 | A session starts only when the Mac can carry it | console | P-01 | ST-019 | validated | 2026-10-13 |
@@ -1207,8 +1207,8 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **UI elements:** console panel, its edge handle (separator with its current maximum)
 - **States covered:** success
 - **Errors & recovery:** n/a — a layout rule that never fails; an invalid declaration is treated as no declaration
-- **Status:** draft
-- **Coverage:** src/core/layout.ts, src/renderer/App.tsx, src/renderer/components/ConsolePanel.tsx, packages/service-host/src/protocol.ts, src/core/monitor.ts, test/layout.test.ts, packages/service-host/test/protocol.test.ts, test/flap.test.ts (DEC-0036 ED-9), test/mcp.test.ts (DEC-0036 ED-9)
+- **Status:** validated
+- **Coverage:** test/e2e/focus-console.test.ts (the floor, the narrower and wider window, the left arrow key at the floor and the 960 px window on the running app, 2026-10-14), src/core/layout.ts, src/renderer/App.tsx, src/renderer/components/ConsolePanel.tsx, packages/service-host/src/protocol.ts, src/core/monitor.ts, test/layout.test.ts, packages/service-host/test/protocol.test.ts, test/flap.test.ts (DEC-0036 ED-9), test/mcp.test.ts (DEC-0036 ED-9)
 - **Product:** unobserved
 
 ### SCN-052: Fabric Dashboards on Windows or Linux
