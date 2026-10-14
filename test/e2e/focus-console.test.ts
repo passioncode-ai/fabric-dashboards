@@ -107,6 +107,16 @@ test('ADR-0017: a one-line header, a folding sidebar, and an agent console besid
     assert.ok((await hostWidth()) >= 480, 'the dashboard keeps its floor in a narrower window');
     await setWindowWidth(1400);
     await waitFor('the remembered width to come back', async () => (await valueOf('aria-valuenow')) === max);
+    // SCN-060 alt paths: the left arrow key at the floor changes nothing; in the smallest window with the full sidebar
+    // the console keeps its 320 px and the dashboard gets what is left; a wider window gives back the remembered width.
+    await page.keyboard.press('ArrowLeft');
+    await new Promise((r) => setTimeout(r, 300));
+    assert.equal(await valueOf('aria-valuenow'), max, 'the left arrow key at the floor changes nothing');
+    await setWindowWidth(960);
+    await waitFor('the console to keep its 320 px', async () => Math.round(await panel.evaluate((el) => el.getBoundingClientRect().width)) === 320);
+    assert.ok((await hostWidth()) < 480 && (await hostWidth()) > 0, 'the dashboard gets what is left, laid out by the page');
+    await setWindowWidth(1400);
+    await waitFor('the remembered width to come back again', async () => (await valueOf('aria-valuenow')) === max);
     for (let i = 0; i < 20; i++) await page.keyboard.press('ArrowRight'); // back to a narrow console for the steps below
 
     // SCN-049: the runtime runs in the chosen folder; input reaches it; Continue passes its resume flag.
