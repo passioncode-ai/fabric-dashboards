@@ -137,3 +137,85 @@ test('an online service sits in the Online group, opens signed in over https, an
     await new Promise<void>((r) => server.close(() => r()));
   }
 });
+
+// SCN-032: each way an online service fails to answer reads as its own reason. A refused token is the test above;
+// here the same origin answers with a redirect, then with a certificate the app does not trust, then (after it
+// recovers) with HTTP 503 and finally not at all. A redirect and a bad certificate are down at once; a 503 and
+// silence wait REMOTE_DOWN_AFTER_MS (60 s), because one missed probe over the internet is not an outage (ADR-0008).
+test('SCN-032: an online service that cannot be reached says why — redirect, certificate, HTTP 503, silence', { skip: !haveOpenssl && 'openssl not available', timeout: 300_000 }, async () => {
+  const base = tmp('fd-e2e-remote-why-');
+  const pair = (name: string) => {
+    const cert = path.join(base, `${name}.pem`), key = path.join(base, `${name}-key.pem`);
+    const gen = spawnSync('openssl', ['req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-days', '1', '-subj', '/CN=agent.example.com',
+      '-addext', 'subjectAltName=DNS:agent.example.com', '-keyout', key, '-out', cert], { encoding: 'utf8' });
+    assert.equal(gen.status, 0, gen.stderr);
+    return { cert, key };
+  };
+  const trusted = pair('trusted');
+  const stranger = pair('stranger'); // the same name, signed by a key the app was not told to trust
+  const state = { token: 'e'.repeat(40) };
+  const server = onlineService(trusted.cert, trusted.key, state);
+  let mode: 'ok' | 'redirect' | '503' | 'silent' = 'ok';
+  const handler = server.listeners('request')[0] as (req: unknown, res: unknown) => void;
+  server.removeAllListeners('request');
+  server.on('request', (req: import('node:http').IncomingMessage, res: import('node:http').ServerResponse) => {
+    if (mode === 'redirect' && req.url?.startsWith('/.well-known/')) { res.writeHead(302, { Location: 'https://elsewhere.example.com/' }); res.end(); return; }
+    if (mode === '503') { res.writeHead(503); res.end('deploying'); return; }
+    if (mode === 'silent') return; // the request is never answered
+    handler(req, res);
+  });
+  await new Promise<void>((r) => server.listen(0, '127.0.0.1', () => r()));
+  const port = (server.address() as AddressInfo).port;
+  const origin = `https://agent.example.com:${port}`;
+  const services = path.join(base, 'services');
+  const tokenFile = path.join(base, 'tokens', 'example-agent.default.token');
+  fs.mkdirSync(services, { recursive: true });
+  fs.mkdirSync(path.dirname(tokenFile), { recursive: true });
+  fs.writeFileSync(tokenFile, state.token, { mode: 0o600 });
+  fs.writeFileSync(path.join(services, 'example-agent.default.json'), JSON.stringify({
+    protocol: 'fabric-service/0.1', id: 'example-agent', instance: 'default', name: 'Example Online Agent', placement: 'remote', origin,
+    auth: { tokenFile }, lifecycle: { manager: 'none' }, installedAt: '2026-10-02T18:00:00Z', installedBy: 'e2e',
+  }), { mode: 0o600 });
+  let app: ElectronApplication | null = null;
+  try {
+    app = await electron.launch({
+      args: [ROOT],
+      env: {
+        ...process.env, FABRIC_SERVICES_DIR: services, FABRIC_DASHBOARDS_USER_DATA: path.join(base, 'app'), LANG: 'en_US.UTF-8',
+        FD_TEST_REMOTE: JSON.stringify({ name: 'agent.example.com', connect: `127.0.0.1:${port}`, caFile: trusted.cert }),
+        FD_TEST_REMOTE_MS: '5000',
+      },
+    });
+    const page = await app.firstWindow();
+    const card = (state: string) => page.getByRole('button', { name: new RegExp(`Example Online Agent — ${state}`) });
+    await card('Ready').waitFor({ timeout: 30_000 });
+
+    // Step 3a: a redirect is down at once and never followed.
+    mode = 'redirect';
+    await card('Not answering').waitFor({ timeout: 45_000 });
+    await page.getByText(`${origin} answered with a redirect, which the app does not follow.`).first().waitFor({ timeout: 10_000 });
+
+    // Step 2: a certificate that does not verify is down at once — the origin's verdict, not a slow host.
+    mode = 'ok';
+    server.setSecureContext({ cert: fs.readFileSync(stranger.cert), key: fs.readFileSync(stranger.key) });
+    await page.getByText(new RegExp(`The certificate of ${origin.replace(/[.]/g, '\\.')} does not verify: .+\\. The app does not connect around it\\.`)).first().waitFor({ timeout: 45_000 });
+
+    // It recovers, then its platform answers 503: one missed probe is not an outage; a minute of them is.
+    server.setSecureContext({ cert: fs.readFileSync(trusted.cert), key: fs.readFileSync(trusted.key) });
+    await card('Ready').waitFor({ timeout: 45_000 });
+    mode = '503';
+    await card('Starting').waitFor({ timeout: 45_000 });
+    assert.equal(await card('Not answering').count(), 0, 'a 503 inside the first minute is not yet an outage');
+    await page.getByText(`${origin} is not up: its platform answers HTTP 503 on /.well-known/fabric-service.`).first().waitFor({ timeout: 90_000 });
+    await card('Not answering').waitFor();
+
+    // Step 4: then nothing answers — the reason names when it last answered.
+    mode = 'silent';
+    await page.getByText(new RegExp(`${origin.replace(/[.]/g, '\\.')} has not answered since \\d{1,2}:\\d{2}`)).first().waitFor({ timeout: 45_000 });
+    assert.equal(await page.getByRole('button', { name: 'Restart' }).count(), 0, 'no reason offers a restart: the platform supervises the service');
+  } finally {
+    await closeApp(app);
+    server.closeAllConnections();
+    await new Promise<void>((r) => server.close(() => r()));
+  }
+});

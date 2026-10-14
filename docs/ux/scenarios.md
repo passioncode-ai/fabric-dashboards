@@ -37,7 +37,7 @@
 | SCN-029 | Open a service from Fabric's agent registry | links | P-01 | ST-011, ST-005, ST-003 | validated | 2026-10-12 |
 | SCN-030 | Online services appear in their own group | overview | P-01 | ST-013, ST-002 | validated | 2026-10-13 |
 | SCN-031 | Open an online service's dashboard, signed in | dashboards | P-01 | ST-013, ST-005 | validated | 2026-10-12 |
-| SCN-032 | An online service that cannot be reached says why | health | P-01 | ST-013, ST-004 | draft | 2026-10-06 |
+| SCN-032 | An online service that cannot be reached says why | health | P-01 | ST-013, ST-004 | validated | 2026-10-14 |
 | SCN-033 | Several instances of one agent read as one agent | products | P-01 | ST-014, ST-002 | validated | 2026-10-13 |
 | SCN-034 | Switch between an agent's connections | products | P-01 | ST-014, ST-005 | validated | 2026-10-13 |
 | SCN-035 | A connection fails while the agent is fine | products | P-01 | ST-014, ST-002, ST-004 | validated | 2026-10-13 |
@@ -762,8 +762,8 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **UI elements:** state badge, reason line, Health tab
 - **States covered:** error
 - **Errors & recovery:** each reason names the next action; none offers restart, because the platform supervises the service
-- **Status:** draft
-- **Coverage:** packages/service-host/src/state.ts, packages/service-host/test-vectors/state-precedence.json, src/core/i18n.ts
+- **Status:** validated
+- **Coverage:** packages/service-host/src/state.ts, packages/service-host/test-vectors/state-precedence.json, src/core/i18n.ts, test/e2e/remote.test.ts (the refused token, then a redirect, a certificate the app does not trust, HTTP 503 after the minute's grace and silence, on the running app, 2026-10-14; it fails when the grace is removed)
 - **Product:** unobserved
 
 ## products
