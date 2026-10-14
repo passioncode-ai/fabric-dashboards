@@ -3,7 +3,55 @@
 Updated 2026-10-07 (0.6.2: 0.6.1 withdrawn for audit HIGH-2, audit fixes, signed feed; 0.6.1: LC-16 in detail updater, Russian by choice; 0.6.0 published 2026-10-06 21:35 UTC; release 0.5.6: third review pass, token latch; release 0.5.5 withdrawn: release audit and its second pass, A2A plan, ADR-0016, ADR-0015 data and updates, FD-05, FD-06, FD-13; Spend and DEC-0021; one entry per agent, ADR-0012; lifecycle contract landed from PR #21, unreleased; CI release rehearsal
 `v0.4.1-rc.1` green; releases move to CI signing; release 0.4.1, MCP links to online services).
 
-Current release: 0.7.6 (published 2026-10-12 04:12 UTC, run 38200511483, tag on `5f2fcbe`; the bug wave: Windows helpers outlive the app, the AppImage restarts itself; DEC-0044 setup flag). Before it, 0.7.5 (FD-48 outage alerts, Reload signs in). Before it, 0.7.4 (published 2026-10-11 20:01 UTC, run 38168481474; FD-37 M4a–M4c). Before it, 0.7.3 (published 2026-10-11 16:59 UTC, run 38156472858; FD-45, FD-47; carries 0.7.2, tagged and not published). Before it, 0.7.1 (published 2026-10-11 11:34 UTC, run 38106066248; FD-37 M1–M3, FD-39, FD-41; carries 0.7.0, tagged and not published). Before it, 0.6.7 (published 2026-10-09 17:07 UTC, run 37955575384; FD-36, FD-35, FD-38). Before it, 0.6.6 (published 2026-10-09 10:08 UTC, run 37864378854; FD-34, FD-35). Before it, 0.6.5 (published 2026-10-08 01:18 UTC, run 37703405621; FD-29, FD-33). Before it, 0.6.4 (published 2026-10-07 01:57 UTC, run 37558793926; carries 0.6.3, superseded before approval). Before it, 0.6.2 (published 2026-10-06 23:41 UTC, run 37541067349; 0.6.1 withdrawn). Before it, 0.6.0 (published 2026-10-06 21:35 UTC, run 37505569449); Before it, 0.5.6 (2026-10-06); the 0.4.1 section below is the previous one. Earlier releases below are preserved as dated evidence.
+Current release: **0.7.10** (published 2026-10-14 17:56 UTC, run 38606788342, tag on `3cf8ea1`; FD-65 Check setup, FD-66, FD-69). Before it 0.7.9 (FD-62), 0.7.8 (FD-64, FD-63), 0.7.7 (the board waves). Before them, 0.7.6 (published 2026-10-12 04:12 UTC, run 38200511483, tag on `5f2fcbe`; the bug wave: Windows helpers outlive the app, the AppImage restarts itself; DEC-0044 setup flag). Before it, 0.7.5 (FD-48 outage alerts, Reload signs in). Before it, 0.7.4 (published 2026-10-11 20:01 UTC, run 38168481474; FD-37 M4a–M4c). Before it, 0.7.3 (published 2026-10-11 16:59 UTC, run 38156472858; FD-45, FD-47; carries 0.7.2, tagged and not published). Before it, 0.7.1 (published 2026-10-11 11:34 UTC, run 38106066248; FD-37 M1–M3, FD-39, FD-41; carries 0.7.0, tagged and not published). Before it, 0.6.7 (published 2026-10-09 17:07 UTC, run 37955575384; FD-36, FD-35, FD-38). Before it, 0.6.6 (published 2026-10-09 10:08 UTC, run 37864378854; FD-34, FD-35). Before it, 0.6.5 (published 2026-10-08 01:18 UTC, run 37703405621; FD-29, FD-33). Before it, 0.6.4 (published 2026-10-07 01:57 UTC, run 37558793926; carries 0.6.3, superseded before approval). Before it, 0.6.2 (published 2026-10-06 23:41 UTC, run 37541067349; 0.6.1 withdrawn). Before it, 0.6.0 (published 2026-10-06 21:35 UTC, run 37505569449); Before it, 0.5.6 (2026-10-06); the 0.4.1 section below is the previous one. Earlier releases below are preserved as dated evidence.
+
+## Next — start here (2026-10-14, one closing iteration → 0.7.10, released)
+
+**Where this product stands.** Fabric Dashboards is the machine view of the PassionCode estate (vision: Fabric is the
+CEO agent; Dashboards is its monitor and console, and works alone): it finds every `fabric-service/0.1` agent on the
+Mac, shows its health, events and spend, starts/stops it through launchd, embeds its dashboard signed in, and gives
+each agent a console where the person's coding agent works with its context. Since 0.7.x it also runs on Windows and
+Linux, updates itself on every OS (proven end to end each release), takes Switchboard's hand-overs into the console,
+and checks the whole PassionCode setup with the launcher's `doctor`. Roadmap phase: **operating and hardening** —
+every buildable row is built; what is left waits on other products (the Observatory node, Fabric's journal, the
+organization server) or on the operator.
+
+**Released 0.7.10** — PR #141 merged as `3cf8ea1` after five-runner `validate.yml` (run 38605704198), local
+`npm run check` 549 pass / 0 fail, `npm run test:e2e` 21/21, `check_private.py` 0; tag `v0.7.10`, release run
+[38606788342](https://github.com/passioncode-ai/fabric-dashboards/actions/runs/38606788342) green in every stage,
+16 assets; `update-proof -f from=0.7.9 -f to=0.7.10` run 38640607413 green on Windows x64/arm64 and Linux x64/arm64.
+Knowledge base: fabric-workspace #230.
+
+**Done in this iteration:**
+- FD-66 (`service_context` visible to Claude Code): took over the abandoned PR #137 as #140 (same commit, rebased);
+  its schema guard fails on the old top-level `anyOf`.
+- FD-65 Check setup (SCN-070): the pinned launcher's read-only `doctor --json`, lines by area with their fixes,
+  Repair with my coding agent → the Setup console's brief starts from them. Deviation, recorded in the row: the setup
+  card's automatic signal stays the cheap `readSetupState()`; the doctor runs only on a press (LC-08).
+- FD-69: the installed 0.7.9 logged a bare `exit 1` for a hand-over read — the shared runner dropped a killed
+  command's reason; fixed, and a recovery is now logged.
+- FD-62 proven live: the installed 0.7.9 took two Switchboard hand-overs, each once, in consoles of their own, within
+  the 15 s poll (main.log 19:28:32Z and 20:29:35Z); no Terminal opened (Switchboard's side confirmed). SCN-069
+  validated. Those two hand-overs came from a Switchboard bug (SB-129) and their agents did not finish (SB-130) —
+  both Switchboard's.
+- FD-02: SCN-051 (estate watcher on a real contract clone; the e2e fails when the fetch is replaced by a pull),
+  SCN-069 and SCN-070 validated — 62 of 70 scenarios validated, 8 drafts left (below).
+- Board hygiene: FD-67 closed (not reproduced in 16 runs), FD-08 closed (PR #11 closed), FD-61 decided (the app keeps
+  no port; the node serves a shared MCP — waits on it), FD-52 notes the contract's context field (DEC-0082).
+- Fixed a race in `test/after-exit.test.ts` (it read the helper's file before it was written, under load 66–103).
+- Cleanup: an abandoned worktree, 14 merged remote branches and stale local branches removed; only `main` remains.
+
+**Still open, and why (nothing buildable now):**
+- FD-02's 8 drafts: SCN-019/020 (macOS notifications — the person sees them), SCN-043/044 (a reinstall and the move
+  to Applications on a signed copy), SCN-052 (a Windows or Linux desktop), SCN-064–066 (a live Switchboard session
+  in a console folder — a person starts it on their subscription).
+- FD-04: a keychain prompt only the operator can answer (procedure in its row).
+- FD-12, FD-22, FD-40, FD-52, FD-53, FD-58, FD-59, FD-61, FD-68: wait on Fabric's journal and board, the contract's
+  A2A surface, Observatory's budget read and node, and the organization server (each row names its blocker).
+
+**Next task:** when the Observatory node publishes its descriptor with `channels.local` (FD-59) or its
+`node.lifecycle` (FD-58, then FD-61), build those rows; until then, walk SCN-064–066 when the operator runs a
+Switchboard-managed session in an agent's console folder.
 
 ## Next — start here (2026-10-13, board waves → 0.7.7, released)
 

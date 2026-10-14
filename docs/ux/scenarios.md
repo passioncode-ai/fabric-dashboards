@@ -74,7 +74,7 @@
 | SCN-066 | An idle session closes and comes back | console | P-01 | ST-019 | draft | 2026-10-12 |
 | SCN-067 | Dashboards take my scheme and theme | settings | P-01 | ST-019 | validated | 2026-10-13 |
 | SCN-068 | See which runner and model an agent uses | service | P-01 | ST-019 | validated | 2026-10-13 |
-| SCN-069 | A hand-over opens in the console | console | P-01 | ST-019 | draft | 2026-10-13 |
+| SCN-069 | A hand-over opens in the console | console | P-01 | ST-019 | validated | 2026-10-14 |
 | SCN-070 | Check what is set up | settings | P-01 | ST-017 | validated | 2026-10-14 |
 ## Personas
 
@@ -1189,8 +1189,8 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **UI elements:** the sidebar's Hand-overs section, the hand-over page, the console's hand-over line, Close
 - **States covered:** empty, success, error
 - **Errors & recovery:** a hand-over that cannot be read or taken goes to Terminal on Switchboard's side after two minutes; nothing is lost
-- **Status:** draft
-- **Coverage:** src/core/switchboard.ts, src/electron/console.ts, src/electron/main.ts, src/renderer/App.tsx, src/renderer/components/ConsolePanel.tsx, test/handovers.test.ts
+- **Status:** validated
+- **Coverage:** src/core/switchboard.ts, src/electron/console.ts, src/electron/main.ts, src/renderer/App.tsx, src/renderer/components/ConsolePanel.tsx, test/handovers.test.ts; live on the installed 0.7.9 (2026-10-14, main.log): `ho-fcdfdee61542` taken in `handover.ho-fcdfdee61542` at 19:28:32Z and `ho-3bec5ef68052` at 20:29:35Z, each once and within the 15 s poll, under Switchboard's 120 s Terminal fallback (workflow `wf_5e78a8c1a8ee6c19`, run by Switchboard's session)
 - **Product:** unobserved
 
 ### SCN-070: Check what is set up
