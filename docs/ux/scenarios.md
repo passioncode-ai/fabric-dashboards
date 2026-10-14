@@ -56,7 +56,7 @@
 | SCN-048 | Open an agent's console beside its dashboard | console | P-01 | ST-019 | validated | 2026-10-06 |
 | SCN-049 | Start a runtime in the agent's repository | console | P-01 | ST-019 | validated | 2026-10-06 |
 | SCN-050 | A folder bound to a Switchboard project runs on that project's account | console | P-01 | ST-019 | validated | 2026-10-06 |
-| SCN-051 | The app watches contract and skill versions | estate | P-01 | ST-008, ST-017 | draft | 2026-10-07 |
+| SCN-051 | The app watches contract and skill versions | estate | P-01 | ST-008, ST-017 | validated | 2026-10-14 |
 | SCN-052 | Fabric Dashboards on Windows or Linux | platform | P-01 | ST-001, ST-008 | draft | 2026-10-10 |
 | SCN-053 | The console's agent already knows which agent it works on | console | P-01 | ST-020 | validated | 2026-10-12 |
 | SCN-054 | Fix with agent | console | P-01 | ST-020 | validated | 2026-10-12 |
@@ -545,8 +545,8 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **UI elements:** Settings → Estate updates (watch switch, auto-update skills switch, clone path field, status lines for the contract, the pins and the skills)
 - **States covered:** loading, success, error
 - **Errors & recovery:** a probe fails -> the section shows "could not be checked", `estate_check failed` is logged with one retry within the hour; the publisher check fails -> the apply is refused, `estate_update refused` is logged, nothing runs; an update that fails -> `estate_update failed` and a failed check, retried within the hour; every check and update is logged in `main.log` with the codes `estate_check` / `estate_update`
-- **Status:** draft
-- **Coverage:** src/core/estate-update.ts, src/electron/estate-updater.ts, src/electron/main.ts (estate-update), src/renderer/components/Settings.tsx (ClonePath, EstateState), test/estate-update.test.ts
+- **Status:** validated
+- **Coverage:** src/core/estate-update.ts, src/electron/estate-updater.ts, src/electron/main.ts (estate-update), src/renderer/components/Settings.tsx (ClonePath, EstateState), test/estate-update.test.ts, test/e2e/overview-settings.test.ts *SCN-051* (a real clone of the contract named in Settings on the running app: the remote read, the commits fetched, the local main left where it was — it fails when the fetch is replaced by a pull, 2026-10-14); the installed app logs `estate_check ok` every 6 hours (main.log)
 - **Product:** unobserved
 
 ## tray

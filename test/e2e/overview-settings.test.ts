@@ -2,6 +2,7 @@
 // glance), SCN-006 (needs attention), SCN-057 (sort the agents list) and SCN-024 (settings apply at once and
 // survive a restart).
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
@@ -105,6 +106,41 @@ test('SCN-070: Check setup lists what needs the person and hands the repair to t
     assert.deepEqual(await group.locator('.setup-check-area h3').allInnerTexts(), ['MCP servers', 'Apps'], 'the area with a failure comes first');
     await group.getByRole('button', { name: 'Repair with my coding agent' }).click();
     await page.getByRole('complementary', { name: 'Console' }).waitFor({ timeout: 10_000 });
+  } finally {
+    await closeApp(app);
+  }
+});
+
+// SCN-051: the estate watcher on a real clone. A local clone of the contract is named in Settings, its record of the
+// remote's main is moved three commits back, and the app — 5 s after the change — reads the remote, fetches only
+// (never pull, reset or rebase), and says the clone is up to date with the commits fetched. The local main is left
+// where it was. Needs the network and this Mac's access to the contract repository.
+const CONTRACT = path.join(process.env.HOME ?? '', 'DATA', 'fabric-agent-contract');
+const haveContract = fs.existsSync(path.join(CONTRACT, '.git'));
+test('SCN-051: the app watches the contract clone — fetches only, never moves its main', { timeout: 180_000, skip: !haveContract && 'no contract clone on this Mac' }, async () => {
+  const base = tmp('fd-e2e-estate-');
+  const services = path.join(base, 'services');
+  const clone = path.join(base, 'fabric-agent-contract');
+  fs.mkdirSync(services);
+  const git = (...a: string[]) => { const r = spawnSync('git', ['-C', clone, ...a], { encoding: 'utf8' }); assert.equal(r.status, 0, r.stderr); return r.stdout.trim(); };
+  assert.equal(spawnSync('git', ['clone', '--quiet', CONTRACT, clone]).status, 0);
+  git('remote', 'set-url', 'origin', spawnSync('git', ['-C', CONTRACT, 'remote', 'get-url', 'origin'], { encoding: 'utf8' }).stdout.trim());
+  git('reset', '--quiet', '--hard', 'HEAD~3'); // the local main three commits back: a pull would move it, a fetch must not
+  const localMain = git('rev-parse', 'HEAD');
+  git('update-ref', 'refs/remotes/origin/main', localMain); // and the clone "has not fetched" the last three commits
+  let app: ElectronApplication | null = null;
+  try {
+    app = await electron.launch({ args: [ROOT], env: { ...process.env, FABRIC_SERVICES_DIR: services, FABRIC_DASHBOARDS_USER_DATA: path.join(base, 'app'), LANG: 'en_US.UTF-8' } });
+    const page = await app.firstWindow();
+    await page.getByRole('button', { name: 'Settings' }).first().click({ timeout: 20_000 });
+    await page.getByText('Contract: no clone named in Settings').waitFor();
+    const field = page.getByPlaceholder('~/DATA/fabric-agent-contract');
+    await field.fill(clone);
+    await field.press('Enter');
+    await page.getByText(/Contract: up to date — main at [0-9a-f]{7}.* · new commits fetched/).waitFor({ timeout: 90_000 });
+    assert.equal(git('rev-parse', 'HEAD'), localMain, 'the local main is never moved — fetch only');
+    assert.notEqual(git('rev-parse', 'refs/remotes/origin/main'), localMain, 'the remote main was fetched');
+    await page.getByText(/^Skills: /).first().waitFor();
   } finally {
     await closeApp(app);
   }
