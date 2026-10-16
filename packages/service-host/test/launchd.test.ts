@@ -1,7 +1,7 @@
 // Reading launchd: `print` and `print-disabled` only — this package never changes a job.
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { execRunner, LaunchdReader, parseDisabled, parsePrint, UNMANAGED, type Runner } from '../src/launchd';
+import { execRunner, failureReason, LaunchdReader, parseDisabled, parsePrint, UNMANAGED, type Runner } from '../src/launchd';
 
 test('launchctl output parsing', () => {
   assert.deepEqual(parsePrint('gui/501/x = {\n\tstate = running\n\tpid = 5542\n}'), { pid: 5542 });
@@ -44,7 +44,15 @@ test('FD-69: a command killed at its deadline says so — the reason is not drop
   const r = await execRunner('/bin/sleep', ['5'], 200);
   assert.notEqual(r.code, 0);
   assert.equal(r.stdout, '');
-  assert.match(r.stderr, /killed|SIGTERM|timed out|Command failed/i, `stderr was ${JSON.stringify(r.stderr)}`);
+  assert.equal(r.stderr, 'no answer within 0.2 s (stopped)', 'the deadline is said, not Node\'s bare "Command failed" (FD-70)');
   const ok = await execRunner('/bin/sh', ['-c', 'echo out; echo err >&2; exit 3'], 5000);
   assert.deepEqual(ok, { code: 3, stdout: 'out\n', stderr: 'err\n' }, 'a command that wrote stderr keeps its own words');
+});
+
+test('FD-70: a failure with nothing on stderr names its cause — deadline, signal, exit code or a missing program', async () => {
+  const silentExit = await execRunner('/bin/sh', ['-c', 'exit 4'], 5000);
+  assert.deepEqual(silentExit, { code: 4, stdout: '', stderr: 'exit 4 with nothing on stderr' });
+  const missing = await execRunner('/nonexistent/switchboard', [], 5000);
+  assert.match(missing.stderr, /^ENOENT: /);
+  assert.equal(failureReason(Object.assign(new Error('Command failed: x'), { killed: true, signal: 'SIGKILL' as NodeJS.Signals }), 10_000), 'ended by SIGKILL');
 });

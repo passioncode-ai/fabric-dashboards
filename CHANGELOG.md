@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- **A failed read names its cause** (FD-70). A command stopped at its deadline, ended by a signal or exiting with
+  nothing on stderr is now logged as such ("no answer within 10 s (stopped)"), not as a bare "Command failed".
+
 ## 0.7.10 - 2026-10-14
 
 ### Added
