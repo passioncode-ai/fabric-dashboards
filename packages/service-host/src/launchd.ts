@@ -8,13 +8,25 @@ import type { LaunchdStatus } from './protocol';
 export interface RunResult { code: number; stdout: string; stderr: string }
 export type Runner = (command: string, args: string[], timeoutMs?: number) => Promise<RunResult>;
 
+type RunError = Error & { killed?: boolean; signal?: NodeJS.Signals | null; code?: unknown };
+
+/** Why a command failed, when it wrote nothing on stderr. */
+export function failureReason(e: RunError, timeoutMs: number): string {
+  if (e.killed && (e.signal === 'SIGTERM' || !e.signal)) return `no answer within ${timeoutMs / 1000} s (stopped)`;
+  if (e.signal) return `ended by ${e.signal}`;
+  if (typeof e.code === 'number') return `exit ${e.code} with nothing on stderr`;
+  if (typeof e.code === 'string') return `${e.code}: ${e.message.split('\n')[0]}`; // ENOENT and the like
+  return e.message.split('\n')[0] || 'failed';
+}
+
 /** execFile, no shell; a failure to run is a non-zero code with the reason on stderr, never a throw. */
 export const execRunner: Runner = (command, args, timeoutMs = 30_000) =>
   new Promise((resolve) => {
     execFile(command, args, { timeout: timeoutMs, maxBuffer: 4 * 1024 * 1024, encoding: 'utf8' }, (error, stdout, stderr) => {
       const code = error ? (typeof (error as NodeJS.ErrnoException & { code?: unknown }).code === 'number' ? Number((error as { code: number }).code) : 1) : 0;
-      // FD-69: a killed or timed-out command leaves stderr empty; its reason is in the error, never dropped.
-      resolve({ code, stdout: String(stdout ?? ''), stderr: String(stderr || (error ? error.message : '')) });
+      // FD-69/FD-70: a killed or timed-out command leaves stderr empty, and Node's message ("Command failed: …") does not
+      // say why — the reason is said here: the deadline, the signal, or the exit code.
+      resolve({ code, stdout: String(stdout ?? ''), stderr: String(stderr || (error ? failureReason(error as RunError, timeoutMs) : '')) });
     });
   });
 
