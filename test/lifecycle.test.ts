@@ -22,6 +22,7 @@ import { NotifyLedger } from '../src/core/notify';
 import { SettingsStore } from '../src/core/settings';
 import { autoInstallNow, autoInstallWait, HiddenGrace, relaunchHidden, resumePath, resumeRoute, stalePartitions, UPDATE_IDLE_MS, VisibilitySync } from '../src/electron/policy';
 import { codeFile, StaleWatch } from '../src/mcp/stale';
+import { APP_UPDATE_EVERY_MS, CHECK_EVERY_MS, quietCheck } from '../src/core/version';
 import { tmp } from './helpers';
 
 const fixture = (name: string) => JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures/contract', name), 'utf8'));
@@ -576,25 +577,36 @@ function fakeOs(openAtLogin = false): LoginItemOs & { sets: boolean[] } {
   return { sets, get: () => ({ openAtLogin: state, status: state ? 'enabled' : 'not-registered' }), set: (open) => { sets.push(open); state = open; } };
 }
 
-test('LC-07: launch at login is off until chosen, and a launch never registers it', () => {
-  assert.equal(DEFAULT_SETTINGS.launchAtLogin, false);
-  assert.equal(DEFAULT_SETTINGS.launchAtLoginAsked, false);
+test('LC-07 (amended 2026-10-16): launch at login is on by default — the first launch registers it once, later launches never again', () => {
+  assert.equal(DEFAULT_SETTINGS.launchAtLoginAsked, false, 'no choice made yet');
   const os1 = fakeOs();
-  for (let launch = 0; launch < 2; launch += 1) assert.equal(loginItemAtStartup(DEFAULT_SETTINGS, os1), null);
-  assert.deepEqual(os1.sets, [], 'two launches, no registration call');
+  const first = loginItemAtStartup(DEFAULT_SETTINGS, os1);
+  assert.deepEqual(first, { patch: { launchAtLogin: true, launchAtLoginAsked: true }, registered: true, needsApproval: false });
+  assert.deepEqual(os1.sets, [true], 'one registration call');
+  const after = { ...DEFAULT_SETTINGS, ...first.patch };
+  for (let launch = 0; launch < 2; launch += 1) assert.deepEqual(loginItemAtStartup(after, os1), { patch: null });
+  assert.deepEqual(os1.sets, [true], 'later launches call nothing');
+  const declined = { ...DEFAULT_SETTINGS, launchAtLogin: false, launchAtLoginAsked: true };
+  const os0 = fakeOs(false);
+  assert.deepEqual(loginItemAtStartup(declined, os0), { patch: null }, 'the person turned it off: it stays off');
+  assert.deepEqual(os0.sets, []);
+});
+
+test('LC-07: macOS holding the login item for approval is told at every launch; a failed default registration is retried next launch', () => {
+  const held: LoginItemOs & { sets: boolean[] } = { sets: [], get: () => ({ openAtLogin: false, status: 'requires-approval' }), set(v) { this.sets.push(v); } };
+  assert.deepEqual(loginItemAtStartup(DEFAULT_SETTINGS, held), { patch: { launchAtLogin: true, launchAtLoginAsked: true }, registered: true, needsApproval: true });
   const chosen = { ...DEFAULT_SETTINGS, launchAtLogin: true, launchAtLoginAsked: true };
-  assert.equal(applyLoginItem(true, os1), undefined);
-  assert.deepEqual(os1.sets, [true], 'the one call is the person\'s choice');
-  assert.equal(loginItemAtStartup(chosen, os1), null, 'a chosen and registered item is left alone');
-  assert.deepEqual(os1.sets, [true]);
+  assert.deepEqual(loginItemAtStartup(chosen, held), { patch: null, needsApproval: true }, 'still held: said again, the choice kept');
+  const broken: LoginItemOs = { get: () => ({ openAtLogin: false }), set: () => { throw new Error('denied'); } };
+  assert.deepEqual(loginItemAtStartup(DEFAULT_SETTINGS, broken), { patch: null, refused: 'denied' }, 'not stored as a choice');
 });
 
 test('LC-07/LC-14: turned off in System Settings stays off — the launch adopts it instead of re-registering', () => {
   const os2 = fakeOs(false);
   const chosen = { ...DEFAULT_SETTINGS, launchAtLogin: true, launchAtLoginAsked: true };
-  assert.deepEqual(loginItemAtStartup(chosen, os2), { launchAtLogin: false });
+  assert.deepEqual(loginItemAtStartup(chosen, os2), { patch: { launchAtLogin: false } });
   assert.deepEqual(os2.sets, []);
-  assert.equal(loginItemAtStartup(chosen, null), null, 'a development run never touches the login item');
+  assert.deepEqual(loginItemAtStartup(DEFAULT_SETTINGS, null), { patch: null }, 'a development run never touches the login item');
 });
 
 test('LC-07: settings written by an earlier version count as not yet asked', () => {
@@ -942,4 +954,24 @@ test('R-17 (LC-02): what a finished command left running in its own group ends w
   // excludes only itself, so a literal pattern found its own wrapper shell (FD-37, ubuntu-24.04).
   const left = spawnSync('/bin/sh', ['-c', `pgrep -f "[s]leep 30; touch ${marker}" || true`], { encoding: 'utf8' }).stdout.trim();
   assert.equal(left, '', 'no descendant of the finished command is still running');
+});
+
+test('LC-16 (operator 2026-10-17): the app checks for an update every 5 minutes; the estate checks keep 6 hours', () => {
+  assert.equal(APP_UPDATE_EVERY_MS, 5 * 60_000);
+  assert.equal(CHECK_EVERY_MS, 6 * 60 * 60_000, 'git and npm probes stay at 6 hours');
+  const src = fs.readFileSync(path.join(__dirname, '..', 'src', 'electron', 'updater.ts'), 'utf8');
+  assert.match(src, /RETRY_AFTER_FAILURE_MS = APP_UPDATE_EVERY_MS/, 'a failed check is retried at the same pace');
+  assert.match(src, /releases\/latest\/download\/update-feed\.json/, 'the static release feed, never the GitHub API');
+  assert.doesNotMatch(src, /api\.github\.com/);
+});
+
+test('LC-16: a quiet check is logged once per state, again after a failure, and always when the person asked', () => {
+  let last: string | null = null;
+  const run = (installed: string, feed: string, manual = false) => { const q = quietCheck(last, installed, feed, manual); last = q.last; return q.log; };
+  const day = Array.from({ length: 288 }, () => run('0.7.12', '0.7.12'));
+  assert.equal(day.filter(Boolean).length, 1, '288 checks a day, one line');
+  assert.equal(run('0.7.12', '0.7.12', true), true, 'the person asked: logged');
+  last = null; // a failure clears it
+  assert.equal(run('0.7.12', '0.7.12'), true, 'the first quiet check after a failure says it is over');
+  assert.equal(run('0.7.13', '0.7.13'), true, 'a new installed version is a new state');
 });

@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.7.12 - 2026-10-18
+
+### Changed
+
+- **Opens at login by default** (FD-72, the organization's lifecycle rule). The first launch of an installed copy
+  registers the login item once; turn it off in Settings and it stays off. The first-run question is gone. If
+  macOS holds the login item for approval, every launch says so in a notification that opens the right pane.
+- **Checks for an update every 5 minutes** (FD-72), against the release's static feed. A check that finds nothing
+  new is logged once, not every time.
+
+### Added
+
+- **«Restart to finish updating»** (FD-72): when an update is downloaded and verified, a notification asks once per
+  version; clicking it restarts the app, asking first if a console session or a command is running.
+
 ## 0.7.11 - 2026-10-17
 
 ### Fixed

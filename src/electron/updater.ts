@@ -24,7 +24,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { FEED_FILE, feedNamesOwnRelease, localFeed, parseSums, releaseFile, signedFeed, sumsSignedByRelease, zipName } from '../core/release-verify';
-import { CHECK_EVERY_MS, FIRST_CHECK_MS, isNewer, mayCheck, stagedBundlePath, stagedRefusal } from '../core/version';
+import { APP_UPDATE_EVERY_MS, FIRST_CHECK_MS, isNewer, quietCheck, mayCheck, stagedBundlePath, stagedRefusal } from '../core/version';
 import type { AppStatus } from '../core/types';
 import { appImageRelaunchCommand, nsisInstalledAt, nsisUpdateCommand, PENDING_UPDATE_DIR, platformKey, platformUpdate, replaceAppImage, stagedAppImage, updateChannel } from '../core/self-update';
 import { uninstallTarget } from '../core/platform';
@@ -35,7 +35,7 @@ import { windowsPowerShellEnv } from '@passioncode-ai/fabric-service-host';
 export const DEFAULT_FEED = 'https://github.com/passioncode-ai/fabric-dashboards/releases/latest/download/update-feed.json';
 const FEED_TIMEOUT_MS = 20_000;
 const DOWNLOAD_TIMEOUT_MS = 15 * 60_000;
-const RETRY_AFTER_FAILURE_MS = 45 * 60_000;
+const RETRY_AFTER_FAILURE_MS = APP_UPDATE_EVERY_MS;
 /** A check or a download that shows no progress this long is a failure, never a state that sticks (audit 2026-10-07). */
 const STUCK_MS = 45 * 60_000;
 const BUNDLE_ID = 'ai.passioncode.fabric-dashboards';
@@ -109,6 +109,8 @@ async function inspect(bundle: string): Promise<{ strict: boolean; team: string 
 }
 
 export class Updater {
+  /** The last quiet check logged, `<installed>:<feed>`; null after a failure. */
+  private lastQuiet: string | null = null;
   state: UpdateState = { state: 'idle' };
   private timer: NodeJS.Timeout | null = null;
   private retry: NodeJS.Timeout | null = null;
@@ -159,7 +161,7 @@ export class Updater {
       else { try { fs.rmSync(path.join(this.dataDir, PENDING_UPDATE_DIR), { recursive: true, force: true }); } catch (error) { this.log(`update: ${PENDING_UPDATE_DIR} stays until the next start: ${(error as Error).message}`); } }
       this.switched(this.enabled());
       setTimeout(() => this.check(), FIRST_CHECK_MS).unref();
-      this.timer = setInterval(() => this.check(), CHECK_EVERY_MS);
+      this.timer = setInterval(() => this.check(), APP_UPDATE_EVERY_MS);
       this.timer.unref();
       return;
     }
@@ -184,7 +186,7 @@ export class Updater {
     autoUpdater.on('before-quit-for-update', () => { this.event('update_install', 'started', `version=${this.state.version ?? '?'}`); this.onQuitForUpdate(); });
     this.switched(this.enabled());
     setTimeout(() => this.check(), FIRST_CHECK_MS).unref();
-    this.timer = setInterval(() => this.check(), CHECK_EVERY_MS);
+    this.timer = setInterval(() => this.check(), APP_UPDATE_EVERY_MS);
     this.timer.unref();
   }
 
@@ -222,7 +224,10 @@ export class Updater {
     const version = typeof feed.currentRelease === 'string' ? feed.currentRelease : null;
     if (!version) return this.fail('check_failed', 'the update feed names no release');
     if (!isNewer(version, app.getVersion())) {
-      this.event('update_check', 'current', `version=${app.getVersion()} feed=${version}${manual ? ' asked=person' : ''}`);
+      // 5-minute checks (LC-16): a quiet check is logged once per state, not 288 times a day; a person's check always.
+      const quiet = quietCheck(this.lastQuiet, app.getVersion(), version, manual);
+      if (quiet.log) this.event('update_check', 'current', `version=${app.getVersion()} feed=${version}${manual ? ' asked=person' : ''}`);
+      this.lastQuiet = quiet.last;
       this.set({ state: 'idle', checkedAt: new Date().toISOString() });
       return;
     }
@@ -474,9 +479,10 @@ export class Updater {
   }
 
   private fail(code: string, error: string): void {
+    this.lastQuiet = null; // the next quiet check after a failure is logged: it says the failure is over
     this.event('update_check', code, error.replace(/\s+/g, ' ').slice(0, 300));
     this.set({ state: 'error', error });
-    // One retry within the hour, then back to the 6-hour rhythm.
+    // One retry at the check's own pace (5 minutes), then the regular checks go on.
     if (!this.retry) {
       this.retry = setTimeout(() => { this.retry = null; if (this.state.state === 'error') this.check(); }, RETRY_AFTER_FAILURE_MS);
       this.retry.unref();
