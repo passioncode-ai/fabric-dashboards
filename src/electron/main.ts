@@ -153,8 +153,19 @@ if (!app.requestSingleInstanceLock()) {
   let tray: AppTray | null = null;
   // R-3: the window lets itself close only once a quit is really under way — before-quit, or
   // Squirrel's before-quit-for-update. A failed install puts the window back to hiding on close.
+  // Operator 2026-10-16 (LC-16): a downloaded, verified update asks once per version to restart and finish.
+  let restartAsked: string | null = null;
   const updater = new Updater(() => {
     pushStatus();
+    if (updater.state.state === 'ready' && updater.state.version && restartAsked !== updater.state.version) {
+      restartAsked = updater.state.version;
+      try {
+        const n = new Notification({ title: t(lang(), 'update.finish.title'), body: t(lang(), 'update.finish.body', { version: updater.state.version }), silent: true });
+        n.on('click', () => void restartToUpdate());
+        n.show();
+        log(`update: asked to restart and finish installing ${updater.state.version}`);
+      } catch { /* no notification centre */ }
+    }
     if (updater.state.state === 'ready' && !windowVisible()) updateGrace.hidden();
     if (updater.state.state === 'error') {
       // A failed install: the window hides on close again, and no later launch starts hidden because of a marker
@@ -247,6 +258,26 @@ if (!app.requestSingleInstanceLock()) {
     if (!updater.restart()) { try { fs.rmSync(path.join(userData, RELAUNCH_MARKER), { force: true }); } catch { /* gone */ } }
   }
   // #endregion auto-install-flow
+  // #region restart-to-update — docs: docs/adr/0015-data-survives-uninstall-updates-install-themselves.md#decision
+  /** Restart to Update, from the window, the menu or the «Restart to finish updating» notification. */
+  async function restartToUpdate(): Promise<void> {
+    // A held release only hands the verified build to Squirrel: nothing quits, nothing to ask.
+    if (updater.state.state === 'ready' && !(await mayEndWork('restart'))) return;
+    if (updater.state.state === 'ready') {
+      // FD-31: the person should not open the old copy while ShipIt installs — say it reopens by itself.
+      const version = updater.state.version ?? '';
+      try { new Notification({ title: t(lang(), 'update.installing.title', { version }), body: t(lang(), 'update.installing.body'), silent: true }).show(); } catch { /* no notification centre */ }
+    }
+    // U-18 (FD-21): the next copy opens on this screen. Only when the app is about to quit for the
+    // install; a held release staying in place keeps the person where they are anyway.
+    const resume = path.join(userData, RESUME_ROUTE_MARKER);
+    const quitting = updater.state.state === 'ready';
+    if (quitting) {
+      try { fs.writeFileSync(resume, JSON.stringify({ at: new Date().toISOString(), route: shownRoute }), { mode: 0o600 }); } catch (error) { log(`update: could not keep the screen for the relaunch: ${(error as Error).message}`); }
+    }
+    if (!updater.restart() && quitting) { try { fs.rmSync(resume, { force: true }); } catch { /* gone */ } }
+  }
+  // #endregion restart-to-update
   // #region end-work-question — docs: docs/adr/0017-focus-layout-and-agent-console.md#decision
   // Audit 2026-10-07 HIGH-2: a restart to update or a quit the person asks for never ends an agent's
   // console session or a running command silently — it names them and waits for a yes. The automatic
@@ -715,23 +746,7 @@ if (!app.requestSingleInstanceLock()) {
     });
     ipcMain.handle(CHANNELS.rescan, () => monitor.tick(true));
     ipcMain.handle(CHANNELS.serviceGuide, () => shell.openExternal(SERVICE_GUIDE));
-    ipcMain.handle(CHANNELS.updateRestart, async () => {
-      // A held release only hands the verified build to Squirrel: nothing quits, nothing to ask.
-      if (updater.state.state === 'ready' && !(await mayEndWork('restart'))) return;
-      if (updater.state.state === 'ready') {
-        // FD-31: the person should not open the old copy while ShipIt installs — say it reopens by itself.
-        const version = updater.state.version ?? '';
-        try { new Notification({ title: t(lang(), 'update.installing.title', { version }), body: t(lang(), 'update.installing.body'), silent: true }).show(); } catch { /* no notification centre */ }
-      }
-      // U-18 (FD-21): the next copy opens on this screen. Only when the app is about to quit for the
-      // install; a held release staying in place keeps the person where they are anyway.
-      const resume = path.join(userData, RESUME_ROUTE_MARKER);
-      const quitting = updater.state.state === 'ready';
-      if (quitting) {
-        try { fs.writeFileSync(resume, JSON.stringify({ at: new Date().toISOString(), route: shownRoute }), { mode: 0o600 }); } catch (error) { log(`update: could not keep the screen for the relaunch: ${(error as Error).message}`); }
-      }
-      if (!updater.restart() && quitting) { try { fs.rmSync(resume, { force: true }); } catch { /* gone */ } }
-    });
+    ipcMain.handle(CHANNELS.updateRestart, () => restartToUpdate());
     ipcMain.handle(CHANNELS.updateSteps, () => { const steps = updater.state.state === 'held' ? updater.state.steps : undefined; if (steps && steps.startsWith('https://')) return shell.openExternal(steps); });
     ipcMain.handle(CHANNELS.updateCheck, () => updater.check(true)); // the person asked: works with automatic updates off
     ipcMain.handle(CHANNELS.moveToApplications, () => moveToApplications());
@@ -873,9 +888,23 @@ if (!app.requestSingleInstanceLock()) {
     const flush = () => { for (const raw of pendingLinks.splice(0)) handleLink?.(raw); };
     if (monitor.snapshots().length || !pendingLinks.length) flush();
     else monitor.once('change', flush);
-    // A launch registers nothing (LC-07): it only adopts a change the person made in System Settings.
-    const adopted = loginItemAtStartup(settings.get(), loginOs);
-    if (adopted) { settings.update(adopted); log(`login item changed in System Settings: launchAtLogin=${adopted.launchAtLogin}`); }
+    // #region login-item-startup — docs: docs/ux/scenarios.md#scn-024-settings-launch-at-login-notifications-quiet-hours
+    // LC-07 as amended 2026-10-16: on by default (the first launch registers it once), the person's choice kept
+    // after that, and checked at every launch — a login item macOS holds for approval is said in a notification.
+    const login = loginItemAtStartup(settings.get(), loginOs);
+    if (login.patch) settings.update(login.patch);
+    if (login.registered) log('login item registered by default (LC-07, 2026-10-16)');
+    else if (login.patch) log(`login item changed in System Settings: launchAtLogin=${login.patch.launchAtLogin}`);
+    if (login.refused) log(`login item: macOS refused the default registration: ${login.refused}; the next launch tries again`);
+    if (login.needsApproval) {
+      log('login item: macOS holds it for approval (System Settings → General → Login Items)');
+      try {
+        const n = new Notification({ title: t(lang(), 'login.approval.title'), body: t(lang(), 'login.approval.body'), silent: true });
+        if (process.platform === 'darwin') n.on('click', () => void shell.openExternal('x-apple.systempreferences:com.apple.LoginItems-Settings.extension'));
+        n.show();
+      } catch { /* no notification centre */ }
+    }
+    // #endregion login-item-startup
     // Opened at login: stay in the menu bar; the operator opens the window when they want it.
     // Relaunched by an automatic update install: back in the menu bar, as it was (ADR-0015).
     const marker = path.join(userData, RELAUNCH_MARKER);

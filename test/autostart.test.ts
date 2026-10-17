@@ -40,16 +40,16 @@ test('FD-37 LC-07 (Linux): the person\'s choice writes and removes the entry; a 
   const os = xdgLoginItem(env, home, exe);
   const file = autostartPath(env, home);
   assert.deepEqual(os.get(), { openAtLogin: false, status: 'not-registered' });
-  // A launch before the person chose registers nothing (LC-07).
-  assert.equal(loginItemAtStartup({ ...DEFAULT_SETTINGS, launchAtLoginAsked: false }, os), null);
-  assert.equal(fs.existsSync(file), false);
+  // The first launch registers it by default (LC-07 as amended 2026-10-16): the entry is written once.
+  assert.deepEqual(loginItemAtStartup({ ...DEFAULT_SETTINGS, launchAtLoginAsked: false }, os).patch, { launchAtLogin: true, launchAtLoginAsked: true });
+  assert.ok(fs.existsSync(file));
   assert.equal(applyLoginItem(true, os), undefined);
   assert.ok(entryIsOn(fs.readFileSync(file, 'utf8'), exe));
   if (process.platform !== 'win32') assert.equal(fs.statSync(file).mode & 0o777, 0o644);
   assert.deepEqual(fs.readdirSync(path.dirname(file)), ['fabric-dashboards.desktop'], 'no temporary file left');
   // The person removed it in their desktop's startup settings: the stored choice follows.
   fs.rmSync(file);
-  assert.deepEqual(loginItemAtStartup({ ...DEFAULT_SETTINGS, launchAtLoginAsked: true, launchAtLogin: true }, os), { launchAtLogin: false });
+  assert.deepEqual(loginItemAtStartup({ ...DEFAULT_SETTINGS, launchAtLoginAsked: true, launchAtLogin: true }, os), { patch: { launchAtLogin: false } });
   applyLoginItem(true, os);
   assert.equal(applyLoginItem(false, os), undefined);
   assert.equal(fs.existsSync(file), false);

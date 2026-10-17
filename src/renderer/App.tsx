@@ -4,7 +4,7 @@ import { DEFAULT_SETTINGS, type AppStatus, type Settings as AppSettings, type Se
 import { groupProducts, productOf, type Product, arrangeProducts, togglePin } from '../core/products';
 import { consoleMaxFor, consoleWidthAfterResize, consoleWidthFor, hostFloorFor } from '../core/layout';
 import { Activity, type ActivityFilter } from './components/Activity';
-import { LoginQuestion, SetupCard, Overview } from './components/Overview';
+import { SetupCard, Overview } from './components/Overview';
 import { ServiceView } from './components/ServiceView';
 import { Settings } from './components/Settings';
 import { Spend } from './components/Spend';
@@ -300,7 +300,6 @@ function Shell({ status, route, setRoute, stopKey, setStopKey, activityFilter, s
                 {route.page === 'overview' && count > 0 && <span className="meta">{count === 1 ? t('overview.count.one') : t('overview.count', { count })}</span>}
               </div>
               {route.page === 'overview' && <SetupCard onOpen={openSetup} consoleOpen={setupOpen} />}
-              {route.page === 'overview' && <LoginQuestion defer={setupOpen} />}
               {route.page === 'overview' && <Overview status={status} products={products} open={open} act={act} agent={handToAgent} visit={visit} onContinue={continueWith} goSpend={() => setRoute({ page: 'spend' })} />}
               {route.page === 'activity' && <Activity status={status} openAt={open} filter={activityFilter} setFilter={setActivityFilter} />}
               {route.page === 'spend' && <Spend status={status} />}

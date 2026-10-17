@@ -48,32 +48,6 @@ export function SetupCard({ onOpen, consoleOpen }: { onOpen: (mode: 'new' | 'con
   );
 }
 
-/** The first-run question (SCN-024, lifecycle LC-07): launch at login is off until the person
- *  answers here or in Settings; either answer registers or unregisters once, and the card is gone. */
-/** FD-39: `defer` while the Setup console is open — one first-run task at a time; the question comes after. */
-export function LoginQuestion({ defer = false }: { defer?: boolean } = {}) {
-  const { t } = useT();
-  const [settings, setSettings] = useState<Settings | null>(null);
-  const [error, setError] = useState('');
-  useEffect(() => { void api().settings().then(setSettings); }, []);
-  if (!settings || settings.launchAtLoginAsked || defer) return error ? <p className="notice error" role="alert">{error}</p> : null;
-  const choose = async (launchAtLogin: boolean) => {
-    const r = await api().updateSettings({ launchAtLogin });
-    setSettings(r.settings);
-    setError(r.error ? t('settings.loginItemRefused', { error: r.error }) : '');
-  };
-  return (
-    <section className="notice info setup" aria-labelledby="setup-login-title">
-      <h2 id="setup-login-title">{t('setup.login.title')}</h2>
-      <p>{t('setup.login.body')}</p>
-      <div className="row">
-        <button className="btn btn-primary" onClick={() => void choose(true)}>{t('setup.login.yes')}</button>
-        <button className="btn" onClick={() => void choose(false)}>{t('setup.login.no')}</button>
-      </div>
-    </section>
-  );
-}
-
 interface Props { status: AppStatus; products: Product[]; open: (key: string, link?: string, tab?: 'logs' | 'health') => void; act: (key: string, action: 'restart' | 'start' | 'update') => void; goSpend: () => void;
   /** FD-39 D-3: Fix / Update with agent. */
   agent?: (key: string, task: { kind: 'fix' | 'update' }) => void;

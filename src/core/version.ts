@@ -26,6 +26,17 @@ export const RELEASE_TEAM = 'KJ35UYYL22';
 /** LC-16: first automatic check after start, then the interval. */
 export const FIRST_CHECK_MS = 90_000;
 export const CHECK_EVERY_MS = 6 * 60 * 60 * 1000;
+/** The app's own update check (operator 2026-10-17, LC-16: every PassionCode product checks every 5 minutes, and
+ *  retries a failed check at the same pace). It reads the release's static feed, never the rate-limited GitHub API;
+ *  the estate checks keep CHECK_EVERY_MS — they spawn git and npm. */
+export const APP_UPDATE_EVERY_MS = 5 * 60_000;
+
+/** LC-16 at 5 minutes: whether a check that found nothing newer is logged — once per installed/feed pair, after a
+ *  failure (`last` is null), and always when the person asked. Returns the pair to remember. */
+export function quietCheck(last: string | null, installed: string, feed: string, manual: boolean): { log: boolean; last: string } {
+  const now = `${installed}:${feed}`;
+  return { log: manual || last !== now, last: now };
+}
 
 /** Whether an automatic check may run now: the person's switch (LC-16 opt-out); a manual one always may.
  *  A held release (verified, waiting for the person's step) is not downloaded again by the timer;
