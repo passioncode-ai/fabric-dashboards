@@ -49,10 +49,15 @@ test('FD-69: a command killed at its deadline says so — the reason is not drop
   assert.deepEqual(ok, { code: 3, stdout: 'out\n', stderr: 'err\n' }, 'a command that wrote stderr keeps its own words');
 });
 
-test('FD-70: a failure with nothing on stderr names its cause — deadline, signal, exit code or a missing program', async () => {
+test('FD-70: a command that exits non-zero with nothing on stderr says its exit code', { skip: process.platform === 'win32' && 'POSIX sh' }, async () => {
   const silentExit = await execRunner('/bin/sh', ['-c', 'exit 4'], 5000);
   assert.deepEqual(silentExit, { code: 4, stdout: '', stderr: 'exit 4 with nothing on stderr' });
-  const missing = await execRunner('/nonexistent/switchboard', [], 5000);
+});
+
+test('FD-70: a missing program, a signal and a deadline each name their cause, on every OS', async () => {
+  const missing = await execRunner(process.platform === 'win32' ? 'C:\\nonexistent\\switchboard.exe' : '/nonexistent/switchboard', [], 5000);
   assert.match(missing.stderr, /^ENOENT: /);
   assert.equal(failureReason(Object.assign(new Error('Command failed: x'), { killed: true, signal: 'SIGKILL' as NodeJS.Signals }), 10_000), 'ended by SIGKILL');
+  assert.equal(failureReason(Object.assign(new Error('Command failed: x'), { killed: true, signal: 'SIGTERM' as NodeJS.Signals }), 10_000), 'no answer within 10 s (stopped)');
+  assert.equal(failureReason(Object.assign(new Error('Command failed: x\n'), { code: 4 }), 10_000), 'exit 4 with nothing on stderr');
 });
