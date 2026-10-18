@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- **No em dash in the interface** (FD-73). Fourteen strings in English and Russian now use a full stop, comma, colon
+  or parentheses instead; a test keeps new strings free of it.
+
 ## 0.7.12 - 2026-10-18
 
 ### Changed
