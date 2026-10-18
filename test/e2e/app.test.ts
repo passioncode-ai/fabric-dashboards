@@ -304,7 +304,7 @@ test('service/<id>.<instance> links open the service, a stopped one on its Start
       menu = fs.readFileSync(path.join(fabricLogs, 'main.log'), 'utf8').split('\n').find((l) => l.includes('fabric_menu ')) ?? '';
       if (!menu) await new Promise((r) => setTimeout(r, 100));
     }
-    assert.match(menu, / fabric_menu Fabric is not installed — get it at passioncode\.ai\/fabric$/);
+    assert.match(menu, / fabric_menu Fabric is not installed\. Get it at passioncode\.ai\/fabric$/);
     assert.ok(!fs.readFileSync(path.join(fabricLogs, 'main.log'), 'utf8').includes('fabric_open'), 'a press without Fabric opens nothing by itself');
 
     // Refusals are shown in a native dialog; capture it instead of leaving one on the screen.

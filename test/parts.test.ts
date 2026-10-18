@@ -464,3 +464,11 @@ test('FD-31: a launch steps aside only while ShipIt installs a newer build', asy
   const { t } = await import('../src/core/i18n');
   assert.match(t('ru', 'update.installing.body'), /откроется само/);
 });
+
+test('operator 2026-10-18: no interface string carries an em dash (U+2014) or a spaced -- , in either language', async () => {
+  const { dictionary } = await import('../src/core/i18n');
+  for (const lang of ['en', 'ru'] as const) {
+    const bad = Object.entries(dictionary(lang)).filter(([, v]) => v.includes('\u2014') || / -- /.test(v)).map(([k]) => k);
+    assert.deepEqual(bad, [], `${lang}: use a full stop, comma, colon or parentheses instead`);
+  }
+});

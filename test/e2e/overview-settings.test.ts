@@ -137,7 +137,7 @@ test('SCN-051: the app watches the contract clone — fetches only, never moves 
     const field = page.getByPlaceholder('~/DATA/fabric-agent-contract');
     await field.fill(clone);
     await field.press('Enter');
-    await page.getByText(/Contract: up to date — main at [0-9a-f]{7}.* · new commits fetched/).waitFor({ timeout: 90_000 });
+    await page.getByText(/Contract: up to date: main at [0-9a-f]{7}.* · new commits fetched/).waitFor({ timeout: 90_000 });
     assert.equal(git('rev-parse', 'HEAD'), localMain, 'the local main is never moved — fetch only');
     assert.notEqual(git('rev-parse', 'refs/remotes/origin/main'), localMain, 'the remote main was fetched');
     await page.getByText(/^Skills: /).first().waitFor();
