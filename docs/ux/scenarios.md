@@ -1136,9 +1136,9 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **UI elements:** the console's notice line
 - **States covered:** success
 - **Errors & recovery:** the continue cannot start (no room, SCN-063) -> that notice instead
-- **Status:** draft
+- **Status:** validated
 - **Coverage:** src/core/consoles.ts, src/electron/console.ts, src/core/settings.ts, src/renderer/components/ConsolePanel.tsx, test/switchboard-sessions.test.ts
-- **Product:** unobserved
+- **Product:** observed 2026-10-14 on this Mac (installed copy, `main.log`): an agent's console closed after 30 idle minutes at 16:29:29 UTC and, opened again at 16:39:33, continued (`started claude-code (continue) … through Switchboard`); two hand-over consoles closed the same way at 19:59 and 21:00
 
 ### SCN-067: Dashboards take my scheme and theme
 - **Persona:** P-01
