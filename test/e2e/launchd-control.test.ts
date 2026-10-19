@@ -20,12 +20,15 @@ async function closeApp(app: ElectronApplication | null): Promise<void> {
   if (!closed) app.process().kill('SIGKILL');
 }
 
+// As the kit's own launchd_plist writes it: FABRIC_SERVICE_SUPERVISOR=launchd tells the service launchd started it, so a
+// copy that finds the lock held waits for it (DEC-0057, LC-03) instead of exiting 75 at once and racing the monitor.
 const plistFor = (args: string[], log: string) => `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
 <key>Label</key><string>${LABEL}</string>
 <key>ProgramArguments</key><array>${args.map((a) => `<string>${a}</string>`).join('')}</array>
 <key>RunAtLoad</key><true/><key>KeepAlive</key><true/><key>ThrottleInterval</key><integer>10</integer>
+<key>EnvironmentVariables</key><dict><key>FABRIC_SERVICE_SUPERVISOR</key><string>launchd</string></dict>
 <key>StandardOutPath</key><string>${log}</string><key>StandardErrorPath</key><string>${log}</string>
 </dict></plist>`;
 
