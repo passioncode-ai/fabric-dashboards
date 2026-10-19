@@ -69,6 +69,21 @@ export function stagedRefusal(o: { feedVersion: string | null; stagedVersion: st
   return null;
 }
 
+// #region staging-lost — docs: docs/backlog.md
+/** FD-75: a `ready` update is installable only while Squirrel's request (ShipItState.plist) and the bundle it
+ *  staged are both still on disk. On 2026-10-19 both were gone from ~/Library/Caches five hours after staging; the
+ *  app still said ready, and Restart to update handed ShipIt a request it could not read (it relaunched every 2 s). */
+export function stagingLost(o: { state: string; requestExists: boolean; bundleExists: boolean | null }): boolean {
+  return o.state === 'ready' && (!o.requestExists || o.bundleExists === false);
+}
+
+/** FD-75: a ShipIt job with no request has nothing to install; launchd relaunches it until it is removed. Never
+ *  while an update is being staged: Squirrel writes the request then. */
+export function strayShipIt(o: { requestExists: boolean; jobLoaded: boolean; staging: boolean }): boolean {
+  return o.jobLoaded && !o.requestExists && !o.staging;
+}
+// #endregion staging-lost
+
 /** FD-31: a fresh launch while Squirrel's ShipIt is installing a newer build must step aside — opening
  *  the old bundle mid-install aborted the 0.5.6 → 0.6.2 install twice (2026-10-07). A second copy of a
  *  running app never gets here (single-instance lock), so ShipIt alive with a newer staged build at a

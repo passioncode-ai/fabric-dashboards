@@ -266,6 +266,8 @@ if (!app.requestSingleInstanceLock()) {
   // #region restart-to-update — docs: docs/adr/0015-data-survives-uninstall-updates-install-themselves.md#decision
   /** Restart to Update, from the window, the menu or the «Restart to finish updating» notification. */
   async function restartToUpdate(): Promise<void> {
+    // FD-75: a ready update whose staged files are gone is staged again first; it installs once it is.
+    if (updater.state.state === 'ready' && !updater.readyToInstall()) return;
     // A held release only hands the verified build to Squirrel: nothing quits, nothing to ask.
     if (updater.state.state === 'ready' && !(await mayEndWork('restart'))) return;
     if (updater.state.state === 'ready') {
@@ -897,6 +899,7 @@ if (!app.requestSingleInstanceLock()) {
     });
     monitor.start();
     if (app.isPackaged) restoreAfterReinstall();
+    updater.onInstallWhenReady = () => void restartToUpdate(); // FD-75
     updater.start();
     // #region estate-update — docs: docs/adr/0018-estate-updates-from-inside-the-app.md#decision
     estate.start(); // ADR-0018: first estate check 90 s after start, then every 6 h — only when the switch is on

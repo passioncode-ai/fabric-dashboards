@@ -93,3 +93,29 @@ test('FD-37 M4c: the waiter runs the installer only after the app exits, and onl
   at("-ArgumentList '--updated','/S','--force-run'");
   assert.throws(() => nsisUpdateCommand('C:\\x.exe', 'not-a-hash', 1));
 });
+
+// FD-75: a ready update whose staged files are gone is never handed to ShipIt (2026-10-19: they vanished from
+// ~/Library/Caches five hours after staging; Restart to update then started a ShipIt that failed every 2 s).
+test('FD-75: a ready update is lost when its request or its staged bundle is gone', async () => {
+  const { stagingLost, strayShipIt } = await import('../src/core/version');
+  assert.equal(stagingLost({ state: 'ready', requestExists: true, bundleExists: true }), false);
+  assert.equal(stagingLost({ state: 'ready', requestExists: false, bundleExists: true }), true, 'the request is gone');
+  assert.equal(stagingLost({ state: 'ready', requestExists: true, bundleExists: false }), true, 'the bundle is gone');
+  assert.equal(stagingLost({ state: 'ready', requestExists: true, bundleExists: null }), false, 'a bundle not yet known is not a loss');
+  for (const state of ['idle', 'downloading', 'held', 'error']) assert.equal(stagingLost({ state, requestExists: false, bundleExists: false }), false, state);
+  assert.equal(strayShipIt({ requestExists: false, jobLoaded: true, staging: false }), true);
+  assert.equal(strayShipIt({ requestExists: true, jobLoaded: true, staging: false }), false, 'an install under way');
+  assert.equal(strayShipIt({ requestExists: false, jobLoaded: true, staging: true }), false, 'Squirrel is writing the request');
+  assert.equal(strayShipIt({ requestExists: false, jobLoaded: false, staging: false }), false);
+});
+
+test('FD-75: the updater checks the staging before Restart to update and on every check, and stages it again', () => {
+  const src = fs.readFileSync(path.join(__dirname, '../src/electron/updater.ts'), 'utf8');
+  const install = src.slice(src.indexOf("if (!this.readyToInstall()) return false;"));
+  assert.ok(install.indexOf('readyToInstall') < install.indexOf('autoUpdater.quitAndInstall()'), 'the staging is checked before ShipIt gets the request');
+  assert.match(src, /check\(manual = false\): void \{\n\s+if \(this\.lostStaging\(\)\) \{ this\.restage\(false\); return; \}/, 'every check notices a lost staging');
+  assert.match(src, /void this\.removeStrayShipIt\(\);/, 'a stray ShipIt job is removed at start');
+  const main = fs.readFileSync(path.join(__dirname, '../src/electron/main.ts'), 'utf8');
+  assert.match(main, /updater\.onInstallWhenReady = \(\) => void restartToUpdate\(\);/, 'the restaged update installs once ready');
+  assert.ok(main.indexOf('!updater.readyToInstall()') < main.indexOf("mayEndWork('restart')"), 'no question and no "installing" notice for an update that is not on disk');
+});
