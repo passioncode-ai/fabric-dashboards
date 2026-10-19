@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.7.13 - 2026-10-19
+
 ### Added
 
 - **⌘R reloads the dashboard on screen** (FD-74), signed in again; **⇧⌘R** first drops its stored files. On Windows
