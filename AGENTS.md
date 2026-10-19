@@ -19,7 +19,7 @@
 Fabric Dashboards: a macOS desktop app (Electron) that finds every local agent service speaking
 `fabric-service/0.1`, shows whether it is alive and what it did last, starts, stops and restarts
 it through launchd and opens each service's dashboard inside the app. Fabric's monitoring tool;
-also works on its own. The current version is 0.7.14 (`package.json`, `CHANGELOG.md`); the README
+also works on its own. The current version is 0.7.15 (`package.json`, `CHANGELOG.md`); the README
 *Quick start for a new teammate* is the path for a new user. Licence:
 `AGPL-3.0-only OR LicenseRef-PassionCode-Commercial` ([ADR-0007](docs/adr/0007-agpl-or-commercial.md)).
 
@@ -122,7 +122,7 @@ LC-09 inventory for this product. The tests that hold each rule are in `test/lif
 | `launchctl`, `lsof`, `osascript` (JXA, `host_status`; Terminal for Open in Terminal), `/usr/bin/open`, `launchctl list` and, for a ShipIt job left with no request, `launchctl remove ai.passioncode.fabric-dashboards.ShipIt` (once at start, FD-75), `switchboard --json project show` / `accounts list` / `agents list` / `sessions` (every 15 s while a console is on screen, FD-43) / `handovers` (FD-62: every 15 s with the window shown, 60 s hidden, only where Switchboard is installed) / `launch --help`, the login shell once (`$SHELL -ilc`, to read its `PATH`; read 3 s after start so the first console opens at once, FD-74) | the monitor, the listener scan, the MCP tools, the agent console | short-lived; never more often than the table below | they exit by themselves |
 | Estate probes (FD-30, ADR-0018): `git -C <clone> remote get-url / ls-remote / rev-parse --verify / fetch origin`, `npm view sshlg-skills …`, and with *Update skills by themselves* on `npx --yes sshlg-skills@<version> update` | the estate updater in the main process, while its switch is on | 90 s after start, then every 6 h, one retry within the hour after a failure, and 5 s after the person changes what is watched: at most 8 short processes a check (30 s deadline each; the update 10 min), own process group, the login shell's PATH (`src/electron/estate-updater.ts`); writes `estate-skills.json` in userData | the run's deadline, or `will-quit` (nothing starts after `stop()`) |
 | Windows update waiter and installer (FD-37 M4c) | Restart to update, or an automatic install after 10 hidden minutes, on an NSIS install; the app quits once the waiter runs | a hidden `cmd.exe` starts `powershell.exe` with `start "" /b … -EncodedCommand` and exits, so the waiter runs outside the app's job and outlives it (`powerShellAfterExit`, ADR-0019 amendment 2026-10-12); the waiter (`nsisUpdateCommand`) waits for the app's exit (at most 120 s), checks the installer's SHA256 again, then starts the verified `pending-update/Fabric-Dashboards-<v>-windows-<arch>-setup.exe` with `--updated /S --force-run`; it installs in place and starts the app again | themselves |
-| Outage alerts to the operator channel (FD-48) | the monitor's changes and a 30 s tick | an HTTP MCP call (initialize, tools/list, tools/call) to the local service offering `<id>.notify`, only when an episode opens or closes (5 min) or a failed/attention banner shows; retried every minute, at most five times | quit (`alerts.stop()`) |
+| Outage alerts to the operator channel (FD-48) | the monitor's changes and a 30 s tick | an HTTP MCP call (initialize, tools/list, tools/call) to the local service offering `<id>.notify`, only when an episode opens (an agent not answering for 15 min) or closes (well again for 15 min), FD-76; event banners stay on the Mac; retried every minute | quit (`alerts.stop()`) |
 | Reopen helper (`/bin/sh`, FD-31) | a launch that finds ShipIt installing a newer build (it quits at once and leaves this) | waits while the `ai.passioncode.fabric-dashboards.ShipIt` job runs (at most 10 min), then `open -b ai.passioncode.fabric-dashboards`, ends | itself |
 | Uninstall helper (`/bin/sh` detached on macOS and Linux; on Windows a PowerShell grandchild through `cmd.exe`, as above, for the data purge and the uninstaller's waiter) | Settings → Uninstall, after the person confirms; the app quits once the helpers run | waits for the app's pid (at most 30 s), removes the app's data (and on Windows runs the NSIS uninstaller), ends; an app still running after 30 s keeps its data | itself |
 | AppImage relaunch (`/bin/sh`, FD-37 M4b) | Restart to update, or an automatic install, on a Linux AppImage whose file was replaced | detached; waits for the app's pid (at most 120 s), then runs the new `$APPIMAGE` with this run's arguments (`appImageRelaunchCommand`; Electron's relauncher ran inside the image's mount and died with it) | itself |
@@ -184,20 +184,24 @@ default, once the app has exited, everything it wrote is removed (`productDataPa
 notification ledger, the `auto-update` switch and `restore.json`, which makes the next install put the login item and the
 MCP entries back. Ticking «Also delete my settings and activity history» removes those too, except the `auto-update` switch (`ALWAYS_KEPT`, LC-16). Every
 packaged launch points an MCP entry of ours whose launcher is gone at the running copy. The
-services folder (descriptors and tokens) is never touched. Without the app: `fabric-dashboards-mcp --unregister` removes the
+services folder (descriptors and tokens) is never touched, and neither is the «Fabric Dashboards Safe Storage» Keychain item (FD-04, see Fuses). Without the app: `fabric-dashboards-mcp --unregister` removes the
 MCP entry alone.
 
 **Fuses** (LC-13, `scripts/fuses.mjs`): `npm run dist` sets them before signing and reads them back
 from the finished binary; the release fails on a wrong one. Shipped: `EnableNodeOptionsEnvironmentVariable`
 off, `EnableNodeCliInspectArguments` off, `EnableEmbeddedAsarIntegrityValidation` on,
-`OnlyLoadAppFromAsar` on. Two declared exceptions:
+`OnlyLoadAppFromAsar` on, `EnableCookieEncryption` on (FD-04, since 0.7.15). One declared exception:
 
 - `RunAsNode` stays **on**: the MCP server runs inside this binary as Node, which is what keeps it
   at ~15 MB with no browser engine, no GUI lock and no profile access.
-- `EnableCookieEncryption` stays **off**: turning it on creates a «Fabric Dashboards Safe Storage»
-  Keychain item, and an upgrade with zero SecurityAgent prompts can only be shown on a signed
-  build. Service session cookies stay plaintext in 0600 files, the same trust level as the service
-  token files they are minted from (audit F-8).
+
+Cookie encryption keeps the service session cookies encrypted at rest. On macOS the key is the
+«Fabric Dashboards Safe Storage» Keychain item, made by the first launch that opens a dashboard and
+read by later versions under the same Developer ID signature. On Windows the key is DPAPI-sealed in the
+profile's `Local State`. Linux keeps the fuse **off** (`wantedFuses`, `scripts/dist-other.mjs`): the
+desktop keyring there may ask the person to unlock it. The Keychain item is not removed by Uninstall:
+deleting it from outside the app can ask the person for their password, and with the dashboard
+partitions gone it encrypts nothing (Keychain Access removes it by hand).
 
 ## Release pipeline (PL-10) — where this product differs, and why
 

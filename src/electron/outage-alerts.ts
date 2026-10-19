@@ -2,23 +2,19 @@
 // FD-48: the shared watcher's sender. Every monitor change and every 30 s it looks at the services
 // (src/core/outage-alerts.ts `observe`), sends what the state owes (`owed`) in order, and records a message as
 // delivered only when the channel answered (`delivered`). The state is the queue and lives in `outage-alerts.json`,
-// so a failed delivery, a missing channel or a restart loses nothing. Failed and attention banners from an events
-// feed (ADR-0010) go to the channel too, from a small queue of their own.
+// so a failed delivery, a missing channel or a restart loses nothing. Banners stay on the Mac (FD-76, the operator's
+// rule of 2026-10-19 for the Telegram channel: only an outage over 15 minutes and its recovery, no routine).
 import fs from 'node:fs';
 import path from 'node:path';
 import { atomicWrite } from '../core/fsutil';
 import { callCapability } from '../core/mcp-client';
 import { chooseChannel, delivered, emptyOutageState, notifyChannelOf, observe, owed, watchedOf, type AlertMessage, type OutageState, type Words } from '../core/outage-alerts';
-import type { Notice } from '../core/monitor';
 import { authHeaders, readTokenAsync } from '../core/probe';
 import type { AppStatus, ServiceSnapshot, Settings } from '../core/types';
 
 const FILE = 'outage-alerts.json';
 const TICK_MS = 30_000;
 const RETRY_MS = 60_000;
-const NOTICE_TRIES = 5;
-const NOTICE_TTL_MS = 30 * 60_000;
-const MAX_NOTICES = 20;
 
 export class OutageAlerts {
   private state: OutageState;
@@ -28,7 +24,6 @@ export class OutageAlerts {
   private sending = false;
   /** When each outage message may be tried again (a failed try waits RETRY_MS). */
   private retryAt = new Map<string, number>();
-  private notices: { msg: AlertMessage; tries: number; due: number; until: number }[] = [];
   private last: NonNullable<AppStatus['alerts']>['last'];
 
   constructor(private readonly o: {
@@ -103,15 +98,6 @@ export class OutageAlerts {
     this.schedule(0);
   }
 
-  /** ADR-0010's failed and attention banners go to the channel too; asks stay on the Mac (a question needs its own record). */
-  notice(n: Notice): void {
-    if (this.stopped || (n.intent !== 'failed' && n.intent !== 'attention')) return;
-    const now = this.now();
-    if (this.notices.length >= MAX_NOTICES) this.o.log(`alerts: dropped ${this.notices.shift()!.msg.eventId}: ${MAX_NOTICES} banners wait already`);
-    this.notices.push({ msg: { serviceKey: n.serviceKey, kind: n.intent === 'failed' ? 'failure' : 'result', eventId: `notice:${n.serviceKey}:${now}`, subject: `${n.title}: ${n.subtitle ?? ''}`.trim(), text: n.body }, tries: 0, due: now, until: now + NOTICE_TTL_MS });
-    this.schedule(0);
-  }
-
   status(): NonNullable<AppStatus['alerts']> {
     const services = this.o.snapshots();
     const chosen = chooseChannel(services, this.o.settings().notifications.channel);
@@ -149,15 +135,13 @@ export class OutageAlerts {
     try {
       const now = this.now();
       const due = owed(this.state, now, this.o.words(), (key) => this.o.allowed(key, new Date(now)));
-      this.notices = this.notices.filter((n) => n.until > now && n.tries < NOTICE_TRIES);
       const outages = due.filter((d) => (this.retryAt.get(d.msg.eventId) ?? 0) <= now);
-      const banners = this.notices.filter((n) => n.due <= now);
-      more = due.length > outages.length || this.notices.length > banners.length;
-      if (!outages.length && !banners.length) return;
+      more = due.length > outages.length;
+      if (!outages.length) return;
       const channel = chooseChannel(this.o.snapshots(), this.o.settings().notifications.channel);
       if ('none' in channel) {
         // No channel now (its service between restarts, say): everything waits. `off` owes nothing to wait for.
-        if (channel.none !== 'off') { more = true; this.o.log(`alerts: ${outages.length + banners.length} message(s) wait: no channel (${channel.none})`); }
+        if (channel.none !== 'off') { more = true; this.o.log(`alerts: ${outages.length} message(s) wait: no channel (${channel.none})`); }
         return;
       }
       for (const d of outages) {
@@ -174,21 +158,6 @@ export class OutageAlerts {
         this.retryAt.delete(d.msg.eventId);
         this.o.log(`alerts: sent ${d.msg.kind} ${d.msg.eventId} via ${channel.key}`);
         this.last = { at: new Date(this.now()).toISOString(), ok: true, subject: d.msg.subject };
-      }
-      for (const n of banners) {
-        if (this.stopped) return;
-        try {
-          await this.deliver(channel, n.msg);
-        } catch (error) {
-          n.tries += 1;
-          n.due = this.now() + RETRY_MS;
-          this.failed(n.msg, channel.key, error);
-          more = true;
-          return;
-        }
-        this.notices = this.notices.filter((x) => x !== n);
-        this.o.log(`alerts: sent ${n.msg.kind} ${n.msg.eventId} via ${channel.key}`);
-        this.last = { at: new Date(this.now()).toISOString(), ok: true, subject: n.msg.subject };
       }
     } catch (error) {
       more = true;

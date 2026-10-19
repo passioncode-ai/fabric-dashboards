@@ -429,7 +429,6 @@ if (!app.requestSingleInstanceLock()) {
   const MAX_KEPT_NOTICES = 50;
   const shownNotices = new Set<Notification>();
   function notify(notice: Notice): void {
-    alerts.notice(notice); // FD-48: away from the Mac too
     if (!Notification.isSupported()) return;
     const n = new Notification({ title: notice.title, subtitle: notice.subtitle, body: notice.body, silent: false });
     // R-12: kept until clicked or closed — a collected notification loses its click handler. T-13:

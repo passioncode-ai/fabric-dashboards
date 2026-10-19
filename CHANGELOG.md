@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+## 0.7.15 - 2026-10-19
+
+### Changed
+
+- **Fewer, more useful messages in your Telegram channel** (FD-76). An agent's outage reaches the channel only after it
+  has not answered for 15 minutes, and "back" only after it has worked again for 15 minutes; an agent that falls again
+  meanwhile is the same outage, told once. A part of an agent that fails while the agent still answers, and the
+  agents' own event notices, now stay on this Mac. The installed app had sent about 100 messages a day.
+
+### Security
+
+- **Dashboard sign-ins are encrypted on disk** (FD-04). The cookies that keep each agent's dashboard signed in
+  are now stored encrypted on macOS and Windows. On a Mac the key is a «Fabric Dashboards Safe Storage» item in
+  your login keychain, made at first use; later versions read it without asking. Dashboards
+  keep signing in by themselves as before. Linux keeps the earlier storage, because its keyring may ask you to
+  unlock it.
+
 ## 0.7.14 - 2026-10-19
 
 ### Fixed

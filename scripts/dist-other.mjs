@@ -53,10 +53,11 @@ export function target(platform, arch, version) {
  * The release fuses per system (LC-13, scripts/fuses.mjs). ASAR integrity is validated by Electron on macOS
  * and Windows only (docs/tutorial/asar-integrity.md, Electron ≥ 30 on Windows): on Linux the fuse is off,
  * a declared exception (AGENTS.md ## Lifecycle, Fuses), rather than a switch that promises a check Electron
- * does not make there.
+ * does not make there. Cookie encryption is off on Linux too (FD-04): Chromium keeps its key in the desktop's
+ * keyring, which may ask the person to unlock it, and a session without one falls back to a fixed key anyway.
  */
 export function wantedFuses(platform) {
-  return platform === 'linux' ? { ...WANTED_FUSES, EnableEmbeddedAsarIntegrityValidation: false } : { ...WANTED_FUSES };
+  return platform === 'linux' ? { ...WANTED_FUSES, EnableEmbeddedAsarIntegrityValidation: false, EnableCookieEncryption: false } : { ...WANTED_FUSES };
 }
 
 /** The node-pty files a system's build carries (ADR-0017): Windows the prebuilt conpty set without debug

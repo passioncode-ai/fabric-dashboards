@@ -1,5 +1,6 @@
-// FD-48 (operator decision 2026-10-11): outages reach the operator away from the Mac — episodes, their timing, and
-// the operator-channel service they go through.
+// FD-48 (operator decision 2026-10-11): outages reach the operator away from the Mac: episodes, their timing, and
+// the operator-channel service they go through. FD-76 (the operator's Telegram rule of 2026-10-19): over 15 minutes,
+// one case once, no routine.
 import assert from 'node:assert/strict';
 import http from 'node:http';
 import test from 'node:test';
@@ -26,56 +27,62 @@ const run = (steps: { at: number; services: Watched[]; allowed?: boolean; delive
 };
 const down = svc({ state: 'down' });
 
-test('FD-48: an outage under five minutes sends nothing; one held five minutes sends one message, and one when it is back', () => {
-  const short = run([{ at: 0, services: [down] }, { at: 4 * MIN, services: [down] }, { at: 4 * MIN + 1, services: [svc()] }, { at: 7 * MIN, services: [svc()] }]);
+test('FD-76: an outage under fifteen minutes sends nothing; one held fifteen minutes sends one message, and one when it is back', () => {
+  const short = run([{ at: 0, services: [down] }, { at: 14 * MIN, services: [down] }, { at: 14 * MIN + 1, services: [svc()] }, { at: 30 * MIN, services: [svc()] }]);
   assert.deepEqual(short.sent, [], 'a blip never reaches the channel');
-  const long = run([{ at: 0, services: [down] }, { at: 3 * MIN, services: [down] }, { at: OUTAGE_ALERT_AFTER_MS, services: [down] }, { at: 6 * MIN, services: [down] }, { at: 185 * MIN, services: [svc()] }, { at: 187 * MIN, services: [svc()] }, { at: 188 * MIN, services: [svc()] }]);
-  assert.deepEqual(long.sent.map((m) => [m.kind, m.subject, m.text]), [['failure', 'Copy is down', 'For 5 min: connection refused'], ['recovery', 'Copy is back', 'Back after 185 min.']], 'one message at five minutes, none repeated, one on recovery after the 2-minute calm');
+  const long = run([{ at: 0, services: [down] }, { at: 3 * MIN, services: [down] }, { at: OUTAGE_ALERT_AFTER_MS, services: [down] }, { at: 16 * MIN, services: [down] }, { at: 185 * MIN, services: [svc()] }, { at: 195 * MIN, services: [svc()] }, { at: 200 * MIN, services: [svc()] }, { at: 201 * MIN, services: [svc()] }]);
+  assert.equal(OUTAGE_ALERT_AFTER_MS, 15 * MIN);
+  assert.deepEqual(long.sent.map((m) => [m.kind, m.subject, m.text]), [['failure', 'Copy is down', 'For 15 min: connection refused'], ['recovery', 'Copy is back', 'Back after 185 min.']], 'one message at fifteen minutes, none repeated, one on recovery after the 15-minute calm');
+  assert.equal(long.sent[1]!.at, 200 * MIN, 'back only once it stayed well fifteen minutes');
   assert.equal(long.sent[0]!.eventId, 'outage:copy.default:0');
   assert.equal(long.sent[1]!.eventId, 'outage:copy.default:0:back');
   assert.deepEqual(long.state.episodes, {}, 'a settled episode is forgotten at the next look');
 });
 
+test('FD-76: one case, once: a service that falls again within fifteen minutes of coming back is the same outage', () => {
+  const r = run([
+    { at: 0, services: [down] }, { at: 20 * MIN, services: [down] },
+    { at: 30 * MIN, services: [svc()] }, { at: 40 * MIN, services: [down] }, { at: 60 * MIN, services: [down] },
+    { at: 70 * MIN, services: [svc()] }, { at: 86 * MIN, services: [svc()] },
+  ]);
+  assert.deepEqual(r.sent.map((m) => [m.at, m.kind, m.text]), [[20 * MIN, 'failure', 'For 20 min: connection refused'], [86 * MIN, 'recovery', 'Back after 70 min.']]);
+});
+
 test('FD-48: a down–up flicker is one outage; going from down to degraded is not a recovery', () => {
   const flicker = [];
-  for (let m = 0; m <= 10; m += 1) flicker.push({ at: m * MIN, services: [m % 5 === 4 ? svc() : down] });
+  for (let m = 0; m <= 30; m += 1) flicker.push({ at: m * MIN, services: [m % 5 === 4 ? svc() : down] });
   assert.deepEqual(run(flicker).sent.map((m) => m.kind), ['failure'], 'down 4 of every 5 minutes still alerts, once');
-  const half = run([{ at: 0, services: [down] }, { at: 6 * MIN, services: [down] }, { at: 7 * MIN, services: [svc({ state: 'degraded', degraded: [{ source: 'database', reason: 'unreachable' }] })] }, { at: 20 * MIN, services: [svc({ state: 'degraded', degraded: [{ source: 'database', reason: 'unreachable' }] })] }]);
+  const degraded = svc({ state: 'degraded', degraded: [{ source: 'database', reason: 'unreachable' }] });
+  const half = run([{ at: 0, services: [down] }, { at: 16 * MIN, services: [down] }, { at: 17 * MIN, services: [degraded] }, { at: 60 * MIN, services: [degraded] }]);
   assert.deepEqual(half.sent.map((m) => m.kind), ['failure'], 'still impaired: no "back"');
 });
 
-test('FD-48: a degraded source there since the start is setup; one that appears later is an outage; a recovered setup source counts next time', () => {
-  const setup = { source: 'execution', reason: 'generation not configured' };
+test('FD-76: a degraded source alone never reaches the channel (it stays on the Mac); only an agent that does not answer does', () => {
   const db = { source: 'database', reason: 'database unreachable' };
   const r = run([
-    { at: 0, services: [svc({ state: 'degraded', degraded: [setup] })] }, { at: 10 * MIN, services: [svc({ state: 'degraded', degraded: [setup] })] },
-    { at: 11 * MIN, services: [svc({ state: 'degraded', degraded: [setup, db] })] }, { at: 16 * MIN, services: [svc({ state: 'degraded', degraded: [setup, db] })] },
-    { at: 30 * MIN, services: [svc({ state: 'degraded', degraded: [setup] })] }, { at: 33 * MIN, services: [svc({ state: 'degraded', degraded: [setup] })] },
+    { at: 0, services: [svc()] }, { at: 1 * MIN, services: [svc({ state: 'degraded', degraded: [db] })] },
+    { at: 30 * MIN, services: [svc({ state: 'degraded', degraded: [db] })] }, { at: 120 * MIN, services: [svc({ state: 'degraded', degraded: [db] })] },
+    { at: 121 * MIN, services: [svc()] }, { at: 140 * MIN, services: [svc()] },
   ]);
-  assert.deepEqual(r.sent.map((m) => [m.kind, m.subject]), [['failure', 'Copy: database is failing'], ['recovery', 'Copy is back']]);
-  const again = run([
-    { at: 0, services: [svc({ state: 'degraded', degraded: [db] })] }, { at: 1 * MIN, services: [svc()] },
-    { at: 2 * MIN, services: [svc({ state: 'degraded', degraded: [db] })] }, { at: 8 * MIN, services: [svc({ state: 'degraded', degraded: [db] })] },
-  ]);
-  assert.deepEqual(again.sent.map((m) => m.subject), ['Copy: database is failing'], 'a baseline source that recovered and failed again is an outage');
-  const restarted = run([{ at: 0, services: [svc({ state: 'degraded', degraded: [db] })] }, { at: 10 * MIN, services: [svc({ state: 'degraded', degraded: [db], startedAt: '2026-10-11T16:00:00Z' })] }]);
-  assert.deepEqual(restarted.sent, [], 'present at its (new) start: setup as far as the watcher can tell');
+  assert.deepEqual(r.sent, []);
+  assert.deepEqual(r.state.episodes, {}, 'no episode was opened');
 });
 
 test('FD-48: delivery is recorded only when the channel took it — a failure waits, a recovery never comes first, a missed outage is told once after', () => {
-  const r = run([{ at: 0, services: [down] }, { at: 6 * MIN, services: [down], deliver: false }, { at: 7 * MIN, services: [down] }, { at: 30 * MIN, services: [svc()] }, { at: 33 * MIN, services: [svc()] }]);
-  assert.deepEqual(r.sent.map((m) => [m.at, m.kind]), [[7 * MIN, 'failure'], [33 * MIN, 'recovery']], 'retried at the next look, in order');
-  const channelDown = run([{ at: 0, services: [down] }, { at: 6 * MIN, services: [down], deliver: false }, { at: 20 * MIN, services: [svc()], deliver: false }, { at: 23 * MIN, services: [svc()] }]);
+  const r = run([{ at: 0, services: [down] }, { at: 16 * MIN, services: [down], deliver: false }, { at: 17 * MIN, services: [down] }, { at: 30 * MIN, services: [svc()] }, { at: 46 * MIN, services: [svc()] }]);
+  assert.deepEqual(r.sent.map((m) => [m.at, m.kind]), [[17 * MIN, 'failure'], [46 * MIN, 'recovery']], 'retried at the next look, in order');
+  const channelDown = run([{ at: 0, services: [down] }, { at: 16 * MIN, services: [down], deliver: false }, { at: 20 * MIN, services: [svc()], deliver: false }, { at: 36 * MIN, services: [svc()] }]);
   assert.deepEqual(channelDown.sent.map((m) => [m.kind, m.text]), [['recovery', 'Was down 20 min (connection refused)']], 'never "back" before "down": one message after, saying both');
 });
 
 test('FD-48: a removed service closes its episode with one message; a muted episode sends nothing, nor its recovery; eventIds stay short', () => {
-  const removed = run([{ at: 0, services: [down] }, { at: 6 * MIN, services: [down] }, { at: 7 * MIN, services: [] }]);
+  const removed = run([{ at: 0, services: [down] }, { at: 16 * MIN, services: [down] }, { at: 17 * MIN, services: [] }]);
   assert.deepEqual(removed.sent.map((m) => [m.kind, m.subject]), [['failure', 'Copy is down'], ['recovery', 'Copy was removed']]);
-  const muted = run([{ at: 0, services: [down], allowed: false }, { at: 6 * MIN, services: [down], allowed: false }, { at: 9 * MIN, services: [svc()], allowed: false }, { at: 12 * MIN, services: [svc()], allowed: false }]);
+  const muted = run([{ at: 0, services: [down], allowed: false }, { at: 16 * MIN, services: [down], allowed: false }, { at: 19 * MIN, services: [svc()], allowed: false }, { at: 40 * MIN, services: [svc()], allowed: false }]);
   assert.deepEqual(muted.sent, []);
   const long = 'a'.repeat(63) + '.' + 'b'.repeat(32);
-  const ids = run([{ at: 0, services: [svc({ key: long, state: 'down' })] }, { at: 6 * MIN, services: [svc({ key: long, state: 'down' })] }, { at: 9 * MIN, services: [svc({ key: long })] }]).sent.map((m) => m.eventId);
+  const ids = run([{ at: 0, services: [svc({ key: long, state: 'down' })] }, { at: 16 * MIN, services: [svc({ key: long, state: 'down' })] }, { at: 19 * MIN, services: [svc({ key: long })] }, { at: 40 * MIN, services: [svc({ key: long })] }]).sent.map((m) => m.eventId);
+  assert.equal(ids.length, 2);
   for (const id of ids) assert.ok(id.length <= 160 && !id.includes('/'), id);
 });
 
@@ -150,12 +157,13 @@ test('FD-48 DEC-0044: an entry marked setup: true never opens an episode, even w
     { at: 30 * MIN, services: [svc({ state: 'degraded', degraded: [{ source: 'execution', reason: 'generation not configured', setup: true }] })] },
   ]);
   assert.deepEqual(setupLater.sent, [], 'a key not entered is not an outage');
-  const failing = run([
-    { at: 0, services: [svc({ state: 'degraded', degraded: [{ source: 'execution', reason: 'generation not configured', setup: true }] })] },
-    { at: 1 * MIN, services: [svc({ state: 'degraded', degraded: [{ source: 'execution', reason: 'pinned model unavailable' }] })] },
-    { at: 7 * MIN, services: [svc({ state: 'degraded', degraded: [{ source: 'execution', reason: 'pinned model unavailable' }] })] },
-  ]);
-  assert.deepEqual(failing.sent.map((m) => m.subject), ['Copy: execution is failing'], 'the same source without the flag is a failure, even though it was there at the start');
+  const after = (setup: boolean) => run([
+    { at: 0, services: [down] }, { at: 16 * MIN, services: [down] },
+    { at: 17 * MIN, services: [svc({ state: 'degraded', degraded: [{ source: 'execution', reason: 'pinned model unavailable', ...(setup ? { setup: true } : {}) }] })] },
+    { at: 40 * MIN, services: [svc({ state: 'degraded', degraded: [{ source: 'execution', reason: 'pinned model unavailable', ...(setup ? { setup: true } : {}) }] })] },
+  ]).sent.map((m) => m.kind);
+  assert.deepEqual(after(false), ['failure'], 'after an outage, a source failing without the flag keeps the outage open (FD-76: a degraded source alone opens none)');
+  assert.deepEqual(after(true), ['failure', 'recovery'], 'one waiting for setup is not the outage going on');
 });
 
 test('FD-48: the start baseline is taken after the service left starting, so a setup state filled in during start-up is not an outage', () => {

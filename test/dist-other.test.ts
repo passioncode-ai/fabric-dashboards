@@ -28,13 +28,15 @@ test('FD-37 dist-other: each system and architecture names its executable, launc
   }
 });
 
-test('FD-37 dist-other: ASAR integrity is on where Electron validates it, off on Linux; every other fuse as on macOS', async () => {
+test('FD-37 dist-other: ASAR integrity is on where Electron validates it, off on Linux; FD-04: cookie encryption off on Linux; every other fuse as on macOS', async () => {
   const d = await import('../scripts/dist-other.mjs');
   const { WANTED_FUSES } = await import('../scripts/fuses.mjs');
   assert.deepEqual(d.wantedFuses('win32'), WANTED_FUSES);
   const linux = d.wantedFuses('linux');
   assert.equal(linux.EnableEmbeddedAsarIntegrityValidation, false);
-  assert.deepEqual({ ...linux, EnableEmbeddedAsarIntegrityValidation: WANTED_FUSES.EnableEmbeddedAsarIntegrityValidation }, WANTED_FUSES);
+  assert.equal(linux.EnableCookieEncryption, false, 'a desktop keyring may ask the person to unlock it');
+  assert.equal(d.wantedFuses('win32').EnableCookieEncryption, true, 'DPAPI never asks');
+  assert.deepEqual({ ...linux, EnableEmbeddedAsarIntegrityValidation: WANTED_FUSES.EnableEmbeddedAsarIntegrityValidation, EnableCookieEncryption: WANTED_FUSES.EnableCookieEncryption }, WANTED_FUSES);
   assert.equal(linux.RunAsNode, true, 'the MCP server runs inside the binary as Node');
   assert.notEqual(d.wantedFuses('win32'), WANTED_FUSES, 'a copy: the shared table is never changed');
 });

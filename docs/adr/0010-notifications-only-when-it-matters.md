@@ -110,3 +110,26 @@ comes back; the shared service watcher in Fabric Dashboards sends it, not each s
   (`<id>.status`) to this Mac's real operator-channel service answered through `callCapability`. No test message was
   sent to the operator.
 
+
+## Amendment 2026-10-19: the Telegram channel carries only outages over fifteen minutes (FD-76)
+
+The operator set a rule for every agent on 2026-10-19 (fabric-workspace `knowledge/agents-first.md`, *Messages to
+the operator in Telegram*; board thread `a28f6852`): the channel carries only what needs the operator's attention (a
+failure lasting over 15 minutes, money, a decision only the operator can make), one case once, and no routine. The
+installed 0.7.14 had sent 798 messages in 8 days through FD-48's channel: 311 outages, 309 recoveries and 203 event
+banners (`main.log`, 2026-10-12 to 2026-10-19). So, from 0.7.15:
+
+- **Only an agent that does not answer opens an episode** (`down`, ADR-0008). A degraded source the agent reports while
+  it answers stays on the Mac: the operator's decision of 2026-10-11 named an agent that is *unavailable*, and the
+  degraded sources were this app's own extension. While an episode is open, a degraded source still keeps it open,
+  so going from down to degraded is not a recovery.
+- **Fifteen minutes each way.** The failure is sent once the agent has not answered for 15 minutes
+  (`OUTAGE_ALERT_AFTER_MS`); the episode closes, and "back" is sent, once it has stayed well for 15 minutes
+  (`OUTAGE_CLEAR_AFTER_MS`). An agent that falls again within those 15 minutes is the same case: no second failure
+  and no second recovery.
+- **Event banners stay on the Mac.** A *failed* or *attention* banner from an events feed is no longer sent to the
+  channel (it was sent as `failure` and `result` since FD-48).
+- **No daily summary.** The rule's daily summary is per agent, about its work. Dashboards does no work of its own to
+  report; its outages already reach the channel when they happen.
+- **Proof.** `test/outage-alerts.test.ts`, *FD-76* tests: nothing under 15 minutes; one failure and one recovery
+  after a 15-minute calm; a fall within the calm is one case; a degraded source alone sends nothing.

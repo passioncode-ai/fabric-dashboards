@@ -1,6 +1,7 @@
 // #region outage-alerts — docs: docs/adr/0010-notifications-only-when-it-matters.md#amendment-2026-10-11--outages-reach-the-operator-away-from-the-mac-fd-48
 // FD-48 (operator decision 2026-10-11): an outage reaches the operator away from the Mac. The app's shared watcher
-// sends one message when a service has been unavailable for five minutes and one when it is back, through the
+// sends one message when a service has been unavailable for fifteen minutes and one when it is back (FD-76: the
+// operator's rule of 2026-10-19 for the Telegram channel, one case once and no routine), through the
 // operator-channel service on this machine — an installed service that declares an MCP capability `<id>.notify`
 // (the contract's operator channel, OC-4). Pure: what an episode is, what it owes, and through which service.
 //
@@ -9,15 +10,16 @@
 // recovery is never sent for a failure nobody received.
 import type { ServiceSnapshot, ServiceState } from './types';
 
-/** How long an outage lasts before it is sent (the banner keeps ADR-0008's one minute). */
-export const OUTAGE_ALERT_AFTER_MS = 5 * 60_000;
-/** How long a service must stay well before its episode closes: a down–up flicker is one outage, not many. */
-export const OUTAGE_CLEAR_AFTER_MS = 2 * 60_000;
+/** How long an outage lasts before it is sent (the banner keeps ADR-0008's one minute). FD-76: over 15 minutes. */
+export const OUTAGE_ALERT_AFTER_MS = 15 * 60_000;
+/** How long a service must stay well before its episode closes: a service that falls again within this time is the
+ *  same case, told once (FD-76), not a new failure and a new recovery. */
+export const OUTAGE_CLEAR_AFTER_MS = 15 * 60_000;
 /** A message the channel never takes is given up a day after its episode closed. */
 export const OUTAGE_GIVE_UP_MS = 24 * 60 * 60_000;
 
 /** One message to the operator channel; its eventId is the same on every retry, so it is delivered once. */
-export interface AlertMessage { eventId: string; kind: 'failure' | 'recovery' | 'result'; subject: string; text: string; serviceKey: string }
+export interface AlertMessage { eventId: string; kind: 'failure' | 'recovery'; subject: string; text: string; serviceKey: string }
 
 export interface Episode {
   start: number;
@@ -62,9 +64,11 @@ export interface Words {
 const minutes = (ms: number) => Math.max(1, Math.round(ms / 60_000));
 
 /**
- * One look at every service: open, update and close episodes. A cause is a confirmed outage (`down`, ADR-0008) or a
- * degraded source outside the service's start baseline; a baseline source that recovers leaves the baseline, so its
- * next failure counts. A service gone from the folder closes its episode as removed.
+ * One look at every service: open, update and close episodes. Only a confirmed outage (`down`, ADR-0008) opens an
+ * episode (FD-76: the channel carries unavailability, a degraded source stays on the Mac); while one is open, a
+ * degraded source outside the service's start baseline keeps it open, so going from down to degraded is not a
+ * recovery. A baseline source that recovers leaves the baseline, so its next failure counts. A service gone from the
+ * folder closes its episode as removed.
  */
 export function observe(prev: OutageState, services: readonly Watched[], now: number): OutageState {
   const state: OutageState = { baselines: { ...prev.baselines }, episodes: { ...prev.episodes } };
@@ -89,7 +93,7 @@ export function observe(prev: OutageState, services: readonly Watched[], now: nu
       ? { cause: 'down', why: s.reason }
       : fresh.length ? { cause: 'degraded', why: fresh[0]!.reason, source: fresh[0]!.source } : null;
     const ep = state.episodes[s.key];
-    if (cause) {
+    if (cause && (s.state === 'down' || (ep && ep.end === null))) {
       if (!ep || ep.end !== null) {
         // A closed episode that still owes its recovery keeps its own key until delivered; the new one starts now.
         if (ep && ep.end !== null) state.episodes[`${s.key}#${ep.start}`] = ep;
@@ -115,7 +119,7 @@ export function observe(prev: OutageState, services: readonly Watched[], now: nu
 const idOf = (key: string, ep: Episode) => `outage:${key.split('#')[0]!.slice(0, 120)}:${Math.floor(ep.start / 1000)}`;
 
 /**
- * What the state owes now, in order: a failure once an open episode has lasted five minutes; after a delivered
+ * What the state owes now, in order: a failure once an open episode has lasted fifteen minutes; after a delivered
  * failure, the recovery once it closed; an outage that closed with its failure undelivered (the channel itself was
  * unreachable) is told once afterwards. `allowed` is the person's own rules: an episode they muted owes nothing.
  */
