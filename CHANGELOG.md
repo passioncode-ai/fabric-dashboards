@@ -4,6 +4,13 @@
 
 ## 0.7.15 - 2026-10-19
 
+### Changed
+
+- **Fewer, more useful messages in your Telegram channel** (FD-76). An agent's outage reaches the channel only after it
+  has not answered for 15 minutes, and "back" only after it has worked again for 15 minutes; an agent that falls again
+  meanwhile is the same outage, told once. A part of an agent that fails while the agent still answers, and the
+  agents' own event notices, now stay on this Mac. The installed app had sent about 100 messages a day.
+
 ### Security
 
 - **Dashboard sign-ins are encrypted on disk** (FD-04). The cookies that keep each agent's dashboard signed in
