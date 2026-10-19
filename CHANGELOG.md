@@ -2,7 +2,23 @@
 
 ## Unreleased
 
+### Added
+
+- **⌘R reloads the dashboard on screen** (FD-74), signed in again; **⇧⌘R** first drops its stored files. On Windows
+  and Linux the keys are F5 and Shift+F5, so Ctrl+R stays the console shell's own search.
+
 ### Changed
+
+- **Dashboards open faster** (FD-74). A page you come back to opens straight away, without a new sign-in, while the
+  same agent process let you in less than 30 minutes ago. A hidden window keeps the two pages you used last for an
+  hour instead of closing every page after 5 minutes.
+- **Agents show their new version by themselves** (FD-74). When an agent restarts, its page on screen reloads where
+  it was; a page off screen reloads the next time you open it. The Reload bar is gone.
+- **The console opens at once** (FD-74). The runtimes are found right after the app starts, and a slow Switchboard
+  no longer holds the panel.
+- **Tidier buttons** (FD-74). The console's buttons sit in one compact row with Open in Terminal as an icon, and its
+  notes are no longer cut at the left edge. The dashboard toolbar uses icons and one Copy button with a menu. The setup
+  card's buttons share one row.
 
 - **No em dash in the interface** (FD-73). Fourteen strings in English and Russian now use a full stop, comma, colon
   or parentheses instead; a test keeps new strings free of it.

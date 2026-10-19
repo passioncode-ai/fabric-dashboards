@@ -2,7 +2,7 @@ import { offersAgentUpdate, offersFix, SETUP_KEY } from '../../core/offers';
 import type { SinceLastVisit } from '../../core/visit';
 import { areasInOrder, attention, type SetupCheckResult } from '../../core/doctor';
 import { attentionRank } from '@passioncode-ai/fabric-service-host/state';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { sumSpend, type SpendEntry } from '../../core/spend';
 import { money as formatMoney } from './Spend';
 import { instanceOf, type Product } from '../../core/products';
@@ -36,14 +36,13 @@ export function SetupCard({ onOpen, consoleOpen }: { onOpen: (mode: 'new' | 'con
         {item(state.skills, 'setup.agent.skills')}
         {item(state.firstAgent, 'setup.agent.firstAgent')}
       </ul>
-      <div className="row">
-        {/* A setup stopped midway (the app quit, the runtime ended) continues where it was; it can also start over. */}
-        {!done && !consoleOpen && (settings.consoles[SETUP_KEY]?.runtime
-          ? <><button className="btn btn-primary" onClick={() => onOpen('continue')}>{t('setup.agent.continue')}</button><button className="btn" onClick={() => onOpen('new')}>{t('setup.agent.restart')}</button></>
-          : <button className="btn btn-primary" onClick={() => onOpen('new')}>{t('setup.agent.start')}</button>)}
-        <button className="btn" onClick={() => void hide()}>{t('setup.agent.hide')}</button>
-      </div>
-      <SetupCheck onRepair={() => onOpen('new')} />
+      {/* FD-74: one row of actions, the start first and Hide last, with Check setup between them. */}
+      <SetupCheck onRepair={() => onOpen('new')}
+        lead={/* A setup stopped midway (the app quit, the runtime ended) continues where it was; it can also start over. */
+          !done && !consoleOpen && (settings.consoles[SETUP_KEY]?.runtime
+            ? <><button className="btn btn-primary" onClick={() => onOpen('continue')}>{t('setup.agent.continue')}</button><button className="btn" onClick={() => onOpen('new')}>{t('setup.agent.restart')}</button></>
+            : <button className="btn btn-primary" onClick={() => onOpen('new')}>{t('setup.agent.start')}</button>)}
+        trail={<button className="btn" onClick={() => void hide()}>{t('setup.agent.hide')}</button>} />
     </section>
   );
 }
@@ -295,7 +294,7 @@ function StatusStrip({ status, products, attention, goSpend }: { status: AppStat
 // #region setup-check — docs: docs/ux/scenarios.md#scn-070-check-what-is-set-up
 /** FD-65 (SCN-070): Check setup runs the PassionCode launcher's read-only doctor and lists what needs the person,
  *  grouped by area, each with its fix; Repair with my coding agent opens the Setup console with those lines. */
-export function SetupCheck({ onRepair }: { onRepair: () => void }) {
+export function SetupCheck({ onRepair, lead, trail }: { onRepair: () => void; lead?: ReactNode; trail?: ReactNode }) {
   const { t, lang } = useT();
   const [result, setResult] = useState<SetupCheckResult | null>(null);
   const [running, setRunning] = useState(false);
@@ -308,8 +307,10 @@ export function SetupCheck({ onRepair }: { onRepair: () => void }) {
   const time = (iso: string) => new Date(iso).toLocaleTimeString(lang, { hour: '2-digit', minute: '2-digit' });
   return (
     <div className="setup-check">
-      <div className="row">
+      <div className="row wrap">
+        {lead}
         <button className="btn" disabled={running} onClick={() => void check()}>{t('setupCheck.run')}</button>
+        {trail}
         {running && <span className="meta row" role="status"><Spinner /> {t('setupCheck.running')}</span>}
         {!running && result?.kind === 'report' && <span className="meta" role="status">{t('setupCheck.summary', { fail: result.report.summary.fail, warn: result.report.summary.warn, ok: result.report.summary.ok, at: time(result.checkedAt) })}</span>}
       </div>

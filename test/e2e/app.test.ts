@@ -110,16 +110,34 @@ test('discovers a live service, opens its dashboard signed in, keeps one view, s
     await address.waitFor({ timeout: 15_000 });
     for (let i = 0; i < 50 && (await address.inputValue()) !== `${origin}/`; i += 1) await new Promise((r) => setTimeout(r, 200));
     assert.equal(await address.inputValue(), `${origin}/`, 'the address is the page, never the one-time login URL');
-    await page.getByRole('button', { name: 'Copy address' }).click();
+    // FD-74: one Copy button opens a native menu; an unpackaged run names its item (FD_TEST_COPY_PICK).
+    const pick = (which: string) => app.evaluate((_e, w) => { process.env.FD_TEST_COPY_PICK = w; }, which);
+    await pick('address');
+    await page.getByRole('button', { name: 'Copy', exact: true }).click();
     await page.getByRole('button', { name: 'Copied' }).waitFor();
     assert.equal(await app.evaluate(({ clipboard }) => clipboard.readText()), `${origin}/`);
-    await page.getByRole('button', { name: 'Copy app link' }).click();
+    await page.getByRole('button', { name: 'Copy', exact: true }).waitFor({ timeout: 5_000 });
+    await pick('link');
+    await page.getByRole('button', { name: 'Copy', exact: true }).click();
+    await page.getByRole('button', { name: 'Copied' }).waitFor();
     const copiedLink = await app.evaluate(({ clipboard }) => clipboard.readText());
     assert.match(copiedLink, /^fabric-dashboards:\/\/service\/sample\.default\?path=%2F$/);
     assert.equal(await page.getByRole('button', { name: 'Back' }).isDisabled(), true, 'nothing to go back to yet');
     await page.getByRole('button', { name: 'Reload page' }).click();
     for (let i = 0; i < 50 && (await address.inputValue()) !== `${origin}/`; i += 1) await new Promise((r) => setTimeout(r, 200));
     assert.equal(await address.inputValue(), `${origin}/`, 'reload keeps the page');
+    // FD-74: View → Reload Page (⌘R) and Reload Page Ignoring Cache (⇧⌘R) reload the dashboard on screen.
+    for (const id of ['reload-page', 'reload-hard']) {
+      await app.evaluate(({ Menu }, item) => Menu.getApplicationMenu()!.getMenuItemById(item)!.click(), id);
+      let reloaded = false;
+      for (let i = 0; i < 50 && !reloaded; i += 1) {
+        reloaded = fs.readFileSync(path.join(logs, 'main.log'), 'utf8').includes(`dashboard: sample.default reload (${id === 'reload-hard' ? 'ignoring cache' : 'menu'})`);
+        if (!reloaded) await new Promise((r) => setTimeout(r, 100));
+      }
+      assert.ok(reloaded, `${id} reloaded the dashboard on screen`);
+      for (let i = 0; i < 50 && (await address.inputValue()) !== `${origin}/`; i += 1) await new Promise((r) => setTimeout(r, 200));
+      assert.equal(await address.inputValue(), `${origin}/`, `${id} keeps the page`);
+    }
     await app.evaluate(({ clipboard }, text) => clipboard.writeText(text), keptClipboard);
 
     // A session that ended while the page was open (the service answers 401): the app signs in

@@ -206,7 +206,14 @@ h3 { font-size: var(--pc-type-card); margin: 0; font-weight: 600; }
 .console-folder { font-family: var(--pc-font-data); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; flex: 1; }
 .console-state { margin: var(--pc-space-3); }
 .console-state p { margin: 0 0 var(--pc-space-2); }
-.console-actions { flex: none; flex-wrap: wrap; gap: var(--pc-space-2); padding: var(--pc-space-2) var(--pc-space-3); border-bottom: 1px solid var(--pc-border); }
+/* FD-74: one row that never wraps into a second line of big buttons; the exit line shortens first. */
+.console-actions { flex: none; display: flex; align-items: center; gap: var(--pc-space-2); padding: var(--pc-space-2) var(--pc-space-3); border-bottom: 1px solid var(--pc-border); min-width: 0; }
+.console-actions > .btn { flex: none; white-space: nowrap; }
+.console-actions .spacer { flex: 1; }
+.console-exit { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* FD-74: lines between the header and the terminal sit inside the panel's own margins (they were cut at the left edge). */
+.console-line { margin: 0; padding: var(--pc-space-1) var(--pc-space-3); }
+.toolbar-note { flex: none; white-space: nowrap; }
 .console-term { flex: 1; min-height: 0; padding: var(--pc-space-2) 0 0 var(--pc-space-2); background: var(--pc-bg); }
 .console-term .xterm { height: 100%; }
 @media (prefers-reduced-motion: reduce) { .console-edge { transition: none; } }
@@ -242,7 +249,6 @@ h3 { font-size: var(--pc-type-card); margin: 0; font-weight: 600; }
 .btn-sm { min-height: 28px; padding: 0 var(--pc-space-2); font-size: var(--pc-type-meta); white-space: nowrap; }
 .dash-host { position: relative; flex: 1; min-height: 0; background: var(--pc-bg); }
 .dash-overlay { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: var(--pc-space-3); padding: var(--pc-space-6); text-align: center; }
-.reload-bar { position: absolute; left: var(--pc-space-4); right: var(--pc-space-4); top: var(--pc-space-3); z-index: 1; display: flex; gap: var(--pc-space-3); align-items: center; justify-content: space-between; }
 .pane { overflow: auto; height: 100%; padding: var(--pc-space-5) var(--pc-space-6); }
 .kv { display: grid; grid-template-columns: 140px 1fr; gap: var(--pc-space-2) var(--pc-space-4); }
 .kv dt { color: var(--pc-text-muted); font-size: var(--pc-type-meta); }

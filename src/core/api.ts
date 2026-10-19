@@ -76,6 +76,9 @@ export interface FabricApi {
   viewNavigate(key: string, action: 'back' | 'forward' | 'home' | 'refresh'): Promise<void>;
   /** Put text on the clipboard from the main process (the toolbar's Copy buttons). */
   copyText(text: string): Promise<void>;
+  /** FD-74: the toolbar's one Copy button: a native menu under `anchor` with Copy address and Copy app link;
+   *  answers what was copied, or null when the menu closed without a choice. */
+  copyMenu(key: string, anchor: { x: number; y: number }): Promise<'address' | 'link' | null>;
   /** FD-45 (ADR-0021): what Fabric's button does for a service now — open Fabric at once, say it is not installed, or no button. */
   fabricButton(key: string): Promise<'direct' | 'absent' | 'none'>;
   /** FD-45: press it. The main process opens the `fabric://` link, or a native menu under `anchor` (window coordinates, CSS px). */
@@ -146,6 +149,7 @@ export const CHANNELS = {
   viewPage: 'fd:view-page',
   viewNavigate: 'fd:view-navigate',
   copyText: 'fd:copy-text',
+  copyMenu: 'fd:copy-menu',
   fabricButton: 'fd:fabric-button',
   fabricPress: 'fd:fabric-press',
   viewEvent: 'fd:view-event',

@@ -385,10 +385,11 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **Preconditions:** none
 - **Steps:**
   1. User switches to another service and back -> system shows the same page, scrolled and filled as it was; a link from a notification or another agent is applied once, so a tab switch afterwards keeps the page the person moved to
-  2. The service restarts -> above the page, with the toolbar still there: "The service restarted." with Reload; Reload signs in again once and reopens the same page; an HTTP failure shows Retry (SCN-039)
-- **Expected result:** one live view per service, never duplicated
-- **UI elements:** embedded page, "The service restarted." bar above it
-- **Alt paths:** the session ended while the page was open (the service answers 401) -> the app signs in again by itself, once a minute at most, and reopens the same page (ADR-0014); the window stays hidden for 5 minutes -> every dashboard is released, and showing the window again reopens the one that was on screen, on its page
+  2. The service restarts (a new version, a crash) -> the page on screen signs in again and reloads where it was, by itself; the toolbar says "Restarted, page reloaded" for a moment; a page off screen reloads where it was the next time it is shown (FD-74); an HTTP failure shows Retry (SCN-039)
+  3. User comes back to a page whose view was closed (the window was hidden, or the page crashed) -> it opens at once, without a new sign-in, while the same service process signed this app in less than 30 minutes ago; a page or a request of it that is refused then signs in once, on the same page (FD-74)
+- **Expected result:** one live view per service, never duplicated; a page the person comes back to opens at once and shows the agent's current version
+- **UI elements:** embedded page, "Restarted, page reloaded" in the toolbar
+- **Alt paths:** the session ended while the page was open (the service answers 401) -> the app signs in again by itself, once a minute at most, and reopens the same page (ADR-0014); the window stays hidden for 5 minutes -> every dashboard is released except the two shown last, which open at once when the window shows again; after an hour hidden those two are released as well, and showing the window again reopens the one that was on screen, on its page (FD-74)
 - **States covered:** success
 - **Errors & recovery:** the page crashes -> the app recreates it once (again after every page that loads), then shows "The page stopped." with Reload
 - **Status:** validated
@@ -894,13 +895,15 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **Entry point:** a service page, Dashboard tab
 - **Preconditions:** the service is ready and its dashboard is open
 - **Steps:**
-  1. User looks above the page -> a toolbar: Back, Forward (disabled until there is history), Reload page, Dashboard home, the page's address, Copy address, Copy app link
+  1. User looks above the page -> a toolbar of icons: Back, Forward (disabled until there is history), Reload page (its tooltip names ⌘R, F5 off macOS), Dashboard home, the page's address, and Copy (SCN-040)
   2. User clicks a link inside the dashboard -> the address follows the page, Back becomes available
   3. User clicks Reload page -> for a registered live service that requires sign-in, the app performs one fresh sign-in using its existing service token, then reloads the current same-origin page; concurrent clicks share the attempt, with a spinner through sign-in and page loading. A service without sign-in uses its ordinary reload
   4. User clicks Dashboard home -> the service's dashboard path opens, signed in
+  5. User presses ⌘R (View → Reload Page; F5 on Windows and Linux) anywhere in the window, the console included -> the dashboard on screen reloads as in step 3; with no dashboard on screen every service is read again (FD-74)
+  6. User presses ⇧⌘R (View → Reload Page Ignoring Cache; Shift+F5) -> the service's stored files are dropped first, then the page reloads as in step 3, so every file comes from the service again (FD-74)
 - **Expected result:** the operator controls the embedded page like a browser tab, without leaving the app
-- **Alt paths:** the page crashed -> "The page stopped." with Reload replaces the page and the toolbar (SCN-015); the service restarted -> "The service restarted." with Reload above the page, the toolbar stays; a page on another origin is never shown in the address
-- **UI elements:** dashboard toolbar
+- **Alt paths:** the page crashed -> "The page stopped." with Reload replaces the page and the toolbar (SCN-015); the service restarted -> the page reloads by itself (SCN-015); a page on another origin is never shown in the address; Ctrl+R stays the console shell's own reverse search off macOS
+- **UI elements:** dashboard toolbar, View → Reload Page, View → Reload Page Ignoring Cache
 - **States covered:** loading, success, error
 - **Errors & recovery:** a reload or renewed sign-in that fails (including an HTTP error page) -> the existing page-error message with Retry (SCN-016); no automatic retry on a 404. A service no longer answering as the registered identity gets no token. Switching away while sign-in is pending prevents the completed attempt from taking over the current view
 - **Status:** validated
@@ -914,12 +917,13 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **Entry point:** the dashboard toolbar
 - **Preconditions:** a dashboard page is open
 - **Steps:**
-  1. User clicks Copy address -> the page's own address (`http://127.0.0.1:<port>/…` or the online `https://…`) is on the clipboard; the button reads "Copied" for a moment
-  2. User clicks Copy app link -> `fabric-dashboards://service/<id.instance>?path=…` is on the clipboard: pasted to an agent or a teammate on this Mac, it opens the same page here, signed in
-  3. User clicks the address -> the whole address is selected for a manual copy
+  1. User clicks Copy (the icon at the toolbar's end) -> a menu: Copy address, Copy app link (FD-74: one button instead of two)
+  2. User chooses Copy address -> the page's own address (`http://127.0.0.1:<port>/…` or the online `https://…`) is on the clipboard; the icon turns into a check mark and the button reads "Copied" for a moment
+  3. User chooses Copy app link -> `fabric-dashboards://service/<id.instance>?path=…` is on the clipboard: pasted to an agent or a teammate on this Mac, it opens the same page here, signed in
+  4. User clicks the address -> the whole address is selected for a manual copy
 - **Expected result:** any page can be handed on in one click, in the form the receiver needs
-- **Alt paths:** the page is the one-time sign-in URL -> the dashboard's address is copied instead; no login code ever reaches the clipboard
-- **UI elements:** address field, Copy address, Copy app link
+- **Alt paths:** the page is the one-time sign-in URL -> the dashboard's address is copied instead; no login code ever reaches the clipboard; the menu closes without a choice -> nothing is copied
+- **UI elements:** address field, Copy with its menu (Copy address, Copy app link)
 - **States covered:** success
 - **Errors & recovery:** none needed — both values are computed locally
 - **Status:** validated
@@ -1012,7 +1016,7 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **Entry point:** "Console" in a service page's bar, or View → Show or Hide Console (⌃⌘T)
 - **Preconditions:** none
 - **Steps:**
-  1. User opens the console -> a panel opens to the right of the dashboard with this agent's console; the dashboard narrows to the space left
+  1. User opens the console -> a panel opens to the right of the dashboard with this agent's console at once: the runtimes are read 3 s after the app starts, and what Switchboard said about the folder in the last 30 s is shown while it is asked again in the background, so a slow Switchboard never holds the panel (FD-74); the dashboard narrows to the space left
   2. User drags the panel's edge -> it widens or narrows, from 320 px up to where the dashboard keeps its floor (SCN-060); the width is remembered
   3. User collapses the panel -> it closes; whatever runs in it keeps running; opening it again shows everything it printed
   4. User switches to another agent -> the panel shows that agent's console; each agent has its own
@@ -1032,7 +1036,7 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **Entry point:** an agent's console that runs nothing yet
 - **Preconditions:** at least one runtime (Claude Code, Codex or another known one) is installed
 - **Steps:**
-  1. User opens the console -> it shows the runtime (the last one used for this agent, else Claude Code, else the first one found), the folder found for this agent (its repository's local checkout) with "Other…", and "New session" and "Continue last"
+  1. User opens the console -> it shows the runtime (the last one used for this agent, else Claude Code, else the first one found), the folder found for this agent (its repository's local checkout) with "Other…", and one compact row: "New session" and "Continue last" on the left, the Open in Terminal icon on the right (FD-74)
   2. User presses "New session" -> the runtime's own interface starts in that folder, in the console; the user types to it as in any terminal, and its permission questions appear there
   3. User presses "Continue last" -> the runtime resumes its last conversation in that folder (`claude --continue`, `codex resume --last`)
   4. The runtime exits -> the console says "Exited (code 0)" with "New session" and "Continue last" again

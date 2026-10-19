@@ -27,6 +27,7 @@ const api: FabricApi = {
   viewPage: (key) => ipcRenderer.invoke(CHANNELS.viewPage, key),
   viewNavigate: (key, action) => ipcRenderer.invoke(CHANNELS.viewNavigate, key, action),
   copyText: (text) => ipcRenderer.invoke(CHANNELS.copyText, text),
+  copyMenu: (key, anchor) => ipcRenderer.invoke(CHANNELS.copyMenu, key, anchor),
   fabricButton: (key) => ipcRenderer.invoke(CHANNELS.fabricButton, key),
   fabricPress: (key, anchor) => ipcRenderer.invoke(CHANNELS.fabricPress, key, anchor),
   onViewEvent: (l) => subscribe(CHANNELS.viewEvent, l),

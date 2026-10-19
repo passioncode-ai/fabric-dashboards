@@ -50,6 +50,14 @@ test('FD-37: window, tray and menu keys per OS', () => {
   assert.equal(other.quit, 'Ctrl+Q');
   assert.equal(other.appMenu, false);
   assert.ok(Object.values(other).every((v) => typeof v !== 'string' || !v.includes('Cmd')), 'no Command key off macOS');
+  // FD-74: Reload is ⌘R on macOS; elsewhere F5, because Ctrl+R is the console shell's reverse search.
+  assert.equal(menuKeys('darwin').reload, 'Command+R');
+  assert.equal(menuKeys('darwin').hardReload, 'Shift+Command+R');
+  for (const p of ['win32', 'linux'] as const) {
+    assert.equal(menuKeys(p).reload, 'F5');
+    assert.equal(menuKeys(p).hardReload, 'Shift+F5');
+    assert.ok(Object.values(menuKeys(p)).every((v) => typeof v !== 'string' || !/^Ctrl\+R$/.test(v)), 'Ctrl+R stays the shell\'s');
+  }
 });
 
 test('FD-37: a login launch starts hidden — macOS reports it, Windows and Linux pass --hidden', () => {

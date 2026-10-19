@@ -32,7 +32,7 @@ import { powerShellAfterExit } from '../core/after-exit';
 import { SettingsStore } from '../core/settings';
 import type { AppStatus, Settings, SettingsPatch } from '../core/types';
 import { ALWAYS_KEPT, cancelStagedUpdate, clearRestoreRecord, KEPT_FILES, productDataPaths, purgeAfterExit, readRestoreRecord, removeMcpRegistrations, repairMcpRegistrations, restoreMcpRegistrations, writeRestoreRecord } from '../core/uninstall';
-import { autoInstallNow, autoInstallWait, HiddenGrace, partitionFor, RELAUNCH_MARKER, relaunchHidden, RESUME_ROUTE_MARKER, resumeRoute, type ResumeRoute, stalePartitions, UPDATE_IDLE_MS, VIEW_RELEASE_GRACE_MS, VISIBILITY_SYNC_MS, VisibilitySync } from './policy';
+import { autoInstallNow, autoInstallWait, HiddenGrace, partitionFor, RELAUNCH_MARKER, relaunchHidden, RESUME_ROUTE_MARKER, resumeRoute, type ResumeRoute, stalePartitions, UPDATE_IDLE_MS, VIEW_RELEASE_ALL_MS, VIEW_RELEASE_GRACE_MS, VISIBILITY_SYNC_MS, VisibilitySync, WARM_VIEWS } from './policy';
 import { AppTray } from './tray';
 import { DockSync } from './dock';
 import { linkInArgv, menuKeys, notificationSettingsUrl, places, startHidden, uninstallCommand, uninstallTarget, windowChrome } from '../core/platform';
@@ -227,12 +227,17 @@ if (!app.requestSingleInstanceLock()) {
     }, 30);
   }
 
-  // Embedded dashboards are released once the window has been hidden for the grace period.
+  // Embedded dashboards are released once the window has been hidden for the grace period: first all but the
+  // WARM_VIEWS shown most recently (FD-74), then, after VIEW_RELEASE_ALL_MS, every one.
   const viewGrace = new HiddenGrace(VIEW_RELEASE_GRACE_MS, () => {
+    const count = views?.releaseCold(WARM_VIEWS) ?? 0;
+    if (count) log(`released ${count} dashboard view(s) after ${VIEW_RELEASE_GRACE_MS / 60_000} min hidden; kept ${views?.keys().length ?? 0}`);
+  });
+  const viewGraceAll = new HiddenGrace(VIEW_RELEASE_ALL_MS, () => {
     const count = views?.keys().length ?? 0;
     if (!count) return;
     views?.releaseAll();
-    log(`released ${count} dashboard view(s) after ${VIEW_RELEASE_GRACE_MS / 60_000} min hidden`);
+    log(`released ${count} dashboard view(s) after ${VIEW_RELEASE_ALL_MS / 60_000} min hidden`);
   });
   // #region auto-install-flow — docs: docs/adr/0015-data-survives-uninstall-updates-install-themselves.md#decision
   // ADR-0015: a downloaded update installs by itself once the window has been hidden for
@@ -306,6 +311,7 @@ if (!app.requestSingleInstanceLock()) {
     updateGrace.shown();
     if (busyRetry) { clearTimeout(busyRetry); busyRetry = null; }
     viewGrace.shown();
+    viewGraceAll.shown();
     monitor.setVisible(true);
     pushStatus();
     void views?.resume((key) => monitor.snapshot(key)).then(() => views?.announce());
@@ -314,6 +320,7 @@ if (!app.requestSingleInstanceLock()) {
     visibility.note(false);
     monitor.setVisible(false);
     viewGrace.hidden();
+    viewGraceAll.hidden();
     updateGrace.hidden();
   }
   // FD-64: ⌘H and the return from it send the window no hide or show event, so what is on screen is
@@ -336,6 +343,8 @@ if (!app.requestSingleInstanceLock()) {
     });
   };
   handoverTimer = setTimeout(pollHandovers, HANDOVER_POLL_MS.visible);
+  // FD-74: the runtimes and the login shell's PATH are read 3 s after start, so the first console opens at once.
+  setTimeout(() => { if (!quitting) consoles.warm(); }, 3_000).unref();
   handoverTimer.unref();
   // #endregion quiet-push
 
@@ -719,6 +728,22 @@ if (!app.requestSingleInstanceLock()) {
     });
     // The toolbar copies only what it shows: a page address or an app link, never a token.
     ipcMain.handle(CHANNELS.copyText, (_e, text: string) => { clipboard.writeText(String(text).slice(0, 4096)); });
+    // FD-74 (SCN-040): one Copy button, a native menu (a page menu would sit under the embedded dashboard).
+    ipcMain.handle(CHANNELS.copyMenu, (_e, key: unknown, anchor?: { x?: unknown; y?: unknown }) => new Promise<'address' | 'link' | null>((resolve) => {
+      const page = typeof key === 'string' ? views?.page(key) : null;
+      const w = window;
+      if (!page || !w || w.isDestroyed()) { resolve(null); return; }
+      let picked: 'address' | 'link' | null = null;
+      const copy = (which: 'address' | 'link') => { picked = which; clipboard.writeText((which === 'address' ? page.address : page.link).slice(0, 4096)); resolve(which); };
+      // e2e: a native menu cannot be clicked from the page; an unpackaged test run names the item instead.
+      const testPick = !app.isPackaged ? process.env.FD_TEST_COPY_PICK : undefined;
+      if (testPick === 'address' || testPick === 'link') { copy(testPick); log(`copy_menu ${testPick}`); resolve(picked); return; }
+      const at = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? Math.max(0, Math.round(v)) : 0);
+      Menu.buildFromTemplate([
+        { label: t(lang(), 'view.copyAddress'), click: () => copy('address') },
+        { label: t(lang(), 'view.copyLink'), sublabel: t(lang(), 'view.copyLinkHint'), click: () => copy('link') },
+      ]).popup({ window: w, x: at(anchor?.x), y: at(anchor?.y), callback: () => setTimeout(() => resolve(picked), 200) }); // a click may land just after the menu closes
+    }));
     // FD-45 (DEC-0040, ADR-0021): Fabric's button. A press opens a view in Fabric and nothing more (FB-8);
     // the link carries the service id only, and Fabric finds the project itself.
     ipcMain.handle(CHANNELS.fabricButton, (_e, key: string) => fabricPress(String(key), fabricPresent()).kind);
@@ -756,6 +781,14 @@ if (!app.requestSingleInstanceLock()) {
     ipcMain.on(CHANNELS.viewBounds, (_e, rect: Rect) => views?.setBounds(rect));
   }
 
+  /** FD-74: ⌘R reloads the dashboard on screen, signed in again; ⇧⌘R first empties its cache. With no dashboard
+   *  on screen it reads every service again. */
+  function reloadCommand(hard: boolean): void {
+    const key = views?.shownKey();
+    if (key && windowVisible()) { log(`dashboard: ${key} reload (${hard ? 'ignoring cache' : 'menu'})`); void views!.reload(key, hard); return; }
+    void monitor.tick(true);
+  }
+
   function layoutCommand(which: 'sidebar' | 'console' | 'details'): void {
     if (window && !window.isDestroyed()) window.webContents.send(CHANNELS.layoutCommand, which);
   }
@@ -776,6 +809,9 @@ if (!app.requestSingleInstanceLock()) {
       { role: 'editMenu' },
       // ADR-0017: the panels fold away from the menu too; the window holds the state (Settings.layout).
       { label: t(l, 'menu.view'), submenu: [
+        { id: 'reload-page', label: t(l, 'menu.reload'), accelerator: keys.reload, click: () => reloadCommand(false) },
+        { id: 'reload-hard', label: t(l, 'menu.hardReload'), accelerator: keys.hardReload, click: () => reloadCommand(true) },
+        { type: 'separator' },
         { label: t(l, 'menu.toggleSidebar'), accelerator: keys.sidebar, click: () => layoutCommand('sidebar') },
         { label: t(l, 'menu.toggleConsole'), accelerator: keys.console, click: () => layoutCommand('console') },
         { label: t(l, 'menu.toggleDetails'), accelerator: keys.details, click: () => layoutCommand('details') },
@@ -801,6 +837,7 @@ if (!app.requestSingleInstanceLock()) {
     monitor.stop();
     alerts.stop(); // FD-48: no tick after quit begins
     viewGrace.dispose();
+    viewGraceAll.dispose();
     updateGrace.dispose();
     clearInterval(visibilityTick); // FD-64
     if (handoverTimer) clearTimeout(handoverTimer); handoverTimer = null; // FD-62: no read after quit begins

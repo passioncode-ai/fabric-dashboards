@@ -220,7 +220,7 @@ export function ConsolePanel({ serviceKey, width, max, onWidth, onHide, task, on
           )}
           <button className="icon-btn" title={t('console.hide')} onClick={onHide}><Icon name="close" /><span className="visually-hidden">{t('console.hide')}</span></button>
         </div>
-        {handover && <p className="console-row meta" role="status">{t('console.handover', { workflow: handover.workflow || handover.agent, account: handover.account || '—' })}</p>}
+        {handover && <p className="console-row console-line meta" role="status">{t('console.handover', { workflow: handover.workflow || handover.agent, account: handover.account || '—' })}</p>}
         {!ownHandover && <div className="console-row meta">
           {info?.folder
             ? <span className="console-folder" title={`${info.folder.path}${info.folder.source === 'found' ? ` — ${t('console.foundFrom')}` : ''}`}>{shortPath(info.folder.path)}</span>
@@ -239,33 +239,36 @@ export function ConsolePanel({ serviceKey, width, max, onWidth, onHide, task, on
       )}
       {info?.binding.kind === 'error' && <p className="console-state notice error" role="alert">{t('console.sbError', { detail: info.binding.detail })}</p>}
       {sessions && 'sessions' in sessions && sessions.sessions.filter((x) => x.state === 'starting' || x.state === 'running').map((x, i) => (
-        <div key={i} className="console-row meta" role="status">
+        <div key={i} className="console-row console-line meta" role="status">
           <span className="chip">{t(`console.sb.state.${x.state}`)}</span>
           <span>{t('console.sb.session', { label: x.label, mode: x.mode, since: x.launchedAt ? new Date(x.launchedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—' })}</span>
           {x.movedTo && <span className="notice">{t('console.sb.moved', { label: x.movedTo })}</span>}
         </div>
       ))}
       {sessions && 'unavailable' in sessions && (sessions.unavailable === 'old' || sessions.unavailable === 'error' || (sessions.unavailable === 'absent' && runtime?.viaSwitchboard)) && (
-        <p className="console-row meta muted">{sessions.unavailable === 'old' ? t('console.sb.old') : sessions.unavailable === 'absent' ? t('console.sb.absent') : t('console.sb.error', { detail: sessions.detail })}</p>
+        <p className="console-row console-line meta muted">{sessions.unavailable === 'old' ? t('console.sb.old') : sessions.unavailable === 'absent' ? t('console.sb.absent') : t('console.sb.error', { detail: sessions.detail })}</p>
       )}
       {notice && <div className={`console-state notice${notice.terminalOnly ? '' : ' error'}`} role="alert">
         <p>{notice.text}</p>
         {notice.terminalOnly && <button className="btn btn-primary" onClick={() => void openTerminal('new')}>{t('console.openTerminalSb')}</button>}
       </div>}
       {ownHandover && info?.session.state === 'exited' && <p className="console-actions meta" role="status">{info.session.signal ? t('console.stopped') : info.session.exitCode === null ? t('console.ended') : t('console.exited', { code: info.session.exitCode })}</p>}
+      {/* FD-74: one compact row: the session buttons on the left, Terminal as an icon on the right. */}
       {info && !ownHandover && runtime && folderOk && !running && (
-        <div className="console-actions row">
+        <div className="console-actions">
           {terminalOnly
-            ? <button className="btn btn-primary" onClick={() => void openTerminal('new')}>{t('console.openTerminalSb')}</button>
+            ? <button className="btn btn-sm btn-primary" onClick={() => void openTerminal('new')}>{t('console.openTerminalSb')}</button>
             : <>
-                <button className="btn btn-primary" disabled={starting} onClick={() => void start('new')}>{t('console.new')}</button>
-                {runtime.canContinue && <button className="btn" disabled={starting} onClick={() => void start('continue')}>{t('console.continue')}</button>}
+                <button className="btn btn-sm btn-primary" disabled={starting} onClick={() => void start('new')}>{starting ? <Spinner /> : null}{t('console.new')}</button>
+                {runtime.canContinue && <button className="btn btn-sm" disabled={starting} onClick={() => void start('continue')}>{t('console.continue')}</button>}
+                {info.session.state === 'exited' && <span className="meta console-exit" role="status">{info.session.signal ? t('console.stopped') : info.session.exitCode === null ? t('console.ended') : t('console.exited', { code: info.session.exitCode })}</span>}
+                <span className="spacer" />
                 {/* Review R-8: through Switchboard, Terminal opens a new session on the project's account. */}
                 {bound && runtime.viaSwitchboard
-                  ? <button className="btn" onClick={() => void openTerminal('new')}>{t('console.openTerminalSb')}</button>
-                  : <button className="btn" onClick={() => void openTerminal(runtime.canContinue ? 'continue' : 'new')}>{t('console.openTerminal')}</button>}
+                  ? <button className="icon-btn" onClick={() => void openTerminal('new')} aria-label={t('console.openTerminalSb')} title={t('console.openTerminalSb')}><Icon name="external" /></button>
+                  : <button className="icon-btn" onClick={() => void openTerminal(runtime.canContinue ? 'continue' : 'new')} aria-label={t('console.openTerminal')} title={t('console.openTerminal')}><Icon name="external" /></button>}
               </>}
-          {info.session.state === 'exited' && <span className="meta" role="status">{info.session.signal ? t('console.stopped') : info.session.exitCode === null ? t('console.ended') : t('console.exited', { code: info.session.exitCode })}</span>}
+          {terminalOnly && info.session.state === 'exited' && <span className="meta console-exit" role="status">{info.session.signal ? t('console.stopped') : info.session.exitCode === null ? t('console.ended') : t('console.exited', { code: info.session.exitCode })}</span>}
         </div>
       )}
       <div className="console-term" ref={host} onClick={() => term.current?.focus()} />

@@ -119,6 +119,7 @@ test('ADR-0017: a one-line header, a folding sidebar, and an agent console besid
     await waitFor('the remembered width to come back again', async () => (await valueOf('aria-valuenow')) === max);
     for (let i = 0; i < 20; i++) await page.keyboard.press('ArrowRight'); // back to a narrow console for the steps below
 
+    await shot(page, '21a-console-idle');
     // SCN-049: the runtime runs in the chosen folder; input reaches it; Continue passes its resume flag.
     await page.getByRole('button', { name: 'New session' }).click();
     if (!roomy(repo)) { await deferred(page); return; }
