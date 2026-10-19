@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+## 0.7.14 - 2026-10-19
+
+### Fixed
+
+- **Restart to update works when the downloaded update was removed** (FD-75). If the files of a downloaded update
+  disappear from disk, the app notices, downloads the update again and installs it once it is ready, instead of
+  restarting into the old version. A leftover installer that has nothing to install is cleaned up at start.
+
 ## 0.7.13 - 2026-10-19
 
 ### Added

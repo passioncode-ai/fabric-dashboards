@@ -24,7 +24,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { FEED_FILE, feedNamesOwnRelease, localFeed, parseSums, releaseFile, signedFeed, sumsSignedByRelease, zipName } from '../core/release-verify';
-import { APP_UPDATE_EVERY_MS, FIRST_CHECK_MS, isNewer, quietCheck, mayCheck, stagedBundlePath, stagedRefusal } from '../core/version';
+import { APP_UPDATE_EVERY_MS, FIRST_CHECK_MS, isNewer, quietCheck, mayCheck, stagedBundlePath, stagedRefusal, stagingLost, strayShipIt } from '../core/version';
 import type { AppStatus } from '../core/types';
 import { appImageRelaunchCommand, nsisInstalledAt, nsisUpdateCommand, PENDING_UPDATE_DIR, platformKey, platformUpdate, replaceAppImage, stagedAppImage, updateChannel } from '../core/self-update';
 import { uninstallTarget } from '../core/platform';
@@ -126,6 +126,12 @@ export class Updater {
   private heldFile: string | null = null;
   /** Windows (M4c): the verified installer waiting for the app to quit, and its sha256 (checked again before it runs). */
   private pendingInstaller: { file: string; sha256: string } | null = null;
+  /** FD-75: the bundle Squirrel staged for the ready update, checked again before it is offered or installed. */
+  private stagedBundle: string | null = null;
+  /** FD-75: the person asked to install while the staged update had gone; install as soon as it is staged again. */
+  private installWhenReady = false;
+  /** FD-75: called when an update staged again after the person's Restart to update is ready to install. */
+  onInstallWhenReady: (() => void) | null = null;
 
   constructor(
     private readonly onChange: () => void,
@@ -179,6 +185,7 @@ export class Updater {
       return;
     }
     emptyVerifiedCache();
+    void this.removeStrayShipIt();
     autoUpdater.on('update-available', () => { this.event('update_download', 'started', `version=${this.verified?.version ?? '?'} by=squirrel`); this.set({ state: 'downloading', version: this.verified?.version }); });
     autoUpdater.on('update-not-available', () => { this.event('update_check', 'current', `version=${app.getVersion()} by=squirrel`); this.set({ state: 'idle', checkedAt: new Date().toISOString() }); });
     autoUpdater.on('update-downloaded', () => void this.checkStaged());
@@ -207,6 +214,7 @@ export class Updater {
   /** F-1: the feed's version is read first; only a newer, verified release reaches Squirrel.
    *  `manual` is the person's "Check for Updates…", which works with automatic updates off. */
   check(manual = false): void {
+    if (this.lostStaging()) { this.restage(false); return; }
     if (!mayCheck({ manual, enabled: this.enabled(), state: this.state.state })) return;
     this.set({ state: 'checking' });
     void this.run(manual);
@@ -333,9 +341,52 @@ export class Updater {
       }
       return this.fail('signature_failed', `${refusal}; the staged update was removed`);
     }
+    this.stagedBundle = bundle;
     this.event('update_check', 'ready', `version=${seen!.version}`);
     this.set({ state: 'ready', version: seen!.version ?? undefined });
+    if (this.installWhenReady) { this.installWhenReady = false; this.event('update_install', 'restaged', `version=${seen!.version}`); this.onInstallWhenReady?.(); }
   }
+
+  // #region staging-lost — docs: docs/backlog.md
+  private shipItDir(): string {
+    return path.join(os.homedir(), 'Library/Caches', `${BUNDLE_ID}.ShipIt`);
+  }
+
+  /** FD-75: whether the ready update's request or staged bundle has gone from disk (macOS, Squirrel only). */
+  private lostStaging(): boolean {
+    if (this.channel === 'appimage' || this.channel === 'nsis' || this.state.state !== 'ready') return false;
+    return stagingLost({ state: this.state.state, requestExists: fs.existsSync(path.join(this.shipItDir(), 'ShipItState.plist')),
+      bundleExists: this.stagedBundle ? fs.existsSync(this.stagedBundle) : null });
+  }
+
+  /** FD-75: say so, forget the ready state and download and stage the release again; `install` when the person
+   *  asked to restart, so it installs as soon as it is staged. */
+  private restage(install: boolean): void {
+    this.event('update_check', 'staging_lost', `version=${this.state.version ?? '?'}${install ? ' asked=person' : ''}`);
+    this.stagedBundle = null;
+    this.installWhenReady = this.installWhenReady || install;
+    this.lastQuiet = null;
+    this.set({ state: 'idle' });
+    this.check(install); // the person's restart counts as their check, even with automatic updates off
+  }
+
+  /** Whether Restart to update can hand Squirrel its staged update now; when it cannot, the update is staged
+   *  again and installs by itself once it is (FD-75). */
+  readyToInstall(): boolean {
+    if (!this.lostStaging()) return this.state.state === 'ready';
+    this.restage(true);
+    return false;
+  }
+
+  /** FD-75: a ShipIt job left with no request relaunches every 2 s and fails; remove it at start. */
+  private async removeStrayShipIt(): Promise<void> {
+    const label = `${BUNDLE_ID}.ShipIt`;
+    const listed = await run('/bin/launchctl', ['list', label]).catch(() => ({ code: 1, out: '' }));
+    if (!strayShipIt({ requestExists: fs.existsSync(path.join(this.shipItDir(), 'ShipItState.plist')), jobLoaded: listed.code === 0, staging: this.state.state === 'downloading' })) return;
+    const removed = await run('/bin/launchctl', ['remove', label]).catch(() => ({ code: 1, out: '' }));
+    this.event('update_install', removed.code === 0 ? 'shipit_removed' : 'shipit_remove_failed', `label=${label} reason=no-request`);
+  }
+  // #endregion staging-lost
 
   // #region appimage-update — docs: docs/adr/0019-windows-and-linux.md#amendment-2026-10-11--updates-on-linux-fd-37-m4b
   /** A `.part` a killed download left beside this AppImage. */
@@ -473,6 +524,7 @@ export class Updater {
       this.event('update_restart', 'refused', `state=${this.state.state}`);
       return false;
     }
+    if (!this.readyToInstall()) return false; // FD-75: staged again; it installs by itself once ready
     this.event('update_restart', 'requested', `version=${this.state.version ?? '?'}`);
     autoUpdater.quitAndInstall();
     return true;
