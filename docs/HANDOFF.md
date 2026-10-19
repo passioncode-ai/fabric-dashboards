@@ -29,9 +29,12 @@ Measured on `origin/main` `5e5cb57`; no other branch, no open pull request befor
   run 39240157928, green on all four runners). Likely cause of FD-75: Fabric's report on the same thread measured
   2.4 GB free on this Mac's disk this morning (14 GB at 10:40 UTC); macOS purges ~/Library/Caches under storage
   pressure, which is where Squirrel stages an update.
+- **Full e2e (11:15 UTC, unlocked screen, load average 34):** 21/22; SCN-011 failed 3 of 3 because the test's
+  launchd plist lacked `FABRIC_SERVICE_SUPERVISOR=launchd`, so the sample's launchd copy exited 75 at once instead of
+  waiting on the lock (DEC-0057). Fixed in PR #158 (`d8e62fb`); `test/e2e/launchd-control.test.ts` 2/2.
 - **Next task:** confirm on the installed copy that 0.7.14 installs (main.log `update_install installed from=0.7.13
-  to=0.7.14`) and that ⌘R reloads the dashboard on screen (`dashboard: <key> reload (menu)`); then the full
-  `npm run test:e2e` on an unlocked screen.
+  to=0.7.14`; it was ready at 10:52 UTC and installs once the window is hidden 10 minutes or at quit) and that ⌘R
+  reloads the dashboard on screen (`dashboard: <key> reload (menu)`). Then the board: FD-02's drafts as conditions allow.
 
 **FD-75 (found 2026-10-19):** at 10:05:56 UTC Restart to update on the installed 0.7.12 logged `Could not read update
 request`: Squirrel's ShipItState.plist and the 0.7.13 bundle staged at 04:50 UTC were gone from ~/Library/Caches
