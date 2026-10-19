@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+## 0.7.15 - 2026-10-19
+
+### Security
+
+- **Dashboard sign-ins are encrypted on disk** (FD-04). The cookies that keep each agent's dashboard signed in
+  are now stored encrypted on macOS and Windows. On a Mac the key is a «Fabric Dashboards Safe Storage» item in
+  your login keychain, made at first use; later versions read it without asking. Dashboards
+  keep signing in by themselves as before. Linux keeps the earlier storage, because its keyring may ask you to
+  unlock it.
+
 ## 0.7.14 - 2026-10-19
 
 ### Fixed

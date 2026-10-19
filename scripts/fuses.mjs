@@ -27,15 +27,15 @@ export const FUSES = [
 ];
 
 /**
- * What a Fabric Dashboards release ships (AGENTS.md ## Lifecycle). Two declared exceptions to LC-13:
+ * What a Fabric Dashboards release ships (AGENTS.md ## Lifecycle). One declared exception to LC-13:
  * RunAsNode stays on because the MCP server runs inside this binary as Node
- * (Resources/bin/fabric-dashboards-mcp); cookie encryption stays off until an upgrade from a signed
- * build is shown to raise no Keychain prompt (the service sessions are 0600 files today, the same
- * trust level as the service token files).
+ * (Resources/bin/fabric-dashboards-mcp). Cookie encryption is on since 0.7.15 (FD-04): macOS keeps the
+ * key in the «Fabric Dashboards Safe Storage» Keychain item, Windows in DPAPI; Linux keeps it off
+ * (dist-other.mjs wantedFuses), because a desktop keyring there may ask the person to unlock it.
  */
 export const WANTED_FUSES = {
   RunAsNode: true,
-  EnableCookieEncryption: false,
+  EnableCookieEncryption: true,
   EnableNodeOptionsEnvironmentVariable: false,
   EnableNodeCliInspectArguments: false,
   EnableEmbeddedAsarIntegrityValidation: true,

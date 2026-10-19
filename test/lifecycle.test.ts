@@ -898,7 +898,7 @@ test('LC-13: the fuse wire is read and set in every slice; the release check nam
     assert.equal(w.fuses.EnableNodeCliInspectArguments, false);
     assert.equal(w.fuses.EnableEmbeddedAsarIntegrityValidation, true);
     assert.equal(w.fuses.OnlyLoadAppFromAsar, true);
-    assert.equal(w.fuses.EnableCookieEncryption, false, 'declared exception: no Keychain item until an upgrade test proves zero prompts');
+    assert.equal(w.fuses.EnableCookieEncryption, true, 'FD-04: session cookies are encrypted on macOS and Windows');
   }
   assert.throws(() => fuses.readFuseWires(Buffer.from('no wire here')), /no fuse wire/);
   assert.throws(() => fuses.setFuses(wire('1'), { OnlyLoadAppFromAsar: true }), /does not have fuse/);

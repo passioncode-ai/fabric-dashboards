@@ -19,7 +19,7 @@
 Fabric Dashboards: a macOS desktop app (Electron) that finds every local agent service speaking
 `fabric-service/0.1`, shows whether it is alive and what it did last, starts, stops and restarts
 it through launchd and opens each service's dashboard inside the app. Fabric's monitoring tool;
-also works on its own. The current version is 0.7.14 (`package.json`, `CHANGELOG.md`); the README
+also works on its own. The current version is 0.7.15 (`package.json`, `CHANGELOG.md`); the README
 *Quick start for a new teammate* is the path for a new user. Licence:
 `AGPL-3.0-only OR LicenseRef-PassionCode-Commercial` ([ADR-0007](docs/adr/0007-agpl-or-commercial.md)).
 
@@ -184,20 +184,24 @@ default, once the app has exited, everything it wrote is removed (`productDataPa
 notification ledger, the `auto-update` switch and `restore.json`, which makes the next install put the login item and the
 MCP entries back. Ticking «Also delete my settings and activity history» removes those too, except the `auto-update` switch (`ALWAYS_KEPT`, LC-16). Every
 packaged launch points an MCP entry of ours whose launcher is gone at the running copy. The
-services folder (descriptors and tokens) is never touched. Without the app: `fabric-dashboards-mcp --unregister` removes the
+services folder (descriptors and tokens) is never touched, and neither is the «Fabric Dashboards Safe Storage» Keychain item (FD-04, see Fuses). Without the app: `fabric-dashboards-mcp --unregister` removes the
 MCP entry alone.
 
 **Fuses** (LC-13, `scripts/fuses.mjs`): `npm run dist` sets them before signing and reads them back
 from the finished binary; the release fails on a wrong one. Shipped: `EnableNodeOptionsEnvironmentVariable`
 off, `EnableNodeCliInspectArguments` off, `EnableEmbeddedAsarIntegrityValidation` on,
-`OnlyLoadAppFromAsar` on. Two declared exceptions:
+`OnlyLoadAppFromAsar` on, `EnableCookieEncryption` on (FD-04, since 0.7.15). One declared exception:
 
 - `RunAsNode` stays **on**: the MCP server runs inside this binary as Node, which is what keeps it
   at ~15 MB with no browser engine, no GUI lock and no profile access.
-- `EnableCookieEncryption` stays **off**: turning it on creates a «Fabric Dashboards Safe Storage»
-  Keychain item, and an upgrade with zero SecurityAgent prompts can only be shown on a signed
-  build. Service session cookies stay plaintext in 0600 files, the same trust level as the service
-  token files they are minted from (audit F-8).
+
+Cookie encryption keeps the service session cookies encrypted at rest. On macOS the key is the
+«Fabric Dashboards Safe Storage» Keychain item, made by the first launch that opens a dashboard and
+read by later versions under the same Developer ID signature. On Windows the key is DPAPI-sealed in the
+profile's `Local State`. Linux keeps the fuse **off** (`wantedFuses`, `scripts/dist-other.mjs`): the
+desktop keyring there may ask the person to unlock it. The Keychain item is not removed by Uninstall:
+deleting it from outside the app can ask the person for their password, and with the dashboard
+partitions gone it encrypts nothing (Keychain Access removes it by hand).
 
 ## Release pipeline (PL-10) — where this product differs, and why
 
