@@ -267,3 +267,19 @@ In the same run: update this repository's docs with the change; if a cross-repos
 (a product, a version, a plan row, a principle), update the page in `fabric-workspace/knowledge/`
 that owns it; land both; publish (`node scripts/workspace.mjs sync` from a Fabric checkout) or
 leave it to the scheduled sync. Leave a handoff with the exact next task.
+<!-- SSHLG:PROJECT:BEGIN managed by npx sshlg-skills enroll. To opt out, replace the whole block with one SSHLG:PROJECT:OPTOUT comment line. -->
+## Family routes in this project
+
+Surface: `internal` (detected).
+Signals: none. No website or app-text signal in the tree.
+
+Routes that apply here (the global routing block says what each one owns):
+
+| Router | Answers | Setup here |
+|---|---|---|
+| `evidence-docs` | what proves it | nothing to seed |
+| `task-pipeline` | how the change reaches the repository | DOCMAP: missing (`/task-pipeline setup`) |
+
+Remaining setup:
+- `/task-pipeline setup`: DOCMAP for `task-pipeline`, missing `docs/DOCMAP.md`
+<!-- SSHLG:PROJECT:END -->
