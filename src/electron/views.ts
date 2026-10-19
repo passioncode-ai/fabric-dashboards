@@ -16,12 +16,28 @@ import { testRemote } from '../core/testhooks';
 
 /** A view signs in again after a 401 at most this often (an agent owner's finding, 2026-10-05). */
 const RESIGN_EVERY_MS = 60_000;
+// #region warm-session — docs: docs/ux/scenarios.md#scn-015-dashboard-view-keeps-its-place
+/** FD-74: a view made again opens the page straight away, without a new login code, while the same service
+ *  process signed this app in less than this long ago. Measured 2026-10-19: a login code took 35–541 ms on
+ *  this Mac's services, plus one more navigation through the login URL. */
+export const WARM_SESSION_MS = 30 * 60_000;
+/** FD-74: after such a direct open, a 401 from the page's own requests (fetch, XHR) this soon signs it in. */
+const DIRECT_WATCH_MS = 15_000;
+// #endregion warm-session
 
 
 /** What showing a dashboard came to; `stage` tells a sign-in that failed from a page that would not load. */
 export interface ShowResult { ok: boolean; error?: string; stage?: 'sign-in' | 'page' }
 
-interface Entry { view: WebContentsView; origin: string; crashes: number; loadedOnce: boolean; loadedAt: number; dashboardPath: string; resignedAt: number; resignTo: string | undefined | null; navigationEpoch: number; lastStatus?: number }
+interface Entry { view: WebContentsView; origin: string; crashes: number; loadedOnce: boolean; loadedAt: number; dashboardPath: string; resignedAt: number; resignTo: string | undefined | null; navigationEpoch: number; lastStatus?: number;
+  /** FD-74: when the page was last on screen, to keep the most recent ones across a hidden window. */
+  shownAt: number;
+  /** FD-74: a page opened without a login code, and when; its own 401 signs it in (DIRECT_WATCH_MS). -1 while
+   *  that open is still loading: load() itself then decides, from `refusedWhileDirect`. */
+  directAt: number;
+  refusedWhileDirect?: boolean;
+  /** FD-74: where a page left behind by a service restart reopens when it is shown again. */
+  resumeLink?: string }
 
 
 export class ServiceViews {
@@ -31,6 +47,8 @@ export class ServiceViews {
   private readonly slot = new ViewSlot();
   private bounds: Rect | null = null;
   private released: { key: string; owner: string; rect: Rect; link?: string } | null = null;
+  /** FD-74: the service process that last signed each view in, and when. Kept across a dropped view. */
+  private readonly signedIn = new Map<string, { pid: number; origin: string; at: number }>();
 
   constructor(
     private readonly window: BrowserWindow,
@@ -118,9 +136,14 @@ export class ServiceViews {
     // At most once a minute, so a service that refuses every code cannot loop. Read from the
     // session's own requests: a reload reports no status through the navigation events.
     ses.webRequest.onCompleted({ urls: [`${new URL(d.origin).origin}/*`] }, (details) => {
-      if (details.resourceType !== 'mainFrame' || details.statusCode !== 401 || this.refreshes.has(snap.key)) return;
+      if (details.statusCode !== 401 || this.refreshes.has(snap.key)) return;
       const entry = this.views.get(snap.key);
       if (!entry || !this.live(snap.key)?.wellKnown?.surfaces.dashboard?.login) return;
+      // FD-74: a page opened without a login code whose own requests are refused signs in, once.
+      if (entry.directAt < 0) { entry.refusedWhileDirect = true; return; }
+      const direct = entry.directAt > 0 && Date.now() - entry.directAt < DIRECT_WATCH_MS;
+      if (details.resourceType !== 'mainFrame' && !direct) return;
+      if (direct) { this.signedIn.delete(snap.key); entry.directAt = 0; entry.resignedAt = 0; }
       if (Date.now() - entry.resignedAt < RESIGN_EVERY_MS) return;
       entry.resignedAt = Date.now();
       // The 401 page is still committing: a login started now races it and can lose. Sign in once
@@ -133,7 +156,7 @@ export class ServiceViews {
       webPreferences: { partition, sandbox: true, contextIsolation: true, nodeIntegration: false, webSecurity: true, allowRunningInsecureContent: false },
     });
     { const a = this.appearance(); view.setBackgroundColor(viewBackground(a.scheme, a.systemDark)); } // FD-42: before the page paints
-    const entry: Entry = { view, origin: d.origin, crashes: 0, loadedOnce: false, loadedAt: 0, dashboardPath: dashboardPathOf(snap.wellKnown?.surfaces.dashboard?.path), resignedAt: 0, resignTo: null, navigationEpoch: 0 };
+    const entry: Entry = { view, origin: d.origin, crashes: 0, loadedOnce: false, loadedAt: 0, dashboardPath: dashboardPathOf(snap.wellKnown?.surfaces.dashboard?.path), resignedAt: 0, resignTo: null, navigationEpoch: 0, shownAt: 0, directAt: 0 };
     const wc = view.webContents;
     // ADR-0016: a link to another service opens it here, signed in with its own session.
     const follow = (url: string): boolean => {
@@ -188,7 +211,7 @@ export class ServiceViews {
     if (!snap) return; // T-3: no token for whatever answers there now; the monitor's state says why
     const epoch = entry.navigationEpoch;
     const current = () => this.views.get(key) === entry && entry.navigationEpoch === epoch;
-    void this.load(snap, to, current).then((r) => {
+    void this.load(snap, to, current, false, true).then((r) => {
       if (current() && !r.ok) this.emit({ key, kind: 'error', error: r.error });
     });
   }
@@ -203,8 +226,16 @@ export class ServiceViews {
     if (response === 0) await shell.openExternal(url);
   }
 
-  /** Load the dashboard, signed in through a one-time code when the service asks for one. */
-  private async load(snap: ServiceSnapshot, link?: string, current: () => boolean = () => true, checkHttp = false): Promise<ShowResult> {
+  /** FD-74: whether this service's current process signed this app in recently enough to skip a login code. */
+  private warm(snap: ServiceSnapshot): boolean {
+    const s = this.signedIn.get(snap.key);
+    const pid = snap.wellKnown?.process?.pid;
+    return !!s && !!pid && s.pid === pid && s.origin === snap.descriptor!.origin && Date.now() - s.at < WARM_SESSION_MS;
+  }
+
+  /** Load the dashboard, signed in through a one-time code when the service asks for one. `signIn` forces the
+   *  code (Reload, Retry, a 401); otherwise a session this service's process gave recently is used (FD-74). */
+  private async load(snap: ServiceSnapshot, link?: string, current: () => boolean = () => true, checkHttp = false, signIn = checkHttp): Promise<ShowResult> {
     const entry = this.views.get(snap.key) ?? this.create(snap);
     const d = snap.descriptor!;
     const dash = snap.wellKnown?.surfaces.dashboard;
@@ -220,13 +251,26 @@ export class ServiceViews {
     try {
       if (!current()) return { ok: true };
       let url = resolveLink(d.origin, link, dash.path);
+      if (dash.login && !signIn && this.warm(snap)) {
+        entry.directAt = -1;
+        entry.refusedWhileDirect = false;
+        try { await page(url); } finally { if (entry.directAt < 0) entry.directAt = 0; }
+        if (!current()) return { ok: true };
+        if (entry.lastStatus !== 401 && entry.lastStatus !== 403 && !entry.refusedWhileDirect) { entry.directAt = Date.now(); return { ok: true }; }
+        entry.directAt = 0; // refused: the session is gone; sign in below, on the same page
+        this.signedIn.delete(snap.key);
+        link ??= resumePath(entry.view.webContents.getURL(), d.origin);
+      }
       if (dash.login) {
+        entry.directAt = 0;
         const token = await readTokenAsync(d.auth.tokenFile); // main process only
         url = await loginUrl(d, token);
         if (!current()) return { ok: true };
         await page(url);
         if (!current()) return { ok: true };
         stage = 'page';
+        const pid = snap.wellKnown?.process?.pid;
+        if (pid) this.signedIn.set(snap.key, { pid, origin: d.origin, at: Date.now() });
         if (link) await page(resolveLink(d.origin, link, dash.path));
         return { ok: true };
       }
@@ -235,6 +279,7 @@ export class ServiceViews {
     } catch (error) {
       const text = loadErrorText(error);
       if (/ERR_ABORTED/.test(text)) return { ok: true };
+      this.signedIn.delete(snap.key);
       return { ok: false, error: text, stage }; // S-3: never the URL — a sign-in URL is the login code
     }
   }
@@ -271,6 +316,9 @@ export class ServiceViews {
       entry.loadedOnce = false;
       if (link === undefined) link = resumePath(entry.view.webContents.getURL(), entry.origin);
     }
+    // FD-74: a page a service restart left behind reopens where it was, freshly loaded.
+    if (entry && !entry.loadedOnce && link === undefined && entry.resumeLink) link = entry.resumeLink;
+    if (entry) entry.resumeLink = undefined;
     await this.fabricCookie(snap.key, snap.descriptor.origin);
     await this.appearanceCookie(snap.key, snap.descriptor.origin);
     if (!entry || !entry.loadedOnce) {
@@ -292,6 +340,7 @@ export class ServiceViews {
     if (this.shown && this.shown !== snap.key) this.detach(this.shown);
     if (this.shown !== snap.key) this.window.contentView.addChildView(entry.view);
     this.shown = snap.key;
+    entry.shownAt = Date.now();
     this.released = null;
     this.bounds = clampRect(rect);
     entry.view.setBounds(this.bounds);
@@ -301,6 +350,15 @@ export class ServiceViews {
   setBounds(rect: Rect): void {
     this.bounds = clampRect(rect);
     if (this.shown) this.views.get(this.shown)?.view.setBounds(this.bounds);
+  }
+
+  /** FD-74: a window hidden past the first grace keeps the `keep` views shown most recently (the one on
+   *  screen first) and closes the rest, so the pages the person uses open at once when they come back. */
+  releaseCold(keep: number): number {
+    const order = [...this.views.entries()].sort((a, b) => (b[0] === this.shown ? 1 : 0) - (a[0] === this.shown ? 1 : 0) || b[1].shownAt - a[1].shownAt);
+    const cold = order.slice(Math.max(0, keep)).map(([k]) => k);
+    for (const k of cold) this.drop(k);
+    return cold.length;
   }
 
   /** Close every view and free its renderer. The one on screen is remembered — its host, place
@@ -408,9 +466,31 @@ export class ServiceViews {
   }
   // #endregion dashboard-session-refresh
 
-  /** The service restarted: its session cookie may be gone; the page offers Reload instead of reloading itself. */
+  /** FD-74: the service restarted (a new version, a crash): its session may be gone and its page is old. The page
+   *  on screen signs in again and reloads where it is; one off screen reloads there the next time it is shown. */
   serviceRestarted(key: string): void {
-    if (this.views.has(key)) this.emit({ key, kind: 'restarted' });
+    this.signedIn.delete(key);
+    const entry = this.views.get(key);
+    if (!entry || entry.view.webContents.isDestroyed()) return;
+    if (this.shown === key) { this.emit({ key, kind: 'restarted' }); void this.refresh(key, entry); return; }
+    entry.resumeLink = resumePath(entry.view.webContents.getURL(), entry.origin);
+    entry.loadedOnce = false;
+  }
+
+  /** The dashboard on screen now, for the menu's Reload (FD-74). */
+  shownKey(): string | null {
+    return this.shown;
+  }
+
+  /** FD-74: ⌘R and ⇧⌘R. A reload signs in again (SCN-039); `hard` first empties the service's HTTP cache, so
+   *  every file the page uses comes from the service again. */
+  async reload(key: string, hard: boolean): Promise<void> {
+    const entry = this.views.get(key);
+    if (!entry || entry.view.webContents.isDestroyed()) return;
+    if (hard) {
+      try { await session.fromPartition(partitionFor(key)).clearCache(); } catch (error) { this.log(`dashboard: ${key} cache not cleared: ${(error as Error).message}`); }
+    }
+    this.navigate(key, 'refresh');
   }
 
   drop(key: string): void {

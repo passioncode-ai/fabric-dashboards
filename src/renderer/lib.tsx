@@ -86,6 +86,14 @@ const ICONS: Record<string, string> = {
   chevronDown: 'M5 8l5 5 5-5',
   chevronUp: 'M5 12l5-5 5 5',
   close: 'M5 5l10 10M15 5 5 15',
+  // FD-74: the dashboard toolbar and the console's Terminal button.
+  back: 'M12 4l-6 6 6 6',
+  forward: 'M8 4l6 6-6 6',
+  reload: 'M16 10a6 6 0 1 1-1.76-4.24M16 3.5v3h-3',
+  home: 'M3 9.5 10 3.5l7 6M5 8v8.5h10V8',
+  copy: 'M7 7h9v10H7zM4 13V3h9',
+  check: 'M4 10.5l4 4 8-9',
+  external: 'M11 3h6v6M17 3l-7.5 7.5M14 12v5H3V6h5',
 };
 export function Icon({ name }: { name: keyof typeof ICONS | string }) {
   return (

@@ -82,10 +82,11 @@ export function trayIcon(platform: NodeJS.Platform, level: TrayLevelName): { fil
 }
 
 /** Keyboard shortcuts and menu shape: the Command key and the app menu exist only on macOS. */
-export function menuKeys(platform: NodeJS.Platform): { appMenu: boolean; quit: string; sidebar: string; console: string; details: string } {
+/** FD-74: Reload is ⌘R on macOS; elsewhere F5, because Ctrl+R belongs to the console's shell (reverse search). */
+export function menuKeys(platform: NodeJS.Platform): { appMenu: boolean; quit: string; sidebar: string; console: string; details: string; reload: string; hardReload: string } {
   return platform === 'darwin'
-    ? { appMenu: true, quit: 'Command+Q', sidebar: 'Ctrl+Cmd+S', console: 'Ctrl+Cmd+T', details: 'Ctrl+Cmd+D' }
-    : { appMenu: false, quit: 'Ctrl+Q', sidebar: 'Ctrl+Shift+S', console: 'Ctrl+Shift+T', details: 'Ctrl+Shift+D' };
+    ? { appMenu: true, quit: 'Command+Q', sidebar: 'Ctrl+Cmd+S', console: 'Ctrl+Cmd+T', details: 'Ctrl+Cmd+D', reload: 'Command+R', hardReload: 'Shift+Command+R' }
+    : { appMenu: false, quit: 'Ctrl+Q', sidebar: 'Ctrl+Shift+S', console: 'Ctrl+Shift+T', details: 'Ctrl+Shift+D', reload: 'F5', hardReload: 'Shift+F5' };
 }
 
 /** A login launch starts hidden: macOS reports it (`wasOpenedAtLogin`); Windows and Linux register the

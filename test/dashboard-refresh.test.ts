@@ -14,6 +14,9 @@ let Views: typeof import('../src/electron/views').ServiceViews;
 let completed: (details: object) => void = () => undefined;
 let responseStatus = 200;
 let loadFailure = false;
+/** FD-74: a status per URL, when a test needs the page and the login to answer differently. */
+let statusFor: ((url: string) => number) | null = null;
+let cacheCleared = 0;
 const created: FakeView[] = [];
 class FakeContents extends EventEmitter {
   url = ''; calls: string[] = []; reloads = 0; destroyed = false;
@@ -28,8 +31,9 @@ class FakeContents extends EventEmitter {
     this.calls.push(url);
     if (loadFailure) throw new Error(`ERR_CONNECTION_REFUSED (-102) loading '${url}'`);
     this.url = url.includes('/fabric/v1/login?') ? `${new URL(url).origin}/dashboard` : url;
-    this.emit('did-navigate', {}, this.url, responseStatus);
-    completed({ resourceType: 'mainFrame', statusCode: responseStatus, url: this.url });
+    const status = statusFor ? statusFor(url) : responseStatus;
+    this.emit('did-navigate', {}, this.url, status);
+    completed({ resourceType: 'mainFrame', statusCode: status, url: this.url });
     this.emit('did-finish-load');
     this.emit('did-stop-loading');
   }
@@ -44,7 +48,7 @@ const electron = {
   BrowserWindow: class {}, WebContentsView: FakeView,
   dialog: { showMessageBox: async () => ({ response: 1 }) }, shell: {},
   session: { fromPartition: () => ({
-    setPermissionRequestHandler() {}, setPermissionCheckHandler() {},
+    setPermissionRequestHandler() {}, setPermissionCheckHandler() {}, clearCache: async () => { cacheCleared += 1; },
     webRequest: { onCompleted: (_filter: unknown, callback: typeof completed) => { completed = callback; } },
   }) },
 };
@@ -69,7 +73,7 @@ function sharedToken(): string {
 after(() => { if (tokenDir) fs.rmSync(tokenDir, { recursive: true, force: true }); });
 
 async function fixture(t: any, login = true) {
-  created.length = 0; responseStatus = 200; loadFailure = false;
+  created.length = 0; responseStatus = 200; loadFailure = false; statusFor = null; cacheCleared = 0;
   let logins = 0, refuse = false, release: (() => void) | undefined;
   let hold = false;
   const finish = () => { const reply = release; release = undefined; reply?.(); };
@@ -111,6 +115,7 @@ async function fixture(t: any, login = true) {
     state: (state: string) => { snap = { ...snap, state } as ServiceSnapshot; },
     changedToken: () => { snap = { ...snap, descriptor: { ...snap.descriptor!, auth: { tokenFile: `${token}-changed` } } }; },
     foreign: () => { snap = { ...snap, descriptor: { ...snap.descriptor!, origin: 'https://different.invalid' } }; },
+    pid: (pid: number) => { snap = { ...snap, wellKnown: { ...snap.wellKnown!, process: { pid, startedAt: '2026-10-19T00:00:00Z' } } } as ServiceSnapshot; },
   };
 }
 
@@ -265,4 +270,93 @@ test('ordinary reopen after failed fresh HTTP load signs in instead of attaching
   responseStatus = 200;
   assert.deepEqual(await f.view.show(f.snap, rect, undefined, 'new-owner'), { ok: true });
   assert.equal(f.logins - f.base, 2);
+});
+
+// FD-74: a view made again opens at once while the same service process signed it in recently.
+const RECT = { x: 0, y: 0, width: 400, height: 300 };
+async function signedInWithPid(t: any) {
+  const f = await fixture(t); f.pid(4242);
+  f.view.drop('fixture.default');
+  assert.deepEqual(await f.view.show(f.snap, RECT, '/answers', 'owner'), { ok: true });
+  assert.equal(f.logins - f.base, 1, 'the first open with a known process signs in');
+  f.view.drop('fixture.default');
+  return f;
+}
+
+test('FD-74: a view made again opens the page without a new login code', async (t) => {
+  const f = await signedInWithPid(t);
+  assert.deepEqual(await f.view.show(f.snap, RECT, '/answers', 'owner'), { ok: true });
+  assert.equal(f.logins - f.base, 1, 'no second login code');
+  const wc = created.at(-1)!.webContents;
+  assert.deepEqual(wc.calls, [`${f.origin}/answers`], 'one navigation, straight to the page');
+});
+
+test('FD-74: a refused direct open signs in once and ends on the same page', async (t) => {
+  const f = await signedInWithPid(t);
+  statusFor = (url) => (url.includes('/fabric/v1/login?') ? 200 : created.at(-1)!.webContents.calls.length === 1 ? 401 : 200);
+  assert.deepEqual(await f.view.show(f.snap, RECT, '/answers', 'owner'), { ok: true });
+  await new Promise((r) => setTimeout(r, 30));
+  assert.equal(f.logins - f.base, 2, 'exactly one login code after the 401');
+  assert.equal(created.at(-1)!.webContents.url, `${f.origin}/answers`);
+});
+
+test('FD-74: a 401 from the page\'s own request after a direct open signs it in', async (t) => {
+  const f = await signedInWithPid(t);
+  assert.deepEqual(await f.view.show(f.snap, RECT, '/answers', 'owner'), { ok: true });
+  completed({ resourceType: 'xhr', statusCode: 401, url: `${f.origin}/api/items` });
+  for (let i = 0; i < 100 && f.logins - f.base < 2; i++) await new Promise((r) => setTimeout(r, 10));
+  assert.equal(f.logins - f.base, 2);
+  completed({ resourceType: 'xhr', statusCode: 401, url: `${f.origin}/api/items` });
+  await new Promise((r) => setTimeout(r, 30));
+  assert.equal(f.logins - f.base, 2, 'a later XHR 401 after a signed-in load starts nothing');
+});
+
+test('FD-74: a new service process means a new login code', async (t) => {
+  const f = await signedInWithPid(t); f.pid(4243);
+  assert.deepEqual(await f.view.show(f.snap, RECT, '/answers', 'owner'), { ok: true });
+  assert.equal(f.logins - f.base, 2);
+});
+
+test('FD-74: a restart reloads the page on screen, signed in again, where it was', async (t) => {
+  const f = await fixture(t);
+  f.view.serviceRestarted('fixture.default');
+  assert.equal(f.events.filter((e) => e.kind === 'restarted').length, 1);
+  await f.settled();
+  assert.equal(f.logins - f.base, 1);
+  assert.equal(f.wc.url, `${f.origin}/answers?tab=open#thread`);
+});
+
+test('FD-74: a page off screen when its service restarted reloads where it was next time', async (t) => {
+  const f = await fixture(t); f.view.hide('owner');
+  f.view.serviceRestarted('fixture.default');
+  assert.equal(f.logins - f.base, 0, 'nothing loads while it is off screen');
+  assert.deepEqual(await f.view.show(f.snap, RECT, undefined, 'owner'), { ok: true });
+  assert.equal(f.logins - f.base, 1);
+  assert.equal(f.wc.url, `${f.origin}/answers?tab=open#thread`);
+  assert.equal(created.length, 1, 'the same view, loaded again');
+});
+
+test('FD-74: a hidden window keeps the two pages shown last and closes the rest', async (t) => {
+  const f = await fixture(t);
+  const other = (key: string) => ({ ...f.snap, key } as ServiceSnapshot);
+  for (const key of ['beta.default', 'gamma.default', 'delta.default']) {
+    const r = await f.view.show(other(key), RECT, undefined, 'owner'); assert.equal(r.ok, true, JSON.stringify(r));
+    await new Promise((r) => setTimeout(r, 2));
+  }
+  assert.equal(f.view.releaseCold(2), 2);
+  assert.deepEqual(f.view.keys().sort(), ['delta.default', 'gamma.default']);
+  f.view.releaseAll();
+  assert.deepEqual(f.view.keys(), []);
+});
+
+test('FD-74: a reload ignoring the cache empties the service\'s cache, then signs in again', async (t) => {
+  const f = await fixture(t);
+  await f.view.reload('fixture.default', true);
+  await f.settled();
+  assert.equal(cacheCleared, 1);
+  assert.equal(f.logins - f.base, 1);
+  await f.view.reload('fixture.default', false);
+  await f.settled();
+  assert.equal(cacheCleared, 1, 'a plain reload keeps the cache');
+  assert.equal(f.view.shownKey(), 'fixture.default');
 });

@@ -133,6 +133,10 @@ export class ViewSlot {
  *  service ever opened). A window hidden longer than the grace period gives them back (LC-08);
  *  showing it again inside the grace cancels the release. Electron-free, so it is tested. */
 export const VIEW_RELEASE_GRACE_MS = 5 * 60_000;
+/** FD-74: what the first grace keeps — the dashboards shown most recently, so they open at once when the person
+ *  comes back (two renderers, ~90 MB) — until the window has been hidden this long; then every one goes. */
+export const WARM_VIEWS = 2;
+export const VIEW_RELEASE_ALL_MS = 60 * 60_000;
 
 export class HiddenGrace {
   private timer: NodeJS.Timeout | null = null;

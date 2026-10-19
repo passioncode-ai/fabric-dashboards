@@ -90,11 +90,16 @@ export interface HandoverConsole { key: string; workflow: string; agent: string;
 /** D2 of the 2026-10-12 board waves, stated in AGENTS.md's lifecycle table (LC-18). */
 export const IDLE_CLOSE_MS = 30 * 60_000;
 
+/** FD-74: how long the console trusts Switchboard's last answer about a folder before asking again in the background. */
+export const BINDING_FRESH_MS = 30_000;
+
 export class ConsoleHost {
   readonly manager: ConsoleManager;
   private dirs: Promise<string[]> | null = null;
   private catalog: Promise<Runtime[]> | null = null;
   private inPlaceFor: { key: string; value: boolean } | null = null;
+  /** FD-74: what Switchboard said about each folder, for showing the console at once (BINDING_FRESH_MS). */
+  private readonly bindings = new Map<string, { at: number; value: Binding | { kind: 'absent' }; pending: boolean }>();
   private readonly run: Runner;
   /** FD-62: the hand-overs this launch acted on (taken or deferred), by id — each is acted on once. */
   private readonly seenHandovers = new Set<string>();
@@ -186,14 +191,39 @@ export class ConsoleHost {
   private async bindingFor(runtime: Runtime | null, folder: string | null, inv: { switchboard: string | null; inPlace: boolean }): Promise<Binding | { kind: 'absent' }> {
     if (!inv.switchboard) return { kind: 'absent' };
     if (!runtime || !folder) return { kind: 'none' };
-    return bindingFor(this.run, inv.switchboard, folder, runtime.provider);
+    const value = await bindingFor(this.run, inv.switchboard, folder, runtime.provider);
+    this.bindings.set(`${inv.switchboard}|${folder}|${runtime.provider ?? ''}`, { at: Date.now(), value, pending: false });
+    return value;
   }
+
+  // #region console-fast-open — docs: docs/ux/scenarios.md#scn-048-open-an-agents-console-beside-its-dashboard
+  /** FD-74: the console shows what Switchboard said about this folder less than BINDING_FRESH_MS ago at once, and an
+   *  older answer while it asks again in the background; only a folder it never answered for waits for it. A start
+   *  always asks afresh (start(), openTerminal()): a session never starts on a remembered answer. */
+  private async shownBinding(runtime: Runtime | null, folder: string | null, inv: { switchboard: string | null; inPlace: boolean }): Promise<Binding | { kind: 'absent' }> {
+    if (!inv.switchboard || !runtime || !folder) return this.bindingFor(runtime, folder, inv);
+    const k = `${inv.switchboard}|${folder}|${runtime.provider ?? ''}`;
+    const c = this.bindings.get(k);
+    if (!c) return this.bindingFor(runtime, folder, inv);
+    if (Date.now() - c.at >= BINDING_FRESH_MS && !c.pending) {
+      c.pending = true;
+      void this.bindingFor(runtime, folder, inv).catch(() => { c.pending = false; });
+    }
+    return c.value;
+  }
+
+  /** FD-74: read the login shell's PATH and the runtimes once, soon after start, so the first console opens at once
+   *  (measured 2026-10-19: the login shell took 1.7 s on this Mac). */
+  warm(): void {
+    void this.inventory().catch((error: Error) => this.o.log(`console: runtimes not read ahead: ${error.message}`));
+  }
+  // #endregion console-fast-open
 
   async info(key: string): Promise<ConsoleInfo> {
     const inv = await this.inventory();
     const runtime = this.chosen(key, inv.runtimes);
     const folder = this.folderOf(key);
-    const b = await this.bindingFor(runtime, folder?.exists ? folder.path : null, inv);
+    const b = await this.shownBinding(runtime, folder?.exists ? folder.path : null, inv);
     const s = this.manager.snapshot(key);
     return {
       key,

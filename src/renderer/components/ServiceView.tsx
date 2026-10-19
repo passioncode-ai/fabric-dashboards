@@ -181,7 +181,7 @@ export function ServiceView({ s, all, members, open, link, nonce, tab: askedTab,
 function DashboardHost({ s, link, nonce, hidden, applied }: { s: ServiceSnapshot; link?: string; nonce?: number; hidden: boolean; applied: { current: string | null } }) {
   const { t } = useT();
   const ref = useRef<HTMLDivElement>(null);
-  const [phase, setPhase] = useState<'opening' | 'open' | 'error' | 'restarted' | 'crashed'>('opening');
+  const [phase, setPhase] = useState<'opening' | 'open' | 'error' | 'crashed'>('opening');
   const [error, setError] = useState<{ text: string; stage: 'sign-in' | 'page' }>({ text: '', stage: 'sign-in' });
   // R-6: Retry and Reload run the show again, fresh, so the view is signed in and attached again.
   const [attempt, setAttempt] = useState(0);
@@ -227,7 +227,7 @@ function DashboardHost({ s, link, nonce, hidden, applied }: { s: ServiceSnapshot
 
   useEffect(() => api().onViewEvent((e) => {
     if (e.key !== s.key) return;
-    if (e.kind === 'restarted') setPhase('restarted');
+    // FD-74: a restart reloads the page by itself (ServiceViews.serviceRestarted); the toolbar says so.
     // R-6, T-17: after a crash or a failed load the next show loads again, fresh — never re-attaches the dead page.
     if (e.kind === 'crashed') { fresh.current = true; setPhase('crashed'); void api().hideView(owner); }
     // A page that failed to load: the view is hidden, so this message is what shows (R-6).
@@ -239,11 +239,7 @@ function DashboardHost({ s, link, nonce, hidden, applied }: { s: ServiceSnapshot
   if (!s.wellKnown?.surfaces.dashboard && s.wellKnown) return <div className="dash-overlay muted">{t('view.noDashboard')}</div>;
   return (
     <div className="dash-frame">
-    {available && (phase === 'open' || phase === 'restarted') && <DashboardToolbar serviceKey={s.key} />}
-    {/* Above the host, never inside it: the embedded page covers the host's whole rectangle. */}
-    {available && phase === 'restarted' && (
-      <div className="reload-bar notice info" role="status"><span>{t('view.restartedReload')}</span><button className="btn" onClick={reload}>{t('action.reload')}</button></div>
-    )}
+    {available && phase === 'open' && <DashboardToolbar serviceKey={s.key} />}
     <div className="dash-host" ref={ref}>
       {!available && <div className="dash-overlay muted">{t('view.unavailable')}</div>}
       {available && phase === 'opening' && <div className="dash-overlay muted row"><Spinner /> {t('view.opening')}</div>}
@@ -264,14 +260,22 @@ function DashboardHost({ s, link, nonce, hidden, applied }: { s: ServiceSnapshot
 
 /** ADR-0014, SCN-039/040: back, forward, reload, the dashboard's home, the page's address and the two
  *  ways to hand it on. Instant — a toolbar used tens of times a day carries no animation. */
+/** FD-74: the Reload page shortcut as the View menu shows it (src/core/platform.ts menuKeys). */
+const reloadKeys = /Mac/.test(navigator.userAgent) ? '⌘R' : 'F5';
+
 function DashboardToolbar({ serviceKey }: { serviceKey: string }) {
   const { t } = useT();
   const [page, setPage] = useState<PageState | null>(null);
   const [copied, setCopied] = useState<'address' | 'link' | null>(null);
+  const [restarted, setRestarted] = useState(false);
   useEffect(() => {
     let alive = true;
     void api().viewPage(serviceKey).then((p) => { if (alive) setPage(p); });
-    const off = api().onViewEvent((e) => { if (e.key === serviceKey && e.kind === 'navigated' && e.page) setPage(e.page); });
+    const off = api().onViewEvent((e) => {
+      if (e.key !== serviceKey) return;
+      if (e.kind === 'navigated' && e.page) setPage(e.page);
+      if (e.kind === 'restarted') setRestarted(true); // FD-74: the page reloads by itself; the toolbar says why
+    });
     return () => { alive = false; off(); };
   }, [serviceKey]);
   useEffect(() => {
@@ -279,21 +283,27 @@ function DashboardToolbar({ serviceKey }: { serviceKey: string }) {
     const timer = setTimeout(() => setCopied(null), 1500);
     return () => clearTimeout(timer);
   }, [copied]);
+  useEffect(() => {
+    if (!restarted || page?.loading) return;
+    const timer = setTimeout(() => setRestarted(false), 4000);
+    return () => clearTimeout(timer);
+  }, [restarted, page?.loading]);
   const go = (action: 'back' | 'forward' | 'home' | 'refresh') => void api().viewNavigate(serviceKey, action);
-  const copy = async (which: 'address' | 'link') => {
+  const copy = async (e: React.MouseEvent<HTMLButtonElement>) => {
     if (!page) return;
-    await api().copyText(which === 'address' ? page.address : page.link);
-    setCopied(which);
+    const r = e.currentTarget.getBoundingClientRect();
+    const which = await api().copyMenu(serviceKey, { x: r.left, y: r.bottom + 2 });
+    if (which) setCopied(which);
   };
   return (
     <div className="dash-toolbar" role="toolbar" aria-label={t('view.toolbar')}>
-      <button className="icon-btn" disabled={!page?.canGoBack} onClick={() => go('back')} aria-label={t('view.back')} title={t('view.back')}>‹</button>
-      <button className="icon-btn" disabled={!page?.canGoForward} onClick={() => go('forward')} aria-label={t('view.forward')} title={t('view.forward')}>›</button>
-      <button className="icon-btn" onClick={() => go('refresh')} aria-label={t('view.refresh')} title={t('view.refresh')}>{page?.loading ? <Spinner /> : '↻'}</button>
-      <button className="icon-btn" onClick={() => go('home')} aria-label={t('view.home')} title={t('view.home')}>⌂</button>
+      <button className="icon-btn" disabled={!page?.canGoBack} onClick={() => go('back')} aria-label={t('view.back')} title={t('view.back')}><Icon name="back" /></button>
+      <button className="icon-btn" disabled={!page?.canGoForward} onClick={() => go('forward')} aria-label={t('view.forward')} title={t('view.forward')}><Icon name="forward" /></button>
+      <button className="icon-btn" onClick={() => go('refresh')} aria-label={t('view.refresh')} title={t('view.refreshHint', { keys: reloadKeys })}>{page?.loading ? <Spinner /> : <Icon name="reload" />}</button>
+      <button className="icon-btn" onClick={() => go('home')} aria-label={t('view.home')} title={t('view.home')}><Icon name="home" /></button>
       <input className="address mono" readOnly value={page?.address ?? ''} aria-label={t('view.address')} onFocus={(e) => e.currentTarget.select()} />
-      <button className="btn btn-sm" disabled={!page} onClick={() => void copy('address')}>{copied === 'address' ? t('view.copied') : t('view.copyAddress')}</button>
-      <button className="btn btn-sm" disabled={!page} onClick={() => void copy('link')} title={t('view.copyLinkHint')}>{copied === 'link' ? t('view.copied') : t('view.copyLink')}</button>
+      {restarted && <span className="meta toolbar-note" role="status">{t('view.restartedReloading')}</span>}
+      <button className="icon-btn" disabled={!page} onClick={(e) => void copy(e)} aria-label={copied ? t('view.copied') : t('view.copy')} title={t('view.copyHint')} aria-haspopup="menu">{copied ? <Icon name="check" /> : <Icon name="copy" />}</button>
       <span className="visually-hidden" role="status">{copied ? t('view.copied') : ''}</span>
     </div>
   );
