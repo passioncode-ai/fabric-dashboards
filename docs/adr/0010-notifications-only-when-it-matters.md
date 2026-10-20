@@ -133,3 +133,11 @@ banners (`main.log`, 2026-10-12 to 2026-10-19). So, from 0.7.15:
   report; its outages already reach the channel when they happen.
 - **Proof.** `test/outage-alerts.test.ts`, *FD-76* tests: nothing under 15 minutes; one failure and one recovery
   after a 15-minute calm; a fall within the calm is one case; a degraded source alone sends nothing.
+
+**Correction 2026-10-20 (0.7.16).** The installed 0.7.15 sent 12 messages in its first seven hours (about 100 a day
+before), but two of its four outages were false: an agent down for about 20 seconds got "down" and "back" 18 seconds
+apart fifteen minutes later (`main.log`, 2026-10-19 21:21 UTC; another, down about 2 minutes, got them 2 minutes
+apart). The failure was owed by the age of the open episode, and an episode stays open through its fifteen-minute
+calm. Since 0.7.16 the failure is owed only while the agent is unavailable at that moment (`owed`, `clearSince ===
+null`); a fall within the calm is still the same case and is told at once. Proof: `test/outage-alerts.test.ts`, *FD-76:
+a short outage looked at every minute through its calm sends nothing*.

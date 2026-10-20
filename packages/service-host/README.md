@@ -176,7 +176,10 @@ checks identity, currency, dates running forward, counts, an all-unpriced row th
 price, and the budget shape. `summarizeUsage(report, now)` returns `today`, `week` (7 days),
 `month` (30 days) and `models`, ranked by cost. **An unknown cost stays unknown**: a window
 with calls and no priced call has `costUsd: null`, a window with some unpriced calls is
-`partial` (a lower bound), and only a window with no calls is `0`. The token-gated read itself
+`partial` (a lower bound), and only a window with no calls is `0`. **Unknown tokens stay a lower
+bound too** (DEC-0091): a row's optional `unmeasuredCalls` counts calls whose tokens the service did
+not measure in full; `checkUsage` refuses one that is not a count or exceeds `calls`, and every sum
+holding such a call has `tokensPartial: true`. The token-gated read itself
 stays in the host (`fetchUsage` in the app's `src/core/probe.ts`), like the events feed.
 
 **Limits (DEC-0027, 0.3.3).** A report may list every spending limit in `budgets` (at most 64:

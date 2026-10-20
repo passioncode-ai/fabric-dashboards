@@ -39,6 +39,16 @@ test('FD-76: an outage under fifteen minutes sends nothing; one held fifteen min
   assert.deepEqual(long.state.episodes, {}, 'a settled episode is forgotten at the next look');
 });
 
+test('FD-76: a short outage looked at every minute through its calm sends nothing: the failure is owed only while the agent is still unavailable', () => {
+  // The installed 0.7.15 sent "down" and "back" 18 s apart for an agent that had been down about 20 s (2026-10-19
+  // 21:21 UTC): the open episode had passed fifteen minutes of age while the agent was already well again.
+  const steps = [{ at: 0, services: [down] }, { at: 20_000, services: [svc()] }];
+  for (let m = 1; m <= 40; m += 1) steps.push({ at: m * MIN, services: [svc()] });
+  assert.deepEqual(run(steps).sent, [], 'down 20 s: nothing, neither at fifteen minutes nor when the calm ends');
+  const late = run([{ at: 0, services: [down] }, { at: 14 * MIN, services: [down] }, { at: 14 * MIN + 30_000, services: [svc()] }, { at: 15 * MIN, services: [svc()] }, { at: 15 * MIN + 1, services: [down] }, { at: 16 * MIN, services: [down] }, { at: 31 * MIN + 2, services: [svc()] }, { at: 47 * MIN, services: [svc()] }]);
+  assert.deepEqual(late.sent.map((m) => [m.at, m.kind]), [[15 * MIN + 1, 'failure'], [47 * MIN, 'recovery']], 'down again within the calm: the same case, told when it is unavailable again');
+});
+
 test('FD-76: one case, once: a service that falls again within fifteen minutes of coming back is the same outage', () => {
   const r = run([
     { at: 0, services: [down] }, { at: 20 * MIN, services: [down] },

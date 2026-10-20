@@ -5,6 +5,32 @@ Updated 2026-10-07 (0.6.2: 0.6.1 withdrawn for audit HIGH-2, audit fixes, signed
 
 Current release: **0.7.15** (published 2026-10-19 19:48 UTC, release run 39308999139, tag on `ba7b192`; FD-04 cookie encryption on macOS and Windows, FD-76 the operator's Telegram rule; five-runner validate with packages run 39282535662; the macOS signing step first failed on Apple's timestamp server and passed on rerun; receipts read fuses `110011011` on macOS and Windows, `100001011` on Linux; update-proof 0.7.14 → 0.7.15 green on Windows x64/arm64 and Linux x64/arm64, run 39314173631; the installed copy on this Mac updated itself at 20:10:02 UTC). Before it **0.7.14** (published 2026-10-19 10:48 UTC, release run 39236764321, tag on `b81fa4f`; FD-75; five-runner validate run 39236141683; update-proof 0.7.13 → 0.7.14 green on Windows x64/arm64 and Linux x64/arm64, run 39240157928; the installed copy on this Mac had 0.7.14 verified and ready at 10:52 UTC and installed it by itself at 13:25:26 UTC, `main.log` `update_install installed from=0.7.13 to=0.7.14`). Before it **0.7.13** (published 2026-10-19 04:47 UTC, release run 39198859807, tag on `5c94309`; FD-74 and FD-73; five-runner validate run 39198344093 green before the merge; update-proof 0.7.12 → 0.7.13 green on Windows x64/arm64 and Linux x64/arm64, run 39201311219; the installed copy on this Mac downloaded and verified 0.7.13 at 04:50 UTC and installs it once its window has been hidden 10 minutes or at quit). Before it **0.7.12** (published 2026-10-18, release run 39074381369, tag on `08d64c6`; FD-72, the organization's lifecycle rule: opens at login by default and checks it every launch, update check every 5 minutes with a quiet check logged once, a «Restart to finish updating» notification; its publish step first failed on a sigstore network timeout and passed on rerun; update-proof 0.7.11 → 0.7.12 green on Windows x64/arm64 and Linux x64/arm64, run 39090644803). Unreleased on main: FD-73 (no em dash in the interface, a test guards it). FD-71 closed: Switchboard 0.6.37 removed the stall. Before it **0.7.11** (published 2026-10-17, release run 39024882762, tag on `956186f`; FD-70 — a failed read names its cause; update-proof 0.7.10 → 0.7.11 green on Windows x64/arm64 and Linux x64/arm64, run 39026714341). Its first five-runner validate (run 39023536342) failed on both Windows runners: the FD-70 test ran `/bin/sh`; fixed by skipping that case on Windows (the cause words are checked on every OS). Lesson: a test that spawns a POSIX path carries a win32 skip — #147 had landed after a local macOS check only. Before it **0.7.10** (published 2026-10-14 17:56 UTC, run 38606788342, tag on `3cf8ea1`; FD-65 Check setup, FD-66, FD-69). Before it 0.7.9 (FD-62), 0.7.8 (FD-64, FD-63), 0.7.7 (the board waves). Before them, 0.7.6 (published 2026-10-12 04:12 UTC, run 38200511483, tag on `5f2fcbe`; the bug wave: Windows helpers outlive the app, the AppImage restarts itself; DEC-0044 setup flag). Before it, 0.7.5 (FD-48 outage alerts, Reload signs in). Before it, 0.7.4 (published 2026-10-11 20:01 UTC, run 38168481474; FD-37 M4a–M4c). Before it, 0.7.3 (published 2026-10-11 16:59 UTC, run 38156472858; FD-45, FD-47; carries 0.7.2, tagged and not published). Before it, 0.7.1 (published 2026-10-11 11:34 UTC, run 38106066248; FD-37 M1–M3, FD-39, FD-41; carries 0.7.0, tagged and not published). Before it, 0.6.7 (published 2026-10-09 17:07 UTC, run 37955575384; FD-36, FD-35, FD-38). Before it, 0.6.6 (published 2026-10-09 10:08 UTC, run 37864378854; FD-34, FD-35). Before it, 0.6.5 (published 2026-10-08 01:18 UTC, run 37703405621; FD-29, FD-33). Before it, 0.6.4 (published 2026-10-07 01:57 UTC, run 37558793926; carries 0.6.3, superseded before approval). Before it, 0.6.2 (published 2026-10-06 23:41 UTC, run 37541067349; 0.6.1 withdrawn). Before it, 0.6.0 (published 2026-10-06 21:35 UTC, run 37505569449); Before it, 0.5.6 (2026-10-06); the 0.4.1 section below is the previous one. Earlier releases below are preserved as dated evidence.
 
+## 0.7.16: start here (2026-10-20)
+
+**What 0.7.16 carries:**
+- **FD-77, contract CT-62** (DEC-0091, fabric-agent-contract PR #127, merged 2026-10-20 02:10 UTC). A usage report's
+  optional `unmeasuredCalls` is checked (a count, at most `calls`), every sum carries `tokensPartial`, and Spend reads
+  «≥» before a model's tokens with a note in English and Russian. The MCP `spend` tool returns `tokensPartial`. The
+  contract fixture is pinned at `0de7640`. SCN-037.
+- **FD-76 fix.** The live count on the installed 0.7.15 (`main.log`, 20:10 to 03:10 UTC) was 12 messages, against
+  105 to 195 a day before. But two of its four outages were false pairs: an agent down for about 20 s got "down" and
+  "back" 18 s apart, fifteen minutes later. `owed` now owes the failure only while `clearSince === null`. ADR-0010
+  correction 2026-10-20, SCN-062, regression test *FD-76: a short outage looked at every minute through its calm sends
+  nothing*.
+
+**Checks run:** `npm run check` exit 0 (578 tests, 0 failed, 5 skipped for Windows only); `test/e2e/spend.test.ts`
+green on the built app.
+
+**Owed, in order:**
+1. **The release itself**, if the line above does not yet name 0.7.16: five-runner validate with packages, merge,
+   tag `v0.7.16`, release run, update-proof 0.7.15 → 0.7.16, the installed copy updates itself.
+2. **FD-04 step 2.** Once the installed copy runs 0.7.16 and a dashboard has opened: the Keychain item still has its
+   `cdat` of 2026-10-19 20:10:03 UTC (attributes only), and `/usr/bin/log show --predicate 'process ==
+   "SecurityAgent"'` from the install on has 0 events. Then close FD-04. A prompt instead turns the fuse off again in
+   the next release.
+3. **FD-76** closes with a day's count on the installed 0.7.16 (`alerts: sent` in `main.log`), without false pairs.
+4. **Observatory lessons** (item 4 below), when the session's Observatory MCP is not stale.
+
 ## After 0.7.15: start here (2026-10-19 evening)
 
 **Released 0.7.15** (see the release line above) with two rows:

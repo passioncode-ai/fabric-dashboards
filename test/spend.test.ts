@@ -70,16 +70,19 @@ test('fetchUsage: the token in its header, the report checked against the descri
 });
 
 test('sumSpend: unknown stays unknown across agents, a failure makes a lower bound, no calls is $0', () => {
-  const sum = (costUsd: number | null, calls: number, partial = false): SpendSum => ({ calls, inputTokens: 0, outputTokens: 0, costUsd, partial });
+  const sum = (costUsd: number | null, calls: number, partial = false, tokensPartial = false): SpendSum => ({ calls, inputTokens: 0, outputTokens: 0, costUsd, partial, tokensPartial });
   const entry = (key: string, today: SpendSum): SpendEntry => ({ key, kind: 'report', summary: { today, week: today, month: today, models: [], budget: null, generatedAt: '2026-10-04T00:00:00Z' } });
-  assert.deepEqual(sumSpend([entry('a.default', sum(null, 3, true))], 'today'), { calls: 3, inputTokens: 0, outputTokens: 0, costUsd: null, partial: true }, 'all unpriced: unknown, not $0');
+  assert.deepEqual(sumSpend([entry('a.default', sum(null, 3, true))], 'today'), { calls: 3, inputTokens: 0, outputTokens: 0, costUsd: null, partial: true, tokensPartial: false }, 'all unpriced: unknown, not $0');
   const mixed = sumSpend([entry('a.default', sum(null, 3, true)), entry('b.default', sum(1.5, 2))], 'today');
   assert.equal(mixed.costUsd, 1.5);
   assert.equal(mixed.partial, true);
   const failed = sumSpend([entry('b.default', sum(1.5, 2)), { key: 'c.default', kind: 'error', error: 'x' }], 'today');
   assert.equal(failed.costUsd, 1.5);
   assert.equal(failed.partial, true, 'an unreadable agent makes the sum a lower bound');
-  assert.deepEqual(sumSpend([entry('d.default', sum(0, 0)), { key: 'e.default', kind: 'none' }], 'today'), { calls: 0, inputTokens: 0, outputTokens: 0, costUsd: 0, partial: false });
+  assert.equal(failed.tokensPartial, true, 'and its tokens too');
+  const unmeasured = sumSpend([entry('a.default', sum(1, 2, false, true)), entry('b.default', sum(1.5, 2))], 'today');
+  assert.deepEqual([unmeasured.partial, unmeasured.tokensPartial], [false, true], 'DEC-0091: unknown tokens leave the cost whole');
+  assert.deepEqual(sumSpend([entry('d.default', sum(0, 0)), { key: 'e.default', kind: 'none' }], 'today'), { calls: 0, inputTokens: 0, outputTokens: 0, costUsd: 0, partial: false, tokensPartial: false });
 });
 
 // ── release audit S-1, D-1 ────────────────────────────────────────────────────────────────

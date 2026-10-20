@@ -119,7 +119,8 @@ export function observe(prev: OutageState, services: readonly Watched[], now: nu
 const idOf = (key: string, ep: Episode) => `outage:${key.split('#')[0]!.slice(0, 120)}:${Math.floor(ep.start / 1000)}`;
 
 /**
- * What the state owes now, in order: a failure once an open episode has lasted fifteen minutes; after a delivered
+ * What the state owes now, in order: a failure once an open episode has lasted fifteen minutes and the service is
+ * still unavailable (never during the calm before an episode closes, FD-76); after a delivered
  * failure, the recovery once it closed; an outage that closed with its failure undelivered (the channel itself was
  * unreachable) is told once afterwards. `allowed` is the person's own rules: an episode they muted owes nothing.
  */
@@ -131,7 +132,8 @@ export function owed(state: OutageState, now: number, words: Words, allowed: (ke
     const eventId = idOf(id, ep);
     const lasted = (ep.end ?? now) - ep.start;
     if (ep.end === null) {
-      if (!ep.failureDelivered && lasted >= OUTAGE_ALERT_AFTER_MS) {
+      // Only while it is unavailable now: an episode in its calm (clearSince set) is a service that is well again.
+      if (!ep.failureDelivered && ep.clearSince === null && lasted >= OUTAGE_ALERT_AFTER_MS) {
         out.push({ id, step: 'failure', msg: { serviceKey: key, kind: 'failure', eventId, subject: ep.cause === 'down' ? words.down(ep.name) : words.failing(ep.name, ep.source ?? '?'), text: words.since(minutes(lasted), ep.why) } });
       }
       continue;
