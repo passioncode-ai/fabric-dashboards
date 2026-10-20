@@ -53,7 +53,8 @@ export type SpendWindow = 'today' | 'week' | 'month';
  * (`partial`); only a window with no calls at all is $0.
  */
 export function sumSpend(entries: readonly SpendEntry[], window: SpendWindow): SpendSum {
-  const out: SpendSum = { calls: 0, inputTokens: 0, outputTokens: 0, costUsd: null, partial: entries.some((e) => e.kind === 'error') };
+  const unread = entries.some((e) => e.kind === 'error');
+  const out: SpendSum = { calls: 0, inputTokens: 0, outputTokens: 0, costUsd: null, partial: unread, tokensPartial: unread };
   for (const e of entries) {
     if (e.kind !== 'report') continue;
     const x = e.summary[window];
@@ -62,6 +63,7 @@ export function sumSpend(entries: readonly SpendEntry[], window: SpendWindow): S
     out.outputTokens += x.outputTokens;
     if (x.costUsd !== null) out.costUsd = (out.costUsd ?? 0) + x.costUsd;
     if (x.partial || x.costUsd === null) out.partial = true;
+    if (x.tokensPartial) out.tokensPartial = true; // DEC-0091
   }
   if (out.calls === 0 && out.costUsd === null) out.costUsd = 0; // nothing was called and nothing priced: nothing was spent
   return out;

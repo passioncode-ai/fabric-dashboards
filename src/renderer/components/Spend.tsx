@@ -111,7 +111,7 @@ export function Spend({ status }: { status: AppStatus }) {
                               <tr key={`${m.provider}/${m.model}`}>
                                 <td><span className="mono">{m.model}</span> <span className="muted">{m.provider}</span></td>
                                 <td>{m.calls}</td>
-                                <td>{t('spend.tokensValue', { input: m.inputTokens.toLocaleString(lang), output: m.outputTokens.toLocaleString(lang) })}</td>
+                                <td>{tokens(m, t, lang)}</td>
                                 <td>{money(m, t)}</td>
                               </tr>
                             ))}
@@ -134,6 +134,7 @@ export function Spend({ status }: { status: AppStatus }) {
       )}
       {silent.length > 0 && <p className="meta">{t('spend.silent', { names: silent.map(nameOf).join(', ') })}</p>}
       {reports.some((e) => e.summary.today.partial || e.summary.week.partial || e.summary.month.partial) && <p className="meta">{t('spend.partialNote')}</p>}
+      {reports.some((e) => e.summary.models.some((m) => m.tokensPartial)) && <p className="meta">{t('spend.tokensPartialNote')}</p>}
     </>
   );
 }
@@ -144,6 +145,12 @@ export function usd(x: number | null, t: T): string {
   if (x === null) return t('spend.unknown');
   if (x > 0 && x < 0.01) return '<$0.01';
   return `$${x.toFixed(2)}`;
+}
+
+/** Tokens in / out; «≥» while some calls' tokens were not measured in full (DEC-0091). */
+export function tokens(s: Pick<SpendSum, 'inputTokens' | 'outputTokens' | 'tokensPartial'>, t: T, lang: string): string {
+  const value = t('spend.tokensValue', { input: s.inputTokens.toLocaleString(lang), output: s.outputTokens.toLocaleString(lang) });
+  return s.tokensPartial ? `≥ ${value}` : value;
 }
 
 /** Unknown is never $0: a sum with unpriced calls reads «≥ $x». Shared with the Overview strip (D-3). */

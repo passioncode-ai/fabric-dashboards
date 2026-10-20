@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+## 0.7.16 - 2026-10-20
+
+### Changed
+
+- **Token counts that an agent could not count in full read as a lower bound** (CT-62, contract DEC-0091). When an
+  agent's spend report says some calls' tokens were not measured in full, Spend shows that model's tokens with «≥»
+  and a note explains it, the way a cost with unpriced calls already reads. A report that claims more such calls
+  than calls is refused as malformed.
+
+### Fixed
+
+- **A short outage no longer sends "down" and "back" to your Telegram channel** (FD-76). An agent that stopped
+  answering for a few seconds or minutes could still get both messages, seconds apart, fifteen minutes later. Now the
+  "down" message goes only if the agent is still not answering after fifteen minutes. In the first seven hours of
+  0.7.15, two of four outages were such false pairs.
+
 ## 0.7.15 - 2026-10-19
 
 ### Changed

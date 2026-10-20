@@ -143,3 +143,22 @@ test('DEC-0027: limits read stopped work first, then breaches, then the closest;
   assert.equal(summary.limits.length, 8, 'every limit of the report is kept');
   assert.equal(summarizeUsage(REPORT(), AT('2026-10-05')).limits.length, 0, 'a report without budgets has none');
 });
+
+test('DEC-0091 (CT-62): unmeasuredCalls makes the tokens a lower bound and never more than the calls', () => {
+  const r: UsageReport = fixture('positive_service-usage-unmeasured.json');
+  assert.equal(checkUsage(r, ME), null, 'the contract\'s positive fixture passes the host check');
+  const s = summarizeUsage(r, AT('2026-10-04'));
+  assert.equal(s.today.tokensPartial, true, 'one of today\'s calls has no full token count');
+  assert.equal(s.week.tokensPartial, true);
+  const local = s.models.find((m) => m.model === 'llama-4-8b')!;
+  assert.equal(local.tokensPartial, true);
+  assert.equal(s.models.find((m) => m.model === 'google/gemini-3-flash')!.tokensPartial, false, 'a model whose calls were all measured stays whole');
+  assert.equal(summarizeUsage(r, AT('2026-10-03')).today.tokensPartial, false, 'a day without one stays whole');
+  assert.equal(summarizeUsage(REPORT(), AT('2026-10-04')).today.tokensPartial, false, 'absent is 0');
+  const over = fixture('positive_service-usage-unmeasured.json');
+  over.days[1].byModel[1].unmeasuredCalls = 3;
+  assert.match(checkUsage(over, ME)!, /unknown tokens than calls/);
+  const fraction = fixture('positive_service-usage-unmeasured.json');
+  fraction.days[1].unmeasuredCalls = 0.5;
+  assert.match(checkUsage(fraction, ME)!, /unmeasuredCalls is not a count/);
+});

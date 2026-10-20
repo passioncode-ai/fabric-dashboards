@@ -860,12 +860,12 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
   2. User expands the agent -> the unpriced model's cost reads "unknown"
   3. User reads below the table -> "≥ means some calls carry no price… An unknown cost is never counted as $0."
 - **Expected result:** a partial sum is never shown as the whole, and an unknown cost never reads as free
-- **Alt paths:** every call in a window unpriced -> that window reads "unknown"; no calls in a window -> "$0.00"; a row with calls and no cost -> a lower bound («≥»), whatever its unpricedCalls says; a cost reported without calls is kept, never zeroed
+- **Alt paths:** every call in a window unpriced -> that window reads "unknown"; no calls in a window -> "$0.00"; a row with calls and no cost -> a lower bound («≥»), whatever its unpricedCalls says; a cost reported without calls is kept, never zeroed; the report counts `unmeasuredCalls` for a model (calls whose tokens the agent could not count in full, DEC-0091) -> that model's tokens read "≥ 10,000 / 1,000" and the note below says "≥ beside tokens means the agent could not count every token of some calls…"; its cost is read as before
 - **UI elements:** "≥" amounts, "unknown", the note
 - **States covered:** success
 - **Errors & recovery:** a report claiming a price for calls it marks unpriced is refused as malformed (SCN-038)
 - **Status:** validated
-- **Coverage:** packages/service-host/src/usage.ts (summarizeUsage), packages/service-host/test/usage.test.ts, test/e2e/spend.test.ts
+- **Coverage:** packages/service-host/src/usage.ts (summarizeUsage), packages/service-host/test/usage.test.ts (DEC-0091), src/renderer/components/Spend.tsx (tokens), test/spend.test.ts, test/e2e/spend.test.ts
 - **Product:** unobserved
 
 ### SCN-038: An agent's spend cannot be read
@@ -1417,7 +1417,7 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
   2. The agent works again and keeps working for 15 minutes -> one more message: "<Agent> is back", after how many minutes
   3. User opens Settings → Notifications -> Also send outages to: Automatic (<channel>), the agents that offer it, Off; under it what it does and the last delivery ("Last sent HH:MM: …" or "Sending failed HH:MM: …")
 - **Expected result:** an outage longer than fifteen minutes is known wherever the person is, once, and its end too; nothing routine reaches the channel
-- **Alt paths:** shorter than 15 minutes -> nothing is sent (the Mac banner of ADR-0008 still shows after a minute); the agent falls again within 15 minutes of coming back -> the same outage, no new message; while it is down a part of it fails ("<Agent>: <part> is failing") -> still the same outage, no "back"; an agent that answers but reports a failing part, or a setup state -> shown on this Mac only; the person paused notifications, is in quiet hours or switched the agent off -> nothing is sent for it, nor its recovery; no agent offers the capability -> Settings says outages are shown on this Mac only; several do -> Settings asks to choose; an events-feed failure or warning banner -> shown on this Mac only (FD-76)
+- **Alt paths:** shorter than 15 minutes -> nothing is sent (the Mac banner of ADR-0008 still shows after a minute), and nothing later either: an agent that is well again when its fifteen minutes come round sends neither "down" nor "back" (0.7.16); the agent falls again within 15 minutes of coming back -> the same outage, no new message; while it is down a part of it fails ("<Agent>: <part> is failing") -> still the same outage, no "back"; an agent that answers but reports a failing part, or a setup state -> shown on this Mac only; the person paused notifications, is in quiet hours or switched the agent off -> nothing is sent for it, nor its recovery; no agent offers the capability -> Settings says outages are shown on this Mac only; several do -> Settings asks to choose; an events-feed failure or warning banner -> shown on this Mac only (FD-76)
 - **UI elements:** Settings → Notifications: Also send outages to (select), its help line and its last-delivery line
 - **States covered:** success, error, empty
 - **Errors & recovery:** the channel does not answer -> retried every minute, at most five times; the last failure shows in Settings with its reason; the app's log has `alerts:` lines

@@ -2,13 +2,16 @@
 // A service's own spend report (Fabric Agent Contract DEC-0021 and DEC-0027's limits,
 // service-usage.schema.json) and
 // the sums a host shows: today, the last 7 and the last 30 UTC days, per model. An unknown cost
-// stays unknown — a sum with an unpriced call is a lower bound, never a quiet zero. Pure: no Node
+// stays unknown — a sum with an unpriced call is a lower bound, never a quiet zero — and so do tokens
+// a call did not measure in full (`unmeasuredCalls`, DEC-0091). Pure: no Node
 // import, so a renderer may import `@passioncode-ai/fabric-service-host/usage`.
 import { PROTOCOL } from './protocol';
 
 export interface UsageTotals {
   calls: number;
   unpricedCalls: number;
+  /** DEC-0091: calls whose token count the service did not measure in full; absent is 0. */
+  unmeasuredCalls?: number;
   inputTokens: number;
   outputTokens: number;
   cacheReadTokens?: number;
@@ -71,6 +74,8 @@ export interface SpendSum {
   costUsd: number | null;
   /** Some calls in the window carry no price: `costUsd` is at least this much. */
   partial: boolean;
+  /** Some calls in the window have no full token count (DEC-0091): the tokens are at least this much. */
+  tokensPartial: boolean;
 }
 
 export interface SpendSummary {
@@ -91,9 +96,11 @@ const money = (x: unknown) => x === null || (typeof x === 'number' && Number.isF
 
 function totalsProblem(row: Record<string, unknown>, at: string): string | null {
   for (const f of ['calls', 'unpricedCalls', 'inputTokens', 'outputTokens'] as const) if (!count(row[f])) return `${at}.${f} is not a count`;
-  for (const f of ['cacheReadTokens', 'cacheWriteTokens'] as const) if (row[f] !== undefined && !count(row[f])) return `${at}.${f} is not a count`;
+  for (const f of ['unmeasuredCalls', 'cacheReadTokens', 'cacheWriteTokens'] as const) if (row[f] !== undefined && !count(row[f])) return `${at}.${f} is not a count`;
   if (!money(row.costUsd)) return `${at}.costUsd is neither a non-negative number nor null`;
   if ((row.unpricedCalls as number) > (row.calls as number)) return `${at} has more unpriced calls than calls`;
+  // DEC-0091 (FAC-SEM-025): calls whose tokens are unknown are some of the calls, never more.
+  if (((row.unmeasuredCalls as number | undefined) ?? 0) > (row.calls as number)) return `${at} has more calls with unknown tokens than calls`;
   if ((row.calls as number) > 0 && row.unpricedCalls === row.calls && row.costUsd !== null) return `${at} prices calls that it says are unpriced`;
   return null;
 }
@@ -201,7 +208,7 @@ export function rankLimits(budgets: UsageLimit[]): LimitView[] {
   return views.sort((a, b) => ORDER[a.state] - ORDER[b.state] || (b.share ?? -1) - (a.share ?? -1) || a.id.localeCompare(b.id));
 }
 
-const empty = (): SpendSum => ({ calls: 0, inputTokens: 0, outputTokens: 0, costUsd: null, partial: false });
+const empty = (): SpendSum => ({ calls: 0, inputTokens: 0, outputTokens: 0, costUsd: null, partial: false, tokensPartial: false });
 
 function add(sum: SpendSum, row: UsageTotals): void {
   sum.calls += row.calls;
@@ -210,6 +217,8 @@ function add(sum: SpendSum, row: UsageTotals): void {
   if (row.costUsd !== null) sum.costUsd = (sum.costUsd ?? 0) + row.costUsd;
   // A row with calls and no cost is unknown whatever its unpricedCalls says: a lower bound, never complete.
   if (row.unpricedCalls > 0 || (row.calls > 0 && row.costUsd === null)) sum.partial = true;
+  // DEC-0091: a call whose tokens were not measured in full makes every token sum it is in a lower bound.
+  if ((row.unmeasuredCalls ?? 0) > 0) sum.tokensPartial = true;
 }
 
 /** The UTC date `days` days before `now` (0 = today). */
