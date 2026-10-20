@@ -76,6 +76,9 @@
 | SCN-068 | See which runner and model an agent uses | service | P-01 | ST-019 | validated | 2026-10-13 |
 | SCN-069 | A hand-over opens in the console | console | P-01 | ST-019 | validated | 2026-10-14 |
 | SCN-070 | Check what is set up | settings | P-01 | ST-017 | validated | 2026-10-14 |
+| SCN-071 | See agents on this Mac, online and services apart | list | P-01 | ST-021 | draft | 2026-10-20 |
+| SCN-072 | Hide an agent without stopping it | list | P-01 | ST-021 | draft | 2026-10-20 |
+| SCN-073 | See what an agent is connected to | service | P-01 | ST-019 | draft | 2026-10-20 |
 ## Personas
 
 Defined in [foundation.md](foundation.md) → P-01.
@@ -1197,6 +1200,64 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **Coverage:** src/core/switchboard.ts, src/electron/console.ts, src/electron/main.ts, src/renderer/App.tsx, src/renderer/components/ConsolePanel.tsx, test/handovers.test.ts; live on the installed 0.7.9 (2026-10-14, main.log): `ho-fcdfdee61542` taken in `handover.ho-fcdfdee61542` at 19:28:32Z and `ho-3bec5ef68052` at 20:29:35Z, each once and within the 15 s poll, under Switchboard's 120 s Terminal fallback (workflow `wf_5e78a8c1a8ee6c19`, run by Switchboard's session)
 - **Product:** unobserved
 
+### SCN-071: See agents on this Mac, online and services apart
+- **Persona:** P-01
+- **Feature:** list
+- **Traces:** ST-021 (JTBD-01); FD-78 (operator 2026-10-20)
+- **Entry point:** the sidebar and Overview
+- **Preconditions:** at least one agent
+- **Steps:**
+  1. User opens the app -> the sidebar lists Pinned, then "On this Mac", "Online" and "Services", each sorted by the chosen sort; Overview shows the same three groups of cards
+  2. User opens an agent's row menu and chooses "Show as a service" -> it moves to Services at once, in the sidebar and on Overview; "Show as an agent" moves it back
+  3. User restarts the app -> every choice is as it was
+- **Expected result:** the agents the person works with are not mixed with the services that keep them running
+- **Alt paths:** a product whose members answer and none offers a dashboard is a service until the person says otherwise; choosing what the app would guess anyway removes the choice; an online service (remote, no dashboard) is a service too; a section with nothing in it is not shown
+- **UI elements:** section headers, the row menu (Pin, Show as a service or an agent, Hide), the sort in the first section's header
+- **States covered:** success, empty
+- **Errors & recovery:** a damaged choice in settings is dropped and the app's guess applies
+- **Status:** draft
+- **Coverage:** src/core/products.ts (categoryOf, arrangeProducts, setKind), src/core/settings.ts (mergeList), src/renderer/App.tsx (RowMenu), src/renderer/components/Overview.tsx, test/listorder.test.ts *FD-78*, test/e2e/focus-console.test.ts *FD-78*
+- **Product:** unobserved
+
+### SCN-072: Hide an agent without stopping it
+- **Persona:** P-01
+- **Feature:** list
+- **Traces:** ST-021 (JTBD-01); FD-78 (operator 2026-10-20)
+- **Entry point:** the agent's row menu → Hide
+- **Preconditions:** at least one agent
+- **Steps:**
+  1. User chooses Hide -> the agent leaves its section (and Pinned) and a folded "Hidden: 1" appears at the bottom of the sidebar and of Overview
+  2. User opens the fold -> the hidden agents are listed; clicking one opens it as usual
+  3. User chooses "Show again" -> it returns to its section, pinned again if it was pinned
+- **Expected result:** service agents the person does not look at take no room, and nothing about them stops
+- **Alt paths:** a hidden agent fails -> Needs attention lists it as before, its outage still reaches the operator channel, and the folded header carries a "!" ("A hidden agent needs attention"); the fold's open or closed state is remembered; a hidden agent that is removed leaves the list
+- **UI elements:** Hide and Show again in the row menu, the "Hidden: N" fold with its mark
+- **States covered:** success, empty, error
+- **Errors & recovery:** n/a
+- **Status:** draft
+- **Coverage:** src/core/products.ts (toggleHidden, arrangeProducts), src/renderer/App.tsx, src/renderer/components/Overview.tsx, test/listorder.test.ts *FD-78*, test/e2e/focus-console.test.ts *FD-78*
+- **Product:** unobserved
+
+### SCN-073: See what an agent is connected to
+- **Persona:** P-01
+- **Feature:** service
+- **Traces:** ST-019 (JTBD-01); FD-78 (operator 2026-10-20); proposed contract extension `extensions/connections/0.1` (board thread with fabric-agent-contract)
+- **Entry point:** an agent's page → Connections tab (every agent, services included)
+- **Preconditions:** the agent answered at least once
+- **Steps:**
+  1. User opens Connections -> one line: the worst state anywhere in its connections in a word and a shape ("Works", "Partly works", "Does not work", "Not known"), how many connections, how many with problems
+  2. User reads three columns -> "Used by": the agents here whose declarations name it; in the middle the agent itself, what it offers (dashboard, MCP and its capabilities, events, spend report); "Uses": agents, models, runner, connectors, data stores, channels and the parts it reports, each with its state, its target and why
+  3. User reads a connection to another agent -> it carries that agent's own state too (the worse of the two) and, below it, that agent's connections, up to three levels; an agent already shown in the chain is not repeated
+  4. User clicks a connected agent -> its page opens on its Connections tab
+- **Expected result:** the person sees what an agent depends on and what depends on it, and where in the chain something does not work
+- **Alt paths:** the agent declares no connections -> a line says so, and the tab shows what the app sees: the models of its spend report (with their calls over 30 days), its runner, the parts it reports failing, the agents that name it; the declaration is invalid -> "the declaration is invalid, so none of it is shown" with the reasons, and the rest as for no declaration; a declared agent that is not installed here reads "Not known"; a part the agent reports failing that a declaration names marks that connection; nothing known -> "Nothing known yet."
+- **UI elements:** Connections tab, summary line, Used by list, the agent card with its offers, the Uses groups with the chain drawn as a tree
+- **States covered:** loading (models being read), empty, success, error
+- **Errors & recovery:** an unreadable spend report leaves models out, never blocks the tab
+- **Status:** draft
+- **Coverage:** packages/service-host/src/connections.ts, src/core/connections.ts, src/renderer/components/Connections.tsx, packages/service-host/test/connections.test.ts, test/connections.test.ts, test/e2e/focus-console.test.ts *SCN-073*
+- **Product:** unobserved
+
 ### SCN-070: Check what is set up
 - **Persona:** P-01
 - **Feature:** settings
@@ -1315,7 +1376,7 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **Persona:** P-01
 - **Feature:** list
 - **Traces:** ST-021 (JTBD-01, JRN-02/#5); ADR-0020
-- **Entry point:** an agent's context menu in the list, or the pin button on its row
+- **Entry point:** the agent's row menu (the small button on its row, FD-78)
 - **Preconditions:** at least one agent
 - **Steps:**
   1. User pins an agent -> a Pinned section appears above the rest with it; pinning another adds it below the first

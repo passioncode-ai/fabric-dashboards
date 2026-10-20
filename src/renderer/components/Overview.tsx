@@ -5,7 +5,8 @@ import { attentionRank } from '@passioncode-ai/fabric-service-host/state';
 import { useEffect, useState, type ReactNode } from 'react';
 import { sumSpend, type SpendEntry } from '../../core/spend';
 import { money as formatMoney } from './Spend';
-import { instanceOf, type Product } from '../../core/products';
+import { categoryOf, instanceOf, type Product } from '../../core/products';
+import type { ListLayout } from '../../core/types';
 import type { AppStatus, ServiceSnapshot, Settings } from '../../core/types';
 import { api, GLYPH, nameOf, NEWS_MS, shortBuild, Spinner, StateBadge, useExpiry, useT } from '../lib';
 
@@ -51,12 +52,14 @@ interface Props { status: AppStatus; products: Product[]; open: (key: string, li
   /** FD-39 D-3: Fix / Update with agent. */
   agent?: (key: string, task: { kind: 'fix' | 'update' }) => void;
   /** FD-39 SCN-059: what changed since the last visit, and Continue for the agents the person worked with. */
-  visit?: SinceLastVisit | null; onContinue?: (key: string) => void }
+  visit?: SinceLastVisit | null; onContinue?: (key: string) => void;
+  /** FD-78: the person's kinds and hidden agents, and the Hidden fold shared with the sidebar. */
+  list?: Pick<ListLayout, 'hidden' | 'kinds' | 'hiddenOpen'>; onHiddenOpen?: (open: boolean) => void }
 
 /** Needs attention shows this many rows; the rest wait behind "Show all" (ADR-0014). */
 const ATTENTION_VISIBLE = 3;
 
-export function Overview({ status, products, open, act, goSpend, agent, visit, onContinue }: Props) {
+export function Overview({ status, products, open, act, goSpend, agent, visit, onContinue, list, onHiddenOpen }: Props) {
   const { t, reason, lang } = useT();
   const [showAll, setShowAll] = useState(false);
   const [pathError, setPathError] = useState('');
@@ -114,9 +117,14 @@ export function Overview({ status, products, open, act, goSpend, agent, visit, o
     return <button className="btn" aria-label={label(t('action.open'))} onClick={() => open(s.key)}>{t('action.open')}</button>;
   };
 
-  // ADR-0012: one card per product, placed by its primary; Attention above stays per instance.
-  const local = products.filter((p) => !isOnline(p.primary));
-  const online = products.filter((p) => isOnline(p.primary));
+  // ADR-0012: one card per product, placed by its primary; Attention above stays per instance (hidden ones too).
+  // FD-78: on this Mac, online, services; what the person hid is folded at the bottom.
+  const hiddenIds = new Set(list?.hidden ?? []);
+  const shown = products.filter((p) => !hiddenIds.has(p.id));
+  const local = shown.filter((p) => categoryOf(p, list?.kinds) === 'local');
+  const online = shown.filter((p) => categoryOf(p, list?.kinds) === 'online');
+  const service = shown.filter((p) => categoryOf(p, list?.kinds) === 'service');
+  const hidden = products.filter((p) => hiddenIds.has(p.id));
 
   const attentionLine = (s: ServiceSnapshot) => {
     const lastFailure = failed(s) ? reason(s.lastAction!.reason) : '';
@@ -192,6 +200,22 @@ export function Overview({ status, products, open, act, goSpend, agent, visit, o
           <div className="cards">
             {online.map((p) => <Card key={p.id} p={p} open={open} />)}
           </div>
+        </section>
+      )}
+      {service.length > 0 && (
+        <section className="online" aria-labelledby="service-title">
+          <h2 id="service-title">{t('overview.service')}</h2>
+          <div className="cards">
+            {service.map((p) => <Card key={p.id} p={p} open={open} />)}
+          </div>
+        </section>
+      )}
+      {hidden.length > 0 && (
+        <section className="online" aria-labelledby="hidden-title">
+          <h2 id="hidden-title"><button className="btn-link fold" aria-expanded={Boolean(list?.hiddenOpen)} onClick={() => onHiddenOpen?.(!list?.hiddenOpen)}>
+            <span aria-hidden="true">{list?.hiddenOpen ? '▾' : '▸'}</span> {t('nav.hidden', { count: hidden.length })}
+          </button></h2>
+          {list?.hiddenOpen && <div className="cards">{hidden.map((p) => <Card key={p.id} p={p} open={open} />)}</div>}
         </section>
       )}
     </>
