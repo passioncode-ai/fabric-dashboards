@@ -7,9 +7,10 @@ import { commandRan, commandReason } from '../../core/outcome';
 import { problemOf } from '../../core/focus';
 import { api, GLYPH, Icon, nameOf, NEWS_MS, portOf, shortBuild, Spinner, StateBadge, useExpiry, useT } from '../lib';
 import { Feed } from './Activity';
+import { Connections } from './Connections';
 import fabricMark from '../brand/passioncode-mark.svg';
 
-type Tab = 'dashboard' | 'activity' | 'health' | 'logs';
+type Tab = 'dashboard' | 'activity' | 'connections' | 'health' | 'logs';
 
 interface Props {
   s: ServiceSnapshot;
@@ -17,11 +18,11 @@ interface Props {
   all: ServiceSnapshot[];
   /** Every instance of this service's product, primary first (ADR-0012); one entry means no switcher. */
   members: ServiceSnapshot[];
-  open: (key: string, link?: string, tab?: 'logs' | 'health') => void;
+  open: (key: string, link?: string, tab?: 'logs' | 'health' | 'connections') => void;
   link?: string;
   nonce?: number; // a new value re-opens the same link (a second click on one notification)
   /** The tab a navigation asks for (Logs after a failed action, Health for an update). */
-  tab?: 'logs' | 'health';
+  tab?: 'logs' | 'health' | 'connections';
   /** Needs attention's Update: run the update once this page shows (its output lands on Health). */
   runUpdate?: boolean;
   /** Grows with every activity row (P-7). */
@@ -84,7 +85,7 @@ export function ServiceView({ s, all, members, open, link, nonce, tab: askedTab,
       setOutput({ title: t('result.commandFailed', { command, error: String((error as Error)?.message ?? error) }), text: '', running: null });
     }
   };
-  const tabs = (['dashboard', 'activity', 'health', ...(s.descriptor?.placement === 'remote' ? [] : ['logs'])] as Tab[]);
+  const tabs = (['dashboard', 'activity', 'connections', 'health', ...(s.descriptor?.placement === 'remote' ? [] : ['logs'])] as Tab[]);
   const conflictWith = s.state === 'conflict' ? all.filter((o) => o.key !== s.key && o.state === 'conflict' && portOf(o) === portOf(s)) : [];
 
   return (
@@ -171,6 +172,7 @@ export function ServiceView({ s, all, members, open, link, nonce, tab: askedTab,
       <div className="svc-body" role="tabpanel" id={`panel-${tab}`} aria-labelledby={`tab-${tab}`}>
         {tab === 'dashboard' && <DashboardHost s={s} link={link} nonce={nonce} hidden={overlayOpen} applied={appliedLink} />}
         {tab === 'activity' && <div className="pane"><ServiceActivity serviceKey={s.key} tick={`${activityRev ?? ''}|${s.latestEvent?.id ?? ''}`} /></div>}
+        {tab === 'connections' && <div className="pane"><Connections s={s} all={all} open={(key) => open(key, undefined, 'connections')} /></div>}
         {tab === 'health' && <div className="pane"><Health s={s} output={output} /></div>}
         {tab === 'logs' && <div className="pane"><Logs serviceKey={s.key} /></div>}
       </div>

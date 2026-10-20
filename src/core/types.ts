@@ -72,8 +72,10 @@ export interface Settings {
     sidebar: 'expanded' | 'collapsed';
     header: 'compact' | 'full';
     console: { open: boolean; width: number };
-    /** FD-39 (ADR-0020): pinned products in pin order (product ids, ADR-0012), and how the rest is sorted. */
-    list: { sort: ListSort; pinned: string[] };
+    /** FD-39 (ADR-0020): pinned products in pin order (product ids, ADR-0012), and how the rest is sorted.
+     *  FD-78: products the person hid (still watched, listed in a folded Hidden section), a kind the person chose for a
+     *  product (`service` or `agent`, else the app's guess), and whether the Hidden section is open. */
+    list: ListLayout;
   };
   /** ADR-0017: per service key, the runtime and folder its console last used (null: not chosen yet). */
   consoles: Record<string, { runtime: string | null; folder: string | null;
@@ -95,6 +97,17 @@ export interface Settings {
 
 /** FD-39: the order of the agents list below the pinned ones. */
 export type ListSort = 'name' | 'status' | 'activity';
+
+/** FD-78: what a product is, as the person set it; absent means the app decides (a product with no dashboard is a service). */
+export type ProductKind = 'agent' | 'service';
+
+export interface ListLayout {
+  sort: ListSort;
+  pinned: string[];
+  hidden: string[];
+  kinds: Record<string, ProductKind>;
+  hiddenOpen: boolean;
+}
 
 /** A change to the settings: any field, and any part of the layout or of one service's console alone. */
 export type SettingsPatch = Partial<Omit<Settings, 'layout' | 'notifications'>> & {
@@ -124,7 +137,7 @@ export const DEFAULT_SETTINGS: Settings = {
     pausedUntil: null,
     channel: 'auto',
   },
-  layout: { sidebar: 'expanded', header: 'compact', console: { open: false, width: CONSOLE_WIDTH.default }, list: { sort: 'name', pinned: [] } },
+  layout: { sidebar: 'expanded', header: 'compact', console: { open: false, width: CONSOLE_WIDTH.default }, list: { sort: 'name', pinned: [], hidden: [], kinds: {}, hiddenOpen: false } },
   consoles: {},
   // #region estate-update — docs: docs/adr/0018-estate-updates-from-inside-the-app.md#decision
   estate: { enabled: true, autoSkills: false, contractClone: '' },

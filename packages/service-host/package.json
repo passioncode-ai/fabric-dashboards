@@ -36,6 +36,10 @@
       "types": "./dist/usage.d.ts",
       "default": "./dist/usage.js"
     },
+    "./connections": {
+      "types": "./dist/connections.d.ts",
+      "default": "./dist/connections.js"
+    },
     "./test-vectors/state-precedence.json": "./test-vectors/state-precedence.json",
     "./package.json": "./package.json"
   },

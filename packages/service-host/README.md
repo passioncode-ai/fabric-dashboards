@@ -28,6 +28,7 @@ Private to this repository's workspace and not published to npm; see
 | `…/state` | `deriveState`, `attentionRank`, `DOWN_AFTER_MS` | none — safe in a renderer |
 | `…/links` | the link builder and the key syntax | none — safe in a renderer |
 | `…/usage` | `checkUsage`, `summarizeUsage` and the usage-report shapes | none — safe in a renderer |
+| `…/connections` | `connectionsOf` and the declared-connections shapes (FD-78) | none, safe in a renderer |
 | `…/test-vectors/state-precedence.json` | the shared state-precedence vectors | — |
 
 CommonJS with `.d.ts` types, built by `tsc` into `dist/` (`npm run build:host` from the
@@ -191,6 +192,26 @@ window disagrees (FAC-SEM-031) — and accepts an unknown `kind` and a breach. `
 returns `limits`, ranked by `rankLimits`: `tripped`, `breach` (an enforced ceiling spent past its
 line), `near` (80 % or more), `ok`, `unknown` (spend not counted), `cap` (per order), `threshold`
 (approval — never a breach), `off` (not enforced, still listed).
+
+## Connections
+
+`src/connections.ts`, FD-78, entry point `@passioncode-ai/fabric-service-host/connections`. A service may declare
+what it uses in its well-known document under `extensions`, key
+`https://fabric.passioncode.ai/agent-contract/extensions/connections/0.1` (proposed to the Fabric Agent Contract on
+2026-10-20, beside DEC-0036 ED-9's dashboard extension; a reader that does not know an `extensions` key ignores it):
+
+```json
+{ "connections": [
+  { "id": "notify", "kind": "service", "target": "personal-communicator.default", "capability": "communicator.notify", "state": "ok", "lastAt": "2026-10-20T09:00:00Z" },
+  { "id": "telegram", "kind": "connector", "target": "telegram", "purpose": "reads the operator chat", "state": "degraded", "reason": "flood wait 30 s" }
+] }
+```
+
+At most 64 connections. `kind` is `service` (another Fabric service, by `id.instance` key or product `id`, with the
+`capability` it calls), `model`, `connector`, `store` or `channel`; `state` is `ok`, `degraded`, `down` or `unknown`;
+`label`, `purpose`, `reason` (each at most 300 characters) and `lastAt` (RFC 3339) are optional. A `degraded[].source`
+with a connection's `id` is that connection failing. `connectionsOf(wellKnown)` returns `{declared, connections,
+errors}`: an invalid value declares nothing and lists every reason, so a host shows the error rather than a guess.
 
 ## Shared test vectors
 

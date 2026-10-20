@@ -107,12 +107,19 @@ function mergeLayout(raw: unknown): Settings['layout'] {
   };
 }
 
-/** FD-39: a sort the app knows, and pinned product ids — each a valid id, once, at most 200. */
+const PRODUCT_ID = /^[a-z0-9][a-z0-9-]{0,63}$/;
+const productIds = (x: unknown) => (Array.isArray(x) ? [...new Set(x.filter((v): v is string => typeof v === 'string' && PRODUCT_ID.test(v)))].slice(0, 200) : []);
+
+/** FD-39: a sort the app knows, and pinned product ids — each a valid id, once, at most 200. FD-78: hidden product ids
+ *  the same way, a kind per product (`agent` or `service`; anything else is dropped), and whether Hidden is open. */
 function mergeList(raw: unknown): Settings['layout']['list'] {
-  const l = (raw && typeof raw === 'object' ? raw : {}) as { sort?: unknown; pinned?: unknown };
+  const l = (raw && typeof raw === 'object' ? raw : {}) as { sort?: unknown; pinned?: unknown; hidden?: unknown; kinds?: unknown; hiddenOpen?: unknown };
   const sort = l.sort === 'status' || l.sort === 'activity' ? l.sort : 'name';
-  const pinned = Array.isArray(l.pinned) ? [...new Set(l.pinned.filter((x): x is string => typeof x === 'string' && /^[a-z0-9][a-z0-9-]{0,63}$/.test(x)))].slice(0, 200) : [];
-  return { sort, pinned };
+  const kinds: Settings['layout']['list']['kinds'] = {};
+  if (l.kinds && typeof l.kinds === 'object' && !Array.isArray(l.kinds)) {
+    for (const [id, kind] of Object.entries(l.kinds as Record<string, unknown>).slice(0, 200)) if (PRODUCT_ID.test(id) && (kind === 'agent' || kind === 'service')) kinds[id] = kind;
+  }
+  return { sort, pinned: productIds(l.pinned), hidden: productIds(l.hidden), kinds, hiddenOpen: l.hiddenOpen === true };
 }
 
 /** ADR-0017: per-service console choices; a key that is not a service key, or a folder that is not absolute, is dropped. */

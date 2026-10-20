@@ -175,11 +175,24 @@ test('ADR-0017: a one-line header, a folding sidebar, and an agent console besid
     await page.getByText('Exited (code 0).').waitFor({ timeout: 15_000 });
 
     // FD-39 SCN-056: pin the agent to the top; a Pinned section holds it, and the choice is remembered.
-    await page.locator('.nav-row').filter({ hasText: 'Sample Service' }).hover();
-    await page.getByRole('button', { name: 'Pin Sample Service to the top' }).click();
+    // FD-78: the row's actions live in one small menu.
+    const rowMenu = async () => {
+      await page.locator('.nav-row').filter({ hasText: 'Sample Service' }).hover();
+      await page.getByRole('button', { name: 'Actions for Sample Service' }).click();
+    };
+    await rowMenu();
+    await page.getByRole('menuitem', { name: 'Pin Sample Service to the top' }).click();
     await page.locator('.nav-section', { hasText: 'Pinned' }).waitFor();
-    await page.getByRole('button', { name: 'Unpin Sample Service' }).waitFor();
+    await rowMenu();
+    await page.getByRole('menuitem', { name: 'Unpin Sample Service' }).waitFor();
+    await page.keyboard.press('Escape');
     await shot(page, '23-pinned');
+
+    // FD-78 SCN-073: the Connections tab says what the agent offers and what the app sees of what it uses.
+    await page.getByRole('tab', { name: 'Connections' }).click();
+    await page.getByRole('heading', { name: 'Used by' }).waitFor();
+    await page.getByText('does not declare its connections yet').waitFor();
+    await shot(page, '25-connections');
 
     // SCN-047: the sidebar folds into a rail; entries keep their names for a screen reader.
     await page.getByRole('button', { name: 'Collapse sidebar' }).click();
@@ -196,6 +209,28 @@ test('ADR-0017: a one-line header, a folding sidebar, and an agent console besid
     assert.equal(saved.consoles['sample.default'].runtime, 'claude-code');
     assert.equal(saved.consoles['sample.default'].folder, repo);
     assert.deepEqual(saved.layout.list.pinned, ['sample'], 'SCN-056: the pin is remembered');
+
+    // FD-78 SCN-071/072: shown as a service, then hidden in the folded section; it stays watched, and shows again.
+    await page.getByRole('button', { name: 'Expand sidebar' }).click();
+    await page.locator('.app:not(.rail)').waitFor();
+    await rowMenu();
+    await page.getByRole('menuitem', { name: 'Unpin Sample Service' }).click();
+    await rowMenu();
+    await page.getByRole('menuitem', { name: 'Show as a service' }).click();
+    await page.locator('.nav-section', { hasText: 'Services' }).waitFor();
+    await rowMenu();
+    await page.getByRole('menuitem', { name: 'Hide' }).click();
+    const fold = page.getByRole('button', { name: /Hidden: 1/ });
+    await fold.waitFor();
+    assert.equal(await fold.getAttribute('aria-expanded'), 'false', 'hidden agents are folded');
+    await fold.click();
+    await rowMenu();
+    await page.getByRole('menuitem', { name: 'Show again' }).click();
+    await page.locator('.nav-section', { hasText: 'Services' }).waitFor();
+    await shot(page, '26-categories');
+    const list = () => JSON.parse(fs.readFileSync(path.join(userData, 'settings.json'), 'utf8')).layout.list;
+    await waitFor('the list choices to be saved', async () => list().hidden.length === 0 && list().kinds.sample === 'service');
+    assert.deepEqual([list().hidden, list().kinds, list().pinned], [[], { sample: 'service' }, []]);
   } finally {
     await closeApp(app);
     await stopProcess(proc);

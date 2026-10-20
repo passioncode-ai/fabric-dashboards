@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { langFor, t as tr, type Lang } from '../core/i18n';
 import { DEFAULT_SETTINGS, type AppStatus, type Settings as AppSettings, type SettingsPatch, type ListSort } from '../core/types';
-import { groupProducts, productOf, type Product, arrangeProducts, togglePin } from '../core/products';
+import { groupProducts, productOf, type Product, arrangeProducts, categoryOf, setKind, toggleHidden, togglePin } from '../core/products';
 import { consoleMaxFor, consoleWidthAfterResize, consoleWidthFor, hostFloorFor } from '../core/layout';
 import { Activity, type ActivityFilter } from './components/Activity';
 import { SetupCard, Overview } from './components/Overview';
@@ -15,7 +15,7 @@ import type { ConsoleTask } from '../core/api';
 import mark from './brand/dashboards-mark.svg';
 import { api, GLYPH, Icon, LangContext, nameOf, Spinner, useT } from './lib';
 
-type Route = { page: 'overview' } | { page: 'handover'; key: string } | { page: 'activity'; serviceKey?: string; nonce?: number } | { page: 'spend' } | { page: 'settings' } | { page: 'service'; key: string; link?: string; nonce?: number; tab?: 'logs' | 'health' };
+type Route = { page: 'overview' } | { page: 'handover'; key: string } | { page: 'activity'; serviceKey?: string; nonce?: number } | { page: 'spend' } | { page: 'settings' } | { page: 'service'; key: string; link?: string; nonce?: number; tab?: 'logs' | 'health' | 'connections' };
 
 const PROBLEM = new Set(['down', 'duplicate', 'foreign', 'conflict', 'invalid']);
 
@@ -98,7 +98,7 @@ interface ShellProps {
 
 function Shell({ status, route, setRoute, stopKey, setStopKey, activityFilter, setActivityFilter, layout, changeLayout, onLanguage }: ShellProps) {
   const { t } = useT();
-  const open = (key: string, link?: string, tab?: 'logs' | 'health') => setRoute({ page: 'service', key, link, nonce: Date.now(), tab });
+  const open = (key: string, link?: string, tab?: 'logs' | 'health' | 'connections') => setRoute({ page: 'service', key, link, nonce: Date.now(), tab });
   // SCN-059: the agent selected last leads the next visit's Continue list.
   const routeKey = route.page === 'service' ? route.key : null;
   useEffect(() => { if (routeKey) void api().updateSettings({ lastService: routeKey }).catch(() => undefined); }, [routeKey]);
@@ -143,8 +143,19 @@ function Shell({ status, route, setRoute, stopKey, setStopKey, activityFilter, s
   // ADR-0012: one sidebar entry per product; every member keeps its own key, state and controls.
   const products = groupProducts(status.services);
   // FD-39 (ADR-0020): pinned first in pin order, the rest in the chosen sort.
-  const { pinned, foreground, background } = arrangeProducts(products, layout.list);
+  const arranged = arrangeProducts(products, layout.list);
+  const { pinned, hidden } = arranged;
   const pin = (id: string) => changeLayout({ list: { pinned: togglePin(layout.list.pinned, id) } });
+  // FD-78: the row's menu: pin, agent or service, hide. A hidden agent is still watched and still alerts.
+  const rowMenu: RowActions = {
+    pin,
+    hide: (id) => changeLayout({ list: { hidden: toggleHidden(layout.list.hidden, id) } }),
+    kind: (p, kind) => changeLayout({ list: { kinds: setKind(layout.list.kinds, p, kind) } }),
+    isPinned: (id) => layout.list.pinned.includes(id),
+    isHidden: (id) => layout.list.hidden.includes(id),
+    isService: (p) => categoryOf(p, layout.list.kinds) === 'service',
+  };
+  const hiddenProblem = hidden.some((p) => PROBLEM.has(p.primary.state) || p.memberProblem);
   // FD-39 D-3: Fix / Update with agent opens the agent's page and console; the console starts the task once it is ready.
   const [agentTask, setAgentTask] = useState<{ key: string; task?: ConsoleTask; mode?: 'new' | 'continue'; nonce: number } | null>(null);
   // FD-39 SCN-059: Continue resumes the agent's last console session, with its context written fresh.
@@ -242,22 +253,34 @@ function Shell({ status, route, setRoute, stopKey, setStopKey, activityFilter, s
             </button>
           ))}
           {pinned.length > 0 && <div className="nav-section">{t('nav.pinned')}</div>}
-          {pinned.map((p) => <ProductItem key={p.id} p={p} current={currentProduct === p} open={open} rail={rail} pinned onPin={pin} />)}
-          {foreground.length > 0 && (
-            <div className="nav-section nav-section-row">
-              <span>{t('nav.services')}</span>
-              {!rail && products.length > 1 && (
-                <select className="sort-select" aria-label={t('list.sort')} value={layout.list.sort} onChange={(e) => changeLayout({ list: { sort: e.target.value as ListSort } })}>
-                  <option value="name">{t('list.sort.name')}</option>
-                  <option value="status">{t('list.sort.status')}</option>
-                  <option value="activity">{t('list.sort.activity')}</option>
-                </select>
-              )}
+          {pinned.map((p) => <ProductItem key={p.id} p={p} current={currentProduct === p} open={open} rail={rail} pinned menu={rowMenu} />)}
+          {/* FD-78: on this Mac, online, services; the sort applies inside each section. */}
+          {(['local', 'online', 'service'] as const).map((c, i) => arranged[c].length > 0 && (
+            <div key={c} role="group" aria-labelledby={`nav-${c}`}>
+              <div className="nav-section nav-section-row">
+                <span id={`nav-${c}`}>{t(`nav.${c}`)}</span>
+                {!rail && i === (['local', 'online', 'service'] as const).findIndex((x) => arranged[x].length > 0) && products.length > 1 && (
+                  <select className="sort-select" aria-label={t('list.sort')} value={layout.list.sort} onChange={(e) => changeLayout({ list: { sort: e.target.value as ListSort } })}>
+                    <option value="name">{t('list.sort.name')}</option>
+                    <option value="status">{t('list.sort.status')}</option>
+                    <option value="activity">{t('list.sort.activity')}</option>
+                  </select>
+                )}
+              </div>
+              {arranged[c].map((p) => <ProductItem key={p.id} p={p} current={currentProduct === p} open={open} rail={rail} pinned={false} menu={rowMenu} />)}
+            </div>
+          ))}
+          {/* FD-78: hidden agents, folded at the bottom; a problem among them still shows on the fold. */}
+          {hidden.length > 0 && (
+            <div className="nav-hidden">
+              <button className="nav-section nav-fold-section" aria-expanded={layout.list.hiddenOpen} onClick={() => changeLayout({ list: { hiddenOpen: !layout.list.hiddenOpen } })}>
+                <span aria-hidden="true">{layout.list.hiddenOpen ? '▾' : '▸'}</span> {t('nav.hidden', { count: hidden.length })}
+                {hiddenProblem && <span className="count alert" title={t('nav.hiddenProblem')}>!</span>}
+                {hiddenProblem && <span className="visually-hidden">{t('nav.hiddenProblem')}</span>}
+              </button>
+              {layout.list.hiddenOpen && hidden.map((p) => <ProductItem key={p.id} p={p} current={currentProduct === p} open={open} rail={rail} pinned={false} menu={rowMenu} />)}
             </div>
           )}
-          {foreground.map((p) => <ProductItem key={p.id} p={p} current={currentProduct === p} open={open} rail={rail} pinned={false} onPin={pin} />)}
-          {background.length > 0 && <div className="nav-section">{t('nav.background')}</div>}
-          {background.map((p) => <ProductItem key={p.id} p={p} current={currentProduct === p} open={open} rail={rail} pinned={false} onPin={pin} />)}
         </div>
         <div className="sidebar-footer">
           {!rail && <UpdateLine status={status} />}
@@ -300,7 +323,7 @@ function Shell({ status, route, setRoute, stopKey, setStopKey, activityFilter, s
                 {route.page === 'overview' && count > 0 && <span className="meta">{count === 1 ? t('overview.count.one') : t('overview.count', { count })}</span>}
               </div>
               {route.page === 'overview' && <SetupCard onOpen={openSetup} consoleOpen={setupOpen} />}
-              {route.page === 'overview' && <Overview status={status} products={products} open={open} act={act} agent={handToAgent} visit={visit} onContinue={continueWith} goSpend={() => setRoute({ page: 'spend' })} />}
+              {route.page === 'overview' && <Overview status={status} products={products} open={open} act={act} agent={handToAgent} visit={visit} onContinue={continueWith} goSpend={() => setRoute({ page: 'spend' })} list={layout.list} onHiddenOpen={(o) => changeLayout({ list: { hiddenOpen: o } })} />}
               {route.page === 'activity' && <Activity status={status} openAt={open} filter={activityFilter} setFilter={setActivityFilter} />}
               {route.page === 'spend' && <Spend status={status} />}
               {route.page === 'settings' && <Settings status={status} onTheme={applyTheme} onLanguage={onLanguage} onSetup={() => openSetup('new')} />}
@@ -328,8 +351,18 @@ function Shell({ status, route, setRoute, stopKey, setStopKey, activityFilter, s
   );
 }
 
+/** FD-78: what a row's menu can do. */
+interface RowActions {
+  pin: (id: string) => void;
+  hide: (id: string) => void;
+  kind: (p: Product, kind: 'agent' | 'service') => void;
+  isPinned: (id: string) => boolean;
+  isHidden: (id: string) => boolean;
+  isService: (p: Product) => boolean;
+}
+
 /** A product in the sidebar: the primary's name and state; a member in trouble adds a mark, never a changed state (ADR-0012). */
-function ProductItem({ p, current, open, rail, pinned, onPin }: { p: Product; current: boolean; open: (key: string) => void; rail: boolean; pinned: boolean; onPin: (id: string) => void }) {
+function ProductItem({ p, current, open, rail, pinned, menu }: { p: Product; current: boolean; open: (key: string) => void; rail: boolean; pinned: boolean; menu: RowActions }) {
   const { t } = useT();
   const s = p.primary;
   return (
@@ -341,11 +374,48 @@ function ProductItem({ p, current, open, rail, pinned, onPin }: { p: Product; cu
       {p.memberProblem && <span className="count alert" title={t('nav.memberProblem')} aria-hidden="true">!</span>}
       <span className="visually-hidden">{t(`state.${s.state}`)}{p.memberProblem ? `, ${t('nav.memberProblem')}` : ''}</span>
     </button>
-    {!rail && (
-      <button className="pin-btn" aria-pressed={pinned} title={t(pinned ? 'list.unpin' : 'list.pin', { name: nameOf(s) })} aria-label={t(pinned ? 'list.unpin' : 'list.pin', { name: nameOf(s) })} onClick={() => onPin(p.id)}>
-        <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true"><path d="M6 1h4l-.5 4 2.5 2.5V9H8.6L8 15l-.6-6H4V7.5L6.5 5z" fill={pinned ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" /></svg>
+    {!rail && <RowMenu p={p} menu={menu} />}
+    </div>
+  );
+}
+
+/** FD-78: one small button per row opens its actions (global rule: one primary action, the rest in a menu). */
+function RowMenu({ p, menu }: { p: Product; menu: RowActions }) {
+  const { t } = useT();
+  const [open, setOpen] = useState(false);
+  const box = useRef<HTMLDivElement | null>(null);
+  const name = nameOf(p.primary);
+  useEffect(() => {
+    if (!open) return;
+    const away = (e: MouseEvent) => { if (box.current && !box.current.contains(e.target as Node)) setOpen(false); };
+    const key = (e: KeyboardEvent) => { if (e.key === 'Escape') { setOpen(false); (box.current?.querySelector('.row-menu-btn') as HTMLButtonElement | null)?.focus(); } };
+    document.addEventListener('mousedown', away);
+    document.addEventListener('keydown', key);
+    (box.current?.querySelector('[role="menuitem"]') as HTMLButtonElement | null)?.focus();
+    return () => { document.removeEventListener('mousedown', away); document.removeEventListener('keydown', key); };
+  }, [open]);
+  const pinned = menu.isPinned(p.id), hidden = menu.isHidden(p.id), service = menu.isService(p);
+  const act = (f: () => void) => () => { f(); setOpen(false); };
+  return (
+    <div className={`row-menu${open || pinned ? ' shown' : ''}`} ref={box}>
+      <button className="row-menu-btn pin-btn" aria-haspopup="menu" aria-expanded={open} title={t('list.menu', { name })} aria-label={t('list.menu', { name })} onClick={() => setOpen(!open)}>
+        {pinned
+          ? <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true"><path d="M6 1h4l-.5 4 2.5 2.5V9H8.6L8 15l-.6-6H4V7.5L6.5 5z" fill="currentColor" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" /></svg>
+          : <span aria-hidden="true">⋯</span>}
       </button>
-    )}
+      {open && (
+        <div className="menu" role="menu" aria-label={name} onKeyDown={(e) => {
+          if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+          e.preventDefault();
+          const items = [...(box.current?.querySelectorAll<HTMLButtonElement>('[role="menuitem"]') ?? [])];
+          const i = items.indexOf(document.activeElement as HTMLButtonElement);
+          items[(i + (e.key === 'ArrowDown' ? 1 : items.length - 1)) % items.length]?.focus();
+        }}>
+          {!hidden && <button role="menuitem" onClick={act(() => menu.pin(p.id))}>{t(pinned ? 'list.unpin' : 'list.pin', { name })}</button>}
+          <button role="menuitem" onClick={act(() => menu.kind(p, service ? 'agent' : 'service'))}>{t(service ? 'list.asAgent' : 'list.asService')}</button>
+          <button role="menuitem" onClick={act(() => menu.hide(p.id))}>{t(hidden ? 'list.unhide' : 'list.hide')}</button>
+        </div>
+      )}
     </div>
   );
 }

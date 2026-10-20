@@ -4,7 +4,7 @@
 // `instance`, never a second `id`"). Presentation only: monitoring, notifications, the tray, MCP,
 // deep links and controls keep the exact `id.instance` key of each member. Pure: the renderer and
 // the main process share it.
-import type { ServiceSnapshot } from './types';
+import type { ListLayout, ProductKind, ServiceSnapshot } from './types';
 
 export interface Product {
   /** The service `id` the members share. */
@@ -65,16 +65,51 @@ const nameOf = (p: Product) => (p.primary.descriptor?.name ?? p.primary.key).toL
 const rankOf = (p: Product) => (p.memberProblem ? 0 : Math.min(...p.members.map((m) => RANK[m.state] ?? 5)));
 const lastOf = (p: Product) => p.members.reduce<string>((best, m) => (m.latestEvent?.at && m.latestEvent.at > best ? m.latestEvent.at : best), '');
 
-export function arrangeProducts(products: readonly Product[], list: { sort: 'name' | 'status' | 'activity'; pinned: readonly string[] }): { pinned: Product[]; foreground: Product[]; background: Product[] } {
+export interface Arranged {
+  pinned: Product[];
+  /** FD-78: agents on this Mac, online agents, and services (no dashboard of their own, or marked so by the person). */
+  local: Product[];
+  online: Product[];
+  service: Product[];
+  /** FD-78: what the person hid. Still watched and still alerting; listed in a folded section at the bottom. */
+  hidden: Product[];
+}
+
+/** FD-78: a product's section. The person's choice wins; else a product whose members answered and none offers a
+ *  dashboard is a service; an agent is online when its primary is placed remotely (DEC-0019). */
+export type Category = 'local' | 'online' | 'service';
+export function categoryOf(p: Product, kinds: Readonly<Record<string, ProductKind>> = {}): Category {
+  const kind = kinds[p.id] ?? (p.background ? 'service' : 'agent');
+  if (kind === 'service') return 'service';
+  return p.primary.descriptor?.placement === 'remote' ? 'online' : 'local';
+}
+
+export function arrangeProducts(products: readonly Product[], list: Pick<ListLayout, 'sort' | 'pinned'> & Partial<Pick<ListLayout, 'hidden' | 'kinds'>>): Arranged {
   const byId = new Map(products.map((p) => [p.id, p]));
-  const pinned = list.pinned.map((id) => byId.get(id)).filter((p): p is Product => Boolean(p));
+  const hiddenIds = new Set(list.hidden ?? []);
+  // A hidden product leaves every other section, the pinned one too; showing it again puts its pin back.
+  const pinned = list.pinned.map((id) => byId.get(id)).filter((p): p is Product => Boolean(p) && !hiddenIds.has(p!.id));
   const isPinned = new Set(pinned.map((p) => p.id));
   const byName = (a: Product, b: Product) => nameOf(a).localeCompare(nameOf(b)) || (a.id < b.id ? -1 : 1);
   const cmp = list.sort === 'status' ? (a: Product, b: Product) => rankOf(a) - rankOf(b) || byName(a, b)
     : list.sort === 'activity' ? (a: Product, b: Product) => (lastOf(b) > lastOf(a) ? 1 : lastOf(b) < lastOf(a) ? -1 : 0) || byName(a, b)
     : byName;
-  const rest = products.filter((p) => !isPinned.has(p.id));
-  return { pinned, foreground: rest.filter((p) => !p.background).sort(cmp), background: rest.filter((p) => p.background).sort(cmp) };
+  const rest = products.filter((p) => !isPinned.has(p.id) && !hiddenIds.has(p.id));
+  const of = (c: Category) => rest.filter((p) => categoryOf(p, list.kinds) === c).sort(cmp);
+  return { pinned, local: of('local'), online: of('online'), service: of('service'), hidden: products.filter((p) => hiddenIds.has(p.id)).sort(cmp) };
+}
+
+/** FD-78: hide or show again; a hidden product keeps its pin and its kind. */
+export function toggleHidden(hidden: readonly string[], id: string): string[] {
+  return hidden.includes(id) ? hidden.filter((x) => x !== id) : [...hidden, id];
+}
+
+/** FD-78: the kind the person sets; choosing what the app would guess anyway removes the override. */
+export function setKind(kinds: Readonly<Record<string, ProductKind>>, p: Product, kind: ProductKind): Record<string, ProductKind> {
+  const next = { ...kinds };
+  if ((p.background ? 'service' : 'agent') === kind) delete next[p.id];
+  else next[p.id] = kind;
+  return next;
 }
 
 /** Pin or unpin: a newly pinned product goes last; unpinning keeps the others' order. */
