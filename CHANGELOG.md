@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+## 0.7.17 - 2026-10-20
+
+### Added
+
+- **Agents on this Mac, online agents and services, apart** (FD-78). The sidebar and Overview group them under
+  On this Mac, Online and Services. An agent with no dashboard of its own is a service; a small menu on each row
+  pins it, moves it between agent and service, or hides it.
+- **Hidden agents** (FD-78). An agent you hide leaves the list and waits in a folded "Hidden" section at the bottom.
+  It is still watched and still alerts; the fold shows "!" when one of them needs attention.
+- **Connections tab** (FD-78). Every agent, services included, shows who uses it, what it offers, and what it uses:
+  other agents, models, its runner, connectors, data stores, channels and the parts it reports, each with its state.
+  A connected agent shows its own connections below it, up to three levels, and the worst state anywhere in the chain
+  is named at the top. An agent can declare its connections with the proposed contract extension
+  `extensions/connections/0.1`; until it does, the tab shows what the app already sees.
+
 ## 0.7.16 - 2026-10-20
 
 ### Changed
