@@ -25,7 +25,8 @@ export interface ConsoleInfo {
   /** FD-50 (LC-18): the session was closed after the idle time; opening the console continues it. */
   idle: { at: string; account: string | null } | null;
   /** FD-62: the session this console runs came from a Switchboard hand-over (SB-108). */
-  handover?: { id: string; workflow: string; agent: string; account: string; dir: string } | null;
+  /** FD-62; FD-83: `kind: 'resume'` is a session this app continued after a usage limit. */
+  handover?: { id: string; workflow: string; agent: string; account: string; dir: string; kind?: 'handover' | 'resume' } | null;
 }
 
 /** FD-43/FD-51: the Switchboard sessions of a console's folder, or why there are none to show. */

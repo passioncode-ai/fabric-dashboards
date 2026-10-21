@@ -184,6 +184,8 @@ export function merge(raw: Partial<Settings>): Settings {
     },
     layout: mergeLayout(raw.layout),
     consoles: mergeConsoles(raw.consoles),
+    // FD-83: absent in a file from an earlier version: on, as the operator asked (2026-10-21).
+    resumeAfterLimit: raw.resumeAfterLimit !== false,
     estate: mergeEstate(raw.estate),
   };
 }

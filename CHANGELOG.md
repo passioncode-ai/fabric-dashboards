@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+## 0.7.20 - 2026-10-22
+
+### Added
+
+- **Sessions stopped on a usage limit continue by themselves** (FD-83). Once Switchboard has capacity again, a Claude
+  Code or Codex session that stopped on a limit continues in a console here with the same transcript: claimed once,
+  at most two at a time, within a day of the stop, and never while a terminal still holds it. Connections lists every
+  stopped session with why it waits; Settings can turn it off; the MCP `audit` tool answers the same list.
+
+### Fixed
+
+- A stray test script from another project left in the repository root is gone.
+
 ## 0.7.19 - 2026-10-21
 
 ### Added

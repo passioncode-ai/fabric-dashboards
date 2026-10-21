@@ -87,10 +87,10 @@ test('FD-62: a waiting hand-over is taken once, on a console of its own, and the
   assert.deepEqual(r.spawned, [{ file: r.sb, args: ['handovers', 'run', ID], cwd: r.dir }]);
   assert.deepEqual(await r.host.pollHandovers(), [], 'the same hand-over is never taken twice');
   assert.equal(r.spawned.length, 1);
-  assert.deepEqual(r.host.handoverConsoles(), [{ key: `handover.${ID}`, workflow: 'nightly-report', agent: 'claude-code', account: 'Work Max', dir: r.dir, state: 'running' }]);
+  assert.deepEqual(r.host.handoverConsoles(), [{ key: `handover.${ID}`, workflow: 'nightly-report', agent: 'claude-code', account: 'Work Max', dir: r.dir, state: 'running', kind: 'handover' }]);
   assert.equal(r.changed(), 1);
   const info = await r.host.info(`handover.${ID}`);
-  assert.deepEqual(info.handover, { id: ID, workflow: 'nightly-report', agent: 'claude-code', account: 'Work Max', dir: r.dir });
+  assert.deepEqual(info.handover, { id: ID, workflow: 'nightly-report', agent: 'claude-code', account: 'Work Max', dir: r.dir, kind: 'handover' });
   r.host.dismissHandover(`handover.${ID}`);
   assert.equal(r.host.handoverConsoles().length, 1, 'a running hand-over is not closed from the list');
   r.exits[0]!({ exitCode: 0 });

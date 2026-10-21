@@ -83,7 +83,9 @@ test('Spend shows what an agent reported, a lower bound where calls carry no pri
     assert.ok(usageReads >= 1);
     // LC-08: while the window is hidden, a refresh gets the last sums and reads no service.
     await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.hide());
-    for (let i = 0; i < 100 && (await app.evaluate(({ app: a }) => a.dock?.isVisible())); i += 1) await new Promise((r) => setTimeout(r, 100));
+    // FD-82: DockSync waits out Electron's 1 s guard and asks again until the Dock agrees; under a load average above 300
+    // that took longer than 10 s with nothing failed (no `dock_hide failed`), so the test waits up to 30 s.
+    for (let i = 0; i < 300 && (await app.evaluate(({ app: a }) => a.dock?.isVisible())); i += 1) await new Promise((r) => setTimeout(r, 100));
     if (await app.evaluate(({ app: a }) => a.dock?.isVisible())) {
       // FD-35: a failure carries the app's own account of the Dock, since the run's folder is removed.
       let logged = '';
@@ -94,7 +96,7 @@ test('Spend shows what an agent reported, a lower bound where calls carry no pri
     await page.evaluate(() => (window as unknown as { fabric: { spend(): Promise<unknown> } }).fabric.spend());
     assert.equal(usageReads, before, 'a hidden window reads nothing');
     await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.show());
-    for (let i = 0; i < 100 && !(await app.evaluate(({ app: a }) => a.dock?.isVisible())); i += 1) await new Promise((r) => setTimeout(r, 100));
+    for (let i = 0; i < 300 && !(await app.evaluate(({ app: a }) => a.dock?.isVisible())); i += 1) await new Promise((r) => setTimeout(r, 100));
     assert.equal(await app.evaluate(({ app: a }) => a.dock?.isVisible()), true, 'FD-05: shown again, the Dock icon is back');
     await page.evaluate(() => (window as unknown as { fabric: { spend(): Promise<unknown> } }).fabric.spend());
     assert.ok(usageReads > before, 'shown again, it reads');

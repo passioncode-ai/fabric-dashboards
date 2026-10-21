@@ -63,6 +63,15 @@ export function Settings({ status, onTheme, onLanguage, onSetup }: { status: App
         <p className="meta">v{status.version}</p>
       </section>
 
+      {/* #region limit-recovery — docs: docs/ux/scenarios.md#scn-075-a-session-stopped-on-a-limit-continues-by-itself */}
+      <section className="group" aria-labelledby="g-resume">
+        <h2 id="g-resume">{t('settings.resumeGroup')}</h2>
+        <label className="setting">{t('settings.resumeAfterLimit')}
+          <input type="checkbox" role="switch" className="switch" checked={value.resumeAfterLimit} onChange={(e) => void save({ resumeAfterLimit: e.target.checked })} />
+        </label>
+        <p className="meta">{t('settings.resumeAfterLimit.body')}</p>
+      </section>
+      {/* #endregion limit-recovery */}
       <section className="group" aria-labelledby="g-updates">
         <h2 id="g-updates">{t('settings.updates')}</h2>
         <label className="setting">{t('settings.autoUpdate')}

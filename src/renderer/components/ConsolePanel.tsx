@@ -220,7 +220,7 @@ export function ConsolePanel({ serviceKey, width, max, onWidth, onHide, task, on
           )}
           <button className="icon-btn" title={t('console.hide')} onClick={onHide}><Icon name="close" /><span className="visually-hidden">{t('console.hide')}</span></button>
         </div>
-        {handover && <p className="console-row console-line meta" role="status">{t('console.handover', { workflow: handover.workflow || handover.agent, account: handover.account || '—' })}</p>}
+        {handover && <p className="console-row console-line meta" role="status">{handover.kind === 'resume' ? t('console.resumed', { agent: handover.agent }) : t('console.handover', { workflow: handover.workflow || handover.agent, account: handover.account || '—' })}</p>}
         {!ownHandover && <div className="console-row meta">
           {info?.folder
             ? <span className="console-folder" title={`${info.folder.path}${info.folder.source === 'found' ? ` — ${t('console.foundFrom')}` : ''}`}>{shortPath(info.folder.path)}</span>
