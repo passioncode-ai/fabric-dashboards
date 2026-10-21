@@ -123,6 +123,18 @@ export const TOOLS = [
     annotations: { readOnlyHint: true },
   },
   {
+    name: 'setup_check',
+    description: 'Check what is set up on this computer, as Settings → Check setup does: runs the PassionCode launcher\'s read-only doctor at its pinned version (npx, never --fix, up to two minutes) and returns its report: a summary (fail, warn, ok, info) and every check with its area, its own words and its fix. kind no-node: Node.js is not installed. It runs a program from npm: say so before calling it.',
+    inputSchema: { type: 'object', properties: {}, additionalProperties: false },
+    annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: true },
+  },
+  {
+    name: 'audit',
+    description: 'The auditor over every installed agent, as the Connections map shows it: findings (worst first) with the agent to fix (key, name), severity (error: does not work; warn: works in part; setup: waits for a person; info: worth knowing), kind (state, part, connection, chain, declaration, update, limit) and the sentence the app shows; counts by severity; coverage (how many agents declare their connections); and the edges of the map (from, to, state). Read-only; call it before and after a fix.',
+    inputSchema: { type: 'object', properties: {}, additionalProperties: false },
+    annotations: { readOnlyHint: true },
+  },
+  {
     name: 'spend',
     description: 'What each agent spent, from its own usage report (Fabric Agent Contract DEC-0021): today, the last 7 and 30 UTC days, per model, its budget and every spending limit it applies (limits: DEC-0027, ranked — tripped, breach, near, ok, unknown, cap (per order), threshold (approval), off (not enforced)). costUsd null means unknown, never $0; partial: true means the cost is a lower bound, tokensPartial: true that the token counts are (DEC-0091). One service, or every one.',
     inputSchema: {
@@ -176,6 +188,8 @@ export async function call(deps: tools.Deps, name: string, args: Args): Promise<
     }
     case 'activity': return tools.activity(deps, need(args, 'service'), typeof args.limit === 'number' ? args.limit : 20);
     case 'connections': return tools.connections(deps, need(args, 'service'));
+    case 'audit': return tools.auditAll(deps);
+    case 'setup_check': return tools.setupCheck(deps);
     case 'spend': return tools.spend(deps, str(args, 'service'));
     default: throw new tools.ToolError(`unknown tool ${JSON.stringify(name)}`);
   }

@@ -6,7 +6,8 @@ import type { SpendEntry } from './spend';
 import type { ActivityItem, AppStatus, Listener, Reason, Settings, SettingsPatch } from './types';
 
 /** A job a console is opened to do (FD-39 D-3): fix what is wrong, or update; `output` is a failed command's. */
-export interface ConsoleTask { kind: 'fix' | 'update'; output?: string }
+/** `audit` (FD-81): `output` carries the auditor's findings for this agent, as the person read them. */
+export interface ConsoleTask { kind: 'fix' | 'update' | 'audit'; output?: string }
 
 export interface Rect { x: number; y: number; width: number; height: number }
 
@@ -84,9 +85,9 @@ export interface FabricApi {
   /** FD-45: press it. The main process opens the `fabric://` link, or a native menu under `anchor` (window coordinates, CSS px). */
   fabricPress(key: string, anchor: { x: number; y: number }): Promise<{ opened: 'fabric' | 'menu' | 'none' }>;
   onViewEvent(listener: (event: { key: string; kind: 'restarted' | 'crashed' | 'loaded' | 'error' | 'navigated'; error?: string; page?: PageState }) => void): () => void;
-  onNavigate(listener: (target: { page: 'service' | 'activity' | 'overview' | 'spend' | 'settings'; key?: string; link?: string }) => void): () => void;
+  onNavigate(listener: (target: { page: 'service' | 'activity' | 'overview' | 'spend' | 'map' | 'settings'; key?: string; link?: string }) => void): () => void;
   /** Called once the renderer listens: the navigation that arrived before it did (a link at launch), if any. */
-  takeNavigation(): Promise<{ page: 'service' | 'activity' | 'overview' | 'spend' | 'settings'; key?: string; link?: string } | null>;
+  takeNavigation(): Promise<{ page: 'service' | 'activity' | 'overview' | 'spend' | 'map' | 'settings'; key?: string; link?: string } | null>;
   /** U-18: the screen on show, so Restart to update can reopen on it. */
   routeChanged(route: { page: string; key?: string }): void;
   /** Read the services folder again now (the unreadable-folder Retry). */

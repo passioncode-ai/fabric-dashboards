@@ -165,6 +165,13 @@ export class HiddenGrace {
  *  grace drift with them. `sync()` compares the two and calls the matching handler once per change. */
 export const VISIBILITY_SYNC_MS = 15_000;
 
+/** FD-80: whether the window is on screen. A window of a hidden app is not, whatever `isVisible()` says (measured
+ *  2026-10-21: System Events hid the app and Electron still reported its window visible for an hour, holding a ready
+ *  update the whole time). */
+export function onScreen(w: { exists: boolean; visible: boolean; minimized: boolean; appHidden: boolean }): boolean {
+  return w.exists && w.visible && !w.minimized && !w.appHidden;
+}
+
 export class VisibilitySync {
   private last: boolean;
 
@@ -280,7 +287,7 @@ export function relaunchHidden(markerText: string | null, now: number): boolean 
 /** U-18 (FD-21): the screen the person was on when they chose Restart to update; the copy that
  *  starts after the install opens on it, not on Overview. */
 export const RESUME_ROUTE_MARKER = '.resume-route.json';
-export type ResumeRoute = { page: 'overview' | 'activity' | 'spend' | 'settings' } | { page: 'service'; key: string };
+export type ResumeRoute = { page: 'overview' | 'activity' | 'spend' | 'map' | 'settings' } | { page: 'service'; key: string };
 
 /** The route in a resume marker, if it is well-formed and was written for this relaunch. */
 export function resumeRoute(markerText: string | null, now: number): ResumeRoute | null {
@@ -294,7 +301,7 @@ export function resumeRoute(markerText: string | null, now: number): ResumeRoute
     const key = raw.route?.key;
     return typeof key === 'string' && /^[a-z0-9-]+\.[a-z0-9-]+$/.test(key) ? { page, key } : null;
   }
-  return page === 'overview' || page === 'activity' || page === 'spend' || page === 'settings' ? { page } : null;
+  return page === 'overview' || page === 'activity' || page === 'spend' || page === 'map' || page === 'settings' ? { page } : null;
 }
 // #endregion auto-install
 

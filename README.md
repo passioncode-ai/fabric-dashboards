@@ -27,6 +27,7 @@ Screenshots of the real app against the kit's sample service under example names
 | **Connections** | on every agent's page: who uses it, what it offers, and what it uses (other agents, models, its runner, connectors, data stores, channels), each with its state, and the chain through the agents it reaches; an agent declares them with `extensions/connections/0.1` ([ADR-0022](docs/adr/0022-agent-categories-and-connections.md)) |
 | **Agent console** | beside the dashboard, the agent's own runtime — Claude Code, Codex or another one installed — in the agent's repository, on the account Fabric Switchboard binds to it; New, Continue, Open in Terminal ([ADR-0017](docs/adr/0017-focus-layout-and-agent-console.md)) |
 | **Activity** | every service's events and the app's own observations in one feed, filterable, each row opening the exact item |
+| **Connections** page | the auditor: everything that does not work, works in part, waits for you or is out of date, across every agent, worst first, each with *Fix with agent* in the coding agent you pick (Claude Code by default); and a map of how agents call one another ([ADR-0023](docs/adr/0023-the-auditor-and-the-connections-map.md)) |
 | **Spend** | what every agent spent today, in 7 and 30 days, on which models and against its own budget — from each agent's own usage report (contract DEC-0021); an unknown cost reads unknown, never $0 |
 | **Notifications** | not answering (three missed probes in a row and 60 s of silence — a slow answer under load is not an outage, [ADR-0008](docs/adr/0008-a-missed-probe-is-not-an-outage.md)), back, two copies, another program on the port, and, from the events a service marks for you, only a decision it waits for, a failure or a warning — once per subject, titled with the agent and what it wants ([ADR-0010](docs/adr/0010-notifications-only-when-it-matters.md)); quiet hours and per-service levels |
 | **Menu bar** | the aggregate state as a shape, problems first |
@@ -147,8 +148,26 @@ window forward: quit the installed app first, or give the checkout its own profi
 
 ## For agents
 
+What the app does and how an agent does the same (FD-81, ADR-0023):
+
+| In the app | Through MCP |
+|---|---|
+| Overview, the list, an agent's state and reasons | `list_services` (with `category`, `hidden`), `service_status` |
+| An agent's page, a page of it | `link`, `open` |
+| Restart, Stop, Start; Doctor; Update | `control`, `doctor`, `update` |
+| Activity | `activity` |
+| Spend and its limits | `spend` |
+| An agent's Connections tab | `connections` |
+| The Connections page: the auditor and the map | `audit` |
+| Settings → Check setup | `setup_check` |
+| Context for a console | `service_context` |
+| This Mac's installation | `host_status` |
+| Pin, show as a service, hide | read only (`category`, `hidden`): the person's choice |
+| Start a console session | none: it runs on the person's subscription, so a person starts it |
+| Settings, notifications, Uninstall | none: the person's |
+
 Tools: `host_status`, `list_services`, `service_status`, `service_context`, `link`, `open`, `control`, `doctor`, `update`,
-`activity`, `spend`, `connections` (`connections` from 0.7.18, what one agent is connected to, as its Connections tab shows it; `spend` from 0.5.6; `service_context` — everything about one service a coding agent needs before working on it, its descriptor without `auth` — from FD-39). A console the app starts for a service already holds that context and this server (ADR-0020). An agent that starts work on a service hands the operator the `open_link` from
+`activity`, `spend`, `connections`, `audit`, `setup_check` (`audit` and `setup_check` from 0.7.19: the auditor's findings and map, and Check setup's read-only doctor; `connections` from 0.7.18, what one agent is connected to, as its Connections tab shows it; `spend` from 0.5.6; `service_context` — everything about one service a coding agent needs before working on it, its descriptor without `auth` — from FD-39). A console the app starts for a service already holds that context and this server (ADR-0020). An agent that starts work on a service hands the operator the `open_link` from
 `link` — `fabric-dashboards://service/<id.instance>?path=/…`, which opens that page inside the
 app. Keep `http_url` for diagnostics or confirmed-absent fallback. `open` opens it now;
 `fallback=never` forbids the browser, and installed-host failure never falls back. `spend` gives

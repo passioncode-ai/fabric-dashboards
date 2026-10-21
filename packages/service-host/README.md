@@ -197,8 +197,8 @@ line), `near` (80 % or more), `ok`, `unknown` (spend not counted), `cap` (per or
 
 `src/connections.ts`, FD-78, entry point `@passioncode-ai/fabric-service-host/connections`. A service may declare
 what it uses in its well-known document under `extensions`, key
-`https://fabric.passioncode.ai/agent-contract/extensions/connections/0.1` (proposed to the Fabric Agent Contract on
-2026-10-20, beside DEC-0036 ED-9's dashboard extension; a reader that does not know an `extensions` key ignores it):
+`https://fabric.passioncode.ai/agent-contract/extensions/connections/0.1` (Fabric Agent Contract DEC-0096, beside
+DEC-0036 ED-9's dashboard extension; a reader that does not know an `extensions` key ignores it):
 
 ```json
 { "connections": [
@@ -210,8 +210,11 @@ what it uses in its well-known document under `extensions`, key
 At most 64 connections. `kind` is `service` (another Fabric service, by `id.instance` key or product `id`, with the
 `capability` it calls), `model`, `connector`, `store` or `channel`; `state` is `ok`, `degraded`, `down` or `unknown`;
 `label`, `purpose`, `reason` (each at most 300 characters) and `lastAt` (RFC 3339) are optional. A `degraded[].source`
-with a connection's `id` is that connection failing. `connectionsOf(wellKnown)` returns `{declared, connections,
-errors}`: an invalid value declares nothing and lists every reason, so a host shows the error rather than a guess.
+with a connection's `id` is that connection failing. No string member may carry a credential (a key's shape, a
+bearer token, a JWT, a long mixed run, or a URL with one). `connectionsOf(wellKnown)` is a port of the contract's
+`connectionsView` and returns `{declared, reported, connections, errors}`, each connection with `failing`: an invalid
+value declares nothing, is `reported` and lists every reason, so a host shows the error rather than a guess. It runs
+the contract's 127 vectors (`test/fixtures/contract/vectors_connections.json`).
 
 ## Shared test vectors
 

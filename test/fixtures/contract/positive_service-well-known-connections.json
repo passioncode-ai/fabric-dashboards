@@ -1,0 +1,74 @@
+{
+  "protocol": "fabric-service/0.1",
+  "service": {
+    "id": "example-agent",
+    "instance": "default",
+    "name": "Example Agent",
+    "version": "0.2.0",
+    "build": {
+      "commit": "8b80be9",
+      "dirty": false,
+      "builtAt": "2026-09-28T17:40:00Z"
+    }
+  },
+  "process": {
+    "pid": 51234,
+    "startedAt": "2026-09-28T17:41:02Z"
+  },
+  "status": "degraded",
+  "degraded": [
+    {
+      "source": "llm",
+      "reason": "No model key: drafting is paused."
+    }
+  ],
+  "summary": [
+    {
+      "label": "Jobs running",
+      "value": 2
+    },
+    {
+      "label": "Awaiting you",
+      "value": 1,
+      "attention": true
+    }
+  ],
+  "surfaces": {
+    "dashboard": {
+      "path": "/dashboard",
+      "login": true
+    },
+    "mcp": {
+      "path": "/mcp",
+      "transport": "streamable-http"
+    },
+    "events": {
+      "path": "/fabric/v1/events"
+    }
+  },
+  "update": {
+    "available": null
+  },
+  "extensions": {
+    "https://fabric.passioncode.ai/agent-contract/extensions/connections/0.1": {
+      "connections": [
+        {
+          "id": "notify",
+          "kind": "service",
+          "target": "example-notifier.default",
+          "capability": "notifier.send",
+          "state": "ok",
+          "lastAt": "2026-10-20T09:00:00Z"
+        },
+        {
+          "id": "telegram",
+          "kind": "connector",
+          "target": "telegram",
+          "purpose": "reads the operator chat",
+          "state": "degraded",
+          "reason": "flood wait 30 s"
+        }
+      ]
+    }
+  }
+}

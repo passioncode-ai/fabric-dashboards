@@ -82,6 +82,8 @@ const ICONS: Record<string, string> = {
   spend: 'M10 2v16M14 5.5c-.8-1-2.2-1.5-4-1.5-2.2 0-4 1-4 3s1.8 2.6 4 3 4 1 4 3-1.8 3-4 3c-1.8 0-3.2-.5-4-1.5',
   settings: 'M10 7a3 3 0 1 0 0 6 3 3 0 0 0 0-6zM10 1.5v2.5M10 16v2.5M1.5 10H4M16 10h2.5M4 4l1.8 1.8M14.2 14.2 16 16M4 16l1.8-1.8M14.2 5.8 16 4',
   sidebar: 'M3 3h14v14H3zM8 3v14',
+  // FD-81: the Connections map, three nodes and two lines.
+  map: 'M3 5h4v4H3zM13 3h4v4h-4zM13 13h4v4h-4zM7 7l6-2M7 7l6 8',
   console: 'M2 4h16v12H2zM5 8l3 2-3 2M10 13h4',
   chevronDown: 'M5 8l5 5 5-5',
   chevronUp: 'M5 12l5-5 5 5',

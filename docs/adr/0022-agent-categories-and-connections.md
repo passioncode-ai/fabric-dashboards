@@ -27,8 +27,10 @@ depends on. The well-known document says what a service offers (surfaces, MCP ca
    `https://fabric.passioncode.ai/agent-contract/extensions/connections/0.1` carries at most 64 connections
    (`kind` service, model, connector, store, channel; a `state`; a `degraded[].source` with a connection's `id` is that
    connection failing). It travels as DEC-0036 ED-9's dashboard key does: a reader that does not know it ignores it, so
-   a service may send it before the contract decides. Proposed to the contract on 2026-10-20 (board thread
-   `131648c0`); Dashboards re-pins to the decision's schema. Reader: `packages/service-host/src/connections.ts`.
+   a service may send it before a host knows it. The contract decided it on 2026-10-21 as **DEC-0096** (FAC-SEM-127):
+   the same shape, plus a rule that a credential in any string member makes the value not declared. Dashboards' reader
+   (`packages/service-host/src/connections.ts`) is a port of the contract's `connectionsView`, run on its 127 vectors
+   (pinned at `63bb296`, CT-70) in 0.7.19.
 5. **What the app sees fills the gap, labelled as such.** Without a declaration the Connections tab shows the models of
    the agent's spend report, its runner (DEC-0046), the parts it reports failing and the agents that name it; an
    invalid declaration is shown as invalid, never guessed past.

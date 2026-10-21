@@ -984,3 +984,12 @@ test('FD-04 follow-up: a stored cookie is written back unchanged, host-only by i
     { url: 'http://example.com/app', name: 's', value: 'x', path: '/app', domain: '.example.com', secure: false, httpOnly: false });
   assert.equal(cookieRewrite({ name: 'n', value: 'v' }), null, 'no domain: nothing to write back to');
 });
+
+test('FD-80: a window of a hidden app is not on screen, so a ready update can install after its hidden minutes', async () => {
+  const { onScreen } = await import('../src/electron/policy');
+  const w = { exists: true, visible: true, minimized: false, appHidden: false };
+  assert.equal(onScreen(w), true);
+  assert.equal(onScreen({ ...w, appHidden: true }), false, 'Electron still says visible; the app is hidden');
+  assert.equal(onScreen({ ...w, minimized: true }), false);
+  assert.equal(onScreen({ ...w, exists: false }), false);
+});

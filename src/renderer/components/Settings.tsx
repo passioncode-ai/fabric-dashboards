@@ -36,7 +36,7 @@ export function Settings({ status, onTheme, onLanguage, onSetup }: { status: App
       <section className="group" aria-labelledby="g-app">
         <h2 id="g-app">{t('app.name')}</h2>
         <label className="setting">{t('settings.launchAtLogin')}
-          <input type="checkbox" checked={value.launchAtLogin} onChange={(e) => void save({ launchAtLogin: e.target.checked })} />
+          <input type="checkbox" role="switch" className="switch" checked={value.launchAtLogin} onChange={(e) => void save({ launchAtLogin: e.target.checked })} />
         </label>
         {error && <p className="notice error" role="alert">{error}</p>}
         <label className="setting">{t('settings.theme')}
@@ -66,7 +66,7 @@ export function Settings({ status, onTheme, onLanguage, onSetup }: { status: App
       <section className="group" aria-labelledby="g-updates">
         <h2 id="g-updates">{t('settings.updates')}</h2>
         <label className="setting">{t('settings.autoUpdate')}
-          <input type="checkbox" checked={value.autoUpdate} onChange={(e) => void save({ autoUpdate: e.target.checked })} />
+          <input type="checkbox" role="switch" className="switch" checked={value.autoUpdate} onChange={(e) => void save({ autoUpdate: e.target.checked })} />
         </label>
         {/* U-11: the explanation and the state read as one note under the switch. */}
         <div className="setting-note">
@@ -79,11 +79,11 @@ export function Settings({ status, onTheme, onLanguage, onSetup }: { status: App
       <section className="group" aria-labelledby="g-estate">
         <h2 id="g-estate">{t('settings.estate')}</h2>
         <label className="setting">{t('settings.estate.enabled')}
-          <input type="checkbox" checked={value.estate.enabled} onChange={(e) => void save({ estate: { ...value.estate, enabled: e.target.checked } })} />
+          <input type="checkbox" role="switch" className="switch" checked={value.estate.enabled} onChange={(e) => void save({ estate: { ...value.estate, enabled: e.target.checked } })} />
         </label>
         <p className="meta">{t('settings.estate.enabled.body')}</p>
         <label className="setting">{t('settings.estate.autoSkills')}
-          <input type="checkbox" checked={value.estate.autoSkills} onChange={(e) => void save({ estate: { ...value.estate, autoSkills: e.target.checked } })} />
+          <input type="checkbox" role="switch" className="switch" checked={value.estate.autoSkills} onChange={(e) => void save({ estate: { ...value.estate, autoSkills: e.target.checked } })} />
         </label>
         <p className="meta">{t('settings.estate.autoSkills.body')}</p>
         <label className="setting">{t('settings.estate.contractClone')}
@@ -100,12 +100,12 @@ export function Settings({ status, onTheme, onLanguage, onSetup }: { status: App
             off; the way to check is always one click away. */}
         <p className="meta row">{t('settings.notifications.system')} <button className="btn-link btn" onClick={() => void api().openNotificationSettings()}>{t('settings.notifications.openSystem')}</button></p>
         <label className="setting">{t('settings.notifications.enabled')}
-          <input type="checkbox" checked={n.enabled} onChange={(e) => setN({ enabled: e.target.checked })} />
+          <input type="checkbox" role="switch" className="switch" checked={n.enabled} onChange={(e) => setN({ enabled: e.target.checked })} />
         </label>
         <div className="setting">
           <span>{t('settings.quiet')}</span>
           <span className="row">
-            <input type="checkbox" aria-label={t('settings.quiet')} checked={n.quietHours.enabled} onChange={(e) => setN({ quietHours: { ...n.quietHours, enabled: e.target.checked } })} />
+            <input type="checkbox" role="switch" className="switch" aria-label={t('settings.quiet')} checked={n.quietHours.enabled} onChange={(e) => setN({ quietHours: { ...n.quietHours, enabled: e.target.checked } })} />
             <span className="meta">{t('settings.quiet.from')}</span>
             <input type="time" aria-label={t('settings.quiet.from')} value={n.quietHours.from} onChange={(e) => setN({ quietHours: { ...n.quietHours, from: e.target.value } })} />
             <span className="meta">{t('settings.quiet.to')}</span>
@@ -129,7 +129,7 @@ export function Settings({ status, onTheme, onLanguage, onSetup }: { status: App
                 return (
                   <tr key={s.key}>
                     <td>{nameOf(s)}</td>
-                    <td><input type="checkbox" aria-label={`${nameOf(s)}: ${t('settings.notifications.enabled')}`} checked={per.enabled} onChange={(e) => set({ enabled: e.target.checked })} /></td>
+                    <td><input type="checkbox" role="switch" className="switch" aria-label={`${nameOf(s)}: ${t('settings.notifications.enabled')}`} checked={per.enabled} onChange={(e) => set({ enabled: e.target.checked })} /></td>
                     <td>
                       <select aria-label={`${nameOf(s)}: ${t('settings.minLevel')}`} value={per.minLevel} onChange={(e) => set({ minLevel: e.target.value as 'notice' | 'warning' | 'error' })}>
                         <option value="notice">{t('level.notice')}</option>

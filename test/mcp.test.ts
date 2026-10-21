@@ -461,3 +461,30 @@ test('FD-78: connections answers the agent\'s graph with its spend report\'s mod
   await assert.rejects(tools.connections(deps, 'nobody.default'), /no installed service/);
   assert.ok(TOOLS.some((x) => x.name === 'connections' && x.annotations.readOnlyHint));
 });
+
+// ── FD-81: the auditor and Check setup through MCP ────────────────────────────────────────────
+
+test('FD-81: audit answers the findings with the app\'s English sentence, the coverage and the map\'s edges', async () => {
+  const { deps } = world();
+  const a = await tools.auditAll(deps);
+  assert.deepEqual(a.coverage, { agents: 1, declaring: 0 });
+  assert.ok(a.findings.length > 0, 'the fixture reports a degraded part');
+  for (const f of a.findings) {
+    assert.equal(f.key, KEY);
+    assert.ok(f.text && !f.text.startsWith('audit.'), `a sentence, not a code: ${f.text}`);
+  }
+  assert.deepEqual(a.edges, []);
+  assert.ok(TOOLS.some((x) => x.name === 'audit' && x.annotations.readOnlyHint));
+});
+
+test('FD-81: setup_check runs the pinned read-only doctor and parses its report; no Node is said as such', async () => {
+  const w = world();
+  const ran: string[][] = [];
+  w.deps.setupRun = async (cmd, args) => { ran.push([cmd, ...args]); return { code: 0, output: '', timedOut: false, stdout: JSON.stringify({ version: '0.2.2', ok: true, summary: { ok: 1, warn: 0, fail: 0, info: 0 }, checks: [{ id: 'node', area: 'prerequisites', product: null, state: 'ok', detail: 'Node 22', fix: null }] }) }; };
+  const r = await tools.setupCheck(w.deps);
+  assert.equal(r.kind, 'report');
+  assert.ok(ran[0]!.join(' ').includes('@passioncode-ai/passioncode@'), 'the pinned launcher');
+  assert.ok(!ran[0]!.includes('--fix'), 'never a repair');
+  const t = TOOLS.find((x) => x.name === 'setup_check')!;
+  assert.equal(t.annotations.readOnlyHint, false, 'it runs a program from npm: never auto-approved as read-only');
+});

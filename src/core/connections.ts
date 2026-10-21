@@ -1,6 +1,6 @@
 // #region connections-graph — docs: docs/ux/scenarios.md#scn-073-see-what-an-agent-is-connected-to
 // FD-78: an agent's connections as a person reads them on its Connections tab. Declared connections come first (the
-// proposed `extensions/connections/0.1`, packages/service-host/src/connections.ts); what the app already sees is added
+// contract's `extensions/connections/0.1`, DEC-0096, packages/service-host/src/connections.ts); what the app already sees is added
 // beside them: the models its usage report names, the runner it resolved (DEC-0046), parts it reports failing
 // (`degraded[].source`) that no declaration names, and the other agents whose declarations point at it. A connection
 // to another installed agent carries that agent's own state and, below it, that agent's connections (the chain),

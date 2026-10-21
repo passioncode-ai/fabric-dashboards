@@ -179,3 +179,11 @@ test('FD-39 SCN-054/055: Fix is offered where something is wrong; Update with ag
   assert.equal(offersAgentUpdate({ ...update, descriptor: { commands: {} } } as typeof update, false), true, 'no command at all');
   assert.equal(offersAgentUpdate({ ...update, wellKnown: { update: null } } as unknown as typeof update, true), false, 'no update, nothing to offer');
 });
+
+test('FD-81: an audit task writes the auditor\'s findings into task.md', async () => {
+  const { auditTask } = await import('../src/core/handoff');
+  const t = auditTask({ name: 'Ads', key: 'ads.default' } as Parameters<typeof auditTask>[0], 'Ads (`ads.default`) has 1 problem(s)\n\n- db fails');
+  assert.equal(t.kind, 'audit');
+  assert.match(t.body, /- db fails/);
+  assert.match(auditTask({ name: 'Ads', key: 'ads.default' } as Parameters<typeof auditTask>[0], '').body, /found nothing at the time of the start/);
+});

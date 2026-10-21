@@ -34,7 +34,7 @@ export interface HandoffContext {
 }
 
 /** A job handed to the agent with the context (D-3). */
-export interface HandoffTask { kind: 'fix' | 'update' | 'setup'; title: string; body: string }
+export interface HandoffTask { kind: 'fix' | 'update' | 'setup' | 'audit'; title: string; body: string }
 
 /** The newest first, warnings and errors of the last ones kept even when info rows are many. */
 export function handoffContext(s: ServiceSnapshot, activity: ActivityItem[], folder: string | null, lang: Lang = 'en', limit = 20): HandoffContext {
@@ -124,6 +124,11 @@ export function fixTask(c: HandoffContext): HandoffTask {
     title: `${c.name} is ${c.state}`,
     body: `${c.name} (\`${c.key}\`) is **${c.state}** in Fabric Dashboards:\n\n${why}\n\nFind the cause in its repository, logs and recent events (context.md), fix it, and confirm with the MCP tool \`service_status\` that it is \`ready\`. Ask me before anything destructive, any sign-in, or a secret (use a hidden prompt for secrets; never print one).`,
   };
+}
+
+/** FD-81: what *Fix with agent* on the auditor's findings hands over: the findings as the person read them. */
+export function auditTask(c: HandoffContext, findings: string): HandoffTask {
+  return { kind: 'audit', title: `Audit findings for ${c.name}`, body: findings.trim() || `${c.name} (\`${c.key}\`): the auditor found nothing at the time of the start. Check with the MCP tool \`audit\`.` };
 }
 
 /** What *Update with agent* hands over (D-3). */
@@ -239,13 +244,13 @@ export function writePack(dir: string, files: { context: string; task: string | 
  */
 export function prepareHandoff(o: {
   snapshot: ServiceSnapshot; activity: ActivityItem[]; folder: string; runtimeId: string; dir: string;
-  server: McpCommand; version: string; task?: { kind: 'fix' | 'update'; output?: string }; now?: () => Date;
+  server: McpCommand; version: string; task?: { kind: 'fix' | 'update' | 'audit'; output?: string }; now?: () => Date;
 }): { handoff: { before: string[]; after: string[] }; env: Record<string, string>; files: { context: string; task: string | null; mcp: string; brief: string | null; manifest: string | null } } {
   // A start that fails before the manifest is written again must not leave the last start's manifest behind.
   fs.rmSync(path.join(o.dir, 'handoff.json'), { force: true });
   const now = (o.now ?? (() => new Date()))().toISOString();
   const ctx = handoffContext(o.snapshot, o.activity, o.folder);
-  const job = o.task ? (o.task.kind === 'fix' ? fixTask(ctx) : updateTask(ctx, o.task.output ?? null)) : null;
+  const job = o.task ? (o.task.kind === 'fix' ? fixTask(ctx) : o.task.kind === 'audit' ? auditTask(ctx, o.task.output ?? '') : updateTask(ctx, o.task.output ?? null)) : null;
   const taskPath = job ? path.join(o.dir, 'task.md') : null;
   const text = brief(ctx.key, { task: taskPath });
   const inline = briefFitsInline(text);
