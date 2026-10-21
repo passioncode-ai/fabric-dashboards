@@ -22,8 +22,9 @@ Screenshots of the real app against the kit's sample service under example names
 
 | | |
 |---|---|
-| **Overview** | a status strip (agents ready, not answering, needing attention, spend today and in 30 days), compact *Needs attention* rows, then a card per agent — its instances (main, projection, read-only) inside one card ([ADR-0012](docs/adr/0012-one-entry-per-product.md)), state, version and commit, uptime, the service's own tiles, its latest event — and *Needs attention* first, per instance; services without a dashboard under *Background* |
+| **Overview** | a status strip (agents ready, not answering, needing attention, spend today and in 30 days), compact *Needs attention* rows, then a card per agent — its instances (main, projection, read-only) inside one card ([ADR-0012](docs/adr/0012-one-entry-per-product.md)), state, version and commit, uptime, the service's own tiles, its latest event — and *Needs attention* first, per instance; the agents grouped *On this Mac*, *Online* and *Services* (no dashboard of their own, or moved there by you), and the ones you hid folded at the bottom ([ADR-0022](docs/adr/0022-agent-categories-and-connections.md)) |
 | **Service view** | the service's dashboard takes the window: a one-line header (state, name, the first problem, the tabs) that opens to the full card with Restart · Stop/Start · Update · Doctor · Logs; a toolbar over the dashboard: Back, Forward, Reload, Home, the page's address, Copy address and Copy app link ([ADR-0014](docs/adr/0014-dashboard-toolbar.md), [ADR-0017](docs/adr/0017-focus-layout-and-agent-console.md)); the sidebar folds into a rail |
+| **Connections** | on every agent's page: who uses it, what it offers, and what it uses (other agents, models, its runner, connectors, data stores, channels), each with its state, and the chain through the agents it reaches; an agent declares them with `extensions/connections/0.1` ([ADR-0022](docs/adr/0022-agent-categories-and-connections.md)) |
 | **Agent console** | beside the dashboard, the agent's own runtime — Claude Code, Codex or another one installed — in the agent's repository, on the account Fabric Switchboard binds to it; New, Continue, Open in Terminal ([ADR-0017](docs/adr/0017-focus-layout-and-agent-console.md)) |
 | **Activity** | every service's events and the app's own observations in one feed, filterable, each row opening the exact item |
 | **Spend** | what every agent spent today, in 7 and 30 days, on which models and against its own budget — from each agent's own usage report (contract DEC-0021); an unknown cost reads unknown, never $0 |
@@ -147,12 +148,12 @@ window forward: quit the installed app first, or give the checkout its own profi
 ## For agents
 
 Tools: `host_status`, `list_services`, `service_status`, `service_context`, `link`, `open`, `control`, `doctor`, `update`,
-`activity`, `spend` (`spend` from 0.5.6; `service_context` — everything about one service a coding agent needs before working on it, its descriptor without `auth` — from FD-39). A console the app starts for a service already holds that context and this server (ADR-0020). An agent that starts work on a service hands the operator the `open_link` from
+`activity`, `spend`, `connections` (`connections` from 0.7.18, what one agent is connected to, as its Connections tab shows it; `spend` from 0.5.6; `service_context` — everything about one service a coding agent needs before working on it, its descriptor without `auth` — from FD-39). A console the app starts for a service already holds that context and this server (ADR-0020). An agent that starts work on a service hands the operator the `open_link` from
 `link` — `fabric-dashboards://service/<id.instance>?path=/…`, which opens that page inside the
 app. Keep `http_url` for diagnostics or confirmed-absent fallback. `open` opens it now;
 `fallback=never` forbids the browser, and installed-host failure never falls back. `spend` gives
 each agent's own usage entries; a service that does not answer is an error entry (unknown spend),
-never "not reporting". `list_services` and `service_status` carry `dashboard_min_width`: the floor a
+never "not reporting". `list_services` and `service_status` carry `category` (`local`, `online` or `service`) and `hidden`, as the app lists them (from 0.7.18), and `dashboard_min_width`: the floor a
 service declares for its dashboard (contract DEC-0036 ED-9), `null` when it declares none; the app
 keeps every dashboard at least `max(480, dashboard_min_width)` px wide beside the console (ED-7).
 `doctor` and `update` run the service's own programs: announce them first.

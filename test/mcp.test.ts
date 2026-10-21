@@ -430,3 +430,34 @@ test('every tool\'s input schema is one a model API accepts: an object with no a
     for (const k of ['anyOf', 'oneOf', 'allOf', 'not', 'enum']) assert.ok(!(k in s), `${t.name} has ${k} at the top of its input schema`);
   }
 });
+
+// ── FD-78: how the app lists a service, and its connections ────────────────────────────────
+
+test('FD-78: list_services says how the app lists each product, with the person\'s choices read from its settings', async () => {
+  const w = world();
+  const plain = (await tools.listServices(w.deps)).services[0]!;
+  assert.deepEqual([plain.category, plain.hidden], ['local', false], 'a product with a dashboard on this Mac, nothing chosen');
+  w.deps.listLayout = () => ({ hidden: ['example-agent'], kinds: { 'example-agent': 'service' } });
+  const chosen = (await tools.listServices(w.deps)).services[0]!;
+  assert.deepEqual([chosen.category, chosen.hidden], ['service', true]);
+  assert.deepEqual([(await tools.serviceStatus(w.deps, KEY)).category], ['service']);
+  const dir = tmp('fd-mcp-layout-');
+  fs.writeFileSync(path.join(dir, 'settings.json'), JSON.stringify({ layout: { list: { hidden: ['a', 'Bad!'], kinds: { a: 'service', b: 'x' } } } }));
+  assert.deepEqual(tools.readListLayout(path.join(dir, 'settings.json')), { hidden: ['a'], kinds: { a: 'service' } });
+  assert.equal(tools.readListLayout(path.join(dir, 'missing.json')), null, 'no settings: nothing chosen');
+  assert.equal(tools.appSettingsFile('darwin', { FABRIC_DASHBOARDS_USER_DATA: '/x/app' }, '/h'), path.join('/x/app', 'settings.json'));
+  assert.equal(tools.appSettingsFile('darwin', {}, '/h'), path.join('/h', 'Library', 'Application Support', 'Fabric Dashboards', 'settings.json'));
+});
+
+test('FD-78: connections answers the agent\'s graph with its spend report\'s models; an unknown key is refused', async () => {
+  const usageWk = fixture('positive_service-well-known-usage.json') as WellKnown;
+  const { deps } = world({ answers: [{ kind: 'answer', doc: usageWk, ms: 3 }] });
+  deps.now = () => Date.parse('2026-10-04T12:00:00Z');
+  const g = await tools.connections(deps, KEY);
+  assert.equal(g.key, KEY);
+  assert.equal(g.declared, false);
+  assert.deepEqual(g.uses.filter((n) => n.source === 'usage').map((n) => n.label).sort(), ['claude-sonnet-5-5', 'google/gemini-3-flash', 'llama-4-8b'], 'the models of its usage report');
+  assert.deepEqual(g.offers.surfaces, ['dashboard', 'mcp', 'events', 'usage']);
+  await assert.rejects(tools.connections(deps, 'nobody.default'), /no installed service/);
+  assert.ok(TOOLS.some((x) => x.name === 'connections' && x.annotations.readOnlyHint));
+});

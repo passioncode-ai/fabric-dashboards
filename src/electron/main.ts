@@ -32,7 +32,7 @@ import { powerShellAfterExit } from '../core/after-exit';
 import { SettingsStore } from '../core/settings';
 import type { AppStatus, Settings, SettingsPatch } from '../core/types';
 import { ALWAYS_KEPT, cancelStagedUpdate, clearRestoreRecord, KEPT_FILES, productDataPaths, purgeAfterExit, readRestoreRecord, removeMcpRegistrations, repairMcpRegistrations, restoreMcpRegistrations, writeRestoreRecord } from '../core/uninstall';
-import { autoInstallNow, autoInstallWait, HiddenGrace, partitionFor, RELAUNCH_MARKER, relaunchHidden, RESUME_ROUTE_MARKER, resumeRoute, type ResumeRoute, stalePartitions, UPDATE_IDLE_MS, VIEW_RELEASE_ALL_MS, VIEW_RELEASE_GRACE_MS, VISIBILITY_SYNC_MS, VisibilitySync, WARM_VIEWS } from './policy';
+import { autoInstallNow, autoInstallWait, cookieRewrite, COOKIES_REENCRYPTED_MARKER, HiddenGrace, partitionFor, RELAUNCH_MARKER, relaunchHidden, RESUME_ROUTE_MARKER, resumeRoute, type ResumeRoute, stalePartitions, UPDATE_IDLE_MS, VIEW_RELEASE_ALL_MS, VIEW_RELEASE_GRACE_MS, VISIBILITY_SYNC_MS, VisibilitySync, WARM_VIEWS } from './policy';
 import { AppTray } from './tray';
 import { DockSync } from './dock';
 import { linkInArgv, menuKeys, notificationSettingsUrl, places, startHidden, uninstallCommand, uninstallTarget, windowChrome } from '../core/platform';
@@ -894,6 +894,28 @@ if (!app.requestSingleInstanceLock()) {
       try { names = fs.readdirSync(dir); } catch { return; }
       for (const name of stalePartitions(names, monitor.snapshots().map((s) => s.key))) {
         try { fs.rmSync(path.join(dir, name), { recursive: true, force: true }); log(`removed the stored session of a service that is gone: ${name}`); } catch (error) { log(`could not remove ${name}: ${(error as Error).message}`); }
+      }
+      // FD-04 follow-up: cookies stored before encryption are written back once, so Chromium stores them encrypted.
+      // Linux keeps the fuse off (dist-other.mjs), so there is nothing to do there. Counts are logged, never values.
+      const marker = path.join(userData, COOKIES_REENCRYPTED_MARKER);
+      if (process.platform !== 'linux' && app.isPackaged && !fs.existsSync(marker)) {
+        void (async () => {
+          let rewritten = 0, failed = 0;
+          for (const key of monitor.snapshots().map((s) => s.key)) {
+            if (!names.includes(partitionFor(key).slice('persist:'.length))) continue;
+            const ses = session.fromPartition(partitionFor(key));
+            try {
+              for (const c of await ses.cookies.get({})) {
+                const back = cookieRewrite(c);
+                if (!back) continue;
+                try { await ses.cookies.set(back); rewritten += 1; } catch { failed += 1; }
+              }
+              await ses.cookies.flushStore();
+            } catch { failed += 1; }
+          }
+          log(`dashboard cookies written back for encryption: ${rewritten} rewritten, ${failed} failed`);
+          if (failed === 0) try { fs.writeFileSync(marker, new Date().toISOString(), { mode: 0o600 }); } catch { /* tried again next start */ }
+        })();
       }
     });
     monitor.start();

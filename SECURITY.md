@@ -94,6 +94,16 @@ service data.
   fabric-agent-adapter README ("How a service joins"); and macOS System Settings →
   Notifications.
 
+## Dashboard sign-ins at rest
+
+Each dashboard keeps its sign-in cookies in its own partition (`Partitions/svc-<key>`). Since 0.7.15 they are
+encrypted at rest on macOS (key: the «Fabric Dashboards Safe Storage» login-keychain item) and Windows (DPAPI); Linux
+keeps them plaintext 0600, because its keyring may ask the person to unlock it (FD-04, AGENTS.md *Fuses*). Cookies a
+dashboard stored before 0.7.15 stayed plaintext until rewritten: the review of 2026-10-21 counted 16 such cookies in
+12 partitions on the operator's Mac, the newest from 2026-10-18. Since 0.7.18 the first start writes every cookie of
+every installed service's partition back once, unchanged, so Chromium stores it encrypted, then leaves the marker
+`.cookies-reencrypted`; a failure leaves no marker and is tried at the next start. Only counts are logged.
+
 A token file is readable by any process of the same user. Fabric Dashboards, like the
 `fabric-service/0.1` extension, defends against web pages and mistakes, not against
 hostile code already running as the operator.

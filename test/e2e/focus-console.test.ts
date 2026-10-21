@@ -181,6 +181,9 @@ test('ADR-0017: a one-line header, a folding sidebar, and an agent console besid
       await page.getByRole('button', { name: 'Actions for Sample Service' }).click();
     };
     await rowMenu();
+    await shot(page, '23a-row-menu');
+    const item = (await page.getByRole('menuitem', { name: 'Pin Sample Service to the top' }).boundingBox())!;
+    assert.ok(item.x >= 0 && item.y >= 0 && item.x + item.width <= 1440, 'the row menu opens on screen, beside its row');
     await page.getByRole('menuitem', { name: 'Pin Sample Service to the top' }).click();
     await page.locator('.nav-section', { hasText: 'Pinned' }).waitFor();
     await rowMenu();

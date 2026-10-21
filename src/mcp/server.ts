@@ -53,7 +53,7 @@ export const TOOLS = [
   },
   {
     name: 'list_services',
-    description: 'Every installed service, local and online: its product (every instance of one id is one product), placement, state (ready, degraded, down, stopped…), version, dashboard URL, the dashboard\'s declared minimum width (dashboard_min_width, null when it declares none), a fabric-dashboards:// link, tiles, pending update.',
+    description: 'Every installed service, local and online: its product (every instance of one id is one product), placement, state (ready, degraded, down, stopped…), version, dashboard URL, the dashboard\'s declared minimum width (dashboard_min_width, null when it declares none), a fabric-dashboards:// link, tiles, pending update, and how the app lists it: category (local, online, or service) and hidden (the person hid it; it is still watched).',
     inputSchema: { type: 'object', properties: {}, additionalProperties: false },
     annotations: { readOnlyHint: true },
   },
@@ -117,6 +117,12 @@ export const TOOLS = [
     annotations: { readOnlyHint: true },
   },
   {
+    name: 'connections',
+    description: 'What one agent is connected to, as its Connections tab shows it: used_by (agents that declare calling it), offers (surfaces and MCP capabilities), uses (other agents with their own chain, models from its spend report, its runner, connectors, data stores, channels, parts it reports failing), each with a state (ok, degraded, down, unknown), and worst: the worst state of the agent and its whole chain. declared: false means the agent does not declare its connections yet (extensions/connections/0.1) and only what the app sees is listed; errors name why a declaration was refused.',
+    inputSchema: { type: 'object', properties: { service: serviceArg }, required: ['service'], additionalProperties: false },
+    annotations: { readOnlyHint: true },
+  },
+  {
     name: 'spend',
     description: 'What each agent spent, from its own usage report (Fabric Agent Contract DEC-0021): today, the last 7 and 30 UTC days, per model, its budget and every spending limit it applies (limits: DEC-0027, ranked — tripped, breach, near, ok, unknown, cap (per order), threshold (approval), off (not enforced)). costUsd null means unknown, never $0; partial: true means the cost is a lower bound, tokensPartial: true that the token counts are (DEC-0091). One service, or every one.',
     inputSchema: {
@@ -169,6 +175,7 @@ export async function call(deps: tools.Deps, name: string, args: Args): Promise<
       return tools.serviceContext(deps, key);
     }
     case 'activity': return tools.activity(deps, need(args, 'service'), typeof args.limit === 'number' ? args.limit : 20);
+    case 'connections': return tools.connections(deps, need(args, 'service'));
     case 'spend': return tools.spend(deps, str(args, 'service'));
     default: throw new tools.ToolError(`unknown tool ${JSON.stringify(name)}`);
   }

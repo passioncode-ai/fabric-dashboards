@@ -63,7 +63,9 @@ test('FD-78: what the app sees without a declaration: models from usage, the run
     ['part', 'collector', 'degraded', 'degraded'],
     ['part', 'oauth', 'unknown', 'degraded'],
   ]);
-  assert.deepEqual(g.usedBy, [{ key: 'growth.default', name: 'GROWTH', state: 'ok', capability: 'prowl.search' }]);
+  assert.deepEqual(g.usedBy, [{ key: 'growth.default', name: 'GROWTH', state: 'ok', capabilities: ['prowl.search'] }]);
+  const twice = svc('ops.default', 'ready', [use('a', 'prowl', 'ok', 'prowl.search'), use('b', 'prowl.default', 'degraded', 'prowl.report')]);
+  assert.deepEqual(buildGraph(s, [s, twice]).usedBy, [{ key: 'ops.default', name: 'OPS', state: 'degraded', capabilities: ['prowl.search', 'prowl.report'] }], 'one row per agent, every capability, the worse state');
   assert.deepEqual(g.offers, { capabilities: ['prowl.search'], surfaces: ['mcp', 'events'] });
 });
 

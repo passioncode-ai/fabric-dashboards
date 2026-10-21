@@ -26,7 +26,7 @@ import { pathToFileURL } from 'node:url';
 import { FEED_FILE, feedNamesOwnRelease, localFeed, parseSums, releaseFile, signedFeed, sumsSignedByRelease, zipName } from '../core/release-verify';
 import { APP_UPDATE_EVERY_MS, FIRST_CHECK_MS, isNewer, quietCheck, mayCheck, stagedBundlePath, stagedRefusal, stagingLost, strayShipIt } from '../core/version';
 import type { AppStatus } from '../core/types';
-import { appImageRelaunchCommand, nsisInstalledAt, nsisUpdateCommand, PENDING_UPDATE_DIR, platformKey, platformUpdate, replaceAppImage, stagedAppImage, updateChannel } from '../core/self-update';
+import { appImageRelaunchCommand, nsisInstalledAt, nsisUpdateCommand, PENDING_UPDATE_DIR, platformKey, platformUpdate, replaceAppImage, stagedAppImage, unpackFailure, unpackRoomRefusal, updateChannel } from '../core/self-update';
 import { uninstallTarget } from '../core/platform';
 import { powerShellAfterExit, spawnAfterExit } from '../core/after-exit';
 import { windowsPowerShellEnv } from '@passioncode-ai/fabric-service-host';
@@ -299,7 +299,12 @@ export class Updater {
         return { code: 'download_failed', error: (error as Error).message };
       }
       if (actual !== expected) return { code: 'signature_failed', error: `${zipName(version)} has sha256 ${actual}, SHA256SUMS says ${expected}` };
-      if ((await run('/usr/bin/ditto', ['-x', '-k', zip, path.join(dir, 'app')])).code !== 0) return { code: 'download_failed', error: `${zipName(version)} could not be unpacked` };
+      // FD-79: a full disk is named as such, before and after unpacking; the tool's own words are kept.
+      const free = () => { try { const s = fs.statfsSync(dir); return s.bavail * s.bsize; } catch { return null; } };
+      const room = unpackRoomRefusal(fs.statSync(zip).size, free());
+      if (room) return { code: 'download_failed', error: room };
+      const unpacked = await run('/usr/bin/ditto', ['-x', '-k', zip, path.join(dir, 'app')]);
+      if (unpacked.code !== 0) return { code: 'download_failed', error: unpackFailure(zipName(version), unpacked.out, free()) };
       const bundle = path.join(dir, 'app', 'Fabric Dashboards.app');
       const seen = await inspect(bundle);
       if (!seen.strict) return { code: 'signature_failed', error: `the app in ${zipName(version)} fails strict signature verification` };

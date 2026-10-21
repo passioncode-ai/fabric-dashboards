@@ -975,3 +975,12 @@ test('LC-16: a quiet check is logged once per state, again after a failure, and 
   assert.equal(run('0.7.12', '0.7.12'), true, 'the first quiet check after a failure says it is over');
   assert.equal(run('0.7.13', '0.7.13'), true, 'a new installed version is a new state');
 });
+
+test('FD-04 follow-up: a stored cookie is written back unchanged, host-only by its URL alone, a session cookie without an expiry', async () => {
+  const { cookieRewrite } = await import('../src/electron/policy');
+  assert.deepEqual(cookieRewrite({ name: '__Host-fd', value: 'v', domain: 'agent.example', hostOnly: true, path: '/', secure: true, httpOnly: true, session: false, expirationDate: 1800000000, sameSite: 'lax' }),
+    { url: 'https://agent.example/', name: '__Host-fd', value: 'v', path: '/', secure: true, httpOnly: true, expirationDate: 1800000000, sameSite: 'lax' });
+  assert.deepEqual(cookieRewrite({ name: 's', value: 'x', domain: '.example.com', hostOnly: false, path: '/app', secure: false, session: true }),
+    { url: 'http://example.com/app', name: 's', value: 'x', path: '/app', domain: '.example.com', secure: false, httpOnly: false });
+  assert.equal(cookieRewrite({ name: 'n', value: 'v' }), null, 'no domain: nothing to write back to');
+});

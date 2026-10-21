@@ -9,6 +9,9 @@ import { connectionsOf, type Connection, type ConnectionKind, type ConnectionSta
 import { productIdOf } from '@passioncode-ai/fabric-service-host/links';
 import type { Reason, ServiceSnapshot, ServiceState } from './types';
 
+/** What the graph needs of a service: the app's snapshot and the MCP server's look both carry it. */
+export type Seen = Pick<ServiceSnapshot, 'key' | 'state' | 'reasons' | 'descriptor' | 'wellKnown'>;
+
 export type NodeKind = ConnectionKind | 'runner' | 'part';
 export type NodeSource = 'declared' | 'usage' | 'runner' | 'degraded';
 
@@ -41,7 +44,8 @@ export interface ConnectionGraph {
   /** What the agent uses, declared first, then what the app sees. */
   uses: ConnectionNode[];
   /** Installed agents whose declarations name this one. */
-  usedBy: { key: string; name: string; state: ConnectionState; capability?: string }[];
+  /** One row per agent, with every capability it declares calling here. */
+  usedBy: { key: string; name: string; state: ConnectionState; capabilities: string[] }[];
   /** What the agent offers: its MCP capabilities and surfaces. */
   offers: { capabilities: string[]; surfaces: ('dashboard' | 'mcp' | 'events' | 'usage')[] };
   declared: boolean;
@@ -66,21 +70,21 @@ export function stateOfService(s: ServiceState): ConnectionState {
   return 'unknown';
 }
 
-const nameOf = (s: ServiceSnapshot) => s.descriptor?.name ?? s.wellKnown?.service.name ?? s.key;
+const nameOf = (s: Seen) => s.descriptor?.name ?? s.wellKnown?.service.name ?? s.key;
 
 /** The installed agent a service target names: an exact key, else the product's `default`, else its first member. */
-export function resolveTarget(target: string, all: readonly ServiceSnapshot[]): ServiceSnapshot | undefined {
+export function resolveTarget(target: string, all: readonly Seen[]): Seen | undefined {
   const exact = all.find((s) => s.key === target);
   if (exact) return exact;
   const members = all.filter((s) => productIdOf(s.key) === target).sort((a, b) => (a.key < b.key ? -1 : 1));
   return members.find((s) => s.key.endsWith('.default')) ?? members[0];
 }
 
-function declaredNodes(s: ServiceSnapshot, all: readonly ServiceSnapshot[], seen: Set<string>, depth: number): ConnectionNode[] {
+function declaredNodes(s: Seen, all: readonly Seen[], seen: Set<string>, depth: number): ConnectionNode[] {
   return connectionsOf(s.wellKnown).connections.map((c) => nodeOf(c, all, seen, depth));
 }
 
-function nodeOf(c: Connection, all: readonly ServiceSnapshot[], seen: Set<string>, depth: number): ConnectionNode {
+function nodeOf(c: Connection, all: readonly Seen[], seen: Set<string>, depth: number): ConnectionNode {
   const base: ConnectionNode = { id: c.id, kind: c.kind, label: c.label ?? c.target, target: c.label ? c.target : undefined, capability: c.capability, purpose: c.purpose, state: c.state, reason: c.reason, lastAt: c.lastAt, source: 'declared', children: [] };
   if (c.kind !== 'service') return base;
   const reached = resolveTarget(c.target, all);
@@ -94,7 +98,7 @@ function nodeOf(c: Connection, all: readonly ServiceSnapshot[], seen: Set<string
 }
 
 /** Everything the Connections tab draws for one agent. `models` is its usage report's models, when read. */
-export function buildGraph(s: ServiceSnapshot, all: readonly ServiceSnapshot[], models: readonly ModelUse[] = []): ConnectionGraph {
+export function buildGraph(s: Seen, all: readonly Seen[], models: readonly ModelUse[] = []): ConnectionGraph {
   const view = connectionsOf(s.wellKnown);
   const uses = declaredNodes(s, all, new Set([s.key]), 1);
   const named = new Set(view.connections.flatMap((c) => [c.id, c.target]));
@@ -116,10 +120,15 @@ export function buildGraph(s: ServiceSnapshot, all: readonly ServiceSnapshot[], 
   const me = productIdOf(s.key);
   const usedBy = all
     .filter((o) => o.key !== s.key)
-    .flatMap((o) => connectionsOf(o.wellKnown).connections
-      .filter((c) => c.kind === 'service' && (c.target === s.key || (c.target === me && resolveTarget(me, all)?.key === s.key)))
-      .map((c) => ({ key: o.key, name: nameOf(o), state: worst(c.state, stateOfService(o.state)), capability: c.capability })))
-    .sort((a, b) => a.name.localeCompare(b.name));
+    .flatMap((o) => {
+      // An agent that names this one several times (two capabilities) is one row.
+      const here = connectionsOf(o.wellKnown).connections
+        .filter((c) => c.kind === 'service' && (c.target === s.key || (c.target === me && resolveTarget(me, all)?.key === s.key)));
+      if (!here.length) return [];
+      const state = here.reduce<ConnectionState>((w, c) => worst(w, c.state), stateOfService(o.state));
+      return [{ key: o.key, name: nameOf(o), state, capabilities: [...new Set(here.flatMap((c) => (c.capability ? [c.capability] : [])))] }];
+    })
+    .sort((a, b) => a.name.localeCompare(b.name) || (a.key < b.key ? -1 : 1));
   const surf = s.wellKnown?.surfaces;
   const surfaces = (['dashboard', 'mcp', 'events', 'usage'] as const).filter((k) => Boolean(surf?.[k]));
   return { uses, usedBy, offers: { capabilities: surf?.mcp?.capabilities ?? [], surfaces }, declared: view.declared, errors: view.errors };

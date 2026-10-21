@@ -224,6 +224,30 @@ export function stalePartitions(names: string[], keys: string[]): string[] {
 }
 // #endregion view-release
 
+// #region cookie-reencrypt — docs: SECURITY.md#dashboard-sign-ins-at-rest
+/** FD-04 follow-up (review 2026-10-21): cookies a dashboard stored before cookie encryption (0.7.15) stay plaintext at
+ *  rest until rewritten. Once, at start, every live partition's cookies are set again as they are, and Chromium stores
+ *  them encrypted. This marker in userData records that it ran. */
+export const COOKIES_REENCRYPTED_MARKER = '.cookies-reencrypted';
+
+/** What `cookies.set` takes to write back one cookie unchanged (the shape Electron's `Cookie` and `CookiesSetDetails`
+ *  share). A host-only cookie (`__Host-` ones included) is set by its URL alone, never with a domain. */
+export interface StoredCookie { name: string; value: string; domain?: string; hostOnly?: boolean; path?: string; secure?: boolean; httpOnly?: boolean; session?: boolean; expirationDate?: number; sameSite?: 'unspecified' | 'no_restriction' | 'lax' | 'strict' }
+export function cookieRewrite(c: StoredCookie): { url: string; name: string; value: string; domain?: string; path?: string; secure?: boolean; httpOnly?: boolean; expirationDate?: number; sameSite?: StoredCookie['sameSite'] } | null {
+  const host = (c.domain ?? '').replace(/^\./, '');
+  if (!host) return null;
+  const path = c.path || '/';
+  return {
+    url: `${c.secure ? 'https' : 'http'}://${host}${path}`,
+    name: c.name, value: c.value, path,
+    ...(c.hostOnly ? {} : { domain: c.domain }),
+    secure: Boolean(c.secure), httpOnly: Boolean(c.httpOnly),
+    ...(c.session || c.expirationDate === undefined ? {} : { expirationDate: c.expirationDate }),
+    ...(c.sameSite ? { sameSite: c.sameSite } : {}),
+  };
+}
+// #endregion cookie-reencrypt
+
 // #region auto-install — docs: docs/adr/0015-data-survives-uninstall-updates-install-themselves.md#decision
 /** How long the window stays hidden before a downloaded update installs by itself (ADR-0015). */
 export const UPDATE_IDLE_MS = 10 * 60_000;

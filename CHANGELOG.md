@@ -2,6 +2,25 @@
 
 ## Unreleased
 
+## 0.7.18 - 2026-10-21
+
+### Added
+
+- **Agents can read connections too** (FD-78). The MCP server has a `connections` tool that returns what an agent's
+  Connections tab shows, and `list_services` says how the app lists each agent (on this Mac, online or service) and
+  whether you hid it.
+
+### Fixed
+
+- **Dashboard sign-ins stored before 0.7.15 are encrypted too** (FD-04). Cookie encryption applied only to cookies
+  written after it was turned on; older ones stayed readable on disk. The first start of this version writes every
+  stored sign-in back once, so it is stored encrypted, and nobody is signed out.
+- **An update that cannot be unpacked says why** (FD-79). When the disk is too full, the message says how much space is
+  free and how much is needed, instead of only "could not be unpacked".
+- **The row menu is never cut off** at the bottom of a long list; it opens above its row there.
+- **Hidden agents can be opened in the narrow sidebar** (FD-78): the "Hidden" fold is an entry of its own there.
+- **An agent that names another one twice is listed once** under "Used by", with both of its calls.
+
 ## 0.7.17 - 2026-10-20
 
 ### Added
