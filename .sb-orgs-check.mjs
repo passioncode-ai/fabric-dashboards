@@ -1,0 +1,23 @@
+import { webkit } from 'playwright';
+const b = await webkit.launch(); const p = await b.newPage({ locale: 'ru-RU', viewport: { width: 1280, height: 1000 } });
+const errors = []; p.on('pageerror', e => errors.push(String(e))); p.on('console', m => { if (m.type()==='error') errors.push(m.text()); });
+await p.goto('http://127.0.0.1:5199/?demo=1'); await p.waitForSelector('.account-row', { timeout: 20000 });
+const before = await p.locator('.org-bar').innerText();
+await p.getByRole('button', { name: 'Добавить организацию…' }).click();
+await p.locator('dialog input').nth(0).fill('Example Co'); await p.locator('dialog input').nth(1).fill('example.test');
+await p.locator('dialog button[type=submit]').click(); await p.waitForTimeout(1200);
+const badges = await p.locator('.org-badge').count();
+const chips = await p.locator('.org-filter .segment').allInnerTexts();
+await p.screenshot({ path: '/private/tmp/claude-501/-Users-sshlg-DATA-fabric-switchboard/2ca546bc-836e-4978-8671-031182fb29fc/scratchpad/orgs-accounts.png' });
+await p.locator('.org-filter .segment', { hasText: 'Личные' }).click(); await p.waitForTimeout(300);
+const personalRows = await p.locator('.account-row').count();
+await p.locator('.org-filter .segment', { hasText: 'Все' }).click(); await p.waitForTimeout(300);
+// Assign the first account as personal through its menu
+const first = p.locator('.account-row').first(); await first.locator('button[aria-haspopup], .icon-button').last().click();
+await p.getByRole('menuitem', { name: 'Организация…' }).click().catch(async () => { await p.getByText('Организация…').click(); });
+await p.locator('dialog select').selectOption('personal'); await p.locator('dialog button[type=submit]').click(); await p.waitForTimeout(1000);
+const badgesAfter = await p.locator('.org-badge').count();
+await p.getByRole('button', { name: 'Организации…' }).click(); await p.waitForTimeout(300);
+await p.screenshot({ path: '/private/tmp/claude-501/-Users-sshlg-DATA-fabric-switchboard/2ca546bc-836e-4978-8671-031182fb29fc/scratchpad/orgs-dialog.png' });
+console.log(JSON.stringify({ before, badges, chips, personalRows, badgesAfter, errors }, null, 1));
+await b.close();
