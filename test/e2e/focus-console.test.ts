@@ -174,6 +174,22 @@ test('ADR-0017: a one-line header, a folding sidebar, and an agent console besid
     await page.keyboard.press('Enter');
     await page.getByText('Exited (code 0).').waitFor({ timeout: 15_000 });
 
+    // FD-81 SCN-074: the auditor hands the same agent's findings to the coding agent picked in its row.
+    await page.getByRole('button', { name: /^Connections/ }).first().click();
+    const auditRow = page.locator('.audit-group', { hasText: 'Sample Service' });
+    await auditRow.getByRole('combobox').waitFor();
+    assert.equal(await auditRow.getByRole('combobox').inputValue(), 'claude-code', 'the runtime chosen for this agent');
+    await shot(page, '24a-auditor');
+    await auditRow.getByRole('button', { name: 'Fix with agent' }).click();
+    await waitFor('the audit task to be written', () => /^# Task: Audit findings for Sample Service/.test(fs.readFileSync(path.join(pack, 'task.md'), 'utf8')));
+    assert.match(fs.readFileSync(path.join(pack, 'task.md'), 'utf8'), /the Fabric Dashboards auditor found/);
+    await page.getByRole('heading', { level: 1, name: 'Sample Service' }).waitFor();
+    await waitFor('the runtime to start on the audit task', async () => /Do the task in [^\]]*task\.md\.\]/.test(await termText(page)) && !(await termText(page)).includes('Exited (code 0).'));
+    await page.locator('.console-term').click();
+    await page.keyboard.type('bye');
+    await page.keyboard.press('Enter');
+    await waitFor('the second session to end', async () => (await page.getByText('Exited (code 0).').count()) > 0);
+
     // FD-39 SCN-056: pin the agent to the top; a Pinned section holds it, and the choice is remembered.
     // FD-78: the row's actions live in one small menu.
     const rowMenu = async () => {

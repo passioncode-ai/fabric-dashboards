@@ -32,7 +32,7 @@ import { powerShellAfterExit } from '../core/after-exit';
 import { SettingsStore } from '../core/settings';
 import type { AppStatus, Settings, SettingsPatch } from '../core/types';
 import { ALWAYS_KEPT, cancelStagedUpdate, clearRestoreRecord, KEPT_FILES, productDataPaths, purgeAfterExit, readRestoreRecord, removeMcpRegistrations, repairMcpRegistrations, restoreMcpRegistrations, writeRestoreRecord } from '../core/uninstall';
-import { autoInstallNow, autoInstallWait, cookieRewrite, COOKIES_REENCRYPTED_MARKER, HiddenGrace, partitionFor, RELAUNCH_MARKER, relaunchHidden, RESUME_ROUTE_MARKER, resumeRoute, type ResumeRoute, stalePartitions, UPDATE_IDLE_MS, VIEW_RELEASE_ALL_MS, VIEW_RELEASE_GRACE_MS, VISIBILITY_SYNC_MS, VisibilitySync, WARM_VIEWS } from './policy';
+import { autoInstallNow, autoInstallWait, cookieRewrite, onScreen, COOKIES_REENCRYPTED_MARKER, HiddenGrace, partitionFor, RELAUNCH_MARKER, relaunchHidden, RESUME_ROUTE_MARKER, resumeRoute, type ResumeRoute, stalePartitions, UPDATE_IDLE_MS, VIEW_RELEASE_ALL_MS, VIEW_RELEASE_GRACE_MS, VISIBILITY_SYNC_MS, VisibilitySync, WARM_VIEWS } from './policy';
 import { AppTray } from './tray';
 import { DockSync } from './dock';
 import { linkInArgv, menuKeys, notificationSettingsUrl, places, startHidden, uninstallCommand, uninstallTarget, windowChrome } from '../core/platform';
@@ -167,6 +167,8 @@ if (!app.requestSingleInstanceLock()) {
       } catch { /* no notification centre */ }
     }
     if (updater.state.state === 'ready' && !windowVisible()) updateGrace.hidden();
+    // FD-80: a ready update held by a shown window says so once, not only when the grace fires.
+    else if (updater.state.state === 'ready') autoInstall();
     if (updater.state.state === 'error') {
       // A failed install: the window hides on close again, and no later launch starts hidden because of a marker
       // written for an install that never happened (the waiter or shell may fail before the quit began).
@@ -214,7 +216,9 @@ if (!app.requestSingleInstanceLock()) {
   // badge is set only when it changes (LC-08).
   let pushTimer: NodeJS.Timeout | null = null;
   let badge: string | null = null;
-  const windowVisible = () => Boolean(window && !window.isDestroyed() && window.isVisible() && !window.isMinimized());
+  // FD-80: a window of a hidden app (⌘H, or hidden by another program) is not on screen, whatever isVisible() says;
+  // measured 2026-10-21: System Events hid the app and Electron still reported the window visible for an hour.
+  const windowVisible = () => onScreen({ exists: Boolean(window && !window.isDestroyed()), visible: Boolean(window && !window.isDestroyed() && window.isVisible()), minimized: Boolean(window && !window.isDestroyed() && window.isMinimized()), appHidden: process.platform === 'darwin' && app.isHidden() });
   function pushStatus(): void {
     if (pushTimer) return;
     pushTimer = setTimeout(() => {
@@ -405,7 +409,7 @@ if (!app.requestSingleInstanceLock()) {
 
   // A navigation sent before the renderer subscribes is lost (a link at launch lands while React
   // is still mounting), so until the renderer takes it (CHANNELS.navigateTake) it waits here.
-  type NavTarget = { page: 'service' | 'activity' | 'overview' | 'spend' | 'settings'; key?: string; link?: string };
+  type NavTarget = { page: 'service' | 'activity' | 'overview' | 'spend' | 'map' | 'settings'; key?: string; link?: string };
   /** U-18: the screen on show, reported by the renderer; Restart to update writes it for the next copy. */
   let shownRoute: ResumeRoute = { page: 'overview' };
   let rendererListening = false;

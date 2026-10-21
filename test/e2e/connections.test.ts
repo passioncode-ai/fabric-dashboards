@@ -99,6 +99,22 @@ test('FD-78: Connections draws the chain and the worst state in it; a service wi
     await page.getByRole('heading', { level: 1, name: 'Communicator' }).waitFor();
     await page.locator('.conn').getByRole('button', { name: /Ads Manager/ }).waitFor();
     if (SHOTS) await page.screenshot({ path: path.join(SHOTS, '28-connections-used-by.png') });
+
+    // FD-81 SCN-074: the Connections page draws the map left to right and the auditor lists what to fix, by agent.
+    await page.getByRole('button', { name: /^Connections/ }).first().click();
+    await page.getByRole('heading', { level: 1, name: 'Connections' }).waitFor();
+    await page.locator('.cmap-graph svg').waitFor();
+    assert.equal(await page.locator('.cmap-graph .edge').count(), 2, 'ads → communicator → relay');
+    await page.locator('.cmap-summary').getByText('Does not work').waitFor();
+    await page.getByText('Agents that declare their connections: 2 of 3.').waitFor();
+    const group = page.locator('.audit-group', { hasText: 'Ads Manager' });
+    await group.getByText(/Google Ads API|google-ads fails/).first().waitFor();
+    await page.locator('.audit-group', { hasText: 'Communicator' }).getByText('It relies on Relay, which does not answer.').waitFor();
+    assert.equal(await page.locator('.audit-group', { hasText: 'Communicator' }).getByRole('button', { name: 'Fix with agent' }).count(), 0, 'a chain finding is fixed where the cause is');
+    assert.equal(await page.locator('.audit-group', { hasText: 'Relay' }).getByRole('button', { name: 'Fix with agent' }).count(), 1);
+    if (SHOTS) await page.screenshot({ path: path.join(SHOTS, '29-connections-map.png') });
+    // The nav carries what does not work.
+    assert.match(await page.locator('.nav-item', { hasText: 'Connections' }).innerText(), /\d/);
   } finally {
     await closeApp(app);
     for (const s of servers) await new Promise<void>((r) => s.close(() => r()));

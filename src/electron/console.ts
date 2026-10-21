@@ -448,7 +448,7 @@ export class ConsoleHost {
     ipcMain.handle(CHANNELS.consolePickFolder, (_e, key) => (keyOk(key) ? this.pickFolder(key) : Promise.reject(new Error('not a service key'))));
     const taskOf = (v: unknown): ConsoleTask | undefined => {
       const x = (v ?? null) as { kind?: unknown; output?: unknown } | null;
-      if (!x || (x.kind !== 'fix' && x.kind !== 'update')) return undefined;
+      if (!x || (x.kind !== 'fix' && x.kind !== 'update' && x.kind !== 'audit')) return undefined;
       return { kind: x.kind, ...(typeof x.output === 'string' ? { output: x.output.slice(-20_000) } : {}) };
     };
     ipcMain.handle(CHANNELS.consoleStart, (_e, key, mode, s, task) => (keyOk(key) ? this.start(key, mode === 'continue' ? 'continue' : 'new', size(s), taskOf(task)) : Promise.reject(new Error('not a service key'))));

@@ -51,9 +51,9 @@ export function Spend({ status }: { status: AppStatus }) {
         <button className="btn" disabled={busy} onClick={() => void read(true)}>{busy ? <Spinner /> : null} {t('spend.refresh')}</button>
       </div>
       {reports.length > 0 && (
-        <div className="tiles spend-totals" aria-label={t('spend.totals')}>
+        <div className="strip strip-3 spend-totals" aria-label={t('spend.totals')}>
           {(['today', 'week', 'month'] as const).map((k) => (
-            <div key={k} className="tile"><div className="v">{money(total(k), t)}</div><div className="l">{t(`spend.${k}`)}</div></div>
+            <div key={k} className="cell"><span className="v">{money(total(k), t)}</span><span className="l">{t(`spend.${k}`)}</span></div>
           ))}
         </div>
       )}

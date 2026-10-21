@@ -8,6 +8,8 @@ import { SetupCard, Overview } from './components/Overview';
 import { ServiceView } from './components/ServiceView';
 import { Settings } from './components/Settings';
 import { Spend } from './components/Spend';
+import { ConnectionsMap } from './components/ConnectionsMap';
+import { audit } from '../core/audit';
 import { ConsolePanel } from './components/ConsolePanel';
 import { SETUP_KEY } from '../core/offers';
 import { sinceLastVisit, type SinceLastVisit } from '../core/visit';
@@ -15,7 +17,7 @@ import type { ConsoleTask } from '../core/api';
 import mark from './brand/dashboards-mark.svg';
 import { api, GLYPH, Icon, LangContext, nameOf, Spinner, useT } from './lib';
 
-type Route = { page: 'overview' } | { page: 'handover'; key: string } | { page: 'activity'; serviceKey?: string; nonce?: number } | { page: 'spend' } | { page: 'settings' } | { page: 'service'; key: string; link?: string; nonce?: number; tab?: 'logs' | 'health' | 'connections' };
+type Route = { page: 'overview' } | { page: 'handover'; key: string } | { page: 'activity'; serviceKey?: string; nonce?: number } | { page: 'spend' } | { page: 'map' } | { page: 'settings' } | { page: 'service'; key: string; link?: string; nonce?: number; tab?: 'logs' | 'health' | 'connections' };
 
 const PROBLEM = new Set(['down', 'duplicate', 'foreign', 'conflict', 'invalid']);
 
@@ -41,9 +43,9 @@ export function App() {
     void api().status().then(setStatus);
     void api().settings().then((s) => { applyTheme(s.theme); setLayout(s.layout); });
     const offStatus = api().onStatus(setStatus);
-    const go = (target: { page: 'service' | 'activity' | 'overview' | 'spend' | 'settings'; key?: string; link?: string }) => {
+    const go = (target: { page: 'service' | 'activity' | 'overview' | 'spend' | 'map' | 'settings'; key?: string; link?: string }) => {
       if (target.page === 'overview') setRoute({ page: 'overview' });
-      else if (target.page === 'spend' || target.page === 'settings') setRoute({ page: target.page });
+      else if (target.page === 'spend' || target.page === 'map' || target.page === 'settings') setRoute({ page: target.page });
       else if (target.page === 'activity') {
         if (target.key) setActivityFilter((f) => ({ ...f, serviceKey: target.key! }));
         setRoute({ page: 'activity', serviceKey: target.key, nonce: Date.now() });
@@ -108,6 +110,8 @@ function Shell({ status, route, setRoute, stopKey, setStopKey, activityFilter, s
     else void api().control(key, action);
   };
   const problems = status.services.filter((s) => PROBLEM.has(s.state)).length;
+  // FD-81: the auditor runs with every status push; the nav carries what does not work, the page the rest.
+  const auditErrors = audit(status.services).counts.error;
   const current = route.page === 'service' ? status.services.find((s) => s.key === route.key) : undefined;
   const handover = route.page === 'handover' ? (status.handovers ?? []).find((h) => h.key === route.key) : undefined;
   const stopping = stopKey ? status.services.find((s) => s.key === stopKey) : undefined;
@@ -238,6 +242,10 @@ function Shell({ status, route, setRoute, stopKey, setStopKey, activityFilter, s
             <Icon name="activity" /><span className="nav-label">{t('nav.activity')}</span>
             {status.unread > 0 && <span className="count">{status.unread}</span>}
           </button>
+          <button className="nav-item" aria-current={route.page === 'map' ? 'page' : undefined} title={rail ? t('nav.map') : undefined} onClick={() => setRoute({ page: 'map' })}>
+            <Icon name="map" /><span className="nav-label">{t('nav.map')}</span>
+            {auditErrors > 0 && <span className="count alert">{auditErrors}</span>}
+          </button>
           <button className="nav-item" aria-current={route.page === 'spend' ? 'page' : undefined} title={rail ? t('nav.spend') : undefined} onClick={() => setRoute({ page: 'spend' })}>
             <Icon name="spend" /><span className="nav-label">{t('nav.spend')}</span>
           </button>
@@ -320,13 +328,14 @@ function Shell({ status, route, setRoute, stopKey, setStopKey, activityFilter, s
             <div className={route.page === 'overview' && setupOpen ? 'svc-split' : 'page-wrap'} ref={route.page === 'overview' && setupOpen ? splitRef : undefined}>
             <div className="page">
               <div className="page-head">
-                <h1>{t(route.page === 'activity' ? 'activity.title' : route.page === 'spend' ? 'spend.title' : route.page === 'settings' ? 'settings.title' : 'overview.title')}</h1>
+                <h1>{t(route.page === 'activity' ? 'activity.title' : route.page === 'spend' ? 'spend.title' : route.page === 'map' ? 'map.title' : route.page === 'settings' ? 'settings.title' : 'overview.title')}</h1>
                 {route.page === 'overview' && count > 0 && <span className="meta">{count === 1 ? t('overview.count.one') : t('overview.count', { count })}</span>}
               </div>
               {route.page === 'overview' && <SetupCard onOpen={openSetup} consoleOpen={setupOpen} />}
               {route.page === 'overview' && <Overview status={status} products={products} open={open} act={act} agent={handToAgent} visit={visit} onContinue={continueWith} goSpend={() => setRoute({ page: 'spend' })} list={layout.list} onHiddenOpen={(o) => changeLayout({ list: { hiddenOpen: o } })} />}
               {route.page === 'activity' && <Activity status={status} openAt={open} filter={activityFilter} setFilter={setActivityFilter} />}
               {route.page === 'spend' && <Spend status={status} />}
+              {route.page === 'map' && <ConnectionsMap status={status} open={(key) => open(key, undefined, 'connections')} onAgent={handToAgent} />}
               {route.page === 'settings' && <Settings status={status} onTheme={applyTheme} onLanguage={onLanguage} onSetup={() => openSetup('new')} />}
             </div>
             {route.page === 'overview' && setupOpen && (

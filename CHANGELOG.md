@@ -2,6 +2,31 @@
 
 ## Unreleased
 
+## 0.7.19 - 2026-10-21
+
+### Added
+
+- **Connections page with an auditor** (FD-81). One page lists everything that does not work, works only in part,
+  waits for you or is out of date, across every agent, worst first, with the reason in a sentence. Each agent's row has
+  *Fix with agent*: pick the coding agent (Claude Code by default) and it starts in that agent's console with the
+  findings as its task. A map shows which agent calls which, and where a chain breaks. The sidebar shows how many things
+  do not work.
+- **Connections follow the contract's decision** (DEC-0096). A declaration that carries anything like a key or a
+  token is refused and shown as invalid, exactly as the contract reads it.
+- **Agents can run the auditor and Check setup** (FD-81): the MCP tools `audit` and `setup_check`. README lists every
+  function of the app and how an agent reaches it.
+
+### Changed
+
+- **Cleaner screens** (FD-81). On and off settings are switches; their lists line up; when everything is set up the
+  setup card is one quiet line; Spend's totals look like the Overview strip.
+
+### Fixed
+
+- **A ready update installs while the app is hidden** (FD-80). A window of a hidden app counted as shown, so an update
+  could wait for hours; the log now also says when an update waits for the window.
+- **The update setting said "every 6 hours"**; the app checks every 5 minutes.
+
 ## 0.7.18 - 2026-10-21
 
 ### Added

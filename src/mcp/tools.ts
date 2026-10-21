@@ -23,6 +23,9 @@ import { fetchEvents, fetchUsage, fetchWellKnown, PROBE_TIMEOUT_MS, readTokenAsy
 import { readSpend, type SpendEntry } from '../core/spend';
 import { categoryOf, groupProducts, productIdOf, type Category } from '../core/products';
 import { buildGraph, chainState, stateOfService, worstOf, type ConnectionGraph } from '../core/connections';
+import { audit as runAudit, type Finding } from '../core/audit';
+import { estateMap, type EstateMap } from '../core/estate-map';
+import { doctorArgv, doctorResult, DOCTOR_TIMEOUT_MS, type SetupCheckResult } from '../core/doctor';
 import { merge as mergeSettings } from '../core/settings';
 import { places } from '../core/platform';
 import type { ListLayout, ServiceSnapshot } from '../core/types';
@@ -53,6 +56,8 @@ export interface Deps {
   exists?: (path: string) => boolean;
   /** S-2 for this server: one latch for the process's lifetime (T-4). Default: created on first use. */
   latch?: RemoteTokenLatch;
+  /** FD-81: runs the launcher's read-only doctor (Check setup); default: the owned runner with this process's PATH. */
+  setupRun?: (command: string, args: string[]) => Promise<{ code: number | null; output: string; timedOut: boolean; started?: boolean; stdout?: string; stderr?: string }>;
   /** FD-78: the person's kinds and hidden agents, read from the app's settings; null when there are none to read. */
   listLayout?: () => Pick<ListLayout, 'hidden' | 'kinds'> | null;
 }
@@ -425,6 +430,34 @@ export const CONSOLE_RULES: readonly string[] = [
   'Confirm a fix with service_status before you say it is done.',
 ];
 // #endregion agent-handoff
+
+/** FD-81 (MCP parity with Settings → Check setup, SCN-070): the PassionCode launcher's read-only doctor at its pinned
+ *  version, never `--fix`; `npx` from this process's PATH. The same parse as the app's. */
+export async function setupCheck(deps: Deps): Promise<SetupCheckResult> {
+  const sep = deps.platform === 'win32' ? ';' : ':';
+  const name = deps.platform === 'win32' ? 'npx.cmd' : 'npx';
+  const npx = (process.env.PATH ?? '').split(sep).filter(Boolean).map((d) => path.join(d, name)).find((f) => (deps.exists ?? fs.existsSync)(f));
+  if (!npx && !deps.setupRun) return { kind: 'no-node' };
+  const [cmd, args] = doctorArgv(npx ?? 'npx');
+  const run = deps.setupRun ?? ((c: string, a: string[]) => runOwned(c, a, { timeoutMs: DOCTOR_TIMEOUT_MS }));
+  return doctorResult(await run(cmd, args));
+}
+
+/** FD-81: the auditor over every installed agent, as the app's Connections map shows it: each finding with the agent
+ *  to fix, its severity and the sentence the app shows (English), the declaring coverage, and the map's edges.
+ *  Spending limits come from each agent's own usage report, read now. */
+export async function auditAll(deps: Deps): Promise<{ findings: (Finding & { name: string; text: string })[]; counts: Record<string, number>; coverage: { agents: number; declaring: number }; edges: EstateMap['edges']; missing: string[] }> {
+  const looks = await look(deps);
+  const spendEntries = await readSpend(looks, { token: deps.token, fetchUsage: deps.usage, now: deps.now });
+  const limits = Object.fromEntries(spendEntries.flatMap((e) => (e.kind === 'report' ? [[e.key, e.summary.limits]] : [])));
+  const a = runAudit(looks, limits);
+  const names = new Map(looks.map((l) => [l.key, l.descriptor ? displayName(l.descriptor.name, l.descriptor.instance) : l.key]));
+  const map = estateMap(looks);
+  return {
+    findings: a.findings.map((f) => ({ ...f, name: names.get(f.key) ?? f.key, text: tr('en', f.reason.code, f.reason.params) })),
+    counts: a.counts, coverage: a.coverage, edges: map.edges, missing: map.nodes.filter((n) => n.missing).map((n) => n.name),
+  };
+}
 
 /** What each agent spent, from its own usage report (contract DEC-0021, ADR-0013); one service or all.
  *  A cost of null is unknown, never $0; `partial` marks a lower bound. */

@@ -180,7 +180,7 @@ test('discovers a live service, opens its dashboard signed in, keeps one view, s
     await page.getByRole('button', { name: 'Settings' }).click();
     await page.getByText('Unattributed listeners').waitFor();
     // ADR-0015: updates install by themselves by default; a development run says it gets none.
-    assert.equal(await page.getByRole('checkbox', { name: 'Install updates automatically' }).isChecked(), true);
+    assert.equal(await page.getByRole('switch', { name: 'Install updates automatically' }).isChecked(), true);
     await page.getByText('Updates come with the installed app, not a development run.').waitFor();
     await shot(page, '04-settings');
   } finally {

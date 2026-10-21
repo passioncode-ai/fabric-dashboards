@@ -27,6 +27,14 @@ export function SetupCard({ onOpen, consoleOpen }: { onOpen: (mode: 'new' | 'con
   if (!settings || settings.setupDone || !state) return null;
   const done = state.mcp && state.skills && state.firstAgent;
   const hide = async () => setSettings((await api().updateSettings({ setupDone: true })).settings);
+  if (done) {
+    return (
+      <section className="setup-done" aria-label={t('setup.agent.title')}>
+        <span className="sev sev-ok"><span aria-hidden="true">●</span> {t('setup.agent.complete')}</span>
+        <SetupCheck onRepair={() => onOpen('new')} lead={null} trail={<button className="btn btn-sm" onClick={() => void hide()}>{t('setup.agent.hide')}</button>} />
+      </section>
+    );
+  }
   const item = (ok: boolean, key: string) => <li className={ok ? 'done' : ''}><span aria-hidden="true">{ok ? '✓' : '○'}</span> {t(key)}<span className="visually-hidden">{ok ? ' ✓' : ''}</span></li>;
   return (
     <section className="notice info setup setup-agent" aria-labelledby="setup-agent-title">
