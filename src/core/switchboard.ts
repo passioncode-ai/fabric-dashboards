@@ -198,13 +198,14 @@ export async function handoversOf(run: Runner, sb: string): Promise<SbHandovers>
 
 /** The console key of a hand-over's own console (like Setup's): `handover.<id>`. */
 export const handoverOwnKey = (id: string) => `handover.${id}`;
-export const isHandoverKey = (key: string) => /^handover\.ho-[0-9a-f]{12}$/.test(key);
+/** FD-83: a session continued after a limit takes a console of its own the same way (`handover.rs-<12 hex>`). */
+export const isHandoverKey = (key: string) => /^handover\.(ho|rs)-[0-9a-f]{12}$/.test(key);
 
 /** Where a hand-over opens: the registered service whose console folder is its `dir`, unless that console runs a
  *  session already; otherwise a console of its own. */
-export function handoverKey(h: SbHandover, consoles: { key: string; folder: string | null; running: boolean }[]): string {
+export function handoverKey(h: Pick<SbHandover, 'id' | 'dir'>, consoles: { key: string; folder: string | null; running: boolean }[], own = handoverOwnKey(h.id)): string {
   const match = consoles.find((c) => c.folder && !c.running && samePath(c.folder, h.dir));
-  return match?.key ?? handoverOwnKey(h.id);
+  return match?.key ?? own;
 }
 
 /** The command a console runs to take the hand-over: Switchboard takes it once and runs its session here. */

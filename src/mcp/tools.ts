@@ -32,6 +32,10 @@ import type { ListLayout, ServiceSnapshot } from '../core/types';
 import os from 'node:os';
 import path from 'node:path';
 import { t as tr } from '../core/i18n';
+import { liveAgents, recoveryOf, verdictOf } from '../core/recovery';
+import { findSwitchboard } from '../core/switchboard';
+import { searchDirs } from '../core/runtimes';
+import type { StopView } from '../core/types';
 
 export const COMMAND_TIMEOUT_MS = 120_000;
 import { CONTROL_TIMEOUT_MS, controlService } from '../core/control';
@@ -60,6 +64,10 @@ export interface Deps {
   setupRun?: (command: string, args: string[]) => Promise<{ code: number | null; output: string; timedOut: boolean; started?: boolean; stdout?: string; stderr?: string }>;
   /** FD-78: the person's kinds and hidden agents, read from the app's settings; null when there are none to read. */
   listLayout?: () => Pick<ListLayout, 'hidden' | 'kinds'> | null;
+  /** FD-83: where Switchboard is (default: found on PATH and the installers' folders) and how its CLI, lsof and ps
+   *  run (default: the plain runner). Tests pass both. */
+  switchboard?: () => string | null;
+  cli?: Runner;
 }
 
 /** FD-78: the app's settings file on this platform (read only; the app owns it). */
@@ -446,7 +454,7 @@ export async function setupCheck(deps: Deps): Promise<SetupCheckResult> {
 /** FD-81: the auditor over every installed agent, as the app's Connections map shows it: each finding with the agent
  *  to fix, its severity and the sentence the app shows (English), the declaring coverage, and the map's edges.
  *  Spending limits come from each agent's own usage report, read now. */
-export async function auditAll(deps: Deps): Promise<{ findings: (Finding & { name: string; text: string })[]; counts: Record<string, number>; coverage: { agents: number; declaring: number }; edges: EstateMap['edges']; missing: string[] }> {
+export async function auditAll(deps: Deps): Promise<{ findings: (Finding & { name: string; text: string })[]; counts: Record<string, number>; coverage: { agents: number; declaring: number }; edges: EstateMap['edges']; missing: string[]; limitStops: Awaited<ReturnType<typeof limitStops>> }> {
   const looks = await look(deps);
   const spendEntries = await readSpend(looks, { token: deps.token, fetchUsage: deps.usage, now: deps.now });
   const limits = Object.fromEntries(spendEntries.flatMap((e) => (e.kind === 'report' ? [[e.key, e.summary.limits]] : [])));
@@ -456,8 +464,26 @@ export async function auditAll(deps: Deps): Promise<{ findings: (Finding & { nam
   return {
     findings: a.findings.map((f) => ({ ...f, name: names.get(f.key) ?? f.key, text: tr('en', f.reason.code, f.reason.params) })),
     counts: a.counts, coverage: a.coverage, edges: map.edges, missing: map.nodes.filter((n) => n.missing).map((n) => n.name),
+    // FD-83: the Connections page lists these under the auditor; a read that fails says why, never an empty list.
+    limitStops: await limitStops(deps).catch((error: Error) => ({ available: false, why: error.message, stops: [] })),
   };
 }
+
+// #region limit-recovery — docs: docs/ux/scenarios.md#scn-075-a-session-stopped-on-a-limit-continues-by-itself
+/** FD-83: the coding sessions Switchboard holds as stopped on a usage limit and not yet continued, each with what the
+ *  app would do with it (`resume`) or why it waits for a person. Read-only: this server never claims or starts one. */
+export async function limitStops(deps: Deps, now = deps.now()): Promise<{ available: boolean; why?: string; stops: StopView[] }> {
+  const sb = deps.switchboard ? deps.switchboard() : findSwitchboard(searchDirs((process.env.PATH ?? '').split(path.delimiter).filter(Boolean)));
+  if (!sb) return { available: false, why: 'Switchboard is not installed', stops: [] };
+  const run = deps.cli ?? execRunner;
+  const r = await recoveryOf(run, sb);
+  if ('unavailable' in r) return { available: false, why: r.unavailable === 'old' ? 'this Switchboard cannot list stopped sessions yet' : r.detail, stops: [] };
+  const pending = r.stops.filter((s) => s.state !== 'resumed');
+  const live = pending.some((s) => s.ready) ? await liveAgents(run, deps.platform).catch(() => null) : null;
+  const exists = (dir: string) => { try { return fs.statSync(dir).isDirectory(); } catch { return false; } };
+  return { available: true, stops: pending.map((s) => ({ event: s.event, session: s.session, dir: s.dir, provider: s.provider, stoppedAt: s.stoppedAt, attempt: s.attempt, verdict: verdictOf(s, live, now, exists) })) };
+}
+// #endregion limit-recovery
 
 /** What each agent spent, from its own usage report (contract DEC-0021, ADR-0013); one service or all.
  *  A cost of null is unknown, never $0; `partial` marks a lower bound. */

@@ -8,14 +8,14 @@ import type { LimitView } from '@passioncode-ai/fabric-service-host/usage';
 import { audit, auditBrief, byAgent, type Finding, type Severity } from '../../core/audit';
 import { estateMap, type MapNode } from '../../core/estate-map';
 import type { ConsoleTask, ConsoleInfo } from '../../core/api';
-import type { AppStatus } from '../../core/types';
+import type { AppStatus, RecoveryStatus, StopView } from '../../core/types';
 import { api, nameOf, useT } from '../lib';
 
 const MARK = { ok: '●', degraded: '▲', down: '■', unknown: '○' } as const;
 const SEV_MARK: Record<Severity, string> = { error: '■', warn: '▲', setup: '◆', info: '○' };
 const COL_W = 196, COL_GAP = 72, NODE_H = 40, ROW_GAP = 14, PAD = 8;
 
-export function ConnectionsMap({ status, open, onAgent }: { status: AppStatus; open: (key: string) => void; onAgent: (key: string, task: ConsoleTask) => void }) {
+export function ConnectionsMap({ status, open, onAgent, openConsole }: { status: AppStatus; open: (key: string) => void; onAgent: (key: string, task: ConsoleTask) => void; openConsole: (key: string) => void }) {
   const { t, reason } = useT();
   const [limits, setLimits] = useState<Record<string, LimitView[]>>({});
   useEffect(() => {
@@ -67,9 +67,61 @@ export function ConnectionsMap({ status, open, onAgent }: { status: AppStatus; o
           </ul>
         </section>
       )}
+
+      {status.recovery && <LimitStops recovery={status.recovery} openConsole={openConsole} />}
     </div>
   );
 }
+
+// #region limit-recovery — docs: docs/ux/scenarios.md#scn-075-a-session-stopped-on-a-limit-continues-by-itself
+/** FD-83: the coding sessions Switchboard holds as stopped on a usage limit: the ones continued here (with Open) and
+ *  the ones left for the person, each with why. Nothing when there is none and nothing went wrong reading them. */
+function LimitStops({ recovery, openConsole }: { recovery: RecoveryStatus; openConsole: (key: string) => void }) {
+  const { t } = useT();
+  const stops = [...recovery.stops].sort((a, b) => rank(a) - rank(b) || b.stoppedAt - a.stoppedAt);
+  if (!stops.length && (!recovery.unavailable || recovery.unavailable === 'absent')) return null;
+  const folder = (dir: string) => dir.split(/[\\/]/).filter(Boolean).pop() ?? dir;
+  return (
+    <section className="cmap-section" aria-labelledby="cmap-stops">
+      <h2 id="cmap-stops">{t('stops.title')} <span className="count">{stops.length}</span></h2>
+      <p className="meta">{t(recovery.on ? 'stops.on' : 'stops.off')}</p>
+      {recovery.unavailable && recovery.unavailable !== 'absent' && <p className="meta" role="status">{t(`stops.unavailable.${recovery.unavailable}`)}</p>}
+      {stops.length > 0 && (
+        <ul className="audit-list">
+          {stops.map((s) => (
+            <li key={s.event} className={`audit-group sev-edge-${s.verdict === 'failed' ? 'error' : 'info'}`}>
+              <div className="audit-head">
+                <span className="audit-name">{folder(s.dir)}</span>
+                <span className="meta mono" title={s.dir}>{s.provider === 'codex' ? 'Codex' : 'Claude Code'} · {t('stops.since', { when: ago(s.stoppedAt, t) })}{s.attempt > 1 ? ` · ${t('stops.attempt', { n: s.attempt })}` : ''}</span>
+                <span className="spacer" />
+                {s.key && <button className="btn btn-sm" onClick={() => openConsole(s.key!)}>{t('stops.open')}</button>}
+              </div>
+              <ul className="audit-findings">
+                <li className={`sev sev-${STOP_SEV[s.verdict]}`}>
+                  <span aria-hidden="true">{STOP_MARK[STOP_SEV[s.verdict]]}</span>
+                  <span className="audit-text">{t(`stops.verdict.${s.verdict}`)}</span>
+                </li>
+              </ul>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+const RANK: Record<StopView['verdict'], number> = { failed: 0, resumed: 1, resume: 2, open: 3, waiting: 4, claimed: 5, billing: 6, 'no-folder': 7, old: 8 };
+const rank = (s: StopView) => RANK[s.verdict];
+const STOP_SEV: Record<StopView['verdict'], 'ok' | 'error' | 'setup' | 'info'> = { failed: 'error', resumed: 'ok', resume: 'info', open: 'setup', waiting: 'info', claimed: 'info', billing: 'setup', 'no-folder': 'info', old: 'setup' };
+const STOP_MARK = { ok: '●', error: '■', setup: '◆', info: '○' } as const;
+
+function ago(at: number, t: (code: string, params?: Record<string, string | number>) => string): string {
+  const minutes = Math.max(0, Math.round((Date.now() - at) / 60_000));
+  if (minutes < 60) return t('stops.minutes', { n: minutes });
+  const hours = Math.round(minutes / 60);
+  return hours < 48 ? t('stops.hours', { n: hours }) : t('stops.days', { n: Math.round(hours / 24) });
+}
+// #endregion limit-recovery
 
 function AuditGroup({ serviceKey, name, findings, text, open, onAgent }: { serviceKey: string; name: string; findings: Finding[]; text: (f: Finding) => string; open: (key: string) => void; onAgent: (key: string, task: ConsoleTask) => void }) {
   const { t } = useT();

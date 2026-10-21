@@ -158,7 +158,7 @@ What the app does and how an agent does the same (FD-81, ADR-0023):
 | Activity | `activity` |
 | Spend and its limits | `spend` |
 | An agent's Connections tab | `connections` |
-| The Connections page: the auditor and the map | `audit` |
+| The Connections page: the auditor, the map, sessions stopped on a limit | `audit` (`limitStops` from 0.7.20) |
 | Settings → Check setup | `setup_check` |
 | Context for a console | `service_context` |
 | This Mac's installation | `host_status` |

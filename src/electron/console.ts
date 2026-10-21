@@ -19,8 +19,9 @@ import { admit, machineProbe, type MachineState } from '../core/admission';
 import { findCheckout } from '../core/repofind';
 import { detectRuntimes, KNOWN_RUNTIMES, readLoginPath, searchDirs, specsFromSwitchboard, type Runtime, type RuntimeSpec } from '../core/runtimes';
 import type { SettingsStore } from '../core/settings';
-import { accountsOf, bindingFor, canLaunchInPlace, findSwitchboard, handoverKey, handoverRunArgv, handoversOf, isHandoverKey, managesProvider, sessionsIn, terminalLaunchArgv, type Binding, type SbHandover, type SbSessions } from '../core/switchboard';
+import { accountsOf, bindingFor, canLaunchInPlace, findSwitchboard, handoverKey, inPlaceArgv, handoverRunArgv, handoversOf, isHandoverKey, managesProvider, sessionsIn, terminalLaunchArgv, type Binding, type SbHandover, type SbSessions } from '../core/switchboard';
 import type { ServiceSnapshot } from '../core/types';
+import { claimStop, finishStop, liveAgents, recoveryOf, resumeArgs, resumeOwnKey, verdictOf, RESUMES_PER_PASS, type RecoveryStatus, type SbStop, type StopView } from '../core/recovery';
 
 /** node-pty 1.1.0 ships its macOS `spawn-helper` without the executable bit, and its postinstall
  *  does not set it: without it every spawn fails with `posix_spawnp failed`. A development checkout
@@ -85,7 +86,7 @@ export interface ConsoleHostOptions {
 export const HANDOVER_POLL_MS = { visible: 15_000, hidden: 60_000 };
 
 /** FD-62: a console that runs a hand-over, as the shell lists it. */
-export interface HandoverConsole { key: string; workflow: string; agent: string; account: string; dir: string; state: 'running' | 'exited' }
+export interface HandoverConsole { key: string; workflow: string; agent: string; account: string; dir: string; state: 'running' | 'exited'; kind: 'handover' | 'resume' }
 
 /** D2 of the 2026-10-12 board waves, stated in AGENTS.md's lifecycle table (LC-18). */
 export const IDLE_CLOSE_MS = 30 * 60_000;
@@ -106,6 +107,11 @@ export class ConsoleHost {
   /** FD-62: the hand-over each console key runs, for its header and the shell's list. */
   private readonly handoverOf = new Map<string, SbHandover>();
   private handoversUnavailable: string | null = null;
+  /** FD-83: the hand-over records of sessions this launch continued after a limit, by console key. */
+  private readonly resumedKeys = new Set<string>();
+  /** FD-83: stops this launch acted on (continued, or failed to), by event — each is acted on once. */
+  private readonly actedStops = new Map<string, StopView>();
+  private recovery: RecoveryStatus = { on: true, stops: [], resumed: 0 };
 
   constructor(private readonly o: ConsoleHostOptions) {
     this.run = o.run ?? execRunner;
@@ -239,7 +245,7 @@ export class ConsoleHost {
 
   private handoverInfo(key: string): ConsoleInfo['handover'] {
     const h = this.handoverOf.get(key);
-    return h ? { id: h.id, workflow: h.workflow, agent: h.agent, account: h.account, dir: h.dir } : null;
+    return h ? { id: h.id, workflow: h.workflow, agent: h.agent, account: h.account, dir: h.dir, kind: this.resumedKeys.has(key) ? 'resume' : 'handover' } : null;
   }
 
   /** The context pack for this start, written now; null when there is no snapshot or no pack root.
@@ -375,7 +381,7 @@ export class ConsoleHost {
       if (!isHandoverKey(key)) continue;
       const state = this.manager.snapshot(key).state;
       if (state === 'idle') continue;
-      out.push({ key, workflow: h.workflow, agent: h.agent, account: h.account, dir: h.dir, state });
+      out.push({ key, workflow: h.workflow, agent: h.agent, account: h.account, dir: h.dir, state, kind: this.resumedKeys.has(key) ? 'resume' : 'handover' });
     }
     return out;
   }
@@ -385,9 +391,87 @@ export class ConsoleHost {
     if (!isHandoverKey(key) || this.manager.snapshot(key).state === 'running') return;
     this.manager.forget(key);
     this.handoverOf.delete(key);
+    this.resumedKeys.delete(key);
     this.o.changed?.();
   }
   // #endregion console-handovers
+
+  // #region limit-recovery — docs: docs/ux/scenarios.md#scn-075-a-session-stopped-on-a-limit-continues-by-itself
+  /** FD-83 (SB-115): reads the sessions Switchboard holds as stopped on a limit, at the hand-overs' cadence, and
+   *  continues each ready one whose transcript nothing else can be writing, at most RESUMES_PER_PASS a pass. The
+   *  rest stays listed for the person. Off in Settings: read, never acted on. Returns the console keys it started. */
+  async pollRecovery(now = Date.now()): Promise<string[]> {
+    const on = this.o.settings.get().resumeAfterLimit;
+    const inv = await this.inventory();
+    if (!inv.switchboard) return this.setRecovery({ on, unavailable: 'absent', stops: [], resumed: this.recovery.resumed });
+    const r = await recoveryOf(this.run, inv.switchboard);
+    if ('unavailable' in r) {
+      if (this.recovery.unavailable !== r.unavailable) this.o.log(`console: limit stops cannot be read (${r.unavailable}): ${r.detail}`);
+      return this.setRecovery({ on, unavailable: r.unavailable, stops: [...this.actedStops.values()], resumed: this.recovery.resumed });
+    }
+    const pending = r.stops.filter((s) => s.state !== 'resumed' && !this.actedStops.has(s.event));
+    const live = pending.some((s) => s.ready) ? await liveAgents(this.run).catch(() => null) : null;
+    const views: StopView[] = [];
+    const due: SbStop[] = [];
+    for (const s of pending) {
+      const verdict = verdictOf(s, live, now, isDir);
+      if (verdict === 'resume' && on && due.length < RESUMES_PER_PASS) { due.push(s); continue; }
+      views.push({ event: s.event, session: s.session, dir: s.dir, provider: s.provider, stoppedAt: s.stoppedAt, attempt: s.attempt, verdict });
+    }
+    const started: string[] = [];
+    for (const s of due) {
+      const key = await this.resume(s, inv.switchboard, inv.dirs);
+      if (key) started.push(key);
+      else if (!this.actedStops.has(s.event)) views.push({ event: s.event, session: s.session, dir: s.dir, provider: s.provider, stoppedAt: s.stoppedAt, attempt: s.attempt, verdict: 'resume' });
+    }
+    this.setRecovery({ on, stops: [...this.actedStops.values(), ...views], resumed: this.recovery.resumed + started.length });
+    return started;
+  }
+
+  private setRecovery(next: RecoveryStatus): string[] {
+    const before = JSON.stringify(this.recovery);
+    this.recovery = next;
+    if (JSON.stringify(next) !== before) this.o.changed?.();
+    return [];
+  }
+
+  recoveryStatus(): RecoveryStatus { return this.recovery; }
+
+  /** Claims the stop once, continues its session in the console through Switchboard, and records the outcome. A stop
+   *  the machine cannot carry now (LC-17) is not claimed: the next pass tries again. */
+  private async resume(stop: SbStop, sb: string, dirs: string[]): Promise<string | null> {
+    const a = admit(await (this.o.machine ?? machineProbe)(stop.dir, this.manager.runningCount()));
+    if (!a.ok) { this.o.log(`console: limit stop ${stop.event} waits (LC-17: ${a.why})`); return null; }
+    const view = (verdict: StopView['verdict'], key?: string): StopView => ({ event: stop.event, session: stop.session, dir: stop.dir, provider: stop.provider, stoppedAt: stop.stoppedAt, attempt: stop.attempt, verdict, key });
+    const claim = await claimStop(this.run, sb, stop, stop.candidates[0]!);
+    if (!claim.ok) {
+      this.actedStops.set(stop.event, view('failed'));
+      this.o.log(`console: limit stop ${stop.event} not claimed: ${claim.detail}`);
+      return null;
+    }
+    const consoles = (this.o.keys?.() ?? []).map((key) => {
+      const folder = this.folderOf(key);
+      return { key, folder: folder?.exists ? folder.path : null, running: this.manager.snapshot(key).state === 'running' };
+    });
+    const own = resumeOwnKey(stop);
+    const key = handoverKey({ id: own.slice('handover.'.length), dir: stop.dir }, consoles, own);
+    const argv = inPlaceArgv(sb, stop.provider, stop.dir, resumeArgs(stop));
+    const r = this.manager.start(key, { argv, cwd: stop.dir, label: stop.provider === 'codex' ? 'Codex' : 'Claude Code', env: { PATH: dirs.join(path.delimiter) } }, { cols: 100, rows: 30 });
+    if (!r.ok) {
+      await finishStop(this.run, sb, stop, 'cancelled');
+      this.actedStops.set(stop.event, view('failed'));
+      this.o.log(`console: limit stop ${stop.event} claimed but not started in ${key}: ${r.error}; recorded as cancelled`);
+      return null;
+    }
+    await finishStop(this.run, sb, stop, 'resumed');
+    this.handoverOf.set(key, { id: own.slice('handover.'.length), workflow: path.basename(stop.dir), agent: stop.provider === 'codex' ? 'Codex' : 'Claude Code', account: '', dir: stop.dir, offeredUntil: 0 });
+    this.resumedKeys.add(key);
+    this.actedStops.set(stop.event, view('resumed', key));
+    this.o.log(`console: session ${stop.session} stopped on a limit continued in ${key} (attempt ${stop.attempt})`);
+    this.o.changed?.();
+    return key;
+  }
+  // #endregion limit-recovery
 
   async openTerminal(key: string, mode: 'new' | 'continue'): Promise<{ ok: boolean; error?: string }> {
     // FD-37: Terminal through LaunchServices is macOS's; a Windows or Linux terminal comes with M2.

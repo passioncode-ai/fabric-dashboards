@@ -120,3 +120,52 @@ test('FD-78: Connections draws the chain and the worst state in it; a service wi
     for (const s of servers) await new Promise<void>((r) => s.close(() => r()));
   }
 });
+
+// FD-83 (SCN-075): a fake Switchboard holds two stops. The ready one, in a folder no agent works in, is claimed once
+// and continued in a console of its own (its `launch … --in-place` prints and waits); the billing one stays listed
+// for the person. Its outcome reaches Switchboard as `finish … resumed`.
+test('FD-83: a session stopped on a limit continues in a console here; the rest stays listed with why', { timeout: 120_000, skip: process.platform === 'win32' && 'POSIX shell fake' }, async () => {
+  const base = tmp('fd-e2e-rs-');
+  const services = path.join(base, 'services');
+  const runtimes = path.join(base, 'bin');
+  const repo = path.join(base, 'stopped-repo');
+  const journal = path.join(base, 'journal.txt');
+  for (const d of [services, runtimes, repo]) fs.mkdirSync(d, { recursive: true });
+  const at = Math.floor(Date.now() / 1000) - 300;
+  const stop = (session: string, kind: string, ready: boolean) => ({ candidates: ['acc-2'], mode: 'capacity', probe_at: null, ready, stop: { account: 'acc-1', attempt: 1, directory: repo, event: `cc-${session}-${at}`, kind, mode: null, pool: 'default', provider: 'claude', selected_account: null, session, state: 'waiting', stopped_at: at } });
+  const READY = '11111111-2222-4333-8444-555555555555';
+  const recovery = JSON.stringify({ ok: true, data: { sessions: [stop(READY, 'limit', true), stop('66666666-7777-4888-8999-aaaaaaaaaaaa', 'billing', false)] } });
+  fs.writeFileSync(path.join(runtimes, 'switchboard'), [
+    '#!/bin/sh',
+    `echo "$*" >> '${journal}'`,
+    'case "$*" in',
+    `  "--json recovery") printf '%s' '${recovery}' ;;`,
+    '  "--json recovery claim"*|"--json recovery finish"*) printf \'{"ok":true,"data":{}}\' ;;',
+    '  launch*--in-place*) echo "resumed by the fake switchboard"; /bin/sleep 30 ;;',
+    '  *) exit 1 ;;',
+    'esac',
+  ].join('\n'), { mode: 0o755 });
+  let app: ElectronApplication | null = null;
+  try {
+    app = await electron.launch({ args: [ROOT], env: { ...process.env, FABRIC_SERVICES_DIR: services, FABRIC_DASHBOARDS_USER_DATA: path.join(base, 'app'), FD_TEST_RUNTIME_DIRS: runtimes, LANG: 'en_US.UTF-8' } });
+    const page = await app.firstWindow();
+    await page.getByRole('button', { name: /^Connections/ }).first().click();
+    await page.getByRole('heading', { level: 2, name: /Sessions stopped on a limit/ }).waitFor({ timeout: 60_000 });
+    await page.getByText('Continued here.').waitFor({ timeout: 20_000 });
+    await page.getByText('Stopped on a payment limit: a top-up is needed.').waitFor();
+    // The console's PTY runs the launch a moment after the claim is recorded.
+    const launched = `--working-directory ${repo} --in-place -- --resume ${READY}`;
+    for (let i = 0; i < 50 && !fs.readFileSync(journal, 'utf8').includes(launched); i++) await new Promise((r) => setTimeout(r, 100));
+    const lines = fs.readFileSync(journal, 'utf8').split('\n');
+    assert.equal(lines.filter((l) => l.startsWith('--json recovery claim')).length, 1, 'claimed once');
+    assert.ok(lines.some((l) => l === `--json recovery finish cc-${READY}-${at} resumed`), lines.join('\n'));
+    assert.ok(lines.some((l) => l.includes(launched)), lines.join('\n'));
+    if (SHOTS) await page.screenshot({ path: path.join(SHOTS, '30-limit-stops.png') });
+    // The continued session has a console of its own, listed in the shell; Open goes to it.
+    await page.locator('.audit-group', { hasText: 'Continued here.' }).getByRole('button', { name: 'Open' }).click();
+    await page.getByText(/stopped on a usage limit/i).first().waitFor();
+    await page.locator('.nav-item', { hasText: 'stopped-repo' }).locator('.state-ready').waitFor();
+  } finally {
+    await closeApp(app);
+  }
+});

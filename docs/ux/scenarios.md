@@ -80,6 +80,7 @@
 | SCN-072 | Hide an agent without stopping it | list | P-01 | ST-021 | draft | 2026-10-20 |
 | SCN-073 | See what an agent is connected to | service | P-01 | ST-019 | draft | 2026-10-20 |
 | SCN-074 | See how agents are wired and what the auditor found | connections | P-01 | ST-019 | draft | 2026-10-21 |
+| SCN-075 | A session stopped on a limit continues by itself | connections | P-01 | ST-019 | draft | 2026-10-22 |
 ## Personas
 
 Defined in [foundation.md](foundation.md) → P-01.
@@ -1278,6 +1279,26 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **Errors & recovery:** an agent's spend report that cannot be read leaves its limits out, never the rest
 - **Status:** draft
 - **Coverage:** src/core/audit.ts, src/core/estate-map.ts, src/renderer/components/ConnectionsMap.tsx, src/core/handoff.ts (auditTask), src/mcp/tools.ts (auditAll, setupCheck), test/audit.test.ts, test/mcp.test.ts *FD-81*, test/e2e/connections.test.ts, test/e2e/focus-console.test.ts *FD-81*
+- **Product:** unobserved
+
+### SCN-075: A session stopped on a limit continues by itself
+- **Persona:** P-01
+- **Feature:** connections
+- **Traces:** ST-019 (JTBD-01); FD-83 (operator 2026-10-21, «лимиты прошли ... перезапускай агентов»); Switchboard SB-115 (the host acts on `ready` rows)
+- **Entry point:** nothing to press: the app reads Switchboard's stopped sessions with the hand-overs (every 15 s with the window shown, 60 s hidden); Connections → "Sessions stopped on a limit" shows them; Settings → "Sessions stopped on a limit" → "Continue them by themselves"
+- **Preconditions:** Fabric Switchboard installed and its StopFailure hook registering stops; the switch on (the default)
+- **Steps:**
+  1. A coding session stops on a usage limit -> Switchboard records the stop; once an account has capacity again it marks it ready
+  2. The app finds a ready stop that stopped within a day, whose folder is on this Mac and in which no claude or codex process works and no process names its session -> it claims the stop once in Switchboard, continues it in a console (`switchboard launch --provider <p> --mode managed --working-directory <folder> --in-place -- --resume <session> "The usage limit has reset. Continue your task from where it stopped."`) and records `resumed`; at most two in one pass
+  3. The session opens in the free console of the agent whose folder it is, else in a console of its own listed under Hand-overs by its folder's name -> the page says it stopped on a limit and was continued here
+  4. User opens Connections -> "Sessions stopped on a limit N": each with its folder, the agent, when it stopped and a sentence: "Continued here." with Open, or why it waits
+- **Expected result:** sessions the operator left running come back by themselves after a limit, never twice and never next to a terminal still holding them; the rest is in one list with the reason
+- **Alt paths:** its terminal is still open -> "Its terminal is still open: type "continue" there." and nothing is claimed; no account has capacity -> "Waits for an account with capacity."; a payment limit -> "Stopped on a payment limit: a top-up is needed."; stopped more than a day ago -> "Stopped more than a day ago: open it yourself if the task is still open."; the folder is not here -> "Its folder is not on this Mac."; the Mac cannot carry another console now (LC-17) -> nothing is claimed and the next pass tries again; the switch is off -> every stop is listed and none continued ("Continuing them by themselves is off in Settings; each waits for you."); an agent asks through MCP -> `audit` answers `limitStops` with the same verdicts, read-only
+- **UI elements:** the Connections section with Open, the Hand-overs entry, the console line, the Settings switch
+- **States covered:** empty, success, error
+- **Errors & recovery:** a claim Switchboard refuses starts nothing ("Could not be continued here; see the log."); a claimed stop whose console cannot start is recorded `cancelled`; Switchboard not answering says so in the section; live processes that cannot be read count as open, never as none
+- **Status:** draft
+- **Coverage:** src/core/recovery.ts, src/electron/console.ts (pollRecovery), src/renderer/components/ConnectionsMap.tsx (LimitStops), src/mcp/tools.ts (limitStops), test/recovery.test.ts, test/e2e/connections.test.ts *FD-83*
 - **Product:** unobserved
 
 ### SCN-070: Check what is set up

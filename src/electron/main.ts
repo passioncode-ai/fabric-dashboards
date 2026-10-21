@@ -207,7 +207,7 @@ if (!app.requestSingleInstanceLock()) {
   // #endregion outage-alerts
   const status = (): AppStatus => ({
     services: monitor.snapshots(), ...monitor.meta(), unread: activity.unread(), activityRev: activity.revision, update: updater.state, estate: estate.state, version: app.getVersion(),
-    alerts: alerts.status(), handovers: consoles.handoverConsoles(),
+    alerts: alerts.status(), handovers: consoles.handoverConsoles(), recovery: consoles.recoveryStatus(),
   });
 
   // #region quiet-push — docs: AGENTS.md#lifecycle
@@ -338,11 +338,13 @@ if (!app.requestSingleInstanceLock()) {
   const visibilityTick = setInterval(syncVisibility, VISIBILITY_SYNC_MS);
   visibilityTick.unref();
   // FD-62 (SB-108): hand-overs Switchboard leaves for a console — every 15 s while the window is shown, every
-  // 60 s while it is hidden, nothing without Switchboard (ConsoleHost.pollHandovers).
+  // 60 s while it is hidden, nothing without Switchboard (ConsoleHost.pollHandovers). FD-83: limit stops too.
   let handoverTimer: NodeJS.Timeout | null = null;
   const pollHandovers = () => {
     handoverTimer = null;
-    void consoles.pollHandovers().catch((error) => log(`console: hand-over read failed: ${(error as Error).message}`)).finally(() => {
+    // FD-83: the limit stops are read on the same tick, after the hand-overs (ConsoleHost.pollRecovery).
+    void consoles.pollHandovers().catch((error) => log(`console: hand-over read failed: ${(error as Error).message}`))
+      .then(() => consoles.pollRecovery()).catch((error) => log(`console: limit stops read failed: ${(error as Error).message}`)).finally(() => {
       if (quitting) return;
       handoverTimer = setTimeout(pollHandovers, windowVisible() ? HANDOVER_POLL_MS.visible : HANDOVER_POLL_MS.hidden);
       handoverTimer.unref();

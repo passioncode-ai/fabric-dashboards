@@ -82,6 +82,8 @@ export interface Settings {
     /** FD-50 (LC-18): the session closed after the idle time — when, and the Switchboard account it ran on;
      *  opening the console again continues it. Cleared by the next start. */
     idle?: { at: string; account: string | null } | null }>;
+  /** FD-83: continue a session stopped on a usage limit in the console once Switchboard has capacity for it (default on). */
+  resumeAfterLimit: boolean;
   // #region estate-update — docs: docs/adr/0018-estate-updates-from-inside-the-app.md#decision
   /** ADR-0018: the estate watcher — the contract clone and the skill family. */
   estate: {
@@ -139,6 +141,7 @@ export const DEFAULT_SETTINGS: Settings = {
   },
   layout: { sidebar: 'expanded', header: 'compact', console: { open: false, width: CONSOLE_WIDTH.default }, list: { sort: 'name', pinned: [], hidden: [], kinds: {}, hiddenOpen: false } },
   consoles: {},
+  resumeAfterLimit: true,
   // #region estate-update — docs: docs/adr/0018-estate-updates-from-inside-the-app.md#decision
   estate: { enabled: true, autoSkills: false, contractClone: '' },
   // #endregion estate-update
@@ -168,6 +171,26 @@ export interface AppStatus {
   estate: EstateStatus;
   // #endregion estate-update
   /** FD-62: the consoles of their own that run or ran a Switchboard hand-over (SB-108). */
-  handovers?: { key: string; workflow: string; agent: string; account: string; dir: string; state: 'running' | 'exited' }[];
+  handovers?: { key: string; workflow: string; agent: string; account: string; dir: string; state: 'running' | 'exited'; kind?: 'handover' | 'resume' }[];
+  /** FD-83: sessions stopped on a usage limit — the ones this launch continued and the ones left for the person. */
+  recovery?: RecoveryStatus;
   version: string;
 }
+
+// #region limit-recovery — docs: docs/ux/scenarios.md#scn-075-a-session-stopped-on-a-limit-continues-by-itself
+/** Why a stop is not continued here, or `resume`. The Connections page shows every stop that is not resumed. */
+export type StopVerdict = 'resume' | 'open' | 'old' | 'billing' | 'waiting' | 'no-folder' | 'claimed';
+
+/** One stop on the Connections page: never its prompt, only where and since when. */
+export interface StopView { event: string; session: string; dir: string; provider: 'claude' | 'codex'; stoppedAt: number; attempt: number; verdict: StopVerdict | 'resumed' | 'failed'; key?: string }
+
+/** What the app knows about sessions stopped on a limit: off, unreadable, or the stops still open. */
+export interface RecoveryStatus {
+  on: boolean;
+  unavailable?: 'absent' | 'old' | 'error';
+  /** Stops still `waiting` in Switchboard, and the ones this launch continued. */
+  stops: StopView[];
+  /** Sessions this launch continued. */
+  resumed: number;
+}
+// #endregion limit-recovery

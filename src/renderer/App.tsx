@@ -309,7 +309,7 @@ function Shell({ status, route, setRoute, stopKey, setStopKey, activityFilter, s
             <div className="page">
               <div className="page-head"><h1>{handover.workflow || handover.agent}</h1></div>
               <p className="meta">{t('handover.what', { agent: handover.agent, account: handover.account || '—', dir: handover.dir })}</p>
-              <p>{t(handover.state === 'running' ? 'handover.body' : 'handover.done')}</p>
+              <p>{t(handover.state !== 'running' ? 'handover.done' : handover.kind === 'resume' ? 'handover.resumeBody' : 'handover.body')}</p>
               {handover.state === 'exited' && <button className="btn" onClick={() => { void api().consoleDismissHandover(handover.key); setRoute({ page: 'overview' }); }}>{t('handover.close')}</button>}
             </div>
             <ConsolePanel serviceKey={handover.key} width={consoleWidth} max={consoleMax} onWidth={onConsoleWidth} onHide={() => setRoute({ page: 'overview' })} />
@@ -335,7 +335,7 @@ function Shell({ status, route, setRoute, stopKey, setStopKey, activityFilter, s
               {route.page === 'overview' && <Overview status={status} products={products} open={open} act={act} agent={handToAgent} visit={visit} onContinue={continueWith} goSpend={() => setRoute({ page: 'spend' })} list={layout.list} onHiddenOpen={(o) => changeLayout({ list: { hiddenOpen: o } })} />}
               {route.page === 'activity' && <Activity status={status} openAt={open} filter={activityFilter} setFilter={setActivityFilter} />}
               {route.page === 'spend' && <Spend status={status} />}
-              {route.page === 'map' && <ConnectionsMap status={status} open={(key) => open(key, undefined, 'connections')} onAgent={handToAgent} />}
+              {route.page === 'map' && <ConnectionsMap status={status} open={(key) => open(key, undefined, 'connections')} onAgent={handToAgent} openConsole={(key) => (key.startsWith('handover.') ? setRoute({ page: 'handover', key }) : open(key))} />}
               {route.page === 'settings' && <Settings status={status} onTheme={applyTheme} onLanguage={onLanguage} onSetup={() => openSetup('new')} />}
             </div>
             {route.page === 'overview' && setupOpen && (
