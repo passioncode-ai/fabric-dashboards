@@ -202,7 +202,7 @@ what it uses in its well-known document under `extensions`, key
 
 ```json
 { "connections": [
-  { "id": "notify", "kind": "service", "target": "personal-communicator.default", "capability": "communicator.notify", "state": "ok", "lastAt": "2026-10-20T09:00:00Z" },
+  { "id": "notify", "kind": "service", "target": "example-notifier.default", "capability": "notifier.notify", "state": "ok", "lastAt": "2026-10-20T09:00:00Z" },
   { "id": "telegram", "kind": "connector", "target": "telegram", "purpose": "reads the operator chat", "state": "degraded", "reason": "flood wait 30 s" }
 ] }
 ```
