@@ -123,4 +123,22 @@ export function replaceAppImage(target: string, staged: string): void {
   // The rename itself, on disk (POSIX; a folder cannot be opened this way on Windows, where it is not needed).
   try { const dir = fs.openSync(path.dirname(target), 'r'); try { fs.fsyncSync(dir); } finally { fs.closeSync(dir); } } catch { /* best effort */ }
 }
+/** FD-79: the unpacked app is about three times its zip; this much free space, plus a margin, is asked for first. */
+export const UNPACK_FACTOR = 3;
+export const UNPACK_MARGIN_BYTES = 256 * 1024 * 1024;
+const gb = (bytes: number) => `${(bytes / 1024 ** 3).toFixed(1)} GB`;
+
+/** FD-79: why an update cannot be unpacked before trying, in words a person can act on; null when there is room
+ *  or the free space could not be read (then unpacking is tried and its own words are kept). */
+export function unpackRoomRefusal(zipBytes: number, freeBytes: number | null): string | null {
+  if (freeBytes === null) return null;
+  const need = zipBytes * UNPACK_FACTOR + UNPACK_MARGIN_BYTES;
+  return freeBytes < need ? `not enough free space to unpack the update: ${gb(freeBytes)} free, about ${gb(need)} needed. Free some space; the next check tries again` : null;
+}
+
+/** FD-79: a failed unpack names the tool's own first line and the free space, never only "could not be unpacked". */
+export function unpackFailure(zipName: string, output: string, freeBytes: number | null): string {
+  const said = output.split('\n').map((l) => l.trim()).find(Boolean)?.slice(0, 200);
+  return `${zipName} could not be unpacked${said ? `: ${said}` : ''}${freeBytes === null ? '' : ` (${gb(freeBytes)} free)`}`;
+}
 // #endregion self-update

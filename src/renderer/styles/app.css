@@ -334,10 +334,11 @@ table.spend th[scope='row'] { color: var(--pc-text); }
 .setup-check-fix code { white-space: pre-wrap; }
 
 /* FD-78: the row menu, the Hidden fold, and the Connections tab */
-.row-menu { position: absolute; right: var(--pc-space-1); top: 50%; transform: translateY(-50%); }
+/* No transform here: the menu is position: fixed, and a transformed ancestor would become its frame. */
+.row-menu { position: absolute; right: var(--pc-space-1); top: 0; bottom: 0; display: flex; align-items: center; }
 .row-menu .row-menu-btn { position: static; transform: none; }
 .nav-row:hover .row-menu .row-menu-btn, .row-menu.shown .row-menu-btn, .row-menu-btn:focus-visible { display: inline-flex; }
-.menu { position: absolute; right: 0; top: calc(100% + 4px); z-index: 20; min-width: 200px; display: flex; flex-direction: column; padding: var(--pc-space-1); background: var(--pc-panel-raised); border: 1px solid var(--pc-border-strong); border-radius: var(--pc-radius-control); box-shadow: 0 8px 24px rgb(0 0 0 / .35); }
+.menu { position: fixed; z-index: 30; min-width: 200px; display: flex; flex-direction: column; padding: var(--pc-space-1); background: var(--pc-panel-raised); border: 1px solid var(--pc-border-strong); border-radius: var(--pc-radius-control); box-shadow: 0 8px 24px rgb(0 0 0 / .35); }
 .menu [role='menuitem'] { text-align: left; padding: 6px var(--pc-space-2); border: 0; border-radius: var(--pc-radius-sm, 4px); background: transparent; color: var(--pc-text); font: inherit; font-size: var(--pc-type-meta); cursor: pointer; white-space: nowrap; }
 .menu [role='menuitem']:hover, .menu [role='menuitem']:focus-visible { background: var(--pc-panel); outline: none; }
 .nav-fold-section { display: flex; align-items: center; gap: var(--pc-space-1); width: calc(100% - 2 * var(--pc-space-2)); border: 0; background: transparent; cursor: pointer; padding: 0; text-align: left; }

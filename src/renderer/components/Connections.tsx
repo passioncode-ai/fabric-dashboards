@@ -51,7 +51,7 @@ export function Connections({ s, all, open }: { s: ServiceSnapshot; all: Service
                   <button className={`conn-node conn-${u.state}`} onClick={() => open(u.key)}>
                     <span className="conn-mark" aria-hidden="true">{MARK[u.state]}</span>
                     <span className="conn-label">{u.name}</span>
-                    {u.capability && <span className="conn-sub mono">{u.capability}</span>}
+                    {u.capabilities.length > 0 && <span className="conn-sub mono">{u.capabilities.join(', ')}</span>}
                     <span className="visually-hidden">{t(`conn.state.${u.state}`)}</span>
                   </button>
                 </li>

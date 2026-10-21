@@ -273,9 +273,10 @@ function Shell({ status, route, setRoute, stopKey, setStopKey, activityFilter, s
           {/* FD-78: hidden agents, folded at the bottom; a problem among them still shows on the fold. */}
           {hidden.length > 0 && (
             <div className="nav-hidden">
-              <button className="nav-section nav-fold-section" aria-expanded={layout.list.hiddenOpen} onClick={() => changeLayout({ list: { hiddenOpen: !layout.list.hiddenOpen } })}>
-                <span aria-hidden="true">{layout.list.hiddenOpen ? '▾' : '▸'}</span> {t('nav.hidden', { count: hidden.length })}
-                {hiddenProblem && <span className="count alert" title={t('nav.hiddenProblem')}>!</span>}
+              {/* In the narrow rail the fold is an entry of its own, so hidden agents stay one click away. */}
+              <button className={rail ? 'nav-item' : 'nav-section nav-fold-section'} aria-expanded={layout.list.hiddenOpen} title={rail ? t('nav.hidden', { count: hidden.length }) : undefined} onClick={() => changeLayout({ list: { hiddenOpen: !layout.list.hiddenOpen } })}>
+                <span aria-hidden="true">{layout.list.hiddenOpen ? '▾' : '▸'}</span> <span className={rail ? 'nav-label' : undefined}>{t('nav.hidden', { count: hidden.length })}</span>
+                {hiddenProblem && <span className="count alert" title={t('nav.hiddenProblem')} aria-hidden="true">!</span>}
                 {hiddenProblem && <span className="visually-hidden">{t('nav.hiddenProblem')}</span>}
               </button>
               {layout.list.hiddenOpen && hidden.map((p) => <ProductItem key={p.id} p={p} current={currentProduct === p} open={open} rail={rail} pinned={false} menu={rowMenu} />)}
@@ -383,7 +384,14 @@ function ProductItem({ p, current, open, rail, pinned, menu }: { p: Product; cur
 function RowMenu({ p, menu }: { p: Product; menu: RowActions }) {
   const { t } = useT();
   const [open, setOpen] = useState(false);
+  // The list scrolls, so the menu is placed against the window: below the button, or above it near the bottom.
+  const [at, setAt] = useState<{ top?: number; bottom?: number; right: number }>({ right: 0 });
   const box = useRef<HTMLDivElement | null>(null);
+  const toggle = () => {
+    const r = box.current?.querySelector('.row-menu-btn')?.getBoundingClientRect();
+    if (r) setAt(window.innerHeight - r.bottom < 140 ? { bottom: window.innerHeight - r.top + 4, right: window.innerWidth - r.right } : { top: r.bottom + 4, right: window.innerWidth - r.right });
+    setOpen(!open);
+  };
   const name = nameOf(p.primary);
   useEffect(() => {
     if (!open) return;
@@ -398,13 +406,13 @@ function RowMenu({ p, menu }: { p: Product; menu: RowActions }) {
   const act = (f: () => void) => () => { f(); setOpen(false); };
   return (
     <div className={`row-menu${open || pinned ? ' shown' : ''}`} ref={box}>
-      <button className="row-menu-btn pin-btn" aria-haspopup="menu" aria-expanded={open} title={t('list.menu', { name })} aria-label={t('list.menu', { name })} onClick={() => setOpen(!open)}>
+      <button className="row-menu-btn pin-btn" aria-haspopup="menu" aria-expanded={open} title={t('list.menu', { name })} aria-label={t('list.menu', { name })} onClick={toggle}>
         {pinned
           ? <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true"><path d="M6 1h4l-.5 4 2.5 2.5V9H8.6L8 15l-.6-6H4V7.5L6.5 5z" fill="currentColor" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" /></svg>
           : <span aria-hidden="true">⋯</span>}
       </button>
       {open && (
-        <div className="menu" role="menu" aria-label={name} onKeyDown={(e) => {
+        <div className="menu" role="menu" aria-label={name} style={at} onKeyDown={(e) => {
           if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
           e.preventDefault();
           const items = [...(box.current?.querySelectorAll<HTMLButtonElement>('[role="menuitem"]') ?? [])];

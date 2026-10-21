@@ -21,7 +21,13 @@ import { displayName } from '../core/names';
 import { Launchd, execRunner, type Runner } from '../core/launchd';
 import { fetchEvents, fetchUsage, fetchWellKnown, PROBE_TIMEOUT_MS, readTokenAsync } from '../core/probe';
 import { readSpend, type SpendEntry } from '../core/spend';
-import { productIdOf } from '../core/products';
+import { categoryOf, groupProducts, productIdOf, type Category } from '../core/products';
+import { buildGraph, chainState, stateOfService, worstOf, type ConnectionGraph } from '../core/connections';
+import { merge as mergeSettings } from '../core/settings';
+import { places } from '../core/platform';
+import type { ListLayout, ServiceSnapshot } from '../core/types';
+import os from 'node:os';
+import path from 'node:path';
 import { t as tr } from '../core/i18n';
 
 export const COMMAND_TIMEOUT_MS = 120_000;
@@ -47,6 +53,24 @@ export interface Deps {
   exists?: (path: string) => boolean;
   /** S-2 for this server: one latch for the process's lifetime (T-4). Default: created on first use. */
   latch?: RemoteTokenLatch;
+  /** FD-78: the person's kinds and hidden agents, read from the app's settings; null when there are none to read. */
+  listLayout?: () => Pick<ListLayout, 'hidden' | 'kinds'> | null;
+}
+
+/** FD-78: the app's settings file on this platform (read only; the app owns it). */
+export function appSettingsFile(platform: NodeJS.Platform = process.platform, env: NodeJS.ProcessEnv = process.env, home = os.homedir()): string {
+  const dir = env.FABRIC_DASHBOARDS_USER_DATA || places(platform, env, home)?.userData || path.join(home, 'Library', 'Application Support', APP_NAME);
+  return path.join(dir, 'settings.json');
+}
+
+/** The list choices the person made in the app, never written here; an unreadable file is "none". */
+export function readListLayout(file: string): Pick<ListLayout, 'hidden' | 'kinds'> | null {
+  try {
+    const list = mergeSettings(JSON.parse(fs.readFileSync(file, 'utf8'))).layout.list;
+    return { hidden: list.hidden, kinds: list.kinds };
+  } catch {
+    return null;
+  }
 }
 
 const latchOf = (deps: Deps): RemoteTokenLatch => (deps.latch ??= new RemoteTokenLatch());
@@ -81,6 +105,7 @@ export function liveDeps(runner: Runner = execRunner): Deps {
     sleep: (ms) => new Promise((r) => setTimeout(r, ms)),
     platform: process.platform,
     latch: new RemoteTokenLatch(),
+    listLayout: () => readListLayout(appSettingsFile()),
   };
 }
 
@@ -110,9 +135,13 @@ export interface ServiceView {
   update_available: string | null;
   commands: string[];
   problems: string[];
+  /** FD-78: how the app lists its product: `local`, `online` or `service` (no dashboard of its own, or the person's
+   *  choice), and whether the person hid it (still watched and alerting). */
+  category: Category;
+  hidden: boolean;
 }
 
-function view(s: ServiceLook): ServiceView {
+function view(s: ServiceLook, list?: { category: Category; hidden: boolean }): ServiceView {
   const d = s.descriptor;
   const wk = s.wellKnown;
   const dashPath = wk?.surfaces.dashboard?.path ?? null;
@@ -135,6 +164,8 @@ function view(s: ServiceLook): ServiceView {
     update_available: wk?.update?.available ?? null,
     commands: Object.keys(d?.commands ?? {}),
     problems: s.problems,
+    category: list?.category ?? (d?.placement === 'remote' ? 'online' : 'local'),
+    hidden: list?.hidden ?? false,
   };
 }
 
@@ -156,14 +187,46 @@ function find(deps: Deps, key: string): DescriptorEntry & { descriptor: Descript
   return entry as DescriptorEntry & { descriptor: Descriptor };
 }
 
+/** FD-78: each look's section and hidden flag, as the app's list shows them (the person's choices win). */
+function listing(looks: readonly ServiceLook[], layout: Pick<ListLayout, 'hidden' | 'kinds'> | null): (key: string) => { category: Category; hidden: boolean } {
+  const products = groupProducts(looks.map(asSnapshot));
+  return (key) => {
+    const p = products.find((x) => x.members.some((m) => m.key === key))!;
+    return { category: categoryOf(p, layout?.kinds), hidden: Boolean(layout?.hidden.includes(p.id)) };
+  };
+}
+
+/** A look carries what product grouping reads; the fields only the app's monitor keeps are empty. */
+const asSnapshot = (l: ServiceLook): ServiceSnapshot => ({ ...l, descriptorPath: l.path, dashboardMinWidth: null, firstUnansweredAt: null, lastAnswerAt: null, busy: null, lastAction: null, latestEvent: null, feedError: null } as unknown as ServiceSnapshot);
+
 export async function listServices(deps: Deps): Promise<{ services: ServiceView[]; services_dir: string }> {
-  return { services: (await look(deps)).map(view), services_dir: deps.servicesDir() };
+  const looks = await look(deps);
+  const of = listing(looks, deps.listLayout?.() ?? null);
+  return { services: looks.map((l) => view(l, of(l.key))), services_dir: deps.servicesDir() };
 }
 
 export async function serviceStatus(deps: Deps, key: string): Promise<ServiceView> {
-  const [one] = await look(deps, [key]);
+  const looks = await look(deps);
+  const one = looks.find((l) => l.key === key);
   if (!one) throw new ToolError(`no installed service ${JSON.stringify(key)}`);
-  return view(one);
+  return view(one, listing(looks, deps.listLayout?.() ?? null)(key));
+}
+
+/** FD-78: what one agent is connected to, as its Connections tab shows it: who uses it, what it offers, what it uses
+ *  (declared under extensions/connections/0.1, plus its spend report's models, its runner and the parts it reports),
+ *  with the chain through the agents it reaches and the worst state anywhere in it. */
+export async function connections(deps: Deps, key: string): Promise<ConnectionGraph & { key: string; state: ServiceState; worst: string }> {
+  find(deps, key);
+  const looks = await look(deps);
+  const me = looks.find((l) => l.key === key);
+  if (!me) throw new ToolError(`no installed service ${JSON.stringify(key)}`);
+  let models: { provider: string; model: string; calls: number }[] = [];
+  if (me.wellKnown?.surfaces.usage) {
+    const [e] = await readSpend([me], { token: deps.token, fetchUsage: deps.usage, now: deps.now });
+    if (e?.kind === 'report') models = e.summary.models.map((m) => ({ provider: m.provider, model: m.model, calls: m.calls }));
+  }
+  const g = buildGraph(me, looks, models);
+  return { key, state: me.state, worst: worstOf(stateOfService(me.state), chainState(g.uses)), ...g };
 }
 
 // ── links and opening ───────────────────────────────────────────────────────────────────

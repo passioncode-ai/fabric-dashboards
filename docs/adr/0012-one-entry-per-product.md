@@ -52,3 +52,9 @@ MUST be a second `instance`, never a second `id`». Every one of the five entrie
   product it relays. Naming the id belongs to the projection's owner, not to this app.
 - The tray keeps one line per instance: it is the place to act on one exact service from the menu
   bar, and its problem section already sorts by attention.
+
+## Amendment 2026-10-20: Background is now Services (ADR-0022)
+
+§5's rule stands and its section is named **Services**, beside **On this Mac** and **Online**. The person can show a
+product as a service or as an agent whatever the rule says, and hide any product into a folded section at the bottom.
+See [ADR-0022](0022-agent-categories-and-connections.md).

@@ -19,7 +19,7 @@
 Fabric Dashboards: a macOS desktop app (Electron) that finds every local agent service speaking
 `fabric-service/0.1`, shows whether it is alive and what it did last, starts, stops and restarts
 it through launchd and opens each service's dashboard inside the app. Fabric's monitoring tool;
-also works on its own. The current version is 0.7.17 (`package.json`, `CHANGELOG.md`); the README
+also works on its own. The current version is 0.7.18 (`package.json`, `CHANGELOG.md`); the README
 *Quick start for a new teammate* is the path for a new user. Licence:
 `AGPL-3.0-only OR LicenseRef-PassionCode-Commercial` ([ADR-0007](docs/adr/0007-agpl-or-commercial.md)).
 
@@ -162,8 +162,8 @@ CPU **0.258 % hidden** and 0.386 % shown on Overview (`node --import tsx scripts
 monitor costs about 1.7 ms of CPU per probe or events read. (Before this change, 0.4.1 measured 1.3 % CPU and about
 7,200 `launchctl` spawns an hour after a login launch: lifecycle audit 2026-10-03, F-2/F-4.)
 
-**Files it writes** (LC-12): `~/Library/Application Support/Fabric Dashboards/` — `settings.json` (with the panel layout, pinned agents and
-the list's sort, each service's console runtime and folder, ADR-0017, and the previous visit and setup state, ADR-0020),
+**Files it writes** (LC-12): `~/Library/Application Support/Fabric Dashboards/` — `settings.json` (with the panel layout, pinned agents,
+the list's sort, hidden agents and the kinds the person chose (FD-78, read by the MCP server without writing), each service's console runtime and folder, ADR-0017, and the previous visit and setup state, ADR-0020),
 `consoles/<key>/` (FD-39, ADR-0020: the context pack each console start writes — `context.md`, `task.md` for a Fix/Update, `mcp.json`,
 `brief.md` when the brief exceeds one argument and `handoff.json`, the contract's `session-handoff/1` manifest (FD-47, DEC-0042), for Claude Code, Codex and Gemini CLI;
 and `setup.md` for the Setup console; 0700 folder, 0600 files, rewritten at each start, never in the agent's repository)

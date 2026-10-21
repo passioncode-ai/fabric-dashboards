@@ -119,3 +119,15 @@ test('FD-75: the updater checks the staging before Restart to update and on ever
   assert.match(main, /updater\.onInstallWhenReady = \(\) => void restartToUpdate\(\);/, 'the restaged update installs once ready');
   assert.ok(main.indexOf('!updater.readyToInstall()') < main.indexOf("mayEndWork('restart')"), 'no question and no "installing" notice for an update that is not on disk');
 });
+
+test('FD-79: an update that cannot be unpacked names why: a full disk before trying, the tool\'s words after', async () => {
+  const { unpackRoomRefusal, unpackFailure, UNPACK_MARGIN_BYTES } = await import('../src/core/self-update');
+  const GB = 1024 ** 3;
+  const zip = 0.25 * GB;
+  assert.equal(unpackRoomRefusal(zip, 1.0 * GB), null, '1 GB is enough for a 0.25 GB zip (3 × 0.25 GB + 0.25 GB)');
+  assert.match(unpackRoomRefusal(zip, 0.5 * GB)!, /^not enough free space to unpack the update: 0\.5 GB free, about 1\.0 GB needed/);
+  assert.equal(unpackRoomRefusal(zip, null), null, 'unknown free space: try, and keep the tool\'s words');
+  assert.equal(unpackRoomRefusal(0, UNPACK_MARGIN_BYTES), null);
+  assert.equal(unpackFailure('A.zip', '\n ditto: Couldn\'t write file: No space left on device \nmore', 1.5 * GB), 'A.zip could not be unpacked: ditto: Couldn\'t write file: No space left on device (1.5 GB free)');
+  assert.equal(unpackFailure('A.zip', '', null), 'A.zip could not be unpacked');
+});

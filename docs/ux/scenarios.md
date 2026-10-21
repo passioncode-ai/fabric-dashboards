@@ -523,7 +523,7 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
   2. User closes the window and leaves it closed for ten minutes -> the app installs the update and reopens in the menu bar, with no window and no question; services are untouched
   3. User opens the window later -> it is the new version, on the Overview
 - **Expected result:** every copy stays current with no action from the person
-- **Alt paths:** user chooses Restart to Update while an agent's console or a command runs -> the app names them and asks; Cancel keeps everything running, Restart to Update stops them and installs; user chooses Restart to Update -> a notification says the app reopens by itself and it installs now, and the new copy opens on the screen the person left — the agent's page, Activity, Spend or Settings (FD-21 U-18); the app is opened (by the person, a link or an agent) while the update installs -> it says «Finishing the update to <version> — reopens by itself», steps aside, and reopens when the install has finished; the window stays open -> nothing installs under the person's eyes, and it installs at the next quit or the next ten closed minutes; a doctor or update command is running -> the install waits for it, checked every minute; "Install updates automatically" is off in Settings → Updates -> nothing is checked, downloaded or installed on its own, and Check for updates still works (LC-16; the choice is kept in a file no update, reinstall or uninstall rewrites); the release needs a step from the person -> it is verified but held: "Update <version> is verified and waits for you" with What to do (opens the release's steps) and Install; Settings → Updates → Check now checks at once; the feed names a version that is not newer than the installed one -> nothing installs (F-1); on Linux from an AppImage -> the same checks, then the new AppImage replaces this one and Restart to Update (or ten hidden minutes) starts it (FD-37 M4b); on Linux from a .deb -> Settings → Updates says a newer .deb from the releases page updates it, and nothing is checked; on Windows, installed by the installer -> the same checks, then Restart to Update (or ten hidden minutes) runs the verified installer silently in update mode, which installs in place and starts the app again (FD-37 M4c); on Windows without the installer's uninstaller beside the app -> Settings → Updates says this copy was not set up by the installer and where the newer version is
+- **Alt paths:** user chooses Restart to Update while an agent's console or a command runs -> the app names them and asks; Cancel keeps everything running, Restart to Update stops them and installs; user chooses Restart to Update -> a notification says the app reopens by itself and it installs now, and the new copy opens on the screen the person left — the agent's page, Activity, Spend or Settings (FD-21 U-18); the app is opened (by the person, a link or an agent) while the update installs -> it says «Finishing the update to <version> — reopens by itself», steps aside, and reopens when the install has finished; the window stays open -> nothing installs under the person's eyes, and it installs at the next quit or the next ten closed minutes; a doctor or update command is running -> the install waits for it, checked every minute; "Install updates automatically" is off in Settings → Updates -> nothing is checked, downloaded or installed on its own, and Check for updates still works (LC-16; the choice is kept in a file no update, reinstall or uninstall rewrites); the release needs a step from the person -> it is verified but held: "Update <version> is verified and waits for you" with What to do (opens the release's steps) and Install; Settings → Updates → Check now checks at once; the feed names a version that is not newer than the installed one -> nothing installs (F-1); the disk has too little room to unpack the update -> Settings → Updates says "not enough free space to unpack the update: N GB free, about M GB needed", and a failed unpack says the tool's own words and the free space, never only that it failed; the next check tries again (FD-79); on Linux from an AppImage -> the same checks, then the new AppImage replaces this one and Restart to Update (or ten hidden minutes) starts it (FD-37 M4b); on Linux from a .deb -> Settings → Updates says a newer .deb from the releases page updates it, and nothing is checked; on Windows, installed by the installer -> the same checks, then Restart to Update (or ten hidden minutes) runs the verified installer silently in update mode, which installs in place and starts the app again (FD-37 M4c); on Windows without the installer's uninstaller beside the app -> Settings → Updates says this copy was not set up by the installer and where the newer version is
 - **UI elements:** footer update line, Restart to Update button, held line with What to do and Install, Settings → Updates (Install updates automatically, state line, Check now), "Check for updates" in the app menu
 - **States covered:** loading, success, error
 - **Errors & recovery:** download or signature check fails -> footer "Update failed: <reason>" with Retry, one automatic retry within the hour, and the running app is unchanged; the bundle Squirrel staged is not the verified one -> it is removed before any quit and the footer says so; every step is logged with the organization's update codes (ADR-0015 amendment)
@@ -696,7 +696,7 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **Entry point:** an agent session with the `fabric-dashboards` MCP server registered (`Contents/Resources/bin/fabric-dashboards-mcp`)
 - **Preconditions:** none; the app does not need to be running
 - **Steps:**
-  1. Agent calls `list_services` or `service_status` -> it receives each service's product, placement, state and reasons (codes), version and build, dashboard address, deep link (open_link), tiles, pending update, declared commands and problems — no token, and nothing of another program that answers a service's port
+  1. Agent calls `list_services` or `service_status` -> it receives each service's product, placement, state and reasons (codes), version and build, dashboard address, deep link (open_link), tiles, pending update, declared commands and problems, and how the app lists it (`category`, `hidden`, FD-78) — no token, and nothing of another program that answers a service's port
   2. Agent calls `link` for a job it started -> it receives the deep link as the primary dashboard action and the plain address for diagnostics; `host_status` distinguishes installed/absent/unknown/version/handler; `open` uses the existing host (browser only for confirmed absence with `fallback=if_absent`, never with `fallback=never`)
   3. Agent calls `control` (start, stop, restart), `doctor` or `update` -> the same launchd verbs and descriptor commands as the app run, and the tool returns the result it observed
   4. Agent calls `activity` -> recent events as sentences, each with a deep link when it points at a page
@@ -781,11 +781,11 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **Preconditions:** the instances share the service id `growth`
 - **Steps:**
   1. User opens the app -> the sidebar lists one **Growth** entry with the default instance's state; Overview shows one Growth card with the default instance's tiles and an "also:" line naming `projection` and `reader`, each with its state glyph
-  2. User looks below the agents in the sidebar -> the communicator is listed under **Background**; on Overview its card sits with the others
+  2. User looks below the agents in the sidebar -> the communicator is listed under **Services**; on Overview its card sits under Services too (ADR-0022)
   3. User clicks the Growth entry -> the default instance's page opens on its dashboard
 - **Expected result:** five endpoints of two products read as two agents; nothing is hidden — every instance is one click away
-- **Alt paths:** no `default` instance -> the first instance with a dashboard is the primary; a service that has never answered stays among the agents, not under Background
-- **UI elements:** sidebar product entry, Background section, Overview product card, "also:" line
+- **Alt paths:** no `default` instance -> the first instance with a dashboard is the primary; a service that has never answered stays among the agents, not under Services
+- **UI elements:** sidebar product entry, Services section, Overview product card, "also:" line
 - **States covered:** success, empty
 - **Errors & recovery:** an invalid descriptor of one instance keeps its own `invalid` state inside the product and in Attention
 - **Status:** validated
@@ -1226,7 +1226,7 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **Entry point:** the agent's row menu → Hide
 - **Preconditions:** at least one agent
 - **Steps:**
-  1. User chooses Hide -> the agent leaves its section (and Pinned) and a folded "Hidden: 1" appears at the bottom of the sidebar and of Overview
+  1. User chooses Hide -> the agent leaves its section (and Pinned) and a folded "Hidden: 1" appears at the bottom of the sidebar and of Overview; in the narrow rail the fold is an entry of its own
   2. User opens the fold -> the hidden agents are listed; clicking one opens it as usual
   3. User chooses "Show again" -> it returns to its section, pinned again if it was pinned
 - **Expected result:** service agents the person does not look at take no room, and nothing about them stops
@@ -1250,12 +1250,12 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
   3. User reads a connection to another agent -> it carries that agent's own state too (the worse of the two) and, below it, that agent's connections, up to three levels; an agent already shown in the chain is not repeated
   4. User clicks a connected agent -> its page opens on its Connections tab
 - **Expected result:** the person sees what an agent depends on and what depends on it, and where in the chain something does not work
-- **Alt paths:** the agent declares no connections -> a line says so, and the tab shows what the app sees: the models of its spend report (with their calls over 30 days), its runner, the parts it reports failing, the agents that name it; the declaration is invalid -> "the declaration is invalid, so none of it is shown" with the reasons, and the rest as for no declaration; a declared agent that is not installed here reads "Not known"; a part the agent reports failing that a declaration names marks that connection; nothing known -> "Nothing known yet."
+- **Alt paths:** another agent names it twice (two capabilities) -> one row in "Used by" with both; an agent asks through MCP -> `connections` answers the same graph and `list_services` carries `category` and `hidden`; the agent declares no connections -> a line says so, and the tab shows what the app sees: the models of its spend report (with their calls over 30 days), its runner, the parts it reports failing, the agents that name it; the declaration is invalid -> "the declaration is invalid, so none of it is shown" with the reasons, and the rest as for no declaration; a declared agent that is not installed here reads "Not known"; a part the agent reports failing that a declaration names marks that connection; nothing known -> "Nothing known yet."
 - **UI elements:** Connections tab, summary line, Used by list, the agent card with its offers, the Uses groups with the chain drawn as a tree
 - **States covered:** loading (models being read), empty, success, error
 - **Errors & recovery:** an unreadable spend report leaves models out, never blocks the tab
 - **Status:** draft
-- **Coverage:** packages/service-host/src/connections.ts, src/core/connections.ts, src/renderer/components/Connections.tsx, packages/service-host/test/connections.test.ts, test/connections.test.ts, test/e2e/focus-console.test.ts *SCN-073*
+- **Coverage:** packages/service-host/src/connections.ts, src/core/connections.ts, src/renderer/components/Connections.tsx, src/mcp/tools.ts (connections, listing), packages/service-host/test/connections.test.ts, test/connections.test.ts, test/mcp.test.ts *FD-78*, test/e2e/connections.test.ts, test/e2e/focus-console.test.ts *SCN-073*
 - **Product:** unobserved
 
 ### SCN-070: Check what is set up
@@ -1402,7 +1402,7 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
   2. User chooses Recent activity -> the agent with the newest event comes first
   3. User chooses Name -> alphabetical, as before
 - **Expected result:** the list is in the order the person works in; the choice is remembered
-- **Alt paths:** pinned agents keep pin order whatever the sort; Background keeps its section
+- **Alt paths:** pinned agents keep pin order whatever the sort; On this Mac, Online, Services and Hidden are each sorted inside (FD-78); the sort control sits in the first shown section's header
 - **UI elements:** sort control (Name, Status, Recent activity)
 - **States covered:** success
 - **Errors & recovery:** n/a
