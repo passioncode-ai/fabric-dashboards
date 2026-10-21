@@ -39,7 +39,7 @@ The operator asked to check everything done on 2026-10-20, find mistakes, drift 
 2. **FD-80** next: a window that is not on screen holds the automatic install, silently.
    Also fixed now: a private agent's name had reached the public tree in FD-78's package README and test (merged in
    #168); replaced by `example-notifier`. The pre-commit private guard caught it on the next commit, not on #168:
-   that merge was made by the GitHub merge button, which runs no local hook.
+   the name joined the operator's local denylist only on 2026-10-21 06:55 UTC (the file's modification time).
 3. After the installed copy runs 0.7.18: `main.log` has `dashboard cookies written back for encryption: N rewritten, 0
    failed`, and a count over `Partitions/*/Cookies` finds no plaintext cookie; then close FD-04.
 3. Re-pin `connections` when the contract decides (thread `131648c0`).
