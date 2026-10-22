@@ -11,8 +11,17 @@ Current release: **0.7.24** (published 2026-10-22 17:59 UTC, release run 3982252
 row). Two changes: agents in one state for one reason fold into one line in Needs attention (`src/core/attention.ts`,
 SCN-006), and no value is shown as a bare dash. Principle 7 holds by design (MCP-run commands never reach the queue).
 
-**Next, in order:** FD-02 (the remaining scenario drafts on the running app); FD-80's other half when Electron exposes
-it; FD-87 (b) after Fabric CO-321; FD-82 (the Spend e2e Dock check under load above about 60).
+**Later the same evening:** FD-89 done (PR #183: `npm test` installs Electron's binary first; a fresh checkout's
+first `npm run check` passes); SCN-066 marked validated in the scenarios index too (PR #182); the release announcement
+for 0.7.22 to 0.7.24 posted on thread `eece7d67`; the contract asked for a host rule on subscription rows (thread
+`e99aa05f`, FD-88).
+
+**Next, in order:**
+1. FD-02: run `test/e2e/focus-console.test.ts` and `test/e2e/connections.test.ts` on an unlocked screen and mark
+   SCN-071 to SCN-075 validated (the screen was locked at 19:0x UTC; e2e refuses then, `scripts/check-screen.mjs`).
+2. FD-82: the Spend e2e Dock check under load above about 60 (also needs an unlocked screen).
+3. FD-80's other half when Electron exposes it; FD-87 (b) after Fabric CO-321.
+4. Read thread `e99aa05f` for the contract's answer on FD-88.
 
 ## 0.7.23: start here (2026-10-22, FD-88 Spend shows money, not a subscription's list price)
 
