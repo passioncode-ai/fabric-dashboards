@@ -156,7 +156,14 @@ test('FD-83: a session stopped on a limit continues in a console here; the rest 
     const page = await app.firstWindow();
     await page.getByRole('button', { name: /^Connections/ }).first().click();
     await page.getByRole('heading', { level: 2, name: /Sessions stopped on a limit/ }).waitFor({ timeout: 60_000 });
-    await page.getByText('Continued here.').waitFor({ timeout: 45_000 });
+    try {
+      await page.getByText('Continued here.').waitFor({ timeout: 45_000 });
+    } catch (error) {
+      // FD-90: a miss says what the app did, so its cause can be read.
+      const log = path.join(base, 'app', 'logs', 'main.log');
+      const lines = fs.existsSync(log) ? fs.readFileSync(log, 'utf8').split('\n').filter((l) => /console|limit|stop|switchboard|runtime/i.test(l)) : [];
+      throw new Error(`${(error as Error).message}\nmain.log:\n${lines.join('\n') || '(none)'}\njournal:\n${fs.existsSync(journal) ? fs.readFileSync(journal, 'utf8') : '(none)'}`);
+    }
     await page.getByText('Stopped on a payment limit: a top-up is needed.').waitFor();
     // The console's PTY runs the launch a moment after the claim is recorded.
     const launched = `claude --resume ${READY} `;
