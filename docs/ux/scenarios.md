@@ -76,11 +76,11 @@
 | SCN-068 | See which runner and model an agent uses | service | P-01 | ST-019 | validated | 2026-10-13 |
 | SCN-069 | A hand-over opens in the console | console | P-01 | ST-019 | validated | 2026-10-14 |
 | SCN-070 | Check what is set up | settings | P-01 | ST-017 | validated | 2026-10-14 |
-| SCN-071 | See agents on this Mac, online and services apart | list | P-01 | ST-021 | draft | 2026-10-20 |
-| SCN-072 | Hide an agent without stopping it | list | P-01 | ST-021 | draft | 2026-10-20 |
-| SCN-073 | See what an agent is connected to | service | P-01 | ST-019 | draft | 2026-10-20 |
-| SCN-074 | See how agents are wired and what the auditor found | connections | P-01 | ST-019 | draft | 2026-10-21 |
-| SCN-075 | A session stopped on a limit continues by itself | connections | P-01 | ST-019 | draft | 2026-10-22 |
+| SCN-071 | See agents on this Mac, online and services apart | list | P-01 | ST-021 | validated | 2026-10-23 |
+| SCN-072 | Hide an agent without stopping it | list | P-01 | ST-021 | validated | 2026-10-23 |
+| SCN-073 | See what an agent is connected to | service | P-01 | ST-019 | validated | 2026-10-23 |
+| SCN-074 | See how agents are wired and what the auditor found | connections | P-01 | ST-019 | validated | 2026-10-23 |
+| SCN-075 | A session stopped on a limit continues by itself | connections | P-01 | ST-019 | validated | 2026-10-23 |
 ## Personas
 
 Defined in [foundation.md](foundation.md) → P-01.
@@ -1217,7 +1217,7 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **UI elements:** section headers, the row menu (Pin, Show as a service or an agent, Hide), the sort in the first section's header
 - **States covered:** success, empty
 - **Errors & recovery:** a damaged choice in settings is dropped and the app's guess applies
-- **Status:** draft
+- **Status:** validated (test/e2e/focus-console.test.ts (ADR-0017 test, FD-78 steps) passed on the running app, 2026-10-23 00:00 UTC)
 - **Coverage:** src/core/products.ts (categoryOf, arrangeProducts, setKind), src/core/settings.ts (mergeList), src/renderer/App.tsx (RowMenu), src/renderer/components/Overview.tsx, test/listorder.test.ts *FD-78*, test/e2e/focus-console.test.ts *FD-78*
 - **Product:** unobserved
 
@@ -1236,7 +1236,7 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **UI elements:** Hide and Show again in the row menu, the "Hidden: N" fold with its mark
 - **States covered:** success, empty, error
 - **Errors & recovery:** n/a
-- **Status:** draft
+- **Status:** validated (test/e2e/focus-console.test.ts (ADR-0017 test, FD-78 steps) passed on the running app, 2026-10-23 00:00 UTC)
 - **Coverage:** src/core/products.ts (toggleHidden, arrangeProducts), src/renderer/App.tsx, src/renderer/components/Overview.tsx, test/listorder.test.ts *FD-78*, test/e2e/focus-console.test.ts *FD-78*
 - **Product:** unobserved
 
@@ -1256,7 +1256,7 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **UI elements:** Connections tab, summary line, Used by list, the agent card with its offers, the Uses groups with the chain drawn as a tree
 - **States covered:** loading (models being read), empty, success, error
 - **Errors & recovery:** an unreadable spend report leaves models out, never blocks the tab
-- **Status:** draft
+- **Status:** validated (test/e2e/focus-console.test.ts and test/e2e/connections.test.ts *FD-78* passed on the running app, 2026-10-23 00:00 UTC)
 - **Coverage:** packages/service-host/src/connections.ts, src/core/connections.ts, src/renderer/components/Connections.tsx, src/mcp/tools.ts (connections, listing), packages/service-host/test/connections.test.ts, test/connections.test.ts, test/mcp.test.ts *FD-78*, test/e2e/connections.test.ts, test/e2e/focus-console.test.ts *SCN-073*
 - **Product:** unobserved
 
@@ -1277,7 +1277,7 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **UI elements:** Connections nav item with its count, the summary line, the coverage line, the Map, Not connected chips, the Auditor rows with Start in and Fix with agent
 - **States covered:** empty, success, error
 - **Errors & recovery:** an agent's spend report that cannot be read leaves its limits out, never the rest
-- **Status:** draft
+- **Status:** validated (test/e2e/connections.test.ts *FD-78* (the map and the auditor, FD-81 steps) passed on the running app, 2026-10-23 00:00 UTC)
 - **Coverage:** src/core/audit.ts, src/core/estate-map.ts, src/renderer/components/ConnectionsMap.tsx, src/core/handoff.ts (auditTask), src/mcp/tools.ts (auditAll, setupCheck), test/audit.test.ts, test/mcp.test.ts *FD-81*, test/e2e/connections.test.ts, test/e2e/focus-console.test.ts *FD-81*
 - **Product:** unobserved
 
@@ -1297,7 +1297,7 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **UI elements:** the Connections section with Open, the Hand-overs entry, the console line, the Settings switch
 - **States covered:** empty, success, error
 - **Errors & recovery:** a claim Switchboard refuses starts nothing ("Could not be continued here; see the log."); a claimed stop whose console cannot start is recorded `cancelled`; Switchboard not answering says so in the section; live processes that cannot be read count as open, never as none
-- **Status:** draft
+- **Status:** validated (test/e2e/connections.test.ts *FD-83* passed 8 of 10 runs on the running app, 2026-10-23 00:00 to 00:06 UTC; the two misses timed out waiting for "Continued here." at load average about 30 (FD-90))
 - **Coverage:** src/core/recovery.ts, src/electron/console.ts (pollRecovery), src/renderer/components/ConnectionsMap.tsx (LimitStops), src/mcp/tools.ts (limitStops), test/recovery.test.ts, test/e2e/connections.test.ts *FD-83*
 - **Product:** unobserved
 
