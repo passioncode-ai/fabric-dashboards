@@ -2,8 +2,9 @@ import { offersAgentUpdate, offersFix, SETUP_KEY } from '../../core/offers';
 import type { SinceLastVisit } from '../../core/visit';
 import { areasInOrder, attention, type SetupCheckResult } from '../../core/doctor';
 import { attentionRank } from '@passioncode-ai/fabric-service-host/state';
-import { useEffect, useState, type ReactNode } from 'react';
+import { Fragment, useEffect, useState, type ReactNode } from 'react';
 import { sumSpend, type SpendEntry } from '../../core/spend';
+import { groupAttention } from '../../core/attention';
 import { money as formatMoney } from './Spend';
 import { categoryOf, instanceOf, type Product } from '../../core/products';
 import type { ListLayout } from '../../core/types';
@@ -141,6 +142,8 @@ export function Overview({ status, products, open, act, goSpend, agent, visit, o
     const tile = s.wellKnown?.summary?.find((x) => x.attention);
     return tile ? t('reason.attention', { label: tile.label, value: tile.value }) : '';
   };
+  // FD-86: agents in one state for one reason fold into one line naming them all; a busy row stays its own.
+  const entries = groupAttention(attention, ({ s }) => (s.busy ? '' : `${s.state}|${attentionLine(s)}`));
 
   return (
     <>
@@ -181,7 +184,15 @@ export function Overview({ status, products, open, act, goSpend, agent, visit, o
         <section className="attention" aria-labelledby="attention-title">
           <h2 id="attention-title">{t('overview.attention')} <span className="count">{attention.length}</span></h2>
           <ul>
-            {(showAll ? attention : attention.slice(0, ATTENTION_VISIBLE)).map(({ s }) => (
+            {(showAll ? entries : entries.slice(0, ATTENTION_VISIBLE)).map(({ lead: { s }, members }) => members.length > 1 ? (
+              <li key={s.key} className="group">
+                <StateBadge state={s.state} />
+                <span className="name">{t('overview.attention.group', { count: members.length })} {members.map(({ s: m }, i) => (
+                  <Fragment key={m.key}>{i > 0 && ', '}<button className="linkish" onClick={() => open(m.key)}>{nameOf(m)}</button></Fragment>
+                ))}</span>
+                <span className="why" title={attentionLine(s)}>{attentionLine(s)}</span>
+              </li>
+            ) : (
               <li key={s.key}>
                 <StateBadge state={s.state} />
                 <button className="linkish name" onClick={() => open(s.key)}>{nameOf(s)}</button>
@@ -192,9 +203,9 @@ export function Overview({ status, products, open, act, goSpend, agent, visit, o
               </li>
             ))}
           </ul>
-          {attention.length > ATTENTION_VISIBLE && (
+          {entries.length > ATTENTION_VISIBLE && (
             <button className="btn-link more" aria-expanded={showAll} onClick={() => setShowAll(!showAll)}>
-              {showAll ? t('overview.attention.less') : t('overview.attention.all', { count: attention.length })}
+              {showAll ? t('overview.attention.less') : t('overview.attention.all', { count: entries.length })}
             </button>
           )}
         </section>
@@ -314,10 +325,10 @@ function StatusStrip({ status, products, attention, goSpend }: { status: AppStat
       <div className={`cell${problems ? ' bad' : ''}`}><span className="v">{problems}</span><span className="l">{t('overview.strip.down')}</span></div>
       <div className={`cell${attention ? ' attn' : ''}`}><span className="v">{attention}</span><span className="l">{t('overview.strip.attention')}</span></div>
       <button className="cell" onClick={goSpend} disabled={!reporting}>
-        <span className="v">{spend === null ? <Spinner /> : reporting ? sum('today') : '—'}</span><span className="l">{t('overview.strip.spendToday')}</span>
+        <span className="v">{spend === null ? <Spinner /> : reporting ? sum('today') : t('overview.strip.noSpend')}</span><span className="l">{t('overview.strip.spendToday')}</span>
       </button>
       <button className="cell" onClick={goSpend} disabled={!reporting}>
-        <span className="v">{spend === null ? <Spinner /> : reporting ? sum('month') : '—'}</span><span className="l">{t('overview.strip.spendMonth')}</span>
+        <span className="v">{spend === null ? <Spinner /> : reporting ? sum('month') : t('overview.strip.noSpend')}</span><span className="l">{t('overview.strip.spendMonth')}</span>
       </button>
     </section>
   );

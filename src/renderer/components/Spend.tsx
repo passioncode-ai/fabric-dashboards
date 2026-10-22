@@ -82,7 +82,7 @@ export function Spend({ status }: { status: AppStatus }) {
                     // DEC-0027: the limit that most needs a person; a report with only the older `budget` keeps that line.
                     const head = limitHeadline(e.summary.limits ?? [], t);
                     if (head) return <span className={head.state === 'tripped' || head.state === 'breach' ? 'state-down' : head.state === 'near' ? 'state-degraded' : undefined}>{head.text}</span>;
-                    return e.summary.budget ? t(`spend.budget.${e.summary.budget.period}`, { spent: usd(e.summary.budget.spentUsd, t), limit: usd(e.summary.budget.limitUsd, t) }) : '—';
+                    return e.summary.budget ? t(`spend.budget.${e.summary.budget.period}`, { spent: usd(e.summary.budget.spentUsd, t), limit: usd(e.summary.budget.limitUsd, t) }) : <span className="muted">{t('spend.noLimit')}</span>;
                   })()}</td>
                 </tr>
                 {open === e.key && (
