@@ -149,8 +149,8 @@ export function ConsolePanel({ serviceKey, width, max, onWidth, onHide, task, on
     resumed.current = serviceKey;
     const rt = info.runtimes.find((r) => r.id === info.runtime);
     if (rt?.canContinue && info.folder?.exists) {
-      setNotice({ text: t('console.idle.resumed', { account: info.idle.account ?? '—' }) });
-      void start('continue').then(() => setNotice({ text: t('console.idle.resumed', { account: info.idle?.account ?? '—' }) }));
+      setNotice({ text: t('console.idle.resumed', { account: info.idle.account ?? t('word.notRecorded') }) });
+      void start('continue').then(() => setNotice({ text: t('console.idle.resumed', { account: info.idle?.account ?? t('word.notRecorded') }) }));
     } else setNotice({ text: t('console.idle.closed') });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [info?.key, info?.idle?.at]);
@@ -220,7 +220,7 @@ export function ConsolePanel({ serviceKey, width, max, onWidth, onHide, task, on
           )}
           <button className="icon-btn" title={t('console.hide')} onClick={onHide}><Icon name="close" /><span className="visually-hidden">{t('console.hide')}</span></button>
         </div>
-        {handover && <p className="console-row console-line meta" role="status">{handover.kind === 'resume' ? t('console.resumed', { agent: handover.agent }) : t('console.handover', { workflow: handover.workflow || handover.agent, account: handover.account || '—' })}</p>}
+        {handover && <p className="console-row console-line meta" role="status">{handover.kind === 'resume' ? t('console.resumed', { agent: handover.agent }) : t('console.handover', { workflow: handover.workflow || handover.agent, account: handover.account || t('word.notRecorded') })}</p>}
         {!ownHandover && <div className="console-row meta">
           {info?.folder
             ? <span className="console-folder" title={`${info.folder.path}${info.folder.source === 'found' ? ` — ${t('console.foundFrom')}` : ''}`}>{shortPath(info.folder.path)}</span>
@@ -241,7 +241,7 @@ export function ConsolePanel({ serviceKey, width, max, onWidth, onHide, task, on
       {sessions && 'sessions' in sessions && sessions.sessions.filter((x) => x.state === 'starting' || x.state === 'running').map((x, i) => (
         <div key={i} className="console-row console-line meta" role="status">
           <span className="chip">{t(`console.sb.state.${x.state}`)}</span>
-          <span>{t('console.sb.session', { label: x.label, mode: x.mode, since: x.launchedAt ? new Date(x.launchedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—' })}</span>
+          <span>{t('console.sb.session', { label: x.label, mode: x.mode, since: x.launchedAt ? new Date(x.launchedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : t('word.notRecorded') })}</span>
           {x.movedTo && <span className="notice">{t('console.sb.moved', { label: x.movedTo })}</span>}
         </div>
       ))}

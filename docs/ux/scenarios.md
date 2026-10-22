@@ -192,12 +192,12 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
   1. User opens Overview -> system shows Needs attention above the cards, most severe first: one single-line row per problem with its state, the name, the reason cut to the line ("Not answering since 17:02.") and its one action (Restart for a local service that is down or runs twice, "Update to 0.2.1" when the service declares an update command, Open otherwise; Logs after a failed action); while the action runs the row shows its progress ("Restarting…"); more than three rows wait behind "Show all" (SCN-042)
   2. User chooses the action -> system performs it (SCN-007, SCN-011, SCN-021); the row leaves when the problem clears, and a failed action keeps its row, with the failure sentence and Logs, for 30 minutes
 - **Expected result:** problems are the first thing read, each with its next action
-- **Alt paths:** a degraded service lists its reasons with Open, when the fix is inside the service ("Collector: last ran 3 days ago"); an online service never offers Restart — its platform supervises it
+- **Alt paths:** a degraded service lists its reasons with Open, when the fix is inside the service ("Collector: last ran 3 days ago"); an online service never offers Restart: its platform supervises it; several agents in the same state for the same reason (one hub down behind them) -> one line, "3 agents: A, B, C" with the reason once, each name opening its agent (FD-86)
 - **UI elements:** Needs attention block, problem rows, action buttons (each names its service for a screen reader), the problem count on Overview in the sidebar (not answering, two copies, wrong program, conflict, invalid)
 - **States covered:** error, success
 - **Errors & recovery:** the action fails -> the row keeps its place with the failure sentence and Logs
 - **Status:** validated
-- **Coverage:** packages/service-host/src/state.ts (attentionRank), src/renderer/components/Overview.tsx, test/e2e/overview-settings.test.ts
+- **Coverage:** packages/service-host/src/state.ts (attentionRank), src/core/attention.ts (groupAttention, test/attention.test.ts), src/renderer/components/Overview.tsx, test/e2e/overview-settings.test.ts
 - **Product:** unobserved
 
 ## control

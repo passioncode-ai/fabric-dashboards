@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+## 0.7.24 - 2026-10-22
+
+### Changed
+
+- **Needs attention folds agents that share one problem** (FD-86). When several agents are in the same state
+  for the same reason, for example because one hub behind them is down, they read as one line naming them
+  all ("3 agents: A, B, C") with the reason once, and each name still opens its agent.
+- **Nothing is left as a bare dash.** Where a value is not reported, not stated or not recorded, the window
+  says so in words: "not reported" on the Overview strip, "No limit stated" in Spend, "not stated" and
+  "not recorded" on an agent's page and in its console.
+
 ## 0.7.23 - 2026-10-22
 
 ### Fixed
