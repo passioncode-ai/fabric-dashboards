@@ -3,8 +3,11 @@
 // that stops on a usage limit (SB-115) and says which are ready to continue, but it owns no terminal: the host acts on
 // `ready` rows, and this app's console is that host. A ready stop is continued here only when nothing else can be
 // writing its transcript: no live claude or codex process in its folder and none running with its session id (two
-// writers on one transcript is the failure SB-115 forbids). It is claimed once, continued with `--resume` through
-// Switchboard in the console, and its outcome recorded. A stop older than a day, a billing stop, or one whose session
+// writers on one transcript is the failure SB-115 forbids). It is claimed once and continued with `--resume` by the
+// agent's own CLI in its folder, in the home that holds its transcript (FD-84: a Switchboard managed launch runs in a
+// home of its own where the transcript is not, and holds one session per pool); a folder bound to a Switchboard group
+// routes that CLI through Switchboard by its own settings. Its outcome is recorded only once the session has lived
+// RESUME_SETTLE_MS. A stop older than a day, a billing stop, or one whose session
 // is still open stays for the person, listed on the Connections page. Ids, folders and times only: never a prompt or
 // a token.
 import type { Runner } from '@passioncode-ai/fabric-service-host';
@@ -40,6 +43,8 @@ export const RESUME_MAX_AGE_MS = 24 * 60 * 60_000;
 export const RESUMES_PER_PASS = 2;
 /** What the continued session is told: one line, the same for every agent. */
 export const RESUME_BRIEF = 'The usage limit has reset. Continue your task from where it stopped.';
+/** FD-84: a continued session counts as resumed only once it has run this long; one that exits sooner is cancelled. */
+export const RESUME_SETTLE_MS = 15_000;
 
 const SESSION = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const EVENT = /^[A-Za-z0-9._:-]{1,200}$/;
@@ -102,9 +107,37 @@ export async function finishStop(run: Runner, sb: string, stop: SbStop, outcome:
   return r.code === 0;
 }
 
-/** The arguments the agent CLI gets to continue the session (Switchboard passes them after `--`). */
+/** The arguments the agent CLI gets to continue the session. */
 export function resumeArgs(stop: SbStop): string[] {
   return stop.provider === 'codex' ? ['resume', stop.session, RESUME_BRIEF] : ['--resume', stop.session, RESUME_BRIEF];
+}
+
+/** FD-84: where the stopped session's transcript is in the person's own home, or null. Only a session found there is
+ *  continued here: that is the home a plain `claude` or `codex` in its folder reads. */
+export function transcriptOf(stop: SbStop, home: string): string | null {
+  const name = stop.provider === 'codex' ? null : `${stop.session}.jsonl`;
+  if (name) {
+    const root = path.join(home, '.claude', 'projects');
+    let dirs: string[] = [];
+    try { dirs = fs.readdirSync(root); } catch { return null; }
+    for (const d of dirs) {
+      const file = path.join(root, d, name);
+      if (fs.existsSync(file)) return file;
+    }
+    return null;
+  }
+  // Codex keeps sessions under ~/.codex/sessions/<yyyy>/<mm>/<dd>/rollout-<time>-<id>.jsonl.
+  const walk = (dir: string, depth: number): string | null => {
+    let entries: fs.Dirent[] = [];
+    try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return null; }
+    for (const e of entries) {
+      const full = path.join(dir, e.name);
+      if (e.isFile() && e.name.endsWith(`${stop.session}.jsonl`)) return full;
+      if (e.isDirectory() && depth > 0) { const hit = walk(full, depth - 1); if (hit) return hit; }
+    }
+    return null;
+  };
+  return walk(path.join(home, '.codex', 'sessions'), 3);
 }
 
 /** The console key a continued session gets when no agent's console owns its folder: `handover.rs-<12 hex>`. */
@@ -135,11 +168,12 @@ export function sessionOpen(stop: SbStop, live: Live): boolean {
   return live.dirs.some((d) => real(d) === dir);
 }
 
-export function verdictOf(stop: SbStop, live: Live | null, now: number, exists: (dir: string) => boolean): StopVerdict {
+export function verdictOf(stop: SbStop, live: Live | null, now: number, exists: (dir: string) => boolean, transcript: (stop: SbStop) => string | null = () => 'unchecked'): StopVerdict {
   if (stop.state === 'claimed') return 'claimed';
   if (stop.kind === 'billing') return 'billing';
   if (!stop.ready || !stop.candidates.length) return 'waiting';
   if (!exists(stop.dir)) return 'no-folder';
+  if (!transcript(stop)) return 'no-transcript';
   if (!live || sessionOpen(stop, live)) return 'open';
   if (now - stop.stoppedAt > RESUME_MAX_AGE_MS) return 'old';
   return 'resume';

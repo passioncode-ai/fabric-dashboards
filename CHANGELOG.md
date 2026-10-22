@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+## 0.7.21 - 2026-10-22
+
+### Fixed
+
+- **A session continued after a limit now really continues** (FD-84). 0.7.20 continued it through a Switchboard
+  managed launch, which runs Claude Code in a home of its own where the conversation is not, and allows one such
+  session per account group: on this Mac one of three opened without its conversation and two closed at once, yet all
+  three were recorded as continued. Now the session continues with the agent's own CLI in its folder, in the home that
+  holds the conversation (a folder bound to a Switchboard group still goes through Switchboard), only a session whose
+  conversation is found there is taken, and it counts as continued only after it has run for 15 seconds.
+
 ## 0.7.20 - 2026-10-22
 
 ### Added

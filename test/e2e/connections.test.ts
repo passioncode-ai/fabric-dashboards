@@ -141,20 +141,24 @@ test('FD-83: a session stopped on a limit continues in a console here; the rest 
     'case "$*" in',
     `  "--json recovery") printf '%s' '${recovery}' ;;`,
     '  "--json recovery claim"*|"--json recovery finish"*) printf \'{"ok":true,"data":{}}\' ;;',
-    '  launch*--in-place*) echo "resumed by the fake switchboard"; /bin/sleep 30 ;;',
     '  *) exit 1 ;;',
     'esac',
   ].join('\n'), { mode: 0o755 });
+  // FD-84: the session continues by the plain CLI in its folder, in the home that holds its transcript.
+  fs.writeFileSync(path.join(runtimes, 'claude'), ['#!/bin/sh', `echo "claude $*" >> '${journal}'`, 'echo "resumed by the fake claude"', '/bin/sleep 40'].join('\n'), { mode: 0o755 });
+  const home = path.join(base, 'home');
+  fs.mkdirSync(path.join(home, '.claude', 'projects', 'stopped'), { recursive: true });
+  fs.writeFileSync(path.join(home, '.claude', 'projects', 'stopped', `${READY}.jsonl`), '{}\n');
   let app: ElectronApplication | null = null;
   try {
-    app = await electron.launch({ args: [ROOT], env: { ...process.env, FABRIC_SERVICES_DIR: services, FABRIC_DASHBOARDS_USER_DATA: path.join(base, 'app'), FD_TEST_RUNTIME_DIRS: runtimes, LANG: 'en_US.UTF-8' } });
+    app = await electron.launch({ args: [ROOT], env: { ...process.env, FABRIC_SERVICES_DIR: services, FABRIC_DASHBOARDS_USER_DATA: path.join(base, 'app'), FD_TEST_RUNTIME_DIRS: runtimes, HOME: home, LANG: 'en_US.UTF-8' } });
     const page = await app.firstWindow();
     await page.getByRole('button', { name: /^Connections/ }).first().click();
     await page.getByRole('heading', { level: 2, name: /Sessions stopped on a limit/ }).waitFor({ timeout: 60_000 });
-    await page.getByText('Continued here.').waitFor({ timeout: 20_000 });
+    await page.getByText('Continued here.').waitFor({ timeout: 45_000 });
     await page.getByText('Stopped on a payment limit: a top-up is needed.').waitFor();
     // The console's PTY runs the launch a moment after the claim is recorded.
-    const launched = `--working-directory ${repo} --in-place -- --resume ${READY}`;
+    const launched = `claude --resume ${READY} `;
     for (let i = 0; i < 50 && !fs.readFileSync(journal, 'utf8').includes(launched); i++) await new Promise((r) => setTimeout(r, 100));
     const lines = fs.readFileSync(journal, 'utf8').split('\n');
     assert.equal(lines.filter((l) => l.startsWith('--json recovery claim')).length, 1, 'claimed once');

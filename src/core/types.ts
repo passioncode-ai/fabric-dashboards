@@ -179,7 +179,7 @@ export interface AppStatus {
 
 // #region limit-recovery — docs: docs/ux/scenarios.md#scn-075-a-session-stopped-on-a-limit-continues-by-itself
 /** Why a stop is not continued here, or `resume`. The Connections page shows every stop that is not resumed. */
-export type StopVerdict = 'resume' | 'open' | 'old' | 'billing' | 'waiting' | 'no-folder' | 'claimed';
+export type StopVerdict = 'resume' | 'open' | 'old' | 'billing' | 'waiting' | 'no-folder' | 'no-transcript' | 'claimed';
 
 /** One stop on the Connections page: never its prompt, only where and since when. */
 export interface StopView { event: string; session: string; dir: string; provider: 'claude' | 'codex'; stoppedAt: number; attempt: number; verdict: StopVerdict | 'resumed' | 'failed'; key?: string }

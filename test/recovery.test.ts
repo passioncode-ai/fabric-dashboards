@@ -7,7 +7,7 @@ import path from 'node:path';
 import test from 'node:test';
 import type { Runner } from '@passioncode-ai/fabric-service-host';
 import { ConsoleHost } from '../src/electron/console';
-import { liveAgents, parseRecovery, RESUME_BRIEF, RESUME_MAX_AGE_MS, resumeArgs, resumeOwnKey, sessionOpen, verdictOf, type SbStop } from '../src/core/recovery';
+import { liveAgents, parseRecovery, RESUME_BRIEF, RESUME_MAX_AGE_MS, resumeArgs, resumeOwnKey, sessionOpen, transcriptOf, verdictOf, type SbStop } from '../src/core/recovery';
 import { isHandoverKey } from '../src/core/switchboard';
 import { limitStops } from '../src/mcp/tools';
 import { merge } from '../src/core/settings';
@@ -45,6 +45,7 @@ test('FD-83: only a ready, fresh limit stop whose transcript nothing can be writ
   assert.equal(verdictOf(stop({ kind: 'billing' }), none, NOW, yes), 'billing');
   assert.equal(verdictOf(stop({ state: 'claimed' }), none, NOW, yes), 'claimed');
   assert.equal(verdictOf(stop(), none, NOW, () => false), 'no-folder');
+  assert.equal(verdictOf(stop(), none, NOW, yes, () => null), 'no-transcript', 'FD-84: not in the home a plain CLI reads');
   assert.equal(verdictOf(stop({ stoppedAt: NOW - RESUME_MAX_AGE_MS - 1 }), none, NOW, yes), 'old');
   assert.ok(sessionOpen(stop(), { dirs: ['/tmp/'], args: '' }), 'paths compare resolved');
 });
@@ -55,6 +56,19 @@ test('FD-83: the session continues through its own CLI with one brief line; its 
   assert.ok(isHandoverKey(resumeOwnKey(stop())));
   assert.equal(resumeOwnKey(stop()), resumeOwnKey(stop()), 'the same stop keeps its key');
   assert.match(RESUME_BRIEF, /^[^—]+$/);
+});
+
+test('FD-84: the transcript is looked for in the home a plain claude or codex reads', () => {
+  const home = tmp('fd-rs-home-');
+  assert.equal(transcriptOf(stop(), home), null);
+  fs.mkdirSync(path.join(home, '.claude', 'projects', '-srv-repo'), { recursive: true });
+  fs.writeFileSync(path.join(home, '.claude', 'projects', '-srv-repo', `${SID}.jsonl`), '{}\n');
+  assert.equal(transcriptOf(stop(), home), path.join(home, '.claude', 'projects', '-srv-repo', `${SID}.jsonl`));
+  const day = path.join(home, '.codex', 'sessions', '2026', '10', '21');
+  fs.mkdirSync(day, { recursive: true });
+  assert.equal(transcriptOf(stop({ provider: 'codex' }), home), null);
+  fs.writeFileSync(path.join(day, `rollout-2026-10-21T10-00-00-${SID}.jsonl`), '{}\n');
+  assert.ok(transcriptOf(stop({ provider: 'codex' }), home)?.endsWith(`${SID}.jsonl`));
 });
 
 test('FD-83: live processes are lsof cwd and ps args; lsof exiting 1 is still an answer, a failure is unknown', async () => {
@@ -72,12 +86,16 @@ test('FD-83: settings from an earlier version continue sessions by themselves; a
   assert.equal(merge({ resumeAfterLimit: false }).resumeAfterLimit, false);
 });
 
-function rig(o: { sessions?: (dir: string) => unknown[]; live?: { inFolder?: boolean; args?: string }; on?: boolean; claim?: number; freeDisk?: number; serviceFolder?: boolean; spawnFails?: boolean } = {}) {
+function rig(o: { sessions?: (dir: string) => unknown[]; live?: { inFolder?: boolean; args?: string }; on?: boolean; claim?: number; freeDisk?: number; serviceFolder?: boolean; spawnFails?: boolean; exitsAtOnce?: boolean; noTranscript?: boolean } = {}) {
   const base = tmp('fd-rs-');
   const bin = path.join(base, 'bin');
   const dir = path.join(base, 'checkout');
   fs.mkdirSync(bin); fs.mkdirSync(dir);
   fs.writeFileSync(path.join(bin, 'switchboard'), '#!/bin/sh\n', { mode: 0o755 });
+  fs.writeFileSync(path.join(bin, 'claude'), '#!/bin/sh\n', { mode: 0o755 });
+  const home = path.join(base, 'home');
+  fs.mkdirSync(path.join(home, '.claude', 'projects', 'p'), { recursive: true });
+  if (!o.noTranscript) for (const id of [SID, '00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-000000000002', '00000000-0000-4000-8000-000000000003']) fs.writeFileSync(path.join(home, '.claude', 'projects', 'p', `${id}.jsonl`), '{}\n');
   let settings = { resumeAfterLimit: o.on ?? true, consoles: o.serviceFolder ? { 'agent.default': { runtime: 'claude-code', folder: dir } } : {} } as Record<string, unknown>;
   const calls: string[][] = [];
   const spawned: { file: string; args: string[]; cwd: string }[] = [];
@@ -98,12 +116,14 @@ function rig(o: { sessions?: (dir: string) => unknown[]; live?: { inFolder?: boo
     spawn: (file, args, opts) => {
       if (o.spawnFails) throw new Error('posix_spawnp failed');
       spawned.push({ file, args, cwd: opts.cwd });
-      return { pid: 999_999_999, onData: () => ({ dispose() {} }), onExit: () => ({ dispose() {} }), write() {}, resize() {}, kill() {} };
+      return { pid: 999_999_999, onData: () => ({ dispose() {} }), onExit: (cb: (e: { exitCode: number; signal?: number }) => void) => { if (o.exitsAtOnce) setTimeout(() => cb({ exitCode: 1 }), 10); return { dispose() {} }; }, write() {}, resize() {}, kill() {} };
     },
     killGroup: () => {},
     idleMs: 0,
     machine: async () => ({ freeDisk: o.freeDisk ?? 50 * GB, swap: null, running: 0 }),
     keys: () => (o.serviceFolder ? ['agent.default'] : []),
+    home,
+    settleMs: 300,
   });
   return { host, dir, calls, spawned, logs, sb: path.join(bin, 'switchboard') };
 }
@@ -111,14 +131,14 @@ function rig(o: { sessions?: (dir: string) => unknown[]; live?: { inFolder?: boo
 const POSIX = { skip: process.platform === 'win32' && 'POSIX execute bits: the fake switchboard is a shell script' };
 const sbCalls = (calls: string[][]) => calls.filter((c) => c[0] === 'switchboard' && c.includes('recovery')).map((c) => c.slice(1).join(' '));
 
-test('FD-83: a ready stop is claimed once, continued in a console of its own with --resume, and recorded as resumed', POSIX, async () => {
+test('FD-83/FD-84: a ready stop is claimed once, continued by the agent\'s own CLI with --resume, and recorded as resumed once it lives', POSIX, async () => {
   const r = rig();
   const [key] = await r.host.pollRecovery();
   assert.ok(key && isHandoverKey(key));
   assert.equal(r.spawned.length, 1);
   assert.equal(r.spawned[0]!.cwd, r.dir);
-  const argv = [r.spawned[0]!.file, ...r.spawned[0]!.args].join(' ');
-  assert.ok(argv.includes(`launch --provider claude --mode managed --working-directory ${r.dir} --in-place -- --resume ${SID}`), argv);
+  assert.equal(path.basename(r.spawned[0]!.file), 'claude', 'FD-84: the plain CLI, never a Switchboard managed launch');
+  assert.deepEqual(r.spawned[0]!.args, ['--resume', SID, RESUME_BRIEF]);
   const event = `cc-${SID}-1792066929`;
   assert.deepEqual(sbCalls(r.calls), ['--json recovery', `--json recovery claim --account acc-2 ${event}`, `--json recovery finish ${event} resumed`]);
   const status = r.host.recoveryStatus();
@@ -177,6 +197,18 @@ test('FD-83: a refused claim starts nothing; a claimed stop that cannot start is
   assert.deepEqual(broken.host.recoveryStatus().stops.map((s) => s.verdict), ['failed']);
 });
 
+test('FD-84: a session that exits at once is cancelled, never recorded as resumed; one with no transcript here is not claimed', POSIX, async () => {
+  const quick = rig({ exitsAtOnce: true });
+  assert.deepEqual(await quick.host.pollRecovery(), []);
+  assert.ok(sbCalls(quick.calls).some((c) => c.endsWith(' cancelled')), sbCalls(quick.calls).join('\n'));
+  assert.ok(!sbCalls(quick.calls).some((c) => c.endsWith(' resumed')));
+  assert.deepEqual(quick.host.recoveryStatus().stops.map((s) => s.verdict), ['failed']);
+  const elsewhere = rig({ noTranscript: true });
+  assert.deepEqual(await elsewhere.host.pollRecovery(), []);
+  assert.deepEqual(elsewhere.host.recoveryStatus().stops.map((s) => s.verdict), ['no-transcript']);
+  assert.ok(!elsewhere.calls.some((c) => c.includes('claim')));
+});
+
 test('FD-83: a stop in an agent\'s folder continues in that agent\'s free console', POSIX, async () => {
   const r = rig({ serviceFolder: true });
   assert.deepEqual(await r.host.pollRecovery(), ['agent.default']);
@@ -190,7 +222,10 @@ test('FD-83: MCP `audit` lists the stops with the same verdicts, read-only', POS
     if (file === 'ps') return { code: 0, stdout: 'zsh\n', stderr: '' };
     throw new Error(`unexpected ${file} ${args.join(' ')}`);
   };
-  const deps = { now: () => NOW, platform: 'darwin', switchboard: () => '/bin/switchboard', cli } as never;
+  const home = tmp('fd-rs-mcp-home-');
+  fs.mkdirSync(path.join(home, '.claude', 'projects', 'p'), { recursive: true });
+  fs.writeFileSync(path.join(home, '.claude', 'projects', 'p', `${SID}.jsonl`), '{}\n');
+  const deps = { now: () => NOW, platform: 'darwin', switchboard: () => '/bin/switchboard', cli, home } as never;
   const r = await limitStops(deps);
   assert.equal(r.available, true);
   assert.deepEqual(r.stops.map((s) => s.verdict), ['resume', 'billing']);

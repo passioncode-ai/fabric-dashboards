@@ -7,6 +7,7 @@ import { expand } from '@passioncode-ai/fabric-service-host';
 import { BrowserWindow, dialog, ipcMain } from 'electron';
 import { execFile } from 'node:child_process';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { execRunner, type Runner } from '@passioncode-ai/fabric-service-host';
 import { CHANNELS, type ConsoleInfo, type ConsoleStartResult, type ConsoleTask } from '../core/api';
@@ -19,9 +20,9 @@ import { admit, machineProbe, type MachineState } from '../core/admission';
 import { findCheckout } from '../core/repofind';
 import { detectRuntimes, KNOWN_RUNTIMES, readLoginPath, searchDirs, specsFromSwitchboard, type Runtime, type RuntimeSpec } from '../core/runtimes';
 import type { SettingsStore } from '../core/settings';
-import { accountsOf, bindingFor, canLaunchInPlace, findSwitchboard, handoverKey, inPlaceArgv, handoverRunArgv, handoversOf, isHandoverKey, managesProvider, sessionsIn, terminalLaunchArgv, type Binding, type SbHandover, type SbSessions } from '../core/switchboard';
+import { accountsOf, bindingFor, canLaunchInPlace, findSwitchboard, handoverKey, handoverRunArgv, handoversOf, isHandoverKey, managesProvider, sessionsIn, terminalLaunchArgv, type Binding, type SbHandover, type SbSessions } from '../core/switchboard';
 import type { ServiceSnapshot } from '../core/types';
-import { claimStop, finishStop, liveAgents, recoveryOf, resumeArgs, resumeOwnKey, verdictOf, RESUMES_PER_PASS, type RecoveryStatus, type SbStop, type StopView } from '../core/recovery';
+import { claimStop, finishStop, liveAgents, recoveryOf, resumeArgs, resumeOwnKey, transcriptOf, verdictOf, RESUME_SETTLE_MS, RESUMES_PER_PASS, type RecoveryStatus, type SbStop, type StopView } from '../core/recovery';
 
 /** node-pty 1.1.0 ships its macOS `spawn-helper` without the executable bit, and its postinstall
  *  does not set it: without it every spawn fails with `posix_spawnp failed`. A development checkout
@@ -78,6 +79,10 @@ export interface ConsoleHostOptions {
   machine?: (folder: string, running: number) => Promise<MachineState>;
   /** FD-62: the registered services' keys, to find the console a hand-over belongs in. */
   keys?: () => string[];
+  /** FD-84, test-only: the home whose transcripts a continued session must be found in (default the user's), and how
+   *  long a continued session must live before it counts as resumed (default RESUME_SETTLE_MS). */
+  home?: string;
+  settleMs?: number;
   /** FD-62: a hand-over console opened or went away — the shell's status changed. */
   changed?: () => void;
 }
@@ -414,7 +419,7 @@ export class ConsoleHost {
     const views: StopView[] = [];
     const due: SbStop[] = [];
     for (const s of pending) {
-      const verdict = verdictOf(s, live, now, isDir);
+      const verdict = verdictOf(s, live, now, isDir, (x) => transcriptOf(x, this.o.home ?? os.homedir()));
       if (verdict === 'resume' && on && due.length < RESUMES_PER_PASS) { due.push(s); continue; }
       views.push({ event: s.event, session: s.session, dir: s.dir, provider: s.provider, stoppedAt: s.stoppedAt, attempt: s.attempt, verdict });
     }
@@ -455,16 +460,30 @@ export class ConsoleHost {
     });
     const own = resumeOwnKey(stop);
     const key = handoverKey({ id: own.slice('handover.'.length), dir: stop.dir }, consoles, own);
-    const argv = inPlaceArgv(sb, stop.provider, stop.dir, resumeArgs(stop));
-    const r = this.manager.start(key, { argv, cwd: stop.dir, label: stop.provider === 'codex' ? 'Codex' : 'Claude Code', env: { PATH: dirs.join(path.delimiter) } }, { cols: 100, rows: 30 });
+    // FD-84: the agent's own CLI in its folder, so it reads the home that holds the transcript; a folder bound to a
+    // Switchboard group routes it through Switchboard by its own settings.
+    const cli = dirs.map((d) => path.join(d, stop.provider)).find((f) => { try { fs.accessSync(f, fs.constants.X_OK); return fs.statSync(f).isFile(); } catch { return false; } });
+    const label = stop.provider === 'codex' ? 'Codex' : 'Claude Code';
+    const r = cli ? this.manager.start(key, { argv: [cli, ...resumeArgs(stop)], cwd: stop.dir, label, env: { PATH: dirs.join(path.delimiter) } }, { cols: 100, rows: 30 }) : { ok: false as const, error: `${stop.provider} is not installed here` };
     if (!r.ok) {
       await finishStop(this.run, sb, stop, 'cancelled');
       this.actedStops.set(stop.event, view('failed'));
       this.o.log(`console: limit stop ${stop.event} claimed but not started in ${key}: ${r.error}; recorded as cancelled`);
       return null;
     }
+    // FD-84: resumed only once the session has lived a while; one that exits at once (no transcript, a refusal) is
+    // cancelled, never recorded as continued.
+    const settle = this.o.settleMs ?? RESUME_SETTLE_MS;
+    for (let waited = 0; waited < settle && this.manager.snapshot(key).state === 'running'; waited += 250) await new Promise((res) => setTimeout(res, 250));
+    if (this.manager.snapshot(key).state !== 'running') {
+      await finishStop(this.run, sb, stop, 'cancelled');
+      this.actedStops.set(stop.event, view('failed', key));
+      this.o.log(`console: session ${stop.session} stopped on a limit exited at once in ${key} (code ${this.manager.snapshot(key).exitCode}); recorded as cancelled`);
+      this.o.changed?.();
+      return null;
+    }
     await finishStop(this.run, sb, stop, 'resumed');
-    this.handoverOf.set(key, { id: own.slice('handover.'.length), workflow: path.basename(stop.dir), agent: stop.provider === 'codex' ? 'Codex' : 'Claude Code', account: '', dir: stop.dir, offeredUntil: 0 });
+    this.handoverOf.set(key, { id: own.slice('handover.'.length), workflow: path.basename(stop.dir), agent: label, account: '', dir: stop.dir, offeredUntil: 0 });
     this.resumedKeys.add(key);
     this.actedStops.set(stop.event, view('resumed', key));
     this.o.log(`console: session ${stop.session} stopped on a limit continued in ${key} (attempt ${stop.attempt})`);
