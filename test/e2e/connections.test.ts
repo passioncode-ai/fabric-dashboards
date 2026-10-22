@@ -145,7 +145,8 @@ test('FD-83: a session stopped on a limit continues in a console here; the rest 
     'esac',
   ].join('\n'), { mode: 0o755 });
   // FD-84: the session continues by the plain CLI in its folder, in the home that holds its transcript.
-  fs.writeFileSync(path.join(runtimes, 'claude'), ['#!/bin/sh', `echo "claude $*" >> '${journal}'`, 'echo "resumed by the fake claude"', '/bin/sleep 40'].join('\n'), { mode: 0o755 });
+  // Like the real one, it appends the brief to its own transcript in the home it reads ($HOME).
+  fs.writeFileSync(path.join(runtimes, 'claude'), ['#!/bin/sh', `echo "claude $*" >> '${journal}'`, 'echo \'{"brief":true}\' >> "$HOME/.claude/projects/stopped/$2.jsonl"', 'echo "resumed by the fake claude"', '/bin/sleep 40'].join('\n'), { mode: 0o755 });
   const home = path.join(base, 'home');
   fs.mkdirSync(path.join(home, '.claude', 'projects', 'stopped'), { recursive: true });
   fs.writeFileSync(path.join(home, '.claude', 'projects', 'stopped', `${READY}.jsonl`), '{}\n');

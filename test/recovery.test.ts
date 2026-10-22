@@ -86,7 +86,7 @@ test('FD-83: settings from an earlier version continue sessions by themselves; a
   assert.equal(merge({ resumeAfterLimit: false }).resumeAfterLimit, false);
 });
 
-function rig(o: { sessions?: (dir: string) => unknown[]; live?: { inFolder?: boolean; args?: string }; on?: boolean; claim?: number; freeDisk?: number; serviceFolder?: boolean; spawnFails?: boolean; exitsAtOnce?: boolean; noTranscript?: boolean } = {}) {
+function rig(o: { sessions?: (dir: string) => unknown[]; live?: { inFolder?: boolean; args?: string }; on?: boolean; claim?: number; freeDisk?: number; serviceFolder?: boolean; spawnFails?: boolean; exitsAtOnce?: boolean; noTranscript?: boolean; silent?: boolean } = {}) {
   const base = tmp('fd-rs-');
   const bin = path.join(base, 'bin');
   const dir = path.join(base, 'checkout');
@@ -116,6 +116,9 @@ function rig(o: { sessions?: (dir: string) => unknown[]; live?: { inFolder?: boo
     spawn: (file, args, opts) => {
       if (o.spawnFails) throw new Error('posix_spawnp failed');
       spawned.push({ file, args, cwd: opts.cwd });
+      // Like a real `claude --resume <id> <brief>`: it appends the brief to its own transcript at once.
+      const own = path.join(home, '.claude', 'projects', 'p', `${args[1]}.jsonl`);
+      if (!o.silent && !o.exitsAtOnce) setTimeout(() => { try { fs.appendFileSync(own, '{"brief":true}\n'); fs.utimesSync(own, new Date(), new Date(Date.now() + 1000)); } catch { /* none */ } }, 20);
       return { pid: 999_999_999, onData: () => ({ dispose() {} }), onExit: (cb: (e: { exitCode: number; signal?: number }) => void) => { if (o.exitsAtOnce) setTimeout(() => cb({ exitCode: 1 }), 10); return { dispose() {} }; }, write() {}, resize() {}, kill() {} };
     },
     killGroup: () => {},
@@ -197,12 +200,17 @@ test('FD-83: a refused claim starts nothing; a claimed stop that cannot start is
   assert.deepEqual(broken.host.recoveryStatus().stops.map((s) => s.verdict), ['failed']);
 });
 
-test('FD-84: a session that exits at once is cancelled, never recorded as resumed; one with no transcript here is not claimed', POSIX, async () => {
+test('FD-84: a session that exits at once, or runs without writing its transcript, is cancelled, never recorded as resumed; one with no transcript here is not claimed', POSIX, async () => {
   const quick = rig({ exitsAtOnce: true });
   assert.deepEqual(await quick.host.pollRecovery(), []);
   assert.ok(sbCalls(quick.calls).some((c) => c.endsWith(' cancelled')), sbCalls(quick.calls).join('\n'));
   assert.ok(!sbCalls(quick.calls).some((c) => c.endsWith(' resumed')));
   assert.deepEqual(quick.host.recoveryStatus().stops.map((s) => s.verdict), ['failed']);
+  const silent = rig({ silent: true });
+  assert.deepEqual(await silent.host.pollRecovery(), [], 'alive but not on its conversation: not a continuation');
+  assert.ok(sbCalls(silent.calls).some((c) => c.endsWith(' cancelled')));
+  assert.ok(!sbCalls(silent.calls).some((c) => c.endsWith(' resumed')));
+  assert.deepEqual(silent.host.recoveryStatus().stops.map((s) => s.verdict), ['failed']);
   const elsewhere = rig({ noTranscript: true });
   assert.deepEqual(await elsewhere.host.pollRecovery(), []);
   assert.deepEqual(elsewhere.host.recoveryStatus().stops.map((s) => s.verdict), ['no-transcript']);

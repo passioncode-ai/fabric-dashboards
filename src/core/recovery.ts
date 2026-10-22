@@ -43,8 +43,18 @@ export const RESUME_MAX_AGE_MS = 24 * 60 * 60_000;
 export const RESUMES_PER_PASS = 2;
 /** What the continued session is told: one line, the same for every agent. */
 export const RESUME_BRIEF = 'The usage limit has reset. Continue your task from where it stopped.';
-/** FD-84: a continued session counts as resumed only once it has run this long; one that exits sooner is cancelled. */
-export const RESUME_SETTLE_MS = 15_000;
+/** FD-84: how long a continued session has to prove it continues: still running AND its own transcript written to
+ *  (the brief is the first thing it appends). Alive but silent, or gone, by then is recorded as cancelled. */
+export const RESUME_SETTLE_MS = 30_000;
+
+/** The transcript's last write, or null when it cannot be read. */
+export function writtenAt(file: string): number | null {
+  try { return fs.statSync(file).mtimeMs; } catch { return null; }
+}
+
+/** `switchboard --json recovery` answered in 12 to 15 s in 2 of 5 reads on 2026-10-22 (its own probes), so the read
+ *  and the claim get 30 s; they run on the background tick, never in front of the person. */
+export const RECOVERY_DEADLINE_MS = 30_000;
 
 const SESSION = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const EVENT = /^[A-Za-z0-9._:-]{1,200}$/;
@@ -90,20 +100,20 @@ export function parseRecovery(stdout: string): SbStop[] | null {
 }
 
 export async function recoveryOf(run: Runner, sb: string): Promise<SbRecovery> {
-  const r = await run(sb, ['--json', 'recovery'], 10_000);
+  const r = await run(sb, ['--json', 'recovery'], RECOVERY_DEADLINE_MS);
   const stops = r.code === 0 ? parseRecovery(r.stdout) : null;
   return stops ? { stops } : failure(r);
 }
 
 /** Claims a ready stop once on one of its candidates. Switchboard persists the claim before it answers. */
 export async function claimStop(run: Runner, sb: string, stop: SbStop, account: string): Promise<{ ok: true } | { ok: false; detail: string }> {
-  const r = await run(sb, ['--json', 'recovery', 'claim', '--account', account, stop.event], 10_000);
+  const r = await run(sb, ['--json', 'recovery', 'claim', '--account', account, stop.event], RECOVERY_DEADLINE_MS);
   return r.code === 0 && parseData(r.stdout) ? { ok: true } : { ok: false, detail: failure(r).detail };
 }
 
 /** Records what the host saw: `resumed` once the session runs again, `cancelled` when it could not start. */
 export async function finishStop(run: Runner, sb: string, stop: SbStop, outcome: 'resumed' | 'cancelled'): Promise<boolean> {
-  const r = await run(sb, ['--json', 'recovery', 'finish', stop.event, outcome], 10_000);
+  const r = await run(sb, ['--json', 'recovery', 'finish', stop.event, outcome], RECOVERY_DEADLINE_MS);
   return r.code === 0;
 }
 

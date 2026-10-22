@@ -22,7 +22,7 @@ import { detectRuntimes, KNOWN_RUNTIMES, readLoginPath, searchDirs, specsFromSwi
 import type { SettingsStore } from '../core/settings';
 import { accountsOf, bindingFor, canLaunchInPlace, findSwitchboard, handoverKey, handoverRunArgv, handoversOf, isHandoverKey, managesProvider, sessionsIn, terminalLaunchArgv, type Binding, type SbHandover, type SbSessions } from '../core/switchboard';
 import type { ServiceSnapshot } from '../core/types';
-import { claimStop, finishStop, liveAgents, recoveryOf, resumeArgs, resumeOwnKey, transcriptOf, verdictOf, RESUME_SETTLE_MS, RESUMES_PER_PASS, type RecoveryStatus, type SbStop, type StopView } from '../core/recovery';
+import { claimStop, finishStop, liveAgents, recoveryOf, resumeArgs, resumeOwnKey, transcriptOf, verdictOf, writtenAt, RESUME_SETTLE_MS, RESUMES_PER_PASS, type RecoveryStatus, type SbStop, type StopView } from '../core/recovery';
 
 /** node-pty 1.1.0 ships its macOS `spawn-helper` without the executable bit, and its postinstall
  *  does not set it: without it every spawn fails with `posix_spawnp failed`. A development checkout
@@ -458,6 +458,9 @@ export class ConsoleHost {
       const folder = this.folderOf(key);
       return { key, folder: folder?.exists ? folder.path : null, running: this.manager.snapshot(key).state === 'running' };
     });
+    // FD-84: the proof of a continuation is its own transcript being written, read before and after the start.
+    const transcript = transcriptOf(stop, this.o.home ?? os.homedir());
+    const before = transcript ? writtenAt(transcript) : null;
     const own = resumeOwnKey(stop);
     const key = handoverKey({ id: own.slice('handover.'.length), dir: stop.dir }, consoles, own);
     // FD-84: the agent's own CLI in its folder, so it reads the home that holds the transcript; a folder bound to a
@@ -471,14 +474,18 @@ export class ConsoleHost {
       this.o.log(`console: limit stop ${stop.event} claimed but not started in ${key}: ${r.error}; recorded as cancelled`);
       return null;
     }
-    // FD-84: resumed only once the session has lived a while; one that exits at once (no transcript, a refusal) is
-    // cancelled, never recorded as continued.
+    // FD-84: resumed only once proven: still running AND its transcript written since the start. Gone, or alive but
+    // silent (a session that opened without its conversation), is cancelled and listed, never recorded as continued.
     const settle = this.o.settleMs ?? RESUME_SETTLE_MS;
-    for (let waited = 0; waited < settle && this.manager.snapshot(key).state === 'running'; waited += 250) await new Promise((res) => setTimeout(res, 250));
-    if (this.manager.snapshot(key).state !== 'running') {
+    const wrote = () => transcript !== null && (writtenAt(transcript) ?? 0) > (before ?? 0);
+    for (let waited = 0; waited < settle && this.manager.snapshot(key).state === 'running' && !wrote(); waited += 250) await new Promise((res) => setTimeout(res, 250));
+    const alive = this.manager.snapshot(key).state === 'running';
+    if (!alive || !wrote()) {
       await finishStop(this.run, sb, stop, 'cancelled');
       this.actedStops.set(stop.event, view('failed', key));
-      this.o.log(`console: session ${stop.session} stopped on a limit exited at once in ${key} (code ${this.manager.snapshot(key).exitCode}); recorded as cancelled`);
+      this.o.log(alive
+        ? `console: session ${stop.session} stopped on a limit runs in ${key} but did not write its transcript within ${Math.round(settle / 1000)} s; recorded as cancelled, left running for the person`
+        : `console: session ${stop.session} stopped on a limit exited at once in ${key} (code ${this.manager.snapshot(key).exitCode}); recorded as cancelled`);
       this.o.changed?.();
       return null;
     }

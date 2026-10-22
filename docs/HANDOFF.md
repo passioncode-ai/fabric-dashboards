@@ -15,8 +15,16 @@ changing its home.") and the third ran without its conversation (a managed launc
 **Fixed (branch `fix/fd84-resume-own-home`):** the runtime's own CLI in the stop's folder (`claude --resume <id>
 <brief>`), which reads the person's own home and, in a bound folder, goes through Switchboard by the folder's settings;
 only a stop whose transcript is in that home is taken (`no-transcript` otherwise); `resumed` only after 15 s alive,
-else `cancelled`. Decision: never the managed launch for a continuation, since the conversation lives in the person's
-home. Checks: `npm run check` exit 0 (607); e2e *FD-83* green with a fake `claude` and home.
+else `cancelled`. Then made systemic: `resumed` is recorded only on the effect, the session running AND its own
+transcript written since the start (30 s), checked on the real Claude Code (written 1.5 s after the start on a PTY);
+the unit and e2e fakes write their transcript like the real CLI; the read of `switchboard --json recovery` waits
+30 s (it took 12 to 15 s in 2 of 5 reads; 4 "cannot be read" lines in 0.7.20's first hour).
+
+**Root cause, and the lesson:** the continuation rested on an assumption about another tool's environment (that
+Switchboard's managed launch reads the person's Claude home) that no test exercised: the e2e fake answered the command
+and modelled nothing behind it, and success was recorded at start rather than on an observed effect. Rule kept here:
+an outcome reported to another system is recorded on its observed effect, and a fake of an external CLI reproduces
+the effect the code depends on. Decision: never the managed launch for a continuation.
 
 **Next, in order:**
 1. Release 0.7.21 (validate os=all with packages, merge, tag, release, update-proof); once the installed copy runs it,

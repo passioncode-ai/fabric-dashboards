@@ -11,7 +11,9 @@
   session per account group: on this Mac one of three opened without its conversation and two closed at once, yet all
   three were recorded as continued. Now the session continues with the agent's own CLI in its folder, in the home that
   holds the conversation (a folder bound to a Switchboard group still goes through Switchboard), only a session whose
-  conversation is found there is taken, and it counts as continued only after it has run for 15 seconds.
+  conversation is found there is taken, and it counts as continued only once it is running and has written to its
+  own conversation (within 30 seconds). Reading Switchboard's stopped sessions waits 30 seconds instead of 10: it
+  sometimes takes 12 to 15.
 
 ## 0.7.20 - 2026-10-22
 
