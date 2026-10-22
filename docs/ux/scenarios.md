@@ -71,7 +71,7 @@
 | SCN-063 | A session starts only when the Mac can carry it | console | P-01 | ST-019 | validated | 2026-10-13 |
 | SCN-064 | See what Switchboard runs for this agent | console | P-01 | ST-019 | draft | 2026-10-12 |
 | SCN-065 | A provider limit does not stop the agent | console | P-01 | ST-019 | draft | 2026-10-12 |
-| SCN-066 | An idle session closes and comes back | console | P-01 | ST-019 | draft | 2026-10-12 |
+| SCN-066 | An idle session closes and comes back | console | P-01 | ST-019 | validated | 2026-10-14 |
 | SCN-067 | Dashboards take my scheme and theme | settings | P-01 | ST-019 | validated | 2026-10-13 |
 | SCN-068 | See which runner and model an agent uses | service | P-01 | ST-019 | validated | 2026-10-13 |
 | SCN-069 | A hand-over opens in the console | console | P-01 | ST-019 | validated | 2026-10-14 |
