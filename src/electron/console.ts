@@ -414,6 +414,7 @@ export class ConsoleHost {
       if (this.recovery.unavailable !== r.unavailable) this.o.log(`console: limit stops cannot be read (${r.unavailable}): ${r.detail}`);
       return this.setRecovery({ on, unavailable: r.unavailable, stops: [...this.actedStops.values()], resumed: this.recovery.resumed });
     }
+    if (this.recovery.unavailable && this.recovery.unavailable !== 'absent') this.o.log('console: limit stops can be read again'); // FD-85, as FD-69 for hand-overs
     const pending = r.stops.filter((s) => s.state !== 'resumed' && !this.actedStops.has(s.event));
     const live = pending.some((s) => s.ready) ? await liveAgents(this.run).catch(() => null) : null;
     const views: StopView[] = [];

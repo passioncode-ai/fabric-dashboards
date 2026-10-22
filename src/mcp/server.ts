@@ -310,14 +310,16 @@ export function serve(deps: tools.Deps = tools.liveDeps(), input: NodeJS.Readabl
   };
   const rl = readline.createInterface({ input, crlfDelay: Infinity });
   rl.on('line', (line) => {
-    if (!line.trim() || leaving) return;
+    if (!line.trim()) return;
     let message: Message;
     try {
       message = JSON.parse(line) as Message;
     } catch {
-      write({ jsonrpc: '2.0', id: null, error: { code: -32700, message: 'parse error' } });
+      if (!leaving) write({ jsonrpc: '2.0', id: null, error: { code: -32700, message: 'parse error' } });
       return;
     }
+    // FD-85: a call is told it is stale even while the server leaves for that update (the previous call's end may have
+    // seen the new bundle first); silence would leave the caller waiting on an answer that never comes.
     if (message.method === 'tools/call' && message.id !== undefined && message.id !== null && watch) {
       const s = watch.check();
       if (s.stale) {
@@ -327,6 +329,7 @@ export function serve(deps: tools.Deps = tools.liveDeps(), input: NodeJS.Readabl
         return;
       }
     }
+    if (leaving) return;
     inFlight += 1;
     void handle(deps, message)
       .then((response) => { if (response) write(response); })
