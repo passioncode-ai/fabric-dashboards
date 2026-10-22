@@ -110,9 +110,9 @@ function LimitStops({ recovery, openConsole }: { recovery: RecoveryStatus; openC
   );
 }
 
-const RANK: Record<StopView['verdict'], number> = { failed: 0, resumed: 1, resume: 2, open: 3, waiting: 4, claimed: 5, billing: 6, 'no-folder': 7, old: 8 };
+const RANK: Record<StopView['verdict'], number> = { failed: 0, resumed: 1, resume: 2, open: 3, waiting: 4, claimed: 5, billing: 6, 'no-folder': 7, 'no-transcript': 7, old: 8 };
 const rank = (s: StopView) => RANK[s.verdict];
-const STOP_SEV: Record<StopView['verdict'], 'ok' | 'error' | 'setup' | 'info'> = { failed: 'error', resumed: 'ok', resume: 'info', open: 'setup', waiting: 'info', claimed: 'info', billing: 'setup', 'no-folder': 'info', old: 'setup' };
+const STOP_SEV: Record<StopView['verdict'], 'ok' | 'error' | 'setup' | 'info'> = { failed: 'error', resumed: 'ok', resume: 'info', open: 'setup', waiting: 'info', claimed: 'info', billing: 'setup', 'no-folder': 'info', 'no-transcript': 'info', old: 'setup' };
 const STOP_MARK = { ok: '●', error: '■', setup: '◆', info: '○' } as const;
 
 function ago(at: number, t: (code: string, params?: Record<string, string | number>) => string): string {

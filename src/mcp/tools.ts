@@ -32,7 +32,7 @@ import type { ListLayout, ServiceSnapshot } from '../core/types';
 import os from 'node:os';
 import path from 'node:path';
 import { t as tr } from '../core/i18n';
-import { liveAgents, recoveryOf, verdictOf } from '../core/recovery';
+import { liveAgents, recoveryOf, transcriptOf, verdictOf } from '../core/recovery';
 import { findSwitchboard } from '../core/switchboard';
 import { searchDirs } from '../core/runtimes';
 import type { StopView } from '../core/types';
@@ -68,6 +68,8 @@ export interface Deps {
    *  run (default: the plain runner). Tests pass both. */
   switchboard?: () => string | null;
   cli?: Runner;
+  /** FD-84: whose transcripts a stopped session is looked for in (default the user's home). */
+  home?: string;
 }
 
 /** FD-78: the app's settings file on this platform (read only; the app owns it). */
@@ -481,7 +483,7 @@ export async function limitStops(deps: Deps, now = deps.now()): Promise<{ availa
   const pending = r.stops.filter((s) => s.state !== 'resumed');
   const live = pending.some((s) => s.ready) ? await liveAgents(run, deps.platform).catch(() => null) : null;
   const exists = (dir: string) => { try { return fs.statSync(dir).isDirectory(); } catch { return false; } };
-  return { available: true, stops: pending.map((s) => ({ event: s.event, session: s.session, dir: s.dir, provider: s.provider, stoppedAt: s.stoppedAt, attempt: s.attempt, verdict: verdictOf(s, live, now, exists) })) };
+  return { available: true, stops: pending.map((s) => ({ event: s.event, session: s.session, dir: s.dir, provider: s.provider, stoppedAt: s.stoppedAt, attempt: s.attempt, verdict: verdictOf(s, live, now, exists, (x) => transcriptOf(x, deps.home ?? os.homedir())) })) };
 }
 // #endregion limit-recovery
 
