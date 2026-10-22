@@ -73,3 +73,20 @@ contract as DEC-0027 (fabric-agent-contract `94b1829`, rule FAC-SEM-031). Dashbo
 - Tests: `packages/service-host/test/usage.test.ts` *DEC-0027* (the contract's positive and three
   negative fixtures, the ranking), `test/spend.test.ts` *DEC-0027* (wording in English and Russian),
   `test/e2e/spend.test.ts` (a breached limit leads the row; all eight listed in the running app).
+
+## Amendment — 2026-10-22: a subscription's value is an estimate, not money (FD-88)
+
+An agent's owner reported (board thread `ea2e4f3d`) that Spend read $147.26 for a month in which the
+agent spent $6.80: $140.47 was its `claude-opus-5-5` calls on the operator's own subscription, priced
+at list price. The contract says a `route: subscription` row is "not metered" (DEC-0046,
+`service.md` *Usage report*) but no host rule said what to sum. Decided here, by that wording:
+
+- **Money is every row not paid by a subscription**: `key`, `platform-metered`, and a row with no
+  `route` (a report written before DEC-0046 keeps its meaning).
+- A subscription row's `costUsd` is kept apart as `estimateUsd` (with `subscriptionCalls`) and shown
+  beside the money as "+ ~$140.47 on subscriptions", never added to it; its calls and tokens still
+  count. A window whose calls were all on a subscription spent $0, never "unknown".
+- `@passioncode-ai/fabric-service-host` 0.6.0 sums windows row by row and keeps one model entry per
+  route; MCP `spend` returns both fields; the Overview strip shows money only.
+- Proposed to the contract owner on the same thread as a host rule, so every host sums alike.
+- Tests: `packages/service-host/test/usage.test.ts` *FD-88*, `test/spend.test.ts` *sumSpend*.

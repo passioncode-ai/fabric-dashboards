@@ -70,9 +70,9 @@ test('fetchUsage: the token in its header, the report checked against the descri
 });
 
 test('sumSpend: unknown stays unknown across agents, a failure makes a lower bound, no calls is $0', () => {
-  const sum = (costUsd: number | null, calls: number, partial = false, tokensPartial = false): SpendSum => ({ calls, inputTokens: 0, outputTokens: 0, costUsd, partial, tokensPartial });
+  const sum = (costUsd: number | null, calls: number, partial = false, tokensPartial = false): SpendSum => ({ calls, inputTokens: 0, outputTokens: 0, costUsd, estimateUsd: 0, subscriptionCalls: 0, partial, tokensPartial });
   const entry = (key: string, today: SpendSum): SpendEntry => ({ key, kind: 'report', summary: { today, week: today, month: today, models: [], budget: null, generatedAt: '2026-10-04T00:00:00Z' } });
-  assert.deepEqual(sumSpend([entry('a.default', sum(null, 3, true))], 'today'), { calls: 3, inputTokens: 0, outputTokens: 0, costUsd: null, partial: true, tokensPartial: false }, 'all unpriced: unknown, not $0');
+  assert.deepEqual(sumSpend([entry('a.default', sum(null, 3, true))], 'today'), { calls: 3, inputTokens: 0, outputTokens: 0, costUsd: null, estimateUsd: 0, subscriptionCalls: 0, partial: true, tokensPartial: false }, 'all unpriced: unknown, not $0');
   const mixed = sumSpend([entry('a.default', sum(null, 3, true)), entry('b.default', sum(1.5, 2))], 'today');
   assert.equal(mixed.costUsd, 1.5);
   assert.equal(mixed.partial, true);
@@ -82,7 +82,12 @@ test('sumSpend: unknown stays unknown across agents, a failure makes a lower bou
   assert.equal(failed.tokensPartial, true, 'and its tokens too');
   const unmeasured = sumSpend([entry('a.default', sum(1, 2, false, true)), entry('b.default', sum(1.5, 2))], 'today');
   assert.deepEqual([unmeasured.partial, unmeasured.tokensPartial], [false, true], 'DEC-0091: unknown tokens leave the cost whole');
-  assert.deepEqual(sumSpend([entry('d.default', sum(0, 0)), { key: 'e.default', kind: 'none' }], 'today'), { calls: 0, inputTokens: 0, outputTokens: 0, costUsd: 0, partial: false, tokensPartial: false });
+  assert.deepEqual(sumSpend([entry('d.default', sum(0, 0)), { key: 'e.default', kind: 'none' }], 'today'), { calls: 0, inputTokens: 0, outputTokens: 0, costUsd: 0, estimateUsd: 0, subscriptionCalls: 0, partial: false, tokensPartial: false });
+  // FD-88: a subscription's list-price value is summed apart and never counts as money; only subscription calls is $0 spent.
+  const sub: SpendSum = { ...sum(null, 4), estimateUsd: 140.47, subscriptionCalls: 4 };
+  const both = sumSpend([entry('f.default', sub), entry('b.default', sum(6.8, 2))], 'today');
+  assert.deepEqual([both.costUsd, both.estimateUsd, both.calls, both.subscriptionCalls, both.partial], [6.8, 140.47, 6, 4, false]);
+  assert.equal(sumSpend([entry('f.default', sub)], 'today').costUsd, 0, 'calls on a subscription alone spent no money');
 });
 
 // ── release audit S-1, D-1 ────────────────────────────────────────────────────────────────

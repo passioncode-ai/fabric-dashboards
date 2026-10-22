@@ -50,22 +50,25 @@ export type SpendWindow = 'today' | 'week' | 'month';
 /**
  * The sum across agents for one window. Unknown is never $0: a window whose calls are all
  * unpriced is null; an unpriced agent or an unreadable one makes the sum a lower bound
- * (`partial`); only a window with no calls at all is $0.
+ * (`partial`); only a window with no metered calls is $0. A subscription's list-price value is
+ * summed apart (`estimateUsd`, FD-88).
  */
 export function sumSpend(entries: readonly SpendEntry[], window: SpendWindow): SpendSum {
   const unread = entries.some((e) => e.kind === 'error');
-  const out: SpendSum = { calls: 0, inputTokens: 0, outputTokens: 0, costUsd: null, partial: unread, tokensPartial: unread };
+  const out: SpendSum = { calls: 0, inputTokens: 0, outputTokens: 0, costUsd: null, estimateUsd: 0, subscriptionCalls: 0, partial: unread, tokensPartial: unread };
   for (const e of entries) {
     if (e.kind !== 'report') continue;
     const x = e.summary[window];
     out.calls += x.calls;
     out.inputTokens += x.inputTokens;
     out.outputTokens += x.outputTokens;
+    out.estimateUsd += x.estimateUsd ?? 0; // FD-88: a subscription's list-price value, never money
+    out.subscriptionCalls += x.subscriptionCalls ?? 0;
     if (x.costUsd !== null) out.costUsd = (out.costUsd ?? 0) + x.costUsd;
-    if (x.partial || x.costUsd === null) out.partial = true;
+    if (x.partial || (x.costUsd === null && x.calls > (x.subscriptionCalls ?? 0))) out.partial = true;
     if (x.tokensPartial) out.tokensPartial = true; // DEC-0091
   }
-  if (out.calls === 0 && out.costUsd === null) out.costUsd = 0; // nothing was called and nothing priced: nothing was spent
+  if (out.calls === out.subscriptionCalls && out.costUsd === null) out.costUsd = 0; // nothing metered was called: no money was spent
   return out;
 }
 // #endregion spend-read

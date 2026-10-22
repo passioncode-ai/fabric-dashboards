@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+## 0.7.23 - 2026-10-22
+
+### Fixed
+
+- **Spend shows money, not what a subscription would have cost** (FD-88). Calls an agent made on your own
+  Claude or Codex subscription were priced at list price and added to what it spent: one agent read $147
+  for the month while it had spent $6.80. They now stay out of every sum, and their list-price value shows
+  beside it as "+ ~$140.47 on subscriptions", with a note saying what it means. The MCP `spend` tool returns
+  the two apart (`costUsd` and `estimateUsd`).
+
 ## 0.7.22 - 2026-10-22
 
 ### Fixed

@@ -162,3 +162,24 @@ test('DEC-0091 (CT-62): unmeasuredCalls makes the tokens a lower bound and never
   fraction.days[1].unmeasuredCalls = 0.5;
   assert.match(checkUsage(fraction, ME)!, /unmeasuredCalls is not a count/);
 });
+
+test('FD-88: calls paid by a subscription spend no money; their list-price value is an estimate kept apart', () => {
+  const totals = (calls: number, costUsd: number | null) => ({ calls, unpricedCalls: costUsd === null ? calls : 0, inputTokens: 10 * calls, outputTokens: calls, costUsd });
+  const report = (rows: Record<string, unknown>[]): UsageReport => ({
+    protocol: 'fabric-service/0.1', service: { ...ME }, generatedAt: '2026-10-22T12:00:00Z', currency: 'USD',
+    days: [{ date: '2026-10-22', ...totals(rows.reduce((n, r) => n + (r.calls as number), 0), rows.reduce((n, r) => n + ((r.costUsd as number) ?? 0), 0)), byModel: rows }],
+  } as unknown as UsageReport);
+  const opus = { provider: 'anthropic', model: 'claude-opus-5-5', costBasis: 'price-list', ...totals(4, 140.47) };
+  const r = report([{ ...opus, route: 'subscription' }, { ...opus, ...totals(2, 6.8), route: 'key' }]);
+  assert.equal(checkUsage(r, ME), null);
+  const s = summarizeUsage(r, AT('2026-10-22'));
+  assert.deepEqual([s.today.costUsd, s.today.estimateUsd, s.today.calls, s.today.subscriptionCalls, s.today.partial], [6.8, 140.47, 6, 4, false]);
+  assert.deepEqual(s.models.map((m) => [m.route, m.costUsd, m.estimateUsd]), [['key', 6.8, 0], ['subscription', 0, 140.47]], 'one model on two routes is two rows, money first');
+  const only = summarizeUsage(report([{ ...opus, route: 'subscription' }]), AT('2026-10-22'));
+  assert.deepEqual([only.month.costUsd, only.month.estimateUsd], [0, 140.47], 'a subscription alone spent no money: $0, not unknown');
+  const unpriced = summarizeUsage(report([{ ...opus, ...totals(3, null), route: 'subscription' }]), AT('2026-10-22'));
+  assert.deepEqual([unpriced.today.costUsd, unpriced.today.partial, unpriced.today.estimateUsd], [0, false, 0], 'an unpriced subscription call makes no money unknown');
+  const unstated = summarizeUsage(report([{ ...opus }]), AT('2026-10-22'));
+  assert.deepEqual([unstated.today.costUsd, unstated.today.estimateUsd], [140.47, 0], 'no route stated: counted as money, as before DEC-0046');
+  assert.match(checkUsage(report([{ ...opus, route: 'gift' }]), ME)!, /route is not subscription, key or platform-metered/);
+});
