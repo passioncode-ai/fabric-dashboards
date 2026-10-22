@@ -86,7 +86,6 @@ test('SCN-042, SCN-016, SCN-018, SCN-038: four problems stay compact; a bad toke
     assert.equal(await attention.getByRole('button', { name: /^Show all/ }).count(), 0, 'one line: no "Show all"');
     await attention.getByRole('button', { name: 'Silent two', exact: true }).click();
     await page.getByRole('heading', { level: 1, name: 'Silent two' }).waitFor();
-    await page.getByRole('button', { name: 'Overview', exact: true }).first().click();
 
     // SCN-018: Activity names the unreadable feed and why.
     await page.getByRole('button', { name: 'Activity' }).first().click();

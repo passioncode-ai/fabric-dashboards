@@ -10,9 +10,9 @@ Current release: **0.7.24** (published 2026-10-22 17:59 UTC, release run 3982252
 The screen was unlocked after midnight, so the e2e ran on the running app: SCN-071 to SCN-075 validated (PR #185;
 SCN-075 passed 8 of 10, FD-90), `test/e2e/spend.test.ts` passed whole twice at load 9 to 18 (FD-88's assertions and the
 FD-05 Dock check), and the full suite (24 tests) found one regression of 0.7.24: FD-91, the SCN-042 fold after FD-86's
-grouping: the app was right (it counts lines), the test's expectation was stale; fixed on branch `fix/fd91-scn042-fold`, merged once its e2e runs on an unlocked screen. No release needed. **Lesson:** a change to a shared screen runs the whole e2e suite before its release.
+grouping: the app was right (it counts lines), the test's expectation was stale; fixed in PR #186 after its e2e ran on the running app (22:57 UTC unlock: SCN-042 2/2, full suite 22/24 with two load misses that pass alone). No release needed. **Lesson:** a change to a shared screen runs the whole e2e suite before its release.
 
-**Next, in order:** FD-91 (run `test/e2e/products-problems.test.ts` on an unlocked screen, then merge its branch); FD-90 (read the diagnostics at the next miss); FD-82 (Dock check above load about 60); FD-80's other
+**Next, in order:** FD-90 (read the diagnostics at the next miss); FD-82 (Dock check above load about 60); FD-80's other
 half when Electron exposes it; FD-87 (b) after Fabric CO-321; thread `e99aa05f` for the contract's answer (FD-88).
 
 ## 0.7.24: start here (2026-10-22, FD-86 the dashboard perception review)
