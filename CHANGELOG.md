@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+## 0.7.22 - 2026-10-22
+
+### Fixed
+
+- **An agent's call is never left unanswered while the app updates** (FD-85). When an update replaced the app just as
+  one call ended, the agent's connection began to close and the next call got no answer at all; it now gets the usual
+  answer that the app was updated and the session should be restarted. Seen once in the nightly check on Linux arm64.
+- When reading the sessions Switchboard holds as stopped on a limit works again after a failure, the log now says so,
+  as it already did for hand-overs.
+
 ## 0.7.21 - 2026-10-22
 
 ### Fixed

@@ -5,7 +5,9 @@ import path from 'node:path';
 import test from 'node:test';
 import { Launchd, type RunResult } from '../src/core/launchd';
 import type { Descriptor, ServiceEvent, WellKnown, WellKnownResult } from '../src/core/types';
-import { handle, TOOLS } from '../src/mcp/server';
+import { handle, serve, TOOLS } from '../src/mcp/server';
+import type { StaleWatch } from '../src/mcp/stale';
+import { PassThrough } from 'node:stream';
 import * as tools from '../src/mcp/tools';
 import { tmp } from './helpers';
 
@@ -487,4 +489,28 @@ test('FD-81: setup_check runs the pinned read-only doctor and parses its report;
   assert.ok(!ran[0]!.includes('--fix'), 'never a repair');
   const t = TOOLS.find((x) => x.name === 'setup_check')!;
   assert.equal(t.annotations.readOnlyHint, false, 'it runs a program from npm: never auto-approved as read-only');
+});
+
+test('FD-85: a call that arrives while the server leaves for an update is answered stale, never left without an answer', async () => {
+  // The race the nightly run met on ubuntu-24.04-arm: the first call's end already saw the new bundle and began to
+  // leave, and the next call was dropped. Checks: 1 = call 1 arrives, 2 = call 1 ends (stale: leave), 3 = call 2.
+  let checks = 0;
+  const watch = { runningVersion: '1.0.0', check: () => { checks += 1; return { stale: checks >= 2, running: '1.0.0', installed: '1.1.0' }; } } as unknown as StaleWatch;
+  const input = new PassThrough();
+  const output = new PassThrough();
+  const lines: { id: number; result?: { isError?: boolean; structuredContent?: { stale?: boolean } } }[] = [];
+  let buffer = '';
+  output.on('data', (chunk) => { buffer += String(chunk); let i: number; while ((i = buffer.indexOf('\n')) >= 0) { lines.push(JSON.parse(buffer.slice(0, i))); buffer = buffer.slice(i + 1); } });
+  let exited: number | null = null;
+  serve(world().deps, input, output, { exit: (code) => { exited = code; }, watch, signals: false });
+  input.write(`${JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'list_services', arguments: {} } })}\n`);
+  const until = async (ok: () => boolean) => { const end = Date.now() + 5000; while (!ok()) { assert.ok(Date.now() < end, 'in time'); await new Promise((r) => setTimeout(r, 5)); } };
+  await until(() => lines.some((l) => l.id === 1) && checks >= 2);
+  input.write(`${JSON.stringify({ jsonrpc: '2.0', id: 2, method: 'tools/call', params: { name: 'list_services', arguments: {} } })}\n`);
+  await until(() => lines.some((l) => l.id === 2));
+  const two = lines.find((l) => l.id === 2)!;
+  assert.equal(two.result!.isError, true);
+  assert.equal(two.result!.structuredContent!.stale, true);
+  await until(() => exited !== null);
+  assert.equal(exited, 0, 'it still leaves');
 });

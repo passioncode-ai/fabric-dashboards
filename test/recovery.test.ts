@@ -239,3 +239,18 @@ test('FD-83: MCP `audit` lists the stops with the same verdicts, read-only', POS
   assert.deepEqual(r.stops.map((s) => s.verdict), ['resume', 'billing']);
   assert.deepEqual(await limitStops({ ...(deps as object), switchboard: () => null } as never), { available: false, why: 'Switchboard is not installed', stops: [] });
 });
+
+test('FD-85: a limit-stop read that failed and then works again is said once each way', POSIX, async () => {
+  const r = rig({ on: false });
+  let fail = true;
+  const host = r.host as unknown as { run: (file: string, args: string[], ms?: number) => Promise<{ code: number; stdout: string; stderr: string }> };
+  const real = host.run;
+  host.run = async (file, args, ms) => (fail && args.join(' ') === '--json recovery' ? { code: 1, stdout: '', stderr: 'no answer within 30 s (stopped)' } : real(file, args, ms));
+  await r.host.pollRecovery();
+  await r.host.pollRecovery();
+  fail = false;
+  await r.host.pollRecovery();
+  await r.host.pollRecovery();
+  assert.equal(r.logs.filter((l) => /limit stops cannot be read \(error\)/.test(l)).length, 1, 'the failure is logged once');
+  assert.equal(r.logs.filter((l) => /limit stops can be read again/.test(l)).length, 1, 'the recovery is logged once');
+});
