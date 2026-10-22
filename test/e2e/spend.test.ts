@@ -1,6 +1,7 @@
 // End to end, ADR-0013: Spend reads each agent's own usage report (contract DEC-0021) in the real
 // app. The agent is a small loopback server made here, unmanaged (no launchd), whose report is the
-// contract's positive fixture with today's dates. Covers SCN-036 and SCN-037.
+// contract's positive fixture with today's dates, plus one row on the operator's own subscription
+// (FD-88). Covers SCN-036 and SCN-037.
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import http from 'node:http';
@@ -29,6 +30,10 @@ function report(): unknown {
   r.service = { id: 'spender', instance: 'default' };
   r.days[0].date = day(1);
   r.days[1].date = day(0);
+  // FD-88: calls on the operator's own subscription (DEC-0046, not metered): an estimate beside the money, never in it.
+  const sub = { provider: 'anthropic', model: 'claude-opus-5-5', costBasis: 'price-list', route: 'subscription', calls: 4, unpricedCalls: 0, inputTokens: 8000, outputTokens: 900, costUsd: 140.47 };
+  r.days[1].byModel.push(sub);
+  for (const f of ['calls', 'inputTokens', 'outputTokens', 'costUsd'] as const) r.days[1][f] += sub[f];
   return r;
 }
 
@@ -73,13 +78,15 @@ test('Spend shows what an agent reported, a lower bound where calls carry no pri
     const row = page.getByRole('row', { name: /Spender/ });
     await row.waitFor({ timeout: 15_000 });
     const cells = await row.getByRole('cell').allInnerTexts();
-    assert.deepEqual(cells.slice(0, 4), ['≥ $0.31', '≥ $1.59', '≥ $1.59', '$1.59 of $100.00 this month'], 'today, 7 and 30 days are lower bounds; the budget is the agent\'s own');
+    assert.deepEqual(cells.slice(0, 4), ['≥ $0.31 + ~$140.47 on subscriptions', '≥ $1.59 + ~$140.47 on subscriptions', '≥ $1.59 + ~$140.47 on subscriptions', '$1.59 of $100.00 this month'], 'today, 7 and 30 days are lower bounds; a subscription is beside the money, never in it (FD-88); the budget is the agent\'s own');
     await page.getByText(/An unknown cost is never counted as \$0/).waitFor();
+    await page.getByText(/They spent no money, so they are not in the sums/).waitFor();
 
     await row.getByRole('button', { name: 'Spender', exact: true }).click();
     const models = page.locator('.spend-models');
     await models.getByText('claude-sonnet-5-5').waitFor();
     assert.match(await models.innerText(), /llama-4-8b[\s\S]*unknown/, 'an unpriced model reads unknown, not $0.00');
+    assert.match(await models.innerText(), /claude-opus-5-5[\s\S]*~\$140\.47 subscription/, 'FD-88: the subscription model reads as an estimate');
     assert.ok(usageReads >= 1);
     // LC-08: while the window is hidden, a refresh gets the last sums and reads no service.
     await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.hide());

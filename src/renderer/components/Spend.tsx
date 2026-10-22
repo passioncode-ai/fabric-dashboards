@@ -53,7 +53,7 @@ export function Spend({ status }: { status: AppStatus }) {
       {reports.length > 0 && (
         <div className="strip strip-3 spend-totals" aria-label={t('spend.totals')}>
           {(['today', 'week', 'month'] as const).map((k) => (
-            <div key={k} className="cell"><span className="v">{money(total(k), t)}</span><span className="l">{t(`spend.${k}`)}</span></div>
+            <div key={k} className="cell"><span className="v">{money(total(k), t)}</span><span className="l">{t(`spend.${k}`)}</span>{estimate(total(k), t) && <span className="l muted">{estimate(total(k), t)}</span>}</div>
           ))}
         </div>
       )}
@@ -75,9 +75,9 @@ export function Spend({ status }: { status: AppStatus }) {
                   <th scope="row">
                     <button className="linkish" aria-expanded={open === e.key} onClick={() => setOpen(open === e.key ? null : e.key)}>{name(e.key)}</button>
                   </th>
-                  <td>{money(e.summary.today, t)}</td>
-                  <td>{money(e.summary.week, t)}</td>
-                  <td>{money(e.summary.month, t)}</td>
+                  {(['today', 'week', 'month'] as const).map((k) => (
+                    <td key={k}>{money(e.summary[k], t)}{estimate(e.summary[k], t) && <span className="muted"> {estimate(e.summary[k], t)}</span>}</td>
+                  ))}
                   <td>{(() => {
                     // DEC-0027: the limit that most needs a person; a report with only the older `budget` keeps that line.
                     const head = limitHeadline(e.summary.limits ?? [], t);
@@ -108,11 +108,11 @@ export function Spend({ status }: { status: AppStatus }) {
                           <thead><tr><th scope="col">{t('spend.model')}</th><th scope="col">{t('spend.calls')}</th><th scope="col">{t('spend.tokens')}</th><th scope="col">{t('spend.cost')}</th></tr></thead>
                           <tbody>
                             {e.summary.models.map((m) => (
-                              <tr key={`${m.provider}/${m.model}`}>
+                              <tr key={`${m.provider}/${m.model}/${m.route ?? ''}`}>
                                 <td><span className="mono">{m.model}</span> <span className="muted">{m.provider}</span></td>
                                 <td>{m.calls}</td>
                                 <td>{tokens(m, t, lang)}</td>
-                                <td>{money(m, t)}</td>
+                                <td>{m.route === 'subscription' ? <span className="muted">{t('spend.subscriptionCost', { amount: usd(m.estimateUsd, t) })}</span> : money(m, t)}</td>
                               </tr>
                             ))}
                           </tbody>
@@ -135,6 +135,7 @@ export function Spend({ status }: { status: AppStatus }) {
       {silent.length > 0 && <p className="meta">{t('spend.silent', { names: silent.map(nameOf).join(', ') })}</p>}
       {reports.some((e) => e.summary.today.partial || e.summary.week.partial || e.summary.month.partial) && <p className="meta">{t('spend.partialNote')}</p>}
       {reports.some((e) => e.summary.models.some((m) => m.tokensPartial)) && <p className="meta">{t('spend.tokensPartialNote')}</p>}
+      {reports.some((e) => e.summary.month.estimateUsd > 0) && <p className="meta">{t('spend.estimateNote')}</p>}
     </>
   );
 }
@@ -151,6 +152,11 @@ export function usd(x: number | null, t: T): string {
 export function tokens(s: Pick<SpendSum, 'inputTokens' | 'outputTokens' | 'tokensPartial'>, t: T, lang: string): string {
   const value = t('spend.tokensValue', { input: s.inputTokens.toLocaleString(lang), output: s.outputTokens.toLocaleString(lang) });
   return s.tokensPartial ? `≥ ${value}` : value;
+}
+
+/** FD-88: a subscription's list-price value beside the money, or '' when there is none. Never added to it. */
+export function estimate(s: Pick<SpendSum, 'estimateUsd'>, t: T): string {
+  return (s.estimateUsd ?? 0) > 0 ? t('spend.estimate', { amount: usd(s.estimateUsd, t) }) : '';
 }
 
 /** Unknown is never $0: a sum with unpriced calls reads «≥ $x». Shared with the Overview strip (D-3). */

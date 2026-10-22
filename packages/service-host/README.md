@@ -180,7 +180,13 @@ with calls and no priced call has `costUsd: null`, a window with some unpriced c
 `partial` (a lower bound), and only a window with no calls is `0`. **Unknown tokens stay a lower
 bound too** (DEC-0091): a row's optional `unmeasuredCalls` counts calls whose tokens the service did
 not measure in full; `checkUsage` refuses one that is not a count or exceeds `calls`, and every sum
-holding such a call has `tokensPartial: true`. The token-gated read itself
+holding such a call has `tokensPartial: true`. **A subscription spends no money** (0.6.0, FD-88):
+a row with `route: subscription` (DEC-0046: the operator's own login in its vendor's runner, not
+metered) adds its calls and tokens but never its `costUsd`; that list-price value is summed apart as
+`estimateUsd`, with `subscriptionCalls`, so `costUsd` is money only and a window whose calls were all
+on a subscription is `0`. Windows are summed row by row; `models` keeps one entry per provider, model
+and route; `checkUsage` refuses a `route` outside `subscription`, `key`, `platform-metered`, and a row
+without one counts as money, as before DEC-0046. The token-gated read itself
 stays in the host (`fetchUsage` in the app's `src/core/probe.ts`), like the events feed.
 
 **Limits (DEC-0027, 0.3.3).** A report may list every spending limit in `budgets` (at most 64:

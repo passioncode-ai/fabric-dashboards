@@ -3,7 +3,9 @@
 // service-usage.schema.json) and
 // the sums a host shows: today, the last 7 and the last 30 UTC days, per model. An unknown cost
 // stays unknown — a sum with an unpriced call is a lower bound, never a quiet zero — and so do tokens
-// a call did not measure in full (`unmeasuredCalls`, DEC-0091). Pure: no Node
+// a call did not measure in full (`unmeasuredCalls`, DEC-0091). A row paid by a subscription
+// (`route: subscription`, DEC-0046: the operator's own login, not metered) spends no money: its
+// list-price value is kept apart as an estimate, never added to what was spent (FD-88). Pure: no Node
 // import, so a renderer may import `@passioncode-ai/fabric-service-host/usage`.
 import { PROTOCOL } from './protocol';
 
@@ -20,10 +22,15 @@ export interface UsageTotals {
   costUsd: number | null;
 }
 
+/** DEC-0046: how a row's calls were paid for; absent: not stated (a report written before it). */
+export type UsageRoute = 'subscription' | 'key' | 'platform-metered';
+const ROUTES = new Set<string>(['subscription', 'key', 'platform-metered']);
+
 export interface UsageModel extends UsageTotals {
   provider: string;
   model: string;
   costBasis: 'provider' | 'price-list' | 'mixed' | 'unknown';
+  route?: UsageRoute;
 }
 
 export interface UsageDay extends UsageTotals {
@@ -70,8 +77,13 @@ export interface SpendSum {
   calls: number;
   inputTokens: number;
   outputTokens: number;
-  /** The priced part; null when nothing in the window could be priced and there were calls. */
+  /** Money spent: the priced part of every call not paid by a subscription; null when there were
+   *  such calls and none of them could be priced. */
   costUsd: number | null;
+  /** FD-88: what the subscription calls would cost at list price. An estimate, not money spent. */
+  estimateUsd: number;
+  /** FD-88: calls paid by a subscription (`route: subscription`); they are in `calls` too. */
+  subscriptionCalls: number;
   /** Some calls in the window carry no price: `costUsd` is at least this much. */
   partial: boolean;
   /** Some calls in the window have no full token count (DEC-0091): the tokens are at least this much. */
@@ -82,8 +94,9 @@ export interface SpendSummary {
   today: SpendSum;
   week: SpendSum;
   month: SpendSum;
-  /** Over the whole report (up to 31 days), most expensive first, unknown last. */
-  models: (SpendSum & { provider: string; model: string })[];
+  /** Over the whole report (up to 31 days), one per provider, model and route; most money first,
+   *  then the subscription estimate, unknown last. */
+  models: (SpendSum & { provider: string; model: string; route?: UsageRoute })[];
   budget: UsageReport['budget'] | null;
   /** Every limit, what needs a person first (rankLimits); empty when the report lists none. */
   limits: LimitView[];
@@ -128,6 +141,7 @@ export function checkUsage(value: unknown, expected: { id: string; instance: str
     if (day.byModel.length === 0 && (day.calls > 0 || day.inputTokens > 0 || day.outputTokens > 0 || (day.costUsd ?? 0) > 0)) return `days[${i}] has totals but names no model`;
     for (const [j, m] of day.byModel.entries()) {
       if (!m || typeof m.provider !== 'string' || typeof m.model !== 'string') return `days[${i}].byModel[${j}] names no provider and model`;
+      if (m.route !== undefined && !ROUTES.has(m.route)) return `days[${i}].byModel[${j}].route is not subscription, key or platform-metered`;
       const q = totalsProblem(m as unknown as Record<string, unknown>, `days[${i}].byModel[${j}]`);
       if (q) return q;
     }
@@ -208,15 +222,21 @@ export function rankLimits(budgets: UsageLimit[]): LimitView[] {
   return views.sort((a, b) => ORDER[a.state] - ORDER[b.state] || (b.share ?? -1) - (a.share ?? -1) || a.id.localeCompare(b.id));
 }
 
-const empty = (): SpendSum => ({ calls: 0, inputTokens: 0, outputTokens: 0, costUsd: null, partial: false, tokensPartial: false });
+const empty = (): SpendSum => ({ calls: 0, inputTokens: 0, outputTokens: 0, costUsd: null, estimateUsd: 0, subscriptionCalls: 0, partial: false, tokensPartial: false });
 
-function add(sum: SpendSum, row: UsageTotals): void {
+function add(sum: SpendSum, row: UsageTotals, route?: UsageRoute): void {
   sum.calls += row.calls;
   sum.inputTokens += row.inputTokens;
   sum.outputTokens += row.outputTokens;
-  if (row.costUsd !== null) sum.costUsd = (sum.costUsd ?? 0) + row.costUsd;
-  // A row with calls and no cost is unknown whatever its unpricedCalls says: a lower bound, never complete.
-  if (row.unpricedCalls > 0 || (row.calls > 0 && row.costUsd === null)) sum.partial = true;
+  if (route === 'subscription') {
+    // FD-88: not metered (DEC-0046), so no money; its list-price value is an estimate, shown apart.
+    sum.subscriptionCalls += row.calls;
+    sum.estimateUsd += row.costUsd ?? 0;
+  } else {
+    if (row.costUsd !== null) sum.costUsd = (sum.costUsd ?? 0) + row.costUsd;
+    // A row with calls and no cost is unknown whatever its unpricedCalls says: a lower bound, never complete.
+    if (row.unpricedCalls > 0 || (row.calls > 0 && row.costUsd === null)) sum.partial = true;
+  }
   // DEC-0091: a call whose tokens were not measured in full makes every token sum it is in a lower bound.
   if ((row.unmeasuredCalls ?? 0) > 0) sum.tokensPartial = true;
 }
@@ -227,27 +247,29 @@ function utcDate(now: number, daysBack: number): string {
 }
 
 /**
- * Sums a checked report for display. A window with calls but no priced call has `costUsd: null`;
- * a window with no calls has `costUsd: 0`, because nothing was spent.
+ * Sums a checked report for display, row by row (a day's totals are the sum of its rows,
+ * FAC-SEM-025). A window with metered calls but no priced one has `costUsd: null`; a window whose
+ * calls were all paid by a subscription, or with no calls, has `costUsd: 0`: no money was spent.
  */
 export function summarizeUsage(report: UsageReport, now: number): SpendSummary {
   const today = utcDate(now, 0), weekFrom = utcDate(now, 6), monthFrom = utcDate(now, 29);
   const out = { today: empty(), week: empty(), month: empty() };
-  const models = new Map<string, SpendSum & { provider: string; model: string }>();
+  const models = new Map<string, SpendSum & { provider: string; model: string; route?: UsageRoute }>();
   for (const day of report.days) {
-    if (day.date === today) add(out.today, day);
-    if (day.date >= weekFrom && day.date <= today) add(out.week, day);
-    if (day.date >= monthFrom && day.date <= today) add(out.month, day);
     for (const m of day.byModel) {
-      const k = `${m.provider}\u0000${m.model}`;
-      const sum = models.get(k) ?? { ...empty(), provider: m.provider, model: m.model };
-      add(sum, m);
+      if (day.date === today) add(out.today, m, m.route);
+      if (day.date >= weekFrom && day.date <= today) add(out.week, m, m.route);
+      if (day.date >= monthFrom && day.date <= today) add(out.month, m, m.route);
+      // DEC-0046: calls of one model on two routes are two rows, and stay two here.
+      const k = `${m.provider}\u0000${m.model}\u0000${m.route ?? ''}`;
+      const sum = models.get(k) ?? { ...empty(), provider: m.provider, model: m.model, ...(m.route ? { route: m.route } : {}) };
+      add(sum, m, m.route);
       models.set(k, sum);
     }
   }
-  // No calls and no cost: nothing was spent. A cost reported without calls is kept, never zeroed.
-  for (const s of [out.today, out.week, out.month, ...models.values()]) if (s.calls === 0 && s.costUsd === null) s.costUsd = 0;
-  const ranked = [...models.values()].sort((a, b) => (b.costUsd ?? -1) - (a.costUsd ?? -1) || b.calls - a.calls);
+  // No metered calls and no cost: no money was spent. A cost reported without calls is kept, never zeroed.
+  for (const s of [out.today, out.week, out.month, ...models.values()]) if (s.calls === s.subscriptionCalls && s.costUsd === null) s.costUsd = 0;
+  const ranked = [...models.values()].sort((a, b) => (b.costUsd ?? -1) - (a.costUsd ?? -1) || b.estimateUsd - a.estimateUsd || b.calls - a.calls);
   return { ...out, models: ranked, budget: report.budget ?? null, limits: rankLimits(report.budgets ?? []), generatedAt: report.generatedAt };
 }
 // #endregion usage-report
