@@ -28,4 +28,10 @@ export function groupAttention<T>(queue: readonly T[], classOf: (item: T) => str
   }
   return out;
 }
+/** SCN-042: the lines Needs attention shows: the first `visible` unless the person asked for all, and whether the
+ *  "Show all N" control is offered (N counts lines after folding, never agents). */
+export function foldAttention<T>(entries: readonly T[], showAll: boolean, visible = 3): { shown: readonly T[]; more: number | null } {
+  const more = entries.length > visible ? entries.length : null;
+  return { shown: showAll || more === null ? entries : entries.slice(0, visible), more };
+}
 // #endregion attention-groups

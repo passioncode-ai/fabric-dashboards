@@ -962,7 +962,7 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **Steps:**
   1. User opens Overview -> Needs attention shows its count and the three most severe rows, each one line: state, name, reason cut to the line, action
   2. User hovers a cut reason -> the full sentence shows
-  3. User clicks "Show all N" -> every row shows; "Show fewer" folds them back
+  3. User clicks "Show all N" -> every row shows; "Show fewer" folds them back. Rows are counted after agents in one state for one reason fold into one line (FD-86, SCN-006): four agents silent for the same reason are one row, "4 agents: …", and nothing folds
 - **Expected result:** the block never pushes the agents off the first screen
 - **Alt paths:** three or fewer -> no toggle
 - **UI elements:** Needs attention block, Show all / Show fewer

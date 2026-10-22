@@ -77,12 +77,16 @@ test('SCN-042, SCN-016, SCN-018, SCN-038: four problems stay compact; a bad toke
     app = await electron.launch({ args: [ROOT], env: { ...process.env, FABRIC_SERVICES_DIR: services, FABRIC_DASHBOARDS_USER_DATA: path.join(base, 'app'), LANG: 'en_US.UTF-8' } });
     const page = await app.firstWindow();
 
-    // SCN-042: four silent agents — Needs attention shows three and "Show all 4", and folds back.
-    await page.getByRole('button', { name: 'Show all 4' }).waitFor({ timeout: 60_000 });
-    await page.getByRole('button', { name: 'Show all 4' }).click();
-    await page.getByRole('button', { name: 'Show fewer' }).waitFor();
-    await page.getByRole('button', { name: 'Show fewer' }).click();
-    await page.getByRole('button', { name: /Show all 4/ }).waitFor();
+    // SCN-042 with FD-86: four agents silent for the same reason are one line naming all four; the count stays 4 and
+    // nothing folds (folding by lines: test/attention.test.ts). Each name opens its agent.
+    const attention = page.locator('section.attention');
+    await attention.getByText(/^4 agents:/).waitFor({ timeout: 60_000 });
+    assert.equal(await attention.locator('.count').innerText(), '4');
+    for (const n of ['one', 'two', 'three', 'four']) await attention.getByRole('button', { name: `Silent ${n}`, exact: true }).waitFor();
+    assert.equal(await attention.getByRole('button', { name: /^Show all/ }).count(), 0, 'one line: no "Show all"');
+    await attention.getByRole('button', { name: 'Silent two', exact: true }).click();
+    await page.getByRole('heading', { level: 1, name: 'Silent two' }).waitFor();
+    await page.getByRole('button', { name: 'Overview', exact: true }).first().click();
 
     // SCN-018: Activity names the unreadable feed and why.
     await page.getByRole('button', { name: 'Activity' }).first().click();

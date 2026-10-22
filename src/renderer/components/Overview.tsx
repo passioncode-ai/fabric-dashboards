@@ -4,7 +4,7 @@ import { areasInOrder, attention, type SetupCheckResult } from '../../core/docto
 import { attentionRank } from '@passioncode-ai/fabric-service-host/state';
 import { Fragment, useEffect, useState, type ReactNode } from 'react';
 import { sumSpend, type SpendEntry } from '../../core/spend';
-import { groupAttention } from '../../core/attention';
+import { foldAttention, groupAttention } from '../../core/attention';
 import { money as formatMoney } from './Spend';
 import { categoryOf, instanceOf, type Product } from '../../core/products';
 import type { ListLayout } from '../../core/types';
@@ -144,6 +144,7 @@ export function Overview({ status, products, open, act, goSpend, agent, visit, o
   };
   // FD-86: agents in one state for one reason fold into one line naming them all; a busy row stays its own.
   const entries = groupAttention(attention, ({ s }) => (s.busy ? '' : `${s.state}|${attentionLine(s)}`));
+  const fold = foldAttention(entries, showAll, ATTENTION_VISIBLE);
 
   return (
     <>
@@ -184,7 +185,7 @@ export function Overview({ status, products, open, act, goSpend, agent, visit, o
         <section className="attention" aria-labelledby="attention-title">
           <h2 id="attention-title">{t('overview.attention')} <span className="count">{attention.length}</span></h2>
           <ul>
-            {(showAll ? entries : entries.slice(0, ATTENTION_VISIBLE)).map(({ lead: { s }, members }) => members.length > 1 ? (
+            {fold.shown.map(({ lead: { s }, members }) => members.length > 1 ? (
               <li key={s.key} className="group">
                 <StateBadge state={s.state} />
                 <span className="name">{t('overview.attention.group', { count: members.length })} {members.map(({ s: m }, i) => (
@@ -203,9 +204,9 @@ export function Overview({ status, products, open, act, goSpend, agent, visit, o
               </li>
             ))}
           </ul>
-          {entries.length > ATTENTION_VISIBLE && (
+          {fold.more !== null && (
             <button className="btn-link more" aria-expanded={showAll} onClick={() => setShowAll(!showAll)}>
-              {showAll ? t('overview.attention.less') : t('overview.attention.all', { count: entries.length })}
+              {showAll ? t('overview.attention.less') : t('overview.attention.all', { count: fold.more })}
             </button>
           )}
         </section>
