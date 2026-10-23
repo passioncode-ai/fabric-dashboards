@@ -185,7 +185,8 @@ holding such a call has `tokensPartial: true`. **A subscription spends no money*
 a row with `route: subscription` (DEC-0046: the operator's own login in its vendor's runner, not
 metered) adds its calls and tokens but never its `costUsd`; that list-price value is summed apart as
 `estimateUsd`, with `subscriptionCalls`, so `costUsd` is money only and a window whose calls were all
-on a subscription is `0`. Windows are summed row by row; `models` keeps one entry per provider, model
+on a subscription is `0`. The estimate reads like the money (0.8.0, FD-97, DEC-0110): `estimateUsd` is `null` when the
+window's subscription calls carry no price, and `estimatePartial` marks a lower bound. Windows are summed row by row; `models` keeps one entry per provider, model
 and route; `checkUsage` refuses a `route` outside `subscription`, `key`, `platform-metered`, and a row
 without one counts as money, as before DEC-0046. The token-gated read itself
 stays in the host (`fetchUsage` in the app's `src/core/probe.ts`), like the events feed.

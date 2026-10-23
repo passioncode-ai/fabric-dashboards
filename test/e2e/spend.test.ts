@@ -34,6 +34,11 @@ function report(): unknown {
   const sub = { provider: 'anthropic', model: 'claude-opus-5-5', costBasis: 'price-list', route: 'subscription', calls: 4, unpricedCalls: 0, inputTokens: 8000, outputTokens: 900, costUsd: 140.47 };
   r.days[1].byModel.push(sub);
   for (const f of ['calls', 'inputTokens', 'outputTokens', 'costUsd'] as const) r.days[1][f] += sub[f];
+  // FD-97 (DEC-0110): a second subscription model none of whose calls is priced: the estimate becomes a lower bound and
+  // that model reads "not priced", never ~$0.
+  const unpricedSub = { provider: 'openai', model: 'gpt-6', costBasis: 'unknown', route: 'subscription', calls: 2, unpricedCalls: 2, inputTokens: 100, outputTokens: 10, costUsd: null };
+  r.days[1].byModel.push(unpricedSub);
+  for (const f of ['calls', 'unpricedCalls', 'inputTokens', 'outputTokens'] as const) r.days[1][f] = (r.days[1][f] ?? 0) + unpricedSub[f];
   return r;
 }
 
@@ -78,7 +83,7 @@ test('Spend shows what an agent reported, a lower bound where calls carry no pri
     const row = page.getByRole('row', { name: /Spender/ });
     await row.waitFor({ timeout: 15_000 });
     const cells = await row.getByRole('cell').allInnerTexts();
-    assert.deepEqual(cells.slice(0, 4), ['≥ $0.31 + ~$140.47 on subscriptions', '≥ $1.59 + ~$140.47 on subscriptions', '≥ $1.59 + ~$140.47 on subscriptions', '$1.59 of $100.00 this month'], 'today, 7 and 30 days are lower bounds; a subscription is beside the money, never in it (FD-88); the budget is the agent\'s own');
+    assert.deepEqual(cells.slice(0, 4), ['≥ $0.31 + at least ~$140.47 on subscriptions', '≥ $1.59 + at least ~$140.47 on subscriptions', '≥ $1.59 + at least ~$140.47 on subscriptions', '$1.59 of $100.00 this month'], 'today, 7 and 30 days are lower bounds; a subscription is beside the money, never in it (FD-88); the budget is the agent\'s own');
     await page.getByText(/An unknown cost is never counted as \$0/).waitFor();
     await page.getByText(/They spent no money, so they are not in the sums/).waitFor();
 
@@ -87,6 +92,7 @@ test('Spend shows what an agent reported, a lower bound where calls carry no pri
     await models.getByText('claude-sonnet-5-5').waitFor();
     assert.match(await models.innerText(), /llama-4-8b[\s\S]*unknown/, 'an unpriced model reads unknown, not $0.00');
     assert.match(await models.innerText(), /claude-opus-5-5[\s\S]*~\$140\.47 subscription/, 'FD-88: the subscription model reads as an estimate');
+    assert.match(await models.innerText(), /gpt-6[\s\S]*subscription, not priced/, 'FD-97: an unpriced subscription model is not ~$0');
     assert.ok(usageReads >= 1);
     // LC-08: while the window is hidden, a refresh gets the last sums and reads no service.
     await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.hide());

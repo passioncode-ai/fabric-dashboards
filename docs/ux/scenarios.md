@@ -866,12 +866,12 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
   2. User expands the agent -> the unpriced model's cost reads "unknown"
   3. User reads below the table -> "≥ means some calls carry no price… An unknown cost is never counted as $0."
 - **Expected result:** a partial sum is never shown as the whole, and an unknown cost never reads as free
-- **Alt paths:** every call in a window unpriced -> that window reads "unknown"; no calls in a window -> "$0.00"; a row with calls and no cost -> a lower bound («≥»), whatever its unpricedCalls says; a cost reported without calls is kept, never zeroed; the report counts `unmeasuredCalls` for a model (calls whose tokens the agent could not count in full, DEC-0091) -> that model's tokens read "≥ 10,000 / 1,000" and the note below says "≥ beside tokens means the agent could not count every token of some calls…"; its cost is read as before
+- **Alt paths:** every call in a window unpriced -> that window reads "unknown"; no calls in a window -> "$0.00"; a row with calls and no cost -> a lower bound («≥»), whatever its unpricedCalls says; a cost reported without calls is kept, never zeroed; the report counts `unmeasuredCalls` for a model (calls whose tokens the agent could not count in full, DEC-0091) -> that model's tokens read "≥ 10,000 / 1,000" and the note below says "≥ beside tokens means the agent could not count every token of some calls…"; its cost is read as before; calls on the operator's own subscription that carry no price (FD-97, contract DEC-0110 `usageSpend`) -> the subscription value beside the money reads "+ subscription calls not priced" when none is priced, "+ at least ~$140.47 on subscriptions" when only some are, and that model reads "subscription, not priced", never ~$0
 - **UI elements:** "≥" amounts, "unknown", the note
 - **States covered:** success
 - **Errors & recovery:** a report claiming a price for calls it marks unpriced is refused as malformed (SCN-038)
 - **Status:** validated
-- **Coverage:** packages/service-host/src/usage.ts (summarizeUsage), packages/service-host/test/usage.test.ts (DEC-0091), src/renderer/components/Spend.tsx (tokens), test/spend.test.ts, test/e2e/spend.test.ts
+- **Coverage:** packages/service-host/src/usage.ts (summarizeUsage), packages/service-host/test/usage.test.ts (DEC-0091, FD-97), src/renderer/components/Spend.tsx (tokens, estimate, subscriptionCost), test/spend.test.ts, test/e2e/spend.test.ts (FD-97's alt path: its Spend assertions passed on the running app 2026-10-23 on a locked screen, where the test's later Dock check cannot run)
 - **Product:** unobserved
 
 ### SCN-038: An agent's spend cannot be read

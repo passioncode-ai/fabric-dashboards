@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+## 0.7.27 - 2026-10-23
+
+### Fixed
+
+- **A subscription whose calls carry no price no longer reads as ~$0** (FD-97, contract DEC-0110). In Spend the value
+  beside the money now reads "+ subscription calls not priced" when none of those calls is priced, and "+ at least
+  ~$x on subscriptions" when only some are; such a model reads "subscription, not priced". The money is unchanged.
+  MCP `spend` answers `estimateUsd: null` and `estimatePartial` the same way. Shared package
+  `@passioncode-ai/fabric-service-host` 0.8.0.
+
 ## 0.7.26 - 2026-10-23
 
 ### Added
