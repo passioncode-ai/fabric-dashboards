@@ -50,6 +50,9 @@ export class ServiceViews {
   /** FD-74: the service process that last signed each view in, and when. Kept across a dropped view. */
   private readonly signedIn = new Map<string, { pid: number; origin: string; at: number }>();
 
+  /** FD-92: called after a dashboard view is added, so the console drawer goes back on top of it. */
+  afterAttach: () => void = () => undefined;
+
   constructor(
     private readonly window: BrowserWindow,
     private readonly lang: () => Lang,
@@ -338,7 +341,7 @@ export class ServiceViews {
       return result;
     }
     if (this.shown && this.shown !== snap.key) this.detach(this.shown);
-    if (this.shown !== snap.key) this.window.contentView.addChildView(entry.view);
+    if (this.shown !== snap.key) { this.window.contentView.addChildView(entry.view); this.afterAttach(); }
     this.shown = snap.key;
     entry.shownAt = Date.now();
     this.released = null;

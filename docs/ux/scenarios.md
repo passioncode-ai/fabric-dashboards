@@ -53,7 +53,7 @@
 | SCN-045 | A dashboard hands me to another agent | dashboards | P-01 | ST-005, ST-011 | validated | 2026-10-12 |
 | SCN-046 | The dashboard gets the screen: a one-line header that opens to the full card | focus | P-01 | ST-018 | validated | 2026-10-06 |
 | SCN-047 | The agents list folds into a rail | focus | P-01 | ST-018 | validated | 2026-10-06 |
-| SCN-048 | Open an agent's console beside its dashboard | console | P-01 | ST-019 | validated | 2026-10-06 |
+| SCN-048 | Open an agent's console over its dashboard | console | P-01 | ST-019 | validated | 2026-10-23 |
 | SCN-049 | Start a runtime in the agent's repository | console | P-01 | ST-019 | validated | 2026-10-06 |
 | SCN-050 | A folder bound to a Switchboard project runs on that project's account | console | P-01 | ST-019 | validated | 2026-10-06 |
 | SCN-051 | The app watches contract and skill versions | estate | P-01 | ST-008, ST-017 | validated | 2026-10-14 |
@@ -65,7 +65,7 @@
 | SCN-057 | Sort the agents list | list | P-01 | ST-021 | validated | 2026-10-13 |
 | SCN-058 | First session: my coding agent sets the system up | setup | P-01 | ST-022 | validated | 2026-10-12 |
 | SCN-059 | A later session opens on what changed | overview | P-01 | ST-022 | validated | 2026-10-12 |
-| SCN-060 | The dashboard keeps its floor while the console widens | console | P-01 | ST-019 | validated | 2026-10-14 |
+| SCN-060 | The dashboard keeps its floor while the console widens | console | P-01 | ST-019 | retired | 2026-10-23 |
 | SCN-061 | Talk to Fabric about this agent | console | P-01 | ST-020 | validated | 2026-10-12 |
 | SCN-062 | Outages reach me away from the Mac | notifications | P-01 | ST-002 | validated | 2026-10-13 |
 | SCN-063 | A session starts only when the Mac can carry it | console | P-01 | ST-019 | validated | 2026-10-13 |
@@ -1014,24 +1014,25 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 
 ## console
 
-### SCN-048: Open an agent's console beside its dashboard
+### SCN-048: Open an agent's console over its dashboard
 - **Persona:** P-01
 - **Feature:** console
-- **Traces:** ST-019 (JTBD-05, JRN-01/#8); ADR-0017
+- **Traces:** ST-019 (JTBD-05, JRN-01/#8); ADR-0017 (amended 2026-10-23, FD-92)
 - **Entry point:** "Console" in a service page's bar, or View → Show or Hide Console (⌃⌘T)
 - **Preconditions:** none
 - **Steps:**
-  1. User opens the console -> a panel opens to the right of the dashboard with this agent's console at once: the runtimes are read 3 s after the app starts, and what Switchboard said about the folder in the last 30 s is shown while it is asked again in the background, so a slow Switchboard never holds the panel (FD-74); the dashboard narrows to the space left
-  2. User drags the panel's edge -> it widens or narrows, from 320 px up to where the dashboard keeps its floor (SCN-060); the width is remembered
-  3. User collapses the panel -> it closes; whatever runs in it keeps running; opening it again shows everything it printed
-  4. User switches to another agent -> the panel shows that agent's console; each agent has its own
-- **Expected result:** a console that belongs to the agent sits beside its dashboard and gets out of the way when asked
-- **Alt paths:** the window is hidden while a console runs -> it keeps running and nothing is sent to the window; showing it replays what was printed; the agent is removed -> its page closes and its console ends with it
-- **UI elements:** console panel, its edge handle, "Console" / "Hide console", View menu item
+  1. User presses "Console" -> the console drops down from under the page's bar, over the top of the dashboard, like a tab pulled open; the dashboard stays where it was, at its full width and height, and its lower part shows under the console's edge; the runtimes are read 3 s after the app starts, and what Switchboard said about the folder in the last 30 s is shown while it is asked again in the background, so a slow Switchboard never holds it (FD-74)
+  2. User drags the console's bottom edge (or moves it with the up and down arrow keys) -> it grows or shrinks, from 180 px down to where some of the dashboard still shows; the height is remembered
+  3. User presses "Console" again, or the fold arrow in the console's corner -> the console folds back up; whatever runs in it keeps running; opening it again shows everything it printed
+  4. User presses the red cross in the console's corner -> a session that runs asks "End this session and close the console?"; "Close console" ends it and folds the console, Cancel keeps it; with nothing running the cross folds it at once
+  5. User switches to another agent -> the console shows that agent's console; each agent has its own
+- **Expected result:** a console that belongs to the agent is one press away over its dashboard, never moves the dashboard, folds without stopping anything, and closes only with its own red cross
+- **Alt paths:** the window is hidden while a console runs -> it keeps running and nothing is sent to the window; showing it replays what was printed; the agent is removed -> its page closes and its console ends with it; one of the app's own dialogs opens -> the console steps out of the way until it closes; the Setup console (SCN-058) and a Switchboard hand-over (SCN-069) drop down the same way over their pages
+- **UI elements:** console drawer, its bottom edge with a grip, the fold arrow, the red cross, "Console" in the bar, View menu item
 - **States covered:** success, empty
 - **Errors & recovery:** n/a here; starting is SCN-049
 - **Status:** validated
-- **Coverage:** src/renderer/components/ConsolePanel.tsx, src/core/consoles.ts, src/electron/console.ts, test/console.test.ts, test/e2e/focus-console.test.ts
+- **Coverage:** src/electron/drawer.ts, src/renderer/DrawerApp.tsx, src/renderer/components/ConsolePanel.tsx, src/core/layout.ts (drawerHeightFor), src/renderer/App.tsx, src/core/consoles.ts, src/electron/console.ts, test/layout.test.ts, test/console.test.ts, test/e2e/focus-console.test.ts (the drawer over the dashboard with both views' bounds, the height, the fold from the drawer and from the bar, the cross with its question, on the running app 2026-10-23)
 - **Product:** unobserved
 
 ### SCN-049: Start a runtime in the agent's repository
@@ -1046,8 +1047,8 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
   3. User presses "Continue last" -> the runtime resumes its last conversation in that folder (`claude --continue`, `codex resume --last`)
   4. The runtime exits -> the console says "Exited (code 0)" with "New session" and "Continue last" again
 - **Expected result:** the runtime the user chose runs in the agent's repository, with their settings and skills, one press from the dashboard
-- **Alt paths:** "Other…" -> a folder dialog; the choice is remembered for this agent; the user picks another runtime -> remembered for this agent; "Stop" -> the runtime ends after a confirmation if it is still running; "Open in Terminal" -> the same runtime continues in that folder in Terminal
-- **UI elements:** runtime picker, folder line with "Other…", "New session", "Continue last", "Stop", "Open in Terminal", terminal, exit line
+- **Alt paths:** "Other…" -> a folder dialog; the choice is remembered for this agent; the user picks another runtime -> remembered for this agent; the red cross -> the runtime ends after a confirmation and the console folds (SCN-048) if it is still running; "Open in Terminal" -> the same runtime continues in that folder in Terminal
+- **UI elements:** runtime picker, folder line with "Other…", "New session", "Continue last", the red cross (SCN-048), "Open in Terminal", terminal, exit line
 - **States covered:** empty, loading, success, error
 - **Errors & recovery:** no runtime installed -> "No supported runtime is installed" with the list it looks for; no repository found -> "Choose the folder this agent's code lives in" with "Choose folder…"; the folder no longer exists -> the same; the runtime cannot start -> its own error in the console, and "New session" again; a runtime with no resume flag -> "Continue last" is not offered
 - **Status:** validated
@@ -1335,7 +1336,7 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **UI elements:** console panel, its edge handle (separator with its current maximum)
 - **States covered:** success
 - **Errors & recovery:** n/a — a layout rule that never fails; an invalid declaration is treated as no declaration
-- **Status:** validated
+- **Status:** retired (2026-10-23, FD-92: the console drops down over the dashboard and never narrows it, so the dashboard always has its whole width; ED-7's floor holds by construction)
 - **Coverage:** test/e2e/focus-console.test.ts (the floor, the narrower and wider window, the left arrow key at the floor and the 960 px window on the running app, 2026-10-14), src/core/layout.ts, src/renderer/App.tsx, src/renderer/components/ConsolePanel.tsx, packages/service-host/src/protocol.ts, src/core/monitor.ts, test/layout.test.ts, packages/service-host/test/protocol.test.ts, test/flap.test.ts (DEC-0036 ED-9), test/mcp.test.ts (DEC-0036 ED-9)
 - **Product:** unobserved
 

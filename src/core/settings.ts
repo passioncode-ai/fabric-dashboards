@@ -6,7 +6,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { atomicWrite } from './fsutil';
 import { autoUpdateOn, carryOverAutoUpdate, setAutoUpdate } from './autoupdate';
-import { CONSOLE_WIDTH, DEFAULT_SETTINGS, type Settings, type SettingsPatch } from './types';
+import { CONSOLE_HEIGHT, DEFAULT_SETTINGS, type Settings, type SettingsPatch } from './types';
 import { DEFAULT_PAGE_THEME, REFERENCE_THEMES } from './appearance';
 
 export class SettingsStore {
@@ -98,11 +98,11 @@ const SERVICE_KEY = /^[a-z0-9][a-z0-9-]*\.[a-z0-9][a-z0-9-]*$/;
 function mergeLayout(raw: unknown): Settings['layout'] {
   const l = (raw && typeof raw === 'object' ? raw : {}) as Partial<Settings['layout']>;
   const c = (l.console && typeof l.console === 'object' ? l.console : {}) as Partial<Settings['layout']['console']>;
-  const width = typeof c.width === 'number' && Number.isFinite(c.width) ? Math.round(c.width) : CONSOLE_WIDTH.default;
+  const height = typeof c.height === 'number' && Number.isFinite(c.height) ? Math.round(c.height) : CONSOLE_HEIGHT.default;
   return {
     sidebar: l.sidebar === 'collapsed' ? 'collapsed' : 'expanded',
     header: l.header === 'full' ? 'full' : 'compact',
-    console: { open: c.open === true, width: Math.min(CONSOLE_WIDTH.max, Math.max(CONSOLE_WIDTH.min, width)) },
+    console: { open: c.open === true, height: Math.min(CONSOLE_HEIGHT.max, Math.max(CONSOLE_HEIGHT.min, height)) },
     list: mergeList(l.list),
   };
 }

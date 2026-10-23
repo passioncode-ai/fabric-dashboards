@@ -1,5 +1,5 @@
-// ADR-0017 end to end (SCN-046…049, SCN-060): the one-line header, the sidebar rail, and an agent console
-// beside the dashboard, driven against the real app with a scripted runtime standing in for Claude Code.
+// ADR-0017 end to end (SCN-046…049), FD-92: the one-line header, the sidebar rail, and an agent console that drops
+// down over the dashboard, driven against the real app with a scripted runtime standing in for Claude Code.
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -30,6 +30,13 @@ done
 
 /** The terminal's text with its rows joined: a narrow console wraps long lines across rows. */
 const termText = (page: Page) => page.locator('.console-term .xterm-rows').innerText().then((t) => t.replace(/\n/g, ''), () => '');
+/** FD-92: the console drawer is a view of its own over the content area; Playwright sees its page as a window. */
+async function drawerOf(app: ElectronApplication): Promise<Page> {
+  return waitFor('the console drawer\'s page', async () => app.windows().find((p) => p.url().includes('drawer=1')) ?? null) as Promise<Page>;
+}
+/** The window's child views, bottom first: a dashboard and, over it, the drawer. */
+const childBounds = (app: ElectronApplication) => app.evaluate(({ BrowserWindow }) =>
+  (BrowserWindow.getAllWindows()[0]!.contentView as unknown as { children: { getBounds(): { x: number; y: number; width: number; height: number } }[] }).children.map((c) => c.getBounds()));
 
 // SCN-063 (LC-17, FD-49): with less than 5 GB free on the folder's disk the console defers every start and says
 // why. The steps that need a running runtime are then walked only where there is room, as update.test.ts does;
@@ -77,56 +84,40 @@ test('ADR-0017: a one-line header, a folding sidebar, and an agent console besid
       const kids = (w.contentView as unknown as { children: { getBounds(): { width: number } }[] }).children;
       return kids.length ? kids[kids.length - 1]!.getBounds().width : 0;
     });
-    const hostWidth = () => page.locator('.dash-host').evaluate((el) => Math.round(el.getBoundingClientRect().width));
     const before = await waitFor('the dashboard view', async () => { const w = await viewWidth(); return w > 0 ? w : 0; });
     await shot(page, '20-compact-header');
 
-    // SCN-048: the console opens beside the dashboard; the view narrows to match.
+    // SCN-048 (FD-92): the console drops down from under the bar, over the dashboard; the dashboard keeps its size.
+    const dash = (await childBounds(app))[0]!;
     await page.getByRole('button', { name: 'Console' }).click();
-    const panel = page.getByRole('complementary', { name: 'Console' });
-    await panel.waitFor();
-    await waitFor('the view to narrow', async () => { const v = await viewWidth(); const h = await hostWidth(); return v < before && Math.abs(v - h) <= 2 ? v : 0; });
-
-    // SCN-060 (DEC-0036 ED-7): the console's edge stops where the dashboard keeps its 480 px floor; a
-    // narrower window narrows the console first, and a wider one gives back the width dragged to.
-    const setWindowWidth = (width: number) => app!.evaluate(({ BrowserWindow }, w) => { const win = BrowserWindow.getAllWindows()[0]!; win.setSize(w, win.getSize()[1]!); }, width);
-    const splitWidth = () => page.locator('.svc-split').evaluate((el) => el.getBoundingClientRect().width);
-    const edge = page.locator('.console-edge');
-    const valueOf = async (name: 'aria-valuenow' | 'aria-valuemax') => Number(await edge.getAttribute(name));
-    await setWindowWidth(1400);
-    await waitFor('the window to widen', async () => (await splitWidth()) > 1100);
+    const con = await drawerOf(app);
+    await con.getByRole('region', { name: 'Console' }).waitFor();
+    await waitFor('the drawer over the dashboard', async () => {
+      const kids = await childBounds(app);
+      return kids.length === 2 && JSON.stringify(kids[0]) === JSON.stringify(dash) && kids[1]!.y <= dash.y && kids[1]!.height < dash.height;
+    });
+    assert.ok((await viewWidth()) >= before, 'the dashboard was not narrowed');
+    // Its bottom edge sets the height, remembered; the page always shows under it.
+    const edge = con.locator('.console-edge');
+    const h0 = Number(await edge.getAttribute('aria-valuenow'));
     await edge.focus();
-    for (let i = 0; i < 60; i++) await page.keyboard.press('ArrowLeft');
-    const max = Math.floor((await splitWidth()) - 480);
-    assert.equal(await valueOf('aria-valuemax'), max, 'the separator says where it stops');
-    await waitFor('the console to stop at the floor', async () => (await valueOf('aria-valuenow')) === max);
-    await waitFor('the dashboard view to keep 480 px', async () => { const v = await viewWidth(); return v >= 480 && v <= 482 && Math.abs(v - await hostWidth()) <= 2; });
-    await shot(page, '25-console-at-the-floor');
-    await setWindowWidth(1100);
-    await waitFor('the console to give way first', async () => (await valueOf('aria-valuenow')) === Math.floor((await splitWidth()) - 480));
-    assert.ok((await hostWidth()) >= 480, 'the dashboard keeps its floor in a narrower window');
-    await setWindowWidth(1400);
-    await waitFor('the remembered width to come back', async () => (await valueOf('aria-valuenow')) === max);
-    // SCN-060 alt paths: the left arrow key at the floor changes nothing; in the smallest window with the full sidebar
-    // the console keeps its 320 px and the dashboard gets what is left; a wider window gives back the remembered width.
-    await page.keyboard.press('ArrowLeft');
-    await new Promise((r) => setTimeout(r, 300));
-    assert.equal(await valueOf('aria-valuenow'), max, 'the left arrow key at the floor changes nothing');
-    await setWindowWidth(960);
-    await waitFor('the console to keep its 320 px', async () => Math.round(await panel.evaluate((el) => el.getBoundingClientRect().width)) === 320);
-    assert.ok((await hostWidth()) < 480 && (await hostWidth()) > 0, 'the dashboard gets what is left, laid out by the page');
-    await setWindowWidth(1400);
-    await waitFor('the remembered width to come back again', async () => (await valueOf('aria-valuenow')) === max);
-    for (let i = 0; i < 20; i++) await page.keyboard.press('ArrowRight'); // back to a narrow console for the steps below
+    for (let i = 0; i < 3; i++) await con.keyboard.press('ArrowDown');
+    await waitFor('the drawer to grow', async () => Number(await edge.getAttribute('aria-valuenow')) === h0 + 72);
+    await waitFor('the height to be remembered', async () => JSON.parse(fs.readFileSync(path.join(userData, 'settings.json'), 'utf8')).layout?.console?.height === h0 + 72);
+    for (let i = 0; i < 60; i++) await con.keyboard.press('ArrowDown');
+    await waitFor('the drawer to stop above the bottom', async () => Number(await edge.getAttribute('aria-valuenow')) === Number(await edge.getAttribute('aria-valuemax')));
+    for (let i = 0; i < 60; i++) await con.keyboard.press('ArrowUp');
+    await waitFor('the drawer at its smallest', async () => Number(await edge.getAttribute('aria-valuenow')) === 180);
+    for (let i = 0; i < 6; i++) await con.keyboard.press('ArrowDown');
 
     await shot(page, '21a-console-idle');
     // SCN-049: the runtime runs in the chosen folder; input reaches it; Continue passes its resume flag.
-    await page.getByRole('button', { name: 'New session' }).click();
-    if (!roomy(repo)) { await deferred(page); return; }
-    await waitFor('the runtime to start', async () => (await termText(page)).includes(`fake-claude ready in ${fs.realpathSync(repo)}`) || (await termText(page)).includes(`fake-claude ready in ${repo}`));
+    await con.getByRole('button', { name: 'New session' }).click();
+    if (!roomy(repo)) { await deferred(con); return; }
+    await waitFor('the runtime to start', async () => (await termText(con)).includes(`fake-claude ready in ${fs.realpathSync(repo)}`) || (await termText(con)).includes(`fake-claude ready in ${repo}`));
     // FD-39 SCN-053 (ADR-0020): the runtime starts holding the agent's context — its MCP and a brief naming it.
     const pack = path.join(userData, 'consoles', 'sample.default');
-    await waitFor('the context pack to reach the runtime', async () => { const x = await termText(page); return x.includes('ctx:[present]') && x.includes(`args:[--mcp-config=${pack}/mcp.json --append-system-prompt You are working on a Fabric agent, opened from Fabric Dashboards. Call the fabric-dashboards tool service_context with key sample.default`); });
+    await waitFor('the context pack to reach the runtime', async () => { const x = await termText(con); return x.includes('ctx:[present]') && x.includes(`args:[--mcp-config=${pack}/mcp.json --append-system-prompt You are working on a Fabric agent, opened from Fabric Dashboards. Call the fabric-dashboards tool service_context with key sample.default`); });
     // FD-47 (DEC-0042): the same folder carries the contract's manifest, which Fabric reads the same way.
     const manifest = JSON.parse(fs.readFileSync(path.join(pack, 'handoff.json'), 'utf8')) as { format: string; firstCall: { arguments: { key: string } }; launch: { runtime: string } };
     assert.equal(manifest.format, 'session-handoff/1');
@@ -137,42 +128,51 @@ test('ADR-0017: a one-line header, a folding sidebar, and an agent console besid
     assert.match(context, /\*\*State:\*\* (ready|degraded)/);
     assert.ok(!context.includes('tokenFile'), 'the token file is never in the context');
     assert.equal(fs.statSync(path.join(pack, 'context.md')).mode & 0o777, 0o600);
-    assert.ok((await termText(page)).includes(`path:[${runtimes}]`), 'review R-1: the session runs on the PATH the runtimes were found on');
-    await page.locator('.console-term').click();
-    await page.keyboard.type('hello');
-    await page.keyboard.press('Enter');
-    await waitFor('the echo', async () => (await termText(page)).includes('you said: hello'));
+    assert.ok((await termText(con)).includes(`path:[${runtimes}]`), 'review R-1: the session runs on the PATH the runtimes were found on');
+    await con.locator('.console-term').click();
+    await con.keyboard.type('hello');
+    await con.keyboard.press('Enter');
+    await waitFor('the echo', async () => (await termText(con)).includes('you said: hello'));
     await shot(page, '21-console-running');
 
-    // Folded while running: the session goes on, and what it printed comes back.
-    await page.getByRole('button', { name: 'Hide console' }).first().click();
-    await panel.waitFor({ state: 'detached' });
+    // FD-92: collapsed while running (from the drawer, or the bar's Console button): the session goes on, the dashboard
+    // shows whole again, and what it printed comes back.
+    await con.getByRole('button', { name: 'Collapse console' }).click();
+    await waitFor('the drawer to fold', async () => (await childBounds(app)).length === 1);
     await page.getByRole('button', { name: 'Console' }).click();
-    await waitFor('the replay', async () => (await termText(page)).includes('you said: hello'));
+    await waitFor('the drawer back', async () => (await childBounds(app)).length === 2);
+    await waitFor('the replay', async () => (await termText(con)).includes('you said: hello'));
 
-    await page.locator('.console-term').click();
-    await page.keyboard.type('bye');
-    await page.keyboard.press('Enter');
-    await page.getByText('Exited (code 0).').waitFor({ timeout: 15_000 });
-    await page.getByRole('button', { name: 'Continue last' }).click();
-    await waitFor('the resumed runtime', async () => /--continue\]/.test(await termText(page)));
+    await con.locator('.console-term').click();
+    await con.keyboard.type('bye');
+    await con.keyboard.press('Enter');
+    await con.getByText('Exited (code 0).').waitFor({ timeout: 15_000 });
+    await con.getByRole('button', { name: 'Continue last' }).click();
+    await waitFor('the resumed runtime', async () => /--continue\]/.test(await termText(con)));
 
-    // Stop asks first, then ends the session.
-    await page.getByRole('button', { name: 'Stop', exact: true }).click();
-    await page.getByRole('group', { name: 'Stop this session?' }).getByRole('button', { name: 'Stop' }).click();
-    await page.getByText('Stopped.').waitFor({ timeout: 15_000 });
+    // FD-92: the bar's Console button folds it and the session goes on; the red cross asks first, ends the session
+    // and folds the console.
+    await page.getByRole('button', { name: 'Console' }).click();
+    await waitFor('the drawer to fold from the bar', async () => (await childBounds(app)).length === 1);
+    await page.getByRole('button', { name: 'Console' }).click();
+    await waitFor('the resumed runtime still there', async () => /--continue\]/.test(await termText(con)));
+    await con.getByRole('button', { name: 'Close console' }).click();
+    await con.getByRole('group', { name: 'End this session and close the console?' }).getByRole('button', { name: 'Close console' }).click();
+    await waitFor('the console to close', async () => (await childBounds(app)).length === 1);
+    await page.getByRole('button', { name: 'Console' }).click();
+    await con.getByText('Stopped.').waitFor({ timeout: 15_000 });
 
     // FD-39 SCN-054: the agent stops answering; "Fix with agent" starts the runtime with the context and the task.
     await stopProcess(proc);
     await page.getByRole('button', { name: 'Fix with agent' }).first().waitFor({ timeout: 60_000 });
     await shot(page, '24-fix-with-agent');
     await page.getByRole('button', { name: 'Fix with agent' }).first().click();
-    await waitFor('the runtime to start on the task', async () => /Do the task in [^\]]*task\.md\.\]/.test(await termText(page)));
+    await waitFor('the runtime to start on the task', async () => /Do the task in [^\]]*task\.md\.\]/.test(await termText(con)));
     assert.match(fs.readFileSync(path.join(pack, 'task.md'), 'utf8'), /^# Task: Sample Service is (down|stopped)/);
-    await page.locator('.console-term').click();
-    await page.keyboard.type('bye');
-    await page.keyboard.press('Enter');
-    await page.getByText('Exited (code 0).').waitFor({ timeout: 15_000 });
+    await con.locator('.console-term').click();
+    await con.keyboard.type('bye');
+    await con.keyboard.press('Enter');
+    await con.getByText('Exited (code 0).').waitFor({ timeout: 15_000 });
 
     // FD-81 SCN-074: the auditor hands the same agent's findings to the coding agent picked in its row.
     await page.getByRole('button', { name: /^Connections/ }).first().click();
@@ -184,11 +184,11 @@ test('ADR-0017: a one-line header, a folding sidebar, and an agent console besid
     await waitFor('the audit task to be written', () => /^# Task: Audit findings for Sample Service/.test(fs.readFileSync(path.join(pack, 'task.md'), 'utf8')));
     assert.match(fs.readFileSync(path.join(pack, 'task.md'), 'utf8'), /the Fabric Dashboards auditor found/);
     await page.getByRole('heading', { level: 1, name: 'Sample Service' }).waitFor();
-    await waitFor('the runtime to start on the audit task', async () => /Do the task in [^\]]*task\.md\.\]/.test(await termText(page)) && !(await termText(page)).includes('Exited (code 0).'));
-    await page.locator('.console-term').click();
-    await page.keyboard.type('bye');
-    await page.keyboard.press('Enter');
-    await waitFor('the second session to end', async () => (await page.getByText('Exited (code 0).').count()) > 0);
+    await waitFor('the runtime to start on the audit task', async () => /Do the task in [^\]]*task\.md\.\]/.test(await termText(con)) && !(await termText(con)).includes('Exited (code 0).'));
+    await con.locator('.console-term').click();
+    await con.keyboard.type('bye');
+    await con.keyboard.press('Enter');
+    await waitFor('the second session to end', async () => (await con.getByText('Exited (code 0).').count()) > 0);
 
     // FD-39 SCN-056: pin the agent to the top; a Pinned section holds it, and the choice is remembered.
     // FD-78: the row's actions live in one small menu.
@@ -272,19 +272,19 @@ test('FD-39 SCN-058: a first launch opens the setup beside Overview; the coding 
     const page = await app.firstWindow();
     await page.getByRole('heading', { name: 'Set up Fabric with your coding agent' }).waitFor({ timeout: 20_000 });
     assert.equal(await page.locator('.checklist li.done').count(), 0, 'nothing is set up yet');
-    const panel = page.getByRole('complementary', { name: 'Console' });
-    await panel.waitFor({ timeout: 10_000 }); // it opened by itself, and runs nothing until the click
+    const con = await drawerOf(app);
+    await con.getByRole('region', { name: 'Console' }).waitFor({ timeout: 10_000 }); // it opened by itself, and runs nothing until the click
     assert.equal(await page.getByRole('button', { name: 'Set up with my coding agent' }).count(), 0, 'the console is already open');
-    await page.getByRole('button', { name: 'New session' }).click();
-    if (!roomy(home)) { await deferred(page); return; }
+    await con.getByRole('button', { name: 'New session' }).click();
+    if (!roomy(home)) { await deferred(con); return; }
     const pack = path.join(userData, 'consoles', 'fabric-dashboards.setup');
-    await waitFor('the agent to start on setup.md', async () => { const x = await termText(page); return x.includes(`fake-claude ready in ${home}`) && x.includes(`${pack}/setup.md and run the setup with me, step by step.]`) && x.includes('--mcp-config'); });
+    await waitFor('the agent to start on setup.md', async () => { const x = await termText(con); return x.includes(`fake-claude ready in ${home}`) && x.includes(`${pack}/setup.md and run the setup with me, step by step.]`) && x.includes('--mcp-config'); });
     assert.match(fs.readFileSync(path.join(pack, 'setup.md'), 'utf8'), /claude mcp add --scope user fabric-dashboards -e ELECTRON_RUN_AS_NODE=1 -- /);
     await shot(page, '25-setup');
-    await page.locator('.console-term').click();
-    await page.keyboard.type('bye');
-    await page.keyboard.press('Enter');
-    await page.getByText('Exited (code 0).').waitFor({ timeout: 15_000 });
+    await con.locator('.console-term').click();
+    await con.keyboard.type('bye');
+    await con.keyboard.press('Enter');
+    await con.getByText('Exited (code 0).').waitFor({ timeout: 15_000 });
     await page.getByRole('button', { name: 'Hide', exact: true }).click();
     await page.getByRole('heading', { name: 'Set up Fabric with your coding agent' }).waitFor({ state: 'detached' });
     assert.equal(JSON.parse(fs.readFileSync(path.join(userData, 'settings.json'), 'utf8')).setupDone, true, 'hidden for good');
@@ -293,9 +293,9 @@ test('FD-39 SCN-058: a first launch opens the setup beside Overview; the coding 
     await page.getByRole('heading', { name: 'Setup', exact: true }).waitFor();
     await page.getByRole('button', { name: 'Set up with my coding agent' }).click();
     await page.getByRole('heading', { name: 'Set up Fabric with your coding agent' }).waitFor();
-    await page.getByRole('button', { name: 'Hide console' }).first().click(); // the card offers Continue once the console is closed
+    await con.getByRole('button', { name: 'Collapse console' }).click(); // the card offers Continue once the console is folded
     await page.getByRole('button', { name: 'Continue setup' }).click();
-    await waitFor('the setup to continue', async () => { const x = await termText(page); return x.includes('--continue') && x.includes('setup.md and run the setup with me'); });
+    await waitFor('the setup to continue', async () => { const x = await termText(con); return x.includes('--continue') && x.includes('setup.md and run the setup with me'); });
   } finally {
     await closeApp(app);
   }
@@ -328,16 +328,17 @@ test('FD-39 SCN-059: a later visit opens on what changed, and Continue resumes t
     await page.getByText('Gone: gone.default').waitFor();
     await shot(page, '26-since-last-visit');
     await page.getByRole('button', { name: 'Continue with Sample Service' }).click();
-    if (!roomy(repo)) { await deferred(page); return; }
-    await waitFor('the resumed session with its context', async () => { const x = await termText(page); return x.includes('ctx:[present]') && /--continue\]/.test(x); });
+    const con = await drawerOf(app);
+    if (!roomy(repo)) { await deferred(con); return; }
+    await waitFor('the resumed session with its context', async () => { const x = await termText(con); return x.includes('ctx:[present]') && /--continue\]/.test(x); });
     const saved = JSON.parse(fs.readFileSync(path.join(userData, 'settings.json'), 'utf8'));
     assert.ok(Date.now() - Date.parse(saved.lastVisitAt) < 120_000, 'this visit is the next one\'s baseline');
     assert.deepEqual(saved.knownServices, ['sample.default']);
     assert.equal(saved.lastService, 'sample.default');
-    await page.locator('.console-term').click();
-    await page.keyboard.type('bye');
-    await page.keyboard.press('Enter');
-    await page.getByText('Exited (code 0).').waitFor({ timeout: 15_000 });
+    await con.locator('.console-term').click();
+    await con.keyboard.type('bye');
+    await con.keyboard.press('Enter');
+    await con.getByText('Exited (code 0).').waitFor({ timeout: 15_000 });
   } finally {
     await closeApp(app);
     await stopProcess(proc);

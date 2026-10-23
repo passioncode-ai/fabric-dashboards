@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+## 0.7.25 - 2026-10-23
+
+### Changed
+
+- **The console drops down over the dashboard** (FD-92). Pressing Console pulls it down from under the bar like a
+  tab, over the top of the dashboard; the dashboard no longer narrows or moves. Drag the console's bottom edge to
+  make it taller or shorter; the height is remembered. Pressing Console again (or the arrow in its corner) folds it
+  back up, and whatever runs in it keeps running. The red cross in its corner closes it: a running session asks
+  first, then ends. The Setup console and Switchboard hand-overs open the same way.
+
 ## 0.7.24 - 2026-10-22
 
 ### Changed

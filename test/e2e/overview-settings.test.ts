@@ -105,7 +105,12 @@ test('SCN-070: Check setup lists what needs the person and hands the repair to t
     await group.getByText('claude mcp add --scope user fabric-dashboards', { exact: false }).waitFor();
     assert.deepEqual(await group.locator('.setup-check-area h3').allInnerTexts(), ['MCP servers', 'Apps'], 'the area with a failure comes first');
     await group.getByRole('button', { name: 'Repair with my coding agent' }).click();
-    await page.getByRole('complementary', { name: 'Console' }).waitFor({ timeout: 10_000 });
+    // FD-92: the Setup console is the drawer, a view of its own over the content area.
+    const end = Date.now() + 10_000;
+    let con = app!.windows().find((p) => p.url().includes('drawer=1'));
+    while (!con && Date.now() < end) { await new Promise((r) => setTimeout(r, 200)); con = app!.windows().find((p) => p.url().includes('drawer=1')); }
+    assert.ok(con, 'the console drawer opened');
+    await con.getByRole('region', { name: 'Console' }).waitFor({ timeout: 10_000 });
   } finally {
     await closeApp(app);
   }

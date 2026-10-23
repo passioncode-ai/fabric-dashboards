@@ -92,7 +92,7 @@ export function ServiceView({ s, all, members, open, link, nonce, tab: askedTab,
     <div className="svc">
       {members.length > 1 && <InstanceSwitch current={s} members={members} open={open} />}
       {/* ADR-0017: one line by default — state, name, the first problem, the tabs — and the full card on demand. */}
-      <header className={`svc-head${headerFull ? ' full' : ''}`}>
+      <header className={`svc-head${headerFull ? ' full' : ''}`} data-drawer-top="">
         <div className="svc-bar">
           <h1 id="svc-title" tabIndex={-1} title={s.descriptor?.summary || undefined}>{nameOf(s)}</h1>
           <StateBadge state={s.state} />

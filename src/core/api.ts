@@ -9,6 +9,16 @@ import type { ActivityItem, AppStatus, Listener, Reason, Settings, SettingsPatch
 /** `audit` (FD-81): `output` carries the auditor's findings for this agent, as the person read them. */
 export interface ConsoleTask { kind: 'fix' | 'update' | 'audit'; output?: string }
 
+/** FD-92: a job the console starts once it is shown (Fix / Update with agent, Continue); taken once by its nonce. */
+export interface DrawerTask { task?: ConsoleTask; mode?: 'new' | 'continue'; nonce: number }
+/** FD-92: what the window's page asks of the console drawer. `rect` is the area under the page header, in window
+ *  coordinates; `suspended` while one of the app's own dialogs is open (the drawer would lie over it). */
+export interface DrawerState { key: string | null; open: boolean; rect: Rect | null; height: number; task: DrawerTask | null; suspended: boolean }
+/** FD-92: what the drawer's own page is told: which console, its height now, the area's height and a job to start. */
+export interface DrawerPush { key: string | null; height: number; areaHeight: number; task: DrawerTask | null }
+/** FD-92: what the drawer's page reports back to the window's page. */
+export type DrawerChange = { kind: 'hide' } | { kind: 'height'; height: number } | { kind: 'taskTaken'; nonce: number };
+
 export interface Rect { x: number; y: number; width: number; height: number }
 
 /** ADR-0017: what a service's console shows before and while it runs. */
@@ -122,6 +132,15 @@ export interface FabricApi {
   /** Output and exits while the window is visible; a hidden window gets nothing and asks `consoleInfo` again. */
   /** View menu: fold or unfold a panel (ADR-0017). */
   onLayoutCommand(listener: (which: 'sidebar' | 'console' | 'details') => void): () => void;
+  /** FD-92: the window's page sets what the console drawer shows. */
+  consoleDrawer(state: DrawerState): void;
+  /** FD-92: the drawer's page: what to show (pushed on every change and after it loads). */
+  onDrawer(listener: (push: DrawerPush) => void): () => void;
+  /** FD-92: the drawer's page reports a fold, a new height or a taken job; the window's page hears it. */
+  drawerChange(change: DrawerChange): void;
+  onDrawerChange(listener: (change: DrawerChange) => void): () => void;
+  /** FD-92: while its edge is dragged the drawer covers the whole area, to keep the pointer. */
+  drawerDrag(on: boolean): void;
   onConsoleEvent(listener: (event: { key: string; kind: 'data'; data: string; end: number } | { key: string; kind: 'exit'; code: number | null; signal?: number | null }) => void): () => void;
   /** Asks the person to confirm, then removes the login item and the MCP registration, moves the
    *  app to the Trash and quits. Settings and history stay for a reinstall unless the person ticks
@@ -178,5 +197,9 @@ export const CHANNELS = {
   consoleDismissHandover: 'fd:console-dismiss-handover',
   consoleOpenTerminal: 'fd:console-open-terminal',
   consoleEvent: 'fd:console-event',
+  drawerState: 'fd:drawer-state',
+  drawerPush: 'fd:drawer-push',
+  drawerChange: 'fd:drawer-change',
+  drawerDrag: 'fd:drawer-drag',
   layoutCommand: 'fd:layout-command',
 } as const;

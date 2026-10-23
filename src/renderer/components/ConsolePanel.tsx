@@ -1,19 +1,23 @@
-// ADR-0017 (SCN-048…050): the agent console beside a service's dashboard. A real terminal (xterm.js)
-// on the PTY the main process holds: the runtime's own interface, nothing of our own in between.
+// ADR-0017 (SCN-048…050), FD-92: the agent console, a drawer from the top of the content area over the dashboard.
+// A real terminal (xterm.js) on the PTY the main process holds: the runtime's own interface, nothing of our own in
+// between. It is drawn in the drawer's own view (src/electron/drawer.ts), so it lies over the dashboard, never beside it.
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import '@xterm/xterm/css/xterm.css';
 import type { ConsoleInfo, ConsoleSessions, ConsoleStartResult, ConsoleTask } from '../../core/api';
-import { CONSOLE_WIDTH } from '../../core/types';
+import { CONSOLE_HEIGHT } from '../../core/types';
 import { api, Icon, Spinner, useT } from '../lib';
 
 interface Props {
   serviceKey: string;
-  width: number;
-  /** The widest the panel may be now: what the dashboard's host floor leaves (DEC-0036 ED-7, src/core/layout.ts). */
-  max: number;
-  onWidth: (width: number, commit: boolean) => void;
+  /** The drawer's height now, and the tallest it may be (src/core/layout.ts drawerHeightFor). */
+  height: number;
+  maxHeight: number;
+  onHeight: (height: number, commit: boolean) => void;
+  /** While the bottom edge is dragged: the drawer covers the area to keep the pointer (drawer.ts). */
+  onDrag: (active: boolean) => void;
+  /** Folds the drawer; whatever runs in it keeps running. */
   onHide: () => void;
   /** FD-39 D-3: a job to start with (Fix / Update with agent); taken once, then cleared by the shell. */
   task?: { task?: ConsoleTask; mode?: 'new' | 'continue'; nonce: number } | null;
@@ -33,7 +37,7 @@ function shortPath(p: string): string {
   return home ? `~${p.slice(home.length)}` : p;
 }
 
-export function ConsolePanel({ serviceKey, width, max, onWidth, onHide, task, onTaskTaken }: Props) {
+export function ConsolePanel({ serviceKey, height, maxHeight, onHeight, onDrag, onHide, task, onTaskTaken }: Props) {
   const { t } = useT();
   const host = useRef<HTMLDivElement>(null);
   const term = useRef<Terminal | null>(null);
@@ -42,7 +46,7 @@ export function ConsolePanel({ serviceKey, width, max, onWidth, onHide, task, on
   const shown = useRef(0);
   const [info, setInfo] = useState<ConsoleInfo | null>(null);
   const [notice, setNotice] = useState<{ text: string; terminalOnly?: boolean } | null>(null);
-  const [confirmStop, setConfirmStop] = useState(false);
+  const [confirmClose, setConfirmClose] = useState(false);
   const [starting, setStarting] = useState(false);
   const [sessions, setSessions] = useState<ConsoleSessions | null>(null);
 
@@ -103,7 +107,7 @@ export function ConsolePanel({ serviceKey, width, max, onWidth, onHide, task, on
     const onVisible = () => { if (document.visibilityState === 'visible') void refresh(); };
     document.addEventListener('visibilitychange', onVisible);
     setNotice(null);
-    setConfirmStop(false);
+    setConfirmClose(false);
     void refresh();
     return () => { off(); typed.dispose(); sized.dispose(); observer.disconnect(); document.removeEventListener('visibilitychange', onVisible); x.dispose(); term.current = null; };
   }, [serviceKey, refresh]);
@@ -170,21 +174,30 @@ export function ConsolePanel({ serviceKey, width, max, onWidth, onHide, task, on
     if (!r.ok) setNotice({ text: r.error === 'continue-unsupported' ? t('console.continueUnsupported') : t('console.terminalFailed', { detail: r.error ?? '' }) });
   };
 
-  // The left edge drags the width; the shell keeps it between the bounds (the dashboard's host floor
-  // stops it, ED-7) and remembers it on release.
+  // FD-92: the bottom edge drags the height; the drawer is remembered at the height it is let go at.
   const drag = (e: React.PointerEvent<HTMLDivElement>) => {
-    const startX = e.clientX;
-    const startW = width;
+    const startY = e.clientY;
+    const startH = height;
     const el = e.currentTarget;
     el.setPointerCapture(e.pointerId);
-    const move = (m: PointerEvent) => onWidth(startW + (startX - m.clientX), false);
-    const up = (u: PointerEvent) => { el.removeEventListener('pointermove', move); el.removeEventListener('pointerup', up); onWidth(startW + (startX - u.clientX), true); };
+    onDrag(true);
+    const move = (m: PointerEvent) => onHeight(startH + (m.clientY - startY), false);
+    const up = (u: PointerEvent) => {
+      el.removeEventListener('pointermove', move); el.removeEventListener('pointerup', up);
+      onHeight(startH + (u.clientY - startY), true);
+      onDrag(false);
+    };
     el.addEventListener('pointermove', move);
     el.addEventListener('pointerup', up);
   };
   const nudge = (e: React.KeyboardEvent<HTMLDivElement>) => {
-    if (e.key === 'ArrowLeft') onWidth(width + 24, true);
-    if (e.key === 'ArrowRight') onWidth(width - 24, true);
+    if (e.key === 'ArrowDown') onHeight(height + 24, true);
+    if (e.key === 'ArrowUp') onHeight(height - 24, true);
+  };
+  // FD-92: the red cross closes the console: a running session is ended after a confirmation, then the drawer folds.
+  const close = () => {
+    if (info?.session.state === 'running') { setConfirmClose(true); return; }
+    onHide();
   };
 
   const running = info?.session.state === 'running';
@@ -197,8 +210,7 @@ export function ConsolePanel({ serviceKey, width, max, onWidth, onHide, task, on
   const handover = info?.handover ?? null;
 
   return (
-    <aside className="console-panel" style={{ width }} aria-label={t('console.title')}>
-      <div className="console-edge" role="separator" aria-orientation="vertical" aria-label={t('console.resize')} aria-valuemin={CONSOLE_WIDTH.min} aria-valuemax={max} aria-valuenow={width} tabIndex={0} onPointerDown={drag} onKeyDown={nudge} />
+    <section className="console-drawer" style={{ height }} aria-label={t('console.title')}>
       <div className="console-head">
         <div className="console-row">
           {ownHandover
@@ -210,15 +222,15 @@ export function ConsolePanel({ serviceKey, width, max, onWidth, onHide, task, on
               </select>
             </>}
           <span className="spacer" />
-          {running && !confirmStop && <button className="btn btn-sm" onClick={() => setConfirmStop(true)}>{t('console.stop')}</button>}
-          {running && confirmStop && (
-            <span className="row" role="group" aria-label={t('console.stopConfirm')}>
-              <span className="meta">{t('console.stopConfirm')}</span>
-              <button className="btn btn-sm btn-danger" onClick={() => { setConfirmStop(false); void api().consoleStop(serviceKey); }}>{t('console.stop')}</button>
-              <button className="btn btn-sm" autoFocus onClick={() => setConfirmStop(false)}>{t('action.cancel')}</button>
+          {running && confirmClose && (
+            <span className="row" role="group" aria-label={t('console.closeConfirm')}>
+              <span className="meta">{t('console.closeConfirm')}</span>
+              <button className="btn btn-sm btn-danger" onClick={() => { setConfirmClose(false); void api().consoleStop(serviceKey).finally(onHide); }}>{t('console.close')}</button>
+              <button className="btn btn-sm" autoFocus onClick={() => setConfirmClose(false)}>{t('action.cancel')}</button>
             </span>
           )}
-          <button className="icon-btn" title={t('console.hide')} onClick={onHide}><Icon name="close" /><span className="visually-hidden">{t('console.hide')}</span></button>
+          <button className="icon-btn" title={t('console.hide')} aria-label={t('console.hide')} onClick={onHide}><Icon name="chevronUp" /></button>
+          <button className="icon-btn icon-btn-close" title={t('console.close')} aria-label={t('console.close')} onClick={close}><Icon name="close" /></button>
         </div>
         {handover && <p className="console-row console-line meta" role="status">{handover.kind === 'resume' ? t('console.resumed', { agent: handover.agent }) : t('console.handover', { workflow: handover.workflow || handover.agent, account: handover.account || t('word.notRecorded') })}</p>}
         {!ownHandover && <div className="console-row meta">
@@ -272,6 +284,8 @@ export function ConsolePanel({ serviceKey, width, max, onWidth, onHide, task, on
         </div>
       )}
       <div className="console-term" ref={host} onClick={() => term.current?.focus()} />
-    </aside>
+      <div className="console-edge" role="separator" aria-orientation="horizontal" aria-label={t('console.resize')} aria-valuemin={CONSOLE_HEIGHT.min} aria-valuemax={maxHeight} aria-valuenow={height} tabIndex={0} onPointerDown={drag} onKeyDown={nudge}><span className="console-grip" /></div>
+      <div className="console-shadow" aria-hidden="true" />
+    </section>
   );
 }
