@@ -155,6 +155,14 @@ first, then push the new tag. A run waiting on an environment approval (only und
 `gh run cancel` (it stays `waiting`, measured 2026-10-06 on 37398766044); end it with
 `gh api -X POST repos/passioncode-ai/fabric-dashboards/actions/runs/<id>/force-cancel`.
 
+**Re-running a failed job of a release run** (`gh run rerun <id> --failed`) keeps the tag and the version, and is
+right for a failure the product's code did not cause (a runner, a network, a flake that passed on the same code
+before). Before re-running a **Windows package job**, delete the signing module's cache of the tag first:
+`gh cache list --key ArtifactSigning --ref refs/tags/v<version>`, then `gh cache delete <id>`. A first attempt never
+reads that cache (both Windows jobs miss it and install the module), but a re-run restores it, and the restored module
+does not load ("The term 'Invoke-ArtifactSigning' is not recognized", FD-96, measured on 0.7.26's run 39955756486:
+attempt 2 failed that way, attempt 3 after the deletion signed and published).
+
 A published release is never rewritten; a fix is a new tag. Verify a download with
 `gpg --verify SHA256SUMS.asc SHA256SUMS`, `shasum -a 256 -c SHA256SUMS --ignore-missing` and
 `gh attestation verify <file> -R passioncode-ai/fabric-dashboards --signer-repo passioncode-ai/.github`
