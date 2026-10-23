@@ -112,7 +112,7 @@ export function Spend({ status }: { status: AppStatus }) {
                                 <td><span className="mono">{m.model}</span> <span className="muted">{m.provider}</span></td>
                                 <td>{m.calls}</td>
                                 <td>{tokens(m, t, lang)}</td>
-                                <td>{m.route === 'subscription' ? <span className="muted">{t('spend.subscriptionCost', { amount: usd(m.estimateUsd, t) })}</span> : money(m, t)}</td>
+                                <td>{m.route === 'subscription' ? <span className="muted">{subscriptionCost(m, t)}</span> : money(m, t)}</td>
                               </tr>
                             ))}
                           </tbody>
@@ -135,7 +135,7 @@ export function Spend({ status }: { status: AppStatus }) {
       {silent.length > 0 && <p className="meta">{t('spend.silent', { names: silent.map(nameOf).join(', ') })}</p>}
       {reports.some((e) => e.summary.today.partial || e.summary.week.partial || e.summary.month.partial) && <p className="meta">{t('spend.partialNote')}</p>}
       {reports.some((e) => e.summary.models.some((m) => m.tokensPartial)) && <p className="meta">{t('spend.tokensPartialNote')}</p>}
-      {reports.some((e) => e.summary.month.estimateUsd > 0) && <p className="meta">{t('spend.estimateNote')}</p>}
+      {reports.some((e) => (e.summary.month.estimateUsd ?? 0) > 0 || e.summary.month.subscriptionCalls > 0) && <p className="meta">{t('spend.estimateNote')}</p>}
     </>
   );
 }
@@ -155,8 +155,17 @@ export function tokens(s: Pick<SpendSum, 'inputTokens' | 'outputTokens' | 'token
 }
 
 /** FD-88: a subscription's list-price value beside the money, or '' when there is none. Never added to it. */
-export function estimate(s: Pick<SpendSum, 'estimateUsd'>, t: T): string {
-  return (s.estimateUsd ?? 0) > 0 ? t('spend.estimate', { amount: usd(s.estimateUsd, t) }) : '';
+export function estimate(s: Pick<SpendSum, 'estimateUsd' | 'estimatePartial' | 'subscriptionCalls'>, t: T): string {
+  // FD-97: subscription calls with no price are unknown, never ~$0.
+  if (s.estimateUsd === null) return s.subscriptionCalls > 0 ? t('spend.estimateUnknown') : '';
+  if (s.estimateUsd <= 0) return '';
+  return t(s.estimatePartial ? 'spend.estimateAtLeast' : 'spend.estimate', { amount: usd(s.estimateUsd, t) });
+}
+
+/** FD-97: one subscription model's list-price value: unknown when none of its calls is priced, «at least» when some are not. */
+export function subscriptionCost(s: Pick<SpendSum, 'estimateUsd' | 'estimatePartial'>, t: T): string {
+  if (s.estimateUsd === null) return t('spend.subscriptionUnknown');
+  return t(s.estimatePartial ? 'spend.subscriptionCostAtLeast' : 'spend.subscriptionCost', { amount: usd(s.estimateUsd, t) });
 }
 
 /** Unknown is never $0: a sum with unpriced calls reads «≥ $x». Shared with the Overview strip (D-3). */

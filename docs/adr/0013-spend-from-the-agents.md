@@ -90,3 +90,14 @@ at list price. The contract says a `route: subscription` row is "not metered" (D
   route; MCP `spend` returns both fields; the Overview strip shows money only.
 - Proposed to the contract owner on the same thread as a host rule, so every host sums alike.
 - Tests: `packages/service-host/test/usage.test.ts` *FD-88*, `test/spend.test.ts` *sumSpend*.
+
+## Amendment of 2026-10-23: an unpriced subscription is unknown, not ~$0 (FD-97, DEC-0110)
+
+The contract wrote FD-88's rule as DEC-0110 (`usageSpend`, CT-115) and asked one thing more of Dashboards: the estimate
+side reads like the money side. Subscription calls none of which is priced have an unknown estimate (`estimateUsd:
+null`, shown "+ subscription calls not priced", a model "subscription, not priced"); some unpriced make it a lower bound
+(`estimatePartial`, "+ at least ~$x"). Across agents, one agent with an unpriced subscription makes the sum a lower bound;
+when no agent's subscription calls are priced, it is unknown. Before this an unpriced subscription row added 0 and read
+"~$0". `@passioncode-ai/fabric-service-host` 0.8.0 (`estimateUsd: number | null`, `estimatePartial`). Tests:
+`packages/service-host/test/usage.test.ts` *FD-97* (the contract's `usageSpend` cases through the host's sums, red
+before the change), `test/spend.test.ts` *sumSpend*, `test/e2e/spend.test.ts`.

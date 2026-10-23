@@ -178,8 +178,36 @@ test('FD-88: calls paid by a subscription spend no money; their list-price value
   const only = summarizeUsage(report([{ ...opus, route: 'subscription' }]), AT('2026-10-22'));
   assert.deepEqual([only.month.costUsd, only.month.estimateUsd], [0, 140.47], 'a subscription alone spent no money: $0, not unknown');
   const unpriced = summarizeUsage(report([{ ...opus, ...totals(3, null), route: 'subscription' }]), AT('2026-10-22'));
-  assert.deepEqual([unpriced.today.costUsd, unpriced.today.partial, unpriced.today.estimateUsd], [0, false, 0], 'an unpriced subscription call makes no money unknown');
+  assert.deepEqual([unpriced.today.costUsd, unpriced.today.partial, unpriced.today.estimateUsd], [0, false, null], 'an unpriced subscription call makes no money unknown; its estimate is unknown (FD-97)');
   const unstated = summarizeUsage(report([{ ...opus }]), AT('2026-10-22'));
   assert.deepEqual([unstated.today.costUsd, unstated.today.estimateUsd], [140.47, 0], 'no route stated: counted as money, as before DEC-0046');
   assert.match(checkUsage(report([{ ...opus, route: 'gift' }]), ME)!, /route is not subscription, key or platform-metered/);
+});
+
+test('FD-97 (DEC-0110 usageSpend): a subscription\'s estimate is unknown when none of its calls is priced, and a lower bound when some are not', () => {
+  const report = (rows: Record<string, unknown>[]): UsageReport => {
+    const calls = rows.reduce((n, r) => n + (r.calls as number), 0);
+    const unpriced = rows.reduce((n, r) => n + (r.unpricedCalls as number), 0);
+    const priced = rows.filter((r) => r.costUsd !== null);
+    return { protocol: 'fabric-service/0.1', service: { ...ME }, generatedAt: '2026-10-22T12:00:00Z', currency: 'USD',
+      days: [{ date: '2026-10-22', calls, unpricedCalls: unpriced, inputTokens: 0, outputTokens: 0, costUsd: calls > 0 && unpriced === calls ? null : priced.reduce((n, r) => n + (r.costUsd as number), 0), byModel: rows }] } as unknown as UsageReport;
+  };
+  const row = (route: string | undefined, calls: number, costUsd: number | null, unpricedCalls = 0, model = 'm') => ({ provider: 'p', model, costBasis: 'price-list', ...(route ? { route } : {}), calls, unpricedCalls, inputTokens: 0, outputTokens: 0, costUsd });
+  // Each case is one of the contract's (test/usage-rules.test.ts, usageSpend), read through the host's sums.
+  const cases: [Record<string, unknown>[], number | null, boolean][] = [
+    [[row('subscription', 300, 140.47), row('key', 40, 4.8, 0, 'k'), row('platform-metered', 2, 1, 0, 'pm'), row(undefined, 1, 1, 0, 'u')], 140.47, false],
+    [[row('subscription', 5, 2)], 2, false],
+    [[row('subscription', 3, null, 3)], null, false],
+    [[row('subscription', 3, 1, 1)], 1, true],
+    [[row('subscription', 0, 0), row('subscription', 3, null, 3, 'n')], null, false],
+    [[], 0, false],
+  ];
+  for (const [rows, estimateUsd, estimatePartial] of cases) {
+    const r = report(rows);
+    assert.equal(checkUsage(r, ME), null, JSON.stringify(rows));
+    const s = summarizeUsage(r, AT('2026-10-22'));
+    assert.deepEqual([s.today.estimateUsd, s.today.estimatePartial], [estimateUsd, estimatePartial], JSON.stringify(rows));
+  }
+  const money = summarizeUsage(report([row('subscription', 300, 140.47), row('key', 40, 4.8, 0, 'k'), row('platform-metered', 2, 1, 0, 'pm'), row(undefined, 1, 1, 0, 'u')]), AT('2026-10-22'));
+  assert.equal(money.today.costUsd, 6.8, 'money is every row off the subscription');
 });

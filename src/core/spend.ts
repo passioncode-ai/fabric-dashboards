@@ -55,20 +55,26 @@ export type SpendWindow = 'today' | 'week' | 'month';
  */
 export function sumSpend(entries: readonly SpendEntry[], window: SpendWindow): SpendSum {
   const unread = entries.some((e) => e.kind === 'error');
-  const out: SpendSum = { calls: 0, inputTokens: 0, outputTokens: 0, costUsd: null, estimateUsd: 0, subscriptionCalls: 0, partial: unread, tokensPartial: unread };
+  const out: SpendSum = { calls: 0, inputTokens: 0, outputTokens: 0, costUsd: null, estimateUsd: 0, estimatePartial: false, subscriptionCalls: 0, partial: unread, tokensPartial: unread };
+  let estimated = false; // FD-97: some agent's subscription calls carry a price
   for (const e of entries) {
     if (e.kind !== 'report') continue;
     const x = e.summary[window];
     out.calls += x.calls;
     out.inputTokens += x.inputTokens;
     out.outputTokens += x.outputTokens;
-    out.estimateUsd += x.estimateUsd ?? 0; // FD-88: a subscription's list-price value, never money
+    // FD-88: a subscription's list-price value, never money. FD-97: an agent whose subscription calls carry no price
+    // makes the sum a lower bound; when none carries one the estimate is unknown.
+    if (x.estimateUsd !== null && (x.subscriptionCalls ?? 0) > 0) estimated = true;
+    if (x.estimateUsd !== null) out.estimateUsd = (out.estimateUsd ?? 0) + x.estimateUsd;
+    if (x.estimatePartial || (x.estimateUsd === null && (x.subscriptionCalls ?? 0) > 0)) out.estimatePartial = true;
     out.subscriptionCalls += x.subscriptionCalls ?? 0;
     if (x.costUsd !== null) out.costUsd = (out.costUsd ?? 0) + x.costUsd;
     if (x.partial || (x.costUsd === null && x.calls > (x.subscriptionCalls ?? 0))) out.partial = true;
     if (x.tokensPartial) out.tokensPartial = true; // DEC-0091
   }
   if (out.calls === out.subscriptionCalls && out.costUsd === null) out.costUsd = 0; // nothing metered was called: no money was spent
+  if (out.subscriptionCalls > 0 && !estimated) { out.estimateUsd = null; out.estimatePartial = false; }
   return out;
 }
 // #endregion spend-read
