@@ -14,7 +14,7 @@ its CT-115 asked Dashboards to read an unpriced subscription row as `null` or a 
 bound when some are not; shared package 0.8.0. The e2e's Spend assertions passed on a locked screen; its Dock check
 (FD-05) needs an unlocked one, so run `test/e2e/spend.test.ts` once the screen is unlocked.
 
-**Next, in order:** thread `147a5538` answered (FD-97 done, DEC-0109 not affected); FD-98; run `test/e2e/spend.test.ts` on an unlocked screen; FD-96 waits on thread `f10db6ee`; FD-95 at its next miss;
+**Next, in order:** thread `147a5538` answered (FD-97 done, DEC-0109 not affected); FD-98 deferred until a test can prove it (its row says which); run `test/e2e/spend.test.ts` on an unlocked screen; FD-96 waits on thread `f10db6ee`; FD-95 at its next miss;
 FD-80's other half; FD-87 (b) after Fabric CO-321.
 
 ## 0.7.26: start here (2026-10-23, FD-93 how busy an agent is)
