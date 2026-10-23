@@ -455,3 +455,18 @@ input.switch:focus-visible { outline: 2px solid var(--pc-accent); outline-offset
 .setup-done .setup-check { margin: 0; }
 .setup-done .setup-check > .row { align-items: center; }
 .setup-done .setup-check .btn { min-height: 26px; padding: 0 var(--pc-space-2); font-size: var(--pc-type-meta); }
+
+/* #region load-tab — docs: docs/ux/scenarios.md#scn-076-see-how-busy-an-agent-is */
+.load .strip.load-strip { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.load .notice h2 { margin: 0 0 var(--pc-space-2); font-size: inherit; }
+.load .notice p { margin: 0 0 var(--pc-space-2); }
+.load-errors { margin: 0; padding-left: var(--pc-space-5); }
+.load-errors code { font-size: var(--pc-type-meta); word-break: break-word; }
+.load-chart { margin: var(--pc-space-4) 0; }
+.load-chart svg { display: block; width: 100%; max-width: 640px; height: 64px; margin-top: var(--pc-space-2); }
+.load-chart .load-done { fill: var(--pc-accent); }
+.load-chart .load-failed { fill: var(--pc-negative); }
+.load-contexts { margin-top: var(--pc-space-4); }
+.load-contexts td.attn { color: var(--pc-accent); font-weight: 600; }
+.load-contexts td.bad { color: var(--pc-negative); font-weight: 600; }
+/* #endregion load-tab */

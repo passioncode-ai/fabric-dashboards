@@ -1,0 +1,9 @@
+{
+  "path": "//evil.example/load",
+  "windowSeconds": 3600,
+  "limits": {
+    "concurrency": 4,
+    "perCaller": 2,
+    "queueMax": 50
+  }
+}

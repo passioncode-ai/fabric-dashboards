@@ -1,7 +1,8 @@
-// Talking to a service with its token: the events feed, the usage report and the one-time login code. Runs in the
+// Talking to a service with its token: the events feed, the usage report, the load report and the one-time login code. Runs in the
 // main process only — the token never reaches a renderer. The unauthenticated health probe
 // (the well-known document) is shared with Fabric in @passioncode-ai/fabric-service-host.
 import { checkUsage, request, type Descriptor, type Reason, type ServiceEvent, type UsageReport } from '@passioncode-ai/fabric-service-host';
+import { loadReportProblems, type LoadReport } from '@passioncode-ai/fabric-service-host/load';
 import { tlsFor } from './testhooks';
 import { safePath } from '@passioncode-ai/fabric-service-host/links';
 
@@ -65,4 +66,20 @@ export async function fetchUsage(d: Descriptor, usagePath: string, token: string
   const problem = checkUsage(body, { id: d.id, instance: d.instance });
   if (problem) throw new UsageError(`the usage report is malformed: ${problem}`, { code: 'spend.err.malformed', params: { problem } });
   return body as UsageReport;
+}
+
+/** FD-93: GET the service's load report (contract DEC-0104, `service-load/1`) with the descriptor token, like the usage
+ *  report. A report that fails its schema or FAC-SEM-132 is unavailable with the reason, never shown in part. */
+export async function fetchLoad(d: Descriptor, loadPath: string, token: string): Promise<LoadReport> {
+  const res = await request(d.origin, 'GET', loadPath, authHeaders(d, token), 5000, tlsFor(d.origin));
+  if (res.status === 401 || res.status === 403) throw new UsageError(`the service refused the token (HTTP ${res.status})`, { code: 'load.err.refused', params: { status: res.status } });
+  if (res.status !== 200) throw new UsageError(`HTTP ${res.status} from the load report`, { code: 'load.err.http', params: { status: res.status } });
+  let body: unknown;
+  try { body = JSON.parse(res.body); } catch { throw new UsageError('the load report is not JSON', { code: 'load.err.notJson' }); }
+  const problems = loadReportProblems(body);
+  if (problems.length) {
+    const problem = problems.slice(0, 3).join('; ').slice(0, 300);
+    throw new UsageError(`the load report is malformed: ${problem}`, { code: 'load.err.malformed', params: { problem } });
+  }
+  return body as LoadReport;
 }

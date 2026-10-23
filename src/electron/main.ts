@@ -24,8 +24,9 @@ import { listListeners, unattributed } from '../core/listeners';
 import { applyLoginItem, LOGIN_NEEDS_APPROVAL, loginItemAtStartup, type LoginItemOs } from '../core/loginitem';
 import { xdgLoginItem } from '../core/autostart';
 import { Monitor, type Notice } from '../core/monitor';
-import { fetchUsage, readTokenAsync } from '../core/probe';
+import { fetchLoad, fetchUsage, readTokenAsync } from '../core/probe';
 import { readSpend, type SpendEntry } from '../core/spend';
+import { readLoad, type LoadEntry } from '../core/load';
 import { NotifyLedger, shouldNotify } from '../core/notify';
 import { OutageAlerts } from './outage-alerts';
 import { powerShellAfterExit } from '../core/after-exit';
@@ -650,6 +651,23 @@ if (!app.requestSingleInstanceLock()) {
       }
       return { entries: lastSpend, readAt: lastSpendAt ? new Date(lastSpendAt).toISOString() : null };
     });
+    // #region load-ipc — docs: docs/ux/scenarios.md#scn-076-see-how-busy-an-agent-is
+    // FD-93: one agent's load, read while its Load tab asks (every 60 s while shown); a hidden window gets the last
+    // read of that agent instead of a new one (LC-08), as Spend does.
+    const lastLoad = new Map<string, { entry: LoadEntry; at: number }>();
+    ipcMain.handle(CHANNELS.load, async (_e, key: string) => {
+      const snapshots = monitor.snapshots();
+      for (const k of lastLoad.keys()) if (!snapshots.some((x) => x.key === k)) lastLoad.delete(k);
+      const snap = snapshots.find((x) => x.key === key);
+      if (!snap) return { entry: { key, kind: 'none' } satisfies LoadEntry, readAt: new Date().toISOString() };
+      let last = lastLoad.get(key);
+      if (windowVisible() || !last) {
+        last = { entry: await readLoad(snap, { token: readTokenAsync, fetchLoad, now: () => Date.now() }), at: Date.now() };
+        lastLoad.set(key, last);
+      }
+      return { entry: last.entry, readAt: new Date(last.at).toISOString() };
+    });
+    // #endregion load-ipc
     ipcMain.handle(CHANNELS.activity, (_e, filter) => activity.list(filter ?? {}));
     ipcMain.handle(CHANNELS.activitySeen, () => { activity.markSeen(); pushStatus(); });
     ipcMain.handle(CHANNELS.settings, () => settings.get());

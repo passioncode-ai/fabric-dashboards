@@ -3,6 +3,7 @@
 import type { SetupCheckResult } from './doctor';
 import type { CommandResult } from './outcome';
 import type { SpendEntry } from './spend';
+import type { LoadEntry } from './load';
 import type { ActivityItem, AppStatus, Listener, Reason, Settings, SettingsPatch } from './types';
 
 /** A job a console is opened to do (FD-39 D-3): fix what is wrong, or update; `output` is a failed command's. */
@@ -64,6 +65,8 @@ export interface FabricApi {
   /** Every service's own usage report, read now and summed in the main process (ADR-0013). */
   /** What every agent spent, and when the main process read it. `force` (Refresh) reads now, even inside the 30 s reuse window. */
   spend(force?: boolean): Promise<{ entries: SpendEntry[]; readAt: string | null }>;
+  /** FD-93: one agent's own load report, read now in the main process (DEC-0104); `readAt` is that read's time. */
+  load(key: string): Promise<{ entry: LoadEntry; readAt: string }>;
   activity(filter: { serviceKey?: string; minLevel?: ActivityItem['level'] }): Promise<ActivityItem[]>;
   markActivitySeen(): Promise<void>;
   settings(): Promise<Settings>;
@@ -155,6 +158,7 @@ export const CHANNELS = {
   command: 'fd:command',
   logs: 'fd:logs',
   spend: 'fd:spend',
+  load: 'fd:load',
   activity: 'fd:activity',
   activitySeen: 'fd:activity-seen',
   settings: 'fd:settings',

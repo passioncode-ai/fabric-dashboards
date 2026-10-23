@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+## 0.7.26 - 2026-10-23
+
+### Added
+
+- **How busy an agent is** (FD-93). An agent that reports its load (contract DEC-0104, `extensions/load/0.1`) gets a
+  Load tab on its page: how many jobs run now and how many wait, against its limits, what was done and what failed in
+  the last 24 hours, the latest wait in the queue and run time, a bar per window, and a row per context when it works
+  in more than one. The limits count in each context. An agent that declares its load wrongly is shown with each
+  reason and is not read; a report that cannot be read, or fails its checks, says why. Agents read the same through
+  the new MCP tool `load`. Shared package `@passioncode-ai/fabric-service-host` 0.7.0 adds `./load`.
+
 ## 0.7.25 - 2026-10-23
 
 ### Changed
