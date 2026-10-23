@@ -514,3 +514,45 @@ test('FD-85: a call that arrives while the server leaves for an update is answer
   await until(() => exited !== null);
   assert.equal(exited, 0, 'it still leaves');
 });
+
+// ── FD-93: how busy an agent is (DEC-0104) ───────────────────────────────────────────────────
+
+test('FD-93: load reads the declared report with the token and answers its sums; no load declared answers none', async () => {
+  const LOAD_KEY = 'https://fabric.passioncode.ai/agent-contract/extensions/load/0.1';
+  const declaration = fixture('positive_service-load-extension.json');
+  const wk = { ...WELL_KNOWN, extensions: { [LOAD_KEY]: declaration } } as WellKnown;
+  const { deps } = world({ answers: [{ kind: 'answer', doc: wk, ms: 3 }] });
+  deps.now = () => Date.parse('2026-10-22T11:06:00Z');
+  let asked = '';
+  deps.load = async (_d, loadPath, token) => { asked = loadPath; assert.equal(token, SECRET); return fixture('positive_service-load.json'); };
+  const out = await tools.load(deps, KEY);
+  assert.equal(asked, '/fabric/v1/load');
+  assert.equal(out.kind, 'report');
+  if (out.kind !== 'report') return;
+  assert.deepEqual(out.declaration.limits, { concurrency: 4, perCaller: 2, queueMax: 50 });
+  assert.deepEqual(out.summary.contexts.map((c) => c.context), ['personal', 'org:org_7kq2m4xw']);
+  assert.ok(!JSON.stringify(out).includes(SECRET), 'never the token');
+  const plain = world();
+  assert.equal((await tools.load(plain.deps, KEY)).kind, 'none');
+  await assert.rejects(tools.load(plain.deps, 'nobody.default'), /no installed service|not a service key|unknown/);
+  assert.ok(TOOLS.some((x) => x.name === 'load' && x.annotations.readOnlyHint));
+});
+
+test('FD-93: a wrong declaration is reported and never read; a report that fails its checks is an error with the reason', async () => {
+  const LOAD_KEY = 'https://fabric.passioncode.ai/agent-contract/extensions/load/0.1';
+  const bad = fixture('semantic_service-well-known-load-invalid.json').input as WellKnown;
+  const w = world({ answers: [{ kind: 'answer', doc: bad, ms: 3 }] });
+  w.deps.load = async () => { throw new Error('must not be read'); };
+  const invalid = await tools.load(w.deps, KEY);
+  assert.equal(invalid.kind, 'invalid');
+  if (invalid.kind === 'invalid') assert.ok(invalid.errors.some((e) => e.startsWith('/path')));
+  const wk = { ...WELL_KNOWN, extensions: { [LOAD_KEY]: fixture('positive_service-load-extension.json') } } as WellKnown;
+  const g = world({ answers: [{ kind: 'answer', doc: wk, ms: 3 }] });
+  g.deps.load = async () => { const { UsageError } = await import('../src/core/probe'); throw new UsageError('the load report is malformed: x', { code: 'load.err.malformed', params: { problem: 'x' } }); };
+  const err = await tools.load(g.deps, KEY);
+  assert.equal(err.kind, 'error');
+  if (err.kind === 'error') { assert.equal(err.reason.code, 'load.err.malformed'); assert.equal(err.declaration?.path, '/fabric/v1/load'); }
+  const down = world({ answers: [{ kind: 'down', error: 'ECONNREFUSED', ms: 2 } as unknown as WellKnownResult] });
+  const unknown = await tools.load(down.deps, KEY);
+  assert.equal(unknown.kind, 'error', 'a service that does not answer has unknown load, never none');
+});

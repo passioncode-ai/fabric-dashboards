@@ -1,0 +1,9 @@
+{
+  "path": "/fabric/v1/load",
+  "windowSeconds": 3600,
+  "limits": {
+    "concurrency": 0,
+    "perCaller": 2,
+    "queueMax": 50
+  }
+}

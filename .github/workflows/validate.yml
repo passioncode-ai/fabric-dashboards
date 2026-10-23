@@ -47,6 +47,14 @@ jobs:
         with:
           python-version: '3.13'
       - run: npm ci
+      # FD-94: Windows PowerShell 5.1's first start on a fresh windows-11-arm runner took about a minute (2026-10-22 and
+      # 23: the two tests that read a real token ACL ran 42 to 70 s, then passed the product's 60 s ACL timeout). Start
+      # it once here, as the app's own ACL read does (`Get-Acl`, no profile), so the gate measures the product, not the
+      # runner's cold start. The product's timeout is unchanged: a machine that slow is told so, and reads again.
+      - name: Warm up Windows PowerShell
+        if: runner.os == 'Windows'
+        shell: cmd
+        run: powershell.exe -NoProfile -NonInteractive -Command "Measure-Command { Get-Acl $env:TEMP | Out-Null } | Select-Object -ExpandProperty TotalSeconds"
       - run: npm run check
 
   # FD-37: a dispatched rehearsal of the Windows and Linux packages, from any branch

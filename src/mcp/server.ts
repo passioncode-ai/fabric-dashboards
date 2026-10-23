@@ -135,6 +135,12 @@ export const TOOLS = [
     annotations: { readOnlyHint: true },
   },
   {
+    name: 'load',
+    description: 'How busy one agent is, from its own load report (Fabric Agent Contract DEC-0104, service-load/1), as its Load tab shows it: kind report with the declaration (path, windowSeconds, limits: concurrency, perCaller, queueMax) and the summary (running and queued at the end of the latest window, completed and failed in the last 24 h, per context with the latest wait and run times p50/p95 in ms, a series of the last windows, stale when the report is older than two windows); kind none when the agent declares no load; kind invalid with errors when its declaration is refused (FAC-SEM-133); kind error with the reason when the report cannot be read or fails its checks (FAC-SEM-132).',
+    inputSchema: { type: 'object', properties: { service: serviceArg }, required: ['service'], additionalProperties: false },
+    annotations: { readOnlyHint: true },
+  },
+  {
     name: 'spend',
     description: 'What each agent spent, from its own usage report (Fabric Agent Contract DEC-0021): today, the last 7 and 30 UTC days, per model, its budget and every spending limit it applies (limits: DEC-0027, ranked — tripped, breach, near, ok, unknown, cap (per order), threshold (approval), off (not enforced)). costUsd null means unknown, never $0; partial: true means the cost is a lower bound, tokensPartial: true that the token counts are (DEC-0091). costUsd is money only: calls paid by a subscription (route subscription, DEC-0046) are counted in subscriptionCalls and their list-price value in estimateUsd, an estimate never added to costUsd (FD-88). One service, or every one.',
     inputSchema: {
@@ -191,6 +197,7 @@ export async function call(deps: tools.Deps, name: string, args: Args): Promise<
     case 'audit': return tools.auditAll(deps);
     case 'setup_check': return tools.setupCheck(deps);
     case 'spend': return tools.spend(deps, str(args, 'service'));
+    case 'load': return tools.load(deps, need(args, 'service'));
     default: throw new tools.ToolError(`unknown tool ${JSON.stringify(name)}`);
   }
 }

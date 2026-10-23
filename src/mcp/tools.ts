@@ -19,7 +19,8 @@ import { runOwned } from '../core/children';
 import { fromServiceUrl, isServiceKey, linkFor, safePath } from '../core/deeplink';
 import { displayName } from '../core/names';
 import { Launchd, execRunner, type Runner } from '../core/launchd';
-import { fetchEvents, fetchUsage, fetchWellKnown, PROBE_TIMEOUT_MS, readTokenAsync } from '../core/probe';
+import { fetchEvents, fetchLoad, fetchUsage, fetchWellKnown, PROBE_TIMEOUT_MS, readTokenAsync } from '../core/probe';
+import { readLoad, type LoadEntry } from '../core/load';
 import { readSpend, type SpendEntry } from '../core/spend';
 import { categoryOf, groupProducts, productIdOf, type Category } from '../core/products';
 import { buildGraph, chainState, stateOfService, worstOf, type ConnectionGraph } from '../core/connections';
@@ -52,6 +53,8 @@ export interface Deps {
   run: (argv: string[], timeoutMs: number) => Promise<{ code: number | null; output: string; timedOut: boolean; started?: boolean; signal?: string | null }>;
   events: typeof fetchEvents;
   usage: typeof fetchUsage;
+  /** FD-93: the load report's read (default fetchLoad). */
+  load?: typeof fetchLoad;
   token: (tokenFile: string) => string | Promise<string>;
   now: () => number;
   sleep: (ms: number) => Promise<void>;
@@ -115,6 +118,7 @@ export function liveDeps(runner: Runner = execRunner): Deps {
     run: runArgv,
     events: fetchEvents,
     usage: fetchUsage,
+    load: fetchLoad,
     token: readTokenAsync,
     now: () => Date.now(),
     sleep: (ms) => new Promise((r) => setTimeout(r, ms)),
@@ -509,3 +513,17 @@ export async function spend(deps: Deps, key?: string): Promise<{ services: (Spen
   };
 }
 
+// #region load-mcp — docs: docs/ux/scenarios.md#scn-076-see-how-busy-an-agent-is
+/** FD-93: how busy one agent is, from its own load report (contract DEC-0104), as its Load tab shows it. A service that
+ *  does not answer has unknown load: an error, never "not reporting" (as P-3 for spend). */
+export async function load(deps: Deps, key: string): Promise<LoadEntry & { product: string }> {
+  const [one] = await look(deps, [find(deps, key).key]);
+  if (!one) throw new ToolError(`no installed service ${JSON.stringify(key)}`);
+  if (one.descriptor && !one.wellKnown && !['invalid', 'conflict'].includes(one.state)) {
+    const error = one.state === 'foreign' ? 'another program answers on its address, so its load is unknown' : `it does not answer now (${one.state}), so its load is unknown`;
+    return { key: one.key, kind: 'error', declaration: null, error, reason: { code: 'load.err.unreachable', params: { error } }, product: productIdOf(one.key) };
+  }
+  const entry = await readLoad(one, { token: deps.token, fetchLoad: deps.load ?? fetchLoad, now: deps.now });
+  return { ...entry, product: productIdOf(one.key) };
+}
+// #endregion load-mcp

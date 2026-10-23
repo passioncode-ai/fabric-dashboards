@@ -29,6 +29,7 @@ Private to this repository's workspace and not published to npm; see
 | `…/links` | the link builder and the key syntax | none — safe in a renderer |
 | `…/usage` | `checkUsage`, `summarizeUsage` and the usage-report shapes | none — safe in a renderer |
 | `…/connections` | `connectionsOf` and the declared-connections shapes (FD-78) | none, safe in a renderer |
+| `…/load` | `loadOf`, `loadReportProblems`, `summarizeLoad` and the load shapes (FD-93) | none, safe in a renderer |
 | `…/test-vectors/state-precedence.json` | the shared state-precedence vectors | — |
 
 CommonJS with `.d.ts` types, built by `tsc` into `dist/` (`npm run build:host` from the
@@ -221,6 +222,28 @@ bearer token, a JWT, a long mixed run, or a URL with one). `connectionsOf(wellKn
 `connectionsView` and returns `{declared, reported, connections, errors}`, each connection with `failing`: an invalid
 value declares nothing, is `reported` and lists every reason, so a host shows the error rather than a guess. It runs
 the contract's 127 vectors (`test/fixtures/contract/vectors_connections.json`).
+
+## Load
+
+`src/load.ts`, FD-93, entry point `@passioncode-ai/fabric-service-host/load`. A service that queues its calls declares
+in its well-known document, under `extensions`, key `https://fabric.passioncode.ai/agent-contract/extensions/load/0.1`
+(Fabric Agent Contract DEC-0104, protocol `fabric-load/0.1`), where its load report is served and the queue's limits:
+
+```json
+{ "path": "/fabric/v1/load", "windowSeconds": 3600, "limits": { "concurrency": 4, "perCaller": 2, "queueMax": 50 } }
+```
+
+`loadOf(wellKnown)` returns `{declared, reported, declaration, errors}`: an invalid value declares nothing, is
+`reported` and lists every reason (FAC-SEM-133). The report at `path` is `service-load/1`, read with the descriptor token
+like the usage report: windows of `windowSeconds`, each with a row per context (`queued`, `running`, `completed`,
+`failed`, `waitMs` and `runMs` as `{p50, p95}`). Counts and durations only, never a caller or a job id.
+`loadReportProblems(report)` checks its schema and then FAC-SEM-132 (windows in order one `windowSeconds` apart, none
+after `generatedAt`, a context once per window, `p50` at most `p95`, a run time only where a job ended); a host shows a
+report only when it answers no problem. `summarizeLoad(report, now)` gives what a host shows: running and queued at the
+end of the latest window, done and failed in the windows of the last day, the latest wait and run times per context,
+the last 24 windows summed for a chart, and `stale` when the report is older than two windows. The limits apply per
+context, so a host compares a context's counts with them, never a sum across contexts. It runs the contract's 15 load
+fixtures (`test/fixtures/contract/*service-load*`, `*service-well-known-load*`).
 
 ## Shared test vectors
 

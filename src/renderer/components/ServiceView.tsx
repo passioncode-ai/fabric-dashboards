@@ -8,9 +8,11 @@ import { problemOf } from '../../core/focus';
 import { api, GLYPH, Icon, nameOf, NEWS_MS, portOf, shortBuild, Spinner, StateBadge, useExpiry, useT } from '../lib';
 import { Feed } from './Activity';
 import { Connections } from './Connections';
+import { Load } from './Load';
+import { loadOf } from '@passioncode-ai/fabric-service-host/load';
 import fabricMark from '../brand/passioncode-mark.svg';
 
-type Tab = 'dashboard' | 'activity' | 'connections' | 'health' | 'logs';
+type Tab = 'dashboard' | 'activity' | 'connections' | 'load' | 'health' | 'logs';
 
 interface Props {
   s: ServiceSnapshot;
@@ -85,7 +87,9 @@ export function ServiceView({ s, all, members, open, link, nonce, tab: askedTab,
       setOutput({ title: t('result.commandFailed', { command, error: String((error as Error)?.message ?? error) }), text: '', running: null });
     }
   };
-  const tabs = (['dashboard', 'activity', 'connections', 'health', ...(s.descriptor?.placement === 'remote' ? [] : ['logs'])] as Tab[]);
+  // FD-93: the Load tab is there when the agent declares its load, rightly or not (a wrong declaration is reported there).
+  const load = loadOf(s.wellKnown);
+  const tabs = (['dashboard', 'activity', 'connections', ...(load.declared || load.reported ? ['load'] : []), 'health', ...(s.descriptor?.placement === 'remote' ? [] : ['logs'])] as Tab[]);
   const conflictWith = s.state === 'conflict' ? all.filter((o) => o.key !== s.key && o.state === 'conflict' && portOf(o) === portOf(s)) : [];
 
   return (
@@ -173,6 +177,7 @@ export function ServiceView({ s, all, members, open, link, nonce, tab: askedTab,
         {tab === 'dashboard' && <DashboardHost s={s} link={link} nonce={nonce} hidden={overlayOpen} applied={appliedLink} />}
         {tab === 'activity' && <div className="pane"><ServiceActivity serviceKey={s.key} tick={`${activityRev ?? ''}|${s.latestEvent?.id ?? ''}`} /></div>}
         {tab === 'connections' && <div className="pane"><Connections s={s} all={all} open={(key) => open(key, undefined, 'connections')} /></div>}
+        {tab === 'load' && tabs.includes('load') && <div className="pane"><Load s={s} /></div>}
         {tab === 'health' && <div className="pane"><Health s={s} output={output} /></div>}
         {tab === 'logs' && <div className="pane"><Logs serviceKey={s.key} /></div>}
       </div>

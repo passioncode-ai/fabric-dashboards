@@ -1,0 +1,61 @@
+{
+  "description": "A window that starts after the report was generated (FAC-SEM-132).",
+  "kind": "service-load",
+  "expect": [
+    "FAC-SEM-132"
+  ],
+  "input": {
+    "type": "service-load/1",
+    "generatedAt": "2026-10-22T09:30:00Z",
+    "windowSeconds": 3600,
+    "windows": [
+      {
+        "start": "2026-10-22T09:00:00Z",
+        "byContext": [
+          {
+            "context": "personal",
+            "queued": 0,
+            "running": 1,
+            "completed": 12,
+            "failed": 1,
+            "waitMs": {
+              "p50": 40,
+              "p95": 900
+            },
+            "runMs": {
+              "p50": 8000,
+              "p95": 31000
+            }
+          },
+          {
+            "context": "org:org_7kq2m4xw",
+            "queued": 3,
+            "running": 2,
+            "completed": 30,
+            "failed": 0,
+            "waitMs": {
+              "p50": 1200,
+              "p95": 9000
+            },
+            "runMs": {
+              "p50": 6000,
+              "p95": 22000
+            }
+          }
+        ]
+      },
+      {
+        "start": "2026-10-22T10:00:00Z",
+        "byContext": [
+          {
+            "context": "personal",
+            "queued": 0,
+            "running": 0,
+            "completed": 0,
+            "failed": 0
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -12,3 +12,4 @@ export * from './vectors';
 export * from './usage';
 export * from './connections';
 export * from './latch';
+export * from './load';

@@ -81,6 +81,7 @@
 | SCN-073 | See what an agent is connected to | service | P-01 | ST-019 | validated | 2026-10-23 |
 | SCN-074 | See how agents are wired and what the auditor found | connections | P-01 | ST-019 | validated | 2026-10-23 |
 | SCN-075 | A session stopped on a limit continues by itself | connections | P-01 | ST-019 | validated | 2026-10-23 |
+| SCN-076 | See how busy an agent is | service | P-01 | ST-019 | validated | 2026-10-23 |
 ## Personas
 
 Defined in [foundation.md](foundation.md) → P-01.
@@ -1300,6 +1301,26 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **Errors & recovery:** a claim Switchboard refuses starts nothing ("Could not be continued here; see the log."); a claimed stop whose console cannot start is recorded `cancelled`; Switchboard not answering says so in the section; live processes that cannot be read count as open, never as none
 - **Status:** validated (test/e2e/connections.test.ts *FD-83* passed 8 of 10 runs on the running app, 2026-10-23 00:00 to 00:06 UTC; the two misses timed out waiting for "Continued here." at load average about 30 (FD-90))
 - **Coverage:** src/core/recovery.ts, src/electron/console.ts (pollRecovery), src/renderer/components/ConnectionsMap.tsx (LimitStops), src/mcp/tools.ts (limitStops), test/recovery.test.ts, test/e2e/connections.test.ts *FD-83*
+- **Product:** unobserved
+
+### SCN-076: See how busy an agent is
+- **Persona:** P-01
+- **Feature:** service
+- **Traces:** ST-019 (JTBD-01); FD-93; contract DEC-0104 (`extensions/load/0.1`, `service-load/1`, FAC-SEM-132, FAC-SEM-133), which names Fabric Dashboards as the host that draws the load panels; ADR-0024
+- **Entry point:** an agent's page → Load tab (there only when the agent declares its load, rightly or not)
+- **Preconditions:** the agent answered at least once and its well-known document carries the load key
+- **Steps:**
+  1. User opens Load -> four numbers: running now and waiting (with "of N" against the limit when the agent works in one context), done and failed in the last 24 hours; a context at its limit marks running, a full queue and any failure read as trouble
+  2. User reads the lines below -> the limits ("In each context it runs at most 4 at once and 2 for one caller; 3 more may wait.", or "nothing waits" when the queue is 0), the latest wait in the queue and run time (median and 95 %), and a bar per window of what was done and what failed
+  3. User reads By context (two contexts or more) -> one row per context: running, waiting, done, failed, wait and run at 95 %, a time never measured reads "not measured"
+  4. User presses Refresh -> it is read now; while the tab is open it is read again every minute
+- **Expected result:** the person sees whether an agent keeps up with its calls, where it waits, and whether its queue refuses work, without opening the agent's own dashboard
+- **Alt paths:** the agent declares its load wrongly -> "This agent declares its load wrongly, so it is not read" with each reason (FAC-SEM-133) and no read is made; the report refuses the token, does not answer, is not JSON or fails its checks (FAC-SEM-132) -> "The load report could not be read" with the reason, and the limits it declared; the report has no window -> "Nothing has run yet"; the report is older than two of its windows -> a note that its counts are of then; an agent that declares nothing has no Load tab; an agent asks through MCP -> `load` answers the same declaration and sums, or `invalid` / `error` with the reason; the window is hidden -> the last read is answered, nothing is read (LC-08)
+- **UI elements:** Load tab, read-at line with Refresh, the four-number strip, the limits line, the wait and run lines, the bar chart, the By context table, the warning and error notices
+- **States covered:** loading, empty, success, error
+- **Errors & recovery:** any failure is that agent's notice with its reason, never a blank tab or a zero; the token goes only to the agent's own well-known answer (S-1)
+- **Status:** validated (test/e2e/load.test.ts *FD-93* passed on the running app, 2026-10-23)
+- **Coverage:** packages/service-host/src/load.ts, src/core/load.ts, src/core/probe.ts (fetchLoad), src/electron/main.ts (load-ipc), src/renderer/components/Load.tsx, src/mcp/tools.ts (load), packages/service-host/test/load.test.ts, test/load.test.ts, test/mcp.test.ts *FD-93*, test/e2e/load.test.ts
 - **Product:** unobserved
 
 ### SCN-070: Check what is set up
