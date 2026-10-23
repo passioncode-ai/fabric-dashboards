@@ -64,14 +64,19 @@ test('SCN-021, SCN-055: Update runs the declared command and says how it ended; 
     const st = fs.statfsSync(repo);
     const roomy = st.bavail * st.bsize >= 5 * 1024 ** 3;
     await page.getByRole('button', { name: 'Update with agent' }).first().click({ timeout: 20_000 });
+    // FD-92: the console is a drawer in a view of its own; Playwright sees its page as a window.
+    const deadlineDrawer = Date.now() + 20_000;
+    let con = app!.windows().find((p) => p.url().includes('drawer=1'));
+    while (!con && Date.now() < deadlineDrawer) { await new Promise((r) => setTimeout(r, 200)); con = app!.windows().find((p) => p.url().includes('drawer=1')); }
+    assert.ok(con, 'the console drawer opened');
     if (!roomy) {
-      await page.getByText(/Not started: only [\d.]+ GB is free on this disk, and a session needs 5 GB\. Free some space, then start again\./).first().waitFor({ timeout: 20_000 });
-      assert.doesNotMatch(await termText(page), /fake-claude ready/, 'nothing was spawned');
+      await con.getByText(/Not started: only [\d.]+ GB is free on this disk, and a session needs 5 GB\. Free some space, then start again\./).first().waitFor({ timeout: 20_000 });
+      assert.doesNotMatch(await termText(con), /fake-claude ready/, 'nothing was spawned');
       return;
     }
     const deadline = Date.now() + 30_000;
-    while (Date.now() < deadline && !/task\.md/.test(await termText(page))) await new Promise((r) => setTimeout(r, 250));
-    assert.match(await termText(page), /task\.md/, 'the runtime starts on the task');
+    while (Date.now() < deadline && !/task\.md/.test(await termText(con))) await new Promise((r) => setTimeout(r, 250));
+    assert.match(await termText(con), /task\.md/, 'the runtime starts on the task');
     const pack = path.join(userData, 'consoles', 'example-agent.default', 'task.md');
     const task = fs.readFileSync(pack, 'utf8');
     assert.match(task, /^# Task: /);

@@ -51,6 +51,8 @@ export interface ConsoleHostOptions {
   settings: SettingsStore;
   snapshot: (key: string) => ServiceSnapshot | null;
   window: () => BrowserWindow | null;
+  /** FD-92: the console drawer's page, which shows the console; it gets the same events as the window. */
+  drawer?: () => Electron.WebContents | null;
   visible: () => boolean;
   log: (line: string) => void;
   /** Test-only search folders (never honoured by a packaged app — main.ts decides). */
@@ -144,7 +146,10 @@ export class ConsoleHost {
   /** LC-08: a hidden window receives nothing; it reads the ring again when it shows. */
   private send(event: unknown): void {
     const w = this.o.window();
-    if (w && !w.isDestroyed() && this.o.visible()) w.webContents.send(CHANNELS.consoleEvent, event);
+    if (!w || w.isDestroyed() || !this.o.visible()) return;
+    w.webContents.send(CHANNELS.consoleEvent, event);
+    const d = this.o.drawer?.();
+    if (d && !d.isDestroyed()) d.send(CHANNELS.consoleEvent, event);
   }
 
   private searchPath(): Promise<string[]> {
@@ -207,7 +212,7 @@ export class ConsoleHost {
     return value;
   }
 
-  // #region console-fast-open — docs: docs/ux/scenarios.md#scn-048-open-an-agents-console-beside-its-dashboard
+  // #region console-fast-open — docs: docs/ux/scenarios.md#scn-048-open-an-agents-console-over-its-dashboard
   /** FD-74: the console shows what Switchboard said about this folder less than BINDING_FRESH_MS ago at once, and an
    *  older answer while it asks again in the background; only a folder it never answered for waits for it. A start
    *  always asks afresh (start(), openTerminal()): a session never starts on a remembered answer. */

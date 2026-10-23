@@ -179,3 +179,32 @@ profile `fabric-dashboard/0.1`, ED-7 ([PR #27](https://github.com/passioncode-ai
   as it is; it does not fold by itself.
 - Tests: `test/layout.test.ts`, `packages/service-host/test/protocol.test.ts`, `test/flap.test.ts` and
   `test/mcp.test.ts` *DEC-0036 ED-9*. Scenario SCN-060.
+
+## Amendment, 2026-10-23: the console drops down over the dashboard (FD-92)
+
+The operator (2026-10-23): the console should not move the screen; it should open over the dashboard like a tab
+pulled down from the top, fold with the same button, and close only with a separate red cross.
+
+- **Decision 3 is replaced.** The console is a drawer from under the page's bar, over the content area. A service's
+  dashboard is a native `WebContentsView` that lies over the window's own page, so a console drawn in that page
+  would sit under it; the drawer is a view of its own (`src/electron/drawer.ts`), added above the dashboard after
+  every time a dashboard is shown, loading the same renderer with `?drawer=1` (`src/renderer/DrawerApp.tsx`). It
+  receives the console's events like the window does. The window's page only says which console, whether it is open,
+  the area under the bar and a job to start (`consoleDrawer`); the drawer's page reports a fold, a height and a taken
+  job back (`drawerChange`). The Setup console and a hand-over's console drop down the same way.
+- **The dashboard is never resized.** Its view keeps its bounds while the drawer opens and folds (checked in
+  `test/e2e/focus-console.test.ts` against both views' bounds), so DEC-0036 ED-7's host floor holds by construction;
+  the width rules of the 2026-10-07 amendment and SCN-060 are retired with `consoleWidthFor`, `consoleMaxFor` and
+  `hostFloorFor`.
+- **Height, not width.** The drawer's bottom edge sets its height, remembered as `layout.console.height` (an earlier
+  `width` reads as the default height), held by `drawerHeightFor` between 180 px and the area's height less 96 px.
+  While the edge is dragged the drawer's view covers the whole area (its page is transparent) so the pointer is not
+  lost at the drawer's border; under the drawer a 14 px strip carries its shadow onto the page.
+- **Fold and close are two controls.** "Console" in the bar and the fold arrow fold it; whatever runs keeps running.
+  The red cross closes it: a running session is ended after "End this session and close the console?", then the
+  drawer folds. The separate Stop button is gone.
+- Costs: one more renderer while a console has been opened (the drawer's page, about the size of the window's own
+  page); 14 px of the dashboard under the shadow do not take clicks while the drawer is open.
+- Tests: `test/layout.test.ts` *FD-92*, `test/parts.test.ts` (the layout's height), `test/e2e/focus-console.test.ts`,
+  `test/e2e/update.test.ts`, `test/e2e/overview-settings.test.ts`. Scenario SCN-048 (SCN-060 retired).
+

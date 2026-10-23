@@ -242,15 +242,16 @@ const ABS_A = process.platform === 'win32' ? 'C:\\tmp\\a' : '/tmp/a';
 
 test('ADR-0017: layout and per-service consoles merge with defaults and clamp what they cannot hold', () => {
   const d = merge({});
-  assert.deepEqual(d.layout, { sidebar: 'expanded', header: 'compact', console: { open: false, width: 440 }, list: { sort: 'name', pinned: [], hidden: [], kinds: {}, hiddenOpen: false } });
+  assert.deepEqual(d.layout, { sidebar: 'expanded', header: 'compact', console: { open: false, height: 380 }, list: { sort: 'name', pinned: [], hidden: [], kinds: {}, hiddenOpen: false } });
   assert.deepEqual(d.consoles, {});
   const s = merge({
-    layout: { sidebar: 'collapsed', header: 'full', console: { open: true, width: 99999 } },
+    layout: { sidebar: 'collapsed', header: 'full', console: { open: true, height: 99999 } },
     consoles: { 'a.default': { runtime: 'codex', folder: ABS_A }, 'b.default': { runtime: 7, folder: 'relative/path' }, 'bad key': { runtime: 'claude', folder: null } },
   } as never);
-  assert.deepEqual(s.layout, { sidebar: 'collapsed', header: 'full', console: { open: true, width: 1600 }, list: { sort: 'name', pinned: [], hidden: [], kinds: {}, hiddenOpen: false } });
+  assert.deepEqual(s.layout, { sidebar: 'collapsed', header: 'full', console: { open: true, height: 2400 }, list: { sort: 'name', pinned: [], hidden: [], kinds: {}, hiddenOpen: false } });
   assert.deepEqual(s.consoles, { 'a.default': { runtime: 'codex', folder: ABS_A }, 'b.default': { runtime: null, folder: null } });
-  assert.equal(merge({ layout: { console: { width: 10 } } } as never).layout.console.width, 320);
+  assert.equal(merge({ layout: { console: { height: 10 } } } as never).layout.console.height, 180);
+  assert.equal(merge({ layout: { console: { open: true, width: 900 } } } as never).layout.console.height, 380, 'FD-92: a width from the side panel reads as the default height');
 });
 
 test('ADR-0017: an update of one console or one layout field keeps the others', () => {
@@ -262,7 +263,7 @@ test('ADR-0017: an update of one console or one layout field keeps the others', 
   store.update({ layout: { console: { open: true } } } as never);
   const v = store.get();
   assert.deepEqual(Object.keys(v.consoles).sort(), ['a.default', 'b.default']);
-  assert.deepEqual(v.layout, { sidebar: 'collapsed', header: 'compact', console: { open: true, width: 440 }, list: { sort: 'name', pinned: [], hidden: [], kinds: {}, hiddenOpen: false } });
+  assert.deepEqual(v.layout, { sidebar: 'collapsed', header: 'compact', console: { open: true, height: 380 }, list: { sort: 'name', pinned: [], hidden: [], kinds: {}, hiddenOpen: false } });
 });
 
 test('ADR-0017 REQ-02: the compact bar carries the first problem — a state that is not ready, else a failed action still news', async () => {

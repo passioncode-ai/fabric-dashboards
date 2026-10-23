@@ -2,7 +2,6 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { langFor, t as tr, type Lang } from '../core/i18n';
 import { DEFAULT_SETTINGS, type AppStatus, type Settings as AppSettings, type SettingsPatch, type ListSort } from '../core/types';
 import { groupProducts, productOf, type Product, arrangeProducts, categoryOf, setKind, toggleHidden, togglePin } from '../core/products';
-import { consoleMaxFor, consoleWidthAfterResize, consoleWidthFor, hostFloorFor } from '../core/layout';
 import { Activity, type ActivityFilter } from './components/Activity';
 import { SetupCard, Overview } from './components/Overview';
 import { ServiceView } from './components/ServiceView';
@@ -10,10 +9,9 @@ import { Settings } from './components/Settings';
 import { Spend } from './components/Spend';
 import { ConnectionsMap } from './components/ConnectionsMap';
 import { audit } from '../core/audit';
-import { ConsolePanel } from './components/ConsolePanel';
 import { SETUP_KEY } from '../core/offers';
 import { sinceLastVisit, type SinceLastVisit } from '../core/visit';
-import type { ConsoleTask } from '../core/api';
+import type { ConsoleTask, Rect } from '../core/api';
 import mark from './brand/dashboards-mark.svg';
 import { api, GLYPH, Icon, LangContext, nameOf, Spinner, useT } from './lib';
 
@@ -86,7 +84,7 @@ function paintTheme() {
   else delete document.documentElement.dataset.theme;
 }
 systemLight?.addEventListener?.('change', paintTheme);
-function applyTheme(theme: 'system' | 'dark' | 'light') {
+export function applyTheme(theme: 'system' | 'dark' | 'light') {
   chosenTheme = theme;
   paintTheme();
 }
@@ -200,34 +198,48 @@ function Shell({ status, route, setRoute, stopKey, setStopKey, activityFilter, s
   const currentProduct = route.page === 'service' ? productOf(products, route.key) : undefined;
   const count = products.length; // ADR-0012: the heading counts what the sidebar lists
   const rail = layout.sidebar === 'collapsed';
-  // #region host-floor — docs: docs/ux/scenarios.md#scn-060-the-dashboard-keeps-its-floor-while-the-console-widens
-  // DEC-0036 ED-7: the dashboard keeps max(480, its declared minWidth) beside the console whenever the
-  // area beside the sidebar allows it; the console stops growing there. The remembered width stays
-  // what the person dragged to: a narrower window holds it back, a wider one gives it back.
-  const [splitWidth, setSplitWidth] = useState(0);
-  const splitObserver = useRef<ResizeObserver | null>(null);
-  const splitRef = useCallback((el: HTMLDivElement | null) => {
-    splitObserver.current?.disconnect();
-    splitObserver.current = null;
+  // #region console-drawer — docs: docs/ux/scenarios.md#scn-048-open-an-agents-console-over-its-dashboard
+  // FD-92: the console is a drawer over the content area, from under the page header down; it never resizes the
+  // dashboard. The main process draws it in a view of its own (drawer.ts); this page says which console, whether it is
+  // open and where the area is. A fold, a new height or a taken job comes back from the drawer's page.
+  const drawerKey = route.page === 'service' && current ? (layout.console.open ? current.key : null)
+    : route.page === 'handover' && handover ? handover.key
+    : route.page === 'overview' && setupOpen ? SETUP_KEY : null;
+  const mainRef = useRef<HTMLElement>(null);
+  const [area, setArea] = useState<Rect | null>(null);
+  useEffect(() => {
+    const el = mainRef.current;
     if (!el) return;
-    setSplitWidth(el.getBoundingClientRect().width);
-    const observer = new ResizeObserver(() => setSplitWidth(el.getBoundingClientRect().width));
+    const measure = () => {
+      const m = el.getBoundingClientRect();
+      const top = el.querySelector('[data-drawer-top]')?.getBoundingClientRect().bottom ?? m.top;
+      const y = Math.max(m.top, Math.min(top, m.bottom));
+      setArea((a) => (a && a.x === m.left && a.y === y && a.width === m.width && a.height === m.bottom - y ? a : { x: m.left, y, width: m.width, height: m.bottom - y }));
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
     observer.observe(el);
-    splitObserver.current = observer;
-  }, []);
-  useEffect(() => () => splitObserver.current?.disconnect(), []);
-  const hostFloor = hostFloorFor(current?.dashboardMinWidth);
-  const consoleWidth = consoleWidthFor({ saved: layout.console.width, splitWidth, hostFloor });
-  const consoleMax = consoleMaxFor(splitWidth, hostFloor);
-  // A drag keeps the handler of the render it started in; it reads the current sizes from here.
-  const sizes = useRef({ consoleWidth, saved: layout.console.width, splitWidth, hostFloor });
-  sizes.current = { consoleWidth, saved: layout.console.width, splitWidth, hostFloor };
-  const onConsoleWidth = (w: number, commit: boolean) => {
-    const now = sizes.current;
-    const next = consoleWidthAfterResize({ requested: w, shown: now.consoleWidth, saved: now.saved, splitWidth: now.splitWidth, hostFloor: now.hostFloor });
-    if (next !== null) changeLayout({ console: { width: next } }, commit);
-  };
-  // #endregion host-floor
+    const head = el.querySelector('[data-drawer-top]');
+    if (head) observer.observe(head);
+    window.addEventListener('resize', measure);
+    return () => { observer.disconnect(); window.removeEventListener('resize', measure); };
+  }, [route.page, route.page === 'service' ? route.key : '', layout.header, layout.sidebar, drawerKey]);
+  const drawerTask = agentTask && agentTask.key === drawerKey ? { task: agentTask.task, mode: agentTask.mode, nonce: agentTask.nonce } : null;
+  useEffect(() => {
+    api().consoleDrawer({ key: drawerKey, open: Boolean(drawerKey), rect: area, height: layout.console.height, task: drawerTask, suspended: stopOpen });
+  }, [drawerKey, area, layout.console.height, drawerTask?.nonce, stopOpen]);
+  const drawerOwner = useRef({ route, drawerKey });
+  drawerOwner.current = { route, drawerKey };
+  useEffect(() => api().onDrawerChange((c) => {
+    const { route: r } = drawerOwner.current;
+    if (c.kind === 'height') changeLayout({ console: { height: c.height } });
+    else if (c.kind === 'taskTaken') setAgentTask((x) => (x && x.nonce === c.nonce ? null : x));
+    else if (r.page === 'service') changeLayout({ console: { open: false } });
+    else if (r.page === 'overview') setSetupOpen(false);
+    else if (r.page === 'handover') setRoute({ page: 'overview' });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }), []);
+  // #endregion console-drawer
 
   return (
     <div className={`app${rail ? ' rail' : ''}`}>
@@ -303,31 +315,26 @@ function Shell({ status, route, setRoute, stopKey, setStopKey, activityFilter, s
           </button>
         </div>
       </nav>
-      <main className="main" inert={stopOpen}>
+      <main className="main" inert={stopOpen} ref={mainRef}>
         {route.page === 'handover' && handover
-          ? <div className="svc-split" ref={splitRef}>
+          ? <div className="page-wrap">
             <div className="page">
-              <div className="page-head"><h1>{handover.workflow || handover.agent}</h1></div>
+              <div className="page-head" data-drawer-top=""><h1>{handover.workflow || handover.agent}</h1></div>
               <p className="meta">{t('handover.what', { agent: handover.agent, account: handover.account || '—', dir: handover.dir })}</p>
               <p>{t(handover.state !== 'running' ? 'handover.done' : handover.kind === 'resume' ? 'handover.resumeBody' : 'handover.body')}</p>
               {handover.state === 'exited' && <button className="btn" onClick={() => { void api().consoleDismissHandover(handover.key); setRoute({ page: 'overview' }); }}>{t('handover.close')}</button>}
             </div>
-            <ConsolePanel serviceKey={handover.key} width={consoleWidth} max={consoleMax} onWidth={onConsoleWidth} onHide={() => setRoute({ page: 'overview' })} />
           </div>
         : route.page === 'service' && current
-          ? <div className="svc-split" ref={splitRef}>
+          ? <div className="svc-page">
             <ServiceView key={current.key} s={current} all={status.services} members={currentProduct?.members ?? [current]} open={open} link={route.link} nonce={route.nonce} tab={route.tab} runUpdate={route.tab === 'health' && route.page === 'service'} activityRev={status.activityRev} overlayOpen={stopOpen} askStop={askStop} updateStarted={() => setRoute({ ...route, tab: undefined })}
               headerFull={layout.header === 'full'} onToggleHeader={() => changeLayout({ header: layout.header === 'full' ? 'compact' : 'full' })}
               consoleOpen={layout.console.open} onToggleConsole={() => changeLayout({ console: { open: !layout.console.open } })} onAgent={handToAgent} />
-            {layout.console.open && (
-              <ConsolePanel serviceKey={current.key} width={consoleWidth} max={consoleMax} onWidth={onConsoleWidth}
-                onHide={() => changeLayout({ console: { open: false } })} task={agentTask?.key === current.key ? agentTask : null} onTaskTaken={() => setAgentTask(null)} />
-            )}
           </div>
           : (
-            <div className={route.page === 'overview' && setupOpen ? 'svc-split' : 'page-wrap'} ref={route.page === 'overview' && setupOpen ? splitRef : undefined}>
+            <div className="page-wrap">
             <div className="page">
-              <div className="page-head">
+              <div className="page-head" data-drawer-top="">
                 <h1>{t(route.page === 'activity' ? 'activity.title' : route.page === 'spend' ? 'spend.title' : route.page === 'map' ? 'map.title' : route.page === 'settings' ? 'settings.title' : 'overview.title')}</h1>
                 {route.page === 'overview' && count > 0 && <span className="meta">{count === 1 ? t('overview.count.one') : t('overview.count', { count })}</span>}
               </div>
@@ -338,10 +345,6 @@ function Shell({ status, route, setRoute, stopKey, setStopKey, activityFilter, s
               {route.page === 'map' && <ConnectionsMap status={status} open={(key) => open(key, undefined, 'connections')} onAgent={handToAgent} openConsole={(key) => (key.startsWith('handover.') ? setRoute({ page: 'handover', key }) : open(key))} />}
               {route.page === 'settings' && <Settings status={status} onTheme={applyTheme} onLanguage={onLanguage} onSetup={() => openSetup('new')} />}
             </div>
-            {route.page === 'overview' && setupOpen && (
-              <ConsolePanel serviceKey={SETUP_KEY} width={consoleWidth} max={consoleMax} onWidth={onConsoleWidth}
-                onHide={() => setSetupOpen(false)} task={agentTask?.key === SETUP_KEY ? agentTask : null} onTaskTaken={() => setAgentTask(null)} />
-            )}
             </div>
           )}
       </main>

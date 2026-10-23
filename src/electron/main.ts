@@ -7,7 +7,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { ActivityStore } from '../core/activity';
-import { CHANNELS, type Rect } from '../core/api';
+import { CHANNELS, type DrawerChange, type DrawerState, type Rect } from '../core/api';
 import { commandEnv, killOwned, ownedCount, runOwned } from '../core/children';
 import { doctorArgv, doctorResult, DOCTOR_TIMEOUT_MS, type SetupCheckResult } from '../core/doctor';
 import { readLoginPath, searchDirs } from '../core/runtimes';
@@ -40,6 +40,7 @@ import { EstateUpdater } from './estate-updater';
 import { readSetupState } from '../core/setup';
 import { Updater } from './updater';
 import { ServiceViews } from './views';
+import { ConsoleDrawer } from './drawer';
 import { FABRIC_GET_URL, fabricPress, fabricPresentFrom } from '../core/fabric-button';
 import { parseTestRemote, setTestRemote } from '../core/testhooks';
 
@@ -101,6 +102,7 @@ if (!app.requestSingleInstanceLock()) {
 } else {
   let window: BrowserWindow | null = null;
   let views: ServiceViews | null = null;
+  let drawer: ConsoleDrawer | null = null;
   let quitting = false;
   const userData = app.getPath('userData');
   // A writer killed between write and rename leaves its temporary file; nothing else removes it (LC-12).
@@ -145,7 +147,7 @@ if (!app.requestSingleInstanceLock()) {
   // FD-65: the last Check setup, kept until the next press; a run in progress is shared, never doubled.
   let lastSetupCheck: SetupCheckResult | null = null;
   let setupCheckRun: Promise<SetupCheckResult> | null = null;
-  const consoles = new ConsoleHost({ settings, snapshot: (key) => monitor.snapshot(key), window: () => window, visible: () => windowVisible(), log: (line) => log(line), testDirs: testRuntimeDirs, scriptsDir: path.join(userData, 'console'),
+  const consoles = new ConsoleHost({ settings, snapshot: (key) => monitor.snapshot(key), window: () => window, drawer: () => drawer?.contents() ?? null, visible: () => windowVisible(), log: (line) => log(line), testDirs: testRuntimeDirs, scriptsDir: path.join(userData, 'console'),
     packRoot: path.join(userData, 'consoles'), version: app.getVersion(), activity: (key) => activity.list({ serviceKey: key }, 200), mcpServer,
     setupState: () => readSetupState(os.homedir(), monitor.snapshots().length),
     doctor: () => (lastSetupCheck?.kind === 'report' ? lastSetupCheck.report : null),
@@ -404,7 +406,10 @@ if (!app.requestSingleInstanceLock()) {
       event.preventDefault(); // the window hides; the app keeps watching from the menu bar
       w.hide();
     });
-    w.on('closed', () => { window = null; views = null; });
+    // FD-92: the console drawer over the content area, above any dashboard.
+    drawer = new ConsoleDrawer(w, { preload: path.join(__dirname, 'preload.js'), index: rendererIndex, log });
+    views.afterAttach = () => drawer?.raise();
+    w.on('closed', () => { drawer?.destroy(); window = null; views = null; drawer = null; });
     void w.loadFile(rendererIndex);
     return w;
   }
@@ -786,6 +791,10 @@ if (!app.requestSingleInstanceLock()) {
     ipcMain.handle(CHANNELS.locale, () => lang());
     ipcMain.handle(CHANNELS.uninstall, () => uninstall());
     ipcMain.on(CHANNELS.viewBounds, (_e, rect: Rect) => views?.setBounds(rect));
+    // FD-92: the window's page sets the drawer; the drawer's page reports folds and heights to the window's page.
+    ipcMain.on(CHANNELS.drawerState, (e, state: DrawerState) => { if (window && e.sender.id === window.webContents.id) drawer?.set(state); });
+    ipcMain.on(CHANNELS.drawerChange, (e, change: DrawerChange) => { if (window && !window.isDestroyed() && e.sender.id === drawer?.contents()?.id) window.webContents.send(CHANNELS.drawerChange, change); });
+    ipcMain.on(CHANNELS.drawerDrag, (e, on: boolean) => { if (e.sender.id === drawer?.contents()?.id) drawer?.setDragging(on === true); });
   }
 
   /** FD-74: ⌘R reloads the dashboard on screen, signed in again; ⇧⌘R first empties its cache. With no dashboard

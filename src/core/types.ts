@@ -71,7 +71,7 @@ export interface Settings {
   layout: {
     sidebar: 'expanded' | 'collapsed';
     header: 'compact' | 'full';
-    console: { open: boolean; width: number };
+    console: { open: boolean; height: number };
     /** FD-39 (ADR-0020): pinned products in pin order (product ids, ADR-0012), and how the rest is sorted.
      *  FD-78: products the person hid (still watched, listed in a folded Hidden section), a kind the person chose for a
      *  product (`service` or `agent`, else the app's guess), and whether the Hidden section is open. */
@@ -118,7 +118,8 @@ export type SettingsPatch = Partial<Omit<Settings, 'layout' | 'notifications'>> 
 };
 
 /** The console panel's width bounds, in CSS pixels (the window may make it narrower still). */
-export const CONSOLE_WIDTH = { min: 320, max: 1600, default: 440 } as const;
+/** FD-92: the console drawer's height in CSS px; `reveal` is the least of the page that always shows under it. */
+export const CONSOLE_HEIGHT = { min: 180, max: 2400, default: 380, reveal: 96 } as const;
 
 export const DEFAULT_SETTINGS: Settings = {
   launchAtLogin: false,
@@ -139,7 +140,7 @@ export const DEFAULT_SETTINGS: Settings = {
     pausedUntil: null,
     channel: 'auto',
   },
-  layout: { sidebar: 'expanded', header: 'compact', console: { open: false, width: CONSOLE_WIDTH.default }, list: { sort: 'name', pinned: [], hidden: [], kinds: {}, hiddenOpen: false } },
+  layout: { sidebar: 'expanded', header: 'compact', console: { open: false, height: CONSOLE_HEIGHT.default }, list: { sort: 'name', pinned: [], hidden: [], kinds: {}, hiddenOpen: false } },
   consoles: {},
   resumeAfterLimit: true,
   // #region estate-update — docs: docs/adr/0018-estate-updates-from-inside-the-app.md#decision

@@ -57,6 +57,11 @@ const api: FabricApi = {
   consoleDismissHandover: (key) => ipcRenderer.invoke(CHANNELS.consoleDismissHandover, key),
   consoleOpenTerminal: (key, mode) => ipcRenderer.invoke(CHANNELS.consoleOpenTerminal, key, mode),
   onConsoleEvent: (l) => subscribe(CHANNELS.consoleEvent, l),
+  consoleDrawer: (state) => ipcRenderer.send(CHANNELS.drawerState, state),
+  onDrawer: (l) => subscribe(CHANNELS.drawerPush, l),
+  drawerChange: (change) => ipcRenderer.send(CHANNELS.drawerChange, change),
+  onDrawerChange: (l) => subscribe(CHANNELS.drawerChange, l),
+  drawerDrag: (on) => ipcRenderer.send(CHANNELS.drawerDrag, on),
   onLayoutCommand: (l) => subscribe(CHANNELS.layoutCommand, l),
 };
 

@@ -194,12 +194,20 @@ h3 { font-size: var(--pc-type-card); margin: 0; font-weight: 600; }
 .svc-bar .fabric-btn { min-width: 44px; height: 44px; margin-top: calc(-1 * var(--pc-space-1)); padding: var(--pc-space-1) var(--pc-space-2) 0; }
 .fabric-mark { width: 18px; height: 18px; flex: none; }
 .icon-btn[aria-pressed='true'] { color: var(--pc-text); background: var(--pc-accent-soft); }
-/* ADR-0017 (SCN-048): the console panel sits to the right of the service page. */
-.svc-split { display: flex; height: 100%; min-height: 0; min-width: 0; }
-.svc-split > .svc { flex: 1; min-width: 0; }
-.console-panel { position: relative; flex: none; display: flex; flex-direction: column; min-height: 0; border-left: 1px solid var(--pc-border); background: var(--pc-panel); }
-.console-edge { position: absolute; left: -3px; top: 0; bottom: 0; width: 6px; cursor: col-resize; z-index: 2; }
+/* FD-92 (SCN-048): the service page takes the whole area; the console is a drawer over it, in a view of its own. */
+.svc-page { display: flex; height: 100%; min-height: 0; min-width: 0; }
+.svc-page > .svc { flex: 1; min-width: 0; }
+/* The drawer's own page: transparent, so while its edge is dragged (the view then covers the area) only the drawer shows. */
+html.drawer-page, html.drawer-page body, html.drawer-page #root { background: transparent; height: 100%; overflow: hidden; }
+.console-drawer { position: relative; display: flex; flex-direction: column; width: 100%; min-height: 0; background: var(--pc-panel); }
+/* The bottom edge: a visible bar with a grip, dragged to set the height; under it the shadow falls on the page. */
+.console-edge { flex: none; height: 12px; display: grid; place-items: center; cursor: row-resize; background: var(--pc-panel); border-top: 1px solid var(--pc-border); border-bottom: 1px solid var(--pc-border-strong, var(--pc-border)); }
+.console-grip { width: 36px; height: 4px; border-radius: 2px; background: var(--pc-border-strong, var(--pc-muted, #666)); }
 .console-edge:hover, .console-edge:focus-visible { background: var(--pc-accent-soft); outline: none; }
+.console-edge:hover .console-grip, .console-edge:focus-visible .console-grip { background: var(--pc-accent); }
+.console-shadow { position: absolute; left: 0; right: 0; top: 100%; height: 14px; pointer-events: none; background: linear-gradient(to bottom, rgb(0 0 0 / 0.45), transparent); }
+.icon-btn-close { color: var(--pc-negative); }
+.icon-btn-close:hover, .icon-btn-close:focus-visible { background: color-mix(in srgb, var(--pc-negative) 18%, transparent); color: var(--pc-negative); }
 .console-head { flex: none; display: grid; gap: var(--pc-space-1); padding: var(--pc-space-2) var(--pc-space-3); border-bottom: 1px solid var(--pc-border); -webkit-app-region: drag; }
 .console-head > * { -webkit-app-region: no-drag; }
 .console-row { display: flex; align-items: center; gap: var(--pc-space-2); min-width: 0; }
@@ -315,7 +323,6 @@ table.spend th[scope='row'] { color: var(--pc-text); }
 .checklist li { display: flex; gap: var(--pc-space-2); align-items: baseline; }
 .checklist li.done { color: var(--pc-text-muted); }
 .checklist li.done > span:first-child { color: var(--pc-accent); }
-.svc-split > .page { flex: 1; min-width: 0; }
 /* FD-39 SCN-059: what changed since the last visit. */
 .visit { margin: var(--pc-space-4) 0; }
 .visit h2 { font-size: var(--pc-type-body, 15px); margin: 0 0 var(--pc-space-2); }
