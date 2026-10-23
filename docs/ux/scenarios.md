@@ -871,7 +871,7 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **States covered:** success
 - **Errors & recovery:** a report claiming a price for calls it marks unpriced is refused as malformed (SCN-038)
 - **Status:** validated
-- **Coverage:** packages/service-host/src/usage.ts (summarizeUsage), packages/service-host/test/usage.test.ts (DEC-0091, FD-97), src/renderer/components/Spend.tsx (tokens, estimate, subscriptionCost), test/spend.test.ts, test/e2e/spend.test.ts (FD-97's alt path: its Spend assertions passed on the running app 2026-10-23 on a locked screen, where the test's later Dock check cannot run)
+- **Coverage:** packages/service-host/src/usage.ts (summarizeUsage), packages/service-host/test/usage.test.ts (DEC-0091, FD-97), src/renderer/components/Spend.tsx (tokens, estimate, subscriptionCost), test/spend.test.ts, test/e2e/spend.test.ts (FD-97's alt path validated: the whole test passed on the running app on an unlocked screen, 2026-10-23 22:4x UTC)
 - **Product:** unobserved
 
 ### SCN-038: An agent's spend cannot be read
