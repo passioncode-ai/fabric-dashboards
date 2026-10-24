@@ -204,7 +204,9 @@ export type StopVerdict = 'resume' | 'open' | 'old' | 'billing' | 'waiting' | 'n
 /** One stop on the Connections page: never its prompt, only where and since when. */
 export interface StopView { event: string; session: string; dir: string; provider: 'claude' | 'codex'; stoppedAt: number; attempt: number; verdict: StopVerdict | 'resumed' | 'failed'; key?: string;
   /** FD-103: the accounts that could take it now (Switchboard's candidates, its order), ids and labels only. */
-  candidates?: { id: string; label: string }[] }
+  candidates?: { id: string; label: string }[];
+  /** R1-S3: when Switchboard will probe a waiting stop (its `probe_at`, ms); null or absent when it names none. */
+  probeAt?: number | null }
 
 /** What the app knows about sessions stopped on a limit: off, unreadable, or the stops still open. */
 export interface RecoveryStatus {

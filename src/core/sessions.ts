@@ -11,8 +11,9 @@ export const SESSION_KEEP_MS = 24 * 60 * 60_000;
 /** Two sources name one session when they name one folder and starts at most this far apart (a Switchboard launch in
  *  a console records its start a few seconds after the console started it). */
 export const SAME_START_MS = 2 * 60_000;
-/** SB-115: a limit stop becomes ready as a probe this long after it stopped, by its attempt (`[min(attempt, 3)]`). */
-export const PROBE_DELAY_S = [120, 300, 600, 900] as const;
+/** The console key a hand-over gets in this app: `handover.<hand-over id>` (FD-103 decision 8: a console of its own).
+ *  Here, not in switchboard.ts, so this pure module and the renderer that imports it need nothing of Node. */
+export const handoverOwnKey = (id: string) => `handover.${id}`;
 
 /** How a session came to be listed: handed over by Switchboard after a limit, continued here after a limit reset,
  *  launched by Switchboard elsewhere, or opened in this app. */
@@ -35,8 +36,9 @@ export type SessionAction = 'end' | 'reveal' | 'openConsole' | 'dismiss' | 'cont
 /** Why a row is not running: a hand-over that did not open (`expired`, `no-folder`, `busy` for LC-17, `switchboard-old`,
  *  `not-started`; `pending`, still on offer, is never listed); a stop this app does not continue (`no-folder`, `no-transcript`,
  *  `resume-failed`, `old` past a day, `billing`, `open` while a process still writes it); or a stop the person declined
- *  (`declined`, an ended row: "Not continued: you declined"; decision 2 of 2026-10-24). */
-export type SessionReason = 'expired' | 'no-folder' | 'busy' | 'switchboard-old' | 'not-started' | 'pending' | 'no-transcript' | 'resume-failed' | 'old' | 'billing' | 'open' | 'declined';
+ *  (`declined`, an ended row: "Not continued: you declined"; decision 2 of 2026-10-24); or a console the app closed as
+ *  it quit (`quit`, an ended row: "Closed when the app quit"; review round 1, R1-S4). */
+export type SessionReason = 'expired' | 'no-folder' | 'busy' | 'switchboard-old' | 'not-started' | 'pending' | 'no-transcript' | 'resume-failed' | 'old' | 'billing' | 'open' | 'declined' | 'quit';
 
 export interface SessionRow {
   /** Stable across polls and restarts: `c:<console key>:<start>`, `sb:<home>:<launch>`, `ho:<hand-over id>`, `st:<stop event>`. */
@@ -61,7 +63,8 @@ export interface SessionRow {
   openedInTerminal: boolean;
   startedAt: number | null;
   endedAt: number | null;
-  /** A waiting stop: when Switchboard is likely to call it ready (SB-115); null when it is ready now or unknown. */
+  /** A waiting stop: when Switchboard will probe it (its `probe_at`, SB-115); null when it is ready now, or when Switchboard
+   *  names no probe time (a billing stop, a pool every account of which is capped: R1-S3). */
   expectedAt: number | null;
   /** A waiting stop: the accounts that could take it now (Switchboard's candidates, its order), for Continue now on
    *  another account; the chosen id goes back with `sessionsContinue`. Empty for every other row. */
@@ -97,7 +100,7 @@ export interface SbSessionRecord {
 export interface PendingHandover { id: string; dir: string; agent: string; account: string; workflow: string; offeredUntil: number }
 
 /** A limit stop as the console host judged it, with the accounts that could take it now. */
-export type StopInput = Pick<StopView, 'event' | 'session' | 'dir' | 'provider' | 'stoppedAt' | 'attempt' | 'verdict' | 'key'> & { candidates?: { id: string; label: string }[] };
+export type StopInput = Pick<StopView, 'event' | 'session' | 'dir' | 'provider' | 'stoppedAt' | 'attempt' | 'verdict' | 'key' | 'probeAt'> & { candidates?: { id: string; label: string }[] };
 
 /** A console of this app that runs now. */
 export interface ConsoleInput {
@@ -121,8 +124,9 @@ export interface SessionRecord {
   account: string | null;
   context: string | null;
   origin: SessionOrigin;
-  /** `declined`: a limit stop the person chose not to continue (the app never continues it; Switchboard's record stays). */
-  end: 'ended' | 'idle' | 'you' | 'not-opened' | 'declined';
+  /** `declined`: a limit stop the person chose not to continue (the app never continues it; Switchboard's record stays).
+   *  `quit`: a console this app ended as it quit (R1-S4). */
+  end: 'ended' | 'idle' | 'you' | 'not-opened' | 'declined' | 'quit';
   reason: SessionReason | null;
   startedAt: number | null;
   endedAt: number;
@@ -177,11 +181,6 @@ export const handoverRowId = (id: string) => `ho:${id}`;
 export const stopRowId = (event: string) => `st:${event}`;
 const sbRowId = (r: SbSessionRecord) => `sb:${r.home}:${r.launchedAt ?? 0}`;
 
-/** SB-115's probe time for a waiting stop. */
-export function expectedResumeAt(stoppedAt: number, attempt: number): number {
-  return stoppedAt + PROBE_DELAY_S[Math.min(Math.max(0, attempt), 3)]! * 1000;
-}
-
 export function groupOf(state: SessionState): SessionGroup {
   if (state.startsWith('needs-you')) return 'needs-you';
   if (state.startsWith('running')) return 'running';
@@ -216,7 +215,7 @@ export function pruneDismissed(dismissed: readonly unknown[], now: number): Dism
 }
 
 const ORIGINS = new Set<SessionOrigin>(['handover', 'resume', 'switchboard', 'here']);
-const ENDS = new Set<SessionRecord['end']>(['ended', 'idle', 'you', 'not-opened', 'declined']);
+const ENDS = new Set<SessionRecord['end']>(['ended', 'idle', 'you', 'not-opened', 'declined', 'quit']);
 const num = (v: unknown) => typeof v === 'number' && Number.isFinite(v);
 function isRecord(r: unknown): r is SessionRecord {
   const x = r as SessionRecord;
@@ -235,7 +234,8 @@ function row(o: Omit<SessionRow, 'project' | 'group' | 'at' | 'actions' | 'conte
   };
 }
 
-const END_STATE: Record<Exclude<SessionRecord['end'], 'not-opened'>, SessionState> = { ended: 'ended', idle: 'idle-closed', you: 'ended-by-you', declined: 'ended' };
+const END_STATE: Record<Exclude<SessionRecord['end'], 'not-opened'>, SessionState> = { ended: 'ended', idle: 'idle-closed', you: 'ended-by-you', declined: 'ended', quit: 'ended' };
+const END_REASON: Partial<Record<SessionRecord['end'], SessionReason>> = { declined: 'declined', quit: 'quit' };
 
 /** The one list: deduplicated (by id, then by folder and start time), newest first. */
 export function mergeSessions(i: MergeInput): SessionRow[] {
@@ -245,10 +245,17 @@ export function mergeSessions(i: MergeInput): SessionRow[] {
   const add = (r: SessionRow) => { if (!hidden.has(r.id) && !ids.has(r.id)) { ids.add(r.id); rows.push(r); } };
   const sb = i.switchboard ?? [];
   const used = new Set<SbSessionRecord>();
-  // The Switchboard record of one of our consoles: the same folder, started within SAME_START_MS.
+  // The Switchboard record of one of our consoles: launched in place (a console runs `switchboard launch … --in-place`
+  // or `handovers run`; a Terminal session is never ours), in the same folder, the nearest start within SAME_START_MS
+  // (R1-U7: the first one found could be another console's).
   const sbOf = (folder: string, startedAt: number | null) => {
     if (startedAt === null) return undefined;
-    const hit = sb.find((s) => !used.has(s) && norm(s.folder) === norm(folder) && s.launchedAt !== null && Math.abs(s.launchedAt - startedAt) <= SAME_START_MS);
+    let hit: SbSessionRecord | undefined;
+    for (const s of sb) {
+      if (used.has(s) || !s.inPlace || norm(s.folder) !== norm(folder) || s.launchedAt === null) continue;
+      const gap = Math.abs(s.launchedAt - startedAt);
+      if (gap <= SAME_START_MS && (!hit || gap < Math.abs(hit.launchedAt! - startedAt))) hit = s;
+    }
     if (hit) used.add(hit);
     return hit;
   };
@@ -265,10 +272,13 @@ export function mergeSessions(i: MergeInput): SessionRow[] {
     }));
   }
 
-  // 2. What ended here, and hand-overs that did not open here (kept 24 h).
+  // 2. What ended here, and hand-overs that did not open here (kept 24 h). A record the person removed is still read
+  // (its row stays hidden by its dismissal) so it keeps claiming its Switchboard twin (R1-U1).
   const pending = new Set((i.pending ?? []).map((h) => h.id));
   const notOpened = new Set<string>();
+  const named = new Set(i.consoles.map((c) => c.handoverId).filter((id): id is string => Boolean(id)));
   for (const r of pruneRecords(i.records, i.now)) {
+    if (r.handoverId) named.add(r.handoverId);
     if (r.end === 'not-opened') {
       if (r.handoverId) notOpened.add(r.handoverId);
       add(row({
@@ -278,18 +288,19 @@ export function mergeSessions(i: MergeInput): SessionRow[] {
       }));
       continue;
     }
-    const s = sbOf(r.folder, r.startedAt);
+    const s = r.id.startsWith('c:') ? sbOf(r.folder, r.startedAt) : undefined; // only a console of this app has a twin
     add(row({
       id: r.id, key: r.key, folder: r.folder, agent: r.agent, account: r.account ?? s?.account ?? null, context: r.context ?? s?.context ?? null,
-      contextName: s?.contextName ?? null, origin: r.origin, reason: r.end === 'declined' ? 'declined' : null, state: END_STATE[r.end], startedAt: r.startedAt, endedAt: r.endedAt,
+      contextName: s?.contextName ?? null, origin: r.origin, reason: END_REASON[r.end] ?? null, state: END_STATE[r.end], startedAt: r.startedAt, endedAt: r.endedAt,
       resumable: r.sessionId !== null || r.provider === 'claude' || (r.origin === 'here' && r.key !== null),
     }));
   }
 
   // 3. Hand-overs Switchboard offered that this app has not acted on: one still on offer is not a row (it is taken at
-  // the next read, or fails and becomes one; orchestrator 2026-10-24); one whose offer lapsed needs the person.
+  // the next read, or fails and becomes one; orchestrator 2026-10-24); one whose offer lapsed needs the person. One a
+  // console or a record of this app names was taken here, however long Switchboard keeps offering it (R1-U3).
   for (const h of i.pending ?? []) {
-    if (notOpened.has(h.id) || [...consoleKeys].some((k) => k.endsWith(h.id)) || h.offeredUntil > i.now) continue;
+    if (notOpened.has(h.id) || named.has(h.id) || consoleKeys.has(handoverOwnKey(h.id)) || h.offeredUntil > i.now) continue;
     add(row({
       id: handoverRowId(h.id), key: null, folder: h.dir, agent: h.agent, account: h.account || null, context: null, origin: 'handover',
       reason: 'expired', state: 'needs-you-not-opened', startedAt: null, endedAt: null,
@@ -307,7 +318,7 @@ export function mergeSessions(i: MergeInput): SessionRow[] {
       const candidates = s.candidates ?? [];
       add(row({
         ...common, state: 'waiting-reset', reason: null, candidates,
-        expectedAt: s.verdict === 'waiting' ? expectedResumeAt(s.stoppedAt, s.attempt) : null,
+        expectedAt: s.verdict === 'waiting' ? s.probeAt ?? null : null, // Switchboard's own probe time, never a guess (R1-S3)
         actions: actionsFor('waiting-reset', { continueNow: candidates.length > 0 }),
       }));
       continue;

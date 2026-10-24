@@ -1604,8 +1604,8 @@ The Sessions mode (0.8.0): every coding session apart from the agents, each stat
 - **Entry point:** Sessions → All sessions, or a group heading in the sidebar
 - **Preconditions:** none
 - **Steps:**
-  1. User opens Sessions -> "Reading sessions…" until the first read; then the sidebar and the page list the sessions in four groups, in this order, each with its count after its label and an empty group not drawn: "Needs you: N", "Running: N", "Waiting for a limit reset: N", "Ended in the last 24 hours: N"
-  2. User reads a row -> first line: the project (the folder's name); second line: coding agent · account · how it came here · time ("Claude Code · claude4 · handed over · 14:02"); how it came here is one of "handed over", "after a limit reset", "started by Switchboard", "opened here"; two rows of one folder differ by that second line; the state is said in words by the group heading and on the card, never by a glyph alone
+  1. User opens Sessions -> "Reading sessions…" until the first read; then the sidebar and the page list the sessions in four groups, in this order, each with its count after its label and an empty group not drawn: "Needs you: N", "Running: N", "Waiting for a limit reset: N", "Ended in the last 24 hours: N" (in the sidebar "Ended: N", R1-V3); a waiting row's mark is a clock (R1-V2)
+  2. User reads a row -> on a card, first line: the project (the folder's name); second line: coding agent · account · how it came here · time ("Claude Code · claude4 · handed over · 14:02"); in the sidebar the time sits beside the project, never cut, and the second line is account · how it came here, led by the coding agent only when it is not Claude Code ("claude4 · handed over", R1-V1); how it came here is one of "handed over", "after a limit reset", "started by Switchboard", "opened here"; two rows of one folder differ by that second line; the state is said in words by the group heading and on the card, never by a glyph alone
   3. User reads a card on the page -> the same two lines, the state in words and the state's actions as buttons (SCN-081 to SCN-084); choosing the card itself opens the session's page (SCN-080)
   4. User unfolds "Ended in the last 24 hours" (folded by default; the fold is remembered) -> ended sessions newest first, each with its Continue and Remove; "Clear" above them removes every ended session from the list at once, with no question: an ended entry is only a list row, and the transcript stays where the coding agent wrote it
   5. User reads the bottom of the page -> the footnote "Sessions started in a terminal without Switchboard are not listed."
@@ -1619,7 +1619,7 @@ The Sessions mode (0.8.0): every coding session apart from the agents, each stat
   - "Needs you: {n}" / «Нужно ваше решение: {n}»
   - "Running: {n}" / «Идут: {n}»
   - "Waiting for a limit reset: {n}" / «Ждут сброса лимита: {n}»
-  - "Ended in the last 24 hours: {n}" / «Завершены за 24 часа: {n}»
+  - "Ended in the last 24 hours: {n}" / «Завершены за 24 часа: {n}»; in the sidebar "Ended: {n}" / «Завершены: {n}»
   - "Clear" / «Очистить»
   - "handed over" / «передана»
   - "after a limit reset" / «после сброса лимита»
@@ -1791,7 +1791,7 @@ The Sessions mode (0.8.0): every coding session apart from the agents, each stat
 - **Entry point:** Sessions → "Ended in the last 24 hours", or an ended session's page
 - **Preconditions:** the session ended less than 24 hours ago
 - **Steps:**
-  1. User reads an ended session -> one of "Ended at {time}" (it ended by itself), "Closed after 30 idle minutes" (SCN-066), "Ended by you" (SCN-081) or "Not continued: you declined" (SCN-083); actions "Continue" and "Remove"
+  1. User reads an ended session -> one of "Ended at {time}" (it ended by itself), "Closed after 30 idle minutes" (SCN-066), "Ended by you" (SCN-081), "Closed when the app quit" / «Закрыта при выходе из приложения» (R1-S4) or "Not continued: you declined" (SCN-083); actions "Continue" and "Remove"
   2. User presses "Continue" -> the coding agent's own resume of that conversation starts in the same folder (Claude Code's `--resume`, Codex's own), through Switchboard on its account when the folder is bound to one; the session moves to Running with its page and console, keeping its origin
   3. User presses "Remove" -> it leaves the list; its transcript stays where the coding agent wrote it
   4. Twenty-four hours after it ended -> it leaves the list by itself; until then a restart of the app keeps it
@@ -1823,6 +1823,7 @@ The Sessions mode (0.8.0): every coding session apart from the agents, each stat
   2. User clicks it -> the window shows in the Sessions mode on that session's page (SCN-080)
   3. User opens the menu bar menu while a session runs or needs the person -> a line "Sessions: running N, need you M" (a part at zero left out) under the headline
   4. User chooses that line -> the window shows in the Sessions mode on All sessions
+  5. A session needs the person, with the window closed or not -> the menu bar icon takes its attention shape (a diamond in the fourth panel's place, not a problem's dot) until nothing needs the person; a problem still shows the dot (R1-P1)
 - **Expected result:** a session Switchboard hands over is announced once and is one click away; the tray says how many sessions run and wait without opening the window
 - **Alt paths:** notifications are paused or in quiet hours -> no notification; the session is listed and the switch's badge counts it when it needs the person; no session runs or waits -> no tray line; the system refuses the app's notifications -> nothing shows, the list and the badge still say it
 - **UI elements:** the notification, the tray's Sessions line
@@ -1836,7 +1837,7 @@ The Sessions mode (0.8.0): every coding session apart from the agents, each stat
   - "Sessions: running {running}" / «Сессии: идут {running}»
   - "Sessions: need you {waiting}" / «Сессии: нужно ваше решение {waiting}»
 - **Status:** draft
-- **Coverage:** src/core/sessions-notice.ts, src/core/sessions-view.ts (`traySessionsLine`), src/electron/main.ts (the notice becomes a notification; its click opens the session), src/electron/tray.ts; test/sessions-ui.test.ts. The e2e of a synthetic hand-over with its notification is still owed
+- **Coverage:** src/core/sessions-notice.ts, src/core/sessions-view.ts (`traySessionsLine`), src/electron/main.ts (the notice becomes a notification; its click opens the session), src/electron/tray.ts; test/sessions-ui.test.ts, test/review-round1.test.ts; test/e2e/sessions.test.ts walks a synthetic hand-over with its notification (R1-E1), written 2026-10-24 and not yet run: the screen was locked
 - **Product:** unobserved
 
 ### SCN-086: Settings → Sessions

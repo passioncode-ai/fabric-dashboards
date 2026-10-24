@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { AppStatus, ListSort, Settings as AppSettings, SettingsPatch } from '../../core/types';
 import type { Product } from '../../core/products';
 import type { SessionGroup, SessionRow } from '../../core/sessions';
-import { groupRows, secondLine, stateShort, waitingForYou } from '../../core/sessions-view';
+import { groupRows, navLines, stateShort, waitingForYou } from '../../core/sessions-view';
 import { api, GLYPH, Icon, nameOf, Spinner, useT } from '../lib';
 
 export type Mode = 'agents' | 'sessions';
@@ -190,13 +190,26 @@ function RowMenu({ p, menu }: { p: Product; menu: RowActions }) {
   );
 }
 
-/** The mark a session row carries beside its words: the shapes of the agents' states (VIS-08), never alone. */
+/** The mark a session row carries beside its words: the shapes of the agents' states (VIS-08), never alone. Waiting for
+ *  a limit reset has no agent state of its own: it is a clock in the info colour (R1-V2: the starting ring ◌ in the muted
+ *  colour was almost invisible), drawn by SessionMark. */
 export const SESSION_MARK: Record<SessionGroup, { glyph: string; cls: string }> = {
   'needs-you': { glyph: GLYPH.degraded, cls: 'state-degraded' },
   running: { glyph: GLYPH.ready, cls: 'state-ready' },
-  waiting: { glyph: GLYPH.starting, cls: 'state-starting' },
+  waiting: { glyph: '', cls: 'state-waiting' },
   ended: { glyph: GLYPH.stopped, cls: 'state-stopped' },
 };
+
+/** The glyph of a session's group, the waiting clock as a small drawing (a font may lack a clock character). */
+export function SessionMark({ group }: { group: SessionGroup }) {
+  return (
+    <span className="glyph session-mark" aria-hidden="true">
+      {group === 'waiting'
+        ? <svg className="mark-clock" viewBox="0 0 12 12" width="11" height="11" focusable="false"><circle cx="6" cy="6" r="4.6" fill="none" stroke="currentColor" strokeWidth="1.6" /><path d="M6 3.4V6l1.9 1.3" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
+        : SESSION_MARK[group].glyph}
+    </span>
+  );
+}
 
 /** SCN-078: the Sessions mode's list: All sessions, then the groups in their order, each heading with its count; the
  *  Ended group folds (folded by default, the fold remembered) and offers Clear. An empty group is not drawn. */
@@ -216,7 +229,8 @@ export function SessionsNav({ sessions, currentId, allCurrent, rail, endedOpen, 
       <div className="nav nav-scroll">
         {!sessions && !rail && <p className="meta nav-note row" role="status"><Spinner /> {t('sessions.reading')}</p>}
         {groups.map(({ group, rows }) => {
-          const heading = t(`sessions.group.${group}`, { n: rows.length });
+          // R1-V3: the sidebar's ended heading is short ("Ended: 2"); the All sessions page keeps the long one.
+          const heading = t(group === 'ended' ? 'sessions.navGroup.ended' : `sessions.group.${group}`, { n: rows.length });
           const folded = group === 'ended' && !endedOpen;
           return (
             <div key={group} role="group" aria-labelledby={`snav-${group}`}>
@@ -230,18 +244,22 @@ export function SessionsNav({ sessions, currentId, allCurrent, rail, endedOpen, 
                   </div>
                 )
                 : <div className="nav-section" id={`snav-${group}`}>{heading}</div>}
-              {!folded && rows.map((r) => (
-                <button key={r.id} className="nav-item session-item" aria-current={currentId === r.id ? 'page' : undefined}
-                  title={rail ? t('join.nameState', { name: r.project, state: stateShort(lang, r) }) : undefined} onClick={() => openRow(r.id)}>
-                  <span className={`state ${SESSION_MARK[r.group].cls}`} aria-hidden="true"><span className="glyph">{SESSION_MARK[r.group].glyph}</span></span>
-                  {rail && <span className="initials" aria-hidden="true">{initialsOf(r.project)}</span>}
-                  <span className="nav-label session-lines">
-                    <span className="session-project">{r.project}</span>
-                    <span className="session-sub">{secondLine(lang, r)}</span>
-                  </span>
-                  <span className="visually-hidden">{stateShort(lang, r)}</span>
-                </button>
-              ))}
+              {!folded && rows.map((r) => {
+                const lines = navLines(lang, r);
+                return (
+                  <button key={r.id} className="nav-item session-item" aria-current={currentId === r.id ? 'page' : undefined}
+                    title={rail ? t('join.nameState', { name: r.project, state: stateShort(lang, r) }) : undefined} onClick={() => openRow(r.id)}>
+                    <span className={`state ${SESSION_MARK[r.group].cls}`} aria-hidden="true"><SessionMark group={r.group} /></span>
+                    {rail && <span className="initials" aria-hidden="true">{initialsOf(r.project)}</span>}
+                    {/* R1-V1: the time beside the project, never cut; account and origin below, the agent only when it is not Claude Code. */}
+                    <span className="nav-label session-lines">
+                      <span className="session-line1"><span className="session-project">{r.project}</span>{lines.time && <span className="session-time">{lines.time}</span>}</span>
+                      <span className="session-sub">{lines.sub}</span>
+                    </span>
+                    <span className="visually-hidden">{stateShort(lang, r)}</span>
+                  </button>
+                );
+              })}
             </div>
           );
         })}

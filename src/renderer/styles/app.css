@@ -105,6 +105,10 @@ h3 { font-size: var(--pc-type-card); margin: 0; font-weight: 600; }
 .state-degraded, .state-duplicate { color: var(--pc-warning); }
 .state-down, .state-foreign, .state-conflict, .state-invalid { color: var(--pc-negative); }
 .state-stopped, .state-starting, .state-stopping { color: var(--pc-text-muted); }
+/* R1-V2: waiting for a limit reset is a clock, not the starting ring, in a colour with 3:1 or more on the sidebar */
+.state-waiting { color: var(--pc-info); }
+.session-mark { display: inline-flex; align-items: center; justify-content: center; }
+.mark-clock { display: block; }
 
 /* buttons */
 .btn {
@@ -533,7 +537,11 @@ input.switch:focus-visible { outline: 2px solid var(--pc-focus); outline-offset:
 .session-item .state { margin-top: 3px; }
 .app.rail .session-item { align-items: center; }
 .app.rail .session-item .state { margin-top: 0; }
-.session-lines { display: flex; flex-direction: column; min-width: 0; line-height: 1.3; }
+.session-lines { display: flex; flex-direction: column; flex: 1 1 auto; min-width: 0; line-height: 1.3; }
+/* R1-V1: the time sits beside the project, right-aligned and never cut; the project gives way first */
+.session-line1 { display: flex; align-items: baseline; gap: var(--pc-space-2); min-width: 0; }
+.session-line1 .session-project { flex: 1 1 auto; min-width: 0; }
+.session-time { flex: none; margin-left: auto; font-size: var(--pc-type-meta); color: var(--pc-text-muted); font-variant-numeric: tabular-nums; }
 .session-project { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .session-sub { font-size: var(--pc-type-meta); color: var(--pc-text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .session-fold { margin: var(--pc-space-4) var(--pc-space-2) var(--pc-space-1); }

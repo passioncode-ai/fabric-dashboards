@@ -31,6 +31,26 @@ export function secondLine(lang: Lang, r: SessionRow): string {
   return [agentName(r.agent), r.account, t(lang, `sessions.origin.${r.origin}`), when ? clock(lang, when) : null].filter(Boolean).join(' · ');
 }
 
+/** R1-V1: a sidebar row's two lines. The first is the project with the time beside it, right-aligned and never cut; the
+ *  second is "account · how it came", led by the coding agent only when it is not Claude Code (the usual one), so two rows
+ *  of one folder are told apart within the sidebar's width. */
+export function navLines(lang: Lang, r: SessionRow): { time: string | null; sub: string } {
+  const when = r.startedAt ?? r.at;
+  const agent = agentName(r.agent);
+  return {
+    time: when ? clock(lang, when) : null,
+    sub: [agent === 'Claude Code' ? null : agent, r.account, t(lang, `sessions.origin.${r.origin}`)].filter(Boolean).join(' · '),
+  };
+}
+
+/** R1-V4: the strip a session's page draws over its console once the session is over, or null. The page's header already
+ *  says how it ended (an idle close, the person's End, the app quitting, a clean end at a time), so the strip is drawn
+ *  only for what the header does not say: an unclean exit's code. */
+export function pageExitLine(lang: Lang, s: { state: string; exitCode: number | null; signal: number | null }, idle: boolean): string | null {
+  if (s.state !== 'exited' || idle || s.signal || s.exitCode === null || s.exitCode === 0) return null;
+  return t(lang, 'console.exited', { code: s.exitCode });
+}
+
 /** The state in words (SCN-081 to SCN-084); never a glyph alone. A waiting row says when it continues. */
 export function stateWords(lang: Lang, r: SessionRow, o: { autoContinue?: boolean } = {}): string {
   switch (r.state) {
@@ -43,6 +63,7 @@ export function stateWords(lang: Lang, r: SessionRow, o: { autoContinue?: boolea
       return r.expectedAt ? t(lang, 'sessions.state.waitingAt', { time: clock(lang, r.expectedAt) }) : t(lang, 'sessions.state.waiting');
     case 'ended':
       if (r.reason === 'declined') return t(lang, 'sessions.state.declined');
+      if (r.reason === 'quit') return t(lang, 'sessions.state.quit'); // R1-S4
       return t(lang, 'sessions.state.ended', { time: clock(lang, r.endedAt ?? r.at) });
     default:
       return t(lang, `sessions.state.${r.state}`);

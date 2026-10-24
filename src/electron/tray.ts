@@ -7,14 +7,17 @@ import { trayMenuModel, type TrayItem } from '../core/tray-model';
 import { traySessionsLine } from '../core/sessions-view';
 import type { SessionRow } from '../core/sessions';
 import type { LimitView } from '@passioncode-ai/fabric-service-host/usage';
-import type { ServiceSnapshot, ServiceState } from '../core/types';
+import { attentionQueue, urgent } from '../core/attention';
+import type { ServiceSnapshot } from '../core/types';
 
-export type TrayLevel = 'ok' | 'degraded' | 'problem';
+export type TrayLevel = 'ok' | 'degraded' | 'attention' | 'problem';
 
-export function trayLevel(services: ServiceSnapshot[], limits: Readonly<Record<string, readonly LimitView[]>> = {}): TrayLevel {
-  const bad: ServiceState[] = ['down', 'duplicate', 'foreign', 'conflict', 'invalid'];
-  // UX-06: a limit that stopped work is a problem, as on Overview.
-  if (services.some((s) => bad.includes(s.state) || limits[s.key]?.some((l) => l.state === 'tripped'))) return 'problem';
+/** The icon's level. `problem` is what turns the sidebar badge red: the attention queue's urgent items (a problem state,
+ *  a limit that stopped work, a failed action still news), read the same way (R1-U8). `attention`: a coding session needs
+ *  the person (R1-P1, SCN-085): a call to act, not a fault. */
+export function trayLevel(services: readonly ServiceSnapshot[], limits: Readonly<Record<string, readonly LimitView[]>> = {}, sessions: readonly SessionRow[] = [], now = Date.now()): TrayLevel {
+  if (attentionQueue(services, { now, limits }).some(urgent)) return 'problem';
+  if (sessions.some((r) => r.group === 'needs-you')) return 'attention';
   if (services.some((s) => s.state === 'degraded' || s.state === 'starting' || s.state === 'stopping')) return 'degraded';
   return 'ok';
 }
@@ -42,14 +45,14 @@ export class AppTray {
       image.setTemplateImage(icon.template);
       return image;
     };
-    this.icons = { ok: load('ok'), degraded: load('degraded'), problem: load('problem') };
+    this.icons = { ok: load('ok'), degraded: load('degraded'), attention: load('attention'), problem: load('problem') };
     this.tray = new Tray(this.icons.ok);
     this.tray.setToolTip('Fabric Dashboards');
   }
 
   update(services: ServiceSnapshot[], limits: Readonly<Record<string, readonly LimitView[]>> = {}, sessions: readonly SessionRow[] = []): void {
     const lang = this.lang();
-    const level = trayLevel(services, limits);
+    const level = trayLevel(services, limits, sessions);
     // W2 (UX-04): the headline and the first items are the attention queue Overview, the sidebar and the Dock count.
     const model = trayMenuModel(services, { now: Date.now(), limits, lang });
     const sessionsLine = traySessionsLine(lang, sessions);

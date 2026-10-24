@@ -224,8 +224,8 @@ export async function handoversOf(run: Runner, sb: string): Promise<SbHandovers>
   return { enabled: data.enabled === true, handovers };
 }
 
-/** The console key of a hand-over's own console (like Setup's): `handover.<id>`. */
-export const handoverOwnKey = (id: string) => `handover.${id}`;
+/** The console key of a hand-over's own console (like Setup's): `handover.<id>`, defined in sessions.ts. */
+export { handoverOwnKey } from './sessions'; // one definition: the pure Sessions list compares by it too (R1-U3)
 /** FD-83: a session continued after a limit takes a console of its own the same way (`handover.rs-<12 hex>`); FD-103:
  *  so does a session continued from the Sessions list in a folder no agent's console owns (`handover.cs-<12 hex>`). */
 export const isHandoverKey = (key: string) => /^handover\.(ho|rs|cs)-[0-9a-f]{12}$/.test(key);

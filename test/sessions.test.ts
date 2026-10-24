@@ -7,7 +7,7 @@ import path from 'node:path';
 import test from 'node:test';
 import type { Runner } from '@passioncode-ai/fabric-service-host';
 import { ConsoleHost } from '../src/electron/console';
-import { consoleRowId, expectedResumeAt, mergeSessions, pruneRecords, SESSION_KEEP_MS, SourceReader, type MergeInput, type SbSessionRecord, type SessionNotice, type SessionRecord } from '../src/core/sessions';
+import { consoleRowId, mergeSessions, pruneRecords, SESSION_KEEP_MS, SourceReader, type MergeInput, type SbSessionRecord, type SessionNotice, type SessionRecord } from '../src/core/sessions';
 import { allSessionsOf, handoversSwitch, isHandoverKey } from '../src/core/switchboard';
 import { SettingsStore } from '../src/core/settings';
 import { tmp } from './helpers';
@@ -41,7 +41,7 @@ test('FD-103: the merge of the four sources gives one list, deduplicated by fold
     ],
     pending: [{ id: 'ho-00000000000b', dir: '/w/busy', agent: 'codex', account: 'Spare', workflow: 'w', offeredUntil: NOW + MIN }],
     stops: [
-      { event: 'cc-a-1', session: SID, dir: '/w/stopA', provider: 'claude', stoppedAt: NOW - MIN, attempt: 1, verdict: 'waiting', candidates: [] },
+      { event: 'cc-a-1', session: SID, dir: '/w/stopA', provider: 'claude', stoppedAt: NOW - MIN, attempt: 1, verdict: 'waiting', candidates: [], probeAt: NOW + 4 * MIN },
       { event: 'cc-b-1', session: SID, dir: '/w/stopB', provider: 'claude', stoppedAt: NOW - 5 * MIN, attempt: 2, verdict: 'resume', candidates: [{ id: 'acc-2', label: 'Spare' }, { id: 'acc-3', label: 'acc-3' }] },
       { event: 'cc-c-1', session: SID, dir: '/w/alpha', provider: 'claude', stoppedAt: NOW - 3 * MIN, attempt: 1, verdict: 'resumed', key: 'handover.ho-0123456789ab' },
     ],
@@ -63,7 +63,7 @@ test('FD-103: the merge of the four sources gives one list, deduplicated by fold
   assert.deepEqual([busy.state, busy.group, busy.reason, busy.openedInTerminal, busy.actions], ['needs-you-not-opened', 'needs-you', 'busy', false, ['dismiss']]);
   assert.equal(by('/w/gone')[0]!.openedInTerminal, true, 'no longer offered: Switchboard opened it in Terminal');
   const waiting = by('/w/stopA')[0]!;
-  assert.deepEqual([waiting.state, waiting.group, waiting.expectedAt, waiting.actions], ['waiting-reset', 'waiting', expectedResumeAt(NOW - MIN, 1), ['dontContinue']]);
+  assert.deepEqual([waiting.state, waiting.group, waiting.expectedAt, waiting.actions], ['waiting-reset', 'waiting', NOW + 4 * MIN, ['dontContinue']], 'expected at Switchboard\'s probe_at (R1-S3)');
   assert.deepEqual([by('/w/stopB')[0]!.actions, by('/w/stopB')[0]!.candidates.map((c) => c.id)], [['continueNow', 'dontContinue'], ['acc-2', 'acc-3']]);
   const times = rows.map((r) => r.at);
   assert.deepEqual(times, [...times].sort((a, b) => b - a), 'newest first');

@@ -38,7 +38,7 @@ const ROWS = [
   row({ id: 'sb:home:3', folder: '/work/passioncode-platform', state: 'running-terminal', group: 'running', origin: 'switchboard', account: 'claude5', startedAt: AT - 50 * min, at: AT - 50 * min }),
   row({ id: 'st:cc-1', folder: '/work/fabric-switchboard', state: 'waiting-reset', group: 'waiting', origin: 'resume', account: null, expectedAt: AT + 88 * min, candidates: [{ id: 'acc-2', label: 'claude5' }], actions: ['continueNow', 'dontContinue'], startedAt: AT - 12 * min, at: AT - 12 * min }),
   row({ id: 'c:handover.ho-000000000003:3', key: 'handover.ho-000000000003', folder: '/work/docs-site', state: 'idle-closed', group: 'ended', resumable: true, actions: ['continue', 'dismiss'], startedAt: AT - 120 * min, endedAt: AT - 60 * min, at: AT - 60 * min }),
-  row({ id: 'c:research.default:4', key: 'research.default', folder: '/work/research-notes', state: 'ended-by-you', group: 'ended', origin: 'here', account: null, resumable: true, actions: ['continue', 'dismiss'], startedAt: AT - 200 * min, endedAt: AT - 150 * min, at: AT - 150 * min }),
+  row({ id: 'c:research.default:4', key: 'research.default', folder: '/work/research-notes', state: 'ended-by-you', group: 'ended', origin: 'here', agent: 'codex', account: null, resumable: true, actions: ['continue', 'dismiss'], startedAt: AT - 200 * min, endedAt: AT - 150 * min, at: AT - 150 * min }),
 ];
 const OUTPUT = [
   '\x1b[1m╭─ Claude Code ─────────────────────────────────────╮\x1b[0m\r\n',
@@ -52,14 +52,15 @@ const OUTPUT = [
   '\x1b[7m \x1b[0m',
 ].join('');
 
-type Shot = { name: string; theme: 'dark' | 'light'; nav: { page: string; key?: string }; console?: { key: string; state: 'running' | 'exited' | 'idle'; exitCode?: number | null } };
+// R1-V4: an idle close ends the session with a hang-up and saves when (`idle`), as the app does (closeIdle, LC-18).
+type Shot = { name: string; theme: 'dark' | 'light'; nav: { page: string; key?: string }; console?: { key: string; state: 'running' | 'exited' | 'idle'; exitCode?: number | null; signal?: number | null; idle?: boolean } };
 const SHOTS: Shot[] = [
   { name: 'sessions-sidebar-all-dark', theme: 'dark', nav: { page: 'sessions', key: 'all' } },
   { name: 'sessions-sidebar-all-light', theme: 'light', nav: { page: 'sessions', key: 'all' } },
   { name: 'session-running-dark', theme: 'dark', nav: { page: 'sessions', key: 'c:handover.ho-000000000002:2' }, console: { key: 'handover.ho-000000000002', state: 'running' } },
   { name: 'session-running-light', theme: 'light', nav: { page: 'sessions', key: 'c:handover.ho-000000000002:2' }, console: { key: 'handover.ho-000000000002', state: 'running' } },
-  { name: 'session-idle-closed-dark', theme: 'dark', nav: { page: 'sessions', key: 'c:handover.ho-000000000003:3' }, console: { key: 'handover.ho-000000000003', state: 'exited', exitCode: 0 } },
-  { name: 'session-idle-closed-light', theme: 'light', nav: { page: 'sessions', key: 'c:handover.ho-000000000003:3' }, console: { key: 'handover.ho-000000000003', state: 'exited', exitCode: 0 } },
+  { name: 'session-idle-closed-dark', theme: 'dark', nav: { page: 'sessions', key: 'c:handover.ho-000000000003:3' }, console: { key: 'handover.ho-000000000003', state: 'exited', exitCode: null, signal: 1, idle: true } },
+  { name: 'session-idle-closed-light', theme: 'light', nav: { page: 'sessions', key: 'c:handover.ho-000000000003:3' }, console: { key: 'handover.ho-000000000003', state: 'exited', exitCode: null, signal: 1, idle: true } },
   { name: 'session-failed-resume-dark', theme: 'dark', nav: { page: 'sessions', key: 'c:handover.rs-000000000001:1' }, console: { key: 'handover.rs-000000000001', state: 'running' } },
   { name: 'session-failed-resume-light', theme: 'light', nav: { page: 'sessions', key: 'c:handover.rs-000000000001:1' }, console: { key: 'handover.rs-000000000001', state: 'running' } },
 ];
@@ -97,8 +98,8 @@ async function render(browser: Browser, shot: Shot): Promise<void> {
   if (shot.console) {
     const area = await page.evaluate(() => { const r = document.querySelector('.session-console-area')!.getBoundingClientRect(); return { x: r.left, y: r.top, width: r.width, height: r.height }; });
     const drawer = await browser.newPage({ viewport: { width: Math.round(area.width), height: Math.round(area.height) }, colorScheme: shot.theme, reducedMotion: 'reduce' });
-    const info = { key: shot.console.key, runtimes: [], runtime: null, folder: null, binding: { kind: 'none' }, idle: null,
-      session: { state: shot.console.state, label: 'Claude Code', cwd: '/work', output: OUTPUT, end: OUTPUT.length, exitCode: shot.console.exitCode ?? null, signal: null } };
+    const info = { key: shot.console.key, runtimes: [], runtime: null, folder: null, binding: { kind: 'none' }, idle: shot.console.idle ? { at: new Date(AT - 60 * min).toISOString(), account: 'claude4' } : null,
+      session: { state: shot.console.state, label: 'Claude Code', cwd: '/work', output: OUTPUT, end: OUTPUT.length, exitCode: shot.console.exitCode ?? null, signal: shot.console.signal ?? null } };
     await drawer.addInitScript({ content: 'window.__name = (f) => f;' });
     await drawer.addInitScript(stub, { status, settings, nav: null, drawer: { key: shot.console.key, full: true, height: area.height, areaHeight: area.height, task: null, scheme: shot.theme }, info });
     await drawer.goto(`${INDEX}?drawer=1`);

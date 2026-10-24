@@ -69,13 +69,13 @@ export function windowChrome(platform: NodeJS.Platform): { titleBarStyle?: 'hidd
   return platform === 'darwin' ? { titleBarStyle: 'hiddenInset' } : {};
 }
 
-export type TrayLevelName = 'ok' | 'degraded' | 'problem';
+export type TrayLevelName = 'ok' | 'degraded' | 'attention' | 'problem';
 
 /** macOS draws a monochrome template in the menu bar; a Windows or Linux panel shows the colour mark,
  *  since a black template is invisible on a dark taskbar — and the tray is the way back to a hidden window. */
 export function trayIcon(platform: NodeJS.Platform, level: TrayLevelName): { file: string; template: boolean } {
   if (platform === 'darwin') {
-    const name = { ok: 'tray', degraded: 'trayDegraded', problem: 'trayProblem' }[level];
+    const name = { ok: 'tray', degraded: 'trayDegraded', attention: 'trayAttention', problem: 'trayProblem' }[level];
     return { file: `${name}Template.png`, template: true };
   }
   return { file: `tray-${level}.png`, template: false };

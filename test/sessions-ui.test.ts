@@ -28,7 +28,7 @@ test('SCN-078: the sidebar groups sessions in order, each heading with its count
   const html = nav(fourGroups());
   assert.ok(at(html, '>Needs you: 1<') < at(html, '>Running: 1<'));
   assert.ok(at(html, '>Running: 1<') < at(html, '>Waiting for a limit reset: 1<'));
-  assert.ok(at(html, '>Waiting for a limit reset: 1<') < at(html, 'Ended in the last 24 hours: 1'));
+  assert.ok(at(html, '>Waiting for a limit reset: 1<') < at(html, '>Ended: 1<'), 'the sidebar\'s short ended heading (R1-V3)');
   assert.match(html, /aria-expanded="false"/, 'Ended is folded');
   assert.doesNotMatch(html, /docs-site/, 'a folded group shows no rows');
   assert.match(html, />Clear</);
