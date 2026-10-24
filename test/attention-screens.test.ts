@@ -52,7 +52,7 @@ test('UX-08: the visit section can be dismissed', () => {
 test('UX-06: a limit that stopped work is a Needs attention row with Open Spend', () => {
   const limits = { 'alpha.default': [{ id: 'daily', scope: 'machine', kind: 'daily', period: 'day', limitUsd: 5, spentUsd: 6, enforced: true, tripped: true, state: 'tripped', share: 1.2 }] };
   const html = overview([snap('alpha.default', 'ready')], {}, { limits } as Partial<AppStatus>);
-  assert.match(html, /Its spending limit daily stopped work\./);
+  assert.match(html, /Its spending limit stopped work \(daily\)\./);
   assert.match(html, />Open Spend</);
 });
 

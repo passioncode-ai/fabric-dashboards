@@ -23,21 +23,23 @@ Screenshots of the real app against the kit's sample service under example names
 | | |
 |---|---|
 | **Overview** | a status strip (agents ready, not answering, needing attention, spend today and in 30 days), compact *Needs attention* rows, then a card per agent — its instances (main, projection, read-only) inside one card ([ADR-0012](docs/adr/0012-one-entry-per-product.md)), state, version and commit, uptime, the service's own tiles, its latest event — and *Needs attention* first, per instance; the agents grouped *On this Mac*, *Online* and *Services* (no dashboard of their own, or moved there by you), and the ones you hid folded at the bottom ([ADR-0022](docs/adr/0022-agent-categories-and-connections.md)) |
-| **Service view** | the service's dashboard takes the window: a one-line header (state, name, the first problem, the tabs) that opens to the full card with Restart · Stop/Start · Update · Doctor · Logs; a toolbar over the dashboard: Back, Forward, Reload, Home, the page's address, Copy address and Copy app link ([ADR-0014](docs/adr/0014-dashboard-toolbar.md), [ADR-0017](docs/adr/0017-focus-layout-and-agent-console.md)); the sidebar folds into a rail |
+| **Service view** | the service's dashboard takes the window: a one-line header (state, name, the first problem, the tabs) that opens to the full card with Restart · Stop/Start · Update · Run self-check · Logs; a toolbar over the dashboard: Back, Forward, Reload, Home, the page's address, Copy address and Copy app link ([ADR-0014](docs/adr/0014-dashboard-toolbar.md), [ADR-0017](docs/adr/0017-focus-layout-and-agent-console.md)); the sidebar folds into a rail |
 | **Connections** | on every agent's page: who uses it, what it offers, and what it uses (other agents, models, its runner, connectors, data stores, channels), each with its state, and the chain through the agents it reaches; an agent declares them with `extensions/connections/0.1` ([ADR-0022](docs/adr/0022-agent-categories-and-connections.md)) |
 | **Agent console** | drops down over the dashboard from under the bar (folds with the same button, closes with its red cross), the agent's own runtime (Claude Code, Codex or another one installed) in the agent's repository, on the account Fabric Switchboard binds to it; New, Continue, Open in Terminal ([ADR-0017](docs/adr/0017-focus-layout-and-agent-console.md)) |
 | **Activity** | every service's events and the app's own observations in one feed, filterable, each row opening the exact item |
 | **Load** | on an agent's page, when it reports its load (`extensions/load/0.1`, contract DEC-0104): running now and waiting against its limits, done and failed in 24 hours, the latest wait and run times, a bar per window and a row per context; a wrong declaration or an unreadable report is shown with its reason ([ADR-0024](docs/adr/0024-load-from-the-agents.md)) |
-| **Connections** page | the auditor: everything that does not work, works in part, waits for you or is out of date, across every agent, worst first, each with *Fix with agent* in the coding agent you pick (Claude Code by default); and a map of how agents call one another ([ADR-0023](docs/adr/0023-the-auditor-and-the-connections-map.md)) |
+| **Connections** page | the auditor: everything that does not work, works in part, waits for you or is out of date, across every agent, worst first, each with *Fix with coding agent* in the coding agent you pick (Claude Code by default); and a map of how agents call one another ([ADR-0023](docs/adr/0023-the-auditor-and-the-connections-map.md)) |
+| **Sessions** (0.8.0) | a second mode beside *Agents*, switched at the top of the sidebar (⌘1 and ⌘2): every coding session of this computer in one list, grouped *Needs you*, *Running*, *Waiting for a limit reset* and *Ended in the last 24 hours*, each with the actions of its state; a session's page with its console full height; a hand-over or a session continued after a limit reset runs in a console of its own, never in an agent's ([SCN-077 to SCN-086](docs/ux/scenarios.md#scn-077-switch-between-agents-and-sessions)) |
 | **Spend** | what every agent spent today, in 7 and 30 days, on which models and against its own budget — from each agent's own usage report (contract DEC-0021); an unknown cost reads unknown, never $0 |
 | **Notifications** | not answering (three missed probes in a row and 60 s of silence — a slow answer under load is not an outage, [ADR-0008](docs/adr/0008-a-missed-probe-is-not-an-outage.md)), back, two copies, another program on the port, and, from the events a service marks for you, only a decision it waits for, a failure or a warning — once per subject, titled with the agent and what it wants ([ADR-0010](docs/adr/0010-notifications-only-when-it-matters.md)); quiet hours and per-service levels |
 | **Menu bar** | the aggregate state as a shape, problems first |
 | **Links from agents and Fabric** | `fabric-dashboards://service/<id.instance>?path=/…` opens that service, or that page of it, here, signed in — the link Fabric's "Open dashboard" opens |
 | **MCP for agents** | list services, hand out links, open a page, restart or update — through the app's own rules |
 
-States it tells apart: Ready, Degraded, Not answering, Off, Starting/Stopping, Two copies
+States it tells apart: Ready, Partly working, Not answering, Stopped, Starting/Stopping, Two copies
 (the answering pid is not launchd's), Wrong program on port (another id answers),
-Port conflict (two descriptors claim one port), Invalid descriptor.
+Port conflict (two descriptors claim one port), Broken install file (a descriptor that fails the
+protocol's rules).
 
 It never starts a service process itself — launchd is the only supervisor
 ([ADR-0002](docs/adr/0002-launchd-is-the-only-supervisor.md)) — and quitting it stops nothing.
@@ -73,9 +75,10 @@ built and signed by GitHub Actions, and each carries `SHA256SUMS`, its GPG signa
 attestation ([how to verify](docs/RUNBOOK.md#release)).
 
 Open it from Applications. It lives in the menu bar and opens its window; with no service
-installed the overview says *No services yet* and **Show folder** opens the services folder. A
-service appears within five seconds of its installer writing a descriptor there. The first
-window asks once whether to open it at login (off until you choose; Settings changes it later).
+installed the overview says *No agents yet* and **Show the services folder** opens the services
+folder. A service appears within five seconds of its installer writing a descriptor there. It
+opens at login by default: the first launch of the installed copy registers it, with no question,
+and **Settings → Open at login** turns it off.
 It updates itself from GitHub releases: a new version downloads on its own and installs while
 the window is closed, and the app reopens in the menu bar (**Settings → Updates → Install updates
 automatically**, on by default). Updates install only into Applications; a copy opened from the
@@ -155,7 +158,7 @@ What the app does and how an agent does the same (FD-81, ADR-0023):
 |---|---|
 | Overview, the list, an agent's state and reasons | `list_services` (with `category`, `hidden`), `service_status` |
 | An agent's page, a page of it | `link`, `open` |
-| Restart, Stop, Start; Doctor; Update | `control`, `doctor`, `update` |
+| Restart, Stop, Start; Run self-check; Update | `control`, `doctor`, `update` |
 | Activity | `activity` |
 | Spend and its limits | `spend` |
 | An agent's Connections tab | `connections` |

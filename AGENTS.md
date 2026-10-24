@@ -58,6 +58,9 @@ and arm64 and Linux x64 and arm64 (PL-08), with `FD_SKIP_LAUNCHD=1`.
   [docs/design/2026-09-28-fabric-dashboards-design.md](docs/design/2026-09-28-fabric-dashboards-design.md).
   Decisions are ADRs in [docs/adr/](docs/adr/), and [CONTEXT.md](CONTEXT.md) is the glossary.
 - UX scenarios, screens and foundation are in [docs/ux/](docs/ux/scenarios.md).
+- How the interface speaks (voice, terminology, Russian choices) is the brand pack in
+  [docs/brand/](docs/brand/README.md); the strings live in `src/core/i18n.ts` and are checked by
+  `test/copy.test.ts` and `test/parts.test.ts`.
 - Copies you must never edit here: the brand files in `src/renderer/brand/` (vendored from
   `passioncode-ai.github.io`, pinned in `docs/brand-source.json`, checked by
   `scripts/check-brand.mjs`), and `test/fixtures/contract/` and `test/fixtures/sample-service/`
