@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.8.0 - 2026-10-24
 
 0.8.0 separates the coding sessions from the agents, and makes the app say one thing about what needs you, in the
 same words everywhere. The iteration's records are in
