@@ -70,6 +70,21 @@ same words everywhere. The iteration's records are in
 
 ### Fixed
 
+- **Sessions found in review** (round 1, [review-round1.md](docs/reports/2026-10-24-ui-ux-iteration/review-round1.md)):
+  Remove and Clear no longer bring an ended session back as a Switchboard row; a limit stop you chose not to continue
+  stays declined after Remove or Clear; stops Switchboard finished or cancelled no longer show as waiting with a time
+  in the past (also in MCP `audit`); a waiting session shows Switchboard's own probe time, or none; Continue on a
+  session Switchboard launched starts a new one when its conversation may still be running; quitting the app records
+  running consoles as "Closed when the app quit"; the settings channel can no longer write a session's folder.
+- **The menu bar icon** turns to its problem state on a failed action, as the sidebar badge does, and shows a new
+  attention shape (a diamond) while a session needs you.
+- **Session rows** keep their time beside the project; the second line reads "account · origin" and names the coding
+  agent only when it is not Claude Code; a waiting session has a visible clock mark; the sidebar's ended heading reads
+  "Ended: N" («Завершены: N»); a session page shows its exit strip only for an unclean exit.
+- **Windows and Linux** name the window Switchboard really opens (a PowerShell window, a terminal window) instead of
+  "Terminal"; a hand-over that could not open here names its one cause (under 5 GB free, six sessions already, or swap
+  run out on Linux); continuing an idle-closed agent console from the console itself removes its ended row.
+
 - **Spend adds agents up as the contract does** (FD-101, contract DEC-0110). The sum across agents is read over all their
   report rows at once: beside an agent whose calls carry no price, an agent with no metered calls makes the money unknown
   rather than "at least $0.00", and a subscription row with no calls but a cost is no longer dropped from the estimate.
