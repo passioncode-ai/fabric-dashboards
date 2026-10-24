@@ -45,9 +45,19 @@ export function useT() {
   return { t, reason, duration, time, lang };
 }
 
+/** The one mark per state, on every surface (VIS-08): sidebar, cards, tray menu, Connections tab and map. The word
+ *  always goes with it; colour is the third signal, never the only one. src/electron/tray.ts keeps a copy that a
+ *  test holds equal to this table. */
 export const GLYPH: Record<ServiceState, string> = {
   ready: '●', degraded: '▲', duplicate: '▲', down: '✕', foreign: '✕', conflict: '✕', invalid: '✕', stopped: '○', starting: '◌', stopping: '◌',
 };
+
+/** A connection's state in the same shapes: works as ready, slow as degraded, broken as down (VIS-08). */
+export const CONN_MARK = { ok: GLYPH.ready, degraded: GLYPH.degraded, down: GLYPH.down, unknown: GLYPH.stopped } as const;
+
+/** An auditor finding or a stopped session: an error is drawn as down, a warning as degraded, a fine one as ready.
+ *  `setup` has no agent state of its own and keeps its diamond. */
+export const SEV_MARK = { ok: GLYPH.ready, error: GLYPH.down, warn: GLYPH.degraded, setup: '◆', info: GLYPH.stopped } as const;
 
 export function StateBadge({ state }: { state: ServiceState }) {
   const { t } = useT();
