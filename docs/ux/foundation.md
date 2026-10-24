@@ -101,6 +101,7 @@ hunt browser tabs to learn whether an agent is alive or what it did.
 | 6 | Maintain | updates an agent or the app | Needs attention "Update to <v>", sidebar update line, automatic install (ADR-0015) | 3 | stale code nobody noticed | update offered where it is visible |
 | 7 | Tune | turns noise down | Settings | 3 | notifications for everything | per-service and quiet hours |
 | 8 | Direct | tells an agent's code what to change while looking at its dashboard | the console beside the dashboard (ADR-0017) | 3 | a separate terminal, the wrong folder or account | the runtime's own console, in the repository, on the right account |
+| 9 | Pick up | comes back to coding sessions that ran, were handed over by Switchboard, stopped on a limit or closed after idle | the Sessions mode beside the Agents mode (dossier 2026-10-24 sessions-and-navigation) | 2 | rows that repeat one folder name, say nothing about what they are and stay dead after an idle close | one list of sessions grouped by what they need, each state with its own action |
 
 ### JRN-02: P-01 — the first day, set up by my coding agent, and every day after (JTBD-06, JTBD-01, JTBD-02)
 | # | Stage | User action | Touchpoint | Emotion (1-5) | Pain | Opportunity |
@@ -320,6 +321,18 @@ hunt browser tabs to learn whether an agent is alive or what it did.
   - Given a first launch, when the window opens, then a Setup console is ready with my default coding agent and starts on one click; with no coding agent installed, the install commands are shown to copy.
   - Given a setup run, when the agent asks for a sign-in, a consent or a secret, then I answer in its console (a secret in a hidden prompt); everything else it runs itself.
   - Given a later launch, when the window opens, then Overview leads with problems, updates and *Continue* for the agents I worked with since my last visit.
+- **Priority:** must
+- **Status:** proposed
+
+### ST-023: My coding sessions in their own place, each with its next step
+- **Story:** As P-01, I want every coding session on this computer (the ones I start in a console, the ones Switchboard starts, hands over or holds after a limit, and the ones that ended) in a Sessions mode apart from my agents, each saying what it is, where it came from and what I can do with it, so that the agents list holds agents and no session is left dead with nothing to do.
+- **Traces:** JTBD-05, JTBD-01, JRN-01/#9; operator review 2026-10-24 ([dossier](../reports/2026-10-24-ui-ux-iteration/sessions-and-navigation.md))
+- **Acceptance criteria:**
+  - Given the sidebar, when I press Sessions (or ⌘2), then the sidebar lists the sessions grouped as Needs you, Running, Waiting for a limit reset and Ended in the last 24 hours, and Agents (⌘1) brings back the agents with no session among them; the window reopens in the mode I left.
+  - Given two sessions in one folder, when I read their rows, then the second line (coding agent, account, origin, time) tells them apart and each shows its state in words.
+  - Given a session closed after 30 idle minutes, when I open it, then Continue resumes it in the same folder and Remove takes it off the list.
+  - Given a session stopped on a limit that waits for a reset, when I open it, then I see when it is expected to continue and can continue it now on another account or decline.
+  - Given Switchboard hands a session over, when the app takes it, then one system notification names the project and the coding agent and opens that session, and the mode does not change by itself.
 - **Priority:** must
 - **Status:** proposed
 

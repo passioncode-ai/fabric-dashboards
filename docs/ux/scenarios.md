@@ -10,8 +10,8 @@
 | SCN-002 | First launch with no service installed | discovery | P-01 | ST-001 | validated | 2026-10-13 |
 | SCN-003 | A service is installed or removed while the app runs | discovery | P-01 | ST-001 | validated | 2026-10-13 |
 | SCN-004 | A descriptor is invalid | discovery | P-01 | ST-001, ST-004 | validated | 2026-10-13 |
-| SCN-005 | Overview when everything is ready | overview | P-01 | ST-002 | validated | 2026-10-12 |
-| SCN-006 | Overview lists what needs attention | overview | P-01 | ST-002 | validated | 2026-10-13 |
+| SCN-005 | Overview when everything is ready | overview | P-01 | ST-002, ST-023 | validated | 2026-10-12 |
+| SCN-006 | Overview lists what needs attention | overview | P-01 | ST-002, ST-023 | validated | 2026-10-13 |
 | SCN-007 | Restart a service that is down | control | P-01 | ST-003 | validated | 2026-10-13 |
 | SCN-008 | Restart does not bring the service back | control | P-01 | ST-003 | validated | 2026-10-13 |
 | SCN-009 | Stop a service so it stays off | control | P-01 | ST-003 | validated | 2026-10-12 |
@@ -71,17 +71,27 @@
 | SCN-063 | A session starts only when the Mac can carry it | console | P-01 | ST-019 | validated | 2026-10-13 |
 | SCN-064 | See what Switchboard runs for this agent | console | P-01 | ST-019 | draft | 2026-10-12 |
 | SCN-065 | A provider limit does not stop the agent | console | P-01 | ST-019 | draft | 2026-10-12 |
-| SCN-066 | An idle session closes and comes back | console | P-01 | ST-019 | validated | 2026-10-14 |
+| SCN-066 | An idle session closes and comes back | console | P-01 | ST-019, ST-023 | draft | 2026-10-24 |
 | SCN-067 | Dashboards take my scheme and theme | settings | P-01 | ST-019 | validated | 2026-10-13 |
 | SCN-068 | See which runner and model an agent uses | service | P-01 | ST-019 | validated | 2026-10-13 |
-| SCN-069 | A hand-over opens in the console | console | P-01 | ST-019 | validated | 2026-10-14 |
+| SCN-069 | A hand-over opens in the console | sessions | P-01 | ST-023, ST-019 | draft | 2026-10-24 |
 | SCN-070 | Check what is set up | settings | P-01 | ST-017 | validated | 2026-10-14 |
 | SCN-071 | See agents on this Mac, online and services apart | list | P-01 | ST-021 | validated | 2026-10-23 |
 | SCN-072 | Hide an agent without stopping it | list | P-01 | ST-021 | validated | 2026-10-23 |
 | SCN-073 | See what an agent is connected to | service | P-01 | ST-019 | validated | 2026-10-23 |
 | SCN-074 | See how agents are wired and what the auditor found | connections | P-01 | ST-019 | validated | 2026-10-23 |
-| SCN-075 | A session stopped on a limit continues by itself | connections | P-01 | ST-019 | validated | 2026-10-23 |
+| SCN-075 | A session stopped on a limit continues by itself | sessions | P-01 | ST-023, ST-019 | draft | 2026-10-24 |
 | SCN-076 | See how busy an agent is | service | P-01 | ST-019 | validated | 2026-10-23 |
+| SCN-077 | Switch between Agents and Sessions | navigation | P-01 | ST-023 | draft | 2026-10-24 |
+| SCN-078 | See every coding session in one place | sessions | P-01 | ST-023 | draft | 2026-10-24 |
+| SCN-079 | The Sessions page explains itself once | sessions | P-01 | ST-023 | draft | 2026-10-24 |
+| SCN-080 | Open one session's page | sessions | P-01 | ST-023, ST-019 | draft | 2026-10-24 |
+| SCN-081 | A running session: end it, or find where it runs | sessions | P-01 | ST-023 | draft | 2026-10-24 |
+| SCN-082 | A session that needs you | sessions | P-01 | ST-023 | draft | 2026-10-24 |
+| SCN-083 | A session waiting for a limit reset | sessions | P-01 | ST-023 | draft | 2026-10-24 |
+| SCN-084 | An ended session continues or leaves | sessions | P-01 | ST-023 | draft | 2026-10-24 |
+| SCN-085 | A taken hand-over tells me once, and the tray counts sessions | sessions | P-01 | ST-023, ST-007, ST-009 | draft | 2026-10-24 |
+| SCN-086 | Settings → Sessions | settings | P-01 | ST-023, ST-010 | draft | 2026-10-24 |
 ## Personas
 
 Defined in [foundation.md](foundation.md) → P-01.
@@ -169,8 +179,8 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 ### SCN-005: Overview when everything is ready
 - **Persona:** P-01
 - **Feature:** overview
-- **Traces:** ST-002 (JTBD-01, JRN-01/#2)
-- **Entry point:** Overview
+- **Traces:** ST-002 (JTBD-01, JRN-01/#2); from 0.8.0 also ST-023 (the Agents mode, SCN-077)
+- **Entry point:** Overview, the first page of the Agents mode (the sidebar switch's "Agents", or ⌘1; SCN-077)
 - **Preconditions:** every service answers ready
 - **Steps:**
   1. User opens Overview -> system shows one card per service: state dot and word, name, version and short commit, uptime, what the agent is for (the descriptor's one-line summary, at most two lines), up to six summary tiles, the latest event sentence with its time
@@ -186,14 +196,14 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 ### SCN-006: Overview lists what needs attention
 - **Persona:** P-01
 - **Feature:** overview
-- **Traces:** ST-002 (JTBD-01, JRN-01/#2)
-- **Entry point:** Overview
+- **Traces:** ST-002 (JTBD-01, JRN-01/#2); from 0.8.0 also ST-023 (the Agents mode, SCN-077)
+- **Entry point:** Overview, the first page of the Agents mode (the sidebar switch's "Agents", or ⌘1; SCN-077)
 - **Preconditions:** at least one service is down, degraded, duplicated, foreign, conflicting, invalid, has an attention tile, or has an update
 - **Steps:**
   1. User opens Overview -> system shows Needs attention above the cards, most severe first: one single-line row per problem with its state, the name, the reason cut to the line ("Not answering since 17:02.") and its one action (Restart for a local service that is down or runs twice, "Update to 0.2.1" when the service declares an update command, Open otherwise; Logs after a failed action); while the action runs the row shows its progress ("Restarting…"); more than three rows wait behind "Show all" (SCN-042)
   2. User chooses the action -> system performs it (SCN-007, SCN-011, SCN-021); the row leaves when the problem clears, and a failed action keeps its row, with the failure sentence and Logs, for 30 minutes
 - **Expected result:** problems are the first thing read, each with its next action
-- **Alt paths:** a degraded service lists its reasons with Open, when the fix is inside the service ("Collector: last ran 3 days ago"); an online service never offers Restart: its platform supervises it; several agents in the same state for the same reason (one hub down behind them) -> one line, "3 agents: A, B, C" with the reason once, each name opening its agent (FD-86)
+- **Alt paths:** a degraded service lists its reasons with Open, when the fix is inside the service ("Collector: last ran 3 days ago"); an online service never offers Restart: its platform supervises it; several agents in the same state for the same reason (one hub down behind them) -> one line, "3 agents: A, B, C" with the reason once, each name opening its agent (FD-86); a coding session that needs the person is not listed here: from 0.8.0 the Sessions switch counts it (SCN-077, SCN-082)
 - **UI elements:** Needs attention block, problem rows, action buttons (each names its service for a screen reader), the problem count on Overview in the sidebar (not answering, two copies, wrong program, conflict, invalid)
 - **States covered:** error, success
 - **Errors & recovery:** the action fails -> the row keeps its place with the failure sentence and Logs
@@ -569,7 +579,7 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
   2. User clicks it -> the menu starts with a line "Needs attention: 2", "Ready: 5 of 7" or "All services ready", lists problems first, then every service with its state and instance ("● Growth · projection — Ready"); items Open Fabric Dashboards, Pause notifications for 1 hour (Resume notifications while paused; the menu updates when a pause set here or in Settings ends), the line "Quitting Dashboards does not stop your services.", Quit
   3. User chooses a service -> the window opens at its view, and the Dock icon comes back with it
 - **Expected result:** the state is known without opening the window
-- **UI elements:** menu bar icon, tray menu, service items, Pause notifications item
+- **UI elements:** menu bar icon, tray menu, service items, Pause notifications item; from 0.8.0, while a coding session runs or waits for the person, a line "Sessions: running N, waiting for you M" under the headline that opens the Sessions mode (SCN-085)
 - **States covered:** success, error
 - **Errors & recovery:** nothing can fail in the menu; quitting leaves every service running and the menu says so above Quit — no dialog on the way out, except when an agent's console session or a command the app started is running: then Quit names them and asks (Cancel keeps them; ADR-0017 amendment 2026-10-07)
 - **Status:** validated
@@ -1028,7 +1038,7 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
   4. User presses the red cross in the console's corner -> a session that runs asks "End this session and close the console?"; "Close console" ends it and folds the console, Cancel keeps it; with nothing running the cross folds it at once
   5. User switches to another agent -> the console shows that agent's console; each agent has its own
 - **Expected result:** a console that belongs to the agent is one press away over its dashboard, never moves the dashboard, folds without stopping anything, and closes only with its own red cross
-- **Alt paths:** the window is hidden while a console runs -> it keeps running and nothing is sent to the window; showing it replays what was printed; the agent is removed -> its page closes and its console ends with it; one of the app's own dialogs opens -> the console steps out of the way until it closes; the Setup console (SCN-058) and a Switchboard hand-over (SCN-069) drop down the same way over their pages
+- **Alt paths:** the window is hidden while a console runs -> it keeps running and nothing is sent to the window; showing it replays what was printed; the agent is removed -> its page closes and its console ends with it; one of the app's own dialogs opens -> the console steps out of the way until it closes; the Setup console (SCN-058) drops down the same way over its page; a Switchboard hand-over or a continued session no longer does: from 0.8.0 its console fills its own session page (SCN-080), and this console shows it only when it runs in this agent's own folder (SCN-069 step 2)
 - **UI elements:** console drawer, its bottom edge with a grip, the fold arrow, the red cross, "Console" in the bar, View menu item
 - **States covered:** success, empty
 - **Errors & recovery:** n/a here; starting is SCN-049
@@ -1132,19 +1142,21 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 ### SCN-066: An idle session closes and comes back
 - **Persona:** P-01
 - **Feature:** console
-- **Traces:** ST-019; lifecycle LC-18; FD-50
+- **Traces:** ST-019, ST-023; lifecycle LC-18; FD-50; operator review 2026-10-24 ("They hang there killed, closed after idle, and nothing can be done with them."); SES-04
 - **Entry point:** a console session running with no input or output
 - **Preconditions:** none
 - **Steps:**
-  1. Thirty minutes pass with nothing typed and nothing printed -> the app saves when it closed and the Switchboard account it ran on, and closes the session, which frees its memory and its MCP servers
-  2. User opens the agent's console again -> the session continues ("Continue last") with "This session was closed after 30 idle minutes to free memory and is continued now. Account: <account>"
-- **Expected result:** a session nobody uses holds nothing, and coming back costs one look
-- **Alt paths:** the runtime cannot continue a conversation -> "This session was closed after 30 idle minutes to free memory. New session starts a fresh one."; the person starts a session themselves first -> the saved mark is cleared
-- **UI elements:** the console's notice line
+  1. Thirty minutes pass with nothing typed and nothing printed -> the app saves when it closed, the Switchboard account it ran on and its conversation, and closes the session, which frees its memory and its MCP servers
+  2. The session was an agent's own console -> opening that agent's console again continues it ("Continue last") with "This session was closed after 30 idle minutes to free memory and is continued now. Account: <account>"
+  3. Any closed session, a hand-over's or a continued one's included -> the Sessions mode lists it under "Ended in the last 24 hours" as "Closed after 30 idle minutes", with Continue and Remove (SCN-084); Continue resumes the same conversation in the same folder on the saved account
+- **Expected result:** a session nobody uses holds nothing, and coming back costs one press, wherever it came from
+- **Alt paths:** the runtime cannot continue a conversation -> in an agent's console "This session was closed after 30 idle minutes to free memory. New session starts a fresh one.", and in Sessions the button reads "New session here" (SCN-084); the person starts a session themselves first -> the saved mark is cleared
+- **UI elements:** the console's notice line; the Sessions mode's ended row with Continue and Remove
 - **States covered:** success
-- **Errors & recovery:** the continue cannot start (no room, SCN-063) -> that notice instead
-- **Status:** validated
-- **Coverage:** src/core/consoles.ts, src/electron/console.ts, src/core/settings.ts, src/renderer/components/ConsolePanel.tsx, test/switchboard-sessions.test.ts
+- **Errors & recovery:** the continue cannot start (no room, SCN-063) -> that notice instead, and the row keeps both actions
+- **Supersedes:** for a hand-over or a continued session, the dead end of SES-04 (its console was reopened only from the sidebar's Hand-overs section, whose text named a "New session" button that was never drawn there): from 0.8.0 SCN-084 owns its Continue
+- **Status:** draft
+- **Coverage:** none yet for the Sessions mode (dossier nodes S2 and S3); the agent console's idle close and continue (validated 2026-10-14): src/core/consoles.ts, src/electron/console.ts, src/core/settings.ts, src/renderer/components/ConsolePanel.tsx, test/switchboard-sessions.test.ts
 - **Product:** observed 2026-10-14 on this Mac (installed copy, `main.log`): an agent's console closed after 30 idle minutes at 16:29:29 UTC and, opened again at 16:39:33, continued (`started claude-code (continue) … through Switchboard`); two hand-over consoles closed the same way at 19:59 and 21:00
 
 ### SCN-067: Dashboards take my scheme and theme
@@ -1186,22 +1198,24 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 
 ### SCN-069: A hand-over opens in the console
 - **Persona:** P-01
-- **Feature:** console
-- **Traces:** ST-019; Switchboard SB-108; FD-62 (operator 2026-10-12: «открывать агентов внутри Фабрики, чтобы не копились терминалы»)
-- **Entry point:** none — Switchboard hands a continuing session over while Fabric Dashboards runs
-- **Preconditions:** Switchboard 0.6.26 or later with "Open hand-overs in Fabric" on (`switchboard handovers set on`); the running Switchboard app is as new as its CLI
+- **Feature:** sessions
+- **Traces:** ST-023, ST-019 (JTBD-05, JRN-01/#9); Switchboard SB-108; FD-62 (operator 2026-10-12: «открывать агентов внутри Фабрики, чтобы не копились терминалы»); operator review 2026-10-24 ("This place should hold agents, not handed-over sessions."); SES-01, SES-02, SES-03, SES-06; COPY-17
+- **Entry point:** nothing to press: Switchboard hands a continuing session over while Fabric Dashboards runs
+- **Preconditions:** Switchboard 0.6.26 or later with "Open sessions handed over by Switchboard here" on (Settings → Sessions, SCN-086, or `switchboard handovers set on`); the running Switchboard app is as new as its CLI
 - **Steps:**
   1. Switchboard's automatic fallback prepares a continuing session and leaves it as a hand-over -> within 15 seconds (60 while the window is hidden) the app takes it with `switchboard handovers run <id>` on a console
-  2. The hand-over's folder is a registered agent's console folder and that console runs nothing -> the session runs in that agent's console, under "Handed over by Switchboard: <workflow>, on <account>."
-  3. Otherwise -> the session runs in a console of its own, listed in the sidebar under "Hand-overs" with its workflow; opening it shows the agent, the account and the folder beside the console
-  4. The session ends -> its entry says "Ended"; Close removes it from the list
-- **Expected result:** Switchboard's continuing sessions run inside the app, not in a new Terminal window each
-- **Alt paths:** less than 5 GB free, six sessions already run, or the folder is not on this Mac -> the app leaves the hand-over, and Switchboard opens it in Terminal after two minutes as before; the offer has lapsed -> nothing is taken; another console or Terminal took it first -> the console shows Switchboard's own message; Switchboard is not installed -> nothing is read; the running Switchboard is older than its CLI -> nothing is taken, and the reason is logged once
-- **UI elements:** the sidebar's Hand-overs section, the hand-over page, the console's hand-over line, Close
+  2. The hand-over's folder is a registered agent's console folder and that console runs nothing -> the session runs in that agent's console, under "Handed over by Switchboard: <workflow>, on <account>."; it is also listed in Sessions under "Running", and its session page shows the same console
+  3. Otherwise -> the session runs in a console of its own, listed only in the Sessions mode, under "Running", its row reading "<project>" over "<coding agent> · <account> · handed over · <time>"; its page (SCN-080) carries "Handed over by Switchboard after a limit on <account>, <time>" and its console full height
+  4. The app has taken it -> one notification (SCN-085); the mode the window shows does not change
+  5. The session ends -> it moves to "Ended in the last 24 hours" as "Ended at <time>", or "Closed after 30 idle minutes", with Continue and Remove (SCN-084), and stays listed across a restart for 24 hours
+- **Expected result:** Switchboard's continuing sessions run inside the app, not in a new Terminal window each, and are listed with the other sessions, never among the agents
+- **Alt paths:** less than 5 GB free or six sessions already run, the folder is not on this Mac, the offer expired before it could be taken, or the running Switchboard is older than its CLI -> the app leaves the hand-over and lists it under "Needs you" with that reason in one sentence, followed by "Switchboard opened it in Terminal." once Switchboard does after two minutes (SCN-082); another console or Terminal took it first -> the console shows Switchboard's own message; Switchboard is not installed -> nothing is read
+- **UI elements:** the Sessions mode's rows and cards, the session page, the agent console's hand-over line, the notification
 - **States covered:** empty, success, error
-- **Errors & recovery:** a hand-over that cannot be read or taken goes to Terminal on Switchboard's side after two minutes; nothing is lost
-- **Status:** validated
-- **Coverage:** src/core/switchboard.ts, src/electron/console.ts, src/electron/main.ts, src/renderer/App.tsx, src/renderer/components/ConsolePanel.tsx, test/handovers.test.ts; live on the installed 0.7.9 (2026-10-14, main.log): `ho-fcdfdee61542` taken in `handover.ho-fcdfdee61542` at 19:28:32Z and `ho-3bec5ef68052` at 20:29:35Z, each once and within the 15 s poll, under Switchboard's 120 s Terminal fallback (workflow `wf_5e78a8c1a8ee6c19`, run by Switchboard's session)
+- **Errors & recovery:** a hand-over that cannot be read or taken goes to Terminal on Switchboard's side after two minutes; nothing is lost, and the Needs you row says where it went
+- **Supersedes:** step 3's sidebar section "Hand-overs" above the agents and its hand-over page (by SCN-077, SCN-078, SCN-080); step 4's "Ended" glyph and Close in the page body under the drawer (by SCN-084); the console dropping down over the hand-over page (by SCN-080's full-height console); the alt path's silent "nothing is taken" and "logged once" (by SCN-082)
+- **Status:** draft
+- **Coverage:** none yet for the Sessions mode (dossier nodes S2 and S3); the taking of a hand-over (validated 2026-10-14): src/core/switchboard.ts, src/electron/console.ts, src/electron/main.ts, test/handovers.test.ts; live on the installed 0.7.9 (2026-10-14, main.log): `ho-fcdfdee61542` taken in `handover.ho-fcdfdee61542` at 19:28:32Z and `ho-3bec5ef68052` at 20:29:35Z, each once and within the 15 s poll, under Switchboard's 120 s Terminal fallback (workflow `wf_5e78a8c1a8ee6c19`, run by Switchboard's session)
 - **Product:** unobserved
 
 ### SCN-071: See agents on this Mac, online and services apart
@@ -1285,22 +1299,22 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 
 ### SCN-075: A session stopped on a limit continues by itself
 - **Persona:** P-01
-- **Feature:** connections
-- **Traces:** ST-019 (JTBD-01); FD-83 (operator 2026-10-21, «лимиты прошли ... перезапускай агентов»); Switchboard SB-115 (the host acts on `ready` rows)
-- **Entry point:** nothing to press: the app reads Switchboard's stopped sessions with the hand-overs (every 15 s with the window shown, 60 s hidden); Connections → "Sessions stopped on a limit" shows them; Settings → "Sessions stopped on a limit" → "Continue them by themselves"
+- **Feature:** sessions
+- **Traces:** ST-023, ST-019 (JTBD-01, JTBD-05, JRN-01/#9); FD-83 (operator 2026-10-21, «лимиты прошли ... перезапускай агентов»); Switchboard SB-115 (the host acts on `ready` rows); operator review 2026-10-24 ("They hang there killed, closed after idle, and nothing can be done with them."); SES-05, SES-07
+- **Entry point:** nothing to press: the app reads Switchboard's stopped sessions with the hand-overs (every 15 s with the window shown, 60 s hidden); the Sessions mode lists them; Settings → Sessions → "Continue sessions after a limit reset"
 - **Preconditions:** Fabric Switchboard installed and its StopFailure hook registering stops; the switch on (the default)
 - **Steps:**
-  1. A coding session stops on a usage limit -> Switchboard records the stop; once an account has capacity again it marks it ready
+  1. A coding session stops on a usage limit -> Switchboard records the stop, and Sessions lists it under "Waiting for a limit reset" with when it is expected to continue (SCN-083); once an account has capacity again Switchboard marks it ready
   2. The app finds a ready stop that stopped within a day, whose folder is on this Mac and in which no claude or codex process works and no process names its session -> its conversation is in the person's own Claude Code or Codex home, it claims the stop once in Switchboard, continues it in a console with the agent's own CLI in that folder (`claude --resume <session> "The usage limit has reset. Continue your task from where it stopped."`; a folder bound to a Switchboard group routes it through Switchboard by its own settings) and records `resumed` once the session is still running and has written its own transcript (within 30 seconds); at most two in one pass (FD-84)
-  3. The session opens in the free console of the agent whose folder it is, else in a console of its own listed under Hand-overs by its folder's name -> the page says it stopped on a limit and was continued here
-  4. User opens Connections -> "Sessions stopped on a limit N": each with its folder, the agent, when it stopped and a sentence: "Continued here." with Open, or why it waits
-- **Expected result:** sessions the operator left running come back by themselves after a limit, never twice and never next to a terminal still holding them; the rest is in one list with the reason
-- **Alt paths:** its terminal is still open -> "Its terminal is still open: type "continue" there." and nothing is claimed; no account has capacity -> "Waits for an account with capacity."; a payment limit -> "Stopped on a payment limit: a top-up is needed."; stopped more than a day ago -> "Stopped more than a day ago: open it yourself if the task is still open."; the folder is not here -> "Its folder is not on this Mac."; its conversation is not in the person's own home -> "Its conversation is not in your Claude Code or Codex home, so it cannot be continued here." and nothing is claimed; the continued session exits, or runs without writing its transcript within 30 seconds -> recorded `cancelled`, listed as "Could not be continued here; see the log." with Open (a silent one is left running for the person); the Mac cannot carry another console now (LC-17) -> nothing is claimed and the next pass tries again; the switch is off -> every stop is listed and none continued ("Continuing them by themselves is off in Settings; each waits for you."); an agent asks through MCP -> `audit` answers `limitStops` with the same verdicts, read-only
-- **UI elements:** the Connections section with Open, the Hand-overs entry, the console line, the Settings switch
+  3. The session opens in the free console of the agent whose folder it is, else in a console of its own -> Sessions lists it under "Running", its row reading "after a limit reset", its page carrying "Continued after a limit reset, <time>" and "Stopped on a usage limit and continued here by <agent> once Switchboard had capacity again."
+- **Expected result:** sessions the operator left running come back by themselves after a limit, never twice and never next to a terminal still holding them; every stop is in the Sessions mode with when it comes back or what it waits for
+- **Alt paths:** its terminal is still open -> "Needs you" with "Its terminal is still open: type "continue" there." and nothing is claimed; no account has capacity -> it waits with "Waits for an account with capacity." (SCN-083); a payment limit -> "Needs you" with "Stopped on a payment limit: a top-up is needed."; stopped more than a day ago -> "Needs you" with "Stopped more than a day ago: open it yourself if the task is still open."; the folder is not here -> "Needs you" with "Its folder is not on this Mac."; its conversation is not in the person's own home -> "Needs you" with "Its conversation is not in your Claude Code or Codex home, so it cannot be continued here." and nothing is claimed; each of these "Needs you" rows offers Remove (SCN-082); the continued session exits, or runs without writing its transcript within 30 seconds -> recorded `cancelled`: one that exited is under "Needs you" with "Could not be continued here; see the log." and Remove, and one left running (silent) is under "Needs you" with "Did not continue; its process is still running", Open console and End (SCN-082); the Mac cannot carry another console now (LC-17) -> nothing is claimed and the next pass tries again; another host took the stop -> it is not listed here; the switch is off -> every stop waits with "Continuing by itself is off in Settings, so it waits for you." and the actions of SCN-083; an agent asks through MCP -> `audit` answers `limitStops` with the same verdicts, read-only
+- **UI elements:** the Sessions mode's Waiting, Running and Needs you rows, the session page's origin chip and console line, the Settings → Sessions switch
 - **States covered:** empty, success, error
-- **Errors & recovery:** a claim Switchboard refuses starts nothing ("Could not be continued here; see the log."); a claimed stop whose console cannot start is recorded `cancelled`; Switchboard not answering says so in the section; live processes that cannot be read count as open, never as none
-- **Status:** validated (test/e2e/connections.test.ts *FD-83* passed 8 of 10 runs on the running app, 2026-10-23 00:00 to 00:06 UTC; the two misses timed out waiting for "Continued here." at load average about 30 (FD-90))
-- **Coverage:** src/core/recovery.ts, src/electron/console.ts (pollRecovery), src/renderer/components/ConnectionsMap.tsx (LimitStops), src/mcp/tools.ts (limitStops), test/recovery.test.ts, test/e2e/connections.test.ts *FD-83*
+- **Errors & recovery:** a claim Switchboard refuses starts nothing ("Could not be continued here; see the log."); a claimed stop whose console cannot start is recorded `cancelled`; Switchboard not answering says so on All sessions (SCN-078); live processes that cannot be read count as open, never as none
+- **Supersedes:** Connections → "Sessions stopped on a limit" with its Open (step 4 and the section, by SCN-078, SCN-082 and SCN-083); the console "listed under Hand-overs by its folder's name" (by SCN-078 and SCN-080); the Settings group "Sessions stopped on a limit" (by SCN-086)
+- **Status:** draft
+- **Coverage:** none yet for the Sessions mode (dossier nodes S2 and S3); the automatic continue (validated 2026-10-23): src/core/recovery.ts, src/electron/console.ts (pollRecovery), src/mcp/tools.ts (limitStops), test/recovery.test.ts, test/e2e/connections.test.ts *FD-83*
 - **Product:** unobserved
 
 ### SCN-076: See how busy an agent is
@@ -1551,3 +1565,301 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **Coverage:** src/core/outage-alerts.ts, src/core/mcp-client.ts, src/electron/outage-alerts.ts, src/electron/main.ts (outage-alerts), src/renderer/components/Settings.tsx (AlertChannel), test/outage-alerts.test.ts
 - **Product:** observed 2026-10-12 on this Mac: 22 failure alerts sent 5.0–5.4 min after an outage began, none for the 34 shorter episodes (FD-01). FD-76 (2026-10-19): the installed 0.7.14 had sent 798 messages in 8 days (311 outages, 309 recoveries, 203 banners); the 15-minute rule, one case per outage and Mac-only banners are counted on a fake clock by `test/outage-alerts.test.ts`, the live count is owed after the release
 
+## sessions
+
+The Sessions mode (0.8.0): every coding session apart from the agents, each state with an action. Design: [sessions-and-navigation.md](../reports/2026-10-24-ui-ux-iteration/sessions-and-navigation.md) (the operator's review of 2026-10-24; defects SES-01 to SES-09). The interface copy of each scenario is in its **Copy** field, English then Russian; "this Mac" is "this computer" («этот компьютер») on Windows and Linux, and every such string has both variants.
+
+### SCN-077: Switch between Agents and Sessions
+- **Persona:** P-01
+- **Feature:** navigation
+- **Traces:** ST-023 (JTBD-05, JTBD-01, JRN-01/#9); operator review 2026-10-24 ("This place should hold agents, not handed-over sessions. Either a switch: Agents shows what it shows now; Sessions shows the active coding sessions and the handed-over ones."); SES-01, SES-02, SES-07; COPY-17
+- **Entry point:** the switch at the top of the sidebar; View → Agents (⌘1) and View → Sessions (⌘2); Ctrl+1 and Ctrl+2 on Windows and Linux
+- **Preconditions:** none
+- **Steps:**
+  1. User opens the window -> under the app's mark a two-part switch reads "Agents" and "Sessions"; the mode the window was closed in is selected (Agents the first time) and the sidebar below lists that mode's entries
+  2. User presses "Sessions" (or ⌘2) -> the sidebar lists "All sessions" and the sessions in their groups (SCN-078); the main area shows the page last open in this mode ("All sessions" the first time)
+  3. User presses "Agents" (or ⌘1) -> the sidebar lists Overview, Activity, Connections, Spend, Pinned, On this Mac, Online, Services and Hidden, with no session among them and no hand-over section; the main area shows the page last open in this mode (Overview the first time)
+  4. A session needs a person (SCN-082) -> "Sessions" carries a count badge in either mode, named to a screen reader "Sessions, waiting for you: 2"; with none it carries no badge
+  5. User quits and opens the app again -> it opens in the mode and on the page it was closed on
+- **Expected result:** agents and coding sessions never share one list; one press or one key moves between them, and the app remembers where the person was
+- **Alt paths:** Switchboard hands a session over or a session changes state while Agents is shown -> the badge changes and the mode does not: a new hand-over never switches the mode by itself; the person clicks a session's notification or the tray's Sessions line (SCN-085) -> Sessions opens on it; a fabric-dashboards:// link to an agent's page, a notification about an agent or an agent in the tray menu -> Agents opens on it; the sidebar is folded into a rail (SCN-047) -> the switch becomes two icons, each named in a tooltip and to a screen reader, the badge on the Sessions icon; the page last open in a mode has gone (a session removed, an agent uninstalled) -> that mode opens on its first page (All sessions or Overview)
+- **UI elements:** the sidebar switch (two buttons, the selected one pressed), its badge, View → Agents and View → Sessions with their shortcuts, the rail's two icons
+- **States covered:** empty, success
+- **Errors & recovery:** the remembered mode cannot be read (damaged settings) -> Agents on Overview; nothing else depends on it
+- **Copy:**
+  - "Agents" / «Агенты» (the switch and the View menu)
+  - "Sessions" / «Сессии» (the switch and the View menu)
+  - "Sessions, waiting for you: {n}" / «Сессии, ждут вас: {n}» (the switch's accessible name with a badge)
+  - "All sessions" / «Все сессии»
+  - "On this Mac" / «На этом Mac» (existing; "On this computer" / «На этом компьютере» elsewhere)
+- **Status:** draft
+- **Coverage:** none yet (dossier nodes S2 and S3; `test/navigation.test.ts` owed)
+- **Product:** unobserved
+
+### SCN-078: See every coding session in one place
+- **Persona:** P-01
+- **Feature:** sessions
+- **Traces:** ST-023 (JTBD-05, JTBD-01, JRN-01/#9); operator review 2026-10-24 ("They unfold from the top, it is unclear what they are, why they are needed and how they work."); SES-02, SES-03, SES-07, SES-08; UX-02, UX-17
+- **Entry point:** Sessions → All sessions, or a group heading in the sidebar
+- **Preconditions:** none
+- **Steps:**
+  1. User opens Sessions -> "Reading sessions…" until the first read; then the sidebar and the page list the sessions in four groups, in this order, each with its count after its label and an empty group not drawn: "Needs you: N", "Running: N", "Waiting for a limit reset: N", "Ended in the last 24 hours: N"
+  2. User reads a row -> first line: the project (the folder's name); second line: coding agent · account · how it came here · time ("Claude Code · claude4 · handed over · 14:02"); how it came here is one of "handed over", "after a limit reset", "started by Switchboard", "opened here"; two rows of one folder differ by that second line; the state is said in words by the group heading and on the card, never by a glyph alone
+  3. User reads a card on the page -> the same two lines, the state in words and the state's actions as buttons (SCN-081 to SCN-084); choosing the card itself opens the session's page (SCN-080)
+  4. User unfolds "Ended in the last 24 hours" (folded by default; the fold is remembered) -> ended sessions newest first, each with its Continue and Remove; "Clear" above them removes every ended session from the list at once, with no question: an ended entry is only a list row, and the transcript stays where the coding agent wrote it
+  5. User reads the bottom of the page -> the footnote "Sessions started in a terminal without Switchboard are not listed."
+- **Expected result:** every coding session Switchboard or this app knows is listed once, newest first in its group, each saying what it is, where it came from and what it needs
+- **Alt paths:** no session at all -> the empty sentence (Copy) and no group; Switchboard is not installed -> only this app's console sessions, with the not-installed sentence; Switchboard did not answer on the last read -> what was read before stays, with the not-answering sentence and its time; Switchboard and a console of this app know the same session -> one row (merged by folder and start time); an ended session older than 24 hours -> it leaves the list by itself; the app restarts -> the ended sessions of the last 24 hours are still listed (what their consoles printed is not, SCN-080); the list is read every 15 seconds while Sessions is shown and every 60 seconds otherwise, so a new session appears within that time
+- **UI elements:** the sidebar's group headings and rows, the All sessions page with the same groups as cards, the fold of Ended with Clear, the footnote, the empty, not-installed and not-answering lines
+- **States covered:** loading, empty, success, error
+- **Errors & recovery:** Switchboard does not answer -> the not-answering line with the time of the last good read, and the next read tries again; the list of ended sessions cannot be saved -> the list still shows them until the app quits, and the log says why
+- **Copy:**
+  - "Reading sessions…" / «Читаем сессии…»
+  - "Needs you: {n}" / «Нужно ваше решение: {n}»
+  - "Running: {n}" / «Идут: {n}»
+  - "Waiting for a limit reset: {n}" / «Ждут сброса лимита: {n}»
+  - "Ended in the last 24 hours: {n}" / «Завершены за 24 часа: {n}»
+  - "Clear" / «Очистить»
+  - "handed over" / «передана»
+  - "after a limit reset" / «после сброса лимита»
+  - "started by Switchboard" / «запущена Switchboard»
+  - "opened here" / «открыта здесь»
+  - "No coding sessions yet. A session you start in an agent's console, or one Switchboard starts or hands over, appears here." / «Сессий агентов для кода пока нет. Здесь появится сессия, которую вы начнёте в консоли агента, или та, что запустит или передаст Switchboard.»
+  - "Switchboard is not installed, so only sessions started in this app's consoles are listed." / «Switchboard не установлен, поэтому здесь только сессии из консолей этого приложения.»
+  - "Switchboard did not answer just now, so sessions it runs may be missing. Checked at {time}." / «Switchboard сейчас не ответил, поэтому его сессий здесь может не быть. Проверено в {time}.»
+  - "Sessions started in a terminal without Switchboard are not listed." / «Сессии, запущенные в терминале без Switchboard, здесь не видны.»
+- **Status:** draft
+- **Coverage:** none yet (dossier nodes S2 and S3; `test/sessions.test.ts` owed)
+- **Product:** unobserved
+
+### SCN-079: The Sessions page explains itself once
+- **Persona:** P-01
+- **Feature:** sessions
+- **Traces:** ST-023 (JTBD-05, JRN-01/#9); operator review 2026-10-24 ("it is unclear what they are, why they are needed and how they work"); SES-01, SES-09
+- **Entry point:** Sessions → All sessions, until the note is dismissed
+- **Preconditions:** the note has not been dismissed on this computer
+- **Steps:**
+  1. User opens All sessions -> above the groups a note says what a session here is and why Switchboard sends sessions here (Copy), with "Set up hand-overs" and "Got it"
+  2. User presses "Set up hand-overs" -> Settings opens on its Sessions section (SCN-086); the note stays until it is dismissed
+  3. User presses "Got it" -> the note goes and never comes back, also after an update or a restart
+- **Expected result:** the first look at the page explains what is listed, why it is here, and the one place that changes it
+- **Alt paths:** Windows or Linux -> the "this computer" variant; Switchboard is not installed -> the note's second sentence is the not-installed one, and "Set up hand-overs" still opens Settings → Sessions, which says how to get it
+- **UI elements:** the note, "Set up hand-overs", "Got it"
+- **States covered:** success
+- **Errors & recovery:** the dismissal cannot be saved -> the note shows again at the next launch; nothing else depends on it
+- **Copy:**
+  - "Here are the coding agents' sessions on this Mac. When a session hits a limit, Switchboard passes the work to another account or agent, and it continues here, in the console." / «Здесь сессии агентов для кода на этом Mac. Когда сессия упирается в лимит, Switchboard передаёт работу другому аккаунту или агенту, и она продолжается здесь, в консоли.»
+  - "Here are the coding agents' sessions on this computer. When a session hits a limit, Switchboard passes the work to another account or agent, and it continues here, in the console." / «Здесь сессии агентов для кода на этом компьютере. Когда сессия упирается в лимит, Switchboard передаёт работу другому аккаунту или агенту, и она продолжается здесь, в консоли.»
+  - "Install Fabric Switchboard so that a session that hits a limit continues here." / «Установите Fabric Switchboard, чтобы сессия, упёршаяся в лимит, продолжалась здесь.»
+  - "Set up hand-overs" / «Настроить передачи»
+  - "Got it" / «Понятно» (accessible name "Hide this explanation" / «Скрыть это пояснение»)
+- **Status:** draft
+- **Coverage:** none yet (dossier node S3)
+- **Product:** unobserved
+
+### SCN-080: Open one session's page
+- **Persona:** P-01
+- **Feature:** sessions
+- **Traces:** ST-023, ST-019 (JTBD-05, JRN-01/#9); operator review 2026-10-24 ("They hang there killed, closed after idle, and nothing can be done with them."); SES-05, SES-06, SES-09; UX-18, UX-25, VIS-05, VIS-06
+- **Entry point:** a session's row or card; a session's notification (SCN-085)
+- **Preconditions:** the session is listed (SCN-078)
+- **Steps:**
+  1. User opens a session -> the header: the project as the title, the state in words beside it, the origin chip, the account chip, the context chip when Switchboard names one, the coding agent and the folder (shortened, the full path on hover), and the actions of its state on the right (SCN-081 to SCN-084)
+  2. The session runs in this app's console -> under the header the console fills the rest of the main area, the full height of the window; it is not a drawer: there is no fold and no collapse, and nothing on this page navigates elsewhere by itself
+  3. User types into the terminal -> every key reaches the coding agent, Esc included; while the terminal has focus a quiet line under it says how to leave it
+  4. User presses Esc, then Tab within one second -> the Esc has reached the coding agent as usual and the Tab does not; focus leaves the terminal for the next control in the window's order (Esc, then Shift+Tab: the header's last action)
+  5. User changes the colour scheme or the theme in Settings, or the system switches between light and dark -> the terminal's background, text, selection and colours follow at once, without restarting the session (SCN-067)
+- **Expected result:** a session is a page of its own: what it is, where it came from, which account it spends and what can be done with it at the top, and its console filling the rest
+- **Alt paths:** the session runs in a Terminal window Switchboard opened (SCN-081) -> no console; the page says where to type to it; an ended session after the app restarted -> the page says what it printed was not kept; the session leaves the list while its page is open (Remove, Clear, 24 hours passed) -> All sessions opens, never an empty page; the window is hidden while it runs -> it keeps running, its output waits in the console's buffer and shows when the window is shown again; the same session also runs in an agent's console drawer (SCN-069 step 2) -> both show one console and one output; Windows or Linux -> the same keys
+- **UI elements:** the header (title, state words, origin, account and context chips, coding agent, folder, actions), the full-height console, the keyboard line, the Terminal and not-kept notes
+- **States covered:** empty, success, error
+- **Errors & recovery:** the console cannot start (no room, SCN-063) -> its reason in the console's place, and the header keeps the state's actions
+- **Copy:**
+  - "Handed over by Switchboard after a limit on {account}, {time}" / «Передана Switchboard после лимита {account}, {time}»
+  - "Handed over by Switchboard, {time}" / «Передана Switchboard, {time}» (a hand-over not caused by a limit)
+  - "Continued after a limit reset, {time}" / «Продолжена после сброса лимита, {time}»
+  - "Started by Switchboard, {time}" / «Запущена Switchboard, {time}»
+  - "Opened here, {time}" / «Открыта здесь, {time}»
+  - "Account: {account}" / «Аккаунт: {account}»
+  - "Context: personal" / «Контекст: личный»
+  - "Context: {organization}" / «Контекст: {organization}»
+  - "To leave the terminal, press Esc, then Tab." / «Чтобы выйти из терминала, нажмите Esc, затем Tab.»
+  - "This session runs in a Terminal window that Switchboard opened. Type to it there." / «Эта сессия идёт в окне Терминала, которое открыл Switchboard. Пишите ей там.»
+  - "What this session printed is not kept after the app restarts." / «То, что вывела эта сессия, не сохраняется после перезапуска приложения.»
+- **Status:** draft
+- **Coverage:** none yet (dossier node S3; the e2e owed: a synthetic hand-over's page shows the console full height, Esc then Tab leaves it)
+- **Product:** unobserved
+
+### SCN-081: A running session: end it, or find where it runs
+- **Persona:** P-01
+- **Feature:** sessions
+- **Traces:** ST-023 (JTBD-05, JRN-01/#9); operator review 2026-10-24 ("nothing can be done with them"); dossier "Every state has an action": running, ours; running, not ours
+- **Entry point:** a running session's card or page
+- **Preconditions:** the session runs
+- **Steps:**
+  1. A session runs in this app's console -> state "Running"; actions "End" and "Show in Finder" ("Show in Explorer" on Windows, "Show folder" on Linux)
+  2. User presses "End" -> a question "End this session?" with its explanation, "Cancel" focused and "End session"; Esc or Cancel changes nothing
+  3. User presses "End session" -> the coding agent is asked to stop and, if it has not ended within 2 seconds, is stopped; the session moves to Ended as "Ended by you" (SCN-084)
+  4. User presses "Show in Finder" -> the session's folder opens in Finder
+  5. Switchboard runs a session in a Terminal window -> state "Running in Terminal"; "Show in Terminal" when Switchboard knows its window; no action that ends or removes it
+- **Expected result:** a running session can be ended here only when this app runs it, always with a question first; one Switchboard runs elsewhere can be found, never stopped from here
+- **Alt paths:** Switchboard does not know the Terminal window -> no "Show in Terminal", and the page says where it runs (SCN-080); the session ends by itself while the question is open -> the question closes and the session is Ended (SCN-084)
+- **UI elements:** the state words, End and its question, Show in Finder (Explorer, folder), Show in Terminal
+- **States covered:** success, error
+- **Errors & recovery:** the session cannot be signalled -> it stays Running with "The session could not be ended: {reason}"; the folder cannot be shown -> "Could not open {path}: {reason}"
+- **Copy:**
+  - "Running" / «Идёт»
+  - "Running in Terminal" / «Идёт в Терминале»
+  - "End" / «Завершить»
+  - "Show in Finder" / «Показать в Finder»; "Show in Explorer" / «Показать в Проводнике»; "Show folder" / «Показать папку»
+  - "Show in Terminal" / «Показать в Терминале»
+  - "End this session?" / «Завершить эту сессию?»
+  - "The coding agent stops. What it printed stays on this page, and you can continue the session later." / «Агент для кода остановится. Всё, что он вывел, останется на этой странице, а сессию можно будет продолжить позже.»
+  - "End session" / «Завершить сессию»; "Cancel" / «Отмена»
+  - "The session could not be ended: {reason}" / «Не удалось завершить сессию: {reason}»
+  - "Could not open {path}: {reason}" / «Не удалось открыть {path}: {reason}»
+- **Status:** draft
+- **Coverage:** none yet (dossier node S3)
+- **Product:** unobserved
+
+### SCN-082: A session that needs you
+- **Persona:** P-01
+- **Feature:** sessions
+- **Traces:** ST-023 (JTBD-05, JTBD-01, JRN-01/#9); operator review 2026-10-24 ("nothing can be done with them"); SES-05, SES-09; dossier "Every state has an action": needs you
+- **Entry point:** Sessions → "Needs you", or the badge on the switch (SCN-077)
+- **Preconditions:** a session is in one of the states below
+- **Steps:**
+  1. A session the app continued after a limit reset did not write its transcript within 30 seconds but its process still runs (SCN-075) -> under "Needs you" with "Did not continue; its process is still running"; actions "Open console" and "End"
+  2. User presses "Open console" -> the session's page with its console full height (SCN-080); what the person types reaches it; "End" asks first (SCN-081)
+  3. A hand-over Switchboard offered could not open here -> under "Needs you" with the reason in one sentence (it expired; its folder is not on this Mac; this Mac could not carry another session; Switchboard is too old), followed by "Switchboard opened it in Terminal." once it did; action "Remove"
+  4. A stopped session only the person can move on (its terminal is still open, a payment limit, stopped more than a day ago, its folder or its conversation is not here) -> under "Needs you" with Switchboard's verdict sentence (SCN-075); action "Remove"
+  5. User presses "Remove" -> the row leaves the list and the badge counts one less; nothing else changes (a Terminal window Switchboard opened stays open, and Switchboard's own record is untouched)
+- **Expected result:** every session that waits for a decision says why in one sentence and offers the one thing that can be done about it here
+- **Alt paths:** the cause clears by itself (the stopped session's terminal closes and Switchboard marks it ready) -> it moves to its new group at the next read; a coding agent asking a question in its console joins this group once a source reports it (none does in this release)
+- **UI elements:** the Needs you group and badge, the reason sentence, Open console, End, Remove
+- **States covered:** error, success
+- **Errors & recovery:** the console of a failed resume cannot be reached (its process ended meanwhile) -> it moves to Ended as "Ended at {time}" with Continue (SCN-084)
+- **Copy:**
+  - "Did not continue; its process is still running" / «Не продолжилась, процесс ещё идёт»
+  - "Open console" / «Открыть консоль»
+  - "The hand-over expired before the session could open here." / «Передача истекла раньше, чем сессия открылась здесь.»
+  - "Its folder is not on this Mac." / «Её папки нет на этом Mac.» (existing; "Its folder is not on this computer." / «Её папки нет на этом компьютере.»)
+  - "This Mac cannot carry another session now: less than 5 GB is free or six sessions already run." / «Этот Mac сейчас не может принять ещё одну сессию: свободно меньше 5 ГБ или уже идут шесть сессий.»
+  - "This computer cannot carry another session now: less than 5 GB is free or six sessions already run." / «Этот компьютер сейчас не может принять ещё одну сессию: свободно меньше 5 ГБ или уже идут шесть сессий.»
+  - "The running Switchboard is older than its command line, so the session was not taken here. Update Switchboard." / «Запущенный Switchboard старше своей командной строки, поэтому сессию здесь не взяли. Обновите Switchboard.»
+  - "Switchboard opened it in Terminal." / «Switchboard открыл её в Терминале.»
+  - "Remove" / «Убрать»
+- **Status:** draft
+- **Coverage:** none yet (dossier nodes S2 and S3; `test/sessions.test.ts` owed: a failed resume still running is in Needs you and opens its console)
+- **Product:** unobserved
+
+### SCN-083: A session waiting for a limit reset
+- **Persona:** P-01
+- **Feature:** sessions
+- **Traces:** ST-023 (JTBD-05, JRN-01/#9); operator review 2026-10-24 ("nothing can be done with them"); SES-07; FD-83; Switchboard SB-115; dossier "Every state has an action": waiting for a reset
+- **Entry point:** Sessions → "Waiting for a limit reset"
+- **Preconditions:** Switchboard holds the session as stopped on a usage limit and no account has room for it yet
+- **Steps:**
+  1. User reads the row -> "Continues at about {time}" (the reset Switchboard expects), or "Waits for an account with capacity." when it names no time; actions "Continue now on another account" and "Do not continue"
+  2. User presses "Continue now on another account" -> a menu lists the accounts Switchboard says can take it now, "{account} · {provider}"
+  3. User chooses one -> the app claims the stop in Switchboard once and continues the session in a console with that account, as SCN-075 step 2 does by itself; the row moves to Running with "Continued after a limit reset" and its page opens
+  4. User presses "Do not continue" -> the row moves to Ended as "Not continued: you declined" and this app never continues that stop; Switchboard's own record is untouched
+- **Expected result:** a stopped session says when it will come back, and the person can bring it back now on another account or let it go
+- **Alt paths:** no other account can take it now -> the button is disabled with "No other account has capacity now."; the reset comes and "Continue sessions after a limit reset" is on -> it continues by itself (SCN-075) and moves to Running; the setting is off -> the row says it waits for the person, and both actions stay
+- **UI elements:** the waiting line, Continue now on another account with its account menu, Do not continue
+- **States covered:** success, error
+- **Errors & recovery:** Switchboard refuses the claim, or the console cannot start -> the row stays waiting with "Could not be continued here; see the log."
+- **Copy:**
+  - "Continues at about {time}" / «Продолжится около {time}»
+  - "Waits for an account with capacity." / «Ждёт аккаунт с запасом.» (existing)
+  - "Continue now on another account" / «Продолжить сейчас на другом аккаунте»
+  - "{account} · {provider}" (the account menu's items, untranslated)
+  - "No other account has capacity now." / «Сейчас ни у одного другого аккаунта нет запаса.»
+  - "Do not continue" / «Не продолжать»
+  - "Continuing by itself is off in Settings, so it waits for you." / «Автоматическое продолжение выключено в настройках, поэтому сессия ждёт вас.»
+  - "Could not be continued here; see the log." / «Продолжить здесь не удалось, подробности в журнале.» (existing)
+- **Status:** draft
+- **Coverage:** none yet (dossier nodes S2 and S3)
+- **Product:** unobserved
+
+### SCN-084: An ended session continues or leaves
+- **Persona:** P-01
+- **Feature:** sessions
+- **Traces:** ST-023 (JTBD-05, JRN-01/#9); operator review 2026-10-24 ("They hang there killed, closed after idle, and nothing can be done with them."); SES-03, SES-04; UX-02; dossier "Every state has an action": ended, closed after idle, ended by you
+- **Entry point:** Sessions → "Ended in the last 24 hours", or an ended session's page
+- **Preconditions:** the session ended less than 24 hours ago
+- **Steps:**
+  1. User reads an ended session -> one of "Ended at {time}" (it ended by itself), "Closed after 30 idle minutes" (SCN-066), "Ended by you" (SCN-081) or "Not continued: you declined" (SCN-083); actions "Continue" and "Remove"
+  2. User presses "Continue" -> the coding agent's own resume of that conversation starts in the same folder (Claude Code's `--resume`, Codex's own), through Switchboard on its account when the folder is bound to one; the session moves to Running with its page and console, keeping its origin
+  3. User presses "Remove" -> it leaves the list; its transcript stays where the coding agent wrote it
+  4. Twenty-four hours after it ended -> it leaves the list by itself; until then a restart of the app keeps it
+- **Expected result:** no ended session is a dead end: each can be continued where it was or taken off the list
+- **Alt paths:** the conversation is not known to the app (no transcript recorded) -> the button reads "New session here" and starts a fresh session in that folder; its folder is gone -> Continue is disabled with "Its folder is not on this Mac."
+- **UI elements:** the ended state words, Continue (New session here), Remove
+- **States covered:** success, error
+- **Errors & recovery:** the continue cannot start (no room, SCN-063, or Switchboard refuses) -> its reason on the page, and the session stays Ended with both actions
+- **Copy:**
+  - "Ended at {time}" / «Завершилась в {time}»
+  - "Closed after 30 idle minutes" / «Закрыта после 30 минут простоя»
+  - "Ended by you" / «Завершена вами»
+  - "Not continued: you declined" / «Не продолжена: вы отказались»
+  - "Continue" / «Продолжить»
+  - "New session here" / «Новая сессия здесь»
+  - "Remove" / «Убрать»
+- **Status:** draft
+- **Coverage:** none yet (dossier nodes S2 and S3; `test/sessions.test.ts` owed: an idle-closed hand-over offers Continue; ended entries older than 24 hours are dropped; a restart keeps the rest)
+- **Product:** unobserved
+
+### SCN-085: A taken hand-over tells me once, and the tray counts sessions
+- **Persona:** P-01
+- **Feature:** sessions
+- **Traces:** ST-023, ST-007, ST-009 (JTBD-01, JRN-01/#9); operator review 2026-10-24 ("it is unclear what they are, why they are needed and how they work"); SES-01
+- **Entry point:** nothing to press: the app takes a hand-over (SCN-069); the menu bar icon
+- **Preconditions:** notifications are not paused and not in quiet hours (SCN-024)
+- **Steps:**
+  1. The app takes a hand-over -> one system notification titled "Sessions": "Switchboard handed over a session: {project} continues on {coding agent}"
+  2. User clicks it -> the window shows in the Sessions mode on that session's page (SCN-080)
+  3. User opens the menu bar menu while a session runs or waits for the person -> a line "Sessions: running N, waiting for you M" (a part at zero left out) under the headline
+  4. User chooses that line -> the window shows in the Sessions mode on All sessions
+- **Expected result:** a session Switchboard hands over is announced once and is one click away; the tray says how many sessions run and wait without opening the window
+- **Alt paths:** notifications are paused or in quiet hours -> no notification; the session is listed and the switch's badge counts it when it needs the person; no session runs or waits -> no tray line; the system refuses the app's notifications -> nothing shows, the list and the badge still say it
+- **UI elements:** the notification, the tray's Sessions line
+- **States covered:** success, empty
+- **Errors & recovery:** the session has left the list when the notification is clicked -> All sessions opens
+- **Copy:**
+  - "Sessions" / «Сессии» (the notification's title)
+  - "Switchboard handed over a session: {project} continues on {agent}" / «Switchboard передал сессию: {project} продолжается на {agent}»
+  - "Sessions: running {running}, waiting for you {waiting}" / «Сессии: идут {running}, ждут вас {waiting}»
+  - "Sessions: running {running}" / «Сессии: идут {running}»
+  - "Sessions: waiting for you {waiting}" / «Сессии: ждут вас {waiting}»
+- **Status:** draft
+- **Coverage:** none yet (dossier node S3; the e2e owed: a synthetic hand-over appears in Sessions with a notification)
+- **Product:** unobserved
+
+### SCN-086: Settings → Sessions
+- **Persona:** P-01
+- **Feature:** settings
+- **Traces:** ST-023, ST-010 (JTBD-05, JRN-01/#9, JRN-01/#7); operator review 2026-10-24 ("it is unclear what they are, why they are needed and how they work"); FD-62, FD-83; Switchboard SB-108
+- **Entry point:** Settings → Sessions; "Set up hand-overs" on All sessions (SCN-079)
+- **Preconditions:** none
+- **Steps:**
+  1. User opens Settings → Sessions -> two switches: "Open sessions handed over by Switchboard here" with its explanation, read from Switchboard (`switchboard handovers`), and "Continue sessions after a limit reset" with its explanation (moved here from "Sessions stopped on a limit")
+  2. User turns the first switch -> the app asks Switchboard to change it (`switchboard handovers set on` or `off`) and shows the value Switchboard reads back
+  3. User turns the second switch -> it applies at once (SCN-075) and is kept across restarts
+- **Expected result:** both choices about where sessions continue are in one place in this app, the first one kept by Switchboard itself
+- **Alt paths:** Switchboard is not installed -> the first switch is disabled with how to get it; this Switchboard cannot change the setting -> the first switch is disabled with "update Switchboard"; the setting is changed in Switchboard itself -> this switch shows it at the next read (15 seconds with the window shown, 60 hidden)
+- **UI elements:** the Sessions section, its two switches with their explanations, the disabled reasons
+- **States covered:** success, error
+- **Errors & recovery:** Switchboard refuses the change -> the switch returns to Switchboard's value with "Switchboard did not change it: {reason}"
+- **Copy:**
+  - "Sessions" / «Сессии» (the section)
+  - "Open sessions handed over by Switchboard here" / «Открывать сессии, переданные Switchboard, здесь»
+  - "When a session hits a limit, Switchboard passes it to another account or agent. On: it continues here, in a console. Off: Switchboard opens it in a new Terminal window. The setting is Switchboard's; it is changed here through Switchboard." / «Когда сессия упирается в лимит, Switchboard передаёт её другому аккаунту или агенту. Включено: она продолжается здесь, в консоли. Выключено: Switchboard открывает её в новом окне Терминала. Настройка принадлежит Switchboard, здесь она меняется через него.»
+  - "Continue sessions after a limit reset" / «Продолжать сессии после сброса лимита»
+  - its explanation: the existing `settings.resumeAfterLimit.body` in both languages
+  - "Install Fabric Switchboard to have sessions handed over here." / «Чтобы сессии передавались сюда, установите Fabric Switchboard.»
+  - "This Switchboard cannot change this setting; update Switchboard." / «Эта версия Switchboard не умеет менять эту настройку; обновите Switchboard.»
+  - "Switchboard did not change it: {reason}" / «Switchboard не изменил настройку: {reason}»
+- **Status:** draft
+- **Coverage:** none yet (dossier node S3)
+- **Product:** unobserved
