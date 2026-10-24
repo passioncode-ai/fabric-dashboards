@@ -5,6 +5,7 @@ import type { CommandResult } from './outcome';
 import type { SpendEntry } from './spend';
 import type { LoadEntry } from './load';
 import type { ActivityItem, AppStatus, Listener, Reason, Settings, SettingsPatch } from './types';
+import type { SessionActionResult, SessionNotice } from './sessions';
 
 /** A job a console is opened to do (FD-39 D-3): fix what is wrong, or update; `output` is a failed command's. */
 /** `audit` (FD-81): `output` carries the auditor's findings for this agent, as the person read them. */
@@ -130,6 +131,23 @@ export interface FabricApi {
   consoleSessions(key: string): Promise<ConsoleSessions>;
   /** FD-62: a finished hand-over console leaves the list. */
   consoleDismissHandover(key: string): Promise<void>;
+  // ── FD-103: the Sessions list (`status.sessions`, src/core/sessions.ts). A row is named by its id; each call acts
+  //    only when the row's `actions` offer it, else answers `not-allowed`. ──
+  /** `continue`, and `continueNow` on a waiting stop with `account` one of the row's `candidates` (default the first). */
+  sessionsContinue(id: string, size?: { cols: number; rows: number }, account?: string): Promise<SessionActionResult>;
+  /** `dismiss` (Remove), and `dontContinue` on a waiting stop (moved to Ended as declined). */
+  sessionsDismiss(id: string): Promise<SessionActionResult>;
+  /** Clear in the Ended group: every ended row. */
+  sessionsClearEnded(): Promise<void>;
+  /** `end`: stops the session in its console (the window asks first). */
+  sessionsEnd(id: string): Promise<SessionActionResult>;
+  /** `reveal`: shows the row's folder in Finder. */
+  sessionsReveal(id: string): Promise<SessionActionResult>;
+  /** Switchboard's own switch for handing sessions over to this app (`handovers set on|off`), read and written through its CLI. */
+  sessionsHandovers(): Promise<{ available: boolean; enabled: boolean | null }>;
+  setSessionsHandovers(on: boolean): Promise<{ ok: boolean; enabled: boolean | null; detail?: string }>;
+  /** Once per taken hand-over and per automatic continue after a limit reset (decision 9), while the window is shown. */
+  onSessionNotice(listener: (notice: SessionNotice) => void): () => void;
   /** Continue the same runtime and folder in Terminal (through Switchboard for a bound folder). */
   consoleOpenTerminal(key: string, mode: 'new' | 'continue'): Promise<{ ok: boolean; error?: string }>;
   /** Output and exits while the window is visible; a hidden window gets nothing and asks `consoleInfo` again. */
@@ -200,6 +218,14 @@ export const CHANNELS = {
   consoleSessions: 'fd:console-sessions',
   consoleDismissHandover: 'fd:console-dismiss-handover',
   consoleOpenTerminal: 'fd:console-open-terminal',
+  sessionsContinue: 'fd:sessions-continue',
+  sessionsDismiss: 'fd:sessions-dismiss',
+  sessionsClearEnded: 'fd:sessions-clear-ended',
+  sessionsEnd: 'fd:sessions-end',
+  sessionsReveal: 'fd:sessions-reveal',
+  sessionsHandovers: 'fd:sessions-handovers',
+  sessionsHandoversSet: 'fd:sessions-handovers-set',
+  sessionsNotice: 'fd:sessions-notice',
   consoleEvent: 'fd:console-event',
   drawerState: 'fd:drawer-state',
   drawerPush: 'fd:drawer-push',

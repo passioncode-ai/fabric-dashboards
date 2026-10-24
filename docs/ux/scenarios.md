@@ -1205,8 +1205,8 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **Preconditions:** Switchboard 0.6.26 or later with "Open sessions handed over by Switchboard here" on (Settings → Sessions, SCN-086, or `switchboard handovers set on`); the running Switchboard app is as new as its CLI
 - **Steps:**
   1. Switchboard's automatic fallback prepares a continuing session and leaves it as a hand-over -> within 15 seconds (60 while the window is hidden) the app takes it with `switchboard handovers run <id>` on a console
-  2. The hand-over's folder is a registered agent's console folder and that console runs nothing -> the session runs in that agent's console, under "Handed over by Switchboard: <workflow>, on <account>."; it is also listed in Sessions under "Running", and its session page shows the same console
-  3. Otherwise -> the session runs in a console of its own, listed only in the Sessions mode, under "Running", its row reading "<project>" over "<coding agent> · <account> · handed over · <time>"; its page (SCN-080) carries "Handed over by Switchboard after a limit on <account>, <time>" and its console full height
+  2. The hand-over's folder is a registered agent's console folder -> the agent's console is left to the person (decision 8 of 2026-10-24, FD-103: one session lives in one place)
+  3. The session runs in a console of its own, listed only in the Sessions mode, under "Running", its row reading "<project>" over "<coding agent> · <account> · handed over · <time>"; its page (SCN-080) carries "Handed over by Switchboard after a limit on <account>, <time>" and its console full height
   4. The app has taken it -> one notification (SCN-085); the mode the window shows does not change
   5. The session ends -> it moves to "Ended in the last 24 hours" as "Ended at <time>", or "Closed after 30 idle minutes", with Continue and Remove (SCN-084), and stays listed across a restart for 24 hours
 - **Expected result:** Switchboard's continuing sessions run inside the app, not in a new Terminal window each, and are listed with the other sessions, never among the agents

@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+### Added
+
+- **The data of the Sessions list** (FD-103, node S2 of the 0.8.0 iteration; no window yet). Every coding session of this
+  Mac in one list (`status.sessions`): the ones Switchboard launched (`sessions --all`, read every 15 s with the window
+  shown, 60 s hidden), its hand-overs, its sessions stopped on a limit and this app's own consoles, each with its state,
+  group and the actions that state allows. Ended sessions and hand-overs that could not open here are kept 24 hours
+  across a restart; a closed idle hand-over can be continued; a continued session that did not take up its
+  conversation and still runs is listed as needing you, with its console.
+
+### Changed
+
+- **A hand-over always opens in a console of its own**, never in an agent's free console in the same folder (decision 8).
+
 ## 0.7.28 - 2026-10-24
 
 ### Fixed
