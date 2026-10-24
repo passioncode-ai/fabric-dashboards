@@ -386,6 +386,9 @@ test('V-3: a continue that did not take up its conversation says it was tried, n
   assert.match(originChip('en', row), /^Continue tried after a limit reset, /);
   assert.match(originChip('ru', row), /^Попытка продолжить после сброса лимита, /);
   assert.match(originChip('en', srow({ state: 'running-ours', origin: 'resume' })), /^Continued after a limit reset, /);
+  // The contact sheet showed the longer Russian chip running past its border at 740 px: a header chip wraps.
+  const chip = read('src/renderer/styles/app.css').match(/\.session-meta \.chip\s*\{[^}]*\}/)?.[0] ?? '';
+  assert.match(chip, /white-space:\s*normal/, 'a session header chip wraps inside its border');
 });
 
 test('V-4: the session cards fill the row for one or two cards, and a card never cuts its time', () => {

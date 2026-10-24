@@ -54,3 +54,9 @@ Planted defects (scratch plant script over this branch's fixed src/, each revert
 - D23 resumable on any ended row: CAUGHT by ['✖ D23']
 - D12 undecline keeps the declined record: CAUGHT by ['✖ D12: Continue on a declined stop leaves no "declined" row while its session runs']
 - D12 first slipped through: the new hold (a dismissal of the stop) hid the record it leaves; the test now also asserts the declined record itself is gone, and catches it.
+
+Follow-up found by the re-rendered contact sheet (V-2), on this branch's first commit f5cf2d8: the longer Russian chip of
+V-3 ran past its border at 740 px (shots/session-resume-failed-ru-light-740.png). The V-3 test gained an assertion,
+seen failing before the CSS fix:
+- V-3: a continue that did not take up its conversation says it was tried, not that it continued
+    AssertionError [ERR_ASSERTION]: a session header chip wraps inside its border

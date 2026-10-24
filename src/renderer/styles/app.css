@@ -588,6 +588,9 @@ div.session-group-head h2 { margin: 0; }
 .session-bar h1 { font-size: var(--pc-type-section); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 32ch; min-width: 6ch; }
 .session-bar .session-actions { align-items: flex-end; }
 .session-meta { display: flex; align-items: center; gap: var(--pc-space-2); flex-wrap: wrap; min-width: 0; }
+/* V-3 of FIX-2: an origin chip as long as «Попытка продолжить после сброса лимита, 13:37» wraps inside its border at 740 px
+   instead of running past it (seen in shots/session-resume-failed-ru-light-740.png). */
+.session-meta .chip { max-width: 100%; white-space: normal; }
 .session-folder { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; max-width: 48ch; }
 .session-why { margin: 0; max-width: 80ch; }
 .session-console-area { flex: 1; min-height: 0; background: var(--pc-bg); }
