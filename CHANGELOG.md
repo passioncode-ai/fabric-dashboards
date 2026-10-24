@@ -19,6 +19,8 @@
   unpriced subscription calls reads "+ at least ~$0.00 on subscriptions" instead of nothing; the agent's Health tab
   shows a small subscription amount as "<$0.01", as Spend does.
 - SECURITY.md names the load report among the requests sent with a service's token.
+- **The console grows by every key press** (FD-102). Pressing the arrow keys on the console's bottom edge several times
+  quickly grew it by one step only, on a busy Mac; each press now counts from the height already asked for.
 
 ## 0.7.27 - 2026-10-23
 

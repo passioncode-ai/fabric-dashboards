@@ -14,6 +14,9 @@ export function DrawerApp() {
   const [push, setPush] = useState<DrawerPush | null>(null);
   /** While dragging, the height the edge is at; null otherwise (the window's page owns the saved one). */
   const [dragHeight, setDragHeight] = useState<number | null>(null);
+  /** FD-102: the height last asked for, until the window's page pushes it back. Key presses come faster than that round
+   *  trip under load, and each counted from the old height: three steps grew the console by one. */
+  const [pending, setPending] = useState<number | null>(null);
   const taken = useRef<number | null>(null);
   useEffect(() => {
     document.documentElement.classList.add('drawer-page');
@@ -21,10 +24,17 @@ export function DrawerApp() {
     void api().settings().then((s) => applyTheme(s.theme));
     return api().onDrawer(setPush);
   }, []);
+  useEffect(() => { if (pending !== null && push?.height === pending) setPending(null); }, [push?.height, pending]);
+  // A height the window's page settles differently (its own clamp) never comes back as asked: stop waiting for it.
+  useEffect(() => {
+    if (pending === null) return;
+    const timer = setTimeout(() => setPending(null), 2_000);
+    return () => clearTimeout(timer);
+  }, [pending]);
   if (!push?.key) return null;
   const maxHeight = push.areaHeight > 0 ? Math.max(CONSOLE_HEIGHT.min, Math.floor(push.areaHeight - CONSOLE_HEIGHT.reveal)) : CONSOLE_HEIGHT.max;
   const clamp = (h: number) => Math.max(CONSOLE_HEIGHT.min, Math.min(maxHeight, Math.round(h)));
-  const height = dragHeight ?? push.height;
+  const height = dragHeight ?? pending ?? push.height;
   const task = push.task && push.task.nonce !== taken.current ? push.task : null;
   return (
     <LangContext.Provider value={lang}>
@@ -33,7 +43,7 @@ export function DrawerApp() {
         height={height}
         maxHeight={maxHeight}
         onHeight={(h, commit) => {
-          if (commit) { setDragHeight(null); api().drawerChange({ kind: 'height', height: clamp(h) }); } else setDragHeight(clamp(h));
+          if (commit) { setDragHeight(null); setPending(clamp(h)); api().drawerChange({ kind: 'height', height: clamp(h) }); } else setDragHeight(clamp(h));
         }}
         onDrag={(active) => api().drawerDrag(active)}
         onHide={() => api().drawerChange({ kind: 'hide' })}

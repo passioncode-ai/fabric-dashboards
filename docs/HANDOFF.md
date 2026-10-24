@@ -17,7 +17,7 @@ screens.md, SCN-037, SCN-076, SECURITY.md, README, CHANGELOG brought in line.
 
 **Checks run:** `npm run check` 627 tests, 0 failures; the new tests red on the old code; `test/e2e/load.test.ts` green
 and its fallback step red without its fix; validate run 40054746805 green on all five runners at `0a4ea42`.
-**Not run yet, and why the tag waits:** the whole e2e suite (a change to the shared service page). It was stopped after
+**Update 2026-10-24 10:25 to 11:30 UTC:** the whole suite ran serially on an unlocked screen: 24 of 25; the one failure was FD-102 (a pre-existing race in the console drawer, fixed in the same release). **Earlier, why the tag waited:** the whole e2e suite (a change to the shared service page). It was stopped after
 4 of 25 files passed (none failed) because the Mac ran out of disk and swap (130 MB free, swap 14.9 of 15.1 GB used):
 the suite runs files in parallel, each with its own Electron. **First task:** once there is room (several GB free and
 swap not full, which only closing idle sessions or a reboot gives back), `npm ci && npm run build && node --import tsx
