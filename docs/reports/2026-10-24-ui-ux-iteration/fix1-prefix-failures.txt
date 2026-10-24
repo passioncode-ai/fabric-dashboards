@@ -398,3 +398,81 @@ test at test/review-round1.test.ts:4:19576
     operator: 'strictEqual',
     diff: 'simple'
   }
+
+# R1-A, R1-B, R1-C (added by the coordinator during FIX-1): the same file's three new tests, run on c9a82d9 before their fixes
+✖ R1-A: a session in a window Switchboard opened is named by the window each system really opens (5.185708ms)
+✖ R1-B: a hand-over this computer could not carry names the cause it found: disk, six sessions or swap (31.763292ms)
+✖ R1-C: continuing an idle-closed agent console from the console itself takes its ended row off the Sessions list (119.238ms)
+ℹ tests 3
+ℹ suites 0
+ℹ pass 0
+ℹ fail 3
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1902.801041
+
+✖ failing tests:
+
+test at test/review-round1.test.ts:4:20672
+✖ R1-A: a session in a window Switchboard opened is named by the window each system really opens (5.185708ms)
+  AssertionError [ERR_ASSERTION]: Switchboard starts powershell.exe in a new console (launch.rs start_terminal)
+  + actual - expected
+  
+  + 'Running in Terminal'
+  - 'Running in a PowerShell window'
+                ^
+  
+      at TestContext.<anonymous> (<repo>/test/review-round1.test.ts:423:10)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.start (node:internal/test_runner/test:1262:17)
+      at startSubtestAfterBootstrap (node:internal/test_runner/harness:387:17) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 'Running in Terminal',
+    expected: 'Running in a PowerShell window',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at test/review-round1.test.ts:4:23177
+✖ R1-B: a hand-over this computer could not carry names the cause it found: disk, six sessions or swap (31.763292ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+  
+  + 'busy'
+  - 'busy-disk'
+         ^
+  
+      at TestContext.<anonymous> (<repo>/test/review-round1.test.ts:443:12)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'busy',
+    expected: 'busy-disk',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at test/review-round1.test.ts:4:24719
+✖ R1-C: continuing an idle-closed agent console from the console itself takes its ended row off the Sessions list (119.238ms)
+  AssertionError [ERR_ASSERTION]: the continued session is the one row
+  + actual - expected
+  
+    [
+      'running-ours',
+  +   'idle-closed'
+    ]
+  
+      at TestContext.<anonymous> (<repo>/test/review-round1.test.ts:462:10)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: [ 'running-ours', 'idle-closed' ],
+    expected: [ 'running-ours' ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
