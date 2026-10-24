@@ -11,6 +11,17 @@
   across a restart; a closed idle hand-over can be continued; a continued session that did not take up its
   conversation and still runs is listed as needing you, with its console.
 
+### Fixed
+
+- **Spend adds agents up as the contract does** (FD-101, contract DEC-0110). The sum across agents is read over all their
+  report rows at once: beside an agent whose calls carry no price, an agent with no metered calls makes the money unknown
+  rather than "at least $0.00", and a subscription row with no calls but a cost is no longer dropped from the estimate.
+  An agent's own figures follow the same rule. MCP `spend` answers each sum's `sides`. Shared package
+  `@passioncode-ai/fabric-service-host` 0.9.0.
+- **`npm run test:e2e` is safe on a loaded Mac** (HV-02): it refuses at once when the 1-minute load average is above 150
+  or free disk is under 5 GB (`FD_E2E_MAX_LOAD`, `FD_E2E_MIN_FREE_GB` move the floors) and runs its files one at a time
+  unless `-- --parallel` or `FD_E2E_CONCURRENCY` asks for more.
+
 ### Changed
 
 - **A hand-over always opens in a console of its own**, never in an agent's free console in the same folder (decision 8).
