@@ -25,7 +25,8 @@ export function shortPath(p: string): string {
 export function failText(t: T, r: Extract<SessionActionResult, { ok: false }>, o: { action: 'end' | 'reveal' | 'continue' | 'dismiss'; folder: string }): string {
   if (o.action === 'end') return t('sessions.endFailed', { reason: r.detail ?? r.reason });
   if (o.action === 'reveal') return r.reason === 'no-folder' ? t('sessions.reason.no-folder') : t('sessions.revealFailed', { path: o.folder, reason: r.detail ?? r.reason });
-  if (r.reason === 'admission') return t('sessions.reason.busy');
+  // R1-B: the refusal says the cause the check found (disk, six sessions, swap).
+  if (r.reason === 'admission') return t(r.detail === 'disk' || r.detail === 'cap' || r.detail === 'swap' ? `sessions.reason.busy-${r.detail}` : 'sessions.reason.busy');
   if (r.reason === 'no-folder') return t('sessions.reason.no-folder');
   return t('sessions.reason.resume-failed');
 }

@@ -335,6 +335,9 @@ export class ConsoleHost {
     const r = this.manager.start(key, { argv: plan.argv, cwd: plan.cwd, label: runtime.name, env: { PATH: inv.dirs.join(path.delimiter), ...(pack?.env ?? {}) } }, size);
     if (!r.ok) return { ok: false, reason: r.error === 'running' ? 'running' : 'spawn', detail: r.error };
     this.handoverOf.delete(key); // FD-62: this console now runs the person's own session
+    // R1-C: Continue in the console takes up its last session, so that session's ended row leaves the Sessions list, as
+    // Continue in the list clears the console's idle mark (SCN-066, SCN-084).
+    if (mode === 'continue') this.forgetLatestEnded(key);
     // Remember what was started, so the panel offers it next time.
     this.o.settings.update({ consoles: { [key]: { runtime: runtime.id, folder: folder.source === 'saved' ? folder.path : this.o.settings.get().consoles[key]?.folder ?? null, idle: null } } });
     this.o.log(`console: ${key} started ${runtime.id} (${mode}) in ${folder.path}${plan.argv[0] === inv.switchboard ? ' through Switchboard' : ''}${pack ? ` with its context${task ? ` and a ${task.kind} task` : ''}` : ''}`);
@@ -408,7 +411,7 @@ export class ConsoleHost {
     // the same folder, so one session lives in one place and the agent's console stays the person's.
     const key = handoverOwnKey(h.id);
     const a = admit(await (this.o.machine ?? machineProbe)(h.dir, this.manager.runningCount()));
-    if (!a.ok) { this.o.log(`console: hand-over ${h.id} left to Terminal (LC-17: ${a.why})`); this.notOpened(h, 'busy'); return null; }
+    if (!a.ok) { this.o.log(`console: hand-over ${h.id} left to Terminal (LC-17: ${a.why})`); this.notOpened(h, `busy-${a.why}`); return null; } // R1-B: the cause found
     const r = this.manager.start(key, { argv: handoverRunArgv(sb, h.id), cwd: h.dir, label: h.agent || 'agent', env: { PATH: dirs.join(path.delimiter) } }, { cols: 100, rows: 30 });
     if (!r.ok) { this.o.log(`console: hand-over ${h.id} not taken in ${key}: ${r.error}`); this.notOpened(h, 'not-started'); return null; }
     this.handoverOf.set(key, h);
@@ -725,6 +728,14 @@ export class ConsoleHost {
    *  a row of its own (R1-U1), and a declined stop stays declined (R1-U2). */
   private forgetRow(id: string): void {
     this.remember((m) => { m.dismissed = [...m.dismissed.filter((d) => d.id !== id), { id, at: Date.now() }]; });
+  }
+
+  /** R1-C: the ended row of `key`'s last session, which a Continue in its console takes up, leaves the list. */
+  private forgetLatestEnded(key: string): void {
+    const m = this.memory();
+    const hidden = new Set(m.dismissed.map((d) => d.id));
+    const last = m.records.filter((r) => r.key === key && r.end !== 'not-opened' && r.end !== 'declined').sort((a, b) => b.endedAt - a.endedAt)[0];
+    if (last && !hidden.has(last.id)) this.forgetRow(last.id);
   }
 
   /** R1-U2: the person's Continue on a declined stop is the one thing that undoes the decline: its record goes, and the

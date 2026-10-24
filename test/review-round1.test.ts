@@ -21,9 +21,9 @@ import { limitStops } from '../src/mcp/tools';
 import { trayLevel } from '../src/electron/tray';
 import { trayIcon } from '../src/core/platform';
 import { SessionsNav } from '../src/renderer/components/Navigation';
-import { AllSessions } from '../src/renderer/components/Sessions';
+import { AllSessions, failText, SessionBody } from '../src/renderer/components/Sessions';
 import { LangContext } from '../src/renderer/lib';
-import { setWording, type Lang } from '../src/core/i18n';
+import { allKeys, setWording, t as translate, type Lang } from '../src/core/i18n';
 import type { ServiceSnapshot } from '../src/core/types';
 import { AT, fourGroups, srow } from './session-rows';
 import { tmp } from './helpers';
@@ -55,6 +55,10 @@ interface RigOptions {
   /** `lsof` answers that a claude works in the checkout folder. */
   liveInFolder?: boolean;
   recoveryFails?: boolean;
+  /** The machine the console admits sessions on (LC-17); 50 GB free and no swap pressure by default. */
+  machine?: { freeDisk?: number; swap?: { total: number; free: number; growable?: boolean } | null };
+  /** An agent's own console, `agent.default`, saved on the checkout folder with Claude Code. */
+  agentFolder?: boolean;
 }
 
 function rig(o: RigOptions = {}) {
@@ -68,6 +72,7 @@ function rig(o: RigOptions = {}) {
   fs.writeFileSync(path.join(bin, 'switchboard'), '#!/bin/sh\n', { mode: 0o755 });
   fs.writeFileSync(path.join(bin, 'claude'), '#!/bin/sh\n', { mode: 0o755 });
   const settings = new SettingsStore(path.join(base, 'data'));
+  if (o.agentFolder) settings.update({ consoles: { 'agent.default': { runtime: 'claude-code', folder: dir } } });
   const calls: string[][] = [];
   const spawned: { file: string; args: string[]; cwd: string }[] = [];
   const exits = new Map<number, (e: { exitCode: number; signal?: number }) => void>();
@@ -102,8 +107,8 @@ function rig(o: RigOptions = {}) {
     },
     killGroup: (p) => { setTimeout(() => exits.get(p)?.({ exitCode: 0, signal: 1 }), 1); },
     idleMs: 0,
-    machine: async () => ({ freeDisk: 50 * GB, swap: null, running: 0 }),
-    keys: () => [],
+    machine: async () => ({ freeDisk: o.machine?.freeDisk ?? 50 * GB, swap: o.machine?.swap ?? null, running: 0 }),
+    keys: () => (o.agentFolder ? ['agent.default'] : []),
     notice: (n) => notices.push(n),
     changed: () => { changed += 1; },
     home,
@@ -397,4 +402,67 @@ test('R1-V4: a session page draws no exit strip for an idle close or a person\'s
   assert.equal(line!('en', { state: 'running', exitCode: null, signal: null }, false), null);
   assert.equal(line!('en', { state: 'exited', exitCode: 2, signal: null }, false), 'The session exited with code 2.');
   assert.match(read('src/renderer/components/ConsolePanel.tsx'), /pageExitLine\(lang, info\.session, Boolean\(info\.idle\)\)/, 'the session page draws its strip through it');
+});
+
+// ── Added by the coordinator during FIX-1, found by DOCS-1 (R1-A, R1-B, R1-C) ──
+
+test('R1-A: a session in a window Switchboard opened is named by the window each system really opens', () => {
+  const row = srow({ id: 'sb:h:1', state: 'running-terminal' });
+  const opened = srow({ id: 'ho:ho-1', state: 'needs-you-not-opened', reason: 'expired', openedInTerminal: true });
+  const words = (w: 'mac' | 'windows' | 'other', lang: Lang) => {
+    const was = setWording(w as never);
+    try {
+      return [stateWords(lang, row), stateWords(lang, opened), renderToStaticMarkup(React.createElement(LangContext.Provider, { value: lang }, React.createElement(SessionBody, { row })))];
+    } finally { setWording(was); }
+  };
+  const [macState, macOpened, macBody] = words('mac', 'en');
+  assert.equal(macState, 'Running in Terminal');
+  assert.match(macOpened, /Switchboard opened it in Terminal\.$/);
+  assert.match(macBody, /runs in a Terminal window that Switchboard opened/);
+  const [winState, winOpened, winBody] = words('windows', 'en');
+  assert.equal(winState, 'Running in a PowerShell window', 'Switchboard starts powershell.exe in a new console (launch.rs start_terminal)');
+  assert.match(winOpened, /Switchboard opened it in a PowerShell window\.$/);
+  assert.match(winBody, /runs in a PowerShell window that Switchboard opened/);
+  const [linState, linOpened, linBody] = words('other', 'en');
+  assert.equal(linState, 'Running in a terminal window', 'Linux: the desktop\'s own terminal ($TERMINAL, x-terminal-emulator, …)');
+  assert.match(linOpened, /Switchboard opened it in a terminal window\.$/);
+  assert.match(linBody, /runs in a terminal window that Switchboard opened/);
+  assert.deepEqual(words('windows', 'ru').slice(0, 2), ['Идёт в окне PowerShell', 'Передача истекла раньше, чем сессия открылась здесь. Switchboard открыл её в окне PowerShell.']);
+  assert.equal(words('other', 'ru')[0], 'Идёт в окне терминала');
+  const handovers = (w: 'mac' | 'windows' | 'other') => { const was = setWording(w as never); try { return translate('en', 'settings.handovers.body'); } finally { setWording(was); } };
+  assert.deepEqual([/new Terminal window/, /new PowerShell window/, /new terminal window/].map((re, i) => re.test(handovers((['mac', 'windows', 'other'] as const)[i]!))), [true, true, true], 'Settings → Sessions says the same window');
+  const keys = allKeys();
+  for (const key of keys.filter((k) => k.endsWith('.windows'))) assert.ok(keys.includes(key.slice(0, -'.windows'.length) as never), `${key} varies a key that exists`);
+});
+
+test('R1-B: a hand-over this computer could not carry names the cause it found: disk, six sessions or swap', POSIX, async () => {
+  const cases = [
+    { machine: { freeDisk: 2 * GB }, reason: 'busy-disk', en: /less than 5 GB is free on its disk\.$/ },
+    { machine: { swap: { total: 4 * GB, free: 0.01 * GB } }, reason: 'busy-swap', en: /the system has run out of swap\.$/ },
+  ];
+  for (const c of cases) {
+    const r = rig({ machine: c.machine });
+    assert.deepEqual(await r.host.pollHandovers(), []);
+    const row = r.host.sessionsStatus().rows[0]!;
+    assert.equal(row.reason, c.reason);
+    assert.match(stateWords('en', row), c.en);
+    assert.doesNotMatch(stateWords('en', row), / or /, 'one cause, not a list of maybes');
+  }
+  assert.match(stateWords('en', srow({ id: 'ho:ho-2', state: 'needs-you-not-opened', reason: 'busy-cap' as never })), /six console sessions already run\.$/);
+  assert.match(stateWords('ru', srow({ id: 'ho:ho-2', state: 'needs-you-not-opened', reason: 'busy-swap' as never })), /кончилась память подкачки\.$/);
+  // Continue refused by the same check says the same cause.
+  const t = (key: string, params?: Record<string, string | number>) => translate('en', key, params);
+  assert.match(failText(t, { ok: false, reason: 'admission', detail: 'swap' }, { action: 'continue', folder: '/w' }), /run out of swap/);
+  assert.match(failText(t, { ok: false, reason: 'admission', detail: 'disk' }, { action: 'continue', folder: '/w' }), /free on its disk/);
+});
+
+test('R1-C: continuing an idle-closed agent console from the console itself takes its ended row off the Sessions list', POSIX, async () => {
+  const r = rig({ agentFolder: true });
+  assert.deepEqual(await r.host.start('agent.default', 'new', { cols: 80, rows: 24 }), { ok: true });
+  await r.host.closeIdle(0, Date.now() + 1);
+  await tick();
+  assert.deepEqual(r.host.sessionsStatus().rows.map((x) => x.state), ['idle-closed']);
+  assert.deepEqual(await r.host.start('agent.default', 'continue', { cols: 80, rows: 24 }), { ok: true });
+  assert.deepEqual(r.host.sessionsStatus().rows.map((x) => x.state), ['running-ours'], 'the continued session is the one row');
+  assert.equal(r.settings.get().consoles['agent.default']?.idle ?? null, null, 'and the console\'s own mark is cleared, as before');
 });

@@ -95,7 +95,7 @@ test('SCN-083, SCN-084: no other account, a declined stop, an unknown conversati
   assert.equal(stateWords('en', srow({ id: 'x', state: 'ended', reason: 'declined' })), 'Not continued: you declined');
   assert.match(all(status([srow({ id: 'c:k:1', state: 'ended', resumable: false })])), />New session here</, 'decision 6');
   const expired = srow({ id: 'ho:ho-1', state: 'needs-you-not-opened', reason: 'expired', openedInTerminal: true });
-  assert.equal(stateWords('en', expired), 'The hand-over expired before the session could open here. Switchboard opened it in Terminal.');
+  assert.equal(stateWords('en', expired), 'The hand-over expired before the session could open here. Switchboard opened it in a terminal window.', 'Linux words (R1-A)');
   assert.match(all(status([expired])), />Remove</);
 });
 
@@ -112,7 +112,7 @@ test('SCN-080: a session\'s page header names it, says where it came from, and h
   assert.doesNotMatch(html, /Collapse|Hide console|chevron|console-edge/i);
   const resumed = header(srow({ id: 'c:handover.rs-000000000001:1', state: 'running-ours', origin: 'resume' }));
   assert.match(resumed, /Stopped on a usage limit and continued here by Claude Code once Switchboard had capacity again\./, 'SCN-075 step 3');
-  assert.match(renderToStaticMarkup(React.createElement(SessionBody, { row: srow({ id: 'sb:h:1', state: 'running-terminal' }) })), /This session runs in a Terminal window that Switchboard opened\. Type to it there\./);
+  assert.match(renderToStaticMarkup(React.createElement(SessionBody, { row: srow({ id: 'sb:h:1', state: 'running-terminal' }) })), /This session runs in a terminal window that Switchboard opened\. Type to it there\./, 'Linux words (R1-A)');
 });
 
 test('SCN-080 (SES-06): a session page\'s console fills the area under its header; an agent\'s drawer stays a drawer', () => {

@@ -33,12 +33,13 @@ export const GROUP_ORDER: readonly SessionGroup[] = ['needs-you', 'running', 'wa
 /** What a person may do with a row: `end` asks first; `continueNow` claims a limit stop on another account now;
  *  `dontContinue` keeps a waiting stop from being continued; `dismiss` removes the row. */
 export type SessionAction = 'end' | 'reveal' | 'openConsole' | 'dismiss' | 'continueNow' | 'dontContinue' | 'continue';
-/** Why a row is not running: a hand-over that did not open (`expired`, `no-folder`, `busy` for LC-17, `switchboard-old`,
+/** Why a row is not running: a hand-over that did not open (`expired`, `no-folder`, `busy-disk`, `busy-cap`, `busy-swap`
+ *  for the LC-17 refusal the check found (R1-B; `busy` in records of 0.8.0 builds before it), `switchboard-old`,
  *  `not-started`; `pending`, still on offer, is never listed); a stop this app does not continue (`no-folder`, `no-transcript`,
  *  `resume-failed`, `old` past a day, `billing`, `open` while a process still writes it); or a stop the person declined
  *  (`declined`, an ended row: "Not continued: you declined"; decision 2 of 2026-10-24); or a console the app closed as
  *  it quit (`quit`, an ended row: "Closed when the app quit"; review round 1, R1-S4). */
-export type SessionReason = 'expired' | 'no-folder' | 'busy' | 'switchboard-old' | 'not-started' | 'pending' | 'no-transcript' | 'resume-failed' | 'old' | 'billing' | 'open' | 'declined' | 'quit';
+export type SessionReason = 'expired' | 'no-folder' | 'busy' | 'busy-disk' | 'busy-cap' | 'busy-swap' | 'switchboard-old' | 'not-started' | 'pending' | 'no-transcript' | 'resume-failed' | 'old' | 'billing' | 'open' | 'declined' | 'quit';
 
 export interface SessionRow {
   /** Stable across polls and restarts: `c:<console key>:<start>`, `sb:<home>:<launch>`, `ho:<hand-over id>`, `st:<stop event>`. */
