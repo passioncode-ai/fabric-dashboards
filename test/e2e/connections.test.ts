@@ -110,8 +110,8 @@ test('FD-78: Connections draws the chain and the worst state in it; a service wi
     const group = page.locator('.audit-group', { hasText: 'Ads Manager' });
     await group.getByText(/Google Ads API|google-ads fails/).first().waitFor();
     await page.locator('.audit-group', { hasText: 'Communicator' }).getByText('It relies on Relay, which does not answer.').waitFor();
-    assert.equal(await page.locator('.audit-group', { hasText: 'Communicator' }).getByRole('button', { name: 'Fix with agent' }).count(), 0, 'a chain finding is fixed where the cause is');
-    assert.equal(await page.locator('.audit-group', { hasText: 'Relay' }).getByRole('button', { name: 'Fix with agent' }).count(), 1);
+    assert.equal(await page.locator('.audit-group', { hasText: 'Communicator' }).getByRole('button', { name: 'Fix with coding agent' }).count(), 0, 'a chain finding is fixed where the cause is');
+    assert.equal(await page.locator('.audit-group', { hasText: 'Relay' }).getByRole('button', { name: 'Fix with coding agent' }).count(), 1);
     if (SHOTS) await page.screenshot({ path: path.join(SHOTS, '29-connections-map.png') });
     // The nav carries what does not work.
     assert.match(await page.locator('.nav-item', { hasText: 'Connections' }).innerText(), /\d/);
@@ -154,10 +154,11 @@ test('FD-83: a session stopped on a limit continues in a console here; the rest 
   try {
     app = await electron.launch({ args: [ROOT], env: { ...process.env, FABRIC_SERVICES_DIR: services, FABRIC_DASHBOARDS_USER_DATA: path.join(base, 'app'), FD_TEST_RUNTIME_DIRS: runtimes, HOME: home, LANG: 'en_US.UTF-8' } });
     const page = await app.firstWindow();
-    await page.getByRole('button', { name: /^Connections/ }).first().click();
-    await page.getByRole('heading', { level: 2, name: /Sessions stopped on a limit/ }).waitFor({ timeout: 60_000 });
+    // FD-103 (SCN-077, SCN-078): stops live in the Sessions mode, not under Connections.
+    await page.getByRole('button', { name: /^Sessions/ }).first().click();
+    await page.getByRole('heading', { level: 1, name: 'All sessions' }).waitFor({ timeout: 60_000 });
     try {
-      await page.getByText('Continued here.').waitFor({ timeout: 45_000 });
+      await page.locator('.session-group-head', { hasText: /^Running: 1$/ }).waitFor({ timeout: 45_000 });
     } catch (error) {
       // FD-90: a miss says what the app did, so its cause can be read.
       const log = path.join(base, 'app', 'logs', 'main.log');
@@ -171,7 +172,8 @@ test('FD-83: a session stopped on a limit continues in a console here; the rest 
       }
       throw new Error(`${(error as Error).message}\nmain.log:\n${lines.join('\n') || '(none)'}\njournal:\n${fs.existsSync(journal) ? fs.readFileSync(journal, 'utf8') : '(none)'}`);
     }
-    await page.getByText('Stopped on a payment limit: a top-up is needed.').waitFor();
+    // The billing stop needs the person, with Switchboard's verdict and Remove (SCN-082 step 4).
+    await page.locator('.session-card', { hasText: 'Stopped on a payment limit: a top-up is needed.' }).getByRole('button', { name: 'Remove' }).waitFor();
     // The console's PTY runs the launch a moment after the claim is recorded.
     const launched = `claude --resume ${READY} `;
     for (let i = 0; i < 50 && !fs.readFileSync(journal, 'utf8').includes(launched); i++) await new Promise((r) => setTimeout(r, 100));
@@ -180,10 +182,10 @@ test('FD-83: a session stopped on a limit continues in a console here; the rest 
     assert.ok(lines.some((l) => l === `--json recovery finish cc-${READY}-${at} resumed`), lines.join('\n'));
     assert.ok(lines.some((l) => l.includes(launched)), lines.join('\n'));
     if (SHOTS) await page.screenshot({ path: path.join(SHOTS, '30-limit-stops.png') });
-    // The continued session has a console of its own, listed in the shell; Open goes to it.
-    await page.locator('.audit-group', { hasText: 'Continued here.' }).getByRole('button', { name: 'Open' }).click();
+    // The continued session has a page of its own with its console (SCN-080), opened from its row.
+    await page.locator('.session-card.sg-running', { hasText: 'stopped-repo' }).locator('.session-title').click();
+    await page.getByText(/Continued after a limit reset/).first().waitFor();
     await page.getByText(/stopped on a usage limit/i).first().waitFor();
-    await page.locator('.nav-item', { hasText: 'stopped-repo' }).locator('.state-ready').waitFor();
   } finally {
     await closeApp(app);
   }

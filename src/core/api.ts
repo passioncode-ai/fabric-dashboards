@@ -15,11 +15,20 @@ export interface ConsoleTask { kind: 'fix' | 'update' | 'audit'; output?: string
 export interface DrawerTask { task?: ConsoleTask; mode?: 'new' | 'continue'; nonce: number }
 /** FD-92: what the window's page asks of the console drawer. `rect` is the area under the page header, in window
  *  coordinates; `suspended` while one of the app's own dialogs is open (the drawer would lie over it). */
-export interface DrawerState { key: string | null; open: boolean; rect: Rect | null; height: number; task: DrawerTask | null; suspended: boolean }
+export interface DrawerState { key: string | null; open: boolean; rect: Rect | null; height: number; task: DrawerTask | null; suspended: boolean;
+  /** FD-103 (SCN-080): a session page's console fills the area under the page header, full height: no fold, no edge. */
+  full?: boolean;
+  /** VIS-06: the colour scheme the window's page paints, so the console's terminal follows it live. */
+  scheme?: 'system' | 'dark' | 'light' }
 /** FD-92: what the drawer's own page is told: which console, its height now, the area's height and a job to start. */
-export interface DrawerPush { key: string | null; height: number; areaHeight: number; task: DrawerTask | null }
+export interface DrawerPush { key: string | null; height: number; areaHeight: number; task: DrawerTask | null; full?: boolean; scheme?: 'system' | 'dark' | 'light' }
 /** FD-92: what the drawer's page reports back to the window's page. */
-export type DrawerChange = { kind: 'hide' } | { kind: 'height'; height: number } | { kind: 'taskTaken'; nonce: number };
+/** `focusOut` (VIS-05): Esc then Tab left the terminal; the window's page takes focus (`back`: Shift+Tab). */
+export type DrawerChange = { kind: 'hide' } | { kind: 'height'; height: number } | { kind: 'taskTaken'; nonce: number } | { kind: 'focusOut'; back: boolean };
+
+/** Where a link, a notification, the tray or the menu sends the window. FD-103: `agents` opens the Agents mode on its
+ *  last page; `sessions` the Sessions mode on its last page, on All sessions with key `all`, or on one row by its id. */
+export interface NavTarget { page: 'service' | 'activity' | 'overview' | 'spend' | 'map' | 'settings' | 'agents' | 'sessions'; key?: string; link?: string }
 
 export interface Rect { x: number; y: number; width: number; height: number }
 
@@ -100,9 +109,9 @@ export interface FabricApi {
   /** FD-45: press it. The main process opens the `fabric://` link, or a native menu under `anchor` (window coordinates, CSS px). */
   fabricPress(key: string, anchor: { x: number; y: number }): Promise<{ opened: 'fabric' | 'menu' | 'none' }>;
   onViewEvent(listener: (event: { key: string; kind: 'restarted' | 'crashed' | 'loaded' | 'error' | 'navigated'; error?: string; page?: PageState }) => void): () => void;
-  onNavigate(listener: (target: { page: 'service' | 'activity' | 'overview' | 'spend' | 'map' | 'settings'; key?: string; link?: string }) => void): () => void;
+  onNavigate(listener: (target: NavTarget) => void): () => void;
   /** Called once the renderer listens: the navigation that arrived before it did (a link at launch), if any. */
-  takeNavigation(): Promise<{ page: 'service' | 'activity' | 'overview' | 'spend' | 'map' | 'settings'; key?: string; link?: string } | null>;
+  takeNavigation(): Promise<NavTarget | null>;
   /** U-18: the screen on show, so Restart to update can reopen on it. */
   routeChanged(route: { page: string; key?: string }): void;
   /** Read the services folder again now (the unreadable-folder Retry). */
@@ -129,8 +138,6 @@ export interface FabricApi {
   consoleStop(key: string): Promise<void>;
   /** FD-43: what Switchboard launched in this console's folder; asked only while the console is shown. */
   consoleSessions(key: string): Promise<ConsoleSessions>;
-  /** FD-62: a finished hand-over console leaves the list. */
-  consoleDismissHandover(key: string): Promise<void>;
   // ── FD-103: the Sessions list (`status.sessions`, src/core/sessions.ts). A row is named by its id; each call acts
   //    only when the row's `actions` offer it, else answers `not-allowed`. ──
   /** `continue`, and `continueNow` on a waiting stop with `account` one of the row's `candidates` (default the first). */
@@ -216,7 +223,6 @@ export const CHANNELS = {
   consoleResize: 'fd:console-resize',
   consoleStop: 'fd:console-stop',
   consoleSessions: 'fd:console-sessions',
-  consoleDismissHandover: 'fd:console-dismiss-handover',
   consoleOpenTerminal: 'fd:console-open-terminal',
   sessionsContinue: 'fd:sessions-continue',
   sessionsDismiss: 'fd:sessions-dismiss',

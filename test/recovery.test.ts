@@ -147,7 +147,7 @@ test('FD-83/FD-84: a ready stop is claimed once, continued by the agent\'s own C
   const status = r.host.recoveryStatus();
   assert.equal(status.resumed, 1);
   assert.deepEqual(status.stops.map((s) => [s.verdict, s.key]), [['resumed', key]]);
-  assert.deepEqual(r.host.handoverConsoles().map((h) => [h.key, h.kind, h.workflow]), [[key, 'resume', 'checkout']]);
+  assert.deepEqual(r.host.sessionsStatus().rows.filter((x) => x.key === key).map((x) => [x.state, x.origin, x.project]), [['running-ours', 'resume', 'checkout']]);
   assert.deepEqual(await r.host.pollRecovery(), [], 'the same stop is never continued twice');
   assert.equal(r.spawned.length, 1);
 });
@@ -217,9 +217,12 @@ test('FD-84: a session that exits at once, or runs without writing its transcrip
   assert.ok(!elsewhere.calls.some((c) => c.includes('claim')));
 });
 
-test('FD-83: a stop in an agent\'s folder continues in that agent\'s free console', POSIX, async () => {
+test('FD-103 (decision 8 extended, replaces FD-83\'s free console): a stop in an agent\'s folder continues in a console of its own', POSIX, async () => {
   const r = rig({ serviceFolder: true });
-  assert.deepEqual(await r.host.pollRecovery(), ['agent.default']);
+  const [key] = await r.host.pollRecovery();
+  assert.ok(key && isHandoverKey(key) && key !== 'agent.default', `a console of its own, not ${key}`);
+  assert.equal((await r.host.info('agent.default')).session.state, 'idle', 'the agent\'s console stays the person\'s');
+  assert.deepEqual(r.host.sessionsStatus().rows.filter((x) => x.state === 'running-ours').map((x) => [x.key, x.origin]), [[key, 'resume']]);
 });
 
 test('FD-83: MCP `audit` lists the stops with the same verdicts, read-only', POSIX, async () => {

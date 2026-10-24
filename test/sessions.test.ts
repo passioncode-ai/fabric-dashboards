@@ -70,6 +70,13 @@ test('FD-103: the merge of the four sources gives one list, deduplicated by fold
   assert.equal(new Set(rows.map((r) => r.id)).size, rows.length, 'every row has its own id');
 });
 
+test('FD-103 (orchestrator 2026-10-24): a hand-over still on offer is no row and counts nowhere; one whose offer lapsed needs you', () => {
+  const offered = { id: 'ho-00000000000d', dir: '/w/offered', agent: 'claude-code', account: 'Spare', workflow: 'w', offeredUntil: NOW + MIN };
+  assert.deepEqual(mergeSessions(input({ pending: [offered] })), []);
+  const lapsed = mergeSessions(input({ pending: [{ ...offered, offeredUntil: NOW - MIN }] }));
+  assert.deepEqual(lapsed.map((r) => [r.state, r.reason, r.actions]), [['needs-you-not-opened', 'expired', ['dismiss']]]);
+});
+
 test('FD-103: two hand-overs of one folder give two rows told apart by origin and time', () => {
   const rows = mergeSessions(input({
     consoles: [{ key: 'handover.ho-00000000000a', folder: '/w/alpha', agent: 'claude-code', startedAt: NOW - MIN, origin: 'handover', account: 'Work Max', handoverId: 'ho-00000000000a' }],

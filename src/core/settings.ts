@@ -105,6 +105,10 @@ function mergeLayout(raw: unknown): Settings['layout'] {
     header: l.header === 'full' ? 'full' : 'compact',
     console: { open: c.open === true, height: Math.min(CONSOLE_HEIGHT.max, Math.max(CONSOLE_HEIGHT.min, height)) },
     list: mergeList(l.list),
+    // FD-103 (SCN-077): a damaged value reads as Agents on Overview; nothing else depends on it.
+    mode: l.mode === 'sessions' ? 'sessions' : 'agents',
+    sessionId: typeof l.sessionId === 'string' && l.sessionId.length > 0 && l.sessionId.length <= 400 ? l.sessionId : null,
+    endedOpen: l.endedOpen === true,
   };
 }
 
@@ -199,6 +203,7 @@ export function merge(raw: Partial<Settings>): Settings {
     // FD-83: absent in a file from an earlier version: on, as the operator asked (2026-10-21).
     resumeAfterLimit: raw.resumeAfterLimit !== false,
     sessions: mergeSessionMemory(raw.sessions),
+    sessionsNoteSeen: raw.sessionsNoteSeen === true,
     estate: mergeEstate(raw.estate),
   };
 }

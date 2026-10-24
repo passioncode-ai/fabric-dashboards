@@ -112,6 +112,10 @@ const ICONS: Record<string, string> = {
   external: 'M11 3h6v6M17 3l-7.5 7.5M14 12v5H3V6h5',
   // W2: the app's own update in the folded rail.
   update: 'M10 15V4M5.5 8.5 10 4l4.5 4.5M4 17h12',
+  // FD-103: the mode switch in the folded rail, and All sessions: agents as a node with its ring, sessions as stacked
+  // terminal windows.
+  agents: 'M10 4a3 3 0 1 0 0 6 3 3 0 0 0 0-6zM4.5 16.5c.6-2.6 2.8-4.2 5.5-4.2s4.9 1.6 5.5 4.2',
+  sessions: 'M2.5 6.5h12v10h-12zM5.5 3.5h12v10M5 10l2 1.5L5 13M9 13h3',
 };
 export function Icon({ name }: { name: keyof typeof ICONS | string }) {
   return (

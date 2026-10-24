@@ -230,13 +230,6 @@ export const handoverOwnKey = (id: string) => `handover.${id}`;
  *  so does a session continued from the Sessions list in a folder no agent's console owns (`handover.cs-<12 hex>`). */
 export const isHandoverKey = (key: string) => /^handover\.(ho|rs|cs)-[0-9a-f]{12}$/.test(key);
 
-/** Where a hand-over opens: the registered service whose console folder is its `dir`, unless that console runs a
- *  session already; otherwise a console of its own. */
-export function handoverKey(h: Pick<SbHandover, 'id' | 'dir'>, consoles: { key: string; folder: string | null; running: boolean }[], own = handoverOwnKey(h.id)): string {
-  const match = consoles.find((c) => c.folder && !c.running && samePath(c.folder, h.dir));
-  return match?.key ?? own;
-}
-
 /** The command a console runs to take the hand-over: Switchboard takes it once and runs its session here. */
 export function handoverRunArgv(sb: string, id: string): string[] {
   return [sb, 'handovers', 'run', id];

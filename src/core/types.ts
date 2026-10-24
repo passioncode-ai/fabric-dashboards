@@ -78,6 +78,12 @@ export interface Settings {
      *  FD-78: products the person hid (still watched, listed in a folded Hidden section), a kind the person chose for a
      *  product (`service` or `agent`, else the app's guess), and whether the Hidden section is open. */
     list: ListLayout;
+    /** FD-103 (SCN-077): which list the sidebar shows, Agents or Sessions; the window reopens in it. */
+    mode: 'agents' | 'sessions';
+    /** FD-103 (SCN-077): the session page last open in the Sessions mode (a row id), null for All sessions. */
+    sessionId: string | null;
+    /** FD-103 (SCN-078): whether the Ended group is unfolded (folded by default). */
+    endedOpen: boolean;
   };
   /** ADR-0017: per service key, the runtime and folder its console last used (null: not chosen yet). */
   consoles: Record<string, { runtime: string | null; folder: string | null;
@@ -89,6 +95,8 @@ export interface Settings {
   /** FD-103: the Sessions list's memory, kept 24 hours (src/core/sessions.ts): console sessions that ended and hand-overs
    *  that did not open here, and the rows the person removed. */
   sessions: { records: SessionRecord[]; dismissed: Dismissal[] };
+  /** FD-103 (SCN-079): the person dismissed the All sessions page's one-time explanation. */
+  sessionsNoteSeen: boolean;
   // #region estate-update — docs: docs/adr/0018-estate-updates-from-inside-the-app.md#decision
   /** ADR-0018: the estate watcher — the contract clone and the skill family. */
   estate: {
@@ -145,10 +153,11 @@ export const DEFAULT_SETTINGS: Settings = {
     pausedUntil: null,
     channel: 'auto',
   },
-  layout: { sidebar: 'expanded', header: 'compact', console: { open: false, height: CONSOLE_HEIGHT.default }, list: { sort: 'name', pinned: [], hidden: [], kinds: {}, hiddenOpen: false } },
+  layout: { sidebar: 'expanded', header: 'compact', console: { open: false, height: CONSOLE_HEIGHT.default }, list: { sort: 'name', pinned: [], hidden: [], kinds: {}, hiddenOpen: false }, mode: 'agents', sessionId: null, endedOpen: false },
   consoles: {},
   resumeAfterLimit: true,
   sessions: { records: [], dismissed: [] },
+  sessionsNoteSeen: false,
   // #region estate-update — docs: docs/adr/0018-estate-updates-from-inside-the-app.md#decision
   estate: { enabled: true, autoSkills: false, contractClone: '' },
   // #endregion estate-update
@@ -177,12 +186,6 @@ export interface AppStatus {
   /** ADR-0018: what the estate watcher saw last — the contract clone vs the remote, consumer pins, skills. */
   estate: EstateStatus;
   // #endregion estate-update
-  /** FD-62: the consoles of their own that run or ran a Switchboard hand-over (SB-108).
-   *  @deprecated FD-103: read `sessions`; kept until the Sessions mode (node S3) removes the sidebar section. */
-  handovers?: { key: string; workflow: string; agent: string; account: string; dir: string; state: 'running' | 'exited'; kind?: 'handover' | 'resume' }[];
-  /** FD-83: sessions stopped on a usage limit — the ones this launch continued and the ones left for the person.
-   *  @deprecated FD-103: read `sessions`; kept until the Sessions mode (node S3) removes the Connections list. */
-  recovery?: RecoveryStatus;
   /** FD-103: every coding session of this Mac, merged from Switchboard and this app's consoles (src/core/sessions.ts). */
   sessions?: SessionsStatus;
   /** W2 (UX-05, UX-06): the spending limits that need a person (tripped or over the line), by agent, from the last
