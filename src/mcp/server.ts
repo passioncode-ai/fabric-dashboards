@@ -36,13 +36,13 @@ const INSTRUCTIONS = [
   '`open` uses the installed host; an installed host failure never falls back to the browser.',
   'Use fallback=never to forbid browser fallback even when absent. accepted_by_os is not page_ready.',
   'Links open on the device receiving them; remote chats need an addressed local open action.',
-  '`control`, `doctor` and `update` are the operator\'s administration —',
+  '`control`, `doctor` and `update` are the operator\'s administration:',
   'say what you are about to do before calling them.',
 ].join(' ');
 
 const serviceArg = { type: 'string', description: 'The service key, id.instance, as list_services names it' };
 const pathArg = { type: 'string', description: 'A path on the service, starting with one / (for example /dashboard/job_1)' };
-const urlArg = { type: 'string', description: 'The service\'s own URL — http://127.0.0.1:<port>/… for a local service, its registered https origin for an online one — instead of service + path' };
+const urlArg = { type: 'string', description: 'The service\'s own URL (http://127.0.0.1:<port>/… for a local service, its registered https origin for an online one), instead of service + path' };
 
 export const TOOLS = [
   {
@@ -94,7 +94,7 @@ export const TOOLS = [
   },
   {
     name: 'update',
-    description: 'Run the service\'s own update command (list_services shows update_available) and return its output. What the command does — install, restart — is the service\'s; call service_status afterwards to see the result.',
+    description: 'Run the service\'s own update command (list_services shows update_available) and return its output. What the command does (install, restart) is the service\'s; call service_status afterwards to see the result.',
     inputSchema: { type: 'object', properties: { service: serviceArg }, required: ['service'], additionalProperties: false },
     annotations: { readOnlyHint: false, destructiveHint: true },
   },
@@ -142,7 +142,7 @@ export const TOOLS = [
   },
   {
     name: 'spend',
-    description: 'What each agent spent, from its own usage report (Fabric Agent Contract DEC-0021): today, the last 7 and 30 UTC days, per model, its budget and every spending limit it applies (limits: DEC-0027, ranked — tripped, breach, near, ok, unknown, cap (per order), threshold (approval), off (not enforced)). costUsd null means unknown, never $0; partial: true means the cost is a lower bound, tokensPartial: true that the token counts are (DEC-0091). costUsd is money only: calls paid by a subscription (route subscription, DEC-0046) are counted in subscriptionCalls and their list-price value in estimateUsd, an estimate never added to costUsd (FD-88); estimateUsd null means none of them is priced, estimatePartial: true that it is a lower bound (FD-97, DEC-0110). One service, or every one.',
+    description: 'What each agent spent, from its own usage report (Fabric Agent Contract DEC-0021): today, the last 7 and 30 UTC days, per model, its budget and every spending limit it applies (limits: DEC-0027, ranked: tripped, breach, near, ok, unknown, cap (per order), threshold (approval), off (not enforced)). costUsd null means unknown, never $0; partial: true means the cost is a lower bound, tokensPartial: true that the token counts are (DEC-0091). costUsd is money only: calls paid by a subscription (route subscription, DEC-0046) are counted in subscriptionCalls and their list-price value in estimateUsd, an estimate never added to costUsd (FD-88); estimateUsd null means none of them is priced, estimatePartial: true that it is a lower bound (FD-97, DEC-0110). One service, or every one.',
     inputSchema: {
       type: 'object',
       properties: { service: { ...serviceArg, description: 'One service key (id.instance); omit for every service' } },

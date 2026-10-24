@@ -59,7 +59,7 @@ export class AppTray {
       .sort((a, b) => a.rank! - b.rank!);
     // U-7: the name a person reads elsewhere, instance included, so two instances never read alike.
     const item = (s: ServiceSnapshot): MenuItemConstructorOptions => ({
-      label: `${MARK[s.state]}  ${s.descriptor ? displayName(s.descriptor.name, s.descriptor.instance) : s.key} — ${t(lang, `state.${s.state}`)}`,
+      label: `${MARK[s.state]}  ${t(lang, 'join.nameState', { name: s.descriptor ? displayName(s.descriptor.name, s.descriptor.instance) : s.key, state: t(lang, `state.${s.state}`) })}`,
       click: () => this.actions.open(s.key),
     });
     // "All ready" only when it is true: a degraded, stopped or starting service is not ready.
@@ -82,6 +82,6 @@ export class AppTray {
       { label: t(lang, 'tray.quit'), click: () => this.actions.quit() },
     ];
     this.tray.setContextMenu(Menu.buildFromTemplate(template));
-    this.tray.setToolTip(`Fabric Dashboards — ${headline}`);
+    this.tray.setToolTip(t(lang, 'tray.tooltip', { headline }));
   }
 }

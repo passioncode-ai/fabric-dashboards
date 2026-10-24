@@ -78,7 +78,11 @@ export const nameOf = (s: ServiceSnapshot) => {
   const named = s.descriptor ?? s.wellKnown?.service;
   return named ? displayName(named.name, named.instance) : s.key;
 };
-export const portOf = (s: ServiceSnapshot) => /:(\d+)$/.exec(s.descriptor?.origin ?? '')?.[1] ?? '—';
+/** COPY-02: an origin without a port uses its scheme's (443 for https), so the port is a number, never a dash. */
+export const portOf = (s: ServiceSnapshot) => {
+  const origin = s.descriptor?.origin ?? '';
+  return /:(\d+)$/.exec(origin)?.[1] ?? (origin.startsWith('https://') ? '443' : origin.startsWith('http://') ? '80' : '');
+};
 export const shortBuild = (s: ServiceSnapshot) => {
   const b = s.wellKnown?.service.build;
   if (!b) return '';

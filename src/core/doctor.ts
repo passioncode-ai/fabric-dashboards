@@ -79,7 +79,7 @@ export function doctorMarkdown(report: DoctorReport): string {
     '',
     `The person pressed Check setup in Fabric Dashboards; the launcher's \`doctor\` (${report.version}, ${report.at}) reported ${report.summary.fail} failing and ${report.summary.warn} warning checks. Start with these, failures first; each names its fix. Prove each one with \`npx --yes @passioncode-ai/passioncode@latest doctor --json\` after you fix it.`,
     '',
-    ...lines.map((c) => `- **${c.state}** \`${c.id}\` (${c.area}): ${c.detail}${c.fix ? ` — fix: ${c.fix}` : ''}`),
+    ...lines.map((c) => `- **${c.state}** \`${c.id}\` (${c.area}): ${c.detail}${c.fix ? `; fix: ${c.fix}` : ''}`),
     '',
   ].join('\n');
 }

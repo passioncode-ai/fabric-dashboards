@@ -106,7 +106,7 @@ test('every interface string exists in English and Russian, and placeholders mat
   }
   assert.equal(langFor('ru-RU'), 'ru');
   assert.equal(langFor('en-GB'), 'en');
-  assert.equal(t('en', 'reason.duplicate', { answering: 1, launchd: 2 }), 'Two copies: pid 1 answers, launchd runs pid 2.');
+  assert.equal(t('en', 'reason.duplicate', { answering: 1, launchd: 2 }), 'Two copies run: process 1 answers, while the system started process 2. Restart it to keep one.');
   assert.equal(duration('en', 90_000), '2 min');
   assert.equal(duration('ru', 30_000), '30 с');
   for (const banned of ['seamless', 'revolutionary', 'fully autonomous']) {
