@@ -26,6 +26,7 @@ export type SessionState =
   | 'needs-you-not-opened' // could not open here; `reason` says why
   | 'waiting-reset' // stopped on a limit; `expectedAt` says when it is likely to continue
   | 'ended'
+  | 'ended-cannot-continue' // FD-108: a limit stop of the last day whose folder or conversation is not here; `reason` says which
   | 'idle-closed' // closed after 30 idle minutes (LC-18)
   | 'ended-by-you';
 export type SessionGroup = 'needs-you' | 'running' | 'waiting' | 'ended';
@@ -36,8 +37,9 @@ export const GROUP_ORDER: readonly SessionGroup[] = ['needs-you', 'running', 'wa
 export type SessionAction = 'end' | 'reveal' | 'openConsole' | 'dismiss' | 'continueNow' | 'dontContinue' | 'continue';
 /** Why a row is not running: a hand-over that did not open (`expired`, `no-folder`, `busy-disk`, `busy-cap`, `busy-swap`
  *  for the LC-17 refusal the check found (R1-B; `busy` in records of 0.8.0 builds before it), `switchboard-old`,
- *  `not-started`; `pending`, still on offer, is never listed); a stop this app does not continue (`no-folder`, `no-transcript`,
- *  `resume-failed`, `old` past a day, `billing`, `open` while a process still writes it); or a stop the person declined
+ *  `not-started`; `pending`, still on offer, is never listed); a stop this app does not continue (`billing`, which needs the
+ *  person; `no-folder`, `no-transcript`, `resume-failed`, an ended row "Cannot be continued here"; `old` and `open` are
+ *  listed by 0.8.0 builds only: from 0.8.1 such a stop is no row, FD-108); or a stop the person declined
  *  (`declined`, an ended row: "Not continued: you declined"; decision 2 of 2026-10-24); or a console the app closed as
  *  it quit (`quit`, an ended row: "Closed when the app quit"; review round 1, R1-S4). */
 export type SessionReason = 'expired' | 'no-folder' | 'busy' | 'busy-disk' | 'busy-cap' | 'busy-swap' | 'switchboard-old' | 'not-started' | 'pending' | 'no-transcript' | 'resume-failed' | 'old' | 'billing' | 'open' | 'declined' | 'quit';
@@ -215,6 +217,7 @@ export function actionsFor(state: SessionState, o: { continueNow?: boolean } = {
     case 'running-terminal': return ['reveal']; // V-6 of FIX-2: its folder, the one thing this app can show
     case 'needs-you-resume-failed': return ['openConsole', 'end'];
     case 'needs-you-not-opened': return ['dismiss'];
+    case 'ended-cannot-continue': return ['dismiss'];
     case 'waiting-reset': return [...(o.continueNow ? ['continueNow' as const] : []), 'dontContinue'];
     default: return ['continue', 'dismiss'];
   }
@@ -334,11 +337,22 @@ export function mergeSessions(i: MergeInput): SessionRow[] {
     }));
   }
 
-  // 4. Limit stops (decision 1 of 2026-10-24). One waiting for a reset, or ready for this app to continue, waits; any
-  // other verdict needs the person, with its reason and Remove; one another host claimed is not listed. A resumed one, or
-  // a failed one whose console still runs, is that console's row; a declined one is its ended record (above).
+  // 4. Limit stops (decision 1 of 2026-10-24, amended after 0.8.0: FD-108). One Switchboard session is one row: its
+  // latest stop, by time and then attempt (a session that stopped 44 times is one session). A stop older than a day is
+  // not listed, whatever Switchboard still holds it as: this app never continues it, so nothing waits for it here. One
+  // waiting for a reset, or ready for this app to continue, waits; a payment stop needs the person, with Remove; one whose
+  // terminal is still open is not listed (the session is alive where it is); one whose folder or conversation is not
+  // here, or that this app failed to continue, is Ended "Cannot be continued here", with Remove, and is not counted. One
+  // another host claimed is not listed. A resumed one, or a failed one whose console still runs, is that console's row; a
+  // declined one is its ended record (above).
+  const latest = new Map<string, StopInput>();
   for (const s of i.stops) {
-    if (s.verdict === 'resumed' || s.verdict === 'claimed') continue;
+    const was = latest.get(s.session);
+    if (!was || s.stoppedAt > was.stoppedAt || (s.stoppedAt === was.stoppedAt && s.attempt > was.attempt)) latest.set(s.session, s);
+  }
+  for (const s of latest.values()) {
+    if (s.verdict === 'resumed' || s.verdict === 'claimed' || s.verdict === 'open' || s.verdict === 'old') continue;
+    if (!(i.now - s.stoppedAt <= SESSION_KEEP_MS)) continue; // older than a day, or a time Switchboard did not give
     if (s.verdict === 'failed' && s.key && consoleKeys.has(s.key)) continue;
     // V-1 of FIX-2: a stop is "stopped by a limit on" the account it stopped on, never "continued after a limit reset".
     const common = { id: stopRowId(s.event), key: s.key ?? null, folder: s.dir, agent: s.provider === 'codex' ? 'codex' : 'claude-code', account: s.account ?? null, context: null, origin: 'limit' as const, startedAt: s.stoppedAt || null, endedAt: null };
@@ -351,7 +365,8 @@ export function mergeSessions(i: MergeInput): SessionRow[] {
       }));
       continue;
     }
-    add(row({ ...common, state: 'needs-you-not-opened', reason: s.verdict === 'failed' ? 'resume-failed' : s.verdict, actions: ['dismiss'] }));
+    if (s.verdict === 'billing') { add(row({ ...common, state: 'needs-you-not-opened', reason: 'billing', actions: ['dismiss'] })); continue; }
+    add(row({ ...common, state: 'ended-cannot-continue', reason: s.verdict === 'failed' ? 'resume-failed' : s.verdict, actions: ['dismiss'] }));
   }
 
   // 5. Switchboard's sessions that are none of the above.

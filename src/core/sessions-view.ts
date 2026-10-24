@@ -61,6 +61,8 @@ export function stateWords(lang: Lang, r: SessionRow, o: { autoContinue?: boolea
       const why = t(lang, `sessions.reason.${r.reason ?? 'not-started'}`);
       return r.openedInTerminal ? `${why} ${t(lang, 'sessions.openedInTerminal')}` : why;
     }
+    case 'ended-cannot-continue': // FD-108
+      return t(lang, 'sessions.state.cannotContinue', { why: t(lang, `sessions.cannot.${r.reason ?? 'resume-failed'}`) });
     case 'waiting-reset':
       if (o.autoContinue === false) return t(lang, 'sessions.state.autoOff');
       return r.expectedAt ? t(lang, 'sessions.state.waitingAt', { time: clock(lang, r.expectedAt) }) : t(lang, 'sessions.state.waiting');

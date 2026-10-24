@@ -17,6 +17,10 @@ const MIN = 60_000;
 const HOUR = 60 * MIN;
 const GB = 1024 ** 3;
 const SID = '5f151e9c-cc90-4fed-a01b-101c647f52ab';
+/** FD-108: one Switchboard session is one row, so stops of different sessions carry different ids. */
+const SID2 = '5f151e9c-cc90-4fed-a01b-101c647f52ac';
+const SID3 = '5f151e9c-cc90-4fed-a01b-101c647f52ad';
+const sid = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
 const ok = (data: unknown) => ({ code: 0, stdout: JSON.stringify({ ok: true, data }), stderr: '' });
 const POSIX = { skip: process.platform === 'win32' && 'POSIX execute bits: the fake switchboard is a shell script' };
 
@@ -42,8 +46,8 @@ test('FD-103: the merge of the four sources gives one list, deduplicated by fold
     pending: [{ id: 'ho-00000000000b', dir: '/w/busy', agent: 'codex', account: 'Spare', workflow: 'w', offeredUntil: NOW + MIN }],
     stops: [
       { event: 'cc-a-1', session: SID, dir: '/w/stopA', provider: 'claude', stoppedAt: NOW - MIN, attempt: 1, verdict: 'waiting', candidates: [], probeAt: NOW + 4 * MIN },
-      { event: 'cc-b-1', session: SID, dir: '/w/stopB', provider: 'claude', stoppedAt: NOW - 5 * MIN, attempt: 2, verdict: 'resume', candidates: [{ id: 'acc-2', label: 'Spare' }, { id: 'acc-3', label: 'acc-3' }] },
-      { event: 'cc-c-1', session: SID, dir: '/w/alpha', provider: 'claude', stoppedAt: NOW - 3 * MIN, attempt: 1, verdict: 'resumed', key: 'handover.ho-0123456789ab' },
+      { event: 'cc-b-1', session: SID2, dir: '/w/stopB', provider: 'claude', stoppedAt: NOW - 5 * MIN, attempt: 2, verdict: 'resume', candidates: [{ id: 'acc-2', label: 'Spare' }, { id: 'acc-3', label: 'acc-3' }] },
+      { event: 'cc-c-1', session: SID3, dir: '/w/alpha', provider: 'claude', stoppedAt: NOW - 3 * MIN, attempt: 1, verdict: 'resumed', key: 'handover.ho-0123456789ab' },
     ],
     consoles: [{ key: 'handover.ho-0123456789ab', folder: '/w/alpha', agent: 'claude-code', startedAt: NOW - 2 * MIN + 3000, origin: 'handover', account: null, handoverId: 'ho-0123456789ab' }],
     records: [
@@ -92,9 +96,9 @@ test('FD-103: every state carries the actions of the dossier table', () => {
   const rows = mergeSessions(input({
     consoles: [{ key: 'handover.rs-0123456789ab', folder: '/w/r', agent: 'Claude Code', startedAt: NOW - MIN, origin: 'resume', account: null, failedResume: true }],
     stops: [
-      { event: 'cc-x-1', session: SID, dir: '/w/x', provider: 'claude', stoppedAt: NOW - MIN, attempt: 1, verdict: 'no-transcript' },
-      ...(['open', 'billing', 'old', 'no-folder'] as const).map((verdict, n) => ({ event: `cc-v${n}-1`, session: SID, dir: `/w/v-${verdict}`, provider: 'claude' as const, stoppedAt: NOW - MIN, attempt: 1, verdict })),
-      { event: 'cc-y-1', session: SID, dir: '/w/claimed', provider: 'claude', stoppedAt: NOW - MIN, attempt: 1, verdict: 'claimed' },
+      { event: 'cc-x-1', session: sid(1), dir: '/w/x', provider: 'claude', stoppedAt: NOW - MIN, attempt: 1, verdict: 'no-transcript' },
+      ...(['open', 'billing', 'old', 'no-folder'] as const).map((verdict, n) => ({ event: `cc-v${n}-1`, session: sid(10 + n), dir: `/w/v-${verdict}`, provider: 'claude' as const, stoppedAt: NOW - MIN, attempt: 1, verdict })),
+      { event: 'cc-y-1', session: sid(2), dir: '/w/claimed', provider: 'claude', stoppedAt: NOW - MIN, attempt: 1, verdict: 'claimed' },
     ],
     records: [
       record({ id: 'c:a.default:1', key: 'a.default', folder: '/w/a', origin: 'here', end: 'idle' }),
@@ -103,16 +107,19 @@ test('FD-103: every state carries the actions of the dossier table', () => {
     ],
   }));
   const of = (folder: string) => rows.find((r) => r.folder === folder)!;
-  for (const v of ['open', 'billing', 'old', 'no-folder']) {
-    const r = rows.find((x) => x.folder === `/w/v-${v}`)!;
-    assert.deepEqual([r.group, r.state, r.reason, r.actions], ['needs-you', 'needs-you-not-opened', v, ['dismiss']], `decision 1: verdict ${v} needs the person`);
-  }
+  // Decision 1, amended after 0.8.0 (FD-108): only a payment stop needs the person; an open or old one is no row; one
+  // whose folder or conversation is not here is Ended with Remove.
+  const v = (verdict: string) => rows.find((x) => x.folder === `/w/v-${verdict}`);
+  assert.deepEqual([v('billing')!.group, v('billing')!.state, v('billing')!.reason, v('billing')!.actions], ['needs-you', 'needs-you-not-opened', 'billing', ['dismiss']]);
+  assert.equal(v('open'), undefined, 'its terminal is still open: not listed');
+  assert.equal(v('old'), undefined, 'older than a day: not listed');
+  assert.deepEqual([v('no-folder')!.group, v('no-folder')!.state, v('no-folder')!.actions], ['ended', 'ended-cannot-continue', ['dismiss']]);
   assert.ok(!rows.some((x) => x.folder === '/w/claimed'), 'a stop another host took is not listed');
   assert.deepEqual([of('/w/d').state, of('/w/d').reason, of('/w/d').actions], ['ended', 'declined', ['continue', 'dismiss']], 'decision 2: declined is an ended row');
   assert.deepEqual([of('/w/r').state, of('/w/r').group, of('/w/r').actions, of('/w/r').key], ['needs-you-resume-failed', 'needs-you', ['openConsole', 'end'], 'handover.rs-0123456789ab']);
   assert.deepEqual([of('/w/a').state, of('/w/a').actions], ['idle-closed', ['continue', 'dismiss']]);
   assert.deepEqual([of('/w/b').state, of('/w/b').actions], ['ended-by-you', ['continue', 'dismiss']]);
-  assert.deepEqual([of('/w/x').state, of('/w/x').reason, of('/w/x').actions], ['needs-you-not-opened', 'no-transcript', ['dismiss']]);
+  assert.deepEqual([of('/w/x').state, of('/w/x').reason, of('/w/x').actions], ['ended-cannot-continue', 'no-transcript', ['dismiss']]);
 });
 
 test('FD-103: a dismissed row is not listed; ended entries older than 24 h are dropped', () => {

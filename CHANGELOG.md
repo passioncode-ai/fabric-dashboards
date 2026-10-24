@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.8.1 - 2026-10-24
+
+### Fixed
+
+- **The Sessions badge counted old and repeated limit stops** (FD-108). On 2026-10-24 the installed 0.8.0 showed 39 on
+  the Sessions switch: Fabric Switchboard held 84 sessions stopped on a usage limit, 60 of them more than a day old,
+  and every one this app does not continue went under "Needs you". Now "Needs you" holds only what you can and must
+  act on now: a continue that did not take up its conversation while its process still runs, a hand-over that could
+  not open here, and a stop on a payment limit from the last day. A stop more than a day old, or whose terminal is
+  still open, is not listed; one whose folder or conversation is not on this computer is under "Ended in the last 24
+  hours" as "Cannot be continued here", with Remove; a session Switchboard holds several stops of is one row, its
+  latest stop. Decision 1 of the
+  [Sessions dossier](docs/reports/2026-10-24-ui-ux-iteration/sessions-and-navigation.md) records the amended rule.
+
 ## 0.8.0 - 2026-10-24
 
 0.8.0 separates the coding sessions from the agents, and makes the app say one thing about what needs you, in the
