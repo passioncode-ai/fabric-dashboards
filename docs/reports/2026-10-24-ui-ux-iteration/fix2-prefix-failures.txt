@@ -1,0 +1,56 @@
+FIX-2 (fix cycle 2 of 0.8.0's Sessions mode): test/review-round2.test.ts run on the packet's base a5e3e36 (src/ as it was,
+the new tests and fixtures in place) before any fix, `node --import tsx --test test/review-round2.test.ts`. Each F and V row
+fails; the D rows pass on the base (they close test gaps: each catches its planted defect, see the plant results at the end).
+Local paths are replaced with <home> and <tmp>.
+
+- F1: Continue on a declined stop settles it in Switchboard, so a restart never continues it a second time
+    AssertionError [ERR_ASSERTION]: the stop is settled in Switchboard, not left waiting | actual: 'waiting', | expected: 'waiting', | diff: 'simple'
+- F1: a declined stop continued while Switchboard cannot be told is still held for a day by this app
+    AssertionError [ERR_ASSERTION]: a hold on the stop is kept | actual: false, | expected: true, | diff: 'simple'
+- F2: two Continue now at once start one session and never record the running one as cancelled
+    AssertionError [ERR_ASSERTION]: the second press claims nothing | 2 !== 1 | actual: 2, | expected: 1,
+- F2: Continue now while the automatic continue of the same stop is in flight starts one session, never cancelled
+    AssertionError [ERR_ASSERTION]: finishes: cancelled,resumed | actual: false, | expected: true, | diff: 'simple'
+- F3: a quit during a continue settles the claimed stop in Switchboard before the app exits
+    TypeError [Error]: sessionsHost(...).quitWork is not a function
+- F4: a hand-over and a ready stop in one folder on one tick never run two agents in that folder
+    AssertionError [ERR_ASSERTION]: the stop waits while this app's console works in its folder | 2 !== 1 | actual: 2, | expected: 1,
+- F5: two Terminal sessions of one pool launched in the same second in two folders are both listed
+    AssertionError [ERR_ASSERTION]: sb:/sb/runtimes/claude-default:1792617104000 | 1 !== 2 | actual: 1, | expected: 2,
+- F5: two Switchboard sessions with an empty home and no launch time are both listed; a long folder keeps the id short
+    AssertionError [ERR_ASSERTION]: sb::0 | 1 !== 2 | actual: 1, | expected: 2,
+- F6: a Switchboard record launched in the far future is not listed as ended for ever; its time is bounded when read
+    AssertionError [ERR_ASSERTION]: an ended record launched a year ahead is not fresh | + actual - expected | + [ | +   'ended'
+- F6: a dismissal or a record stamped ahead of the clock is kept at now, not dropped and not held for ever
+    AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal: | + actual - expected | [ | {
+- F6: a decline recorded while the clock ran ahead still holds after the clock is set back
+    AssertionError [ERR_ASSERTION]: a declined stop is never claimed (decision 2) | 1 !== 0 | actual: 1, | expected: 0,
+- F7: 600 later records do not push out a decline or a stop's dismissal
+    AssertionError [ERR_ASSERTION]: the decline is kept | actual: false, | expected: true, | diff: 'simple'
+- V-1: a limit stop is "stopped by a limit on" its account, never "continued after a limit reset"
+    AssertionError [ERR_ASSERTION]: Expected values to be strictly equal: | 'resume' !== 'limit' | actual: 'resume', | expected: 'limit',
+- V-3: a continue that did not take up its conversation says it was tried, not that it continued
+    AssertionError [ERR_ASSERTION]: The input did not match the regular expression /^Continue tried after a limit reset, /. Input: | 'Continued after a limit reset, 04:02 PM' | actual: 'Continued after a limit reset, 04:02 PM', | expected: /^Continue tried after a limit reset, /,
+- V-4: the session cards fill the row for one or two cards, and a card never cuts its time
+    AssertionError [ERR_ASSERTION]: .session-cards { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: var(--pc-space-3); } | actual: '.session-cards { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: var(--pc-space-3); }', | expected: /auto-fit/, | diff: '
+- V-4: two rail entries of one folder differ by their title
+    AssertionError [ERR_ASSERTION]: Expected "actual" to be strictly unequal to: | 'passioncode-platform: Running' | actual: 'passioncode-platform: Running', | expected: 'passioncode-platform: Running',
+- V-5: an ended row whose console holds nothing after a restart says that output is not kept, never a blank page
+    AssertionError [ERR_ASSERTION]: Expected values to be strictly equal: | + actual - expected | + undefined | - true
+- V-6: a session running in Terminal offers Show in Finder for its folder
+    AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value: | assert.ok(sessions.actionsFor('running-terminal').includes('reveal')) | actual: false, | expected: true,
+- V-7: English times read 1:37 PM, Russian 13:37
+    AssertionError [ERR_ASSERTION]: Expected values to be strictly equal: | + actual - expected | + '01:37 PM' | - '1:37 PM'
+- V-7: the sidebar focus ring is drawn inside the scrolled list
+    AssertionError [ERR_ASSERTION]: an inset outline inside .nav-scroll | actual: (the whole of src/renderer/styles/app.css, which has no inset outline inside .nav-scroll)
+- V-7: without Switchboard the Sessions page says once how to get it, with no button to a Switchboard setting
+    AssertionError [ERR_ASSERTION]: <div class="sessions"><section class="notice info sessions-note" aria-label="All sessions"><p>Here are the coding agents&#x27; sessions on this computer. Install Fabric Switchboard so that a session that hits a limit continues here.</p><div class="row"><button class="btn btn-sm btn-primary">Choose where sessions continue</button><button class="btn btn-sm" aria-label
+
+Planted defects (scratch plant script over this branch's fixed src/, each reverted after its run; test/review-round2.test.ts):
+- D6 twin by folder only (no time window): CAUGHT by ['✖ D6: our console does not claim an in-place Switchboard record of the same folder from hours ago']
+- D10 End ignores the row actions: CAUGHT by ['✖ D10 and D19: End, Continue and Remove on a row whose state does not offer them are refused and start nothing']
+- D17 held set ignores st: dismissals: CAUGHT by ['✖ D17: a stop the person removed while it could not continue is not continued once it can']
+- D19 Continue on a not-continuable row: CAUGHT by ['✖ D10 and D19: End, Continue and Remove on a row whose state does not offer them are refused and start nothing']
+- D23 resumable on any ended row: CAUGHT by ['✖ D23']
+- D12 undecline keeps the declined record: CAUGHT by ['✖ D12: Continue on a declined stop leaves no "declined" row while its session runs']
+- D12 first slipped through: the new hold (a dismissal of the stop) hid the record it leaves; the test now also asserts the declined record itself is gone, and catches it.

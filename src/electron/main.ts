@@ -919,7 +919,8 @@ if (!app.requestSingleInstanceLock()) {
     // R-4: Electron does not wait for timers, so the SIGKILL that follows SIGTERM would never run.
     // With a command still running, the quit waits for killOwned (≤ 300 ms + a beat), then exits.
     // ADR-0017: an agent console ends with the app too (hang-up, then kill after its grace).
-    if ((ownedCount() > 0 || consoles.manager.runningCount() > 0) && !killing) {
+    // F3 of FIX-2: a continue after a limit still in flight, or a stop claimed and not finished, is settled first.
+    if ((ownedCount() > 0 || consoles.manager.runningCount() > 0 || consoles.quitWork() > 0) && !killing) {
       killing = true;
       event.preventDefault();
       void Promise.allSettled([killOwned(300), consoles.endAllForQuit()]).finally(() => app.exit(0)); // R1-S4: closed when the app quit

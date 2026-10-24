@@ -4,7 +4,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { AppStatus } from '../../core/types';
 import type { SessionActionResult, SessionRow } from '../../core/sessions';
-import { agentName, contextChip, continueLabel, groupRows, originChip, revealLabel, secondLine, stateShort, stateWords } from '../../core/sessions-view';
+import { agentName, clock, contextChip, continueLabel, groupRows, originChip, revealLabel, secondLine, stateShort, stateWords } from '../../core/sessions-view';
 import { api, useT } from '../lib';
 import { SESSION_MARK, SessionMark } from './Navigation';
 
@@ -150,9 +150,11 @@ export function AllSessions({ sessions, noteSeen, onNoteSeen, onSetUp, endedOpen
   const failing = sessions?.degraded[0];
   return (
     <div className="sessions">
-      {!noteSeen && (
+      {/* V-7 of FIX-2: without Switchboard one notice says how to get it; the note and its button to Switchboard's
+          setting are for a computer that has it. */}
+      {!noteSeen && sessions?.switchboard !== false && (
         <section className="notice info sessions-note" aria-label={t('sessions.all')}>
-          <p>{sessions && !sessions.switchboard ? `${t('sessions.note.first')} ${t('sessions.note.install')}` : t('sessions.note')}</p>
+          <p>{t('sessions.note')}</p>
           <div className="row">
             <button className="btn btn-sm btn-primary" onClick={onSetUp}>{t('sessions.setUp')}</button>
             <button className="btn btn-sm" aria-label={t('sessions.gotIt.label')} onClick={onNoteSeen}>{t('sessions.gotIt')}</button>
@@ -160,8 +162,8 @@ export function AllSessions({ sessions, noteSeen, onNoteSeen, onSetUp, endedOpen
         </section>
       )}
       {!sessions && <p className="muted row" role="status"><span className="spinner" aria-hidden="true" /> {t('sessions.reading')}</p>}
-      {sessions && !sessions.switchboard && <p className="notice" role="status">{t('sessions.noSwitchboard')}</p>}
-      {sessions?.switchboard && failing && <p className="notice warning" role="status">{t('sessions.degraded', { time: new Date(failing.since).toLocaleTimeString(lang, { hour: '2-digit', minute: '2-digit' }) })}</p>}
+      {sessions && !sessions.switchboard && <p className="notice" role="status">{`${t('sessions.noSwitchboard')} ${t('sessions.note.install')}`}</p>}
+      {sessions?.switchboard && failing && <p className="notice warning" role="status">{t('sessions.degraded', { time: clock(lang, failing.since) })}</p>}
       {sessions && rows.length === 0 && <div className="empty"><p>{t('sessions.empty')}</p></div>}
       {groups.map(({ group, rows: list }) => {
         const heading = t(`sessions.group.${group}`, { n: list.length });
@@ -186,7 +188,7 @@ export function AllSessions({ sessions, noteSeen, onNoteSeen, onSetUp, endedOpen
 }
 
 /** Whether a session's page shows its console: a console of this app holds or held it. */
-export const hasConsole = (row: SessionRow): boolean => Boolean(row.key) && (row.state === 'running-ours' || row.state === 'needs-you-resume-failed' || row.group === 'ended');
+export const hasConsole = (row: SessionRow): boolean => Boolean(row.key) && (row.state === 'running-ours' || row.state === 'needs-you-resume-failed' || (row.group === 'ended' && !row.consoleEmpty));
 
 /** SCN-080: a session's page header: the project, the state in words, the origin, account and context chips, the coding
  *  agent and the folder, and the state's actions on the right. Its bottom edge is where the console starts. */
@@ -205,7 +207,7 @@ export function SessionHeader({ row, autoContinue, open, askEnd, continued, onMe
       </div>
       <div className="session-meta">
         <span className="chip">{originChip(lang, row)}</span>
-        {row.account && <span className="chip">{t('sessions.account', { account: row.account })}</span>}
+        {row.account && row.origin !== 'limit' && <span className="chip">{t('sessions.account', { account: row.account })}</span>}
         {ctx && <span className="chip">{ctx}</span>}
         <span className="meta">{agentName(row.agent)}</span>
         <span className="meta mono session-folder" title={row.folder}>{shortPath(row.folder)}</span>
@@ -220,6 +222,7 @@ export function SessionHeader({ row, autoContinue, open, askEnd, continued, onMe
 export function SessionBody({ row }: { row: SessionRow }) {
   const { t } = useT();
   if (row.state === 'running-terminal') return <div className="page session-body"><p>{t('sessions.inTerminal')}</p></div>;
-  if (row.group === 'ended' && !row.key) return <div className="page session-body"><p className="muted">{t('sessions.notKept')}</p></div>;
+  // V-5 of FIX-2: an ended row whose console holds nothing (the app restarted since) says so, never a blank page.
+  if (row.group === 'ended' && (!row.key || row.consoleEmpty)) return <div className="page session-body"><p className="muted">{t('sessions.notKept')}</p></div>;
   return <div className="page session-body" />;
 }

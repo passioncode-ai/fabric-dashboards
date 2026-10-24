@@ -32,6 +32,14 @@ row in Sessions beside the running one (SCN-066); all three are recorded in the 
 **Checks run (DOCS-1):** `python3 docs/ux/lint.py` exit 0; `nice -n 10 env FD_SKIP_LAUNCHD=1 npm run check` exit 0
 (697 tests, 691 passed, 6 skipped, 0 failed; brand pins, 154 code regions, UX lint).
 
+**Round 2, FIX-2** (branch `feat/ui-ux-fix2`, from `a5e3e36`): the adversarial round's F1 to F7 (a declined stop continued
+by the person is settled in Switchboard and held a day; one taker per stop; a quit settles a continue in flight; a folder
+a console works in is live for the stop poll; Switchboard row ids by provider, pool, launch and folder; times ahead of the
+clock clamped; the 500 cap keeps declines) and the visual round's V-1 to V-7, with `test/review-round2.test.ts` (each test
+seen failing on the base: [fix2-prefix-failures.txt](reports/2026-10-24-ui-ux-iteration/fix2-prefix-failures.txt)) and
+the contact sheet re-rendered in `reports/2026-10-24-ui-ux-iteration/shots/` (index in its README). FD-106 asks
+fabric-switchboard to settle a limit stop when its workflow is handed over.
+
 **Next task, in order:** merge FIX-1 and DOCS-1 into `feat/ui-ux-0.8.0` and run `npm run check` on the merge; review
 round 2 over the merged branch, with a visual tier (the contact sheet of the Sessions mode and the changed agent screens,
 both themes) and an adversarial round on the Sessions mode (hand-overs, limit stops, Remove and Clear, a restart in the

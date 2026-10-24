@@ -21,7 +21,7 @@ const row = (o: { dir?: string; session?: string; event?: string; ready?: boolea
   candidates: o.candidates ?? ['acc-2', 'acc-3'], mode: 'capacity', probe_at: null, ready: o.ready ?? true,
   stop: { account: 'acc-1', attempt: 2, directory: o.dir ?? '/tmp', event: o.event ?? `cc-${o.session ?? SID}-1792066929`, kind: o.kind ?? 'limit', mode: null, pool: 'default', provider: o.provider ?? 'claude', selected_account: null, session: o.session ?? SID, state: o.state ?? 'waiting', stopped_at: (o.at ?? NOW - 60_000) / 1000 },
 });
-const stop = (o: Partial<SbStop> = {}): SbStop => ({ event: `cc-${SID}-1`, session: SID, dir: '/tmp', provider: 'claude', candidates: ['acc-2'], ready: true, kind: 'limit', state: 'waiting', stoppedAt: NOW - 60_000, attempt: 1, probeAt: null, ...o });
+const stop = (o: Partial<SbStop> = {}): SbStop => ({ event: `cc-${SID}-1`, session: SID, dir: '/tmp', provider: 'claude', candidates: ['acc-2'], ready: true, kind: 'limit', state: 'waiting', stoppedAt: NOW - 60_000, attempt: 1, probeAt: null, account: null, ...o });
 const none = { dirs: [], args: '' };
 
 test('FD-83: the stop list is read strictly — a malformed row is skipped, never guessed at', () => {
@@ -29,7 +29,7 @@ test('FD-83: the stop list is read strictly — a malformed row is skipped, neve
     row(), row({ session: 'not-a-uuid' }), row({ dir: 'relative/dir', session: '00000000-0000-0000-0000-000000000001' }), row({ provider: 'gemini', session: '00000000-0000-0000-0000-000000000002' }), { stop: null }, 'x',
   ] } }));
   assert.equal(stops?.length, 1);
-  assert.deepEqual(stops![0], { event: `cc-${SID}-1792066929`, session: SID, dir: '/tmp', provider: 'claude', candidates: ['acc-2', 'acc-3'], ready: true, kind: 'limit', state: 'waiting', stoppedAt: NOW - 60_000, attempt: 2, probeAt: null });
+  assert.deepEqual(stops![0], { event: `cc-${SID}-1792066929`, session: SID, dir: '/tmp', provider: 'claude', candidates: ['acc-2', 'acc-3'], ready: true, kind: 'limit', state: 'waiting', stoppedAt: NOW - 60_000, attempt: 2, probeAt: null, account: 'acc-1' });
   assert.equal(parseRecovery('{"ok":false}'), null);
   assert.equal(parseRecovery('not json'), null);
 });

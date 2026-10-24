@@ -11,9 +11,10 @@ export function agentName(agent: string): string {
   return agent;
 }
 
-/** The time of day a row is shown with (HH:MM in the reader's language). */
+/** The time of day a row is shown with, in the reader's language: 13:37 in Russian, 1:37 PM in English (V-7 of FIX-2: no
+ *  leading zero before a 12-hour clock's hour). */
 export function clock(lang: Lang, at: number): string {
-  return new Date(at).toLocaleTimeString(lang, { hour: '2-digit', minute: '2-digit' });
+  return new Date(at).toLocaleTimeString(lang, { hour: lang === 'ru' ? '2-digit' : 'numeric', minute: '2-digit' });
 }
 
 /** The groups in GROUP_ORDER, each with its rows (newest first, as the list comes); an empty group is not drawn. */
@@ -77,10 +78,14 @@ export function stateShort(lang: Lang, r: SessionRow): string {
   return stateWords(lang, r);
 }
 
-/** SCN-080: the header's origin chip. */
+/** SCN-080: the header's origin chip. V-1 of FIX-2: a limit stop names the account it stopped on; V-3: a continue that did
+ *  not take up its conversation says it was tried, never that it continued. */
 export function originChip(lang: Lang, r: SessionRow): string {
   const when = r.startedAt ?? r.at;
-  return t(lang, `sessions.chip.${r.origin}`, { time: when ? clock(lang, when) : '' });
+  const time = when ? clock(lang, when) : '';
+  if (r.origin === 'limit') return r.account ? t(lang, 'sessions.chip.limit', { account: r.account, time }) : t(lang, 'sessions.chip.limitNoAccount', { time });
+  if (r.origin === 'resume' && r.state === 'needs-you-resume-failed') return t(lang, 'sessions.chip.resumeTried', { time });
+  return t(lang, `sessions.chip.${r.origin}`, { time });
 }
 
 /** SCN-080: the context chip when Switchboard names one, else null. */

@@ -106,7 +106,7 @@ from other sides; this dossier answers them together, so they leave W1b and W3's
 | State | Words | Actions |
 |---|---|---|
 | running, ours | «Идёт» | Завершить (asks first) · Показать в Finder |
-| running, not ours (Switchboard launched it in Terminal) | «Идёт в Терминале» | Показать в Терминале (when Switchboard knows the window) · nothing destructive |
+| running, not ours (Switchboard launched it in Terminal) | «Идёт в Терминале» | Показать в Finder (its folder; V-6 of FIX-2) · Показать в Терминале (when Switchboard knows the window) · nothing destructive |
 | needs you: resume failed, still running | «Не продолжилась, процесс ещё идёт» | Открыть консоль · Завершить |
 | needs you: could not open here (expired, folder missing, Mac too busy, Switchboard too old) | the reason in one sentence, and «Switchboard открыл её в Терминале» when it did | Убрать |
 | waiting for a reset | «Продолжится около 15:30» | Продолжить сейчас на другом аккаунте (Switchboard's `recovery` candidates) · Не продолжать |

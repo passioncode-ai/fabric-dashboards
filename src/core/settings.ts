@@ -160,14 +160,27 @@ function mergeEstate(raw: unknown): Settings['estate'] {
 }
 // #endregion estate-update
 
+/** At most this many of each kind of Sessions memory are kept. */
+const SESSION_MEMORY_MAX = 500;
+
+/** The newest `max` of `list`, those `held` says must stay first (F7 of FIX-2): a decline, or a stop's dismissal, is
+ *  what keeps a stop from being continued, so later ended rows never push it out. Order is kept. */
+function capKeeping<T>(list: T[], held: (x: T) => boolean, max = SESSION_MEMORY_MAX): T[] {
+  if (list.length <= max) return list;
+  const keep = new Set(list.filter(held).slice(-max));
+  let room = max - keep.size;
+  for (let i = list.length - 1; i >= 0 && room > 0; i--) if (!keep.has(list[i]!)) { keep.add(list[i]!); room--; }
+  return list.filter((x) => keep.has(x));
+}
+
 /** FD-103: the Sessions list's memory; an entry older than 24 hours, or malformed, is dropped on every read and write,
- *  so a restart keeps the rest and nothing stays for ever. At most 500 of each. */
+ *  so a restart keeps the rest and nothing stays for ever. At most 500 of each, declines and stops' dismissals first. */
 function mergeSessionMemory(raw: unknown): Settings['sessions'] {
   const s = (raw && typeof raw === 'object' ? raw : {}) as { records?: unknown; dismissed?: unknown };
   const now = Date.now();
   return {
-    records: pruneRecords(Array.isArray(s.records) ? s.records : [], now).slice(-500),
-    dismissed: pruneDismissed(Array.isArray(s.dismissed) ? s.dismissed : [], now).slice(-500),
+    records: capKeeping(pruneRecords(Array.isArray(s.records) ? s.records : [], now), (r) => r.end === 'declined'),
+    dismissed: capKeeping(pruneDismissed(Array.isArray(s.dismissed) ? s.dismissed : [], now), (d) => d.id.startsWith('st:')),
   };
 }
 

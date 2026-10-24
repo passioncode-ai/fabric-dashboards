@@ -16,8 +16,9 @@ export const SAME_START_MS = 2 * 60_000;
 export const handoverOwnKey = (id: string) => `handover.${id}`;
 
 /** How a session came to be listed: handed over by Switchboard after a limit, continued here after a limit reset,
- *  launched by Switchboard elsewhere, or opened in this app. */
-export type SessionOrigin = 'handover' | 'resume' | 'switchboard' | 'here';
+ *  stopped by a limit and not continued yet (`limit`: a waiting stop, one this app does not continue, or one the person
+ *  declined; V-1 of FIX-2), launched by Switchboard elsewhere, or opened in this app. */
+export type SessionOrigin = 'handover' | 'resume' | 'limit' | 'switchboard' | 'here';
 export type SessionState =
   | 'running-ours' // runs in a console of this app
   | 'running-terminal' // runs elsewhere (Switchboard launched it in Terminal or another app's console)
@@ -42,7 +43,10 @@ export type SessionAction = 'end' | 'reveal' | 'openConsole' | 'dismiss' | 'cont
 export type SessionReason = 'expired' | 'no-folder' | 'busy' | 'busy-disk' | 'busy-cap' | 'busy-swap' | 'switchboard-old' | 'not-started' | 'pending' | 'no-transcript' | 'resume-failed' | 'old' | 'billing' | 'open' | 'declined' | 'quit';
 
 export interface SessionRow {
-  /** Stable across polls and restarts: `c:<console key>:<start>`, `sb:<home>:<launch>`, `ho:<hand-over id>`, `st:<stop event>`. */
+  /** Stable across polls and restarts: `c:<console key>:<start>`, `sb:<provider>:<pool>:<launch>:<folder>` (F5 of FIX-2:
+   *  Switchboard's `home` names a kind of home, `runtimes/<provider>-<pool>`, shared by every session of a pool, so it
+   *  does not tell two sessions apart; a folder longer than 300 characters is named by a hash), `ho:<hand-over id>`,
+   *  `st:<stop event>`. */
   id: string;
   /** The console key of this app that runs or ran it, when there is one (opens the console). */
   key: string | null;
@@ -74,6 +78,9 @@ export interface SessionRow {
    *  transcript the app finds by folder and time, or an agent console's own Continue); otherwise the button reads
    *  "New session here" (decision 6 of 2026-10-24). False for every row that is not ended. */
   resumable: boolean;
+  /** V-5 (FIX-2): an ended row whose console of this app holds nothing it printed (the app restarted since): its page
+   *  says so instead of showing an empty console. Set by the console host; false in the pure merge. */
+  consoleEmpty: boolean;
   /** The row's latest known time, the list's order (newest first). */
   at: number;
 }
@@ -101,7 +108,7 @@ export interface SbSessionRecord {
 export interface PendingHandover { id: string; dir: string; agent: string; account: string; workflow: string; offeredUntil: number }
 
 /** A limit stop as the console host judged it, with the accounts that could take it now. */
-export type StopInput = Pick<StopView, 'event' | 'session' | 'dir' | 'provider' | 'stoppedAt' | 'attempt' | 'verdict' | 'key' | 'probeAt'> & { candidates?: { id: string; label: string }[] };
+export type StopInput = Pick<StopView, 'event' | 'session' | 'dir' | 'provider' | 'stoppedAt' | 'attempt' | 'verdict' | 'key' | 'probeAt' | 'account'> & { candidates?: { id: string; label: string }[] };
 
 /** A console of this app that runs now. */
 export interface ConsoleInput {
@@ -180,7 +187,18 @@ export type SessionActionResult =
 export const consoleRowId = (key: string, startedAt: number) => `c:${key}:${startedAt}`;
 export const handoverRowId = (id: string) => `ho:${id}`;
 export const stopRowId = (event: string) => `st:${event}`;
-const sbRowId = (r: SbSessionRecord) => `sb:${r.home}:${r.launchedAt ?? 0}`;
+/** FNV-1a, 64 bits as hex: a stable short name for a long folder. Pure, so the renderer can import this module. */
+function fnv64(text: string): string {
+  let h = 0xcbf29ce484222325n;
+  for (const ch of new TextEncoder().encode(text)) h = BigInt.asUintN(64, (h ^ BigInt(ch)) * 0x100000001b3n);
+  return h.toString(16).padStart(16, '0');
+}
+/** F5 of FIX-2: one Switchboard session is its provider, pool, launch time and folder (contract *Session list*: a launch
+ *  records its working directory; `home` is the pool's runtime home, the same for every session of the pool). */
+const sbRowId = (r: SbSessionRecord) => {
+  const folder = norm(r.folder);
+  return `sb:${r.provider}:${r.pool}:${r.launchedAt ?? 0}:${folder.length > 300 ? `#${fnv64(folder)}` : folder}`;
+};
 
 export function groupOf(state: SessionState): SessionGroup {
   if (state.startsWith('needs-you')) return 'needs-you';
@@ -194,7 +212,7 @@ export function groupOf(state: SessionState): SessionGroup {
 export function actionsFor(state: SessionState, o: { continueNow?: boolean } = {}): SessionAction[] {
   switch (state) {
     case 'running-ours': return ['end', 'reveal'];
-    case 'running-terminal': return [];
+    case 'running-terminal': return ['reveal']; // V-6 of FIX-2: its folder, the one thing this app can show
     case 'needs-you-resume-failed': return ['openConsole', 'end'];
     case 'needs-you-not-opened': return ['dismiss'];
     case 'waiting-reset': return [...(o.continueNow ? ['continueNow' as const] : []), 'dontContinue'];
@@ -204,18 +222,25 @@ export function actionsFor(state: SessionState, o: { continueNow?: boolean } = {
 
 const norm = (p: string) => (p.length > 1 ? p.replace(/[\\/]+$/, '') : p);
 const base = (p: string) => norm(p).split(/[\\/]/).pop() || p;
-const fresh = (t: number | null | undefined, now: number) => typeof t === 'number' && now - t <= SESSION_KEEP_MS;
+/** Within the last 24 hours, and not ahead of now by more than SAME_START_MS (F6 of FIX-2: a record a year ahead is no
+ *  fresh record, else it would be listed for a year). */
+const fresh = (t: number | null | undefined, now: number) => typeof t === 'number' && now - t <= SESSION_KEEP_MS && t <= now + SAME_START_MS;
+/** F6 of FIX-2: a time this app wrote ahead of the clock (the clock was set back since) is kept at now, never dropped:
+ *  a decline written then still holds, and for a day from now, not for as long as the clock had run ahead. */
+const clamp = (t: number, now: number) => Math.min(t, now);
 
-/** Entries older than 24 hours are dropped; a malformed one is never kept. */
+/** Entries older than 24 hours are dropped; a malformed one is never kept; a time ahead of now is now. */
 export function pruneRecords(records: readonly unknown[], now: number): SessionRecord[] {
-  return records.filter((r): r is SessionRecord => isRecord(r) && fresh(r.endedAt, now) && r.endedAt <= now + SAME_START_MS);
+  return records.filter((r): r is SessionRecord => isRecord(r) && now - r.endedAt <= SESSION_KEEP_MS)
+    .map((r) => (r.endedAt > now || (r.startedAt ?? 0) > now ? { ...r, endedAt: clamp(r.endedAt, now), startedAt: r.startedAt === null ? null : clamp(r.startedAt, now) } : r));
 }
 
 export function pruneDismissed(dismissed: readonly unknown[], now: number): Dismissal[] {
-  return dismissed.filter((d): d is Dismissal => Boolean(d) && typeof (d as Dismissal).id === 'string' && (d as Dismissal).id.length <= 400 && fresh((d as Dismissal).at, now));
+  return dismissed.filter((d): d is Dismissal => Boolean(d) && typeof (d as Dismissal).id === 'string' && (d as Dismissal).id.length <= 400 && num((d as Dismissal).at) && now - (d as Dismissal).at <= SESSION_KEEP_MS)
+    .map((d) => (d.at > now ? { id: d.id, at: now } : d));
 }
 
-const ORIGINS = new Set<SessionOrigin>(['handover', 'resume', 'switchboard', 'here']);
+const ORIGINS = new Set<SessionOrigin>(['handover', 'resume', 'limit', 'switchboard', 'here']);
 const ENDS = new Set<SessionRecord['end']>(['ended', 'idle', 'you', 'not-opened', 'declined', 'quit']);
 const num = (v: unknown) => typeof v === 'number' && Number.isFinite(v);
 function isRecord(r: unknown): r is SessionRecord {
@@ -225,12 +250,13 @@ function isRecord(r: unknown): r is SessionRecord {
     && (x.key === null || typeof x.key === 'string');
 }
 
-function row(o: Omit<SessionRow, 'project' | 'group' | 'at' | 'actions' | 'contextName' | 'openedInTerminal' | 'expectedAt' | 'candidates' | 'resumable'> & Partial<Pick<SessionRow, 'actions' | 'contextName' | 'openedInTerminal' | 'expectedAt' | 'candidates' | 'resumable'>>): SessionRow {
+function row(o: Omit<SessionRow, 'project' | 'group' | 'at' | 'actions' | 'contextName' | 'openedInTerminal' | 'expectedAt' | 'candidates' | 'resumable' | 'consoleEmpty'> & Partial<Pick<SessionRow, 'actions' | 'contextName' | 'openedInTerminal' | 'expectedAt' | 'candidates' | 'resumable'>>): SessionRow {
   const group = groupOf(o.state);
   return {
     ...o, project: base(o.folder), group, actions: o.actions ?? actionsFor(o.state),
     contextName: o.contextName ?? null, openedInTerminal: o.openedInTerminal ?? false, expectedAt: o.expectedAt ?? null, candidates: o.candidates ?? [],
     resumable: group === 'ended' && (o.resumable ?? false),
+    consoleEmpty: false,
     at: Math.max(o.endedAt ?? 0, o.startedAt ?? 0),
   };
 }
@@ -292,7 +318,7 @@ export function mergeSessions(i: MergeInput): SessionRow[] {
     const s = r.id.startsWith('c:') ? sbOf(r.folder, r.startedAt) : undefined; // only a console of this app has a twin
     add(row({
       id: r.id, key: r.key, folder: r.folder, agent: r.agent, account: r.account ?? s?.account ?? null, context: r.context ?? s?.context ?? null,
-      contextName: s?.contextName ?? null, origin: r.origin, reason: END_REASON[r.end] ?? null, state: END_STATE[r.end], startedAt: r.startedAt, endedAt: r.endedAt,
+      contextName: s?.contextName ?? null, origin: r.end === 'declined' ? 'limit' : r.origin, reason: END_REASON[r.end] ?? null, state: END_STATE[r.end], startedAt: r.startedAt, endedAt: r.endedAt, // V-1: 0.8.0 builds wrote 'resume' for a decline
       resumable: r.sessionId !== null || r.provider === 'claude' || (r.origin === 'here' && r.key !== null),
     }));
   }
@@ -314,7 +340,8 @@ export function mergeSessions(i: MergeInput): SessionRow[] {
   for (const s of i.stops) {
     if (s.verdict === 'resumed' || s.verdict === 'claimed') continue;
     if (s.verdict === 'failed' && s.key && consoleKeys.has(s.key)) continue;
-    const common = { id: stopRowId(s.event), key: s.key ?? null, folder: s.dir, agent: s.provider === 'codex' ? 'codex' : 'claude-code', account: null, context: null, origin: 'resume' as const, startedAt: s.stoppedAt || null, endedAt: null };
+    // V-1 of FIX-2: a stop is "stopped by a limit on" the account it stopped on, never "continued after a limit reset".
+    const common = { id: stopRowId(s.event), key: s.key ?? null, folder: s.dir, agent: s.provider === 'codex' ? 'codex' : 'claude-code', account: s.account ?? null, context: null, origin: 'limit' as const, startedAt: s.stoppedAt || null, endedAt: null };
     if (s.verdict === 'waiting' || s.verdict === 'resume') {
       const candidates = s.candidates ?? [];
       add(row({

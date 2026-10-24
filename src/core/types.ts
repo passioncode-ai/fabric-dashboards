@@ -206,7 +206,10 @@ export interface StopView { event: string; session: string; dir: string; provide
   /** FD-103: the accounts that could take it now (Switchboard's candidates, its order), ids and labels only. */
   candidates?: { id: string; label: string }[];
   /** R1-S3: when Switchboard will probe a waiting stop (its `probe_at`, ms); null or absent when it names none. */
-  probeAt?: number | null }
+  probeAt?: number | null;
+  /** V-1 (FIX-2): the label of the account the session stopped on (Switchboard's `account`, named by its label when the
+   *  account list has it); null or absent when unknown. */
+  account?: string | null }
 
 /** What the app knows about sessions stopped on a limit: off, unreadable, or the stops still open. */
 export interface RecoveryStatus {

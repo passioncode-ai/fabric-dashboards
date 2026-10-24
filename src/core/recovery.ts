@@ -35,6 +35,8 @@ export interface SbStop {
   attempt: number;
   /** When Switchboard will probe it (its `probe_at`, SB-115), in ms; null when it names none (R1-S3). */
   probeAt: number | null;
+  /** V-1 of FIX-2: the account the session stopped on (recovery.rs `Wait.account`), an id; null when absent. */
+  account: string | null;
 }
 
 /** The stop states that are still open in Switchboard; `resumed` and `cancelled` are finished and listed nowhere. */
@@ -103,6 +105,7 @@ export function parseRecovery(stdout: string): SbStop[] | null {
       stoppedAt: stopped,
       attempt: typeof s.attempt === 'number' ? s.attempt : 1,
       probeAt: typeof row.probe_at === 'number' && Number.isFinite(row.probe_at) ? row.probe_at * 1000 : null,
+      account: typeof s.account === 'string' && /^[A-Za-z0-9-]{1,64}$/.test(s.account) ? s.account : null,
     });
   }
   return out;
