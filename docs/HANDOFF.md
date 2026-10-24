@@ -15,7 +15,15 @@ REQ-4 DOCMAP, REQ-5 docs and release).
 FD-100 row lists them), each with a test red on the old code; `docs/DOCMAP.md` (FD-99); ADR-0024 and ADR-0013 amended;
 screens.md, SCN-037, SCN-076, SECURITY.md, README, CHANGELOG brought in line.
 
-**Next, in order:** FD-101; FD-98 (deferred until a test can prove it); FD-96 waits on thread `f10db6ee`; FD-58's next
+**Checks run:** `npm run check` 627 tests, 0 failures; the new tests red on the old code; `test/e2e/load.test.ts` green
+and its fallback step red without its fix; validate run 40054746805 green on all five runners at `0a4ea42`.
+**Not run yet, and why the tag waits:** the whole e2e suite (a change to the shared service page). It was stopped after
+4 of 25 files passed (none failed) because the Mac ran out of disk and swap (130 MB free, swap 14.9 of 15.1 GB used):
+the suite runs files in parallel, each with its own Electron. **First task:** once there is room (several GB free and
+swap not full, which only closing idle sessions or a reboot gives back), `npm ci && npm run build && node --import tsx
+--test --test-concurrency=1 test/e2e/*.test.ts`, then tag `v0.7.28` on the merge commit and follow RUNBOOK §Release.
+
+**Next, in order:** the e2e and the tag above; FD-101; FD-98 (deferred until a test can prove it); FD-96 waits on thread `f10db6ee`; FD-58's next
 step (read Observatory 0.29.0's `node.lifecycle` schemas); FD-95 at its next miss.
 
 ## 0.7.27: start here (2026-10-23, FD-97 an unpriced subscription is unknown)
