@@ -121,13 +121,13 @@ forever.
 
 - A hand-over taken here sends one system notification: «Switchboard передал сессию: <project> продолжается на
   <coding agent>»; clicking it opens that session. Paused notifications (SCN-023) silence it.
-- The tray gets a «Сессии: N идут, M ждут вас» line that opens the Sessions mode.
+- The tray gets a «Сессии: идут N, нужно ваше решение M» line that opens the Sessions mode (decision 7: counts after the label; "need you" worded as the one name for that state, SCN-077 Copy; `tray.sessions.both` in `src/core/i18n.ts`).
 
 ### Settings → Sessions (new section)
 
 - «Открывать сессии, переданные Switchboard, здесь» (Switchboard's `handovers set on|off`, read and written through
   its CLI; today it can only be changed in Switchboard).
-- «Продолжать сессии после сброса лимита» (the existing switch, moved here from General).
+- «Продолжать сессии после сброса лимита» (the existing switch, moved here from its own group «Сессии, остановленные лимитом», SCN-086).
 
 ## Data (`src/core/sessions.ts`, new, pure)
 
@@ -195,7 +195,7 @@ hand-over and resume consoles, `handover.body`/`resumeBody`/`done` and the strin
 4. Esc always reaches the coding agent; only a Tab within 1 s after it is held back and moves focus.
 5. "An agent asks a question" has no source yet: deferred, not drawn.
 6. **Continue** without a known conversation reads "New session here".
-7. The tray line is «Сессии: идут N, ждут вас M» (counts after the label, the app's Russian rule).
+7. The tray line is «Сессии: идут N, ждут вас M» (counts after the label, the app's Russian rule). Shipped as «Сессии: идут N, нужно ваше решение M», with the one name for the needs-you state (SCN-077 Copy, orchestrator 2026-10-24).
 8. **A hand-over always gets its own console**, never an agent's free console in the same folder, so one session
    lives in one place and the agent's console stays the person's. This changes `console.ts:348-385`.
 9. An automatic continue after a limit reset also sends one notification, like a taken hand-over.

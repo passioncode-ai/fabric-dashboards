@@ -2,29 +2,71 @@
 
 ## Unreleased
 
+0.8.0 separates the coding sessions from the agents, and makes the app say one thing about what needs you, in the
+same words everywhere. The iteration's records are in
+[docs/reports/2026-10-24-ui-ux-iteration/](docs/reports/2026-10-24-ui-ux-iteration/README.md).
+
 ### Added
 
-- **The data of the Sessions list** (FD-103, node S2 of the 0.8.0 iteration; no window yet). Every coding session of this
-  Mac in one list (`status.sessions`): the ones Switchboard launched (`sessions --all`, read every 15 s with the window
-  shown, 60 s hidden), its hand-overs, its sessions stopped on a limit and this app's own consoles, each with its state,
-  group and the actions that state allows. Ended sessions and hand-overs that could not open here are kept 24 hours
-  across a restart; a closed idle hand-over can be continued; a continued session that did not take up its
-  conversation and still runs is listed as needing you, with its console.
-- **A Sessions mode** (FD-103, node S3 of the 0.8.0 iteration; SCN-077 to SCN-086). A switch at the top of the
-  sidebar moves between Agents and Sessions (⌘1 and ⌘2, Ctrl elsewhere); the window reopens in the mode it was closed
-  in, and the Sessions part counts the sessions that need you. Sessions lists every coding session by what it needs:
-  Needs you, Running, Waiting for a limit reset, and Ended in the last 24 hours (folded, with Clear). Each row says the
-  project over the coding agent, the account, how it came here and when, and each state has its actions: End (asks
-  first), Show in Finder, Open console, Continue now on another account, Do not continue, Continue or New session here,
-  Remove. All sessions explains itself once, and says when Switchboard is missing or did not answer.
-- **A session has a page of its own**: its project, state, where it came from, its account and context, and its
-  console filling the rest of the window, with no fold and nothing that navigates away. Esc reaches the coding agent;
-  Esc then Tab within a second leaves the terminal. The terminal follows a change of the colour scheme at once.
-- **One notification per session that continues here**: a taken hand-over, or a session continued after a limit reset;
-  paused notifications and quiet hours silence it, and a click opens the session. The menu bar menu says "Sessions:
-  running N, need you M" and opens the Sessions mode.
+- **A Sessions mode** (FD-103; SCN-077 to SCN-086). A switch at the top of the sidebar moves between Agents and
+  Sessions: ⌘1 and ⌘2 (Ctrl+1 and Ctrl+2 on Windows and Linux), also in the View menu. The window reopens in the mode
+  it was closed in, and "Sessions" carries a badge with the number of sessions that need you, in either mode. Sessions
+  lists every coding session on this computer, the ones Fabric Switchboard runs and the ones in this app's consoles,
+  grouped by what it needs: Needs you, Running, Waiting for a limit reset, and Ended in the last 24 hours (folded). Each
+  row names the project over the coding agent, the account, how it came here (handed over, after a limit reset, started
+  by Switchboard, opened here) and when.
+- **The pages of the Sessions mode.** All sessions explains itself once, says when Switchboard is missing or did not
+  answer, and shows each session as a card with the actions of its state: End (asks first), Show in Finder (Show in
+  Explorer on Windows, Show folder on Linux), Open console, Continue now on another account, Do not continue, Continue
+  or New session here, Remove. A session's own page shows its project, state, origin, account and context, with its
+  console filling the rest of the window; Esc reaches the coding agent, and Esc then Tab within a second leaves the
+  terminal. The terminal follows a change of the colour scheme at once. Ended sessions stay listed for 24 hours, also
+  across a restart.
+- **One notification per session that continues here**: a hand-over this app took, or a session continued after a
+  limit reset. Paused notifications and quiet hours silence it, and a click opens the session.
+- **A Sessions line in the menu bar menu**, "Sessions: running N, need you M" («Сессии: идут N, нужно ваше решение M»),
+  shown while a session runs or needs you; it opens the Sessions mode.
 - **Settings → Sessions**: "Open sessions handed over by Switchboard here", read and changed through Switchboard, and
-  "Continue sessions after a limit reset", moved here.
+  "Continue sessions after a limit reset", moved here from the group "Sessions stopped on a limit".
+- **The interface's words have a home**: the brand pack in [docs/brand/](docs/brand/README.md) (voice, terminology,
+  Russian choices), checked by `test/copy.test.ts`.
+
+### Changed
+
+- **States and actions have new names**, one name for each, in both languages:
+  - Off is now **Stopped** (Russian unchanged, «Выключен»); Degraded is **Partly working** («Работает частично»);
+    Invalid is **Broken install file** («Ошибка в файле установки», was «Ошибка в дескрипторе»), with "Its install
+    file is broken: … Reinstall the agent."
+  - Fix with agent is **Fix with coding agent** («Исправить с агентом для кода», was «Исправить через агента»);
+    Update with agent is **Update with coding agent** («Обновить с агентом для кода», was «Обновить через агента»);
+    Repair with my coding agent is **Fix with my coding agent**.
+  - Doctor is **Run self-check** («Запустить проверку», was «Диагностика»); Reload is **Reload page**; Restart to
+    Update is **Restart to update**; Continue last is **Continue last session**.
+  - No services yet is **No agents yet** («Агентов пока нет»), and Show folder is **Show the services folder**
+    («Показать папку сервисов»); "service" becomes "agent" wherever a person reads it, and "runtime" becomes "coding
+    agent" («агент для кода»).
+  - Same as macOS and As on this Mac are **Same as the system** («Как в системе»); "this Mac" stays on macOS, and
+    Windows and Linux read "this computer".
+  - No string the app composes carries an em dash any more: the tray reads "● Example: Ready".
+- **One count of what needs you.** Overview's Needs attention, its strip, the sidebar's Overview badge, the menu bar
+  menu's first line and the Dock badge count the same items, and the Dock badge is now that number instead of "!". The
+  count now includes agents that partly work, updates, attention tiles, a running action and a failed action of the
+  last 30 minutes, besides the agents that do not answer.
+- **A spending limit that stopped an agent's work needs you**: a Needs attention row ("Its spending limit stopped work
+  (daily)." with Open Spend), an item in the menu bar menu and the red menu bar icon.
+- **Needs attention comes first** on Overview, right under the strip; each row's actions sit in one cell, a row of
+  agents down for one reason offers "Restart N", and the strip's not-answering and attention cells move to it.
+- **The agent's bar offers the state's own action first**: Restart or Start, then Fix; an available update shows in
+  the bar as "Update to <version>" even when nothing is wrong, and the problem chip opens the details for this visit
+  only.
+- **"Since you were last here" is read again** when the window comes back after an hour hidden, and can be dismissed.
+- **The folded sidebar rail shows the app's own update** as an entry of its own.
+- **The light theme's accent is readable**: text, lines and focus rings use darker shades; the sidebar's row menu is
+  reachable with the keyboard, and reduced motion stops the cursor blinking and the spinner.
+- **Hand-overs and sessions continued after a limit reset each run in a console of their own**, never in an agent's
+  free console in the same folder, so one session lives in one place and the agent's console stays yours (decision 8
+  of [the iteration's design](docs/reports/2026-10-24-ui-ux-iteration/sessions-and-navigation.md)). A hand-over
+  Switchboard still offers is not listed until this app takes it or it fails.
 
 ### Fixed
 
@@ -33,21 +75,20 @@
   rather than "at least $0.00", and a subscription row with no calls but a cost is no longer dropped from the estimate.
   An agent's own figures follow the same rule. MCP `spend` answers each sum's `sides`. Shared package
   `@passioncode-ai/fabric-service-host` 0.9.0.
+- **No more dead ends for handed-over sessions**: a hand-over or a continued session closed after 30 idle minutes can be
+  continued from its row (its console was reopened only from the sidebar's Hand-overs section, whose text named a "New session" button that was never drawn there); a
+  session continued after a limit reset that did not take up its conversation but still runs is listed under Needs you
+  with Open console; ended sessions that hung in the list can be removed one by one or all at once with Clear.
 - **`npm run test:e2e` is safe on a loaded Mac** (HV-02): it refuses at once when the 1-minute load average is above 150
   or free disk is under 5 GB (`FD_E2E_MAX_LOAD`, `FD_E2E_MIN_FREE_GB` move the floors) and runs its files one at a time
   unless `-- --parallel` or `FD_E2E_CONCURRENCY` asks for more.
 
-### Changed
-
-- **A hand-over always opens in a console of its own**, never in an agent's free console in the same folder (decision 8).
-  So does a session continued after a limit reset (decision 8, extended 2026-10-24).
-- **A hand-over Switchboard still offers is not listed** until this app takes it or it fails.
-
 ### Removed
 
-- The sidebar's Hand-overs section and its page, the console dropping down over a hand-over, and the list of sessions
-  stopped on a limit under Connections: all of it is in the Sessions mode now. The strings that pointed "on the right"
-  went with them.
+- The sidebar's Hand-overs section and its page, and the console dropping down over a hand-over: hand-overs are in the
+  Sessions mode now. The strings that pointed "on the right" went with them.
+- The list of sessions stopped on a limit under Connections: those sessions are under Waiting for a limit reset or
+  Needs you in the Sessions mode.
 
 ## 0.7.28 - 2026-10-24
 

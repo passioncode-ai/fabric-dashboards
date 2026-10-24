@@ -301,7 +301,7 @@ hunt browser tabs to learn whether an agent is alive or what it did.
 - **Acceptance criteria:**
   - Given an agent's console, when I start a runtime, then it receives the agent's context before its first turn (Claude: system prompt and MCP; Codex: MCP and a first prompt; any: an environment variable naming the file), and nothing of the agent's token.
   - Given an agent with a problem, when I press *Fix with coding agent*, then its console opens and the coding agent starts with the problem as its task.
-  - Given an update the agent's own command cannot apply, when I press *Update with agent*, then the runtime starts with the update as its task.
+  - Given an update the agent's own command cannot apply, when I press *Update with coding agent*, then the coding agent starts with the update as its task.
 - **Priority:** must
 - **Status:** proposed
 

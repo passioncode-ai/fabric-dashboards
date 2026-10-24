@@ -24,10 +24,10 @@
 | SCN-016 | Dashboard cannot sign in | dashboards | P-01 | ST-005 | validated | 2026-10-13 |
 | SCN-017 | Catch up in Activity | activity | P-01 | ST-006 | validated | 2026-10-12 |
 | SCN-018 | Activity when a service's feed cannot be read | activity | P-01 | ST-006 | validated | 2026-10-13 |
-| SCN-019 | Notification when a service goes down and comes back | notifications | P-01 | ST-007 | draft | 2026-10-06 |
-| SCN-020 | Notification from a service event opens the item | notifications | P-01 | ST-007, ST-006 | draft | 2026-10-06 |
+| SCN-019 | Notification when a service goes down and comes back | notifications | P-01 | ST-007 | validated | 2026-10-24 |
+| SCN-020 | Notification from a service event opens the item | notifications | P-01 | ST-007, ST-006 | validated | 2026-10-24 |
 | SCN-021 | Update a service | updates | P-01 | ST-008 | validated | 2026-10-13 |
-| SCN-022 | The app updates itself | updates | P-01 | ST-008 | validated | 2026-10-12 |
+| SCN-022 | The app updates itself | updates | P-01 | ST-008 | validated | 2026-10-24 |
 | SCN-023 | Glance from the menu bar | tray | P-01 | ST-009 | validated | 2026-10-12 |
 | SCN-024 | Settings: launch at login, notifications, quiet hours | settings | P-01 | ST-010, ST-007 | validated | 2026-10-13 |
 | SCN-025 | Run doctor and read logs | control | P-01 | ST-003 | validated | 2026-10-13 |
@@ -48,19 +48,19 @@
 | SCN-040 | Copy a dashboard page's address or app link | dashboards | P-01 | ST-016, ST-011 | validated | 2026-10-12 |
 | SCN-041 | Overview at a glance | overview | P-01 | ST-016, ST-002, ST-015 | validated | 2026-10-13 |
 | SCN-042 | Many problems stay compact | overview | P-01 | ST-016, ST-002 | validated | 2026-10-13 |
-| SCN-043 | Reinstall picks up where I left off | settings | P-01 | ST-017, ST-010 | draft | 2026-10-06 |
-| SCN-044 | A copy outside Applications moves itself so it can update | updates | P-01 | ST-017, ST-008 | draft | 2026-10-06 |
+| SCN-043 | Reinstall picks up where I left off | settings | P-01 | ST-017, ST-010 | validated | 2026-10-24 |
+| SCN-044 | A copy outside Applications moves itself so it can update | updates | P-01 | ST-017, ST-008 | draft | 2026-10-24 |
 | SCN-045 | A dashboard hands me to another agent | dashboards | P-01 | ST-005, ST-011 | validated | 2026-10-12 |
-| SCN-046 | The dashboard gets the screen: a one-line header that opens to the full card | focus | P-01 | ST-018 | validated | 2026-10-06 |
-| SCN-047 | The agents list folds into a rail | focus | P-01 | ST-018 | validated | 2026-10-06 |
+| SCN-046 | The dashboard gets the screen: a one-line header that opens to the full card | focus | P-01 | ST-018 | validated | 2026-10-24 |
+| SCN-047 | The agents list folds into a rail | focus | P-01 | ST-018 | validated | 2026-10-24 |
 | SCN-048 | Open an agent's console over its dashboard | console | P-01 | ST-019 | validated | 2026-10-23 |
 | SCN-049 | Start a runtime in the agent's repository | console | P-01 | ST-019 | validated | 2026-10-06 |
 | SCN-050 | A folder bound to a Switchboard project runs on that project's account | console | P-01 | ST-019 | validated | 2026-10-06 |
 | SCN-051 | The app watches contract and skill versions | estate | P-01 | ST-008, ST-017 | validated | 2026-10-14 |
-| SCN-052 | Fabric Dashboards on Windows or Linux | platform | P-01 | ST-001, ST-008 | draft | 2026-10-10 |
+| SCN-052 | Fabric Dashboards on Windows or Linux | platform | P-01 | ST-001, ST-008 | draft | 2026-10-24 |
 | SCN-053 | The console's agent already knows which agent it works on | console | P-01 | ST-020 | validated | 2026-10-12 |
-| SCN-054 | Fix with agent | console | P-01 | ST-020 | validated | 2026-10-12 |
-| SCN-055 | Update with agent | console | P-01 | ST-020 | validated | 2026-10-14 |
+| SCN-054 | Fix with coding agent | console | P-01 | ST-020 | validated | 2026-10-12 |
+| SCN-055 | Update with coding agent | console | P-01 | ST-020 | validated | 2026-10-14 |
 | SCN-056 | Pin an agent to the top of the list | list | P-01 | ST-021 | validated | 2026-10-12 |
 | SCN-057 | Sort the agents list | list | P-01 | ST-021 | validated | 2026-10-13 |
 | SCN-058 | First session: my coding agent sets the system up | setup | P-01 | ST-022 | validated | 2026-10-12 |
@@ -108,12 +108,12 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **Entry point:** first launch of the app; descriptors exist in the services directory
 - **Preconditions:** at least one service is installed and running
 - **Steps:**
-  1. User opens Fabric Dashboards for the first time -> system shows the window with the sidebar and Overview, a "Looking for services…" line while it reads the services directory
+  1. User opens Fabric Dashboards for the first time -> system shows the window with the sidebar and Overview, a "Looking for agents…" line while it reads the services directory
   2. System reads every descriptor and probes each service -> each agent appears in the sidebar and as a card with its state, name and version within 5 seconds; a second instance of one agent appears inside that agent, and where it is named alone it carries its instance ("Example Agent · preview", SCN-033)
   3. User looks at the menu bar -> system shows the Dashboards icon with the aggregate state
-  4. Above Overview, the app asks once: "Open Fabric Dashboards when you log in?" with Open at login and Not now -> either answer is kept, the card is gone, and Settings shows the choice (SCN-024)
+  4. The first launch of an installed copy registers it to open at login, with no question (on by default since 2026-10-16, FD-72) -> Settings shows Open at login on, and the person turns it off there (SCN-024); when macOS holds the login item for approval, a notification says so (SCN-024)
 - **Expected result:** every installed service is listed with its real state without any setup
-- **Alt paths:** a service is installed but its launchd job is off -> it appears as "Off"; its page offers Start (SCN-010); a service not yet probed reads "Starting", never Off
+- **Alt paths:** a service is installed but its launchd job is off -> it appears as "Stopped"; its page offers Start (SCN-010); a service not yet probed reads "Starting", never Stopped
 - **UI elements:** window, sidebar service list, Overview cards, loading line, menu bar icon
 - **States covered:** loading, success
 - **Errors & recovery:** services directory unreadable -> Overview shows "Cannot read the services folder: <reason>" with the path and Retry
@@ -153,7 +153,7 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **Alt paths:** a descriptor is rewritten (reinstall) -> the service keeps its place and view; the card updates
 - **UI elements:** sidebar, Overview cards, Activity rows
 - **States covered:** success
-- **Errors & recovery:** a half-written file shows as Invalid ("the file cannot be read as JSON: …") until it parses, and Activity may record it as installed (U-16, later); nothing else can fail visibly beyond SCN-004
+- **Errors & recovery:** a half-written file shows as "Broken install file" ("the file cannot be read as JSON: …") until it parses, and Activity may record it as installed (U-16, later); nothing else can fail visibly beyond SCN-004
 - **Status:** validated
 - **Coverage:** src/core/monitor.ts, test/monitor.test.ts, test/e2e/discovery.test.ts
 - **Product:** unobserved
@@ -165,10 +165,10 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **Entry point:** a descriptor that fails the fabric-service/0.1 rules
 - **Preconditions:** none
 - **Steps:**
-  1. System reads the descriptor -> the service appears with state "Invalid" and the first problem as a sentence (for example "origin must be http://127.0.0.1:<port>")
+  1. System reads the descriptor -> the service appears with state "Broken install file" and the first problem in one sentence, "Its install file is broken: <problem>. Reinstall the agent." (for example "origin must be http://127.0.0.1:<port>")
   2. User opens it -> system shows every problem and the file path with "Show file"; no probe, token read or control is attempted
 - **Expected result:** a broken installation is visible and explained, never silently skipped
-- **UI elements:** Invalid badge, problem list, "Show file" button
+- **UI elements:** "Broken install file" badge, problem list, "Show file" button
 - **States covered:** error
 - **Errors & recovery:** the operator fixes or reinstalls; the state clears within 5 seconds of a valid rewrite
 - **Status:** validated
@@ -187,7 +187,7 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
   1. User opens Overview -> system shows one card per service: state dot and word, name, version and short commit, uptime, what the agent is for (the descriptor's one-line summary, at most two lines), up to six summary tiles, the latest event sentence with its time
   2. User chooses a card -> system opens that service's view (SCN-014)
 - **Expected result:** the state of every service is readable in one screen; no Needs attention block is shown
-- **UI elements:** service cards, state dot and label, the agent's one-line summary, tiles, latest event line, header count "7 services" (one per agent, ADR-0012)
+- **UI elements:** service cards, state dot and label, the agent's one-line summary, tiles, latest event line, header count "7 agents" (one per agent, ADR-0012)
 - **States covered:** loading, success
 - **Errors & recovery:** nothing can fail on this screen itself; per-service failures are SCN-006
 - **Status:** validated
@@ -201,11 +201,11 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **Entry point:** Overview, the first page of the Agents mode (the sidebar switch's "Agents", or ⌘1; SCN-077)
 - **Preconditions:** at least one service is down, degraded, duplicated, foreign, conflicting, invalid, has an attention tile, or has an update
 - **Steps:**
-  1. User opens Overview -> system shows Needs attention right under the strip (above "Since you were last here" and the cards), most severe first: one single-line row per problem with its state, the name, the reason cut to the line ("Not answering since 17:02.") and its actions in one cell (Restart for a local service that is down or runs twice, "Update to 0.2.1" when the service declares an update command, Open otherwise; Logs after a failed action; "Fix with coding agent" after the first action), the reason keeping a floor of 12 characters; an agent whose spending limit stopped work is a row too ("Its spending limit daily stopped work.", Open Spend), after the agents that do not answer; while the action runs the row shows its progress ("Restarting…"); a folded row of agents down for one reason offers "Restart 3"; more than three rows wait behind "Show all" (SCN-042). The heading's count is the one count of what needs attention: the Overview badge in the sidebar (red when something does not work), the tray's "Needs attention: N" and the Dock badge show the same number (W2, UX-04)
+  1. User opens Overview -> system shows Needs attention right under the strip (above "Since you were last here" and the cards), most severe first: one single-line row per problem with its state, the name, the reason cut to the line ("Not answering since 17:02.") and its actions in one cell (Restart for a local service that is down or runs twice, "Update to 0.2.1" when the service declares an update command, Open otherwise; Logs after a failed action; "Fix with coding agent" after the first action), the reason keeping a floor of 12 characters; an agent whose spending limit stopped work is a row too ("Its spending limit stopped work (daily).", Open Spend), after the agents that do not answer; while the action runs the row shows its progress ("Restarting…"); a folded row of agents down for one reason offers "Restart 3"; more than three rows wait behind "Show all" (SCN-042). The heading's count is the one count of what needs attention: the Overview badge in the sidebar (red when something does not work), the tray's "Needs attention: N" and the Dock badge show the same number (W2, UX-04)
   2. User chooses the action -> system performs it (SCN-007, SCN-011, SCN-021); the row leaves when the problem clears, and a failed action keeps its row, with the failure sentence and Logs, for 30 minutes
 - **Expected result:** problems are the first thing read, each with its next action
 - **Alt paths:** a degraded service lists its reasons with Open, when the fix is inside the service ("Collector: last ran 3 days ago"); an online service never offers Restart: its platform supervises it; several agents in the same state for the same reason (one hub down behind them) -> one line, "3 agents: A, B, C" with the reason once, each name opening its agent (FD-86); a coding session that needs the person is not listed here: from 0.8.0 the Sessions switch counts it (SCN-077, SCN-082)
-- **UI elements:** Needs attention block, problem rows, action buttons (each names its service for a screen reader), the problem count on Overview in the sidebar (not answering, two copies, wrong program, conflict, invalid)
+- **UI elements:** Needs attention block, problem rows, action buttons (each names its service for a screen reader), the count on Overview in the sidebar, which is the Needs attention count: one per agent in the queue, whatever put it there (a problem state, partly working, an attention tile, an update, a running action, a spending limit that stopped work, a failed action of the last 30 minutes; `attentionQueue` in src/core/attention.ts), red when one of them does not work (`urgent`)
 - **States covered:** error, success
 - **Errors & recovery:** the action fails -> the row keeps its place with the failure sentence and Logs
 - **Status:** validated
@@ -221,7 +221,7 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **Entry point:** Needs attention row or service view header (the tray menu opens the service view)
 - **Preconditions:** the service is managed by launchd
 - **Steps:**
-  1. User chooses Restart -> the header and the Needs attention row show "Restarting…", the state reads Starting, and Restart, Stop, Update and Doctor are disabled; a second click is refused ("<Service> is busy with another action…")
+  1. User chooses Restart -> the header and the Needs attention row show "Restarting…", the state reads Starting, and Restart, Stop, Update and Run self-check are disabled; a second click is refused ("<Service> is busy with another action…")
   2. System asks launchd to restart the job and probes until the service answers as itself with a new pid -> state becomes Ready (or Partly working with reasons); Activity gains "<Service> restarted (pid 5542)"
 - **Expected result:** the service answers again, started by launchd, and the result is stated
 - **Alt paths:** the job was not loaded -> system enables and loads it first, then waits; the page of the restarted service offers "The service restarted." with Reload
@@ -243,7 +243,7 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
   1. System reaches the 40 s limit -> the control stops, the state follows the next probe, and the header and the Needs attention row say "<Service> did not come back within 40 s." with Logs when the service declares log files; Doctor stays in the header when declared
   2. User chooses Logs -> system shows the tail of the service's declared log files (SCN-025)
 - **Expected result:** the operator knows the restart failed and where to look; nothing keeps spinning
-- **UI elements:** failure message, Logs button, Doctor button
+- **UI elements:** failure message, Logs button, Run self-check button
 - **States covered:** error
 - **Errors & recovery:** launchctl itself refuses -> "launchctl refused: <its message>"
 - **Status:** validated
@@ -257,11 +257,11 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **Entry point:** service view header (the tray menu opens the service view)
 - **Preconditions:** the service is managed by launchd and running or not answering
 - **Steps:**
-  1. User chooses Stop -> system asks to confirm: "Stop <Service>?" — "It stays off, also after the Mac restarts, until you start it. Agents that use it will get no answer." with Cancel (focused) and Stop
-  2. User confirms -> system unloads and disables the job and waits until it no longer answers -> state becomes Off; Activity gains "<Service> stopped by you"
+  1. User chooses Stop -> system asks to confirm: "Stop <Service>?" with "It stays stopped, also after the Mac restarts, until you start it. Agents that use it will get no answer." ("the computer restarts" on Windows and Linux), Cancel (focused) and Stop
+  2. User confirms -> system unloads and disables the job and waits until it no longer answers -> state becomes Stopped; Activity gains "<Service> stopped by you"
 - **Expected result:** the service is off and stays off across logins
 - **Alt paths:** user cancels (Cancel, or Escape wherever focus is) -> nothing changes and focus returns to Stop; the service disappears while the dialog is open -> the dialog closes
-- **UI elements:** Stop button, confirmation dialog with Stop and Cancel (focus stays in it while it is open; after Stop it moves to the service's name), Off badge
+- **UI elements:** Stop button, confirmation dialog with Stop and Cancel (focus stays in it while it is open; after Stop it moves to the service's name), Stopped badge
 - **States covered:** loading, success, error
 - **Errors & recovery:** still answering after 40 s -> "<Service> is still answering; another copy may run outside launchd." with Logs when declared
 - **Status:** validated
@@ -272,8 +272,8 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **Persona:** P-01
 - **Feature:** control
 - **Traces:** ST-003 (JTBD-02, JRN-01/#3)
-- **Entry point:** Off service in Overview or the sidebar, its service view header (the tray menu opens the service view)
-- **Preconditions:** the service is Off
+- **Entry point:** a stopped service in Overview or the sidebar, its service view header (the tray menu opens the service view)
+- **Preconditions:** the service is Stopped
 - **Steps:**
   1. User chooses Start -> system enables and loads the job, "Starting…"
   2. System waits until the service answers as itself -> state becomes Ready; Activity gains "<Service> started by you"
@@ -293,12 +293,12 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **Preconditions:** the descriptor declares a doctor command or log files
 - **Steps:**
   1. User opens Logs -> system shows the last 300 lines of each declared log file, newest at the bottom, refreshed while visible
-  2. User chooses Doctor -> system runs the declared command (no shell), switches to Health and shows "Running doctor…", then "Doctor finished with exit code <n>." and its output
+  2. User chooses "Run self-check" -> system runs the declared doctor command (no shell), switches to Health and shows "Running the self-check…", then "Self-check finished with exit code <n>." and its output
 - **Expected result:** the operator sees why a service misbehaves without a terminal
-- **Alt paths:** no doctor declared -> the button is absent; no logs declared -> "This service declares no log files."
-- **UI elements:** Logs tab, log panes, Doctor button, output panel
+- **Alt paths:** no doctor declared -> the button is absent; no logs declared -> "This agent declares no log files."
+- **UI elements:** Logs tab, log panes, Run self-check button, output panel
 - **States covered:** loading, empty, success, error
-- **Errors & recovery:** the command times out after 120 s -> "Doctor did not finish within 120 s." and the partial output; the command cannot start -> "Doctor could not run: <reason>"; the service is busy with another action -> "<Service> is busy with another action…"; a log file is unreadable -> "Cannot read <path>: <reason>"; an online service has no Logs tab
+- **Errors & recovery:** the command times out after 120 s -> "Self-check did not finish within 120 s." and the partial output; the command cannot start -> "Self-check could not run: <reason>"; the service is busy with another action -> "<Service> is busy with another action…"; a log file is unreadable -> "Cannot read <path>: <reason>"; an online service has no Logs tab
 - **Status:** validated
 - **Coverage:** src/core/monitor.ts, src/renderer/components/ServiceView.tsx, test/e2e/health-states.test.ts
 - **Product:** unobserved
@@ -363,7 +363,7 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **Feature:** dashboards
 - **Traces:** ST-005 (JTBD-04, JRN-01/#5)
 - **Entry point:** a card, a sidebar row, an Activity row or a notification
-- **Preconditions:** the service is Ready or Degraded and declares a dashboard
+- **Preconditions:** the service is Ready or Partly working and declares a dashboard
 - **Steps:**
   1. User chooses the service -> system shows the service view: header (state, what the agent is for, version and commit, pid, uptime, port, its Tools — the MCP capabilities it serves, eight shown and "+N more" — and controls) and the Dashboard tab with "Opening…"
   2. When the dashboard needs a login, system obtains a one-time code with the service token and opens it -> the service's own page appears, signed in
@@ -371,7 +371,7 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **Alt paths:** the dashboard declares no login -> it opens directly; the service declares no dashboard -> the view opens on Health and the Dashboard tab says "This service has no dashboard."; the service is not ready or degraded -> "The dashboard opens when the service answers as itself."
 - **UI elements:** service view header, tabs Dashboard / Activity / Health / Logs, embedded page, loading line
 - **States covered:** loading, success, error
-- **Errors & recovery:** see SCN-016; a link inside the page to another agent opens that agent here (SCN-045); a link to any other site asks "Open in your browser?" — "<address> is outside this service. It opens in your default browser." with Open in browser and Cancel
+- **Errors & recovery:** see SCN-016; a link inside the page to another agent opens that agent here (SCN-045); a link to any other site asks "Open in your browser?" with "<address> is outside this agent's dashboard. It opens in your default browser.", Open in browser and Cancel
 - **Status:** validated
 - **Coverage:** src/electron/views.ts, src/electron/policy.ts, src/renderer/components/ServiceView.tsx (Tools), test/viewslot.test.ts, test/e2e/app.test.ts
 - **Product:** unobserved
@@ -425,7 +425,7 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **Expected result:** the reason and the file to fix are named; the app never falls back to a URL carrying a secret
 - **UI elements:** sign-in error panel, path, Retry
 - **States covered:** error
-- **Errors & recovery:** Retry signs in again and shows the page again (R-6); Doctor when declared
+- **Errors & recovery:** Retry signs in again and shows the page again (R-6); Run self-check when declared
 - **Status:** validated
 - **Coverage:** src/renderer/components/ServiceView.tsx, src/core/probe.ts, test/e2e/products-problems.test.ts
 - **Product:** unobserved
@@ -478,13 +478,13 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **Steps:**
   1. A service stops answering: three probes in a row fail and a probe still fails after 60 s of silence -> one notification: "<Service> is not answering"
   2. User clicks it -> the app opens the service view
-  3. The service answers again -> one notification: "<Service> is back" — "After 2 min."
+  3. The service answers again -> one notification, "<Service> is back" with "After 2 min."
 - **Expected result:** the operator learns about an outage and its end once each
 - **Alt paths:** the service returns before a failed probe confirms 60 s of silence -> no notification, neither down nor back; Activity records it. One slow answer under load (a probe waits 5 s) changes nothing ([ADR-0008](../adr/0008-a-missed-probe-is-not-an-outage.md))
 - **UI elements:** macOS notifications
 - **States covered:** success
-- **Errors & recovery:** none in the app: whether macOS shows notifications is set in System Settings → Notifications, and Settings says so with "Open macOS Settings" (the app cannot read that permission); an online service's notification says its platform runs it
-- **Status:** draft
+- **Errors & recovery:** none in the app: whether macOS shows notifications is set in System Settings → Notifications, and Settings says so with "Open System Settings" ("Open system settings" on Windows and Linux; the app cannot read that permission); an online service's notification says its platform runs it
+- **Status:** validated (2026-10-24: proved by test/flap.test.ts "a sustained outage notifies once, and its end once" and "a flap inside the notification window sends no notification, neither down nor back", test/monitor.test.ts "a service that stops answering becomes down, notifies once, and is back"; strings `notify.down.title`, `notify.back.title`, `notify.back.body` in src/core/i18n.ts)
 - **Coverage:** src/core/monitor.ts, src/core/notify.ts, test/monitor.test.ts, test/flap.test.ts
 - **Product:** unobserved
 
@@ -502,7 +502,7 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **UI elements:** macOS notification, service view
 - **States covered:** success
 - **Errors & recovery:** the link no longer exists in the service -> the service's own page shows its not-found state; nothing can fail in the app
-- **Status:** draft
+- **Status:** validated (2026-10-24: proved by test/notify.test.ts "intent: what the agent wants from the operator, read from the event kind and level", "display name: the instance is named when it is not the default, and only once" and "compose: who (the agent), what it wants (subtitle) and the sentence; several at once say the most urgent", test/monitor.test.ts "discovers a service, reads its events and notifies only on new ones")
 - **Coverage:** src/core/monitor.ts, src/core/notify.ts, src/electron/main.ts, test/monitor.test.ts, test/notify.test.ts
 - **Product:** unobserved
 
@@ -533,14 +533,14 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **Entry point:** app running
 - **Preconditions:** a newer signed release is published; the app is in Applications
 - **Steps:**
-  1. System checks 90 s after start and every 6 hours, downloads the release's zip once and verifies it (its SHA256SUMS signed by the organization's key, the zip's hash, the app's signature by team KJ35UYYL22 and its version), then hands the verified file itself to Squirrel through a local feed -> the sidebar footer and Settings → Updates show "Update <version> ready" with Restart to update
+  1. System checks 90 s after start and every 5 minutes (`FIRST_CHECK_MS`, `APP_UPDATE_EVERY_MS` in src/core/version.ts; test/lifecycle.test.ts asserts the 5 minutes), downloads the release's zip once and verifies it (its SHA256SUMS signed by the organization's key, the zip's hash, the app's signature by team KJ35UYYL22 and its version), then hands the verified file itself to Squirrel through a local feed -> the sidebar footer and Settings → Updates show "Update <version> ready" with Restart to update
   2. User closes the window and leaves it closed for ten minutes -> the app installs the update and reopens in the menu bar, with no window and no question; services are untouched
   3. User opens the window later -> it is the new version, on the Overview
 - **Expected result:** every copy stays current with no action from the person
-- **Alt paths:** user chooses Restart to update while an agent's console or a command runs -> the app names them and asks; Cancel keeps everything running, Restart to update stops them and installs; user chooses Restart to update -> a notification says the app reopens by itself and it installs now, and the new copy opens on the screen the person left — the agent's page, Activity, Spend or Settings (FD-21 U-18); the app is opened (by the person, a link or an agent) while the update installs -> it says «Finishing the update to <version> — reopens by itself», steps aside, and reopens when the install has finished; the window stays open -> nothing installs under the person's eyes, and it installs at the next quit or the next ten closed minutes; a doctor or update command is running -> the install waits for it, checked every minute; "Install updates automatically" is off in Settings → Updates -> nothing is checked, downloaded or installed on its own, and Check for updates still works (LC-16; the choice is kept in a file no update, reinstall or uninstall rewrites); the release needs a step from the person -> it is verified but held: "Update <version> is verified and waits for you" with What to do (opens the release's steps) and Install; Settings → Updates → Check now checks at once; the feed names a version that is not newer than the installed one -> nothing installs (F-1); the disk has too little room to unpack the update -> Settings → Updates says "not enough free space to unpack the update: N GB free, about M GB needed", and a failed unpack says the tool's own words and the free space, never only that it failed; the next check tries again (FD-79); the window is shown while an update is ready -> the log says the install waits for the window, and a window of a hidden app (⌘H, or hidden by another program) counts as not shown, so the ten minutes start (FD-80); on Linux from an AppImage -> the same checks, then the new AppImage replaces this one and Restart to update (or ten hidden minutes) starts it (FD-37 M4b); on Linux from a .deb -> Settings → Updates says a newer .deb from the releases page updates it, and nothing is checked; on Windows, installed by the installer -> the same checks, then Restart to update (or ten hidden minutes) runs the verified installer silently in update mode, which installs in place and starts the app again (FD-37 M4c); on Windows without the installer's uninstaller beside the app -> Settings → Updates says this copy was not set up by the installer and where the newer version is
+- **Alt paths:** user chooses Restart to update while an agent's console or a command runs -> the app names them and asks; Cancel keeps everything running, Restart to update stops them and installs; user chooses Restart to update -> a notification says the app reopens by itself and it installs now, and the new copy opens on the screen the person left (the agent's page, Activity, Spend or Settings; FD-21 U-18); the app is opened (by the person, a link or an agent) while the update installs -> it says "Finishing the update to <version>" with "Fabric Dashboards reopens by itself in a minute or two.", steps aside, and reopens when the install has finished; the window stays open -> nothing installs under the person's eyes, and it installs at the next quit or the next ten closed minutes; a doctor or update command is running -> the install waits for it, checked every minute; "Install updates automatically" is off in Settings → Updates -> nothing is checked, downloaded or installed on its own, and Check for updates still works (LC-16; the choice is kept in a file no update, reinstall or uninstall rewrites); the release needs a step from the person -> it is verified but held: "Update <version> is verified and waits for you" with What to do (opens the release's steps) and Install; Settings → Updates → Check now checks at once; the feed names a version that is not newer than the installed one -> nothing installs (F-1); the disk has too little room to unpack the update -> Settings → Updates says "not enough free space to unpack the update: N GB free, about M GB needed", and a failed unpack says the tool's own words and the free space, never only that it failed; the next check tries again (FD-79); the window is shown while an update is ready -> the log says the install waits for the window, and a window of a hidden app (⌘H, or hidden by another program) counts as not shown, so the ten minutes start (FD-80); on Linux from an AppImage -> the same checks, then the new AppImage replaces this one and Restart to update (or ten hidden minutes) starts it (FD-37 M4b); on Linux from a .deb -> Settings → Updates says a newer .deb from the releases page updates it, and nothing is checked; on Windows, installed by the installer -> the same checks, then Restart to update (or ten hidden minutes) runs the verified installer silently in update mode, which installs in place and starts the app again (FD-37 M4c); on Windows without the installer's uninstaller beside the app -> Settings → Updates says this copy was not set up by the installer and where the newer version is
 - **UI elements:** footer update line, Restart to update button, held line with What to do and Install, Settings → Updates (Install updates automatically, state line, Check now), "Check for updates" in the app menu
 - **States covered:** loading, success, error
-- **Errors & recovery:** download or signature check fails -> footer "Update failed: <reason>" with Retry, one automatic retry within the hour, and the running app is unchanged; the bundle Squirrel staged is not the verified one -> it is removed before any quit and the footer says so; every step is logged with the organization's update codes (ADR-0015 amendment)
+- **Errors & recovery:** download or signature check fails -> footer "Update failed: <reason>" with Retry, the next check 5 minutes later tries again (`RETRY_AFTER_FAILURE_MS` in src/electron/updater.ts), and the running app is unchanged; the bundle Squirrel staged is not the verified one -> it is removed before any quit and the footer says so; every step is logged with the organization's update codes (ADR-0015 amendment)
 - **Status:** validated
 - **Coverage:** src/electron/updater.ts, src/core/self-update.ts, test/self-update.test.ts, src/core/release-verify.ts, src/core/autoupdate.ts, src/core/version.ts (mayCheck, stagedRefusal), src/electron/policy.ts (autoInstallNow, relaunchHidden), src/electron/main.ts (auto-install-flow), src/renderer/components/Settings.tsx (UpdateState), scripts/dist-mac.mjs, test/lifecycle.test.ts, test/e2e/app.test.ts
 - **Product:** unobserved
@@ -576,15 +576,15 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **Entry point:** menu bar icon
 - **Preconditions:** app running (window may be closed; while it is closed the app has no Dock icon and lives in the menu bar only)
 - **Steps:**
-  1. User looks at the icon -> it shows one of three states: calm (nothing degraded, starting or wrong; a service you turned off keeps it calm), something degraded or starting, something down or wrong; the Dock icon, while shown, carries "!" when a service is down or wrong
-  2. User clicks it -> the menu starts with a line "Needs attention: 2" (the same count as Overview's Needs attention, the sidebar badge and the Dock), "Ready: 5 of 7" or "All services ready", lists what needs attention first ("Growth: spending limit stopped work", "Relay: update 2.0.0 available"), then every service with its state and instance ("● Growth · projection — Ready"); items Open Fabric Dashboards, Pause notifications for 1 hour (Resume notifications while paused; the menu updates when a pause set here or in Settings ends), the line "Quitting Dashboards does not stop your services.", Quit
+  1. User looks at the icon -> it shows one of three states: calm (nothing degraded, starting or wrong; a service you turned off keeps it calm), something degraded or starting, something down or wrong; the Dock icon, while shown, carries the Needs attention count as a number, the same count as the menu's first line, Overview's Needs attention and the sidebar badge (`badgeText` over `attentionQueue`, src/electron/main.ts pushStatus), and no badge when nothing needs attention
+  2. User clicks it -> the menu starts with a line "Needs attention: 2" (the same count as Overview's Needs attention, the sidebar badge and the Dock), "Ready: 5 of 7" or "All agents ready", lists what needs attention first ("Growth: spending limit stopped work", "Relay: update 2.0.0 available"), then every service with its state and instance ("● Growth · projection: Ready", src/core/tray-model.ts); items Open Fabric Dashboards, Pause notifications for 1 hour (Resume notifications while paused; the menu updates when a pause set here or in Settings ends), the line "Quitting Dashboards does not stop your agents.", Quit
   3. User chooses a service -> the window opens at its view, and the Dock icon comes back with it
 - **Expected result:** the state is known without opening the window
 - **UI elements:** menu bar icon, tray menu, service items, Pause notifications item; from 0.8.0, while a coding session runs or needs the person, a line "Sessions: running N, need you M" under the headline that opens the Sessions mode (SCN-085)
 - **States covered:** success, error
 - **Errors & recovery:** nothing can fail in the menu; quitting leaves every service running and the menu says so above Quit — no dialog on the way out, except when an agent's console session or a command the app started is running: then Quit names them and asks (Cancel keeps them; ADR-0017 amendment 2026-10-07)
 - **Status:** validated
-- **Coverage:** src/electron/tray.ts, src/electron/main.ts (`syncDock`), test/e2e/spend.test.ts
+- **Coverage:** src/electron/tray.ts, src/core/tray-model.ts, src/core/attention.ts (`attentionQueue`, `badgeText`), src/electron/main.ts (`syncDock`, pushStatus), test/attention-queue.test.ts, test/e2e/spend.test.ts
 - **Product:** unobserved
 
 ## settings
@@ -596,15 +596,15 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **Entry point:** sidebar Settings
 - **Preconditions:** none
 - **Steps:**
-  1. User opens Settings -> system shows Launch at login (on by default since 2026-10-16: the first launch of an installed copy registers it once; the person turns it off here), Theme, Language (As on this Mac, English, Русский), Updates (SCN-022), Notifications per service with levels, Quiet hours (from–to), the services folder, Uninstall, and Unattributed listeners
+  1. User opens Settings -> system shows Open at login (on by default since 2026-10-16: the first launch of an installed copy registers it once, with no question; the person turns it off here; `loginItemAtStartup` in src/core/loginitem.ts), Theme, Language (Same as the system, English, Русский), Updates (SCN-022), Notifications per service with levels, Quiet hours (from–to), the services folder, Uninstall, and Unattributed listeners
   2. User changes a setting -> it applies immediately and is kept across restarts; after the first launch, launch at login is registered or removed only by the person's choice here, never by a launch or an update
   3. User opens Unattributed listeners -> system lists local ports listening on all interfaces that no descriptor claims, with the program name and pid
   4. User chooses Uninstall Fabric Dashboards… and confirms, leaving "Also delete my settings and activity history" unticked -> the app removes its login item and its entry in Claude Code's MCP servers, moves itself to the Trash and quits; once it has exited, its caches, logs and dashboard sessions are removed, and the settings, the activity history and a note of what to restore stay (SCN-043); services and their data always stay
 - **Expected result:** the app fits the operator's day, stray network listeners are visible, and leaving the app removes everything it added without losing what the person set up
-- **Alt paths:** user picks Русский (or English) under Language -> the window, the app menu and the tray switch at once, and machine reasons (a descriptor check, a network error) read in that language where they are known — a service's own words (tiles, events) stay as the service wrote them; As on this Mac follows the system language; the person turned the login item off in System Settings -> the next launch shows it off here and does not turn it back on; macOS holds the login item for approval -> every launch shows a notification "Fabric Dashboards cannot open at login — Allow it in System Settings → General → Login Items", and clicking it opens that pane; an update has been downloaded and verified -> a notification "Restart to finish updating" once per version, and clicking it restarts the app (asking first when a console session or a command runs); the person ticks "Also delete my settings and activity history" -> everything the app wrote is removed after it exits, nothing is restored later; settings.json is damaged -> the last good copy is restored and the log says so
+- **Alt paths:** user picks Русский (or English) under Language -> the window, the app menu and the tray switch at once, and machine reasons (a descriptor check, a network error) read in that language where they are known, while a service's own words (tiles, events) stay as the service wrote them; Same as the system follows the system language; the person turned the login item off in System Settings -> the next launch shows it off here and does not turn it back on; macOS holds the login item for approval -> every launch shows a notification "Fabric Dashboards cannot open at login" with "Allow it in System Settings → General → Login Items. Click to open it.", and clicking it opens that pane; an update has been downloaded and verified -> a notification "Restart to finish updating" once per version, and clicking it restarts the app (asking first when a console session or a command runs); the person ticks "Also delete my settings and activity history" -> everything the app wrote is removed after it exits, nothing is restored later; settings.json is damaged -> the last good copy is restored and the log says so
 - **UI elements:** toggles, Language select, per-service rows, time pickers, folder path with Show, Uninstall button and its confirmation with the delete-data box, listeners list
 - **States covered:** empty, success, error
-- **Errors & recovery:** macOS refuses the login item -> the toggle returns to off with "macOS refused the login item: <reason>" ("approve Fabric Dashboards in System Settings → General → Login Items" when it needs approval); the listener scan fails -> "Cannot list listeners: <reason>", and nothing listening is "None", not an error; uninstall cannot remove the MCP entry or the login item -> "Nothing was removed: <reason>" and the app stays (a refused login item puts the MCP entry back); the app cannot be moved to the Trash -> it says so and is still uninstalled; Show folder fails -> "Could not open <path>: <reason>"
+- **Errors & recovery:** macOS refuses the login item -> the toggle returns to off with "macOS refused the login item: <reason>" ("approve Fabric Dashboards in System Settings → General → Login Items" when it needs approval); the listener scan fails -> "Cannot list listeners: <reason>", and nothing listening is "None", not an error; uninstall cannot remove the MCP entry or the login item -> "Nothing was removed: <reason>" and the app stays (a refused login item puts the MCP entry back); the app cannot be moved to the Trash -> it says so and is still uninstalled; Show the services folder fails -> "Could not open <path>: <reason>"
 - **Status:** validated
 - **Coverage:** src/renderer/components/Settings.tsx, src/core/settings.ts, src/core/i18n.ts (chooseLang), src/core/machine-ru.ts, src/core/loginitem.ts (loginItemAtStartup: on by default, checked at every launch), src/electron/main.ts (login-item-startup, restart-to-update), src/core/uninstall.ts, src/core/listeners.ts, test/parts.test.ts, test/lifecycle.test.ts, test/e2e/overview-settings.test.ts
 - **Product:** unobserved
@@ -620,12 +620,12 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
   2. System puts back the login item and the MCP entry the uninstall removed, pointed at this copy -> Settings shows Open at login on; an agent session started now finds the `fabric-dashboards` server
   3. User installed the copy in another folder than before -> an MCP entry still pointing at the old copy is pointed at this one
 - **Expected result:** a reinstall needs no setup again
-- **Alt paths:** the person added their own `fabric-dashboards` MCP entry meanwhile -> it is kept; a project the entry belonged to is gone -> that entry is not recreated; the data was deleted on purpose -> the app starts fresh, with the first-run card
+- **Alt paths:** the person added their own `fabric-dashboards` MCP entry meanwhile -> it is kept; a project the entry belonged to is gone -> that entry is not recreated; the data was deleted on purpose -> the app starts fresh, as a first launch (SCN-001: open at login registered again, by default)
 - **UI elements:** none new (Settings, Activity)
 - **States covered:** success, error
 - **Errors & recovery:** macOS refuses the login item -> it stays off, the reason is logged, and it is not asked again on every launch; `~/.claude.json` cannot be edited -> the MCP entry is restored at the next launch
 - **Status:** draft
-- **Coverage:** src/core/uninstall.ts (restore-record, restoreMcpRegistrations, repairMcpRegistrations), src/electron/main.ts (reinstall), src/core/settings.ts, test/lifecycle.test.ts, test/parts.test.ts
+- **Coverage:** src/core/uninstall.ts (restore-record, restoreMcpRegistrations, repairMcpRegistrations), src/electron/main.ts (reinstall), src/core/settings.ts, test/lifecycle.test.ts ("ADR-0015: the MCP entries an uninstall removed come back on reinstall, pointed at the new launcher", "ADR-0015: the restore record round-trips; a damaged one is ignored, never trusted"), test/parts.test.ts
 - **Product:** unobserved
 
 ### SCN-044: A copy outside Applications moves itself so it can update
@@ -642,7 +642,7 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **UI elements:** move question, footer line and Settings → Updates notice with Move to Applications
 - **States covered:** error, success
 - **Errors & recovery:** the move fails -> a message names the reason and says to drag the app to Applications in Finder
-- **Status:** draft
+- **Status:** draft (re-read 2026-10-24: the code is there, but no test moves a copy; only the `misplaced` state is tested, in test/parts.test.ts "LC-16: the switch stops automatic checks; a check the person asks for always runs; busy states never stack", and the `moveToApplicationsAsked` default in "updates install by themselves unless the person turned it off; a file from an earlier version keeps it on")
 - **Coverage:** src/electron/updater.ts (misplaced), src/electron/main.ts (moveToApplications, offerMoveToApplications), src/renderer/App.tsx (UpdateLine), src/renderer/components/Settings.tsx (UpdateState)
 - **Product:** unobserved
 
@@ -691,7 +691,7 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **Steps:**
   1. User chooses Open dashboard in Fabric -> macOS hands the link to Fabric Dashboards, running or not (a running app gets it from the second process, which quits)
   2. System checks the key against the installed descriptors -> the window comes forward on that service's view, its dashboard open and signed in as in SCN-014
-  3. The service is stopped -> the same view opens, the state reads Off and Start is offered in the bar and in the Dashboard tab ("Stopped by you. It stays stopped until you start it."); a starting one says "Waiting for the first answer…", one that does not answer says why with Restart and Logs (SCN-010, UX-12)
+  3. The service is stopped -> the same view opens, the state reads Stopped and Start is offered in the bar and in the Dashboard tab ("Stopped by you. It stays stopped until you start it."); a starting one says "Waiting for the first answer…", one that does not answer says why with Restart and Logs (SCN-010, UX-12)
 - **Expected result:** the service is watched here; Fabric never becomes a second dashboard host
 - **Alt paths:** `?path=/…` opens one page of the service, as in SCN-026; Fabric Dashboards is not installed -> nothing reaches the app, and Fabric's card says so and links to the download (Fabric's own scenario)
 - **UI elements:** service view, state badge, Start, embedded dashboard
@@ -742,7 +742,7 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **Alt paths:** no online service -> the group is not shown; an online service that needs attention also appears in Needs attention, as a local one does
 - **UI elements:** Overview → Online group, service card (host line), state badge
 - **States covered:** success, empty
-- **Errors & recovery:** the token file is missing or readable by others -> the card is Invalid with "The token file cannot be used: <reason>" and the service is never contacted; fix the file and the next scan reads it
+- **Errors & recovery:** the token file is missing or readable by others -> the card is "Broken install file" with "The token file cannot be used: <reason>" and the service is never contacted; fix the file and the next scan reads it
 - **Status:** validated
 - **Coverage:** src/renderer/components/Overview.tsx, packages/service-host/src/descriptor.ts, test/remote.test.ts, test/e2e/remote.test.ts
 - **Product:** unobserved
@@ -990,11 +990,11 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **Persona:** P-01
 - **Feature:** focus
 - **Traces:** ST-018 (JTBD-04, JRN-01/#5); ADR-0017
-- **Entry point:** any service page; View → Show or Hide Service Details (⌃⌘D)
+- **Entry point:** any service page; View → Show or Hide Agent Details (⌃⌘D)
 - **Preconditions:** none
 - **Steps:**
-  1. User opens a service -> the header is one line: the state mark, the name, the state badge, the tabs (Dashboard, Activity, Health, Logs) and a "Show details" control; the dashboard fills the rest; pointing at the name shows the agent's summary
-  2. User presses "Show details" -> the full card opens under the bar: summary, version, build, pid, port, uptime, Tools, reasons, the last action and the actions (Restart, Stop, Update, Doctor, Show data folder, Show file); the control reads "Hide details"
+  1. User opens a service -> the header is one line: the state mark, the name, the state badge, the tabs (Dashboard, Activity, Connections, Load when the agent declares its load, Health, and Logs for a local agent; src/renderer/components/ServiceView.tsx `tabs`), the Fabric and Console buttons and a "Show details" control; the dashboard fills the rest; pointing at the name shows the agent's summary
+  2. User presses "Show details" -> the full card opens under the bar: summary, version, build, pid, port, uptime, Tools, reasons, the last action and the actions (Restart, Stop, Update, Run self-check, Show data folder, Show file); the control reads "Hide details"
   3. User presses "Hide details" -> back to one line; the choice holds for every service and after a relaunch
 - **Expected result:** the embedded dashboard takes the window; everything in the header is one press away
 - **Alt paths:** the service is not ready, or its last action failed within half an hour -> the bar shows one chip with the first reason ("Not answering since 10:42", "Restart did not bring it back"); pressing the chip opens the full card for this visit only, never changing the remembered choice (UX-14); the state's own action sits in the bar after the chip, before "Fix": Restart when it does not answer or runs twice, Start when it is off, "Update to <v>" when an update is available, even with nothing wrong (UX-01, UX-03); an action is running -> its spinner and label ("Restarting…") sit in the bar
@@ -1012,7 +1012,7 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **Entry point:** the sidebar's "Collapse sidebar" control, or View → Show or Hide Sidebar (⌃⌘S)
 - **Preconditions:** none
 - **Steps:**
-  1. User collapses the sidebar -> it becomes a narrow rail: the mark, icons for Overview, Activity, Spend and Settings, and one entry per agent with its state mark and initials; the Overview and Activity badges stay
+  1. User collapses the sidebar -> it becomes a narrow rail: the mark, the mode switch as two icons (SCN-077), icons for Overview, Activity, Connections, Spend and Settings, and one entry per agent with its state mark and initials; the Overview and Activity badges stay (src/renderer/components/Navigation.tsx `ModeSwitch`, `AgentsNav`; Settings in src/renderer/App.tsx)
   2. User points at an entry -> its name (and state) shows as a tooltip; a screen reader reads the same
   3. User presses "Expand sidebar" -> the full list returns; the choice holds after a relaunch
 - **Expected result:** the dashboard gains the sidebar's width, and every page and agent stays one press away
@@ -1148,10 +1148,10 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **Preconditions:** none
 - **Steps:**
   1. Thirty minutes pass with nothing typed and nothing printed -> the app saves when it closed, the Switchboard account it ran on and its conversation, and closes the session, which frees its memory and its MCP servers
-  2. The session was an agent's own console -> opening that agent's console again continues it ("Continue last") with "This session was closed after 30 idle minutes to free memory and is continued now. Account: <account>"
+  2. The session was an agent's own console -> opening that agent's console again continues it ("Continue last session") with "This session was closed after 30 idle minutes to free memory and is continued now. Account: <account>"
   3. Any closed session, a hand-over's or a continued one's included -> the Sessions mode lists it under "Ended in the last 24 hours" as "Closed after 30 idle minutes", with Continue and Remove (SCN-084); Continue resumes the same conversation in the same folder on the saved account
 - **Expected result:** a session nobody uses holds nothing, and coming back costs one press, wherever it came from
-- **Alt paths:** the runtime cannot continue a conversation -> in an agent's console "This session was closed after 30 idle minutes to free memory. New session starts a fresh one.", and in Sessions the button reads "New session here" (SCN-084); the person starts a session themselves first -> the saved mark is cleared
+- **Alt paths:** the runtime cannot continue a conversation -> in an agent's console "This session was closed after 30 idle minutes to free memory. New session starts a fresh one.", and in Sessions the button reads "New session here" (SCN-084); the person starts a session themselves first -> the saved mark is cleared; one idle-closed agent console has two ways back, step 2 and SCN-084's Continue: Continue in Sessions starts that console's continue (`continueSession` calls `start(key, 'continue')`, which clears the saved mark, src/electron/console.ts) and takes the ended row off the list, while continuing from the agent's console clears the saved mark but leaves the ended row in Sessions beside the running one until Remove, Clear or 24 hours (a gap recorded in FD-104 for round 2)
 - **UI elements:** the console's notice line; the Sessions mode's ended row with Continue and Remove
 - **States covered:** success
 - **Errors & recovery:** the continue cannot start (no room, SCN-063) -> that notice instead, and the row keeps both actions
@@ -1167,11 +1167,11 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **Entry point:** Settings → the app group
 - **Preconditions:** none
 - **Steps:**
-  1. User picks the colour scheme: Same as macOS, Dark or Light -> the app follows it at once
+  1. User picks the colour scheme: Same as the system, Dark or Light -> the app follows it at once
   2. User picks the dashboard theme: Graphite, Fabric, Paper, Forest, Ocean, Ember or High contrast -> every open dashboard that follows the app takes the scheme and the theme without a reload; the others keep their own
   3. User opens a dashboard later -> it opens in that scheme and theme, and the empty view behind it is already the right colour
 - **Expected result:** one choice in one place sets the look of every dashboard that follows the app
-- **Alt paths:** a dashboard declares the themes it ships and the chosen one is not among them -> it gets the scheme only and keeps its own default theme; a dashboard declares nothing, or an invalid profile -> it follows macOS's light or dark only, and an invalid profile is written to the log once per load; Same as macOS -> macOS switching light/dark is followed live
+- **Alt paths:** a dashboard declares the themes it ships and the chosen one is not among them -> it gets the scheme only and keeps its own default theme; a dashboard declares nothing, or an invalid profile -> it follows macOS's light or dark only, and an invalid profile is written to the log once per load; Same as the system -> the system switching light/dark is followed live
 - **UI elements:** Settings → colour scheme, dashboard theme, the hint under them
 - **States covered:** success
 - **Errors & recovery:** the cookie cannot be written -> the dashboard follows macOS's light or dark, which every dashboard must handle
@@ -1186,11 +1186,11 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **Entry point:** an agent's page → Health
 - **Preconditions:** the agent declares `configuration` in its well-known document
 - **Steps:**
-  1. User opens Health -> "Runner and model": the runner (kind, profile, subscription or API key), the model profile and its models, who set it (this agent, the project, the default), what it spent per model over 31 days, and the budget left
+  1. User opens Health -> "How it runs": what it runs on (kind, profile, subscription or API key), the model profile and its models, who set it (this agent, the project, the default), what it spent per model over 31 days, and the budget left
   2. User presses "Change in Fabric" -> Fabric opens a conversation about this agent, where the profile is changed
 - **Expected result:** the person sees what the agent runs on and what it costs, one press from changing it
 - **Alt paths:** the agent declares no configuration -> no section; it reports no usage -> "No usage reported"; budget left -> "Shown here once Project Observatory publishes its budgets" until it does (FD-40); Fabric is not installed -> Fabric's button offers its download (ADR-0021)
-- **UI elements:** Health → Runner and model, Change in Fabric
+- **UI elements:** Health → How it runs, Change in Fabric
 - **States covered:** empty, loading, success
 - **Errors & recovery:** the usage report cannot be read -> no spend line beyond "No usage reported"; Spend says why
 - **Status:** validated
@@ -1347,10 +1347,10 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **Steps:**
   1. User presses "Check setup" -> "Checking… this can take up to two minutes." while the app runs the PassionCode launcher's read-only `doctor` at a pinned version (`npx --yes @passioncode-ai/passioncode@0.2.2 doctor --json`, no shell, two-minute cap)
   2. The check ends -> one line: "Failing: <n> · Warnings: <n> · OK: <n> · checked at HH:MM"; below it every failing and warning check, grouped by area (Prerequisites, Skills, Apps, MCP servers, Services), an area with a failure first and failures first within it, each with its own words and "Fix:" followed by the launcher's fix
-  3. User presses "Repair with my coding agent" -> the Setup console opens beside Overview; its brief starts with what the check found, failures first, each with its fix
+  3. User presses "Fix with my coding agent" -> the Setup console opens beside Overview; its brief starts with what the check found, failures first, each with its fix
 - **Expected result:** the person sees in one place what is not set up on this computer and hands the repair to their coding agent; the app runs no repair itself
 - **Alt paths:** the setup card's three steps are done -> the card is one quiet line "Everything is set up." with Check setup and Hide (FD-81); an agent asks through MCP -> `setup_check` runs the same read-only doctor; every check passes -> "Every check passed." and no repair button; Node.js is not installed -> "Node.js 18 or later is not installed, so the check cannot run. Install it from nodejs.org, then check again."; the launcher answers anything but its report -> "The check could not run: <its first line>"; no answer in two minutes -> "The check could not run: no answer within 120 s"; a second press while a check runs joins it; the last result stays until the next press and is never re-run on its own
-- **UI elements:** Check setup button, the summary line, the grouped lines with their fixes, Repair with my coding agent
+- **UI elements:** Check setup button, the summary line, the grouped lines with their fixes, Fix with my coding agent
 - **States covered:** loading, success, error
 - **Errors & recovery:** each error names what to do; the check is read-only, so pressing again is always safe
 - **Status:** validated
@@ -1388,10 +1388,10 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
   3. User opens a local service -> its dashboard, events and spend work as on macOS; start, stop and restart are not offered yet, and the service's facts say why (supervision on this system comes with the contract decision, ADR-0019)
   4. User chooses Settings → Uninstall -> on Windows this install's own uninstaller runs after the app quits; on Linux the AppImage goes to the trash, or for a .deb the app shows `sudo apt remove fabric-dashboards`
 - **Expected result:** the same monitoring as on macOS, nothing macOS-only offered, and nothing removed but this app
-- **Alt paths:** Windows: Settings → Launch at login starts the app hidden in the tray at sign-in; Linux: launch at login is not offered until the autostart file lands (FD-37 M3); notification settings open Windows Settings, on Linux the app says to look in the desktop's own settings
+- **Alt paths:** open at login is on by default here too (SCN-024) and starts the app hidden in the tray at sign-in (`--hidden`, `startHidden` in src/core/platform.ts): on Windows the system's login item, on Linux an XDG autostart entry, `$XDG_CONFIG_HOME/autostart/fabric-dashboards.desktop` (src/core/autostart.ts, FD-37 M3; test/autostart.test.ts); Settings → Open at login turns it off; notification settings open Windows Settings, on Linux the app says to look in the desktop's own settings
 - **UI elements:** system window frame, File / View / Window / Help menus, tray icon and menu, Settings → Uninstall
 - **States covered:** success, error
-- **Errors & recovery:** a Windows copy with no uninstaller beside it, or a Linux copy that is neither an AppImage nor a package -> "Fabric Dashboards is uninstalled from your settings. To remove the app itself: …" with what to do; updates on Windows and Linux -> reported as unsupported until the per-OS updater lands (ADR-0019 §6)
+- **Errors & recovery:** a Windows copy with no uninstaller beside it, or a Linux copy that is neither an AppImage nor a package -> "Fabric Dashboards is uninstalled from your settings. To remove the app itself: …" with what to do; updates: a Windows copy installed by the installer and a Linux AppImage update themselves as on macOS, and a .deb or a copy the installer did not set up says where the newer version is (SCN-022, FD-37 M4b and M4c)
 - **Status:** draft
 - **Coverage:** src/core/platform.ts, src/electron/main.ts, src/electron/tray.ts, test/platform.test.ts
 - **Product:** unobserved
@@ -1415,7 +1415,7 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **Coverage:** src/core/handoff.ts, src/electron/console.ts, src/mcp/tools.ts (service_context), test/handoff.test.ts, test/mcp.test.ts, test/e2e/focus-console.test.ts
 - **Product:** unobserved
 
-### SCN-054: Fix with agent
+### SCN-054: Fix with coding agent
 - **Persona:** P-01
 - **Feature:** console
 - **Traces:** ST-020 (JTBD-06, JRN-02/#4); ADR-0020
@@ -1434,18 +1434,18 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **Coverage:** src/core/offers.ts (offersFix), src/core/handoff.ts (fixTask), src/renderer/App.tsx (handToAgent), src/renderer/components/ConsolePanel.tsx, ServiceView.tsx (header and card), Overview.tsx (Needs attention), test/handoff.test.ts, test/e2e/focus-console.test.ts
 - **Product:** unobserved
 
-### SCN-055: Update with agent
+### SCN-055: Update with coding agent
 - **Persona:** P-01
 - **Feature:** console
 - **Traces:** ST-020 (JTBD-06, JRN-02/#4); ADR-0020
-- **Entry point:** "Update with agent" where an update is offered and the agent has no update command, or its update command failed
+- **Entry point:** "Update with coding agent" where an update is offered and the agent has no update command, or its update command failed
 - **Preconditions:** the agent reports a newer version, or its update failed
 - **Steps:**
-  1. User presses "Update with agent" -> the console starts the runtime with the context and a task: from which version to which, how (the descriptor's command, or the repository's own instructions), and the failed output when there is one
+  1. User presses "Update with coding agent" -> the console starts the runtime with the context and a task: from which version to which, how (the descriptor's command, or the repository's own instructions), and the failed output when there is one
   2. The agent updates and restarts it -> the page shows the new version
 - **Expected result:** every update has a way through, even one the agent's own command cannot do
 - **Alt paths:** the agent's update command exists and has not failed -> "Update to <v>" runs it as before (no coding agent needed)
-- **UI elements:** "Update with agent" button
+- **UI elements:** "Update with coding agent" button
 - **States covered:** success, error
 - **Errors & recovery:** as SCN-054
 - **Status:** validated
@@ -1517,7 +1517,7 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **Entry point:** any launch after setup
 - **Preconditions:** the person has used the app before
 - **Steps:**
-  1. User opens the app -> Overview leads with "Since you were last here": agents that broke (each with Fix with agent), updates (Update, or Update with agent), and new or removed agents
+  1. User opens the app -> Overview leads with "Since you were last here": agents that broke (each with Fix with coding agent), updates (Update, or Update with coding agent), and new or removed agents
   2. User sees the agents they worked with -> each offers Continue (the last console session, resumed with fresh context)
   3. User opens one -> the agent they had selected last time is selected
 - **Expected result:** the person starts from what needs them, not from the whole list
@@ -1539,7 +1539,7 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
   1. User presses Fabric (or focuses it and presses Return or Space) -> Fabric comes forward with its conversation about this agent (`fabric://chat?service=<id>.<instance>`); Fabric finds the agent's project from the agent's repository and asks inside the conversation when it cannot tell
   2. User talks to Fabric there, or opens a coding session from it -> nothing in this app changes; Fabric links back to the agent's page here (`fabric-dashboards://service/…`, SCN-029)
 - **Expected result:** one press reaches the manager agent about the agent on screen, without copying a name or a link
-- **Alt paths:** Fabric is not installed -> the press opens a small menu with one line, "Fabric is not installed — get it at passioncode.ai/fabric", and choosing it opens that page in the browser; nothing downloads and nothing is retried; Fabric is installed later -> the next press opens it; the dashboard page has its own Fabric button -> it is hidden inside this app (the page is told the app draws one), and it still shows in a browser; an id outside Fabric's grammar -> no button
+- **Alt paths:** Fabric is not installed -> the press opens a small menu with one line, "Fabric is not installed. Get it at passioncode.ai/fabric.", and choosing it opens that page in the browser; nothing downloads and nothing is retried; Fabric is installed later -> the next press opens it; the dashboard page has its own Fabric button -> it is hidden inside this app (the page is told the app draws one), and it still shows in a browser; an id outside Fabric's grammar -> no button
 - **UI elements:** Fabric button in the service header (accessible name "Open Fabric"), the native menu when Fabric is absent
 - **States covered:** success, empty (Fabric not installed)
 - **Errors & recovery:** the OS names a handler but it cannot open the link -> the same "not installed" menu, and `main.log` has `fabric_button failed` with the reason
@@ -1583,7 +1583,7 @@ The Sessions mode (0.8.0): every coding session apart from the agents, each stat
   4. A session needs a person (SCN-082) -> "Sessions" carries a count badge in either mode, named to a screen reader "Sessions, need you: 2"; with none it carries no badge
   5. User quits and opens the app again -> it opens in the mode and on the page it was closed on
 - **Expected result:** agents and coding sessions never share one list; one press or one key moves between them, and the app remembers where the person was
-- **Alt paths:** Switchboard hands a session over or a session changes state while Agents is shown -> the badge changes and the mode does not: a new hand-over never switches the mode by itself; the person clicks a session's notification or the tray's Sessions line (SCN-085) -> Sessions opens on it; a fabric-dashboards:// link to an agent's page, a notification about an agent or an agent in the tray menu -> Agents opens on it; the sidebar is folded into a rail (SCN-047) -> the switch becomes two icons, each named in a tooltip and to a screen reader, the badge on the Sessions icon; the page last open in a mode has gone (a session removed, an agent uninstalled) -> that mode opens on its first page (All sessions or Overview)
+- **Alt paths:** Switchboard hands a session over or a session changes state while Agents is shown -> the badge changes and the mode does not: a new hand-over never switches the mode by itself; the person clicks a session's notification or the tray's Sessions line (SCN-085) -> Sessions opens on it; a fabric-dashboards:// link to an agent's page, a notification about an agent or an agent in the tray menu -> Agents opens on it; the sidebar is folded into a rail (SCN-047) -> the switch becomes two icons, each named in a tooltip and to a screen reader, the badge on the Sessions icon; the page last open in a mode has gone (a session removed, an agent uninstalled) -> that mode opens on its first page (All sessions or Overview); a session's terminal has focus (SCN-080) -> ⌘1 and ⌘2 (Ctrl+1 and Ctrl+2 on Windows and Linux) still switch the mode: they are the View menu's shortcuts (`menuKeys`, `modeMenuItems` in src/core/platform.ts), so the menu takes them before the terminal and they never reach the coding agent
 - **UI elements:** the sidebar switch (two buttons, the selected one pressed), its badge, View → Agents and View → Sessions with their shortcuts, the rail's two icons
 - **States covered:** empty, success
 - **Errors & recovery:** the remembered mode cannot be read (damaged settings) -> Agents on Overview; nothing else depends on it
@@ -1610,7 +1610,7 @@ The Sessions mode (0.8.0): every coding session apart from the agents, each stat
   4. User unfolds "Ended in the last 24 hours" (folded by default; the fold is remembered) -> ended sessions newest first, each with its Continue and Remove; "Clear" above them removes every ended session from the list at once, with no question: an ended entry is only a list row, and the transcript stays where the coding agent wrote it
   5. User reads the bottom of the page -> the footnote "Sessions started in a terminal without Switchboard are not listed."
 - **Expected result:** every coding session Switchboard or this app knows is listed once, newest first in its group, each saying what it is, where it came from and what it needs
-- **Alt paths:** no session at all -> the empty sentence (Copy) and no group; Switchboard is not installed -> only this app's console sessions, with the not-installed sentence; Switchboard did not answer on the last read -> what was read before stays, with the not-answering sentence and its time; Switchboard and a console of this app know the same session -> one row (merged by folder and start time); an ended session older than 24 hours -> it leaves the list by itself; the app restarts -> the ended sessions of the last 24 hours are still listed (what their consoles printed is not, SCN-080); the list is read every 15 seconds while Sessions is shown and every 60 seconds otherwise, so a new session appears within that time
+- **Alt paths:** no session at all -> the empty sentence (Copy) and no group; Switchboard is not installed -> only this app's console sessions, with the not-installed sentence; Switchboard did not answer on the last read -> what was read before stays, with the not-answering sentence and its time; Switchboard and a console of this app know the same session -> one row (merged by folder and start time); an ended session older than 24 hours -> it leaves the list by itself; the app restarts -> the ended sessions of the last 24 hours are still listed (what their consoles printed is not, SCN-080); the list is read every 15 seconds while the window is shown and every 60 seconds while it is hidden, in either mode (`HANDOVER_POLL_MS` in src/electron/console.ts, the same tick as SCN-086 and AGENTS.md §Lifecycle), so a new session appears within that time
 - **UI elements:** the sidebar's group headings and rows, the All sessions page with the same groups as cards, the fold of Ended with Clear, the footnote, the empty, not-installed and not-answering lines
 - **States covered:** loading, empty, success, error
 - **Errors & recovery:** Switchboard does not answer -> the not-answering line with the time of the last good read, and the next read tries again; the list of ended sessions cannot be saved -> the list still shows them until the app quits, and the log says why
@@ -1667,11 +1667,11 @@ The Sessions mode (0.8.0): every coding session apart from the agents, each stat
 - **Steps:**
   1. User opens a session -> the header: the project as the title, the state in words beside it, the origin chip, the account chip, the context chip when Switchboard names one, the coding agent and the folder (shortened, the full path on hover), and the actions of its state on the right (SCN-081 to SCN-084)
   2. The session runs in this app's console -> under the header the console fills the rest of the main area, the full height of the window; it is not a drawer: there is no fold and no collapse, and nothing on this page navigates elsewhere by itself
-  3. User types into the terminal -> every key reaches the coding agent, Esc included; while the terminal has focus a quiet line under it says how to leave it
+  3. User types into the terminal -> every key reaches the coding agent, Esc included, except the app's menu shortcuts, which the menu takes first (⌘1 and ⌘2 switch the mode, SCN-077; Ctrl+1 and Ctrl+2 on Windows and Linux); while the terminal has focus a quiet line under it says how to leave it
   4. User presses Esc, then Tab within one second -> the Esc has reached the coding agent as usual and the Tab does not; focus leaves the terminal for the next control in the window's order (Esc, then Shift+Tab: the header's last action)
   5. User changes the colour scheme or the theme in Settings, or the system switches between light and dark -> the terminal's background, text, selection and colours follow at once, without restarting the session (SCN-067)
 - **Expected result:** a session is a page of its own: what it is, where it came from, which account it spends and what can be done with it at the top, and its console filling the rest
-- **Alt paths:** the session runs in a Terminal window Switchboard opened (SCN-081) -> no console; the page says where to type to it; an ended session after the app restarted -> the page says what it printed was not kept; the session leaves the list while its page is open (Remove, Clear, 24 hours passed) -> All sessions opens, never an empty page; the window is hidden while it runs -> it keeps running, its output waits in the console's buffer and shows when the window is shown again; a hand-over or a session continued after a limit reset never runs in an agent's console (decision 8, extended 2026-10-24: SCN-069 step 2, SCN-075 step 3); a session started in an agent's own console is listed as "opened here", and its page and the agent's drawer show one console and one output; Windows or Linux -> the same keys
+- **Alt paths:** the session runs in a Terminal window Switchboard opened (SCN-081) -> no console; the page says where to type to it (on Windows Switchboard opens a PowerShell window and on Linux the desktop's terminal, while the sentence names Terminal on every system: `sessions.inTerminal` has no Windows or Linux variant yet, a gap recorded in FD-104 for round 2); an ended session after the app restarted -> the page says what it printed was not kept; the session leaves the list while its page is open (Remove, Clear, 24 hours passed) -> All sessions opens, never an empty page; the window is hidden while it runs -> it keeps running, its output waits in the console's buffer and shows when the window is shown again; a hand-over or a session continued after a limit reset never runs in an agent's console (decision 8, extended 2026-10-24: SCN-069 step 2, SCN-075 step 3); a session started in an agent's own console is listed as "opened here", and its page and the agent's drawer show one console and one output; Windows or Linux -> the same keys
 - **UI elements:** the header (title, state words, origin, account and context chips, coding agent, folder, actions), the full-height console, the keyboard line, the Terminal and not-kept notes
 - **States covered:** empty, success, error
 - **Errors & recovery:** the console cannot start (no room, SCN-063) -> its reason in the console's place, and the header keeps the state's actions
@@ -1732,7 +1732,7 @@ The Sessions mode (0.8.0): every coding session apart from the agents, each stat
 - **Steps:**
   1. A session the app continued after a limit reset did not write its transcript within 30 seconds but its process still runs (SCN-075) -> under "Needs you" with "Did not continue; its process is still running"; actions "Open console" and "End"
   2. User presses "Open console" -> the session's page with its console full height (SCN-080); what the person types reaches it; "End" asks first (SCN-081)
-  3. A hand-over Switchboard offered could not open here -> under "Needs you" with the reason in one sentence (it expired; its folder is not on this Mac; this Mac could not carry another session; Switchboard is too old), followed by "Switchboard opened it in Terminal." once it did; action "Remove"
+  3. A hand-over Switchboard offered could not open here -> under "Needs you" with the reason in one sentence (it expired; its folder is not on this Mac; this Mac could not carry another session; Switchboard is too old), followed by "Switchboard opened it in Terminal." once it did; action "Remove". "Could not carry" is any refusal of SCN-063 (`admit` in src/core/admission.ts, src/electron/console.ts takeHandover), but its sentence names only the disk and the six sessions: a hand-over refused on Linux because swap ran out reads the same, and on Windows and Linux "Terminal" stands for the terminal window Switchboard opened there (both gaps recorded in FD-104 for round 2)
   4. A stopped session only the person can move on (its terminal is still open, a payment limit, stopped more than a day ago, its folder or its conversation is not here) -> under "Needs you" with Switchboard's verdict sentence (SCN-075); action "Remove"
   5. User presses "Remove" -> the row leaves the list and the badge counts one less; nothing else changes (a Terminal window Switchboard opened stays open, and Switchboard's own record is untouched)
 - **Expected result:** every session that waits for a decision says why in one sentence and offers the one thing that can be done about it here
@@ -1796,7 +1796,7 @@ The Sessions mode (0.8.0): every coding session apart from the agents, each stat
   3. User presses "Remove" -> it leaves the list; its transcript stays where the coding agent wrote it
   4. Twenty-four hours after it ended -> it leaves the list by itself; until then a restart of the app keeps it
 - **Expected result:** no ended session is a dead end: each can be continued where it was or taken off the list
-- **Alt paths:** the conversation is not known to the app (no transcript recorded) -> the button reads "New session here" and starts a fresh session in that folder; its folder is gone -> Continue is disabled with "Its folder is not on this Mac."
+- **Alt paths:** the conversation is not known to the app (no transcript recorded) -> the button reads "New session here" and starts a fresh session in that folder; its folder is gone -> Continue is disabled with "Its folder is not on this Mac."; the row is an agent's own console closed after 30 idle minutes -> Continue here is that console's own continue: it clears the console's idle note and the row leaves the list (the other way back, from the agent's console, is SCN-066 and leaves this row until Remove, Clear or 24 hours)
 - **UI elements:** the ended state words, Continue (New session here), Remove
 - **States covered:** success, error
 - **Errors & recovery:** the continue cannot start (no room, SCN-063, or Switchboard refuses) -> its reason on the page, and the session stays Ended with both actions
