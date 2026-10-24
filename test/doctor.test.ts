@@ -43,7 +43,7 @@ test('FD-65: Repair with my coding agent — the Setup brief starts from what th
   const report = parseDoctor(FIXTURE)!;
   const md = setupMarkdown({ runtimeId: 'claude-code', runtimeName: 'Claude Code', server: { command: '/x/mcp', args: [] }, state: { mcp: true, skills: true, firstAgent: true }, platform: 'darwin', doctor: report });
   assert.ok(md.indexOf('What the last Check setup found') < md.indexOf('## Steps, in order'), 'the check comes before the steps');
-  assert.match(md, /\*\*fail\*\* `mcp\.claude\.fabric-dashboards` \(mcp\): .*points at a missing file — fix: claude mcp add/);
+  assert.match(md, /\*\*fail\*\* `mcp\.claude\.fabric-dashboards` \(mcp\): .*points at a missing file; fix: claude mcp add/);
   assert.doesNotMatch(md, /prereq\.node/, 'a passing check is not handed over');
   assert.equal(doctorMarkdown({ ...report, checks: report.checks.filter((c) => c.state === 'ok') }), '', 'nothing to repair: no section');
   const without = setupMarkdown({ runtimeId: 'codex', runtimeName: 'Codex', server: { command: '/x/mcp', args: [] }, state: { mcp: true, skills: true, firstAgent: true }, platform: 'darwin' });

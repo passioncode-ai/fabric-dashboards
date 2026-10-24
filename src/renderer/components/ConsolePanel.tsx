@@ -235,8 +235,8 @@ export function ConsolePanel({ serviceKey, height, maxHeight, onHeight, onDrag, 
         {handover && <p className="console-row console-line meta" role="status">{handover.kind === 'resume' ? t('console.resumed', { agent: handover.agent }) : t('console.handover', { workflow: handover.workflow || handover.agent, account: handover.account || t('word.notRecorded') })}</p>}
         {!ownHandover && <div className="console-row meta">
           {info?.folder
-            ? <span className="console-folder" title={`${info.folder.path}${info.folder.source === 'found' ? ` — ${t('console.foundFrom')}` : ''}`}>{shortPath(info.folder.path)}</span>
-            : <span className="console-folder muted">{t('console.folder')}: —</span>}
+            ? <span className="console-folder" title={`${info.folder.path}${info.folder.source === 'found' ? ` (${t('console.foundFrom')})` : ''}`}>{shortPath(info.folder.path)}</span>
+            : <span className="console-folder muted">{t('console.folder')}: {t('console.folderNone')}</span>}
           <button className="btn btn-sm" disabled={running} onClick={() => void api().consolePickFolder(serviceKey).then((i) => { setInfo(i); setNotice(null); })}>{info?.folder ? t('console.other') : t('console.chooseFolder')}</button>
           {bound && <span className="chip" title={t('console.project', { name: bound.name })}>{t('console.project', { name: bound.name })}</span>}
         </div>}

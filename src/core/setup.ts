@@ -50,14 +50,14 @@ export function registerCommand(runtimeId: string, server: McpCommand): string |
 /** `setup.md`: the steps, in order, with this machine's commands; done steps are marked, not repeated. */
 export function setupMarkdown(o: { runtimeId: string; runtimeName: string; server: McpCommand; state: SetupState; platform: NodeJS.Platform; doctor?: DoctorReport | null }): string {
   const reg = registerCommand(o.runtimeId, o.server);
-  const done = (b: boolean) => (b ? ' — **already done; check it, do not repeat it**' : '');
+  const done = (b: boolean) => (b ? ' (**already done; check it, do not repeat it**)' : '');
   return [
-    '# Set up Fabric on this computer — run by you, the coding agent',
+    '# Set up Fabric on this computer: run by you, the coding agent',
     '',
     `You are ${o.runtimeName}, started by Fabric Dashboards' Setup console. The person watches the result in the app:`,
     'its list fills as agents appear, and its setup card ticks each step. **Run every command yourself.** Ask the',
     'person only for: a consent before installing anything, a sign-in in a browser, a secret (typed into a hidden',
-    'prompt — never printed, never in an argument or a file you show), a choice only they can make. One question at',
+    'prompt, never printed, never in an argument or a file you show), a choice only they can make. One question at',
     'a time. Say what you are about to do before each step, and what happened after it.',
     '',
     // FD-65: a Check setup the person ran before opening this console comes first: it names what is broken now.
@@ -70,10 +70,10 @@ export function setupMarkdown(o: { runtimeId: string; runtimeName: string; serve
     '',
     `2. **The Fabric Agent Adapter skills**${done(o.state.skills)}.`,
     '   They teach you to create, adapt and run Fabric agents (`creating-fabric-agents`, `adapting-projects-to-fabric`, `building-fabric-services`).',
-    '   If the family setup entry exists (`npx @passioncode-ai/passioncode onboard --help` answers), run it and follow it — it orders the steps below itself.',
+    '   If the family setup entry exists (`npx @passioncode-ai/passioncode onboard --help` answers), run it and follow it: it orders the steps below itself.',
     '   Otherwise, with the person\'s consent: `npx --yes @passioncode-ai/passioncode@latest update`. Skills load when a session starts: tell the person to restart you after this step, and continue with `--continue`.',
     '',
-    '3. **The family products — one at a time, each only with the person\'s consent**, in the order fabric-workspace `knowledge/agents-first.md` gives (its one home). Say in one sentence what each does, then ask.',
+    '3. **The family products, one at a time, each only with the person\'s consent**, in the order fabric-workspace `knowledge/agents-first.md` gives (its one home). Say in one sentence what each does, then ask.',
     '   **Every download is verified before it runs:** `gpg --verify SHA256SUMS.asc SHA256SUMS` against the organization key (fingerprint `63B3 0DC3 24BD 6974 87AA 3194 4FAF B8AE C803 B6A7`, published in passioncode-ai/.github `release-signing/passioncode-release-signing.asc`), then `shasum -a 256 -c SHA256SUMS --ignore-missing`. A file that fails either is not installed.',
     '   - **Fabric Switchboard** (accounts for Claude Code and Codex, a project per folder): https://github.com/passioncode-ai/fabric-switchboard/releases/latest. Then run `switchboard onboard` and follow its guide; `switchboard --json onboard --status --folder <abs> --host claude|codex` answers each step (owner, accounts, project, mcp, proving_call) as done, todo, needs_person or optional, with the next command. A `needs_person` step (the sign-in to each account) is the person\'s, in their browser. An older Switchboard without `onboard`: set up one account and one project with its CLI.',
     '   - **Project Observatory** (watches every project, keeps credentials out of chats): follow `project-observatory full onboard` once it is installed.',
@@ -82,7 +82,7 @@ export function setupMarkdown(o: { runtimeId: string; runtimeName: string; serve
     '   A product the person declines is skipped without asking again.',
     '',
     `4. **The first agent**${done(o.state.firstAgent)}.`,
-    '   Ask what it should do — or whether a project they already have should become one. Then use the `creating-fabric-agents` skill (new) or `adapting-projects-to-fabric` (existing), and its intake questions, one at a time.',
+    '   Ask what it should do, or whether a project they already have should become one. Then use the `creating-fabric-agents` skill (new) or `adapting-projects-to-fabric` (existing), and its intake questions, one at a time.',
     '',
     '5. **Make it a service** with `building-fabric-services`, so it runs by itself and appears in Fabric Dashboards. Confirm with the MCP tool `list_services` that it is there and `ready`, and tell the person to look at the list.',
     '',

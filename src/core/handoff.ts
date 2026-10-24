@@ -76,12 +76,12 @@ const line = (label: string, value: string | null) => (value ? `- **${label}:** 
 /** `context.md`: the agent's whole picture, readable by a person too. */
 export function contextMarkdown(c: HandoffContext, generatedAt: string): string {
   const out: (string | null)[] = [
-    `# ${c.name} (${c.key}) — context from Fabric Dashboards`,
+    `# ${c.name} (${c.key}): context from Fabric Dashboards`,
     '',
     `Written ${generatedAt}. Read it fresh any time with the \`fabric-dashboards\` MCP tool \`service_context\` (key \`${c.key}\`).`,
     '',
     '## Who',
-    line('Agent', `${c.name} — the Fabric service \`${c.key}\`${c.summary ? `: ${c.summary}` : ''}`),
+    line('Agent', `${c.name}, the Fabric service \`${c.key}\`${c.summary ? `: ${c.summary}` : ''}`),
     line('Placement', c.placement === 'remote' ? 'online (runs on its own server)' : 'on this computer'),
     line('Origin', c.origin),
     line('Repository', c.repository),

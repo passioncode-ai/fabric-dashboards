@@ -112,12 +112,12 @@ export function Overview({ status, products, open, act, goSpend, agent, visit, o
     if (s.busy) return <span className="row meta" role="status"><Spinner /> {t(`busy.${s.busy}`)}</span>;
     // T-20: an online service has no Logs tab.
     const logs = failed(s) && !isOnline(s) && s.descriptor?.paths?.logs?.length
-      ? <button className="btn" aria-label={`${t('action.logs')} — ${nameOf(s)}`} onClick={() => open(s.key, undefined, 'logs')}>{t('action.logs')}</button> : null;
+      ? <button className="btn" aria-label={t('join.action', { action: t('action.logs'), name: nameOf(s) })} onClick={() => open(s.key, undefined, 'logs')}>{t('action.logs')}</button> : null;
     if (logs && !(s.state === 'down' || s.state === 'duplicate')) return logs;
     // DEC-0019: an online service is supervised by its platform — nothing here can restart it.
     if (isOnline(s)) return <button className="btn" onClick={() => open(s.key)}>{t('action.open')}</button>;
     // U-14: each action names the service it acts on, for a screen reader reading the button alone.
-    const label = (action: string) => `${action} — ${nameOf(s)}`;
+    const label = (action: string) => t('join.action', { action, name: nameOf(s) });
     if (s.state === 'down' || s.state === 'duplicate') return <span className="row">{logs}<button className="btn btn-primary" aria-label={label(t('action.restart'))} onClick={() => act(s.key, 'restart')}>{t('action.restart')}</button></span>;
     if (s.wellKnown?.update?.available && s.descriptor?.commands?.update) { // P-9: also when degraded — the update may be the fix
       const text = t('action.update', { version: s.wellKnown.update.available });
@@ -164,7 +164,7 @@ export function Overview({ status, products, open, act, goSpend, agent, visit, o
                 <li key={a.key} className={`state-${a.level === 'error' ? 'down' : 'degraded'}`}>
                   <button className="linkish name" onClick={() => open(a.key)}>{nameOf(byKey.get(a.key)!)}</button>
                   <span className="why" title={a.text}>{a.text}</span>
-                  {agent && offersFix(byKey.get(a.key)!) && <button className="btn" aria-label={`${t('agent.fix')} — ${nameOf(byKey.get(a.key)!)}`} onClick={() => agent(a.key, { kind: 'fix' })}>{t('agent.fix')}</button>}
+                  {agent && offersFix(byKey.get(a.key)!) && <button className="btn" aria-label={t('join.action', { action: t('agent.fix'), name: nameOf(byKey.get(a.key)!) })} onClick={() => agent(a.key, { kind: 'fix' })}>{t('agent.fix')}</button>}
                 </li>
               ))}
               {visit.added.length > 0 && <li className="meta">{t('visit.added', { names: names(visit.added) })}</li>}
@@ -199,8 +199,8 @@ export function Overview({ status, products, open, act, goSpend, agent, visit, o
                 <button className="linkish name" onClick={() => open(s.key)}>{nameOf(s)}</button>
                 <span className="why" title={attentionLine(s)}>{attentionLine(s)}</span>
                 {action(s)}
-                {agent && !s.busy && offersFix(s) && <button className="btn" aria-label={`${t('agent.fix')} — ${nameOf(s)}`} onClick={() => agent(s.key, { kind: 'fix' })}>{t('agent.fix')}</button>}
-                {agent && !s.busy && !offersFix(s) && offersAgentUpdate(s, false) && <button className="btn" aria-label={`${t('agent.update')} — ${nameOf(s)}`} onClick={() => agent(s.key, { kind: 'update' })}>{t('agent.update')}</button>}
+                {agent && !s.busy && offersFix(s) && <button className="btn" aria-label={t('join.action', { action: t('agent.fix'), name: nameOf(s) })} onClick={() => agent(s.key, { kind: 'fix' })}>{t('agent.fix')}</button>}
+                {agent && !s.busy && !offersFix(s) && offersAgentUpdate(s, false) && <button className="btn" aria-label={t('join.action', { action: t('agent.update'), name: nameOf(s) })} onClick={() => agent(s.key, { kind: 'update' })}>{t('agent.update')}</button>}
               </li>
             ))}
           </ul>
@@ -250,7 +250,7 @@ function Card({ p, open }: { p: Product; open: (key: string) => void }) {
   const uptime = wk ? Date.now() - new Date(wk.process.startedAt).getTime() : null;
   return (
     // U-14: the label a screen reader reads carries what the card says first: name, state, purpose, connections.
-    <button className="card" onClick={() => open(s.key)} aria-label={[`${nameOf(s)} — ${t(`state.${s.state}`)}`, s.descriptor?.summary, ...others.map((m) => `${instanceOf(m.key)}: ${t(`state.${m.state}`)}`)].filter(Boolean).join('. ')}>
+    <button className="card" onClick={() => open(s.key)} aria-label={[t('join.nameState', { name: nameOf(s), state: t(`state.${s.state}`) }), s.descriptor?.summary, ...others.map((m) => `${instanceOf(m.key)}: ${t(`state.${m.state}`)}`)].filter(Boolean).join('. ')}>
       <div className="card-head">
         <div>
           <h3>{nameOf(s)}</h3>
@@ -301,7 +301,8 @@ function hostOf(s: ServiceSnapshot): string {
 }
 
 /** The top of the main screen (ADR-0014, SCN-041): how many agents run well, what needs you, and
- *  what they spent — each cell one number with its label, the spend cell opening Spend. */
+ *  what they spent: each cell a label over its number (COPY-04: no word agrees with the count), the spend cell
+ *  opening Spend. */
 function StatusStrip({ status, products, attention, goSpend }: { status: AppStatus; products: Product[]; attention: number; goSpend: () => void }) {
   const { t } = useT();
   const [spend, setSpend] = useState<SpendEntry[] | null>(null);
@@ -322,14 +323,14 @@ function StatusStrip({ status, products, attention, goSpend }: { status: AppStat
   const sum = (window: 'today' | 'month') => (reported ? formatMoney(sumSpend(spend ?? [], window), t) : t('spend.unknown'));
   return (
     <section className="strip" aria-label={t('overview.strip')}>
-      <div className="cell"><span className="v">{ready}<span className="of">/{products.length}</span></span><span className="l">{t('overview.strip.ready')}</span></div>
-      <div className={`cell${problems ? ' bad' : ''}`}><span className="v">{problems}</span><span className="l">{t('overview.strip.down')}</span></div>
-      <div className={`cell${attention ? ' attn' : ''}`}><span className="v">{attention}</span><span className="l">{t('overview.strip.attention')}</span></div>
+      <div className="cell"><span className="l">{t('overview.strip.ready')}</span><span className="v">{ready}<span className="of">/{products.length}</span></span></div>
+      <div className={`cell${problems ? ' bad' : ''}`}><span className="l">{t('overview.strip.down')}</span><span className="v">{problems}</span></div>
+      <div className={`cell${attention ? ' attn' : ''}`}><span className="l">{t('overview.strip.attention')}</span><span className="v">{attention}</span></div>
       <button className="cell" onClick={goSpend} disabled={!reporting}>
-        <span className="v">{spend === null ? <Spinner /> : reporting ? sum('today') : t('overview.strip.noSpend')}</span><span className="l">{t('overview.strip.spendToday')}</span>
+        <span className="l">{t('overview.strip.spendToday')}</span><span className="v">{spend === null ? <Spinner /> : reporting ? sum('today') : t('overview.strip.noSpend')}</span>
       </button>
       <button className="cell" onClick={goSpend} disabled={!reporting}>
-        <span className="v">{spend === null ? <Spinner /> : reporting ? sum('month') : t('overview.strip.noSpend')}</span><span className="l">{t('overview.strip.spendMonth')}</span>
+        <span className="l">{t('overview.strip.spendMonth')}</span><span className="v">{spend === null ? <Spinner /> : reporting ? sum('month') : t('overview.strip.noSpend')}</span>
       </button>
     </section>
   );

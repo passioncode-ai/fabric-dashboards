@@ -129,7 +129,7 @@ export function Spend({ status }: { status: AppStatus }) {
       {errors.length > 0 && (
         <section className="notice error" aria-labelledby="spend-errors-title">
           <h2 id="spend-errors-title">{t('spend.errors')}</h2>
-          <ul>{errors.map((e) => <li key={e.key}><b>{name(e.key)}</b> — {e.reason ? reason(e.reason) : e.error}</li>)}</ul>
+          <ul>{errors.map((e) => <li key={e.key}><b>{name(e.key)}</b>: {e.reason ? reason(e.reason) : e.error}</li>)}</ul>
         </section>
       )}
       {silent.length > 0 && <p className="meta">{t('spend.silent', { names: silent.map(nameOf).join(', ') })}</p>}
