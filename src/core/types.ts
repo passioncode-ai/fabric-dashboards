@@ -3,6 +3,7 @@
 // (packages/service-host), the reading code Fabric Dashboards shares with Fabric; they follow
 // fabric-agent-contract schemas/service-*.schema.json (DEC-0015). Type-only re-exports keep the
 // renderer free of the package's Node code.
+import type { LimitView } from '@passioncode-ai/fabric-service-host/usage';
 import type { Busy, Descriptor, LaunchdStatus, Reason, ServiceEvent, ServiceState, WellKnown } from '@passioncode-ai/fabric-service-host/protocol';
 import type { EstateStatus } from './estate-update';
 
@@ -175,6 +176,12 @@ export interface AppStatus {
   handovers?: { key: string; workflow: string; agent: string; account: string; dir: string; state: 'running' | 'exited'; kind?: 'handover' | 'resume' }[];
   /** FD-83: sessions stopped on a usage limit — the ones this launch continued and the ones left for the person. */
   recovery?: RecoveryStatus;
+  /** W2 (UX-05, UX-06): the spending limits that need a person (tripped or over the line), by agent, from the last
+   *  spend read (`limitsNeedingPerson`); absent until Spend, Overview or Connections asked once (LC-08). */
+  limits?: Record<string, LimitView[]>;
+  /** W2 (UX-08): when the window was last shown and how long it had been hidden before; the renderer opens a new
+   *  "Since you were last here" after a long gap (`revisitDue`). */
+  shown?: { at: string; afterHiddenMs: number };
   version: string;
 }
 

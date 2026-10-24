@@ -110,6 +110,8 @@ const ICONS: Record<string, string> = {
   copy: 'M7 7h9v10H7zM4 13V3h9',
   check: 'M4 10.5l4 4 8-9',
   external: 'M11 3h6v6M17 3l-7.5 7.5M14 12v5H3V6h5',
+  // W2: the app's own update in the folded rail.
+  update: 'M10 15V4M5.5 8.5 10 4l4.5 4.5M4 17h12',
 };
 export function Icon({ name }: { name: keyof typeof ICONS | string }) {
   return (
