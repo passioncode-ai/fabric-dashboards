@@ -248,7 +248,7 @@ export function SessionsNav({ sessions, currentId, allCurrent, rail, endedOpen, 
                 const lines = navLines(lang, r);
                 return (
                   <button key={r.id} className="nav-item session-item" aria-current={currentId === r.id ? 'page' : undefined}
-                    title={rail ? t('join.nameState', { name: r.project, state: stateShort(lang, r) }) : undefined} onClick={() => openRow(r.id)}>
+                    title={rail ? [t('join.nameState', { name: r.project, state: stateShort(lang, r) }), lines.time, lines.sub].filter(Boolean).join(' · ') : undefined} onClick={() => openRow(r.id)}>
                     <span className={`state ${SESSION_MARK[r.group].cls}`} aria-hidden="true"><SessionMark group={r.group} /></span>
                     {rail && <span className="initials" aria-hidden="true">{initialsOf(r.project)}</span>}
                     {/* R1-V1: the time beside the project, never cut; account and origin below, the agent only when it is not Claude Code. */}

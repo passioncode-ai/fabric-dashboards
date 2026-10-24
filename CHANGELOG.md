@@ -84,6 +84,18 @@ same words everywhere. The iteration's records are in
 - **Windows and Linux** name the window Switchboard really opens (a PowerShell window, a terminal window) instead of
   "Terminal"; a hand-over that could not open here names its one cause (under 5 GB free, six sessions already, or swap
   run out on Linux); continuing an idle-closed agent console from the console itself removes its ended row.
+- **Sessions found in the adversarial round** (fix cycle 2,
+  [fix2-prefix-failures.txt](docs/reports/2026-10-24-ui-ux-iteration/fix2-prefix-failures.txt)): a limit stop you
+  declined and then continued is settled in Switchboard, so a restart never continues the same conversation again; two
+  presses of Continue now, or one during the automatic continue, start one session and never record it as cancelled;
+  quitting during a continue settles the stop in Switchboard before the app exits; a stop waits while a console of this
+  app works in its folder; two Switchboard sessions launched in the same second are both listed; a time ahead of the
+  clock neither hides a row for a year nor drops a decline; later rows never push a decline out of the list's memory.
+- **Session words and layout** (the visual round): a stopped session reads "Stopped by a limit on {account}" instead of
+  "Continued after a limit reset"; a continue that did not take up its conversation reads "Continue tried after a limit
+  reset"; English times read 1:37 PM; one or two cards fill the row and a card never cuts its time; a session running in
+  Terminal offers Show in Finder; an ended session's page after a restart says its output is not kept instead of showing
+  an empty console; without Switchboard the page says once how to get it; the sidebar's focus ring is no longer cut.
 
 - **Spend adds agents up as the contract does** (FD-101, contract DEC-0110). The sum across agents is read over all their
   report rows at once: beside an agent whose calls carry no price, an agent with no metered calls makes the money unknown

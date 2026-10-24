@@ -115,7 +115,14 @@ export interface SbSession {
 
 export type SbSessions = { sessions: SbSession[] } | { unavailable: 'old' | 'error'; detail: string };
 
-const ms = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) && v > 0 ? (v < 1e12 ? v * 1000 : v) : null);
+/** The latest time a Switchboard record may name (2100-01-01): a later one is a malformed record, read as no time (F6 of
+ *  FIX-2), never as a session that ends a century from now. */
+const MAX_MS = Date.UTC(2100, 0, 1);
+const ms = (v: unknown): number | null => {
+  if (typeof v !== 'number' || !Number.isFinite(v) || v <= 0) return null;
+  const at = v < 1e12 ? v * 1000 : v;
+  return at <= MAX_MS ? at : null;
+};
 const samePath = (a: string, b: string) => {
   const real = (p: string) => { try { return fs.realpathSync(p); } catch { return path.resolve(p); } };
   return real(a) === real(b);

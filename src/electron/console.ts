@@ -101,6 +101,11 @@ export const HANDOVER_POLL_MS = { visible: 15_000, hidden: 60_000 };
 /** D2 of the 2026-10-12 board waves, stated in AGENTS.md's lifecycle table (LC-18). */
 export const IDLE_CLOSE_MS = 30 * 60_000;
 
+/** F3 of FIX-2: how long a quit waits for a continue in flight to settle its stop, then for the cancelling of a stop still
+ *  claimed; both inside the app's own quit (main.ts exits once endAllForQuit resolves). */
+export const QUIT_SETTLE_MS = 2500;
+export const QUIT_FINISH_MS = 1500;
+
 /** FD-74: how long the console trusts Switchboard's last answer about a folder before asking again in the background. */
 export const BINDING_FRESH_MS = 30_000;
 
@@ -122,6 +127,14 @@ export class ConsoleHost {
   /** FD-83: stops this launch acted on (continued, or failed to), by event — each is acted on once. */
   private readonly actedStops = new Map<string, StopView>();
   private recovery: RecoveryStatus = { on: true, stops: [], resumed: 0 };
+  /** F2 of FIX-2: stops being taken up now (an automatic continue, Continue now, or Continue on a declined stop), by
+   *  event: marked before the claim, so a second press or the background pass never claims or starts the same stop. */
+  private readonly taking = new Set<string>();
+  /** F3 of FIX-2: the continues in flight, which a quit waits for, and the stops claimed and not finished yet, which a
+   *  quit finishes as cancelled when their continue did not. */
+  private readonly inFlight = new Set<Promise<unknown>>();
+  private readonly claimedOpen = new Map<string, { stop: SbStop; sb: string }>();
+  private quitting = false;
   // #region sessions-host — docs: docs/reports/2026-10-24-ui-ux-iteration/sessions-and-navigation.md#every-state-has-an-action
   /** FD-103: why a console session is ending, set just before it is stopped: the person, the idle close, or the app
    *  quitting (R1-S4). */
@@ -438,6 +451,7 @@ export class ConsoleHost {
    *  continues each ready one whose transcript nothing else can be writing, at most RESUMES_PER_PASS a pass. The
    *  rest stays listed for the person. Off in Settings: read, never acted on. Returns the console keys it started. */
   async pollRecovery(now = Date.now()): Promise<string[]> {
+    if (this.quitting) return []; // F3 of FIX-2: nothing starts once the app quits
     const on = this.o.settings.get().resumeAfterLimit;
     const inv = await this.inventory();
     if (!inv.switchboard) return this.setRecovery({ on, unavailable: 'absent', stops: [], resumed: this.recovery.resumed });
@@ -455,26 +469,31 @@ export class ConsoleHost {
     const held = new Set([...m.records.filter((x) => x.end === 'declined').map((x) => x.id), ...m.dismissed.filter((d) => d.id.startsWith('st:')).map((d) => d.id)]);
     this.lastStops.clear();
     for (const s of r.stops) this.lastStops.set(s.event, s);
-    const pending = r.stops.filter((s) => s.state !== 'resumed' && !this.actedStops.has(s.event));
-    const live = pending.some((s) => s.ready) ? await liveAgents(this.run).catch(() => null) : null;
-    // FD-103: Continue now on another account names its candidates; their labels are read only when there are some.
-    const labels = pending.some((s) => s.candidates.length) ? (await accountsOf(this.run, inv.switchboard).catch(() => null))?.labels ?? {} : {};
+    const pending = r.stops.filter((s) => s.state !== 'resumed' && !this.actedStops.has(s.event) && !this.taking.has(s.event));
+    const read = pending.some((s) => s.ready) ? await liveAgents(this.run).catch(() => null) : null;
+    // F4 of FIX-2: a folder one of this app's consoles works in is live too (a hand-over taken on this tick has no claude
+    // process yet that lsof could see), so a hand-over and a stop of one folder never both start.
+    const live = read && { dirs: [...read.dirs, ...this.manager.runningKeys().map((k) => this.handoverOf.get(k)?.dir ?? this.manager.snapshot(k).cwd).filter(Boolean)], args: read.args };
+    // FD-103: Continue now on another account names its candidates, and a stop names the account it stopped on (V-1 of
+    // FIX-2); their labels are read only when there are some.
+    const labels = pending.some((s) => s.candidates.length || s.account) ? (await accountsOf(this.run, inv.switchboard).catch(() => null))?.labels ?? {} : {};
     const candidates = (s: SbStop) => s.candidates.map((id) => ({ id, label: labels[id] ?? id }));
+    const accountOf = (s: SbStop) => (s.account ? labels[s.account] ?? null : null);
     const views: StopView[] = [];
     const due: SbStop[] = [];
     for (const s of pending) {
       const verdict = verdictOf(s, live, now, isDir, (x) => transcriptOf(x, this.o.home ?? os.homedir()));
       // FD-103 (decision 2): a stop the person declined is never continued by this app.
       if (verdict === 'resume' && on && due.length < RESUMES_PER_PASS && !held.has(stopRowId(s.event))) { due.push(s); continue; }
-      views.push({ event: s.event, session: s.session, dir: s.dir, provider: s.provider, stoppedAt: s.stoppedAt, attempt: s.attempt, verdict, candidates: candidates(s), probeAt: s.probeAt });
+      views.push({ event: s.event, session: s.session, dir: s.dir, provider: s.provider, stoppedAt: s.stoppedAt, attempt: s.attempt, verdict, candidates: candidates(s), probeAt: s.probeAt, account: accountOf(s) });
     }
     const started: string[] = [];
     for (const s of due) {
       const key = await this.resume(s, inv.switchboard, inv.dirs, s.candidates[0]!, true);
       if (key) started.push(key);
-      else if (!this.actedStops.has(s.event)) views.push({ event: s.event, session: s.session, dir: s.dir, provider: s.provider, stoppedAt: s.stoppedAt, attempt: s.attempt, verdict: 'resume', candidates: candidates(s), probeAt: s.probeAt });
+      else if (!this.actedStops.has(s.event) && !this.taking.has(s.event)) views.push({ event: s.event, session: s.session, dir: s.dir, provider: s.provider, stoppedAt: s.stoppedAt, attempt: s.attempt, verdict: 'resume', candidates: candidates(s), probeAt: s.probeAt, account: accountOf(s) });
     }
-    this.setRecovery({ on, stops: [...this.actedStops.values(), ...views], resumed: this.recovery.resumed + started.length });
+    this.setRecovery({ on, stops: [...this.actedStops.values(), ...views.filter((v) => !this.actedStops.has(v.event))], resumed: this.recovery.resumed + started.length });
     return started;
   }
 
@@ -487,9 +506,40 @@ export class ConsoleHost {
 
   recoveryStatus(): RecoveryStatus { return this.recovery; }
 
+  /** F2 of FIX-2: what this launch did with a stop replaces its listed view at once, not at the next read, so a waiting
+   *  row of a stop just continued is not offered again. */
+  private showActed(): void {
+    this.setRecovery({ ...this.recovery, stops: [...this.actedStops.values(), ...this.recovery.stops.filter((v) => !this.actedStops.has(v.event))] });
+  }
+
+  /** F3 of FIX-2: what a quit still waits for: continues in flight and stops claimed and not finished. */
+  quitWork(): number { return this.inFlight.size + this.claimedOpen.size; }
+
+  /** F2, F3 of FIX-2: one stop is taken up by one path at a time; the promise is kept for the quit to wait on. */
+  private track<T>(event: string, work: () => Promise<T>): Promise<T> {
+    this.taking.add(event);
+    const p = work();
+    this.inFlight.add(p);
+    const done = () => { this.taking.delete(event); this.inFlight.delete(p); };
+    p.then(done, done);
+    return p;
+  }
+
+  private async finish(stop: SbStop, sb: string, outcome: 'resumed' | 'cancelled'): Promise<boolean> {
+    const done = await finishStop(this.run, sb, stop, outcome).catch(() => false);
+    this.claimedOpen.delete(stop.event);
+    return done;
+  }
+
   /** Claims the stop once, continues its session in the console through Switchboard, and records the outcome. A stop
    *  the machine cannot carry now (LC-17) is not claimed: the next pass tries again. */
-  private async resume(stop: SbStop, sb: string, dirs: string[], account: string, automatic: boolean): Promise<string | null> {
+  private resume(stop: SbStop, sb: string, dirs: string[], account: string, automatic: boolean): Promise<string | null> {
+    // F2 of FIX-2: a stop another path is taking up now, or this launch continued, is never claimed again.
+    if (this.quitting || this.taking.has(stop.event) || this.actedStops.get(stop.event)?.verdict === 'resumed') return Promise.resolve(null);
+    return this.track(stop.event, () => this.resumeOnce(stop, sb, dirs, account, automatic));
+  }
+
+  private async resumeOnce(stop: SbStop, sb: string, dirs: string[], account: string, automatic: boolean): Promise<string | null> {
     const a = admit(await (this.o.machine ?? machineProbe)(stop.dir, this.manager.runningCount()));
     if (!a.ok) { this.o.log(`console: limit stop ${stop.event} waits (LC-17: ${a.why})`); return null; }
     const view = (verdict: StopView['verdict'], key?: string): StopView => ({ event: stop.event, session: stop.session, dir: stop.dir, provider: stop.provider, stoppedAt: stop.stoppedAt, attempt: stop.attempt, verdict, key });
@@ -497,8 +547,11 @@ export class ConsoleHost {
     if (!claim.ok) {
       this.actedStops.set(stop.event, view('failed'));
       this.o.log(`console: limit stop ${stop.event} not claimed: ${claim.detail}`);
+      this.showActed();
       return null;
     }
+    this.claimedOpen.set(stop.event, { stop, sb });
+    if (this.quitting) { await this.finish(stop, sb, 'cancelled'); return null; } // F3: claimed while the app quit
     // FD-84: the proof of a continuation is its own transcript being written, read before and after the start.
     const transcript = transcriptOf(stop, this.o.home ?? os.homedir());
     const before = transcript ? writtenAt(transcript) : null;
@@ -512,10 +565,16 @@ export class ConsoleHost {
     const cli = dirs.map((d) => path.join(d, stop.provider)).find((f) => { try { fs.accessSync(f, fs.constants.X_OK); return fs.statSync(f).isFile(); } catch { return false; } });
     const label = stop.provider === 'codex' ? 'Codex' : 'Claude Code';
     const r = cli ? this.manager.start(key, { argv: [cli, ...resumeArgs(stop)], cwd: stop.dir, label, env: { PATH: dirs.join(path.delimiter) } }, { cols: 100, rows: 30 }) : { ok: false as const, error: `${stop.provider} is not installed here` };
+    if (!r.ok && r.error === 'running') {
+      // F2 of FIX-2: its own console already runs it, so another path of this app continues it and settles it.
+      this.o.log(`console: limit stop ${stop.event} already runs in ${key}; left to the continue that started it`);
+      return null;
+    }
     if (!r.ok) {
-      await finishStop(this.run, sb, stop, 'cancelled');
+      await this.finish(stop, sb, 'cancelled');
       this.actedStops.set(stop.event, view('failed'));
       this.o.log(`console: limit stop ${stop.event} claimed but not started in ${key}: ${r.error}; recorded as cancelled`);
+      this.showActed();
       return null;
     }
     // FD-84: resumed only once proven: still running AND its transcript written since the start. Gone, or alive but
@@ -525,7 +584,7 @@ export class ConsoleHost {
     for (let waited = 0; waited < settle && this.manager.snapshot(key).state === 'running' && !wrote(); waited += 250) await new Promise((res) => setTimeout(res, 250));
     const alive = this.manager.snapshot(key).state === 'running';
     if (!alive || !wrote()) {
-      await finishStop(this.run, sb, stop, 'cancelled');
+      await this.finish(stop, sb, 'cancelled');
       this.actedStops.set(stop.event, view('failed', key));
       // FD-103 (SES-05): one that still runs is listed as needing the person, and its console opens by its key.
       if (alive) {
@@ -537,16 +596,18 @@ export class ConsoleHost {
       this.o.log(alive
         ? `console: session ${stop.session} stopped on a limit runs in ${key} but did not write its transcript within ${Math.round(settle / 1000)} s; recorded as cancelled, left running for the person`
         : `console: session ${stop.session} stopped on a limit exited at once in ${key} (code ${this.manager.snapshot(key).exitCode}); recorded as cancelled`);
+      this.showActed();
       this.o.changed?.();
       return null;
     }
-    await finishStop(this.run, sb, stop, 'resumed');
+    await this.finish(stop, sb, 'resumed');
     this.handoverOf.set(key, { id: own.slice('handover.'.length), workflow: path.basename(stop.dir), agent: label, account: '', dir: stop.dir, offeredUntil: 0 });
     this.resumedKeys.add(key);
     this.sessionIds.set(key, { sessionId: stop.session, provider: stop.provider });
     this.actedStops.set(stop.event, view('resumed', key));
     this.o.log(`console: session ${stop.session} stopped on a limit continued in ${key} (attempt ${stop.attempt})`);
     if (automatic) this.notice('resume', key); // FD-103 (decision 9): like a taken hand-over
+    this.showActed();
     this.o.changed?.();
     return key;
   }
@@ -616,8 +677,14 @@ export class ConsoleHost {
   /** R1-S4: the app quits: every running console ends, each recorded as closed when the app quit (not as ended by
    *  itself); resolves once each has exited or been killed (LC-02). */
   async endAllForQuit(): Promise<void> {
+    this.quitting = true;
     for (const key of this.manager.runningKeys()) this.endReasons.set(key, 'quit');
     await this.manager.stopAll();
+    // F3 of FIX-2: a continue in flight sees its console gone and settles its stop in Switchboard; it gets a few seconds,
+    // and a stop still claimed after them is finished as cancelled, so none is left claimed by an app that is gone.
+    const within = (ms: number, work: Promise<unknown>) => Promise.race([work, new Promise<void>((r) => setTimeout(r, ms).unref?.())]);
+    if (this.inFlight.size) await within(QUIT_SETTLE_MS, Promise.allSettled([...this.inFlight]));
+    if (this.claimedOpen.size) await within(QUIT_FINISH_MS, Promise.allSettled([...this.claimedOpen.values()].map(({ stop, sb }) => this.finish(stop, sb, 'cancelled'))));
   }
 
   /** The person's Stop (the console's button, or End in the Sessions list). */
@@ -651,6 +718,8 @@ export class ConsoleHost {
       now, switchboard: this.sbSessions.value ?? (this.switchboardPresent ? null : []), pending: this.pending,
       stops: this.recovery.stops, consoles, records: m.records, dismissed: m.dismissed,
     });
+    // V-5 of FIX-2: an ended row whose console holds nothing (the app restarted since) says so on its page.
+    for (const r of rows) if (r.group === 'ended' && r.key && this.manager.snapshot(r.key).state === 'idle') r.consoleEmpty = true;
     const degraded = [this.sbSessions.degraded, this.handoverDegraded, this.recoveryDegraded].filter((d): d is SourceDegraded => d !== null);
     return { rows, degraded, switchboard: this.switchboardPresent, handovers: { enabled: this.handoversEnabled }, autoContinue: this.o.settings.get().resumeAfterLimit !== false };
   }
@@ -669,6 +738,16 @@ export class ConsoleHost {
     if (row.actions.includes('continueNow') && id.startsWith('st:')) return this.continueStop(id.slice(3), account ?? row.candidates[0]?.id ?? '');
     if (!row.actions.includes('continue')) return { ok: false, reason: 'not-allowed' };
     if (!isDir(row.folder)) return { ok: false, reason: 'no-folder' };
+    // F1 of FIX-2: a declined stop is taken up by this Continue alone: the background pass leaves it meanwhile.
+    if (id.startsWith('st:')) {
+      const event = id.slice(3);
+      if (this.taking.has(event)) return { ok: false, reason: 'running' };
+      return this.track(event, () => this.continueRow(id, row, size));
+    }
+    return this.continueRow(id, row, size);
+  }
+
+  private async continueRow(id: string, row: SessionRow, size: { cols: number; rows: number }): Promise<SessionActionResult> {
     const record = this.memory().records.find((r) => r.id === id) ?? null;
     // A service's own console continues its last session there, as its Continue button does.
     if (row.origin === 'here' && row.key && !isHandoverKey(row.key)) {
@@ -684,7 +763,7 @@ export class ConsoleHost {
     const sessionId = record?.sessionId ?? (provider === 'claude' ? await this.quietTranscript(row) : null);
     const inv = await this.inventory();
     const before = { id: key.slice('handover.'.length), workflow: row.project, agent: row.agent, account: row.account ?? '', dir: row.folder, offeredUntil: 0 };
-    const resumed = row.origin === 'resume';
+    const resumed = row.origin === 'resume' || id.startsWith('st:');
     if (sessionId && provider && transcriptOf({ session: sessionId, provider } as SbStop, home)) {
       const cli = inv.dirs.map((d) => path.join(d, provider)).find((f) => { try { fs.accessSync(f, fs.constants.X_OK); return fs.statSync(f).isFile(); } catch { return false; } });
       if (!cli) return { ok: false, reason: 'no-runtime' };
@@ -703,7 +782,7 @@ export class ConsoleHost {
     }
     this.handoverOf.set(key, before);
     if (resumed) this.resumedKeys.add(key); else this.resumedKeys.delete(key);
-    if (id.startsWith('st:')) this.undecline(id, key);
+    if (id.startsWith('st:')) await this.undecline(id, key, inv.switchboard);
     else this.forgetRow(id);
     this.o.log(`console: session ${id} continued in ${key}${sessionId ? ' with its conversation' : ' as a new session'}`);
     this.o.changed?.();
@@ -718,6 +797,8 @@ export class ConsoleHost {
     if (!stop.candidates.includes(account)) return { ok: false, reason: 'account' };
     const inv = await this.inventory();
     if (!inv.switchboard) return { ok: false, reason: 'no-switchboard' };
+    // F2 of FIX-2: a second press, or the background pass, is taking it up now, or this launch continued it already.
+    if (this.taking.has(event) || this.actedStops.get(event)?.verdict === 'resumed') return { ok: false, reason: 'running' };
     const key = await this.resume(stop, inv.switchboard, inv.dirs, account, false);
     if (!key) return { ok: false, reason: 'claim', detail: this.actedStops.get(event)?.verdict };
     return { ok: true, key };
@@ -739,14 +820,25 @@ export class ConsoleHost {
   }
 
   /** R1-U2: the person's Continue on a declined stop is the one thing that undoes the decline: its record goes, and the
-   *  stop counts as taken up by this launch, so its waiting row does not come back while the new session is the row. */
-  private undecline(id: string, key: string): void {
+   *  stop counts as taken up by this launch, so its waiting row does not come back while the new session is the row.
+   *  F1 of FIX-2: the stop is settled in Switchboard too (claimed and finished as resumed when it is ready on an account,
+   *  else finished as cancelled), and held here for a day by a dismissal, so neither this launch nor the next one, nor
+   *  another host, continues the same conversation a second time. */
+  private async undecline(id: string, key: string, sb: string | null): Promise<void> {
     this.remember((m) => {
       m.records = m.records.filter((r) => r.id !== id);
-      m.dismissed = m.dismissed.filter((d) => d.id !== id);
+      m.dismissed = [...m.dismissed.filter((d) => d.id !== id), { id, at: Date.now() }];
     });
     const stop = this.lastStops.get(id.slice(3));
-    if (stop) this.actedStops.set(stop.event, { event: stop.event, session: stop.session, dir: stop.dir, provider: stop.provider, stoppedAt: stop.stoppedAt, attempt: stop.attempt, verdict: 'resumed', key });
+    if (!stop) return;
+    this.actedStops.set(stop.event, { event: stop.event, session: stop.session, dir: stop.dir, provider: stop.provider, stoppedAt: stop.stoppedAt, attempt: stop.attempt, verdict: 'resumed', key });
+    this.showActed();
+    if (!sb || stop.state !== 'waiting') return; // a stop another host claimed is that host's to finish
+    const account = stop.ready ? stop.candidates[0] : undefined;
+    const claimed = account ? (await claimStop(this.run, sb, stop, account).catch(() => ({ ok: false as const, detail: '' }))).ok : false;
+    if (claimed) this.claimedOpen.set(stop.event, { stop, sb });
+    const done = await this.finish(stop, sb, claimed ? 'resumed' : 'cancelled');
+    this.o.log(`console: declined limit stop ${stop.event} continued by the person; ${done ? `recorded as ${claimed ? 'resumed' : 'cancelled'} in Switchboard` : 'Switchboard could not be told; held here for a day'}`);
   }
 
   /** R1-U4: the Claude Code conversation a row without a known session id may take up: the one transcript written while
@@ -769,7 +861,7 @@ export class ConsoleHost {
     if (row.actions.includes('dontContinue') && id.startsWith('st:')) {
       const stop = this.lastStops.get(id.slice(3));
       this.keep({
-        id, key: row.key, folder: row.folder, agent: row.agent, account: null, context: null, origin: 'resume', end: 'declined', reason: 'declined',
+        id, key: row.key, folder: row.folder, agent: row.agent, account: row.account, context: null, origin: 'limit', end: 'declined', reason: 'declined',
         startedAt: row.startedAt, endedAt: Date.now(), sessionId: stop?.session ?? null, provider: stop?.provider ?? providerOf(row.agent), handoverId: null,
       });
       this.o.log(`console: limit stop ${id.slice(3)} declined by the person; not continued here`);

@@ -74,6 +74,8 @@ a { color: var(--pc-link); text-decoration: underline; }
 .nav-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .nav-section { margin: var(--pc-space-4) var(--pc-space-2) var(--pc-space-1); font-size: var(--pc-type-meta); color: var(--pc-text-muted); text-transform: uppercase; letter-spacing: .04em; }
 .nav-scroll { overflow: auto; min-height: 0; flex: 1; }
+/* V-7 of FIX-2: the list scrolls, so a ring outside an entry was cut at its edges: it is drawn inside. */
+.nav-scroll :focus-visible { outline-offset: -2px; }
 /* FD-39: pin and sort (ADR-0020). The pin shows on hover or focus, and always on a pinned row. */
 .nav-row { position: relative; display: flex; align-items: center; }
 .nav-row > .nav-item { flex: 1; min-width: 0; }
@@ -556,7 +558,8 @@ input.switch:focus-visible { outline: 2px solid var(--pc-focus); outline-offset:
 div.session-group-head { display: flex; align-items: center; gap: var(--pc-space-3); }
 div.session-group-head h2 { margin: 0; }
 .fold-btn { border: 0; background: none; padding: 0; color: inherit; font: inherit; cursor: pointer; display: inline-flex; align-items: center; gap: var(--pc-space-1); }
-.session-cards { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: var(--pc-space-3); }
+/* V-4 of FIX-2: one or two cards fill the row (auto-fit), never leaving an empty third column. */
+.session-cards { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: var(--pc-space-3); }
 .session-card { display: flex; flex-direction: column; gap: var(--pc-space-2); padding: var(--pc-space-3); background: var(--pc-panel); border: 1px solid var(--pc-border); border-left: 3px solid var(--pc-border); border-radius: var(--pc-radius-panel); min-width: 0; transition: border-color var(--pc-duration-hover) var(--pc-ease); }
 .session-card:hover { border-color: var(--pc-border-strong); }
 .session-card.sg-needs-you { border-left-color: var(--pc-warning); }
@@ -565,7 +568,7 @@ div.session-group-head h2 { margin: 0; }
 .session-card h3 { font-size: var(--pc-type-body); }
 .session-title { text-decoration: none; font-weight: 600; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block; text-align: left; }
 .session-title:hover { text-decoration: underline; }
-.session-card .session-sub { margin: 2px 0 0; }
+.session-card .session-sub { margin: 2px 0 0; white-space: normal; overflow: visible; text-overflow: clip; } /* V-4: a card wraps its line, never cuts the time */
 .session-state { display: flex; align-items: flex-start; gap: var(--pc-space-1); margin: 0; white-space: normal; font-size: var(--pc-type-meta); line-height: 1.4; }
 .session-state .glyph { margin-top: 1px; }
 .session-state-text { color: var(--pc-text); }
@@ -585,6 +588,9 @@ div.session-group-head h2 { margin: 0; }
 .session-bar h1 { font-size: var(--pc-type-section); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 32ch; min-width: 6ch; }
 .session-bar .session-actions { align-items: flex-end; }
 .session-meta { display: flex; align-items: center; gap: var(--pc-space-2); flex-wrap: wrap; min-width: 0; }
+/* V-3 of FIX-2: an origin chip as long as «Попытка продолжить после сброса лимита, 13:37» wraps inside its border at 740 px
+   instead of running past it (seen in shots/session-resume-failed-ru-light-740.png). */
+.session-meta .chip { max-width: 100%; white-space: normal; }
 .session-folder { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; max-width: 48ch; }
 .session-why { margin: 0; max-width: 80ch; }
 .session-console-area { flex: 1; min-height: 0; background: var(--pc-bg); }

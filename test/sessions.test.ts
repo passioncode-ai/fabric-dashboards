@@ -56,7 +56,7 @@ test('FD-103: the merge of the four sources gives one list, deduplicated by fold
   const alpha = by('/w/alpha')[0]!;
   assert.deepEqual([alpha.state, alpha.group, alpha.origin, alpha.account, alpha.context, alpha.project], ['running-ours', 'running', 'handover', 'Work Max', 'org:acme', 'alpha']);
   assert.deepEqual(alpha.actions, ['end', 'reveal']);
-  assert.deepEqual([by('/w/beta')[0]!.state, by('/w/beta')[0]!.origin, by('/w/beta')[0]!.actions], ['running-terminal', 'switchboard', []]);
+  assert.deepEqual([by('/w/beta')[0]!.state, by('/w/beta')[0]!.origin, by('/w/beta')[0]!.actions], ['running-terminal', 'switchboard', ['reveal']]); // V-6 of FIX-2: Show in Finder for its folder
   assert.deepEqual([by('/w/gamma')[0]!.state, by('/w/gamma')[0]!.group, by('/w/gamma')[0]!.actions], ['ended', 'ended', ['continue', 'dismiss']]);
   assert.equal(by('/w/old').length, 0, 'an ended session launched more than 24 h ago is not listed');
   const busy = by('/w/busy')[0]!;
