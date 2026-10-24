@@ -1,5 +1,5 @@
 {
-  "about": "Vectors for extensions/connections/0.1 (DEC-0096), written by tools/vectors/connections.ts, never by hand. connectionsView(wellKnown) answers {declared, reported, connections}: declared with each connection and `failing` (a degraded[].source equal to its id), or reported (an invalid value, a repeated id, a credential) with no connections, or neither when the key is absent. The `errors` lines are the reference's own wording and not part of a vector.",
+  "about": "Vectors for fabric-connections/0.1, the extension keyed extensions/connections/0.1 (DEC-0096), written by tools/vectors/connections.ts, never by hand. connectionsView(wellKnown) answers {declared, reported, connections}: declared with each connection and `failing` (a degraded[].source equal to its id), or reported (an invalid value, a repeated id, a credential) with no connections, or neither when the key is absent. The `errors` lines are the reference's own wording and not part of a vector.",
   "cases": [
     {
       "name": "no key: nothing declared",
