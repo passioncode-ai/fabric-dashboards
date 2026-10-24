@@ -183,3 +183,21 @@ hand-over and resume consoles, `handover.body`/`resumeBody`/`done` and the strin
 | S1 | Scenarios and screens for the Sessions mode, the session page, the switch (super-ux, copy in both languages) | `docs/ux/` | R1 |
 | S2 | `src/core/sessions.ts` and its tests; the machine-wide sessions poll; 24 h persistence | `src/core/sessions.ts`, `src/core/switchboard.ts`, `src/electron/console.ts`, settings | R2 |
 | S3 | Sidebar switch, Sessions page, session page with the full-height console, notifications, tray line, Settings → Sessions | `src/renderer/`, `src/electron/tray.ts`, `src/electron/drawer.ts`, `i18n.ts` | R2, product surface: four tiers, two rounds |
+
+## Decisions on S1's design gaps (2026-10-24, by the orchestrator, reversible)
+
+1. Stop verdicts other than "waiting" (terminal still open, payment limit, older than a day, folder or conversation
+   not here) go to **Needs you** with the verdict sentence and Remove; stops another host took are not listed.
+2. **Do not continue** moves the session to Ended as "Not continued: you declined"; this app never continues it, and
+   Switchboard's record is untouched.
+3. **Continue now on another account** passes the chosen account to Switchboard's stop claim: the app already calls
+   `recovery claim` with an account (`src/core/recovery.ts:109`, `claimStop(run, sb, stop, account)`).
+4. Esc always reaches the coding agent; only a Tab within 1 s after it is held back and moves focus.
+5. "An agent asks a question" has no source yet: deferred, not drawn.
+6. **Continue** without a known conversation reads "New session here".
+7. The tray line is «Сессии: идут N, ждут вас M» (counts after the label, the app's Russian rule).
+8. **A hand-over always gets its own console**, never an agent's free console in the same folder, so one session
+   lives in one place and the agent's console stays the person's. This changes `console.ts:348-385`.
+9. An automatic continue after a limit reset also sends one notification, like a taken hand-over.
+10. "Show in Terminal" is not drawn until Switchboard's session list carries the window's identity (next pool,
+    Switchboard).
