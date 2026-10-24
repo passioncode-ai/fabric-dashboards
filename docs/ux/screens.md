@@ -209,7 +209,7 @@
 ### SCR-12: Sidebar, Sessions mode
 - **Used by:** SCN-077, SCN-078, SCN-082, SCN-083, SCN-084
 - **Purpose:** ST-023: every coding session in one list apart from the agents, grouped by what it needs
-- **Elements:** the mode switch with "Sessions" selected (SCR-08); "All sessions"; the groups in this order, an empty one not drawn, each heading with its count after its label: "Needs you: N", "Running: N", "Waiting for a limit reset: N", "Ended in the last 24 hours: N" (folded by default, the fold remembered); one row per session: line 1 the project (folder name) with the time right-aligned beside it, never cut, line 2 "<account> · <handed over | after a limit reset | started by Switchboard | opened here>", led by the coding agent when it is not Claude Code (R1-V1); the ended heading reads "Ended: N" here (R1-V3); a waiting row's mark is a clock (R1-V2); Settings and Collapse sidebar at the foot as in the Agents mode
+- **Elements:** the mode switch with "Sessions" selected (SCR-08); "All sessions"; the groups in this order, an empty one not drawn, each heading with its count after its label: "Needs you: N", "Running: N", "Waiting for a limit reset: N", "Ended in the last 24 hours: N" (folded by default, the fold remembered); one row per session: line 1 the project (folder name) with the time right-aligned beside it, never cut, line 2 "<account> · <handed over | after a reset | hit a limit | via Switchboard | opened here>" in the sidebar's own shorter words, wrapped to a second line rather than cut, led by the coding agent when it is not Claude Code (R1-V1, FD-107); an ended row's time is when it ended, the group's order (FD-107); the current session's row is kept in view, also under a folded Ended (FD-107); the ended heading reads "Ended: N" here (R1-V3); a waiting row's mark is a clock (R1-V2); Settings and Collapse sidebar at the foot as in the Agents mode
 - **States:**
   | State | Trigger | Figma frame | Behavior |
   |-------|---------|-------------|----------|
@@ -225,7 +225,7 @@
 ### SCR-13: All sessions
 - **Used by:** SCN-069, SCN-075, SCN-078, SCN-079, SCN-081, SCN-082, SCN-083, SCN-084
 - **Purpose:** ST-023: what each session is, where it came from and what it needs, each with its actions
-- **Elements:** title "All sessions"; the one-time note (SCN-079) with "Choose where sessions continue" and "Got it"; the same groups as SCR-12, as cards: the project, the second line of SCR-12, the state in words ("Running", "Running in Terminal", "Did not continue; its process is still running", a could-not-open reason, "Continues at about <time>", "Ended at <time>", "Closed after 30 idle minutes", "Ended by you", "Not continued: you declined") and the state's actions (End, Show in Finder, Show in Terminal, Open console, Continue now on another account, Do not continue, Continue or New session here, Remove); "Clear" on the Ended group; the footnote "Sessions started in a terminal without Switchboard are not listed."
+- **Elements:** title "All sessions"; the one-time note (SCN-079) with "Choose where sessions continue" and "Got it"; the same groups as SCR-12, as cards: the project, the second line of SCR-12, the state in words ("Running", "Running in Terminal", "Did not continue; its process is still running", a could-not-open reason, "Continues at about <time>", "Ended at <time>", "Closed at <time> after 30 idle minutes", "Ended by you at <time>", "Not continued: you declined") and the state's actions (End, Show in Finder, Show in Terminal, Open console, Continue now on another account, Do not continue, Continue or New session here, Remove); "Clear" on the Ended group; the footnote "Sessions started in a terminal without Switchboard are not listed."
 - **States:**
   | State | Trigger | Figma frame | Behavior |
   |-------|---------|-------------|----------|
@@ -233,7 +233,7 @@
   | empty | no session | none | "No coding sessions yet. A session you start in an agent's console, or one Switchboard starts or hands over, appears here." |
   | success | sessions listed | none | groups of cards with their actions; a card opens its page (SCR-14) |
   | partial | Switchboard is not installed | none | this app's console sessions only, with "Switchboard is not installed, so only sessions started in this app's consoles are listed." |
-  | error | Switchboard did not answer on the last read | none | "Switchboard did not answer just now, so sessions it runs may be missing. Checked at <time>." above the groups read before |
+  | error | Switchboard did not answer on the last read | none | "Switchboard has not answered since <time>, so sessions it runs may be missing." above the groups read before (the time of the first failed read, FD-107) |
 - **Coverage:** src/renderer/components/Sessions.tsx (AllSessions, SessionActions); test/sessions-ui.test.ts; docs/reports/2026-10-24-ui-ux-iteration/shots/
 - **Scenarios:** SCN-069, SCN-075, SCN-078, SCN-079, SCN-081, SCN-082, SCN-083, SCN-084
 - **Status:** built
@@ -248,10 +248,12 @@
   |-------|---------|-------------|----------|
   | success | the session runs in this app's console | none | the console full height, following the scheme and theme live |
   | terminal | it runs in a Terminal window Switchboard opened | none | no console; "This session runs in a Terminal window that Switchboard opened. Type to it there." |
+  | waiting | it waits for a limit reset | none | no console; a panel: when Switchboard tries it again, Continue now or "Do not continue", its folder and when it stopped (FD-107) |
+  | not opened | a hand-over that could not open here | none | no console; a panel: where it is and that Remove takes it off the list (FD-107) |
   | empty | an ended session after the app restarted | none | "What this session printed is not kept after the app restarts." with Continue and Remove |
   | error | the console cannot start (SCN-063), the session cannot be ended, or the continue is refused | none | the reason in the console's place or beside the action; the state's actions stay |
   | gone | the session left the list while open | none | All sessions opens instead (UX-18) |
-- **Coverage:** src/renderer/components/Sessions.tsx (SessionHeader, SessionBody), src/renderer/App.tsx, src/electron/drawer.ts, src/core/layout.ts (`drawerBoundsFor`), src/renderer/components/ConsolePanel.tsx (page mode); test/sessions-ui.test.ts; docs/reports/2026-10-24-ui-ux-iteration/shots/
+- **Coverage:** src/renderer/components/Sessions.tsx (SessionHeader, SessionBody), src/renderer/App.tsx, src/electron/drawer.ts, src/core/layout.ts (`drawerBoundsFor`), src/renderer/components/ConsolePanel.tsx (page mode); test/sessions-ui.test.ts, test/sessions-polish.test.ts; docs/reports/2026-10-24-ui-ux-iteration/shots/
 - **Scenarios:** SCN-066, SCN-069, SCN-075, SCN-080, SCN-081, SCN-082, SCN-083, SCN-084, SCN-085
 - **Status:** built
 

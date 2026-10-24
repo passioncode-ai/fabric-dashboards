@@ -96,6 +96,14 @@ same words everywhere. The iteration's records are in
   reset"; English times read 1:37 PM; one or two cards fill the row and a card never cuts its time; a session running in
   Terminal offers Show in Finder; an ended session's page after a restart says its output is not kept instead of showing
   an empty console; without Switchboard the page says once how to get it; the sidebar's focus ring is no longer cut.
+- **Sessions polish** (FD-107, fix cycle 3,
+  [fix3-prefix-failures.txt](docs/reports/2026-10-24-ui-ux-iteration/fix3-prefix-failures.txt)): the sidebar keeps the
+  open session's row in view, also under a folded Ended group; an ended session shows when it ended, the time its
+  group is ordered by ("Closed at 13:02 after 30 idle minutes", "Ended by you at 11:32"); the not-answering line says
+  since when Switchboard has not answered instead of calling that time a check; the footnote no longer shows under the
+  loading line; a waiting session's page says when Switchboard tries it again, what you can do now, its folder and when
+  it stopped, and no other session page leaves its body blank; Settings → Sessions keeps the page title in view when the
+  section fits; a sidebar row's second line uses shorter words and wraps rather than cut "после сброса лимита".
 
 - **Spend adds agents up as the contract does** (FD-101, contract DEC-0110). The sum across agents is read over all their
   report rows at once: beside an agent whose calls carry no price, an agent with no metered calls makes the money unknown

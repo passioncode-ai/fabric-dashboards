@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { AppStatus, Listener, Settings as SettingsValue } from '../../core/types';
 import { api, nameOf, Spinner, useT } from '../lib';
 import { REFERENCE_THEMES } from '../../core/appearance';
+import { revealScrollTop } from '../../core/layout';
 
 export function Settings({ status, onTheme, onLanguage, onSetup, section, nonce }: { status: AppStatus; onTheme: (theme: SettingsValue['theme']) => void; onLanguage: () => void;
   /** FD-39 SCN-058: the Setup console stays reachable after the card is hidden. */
@@ -27,8 +28,15 @@ export function Settings({ status, onTheme, onLanguage, onSetup, section, nonce 
   const sessionsRef = useRef<HTMLElement | null>(null);
   useEffect(() => {
     if (section !== 'sessions' || !value) return;
-    sessionsRef.current?.scrollIntoView({ block: 'start' });
-    sessionsRef.current?.querySelector<HTMLElement>('h2')?.focus();
+    // FD-107: scrolled only as far as needed to show the whole section, never past its heading, so when it fits under
+    // the page title the title stays in view (scrollIntoView start put the section at the window's edge, title gone).
+    const el = sessionsRef.current;
+    const box = el?.closest<HTMLElement>('.page');
+    if (el && box) {
+      const top = el.getBoundingClientRect().top - box.getBoundingClientRect().top + box.scrollTop;
+      box.scrollTop = revealScrollTop({ scrollTop: box.scrollTop, height: box.clientHeight }, { top, height: el.offsetHeight }, 16);
+    }
+    el?.querySelector<HTMLElement>('h2')?.focus({ preventScroll: true });
   }, [section, nonce, Boolean(value)]);
   const flipHandovers = async (on: boolean) => {
     setHandoverError('');

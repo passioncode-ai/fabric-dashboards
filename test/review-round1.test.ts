@@ -353,7 +353,7 @@ test('R1-V1: a sidebar row keeps its time on the first line and says account and
   assert.match(lines[0]![0]!, new RegExp(`class="session-time">${clock('en', AT)}`));
   assert.equal(lines[0]![1], 'claude4 · handed over');
   assert.match(lines[1]![0]!, new RegExp(`class="session-time">${clock('en', AT + HOUR)}`));
-  assert.equal(lines[1]![1], 'Codex · spare · after a limit reset');
+  assert.equal(lines[1]![1], 'Codex · spare · after a reset', 'the sidebar\'s shorter words (FD-107)');
   assert.match(read('src/renderer/styles/app.css'), /\.session-time \{[^}]*flex: none/, 'the time is never cut');
 });
 

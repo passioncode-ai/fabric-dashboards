@@ -34,13 +34,15 @@ export function secondLine(lang: Lang, r: SessionRow): string {
 
 /** R1-V1: a sidebar row's two lines. The first is the project with the time beside it, right-aligned and never cut; the
  *  second is "account · how it came", led by the coding agent only when it is not Claude Code (the usual one), so two rows
- *  of one folder are told apart within the sidebar's width. */
+ *  of one folder are told apart within the sidebar's width. FD-107: an ended row shows when it ended, the time the Ended
+ *  group is ordered by (newest first), so 13:02 never sits under 12:27; how it came is said in the sidebar's own shorter
+ *  words (`sessions.navOrigin.*`), which fit its width in both languages. */
 export function navLines(lang: Lang, r: SessionRow): { time: string | null; sub: string } {
-  const when = r.startedAt ?? r.at;
+  const when = r.group === 'ended' ? (r.endedAt ?? r.at) : (r.startedAt ?? r.at);
   const agent = agentName(r.agent);
   return {
     time: when ? clock(lang, when) : null,
-    sub: [agent === 'Claude Code' ? null : agent, r.account, t(lang, `sessions.origin.${r.origin}`)].filter(Boolean).join(' · '),
+    sub: [agent === 'Claude Code' ? null : agent, r.account, t(lang, `sessions.navOrigin.${r.origin}`)].filter(Boolean).join(' · '),
   };
 }
 
@@ -66,6 +68,10 @@ export function stateWords(lang: Lang, r: SessionRow, o: { autoContinue?: boolea
       if (r.reason === 'declined') return t(lang, 'sessions.state.declined');
       if (r.reason === 'quit') return t(lang, 'sessions.state.quit'); // R1-S4
       return t(lang, 'sessions.state.ended', { time: clock(lang, r.endedAt ?? r.at) });
+    // FD-107: every ended state with an end of its own says when, so a card's order (by its end) reads in its words.
+    case 'idle-closed':
+    case 'ended-by-you':
+      return t(lang, `sessions.state.${r.state}`, { time: clock(lang, r.endedAt ?? r.at) });
     default:
       return t(lang, `sessions.state.${r.state}`);
   }

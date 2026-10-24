@@ -1,0 +1,21 @@
+FIX-3 (FD-107, the seven nuances seen on FIX-2's contact sheet): test/sessions-polish.test.ts run on the packet's base
+6213f78 (src/ and test/ as they were there, the new test file copied in) before any fix,
+`node --import tsx --test test/sessions-polish.test.ts`. All eight tests fail there; each passes after the fix.
+Times are rendered in the machine's own zone (4:02 PM for 14:02 UTC).
+
+- FD-107: an element is scrolled only as far as needed to show it whole, never past its top
+    TypeError [Error]: (0 , import_layout.revealScrollTop) is not a function
+- FD-107: the current session stays in the sidebar even when the Ended group is folded, marked for scrolling into view
+    AssertionError [ERR_ASSERTION]: the open session's row shows under its folded group
+- FD-107: an ended row shows the time it is ordered by, its end; every ended state says when it ended
+    AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+- FD-107: the not-answering line says since when Switchboard has not answered, never that it was checked then
+    AssertionError [ERR_ASSERTION]: The input did not match the regular expression /Switchboard has not answered since 4:02 PM, so sessions it runs may be missing\./. Input:
+- FD-107: the footnote waits for the list; under the loading line there is none
+    AssertionError [ERR_ASSERTION]: The input was expected to not match the regular expression /Sessions started in a terminal without Switchboard are not listed\./. Input:
+- FD-107: a waiting session's page says what happens next, the folder and when it stopped, in both languages
+    AssertionError [ERR_ASSERTION]: The input did not match the regular expression /Switchboard tries this session again at about 5:30 PM on an account with capacity\./. Input:
+- FD-107: no session page leaves its body blank: every state without a console of this app says something
+    AssertionError [ERR_ASSERTION]: running-ours (en) has a body
+- FD-107: a sidebar row's second line fits its width in both languages and wraps to a second line before it cuts
+    AssertionError [ERR_ASSERTION]: en resume: "claude10 · after a limit reset" fits

@@ -546,6 +546,9 @@ input.switch:focus-visible { outline: 2px solid var(--pc-focus); outline-offset:
 .session-time { flex: none; margin-left: auto; font-size: var(--pc-type-meta); color: var(--pc-text-muted); font-variant-numeric: tabular-nums; }
 .session-project { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .session-sub { font-size: var(--pc-type-meta); color: var(--pc-text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* FD-107: a sidebar row's second line wraps to a second line before it would cut how the session came ("после сброса
+   лими…" on FIX-2's sheet); the sidebar's own origin words are short enough that one line is the usual case. */
+.session-item .session-sub { white-space: normal; text-overflow: clip; overflow-wrap: anywhere; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
 .session-fold { margin: var(--pc-space-4) var(--pc-space-2) var(--pc-space-1); }
 .session-fold .nav-fold-section { margin: 0; width: auto; flex: 1 1 auto; min-width: 0; }
 .app.rail .session-fold { margin: var(--pc-space-2) 0 0; }
@@ -595,6 +598,13 @@ div.session-group-head h2 { margin: 0; }
 .session-why { margin: 0; max-width: 80ch; }
 .session-console-area { flex: 1; min-height: 0; background: var(--pc-bg); }
 .session-body { flex: 1; }
+/* FD-107: a session page without a console says what happens next in a calm panel, never a blank body. */
+.session-panel { max-width: 640px; padding: var(--pc-space-4) var(--pc-space-5); background: var(--pc-panel); border: 1px solid var(--pc-border); border-radius: var(--pc-radius-panel); display: grid; gap: var(--pc-space-2); }
+.session-panel p { margin: 0; max-width: 72ch; }
+.session-facts { display: flex; flex-wrap: wrap; gap: var(--pc-space-2) var(--pc-space-5); margin: var(--pc-space-2) 0 0; font-size: var(--pc-type-meta); }
+.session-facts > div { display: flex; gap: var(--pc-space-2); min-width: 0; }
+.session-facts dt { color: var(--pc-text-muted); }
+.session-facts dd { margin: 0; overflow-wrap: anywhere; }
 .console-page { height: 100%; background: var(--pc-bg); }
 .console-page .console-term { padding-left: var(--pc-space-4); }
 .console-keys { flex: none; color: var(--pc-text-muted); border-top: 1px solid var(--pc-border); background: var(--pc-panel); }

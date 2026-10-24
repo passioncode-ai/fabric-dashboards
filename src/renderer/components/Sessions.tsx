@@ -182,7 +182,8 @@ export function AllSessions({ sessions, noteSeen, onNoteSeen, onSetUp, endedOpen
           </section>
         );
       })}
-      <p className="meta sessions-footnote">{t('sessions.footnote')}</p>
+      {/* FD-107: the footnote speaks of the list, so it waits for the list; under the loading line it is not drawn. */}
+      {sessions && <p className="meta sessions-footnote">{t('sessions.footnote')}</p>}
     </div>
   );
 }
@@ -218,11 +219,32 @@ export function SessionHeader({ row, autoContinue, open, askEnd, continued, onMe
   );
 }
 
-/** SCN-080 alt paths: what the page says where no console of this app holds the session. */
-export function SessionBody({ row }: { row: SessionRow }) {
-  const { t } = useT();
+/** SCN-080 alt paths: what the page says where no console of this app holds the session. FD-107: no state leaves the
+ *  body blank. A waiting session says what happens next, the way out now, its folder and when it stopped; a hand-over
+ *  that did not open says where it is and what Remove does; any other state without a console says there is none. */
+export function SessionBody({ row, autoContinue = true }: { row: SessionRow; autoContinue?: boolean }) {
+  const { t, lang } = useT();
   if (row.state === 'running-terminal') return <div className="page session-body"><p>{t('sessions.inTerminal')}</p></div>;
   // V-5 of FIX-2: an ended row whose console holds nothing (the app restarted since) says so, never a blank page.
   if (row.group === 'ended' && (!row.key || row.consoleEmpty)) return <div className="page session-body"><p className="muted">{t('sessions.notKept')}</p></div>;
-  return <div className="page session-body" />;
+  if (row.state === 'waiting-reset') {
+    const next = !autoContinue ? t('sessions.body.autoOff') : row.expectedAt ? t('sessions.body.waitingAt', { time: clock(lang, row.expectedAt) }) : t('sessions.body.waiting');
+    const now = row.actions.includes('continueNow') ? t('sessions.body.waitingActions') : t('sessions.body.waitingNoCandidate');
+    return (
+      <div className="page session-body">
+        <section className="session-panel" aria-label={t('sessions.short.waiting')}>
+          <p>{next}</p>
+          <p>{now}</p>
+          <dl className="session-facts">
+            <div><dt>{t('sessions.body.folder')}</dt><dd className="mono" title={row.folder}>{shortPath(row.folder)}</dd></div>
+            {row.startedAt && <div><dt>{t('sessions.body.stopped')}</dt><dd>{clock(lang, row.startedAt)}</dd></div>}
+          </dl>
+        </section>
+      </div>
+    );
+  }
+  if (row.state === 'needs-you-not-opened') {
+    return <div className="page session-body"><section className="session-panel"><p>{t(row.openedInTerminal ? 'sessions.body.inTerminal' : 'sessions.body.notOpened')}</p></section></div>;
+  }
+  return <div className="page session-body"><section className="session-panel"><p className="muted">{t('sessions.body.noConsole')}</p></section></div>;
 }

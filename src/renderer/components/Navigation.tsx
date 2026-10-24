@@ -5,6 +5,7 @@ import type { AppStatus, ListSort, Settings as AppSettings, SettingsPatch } from
 import type { Product } from '../../core/products';
 import type { SessionGroup, SessionRow } from '../../core/sessions';
 import { groupRows, navLines, stateShort, waitingForYou } from '../../core/sessions-view';
+import { revealScrollTop } from '../../core/layout';
 import { api, GLYPH, Icon, nameOf, Spinner, useT } from '../lib';
 
 export type Mode = 'agents' | 'sessions';
@@ -219,6 +220,18 @@ export function SessionsNav({ sessions, currentId, allCurrent, rail, endedOpen, 
 }) {
   const { t, lang } = useT();
   const groups = groupRows(sessions?.rows ?? []);
+  // FD-107: the current session's row is kept in view: scrolled to only as far as needed when the page changes to it,
+  // the list fills in, or the Ended group unfolds.
+  const scroller = useRef<HTMLDivElement | null>(null);
+  const shown = (sessions?.rows ?? []).some((r) => r.id === currentId);
+  useEffect(() => {
+    const box = scroller.current;
+    const item = box?.querySelector<HTMLElement>('[data-current]');
+    if (!box || !item) return;
+    const top = item.getBoundingClientRect().top - box.getBoundingClientRect().top + box.scrollTop;
+    const next = revealScrollTop({ scrollTop: box.scrollTop, height: box.clientHeight }, { top, height: item.offsetHeight }, 8);
+    if (next !== box.scrollTop) box.scrollTop = next;
+  }, [currentId, shown, endedOpen, rail]);
   return (
     <>
       <div className="nav">
@@ -226,7 +239,7 @@ export function SessionsNav({ sessions, currentId, allCurrent, rail, endedOpen, 
           <Icon name="sessions" /><span className="nav-label">{t('sessions.all')}</span>
         </button>
       </div>
-      <div className="nav nav-scroll">
+      <div className="nav nav-scroll" ref={scroller}>
         {!sessions && !rail && <p className="meta nav-note row" role="status"><Spinner /> {t('sessions.reading')}</p>}
         {groups.map(({ group, rows }) => {
           // R1-V3: the sidebar's ended heading is short ("Ended: 2"); the All sessions page keeps the long one.
@@ -244,10 +257,11 @@ export function SessionsNav({ sessions, currentId, allCurrent, rail, endedOpen, 
                   </div>
                 )
                 : <div className="nav-section" id={`snav-${group}`}>{heading}</div>}
-              {!folded && rows.map((r) => {
+              {/* FD-107: a folded Ended group still shows the session whose page is open, so it is never out of sight. */}
+              {rows.filter((r) => !folded || r.id === currentId).map((r) => {
                 const lines = navLines(lang, r);
                 return (
-                  <button key={r.id} className="nav-item session-item" aria-current={currentId === r.id ? 'page' : undefined}
+                  <button key={r.id} className="nav-item session-item" aria-current={currentId === r.id ? 'page' : undefined} data-current={currentId === r.id ? '' : undefined}
                     title={rail ? [t('join.nameState', { name: r.project, state: stateShort(lang, r) }), lines.time, lines.sub].filter(Boolean).join(' · ') : undefined} onClick={() => openRow(r.id)}>
                     <span className={`state ${SESSION_MARK[r.group].cls}`} aria-hidden="true"><SessionMark group={r.group} /></span>
                     {rail && <span className="initials" aria-hidden="true">{initialsOf(r.project)}</span>}

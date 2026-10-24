@@ -371,7 +371,7 @@ test('V-1: a limit stop is "stopped by a limit on" its account, never "continued
   assert.match(originChip('en', row), /^Stopped by a limit on Work Max, \d/);
   assert.match(originChip('ru', row), /^Остановлена лимитом на Work Max, \d/);
   assert.match(secondLine('en', row), /^Claude Code · Work Max · stopped by a limit · \d/);
-  assert.equal(navLines('en', row).sub, 'Work Max · stopped by a limit');
+  assert.equal(navLines('en', row).sub, 'Work Max · hit a limit', 'the sidebar\'s shorter words (FD-107)');
   const noAccount = { ...row, account: null };
   assert.match(originChip('en', noAccount), /^Stopped by a limit, \d/);
   // A declined stop keeps its origin and account in Ended.

@@ -394,7 +394,7 @@ function Shell({ status, route, setRoute, mode, switchMode, stopKey, setStopKey,
           ? (sessionRow
             ? <div className="session-page">
               <SessionHeader row={sessionRow} autoContinue={status.sessions?.autoContinue !== false} open={openSession} askEnd={askEnd} continued={followContinue} onMenu={setMenuOverPage} />
-              {pageConsole ? <div className="session-console-area" aria-hidden="true" /> : <SessionBody row={sessionRow} />}
+              {pageConsole ? <div className="session-console-area" aria-hidden="true" /> : <SessionBody row={sessionRow} autoContinue={status.sessions?.autoContinue !== false} />}
             </div>
             : <div className="page-wrap"><div className="page"><p className="muted row" role="status"><Spinner /> {t('sessions.reading')}</p></div></div>)
         : route.page === 'service' && current

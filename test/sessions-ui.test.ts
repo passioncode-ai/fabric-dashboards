@@ -59,11 +59,11 @@ test('SCN-079: All sessions explains itself once, with Choose where sessions con
   } finally { setWording('other'); }
 });
 
-test('SCN-078: loading, empty, not installed and not answering read as sentences; the footnote is always there', () => {
+test('SCN-078: loading, empty, not installed and not answering read as sentences; the footnote is under every list (FD-107: not under loading)', () => {
   assert.match(all(undefined), /Reading sessions…/);
   assert.match(all(status([])), /No coding sessions yet\./);
   assert.match(all(status([], { switchboard: false })), /Switchboard is not installed, so only sessions started in this app&#x27;s consoles are listed\./);
-  assert.match(all(status(fourGroups(), { degraded: [{ source: 'sessions', reason: 'error', detail: 'x', since: AT }] })), new RegExp(`Switchboard did not answer just now, so sessions it runs may be missing\\. Checked at ${clock('en', AT)}\\.`));
+  assert.match(all(status(fourGroups(), { degraded: [{ source: 'sessions', reason: 'error', detail: 'x', since: AT }] })), new RegExp(`Switchboard has not answered since ${clock('en', AT)}, so sessions it runs may be missing\\.`));
   assert.match(all(status([])), /Sessions started in a terminal without Switchboard are not listed\./);
 });
 
@@ -79,7 +79,7 @@ test('SCN-081 to SCN-084: every card offers its state\'s actions, in words', () 
   assert.match(card('fabric-switchboard'), new RegExp(`Continues at about ${clock('en', AT + 3600_000)}`));
   assert.match(card('fabric-switchboard'), />Continue now on another account</);
   assert.match(card('fabric-switchboard'), />Do not continue</);
-  assert.match(card('docs-site'), /Closed after 30 idle minutes/, 'SES-04: an idle-closed hand-over is not a dead end');
+  assert.match(card('docs-site'), new RegExp(`Closed at ${clock('en', AT + 600_000)} after 30 idle minutes`), 'SES-04: an idle-closed hand-over is not a dead end');
   assert.match(card('docs-site'), />Continue</);
   assert.match(card('docs-site'), />Remove</);
   assert.match(html, /aria-label="Clear the ended sessions"[^>]*>Clear</);
