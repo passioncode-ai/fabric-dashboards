@@ -31,12 +31,12 @@
 ### SCR-01: Overview
 - **Used by:** SCN-001, SCN-002, SCN-003, SCN-005, SCN-006, SCN-007, SCN-021, SCN-024, SCN-030, SCN-033, SCN-035, SCN-041, SCN-042
 - **Purpose:** JTBD-01 — the state of every agent, what needs the operator and what was spent, in one screen
-- **Elements:** header with the agent count; the one-time launch-at-login question (Open at login, Not now) until it is answered; the status strip (agents ready, not answering or in conflict, need attention, spent today, spent in 30 days — the spend cells open Spend; labels wrap to two lines); Needs attention (count, three single-line rows — state, name, reason, one action: Restart, "Update to <v>", Open, Logs; "Restarting…" while it runs — then "Show all N" / "Show fewer"); agent cards (state, name, version+commit, uptime or "online · <host>", the agent's one-line summary, up to six tiles, "also:" with each other instance's state, latest event); the Online group; empty state with "Show folder" and "How a service joins"
+- **Elements:** header with the agent count; the one-time launch-at-login question (Open at login, Not now) until it is answered; the status strip, each cell a label over its number (Ready, Not answering or in conflict, Need attention, Spent today, Spent in 30 days — the spend cells open Spend; labels wrap to two lines); Needs attention (count, three single-line rows — state, name, reason, one action: Restart, "Update to <v>", Open, Logs; "Restarting…" while it runs — then "Show all N" / "Show fewer"); agent cards (state, name, version+commit, uptime or "online · <host>", the agent's one-line summary, up to six tiles, "also:" with each other instance's state, latest event); the Online group; empty state with "Set up with my coding agent", "Show the services folder" and "How to build an agent for Fabric"
 - **States:**
   | State | Trigger | Figma frame | Behavior |
   |-------|---------|-------------|----------|
   | loading | first read of the services directory | — | "Looking for services…" |
-  | empty | no descriptor | — | "No services yet" + how a service joins + the folder path + Show folder + How a service joins; a Show folder failure reads "Could not open <path>: <reason>" |
+  | empty | no descriptor | — | "No agents yet" + "Agents appear here once they are installed. Set up Fabric with your coding agent, or install an agent that supports Fabric." + the folder path + Set up with my coding agent (opens the Setup console) + Show the services folder + How to build an agent for Fabric; a Show folder failure reads "Could not open <path>: <reason>" |
   | success | every agent ready | — | strip and cards |
   | attention | any service not ready, asking, or with a failed action in the last 30 minutes | — | Needs attention between the strip and the cards, most severe first; three rows, then Show all |
   | error | services directory unreadable | — | sentence with path + Retry |
@@ -88,7 +88,7 @@
 ### SCR-04: Settings
 - **Used by:** SCN-019, SCN-022, SCN-024, SCN-043, SCN-044, SCN-062
 - **Purpose:** fit startup, updates and notifications to the operator's day
-- **Elements:** Fabric Dashboards: Open at login (off until chosen), Theme, Language (As on this Mac / English / Русский), version; Updates: Install updates automatically, its explanation and the update state with its action (Check now, Restart to Update, Move to Applications; a held release: What to do + Install); Notifications: "Whether macOS shows them is set in System Settings → Notifications." with Open macOS Settings, Show notifications, Quiet hours, Pause notifications for 1 hour / "Paused until HH:MM" + Resume, Also send outages to (Automatic / an agent offering a notify capability / Off, its help and last-delivery lines, SCN-062), per service Show notifications and Events from; services folder with Show folder; Uninstall (confirmation with "Also delete my settings and activity history"; removes the login item and the MCP entry and moves the app to the Trash; settings and history stay unless ticked); Unattributed listeners (Port, Address, Program, pid; Scan again)
+- **Elements:** Fabric Dashboards: Open at login (off until chosen), Theme, Language (Same as the system / English / Русский), version; Updates: Install updates automatically, its explanation and the update state with its action (Check now, Restart to update, Move to Applications; a held release: What to do + Install); Notifications: "Whether macOS shows them is set in System Settings → Notifications." with Open System Settings (on Windows and Linux: "Whether the system shows them is set in its notification settings." with Open system settings), Show notifications, Quiet hours, Pause notifications for 1 hour / "Paused until HH:MM" + Resume, Also send outages to (Automatic / an agent offering a notify capability / Off, its help and last-delivery lines, SCN-062), per service Show notifications and Events from; services folder with Show folder; Uninstall (confirmation with "Also delete my settings and activity history"; removes the login item and the MCP entry and moves the app to the Trash; settings and history stay unless ticked); Unattributed listeners (Port, Address, Program, pid; Scan again)
 - **States:**
   | State | Trigger | Figma frame | Behavior |
   |-------|---------|-------------|----------|
@@ -145,7 +145,7 @@
 - **Used by:** SCN-001, SCN-006, SCN-017, SCN-022, SCN-033, SCN-035, SCN-044, SCN-047
 - **Purpose:** where everything is, and whether anything needs the operator
 - **Rail (SCN-047):** collapsed, the sidebar is a narrow rail — the mark, icons for Overview, Activity, Spend and Settings with their badges, one entry per agent (state mark and initials, "!" when another instance needs attention), each named in a tooltip and to a screen reader; "Collapse sidebar" / "Expand sidebar", View → Show or Hide Sidebar (⌃⌘S); remembered
-- **Elements:** Overview (problem count), Activity (unread count), Spend, Services and Background sections (one entry per agent with the primary's state and "!" when another instance needs attention), footer update line ("Checking for updates…", "Downloading an update…", "Update <v> ready" + Restart to Update, "Update <v> is verified and waits for you…" + What to do + Install, "Updates install only from the Applications folder." + Move to Applications, "Update failed: <reason>" + Retry), Settings
+- **Elements:** Overview (problem count), Activity (unread count), Spend, Services and Background sections (one entry per agent with the primary's state and "!" when another instance needs attention), footer update line ("Checking for updates…", "Downloading an update…", "Update <v> ready" + Restart to update, "Update <v> is verified and waits for you…" + What to do + Install, "Updates install only from the Applications folder." + Move to Applications, "Update failed: <reason>" + Retry), Settings
 - **States:**
   | State | Trigger | Figma frame | Behavior |
   |-------|---------|-------------|----------|
@@ -170,13 +170,13 @@
 ### SCR-10: Console panel
 - **Used by:** SCN-048, SCN-049, SCN-050, SCN-060
 - **Purpose:** JTBD-05 — the agent's own runtime, in its repository, beside its dashboard
-- **Elements:** header: runtime picker (Claude Code, Codex, other installed runtimes), folder line (shortened path; full path on hover) with "Other…", "Switchboard project <name>" when bound; actions in one compact row: "New session", "Continue last" (when the runtime can resume), the exit line, and on the right the Open in Terminal icon ("Open in Terminal via Switchboard" as its label for a bound folder; the full button for a project folder the installed Switchboard cannot run in place); "Stop" and "Hide console" in the header; the terminal (the runtime's own interface); an exit line; the left edge drags the width (320 px up to where the dashboard keeps max(480, its declared `minWidth`) px, DEC-0036 ED-7; SCN-060)
+- **Elements:** header: coding agent picker (Claude Code, Codex, other installed coding agents), folder line (shortened path; full path on hover) with "Other…", "Switchboard project <name>" when bound; actions in one compact row: "New session", "Continue last session" (when the coding agent can resume), the exit line, and on the right the Open in Terminal icon ("Open in Terminal via Switchboard" as its label for a bound folder; the full button for a project folder the installed Switchboard cannot run in place); "Stop" and "Hide console" in the header; the terminal (the runtime's own interface); an exit line; the left edge drags the width (320 px up to where the dashboard keeps max(480, its declared `minWidth`) px, DEC-0036 ED-7; SCN-060)
 - **States:**
   | State | Trigger | Figma frame | Behavior |
   |-------|---------|-------------|----------|
-  | idle | nothing started for this agent | — | runtime, folder, "New session", "Continue last" |
+  | idle | nothing started for this agent | — | coding agent, folder, "New session", "Continue last session" |
   | running | a session runs | — | the terminal takes the panel; "Stop" in the header |
-  | exited | the runtime ended | — | its output stays; "Exited (code N)" with "New session" and "Continue last" |
+  | exited | the coding agent ended | — | its output stays; "The session exited with code N." with "New session" and "Continue last session" |
   | no runtime | none installed | — | "No supported runtime is installed" and the list looked for |
   | no folder | no checkout found, or the folder is gone | — | "Choose the folder this agent's code lives in" + "Choose folder…" |
   | switchboard project, not in place | a project folder; Switchboard without `--in-place` | — | the explanation + "Open in Terminal via Switchboard"; no start in the panel |

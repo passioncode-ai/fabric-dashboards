@@ -88,7 +88,7 @@ export function setupMarkdown(o: { runtimeId: string; runtimeName: string; serve
     '',
     '## When you are done',
     '',
-    'Summarize what was set up and what the person declined. Remind them: every agent in Fabric Dashboards has a console that starts you with its context, and *Fix with agent* hands you a problem.',
+    'Summarize what was set up and what the person declined. Remind them: every agent in Fabric Dashboards has a console that starts you with its context, and *Fix with coding agent* hands you a problem.',
     '',
   ].join('\n');
 }

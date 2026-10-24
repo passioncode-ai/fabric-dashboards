@@ -339,7 +339,7 @@ function Shell({ status, route, setRoute, stopKey, setStopKey, activityFilter, s
                 {route.page === 'overview' && count > 0 && <span className="meta">{count === 1 ? t('overview.count.one') : t('overview.count', { count })}</span>}
               </div>
               {route.page === 'overview' && <SetupCard onOpen={openSetup} consoleOpen={setupOpen} />}
-              {route.page === 'overview' && <Overview status={status} products={products} open={open} act={act} agent={handToAgent} visit={visit} onContinue={continueWith} goSpend={() => setRoute({ page: 'spend' })} list={layout.list} onHiddenOpen={(o) => changeLayout({ list: { hiddenOpen: o } })} />}
+              {route.page === 'overview' && <Overview status={status} products={products} open={open} act={act} agent={handToAgent} onSetup={() => openSetup('new')} visit={visit} onContinue={continueWith} goSpend={() => setRoute({ page: 'spend' })} list={layout.list} onHiddenOpen={(o) => changeLayout({ list: { hiddenOpen: o } })} />}
               {route.page === 'activity' && <Activity status={status} openAt={open} filter={activityFilter} setFilter={setActivityFilter} />}
               {route.page === 'spend' && <Spend status={status} />}
               {route.page === 'map' && <ConnectionsMap status={status} open={(key) => open(key, undefined, 'connections')} onAgent={handToAgent} openConsole={(key) => (key.startsWith('handover.') ? setRoute({ page: 'handover', key }) : open(key))} />}
@@ -380,7 +380,7 @@ function ProductItem({ p, current, open, rail, pinned, menu }: { p: Product; cur
   const s = p.primary;
   return (
     <div className={`nav-row${pinned ? ' pinned' : ''}`}>
-    <button className="nav-item" aria-current={current ? 'page' : undefined} title={rail ? `${nameOf(s)} — ${t(`state.${s.state}`)}` : undefined} onClick={() => open(s.key)}>
+    <button className="nav-item" aria-current={current ? 'page' : undefined} title={rail ? t('join.nameState', { name: nameOf(s), state: t(`state.${s.state}`) }) : undefined} onClick={() => open(s.key)}>
       <span className={`state state-${s.state}`} aria-hidden="true"><span className="glyph">{GLYPH[s.state]}</span></span>
       {rail && <span className="initials" aria-hidden="true">{initialsOf(nameOf(s))}</span>}
       <span className="nav-label">{nameOf(s)}</span>

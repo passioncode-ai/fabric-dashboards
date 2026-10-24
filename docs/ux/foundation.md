@@ -108,7 +108,7 @@ hunt browser tabs to learn whether an agent is alive or what it did.
 | 1 | First launch | opens the app with nothing installed | Overview with a Setup console | 3 | an empty list and a README link | one click: my coding agent sets the system up while I watch |
 | 2 | Setup | answers the agent's questions, signs in where asked, consents to each product | the Setup console; agents appearing in the list | 4 | a wizard per product, commands to copy | the agent runs every command; only sign-ins and consents are mine |
 | 3 | Second day | opens the app | Overview "since you were last here" | 4 | hunting for what changed | what broke, what updated, Continue where I left off |
-| 4 | Fix | an agent is down | "Fix with agent" | 3 | explaining the problem again in a terminal | the agent starts holding the reasons, events and repository |
+| 4 | Fix | an agent is down | "Fix with coding agent" | 3 | explaining the problem again in a terminal | the agent starts holding the reasons, events and repository |
 | 5 | Focus | keeps the agents I work with on top | pinned agents, sort | 4 | an alphabetical list | my agents first, the rest by status or activity |
 
 ## 4. User stories
@@ -258,7 +258,7 @@ hunt browser tabs to learn whether an agent is alive or what it did.
 - **Story:** As P-01, I want Overview to tell me in one look what runs, what needs me and what was spent, and every embedded dashboard to have its own reload, history and copyable address, so that I steer my agents from one screen and can hand any page to an agent or a teammate.
 - **Traces:** JTBD-01, JTBD-04, JRN-01/#2, JRN-01/#5; ADR-0014
 - **Acceptance criteria:**
-  - Given Overview, when it opens, then a strip shows agents ready, not answering, needing attention, spent today and in 30 days, each as one number and one label.
+  - Given Overview, when it opens, then a strip shows agents ready, not answering, needing attention, spent today and in 30 days, each as a label over one number.
   - Given more than three problems, when I look at Needs attention, then three single-line rows show and "Show all" opens the rest.
   - Given an embedded dashboard, when I use its toolbar, then I can go back, forward, reload, go home, see the page's address, and copy either the address or a fabric-dashboards:// link to this page — never a login code.
 - **Priority:** should
@@ -295,11 +295,11 @@ hunt browser tabs to learn whether an agent is alive or what it did.
 - **Status:** proposed
 
 ### ST-020: The console starts knowing the agent, and work goes to it with the context
-- **Story:** As P-01, I want the console of an agent — and a *Fix with agent* or *Update with agent* — to start my coding agent already holding that agent's state, reasons, errors, recent events, repository and descriptor, and this app's MCP tools, so that I give it the task, not the situation.
+- **Story:** As P-01, I want the console of an agent — and a *Fix with coding agent* or *Update with coding agent* — to start my coding agent already holding that agent's state, reasons, errors, recent events, repository and descriptor, and this app's MCP tools, so that I give it the task, not the situation.
 - **Traces:** JTBD-06, JRN-02/#4; ADR-0020
 - **Acceptance criteria:**
   - Given an agent's console, when I start a runtime, then it receives the agent's context before its first turn (Claude: system prompt and MCP; Codex: MCP and a first prompt; any: an environment variable naming the file), and nothing of the agent's token.
-  - Given an agent with a problem, when I press *Fix with agent*, then its console opens and the runtime starts with the problem as its task.
+  - Given an agent with a problem, when I press *Fix with coding agent*, then its console opens and the coding agent starts with the problem as its task.
   - Given an update the agent's own command cannot apply, when I press *Update with agent*, then the runtime starts with the update as its task.
 - **Priority:** must
 - **Status:** proposed
