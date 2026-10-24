@@ -4,10 +4,9 @@
 import { useEffect, useState } from 'react';
 import { buildGraph, chainState, stateOfService, worstOf, type ConnectionNode, type ModelUse, type NodeKind } from '../../core/connections';
 import type { ServiceSnapshot } from '../../core/types';
-import { api, useT } from '../lib';
+import { api, CONN_MARK as MARK, useT } from '../lib';
 
 const ORDER: NodeKind[] = ['service', 'model', 'runner', 'connector', 'store', 'channel', 'part'];
-const MARK = { ok: '●', degraded: '▲', down: '■', unknown: '○' } as const;
 
 export function Connections({ s, all, open }: { s: ServiceSnapshot; all: ServiceSnapshot[]; open: (key: string) => void }) {
   const { t, time, reason } = useT();
