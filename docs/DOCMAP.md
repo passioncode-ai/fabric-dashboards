@@ -56,7 +56,7 @@ row that seeded it (FD-99).
 | Gate | Command | When | Blocking? |
 |---|---|---|---|
 | The gate | `npm run check` (typecheck, unit and integration tests, brand pins, code regions, UX lint) | before every commit that lands | yes |
-| End to end | `npm run test:e2e` | before a release, and a change to a shared screen runs the whole suite | yes; refuses on a locked screen |
+| End to end | `npm run test:e2e` | before a release, and a change to a shared screen runs the whole suite | yes; refuses on a locked screen or a loaded machine (load above 150, under 5 GB free), runs one file at a time ([CONTRIBUTING](../CONTRIBUTING.md#end-to-end-tests)) |
 | Five systems | `gh workflow run validate.yml --ref <branch> -f os=all` | before a release (and nightly) | yes |
 
 `npm run check` does not cover a real window (the e2e), Windows or Linux (validate.yml), or the signed bundle

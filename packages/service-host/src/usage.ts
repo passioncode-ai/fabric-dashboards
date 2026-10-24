@@ -91,6 +91,25 @@ export interface SpendSum {
   partial: boolean;
   /** Some calls in the window have no full token count (DEC-0091): the tokens are at least this much. */
   tokensPartial: boolean;
+  /** FD-101: the money and the subscription estimate as DEC-0110's `usageSpend` reads its rows, so a sum across
+   *  agents applies its rule over all their rows rather than adding answers (a known cost beside calls none of which
+   *  is priced would otherwise be lost or kept). Absent from a sum made by hand or by an older package. */
+  sides?: { money: SpendSide; estimate: SpendSide };
+}
+
+/** FD-101: one side of a sum, money or a subscription's estimate: its calls, how many carry a price, whether any
+ *  carries none, and the known costs added (a row without calls counts here too). */
+export interface SpendSide {
+  calls: number;
+  pricedCalls: number;
+  unpriced: boolean;
+  knownUsd: number;
+}
+
+/** DEC-0110 (`usageSpend`): a side with calls none of which is priced is unknown, whatever a row without calls costs;
+ *  otherwise it is what its rows cost, 0 when none does. */
+export function sideTotal(side: SpendSide): number | null {
+  return side.calls > 0 && side.pricedCalls === 0 ? null : side.knownUsd;
 }
 
 export interface SpendSummary {
@@ -225,29 +244,34 @@ export function rankLimits(budgets: UsageLimit[]): LimitView[] {
   return views.sort((a, b) => ORDER[a.state] - ORDER[b.state] || (b.share ?? -1) - (a.share ?? -1) || a.id.localeCompare(b.id));
 }
 
-const empty = (): SpendSum => ({ calls: 0, inputTokens: 0, outputTokens: 0, costUsd: null, estimateUsd: 0, estimatePartial: false, subscriptionCalls: 0, partial: false, tokensPartial: false });
-/** FD-97: subscription calls that carry a price, per sum, and whether any carries none (as `usageSpend`'s side). */
-const subPriced = new WeakMap<SpendSum, { priced: number; unpriced: boolean }>();
+const side = (): SpendSide => ({ calls: 0, pricedCalls: 0, unpriced: false, knownUsd: 0 });
+const empty = (): SpendSum => ({ calls: 0, inputTokens: 0, outputTokens: 0, costUsd: null, estimateUsd: 0, estimatePartial: false, subscriptionCalls: 0, partial: false, tokensPartial: false, sides: { money: side(), estimate: side() } });
 
 function add(sum: SpendSum, row: UsageTotals, route?: UsageRoute): void {
   sum.calls += row.calls;
   sum.inputTokens += row.inputTokens;
   sum.outputTokens += row.outputTokens;
-  if (route === 'subscription') {
-    // FD-88: not metered (DEC-0046), so no money; its list-price value is an estimate, shown apart.
-    sum.subscriptionCalls += row.calls;
-    if (row.costUsd !== null) sum.estimateUsd = (sum.estimateUsd ?? 0) + row.costUsd;
-    const side = subPriced.get(sum) ?? { priced: 0, unpriced: false };
-    side.priced += row.calls - (row.costUsd === null ? row.calls : row.unpricedCalls);
-    if (row.unpricedCalls > 0 || (row.calls > 0 && row.costUsd === null)) side.unpriced = true;
-    subPriced.set(sum, side);
-  } else {
-    if (row.costUsd !== null) sum.costUsd = (sum.costUsd ?? 0) + row.costUsd;
-    // A row with calls and no cost is unknown whatever its unpricedCalls says: a lower bound, never complete.
-    if (row.unpricedCalls > 0 || (row.calls > 0 && row.costUsd === null)) sum.partial = true;
-  }
+  // FD-88: a subscription is not metered (DEC-0046), so no money; its list-price value is an estimate, shown apart.
+  if (route === 'subscription') sum.subscriptionCalls += row.calls;
+  const s = route === 'subscription' ? sum.sides!.estimate : sum.sides!.money;
+  s.calls += row.calls;
+  // A row with calls and no cost is unknown whatever its unpricedCalls says: none of its calls is priced.
+  s.pricedCalls += row.calls - (row.costUsd === null ? row.calls : row.unpricedCalls);
+  if (row.unpricedCalls > 0 || (row.calls > 0 && row.costUsd === null)) s.unpriced = true;
+  if (row.costUsd !== null) s.knownUsd += row.costUsd;
   // DEC-0091: a call whose tokens were not measured in full makes every token sum it is in a lower bound.
   if ((row.unmeasuredCalls ?? 0) > 0) sum.tokensPartial = true;
+}
+
+/** FD-97, FD-101 (DEC-0110 `usageSpend`): the money and the estimate of a sum from its sides. Money is unknown when its
+ *  calls carry no price, and a lower bound (`partial`) while any of them carries none; a window with no metered call
+ *  spent its rows' cost, $0 when none has one. The estimate reads alike, a lower bound only while some are priced. */
+export function settleSum(sum: SpendSum): void {
+  const { money, estimate } = sum.sides!;
+  sum.costUsd = sideTotal(money);
+  sum.partial = money.unpriced;
+  sum.estimateUsd = sideTotal(estimate);
+  sum.estimatePartial = estimate.pricedCalls > 0 && estimate.unpriced;
 }
 
 /** The UTC date `days` days before `now` (0 = today). */
@@ -276,16 +300,7 @@ export function summarizeUsage(report: UsageReport, now: number): SpendSummary {
       models.set(k, sum);
     }
   }
-  // No metered calls and no cost: no money was spent. A cost reported without calls is kept, never zeroed.
-  for (const s of [out.today, out.week, out.month, ...models.values()]) if (s.calls === s.subscriptionCalls && s.costUsd === null) s.costUsd = 0;
-  // FD-97 (DEC-0110): subscription calls none of which is priced have an unknown estimate, never ~$0; some unpriced
-  // make it a lower bound.
-  for (const s of [out.today, out.week, out.month, ...models.values()]) {
-    const side = subPriced.get(s);
-    if (!side) continue;
-    if (s.subscriptionCalls > 0 && side.priced === 0) s.estimateUsd = null;
-    s.estimatePartial = side.priced > 0 && side.unpriced;
-  }
+  for (const s of [out.today, out.week, out.month, ...models.values()]) settleSum(s);
   const ranked = [...models.values()].sort((a, b) => (b.costUsd ?? -1) - (a.costUsd ?? -1) || (b.estimateUsd ?? -1) - (a.estimateUsd ?? -1) || b.calls - a.calls);
   return { ...out, models: ranked, budget: report.budget ?? null, limits: rankLimits(report.budgets ?? []), generatedAt: report.generatedAt };
 }

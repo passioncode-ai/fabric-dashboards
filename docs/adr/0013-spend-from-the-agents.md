@@ -107,3 +107,14 @@ the money one; a $0 estimate with unpriced subscription calls reads "+ at least 
 Health tab formats a subscription model with Spend's own formatter; the note under the table shows only when a "~"
 amount is drawn. A subscription row with no calls and a cost, beside an agent whose estimate is unknown, can make the
 sum across agents smaller than the contract's `usageSpend` over all rows (still a lower bound; FD-101).
+
+Amended 2026-10-24 (FD-101): every sum carries its `sides` (for the money and for the estimate: calls, priced calls,
+whether any is unpriced, the known costs; shared package 0.9.0), and `sumSpend` applies DEC-0110's `usageSpend` over all
+agents' rows instead of adding their answers. Each side is unknown when it has calls and none of them is priced, whatever
+a row without calls costs, and a lower bound while some are priced and some are not. Two answers move to the contract's:
+an agent with no metered calls (or only a cost-only row) beside an agent whose calls carry no price no longer reads
+"at least $0.00" but unknown, and one agent's subscription row with no calls and a cost is no longer dropped from the
+estimate when that agent's own estimate is unknown. An agent whose report cannot be read still makes a known sum a lower
+bound. A sum made without sides (by hand, or by an older package) is added as before. Test: `test/spend-fuzz.test.ts`
+(20,000 seeded cases against the contract's `usageSpend`, copied in `test/contract/usage-spend.ts` at `96789f8aa80a`;
+6,442 windows differed before the change, none after).
