@@ -38,7 +38,7 @@ function report(): unknown {
   return { type: 'service-load/1', generatedAt: iso(now), windowSeconds: 3600, windows };
 }
 
-interface Fake { id: string; name: string; load?: unknown }
+interface Fake { id: string; name: string; load?: unknown; declares?: () => boolean }
 
 async function agent(f: Fake, services: string, base: string, seen: string[]): Promise<http.Server> {
   const token = `token-${f.id}-0123456789abcdef`;
@@ -51,7 +51,7 @@ async function agent(f: Fake, services: string, base: string, seen: string[]): P
         protocol: 'fabric-service/0.1', service: { id: f.id, instance: 'default', name: f.name, version: '0.1.0', build: { commit: '0000000' } },
         process: { pid: process.pid, startedAt: new Date(Date.now() - 60_000).toISOString() }, status: 'ready', degraded: [],
         surfaces: { events: { path: '/fabric/v1/events' } }, update: { available: null },
-        ...(f.load === undefined ? {} : { extensions: { [LOAD_EXTENSION]: f.load } }),
+        ...(f.load === undefined || (f.declares && !f.declares()) ? {} : { extensions: { [LOAD_EXTENSION]: f.load } }),
       });
     }
     if (req.url?.startsWith('/fabric/v1/events')) return json(200, { events: [], cursor: null });
@@ -71,13 +71,14 @@ async function agent(f: Fake, services: string, base: string, seen: string[]): P
   return server;
 }
 
-test('FD-93: the Load tab shows the queue against its limits, by context; a wrong declaration is reported', { timeout: 120_000 }, async () => {
+test('FD-93: the Load tab shows the queue and its limits, by context; a wrong declaration is reported; it never leaves an empty pane', { timeout: 120_000 }, async () => {
   const base = tmp('fd-e2e-load-');
   const services = path.join(base, 'services');
   fs.mkdirSync(services, { recursive: true });
   const seen: string[] = [];
+  let writerDeclares = true;
   const servers = [
-    await agent({ id: 'writer', name: 'Writer', load: { path: '/fabric/v1/load', windowSeconds: 3600, limits: { concurrency: 4, perCaller: 2, queueMax: 3 } } }, services, base, seen),
+    await agent({ id: 'writer', name: 'Writer', declares: () => writerDeclares, load: { path: '/fabric/v1/load', windowSeconds: 3600, limits: { concurrency: 4, perCaller: 2, queueMax: 3 } } }, services, base, seen),
     await agent({ id: 'reader', name: 'Reader', load: { path: 'load', windowSeconds: 5, limits: { concurrency: 0, perCaller: 1, queueMax: 1 } } }, services, base, seen),
     await agent({ id: 'quiet', name: 'Quiet' }, services, base, seen),
   ];
@@ -98,21 +99,35 @@ test('FD-93: the Load tab shows the queue against its limits, by context; a wron
     const load = page.locator('.load');
     const strip = load.locator('.load-strip');
     await strip.waitFor({ timeout: 20_000 });
-    // The latest window: 4 + 1 running, 3 waiting. The limits are per context: no "of N" on a sum of two contexts,
-    // and personal, at 4 of 4 running with 3 of 3 waiting, marks the sums.
+    // The latest window: 4 + 1 running, 3 waiting. DEC-0104's limits are per agent and context and the report sums every
+    // agent the service hosts, so no count is set against a limit (no "of N", no at-limit mark); waiting reads as work
+    // to watch, a failure as trouble.
     assert.match(await strip.locator('.cell', { hasText: 'Running now' }).innerText(), /^5\s+Running now$/);
-    assert.equal(await strip.locator('.cell.attn', { hasText: 'Running now' }).count(), 1, 'a context at its limit');
-    assert.equal(await strip.locator('.cell.bad', { hasText: 'Waiting' }).count(), 1, 'a full queue reads as trouble');
-    assert.equal(await load.locator('table.load-contexts tr', { hasText: 'Personal' }).locator('td.bad').count(), 2, 'the full queue and the failure, in their context');
+    assert.match(await strip.locator('.cell', { hasText: 'Waiting' }).innerText(), /^3\s+Waiting$/);
+    assert.equal(await strip.locator('.cell.attn', { hasText: 'Waiting' }).count(), 1);
+    assert.equal(await strip.locator('.cell.attn', { hasText: 'Running now' }).count(), 0, 'running is never marked against a limit');
     assert.match(await strip.locator('.cell', { hasText: 'Failed in 24 h' }).innerText(), /^1/);
-    await load.getByText('In each context it runs at most 4 at once and 2 for one caller; 3 more may wait.').waitFor();
-    await load.getByText('Wait in the queue: median 40 ms, 95% within 900 ms.').waitFor();
-    await load.getByText('Run time: median 8 s, 95% within 31 s.').waitFor();
+    await load.getByText('Each agent it hosts runs at most 4 at once in each context and 2 for one caller; 3 more may wait.').waitFor();
+    // Two contexts: the times belong to their rows, never to the agent as a whole.
+    assert.equal(await load.getByText(/Wait in the queue/).count(), 0);
+    assert.match(await load.locator('table.load-contexts tr', { hasText: 'Personal' }).innerText(), /900 ms[\s\S]*31 s/);
     await load.locator('.load-chart svg').waitFor();
     await load.locator('table.load-contexts').getByRole('rowheader', { name: 'Organization org_e2e' }).waitFor();
     assert.match(await load.locator('table.load-contexts tr', { hasText: 'Organization org_e2e' }).innerText(), /not measured/, 'no bare dash for a time never measured');
     assert.ok(seen.includes('writer token'), 'read with the descriptor token');
     if (SHOTS) await page.screenshot({ path: path.join(SHOTS, '30-load.png') });
+    // LC-08: a hidden window reads nothing, the last read is answered.
+    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.hide());
+    const reads = seen.length;
+    await page.evaluate(() => (window as unknown as { fabric: { load(key: string): Promise<unknown> } }).fabric.load('writer.default'));
+    assert.equal(seen.length, reads, 'a hidden window reads no load report');
+    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.show());
+    // FD-93 review: the declaration goes (the agent stops answering, or drops the key): the page falls back to a tab
+    // that exists, never an empty pane.
+    writerDeclares = false;
+    await page.getByRole('tab', { name: 'Load' }).waitFor({ state: 'detached', timeout: 30_000 });
+    await page.getByRole('tab', { name: 'Health', selected: true }).waitFor({ timeout: 10_000 });
+    writerDeclares = true;
 
     await openAgent('Reader');
     await page.getByRole('tab', { name: 'Load' }).click();

@@ -5,6 +5,7 @@
 // its line. Each finding names the agent to fix, so the person can hand it to a coding agent in one click. Pure: the
 // window, the tray and the MCP server read the same findings. Findings are codes with parameters, translated by the
 // reader (never a sentence of the app's own here), and an agent's own words stay as it wrote them.
+import { loadOf } from '@passioncode-ai/fabric-service-host/load';
 import { connectionsOf } from '@passioncode-ai/fabric-service-host/connections';
 import type { LimitView } from '@passioncode-ai/fabric-service-host/usage';
 import { resolveTarget, stateOfService, type Seen } from './connections';
@@ -63,6 +64,11 @@ export function audit(all: readonly Seen[], limits: Readonly<Record<string, read
     if (view.declared) declaring += 1;
     if (view.errors.length) {
       add({ id: `${s.key}:declaration`, key: s.key, severity: 'warn', kind: 'declaration', reason: { code: 'audit.declaration.invalid', params: { errors: view.errors.slice(0, 3).join('; ') } } });
+    }
+    // FD-93 review: an invalid load declaration (FAC-SEM-133) is reported here too, not only in the agent's Load tab.
+    const load = loadOf(s.wellKnown);
+    if (load.reported) {
+      add({ id: `${s.key}:load-declaration`, key: s.key, severity: 'warn', kind: 'declaration', reason: { code: 'audit.declaration.loadInvalid', params: { errors: load.errors.slice(0, 3).join('; ') } } });
     }
     for (const c of view.connections) {
       const failing = c.state === 'down' || c.state === 'degraded';

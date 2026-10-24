@@ -55,7 +55,7 @@ export type SpendWindow = 'today' | 'week' | 'month';
  */
 export function sumSpend(entries: readonly SpendEntry[], window: SpendWindow): SpendSum {
   const unread = entries.some((e) => e.kind === 'error');
-  const out: SpendSum = { calls: 0, inputTokens: 0, outputTokens: 0, costUsd: null, estimateUsd: 0, estimatePartial: false, subscriptionCalls: 0, partial: unread, tokensPartial: unread };
+  const out: SpendSum = { calls: 0, inputTokens: 0, outputTokens: 0, costUsd: null, estimateUsd: 0, estimatePartial: unread, subscriptionCalls: 0, partial: unread, tokensPartial: unread }; // FD-97 review: an unread agent may have had subscription calls too
   let estimated = false; // FD-97: some agent's subscription calls carry a price
   for (const e of entries) {
     if (e.kind !== 'report') continue;
@@ -75,6 +75,7 @@ export function sumSpend(entries: readonly SpendEntry[], window: SpendWindow): S
   }
   if (out.calls === out.subscriptionCalls && out.costUsd === null) out.costUsd = 0; // nothing metered was called: no money was spent
   if (out.subscriptionCalls > 0 && !estimated) { out.estimateUsd = null; out.estimatePartial = false; }
+  else if (out.subscriptionCalls === 0 && out.estimateUsd === 0) out.estimatePartial = false; // nothing estimated: no "at least ~$0" for an unread agent alone
   return out;
 }
 // #endregion spend-read

@@ -35,8 +35,30 @@ const CONTEXT = /^(?:personal|org:[A-Za-z0-9][A-Za-z0-9_-]{0,127})$/;
 const ORIGIN_PATH = /^\/(?!\/)[^\s]*$/;
 // The contract's strictTime (src/rfc3339.ts): `T` and an offset required, a day that exists, no leap second.
 const RFC3339 = /^(\d{4})-(\d{2})-(\d{2})[Tt](\d{2}):(\d{2}):(\d{2})(\.\d+)?([Zz]|[+-]\d{2}:\d{2})$/;
+// The schema's `date-time` as the contract's validator reads it (ajv-formats, full): `T`, `t` or a space, a leap second,
+// an offset with or without its colon. FAC-SEM-132 then compares times through strictTime, as the contract's loadRule.
+const DATE_TIME = /^(\d{4})-(\d{2})-(\d{2})[Tt ](\d{2}):(\d{2}):(\d{2})(\.\d+)?([Zz]|[+-]\d{2}(?::?\d{2})?)$/;
 const isPlain = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
-const int = (v: unknown, min: number, max = Number.MAX_SAFE_INTEGER) => Number.isSafeInteger(v) && (v as number) >= min && (v as number) <= max;
+// A JSON integer, as the schema's `integer` reads it (not only a safe one: the contract accepts 2^60).
+const int = (v: unknown, min: number, max = Number.MAX_VALUE) => Number.isInteger(v) && (v as number) >= min && (v as number) <= max;
+
+/** Whether a value is the schema's `date-time` (FD-93 review: the host was stricter than the contract). */
+export function schemaDateTime(value: unknown): boolean {
+  const m = typeof value === 'string' ? DATE_TIME.exec(value) : null;
+  if (!m) return false;
+  const [year, month, day, hour, minute, second] = m.slice(1, 7).map(Number) as [number, number, number, number, number, number];
+  const date = new Date(0);
+  date.setUTCFullYear(year, month - 1, day);
+  if (date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day) return false;
+  return hour <= 23 && minute <= 59 && (second <= 59 || (second === 60 && hour === 23 && minute === 59));
+}
+
+/** A time for the host's own sums: strictTime, or the same instant read leniently (a space for `T`, a leap second). */
+function looseTime(value: string): number {
+  const t = strictTime(value);
+  if (!Number.isNaN(t)) return t;
+  return Date.parse(value.replace(' ', 'T').replace(/:60(\.\d+)?([Zz+-])/, ':59$1$2'));
+}
 
 /** An RFC 3339 time as epoch milliseconds, or NaN (the contract's strictTime). */
 export function strictTime(value: unknown): number {
@@ -95,7 +117,7 @@ export function loadReportProblems(v: unknown): string[] {
   const out: string[] = [];
   extra('/', v, ['type', 'generatedAt', 'windowSeconds', 'windows'], out);
   if (v.type !== LOAD_REPORT_TYPE) out.push(`/type: ${LOAD_REPORT_TYPE}`);
-  if (Number.isNaN(strictTime(v.generatedAt))) out.push('/generatedAt: an RFC 3339 time');
+  if (!schemaDateTime(v.generatedAt)) out.push('/generatedAt: an RFC 3339 time');
   if (!int(v.windowSeconds, 60, 86_400)) out.push('/windowSeconds: an integer from 60 to 86400');
   if (!Array.isArray(v.windows)) return [...out, '/windows: an array'];
   if (v.windows.length > LOAD_WINDOWS_MAX) out.push(`/windows: at most ${LOAD_WINDOWS_MAX}`);
@@ -103,7 +125,7 @@ export function loadReportProblems(v: unknown): string[] {
     const at = `/windows/${i}`;
     if (!isPlain(w)) { out.push(`${at}: an object`); return; }
     extra(at, w, ['start', 'byContext'], out);
-    if (Number.isNaN(strictTime(w.start))) out.push(`${at}/start: an RFC 3339 time`);
+    if (!schemaDateTime(w.start)) out.push(`${at}/start: an RFC 3339 time`);
     if (!Array.isArray(w.byContext)) { out.push(`${at}/byContext: an array`); return; }
     if (w.byContext.length > LOAD_CONTEXTS_MAX) out.push(`${at}/byContext: at most ${LOAD_CONTEXTS_MAX}`);
     w.byContext.forEach((r, j) => {
@@ -149,7 +171,7 @@ export interface LoadContextSummary {
   /** At the end of the latest window (the open one: at `generatedAt`); a context absent there is 0. */
   queued: number;
   running: number;
-  /** Ended in the windows that started within a day of `generatedAt`. */
+  /** Ended in the windows that end within a day before `generatedAt` (a long window counts whole). */
   completed: number;
   failed: number;
   /** The latest window that measured it; null when none in the report did. */
@@ -179,7 +201,8 @@ export const LOAD_SERIES_MAX = 24;
 
 /** The sums a host shows of a report that passed `loadReportProblems`. */
 export function summarizeLoad(r: LoadReport, now: number): LoadSummary {
-  const generated = strictTime(r.generatedAt);
+  const generated = looseTime(r.generatedAt);
+  const span = r.windowSeconds * 1000;
   const last = r.windows[r.windows.length - 1];
   const names: string[] = [];
   for (const w of r.windows) for (const row of w.byContext) if (!names.includes(row.context)) names.push(row.context);
@@ -190,7 +213,7 @@ export function summarizeLoad(r: LoadReport, now: number): LoadSummary {
     for (const w of r.windows) {
       const row = w.byContext.find((x) => x.context === context);
       if (!row) continue;
-      if (strictTime(w.start) > generated - DAY_MS) { completed += row.completed; failed += row.failed; }
+      if (looseTime(w.start) + span > generated - DAY_MS) { completed += row.completed; failed += row.failed; }
       if (row.waitMs) wait = { ...row.waitMs, start: w.start };
       if (row.runMs) run = { ...row.runMs, start: w.start };
     }
@@ -207,7 +230,7 @@ export function summarizeLoad(r: LoadReport, now: number): LoadSummary {
   return {
     generatedAt: r.generatedAt, windowSeconds: r.windowSeconds, empty: r.windows.length === 0,
     queued: sum('queued'), running: sum('running'), completed: sum('completed'), failed: sum('failed'),
-    contexts, series, stale: now - generated > 2 * r.windowSeconds * 1000,
+    contexts, series, stale: now - generated > 2 * span,
   };
 }
 // #endregion load-report

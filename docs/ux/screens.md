@@ -6,7 +6,7 @@
 | ID | Screen | Used by | Figma | Status | Coverage |
 |----|--------|---------|-------|--------|----------|
 | SCR-01 | Overview | SCN-001, SCN-002, SCN-003, SCN-005, SCN-006, SCN-007, SCN-021, SCN-024, SCN-030, SCN-033, SCN-035, SCN-041, SCN-042, SCN-054, SCN-058, SCN-059 | none (text-only) | built | src/renderer/components/Overview.tsx |
-| SCR-02 | Service view | SCN-004, SCN-007–SCN-016, SCN-021, SCN-025, SCN-026, SCN-027, SCN-029, SCN-031, SCN-032, SCN-034, SCN-039, SCN-040, SCN-045, SCN-046, SCN-061 | none (text-only) | built | src/renderer/components/ServiceView.tsx |
+| SCR-02 | Service view | SCN-004, SCN-007–SCN-016, SCN-021, SCN-025, SCN-026, SCN-027, SCN-029, SCN-031, SCN-032, SCN-034, SCN-039, SCN-040, SCN-045, SCN-046, SCN-061, SCN-073, SCN-076 | none (text-only) | built | src/renderer/components/ServiceView.tsx |
 | SCR-03 | Activity | SCN-003, SCN-017, SCN-018, SCN-020 | none (text-only) | built | src/renderer/components/Activity.tsx |
 | SCR-04 | Settings | SCN-019, SCN-022, SCN-024, SCN-043, SCN-044 | none (text-only) | built | src/renderer/components/Settings.tsx |
 | SCR-05 | Stop confirmation | SCN-009 | none (text-only) | built | src/renderer/App.tsx |
@@ -45,10 +45,10 @@
 - **Status:** built
 
 ### SCR-02: Service view
-- **Used by:** SCN-004, SCN-007–SCN-016, SCN-021, SCN-025, SCN-026, SCN-027, SCN-029, SCN-031, SCN-032, SCN-034, SCN-039, SCN-040, SCN-045, SCN-046, SCN-061
+- **Used by:** SCN-004, SCN-007–SCN-016, SCN-021, SCN-025, SCN-026, SCN-027, SCN-029, SCN-031, SCN-032, SCN-034, SCN-039, SCN-040, SCN-045, SCN-046, SCN-061, SCN-073, SCN-076
 - **Purpose:** JTBD-02 and JTBD-04 — control one service and work in its dashboard
 - **Layout (ADR-0017, SCN-046):** a compact bar by default — state mark, name, state badge, one problem chip when not ready or after a failed action, a running action's progress, the tabs, "Fabric" (the mark and the word; accessible name "Open Fabric"; opens Fabric about this agent, or a native menu "Fabric is not installed — get it at passioncode.ai/fabric", SCN-061, ADR-0021), "Console", and "Show details" (View → Show or Hide Service Details, ⌃⌘D); the name carries the agent's summary on hover; "Show details" opens the full card below the bar (everything listed next), "Hide details" closes it; the choice is remembered. The console panel (SCR-10) sits to the right of the tab content.
-- **Elements:** instance switch (when an agent has more than one instance: "Main · online", "<instance> · this Mac"); header: name, state, progress ("Restarting…"), the agent's summary, facts (version, build, pid, port, uptime), Tools (eight, "+N more"), reasons, the last action's result for 30 minutes (with Logs after a failure), controls (Start, or Restart — primary when down or two copies — and Stop; "Update to <v>" when available; Doctor when declared; Show data folder; Show file; "Show the file of <other>" in a conflict; a path that cannot be shown says so); tabs Dashboard / Activity / Health / Logs (arrow keys move between them; no Logs for an online service); dashboard toolbar of icons (Back, Forward, Reload page, Dashboard home, page address, Copy with its menu: Copy address, Copy app link); embedded dashboard; "Restarted, page reloaded" in the toolbar after a restart reloaded the page (FD-74)
+- **Elements:** instance switch (when an agent has more than one instance: "Main · online", "<instance> · this Mac"); header: name, state, progress ("Restarting…"), the agent's summary, facts (version, build, pid, port, uptime), Tools (eight, "+N more"), reasons, the last action's result for 30 minutes (with Logs after a failure), controls (Start, or Restart — primary when down or two copies — and Stop; "Update to <v>" when available; Doctor when declared; Show data folder; Show file; "Show the file of <other>" in a conflict; a path that cannot be shown says so); tabs Dashboard / Activity / Connections / Load (when the agent declares its load) / Health / Logs (arrow keys move between them; no Logs for an online service); dashboard toolbar of icons (Back, Forward, Reload page, Dashboard home, page address, Copy with its menu: Copy address, Copy app link); embedded dashboard; "Restarted, page reloaded" in the toolbar after a restart reloaded the page (FD-74)
 - **States:**
   | State | Trigger | Figma frame | Behavior |
   |-------|---------|-------------|----------|
@@ -65,6 +65,7 @@
   | page error | the page does not load, or explicit refresh returns an HTTP error | — | "The page of <Service> could not load: <reason>" + Retry |
   | crashed | the page crashed twice | — | "The page stopped." + Reload |
   | restarted | a new pid | — | "The service restarted." + Reload above the page |
+  | load | the agent declares `extensions/load/0.1` (SCN-076) | — | Load tab: running, waiting, done and failed in 24 h, the limits, times, a bar per window, a row per context; a tab that leaves the list falls back to Dashboard or Health |
 - **Coverage:** src/renderer/components/ServiceView.tsx, src/electron/views.ts
 - **Scenarios:** SCN-004, SCN-007, SCN-008, SCN-009, SCN-010, SCN-011, SCN-012, SCN-013, SCN-014, SCN-015, SCN-016, SCN-021, SCN-025, SCN-026, SCN-027, SCN-029, SCN-031, SCN-032, SCN-034, SCN-039, SCN-040, SCN-045, SCN-046
 - **Status:** built
@@ -134,6 +135,7 @@
   | empty | no agent reports or fails to report | — | "No agent reports its spend yet" with what an agent must publish |
   | success | reports read | — | totals and table |
   | partial | an unpriced call or an unreadable agent | — | «≥» amounts and the note |
+  | subscription | calls on the operator's own subscription (FD-88, FD-97) | — | beside the money: "+ ~$x on subscriptions", "+ at least ~$x" when some are unpriced or an agent was unreadable, "+ subscription calls not priced" when none is priced; never in the sums |
   | error | an agent's report could not be read | — | "Could not read" with the reason in the window's language |
 - **Coverage:** src/renderer/components/Spend.tsx, src/core/spend.ts
 - **Scenarios:** SCN-036, SCN-037, SCN-038, SCN-041

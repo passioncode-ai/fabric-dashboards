@@ -87,12 +87,39 @@ test('FD-93: a report with no window is empty, not zero work hidden', () => {
   assert.deepEqual(loadReportProblems({ type: 'service-load/1', generatedAt: '2026-10-22T11:00:00Z', windowSeconds: 3600, windows: [] }), []);
 });
 
-test('FD-93: a day of windows counts only what ended in that day; the series keeps the last 24', () => {
+test('FD-93: a day of windows counts every window any part of which lies in that day; the series keeps the last 24', () => {
   const windows = Array.from({ length: 30 }, (_, i) => ({ start: new Date(Date.parse('2026-10-21T00:00:00Z') + i * 3_600_000).toISOString().replace('.000', ''), byContext: [{ context: 'personal', queued: 0, running: 0, completed: 1, failed: 0 }] }));
   const r: LoadReport = { type: 'service-load/1', generatedAt: windows[29]!.start.replace(':00:00Z', ':30:00Z'), windowSeconds: 3600, windows };
   assert.deepEqual(loadReportProblems(r), []);
   const s = summarizeLoad(r, Date.parse(r.generatedAt));
-  assert.equal(s.completed, 24);
+  assert.equal(s.completed, 25, 'the 25 windows any part of which lies in the day before generatedAt (FD-93 review)');
   assert.equal(s.series.length, 24);
   assert.equal(s.series[0]!.start, windows[6]!.start);
+});
+
+test('FD-93 review: the schema reads times and integers as the contract\'s validator does', () => {
+  const base = fixture('positive_service-load') as unknown as LoadReport;
+  // A space for `T` in generatedAt, an offset without its colon: valid against the schema, and FAC-SEM-132 compares
+  // the windows (strict) only with each other and with generatedAt, which a non-strict generatedAt never fails.
+  assert.deepEqual(loadReportProblems({ ...base, generatedAt: base.generatedAt.replace('T', ' ') }), []);
+  assert.deepEqual(loadReportProblems({ ...base, generatedAt: '2026-10-22T13:05:00+0200' }), []);
+  // A JSON integer the schema admits though it is not a safe integer.
+  const big = JSON.parse(JSON.stringify(base)) as LoadReport;
+  big.windows[0]!.byContext[0]!.completed = 2 ** 60;
+  assert.deepEqual(loadReportProblems(big), []);
+  // Still refused: a fraction, a date that does not exist.
+  const frac = JSON.parse(JSON.stringify(base)) as LoadReport;
+  frac.windows[0]!.byContext[0]!.completed = 1.5;
+  assert.ok(loadReportProblems(frac).length > 0);
+  assert.ok(loadReportProblems({ ...base, generatedAt: '2026-02-30T00:00:00Z' }).length > 0);
+});
+
+test('FD-93 review: a window counts in the last day while any of it lies in that day (daily windows included)', () => {
+  const r: LoadReport = { type: 'service-load/1', generatedAt: '2026-10-23T00:05:00Z', windowSeconds: 86400, windows: [
+    { start: '2026-10-22T00:00:00Z', byContext: [{ context: 'personal', queued: 0, running: 0, completed: 1000, failed: 3 }] },
+    { start: '2026-10-23T00:00:00Z', byContext: [{ context: 'personal', queued: 0, running: 0, completed: 0, failed: 0 }] },
+  ] };
+  assert.deepEqual(loadReportProblems(r), []);
+  const s = summarizeLoad(r, Date.parse(r.generatedAt));
+  assert.deepEqual([s.completed, s.failed], [1000, 3]);
 });

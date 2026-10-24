@@ -241,9 +241,11 @@ like the usage report: windows of `windowSeconds`, each with a row per context (
 `loadReportProblems(report)` checks its schema and then FAC-SEM-132 (windows in order one `windowSeconds` apart, none
 after `generatedAt`, a context once per window, `p50` at most `p95`, a run time only where a job ended); a host shows a
 report only when it answers no problem. `summarizeLoad(report, now)` gives what a host shows: running and queued at the
-end of the latest window, done and failed in the windows of the last day, the latest wait and run times per context,
-the last 24 windows summed for a chart, and `stale` when the report is older than two windows. The limits apply per
-context, so a host compares a context's counts with them, never a sum across contexts. It runs the contract's 15 load
+end of the latest window, done and failed in the windows any part of which lies in the last day, the latest wait and run times per context,
+the last 24 windows summed for a chart, and `stale` when the report is older than two windows. The limits apply per agent
+and context while the report sums every agent a service hosts in a context, so a host states them and never sets a
+count against them. `loadReportProblems` reads times and integers as the schema does (`schemaDateTime`) and compares
+times for FAC-SEM-132 strictly (`strictTime`), as the contract's `loadRule`. It runs the contract's 15 load
 fixtures (`test/fixtures/contract/*service-load*`, `*service-well-known-load*`).
 
 ## Shared test vectors

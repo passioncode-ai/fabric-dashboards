@@ -94,6 +94,11 @@ test('sumSpend: unknown stays unknown across agents, a failure makes a lower bou
   assert.deepEqual([lower.estimateUsd, lower.estimatePartial], [140.47, true]);
   const none = sumSpend([entry('g.default', unpricedSub)], 'today');
   assert.deepEqual([none.estimateUsd, none.estimatePartial, none.costUsd], [null, false, 0], 'unknown, never ~$0; no money spent');
+  // FD-97 review: an agent that could not be read may have had subscription calls: a priced estimate is a lower bound.
+  const withUnread = sumSpend([entry('f.default', sub), { key: 'c.default', kind: 'error', error: 'x' }], 'today');
+  assert.deepEqual([withUnread.estimateUsd, withUnread.estimatePartial], [140.47, true]);
+  const unreadAlone = sumSpend([entry('b.default', sum(1.5, 2)), { key: 'c.default', kind: 'error', error: 'x' }], 'today');
+  assert.deepEqual([unreadAlone.estimateUsd, unreadAlone.estimatePartial], [0, false], 'no subscription estimate: no "at least ~$0"');
 });
 
 // ── release audit S-1, D-1 ────────────────────────────────────────────────────────────────
@@ -157,4 +162,15 @@ test('DEC-0027: every limit reads in words — stopped work and breaches lead, a
   assert.deepEqual(limitHeadline(breached, en), { text: 'Over the limit: $6.00 of $5.00 · Daily · project demo (+7 more)', state: 'breach' });
   assert.equal(limitHeadline(breached, ru)!.text, 'Лимит превышен: $6.00 из $5.00 · В сутки · проект demo (ещё 7)');
   assert.equal(limitHeadline([], en), null, 'no limits: the page falls back to the older budget line');
+});
+
+test('FD-97 review: the estimate beside the money: unknown, at least (even at $0), exact, or nothing', async () => {
+  const { estimate, subscriptionCost } = await import('../src/renderer/components/Spend');
+  const { t: tr } = await import('../src/core/i18n');
+  const t = (k: string, p?: Record<string, string | number>) => tr('en', k, p);
+  assert.equal(estimate({ estimateUsd: null, estimatePartial: false, subscriptionCalls: 3 }, t), '+ subscription calls not priced');
+  assert.equal(estimate({ estimateUsd: 0, estimatePartial: true, subscriptionCalls: 3 }, t), '+ at least ~$0.00 on subscriptions', 'priced at $0, others unknown: a lower bound, never hidden');
+  assert.equal(estimate({ estimateUsd: 140.47, estimatePartial: false, subscriptionCalls: 4 }, t), '+ ~$140.47 on subscriptions');
+  assert.equal(estimate({ estimateUsd: 0, estimatePartial: false, subscriptionCalls: 0 }, t), '');
+  assert.equal(subscriptionCost({ estimateUsd: 0.004, estimatePartial: false }, t), '~<$0.01 subscription', 'one formatter for Spend and the agent\'s Health tab');
 });

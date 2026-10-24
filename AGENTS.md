@@ -19,7 +19,7 @@
 Fabric Dashboards: a macOS desktop app (Electron) that finds every local agent service speaking
 `fabric-service/0.1`, shows whether it is alive and what it did last, starts, stops and restarts
 it through launchd and opens each service's dashboard inside the app. Fabric's monitoring tool;
-also works on its own. The current version is 0.7.27 (`package.json`, `CHANGELOG.md`); the README
+also works on its own. The current version is 0.7.28 (`package.json`, `CHANGELOG.md`); the README
 *Quick start for a new teammate* is the path for a new user. Licence:
 `AGPL-3.0-only OR LicenseRef-PassionCode-Commercial` ([ADR-0007](docs/adr/0007-agpl-or-commercial.md)).
 
@@ -47,6 +47,7 @@ and arm64 and Linux x64 and arm64 (PL-08), with `FD_SKIP_LAUNCHD=1`.
 
 - [docs/HANDOFF.md](docs/HANDOFF.md) shows where each module stands, the next task and the checks
   that were run.
+- [docs/DOCMAP.md](docs/DOCMAP.md) says where each fact lives and what a change of each kind obliges.
 - Code: `packages/service-host/` — the npm workspace `@passioncode-ai/fabric-service-host`, the
   reading code built for Fabric to share, which Fabric does not import yet (descriptors, conflicts,
   launchd status, health, state precedence, service links; [its README](packages/service-host/README.md),
@@ -280,8 +281,7 @@ Routes that apply here (the global routing block says what each one owns):
 | Router | Answers | Setup here |
 |---|---|---|
 | `evidence-docs` | what proves it | nothing to seed |
-| `task-pipeline` | how the change reaches the repository | DOCMAP: missing (`/task-pipeline setup`) |
+| `task-pipeline` | how the change reaches the repository | DOCMAP: present |
 
-Remaining setup:
-- `/task-pipeline setup`: DOCMAP for `task-pipeline`, missing `docs/DOCMAP.md`
+Remaining setup: none.
 <!-- SSHLG:PROJECT:END -->

@@ -23,10 +23,14 @@ and the p50/p95 of wait and run time. Nothing showed a person whether an agent k
 3. **A Load tab, only where there is load.** The tab is on an agent's page when its well-known document carries the
    load key, valid or not. It reads on opening, on Refresh and every 60 s while open; a hidden window gets the last read
    of that agent and nothing is read (LC-08).
-4. **Limits are per context.** The tab compares a context's counts with the limits: "of N" only when the agent works in
-   one context, and a context at its limit marks the sum; a table lists every context when there are two or more.
-5. **What a person reads first:** running now and waiting, then done and failed over the last day (the windows that
-   started within 24 hours of `generatedAt`), then the limits, the latest measured wait and run times (a time under a
+4. **Limits are per agent and context; the counts are never set against them.** DEC-0104 sets the limits per
+   (agentRef, context), and a service's report sums every agent it hosts in a context, so a count may exceed a limit
+   with nothing wrong. The tab states the limits ("Each agent it hosts runs at most N at once in each context …") and
+   shows the counts, with no "of N" and no at-limit mark (amended 2026-10-24 by the FD-93 review; 0.7.26 compared a
+   context's counts with the limits). Waiting reads as work to watch, a failure as trouble; a table lists every context
+   when there are two or more, and with two or more the wait and run times are only in its rows.
+5. **What a person reads first:** running now and waiting, then done and failed over the last day (every window any part
+   of which lies in the 24 hours before `generatedAt`, so a daily window counts whole), then the limits, the latest measured wait and run times (a time under a
    second in ms), a bar per window (the last 24) and the contexts. A report older than two windows says its counts are
    of then. A time never measured reads "not measured" (FD-86: no bare dash).
 6. **Agents read the same thing.** MCP `load {service}` answers the tab's entry: `report` with the declaration and the
@@ -35,6 +39,19 @@ and the p50/p95 of wait and run time. Nothing showed a person whether an agent k
 7. **The reader is shared.** `@passioncode-ai/fabric-service-host/load` (0.7.0) holds the declaration check, the report
    check (schema, then FAC-SEM-132 as the contract's `loadRule`) and the sums, pure, run on the contract's 15 load
    fixtures; Fabric can take it as it is.
+
+## Amendment of 2026-10-24: the review (FD-100)
+
+Three blind readings of 0.7.26 found: limits compared per context though the contract sets them per agent and context
+(decision 4 above); the tab left an empty pane when the declaration went while it was open (a tab that leaves the list
+now falls back to Dashboard or Health); the schema read stricter than the contract's (a space for `T`, an offset
+without its colon, a leap second, an integer above 2^53 are admitted as the contract's validator admits them, and
+FAC-SEM-132 still compares times strictly); a daily window was dropped from "the last 24 h". Also decided: an invalid
+load declaration is a finding of the auditor (Connections page, MCP `audit`), like an invalid connections declaration;
+the Connections tab's "offers" stay the protocol's surfaces, and the load report is not listed there (it is an
+extension, shown on its own tab). The first read of an agent while the window is hidden stays allowed, as Spend's
+(AGENTS.md cadence table). Shared package 0.8.1. Tests: `packages/service-host/test/load.test.ts` *FD-93 review*,
+`test/audit.test.ts` *FD-93 review*, `test/e2e/load.test.ts` (the fallback step seen failing without its fix).
 
 ## Consequences
 

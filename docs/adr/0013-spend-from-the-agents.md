@@ -101,3 +101,9 @@ when no agent's subscription calls are priced, it is unknown. Before this an unp
 "~$0". `@passioncode-ai/fabric-service-host` 0.8.0 (`estimateUsd: number | null`, `estimatePartial`). Tests:
 `packages/service-host/test/usage.test.ts` *FD-97* (the contract's `usageSpend` cases through the host's sums, red
 before the change), `test/spend.test.ts` *sumSpend*, `test/e2e/spend.test.ts`.
+
+Reviewed 2026-10-24 (FD-100): an agent whose report could not be read makes a priced estimate a lower bound, as it makes
+the money one; a $0 estimate with unpriced subscription calls reads "+ at least ~$0.00" instead of nothing; the agent's
+Health tab formats a subscription model with Spend's own formatter; the note under the table shows only when a "~"
+amount is drawn. A subscription row with no calls and a cost, beside an agent whose estimate is unknown, can make the
+sum across agents smaller than the contract's `usageSpend` over all rows (still a lower bound; FD-101).
