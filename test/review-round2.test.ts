@@ -50,7 +50,8 @@ interface Opt {
   sessions?: (dir: string) => unknown;
   /** How long `recovery claim` takes to answer (Switchboard measured 12 to 15 s; scaled down). */
   claimMs?: number;
-  /** Switchboard grants a claim on a claimed stop again in capacity mode (recovery.rs `readiness`). */
+  /** Switchboard refuses a claim on a stop already claimed (recovery.rs: a claim needs a waiting stop); with this set the
+   *  fake grants it anyway, to prove that this app alone keeps a second claim of one stop from happening. */
   regrant?: boolean;
   settleMs?: number;
 }

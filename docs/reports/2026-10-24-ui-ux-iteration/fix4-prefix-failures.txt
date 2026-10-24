@@ -1,0 +1,18 @@
+FIX-4 (fix cycle 4 of 0.8.0's Sessions mode, the confirming round): test/review-round3.test.ts run on the packet's base
+a9ee1b6 (src/ as it was, the new test file in place) before any fix, `node --import tsx --test test/review-round3.test.ts`.
+All seven tests fail (tests 7, pass 0, fail 7). Local paths are replaced with <home> and <tmp>.
+
+- FIX-4 1: Continue on a declined stop does not label the running session with the account that hit the limit
+    AssertionError [ERR_ASSERTION]: the exhausted account is not the running session's | notDeepStrictEqual, actual: 'Work Max' | expected: 'Work Max'
+- FIX-4 2: a quit while a claim is still in flight finishes that stop as cancelled before the quit resolves
+    AssertionError [ERR_ASSERTION]: finishes before app.exit: [] | actual: false | expected: true
+- FIX-4 3: Continue on a declined stop another host claimed meanwhile never cancels that host's claim
+    AssertionError [ERR_ASSERTION]: no finish is sent for a stop another host holds | + actual - expected | + [ | +   'cancelled' | + ] | - [] | actual: 0: 'cancelled' | expected: (empty)
+- FIX-4 3: Continue on a declined stop whose conversation cannot be taken up is finished as cancelled, never resumed
+    AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal: | + actual - expected | [ | +   'resumed' | -   'cancelled' | ] | actual: 0: 'resumed' | expected: 0: 'cancelled'
+- FIX-4 4: a claimed stop whose own console already runs is finished, not left claimed
+    AssertionError [ERR_ASSERTION]: the claim is settled (finishes: []) | notStrictEqual, actual: 'claimed' | expected: 'claimed'
+- FIX-4 5: a waiting stop reads the account labels at most once per window, not on every pass
+    AssertionError [ERR_ASSERTION]: accounts list ran 3 times | actual: false | expected: true
+- FIX-4 5: a stop whose continue failed keeps the account it stopped on
+    AssertionError [ERR_ASSERTION]: {"id":"st:cc-5f151e9c-cc90-4fed-a01b-101c647f52ab-1","key":null,"folder":"<tmp>/fd-r3-riTKFZ/checkout","agent":"claude-code","account":null,"context":null,"origin":"limit","startedAt":1792877993174,"endedAt":null,"state":"needs-you-not-opened","reason":"resume-failed","actions":["dismiss"],"project":"checkout","group":"needs-you","contextName":null,"openedInTerminal":false,"expectedAt":null,"candidates":[],"resumable":false,"consoleEmpty":false,"at":1792877993174} | null !== 'Work Max' | actual: ~ | expected: 'Work Max'

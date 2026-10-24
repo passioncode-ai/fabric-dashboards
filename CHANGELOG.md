@@ -104,6 +104,14 @@ same words everywhere. The iteration's records are in
   loading line; a waiting session's page says when Switchboard tries it again, what you can do now, its folder and when
   it stopped, and no other session page leaves its body blank; Settings → Sessions keeps the page title in view when the
   section fits; a sidebar row's second line uses shorter words and wraps rather than cut "после сброса лимита".
+- **Sessions found in the confirming round** (fix cycle 4,
+  [fix4-prefix-failures.txt](docs/reports/2026-10-24-ui-ux-iteration/fix4-prefix-failures.txt)): continuing a limit stop
+  you declined no longer shows the new session on the account that ran out; a quit while Switchboard is still answering a
+  claim cancels that stop too, and a finish Switchboard refused is tried again at the quit; Continue on a declined stop
+  reads Switchboard again first, never cancels a stop another host claimed meanwhile, and records it as resumed only
+  when the conversation itself was taken up (a new session in the folder records it as cancelled); a stop whose own
+  console already runs is no longer left claimed; account names are read at most once every 30 s while stops wait, and
+  a stop whose continue failed keeps the account it stopped on.
 
 - **Spend adds agents up as the contract does** (FD-101, contract DEC-0110). The sum across agents is read over all their
   report rows at once: beside an agent whose calls carry no price, an agent with no metered calls makes the money unknown

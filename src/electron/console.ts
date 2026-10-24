@@ -133,7 +133,13 @@ export class ConsoleHost {
   /** F3 of FIX-2: the continues in flight, which a quit waits for, and the stops claimed and not finished yet, which a
    *  quit finishes as cancelled when their continue did not. */
   private readonly inFlight = new Set<Promise<unknown>>();
-  private readonly claimedOpen = new Map<string, { stop: SbStop; sb: string }>();
+  private readonly claimedOpen = new Map<string, { stop: SbStop; sb: string; outcome?: 'resumed' | 'cancelled' }>();
+  /** FIX-4 (F3 of the confirming round): stops whose `recovery claim` is on the wire now. A quit finishes them as cancelled
+   *  too (Switchboard takes `finish cancelled` on a waiting or a claimed stop), so a claim that lands after the app is
+   *  gone is refused, never left claimed. */
+  private readonly claiming = new Map<string, { stop: SbStop; sb: string }>();
+  /** FIX-4: the account labels a waiting stop is shown with, read at most once per BINDING_FRESH_MS. */
+  private accountLabels: { at: number; sb: string; value: Record<string, string> } | null = null;
   private quitting = false;
   // #region sessions-host — docs: docs/reports/2026-10-24-ui-ux-iteration/sessions-and-navigation.md#every-state-has-an-action
   /** FD-103: why a console session is ending, set just before it is stopped: the person, the idle close, or the app
@@ -476,7 +482,7 @@ export class ConsoleHost {
     const live = read && { dirs: [...read.dirs, ...this.manager.runningKeys().map((k) => this.handoverOf.get(k)?.dir ?? this.manager.snapshot(k).cwd).filter(Boolean)], args: read.args };
     // FD-103: Continue now on another account names its candidates, and a stop names the account it stopped on (V-1 of
     // FIX-2); their labels are read only when there are some.
-    const labels = pending.some((s) => s.candidates.length || s.account) ? (await accountsOf(this.run, inv.switchboard).catch(() => null))?.labels ?? {} : {};
+    const labels = pending.some((s) => s.candidates.length || s.account) ? await this.labelsOf(inv.switchboard, now) : {};
     const candidates = (s: SbStop) => s.candidates.map((id) => ({ id, label: labels[id] ?? id }));
     const accountOf = (s: SbStop) => (s.account ? labels[s.account] ?? null : null);
     const views: StopView[] = [];
@@ -497,6 +503,17 @@ export class ConsoleHost {
     return started;
   }
 
+  /** FIX-4: the account labels, from Switchboard at most once per BINDING_FRESH_MS while stops wait; a failed read is
+   *  not kept, so the next pass asks again. */
+  private async labelsOf(sb: string, now = Date.now()): Promise<Record<string, string>> {
+    const c = this.accountLabels;
+    if (c && c.sb === sb && now - c.at < BINDING_FRESH_MS && now >= c.at) return c.value;
+    const read = await accountsOf(this.run, sb).catch(() => null);
+    if (!read) return c?.value ?? {};
+    this.accountLabels = { at: now, sb, value: read.labels ?? {} };
+    return this.accountLabels.value;
+  }
+
   private setRecovery(next: RecoveryStatus): string[] {
     const before = JSON.stringify(this.recovery);
     this.recovery = next;
@@ -513,7 +530,7 @@ export class ConsoleHost {
   }
 
   /** F3 of FIX-2: what a quit still waits for: continues in flight and stops claimed and not finished. */
-  quitWork(): number { return this.inFlight.size + this.claimedOpen.size; }
+  quitWork(): number { return this.inFlight.size + this.claimedOpen.size + this.claiming.size; }
 
   /** F2, F3 of FIX-2: one stop is taken up by one path at a time; the promise is kept for the quit to wait on. */
   private track<T>(event: string, work: () => Promise<T>): Promise<T> {
@@ -525,9 +542,11 @@ export class ConsoleHost {
     return p;
   }
 
+  /** FIX-4: a finish Switchboard did not take keeps its entry, with the outcome meant, so the quit tries it once more. */
   private async finish(stop: SbStop, sb: string, outcome: 'resumed' | 'cancelled'): Promise<boolean> {
     const done = await finishStop(this.run, sb, stop, outcome).catch(() => false);
-    this.claimedOpen.delete(stop.event);
+    if (done) this.claimedOpen.delete(stop.event);
+    else this.claimedOpen.set(stop.event, { stop, sb, outcome });
     return done;
   }
 
@@ -542,8 +561,11 @@ export class ConsoleHost {
   private async resumeOnce(stop: SbStop, sb: string, dirs: string[], account: string, automatic: boolean): Promise<string | null> {
     const a = admit(await (this.o.machine ?? machineProbe)(stop.dir, this.manager.runningCount()));
     if (!a.ok) { this.o.log(`console: limit stop ${stop.event} waits (LC-17: ${a.why})`); return null; }
-    const view = (verdict: StopView['verdict'], key?: string): StopView => ({ event: stop.event, session: stop.session, dir: stop.dir, provider: stop.provider, stoppedAt: stop.stoppedAt, attempt: stop.attempt, verdict, key });
-    const claim = await claimStop(this.run, sb, stop, account);
+    // FIX-4: a stop this launch acted on keeps the account it stopped on (V-1 of FIX-2), from the labels last read.
+    const stoppedOn = stop.account ? this.accountLabels?.value[stop.account] ?? null : null;
+    const view = (verdict: StopView['verdict'], key?: string): StopView => ({ event: stop.event, session: stop.session, dir: stop.dir, provider: stop.provider, stoppedAt: stop.stoppedAt, attempt: stop.attempt, verdict, key, account: stoppedOn });
+    this.claiming.set(stop.event, { stop, sb });
+    const claim = await claimStop(this.run, sb, stop, account).finally(() => this.claiming.delete(stop.event));
     if (!claim.ok) {
       this.actedStops.set(stop.event, view('failed'));
       this.o.log(`console: limit stop ${stop.event} not claimed: ${claim.detail}`);
@@ -566,8 +588,10 @@ export class ConsoleHost {
     const label = stop.provider === 'codex' ? 'Codex' : 'Claude Code';
     const r = cli ? this.manager.start(key, { argv: [cli, ...resumeArgs(stop)], cwd: stop.dir, label, env: { PATH: dirs.join(path.delimiter) } }, { cols: 100, rows: 30 }) : { ok: false as const, error: `${stop.provider} is not installed here` };
     if (!r.ok && r.error === 'running') {
-      // F2 of FIX-2: its own console already runs it, so another path of this app continues it and settles it.
-      this.o.log(`console: limit stop ${stop.event} already runs in ${key}; left to the continue that started it`);
+      // FIX-4: its own console already runs (an earlier continue the person kept open); this claim starts nothing, so it
+      // is finished as cancelled rather than left claimed for nobody to settle.
+      await this.finish(stop, sb, 'cancelled');
+      this.o.log(`console: limit stop ${stop.event} already runs in ${key}; the claim is recorded as cancelled`);
       return null;
     }
     if (!r.ok) {
@@ -684,7 +708,10 @@ export class ConsoleHost {
     // and a stop still claimed after them is finished as cancelled, so none is left claimed by an app that is gone.
     const within = (ms: number, work: Promise<unknown>) => Promise.race([work, new Promise<void>((r) => setTimeout(r, ms).unref?.())]);
     if (this.inFlight.size) await within(QUIT_SETTLE_MS, Promise.allSettled([...this.inFlight]));
-    if (this.claimedOpen.size) await within(QUIT_FINISH_MS, Promise.allSettled([...this.claimedOpen.values()].map(({ stop, sb }) => this.finish(stop, sb, 'cancelled'))));
+    // FIX-4: a claim still on the wire is cancelled too, and a finish Switchboard refused earlier is tried once more with
+    // the outcome it meant.
+    const open = new Map<string, { stop: SbStop; sb: string; outcome?: 'resumed' | 'cancelled' }>([...this.claiming, ...this.claimedOpen]);
+    if (open.size) await within(QUIT_FINISH_MS, Promise.allSettled([...open.values()].map(({ stop, sb, outcome }) => this.finish(stop, sb, outcome ?? 'cancelled'))));
   }
 
   /** The person's Stop (the console's button, or End in the Sessions list). */
@@ -762,9 +789,12 @@ export class ConsoleHost {
     const home = this.o.home ?? os.homedir();
     const sessionId = record?.sessionId ?? (provider === 'claude' ? await this.quietTranscript(row) : null);
     const inv = await this.inventory();
-    const before = { id: key.slice('handover.'.length), workflow: row.project, agent: row.agent, account: row.account ?? '', dir: row.folder, offeredUntil: 0 };
+    // FIX-4: a limit stop's account is the one that ran out; the new session's account comes from Switchboard's in-place
+    // record of it (mergeSessions), never from the stop.
+    const before = { id: key.slice('handover.'.length), workflow: row.project, agent: row.agent, account: row.origin === 'limit' ? '' : (row.account ?? ''), dir: row.folder, offeredUntil: 0 };
     const resumed = row.origin === 'resume' || id.startsWith('st:');
-    if (sessionId && provider && transcriptOf({ session: sessionId, provider } as SbStop, home)) {
+    const tookUp = Boolean(sessionId && provider && transcriptOf({ session: sessionId, provider } as SbStop, home));
+    if (sessionId && provider && tookUp) {
       const cli = inv.dirs.map((d) => path.join(d, provider)).find((f) => { try { fs.accessSync(f, fs.constants.X_OK); return fs.statSync(f).isFile(); } catch { return false; } });
       if (!cli) return { ok: false, reason: 'no-runtime' };
       const a = admit(await (this.o.machine ?? machineProbe)(row.folder, this.manager.runningCount()));
@@ -782,7 +812,7 @@ export class ConsoleHost {
     }
     this.handoverOf.set(key, before);
     if (resumed) this.resumedKeys.add(key); else this.resumedKeys.delete(key);
-    if (id.startsWith('st:')) await this.undecline(id, key, inv.switchboard);
+    if (id.startsWith('st:')) await this.undecline(id, key, inv.switchboard, tookUp);
     else this.forgetRow(id);
     this.o.log(`console: session ${id} continued in ${key}${sessionId ? ' with its conversation' : ' as a new session'}`);
     this.o.changed?.();
@@ -821,24 +851,42 @@ export class ConsoleHost {
 
   /** R1-U2: the person's Continue on a declined stop is the one thing that undoes the decline: its record goes, and the
    *  stop counts as taken up by this launch, so its waiting row does not come back while the new session is the row.
-   *  F1 of FIX-2: the stop is settled in Switchboard too (claimed and finished as resumed when it is ready on an account,
-   *  else finished as cancelled), and held here for a day by a dismissal, so neither this launch nor the next one, nor
-   *  another host, continues the same conversation a second time. */
-  private async undecline(id: string, key: string, sb: string | null): Promise<void> {
+   *  F1 of FIX-2: the stop is settled in Switchboard too, and held here for a day by a dismissal, so neither this launch
+   *  nor the next one, nor another host, continues the same conversation a second time.
+   *  F1 of FIX-4: Switchboard is read once more before acting, and only a stop still waiting there is settled: one
+   *  another host claimed meanwhile is that host's to finish, never cancelled from here. It is recorded as resumed only
+   *  when the Continue took up its conversation (claimed on a ready candidate, then finished); a new session in the
+   *  folder is not the stopped conversation, so the stop is finished as cancelled. */
+  private async undecline(id: string, key: string, sb: string | null, tookUp: boolean): Promise<void> {
     this.remember((m) => {
       m.records = m.records.filter((r) => r.id !== id);
       m.dismissed = [...m.dismissed.filter((d) => d.id !== id), { id, at: Date.now() }];
     });
-    const stop = this.lastStops.get(id.slice(3));
-    if (!stop) return;
-    this.actedStops.set(stop.event, { event: stop.event, session: stop.session, dir: stop.dir, provider: stop.provider, stoppedAt: stop.stoppedAt, attempt: stop.attempt, verdict: 'resumed', key });
+    const last = this.lastStops.get(id.slice(3));
+    if (!last) return;
+    this.actedStops.set(last.event, { event: last.event, session: last.session, dir: last.dir, provider: last.provider, stoppedAt: last.stoppedAt, attempt: last.attempt, verdict: 'resumed', key });
     this.showActed();
-    if (!sb || stop.state !== 'waiting') return; // a stop another host claimed is that host's to finish
-    const account = stop.ready ? stop.candidates[0] : undefined;
-    const claimed = account ? (await claimStop(this.run, sb, stop, account).catch(() => ({ ok: false as const, detail: '' }))).ok : false;
-    if (claimed) this.claimedOpen.set(stop.event, { stop, sb });
-    const done = await this.finish(stop, sb, claimed ? 'resumed' : 'cancelled');
-    this.o.log(`console: declined limit stop ${stop.event} continued by the person; ${done ? `recorded as ${claimed ? 'resumed' : 'cancelled'} in Switchboard` : 'Switchboard could not be told; held here for a day'}`);
+    if (!sb) return;
+    const read = await recoveryOf(this.run, sb).catch(() => null);
+    const stop = read && 'stops' in read ? read.stops.find((s) => s.event === last.event) : undefined;
+    if (!stop || stop.state !== 'waiting') {
+      this.o.log(`console: declined limit stop ${last.event} continued by the person; ${stop ? 'claimed by another host, left to it' : read && 'stops' in read ? 'already finished in Switchboard' : 'Switchboard could not be read; held here for a day'}`);
+      return;
+    }
+    const account = tookUp && stop.ready ? stop.candidates[0] : undefined;
+    if (account) {
+      this.claiming.set(stop.event, { stop, sb });
+      const claim = await claimStop(this.run, sb, stop, account).catch(() => ({ ok: false as const, detail: '' })).finally(() => this.claiming.delete(stop.event));
+      if (!claim.ok) {
+        // The stop moved since the read (another host, or a capacity change): nothing is finished from here.
+        this.o.log(`console: declined limit stop ${stop.event} continued by the person; not claimed (${claim.detail || 'refused'}), held here for a day`);
+        return;
+      }
+      this.claimedOpen.set(stop.event, { stop, sb });
+    }
+    const outcome = account ? 'resumed' : 'cancelled';
+    const done = await this.finish(stop, sb, outcome);
+    this.o.log(`console: declined limit stop ${stop.event} continued by the person; ${done ? `recorded as ${outcome} in Switchboard` : 'Switchboard could not be told; held here for a day'}`);
   }
 
   /** R1-U4: the Claude Code conversation a row without a known session id may take up: the one transcript written while
