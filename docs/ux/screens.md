@@ -65,7 +65,7 @@
   | page error | the page does not load, or explicit refresh returns an HTTP error | — | "The page of <Service> could not load: <reason>" + Retry |
   | crashed | the page crashed twice | — | "The page stopped." + Reload |
   | restarted | a new pid | — | "The service restarted." + Reload above the page |
-  | load | the agent declares `extensions/load/0.1` (SCN-076) | — | Load tab: running, waiting, done and failed in 24 h, the limits, times, a bar per window, a row per context; a tab that leaves the list falls back to Dashboard or Health |
+  | load | the agent declares `extensions/load/0.1` (SCN-076) | none | Load tab: running, waiting, done and failed in 24 h, the limits, times, a bar per window, a row per context; a tab that leaves the list falls back to Dashboard or Health |
 - **Coverage:** src/renderer/components/ServiceView.tsx, src/electron/views.ts
 - **Scenarios:** SCN-004, SCN-007, SCN-008, SCN-009, SCN-010, SCN-011, SCN-012, SCN-013, SCN-014, SCN-015, SCN-016, SCN-021, SCN-025, SCN-026, SCN-027, SCN-029, SCN-031, SCN-032, SCN-034, SCN-039, SCN-040, SCN-045, SCN-046
 - **Status:** built
@@ -135,7 +135,7 @@
   | empty | no agent reports or fails to report | — | "No agent reports its spend yet" with what an agent must publish |
   | success | reports read | — | totals and table |
   | partial | an unpriced call or an unreadable agent | — | «≥» amounts and the note |
-  | subscription | calls on the operator's own subscription (FD-88, FD-97) | — | beside the money: "+ ~$x on subscriptions", "+ at least ~$x" when some are unpriced or an agent was unreadable, "+ subscription calls not priced" when none is priced; never in the sums |
+  | subscription | calls on the operator's own subscription (FD-88, FD-97) | none | beside the money: "+ ~$x on subscriptions", "+ at least ~$x" when some are unpriced or an agent was unreadable, "+ subscription calls not priced" when none is priced; never in the sums |
   | error | an agent's report could not be read | — | "Could not read" with the reason in the window's language |
 - **Coverage:** src/renderer/components/Spend.tsx, src/core/spend.ts
 - **Scenarios:** SCN-036, SCN-037, SCN-038, SCN-041
