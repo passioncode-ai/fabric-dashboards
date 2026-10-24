@@ -23,7 +23,7 @@ import { detectRuntimes, KNOWN_RUNTIMES, readLoginPath, searchDirs, specsFromSwi
 import type { SettingsStore } from '../core/settings';
 import { accountsOf, allSessionsOf, bindingFor, canLaunchInPlace, findSwitchboard, handoverOwnKey, handoverRunArgv, handoversOf, handoversSwitch, isHandoverKey, managesProvider, sessionsIn, terminalLaunchArgv, type Binding, type SbHandover, type SbSessions } from '../core/switchboard';
 import type { ServiceSnapshot } from '../core/types';
-import { claimStop, finishStop, liveAgents, recoveryOf, resumeArgs, resumeOwnKey, transcriptIn, transcriptOf, verdictOf, writtenAt, RESUME_SETTLE_MS, RESUMES_PER_PASS, type RecoveryStatus, type SbStop, type StopView } from '../core/recovery';
+import { claimStop, finishStop, liveAgents, recoveryOf, resumeArgs, resumeOwnKey, sessionOpen, transcriptIn, transcriptOf, verdictOf, writtenAt, RESUME_SETTLE_MS, RESUMES_PER_PASS, type RecoveryStatus, type SbStop, type StopView } from '../core/recovery';
 import { consoleRowId, handoverRowId, mergeSessions, pruneDismissed, pruneRecords, SourceReader, stopRowId, type ConsoleInput, type PendingHandover, type SbSessionRecord, type SessionActionResult, type SessionReason, type SessionRecord, type SessionNotice, type SessionRow, type SessionsStatus, type SourceDegraded } from '../core/sessions';
 
 /** node-pty 1.1.0 ships its macOS `spawn-helper` without the executable bit, and its postinstall
@@ -123,8 +123,9 @@ export class ConsoleHost {
   private readonly actedStops = new Map<string, StopView>();
   private recovery: RecoveryStatus = { on: true, stops: [], resumed: 0 };
   // #region sessions-host — docs: docs/reports/2026-10-24-ui-ux-iteration/sessions-and-navigation.md#every-state-has-an-action
-  /** FD-103: why a console session is ending, set just before it is stopped: the person, or the idle close. */
-  private readonly endReasons = new Map<string, 'you' | 'idle'>();
+  /** FD-103: why a console session is ending, set just before it is stopped: the person, the idle close, or the app
+   *  quitting (R1-S4). */
+  private readonly endReasons = new Map<string, 'you' | 'idle' | 'quit'>();
   /** FD-103: consoles running a session continued after a limit that did not take up its conversation (FD-84). */
   private readonly failedResumes = new Set<string>();
   /** FD-103: the coding agent's own session id of a console that continues a known session, for Continue later. */
@@ -134,6 +135,9 @@ export class ConsoleHost {
   private pending: PendingHandover[] | null = null;
   private handoversEnabled: boolean | null = null;
   private handoverDegraded: SourceDegraded | null = null;
+  /** R1-U6: an unreadable recovery since its first failure, like the hand-overs' (a status that changes every tick is
+   *  pushed every tick). */
+  private recoveryDegraded: SourceDegraded | null = null;
   private switchboardPresent = false;
   private readonly sbSessions = new SourceReader<SbSessionRecord[]>('sessions', async () => {
     const inv = await this.inventory();
@@ -331,6 +335,9 @@ export class ConsoleHost {
     const r = this.manager.start(key, { argv: plan.argv, cwd: plan.cwd, label: runtime.name, env: { PATH: inv.dirs.join(path.delimiter), ...(pack?.env ?? {}) } }, size);
     if (!r.ok) return { ok: false, reason: r.error === 'running' ? 'running' : 'spawn', detail: r.error };
     this.handoverOf.delete(key); // FD-62: this console now runs the person's own session
+    // R1-C: Continue in the console takes up its last session, so that session's ended row leaves the Sessions list, as
+    // Continue in the list clears the console's idle mark (SCN-066, SCN-084).
+    if (mode === 'continue') this.forgetLatestEnded(key);
     // Remember what was started, so the panel offers it next time.
     this.o.settings.update({ consoles: { [key]: { runtime: runtime.id, folder: folder.source === 'saved' ? folder.path : this.o.settings.get().consoles[key]?.folder ?? null, idle: null } } });
     this.o.log(`console: ${key} started ${runtime.id} (${mode}) in ${folder.path}${plan.argv[0] === inv.switchboard ? ' through Switchboard' : ''}${pack ? ` with its context${task ? ` and a ${task.kind} task` : ''}` : ''}`);
@@ -404,7 +411,7 @@ export class ConsoleHost {
     // the same folder, so one session lives in one place and the agent's console stays the person's.
     const key = handoverOwnKey(h.id);
     const a = admit(await (this.o.machine ?? machineProbe)(h.dir, this.manager.runningCount()));
-    if (!a.ok) { this.o.log(`console: hand-over ${h.id} left to Terminal (LC-17: ${a.why})`); this.notOpened(h, 'busy'); return null; }
+    if (!a.ok) { this.o.log(`console: hand-over ${h.id} left to Terminal (LC-17: ${a.why})`); this.notOpened(h, `busy-${a.why}`); return null; } // R1-B: the cause found
     const r = this.manager.start(key, { argv: handoverRunArgv(sb, h.id), cwd: h.dir, label: h.agent || 'agent', env: { PATH: dirs.join(path.delimiter) } }, { cols: 100, rows: 30 });
     if (!r.ok) { this.o.log(`console: hand-over ${h.id} not taken in ${key}: ${r.error}`); this.notOpened(h, 'not-started'); return null; }
     this.handoverOf.set(key, h);
@@ -437,10 +444,15 @@ export class ConsoleHost {
     const r = await recoveryOf(this.run, inv.switchboard);
     if ('unavailable' in r) {
       if (this.recovery.unavailable !== r.unavailable) this.o.log(`console: limit stops cannot be read (${r.unavailable}): ${r.detail}`);
+      this.recoveryDegraded = { source: 'recovery', reason: r.unavailable, detail: r.detail.slice(0, 300), since: this.recoveryDegraded?.since ?? now };
       return this.setRecovery({ on, unavailable: r.unavailable, stops: [...this.actedStops.values()], resumed: this.recovery.resumed });
     }
     if (this.recovery.unavailable && this.recovery.unavailable !== 'absent') this.o.log('console: limit stops can be read again'); // FD-85, as FD-69 for hand-overs
-    const held = new Set(this.memory().records.filter((r) => r.end === 'declined').map((r) => r.id));
+    this.recoveryDegraded = null;
+    // FD-103 (decision 2): a stop the person declined, or removed from the list, is never continued here; the decline
+    // outlives its row (Remove and Clear keep the record, hidden), and only the person's Continue undoes it (R1-U2).
+    const m = this.memory();
+    const held = new Set([...m.records.filter((x) => x.end === 'declined').map((x) => x.id), ...m.dismissed.filter((d) => d.id.startsWith('st:')).map((d) => d.id)]);
     this.lastStops.clear();
     for (const s of r.stops) this.lastStops.set(s.event, s);
     const pending = r.stops.filter((s) => s.state !== 'resumed' && !this.actedStops.has(s.event));
@@ -454,13 +466,13 @@ export class ConsoleHost {
       const verdict = verdictOf(s, live, now, isDir, (x) => transcriptOf(x, this.o.home ?? os.homedir()));
       // FD-103 (decision 2): a stop the person declined is never continued by this app.
       if (verdict === 'resume' && on && due.length < RESUMES_PER_PASS && !held.has(stopRowId(s.event))) { due.push(s); continue; }
-      views.push({ event: s.event, session: s.session, dir: s.dir, provider: s.provider, stoppedAt: s.stoppedAt, attempt: s.attempt, verdict, candidates: candidates(s) });
+      views.push({ event: s.event, session: s.session, dir: s.dir, provider: s.provider, stoppedAt: s.stoppedAt, attempt: s.attempt, verdict, candidates: candidates(s), probeAt: s.probeAt });
     }
     const started: string[] = [];
     for (const s of due) {
       const key = await this.resume(s, inv.switchboard, inv.dirs, s.candidates[0]!, true);
       if (key) started.push(key);
-      else if (!this.actedStops.has(s.event)) views.push({ event: s.event, session: s.session, dir: s.dir, provider: s.provider, stoppedAt: s.stoppedAt, attempt: s.attempt, verdict: 'resume', candidates: candidates(s) });
+      else if (!this.actedStops.has(s.event)) views.push({ event: s.event, session: s.session, dir: s.dir, provider: s.provider, stoppedAt: s.stoppedAt, attempt: s.attempt, verdict: 'resume', candidates: candidates(s), probeAt: s.probeAt });
     }
     this.setRecovery({ on, stops: [...this.actedStops.values(), ...views], resumed: this.recovery.resumed + started.length });
     return started;
@@ -586,6 +598,7 @@ export class ConsoleHost {
     const h = this.handoverOf.get(key);
     const resumed = this.resumedKeys.has(key);
     const known = this.sessionIds.get(key);
+    this.sessionIds.delete(key); // R1-U5: it belonged to this session; a new one on the key has its own or none
     this.failedResumes.delete(key);
     if (snap.startedAt === null) return;
     const now = Date.now();
@@ -598,6 +611,13 @@ export class ConsoleHost {
       origin: h ? (resumed ? 'resume' : 'handover') : 'here', end, reason: null, startedAt: snap.startedAt, endedAt: now,
       sessionId: known?.sessionId ?? null, provider: known?.provider ?? providerOf(h?.agent ?? snap.label), handoverId: h && !resumed ? h.id : null,
     });
+  }
+
+  /** R1-S4: the app quits: every running console ends, each recorded as closed when the app quit (not as ended by
+   *  itself); resolves once each has exited or been killed (LC-02). */
+  async endAllForQuit(): Promise<void> {
+    for (const key of this.manager.runningKeys()) this.endReasons.set(key, 'quit');
+    await this.manager.stopAll();
   }
 
   /** The person's Stop (the console's button, or End in the Sessions list). */
@@ -631,8 +651,7 @@ export class ConsoleHost {
       now, switchboard: this.sbSessions.value ?? (this.switchboardPresent ? null : []), pending: this.pending,
       stops: this.recovery.stops, consoles, records: m.records, dismissed: m.dismissed,
     });
-    const degraded = [this.sbSessions.degraded, this.handoverDegraded, this.recovery.unavailable && this.recovery.unavailable !== 'absent'
-      ? { source: 'recovery' as const, reason: this.recovery.unavailable, detail: '', since: now } : null].filter((d): d is SourceDegraded => d !== null);
+    const degraded = [this.sbSessions.degraded, this.handoverDegraded, this.recoveryDegraded].filter((d): d is SourceDegraded => d !== null);
     return { rows, degraded, switchboard: this.switchboardPresent, handovers: { enabled: this.handoversEnabled }, autoContinue: this.o.settings.get().resumeAfterLimit !== false };
   }
 
@@ -662,7 +681,7 @@ export class ConsoleHost {
       ? row.key : `handover.cs-${crypto.createHash('sha256').update(id).digest('hex').slice(0, 12)}`;
     const provider = record?.provider ?? providerOf(row.agent);
     const home = this.o.home ?? os.homedir();
-    const sessionId = record?.sessionId ?? (provider === 'claude' ? transcriptIn(row.folder, home, row.startedAt, row.endedAt ?? Date.now()) : null);
+    const sessionId = record?.sessionId ?? (provider === 'claude' ? await this.quietTranscript(row) : null);
     const inv = await this.inventory();
     const before = { id: key.slice('handover.'.length), workflow: row.project, agent: row.agent, account: row.account ?? '', dir: row.folder, offeredUntil: 0 };
     const resumed = row.origin === 'resume';
@@ -676,6 +695,7 @@ export class ConsoleHost {
       if (!r.ok) return { ok: false, reason: r.error === 'running' ? 'running' : 'spawn', detail: r.error };
       this.sessionIds.set(key, { sessionId, provider });
     } else {
+      this.sessionIds.delete(key); // R1-U5: a new session on this key takes up no earlier conversation
       const runtime = provider === 'codex' ? 'codex' : provider === 'claude' ? 'claude-code' : (inv.runtimes.find((x) => x.id === row.agent || x.name === row.agent)?.id ?? null);
       this.o.settings.update({ consoles: { [key]: { runtime, folder: row.folder } } });
       const r = await this.start(key, 'new', size);
@@ -683,7 +703,8 @@ export class ConsoleHost {
     }
     this.handoverOf.set(key, before);
     if (resumed) this.resumedKeys.add(key); else this.resumedKeys.delete(key);
-    this.forgetRow(id);
+    if (id.startsWith('st:')) this.undecline(id, key);
+    else this.forgetRow(id);
     this.o.log(`console: session ${id} continued in ${key}${sessionId ? ' with its conversation' : ' as a new session'}`);
     this.o.changed?.();
     return { ok: true, key };
@@ -702,13 +723,42 @@ export class ConsoleHost {
     return { ok: true, key };
   }
 
-  /** A row continued, dismissed or cleared: its record goes, and a row a source still reports (Switchboard's sessions,
-   *  hand-overs and stops; everything but this app's own consoles) is also held back for 24 hours. */
+  /** A row continued, dismissed or cleared leaves the list for 24 hours by a dismissal. Its record stays, hidden: an
+   *  ended console's record still claims the Switchboard record of the same session, which would otherwise come back as
+   *  a row of its own (R1-U1), and a declined stop stays declined (R1-U2). */
   private forgetRow(id: string): void {
+    this.remember((m) => { m.dismissed = [...m.dismissed.filter((d) => d.id !== id), { id, at: Date.now() }]; });
+  }
+
+  /** R1-C: the ended row of `key`'s last session, which a Continue in its console takes up, leaves the list. */
+  private forgetLatestEnded(key: string): void {
+    const m = this.memory();
+    const hidden = new Set(m.dismissed.map((d) => d.id));
+    const last = m.records.filter((r) => r.key === key && r.end !== 'not-opened' && r.end !== 'declined').sort((a, b) => b.endedAt - a.endedAt)[0];
+    if (last && !hidden.has(last.id)) this.forgetRow(last.id);
+  }
+
+  /** R1-U2: the person's Continue on a declined stop is the one thing that undoes the decline: its record goes, and the
+   *  stop counts as taken up by this launch, so its waiting row does not come back while the new session is the row. */
+  private undecline(id: string, key: string): void {
     this.remember((m) => {
       m.records = m.records.filter((r) => r.id !== id);
-      if (!id.startsWith('c:')) m.dismissed = [...m.dismissed.filter((d) => d.id !== id), { id, at: Date.now() }];
+      m.dismissed = m.dismissed.filter((d) => d.id !== id);
     });
+    const stop = this.lastStops.get(id.slice(3));
+    if (stop) this.actedStops.set(stop.event, { event: stop.event, session: stop.session, dir: stop.dir, provider: stop.provider, stoppedAt: stop.stoppedAt, attempt: stop.attempt, verdict: 'resumed', key });
+  }
+
+  /** R1-U4: the Claude Code conversation a row without a known session id may take up: the one transcript written while
+   *  it ran, but never one written in the last minute or one a live agent may hold (a row with no end may still run). */
+  private async quietTranscript(row: SessionRow): Promise<string | null> {
+    const home = this.o.home ?? os.homedir();
+    const now = Date.now();
+    if (row.endedAt !== null) return transcriptIn(row.folder, home, row.startedAt, row.endedAt);
+    const id = transcriptIn(row.folder, home, row.startedAt, now, now - 60_000);
+    if (!id) return null;
+    const live = await liveAgents(this.run).catch(() => null);
+    return live && !sessionOpen({ session: id, dir: row.folder } as SbStop, live) ? id : null;
   }
 
   /** FD-103: Remove (an ended row, a hand-over that did not open, a stop this app does not continue) and Do not

@@ -6,7 +6,7 @@ import type { AppStatus } from '../../core/types';
 import type { SessionActionResult, SessionRow } from '../../core/sessions';
 import { agentName, contextChip, continueLabel, groupRows, originChip, revealLabel, secondLine, stateShort, stateWords } from '../../core/sessions-view';
 import { api, useT } from '../lib';
-import { SESSION_MARK } from './Navigation';
+import { SESSION_MARK, SessionMark } from './Navigation';
 
 type T = (key: string, params?: Record<string, string | number>) => string;
 
@@ -25,7 +25,8 @@ export function shortPath(p: string): string {
 export function failText(t: T, r: Extract<SessionActionResult, { ok: false }>, o: { action: 'end' | 'reveal' | 'continue' | 'dismiss'; folder: string }): string {
   if (o.action === 'end') return t('sessions.endFailed', { reason: r.detail ?? r.reason });
   if (o.action === 'reveal') return r.reason === 'no-folder' ? t('sessions.reason.no-folder') : t('sessions.revealFailed', { path: o.folder, reason: r.detail ?? r.reason });
-  if (r.reason === 'admission') return t('sessions.reason.busy');
+  // R1-B: the refusal says the cause the check found (disk, six sessions, swap).
+  if (r.reason === 'admission') return t(r.detail === 'disk' || r.detail === 'cap' || r.detail === 'swap' ? `sessions.reason.busy-${r.detail}` : 'sessions.reason.busy');
   if (r.reason === 'no-folder') return t('sessions.reason.no-folder');
   return t('sessions.reason.resume-failed');
 }
@@ -123,7 +124,7 @@ function SessionCard({ row, autoContinue, ...actions }: Omit<ActionsProps, 'plac
         <h3><button className="linkish session-title" onClick={() => actions.open(row.id)}>{row.project}</button></h3>
         <p className="meta session-sub">{secondLine(lang, row)}</p>
       </div>
-      <p className={`session-state state ${mark.cls}`}><span className="glyph" aria-hidden="true">{mark.glyph}</span><span className="session-state-text">{stateWords(lang, row, { autoContinue })}</span></p>
+      <p className={`session-state state ${mark.cls}`}><SessionMark group={row.group} /><span className="session-state-text">{stateWords(lang, row, { autoContinue })}</span></p>
       <SessionActions row={row} place="card" {...actions} />
     </li>
   );
@@ -198,7 +199,7 @@ export function SessionHeader({ row, autoContinue, open, askEnd, continued, onMe
     <header className="session-head" data-drawer-top="">
       <div className="session-bar">
         <h1 id="session-title" tabIndex={-1}>{row.project}</h1>
-        <span className={`state ${mark.cls}`}><span className="glyph" aria-hidden="true">{mark.glyph}</span>{long ? stateShort(lang, row) : stateWords(lang, row)}</span>
+        <span className={`state ${mark.cls}`}><SessionMark group={row.group} />{long ? stateShort(lang, row) : stateWords(lang, row)}</span>
         <span className="spacer" />
         <SessionActions row={row} place="page" open={open} askEnd={askEnd} continued={continued} onMenu={onMenu} />
       </div>

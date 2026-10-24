@@ -2,7 +2,9 @@
 // terminology.md, locales/ru.md), which inherits the PassionCode.ai pack of the Fabric repository by a pinned
 // commit. Specific, one builder to another; Russian uses «вы» or a neutral form; product names are never
 // translated; no em dash; a Russian count follows its label. A key ending in `.mac` is the macOS wording of the
-// key before it (COPY-23): `t` picks it on macOS, the plain key everywhere else.
+// key before it (COPY-23): `t` picks it on macOS, the plain key everywhere else; a key ending in `.windows` is the
+// Windows wording, picked there (R1-A: the window Switchboard opens is Terminal on macOS, PowerShell on Windows, the
+// desktop's own terminal on Linux).
 import { machineRu } from './machine-ru';
 
 export type Lang = 'en' | 'ru';
@@ -277,6 +279,7 @@ const en = {
   'sessions.group.running': 'Running: {n}',
   'sessions.group.waiting': 'Waiting for a limit reset: {n}',
   'sessions.group.ended': 'Ended in the last 24 hours: {n}',
+  'sessions.navGroup.ended': 'Ended: {n}',
   'sessions.short.needs-you': 'Needs you',
   'sessions.short.waiting': 'Waiting for a limit reset',
   'sessions.clear': 'Clear',
@@ -305,15 +308,20 @@ const en = {
   'sessions.context.personal': 'Context: personal',
   'sessions.context.org': 'Context: {organization}',
   'sessions.keys': 'To leave the terminal, press Esc, then Tab.',
-  'sessions.inTerminal': 'This session runs in a Terminal window that Switchboard opened. Type to it there.',
+  'sessions.inTerminal': 'This session runs in a terminal window that Switchboard opened. Type to it there.',
+  'sessions.inTerminal.mac': 'This session runs in a Terminal window that Switchboard opened. Type to it there.',
+  'sessions.inTerminal.windows': 'This session runs in a PowerShell window that Switchboard opened. Type to it there.',
   'sessions.notKept': 'What this session printed is not kept after the app restarts.',
   'sessions.state.running-ours': 'Running',
-  'sessions.state.running-terminal': 'Running in Terminal',
+  'sessions.state.running-terminal': 'Running in a terminal window',
+  'sessions.state.running-terminal.mac': 'Running in Terminal',
+  'sessions.state.running-terminal.windows': 'Running in a PowerShell window',
   'sessions.state.needs-you-resume-failed': 'Did not continue; its process is still running',
   'sessions.state.idle-closed': 'Closed after 30 idle minutes',
   'sessions.state.ended-by-you': 'Ended by you',
   'sessions.state.ended': 'Ended at {time}',
   'sessions.state.declined': 'Not continued: you declined',
+  'sessions.state.quit': 'Closed when the app quit',
   'sessions.state.waitingAt': 'Continues at about {time}',
   'sessions.state.waiting': 'Waits for an account with capacity.',
   'sessions.state.autoOff': 'Continuing by itself is off in Settings, so continue it yourself.',
@@ -322,6 +330,11 @@ const en = {
   'sessions.reason.no-folder.mac': 'Its folder is not on this Mac.',
   'sessions.reason.busy': 'This computer cannot carry another session now: less than 5 GB is free or six sessions already run.',
   'sessions.reason.busy.mac': 'This Mac cannot carry another session now: less than 5 GB is free or six sessions already run.',
+  'sessions.reason.busy-disk': 'This computer cannot carry another session now: less than 5 GB is free on its disk.',
+  'sessions.reason.busy-disk.mac': 'This Mac cannot carry another session now: less than 5 GB is free on its disk.',
+  'sessions.reason.busy-cap': 'This computer cannot carry another session now: six console sessions already run.',
+  'sessions.reason.busy-cap.mac': 'This Mac cannot carry another session now: six console sessions already run.',
+  'sessions.reason.busy-swap': 'This computer cannot carry another session now: the system has run out of swap.',
   'sessions.reason.switchboard-old': 'The running Switchboard is older than its command line, so the session was not taken here. Update Switchboard.',
   'sessions.reason.not-started': 'The session could not start here; see the log.',
   'sessions.reason.no-transcript': 'Its conversation is not in your Claude Code or Codex home, so it cannot be continued here.',
@@ -329,7 +342,9 @@ const en = {
   'sessions.reason.old': 'Stopped more than a day ago: open it yourself if the task is still open.',
   'sessions.reason.billing': 'Stopped on a payment limit: a top-up is needed.',
   'sessions.reason.open': 'Its terminal is still open: type "continue" there.',
-  'sessions.openedInTerminal': 'Switchboard opened it in Terminal.',
+  'sessions.openedInTerminal': 'Switchboard opened it in a terminal window.',
+  'sessions.openedInTerminal.mac': 'Switchboard opened it in Terminal.',
+  'sessions.openedInTerminal.windows': 'Switchboard opened it in a PowerShell window.',
   'sessions.end': 'End',
   'sessions.reveal': 'Show folder',
   'sessions.reveal.mac': 'Show in Finder',
@@ -355,7 +370,9 @@ const en = {
   'tray.sessions.waiting': 'Sessions: need you {waiting}',
   'settings.sessions': 'Sessions',
   'settings.handovers': 'Open sessions handed over by Switchboard here',
-  'settings.handovers.body': 'When a session hits a limit, Switchboard passes it to another account or coding agent. On: it continues here, in a console. Off: Switchboard opens it in a new Terminal window. The setting is Switchboard\'s; it is changed here through Switchboard.',
+  'settings.handovers.body': 'When a session hits a limit, Switchboard passes it to another account or coding agent. On: it continues here, in a console. Off: Switchboard opens it in a new terminal window. The setting is Switchboard\'s; it is changed here through Switchboard.',
+  'settings.handovers.body.mac': 'When a session hits a limit, Switchboard passes it to another account or coding agent. On: it continues here, in a console. Off: Switchboard opens it in a new Terminal window. The setting is Switchboard\'s; it is changed here through Switchboard.',
+  'settings.handovers.body.windows': 'When a session hits a limit, Switchboard passes it to another account or coding agent. On: it continues here, in a console. Off: Switchboard opens it in a new PowerShell window. The setting is Switchboard\'s; it is changed here through Switchboard.',
   'settings.handovers.absent': 'Install Fabric Switchboard to have sessions handed over here.',
   'settings.handovers.old': 'This Switchboard cannot change this setting; update Switchboard.',
   'settings.handovers.refused': 'Switchboard did not change it: {reason}',
@@ -1056,6 +1073,7 @@ const ru: Record<Key, string> = {
   'sessions.group.running': 'Идут: {n}',
   'sessions.group.waiting': 'Ждут сброса лимита: {n}',
   'sessions.group.ended': 'Завершены за 24 часа: {n}',
+  'sessions.navGroup.ended': 'Завершены: {n}',
   'sessions.short.needs-you': 'Нужно ваше решение',
   'sessions.short.waiting': 'Ждёт сброса лимита',
   'sessions.clear': 'Очистить',
@@ -1084,15 +1102,20 @@ const ru: Record<Key, string> = {
   'sessions.context.personal': 'Контекст: личный',
   'sessions.context.org': 'Контекст: {organization}',
   'sessions.keys': 'Чтобы выйти из терминала, нажмите Esc, затем Tab.',
-  'sessions.inTerminal': 'Эта сессия идёт в окне Терминала, которое открыл Switchboard. Пишите ей там.',
+  'sessions.inTerminal': 'Эта сессия идёт в окне терминала, которое открыл Switchboard. Пишите ей там.',
+  'sessions.inTerminal.mac': 'Эта сессия идёт в окне Терминала, которое открыл Switchboard. Пишите ей там.',
+  'sessions.inTerminal.windows': 'Эта сессия идёт в окне PowerShell, которое открыл Switchboard. Пишите ей там.',
   'sessions.notKept': 'То, что вывела эта сессия, не сохраняется после перезапуска приложения.',
   'sessions.state.running-ours': 'Идёт',
-  'sessions.state.running-terminal': 'Идёт в Терминале',
+  'sessions.state.running-terminal': 'Идёт в окне терминала',
+  'sessions.state.running-terminal.mac': 'Идёт в Терминале',
+  'sessions.state.running-terminal.windows': 'Идёт в окне PowerShell',
   'sessions.state.needs-you-resume-failed': 'Не продолжилась, процесс ещё идёт',
   'sessions.state.idle-closed': 'Закрыта после 30 минут простоя',
   'sessions.state.ended-by-you': 'Завершена вами',
   'sessions.state.ended': 'Завершилась в {time}',
   'sessions.state.declined': 'Не продолжена: вы отказались',
+  'sessions.state.quit': 'Закрыта при выходе из приложения',
   'sessions.state.waitingAt': 'Продолжится около {time}',
   'sessions.state.waiting': 'Ждёт аккаунт с запасом.',
   'sessions.state.autoOff': 'Автоматическое продолжение выключено в настройках, поэтому продолжите её сами.',
@@ -1101,6 +1124,11 @@ const ru: Record<Key, string> = {
   'sessions.reason.no-folder.mac': 'Её папки нет на этом Mac.',
   'sessions.reason.busy': 'Этот компьютер сейчас не может принять ещё одну сессию: свободно меньше 5 ГБ или уже идут шесть сессий.',
   'sessions.reason.busy.mac': 'Этот Mac сейчас не может принять ещё одну сессию: свободно меньше 5 ГБ или уже идут шесть сессий.',
+  'sessions.reason.busy-disk': 'Этот компьютер сейчас не может принять ещё одну сессию: на её диске свободно меньше 5 ГБ.',
+  'sessions.reason.busy-disk.mac': 'Этот Mac сейчас не может принять ещё одну сессию: на её диске свободно меньше 5 ГБ.',
+  'sessions.reason.busy-cap': 'Этот компьютер сейчас не может принять ещё одну сессию: уже идут шесть консольных сессий.',
+  'sessions.reason.busy-cap.mac': 'Этот Mac сейчас не может принять ещё одну сессию: уже идут шесть консольных сессий.',
+  'sessions.reason.busy-swap': 'Этот компьютер сейчас не может принять ещё одну сессию: в системе кончилась память подкачки.',
   'sessions.reason.switchboard-old': 'Запущенный Switchboard старше своей командной строки, поэтому сессию здесь не взяли. Обновите Switchboard.',
   'sessions.reason.not-started': 'Сессия не смогла запуститься здесь, подробности в журнале.',
   'sessions.reason.no-transcript': 'Её диалога нет в вашей папке Claude Code или Codex, поэтому продолжить здесь нельзя.',
@@ -1108,7 +1136,9 @@ const ru: Record<Key, string> = {
   'sessions.reason.old': 'Остановлена больше суток назад: откройте сами, если задача ещё не закончена.',
   'sessions.reason.billing': 'Остановлена денежным лимитом: нужно пополнение.',
   'sessions.reason.open': 'Её терминал ещё открыт: напишите там «продолжай».',
-  'sessions.openedInTerminal': 'Switchboard открыл её в Терминале.',
+  'sessions.openedInTerminal': 'Switchboard открыл её в окне терминала.',
+  'sessions.openedInTerminal.mac': 'Switchboard открыл её в Терминале.',
+  'sessions.openedInTerminal.windows': 'Switchboard открыл её в окне PowerShell.',
   'sessions.end': 'Завершить',
   'sessions.reveal': 'Показать папку',
   'sessions.reveal.mac': 'Показать в Finder',
@@ -1134,7 +1164,9 @@ const ru: Record<Key, string> = {
   'tray.sessions.waiting': 'Сессии: нужно ваше решение {waiting}',
   'settings.sessions': 'Сессии',
   'settings.handovers': 'Открывать сессии, переданные Switchboard, здесь',
-  'settings.handovers.body': 'Когда сессия упирается в лимит, Switchboard передаёт её другому аккаунту или агенту для кода. Включено: она продолжается здесь, в консоли. Выключено: Switchboard открывает её в новом окне Терминала. Настройка принадлежит Switchboard, здесь она меняется через него.',
+  'settings.handovers.body': 'Когда сессия упирается в лимит, Switchboard передаёт её другому аккаунту или агенту для кода. Включено: она продолжается здесь, в консоли. Выключено: Switchboard открывает её в новом окне терминала. Настройка принадлежит Switchboard, здесь она меняется через него.',
+  'settings.handovers.body.mac': 'Когда сессия упирается в лимит, Switchboard передаёт её другому аккаунту или агенту для кода. Включено: она продолжается здесь, в консоли. Выключено: Switchboard открывает её в новом окне Терминала. Настройка принадлежит Switchboard, здесь она меняется через него.',
+  'settings.handovers.body.windows': 'Когда сессия упирается в лимит, Switchboard передаёт её другому аккаунту или агенту для кода. Включено: она продолжается здесь, в консоли. Выключено: Switchboard открывает её в новом окне PowerShell. Настройка принадлежит Switchboard, здесь она меняется через него.',
   'settings.handovers.absent': 'Чтобы сессии передавались сюда, установите Fabric Switchboard.',
   'settings.handovers.old': 'Эта версия Switchboard не умеет менять эту настройку; обновите Switchboard.',
   'settings.handovers.refused': 'Switchboard не изменил настройку: {reason}',
@@ -1579,15 +1611,16 @@ export function chooseLang(chosen: string | undefined, system: string | undefine
 /** Parameters that carry a machine-written sentence (FD-19): read in Russian in a Russian interface. */
 const MACHINE_PARAMS = new Set(['problem', 'detail', 'error', 'reason', 'text']);
 
-/** COPY-23: whose words the strings use: "this Mac" and System Settings on macOS, "this computer" elsewhere. The
- *  main process and the MCP server read `process.platform`; a renderer, which has no `process`, its user agent. */
-export type Wording = 'mac' | 'other';
+/** COPY-23: whose words the strings use: "this Mac" and System Settings on macOS, "this computer" elsewhere; a few
+ *  strings also have Windows words (`.windows`, R1-A). The main process and the MCP server read `process.platform`; a
+ *  renderer, which has no `process`, its user agent. */
+export type Wording = 'mac' | 'windows' | 'other';
 
 function detectWording(): Wording {
   const g = globalThis as { process?: { platform?: unknown }; navigator?: { userAgent?: unknown } };
-  if (typeof g.process?.platform === 'string') return g.process.platform === 'darwin' ? 'mac' : 'other';
+  if (typeof g.process?.platform === 'string') return g.process.platform === 'darwin' ? 'mac' : g.process.platform === 'win32' ? 'windows' : 'other';
   const ua = g.navigator?.userAgent;
-  return typeof ua === 'string' && /Macintosh|Mac OS X/.test(ua) ? 'mac' : 'other';
+  return typeof ua === 'string' && /Macintosh|Mac OS X/.test(ua) ? 'mac' : typeof ua === 'string' && /Windows/.test(ua) ? 'windows' : 'other';
 }
 
 let wording: Wording = detectWording();
@@ -1601,8 +1634,9 @@ export function setWording(next: Wording): Wording {
 
 export function t(lang: Lang, key: Key | string, params: Record<string, string | number> = {}): string {
   const dict = dictionaries[lang];
-  const mac = wording === 'mac' ? ((dict[`${key}.mac` as Key] ?? en[`${key}.mac` as Key]) as string | undefined) : undefined;
-  const template = mac ?? dict[key as Key] ?? en[key as Key] ?? key;
+  const variant = wording === 'other' ? undefined : `${key}.${wording}`;
+  const own = variant ? ((dict[variant as Key] ?? en[variant as Key]) as string | undefined) : undefined;
+  const template = own ?? dict[key as Key] ?? en[key as Key] ?? key;
   return template.replace(/\{(\w+)\}/g, (_, name: string) => {
     if (!(name in params)) return `{${name}}`;
     const value = String(params[name]);

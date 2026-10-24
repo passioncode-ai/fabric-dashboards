@@ -171,6 +171,15 @@ function mergeSessionMemory(raw: unknown): Settings['sessions'] {
   };
 }
 
+/** Review R-4, R1-S1: what the window's generic settings change may write. A console's runtime and folder are set only
+ *  through the console's own calls (a folder only from the folder dialog), and the Sessions list's memory only by the
+ *  main process: a session record names a folder Continue starts a coding agent in. */
+export function rendererSettingsPatch(raw: unknown): SettingsPatch {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
+  const { consoles: _consoles, sessions: _sessions, ...patch } = raw as SettingsPatch & Record<string, unknown>;
+  return patch as SettingsPatch;
+}
+
 export function merge(raw: Partial<Settings>): Settings {
   const n = raw.notifications ?? DEFAULT_SETTINGS.notifications;
   return {

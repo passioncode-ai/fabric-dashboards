@@ -484,10 +484,10 @@ export async function limitStops(deps: Deps, now = deps.now()): Promise<{ availa
   const run = deps.cli ?? execRunner;
   const r = await recoveryOf(run, sb);
   if ('unavailable' in r) return { available: false, why: r.unavailable === 'old' ? 'this Switchboard cannot list stopped sessions yet' : r.detail, stops: [] };
-  const pending = r.stops.filter((s) => s.state !== 'resumed');
+  const pending = r.stops; // parseRecovery keeps only open stops (R1-S2): a cancelled one is never "waiting"
   const live = pending.some((s) => s.ready) ? await liveAgents(run, deps.platform).catch(() => null) : null;
   const exists = (dir: string) => { try { return fs.statSync(dir).isDirectory(); } catch { return false; } };
-  return { available: true, stops: pending.map((s) => ({ event: s.event, session: s.session, dir: s.dir, provider: s.provider, stoppedAt: s.stoppedAt, attempt: s.attempt, verdict: verdictOf(s, live, now, exists, (x) => transcriptOf(x, deps.home ?? os.homedir())) })) };
+  return { available: true, stops: pending.map((s) => ({ event: s.event, session: s.session, dir: s.dir, provider: s.provider, stoppedAt: s.stoppedAt, attempt: s.attempt, probeAt: s.probeAt, verdict: verdictOf(s, live, now, exists, (x) => transcriptOf(x, deps.home ?? os.homedir())) })) };
 }
 // #endregion limit-recovery
 

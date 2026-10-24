@@ -209,7 +209,7 @@
 ### SCR-12: Sidebar, Sessions mode
 - **Used by:** SCN-077, SCN-078, SCN-082, SCN-083, SCN-084
 - **Purpose:** ST-023: every coding session in one list apart from the agents, grouped by what it needs
-- **Elements:** the mode switch with "Sessions" selected (SCR-08); "All sessions"; the groups in this order, an empty one not drawn, each heading with its count after its label: "Needs you: N", "Running: N", "Waiting for a limit reset: N", "Ended in the last 24 hours: N" (folded by default, the fold remembered); one row per session: line 1 the project (folder name), line 2 "<coding agent> · <account> · <handed over | after a limit reset | started by Switchboard | opened here> · <time>"; Settings and Collapse sidebar at the foot as in the Agents mode
+- **Elements:** the mode switch with "Sessions" selected (SCR-08); "All sessions"; the groups in this order, an empty one not drawn, each heading with its count after its label: "Needs you: N", "Running: N", "Waiting for a limit reset: N", "Ended in the last 24 hours: N" (folded by default, the fold remembered); one row per session: line 1 the project (folder name) with the time right-aligned beside it, never cut, line 2 "<account> · <handed over | after a limit reset | started by Switchboard | opened here>", led by the coding agent when it is not Claude Code (R1-V1); the ended heading reads "Ended: N" here (R1-V3); a waiting row's mark is a clock (R1-V2); Settings and Collapse sidebar at the foot as in the Agents mode
 - **States:**
   | State | Trigger | Figma frame | Behavior |
   |-------|---------|-------------|----------|

@@ -33,7 +33,7 @@ import { readLoad, type LoadEntry } from '../core/load';
 import { NotifyLedger, shouldNotify } from '../core/notify';
 import { OutageAlerts } from './outage-alerts';
 import { powerShellAfterExit } from '../core/after-exit';
-import { SettingsStore } from '../core/settings';
+import { rendererSettingsPatch, SettingsStore } from '../core/settings';
 import type { AppStatus, Settings, SettingsPatch } from '../core/types';
 import { ALWAYS_KEPT, cancelStagedUpdate, clearRestoreRecord, KEPT_FILES, productDataPaths, purgeAfterExit, readRestoreRecord, removeMcpRegistrations, repairMcpRegistrations, restoreMcpRegistrations, writeRestoreRecord } from '../core/uninstall';
 import { autoInstallNow, autoInstallWait, cookieRewrite, onScreen, COOKIES_REENCRYPTED_MARKER, HiddenGrace, partitionFor, RELAUNCH_MARKER, relaunchHidden, RESUME_ROUTE_MARKER, resumeRoute, type ResumeRoute, stalePartitions, UPDATE_IDLE_MS, VIEW_RELEASE_ALL_MS, VIEW_RELEASE_GRACE_MS, VISIBILITY_SYNC_MS, VisibilitySync, WARM_VIEWS } from './policy';
@@ -722,9 +722,9 @@ if (!app.requestSingleInstanceLock()) {
     });
     // #endregion setup-check
     ipcMain.handle(CHANNELS.settingsUpdate, (_e, raw: SettingsPatch) => {
-      // Review R-4: a console's runtime and folder are set only through the console's own calls (a
-      // folder only from the folder dialog), never through a generic settings change.
-      const { consoles: _ignored, ...patch } = (raw && typeof raw === 'object' ? raw : {}) as SettingsPatch;
+      // Review R-4, R1-S1: a console's runtime and folder, and the Sessions list's records, are never written through a
+      // generic settings change.
+      const patch = rendererSettingsPatch(raw);
       // Choosing launch at login — on the first-run card or in Settings — is the one moment it is registered (LC-07).
       const choosing = 'launchAtLogin' in patch;
       const before = settings.get().autoUpdate;
@@ -922,7 +922,7 @@ if (!app.requestSingleInstanceLock()) {
     if ((ownedCount() > 0 || consoles.manager.runningCount() > 0) && !killing) {
       killing = true;
       event.preventDefault();
-      void Promise.allSettled([killOwned(300), consoles.manager.stopAll()]).finally(() => app.exit(0));
+      void Promise.allSettled([killOwned(300), consoles.endAllForQuit()]).finally(() => app.exit(0)); // R1-S4: closed when the app quit
     }
   });
 

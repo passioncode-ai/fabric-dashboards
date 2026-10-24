@@ -7,7 +7,7 @@ import { FitAddon } from '@xterm/addon-fit';
 import '@xterm/xterm/css/xterm.css';
 import type { ConsoleInfo, ConsoleSessions, ConsoleStartResult, ConsoleTask } from '../../core/api';
 import { CONSOLE_HEIGHT } from '../../core/types';
-import { terminalKey } from '../../core/sessions-view';
+import { pageExitLine, terminalKey } from '../../core/sessions-view';
 import { api, Icon, Spinner, useT } from '../lib';
 
 interface Props {
@@ -44,7 +44,7 @@ function shortPath(p: string): string {
 }
 
 export function ConsolePanel({ serviceKey, height, maxHeight, onHeight, onDrag, onHide, task, onTaskTaken, page = false, onFocusOut }: Props) {
-  const { t } = useT();
+  const { t, lang } = useT();
   const host = useRef<HTMLDivElement>(null);
   const term = useRef<Terminal | null>(null);
   const fit = useRef<FitAddon | null>(null);
@@ -243,13 +243,14 @@ export function ConsolePanel({ serviceKey, height, maxHeight, onHeight, onDrag, 
   const handover = info?.handover ?? null;
 
   if (page) {
-    const exited = info?.session.state === 'exited';
+    // R1-V4: the page's header says how the session ended; the strip adds only an unclean exit's code.
+    const exitLine = info ? pageExitLine(lang, info.session, Boolean(info.idle)) : null;
     return (
       <section className="console-drawer console-page" aria-label={t('console.title')}>
         {!info && <p className="console-state muted row" role="status"><Spinner /> {t('console.loading')}</p>}
         {info?.session.state === 'idle' && <p className="console-state muted">{t('sessions.notKept')}</p>}
         {notice && <div className="console-state notice error" role="alert"><p>{notice.text}</p></div>}
-        {exited && <p className="console-line console-exit-line meta" role="status">{info!.session.signal ? t('console.stopped') : info!.session.exitCode === null ? t('console.ended') : t('console.exited', { code: info!.session.exitCode })}</p>}
+        {exitLine && <p className="console-line console-exit-line meta" role="status">{exitLine}</p>}
         <div className="console-term" ref={host} onClick={() => term.current?.focus()} />
         <p className={`console-line console-keys meta${termFocus ? '' : ' quiet'}`} aria-hidden={!termFocus}>{t('sessions.keys')}</p>
       </section>

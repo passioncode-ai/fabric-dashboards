@@ -1,7 +1,7 @@
 // Renders the vendored Dashboards mark into build/icon.icns on the macOS icon
 // grid (an 824 px body on a 1024 px canvas, as Fabric Inbox does), build/icon.ico
 // (Windows) and build/icon.png (Linux), and draws the tray images: macOS templates
-// and the Windows/Linux colour set (FD-37) — calm, degraded, problem.
+// and the Windows/Linux colour set (FD-37) — calm, degraded, attention, problem.
 // Run: npm run icon
 import sharp from 'sharp';
 import { execFileSync } from 'node:child_process';
@@ -62,11 +62,13 @@ try {
 
 // Menu bar: black shapes on transparent, marked as template images so macOS
 // tints them for light and dark bars. The state is the SHAPE, not a colour:
-// calm = four panels; degraded = one panel replaced by a triangle; problem = a filled dot.
+// calm = four panels; degraded = one panel replaced by a triangle; attention = a filled diamond (a coding session
+// needs the person: a call to act, not a fault; R1-P1); problem = a filled dot.
 const panel = (x, y, filled) => `<rect x="${x}" y="${y}" width="6" height="6" rx="1.5" ${filled ? 'fill="#000"' : 'fill="none" stroke="#000" stroke-width="1.6"'}/>`;
 const variants = {
   tray: panel(2, 2, false) + panel(10, 2, true) + panel(2, 10, false) + panel(10, 10, false),
   trayDegraded: panel(2, 2, false) + panel(10, 2, true) + panel(2, 10, false) + '<path d="M13 9.5 L16.5 16 H9.5 Z" fill="#000"/>',
+  trayAttention: panel(2, 2, false) + panel(10, 2, true) + panel(2, 10, false) + '<path d="M13 8.6 L17.4 13 L13 17.4 L8.6 13 Z" fill="#000"/>',
   trayProblem: panel(2, 2, false) + panel(10, 2, true) + panel(2, 10, false) + '<circle cx="13" cy="13" r="3.6" fill="#000"/>',
 };
 // macOS picks the 2x tray image by this suffix.
@@ -77,13 +79,14 @@ for (const [name, body] of Object.entries(variants)) {
   await sharp(doc, { density: 144 }).resize(36, 36).png().toFile(path.join(root, `build/assets/${name}Template${RETINA}.png`));
 }
 // FD-37 — Windows and Linux panels: the same shapes, white with a dark outline so they read on a light
-// or dark taskbar, and the state also as a colour (amber triangle, red dot). Windows picks @2x at 200 %.
+// or dark taskbar, and the state also as a colour (amber triangle, blue diamond, red dot). Windows picks @2x at 200 %.
 const outline = 'stroke="#1b1720" stroke-width="1.2" paint-order="stroke"';
 const colourPanel = (x, y, filled) => `<rect x="${x}" y="${y}" width="6" height="6" rx="1.5" fill="${filled ? '#ffffff' : '#ffffff55'}" ${outline}/>`;
 const base = colourPanel(1, 1, false) + colourPanel(9, 1, true) + colourPanel(1, 9, false);
 const colour = {
   'tray-ok': base + colourPanel(9, 9, false),
   'tray-degraded': base + `<path d="M12 8.5 L15.5 15 H8.5 Z" fill="#f5b72a" ${outline}/>`,
+  'tray-attention': base + `<path d="M12 7.8 L16.2 12 L12 16.2 L7.8 12 Z" fill="#6f9bff" ${outline}/>`,
   'tray-problem': base + `<circle cx="12" cy="12" r="3.6" fill="#ef4444" ${outline}/>`,
 };
 for (const [name, body] of Object.entries(colour)) {
