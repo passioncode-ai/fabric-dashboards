@@ -118,11 +118,12 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **Entry point:** first launch; services directory empty or absent
 - **Preconditions:** none
 - **Steps:**
-  1. User opens the app -> system shows Overview with an empty state: "No services yet", one sentence on how a service joins (its installer writes a descriptor), and the services folder path
-  2. User chooses "Show folder" -> system reveals the folder in Finder, creating it first if absent
-- **Expected result:** the operator knows the app works and what makes a service appear
+  1. User opens the app -> system shows Overview with an empty state: "No agents yet", "Agents appear here once they are installed. Set up Fabric with your coding agent, or install an agent that supports Fabric.", and the services folder path (COPY-13)
+  2. User chooses "Set up with my coding agent" -> the Setup console opens beside Overview (SCN-058)
+  3. User chooses "Show the services folder" instead -> system reveals the folder in Finder, creating it first if absent
+- **Expected result:** the operator knows the app works and what makes an agent appear
 - **Alt paths:** a descriptor appears later -> SCN-003
-- **UI elements:** empty state, "Show folder" button, "How a service joins" (opens the fabric-agent-adapter guide in the browser)
+- **UI elements:** empty state, "Set up with my coding agent" (primary), "Show the services folder", "How to build an agent for Fabric" (opens the fabric-agent-adapter guide in the browser)
 - **States covered:** empty
 - **Errors & recovery:** Finder cannot open the folder -> "Could not open <path>: <reason>" below the buttons
 - **Status:** validated
@@ -211,7 +212,7 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **Preconditions:** the service is managed by launchd
 - **Steps:**
   1. User chooses Restart -> the header and the Needs attention row show "Restarting…", the state reads Starting, and Restart, Stop, Update and Doctor are disabled; a second click is refused ("<Service> is busy with another action…")
-  2. System asks launchd to restart the job and probes until the service answers as itself with a new pid -> state becomes Ready (or Degraded with reasons); Activity gains "<Service> restarted (pid 5542)"
+  2. System asks launchd to restart the job and probes until the service answers as itself with a new pid -> state becomes Ready (or Partly working with reasons); Activity gains "<Service> restarted (pid 5542)"
 - **Expected result:** the service answers again, started by launchd, and the result is stated
 - **Alt paths:** the job was not loaded -> system enables and loads it first, then waits; the page of the restarted service offers "The service restarted." with Reload
 - **UI elements:** Restart button, progress label, state badge, Activity row
@@ -522,12 +523,12 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **Entry point:** app running
 - **Preconditions:** a newer signed release is published; the app is in Applications
 - **Steps:**
-  1. System checks 90 s after start and every 6 hours, downloads the release's zip once and verifies it (its SHA256SUMS signed by the organization's key, the zip's hash, the app's signature by team KJ35UYYL22 and its version), then hands the verified file itself to Squirrel through a local feed -> the sidebar footer and Settings → Updates show "Update <version> ready" with Restart to Update
+  1. System checks 90 s after start and every 6 hours, downloads the release's zip once and verifies it (its SHA256SUMS signed by the organization's key, the zip's hash, the app's signature by team KJ35UYYL22 and its version), then hands the verified file itself to Squirrel through a local feed -> the sidebar footer and Settings → Updates show "Update <version> ready" with Restart to update
   2. User closes the window and leaves it closed for ten minutes -> the app installs the update and reopens in the menu bar, with no window and no question; services are untouched
   3. User opens the window later -> it is the new version, on the Overview
 - **Expected result:** every copy stays current with no action from the person
-- **Alt paths:** user chooses Restart to Update while an agent's console or a command runs -> the app names them and asks; Cancel keeps everything running, Restart to Update stops them and installs; user chooses Restart to Update -> a notification says the app reopens by itself and it installs now, and the new copy opens on the screen the person left — the agent's page, Activity, Spend or Settings (FD-21 U-18); the app is opened (by the person, a link or an agent) while the update installs -> it says «Finishing the update to <version> — reopens by itself», steps aside, and reopens when the install has finished; the window stays open -> nothing installs under the person's eyes, and it installs at the next quit or the next ten closed minutes; a doctor or update command is running -> the install waits for it, checked every minute; "Install updates automatically" is off in Settings → Updates -> nothing is checked, downloaded or installed on its own, and Check for updates still works (LC-16; the choice is kept in a file no update, reinstall or uninstall rewrites); the release needs a step from the person -> it is verified but held: "Update <version> is verified and waits for you" with What to do (opens the release's steps) and Install; Settings → Updates → Check now checks at once; the feed names a version that is not newer than the installed one -> nothing installs (F-1); the disk has too little room to unpack the update -> Settings → Updates says "not enough free space to unpack the update: N GB free, about M GB needed", and a failed unpack says the tool's own words and the free space, never only that it failed; the next check tries again (FD-79); the window is shown while an update is ready -> the log says the install waits for the window, and a window of a hidden app (⌘H, or hidden by another program) counts as not shown, so the ten minutes start (FD-80); on Linux from an AppImage -> the same checks, then the new AppImage replaces this one and Restart to Update (or ten hidden minutes) starts it (FD-37 M4b); on Linux from a .deb -> Settings → Updates says a newer .deb from the releases page updates it, and nothing is checked; on Windows, installed by the installer -> the same checks, then Restart to Update (or ten hidden minutes) runs the verified installer silently in update mode, which installs in place and starts the app again (FD-37 M4c); on Windows without the installer's uninstaller beside the app -> Settings → Updates says this copy was not set up by the installer and where the newer version is
-- **UI elements:** footer update line, Restart to Update button, held line with What to do and Install, Settings → Updates (Install updates automatically, state line, Check now), "Check for updates" in the app menu
+- **Alt paths:** user chooses Restart to update while an agent's console or a command runs -> the app names them and asks; Cancel keeps everything running, Restart to update stops them and installs; user chooses Restart to update -> a notification says the app reopens by itself and it installs now, and the new copy opens on the screen the person left — the agent's page, Activity, Spend or Settings (FD-21 U-18); the app is opened (by the person, a link or an agent) while the update installs -> it says «Finishing the update to <version> — reopens by itself», steps aside, and reopens when the install has finished; the window stays open -> nothing installs under the person's eyes, and it installs at the next quit or the next ten closed minutes; a doctor or update command is running -> the install waits for it, checked every minute; "Install updates automatically" is off in Settings → Updates -> nothing is checked, downloaded or installed on its own, and Check for updates still works (LC-16; the choice is kept in a file no update, reinstall or uninstall rewrites); the release needs a step from the person -> it is verified but held: "Update <version> is verified and waits for you" with What to do (opens the release's steps) and Install; Settings → Updates → Check now checks at once; the feed names a version that is not newer than the installed one -> nothing installs (F-1); the disk has too little room to unpack the update -> Settings → Updates says "not enough free space to unpack the update: N GB free, about M GB needed", and a failed unpack says the tool's own words and the free space, never only that it failed; the next check tries again (FD-79); the window is shown while an update is ready -> the log says the install waits for the window, and a window of a hidden app (⌘H, or hidden by another program) counts as not shown, so the ten minutes start (FD-80); on Linux from an AppImage -> the same checks, then the new AppImage replaces this one and Restart to update (or ten hidden minutes) starts it (FD-37 M4b); on Linux from a .deb -> Settings → Updates says a newer .deb from the releases page updates it, and nothing is checked; on Windows, installed by the installer -> the same checks, then Restart to update (or ten hidden minutes) runs the verified installer silently in update mode, which installs in place and starts the app again (FD-37 M4c); on Windows without the installer's uninstaller beside the app -> Settings → Updates says this copy was not set up by the installer and where the newer version is
+- **UI elements:** footer update line, Restart to update button, held line with What to do and Install, Settings → Updates (Install updates automatically, state line, Check now), "Check for updates" in the app menu
 - **States covered:** loading, success, error
 - **Errors & recovery:** download or signature check fails -> footer "Update failed: <reason>" with Retry, one automatic retry within the hour, and the running app is unchanged; the bundle Squirrel staged is not the verified one -> it is removed before any quit and the footer says so; every step is logged with the organization's update codes (ADR-0015 amendment)
 - **Status:** validated
@@ -943,7 +944,7 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **Entry point:** Overview
 - **Preconditions:** services are installed; some publish a usage report
 - **Steps:**
-  1. User opens Overview -> a strip of five cells: agents ready out of all agents, instances not answering or in conflict (two copies, wrong program and invalid included), need attention, spent today, spent in 30 days; the spend is read on arrival and every minute while Overview shows, and labels take two lines before an ellipsis
+  1. User opens Overview -> a strip of five cells, each a label over its number (COPY-04): Ready (agents ready out of all agents), instances not answering or in conflict (two copies, wrong program and invalid included), need attention, spent today, spent in 30 days; the spend is read on arrival and every minute while Overview shows, and labels take two lines before an ellipsis
   2. User clicks a spend cell -> Spend opens (SCN-036)
 - **Expected result:** the state of the whole estate and its cost is read before any card
 - **Alt paths:** no agent reports or fails to report spend -> the spend cells read "—" and do nothing; while the first read runs -> a spinner; some calls unpriced -> «≥ $x»; everything unpriced -> "unknown"; under a cent -> "<$0.01"; an agent failed to report -> the cells open Spend, where it is listed
@@ -1041,17 +1042,17 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **Feature:** console
 - **Traces:** ST-019 (JTBD-05, JRN-01/#8); ADR-0017
 - **Entry point:** an agent's console that runs nothing yet
-- **Preconditions:** at least one runtime (Claude Code, Codex or another known one) is installed
+- **Preconditions:** at least one coding agent (Claude Code, Codex or another known one) is installed
 - **Steps:**
-  1. User opens the console -> it shows the runtime (the last one used for this agent, else Claude Code, else the first one found), the folder found for this agent (its repository's local checkout) with "Other…", and one compact row: "New session" and "Continue last" on the left, the Open in Terminal icon on the right (FD-74)
-  2. User presses "New session" -> the runtime's own interface starts in that folder, in the console; the user types to it as in any terminal, and its permission questions appear there
-  3. User presses "Continue last" -> the runtime resumes its last conversation in that folder (`claude --continue`, `codex resume --last`)
-  4. The runtime exits -> the console says "Exited (code 0)" with "New session" and "Continue last" again
-- **Expected result:** the runtime the user chose runs in the agent's repository, with their settings and skills, one press from the dashboard
-- **Alt paths:** "Other…" -> a folder dialog; the choice is remembered for this agent; the user picks another runtime -> remembered for this agent; the red cross -> the runtime ends after a confirmation and the console folds (SCN-048) if it is still running; "Open in Terminal" -> the same runtime continues in that folder in Terminal
-- **UI elements:** runtime picker, folder line with "Other…", "New session", "Continue last", the red cross (SCN-048), "Open in Terminal", terminal, exit line
+  1. User opens the console -> it shows the coding agent (the last one used for this agent, else Claude Code, else the first one found), the folder found for this agent (its repository's local checkout) with "Other…", and one compact row: "New session" and "Continue last session" on the left, the Open in Terminal icon on the right (FD-74)
+  2. User presses "New session" -> the coding agent's own interface starts in that folder, in the console; the user types to it as in any terminal, and its permission questions appear there
+  3. User presses "Continue last session" -> the coding agent resumes its last conversation in that folder (`claude --continue`, `codex resume --last`)
+  4. The coding agent exits -> the console says "The session exited with code 0." with "New session" and "Continue last session" again
+- **Expected result:** the coding agent the user chose runs in the agent's repository, with their settings and skills, one press from the dashboard
+- **Alt paths:** "Other…" -> a folder dialog; the choice is remembered for this agent; the user picks another coding agent -> remembered for this agent; the red cross -> the coding agent ends after a confirmation and the console folds (SCN-048) if it is still running; "Open in Terminal" -> the same coding agent continues in that folder in Terminal
+- **UI elements:** coding agent picker, folder line with "Other…", "New session", "Continue last session", the red cross (SCN-048), "Open in Terminal", terminal, exit line
 - **States covered:** empty, loading, success, error
-- **Errors & recovery:** no runtime installed -> "No supported runtime is installed" with the list it looks for; no repository found -> "Choose the folder this agent's code lives in" with "Choose folder…"; the folder no longer exists -> the same; the runtime cannot start -> its own error in the console, and "New session" again; a runtime with no resume flag -> "Continue last" is not offered
+- **Errors & recovery:** no coding agent installed -> "No supported coding agent is installed" with the list it looks for; no repository found -> "Choose the folder this agent's code lives in" with "Choose folder…"; the folder no longer exists -> the same; the coding agent cannot start -> its own error in the console, and "New session" again; a coding agent with no resume flag -> "Continue last session" is not offered
 - **Status:** validated
 - **Coverage:** src/core/runtimes.ts, src/core/repofind.ts, src/core/consoles.ts, src/electron/console.ts, src/renderer/components/ConsolePanel.tsx, test/console.test.ts, test/e2e/focus-console.test.ts
 - **Product:** unobserved
@@ -1082,7 +1083,7 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **Entry point:** an agent's console that runs nothing yet
 - **Preconditions:** a runtime is installed and the folder exists
 - **Steps:**
-  1. User presses "New session" or "Continue last" -> the app checks the disk the folder is on (at least 5 GB free), the swap, and how many console sessions run (at most six at once)
+  1. User presses "New session" or "Continue last session" -> the app checks the disk the folder is on (at least 5 GB free), the swap, and how many console sessions run (at most six at once)
   2. The Mac has room -> the session starts as in SCN-049
 - **Expected result:** a session never starts only to make the Mac and its neighbours fail
 - **Alt paths:** less than 5 GB free -> "Not started: only <n> GB is free on this disk, and a session needs 5 GB. Free some space, then start again."; six sessions already run -> "Not started: 6 console sessions already run, the most this Mac carries at once. Stop one, then start again."; Linux swap is nearly exhausted -> "Not started: the system has run out of swap…" (macOS grows its swap while the disk has room, so the disk check covers it)
@@ -1211,7 +1212,7 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **Entry point:** the sidebar and Overview
 - **Preconditions:** at least one agent
 - **Steps:**
-  1. User opens the app -> the sidebar lists Pinned, then "On this Mac", "Online" and "Services", each sorted by the chosen sort; Overview shows the same three groups of cards
+  1. User opens the app -> the sidebar lists Pinned, then "On this Mac" ("On this computer" on Windows and Linux, COPY-23), "Online" and "Services", each sorted by the chosen sort; Overview shows the same three groups of cards
   2. User opens an agent's row menu and chooses "Show as a service" -> it moves to Services at once, in the sidebar and on Overview; "Show as an agent" moves it back
   3. User restarts the app -> every choice is as it was
 - **Expected result:** the agents the person works with are not mixed with the services that keep them running
@@ -1269,14 +1270,14 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **Entry point:** sidebar → Connections (its count is what does not work)
 - **Preconditions:** at least one agent
 - **Steps:**
-  1. User opens Connections -> one line: "Does not work: N · Works in part: N · Waits for you: N · Updates: N" (only the ones above zero), or "The auditor found nothing to fix."; below it "Agents that declare their connections: X of Y."
+  1. User opens Connections -> one line: "Does not work: N · Partly working: N · Waits for you: N · Updates: N" (only the ones above zero), or "The auditor found nothing to fix."; below it "Agents that declare their connections: X of Y."
   2. User reads the Map -> each agent a box with its state as a shape and a colour, calls drawn left to right, the worse state of the call and the agent reached on each line; an agent named but not installed is a dashed box "not installed here"; agents with no line are under "Not connected"
   3. User reads the Auditor -> one row per agent to fix, worst first: its name, its key and each finding in a sentence ("google-ads fails: quota exhausted", "It relies on Relay, which does not answer.", "Version 2.0.0 is available.")
-  4. User picks the coding agent in "Start in" (the one chosen for that agent, Claude Code by default) and presses "Fix with agent" -> the agent's page opens with its console, the chosen runtime starts in the agent's folder with the findings as its task
+  4. User picks the coding agent in "Coding agent" (the one chosen for that agent, Claude Code by default) and presses "Fix with coding agent" -> the agent's page opens with its console, the chosen coding agent starts in the agent's folder with the findings as its task
   5. User clicks an agent's name or box -> its page opens on its Connections tab
 - **Expected result:** every problem in the estate in one place, where each comes from, and one click to hand it to a coding agent
 - **Alt paths:** no agent declares a connection to another -> "No agent declares a connection to another agent yet, so there is no line to draw." with how to declare one; a row whose only findings are about an agent it relies on, or an update -> no Fix button (the fix goes where the cause is); no coding agent installed -> "No coding agent is installed, so a session cannot start here."; an agent asks through MCP -> `audit` answers the same findings, counts, coverage and edges
-- **UI elements:** Connections nav item with its count, the summary line, the coverage line, the Map, Not connected chips, the Auditor rows with Start in and Fix with agent
+- **UI elements:** Connections nav item with its count, the summary line, the coverage line, the Map, Not connected chips, the Auditor rows with the Coding agent picker and Fix with coding agent
 - **States covered:** empty, success, error
 - **Errors & recovery:** an agent's spend report that cannot be read leaves its limits out, never the rest
 - **Status:** validated (test/e2e/connections.test.ts *FD-78* (the map and the auditor, FD-81 steps) passed on the running app, 2026-10-23 00:00 UTC)
@@ -1404,15 +1405,15 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **Persona:** P-01
 - **Feature:** console
 - **Traces:** ST-020 (JTBD-06, JRN-02/#4); ADR-0020
-- **Entry point:** "Fix with agent" beside a problem in Overview's Needs attention, in a service's reasons, or after a failed command
+- **Entry point:** "Fix with coding agent" beside a problem in Overview's Needs attention, in a service's reasons, or after a failed command
 - **Preconditions:** the agent has a problem (down, degraded, invalid, a failed doctor or update)
 - **Steps:**
-  1. User presses "Fix with agent" -> the agent's page opens with its console; the runtime starts with the context and a task: what is wrong, and that fixed means `service_status` says ready
+  1. User presses "Fix with coding agent" -> the agent's page opens with its console; the coding agent starts with the context and a task: what is wrong, and that fixed means `service_status` says ready
   2. User watches -> the runtime's own interface shows what it reads and runs; it asks before anything destructive, any sign-in or secret
   3. The agent fixes it -> the agent's state turns ready in the list and the page, with no refresh
 - **Expected result:** a problem becomes a running fix in one click, and the person sees it resolve
 - **Alt paths:** a console already runs for this agent -> the app says so and offers to show it, never a second session; no runtime installed -> the console's install guidance (SCN-049)
-- **UI elements:** "Fix with agent" button; console panel
+- **UI elements:** "Fix with coding agent" button; console panel
 - **States covered:** success, error, loading
 - **Errors & recovery:** the runtime fails to start -> the console says why (SCN-049's errors)
 - **Status:** validated

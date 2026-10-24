@@ -378,7 +378,7 @@ test('audit HIGH-2: a restart or a quit asks before ending consoles or commands,
   assert.match(q.message, /Restart to update/);
   assert.match(q.detail, /The console of Growth · projection is running/);
   assert.match(q.detail, /Commands still running: 2/);
-  assert.equal(q.confirm, 'Restart to Update');
+  assert.equal(q.confirm, 'Restart to update');
   const ru = endWorkQuestion('ru', { kind: 'quit', consoles: ['Research'], commands: 0 })!;
   assert.match(ru.message, /^Завершить Fabric Dashboards/);
   assert.match(ru.detail, /Работает консоль агента Research/);

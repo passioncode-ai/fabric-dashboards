@@ -63,12 +63,14 @@ interface Props { status: AppStatus; products: Product[]; open: (key: string, li
   /** FD-39 SCN-059: what changed since the last visit, and Continue for the agents the person worked with. */
   visit?: SinceLastVisit | null; onContinue?: (key: string) => void;
   /** FD-78: the person's kinds and hidden agents, and the Hidden fold shared with the sidebar. */
-  list?: Pick<ListLayout, 'hidden' | 'kinds' | 'hiddenOpen'>; onHiddenOpen?: (open: boolean) => void }
+  list?: Pick<ListLayout, 'hidden' | 'kinds' | 'hiddenOpen'>; onHiddenOpen?: (open: boolean) => void;
+  /** COPY-13: the first-run empty state's step a person can take: the Setup console (SCN-058). */
+  onSetup?: () => void }
 
 /** Needs attention shows this many rows; the rest wait behind "Show all" (ADR-0014). */
 const ATTENTION_VISIBLE = 3;
 
-export function Overview({ status, products, open, act, goSpend, agent, visit, onContinue, list, onHiddenOpen }: Props) {
+export function Overview({ status, products, open, act, goSpend, agent, visit, onContinue, list, onHiddenOpen, onSetup }: Props) {
   const { t, reason, lang } = useT();
   const [showAll, setShowAll] = useState(false);
   const [pathError, setPathError] = useState('');
@@ -100,7 +102,9 @@ export function Overview({ status, products, open, act, goSpend, agent, visit, o
         <p>{t('overview.empty.body')}</p>
         <p className="mono">{status.servicesDir}</p>
         <div className="row">
-          <button className="btn btn-primary" onClick={showFolder}>{t('overview.empty.show')}</button>
+          {/* COPY-13: the step a person takes comes first; the folder is for those who install by hand. */}
+          {onSetup && <button className="btn btn-primary" onClick={onSetup}>{t('setup.agent.start')}</button>}
+          <button className={onSetup ? 'btn' : 'btn btn-primary'} onClick={showFolder}>{t('overview.empty.show')}</button>
           <button className="btn" onClick={() => void api().openServiceGuide()}>{t('overview.empty.guide')}</button>
         </div>
         {pathError && <p className="notice error" role="alert">{pathError}</p>}
