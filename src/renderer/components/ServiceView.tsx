@@ -9,6 +9,7 @@ import { api, GLYPH, Icon, nameOf, NEWS_MS, portOf, shortBuild, Spinner, StateBa
 import { Feed } from './Activity';
 import { Connections } from './Connections';
 import { Load } from './Load';
+import { subscriptionCost } from './Spend';
 import { loadOf } from '@passioncode-ai/fabric-service-host/load';
 import fabricMark from '../brand/passioncode-mark.svg';
 
@@ -90,6 +91,8 @@ export function ServiceView({ s, all, members, open, link, nonce, tab: askedTab,
   // FD-93: the Load tab is there when the agent declares its load, rightly or not (a wrong declaration is reported there).
   const load = loadOf(s.wellKnown);
   const tabs = (['dashboard', 'activity', 'connections', ...(load.declared || load.reported ? ['load'] : []), 'health', ...(s.descriptor?.placement === 'remote' ? [] : ['logs'])] as Tab[]);
+  // FD-93 review: a tab that leaves the list (Load, once the agent stops answering) never leaves an empty pane.
+  useEffect(() => { if (!tabs.includes(tab)) setTabState(hasDashboard ? 'dashboard' : 'health'); }, [tabs.join(), tab, hasDashboard]);
   const conflictWith = s.state === 'conflict' ? all.filter((o) => o.key !== s.key && o.state === 'conflict' && portOf(o) === portOf(s)) : [];
 
   return (
@@ -372,7 +375,7 @@ function Profile({ s }: { s: ServiceSnapshot }) {
         {c.slots.includes('model') && <><dt>{t('profile.model')}</dt><dd>{[r.modelProfile, r.models?.join(', ')].filter(Boolean).join(' · ') || t('word.notStated')}</dd></>}
         {r.from && <><dt>{t('profile.from')}</dt><dd>{t(`profile.from.${r.from}`)}</dd></>}
         <dt>{t('profile.spend')}</dt>
-        <dd>{models === null ? <Spinner /> : models.length ? models.map((m) => `${m.model} ${m.route === 'subscription' ? (m.estimateUsd === null ? t('spend.subscriptionUnknown') : t(m.estimatePartial ? 'spend.subscriptionCostAtLeast' : 'spend.subscriptionCost', { amount: `$${m.estimateUsd.toFixed(2)}` })) : m.costUsd === null ? t('spend.unknown') : `$${m.costUsd.toFixed(2)}`}`).join(' · ') : t('profile.spend.none')}</dd>
+        <dd>{models === null ? <Spinner /> : models.length ? models.map((m) => `${m.model} ${m.route === 'subscription' ? subscriptionCost({ estimateUsd: m.estimateUsd, estimatePartial: m.estimatePartial === true }, t) : m.costUsd === null ? t('spend.unknown') : `$${m.costUsd.toFixed(2)}`}`).join(' · ') : t('profile.spend.none')}</dd>
         <dt>{t('profile.budget')}</dt><dd className="muted">{t('profile.budget.pending')}</dd>
       </dl>
       <button className="btn btn-sm" onClick={change}>{t('profile.change')}</button>

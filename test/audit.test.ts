@@ -57,3 +57,12 @@ test('FD-81: the estate map lays agents out left to right by who calls whom, cut
   assert.deepEqual([m.columns, m.rows], [3, 2]);
   assert.deepEqual(estateMap([svc('solo.default', 'ready')]).nodes, [], 'nothing declared: no edges, everyone loose');
 });
+
+test('FD-93 review: an invalid load declaration is a finding of the auditor too (FAC-SEM-133), a valid one is not', () => {
+  const LOAD = 'https://fabric.passioncode.ai/agent-contract/extensions/load/0.1';
+  const bad = audit([svc('q.default', 'ready', { extensions: { [LOAD]: { path: 'load', windowSeconds: 5, limits: {} } } })]);
+  assert.deepEqual(bad.findings.map((f) => [f.severity, f.kind, f.reason.code]), [['warn', 'declaration', 'audit.declaration.loadInvalid']]);
+  assert.match(String(bad.findings[0]!.reason.params?.errors), /\/path/);
+  const good = audit([svc('q.default', 'ready', { extensions: { [LOAD]: { path: '/fabric/v1/load', windowSeconds: 3600, limits: { concurrency: 1, perCaller: 1, queueMax: 0 } } } })]);
+  assert.deepEqual(good.findings, []);
+});

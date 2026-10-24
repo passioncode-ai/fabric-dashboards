@@ -2,13 +2,32 @@
 
 ## Unreleased
 
+## 0.7.28 - 2026-10-24
+
+### Fixed
+
+- **The Load tab no longer compares counts with limits it cannot judge** (FD-100, a review of 0.7.26). The contract sets
+  an agent's queue limits per agent and context, and a service's report adds up every agent it hosts, so "5 of 4" could
+  be normal. The tab now states the limits ("Each agent it hosts runs at most 4 at once in each context …") and shows the
+  counts without "of N". With two contexts or more the wait and run times are only in each context's row.
+- **The Load tab never leaves an empty page.** When the agent stops answering, or drops its load declaration, while the
+  tab is open, the page moves to Dashboard or Health.
+- **"Done in 24 h" counts a daily window**, and a report written with a space instead of `T` in a time, an offset without
+  its colon or a very large count is read, as the contract reads it.
+- **The Connections page reports an agent whose load declaration is invalid.**
+- **Spend:** a subscription estimate reads "at least" while an agent's report could not be read; a $0 estimate with
+  unpriced subscription calls reads "+ at least ~$0.00 on subscriptions" instead of nothing; the agent's Health tab
+  shows a small subscription amount as "<$0.01", as Spend does.
+- SECURITY.md names the load report among the requests sent with a service's token.
+
 ## 0.7.27 - 2026-10-23
 
 ### Fixed
 
 - **A subscription whose calls carry no price no longer reads as ~$0** (FD-97, contract DEC-0110). In Spend the value
   beside the money now reads "+ subscription calls not priced" when none of those calls is priced, and "+ at least
-  ~$x on subscriptions" when only some are; such a model reads "subscription, not priced". The money is unchanged.
+  ~$x on subscriptions" when only some are; such a model reads "subscription, not priced" in Spend and on an agent's
+  Health tab. The money is unchanged.
   MCP `spend` answers `estimateUsd: null` and `estimatePartial` the same way. Shared package
   `@passioncode-ai/fabric-service-host` 0.8.0.
 

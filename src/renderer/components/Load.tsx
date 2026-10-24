@@ -70,21 +70,22 @@ export function Load({ s }: { s: ServiceSnapshot }) {
   }
 
   const x = entry.summary;
-  // The limits are per context (DEC-0104): "of N" only when there is one, and a context at its limit marks the sum.
+  // DEC-0104: the limits are per agent and context, and the report sums every agent the service hosts in a context, so
+  // a count is never compared with a limit ("of N", an at-limit mark): the limits are stated, the counts shown.
+  // With two contexts or more the times belong to their row in the table, never to the agent as a whole.
   const single = x.contexts.length <= 1;
-  const full = Boolean(limits && x.contexts.some((c) => c.running >= limits.concurrency));
-  const queueFull = Boolean(limits && limits.queueMax > 0 && x.contexts.some((c) => c.queued >= limits.queueMax));
   const max = Math.max(1, ...x.series.map((w) => w.completed + w.failed));
-  const latestWait = x.contexts.map((c) => c.wait).filter((w): w is NonNullable<typeof w> => w !== null).sort((a, b) => b.start.localeCompare(a.start))[0];
-  const latestRun = x.contexts.map((c) => c.run).filter((w): w is NonNullable<typeof w> => w !== null).sort((a, b) => b.start.localeCompare(a.start))[0];
+  const only = single ? x.contexts[0] : undefined;
+  const latestWait = only?.wait ?? null;
+  const latestRun = only?.run ?? null;
   return (
     <section className="load" aria-labelledby="load-title">
       <h2 id="load-title" className="visually-hidden">{t('tab.load')}</h2>
       {head}
       {x.stale && <p className="notice warning">{t('load.stale', { time: new Date(x.generatedAt).toLocaleString(lang, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) })}</p>}
       <div className="strip load-strip" aria-label={t('tab.load')}>
-        <div className={`cell${full ? ' attn' : ''}`}><span className="v">{x.running}{limits && single && <span className="of"> {t('load.of', { n: limits.concurrency })}</span>}</span><span className="l">{t('load.running')}</span></div>
-        <div className={`cell${queueFull ? ' bad' : x.queued > 0 ? ' attn' : ''}`}><span className="v">{x.queued}{limits && single && limits.queueMax > 0 && <span className="of"> {t('load.of', { n: limits.queueMax })}</span>}</span><span className="l">{t('load.queued')}</span></div>
+        <div className="cell"><span className="v">{x.running}</span><span className="l">{t('load.running')}</span></div>
+        <div className={`cell${x.queued > 0 ? ' attn' : ''}`}><span className="v">{x.queued}</span><span className="l">{t('load.queued')}</span></div>
         <div className="cell"><span className="v">{x.completed}</span><span className="l">{t('load.completed')}</span></div>
         <div className={`cell${x.failed > 0 ? ' bad' : ''}`}><span className="v">{x.failed}</span><span className="l">{t('load.failed')}</span></div>
       </div>
@@ -118,8 +119,8 @@ export function Load({ s }: { s: ServiceSnapshot }) {
             {x.contexts.map((c) => (
               <tr key={c.context}>
                 <th scope="row">{contextName(c.context)}</th>
-                <td className={limits && c.running >= limits.concurrency ? 'attn' : undefined}>{c.running}</td>
-                <td className={limits && limits.queueMax > 0 && c.queued >= limits.queueMax ? 'bad' : undefined}>{c.queued}</td>
+                <td>{c.running}</td>
+                <td className={c.queued > 0 ? 'attn' : undefined}>{c.queued}</td>
                 <td>{c.completed}</td><td className={c.failed > 0 ? 'bad' : undefined}>{c.failed}</td>
                 <td>{c.wait ? ms(c.wait.p95) : <span className="muted">{t('load.none.short')}</span>}</td>
                 <td>{c.run ? ms(c.run.p95) : <span className="muted">{t('load.none.short')}</span>}</td>

@@ -15,14 +15,15 @@ service data.
 - **Talks** to the origins descriptors declare, and to no other service address: `127.0.0.1:<port>`
   for a local service, and the `https://` origin of a registered online service (`placement:
   "remote"`, [ADR-0011](docs/adr/0011-online-services.md)). Requests there are the health probe,
-  the events feed, the usage report and the one-time login code; embedded dashboards load only
+  the events feed, the usage report, the load report (when the service declares `extensions/load/0.1`, ADR-0024) and the
+  one-time login code; embedded dashboards load only
   from those origins. A token goes only to its own service's origin, in a request header. An
   online origin is reached over https with the certificate verified against the system store,
   and no redirect is followed. An answer from another program carries none of its document
   into the app: an online origin that answered as another service gets no token again until
   its descriptor changes; one that answered without the protocol is checked again without the
   token until it asks for one (HTTP 401) or answers as the service — in the app and in the MCP
-  server alike (`RemoteTokenLatch`). A usage report, an events feed or a dashboard sign-in is
+  server alike (`RemoteTokenLatch`). A usage report, a load report, an events feed or a dashboard sign-in is
   never read from a port or origin that answers as something else, and a sign-in reads the
   service's state at that moment, not when its page was first opened.
 - **Watches the estate's versions** (FD-30, [ADR-0018](docs/adr/0018-estate-updates-from-inside-the-app.md)),

@@ -135,7 +135,7 @@ export function Spend({ status }: { status: AppStatus }) {
       {silent.length > 0 && <p className="meta">{t('spend.silent', { names: silent.map(nameOf).join(', ') })}</p>}
       {reports.some((e) => e.summary.today.partial || e.summary.week.partial || e.summary.month.partial) && <p className="meta">{t('spend.partialNote')}</p>}
       {reports.some((e) => e.summary.models.some((m) => m.tokensPartial)) && <p className="meta">{t('spend.tokensPartialNote')}</p>}
-      {reports.some((e) => (e.summary.month.estimateUsd ?? 0) > 0 || e.summary.month.subscriptionCalls > 0) && <p className="meta">{t('spend.estimateNote')}</p>}
+      {reports.some((e) => (e.summary.month.estimateUsd ?? 0) > 0) && <p className="meta">{t('spend.estimateNote')}</p>}
     </>
   );
 }
@@ -158,7 +158,8 @@ export function tokens(s: Pick<SpendSum, 'inputTokens' | 'outputTokens' | 'token
 export function estimate(s: Pick<SpendSum, 'estimateUsd' | 'estimatePartial' | 'subscriptionCalls'>, t: T): string {
   // FD-97: subscription calls with no price are unknown, never ~$0.
   if (s.estimateUsd === null) return s.subscriptionCalls > 0 ? t('spend.estimateUnknown') : '';
-  if (s.estimateUsd <= 0) return '';
+  // FD-97 review: $0 with some calls unpriced is still a lower bound, shown; $0 with all priced, or none, shows nothing.
+  if (s.estimateUsd <= 0 && !(s.estimatePartial && s.subscriptionCalls > 0)) return '';
   return t(s.estimatePartial ? 'spend.estimateAtLeast' : 'spend.estimate', { amount: usd(s.estimateUsd, t) });
 }
 
