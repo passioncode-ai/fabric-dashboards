@@ -47,8 +47,18 @@ by the task's nouns, not read in full.
 | Close-out: Observatory 0.8.0, adapter 0.4.2, passioncode 0.1.2, local reinstalls | `10948f5` | 2026-09-29 |
 | 0.6.0 focus layout and agent console (ADR-0017) | `36bf759` | 2026-10-06 |
 | Board waves 2026-10-12 (FD-01…FD-60) | `agent/board-waves` | 2026-10-13 |
+| Review of 0.7.26 and 0.7.27 (FD-100), DOCMAP (FD-99) | `df2f895` | 2026-10-24 |
 
 ## Recent log
+
+### 2026-10-24: the review of 0.7.26 and 0.7.27 (FD-100)
+
+- **Three blind readings found what the author's own checks did not**: a security document left behind (SECURITY.md),
+  an empty pane when a conditional tab leaves the list, and a limit read against the wrong unit (per context instead of
+  per agent and context). Owned by stage 9 and stage 3: the propagation matrix had no row for "a new token use" until
+  `docs/DOCMAP.md` (FD-99), and the spec read the contract's Limits section without its Load section.
+- **The whole e2e suite filled the Mac's swap and disk** (130 MB free): `node --test` runs the files in parallel, each
+  with its own Electron. On a loaded Mac run it with `--test-concurrency=1`; the tag waited for it.
 
 ### 2026-10-13 — board waves: the run diverged twice
 
