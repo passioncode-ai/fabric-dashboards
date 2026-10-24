@@ -1,0 +1,459 @@
+FD-108 (0.8.1): test/sessions-needs-you.test.ts run on 8386db1 (release 0.8.0) before the fix.
+Command: node --import tsx --test --test-reporter=tap test/sessions-needs-you.test.ts
+Result: 8 tests, 1 pass, 7 fail. The one that passes (waiting and ready stops wait) guards a mapping 0.8.0 already had and 0.8.1 keeps.
+On the live-shape fixture 0.8.0 lists 33 rows under Needs you (the badge); 0.8.1 lists 3.
+Paths: the repository is <repo>.
+
+TAP version 13
+# Subtest: FD-108: the shape of 2026-10-24 (84 waiting stops, 60 older than a day, one session stopped 46 times) gives a badge of only what needs the person
+not ok 1 - FD-108: the shape of 2026-10-24 (84 waiting stops, 60 older than a day, one session stopped 46 times) gives a badge of only what needs the person
+  ---
+  duration_ms: 14.046958
+  type: 'test'
+  location: '<repo>/test/sessions-needs-you.test.ts:2:2662'
+  failureType: 'testCodeFailure'
+  error: |-
+    only the failed continue, the lapsed hand-over and the payment stop of the last day need you (0.8.0 counted 33)
+    + actual - expected
+    
+      [
+    +   '/work/billing-01',
+        '/work/billing-02',
+    +   '/work/elsewhere-01',
+    +   '/work/elsewhere-02',
+    +   '/work/elsewhere-03',
+    +   '/work/elsewhere-04',
+    +   '/work/elsewhere-05',
+        '/work/failed',
+    +   '/work/gone-01',
+    +   '/work/gone-02',
+    +   '/work/gone-03',
+    +   '/work/gone-04',
+    +   '/work/gone-05',
+        '/work/lapsed',
+    +   '/work/old-01',
+    +   '/work/old-02',
+    +   '/work/old-03',
+    +   '/work/old-04',
+    +   '/work/old-05',
+    +   '/work/old-06',
+    +   '/work/old-07',
+    +   '/work/old-08',
+    +   '/work/old-09',
+    +   '/work/old-10',
+    +   '/work/old-11',
+    +   '/work/old-12',
+    +   '/work/old-13',
+    +   '/work/open-01',
+    +   '/work/open-02',
+    +   '/work/open-03',
+    +   '/work/open-04',
+    +   '/work/open-05',
+    +   '/work/open-06'
+      ]
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    0: '/work/billing-02'
+    1: '/work/failed'
+    2: '/work/lapsed'
+  actual:
+    0: '/work/billing-01'
+    1: '/work/billing-02'
+    2: '/work/elsewhere-01'
+    3: '/work/elsewhere-02'
+    4: '/work/elsewhere-03'
+    5: '/work/elsewhere-04'
+    6: '/work/elsewhere-05'
+    7: '/work/failed'
+    8: '/work/gone-01'
+    9: '/work/gone-02'
+    10: '/work/gone-03'
+    11: '/work/gone-04'
+    12: '/work/gone-05'
+    13: '/work/lapsed'
+    14: '/work/old-01'
+    15: '/work/old-02'
+    16: '/work/old-03'
+    17: '/work/old-04'
+    18: '/work/old-05'
+    19: '/work/old-06'
+    20: '/work/old-07'
+    21: '/work/old-08'
+    22: '/work/old-09'
+    23: '/work/old-10'
+    24: '/work/old-11'
+    25: '/work/old-12'
+    26: '/work/old-13'
+    27: '/work/open-01'
+    28: '/work/open-02'
+    29: '/work/open-03'
+    30: '/work/open-04'
+    31: '/work/open-05'
+    32: '/work/open-06'
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (<repo>/test/sessions-needs-you.test.ts:54:10)
+    Test.runInAsyncScope (node:async_hooks:226:14)
+    Test.run (node:internal/test_runner/test:1402:25)
+    Test.start (node:internal/test_runner/test:1262:17)
+    startSubtestAfterBootstrap (node:internal/test_runner/harness:387:17)
+# Subtest: FD-108: waiting and ready stops wait
+ok 2 - FD-108: waiting and ready stops wait
+  ---
+  duration_ms: 0.26625
+  type: 'test'
+# Subtest: FD-108: a payment stop of the last day needs you, with Remove; an older one is not listed
+not ok 3 - FD-108: a payment stop of the last day needs you, with Remove; an older one is not listed
+  ---
+  duration_ms: 0.2925
+  type: 'test'
+  location: '<repo>/test/sessions-needs-you.test.ts:2:5397'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+    
+    + [
+    +   {
+    +     account: null,
+    +     actions: [
+    +       'dismiss'
+    +     ],
+    +     agent: 'claude-code',
+    +     at: 1792794419999,
+    +     candidates: [],
+    +     consoleEmpty: false,
+    +     context: null,
+    +     contextName: null,
+    +     endedAt: null,
+    +     expectedAt: null,
+    +     folder: '/work/a',
+    +     group: 'needs-you',
+    +     id: 'st:cc-00000000-0000-4000-8000-000000000001-1',
+    +     key: null,
+    +     openedInTerminal: false,
+    +     origin: 'limit',
+    +     project: 'a',
+    +     reason: 'billing',
+    +     resumable: false,
+    +     startedAt: 1792794419999,
+    +     state: 'needs-you-not-opened'
+    +   }
+    + ]
+    - []
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  actual:
+    0:
+      id: 'st:cc-00000000-0000-4000-8000-000000000001-1'
+      key: ~
+      folder: '/work/a'
+      agent: 'claude-code'
+      account: ~
+      context: ~
+      origin: 'limit'
+      startedAt: 1792794419999
+      endedAt: ~
+      state: 'needs-you-not-opened'
+      reason: 'billing'
+      actions:
+        0: 'dismiss'
+      project: 'a'
+      group: 'needs-you'
+      contextName: ~
+      openedInTerminal: false
+      expectedAt: ~
+      candidates:
+      resumable: false
+      consoleEmpty: false
+      at: 1792794419999
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (<repo>/test/sessions-needs-you.test.ts:89:10)
+    Test.runInAsyncScope (node:async_hooks:226:14)
+    Test.run (node:internal/test_runner/test:1402:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+    Test.postRun (node:internal/test_runner/test:1542:19)
+    Test.run (node:internal/test_runner/test:1467:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:974:7)
+# Subtest: FD-108: a stop older than a day is not listed, whatever Switchboard still holds it as
+not ok 4 - FD-108: a stop older than a day is not listed, whatever Switchboard still holds it as
+  ---
+  duration_ms: 0.170292
+  type: 'test'
+  location: '<repo>/test/sessions-needs-you.test.ts:2:5784'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+    
+    + [
+    +   {
+    +     account: null,
+    +     actions: [
+    +       'dismiss'
+    +     ],
+    +     agent: 'claude-code',
+    +     at: 1792794419999,
+    +     candidates: [],
+    +     consoleEmpty: false,
+    +     context: null,
+    +     contextName: null,
+    +     endedAt: null,
+    +     expectedAt: null,
+    +     folder: '/work/a',
+    +     group: 'needs-you',
+    +     id: 'st:cc-00000000-0000-4000-8000-000000000001-1',
+    +     key: null,
+    +     openedInTerminal: false,
+    +     origin: 'limit',
+    +     project: 'a',
+    +     reason: 'old',
+    +     resumable: false,
+    +     startedAt: 1792794419999,
+    +     state: 'needs-you-not-opened'
+    +   }
+    + ]
+    - []
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  actual:
+    0:
+      id: 'st:cc-00000000-0000-4000-8000-000000000001-1'
+      key: ~
+      folder: '/work/a'
+      agent: 'claude-code'
+      account: ~
+      context: ~
+      origin: 'limit'
+      startedAt: 1792794419999
+      endedAt: ~
+      state: 'needs-you-not-opened'
+      reason: 'old'
+      actions:
+        0: 'dismiss'
+      project: 'a'
+      group: 'needs-you'
+      contextName: ~
+      openedInTerminal: false
+      expectedAt: ~
+      candidates:
+      resumable: false
+      consoleEmpty: false
+      at: 1792794419999
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (<repo>/test/sessions-needs-you.test.ts:93:10)
+    Test.runInAsyncScope (node:async_hooks:226:14)
+    Test.run (node:internal/test_runner/test:1402:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+    Test.postRun (node:internal/test_runner/test:1542:19)
+    Test.run (node:internal/test_runner/test:1467:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:974:7)
+# Subtest: FD-108: a stop whose terminal is still open is not listed: the session is alive where it is
+not ok 5 - FD-108: a stop whose terminal is still open is not listed: the session is alive where it is
+  ---
+  duration_ms: 0.136833
+  type: 'test'
+  location: '<repo>/test/sessions-needs-you.test.ts:2:6241'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+    
+    + [
+    +   {
+    +     account: null,
+    +     actions: [
+    +       'dismiss'
+    +     ],
+    +     agent: 'claude-code',
+    +     at: 1792880760000,
+    +     candidates: [],
+    +     consoleEmpty: false,
+    +     context: null,
+    +     contextName: null,
+    +     endedAt: null,
+    +     expectedAt: null,
+    +     folder: '/work/a',
+    +     group: 'needs-you',
+    +     id: 'st:cc-00000000-0000-4000-8000-000000000001-1',
+    +     key: null,
+    +     openedInTerminal: false,
+    +     origin: 'limit',
+    +     project: 'a',
+    +     reason: 'open',
+    +     resumable: false,
+    +     startedAt: 1792880760000,
+    +     state: 'needs-you-not-opened'
+    +   }
+    + ]
+    - []
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  actual:
+    0:
+      id: 'st:cc-00000000-0000-4000-8000-000000000001-1'
+      key: ~
+      folder: '/work/a'
+      agent: 'claude-code'
+      account: ~
+      context: ~
+      origin: 'limit'
+      startedAt: 1792880760000
+      endedAt: ~
+      state: 'needs-you-not-opened'
+      reason: 'open'
+      actions:
+        0: 'dismiss'
+      project: 'a'
+      group: 'needs-you'
+      contextName: ~
+      openedInTerminal: false
+      expectedAt: ~
+      candidates:
+      resumable: false
+      consoleEmpty: false
+      at: 1792880760000
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (<repo>/test/sessions-needs-you.test.ts:99:10)
+    Test.runInAsyncScope (node:async_hooks:226:14)
+    Test.run (node:internal/test_runner/test:1402:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+    Test.postRun (node:internal/test_runner/test:1542:19)
+    Test.run (node:internal/test_runner/test:1467:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:974:7)
+# Subtest: FD-108: a stop whose folder or conversation is not here is Ended, "Cannot be continued here", with Remove, and not counted
+not ok 6 - FD-108: a stop whose folder or conversation is not here is Ended, "Cannot be continued here", with Remove, and not counted
+  ---
+  duration_ms: 0.137333
+  type: 'test'
+  location: '<repo>/test/sessions-needs-you.test.ts:2:6436'
+  failureType: 'testCodeFailure'
+  error: |-
+    no-folder
+    + actual - expected
+    
+      [
+        [
+    +     'needs-you',
+    +     'needs-you-not-opened',
+    -     'ended',
+    -     'ended-cannot-continue',
+          'no-folder',
+          [
+            'dismiss'
+          ],
+          false
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    0:
+      0: 'ended'
+      1: 'ended-cannot-continue'
+      2: 'no-folder'
+      3:
+        0: 'dismiss'
+      4: false
+  actual:
+    0:
+      0: 'needs-you'
+      1: 'needs-you-not-opened'
+      2: 'no-folder'
+      3:
+        0: 'dismiss'
+      4: false
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (<repo>/test/sessions-needs-you.test.ts:105:12)
+    Test.runInAsyncScope (node:async_hooks:226:14)
+    Test.run (node:internal/test_runner/test:1402:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+    Test.postRun (node:internal/test_runner/test:1542:19)
+    Test.run (node:internal/test_runner/test:1467:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:974:7)
+# Subtest: FD-108: one Switchboard session is one row, its latest stop (by time, then attempt)
+not ok 7 - FD-108: one Switchboard session is one row, its latest stop (by time, then attempt)
+  ---
+  duration_ms: 0.141834
+  type: 'test'
+  location: '<repo>/test/sessions-needs-you.test.ts:2:7154'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+    
+      [
+    +   'st:cc-s-1',
+    +   'st:cc-s-2',
+        'st:cc-s-3',
+    +   'st:cc-t-1',
+        'st:cc-t-2'
+      ]
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    0: 'st:cc-s-3'
+    1: 'st:cc-t-2'
+  actual:
+    0: 'st:cc-s-1'
+    1: 'st:cc-s-2'
+    2: 'st:cc-s-3'
+    3: 'st:cc-t-1'
+    4: 'st:cc-t-2'
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (<repo>/test/sessions-needs-you.test.ts:121:10)
+    Test.runInAsyncScope (node:async_hooks:226:14)
+    Test.run (node:internal/test_runner/test:1402:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+    Test.postRun (node:internal/test_runner/test:1542:19)
+    Test.run (node:internal/test_runner/test:1467:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:974:7)
+# Subtest: FD-108: an ended stop says why it cannot be continued here, in both languages
+not ok 8 - FD-108: an ended stop says why it cannot be continued here, in both languages
+  ---
+  duration_ms: 0.239375
+  type: 'test'
+  location: '<repo>/test/sessions-needs-you.test.ts:2:8158'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    + actual - expected
+    
+    + 'Its folder is not on this Mac.'
+    - 'Cannot be continued here: its folder is not on this Mac.'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'Cannot be continued here: its folder is not on this Mac.'
+  actual: 'Its folder is not on this Mac.'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (<repo>/test/sessions-needs-you.test.ts:131:12)
+    Test.runInAsyncScope (node:async_hooks:226:14)
+    Test.run (node:internal/test_runner/test:1402:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+    Test.postRun (node:internal/test_runner/test:1542:19)
+    Test.run (node:internal/test_runner/test:1467:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:974:7)
+1..8
+# tests 8
+# suites 0
+# pass 1
+# fail 7
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 139.666542

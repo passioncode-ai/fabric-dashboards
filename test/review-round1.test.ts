@@ -207,7 +207,7 @@ test('R1-S3: a waiting stop is expected at Switchboard\'s probe_at, and at no ti
   const parsed = recovery.parseRecovery(JSON.stringify({ ok: true, data: { sessions: [recoveryRow('waiting', SID, { probeAt: probe / 1000 }), recoveryRow('waiting', '00000000-0000-4000-8000-000000000005')] } }))!;
   assert.deepEqual(parsed.map((s) => (s as { probeAt?: unknown }).probeAt), [probe, null]);
   const stop = { event: 'cc-a-1', session: SID, dir: '/w/a', provider: 'claude' as const, stoppedAt: NOW - MIN, attempt: 1, verdict: 'waiting' as const };
-  const rows = mergeSessions(input({ stops: [{ ...stop, probeAt: probe } as never, { ...stop, event: 'cc-b-1', dir: '/w/b', probeAt: null } as never] }));
+  const rows = mergeSessions(input({ stops: [{ ...stop, probeAt: probe } as never, { ...stop, event: 'cc-b-1', session: '00000000-0000-4000-8000-000000000005', dir: '/w/b', probeAt: null } as never] }));
   assert.equal(rows.find((x) => x.folder === '/w/a')!.expectedAt, probe);
   assert.equal(rows.find((x) => x.folder === '/w/b')!.expectedAt, null, 'a stop Switchboard will never probe shows no time');
 });

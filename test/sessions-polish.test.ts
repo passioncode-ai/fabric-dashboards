@@ -88,7 +88,7 @@ test('FD-107: a waiting session\'s page says what happens next, the folder and w
 });
 
 test('FD-107: no session page leaves its body blank: every state without a console of this app says something', () => {
-  const states: SessionState[] = ['running-ours', 'running-terminal', 'needs-you-resume-failed', 'needs-you-not-opened', 'waiting-reset', 'ended', 'idle-closed', 'ended-by-you'];
+  const states: SessionState[] = ['running-ours', 'running-terminal', 'needs-you-resume-failed', 'needs-you-not-opened', 'waiting-reset', 'ended', 'ended-cannot-continue', 'idle-closed', 'ended-by-you'];
   for (const state of states) {
     for (const r of [srow({ id: `x:${state}`, state }), srow({ id: `y:${state}`, state, openedInTerminal: true, reason: 'busy-disk' })]) {
       if (hasConsole(r)) continue;

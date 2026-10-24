@@ -188,6 +188,28 @@ hand-over and resume consoles, `handover.body`/`resumeBody`/`done` and the strin
 
 1. Stop verdicts other than "waiting" (terminal still open, payment limit, older than a day, folder or conversation
    not here) go to **Needs you** with the verdict sentence and Remove; stops another host took are not listed.
+
+   **Decision 1, amended 2026-10-24 after 0.8.0** (FD-108, release 0.8.1; superseding the paragraph above). The post-release
+   check on the operator's Mac at 22:27 UTC found the installed 0.8.0 showing "39" on the Sessions switch: Switchboard
+   held 84 waiting limit stops, 60 of them older than 24 hours and several the same session again (one at attempt 44),
+   and every verdict other than waiting landed in Needs you, the dead entries with nothing to do the operator had
+   complained about. **Needs you holds only what a person can and must act on now**: a continue that failed while its
+   process still runs; a hand-over that could not open here (24 h); a stop on a payment limit (verdict `billing`), for
+   24 h. Everything else Switchboard holds as stopped:
+   - older than 24 hours (verdict `old`, or any stop whose `stopped_at` is more than a day back, a waiting or billing one
+     included): **not listed at all**, since this app never continues it, so a "Continues at" would be false;
+   - its terminal is still open (verdict `open`): **not listed**: the session is alive where it is;
+   - its folder is not here or its conversation is not found (`no-folder`, `no-transcript`), or this app's continue of
+     it failed and its console no longer runs (`resume-failed`): listed under **Ended** as "Cannot be continued here:
+     {why}" with Remove, never counted by the badge (state `ended-cannot-continue`);
+   - waiting for a reset, or ready to continue here: the **Waiting** group, as before.
+   **One row per Switchboard session id**: only its latest stop (highest `stopped_at`, then `attempt`) is listed; the
+   latest decides even when it is a stop that is not listed (a session resumed since has no row). Where live processes
+   cannot be read (Windows, or `lsof` failing) a ready stop's verdict is `open`, so from 0.8.1 it is not listed there
+   rather than shown under Needs you; nothing could be done with it there either. On the fixture built from the live
+   answer (`test/fixtures/recovery-0.8.0-shape.json`, ids and folders synthetic) the badge reads 33 under 0.8.0 and 3
+   under 0.8.1 (`test/sessions-needs-you.test.ts`; pre-fix failures in [fix081-prefix-failures.txt](fix081-prefix-failures.txt)).
+   `src/core/sessions.ts` (`mergeSessions`, section 4) applies it; `verdictOf` and the MCP `audit` verdicts are unchanged.
 2. **Do not continue** moves the session to Ended as "Not continued: you declined"; this app never continues it, and
    Switchboard's record is untouched.
 3. **Continue now on another account** passes the chosen account to Switchboard's stop claim: the app already calls
