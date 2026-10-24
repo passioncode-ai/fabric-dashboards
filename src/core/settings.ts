@@ -8,6 +8,7 @@ import { atomicWrite } from './fsutil';
 import { autoUpdateOn, carryOverAutoUpdate, setAutoUpdate } from './autoupdate';
 import { CONSOLE_HEIGHT, DEFAULT_SETTINGS, type Settings, type SettingsPatch } from './types';
 import { DEFAULT_PAGE_THEME, REFERENCE_THEMES } from './appearance';
+import { pruneDismissed, pruneRecords } from './sessions';
 
 export class SettingsStore {
   private readonly file: string;
@@ -155,6 +156,17 @@ function mergeEstate(raw: unknown): Settings['estate'] {
 }
 // #endregion estate-update
 
+/** FD-103: the Sessions list's memory; an entry older than 24 hours, or malformed, is dropped on every read and write,
+ *  so a restart keeps the rest and nothing stays for ever. At most 500 of each. */
+function mergeSessionMemory(raw: unknown): Settings['sessions'] {
+  const s = (raw && typeof raw === 'object' ? raw : {}) as { records?: unknown; dismissed?: unknown };
+  const now = Date.now();
+  return {
+    records: pruneRecords(Array.isArray(s.records) ? s.records : [], now).slice(-500),
+    dismissed: pruneDismissed(Array.isArray(s.dismissed) ? s.dismissed : [], now).slice(-500),
+  };
+}
+
 export function merge(raw: Partial<Settings>): Settings {
   const n = raw.notifications ?? DEFAULT_SETTINGS.notifications;
   return {
@@ -186,6 +198,7 @@ export function merge(raw: Partial<Settings>): Settings {
     consoles: mergeConsoles(raw.consoles),
     // FD-83: absent in a file from an earlier version: on, as the operator asked (2026-10-21).
     resumeAfterLimit: raw.resumeAfterLimit !== false,
+    sessions: mergeSessionMemory(raw.sessions),
     estate: mergeEstate(raw.estate),
   };
 }

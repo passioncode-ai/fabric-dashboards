@@ -8,6 +8,7 @@ import type { Runner } from '@passioncode-ai/fabric-service-host';
 import path from 'node:path';
 import fs from 'node:fs';
 import type { RuntimeSpec } from './runtimes';
+import type { SbSessionRecord, SourceResult } from './sessions';
 
 export type Binding =
   | { kind: 'none' } // no project or managed rule for this provider: the ordinary sign-in
@@ -149,6 +150,33 @@ export async function sessionsIn(run: Runner, sb: string, folder: string, accoun
   sessions.sort((a, b) => (b.launchedAt ?? 0) - (a.launchedAt ?? 0));
   return { sessions };
 }
+
+/** FD-103: every session Switchboard launched on this Mac, ended ones included (`sessions --all`), for the Sessions
+ *  list. Read on the hand-overs' tick, never in front of the person; a malformed record is skipped. A Switchboard
+ *  without `--all` (before SB-95) answers `old`; any other failure `error`, which the list shows as a degraded source. */
+export async function allSessionsOf(run: Runner, sb: string): Promise<SourceResult<SbSessionRecord[]>> {
+  const r = await run(sb, ['--json', 'sessions', '--all'], 10_000);
+  const text = `${r.stdout}\n${r.stderr}`;
+  const data = r.code === 0 ? parse(r.stdout) : null;
+  if (!data) {
+    const old = /unrecognized subcommand|unexpected argument|earlier version than this command/i.test(text);
+    return { ok: false, reason: old ? 'old' : 'error', detail: text.trim().split('\n').pop()?.slice(0, 200) || `exit ${r.code}` };
+  }
+  const str = (v: unknown, max = 200) => (typeof v === 'string' ? v.slice(0, max) : '');
+  const out: SbSessionRecord[] = [];
+  for (const x of Array.isArray(data.sessions) ? (data.sessions as Record<string, unknown>[]) : []) {
+    if (!x || typeof x !== 'object' || typeof x.working_directory !== 'string' || !path.isAbsolute(x.working_directory)) continue;
+    const state = x.state === 'starting' || x.state === 'running' || x.state === 'ended' ? x.state : 'unknown';
+    out.push({
+      home: str(x.home, 400), folder: x.working_directory, provider: str(x.provider, 32), pool: str(x.pool, 64) || 'default', mode: str(x.mode, 32),
+      account: str(x.label) || str(x.account_id, 64), accountId: str(x.account_id, 64),
+      context: typeof x.context === 'string' ? x.context.slice(0, 120) : null, contextName: typeof x.context_name === 'string' ? x.context_name.slice(0, 120) : null,
+      continues: typeof x.continues === 'string' && x.continues ? x.continues.slice(0, 64) : null, inPlace: x.in_place === true,
+      launchedAt: ms(x.launched_at), startedAt: ms(x.started_at), state,
+    });
+  }
+  return { ok: true, value: out };
+}
 // #endregion switchboard-sessions
 
 // #region switchboard-handovers — docs: docs/ux/scenarios.md#scn-069-a-hand-over-opens-in-the-console
@@ -198,8 +226,9 @@ export async function handoversOf(run: Runner, sb: string): Promise<SbHandovers>
 
 /** The console key of a hand-over's own console (like Setup's): `handover.<id>`. */
 export const handoverOwnKey = (id: string) => `handover.${id}`;
-/** FD-83: a session continued after a limit takes a console of its own the same way (`handover.rs-<12 hex>`). */
-export const isHandoverKey = (key: string) => /^handover\.(ho|rs)-[0-9a-f]{12}$/.test(key);
+/** FD-83: a session continued after a limit takes a console of its own the same way (`handover.rs-<12 hex>`); FD-103:
+ *  so does a session continued from the Sessions list in a folder no agent's console owns (`handover.cs-<12 hex>`). */
+export const isHandoverKey = (key: string) => /^handover\.(ho|rs|cs)-[0-9a-f]{12}$/.test(key);
 
 /** Where a hand-over opens: the registered service whose console folder is its `dir`, unless that console runs a
  *  session already; otherwise a console of its own. */
@@ -211,5 +240,12 @@ export function handoverKey(h: Pick<SbHandover, 'id' | 'dir'>, consoles: { key: 
 /** The command a console runs to take the hand-over: Switchboard takes it once and runs its session here. */
 export function handoverRunArgv(sb: string, id: string): string[] {
   return [sb, 'handovers', 'run', id];
+}
+
+/** FD-103: Switchboard's own switch for handing sessions over to a console, set through its CLI (`handovers set on|off`);
+ *  this app never writes Switchboard's files. It is read with the hand-overs (`enabled`). */
+export async function handoversSwitch(run: Runner, sb: string, on: boolean): Promise<{ ok: true } | { ok: false; detail: string }> {
+  const r = await run(sb, ['handovers', 'set', on ? 'on' : 'off'], 10_000);
+  return r.code === 0 ? { ok: true } : { ok: false, detail: `${r.stderr}\n${r.stdout}`.trim().split('\n').pop()?.slice(0, 200) || `exit ${r.code}` };
 }
 // #endregion switchboard-handovers

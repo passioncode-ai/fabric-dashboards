@@ -150,6 +150,20 @@ export function transcriptOf(stop: SbStop, home: string): string | null {
   return walk(path.join(home, '.codex', 'sessions'), 3);
 }
 
+/** FD-103: the one Claude Code transcript of `folder` in the person's home written while a session ran (between `from`
+ *  and a minute after `to`), as its session id; null when there is none or more than one (two sessions in one folder:
+ *  never guessed at). Lets Continue resume a hand-over whose session id Switchboard does not report. */
+export function transcriptIn(folder: string, home: string, from: number | null, to: number): string | null {
+  const dir = path.join(home, '.claude', 'projects', folder.replace(/[^A-Za-z0-9]/g, '-'));
+  let names: string[] = [];
+  try { names = fs.readdirSync(dir); } catch { return null; }
+  const hits = names.filter((n) => SESSION.test(n.replace(/\.jsonl$/, '')) && n.endsWith('.jsonl')).filter((n) => {
+    const at = writtenAt(path.join(dir, n));
+    return at !== null && (from === null || at >= from) && at <= to + 60_000;
+  });
+  return hits.length === 1 ? hits[0]!.replace(/\.jsonl$/, '') : null;
+}
+
 /** The console key a continued session gets when no agent's console owns its folder: `handover.rs-<12 hex>`. */
 export const resumeOwnKey = (stop: SbStop) => `handover.rs-${crypto.createHash('sha256').update(stop.event).digest('hex').slice(0, 12)}`;
 

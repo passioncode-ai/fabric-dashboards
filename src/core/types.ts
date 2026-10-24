@@ -5,6 +5,7 @@
 // renderer free of the package's Node code.
 import type { Busy, Descriptor, LaunchdStatus, Reason, ServiceEvent, ServiceState, WellKnown } from '@passioncode-ai/fabric-service-host/protocol';
 import type { EstateStatus } from './estate-update';
+import type { Dismissal, SessionRecord, SessionsStatus } from './sessions';
 
 export { PROTOCOL } from '@passioncode-ai/fabric-service-host/protocol';
 export type { Busy, Descriptor, LaunchdStatus, Reason, ServiceEvent, ServiceState, WellKnown, WellKnownResult } from '@passioncode-ai/fabric-service-host/protocol';
@@ -84,6 +85,9 @@ export interface Settings {
     idle?: { at: string; account: string | null } | null }>;
   /** FD-83: continue a session stopped on a usage limit in the console once Switchboard has capacity for it (default on). */
   resumeAfterLimit: boolean;
+  /** FD-103: the Sessions list's memory, kept 24 hours (src/core/sessions.ts): console sessions that ended and hand-overs
+   *  that did not open here, and the rows the person removed. */
+  sessions: { records: SessionRecord[]; dismissed: Dismissal[] };
   // #region estate-update — docs: docs/adr/0018-estate-updates-from-inside-the-app.md#decision
   /** ADR-0018: the estate watcher — the contract clone and the skill family. */
   estate: {
@@ -143,6 +147,7 @@ export const DEFAULT_SETTINGS: Settings = {
   layout: { sidebar: 'expanded', header: 'compact', console: { open: false, height: CONSOLE_HEIGHT.default }, list: { sort: 'name', pinned: [], hidden: [], kinds: {}, hiddenOpen: false } },
   consoles: {},
   resumeAfterLimit: true,
+  sessions: { records: [], dismissed: [] },
   // #region estate-update — docs: docs/adr/0018-estate-updates-from-inside-the-app.md#decision
   estate: { enabled: true, autoSkills: false, contractClone: '' },
   // #endregion estate-update
@@ -171,10 +176,14 @@ export interface AppStatus {
   /** ADR-0018: what the estate watcher saw last — the contract clone vs the remote, consumer pins, skills. */
   estate: EstateStatus;
   // #endregion estate-update
-  /** FD-62: the consoles of their own that run or ran a Switchboard hand-over (SB-108). */
+  /** FD-62: the consoles of their own that run or ran a Switchboard hand-over (SB-108).
+   *  @deprecated FD-103: read `sessions`; kept until the Sessions mode (node S3) removes the sidebar section. */
   handovers?: { key: string; workflow: string; agent: string; account: string; dir: string; state: 'running' | 'exited'; kind?: 'handover' | 'resume' }[];
-  /** FD-83: sessions stopped on a usage limit — the ones this launch continued and the ones left for the person. */
+  /** FD-83: sessions stopped on a usage limit — the ones this launch continued and the ones left for the person.
+   *  @deprecated FD-103: read `sessions`; kept until the Sessions mode (node S3) removes the Connections list. */
   recovery?: RecoveryStatus;
+  /** FD-103: every coding session of this Mac, merged from Switchboard and this app's consoles (src/core/sessions.ts). */
+  sessions?: SessionsStatus;
   version: string;
 }
 
@@ -183,7 +192,9 @@ export interface AppStatus {
 export type StopVerdict = 'resume' | 'open' | 'old' | 'billing' | 'waiting' | 'no-folder' | 'no-transcript' | 'claimed';
 
 /** One stop on the Connections page: never its prompt, only where and since when. */
-export interface StopView { event: string; session: string; dir: string; provider: 'claude' | 'codex'; stoppedAt: number; attempt: number; verdict: StopVerdict | 'resumed' | 'failed'; key?: string }
+export interface StopView { event: string; session: string; dir: string; provider: 'claude' | 'codex'; stoppedAt: number; attempt: number; verdict: StopVerdict | 'resumed' | 'failed'; key?: string;
+  /** FD-103: the accounts that could take it now (Switchboard's candidates, its order), ids and labels only. */
+  candidates?: { id: string; label: string }[] }
 
 /** What the app knows about sessions stopped on a limit: off, unreadable, or the stops still open. */
 export interface RecoveryStatus {

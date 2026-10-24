@@ -101,11 +101,11 @@ test('FD-62: a waiting hand-over is taken once, on a console of its own, and the
   assert.deepEqual(r.host.handoverConsoles(), []);
 });
 
-test('FD-62: a hand-over in an agent\'s folder opens in that agent\'s free console', POSIX, async () => {
+test('FD-103 (decision 8, replaces FD-62\'s agent console): a hand-over in an agent\'s folder still opens in a console of its own', POSIX, async () => {
   const r = rig({ serviceFolder: 'same' });
-  assert.deepEqual(await r.host.pollHandovers(), ['agent.default']);
-  assert.equal((await r.host.info('agent.default')).handover?.id, ID);
-  assert.deepEqual(r.host.handoverConsoles(), [], 'it runs in the agent\'s console, not in a list of its own');
+  assert.deepEqual(await r.host.pollHandovers(), [`handover.${ID}`]);
+  assert.equal((await r.host.info('agent.default')).handover ?? null, null, 'the agent\'s console stays the person\'s');
+  assert.deepEqual(r.host.handoverConsoles().map((h) => h.key), [`handover.${ID}`]);
 });
 
 test('FD-62: one the machine cannot carry (LC-17), a lapsed offer or a folder not here is left to Switchboard\'s Terminal', POSIX, async () => {

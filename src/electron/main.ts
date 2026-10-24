@@ -152,7 +152,10 @@ if (!app.requestSingleInstanceLock()) {
     packRoot: path.join(userData, 'consoles'), version: app.getVersion(), activity: (key) => activity.list({ serviceKey: key }, 200), mcpServer,
     setupState: () => readSetupState(os.homedir(), monitor.snapshots().length),
     doctor: () => (lastSetupCheck?.kind === 'report' ? lastSetupCheck.report : null),
-    keys: () => monitor.snapshots().map((x) => x.key), changed: () => pushStatus() });
+    keys: () => monitor.snapshots().map((x) => x.key), changed: () => pushStatus(),
+    // FD-103 (decision 9): a taken hand-over or an automatic continue reaches the shown window once; node S3 makes it a
+    // system notification.
+    notice: (n) => { log(`sessions: ${n.kind} ${n.key} in ${n.project}`); if (windowVisible()) window!.webContents.send(CHANNELS.sessionsNotice, n); } });
   let tray: AppTray | null = null;
   // R-3: the window lets itself close only once a quit is really under way — before-quit, or
   // Squirrel's before-quit-for-update. A failed install puts the window back to hiding on close.
@@ -210,7 +213,7 @@ if (!app.requestSingleInstanceLock()) {
   // #endregion outage-alerts
   const status = (): AppStatus => ({
     services: monitor.snapshots(), ...monitor.meta(), unread: activity.unread(), activityRev: activity.revision, update: updater.state, estate: estate.state, version: app.getVersion(),
-    alerts: alerts.status(), handovers: consoles.handoverConsoles(), recovery: consoles.recoveryStatus(),
+    alerts: alerts.status(), handovers: consoles.handoverConsoles(), recovery: consoles.recoveryStatus(), sessions: consoles.sessionsStatus(),
   });
 
   // #region quiet-push — docs: AGENTS.md#lifecycle
@@ -345,9 +348,11 @@ if (!app.requestSingleInstanceLock()) {
   let handoverTimer: NodeJS.Timeout | null = null;
   const pollHandovers = () => {
     handoverTimer = null;
-    // FD-83: the limit stops are read on the same tick, after the hand-overs (ConsoleHost.pollRecovery).
-    void consoles.pollHandovers().catch((error) => log(`console: hand-over read failed: ${(error as Error).message}`))
-      .then(() => consoles.pollRecovery()).catch((error) => log(`console: limit stops read failed: ${(error as Error).message}`)).finally(() => {
+    // FD-83: the limit stops are read on the same tick, after the hand-overs (ConsoleHost.pollRecovery). FD-103: Switchboard's
+    // machine-wide session list beside them (one read in flight at most; a failure is a degraded source).
+    const chain = consoles.pollHandovers().catch((error) => log(`console: hand-over read failed: ${(error as Error).message}`))
+      .then(() => consoles.pollRecovery()).catch((error) => log(`console: limit stops read failed: ${(error as Error).message}`));
+    void Promise.all([chain, consoles.pollSessions().catch((error) => log(`console: session list read failed: ${(error as Error).message}`))]).finally(() => {
       if (quitting) return;
       handoverTimer = setTimeout(pollHandovers, windowVisible() ? HANDOVER_POLL_MS.visible : HANDOVER_POLL_MS.hidden);
       handoverTimer.unref();
