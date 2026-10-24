@@ -33,7 +33,7 @@ export const GROUP_ORDER: readonly SessionGroup[] = ['needs-you', 'running', 'wa
  *  `dontContinue` keeps a waiting stop from being continued; `dismiss` removes the row. */
 export type SessionAction = 'end' | 'reveal' | 'openConsole' | 'dismiss' | 'continueNow' | 'dontContinue' | 'continue';
 /** Why a row is not running: a hand-over that did not open (`expired`, `no-folder`, `busy` for LC-17, `switchboard-old`,
- *  `not-started`, `pending` not acted on yet); a stop this app does not continue (`no-folder`, `no-transcript`,
+ *  `not-started`; `pending`, still on offer, is never listed); a stop this app does not continue (`no-folder`, `no-transcript`,
  *  `resume-failed`, `old` past a day, `billing`, `open` while a process still writes it); or a stop the person declined
  *  (`declined`, an ended row: "Not continued: you declined"; decision 2 of 2026-10-24). */
 export type SessionReason = 'expired' | 'no-folder' | 'busy' | 'switchboard-old' | 'not-started' | 'pending' | 'no-transcript' | 'resume-failed' | 'old' | 'billing' | 'open' | 'declined';
@@ -66,6 +66,10 @@ export interface SessionRow {
   /** A waiting stop: the accounts that could take it now (Switchboard's candidates, its order), for Continue now on
    *  another account; the chosen id goes back with `sessionsContinue`. Empty for every other row. */
   candidates: { id: string; label: string }[];
+  /** An ended row: whether Continue can take up its own conversation (a known session id, a Claude Code session whose
+   *  transcript the app finds by folder and time, or an agent console's own Continue); otherwise the button reads
+   *  "New session here" (decision 6 of 2026-10-24). False for every row that is not ended. */
+  resumable: boolean;
   /** The row's latest known time, the list's order (newest first). */
   at: number;
 }
@@ -153,6 +157,8 @@ export interface SessionsStatus {
   switchboard: boolean;
   /** Switchboard's switch for handing sessions over to a console (`handovers set on|off`); null until read. */
   handovers: { enabled: boolean | null };
+  /** Settings → Sessions → "Continue sessions after a limit reset" (SCN-083: a waiting row says when it is off). */
+  autoContinue: boolean;
 }
 
 /** FD-103 (decision 9): one per taken hand-over and per automatic continue after a limit reset; the shell turns it into
@@ -219,10 +225,12 @@ function isRecord(r: unknown): r is SessionRecord {
     && (x.key === null || typeof x.key === 'string');
 }
 
-function row(o: Omit<SessionRow, 'project' | 'group' | 'at' | 'actions' | 'contextName' | 'openedInTerminal' | 'expectedAt' | 'candidates'> & Partial<Pick<SessionRow, 'actions' | 'contextName' | 'openedInTerminal' | 'expectedAt' | 'candidates'>>): SessionRow {
+function row(o: Omit<SessionRow, 'project' | 'group' | 'at' | 'actions' | 'contextName' | 'openedInTerminal' | 'expectedAt' | 'candidates' | 'resumable'> & Partial<Pick<SessionRow, 'actions' | 'contextName' | 'openedInTerminal' | 'expectedAt' | 'candidates' | 'resumable'>>): SessionRow {
+  const group = groupOf(o.state);
   return {
-    ...o, project: base(o.folder), group: groupOf(o.state), actions: o.actions ?? actionsFor(o.state),
+    ...o, project: base(o.folder), group, actions: o.actions ?? actionsFor(o.state),
     contextName: o.contextName ?? null, openedInTerminal: o.openedInTerminal ?? false, expectedAt: o.expectedAt ?? null, candidates: o.candidates ?? [],
+    resumable: group === 'ended' && (o.resumable ?? false),
     at: Math.max(o.endedAt ?? 0, o.startedAt ?? 0),
   };
 }
@@ -274,15 +282,17 @@ export function mergeSessions(i: MergeInput): SessionRow[] {
     add(row({
       id: r.id, key: r.key, folder: r.folder, agent: r.agent, account: r.account ?? s?.account ?? null, context: r.context ?? s?.context ?? null,
       contextName: s?.contextName ?? null, origin: r.origin, reason: r.end === 'declined' ? 'declined' : null, state: END_STATE[r.end], startedAt: r.startedAt, endedAt: r.endedAt,
+      resumable: r.sessionId !== null || r.provider === 'claude' || (r.origin === 'here' && r.key !== null),
     }));
   }
 
-  // 3. Hand-overs Switchboard still offers that this app has not acted on yet.
+  // 3. Hand-overs Switchboard offered that this app has not acted on: one still on offer is not a row (it is taken at
+  // the next read, or fails and becomes one; orchestrator 2026-10-24); one whose offer lapsed needs the person.
   for (const h of i.pending ?? []) {
-    if (notOpened.has(h.id) || [...consoleKeys].some((k) => k.endsWith(h.id))) continue;
+    if (notOpened.has(h.id) || [...consoleKeys].some((k) => k.endsWith(h.id)) || h.offeredUntil > i.now) continue;
     add(row({
       id: handoverRowId(h.id), key: null, folder: h.dir, agent: h.agent, account: h.account || null, context: null, origin: 'handover',
-      reason: h.offeredUntil <= i.now ? 'expired' : 'pending', state: 'needs-you-not-opened', startedAt: null, endedAt: null,
+      reason: 'expired', state: 'needs-you-not-opened', startedAt: null, endedAt: null,
     }));
   }
 
@@ -314,7 +324,7 @@ export function mergeSessions(i: MergeInput): SessionRow[] {
     add(row({
       id: sbRowId(s), key: null, folder: s.folder, agent: s.provider === 'codex' ? 'codex' : s.provider === 'claude' ? 'claude-code' : s.provider,
       account: s.account || null, context: s.context, contextName: s.contextName, origin: s.continues ? 'handover' : 'switchboard', reason: null,
-      state: running ? 'running-terminal' : 'ended', startedAt: started, endedAt: null,
+      state: running ? 'running-terminal' : 'ended', startedAt: started, endedAt: null, resumable: s.provider === 'claude',
     }));
   }
 

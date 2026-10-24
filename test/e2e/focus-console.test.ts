@@ -162,11 +162,11 @@ test('ADR-0017: a one-line header, a folding sidebar, and an agent console besid
     await page.getByRole('button', { name: 'Console' }).click();
     await con.getByText('Stopped.').waitFor({ timeout: 15_000 });
 
-    // FD-39 SCN-054: the agent stops answering; "Fix with agent" starts the runtime with the context and the task.
+    // FD-39 SCN-054: the agent stops answering; "Fix with coding agent" starts the runtime with the context and the task.
     await stopProcess(proc);
-    await page.getByRole('button', { name: 'Fix with agent' }).first().waitFor({ timeout: 60_000 });
+    await page.getByRole('button', { name: 'Fix with coding agent' }).first().waitFor({ timeout: 60_000 });
     await shot(page, '24-fix-with-agent');
-    await page.getByRole('button', { name: 'Fix with agent' }).first().click();
+    await page.getByRole('button', { name: 'Fix with coding agent' }).first().click();
     await waitFor('the runtime to start on the task', async () => /Do the task in [^\]]*task\.md\.\]/.test(await termText(con)));
     assert.match(fs.readFileSync(path.join(pack, 'task.md'), 'utf8'), /^# Task: Sample Service is (down|stopped)/);
     await con.locator('.console-term').click();
@@ -180,7 +180,7 @@ test('ADR-0017: a one-line header, a folding sidebar, and an agent console besid
     await auditRow.getByRole('combobox').waitFor();
     assert.equal(await auditRow.getByRole('combobox').inputValue(), 'claude-code', 'the runtime chosen for this agent');
     await shot(page, '24a-auditor');
-    await auditRow.getByRole('button', { name: 'Fix with agent' }).click();
+    await auditRow.getByRole('button', { name: 'Fix with coding agent' }).click();
     await waitFor('the audit task to be written', () => /^# Task: Audit findings for Sample Service/.test(fs.readFileSync(path.join(pack, 'task.md'), 'utf8')));
     assert.match(fs.readFileSync(path.join(pack, 'task.md'), 'utf8'), /the Fabric Dashboards auditor found/);
     await page.getByRole('heading', { level: 1, name: 'Sample Service' }).waitFor();

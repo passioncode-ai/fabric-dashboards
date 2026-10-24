@@ -12,13 +12,13 @@
 | SCR-05 | Stop confirmation | SCN-009 | none (text-only) | built | src/renderer/App.tsx |
 | SCR-06 | Tray menu | SCN-023, SCN-085 | none (text-only) | built | src/electron/tray.ts |
 | SCR-07 | Spend | SCN-036, SCN-037, SCN-038, SCN-041 | none (text-only) | built | src/renderer/components/Spend.tsx |
-| SCR-08 | Sidebar, Agents mode | SCN-001, SCN-006, SCN-017, SCN-022, SCN-033, SCN-035, SCN-044, SCN-047, SCN-056, SCN-057, SCN-077 | none (text-only) | built | src/renderer/App.tsx |
+| SCR-08 | Sidebar, Agents mode | SCN-001, SCN-006, SCN-017, SCN-022, SCN-033, SCN-035, SCN-044, SCN-047, SCN-056, SCN-057, SCN-077 | none (text-only) | built | src/renderer/App.tsx, src/renderer/components/Navigation.tsx |
 | SCR-10 | Console panel | SCN-048, SCN-049, SCN-050, SCN-053, SCN-054, SCN-055, SCN-058, SCN-066, SCN-069, SCN-080 | none (text-only) | built | src/renderer/components/ConsolePanel.tsx |
 | SCR-09 | System dialogs | SCN-014, SCN-024, SCN-027, SCN-044 | none (text-only) | built | src/electron/main.ts, src/electron/views.ts |
 | SCR-11 | Hand-over page | SCN-069 (before 0.8.0) | none (text-only) | retired | src/renderer/App.tsx |
-| SCR-12 | Sidebar, Sessions mode | SCN-077, SCN-078, SCN-082, SCN-083, SCN-084 | none (text-only) | designed | none yet |
-| SCR-13 | All sessions | SCN-069, SCN-075, SCN-078, SCN-079, SCN-081, SCN-082, SCN-083, SCN-084 | none (text-only) | designed | none yet |
-| SCR-14 | Session page | SCN-066, SCN-069, SCN-075, SCN-080, SCN-081, SCN-082, SCN-083, SCN-084, SCN-085 | none (text-only) | designed | none yet |
+| SCR-12 | Sidebar, Sessions mode | SCN-077, SCN-078, SCN-082, SCN-083, SCN-084 | none (text-only) | built | src/renderer/components/Navigation.tsx |
+| SCR-13 | All sessions | SCN-069, SCN-075, SCN-078, SCN-079, SCN-081, SCN-082, SCN-083, SCN-084 | none (text-only) | built | src/renderer/components/Sessions.tsx |
+| SCR-14 | Session page | SCN-066, SCN-069, SCN-075, SCN-080, SCN-081, SCN-082, SCN-083, SCN-084, SCN-085 | none (text-only) | built | src/renderer/components/Sessions.tsx, src/electron/drawer.ts |
 | SCR-15 | Connections → Sessions stopped on a limit | SCN-075 (before 0.8.0) | none (text-only) | retired | src/renderer/components/ConnectionsMap.tsx |
 
 ## Design system
@@ -100,7 +100,7 @@
   | success | default | — | settings apply immediately |
   | error | login item refused, listener scan failed, uninstall stopped, a folder that cannot be shown | — | reason beside the control |
 - **Coverage:** src/renderer/components/Settings.tsx
-- **Scenarios:** SCN-019, SCN-022, SCN-024, SCN-043, SCN-044
+- **Scenarios:** SCN-019, SCN-022, SCN-024, SCN-043, SCN-044, SCN-086
 - **Status:** built
 
 ### SCR-05: Stop confirmation
@@ -118,7 +118,7 @@
 ### SCR-06: Tray menu
 - **Used by:** SCN-023, SCN-085
 - **Purpose:** JTBD-01 without opening the window
-- **Sessions line (0.8.0, SCN-085):** under the headline, while a coding session runs or waits for the person, "Sessions: running N, waiting for you M" (a part at zero left out); it opens the Sessions mode
+- **Sessions line (0.8.0, SCN-085):** under the headline, while a coding session runs or waits for the person, "Sessions: running N, need you M" (a part at zero left out); it opens the Sessions mode
 - **Elements:** icon in three states; headline line ("Needs attention: N", "Ready: n of m", "All services ready"); problems first; every service as "● <name · instance> — <state>"; Open Fabric Dashboards; Pause notifications for 1 hour / Resume notifications; "Quitting Dashboards does not stop your services." (disabled line); Quit
 - **States:**
   | State | Trigger | Figma frame | Behavior |
@@ -126,7 +126,7 @@
   | success | nothing degraded, starting or wrong (a service turned off keeps it calm) | — | calm icon, "All services ready" or "Ready: n of m" |
   | degraded | degraded, starting or stopping | — | degraded icon |
   | error | something down or wrong | — | alert icon, problems first |
-- **Coverage:** src/electron/tray.ts
+- **Coverage:** src/electron/tray.ts, src/core/sessions-view.ts (`traySessionsLine`)
 - **Scenarios:** SCN-023
 - **Status:** built
 
@@ -158,7 +158,7 @@
   |-------|---------|-------------|----------|
   | success | default | — | entries and counts |
   | rail | collapsed | — | icons, state marks and initials; names in tooltips |
-- **Coverage:** src/renderer/App.tsx
+- **Coverage:** src/renderer/App.tsx, src/renderer/components/Navigation.tsx (ModeSwitch, AgentsNav); test/navigation.test.ts
 - **Scenarios:** SCN-001, SCN-006, SCN-017, SCN-022, SCN-033, SCN-035, SCN-044, SCN-047
 - **Status:** built
 
@@ -190,7 +190,7 @@
   | switchboard project, not in place | a project folder; Switchboard without `--in-place` | — | the explanation + "Open in Terminal via Switchboard"; no start in the panel |
   | switchboard error | Switchboard did not answer | — | "Switchboard did not answer; the session was not started" |
   | collapsed | hidden by the person | — | nothing drawn; the session keeps running |
-- **Coverage:** src/renderer/components/ConsolePanel.tsx, src/electron/console.ts, src/core/consoles.ts
+- **Coverage:** src/renderer/components/ConsolePanel.tsx (the `page` mode on a session's page), src/electron/console.ts, src/core/consoles.ts
 - **Scenarios:** SCN-048, SCN-049, SCN-050
 - **Status:** built
 
@@ -218,14 +218,14 @@
   | success | sessions listed | none | the groups and rows; a new hand-over adds a row and never switches the mode |
   | rail | the sidebar folded (SCN-047) | none | the switch as two icons; one entry per session with a state mark and the project's initials, named in a tooltip |
   | error | Switchboard did not answer | none | the rows read before stay; All sessions carries the not-answering line (SCR-13) |
-- **Coverage:** none yet (dossier node S3)
+- **Coverage:** src/renderer/components/Navigation.tsx (SessionsNav), src/core/sessions-view.ts; test/navigation.test.ts, test/sessions-ui.test.ts
 - **Scenarios:** SCN-077, SCN-078, SCN-082, SCN-083, SCN-084
-- **Status:** designed
+- **Status:** built
 
 ### SCR-13: All sessions
 - **Used by:** SCN-069, SCN-075, SCN-078, SCN-079, SCN-081, SCN-082, SCN-083, SCN-084
 - **Purpose:** ST-023: what each session is, where it came from and what it needs, each with its actions
-- **Elements:** title "All sessions"; the one-time note (SCN-079) with "Set up hand-overs" and "Got it"; the same groups as SCR-12, as cards: the project, the second line of SCR-12, the state in words ("Running", "Running in Terminal", "Did not continue; its process is still running", a could-not-open reason, "Continues at about <time>", "Ended at <time>", "Closed after 30 idle minutes", "Ended by you", "Not continued: you declined") and the state's actions (End, Show in Finder, Show in Terminal, Open console, Continue now on another account, Do not continue, Continue or New session here, Remove); "Clear" on the Ended group; the footnote "Sessions started in a terminal without Switchboard are not listed."
+- **Elements:** title "All sessions"; the one-time note (SCN-079) with "Choose where sessions continue" and "Got it"; the same groups as SCR-12, as cards: the project, the second line of SCR-12, the state in words ("Running", "Running in Terminal", "Did not continue; its process is still running", a could-not-open reason, "Continues at about <time>", "Ended at <time>", "Closed after 30 idle minutes", "Ended by you", "Not continued: you declined") and the state's actions (End, Show in Finder, Show in Terminal, Open console, Continue now on another account, Do not continue, Continue or New session here, Remove); "Clear" on the Ended group; the footnote "Sessions started in a terminal without Switchboard are not listed."
 - **States:**
   | State | Trigger | Figma frame | Behavior |
   |-------|---------|-------------|----------|
@@ -234,9 +234,9 @@
   | success | sessions listed | none | groups of cards with their actions; a card opens its page (SCR-14) |
   | partial | Switchboard is not installed | none | this app's console sessions only, with "Switchboard is not installed, so only sessions started in this app's consoles are listed." |
   | error | Switchboard did not answer on the last read | none | "Switchboard did not answer just now, so sessions it runs may be missing. Checked at <time>." above the groups read before |
-- **Coverage:** none yet (dossier node S3)
+- **Coverage:** src/renderer/components/Sessions.tsx (AllSessions, SessionActions); test/sessions-ui.test.ts; docs/reports/2026-10-24-ui-ux-iteration/shots/
 - **Scenarios:** SCN-069, SCN-075, SCN-078, SCN-079, SCN-081, SCN-082, SCN-083, SCN-084
-- **Status:** designed
+- **Status:** built
 
 ### SCR-14: Session page
 - **Used by:** SCN-066, SCN-069, SCN-075, SCN-080, SCN-081, SCN-082, SCN-083, SCN-084, SCN-085
@@ -251,9 +251,9 @@
   | empty | an ended session after the app restarted | none | "What this session printed is not kept after the app restarts." with Continue and Remove |
   | error | the console cannot start (SCN-063), the session cannot be ended, or the continue is refused | none | the reason in the console's place or beside the action; the state's actions stay |
   | gone | the session left the list while open | none | All sessions opens instead (UX-18) |
-- **Coverage:** none yet (dossier node S3)
+- **Coverage:** src/renderer/components/Sessions.tsx (SessionHeader, SessionBody), src/renderer/App.tsx, src/electron/drawer.ts, src/core/layout.ts (`drawerBoundsFor`), src/renderer/components/ConsolePanel.tsx (page mode); test/sessions-ui.test.ts; docs/reports/2026-10-24-ui-ux-iteration/shots/
 - **Scenarios:** SCN-066, SCN-069, SCN-075, SCN-080, SCN-081, SCN-082, SCN-083, SCN-084, SCN-085
-- **Status:** designed
+- **Status:** built
 
 ### SCR-15: Connections → Sessions stopped on a limit
 - **Used by:** SCN-075 (before 0.8.0)

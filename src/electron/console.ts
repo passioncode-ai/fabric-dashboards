@@ -21,7 +21,7 @@ import { admit, machineProbe, type MachineState } from '../core/admission';
 import { findCheckout } from '../core/repofind';
 import { detectRuntimes, KNOWN_RUNTIMES, readLoginPath, searchDirs, specsFromSwitchboard, type Runtime, type RuntimeSpec } from '../core/runtimes';
 import type { SettingsStore } from '../core/settings';
-import { accountsOf, allSessionsOf, bindingFor, canLaunchInPlace, findSwitchboard, handoverKey, handoverOwnKey, handoverRunArgv, handoversOf, handoversSwitch, isHandoverKey, managesProvider, sessionsIn, terminalLaunchArgv, type Binding, type SbHandover, type SbSessions } from '../core/switchboard';
+import { accountsOf, allSessionsOf, bindingFor, canLaunchInPlace, findSwitchboard, handoverOwnKey, handoverRunArgv, handoversOf, handoversSwitch, isHandoverKey, managesProvider, sessionsIn, terminalLaunchArgv, type Binding, type SbHandover, type SbSessions } from '../core/switchboard';
 import type { ServiceSnapshot } from '../core/types';
 import { claimStop, finishStop, liveAgents, recoveryOf, resumeArgs, resumeOwnKey, transcriptIn, transcriptOf, verdictOf, writtenAt, RESUME_SETTLE_MS, RESUMES_PER_PASS, type RecoveryStatus, type SbStop, type StopView } from '../core/recovery';
 import { consoleRowId, handoverRowId, mergeSessions, pruneDismissed, pruneRecords, SourceReader, stopRowId, type ConsoleInput, type PendingHandover, type SbSessionRecord, type SessionActionResult, type SessionReason, type SessionRecord, type SessionNotice, type SessionRow, type SessionsStatus, type SourceDegraded } from '../core/sessions';
@@ -97,7 +97,6 @@ export interface ConsoleHostOptions {
 export const HANDOVER_POLL_MS = { visible: 15_000, hidden: 60_000 };
 
 /** FD-62: a console that runs a hand-over, as the shell lists it. */
-export interface HandoverConsole { key: string; workflow: string; agent: string; account: string; dir: string; state: 'running' | 'exited'; kind: 'handover' | 'resume' }
 
 /** D2 of the 2026-10-12 board waves, stated in AGENTS.md's lifecycle table (LC-18). */
 export const IDLE_CLOSE_MS = 30 * 60_000;
@@ -415,20 +414,8 @@ export class ConsoleHost {
     return key;
   }
 
-  /** The consoles of their own that run or ran a hand-over, for the shell's list. */
-  handoverConsoles(): HandoverConsole[] {
-    const out: HandoverConsole[] = [];
-    for (const [key, h] of this.handoverOf) {
-      if (!isHandoverKey(key)) continue;
-      const state = this.manager.snapshot(key).state;
-      if (state === 'idle') continue;
-      out.push({ key, workflow: h.workflow, agent: h.agent, account: h.account, dir: h.dir, state, kind: this.resumedKeys.has(key) ? 'resume' : 'handover' });
-    }
-    return out;
-  }
-
-  /** The person closes a finished hand-over console: it leaves the list. A running one is stopped first. */
-  dismissHandover(key: string): void {
+  /** A finished hand-over or continued session's own console leaves the list (Remove, Clear). A running one stays. */
+  private dismissHandover(key: string): void {
     if (!isHandoverKey(key) || this.manager.snapshot(key).state === 'running') return;
     this.manager.forget(key);
     this.handoverOf.delete(key);
@@ -500,15 +487,14 @@ export class ConsoleHost {
       this.o.log(`console: limit stop ${stop.event} not claimed: ${claim.detail}`);
       return null;
     }
-    const consoles = (this.o.keys?.() ?? []).map((key) => {
-      const folder = this.folderOf(key);
-      return { key, folder: folder?.exists ? folder.path : null, running: this.manager.snapshot(key).state === 'running' };
-    });
     // FD-84: the proof of a continuation is its own transcript being written, read before and after the start.
     const transcript = transcriptOf(stop, this.o.home ?? os.homedir());
     const before = transcript ? writtenAt(transcript) : null;
+    // FD-103 (decision 8, extended by the orchestrator 2026-10-24): a session continued after a limit reset gets a console
+    // of its own, never an agent's free console in its folder, so it lives on its session page and the agent's console
+    // stays the person's.
     const own = resumeOwnKey(stop);
-    const key = handoverKey({ id: own.slice('handover.'.length), dir: stop.dir }, consoles, own);
+    const key = own;
     // FD-84: the agent's own CLI in its folder, so it reads the home that holds the transcript; a folder bound to a
     // Switchboard group routes it through Switchboard by its own settings.
     const cli = dirs.map((d) => path.join(d, stop.provider)).find((f) => { try { fs.accessSync(f, fs.constants.X_OK); return fs.statSync(f).isFile(); } catch { return false; } });
@@ -647,7 +633,7 @@ export class ConsoleHost {
     });
     const degraded = [this.sbSessions.degraded, this.handoverDegraded, this.recovery.unavailable && this.recovery.unavailable !== 'absent'
       ? { source: 'recovery' as const, reason: this.recovery.unavailable, detail: '', since: now } : null].filter((d): d is SourceDegraded => d !== null);
-    return { rows, degraded, switchboard: this.switchboardPresent, handovers: { enabled: this.handoversEnabled } };
+    return { rows, degraded, switchboard: this.switchboardPresent, handovers: { enabled: this.handoversEnabled }, autoContinue: this.o.settings.get().resumeAfterLimit !== false };
   }
 
   private rowOf(id: string): SessionRow | undefined {
@@ -867,7 +853,6 @@ export class ConsoleHost {
     ipcMain.handle(CHANNELS.sessionsHandovers, () => this.readHandoversSwitch());
     ipcMain.handle(CHANNELS.sessionsHandoversSet, (_e, on) => (typeof on === 'boolean' ? this.setHandoversSwitch(on) : Promise.reject(new Error('not a switch value'))));
     // #endregion sessions-host
-    ipcMain.handle(CHANNELS.consoleDismissHandover, (_e, key) => { if (keyOk(key)) this.dismissHandover(key); });
     ipcMain.handle(CHANNELS.consoleSessions, (_e, key) => (keyOk(key) ? this.sessions(key) : Promise.reject(new Error('not a service key'))));
     ipcMain.handle(CHANNELS.consoleOpenTerminal, (_e, key, mode) => (keyOk(key) ? this.openTerminal(key, mode === 'continue' ? 'continue' : 'new') : Promise.reject(new Error('not a service key'))));
     ipcMain.on(CHANNELS.consoleInput, (_e, key, data) => { if (keyOk(key) && typeof data === 'string' && data.length <= 1_000_000) this.manager.input(key, data); });

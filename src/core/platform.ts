@@ -83,10 +83,20 @@ export function trayIcon(platform: NodeJS.Platform, level: TrayLevelName): { fil
 
 /** Keyboard shortcuts and menu shape: the Command key and the app menu exist only on macOS. */
 /** FD-74: Reload is ⌘R on macOS; elsewhere F5, because Ctrl+R belongs to the console's shell (reverse search). */
-export function menuKeys(platform: NodeJS.Platform): { appMenu: boolean; quit: string; sidebar: string; console: string; details: string; reload: string; hardReload: string } {
+export function menuKeys(platform: NodeJS.Platform): { appMenu: boolean; quit: string; sidebar: string; console: string; details: string; reload: string; hardReload: string; agents: string; sessions: string } {
+  // FD-103 (SCN-077): ⌘1 / ⌘2 switch the sidebar between Agents and Sessions; Ctrl+1 / Ctrl+2 elsewhere.
   return platform === 'darwin'
-    ? { appMenu: true, quit: 'Command+Q', sidebar: 'Ctrl+Cmd+S', console: 'Ctrl+Cmd+T', details: 'Ctrl+Cmd+D', reload: 'Command+R', hardReload: 'Shift+Command+R' }
-    : { appMenu: false, quit: 'Ctrl+Q', sidebar: 'Ctrl+Shift+S', console: 'Ctrl+Shift+T', details: 'Ctrl+Shift+D', reload: 'F5', hardReload: 'Shift+F5' };
+    ? { appMenu: true, quit: 'Command+Q', sidebar: 'Ctrl+Cmd+S', console: 'Ctrl+Cmd+T', details: 'Ctrl+Cmd+D', reload: 'Command+R', hardReload: 'Shift+Command+R', agents: 'Command+1', sessions: 'Command+2' }
+    : { appMenu: false, quit: 'Ctrl+Q', sidebar: 'Ctrl+Shift+S', console: 'Ctrl+Shift+T', details: 'Ctrl+Shift+D', reload: 'F5', hardReload: 'Shift+F5', agents: 'Ctrl+1', sessions: 'Ctrl+2' };
+}
+
+/** FD-103 (SCN-077): the View menu's two mode items, first in the menu: what each says, its key and where it goes. */
+export function modeMenuItems(platform: NodeJS.Platform, label: (key: 'menu.agents' | 'menu.sessions') => string): { id: 'mode-agents' | 'mode-sessions'; label: string; accelerator: string; page: 'agents' | 'sessions' }[] {
+  const keys = menuKeys(platform);
+  return [
+    { id: 'mode-agents', label: label('menu.agents'), accelerator: keys.agents, page: 'agents' },
+    { id: 'mode-sessions', label: label('menu.sessions'), accelerator: keys.sessions, page: 'sessions' },
+  ];
 }
 
 /** A login launch starts hidden: macOS reports it (`wasOpenedAtLogin`); Windows and Linux register the

@@ -7,7 +7,8 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { ActivityStore } from '../core/activity';
-import { CHANNELS, type DrawerChange, type DrawerState, type Rect } from '../core/api';
+import { CHANNELS, type DrawerChange, type DrawerState, type NavTarget, type Rect } from '../core/api';
+import { sessionNotification } from '../core/sessions-notice';
 import { commandEnv, killOwned, ownedCount, runOwned } from '../core/children';
 import { doctorArgv, doctorResult, DOCTOR_TIMEOUT_MS, type SetupCheckResult } from '../core/doctor';
 import { readLoginPath, searchDirs } from '../core/runtimes';
@@ -38,7 +39,7 @@ import { ALWAYS_KEPT, cancelStagedUpdate, clearRestoreRecord, KEPT_FILES, produc
 import { autoInstallNow, autoInstallWait, cookieRewrite, onScreen, COOKIES_REENCRYPTED_MARKER, HiddenGrace, partitionFor, RELAUNCH_MARKER, relaunchHidden, RESUME_ROUTE_MARKER, resumeRoute, type ResumeRoute, stalePartitions, UPDATE_IDLE_MS, VIEW_RELEASE_ALL_MS, VIEW_RELEASE_GRACE_MS, VISIBILITY_SYNC_MS, VisibilitySync, WARM_VIEWS } from './policy';
 import { AppTray } from './tray';
 import { DockSync } from './dock';
-import { linkInArgv, menuKeys, notificationSettingsUrl, places, startHidden, uninstallCommand, uninstallTarget, windowChrome } from '../core/platform';
+import { linkInArgv, menuKeys, modeMenuItems, notificationSettingsUrl, places, startHidden, uninstallCommand, uninstallTarget, windowChrome } from '../core/platform';
 import { EstateUpdater } from './estate-updater';
 import { readSetupState } from '../core/setup';
 import { Updater } from './updater';
@@ -155,9 +156,14 @@ if (!app.requestSingleInstanceLock()) {
     setupState: () => readSetupState(os.homedir(), monitor.snapshots().length),
     doctor: () => (lastSetupCheck?.kind === 'report' ? lastSetupCheck.report : null),
     keys: () => monitor.snapshots().map((x) => x.key), changed: () => pushStatus(),
-    // FD-103 (decision 9): a taken hand-over or an automatic continue reaches the shown window once; node S3 makes it a
-    // system notification.
-    notice: (n) => { log(`sessions: ${n.kind} ${n.key} in ${n.project}`); if (windowVisible()) window!.webContents.send(CHANNELS.sessionsNotice, n); } });
+    // FD-103 (SCN-085, decision 9): a taken hand-over or an automatic continue is one system notification, silenced by
+    // paused notifications and quiet hours; a click opens that session in the Sessions mode.
+    notice: (n) => {
+      log(`sessions: ${n.kind} ${n.key} in ${n.project}`);
+      if (windowVisible()) window!.webContents.send(CHANNELS.sessionsNotice, n);
+      const text = sessionNotification(lang(), n, settings.get(), new Date());
+      if (text) notify({ title: text.title, body: text.body, target: 'sessions', serviceKey: n.id });
+    } });
   let tray: AppTray | null = null;
   // R-3: the window lets itself close only once a quit is really under way — before-quit, or
   // Squirrel's before-quit-for-update. A failed install puts the window back to hiding on close.
@@ -219,7 +225,7 @@ if (!app.requestSingleInstanceLock()) {
   let hiddenSince: number | null = Date.now(); // the app starts with nothing on screen (a login start stays hidden)
   const status = (): AppStatus => ({
     services: monitor.snapshots(), ...monitor.meta(), unread: activity.unread(), activityRev: activity.revision, update: updater.state, estate: estate.state, version: app.getVersion(),
-    alerts: alerts.status(), handovers: consoles.handoverConsoles(), recovery: consoles.recoveryStatus(), sessions: consoles.sessionsStatus(),
+    alerts: alerts.status(), sessions: consoles.sessionsStatus(),
     limits: personLimits, ...(lastShown ? { shown: lastShown } : {}),
   });
 
@@ -240,7 +246,7 @@ if (!app.requestSingleInstanceLock()) {
       if (windowVisible()) window!.webContents.send(CHANNELS.statusPush, s);
       // W2 (UX-04): the tray, the Dock and the window count one queue (src/core/attention.ts).
       const now = Date.now();
-      tray?.update(s.services, s.limits ?? {});
+      tray?.update(s.services, s.limits ?? {}, s.sessions?.rows ?? []);
       const next = badgeText(attentionQueue(s.services, { now, limits: s.limits }).length);
       if (next !== badge) { badge = next; app.dock?.setBadge(next); }
       // A failed action leaves the queue after 30 minutes with no event of its own: count again then.
@@ -440,7 +446,6 @@ if (!app.requestSingleInstanceLock()) {
 
   // A navigation sent before the renderer subscribes is lost (a link at launch lands while React
   // is still mounting), so until the renderer takes it (CHANNELS.navigateTake) it waits here.
-  type NavTarget = { page: 'service' | 'activity' | 'overview' | 'spend' | 'map' | 'settings'; key?: string; link?: string };
   /** U-18: the screen on show, reported by the renderer; Restart to update writes it for the next copy. */
   let shownRoute: ResumeRoute = { page: 'overview' };
   let rendererListening = false;
@@ -463,7 +468,7 @@ if (!app.requestSingleInstanceLock()) {
   }
   const MAX_KEPT_NOTICES = 50;
   const shownNotices = new Set<Notification>();
-  function notify(notice: Notice): void {
+  function notify(notice: Omit<Notice, 'target'> & { target: NavTarget['page'] }): void {
     if (!Notification.isSupported()) return;
     const n = new Notification({ title: notice.title, subtitle: notice.subtitle, body: notice.body, silent: false });
     // R-12: kept until clicked or closed — a collected notification loses its click handler. T-13:
@@ -836,7 +841,11 @@ if (!app.requestSingleInstanceLock()) {
     ipcMain.on(CHANNELS.viewBounds, (_e, rect: Rect) => views?.setBounds(rect));
     // FD-92: the window's page sets the drawer; the drawer's page reports folds and heights to the window's page.
     ipcMain.on(CHANNELS.drawerState, (e, state: DrawerState) => { if (window && e.sender.id === window.webContents.id) drawer?.set(state); });
-    ipcMain.on(CHANNELS.drawerChange, (e, change: DrawerChange) => { if (window && !window.isDestroyed() && e.sender.id === drawer?.contents()?.id) window.webContents.send(CHANNELS.drawerChange, change); });
+    ipcMain.on(CHANNELS.drawerChange, (e, change: DrawerChange) => {
+      if (!window || window.isDestroyed() || e.sender.id !== drawer?.contents()?.id) return;
+      if (change?.kind === 'focusOut') window.webContents.focus(); // VIS-05: Esc then Tab leaves the terminal for the window's page
+      window.webContents.send(CHANNELS.drawerChange, change);
+    });
     ipcMain.on(CHANNELS.drawerDrag, (e, on: boolean) => { if (e.sender.id === drawer?.contents()?.id) drawer?.setDragging(on === true); });
   }
 
@@ -868,6 +877,9 @@ if (!app.requestSingleInstanceLock()) {
       { role: 'editMenu' },
       // ADR-0017: the panels fold away from the menu too; the window holds the state (Settings.layout).
       { label: t(l, 'menu.view'), submenu: [
+        // FD-103 (SCN-077): ⌘1 Agents, ⌘2 Sessions (Ctrl elsewhere).
+        ...modeMenuItems(process.platform, (key) => t(l, key)).map((m) => ({ id: m.id, label: m.label, accelerator: m.accelerator, click: () => navigate({ page: m.page }) })),
+        { type: 'separator' },
         { id: 'reload-page', label: t(l, 'menu.reload'), accelerator: keys.reload, click: () => reloadCommand(false) },
         { id: 'reload-hard', label: t(l, 'menu.hardReload'), accelerator: keys.hardReload, click: () => reloadCommand(true) },
         { type: 'separator' },
@@ -922,6 +934,7 @@ if (!app.requestSingleInstanceLock()) {
     appMenu();
     tray = new AppTray(assets, {
       open: (key) => (key ? navigate({ page: 'service', key }) : showWindow()),
+      sessions: () => navigate({ page: 'sessions', key: 'all' }), // SCN-085 step 4
       pause: () => {
         settings.update({ notifications: { ...settings.get().notifications, pausedUntil: new Date(Date.now() + 3600_000).toISOString() } });
         pushStatus();

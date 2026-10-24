@@ -25,6 +25,8 @@ export function DrawerApp() {
     return api().onDrawer(setPush);
   }, []);
   useEffect(() => { if (pending !== null && push?.height === pending) setPending(null); }, [push?.height, pending]);
+  // VIS-06: the window's page says which scheme it paints; the terminal follows it at once (ConsolePanel watches it).
+  useEffect(() => { if (push?.scheme) applyTheme(push.scheme); }, [push?.scheme]);
   // A height the window's page settles differently (its own clamp) never comes back as asked: stop waiting for it.
   useEffect(() => {
     if (pending === null) return;
@@ -32,6 +34,15 @@ export function DrawerApp() {
     return () => clearTimeout(timer);
   }, [pending]);
   if (!push?.key) return null;
+  const focusOut = (back: boolean) => api().drawerChange({ kind: 'focusOut', back });
+  // FD-103 (SCN-080): a session's page: the console fills the page under its header.
+  if (push.full) {
+    return (
+      <LangContext.Provider value={lang}>
+        <ConsolePanel key="page" serviceKey={push.key} page height={push.areaHeight} maxHeight={push.areaHeight} onHeight={() => undefined} onDrag={() => undefined} onHide={() => undefined} onFocusOut={focusOut} />
+      </LangContext.Provider>
+    );
+  }
   const maxHeight = push.areaHeight > 0 ? Math.max(CONSOLE_HEIGHT.min, Math.floor(push.areaHeight - CONSOLE_HEIGHT.reveal)) : CONSOLE_HEIGHT.max;
   const clamp = (h: number) => Math.max(CONSOLE_HEIGHT.min, Math.min(maxHeight, Math.round(h)));
   const height = dragHeight ?? pending ?? push.height;
@@ -39,7 +50,9 @@ export function DrawerApp() {
   return (
     <LangContext.Provider value={lang}>
       <ConsolePanel
+        key="drawer"
         serviceKey={push.key}
+        onFocusOut={focusOut}
         height={height}
         maxHeight={maxHeight}
         onHeight={(h, commit) => {

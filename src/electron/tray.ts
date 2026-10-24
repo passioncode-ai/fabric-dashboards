@@ -4,6 +4,8 @@ import { Menu, nativeImage, Tray, type MenuItemConstructorOptions } from 'electr
 import path from 'node:path';
 import { t, type Lang } from '../core/i18n';
 import { trayMenuModel, type TrayItem } from '../core/tray-model';
+import { traySessionsLine } from '../core/sessions-view';
+import type { SessionRow } from '../core/sessions';
 import type { LimitView } from '@passioncode-ai/fabric-service-host/usage';
 import type { ServiceSnapshot, ServiceState } from '../core/types';
 
@@ -19,6 +21,8 @@ export function trayLevel(services: ServiceSnapshot[], limits: Readonly<Record<s
 
 export interface TrayActions {
   open(key?: string): void;
+  /** FD-103 (SCN-085): the Sessions line opens the Sessions mode on All sessions. */
+  sessions(): void;
   pause(): void;
   resume(): void;
   paused(): boolean;
@@ -43,12 +47,13 @@ export class AppTray {
     this.tray.setToolTip('Fabric Dashboards');
   }
 
-  update(services: ServiceSnapshot[], limits: Readonly<Record<string, readonly LimitView[]>> = {}): void {
+  update(services: ServiceSnapshot[], limits: Readonly<Record<string, readonly LimitView[]>> = {}, sessions: readonly SessionRow[] = []): void {
     const lang = this.lang();
     const level = trayLevel(services, limits);
     // W2 (UX-04): the headline and the first items are the attention queue Overview, the sidebar and the Dock count.
     const model = trayMenuModel(services, { now: Date.now(), limits, lang });
-    const signature = JSON.stringify([lang, level, this.actions.paused(), model]);
+    const sessionsLine = traySessionsLine(lang, sessions);
+    const signature = JSON.stringify([lang, level, this.actions.paused(), model, sessionsLine]);
     if (signature === this.shown) return;
     this.shown = signature;
     this.tray.setImage(this.icons[level]);
@@ -56,6 +61,8 @@ export class AppTray {
     const headline = model.headline;
     const template: MenuItemConstructorOptions[] = [
       { label: headline, enabled: false },
+      // FD-103 (SCN-085): "Sessions: running N, need you M" under the headline, while one runs or needs the person.
+      ...(sessionsLine ? [{ label: sessionsLine, click: () => this.actions.sessions() }] : []),
       ...model.attention.map(item),
       { type: 'separator' },
       ...model.rest.map(item),

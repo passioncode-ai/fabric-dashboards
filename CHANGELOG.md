@@ -10,10 +10,33 @@
   group and the actions that state allows. Ended sessions and hand-overs that could not open here are kept 24 hours
   across a restart; a closed idle hand-over can be continued; a continued session that did not take up its
   conversation and still runs is listed as needing you, with its console.
+- **A Sessions mode** (FD-103, node S3 of the 0.8.0 iteration; SCN-077 to SCN-086). A switch at the top of the
+  sidebar moves between Agents and Sessions (⌘1 and ⌘2, Ctrl elsewhere); the window reopens in the mode it was closed
+  in, and the Sessions part counts the sessions that need you. Sessions lists every coding session by what it needs:
+  Needs you, Running, Waiting for a limit reset, and Ended in the last 24 hours (folded, with Clear). Each row says the
+  project over the coding agent, the account, how it came here and when, and each state has its actions: End (asks
+  first), Show in Finder, Open console, Continue now on another account, Do not continue, Continue or New session here,
+  Remove. All sessions explains itself once, and says when Switchboard is missing or did not answer.
+- **A session has a page of its own**: its project, state, where it came from, its account and context, and its
+  console filling the rest of the window, with no fold and nothing that navigates away. Esc reaches the coding agent;
+  Esc then Tab within a second leaves the terminal. The terminal follows a change of the colour scheme at once.
+- **One notification per session that continues here**: a taken hand-over, or a session continued after a limit reset;
+  paused notifications and quiet hours silence it, and a click opens the session. The menu bar menu says "Sessions:
+  running N, need you M" and opens the Sessions mode.
+- **Settings → Sessions**: "Open sessions handed over by Switchboard here", read and changed through Switchboard, and
+  "Continue sessions after a limit reset", moved here.
 
 ### Changed
 
 - **A hand-over always opens in a console of its own**, never in an agent's free console in the same folder (decision 8).
+  So does a session continued after a limit reset (decision 8, extended 2026-10-24).
+- **A hand-over Switchboard still offers is not listed** until this app takes it or it fails.
+
+### Removed
+
+- The sidebar's Hand-overs section and its page, the console dropping down over a hand-over, and the list of sessions
+  stopped on a limit under Connections: all of it is in the Sessions mode now. The strings that pointed "on the right"
+  went with them.
 
 ## 0.7.28 - 2026-10-24
 

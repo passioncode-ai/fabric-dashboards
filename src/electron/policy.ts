@@ -287,7 +287,7 @@ export function relaunchHidden(markerText: string | null, now: number): boolean 
 /** U-18 (FD-21): the screen the person was on when they chose Restart to update; the copy that
  *  starts after the install opens on it, not on Overview. */
 export const RESUME_ROUTE_MARKER = '.resume-route.json';
-export type ResumeRoute = { page: 'overview' | 'activity' | 'spend' | 'map' | 'settings' } | { page: 'service'; key: string };
+export type ResumeRoute = { page: 'overview' | 'activity' | 'spend' | 'map' | 'settings' | 'sessions' } | { page: 'service'; key: string };
 
 /** The route in a resume marker, if it is well-formed and was written for this relaunch. */
 export function resumeRoute(markerText: string | null, now: number): ResumeRoute | null {
@@ -301,7 +301,8 @@ export function resumeRoute(markerText: string | null, now: number): ResumeRoute
     const key = raw.route?.key;
     return typeof key === 'string' && /^[a-z0-9-]+\.[a-z0-9-]+$/.test(key) ? { page, key } : null;
   }
-  return page === 'overview' || page === 'activity' || page === 'spend' || page === 'map' || page === 'settings' ? { page } : null;
+  // FD-103: a Sessions page reopens the Sessions mode on the page it remembers (Settings.layout.sessionId).
+  return page === 'overview' || page === 'activity' || page === 'spend' || page === 'map' || page === 'settings' || page === 'sessions' ? { page } : null;
 }
 // #endregion auto-install
 
