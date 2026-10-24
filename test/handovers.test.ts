@@ -1,13 +1,13 @@
 // FD-62 (Switchboard SB-108): hand-overs Switchboard leaves for a console. The CLI's answer is parsed
-// strictly; each hand-over is taken once, on the console of the agent whose folder it is when that console is
-// free, else on a console of its own; one the machine cannot carry (LC-17) is left for Switchboard's Terminal.
+// strictly; each hand-over is taken once, always on a console of its own (FD-103 decision 8); one the machine
+// cannot carry (LC-17) is left for Switchboard's Terminal.
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import type { Runner } from '@passioncode-ai/fabric-service-host';
 import { ConsoleHost } from '../src/electron/console';
-import { handoverKey, handoverRunArgv, handoversOf, isHandoverKey, type SbHandover } from '../src/core/switchboard';
+import { handoverRunArgv, handoversOf, isHandoverKey } from '../src/core/switchboard';
 import { tmp } from './helpers';
 
 const GB = 1024 ** 3;
@@ -33,12 +33,7 @@ test('FD-62: a running Switchboard older than its CLI, or one without hand-overs
   assert.deepEqual(await handoversOf(broken, 'sb'), { unavailable: 'error', detail: 'disk full' });
 });
 
-test('FD-62: a hand-over opens in the free console of the agent whose folder it is, else in a console of its own', () => {
-  const base = tmp('fd-ho-key-');
-  const h: SbHandover = { id: ID, workflow: 'w', agent: 'claude-code', account: 'a', dir: base, offeredUntil: Date.now() + 60_000 };
-  assert.equal(handoverKey(h, [{ key: 'other.default', folder: '/elsewhere', running: false }, { key: 'agent.default', folder: base, running: false }]), 'agent.default');
-  assert.equal(handoverKey(h, [{ key: 'agent.default', folder: base, running: true }]), `handover.${ID}`, 'a running console is never doubled');
-  assert.equal(handoverKey(h, []), `handover.${ID}`);
+test('FD-62, FD-103 (decision 8): a hand-over\'s console of its own is named by its id; Switchboard runs it there', () => {
   assert.ok(isHandoverKey(`handover.${ID}`));
   assert.ok(!isHandoverKey('handover.something'));
   assert.deepEqual(handoverRunArgv('/bin/switchboard', ID), ['/bin/switchboard', 'handovers', 'run', ID]);
@@ -87,25 +82,27 @@ test('FD-62: a waiting hand-over is taken once, on a console of its own, and the
   assert.deepEqual(r.spawned, [{ file: r.sb, args: ['handovers', 'run', ID], cwd: r.dir }]);
   assert.deepEqual(await r.host.pollHandovers(), [], 'the same hand-over is never taken twice');
   assert.equal(r.spawned.length, 1);
-  assert.deepEqual(r.host.handoverConsoles(), [{ key: `handover.${ID}`, workflow: 'nightly-report', agent: 'claude-code', account: 'Work Max', dir: r.dir, state: 'running', kind: 'handover' }]);
+  // FD-103: the Sessions list carries it (the sidebar's Hand-overs section is gone).
+  const running = r.host.sessionsStatus().rows.filter((x) => x.key === `handover.${ID}`);
+  assert.deepEqual(running.map((x) => [x.state, x.origin, x.folder, x.agent, x.account]), [['running-ours', 'handover', r.dir, 'claude-code', 'Work Max']]);
   assert.equal(r.changed(), 1);
   const info = await r.host.info(`handover.${ID}`);
   assert.deepEqual(info.handover, { id: ID, workflow: 'nightly-report', agent: 'claude-code', account: 'Work Max', dir: r.dir, kind: 'handover' });
-  r.host.dismissHandover(`handover.${ID}`);
-  assert.equal(r.host.handoverConsoles().length, 1, 'a running hand-over is not closed from the list');
+  assert.deepEqual(await r.host.dismissSession(running[0]!.id), { ok: false, reason: 'not-allowed' }, 'a running hand-over is not removed from the list');
   r.exits[0]!({ exitCode: 0 });
-  assert.equal(r.host.handoverConsoles()[0]!.state, 'exited');
+  const ended = r.host.sessionsStatus().rows.filter((x) => x.key === `handover.${ID}`);
+  assert.deepEqual(ended.map((x) => [x.id, x.state, x.actions]), [[running[0]!.id, 'ended', ['continue', 'dismiss']]]);
   assert.deepEqual(await r.host.pollHandovers(), [], 'still listed after its session ended: not taken again');
   assert.equal(r.spawned.length, 1);
-  r.host.dismissHandover(`handover.${ID}`);
-  assert.deepEqual(r.host.handoverConsoles(), []);
+  assert.deepEqual(await r.host.dismissSession(ended[0]!.id), { ok: true, key: null });
+  assert.deepEqual(r.host.sessionsStatus().rows.filter((x) => x.key === `handover.${ID}`), []);
 });
 
-test('FD-62: a hand-over in an agent\'s folder opens in that agent\'s free console', POSIX, async () => {
+test('FD-103 (decision 8, replaces FD-62\'s agent console): a hand-over in an agent\'s folder still opens in a console of its own', POSIX, async () => {
   const r = rig({ serviceFolder: 'same' });
-  assert.deepEqual(await r.host.pollHandovers(), ['agent.default']);
-  assert.equal((await r.host.info('agent.default')).handover?.id, ID);
-  assert.deepEqual(r.host.handoverConsoles(), [], 'it runs in the agent\'s console, not in a list of its own');
+  assert.deepEqual(await r.host.pollHandovers(), [`handover.${ID}`]);
+  assert.equal((await r.host.info('agent.default')).handover ?? null, null, 'the agent\'s console stays the person\'s');
+  assert.deepEqual(r.host.sessionsStatus().rows.filter((x) => x.state === 'running-ours').map((x) => x.key), [`handover.${ID}`]);
 });
 
 test('FD-62: one the machine cannot carry (LC-17), a lapsed offer or a folder not here is left to Switchboard\'s Terminal', POSIX, async () => {

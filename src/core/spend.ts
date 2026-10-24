@@ -3,7 +3,7 @@
 // DEC-0021). Main process only: the token never reaches the renderer, which gets the sums. Read
 // only while someone looks at Spend or an agent asks — nothing runs when the window is hidden
 // (lifecycle LC-08).
-import { summarizeUsage, type SpendSum, type SpendSummary, type UsageReport } from '@passioncode-ai/fabric-service-host/usage';
+import { settleSum, summarizeUsage, type LimitView, type SpendSide, type SpendSum, type SpendSummary, type UsageReport } from '@passioncode-ai/fabric-service-host/usage';
 import type { Descriptor, Reason, WellKnown } from './types';
 
 export type SpendEntry =
@@ -45,6 +45,19 @@ export async function readSpend(services: readonly { key: string; state?: string
     }
   }));
 }
+/** UX-05, UX-06: the limits that need a person, by agent: tripped (stopped work) or over the line, from the last
+ *  spend read the main process holds. The window gets them with every status push, so the sidebar badge, the
+ *  tray and Needs attention read the same limits as Spend and Connections. An agent with none is absent. */
+export function limitsNeedingPerson(entries: readonly SpendEntry[]): Record<string, LimitView[]> {
+  const out: Record<string, LimitView[]> = {};
+  for (const e of entries) {
+    if (e.kind !== 'report') continue;
+    const need = e.summary.limits.filter((l) => l.state === 'tripped' || l.state === 'breach');
+    if (need.length) out[e.key] = need;
+  }
+  return out;
+}
+
 export type SpendWindow = 'today' | 'week' | 'month';
 
 /**
@@ -57,9 +70,11 @@ export function sumSpend(entries: readonly SpendEntry[], window: SpendWindow): S
   const unread = entries.some((e) => e.kind === 'error');
   const out: SpendSum = { calls: 0, inputTokens: 0, outputTokens: 0, costUsd: null, estimateUsd: 0, estimatePartial: unread, subscriptionCalls: 0, partial: unread, tokensPartial: unread }; // FD-97 review: an unread agent may have had subscription calls too
   let estimated = false; // FD-97: some agent's subscription calls carry a price
-  for (const e of entries) {
-    if (e.kind !== 'report') continue;
-    const x = e.summary[window];
+  const reports = entries.flatMap((e) => (e.kind === 'report' ? [e.summary[window]] : []));
+  // FD-101: when every agent's sum carries its sides, the contract's rule (DEC-0110 `usageSpend`) runs over all their
+  // rows at once: one agent's known cost beside another's unpriced calls is neither lost nor kept as "at least".
+  if (reports.every((x) => x.sides)) return sumBySides(reports, unread);
+  for (const x of reports) {
     out.calls += x.calls;
     out.inputTokens += x.inputTokens;
     out.outputTokens += x.outputTokens;
@@ -76,6 +91,33 @@ export function sumSpend(entries: readonly SpendEntry[], window: SpendWindow): S
   if (out.calls === out.subscriptionCalls && out.costUsd === null) out.costUsd = 0; // nothing metered was called: no money was spent
   if (out.subscriptionCalls > 0 && !estimated) { out.estimateUsd = null; out.estimatePartial = false; }
   else if (out.subscriptionCalls === 0 && out.estimateUsd === 0) out.estimatePartial = false; // nothing estimated: no "at least ~$0" for an unread agent alone
+  return out;
+}
+
+function sumBySides(reports: readonly SpendSum[], unread: boolean): SpendSum {
+  const side = (): SpendSide => ({ calls: 0, pricedCalls: 0, unpriced: false, knownUsd: 0 });
+  const out: SpendSum = { calls: 0, inputTokens: 0, outputTokens: 0, costUsd: null, estimateUsd: 0, estimatePartial: false, subscriptionCalls: 0, partial: false, tokensPartial: unread, sides: { money: side(), estimate: side() } };
+  for (const x of reports) {
+    out.calls += x.calls;
+    out.inputTokens += x.inputTokens;
+    out.outputTokens += x.outputTokens;
+    out.subscriptionCalls += x.subscriptionCalls ?? 0;
+    if (x.tokensPartial) out.tokensPartial = true; // DEC-0091
+    for (const k of ['money', 'estimate'] as const) {
+      const from = x.sides![k], to = out.sides![k];
+      to.calls += from.calls;
+      to.pricedCalls += from.pricedCalls;
+      to.unpriced ||= from.unpriced;
+      to.knownUsd += from.knownUsd;
+    }
+  }
+  settleSum(out);
+  // FD-97 review: an agent that could not be read may have spent money and had subscription calls: a known sum is a
+  // lower bound, but nothing estimated stays nothing (no "at least ~$0" for an unread agent alone).
+  if (unread) {
+    out.partial = true;
+    if (out.estimateUsd !== null && !(out.subscriptionCalls === 0 && out.estimateUsd === 0)) out.estimatePartial = true;
+  }
   return out;
 }
 // #endregion spend-read

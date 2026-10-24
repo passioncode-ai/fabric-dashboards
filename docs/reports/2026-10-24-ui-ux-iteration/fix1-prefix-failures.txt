@@ -1,0 +1,478 @@
+# node --import tsx --test test/review-round1.test.ts, run 2026-10-24 on the code of 48a1313 with only this test file added (before any fix): every row fails
+✖ R1-U1: Remove and Clear on an ended hand-over do not bring its in-place Switchboard record back as a row (40.002583ms)
+✖ R1-U2: a declined stop stays declined after Remove and Clear; automatic continue never claims it (292.478291ms)
+✖ R1-S1: the window's generic settings change cannot write sessions or consoles (0.269958ms)
+✖ R1-S2: a cancelled or resumed stop is no row, in Sessions and in MCP audit; waiting and claimed are kept (0.549ms)
+✖ R1-S3: a waiting stop is expected at Switchboard's probe_at, and at no time when Switchboard gives none (0.269875ms)
+✖ R1-U3: a hand-over a record or a console names is never listed again, compared by its own key (0.262167ms)
+✖ R1-U4: Continue on a Switchboard row never takes up a conversation that may still be live (18.492167ms)
+✖ R1-U5: a new session on a key that once resumed a conversation does not inherit its session id (579.164875ms)
+✖ R1-U6: an unreadable recovery keeps the time it first failed, and pushes no status on every tick (1.742291ms)
+✖ R1-U7: our console claims the nearest in-place Switchboard record, never a Terminal one (0.232542ms)
+✖ R1-U8: a failed action turns the tray icon to problem, as it turns the sidebar badge red (0.153042ms)
+✖ R1-P1: a session that needs the person turns the tray icon to attention, drawn as its own shape (0.208959ms)
+✖ R1-S4: quitting records each running console as closed when the app quit, not as ended by itself (1.220292ms)
+✖ R1-V1: a sidebar row keeps its time on the first line and says account and origin below; the agent only when not Claude Code (13.787209ms)
+✖ R1-V2: the waiting-for-reset mark is a clock in the info colour, at least 3:1 on the sidebar in both themes (0.661333ms)
+✖ R1-V3: the sidebar heads the ended group "Ended: N"; the page keeps the long heading (0.699542ms)
+✖ R1-V4: a session page draws no exit strip for an idle close or a person's End; an unclean exit still says its code (0.083209ms)
+ℹ tests 17
+ℹ suites 0
+ℹ pass 0
+ℹ fail 17
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1124.979292
+
+✖ failing tests:
+
+test at test/review-round1.test.ts:4:1286
+✖ R1-U1: Remove and Clear on an ended hand-over do not bring its in-place Switchboard record back as a row (40.002583ms)
+  AssertionError [ERR_ASSERTION]: remove: nothing comes back
+  + actual - expected
+  
+  + [
+  +   'sb:/sb/runtimes/claude-default:1792873414896 ended'
+  + ]
+  - []
+  
+      at TestContext.<anonymous> (<repo>/test/review-round1.test.ts:137:12)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: [ 'sb:/sb/runtimes/claude-default:1792873414896 ended' ],
+    expected: [],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/review-round1.test.ts:4:2514
+✖ R1-U2: a declined stop stays declined after Remove and Clear; automatic continue never claims it (292.478291ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+  
+  + [
+  +   'handover.rs-a4283ce9373a'
+  + ]
+  - []
+  
+      at TestContext.<anonymous> (<repo>/test/review-round1.test.ts:156:12)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ 'handover.rs-a4283ce9373a' ],
+    expected: [],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/review-round1.test.ts:4:3425
+✖ R1-S1: the window's generic settings change cannot write sessions or consoles (0.269958ms)
+  AssertionError [ERR_ASSERTION]: rendererSettingsPatch is the handler's filter
+  + actual - expected
+  
+  + 'undefined'
+  - 'function'
+  
+      at TestContext.<anonymous> (<repo>/test/review-round1.test.ts:166:10)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 'undefined',
+    expected: 'function',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at test/review-round1.test.ts:4:4649
+✖ R1-S2: a cancelled or resumed stop is no row, in Sessions and in MCP audit; waiting and claimed are kept (0.549ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+  
+    [
+  +   'cancelled',
+  +   'resumed',
+      'waiting',
+      'claimed'
+    ]
+  
+      at TestContext.<anonymous> (<repo>/test/review-round1.test.ts:185:10)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ 'cancelled', 'resumed', 'waiting', 'claimed' ],
+    expected: [ 'waiting', 'claimed' ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/review-round1.test.ts:4:5999
+✖ R1-S3: a waiting stop is expected at Switchboard's probe_at, and at no time when Switchboard gives none (0.269875ms)
+  AssertionError [ERR_ASSERTION]: the copied backoff table is gone
+  + actual - expected
+  
+  + [
+  +   120,
+  +   300,
+  +   600,
+  +   900
+  + ]
+  - undefined
+  
+      at TestContext.<anonymous> (<repo>/test/review-round1.test.ts:200:10)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: [ 120, 300, 600, 900 ],
+    expected: undefined,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at test/review-round1.test.ts:4:6976
+✖ R1-U3: a hand-over a record or a console names is never listed again, compared by its own key (0.262167ms)
+  AssertionError [ERR_ASSERTION]: the taken hand-over is its ended row, not also an expired one
+  + actual - expected
+  
+    [
+      'c:handover.ho-0123456789ab:1792613504000',
+  +   'ho:ho-0123456789ab'
+    ]
+  
+      at TestContext.<anonymous> (<repo>/test/review-round1.test.ts:216:10)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: [ 'c:handover.ho-0123456789ab:1792613504000', 'ho:ho-0123456789ab' ],
+    expected: [ 'c:handover.ho-0123456789ab:1792613504000' ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/review-round1.test.ts:4:8070
+✖ R1-U4: Continue on a Switchboard row never takes up a conversation that may still be live (18.492167ms)
+  AssertionError [ERR_ASSERTION]: written in the last minute: a new session
+      at TestContext.<anonymous> (<repo>/test/review-round1.test.ts:242:10)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/review-round1.test.ts:4:9718
+✖ R1-U5: a new session on a key that once resumed a conversation does not inherit its session id (579.164875ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+  
+  + '5f151e9c-cc90-4fed-a01b-101c647f52ab'
+  - null
+  
+      at TestContext.<anonymous> (<repo>/test/review-round1.test.ts:263:10)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: '5f151e9c-cc90-4fed-a01b-101c647f52ab',
+    expected: null,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at test/review-round1.test.ts:4:10688
+✖ R1-U6: an unreadable recovery keeps the time it first failed, and pushes no status on every tick (1.742291ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+  
+    {
+      detail: '',
+      reason: 'error',
+  +   since: 1792617404000,
+  -   since: 1792617104000,
+      source: 'recovery'
+    }
+  
+      at TestContext.<anonymous> (<repo>/test/review-round1.test.ts:274:10)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: { source: 'recovery', reason: 'error', detail: '', since: 1792617404000 },
+    expected: { source: 'recovery', reason: 'error', detail: '', since: 1792617104000 },
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/review-round1.test.ts:4:11328
+✖ R1-U7: our console claims the nearest in-place Switchboard record, never a Terminal one (0.232542ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+  
+  + 'Terminal one'
+  - 'Near one'
+  
+      at TestContext.<anonymous> (<repo>/test/review-round1.test.ts:294:10)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'Terminal one',
+    expected: 'Near one',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at test/review-round1.test.ts:4:12233
+✖ R1-U8: a failed action turns the tray icon to problem, as it turns the sidebar badge red (0.153042ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  'ok' !== 'problem'
+  
+      at TestContext.<anonymous> (<repo>/test/review-round1.test.ts:305:10)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'ok',
+    expected: 'problem',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at test/review-round1.test.ts:4:12785
+✖ R1-P1: a session that needs the person turns the tray icon to attention, drawn as its own shape (0.208959ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  'ok' !== 'attention'
+  
+      at TestContext.<anonymous> (<repo>/test/review-round1.test.ts:313:10)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'ok',
+    expected: 'attention',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at test/review-round1.test.ts:4:13839
+✖ R1-S4: quitting records each running console as closed when the app quit, not as ended by itself (1.220292ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+  
+  + 'undefined'
+  - 'function'
+  
+      at TestContext.<anonymous> (<repo>/test/review-round1.test.ts:328:10)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'undefined',
+    expected: 'function',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at test/review-round1.test.ts:4:15347
+✖ R1-V1: a sidebar row keeps its time on the first line and says account and origin below; the agent only when not Claude Code (13.787209ms)
+  AssertionError [ERR_ASSERTION]: <div class="nav"><button class="nav-item"><svg class="icon" viewBox="0 0 20 20" width="16" height="16" aria-hidden="true" focusable="false"><path d="M2.5 6.5h12v10h-12zM5.5 3.5h12v10M5 10l2 1.5L5 13M9 13h3" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path></svg><span class="nav-label">All sessions</span></button></div><div class="nav nav-scroll"><div role="group" aria-labelledby="snav-running"><div class="nav-section" id="snav-running">Running: 2</div><button class="nav-item session-item"><span class="state state-ready" aria-hidden="true"><span class="glyph">●</span></span><span class="nav-label session-lines"><span class="session-project">passioncode-platform</span><span class="session-sub">Claude Code · claude4 · handed over · 04:02 PM</span></span><span class="visually-hidden">Running</span></button><button class="nav-item session-item"><span class="state state-ready" aria-hidden="true"><span class="glyph">●</span></span><span class="nav-label session-lines"><span class="session-project">passioncode-platform</span><span class="session-sub">Codex · spare · after a limit reset · 05:02 PM</span></span><span class="visually-hidden">Running</span></button></div></div>
+  
+  0 !== 2
+  
+      at TestContext.<anonymous> (<repo>/test/review-round1.test.ts:347:10)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 0,
+    expected: 2,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at test/review-round1.test.ts:4:16851
+✖ R1-V2: the waiting-for-reset mark is a clock in the info colour, at least 3:1 on the sidebar in both themes (0.661333ms)
+  AssertionError [ERR_ASSERTION]: The input did not match the regular expression /class="state state-waiting"[^>]*><span class="glyph session-mark"><svg[^>]*class="mark-clock"/. Input:
+  
+  '<div class="nav"><button class="nav-item"><svg class="icon" viewBox="0 0 20 20" width="16" height="16" aria-hidden="true" focusable="false"><path d="M2.5 6.5h12v10h-12zM5.5 3.5h12v10M5 10l2 1.5L5 13M9 13h3" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path></svg><span class="nav-label">All sessions</span></button></div><div class="nav nav-scroll"><div role="group" aria-labelledby="snav-waiting"><div class="nav-section" id="snav-waiting">Waiting for a limit reset: 1</div><button class="nav-item session-item"><span class="state state-starting" aria-hidden="true"><span class="glyph">◌</span></span><span class="nav-label session-lines"><span class="session-project">checkout</span><span class="session-sub">Claude Code · claude4 · handed over · 04:02 PM</span></span><span class="visually-hidden">Waiting for a limit reset</span></button></div></div>'
+  
+      at TestContext.<anonymous> (<repo>/test/review-round1.test.ts:367:10)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: '<div class="nav"><button class="nav-item"><svg class="icon" viewBox="0 0 20 20" width="16" height="16" aria-hidden="true" focusable="false"><path d="M2.5 6.5h12v10h-12zM5.5 3.5h12v10M5 10l2 1.5L5 13M9 13h3" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path></svg><span class="nav-label">All sessions</span></button></div><div class="nav nav-scroll"><div role="group" aria-labelledby="snav-waiting"><div class="nav-section" id="snav-waiting">Waiting for a limit reset: 1</div><button class="nav-item session-item"><span class="state state-starting" aria-hidden="true"><span class="glyph">◌</span></span><span class="nav-label session-lines"><span class="session-project">checkout</span><span class="session-sub">Claude Code · claude4 · handed over · 04:02 PM</span></span><span class="visually-hidden">Waiting for a limit reset</span></button></div></div>',
+    expected: /class="state state-waiting"[^>]*><span class="glyph session-mark"><svg[^>]*class="mark-clock"/,
+    operator: 'match',
+    diff: 'simple'
+  }
+
+test at test/review-round1.test.ts:4:18615
+✖ R1-V3: the sidebar heads the ended group "Ended: N"; the page keeps the long heading (0.699542ms)
+  AssertionError [ERR_ASSERTION]: The input did not match the regular expression />Ended: 1</. Input:
+  
+  '<div class="nav"><button class="nav-item"><svg class="icon" viewBox="0 0 20 20" width="16" height="16" aria-hidden="true" focusable="false"><path d="M2.5 6.5h12v10h-12zM5.5 3.5h12v10M5 10l2 1.5L5 13M9 13h3" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path></svg><span class="nav-label">All sessions</span></button></div><div class="nav nav-scroll"><div role="group" aria-labelledby="snav-needs-you"><div class="nav-section" id="snav-needs-you">Needs you: 1</div><button class="nav-item session-item"><span class="state state-degraded" aria-hidden="true"><span class="glyph">▲</span></span><span class="nav-label session-lines"><span class="session-project">billing-api</span><span class="session-sub">Claude Code · claude4 · after a limit reset · 04:02 PM</span></span><span class="visually-hidden">Needs you</span></button></div><div role="group" aria-labelledby="snav-running"><div class="nav-section" id="snav-running">Running: 1</div><button class="nav-item session-item"><span class="state state-ready" aria-hidden="true"><span class="glyph">●</span></span><span class="nav-label session-lines"><span class="session-project">passioncode-platform</span><span class="session-sub">Claude Code · claude4 · handed over · 04:02 PM</span></span><span class="visually-hidden">Running</span></button></div><div role="group" aria-labelledby="snav-waiting"><div class="nav-section" id="snav-waiting">Waiting for a limit reset: 1</div><button class="nav-item session-item"><span class="state state-starting" aria-hidden="true"><span class="glyph">◌</span></span><span class="nav-label session-lines"><span class="session-project">fabric-switchboard</span><span class="session-sub">Claude Code · after a limit reset · 04:02 PM</span></span><span class="visually-hidden">Waiting for a limit reset</span></button></div><div role="group" aria-labelledby="snav-ended"><div class="nav-section-row session-fold"><button id="snav-ended" class="nav-section nav-fold-section" aria-expanded="true"><span aria-hidden="true">▾</span> <span>Ended in the last 24 hours: 1</span></button><button type="button" class="btn-link nav-clear" aria-label="Clear the ended sessions">Clear</button></div><button class="nav-item session-item"><span class="state state-stopped" aria-hidden="true"><span class="glyph">○</span></span><span class="nav-label session-lines"><span class="session-project">docs-site</span><span class="session-sub">Claude Code · claude4 · handed over · 04:02 PM</span></span><span class="visually-hidden">Closed after 30 idle minutes</span></button></div></div>'
+  
+      at TestContext.<anonymous> (<repo>/test/review-round1.test.ts:384:10)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: '<div class="nav"><button class="nav-item"><svg class="icon" viewBox="0 0 20 20" width="16" height="16" aria-hidden="true" focusable="false"><path d="M2.5 6.5h12v10h-12zM5.5 3.5h12v10M5 10l2 1.5L5 13M9 13h3" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path></svg><span class="nav-label">All sessions</span></button></div><div class="nav nav-scroll"><div role="group" aria-labelledby="snav-needs-you"><div class="nav-section" id="snav-needs-you">Needs you: 1</div><button class="nav-item session-item"><span class="state state-degraded" aria-hidden="true"><span class="glyph">▲</span></span><span class="nav-label session-lines"><span class="session-project">billing-api</span><span class="session-sub">Claude Code · claude4 · after a limit reset · 04:02 PM</span></span><span class="visually-hidden">Needs you</span></button></div><div role="group" aria-labelledby="snav-running"><div class="nav-section" id="snav-running">Running: 1</div><button class="nav-item session-item"><span class="state state-ready" aria-hidden="true"><span class="glyph">●</span></span><span class="nav-label session-lines"><span class="session-project">passioncode-platform</span><span class="session-sub">Claude Code · claude4 · handed over · 04:02 PM</span></span><span class="visually-hidden">Running</span></button></div><div role="group" aria-labelledby="snav-waiting"><div class="nav-section" id="snav-waiting">Waiting for a limit reset: 1</div><button class="nav-item session-item"><span class="state state-starting" aria-hidden="true"><span class="glyph">◌</span></span><span class="nav-label session-lines"><span class="session-project">fabric-switchboard</span><span class="session-sub">Claude Code · after a limit reset · 04:02 PM</span></span><span class="visually-hidden">Waiting for a limit reset</span></button></div><div role="group" aria-labelledby="snav-ended"><div class="nav-section-row session-fold"><button id="snav-ended" class="nav-section nav-fold-section" aria-expanded="true"><span aria-hidden="true">▾</span> <span>Ended in the last 24 hours: 1</span></button><button type="button" class="btn-link nav-clear" aria-label="Clear the ended sessions">Clear</button></div><button class="nav-item session-item"><span class="state state-stopped" aria-hidden="true"><span class="glyph">○</span></span><span class="nav-label session-lines"><span class="session-project">docs-site</span><span class="session-sub">Claude Code · claude4 · handed over · 04:02 PM</span></span><span class="visually-hidden">Closed after 30 idle minutes</span></button></div></div>',
+    expected: />Ended: 1</,
+    operator: 'match',
+    diff: 'simple'
+  }
+
+test at test/review-round1.test.ts:4:19576
+✖ R1-V4: a session page draws no exit strip for an idle close or a person's End; an unclean exit still says its code (0.083209ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+  
+  + 'undefined'
+  - 'function'
+  
+      at TestContext.<anonymous> (<repo>/test/review-round1.test.ts:393:10)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'undefined',
+    expected: 'function',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+# R1-A, R1-B, R1-C (added by the coordinator during FIX-1): the same file's three new tests, run on c9a82d9 before their fixes
+✖ R1-A: a session in a window Switchboard opened is named by the window each system really opens (5.185708ms)
+✖ R1-B: a hand-over this computer could not carry names the cause it found: disk, six sessions or swap (31.763292ms)
+✖ R1-C: continuing an idle-closed agent console from the console itself takes its ended row off the Sessions list (119.238ms)
+ℹ tests 3
+ℹ suites 0
+ℹ pass 0
+ℹ fail 3
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1902.801041
+
+✖ failing tests:
+
+test at test/review-round1.test.ts:4:20672
+✖ R1-A: a session in a window Switchboard opened is named by the window each system really opens (5.185708ms)
+  AssertionError [ERR_ASSERTION]: Switchboard starts powershell.exe in a new console (launch.rs start_terminal)
+  + actual - expected
+  
+  + 'Running in Terminal'
+  - 'Running in a PowerShell window'
+                ^
+  
+      at TestContext.<anonymous> (<repo>/test/review-round1.test.ts:423:10)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.start (node:internal/test_runner/test:1262:17)
+      at startSubtestAfterBootstrap (node:internal/test_runner/harness:387:17) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 'Running in Terminal',
+    expected: 'Running in a PowerShell window',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at test/review-round1.test.ts:4:23177
+✖ R1-B: a hand-over this computer could not carry names the cause it found: disk, six sessions or swap (31.763292ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+  
+  + 'busy'
+  - 'busy-disk'
+         ^
+  
+      at TestContext.<anonymous> (<repo>/test/review-round1.test.ts:443:12)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'busy',
+    expected: 'busy-disk',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at test/review-round1.test.ts:4:24719
+✖ R1-C: continuing an idle-closed agent console from the console itself takes its ended row off the Sessions list (119.238ms)
+  AssertionError [ERR_ASSERTION]: the continued session is the one row
+  + actual - expected
+  
+    [
+      'running-ours',
+  +   'idle-closed'
+    ]
+  
+      at TestContext.<anonymous> (<repo>/test/review-round1.test.ts:462:10)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: [ 'running-ours', 'idle-closed' ],
+    expected: [ 'running-ours' ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }

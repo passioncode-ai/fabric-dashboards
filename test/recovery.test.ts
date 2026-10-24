@@ -21,7 +21,7 @@ const row = (o: { dir?: string; session?: string; event?: string; ready?: boolea
   candidates: o.candidates ?? ['acc-2', 'acc-3'], mode: 'capacity', probe_at: null, ready: o.ready ?? true,
   stop: { account: 'acc-1', attempt: 2, directory: o.dir ?? '/tmp', event: o.event ?? `cc-${o.session ?? SID}-1792066929`, kind: o.kind ?? 'limit', mode: null, pool: 'default', provider: o.provider ?? 'claude', selected_account: null, session: o.session ?? SID, state: o.state ?? 'waiting', stopped_at: (o.at ?? NOW - 60_000) / 1000 },
 });
-const stop = (o: Partial<SbStop> = {}): SbStop => ({ event: `cc-${SID}-1`, session: SID, dir: '/tmp', provider: 'claude', candidates: ['acc-2'], ready: true, kind: 'limit', state: 'waiting', stoppedAt: NOW - 60_000, attempt: 1, ...o });
+const stop = (o: Partial<SbStop> = {}): SbStop => ({ event: `cc-${SID}-1`, session: SID, dir: '/tmp', provider: 'claude', candidates: ['acc-2'], ready: true, kind: 'limit', state: 'waiting', stoppedAt: NOW - 60_000, attempt: 1, probeAt: null, account: null, ...o });
 const none = { dirs: [], args: '' };
 
 test('FD-83: the stop list is read strictly — a malformed row is skipped, never guessed at', () => {
@@ -29,7 +29,7 @@ test('FD-83: the stop list is read strictly — a malformed row is skipped, neve
     row(), row({ session: 'not-a-uuid' }), row({ dir: 'relative/dir', session: '00000000-0000-0000-0000-000000000001' }), row({ provider: 'gemini', session: '00000000-0000-0000-0000-000000000002' }), { stop: null }, 'x',
   ] } }));
   assert.equal(stops?.length, 1);
-  assert.deepEqual(stops![0], { event: `cc-${SID}-1792066929`, session: SID, dir: '/tmp', provider: 'claude', candidates: ['acc-2', 'acc-3'], ready: true, kind: 'limit', state: 'waiting', stoppedAt: NOW - 60_000, attempt: 2 });
+  assert.deepEqual(stops![0], { event: `cc-${SID}-1792066929`, session: SID, dir: '/tmp', provider: 'claude', candidates: ['acc-2', 'acc-3'], ready: true, kind: 'limit', state: 'waiting', stoppedAt: NOW - 60_000, attempt: 2, probeAt: null, account: 'acc-1' });
   assert.equal(parseRecovery('{"ok":false}'), null);
   assert.equal(parseRecovery('not json'), null);
 });
@@ -147,7 +147,7 @@ test('FD-83/FD-84: a ready stop is claimed once, continued by the agent\'s own C
   const status = r.host.recoveryStatus();
   assert.equal(status.resumed, 1);
   assert.deepEqual(status.stops.map((s) => [s.verdict, s.key]), [['resumed', key]]);
-  assert.deepEqual(r.host.handoverConsoles().map((h) => [h.key, h.kind, h.workflow]), [[key, 'resume', 'checkout']]);
+  assert.deepEqual(r.host.sessionsStatus().rows.filter((x) => x.key === key).map((x) => [x.state, x.origin, x.project]), [['running-ours', 'resume', 'checkout']]);
   assert.deepEqual(await r.host.pollRecovery(), [], 'the same stop is never continued twice');
   assert.equal(r.spawned.length, 1);
 });
@@ -217,9 +217,12 @@ test('FD-84: a session that exits at once, or runs without writing its transcrip
   assert.ok(!elsewhere.calls.some((c) => c.includes('claim')));
 });
 
-test('FD-83: a stop in an agent\'s folder continues in that agent\'s free console', POSIX, async () => {
+test('FD-103 (decision 8 extended, replaces FD-83\'s free console): a stop in an agent\'s folder continues in a console of its own', POSIX, async () => {
   const r = rig({ serviceFolder: true });
-  assert.deepEqual(await r.host.pollRecovery(), ['agent.default']);
+  const [key] = await r.host.pollRecovery();
+  assert.ok(key && isHandoverKey(key) && key !== 'agent.default', `a console of its own, not ${key}`);
+  assert.equal((await r.host.info('agent.default')).session.state, 'idle', 'the agent\'s console stays the person\'s');
+  assert.deepEqual(r.host.sessionsStatus().rows.filter((x) => x.state === 'running-ours').map((x) => [x.key, x.origin]), [[key, 'resume']]);
 });
 
 test('FD-83: MCP `audit` lists the stops with the same verdicts, read-only', POSIX, async () => {

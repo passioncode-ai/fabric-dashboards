@@ -26,6 +26,7 @@ row that seeded it (FD-99).
 |---|---|---|
 | A settled decision | `docs/adr/` | cites `ADR-NNNN` |
 | The terms | [../CONTEXT.md](../CONTEXT.md) | uses the term as defined there |
+| How the interface speaks: the voice, one word per thing and state, Russian choices | [brand/](brand/README.md): [voice.md](brand/voice.md), [terminology.md](brand/terminology.md), [locales/ru.md](brand/locales/ru.md) | the strings in `src/core/i18n.ts` follow it; docs quote the strings as `i18n.ts` has them |
 | What a person can do and see | [ux/scenarios.md](ux/scenarios.md) | cites `SCN-NNN` |
 | The version | `package.json` `version` | CHANGELOG section, AGENTS.md "current version" |
 | What runs, when, and the idle budget | [../AGENTS.md](../AGENTS.md) §Lifecycle | `test/lifecycle.test.ts` names the rule ids |
@@ -42,7 +43,7 @@ row that seeded it (FD-99).
 |---|---|---|
 | **A new document or rule** | AGENTS.md §Where things live (or this map), and the index a reader opens | review: an index is read, not parsed |
 | User-facing behaviour | `docs/ux/scenarios.md` in the same change (CONTRIBUTING.md) | `python3 docs/ux/lint.py` (in `npm run check`) |
-| An interface string | `src/core/i18n.ts`, English and Russian | `test/parts.test.ts` *every interface string exists in English and Russian*, *no interface string carries an em dash* |
+| An interface string | `src/core/i18n.ts`, English and Russian, in the words of [brand/terminology.md](brand/terminology.md) and the rules of [brand/voice.md](brand/voice.md); a scenario or screen that quotes it, in the same change | `test/parts.test.ts` *every interface string exists in English and Russian, and placeholders match*, *operator 2026-10-18: no interface string carries an em dash (U+2014) or a spaced -- , in either language*; `test/copy.test.ts` (no em dash in a string composed in code, Russian counts after their label, one word per thing and state, protocol words out of the first sentence, platform words) |
 | A feature, module or special condition in code | a `// #region <slug> — docs: <path>#<anchor>` fence | `node scripts/check-regions.mjs` (in `npm run check`) |
 | The state order | `test-vectors/state-precedence.json` in the same change | `packages/service-host/test/state.test.ts` (the shared vectors) |
 | A process, timer or file the app writes | AGENTS.md §Lifecycle table | `test/lifecycle.test.ts` |
@@ -56,7 +57,7 @@ row that seeded it (FD-99).
 | Gate | Command | When | Blocking? |
 |---|---|---|---|
 | The gate | `npm run check` (typecheck, unit and integration tests, brand pins, code regions, UX lint) | before every commit that lands | yes |
-| End to end | `npm run test:e2e` | before a release, and a change to a shared screen runs the whole suite | yes; refuses on a locked screen |
+| End to end | `npm run test:e2e` | before a release, and a change to a shared screen runs the whole suite | yes; refuses on a locked screen or a loaded machine (load above 150, under 5 GB free), runs one file at a time ([CONTRIBUTING](../CONTRIBUTING.md#end-to-end-tests)) |
 | Five systems | `gh workflow run validate.yml --ref <branch> -f os=all` | before a release (and nightly) | yes |
 
 `npm run check` does not cover a real window (the e2e), Windows or Linux (validate.yml), or the signed bundle

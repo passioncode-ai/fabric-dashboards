@@ -1,12 +1,15 @@
 import { SetupCheck } from './Overview';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { AppStatus, Listener, Settings as SettingsValue } from '../../core/types';
 import { api, nameOf, Spinner, useT } from '../lib';
 import { REFERENCE_THEMES } from '../../core/appearance';
+import { revealScrollTop } from '../../core/layout';
 
-export function Settings({ status, onTheme, onLanguage, onSetup }: { status: AppStatus; onTheme: (theme: SettingsValue['theme']) => void; onLanguage: () => void;
+export function Settings({ status, onTheme, onLanguage, onSetup, section, nonce }: { status: AppStatus; onTheme: (theme: SettingsValue['theme']) => void; onLanguage: () => void;
   /** FD-39 SCN-058: the Setup console stays reachable after the card is hidden. */
-  onSetup?: () => void }) {
+  onSetup?: () => void;
+  /** FD-103 (SCN-079): "Choose where sessions continue" opens Settings on its Sessions section. */
+  section?: 'sessions'; nonce?: number }) {
   const { t, time } = useT();
   const [value, setValue] = useState<SettingsValue | null>(null);
   const [error, setError] = useState('');
@@ -14,10 +17,33 @@ export function Settings({ status, onTheme, onLanguage, onSetup }: { status: App
   const [uninstallError, setUninstallError] = useState('');
   const [pathError, setPathError] = useState('');
 
+  // FD-103 (SCN-086): Switchboard's own switch for handing sessions over here, read and written through its CLI.
+  const [handovers, setHandovers] = useState<{ available: boolean; enabled: boolean | null } | null>(null);
+  const [handoverError, setHandoverError] = useState('');
   useEffect(() => {
     void api().settings().then(setValue);
     void api().listeners().then(setListeners);
+    void api().sessionsHandovers().then(setHandovers).catch(() => setHandovers({ available: false, enabled: null }));
   }, []);
+  const sessionsRef = useRef<HTMLElement | null>(null);
+  useEffect(() => {
+    if (section !== 'sessions' || !value) return;
+    // FD-107: scrolled only as far as needed to show the whole section, never past its heading, so when it fits under
+    // the page title the title stays in view (scrollIntoView start put the section at the window's edge, title gone).
+    const el = sessionsRef.current;
+    const box = el?.closest<HTMLElement>('.page');
+    if (el && box) {
+      const top = el.getBoundingClientRect().top - box.getBoundingClientRect().top + box.scrollTop;
+      box.scrollTop = revealScrollTop({ scrollTop: box.scrollTop, height: box.clientHeight }, { top, height: el.offsetHeight }, 16);
+    }
+    el?.querySelector<HTMLElement>('h2')?.focus({ preventScroll: true });
+  }, [section, nonce, Boolean(value)]);
+  const flipHandovers = async (on: boolean) => {
+    setHandoverError('');
+    const r = await api().setSessionsHandovers(on).catch((e: unknown) => ({ ok: false, enabled: handovers?.enabled ?? null, detail: String((e as Error)?.message ?? e) }));
+    setHandovers((h) => ({ available: h?.available ?? true, enabled: r.enabled }));
+    if (!r.ok) setHandoverError(t('settings.handovers.refused', { reason: r.detail ?? '' }));
+  };
 
   if (!value) return <p className="row muted" role="status"><Spinner /> {t('app.loading')}</p>;
   const save = async (patch: Partial<SettingsValue>) => {
@@ -63,15 +89,23 @@ export function Settings({ status, onTheme, onLanguage, onSetup }: { status: App
         <p className="meta">v{status.version}</p>
       </section>
 
-      {/* #region limit-recovery — docs: docs/ux/scenarios.md#scn-075-a-session-stopped-on-a-limit-continues-by-itself */}
-      <section className="group" aria-labelledby="g-resume">
-        <h2 id="g-resume">{t('settings.resumeGroup')}</h2>
-        <label className="setting">{t('settings.resumeAfterLimit')}
-          <input type="checkbox" role="switch" className="switch" checked={value.resumeAfterLimit} onChange={(e) => void save({ resumeAfterLimit: e.target.checked })} />
+      {/* #region sessions-settings — docs: docs/ux/scenarios.md#scn-086-settings-sessions */}
+      <section className="group" aria-labelledby="g-sessions" ref={sessionsRef}>
+        <h2 id="g-sessions" tabIndex={-1}>{t('settings.sessions')}</h2>
+        <label className="setting">{t('settings.handovers')}
+          <input type="checkbox" role="switch" className="switch" aria-describedby="handovers-body" checked={handovers?.enabled === true}
+            disabled={!handovers || !handovers.available || handovers.enabled === null} onChange={(e) => void flipHandovers(e.target.checked)} />
         </label>
-        <p className="meta">{t('settings.resumeAfterLimit.body')}</p>
+        <p className="meta" id="handovers-body">{t('settings.handovers.body')}</p>
+        {handovers && !handovers.available && <p className="meta" role="status">{t('settings.handovers.absent')}</p>}
+        {handovers?.available && handovers.enabled === null && <p className="meta" role="status">{t('settings.handovers.old')}</p>}
+        {handoverError && <p className="notice error" role="alert">{handoverError}</p>}
+        <label className="setting">{t('settings.resumeAfterLimit')}
+          <input type="checkbox" role="switch" className="switch" aria-describedby="resume-body" checked={value.resumeAfterLimit} onChange={(e) => void save({ resumeAfterLimit: e.target.checked })} />
+        </label>
+        <p className="meta" id="resume-body">{t('settings.resumeAfterLimit.body')}</p>
       </section>
-      {/* #endregion limit-recovery */}
+      {/* #endregion sessions-settings */}
       <section className="group" aria-labelledby="g-updates">
         <h2 id="g-updates">{t('settings.updates')}</h2>
         <label className="setting">{t('settings.autoUpdate')}

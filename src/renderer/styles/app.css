@@ -1,7 +1,24 @@
 /* Fabric Dashboards — product UI on the PassionCode.ai design system v1.1.0.
-   Every colour, radius, space, size and duration is a --pc-* role; no literals.
+   Every colour, radius, type size and duration is a --pc-* role or one of the --fd-* aliases below; no colour
+   literal outside them (test/theme-a11y.test.ts). Layout widths and heights stay in px.
+   Light theme (VIS-01): the brand gold (--pc-accent) is a fill only, behind --pc-on-accent; anything that must be
+   read or seen against a surface (text, a stroke, a border, a ring, a chart mark) uses --pc-link or --pc-focus, which
+   are the gold itself in the dark theme and the readable gold-brown in the light one.
    Dials: variance 4 · motion 2 · density 6 (design §3.2, sheleg-design product UI). */
 @import '../brand/fabric-tokens.css';
+
+/* App-level aliases (VIS-19): the few values the brand file has no role for, defined once. */
+:root {
+  --fd-type-micro: 11px;                 /* state glyphs, the rail's count, the map's small text */
+  --fd-type-label: 13px;                 /* the map's node names, sized to its 196 px boxes */
+  --fd-shadow-edge: #00000073;           /* the console drawer's shadow on the page under it */
+  --fd-shadow-menu: 0 8px 24px #00000059;
+  --fd-control-sm: 28px;                 /* one height for every small control (VIS-20) */
+}
+:root[data-theme="light"] {
+  --fd-shadow-edge: #21172540;
+  --fd-shadow-menu: 0 8px 24px #21172526;
+}
 
 * { box-sizing: border-box; }
 html, body, #root { height: 100%; margin: 0; }
@@ -28,7 +45,7 @@ a { color: var(--pc-link); text-decoration: underline; }
 .app.rail .brand { justify-content: center; padding: 0 0 var(--pc-space-4); }
 .app.rail .brand-name, .app.rail .nav-label, .app.rail .nav-section { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .app.rail .nav-item { justify-content: center; position: relative; padding: var(--pc-space-2) 0; }
-.app.rail .nav-item .count { position: absolute; top: 0; right: 2px; margin: 0; font-size: 10px; line-height: 14px; min-width: 14px; text-align: center; }
+.app.rail .nav-item .count { position: absolute; top: 0; right: 2px; margin: 0; font-size: var(--fd-type-micro); line-height: 14px; min-width: 14px; text-align: center; }
 .app.rail .nav-scroll .nav-item { gap: 2px; }
 .initials { font: 600 var(--pc-type-meta) var(--pc-font-data); letter-spacing: .02em; }
 .nav-item .icon { flex: none; color: var(--pc-text-muted); }
@@ -57,14 +74,18 @@ a { color: var(--pc-link); text-decoration: underline; }
 .nav-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .nav-section { margin: var(--pc-space-4) var(--pc-space-2) var(--pc-space-1); font-size: var(--pc-type-meta); color: var(--pc-text-muted); text-transform: uppercase; letter-spacing: .04em; }
 .nav-scroll { overflow: auto; min-height: 0; flex: 1; }
+/* V-7 of FIX-2: the list scrolls, so a ring outside an entry was cut at its edges: it is drawn inside. */
+.nav-scroll :focus-visible { outline-offset: -2px; }
 /* FD-39: pin and sort (ADR-0020). The pin shows on hover or focus, and always on a pinned row. */
 .nav-row { position: relative; display: flex; align-items: center; }
 .nav-row > .nav-item { flex: 1; min-width: 0; }
-.pin-btn { position: absolute; right: var(--pc-space-1); top: 50%; transform: translateY(-50%); display: none; align-items: center; justify-content: center; width: 22px; height: 22px; border: 0; border-radius: var(--pc-radius-sm, 4px); background: transparent; color: var(--pc-text-muted); cursor: pointer; }
-.nav-row:hover .pin-btn, .pin-btn:focus-visible, .nav-row.pinned .pin-btn { display: inline-flex; }
-.nav-row:hover .nav-item .count, .nav-row.pinned .nav-item .count { margin-right: 24px; }
+.pin-btn { position: absolute; right: var(--pc-space-1); top: 50%; transform: translateY(-50%); display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; border: 0; border-radius: var(--pc-radius-control); background: transparent; color: var(--pc-text-muted); cursor: pointer; opacity: 0; }
+/* VIS-03: hidden by opacity, never display: none, so the button keeps its place in the tab order; it shows on hover,
+   on keyboard focus anywhere in its row, while its menu is open and on a pinned row. 24 px meets WCAG 2.5.8. */
+.nav-row:hover .pin-btn, .nav-row:focus-within .pin-btn, .pin-btn:focus-visible, .nav-row.pinned .pin-btn { opacity: 1; }
+.nav-row:hover .nav-item .count, .nav-row:focus-within .nav-item .count, .nav-row.pinned .nav-item .count { margin-right: 28px; }
 .pin-btn:hover { background: var(--pc-panel-raised); color: var(--pc-text); }
-.pin-btn[aria-pressed='true'] { color: var(--pc-accent); }
+.pin-btn[aria-pressed='true'] { color: var(--pc-link); }
 .nav-section-row { display: flex; align-items: center; justify-content: space-between; gap: var(--pc-space-2); }
 .nav-section-row > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; flex: 1 0 auto; }
 .sort-select { font: inherit; font-size: var(--pc-type-meta); text-transform: none; letter-spacing: 0; color: var(--pc-text-muted); background: transparent; border: 0; padding: 0; cursor: pointer; flex: 0 1 auto; width: auto; field-sizing: content; max-width: 50%; text-align: right; }
@@ -81,11 +102,15 @@ h3 { font-size: var(--pc-type-card); margin: 0; font-weight: 600; }
 
 /* state markers: shape + word, never colour alone */
 .state { display: inline-flex; align-items: center; gap: var(--pc-space-1); font-size: var(--pc-type-meta); white-space: nowrap; }
-.state .glyph { font-size: 11px; width: 1em; text-align: center; }
+.state .glyph { font-size: var(--fd-type-micro); width: 1em; text-align: center; }
 .state-ready { color: var(--pc-positive); }
 .state-degraded, .state-duplicate { color: var(--pc-warning); }
 .state-down, .state-foreign, .state-conflict, .state-invalid { color: var(--pc-negative); }
 .state-stopped, .state-starting, .state-stopping { color: var(--pc-text-muted); }
+/* R1-V2: waiting for a limit reset is a clock, not the starting ring, in a colour with 3:1 or more on the sidebar */
+.state-waiting { color: var(--pc-info); }
+.session-mark { display: inline-flex; align-items: center; justify-content: center; }
+.mark-clock { display: block; }
 
 /* buttons */
 .btn {
@@ -108,10 +133,14 @@ h3 { font-size: var(--pc-type-card); margin: 0; font-weight: 600; }
 .attention h2 .count { font-size: var(--pc-type-meta); color: var(--pc-text-muted); font-weight: 400; }
 .attention ul { list-style: none; margin: 0; padding: 0; }
 /* ADR-0014: one line per row — state, name, the reason cut to the line, the action. */
-.attention li { display: grid; grid-template-columns: max-content minmax(120px, max-content) minmax(0, 1fr) auto; gap: var(--pc-space-3); align-items: center; min-height: 40px; padding: 0 var(--pc-space-4); border-top: 1px solid var(--pc-border); }
+/* VIS-02: four cells whatever the row offers: the actions share the last one, and the reason keeps a floor of 12ch
+   so it is never the part that disappears. */
+.attention li { display: grid; grid-template-columns: max-content minmax(120px, max-content) minmax(12ch, 1fr) auto; gap: var(--pc-space-3); align-items: center; min-height: 40px; padding: 0 var(--pc-space-4); border-top: 1px solid var(--pc-border); }
+.attention li .row-actions { display: flex; align-items: center; justify-content: flex-end; gap: var(--pc-space-2); flex-wrap: nowrap; white-space: nowrap; }
+.attention li .row-actions:empty { display: none; }
 .attention li .name { font-weight: 600; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-decoration: none; }
 .attention li .why { color: var(--pc-text-muted); font-size: var(--pc-type-meta); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.attention li .btn { min-height: 28px; padding: 0 var(--pc-space-2); font-size: var(--pc-type-meta); }
+.attention li .btn { min-height: var(--fd-control-sm); padding: 0 var(--pc-space-2); font-size: var(--pc-type-meta); }
 .attention .more { margin: var(--pc-space-1) var(--pc-space-4) var(--pc-space-1); font-size: var(--pc-type-meta); }
 /* ADR-0014: the strip — one number and one label per cell. */
 .strip { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: var(--pc-space-2); margin-bottom: var(--pc-space-4); }
@@ -123,7 +152,11 @@ h3 { font-size: var(--pc-type-card); margin: 0; font-weight: 600; }
 .strip .v .of { font-size: var(--pc-type-body); color: var(--pc-text-muted); font-weight: 400; }
 .strip .l { font-size: var(--pc-type-meta); color: var(--pc-text-muted); line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; } /* W-4: two lines before an ellipsis — Russian labels are long */
 .strip .cell.bad .v { color: var(--pc-negative); }
-.strip .cell.attn .v { color: var(--pc-accent); }
+.strip .cell.attn .v { color: var(--pc-link); }
+.strip .cell.attn.urgent .v { color: var(--pc-negative); }
+/* VIS-12: a cell that opens something carries its arrow; a disabled one (nothing to open) does not. */
+.strip .l .go { margin-left: 4px; color: var(--pc-link); }
+.strip button.cell:disabled .l .go { display: none; }
 /* DEC-0019: online services — the same cards under their own heading, on the same tokens. */
 .online { margin-top: var(--pc-space-5); }
 .online h2 { font-size: var(--pc-type-card); margin: 0 0 var(--pc-space-3); }
@@ -143,7 +176,7 @@ h3 { font-size: var(--pc-type-card); margin: 0; font-weight: 600; }
 .tile { background: var(--pc-panel-raised); border-radius: var(--pc-radius-control); padding: var(--pc-space-1) var(--pc-space-2); min-width: 0; }
 .tile .v { font-size: var(--pc-type-body); font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .tile .l { font-size: var(--pc-type-meta); line-height: 1.3; color: var(--pc-text-muted); overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow-wrap: anywhere; }
-.tile.attn { box-shadow: inset 0 0 0 1px var(--pc-accent); }
+.tile.attn { box-shadow: inset 0 0 0 1px var(--pc-link); }
 .card .event { margin-top: auto; font-size: var(--pc-type-meta); color: var(--pc-text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .empty { max-width: 560px; padding: var(--pc-space-6); background: var(--pc-panel); border: 1px solid var(--pc-border); border-radius: var(--pc-radius-panel); }
 .empty p { color: var(--pc-text-muted); }
@@ -176,7 +209,7 @@ h3 { font-size: var(--pc-type-card); margin: 0; font-weight: 600; }
 @container svchead (max-width: 720px) {
   .svc-bar { gap: var(--pc-space-2); padding-left: var(--pc-space-4); }
   .svc-bar > .state { font-size: 0; gap: 0; } /* the badge keeps its glyph; its word is in the chip or the card */
-  .svc-bar > .state .glyph { font-size: 11px; }
+  .svc-bar > .state .glyph { font-size: var(--fd-type-micro); }
   .svc-bar .chip-problem { max-width: 18ch; }
   .svc-bar .tab { padding: 0 var(--pc-space-1); }
 }
@@ -201,11 +234,13 @@ h3 { font-size: var(--pc-type-card); margin: 0; font-weight: 600; }
 html.drawer-page, html.drawer-page body, html.drawer-page #root { background: transparent; height: 100%; overflow: hidden; }
 .console-drawer { position: relative; display: flex; flex-direction: column; width: 100%; min-height: 0; background: var(--pc-panel); }
 /* The bottom edge: a visible bar with a grip, dragged to set the height; under it the shadow falls on the page. */
-.console-edge { flex: none; height: 12px; display: grid; place-items: center; cursor: row-resize; background: var(--pc-panel); border-top: 1px solid var(--pc-border); border-bottom: 1px solid var(--pc-border-strong, var(--pc-border)); }
-.console-grip { width: 36px; height: 4px; border-radius: 2px; background: var(--pc-border-strong, var(--pc-muted, #666)); }
-.console-edge:hover, .console-edge:focus-visible { background: var(--pc-accent-soft); outline: none; }
-.console-edge:hover .console-grip, .console-edge:focus-visible .console-grip { background: var(--pc-accent); }
-.console-shadow { position: absolute; left: 0; right: 0; top: 100%; height: 14px; pointer-events: none; background: linear-gradient(to bottom, rgb(0 0 0 / 0.45), transparent); }
+.console-edge { flex: none; height: 12px; display: grid; place-items: center; cursor: row-resize; background: var(--pc-panel); border-top: 1px solid var(--pc-border); border-bottom: 1px solid var(--pc-border-strong); }
+.console-grip { width: 36px; height: 4px; border-radius: var(--pc-radius-pill); background: var(--pc-border-strong); }
+.console-edge:hover, .console-edge:focus-visible { background: var(--pc-accent-soft); }
+/* VIS-22: the separator's keyboard focus is a ring, inset so the drawer's own bounds do not clip it. */
+.console-edge:focus-visible { outline: 2px solid var(--pc-focus); outline-offset: -2px; border-radius: 0; }
+.console-edge:hover .console-grip, .console-edge:focus-visible .console-grip { background: var(--pc-link); }
+.console-shadow { position: absolute; left: 0; right: 0; top: 100%; height: 14px; pointer-events: none; background: linear-gradient(to bottom, var(--fd-shadow-edge), transparent); }
 .icon-btn-close { color: var(--pc-negative); }
 .icon-btn-close:hover, .icon-btn-close:focus-visible { background: color-mix(in srgb, var(--pc-negative) 18%, transparent); color: var(--pc-negative); }
 .console-head { flex: none; display: grid; gap: var(--pc-space-1); padding: var(--pc-space-2) var(--pc-space-3); border-bottom: 1px solid var(--pc-border); -webkit-app-region: drag; }
@@ -234,7 +269,7 @@ html.drawer-page, html.drawer-page body, html.drawer-page #root { background: tr
 .instances { display: flex; flex-wrap: wrap; gap: var(--pc-space-1); padding: var(--pc-space-3) var(--pc-space-6) 0; }
 .instance { display: inline-flex; align-items: center; gap: var(--pc-space-1); border: 1px solid var(--pc-border); background: transparent; color: var(--pc-text-muted); border-radius: var(--pc-radius-pill); padding: var(--pc-space-1) var(--pc-space-3); cursor: pointer; font-size: var(--pc-type-meta); }
 .instance:hover { background: var(--pc-panel-raised); }
-.instance[aria-current='page'] { color: var(--pc-text); background: var(--pc-accent-soft); border-color: var(--pc-accent); }
+.instance[aria-current='page'] { color: var(--pc-text); background: var(--pc-accent-soft); border-color: var(--pc-link); }
 .setting-note { display: grid; gap: var(--pc-space-1); }
 .setting-note > p, .setting-note > .row { margin: 0; }
 .card-summary { margin: 0; font-size: var(--pc-type-meta); color: var(--pc-text-muted); line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; text-align: left; }
@@ -244,7 +279,7 @@ html.drawer-page, html.drawer-page body, html.drawer-page #root { background: tr
 .card-members { font-size: var(--pc-type-meta); color: var(--pc-text-muted); display: flex; flex-wrap: wrap; gap: var(--pc-space-2); }
 .tabs { display: flex; gap: var(--pc-space-1); padding: 0 var(--pc-space-6); border-bottom: 1px solid var(--pc-border); }
 .tab { border: 0; background: transparent; padding: var(--pc-space-2) var(--pc-space-3); cursor: pointer; border-bottom: 2px solid transparent; color: var(--pc-text-muted); }
-.tab[aria-selected='true'] { color: var(--pc-text); border-bottom-color: var(--pc-accent); }
+.tab[aria-selected='true'] { color: var(--pc-text); border-bottom-color: var(--pc-link); }
 .svc-body { flex: 1; min-height: 0; position: relative; }
 /* ADR-0014: the dashboard toolbar sits above the embedded page; the page's bounds are the host below it. */
 .dash-frame { position: absolute; inset: 0; display: flex; flex-direction: column; }
@@ -255,7 +290,6 @@ html.drawer-page, html.drawer-page body, html.drawer-page #root { background: tr
 .icon-btn:hover:not(:disabled) { background: var(--pc-panel-raised); color: var(--pc-text); }
 .icon-btn:disabled { opacity: .35; cursor: default; }
 .icon-btn:focus-visible, .btn:focus-visible { outline: 2px solid var(--pc-focus); outline-offset: 1px; }
-.btn-sm { min-height: 28px; padding: 0 var(--pc-space-2); font-size: var(--pc-type-meta); white-space: nowrap; }
 .dash-host { position: relative; flex: 1; min-height: 0; background: var(--pc-bg); }
 .dash-overlay { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: var(--pc-space-3); padding: var(--pc-space-6); text-align: center; }
 .pane { overflow: auto; height: 100%; padding: var(--pc-space-5) var(--pc-space-6); }
@@ -288,7 +322,7 @@ button.feed-row:hover { background: var(--pc-panel); }
 .setting { display: flex; align-items: center; justify-content: space-between; gap: var(--pc-space-3); min-height: 32px; }
 /* FD-48: a setting whose control, help and status stack under its label. */
 .setting-stack { display: grid; gap: var(--pc-space-1); justify-items: start; }
-.setting input[type='checkbox'] { width: 18px; height: 18px; accent-color: var(--pc-accent); }
+.setting input[type='checkbox'] { width: 18px; height: 18px; accent-color: var(--pc-link); }
 table { width: 100%; border-collapse: collapse; font-size: var(--pc-type-meta); }
 th, td { text-align: left; padding: var(--pc-space-1) var(--pc-space-2); border-bottom: 1px solid var(--pc-border); }
 th { color: var(--pc-text-muted); font-weight: 500; }
@@ -299,7 +333,7 @@ table.spend td, table.spend th[scope='row'] { font-variant-numeric: tabular-nums
 table.spend th[scope='row'] { color: var(--pc-text); }
 .spend-models > td { background: var(--pc-panel-raised); padding: var(--pc-space-2) var(--pc-space-4); }
 .linkish { border: 0; background: none; padding: 0; color: inherit; font: inherit; cursor: pointer; text-decoration: underline; text-decoration-color: var(--pc-border-strong); text-underline-offset: 3px; }
-.linkish[aria-expanded='true'] { text-decoration-color: var(--pc-accent); }
+.linkish[aria-expanded='true'] { text-decoration-color: var(--pc-link); }
 
 /* dialog */
 .scrim { position: fixed; inset: 0; background: color-mix(in srgb, var(--pc-bg) 72%, transparent); display: flex; align-items: center; justify-content: center; z-index: 10; }
@@ -307,11 +341,16 @@ table.spend th[scope='row'] { color: var(--pc-text); }
 .dialog p { color: var(--pc-text-muted); }
 .dialog .row { justify-content: flex-end; margin-top: var(--pc-space-5); }
 
-/* progress: constant motion while an action runs; static text under reduced motion */
-.spinner { width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--pc-border-strong); border-top-color: var(--pc-accent); animation: spin 900ms linear infinite; }
+/* progress: constant motion while an action runs; a still half ring under reduced motion (VIS-23), never the plain
+   ring that reads as ○ stopped */
+.spinner { width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--pc-border-strong); border-top-color: var(--pc-link); animation: spin 900ms linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) {
-  .spinner { animation: none; border-top-color: var(--pc-border-strong); }
+  .spinner { animation: none; border-top-color: var(--pc-link); border-right-color: var(--pc-link); }
+  /* xterm's DOM renderer blinks its cursor with a CSS animation; a steady block keeps the cursor's own colour. */
+  .xterm .xterm-cursor.xterm-cursor-blink { animation: none !important; }
+  /* Anything else that moves stops at its end state: the brand zeroes its durations; this catches the rest. */
+  *, *::before, *::after { animation-duration: 0s !important; animation-iteration-count: 1 !important; transition-duration: 0s !important; scroll-behavior: auto !important; }
 }
 /* DEC-0027: every limit of an agent, above its models; a limit that is not enforced is muted, never hidden. */
 .spend-limits { margin-bottom: var(--pc-space-3); }
@@ -322,10 +361,13 @@ table.spend th[scope='row'] { color: var(--pc-text); }
 .checklist { list-style: none; padding: 0; margin: var(--pc-space-2) 0 var(--pc-space-3); display: flex; flex-direction: column; gap: var(--pc-space-1); }
 .checklist li { display: flex; gap: var(--pc-space-2); align-items: baseline; }
 .checklist li.done { color: var(--pc-text-muted); }
-.checklist li.done > span:first-child { color: var(--pc-accent); }
+.checklist li.done > span:first-child { color: var(--pc-link); }
 /* FD-39 SCN-059: what changed since the last visit. */
 .visit { margin: var(--pc-space-4) 0; }
-.visit h2 { font-size: var(--pc-type-body, 15px); margin: 0 0 var(--pc-space-2); }
+.visit h2 { font-size: var(--pc-type-body); margin: 0 0 var(--pc-space-2); }
+.visit > .row { align-items: baseline; }
+.visit > .row .spacer { flex: 1; }
+.visit .btn-link { font-size: var(--pc-type-meta); }
 .visit ul { list-style: none; padding: 0; margin: 0 0 var(--pc-space-2); display: flex; flex-direction: column; gap: var(--pc-space-1); }
 .visit li { display: flex; gap: var(--pc-space-2); align-items: baseline; min-width: 0; }
 .visit li .why { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; flex: 1; }
@@ -344,10 +386,12 @@ table.spend th[scope='row'] { color: var(--pc-text); }
 /* No transform here: the menu is position: fixed, and a transformed ancestor would become its frame. */
 .row-menu { position: absolute; right: var(--pc-space-1); top: 0; bottom: 0; display: flex; align-items: center; }
 .row-menu .row-menu-btn { position: static; transform: none; }
-.nav-row:hover .row-menu .row-menu-btn, .row-menu.shown .row-menu-btn, .row-menu-btn:focus-visible { display: inline-flex; }
-.menu { position: fixed; z-index: 30; min-width: 200px; display: flex; flex-direction: column; padding: var(--pc-space-1); background: var(--pc-panel-raised); border: 1px solid var(--pc-border-strong); border-radius: var(--pc-radius-control); box-shadow: 0 8px 24px rgb(0 0 0 / .35); }
-.menu [role='menuitem'] { text-align: left; padding: 6px var(--pc-space-2); border: 0; border-radius: var(--pc-radius-sm, 4px); background: transparent; color: var(--pc-text); font: inherit; font-size: var(--pc-type-meta); cursor: pointer; white-space: nowrap; }
-.menu [role='menuitem']:hover, .menu [role='menuitem']:focus-visible { background: var(--pc-panel); outline: none; }
+.nav-row:hover .row-menu .row-menu-btn, .nav-row:focus-within .row-menu .row-menu-btn, .row-menu.shown .row-menu-btn, .row-menu-btn:focus-visible { opacity: 1; }
+.menu { position: fixed; z-index: 30; min-width: 200px; display: flex; flex-direction: column; padding: var(--pc-space-1); background: var(--pc-panel-raised); border: 1px solid var(--pc-border-strong); border-radius: var(--pc-radius-control); box-shadow: var(--fd-shadow-menu); }
+.menu [role='menuitem'] { text-align: left; min-height: var(--fd-control-sm); padding: 0 var(--pc-space-2); border: 0; border-radius: var(--pc-radius-control); background: transparent; color: var(--pc-text); font: inherit; font-size: var(--pc-type-meta); cursor: pointer; white-space: nowrap; }
+.menu [role='menuitem']:hover { background: var(--pc-panel); }
+/* VIS-04: the item Enter will run is ringed, not told by a 1.1:1 background change alone. */
+.menu [role='menuitem']:focus-visible { background: var(--pc-accent-soft); outline: 2px solid var(--pc-focus); outline-offset: -2px; }
 .nav-fold-section { display: flex; align-items: center; gap: var(--pc-space-1); width: calc(100% - 2 * var(--pc-space-2)); border: 0; background: transparent; cursor: pointer; padding: 0; text-align: left; }
 .nav-fold-section .count { margin-left: auto; }
 .btn-link.fold { font: inherit; color: inherit; }
@@ -389,11 +433,12 @@ button.conn-node:hover { border-color: var(--pc-border-strong); }
 .strip.strip-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .strip .l { font-size: var(--pc-type-meta); color: var(--pc-text-muted); }
 .setting select { min-width: 200px; }
-input.switch { appearance: none; -webkit-appearance: none; width: 32px; height: 18px; border-radius: 999px; background: var(--pc-panel-raised); border: 1px solid var(--pc-border-strong); position: relative; cursor: pointer; flex: none; margin: 0; transition: background-color .12s ease-out, border-color .12s ease-out; }
-input.switch::after { content: ''; position: absolute; top: 2px; left: 2px; width: 12px; height: 12px; border-radius: 50%; background: var(--pc-text-muted); transition: transform .18s cubic-bezier(.2, 0, 0, 1), background-color .12s ease-out; }
-input.switch:checked { background: var(--pc-accent); border-color: var(--pc-accent); }
+input.switch { appearance: none; -webkit-appearance: none; width: 32px; height: 18px; border-radius: var(--pc-radius-pill); background: var(--pc-panel-raised); border: 1px solid var(--pc-border-strong); position: relative; cursor: pointer; flex: none; margin: 0; transition: background-color var(--pc-duration-hover) var(--pc-ease), border-color var(--pc-duration-hover) var(--pc-ease); }
+input.switch::after { content: ''; position: absolute; top: 2px; left: 2px; width: 12px; height: 12px; border-radius: 50%; background: var(--pc-text-muted); transition: transform var(--pc-duration-state) var(--pc-ease), background-color var(--pc-duration-hover) var(--pc-ease); }
+/* VIS-01: the "on" track is the readable gold (the gold itself in dark), so it holds 3:1 against the light panel. */
+input.switch:checked { background: var(--pc-link); border-color: var(--pc-link); }
 input.switch:checked::after { transform: translateX(14px); background: var(--pc-bg); }
-input.switch:focus-visible { outline: 2px solid var(--pc-accent); outline-offset: 2px; }
+input.switch:focus-visible { outline: 2px solid var(--pc-focus); outline-offset: 2px; }
 .setting input.switch { width: 32px; height: 18px; }
 @media (prefers-reduced-motion: reduce) { input.switch, input.switch::after { transition: none; } }
 .setup-done { display: flex; align-items: center; justify-content: space-between; gap: var(--pc-space-3); flex-wrap: wrap; padding: var(--pc-space-2) var(--pc-space-3); margin-bottom: var(--pc-space-3); border: 1px solid var(--pc-border); border-radius: var(--pc-radius-control); background: var(--pc-panel); font-size: var(--pc-type-meta); }
@@ -403,8 +448,8 @@ input.switch:focus-visible { outline: 2px solid var(--pc-accent); outline-offset
 .sev-error > span:first-child { color: var(--pc-negative); }
 .sev-warn > span:first-child, .sev-setup > span:first-child { color: var(--pc-warning); }
 .sev-info > span:first-child { color: var(--pc-text-muted); }
-.btn-sm { min-height: 26px; padding: 0 var(--pc-space-2); font-size: var(--pc-type-meta); }
-.select-sm { font-size: var(--pc-type-meta); min-height: 26px; padding: 0 var(--pc-space-1); border: 1px solid var(--pc-border-strong); border-radius: var(--pc-radius-control); background: var(--pc-panel); }
+.btn-sm { min-height: var(--fd-control-sm); padding: 0 var(--pc-space-2); font-size: var(--pc-type-meta); white-space: nowrap; }
+.select-sm { font-size: var(--pc-type-meta); min-height: var(--fd-control-sm); padding: 0 var(--pc-space-1); border: 1px solid var(--pc-border-strong); border-radius: var(--pc-radius-control); background: var(--pc-panel); }
 
 .cmap { display: flex; flex-direction: column; gap: var(--pc-space-2); }
 .cmap-summary { display: flex; flex-wrap: wrap; gap: var(--pc-space-4); margin: 0; font-size: var(--pc-type-body); }
@@ -414,28 +459,32 @@ input.switch:focus-visible { outline: 2px solid var(--pc-accent); outline-offset
 .cmap-graph svg { display: block; }
 .edge { fill: none; stroke-width: 1.5; }
 .edge-ok { stroke: var(--pc-positive); } .edge-head.edge-ok { fill: var(--pc-positive); }
-.edge-degraded { stroke: var(--pc-warning); } .edge-head.edge-degraded { fill: var(--pc-warning); }
+.edge-degraded { stroke: var(--pc-warning); stroke-dasharray: 8 3 2 3; } .edge-head.edge-degraded { fill: var(--pc-warning); } /* VIS-13: dash-dot, not colour alone */
 .edge-down { stroke: var(--pc-negative); stroke-width: 2; } .edge-head.edge-down { fill: var(--pc-negative); }
 .edge-unknown { stroke: var(--pc-border-strong); stroke-dasharray: 4 4; } .edge-head.edge-unknown { fill: var(--pc-border-strong); }
+.edge-head { stroke-dasharray: none; } /* the arrowhead stays a solid triangle whatever its line's pattern */
 .node { cursor: pointer; }
 .node-box { fill: var(--pc-panel-raised); stroke: var(--pc-border-strong); }
-.node:hover .node-box, .node:focus-visible .node-box { stroke: var(--pc-accent); }
+.node:hover .node-box { stroke: var(--pc-link); }
+/* An SVG group's outline is not drawn reliably; the focused node's own box carries the ring (VIS-01). */
+.node:focus-visible .node-box { stroke: var(--pc-focus); stroke-width: 2; }
 .node:focus-visible { outline: none; }
 .node-edge { fill: var(--pc-border-strong); }
 .node.conn-ok .node-edge { fill: var(--pc-positive); }
 .node.conn-degraded .node-edge { fill: var(--pc-warning); }
 .node.conn-down .node-edge { fill: var(--pc-negative); }
 .node-missing { cursor: default; } .node-missing .node-box { stroke-dasharray: 4 3; fill: transparent; }
-.node-label { fill: var(--pc-text); font-size: 13px; font-weight: 600; }
-.node-mark { font-size: 11px; fill: var(--pc-text-muted); }
+.node-label { fill: var(--pc-text); font-size: var(--fd-type-label); font-weight: 600; }
+.node-mark { font-size: var(--fd-type-micro); fill: var(--pc-text-muted); }
 .node.conn-ok .node-mark { fill: var(--pc-positive); }
 .node.conn-degraded .node-mark { fill: var(--pc-warning); }
 .node.conn-down .node-mark { fill: var(--pc-negative); }
-.node-sub { fill: var(--pc-text-muted); font-size: 11px; }
+.node-sub { fill: var(--pc-text-muted); font-size: var(--fd-type-micro); }
 .cmap-loose { margin-top: var(--pc-space-3); }
 .cmap-loose h3 { font-size: var(--pc-type-meta); color: var(--pc-text-muted); font-weight: 600; margin: 0 0 var(--pc-space-1); display: flex; gap: var(--pc-space-1); align-items: center; }
 .cmap-loose ul { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: var(--pc-space-1); }
-.cmap-chip { cursor: pointer; border: 1px solid var(--pc-border); background: var(--pc-panel); border-radius: 999px; padding: 2px var(--pc-space-2); font: inherit; font-size: var(--pc-type-meta); color: var(--pc-text); display: inline-flex; gap: var(--pc-space-1); align-items: center; }
+/* VIS-20: the .chip atom (pill, 1px padding); this variant only adds a filled, pressable look. */
+.cmap-chip { cursor: pointer; background: var(--pc-panel); font: inherit; font-size: var(--pc-type-meta); color: var(--pc-text); }
 .cmap-chip:hover { border-color: var(--pc-border-strong); }
 .cmap-chip.conn-ok > span:first-child { color: var(--pc-positive); }
 .cmap-chip.conn-degraded > span:first-child { color: var(--pc-warning); }
@@ -454,7 +503,7 @@ input.switch:focus-visible { outline: 2px solid var(--pc-accent); outline-offset
 /* The quiet setup line: its Check setup sits level with the sentence, both buttons one size. */
 .setup-done .setup-check { margin: 0; }
 .setup-done .setup-check > .row { align-items: center; }
-.setup-done .setup-check .btn { min-height: 26px; padding: 0 var(--pc-space-2); font-size: var(--pc-type-meta); }
+.setup-done .setup-check .btn { min-height: var(--fd-control-sm); padding: 0 var(--pc-space-2); font-size: var(--pc-type-meta); }
 
 /* #region load-tab — docs: docs/ux/scenarios.md#scn-076-see-how-busy-an-agent-is */
 .load .strip.load-strip { grid-template-columns: repeat(4, minmax(0, 1fr)); }
@@ -464,9 +513,104 @@ input.switch:focus-visible { outline: 2px solid var(--pc-accent); outline-offset
 .load-errors code { font-size: var(--pc-type-meta); word-break: break-word; }
 .load-chart { margin: var(--pc-space-4) 0; }
 .load-chart svg { display: block; width: 100%; max-width: 640px; height: 64px; margin-top: var(--pc-space-2); }
-.load-chart .load-done { fill: var(--pc-accent); }
+.load-chart .load-done { fill: var(--pc-link); }
 .load-chart .load-failed { fill: var(--pc-negative); }
 .load-contexts { margin-top: var(--pc-space-4); }
-.load-contexts td.attn { color: var(--pc-accent); font-weight: 600; }
+.load-contexts td.attn { color: var(--pc-link); font-weight: 600; }
 .load-contexts td.bad { color: var(--pc-negative); font-weight: 600; }
 /* #endregion load-tab */
+
+/* FD-103 (SCN-077 to SCN-084): the Sessions mode. The mode switch is one segmented control under the mark; a session
+   row is two lines; All sessions is groups of cards; a session's page is a header over its full-height console. Same
+   tokens, radii, chips and buttons as the agents' pages. */
+.mode-switch { display: grid; grid-template-columns: 1fr 1fr; gap: 2px; padding: 2px; margin: 0 0 var(--pc-space-3); background: var(--pc-bg); border: 1px solid var(--pc-border); border-radius: var(--pc-radius-control); }
+.mode-btn { display: flex; align-items: center; justify-content: center; gap: var(--pc-space-1); min-height: var(--fd-control-sm); padding: 0 var(--pc-space-2); border: 0; border-radius: calc(var(--pc-radius-control) - 2px); background: transparent; color: var(--pc-text-muted); font: inherit; font-size: var(--pc-type-meta); cursor: pointer; white-space: nowrap; transition: background-color var(--pc-duration-hover) var(--pc-ease), color var(--pc-duration-hover) var(--pc-ease); }
+.mode-btn:hover { color: var(--pc-text); }
+.mode-btn[aria-pressed='true'] { background: var(--pc-panel-raised); color: var(--pc-text); font-weight: 600; box-shadow: inset 0 0 0 1px var(--pc-border-strong); }
+.mode-btn .icon { display: none; }
+.mode-btn .count { font-size: var(--fd-type-micro); line-height: 16px; min-width: 16px; text-align: center; color: var(--pc-on-accent); background: var(--pc-accent); border-radius: var(--pc-radius-pill); padding: 0 var(--pc-space-1); font-weight: 600; }
+.app.rail .mode-switch { grid-template-columns: 1fr; }
+.app.rail .mode-btn { position: relative; padding: var(--pc-space-2) 0; }
+.app.rail .mode-btn .icon { display: block; }
+.app.rail .mode-btn .mode-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.app.rail .mode-btn .count { position: absolute; top: 0; right: 2px; line-height: 14px; min-width: 14px; }
+.nav-note { margin: var(--pc-space-3) var(--pc-space-2); }
+.session-item { align-items: flex-start; }
+.session-item .state { margin-top: 3px; }
+.app.rail .session-item { align-items: center; }
+.app.rail .session-item .state { margin-top: 0; }
+.session-lines { display: flex; flex-direction: column; flex: 1 1 auto; min-width: 0; line-height: 1.3; }
+/* R1-V1: the time sits beside the project, right-aligned and never cut; the project gives way first */
+.session-line1 { display: flex; align-items: baseline; gap: var(--pc-space-2); min-width: 0; }
+.session-line1 .session-project { flex: 1 1 auto; min-width: 0; }
+.session-time { flex: none; margin-left: auto; font-size: var(--pc-type-meta); color: var(--pc-text-muted); font-variant-numeric: tabular-nums; }
+.session-project { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.session-sub { font-size: var(--pc-type-meta); color: var(--pc-text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* FD-107: a sidebar row's second line wraps to a second line before it would cut how the session came ("после сброса
+   лими…" on FIX-2's sheet); the sidebar's own origin words are short enough that one line is the usual case. */
+.session-item .session-sub { white-space: normal; text-overflow: clip; overflow-wrap: anywhere; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+.session-fold { margin: var(--pc-space-4) var(--pc-space-2) var(--pc-space-1); }
+.session-fold .nav-fold-section { margin: 0; width: auto; flex: 1 1 auto; min-width: 0; }
+.app.rail .session-fold { margin: var(--pc-space-2) 0 0; }
+.nav-clear { font-size: var(--pc-type-meta); flex: none; }
+
+.sessions { display: flex; flex-direction: column; gap: var(--pc-space-4); max-width: 1040px; }
+.sessions > .notice { margin: 0; }
+.sessions-note p { margin: 0 0 var(--pc-space-3); max-width: 72ch; }
+.session-group h2, .session-group-head { font-size: var(--pc-type-card); margin: 0 0 var(--pc-space-2); font-weight: 600; }
+div.session-group-head { display: flex; align-items: center; gap: var(--pc-space-3); }
+div.session-group-head h2 { margin: 0; }
+.fold-btn { border: 0; background: none; padding: 0; color: inherit; font: inherit; cursor: pointer; display: inline-flex; align-items: center; gap: var(--pc-space-1); }
+/* V-4 of FIX-2: one or two cards fill the row (auto-fit), never leaving an empty third column. */
+.session-cards { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: var(--pc-space-3); }
+.session-card { display: flex; flex-direction: column; gap: var(--pc-space-2); padding: var(--pc-space-3); background: var(--pc-panel); border: 1px solid var(--pc-border); border-left: 3px solid var(--pc-border); border-radius: var(--pc-radius-panel); min-width: 0; transition: border-color var(--pc-duration-hover) var(--pc-ease); }
+.session-card:hover { border-color: var(--pc-border-strong); }
+.session-card.sg-needs-you { border-left-color: var(--pc-warning); }
+.session-card.sg-running { border-left-color: var(--pc-positive); }
+.session-card-head { min-width: 0; }
+.session-card h3 { font-size: var(--pc-type-body); }
+.session-title { text-decoration: none; font-weight: 600; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block; text-align: left; }
+.session-title:hover { text-decoration: underline; }
+.session-card .session-sub { margin: 2px 0 0; white-space: normal; overflow: visible; text-overflow: clip; } /* V-4: a card wraps its line, never cuts the time */
+.session-state { display: flex; align-items: flex-start; gap: var(--pc-space-1); margin: 0; white-space: normal; font-size: var(--pc-type-meta); line-height: 1.4; }
+.session-state .glyph { margin-top: 1px; }
+.session-state-text { color: var(--pc-text); }
+.session-actions { display: flex; flex-direction: column; gap: var(--pc-space-1); align-items: flex-start; min-width: 0; }
+.session-actions .row-actions { display: flex; flex-wrap: wrap; gap: var(--pc-space-2); align-items: center; }
+.session-actions .btn { min-height: var(--fd-control-sm); padding: 0 var(--pc-space-2); font-size: var(--pc-type-meta); white-space: nowrap; }
+.session-error { margin: 0; font-size: var(--pc-type-meta); }
+.sessions-footnote { margin: 0; }
+.action-menu { position: relative; display: inline-flex; }
+.action-menu .menu { position: absolute; top: calc(100% + 4px); left: 0; }
+
+.session-page { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.session-head { flex: none; display: grid; gap: var(--pc-space-2); padding: calc(var(--pc-space-6) + var(--pc-space-1)) var(--pc-space-6) var(--pc-space-3); border-bottom: 1px solid var(--pc-border); -webkit-app-region: drag; }
+.session-head > *, .session-bar > * { -webkit-app-region: no-drag; }
+.session-bar { display: flex; align-items: center; gap: var(--pc-space-3); min-width: 0; flex-wrap: wrap; }
+.session-bar > .spacer { -webkit-app-region: drag; }
+.session-bar h1 { font-size: var(--pc-type-section); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 32ch; min-width: 6ch; }
+.session-bar .session-actions { align-items: flex-end; }
+.session-meta { display: flex; align-items: center; gap: var(--pc-space-2); flex-wrap: wrap; min-width: 0; }
+/* V-3 of FIX-2: an origin chip as long as «Попытка продолжить после сброса лимита, 13:37» wraps inside its border at 740 px
+   instead of running past it (seen in shots/session-resume-failed-ru-light-740.png). */
+.session-meta .chip { max-width: 100%; white-space: normal; }
+.session-folder { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; max-width: 48ch; }
+.session-why { margin: 0; max-width: 80ch; }
+.session-console-area { flex: 1; min-height: 0; background: var(--pc-bg); }
+.session-body { flex: 1; }
+/* FD-107: a session page without a console says what happens next in a calm panel, never a blank body. */
+.session-panel { max-width: 640px; padding: var(--pc-space-4) var(--pc-space-5); background: var(--pc-panel); border: 1px solid var(--pc-border); border-radius: var(--pc-radius-panel); display: grid; gap: var(--pc-space-2); }
+.session-panel p { margin: 0; max-width: 72ch; }
+.session-facts { display: flex; flex-wrap: wrap; gap: var(--pc-space-2) var(--pc-space-5); margin: var(--pc-space-2) 0 0; font-size: var(--pc-type-meta); }
+.session-facts > div { display: flex; gap: var(--pc-space-2); min-width: 0; }
+.session-facts dt { color: var(--pc-text-muted); }
+.session-facts dd { margin: 0; overflow-wrap: anywhere; }
+.console-page { height: 100%; background: var(--pc-bg); }
+.console-page .console-term { padding-left: var(--pc-space-4); }
+.console-keys { flex: none; color: var(--pc-text-muted); border-top: 1px solid var(--pc-border); background: var(--pc-panel); }
+.console-keys.quiet { visibility: hidden; }
+.console-exit-line { flex: none; border-bottom: 1px solid var(--pc-border); }
+/* VIS-06: xterm keeps the viewport's background from the theme it was created with, so after a switch to the light
+   scheme the strip under the last row stayed dark (seen in docs/reports/2026-10-24-ui-ux-iteration/shots/). The page's
+   own background is the terminal's. */
+.console-term .xterm-viewport { background-color: var(--pc-bg) !important; }

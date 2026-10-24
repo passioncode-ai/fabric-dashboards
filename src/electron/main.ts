@@ -7,7 +7,8 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { ActivityStore } from '../core/activity';
-import { CHANNELS, type DrawerChange, type DrawerState, type Rect } from '../core/api';
+import { CHANNELS, type DrawerChange, type DrawerState, type NavTarget, type Rect } from '../core/api';
+import { sessionNotification } from '../core/sessions-notice';
 import { commandEnv, killOwned, ownedCount, runOwned } from '../core/children';
 import { doctorArgv, doctorResult, DOCTOR_TIMEOUT_MS, type SetupCheckResult } from '../core/doctor';
 import { readLoginPath, searchDirs } from '../core/runtimes';
@@ -25,18 +26,20 @@ import { applyLoginItem, LOGIN_NEEDS_APPROVAL, loginItemAtStartup, type LoginIte
 import { xdgLoginItem } from '../core/autostart';
 import { Monitor, type Notice } from '../core/monitor';
 import { fetchLoad, fetchUsage, readTokenAsync } from '../core/probe';
-import { readSpend, type SpendEntry } from '../core/spend';
+import { limitsNeedingPerson, readSpend, type SpendEntry } from '../core/spend';
+import { attentionQueue, badgeText, nextNewsExpiry } from '../core/attention';
+import type { LimitView } from '@passioncode-ai/fabric-service-host/usage';
 import { readLoad, type LoadEntry } from '../core/load';
 import { NotifyLedger, shouldNotify } from '../core/notify';
 import { OutageAlerts } from './outage-alerts';
 import { powerShellAfterExit } from '../core/after-exit';
-import { SettingsStore } from '../core/settings';
+import { rendererSettingsPatch, SettingsStore } from '../core/settings';
 import type { AppStatus, Settings, SettingsPatch } from '../core/types';
 import { ALWAYS_KEPT, cancelStagedUpdate, clearRestoreRecord, KEPT_FILES, productDataPaths, purgeAfterExit, readRestoreRecord, removeMcpRegistrations, repairMcpRegistrations, restoreMcpRegistrations, writeRestoreRecord } from '../core/uninstall';
 import { autoInstallNow, autoInstallWait, cookieRewrite, onScreen, COOKIES_REENCRYPTED_MARKER, HiddenGrace, partitionFor, RELAUNCH_MARKER, relaunchHidden, RESUME_ROUTE_MARKER, resumeRoute, type ResumeRoute, stalePartitions, UPDATE_IDLE_MS, VIEW_RELEASE_ALL_MS, VIEW_RELEASE_GRACE_MS, VISIBILITY_SYNC_MS, VisibilitySync, WARM_VIEWS } from './policy';
 import { AppTray } from './tray';
 import { DockSync } from './dock';
-import { linkInArgv, menuKeys, notificationSettingsUrl, places, startHidden, uninstallCommand, uninstallTarget, windowChrome } from '../core/platform';
+import { linkInArgv, menuKeys, modeMenuItems, notificationSettingsUrl, places, startHidden, uninstallCommand, uninstallTarget, windowChrome } from '../core/platform';
 import { EstateUpdater } from './estate-updater';
 import { readSetupState } from '../core/setup';
 import { Updater } from './updater';
@@ -152,7 +155,15 @@ if (!app.requestSingleInstanceLock()) {
     packRoot: path.join(userData, 'consoles'), version: app.getVersion(), activity: (key) => activity.list({ serviceKey: key }, 200), mcpServer,
     setupState: () => readSetupState(os.homedir(), monitor.snapshots().length),
     doctor: () => (lastSetupCheck?.kind === 'report' ? lastSetupCheck.report : null),
-    keys: () => monitor.snapshots().map((x) => x.key), changed: () => pushStatus() });
+    keys: () => monitor.snapshots().map((x) => x.key), changed: () => pushStatus(),
+    // FD-103 (SCN-085, decision 9): a taken hand-over or an automatic continue is one system notification, silenced by
+    // paused notifications and quiet hours; a click opens that session in the Sessions mode.
+    notice: (n) => {
+      log(`sessions: ${n.kind} ${n.key} in ${n.project}`);
+      if (windowVisible()) window!.webContents.send(CHANNELS.sessionsNotice, n);
+      const text = sessionNotification(lang(), n, settings.get(), new Date());
+      if (text) notify({ title: text.title, body: text.body, target: 'sessions', serviceKey: n.id });
+    } });
   let tray: AppTray | null = null;
   // R-3: the window lets itself close only once a quit is really under way — before-quit, or
   // Squirrel's before-quit-for-update. A failed install puts the window back to hiding on close.
@@ -208,9 +219,14 @@ if (!app.requestSingleInstanceLock()) {
     changed: () => pushStatus(),
   });
   // #endregion outage-alerts
+  // W2 (UX-05, UX-06): the limits that need a person, from the last spend read; W2 (UX-08): the last show.
+  let personLimits: Record<string, LimitView[]> = {};
+  let lastShown: { at: string; afterHiddenMs: number } | undefined;
+  let hiddenSince: number | null = Date.now(); // the app starts with nothing on screen (a login start stays hidden)
   const status = (): AppStatus => ({
     services: monitor.snapshots(), ...monitor.meta(), unread: activity.unread(), activityRev: activity.revision, update: updater.state, estate: estate.state, version: app.getVersion(),
-    alerts: alerts.status(), handovers: consoles.handoverConsoles(), recovery: consoles.recoveryStatus(),
+    alerts: alerts.status(), sessions: consoles.sessionsStatus(),
+    limits: personLimits, ...(lastShown ? { shown: lastShown } : {}),
   });
 
   // #region quiet-push — docs: AGENTS.md#lifecycle
@@ -228,11 +244,18 @@ if (!app.requestSingleInstanceLock()) {
       pushTimer = null;
       const s = status();
       if (windowVisible()) window!.webContents.send(CHANNELS.statusPush, s);
-      tray?.update(s.services);
-      const next = s.services.filter((x) => ['down', 'duplicate', 'foreign', 'conflict', 'invalid'].includes(x.state)).length ? '!' : '';
+      // W2 (UX-04): the tray, the Dock and the window count one queue (src/core/attention.ts).
+      const now = Date.now();
+      tray?.update(s.services, s.limits ?? {}, s.sessions?.rows ?? []);
+      const next = badgeText(attentionQueue(s.services, { now, limits: s.limits }).length);
       if (next !== badge) { badge = next; app.dock?.setBadge(next); }
+      // A failed action leaves the queue after 30 minutes with no event of its own: count again then.
+      if (newsTimer) { clearTimeout(newsTimer); newsTimer = null; }
+      const expiry = nextNewsExpiry(s.services, now);
+      if (expiry !== null) { newsTimer = setTimeout(() => { newsTimer = null; pushStatus(); }, Math.max(1000, expiry - now + 50)); newsTimer.unref(); }
     }, 30);
   }
+  let newsTimer: NodeJS.Timeout | null = null;
 
   // Embedded dashboards are released once the window has been hidden for the grace period: first all but the
   // WARM_VIEWS shown most recently (FD-74), then, after VIEW_RELEASE_ALL_MS, every one.
@@ -316,6 +339,9 @@ if (!app.requestSingleInstanceLock()) {
   }
   // #endregion end-work-question
   function windowShown(): void {
+    // Several signals can report one show (show, restore, FD-64's sync): only the first after a hide is a show.
+    if (hiddenSince !== null || !lastShown) lastShown = { at: new Date().toISOString(), afterHiddenMs: hiddenSince === null ? 0 : Date.now() - hiddenSince };
+    hiddenSince = null;
     visibility.note(true);
     updateGrace.shown();
     if (busyRetry) { clearTimeout(busyRetry); busyRetry = null; }
@@ -326,6 +352,7 @@ if (!app.requestSingleInstanceLock()) {
     void views?.resume((key) => monitor.snapshot(key)).then(() => views?.announce());
   }
   function windowHidden(): void {
+    hiddenSince ??= Date.now();
     visibility.note(false);
     monitor.setVisible(false);
     viewGrace.hidden();
@@ -345,9 +372,11 @@ if (!app.requestSingleInstanceLock()) {
   let handoverTimer: NodeJS.Timeout | null = null;
   const pollHandovers = () => {
     handoverTimer = null;
-    // FD-83: the limit stops are read on the same tick, after the hand-overs (ConsoleHost.pollRecovery).
-    void consoles.pollHandovers().catch((error) => log(`console: hand-over read failed: ${(error as Error).message}`))
-      .then(() => consoles.pollRecovery()).catch((error) => log(`console: limit stops read failed: ${(error as Error).message}`)).finally(() => {
+    // FD-83: the limit stops are read on the same tick, after the hand-overs (ConsoleHost.pollRecovery). FD-103: Switchboard's
+    // machine-wide session list beside them (one read in flight at most; a failure is a degraded source).
+    const chain = consoles.pollHandovers().catch((error) => log(`console: hand-over read failed: ${(error as Error).message}`))
+      .then(() => consoles.pollRecovery()).catch((error) => log(`console: limit stops read failed: ${(error as Error).message}`));
+    void Promise.all([chain, consoles.pollSessions().catch((error) => log(`console: session list read failed: ${(error as Error).message}`))]).finally(() => {
       if (quitting) return;
       handoverTimer = setTimeout(pollHandovers, windowVisible() ? HANDOVER_POLL_MS.visible : HANDOVER_POLL_MS.hidden);
       handoverTimer.unref();
@@ -417,7 +446,6 @@ if (!app.requestSingleInstanceLock()) {
 
   // A navigation sent before the renderer subscribes is lost (a link at launch lands while React
   // is still mounting), so until the renderer takes it (CHANNELS.navigateTake) it waits here.
-  type NavTarget = { page: 'service' | 'activity' | 'overview' | 'spend' | 'map' | 'settings'; key?: string; link?: string };
   /** U-18: the screen on show, reported by the renderer; Restart to update writes it for the next copy. */
   let shownRoute: ResumeRoute = { page: 'overview' };
   let rendererListening = false;
@@ -440,7 +468,7 @@ if (!app.requestSingleInstanceLock()) {
   }
   const MAX_KEPT_NOTICES = 50;
   const shownNotices = new Set<Notification>();
-  function notify(notice: Notice): void {
+  function notify(notice: Omit<Notice, 'target'> & { target: NavTarget['page'] }): void {
     if (!Notification.isSupported()) return;
     const n = new Notification({ title: notice.title, subtitle: notice.subtitle, body: notice.body, silent: false });
     // R-12: kept until clicked or closed — a collected notification loses its click handler. T-13:
@@ -648,6 +676,8 @@ if (!app.requestSingleInstanceLock()) {
       if ((windowVisible() && (stale || force === true)) || !lastSpendAt) {
         lastSpend = await readSpend(monitor.snapshots(), { token: readTokenAsync, fetchUsage, now: () => Date.now() });
         lastSpendAt = Date.now();
+        const limits = limitsNeedingPerson(lastSpend);
+        if (JSON.stringify(limits) !== JSON.stringify(personLimits)) { personLimits = limits; pushStatus(); }
       }
       return { entries: lastSpend, readAt: lastSpendAt ? new Date(lastSpendAt).toISOString() : null };
     });
@@ -692,9 +722,9 @@ if (!app.requestSingleInstanceLock()) {
     });
     // #endregion setup-check
     ipcMain.handle(CHANNELS.settingsUpdate, (_e, raw: SettingsPatch) => {
-      // Review R-4: a console's runtime and folder are set only through the console's own calls (a
-      // folder only from the folder dialog), never through a generic settings change.
-      const { consoles: _ignored, ...patch } = (raw && typeof raw === 'object' ? raw : {}) as SettingsPatch;
+      // Review R-4, R1-S1: a console's runtime and folder, and the Sessions list's records, are never written through a
+      // generic settings change.
+      const patch = rendererSettingsPatch(raw);
       // Choosing launch at login — on the first-run card or in Settings — is the one moment it is registered (LC-07).
       const choosing = 'launchAtLogin' in patch;
       const before = settings.get().autoUpdate;
@@ -811,7 +841,11 @@ if (!app.requestSingleInstanceLock()) {
     ipcMain.on(CHANNELS.viewBounds, (_e, rect: Rect) => views?.setBounds(rect));
     // FD-92: the window's page sets the drawer; the drawer's page reports folds and heights to the window's page.
     ipcMain.on(CHANNELS.drawerState, (e, state: DrawerState) => { if (window && e.sender.id === window.webContents.id) drawer?.set(state); });
-    ipcMain.on(CHANNELS.drawerChange, (e, change: DrawerChange) => { if (window && !window.isDestroyed() && e.sender.id === drawer?.contents()?.id) window.webContents.send(CHANNELS.drawerChange, change); });
+    ipcMain.on(CHANNELS.drawerChange, (e, change: DrawerChange) => {
+      if (!window || window.isDestroyed() || e.sender.id !== drawer?.contents()?.id) return;
+      if (change?.kind === 'focusOut') window.webContents.focus(); // VIS-05: Esc then Tab leaves the terminal for the window's page
+      window.webContents.send(CHANNELS.drawerChange, change);
+    });
     ipcMain.on(CHANNELS.drawerDrag, (e, on: boolean) => { if (e.sender.id === drawer?.contents()?.id) drawer?.setDragging(on === true); });
   }
 
@@ -843,6 +877,9 @@ if (!app.requestSingleInstanceLock()) {
       { role: 'editMenu' },
       // ADR-0017: the panels fold away from the menu too; the window holds the state (Settings.layout).
       { label: t(l, 'menu.view'), submenu: [
+        // FD-103 (SCN-077): ⌘1 Agents, ⌘2 Sessions (Ctrl elsewhere).
+        ...modeMenuItems(process.platform, (key) => t(l, key)).map((m) => ({ id: m.id, label: m.label, accelerator: m.accelerator, click: () => navigate({ page: m.page }) })),
+        { type: 'separator' },
         { id: 'reload-page', label: t(l, 'menu.reload'), accelerator: keys.reload, click: () => reloadCommand(false) },
         { id: 'reload-hard', label: t(l, 'menu.hardReload'), accelerator: keys.hardReload, click: () => reloadCommand(true) },
         { type: 'separator' },
@@ -882,10 +919,11 @@ if (!app.requestSingleInstanceLock()) {
     // R-4: Electron does not wait for timers, so the SIGKILL that follows SIGTERM would never run.
     // With a command still running, the quit waits for killOwned (≤ 300 ms + a beat), then exits.
     // ADR-0017: an agent console ends with the app too (hang-up, then kill after its grace).
-    if ((ownedCount() > 0 || consoles.manager.runningCount() > 0) && !killing) {
+    // F3 of FIX-2: a continue after a limit still in flight, or a stop claimed and not finished, is settled first.
+    if ((ownedCount() > 0 || consoles.manager.runningCount() > 0 || consoles.quitWork() > 0) && !killing) {
       killing = true;
       event.preventDefault();
-      void Promise.allSettled([killOwned(300), consoles.manager.stopAll()]).finally(() => app.exit(0));
+      void Promise.allSettled([killOwned(300), consoles.endAllForQuit()]).finally(() => app.exit(0)); // R1-S4: closed when the app quit
     }
   });
 
@@ -897,6 +935,7 @@ if (!app.requestSingleInstanceLock()) {
     appMenu();
     tray = new AppTray(assets, {
       open: (key) => (key ? navigate({ page: 'service', key }) : showWindow()),
+      sessions: () => navigate({ page: 'sessions', key: 'all' }), // SCN-085 step 4
       pause: () => {
         settings.update({ notifications: { ...settings.get().notifications, pausedUntil: new Date(Date.now() + 3600_000).toISOString() } });
         pushStatus();

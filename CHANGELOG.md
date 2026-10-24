@@ -1,6 +1,137 @@
 # Changelog
 
-## Unreleased
+## 0.8.0 - 2026-10-24
+
+0.8.0 separates the coding sessions from the agents, and makes the app say one thing about what needs you, in the
+same words everywhere. The iteration's records are in
+[docs/reports/2026-10-24-ui-ux-iteration/](docs/reports/2026-10-24-ui-ux-iteration/README.md).
+
+### Added
+
+- **A Sessions mode** (FD-103; SCN-077 to SCN-086). A switch at the top of the sidebar moves between Agents and
+  Sessions: ⌘1 and ⌘2 (Ctrl+1 and Ctrl+2 on Windows and Linux), also in the View menu. The window reopens in the mode
+  it was closed in, and "Sessions" carries a badge with the number of sessions that need you, in either mode. Sessions
+  lists every coding session on this computer, the ones Fabric Switchboard runs and the ones in this app's consoles,
+  grouped by what it needs: Needs you, Running, Waiting for a limit reset, and Ended in the last 24 hours (folded). Each
+  row names the project over the coding agent, the account, how it came here (handed over, after a limit reset, started
+  by Switchboard, opened here) and when.
+- **The pages of the Sessions mode.** All sessions explains itself once, says when Switchboard is missing or did not
+  answer, and shows each session as a card with the actions of its state: End (asks first), Show in Finder (Show in
+  Explorer on Windows, Show folder on Linux), Open console, Continue now on another account, Do not continue, Continue
+  or New session here, Remove. A session's own page shows its project, state, origin, account and context, with its
+  console filling the rest of the window; Esc reaches the coding agent, and Esc then Tab within a second leaves the
+  terminal. The terminal follows a change of the colour scheme at once. Ended sessions stay listed for 24 hours, also
+  across a restart.
+- **One notification per session that continues here**: a hand-over this app took, or a session continued after a
+  limit reset. Paused notifications and quiet hours silence it, and a click opens the session.
+- **A Sessions line in the menu bar menu**, "Sessions: running N, need you M" («Сессии: идут N, нужно ваше решение M»),
+  shown while a session runs or needs you; it opens the Sessions mode.
+- **Settings → Sessions**: "Open sessions handed over by Switchboard here", read and changed through Switchboard, and
+  "Continue sessions after a limit reset", moved here from the group "Sessions stopped on a limit".
+- **The interface's words have a home**: the brand pack in [docs/brand/](docs/brand/README.md) (voice, terminology,
+  Russian choices), checked by `test/copy.test.ts`.
+
+### Changed
+
+- **States and actions have new names**, one name for each, in both languages:
+  - Off is now **Stopped** (Russian unchanged, «Выключен»); Degraded is **Partly working** («Работает частично»);
+    Invalid is **Broken install file** («Ошибка в файле установки», was «Ошибка в дескрипторе»), with "Its install
+    file is broken: … Reinstall the agent."
+  - Fix with agent is **Fix with coding agent** («Исправить с агентом для кода», was «Исправить через агента»);
+    Update with agent is **Update with coding agent** («Обновить с агентом для кода», was «Обновить через агента»);
+    Repair with my coding agent is **Fix with my coding agent**.
+  - Doctor is **Run self-check** («Запустить проверку», was «Диагностика»); Reload is **Reload page**; Restart to
+    Update is **Restart to update**; Continue last is **Continue last session**.
+  - No services yet is **No agents yet** («Агентов пока нет»), and Show folder is **Show the services folder**
+    («Показать папку сервисов»); "service" becomes "agent" wherever a person reads it, and "runtime" becomes "coding
+    agent" («агент для кода»).
+  - Same as macOS and As on this Mac are **Same as the system** («Как в системе»); "this Mac" stays on macOS, and
+    Windows and Linux read "this computer".
+  - No string the app composes carries an em dash any more: the tray reads "● Example: Ready".
+- **One count of what needs you.** Overview's Needs attention, its strip, the sidebar's Overview badge, the menu bar
+  menu's first line and the Dock badge count the same items, and the Dock badge is now that number instead of "!". The
+  count now includes agents that partly work, updates, attention tiles, a running action and a failed action of the
+  last 30 minutes, besides the agents that do not answer.
+- **A spending limit that stopped an agent's work needs you**: a Needs attention row ("Its spending limit stopped work
+  (daily)." with Open Spend), an item in the menu bar menu and the red menu bar icon.
+- **Needs attention comes first** on Overview, right under the strip; each row's actions sit in one cell, a row of
+  agents down for one reason offers "Restart N", and the strip's not-answering and attention cells move to it.
+- **The agent's bar offers the state's own action first**: Restart or Start, then Fix; an available update shows in
+  the bar as "Update to <version>" even when nothing is wrong, and the problem chip opens the details for this visit
+  only.
+- **"Since you were last here" is read again** when the window comes back after an hour hidden, and can be dismissed.
+- **The folded sidebar rail shows the app's own update** as an entry of its own.
+- **The light theme's accent is readable**: text, lines and focus rings use darker shades; the sidebar's row menu is
+  reachable with the keyboard, and reduced motion stops the cursor blinking and the spinner.
+- **Hand-overs and sessions continued after a limit reset each run in a console of their own**, never in an agent's
+  free console in the same folder, so one session lives in one place and the agent's console stays yours (decision 8
+  of [the iteration's design](docs/reports/2026-10-24-ui-ux-iteration/sessions-and-navigation.md)). A hand-over
+  Switchboard still offers is not listed until this app takes it or it fails.
+
+### Fixed
+
+- **Sessions found in review** (round 1, [review-round1.md](docs/reports/2026-10-24-ui-ux-iteration/review-round1.md)):
+  Remove and Clear no longer bring an ended session back as a Switchboard row; a limit stop you chose not to continue
+  stays declined after Remove or Clear; stops Switchboard finished or cancelled no longer show as waiting with a time
+  in the past (also in MCP `audit`); a waiting session shows Switchboard's own probe time, or none; Continue on a
+  session Switchboard launched starts a new one when its conversation may still be running; quitting the app records
+  running consoles as "Closed when the app quit"; the settings channel can no longer write a session's folder.
+- **The menu bar icon** turns to its problem state on a failed action, as the sidebar badge does, and shows a new
+  attention shape (a diamond) while a session needs you.
+- **Session rows** keep their time beside the project; the second line reads "account · origin" and names the coding
+  agent only when it is not Claude Code; a waiting session has a visible clock mark; the sidebar's ended heading reads
+  "Ended: N" («Завершены: N»); a session page shows its exit strip only for an unclean exit.
+- **Windows and Linux** name the window Switchboard really opens (a PowerShell window, a terminal window) instead of
+  "Terminal"; a hand-over that could not open here names its one cause (under 5 GB free, six sessions already, or swap
+  run out on Linux); continuing an idle-closed agent console from the console itself removes its ended row.
+- **Sessions found in the adversarial round** (fix cycle 2,
+  [fix2-prefix-failures.txt](docs/reports/2026-10-24-ui-ux-iteration/fix2-prefix-failures.txt)): a limit stop you
+  declined and then continued is settled in Switchboard, so a restart never continues the same conversation again; two
+  presses of Continue now, or one during the automatic continue, start one session and never record it as cancelled;
+  quitting during a continue settles the stop in Switchboard before the app exits; a stop waits while a console of this
+  app works in its folder; two Switchboard sessions launched in the same second are both listed; a time ahead of the
+  clock neither hides a row for a year nor drops a decline; later rows never push a decline out of the list's memory.
+- **Session words and layout** (the visual round): a stopped session reads "Stopped by a limit on {account}" instead of
+  "Continued after a limit reset"; a continue that did not take up its conversation reads "Continue tried after a limit
+  reset"; English times read 1:37 PM; one or two cards fill the row and a card never cuts its time; a session running in
+  Terminal offers Show in Finder; an ended session's page after a restart says its output is not kept instead of showing
+  an empty console; without Switchboard the page says once how to get it; the sidebar's focus ring is no longer cut.
+- **Sessions polish** (FD-107, fix cycle 3,
+  [fix3-prefix-failures.txt](docs/reports/2026-10-24-ui-ux-iteration/fix3-prefix-failures.txt)): the sidebar keeps the
+  open session's row in view, also under a folded Ended group; an ended session shows when it ended, the time its
+  group is ordered by ("Closed at 13:02 after 30 idle minutes", "Ended by you at 11:32"); the not-answering line says
+  since when Switchboard has not answered instead of calling that time a check; the footnote no longer shows under the
+  loading line; a waiting session's page says when Switchboard tries it again, what you can do now, its folder and when
+  it stopped, and no other session page leaves its body blank; Settings → Sessions keeps the page title in view when the
+  section fits; a sidebar row's second line uses shorter words and wraps rather than cut "после сброса лимита".
+- **Sessions found in the confirming round** (fix cycle 4,
+  [fix4-prefix-failures.txt](docs/reports/2026-10-24-ui-ux-iteration/fix4-prefix-failures.txt)): continuing a limit stop
+  you declined no longer shows the new session on the account that ran out; a quit while Switchboard is still answering a
+  claim cancels that stop too, and a finish Switchboard refused is tried again at the quit; Continue on a declined stop
+  reads Switchboard again first, never cancels a stop another host claimed meanwhile, and records it as resumed only
+  when the conversation itself was taken up (a new session in the folder records it as cancelled); a stop whose own
+  console already runs is no longer left claimed; account names are read at most once every 30 s while stops wait, and
+  a stop whose continue failed keeps the account it stopped on.
+
+- **Spend adds agents up as the contract does** (FD-101, contract DEC-0110). The sum across agents is read over all their
+  report rows at once: beside an agent whose calls carry no price, an agent with no metered calls makes the money unknown
+  rather than "at least $0.00", and a subscription row with no calls but a cost is no longer dropped from the estimate.
+  An agent's own figures follow the same rule. MCP `spend` answers each sum's `sides`. Shared package
+  `@passioncode-ai/fabric-service-host` 0.9.0.
+- **No more dead ends for handed-over sessions**: a hand-over or a continued session closed after 30 idle minutes can be
+  continued from its row (its console was reopened only from the sidebar's Hand-overs section, whose text named a "New session" button that was never drawn there); a
+  session continued after a limit reset that did not take up its conversation but still runs is listed under Needs you
+  with Open console; ended sessions that hung in the list can be removed one by one or all at once with Clear.
+- **`npm run test:e2e` is safe on a loaded Mac** (HV-02): it refuses at once when the 1-minute load average is above 150
+  or free disk is under 5 GB (`FD_E2E_MAX_LOAD`, `FD_E2E_MIN_FREE_GB` move the floors) and runs its files one at a time
+  unless `-- --parallel` or `FD_E2E_CONCURRENCY` asks for more.
+
+### Removed
+
+- The sidebar's Hand-overs section and its page, and the console dropping down over a hand-over: hand-overs are in the
+  Sessions mode now. The strings that pointed "on the right" went with them.
+- The list of sessions stopped on a limit under Connections: those sessions are under Waiting for a limit reset or
+  Needs you in the Sessions mode.
 
 ## 0.7.28 - 2026-10-24
 

@@ -4,9 +4,11 @@
 // under it; the drawer is therefore a view of its own, added above the dashboard, loading the same
 // renderer with `?drawer=1`. It never resizes the dashboard. Its background is transparent: while the
 // person drags its bottom edge it covers the whole area to keep the pointer, and shows only the drawer.
+// FD-103 (SCN-080): on a session's page the same view is the page's console, placed over the whole area under the
+// page header (`full`): no fold, no edge, no shadow; the session page never shows a dashboard under it.
 import { type BrowserWindow, WebContentsView } from 'electron';
 import { CHANNELS, type DrawerPush, type DrawerState, type Rect } from '../core/api';
-import { drawerHeightFor } from '../core/layout';
+import { drawerBoundsFor, drawerHeightFor } from '../core/layout';
 
 /** FD-92: the strip under the drawer where its shadow falls on the dashboard (part of the drawer's view). */
 export const DRAWER_SHADOW = 14;
@@ -65,8 +67,7 @@ export class ConsoleDrawer {
     if (!this.shown()) { this.detach(); return; }
     const view = this.ensure();
     const rect = this.state.rect!;
-    const height = drawerHeightFor({ saved: this.state.height, areaHeight: rect.height });
-    const bounds: Rect = this.dragging ? rect : { x: rect.x, y: rect.y, width: rect.width, height: Math.min(rect.height, height + DRAWER_SHADOW) };
+    const bounds: Rect = drawerBoundsFor({ rect, saved: this.state.height, full: this.state.full, dragging: this.dragging, shadow: DRAWER_SHADOW });
     view.setBounds(round(bounds));
     this.window.contentView.addChildView(view); // added again: on top of any dashboard
     this.attached = true;
@@ -76,7 +77,9 @@ export class ConsoleDrawer {
   private push(): void {
     if (!this.view || !this.ready || this.view.webContents.isDestroyed()) return;
     const s = this.state;
-    const payload: DrawerPush = { key: s.key, height: s.rect ? drawerHeightFor({ saved: s.height, areaHeight: s.rect.height }) : s.height, areaHeight: s.rect?.height ?? 0, task: s.task };
+    const payload: DrawerPush = s.full
+      ? { key: s.key, height: s.rect?.height ?? 0, areaHeight: s.rect?.height ?? 0, task: s.task, full: true, scheme: s.scheme }
+      : { key: s.key, height: s.rect ? drawerHeightFor({ saved: s.height, areaHeight: s.rect.height }) : s.height, areaHeight: s.rect?.height ?? 0, task: s.task, scheme: s.scheme };
     this.view.webContents.send(CHANNELS.drawerPush, payload);
   }
 

@@ -7,7 +7,7 @@ request is how you agree to it, with no checkbox to tick. It lets PassionCode.ai
 ```bash
 npm ci
 npm run check        # typecheck, unit + integration tests, brand pins, code regions, UX lint
-npm run test:e2e     # builds, then drives the real Electron app against a live sample service
+npm run test:e2e     # builds, then drives the real Electron app against a live sample service (one file at a time)
 npm start            # run from source
 npm run icon         # re-render build/icon.icns and the menu bar templates from the vendored mark
 npm run dist -- --unsigned                       # a local test build of the DMG + update zip (debug only)
@@ -30,6 +30,17 @@ npm run dist -- --unsigned                       # a local test build of the DMG
 - Protocol fixtures under `test/fixtures/contract/` and the sample service under
   `test/fixtures/sample-service/` are copies with a `SOURCE.txt`; never edit them here.
 - A user-facing change updates `docs/ux/scenarios.md` in the same change.
+
+## End-to-end tests
+
+`npm run test:e2e` starts its own Electron for every test file, so it guards the machine before it builds anything:
+
+- It refuses at once on a locked screen (`scripts/check-screen.mjs`): macOS then sends windows no show/hide events.
+- It refuses at once when the 1-minute load average is above 150 or free disk is under 5 GB
+  (`scripts/check-machine.mjs`, HV-02), with the figure it read. `FD_E2E_MAX_LOAD` and `FD_E2E_MIN_FREE_GB` move the
+  floors when you mean to run anyway.
+- It runs the files one at a time (`scripts/run-e2e.mjs`). `npm run test:e2e -- --parallel` runs them side by side,
+  `FD_E2E_CONCURRENCY=<n>` sets how many; `npm run test:e2e -- test/e2e/spend.test.ts` runs only the files named.
 
 ## Leases
 

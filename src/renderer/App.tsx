@@ -8,24 +8,53 @@ import { ServiceView } from './components/ServiceView';
 import { Settings } from './components/Settings';
 import { Spend } from './components/Spend';
 import { ConnectionsMap } from './components/ConnectionsMap';
+import { AgentsNav, ModeSwitch, SessionsNav, type AgentsPage, type Mode, type RowActions } from './components/Navigation';
+import { AllSessions, hasConsole, SessionBody, SessionHeader } from './components/Sessions';
+import { resolveSessionRoute } from '../core/sessions-view';
+import type { SessionRow } from '../core/sessions';
 import { audit } from '../core/audit';
+import { attentionQueue, urgent } from '../core/attention';
 import { SETUP_KEY } from '../core/offers';
-import { sinceLastVisit, type SinceLastVisit } from '../core/visit';
-import type { ConsoleTask, Rect } from '../core/api';
+import { revisitDue, sinceLastVisit, type SinceLastVisit } from '../core/visit';
+import type { ConsoleTask, NavTarget, Rect } from '../core/api';
 import mark from './brand/dashboards-mark.svg';
-import { api, GLYPH, Icon, LangContext, nameOf, Spinner, useT } from './lib';
+import { api, Icon, LangContext, nameOf, Spinner, useT } from './lib';
 
-type Route = { page: 'overview' } | { page: 'handover'; key: string } | { page: 'activity'; serviceKey?: string; nonce?: number } | { page: 'spend' } | { page: 'map' } | { page: 'settings' } | { page: 'service'; key: string; link?: string; nonce?: number; tab?: 'logs' | 'health' | 'connections' };
+/** FD-103: `sessions` is All sessions; `session` one session's page, `follow` a console key a Continue started (the row
+ *  it becomes is followed), `until` how long a row that is not listed yet is waited for. */
+type Route = { page: 'overview' } | { page: 'activity'; serviceKey?: string; nonce?: number } | { page: 'spend' } | { page: 'map' } | { page: 'settings'; section?: 'sessions'; nonce?: number }
+  | { page: 'service'; key: string; link?: string; nonce?: number; tab?: 'logs' | 'health' | 'connections' }
+  | { page: 'sessions' } | { page: 'session'; id: string; follow?: string; until?: number };
+
+/** FD-103 (SCN-077): which mode a page belongs to; Settings belongs to neither and keeps the mode it was opened from. */
+const modeOfRoute = (r: Route): Mode | null => (r.page === 'sessions' || r.page === 'session' ? 'sessions' : r.page === 'settings' ? null : 'agents');
+/** How long a session page waits for a row that is not listed yet (a notification clicked before the next read). */
+const SESSION_WAIT_MS = 20_000;
 
 const PROBLEM = new Set(['down', 'duplicate', 'foreign', 'conflict', 'invalid']);
 
 export function App() {
   const [status, setStatus] = useState<AppStatus | null>(null);
   const [lang, setLang] = useState<Lang>('en');
-  const [route, setRoute] = useState<Route>({ page: 'overview' });
+  const [route, setRouteState] = useState<Route>({ page: 'overview' });
+  // FD-103 (SCN-077): the mode the sidebar shows, and the page last open in each mode.
+  const [mode, setMode] = useState<Mode>('agents');
+  const lastRoute = useRef<Record<Mode, Route>>({ agents: { page: 'overview' }, sessions: { page: 'sessions' } });
+  const setRoute = useCallback((r: Route) => {
+    const m = modeOfRoute(r);
+    if (m) { lastRoute.current[m] = r; setMode(m); }
+    setRouteState(r);
+  }, []);
+  const switchMode = useCallback((m: Mode) => { setMode(m); setRouteState(lastRoute.current[m]); }, []);
+  /** A link, a notification or the menu chose the page: the mode remembered from the last launch no longer applies. */
+  const navigated = useRef(false);
   const [stopKey, setStopKey] = useState<string | null>(null);
   // U-8: the Activity filter is kept between visits; a notification about one service presets it (U-19).
   const [activityFilter, setActivityFilter] = useState<ActivityFilter>({ serviceKey: '', minLevel: '' });
+  // VIS-06: the scheme the window paints, handed to the console's view so its terminal follows it.
+  const [scheme, setScheme] = useState<AppSettings['theme']>('dark');
+  // SCN-079: the All sessions page's one-time explanation.
+  const [noteSeen, setNoteSeen] = useState(true);
   // ADR-0017: how much of the window the dashboard gets, remembered in Settings.layout.
   const [layout, setLayout] = useState<AppSettings['layout']>(DEFAULT_SETTINGS.layout);
   const changeLayout = (patch: NonNullable<SettingsPatch['layout']>, persist = true) => {
@@ -39,10 +68,24 @@ export function App() {
   useEffect(() => {
     reloadLang();
     void api().status().then(setStatus);
-    void api().settings().then((s) => { applyTheme(s.theme); setLayout(s.layout); });
+    void api().settings().then((s) => {
+      applyTheme(s.theme);
+      setScheme(s.theme);
+      setLayout(s.layout);
+      setNoteSeen(s.sessionsNoteSeen);
+      // SCN-077 step 5: the window opens in the mode, and on the session page, it was closed on.
+      if (!navigated.current && s.layout.mode === 'sessions') setRoute(s.layout.sessionId ? { page: 'session', id: s.layout.sessionId, until: Date.now() + SESSION_WAIT_MS } : { page: 'sessions' });
+    });
     const offStatus = api().onStatus(setStatus);
-    const go = (target: { page: 'service' | 'activity' | 'overview' | 'spend' | 'map' | 'settings'; key?: string; link?: string }) => {
-      if (target.page === 'overview') setRoute({ page: 'overview' });
+    const go = (target: NavTarget) => {
+      navigated.current = true;
+      if (target.page === 'agents') switchMode('agents');
+      else if (target.page === 'sessions') {
+        // SCN-085: a notification opens its session, the tray's line All sessions; the menu the mode's last page.
+        if (target.key === 'all') setRoute({ page: 'sessions' });
+        else if (target.key) setRoute({ page: 'session', id: target.key, until: Date.now() + SESSION_WAIT_MS });
+        else switchMode('sessions');
+      } else if (target.page === 'overview') setRoute({ page: 'overview' });
       else if (target.page === 'spend' || target.page === 'map' || target.page === 'settings') setRoute({ page: target.page });
       else if (target.page === 'activity') {
         if (target.key) setActivityFilter((f) => ({ ...f, serviceKey: target.key! }));
@@ -51,6 +94,7 @@ export function App() {
     };
     const offNav = api().onNavigate(go);
     const offLayout = api().onLayoutCommand((which) => setLayout((l) => {
+      // On a session's page the console is the page itself (SCN-080): the menu's console toggle has nothing to fold.
       const patch = which === 'sidebar' ? { sidebar: l.sidebar === 'collapsed' ? 'expanded' as const : 'collapsed' as const }
         : which === 'console' ? { console: { open: !l.console.open } }
         : { header: l.header === 'full' ? 'compact' as const : 'full' as const };
@@ -63,14 +107,25 @@ export function App() {
 
   useEffect(() => { if (route.page !== 'service') void api().hideView(); }, [route.page]);
   // U-18: the main process keeps the screen on show, so Restart to update reopens on it.
-  useEffect(() => { api().routeChanged(route.page === 'service' ? { page: 'service', key: route.key } : { page: route.page }); }, [route.page, route.page === 'service' ? route.key : '']);
+  useEffect(() => { api().routeChanged(route.page === 'service' ? { page: 'service', key: route.key } : route.page === 'session' ? { page: 'sessions' } : { page: route.page }); }, [route.page, route.page === 'service' ? route.key : '']);
+  // SCN-077 step 5: the mode and the session page are remembered (Settings.layout), so a relaunch opens on them.
+  const sessionIdNow = route.page === 'session' ? route.id : route.page === 'sessions' ? null : undefined;
+  useEffect(() => {
+    if (!status) return;
+    const patch: NonNullable<SettingsPatch['layout']> = {};
+    if (layout.mode !== mode) patch.mode = mode;
+    if (mode === 'sessions' && sessionIdNow !== undefined && layout.sessionId !== sessionIdNow) patch.sessionId = sessionIdNow;
+    if (Object.keys(patch).length) changeLayout(patch);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, sessionIdNow, Boolean(status)]);
   useEffect(() => {
     if (route.page === 'service' && status && !status.services.some((s) => s.key === route.key)) setRoute({ page: 'overview' }); // SCN-003: removed
   }, [status, route]);
 
   return (
     <LangContext.Provider value={lang}>
-      {status ? <Shell status={status} route={route} setRoute={setRoute} stopKey={stopKey} setStopKey={setStopKey} activityFilter={activityFilter} setActivityFilter={setActivityFilter} layout={layout} changeLayout={changeLayout} onLanguage={reloadLang} /> : <div className="page muted row" role="status"><Spinner /> {tr(lang, 'app.loading')}</div>}
+      {status ? <Shell status={status} route={route} setRoute={setRoute} mode={mode} switchMode={switchMode} stopKey={stopKey} setStopKey={setStopKey} activityFilter={activityFilter} setActivityFilter={setActivityFilter} layout={layout} changeLayout={changeLayout} onLanguage={reloadLang}
+        scheme={scheme} onTheme={(th) => { applyTheme(th); setScheme(th); }} noteSeen={noteSeen} onNoteSeen={() => { setNoteSeen(true); void api().updateSettings({ sessionsNoteSeen: true }).catch(() => undefined); }} /> : <div className="page muted row" role="status"><Spinner /> {tr(lang, 'app.loading')}</div>}
     </LangContext.Provider>
   );
 }
@@ -90,13 +145,15 @@ export function applyTheme(theme: 'system' | 'dark' | 'light') {
 }
 
 interface ShellProps {
-  status: AppStatus; route: Route; setRoute: (r: Route) => void; stopKey: string | null; setStopKey: (k: string | null) => void;
+  status: AppStatus; route: Route; setRoute: (r: Route) => void; mode: Mode; switchMode: (m: Mode) => void; stopKey: string | null; setStopKey: (k: string | null) => void;
   activityFilter: ActivityFilter; setActivityFilter: (f: ActivityFilter) => void;
   layout: AppSettings['layout']; changeLayout: (patch: NonNullable<SettingsPatch['layout']>, persist?: boolean) => void;
   onLanguage: () => void;
+  scheme: AppSettings['theme']; onTheme: (theme: AppSettings['theme']) => void;
+  noteSeen: boolean; onNoteSeen: () => void;
 }
 
-function Shell({ status, route, setRoute, stopKey, setStopKey, activityFilter, setActivityFilter, layout, changeLayout, onLanguage }: ShellProps) {
+function Shell({ status, route, setRoute, mode, switchMode, stopKey, setStopKey, activityFilter, setActivityFilter, layout, changeLayout, onLanguage, scheme, onTheme, noteSeen, onNoteSeen }: ShellProps) {
   const { t } = useT();
   const open = (key: string, link?: string, tab?: 'logs' | 'health' | 'connections') => setRoute({ page: 'service', key, link, nonce: Date.now(), tab });
   // SCN-059: the agent selected last leads the next visit's Continue list.
@@ -107,18 +164,61 @@ function Shell({ status, route, setRoute, stopKey, setStopKey, activityFilter, s
     if (action === 'update') open(key, undefined, 'health');
     else void api().control(key, action);
   };
-  const problems = status.services.filter((s) => PROBLEM.has(s.state)).length;
-  // FD-81: the auditor runs with every status push; the nav carries what does not work, the page the rest.
-  const auditErrors = audit(status.services).counts.error;
+  // W2 (UX-04): the Overview badge counts the queue Needs attention lists, the tray and the Dock count; red when
+  // something does not work.
+  const queue = attentionQueue(status.services, { now: Date.now(), limits: status.limits });
+  // FD-81: the auditor runs with every status push; the nav carries what does not work, the page the rest. UX-05: with
+  // the limits the main process holds, as the page reads them.
+  const auditErrors = audit(status.services, status.limits ?? {}).counts.error;
   const current = route.page === 'service' ? status.services.find((s) => s.key === route.key) : undefined;
-  const handover = route.page === 'handover' ? (status.handovers ?? []).find((h) => h.key === route.key) : undefined;
   const stopping = stopKey ? status.services.find((s) => s.key === stopKey) : undefined;
+  // #region sessions-shell — docs: docs/ux/scenarios.md#scn-080-open-one-sessions-page
+  // FD-103: the session on show, followed through a Continue (its new row) and waited for while it may still arrive;
+  // a session that left the list returns the page to All sessions, never to an empty page (UX-18).
+  const [waitTick, setWaitTick] = useState(0);
+  const waiting = route.page === 'session' && (route.until ?? 0) > Date.now();
+  useEffect(() => {
+    if (route.page !== 'session' || (!route.until && !route.follow)) return;
+    const timer = setTimeout(() => setWaitTick((n) => n + 1), Math.max(500, (route.until ?? Date.now() + SESSION_WAIT_MS) - Date.now()));
+    return () => clearTimeout(timer);
+  }, [route]);
+  const resolved = route.page === 'session' ? resolveSessionRoute(status.sessions?.rows ?? null, route.id, { follow: route.follow, wait: waiting }) : null;
+  const sessionRow: SessionRow | null = resolved?.found ?? null;
+  useEffect(() => {
+    if (route.page !== 'session' || !resolved) return;
+    const expired = (route.until ?? 0) <= Date.now();
+    if (resolved.settled && resolved.found && (resolved.found.id !== route.id || route.until || route.follow)) setRoute({ page: 'session', id: resolved.found.id });
+    else if (resolved.gone) setRoute({ page: 'sessions' });
+    // A Continue whose new session never showed: back to the row it came from, or to All sessions.
+    else if (route.follow && expired && waitTick > 0) setRoute(resolved.found ? { page: 'session', id: resolved.found.id } : { page: 'sessions' });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [route, resolved?.found?.id, resolved?.gone, waitTick]);
+  const openSession = (id: string) => setRoute({ page: 'session', id });
+  const followContinue = (key: string) => setRoute({ page: 'session', id: route.page === 'session' ? route.id : '', follow: key, until: Date.now() + SESSION_WAIT_MS });
+  // SCN-081 step 2: End asks first; the question holds focus and goes when the session ends by itself.
+  const [ending, setEnding] = useState<SessionRow | null>(null);
+  const [endError, setEndError] = useState('');
+  const endStillOffered = ending ? (status.sessions?.rows ?? []).some((r) => r.id === ending.id && r.actions.includes('end')) : false;
+  useEffect(() => { if (ending && !endStillOffered) { setEnding(null); setEndError(''); } }, [ending, endStillOffered]);
+  const askEnd = (row: SessionRow) => { opener.current = document.activeElement instanceof HTMLElement ? document.activeElement : null; setEndError(''); setEnding(row); };
+  const confirmEnd = async (row: SessionRow) => {
+    const r = await api().sessionsEnd(row.id).catch((e: unknown) => ({ ok: false as const, reason: 'spawn' as const, detail: String((e as Error)?.message ?? e) }));
+    if (r.ok) { setEnding(null); return; }
+    setEndError(t('sessions.endFailed', { reason: r.detail ?? r.reason }));
+  };
+  useEffect(() => {
+    if (!ending) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setEnding(null); };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [ending]);
+  // #endregion sessions-shell
   // U-14: the Stop dialog holds focus. Everything behind it is inert while it is open (the embedded
   // dashboard is a native view and hides itself on overlayOpen); closing it puts focus back on the
   // control that opened it, when that control is still on screen.
   const opener = useRef<HTMLElement | null>(null);
   const askStop = (key: string) => { opener.current = document.activeElement instanceof HTMLElement ? document.activeElement : null; setStopKey(key); };
-  const stopOpen = Boolean(stopping);
+  const stopOpen = Boolean(stopping) || Boolean(ending);
   useEffect(() => {
     if (stopOpen) return;
     const el = opener.current;
@@ -146,7 +246,7 @@ function Shell({ status, route, setRoute, stopKey, setStopKey, activityFilter, s
   const products = groupProducts(status.services);
   // FD-39 (ADR-0020): pinned first in pin order, the rest in the chosen sort.
   const arranged = arrangeProducts(products, layout.list);
-  const { pinned, hidden } = arranged;
+  const { hidden } = arranged;
   const pin = (id: string) => changeLayout({ list: { pinned: togglePin(layout.list.pinned, id) } });
   // FD-78: the row's menu: pin, agent or service, hide. A hidden agent is still watched and still alerts.
   const rowMenu: RowActions = {
@@ -167,6 +267,12 @@ function Shell({ status, route, setRoute, stopKey, setStopKey, activityFilter, s
     setAgentTask({ key, mode: 'continue', nonce: Date.now() });
   };
   const [visit, setVisit] = useState<SinceLastVisit | null>(null);
+  const startVisit = (s: AppSettings) => {
+    setVisit(sinceLastVisit({ services: status.services, lastVisitAt: s.lastVisitAt, known: s.knownServices, consoles: s.consoles, lastService: s.lastService }));
+    void api().updateSettings({ lastVisitAt: new Date().toISOString(), knownServices: status.services.map((x) => x.key) }).catch(() => undefined);
+  };
+  // The setup card offers Start; the empty state below it then does not offer it again.
+  const [setupCard, setSetupCard] = useState(false);
   // FD-39 SCN-058: the Setup console from the card or from Settings; Continue resumes a setup stopped midway.
   const openSetup = (mode: 'new' | 'continue') => {
     void api().updateSettings({ setupDone: false }).catch(() => undefined);
@@ -184,12 +290,19 @@ function Shell({ status, route, setRoute, stopKey, setStopKey, activityFilter, s
     setupDecided.current = true;
     void Promise.all([api().settings(), api().setupState()]).then(([s, st]) => {
       if (!s.setupDone && status.services.length === 0 && !(st.mcp && st.skills && st.firstAgent)) setSetupOpen(true);
-      // SCN-059: what changed since the previous launch, computed once; this launch becomes the next one's baseline.
-      setVisit(sinceLastVisit({ services: status.services, lastVisitAt: s.lastVisitAt, known: s.knownServices, consoles: s.consoles, lastService: s.lastService }));
-      void api().updateSettings({ lastVisitAt: new Date().toISOString(), knownServices: status.services.map((x) => x.key) }).catch(() => undefined);
+      // SCN-059: what changed since the previous launch; this launch becomes the next one's baseline.
+      startVisit(s);
     }).catch(() => undefined);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status.scanning]);
+  // UX-08: the app lives for days in the menu bar; a window shown again after an hour hidden is a new visit.
+  const visitShown = useRef<string | null>(status.shown?.at ?? null);
+  useEffect(() => {
+    if (!setupDecided.current || !revisitDue(visitShown.current, status.shown)) return;
+    visitShown.current = status.shown!.at;
+    void api().settings().then(startVisit).catch(() => undefined);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status.shown?.at]);
   const handToAgent = (key: string, task: ConsoleTask) => {
     setRoute({ page: 'service', key });
     if (!layout.console.open) changeLayout({ console: { open: true } });
@@ -202,9 +315,11 @@ function Shell({ status, route, setRoute, stopKey, setStopKey, activityFilter, s
   // FD-92: the console is a drawer over the content area, from under the page header down; it never resizes the
   // dashboard. The main process draws it in a view of its own (drawer.ts); this page says which console, whether it is
   // open and where the area is. A fold, a new height or a taken job comes back from the drawer's page.
-  const drawerKey = route.page === 'service' && current ? (layout.console.open ? current.key : null)
-    : route.page === 'handover' && handover ? handover.key
-    : route.page === 'overview' && setupOpen ? SETUP_KEY : null;
+  // FD-103 (SCN-080): on a session's page the console is the page under its header, full height, never a drawer.
+  const pageConsole = route.page === 'session' && sessionRow && hasConsole(sessionRow) ? sessionRow.key : null;
+  const [menuOverPage, setMenuOverPage] = useState(false);
+  const drawerKey = pageConsole ?? (route.page === 'service' && current ? (layout.console.open ? current.key : null)
+    : route.page === 'overview' && setupOpen ? SETUP_KEY : null);
   const mainRef = useRef<HTMLElement>(null);
   const [area, setArea] = useState<Rect | null>(null);
   useEffect(() => {
@@ -223,91 +338,50 @@ function Shell({ status, route, setRoute, stopKey, setStopKey, activityFilter, s
     if (head) observer.observe(head);
     window.addEventListener('resize', measure);
     return () => { observer.disconnect(); window.removeEventListener('resize', measure); };
-  }, [route.page, route.page === 'service' ? route.key : '', layout.header, layout.sidebar, drawerKey]);
+  }, [route.page, route.page === 'service' ? route.key : '', layout.header, layout.sidebar, drawerKey, sessionRow?.id]);
   const drawerTask = agentTask && agentTask.key === drawerKey ? { task: agentTask.task, mode: agentTask.mode, nonce: agentTask.nonce } : null;
   useEffect(() => {
-    api().consoleDrawer({ key: drawerKey, open: Boolean(drawerKey), rect: area, height: layout.console.height, task: drawerTask, suspended: stopOpen });
-  }, [drawerKey, area, layout.console.height, drawerTask?.nonce, stopOpen]);
+    api().consoleDrawer({ key: drawerKey, open: Boolean(drawerKey), rect: area, height: layout.console.height, task: drawerTask, suspended: stopOpen || menuOverPage, full: Boolean(pageConsole), scheme });
+  }, [drawerKey, area, layout.console.height, drawerTask?.nonce, stopOpen, menuOverPage, Boolean(pageConsole), scheme]);
+  const focusOutRef = useRef<(back: boolean) => void>(() => undefined);
   const drawerOwner = useRef({ route, drawerKey });
   drawerOwner.current = { route, drawerKey };
   useEffect(() => api().onDrawerChange((c) => {
     const { route: r } = drawerOwner.current;
     if (c.kind === 'height') changeLayout({ console: { height: c.height } });
     else if (c.kind === 'taskTaken') setAgentTask((x) => (x && x.nonce === c.nonce ? null : x));
+    else if (c.kind === 'focusOut') focusOutRef.current(c.back); // VIS-05
     else if (r.page === 'service') changeLayout({ console: { open: false } });
     else if (r.page === 'overview') setSetupOpen(false);
-    else if (r.page === 'handover') setRoute({ page: 'overview' });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }), []);
   // #endregion console-drawer
+  const agentsPage: AgentsPage = route.page === 'overview' || route.page === 'activity' || route.page === 'map' || route.page === 'spend' || route.page === 'service' || route.page === 'settings' ? route.page : 'other';
 
+  const sessionsRows = status.sessions?.rows ?? [];
+  // VIS-05: Esc then Tab leaves the terminal: forward to the sidebar's first control, back to the header's last action.
+  const focusOutOfConsole = (back: boolean) => {
+    const pick = back
+      ? [...(mainRef.current?.querySelectorAll<HTMLElement>('[data-drawer-top] button:not([disabled]), [data-drawer-top] select:not([disabled])') ?? [])].pop()
+      : document.querySelector<HTMLElement>('.sidebar button:not([disabled])');
+    pick?.focus();
+  };
+  focusOutRef.current = focusOutOfConsole;
   return (
     <div className={`app${rail ? ' rail' : ''}`}>
       <nav className="sidebar" aria-label="Fabric Dashboards" inert={stopOpen}>
         <div className="brand"><img src={mark} alt="" /> <span className="brand-name">{t('app.name')}</span></div>
-        <div className="nav">
-          <button className="nav-item" aria-current={route.page === 'overview' ? 'page' : undefined} title={rail ? t('nav.overview') : undefined} onClick={() => setRoute({ page: 'overview' })}>
-            <Icon name="overview" /><span className="nav-label">{t('nav.overview')}</span>
-            {problems > 0 && <span className="count alert">{problems}</span>}
-          </button>
-          <button className="nav-item" aria-current={route.page === 'activity' ? 'page' : undefined} title={rail ? t('nav.activity') : undefined} onClick={() => setRoute({ page: 'activity' })}>
-            <Icon name="activity" /><span className="nav-label">{t('nav.activity')}</span>
-            {status.unread > 0 && <span className="count">{status.unread}</span>}
-          </button>
-          <button className="nav-item" aria-current={route.page === 'map' ? 'page' : undefined} title={rail ? t('nav.map') : undefined} onClick={() => setRoute({ page: 'map' })}>
-            <Icon name="map" /><span className="nav-label">{t('nav.map')}</span>
-            {auditErrors > 0 && <span className="count alert">{auditErrors}</span>}
-          </button>
-          <button className="nav-item" aria-current={route.page === 'spend' ? 'page' : undefined} title={rail ? t('nav.spend') : undefined} onClick={() => setRoute({ page: 'spend' })}>
-            <Icon name="spend" /><span className="nav-label">{t('nav.spend')}</span>
-          </button>
-        </div>
-        <div className="nav nav-scroll">
-          {/* FD-62 (SB-108): the consoles that took a Switchboard hand-over of their own. */}
-          {(status.handovers ?? []).length > 0 && <div className="nav-section">{t('nav.handovers')}</div>}
-          {(status.handovers ?? []).map((h) => (
-            <button key={h.key} className="nav-item" aria-current={route.page === 'handover' && route.key === h.key ? 'page' : undefined} title={rail ? h.workflow : undefined} onClick={() => setRoute({ page: 'handover', key: h.key })}>
-              <span className={`state state-${h.state === 'running' ? 'ready' : 'stopped'}`} aria-hidden="true"><span className="glyph">{GLYPH[h.state === 'running' ? 'ready' : 'stopped']}</span></span>
-              <span className="nav-label">{h.workflow || h.agent}</span>
-              <span className="visually-hidden">{t(h.state === 'running' ? 'handover.running' : 'handover.ended')}</span>
-            </button>
-          ))}
-          {pinned.length > 0 && <div className="nav-section">{t('nav.pinned')}</div>}
-          {pinned.map((p) => <ProductItem key={p.id} p={p} current={currentProduct === p} open={open} rail={rail} pinned menu={rowMenu} />)}
-          {/* FD-78: on this Mac, online, services; the sort applies inside each section. */}
-          {(['local', 'online', 'service'] as const).map((c, i) => arranged[c].length > 0 && (
-            <div key={c} role="group" aria-labelledby={`nav-${c}`}>
-              <div className="nav-section nav-section-row">
-                <span id={`nav-${c}`}>{t(`nav.${c}`)}</span>
-                {!rail && i === (['local', 'online', 'service'] as const).findIndex((x) => arranged[x].length > 0) && products.length > 1 && (
-                  <select className="sort-select" aria-label={t('list.sort')} value={layout.list.sort} onChange={(e) => changeLayout({ list: { sort: e.target.value as ListSort } })}>
-                    <option value="name">{t('list.sort.name')}</option>
-                    <option value="status">{t('list.sort.status')}</option>
-                    <option value="activity">{t('list.sort.activity')}</option>
-                  </select>
-                )}
-              </div>
-              {arranged[c].map((p) => <ProductItem key={p.id} p={p} current={currentProduct === p} open={open} rail={rail} pinned={false} menu={rowMenu} />)}
-            </div>
-          ))}
-          {/* FD-78: hidden agents, folded at the bottom; a problem among them still shows on the fold. */}
-          {hidden.length > 0 && (
-            <div className="nav-hidden">
-              {/* In the narrow rail the fold is an entry of its own, so hidden agents stay one click away. */}
-              <button className={rail ? 'nav-item' : 'nav-section nav-fold-section'} aria-expanded={layout.list.hiddenOpen} title={rail ? t('nav.hidden', { count: hidden.length }) : undefined} onClick={() => changeLayout({ list: { hiddenOpen: !layout.list.hiddenOpen } })}>
-                <span aria-hidden="true">{layout.list.hiddenOpen ? '▾' : '▸'}</span> <span className={rail ? 'nav-label' : undefined}>{t('nav.hidden', { count: hidden.length })}</span>
-                {hiddenProblem && <span className="count alert" title={t('nav.hiddenProblem')} aria-hidden="true">!</span>}
-                {hiddenProblem && <span className="visually-hidden">{t('nav.hiddenProblem')}</span>}
-              </button>
-              {layout.list.hiddenOpen && hidden.map((p) => <ProductItem key={p.id} p={p} current={currentProduct === p} open={open} rail={rail} pinned={false} menu={rowMenu} />)}
-            </div>
-          )}
-        </div>
+        <ModeSwitch mode={mode} rows={sessionsRows} rail={rail} onMode={switchMode} />
+        {mode === 'agents'
+          ? <AgentsNav page={agentsPage} status={status} arranged={arranged} products={products} currentProduct={currentProduct} layout={layout} changeLayout={changeLayout} open={open}
+            go={(page) => setRoute({ page })} rail={rail} queue={queue.length} urgent={queue.some(urgent)} auditErrors={auditErrors} hiddenProblem={hiddenProblem} menu={rowMenu} />
+          : <SessionsNav sessions={status.sessions} currentId={route.page === 'session' ? (sessionRow?.id ?? route.id) : null} allCurrent={route.page === 'sessions'} rail={rail}
+            endedOpen={layout.endedOpen} onEndedOpen={(o) => changeLayout({ endedOpen: o })} openAll={() => setRoute({ page: 'sessions' })} openRow={openSession} />}
         <div className="sidebar-footer">
           {!rail && <UpdateLine status={status} />}
+          {rail && <RailUpdate status={status} goSettings={() => setRoute({ page: 'settings' })} />}
           <button className="nav-item" aria-current={route.page === 'settings' ? 'page' : undefined} title={rail ? t('nav.settings') : undefined} onClick={() => setRoute({ page: 'settings' })}>
             <Icon name="settings" /><span className="nav-label">{t('nav.settings')}</span>
-            {rail && ['ready', 'held', 'misplaced', 'error'].includes(status.update.state) && <span className="count alert" aria-hidden="true">!</span>}
           </button>
           {/* ADR-0017 (SCN-047): the list folds into a rail and back; remembered. */}
           <button className="nav-item nav-fold" aria-expanded={!rail} title={t(rail ? 'sidebar.expand' : 'sidebar.collapse')} onClick={() => changeLayout({ sidebar: rail ? 'expanded' : 'collapsed' })}>
@@ -316,15 +390,13 @@ function Shell({ status, route, setRoute, stopKey, setStopKey, activityFilter, s
         </div>
       </nav>
       <main className="main" inert={stopOpen} ref={mainRef}>
-        {route.page === 'handover' && handover
-          ? <div className="page-wrap">
-            <div className="page">
-              <div className="page-head" data-drawer-top=""><h1>{handover.workflow || handover.agent}</h1></div>
-              <p className="meta">{t('handover.what', { agent: handover.agent, account: handover.account || '—', dir: handover.dir })}</p>
-              <p>{t(handover.state !== 'running' ? 'handover.done' : handover.kind === 'resume' ? 'handover.resumeBody' : 'handover.body')}</p>
-              {handover.state === 'exited' && <button className="btn" onClick={() => { void api().consoleDismissHandover(handover.key); setRoute({ page: 'overview' }); }}>{t('handover.close')}</button>}
+        {route.page === 'session'
+          ? (sessionRow
+            ? <div className="session-page">
+              <SessionHeader row={sessionRow} autoContinue={status.sessions?.autoContinue !== false} open={openSession} askEnd={askEnd} continued={followContinue} onMenu={setMenuOverPage} />
+              {pageConsole ? <div className="session-console-area" aria-hidden="true" /> : <SessionBody row={sessionRow} autoContinue={status.sessions?.autoContinue !== false} />}
             </div>
-          </div>
+            : <div className="page-wrap"><div className="page"><p className="muted row" role="status"><Spinner /> {t('sessions.reading')}</p></div></div>)
         : route.page === 'service' && current
           ? <div className="svc-page">
             <ServiceView key={current.key} s={current} all={status.services} members={currentProduct?.members ?? [current]} open={open} link={route.link} nonce={route.nonce} tab={route.tab} runUpdate={route.tab === 'health' && route.page === 'service'} activityRev={status.activityRev} overlayOpen={stopOpen} askStop={askStop} updateStarted={() => setRoute({ ...route, tab: undefined })}
@@ -335,15 +407,17 @@ function Shell({ status, route, setRoute, stopKey, setStopKey, activityFilter, s
             <div className="page-wrap">
             <div className="page">
               <div className="page-head" data-drawer-top="">
-                <h1>{t(route.page === 'activity' ? 'activity.title' : route.page === 'spend' ? 'spend.title' : route.page === 'map' ? 'map.title' : route.page === 'settings' ? 'settings.title' : 'overview.title')}</h1>
+                <h1>{t(route.page === 'activity' ? 'activity.title' : route.page === 'spend' ? 'spend.title' : route.page === 'map' ? 'map.title' : route.page === 'settings' ? 'settings.title' : route.page === 'sessions' ? 'sessions.all' : 'overview.title')}</h1>
                 {route.page === 'overview' && count > 0 && <span className="meta">{count === 1 ? t('overview.count.one') : t('overview.count', { count })}</span>}
               </div>
-              {route.page === 'overview' && <SetupCard onOpen={openSetup} consoleOpen={setupOpen} />}
-              {route.page === 'overview' && <Overview status={status} products={products} open={open} act={act} agent={handToAgent} visit={visit} onContinue={continueWith} goSpend={() => setRoute({ page: 'spend' })} list={layout.list} onHiddenOpen={(o) => changeLayout({ list: { hiddenOpen: o } })} />}
+              {route.page === 'overview' && <SetupCard onOpen={openSetup} consoleOpen={setupOpen} onShown={setSetupCard} />}
+              {route.page === 'overview' && <Overview status={status} products={products} open={open} act={act} agent={handToAgent} onSetup={() => openSetup('new')} setupCard={setupCard} visit={visit} onDismissVisit={() => setVisit(null)} onContinue={continueWith} goSpend={() => setRoute({ page: 'spend' })} list={layout.list} onHiddenOpen={(o) => changeLayout({ list: { hiddenOpen: o } })} />}
               {route.page === 'activity' && <Activity status={status} openAt={open} filter={activityFilter} setFilter={setActivityFilter} />}
               {route.page === 'spend' && <Spend status={status} />}
-              {route.page === 'map' && <ConnectionsMap status={status} open={(key) => open(key, undefined, 'connections')} onAgent={handToAgent} openConsole={(key) => (key.startsWith('handover.') ? setRoute({ page: 'handover', key }) : open(key))} />}
-              {route.page === 'settings' && <Settings status={status} onTheme={applyTheme} onLanguage={onLanguage} onSetup={() => openSetup('new')} />}
+              {route.page === 'map' && <ConnectionsMap status={status} open={(key) => open(key, undefined, 'connections')} onAgent={handToAgent} />}
+              {route.page === 'settings' && <Settings status={status} onTheme={onTheme} onLanguage={onLanguage} onSetup={() => openSetup('new')} section={route.section} nonce={route.nonce} />}
+              {route.page === 'sessions' && <AllSessions sessions={status.sessions} noteSeen={noteSeen} onNoteSeen={onNoteSeen} onSetUp={() => setRoute({ page: 'settings', section: 'sessions', nonce: Date.now() })}
+                endedOpen={layout.endedOpen} onEndedOpen={(o) => changeLayout({ endedOpen: o })} open={openSession} askEnd={askEnd} continued={(key) => setRoute({ page: 'session', id: '', follow: key, until: Date.now() + SESSION_WAIT_MS })} />}
             </div>
             </div>
           )}
@@ -360,80 +434,17 @@ function Shell({ status, route, setRoute, stopKey, setStopKey, activityFilter, s
           </div>
         </div>
       )}
-    </div>
-  );
-}
-
-/** FD-78: what a row's menu can do. */
-interface RowActions {
-  pin: (id: string) => void;
-  hide: (id: string) => void;
-  kind: (p: Product, kind: 'agent' | 'service') => void;
-  isPinned: (id: string) => boolean;
-  isHidden: (id: string) => boolean;
-  isService: (p: Product) => boolean;
-}
-
-/** A product in the sidebar: the primary's name and state; a member in trouble adds a mark, never a changed state (ADR-0012). */
-function ProductItem({ p, current, open, rail, pinned, menu }: { p: Product; current: boolean; open: (key: string) => void; rail: boolean; pinned: boolean; menu: RowActions }) {
-  const { t } = useT();
-  const s = p.primary;
-  return (
-    <div className={`nav-row${pinned ? ' pinned' : ''}`}>
-    <button className="nav-item" aria-current={current ? 'page' : undefined} title={rail ? `${nameOf(s)} — ${t(`state.${s.state}`)}` : undefined} onClick={() => open(s.key)}>
-      <span className={`state state-${s.state}`} aria-hidden="true"><span className="glyph">{GLYPH[s.state]}</span></span>
-      {rail && <span className="initials" aria-hidden="true">{initialsOf(nameOf(s))}</span>}
-      <span className="nav-label">{nameOf(s)}</span>
-      {p.memberProblem && <span className="count alert" title={t('nav.memberProblem')} aria-hidden="true">!</span>}
-      <span className="visually-hidden">{t(`state.${s.state}`)}{p.memberProblem ? `, ${t('nav.memberProblem')}` : ''}</span>
-    </button>
-    {!rail && <RowMenu p={p} menu={menu} />}
-    </div>
-  );
-}
-
-/** FD-78: one small button per row opens its actions (global rule: one primary action, the rest in a menu). */
-function RowMenu({ p, menu }: { p: Product; menu: RowActions }) {
-  const { t } = useT();
-  const [open, setOpen] = useState(false);
-  // The list scrolls, so the menu is placed against the window: below the button, or above it near the bottom.
-  const [at, setAt] = useState<{ top?: number; bottom?: number; right: number }>({ right: 0 });
-  const box = useRef<HTMLDivElement | null>(null);
-  const toggle = () => {
-    const r = box.current?.querySelector('.row-menu-btn')?.getBoundingClientRect();
-    if (r) setAt(window.innerHeight - r.bottom < 140 ? { bottom: window.innerHeight - r.top + 4, right: window.innerWidth - r.right } : { top: r.bottom + 4, right: window.innerWidth - r.right });
-    setOpen(!open);
-  };
-  const name = nameOf(p.primary);
-  useEffect(() => {
-    if (!open) return;
-    const away = (e: MouseEvent) => { if (box.current && !box.current.contains(e.target as Node)) setOpen(false); };
-    const key = (e: KeyboardEvent) => { if (e.key === 'Escape') { setOpen(false); (box.current?.querySelector('.row-menu-btn') as HTMLButtonElement | null)?.focus(); } };
-    document.addEventListener('mousedown', away);
-    document.addEventListener('keydown', key);
-    (box.current?.querySelector('[role="menuitem"]') as HTMLButtonElement | null)?.focus();
-    return () => { document.removeEventListener('mousedown', away); document.removeEventListener('keydown', key); };
-  }, [open]);
-  const pinned = menu.isPinned(p.id), hidden = menu.isHidden(p.id), service = menu.isService(p);
-  const act = (f: () => void) => () => { f(); setOpen(false); };
-  return (
-    <div className={`row-menu${open || pinned ? ' shown' : ''}`} ref={box}>
-      <button className="row-menu-btn pin-btn" aria-haspopup="menu" aria-expanded={open} title={t('list.menu', { name })} aria-label={t('list.menu', { name })} onClick={toggle}>
-        {pinned
-          ? <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true"><path d="M6 1h4l-.5 4 2.5 2.5V9H8.6L8 15l-.6-6H4V7.5L6.5 5z" fill="currentColor" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" /></svg>
-          : <span aria-hidden="true">⋯</span>}
-      </button>
-      {open && (
-        <div className="menu" role="menu" aria-label={name} style={at} onKeyDown={(e) => {
-          if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
-          e.preventDefault();
-          const items = [...(box.current?.querySelectorAll<HTMLButtonElement>('[role="menuitem"]') ?? [])];
-          const i = items.indexOf(document.activeElement as HTMLButtonElement);
-          items[(i + (e.key === 'ArrowDown' ? 1 : items.length - 1)) % items.length]?.focus();
-        }}>
-          {!hidden && <button role="menuitem" onClick={act(() => menu.pin(p.id))}>{t(pinned ? 'list.unpin' : 'list.pin', { name })}</button>}
-          <button role="menuitem" onClick={act(() => menu.kind(p, service ? 'agent' : 'service'))}>{t(service ? 'list.asAgent' : 'list.asService')}</button>
-          <button role="menuitem" onClick={act(() => menu.hide(p.id))}>{t(hidden ? 'list.unhide' : 'list.hide')}</button>
+      {ending && (
+        <div className="scrim" role="presentation">
+          <div className="dialog" role="alertdialog" aria-modal="true" aria-labelledby="end-title" aria-describedby="end-body">
+            <h2 id="end-title">{t('sessions.endTitle')}</h2>
+            <p id="end-body">{t('sessions.endBody')}</p>
+            {endError && <p className="notice error" role="alert">{endError}</p>}
+            <div className="row">
+              <button className="btn" autoFocus onClick={() => setEnding(null)}>{t('action.cancel')}</button>
+              <button className="btn btn-danger" onClick={() => void confirmEnd(ending)}>{t('sessions.endConfirm')}</button>
+            </div>
+          </div>
         </div>
       )}
     </div>
@@ -452,9 +463,21 @@ function UpdateLine({ status }: { status: AppStatus }) {
   return null;
 }
 
-/** Two letters for a rail entry: the first letters of the first two words, else the first two letters. */
-export function initialsOf(name: string): string {
-  const words = name.trim().split(/[\s._-]+/).filter(Boolean);
-  const letters = words.length > 1 ? words[0]![0]! + words[1]![0]! : (words[0] ?? '?').slice(0, 2);
-  return letters.toUpperCase();
+/** W2: the folded rail keeps the app's own update in sight: an entry of its own, named by its title and its
+ *  accessible name, that restarts into a ready update or opens Settings where a moved app or an error is explained. */
+function RailUpdate({ status, goSettings }: { status: AppStatus; goSettings: () => void }) {
+  const { t } = useT();
+  const u = status.update;
+  if (!['ready', 'held', 'misplaced', 'error'].includes(u.state)) return null;
+  const ready = u.state === 'ready' || u.state === 'held';
+  const label = u.state === 'held' ? t('update.held', { version: u.version ?? '' })
+    : u.state === 'ready' ? (u.version ? t('update.ready', { version: u.version }) : t('update.readyUnnamed'))
+    : u.state === 'misplaced' ? t('update.misplaced') : t('update.error', { error: u.error ?? '' });
+  const action = ready ? (u.state === 'held' ? t('update.installNow') : t('update.restart')) : t('nav.settings');
+  return (
+    <button className="nav-item nav-update" title={`${label} ${action}`} onClick={() => (ready ? void api().restartToUpdate() : goSettings())}>
+      <Icon name="update" /><span className="nav-label">{`${label}. ${action}`}</span>
+      <span className={`count${ready ? '' : ' alert'}`} aria-hidden="true">{ready ? '↑' : '!'}</span>
+    </button>
+  );
 }

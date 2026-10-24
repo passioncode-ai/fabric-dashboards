@@ -1,10 +1,10 @@
 import { offersAgentUpdate, offersFix, SETUP_KEY } from '../../core/offers';
 import type { SinceLastVisit } from '../../core/visit';
 import { areasInOrder, attention, type SetupCheckResult } from '../../core/doctor';
-import { attentionRank } from '@passioncode-ai/fabric-service-host/state';
 import { Fragment, useEffect, useState, type ReactNode } from 'react';
 import { sumSpend, type SpendEntry } from '../../core/spend';
-import { foldAttention, groupAttention } from '../../core/attention';
+import { attentionQueue, foldAttention, groupAttention, urgent } from '../../core/attention';
+import { FixButton } from './ServiceActions';
 import { money as formatMoney } from './Spend';
 import { categoryOf, instanceOf, type Product } from '../../core/products';
 import type { ListLayout } from '../../core/types';
@@ -13,7 +13,9 @@ import { api, GLYPH, nameOf, NEWS_MS, shortBuild, Spinner, StateBadge, useExpiry
 
 /** FD-39 SCN-058: the setup the person's coding agent runs. The card shows what is done — read every few
  *  seconds while it is on screen — and opens the Setup console; the app runs none of the steps itself. */
-export function SetupCard({ onOpen, consoleOpen }: { onOpen: (mode: 'new' | 'continue') => void; consoleOpen: boolean }) {
+export function SetupCard({ onOpen, consoleOpen, onShown }: { onOpen: (mode: 'new' | 'continue') => void; consoleOpen: boolean;
+  /** Whether the card's setup steps are on screen (with Start, or with the console already open beside it). */
+  onShown?: (shown: boolean) => void }) {
   const { t } = useT();
   const [settings, setSettings] = useState<Settings | null>(null);
   const [state, setState] = useState<{ mcp: boolean; skills: boolean; firstAgent: boolean } | null>(null);
@@ -25,8 +27,11 @@ export function SetupCard({ onOpen, consoleOpen }: { onOpen: (mode: 'new' | 'con
     const timer = setInterval(read, 5000);
     return () => clearInterval(timer);
   }, [settings]);
+  const done = Boolean(state && state.mcp && state.skills && state.firstAgent);
+  const steps = Boolean(settings && !settings.setupDone && state && !done);
+  useEffect(() => { onShown?.(steps); }, [steps]);
+  useEffect(() => () => onShown?.(false), []);
   if (!settings || settings.setupDone || !state) return null;
-  const done = state.mcp && state.skills && state.firstAgent;
   const hide = async () => setSettings((await api().updateSettings({ setupDone: true })).settings);
   if (done) {
     return (
@@ -63,12 +68,18 @@ interface Props { status: AppStatus; products: Product[]; open: (key: string, li
   /** FD-39 SCN-059: what changed since the last visit, and Continue for the agents the person worked with. */
   visit?: SinceLastVisit | null; onContinue?: (key: string) => void;
   /** FD-78: the person's kinds and hidden agents, and the Hidden fold shared with the sidebar. */
-  list?: Pick<ListLayout, 'hidden' | 'kinds' | 'hiddenOpen'>; onHiddenOpen?: (open: boolean) => void }
+  list?: Pick<ListLayout, 'hidden' | 'kinds' | 'hiddenOpen'>; onHiddenOpen?: (open: boolean) => void;
+  /** COPY-13: the first-run empty state's step a person can take: the Setup console (SCN-058). */
+  onSetup?: () => void;
+  /** The setup card above already offers Start: the empty state does not offer it a second time. */
+  setupCard?: boolean;
+  /** UX-08: the person dismissed "Since you were last here". */
+  onDismissVisit?: () => void }
 
 /** Needs attention shows this many rows; the rest wait behind "Show all" (ADR-0014). */
 const ATTENTION_VISIBLE = 3;
 
-export function Overview({ status, products, open, act, goSpend, agent, visit, onContinue, list, onHiddenOpen }: Props) {
+export function Overview({ status, products, open, act, goSpend, agent, visit, onContinue, list, onHiddenOpen, onSetup, setupCard, onDismissVisit }: Props) {
   const { t, reason, lang } = useT();
   const [showAll, setShowAll] = useState(false);
   const [pathError, setPathError] = useState('');
@@ -78,10 +89,9 @@ export function Overview({ status, products, open, act, goSpend, agent, visit, o
   // A failure is news for half an hour; after that the service's own state speaks again.
   const now = useExpiry(services.map((s) => (s.lastAction && !s.lastAction.ok ? s.lastAction.at : undefined)));
   const failed = (s: ServiceSnapshot) => Boolean(s.lastAction && !s.lastAction.ok && !s.busy && now - Date.parse(s.lastAction.at) < NEWS_MS);
-  const attention = services
-    .map((s) => ({ s, rank: attentionRank(s.state, s.wellKnown) ?? (s.busy ? 0.5 : failed(s) ? 5 : null) }))
-    .filter((x) => x.rank !== null)
-    .sort((a, b) => a.rank! - b.rank!);
+  // W2 (UX-04, UX-06): the one queue the tray, the sidebar and the Dock count too, a limit that stopped work included.
+  const attention = attentionQueue(services, { now, limits: status.limits });
+  const limitOf = new Map(attention.map((x) => [x.s.key, x.limit]));
 
   if (status.dirError) {
     return (
@@ -100,7 +110,9 @@ export function Overview({ status, products, open, act, goSpend, agent, visit, o
         <p>{t('overview.empty.body')}</p>
         <p className="mono">{status.servicesDir}</p>
         <div className="row">
-          <button className="btn btn-primary" onClick={showFolder}>{t('overview.empty.show')}</button>
+          {/* COPY-13: the step a person takes comes first; the folder is for those who install by hand. */}
+          {onSetup && !setupCard && <button className="btn btn-primary" onClick={onSetup}>{t('setup.agent.start')}</button>}
+          <button className={onSetup && !setupCard ? 'btn' : 'btn btn-primary'} onClick={showFolder}>{t('overview.empty.show')}</button>
           <button className="btn" onClick={() => void api().openServiceGuide()}>{t('overview.empty.guide')}</button>
         </div>
         {pathError && <p className="notice error" role="alert">{pathError}</p>}
@@ -110,14 +122,16 @@ export function Overview({ status, products, open, act, goSpend, agent, visit, o
 
   const action = (s: ServiceSnapshot) => {
     if (s.busy) return <span className="row meta" role="status"><Spinner /> {t(`busy.${s.busy}`)}</span>;
+    // UX-06: a ready agent whose spending limit stopped work: the place to see and change it is Spend.
+    if (s.state === 'ready' && limitOf.get(s.key)) return <button className="btn" onClick={goSpend}>{t('overview.attention.openSpend')}</button>;
     // T-20: an online service has no Logs tab.
     const logs = failed(s) && !isOnline(s) && s.descriptor?.paths?.logs?.length
-      ? <button className="btn" aria-label={`${t('action.logs')} — ${nameOf(s)}`} onClick={() => open(s.key, undefined, 'logs')}>{t('action.logs')}</button> : null;
+      ? <button className="btn" aria-label={t('join.action', { action: t('action.logs'), name: nameOf(s) })} onClick={() => open(s.key, undefined, 'logs')}>{t('action.logs')}</button> : null;
     if (logs && !(s.state === 'down' || s.state === 'duplicate')) return logs;
     // DEC-0019: an online service is supervised by its platform — nothing here can restart it.
     if (isOnline(s)) return <button className="btn" onClick={() => open(s.key)}>{t('action.open')}</button>;
     // U-14: each action names the service it acts on, for a screen reader reading the button alone.
-    const label = (action: string) => `${action} — ${nameOf(s)}`;
+    const label = (action: string) => t('join.action', { action, name: nameOf(s) });
     if (s.state === 'down' || s.state === 'duplicate') return <span className="row">{logs}<button className="btn btn-primary" aria-label={label(t('action.restart'))} onClick={() => act(s.key, 'restart')}>{t('action.restart')}</button></span>;
     if (s.wellKnown?.update?.available && s.descriptor?.commands?.update) { // P-9: also when degraded — the update may be the fix
       const text = t('action.update', { version: s.wellKnown.update.available });
@@ -136,19 +150,72 @@ export function Overview({ status, products, open, act, goSpend, agent, visit, o
   const hidden = products.filter((p) => hiddenIds.has(p.id));
 
   const attentionLine = (s: ServiceSnapshot) => {
+    // UX-06: a limit that stopped work says so first, in the auditor's words.
+    const limit = limitOf.get(s.key);
+    const stopped = limit ? reason({ code: 'audit.limit.tripped', params: { limit: limit.id } }) : '';
+    const rest = attentionWhy(s);
+    return [stopped, rest].filter(Boolean).join(' ');
+  };
+  const attentionWhy = (s: ServiceSnapshot) => {
     const lastFailure = failed(s) ? reason(s.lastAction!.reason) : '';
     if (s.reasons.length) return [lastFailure, ...s.reasons.map(reason)].filter(Boolean).join(' ');
     if (lastFailure) return lastFailure;
     const tile = s.wellKnown?.summary?.find((x) => x.attention);
-    return tile ? t('reason.attention', { label: tile.label, value: tile.value }) : '';
+    if (tile) return t('reason.attention', { label: tile.label, value: tile.value });
+    const version = s.wellKnown?.update?.available;
+    return version ? reason({ code: 'audit.update', params: { version } }) : '';
   };
   // FD-86: agents in one state for one reason fold into one line naming them all; a busy row stays its own.
   const entries = groupAttention(attention, ({ s }) => (s.busy ? '' : `${s.state}|${attentionLine(s)}`));
   const fold = foldAttention(entries, showAll, ATTENTION_VISIBLE);
+  // UX-07: a folded row's shared action, applied to each member: Restart N when every member is a local agent that
+  // is down or runs twice; otherwise each name opens its agent.
+  const groupAction = (members: ServiceSnapshot[]) => {
+    if (!members.every((m) => (m.state === 'down' || m.state === 'duplicate') && !isOnline(m) && !m.busy)) return null;
+    const text = t('overview.attention.restartAll', { count: members.length });
+    return <button className="btn btn-primary" aria-label={`${text}: ${members.map(nameOf).join(', ')}`} onClick={() => members.forEach((m) => act(m.key, 'restart'))}>{text}</button>;
+  };
 
   return (
     <>
-      <StatusStrip status={status} products={products} attention={attention.length} goSpend={goSpend} />
+      <StatusStrip status={status} products={products} attention={attention.length} urgent={attention.some(urgent)} goSpend={goSpend}
+        goAttention={() => { const el = document.getElementById('attention-title'); el?.scrollIntoView({ block: 'start' }); el?.focus(); }} />
+      {/* VIS-12: what to act on now comes first; the news of the last visit follows it. */}
+      {attention.length > 0 && (
+        <section className="attention" aria-labelledby="attention-title">
+          <h2 id="attention-title" tabIndex={-1}>{t('overview.attention')} <span className="count">{attention.length}</span></h2>
+          <ul>
+            {fold.shown.map(({ lead: { s }, members }) => members.length > 1 ? (
+              <li key={s.key} className="group">
+                <StateBadge state={s.state} />
+                <span className="name">{t('overview.attention.group', { count: members.length })} {members.map(({ s: m }, i) => (
+                  <Fragment key={m.key}>{i > 0 && ', '}<button className="linkish" onClick={() => open(m.key)}>{nameOf(m)}</button></Fragment>
+                ))}</span>
+                <span className="why" title={attentionLine(s)}>{attentionLine(s)}</span>
+                {/* UX-07: the outage behind a folded row is fixed by acting on every member at once. */}
+                <span className="row-actions">{groupAction(members.map((x) => x.s))}</span>
+              </li>
+            ) : (
+              <li key={s.key}>
+                <StateBadge state={s.state} />
+                <button className="linkish name" onClick={() => open(s.key)}>{nameOf(s)}</button>
+                <span className="why" title={attentionLine(s)}>{attentionLine(s)}</span>
+                {/* VIS-02: every action of the row in one cell, so the row stays one line and the reason keeps its room. */}
+                <span className="row-actions">
+                  {action(s)}
+                  {agent && !s.busy && offersFix(s) && <FixButton s={s} onFix={() => agent(s.key, { kind: 'fix' })} />}
+                  {agent && !s.busy && !offersFix(s) && offersAgentUpdate(s, false) && <button className="btn" aria-label={t('join.action', { action: t('agent.update'), name: nameOf(s) })} onClick={() => agent(s.key, { kind: 'update' })}>{t('agent.update')}</button>}
+                </span>
+              </li>
+            ))}
+          </ul>
+          {fold.more !== null && (
+            <button className="btn-link more" aria-expanded={showAll} onClick={() => setShowAll(!showAll)}>
+              {showAll ? t('overview.attention.less') : t('overview.attention.all', { count: fold.more })}
+            </button>
+          )}
+        </section>
+      )}
       {visit?.since && (() => {
         const byKey = new Map(services.map((x) => [x.key, x]));
         const names = (keys: string[]) => keys.map((k) => (byKey.get(k) ? nameOf(byKey.get(k)!) : k)).join(', ');
@@ -157,14 +224,19 @@ export function Overview({ status, products, open, act, goSpend, agent, visit, o
         if (!changed && !worked.length) return null;
         return (
           <section className="visit" aria-labelledby="visit-title">
-            <h2 id="visit-title">{t('visit.title')}</h2>
+            <div className="row">
+              <h2 id="visit-title">{t('visit.title')}</h2>
+              <span className="spacer" />
+              {/* UX-08: read, then put away; a later visit after an hour away opens it again with what is new. */}
+              {onDismissVisit && <button className="btn-link" onClick={onDismissVisit}>{t('visit.dismiss')}</button>}
+            </div>
             {!changed && <p className="meta">{t('visit.nothing', { when: new Date(visit.since).toLocaleString(lang, { dateStyle: 'medium', timeStyle: 'short' }) })}</p>}
             <ul>
               {visit.alerts.map((a) => byKey.has(a.key) && (
                 <li key={a.key} className={`state-${a.level === 'error' ? 'down' : 'degraded'}`}>
                   <button className="linkish name" onClick={() => open(a.key)}>{nameOf(byKey.get(a.key)!)}</button>
                   <span className="why" title={a.text}>{a.text}</span>
-                  {agent && offersFix(byKey.get(a.key)!) && <button className="btn" aria-label={`${t('agent.fix')} — ${nameOf(byKey.get(a.key)!)}`} onClick={() => agent(a.key, { kind: 'fix' })}>{t('agent.fix')}</button>}
+                  {agent && offersFix(byKey.get(a.key)!) && <FixButton s={byKey.get(a.key)!} onFix={() => agent(a.key, { kind: 'fix' })} />}
                 </li>
               ))}
               {visit.added.length > 0 && <li className="meta">{t('visit.added', { names: names(visit.added) })}</li>}
@@ -181,36 +253,6 @@ export function Overview({ status, products, open, act, goSpend, agent, visit, o
           </section>
         );
       })()}
-      {attention.length > 0 && (
-        <section className="attention" aria-labelledby="attention-title">
-          <h2 id="attention-title">{t('overview.attention')} <span className="count">{attention.length}</span></h2>
-          <ul>
-            {fold.shown.map(({ lead: { s }, members }) => members.length > 1 ? (
-              <li key={s.key} className="group">
-                <StateBadge state={s.state} />
-                <span className="name">{t('overview.attention.group', { count: members.length })} {members.map(({ s: m }, i) => (
-                  <Fragment key={m.key}>{i > 0 && ', '}<button className="linkish" onClick={() => open(m.key)}>{nameOf(m)}</button></Fragment>
-                ))}</span>
-                <span className="why" title={attentionLine(s)}>{attentionLine(s)}</span>
-              </li>
-            ) : (
-              <li key={s.key}>
-                <StateBadge state={s.state} />
-                <button className="linkish name" onClick={() => open(s.key)}>{nameOf(s)}</button>
-                <span className="why" title={attentionLine(s)}>{attentionLine(s)}</span>
-                {action(s)}
-                {agent && !s.busy && offersFix(s) && <button className="btn" aria-label={`${t('agent.fix')} — ${nameOf(s)}`} onClick={() => agent(s.key, { kind: 'fix' })}>{t('agent.fix')}</button>}
-                {agent && !s.busy && !offersFix(s) && offersAgentUpdate(s, false) && <button className="btn" aria-label={`${t('agent.update')} — ${nameOf(s)}`} onClick={() => agent(s.key, { kind: 'update' })}>{t('agent.update')}</button>}
-              </li>
-            ))}
-          </ul>
-          {fold.more !== null && (
-            <button className="btn-link more" aria-expanded={showAll} onClick={() => setShowAll(!showAll)}>
-              {showAll ? t('overview.attention.less') : t('overview.attention.all', { count: fold.more })}
-            </button>
-          )}
-        </section>
-      )}
       <div className="cards">
         {local.map((p) => <Card key={p.id} p={p} open={open} />)}
       </div>
@@ -250,7 +292,7 @@ function Card({ p, open }: { p: Product; open: (key: string) => void }) {
   const uptime = wk ? Date.now() - new Date(wk.process.startedAt).getTime() : null;
   return (
     // U-14: the label a screen reader reads carries what the card says first: name, state, purpose, connections.
-    <button className="card" onClick={() => open(s.key)} aria-label={[`${nameOf(s)} — ${t(`state.${s.state}`)}`, s.descriptor?.summary, ...others.map((m) => `${instanceOf(m.key)}: ${t(`state.${m.state}`)}`)].filter(Boolean).join('. ')}>
+    <button className="card" onClick={() => open(s.key)} aria-label={[t('join.nameState', { name: nameOf(s), state: t(`state.${s.state}`) }), s.descriptor?.summary, ...others.map((m) => `${instanceOf(m.key)}: ${t(`state.${m.state}`)}`)].filter(Boolean).join('. ')}>
       <div className="card-head">
         <div>
           <h3>{nameOf(s)}</h3>
@@ -301,8 +343,9 @@ function hostOf(s: ServiceSnapshot): string {
 }
 
 /** The top of the main screen (ADR-0014, SCN-041): how many agents run well, what needs you, and
- *  what they spent — each cell one number with its label, the spend cell opening Spend. */
-function StatusStrip({ status, products, attention, goSpend }: { status: AppStatus; products: Product[]; attention: number; goSpend: () => void }) {
+ *  what they spent: each cell a label over its number (COPY-04: no word agrees with the count), the spend cell
+ *  opening Spend. */
+function StatusStrip({ status, products, attention, urgent, goSpend, goAttention }: { status: AppStatus; products: Product[]; attention: number; urgent: boolean; goSpend: () => void; goAttention: () => void }) {
   const { t } = useT();
   const [spend, setSpend] = useState<SpendEntry[] | null>(null);
   // D-3: read on arrival and every minute while Overview is open; a hidden window gets the last sums (LC-08).
@@ -322,17 +365,24 @@ function StatusStrip({ status, products, attention, goSpend }: { status: AppStat
   const sum = (window: 'today' | 'month') => (reported ? formatMoney(sumSpend(spend ?? [], window), t) : t('spend.unknown'));
   return (
     <section className="strip" aria-label={t('overview.strip')}>
-      <div className="cell"><span className="v">{ready}<span className="of">/{products.length}</span></span><span className="l">{t('overview.strip.ready')}</span></div>
-      <div className={`cell${problems ? ' bad' : ''}`}><span className="v">{problems}</span><span className="l">{t('overview.strip.down')}</span></div>
-      <div className={`cell${attention ? ' attn' : ''}`}><span className="v">{attention}</span><span className="l">{t('overview.strip.attention')}</span></div>
+      <div className="cell"><span className="l">{t('overview.strip.ready')}</span><span className="v">{ready}<span className="of">/{products.length}</span></span></div>
+      {/* VIS-12: the two counts of what needs the person jump to Needs attention; a cell that goes somewhere says so
+          with its arrow, not only on hover. */}
+      <button className={`cell${problems ? ' bad' : ''}`} onClick={goAttention} disabled={!problems}><span className="l">{t('overview.strip.down')}<Go /></span><span className="v">{problems}</span></button>
+      <button className={`cell${attention ? (urgent ? ' attn urgent' : ' attn') : ''}`} onClick={goAttention} disabled={!attention}><span className="l">{t('overview.strip.attention')}<Go /></span><span className="v">{attention}</span></button>
       <button className="cell" onClick={goSpend} disabled={!reporting}>
-        <span className="v">{spend === null ? <Spinner /> : reporting ? sum('today') : t('overview.strip.noSpend')}</span><span className="l">{t('overview.strip.spendToday')}</span>
+        <span className="l">{t('overview.strip.spendToday')}<Go /></span><span className="v">{spend === null ? <Spinner /> : reporting ? sum('today') : t('overview.strip.noSpend')}</span>
       </button>
       <button className="cell" onClick={goSpend} disabled={!reporting}>
-        <span className="v">{spend === null ? <Spinner /> : reporting ? sum('month') : t('overview.strip.noSpend')}</span><span className="l">{t('overview.strip.spendMonth')}</span>
+        <span className="l">{t('overview.strip.spendMonth')}<Go /></span><span className="v">{spend === null ? <Spinner /> : reporting ? sum('month') : t('overview.strip.noSpend')}</span>
       </button>
     </section>
   );
+}
+
+/** The strip's mark of a cell that opens something (VIS-12): shown while the cell can be pressed. */
+function Go() {
+  return <span className="go" aria-hidden="true">›</span>;
 }
 
 // #region setup-check — docs: docs/ux/scenarios.md#scn-070-check-what-is-set-up

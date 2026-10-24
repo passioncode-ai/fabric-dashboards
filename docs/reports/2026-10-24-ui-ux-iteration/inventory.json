@@ -1,0 +1,1865 @@
+[
+ {
+  "id": "UX-01",
+  "area": "agent-page",
+  "kind": "friction",
+  "severity": "high",
+  "what": "In the default compact bar a down, duplicated or Off agent gets an inline \"Fix\" (a paid coding-agent session) but not Restart, Start or Update, which live only in the full card behind the problem chip, while Overview offers Restart as the primary action for the same state.",
+  "evidence": [
+   "src/renderer/components/ServiceView.tsx:107",
+   "src/renderer/components/ServiceView.tsx:113",
+   "src/renderer/components/ServiceView.tsx:137",
+   "src/renderer/components/ServiceView.tsx:155",
+   "src/renderer/components/Overview.tsx:121",
+   "src/core/types.ts:143",
+   "docs/ux/scenarios.md:206"
+  ],
+  "user_impact": "The operator's most frequent fix (restart a silent agent) takes two presses on the agent page and the cheapest-looking button there spends a subscription session instead.",
+  "direction": "Put the state's one deterministic action in the compact bar beside the chip (Restart for down/duplicate, Start for Off, \"Update to <v>\" when declared), matching the Needs attention row; keep Fix as the secondary button.",
+  "survey": "ux"
+ },
+ {
+  "id": "UX-02",
+  "area": "console",
+  "kind": "friction",
+  "severity": "high",
+  "what": "An ended Switchboard hand-over can only be removed with the Close button in its page body, which the console drawer (default 380 px, drawn from under the page title) covers; folding the drawer navigates away to Overview, and the drawer itself offers no dismiss, so ended entries pile up in the sidebar's Hand-overs section.",
+  "evidence": [
+   "src/renderer/App.tsx:206",
+   "src/renderer/App.tsx:239",
+   "src/renderer/App.tsx:322",
+   "src/renderer/App.tsx:325",
+   "src/renderer/components/ConsolePanel.tsx:232",
+   "src/renderer/components/ConsolePanel.tsx:267",
+   "src/core/types.ts:122",
+   "src/electron/console.ts:388",
+   "docs/ux/scenarios.md:1197"
+  ],
+  "user_impact": "Every automatic hand-over and limit resume leaves a permanent sidebar row until the app quits, burying the agents list (static reading; RUNTIME unverified).",
+  "direction": "Offer Close in the drawer header (or make the red cross remove an ended hand-over console), and drop ended hand-overs from the list after a grace period.",
+  "survey": "ux"
+ },
+ {
+  "id": "UX-03",
+  "area": "agent-page",
+  "kind": "gap",
+  "severity": "medium",
+  "what": "An available update is not shown at all on the agent page in the compact bar: a ready agent is quiet for problemOf, so there is no chip, and \"Update to <v>\" exists only in the full card, while SCN-021 names the service view header as an entry point.",
+  "evidence": [
+   "src/core/focus.ts:9",
+   "src/core/focus.ts:14",
+   "src/renderer/components/ServiceView.tsx:162",
+   "docs/ux/scenarios.md:504"
+  ],
+  "user_impact": "An operator working inside an agent's dashboard never learns it is stale unless they go back to Overview.",
+  "direction": "Show a quiet update chip (\"Update to <v>\") in the compact bar when an update is available, with its action inline.",
+  "survey": "ux"
+ },
+ {
+  "id": "UX-04",
+  "area": "overview",
+  "kind": "friction",
+  "severity": "medium",
+  "what": "Three different counts are labelled as attention: the tray headline \"Needs attention: N\", the sidebar Overview badge and the Dock \"!\" count only down/duplicate/foreign/conflict/invalid, while the Overview section titled Needs attention also counts degraded agents, updates, attention tiles, running actions and failed actions.",
+  "evidence": [
+   "src/electron/tray.ts:56",
+   "src/electron/tray.ts:67",
+   "src/renderer/App.tsx:110",
+   "src/renderer/App.tsx:251",
+   "src/electron/main.ts:232",
+   "src/renderer/components/Overview.tsx:81",
+   "src/renderer/components/Overview.tsx:186"
+  ],
+  "user_impact": "The menu bar says \"Needs attention: 1\" and the window then shows five rows under the same words, so the glance the tray exists for cannot be trusted.",
+  "direction": "Use one shared definition of the attention queue for tray headline, sidebar badge and Overview heading, or relabel the narrower count \"Not answering: N\" everywhere it stays narrow.",
+  "survey": "ux"
+ },
+ {
+  "id": "UX-05",
+  "area": "connections",
+  "kind": "gap",
+  "severity": "medium",
+  "what": "The Connections nav badge runs the auditor without spend limits, while the page runs it with limits and counts a tripped limit as an error, so the badge undercounts what the page's \"Does not work\" line shows.",
+  "evidence": [
+   "src/renderer/App.tsx:112",
+   "src/renderer/App.tsx:259",
+   "src/renderer/components/ConnectionsMap.tsx:24",
+   "src/core/audit.ts:93",
+   "docs/ux/scenarios.md:1269"
+  ],
+  "user_impact": "An agent stopped by its spend limit leaves the sidebar badge silent, contrary to SCN-074's \"its count is what does not work\".",
+  "direction": "Feed the same ranked limits to the badge's audit (from the cached spend read the main process already holds).",
+  "survey": "ux"
+ },
+ {
+  "id": "UX-06",
+  "area": "overview",
+  "kind": "gap",
+  "severity": "medium",
+  "what": "A limit in state \"Stopped work\" (the agent can no longer act) never reaches Overview's Needs attention, the strip, the tray or a notification; it is visible only on Spend in red and on the Connections auditor.",
+  "evidence": [
+   "packages/service-host/src/state.ts:103",
+   "src/renderer/components/Overview.tsx:81",
+   "src/renderer/components/Spend.tsx:84",
+   "src/core/audit.ts:94"
+  ],
+  "user_impact": "The operator reads Overview as all clear while an agent has silently stopped working on money, the exact anxiety JTBD-01 names.",
+  "direction": "Rank a tripped limit into Needs attention with the limit's headline and an Open Spend action; consider a notification once per trip.",
+  "survey": "ux"
+ },
+ {
+  "id": "UX-07",
+  "area": "overview",
+  "kind": "friction",
+  "severity": "medium",
+  "what": "A folded Needs attention row (\"3 agents: A, B, C\", FD-86) carries no action and no Fix with agent: the person must open each agent to restart it.",
+  "evidence": [
+   "src/renderer/components/Overview.tsx:188",
+   "src/renderer/components/Overview.tsx:195",
+   "src/core/attention.ts:18",
+   "docs/ux/scenarios.md:196"
+  ],
+  "user_impact": "The outage that produces a folded row (one hub down behind several agents) is exactly when the operator needs to act on several at once.",
+  "direction": "Give the group row the shared action applied to each member (\"Restart 3\"), or let the row expand to per-agent actions.",
+  "survey": "ux"
+ },
+ {
+  "id": "UX-08",
+  "area": "overview",
+  "kind": "friction",
+  "severity": "medium",
+  "what": "\"Since you were last here\" is computed once per renderer load and never refreshed or dismissable, while the app lives for days in the menu bar (closing only hides the window), so returning to the Mac shows a stale section or nothing new.",
+  "evidence": [
+   "src/renderer/App.tsx:180",
+   "src/renderer/App.tsx:188",
+   "src/renderer/App.tsx:189",
+   "src/electron/main.ts:405",
+   "src/renderer/components/Overview.tsx:152"
+  ],
+  "user_impact": "The \"second day\" stage of JRN-02 only works after a relaunch; on an ordinary morning the operator sees yesterday's summary as if it were today's.",
+  "direction": "Recompute the visit when the window is shown after a hidden gap (for example over an hour) and let the person dismiss it.",
+  "survey": "ux"
+ },
+ {
+  "id": "UX-09",
+  "area": "overview",
+  "kind": "gap",
+  "severity": "low",
+  "what": "The visit section has no updates although SCN-059 step 1 and JRN-02 #3 promise \"updates (Update, or Update with agent)\", alerts come only from each agent's latest event, and the \"nothing changed\" line is not shown when the person has no console history.",
+  "evidence": [
+   "src/core/visit.ts:8",
+   "src/core/visit.ts:31",
+   "src/renderer/components/Overview.tsx:157",
+   "docs/ux/scenarios.md:1505",
+   "docs/ux/scenarios.md:1509"
+  ],
+  "user_impact": "What updated overnight is missing from the one place meant to list what changed.",
+  "direction": "Add pending updates with their action to the visit, and always show the one-line \"Nothing changed since <when>\" when nothing did.",
+  "survey": "ux"
+ },
+ {
+  "id": "UX-10",
+  "area": "onboarding",
+  "kind": "friction",
+  "severity": "medium",
+  "what": "The Setup console drawer opens from under Overview's title and covers the setup card whose checklist is meant to tick while setup runs (SCN-058 step 4), and the card's own copy still says the console is \"beside this page\".",
+  "evidence": [
+   "src/renderer/App.tsx:207",
+   "src/renderer/App.tsx:337",
+   "src/renderer/App.tsx:341",
+   "src/renderer/components/Overview.tsx:44",
+   "src/core/i18n.ts:29",
+   "docs/ux/scenarios.md:1488"
+  ],
+  "user_impact": "On the first day the person cannot see setup progress without shrinking the console.",
+  "direction": "Show the checklist inside the drawer's header for the Setup console, or place the card above the drawer's top edge.",
+  "survey": "ux"
+ },
+ {
+  "id": "UX-11",
+  "area": "connections",
+  "kind": "gap",
+  "severity": "medium",
+  "what": "\"Open\" on a session continued after a limit opens the agent's page without opening its console (only hand-over keys get their own page), so the continued session is not on screen.",
+  "evidence": [
+   "src/renderer/App.tsx:345",
+   "src/renderer/App.tsx:101",
+   "src/renderer/components/ConnectionsMap.tsx:97",
+   "docs/ux/scenarios.md:1295"
+  ],
+  "user_impact": "After \"Continued here.\" the person clicks Open and lands on a dashboard with no sign of the session they meant to check.",
+  "direction": "Route Open like Continue (continueWith): open the agent page with its console drawer.",
+  "survey": "ux"
+ },
+ {
+  "id": "UX-12",
+  "area": "agent-page",
+  "kind": "gap",
+  "severity": "medium",
+  "what": "The Dashboard tab of an Off or starting agent says \"The dashboard opens when the service answers as itself.\", the identity-problem sentence, with no Start, while SCR-02's off state promises \"Stopped by you...\" with Start and SCN-029 step 3 says Start is offered.",
+  "evidence": [
+   "src/renderer/components/ServiceView.tsx:202",
+   "src/renderer/components/ServiceView.tsx:254",
+   "src/core/i18n.ts:429",
+   "docs/ux/screens.md:59",
+   "docs/ux/scenarios.md:683"
+  ],
+  "user_impact": "Opening an Off agent from the tray, a link or Fabric shows a sentence that hints at a wrong program and no way forward in the pane.",
+  "direction": "Make the unavailable pane state-specific: Off with Start, down with Restart and Logs, starting with a waiting line.",
+  "survey": "ux"
+ },
+ {
+  "id": "UX-13",
+  "area": "onboarding",
+  "kind": "gap",
+  "severity": "medium",
+  "what": "SCN-058's alt path (no coding agent installed: the card shows each vendor's install command, and Start setup appears once one is found) is not built: the card always shows Start setup and the console lists only binary names it looked for.",
+  "evidence": [
+   "src/renderer/components/Overview.tsx:50",
+   "src/renderer/components/Overview.tsx:54",
+   "src/renderer/components/ConsolePanel.tsx:245",
+   "src/core/i18n.ts:229",
+   "docs/ux/scenarios.md:1490"
+  ],
+  "user_impact": "A first-time operator without Claude Code or Codex presses Start setup and meets a list of executables, with no command to install one.",
+  "direction": "When no runtime is found, show per-runtime install commands with Copy on the card and hide Start setup until a runtime appears.",
+  "survey": "ux"
+ },
+ {
+  "id": "UX-14",
+  "area": "agent-page",
+  "kind": "friction",
+  "severity": "low",
+  "what": "The problem chip in the compact bar flips the global, remembered header preference to the full card for every agent, instead of opening the card for this problem.",
+  "evidence": [
+   "src/renderer/components/ServiceView.tsx:108",
+   "src/renderer/App.tsx:331",
+   "docs/ux/scenarios.md:989"
+  ],
+  "user_impact": "One look at a problem shrinks every dashboard afterwards until the person finds Hide details.",
+  "direction": "Let the chip open the card transiently for this visit; persist only the explicit Show/Hide details control.",
+  "survey": "ux"
+ },
+ {
+  "id": "UX-15",
+  "area": "activity",
+  "kind": "friction",
+  "severity": "low",
+  "what": "The app's own events (restarted, installed, runs twice) in Activity are not clickable, and rows on an agent page's Activity tab never open their link, unlike the Activity page.",
+  "evidence": [
+   "src/renderer/components/Activity.tsx:81",
+   "src/renderer/components/ServiceView.tsx:413"
+  ],
+  "user_impact": "Catching up, the operator cannot jump from \"X runs as two copies\" to X, or from an agent's own feed to the item.",
+  "direction": "App events open their agent; the per-agent feed gets the same openAt as the Activity page.",
+  "survey": "ux"
+ },
+ {
+  "id": "UX-16",
+  "area": "console",
+  "kind": "friction",
+  "severity": "low",
+  "what": "Fix or Update with agent while a session runs marks the task taken and shows an error-styled \"A session already runs here.\", dropping the brief instead of offering to send it to the running session.",
+  "evidence": [
+   "src/renderer/components/ConsolePanel.tsx:164",
+   "src/renderer/components/ConsolePanel.tsx:167",
+   "src/renderer/components/ConsolePanel.tsx:263",
+   "docs/ux/scenarios.md:1414"
+  ],
+  "user_impact": "The context JTBD-06 promises is lost and the person must retype the task.",
+  "direction": "Keep the task pending with a \"Send this task to the running session\" action, styled as information, not an error.",
+  "survey": "ux"
+ },
+ {
+  "id": "UX-17",
+  "area": "console",
+  "kind": "gap",
+  "severity": "low",
+  "what": "An ended hand-over's sidebar entry says \"Ended\" only to a screen reader; visually only its glyph changes (SCN-069 step 4).",
+  "evidence": [
+   "src/renderer/App.tsx:270",
+   "src/renderer/App.tsx:272",
+   "docs/ux/scenarios.md:1197"
+  ],
+  "user_impact": "Running and ended hand-overs look alike at a glance.",
+  "direction": "Show a visible \"Ended\" label or muted row for ended entries.",
+  "survey": "ux"
+ },
+ {
+  "id": "UX-18",
+  "area": "console",
+  "kind": "gap",
+  "severity": "low",
+  "what": "When a hand-over leaves the list while its page is open (dismissed, or its console becomes idle), the route stays on it and renders an empty page titled Overview, with no redirect like the one removed services get.",
+  "evidence": [
+   "src/renderer/App.tsx:68",
+   "src/renderer/App.tsx:114",
+   "src/renderer/App.tsx:319",
+   "src/renderer/App.tsx:338",
+   "src/electron/console.ts:393"
+  ],
+  "user_impact": "A blank page with a wrong title, recoverable only by clicking elsewhere.",
+  "direction": "Redirect to Overview when the hand-over is gone, as for services.",
+  "survey": "ux"
+ },
+ {
+  "id": "UX-19",
+  "area": "tray",
+  "kind": "friction",
+  "severity": "low",
+  "what": "The tray menu lists every instance, ignores the person's Hidden and Services choices, and grows without bound for an operator with many agents.",
+  "evidence": [
+   "src/electron/tray.ts:61",
+   "src/electron/tray.ts:71",
+   "src/electron/tray.ts:73"
+  ],
+  "user_impact": "The menu-bar glance becomes a long scroll of services the person chose not to see.",
+  "direction": "List agents (products) with problems first, respect Hidden, and put services in a submenu.",
+  "survey": "ux"
+ },
+ {
+  "id": "UX-20",
+  "area": "settings",
+  "kind": "friction",
+  "severity": "low",
+  "what": "Settings is one long page of nine groups with no index; the per-service notification table lists every instance (hidden ones included) mid-page, and \"Sessions stopped on a limit\" sits between the app group and Updates.",
+  "evidence": [
+   "src/renderer/components/Settings.tsx:66",
+   "src/renderer/components/Settings.tsx:131",
+   "src/renderer/components/Settings.tsx:135"
+  ],
+  "user_impact": "Tuning notifications (JRN-01 #7) means scrolling a table as long as the estate.",
+  "direction": "Add a section index, group the notification table by agent and fold hidden agents, place limit recovery with the console-related settings.",
+  "survey": "ux"
+ },
+ {
+  "id": "UX-21",
+  "area": "connections",
+  "kind": "friction",
+  "severity": "low",
+  "what": "The sidebar page named Connections holds the estate map, the auditor and the sessions stopped on a limit, while every agent page also has a Connections tab; limit stops are not about connections at all.",
+  "evidence": [
+   "src/renderer/App.tsx:257",
+   "src/renderer/components/ConnectionsMap.tsx:71",
+   "src/core/i18n.ts:346",
+   "src/renderer/components/ServiceView.tsx:93"
+  ],
+  "user_impact": "The auditor and paused sessions are hard to find by name, and two different screens share one label.",
+  "direction": "Name the page for what it answers (for example the auditor or estate) and move limit stops next to hand-overs.",
+  "survey": "ux"
+ },
+ {
+  "id": "UX-22",
+  "area": "spend",
+  "kind": "friction",
+  "severity": "low",
+  "what": "On Spend an agent's name only expands its row; neither a breached limit nor a \"Could not read\" entry leads to the agent's page or a fix.",
+  "evidence": [
+   "src/renderer/components/Spend.tsx:76",
+   "src/renderer/components/Spend.tsx:132"
+  ],
+  "user_impact": "From \"Stopped work\" the operator has to find the agent in the sidebar by hand.",
+  "direction": "Add an Open agent action (or make the name a link) beside the expand control, and on each Could not read row.",
+  "survey": "ux"
+ },
+ {
+  "id": "UX-23",
+  "area": "overview",
+  "kind": "friction",
+  "severity": "low",
+  "what": "In the collapsed rail the row menu is not rendered, so pin, hide and agent/service choices are unreachable there.",
+  "evidence": [
+   "src/renderer/App.tsx:390"
+  ],
+  "user_impact": "An operator who keeps the rail must expand the sidebar to reorganise the list.",
+  "direction": "Offer the same menu on right-click or long-press of a rail entry.",
+  "survey": "ux"
+ },
+ {
+  "id": "UX-24",
+  "area": "docs",
+  "kind": "drift",
+  "severity": "medium",
+  "what": "SCN-001 step 4 and SCR-01 Elements describe a one-time \"Open at login / Not now\" card above Overview and SCR-04 says Open at login is off until chosen, but the code has no such card and launch at login is on by default since 2026-10-16 (SCN-024).",
+  "evidence": [
+   "docs/ux/scenarios.md:104",
+   "docs/ux/screens.md:34",
+   "docs/ux/screens.md:91",
+   "docs/ux/scenarios.md:588",
+   "src/renderer/components/Overview.tsx:149"
+  ],
+  "user_impact": "An audit or a new contributor reads a first-run step that no longer exists.",
+  "direction": "Rewrite SCN-001 step 4 and SCR-01/SCR-04 to the default-on login item and its approval notification.",
+  "survey": "ux"
+ },
+ {
+  "id": "UX-25",
+  "area": "docs",
+  "kind": "drift",
+  "severity": "medium",
+  "what": "The console geometry changed with FD-92 (a drawer dropping down over the page) but docs and strings still place it beside or to the right: SCR-02 Layout, SCR-10 Elements (left-edge width drag, Stop and Hide console, retired SCN-060), SCN-069 step 3, SCN-070 step 3, ST-019, JRN-01 #8, and the UI strings handover.body / handover.resumeBody (\"Type to it on the right\"), setup.agent.body and settings.setup.body (\"beside\").",
+  "evidence": [
+   "docs/ux/screens.md:50",
+   "docs/ux/screens.md:171",
+   "docs/ux/screens.md:173",
+   "docs/ux/scenarios.md:1196",
+   "docs/ux/scenarios.md:1335",
+   "docs/ux/foundation.md:103",
+   "docs/ux/foundation.md:287",
+   "src/core/i18n.ts:18",
+   "src/core/i18n.ts:29",
+   "src/core/i18n.ts:259",
+   "src/core/i18n.ts:263"
+  ],
+  "user_impact": "The interface tells the person to type \"on the right\" to a console that is above, and the scenario base describes a layout that is gone.",
+  "direction": "Update the strings (both languages) and SCR-02, SCR-10, SCN-069, SCN-070, ST-019, JRN-01 #8 to the drawer; drop SCN-060 from SCR-10.",
+  "survey": "ux"
+ },
+ {
+  "id": "UX-26",
+  "area": "docs",
+  "kind": "drift",
+  "severity": "medium",
+  "what": "screens.md no longer maps the interface: there is no SCR for the Connections page (SCN-074, SCN-075) or the hand-over page (SCN-069); SCR-01 omits the setup card, the visit section and the Services and Hidden groups; SCR-08 still says \"Services and Background sections\" and omits Connections, Hand-overs, Pinned, sort and the row menu; SCR-04 omits dashboard theme, estate updates, limit recovery and Setup; index and section Used by disagree for SCR-01, SCR-04, SCR-08 and SCR-10; lint.py reports clean because it does not compare them.",
+  "evidence": [
+   "docs/ux/screens.md:8",
+   "docs/ux/screens.md:11",
+   "docs/ux/screens.md:15",
+   "docs/ux/screens.md:16",
+   "docs/ux/screens.md:148",
+   "docs/ux/screens.md:171",
+   "src/renderer/App.tsx:257",
+   "src/renderer/App.tsx:267",
+   "src/renderer/App.tsx:319"
+  ],
+  "user_impact": "Coverage reads as complete while two built screens and several surfaces have no record to audit against.",
+  "direction": "Add SCR entries for the Connections page and the hand-over page, refresh SCR-01/04/08/10 elements and Used by, and extend lint.py to compare index and section Used by and flag retired scenario ids.",
+  "survey": "ux"
+ },
+ {
+  "id": "UX-27",
+  "area": "docs",
+  "kind": "drift",
+  "severity": "low",
+  "what": "Scenario text and statuses lag the code: SCN-046 step 1 lists tabs without Connections and Load, SCN-047 lists rail icons without Connections, their Last audit (2026-10-06) predates FD-81 and FD-92, and SCN-019, SCN-020, SCN-043, SCN-044 stay draft although their code and tests exist.",
+  "evidence": [
+   "docs/ux/scenarios.md:985",
+   "docs/ux/scenarios.md:1004",
+   "docs/ux/scenarios.md:476",
+   "docs/ux/scenarios.md:494",
+   "docs/ux/scenarios.md:616",
+   "docs/ux/scenarios.md:634",
+   "src/renderer/components/ServiceView.tsx:93",
+   "src/renderer/App.tsx:257"
+  ],
+  "user_impact": "The index overstates how stale notification and reinstall flows are and understates what the bar and rail carry.",
+  "direction": "Refresh the step text, re-audit SCN-046/047 after FD-81 and FD-92, and promote the drafts that have tests to validated with their proof.",
+  "survey": "ux"
+ },
+ {
+  "id": "VIS-01",
+  "area": "global",
+  "kind": "a11y",
+  "severity": "high",
+  "what": "In the light theme the brand gold (--pc-accent #ffd21a) is used as text, stroke, border and focus colour, at 1.3 to 1.45:1 against the light surfaces (AA needs 4.5:1 for text, 3:1 for indicators).",
+  "evidence": [
+   "src/renderer/brand/fabric-tokens.css:62 (light --pc-accent stays #ffd21a; the file itself says the readable focus/link role is #806200, :66-67)",
+   "src/renderer/styles/app.css:126 (.strip .cell.attn .v: the 'need attention' number in gold text; computed 1.34:1 on --pc-panel)",
+   "src/renderer/styles/app.css:470 (.load-contexts td.attn text in gold)",
+   "src/renderer/styles/app.css:396 (input.switch:focus-visible outline uses --pc-accent, not --pc-focus: the Settings switches' focus ring is 1.34:1 in light)",
+   "src/renderer/styles/app.css:422-423 (Connections map node: outline removed, focus shown only as a gold stroke, 1.45:1 on --pc-panel-raised)",
+   "src/renderer/styles/app.css:146, 237, 247, 325, 394, 467, 207, 67 (attention tile ring, current instance border, selected tab underline, checklist tick, switch 'on' track, load chart bars, console grip, pressed pin)",
+   "scratchpad/contrast.py output: accent on panel 1.34, on raised 1.45, on accent-soft 1.29 (light); 13.3 / 12.4 in dark"
+  ],
+  "user_impact": "Anyone on macOS light appearance (the default 'System' theme follows it) cannot read the attention count on Overview, cannot see keyboard focus on the Settings switches and the map, and loses the selected-tab and 'on' cues.",
+  "direction": "Never use --pc-accent as a foreground: use --pc-focus/--pc-link (#806200 in light) for focus rings, text and strokes, and keep gold only as a fill behind --pc-on-accent. A small semantic alias (for example an 'accent-ink' role defined in app.css from --pc-link) avoids touching the vendored brand file.",
+  "survey": "visual"
+ },
+ {
+  "id": "VIS-02",
+  "area": "overview",
+  "kind": "layout",
+  "severity": "high",
+  "what": "A Needs attention row is a 4-column grid, but a down or degraded agent renders 5 or 6 children (badge, name, reason, action, Fix with agent, Update with agent), so the extra button falls onto a second grid row under the state badge and the reason column is squeezed to nothing.",
+  "evidence": [
+   "src/renderer/styles/app.css:111 (grid-template-columns: max-content minmax(120px, max-content) minmax(0, 1fr) auto)",
+   "src/renderer/components/Overview.tsx:197-204 (li children: StateBadge, name, why, action(s), plus Fix with agent / Update with agent buttons)",
+   "src/core/offers.ts:8 (offersFix is true for down, duplicate, foreign, conflict, invalid, degraded, any problem or failed action: every row that needs attention)",
+   "No e2e test pins the one-line row (grep of test/e2e for the attention row found none)"
+  ],
+  "user_impact": "The block people come to Overview for breaks its one-line-per-row promise (ADR-0014) exactly when something is wrong, and the reason text, the part that says what is wrong, is the first thing to disappear; with the Russian 'Перезапустить' and 'Исправить через агента' it is gone.",
+  "direction": "Give the actions one grid cell (wrap all buttons of a row in one .row span) and let the reason keep a floor (minmax(12ch, 1fr)); below a container width, move the reason under the name instead of cutting it. Add an e2e assertion that every attention li is one line high.",
+  "survey": "visual"
+ },
+ {
+  "id": "VIS-03",
+  "area": "global",
+  "kind": "a11y",
+  "severity": "medium",
+  "what": "The sidebar row menu button (pin, agent or service, hide/unhide) is display:none until hover, and a display:none button can never take focus, so the ':focus-visible' rule meant to reveal it never fires and keyboard users cannot reach it.",
+  "evidence": [
+   "src/renderer/styles/app.css:63 (.pin-btn { display: none })",
+   "src/renderer/styles/app.css:64 and :347 (revealed on .nav-row:hover, .row-menu.shown or :focus-visible, which an undisplayed element cannot match)",
+   "src/renderer/App.tsx:420-425 (the menu button is only shown when the menu is open or the row is pinned)"
+  ],
+  "user_impact": "Without a mouse a person cannot pin an agent, mark it as a service, or bring back an agent they hid (unhide lives only in this menu).",
+  "direction": "Hide it with opacity/visibility-on-hover plus '.nav-row:focus-within' instead of display:none, so it stays in the tab order; optionally open the same menu from the row on the context-menu key or Shift+F10.",
+  "survey": "visual"
+ },
+ {
+  "id": "VIS-04",
+  "area": "global",
+  "kind": "a11y",
+  "severity": "medium",
+  "what": "The focused item of the row menu is shown only by a background change from --pc-panel-raised to --pc-panel (about 1.1:1 in both themes), with the outline removed.",
+  "evidence": [
+   "src/renderer/styles/app.css:350 (.menu [role='menuitem']:focus-visible { background: var(--pc-panel); outline: none })",
+   "src/renderer/styles/app.css:348 (.menu background is --pc-panel-raised)",
+   "src/renderer/App.tsx:414 (focus moves to the first item on open, arrows move it)"
+  ],
+  "user_impact": "After the menu opens, a keyboard user cannot see which of Pin / As a service / Hide Enter will run.",
+  "direction": "Keep the global focus outline (or an inset 2px --pc-focus ring) on menu items and use --pc-accent-soft for the focused background, as the nav does for the current page.",
+  "survey": "visual"
+ },
+ {
+  "id": "VIS-05",
+  "area": "console",
+  "kind": "a11y",
+  "severity": "medium",
+  "what": "Focus inside the console's xterm cannot leave by keyboard: xterm sends Tab, Shift+Tab and Escape to the PTY and no custom key handler or documented escape exists.",
+  "evidence": [
+   "src/renderer/components/ConsolePanel.tsx:87 (new Terminal(...) with no attachCustomKeyEventHandler)",
+   "src/renderer/components/ConsolePanel.tsx:286 (console-term focuses the terminal on click)",
+   "src/renderer/components/ConsolePanel.tsx:232-233 (fold and close buttons sit above the terminal in the tab order, unreachable once inside)"
+  ],
+  "user_impact": "A keyboard-only person who enters the console is stuck there (WCAG 2.1.2), unable to fold it, close it or return to the dashboard.",
+  "direction": "Reserve one combination (for example Ctrl+Cmd+T, which already toggles the console in the menu, or Escape twice) that the terminal does not consume and that moves focus to the drawer's fold button; state it in the console's aria-label or a visible hint.",
+  "survey": "visual"
+ },
+ {
+  "id": "VIS-06",
+  "area": "console",
+  "kind": "visual",
+  "severity": "medium",
+  "what": "The console's colours and theme are fixed at mount: the terminal takes --pc-bg/--pc-text once, with xterm's default ANSI palette, and the drawer view, which stays loaded for the app's life, applies the theme (and language) only once.",
+  "evidence": [
+   "src/renderer/components/ConsolePanel.tsx:28-31 (themeOf reads the tokens once; selection uses --pc-border, 1.33:1 on the light background)",
+   "src/renderer/components/ConsolePanel.tsx:87 (theme passed at construction, never updated; no ANSI colours set)",
+   "src/renderer/DrawerApp.tsx:23-24 (locale and theme read once on mount)",
+   "src/core/api.ts:19 (DrawerPush carries no theme or language)",
+   "AGENTS.md lifecycle table: the drawer renderer 'stays loaded while the app runs'"
+  ],
+  "user_impact": "Switching between Dark and Light in Settings leaves the console in the old theme or half-switched (page light, terminal dark), and on a light background the default ANSI yellow, white and cyan output is unreadable.",
+  "direction": "Push theme and language changes to the drawer (or have it listen to the settings event) and call term.options.theme = themeOf() on change, with a full 16-colour ANSI palette per theme derived from the --pc-* roles.",
+  "survey": "visual"
+ },
+ {
+  "id": "VIS-07",
+  "area": "connections",
+  "kind": "a11y",
+  "severity": "medium",
+  "what": "The Connections map is an <svg role=\"img\"> whose agent boxes are focusable role=button groups; children of role=img are presentational, so assistive tech hears one image while Tab lands on buttons it cannot name.",
+  "evidence": [
+   "src/renderer/components/ConnectionsMap.tsx:180 (svg role=\"img\" aria-label)",
+   "src/renderer/components/ConnectionsMap.tsx:200-202 (g role=\"button\" tabIndex=0 aria-label inside it)",
+   "src/renderer/components/ConnectionsMap.tsx:206 (names cut at 22 characters with no <title> for sighted users)"
+  ],
+  "user_impact": "A screen-reader user tabbing the map hears unlabelled or contradictory items; a sighted user cannot read a long agent name anywhere on the map.",
+  "direction": "Use role=\"group\" (or no role) on the svg with the label, keep the nodes as buttons, and add a <title> with the full name to each truncated node.",
+  "survey": "visual"
+ },
+ {
+  "id": "VIS-08",
+  "area": "global",
+  "kind": "consistency",
+  "severity": "medium",
+  "what": "The same state is drawn with different shapes on different surfaces: 'down' is ✕ in the sidebar, cards and tray menu but ■ on the Connections tab and map, and the menu-bar 'problem' icon is a filled circle, the shape the app uses for 'ready'.",
+  "evidence": [
+   "src/renderer/lib.tsx:48-50 (GLYPH: ready ●, down ✕)",
+   "src/renderer/components/Connections.tsx:10 and ConnectionsMap.tsx:14 (MARK: ok ●, down ■)",
+   "src/electron/tray.ts:19-21 (menu marks follow GLYPH)",
+   "build/assets/trayProblemTemplate (2x).png (filled circle), trayDegradedTemplate (2x).png (triangle), trayTemplate (2x).png (outline square)"
+  ],
+  "user_impact": "On macOS the template tray icon is monochrome, so shape is the only signal, and a filled dot reads as 'all good' when an agent is down; inside the app a person must learn two vocabularies for one state.",
+  "direction": "One shared mark table (lib GLYPH) for every surface, and a tray 'problem' glyph that matches it (a cross or an exclamation, not a dot).",
+  "survey": "visual"
+ },
+ {
+  "id": "VIS-09",
+  "area": "global",
+  "kind": "consistency",
+  "severity": "medium",
+  "what": "'Fix with agent', the main one-click fix, has four looks and two wordings: a full .btn on Overview, a .btn-sm reading 'Fix' in the service bar, a .btn in the details card, and a runtime select plus .btn-sm reading 'Починить с агентом' (vs 'Исправить через агента') on Connections.",
+  "evidence": [
+   "src/renderer/components/Overview.tsx:167, 202",
+   "src/renderer/components/ServiceView.tsx:114, 166",
+   "src/renderer/components/ConnectionsMap.tsx:151-155",
+   "src/core/i18n.ts:713 ('agent.fix': 'Исправить через агента') and :1053 ('map.fix': 'Починить с агентом')"
+  ],
+  "user_impact": "A person does not recognise the same action across screens, and only one of the four places lets them choose which coding agent runs it.",
+  "direction": "One component for the action (same size class, same words, same runtime choice or none), with the short form only where the container query folds labels.",
+  "survey": "visual"
+ },
+ {
+  "id": "VIS-10",
+  "area": "global",
+  "kind": "consistency",
+  "severity": "medium",
+  "what": "Section headings use at least five treatments for the same level: 16px card-size (Overview online/services, Settings groups), 14px body (Needs attention, Since last visit), 12px uppercase muted with 0.04em or 0.06em tracking (sidebar, Connections columns, map sections), and the default 22px h2 inside the Spend error notice.",
+  "evidence": [
+   "src/renderer/styles/app.css:107, 129, 287, 328 (16px and 14px h2)",
+   "src/renderer/styles/app.css:58, 358, 412 (uppercase meta, letter-spacing .04em vs .06em)",
+   "src/renderer/components/Spend.tsx:131 (h2 inside .notice.error with no size override, unlike Load's notice at app.css:461)",
+   "src/renderer/components/ServiceView.tsx:328, 342, 372 (service panes jump from h1 to h3)"
+  ],
+  "user_impact": "Pages do not read as one system and the visual weight of a heading does not tell how important its block is.",
+  "direction": "Define two section roles (a page-section heading and a quiet group label) once in app.css and map every h2/h3 to one of them; keep the heading outline h1 > h2 > h3 on the service panes.",
+  "survey": "visual"
+ },
+ {
+  "id": "VIS-11",
+  "area": "overview",
+  "kind": "a11y",
+  "severity": "medium",
+  "what": "Each agent card is a <button> whose aria-label replaces its whole content with name, state, summary and members, so the tiles (the agent's own numbers, including the one flagged for attention) and the latest event are never announced; the h3 inside the button is not exposed as a heading either.",
+  "evidence": [
+   "src/renderer/components/Overview.tsx:253 (aria-label built from name, state, summary, members)",
+   "src/renderer/components/Overview.tsx:266-289 (tiles and latest event, not in the label)"
+  ],
+  "user_impact": "A screen-reader user cannot learn from Overview which agent reports a problem value or what it did last without opening each one.",
+  "direction": "Make the card an article with the name as a real heading and a single stretched link/button for 'open', so the tiles and event stay readable; or append the attention tile and latest event to the label.",
+  "survey": "visual"
+ },
+ {
+  "id": "VIS-12",
+  "area": "overview",
+  "kind": "layout",
+  "severity": "medium",
+  "what": "Overview puts the five-cell strip and then the 'Since last visit' block (with its own Fix buttons and Continue buttons) above Needs attention, so the list of what to act on now can start below the fold; the strip's 'need attention' cell, the natural jump to it, is not clickable while the two spend cells next to it are, with no visual difference until hover.",
+  "evidence": [
+   "src/renderer/components/Overview.tsx:151-213 (order: StatusStrip, visit, attention, cards)",
+   "src/renderer/components/Overview.tsx:325-333 (three div cells, two button cells, same .cell style)",
+   "src/renderer/styles/app.css:118-121 (only a border change on hover marks the clickable cells)"
+  ],
+  "user_impact": "When something breaks, the first actionable block is pushed down by news and summary, and people try to click the attention number.",
+  "direction": "Order: strip, Needs attention, then Since last visit; make the attention and down cells jump to the attention list, and give clickable cells a persistent affordance (chevron or underline on the label).",
+  "survey": "visual"
+ },
+ {
+  "id": "VIS-13",
+  "area": "global",
+  "kind": "a11y",
+  "severity": "medium",
+  "what": "Some states are told by colour alone: Since-last-visit alerts colour the whole row red or amber with no mark or word for the level, and map edges tell ok from degraded only by green vs amber (dashes mark only 'unknown', extra width only 'down').",
+  "evidence": [
+   "src/renderer/components/Overview.tsx:164 (li className state-down / state-degraded, no glyph)",
+   "src/renderer/styles/app.css:416-419 (edge-ok vs edge-degraded differ only in stroke colour)",
+   "src/renderer/components/ConnectionsMap.tsx:192-194 (edge <title> carries only the capability, not the state)"
+  ],
+  "user_impact": "Colour-blind people cannot tell an error from a warning in the visit list, or a degraded call from a healthy one on the map.",
+  "direction": "Add the shared state glyph and word to visit alert rows; give degraded edges their own dash pattern and put the state in the edge title.",
+  "survey": "visual"
+ },
+ {
+  "id": "VIS-14",
+  "area": "global",
+  "kind": "visual",
+  "severity": "medium",
+  "what": "Negative (red) styling is used for things that are not errors: an available skills or contract update is shown as state-down, and every console notice that is not 'terminal only', including 'resumed after idle', is a red error box with role=alert.",
+  "evidence": [
+   "src/renderer/components/Settings.tsx:261, 268 (contract 'behind' and skills 'update-available' use 'meta state-down')",
+   "src/renderer/components/ConsolePanel.tsx:263 (notice gets ' error' unless terminalOnly)",
+   "src/renderer/components/ConsolePanel.tsx:156 (the informational idle-resume text goes through the same notice)"
+  ],
+  "user_impact": "Routine information looks like a failure and is announced as an alert, which teaches people to ignore red.",
+  "direction": "Give notices an explicit level (info, warning, error) and map 'update available' to --pc-info or neutral text; reserve role=alert for failures.",
+  "survey": "visual"
+ },
+ {
+  "id": "VIS-15",
+  "area": "global",
+  "kind": "layout",
+  "severity": "medium",
+  "what": "Truncation hides meaning without a tooltip in the expanded sidebar and elsewhere: agent names ellipsize (title only in rail mode) and lose another 24px when the row is hovered or pinned; the sort select is capped at 50% of the section row, so 'Needs attention first' / 'Сначала требующие внимания' is clipped; attention names, card names and Connections capability lists also cut without a title.",
+  "evidence": [
+   "src/renderer/App.tsx:383 (title only when rail)",
+   "src/renderer/styles/app.css:57, 65 (nav-label ellipsis; margin-right 24px on hover/pinned)",
+   "src/renderer/styles/app.css:70 (.sort-select max-width: 50%, field-sizing content)",
+   "src/core/i18n.ts:69, 767 (sort labels)",
+   "src/renderer/styles/app.css:112, 137, 377 (attention name, card h3, .conn-sub nowrap ellipsis); Connections.tsx:54, 98-99 (no title)"
+  ],
+  "user_impact": "Two agents with a shared prefix read alike in the list, and the chosen sort cannot be read, most of all in Russian.",
+  "direction": "Add title (or a tooltip) to every ellipsized name; let the sort control sit on its own line or become an icon button with a menu; let capability lists wrap.",
+  "survey": "visual"
+ },
+ {
+  "id": "VIS-16",
+  "area": "agent-page",
+  "kind": "layout",
+  "severity": "low",
+  "what": "The service bar's tab list scrolls horizontally with its scrollbar hidden, so in a narrow window the last tabs (Health, Logs) vanish with no sign that more exist; at 720px the state badge also drops its word, leaving a coloured glyph.",
+  "evidence": [
+   "src/renderer/styles/app.css:167 (.svc-bar .tabs overflow-x: auto; scrollbar-width: none)",
+   "src/renderer/styles/app.css:176-182 (container query: state font-size 0, tab padding 4px)",
+   "src/renderer/components/ServiceView.tsx:93 (up to six tabs)"
+  ],
+  "user_impact": "A person in a small window may never find the Logs tab, which is where a failed action sends them.",
+  "direction": "Show an overflow affordance (fade edge or a 'more' menu) or fold tabs into a select below a container width.",
+  "survey": "visual"
+ },
+ {
+  "id": "VIS-17",
+  "area": "agent-page",
+  "kind": "layout",
+  "severity": "low",
+  "what": "The details card shows up to nine equal-weight buttons in one wrapping row (Restart, Stop, Update, Doctor, Fix with agent, Update with agent, Show data, Show file, Show file of …), with the primary only on Start or a down Restart.",
+  "evidence": [
+   "src/renderer/components/ServiceView.tsx:155-173"
+  ],
+  "user_impact": "The control that fixes the current problem does not stand out from file-browsing buttons.",
+  "direction": "Group into lifecycle (Restart, Stop, Start), repair (Doctor, Update, Fix with agent) and files (Show …, as quiet links), one primary per state.",
+  "survey": "visual"
+ },
+ {
+  "id": "VIS-18",
+  "area": "spend",
+  "kind": "visual",
+  "severity": "low",
+  "what": "Spend's money columns are left-aligned and the whole table, the page's main content, is set at the 12px meta size, as are the Settings and Load tables; money is formatted by hand ('$' + toFixed) rather than Intl.",
+  "evidence": [
+   "src/renderer/styles/app.css:292-293 (table font-size meta; th, td text-align left)",
+   "src/renderer/styles/app.css:298 (tabular-nums applied, alignment not)",
+   "src/renderer/components/Spend.tsx:145-149 (usd)"
+  ],
+  "user_impact": "Comparing what agents spent across rows takes longer, and the figures are the smallest text on the page.",
+  "direction": "Right-align numeric columns, set table body at --pc-type-body with meta only for headers, and format with Intl.NumberFormat.",
+  "survey": "visual"
+ },
+ {
+  "id": "VIS-19",
+  "area": "global",
+  "kind": "consistency",
+  "severity": "low",
+  "what": "app.css states 'every colour, radius, space, size and duration is a --pc-* role; no literals', but carries about forty literals and three undefined tokens that fall back silently.",
+  "evidence": [
+   "src/renderer/styles/app.css:2 (the claim)",
+   "src/renderer/styles/app.css:63, 349 (var(--pc-radius-sm, 4px): token does not exist in fabric-tokens.css)",
+   "src/renderer/styles/app.css:205 (var(--pc-muted, #666): undefined)",
+   "src/renderer/styles/app.css:328 (var(--pc-type-body, 15px): fallback differs from the 14px token)",
+   "src/renderer/styles/app.css:31, 84, 179, 429, 430, 434 (10px, 11px, 13px type)",
+   "src/renderer/styles/app.css:208, 348 (rgb(0 0 0 / .45), rgb(0 0 0 / .35) shadows instead of --pc-shadow-overlay)",
+   "src/renderer/styles/app.css:392-393 (.12s/.18s and 999px instead of --pc-duration-*/--pc-radius-pill)",
+   "src/renderer/components/ConsolePanel.tsx:87 (fontSize 12.5)"
+  ],
+  "user_impact": "Theme and density changes do not reach these spots (the black menu and console shadows are heavy in the light theme), and the drift grows unchecked.",
+  "direction": "Replace literals with existing roles or app-level aliases defined once at the top of app.css, and add a check (like check-brand) that fails on undefined --pc-* names and raw px/colour literals outside an allow-list.",
+  "survey": "visual"
+ },
+ {
+  "id": "VIS-20",
+  "area": "global",
+  "kind": "consistency",
+  "severity": "low",
+  "what": "Small controls come in three heights and chips in four shapes: .btn-sm is declared twice (28px, then 26px wins), attention buttons are 28px, icon buttons 28px, the pin button 22x22; chips are pill with 1px padding, tool-chip with control radius, cmap-chip with a literal 999px and 2px padding, and instance pills with 4px padding.",
+  "evidence": [
+   "src/renderer/styles/app.css:258 and :406 (two .btn-sm rules)",
+   "src/renderer/styles/app.css:114, 254, 63",
+   "src/renderer/styles/app.css:186, 235, 243, 438"
+  ],
+  "user_impact": "Rows of controls do not line up and the 22px target is below the 24px minimum of WCAG 2.2 (2.5.8).",
+  "direction": "One small-control height (28px) and one chip atom with variants; delete the earlier .btn-sm rule.",
+  "survey": "visual"
+ },
+ {
+  "id": "VIS-21",
+  "area": "settings",
+  "kind": "layout",
+  "severity": "low",
+  "what": "Settings is one 760px column of nine groups where each help line is a sibling paragraph at the same 12px gap as the next setting, Uninstall (destructive) sits between Setup and Ports, and the contract-clone text input has no styling at all (no border, radius or height tokens, no invalid state beyond a message).",
+  "evidence": [
+   "src/renderer/components/Settings.tsx:36-193 (group order; help <p className=\"meta\"> after each label)",
+   "src/renderer/styles/app.css:286 (gap var(--pc-space-3) between every child)",
+   "src/renderer/styles/app.css:269 (only select and input[type=time] are styled); Settings.tsx:232-241 (input type=text, aria-invalid with no visual state)"
+  ],
+  "user_impact": "It is unclear which help belongs to which switch, the destructive action is met mid-page, and the one text field looks foreign.",
+  "direction": "Tie help to its control (a .setting-stack per setting, aria-describedby), move Uninstall last, and style text inputs with the select's tokens plus an invalid border.",
+  "survey": "visual"
+ },
+ {
+  "id": "VIS-22",
+  "area": "console",
+  "kind": "a11y",
+  "severity": "low",
+  "what": "The console edge replaces its focus outline with a --pc-accent-soft background, about 1.1:1 against --pc-panel in the light theme (grip turns gold, 1.29:1), so its keyboard focus is invisible in light.",
+  "evidence": [
+   "src/renderer/styles/app.css:206-207"
+  ],
+  "user_impact": "A keyboard user resizing the console in the light theme cannot see that the edge has focus.",
+  "direction": "Keep a 2px --pc-focus outline (inset if needed) on the separator in addition to the background.",
+  "survey": "visual"
+ },
+ {
+  "id": "VIS-23",
+  "area": "global",
+  "kind": "motion",
+  "severity": "low",
+  "what": "Motion mostly honours reduced motion (token durations zeroed, switch and spinner overrides), but the console cursor blinks unconditionally and the reduced-motion spinner becomes a plain grey ring that looks like the 'stopped' ○ glyph.",
+  "evidence": [
+   "src/renderer/brand/fabric-tokens.css:79-81 (durations zeroed)",
+   "src/renderer/styles/app.css:313-315 (spinner: animation none, ring all --pc-border-strong)",
+   "src/renderer/components/ConsolePanel.tsx:87 (cursorBlink: true, no matchMedia check)"
+  ],
+  "user_impact": "People who ask for less motion still get a blinking cursor, and a busy row's static ring can be misread as 'stopped'.",
+  "direction": "Set cursorBlink from matchMedia('(prefers-reduced-motion: reduce)'); under reduced motion show the spinner as a distinct static mark (for example '…' or a half ring) next to its text.",
+  "survey": "visual"
+ },
+ {
+  "id": "VIS-24",
+  "area": "overview",
+  "kind": "consistency",
+  "severity": "low",
+  "what": "Panels that sit together use different radii and frames: strip cells and the quiet setup line use the 8px control radius, cards, Needs attention and Settings groups the 16px panel radius, and an agent name that opens its page is a bold no-underline button in Needs attention but an underlined link in Since last visit, Spend and the auditor.",
+  "evidence": [
+   "src/renderer/styles/app.css:118, 399 (radius-control) vs :106, 133, 286 (radius-panel)",
+   "src/renderer/styles/app.css:112 (.attention li .name text-decoration: none) vs :301 (.linkish underline)"
+  ],
+  "user_impact": "Overview looks assembled from parts, and people cannot tell by look which names are clickable.",
+  "direction": "Choose one radius for summary cells and panels on a page, and one style for 'name that opens the agent'.",
+  "survey": "visual"
+ },
+ {
+  "id": "COPY-01",
+  "area": "global",
+  "kind": "brand-pack",
+  "severity": "high",
+  "what": "The repository has no docs/brand/ pack; i18n.ts names the Fabric pack (fabric/docs/brand) as its voice, but nothing pins it, no strings.md registry exists and no brand lint runs over these strings.",
+  "evidence": [
+   "src/core/i18n.ts:1-3 (comment: 'Voice: the PassionCode.ai brand pack (fabric/docs/brand)')",
+   "docs/brand/ absent (ls)",
+   "fabric repository docs/brand/terminology.md:25,45 (parent pack exists, not pinned here)",
+   "docs/brand-source.json pins only the visual brand files"
+  ],
+  "user_impact": "Each screen picked its own word for the same thing (the findings below), because no dictionary or registry exists to check a new string against.",
+  "direction": "Seed a minimal docs/brand/ that inherits the Fabric pack by pinned commit and holds only the deltas: voice.md (one builder to another, sentence case, no em dash invariant, Russian «вы» or neutral, no first person in status lines), terminology.md (service vs agent vs helper service, coding agent vs runner, console/session/hand-over, spend/cost/spend report, limit vs budget, state names, platform words), locales/ru.md (counts after the label, «агент для кода», English kept only for product names and commands), strings.md generated from i18n.ts keys with file:line, and the super-ux brand_lint run in npm run check.",
+  "survey": "copy"
+ },
+ {
+  "id": "COPY-02",
+  "area": "tray",
+  "kind": "consistency",
+  "severity": "high",
+  "what": "The em dash rule is tested only on the dictionaries; strings composed in code put U+2014 into the tray menu, the tray tooltip, visible lines and many aria-labels and titles.",
+  "evidence": [
+   "src/electron/tray.ts:62 (every tray menu item: 'name U+2014 state')",
+   "src/electron/tray.ts:85 (tooltip 'Fabric Dashboards U+2014 headline')",
+   "src/renderer/components/Spend.tsx:132 (visible error list)",
+   "src/renderer/components/ConsolePanel.tsx:238-239 (title, and a lone U+2014 as 'no folder')",
+   "src/renderer/App.tsx:323,383",
+   "src/renderer/lib.tsx:71 (port shown as U+2014)",
+   "src/renderer/components/Overview.tsx:115,120,167,202,203,253 (aria-labels read aloud)",
+   "test/parts.test.ts:469-472 (checks dictionary(lang) only)"
+  ],
+  "user_impact": "The tray menu, seen many times a day, breaks the operator's no em dash rule on every row, and the existing test cannot see it.",
+  "direction": "Move the joins into dictionary templates ('tray.item': '{name}: {state}', 'a11y.action': '{action}, {name}', 'word.none': 'none' / «нет»), use a colon or comma, and extend the test to grep src/electron and src/renderer for U+2014 outside comments.",
+  "survey": "copy"
+ },
+ {
+  "id": "COPY-03",
+  "area": "global",
+  "kind": "russian",
+  "severity": "medium",
+  "what": "machine-ru.ts translates machine reasons into Russian with a copula dash (U+2014) in 15 patterns, and these sentences render inside reason.invalid, reason.token and the spend errors.",
+  "evidence": [
+   "src/core/machine-ru.ts:17,20,21,28,29,33,38,39,50,52,77,81,85,88,110",
+   "src/core/i18n.ts:1412 (MACHINE_PARAMS routes problem/detail/error/reason/text through machineRu)"
+  ],
+  "user_impact": "A Russian reader sees em dashes in error lines on the agent page although a natural rewrite exists for each one.",
+  "direction": "Rewrite without the dash: «auth.tokenFile должен быть абсолютным путём или путём от ~/», «ответ не в формате JSON», «валюта {c} не USD», «у {f} sha256 {a}, а в SHA256SUMS указано {b}»; add machine-ru outputs to the em dash test.",
+  "survey": "copy"
+ },
+ {
+  "id": "COPY-04",
+  "area": "overview",
+  "kind": "russian",
+  "severity": "high",
+  "what": "The Overview strip puts the number before a fixed plural label, so Russian (and English) agreement breaks for 1 and 2 to 4, against the counts-after-label rule.",
+  "evidence": [
+   "src/renderer/components/Overview.tsx:325-327 (value then label)",
+   "src/core/i18n.ts:111-113 en 'agents ready', 'need attention'",
+   "src/core/i18n.ts:809-811 ru «агентов в порядке», «требуют внимания»"
+  ],
+  "user_impact": "The first thing on the home screen reads «1/5 агентов в порядке» and «1 требуют внимания», English '1 need attention'.",
+  "direction": "Make the label a heading over the number: «В порядке» / «Не отвечают или в конфликте» / «Требуют внимания» with the value under it (en 'Ready', 'Not answering or in conflict', 'Need attention'), so no form depends on the count.",
+  "survey": "copy"
+ },
+ {
+  "id": "COPY-05",
+  "area": "overview",
+  "kind": "russian",
+  "severity": "low",
+  "what": "overview.count.one in Russian is «1 сервис», a number before the noun, while every other Russian count puts the label first; the group label ends with a full stop where English uses a colon.",
+  "evidence": [
+   "src/core/i18n.ts:803 '1 сервис'",
+   "src/core/i18n.ts:802 'Сервисов: {count}'",
+   "src/core/i18n.ts:805 'Агентов: {count}.' vs en src/core/i18n.ts:109 '{count} agents:'",
+   "src/renderer/App.tsx:339",
+   "src/renderer/components/Overview.tsx:191"
+  ],
+  "user_impact": "Small inconsistency in the page header and in grouped attention rows, where the full stop splits the label from the names that follow.",
+  "direction": "ru overview.count.one: «Сервисов: 1» (or drop the .one branch in Russian); overview.attention.group: en '{count} agents:' and ru «Агентов ({count}):» so both end in a colon before the names.",
+  "survey": "copy"
+ },
+ {
+  "id": "COPY-06",
+  "area": "global",
+  "kind": "terminology",
+  "severity": "high",
+  "what": "'Service' means two things: every item the app watches (Overview count, tray, Activity filter, empty state) and a sub-group of helper items (the 'Services' section, 'Show as a service'), while the same items are called 'agents' in the strip, Spend, Connections and alerts.",
+  "evidence": [
+   "src/core/i18n.ts:104 '{count} services'",
+   "src/core/i18n.ts:655 'All services ready'",
+   "src/core/i18n.ts:512 'All services'",
+   "src/core/i18n.ts:576 'Per service'",
+   "src/core/i18n.ts:111 'agents ready'",
+   "src/core/i18n.ts:447 'All agents'",
+   "src/core/i18n.ts:64,118 'Services' (section)",
+   "src/core/i18n.ts:58-59 'Show as a service' / 'Show as an agent'",
+   "src/core/i18n.ts:762,816 ru «Служебные»"
+  ],
+  "user_impact": "On one screen the header says '12 services', the strip says '8 agents ready' and a section is titled 'Services', so a person cannot tell what is counted.",
+  "direction": "One noun for the watched item: 'agent' / «агент» in every person-facing string (CONTEXT.md keeps 'service' for the protocol). The sub-group becomes 'Helper services' / «Служебные сервисы», menu 'Move to helper services' / 'Move to agents'. Record it in terminology.md.",
+  "survey": "copy"
+ },
+ {
+  "id": "COPY-07",
+  "area": "global",
+  "kind": "terminology",
+  "severity": "high",
+  "what": "The coding agent the console starts has five names in English (coding agent, agent, runtime, Runtime, Runner) and three in Russian («агент для кода», «агент», «кодинг-агент»), and 'agent' alone also means the watched service.",
+  "evidence": [
+   "src/core/i18n.ts:15 'Fix with agent'",
+   "src/core/i18n.ts:44 'Repair with my coding agent'",
+   "src/core/i18n.ts:216 'Runtime'",
+   "src/core/i18n.ts:229,236 'runtime'",
+   "src/core/i18n.ts:359 'coding agent'",
+   "src/core/i18n.ts:713 «Исправить через агента»",
+   "src/core/i18n.ts:1055,962 «кодинг-агент»",
+   "fabric repository docs/brand/terminology.md:25,45 (parent: 'coding agent', ru «агент для кода», never «агент» alone, never runner)"
+  ],
+  "user_impact": "'Fix with agent' on an agent's row reads as 'the agent fixes itself'; the console picker labelled 'Runtime' does not say it is the coding agent.",
+  "direction": "'coding agent' / «агент для кода» everywhere a person sees it: buttons 'Fix with coding agent' / «Исправить с агентом для кода» (short 'Fix' kept), console label 'Coding agent', 'No supported coding agent is installed. Looked for: {list}.' Replace «кодинг-агент» in 1055 and 962.",
+  "survey": "copy"
+ },
+ {
+  "id": "COPY-08",
+  "area": "agent-page",
+  "kind": "russian",
+  "severity": "medium",
+  "what": "Runner (the agent's model runner) is translated as «Агент для кода» in the profile block but «Исполнитель» in Connections, and profile.title becomes «Агент и модель».",
+  "evidence": [
+   "src/core/i18n.ts:557-558 en 'Runner and model', 'Runner'",
+   "src/core/i18n.ts:1253-1254 ru «Агент и модель», «Агент для кода»",
+   "src/core/i18n.ts:398 / src/core/i18n.ts:1094 conn.kind.runner 'Runner' / «Исполнитель»",
+   "src/renderer/components/ServiceView.tsx:374"
+  ],
+  "user_impact": "A Russian reader is told the agent's runner is a coding agent, a different thing, and sees two words for one field on two tabs.",
+  "direction": "One term for the runner in both places, and settle it against the Fabric pack (which bans 'runner' as a synonym for coding agent): en 'Runs on' / ru «Исполнитель»; profile.title 'Runner and model' -> ru «Исполнитель и модель».",
+  "survey": "copy"
+ },
+ {
+  "id": "COPY-09",
+  "area": "connections",
+  "kind": "consistency",
+  "severity": "medium",
+  "what": "The same action has two Russian verbs: 'Fix with agent' is «Исправить через агента» on Overview and the agent page but «Починить с агентом» on Connections.",
+  "evidence": [
+   "src/core/i18n.ts:713 agent.fix «Исправить через агента»",
+   "src/core/i18n.ts:1053 map.fix «Починить с агентом»",
+   "src/core/i18n.ts:742 setupCheck.repair «Исправить с моим агентом для кода»"
+  ],
+  "user_impact": "One action, two names: a person cannot tell whether the Connections button does the same as the one on Overview.",
+  "direction": "map.fix reuses agent.fix (delete the key); one verb «Исправить» and one preposition «с агентом для кода» across all three.",
+  "survey": "copy"
+ },
+ {
+  "id": "COPY-10",
+  "area": "agent-page",
+  "kind": "consistency",
+  "severity": "high",
+  "what": "State names drift between surfaces: ready is 'Ready' / «Работает» / «в порядке»; degraded is 'Degraded', 'Partly works', 'Works in part', 'Partly'; down is 'Not answering', 'is down', 'Does not work', 'does not answer'.",
+  "evidence": [
+   "src/core/i18n.ts:72-74 state.ready/degraded/down",
+   "src/core/i18n.ts:770-772 ru",
+   "src/core/i18n.ts:404-405 conn.state",
+   "src/core/i18n.ts:361-362 map.severity",
+   "src/core/i18n.ts:348 map.summary 'Partly'",
+   "src/core/i18n.ts:193 alerts.down '{name} is down'",
+   "src/core/i18n.ts:889 ru «{name} не работает»",
+   "src/core/i18n.ts:809 «агентов в порядке»"
+  ],
+  "user_impact": "The status chip, the most seen string in the app, says 'Degraded' (protocol jargon) while the map beside it says 'Works in part' for the same condition.",
+  "direction": "One state vocabulary from CONTEXT.md mapped once: ready 'Ready' / «Работает», degraded 'Partly working' / «Работает частично», down 'Not answering' / «Не отвечает»; alerts.down '{name} is not answering' / «{name} не отвечает»; map summary uses the same words.",
+  "survey": "copy"
+ },
+ {
+  "id": "COPY-11",
+  "area": "agent-page",
+  "kind": "consistency",
+  "severity": "medium",
+  "what": "Stop has three English names: button 'Stop', state 'Off', reason 'Stopped by you' and toast '{name} stopped by you'; Russian is consistent («Выключить», «Выключен»).",
+  "evidence": [
+   "src/core/i18n.ts:309 action.stop",
+   "src/core/i18n.ts:75 state.stopped 'Off'",
+   "src/core/i18n.ts:88 reason.stopped",
+   "src/core/i18n.ts:326 result.stopped",
+   "src/core/i18n.ts:320 busy.stopping"
+  ],
+  "user_impact": "After pressing Stop the chip says 'Off', which reads like a different setting rather than the result of the press.",
+  "direction": "State 'Stopped' (en) to match the verb, keep «Выключен»; or rename the button 'Turn off' everywhere. Pick one and record it.",
+  "survey": "copy"
+ },
+ {
+  "id": "COPY-12",
+  "area": "global",
+  "kind": "clarity",
+  "severity": "high",
+  "what": "Protocol and machine words are shown to a person as if they were product vocabulary: descriptor, launchd job, pid, fabric-service/0.1, well-known document, FAC-SEM-133, extensions/connections/0.1, DEC-0021, surfaces.",
+  "evidence": [
+   "src/core/i18n.ts:81-82 'Invalid' / 'The descriptor is invalid'",
+   "src/core/i18n.ts:779 ru chip «Ошибка в дескрипторе»",
+   "src/core/i18n.ts:86,98 'answers without fabric-service/0.1'",
+   "src/core/i18n.ts:87 'pid {answering} answers, launchd runs pid {launchd}'",
+   "src/core/i18n.ts:89 'The launchd job is not loaded.'",
+   "src/core/i18n.ts:162 'well-known document ... (FAC-SEM-133)'",
+   "src/core/i18n.ts:351 'extensions/connections/0.1'",
+   "src/core/i18n.ts:500 'Fabric Agent Contract DEC-0021'",
+   "src/core/i18n.ts:435-436 'surfaces', 'descriptor'"
+  ],
+  "user_impact": "An operator who is not the agent's author cannot act on 'answers without fabric-service/0.1' or 'FAC-SEM-133'; the reason line is where they look for what to do.",
+  "direction": "Lead with the plain fact and the next step, move the identifier to a trailing detail: 'Port {port} is used by a program that is not a Fabric agent ({detail}).'; 'Its install file is broken: {problem}. Reinstall the agent.'; 'This agent reports its load in a form the app cannot read. Its owner fixes it (rule FAC-SEM-133).' Health tab labels: 'install file', 'launchd job' kept only in the Health details list.",
+  "survey": "copy"
+ },
+ {
+  "id": "COPY-13",
+  "area": "overview",
+  "kind": "empty-state",
+  "severity": "high",
+  "what": "The first-run empty state explains how a service joins in implementation terms (installer, descriptor, services folder, the building-fabric-services skill) and offers 'Show folder' as the only action.",
+  "evidence": [
+   "src/core/i18n.ts:120-122 overview.empty.*",
+   "src/core/i18n.ts:819",
+   "src/core/i18n.ts:298 'How a service joins'"
+  ],
+  "user_impact": "A new person on an empty machine learns nothing they can do: they do not write descriptors, and the setup card (setup.agent.*) is the real next step.",
+  "direction": "'No agents yet' / 'Agents appear here when they are installed. Set up Fabric with your coding agent, or install an agent that supports Fabric.' Primary button 'Set up with my coding agent'; secondary 'Show services folder'. Move descriptor details to the guide link.",
+  "survey": "copy"
+ },
+ {
+  "id": "COPY-14",
+  "area": "spend",
+  "kind": "terminology",
+  "severity": "medium",
+  "what": "Money words drift: the page is 'Spend', the column 'Cost', the source 'usage report' in errors and 'Spend report' in Connections; the agent page says 'Spent, by model' and 'No usage reported', and Russian mixes «Расходы» with «Траты».",
+  "evidence": [
+   "src/core/i18n.ts:442 'Spend'",
+   "src/core/i18n.ts:496 'Cost'",
+   "src/core/i18n.ts:129-136 'usage report'",
+   "src/core/i18n.ts:395 'Spend report'",
+   "src/core/i18n.ts:567-568",
+   "src/core/i18n.ts:1263-1264 ru «Траты по моделям», «Трат не сообщалось»",
+   "src/core/i18n.ts:1138 «Расходы»"
+  ],
+  "user_impact": "A person reading 'usage report could not be read' on the Spend page has to guess that it is the same thing as the spend report.",
+  "direction": "'spend' / «расходы» for the topic, 'cost' / «стоимость» only for the money column, 'spend report' / «отчёт о расходах» for the source everywhere (errors included); ru profile.spend «Расходы по моделям (31 день)», «Расходы не сообщались».",
+  "survey": "copy"
+ },
+ {
+  "id": "COPY-15",
+  "area": "spend",
+  "kind": "consistency",
+  "severity": "medium",
+  "what": "The spend window is 30 days on Overview, Spend columns and Connections but 31 days on the agent page and in the empty-calls line.",
+  "evidence": [
+   "src/core/i18n.ts:115 'spent in 30 days'",
+   "src/core/i18n.ts:450 '30 days'",
+   "src/core/i18n.ts:407 'calls in 30 days'",
+   "src/core/i18n.ts:497 'No calls in the last 31 days.'",
+   "src/core/i18n.ts:567 'Spent, by model (31 days)'"
+  ],
+  "user_impact": "Two different totals for 'the month' on two screens look like a bug in the numbers.",
+  "direction": "Confirm the window each report really covers (facts.md row with its source) and label it once; if the agent page reads a 31-day report, say why in a note, otherwise use 30.",
+  "survey": "copy"
+ },
+ {
+  "id": "COPY-16",
+  "area": "spend",
+  "kind": "clarity",
+  "severity": "medium",
+  "what": "Limits call a job an 'order' («заказ»), which reads as a purchase, and 'Limits' appears under both spend.budget and spend.limits while the agent page says 'Budget left'.",
+  "evidence": [
+   "src/core/i18n.ts:461 'Per order'",
+   "src/core/i18n.ts:471 'each order'",
+   "src/core/i18n.ts:476 'one order'",
+   "src/core/i18n.ts:482 'Orders above it wait for you'",
+   "src/core/i18n.ts:1157,1167,1178 ru «заказ»",
+   "src/core/i18n.ts:452,456 'Limits'",
+   "src/core/i18n.ts:569 'Budget left'"
+  ],
+  "user_impact": "'Orders above it wait for you' suggests someone is buying something; the reader cannot tell a limit from a budget.",
+  "direction": "'job' / «задача» (or «запуск»): 'Per job', 'Jobs above it wait for your approval' / «Задачи дороже ждут вашего решения»; pick 'limit' / «лимит» as the one term and rename 'Budget left' to 'Limit left' or say how budget differs.",
+  "survey": "copy"
+ },
+ {
+  "id": "COPY-17",
+  "area": "console",
+  "kind": "consistency",
+  "severity": "medium",
+  "what": "'Hand-overs' (sidebar section) is Switchboard's internal term; the console speaks of sessions, and Russian already says «Переданные сессии».",
+  "evidence": [
+   "src/core/i18n.ts:14 nav.handovers 'Hand-overs'",
+   "src/core/i18n.ts:712 ru",
+   "src/core/i18n.ts:259 handover.body"
+  ],
+  "user_impact": "A person seeing 'Hand-overs' in the sidebar does not know it lists coding sessions Switchboard passed to the app.",
+  "direction": "en 'Handed-over sessions' (or 'Sessions from Switchboard'), ru keep «Переданные сессии»; use the same phrase in handover.body.",
+  "survey": "copy"
+ },
+ {
+  "id": "COPY-18",
+  "area": "console",
+  "kind": "russian",
+  "severity": "medium",
+  "what": "The Russian idle message names a button «Новая» that does not exist; the button is «Новая сессия».",
+  "evidence": [
+   "src/core/i18n.ts:950 console.idle.closed ru 'Кнопка «Новая» начнёт заново.'",
+   "src/core/i18n.ts:916 console.new «Новая сессия»",
+   "src/core/i18n.ts:254 en 'New session starts a fresh one.'"
+  ],
+  "user_impact": "The reader looks for a button labelled «Новая» and does not find it.",
+  "direction": "«Кнопка «Новая сессия» начнёт новую.» (quote the real label; the parity test could check quoted labels against existing values).",
+  "survey": "copy"
+ },
+ {
+  "id": "COPY-19",
+  "area": "global",
+  "kind": "russian",
+  "severity": "low",
+  "what": "Russian status lines switch between first person singular, first person plural and impersonal forms.",
+  "evidence": [
+   "src/core/i18n.ts:736 «Проверяю…»",
+   "src/core/i18n.ts:1080 «читаю, какие модели…»",
+   "src/core/i18n.ts:1015-1018 «Перезапускаем…»",
+   "src/core/i18n.ts:1140 «Читаем…»",
+   "src/core/i18n.ts:788 «Ждём первого ответа…»",
+   "src/core/i18n.ts:1301 «Проверяем обновления…»"
+  ],
+  "user_impact": "The app speaks as 'I' in one line and 'we' in the next, which reads as two authors.",
+  "direction": "One form for progress lines: «Проверяем…», «Читаем, какие модели он использовал…» (or impersonal «Идёт проверка…»); record it in locales/ru.md.",
+  "survey": "copy"
+ },
+ {
+  "id": "COPY-20",
+  "area": "global",
+  "kind": "russian",
+  "severity": "medium",
+  "what": "In Russian «Обновить» names both refresh (reload data or page) and update (install a newer version), sometimes on the same screen.",
+  "evidence": [
+   "src/core/i18n.ts:838,1142 load.refresh / spend.refresh «Обновить»",
+   "src/core/i18n.ts:880,1114 «Обновить страницу»",
+   "src/core/i18n.ts:1007 «Обновить до {version}»",
+   "src/core/i18n.ts:752 «Обновить через агента»",
+   "src/core/i18n.ts:1013 action.reload «Перезагрузить»"
+  ],
+  "user_impact": "On the agent page «Обновить» next to «Обновить до 1.4» does not say whether it reloads data or installs a version.",
+  "direction": "Refresh becomes «Перечитать» (data) and «Перезагрузить страницу» (page); «Обновить» stays for versions only. English: 'Refresh' for data, 'Reload page' for pages, 'Update' for versions (action.reload 'Reload' -> 'Reload page').",
+  "survey": "copy"
+ },
+ {
+  "id": "COPY-21",
+  "area": "settings",
+  "kind": "russian",
+  "severity": "medium",
+  "what": "Estate update settings in Russian mix untranslated Git and npm words (main, pull, git fetch, maintainers, estate_check / estate_update) into sentences.",
+  "evidence": [
+   "src/core/i18n.ts:1368 «пишет в лог приложения estate_check / estate_update»",
+   "src/core/i18n.ts:1370 «в списке maintainers пакета»",
+   "src/core/i18n.ts:1372 «(git fetch), но никогда не делает pull»",
+   "src/core/i18n.ts:1381 «ваш main на {sha}; делайте pull»",
+   "src/core/i18n.ts:1383"
+  ],
+  "user_impact": "Readable to a developer but a mixed-language sentence for anyone else; it also exposes log event names as if they were features.",
+  "direction": "Keep commands as code in a trailing bracket and translate the sentence: «загружает новые коммиты, но не вливает их в вашу ветку (git fetch, без pull)»; «ваша ветка main на {sha}; обновите её, когда решите»; drop event names from the body or put them in a 'see the log' link.",
+  "survey": "copy"
+ },
+ {
+  "id": "COPY-22",
+  "area": "settings",
+  "kind": "clarity",
+  "severity": "medium",
+  "what": "'Estate updates', 'Contract clone' and 'Consumer pins' are organisation-internal terms shown as Settings labels without an explanation of what they protect.",
+  "evidence": [
+   "src/core/i18n.ts:670-676",
+   "src/core/i18n.ts:689 'Consumer pins'",
+   "src/core/i18n.ts:691 'pins an older commit'"
+  ],
+  "user_impact": "A person opening Settings cannot tell whether they need these switches.",
+  "direction": "Section 'Fabric contract and skills updates', switch 'Watch for newer contract and skill versions', 'Local copy of the contract (folder)', 'Projects that use an older contract'; the body says who needs it (people who build Fabric agents).",
+  "survey": "copy"
+ },
+ {
+  "id": "COPY-23",
+  "area": "global",
+  "kind": "clarity",
+  "severity": "high",
+  "what": "Strings say 'this Mac', 'macOS' and 'System Settings' although the app ships for Windows and Linux (FD-37) and no platform-aware wording exists.",
+  "evidence": [
+   "src/core/i18n.ts:62 'On this Mac'",
+   "src/core/i18n.ts:205 'Other notices stay on this Mac'",
+   "src/core/i18n.ts:242 'the most this Mac carries'",
+   "src/core/i18n.ts:339 'after the Mac restarts'",
+   "src/core/i18n.ts:547 'Same as macOS'",
+   "src/core/i18n.ts:574-575 'System Settings', 'Open macOS Settings'",
+   "src/core/i18n.ts:642 'As on this Mac' vs ru src/core/i18n.ts:1338 «Как в системе»",
+   "src/core/platform.ts (no string switching; i18n.ts has 26 lines naming Mac or macOS)"
+  ],
+  "user_impact": "A Windows or Linux user sees a sidebar section called 'On this Mac' and a button that opens 'macOS Settings'.",
+  "direction": "Use 'this computer' / «этот компьютер» in shared strings, or add platform variants resolved by t() (key.darwin / key.win32 / key.linux) for System Settings and the login item; language option 'Same as the system' in both languages.",
+  "survey": "copy"
+ },
+ {
+  "id": "COPY-24",
+  "area": "agent-page",
+  "kind": "error",
+  "severity": "medium",
+  "what": "Several error lines state the failure with no next step.",
+  "evidence": [
+   "src/core/i18n.ts:89 reason.not-loaded 'The launchd job is not loaded.'",
+   "src/core/i18n.ts:84 reason.conflict.key 'This service is described twice.'",
+   "src/core/i18n.ts:332 result.launchctl 'launchctl refused: {detail}'",
+   "src/core/i18n.ts:279 stops.verdict.failed 'see the log' (which log)",
+   "src/core/i18n.ts:413 view.signInError",
+   "src/core/i18n.ts:630 view.loadError",
+   "src/core/i18n.ts:518 activity.feedError",
+   "src/core/i18n.ts:42 setupCheck.error"
+  ],
+  "user_impact": "The person sees what broke on the agent page and in Activity but not what to press next.",
+  "direction": "Add the one step each flow supports: 'Its launchd job is not loaded. Start it, or reinstall the agent.'; 'Two install files describe this agent. Show them and remove one.' (with the Show file action); 'See Logs in the Health tab'; sign-in and load errors end with 'Reload page' or 'Restart the agent'.",
+  "survey": "copy"
+ },
+ {
+  "id": "COPY-25",
+  "area": "settings",
+  "kind": "clarity",
+  "severity": "medium",
+  "what": "Settings help paragraphs run 40 to 70 words and pack timers, conditions and exceptions into one sentence.",
+  "evidence": [
+   "src/core/i18n.ts:643 settings.autoUpdate.body (~70 words)",
+   "src/core/i18n.ts:592 settings.uninstall.body",
+   "src/core/i18n.ts:205 settings.alerts.help",
+   "src/core/i18n.ts:266 settings.resumeAfterLimit.body",
+   "src/core/i18n.ts:386 conn.undeclared",
+   "src/core/i18n.ts:510 spend.estimateNote"
+  ],
+  "user_impact": "People skip the paragraph that says when an update installs or what uninstall keeps, which are exactly the facts they need.",
+  "direction": "Lead with the outcome in one line, then the conditions as 2 or 3 short lines: 'Updates download and install by themselves when you quit or restart.' / 'Checked every 5 minutes. Installed after the window has been closed for 10 minutes with nothing running.' / 'Off: Check for Updates still works.'",
+  "survey": "copy"
+ },
+ {
+  "id": "COPY-26",
+  "area": "notifications",
+  "kind": "clarity",
+  "severity": "medium",
+  "what": "Update notifications and the held-update line are long sentences that macOS truncates to two lines.",
+  "evidence": [
+   "src/core/i18n.ts:610 update.finish.body (~30 words)",
+   "src/core/i18n.ts:1306 ru",
+   "src/core/i18n.ts:613 update.held",
+   "src/core/i18n.ts:1309 ru"
+  ],
+  "user_impact": "The visible part of the banner cuts before the condition that tells the person whether they must act.",
+  "direction": "Body: 'Version {version} is ready. Click to restart now, or it installs when you quit.' ru «Версия {version} готова. Нажмите, чтобы перезапустить, или она установится при выходе.» update.held: 'Update {version} needs a step from you before it installs.'",
+  "survey": "copy"
+ },
+ {
+  "id": "COPY-27",
+  "area": "agent-page",
+  "kind": "clarity",
+  "severity": "medium",
+  "what": "Button labels that do not say the result: 'Doctor' (a noun) and its Russian «Диагностика», 'Continue last', 'Start in' and the bare 'Open' on stopped sessions.",
+  "evidence": [
+   "src/core/i18n.ts:312 action.doctor 'Doctor'",
+   "src/core/i18n.ts:1008 «Диагностика»",
+   "src/core/i18n.ts:221 console.continue 'Continue last'",
+   "src/core/i18n.ts:358 map.fixIn 'Start in'",
+   "src/core/i18n.ts:277 stops.open 'Open'",
+   "src/renderer/components/ServiceView.tsx:165",
+   "src/renderer/components/ConnectionsMap.tsx:97,151"
+  ],
+  "user_impact": "A person cannot predict that 'Doctor' runs a self-check or that 'Open' starts a console for the stopped session.",
+  "direction": "'Run self-check' / «Запустить проверку»; 'Continue last session' / «Продолжить последнюю сессию»; 'Coding agent' label for the picker; 'Open in console' / «Открыть в консоли».",
+  "survey": "copy"
+ },
+ {
+  "id": "COPY-28",
+  "area": "global",
+  "kind": "consistency",
+  "severity": "low",
+  "what": "Title Case leaks from macOS menus into in-app buttons and body text ('Restart to Update', 'Check for Updates'), while every other button is sentence case.",
+  "evidence": [
+   "src/core/i18n.ts:608 update.restart 'Restart to Update' (button in App.tsx:449 and Settings.tsx:208)",
+   "src/core/i18n.ts:625 endWork.restart.confirm",
+   "src/core/i18n.ts:643 body quotes 'Restart to Update' and 'Check for Updates'",
+   "src/core/i18n.ts:175-183 menu items (Title Case is right there)"
+  ],
+  "user_impact": "Minor: mixed casing on adjacent buttons in Settings.",
+  "direction": "Keep Title Case only in menu.* keys; buttons 'Restart to update', and body text quotes the menu label as it appears in the menu.",
+  "survey": "copy"
+ },
+ {
+  "id": "COPY-29",
+  "area": "global",
+  "kind": "consistency",
+  "severity": "low",
+  "what": "Terminal punctuation is inconsistent: some single-phrase labels and status lines end with a full stop, others with the same shape do not.",
+  "evidence": [
+   "src/core/i18n.ts:36 'Everything is set up.'",
+   "src/core/i18n.ts:227 'Ended.'",
+   "src/core/i18n.ts:212 fabric.notInstalled (no stop)",
+   "src/core/i18n.ts:414 'Restarted, page reloaded' (no stop)",
+   "src/core/i18n.ts:570 profile.budget.pending (no stop)",
+   "src/core/i18n.ts:613 update.held (no stop)"
+  ],
+  "user_impact": "Minor: visible only side by side, but it is the drift a lint would catch.",
+  "direction": "Rule in voice.md: labels, chips and headings carry no full stop; whole sentences in status lines and notices do. Apply with brand_lint B063.",
+  "survey": "copy"
+ },
+ {
+  "id": "COPY-30",
+  "area": "console",
+  "kind": "clarity",
+  "severity": "medium",
+  "what": "Long Russian labels sit in compact spots: status chips, the console toolbar and the update row.",
+  "evidence": [
+   "src/core/i18n.ts:777 chip «На порту другая программа»",
+   "src/core/i18n.ts:779 chip «Ошибка в дескрипторе»",
+   "src/core/i18n.ts:921 «Открыть в Терминале через Switchboard» (btn-sm, ConsolePanel.tsx:272)",
+   "src/core/i18n.ts:1304 «Перезапустить для обновления»",
+   "src/core/i18n.ts:742 «Исправить с моим агентом для кода»",
+   "src/core/i18n.ts:1119 «Копировать ссылку для приложения»",
+   "src/core/i18n.ts:767 «Сначала требующие внимания»"
+  ],
+  "user_impact": "In the narrow sidebar rail and console drawer these wrap or truncate, hiding the state or the action.",
+  "direction": "Short chips: «Чужая программа», «Ошибка установки»; toolbar «В Терминале» with the full phrase in the tooltip; «Перезапустить и обновить»; «Исправить с агентом»; «Копировать ссылку приложения»; «Сначала проблемные». Check each in the rail at its minimum width.",
+  "survey": "copy"
+ },
+ {
+  "id": "COPY-31",
+  "area": "console",
+  "kind": "russian",
+  "severity": "low",
+  "what": "Colloquial or literal Russian in a few lines: «больше этот Mac одновременно не тянет», «дн» without a period, «Её взял другой хост».",
+  "evidence": [
+   "src/core/i18n.ts:938 console.admission.cap",
+   "src/core/i18n.ts:971 stops.days «{n} дн назад»",
+   "src/core/i18n.ts:1364 duration.d «{n} дн»",
+   "src/core/i18n.ts:979 stops.verdict.claimed",
+   "src/core/i18n.ts:283 en 'Taken by another host.'"
+  ],
+  "user_impact": "Reads as slang or as machine output in otherwise careful Russian.",
+  "direction": "«Не запущено: консольных сессий уже {cap}, это предел для этого компьютера. Остановите одну и запустите снова.»; «{n} дн. назад»; «Её продолжает другой компьютер.» / 'Another computer continues it.'",
+  "survey": "copy"
+ },
+ {
+  "id": "COPY-32",
+  "area": "connections",
+  "kind": "clarity",
+  "severity": "low",
+  "what": "The Connections page speaks of 'the auditor' as a person ('The auditor found nothing to fix', tab 'Auditor') without saying who or what it is.",
+  "evidence": [
+   "src/core/i18n.ts:349 map.allWell",
+   "src/core/i18n.ts:356 map.findings 'Auditor'",
+   "src/core/i18n.ts:1045,1052 ru «Аудитор»"
+  ],
+  "user_impact": "Minor: a reader may think a separate service or person audits their agents.",
+  "direction": "'Problems' / «Проблемы» as the tab; 'Nothing to fix: every agent and connection works.' / «Чинить нечего: все агенты и связи работают.»",
+  "survey": "copy"
+ },
+ {
+  "id": "COPY-33",
+  "area": "activity",
+  "kind": "terminology",
+  "severity": "low",
+  "what": "The nav item and tab 'Activity' is «События» in Russian, which collides with the event levels, the 'Events' surface and «История событий» in uninstall.",
+  "evidence": [
+   "src/core/i18n.ts:11,341,441 'Activity'",
+   "src/core/i18n.ts:709,1037,1137 «События»",
+   "src/core/i18n.ts:394/src/core/i18n.ts:1090 conn.surface.events 'Events' / «События»",
+   "src/core/i18n.ts:1289 «историю событий»"
+  ],
+  "user_impact": "Minor: Russian has one word for the page, the protocol surface and the history, English has two.",
+  "direction": "Accept «События» as the page name (it is natural) but rename conn.surface.events to «Лента событий» and record the pair Activity = «События» in terminology.md.",
+  "survey": "copy"
+ },
+ {
+  "id": "FD-101",
+  "source": "backlog",
+  "what": "Across agents, a subscription row with no calls but a cost is dropped from the estimate sum when the agent's estimate is unknown; carry priced subscription calls per window so sumSpend applies usageSpend over all rows (the 20,000-case fuzz is the test).",
+  "status": "open, blocks nothing; first in HANDOFF 0.7.28 Next",
+  "actionable_now": true,
+  "blocked_on": null,
+  "user_impact": "Spend's subscription estimate can read lower than it should (still a true lower bound) in about 0.3% of mixes.",
+  "area": "spend",
+  "survey": "harvest"
+ },
+ {
+  "id": "FD-98",
+  "source": "backlog",
+  "what": "While an update is ready no check runs, so a copy one release behind installs n+1, restarts, then finds n+2 (two restarts); build an e2e or update-proof mode serving n+1 then n+2 first, then let the 5-minute check replace a ready update with a newer one.",
+  "status": "open, deferred 2026-10-23 until a test can prove it; seen live (two restarts 21:14 and 21:22 UTC)",
+  "actionable_now": true,
+  "blocked_on": null,
+  "user_impact": "The person sees an extra restart and a longer stay on an old version when releases come close together.",
+  "area": "updates",
+  "survey": "harvest"
+ },
+ {
+  "id": "FD-80",
+  "source": "backlog",
+  "what": "Remaining half: a window on another Space or fully covered still counts as shown, so a ready update can wait hours before its 10-minute hidden grace starts.",
+  "status": "open (hidden-app half released in 0.7.19); the rest waits on an Electron API (occlusion/Space read on macOS)",
+  "actionable_now": false,
+  "blocked_on": "Electron exposes no Space/occlusion read on macOS (a native CGWindowList route is unexplored)",
+  "user_impact": "Updates stay pending for hours when the window sits on another desktop.",
+  "area": "updates",
+  "survey": "harvest"
+ },
+ {
+  "id": "FD-02",
+  "source": "backlog",
+  "what": "Validate the last 7 draft scenarios on the running app (019, 020, 043, 044, 052, 064, 065); 68 others already validated.",
+  "status": "open, in part done; each remaining draft needs a person or another system",
+  "actionable_now": false,
+  "blocked_on": "a person confirming a macOS notification (019, 020); a signed reinstall and move to Applications (043, 044); a Windows/Linux desktop (052); a live Switchboard session list and a real provider limit (064, 065)",
+  "user_impact": "Seven documented behaviours (notifications, reinstall, move to Applications, other OSes, Switchboard console paths) are unobserved on a real build.",
+  "area": "docs",
+  "survey": "harvest"
+ },
+ {
+  "id": "FD-58",
+  "source": "backlog",
+  "what": "Supervision on Windows and Linux through the Observatory node (lifecycle.manager: node, node.lifecycle.*), revisiting ADR-0002; next step is to read Observatory 0.29.0's node.lifecycle schemas and decide how a node-managed descriptor is driven.",
+  "status": "blocked, closer: Observatory 0.29.0 serves node.lifecycle; channels.local (FD-59) not announced",
+  "actionable_now": true,
+  "blocked_on": "channels.local in the node descriptor (FD-59) for the build; the design read can start now",
+  "user_impact": "On Windows and Linux the person cannot start, stop or restart a service from the app.",
+  "area": "platform",
+  "survey": "harvest"
+ },
+ {
+  "id": "FD-59",
+  "source": "backlog",
+  "what": "Reach the node only through its descriptor's channels.local and check the server's owner and mode before hello (DEC-0075); declare consent.ui only if Dashboards answers consent prompts.",
+  "status": "blocked: waits for the node descriptor with channels.local",
+  "actionable_now": false,
+  "blocked_on": "Observatory node descriptor with channels.local",
+  "user_impact": "Prerequisite for supervision and the budget read; nothing visible on its own.",
+  "area": "platform",
+  "survey": "harvest"
+ },
+ {
+  "id": "FD-61",
+  "source": "backlog",
+  "what": "Serve the MCP server as one shared local service (supervised by the node) instead of one stdio process per agent session (14 at 32-56 MB each).",
+  "status": "blocked: decided to be served by the node, not the app (no-port promise)",
+  "actionable_now": false,
+  "blocked_on": "Observatory node.lifecycle supervising an enrolled MCP service",
+  "user_impact": "Hundreds of MB of memory held by duplicate MCP processes on a busy Mac.",
+  "area": "platform",
+  "survey": "harvest"
+ },
+ {
+  "id": "FD-40",
+  "source": "backlog",
+  "what": "Show each project's or agent's spend policy, budget left and grants; task presets on Fix/Update; approval requests in Needs attention; MCP policy.",
+  "status": "waits for Observatory's budget read (ordered after node.lifecycle)",
+  "actionable_now": false,
+  "blocked_on": "Observatory host read of policy, budget left and grants",
+  "user_impact": "The person cannot see how much budget an agent has left or approve its spend requests from the app.",
+  "area": "spend",
+  "survey": "harvest"
+ },
+ {
+  "id": "FD-52",
+  "source": "backlog",
+  "what": "'This machine' view: every service grouped by context (personal, estate, org:<id>), health, and host sums only; installs nothing.",
+  "status": "open, RM-28 pilot; modelled now, built later; contract field exists (DEC-0082)",
+  "actionable_now": false,
+  "blocked_on": "Observatory node (node.*) and the first organization server's listings",
+  "user_impact": "A person in several organizations cannot see which services belong to which context.",
+  "area": "overview",
+  "survey": "harvest"
+ },
+ {
+  "id": "FD-53",
+  "source": "backlog",
+  "what": "Embed the first organization server's pages (limits, weekly report, guest page) like service pages, signed in by the host; signing ceremonies always open outside.",
+  "status": "blocked on the operator's passkey sign-in that creates the connection; nothing to build",
+  "actionable_now": false,
+  "blocked_on": "operator's passkey sign-in on the organization server (human gate)",
+  "user_impact": "Organization pages cannot be opened inside the app yet.",
+  "area": "agent-page",
+  "survey": "harvest"
+ },
+ {
+  "id": "FD-12",
+  "source": "backlog",
+  "what": "COM-11 (issue #26): read the negotiated communication capability and its health, link to Fabric's board.",
+  "status": "blocked: no Fabric descriptor on this Mac, contract defines no com surface",
+  "actionable_now": false,
+  "blocked_on": "Fabric descriptor and a contract com surface",
+  "user_impact": "The person cannot see whether the project board's communication service is healthy from the app.",
+  "area": "connections",
+  "survey": "harvest"
+ },
+ {
+  "id": "FD-22",
+  "source": "backlog",
+  "what": "Show an agent's A2A skills and Agent Card beside its MCP tools, and name it in MCP list_services, once the contract defines surfaces.a2a (RM-17).",
+  "status": "blocked: no surfaces.a2a in the contract",
+  "actionable_now": false,
+  "blocked_on": "fabric-agent-contract surfaces.a2a decision",
+  "user_impact": "A2A-capable agents look MCP-only on their page.",
+  "area": "agent-page",
+  "survey": "harvest"
+ },
+ {
+  "id": "FD-68",
+  "source": "backlog",
+  "what": "Show runner-route events (runner-selected, runner-switched, runner-exhausted) in an agent's activity and group by the DEC-0076 normal form.",
+  "status": "blocked: the events are Fabric's journal, no Fabric feed on this Mac",
+  "actionable_now": false,
+  "blocked_on": "a Fabric descriptor and events feed",
+  "user_impact": "The person cannot see when an agent's runner or model switched and why.",
+  "area": "activity",
+  "survey": "harvest"
+ },
+ {
+  "id": "FD-87",
+  "source": "backlog",
+  "what": "(b) Show the Mac Studio's services from the MacBook, one section per machine; (a) unattended Restart to update already holds.",
+  "status": "(a) holds; (b) blocked until Fabric CO-321, relay RLY-05 and Observatory node P6/P7 (none before 2026-11-07)",
+  "actionable_now": false,
+  "blocked_on": "Fabric CO-321 'Run it on' and the relay",
+  "user_impact": "Services on another of the person's machines are invisible unless registered as online services.",
+  "area": "overview",
+  "survey": "harvest"
+ },
+ {
+  "id": "FD-95",
+  "source": "backlog",
+  "what": "Windows NSIS smoke flake: two processes of the old copy outlived taskkill after an update; at the next miss name each survivor's command line before deciding whether the smoke or the app should end them.",
+  "status": "open flake, first seen; action at next miss",
+  "actionable_now": false,
+  "blocked_on": "the next occurrence (diagnostics only then)",
+  "user_impact": "Possibly leftover old-version processes on Windows after an update.",
+  "area": "updates",
+  "survey": "harvest"
+ },
+ {
+  "id": "FD-94",
+  "source": "backlog",
+  "what": "windows-11-arm PowerShell starts in about 48-60 s, close to the product's 60 s ACL-read timeout; next miss: measure an ACL read with the security module imported first.",
+  "status": "open: warm-up in validate.yml; margin thin",
+  "actionable_now": false,
+  "blocked_on": "the next CI failure",
+  "user_impact": "On slow Windows ARM machines a remote service's token read may time out and be retried.",
+  "area": "platform",
+  "survey": "harvest"
+ },
+ {
+  "id": "FD-96",
+  "source": "backlog",
+  "what": "Re-running a failed Windows package job fails at signing from a stale ArtifactSigning module cache; workaround in RUNBOOK, owner told on thread f10db6ee.",
+  "status": "open, worked around; waits for the action's owner",
+  "actionable_now": false,
+  "blocked_on": "passioncode-org-profile's signing action fix or answer",
+  "user_impact": "None directly; slows a release that needs a re-run.",
+  "area": "platform",
+  "survey": "harvest"
+ },
+ {
+  "id": "HV-01",
+  "source": "handoff",
+  "what": "Decide whether an agent's full queue belongs in Needs attention (ADR-0024 'Not decided here') once the first real load report exists.",
+  "status": "open decision, recorded in HANDOFF 0.7.26 Next",
+  "actionable_now": false,
+  "blocked_on": "the first service declaring service-load/1 (Fabric CO-376, adapter FAA-103); 0 of 15 local services today",
+  "user_impact": "A saturated agent queue would not surface on Overview's now-queue.",
+  "area": "overview",
+  "survey": "harvest"
+ },
+ {
+  "id": "HV-02",
+  "source": "handoff",
+  "what": "Make the whole e2e suite safe on a loaded Mac by default (serial, or refuse below a disk/swap/load floor) instead of relying on a remembered --test-concurrency=1; lesson of FD-100/0.7.28 where the parallel suite filled swap and disk.",
+  "status": "lesson recorded in HANDOFF 0.7.28 and retro 2026-10-24; no task row",
+  "actionable_now": true,
+  "blocked_on": null,
+  "user_impact": "Indirect: the release gate for every UI change otherwise stalls or takes down live services.",
+  "area": "platform",
+  "survey": "harvest"
+ },
+ {
+  "id": "HV-03",
+  "source": "scenarios",
+  "what": "SCN-001 step 4 and screens.md SCR-01 still describe the one-time 'Open Fabric Dashboards when you log in?' question, and screens.md Settings says 'Open at login (off until chosen)'; FD-72 (0.7.12) removed the question and turned it on by default (no such string in src).",
+  "status": "docs drift; SCN-001 marked validated; docs/ux/lint.py passes (does not read content)",
+  "actionable_now": true,
+  "blocked_on": null,
+  "user_impact": "The documented first-run and Settings behaviour is false.",
+  "area": "docs",
+  "survey": "harvest"
+ },
+ {
+  "id": "HV-04",
+  "source": "scenarios",
+  "what": "screens.md SCR-10 still describes the console as a side panel right of the tab content with a left-edge width drag and lists the retired SCN-060; FD-92 (0.7.25) made it a drawer over the dashboard with height by the bottom edge, fold and a red cross.",
+  "status": "docs drift after FD-92",
+  "actionable_now": true,
+  "blocked_on": null,
+  "user_impact": "The screen inventory contradicts the console the person uses.",
+  "area": "docs",
+  "survey": "harvest"
+ },
+ {
+  "id": "HV-05",
+  "source": "scenarios",
+  "what": "SCN-052 says Linux launch at login is not offered until the autostart file lands and that Windows/Linux updates are unsupported; src/core/autostart.ts (FD-37 M3) and NSIS/AppImage self-update (M4b/M4c) shipped.",
+  "status": "draft and stale",
+  "actionable_now": true,
+  "blocked_on": null,
+  "user_impact": "Windows and Linux behaviour is documented as missing when it exists.",
+  "area": "docs",
+  "survey": "harvest"
+ },
+ {
+  "id": "SCN-019",
+  "source": "scenarios",
+  "what": "Notification when a service goes down and comes back.",
+  "status": "draft since 2026-10-06",
+  "actionable_now": false,
+  "blocked_on": "only a person can confirm a macOS notification was shown (delivered-notification store is protected)",
+  "user_impact": "Down/back notifications are unverified on a real copy.",
+  "area": "settings",
+  "survey": "harvest"
+ },
+ {
+  "id": "SCN-020",
+  "source": "scenarios",
+  "what": "Notification from a service event opens the item.",
+  "status": "draft since 2026-10-06",
+  "actionable_now": false,
+  "blocked_on": "a person confirming the notification and its click",
+  "user_impact": "Clicking an event notification is unverified.",
+  "area": "settings",
+  "survey": "harvest"
+ },
+ {
+  "id": "SCN-043",
+  "source": "scenarios",
+  "what": "Reinstall picks up where I left off (login item and MCP entries restored from restore.json).",
+  "status": "draft since 2026-10-06",
+  "actionable_now": false,
+  "blocked_on": "a walk on a signed copy through uninstall and reinstall (recorded as needing a person; may be agent-doable on this Mac)",
+  "user_impact": "A reinstall restoring settings is unproven.",
+  "area": "settings",
+  "survey": "harvest"
+ },
+ {
+  "id": "SCN-044",
+  "source": "scenarios",
+  "what": "A copy outside Applications moves itself so it can update.",
+  "status": "draft since 2026-10-06",
+  "actionable_now": false,
+  "blocked_on": "a signed copy started outside /Applications",
+  "user_impact": "First-run move to Applications is unproven; a misplaced copy never updates.",
+  "area": "updates",
+  "survey": "harvest"
+ },
+ {
+  "id": "SCN-052",
+  "source": "scenarios",
+  "what": "Fabric Dashboards on Windows or Linux.",
+  "status": "draft since 2026-10-10 (text stale, see HV-05)",
+  "actionable_now": false,
+  "blocked_on": "a Windows or Linux desktop to walk it",
+  "user_impact": "Other-OS experience is unobserved end to end.",
+  "area": "platform",
+  "survey": "harvest"
+ },
+ {
+  "id": "SCN-064",
+  "source": "scenarios",
+  "what": "See what Switchboard runs for this agent.",
+  "status": "draft since 2026-10-12",
+  "actionable_now": false,
+  "blocked_on": "a live Switchboard session list for the agent's folder",
+  "user_impact": "The console's Switchboard session view is unverified.",
+  "area": "console",
+  "survey": "harvest"
+ },
+ {
+  "id": "SCN-065",
+  "source": "scenarios",
+  "what": "A provider limit does not stop the agent (managed launch in place).",
+  "status": "draft since 2026-10-12; step 1 seen in main.log",
+  "actionable_now": false,
+  "blocked_on": "a real provider limit hit during a console session",
+  "user_impact": "Continuity across a usage limit in the console is only partly observed.",
+  "area": "console",
+  "survey": "harvest"
+ },
+ {
+  "id": "RETRO-7",
+  "source": "retro",
+  "what": "A UI e2e run checks the screen lock first; while locked macOS sends no show/hide/focus events (scripts/check-screen.mjs now refuses at once).",
+  "status": "standing instruction, binds UI work; retire when the suite skips those assertions itself",
+  "actionable_now": true,
+  "blocked_on": null,
+  "user_impact": "Constraint on validating UI changes, not a feature.",
+  "area": "platform",
+  "survey": "harvest"
+ },
+ {
+  "id": "RETRO-8",
+  "source": "retro",
+  "what": "Commit only after npm run typecheck, never after a tsx test of the changed file.",
+  "status": "standing instruction, binds all work; retire when pre-commit runs the typecheck",
+  "actionable_now": true,
+  "blocked_on": null,
+  "user_impact": "Constraint; protects notifications and events from silently broken types.",
+  "area": "platform",
+  "survey": "harvest"
+ },
+ {
+  "id": "RETRO-E2E",
+  "source": "retro",
+  "what": "A change to a shared screen runs the whole e2e suite before its release, serially on a loaded Mac (--test-concurrency=1).",
+  "status": "lesson (FD-91, FD-100), binds UI releases",
+  "actionable_now": true,
+  "blocked_on": null,
+  "user_impact": "Constraint; caught FD-91 and FD-102 before users did.",
+  "area": "platform",
+  "survey": "harvest"
+ },
+ {
+  "id": "RM-06",
+  "source": "roadmap",
+  "what": "Agent pipelines: every pipeline on the machine visible in Dashboards (runs, state, spend, failures) and managed through Fabric (pause, resume, retry a step).",
+  "status": "architecture designed (AR-5); open: Dashboards' management actions and authority path",
+  "actionable_now": false,
+  "blocked_on": "Fabric pipelines and a contract surface for them",
+  "user_impact": "Pipelines are invisible in the monitor.",
+  "area": "overview",
+  "survey": "harvest"
+ },
+ {
+  "id": "RM-08",
+  "source": "roadmap",
+  "what": "One visual style for agents and their dashboards, and a measured install -> first agent -> first dashboard session funnel (step 3 is Dashboards').",
+  "status": "research",
+  "actionable_now": false,
+  "blocked_on": "the design-system decision owned with Fabric",
+  "user_impact": "Agent dashboards look unrelated to each other and to the app; activation is unmeasured.",
+  "area": "agent-page",
+  "survey": "harvest"
+ },
+ {
+  "id": "RM-29",
+  "source": "roadmap",
+  "what": "Specifications and project timeline (phases, release notes, commits, tickets) in Fabric with Dashboards participating.",
+  "status": "research; built in the Fabric repository first",
+  "actionable_now": false,
+  "blocked_on": "Fabric (Serge Khurs) building it",
+  "user_impact": "No timeline view of a project's phases.",
+  "area": "overview",
+  "survey": "harvest"
+ },
+ {
+  "id": "RM-22",
+  "source": "roadmap",
+  "what": "Activity journal of what each machine works on (launches, waiting time, agents, model use, errors), shown by Dashboards among others.",
+  "status": "architecture; waits on Q1-Q14 and joint decisions",
+  "actionable_now": false,
+  "blocked_on": "Observatory journal and open decisions",
+  "user_impact": "No machine-wide activity journal view.",
+  "area": "activity",
+  "survey": "harvest"
+ },
+ {
+  "id": "RM-04",
+  "source": "roadmap",
+  "what": "Cloud and cost management for persons and organizations (subscription cloud, self-hosted, or local only).",
+  "status": "research",
+  "actionable_now": false,
+  "blocked_on": "product decision across Fabric, Switchboard, platform",
+  "user_impact": "No cloud cost view.",
+  "area": "spend",
+  "survey": "harvest"
+ },
+ {
+  "id": "HV-06",
+  "source": "roadmap",
+  "what": "The dashboard perception principles sit in agent-practices.md Inbox asking for 'the same principles in the dashboard kit and building-fabric-services guidance (fabric-dashboards)'; FD-86 (0.7.24) and FD-76 are Dashboards' proof and could move it into a section.",
+  "status": "proposed practice, unplaced (fabric-workspace knowledge/agent-practices.md:822)",
+  "actionable_now": true,
+  "blocked_on": null,
+  "user_impact": "Indirect: other agent dashboards follow the same first-screen rules as this app.",
+  "area": "docs",
+  "survey": "harvest"
+ },
+ {
+  "id": "HV-07",
+  "source": "roadmap",
+  "what": "fabric-workspace roadmap.md:682 still lists Dashboards gaps 'no Squirrel downgrade guard; the switch stops installs only' that are closed (ElectronSquirrelPreventDowngrades in src/electron/updater.ts:14, ADR-0015:139; the switch stops everything automatic).",
+  "status": "stale cell in another repository",
+  "actionable_now": true,
+  "blocked_on": null,
+  "user_impact": "None in the app; the organization's map misstates update safety.",
+  "area": "docs",
+  "survey": "harvest"
+ },
+ {
+  "id": "HV-08",
+  "source": "roadmap",
+  "what": "lifecycle.md Dashboards row: 'Electron gives no read of the notification permission' (U-10), so Settings cannot say whether macOS shows notifications.",
+  "status": "open, waits on Electron",
+  "actionable_now": false,
+  "blocked_on": "Electron API to read the notification permission",
+  "user_impact": "The person must check System Settings to learn whether alerts are actually shown.",
+  "area": "settings",
+  "survey": "harvest"
+ },
+ {
+  "id": "GH-103",
+  "source": "issue",
+  "what": "Issue #103 'Notify the operator when a service stays down over 5 min' is still open though FD-48 (0.7.5) shipped it and FD-76 (0.7.15) set the operator's 15-minute rule.",
+  "status": "open issue, implemented; close with receipt",
+  "actionable_now": true,
+  "blocked_on": null,
+  "user_impact": "None; the tracker overstates open work.",
+  "area": "docs",
+  "survey": "harvest"
+ },
+ {
+  "id": "GH-26",
+  "source": "issue",
+  "what": "Issue #26 COM-11/12: communication service health and Fabric board links (= FD-12).",
+  "status": "open, blocked",
+  "actionable_now": false,
+  "blocked_on": "Fabric descriptor and contract com surface",
+  "user_impact": "See FD-12.",
+  "area": "connections",
+  "survey": "harvest"
+ }
+]

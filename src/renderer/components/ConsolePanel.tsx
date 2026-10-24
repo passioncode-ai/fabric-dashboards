@@ -7,6 +7,7 @@ import { FitAddon } from '@xterm/addon-fit';
 import '@xterm/xterm/css/xterm.css';
 import type { ConsoleInfo, ConsoleSessions, ConsoleStartResult, ConsoleTask } from '../../core/api';
 import { CONSOLE_HEIGHT } from '../../core/types';
+import { pageExitLine, terminalKey } from '../../core/sessions-view';
 import { api, Icon, Spinner, useT } from '../lib';
 
 interface Props {
@@ -22,6 +23,11 @@ interface Props {
   /** FD-39 D-3: a job to start with (Fix / Update with agent); taken once, then cleared by the shell. */
   task?: { task?: ConsoleTask; mode?: 'new' | 'continue'; nonce: number } | null;
   onTaskTaken?: () => void;
+  /** FD-103 (SCN-080): a session's page: the terminal fills the page under its header; no fold, no edge, no start
+   *  controls of its own (the header holds the session's actions). */
+  page?: boolean;
+  /** VIS-05: Esc, then Tab within a second, left the terminal (`back`: Shift+Tab). */
+  onFocusOut?: (back: boolean) => void;
 }
 
 /** The terminal's colours, from the app's theme tokens. */
@@ -37,8 +43,8 @@ function shortPath(p: string): string {
   return home ? `~${p.slice(home.length)}` : p;
 }
 
-export function ConsolePanel({ serviceKey, height, maxHeight, onHeight, onDrag, onHide, task, onTaskTaken }: Props) {
-  const { t } = useT();
+export function ConsolePanel({ serviceKey, height, maxHeight, onHeight, onDrag, onHide, task, onTaskTaken, page = false, onFocusOut }: Props) {
+  const { t, lang } = useT();
   const host = useRef<HTMLDivElement>(null);
   const term = useRef<Terminal | null>(null);
   const fit = useRef<FitAddon | null>(null);
@@ -49,6 +55,10 @@ export function ConsolePanel({ serviceKey, height, maxHeight, onHeight, onDrag, 
   const [confirmClose, setConfirmClose] = useState(false);
   const [starting, setStarting] = useState(false);
   const [sessions, setSessions] = useState<ConsoleSessions | null>(null);
+  /** SCN-080 step 3: the keyboard line shows while the terminal has focus. */
+  const [termFocus, setTermFocus] = useState(false);
+  const leave = useRef(onFocusOut);
+  leave.current = onFocusOut;
 
   // FD-43: what Switchboard launched in this folder, read at the console's cadence (15 s) and only while
   // the console is on screen in a visible window (LC-08); FD-51: where each managed session runs now.
@@ -90,6 +100,25 @@ export function ConsolePanel({ serviceKey, height, maxHeight, onHeight, onDrag, 
     term.current = x;
     fit.current = f;
     if (host.current) x.open(host.current);
+    // VIS-05: Esc always reaches the coding agent; a Tab within a second after it moves focus out of the terminal.
+    let lastEsc: number | null = null;
+    x.attachCustomKeyEventHandler((e) => {
+      if (e.type === 'keydown' && e.key === 'Escape') { lastEsc = Date.now(); return true; }
+      const k = terminalKey(e, lastEsc, Date.now());
+      if (k === 'pass') return true;
+      if (e.type === 'keydown') { lastEsc = null; e.preventDefault(); x.blur(); leave.current?.(k === 'leave-back'); }
+      return false;
+    });
+    const focusIn = () => setTermFocus(true);
+    const focusOut = () => setTermFocus(false);
+    x.textarea?.addEventListener('focus', focusIn);
+    x.textarea?.addEventListener('blur', focusOut);
+    // VIS-06: the scheme follows at once: a changed theme attribute, or the system switching while `system` is chosen.
+    const repaint = () => { x.options.theme = themeOf(); };
+    const themes = new MutationObserver(repaint);
+    themes.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+    const system = window.matchMedia?.('(prefers-color-scheme: light)');
+    system?.addEventListener?.('change', repaint);
     const typed = x.onData((data) => api().consoleInput(serviceKey, data));
     const sized = x.onResize(({ cols, rows }) => api().consoleResize(serviceKey, cols, rows));
     const observer = new ResizeObserver(() => { try { f.fit(); } catch { /* not laid out yet */ } });
@@ -109,7 +138,11 @@ export function ConsolePanel({ serviceKey, height, maxHeight, onHeight, onDrag, 
     setNotice(null);
     setConfirmClose(false);
     void refresh();
-    return () => { off(); typed.dispose(); sized.dispose(); observer.disconnect(); document.removeEventListener('visibilitychange', onVisible); x.dispose(); term.current = null; };
+    return () => {
+      off(); typed.dispose(); sized.dispose(); observer.disconnect(); themes.disconnect(); system?.removeEventListener?.('change', repaint);
+      x.textarea?.removeEventListener('focus', focusIn); x.textarea?.removeEventListener('blur', focusOut);
+      document.removeEventListener('visibilitychange', onVisible); x.dispose(); term.current = null;
+    };
   }, [serviceKey, refresh]);
 
   const say = (r: ConsoleStartResult) => {
@@ -148,7 +181,7 @@ export function ConsolePanel({ serviceKey, height, maxHeight, onHeight, onDrag, 
   // once per opening, and only with a runtime that can continue; otherwise the panel says New starts afresh.
   const resumed = useRef<string | null>(null);
   useEffect(() => {
-    if (!info?.idle || info.key !== serviceKey || resumed.current === serviceKey || task || starting) return;
+    if (page || !info?.idle || info.key !== serviceKey || resumed.current === serviceKey || task || starting) return;
     if (info.session.state === 'running') return;
     resumed.current = serviceKey;
     const rt = info.runtimes.find((r) => r.id === info.runtime);
@@ -209,6 +242,21 @@ export function ConsolePanel({ serviceKey, height, maxHeight, onHeight, onDrag, 
   const ownHandover = /^handover\./.test(serviceKey);
   const handover = info?.handover ?? null;
 
+  if (page) {
+    // R1-V4: the page's header says how the session ended; the strip adds only an unclean exit's code.
+    const exitLine = info ? pageExitLine(lang, info.session, Boolean(info.idle)) : null;
+    return (
+      <section className="console-drawer console-page" aria-label={t('console.title')}>
+        {!info && <p className="console-state muted row" role="status"><Spinner /> {t('console.loading')}</p>}
+        {info?.session.state === 'idle' && <p className="console-state muted">{t('sessions.notKept')}</p>}
+        {notice && <div className="console-state notice error" role="alert"><p>{notice.text}</p></div>}
+        {exitLine && <p className="console-line console-exit-line meta" role="status">{exitLine}</p>}
+        <div className="console-term" ref={host} onClick={() => term.current?.focus()} />
+        <p className={`console-line console-keys meta${termFocus ? '' : ' quiet'}`} aria-hidden={!termFocus}>{t('sessions.keys')}</p>
+      </section>
+    );
+  }
+
   return (
     <section className="console-drawer" style={{ height }} aria-label={t('console.title')}>
       <div className="console-head">
@@ -235,8 +283,8 @@ export function ConsolePanel({ serviceKey, height, maxHeight, onHeight, onDrag, 
         {handover && <p className="console-row console-line meta" role="status">{handover.kind === 'resume' ? t('console.resumed', { agent: handover.agent }) : t('console.handover', { workflow: handover.workflow || handover.agent, account: handover.account || t('word.notRecorded') })}</p>}
         {!ownHandover && <div className="console-row meta">
           {info?.folder
-            ? <span className="console-folder" title={`${info.folder.path}${info.folder.source === 'found' ? ` — ${t('console.foundFrom')}` : ''}`}>{shortPath(info.folder.path)}</span>
-            : <span className="console-folder muted">{t('console.folder')}: —</span>}
+            ? <span className="console-folder" title={`${info.folder.path}${info.folder.source === 'found' ? ` (${t('console.foundFrom')})` : ''}`}>{shortPath(info.folder.path)}</span>
+            : <span className="console-folder muted">{t('console.folder')}: {t('console.folderNone')}</span>}
           <button className="btn btn-sm" disabled={running} onClick={() => void api().consolePickFolder(serviceKey).then((i) => { setInfo(i); setNotice(null); })}>{info?.folder ? t('console.other') : t('console.chooseFolder')}</button>
           {bound && <span className="chip" title={t('console.project', { name: bound.name })}>{t('console.project', { name: bound.name })}</span>}
         </div>}

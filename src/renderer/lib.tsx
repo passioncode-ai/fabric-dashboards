@@ -45,9 +45,19 @@ export function useT() {
   return { t, reason, duration, time, lang };
 }
 
+/** The one mark per state, on every surface (VIS-08): sidebar, cards, tray menu, Connections tab and map. The word
+ *  always goes with it; colour is the third signal, never the only one. src/electron/tray.ts keeps a copy that a
+ *  test holds equal to this table. */
 export const GLYPH: Record<ServiceState, string> = {
   ready: '●', degraded: '▲', duplicate: '▲', down: '✕', foreign: '✕', conflict: '✕', invalid: '✕', stopped: '○', starting: '◌', stopping: '◌',
 };
+
+/** A connection's state in the same shapes: works as ready, slow as degraded, broken as down (VIS-08). */
+export const CONN_MARK = { ok: GLYPH.ready, degraded: GLYPH.degraded, down: GLYPH.down, unknown: GLYPH.stopped } as const;
+
+/** An auditor finding or a stopped session: an error is drawn as down, a warning as degraded, a fine one as ready.
+ *  `setup` has no agent state of its own and keeps its diamond. */
+export const SEV_MARK = { ok: GLYPH.ready, error: GLYPH.down, warn: GLYPH.degraded, setup: '◆', info: GLYPH.stopped } as const;
 
 export function StateBadge({ state }: { state: ServiceState }) {
   const { t } = useT();
@@ -68,7 +78,11 @@ export const nameOf = (s: ServiceSnapshot) => {
   const named = s.descriptor ?? s.wellKnown?.service;
   return named ? displayName(named.name, named.instance) : s.key;
 };
-export const portOf = (s: ServiceSnapshot) => /:(\d+)$/.exec(s.descriptor?.origin ?? '')?.[1] ?? '—';
+/** COPY-02: an origin without a port uses its scheme's (443 for https), so the port is a number, never a dash. */
+export const portOf = (s: ServiceSnapshot) => {
+  const origin = s.descriptor?.origin ?? '';
+  return /:(\d+)$/.exec(origin)?.[1] ?? (origin.startsWith('https://') ? '443' : origin.startsWith('http://') ? '80' : '');
+};
 export const shortBuild = (s: ServiceSnapshot) => {
   const b = s.wellKnown?.service.build;
   if (!b) return '';
@@ -96,6 +110,12 @@ const ICONS: Record<string, string> = {
   copy: 'M7 7h9v10H7zM4 13V3h9',
   check: 'M4 10.5l4 4 8-9',
   external: 'M11 3h6v6M17 3l-7.5 7.5M14 12v5H3V6h5',
+  // W2: the app's own update in the folded rail.
+  update: 'M10 15V4M5.5 8.5 10 4l4.5 4.5M4 17h12',
+  // FD-103: the mode switch in the folded rail, and All sessions: agents as a node with its ring, sessions as stacked
+  // terminal windows.
+  agents: 'M10 4a3 3 0 1 0 0 6 3 3 0 0 0 0-6zM4.5 16.5c.6-2.6 2.8-4.2 5.5-4.2s4.9 1.6 5.5 4.2',
+  sessions: 'M2.5 6.5h12v10h-12zM5.5 3.5h12v10M5 10l2 1.5L5 13M9 13h3',
 };
 export function Icon({ name }: { name: keyof typeof ICONS | string }) {
   return (

@@ -8,6 +8,7 @@ import { atomicWrite } from './fsutil';
 import { autoUpdateOn, carryOverAutoUpdate, setAutoUpdate } from './autoupdate';
 import { CONSOLE_HEIGHT, DEFAULT_SETTINGS, type Settings, type SettingsPatch } from './types';
 import { DEFAULT_PAGE_THEME, REFERENCE_THEMES } from './appearance';
+import { pruneDismissed, pruneRecords } from './sessions';
 
 export class SettingsStore {
   private readonly file: string;
@@ -104,6 +105,10 @@ function mergeLayout(raw: unknown): Settings['layout'] {
     header: l.header === 'full' ? 'full' : 'compact',
     console: { open: c.open === true, height: Math.min(CONSOLE_HEIGHT.max, Math.max(CONSOLE_HEIGHT.min, height)) },
     list: mergeList(l.list),
+    // FD-103 (SCN-077): a damaged value reads as Agents on Overview; nothing else depends on it.
+    mode: l.mode === 'sessions' ? 'sessions' : 'agents',
+    sessionId: typeof l.sessionId === 'string' && l.sessionId.length > 0 && l.sessionId.length <= 400 ? l.sessionId : null,
+    endedOpen: l.endedOpen === true,
   };
 }
 
@@ -155,6 +160,39 @@ function mergeEstate(raw: unknown): Settings['estate'] {
 }
 // #endregion estate-update
 
+/** At most this many of each kind of Sessions memory are kept. */
+const SESSION_MEMORY_MAX = 500;
+
+/** The newest `max` of `list`, those `held` says must stay first (F7 of FIX-2): a decline, or a stop's dismissal, is
+ *  what keeps a stop from being continued, so later ended rows never push it out. Order is kept. */
+function capKeeping<T>(list: T[], held: (x: T) => boolean, max = SESSION_MEMORY_MAX): T[] {
+  if (list.length <= max) return list;
+  const keep = new Set(list.filter(held).slice(-max));
+  let room = max - keep.size;
+  for (let i = list.length - 1; i >= 0 && room > 0; i--) if (!keep.has(list[i]!)) { keep.add(list[i]!); room--; }
+  return list.filter((x) => keep.has(x));
+}
+
+/** FD-103: the Sessions list's memory; an entry older than 24 hours, or malformed, is dropped on every read and write,
+ *  so a restart keeps the rest and nothing stays for ever. At most 500 of each, declines and stops' dismissals first. */
+function mergeSessionMemory(raw: unknown): Settings['sessions'] {
+  const s = (raw && typeof raw === 'object' ? raw : {}) as { records?: unknown; dismissed?: unknown };
+  const now = Date.now();
+  return {
+    records: capKeeping(pruneRecords(Array.isArray(s.records) ? s.records : [], now), (r) => r.end === 'declined'),
+    dismissed: capKeeping(pruneDismissed(Array.isArray(s.dismissed) ? s.dismissed : [], now), (d) => d.id.startsWith('st:')),
+  };
+}
+
+/** Review R-4, R1-S1: what the window's generic settings change may write. A console's runtime and folder are set only
+ *  through the console's own calls (a folder only from the folder dialog), and the Sessions list's memory only by the
+ *  main process: a session record names a folder Continue starts a coding agent in. */
+export function rendererSettingsPatch(raw: unknown): SettingsPatch {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
+  const { consoles: _consoles, sessions: _sessions, ...patch } = raw as SettingsPatch & Record<string, unknown>;
+  return patch as SettingsPatch;
+}
+
 export function merge(raw: Partial<Settings>): Settings {
   const n = raw.notifications ?? DEFAULT_SETTINGS.notifications;
   return {
@@ -186,6 +224,8 @@ export function merge(raw: Partial<Settings>): Settings {
     consoles: mergeConsoles(raw.consoles),
     // FD-83: absent in a file from an earlier version: on, as the operator asked (2026-10-21).
     resumeAfterLimit: raw.resumeAfterLimit !== false,
+    sessions: mergeSessionMemory(raw.sessions),
+    sessionsNoteSeen: raw.sessionsNoteSeen === true,
     estate: mergeEstate(raw.estate),
   };
 }

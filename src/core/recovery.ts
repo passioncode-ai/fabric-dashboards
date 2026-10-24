@@ -29,11 +29,18 @@ export interface SbStop {
   ready: boolean;
   /** `limit` waits for capacity; `billing` waits for a payment, never resumed here. */
   kind: 'limit' | 'billing';
-  /** `waiting`, `claimed` or `resumed`, as Switchboard keeps it. */
+  /** `waiting` or `claimed`, as Switchboard keeps it; a finished stop (`resumed`, `cancelled`) is never parsed (R1-S2). */
   state: string;
   stoppedAt: number;
   attempt: number;
+  /** When Switchboard will probe it (its `probe_at`, SB-115), in ms; null when it names none (R1-S3). */
+  probeAt: number | null;
+  /** V-1 of FIX-2: the account the session stopped on (recovery.rs `Wait.account`), an id; null when absent. */
+  account: string | null;
 }
+
+/** The stop states that are still open in Switchboard; `resumed` and `cancelled` are finished and listed nowhere. */
+const OPEN_STATES = new Set(['waiting', 'claimed']);
 
 export type SbRecovery = { stops: SbStop[] } | { unavailable: 'old' | 'error'; detail: string };
 
@@ -74,7 +81,8 @@ function failure(r: { code: number | null; stdout: string; stderr: string }): { 
   return { unavailable: old ? 'old' : 'error', detail: text.trim().split('\n').pop()?.slice(0, 200) || `exit ${r.code}` };
 }
 
-/** Every registered stop, as Switchboard reports it; a malformed row is skipped, never guessed at. */
+/** Every open stop (waiting or claimed), as Switchboard reports it; a malformed row is skipped, never guessed at, and a
+ *  finished one (resumed, cancelled) is not a stop any more: one place decides it for the Sessions list and MCP `audit`. */
 export function parseRecovery(stdout: string): SbStop[] | null {
   const data = parseData(stdout);
   if (!data) return null;
@@ -85,15 +93,19 @@ export function parseRecovery(stdout: string): SbStop[] | null {
     const { event, session, directory, provider } = s;
     if (typeof event !== 'string' || !EVENT.test(event) || typeof session !== 'string' || !SESSION.test(session)) continue;
     if (typeof directory !== 'string' || !path.isAbsolute(directory) || (provider !== 'claude' && provider !== 'codex')) continue;
+    const state = typeof s.state === 'string' ? s.state.slice(0, 32) : 'waiting';
+    if (!OPEN_STATES.has(state)) continue;
     const stopped = typeof s.stopped_at === 'number' && Number.isFinite(s.stopped_at) ? s.stopped_at * 1000 : 0;
     out.push({
       event, session, dir: directory, provider,
       candidates: Array.isArray(row.candidates) ? (row.candidates as unknown[]).filter((c): c is string => typeof c === 'string' && /^[A-Za-z0-9-]{1,64}$/.test(c)) : [],
       ready: row.ready === true,
       kind: s.kind === 'billing' ? 'billing' : 'limit',
-      state: typeof s.state === 'string' ? s.state.slice(0, 32) : 'waiting',
+      state,
       stoppedAt: stopped,
       attempt: typeof s.attempt === 'number' ? s.attempt : 1,
+      probeAt: typeof row.probe_at === 'number' && Number.isFinite(row.probe_at) ? row.probe_at * 1000 : null,
+      account: typeof s.account === 'string' && /^[A-Za-z0-9-]{1,64}$/.test(s.account) ? s.account : null,
     });
   }
   return out;
@@ -148,6 +160,21 @@ export function transcriptOf(stop: SbStop, home: string): string | null {
     return null;
   };
   return walk(path.join(home, '.codex', 'sessions'), 3);
+}
+
+/** FD-103: the one Claude Code transcript of `folder` in the person's home written while a session ran (between `from`
+ *  and a minute after `to`), as its session id; null when there is none or more than one (two sessions in one folder:
+ *  never guessed at). Lets Continue resume a hand-over whose session id Switchboard does not report. `quietAfter`
+ *  (R1-U4): a transcript written after it may belong to a session that still runs, so it is never taken. */
+export function transcriptIn(folder: string, home: string, from: number | null, to: number, quietAfter: number | null = null): string | null {
+  const dir = path.join(home, '.claude', 'projects', folder.replace(/[^A-Za-z0-9]/g, '-'));
+  let names: string[] = [];
+  try { names = fs.readdirSync(dir); } catch { return null; }
+  const hits = names.filter((n) => SESSION.test(n.replace(/\.jsonl$/, '')) && n.endsWith('.jsonl')).filter((n) => {
+    const at = writtenAt(path.join(dir, n));
+    return at !== null && (from === null || at >= from) && at <= to + 60_000 && (quietAfter === null || at <= quietAfter);
+  });
+  return hits.length === 1 ? hits[0]!.replace(/\.jsonl$/, '') : null;
 }
 
 /** The console key a continued session gets when no agent's console owns its folder: `handover.rs-<12 hex>`. */

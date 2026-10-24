@@ -1,21 +1,19 @@
 // #region connections-map — docs: docs/ux/scenarios.md#scn-074-see-how-agents-are-wired-and-what-the-auditor-found
 // FD-81: the Connections page. The auditor's summary first (one line, worst first), then the map of how agents are
-// wired (left calls right), then the findings grouped by the agent to fix, each with "Fix with agent" in the coding
+// wired (left calls right), then the findings grouped by the agent to fix, each with "Fix with coding agent" in the coding
 // agent the person picks. Honest state (ADR-0023): an agent that declares nothing has no line, and the page says how
 // many declare; the auditor proposes, a person starts the session.
 import { useEffect, useMemo, useState } from 'react';
 import type { LimitView } from '@passioncode-ai/fabric-service-host/usage';
-import { audit, auditBrief, byAgent, type Finding, type Severity } from '../../core/audit';
+import { audit, auditBrief, byAgent, type Finding } from '../../core/audit';
 import { estateMap, type MapNode } from '../../core/estate-map';
 import type { ConsoleTask, ConsoleInfo } from '../../core/api';
-import type { AppStatus, RecoveryStatus, StopView } from '../../core/types';
-import { api, nameOf, useT } from '../lib';
+import type { AppStatus } from '../../core/types';
+import { api, CONN_MARK as MARK, nameOf, SEV_MARK, useT } from '../lib';
 
-const MARK = { ok: '●', degraded: '▲', down: '■', unknown: '○' } as const;
-const SEV_MARK: Record<Severity, string> = { error: '■', warn: '▲', setup: '◆', info: '○' };
 const COL_W = 196, COL_GAP = 72, NODE_H = 40, ROW_GAP = 14, PAD = 8;
 
-export function ConnectionsMap({ status, open, onAgent, openConsole }: { status: AppStatus; open: (key: string) => void; onAgent: (key: string, task: ConsoleTask) => void; openConsole: (key: string) => void }) {
+export function ConnectionsMap({ status, open, onAgent }: { status: AppStatus; open: (key: string) => void; onAgent: (key: string, task: ConsoleTask) => void }) {
   const { t, reason } = useT();
   const [limits, setLimits] = useState<Record<string, LimitView[]>>({});
   useEffect(() => {
@@ -35,7 +33,7 @@ export function ConnectionsMap({ status, open, onAgent, openConsole }: { status:
   return (
     <div className="cmap">
       <p className="cmap-summary" role="status">
-        {a.findings.length === 0 ? <span className="sev sev-ok"><span aria-hidden="true">●</span> {t('map.allWell')}</span>
+        {a.findings.length === 0 ? <span className="sev sev-ok"><span aria-hidden="true">{SEV_MARK.ok}</span> {t('map.allWell')}</span>
           : (['error', 'warn', 'setup', 'info'] as const).filter((k) => a.counts[k] > 0).map((k) => (
             <span key={k} className={`sev sev-${k}`}><span aria-hidden="true">{SEV_MARK[k]}</span> {t(`map.severity.${k}`)}: <b className="mono">{a.counts[k]}</b></span>
           ))}
@@ -68,60 +66,10 @@ export function ConnectionsMap({ status, open, onAgent, openConsole }: { status:
         </section>
       )}
 
-      {status.recovery && <LimitStops recovery={status.recovery} openConsole={openConsole} />}
     </div>
   );
 }
 
-// #region limit-recovery — docs: docs/ux/scenarios.md#scn-075-a-session-stopped-on-a-limit-continues-by-itself
-/** FD-83: the coding sessions Switchboard holds as stopped on a usage limit: the ones continued here (with Open) and
- *  the ones left for the person, each with why. Nothing when there is none and nothing went wrong reading them. */
-function LimitStops({ recovery, openConsole }: { recovery: RecoveryStatus; openConsole: (key: string) => void }) {
-  const { t } = useT();
-  const stops = [...recovery.stops].sort((a, b) => rank(a) - rank(b) || b.stoppedAt - a.stoppedAt);
-  if (!stops.length && (!recovery.unavailable || recovery.unavailable === 'absent')) return null;
-  const folder = (dir: string) => dir.split(/[\\/]/).filter(Boolean).pop() ?? dir;
-  return (
-    <section className="cmap-section" aria-labelledby="cmap-stops">
-      <h2 id="cmap-stops">{t('stops.title')} <span className="count">{stops.length}</span></h2>
-      <p className="meta">{t(recovery.on ? 'stops.on' : 'stops.off')}</p>
-      {recovery.unavailable && recovery.unavailable !== 'absent' && <p className="meta" role="status">{t(`stops.unavailable.${recovery.unavailable}`)}</p>}
-      {stops.length > 0 && (
-        <ul className="audit-list">
-          {stops.map((s) => (
-            <li key={s.event} className={`audit-group sev-edge-${s.verdict === 'failed' ? 'error' : 'info'}`}>
-              <div className="audit-head">
-                <span className="audit-name">{folder(s.dir)}</span>
-                <span className="meta mono" title={s.dir}>{s.provider === 'codex' ? 'Codex' : 'Claude Code'} · {t('stops.since', { when: ago(s.stoppedAt, t) })}{s.attempt > 1 ? ` · ${t('stops.attempt', { n: s.attempt })}` : ''}</span>
-                <span className="spacer" />
-                {s.key && <button className="btn btn-sm" onClick={() => openConsole(s.key!)}>{t('stops.open')}</button>}
-              </div>
-              <ul className="audit-findings">
-                <li className={`sev sev-${STOP_SEV[s.verdict]}`}>
-                  <span aria-hidden="true">{STOP_MARK[STOP_SEV[s.verdict]]}</span>
-                  <span className="audit-text">{t(`stops.verdict.${s.verdict}`)}</span>
-                </li>
-              </ul>
-            </li>
-          ))}
-        </ul>
-      )}
-    </section>
-  );
-}
-
-const RANK: Record<StopView['verdict'], number> = { failed: 0, resumed: 1, resume: 2, open: 3, waiting: 4, claimed: 5, billing: 6, 'no-folder': 7, 'no-transcript': 7, old: 8 };
-const rank = (s: StopView) => RANK[s.verdict];
-const STOP_SEV: Record<StopView['verdict'], 'ok' | 'error' | 'setup' | 'info'> = { failed: 'error', resumed: 'ok', resume: 'info', open: 'setup', waiting: 'info', claimed: 'info', billing: 'setup', 'no-folder': 'info', 'no-transcript': 'info', old: 'setup' };
-const STOP_MARK = { ok: '●', error: '■', setup: '◆', info: '○' } as const;
-
-function ago(at: number, t: (code: string, params?: Record<string, string | number>) => string): string {
-  const minutes = Math.max(0, Math.round((Date.now() - at) / 60_000));
-  if (minutes < 60) return t('stops.minutes', { n: minutes });
-  const hours = Math.round(minutes / 60);
-  return hours < 48 ? t('stops.hours', { n: hours }) : t('stops.days', { n: Math.round(hours / 24) });
-}
-// #endregion limit-recovery
 
 function AuditGroup({ serviceKey, name, findings, text, open, onAgent }: { serviceKey: string; name: string; findings: Finding[]; text: (f: Finding) => string; open: (key: string) => void; onAgent: (key: string, task: ConsoleTask) => void }) {
   const { t } = useT();
@@ -190,7 +138,7 @@ function Graph({ nodes, edges, columns, rows, open, t }: { nodes: MapNode[]; edg
           const bend = Math.max(24, (x2 - x1) / 2);
           return (
             <path key={`${e.from}>${e.to}`} className={`edge edge-${e.state}`} d={`M${x1} ${y1} C${x1 + bend} ${y1} ${x2 - bend} ${y2} ${x2} ${y2}`} markerEnd={`url(#arrow-${e.state})`}>
-              <title>{e.capability ?? ''}</title>
+              <title>{e.capability ? `${e.capability}: ${t(`conn.state.${e.state}`)}` : t(`conn.state.${e.state}`)}</title>
             </path>
           );
         })}
