@@ -2,23 +2,20 @@
 import { trayIcon } from '../core/platform';
 import { Menu, nativeImage, Tray, type MenuItemConstructorOptions } from 'electron';
 import path from 'node:path';
-import { displayName } from '../core/names';
 import { t, type Lang } from '../core/i18n';
-import { attentionRank } from '@passioncode-ai/fabric-service-host/state';
+import { trayMenuModel, type TrayItem } from '../core/tray-model';
+import type { LimitView } from '@passioncode-ai/fabric-service-host/usage';
 import type { ServiceSnapshot, ServiceState } from '../core/types';
 
 export type TrayLevel = 'ok' | 'degraded' | 'problem';
 
-export function trayLevel(services: ServiceSnapshot[]): TrayLevel {
+export function trayLevel(services: ServiceSnapshot[], limits: Readonly<Record<string, readonly LimitView[]>> = {}): TrayLevel {
   const bad: ServiceState[] = ['down', 'duplicate', 'foreign', 'conflict', 'invalid'];
-  if (services.some((s) => bad.includes(s.state))) return 'problem';
+  // UX-06: a limit that stopped work is a problem, as on Overview.
+  if (services.some((s) => bad.includes(s.state) || limits[s.key]?.some((l) => l.state === 'tripped'))) return 'problem';
   if (services.some((s) => s.state === 'degraded' || s.state === 'starting' || s.state === 'stopping')) return 'degraded';
   return 'ok';
 }
-
-const MARK: Record<ServiceState, string> = {
-  ready: '●', degraded: '▲', duplicate: '▲', down: '✕', foreign: '✕', conflict: '✕', invalid: '✕', stopped: '○', starting: '◌', stopping: '◌',
-};
 
 export interface TrayActions {
   open(key?: string): void;
@@ -46,31 +43,22 @@ export class AppTray {
     this.tray.setToolTip('Fabric Dashboards');
   }
 
-  update(services: ServiceSnapshot[]): void {
+  update(services: ServiceSnapshot[], limits: Readonly<Record<string, readonly LimitView[]>> = {}): void {
     const lang = this.lang();
-    const level = trayLevel(services);
-    const signature = JSON.stringify([lang, level, this.actions.paused(), services.map((s) => [s.key, s.state, s.descriptor?.name, attentionRank(s.state, s.wellKnown)])]);
+    const level = trayLevel(services, limits);
+    // W2 (UX-04): the headline and the first items are the attention queue Overview, the sidebar and the Dock count.
+    const model = trayMenuModel(services, { now: Date.now(), limits, lang });
+    const signature = JSON.stringify([lang, level, this.actions.paused(), model]);
     if (signature === this.shown) return;
     this.shown = signature;
     this.tray.setImage(this.icons[level]);
-    const problems = services
-      .map((s) => ({ s, rank: attentionRank(s.state, s.wellKnown) }))
-      .filter((x) => x.rank !== null && x.rank < 6)
-      .sort((a, b) => a.rank! - b.rank!);
-    // U-7: the name a person reads elsewhere, instance included, so two instances never read alike.
-    const item = (s: ServiceSnapshot): MenuItemConstructorOptions => ({
-      label: `${MARK[s.state]}  ${t(lang, 'join.nameState', { name: s.descriptor ? displayName(s.descriptor.name, s.descriptor.instance) : s.key, state: t(lang, `state.${s.state}`) })}`,
-      click: () => this.actions.open(s.key),
-    });
-    // "All ready" only when it is true: a degraded, stopped or starting service is not ready.
-    const notReady = services.filter((s) => s.state !== 'ready').length;
-    const headline = problems.length ? t(lang, 'tray.problems', { count: problems.length })
-      : notReady ? t(lang, 'tray.notAllReady', { ready: services.length - notReady, total: services.length }) : t(lang, 'tray.allReady');
+    const item = (i: TrayItem): MenuItemConstructorOptions => ({ label: i.label, click: () => this.actions.open(i.key) });
+    const headline = model.headline;
     const template: MenuItemConstructorOptions[] = [
       { label: headline, enabled: false },
-      ...problems.map((p) => item(p.s)),
+      ...model.attention.map(item),
       { type: 'separator' },
-      ...services.filter((s) => !problems.some((p) => p.s.key === s.key)).map(item),
+      ...model.rest.map(item),
       { type: 'separator' },
       { label: t(lang, 'tray.open'), click: () => this.actions.open() },
       this.actions.paused()

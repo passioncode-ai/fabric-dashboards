@@ -9,8 +9,9 @@ import { Settings } from './components/Settings';
 import { Spend } from './components/Spend';
 import { ConnectionsMap } from './components/ConnectionsMap';
 import { audit } from '../core/audit';
+import { attentionQueue, urgent } from '../core/attention';
 import { SETUP_KEY } from '../core/offers';
-import { sinceLastVisit, type SinceLastVisit } from '../core/visit';
+import { revisitDue, sinceLastVisit, type SinceLastVisit } from '../core/visit';
 import type { ConsoleTask, Rect } from '../core/api';
 import mark from './brand/dashboards-mark.svg';
 import { api, GLYPH, Icon, LangContext, nameOf, Spinner, useT } from './lib';
@@ -107,9 +108,12 @@ function Shell({ status, route, setRoute, stopKey, setStopKey, activityFilter, s
     if (action === 'update') open(key, undefined, 'health');
     else void api().control(key, action);
   };
-  const problems = status.services.filter((s) => PROBLEM.has(s.state)).length;
-  // FD-81: the auditor runs with every status push; the nav carries what does not work, the page the rest.
-  const auditErrors = audit(status.services).counts.error;
+  // W2 (UX-04): the Overview badge counts the queue Needs attention lists, the tray and the Dock count; red when
+  // something does not work.
+  const queue = attentionQueue(status.services, { now: Date.now(), limits: status.limits });
+  // FD-81: the auditor runs with every status push; the nav carries what does not work, the page the rest. UX-05: with
+  // the limits the main process holds, as the page reads them.
+  const auditErrors = audit(status.services, status.limits ?? {}).counts.error;
   const current = route.page === 'service' ? status.services.find((s) => s.key === route.key) : undefined;
   const handover = route.page === 'handover' ? (status.handovers ?? []).find((h) => h.key === route.key) : undefined;
   const stopping = stopKey ? status.services.find((s) => s.key === stopKey) : undefined;
@@ -167,6 +171,12 @@ function Shell({ status, route, setRoute, stopKey, setStopKey, activityFilter, s
     setAgentTask({ key, mode: 'continue', nonce: Date.now() });
   };
   const [visit, setVisit] = useState<SinceLastVisit | null>(null);
+  const startVisit = (s: AppSettings) => {
+    setVisit(sinceLastVisit({ services: status.services, lastVisitAt: s.lastVisitAt, known: s.knownServices, consoles: s.consoles, lastService: s.lastService }));
+    void api().updateSettings({ lastVisitAt: new Date().toISOString(), knownServices: status.services.map((x) => x.key) }).catch(() => undefined);
+  };
+  // The setup card offers Start; the empty state below it then does not offer it again.
+  const [setupCard, setSetupCard] = useState(false);
   // FD-39 SCN-058: the Setup console from the card or from Settings; Continue resumes a setup stopped midway.
   const openSetup = (mode: 'new' | 'continue') => {
     void api().updateSettings({ setupDone: false }).catch(() => undefined);
@@ -184,12 +194,19 @@ function Shell({ status, route, setRoute, stopKey, setStopKey, activityFilter, s
     setupDecided.current = true;
     void Promise.all([api().settings(), api().setupState()]).then(([s, st]) => {
       if (!s.setupDone && status.services.length === 0 && !(st.mcp && st.skills && st.firstAgent)) setSetupOpen(true);
-      // SCN-059: what changed since the previous launch, computed once; this launch becomes the next one's baseline.
-      setVisit(sinceLastVisit({ services: status.services, lastVisitAt: s.lastVisitAt, known: s.knownServices, consoles: s.consoles, lastService: s.lastService }));
-      void api().updateSettings({ lastVisitAt: new Date().toISOString(), knownServices: status.services.map((x) => x.key) }).catch(() => undefined);
+      // SCN-059: what changed since the previous launch; this launch becomes the next one's baseline.
+      startVisit(s);
     }).catch(() => undefined);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status.scanning]);
+  // UX-08: the app lives for days in the menu bar; a window shown again after an hour hidden is a new visit.
+  const visitShown = useRef<string | null>(status.shown?.at ?? null);
+  useEffect(() => {
+    if (!setupDecided.current || !revisitDue(visitShown.current, status.shown)) return;
+    visitShown.current = status.shown!.at;
+    void api().settings().then(startVisit).catch(() => undefined);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status.shown?.at]);
   const handToAgent = (key: string, task: ConsoleTask) => {
     setRoute({ page: 'service', key });
     if (!layout.console.open) changeLayout({ console: { open: true } });
@@ -248,7 +265,7 @@ function Shell({ status, route, setRoute, stopKey, setStopKey, activityFilter, s
         <div className="nav">
           <button className="nav-item" aria-current={route.page === 'overview' ? 'page' : undefined} title={rail ? t('nav.overview') : undefined} onClick={() => setRoute({ page: 'overview' })}>
             <Icon name="overview" /><span className="nav-label">{t('nav.overview')}</span>
-            {problems > 0 && <span className="count alert">{problems}</span>}
+            {queue.length > 0 && <span className={`count${queue.some(urgent) ? ' alert' : ''}`}>{queue.length}</span>}
           </button>
           <button className="nav-item" aria-current={route.page === 'activity' ? 'page' : undefined} title={rail ? t('nav.activity') : undefined} onClick={() => setRoute({ page: 'activity' })}>
             <Icon name="activity" /><span className="nav-label">{t('nav.activity')}</span>
@@ -305,9 +322,9 @@ function Shell({ status, route, setRoute, stopKey, setStopKey, activityFilter, s
         </div>
         <div className="sidebar-footer">
           {!rail && <UpdateLine status={status} />}
+          {rail && <RailUpdate status={status} goSettings={() => setRoute({ page: 'settings' })} />}
           <button className="nav-item" aria-current={route.page === 'settings' ? 'page' : undefined} title={rail ? t('nav.settings') : undefined} onClick={() => setRoute({ page: 'settings' })}>
             <Icon name="settings" /><span className="nav-label">{t('nav.settings')}</span>
-            {rail && ['ready', 'held', 'misplaced', 'error'].includes(status.update.state) && <span className="count alert" aria-hidden="true">!</span>}
           </button>
           {/* ADR-0017 (SCN-047): the list folds into a rail and back; remembered. */}
           <button className="nav-item nav-fold" aria-expanded={!rail} title={t(rail ? 'sidebar.expand' : 'sidebar.collapse')} onClick={() => changeLayout({ sidebar: rail ? 'expanded' : 'collapsed' })}>
@@ -338,8 +355,8 @@ function Shell({ status, route, setRoute, stopKey, setStopKey, activityFilter, s
                 <h1>{t(route.page === 'activity' ? 'activity.title' : route.page === 'spend' ? 'spend.title' : route.page === 'map' ? 'map.title' : route.page === 'settings' ? 'settings.title' : 'overview.title')}</h1>
                 {route.page === 'overview' && count > 0 && <span className="meta">{count === 1 ? t('overview.count.one') : t('overview.count', { count })}</span>}
               </div>
-              {route.page === 'overview' && <SetupCard onOpen={openSetup} consoleOpen={setupOpen} />}
-              {route.page === 'overview' && <Overview status={status} products={products} open={open} act={act} agent={handToAgent} onSetup={() => openSetup('new')} visit={visit} onContinue={continueWith} goSpend={() => setRoute({ page: 'spend' })} list={layout.list} onHiddenOpen={(o) => changeLayout({ list: { hiddenOpen: o } })} />}
+              {route.page === 'overview' && <SetupCard onOpen={openSetup} consoleOpen={setupOpen} onShown={setSetupCard} />}
+              {route.page === 'overview' && <Overview status={status} products={products} open={open} act={act} agent={handToAgent} onSetup={() => openSetup('new')} setupCard={setupCard} visit={visit} onDismissVisit={() => setVisit(null)} onContinue={continueWith} goSpend={() => setRoute({ page: 'spend' })} list={layout.list} onHiddenOpen={(o) => changeLayout({ list: { hiddenOpen: o } })} />}
               {route.page === 'activity' && <Activity status={status} openAt={open} filter={activityFilter} setFilter={setActivityFilter} />}
               {route.page === 'spend' && <Spend status={status} />}
               {route.page === 'map' && <ConnectionsMap status={status} open={(key) => open(key, undefined, 'connections')} onAgent={handToAgent} openConsole={(key) => (key.startsWith('handover.') ? setRoute({ page: 'handover', key }) : open(key))} />}
@@ -450,6 +467,25 @@ function UpdateLine({ status }: { status: AppStatus }) {
   if (u.state === 'misplaced') return <div className="row"><span className="meta state-down">{t('update.misplaced')}</span><button className="btn" onClick={() => void api().moveToApplications()}>{t('move.confirm')}</button></div>;
   if (u.state === 'error') return <div className="row"><span className="meta state-down">{t('update.error', { error: u.error ?? '' })}</span><button className="btn" onClick={() => void api().checkForUpdates()}>{t('update.retry')}</button></div>;
   return null;
+}
+
+/** W2: the folded rail keeps the app's own update in sight: an entry of its own, named by its title and its
+ *  accessible name, that restarts into a ready update or opens Settings where a moved app or an error is explained. */
+function RailUpdate({ status, goSettings }: { status: AppStatus; goSettings: () => void }) {
+  const { t } = useT();
+  const u = status.update;
+  if (!['ready', 'held', 'misplaced', 'error'].includes(u.state)) return null;
+  const ready = u.state === 'ready' || u.state === 'held';
+  const label = u.state === 'held' ? t('update.held', { version: u.version ?? '' })
+    : u.state === 'ready' ? (u.version ? t('update.ready', { version: u.version }) : t('update.readyUnnamed'))
+    : u.state === 'misplaced' ? t('update.misplaced') : t('update.error', { error: u.error ?? '' });
+  const action = ready ? (u.state === 'held' ? t('update.installNow') : t('update.restart')) : t('nav.settings');
+  return (
+    <button className="nav-item nav-update" title={`${label} ${action}`} onClick={() => (ready ? void api().restartToUpdate() : goSettings())}>
+      <Icon name="update" /><span className="nav-label">{`${label}. ${action}`}</span>
+      <span className={`count${ready ? '' : ' alert'}`} aria-hidden="true">{ready ? '↑' : '!'}</span>
+    </button>
+  );
 }
 
 /** Two letters for a rail entry: the first letters of the first two words, else the first two letters. */

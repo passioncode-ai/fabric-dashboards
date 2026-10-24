@@ -201,7 +201,7 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **Entry point:** Overview, the first page of the Agents mode (the sidebar switch's "Agents", or ⌘1; SCN-077)
 - **Preconditions:** at least one service is down, degraded, duplicated, foreign, conflicting, invalid, has an attention tile, or has an update
 - **Steps:**
-  1. User opens Overview -> system shows Needs attention above the cards, most severe first: one single-line row per problem with its state, the name, the reason cut to the line ("Not answering since 17:02.") and its one action (Restart for a local service that is down or runs twice, "Update to 0.2.1" when the service declares an update command, Open otherwise; Logs after a failed action); while the action runs the row shows its progress ("Restarting…"); more than three rows wait behind "Show all" (SCN-042)
+  1. User opens Overview -> system shows Needs attention right under the strip (above "Since you were last here" and the cards), most severe first: one single-line row per problem with its state, the name, the reason cut to the line ("Not answering since 17:02.") and its actions in one cell (Restart for a local service that is down or runs twice, "Update to 0.2.1" when the service declares an update command, Open otherwise; Logs after a failed action; "Fix with coding agent" after the first action), the reason keeping a floor of 12 characters; an agent whose spending limit stopped work is a row too ("Its spending limit daily stopped work.", Open Spend), after the agents that do not answer; while the action runs the row shows its progress ("Restarting…"); a folded row of agents down for one reason offers "Restart 3"; more than three rows wait behind "Show all" (SCN-042). The heading's count is the one count of what needs attention: the Overview badge in the sidebar (red when something does not work), the tray's "Needs attention: N" and the Dock badge show the same number (W2, UX-04)
   2. User chooses the action -> system performs it (SCN-007, SCN-011, SCN-021); the row leaves when the problem clears, and a failed action keeps its row, with the failure sentence and Logs, for 30 minutes
 - **Expected result:** problems are the first thing read, each with its next action
 - **Alt paths:** a degraded service lists its reasons with Open, when the fix is inside the service ("Collector: last ran 3 days ago"); an online service never offers Restart: its platform supervises it; several agents in the same state for the same reason (one hub down behind them) -> one line, "3 agents: A, B, C" with the reason once, each name opening its agent (FD-86); a coding session that needs the person is not listed here: from 0.8.0 the Sessions switch counts it (SCN-077, SCN-082)
@@ -209,7 +209,7 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **States covered:** error, success
 - **Errors & recovery:** the action fails -> the row keeps its place with the failure sentence and Logs
 - **Status:** validated
-- **Coverage:** packages/service-host/src/state.ts (attentionRank), src/core/attention.ts (groupAttention, test/attention.test.ts), src/renderer/components/Overview.tsx, test/e2e/overview-settings.test.ts
+- **Coverage:** packages/service-host/src/state.ts (attentionRank), src/core/attention.ts (groupAttention, test/attention.test.ts; attentionQueue, urgent, badgeText, test/attention-queue.test.ts), src/core/spend.ts (limitsNeedingPerson), src/renderer/components/Overview.tsx (test/attention-screens.test.ts), test/e2e/overview-settings.test.ts
 - **Product:** unobserved
 
 ## control
@@ -512,7 +512,7 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **Persona:** P-01
 - **Feature:** updates
 - **Traces:** ST-008 (JTBD-01, JRN-01/#6)
-- **Entry point:** Needs attention row or service view header showing "Update to 0.2.1" (a degraded service too: the update may be the fix)
+- **Entry point:** Needs attention row, the service view's one-line bar or its full card showing "Update to 0.2.1" (a degraded service too: the update may be the fix)
 - **Preconditions:** the service reports an available version and declares an update command
 - **Steps:**
   1. User chooses Update -> system runs the command (no shell) and shows on Health "Updating…", then "Update finished with exit code <n>." and its output; from Needs attention it opens the service on Health first; a command that cannot start -> "Update could not run: <reason>"
@@ -577,7 +577,7 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **Preconditions:** app running (window may be closed; while it is closed the app has no Dock icon and lives in the menu bar only)
 - **Steps:**
   1. User looks at the icon -> it shows one of three states: calm (nothing degraded, starting or wrong; a service you turned off keeps it calm), something degraded or starting, something down or wrong; the Dock icon, while shown, carries "!" when a service is down or wrong
-  2. User clicks it -> the menu starts with a line "Needs attention: 2", "Ready: 5 of 7" or "All services ready", lists problems first, then every service with its state and instance ("● Growth · projection — Ready"); items Open Fabric Dashboards, Pause notifications for 1 hour (Resume notifications while paused; the menu updates when a pause set here or in Settings ends), the line "Quitting Dashboards does not stop your services.", Quit
+  2. User clicks it -> the menu starts with a line "Needs attention: 2" (the same count as Overview's Needs attention, the sidebar badge and the Dock), "Ready: 5 of 7" or "All services ready", lists what needs attention first ("Growth: spending limit stopped work", "Relay: update 2.0.0 available"), then every service with its state and instance ("● Growth · projection — Ready"); items Open Fabric Dashboards, Pause notifications for 1 hour (Resume notifications while paused; the menu updates when a pause set here or in Settings ends), the line "Quitting Dashboards does not stop your services.", Quit
   3. User chooses a service -> the window opens at its view, and the Dock icon comes back with it
 - **Expected result:** the state is known without opening the window
 - **UI elements:** menu bar icon, tray menu, service items, Pause notifications item; from 0.8.0, while a coding session runs or waits for the person, a line "Sessions: running N, waiting for you M" under the headline that opens the Sessions mode (SCN-085)
@@ -691,7 +691,7 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **Steps:**
   1. User chooses Open dashboard in Fabric -> macOS hands the link to Fabric Dashboards, running or not (a running app gets it from the second process, which quits)
   2. System checks the key against the installed descriptors -> the window comes forward on that service's view, its dashboard open and signed in as in SCN-014
-  3. The service is stopped -> the same view opens, the state reads Off and Start is offered (SCN-010)
+  3. The service is stopped -> the same view opens, the state reads Off and Start is offered in the bar and in the Dashboard tab ("Stopped by you. It stays stopped until you start it."); a starting one says "Waiting for the first answer…", one that does not answer says why with Restart and Logs (SCN-010, UX-12)
 - **Expected result:** the service is watched here; Fabric never becomes a second dashboard host
 - **Alt paths:** `?path=/…` opens one page of the service, as in SCN-026; Fabric Dashboards is not installed -> nothing reaches the app, and Fabric's card says so and links to the download (Fabric's own scenario)
 - **UI elements:** service view, state badge, Start, embedded dashboard
@@ -955,7 +955,7 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **Preconditions:** services are installed; some publish a usage report
 - **Steps:**
   1. User opens Overview -> a strip of five cells, each a label over its number (COPY-04): Ready (agents ready out of all agents), instances not answering or in conflict (two copies, wrong program and invalid included), need attention, spent today, spent in 30 days; the spend is read on arrival and every minute while Overview shows, and labels take two lines before an ellipsis
-  2. User clicks a spend cell -> Spend opens (SCN-036)
+  2. User clicks a spend cell -> Spend opens (SCN-036); clicks the not-answering or need-attention cell -> Overview moves to Needs attention; a cell that opens something carries an arrow after its label
 - **Expected result:** the state of the whole estate and its cost is read before any card
 - **Alt paths:** no agent reports or fails to report spend -> the spend cells read "—" and do nothing; while the first read runs -> a spinner; some calls unpriced -> «≥ $x»; everything unpriced -> "unknown"; under a cent -> "<$0.01"; an agent failed to report -> the cells open Spend, where it is listed
 - **UI elements:** status strip
@@ -997,7 +997,7 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
   2. User presses "Show details" -> the full card opens under the bar: summary, version, build, pid, port, uptime, Tools, reasons, the last action and the actions (Restart, Stop, Update, Doctor, Show data folder, Show file); the control reads "Hide details"
   3. User presses "Hide details" -> back to one line; the choice holds for every service and after a relaunch
 - **Expected result:** the embedded dashboard takes the window; everything in the header is one press away
-- **Alt paths:** the service is not ready, or its last action failed within half an hour -> the bar shows one chip with the first reason ("Not answering since 10:42", "Restart did not bring it back"); pressing the chip opens the full card; an action is running -> its spinner and label ("Restarting…") sit in the bar
+- **Alt paths:** the service is not ready, or its last action failed within half an hour -> the bar shows one chip with the first reason ("Not answering since 10:42", "Restart did not bring it back"); pressing the chip opens the full card for this visit only, never changing the remembered choice (UX-14); the state's own action sits in the bar after the chip, before "Fix": Restart when it does not answer or runs twice, Start when it is off, "Update to <v>" when an update is available, even with nothing wrong (UX-01, UX-03); an action is running -> its spinner and label ("Restarting…") sit in the bar
 - **UI elements:** compact bar, state badge, problem chip, tabs, "Show details" / "Hide details", full card
 - **States covered:** success, error, loading
 - **Errors & recovery:** every error the full card shows (SCN-007, SCN-008, SCN-011, SCN-012, SCN-013, SCN-021) is reachable from the chip
@@ -1016,7 +1016,7 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
   2. User points at an entry -> its name (and state) shows as a tooltip; a screen reader reads the same
   3. User presses "Expand sidebar" -> the full list returns; the choice holds after a relaunch
 - **Expected result:** the dashboard gains the sidebar's width, and every page and agent stays one press away
-- **Alt paths:** an agent needs attention -> its rail entry carries the same mark as in the full list
+- **Alt paths:** an agent needs attention -> its rail entry carries the same mark as in the full list; the app's own update is ready, held, or cannot install -> the rail shows an entry of its own with an arrow (or "!"), named by its tooltip, that restarts into the update or opens Settings
 - **UI elements:** rail, nav icons, agent entries with state marks and initials, tooltips, "Collapse sidebar" / "Expand sidebar", View menu item
 - **States covered:** success
 - **Errors & recovery:** n/a — a layout choice that never fails
@@ -1521,7 +1521,7 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
   2. User sees the agents they worked with -> each offers Continue (the last console session, resumed with fresh context)
   3. User opens one -> the agent they had selected last time is selected
 - **Expected result:** the person starts from what needs them, not from the whole list
-- **Alt paths:** nothing changed -> the section says so in one line and Overview reads as before
+- **Alt paths:** nothing changed -> the section says so in one line and Overview reads as before; Dismiss puts the section away; the window shown again after an hour or more hidden (the app lives in the menu bar for days) -> the section is computed again from the previous show (UX-08)
 - **UI elements:** "Since you were last here" section, Continue buttons
 - **States covered:** success, empty
 - **Errors & recovery:** n/a

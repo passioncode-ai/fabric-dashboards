@@ -42,4 +42,16 @@ export function sinceLastVisit(o: {
     continueKeys,
   };
 }
+
+/** UX-08: the window shown again after this long hidden is a new visit: "Since you were last here" is computed
+ *  again and this show becomes the next one's baseline. Shorter looks away keep the section as it was. */
+export const VISIT_GAP_MS = 60 * 60_000;
+
+/** When the window was last shown and how long it had been hidden before (AppStatus.shown). */
+export interface WindowShown { at: string; afterHiddenMs: number }
+
+/** True once per show that ends a hidden gap of VISIT_GAP_MS or more; `handled` is the show already handled. */
+export function revisitDue(handled: string | null, shown: WindowShown | undefined): boolean {
+  return Boolean(shown && shown.at !== handled && shown.afterHiddenMs >= VISIT_GAP_MS);
+}
 // #endregion since-last-visit

@@ -7,6 +7,7 @@ import { commandRan, commandReason } from '../../core/outcome';
 import { problemOf } from '../../core/focus';
 import { api, GLYPH, Icon, nameOf, NEWS_MS, portOf, shortBuild, Spinner, StateBadge, useExpiry, useT } from '../lib';
 import { Feed } from './Activity';
+import { CompactActions, FixButton, UnavailablePane } from './ServiceActions';
 import { Connections } from './Connections';
 import { Load } from './Load';
 import { subscriptionCost } from './Spend';
@@ -69,6 +70,11 @@ export function ServiceView({ s, all, members, open, link, nonce, tab: askedTab,
   const appliedLink = useRef<string | null>(null);
   const now = useExpiry([s.lastAction?.at]);
   const problem = problemOf(s, now); // ADR-0017: the compact bar never hides a problem
+  // UX-14: the problem chip opens the full card for this visit only; the remembered choice is Show/Hide details'.
+  const [peek, setPeek] = useState(false);
+  const cardShown = headerFull || peek;
+  const toggleDetails = () => { setPeek(false); if (headerFull || !peek) onToggleHeader(); };
+  const control = (action: 'restart' | 'start') => void api().control(s.key, action);
   const wk = s.wellKnown;
   const managed = s.launchd.managed && (s.launchd.by ?? 'launchd') === 'launchd'; // ADR-0019 §7: the monitor decides — launchd is macOS's; systemd is read (FD-55), never driven
   const running = ['ready', 'degraded', 'duplicate'].includes(s.state);
@@ -99,20 +105,19 @@ export function ServiceView({ s, all, members, open, link, nonce, tab: askedTab,
     <div className="svc">
       {members.length > 1 && <InstanceSwitch current={s} members={members} open={open} />}
       {/* ADR-0017: one line by default — state, name, the first problem, the tabs — and the full card on demand. */}
-      <header className={`svc-head${headerFull ? ' full' : ''}`} data-drawer-top="">
+      <header className={`svc-head${cardShown ? ' full' : ''}`} data-drawer-top="">
         <div className="svc-bar">
           <h1 id="svc-title" tabIndex={-1} title={s.descriptor?.summary || undefined}>{nameOf(s)}</h1>
           <StateBadge state={s.state} />
           {s.busy && <span className="row meta" role="status"><Spinner /> {t(`busy.${s.busy}`)}</span>}
-          {!headerFull && problem && (
-            <button className="chip chip-problem" title={reason(problem)} aria-label={t('svc.problem', { reason: reason(problem) })} onClick={onToggleHeader}>
+          {!cardShown && problem && (
+            <button className="chip chip-problem" title={reason(problem)} aria-label={t('svc.problem', { reason: reason(problem) })} onClick={() => setPeek(true)}>
               <span className="chip-text">{reason(problem)}</span>
             </button>
           )}
-          {/* FD-39 SCN-054: the problem and its one-click fix sit together, even in the one-line header. */}
-          {!headerFull && problem && onAgent && offersFix(s) && !s.busy && (
-            <button className="btn btn-sm" title={t('agent.fix')} aria-label={t('agent.fix')} onClick={() => onAgent(s.key, { kind: 'fix' })}>{t('agent.fixShort')}</button>
-          )}
+          {/* UX-01, UX-03 (SCN-054): the state's own action first (Restart, Start, "Update to <v>"), then the one-click
+              fix beside its problem, even in the one-line header. */}
+          {!cardShown && <CompactActions s={s} problem={Boolean(problem)} act={control} runUpdate={() => void run('update')} onAgent={onAgent} updateFailed={updateFailure !== null} />}
           <div className="tabs" role="tablist" aria-label={nameOf(s)} onKeyDown={(e) => {
             // U-14: arrow keys move between tabs, as a tab list should.
             if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
@@ -130,11 +135,11 @@ export function ServiceView({ s, all, members, open, link, nonce, tab: askedTab,
           <button className="icon-btn" aria-pressed={consoleOpen} title={t(consoleOpen ? 'console.hide' : 'console.show')} onClick={onToggleConsole}>
             <Icon name="console" /><span className="icon-btn-label">{t('console.show')}</span>
           </button>
-          <button className="icon-btn" aria-expanded={headerFull} aria-controls="svc-card" title={t(headerFull ? 'svc.details.hide' : 'svc.details.show')} onClick={onToggleHeader}>
-            <Icon name={headerFull ? 'chevronUp' : 'chevronDown'} /><span className="visually-hidden">{t(headerFull ? 'svc.details.hide' : 'svc.details.show')}</span>
+          <button className="icon-btn" aria-expanded={cardShown} aria-controls="svc-card" title={t(cardShown ? 'svc.details.hide' : 'svc.details.show')} onClick={toggleDetails}>
+            <Icon name={cardShown ? 'chevronUp' : 'chevronDown'} /><span className="visually-hidden">{t(cardShown ? 'svc.details.hide' : 'svc.details.show')}</span>
           </button>
         </div>
-        {headerFull && (
+        {cardShown && (
           <div className="svc-card" id="svc-card">
             {s.descriptor?.summary && <p className="svc-summary">{s.descriptor.summary}</p>}
             <div className="facts">
@@ -163,7 +168,7 @@ export function ServiceView({ s, all, members, open, link, nonce, tab: askedTab,
                 <button className="btn" disabled={Boolean(s.busy)} onClick={() => void run('update')}>{t('action.update', { version: wk.update.available })}</button>
               )}
               {s.descriptor?.commands?.doctor && <button className="btn" disabled={Boolean(s.busy)} onClick={() => void run('doctor')}>{t('action.doctor')}</button>}
-              {onAgent && offersFix(s) && <button className="btn" onClick={() => onAgent(s.key, { kind: 'fix' })}>{t('agent.fix')}</button>}
+              {onAgent && offersFix(s) && <FixButton s={s} onFix={() => onAgent(s.key, { kind: 'fix' })} />}
               {onAgent && offersAgentUpdate(s, updateFailure !== null) && <button className="btn" onClick={() => onAgent(s.key, { kind: 'update', ...(updateFailure ? { output: updateFailure } : {}) })}>{t('agent.update')}</button>}
               {s.descriptor?.paths && <button className="btn" onClick={() => show(s.descriptor!.paths!.data)}>{t('action.showData')}</button>}
               <button className="btn" onClick={() => show(s.descriptorPath)}>{t('action.showFile')}</button>
@@ -174,10 +179,10 @@ export function ServiceView({ s, all, members, open, link, nonce, tab: askedTab,
             {pathError && <p className="notice error" role="alert">{pathError}</p>}
           </div>
         )}
-        {!headerFull && pathError && <p className="notice error" role="alert">{pathError}</p>}
+        {!cardShown && pathError && <p className="notice error" role="alert">{pathError}</p>}
       </header>
       <div className="svc-body" role="tabpanel" id={`panel-${tab}`} aria-labelledby={`tab-${tab}`}>
-        {tab === 'dashboard' && <DashboardHost s={s} link={link} nonce={nonce} hidden={overlayOpen} applied={appliedLink} />}
+        {tab === 'dashboard' && <DashboardHost s={s} link={link} nonce={nonce} hidden={overlayOpen} applied={appliedLink} act={control} openLogs={tabs.includes('logs') ? () => setTab('logs') : undefined} />}
         {tab === 'activity' && <div className="pane"><ServiceActivity serviceKey={s.key} tick={`${activityRev ?? ''}|${s.latestEvent?.id ?? ''}`} /></div>}
         {tab === 'connections' && <div className="pane"><Connections s={s} all={all} open={(key) => open(key, undefined, 'connections')} /></div>}
         {tab === 'load' && tabs.includes('load') && <div className="pane"><Load s={s} /></div>}
@@ -188,7 +193,7 @@ export function ServiceView({ s, all, members, open, link, nonce, tab: askedTab,
   );
 }
 
-function DashboardHost({ s, link, nonce, hidden, applied }: { s: ServiceSnapshot; link?: string; nonce?: number; hidden: boolean; applied: { current: string | null } }) {
+function DashboardHost({ s, link, nonce, hidden, applied, act, openLogs }: { s: ServiceSnapshot; link?: string; nonce?: number; hidden: boolean; applied: { current: string | null }; act: (action: 'restart' | 'start') => void; openLogs?: () => void }) {
   const { t } = useT();
   const ref = useRef<HTMLDivElement>(null);
   const [phase, setPhase] = useState<'opening' | 'open' | 'error' | 'crashed'>('opening');
@@ -251,7 +256,7 @@ function DashboardHost({ s, link, nonce, hidden, applied }: { s: ServiceSnapshot
     <div className="dash-frame">
     {available && phase === 'open' && <DashboardToolbar serviceKey={s.key} />}
     <div className="dash-host" ref={ref}>
-      {!available && <div className="dash-overlay muted">{t('view.unavailable')}</div>}
+      {!available && <UnavailablePane s={s} act={act} openLogs={openLogs} />}
       {available && phase === 'opening' && <div className="dash-overlay muted row"><Spinner /> {t('view.opening')}</div>}
       {available && phase === 'error' && (
         <div className="dash-overlay">

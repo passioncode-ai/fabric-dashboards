@@ -25,7 +25,9 @@ import { applyLoginItem, LOGIN_NEEDS_APPROVAL, loginItemAtStartup, type LoginIte
 import { xdgLoginItem } from '../core/autostart';
 import { Monitor, type Notice } from '../core/monitor';
 import { fetchLoad, fetchUsage, readTokenAsync } from '../core/probe';
-import { readSpend, type SpendEntry } from '../core/spend';
+import { limitsNeedingPerson, readSpend, type SpendEntry } from '../core/spend';
+import { attentionQueue, badgeText, nextNewsExpiry } from '../core/attention';
+import type { LimitView } from '@passioncode-ai/fabric-service-host/usage';
 import { readLoad, type LoadEntry } from '../core/load';
 import { NotifyLedger, shouldNotify } from '../core/notify';
 import { OutageAlerts } from './outage-alerts';
@@ -211,9 +213,14 @@ if (!app.requestSingleInstanceLock()) {
     changed: () => pushStatus(),
   });
   // #endregion outage-alerts
+  // W2 (UX-05, UX-06): the limits that need a person, from the last spend read; W2 (UX-08): the last show.
+  let personLimits: Record<string, LimitView[]> = {};
+  let lastShown: { at: string; afterHiddenMs: number } | undefined;
+  let hiddenSince: number | null = Date.now(); // the app starts with nothing on screen (a login start stays hidden)
   const status = (): AppStatus => ({
     services: monitor.snapshots(), ...monitor.meta(), unread: activity.unread(), activityRev: activity.revision, update: updater.state, estate: estate.state, version: app.getVersion(),
     alerts: alerts.status(), handovers: consoles.handoverConsoles(), recovery: consoles.recoveryStatus(), sessions: consoles.sessionsStatus(),
+    limits: personLimits, ...(lastShown ? { shown: lastShown } : {}),
   });
 
   // #region quiet-push — docs: AGENTS.md#lifecycle
@@ -231,11 +238,18 @@ if (!app.requestSingleInstanceLock()) {
       pushTimer = null;
       const s = status();
       if (windowVisible()) window!.webContents.send(CHANNELS.statusPush, s);
-      tray?.update(s.services);
-      const next = s.services.filter((x) => ['down', 'duplicate', 'foreign', 'conflict', 'invalid'].includes(x.state)).length ? '!' : '';
+      // W2 (UX-04): the tray, the Dock and the window count one queue (src/core/attention.ts).
+      const now = Date.now();
+      tray?.update(s.services, s.limits ?? {});
+      const next = badgeText(attentionQueue(s.services, { now, limits: s.limits }).length);
       if (next !== badge) { badge = next; app.dock?.setBadge(next); }
+      // A failed action leaves the queue after 30 minutes with no event of its own: count again then.
+      if (newsTimer) { clearTimeout(newsTimer); newsTimer = null; }
+      const expiry = nextNewsExpiry(s.services, now);
+      if (expiry !== null) { newsTimer = setTimeout(() => { newsTimer = null; pushStatus(); }, Math.max(1000, expiry - now + 50)); newsTimer.unref(); }
     }, 30);
   }
+  let newsTimer: NodeJS.Timeout | null = null;
 
   // Embedded dashboards are released once the window has been hidden for the grace period: first all but the
   // WARM_VIEWS shown most recently (FD-74), then, after VIEW_RELEASE_ALL_MS, every one.
@@ -319,6 +333,9 @@ if (!app.requestSingleInstanceLock()) {
   }
   // #endregion end-work-question
   function windowShown(): void {
+    // Several signals can report one show (show, restore, FD-64's sync): only the first after a hide is a show.
+    if (hiddenSince !== null || !lastShown) lastShown = { at: new Date().toISOString(), afterHiddenMs: hiddenSince === null ? 0 : Date.now() - hiddenSince };
+    hiddenSince = null;
     visibility.note(true);
     updateGrace.shown();
     if (busyRetry) { clearTimeout(busyRetry); busyRetry = null; }
@@ -329,6 +346,7 @@ if (!app.requestSingleInstanceLock()) {
     void views?.resume((key) => monitor.snapshot(key)).then(() => views?.announce());
   }
   function windowHidden(): void {
+    hiddenSince ??= Date.now();
     visibility.note(false);
     monitor.setVisible(false);
     viewGrace.hidden();
@@ -653,6 +671,8 @@ if (!app.requestSingleInstanceLock()) {
       if ((windowVisible() && (stale || force === true)) || !lastSpendAt) {
         lastSpend = await readSpend(monitor.snapshots(), { token: readTokenAsync, fetchUsage, now: () => Date.now() });
         lastSpendAt = Date.now();
+        const limits = limitsNeedingPerson(lastSpend);
+        if (JSON.stringify(limits) !== JSON.stringify(personLimits)) { personLimits = limits; pushStatus(); }
       }
       return { entries: lastSpend, readAt: lastSpendAt ? new Date(lastSpendAt).toISOString() : null };
     });

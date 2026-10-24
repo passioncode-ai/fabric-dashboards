@@ -3,7 +3,7 @@
 // DEC-0021). Main process only: the token never reaches the renderer, which gets the sums. Read
 // only while someone looks at Spend or an agent asks — nothing runs when the window is hidden
 // (lifecycle LC-08).
-import { summarizeUsage, type SpendSum, type SpendSummary, type UsageReport } from '@passioncode-ai/fabric-service-host/usage';
+import { summarizeUsage, type LimitView, type SpendSum, type SpendSummary, type UsageReport } from '@passioncode-ai/fabric-service-host/usage';
 import type { Descriptor, Reason, WellKnown } from './types';
 
 export type SpendEntry =
@@ -45,6 +45,19 @@ export async function readSpend(services: readonly { key: string; state?: string
     }
   }));
 }
+/** UX-05, UX-06: the limits that need a person, by agent: tripped (stopped work) or over the line, from the last
+ *  spend read the main process holds. The window gets them with every status push, so the sidebar badge, the
+ *  tray and Needs attention read the same limits as Spend and Connections. An agent with none is absent. */
+export function limitsNeedingPerson(entries: readonly SpendEntry[]): Record<string, LimitView[]> {
+  const out: Record<string, LimitView[]> = {};
+  for (const e of entries) {
+    if (e.kind !== 'report') continue;
+    const need = e.summary.limits.filter((l) => l.state === 'tripped' || l.state === 'breach');
+    if (need.length) out[e.key] = need;
+  }
+  return out;
+}
+
 export type SpendWindow = 'today' | 'week' | 'month';
 
 /**

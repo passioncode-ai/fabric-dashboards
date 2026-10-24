@@ -127,7 +127,11 @@ h3 { font-size: var(--pc-type-card); margin: 0; font-weight: 600; }
 .attention h2 .count { font-size: var(--pc-type-meta); color: var(--pc-text-muted); font-weight: 400; }
 .attention ul { list-style: none; margin: 0; padding: 0; }
 /* ADR-0014: one line per row — state, name, the reason cut to the line, the action. */
-.attention li { display: grid; grid-template-columns: max-content minmax(120px, max-content) minmax(0, 1fr) auto; gap: var(--pc-space-3); align-items: center; min-height: 40px; padding: 0 var(--pc-space-4); border-top: 1px solid var(--pc-border); }
+/* VIS-02: four cells whatever the row offers: the actions share the last one, and the reason keeps a floor of 12ch
+   so it is never the part that disappears. */
+.attention li { display: grid; grid-template-columns: max-content minmax(120px, max-content) minmax(12ch, 1fr) auto; gap: var(--pc-space-3); align-items: center; min-height: 40px; padding: 0 var(--pc-space-4); border-top: 1px solid var(--pc-border); }
+.attention li .row-actions { display: flex; align-items: center; justify-content: flex-end; gap: var(--pc-space-2); flex-wrap: nowrap; white-space: nowrap; }
+.attention li .row-actions:empty { display: none; }
 .attention li .name { font-weight: 600; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-decoration: none; }
 .attention li .why { color: var(--pc-text-muted); font-size: var(--pc-type-meta); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .attention li .btn { min-height: var(--fd-control-sm); padding: 0 var(--pc-space-2); font-size: var(--pc-type-meta); }
@@ -143,6 +147,10 @@ h3 { font-size: var(--pc-type-card); margin: 0; font-weight: 600; }
 .strip .l { font-size: var(--pc-type-meta); color: var(--pc-text-muted); line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; } /* W-4: two lines before an ellipsis — Russian labels are long */
 .strip .cell.bad .v { color: var(--pc-negative); }
 .strip .cell.attn .v { color: var(--pc-link); }
+.strip .cell.attn.urgent .v { color: var(--pc-negative); }
+/* VIS-12: a cell that opens something carries its arrow; a disabled one (nothing to open) does not. */
+.strip .l .go { margin-left: 4px; color: var(--pc-link); }
+.strip button.cell:disabled .l .go { display: none; }
 /* DEC-0019: online services — the same cards under their own heading, on the same tokens. */
 .online { margin-top: var(--pc-space-5); }
 .online h2 { font-size: var(--pc-type-card); margin: 0 0 var(--pc-space-3); }
@@ -351,6 +359,9 @@ table.spend th[scope='row'] { color: var(--pc-text); }
 /* FD-39 SCN-059: what changed since the last visit. */
 .visit { margin: var(--pc-space-4) 0; }
 .visit h2 { font-size: var(--pc-type-body); margin: 0 0 var(--pc-space-2); }
+.visit > .row { align-items: baseline; }
+.visit > .row .spacer { flex: 1; }
+.visit .btn-link { font-size: var(--pc-type-meta); }
 .visit ul { list-style: none; padding: 0; margin: 0 0 var(--pc-space-2); display: flex; flex-direction: column; gap: var(--pc-space-1); }
 .visit li { display: flex; gap: var(--pc-space-2); align-items: baseline; min-width: 0; }
 .visit li .why { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; flex: 1; }
