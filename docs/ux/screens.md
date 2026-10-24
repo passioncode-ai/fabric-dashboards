@@ -8,13 +8,18 @@
 | SCR-01 | Overview | SCN-001, SCN-002, SCN-003, SCN-005, SCN-006, SCN-007, SCN-021, SCN-024, SCN-030, SCN-033, SCN-035, SCN-041, SCN-042, SCN-054, SCN-058, SCN-059 | none (text-only) | built | src/renderer/components/Overview.tsx |
 | SCR-02 | Service view | SCN-004, SCN-007–SCN-016, SCN-021, SCN-025, SCN-026, SCN-027, SCN-029, SCN-031, SCN-032, SCN-034, SCN-039, SCN-040, SCN-045, SCN-046, SCN-061, SCN-073, SCN-076 | none (text-only) | built | src/renderer/components/ServiceView.tsx |
 | SCR-03 | Activity | SCN-003, SCN-017, SCN-018, SCN-020 | none (text-only) | built | src/renderer/components/Activity.tsx |
-| SCR-04 | Settings | SCN-019, SCN-022, SCN-024, SCN-043, SCN-044 | none (text-only) | built | src/renderer/components/Settings.tsx |
+| SCR-04 | Settings | SCN-019, SCN-022, SCN-024, SCN-043, SCN-044, SCN-075, SCN-086 | none (text-only) | built | src/renderer/components/Settings.tsx |
 | SCR-05 | Stop confirmation | SCN-009 | none (text-only) | built | src/renderer/App.tsx |
-| SCR-06 | Tray menu | SCN-023 | none (text-only) | built | src/electron/tray.ts |
+| SCR-06 | Tray menu | SCN-023, SCN-085 | none (text-only) | built | src/electron/tray.ts |
 | SCR-07 | Spend | SCN-036, SCN-037, SCN-038, SCN-041 | none (text-only) | built | src/renderer/components/Spend.tsx |
-| SCR-08 | Sidebar | SCN-001, SCN-006, SCN-017, SCN-022, SCN-033, SCN-035, SCN-044, SCN-047, SCN-056, SCN-057 | none (text-only) | built | src/renderer/App.tsx |
-| SCR-10 | Console panel | SCN-048, SCN-049, SCN-050, SCN-053, SCN-054, SCN-055, SCN-058 | none (text-only) | built | src/renderer/components/ConsolePanel.tsx |
+| SCR-08 | Sidebar, Agents mode | SCN-001, SCN-006, SCN-017, SCN-022, SCN-033, SCN-035, SCN-044, SCN-047, SCN-056, SCN-057, SCN-077 | none (text-only) | built | src/renderer/App.tsx |
+| SCR-10 | Console panel | SCN-048, SCN-049, SCN-050, SCN-053, SCN-054, SCN-055, SCN-058, SCN-066, SCN-069, SCN-080 | none (text-only) | built | src/renderer/components/ConsolePanel.tsx |
 | SCR-09 | System dialogs | SCN-014, SCN-024, SCN-027, SCN-044 | none (text-only) | built | src/electron/main.ts, src/electron/views.ts |
+| SCR-11 | Hand-over page | SCN-069 (before 0.8.0) | none (text-only) | retired | src/renderer/App.tsx |
+| SCR-12 | Sidebar, Sessions mode | SCN-077, SCN-078, SCN-082, SCN-083, SCN-084 | none (text-only) | designed | none yet |
+| SCR-13 | All sessions | SCN-069, SCN-075, SCN-078, SCN-079, SCN-081, SCN-082, SCN-083, SCN-084 | none (text-only) | designed | none yet |
+| SCR-14 | Session page | SCN-066, SCN-069, SCN-075, SCN-080, SCN-081, SCN-082, SCN-083, SCN-084, SCN-085 | none (text-only) | designed | none yet |
+| SCR-15 | Connections → Sessions stopped on a limit | SCN-075 (before 0.8.0) | none (text-only) | retired | src/renderer/components/ConnectionsMap.tsx |
 
 ## Design system
 - **Style pack:** custom — the PassionCode.ai design system v1.1.0 (`passioncode-ai.github.io/design-system/tokens.css`), the family's shared product pack (Fabric ADR-0070); calm product-UI rules from sheleg-design
@@ -86,9 +91,9 @@
 - **Status:** built
 
 ### SCR-04: Settings
-- **Used by:** SCN-019, SCN-022, SCN-024, SCN-043, SCN-044, SCN-062
+- **Used by:** SCN-019, SCN-022, SCN-024, SCN-043, SCN-044, SCN-062, SCN-075, SCN-086
 - **Purpose:** fit startup, updates and notifications to the operator's day
-- **Elements:** Fabric Dashboards: Open at login (off until chosen), Theme, Language (Same as the system / English / Русский), version; Updates: Install updates automatically, its explanation and the update state with its action (Check now, Restart to update, Move to Applications; a held release: What to do + Install); Notifications: "Whether macOS shows them is set in System Settings → Notifications." with Open System Settings (on Windows and Linux: "Whether the system shows them is set in its notification settings." with Open system settings), Show notifications, Quiet hours, Pause notifications for 1 hour / "Paused until HH:MM" + Resume, Also send outages to (Automatic / an agent offering a notify capability / Off, its help and last-delivery lines, SCN-062), per service Show notifications and Events from; services folder with Show folder; Uninstall (confirmation with "Also delete my settings and activity history"; removes the login item and the MCP entry and moves the app to the Trash; settings and history stay unless ticked); Unattributed listeners (Port, Address, Program, pid; Scan again)
+- **Elements:** Fabric Dashboards: Open at login (off until chosen), Theme, Language (Same as the system / English / Русский), version; Updates: Install updates automatically, its explanation and the update state with its action (Check now, Restart to update, Move to Applications; a held release: What to do + Install); Notifications: "Whether macOS shows them is set in System Settings → Notifications." with Open System Settings (on Windows and Linux: "Whether the system shows them is set in its notification settings." with Open system settings), Show notifications, Quiet hours, Pause notifications for 1 hour / "Paused until HH:MM" + Resume, Also send outages to (Automatic / an agent offering a notify capability / Off, its help and last-delivery lines, SCN-062), per service Show notifications and Events from; services folder with Show folder; Uninstall (confirmation with "Also delete my settings and activity history"; removes the login item and the MCP entry and moves the app to the Trash; settings and history stay unless ticked); Unattributed listeners (Port, Address, Program, pid; Scan again); from 0.8.0 a Sessions section (SCN-086): "Open sessions handed over by Switchboard here" (read and written through Switchboard, disabled with its reason when Switchboard is missing or too old) and "Continue sessions after a limit reset" (moved here from the group "Sessions stopped on a limit"), each with its explanation
 - **States:**
   | State | Trigger | Figma frame | Behavior |
   |-------|---------|-------------|----------|
@@ -111,8 +116,9 @@
 - **Status:** built
 
 ### SCR-06: Tray menu
-- **Used by:** SCN-023
+- **Used by:** SCN-023, SCN-085
 - **Purpose:** JTBD-01 without opening the window
+- **Sessions line (0.8.0, SCN-085):** under the headline, while a coding session runs or waits for the person, "Sessions: running N, waiting for you M" (a part at zero left out); it opens the Sessions mode
 - **Elements:** icon in three states; headline line ("Needs attention: N", "Ready: n of m", "All services ready"); problems first; every service as "● <name · instance> — <state>"; Open Fabric Dashboards; Pause notifications for 1 hour / Resume notifications; "Quitting Dashboards does not stop your services." (disabled line); Quit
 - **States:**
   | State | Trigger | Figma frame | Behavior |
@@ -141,11 +147,12 @@
 - **Scenarios:** SCN-036, SCN-037, SCN-038, SCN-041
 - **Status:** built
 
-### SCR-08: Sidebar
-- **Used by:** SCN-001, SCN-006, SCN-017, SCN-022, SCN-033, SCN-035, SCN-044, SCN-047
+### SCR-08: Sidebar, Agents mode
+- **Used by:** SCN-001, SCN-006, SCN-017, SCN-022, SCN-033, SCN-035, SCN-044, SCN-047, SCN-056, SCN-057, SCN-077
+- **Mode switch (0.8.0, SCN-077):** under the mark, a two-part switch "Agents" / "Sessions" (⌘1 / ⌘2; Ctrl+1 / Ctrl+2 elsewhere), the Sessions part carrying the count of sessions that need the person; the window reopens in the mode it was closed in, and nothing switches it but the person (a click on a session's notification or the tray's Sessions line counts as the person). This record is the Agents mode; the Sessions mode is SCR-12. In the rail the switch is two icons.
 - **Purpose:** where everything is, and whether anything needs the operator
 - **Rail (SCN-047):** collapsed, the sidebar is a narrow rail — the mark, icons for Overview, Activity, Spend and Settings with their badges, one entry per agent (state mark and initials, "!" when another instance needs attention), each named in a tooltip and to a screen reader; "Collapse sidebar" / "Expand sidebar", View → Show or Hide Sidebar (⌃⌘S); remembered
-- **Elements:** Overview (problem count), Activity (unread count), Spend, Services and Background sections (one entry per agent with the primary's state and "!" when another instance needs attention), footer update line ("Checking for updates…", "Downloading an update…", "Update <v> ready" + Restart to update, "Update <v> is verified and waits for you…" + What to do + Install, "Updates install only from the Applications folder." + Move to Applications, "Update failed: <reason>" + Retry), Settings
+- **Elements:** the mode switch; Overview (problem count), Activity (unread count), Connections, Spend, Pinned, On this Mac (On this computer elsewhere), Online, Services and the folded Hidden section (one entry per agent with the primary's state and "!" when another instance needs attention; no hand-over or session entry from 0.8.0, SES-01, SES-02), footer update line ("Checking for updates…", "Downloading an update…", "Update <v> ready" + Restart to update, "Update <v> is verified and waits for you…" + What to do + Install, "Updates install only from the Applications folder." + Move to Applications, "Update failed: <reason>" + Retry), Settings
 - **States:**
   | State | Trigger | Figma frame | Behavior |
   |-------|---------|-------------|----------|
@@ -168,7 +175,8 @@
 - **Status:** built
 
 ### SCR-10: Console panel
-- **Used by:** SCN-048, SCN-049, SCN-050, SCN-060
+- **Used by:** SCN-048, SCN-049, SCN-050, SCN-060, SCN-066, SCN-069, SCN-080
+- **Where it shows (0.8.0):** as a drawer over an agent's page (ADR-0017), and full height on a session's page (SCR-14), where it has no fold and no collapse; a hand-over or continued session no longer drops down over a page of its own (SES-06)
 - **Purpose:** JTBD-05 — the agent's own runtime, in its repository, beside its dashboard
 - **Elements:** header: coding agent picker (Claude Code, Codex, other installed coding agents), folder line (shortened path; full path on hover) with "Other…", "Switchboard project <name>" when bound; actions in one compact row: "New session", "Continue last session" (when the coding agent can resume), the exit line, and on the right the Open in Terminal icon ("Open in Terminal via Switchboard" as its label for a bound folder; the full button for a project folder the installed Switchboard cannot run in place); "Stop" and "Hide console" in the header; the terminal (the runtime's own interface); an exit line; the left edge drags the width (320 px up to where the dashboard keeps max(480, its declared `minWidth`) px, DEC-0036 ED-7; SCN-060)
 - **States:**
@@ -185,3 +193,76 @@
 - **Coverage:** src/renderer/components/ConsolePanel.tsx, src/electron/console.ts, src/core/consoles.ts
 - **Scenarios:** SCN-048, SCN-049, SCN-050
 - **Status:** built
+
+### SCR-11: Hand-over page
+- **Used by:** SCN-069 (before 0.8.0)
+- **Purpose:** a Switchboard hand-over that ran in a console of its own, reached from the sidebar's "Hand-overs" section
+- **Elements:** the agent, the account and the folder; "Switchboard handed this session to the console instead of opening a Terminal window. Type to it on the right."; the console dropping down over it; Close once ended
+- **States:**
+  | State | Trigger | Figma frame | Behavior |
+  |-------|---------|-------------|----------|
+  | success | a hand-over runs | none | the console over the page |
+- **Coverage:** src/renderer/App.tsx
+- **Scenarios:** SCN-069 (before 0.8.0)
+- **Status:** retired (2026-10-24, operator review: the sidebar section, this page, its Close under the drawer and the text pointing "on the right" (SES-01 to SES-06, SES-09) are replaced by the Sessions mode: SCR-12, SCR-13, SCR-14)
+
+### SCR-12: Sidebar, Sessions mode
+- **Used by:** SCN-077, SCN-078, SCN-082, SCN-083, SCN-084
+- **Purpose:** ST-023: every coding session in one list apart from the agents, grouped by what it needs
+- **Elements:** the mode switch with "Sessions" selected (SCR-08); "All sessions"; the groups in this order, an empty one not drawn, each heading with its count after its label: "Needs you: N", "Running: N", "Waiting for a limit reset: N", "Ended in the last 24 hours: N" (folded by default, the fold remembered); one row per session: line 1 the project (folder name), line 2 "<coding agent> · <account> · <handed over | after a limit reset | started by Switchboard | opened here> · <time>"; Settings and Collapse sidebar at the foot as in the Agents mode
+- **States:**
+  | State | Trigger | Figma frame | Behavior |
+  |-------|---------|-------------|----------|
+  | loading | the first read of the session list | none | "Reading sessions…" under All sessions |
+  | empty | no session known | none | All sessions alone; no group |
+  | success | sessions listed | none | the groups and rows; a new hand-over adds a row and never switches the mode |
+  | rail | the sidebar folded (SCN-047) | none | the switch as two icons; one entry per session with a state mark and the project's initials, named in a tooltip |
+  | error | Switchboard did not answer | none | the rows read before stay; All sessions carries the not-answering line (SCR-13) |
+- **Coverage:** none yet (dossier node S3)
+- **Scenarios:** SCN-077, SCN-078, SCN-082, SCN-083, SCN-084
+- **Status:** designed
+
+### SCR-13: All sessions
+- **Used by:** SCN-069, SCN-075, SCN-078, SCN-079, SCN-081, SCN-082, SCN-083, SCN-084
+- **Purpose:** ST-023: what each session is, where it came from and what it needs, each with its actions
+- **Elements:** title "All sessions"; the one-time note (SCN-079) with "Set up hand-overs" and "Got it"; the same groups as SCR-12, as cards: the project, the second line of SCR-12, the state in words ("Running", "Running in Terminal", "Did not continue; its process is still running", a could-not-open reason, "Continues at about <time>", "Ended at <time>", "Closed after 30 idle minutes", "Ended by you", "Not continued: you declined") and the state's actions (End, Show in Finder, Show in Terminal, Open console, Continue now on another account, Do not continue, Continue or New session here, Remove); "Clear" on the Ended group; the footnote "Sessions started in a terminal without Switchboard are not listed."
+- **States:**
+  | State | Trigger | Figma frame | Behavior |
+  |-------|---------|-------------|----------|
+  | loading | the first read | none | "Reading sessions…" |
+  | empty | no session | none | "No coding sessions yet. A session you start in an agent's console, or one Switchboard starts or hands over, appears here." |
+  | success | sessions listed | none | groups of cards with their actions; a card opens its page (SCR-14) |
+  | partial | Switchboard is not installed | none | this app's console sessions only, with "Switchboard is not installed, so only sessions started in this app's consoles are listed." |
+  | error | Switchboard did not answer on the last read | none | "Switchboard did not answer just now, so sessions it runs may be missing. Checked at <time>." above the groups read before |
+- **Coverage:** none yet (dossier node S3)
+- **Scenarios:** SCN-069, SCN-075, SCN-078, SCN-079, SCN-081, SCN-082, SCN-083, SCN-084
+- **Status:** designed
+
+### SCR-14: Session page
+- **Used by:** SCN-066, SCN-069, SCN-075, SCN-080, SCN-081, SCN-082, SCN-083, SCN-084, SCN-085
+- **Purpose:** ST-023, ST-019: one session as a page of its own, with its console filling it
+- **Layout:** a header one or two lines high, then the console (SCR-10) filling the rest of the main area to the window's bottom edge; no drawer, no fold, no collapse; nothing on the page navigates away by itself
+- **Elements:** header: the project as the title, the state in words, the origin chip ("Handed over by Switchboard after a limit on <account>, <time>", "Handed over by Switchboard, <time>", "Continued after a limit reset, <time>", "Started by Switchboard, <time>", "Opened here, <time>"), "Account: <account>", "Context: personal" or "Context: <organization>" when Switchboard names one, the coding agent, the folder (shortened, full on hover), the state's actions on the right (as SCR-13); the console; under the terminal while it has focus, "To leave the terminal, press Esc, then Tab."; the End question ("End this session?", Cancel focused, "End session")
+- **States:**
+  | State | Trigger | Figma frame | Behavior |
+  |-------|---------|-------------|----------|
+  | success | the session runs in this app's console | none | the console full height, following the scheme and theme live |
+  | terminal | it runs in a Terminal window Switchboard opened | none | no console; "This session runs in a Terminal window that Switchboard opened. Type to it there." |
+  | empty | an ended session after the app restarted | none | "What this session printed is not kept after the app restarts." with Continue and Remove |
+  | error | the console cannot start (SCN-063), the session cannot be ended, or the continue is refused | none | the reason in the console's place or beside the action; the state's actions stay |
+  | gone | the session left the list while open | none | All sessions opens instead (UX-18) |
+- **Coverage:** none yet (dossier node S3)
+- **Scenarios:** SCN-066, SCN-069, SCN-075, SCN-080, SCN-081, SCN-082, SCN-083, SCN-084, SCN-085
+- **Status:** designed
+
+### SCR-15: Connections → Sessions stopped on a limit
+- **Used by:** SCN-075 (before 0.8.0)
+- **Purpose:** the stops Switchboard records, under the Connections page, each with its verdict and Open
+- **Elements:** "Sessions stopped on a limit N"; per stop its folder, the agent, when it stopped, the verdict sentence and Open
+- **States:**
+  | State | Trigger | Figma frame | Behavior |
+  |-------|---------|-------------|----------|
+  | success | stops recorded | none | one row per stop |
+- **Coverage:** src/renderer/components/ConnectionsMap.tsx
+- **Scenarios:** SCN-075 (before 0.8.0)
+- **Status:** retired (2026-10-24, operator review: stops lived apart from the hand-overs they turn into (SES-07); from 0.8.0 they are in the Sessions mode, SCR-12 and SCR-13, under Waiting for a limit reset or Needs you)
