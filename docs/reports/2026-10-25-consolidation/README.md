@@ -142,10 +142,23 @@ taken there, each recorded in its backlog row:
 | FD-109 | I2 | 2026-10-31 | ours |
 | FD-110 | I2 | 2026-11-07 (contract asks 2026-11-14) | ours; the adapter's pilot check of 2026-11-07 (thread `0144d916`, message `47bc5941`) |
 | FD-52 | I2 | 2026-11-14 (built against the contract field) | live with Fabric's organization contexts, 2026-11-21 |
-| FD-87 (b) | I1 | 2026-11-14 | Fabric CO-321 (2026-11-07), relay decision (2026-10-31) |
+| FD-87 (b) | I1 | one week after Fabric CO-321 | Fabric CO-321 (fabric-workspace records Fabric's target as 2026-11-21, conflict X-14, message `d8b337c6`), relay decision (2026-10-31) |
 | FD-40 | I2 | one week after Observatory's host budget read | Observatory, assumed 2026-11-14 |
 
 The board also settles part of the question batch: the first organization is PassionCode.ai as a rehearsal on the
 operator's two Macs (wave W1, earliest 2026-11-14), then a second organization on members' Macs and Windows machines
-(Q-01, Q-02). If Windows members join in W2, FD-94, FD-95 and FD-96 move to P1. Legal questions of the rollout are
-closed by the operator and add no rows here.
+(Q-01, Q-02). Legal questions of the rollout are closed by the operator and add no rows here.
+
+Later the same day (announcement `a509fcc0`, fabric-workspace `knowledge/integration.md` PR #439, and message
+`f114932a` in the sync thread):
+
+- **Windows is in W2.** Operator decision B-9 of 2026-10-25: the second organization's pilot runs on the whole team's
+  Macs and Windows machines. FD-94, FD-95 and FD-96 are P1 and block W2 (conflict X-16). Targets: FD-96 2026-10-31
+  (the release re-run removes the stale signing cache by itself), FD-94 2026-11-07 (the token ACL read without a
+  minute-long Windows PowerShell start, which a member's Windows machine would pay too), FD-95 2026-11-07 (the update
+  smoke names each process that outlives the old copy, then the app or the smoke ends them). Live acceptance needs a
+  Windows machine: the operator's queue item Q-A, kept by fabric-workspace.
+- **Questions go to fabric-workspace, not to the operator.** It answers by recorded decisions, then the project's goal,
+  then the safest reversible option, and asks the operator only for forks that shape the future and for human steps.
+  Q-03 to Q-09 of the [question batch](../../evidence/specs/2026-10-25-consolidation-questions.md) are therefore sent
+  to it as one `decision.ask`.
