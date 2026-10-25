@@ -33,7 +33,7 @@ import type { ListLayout, ServiceSnapshot } from '../core/types';
 import os from 'node:os';
 import path from 'node:path';
 import { t as tr } from '../core/i18n';
-import { liveAgents, recoveryOf, transcriptOf, verdictOf } from '../core/recovery';
+import { continuedOf, liveAgents, recoveryOf, transcriptOf, verdictOf } from '../core/recovery';
 import { findSwitchboard } from '../core/switchboard';
 import { searchDirs } from '../core/runtimes';
 import type { StopView } from '../core/types';
@@ -487,7 +487,9 @@ export async function limitStops(deps: Deps, now = deps.now()): Promise<{ availa
   const pending = r.stops; // parseRecovery keeps only open stops (R1-S2): a cancelled one is never "waiting"
   const live = pending.some((s) => s.ready) ? await liveAgents(run, deps.platform).catch(() => null) : null;
   const exists = (dir: string) => { try { return fs.statSync(dir).isDirectory(); } catch { return false; } };
-  return { available: true, stops: pending.map((s) => ({ event: s.event, session: s.session, dir: s.dir, provider: s.provider, stoppedAt: s.stoppedAt, attempt: s.attempt, probeAt: s.probeAt, verdict: verdictOf(s, live, now, exists, (x) => transcriptOf(x, deps.home ?? os.homedir())) })) };
+  const home = deps.home ?? os.homedir();
+  const continued = continuedOf(pending, home, now); // FIX-5: a stop whose session went on is not listed
+  return { available: true, stops: pending.map((s) => ({ event: s.event, session: s.session, dir: s.dir, provider: s.provider, stoppedAt: s.stoppedAt, attempt: s.attempt, probeAt: s.probeAt, verdict: verdictOf(s, live, now, exists, (x) => transcriptOf(x, home), continued) })).filter((s) => s.verdict !== 'continued') };
 }
 // #endregion limit-recovery
 
