@@ -19,8 +19,11 @@ delete. Hotfix lane empty.
 
 **Checks run:** none on code (no code changed); the em dash check over the new files prints nothing.
 
-**Exact next task:** the operator answers Q-01 to Q-09; then step 2 of the iteration (module dossiers) for 0.9.0,
-starting with FD-109 and FD-110 (their board deadlines are 2026-10-31 and 2026-11-14).
+**Answers (2026-10-25):** Q-01, Q-02 and Q-04 to Q-09 answered on the board (fabric-workspace MD-6, thread `ee3326f5`,
+message `35112a93`); Q-03 is the operator's passkey sign-in, in their queue.
+
+**Exact next task:** step 2 of the iteration (module dossiers) for 0.9.0, starting with FD-109 (target 2026-10-31) and
+FD-96 (2026-10-31), then FD-110, FD-94 and FD-95 (2026-11-07).
 
 ## 0.8.2: start here (2026-10-25, FD-116 limit stops whose session went on)
 
