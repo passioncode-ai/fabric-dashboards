@@ -341,7 +341,8 @@ export function mergeSessions(i: MergeInput): SessionRow[] {
   // latest stop, by time and then attempt (a session that stopped 44 times is one session). A stop older than a day is
   // not listed, whatever Switchboard still holds it as: this app never continues it, so nothing waits for it here. One
   // waiting for a reset, or ready for this app to continue, waits; a payment stop needs the person, with Remove; one whose
-  // terminal is still open is not listed (the session is alive where it is); one whose folder or conversation is not
+  // terminal is still open is not listed (the session is alive where it is), nor one whose session went on after it
+  // (FIX-5: Switchboard keeps such a stop open); one whose folder or conversation is not
   // here, or that this app failed to continue, is Ended "Cannot be continued here", with Remove, and is not counted. One
   // another host claimed is not listed. A resumed one, or a failed one whose console still runs, is that console's row; a
   // declined one is its ended record (above).
@@ -351,7 +352,7 @@ export function mergeSessions(i: MergeInput): SessionRow[] {
     if (!was || s.stoppedAt > was.stoppedAt || (s.stoppedAt === was.stoppedAt && s.attempt > was.attempt)) latest.set(s.session, s);
   }
   for (const s of latest.values()) {
-    if (s.verdict === 'resumed' || s.verdict === 'claimed' || s.verdict === 'open' || s.verdict === 'old') continue;
+    if (s.verdict === 'resumed' || s.verdict === 'claimed' || s.verdict === 'open' || s.verdict === 'old' || s.verdict === 'continued') continue;
     if (!(i.now - s.stoppedAt <= SESSION_KEEP_MS)) continue; // older than a day, or a time Switchboard did not give
     if (s.verdict === 'failed' && s.key && consoleKeys.has(s.key)) continue;
     // V-1 of FIX-2: a stop is "stopped by a limit on" the account it stopped on, never "continued after a limit reset".

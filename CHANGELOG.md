@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- **Sessions that had gone on were listed as waiting for a limit reset** (FD-116). On 2026-10-25 the Sessions mode
+  showed three sessions under "Waiting for a limit reset" with "No other account has capacity now", although each
+  had hit a limit for a moment and gone on, on another account, within minutes, and was still working. Fabric
+  Switchboard keeps such a stop open: it is closed only after a claim, and a session that goes on by itself is never
+  claimed. Now a stop whose session recorded a model reply after it, or stopped again later, is not listed, is never
+  continued again by this app, and is left out of MCP `audit`. Only the end of the session's transcript is read, and
+  only each line's type, time and error flag. On the operator's Mac all seven stops of the last day were such stops.
+
 ## 0.8.1 - 2026-10-24
 
 ### Fixed

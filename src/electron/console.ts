@@ -23,7 +23,7 @@ import { detectRuntimes, KNOWN_RUNTIMES, readLoginPath, searchDirs, specsFromSwi
 import type { SettingsStore } from '../core/settings';
 import { accountsOf, allSessionsOf, bindingFor, canLaunchInPlace, findSwitchboard, handoverOwnKey, handoverRunArgv, handoversOf, handoversSwitch, isHandoverKey, managesProvider, sessionsIn, terminalLaunchArgv, type Binding, type SbHandover, type SbSessions } from '../core/switchboard';
 import type { ServiceSnapshot } from '../core/types';
-import { claimStop, finishStop, liveAgents, recoveryOf, resumeArgs, resumeOwnKey, sessionOpen, transcriptIn, transcriptOf, verdictOf, writtenAt, RESUME_SETTLE_MS, RESUMES_PER_PASS, type RecoveryStatus, type SbStop, type StopView } from '../core/recovery';
+import { claimStop, continuedOf, finishStop, liveAgents, recoveryOf, resumeArgs, resumeOwnKey, sessionOpen, transcriptIn, transcriptOf, verdictOf, writtenAt, RESUME_SETTLE_MS, RESUMES_PER_PASS, type RecoveryStatus, type SbStop, type StopView } from '../core/recovery';
 import { consoleRowId, handoverRowId, mergeSessions, pruneDismissed, pruneRecords, SourceReader, stopRowId, type ConsoleInput, type PendingHandover, type SbSessionRecord, type SessionActionResult, type SessionReason, type SessionRecord, type SessionNotice, type SessionRow, type SessionsStatus, type SourceDegraded } from '../core/sessions';
 
 /** node-pty 1.1.0 ships its macOS `spawn-helper` without the executable bit, and its postinstall
@@ -487,8 +487,11 @@ export class ConsoleHost {
     const accountOf = (s: SbStop) => (s.account ? labels[s.account] ?? null : null);
     const views: StopView[] = [];
     const due: SbStop[] = [];
+    // FIX-5: a stop whose session went on after it (or stopped again later) is not waiting and is never continued again.
+    const continued = continuedOf(r.stops, this.o.home ?? os.homedir(), now);
     for (const s of pending) {
-      const verdict = verdictOf(s, live, now, isDir, (x) => transcriptOf(x, this.o.home ?? os.homedir()));
+      const verdict = verdictOf(s, live, now, isDir, (x) => transcriptOf(x, this.o.home ?? os.homedir()), continued);
+      if (verdict === 'continued') continue;
       // FD-103 (decision 2): a stop the person declined is never continued by this app.
       if (verdict === 'resume' && on && due.length < RESUMES_PER_PASS && !held.has(stopRowId(s.event))) { due.push(s); continue; }
       views.push({ event: s.event, session: s.session, dir: s.dir, provider: s.provider, stoppedAt: s.stoppedAt, attempt: s.attempt, verdict, candidates: candidates(s), probeAt: s.probeAt, account: accountOf(s) });

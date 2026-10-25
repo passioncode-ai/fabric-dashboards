@@ -140,6 +140,10 @@ export function transcriptOf(stop: SbStop, home: string): string | null {
   const name = stop.provider === 'codex' ? null : `${stop.session}.jsonl`;
   if (name) {
     const root = path.join(home, '.claude', 'projects');
+    // The folder Claude Code names after the session's directory first: one stat instead of a scan of every project.
+    // (A caller that knows only the session id passes no folder: then only the scan.)
+    const own = typeof stop.dir === 'string' && stop.dir ? path.join(root, stop.dir.replace(/[^A-Za-z0-9]/g, '-'), name) : null;
+    if (own && fs.existsSync(own)) return own;
     let dirs: string[] = [];
     try { dirs = fs.readdirSync(root); } catch { return null; }
     for (const d of dirs) {
@@ -205,8 +209,76 @@ export function sessionOpen(stop: SbStop, live: Live): boolean {
   return live.dirs.some((d) => real(d) === dir);
 }
 
-export function verdictOf(stop: SbStop, live: Live | null, now: number, exists: (dir: string) => boolean, transcript: (stop: SbStop) => string | null = () => 'unchecked'): StopVerdict {
+/** FIX-5 (operator 2026-10-25, «сессии ... продолжили работать», «это баг»): how much of a transcript's end is read to
+ *  learn whether its session answered after a stop. A session waiting on a limit writes nothing, so its last lines are
+ *  the stop itself; one that went on has its newest replies there. */
+export const CONTINUED_TAIL_BYTES = 512 * 1024;
+
+const continuedSeen = new Map<string, boolean>();
+
+/** A reply the model gave, as the CLI records it: Claude Code's `assistant` entry that is neither an API error (the limit
+ *  message itself is one) nor a line the CLI made up without a call (`<synthetic>`); Codex's assistant message. */
+function isReply(e: Record<string, unknown>, provider: SbStop['provider']): boolean {
+  const msg = (e.message ?? null) as Record<string, unknown> | null;
+  const payload = (e.payload ?? null) as Record<string, unknown> | null;
+  if (provider === 'codex') return e.type === 'response_item' && !!payload && (payload.type === 'agent_message' || (payload.type === 'message' && payload.role === 'assistant'));
+  return e.type === 'assistant' && e.isApiErrorMessage !== true && !e.error && msg?.model !== '<synthetic>';
+}
+
+/** FIX-5: whether the session answered after `stoppedAt`: its transcript has a model reply recorded later than the stop.
+ *  It went on by itself (Switchboard moved its managed traffic to another account, the CLI continued at the reset, or
+ *  the person sent it again), so nothing waits and nothing may continue it again. Reads only each line's type, time and
+ *  error flag, never its text; null when the transcript cannot be read (then nothing is concluded). */
+export function continuedAfter(file: string | null, provider: SbStop['provider'], stoppedAt: number): boolean | null {
+  if (!file || !(stoppedAt > 0)) return null;
+  let st: fs.Stats;
+  try { st = fs.statSync(file); } catch { return null; }
+  if (st.mtimeMs <= stoppedAt) return false; // nothing written since the stop
+  const seen = `${file}\0${st.size}\0${st.mtimeMs}\0${stoppedAt}`;
+  const known = continuedSeen.get(seen);
+  if (known !== undefined) return known;
+  let text: string;
+  try {
+    const fd = fs.openSync(file, 'r');
+    try {
+      const length = Math.min(st.size, CONTINUED_TAIL_BYTES);
+      const buf = Buffer.alloc(length);
+      fs.readSync(fd, buf, 0, length, st.size - length);
+      text = buf.toString('utf8');
+    } finally { fs.closeSync(fd); }
+  } catch { return null; }
+  const lines = text.split('\n');
+  if (st.size > CONTINUED_TAIL_BYTES) lines.shift(); // the first line read is cut
+  let answered = false;
+  for (let k = lines.length - 1; k >= 0 && !answered; k--) {
+    const line = lines[k]!;
+    if (!line.trim()) continue;
+    let e: Record<string, unknown>;
+    try { e = JSON.parse(line) as Record<string, unknown>; } catch { continue; }
+    const at = typeof e.timestamp === 'string' ? Date.parse(e.timestamp) : NaN;
+    if (at > stoppedAt && isReply(e, provider)) answered = true;
+  }
+  if (continuedSeen.size > 512) continuedSeen.clear();
+  continuedSeen.set(seen, answered);
+  return answered;
+}
+
+/** FIX-5: the stops whose session went on: a later stop of the same session replaces an earlier one, and a session that
+ *  answered after its stop is not stopped. Read only for stops of the last day (an older one is neither listed nor
+ *  continued here), so one pass reads a handful of transcript ends. */
+export function continuedOf(stops: readonly SbStop[], home: string, now: number): (stop: SbStop) => boolean {
+  const newest = new Map<string, number>();
+  for (const s of stops) newest.set(s.session, Math.max(newest.get(s.session) ?? 0, s.stoppedAt));
+  return (s) => {
+    if ((newest.get(s.session) ?? 0) > s.stoppedAt) return true;
+    if (!(now - s.stoppedAt <= RESUME_MAX_AGE_MS)) return false;
+    return continuedAfter(transcriptOf(s, home), s.provider, s.stoppedAt) === true;
+  };
+}
+
+export function verdictOf(stop: SbStop, live: Live | null, now: number, exists: (dir: string) => boolean, transcript: (stop: SbStop) => string | null = () => 'unchecked', continued: (stop: SbStop) => boolean = () => false): StopVerdict {
   if (stop.state === 'claimed') return 'claimed';
+  if (continued(stop)) return 'continued';
   if (stop.kind === 'billing') return 'billing';
   if (!stop.ready || !stop.candidates.length) return 'waiting';
   if (!exists(stop.dir)) return 'no-folder';

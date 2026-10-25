@@ -7,7 +7,7 @@ import path from 'node:path';
 import test from 'node:test';
 import type { Runner } from '@passioncode-ai/fabric-service-host';
 import { ConsoleHost } from '../src/electron/console';
-import { liveAgents, parseRecovery, RESUME_BRIEF, RESUME_MAX_AGE_MS, resumeArgs, resumeOwnKey, sessionOpen, transcriptOf, verdictOf, type SbStop } from '../src/core/recovery';
+import { CONTINUED_TAIL_BYTES, continuedAfter, continuedOf, liveAgents, parseRecovery, RESUME_BRIEF, RESUME_MAX_AGE_MS, resumeArgs, resumeOwnKey, sessionOpen, transcriptOf, verdictOf, type SbStop } from '../src/core/recovery';
 import { isHandoverKey } from '../src/core/switchboard';
 import { limitStops } from '../src/mcp/tools';
 import { merge } from '../src/core/settings';
@@ -48,6 +48,65 @@ test('FD-83: only a ready, fresh limit stop whose transcript nothing can be writ
   assert.equal(verdictOf(stop(), none, NOW, yes, () => null), 'no-transcript', 'FD-84: not in the home a plain CLI reads');
   assert.equal(verdictOf(stop({ stoppedAt: NOW - RESUME_MAX_AGE_MS - 1 }), none, NOW, yes), 'old');
   assert.ok(sessionOpen(stop(), { dirs: ['/tmp/'], args: '' }), 'paths compare resolved');
+});
+
+// FIX-5 (operator 2026-10-25): three sessions were listed «Ждут сброса лимита» although each had gone on, on another
+// account, seconds after its stop; Switchboard keeps such a stop open. The real transcript of one: the limit message at
+// 01:21:54, then replies from 01:23:26.
+const line = (o: Record<string, unknown>) => JSON.stringify(o) + '\n';
+const LIMIT_AT = Date.parse('2026-10-25T01:21:54.000Z');
+const limitLines = line({ type: 'user', timestamp: '2026-10-25T01:21:53.180Z', message: { content: 'x' } })
+  + line({ type: 'system', subtype: 'informational', timestamp: '2026-10-25T01:21:54.224Z' })
+  + line({ type: 'assistant', timestamp: '2026-10-25T01:21:54.228Z', isApiErrorMessage: true, error: 'rate_limit', message: { model: '<synthetic>', content: [] } });
+const replyLine = line({ type: 'assistant', timestamp: '2026-10-25T01:23:26.054Z', message: { model: 'claude-opus-5-5', content: [] } });
+function transcriptAt(home: string, dir: string, session: string, text: string, mtime: number): string {
+  const folder = path.join(home, '.claude', 'projects', dir.replace(/[^A-Za-z0-9]/g, '-'));
+  fs.mkdirSync(folder, { recursive: true });
+  const file = path.join(folder, `${session}.jsonl`);
+  fs.writeFileSync(file, text);
+  fs.utimesSync(file, new Date(mtime), new Date(mtime));
+  return file;
+}
+
+test('FIX-5: a stop whose session answered after it is continued, not waiting; the limit message alone is not an answer', () => {
+  const home = tmp('fd-fix5-home-');
+  const at = LIMIT_AT + 10 * 60_000;
+  const waiting = transcriptAt(home, '/srv/a', SID, limitLines, LIMIT_AT + 500);
+  assert.equal(continuedAfter(waiting, 'claude', LIMIT_AT), false, 'written at the stop only');
+  const s2 = '00000000-0000-4000-8000-0000000000b2';
+  const errorsOnly = transcriptAt(home, '/srv/b', s2, limitLines + line({ type: 'assistant', timestamp: '2026-10-25T01:30:00.000Z', isApiErrorMessage: true, message: { model: '<synthetic>' } }), at);
+  assert.equal(continuedAfter(errorsOnly, 'claude', LIMIT_AT), false, 'another limit message is not a reply');
+  const s3 = '00000000-0000-4000-8000-0000000000b3';
+  const went = transcriptAt(home, '/srv/c', s3, limitLines + replyLine, at);
+  assert.equal(continuedAfter(went, 'claude', LIMIT_AT), true);
+  assert.equal(continuedAfter(went, 'claude', Date.parse('2026-10-25T02:00:00Z')), false, 'replies before a later stop do not count');
+  assert.equal(continuedAfter(null, 'claude', LIMIT_AT), null);
+  assert.equal(continuedAfter(path.join(home, 'none.jsonl'), 'claude', LIMIT_AT), null, 'unreadable: nothing concluded');
+  // Only the end is read: a reply buried before the last CONTINUED_TAIL_BYTES does not count, a cut first line is skipped.
+  const s4 = '00000000-0000-4000-8000-0000000000b4';
+  const pad = line({ type: 'progress', timestamp: '2026-10-25T01:00:00.000Z', data: 'p'.repeat(1000) }).repeat(Math.ceil(CONTINUED_TAIL_BYTES / 1000) + 2);
+  const big = transcriptAt(home, '/srv/d', s4, limitLines + pad + replyLine, at);
+  assert.equal(continuedAfter(big, 'claude', LIMIT_AT), true);
+  // Codex records its replies as response items.
+  const cx = path.join(home, 'rollout.jsonl');
+  fs.writeFileSync(cx, line({ type: 'event_msg', timestamp: '2026-10-25T01:30:00.000Z', payload: { type: 'token_count' } }));
+  fs.utimesSync(cx, new Date(at), new Date(at));
+  assert.equal(continuedAfter(cx, 'codex', LIMIT_AT), false);
+  fs.appendFileSync(cx, line({ type: 'response_item', timestamp: '2026-10-25T01:31:00.000Z', payload: { type: 'agent_message' } }));
+  fs.utimesSync(cx, new Date(at + 1000), new Date(at + 1000));
+  assert.equal(continuedAfter(cx, 'codex', LIMIT_AT), true);
+
+  const now = at + 60_000;
+  const yes = () => true;
+  const stops = [stop({ session: SID, dir: '/srv/a', stoppedAt: LIMIT_AT, event: 'cc-a' }), stop({ session: s3, dir: '/srv/c', stoppedAt: LIMIT_AT, event: 'cc-c' }),
+    stop({ session: s2, dir: '/srv/b', stoppedAt: LIMIT_AT - 3_600_000, event: 'cc-b1' }), stop({ session: s2, dir: '/srv/b', stoppedAt: LIMIT_AT, event: 'cc-b2' })];
+  const continued = continuedOf(stops, home, now);
+  assert.deepEqual(stops.map((s) => verdictOf({ ...s, ready: false }, none, now, yes, () => 'x', continued)), ['waiting', 'continued', 'continued', 'waiting'],
+    'went on: continued; a later stop of the same session replaces the earlier one');
+  assert.equal(verdictOf(stops[1]!, none, now, yes, () => 'x', continued), 'continued', 'a ready stop that went on is never continued again');
+  assert.equal(verdictOf({ ...stops[1]!, state: 'claimed' }, none, now, yes, () => 'x', continued), 'claimed', 'a claim stays the claimer\'s');
+  const aged = { ...stops[1]!, stoppedAt: now - RESUME_MAX_AGE_MS - 1 };
+  assert.equal(continuedOf([aged], home, now)(aged), false, 'older than a day: not read');
 });
 
 test('FD-83: the session continues through its own CLI with one brief line; its own console key is a hand-over key', () => {
@@ -223,6 +282,26 @@ test('FD-103 (decision 8 extended, replaces FD-83\'s free console): a stop in an
   assert.ok(key && isHandoverKey(key) && key !== 'agent.default', `a console of its own, not ${key}`);
   assert.equal((await r.host.info('agent.default')).session.state, 'idle', 'the agent\'s console stays the person\'s');
   assert.deepEqual(r.host.sessionsStatus().rows.filter((x) => x.state === 'running-ours').map((x) => [x.key, x.origin]), [[key, 'resume']]);
+});
+
+test('FIX-5: the app neither lists nor continues a stop whose session went on; MCP `audit` leaves it out', POSIX, async () => {
+  const r = rig({ sessions: (d) => [row({ dir: d, at: LIMIT_AT })] });
+  // The rig's home is beside its checkout; the stop's transcript there answered after the stop.
+  const home = path.join(path.dirname(r.dir), 'home');
+  transcriptAt(home, r.dir, SID, limitLines + replyLine, Date.now());
+  assert.deepEqual(await r.host.pollRecovery(LIMIT_AT + 10 * 60_000), []);
+  assert.equal(r.spawned.length, 0);
+  assert.ok(!r.calls.some((c) => c.includes('claim')), 'nothing is claimed for a session that went on');
+  assert.deepEqual(r.host.recoveryStatus().stops, []);
+  assert.deepEqual(r.host.sessionsStatus().rows.filter((x) => x.origin === 'limit'), []);
+  const cli: Runner = async (file, args) => {
+    if (args.join(' ') === '--json recovery') return ok({ sessions: [row({ dir: r.dir, at: LIMIT_AT })] });
+    if (file === 'lsof') return { code: 1, stdout: '', stderr: '' };
+    if (file === 'ps') return { code: 0, stdout: 'zsh\n', stderr: '' };
+    throw new Error(`unexpected ${file} ${args.join(' ')}`);
+  };
+  const out = await limitStops({ now: () => LIMIT_AT + 10 * 60_000, platform: 'darwin', switchboard: () => '/bin/switchboard', cli, home } as never);
+  assert.deepEqual(out.stops, []);
 });
 
 test('FD-83: MCP `audit` lists the stops with the same verdicts, read-only', POSIX, async () => {
