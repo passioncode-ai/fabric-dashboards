@@ -1,0 +1,226 @@
+[
+ {
+  "id": "FD-109",
+  "source": "new",
+  "cls": "P1",
+  "owner": "fabric-dashboards",
+  "what": "Board request e7a84f35 (company-assessment, operator 2026-10-24, deadline 2026-10-31): agent pages open only in Dashboards. (1) MCP `open` defaults to `fallback=never` for a registered service (today `if_absent`, src/mcp/tools.ts:305, server.ts:75); (2) the `fabric-dashboards://` handler raises or focuses the app and shows path and query; (3) an agent page with no descriptor: a clear refusal with the register step, or a safe loopback open; (4) the MCP server dropped out of a session on 2026-10-24.",
+  "questions": "Q-06, Q-07"
+ },
+ {
+  "id": "FD-110",
+  "source": "new",
+  "cls": "P1",
+  "owner": "fabric-dashboards",
+  "what": "Board request 870619ab (fabric-agent-contract, deadline 2026-11-14): adopt DEC-0121 `extensions/actions/0.1` (CT-126): read declarations with `actionsView`, audit FAC-SEM-142, show 'not adopted yet' for a dashboard with no actions, declare this app's own actions. Needs the contract re-pin from `4e5440cf` (v0.1.0+2026-10-24) to `52c7d798` (v0.1.0+2026-10-25).",
+  "questions": ""
+ },
+ {
+  "id": "FD-111",
+  "source": "new",
+  "cls": "P1",
+  "owner": "fabric-dashboards",
+  "what": "Post-release check of 0.8.0 and 0.8.1 (iteration step 11) was not run: `test/e2e/sessions.test.ts` never ran (the screen stayed locked), the FD-108 badge was not read against Switchboard `recovery` on the installed 0.8.1 (installed 2026-10-24 23:41:03 UTC), and SCN-077 to SCN-086 stay draft.",
+  "questions": ""
+ },
+ {
+  "id": "FD-112",
+  "source": "new",
+  "cls": "P2",
+  "owner": "fabric-dashboards",
+  "what": "MCP `list_services` gives an instance its product's category: a cloud instance (placement remote, https origin) of a product that also has a local instance reads `category: local` because the product's primary is the local instance (`categoryOf`, src/core/products.ts:81). An agent reading the list misplaces a cloud instance.",
+  "questions": ""
+ },
+ {
+  "id": "FD-113",
+  "source": "new",
+  "cls": "P2",
+  "owner": "fabric-dashboards",
+  "what": "The 0.8.0 iteration's next pool: 32 findings, none high (17 medium, 15 low): UX-09, 11, 13, 15, 19 to 23; VIS-07, 10, 11, 14 to 18, 21, 24; COPY-14 to 16, 19, 21, 22, 24 to 26, 30 to 33 (docs/reports/2026-10-24-ui-ux-iteration/inventory.json).",
+  "questions": "Q-09"
+ },
+ {
+  "id": "FD-114",
+  "source": "new",
+  "cls": "P2",
+  "owner": "fabric-dashboards",
+  "what": "No e2e drives the app's own update against a fake feed (FD-98's stated prerequisite): build it, so the update path (the one path every installed copy needs) is provable before a change.",
+  "questions": ""
+ },
+ {
+  "id": "FD-115",
+  "source": "new",
+  "cls": "P1",
+  "owner": "fabric-dashboards",
+  "what": "Hygiene left by the 0.8.0/0.8.1 sessions: HANDOFF header still names 0.7.28 as current and 0.8.0 as 'being released'; no retro stamp for the 0.8.0 iteration; 256 board messages unread; replies owed on the roll call d008e0a9 (operator 2026-10-25 'close all debts') and on the two requests above.",
+  "questions": ""
+ },
+ {
+  "id": "FD-02",
+  "source": "backlog",
+  "cls": "P1",
+  "owner": "fabric-dashboards",
+  "what": "Draft scenarios reviewed against the running app: 18 still draft (of 86), SCN-077 to SCN-086 among them (FD-111).",
+  "questions": ""
+ },
+ {
+  "id": "FD-80",
+  "source": "backlog",
+  "cls": "B",
+  "owner": "Electron",
+  "what": "A window on another Space or fully covered counts as shown, so a ready update waits; no Electron API on macOS reads it.",
+  "questions": ""
+ },
+ {
+  "id": "FD-87",
+  "source": "backlog",
+  "cls": "X",
+  "owner": "Fabric CO-321, relay RLY-05, Observatory P6/P7",
+  "what": "(b) show another machine's services (the Mac Studio) from the MacBook; (a) holds.",
+  "questions": "Q-02"
+ },
+ {
+  "id": "FD-94",
+  "source": "backlog",
+  "cls": "P2",
+  "owner": "fabric-dashboards",
+  "what": "windows-11-arm: PowerShell start takes about 48 s against the product's 60 s ACL read; the margin is thin.",
+  "questions": "Q-05"
+ },
+ {
+  "id": "FD-95",
+  "source": "backlog",
+  "cls": "B",
+  "owner": "fabric-dashboards",
+  "what": "NSIS smoke flake: two old processes outlived taskkill once; next miss names their command lines.",
+  "questions": ""
+ },
+ {
+  "id": "FD-96",
+  "source": "backlog",
+  "cls": "X",
+  "owner": "passioncode-org-profile (signing action)",
+  "what": "Re-run of a Windows package job loads a stale signing module from cache; workaround in RUNBOOK.",
+  "questions": ""
+ },
+ {
+  "id": "FD-98",
+  "source": "backlog",
+  "cls": "P2",
+  "owner": "fabric-dashboards",
+  "what": "A copy with an update ready never checks again, so it lands one version behind (two restarts seen 2026-10-23). Deferred until FD-114 can prove the change.",
+  "questions": ""
+ },
+ {
+  "id": "FD-105",
+  "source": "backlog",
+  "cls": "X",
+  "owner": "Fabric (Q-1, thread 1ddb20ce)",
+  "what": "Sessions move to Fabric (V-01); Dashboards stops taking hand-overs once Fabric does.",
+  "questions": "Q-08"
+ },
+ {
+  "id": "FD-106",
+  "source": "backlog",
+  "cls": "X",
+  "owner": "fabric-switchboard SB-196",
+  "what": "A workflow handed over and still holding a limit stop; this app already treats the folder as live.",
+  "questions": ""
+ },
+ {
+  "id": "FD-12",
+  "source": "backlog",
+  "cls": "X",
+  "owner": "Fabric CO-344 (0.4.0)",
+  "what": "Fabric's own fabric-service descriptor and the board link (issue #26).",
+  "questions": ""
+ },
+ {
+  "id": "FD-22",
+  "source": "backlog",
+  "cls": "X",
+  "owner": "fabric-agent-contract",
+  "what": "A2A surface on the service page once `surfaces.a2a` exists.",
+  "questions": ""
+ },
+ {
+  "id": "FD-40",
+  "source": "backlog",
+  "cls": "X",
+  "owner": "Project Observatory (budget read after node.lifecycle)",
+  "what": "Spend policy, budget left and grants per agent; approval requests in Needs attention.",
+  "questions": "Q-01"
+ },
+ {
+  "id": "FD-52",
+  "source": "backlog",
+  "cls": "X",
+  "owner": "Project Observatory node + the first organization server",
+  "what": "'This machine': group by placement context `personal` / `org:<id>`, host view sums only.",
+  "questions": "Q-01, Q-04"
+ },
+ {
+  "id": "FD-53",
+  "source": "backlog",
+  "cls": "X",
+  "owner": "the operator (passkey sign-in)",
+  "what": "The organization server's pages embedded; host side done; no organization descriptor on this Mac (fabric-dashboards list_services, 2026-10-25: 31 services, none from org.passioncode.ai).",
+  "questions": "Q-03"
+ },
+ {
+  "id": "FD-58",
+  "source": "backlog",
+  "cls": "P2",
+  "owner": "fabric-dashboards (design), Project Observatory (channels.local)",
+  "what": "Supervision on Windows/Linux through `node.lifecycle`: Observatory 0.29.0 serves it; our next step is to read its schemas and decide with ADR-0002.",
+  "questions": "Q-05"
+ },
+ {
+  "id": "FD-59",
+  "source": "backlog",
+  "cls": "X",
+  "owner": "Project Observatory",
+  "what": "Reach the node through `channels.local` in its descriptor; not announced yet.",
+  "questions": ""
+ },
+ {
+  "id": "FD-61",
+  "source": "backlog",
+  "cls": "X",
+  "owner": "Project Observatory node",
+  "what": "One shared MCP server instead of one stdio process per session; served by the node, never by the app.",
+  "questions": ""
+ },
+ {
+  "id": "FD-68",
+  "source": "backlog",
+  "cls": "X",
+  "owner": "Fabric COM-02",
+  "what": "Runner-route events in an agent's activity.",
+  "questions": ""
+ },
+ {
+  "id": "FD-08",
+  "source": "backlog",
+  "cls": "C",
+  "owner": "",
+  "what": "Superseded by ADR-0011; PR #11 closed. Status already says nothing remains.",
+  "questions": ""
+ },
+ {
+  "id": "FD-67",
+  "source": "backlog",
+  "cls": "C",
+  "owner": "",
+  "what": "Closed 2026-10-14, not reproduced.",
+  "questions": ""
+ },
+ {
+  "id": "task 16b6948f",
+  "source": "fabric-board",
+  "cls": "C",
+  "owner": "the operator",
+  "what": "Fabric board task 'Load (service-load/1), release 0.7.26' sits in review; 0.7.26 shipped 2026-10-23 (release run 39955756486). Closing is the operator's move.",
+  "questions": ""
+ }
+]

@@ -48,6 +48,7 @@ by the task's nouns, not read in full.
 | 0.6.0 focus layout and agent console (ADR-0017) | `36bf759` | 2026-10-06 |
 | Board waves 2026-10-12 (FD-01…FD-60) | `agent/board-waves` | 2026-10-13 |
 | Review of 0.7.26 and 0.7.27 (FD-100), DOCMAP (FD-99) | `df2f895` | 2026-10-24 |
+| UI and UX iteration 0.8.0 (FD-103, FD-104) and 0.8.1 (FD-108), stamped late by the consolidation (FD-115) | `00eaaec` | 2026-10-24 |
 
 ## Recent log
 
