@@ -130,3 +130,22 @@ question of the batch.
 4. One release, then the post-release check on the installed copy (the step 0.8.0 skipped).
 
 Questions: [../../evidence/specs/2026-10-25-consolidation-questions.md](../../evidence/specs/2026-10-25-consolidation-questions.md).
+
+## Integration sync (board, 2026-10-25 15:46 UTC)
+
+fabric-workspace now coordinates the integration's order (fabric-workspace `knowledge/integration.md`, iterations I1
+and I2). Dashboards reported in sync thread `ee3326f5` (message `66be2386`) and agreed to that coordination. Dates
+taken there, each recorded in its backlog row:
+
+| Row | Iteration | Target | Condition |
+|---|---|---|---|
+| FD-109 | I2 | 2026-10-31 | ours |
+| FD-110 | I2 | 2026-11-07 (contract asks 2026-11-14) | ours; the adapter's pilot check of 2026-11-07 (thread `0144d916`, message `47bc5941`) |
+| FD-52 | I2 | 2026-11-14 (built against the contract field) | live with Fabric's organization contexts, 2026-11-21 |
+| FD-87 (b) | I1 | 2026-11-14 | Fabric CO-321 (2026-11-07), relay decision (2026-10-31) |
+| FD-40 | I2 | one week after Observatory's host budget read | Observatory, assumed 2026-11-14 |
+
+The board also settles part of the question batch: the first organization is PassionCode.ai as a rehearsal on the
+operator's two Macs (wave W1, earliest 2026-11-14), then a second organization on members' Macs and Windows machines
+(Q-01, Q-02). If Windows members join in W2, FD-94, FD-95 and FD-96 move to P1. Legal questions of the rollout are
+closed by the operator and add no rows here.
