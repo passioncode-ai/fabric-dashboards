@@ -10,8 +10,9 @@
 // version number by update-proof.yml `build`), so a fix is proven before it is released.
 // FD-114, three versions: `update-proof.mjs <from> <to> <via>` with a build made with FD_PROOF_FEED (update-proof.yml
 // `via`). A loopback server stands in for the release pointer: it names <via> until the copy logs <via> ready and
-// waiting, then <to>, as a release published while an update waits. The copy must end as <to>; the proof says whether
-// it got there in one restart or two (FD-98). The releases' own signed files are downloaded and verified as always.
+// waiting, then <to>, as a release published while an update waits. The copy must end as <to> in one restart: since
+// FD-98 a ready Windows or Linux copy prepares the newer release instead. The releases' signed files are downloaded and
+// verified as always.
 import { execFileSync, spawn, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { chmodSync, existsSync, mkdtempSync, readdirSync, readFileSync, statSync } from 'node:fs';
@@ -79,7 +80,10 @@ if (via) {
     console.log(`FD-114: ${via} is ready and waits; the release pointer now names ${to}`);
   })();
 }
-const hops = () => (viaInstalled?.test(logText()) ? `two restarts (${from} -> ${via} -> ${to}: FD-98 as today)` : `one restart (${from} -> ${to})`);
+const hops = () => {
+  requireThat(!viaInstalled?.test(logText()), `FD-98: the copy installed ${via} first, then ${to}: two restarts where one was due`);
+  return `one restart (${from} -> ${to}), ${to} prepared while ${via} waited ready`;
+};
 // #endregion proof-feed-server
 
 if (process.platform === 'linux') {

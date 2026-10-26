@@ -62,3 +62,29 @@ test('FD-114: with three versions on Windows the copy keeps the default profile,
   assert.match(proof, /\.\.\.\(defaultProfile \? \{\} : \{ FABRIC_DASHBOARDS_USER_DATA: data \}\)/);
   assert.match(proof, /path\.join\(process\.env\.LOCALAPPDATA \?\? '', 'Fabric Dashboards'\)/, 'platform.ts places: %LOCALAPPDATA%\\Fabric Dashboards');
 });
+
+test('FD-98: a ready Windows or Linux copy rechecks the release pointer; macOS and a switched-off copy keep waiting', async () => {
+  const { recheckWhileReady } = await import('../src/core/version');
+  for (const channel of ['nsis', 'appimage']) {
+    assert.equal(recheckWhileReady({ channel, state: 'ready', manual: false, enabled: true }), true, channel);
+    assert.equal(recheckWhileReady({ channel, state: 'ready', manual: false, enabled: false }), false, `${channel}: automatic updates off`);
+    assert.equal(recheckWhileReady({ channel, state: 'ready', manual: true, enabled: false }), true, `${channel}: the person's own check`);
+    for (const state of ['idle', 'downloading', 'checking', 'held', 'error']) assert.equal(recheckWhileReady({ channel, state, manual: false, enabled: true }), false, `${channel} ${state}`);
+  }
+  for (const channel of ['squirrel', 'package', 'not-yet', 'development']) assert.equal(recheckWhileReady({ channel, state: 'ready', manual: true, enabled: true }), false, channel);
+});
+
+test('FD-98: a newer release is prepared beside the ready one, which stays ready on any failure', () => {
+  const src = read('src/electron/updater.ts');
+  const prep = src.slice(src.indexOf('private async prepareFile('), src.indexOf('// #endregion appimage-update'));
+  assert.equal((prep.match(/this\.fail\(/g) ?? []).length, 1, 'every failure goes through the local fail, which keeps a ready update (its one this.fail is the ordinary case)');
+  assert.match(prep, /over \? this\.event\('update_check', code, `\$\{error\}; the ready \$\{over\} stays`/);
+  assert.match(prep, /if \(!over\) this\.set\(\{ state: 'downloading', version \}\)/, 'the state stays ready while the newer one is prepared');
+  assert.match(prep, /if \(nsis && !over\) fs\.rmSync\(pending/, 'the ready installer is not removed before the newer one is ready');
+  assert.match(prep, /if \(previous && previous\.file !== staged\) fs\.rmSync\(previous\.file/, 'and removed once it is');
+  assert.match(prep, /if \(over\) \{ this\.event\('update_check', 'needs_migration'/, 'a newer release that needs a person never displaces a ready one');
+  const check = src.slice(src.indexOf('  check(manual = false): void {'), src.indexOf('  private async readFeed('));
+  assert.ok(check.indexOf('recheckWhileReady(') < check.indexOf('mayCheck('), 'the ready recheck comes before the ordinary gate');
+  assert.match(src, /if \(this\.rechecking\) return;/, 'one recheck at a time');
+  assert.match(read('scripts/update-proof.mjs'), /requireThat\(!viaInstalled\?\.test\(logText\(\)\), `FD-98:/, 'the three-version proof fails on a second restart');
+});

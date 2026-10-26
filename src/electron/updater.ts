@@ -24,7 +24,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { FEED_FILE, PROOF_FEED_FILE, feedNamesOwnRelease, localFeed, parseSums, proofFeedUrl, releaseFile, signedFeed, sumsSignedByRelease, zipName } from '../core/release-verify';
-import { APP_UPDATE_EVERY_MS, FIRST_CHECK_MS, isNewer, quietCheck, mayCheck, stagedBundlePath, stagedRefusal, stagingLost, strayShipIt } from '../core/version';
+import { APP_UPDATE_EVERY_MS, FIRST_CHECK_MS, isNewer, quietCheck, mayCheck, recheckWhileReady, stagedBundlePath, stagedRefusal, stagingLost, strayShipIt } from '../core/version';
 import type { AppStatus } from '../core/types';
 import { appImageRelaunchCommand, nsisInstalledAt, nsisUpdateCommand, PENDING_UPDATE_DIR, platformKey, platformUpdate, replaceAppImage, stagedAppImage, unpackFailure, unpackRoomRefusal, updateChannel } from '../core/self-update';
 import { uninstallTarget } from '../core/platform';
@@ -126,6 +126,8 @@ export class Updater {
   private heldFile: string | null = null;
   /** Windows (M4c): the verified installer waiting for the app to quit, and its sha256 (checked again before it runs). */
   private pendingInstaller: { file: string; sha256: string } | null = null;
+  /** FD-98: a newer release is being prepared beside the ready one. */
+  private rechecking = false;
   /** FD-75: the bundle Squirrel staged for the ready update, checked again before it is offered or installed. */
   private stagedBundle: string | null = null;
   /** FD-75: the person asked to install while the staged update had gone; install as soon as it is staged again. */
@@ -226,20 +228,49 @@ export class Updater {
    *  `manual` is the person's "Check for Updates…", which works with automatic updates off. */
   check(manual = false): void {
     if (this.lostStaging()) { this.restage(false); return; }
+    if (recheckWhileReady({ channel: this.channel, state: this.state.state, manual, enabled: this.enabled() })) { void this.recheckReady(); return; }
     if (!mayCheck({ manual, enabled: this.enabled(), state: this.state.state })) return;
     this.set({ state: 'checking' });
     void this.run(manual);
   }
 
-  private async run(manual: boolean): Promise<void> {
-    let feed: Feed;
+  private async readFeed(): Promise<Feed | { error: string }> {
     try {
       const res = await net.fetch(this.feed, { cache: 'no-store', signal: AbortSignal.timeout(FEED_TIMEOUT_MS) });
-      if (!res.ok) return this.fail('check_failed', `the update feed answered HTTP ${res.status}`);
-      feed = (await res.json()) as Feed;
+      if (!res.ok) return { error: `the update feed answered HTTP ${res.status}` };
+      return (await res.json()) as Feed;
     } catch (error) {
-      return this.fail('check_failed', `the update feed could not be read: ${(error as Error).message}`);
+      return { error: `the update feed could not be read: ${(error as Error).message}` };
     }
+  }
+
+  // #region ready-recheck — docs: docs/adr/0015-data-survives-uninstall-updates-install-themselves.md#lc-16
+  /** FD-98: while an update waits ready (Windows, Linux), a newer release is verified and prepared beside it and takes
+   *  its place only once it is ready itself, so one restart installs the newest; any failure leaves the ready one as it
+   *  was, still ready. The state stays `ready` throughout, so an install that starts meanwhile installs the ready one. */
+  private async recheckReady(): Promise<void> {
+    if (this.rechecking) return;
+    const ready = this.state.version;
+    if (!ready) return;
+    this.rechecking = true;
+    try {
+      const feed = await this.readFeed();
+      if ('error' in feed) { this.event('update_check', 'recheck_failed', `${feed.error}; the ready ${ready} stays`.slice(0, 300)); return; }
+      const version = typeof feed.currentRelease === 'string' ? feed.currentRelease : null;
+      if (!version || !isNewer(version, ready)) return;
+      if (!feedNamesOwnRelease(feed, version)) { this.event('update_check', 'signature_failed', `the feed for ${version} names a file outside its own release; the ready ${ready} stays`); return; }
+      this.event('update_check', 'newer_while_ready', `ready=${ready} feed=${version}`);
+      await this.prepareFile(version, false, ready);
+    } finally {
+      this.rechecking = false;
+    }
+  }
+  // #endregion ready-recheck
+
+  private async run(manual: boolean): Promise<void> {
+    const read = await this.readFeed();
+    if ('error' in read) return this.fail('check_failed', read.error);
+    const feed: Feed = read;
     const version = typeof feed.currentRelease === 'string' ? feed.currentRelease : null;
     if (!version) return this.fail('check_failed', 'the update feed names no release');
     if (!isNewer(version, app.getVersion())) {
@@ -421,11 +452,13 @@ export class Updater {
    * replaces this file; the next start runs it. Windows: the verified installer waits in the app's data and runs
    * once the app quits. `person`: Install now on a held release.
    */
-  private async prepareFile(version: string, person: boolean): Promise<void> {
+  /** `over`: the version already ready (FD-98); this one is prepared beside it and a failure leaves it ready. */
+  private async prepareFile(version: string, person: boolean, over: string | null = null): Promise<void> {
+    const fail = (code: string, error: string) => (over ? this.event('update_check', code, `${error}; the ready ${over} stays`.replace(/\s+/g, ' ').slice(0, 300)) : this.fail(code, error));
     const nsis = this.channel === 'nsis';
     const target = nsis ? '' : process.env.APPIMAGE!;
     const key = platformKey(process.platform, process.arch);
-    this.set({ state: 'downloading', version });
+    if (!over) this.set({ state: 'downloading', version });
     const get = async (name: string) => {
       const res = await net.fetch(releaseFile(version, name), { cache: 'no-store', signal: AbortSignal.timeout(FEED_TIMEOUT_MS) });
       if (!res.ok) throw new Error(`${name} answered HTTP ${res.status}`);
@@ -434,27 +467,29 @@ export class Updater {
     let sums: Buffer;
     let asc: string;
     let feedBytes: Buffer;
-    try { [sums, asc, feedBytes] = [await get('SHA256SUMS'), (await get('SHA256SUMS.asc')).toString('utf8'), await get(FEED_FILE)]; } catch (error) { return this.fail('download_failed', (error as Error).message); }
+    try { [sums, asc, feedBytes] = [await get('SHA256SUMS'), (await get('SHA256SUMS.asc')).toString('utf8'), await get(FEED_FILE)]; } catch (error) { return fail('download_failed', (error as Error).message); }
     const signed = await sumsSignedByRelease(sums, asc);
-    if (!signed.ok) return this.fail('signature_failed', `SHA256SUMS of ${version} is not signed by the organization: ${signed.why}`);
+    if (!signed.ok) return fail('signature_failed', `SHA256SUMS of ${version} is not signed by the organization: ${signed.why}`);
     const listed = parseSums(sums.toString('utf8'));
     const feed = signedFeed(feedBytes, listed, version);
-    if (!feed.ok) return this.fail('signature_failed', feed.why);
+    if (!feed.ok) return fail('signature_failed', feed.why);
     const mine = platformUpdate(JSON.parse(feedBytes.toString('utf8')), key, version);
-    if (!mine.ok) return this.fail('signature_failed', mine.why);
+    if (!mine.ok) return fail('signature_failed', mine.why);
     const expected = listed.get(mine.file);
-    if (!expected || expected !== mine.sha256) return this.fail('signature_failed', `SHA256SUMS of ${version} gives ${mine.file} ${expected ?? 'no'} sha256, the feed ${mine.sha256}`);
+    if (!expected || expected !== mine.sha256) return fail('signature_failed', `SHA256SUMS of ${version} gives ${mine.file} ${expected ?? 'no'} sha256, the feed ${mine.sha256}`);
     if (feed.needsPerson && !person) {
+      if (over) { this.event('update_check', 'needs_migration', `version=${version} ready=${over} stays`); return; }
       this.heldFile = version;
       this.event('update_check', 'needs_migration', `version=${version}`);
       this.set({ state: 'held', version, steps: feed.needsPerson });
       return;
     }
     const pending = path.join(this.dataDir, PENDING_UPDATE_DIR);
-    if (nsis) { fs.rmSync(pending, { recursive: true, force: true }); fs.mkdirSync(pending, { recursive: true }); }
+    if (nsis && !over) fs.rmSync(pending, { recursive: true, force: true });
+    if (nsis) fs.mkdirSync(pending, { recursive: true }); // beside a ready installer, which stays until this one is ready
     const staged = nsis ? path.join(pending, mine.file) : stagedAppImage(target, version);
     // A folder this user cannot write fails now, not after a download.
-    if (!nsis) { try { fs.accessSync(path.dirname(target), fs.constants.W_OK); } catch { return this.fail('download_failed', `the folder of this AppImage (${path.dirname(target)}) is not writable: the update cannot replace it`); } }
+    if (!nsis) { try { fs.accessSync(path.dirname(target), fs.constants.W_OK); } catch { return fail('download_failed', `the folder of this AppImage (${path.dirname(target)}) is not writable: the update cannot replace it`); } }
     this.event('update_download', 'started', `version=${version} file=${mine.file}`);
     let actual: string;
     try {
@@ -462,19 +497,21 @@ export class Updater {
       actual = await downloadTo(releaseFile(version, mine.file), staged, DOWNLOAD_TIMEOUT_MS);
     } catch (error) {
       fs.rmSync(staged, { force: true });
-      return this.fail('download_failed', `the update could not be written to ${path.dirname(staged)}: ${(error as Error).message}`);
+      return fail('download_failed', `the update could not be written to ${path.dirname(staged)}: ${(error as Error).message}`);
     }
     if (actual !== expected) {
       fs.rmSync(staged, { force: true });
-      return this.fail('signature_failed', `${mine.file} has sha256 ${actual}, SHA256SUMS says ${expected}`);
+      return fail('signature_failed', `${mine.file} has sha256 ${actual}, SHA256SUMS says ${expected}`);
     }
     if (nsis) {
+      const previous = this.pendingInstaller;
       this.pendingInstaller = { file: staged, sha256: actual };
+      if (previous && previous.file !== staged) fs.rmSync(previous.file, { force: true });
     } else {
       try {
         replaceAppImage(target, staged);
       } catch (error) {
-        return this.fail('download_failed', `${target} could not be replaced: ${(error as Error).message}`);
+        return fail('download_failed', `${target} could not be replaced: ${(error as Error).message}`);
       }
     }
     this.heldFile = null;
