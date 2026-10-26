@@ -49,7 +49,7 @@ test('open?url= takes exactly a registered online origin and refuses any other h
   const known = [{ key: 'example-agent.default', descriptor: REMOTE }] as never;
   const ok = fromServiceUrl('https://agent.example.com/jobs/1', known);
   assert.deepEqual(ok, { ok: true, target: { page: 'service', key: 'example-agent.default', link: '/jobs/1' } });
-  assert.match(String((fromServiceUrl('https://evil.example.com/', known) as { reason: string }).reason), /none is at https:\/\/evil\.example\.com$/);
+  assert.match(String((fromServiceUrl('https://evil.example.com/', known) as { reason: string }).reason), /none is at https:\/\/evil\.example\.com; to open it here, register its agent with Fabric/);
   assert.equal(fromServiceUrl('https://u:p@agent.example.com/', known).ok, false);
   assert.equal(fromServiceUrl('https://agent.example.com:8443/', known).ok, false, 'another port is another origin');
 });

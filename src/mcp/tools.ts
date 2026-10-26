@@ -302,7 +302,9 @@ export async function link(deps: Deps, t: Target): Promise<{ service: string; op
 
 // #region strict-dashboard-open — docs: docs/runs/2026-10-01-dashboard-links/README.md#host-routing
 export type Fallback = 'if_absent' | 'never';
-export async function open(deps: Deps, t: Target, fallback: Fallback = 'if_absent'): Promise<{
+/** FD-109 (operator 2026-10-24, Q-06): an agent page opens in this app or not at all; a browser only when the caller
+ *  asks for `if_absent` and the host is confirmed `not_installed`. */
+export async function open(deps: Deps, t: Target, fallback: Fallback = 'never'): Promise<{
   opened_in: 'fabric-dashboards' | 'browser' | 'nothing'; open_link: string; http_url: string;
   status: 'accepted_by_os' | 'unsupported'; note?: string;
 }> {

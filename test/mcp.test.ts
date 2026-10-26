@@ -7,7 +7,10 @@ import { Launchd, type RunResult } from '../src/core/launchd';
 import type { Descriptor, ServiceEvent, WellKnown, WellKnownResult } from '../src/core/types';
 import { handle, serve, TOOLS } from '../src/mcp/server';
 import type { StaleWatch } from '../src/mcp/stale';
+import { EventEmitter } from 'node:events';
 import { PassThrough } from 'node:stream';
+import type { ChildProcess } from 'node:child_process';
+import { HANDOVER_ID, launcherOf } from '../src/mcp/handover';
 import * as tools from '../src/mcp/tools';
 import { tmp } from './helpers';
 
@@ -111,19 +114,43 @@ test('link turns a service URL or a key and path into the deep link, and opens n
   assert.deepEqual(calls.open, []);
 });
 
-test('open goes to the app when it is installed, to the browser when not, and nowhere off macOS', async () => {
+test('open goes to the app when it is installed, to the browser when not and asked, and nowhere off macOS', async () => {
   const inApp = world();
   assert.equal((await tools.open(inApp.deps, { service: KEY, path: '/dashboard/job_1' })).opened_in, 'fabric-dashboards');
   assert.deepEqual(inApp.calls.open, ['fabric-dashboards://service/example-agent.default?path=%2Fdashboard%2Fjob_1']);
 
   const browser = world({ installed: false });
-  const r = await tools.open(browser.deps, { service: KEY, path: '/dashboard/job_1' });
+  const r = await tools.open(browser.deps, { service: KEY, path: '/dashboard/job_1' }, 'if_absent');
   assert.equal(r.opened_in, 'browser');
   assert.deepEqual(browser.calls.open, ['http://127.0.0.1:47195/dashboard/job_1']);
 
   const linux = world({ platform: 'linux' });
   assert.equal((await tools.open(linux.deps, { service: KEY })).opened_in, 'nothing');
   assert.deepEqual(linux.calls.open, []);
+});
+
+test('FD-109: open never falls back to a browser unless the caller asks for it, and the MCP schema says so', async () => {
+  const absent = world({ installed: false });
+  await assert.rejects(tools.open(absent.deps, { service: KEY }), /host_not_installed/);
+  const out = await handle(absent.deps, { id: 1, method: 'tools/call', params: { name: 'open', arguments: { service: KEY } } });
+  const result = out!.result as { isError: boolean; structuredContent: { status: string; opened_in: string; open_link: string } };
+  assert.equal(result.isError, true);
+  assert.equal(result.structuredContent.status, 'host_not_installed');
+  assert.equal(result.structuredContent.opened_in, 'nothing');
+  assert.equal(result.structuredContent.open_link, 'fabric-dashboards://service/example-agent.default');
+  assert.deepEqual(absent.calls.open, []);
+  const list = await handle(absent.deps, { id: 2, method: 'tools/list' });
+  const openTool = (list!.result as { tools: { name: string; inputSchema: { properties: { fallback: { default: string } } } }[] }).tools.find((t) => t.name === 'open')!;
+  assert.equal(openTool.inputSchema.properties.fallback.default, 'never');
+});
+
+test('FD-109: a page on a loopback port no descriptor names is refused with the step that registers it, never opened', async () => {
+  const { deps, calls } = world({ installed: false });
+  for (const url of ['http://127.0.0.1:9999/orders?id=1', 'https://agent.example.org/panel/']) {
+    await assert.rejects(tools.open(deps, { url }, 'if_absent'), /register its agent with Fabric/);
+    await assert.rejects(tools.link(deps, { url }), /register its agent with Fabric/);
+  }
+  assert.deepEqual(calls.open, []);
 });
 
 test('installed host open failure must not fall back to HTTP', async () => {
@@ -513,6 +540,109 @@ test('FD-85: a call that arrives while the server leaves for an update is answer
   assert.equal(two.result!.structuredContent!.stale, true);
   await until(() => exited !== null);
   assert.equal(exited, 0, 'it still leaves');
+});
+
+// ── FD-109 (4): a stale server hands its session to the installed copy's server ─────────────
+
+/** A stand-in for the new copy's server: answers initialize and tools/call as version 1.1.0, records what it read. */
+function newServer(opts: { answers?: boolean } = {}) {
+  const child = new EventEmitter() as ChildProcess & EventEmitter;
+  const stdin = new PassThrough();
+  const stdout = new PassThrough();
+  Object.assign(child, { stdin, stdout, kill: () => { child.emit('exit', null, 'SIGKILL'); return true; } });
+  const read: Record<string, unknown>[] = [];
+  let buffer = '';
+  stdin.on('data', (chunk) => {
+    buffer += String(chunk);
+    let i: number;
+    while ((i = buffer.indexOf('\n')) >= 0) {
+      const m = JSON.parse(buffer.slice(0, i)) as { id?: unknown; method?: string };
+      buffer = buffer.slice(i + 1);
+      read.push(m);
+      if (opts.answers === false || m.id === undefined) continue;
+      const result = m.method === 'initialize' ? { serverInfo: { name: 'fabric-dashboards', version: '1.1.0' } } : { content: [], answeredBy: '1.1.0' };
+      stdout.write(`${JSON.stringify({ jsonrpc: '2.0', id: m.id, result })}\n`);
+    }
+  });
+  stdin.on('finish', () => setImmediate(() => child.emit('exit', 0, null)));
+  return { child, read };
+}
+
+function session(handover: () => ChildProcess | null, staleFrom = 2) {
+  let checks = 0;
+  const watch = { runningVersion: '1.0.0', check: () => { checks += 1; return { stale: checks >= staleFrom, running: '1.0.0', installed: '1.1.0' }; } } as unknown as StaleWatch;
+  const input = new PassThrough();
+  const output = new PassThrough();
+  const lines: { id: unknown; result?: { isError?: boolean; answeredBy?: string; structuredContent?: { stale?: boolean }; serverInfo?: unknown } }[] = [];
+  let buffer = '';
+  output.on('data', (chunk) => { buffer += String(chunk); let i: number; while ((i = buffer.indexOf('\n')) >= 0) { lines.push(JSON.parse(buffer.slice(0, i))); buffer = buffer.slice(i + 1); } });
+  let exited: number | null = null;
+  serve(world().deps, input, output, { exit: (code) => { exited = code; }, watch, signals: false, handover });
+  const send = (m: unknown) => input.write(`${JSON.stringify(m)}\n`);
+  const until = async (ok: () => boolean) => { const end = Date.now() + 5000; while (!ok()) { assert.ok(Date.now() < end, 'in time'); await new Promise((r) => setTimeout(r, 5)); } };
+  return { input, lines, send, until, exited: () => exited };
+}
+
+test('FD-109: after an update the stale server hands the session to the new copy, which answers the call; the client never sees stale', async () => {
+  const fresh = newServer();
+  let started = 0;
+  const s = session(() => { started += 1; return fresh.child; }, 3);
+  s.send({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-06-18', clientInfo: { name: 'claude-code' } } });
+  s.send({ jsonrpc: '2.0', method: 'notifications/initialized' });
+  s.send({ jsonrpc: '2.0', id: 2, method: 'tools/call', params: { name: 'list_services', arguments: {} } });
+  await s.until(() => s.lines.some((l) => l.id === 2));
+  assert.equal(s.lines.find((l) => l.id === 2)!.result!.isError, undefined, 'the old code answers while it is current');
+  s.send({ jsonrpc: '2.0', id: 3, method: 'tools/call', params: { name: 'list_services', arguments: {} } });
+  await s.until(() => s.lines.some((l) => l.id === 3));
+  assert.equal(started, 1);
+  assert.equal(s.lines.find((l) => l.id === 3)!.result!.answeredBy, '1.1.0', 'the new version answered');
+  assert.ok(!s.lines.some((l) => l.id === HANDOVER_ID), 'the repeated initialize stays between the servers');
+  assert.deepEqual(fresh.read.slice(0, 2).map((m) => (m as { method?: string }).method), ['initialize', 'notifications/initialized']);
+  assert.deepEqual((fresh.read[0] as { params?: unknown }).params, { protocolVersion: '2025-06-18', clientInfo: { name: 'claude-code' } }, 'the client\'s own initialize');
+  s.send({ jsonrpc: '2.0', id: 4, method: 'ping' });
+  await s.until(() => s.lines.some((l) => l.id === 4));
+  assert.equal(s.exited(), null, 'it keeps the session');
+  s.input.end();
+  await s.until(() => s.exited() !== null);
+  assert.equal(s.exited(), 0, 'the client leaving ends both');
+});
+
+test('FD-109: an answer of the old code still in the pipe does not stop the hand-over', async () => {
+  const fresh = newServer();
+  const s = session(() => fresh.child, 1);
+  s.send({ jsonrpc: '2.0', id: 1, method: 'initialize', params: {} });
+  s.send({ jsonrpc: '2.0', id: 2, method: 'tools/call', params: { name: 'list_services', arguments: {} } }); // right behind, unflushed
+  await s.until(() => s.lines.some((l) => l.id === 2));
+  assert.equal(s.lines.find((l) => l.id === 2)!.result!.answeredBy, '1.1.0');
+  await s.until(() => s.lines.some((l) => l.id === 1)); // JSON-RPC matches by id; the old answer still arrives
+});
+
+test('FD-109: a hand-over the new copy does not take answers the waiting call stale and leaves, as before', async () => {
+  const silent = newServer({ answers: false });
+  const s = session(() => { setTimeout(() => silent.child.emit('exit', 1, null), 20); return silent.child; }, 1);
+  s.send({ jsonrpc: '2.0', id: 1, method: 'initialize', params: {} });
+  s.send({ jsonrpc: '2.0', id: 2, method: 'tools/call', params: { name: 'list_services', arguments: {} } });
+  await s.until(() => s.lines.some((l) => l.id === 2));
+  assert.equal(s.lines.find((l) => l.id === 2)!.result!.structuredContent!.stale, true);
+  await s.until(() => s.exited() !== null);
+  assert.equal(s.exited(), 0);
+});
+
+test('FD-109: no hand-over without a launcher or before the client initialized; the launcher sits beside app.asar on every system', async () => {
+  const s = session(() => null, 1);
+  s.send({ jsonrpc: '2.0', id: 1, method: 'initialize', params: {} });
+  s.send({ jsonrpc: '2.0', id: 2, method: 'tools/call', params: { name: 'list_services', arguments: {} } });
+  await s.until(() => s.lines.some((l) => l.id === 2));
+  assert.equal(s.lines.find((l) => l.id === 2)!.result!.structuredContent!.stale, true);
+  let asked = 0;
+  const t = session(() => { asked += 1; return null; }, 1);
+  t.send({ jsonrpc: '2.0', id: 9, method: 'tools/call', params: { name: 'list_services', arguments: {} } });
+  await t.until(() => t.lines.some((l) => l.id === 9));
+  assert.equal(asked, 0, 'a session that never initialized has nothing to repeat');
+  assert.equal(launcherOf('/Applications/Fabric Dashboards.app/Contents/Resources/app.asar/out/main/mcp/server.js', 'darwin'), '/Applications/Fabric Dashboards.app/Contents/Resources/bin/fabric-dashboards-mcp');
+  assert.equal(launcherOf('C:\\Program Files\\Fabric Dashboards\\resources\\app.asar\\out\\main\\mcp\\server.js', 'win32'), 'C:\\Program Files\\Fabric Dashboards\\resources\\bin\\fabric-dashboards-mcp.cmd');
+  assert.equal(launcherOf('/opt/Fabric Dashboards/resources/app.asar/out/main/mcp/server.js', 'linux'), '/opt/Fabric Dashboards/resources/bin/fabric-dashboards-mcp');
+  assert.equal(launcherOf('/srv/checkout/fabric-dashboards/out/main/mcp/server.js', 'darwin'), null, 'a checkout has no installed copy to hand to');
 });
 
 // ── FD-93: how busy an agent is (DEC-0104) ───────────────────────────────────────────────────

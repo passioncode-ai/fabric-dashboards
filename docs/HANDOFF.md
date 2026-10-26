@@ -25,6 +25,17 @@ message `35112a93`); Q-03 is the operator's passkey sign-in, in their queue.
 **Exact next task:** step 2 of the iteration (module dossiers) for 0.9.0, starting with FD-109 (target 2026-10-31) and
 FD-96 (2026-10-31), then FD-110, FD-94 and FD-95 (2026-11-07).
 
+## 0.8.3: start here (2026-10-26, FD-109 agent pages open only in the app)
+
+**Objective:** board request `e7a84f35` (company-assessment-agent, the operator's rule of 2026-10-24, deadline
+2026-10-31) and Q-06, Q-07 as fabric-workspace answered them (MD-6, thread `ee3326f5`, message `35112a93`). MCP `open`
+defaults to `fallback=never`; a page no descriptor names is refused with the step that registers its agent
+(`REGISTER_STEP`, `src/core/deeplink.ts`, Russian in `src/core/machine-ru.ts`); a stale MCP server hands its session to
+the updated copy's server instead of exiting (`src/mcp/handover.ts`, wired in `serve`, `src/mcp/server.ts`). The cause
+of the dropped server (point 4): the 0.7.27 to 0.7.28 update at 12:29 UTC on 2026-10-24 (`main.log`), an hour before
+the request. **Checks run:** see the PR. **Exact next task:** after the `v0.8.3` release run, confirm the installed
+copy has 0.8.3, then answer `e7a84f35` on thread `3b21ecf8`; then FD-96 (2026-10-31).
+
 ## 0.8.2: start here (2026-10-25, FD-116 limit stops whose session went on)
 
 **Objective, met (PR #204, merged `c009bd2`):** the operator saw three sessions under "Waiting for a limit reset"

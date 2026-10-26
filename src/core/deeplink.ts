@@ -99,6 +99,9 @@ function installed(key: string, pathParam: string | null, known: Known): DeepLin
  * local service, or exactly the registered `https` origin of a remote one (DEC-0019) — an https
  * URL that no descriptor on this computer names is refused, never opened.
  */
+/** FD-109 (Q-07 a): what turns an agent's page that no descriptor names into one this app opens. Never a browser. */
+export const REGISTER_STEP = 'to open it here, register its agent with Fabric: put the agent\'s install file (fabric-service/0.1) in this computer\'s services folder, as the building-fabric-services skill describes';
+
 export function fromServiceUrl(raw: string, known: Known): DeepLinkResult {
   let url: URL;
   try {
@@ -109,7 +112,7 @@ export function fromServiceUrl(raw: string, known: Known): DeepLinkResult {
   if (url.protocol === 'https:') {
     if (url.username || url.password) return { ok: false, reason: 'url must not carry credentials' };
     const entry = known.find((k) => k.descriptor?.placement === 'remote' && new URL(k.descriptor.origin).origin === url.origin);
-    if (!entry) return { ok: false, reason: `url must be a local service on http://127.0.0.1:<port> or an installed online service; none is at ${url.origin}` };
+    if (!entry) return { ok: false, reason: `url must be a local service on http://127.0.0.1:<port> or an installed online service; none is at ${url.origin}; ${REGISTER_STEP}` };
     const remotePath = safePath(`${url.pathname}${url.search}${url.hash}` || '/');
     if (!remotePath) return { ok: false, reason: 'the url path is not a path on the service' };
     return { ok: true, target: { page: 'service', key: entry.key, link: remotePath === '/' ? undefined : remotePath } };
@@ -121,7 +124,7 @@ export function fromServiceUrl(raw: string, known: Known): DeepLinkResult {
   if (url.username || url.password) return { ok: false, reason: 'url must not carry credentials' };
   const port = Number(url.port);
   const entry = known.find((k) => k.descriptor && portOf(k.descriptor.origin) === port);
-  if (!entry) return { ok: false, reason: `no installed service on port ${url.port || '80'}` };
+  if (!entry) return { ok: false, reason: `no installed service on port ${url.port || '80'}; ${REGISTER_STEP}` };
   const path = safePath(`${url.pathname}${url.search}${url.hash}` || '/');
   if (!path) return { ok: false, reason: 'the url path is not a path on the service' };
   return { ok: true, target: { page: 'service', key: entry.key, link: path === '/' ? undefined : path } };

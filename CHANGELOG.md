@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.8.3 - 2026-10-26
+
+### Changed
+
+- **Agent pages open in Fabric Dashboards, never in a browser** (FD-109, the operator's rule of 2026-10-24). The MCP
+  `open` tool no longer opens a browser by default: where the app is not installed it answers `host_not_installed`
+  with the link, and opens the plain address only when the agent asks for it with `fallback=if_absent`. A link or an
+  `open` call for a page no installed agent serves is refused, and the reason now names the step that makes it
+  openable here: register that agent with Fabric by putting its install file in the services folder.
+
+### Fixed
+
+- **An app update cut agent sessions off from this app's MCP tools** (FD-109). After an update the MCP server of a
+  running Claude Code session answered `stale` and exited, and the session had no `open` or `link` until it was
+  restarted; on 2026-10-24 an agent went to a browser for that reason. Now that server hands the session to the
+  updated copy's server on the same connection, and the new version answers the next call. Where no installed copy
+  can take it, the old behaviour stays: the call is answered `stale` and the server exits.
+
 ## 0.8.2 - 2026-10-25
 
 ### Fixed

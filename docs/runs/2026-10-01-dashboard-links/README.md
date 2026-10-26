@@ -43,8 +43,9 @@ a missing/different handler is `handler_mismatch`. Opening targets the checked
 application path via `open -a`, never `-n`. The app's existing single-instance
 lock and service view map still own reuse.
 
-`open` accepts optional `fallback: if_absent | never` (default `if_absent`). Only
-confirmed absence permits HTTP fallback. Installed failure, incompatible version,
+`open` accepts optional `fallback: if_absent | never` (default `never` since FD-109, 2026-10-26: agent pages open
+in the app or not at all; before, `if_absent`). Only a caller that passes `if_absent`, and only on confirmed
+absence, gets an HTTP fallback. Installed failure, incompatible version,
 handler mismatch and unknown never do. These return MCP `isError` plus structured
 `status`, `opened_in: nothing`, `open_link`, `http_url`; no raw OS error is returned.
 Success is `status: accepted_by_os`, not a page readiness claim. Non-macOS returns
