@@ -113,6 +113,12 @@ if (!app.requestSingleInstanceLock()) {
   // A writer killed between write and rename leaves its temporary file; nothing else removes it (LC-12).
   for (const name of sweepTemps(userData)) log(`removed a temporary file left by a stopped process: ${name}`);
   const settings = new SettingsStore(userData, (message) => log(message));
+  // FD-122: a change someone else writes into settings.json (an agent's MCP `arrange`) reaches the window at once.
+  const stopSettingsWatch = settings.watch(() => {
+    log('settings: changed outside the app; read again');
+    if (window && !window.isDestroyed()) window.webContents.send(CHANNELS.settingsPush, settings.get());
+    pushStatus();
+  });
   if (settings.recovered) log(`settings: ${settings.recovered}`);
   // Embedded dashboards follow the app's theme, not only macOS (prefers-color-scheme in every page).
   nativeTheme.themeSource = settings.get().theme;
@@ -908,6 +914,7 @@ if (!app.requestSingleInstanceLock()) {
   app.on('will-quit', (event) => {
     // Nothing starts after quit begins; pending state reaches disk; commands we started end with us (LC-01, LC-02).
     void consoleChannel?.close(); // ADR-0025: the socket and its key go with the run
+    stopSettingsWatch();
     consoleChannel = null;
     monitor.stop();
     alerts.stop(); // FD-48: no tick after quit begins

@@ -794,3 +794,36 @@ test('ADR-0025: console_new and console_fix reach the running app through its ch
     await ch!.close();
   }
 });
+
+test('FD-122: arrange writes the row menu\'s choices to the app\'s settings, once, and says the agent\'s list state', async () => {
+  const w = world();
+  const userData = tmp('fd-arrange-');
+  const file = path.join(userData, 'settings.json');
+  w.deps.settingsFile = () => file;
+  const product = 'example-agent';
+  const hidden = await tools.arrange(w.deps, KEY, 'hide');
+  assert.deepEqual([hidden.product, hidden.hidden, hidden.changed], [product, true, true]);
+  const read = () => JSON.parse(fs.readFileSync(file, 'utf8')).layout.list;
+  assert.deepEqual(read().hidden, [product]);
+  assert.equal((await tools.arrange(w.deps, KEY, 'hide')).changed, false, 'a choice that holds changes nothing');
+  assert.equal((await tools.arrange(w.deps, KEY, 'show')).hidden, false);
+  assert.deepEqual((await tools.arrange(w.deps, KEY, 'pin')).pinned, true);
+  assert.deepEqual(read().pinned, [product]);
+  const asService = await tools.arrange(w.deps, KEY, 'as-service');
+  assert.equal(asService.category, 'service');
+  assert.equal((await tools.arrange(w.deps, KEY, 'as-agent')).category, 'local');
+  assert.deepEqual(read().kinds, {}, 'choosing what the app guesses removes the choice');
+  await assert.rejects(tools.arrange(w.deps, 'nobody.default', 'hide'), /no installed service/);
+  await assert.rejects(tools.arrange(w.deps, KEY, 'delete' as never), /action must be one of/);
+  w.deps.settingsFile = () => path.join(userData, 'never', 'settings.json');
+  await assert.rejects(tools.arrange(w.deps, KEY, 'hide'), /open it once/);
+});
+
+test('FD-122: arrange is declared as six actions with no gate; the tool is listed', async () => {
+  const { OWN_ACTIONS, actionOf } = await import('../src/mcp/actions');
+  const ids = OWN_ACTIONS.filter((a) => a.tool === 'arrange').map((a) => `${a.id}:${a.gate}`);
+  assert.deepEqual(ids, ['pin:none', 'unpin:none', 'hide:none', 'show:none', 'as-service:none', 'as-agent:none']);
+  assert.equal(actionOf('arrange', { action: 'hide' })?.id, 'hide');
+  assert.equal(actionOf('arrange', { action: 'nope' }), null);
+  assert.ok(TOOLS.some((t) => t.name === 'arrange'));
+});

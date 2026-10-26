@@ -7,6 +7,9 @@
 - **Arrange the sidebar your way** (FD-121). Drag its right edge to make it wider or narrower; double-click the edge to
   go back. Drag an agent up or down within its section to put it where you want it (or press Alt+Up and Alt+Down); the
   sort then reads "Your order". In the Hidden list, the eye beside an agent shows it again.
+- **Agents can arrange the list for you** (FD-122). A new MCP tool, `arrange`, does what an agent's row menu does: pin
+  or unpin, hide or show again, show as a service or as an agent. The app now picks up a change to its settings made
+  while it runs, and its own next change keeps it instead of writing over it.
 
 ### Fixed
 

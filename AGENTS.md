@@ -150,6 +150,7 @@ due probe or rescan — no fixed 1-second poll — and one for the events feed:
 | `launchctl print` per launchd service | with every probe | only after a missed probe, a changed pid, or 5 min |
 | `launchctl print-disabled` | at most once a minute, and only when a `print` runs | same |
 | Directory rescan (reads small JSON files, no spawn) | on `fs.watch`, plus every 5 s | on `fs.watch`, plus every 60 s (30 s if the watcher failed) |
+| `settings.json` written outside the app (FD-122: an agent's MCP `arrange`, an editor) | a folder watch, plus a stat of the file every 5 s (`SETTINGS_POLL_MS`); read only when it changed | same |
 | Switchboard hand-overs (`switchboard --json handovers`, FD-62; only where Switchboard is installed) | every 15 s | every 60 s |
 | Switchboard's session list (`switchboard --json sessions --all`, FD-103; same tick, one read in flight at most) | every 15 s | every 60 s |
 | Window visibility check (FD-64: ⌘H fires no window event; one boolean, no spawn, no IPC) | 0.5 s after the app becomes or stops being active, plus every 15 s | same |

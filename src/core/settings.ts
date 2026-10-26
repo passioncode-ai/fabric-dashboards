@@ -10,11 +10,17 @@ import { CONSOLE_HEIGHT, DEFAULT_SETTINGS, SIDEBAR_WIDTH, type Settings, type Se
 import { DEFAULT_PAGE_THEME, REFERENCE_THEMES } from './appearance';
 import { pruneDismissed, pruneRecords } from './sessions';
 
+/** FD-122: how often settings.json is looked at for a change written outside the app (a stat, no read). */
+export const SETTINGS_POLL_MS = 5_000;
+
 export class SettingsStore {
   private readonly file: string;
   private readonly backup: string;
   private readonly dir: string;
   private value: Settings;
+  /** FD-122: the text of settings.json as this store last read or wrote it; a file that differs was written by someone
+   *  else (an agent's MCP `arrange`, a person's editor) and is read again before anything is written over it. */
+  private known: string | null = null;
   /** What reading found, for the log: null when settings.json was read as it is. */
   readonly recovered: string | null = null;
 
@@ -26,6 +32,7 @@ export class SettingsStore {
     const main = readObject(this.file);
     if (main.ok) {
       this.value = merge(main.value);
+      this.known = main.text;
     } else {
       const bak = readObject(this.backup);
       this.value = merge(bak.ok ? bak.value : {});
@@ -47,7 +54,38 @@ export class SettingsStore {
     return { ...structuredClone(this.value), autoUpdate: autoUpdateOn(this.dir) };
   }
 
+  // #region settings-sync — docs: docs/ux/scenarios.md#scn-087-arrange-the-sidebar-width-and-order
+  /** FD-122: read settings.json again when someone else wrote it; true when what it holds changed. A file that cannot
+   *  be read now keeps what is in memory (a writer midway, or a damaged edit: the next write repairs it). */
+  refresh(): boolean {
+    const now = readObject(this.file);
+    if (!now.ok || now.text === this.known) return false;
+    this.known = now.text;
+    const next = merge(now.value);
+    if (JSON.stringify(next) === JSON.stringify(this.value)) return false;
+    this.value = next;
+    return true;
+  }
+
+  /** FD-122: call `onChange` when someone else changes settings.json while the app runs; returns the stop. The folder
+   *  watch answers at once; a stat of the file every `pollMs` catches what it misses (FSEvents drops events under load,
+   *  measured 2026-10-26 with the test suite running). */
+  watch(onChange: () => void, pollMs = SETTINGS_POLL_MS): () => void {
+    let timer: NodeJS.Timeout | null = null;
+    const check = () => { if (timer) clearTimeout(timer); timer = setTimeout(() => { timer = null; if (this.refresh()) onChange(); }, 150); };
+    let watcher: fs.FSWatcher | null = null;
+    try {
+      watcher = fs.watch(this.dir, (_event, name) => { if (!name || name === 'settings.json') check(); });
+      watcher.on('error', () => undefined);
+    } catch { /* no folder watch here: the stat below and the next write still read the file first */ }
+    const polled = (now: fs.Stats, before: fs.Stats) => { if (now.mtimeMs !== before.mtimeMs || now.size !== before.size) check(); };
+    fs.watchFile(this.file, { interval: pollMs, persistent: false }, polled);
+    return () => { if (timer) clearTimeout(timer); watcher?.close(); fs.unwatchFile(this.file, polled); };
+  }
+  // #endregion settings-sync
+
   update(patch: SettingsPatch): Settings {
+    this.refresh(); // FD-122: a change someone else wrote is kept, and this patch applies over it
     // LC-16: the person's switch writes the `auto-update` file, never settings.json.
     if (typeof patch.autoUpdate === 'boolean') {
       try { setAutoUpdate(this.dir, patch.autoUpdate); } catch (error) { this.onWriteError((error as Error).message); }
@@ -71,6 +109,7 @@ export class SettingsStore {
     const text = JSON.stringify(this.value, null, 2);
     try {
       atomicWrite(this.file, text);
+      this.known = text;
       atomicWrite(this.backup, text);
     } catch (error) {
       this.onWriteError(`settings: not saved, kept in memory: ${(error as Error).message}`);
@@ -78,7 +117,7 @@ export class SettingsStore {
   }
 }
 
-function readObject(file: string): { ok: true; value: Partial<Settings> } | { ok: false; reason: string } {
+function readObject(file: string): { ok: true; value: Partial<Settings>; text: string } | { ok: false; reason: string } {
   let text: string;
   try {
     text = fs.readFileSync(file, 'utf8');
@@ -87,7 +126,7 @@ function readObject(file: string): { ok: true; value: Partial<Settings> } | { ok
   }
   try {
     const value = JSON.parse(text);
-    return value && typeof value === 'object' && !Array.isArray(value) ? { ok: true, value } : { ok: false, reason: 'is not a settings object' };
+    return value && typeof value === 'object' && !Array.isArray(value) ? { ok: true, value, text } : { ok: false, reason: 'is not a settings object' };
   } catch {
     return { ok: false, reason: 'is not valid JSON' };
   }

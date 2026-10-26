@@ -24,12 +24,12 @@ import { Launchd, execRunner, type Runner } from '../core/launchd';
 import { fetchEvents, fetchLoad, fetchUsage, fetchWellKnown, PROBE_TIMEOUT_MS, readTokenAsync } from '../core/probe';
 import { readLoad, type LoadEntry } from '../core/load';
 import { readSpend, type SpendEntry } from '../core/spend';
-import { categoryOf, groupProducts, productIdOf, type Category } from '../core/products';
+import { categoryOf, groupProducts, productIdOf, setKind, togglePin, type Category } from '../core/products';
 import { buildGraph, chainState, stateOfService, worstOf, type ConnectionGraph } from '../core/connections';
 import { audit as runAudit, type Finding } from '../core/audit';
 import { estateMap, type EstateMap } from '../core/estate-map';
 import { doctorArgv, doctorResult, DOCTOR_TIMEOUT_MS, type SetupCheckResult } from '../core/doctor';
-import { merge as mergeSettings } from '../core/settings';
+import { merge as mergeSettings, SettingsStore } from '../core/settings';
 import { places } from '../core/platform';
 import type { ListLayout, ServiceSnapshot } from '../core/types';
 import os from 'node:os';
@@ -224,6 +224,36 @@ function listing(looks: readonly ServiceLook[], layout: Pick<ListLayout, 'hidden
 
 /** A look carries what product grouping reads; the fields only the app's monitor keeps are empty. */
 const asSnapshot = (l: ServiceLook): ServiceSnapshot => ({ ...l, descriptorPath: l.path, dashboardMinWidth: null, firstUnansweredAt: null, lastAnswerAt: null, busy: null, lastAction: null, latestEvent: null, feedError: null } as unknown as ServiceSnapshot);
+
+// #region arrange — docs: docs/ux/scenarios.md#scn-087-arrange-the-sidebar-width-and-order
+export type ArrangeAction = 'pin' | 'unpin' | 'hide' | 'show' | 'as-service' | 'as-agent';
+const ARRANGE: readonly ArrangeAction[] = ['pin', 'unpin', 'hide', 'show', 'as-service', 'as-agent'];
+
+/** FD-122: the row menu's choices as a tool. Written to the app's settings.json (the running app reads it again at once,
+ *  SettingsStore.watch); a choice that holds already changes nothing. The whole product moves, as in the sidebar. */
+export async function arrange(deps: Deps, key: string, action: ArrangeAction): Promise<{ service: string; product: string; pinned: boolean; hidden: boolean; category: Category; changed: boolean }> {
+  if (!ARRANGE.includes(action)) throw new ToolError(`action must be one of ${ARRANGE.join(', ')}`);
+  const looks = await look(deps);
+  if (!looks.some((l) => l.key === key)) throw new ToolError(`no installed service ${JSON.stringify(key)}`);
+  const p = groupProducts(looks.map(asSnapshot)).find((x) => x.members.some((m) => m.key === key))!;
+  const file = deps.settingsFile?.() ?? appSettingsFile();
+  if (!fs.existsSync(path.dirname(file))) throw new ToolError('Fabric Dashboards has kept no settings on this computer yet: open it once, then arrange');
+  let error: string | null = null;
+  const store = new SettingsStore(path.dirname(file), (m) => { error = m; });
+  const list = store.get().layout.list;
+  const pinned = list.pinned.includes(p.id), hidden = list.hidden.includes(p.id);
+  const patch: Partial<ListLayout> | null =
+    action === 'pin' ? (pinned ? null : { pinned: togglePin(list.pinned, p.id) })
+    : action === 'unpin' ? (pinned ? { pinned: togglePin(list.pinned, p.id) } : null)
+    : action === 'hide' ? (hidden ? null : { hidden: [...list.hidden, p.id] })
+    : action === 'show' ? (hidden ? { hidden: list.hidden.filter((x) => x !== p.id) } : null)
+    : (categoryOf(p, list.kinds) === 'service') === (action === 'as-service') ? null
+    : { kinds: setKind(list.kinds, p, action === 'as-service' ? 'service' : 'agent') };
+  const after = patch ? store.update({ layout: { list: patch } }).layout.list : list;
+  if (error) throw new ToolError(`the choice was not saved: ${error}`);
+  return { service: key, product: p.id, pinned: after.pinned.includes(p.id), hidden: after.hidden.includes(p.id), category: categoryOf(p, after.kinds), changed: Boolean(patch) };
+}
+// #endregion arrange
 
 export async function listServices(deps: Deps): Promise<{ services: ServiceView[]; services_dir: string }> {
   const looks = await look(deps);

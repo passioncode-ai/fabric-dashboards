@@ -77,6 +77,8 @@ export function App() {
       if (!navigated.current && s.layout.mode === 'sessions') setRoute(s.layout.sessionId ? { page: 'session', id: s.layout.sessionId, until: Date.now() + SESSION_WAIT_MS } : { page: 'sessions' });
     });
     const offStatus = api().onStatus(setStatus);
+    // FD-122: what an agent arranged through MCP shows at once; a drag in progress is not undone (R-9 holds for writes).
+    const offSettings = api().onSettings((s) => { setLayout(s.layout); applyTheme(s.theme); setScheme(s.theme); });
     const go = (target: NavTarget) => {
       navigated.current = true;
       if (target.page === 'agents') switchMode('agents');
@@ -102,7 +104,7 @@ export function App() {
       return { ...l, ...patch, console: { ...l.console, ...('console' in patch ? patch.console : {}) } };
     }));
     void api().takeNavigation().then((target) => { if (target) go(target); }); // after subscribing: nothing falls between
-    return () => { offStatus(); offNav(); offLayout(); };
+    return () => { offStatus(); offSettings(); offNav(); offLayout(); };
   }, []);
 
   useEffect(() => { if (route.page !== 'service') void api().hideView(); }, [route.page]);

@@ -101,3 +101,36 @@ test('FD-121 (SCN-087): the edge is a named separator; holding it steps the dash
   assert.match(app, /onDoubleClick=\{\(\) => onWidth\(SIDEBAR_WIDTH\.default, true\)\}/);
   assert.match(app, /style=\{rail \? undefined : \{ gridTemplateColumns: `\$\{layout\.sidebarWidth\}px 1fr` \}\}/);
 });
+
+test('FD-122: a change someone else writes into settings.json is read again, and the app\'s next write keeps it', async () => {
+  const { SettingsStore } = await import('../src/core/settings');
+  const dir = fs.mkdtempSync(path.join(require('node:os').tmpdir(), 'fd-sync-'));
+  const app = new SettingsStore(dir);
+  app.update({ layout: { list: { pinned: ['alpha'] } } });
+  assert.equal(app.refresh(), false, 'its own write is not news');
+  const outside = new SettingsStore(dir); // an agent's MCP arrange
+  outside.update({ layout: { list: { hidden: ['bravo'] } } });
+  assert.equal(app.refresh(), true);
+  assert.deepEqual(app.get().layout.list.hidden, ['bravo']);
+  outside.update({ layout: { list: { hidden: ['bravo', 'charlie'] } } });
+  app.update({ layout: { sidebarWidth: 300 } }); // the app writes without a refresh between
+  const saved = JSON.parse(fs.readFileSync(path.join(dir, 'settings.json'), 'utf8')).layout;
+  assert.deepEqual([saved.list.hidden, saved.list.pinned, saved.sidebarWidth], [['bravo', 'charlie'], ['alpha'], 300], 'nothing written outside is lost');
+  fs.writeFileSync(path.join(dir, 'settings.json'), '{ not json');
+  assert.equal(app.refresh(), false, 'a damaged edit keeps what is in memory');
+  assert.deepEqual(app.get().layout.list.hidden, ['bravo', 'charlie']);
+  let seen = 0;
+  const stop = app.watch(() => { seen += 1; }, 100);
+  // macOS FSEvents starts its stream a moment after fs.watch returns, later under load: write until it is seen.
+  const until = Date.now() + 8000;
+  for (let i = 0; seen === 0 && Date.now() < until; i += 1) {
+    outside.update({ layout: { list: { hidden: i % 2 ? ['delta'] : [] } } });
+    const next = Date.now() + 600;
+    while (seen === 0 && Date.now() < next) await new Promise((r) => setTimeout(r, 50));
+  }
+  stop();
+  assert.ok(seen >= 1, 'the watch saw a change written outside');
+  outside.update({ layout: { list: { hidden: [] } } });
+  app.refresh();
+  assert.deepEqual(app.get().layout.list.hidden, []);
+});
