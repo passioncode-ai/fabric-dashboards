@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import http from 'node:http';
 import type { AddressInfo } from 'node:net';
+import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { checkWellKnown, fetchWellKnown, request, tokenFileProblem, windowsAclProblem, windowsAclRefusal, windowsPowerShellEnv } from '../src/health';
@@ -157,4 +158,31 @@ test('DEC-0057: GENERIC_READ for Everyone is refused once the mask is read unsig
 test('FD-37: Windows PowerShell 5.1 runs without the PSModulePath a parent PowerShell 7 set, in any spelling', () => {
   const env = windowsPowerShellEnv({ Path: 'C:\\Windows', PSModulePath: 'C:\\Program Files\\PowerShell\\7\\Modules', psmodulepath: 'x', USERPROFILE: 'C:\\Users\\me' });
   assert.deepEqual(env, { Path: 'C:\\Windows', USERPROFILE: 'C:\\Users\\me' });
+});
+
+// ── FD-94: the compiled ACL reader (build/win/acl.cs), on Windows ──────────────────────────────
+
+test('FD-94: the compiled reader and Windows PowerShell give one verdict; a reader that fails falls back to PowerShell', { skip: process.platform !== 'win32' && 'Windows only' }, async (t) => {
+  const { windowsAclReader } = await import('../../../test/win-acl');
+  const { readTokenAsync, setWindowsAclReader } = await import('../src/health');
+  const { execFileSync } = await import('node:child_process');
+  const reader = windowsAclReader();
+  assert.ok(reader, 'csc.exe builds the reader on every Windows runner');
+  t.after(() => setWindowsAclReader(null));
+  const dir = fs.mkdtempSync(path.join(os.homedir(), '.fd-acl-'));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const token = path.join(dir, 'token');
+  fs.writeFileSync(token, 'r'.repeat(32));
+  setWindowsAclReader(reader);
+  const started = Date.now();
+  assert.equal(await readTokenAsync(token), 'r'.repeat(32));
+  const viaReader = Date.now() - started;
+  execFileSync('icacls', [token, '/grant', '*S-1-1-0:R'], { stdio: 'ignore' });
+  setWindowsAclReader(reader); // a fresh read: an ACL change need not move the file's times
+  await assert.rejects(readTokenAsync(token), /S-1-1-0/, 'the reader sees Everyone');
+  setWindowsAclReader(null);
+  await assert.rejects(readTokenAsync(token), /S-1-1-0/, 'and so does Windows PowerShell');
+  setWindowsAclReader(path.join(dir, 'missing.exe'));
+  await assert.rejects(readTokenAsync(token), /S-1-1-0/, 'a reader that does not start is never trusted: PowerShell reads it');
+  t.diagnostic(`reader read the token in ${viaReader} ms`);
 });

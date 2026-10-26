@@ -9,7 +9,8 @@ import type { ChildProcess } from 'node:child_process';
 import readline from 'node:readline';
 import { killOwned } from '../core/children';
 import { removeMcpRegistrations } from '../core/uninstall';
-import { liveHandover, startRelay, type Relay } from './handover';
+import { setWindowsAclReader } from '@passioncode-ai/fabric-service-host';
+import { launcherOf, liveHandover, startRelay, type Relay } from './handover';
 import { codeFile, plistVersion, StaleWatch } from './stale';
 import * as tools from './tools';
 
@@ -416,6 +417,10 @@ export function cli(argv: string[], out: (text: string) => void = (t) => process
 // #endregion session-lifecycle
 
 if (require.main === module) {
+  // FD-94: the installed copy's compiled ACL reader sits beside the launcher (resources/bin), as in the app.
+  const launcher = process.platform === 'win32' ? launcherOf(__filename) : null;
+  const reader = launcher ? path.join(path.dirname(launcher), 'fabric-dashboards-acl.exe') : null;
+  if (reader && fs.existsSync(reader)) setWindowsAclReader(reader);
   const code = cli(process.argv.slice(2));
   if (code === null) serve();
   else process.exitCode = code;

@@ -232,6 +232,18 @@ const aclReading = new Map<string, Promise<void>>();
 const aclKey = (info: fs.Stats) => `${info.ctimeMs}|${info.mtimeMs}|${info.size}`;
 const POWERSHELL_ARGS = (file: string) => ['-NoProfile', '-NonInteractive', '-Command', ACL_SCRIPT(file)];
 
+// FD-94: a compiled reader (build/win/acl.cs, shipped signed in the app's resources/bin) prints the same JSON as
+// ACL_SCRIPT without starting Windows PowerShell, whose first start took 7 s to a minute on a windows-11-arm runner
+// against 1.8 s for the reader (validate run 40252400653). A host sets it once; a reader that fails to start or
+// answers nothing is never trusted: the read falls back to Windows PowerShell.
+let aclReader: string | null = null;
+/** Where the compiled ACL reader is, or null for Windows PowerShell alone. Only a host's own installed file. */
+export function setWindowsAclReader(file: string | null): void {
+  aclReader = file;
+  aclCache.clear();
+}
+const readerOutput = (stdout: string) => /^\{"user":"S-[0-9-]+","owner":"S-[0-9-]+","aces":\[/.test(stdout);
+
 /** What PowerShell's answer means for the token file; `cache` is false for a timeout, which says nothing about the file. */
 function aclVerdict(stdout: string, stderr: string, error: Error | undefined, label: string): { problem: string | null; cache: boolean } {
   try {
@@ -255,7 +267,9 @@ function freshAcl(file: string, info: fs.Stats): { problem: string | null } | un
 function windowsTokenAclProblem(file: string, label: string, info: fs.Stats): string | null {
   const hit = freshAcl(file, info);
   if (hit) return hit.problem;
-  const r = spawnSync('powershell.exe', POWERSHELL_ARGS(file), { encoding: 'utf8', timeout: ACL_SYNC_TIMEOUT_MS, windowsHide: true, env: windowsPowerShellEnv() });
+  const fast = aclReader ? spawnSync(aclReader, [file], { encoding: 'utf8', timeout: ACL_SYNC_TIMEOUT_MS, windowsHide: true }) : null;
+  const r = fast && fast.status === 0 && readerOutput(fast.stdout ?? '') ? fast
+    : spawnSync('powershell.exe', POWERSHELL_ARGS(file), { encoding: 'utf8', timeout: ACL_SYNC_TIMEOUT_MS, windowsHide: true, env: windowsPowerShellEnv() });
   const v = aclVerdict(r.stdout ?? '', r.stderr ?? '', r.error, label);
   if (v.cache) aclCache.set(file, { key: aclKey(info), at: Date.now(), problem: v.problem });
   return v.problem;
@@ -266,11 +280,20 @@ function readWindowsAcl(file: string, label: string, info: fs.Stats): Promise<vo
   if (freshAcl(file, info)) return Promise.resolve();
   const running = aclReading.get(file);
   if (running) return running;
-  const reading = new Promise<void>((resolve) => {
+  const powershell = (resolve: () => void) => {
     execFile('powershell.exe', POWERSHELL_ARGS(file), { encoding: 'utf8', timeout: ACL_ASYNC_TIMEOUT_MS, windowsHide: true, env: windowsPowerShellEnv() }, (error, stdout, stderr) => {
       // execFile names its own timeout `killed` with signal SIGTERM.
       const timedOut = error && (error as { killed?: boolean }).killed ? Object.assign(new Error('powershell.exe ETIMEDOUT'), { code: 'ETIMEDOUT' }) : error ?? undefined;
       const v = aclVerdict(stdout, stderr, timedOut, label);
+      if (v.cache) aclCache.set(file, { key: aclKey(info), at: Date.now(), problem: v.problem });
+      resolve();
+    });
+  };
+  const reading = new Promise<void>((resolve) => {
+    if (!aclReader) return powershell(resolve);
+    execFile(aclReader, [file], { encoding: 'utf8', timeout: ACL_SYNC_TIMEOUT_MS, windowsHide: true }, (error, stdout, stderr) => {
+      if (error || !readerOutput(stdout)) return powershell(resolve); // never trusted on a failure: PowerShell reads it
+      const v = aclVerdict(stdout, stderr, undefined, label);
       if (v.cache) aclCache.set(file, { key: aclKey(info), at: Date.now(), problem: v.problem });
       resolve();
     });
