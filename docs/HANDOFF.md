@@ -25,14 +25,15 @@ message `35112a93`); Q-03 is the operator's passkey sign-in, in their queue.
 **Exact next task:** step 2 of the iteration (module dossiers) for 0.9.0, starting with FD-109 (target 2026-10-31) and
 FD-96 (2026-10-31), then FD-110, FD-94 and FD-95 (2026-11-07).
 
-## Unreleased on main: start here (2026-10-26, MD-12, FD-120)
+## 0.8.7: start here (2026-10-26, MD-12, FD-120)
 
 **Done:** ADR-0025 (the console channel, threat model; ADR-0002 and SECURITY amended, PR #230) and its code: a per-user
 socket or named pipe with a per-start key, MCP `console_new` and `console_fix` (PR #231, `4786193`; validate run
-40274479141 green on five runners, the Windows pipe test included). **Held from release on purpose:** it opens a channel
-in the main process at start, and the running app could not be checked (the screen was locked). **Exact next task:**
-with the screen unlocked, run the e2e suite (FD-111 with it), start the built app, call `console_new` from an MCP
-session against a test service and see the console start, then release (0.8.7 or 0.9.0) and close FD-120. FD-52 waits
+40274479141 green on five runners, the Windows pipe test included). Held at first for a check on the running app (the screen
+was locked); released as 0.8.7 on fabric-workspace's word (2026-10-26, "выпусти его следующей версией сейчас"), the
+channel failing safe (an error leaves it closed and logged). **Exact next task:** after the installed copy updates,
+check `main.log` for "console channel open" and that a request with a wrong key gets `bad-key`; with the screen
+unlocked, run the e2e suite (FD-111) and call `console_new` against a test service. FD-52 waits
 for its context source (the Observatory node, Fabric's organization contexts, 2026-11-21).
 
 ## 0.8.6: start here (2026-10-26, SB-201)
