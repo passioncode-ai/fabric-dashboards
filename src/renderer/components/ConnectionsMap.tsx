@@ -125,7 +125,7 @@ function Graph({ nodes, edges, columns, rows, open, t }: { nodes: MapNode[]; edg
   const height = PAD * 2 + rows * NODE_H + Math.max(0, rows - 1) * ROW_GAP;
   return (
     <div className="cmap-graph">
-      <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} role="img" aria-label={t('map.graph')}>
+      <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} role="group" aria-label={t('map.graph')}>{/* VIS-07: not role=img, whose children would lose their names */}
         <defs>
           {(['ok', 'degraded', 'down', 'unknown'] as const).map((s) => (
             <marker key={s} id={`arrow-${s}`} viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 8 4 0 8z" className={`edge-head edge-${s}`} /></marker>
@@ -148,6 +148,7 @@ function Graph({ nodes, edges, columns, rows, open, t }: { nodes: MapNode[]; edg
             <g key={n.id} className={`node conn-${n.state}${n.missing ? ' node-missing' : ''}`} transform={`translate(${p.x} ${p.y})`}
               role={n.key ? 'button' : undefined} tabIndex={n.key ? 0 : undefined} aria-label={`${n.name}: ${n.missing ? t('map.missing') : t(`conn.state.${n.state}`)}`}
               onClick={() => n.key && open(n.key)} onKeyDown={(e) => { if (n.key && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); open(n.key); } }}>
+              <title>{n.name}</title>{/* VIS-07: the full name of a box whose label is cut at 22 characters */}
               <rect width={COL_W} height={NODE_H} rx="6" className="node-box" />
               <rect width="3" height={NODE_H} className="node-edge" />
               {!n.missing && <text x="12" y={NODE_H / 2 + 4} className="node-mark" aria-hidden="true">{MARK[n.state]}</text>}

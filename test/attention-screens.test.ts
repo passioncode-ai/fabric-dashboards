@@ -113,3 +113,12 @@ test('UX-04, UX-05: the sidebar counts the attention queue and audits with the l
   assert.doesNotMatch(app, /const problems = status\.services\.filter\(\(s\) => PROBLEM\.has/, 'no second, narrower count');
   assert.match(app, /className="nav-item nav-update"/, 'a folded rail still offers the app\'s own update');
 });
+
+test('VIS-11 (FD-113): an agent card\'s accessible name carries what it flags and its latest event, not only its name and state', () => {
+  const s = snap('alpha.default', 'ready', { tile: true, latestEvent: { id: 'e1', at: '2026-10-26T07:00:00Z', kind: 'job.done', level: 'notice', text: 'Job 7 delivered' } } as never);
+  const html = overview([s]);
+  const label = /<button class="card"[^>]*aria-label="([^"]*)"/.exec(html)![1]!;
+  assert.match(label, /^Alpha: Ready/);
+  assert.match(label, /Queue: 9/, 'the tile flagged for attention');
+  assert.match(label, /Job 7 delivered/, 'the latest event');
+});

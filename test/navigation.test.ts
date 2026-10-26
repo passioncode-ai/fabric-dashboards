@@ -82,3 +82,14 @@ test('SCN-077: View → Agents is ⌘1 and View → Sessions ⌘2 on macOS, Ctrl
   for (const p of ['win32', 'linux'] as const) assert.deepEqual(modeMenuItems(p, label).map((m) => m.accelerator), ['Ctrl+1', 'Ctrl+2']);
   assert.deepEqual(modeMenuItems('darwin', (k) => t('ru', k)).map((m) => m.label), ['Агенты', 'Сессии']);
 });
+
+test('VIS-07 (FD-113): the map is a labelled group whose agent boxes are named buttons, each with its full name as a title', () => {
+  const long = 'an-agent-with-a-very-long-name';
+  const html = renderToStaticMarkup(React.createElement(ConnectionsMap as never, {
+    status: status([snap(`${long}.default`, 'ready', { wellKnown: { ...snap('x.default', 'ready').wellKnown!, extensions: { 'https://fabric.passioncode.ai/agent-contract/extensions/connections/0.1': { connections: [{ id: 'c', kind: 'service', target: 'beta.default', state: 'ok' }] } } } } as never), snap('beta.default', 'ready')], OLD_SESSIONS),
+    open: noop, onAgent: noop, openConsole: noop,
+  }));
+  assert.doesNotMatch(html, /<svg[^>]*role="img"/, 'children of role=img are presentational: the buttons inside would have no name');
+  assert.match(html, /<svg[^>]*role="group"[^>]*aria-label=/);
+  assert.match(html, new RegExp(`<g[^>]*role="button"[^>]*>\\s*<title>A${long.slice(1)}</title>`), 'a truncated name keeps its full form as a title');
+});
