@@ -34,6 +34,14 @@ was locked); released as 0.8.7 on fabric-workspace's word (2026-10-26, "выпу
 channel failing safe (an error leaves it closed and logged). Published 2026-10-26 09:24:14 UTC (run 40295307785);
 this Mac downloaded and verified it at 09:24:49 and installs it after 10 hidden minutes.
 
+**Later the same day, also on main (unreleased), all without a screen:** PR #239 (FD-95 done: the NSIS smoke tells
+the old copy from the new by process id and creation time, since Windows reuses a freed id at once; validate 40330153699
+green with packages), PR #240 (FD-114 done for Windows and Linux: `update-proof.yml -f via=<n+1>` proves a copy with n+1
+ready while n+2 is published; RUNBOOK *Update proof*), PR #241 (FD-98 done for Windows and Linux: a ready copy prepares a
+newer release beside the ready one; update-proof 40356504288 shows one restart 0.8.5 -> 0.8.7 on all four runners, where
+runs 40335325110 and 40348735812 showed two without it; macOS unchanged). `npm run check` 800 pass. These and #235 to
+#237 ship with 0.9.0 (decision 2026-10-26: nothing urgent; FD-98 helps from the release after the one that carries it).
+
 **After 0.8.7 on main (unreleased):** PR #235 (FD-113 VIS-07, VIS-11: the map is a named group, an agent card's
 accessible name carries its flagged tiles and latest event), PR #236 (the non-visual halves of VIS-14 and VIS-15: full
 names as titles where a name is cut, the idle-close notice a calm `role=status`), PR #237 (FD-58 re-verified on
