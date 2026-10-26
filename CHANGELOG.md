@@ -13,6 +13,12 @@
 - **A console closed after 30 idle minutes says so calmly** (FD-113 VIS-14): the notice is no longer a red error, and
   a screen reader reads it as news rather than an alert.
 
+### Changed
+
+- **On Windows and Linux one restart installs the newest release** (FD-98). If a newer release comes out while an
+  update waits for its restart, the app now prepares the newer one instead, so you restart once rather than twice. The
+  update already waiting stays ready if anything goes wrong. macOS works as before.
+
 ### Internal
 
 - **Update proof across three versions** (FD-114): `update-proof.yml` can publish the next release while the one

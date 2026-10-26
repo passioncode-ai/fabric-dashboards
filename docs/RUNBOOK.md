@@ -214,8 +214,8 @@ ADR-0015). The copy runs hidden with its own data folder, and the proof is read 
   - The proof's server on that port names `via` until the copy logs `update_check ready version=<via>`, then `to`: a
     release published while an update waits.
   - The releases' signed files still come from GitHub and are verified as always; only the `latest` pointer is local.
-  - The copy must end as `to`. The proof prints whether it took one restart or two: two is FD-98 as it stands, one the
-    behaviour FD-98 asks for.
+  - The copy must end as `to` in one restart: since FD-98 a ready Windows or Linux copy prepares the newer release
+    beside the ready one (`recheckReady`, `src/electron/updater.ts`), and the proof fails on a second restart.
   - Tests: `test/proof-feed.test.ts`.
 
 ## Tests that touch this Mac

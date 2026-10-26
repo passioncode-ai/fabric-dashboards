@@ -47,6 +47,13 @@ export function mayCheck(o: { manual: boolean; enabled: boolean; state: string }
   return o.manual || o.enabled;
 }
 
+/** FD-98: while an update waits ready, a Windows or Linux copy still reads the release pointer on its checks, so a
+ *  release published meanwhile is prepared instead and one restart installs the newest. macOS keeps waiting: restaging
+ *  Squirrel over a staged update has no proof yet (FD-114 proves only Windows and Linux). */
+export function recheckWhileReady(o: { channel: string; state: string; manual: boolean; enabled: boolean }): boolean {
+  return o.state === 'ready' && (o.channel === 'appimage' || o.channel === 'nsis') && (o.manual || o.enabled);
+}
+
 /** The staged bundle Squirrel.Mac will install at quit, from its ShipItState.plist (as JSON). */
 export function stagedBundlePath(state: unknown): string | null {
   const raw = (state as { updateBundleURL?: unknown } | null)?.updateBundleURL;
