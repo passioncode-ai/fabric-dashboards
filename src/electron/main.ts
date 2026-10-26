@@ -18,7 +18,7 @@ import { displayName } from '../core/names';
 import { ConsoleHost, HANDOVER_POLL_MS } from './console';
 import { appendLog, sweepTemps } from '../core/fsutil';
 import { parseDeepLink, SCHEME } from '../core/deeplink';
-import { servicesDir, windowsPowerShellEnv } from '@passioncode-ai/fabric-service-host';
+import { servicesDir, setWindowsAclReader, windowsPowerShellEnv } from '@passioncode-ai/fabric-service-host';
 import { chooseLang, langFor, t, type Lang } from '../core/i18n';
 import { execRunner } from '../core/launchd';
 import { listListeners, unattributed } from '../core/listeners';
@@ -927,6 +927,11 @@ if (!app.requestSingleInstanceLock()) {
     }
   });
 
+  // FD-94: the installed copy's compiled ACL reader, so a token check never waits for Windows PowerShell to start.
+  if (process.platform === 'win32' && app.isPackaged) {
+    const reader = path.join(process.resourcesPath, 'bin', 'fabric-dashboards-acl.exe');
+    if (fs.existsSync(reader)) setWindowsAclReader(reader);
+  }
   void app.whenReady().then(() => {
     // FD-31: ShipIt is replacing this bundle — stay out of its way; the helper reopens the app after.
     const pending = pendingInstallVersion();

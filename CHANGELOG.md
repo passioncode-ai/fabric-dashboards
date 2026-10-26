@@ -4,6 +4,10 @@
 
 ### Fixed
 
+- **Windows reads an agent's token without waiting for PowerShell** (FD-94). Each token check started Windows
+  PowerShell, whose first start took from 7 seconds to a minute on an arm64 Windows machine. The app now ships a small
+  signed reader beside its MCP launcher that answers in under 2 seconds cold (0.05 seconds on x64); Windows PowerShell
+  stays the fallback.
 - **Errors say what to press next** (FD-113, COPY-24, COPY-26). An agent the system has not loaded, two install files,
   a refused launchctl, a failed sign-in or page load, an unreadable activity feed and a failed setup check each end with
   the one step the screen offers (Start, Show file, Retry, Check setup). The update notification is short enough for

@@ -42,6 +42,8 @@ export function target(platform, arch, version) {
     icon: path.join(root, windows ? 'build/icon.ico' : 'build/icon.png'),
     launcherDir: path.join(root, windows ? 'build/bin-win' : 'build/bin-linux'),
     launcher: windows ? 'fabric-dashboards-mcp.cmd' : 'fabric-dashboards-mcp',
+    // FD-94: the compiled ACL reader beside the launcher (Windows only; health.ts reads token files through it).
+    aclReader: windows ? 'fabric-dashboards-acl.exe' : null,
     artifacts: windows
       ? [`Fabric-Dashboards-${version}-windows-${arch}-setup.exe`]
       : [`Fabric-Dashboards-${version}-linux-${arch}.AppImage`, `Fabric-Dashboards-${version}-linux-${arch}.deb`],
@@ -166,6 +168,21 @@ function checks(appDir, t, version) {
   // The MCP launcher answers initialize from the finished directory.
   const launcher = path.join(appDir, 'resources', 'bin', t.launcher);
   requireThat(existsSync(launcher), 'The packaged app is missing its MCP launcher.');
+  if (t.aclReader) {
+    // FD-94: the reader answers for a file of this run, in the shape health.ts accepts.
+    const reader = path.join(appDir, 'resources', 'bin', t.aclReader);
+    requireThat(existsSync(reader), 'The packaged app is missing its ACL reader (FD-94).');
+    const probeDir = mkdtempSync(path.join(os.tmpdir(), 'fd-acl-'));
+    try {
+      const probe = path.join(probeDir, 'token');
+      writeFileSync(probe, 'x'.repeat(32));
+      const r = spawnSync(reader, [probe], { encoding: 'utf8', timeout: 30_000, windowsHide: true });
+      requireThat(r.status === 0 && /^\{"user":"S-[0-9-]+","owner":"S-[0-9-]+","aces":\[/.test(r.stdout), `The ACL reader did not answer: ${(r.stderr || r.stdout || String(r.error)).slice(0, 300)}`);
+      out.aclReader = `resources/bin/${t.aclReader} reads a file's owner and access list (${JSON.parse(r.stdout).aces.length} entries)`;
+    } finally {
+      rmSync(probeDir, { recursive: true, force: true });
+    }
+  }
   const services = mkdtempSync(path.join(os.tmpdir(), 'fd-mcp-'));
   try {
     // cmd /s strips one pair of outer quotes, so the path (it has a space) is quoted twice.
@@ -192,6 +209,21 @@ Promise.all([v.sumsSignedByRelease(sums, asc), v.sumsSignedByRelease(bad, asc)])
   requireThat(gpg.good === true && gpg.tampered === false, `The packaged update verifier did not check signatures: ${JSON.stringify(gpg)}`);
   out.updateVerifier = 'openpgp in app.asar accepts v0.6.0 SHA256SUMS signed by the organization key and refuses one changed byte';
   return out;
+}
+
+/**
+ * FD-94: build/win/acl.cs compiled with the .NET Framework 4 compiler every Windows has
+ * (%WINDIR%/Microsoft.NET/Framework64/v4.0.30319/csc.exe, present on windows-latest and windows-11-arm), AnyCPU, so it
+ * runs natively on both. Signed with the app's executable in the first signing pass.
+ */
+export function cscPath(env = process.env) {
+  return path.join(env.WINDIR || env.SystemRoot || 'C:\\Windows', 'Microsoft.NET', 'Framework64', 'v4.0.30319', 'csc.exe');
+}
+function buildAclReader(out) {
+  const csc = cscPath();
+  requireThat(existsSync(csc), `The .NET Framework compiler is not at ${csc}; the ACL reader (FD-94) cannot be built.`);
+  execFileSync(csc, ['-nologo', '-optimize', '-target:exe', '-platform:anycpu', `-out:${out}`, path.join(root, 'build', 'win', 'acl.cs')], { stdio: ['ignore', 'inherit', 'inherit'], windowsHide: true });
+  requireThat(existsSync(out), 'The ACL reader was not built.');
 }
 
 /** `--stage app|installer|seal`, or none for all three; `--allow-dirty`. */
@@ -266,6 +298,7 @@ async function stageApp(t, version, pkg, allowDirty) {
     stageVerifierModules(root, stage);
     const bin = path.join(temp, 'bin');
     cpSync(t.launcherDir, bin, { recursive: true });
+    if (t.aclReader) buildAclReader(path.join(bin, t.aclReader));
     const { packager } = await import('@electron/packager');
     const [packaged] = await packager({
       dir: stage, name: PRODUCT, executableName: t.executableName, appVersion: version, buildVersion: version,
@@ -302,7 +335,8 @@ function stageInstaller(t, version) {
   // Signing (between the stages) appends a signature; the fuses it was checked with must still be there.
   const problems = fuseProblems(readFileSync(exe), wantedFuses(t.platform));
   requireThat(!problems.length, `The staged app's fuses changed after it was checked:\n${problems.join('\n')}`);
-  if (t.platform === 'win32') signatures([exe], t); // with signing on, an unsigned app never reaches the installer
+  // With signing on, an unsigned app (or ACL reader, FD-94) never reaches the installer.
+  if (t.platform === 'win32') signatures([exe, path.join(sp.app, 'resources', 'bin', t.aclReader)], t);
   const out = path.join(root, 'release');
   const config = path.join(sp.dir, 'builder.json');
   writeFileSync(config, JSON.stringify(builderConfig(t, version, out), null, 2));
@@ -336,7 +370,7 @@ function stageSeal(t) {
   const files = t.artifacts.map((f) => path.join(out, f));
   for (const f of files) requireThat(existsSync(f), `${path.basename(f)} is missing; run --stage installer first.`);
   if (t.platform === 'win32') {
-    const sig = signatures([path.join(sp.app, t.executable), ...files], t);
+    const sig = signatures([path.join(sp.app, t.executable), path.join(sp.app, 'resources', 'bin', t.aclReader), ...files], t);
     record.windows_authenticode = sig.status;
     // PL-03: a release that ships unsigned Windows files says so in its notes.
     if (sig.status === 'NOT_SIGNED' && process.env.FD_WINDOWS_RELEASE === 'true') {
@@ -344,7 +378,7 @@ function stageSeal(t) {
         `Windows signing is off, so CHANGELOG.md's ## ${record.version} section must say "${UNSIGNED_NOTE}; SmartScreen warns once. Verify them with SHA256SUMS." (PL-03).`);
     }
     record.authenticode = sig.status === 'SIGNED'
-      ? { status: 'SIGNED', files: sig.files, note: 'The app and the installer carry Azure Artifact Signing signatures; the uninstaller the installer writes does not (electron-builder makes it inside the installer).' }
+      ? { status: 'SIGNED', files: sig.files, note: 'The app, its ACL reader and the installer carry Azure Artifact Signing signatures; the uninstaller the installer writes does not (electron-builder makes it inside the installer).' }
       : { status: 'NOT_SIGNED', reason: 'This build was made without Windows signing (FD_WINDOWS_SIGNING is not true): a rehearsal or a local build.', files: sig.files };
     // windows-signing@v1 writes a report per pass (Valid, timestamped, signer); the receipt carries them.
     const reports = (process.env.FD_SIGNATURE_REPORTS ?? '').split(path.delimiter).filter((f) => f && existsSync(f));
