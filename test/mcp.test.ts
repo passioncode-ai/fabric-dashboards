@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { Launchd, type RunResult } from '../src/core/launchd';
@@ -711,7 +712,7 @@ test('FD-110: initialize declares this app\'s buttons; each has its tool on this
   const view = actionsOf({ surfaces: { mcp: { capabilities: TOOLS.map((t) => t.name) } }, extensions: meta });
   assert.equal(view.declared, true);
   assert.deepEqual(view.findings, []);
-  assert.deepEqual(view.actions.filter((a) => a.gate === 'relayed').map((a) => a.id), ['start', 'stop', 'restart', 'update']);
+  assert.deepEqual(view.actions.filter((a) => a.gate === 'relayed').map((a) => a.id), ['start', 'stop', 'restart', 'update', 'new-session', 'fix-with-coding-agent']);
   assert.ok(ACTIONS_EXTENSION in meta);
 });
 
@@ -768,4 +769,28 @@ test('FD-110: the decisions file sits beside the app\'s log on every system', as
   assert.equal(decisionsFile('darwin', {}, '/h'), '/h/Library/Logs/Fabric Dashboards/decisions.jsonl', 'POSIX separators whatever system runs the test');
   assert.match(decisionsFile('linux', {}, '/home/x'), /fabric-dashboards[\\/]decisions\.jsonl$/);
   assert.match(decisionsFile('win32', { LOCALAPPDATA: 'C:\\L' }, 'C:\\Users\\x'), /Logs\\decisions\.jsonl$/);
+});
+
+// ── ADR-0025 (FD-120): the console's buttons through the app's channel ────────────────────────────────────────────
+
+test('ADR-0025: console_new and console_fix reach the running app through its channel; with the app closed they say so and start nothing', { skip: process.platform === 'win32' && 'a Unix socket' }, async () => {
+  const { openChannel } = await import('../src/electron/console-channel');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'fd-chan-mcp-'));
+  const w = world();
+  w.deps.settingsFile = () => path.join(dir, 'settings.json');
+  const closed = await handle(w.deps, { id: 1, method: 'tools/call', params: { name: 'console_new', arguments: { service: KEY } } });
+  assert.equal((closed!.result as { isError: boolean }).isError, true);
+  assert.match((closed!.result as { content: { text: string }[] }).content[0]!.text, /app-not-running/);
+  const asked: unknown[] = [];
+  const ch = await openChannel({ userData: dir, log: () => undefined, start: async (r) => { asked.push({ op: r.op, service: r.service, task: r.task }); return r.service === KEY ? { ok: true, consoleKey: r.service } : { ok: false, code: 'no-folder' }; } });
+  try {
+    const out = await handle(w.deps, { id: 2, method: 'tools/call', params: { name: 'console_fix', arguments: { service: KEY, kind: 'audit', findings: 'It relies on Relay, which does not answer.' } } });
+    assert.deepEqual((out!.result as { structuredContent: unknown }).structuredContent, { started: true, console: KEY });
+    assert.deepEqual(asked, [{ op: 'console.fix', service: KEY, task: { kind: 'audit', output: 'It relies on Relay, which does not answer.' } }]);
+    const bad = await handle(w.deps, { id: 3, method: 'tools/call', params: { name: 'console_new', arguments: { service: KEY }, _meta: { decision: { by: 'operator', via: 'relayed-instruction', action: 'start', instruction: 'x', at: new Date().toISOString() } } } });
+    assert.equal((bad!.result as { structuredContent: { code: string } }).structuredContent.code, 'decision-invalid', 'a decision for another action starts nothing');
+    assert.equal(asked.length, 1);
+  } finally {
+    await ch!.close();
+  }
 });

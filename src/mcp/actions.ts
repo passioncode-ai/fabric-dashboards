@@ -20,6 +20,9 @@ export const OWN_ACTIONS: DeclaredAction[] = [
   { id: 'stop', title: 'Stop', tool: 'control', gate: 'relayed' },
   { id: 'restart', title: 'Restart', tool: 'control', gate: 'relayed' },
   { id: 'update', title: 'Update', tool: 'update', gate: 'relayed' },
+  // ADR-0025 (FD-120): the console's buttons, through the app's channel; they start a program in the person's folder.
+  { id: 'new-session', title: 'New session', tool: 'console_new', gate: 'relayed' },
+  { id: 'fix-with-coding-agent', title: 'Fix with coding agent', tool: 'console_fix', gate: 'relayed' },
 ];
 
 /** The `_meta` of the initialize answer: this app's declared actions (DEC-0121 AP-1). */

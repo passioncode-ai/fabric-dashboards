@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- **An agent can start a console session or a fix for you** (FD-120, ADR-0025). The MCP tools `console_new` and
+  `console_fix` do what New session and Fix with coding agent do, in the running app, through a private channel only
+  this app's own MCP server can use: a per-user socket (a named pipe on Windows) with a key made anew at every start,
+  which no web page can reach. With the app closed they say so and start nothing. Like Start and Stop, they record
+  your words as your decision when the agent passes them.
+
 ## 0.8.6 - 2026-10-26
 
 ### Fixed

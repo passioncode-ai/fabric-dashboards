@@ -86,12 +86,13 @@ service data.
   (through `/usr/bin/env -u ELECTRON_RUN_AS_NODE`): the deep link with `-a` and the app that
   query found, or the plain service address in the default browser only when the app is
   confirmed absent and the caller passed `fallback=if_absent` (the default is `never`, FD-109).
-- **Will accept**, once FD-120 lands, requests from its own MCP server on a per-user channel and nothing else
+- **Accepts** requests from its own MCP server on a per-user channel and nothing else (FD-120)
   ([ADR-0025](docs/adr/0025-the-console-channel.md)): a Unix socket 0600 in a 0700 data folder, or on Windows a
   first-instance named pipe, each request carrying a key rewritten at every start (`console.key`, never logged or
   returned), two operations (start a console session, start a fix in one), one request per connection, 64 KB, 5 s,
   10 a minute. A web page cannot reach it; another account holds no key; a process of the same user can read the key
-  as it can read a token file, which this app does not defend against (below). Not built yet: the app has no channel.
+  as it can read a token file, which this app does not defend against (below). A socket path longer than the system
+  allows, or a pipe another program already holds, leaves the channel closed and says so in the log.
 - **Opens** `fabric-dashboards://` links only for an installed service and a path on that
   service's own origin; any other link is refused with the reason and opens nothing
   ([ADR-0004](docs/adr/0004-deep-links-and-mcp.md)). Outside the app it opens only a

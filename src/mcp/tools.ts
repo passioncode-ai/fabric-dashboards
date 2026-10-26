@@ -10,6 +10,8 @@
 // look through @passioncode-ai/fabric-service-host, the same code Fabric's registry reads with.
 import { supervises } from '../core/platform';
 import fs from 'node:fs';
+import net from 'node:net';
+import { CHANNEL_KEY_FILE, channelAddress, type ChannelAnswer, type ChannelOp } from '../core/console-channel';
 import { discoverHost, type HostStatus } from './host';
 import {
   APP_NAME, dashboardMinWidth, expand, lookAtServices, readDirectory, servicesDir as defaultServicesDir,
@@ -43,6 +45,9 @@ import { CONTROL_TIMEOUT_MS, controlService } from '../core/control';
 export { CONTROL_TIMEOUT_MS };
 
 export interface Deps {
+  /** ADR-0025: the app's settings file (its data folder holds the channel's key) and the channel's address, for tests. */
+  settingsFile?: () => string;
+  channelAddress?: (userData: string) => string;
   /** FD-110 part 3: where a relayed operator decision is recorded; the live one appends to decisions.jsonl beside the log. */
   recordDecision?: (row: Record<string, unknown>) => void;
   servicesDir: () => string;
@@ -533,3 +538,28 @@ export async function load(deps: Deps, key: string): Promise<LoadEntry & { produ
   return { ...entry, product: productIdOf(one.key) };
 }
 // #endregion load-mcp
+
+// #region console-channel-client — docs: docs/adr/0025-the-console-channel.md#decision
+/** ADR-0025 (FD-120): start a console session, or a fix in one, in the running app, through its per-user channel and
+ *  this run's key. The app not running is an answer, never a start of the app. */
+export async function consoleChannel(deps: Deps, request: { op: ChannelOp; service: string; task?: { kind: 'fix' | 'audit'; output: string } }): Promise<{ started: true; console: string }> {
+  find(deps, request.service);
+  const userData = path.dirname(deps.settingsFile?.() ?? appSettingsFile());
+  let key: string;
+  try { key = fs.readFileSync(path.join(userData, CHANNEL_KEY_FILE), 'utf8').trim(); } catch { throw new ToolError('app-not-running: Fabric Dashboards is not running, so no console can start; open it and call again'); }
+  const answer = await new Promise<ChannelAnswer>((resolve, reject) => {
+    const socket = net.connect(deps.channelAddress?.(userData) ?? channelAddress(userData));
+    let buffer = '';
+    const timer = setTimeout(() => { socket.destroy(); reject(new ToolError('the app did not answer within 15 s')); }, 15_000);
+    socket.on('connect', () => socket.write(`${JSON.stringify({ key, ...request })}\n`));
+    socket.on('data', (chunk) => { buffer += String(chunk); });
+    socket.on('end', () => { clearTimeout(timer); try { resolve(JSON.parse(buffer) as ChannelAnswer); } catch { reject(new ToolError('the app answered something that is not JSON')); } });
+    socket.on('error', (error: NodeJS.ErrnoException) => {
+      clearTimeout(timer);
+      reject(new ToolError(error.code === 'ENOENT' || error.code === 'ECONNREFUSED' ? 'app-not-running: Fabric Dashboards is not running, so no console can start; open it and call again' : `the app's channel failed: ${error.code ?? error.message}`));
+    });
+  });
+  if (!answer.ok) throw new ToolError(`${answer.code}${answer.detail ? `: ${answer.detail}` : ''}`, { started: false, code: answer.code });
+  return { started: true, console: answer.consoleKey };
+}
+// #endregion console-channel-client

@@ -108,6 +108,18 @@ export const TOOLS = [
     annotations: { readOnlyHint: false, destructiveHint: true },
   },
   {
+    name: 'console_new',
+    description: 'Start a new coding-agent session in the agent\'s console inside the running Fabric Dashboards, as its New session button does (ADR-0025): the runtime chosen for that agent, in its folder, with its context pack. Answers app-not-running when the app is not open; never starts the app. Pass the operator\'s words in params._meta.decision when you have them (action new-session).',
+    inputSchema: { type: 'object', properties: { service: serviceArg }, required: ['service'], additionalProperties: false },
+    annotations: { readOnlyHint: false, destructiveHint: false },
+  },
+  {
+    name: 'console_fix',
+    description: 'Start a coding-agent session that fixes an agent, as Fix with coding agent does (ADR-0025): kind fix (the agent\'s problem) or audit (the auditor\'s findings), with the findings as text. Answers app-not-running when the app is not open. Pass the operator\'s words in params._meta.decision when you have them (action fix-with-coding-agent).',
+    inputSchema: { type: 'object', properties: { service: serviceArg, kind: { type: 'string', enum: ['fix', 'audit'] }, findings: { type: 'string', maxLength: 16384 } }, required: ['service', 'kind', 'findings'], additionalProperties: false },
+    annotations: { readOnlyHint: false, destructiveHint: false },
+  },
+  {
     name: 'service_context',
     description: 'Everything about one service a coding agent needs before working on it, read now: state and reasons as sentences, descriptor problems, version and pending update, repository, origin, dashboard, its descriptor (auth left out), its recent events and the rules for a console session. Call it first when a console was opened for this service (the first call of a session-handoff/1 pack, with key).',
     // FD-47 (DEC-0042 SH-7): the handoff's first call passes the agent's key as `key`; `service` is kept for older callers.
@@ -193,6 +205,8 @@ export async function call(deps: tools.Deps, name: string, args: Args): Promise<
     case 'control': return tools.control(deps, need(args, 'service'), need(args, 'action') as 'start' | 'stop' | 'restart');
     case 'doctor': return tools.command(deps, need(args, 'service'), 'doctor');
     case 'update': return tools.command(deps, need(args, 'service'), 'update');
+    case 'console_new': return tools.consoleChannel(deps, { op: 'console.new', service: need(args, 'service') });
+    case 'console_fix': return tools.consoleChannel(deps, { op: 'console.fix', service: need(args, 'service'), task: { kind: need(args, 'kind') as 'fix' | 'audit', output: need(args, 'findings') } });
     case 'service_context': {
       const k = str(args, 'key') || undefined;
       const s = str(args, 'service') || undefined;
