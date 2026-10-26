@@ -45,13 +45,25 @@ FD-96 (2026-10-31), then FD-110, FD-94 and FD-95 (2026-11-07).
   now, refuse without one from 0.9.0).
 - FD-112 (PR #212): documented, `category` is the product's section; `placement` says where an instance runs.
 - FD-113 COPY-15 (PR #213): every spend figure covers the same last 30 days.
+- FD-113 text findings (PR #215 to #218): COPY-14 and COPY-16 (spend report, «расходы», job / «задача», pinned in
+  `docs/brand/terminology.md`), COPY-24 and COPY-26 (each error names its next step; the update banner fits),
+  COPY-21 and COPY-22 (the contract and skills settings in plain words), COPY-25 (help leads with the outcome). Every
+  string passed the editorial check in en and ru.
+- FD-94 (this branch, `feat/fd-94-acl-reader`): the token ACL is read by a compiled, signed reader
+  (`build/win/acl.cs`, `resources/bin/fabric-dashboards-acl.exe`) with Windows PowerShell as the fallback; spike
+  validate run 40252400653 measured 1.84 s cold on windows-11-arm against 7.39 s for PowerShell; the rehearsal is
+  validate run 40253470840 (all five checks green; Windows packages at the time of writing).
+- FD-109 closed: 0.8.3 installed here at 01:24:19 UTC. This session's own MCP server, started from 0.8.2, dropped at
+  that update as 0.8.2's code does; the hand-over itself was proved on the installed 0.8.3 binary (an APFS copy, its
+  Info.plist replaced: "handing the session to the installed 9.9.9", calls answered by the new server, both processes
+  gone with the client). FD-115 closed (board replies sent).
 
-**Not run:** e2e (the screen is locked: `scripts/check-screen.mjs`), so FD-111 still waits for an unlocked screen.
-**Open waits:** the installed copy installs 0.8.3 when its window is hidden 10 minutes (then check that this session's
-`fabric-dashboards` MCP server answers after the update: the live proof of the hand-over); Switchboard 0.6.83 for
+**Not run:** e2e (the screen is locked: `scripts/check-screen.mjs`), so FD-111 and the visual and UX findings of
+FD-113 (UX-11, UX-13, VIS-07, VIS-10, VIS-11, VIS-14, VIS-15, COPY-30) wait for an unlocked screen.
+**Open waits:** Switchboard 0.6.83 for
 FD-118 (thread `3f0ec524`); fabric-workspace on FD-110 part 3; the operator's continuation of FD-117; the operator's
-passkey sign-in (Q-03, FD-53). **Exact next task:** FD-94 (target 2026-11-07): read the token ACL without starting
-Windows PowerShell once per file (batch the reads, then measure on `windows-11-arm`), then the rest of FD-113.
+passkey sign-in (Q-03, FD-53). **Exact next task:** merge FD-94 once validate run 40253470840 is green on both Windows
+package jobs; then, with the screen unlocked, FD-111 (e2e of the Sessions mode) and the visual findings of FD-113.
 
 ## 0.8.3: start here (2026-10-26, FD-109 agent pages open only in the app)
 
