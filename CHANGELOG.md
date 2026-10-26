@@ -4,6 +4,10 @@
 
 ### Fixed
 
+- **Contract and skills settings speak plainly** (FD-113, COPY-21, COPY-22). "Estate updates", "Contract clone" and
+  "Consumer pins" are now "Fabric contract and skills updates", "Local copy of the contract (folder)" and "Contract
+  version in each project"; the section says who it is for, and Russian keeps Git and npm words only in a closing
+  bracket.
 - **Errors say what to press next** (FD-113, COPY-24, COPY-26). An agent the system has not loaded, two install files,
   a refused launchctl, a failed sign-in or page load, an unreadable activity feed and a failed setup check each end with
   the one step the screen offers (Start, Show file, Retry, Check setup). The update notification is short enough for
