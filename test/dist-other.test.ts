@@ -228,3 +228,17 @@ test('FD-37: every release job that calls a workflow grants what that workflow\'
     }
   }
 });
+
+test('FD-94: the Windows build carries the compiled ACL reader, checks it answers, and signs it in the first pass', async () => {
+  const d = await import('../scripts/dist-other.mjs');
+  assert.equal(d.target('win32', 'arm64', '1.2.3').aclReader, 'fabric-dashboards-acl.exe');
+  assert.equal(d.target('linux', 'x64', '1.2.3').aclReader, null);
+  assert.equal(d.cscPath({ WINDIR: 'D:\\Win' }), path.join('D:\\Win', 'Microsoft.NET', 'Framework64', 'v4.0.30319', 'csc.exe'));
+  const script = fs.readFileSync(path.join(root, 'scripts/dist-other.mjs'), 'utf8');
+  assert.ok(script.includes('if (t.aclReader) buildAclReader(path.join(bin, t.aclReader));'), 'built into resources/bin');
+  assert.ok(script.includes("'The packaged app is missing its ACL reader (FD-94).'"), 'checked after packaging');
+  const wf = fs.readFileSync(path.join(root, '.github/workflows/packages.yml'), 'utf8');
+  const pass1 = wf.slice(wf.indexOf("- name: Sign the app's executable"), wf.indexOf('- name: The installers'));
+  assert.match(pass1, /files: \|\n\s+.*\\app\\Fabric Dashboards\.exe\n\s+.*\\app\\resources\\bin\\fabric-dashboards-acl\.exe\n/);
+  assert.ok(fs.existsSync(path.join(root, 'build/win/acl.cs')));
+});

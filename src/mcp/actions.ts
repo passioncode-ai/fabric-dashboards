@@ -1,4 +1,4 @@
-// #region own-actions — docs: docs/backlog.md (FD-110 part 3), fabric-workspace MD-10
+// #region own-actions — docs: docs/ux/scenarios.md#scn-028-an-agent-reads-and-administers-services-through-mcp
 // FD-110 part 3 (contract DEC-0121, AP-1 and AP-2; fabric-workspace MD-10 with its note acc45a98): this app's own
 // buttons and their agent twins on the fabric-dashboards MCP surface, declared under the actions extension key in the
 // `initialize` answer's `_meta` (the app serves no well-known document). Start, Stop, Restart and Update change

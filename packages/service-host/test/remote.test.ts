@@ -11,7 +11,8 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { claimConflicts, placementOf, readDirectory, validateDescriptor } from '../src/descriptor';
-import { fetchWellKnown, readToken } from '../src/health';
+import { fetchWellKnown, readToken, setWindowsAclReader } from '../src/health';
+import { windowsAclReader } from '../../../test/win-acl';
 import { lookAtServices } from '../src/look';
 import { UNMANAGED, type LaunchdReader } from '../src/launchd';
 import { tmpDir } from './tmp';
@@ -92,7 +93,10 @@ test('fetchWellKnown over verified TLS: refused without the token, the document 
   }
 });
 
-test('one look at a remote service reads its token, probes with it, and is invalid when the token is unreadable', { skip: !haveOpenssl && 'openssl not available' }, async () => {
+test('one look at a remote service reads its token, probes with it, and is invalid when the token is unreadable', { skip: !haveOpenssl && 'openssl not available' }, async (t) => {
+  // FD-94: on Windows the token's ACL is read the way the installed app reads it, through the compiled reader.
+  setWindowsAclReader(windowsAclReader());
+  t.after(() => setWindowsAclReader(null));
   const dir = tmpDir('svc-look-');
   const s = await tlsServer(dir, (req, res) => {
     if (req.headers.authorization === `Bearer ${TOKEN}`) { res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(WELL_KNOWN)); return; }

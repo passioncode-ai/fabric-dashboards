@@ -94,7 +94,11 @@ HTTP 5xx (cause `http`: a deploy or an outage, not another program) is `no-answe
 its 0.1.0 shape. `readToken(tokenFile)` refuses what `tokenFileProblem(file, info, { platform, uid, home })`
 names — main process only: on macOS and Linux a symlink, another owner and any mode wider than 0600; on
 Windows (0.4.0), which reports no POSIX owner or mode, a link and a file whose real path lies outside the
-user's profile, since the profile's ACL is what keeps it private.
+user's profile, since the profile's ACL is what keeps it private. The file's own ACL is read too (DEC-0032, DEC-0057):
+by a compiled reader when the host set one with `setWindowsAclReader(file)` (FD-94: the app ships
+`resources/bin/fabric-dashboards-acl.exe`, built from `build/win/acl.cs`, 1.8 s cold on a windows-11-arm runner against
+7 s to a minute for Windows PowerShell), else by Windows PowerShell; a reader that fails to start or answers nothing
+is never trusted, and PowerShell reads the file instead.
 
 ## Remote token latch
 

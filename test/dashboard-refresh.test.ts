@@ -9,6 +9,8 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import type { ServiceSnapshot } from '../src/core/types';
+import { setWindowsAclReader } from '@passioncode-ai/fabric-service-host';
+import { windowsAclReader } from './win-acl';
 
 let Views: typeof import('../src/electron/views').ServiceViews;
 let completed: (details: object) => void = () => undefined;
@@ -120,6 +122,8 @@ async function fixture(t: any, login = true) {
 }
 
 test('explicit refresh uses one existing SSO flow and returns to the same page', async (t) => {
+  setWindowsAclReader(windowsAclReader()); // FD-94: the token read the installed app makes
+  t.after(() => setWindowsAclReader(null));
   const f = await fixture(t);
   f.view.navigate('fixture.default', 'refresh');
   await f.settled();

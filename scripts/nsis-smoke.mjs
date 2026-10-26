@@ -35,6 +35,8 @@ const uninstaller = path.join(dir, 'Uninstall Fabric Dashboards.exe');
 const launcher = path.join(dir, 'resources', 'bin', 'fabric-dashboards-mcp.cmd');
 console.log(`installed at ${dir}`);
 requireThat(existsSync(uninstaller), `no uninstaller where Settings → Uninstall looks: ${uninstaller}`);
+const aclReader = path.join(dir, 'resources', 'bin', 'fabric-dashboards-acl.exe');
+requireThat(existsSync(aclReader), `no ACL reader beside the MCP launcher (FD-94): ${aclReader}`);
 
 const services = mkdtempSync(path.join(os.tmpdir(), 'fd-nsis-'));
 try {

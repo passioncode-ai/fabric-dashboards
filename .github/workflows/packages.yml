@@ -93,7 +93,10 @@ jobs:
         if: env.FD_WINDOWS_SIGNING == 'true'
         uses: passioncode-ai/.github/actions/windows-signing@v1
         with:
-          files: ${{ github.workspace }}\release\stage-windows-${{ matrix.arch }}\app\Fabric Dashboards.exe
+          # FD-94: the ACL reader beside the MCP launcher is the app's own executable code too.
+          files: |
+            ${{ github.workspace }}\release\stage-windows-${{ matrix.arch }}\app\Fabric Dashboards.exe
+            ${{ github.workspace }}\release\stage-windows-${{ matrix.arch }}\app\resources\bin\fabric-dashboards-acl.exe
           report: ${{ runner.temp }}/signatures-app.json
           client-id: ${{ vars.AZURE_CLIENT_ID }}
           tenant-id: ${{ vars.AZURE_TENANT_ID }}
