@@ -131,7 +131,8 @@ function ProductItem({ p, current, open, rail, pinned, menu }: { p: Product; cur
   const s = p.primary;
   return (
     <div className={`nav-row${pinned ? ' pinned' : ''}`}>
-      <button className="nav-item" aria-current={current ? 'page' : undefined} title={rail ? t('join.nameState', { name: nameOf(s), state: t(`state.${s.state}`) }) : undefined} onClick={() => open(s.key)}>
+      {/* VIS-15 (FD-113): the title in both widths, since an expanded row cuts a long name too. */}
+      <button className="nav-item" aria-current={current ? 'page' : undefined} title={t('join.nameState', { name: nameOf(s), state: t(`state.${s.state}`) })} onClick={() => open(s.key)}>
         <span className={`state state-${s.state}`} aria-hidden="true"><span className="glyph">{GLYPH[s.state]}</span></span>
         {rail && <span className="initials" aria-hidden="true">{initialsOf(nameOf(s))}</span>}
         <span className="nav-label">{nameOf(s)}</span>

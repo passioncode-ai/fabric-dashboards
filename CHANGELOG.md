@@ -8,6 +8,10 @@
   agents inside it; it is now a group of named buttons, and a name cut short on screen is read in full.
 - **A screen reader reads what an agent card shows** (FD-113 VIS-11): after the name and state, the figures flagged
   for attention and the latest event.
+- **A name cut short shows in full when you point at it** (FD-113 VIS-15): an agent in the expanded list, an agent
+  card, the names in Needs attention and the capabilities on Connections.
+- **A console closed after 30 idle minutes says so calmly** (FD-113 VIS-14): the notice is no longer a red error, and
+  a screen reader reads it as news rather than an alert.
 
 ## 0.8.7 - 2026-10-26
 

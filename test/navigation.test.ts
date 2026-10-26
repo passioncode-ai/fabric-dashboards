@@ -93,3 +93,18 @@ test('VIS-07 (FD-113): the map is a labelled group whose agent boxes are named b
   assert.match(html, /<svg[^>]*role="group"[^>]*aria-label=/);
   assert.match(html, new RegExp(`<g[^>]*role="button"[^>]*>\\s*<title>A${long.slice(1)}</title>`), 'a truncated name keeps its full form as a title');
 });
+
+test('VIS-15 (FD-113): an agent row in the expanded list keeps its full name as a title, as the rail does', () => {
+  const long = 'an-agent-with-a-very-long-name';
+  const html = agentsNav([snap(`${long}.default`, 'ready')]);
+  assert.match(html, new RegExp(`<button class="nav-item"[^>]*title="A${long.slice(1)}: Ready"`));
+});
+
+test('VIS-14 (FD-113): the idle close is announced politely, never as an error alert', async () => {
+  const src = (await import('node:fs')).readFileSync('src/renderer/components/ConsolePanel.tsx', 'utf8');
+  const idle = src.split('\n').filter((l) => /console\.idle\.(resumed|closed)/.test(l));
+  assert.ok(idle.length >= 3);
+  for (const l of idle) assert.match(l, /info: true/, l.trim());
+  assert.equal((src.match(/role=\{notice\.info \? 'status' : 'alert'\}/g) ?? []).length, 2, 'both notice spots: page and drawer');
+  assert.doesNotMatch(src, /\{notice && <div[^\n]*role="alert"/, 'no notice is an alert by default any more');
+});
