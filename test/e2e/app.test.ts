@@ -175,7 +175,7 @@ test('discovers a live service, opens its dashboard signed in, keeps one view, s
     await spendRow.waitFor({ timeout: 20_000 });
     assert.match(await spendRow.innerText(), /\$0\.00/);
     await spendRow.getByRole('button', { name: 'Sample Service', exact: true }).click();
-    await page.getByText('No calls in the last 31 days.').waitFor();
+    await page.getByText('No calls in the last 30 days.').waitFor();
     assert.equal(await page.getByText(/Not reporting spend yet/).count(), 0, 'the sample is not listed as silent');
     await page.getByRole('button', { name: 'Settings' }).click();
     await page.getByText('Unattributed listeners').waitFor();
@@ -322,7 +322,7 @@ test('service/<id>.<instance> links open the service, a stopped one on its Start
       menu = fs.readFileSync(path.join(fabricLogs, 'main.log'), 'utf8').split('\n').find((l) => l.includes('fabric_menu ')) ?? '';
       if (!menu) await new Promise((r) => setTimeout(r, 100));
     }
-    assert.match(menu, / fabric_menu Fabric is not installed\. Get it at passioncode\.ai\/fabric$/);
+    assert.match(menu, / fabric_menu Fabric is not installed\. Get it at passioncode\.ai\/fabric\.$/);
     assert.ok(!fs.readFileSync(path.join(fabricLogs, 'main.log'), 'utf8').includes('fabric_open'), 'a press without Fabric opens nothing by itself');
 
     // Refusals are shown in a native dialog; capture it instead of leaving one on the screen.

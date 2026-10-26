@@ -53,7 +53,7 @@ test('SCN-068: Health shows the runner and model profile, spend by model, and Ch
     await page.getByRole('button', { name: /Example Agent: Ready/ }).first().waitFor({ timeout: 20_000 });
     await page.locator('.nav-item', { hasText: 'Example Agent' }).first().click();
     await page.getByRole('tab', { name: 'Health' }).click();
-    await page.getByRole('heading', { name: 'Runner and model' }).waitFor({ timeout: 15_000 });
+    await page.getByRole('heading', { name: 'How it runs' }).waitFor({ timeout: 15_000 });
     await page.getByText(/claude-code · subscription/).first().waitFor();
     await page.getByText(/balanced · claude-sonnet-5-5/).first().waitFor();
     await page.getByText('this agent').first().waitFor();

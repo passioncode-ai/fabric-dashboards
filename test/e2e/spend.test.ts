@@ -76,7 +76,7 @@ test('Spend shows what an agent reported, a lower bound where calls carry no pri
     const page = await app.firstWindow();
     await page.getByRole('button', { name: /Spender: Ready/ }).waitFor({ timeout: 30_000 });
     // ADR-0014: the Overview strip reads spend while the window is visible; a hidden window reads none (below).
-    await page.locator('.strip').getByText(/spent today/).waitFor({ timeout: 15_000 });
+    await page.locator('.strip').getByText(/Spent today/).waitFor({ timeout: 15_000 });
 
     await page.getByRole('button', { name: 'Spend', exact: true }).click();
     await page.getByRole('heading', { level: 1, name: 'Spend' }).waitFor();

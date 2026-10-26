@@ -33,7 +33,7 @@ test('SCN-002, SCN-003, SCN-004: an empty folder explains itself; installs, remo
 
     // SCN-002: no service yet — the empty state says what makes one appear, and where.
     await page.getByText('No agents yet').first().waitFor({ timeout: 20_000 });
-    await page.getByText('A service appears here when its installer writes a descriptor').first().waitFor();
+    await page.getByText('Agents appear here once they are installed.').first().waitFor();
     await page.getByRole('button', { name: 'Show folder' }).first().waitFor();
 
     // SCN-003: an installer writes a descriptor — the service appears within seconds, and Activity says so.

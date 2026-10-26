@@ -56,7 +56,7 @@ test('SCN-012, SCN-013, SCN-035, SCN-025: wrong program, a port claimed twice, o
 
     // SCN-012
     await page.getByRole('button', { name: /wrong program: Wrong program on port/ }).first().waitFor({ timeout: 30_000 });
-    await page.getByText(new RegExp(`Port ${plainPort} answers without fabric-service/0.1`)).first().waitFor();
+    await page.getByText(new RegExp(`Port ${plainPort} is used by a program that is not a Fabric agent`)).first().waitFor();
     // SCN-013
     await page.getByRole('button', { name: /claims a: Port conflict/ }).first().waitFor({ timeout: 30_000 });
     await page.getByText(new RegExp(`Port ${shared} is also claimed by`)).first().waitFor();

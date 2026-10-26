@@ -47,7 +47,7 @@ test('SCN-041, SCN-006, SCN-057, SCN-024: the strip, needs attention, the list\'
     await page.getByRole('button', { name: /Sample Service: Ready/ }).first().waitFor({ timeout: 20_000 });
 
     // SCN-041: the strip reads the whole estate before any card.
-    for (const label of ['agents ready', 'not answering or in conflict', 'need attention', 'spent today', 'spent in 30 days']) {
+    for (const label of ['Ready', 'Not answering or in conflict', 'Need attention', 'Spent today', 'Spent in 30 days']) {
       await page.getByText(label, { exact: true }).first().waitFor();
     }
 
