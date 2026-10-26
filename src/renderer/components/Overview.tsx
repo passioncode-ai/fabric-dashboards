@@ -189,7 +189,7 @@ export function Overview({ status, products, open, act, goSpend, agent, visit, o
               <li key={s.key} className="group">
                 <StateBadge state={s.state} />
                 <span className="name">{t('overview.attention.group', { count: members.length })} {members.map(({ s: m }, i) => (
-                  <Fragment key={m.key}>{i > 0 && ', '}<button className="linkish" onClick={() => open(m.key)}>{nameOf(m)}</button></Fragment>
+                  <Fragment key={m.key}>{i > 0 && ', '}<button className="linkish" title={nameOf(m)} onClick={() => open(m.key)}>{nameOf(m)}</button></Fragment>
                 ))}</span>
                 <span className="why" title={attentionLine(s)}>{attentionLine(s)}</span>
                 {/* UX-07: the outage behind a folded row is fixed by acting on every member at once. */}
@@ -198,7 +198,7 @@ export function Overview({ status, products, open, act, goSpend, agent, visit, o
             ) : (
               <li key={s.key}>
                 <StateBadge state={s.state} />
-                <button className="linkish name" onClick={() => open(s.key)}>{nameOf(s)}</button>
+                <button className="linkish name" title={nameOf(s)} onClick={() => open(s.key)}>{nameOf(s)}</button>
                 <span className="why" title={attentionLine(s)}>{attentionLine(s)}</span>
                 {/* VIS-02: every action of the row in one cell, so the row stays one line and the reason keeps its room. */}
                 <span className="row-actions">
@@ -301,7 +301,7 @@ function Card({ p, open }: { p: Product; open: (key: string) => void }) {
     ].filter(Boolean).join('. ')}>
       <div className="card-head">
         <div>
-          <h3>{nameOf(s)}</h3>
+          <h3 title={nameOf(s)}>{nameOf(s)}</h3>{/* VIS-15: the card cuts a long name */}
           <div className="meta">
             {wk ? <span className="mono">{wk.service.version} · {shortBuild(s)}</span> : <span className="mono">{s.key}</span>}
             {uptime !== null && !isOnline(s) && <> · {t('card.uptime', { uptime: duration(uptime) })}</>}

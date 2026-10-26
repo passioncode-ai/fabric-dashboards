@@ -122,3 +122,9 @@ test('VIS-11 (FD-113): an agent card\'s accessible name carries what it flags an
   assert.match(label, /Queue: 9/, 'the tile flagged for attention');
   assert.match(label, /Job 7 delivered/, 'the latest event');
 });
+
+test('VIS-15 (FD-113): a card\'s name and an attention row\'s name keep their full form as a title', () => {
+  const html = overview([snap('an-agent-with-a-very-long-name.default', 'down')]);
+  assert.match(html, /<h3 title="An-agent-with-a-very-long-name">/);
+  assert.match(html, /<button class="linkish name" title="An-agent-with-a-very-long-name">/);
+});

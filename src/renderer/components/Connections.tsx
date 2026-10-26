@@ -50,7 +50,7 @@ export function Connections({ s, all, open }: { s: ServiceSnapshot; all: Service
                   <button className={`conn-node conn-${u.state}`} onClick={() => open(u.key)}>
                     <span className="conn-mark" aria-hidden="true">{MARK[u.state]}</span>
                     <span className="conn-label">{u.name}</span>
-                    {u.capabilities.length > 0 && <span className="conn-sub mono">{u.capabilities.join(', ')}</span>}
+                    {u.capabilities.length > 0 && <span className="conn-sub mono" title={u.capabilities.join(', ')}>{u.capabilities.join(', ')}</span>}
                     <span className="visually-hidden">{t(`conn.state.${u.state}`)}</span>
                   </button>
                 </li>
@@ -94,8 +94,8 @@ function Tree({ nodes, open, time, t, reason }: { nodes: readonly ConnectionNode
           <>
             <span className="conn-mark" aria-hidden="true">{MARK[n.state]}</span>
             <span className="conn-label">{n.label}</span>
-            {n.target && <span className="conn-sub mono">{n.target}</span>}
-            {n.capability && <span className="conn-sub mono">{n.capability}</span>}
+            {n.target && <span className="conn-sub mono" title={n.target}>{n.target}</span>}
+            {n.capability && <span className="conn-sub mono" title={n.capability}>{n.capability}</span>}
             {typeof n.calls === 'number' && <span className="conn-sub">{t('conn.calls', { count: n.calls })}</span>}
             <span className="visually-hidden">{t(`conn.state.${n.state}`)}</span>
             {(n.reason || n.agentReason || n.purpose || n.lastAt) && (

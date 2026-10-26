@@ -1013,7 +1013,7 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **Preconditions:** none
 - **Steps:**
   1. User collapses the sidebar -> it becomes a narrow rail: the mark, the mode switch as two icons (SCN-077), icons for Overview, Activity, Connections, Spend and Settings, and one entry per agent with its state mark and initials; the Overview and Activity badges stay (src/renderer/components/Navigation.tsx `ModeSwitch`, `AgentsNav`; Settings in src/renderer/App.tsx)
-  2. User points at an entry -> its name (and state) shows as a tooltip; a screen reader reads the same
+  2. User points at an entry -> its name (and state) shows as a tooltip; a screen reader reads the same. The expanded list shows the same tooltip on every agent, since it cuts a long name too (FD-113 VIS-15)
   3. User presses "Expand sidebar" -> the full list returns; the choice holds after a relaunch
 - **Expected result:** the dashboard gains the sidebar's width, and every page and agent stays one press away
 - **Alt paths:** an agent needs attention -> its rail entry carries the same mark as in the full list; the app's own update is ready, held, or cannot install -> the rail shows an entry of its own with an arrow (or "!"), named by its tooltip, that restarts into the update or opens Settings
@@ -1152,7 +1152,7 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
   3. Any closed session, a hand-over's or a continued one's included -> the Sessions mode lists it under "Ended in the last 24 hours" as "Closed at {time} after 30 idle minutes", with Continue and Remove (SCN-084); Continue resumes the same conversation in the same folder on the saved account
 - **Expected result:** a session nobody uses holds nothing, and coming back costs one press, wherever it came from
 - **Alt paths:** the runtime cannot continue a conversation -> in an agent's console "This session was closed after 30 idle minutes to free memory. New session starts a fresh one.", and in Sessions the button reads "New session here" (SCN-084); the person starts a session themselves first -> the saved mark is cleared; one idle-closed agent console has two ways back, step 2 and SCN-084's Continue: Continue in Sessions starts that console's continue (`continueSession` calls `start(key, 'continue')`, which clears the saved mark, src/electron/console.ts) and takes the ended row off the list, and continuing from the agent's console clears the saved mark and takes that console's last ended row off the list too (R1-C)
-- **UI elements:** the console's notice line; the Sessions mode's ended row with Continue and Remove
+- **UI elements:** the console's notice line, a calm notice a screen reader reads as a status, never a red error alert (FD-113 VIS-14); the Sessions mode's ended row with Continue and Remove
 - **States covered:** success
 - **Errors & recovery:** the continue cannot start (no room, SCN-063) -> that notice instead, and the row keeps both actions
 - **Supersedes:** for a hand-over or a continued session, the dead end of SES-04 (its console was reopened only from the sidebar's Hand-overs section, whose text named a "New session" button that was never drawn there): from 0.8.0 SCN-084 owns its Continue

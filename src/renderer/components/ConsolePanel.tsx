@@ -51,7 +51,7 @@ export function ConsolePanel({ serviceKey, height, maxHeight, onHeight, onDrag, 
   /** How far into the session's output the terminal shows: events and snapshots meet here. */
   const shown = useRef(0);
   const [info, setInfo] = useState<ConsoleInfo | null>(null);
-  const [notice, setNotice] = useState<{ text: string; terminalOnly?: boolean } | null>(null);
+  const [notice, setNotice] = useState<{ text: string; terminalOnly?: boolean; info?: boolean } | null>(null);
   const [confirmClose, setConfirmClose] = useState(false);
   const [starting, setStarting] = useState(false);
   const [sessions, setSessions] = useState<ConsoleSessions | null>(null);
@@ -186,9 +186,10 @@ export function ConsolePanel({ serviceKey, height, maxHeight, onHeight, onDrag, 
     resumed.current = serviceKey;
     const rt = info.runtimes.find((r) => r.id === info.runtime);
     if (rt?.canContinue && info.folder?.exists) {
-      setNotice({ text: t('console.idle.resumed', { account: info.idle.account ?? t('word.notRecorded') }) });
-      void start('continue').then(() => setNotice({ text: t('console.idle.resumed', { account: info.idle?.account ?? t('word.notRecorded') }) }));
-    } else setNotice({ text: t('console.idle.closed') });
+      // VIS-14 (FD-113): the idle close is news, not an error: a calm notice a screen reader reads politely.
+      setNotice({ text: t('console.idle.resumed', { account: info.idle.account ?? t('word.notRecorded') }), info: true });
+      void start('continue').then(() => setNotice({ text: t('console.idle.resumed', { account: info.idle?.account ?? t('word.notRecorded') }), info: true }));
+    } else setNotice({ text: t('console.idle.closed'), info: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [info?.key, info?.idle?.at]);
 
@@ -249,7 +250,7 @@ export function ConsolePanel({ serviceKey, height, maxHeight, onHeight, onDrag, 
       <section className="console-drawer console-page" aria-label={t('console.title')}>
         {!info && <p className="console-state muted row" role="status"><Spinner /> {t('console.loading')}</p>}
         {info?.session.state === 'idle' && <p className="console-state muted">{t('sessions.notKept')}</p>}
-        {notice && <div className="console-state notice error" role="alert"><p>{notice.text}</p></div>}
+        {notice && <div className={`console-state notice${notice.info ? '' : ' error'}`} role={notice.info ? 'status' : 'alert'}><p>{notice.text}</p></div>}
         {exitLine && <p className="console-line console-exit-line meta" role="status">{exitLine}</p>}
         <div className="console-term" ref={host} onClick={() => term.current?.focus()} />
         <p className={`console-line console-keys meta${termFocus ? '' : ' quiet'}`} aria-hidden={!termFocus}>{t('sessions.keys')}</p>
@@ -308,7 +309,7 @@ export function ConsolePanel({ serviceKey, height, maxHeight, onHeight, onDrag, 
       {sessions && 'unavailable' in sessions && (sessions.unavailable === 'old' || sessions.unavailable === 'error' || (sessions.unavailable === 'absent' && runtime?.viaSwitchboard)) && (
         <p className="console-row console-line meta muted">{sessions.unavailable === 'old' ? t('console.sb.old') : sessions.unavailable === 'absent' ? t('console.sb.absent') : t('console.sb.error', { detail: sessions.detail })}</p>
       )}
-      {notice && <div className={`console-state notice${notice.terminalOnly ? '' : ' error'}`} role="alert">
+      {notice && <div className={`console-state notice${notice.terminalOnly || notice.info ? '' : ' error'}`} role={notice.info ? 'status' : 'alert'}>
         <p>{notice.text}</p>
         {notice.terminalOnly && <button className="btn btn-primary" onClick={() => void openTerminal('new')}>{t('console.openTerminalSb')}</button>}
       </div>}
