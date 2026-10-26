@@ -15,7 +15,9 @@ this app (ADR-0022 for agents and services).
 | runs on (what an agent's own model calls run on) | работает на | the runner an agent reports (DEC-0046), in the profile block and in Connections | «Агент для кода» for it |
 | install file | файл установки | the descriptor in the services folder, as a person reads it | descriptor, «дескриптор» (outside the Health details) |
 | services folder | папка сервисов | the folder descriptors are installed into (a path, not a category) | |
-| spend report | отчёт о расходах | an agent's own report of calls, tokens and cost | |
+| spend report | отчёт о расходах | an agent's own report of calls, tokens and cost | usage report (in the interface; the contract and MCP machine sentences keep the contract's own word) |
+| spend | расходы | the topic: what agents spent (the page, a profile line, a limit's name) | «траты» |
+| job | задача | one piece of work an agent runs, which a per-job limit caps (`per_job`) | order, «заказ» (it reads as a purchase) |
 | self-check | проверка | an agent's `doctor` command | Doctor, «Диагностика» |
 
 ## States

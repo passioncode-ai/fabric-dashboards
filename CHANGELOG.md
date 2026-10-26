@@ -4,6 +4,10 @@
 
 ### Fixed
 
+- **Money words read one way** (FD-113, COPY-14, COPY-16). Errors on Spend said "usage report" while Connections said
+  "spend report", Russian mixed «траты» and «расходы», and limits called a job an "order" («заказ»), which reads as a
+  purchase. The interface now says "spend report" / «отчёт о расходах», «расходы», and "job" / «задача»
+  ("Jobs above it wait for your approval").
 - **Spend used two windows** (FD-113, COPY-15). Overview, Spend and Connections counted 30 days, while an agent's page
   and the per-model rows summed the whole report, up to 31 days, so the rows could add up to more than the 30-day
   total. Every spend figure now covers the same last 30 UTC days.
