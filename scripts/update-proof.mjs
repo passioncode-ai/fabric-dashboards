@@ -8,16 +8,22 @@
 // its own data folder, and the proof is read from its own log: `update_install installed from=<from> to=<to>`.
 // FD_PROOF_FROM_DIR: take the <from> copy from this folder (a debug build of the current code, built with <from>'s
 // version number by update-proof.yml `build`), so a fix is proven before it is released.
+// FD-114, three versions: `update-proof.mjs <from> <to> <via>` with a build made with FD_PROOF_FEED (update-proof.yml
+// `via`). A loopback server stands in for the release pointer: it names <via> until the copy logs <via> ready and
+// waiting, then <to>, as a release published while an update waits. The copy must end as <to>; the proof says whether
+// it got there in one restart or two (FD-98). The releases' own signed files are downloaded and verified as always.
 import { execFileSync, spawn, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { chmodSync, existsSync, mkdtempSync, readdirSync, readFileSync, statSync } from 'node:fs';
+import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
 
 const [from, to] = process.argv.slice(2);
+const via = process.argv[4] ?? (process.env.FD_PROOF_VIA || undefined); // update-proof.yml passes it in the environment
 function requireThat(condition, message) { if (!condition) throw new Error(message); }
 for (const event of ['unhandledRejection', 'uncaughtException']) process.on(event, (error) => { console.error(`::error::${error?.message ?? error}`); process.exit(1); });
-requireThat(/^\d+\.\d+\.\d+$/.test(from ?? '') && /^\d+\.\d+\.\d+$/.test(to ?? ''), 'usage: update-proof.mjs <from-version> <to-version>');
+requireThat(/^\d+\.\d+\.\d+$/.test(from ?? '') && /^\d+\.\d+\.\d+$/.test(to ?? '') && (via === undefined || /^\d+\.\d+\.\d+$/.test(via)), 'usage: update-proof.mjs <from-version> <to-version> [<via-version>]');
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const arch = process.arch === 'arm64' ? 'arm64' : 'x64';
 const work = mkdtempSync(path.join(os.tmpdir(), 'fd-update-proof-'));
@@ -29,20 +35,47 @@ const download = (version, pattern) => { gh(['release', 'download', `v${version}
 const sha256 = (file) => createHash('sha256').update(readFileSync(file)).digest('hex');
 const sums = (version) => Object.fromEntries(readFileSync(path.join(download(version, 'SHA256SUMS'), 'SHA256SUMS'), 'utf8').trim().split('\n').map((l) => l.split(/\s+/)).map(([h, n]) => [n.replace(/^\*/, ''), h]));
 const logText = () => { try { return readFileSync(path.join(data, 'logs', 'main.log'), 'utf8'); } catch { return ''; } };
-const installed = new RegExp(`update_install installed from=${from.replace(/\./g, '\\.')} to=${to.replace(/\./g, '\\.')}`);
+const esc = (v) => v.replace(/\./g, '\\.');
+// With <via> the last hop is from <via> or straight from <from>: either ends as <to>.
+const installed = new RegExp(`update_install installed from=${via ? '\\S+' : esc(from)} to=${esc(to)}`);
 // The latest release is the feed: the proof is only meaningful when <to> is it.
 const latest = gh(['release', 'view', '-R', 'passioncode-ai/fabric-dashboards', '--json', 'tagName', '-q', '.tagName']).trim();
 requireThat(latest === `v${to}`, `the latest release is ${latest}, not v${to}`);
 // ADR-0015: 90 s to the first check, the download, then 10 hidden minutes before the install; Windows arm64's
 // installer alone takes up to ~8 minutes (FD-37 M4c measurement).
-const deadline = Date.now() + 40 * 60_000;
+const minutes = via ? 80 : 40;
+const deadline = Date.now() + minutes * 60_000;
 const env = { ...process.env, FABRIC_DASHBOARDS_USER_DATA: data, FABRIC_SERVICES_DIR: path.join(work, 'services') };
 
 async function waitFor(label, ok) {
   while (Date.now() < deadline) { if (ok()) return; await sleep(15_000); }
   const tail = logText().split('\n').filter((l) => /update_|auto_update|alerts:/.test(l)).slice(-15).join('\n');
-  throw new Error(`${label} did not happen within 40 minutes; the app's update lines:\n${tail || '(none)'}`);
+  throw new Error(`${label} did not happen within ${minutes} minutes; the app's update lines:\n${tail || '(none)'}`);
 }
+
+// #region proof-feed-server — docs: docs/RUNBOOK.md#update-proof
+// FD-114: the port is the one update-proof.yml bakes into the build (FD_PROOF_FEED).
+const PROOF_PORT = 47391;
+const viaInstalled = via ? new RegExp(`update_install installed from=${esc(from)} to=${esc(via)}`) : null;
+if (via) {
+  requireThat(Boolean(fromDir), 'three versions need this ref built with FD_PROOF_FEED (update-proof.yml build: true, via)');
+  const feeds = Object.fromEntries([via, to].map((v) => [v, readFileSync(path.join(download(v, 'update-feed.json'), 'update-feed.json'))]));
+  let naming = via;
+  const server = http.createServer((req, res) => {
+    if (req.url !== '/update-feed.json') { res.writeHead(404).end(); return; }
+    res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store' }).end(feeds[naming]);
+  });
+  await new Promise((resolve, reject) => { server.once('error', reject); server.listen(PROOF_PORT, '127.0.0.1', resolve); });
+  server.unref();
+  const ready = new RegExp(`update_check ready version=${esc(via)}`);
+  void (async () => {
+    while (!ready.test(logText())) await sleep(5_000);
+    naming = to;
+    console.log(`FD-114: ${via} is ready and waits; the release pointer now names ${to}`);
+  })();
+}
+const hops = () => (viaInstalled?.test(logText()) ? `two restarts (${from} -> ${via} -> ${to}: FD-98 as today)` : `one restart (${from} -> ${to})`);
+// #endregion proof-feed-server
 
 if (process.platform === 'linux') {
   const name = (v) => `Fabric-Dashboards-${v}-linux-${arch}.AppImage`;
@@ -75,7 +108,7 @@ if (process.platform === 'linux') {
   await waitFor(`${name(from)} replacing itself with ${name(to)}`, () => existsSync(image) && statSync(image).size > 0 && sha256(image) === expected);
   console.log(`the AppImage replaced its own file with ${name(to)} (sha256 ${expected.slice(0, 12)}, as SHA256SUMS)`);
   await waitFor(`the restart as ${to}`, () => installed.test(logText()));
-  console.log(`it started again as ${to}: ${logText().match(installed)[0]}`);
+  console.log(`it started again as ${to}: ${logText().match(installed)[0]}${via ? `; ${hops()}` : ''}`);
   try { process.kill(-app.pid, 'SIGTERM'); } catch { /* gone */ }
 } else if (process.platform === 'win32') {
   const name = `Fabric-Dashboards-${from}-windows-${arch}-setup.exe`;
@@ -99,9 +132,9 @@ if (process.platform === 'linux') {
   const startedAgain = new RegExp(` started ${to.replace(/\./g, '\\.')} `);
   const running = () => /Fabric Dashboards\.exe/i.test(spawnSync('tasklist', ['/FI', 'IMAGENAME eq Fabric Dashboards.exe', '/FO', 'CSV', '/NH'], { encoding: 'utf8', windowsHide: true }).stdout);
   await waitFor(`the restart as ${to}`, () => installed.test(logText()) || (() => { try { const d = readFileSync(defaultLog, 'utf8'); return installed.test(d) || startedAgain.test(d); } catch { return false; } })() || (version().startsWith(to) && running()));
-  console.log(`it started again as ${to}`);
+  console.log(`it started again as ${to}${via ? `; ${hops()}` : ''}`);
   spawnSync('taskkill', ['/F', '/T', '/IM', 'Fabric Dashboards.exe'], { windowsHide: true });
 } else {
   throw new Error('update-proof runs on Linux or Windows; macOS updates are proven by every release (ADR-0015)');
 }
-console.log(`FD-37 M4: ${process.platform}-${arch} updated itself from ${from} to ${to}`);
+console.log(`FD-37 M4: ${process.platform}-${arch} updated itself from ${from} to ${to}${via ? ` with ${to} published while ${via} waited` : ''}`);

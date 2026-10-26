@@ -23,7 +23,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { FEED_FILE, feedNamesOwnRelease, localFeed, parseSums, releaseFile, signedFeed, sumsSignedByRelease, zipName } from '../core/release-verify';
+import { FEED_FILE, PROOF_FEED_FILE, feedNamesOwnRelease, localFeed, parseSums, proofFeedUrl, releaseFile, signedFeed, sumsSignedByRelease, zipName } from '../core/release-verify';
 import { APP_UPDATE_EVERY_MS, FIRST_CHECK_MS, isNewer, quietCheck, mayCheck, stagedBundlePath, stagedRefusal, stagingLost, strayShipIt } from '../core/version';
 import type { AppStatus } from '../core/types';
 import { appImageRelaunchCommand, nsisInstalledAt, nsisUpdateCommand, PENDING_UPDATE_DIR, platformKey, platformUpdate, replaceAppImage, stagedAppImage, unpackFailure, unpackRoomRefusal, updateChannel } from '../core/self-update';
@@ -144,6 +144,17 @@ export class Updater {
     private readonly dataDir: string = app.getPath('userData'),
   ) {}
 
+  /** FD-114: the `latest` pointer: the release's, or a proof build's own loopback stand-in (`out/main/proof-feed.json`). */
+  private feedUrl: string | null = null;
+  private get feed(): string {
+    if (this.feedUrl) return this.feedUrl;
+    let raw: string | null = null;
+    try { raw = fs.readFileSync(path.join(__dirname, '..', PROOF_FEED_FILE), 'utf8'); } catch { /* a release: no file */ }
+    const url = raw === null ? null : proofFeedUrl(raw);
+    if (raw !== null) this.log(url ? `update: proof feed ${url} (an update-proof build; a release never carries one)` : `update: ${PROOF_FEED_FILE} names no loopback feed; the release feed is read`);
+    return (this.feedUrl = url ?? DEFAULT_FEED);
+  }
+
   private event(name: string, outcome: string, detail = ''): void {
     this.log(`${name} ${outcome}${detail ? ` ${detail}` : ''}`);
   }
@@ -179,7 +190,7 @@ export class Updater {
       return;
     }
     try {
-      autoUpdater.setFeedURL({ url: DEFAULT_FEED, serverType: 'json' });
+      autoUpdater.setFeedURL({ url: this.feed, serverType: 'json' });
     } catch (error) {
       this.fail('check_failed', (error as Error).message);
       return;
@@ -223,7 +234,7 @@ export class Updater {
   private async run(manual: boolean): Promise<void> {
     let feed: Feed;
     try {
-      const res = await net.fetch(DEFAULT_FEED, { cache: 'no-store', signal: AbortSignal.timeout(FEED_TIMEOUT_MS) });
+      const res = await net.fetch(this.feed, { cache: 'no-store', signal: AbortSignal.timeout(FEED_TIMEOUT_MS) });
       if (!res.ok) return this.fail('check_failed', `the update feed answered HTTP ${res.status}`);
       feed = (await res.json()) as Feed;
     } catch (error) {

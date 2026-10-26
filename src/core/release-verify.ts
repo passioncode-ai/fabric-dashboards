@@ -63,6 +63,23 @@ export const sha256 = (data: Buffer) => createHash('sha256').update(data).digest
 
 export const FEED_FILE = 'update-feed.json';
 
+// #region proof-feed — docs: docs/RUNBOOK.md#update-proof
+/** FD-114: a proof build's stand-in for the `latest` pointer, so update-proof can publish n+1 and then n+2 while n+1
+ *  waits. Only update-proof's own builds carry the file (`dist-other.mjs` writes it from FD_PROOF_FEED in a debug
+ *  build and removes it from every other); the releases' signed files are still downloaded and verified as always.
+ *  Only a loopback http URL of an update-feed.json is taken: anything else reads as no proof feed. */
+export const PROOF_FEED_FILE = 'proof-feed.json';
+export function proofFeedUrl(raw: string): string | null {
+  try {
+    const u = new URL(String((JSON.parse(raw) as { url?: unknown }).url));
+    const ok = u.protocol === 'http:' && u.hostname === '127.0.0.1' && u.port !== '' && u.pathname === `/${FEED_FILE}` && !u.username && !u.password && !u.search && !u.hash;
+    return ok ? u.href : null;
+  } catch {
+    return null;
+  }
+}
+// #endregion proof-feed
+
 /** The release's own feed, as its signed SHA256SUMS names it: the version it announces and whether
  *  it needs a person come from bytes the organization signed, not from the `latest` redirect
  *  (fabric-inbox 95af4f7 does the same). `needsPerson` counts only as an https address. */

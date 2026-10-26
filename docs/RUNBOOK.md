@@ -196,6 +196,28 @@ The update URL is public only while the repository is public; a private reposito
 release assets need authentication, and the updater then reports the error in the
 sidebar footer instead of updating.
 
+## Update proof
+
+`update-proof.yml` proves that a copy installed the way a person installs it updates itself with nobody touching it, on
+Windows x64 and arm64 and Linux x64 and arm64 (`scripts/update-proof.mjs`; macOS updates are proven by every release,
+ADR-0015). The copy runs hidden with its own data folder, and the proof is read from its log.
+
+- **Two versions** (after every release): `gh workflow run update-proof.yml -f from=<previous> -f to=<latest>`.
+- **A fix before its release**: add `-f build=true`. The installed copy is then this ref's code, built unsigned with
+  the `from` version number (`FD_PROOF_FROM_DIR`).
+- **Three versions** (FD-114, for FD-98): `-f build=true -f from=<n> -f via=<n+1> -f to=<n+2>`, where `to` is the
+  latest release. The build bakes `out/main/proof-feed.json` with `FD_PROOF_FEED=http://127.0.0.1:47391/update-feed.json`.
+  - `dist-other.mjs` writes that file only in a debug build (`--allow-dirty`, never `FD_WINDOWS_RELEASE`) and removes it
+    from every other build; `dist-mac.mjs` always removes it.
+  - The updater accepts only a loopback http URL of an `update-feed.json` (`proofFeedUrl`, `src/core/release-verify.ts`)
+    and logs `update: proof feed …` when it reads one.
+  - The proof's server on that port names `via` until the copy logs `update_check ready version=<via>`, then `to`: a
+    release published while an update waits.
+  - The releases' signed files still come from GitHub and are verified as always; only the `latest` pointer is local.
+  - The copy must end as `to`. The proof prints whether it took one restart or two: two is FD-98 as it stands, one the
+    behaviour FD-98 asks for.
+  - Tests: `test/proof-feed.test.ts`.
+
 ## Tests that touch this Mac
 
 `test/monitor.test.ts` bootstraps a throwaway LaunchAgent labelled
