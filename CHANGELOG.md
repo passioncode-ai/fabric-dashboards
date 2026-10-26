@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- **A session another agent runs is never taken for Claude Code** (Fabric Switchboard SB-201, ahead of its 0.7.0).
+  Switchboard now names the agent each session runs (Goose, Codex, Kimi Code and others), also when it rides the Claude
+  route through its proxy. Sessions shows that agent, and Continue takes up a Claude Code conversation only for a
+  Claude Code session, never an unrelated one in the same folder.
+
 ## 0.8.5 - 2026-10-26
 
 Carries 0.8.4, tagged and not published: its release run 40257149750 stopped at the Windows gate on one test that

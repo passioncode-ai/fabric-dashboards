@@ -94,7 +94,11 @@ export interface SessionRow {
 export interface SbSessionRecord {
   home: string;
   folder: string;
+  /** The route the session rides (`claude`, `codex`, …): a proxy launch of another agent records `claude` (SB-201). */
   provider: string;
+  /** SB-201 (Switchboard 0.7.0): the catalog id of the agent that runs (`claude-code`, `goose`, `codex`, …); taken from
+   *  the provider when Switchboard names none, as Switchboard itself fills it. */
+  agent: string;
   pool: string;
   mode: string;
   account: string;
@@ -202,7 +206,7 @@ function fnv64(text: string): string {
  *  records its working directory; `home` is the pool's runtime home, the same for every session of the pool). */
 const sbRowId = (r: SbSessionRecord) => {
   const folder = norm(r.folder);
-  return `sb:${r.provider}:${r.pool}:${r.launchedAt ?? 0}:${folder.length > 300 ? `#${fnv64(folder)}` : folder}`;
+  return `sb:${r.agent}:${r.provider}:${r.pool}:${r.launchedAt ?? 0}:${folder.length > 300 ? `#${fnv64(folder)}` : folder}`;
 };
 
 export function groupOf(state: SessionState): SessionGroup {
@@ -380,9 +384,10 @@ export function mergeSessions(i: MergeInput): SessionRow[] {
     const started = s.launchedAt ?? s.startedAt;
     if (!running && !fresh(started, i.now)) continue; // ended more than a day ago, as far as can be told
     add(row({
-      id: sbRowId(s), key: null, folder: s.folder, agent: s.provider === 'codex' ? 'codex' : s.provider === 'claude' ? 'claude-code' : s.provider,
+      id: sbRowId(s), key: null, folder: s.folder, agent: s.agent,
       account: s.account || null, context: s.context, contextName: s.contextName, origin: s.continues ? 'handover' : 'switchboard', reason: null,
-      state: running ? 'running-terminal' : 'ended', startedAt: started, endedAt: null, resumable: s.provider === 'claude',
+      // SB-201: only a Claude Code session has a Claude Code conversation to resume; a proxy launch rides `claude` too.
+      state: running ? 'running-terminal' : 'ended', startedAt: started, endedAt: null, resumable: s.agent === 'claude-code',
     }));
   }
 

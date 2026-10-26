@@ -43,10 +43,14 @@ const ok = (data: unknown) => ({ code: 0, stdout: JSON.stringify({ ok: true, dat
 const POSIX = { skip: process.platform === 'win32' && 'POSIX execute bits: the fake switchboard is a shell script' };
 const tick = () => new Promise((res) => setTimeout(res, 20));
 const input = (o: Partial<MergeInput> = {}): MergeInput => ({ now: NOW, switchboard: [], pending: [], stops: [], consoles: [], records: [], dismissed: [], ...o });
-const sb = (o: Partial<SbSessionRecord> = {}): SbSessionRecord => ({
+const sb = (o: Partial<SbSessionRecord> = {}): SbSessionRecord => {
+  const r = {
   home: '/sb/homes/a', folder: '/w/alpha', provider: 'claude', pool: 'default', mode: 'managed', account: 'Work Max', accountId: 'acc-1',
   context: null, contextName: null, continues: null, inPlace: true, launchedAt: NOW, startedAt: NOW, state: 'running' as const, ...o,
-});
+  };
+  // SB-201: the agent Switchboard fills from the provider when a record names none.
+  return { ...r, agent: o.agent ?? (r.provider === 'claude' ? 'claude-code' : r.provider === 'kimi' ? 'kimi-code' : r.provider) } as SbSessionRecord;
+};
 
 interface RigOptions {
   stop?: { silent?: boolean; candidates?: string[]; state?: string; ready?: boolean; probeAt?: number | null };

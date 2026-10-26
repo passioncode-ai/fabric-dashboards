@@ -25,7 +25,7 @@ const ok = (data: unknown) => ({ code: 0, stdout: JSON.stringify({ ok: true, dat
 const POSIX = { skip: process.platform === 'win32' && 'POSIX execute bits: the fake switchboard is a shell script' };
 
 const sb = (o: Partial<SbSessionRecord> = {}): SbSessionRecord => ({
-  home: '/sb/homes/a', folder: '/w/alpha', provider: 'claude', pool: 'default', mode: 'managed', account: 'Work Max', accountId: 'acc-1',
+  home: '/sb/homes/a', folder: '/w/alpha', provider: 'claude', agent: 'claude-code', pool: 'default', mode: 'managed', account: 'Work Max', accountId: 'acc-1',
   context: 'org:acme', contextName: 'Acme', continues: null, inPlace: false, launchedAt: NOW - 10 * MIN, startedAt: NOW - 10 * MIN, state: 'running' as const, ...o,
 });
 const record = (o: Partial<SessionRecord> = {}): SessionRecord => ({
@@ -152,7 +152,7 @@ test('FD-103: Switchboard\'s machine-wide list is read strictly; a failure is a 
   };
   const r = await allSessionsOf(run, '/bin/switchboard');
   assert.ok(r.ok);
-  assert.deepEqual(r.value, [{ home: '/sb/homes/a', folder: '/w/alpha', provider: 'claude', pool: 'default', mode: 'managed', account: 'Work Max', accountId: 'acc-1', context: 'personal', contextName: null, continues: 'wf_0123456789abcdef', inPlace: true, launchedAt: 1_792_617_000_000, startedAt: 1_792_617_001_000, state: 'running' }]);
+  assert.deepEqual(r.value, [{ home: '/sb/homes/a', folder: '/w/alpha', provider: 'claude', agent: 'claude-code', pool: 'default', mode: 'managed', account: 'Work Max', accountId: 'acc-1', context: 'personal', contextName: null, continues: 'wf_0123456789abcdef', inPlace: true, launchedAt: 1_792_617_000_000, startedAt: 1_792_617_001_000, state: 'running' }]);
   const old = await allSessionsOf(async () => ({ code: 2, stdout: '', stderr: "error: unexpected argument '--all' found" }), 'sb');
   assert.deepEqual(old, { ok: false, reason: 'old', detail: "error: unexpected argument '--all' found" });
 
@@ -352,4 +352,25 @@ test('FD-118: a waiting row carries Switchboard\'s reason, so the page says why 
   ] }));
   assert.equal(rows.find((r) => r.folder === '/w/a')!.waitReason, 'account_removed');
   assert.equal(rows.find((r) => r.folder === '/w/b')!.waitReason, null);
+});
+
+test('SB-201 (Switchboard 0.7.0): a session row is the agent Switchboard names; a proxy launch on provider claude is not Claude Code and is never resumed as one', async () => {
+  const run: Runner = async () => ok({ sessions: [
+    { home: '/sb/h/1', working_directory: '/w/goose', provider: 'claude', agent: 'goose', pool: 'default', state: 'ended', launched_at: NOW / 1000 - 60 },
+    { home: '/sb/h/2', working_directory: '/w/cc', provider: 'claude', agent: 'claude-code', pool: 'default', state: 'ended', launched_at: NOW / 1000 - 60 },
+    { home: '/sb/h/3', working_directory: '/w/old', provider: 'claude', pool: 'default', state: 'ended', launched_at: NOW / 1000 - 60 },
+    { home: '/sb/h/4', working_directory: '/w/kimi', provider: 'kimi', pool: 'default', state: 'ended', launched_at: NOW / 1000 - 60 },
+    { home: '/sb/h/5', working_directory: '/w/bad', provider: 'claude', agent: 'Not An Id!', pool: 'default', state: 'ended', launched_at: NOW / 1000 - 60 },
+  ] });
+  const r = await allSessionsOf(run, '/bin/switchboard');
+  assert.ok(r.ok);
+  assert.deepEqual(r.value.map((s) => s.agent), ['goose', 'claude-code', 'claude-code', 'kimi-code', 'claude-code']);
+  const rows = mergeSessions(input({ switchboard: r.value }));
+  const by = (f: string) => rows.find((x) => x.folder === f)!;
+  assert.equal(by('/w/goose').agent, 'goose');
+  assert.equal(by('/w/goose').resumable, false, 'Continue never resumes an unrelated Claude Code conversation for a Goose session');
+  assert.equal(by('/w/cc').resumable, true);
+  assert.equal(by('/w/kimi').agent, 'kimi-code');
+  const twin = mergeSessions(input({ switchboard: [{ ...r.value[0]!, folder: '/w/same' }, { ...r.value[1]!, folder: '/w/same' }] }));
+  assert.equal(new Set(twin.map((x) => x.id)).size, twin.length, 'two agents on one route, folder and time are two rows');
 });
