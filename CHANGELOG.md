@@ -4,6 +4,10 @@
 
 ### Fixed
 
+- **Errors say what to press next** (FD-113, COPY-24, COPY-26). An agent the system has not loaded, two install files,
+  a refused launchctl, a failed sign-in or page load, an unreadable activity feed and a failed setup check each end with
+  the one step the screen offers (Start, Show file, Retry, Check setup). The update notification is short enough for
+  macOS to show whole: "Version 0.9.0 is ready. Click to restart now, or it installs when you quit."
 - **Money words read one way** (FD-113, COPY-14, COPY-16). Errors on Spend said "usage report" while Connections said
   "spend report", Russian mixed «траты» and «расходы», and limits called a job an "order" («заказ»), which reads as a
   purchase. The interface now says "spend report" / «отчёт о расходах», «расходы», and "job" / «задача»
