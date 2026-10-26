@@ -116,8 +116,8 @@ export interface SpendSummary {
   today: SpendSum;
   week: SpendSum;
   month: SpendSum;
-  /** Over the whole report (up to 31 days), one per provider, model and route; most money first,
-   *  then the subscription estimate, unknown last. */
+  /** Over the same last 30 UTC days as `month` (COPY-15, FD-113: one window everywhere a person reads spend), one
+   *  per provider, model and route; most money first, then the subscription estimate, unknown last. */
   models: (SpendSum & { provider: string; model: string; route?: UsageRoute })[];
   budget: UsageReport['budget'] | null;
   /** Every limit, what needs a person first (rankLimits); empty when the report lists none. */
@@ -293,6 +293,8 @@ export function summarizeUsage(report: UsageReport, now: number): SpendSummary {
       if (day.date === today) add(out.today, m, m.route);
       if (day.date >= weekFrom && day.date <= today) add(out.week, m, m.route);
       if (day.date >= monthFrom && day.date <= today) add(out.month, m, m.route);
+      // COPY-15 (FD-113): the per-model rows are the month's, so they add up to it; a report may hold a 31st day.
+      if (day.date < monthFrom || day.date > today) continue;
       // DEC-0046: calls of one model on two routes are two rows, and stay two here.
       const k = `${m.provider}\u0000${m.model}\u0000${m.route ?? ''}`;
       const sum = models.get(k) ?? { ...empty(), provider: m.provider, model: m.model, ...(m.route ? { route: m.route } : {}) };

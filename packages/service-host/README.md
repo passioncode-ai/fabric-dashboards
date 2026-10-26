@@ -177,7 +177,7 @@ tokens and USD cost per provider and model, and an optional day or month budget.
 `checkUsage(value, {id, instance})` returns the first problem a host relies on, or null. It
 checks identity, currency, dates running forward, counts, an all-unpriced row that claims a
 price, and the budget shape. `summarizeUsage(report, now)` returns `today`, `week` (7 days),
-`month` (30 days) and `models`, ranked by cost. **An unknown cost stays unknown**: a window
+`month` (30 days) and `models` over the same 30 days (FD-113: a report may hold a 31st day, which no sum shows), ranked by cost. **An unknown cost stays unknown**: a window
 with calls and no priced call has `costUsd: null`, a window with some unpriced calls is
 `partial` (a lower bound), and only a window with no calls is `0`. **Unknown tokens stay a lower
 bound too** (DEC-0091): a row's optional `unmeasuredCalls` counts calls whose tokens the service did
