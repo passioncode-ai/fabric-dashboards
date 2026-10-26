@@ -144,7 +144,13 @@ test('FD-37 packages.yml: every system and architecture on its native runner, si
   const order = ['--stage app', 'Sign the app\'s executable', '--stage installer', 'Sign the installer', '--stage seal', 'nsis-smoke.mjs', 'upload-artifact'].map((n) => wf.indexOf(n));
   assert.ok(order.every((i) => i > 0), 'every stage and signing step is there');
   assert.deepEqual([...order].sort((x, y) => x - y), order, 'sign between the stages, check the installer after sealing');
-  assert.equal(wf.split("if: env.FD_WINDOWS_SIGNING == 'true'").length - 1, 2, 'both signing passes only when signing is on');
+  assert.equal(wf.split("if: env.FD_WINDOWS_SIGNING == 'true'").length - 1, 4, 'both signing passes, and the cache drop before each, only when signing is on');
+  // FD-96: the step right before each signing pass deletes the signing module's cache, so the action installs it itself.
+  for (const pass of ["- name: Sign the app's executable", '- name: Sign the installer']) {
+    const before = wf.slice(0, wf.indexOf(pass));
+    const lastStep = before.slice(before.lastIndexOf('      - name:'));
+    assert.match(lastStep, /^ {6}- name: Drop the signing module's cache\n[^]*gh cache delete/, `${pass} follows the cache drop`);
+  }
   assert.equal(wf.split('uses: passioncode-ai/.github/actions/windows-signing@v1').length - 1, 2, 'the organization\'s action signs and verifies (PL-03)');
   assert.doesNotMatch(wf, /artifact-signing-action|azure\/login/, 'no copied signing steps (PL-10)');
   assert.equal(wf.split('expected-subject: O=Siarhei Sheleh').length - 1, 2, 'both passes pin the organization\'s signer');
@@ -201,13 +207,22 @@ test('FD-37: every release job that calls a workflow grants what that workflow\'
   // A called workflow may not exceed its caller's permissions; GitHub refuses the whole run at startup
   // (v0.6.7-rc.1, run 38073408992: startup_failure) — even for a nested job that would be skipped.
   const read = (f: string) => fs.readFileSync(path.join(root, '.github/workflows', f), 'utf8');
-  const asksIdToken = (f: string): boolean => /id-token: write/.test(read(f)) || [...read(f).matchAll(/uses: \.\/\.github\/workflows\/([\w.-]+)/g)].some((m) => asksIdToken(m[1]!));
-  const release = read('release.yml');
-  const jobs = release.slice(release.indexOf('\njobs:\n')).split(/\n(?= {2}[a-z-]+:\n)/).slice(1).map((chunk) => ({ name: /^ {2}([a-z-]+):/.exec(chunk)![1]!, body: chunk }));
-  const callers = jobs.filter((j) => /uses: \.\/\.github\/workflows\//.test(j.body));
-  assert.deepEqual(callers.map((j) => j.name).sort(), ['check', 'linux', 'windows']);
-  for (const j of callers) {
-    const called = /uses: \.\/\.github\/workflows\/([\w.-]+)/.exec(j.body)![1]!;
-    if (asksIdToken(called)) assert.match(j.body, /id-token: write/, `${j.name} calls ${called}, whose jobs ask for id-token: write`);
+  // FD-96 widened it from id-token to every scope a called job writes (packages.yml asks for actions: write).
+  const writes = (f: string): Set<string> => new Set([
+    ...[...read(f).matchAll(/^ +([a-z-]+): write\b/gm)].map((m) => m[1]!),
+    ...[...read(f).matchAll(/uses: \.\/\.github\/workflows\/([\w.-]+)/g)].flatMap((m) => [...writes(m[1]!)]),
+  ]);
+  const jobsOf = (f: string) => {
+    const text = read(f);
+    return text.slice(text.indexOf('\njobs:\n')).split(/\n(?= {2}[a-z-]+:\n)/).slice(1).map((chunk) => ({ name: /^ {2}([a-z-]+):/.exec(chunk)![1]!, body: chunk }));
+  };
+  const callersOf = (f: string) => jobsOf(f).filter((j) => /uses: \.\/\.github\/workflows\//.test(j.body));
+  assert.deepEqual(callersOf('release.yml').map((j) => j.name).sort(), ['check', 'linux', 'windows']);
+  assert.ok(writes('packages.yml').has('actions') && writes('packages.yml').has('id-token'), 'packages.yml signs (OIDC) and drops the signing cache');
+  for (const f of ['release.yml', 'validate.yml']) {
+    for (const j of callersOf(f)) {
+      const called = /uses: \.\/\.github\/workflows\/([\w.-]+)/.exec(j.body)![1]!;
+      for (const scope of writes(called)) assert.match(j.body, new RegExp(`\\b${scope}: write\\b`), `${f} ${j.name} calls ${called}, whose jobs ask for ${scope}: write`);
+    }
   }
 });

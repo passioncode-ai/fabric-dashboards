@@ -91,6 +91,7 @@ jobs:
     permissions:
       contents: read
       id-token: write
+      actions: write # validate.yml's packages job calls packages.yml, which asks for it (FD-96); GitHub checks it even when skipped
     uses: ./.github/workflows/validate.yml
     with:
       os: all # the release ships for every system, so the gate runs on each one's native runner (PL-08)
@@ -173,6 +174,7 @@ jobs:
     permissions:
       contents: read
       id-token: write # packages.yml's Windows signing (OIDC)
+      actions: write # packages.yml deletes the signing module's cache before each pass (FD-96)
     uses: ./.github/workflows/packages.yml
     with:
       sign: true
@@ -183,6 +185,7 @@ jobs:
     permissions:
       contents: read
       id-token: write # packages.yml's job asks for it (Windows signing); Linux never signs
+      actions: write # packages.yml's job deletes the Windows signing cache (FD-96); Linux never does
     uses: ./.github/workflows/packages.yml
     with:
       os: linux

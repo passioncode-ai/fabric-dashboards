@@ -157,11 +157,13 @@ first, then push the new tag. A run waiting on an environment approval (only und
 
 **Re-running a failed job of a release run** (`gh run rerun <id> --failed`) keeps the tag and the version, and is
 right for a failure the product's code did not cause (a runner, a network, a flake that passed on the same code
-before). Before re-running a **Windows package job**, delete the signing module's cache of the tag first:
-`gh cache list --key ArtifactSigning --ref refs/tags/v<version>`, then `gh cache delete <id>`. A first attempt never
-reads that cache (both Windows jobs miss it and install the module), but a re-run restores it, and the restored module
-does not load ("The term 'Invoke-ArtifactSigning' is not recognized", FD-96, measured on 0.7.26's run 39955756486:
-attempt 2 failed that way, attempt 3 after the deletion signed and published).
+before). A **Windows package job** needs nothing more since FD-96: before each signing pass it deletes the signing
+module's cache (`ArtifactSigning-*`; step *Drop the signing module's cache* in `packages.yml`), so the action installs
+the module itself. Azure's action keeps that module under one key for both Windows images, at the first
+`PSModulePath` entry of the job that saved it, and a job that restored another's copy could not load it ("The term
+'Invoke-ArtifactSigning' is not recognized", measured on 0.7.26's run 39955756486: attempt 2 failed that way, attempt
+3 after a manual deletion signed and published). By hand, if that step ever fails: `gh cache list --key
+ArtifactSigning`, then `gh cache delete <id>`.
 
 A published release is never rewritten; a fix is a new tag. Verify a download with
 `gpg --verify SHA256SUMS.asc SHA256SUMS`, `shasum -a 256 -c SHA256SUMS --ignore-missing` and
