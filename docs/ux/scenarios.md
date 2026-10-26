@@ -1777,7 +1777,7 @@ The Sessions mode (0.8.0): every coding session apart from the agents, each stat
   3. User chooses one -> the app claims the stop in Switchboard once and continues the session in a console with that account, as SCN-075 step 2 does by itself; the row moves to Running with "Continued after a limit reset" and its page opens
   4. User presses "Do not continue" -> the row moves to Ended as "Not continued: you declined" and this app never continues that stop; Switchboard's own record is untouched
 - **Expected result:** a stopped session says when it will come back, and the person can bring it back now on another account or let it go
-- **Alt paths:** the person opens its page -> under the header a panel says when Switchboard tries it again, the way out now, its folder and when it stopped (SCN-080, FD-107); no other account can take it now -> the button is disabled with "No other account has capacity now."; the reset comes and "Continue sessions after a limit reset" is on -> it continues by itself (SCN-075) and moves to Running; the setting is off -> the row says to continue it yourself, stays under Waiting and is not counted by the badge, and both actions stay
+- **Alt paths:** the person opens its page -> under the header a panel says when Switchboard tries it again, the way out now, its folder and when it stopped (SCN-080, FD-107); no other account can take it now -> the button is disabled with "No other account has capacity now.", or with Switchboard's own reason when it names one (FD-118, Switchboard 0.6.83): "No account in its group can take it.", "The account it stopped on was removed from Switchboard.", "The account it stopped on waits for a payment." or "Switchboard waits before it checks the accounts again."; the reset comes and "Continue sessions after a limit reset" is on -> it continues by itself (SCN-075) and moves to Running; the setting is off -> the row says to continue it yourself, stays under Waiting and is not counted by the badge, and both actions stay
 - **UI elements:** the waiting line, Continue now on another account with its account menu, Do not continue
 - **States covered:** success, error
 - **Errors & recovery:** Switchboard refuses the claim, or the console cannot start -> the row stays waiting with "Could not be continued here; see the log."
@@ -1787,6 +1787,10 @@ The Sessions mode (0.8.0): every coding session apart from the agents, each stat
   - "Continue now on another account" / «Продолжить сейчас на другом аккаунте»
   - "{account} · {provider}" (the account menu's items, untranslated)
   - "No other account has capacity now." / «Сейчас ни у одного другого аккаунта нет запаса.»
+  - "No account in its group can take it." / «Ни один аккаунт в её группе не может её взять.» (FD-118)
+  - "The account it stopped on was removed from Switchboard." / «Аккаунт, на котором она остановилась, удалён из Switchboard.» (FD-118)
+  - "The account it stopped on waits for a payment." / «Аккаунт, на котором она остановилась, ждёт оплаты.» (FD-118)
+  - "Switchboard waits before it checks the accounts again." / «Switchboard выжидает, прежде чем снова проверить аккаунты.» (FD-118)
   - "Do not continue" / «Не продолжать»
   - "Continuing by itself is off in Settings, so continue it yourself." / «Автоматическое продолжение выключено в настройках, поэтому продолжите её сами.»
   - "Could not be continued here; see the log." / «Продолжить здесь не удалось, подробности в журнале.» (existing)

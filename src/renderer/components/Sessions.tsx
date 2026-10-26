@@ -108,7 +108,7 @@ export function SessionActions({ row, place, open, askEnd, continued, onMenu }: 
   return (
     <div className="session-actions" role="group" aria-label={t('sessions.actions', { project: row.project })}>
       <div className="row-actions">{buttons}</div>
-      {waitingNoCandidate && <span id={`nocand-${row.id}`} className="meta">{t('sessions.noCandidate')}</span>}
+      {waitingNoCandidate && <span id={`nocand-${row.id}`} className="meta">{t(row.waitReason ? `sessions.noCandidate.${row.waitReason}` : 'sessions.noCandidate')}</span>}
       {error && <p className="notice error session-error" role="alert">{error}</p>}
     </div>
   );
@@ -232,7 +232,9 @@ export function SessionBody({ row, autoContinue = true }: { row: SessionRow; aut
   if (row.group === 'ended' && (!row.key || row.consoleEmpty)) return <div className="page session-body"><p className="muted">{t('sessions.notKept')}</p></div>;
   if (row.state === 'waiting-reset') {
     const next = !autoContinue ? t('sessions.body.autoOff') : row.expectedAt ? t('sessions.body.waitingAt', { time: clock(lang, row.expectedAt) }) : t('sessions.body.waiting');
-    const now = row.actions.includes('continueNow') ? t('sessions.body.waitingActions') : t('sessions.body.waitingNoCandidate');
+    // FD-118: Switchboard 0.6.83 says why a waiting stop is not ready; "no other account has capacity" only when it names nothing.
+    const now = row.actions.includes('continueNow') ? t('sessions.body.waitingActions')
+      : row.waitReason ? t('sessions.body.waitingWhy', { why: t(`sessions.noCandidate.${row.waitReason}`) }) : t('sessions.body.waitingNoCandidate');
     return (
       <div className="page session-body">
         <section className="session-panel" aria-label={t('sessions.short.waiting')}>
