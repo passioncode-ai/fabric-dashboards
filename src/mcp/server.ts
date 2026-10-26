@@ -9,6 +9,7 @@ import type { ChildProcess } from 'node:child_process';
 import readline from 'node:readline';
 import { killOwned } from '../core/children';
 import { removeMcpRegistrations } from '../core/uninstall';
+import { ACTIONS_META, actionOf, decisionFor, decisionsFile, recordDecision } from './actions';
 import { liveHandover, startRelay, type Relay } from './handover';
 import { codeFile, plistVersion, StaleWatch } from './stale';
 import * as tools from './tools';
@@ -228,6 +229,7 @@ export async function handle(deps: tools.Deps, message: Message): Promise<Record
         capabilities: { tools: { listChanged: false } },
         serverInfo: SERVER,
         instructions: INSTRUCTIONS,
+        _meta: ACTIONS_META, // FD-110 (DEC-0121 AP-1): this app's buttons and their tools; the app serves no well-known
       });
     }
     case 'ping': return reply({});
@@ -243,6 +245,30 @@ export async function handle(deps: tools.Deps, message: Message): Promise<Record
       if (extra.length) return reply({ content: [{ type: 'text', text: `unknown argument ${JSON.stringify(extra[0])} for ${name}` }], isError: true });
       const wrong = wrongArgument(tool.inputSchema as Schema, args);
       if (wrong) return reply({ content: [{ type: 'text', text: `${wrong} for ${name}` }], isError: true });
+      // FD-110 part 3 (MD-10): a relayed action records the operator's decision; an invalid one is refused, and a call
+      // without one still runs as the caller's own act until the app can ask the person itself (src/mcp/actions.ts).
+      const own = actionOf(name, args);
+      if (own) {
+        const meta = params._meta && typeof params._meta === 'object' ? params._meta as Record<string, unknown> : {};
+        const target = typeof args.service === 'string' ? args.service : null;
+        const now = deps.now();
+        const outcome = decisionFor(own, target, meta.decision, now, 'stdio');
+        if (!outcome.ok) {
+          const refusal = { code: outcome.code, message: outcome.message, action: own.id };
+          return reply({ content: [{ type: 'text', text: JSON.stringify(refusal, null, 2) }], isError: true, structuredContent: refusal });
+        }
+        if (outcome.recordAs !== 'caller') {
+          try {
+            (deps.recordDecision ?? ((row) => recordDecision(decisionsFile(), row)))({
+              recordedAt: new Date(now).toISOString(), tool: name, action: own.id, target, ...outcome.recordAs,
+              instruction: outcome.decision.instruction, decidedAt: outcome.decision.at,
+            });
+          } catch (error) {
+            const refusal = { code: 'decision-not-recorded', message: `the operator's decision could not be recorded, so nothing was done: ${(error as Error).message}`, action: own.id };
+            return reply({ content: [{ type: 'text', text: JSON.stringify(refusal, null, 2) }], isError: true, structuredContent: refusal });
+          }
+        }
+      }
       try {
         const result = await call(deps, name, args);
         return reply({ content: [{ type: 'text', text: JSON.stringify(result, null, 2) }], structuredContent: result });

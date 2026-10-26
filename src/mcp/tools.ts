@@ -43,6 +43,8 @@ import { CONTROL_TIMEOUT_MS, controlService } from '../core/control';
 export { CONTROL_TIMEOUT_MS };
 
 export interface Deps {
+  /** FD-110 part 3: where a relayed operator decision is recorded; the live one appends to decisions.jsonl beside the log. */
+  recordDecision?: (row: Record<string, unknown>) => void;
   servicesDir: () => string;
   /** The health probe; a remote placement (DEC-0019) passes its token header in `options`. */
   wellKnown: (origin: string, options?: WellKnownOptions) => Promise<WellKnownResult>;

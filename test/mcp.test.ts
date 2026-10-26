@@ -701,3 +701,71 @@ test('FD-93: a wrong declaration is reported and never read; a report that fails
   const unknown = await tools.load(down.deps, KEY);
   assert.equal(unknown.kind, 'error', 'a service that does not answer has unknown load, never none');
 });
+
+// ── FD-110 part 3: this app's own actions (DEC-0121) and the operator's relayed decision (MD-10) ─────────────────────
+
+test('FD-110: initialize declares this app\'s buttons; each has its tool on this surface, so the auditor finds nothing', async () => {
+  const { actionsOf, ACTIONS_EXTENSION } = await import('@passioncode-ai/fabric-service-host/actions');
+  const out = await handle(world().deps, { id: 1, method: 'initialize', params: {} });
+  const meta = (out!.result as { _meta: Record<string, unknown> })._meta;
+  const view = actionsOf({ surfaces: { mcp: { capabilities: TOOLS.map((t) => t.name) } }, extensions: meta });
+  assert.equal(view.declared, true);
+  assert.deepEqual(view.findings, []);
+  assert.deepEqual(view.actions.filter((a) => a.gate === 'relayed').map((a) => a.id), ['start', 'stop', 'restart', 'update']);
+  assert.ok(ACTIONS_EXTENSION in meta);
+});
+
+test('FD-110 (MD-10): control without a decision still runs as the caller\'s act; a valid decision is recorded as the operator\'s', async () => {
+  const at = new Date(Date.now() - 60_000).toISOString();
+  const rows: Record<string, unknown>[] = [];
+  const w = world();
+  w.deps.now = () => Date.now();
+  w.deps.recordDecision = (row) => rows.push(row);
+  const plain = await handle(w.deps, { id: 1, method: 'tools/call', params: { name: 'control', arguments: { service: KEY, action: 'start' } } });
+  assert.notEqual((plain!.result as { structuredContent?: { code?: string } }).structuredContent?.code, 'decision-invalid');
+  assert.deepEqual(rows, [], 'nothing to record for the caller\'s own act');
+  const ran = w.calls.launchctl.length;
+  assert.ok(ran > 0, 'it ran');
+  const decision = { by: 'operator', via: 'relayed-instruction', action: 'start', target: KEY, instruction: 'Agent: Start example-agent? Operator: yes', at };
+  await handle(w.deps, { id: 2, method: 'tools/call', params: { name: 'control', arguments: { service: KEY, action: 'start' }, _meta: { decision } } });
+  assert.equal(rows.length, 1);
+  assert.deepEqual({ ...rows[0], recordedAt: undefined }, { recordedAt: undefined, tool: 'control', action: 'start', target: KEY, by: 'operator', via: 'relayed-instruction', caller: 'stdio', instruction: decision.instruction, decidedAt: at });
+  assert.ok(w.calls.launchctl.length > ran, 'and ran');
+});
+
+test('FD-110 (AP-2): an invalid decision, or one that cannot be recorded, is refused and nothing runs', async () => {
+  const now = Date.now();
+  const good = { by: 'operator', via: 'relayed-instruction', action: 'stop', instruction: 'stop it', at: new Date(now - 1000).toISOString() };
+  const bad: [Record<string, unknown>, RegExp][] = [
+    [{ ...good, action: 'restart' }, /for restart, not stop/],
+    [{ ...good, target: 'other.default' }, /names other\.default/],
+    [{ ...good, at: new Date(now - 25 * 3600_000).toISOString() }, /more than 24 hours/],
+    [{ ...good, at: new Date(now + 5 * 60_000).toISOString() }, /future/],
+    [{ ...good, by: 'agent' }, /operator/],
+    [{ ...good, extra: 1 }, /carries extra/],
+    [{ ...good, instruction: '' }, /instruction/],
+  ];
+  for (const [decision, why] of bad) {
+    const w = world();
+    w.deps.now = () => now;
+    const out = await handle(w.deps, { id: 1, method: 'tools/call', params: { name: 'control', arguments: { service: KEY, action: 'stop' }, _meta: { decision } } });
+    const r = out!.result as { isError: boolean; structuredContent: { code: string; message: string } };
+    assert.equal(r.isError, true);
+    assert.equal(r.structuredContent.code, 'decision-invalid');
+    assert.match(r.structuredContent.message, why);
+    assert.deepEqual(w.calls.launchctl, [], 'nothing ran');
+  }
+  const w = world();
+  w.deps.now = () => now;
+  w.deps.recordDecision = () => { throw new Error('disk full'); };
+  const out = await handle(w.deps, { id: 1, method: 'tools/call', params: { name: 'update', arguments: { service: KEY }, _meta: { decision: { ...good, action: 'update' } } } });
+  assert.equal((out!.result as { structuredContent: { code: string } }).structuredContent.code, 'decision-not-recorded');
+  assert.deepEqual(w.calls.run, [], 'an act whose decision is not on record does not happen');
+});
+
+test('FD-110: the decisions file sits beside the app\'s log on every system', async () => {
+  const { decisionsFile } = await import('../src/mcp/actions');
+  assert.equal(decisionsFile('darwin', {}, '/Users/x'), path.join('/Users/x', 'Library', 'Logs', 'Fabric Dashboards', 'decisions.jsonl'));
+  assert.match(decisionsFile('linux', {}, '/home/x'), /fabric-dashboards[\\/]decisions\.jsonl$/);
+  assert.match(decisionsFile('win32', { LOCALAPPDATA: 'C:\\L' }, 'C:\\Users\\x'), /Logs\\decisions\.jsonl$/);
+});
