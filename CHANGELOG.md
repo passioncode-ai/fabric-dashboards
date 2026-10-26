@@ -1,6 +1,11 @@
 # Changelog
 
-## 0.8.4 - 2026-10-26
+## 0.8.5 - 2026-10-26
+
+Carries 0.8.4, tagged and not published: its release run 40257149750 stopped at the Windows gate on one test that
+built its expected macOS path with the Windows separator (the app's code was right). Nothing else changed.
+
+## 0.8.4 - 2026-10-26 (tagged, not published)
 
 ### Fixed
 

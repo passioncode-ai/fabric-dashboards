@@ -765,7 +765,7 @@ test('FD-110 (AP-2): an invalid decision, or one that cannot be recorded, is ref
 
 test('FD-110: the decisions file sits beside the app\'s log on every system', async () => {
   const { decisionsFile } = await import('../src/mcp/actions');
-  assert.equal(decisionsFile('darwin', {}, '/Users/x'), path.join('/Users/x', 'Library', 'Logs', 'Fabric Dashboards', 'decisions.jsonl'));
+  assert.equal(decisionsFile('darwin', {}, '/h'), '/h/Library/Logs/Fabric Dashboards/decisions.jsonl', 'POSIX separators whatever system runs the test');
   assert.match(decisionsFile('linux', {}, '/home/x'), /fabric-dashboards[\\/]decisions\.jsonl$/);
   assert.match(decisionsFile('win32', { LOCALAPPDATA: 'C:\\L' }, 'C:\\Users\\x'), /Logs\\decisions\.jsonl$/);
 });
