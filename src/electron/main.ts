@@ -19,6 +19,7 @@ import { ConsoleHost, HANDOVER_POLL_MS } from './console';
 import { appendLog, sweepTemps } from '../core/fsutil';
 import { parseDeepLink, SCHEME } from '../core/deeplink';
 import { servicesDir, setWindowsAclReader, windowsPowerShellEnv } from '@passioncode-ai/fabric-service-host';
+import { openChannel, startAnswer, type Channel } from './console-channel';
 import { chooseLang, langFor, t, type Lang } from '../core/i18n';
 import { execRunner } from '../core/launchd';
 import { listListeners, unattributed } from '../core/listeners';
@@ -903,8 +904,11 @@ if (!app.requestSingleInstanceLock()) {
   app.on('activate', () => showWindow());
   app.on('before-quit', () => { quitting = true; });
   let killing = false;
+  let consoleChannel: Channel | null = null;
   app.on('will-quit', (event) => {
     // Nothing starts after quit begins; pending state reaches disk; commands we started end with us (LC-01, LC-02).
+    void consoleChannel?.close(); // ADR-0025: the socket and its key go with the run
+    consoleChannel = null;
     monitor.stop();
     alerts.stop(); // FD-48: no tick after quit begins
     viewGrace.dispose();
@@ -937,6 +941,13 @@ if (!app.requestSingleInstanceLock()) {
     const pending = pendingInstallVersion();
     if (pending) { stepAside(pending, lang(), log); return; }
     registerIpc();
+    // #region console-channel-start — docs: docs/adr/0025-the-console-channel.md#decision
+    // ADR-0025 (FD-120): the app's own MCP server starts a console session or a fix through the buttons' code path.
+    void openChannel({
+      userData, log,
+      start: (r) => consoles.start(r.service, 'new', { cols: 120, rows: 32 }, r.task).then((x) => startAnswer(r.service, x)),
+    }).then((c) => { consoleChannel = c; if (c) log('console channel open'); });
+    // #endregion console-channel-start
     appMenu();
     tray = new AppTray(assets, {
       open: (key) => (key ? navigate({ page: 'service', key }) : showWindow()),

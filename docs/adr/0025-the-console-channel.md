@@ -1,6 +1,6 @@
 # ADR-0025: The console channel, the one way into the running app
 
-Status: accepted (design), 2026-10-26; the code follows this record (FD-120). Decided by fabric-workspace under the
+Status: accepted, 2026-10-26; built after this record (FD-120: `src/core/console-channel.ts`, `src/electron/console-channel.ts`, the MCP tools `console_new` and `console_fix`, `test/console-channel.test.ts`). Decided by fabric-workspace under the
 operator's mandate, MD-12 (board thread `ee3326f5`, message `bc7a8fd6`): option (a), "first the security decision, then
 the code". Amends the "listens on no port" promise of ADR-0002's consequences and `SECURITY.md` without breaking it.
 
@@ -23,7 +23,8 @@ only (Q-08) and moves to Fabric (FD-105), so MD-12 closes them as not needed.
    app's data folder (`~/Library/Application Support/Fabric Dashboards/`, PL-06 places elsewhere), the folder 0700 and
    the socket 0600, made by the main process at start and removed at quit. A socket file left by a killed run is
    removed at start only when a connect to it is refused (nobody listens). On Windows a named pipe
-   `\\.\pipe\fabric-dashboards-console-<user SID>`, created as the first instance (a second server is refused, so no
+   `\\.\pipe\fabric-dashboards-console-<16 hex>` named for the account (its name and profile, hashed), created as the
+   first instance (a second server is refused, so no
    process can sit on the name first and catch the client's requests).
 2. **A secret on every request.** At start the main process writes 32 random bytes, hex, to `console.key` in the same
    folder (0600 on POSIX; on Windows inside the user's profile, whose ACL keeps it private, as the token rule of
@@ -68,5 +69,6 @@ only (Q-08) and moves to Fabric (FD-105), so MD-12 closes them as not needed.
 - `SECURITY.md` keeps "Listens on no port" and, once the code lands, names the socket or pipe, its key and the two
   operations; AGENTS.md's lifecycle table gains its row (made at start, removed at quit). Until then the app has no
   channel.
-- FD-120: the Sessions part is closed as not needed (MD-12); the console part is built after this record, with tests for
-  a wrong key, a stale socket, a second pipe instance, the size and rate limits, and a run with the app not running.
+- FD-120: the Sessions part is closed as not needed (MD-12); the console part is built, with tests for a wrong key, a
+  socket a killed run left, a live channel never taken over, a new key per run, the size and rate limits, and the MCP
+  tools with the app closed. A socket path longer than macOS allows (104 bytes) leaves the channel closed, logged.
