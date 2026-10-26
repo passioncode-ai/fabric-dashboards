@@ -13,6 +13,12 @@
 - **A console closed after 30 idle minutes says so calmly** (FD-113 VIS-14): the notice is no longer a red error, and
   a screen reader reads it as news rather than an alert.
 
+### Internal
+
+- **Update proof across three versions** (FD-114): `update-proof.yml` can publish the next release while the one
+  before it waits ready, on Windows and Linux, to measure how many restarts a copy takes to reach the newest. Only a
+  debug build for that proof carries the local release pointer it needs; a release never does.
+
 ## 0.8.7 - 2026-10-26
 
 ### Added
