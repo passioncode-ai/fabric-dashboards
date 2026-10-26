@@ -33,6 +33,12 @@
 
 ### Added
 
+- **The app declares its own buttons and takes the operator's relayed decision** (FD-110 part 3, contract DEC-0121,
+  fabric-workspace MD-10). The MCP server's `initialize` lists Open dashboard, Self-check, Start, Stop, Restart and
+  Update with their tools. Start, Stop, Restart and Update act on another agent: an agent that passes your words about
+  that act in `_meta.decision` has them recorded as your decision (in `decisions.jsonl` beside the app's log, never in
+  an events feed), and a wrongly written decision is refused before anything runs. A call without a decision still
+  works as before, recorded as the agent's own act, until the app can ask you itself.
 - **The auditor reads the buttons each agent declares** (FD-110, contract DEC-0121). An agent lists every action its
   pages let you take and the agent tool that takes the same action. Connections now names a button with no such tool
   ("The button "Send" has no agent twin"), a wrongly written declaration, and, as worth knowing, an agent that has a

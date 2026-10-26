@@ -10,6 +10,7 @@ import readline from 'node:readline';
 import { killOwned } from '../core/children';
 import { removeMcpRegistrations } from '../core/uninstall';
 import { setWindowsAclReader } from '@passioncode-ai/fabric-service-host';
+import { ACTIONS_META, actionOf, decisionFor, decisionsFile, recordDecision } from './actions';
 import { launcherOf, liveHandover, startRelay, type Relay } from './handover';
 import { codeFile, plistVersion, StaleWatch } from './stale';
 import * as tools from './tools';
@@ -41,6 +42,9 @@ const INSTRUCTIONS = [
   'app is absent unless you pass fallback=if_absent. accepted_by_os is not page_ready. A page no service',
   'descriptor names is refused with the step that registers it; do not open it in a browser instead.',
   'Links open on the device receiving them; remote chats need an addressed local open action.',
+  '`control` and `update` act on another agent (DEC-0121 gate relayed): pass the operator\'s words about that act in',
+  'params._meta.decision ({by: "operator", via: "relayed-instruction", action, target, instruction, at}) when you have',
+  'them; they are recorded as the operator\'s. A call without one still runs, recorded as yours (MD-10).',
   '`control`, `doctor` and `update` are the operator\'s administration:',
   'say what you are about to do before calling them.',
 ].join(' ');
@@ -229,6 +233,7 @@ export async function handle(deps: tools.Deps, message: Message): Promise<Record
         capabilities: { tools: { listChanged: false } },
         serverInfo: SERVER,
         instructions: INSTRUCTIONS,
+        _meta: ACTIONS_META, // FD-110 (DEC-0121 AP-1): this app's buttons and their tools; the app serves no well-known
       });
     }
     case 'ping': return reply({});
@@ -244,6 +249,30 @@ export async function handle(deps: tools.Deps, message: Message): Promise<Record
       if (extra.length) return reply({ content: [{ type: 'text', text: `unknown argument ${JSON.stringify(extra[0])} for ${name}` }], isError: true });
       const wrong = wrongArgument(tool.inputSchema as Schema, args);
       if (wrong) return reply({ content: [{ type: 'text', text: `${wrong} for ${name}` }], isError: true });
+      // FD-110 part 3 (MD-10): a relayed action records the operator's decision; an invalid one is refused, and a call
+      // without one still runs as the caller's own act until the app can ask the person itself (src/mcp/actions.ts).
+      const own = actionOf(name, args);
+      if (own) {
+        const meta = params._meta && typeof params._meta === 'object' ? params._meta as Record<string, unknown> : {};
+        const target = typeof args.service === 'string' ? args.service : null;
+        const now = deps.now();
+        const outcome = decisionFor(own, target, meta.decision, now, 'stdio');
+        if (!outcome.ok) {
+          const refusal = { code: outcome.code, message: outcome.message, action: own.id };
+          return reply({ content: [{ type: 'text', text: JSON.stringify(refusal, null, 2) }], isError: true, structuredContent: refusal });
+        }
+        if (outcome.recordAs !== 'caller') {
+          try {
+            (deps.recordDecision ?? ((row) => recordDecision(decisionsFile(), row)))({
+              recordedAt: new Date(now).toISOString(), tool: name, action: own.id, target, ...outcome.recordAs,
+              instruction: outcome.decision.instruction, decidedAt: outcome.decision.at,
+            });
+          } catch (error) {
+            const refusal = { code: 'decision-not-recorded', message: `the operator's decision could not be recorded, so nothing was done: ${(error as Error).message}`, action: own.id };
+            return reply({ content: [{ type: 'text', text: JSON.stringify(refusal, null, 2) }], isError: true, structuredContent: refusal });
+          }
+        }
+      }
       try {
         const result = await call(deps, name, args);
         return reply({ content: [{ type: 'text', text: JSON.stringify(result, null, 2) }], structuredContent: result });
