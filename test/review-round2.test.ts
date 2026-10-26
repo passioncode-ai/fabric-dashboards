@@ -39,10 +39,14 @@ const POSIX = { skip: process.platform === 'win32' && 'POSIX execute bits: the f
 const ok = (data: unknown) => ({ code: 0, stdout: JSON.stringify({ ok: true, data }), stderr: '' });
 const tick = (ms = 20) => new Promise((res) => setTimeout(res, ms));
 const input = (o: Partial<MergeInput> = {}): MergeInput => ({ now: NOW, switchboard: [], pending: [], stops: [], consoles: [], records: [], dismissed: [], ...o });
-const sbRec = (o: Partial<SbSessionRecord> = {}): SbSessionRecord => ({
+const sbRec = (o: Partial<SbSessionRecord> = {}): SbSessionRecord => {
+  const r = {
   home: '/sb/runtimes/claude-default', folder: '/w/a', provider: 'claude', pool: 'default', mode: 'managed', account: 'A', accountId: 'a',
   context: null, contextName: null, continues: null, inPlace: false, launchedAt: NOW - HOUR, startedAt: null, state: 'running', ...o,
-});
+  };
+  // SB-201: the agent Switchboard fills from the provider when a record names none.
+  return { ...r, agent: o.agent ?? (r.provider === 'claude' ? 'claude-code' : r.provider === 'kimi' ? 'kimi-code' : r.provider) } as SbSessionRecord;
+};
 
 interface Opt {
   stop?: { ready?: boolean; candidates?: string[] } | null;

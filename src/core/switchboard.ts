@@ -174,8 +174,12 @@ export async function allSessionsOf(run: Runner, sb: string): Promise<SourceResu
   for (const x of Array.isArray(data.sessions) ? (data.sessions as Record<string, unknown>[]) : []) {
     if (!x || typeof x !== 'object' || typeof x.working_directory !== 'string' || !path.isAbsolute(x.working_directory)) continue;
     const state = x.state === 'starting' || x.state === 'running' || x.state === 'ended' ? x.state : 'unknown';
+    const provider = str(x.provider, 32);
+    // SB-201: Switchboard's own fill when a record names no agent: claude is Claude Code, kimi Kimi Code, the rest kept.
+    const agent = typeof x.agent === 'string' && /^[a-z][a-z0-9._-]{0,63}$/.test(x.agent) ? x.agent
+      : provider === 'claude' ? 'claude-code' : provider === 'kimi' ? 'kimi-code' : provider;
     out.push({
-      home: str(x.home, 400), folder: x.working_directory, provider: str(x.provider, 32), pool: str(x.pool, 64) || 'default', mode: str(x.mode, 32),
+      home: str(x.home, 400), folder: x.working_directory, provider, agent, pool: str(x.pool, 64) || 'default', mode: str(x.mode, 32),
       account: str(x.label) || str(x.account_id, 64), accountId: str(x.account_id, 64),
       context: typeof x.context === 'string' ? x.context.slice(0, 120) : null, contextName: typeof x.context_name === 'string' ? x.context_name.slice(0, 120) : null,
       continues: typeof x.continues === 'string' && x.continues ? x.continues.slice(0, 64) : null, inPlace: x.in_place === true,
