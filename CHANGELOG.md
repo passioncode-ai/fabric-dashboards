@@ -4,6 +4,9 @@
 
 ### Fixed
 
+- **Settings help leads with what happens** (FD-113, COPY-25). The help under automatic updates, uninstall, outage
+  alerts, continuing after a limit, undeclared connections and the subscription estimate now opens with the result in
+  one short sentence and gives the conditions after it.
 - **Contract and skills settings speak plainly** (FD-113, COPY-21, COPY-22). "Estate updates", "Contract clone" and
   "Consumer pins" are now "Fabric contract and skills updates", "Local copy of the contract (folder)" and "Contract
   version in each project"; the section says who it is for, and Russian keeps Git and npm words only in a closing
