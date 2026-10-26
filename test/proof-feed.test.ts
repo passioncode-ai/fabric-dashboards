@@ -55,3 +55,10 @@ test('FD-114: update-proof bakes the port its server listens on, and takes `via`
   assert.doesNotMatch(wf, /update-proof\.mjs[^\n]*inputs\.via/, 'an input is never spliced into a command line');
   assert.match(proof, /update_check ready version=\$\{esc\(via\)\}/, 'the pointer moves only once <via> waits ready');
 });
+
+test('FD-114: with three versions on Windows the copy keeps the default profile, where the relaunched copy reads its marker', () => {
+  const proof = read('scripts/update-proof.mjs');
+  assert.match(proof, /const defaultProfile = process\.platform === 'win32' && via;/);
+  assert.match(proof, /\.\.\.\(defaultProfile \? \{\} : \{ FABRIC_DASHBOARDS_USER_DATA: data \}\)/);
+  assert.match(proof, /path\.join\(process\.env\.LOCALAPPDATA \?\? '', 'Fabric Dashboards'\)/, 'platform.ts places: %LOCALAPPDATA%\\Fabric Dashboards');
+});

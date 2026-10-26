@@ -27,7 +27,12 @@ requireThat(/^\d+\.\d+\.\d+$/.test(from ?? '') && /^\d+\.\d+\.\d+$/.test(to ?? '
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const arch = process.arch === 'arm64' ? 'arm64' : 'x64';
 const work = mkdtempSync(path.join(os.tmpdir(), 'fd-update-proof-'));
-const data = path.join(work, 'data');
+// FD-114: with three versions on Windows the copy keeps the default profile. The installer starts the updated copy
+// through Explorer, without this run's environment: in its own data folder it would miss the `.relaunch-hidden` marker
+// the automatic install wrote, show its window, and hold the next update forever (run 40335325110, windows-latest).
+// The runner is thrown away after the run, so the default profile is this proof's own.
+const defaultProfile = process.platform === 'win32' && via;
+const data = defaultProfile ? path.join(process.env.LOCALAPPDATA ?? '', 'Fabric Dashboards') : path.join(work, 'data');
 const gh = (args) => execFileSync('gh', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] });
 const fromDir = process.env.FD_PROOF_FROM_DIR ? path.resolve(process.env.FD_PROOF_FROM_DIR) : null;
 const fromFile = (name) => (fromDir ? path.join(fromDir, name) : path.join(download(from, name), name));
@@ -45,7 +50,7 @@ requireThat(latest === `v${to}`, `the latest release is ${latest}, not v${to}`);
 // installer alone takes up to ~8 minutes (FD-37 M4c measurement).
 const minutes = via ? 80 : 40;
 const deadline = Date.now() + minutes * 60_000;
-const env = { ...process.env, FABRIC_DASHBOARDS_USER_DATA: data, FABRIC_SERVICES_DIR: path.join(work, 'services') };
+const env = { ...process.env, FABRIC_SERVICES_DIR: path.join(work, 'services'), ...(defaultProfile ? {} : { FABRIC_DASHBOARDS_USER_DATA: data }) };
 
 async function waitFor(label, ok) {
   while (Date.now() < deadline) { if (ok()) return; await sleep(15_000); }
@@ -119,7 +124,7 @@ if (process.platform === 'linux') {
   const dir = readdirSync(programs).map((d) => path.join(programs, d)).find((d) => existsSync(path.join(d, 'Fabric Dashboards.exe')));
   requireThat(Boolean(dir), `no install under ${programs}`);
   const exe = path.join(dir, 'Fabric Dashboards.exe');
-  const version = () => { try { return execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', `(Get-Item -LiteralPath '${exe.replace(/'/g, "''")}').VersionInfo.ProductVersion`], { encoding: 'utf8', windowsHide: true }).trim(); } catch { return ''; } };
+  const version = () => { try { return execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', `(Get-Item -LiteralPath '${exe.replace(/'/g, "''")}').VersionInfo.ProductVersion`], { encoding: 'utf8', windowsHide: true, stdio: ['ignore', 'pipe', 'ignore'] }).trim(); } catch { return ''; } };
   requireThat(version().startsWith(from), `the installed app is ${version()}, not ${from}`);
   spawn(exe, ['--hidden'], { env, detached: true, stdio: 'ignore', windowsHide: true }).unref();
   await waitFor(`the install of ${to} over ${from}`, () => version().startsWith(to));
