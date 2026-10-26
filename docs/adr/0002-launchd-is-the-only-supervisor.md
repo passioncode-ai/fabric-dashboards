@@ -21,3 +21,6 @@ child process alive. Quitting the app changes nothing about any service.
 - A service must be installed as a LaunchAgent to be controllable; a descriptor without
   `lifecycle.manager: launchd` is shown read-only.
 - Linux (systemd `--user`) is a later adapter behind the same three verbs.
+- Amended 2026-10-26 by [ADR-0025](0025-the-console-channel.md): the app's own MCP server may reach the running app
+  through a per-user socket (a named pipe on Windows) with a per-start key, for the console's two buttons only. It is
+  not a network port, and the app still starts no service and no copy of itself.
