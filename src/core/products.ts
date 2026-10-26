@@ -84,14 +84,18 @@ export function categoryOf(p: Product, kinds: Readonly<Record<string, ProductKin
   return p.primary.descriptor?.placement === 'remote' ? 'online' : 'local';
 }
 
-export function arrangeProducts(products: readonly Product[], list: Pick<ListLayout, 'sort' | 'pinned'> & Partial<Pick<ListLayout, 'hidden' | 'kinds'>>): Arranged {
+export function arrangeProducts(products: readonly Product[], list: Pick<ListLayout, 'sort' | 'pinned'> & Partial<Pick<ListLayout, 'hidden' | 'kinds' | 'order'>>): Arranged {
   const byId = new Map(products.map((p) => [p.id, p]));
   const hiddenIds = new Set(list.hidden ?? []);
   // A hidden product leaves every other section, the pinned one too; showing it again puts its pin back.
   const pinned = list.pinned.map((id) => byId.get(id)).filter((p): p is Product => Boolean(p) && !hiddenIds.has(p!.id));
   const isPinned = new Set(pinned.map((p) => p.id));
   const byName = (a: Product, b: Product) => nameOf(a).localeCompare(nameOf(b)) || (a.id < b.id ? -1 : 1);
-  const cmp = list.sort === 'status' ? (a: Product, b: Product) => rankOf(a) - rankOf(b) || byName(a, b)
+  // FD-121: the person's order; an agent they never moved (a new one) comes after the ones they did, by name.
+  const at = new Map((list.order ?? []).map((id, i) => [id, i]));
+  const placeOf = (p: Product) => at.get(p.id) ?? Number.MAX_SAFE_INTEGER;
+  const cmp = list.sort === 'manual' ? (a: Product, b: Product) => placeOf(a) - placeOf(b) || byName(a, b)
+    : list.sort === 'status' ? (a: Product, b: Product) => rankOf(a) - rankOf(b) || byName(a, b)
     : list.sort === 'activity' ? (a: Product, b: Product) => (lastOf(b) > lastOf(a) ? 1 : lastOf(b) < lastOf(a) ? -1 : 0) || byName(a, b)
     : byName;
   const rest = products.filter((p) => !isPinned.has(p.id) && !hiddenIds.has(p.id));
@@ -111,6 +115,28 @@ export function setKind(kinds: Readonly<Record<string, ProductKind>>, p: Product
   else next[p.id] = kind;
   return next;
 }
+
+// #region list-move — docs: docs/ux/scenarios.md#scn-087-arrange-the-sidebar-width-and-order
+/** FD-121 (SCN-087): a section of the sidebar an agent can be moved within; never from one section to another. */
+export type MoveSection = 'pinned' | Category | 'hidden';
+
+/** FD-121 (SCN-087): move one agent to `to` (its index in the section as shown) and say what to store. Pinned keeps its
+ *  own order (the pin order); any other section freezes what the person sees, every section, into their own order and
+ *  turns the sort to `manual`, so nothing else on screen jumps. An agent not in that section, or no move, is null. */
+export function moveInSection(arranged: Arranged, section: MoveSection, id: string, to: number): Partial<ListLayout> | null {
+  const ids = arranged[section].map((p) => p.id);
+  const from = ids.indexOf(id);
+  if (from < 0) return null;
+  const target = Math.max(0, Math.min(ids.length - 1, Math.round(to)));
+  if (target === from) return null;
+  const moved = [...ids];
+  moved.splice(from, 1);
+  moved.splice(target, 0, id);
+  if (section === 'pinned') return { pinned: moved };
+  const of = (c: Exclude<MoveSection, 'pinned'>) => (c === section ? moved : arranged[c].map((p) => p.id));
+  return { sort: 'manual', order: [...of('local'), ...of('online'), ...of('service'), ...of('hidden')] };
+}
+// #endregion list-move
 
 /** Pin or unpin: a newly pinned product goes last; unpinning keeps the others' order. */
 export function togglePin(pinned: readonly string[], id: string): string[] {

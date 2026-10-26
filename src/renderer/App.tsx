@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { langFor, t as tr, type Lang } from '../core/i18n';
-import { DEFAULT_SETTINGS, type AppStatus, type Settings as AppSettings, type SettingsPatch, type ListSort } from '../core/types';
+import { DEFAULT_SETTINGS, SIDEBAR_WIDTH, type AppStatus, type Settings as AppSettings, type SettingsPatch, type ListSort } from '../core/types';
 import { groupProducts, productOf, type Product, arrangeProducts, categoryOf, setKind, toggleHidden, togglePin } from '../core/products';
 import { Activity, type ActivityFilter } from './components/Activity';
 import { SetupCard, Overview } from './components/Overview';
@@ -311,6 +311,9 @@ function Shell({ status, route, setRoute, mode, switchMode, stopKey, setStopKey,
   const currentProduct = route.page === 'service' ? productOf(products, route.key) : undefined;
   const count = products.length; // ADR-0012: the heading counts what the sidebar lists
   const rail = layout.sidebar === 'collapsed';
+  // FD-121 (SCN-087): while the sidebar's edge is held the dashboard and the console step aside, since a native view
+  // under the pointer would take the drag from the page.
+  const [resizing, setResizing] = useState(false);
   // #region console-drawer — docs: docs/ux/scenarios.md#scn-048-open-an-agents-console-over-its-dashboard
   // FD-92: the console is a drawer over the content area, from under the page header down; it never resizes the
   // dashboard. The main process draws it in a view of its own (drawer.ts); this page says which console, whether it is
@@ -341,8 +344,8 @@ function Shell({ status, route, setRoute, mode, switchMode, stopKey, setStopKey,
   }, [route.page, route.page === 'service' ? route.key : '', layout.header, layout.sidebar, drawerKey, sessionRow?.id]);
   const drawerTask = agentTask && agentTask.key === drawerKey ? { task: agentTask.task, mode: agentTask.mode, nonce: agentTask.nonce } : null;
   useEffect(() => {
-    api().consoleDrawer({ key: drawerKey, open: Boolean(drawerKey), rect: area, height: layout.console.height, task: drawerTask, suspended: stopOpen || menuOverPage, full: Boolean(pageConsole), scheme });
-  }, [drawerKey, area, layout.console.height, drawerTask?.nonce, stopOpen, menuOverPage, Boolean(pageConsole), scheme]);
+    api().consoleDrawer({ key: drawerKey, open: Boolean(drawerKey), rect: area, height: layout.console.height, task: drawerTask, suspended: stopOpen || menuOverPage || resizing, full: Boolean(pageConsole), scheme });
+  }, [drawerKey, area, layout.console.height, drawerTask?.nonce, stopOpen, menuOverPage, resizing, Boolean(pageConsole), scheme]);
   const focusOutRef = useRef<(back: boolean) => void>(() => undefined);
   const drawerOwner = useRef({ route, drawerKey });
   drawerOwner.current = { route, drawerKey };
@@ -368,8 +371,9 @@ function Shell({ status, route, setRoute, mode, switchMode, stopKey, setStopKey,
   };
   focusOutRef.current = focusOutOfConsole;
   return (
-    <div className={`app${rail ? ' rail' : ''}`}>
+    <div className={`app${rail ? ' rail' : ''}${resizing ? ' resizing' : ''}`} style={rail ? undefined : { gridTemplateColumns: `${layout.sidebarWidth}px 1fr` }}>
       <nav className="sidebar" aria-label="Fabric Dashboards" inert={stopOpen}>
+        {!rail && <SidebarEdge width={layout.sidebarWidth} onWidth={(w, persist) => changeLayout({ sidebarWidth: w }, persist)} onHold={setResizing} />}
         <div className="brand"><img src={mark} alt="" /> <span className="brand-name">{t('app.name')}</span></div>
         <ModeSwitch mode={mode} rows={sessionsRows} rail={rail} onMode={switchMode} />
         {mode === 'agents'
@@ -399,7 +403,7 @@ function Shell({ status, route, setRoute, mode, switchMode, stopKey, setStopKey,
             : <div className="page-wrap"><div className="page"><p className="muted row" role="status"><Spinner /> {t('sessions.reading')}</p></div></div>)
         : route.page === 'service' && current
           ? <div className="svc-page">
-            <ServiceView key={current.key} s={current} all={status.services} members={currentProduct?.members ?? [current]} open={open} link={route.link} nonce={route.nonce} tab={route.tab} runUpdate={route.tab === 'health' && route.page === 'service'} activityRev={status.activityRev} overlayOpen={stopOpen} askStop={askStop} updateStarted={() => setRoute({ ...route, tab: undefined })}
+            <ServiceView key={current.key} s={current} all={status.services} members={currentProduct?.members ?? [current]} open={open} link={route.link} nonce={route.nonce} tab={route.tab} runUpdate={route.tab === 'health' && route.page === 'service'} activityRev={status.activityRev} overlayOpen={stopOpen || resizing} askStop={askStop} updateStarted={() => setRoute({ ...route, tab: undefined })}
               headerFull={layout.header === 'full'} onToggleHeader={() => changeLayout({ header: layout.header === 'full' ? 'compact' : 'full' })}
               consoleOpen={layout.console.open} onToggleConsole={() => changeLayout({ console: { open: !layout.console.open } })} onAgent={handToAgent} />
           </div>
@@ -481,3 +485,43 @@ function RailUpdate({ status, goSettings }: { status: AppStatus; goSettings: () 
     </button>
   );
 }
+
+// #region sidebar-edge — docs: docs/ux/scenarios.md#scn-087-arrange-the-sidebar-width-and-order
+/** FD-121 (SCN-087): the expanded sidebar's right edge. Dragged, it follows the pointer within SIDEBAR_WIDTH and is
+ *  stored on release; double-click or Home returns it to the start; Left and Right move it by a step. */
+function SidebarEdge({ width, onWidth, onHold }: { width: number; onWidth: (w: number, persist: boolean) => void; onHold: (held: boolean) => void }) {
+  const { t } = useT();
+  const clamp = (w: number) => Math.min(SIDEBAR_WIDTH.max, Math.max(SIDEBAR_WIDTH.min, Math.round(w)));
+  const last = useRef(width);
+  return (
+    <div className="sidebar-edge" role="separator" aria-orientation="vertical" aria-label={t('sidebar.width')} title={t('sidebar.widthHint')} tabIndex={0}
+      aria-valuenow={width} aria-valuemin={SIDEBAR_WIDTH.min} aria-valuemax={SIDEBAR_WIDTH.max}
+      onPointerDown={(e) => {
+        if (e.button !== 0) return;
+        e.preventDefault();
+        e.currentTarget.setPointerCapture(e.pointerId);
+        last.current = width;
+        onHold(true);
+      }}
+      onPointerMove={(e) => {
+        if (!e.currentTarget.hasPointerCapture(e.pointerId)) return;
+        last.current = clamp(e.clientX);
+        onWidth(last.current, false);
+      }}
+      onPointerUp={(e) => {
+        if (!e.currentTarget.hasPointerCapture(e.pointerId)) return;
+        e.currentTarget.releasePointerCapture(e.pointerId);
+        onHold(false);
+        onWidth(last.current, true);
+      }}
+      onPointerCancel={() => { onHold(false); onWidth(last.current, true); }}
+      onDoubleClick={() => onWidth(SIDEBAR_WIDTH.default, true)}
+      onKeyDown={(e) => {
+        const next = e.key === 'ArrowLeft' ? width - SIDEBAR_WIDTH.step : e.key === 'ArrowRight' ? width + SIDEBAR_WIDTH.step : e.key === 'Home' ? SIDEBAR_WIDTH.default : null;
+        if (next === null) return;
+        e.preventDefault();
+        onWidth(clamp(next), true);
+      }} />
+  );
+}
+// #endregion sidebar-edge

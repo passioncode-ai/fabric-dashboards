@@ -92,6 +92,7 @@
 | SCN-084 | An ended session continues or leaves | sessions | P-01 | ST-023 | draft | 2026-10-24 |
 | SCN-085 | A taken hand-over tells me once, and the tray counts sessions | sessions | P-01 | ST-023, ST-007, ST-009 | draft | 2026-10-24 |
 | SCN-086 | Settings → Sessions | settings | P-01 | ST-023, ST-010 | draft | 2026-10-24 |
+| SCN-087 | Arrange the sidebar: width and order | list | P-01 | ST-021, ST-018 | draft | 2026-10-26 |
 ## Personas
 
 Defined in [foundation.md](foundation.md) → P-01.
@@ -1247,10 +1248,10 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **Steps:**
   1. User chooses Hide -> the agent leaves its section (and Pinned) and a folded "Hidden: 1" appears at the bottom of the sidebar and of Overview; in the narrow rail the fold is an entry of its own
   2. User opens the fold -> the hidden agents are listed; clicking one opens it as usual
-  3. User chooses "Show again" -> it returns to its section, pinned again if it was pinned
+  3. User chooses "Show again" in the row menu, or presses the eye beside a hidden agent in the open fold (FD-121) -> it returns to its section, pinned again if it was pinned
 - **Expected result:** service agents the person does not look at take no room, and nothing about them stops
 - **Alt paths:** a hidden agent fails -> Needs attention lists it as before, its outage still reaches the operator channel, and the folded header carries a "!" ("A hidden agent needs attention"); the fold's open or closed state is remembered; a hidden agent that is removed leaves the list
-- **UI elements:** Hide and Show again in the row menu, the "Hidden: N" fold with its mark
+- **UI elements:** Hide and Show again in the row menu, the "Hidden: N" fold with its mark, an eye button on each hidden row named "Show {name} again" (FD-121; not in the narrow rail, where the row menu is gone too: the person widens the sidebar)
 - **States covered:** success, empty, error
 - **Errors & recovery:** n/a
 - **Status:** validated (test/e2e/focus-console.test.ts (ADR-0017 test, FD-78 steps) passed on the running app, 2026-10-23 00:00 UTC)
@@ -1881,4 +1882,31 @@ The Sessions mode (0.8.0): every coding session apart from the agents, each stat
   - "Switchboard did not change it: {reason}" / «Switchboard не изменил настройку: {reason}»
 - **Status:** draft
 - **Coverage:** src/renderer/components/Settings.tsx (sessions-settings region; the scroll by `revealScrollTop` of src/core/layout.ts), src/electron/console.ts (`readHandoversSwitch`, `setHandoversSwitch`); i18n parity in test/copy.test.ts; test/sessions-polish.test.ts (`revealScrollTop`, FD-107)
+- **Product:** unobserved
+
+### SCN-087: Arrange the sidebar: width and order
+- **Persona:** P-01
+- **Feature:** list
+- **Traces:** ST-021, ST-018 (JTBD-01); FD-121 (operator 2026-10-26: «чтобы я мог её чуть по ширине двигать», «менять местами агентов, просто зажать их, подвинуть»)
+- **Entry point:** the sidebar's right edge; an agent's row in the sidebar
+- **Preconditions:** the sidebar is expanded (SCN-047)
+- **Steps:**
+  1. User drags the sidebar's right edge -> the sidebar follows the pointer between 200 and 420 px, the dashboard beside it takes the rest; while the edge is held the dashboard steps aside (a native view would take the pointer) and comes back on release; the width is kept across restarts
+  2. User double-clicks the edge -> it returns to 240 px
+  3. User holds an agent's row and drags it up or down within its section -> a line shows where it lands; on release it stays there, the sort reads "Your order", and every section keeps what the person saw, on Overview too
+  4. User drags a pinned agent within Pinned -> the pin order changes; the sort of the other sections stays as it was
+  5. User restarts the app -> width and order are as they were; a new agent arrives after the ones the person placed
+- **Expected result:** the sidebar is as wide as the person's names need and lists the agents in the order they work in
+- **Alt paths:** keyboard -> the edge is a separator: Left and Right arrows change the width by 16 px, Home returns it to 240; on an agent's row Alt+Up and Alt+Down move it one place within its section and a screen reader hears its new place; the person chooses another sort (By name, Needs attention first, Recent activity) -> the list follows that sort, and choosing "Your order" again brings the dragged order back; an agent is dropped on another section -> nothing moves (sections are On this Mac, Online, Services, Pinned and Hidden; Pin and Show as a service move between them); the sidebar is folded into the rail -> no edge and no dragging; a damaged width in settings reads as 240
+- **UI elements:** the sidebar's edge (a separator, "Sidebar width"), the drop line, the "Your order" sort
+- **States covered:** success
+- **Errors & recovery:** n/a: nothing is sent anywhere; a write of settings that fails keeps the screen as the person left it (R-9)
+- **Copy:**
+  - "Sidebar width" / «Ширина боковой панели» (the separator's name)
+  - "Drag to change the width. Double-click returns it to the start." / «Потяните, чтобы изменить ширину. Двойной щелчок вернёт исходную.» (its tooltip)
+  - "Your order" / «Свой порядок» (the sort)
+  - "{name}: place {n} of {total}" / «{name}: место {n} из {total}» (said after a move)
+  - "Show {name} again" / «Показать {name} снова» (the eye on a hidden row)
+- **Status:** draft
+- **Coverage:** src/core/products.ts (moveInSection, arrangeProducts), src/core/settings.ts (sidebarWidth, mergeList), src/renderer/components/Navigation.tsx, src/renderer/App.tsx (SidebarEdge), test/sidebar-manage.test.ts
 - **Product:** unobserved

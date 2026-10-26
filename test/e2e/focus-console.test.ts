@@ -250,6 +250,32 @@ test('ADR-0017: a one-line header, a folding sidebar, and an agent console besid
     const list = () => JSON.parse(fs.readFileSync(path.join(userData, 'settings.json'), 'utf8')).layout.list;
     await waitFor('the list choices to be saved', async () => list().hidden.length === 0 && list().kinds.sample === 'service');
     assert.deepEqual([list().hidden, list().kinds, list().pinned], [[], { sample: 'service' }, []]);
+
+    // FD-121 SCN-072: in the open fold the eye brings a hidden agent back with one press.
+    await rowMenu();
+    await page.getByRole('menuitem', { name: 'Hide' }).click();
+    await page.getByRole('button', { name: 'Show Sample Service again' }).click();
+    await page.locator('.nav-section', { hasText: 'Services' }).waitFor();
+    await waitFor('the eye to show the agent again', async () => list().hidden.length === 0);
+
+    // FD-121 SCN-087: the sidebar's edge follows the pointer and is kept; double-click and Home bring back 240 px.
+    const edge = page.getByRole('separator', { name: 'Sidebar width' });
+    const box = (await edge.boundingBox())!;
+    await page.mouse.move(box.x + box.width / 2, box.y + 200);
+    await page.mouse.down();
+    await page.mouse.move(320, box.y + 220, { steps: 8 });
+    await page.mouse.up();
+    const width = () => JSON.parse(fs.readFileSync(path.join(userData, 'settings.json'), 'utf8')).layout.sidebarWidth;
+    await waitFor('the dragged width to be saved', async () => width() === 320);
+    assert.equal(Math.round((await page.locator('nav.sidebar').boundingBox())!.width), 320, 'the sidebar is as wide as dragged');
+    await shot(page, '27-sidebar-width');
+    await edge.dblclick();
+    await waitFor('double-click to return to 240', async () => width() === 240);
+    await edge.focus();
+    await page.keyboard.press('ArrowRight');
+    await waitFor('the arrow to widen by a step', async () => width() === 256);
+    await page.keyboard.press('Home');
+    await waitFor('Home to return to 240', async () => width() === 240);
   } finally {
     await closeApp(app);
     await stopProcess(proc);

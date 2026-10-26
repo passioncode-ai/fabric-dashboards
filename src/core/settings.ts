@@ -6,7 +6,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { atomicWrite } from './fsutil';
 import { autoUpdateOn, carryOverAutoUpdate, setAutoUpdate } from './autoupdate';
-import { CONSOLE_HEIGHT, DEFAULT_SETTINGS, type Settings, type SettingsPatch } from './types';
+import { CONSOLE_HEIGHT, DEFAULT_SETTINGS, SIDEBAR_WIDTH, type Settings, type SettingsPatch } from './types';
 import { DEFAULT_PAGE_THEME, REFERENCE_THEMES } from './appearance';
 import { pruneDismissed, pruneRecords } from './sessions';
 
@@ -102,6 +102,7 @@ function mergeLayout(raw: unknown): Settings['layout'] {
   const height = typeof c.height === 'number' && Number.isFinite(c.height) ? Math.round(c.height) : CONSOLE_HEIGHT.default;
   return {
     sidebar: l.sidebar === 'collapsed' ? 'collapsed' : 'expanded',
+    sidebarWidth: sidebarWidth(l.sidebarWidth),
     header: l.header === 'full' ? 'full' : 'compact',
     console: { open: c.open === true, height: Math.min(CONSOLE_HEIGHT.max, Math.max(CONSOLE_HEIGHT.min, height)) },
     list: mergeList(l.list),
@@ -118,13 +119,19 @@ const productIds = (x: unknown) => (Array.isArray(x) ? [...new Set(x.filter((v):
 /** FD-39: a sort the app knows, and pinned product ids — each a valid id, once, at most 200. FD-78: hidden product ids
  *  the same way, a kind per product (`agent` or `service`; anything else is dropped), and whether Hidden is open. */
 function mergeList(raw: unknown): Settings['layout']['list'] {
-  const l = (raw && typeof raw === 'object' ? raw : {}) as { sort?: unknown; pinned?: unknown; hidden?: unknown; kinds?: unknown; hiddenOpen?: unknown };
-  const sort = l.sort === 'status' || l.sort === 'activity' ? l.sort : 'name';
+  const l = (raw && typeof raw === 'object' ? raw : {}) as { sort?: unknown; pinned?: unknown; hidden?: unknown; kinds?: unknown; hiddenOpen?: unknown; order?: unknown };
+  const sort = l.sort === 'status' || l.sort === 'activity' || l.sort === 'manual' ? l.sort : 'name';
   const kinds: Settings['layout']['list']['kinds'] = {};
   if (l.kinds && typeof l.kinds === 'object' && !Array.isArray(l.kinds)) {
     for (const [id, kind] of Object.entries(l.kinds as Record<string, unknown>).slice(0, 200)) if (PRODUCT_ID.test(id) && (kind === 'agent' || kind === 'service')) kinds[id] = kind;
   }
-  return { sort, pinned: productIds(l.pinned), hidden: productIds(l.hidden), kinds, hiddenOpen: l.hiddenOpen === true };
+  return { sort, pinned: productIds(l.pinned), hidden: productIds(l.hidden), kinds, hiddenOpen: l.hiddenOpen === true, order: productIds(l.order) };
+}
+
+/** FD-121 (SCN-087): a width from any file reads as one inside the bounds; anything else is the default. */
+export function sidebarWidth(raw: unknown): number {
+  if (typeof raw !== 'number' || !Number.isFinite(raw)) return SIDEBAR_WIDTH.default;
+  return Math.min(SIDEBAR_WIDTH.max, Math.max(SIDEBAR_WIDTH.min, Math.round(raw)));
 }
 
 /** ADR-0017: per-service console choices; a key that is not a service key, or a folder that is not absolute, is dropped. */

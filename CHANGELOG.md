@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+### Added
+
+- **Arrange the sidebar your way** (FD-121). Drag its right edge to make it wider or narrower; double-click the edge to
+  go back. Drag an agent up or down within its section to put it where you want it (or press Alt+Up and Alt+Down); the
+  sort then reads "Your order". In the Hidden list, the eye beside an agent shows it again.
+
 ### Fixed
 
 - **A screen reader names every box on the Connections map** (FD-113 VIS-07). The map was one image, which hid the
