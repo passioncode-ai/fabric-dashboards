@@ -25,6 +25,13 @@ message `35112a93`); Q-03 is the operator's passkey sign-in, in their queue.
 **Exact next task:** step 2 of the iteration (module dossiers) for 0.9.0, starting with FD-109 (target 2026-10-31) and
 FD-96 (2026-10-31), then FD-110, FD-94 and FD-95 (2026-11-07).
 
+## 0.8.6: start here (2026-10-26, SB-201)
+
+**Objective:** Switchboard asked (thread `3f0ec524`, message `67535b26`) that this app read the `agent` field its 0.7.0
+adds to session records before it ships, so a proxy-launched Goose or Codex session is not shown or resumed as Claude
+Code. Done in PR #225 (`allSessionsOf`, `mergeSessions`, `sbRowId`); released so the installed copy has it before
+Switchboard 0.7.0. **Exact next task:** confirm to Switchboard once the release is published.
+
 ## 0.8.5: start here (2026-10-26)
 
 0.8.4 was tagged and not published: release run 40257149750 failed on both Windows gates at the FD-110 test *the
