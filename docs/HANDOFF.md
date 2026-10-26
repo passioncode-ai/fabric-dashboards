@@ -25,6 +25,13 @@ message `35112a93`); Q-03 is the operator's passkey sign-in, in their queue.
 **Exact next task:** step 2 of the iteration (module dossiers) for 0.9.0, starting with FD-109 (target 2026-10-31) and
 FD-96 (2026-10-31), then FD-110, FD-94 and FD-95 (2026-11-07).
 
+## 0.8.5: start here (2026-10-26)
+
+0.8.4 was tagged and not published: release run 40257149750 failed on both Windows gates at the FD-110 test *the
+decisions file sits beside the app's log*, whose expected macOS path used the host's separator. The test now spells
+the POSIX path; 0.8.5 carries 0.8.4 unchanged otherwise. Lesson, as with 0.7.11: a path test that names another
+system's path spells it out instead of joining it with the host's `path`.
+
 ## 0.8.4: start here (2026-10-26)
 
 **Objective:** ship what merged after 0.8.3: FD-94 (the Windows token check through a compiled reader), FD-118 (a
