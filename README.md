@@ -179,7 +179,7 @@ app. Keep `http_url` for diagnostics. `open` opens it now and never opens a brow
 installed-host failure never falls back. A page on an address no descriptor names is refused with the step that
 registers its agent. `spend` gives
 each agent's own usage entries; a service that does not answer is an error entry (unknown spend),
-never "not reporting". `list_services` and `service_status` carry `category` (`local`, `online` or `service`) and `hidden`, as the app lists them (from 0.7.18), and `dashboard_min_width`: the floor a
+never "not reporting". `list_services` and `service_status` carry `category` (`local`, `online` or `service`) and `hidden`, as the app lists them (from 0.7.18; `category` is the section the product is listed in, so a cloud instance of a product whose main instance runs on this Mac says `local`, and its `placement` says `remote`, FD-112), and `dashboard_min_width`: the floor a
 service declares for its dashboard (contract DEC-0036 ED-9), `null` when it declares none; the app
 keeps every dashboard at least `max(480, dashboard_min_width)` px wide beside the console (ED-7).
 `doctor` and `update` run the service's own programs: announce them first.

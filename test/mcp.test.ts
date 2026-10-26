@@ -462,6 +462,21 @@ test('every tool\'s input schema is one a model API accepts: an object with no a
 
 // ── FD-78: how the app lists a service, and its connections ────────────────────────────────
 
+test('FD-112: an instance\'s category is its product\'s section, as the app lists it; placement says where that instance runs', async () => {
+  const w = world();
+  const dir = w.deps.servicesDir();
+  fs.writeFileSync(path.join(dir, 'example-agent.cloud.json'), JSON.stringify({
+    protocol: 'fabric-service/0.1', id: 'example-agent', instance: 'cloud', name: 'Example Agent', placement: 'remote',
+    origin: 'https://agent.example.com', auth: { tokenFile: '~/.never-read.token' }, lifecycle: { manager: 'none' },
+    installedAt: '2026-10-02T18:00:00Z', installedBy: 'test',
+  }));
+  const services = (await tools.listServices(w.deps)).services;
+  const local = services.find((x) => x.key === KEY)!;
+  const cloud = services.find((x) => x.key === 'example-agent.cloud')!;
+  assert.deepEqual([local.category, local.placement], ['local', 'local']);
+  assert.deepEqual([cloud.category, cloud.placement], ['local', 'remote'], 'listed under its product, which runs on this Mac; placement remote');
+});
+
 test('FD-78: list_services says how the app lists each product, with the person\'s choices read from its settings', async () => {
   const w = world();
   const plain = (await tools.listServices(w.deps)).services[0]!;
