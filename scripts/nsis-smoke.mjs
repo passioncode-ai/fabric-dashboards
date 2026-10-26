@@ -74,6 +74,25 @@ const described = (pids) => {
   const lines = (r.stdout ?? '').split(/\r?\n/).map((l) => l.trim()).filter(Boolean).map((l) => (l.length > 400 ? `${l.slice(0, 400)}…` : l));
   return lines.length ? lines.join('; ') : `${ids.join(' ')} (command lines unread: ${String(r.error ?? r.stderr ?? '').trim().slice(0, 200) || 'gone'})`;
 };
+// FD-95: Windows hands a freed process id to the next process at once, so an id alone cannot tell the old copy from
+// the new one (run 39955756486: the new copy ran as 8736 924 7100 6316 1620 after the old one's 3424 7100 924 ended,
+// and the check waited 15 minutes for ids that were already the new copy's). A process is its id and its creation
+// time; ids are read cheaply with tasklist, and creation times only for ids seen before (Windows PowerShell is slow).
+const createdAt = (pids) => {
+  const ids = pids.map(Number).filter((n) => Number.isInteger(n) && n > 0);
+  const at = new Map();
+  if (!ids.length) return at;
+  const env = { ...process.env }; delete env.PSModulePath;
+  const filter = ids.map((id) => `ProcessId=${id}`).join(' OR ');
+  const r = spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command',
+    `Get-CimInstance Win32_Process -Filter '${filter}' | ForEach-Object { "$($_.ProcessId) $($_.CreationDate.ToUniversalTime().ToString('o'))" }`],
+  { encoding: 'utf8', timeout: 120_000, windowsHide: true, env });
+  for (const line of (r.stdout ?? '').split(/\r?\n/)) {
+    const m = /^(\d+) (\S+)$/.exec(line.trim());
+    if (m) at.set(m[1], m[2]);
+  }
+  return at;
+};
 const data = mkdtempSync(path.join(os.tmpdir(), 'fd-nsis-data-'));
 const watched = mkdtempSync(path.join(os.tmpdir(), 'fd-nsis-svc-'));
 const appEnv = { ...process.env, FABRIC_DASHBOARDS_USER_DATA: data, FABRIC_SERVICES_DIR: watched };
@@ -83,6 +102,10 @@ try {
   app.unref();
   const before = await stable(5_000);
   before.forEach((pid) => started.add(pid));
+  const beforeAt = createdAt(before);
+  requireThat(before.every((pid) => beforeAt.has(pid)), `the creation times of the app's processes are unread (${before.join(' ')}; read: ${[...beforeAt.keys()].join(' ') || 'none'})`);
+  // The processes of the old copy still running: an id seen before that names the same process (same creation time).
+  const fromBefore = (now) => { const seen = now.filter((pid) => before.includes(pid)); if (!seen.length) return []; const at = createdAt(seen); return seen.filter((pid) => at.get(pid) === beforeAt.get(pid)); };
   requireThat(before.includes(String(app.pid)), `the installed app did not start (pid ${app.pid}; running: ${before.join(' ') || 'none'})`);
   const sha = createHash('sha256').update(readFileSync(setup)).digest('hex');
   const cmd = nsisUpdateCommand(setup, sha, app.pid, 60);
@@ -96,9 +119,10 @@ try {
   requireThat(code === 0, `the waiter ended ${code} (2: the hash changed; 3: the app was still running)`);
   // The installer runs on its own after the waiter (Start-Process returns at once): 12 s on windows-latest, 486 s on
   // windows-11-arm (run 38166001899), whose 7-Zip decoding is slow.
-  const anew = await until(() => { const now = appPids(); return now.length > 0 && now.every((pid) => !before.includes(pid)); }, 900_000);
+  // Cheap first: no new id means the new copy has not started; only an id seen before costs a creation-time read.
+  const anew = await until(() => { const now = appPids(); return now.some((pid) => !before.includes(pid)) && fromBefore(now).length === 0; }, 900_000);
   appPids().forEach((pid) => started.add(pid));
-  requireThat(anew, `after the update the app is not running anew (before: ${before.join(' ')}; now: ${appPids().join(' ') || 'none'}; still running from before: ${described(appPids().filter((pid) => before.includes(pid)))})`);
+  requireThat(anew, `after the update the app is not running anew (before: ${before.join(' ')}; now: ${appPids().join(' ') || 'none'}; still running from before: ${described(fromBefore(appPids()))})`);
   requireThat(existsSync(exe) && existsSync(uninstaller), 'the update left no app or no uninstaller in place');
   console.log(`the waiter ran the installer after the app exited; it installed in place and started the app again in ${Math.round((Date.now() - updateStarted) / 1000)} s`);
 } finally {

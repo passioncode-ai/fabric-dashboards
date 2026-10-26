@@ -172,7 +172,11 @@ test('FD-37 packages.yml: every system and architecture on its native runner, si
   const nsis = fs.readFileSync(path.join(root, 'scripts/nsis-smoke.mjs'), 'utf8');
   assert.ok(nsis.includes("'Uninstall Fabric Dashboards.exe'"), 'the name uninstallTarget looks for');
   // FD-95: both failures that name processes left from before name each one's parent and command line.
-  assert.ok(nsis.includes('Get-CimInstance Win32_Process') && nsis.split('described(appPids()').length - 1 === 2, 'survivors are described');
+  assert.ok(nsis.includes('Get-CimInstance Win32_Process') && nsis.split('described(').length - 1 === 2, 'survivors are described in both failures');
+  // FD-95: a process of the old copy is its id AND its creation time, since Windows hands a freed id to the next process.
+  assert.match(nsis, /CreationDate\.ToUniversalTime\(\)/, 'creation times are read');
+  assert.match(nsis, /at\.get\(pid\) === beforeAt\.get\(pid\)/, 'an id seen before is the old copy only with the same creation time');
+  assert.doesNotMatch(nsis, /now\.every\(\(pid\) => !before\.includes\(pid\)\)/, 'never ids alone');
   assert.ok(wf.includes('!release/*.blockmap'), 'electron-updater\'s blockmap is not ours to publish');
   const smoke = fs.readFileSync(path.join(root, 'scripts/deb-smoke.sh'), 'utf8');
   for (const step of ['apt-get install -y -qq "$deb" xvfb xauth', 'app=/opt/fabric-dashboards', "grep 'not found'", 'useradd -m smoke', 'initialize', 'xvfb-run -a /usr/bin/fabric-dashboards', 'started $version', 'apt-get remove -y -qq fabric-dashboards']) assert.ok(smoke.includes(step), step);
