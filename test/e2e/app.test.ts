@@ -38,7 +38,7 @@ test('discovers a live service, opens its dashboard signed in, keeps one view, s
       env: { ...process.env, FABRIC_SERVICES_DIR: services, FABRIC_DASHBOARDS_USER_DATA: path.join(base, 'app'), LANG: 'en_US.UTF-8', FD_TEST_FABRIC: 'present' },
     });
     const page = await app.firstWindow();
-    await page.getByRole('button', { name: /Sample Service — Ready/ }).waitFor({ timeout: 20_000 });
+    await page.getByRole('button', { name: /Sample Service: Ready/ }).waitFor({ timeout: 20_000 });
     await shot(page, '01-overview');
     const logs = await app.evaluate(({ app: a }) => a.getPath('logs'));
     assert.ok(logs.startsWith(path.join(base, 'app')), `a test run logs inside its own data, not the operator's (${logs})`);
@@ -46,7 +46,7 @@ test('discovers a live service, opens its dashboard signed in, keeps one view, s
 
     // ADR-0016: what the agent is for, under its name, on the card and on its page; its tools there too.
     await page.locator('.card-summary').getByText('Sample fabric-service/0.1 service.').waitFor();
-    await page.getByRole('button', { name: /Sample Service — Ready/ }).click();
+    await page.getByRole('button', { name: /Sample Service: Ready/ }).click();
     await page.getByRole('heading', { name: 'Sample Service' }).waitFor();
     // ADR-0017: on the page the summary names the agent on hover, and sits in the full card with its tools.
     assert.equal(await page.getByRole('heading', { level: 1, name: 'Sample Service' }).getAttribute('title'), 'Sample fabric-service/0.1 service.');
@@ -422,8 +422,8 @@ test('switching between two loaded dashboards keeps the chosen dashboard on scre
       }
       return onScreen();
     };
-    await page.getByRole('button', { name: /Alpha Service — Ready/ }).waitFor({ timeout: 20_000 });
-    assert.equal(await page.getByRole('button', { name: /Beta Service — / }).count(), 0, 'one card for the product, not one per instance');
+    await page.getByRole('button', { name: /Alpha Service: Ready/ }).waitFor({ timeout: 20_000 });
+    assert.equal(await page.getByRole('button', { name: /Beta Service: / }).count(), 0, 'one card for the product, not one per instance');
     await page.locator('.card-members').getByText('beta').waitFor({ timeout: 20_000 });
     assert.equal((await open(0))[0], `http://127.0.0.1:${ports[0]}/`, 'Alpha opens');
     assert.equal((await open(1))[0], `http://127.0.0.1:${ports[1]}/`, 'Beta opens');

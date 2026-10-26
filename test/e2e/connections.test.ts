@@ -79,7 +79,7 @@ test('FD-78: Connections draws the chain and the worst state in it; a service wi
     app = await electron.launch({ args: [ROOT], env: { ...process.env, FABRIC_SERVICES_DIR: services, FABRIC_DASHBOARDS_USER_DATA: path.join(base, 'app'), LANG: 'en_US.UTF-8' } });
     const page = await app.firstWindow();
     await page.setViewportSize({ width: 1440, height: 900 }).catch(() => undefined);
-    await page.getByRole('button', { name: /Ads Manager — / }).first().waitFor({ timeout: 30_000 });
+    await page.getByRole('button', { name: /Ads Manager: / }).first().waitFor({ timeout: 30_000 });
     // SCN-071: the communicator answers and offers no dashboard: a service.
     await page.locator('[role="group"]', { has: page.locator('.nav-section', { hasText: 'Services' }) }).getByText('Communicator').waitFor({ timeout: 20_000 });
 

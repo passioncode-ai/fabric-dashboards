@@ -32,13 +32,13 @@ test('SCN-002, SCN-003, SCN-004: an empty folder explains itself; installs, remo
     const page = await app.firstWindow();
 
     // SCN-002: no service yet — the empty state says what makes one appear, and where.
-    await page.getByText('No services yet').first().waitFor({ timeout: 20_000 });
+    await page.getByText('No agents yet').first().waitFor({ timeout: 20_000 });
     await page.getByText('A service appears here when its installer writes a descriptor').first().waitFor();
     await page.getByRole('button', { name: 'Show folder' }).first().waitFor();
 
     // SCN-003: an installer writes a descriptor — the service appears within seconds, and Activity says so.
     register(port, data, services);
-    await page.getByRole('button', { name: /Sample Service — Ready/ }).first().waitFor({ timeout: 20_000 });
+    await page.getByRole('button', { name: /Sample Service: Ready/ }).first().waitFor({ timeout: 20_000 });
     for (let i = 0; i < 40 && !/was installed/.test(activityText(appDir)); i += 1) await new Promise((r) => setTimeout(r, 250));
     assert.match(activityText(appDir), /was installed/, 'Activity gains "<Service> was installed"');
 
@@ -51,10 +51,10 @@ test('SCN-002, SCN-003, SCN-004: an empty folder explains itself; installs, remo
     const sample = fs.readdirSync(services).find((n) => n !== 'broken.default.json')!;
     fs.rmSync(path.join(services, sample));
     for (let i = 0; i < 80; i += 1) {
-      if (await page.getByRole('button', { name: /Sample Service — Ready/ }).count() === 0) break;
+      if (await page.getByRole('button', { name: /Sample Service: Ready/ }).count() === 0) break;
       await new Promise((r) => setTimeout(r, 250));
     }
-    assert.equal(await page.getByRole('button', { name: /Sample Service — Ready/ }).count(), 0, 'the removed service left the list');
+    assert.equal(await page.getByRole('button', { name: /Sample Service: Ready/ }).count(), 0, 'the removed service left the list');
     for (let i = 0; i < 40 && !/was removed/.test(activityText(appDir)); i += 1) await new Promise((r) => setTimeout(r, 250));
     assert.match(activityText(appDir), /was removed/, 'Activity gains "<Service> was removed"');
   } finally {

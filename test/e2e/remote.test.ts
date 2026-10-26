@@ -98,7 +98,7 @@ test('an online service sits in the Online group, opens signed in over https, an
       },
     });
     const page = await app.firstWindow();
-    const card = page.getByRole('button', { name: /Example Online Agent — Ready/ });
+    const card = page.getByRole('button', { name: /Example Online Agent: Ready/ });
     await card.waitFor({ timeout: 30_000 });
     const group = page.getByRole('region', { name: 'Online' });
     await group.waitFor();
@@ -130,7 +130,7 @@ test('an online service sits in the Online group, opens signed in over https, an
     // LC-08: an online service is probed once a minute even with the window visible (AGENTS.md →
     // Lifecycle); FD_TEST_REMOTE_MS makes it 5 s here, so the refusal shows within one interval plus
     // the 8 s remote probe timeout, with room for a machine that is slow or just woke (FD-38).
-    await page.getByRole('button', { name: /Example Online Agent — Not answering/ }).waitFor({ timeout: 45_000 });
+    await page.getByRole('button', { name: /Example Online Agent: Not answering/ }).waitFor({ timeout: 45_000 });
     await page.getByText(/refused the token/).first().waitFor({ timeout: 10_000 });
   } finally {
     await closeApp(app);
@@ -187,7 +187,7 @@ test('SCN-032: an online service that cannot be reached says why — redirect, c
       },
     });
     const page = await app.firstWindow();
-    const card = (state: string) => page.getByRole('button', { name: new RegExp(`Example Online Agent — ${state}`) });
+    const card = (state: string) => page.getByRole('button', { name: new RegExp(`Example Online Agent: ${state}`) });
     await card('Ready').waitFor({ timeout: 30_000 });
 
     // Step 3a: a redirect is down at once and never followed.

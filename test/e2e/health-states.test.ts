@@ -55,17 +55,17 @@ test('SCN-012, SCN-013, SCN-035, SCN-025: wrong program, a port claimed twice, o
     const page = await app.firstWindow();
 
     // SCN-012
-    await page.getByRole('button', { name: /wrong program — Wrong program on port/ }).first().waitFor({ timeout: 30_000 });
+    await page.getByRole('button', { name: /wrong program: Wrong program on port/ }).first().waitFor({ timeout: 30_000 });
     await page.getByText(new RegExp(`Port ${plainPort} answers without fabric-service/0.1`)).first().waitFor();
     // SCN-013
-    await page.getByRole('button', { name: /claims a — Port conflict/ }).first().waitFor({ timeout: 30_000 });
+    await page.getByRole('button', { name: /claims a: Port conflict/ }).first().waitFor({ timeout: 30_000 });
     await page.getByText(new RegExp(`Port ${shared} is also claimed by`)).first().waitFor();
 
     // SCN-035: the preview instance stops answering — the agent stays ready, with a mark on its entry.
-    await page.getByRole('button', { name: /Sample Service — Ready/ }).first().waitFor({ timeout: 30_000 });
+    await page.getByRole('button', { name: /Sample Service: Ready/ }).first().waitFor({ timeout: 30_000 });
     await stopProcess(b);
     await page.locator('[title="A connection of this agent needs attention"], [aria-label*="A connection of this agent needs attention"]').first().waitFor({ timeout: 60_000 });
-    assert.ok(await page.getByRole('button', { name: /Sample Service — Ready/ }).count() > 0, 'the agent itself still reads Ready');
+    assert.ok(await page.getByRole('button', { name: /Sample Service: Ready/ }).count() > 0, 'the agent itself still reads Ready');
     b = serve(pb, db, ['--instance', 'preview']);
 
     // SCN-025: Logs shows the declared file; Doctor runs the declared command and shows its exit and output.

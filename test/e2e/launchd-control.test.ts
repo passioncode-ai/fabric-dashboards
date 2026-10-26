@@ -103,7 +103,7 @@ test('SCN-011: a copy started outside launchd keeps the port — Two copies, and
     // launchd starts its own copy, which waits on the lock the stray one holds (DEC-0057): two copies.
     spawnSync('launchctl', ['enable', `gui/${uid}/${LABEL}`]);
     spawnSync('launchctl', ['bootstrap', `gui/${uid}`, plist]);
-    await page.getByText(new RegExp(`Two copies: pid ${stray.pid} answers, launchd runs pid \\d+\\.`)).first().waitFor({ timeout: 60_000 });
+    await page.getByText(new RegExp(`Two copies run: process ${stray.pid} answers, while the system started process \\d+\\.`)).first().waitFor({ timeout: 60_000 });
     const details = page.getByRole('button', { name: 'Show details' });
     if (await details.count()) await details.first().click();
     await page.getByRole('button', { name: 'Restart', exact: true }).first().click();

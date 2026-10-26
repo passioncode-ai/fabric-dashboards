@@ -31,7 +31,7 @@ test('SCN-033, SCN-034: two instances of one agent read as one, and the switch o
     register(pa, da, services); register(pb, db, services, ['--instance', 'preview']);
     app = await electron.launch({ args: [ROOT], env: { ...process.env, FABRIC_SERVICES_DIR: services, FABRIC_DASHBOARDS_USER_DATA: path.join(base, 'app'), LANG: 'en_US.UTF-8' } });
     const page = await app.firstWindow();
-    await page.getByRole('button', { name: /Sample Service — Ready/ }).first().waitFor({ timeout: 20_000 });
+    await page.getByRole('button', { name: /Sample Service: Ready/ }).first().waitFor({ timeout: 20_000 });
     await page.waitForTimeout(1500);
     const entries = (await page.locator('.nav-item').allInnerTexts()).filter((t) => t.includes('Sample Service'));
     assert.equal(entries.length, 1, `one sidebar entry for the product: ${JSON.stringify(entries)}`);
