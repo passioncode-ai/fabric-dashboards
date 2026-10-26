@@ -79,3 +79,16 @@ test('ADR-0025: a socket a killed run left is replaced; a new run has a new key;
   assert.deepEqual(await send(again!.address, ok), { ok: false, code: 'bad-key' }, 'a key from an earlier run opens nothing');
   await again!.close();
 });
+
+test('ADR-0025 (Windows): the pipe takes only this run\'s key, a second instance is refused, and the key goes with the run', { skip: process.platform !== 'win32' && 'the named pipe; POSIX sockets are tested above' }, async () => {
+  const dir = tmp();
+  const address = `\\\\.\\pipe\\fabric-dashboards-console-test-${process.pid}`;
+  const ch = await openChannel({ userData: dir, address, log: () => undefined, start: async (r) => ({ ok: true, consoleKey: r.service }) });
+  assert.ok(ch);
+  const key = fs.readFileSync(path.join(dir, CHANNEL_KEY_FILE), 'utf8');
+  assert.deepEqual(await send(address, `${JSON.stringify({ key: 'f'.repeat(64), op: 'console.new', service: 'a.b' })}\n`), { ok: false, code: 'bad-key' });
+  assert.deepEqual(await send(address, `${JSON.stringify({ key, op: 'console.new', service: 'a.b' })}\n`), { ok: true, consoleKey: 'a.b' });
+  assert.equal(await openChannel({ userData: tmp(), address, log: () => undefined, start: async () => ({ ok: false, code: 'x' }) }), null, 'the first instance keeps the name');
+  await ch!.close();
+  assert.equal(fs.existsSync(path.join(dir, CHANNEL_KEY_FILE)), false);
+});
