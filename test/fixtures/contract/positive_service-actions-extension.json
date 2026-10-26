@@ -1,0 +1,23 @@
+{
+  "actions": [
+    {
+      "id": "approve-reply",
+      "title": "Approve the reply",
+      "tool": "reviews.approve",
+      "gate": "relayed"
+    },
+    {
+      "id": "retry-job",
+      "title": "Retry",
+      "tool": "jobs.retry",
+      "gate": "none"
+    },
+    {
+      "id": "connect-store",
+      "title": "Sign in to the store",
+      "tool": "accounts.connect",
+      "gate": "human",
+      "humanStep": "sign-in"
+    }
+  ]
+}

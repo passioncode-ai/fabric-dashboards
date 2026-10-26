@@ -1,0 +1,9 @@
+{
+  "actions": [
+    {
+      "id": "approve-reply",
+      "title": "Approve the reply",
+      "gate": "relayed"
+    }
+  ]
+}

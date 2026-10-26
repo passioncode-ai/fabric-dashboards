@@ -30,6 +30,7 @@ Private to this repository's workspace and not published to npm; see
 | `…/usage` | `checkUsage`, `summarizeUsage` and the usage-report shapes | none — safe in a renderer |
 | `…/connections` | `connectionsOf` and the declared-connections shapes (FD-78) | none, safe in a renderer |
 | `…/load` | `loadOf`, `loadReportProblems`, `summarizeLoad` and the load shapes (FD-93) | none, safe in a renderer |
+| `…/actions` | `actionsOf`, `actionDeclarationErrors` and the declared-action shapes (FD-110) | none, safe in a renderer |
 | `…/test-vectors/state-precedence.json` | the shared state-precedence vectors | — |
 
 CommonJS with `.d.ts` types, built by `tsc` into `dist/` (`npm run build:host` from the
@@ -251,6 +252,25 @@ and context while the report sums every agent a service hosts in a context, so a
 count against them. `loadReportProblems` reads times and integers as the schema does (`schemaDateTime`) and compares
 times for FAC-SEM-132 strictly (`strictTime`), as the contract's `loadRule`. It runs the contract's 15 load
 fixtures (`test/fixtures/contract/*service-load*`, `*service-well-known-load*`).
+
+## Actions
+
+`src/actions.ts`, FD-110, entry point `@passioncode-ai/fabric-service-host/actions`. A service declares every action its
+pages let a person take, and the agent tool that takes it, in its well-known document under `extensions`, key
+`https://fabric.passioncode.ai/agent-contract/extensions/actions/0.1` (Fabric Agent Contract DEC-0121, protocol
+`fabric-actions/0.1`, AP-1):
+
+```json
+{ "actions": [{ "id": "approve-reply", "title": "Approve the reply", "tool": "replies.approve", "gate": "relayed" }] }
+```
+
+`gate` is `none` (the caller's own act), `relayed` (the operator decides; a T0 or T1 caller carries the decision) or
+`human` (a step only the person takes, named by `humanStep`). `actionsOf(wellKnown)` returns `{declared, reported,
+actions, errors, findings}`: an invalid value declares nothing, is `reported` and lists every reason; `findings` are
+FAC-SEM-142's, each with its `instancePath`: the invalid value, an id named twice, a `humanStep` that disagrees with
+`gate`, and a `tool` that a present `surfaces.mcp.capabilities` does not list (a button without an agent twin). It is a
+port of the contract's `actionsView` and `actionsExtensionRules`, run on the contract's actions fixtures and the
+`declarations` of its `vectors/actions.json` (`test/fixtures/contract/*actions*`, at `52c7d798`).
 
 ## Shared test vectors
 

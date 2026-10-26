@@ -66,3 +66,25 @@ test('FD-93 review: an invalid load declaration is a finding of the auditor too 
   const good = audit([svc('q.default', 'ready', { extensions: { [LOAD]: { path: '/fabric/v1/load', windowSeconds: 3600, limits: { concurrency: 1, perCaller: 1, queueMax: 0 } } } })]);
   assert.deepEqual(good.findings, []);
 });
+
+test('FD-110 (DEC-0121, CT-126): the auditor reports a button without an agent twin, a wrong or invalid declaration, and a dashboard with no actions declared', () => {
+  const ACTIONS = 'https://fabric.passioncode.ai/agent-contract/extensions/actions/0.1';
+  const mcp = { mcp: { path: '/mcp', capabilities: ['replies.approve'] } };
+  const declared = (actions: unknown, surfaces: Record<string, unknown> = mcp) => ({ surfaces: { events: { path: '/e' }, dashboard: { path: '/', login: true }, ...surfaces }, extensions: { [ACTIONS]: { actions } } });
+  const twinless = audit([svc('a.default', 'ready', declared([
+    { id: 'approve', title: 'Approve the reply', tool: 'replies.approve', gate: 'relayed' },
+    { id: 'send', title: 'Send', tool: 'replies.send', gate: 'relayed' },
+    { id: 'pay', title: 'Top up', tool: 'replies.approve', gate: 'relayed', humanStep: 'payment' },
+  ]))]);
+  assert.deepEqual(twinless.findings.map((f) => [f.severity, f.kind, f.reason.code, f.reason.params?.title]), [
+    ['warn', 'declaration', 'audit.action.noTwin', 'Send'],
+    ['warn', 'declaration', 'audit.action.invalid', 'Top up'],
+  ]);
+  assert.equal(twinless.findings[0]!.reason.params?.tool, 'replies.send');
+  const invalid = audit([svc('b.default', 'ready', declared([{ id: 'x', title: 'X', gate: 'none' }]))]);
+  assert.deepEqual(invalid.findings.map((f) => f.reason.code), ['audit.declaration.actionsInvalid'], 'one finding for an invalid value, never one per action');
+  const none = audit([svc('c.default', 'ready', { surfaces: { events: { path: '/e' }, dashboard: { path: '/', login: true } } })]);
+  assert.deepEqual(none.findings.map((f) => [f.severity, f.reason.code]), [['info', 'audit.action.notAdopted']]);
+  assert.deepEqual(audit([svc('d.default', 'ready')]).findings, [], 'no dashboard, no buttons: nothing to declare');
+  assert.deepEqual(audit([svc('e.default', 'ready', declared([{ id: 'approve', title: 'Approve the reply', tool: 'replies.approve', gate: 'relayed' }]))]).findings, [], 'every button has its twin');
+});

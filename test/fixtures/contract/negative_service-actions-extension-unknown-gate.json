@@ -1,0 +1,10 @@
+{
+  "actions": [
+    {
+      "id": "approve-reply",
+      "title": "Approve the reply",
+      "tool": "reviews.approve",
+      "gate": "operator"
+    }
+  ]
+}
