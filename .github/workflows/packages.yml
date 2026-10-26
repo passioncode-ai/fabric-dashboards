@@ -46,6 +46,7 @@ jobs:
     permissions:
       contents: read
       id-token: write # windows-signing@v1 (OIDC), used only when Windows signing is on
+      actions: write # FD-96: deletes the signing module's cache before each signing pass; used only when Windows signing is on
     env:
       FD_WINDOWS_SIGNING: ${{ inputs.sign && matrix.os == 'windows' && vars.AZURE_SIGNING_ENABLED == 'true' }}
       # A release (not a rehearsal): an unsigned Windows build must say so in the CHANGELOG (PL-03).
@@ -73,6 +74,21 @@ jobs:
         run: node scripts/dist-other.mjs --stage app
       # Signing pass 1: the app's executable, before the installer packs it — the organization's action
       # (passioncode-ai/.github, PL-03): OIDC sign-in, SHA-256 + RFC 3161 timestamp, fails unless Valid and timestamped.
+      # FD-96: Azure's artifact-signing action caches its PowerShell module under one key for both Windows images,
+      # at the first PSModulePath entry of whichever job saved it; a job that restores another's copy cannot load it
+      # ("The term 'Invoke-ArtifactSigning' is not recognized", release run 39955756486, attempt 2). Deleting the
+      # entry before each pass makes the action install the module itself (about 4 s); the windows-signing@v1 owner
+      # is asked to turn the cache off (board thread f10db6ee).
+      - name: Drop the signing module's cache
+        if: env.FD_WINDOWS_SIGNING == 'true'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh cache list --repo "$GITHUB_REPOSITORY" --key ArtifactSigning- --limit 100 --json id,key,ref -q '.[] | "\(.id) \(.key) \(.ref)"' |
+            while read -r id key ref; do
+              gh cache delete "$id" --repo "$GITHUB_REPOSITORY" && echo "deleted $key ($ref)" || echo "already gone: $key ($ref)"
+            done
       - name: Sign the app's executable
         if: env.FD_WINDOWS_SIGNING == 'true'
         uses: passioncode-ai/.github/actions/windows-signing@v1
@@ -89,6 +105,21 @@ jobs:
           expected-subject: O=Siarhei Sheleh
       - name: The installers
         run: node scripts/dist-other.mjs --stage installer
+      # FD-96: Azure's artifact-signing action caches its PowerShell module under one key for both Windows images,
+      # at the first PSModulePath entry of whichever job saved it; a job that restores another's copy cannot load it
+      # ("The term 'Invoke-ArtifactSigning' is not recognized", release run 39955756486, attempt 2). Deleting the
+      # entry before each pass makes the action install the module itself (about 4 s); the windows-signing@v1 owner
+      # is asked to turn the cache off (board thread f10db6ee).
+      - name: Drop the signing module's cache
+        if: env.FD_WINDOWS_SIGNING == 'true'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh cache list --repo "$GITHUB_REPOSITORY" --key ArtifactSigning- --limit 100 --json id,key,ref -q '.[] | "\(.id) \(.key) \(.ref)"' |
+            while read -r id key ref; do
+              gh cache delete "$id" --repo "$GITHUB_REPOSITORY" && echo "deleted $key ($ref)" || echo "already gone: $key ($ref)"
+            done
       # Signing pass 2: the installer itself.
       - name: Sign the installer
         if: env.FD_WINDOWS_SIGNING == 'true'
