@@ -8,6 +8,13 @@
   PowerShell, whose first start took from 7 seconds to a minute on an arm64 Windows machine. The app now ships a small
   signed reader beside its MCP launcher that answers in under 2 seconds cold (0.05 seconds on x64); Windows PowerShell
   stays the fallback.
+- **Settings help leads with what happens** (FD-113, COPY-25). The help under automatic updates, uninstall, outage
+  alerts, continuing after a limit, undeclared connections and the subscription estimate now opens with the result in
+  one short sentence and gives the conditions after it.
+- **Contract and skills settings speak plainly** (FD-113, COPY-21, COPY-22). "Estate updates", "Contract clone" and
+  "Consumer pins" are now "Fabric contract and skills updates", "Local copy of the contract (folder)" and "Contract
+  version in each project"; the section says who it is for, and Russian keeps Git and npm words only in a closing
+  bracket.
 - **Errors say what to press next** (FD-113, COPY-24, COPY-26). An agent the system has not loaded, two install files,
   a refused launchctl, a failed sign-in or page load, an unreadable activity feed and a failed setup check each end with
   the one step the screen offers (Start, Show file, Retry, Check setup). The update notification is short enough for
