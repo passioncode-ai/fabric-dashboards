@@ -158,13 +158,16 @@ const productIds = (x: unknown) => (Array.isArray(x) ? [...new Set(x.filter((v):
 /** FD-39: a sort the app knows, and pinned product ids — each a valid id, once, at most 200. FD-78: hidden product ids
  *  the same way, a kind per product (`agent` or `service`; anything else is dropped), and whether Hidden is open. */
 function mergeList(raw: unknown): Settings['layout']['list'] {
-  const l = (raw && typeof raw === 'object' ? raw : {}) as { sort?: unknown; pinned?: unknown; hidden?: unknown; kinds?: unknown; hiddenOpen?: unknown; order?: unknown };
+  const l = (raw && typeof raw === 'object' ? raw : {}) as { sort?: unknown; pinned?: unknown; hidden?: unknown; kinds?: unknown; hiddenOpen?: unknown; order?: unknown; off?: unknown };
   const sort = l.sort === 'status' || l.sort === 'activity' || l.sort === 'manual' ? l.sort : 'name';
   const kinds: Settings['layout']['list']['kinds'] = {};
   if (l.kinds && typeof l.kinds === 'object' && !Array.isArray(l.kinds)) {
     for (const [id, kind] of Object.entries(l.kinds as Record<string, unknown>).slice(0, 200)) if (PRODUCT_ID.test(id) && (kind === 'agent' || kind === 'service')) kinds[id] = kind;
   }
-  return { sort, pinned: productIds(l.pinned), hidden: productIds(l.hidden), kinds, hiddenOpen: l.hiddenOpen === true, order: productIds(l.order) };
+  // FD-123: an agent turned off is hidden too, whoever wrote the file.
+  const off = productIds(l.off);
+  const hidden = productIds([...productIds(l.hidden), ...off]);
+  return { sort, pinned: productIds(l.pinned), hidden, kinds, hiddenOpen: l.hiddenOpen === true, order: productIds(l.order), off };
 }
 
 /** FD-121 (SCN-087): a width from any file reads as one inside the bounds; anything else is the default. */

@@ -402,6 +402,11 @@ table.spend th[scope='row'] { color: var(--pc-text); }
 /* FD-121 (SCN-072): the eye on a hidden row, left of its menu and always shown: bringing it back is the fold's job. */
 .unhide-btn { right: calc(var(--pc-space-1) + 28px); opacity: 1; }
 .nav-hidden .nav-row .nav-item { padding-right: 60px; }
+/* FD-123 (SCN-072): an agent turned off reads greyed, says "Off" in words, and keeps one button that turns it on. */
+.nav-off { position: relative; color: var(--pc-text-muted); cursor: default; padding-right: 36px; }
+.nav-off .off-word { margin-left: auto; font-size: var(--pc-type-meta); }
+.turn-on-btn { right: var(--pc-space-1); opacity: 1; }
+.off-list { margin-top: var(--pc-space-2); }
 .nav-row:hover .row-menu .row-menu-btn, .nav-row:focus-within .row-menu .row-menu-btn, .row-menu.shown .row-menu-btn, .row-menu-btn:focus-visible { opacity: 1; }
 .menu { position: fixed; z-index: 30; min-width: 200px; display: flex; flex-direction: column; padding: var(--pc-space-1); background: var(--pc-panel-raised); border: 1px solid var(--pc-border-strong); border-radius: var(--pc-radius-control); box-shadow: var(--fd-shadow-menu); }
 .menu [role='menuitem'] { text-align: left; min-height: var(--fd-control-sm); padding: 0 var(--pc-space-2); border: 0; border-radius: var(--pc-radius-control); background: transparent; color: var(--pc-text); font: inherit; font-size: var(--pc-type-meta); cursor: pointer; white-space: nowrap; }

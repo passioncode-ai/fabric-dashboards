@@ -10,6 +10,9 @@
 - **Agents can arrange the list for you** (FD-122). A new MCP tool, `arrange`, does what an agent's row menu does: pin
   or unpin, hide or show again, show as a service or as an agent. The app now picks up a change to its settings made
   while it runs, and its own next change keeps it instead of writing over it.
+- **Turn an agent off** (FD-123). Turn off in an agent's row menu hides it and stops watching it: the app no longer
+  checks it or alerts about it, and it waits greyed at the end of the Hidden list. Turn it on there (or show it again)
+  and it is checked at once. Agents do the same with `arrange` `turn-off` and `turn-on`.
 
 ### Fixed
 

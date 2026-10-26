@@ -121,8 +121,8 @@ export const TOOLS = [
   },
   {
     name: 'arrange',
-    description: 'Arrange the app\'s sidebar as its row menu and eye do (FD-122): pin or unpin an agent, hide it or show it again, show it as a service or as an agent. A hidden agent is still watched and still alerts. The choice is written to the app\'s settings and shows at once in a running app; with the app closed it applies when it opens. Answers the agent\'s list state after the change.',
-    inputSchema: { type: 'object', properties: { service: serviceArg, action: { type: 'string', enum: ['pin', 'unpin', 'hide', 'show', 'as-service', 'as-agent'] } }, required: ['service', 'action'], additionalProperties: false },
+    description: 'Arrange the app\'s sidebar as its row menu and eye do (FD-122): pin or unpin an agent, hide it or show it again, show it as a service or as an agent, turn it off or on (FD-123). A hidden agent is still watched and still alerts; one turned off is also hidden, the app no longer probes it or alerts about it, and turning it on leaves it hidden and watched (show brings it back and turns it on). The choice is written to the app\'s settings and shows at once in a running app; with the app closed it applies when it opens. Answers the agent\'s list state after the change.',
+    inputSchema: { type: 'object', properties: { service: serviceArg, action: { type: 'string', enum: [...tools.ARRANGE] } }, required: ['service', 'action'], additionalProperties: false },
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
   },
   {

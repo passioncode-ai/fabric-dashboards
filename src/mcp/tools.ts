@@ -24,7 +24,7 @@ import { Launchd, execRunner, type Runner } from '../core/launchd';
 import { fetchEvents, fetchLoad, fetchUsage, fetchWellKnown, PROBE_TIMEOUT_MS, readTokenAsync } from '../core/probe';
 import { readLoad, type LoadEntry } from '../core/load';
 import { readSpend, type SpendEntry } from '../core/spend';
-import { categoryOf, groupProducts, productIdOf, setKind, togglePin, type Category } from '../core/products';
+import { categoryOf, groupProducts, productIdOf, setKind, setOff, showAgain, togglePin, type Category } from '../core/products';
 import { buildGraph, chainState, stateOfService, worstOf, type ConnectionGraph } from '../core/connections';
 import { audit as runAudit, type Finding } from '../core/audit';
 import { estateMap, type EstateMap } from '../core/estate-map';
@@ -73,7 +73,7 @@ export interface Deps {
   /** FD-81: runs the launcher's read-only doctor (Check setup); default: the owned runner with this process's PATH. */
   setupRun?: (command: string, args: string[]) => Promise<{ code: number | null; output: string; timedOut: boolean; started?: boolean; stdout?: string; stderr?: string }>;
   /** FD-78: the person's kinds and hidden agents, read from the app's settings; null when there are none to read. */
-  listLayout?: () => Pick<ListLayout, 'hidden' | 'kinds'> | null;
+  listLayout?: () => Pick<ListLayout, 'hidden' | 'kinds'> & Partial<Pick<ListLayout, 'off'>> | null;
   /** FD-83: where Switchboard is (default: found on PATH and the installers' folders) and how its CLI, lsof and ps
    *  run (default: the plain runner). Tests pass both. */
   switchboard?: () => string | null;
@@ -89,10 +89,10 @@ export function appSettingsFile(platform: NodeJS.Platform = process.platform, en
 }
 
 /** The list choices the person made in the app, never written here; an unreadable file is "none". */
-export function readListLayout(file: string): Pick<ListLayout, 'hidden' | 'kinds'> | null {
+export function readListLayout(file: string): Pick<ListLayout, 'hidden' | 'kinds' | 'off'> | null {
   try {
     const list = mergeSettings(JSON.parse(fs.readFileSync(file, 'utf8'))).layout.list;
-    return { hidden: list.hidden, kinds: list.kinds };
+    return { hidden: list.hidden, kinds: list.kinds, off: list.off };
   } catch {
     return null;
   }
@@ -165,9 +165,11 @@ export interface ServiceView {
    *  choice), and whether the person hid it (still watched and alerting). */
   category: Category;
   hidden: boolean;
+  /** FD-123: turned off in the app: not watched there and no alerts (also hidden). This answer still reads it once. */
+  off: boolean;
 }
 
-function view(s: ServiceLook, list?: { category: Category; hidden: boolean }): ServiceView {
+function view(s: ServiceLook, list?: { category: Category; hidden: boolean; off: boolean }): ServiceView {
   const d = s.descriptor;
   const wk = s.wellKnown;
   const dashPath = wk?.surfaces.dashboard?.path ?? null;
@@ -192,6 +194,7 @@ function view(s: ServiceLook, list?: { category: Category; hidden: boolean }): S
     problems: s.problems,
     category: list?.category ?? (d?.placement === 'remote' ? 'online' : 'local'),
     hidden: list?.hidden ?? false,
+    off: list?.off ?? false,
   };
 }
 
@@ -214,11 +217,11 @@ function find(deps: Deps, key: string): DescriptorEntry & { descriptor: Descript
 }
 
 /** FD-78: each look's section and hidden flag, as the app's list shows them (the person's choices win). */
-function listing(looks: readonly ServiceLook[], layout: Pick<ListLayout, 'hidden' | 'kinds'> | null): (key: string) => { category: Category; hidden: boolean } {
+function listing(looks: readonly ServiceLook[], layout: Pick<ListLayout, 'hidden' | 'kinds'> & Partial<Pick<ListLayout, 'off'>> | null): (key: string) => { category: Category; hidden: boolean; off: boolean } {
   const products = groupProducts(looks.map(asSnapshot));
   return (key) => {
     const p = products.find((x) => x.members.some((m) => m.key === key))!;
-    return { category: categoryOf(p, layout?.kinds), hidden: Boolean(layout?.hidden.includes(p.id)) };
+    return { category: categoryOf(p, layout?.kinds), hidden: Boolean(layout?.hidden.includes(p.id)), off: Boolean(layout?.off?.includes(p.id)) };
   };
 }
 
@@ -226,12 +229,12 @@ function listing(looks: readonly ServiceLook[], layout: Pick<ListLayout, 'hidden
 const asSnapshot = (l: ServiceLook): ServiceSnapshot => ({ ...l, descriptorPath: l.path, dashboardMinWidth: null, firstUnansweredAt: null, lastAnswerAt: null, busy: null, lastAction: null, latestEvent: null, feedError: null } as unknown as ServiceSnapshot);
 
 // #region arrange — docs: docs/ux/scenarios.md#scn-087-arrange-the-sidebar-width-and-order
-export type ArrangeAction = 'pin' | 'unpin' | 'hide' | 'show' | 'as-service' | 'as-agent';
-const ARRANGE: readonly ArrangeAction[] = ['pin', 'unpin', 'hide', 'show', 'as-service', 'as-agent'];
+export type ArrangeAction = 'pin' | 'unpin' | 'hide' | 'show' | 'as-service' | 'as-agent' | 'turn-off' | 'turn-on';
+export const ARRANGE: readonly ArrangeAction[] = ['pin', 'unpin', 'hide', 'show', 'as-service', 'as-agent', 'turn-off', 'turn-on'];
 
 /** FD-122: the row menu's choices as a tool. Written to the app's settings.json (the running app reads it again at once,
  *  SettingsStore.watch); a choice that holds already changes nothing. The whole product moves, as in the sidebar. */
-export async function arrange(deps: Deps, key: string, action: ArrangeAction): Promise<{ service: string; product: string; pinned: boolean; hidden: boolean; category: Category; changed: boolean }> {
+export async function arrange(deps: Deps, key: string, action: ArrangeAction): Promise<{ service: string; product: string; pinned: boolean; hidden: boolean; off: boolean; category: Category; changed: boolean }> {
   if (!ARRANGE.includes(action)) throw new ToolError(`action must be one of ${ARRANGE.join(', ')}`);
   const looks = await look(deps);
   if (!looks.some((l) => l.key === key)) throw new ToolError(`no installed service ${JSON.stringify(key)}`);
@@ -246,12 +249,13 @@ export async function arrange(deps: Deps, key: string, action: ArrangeAction): P
     action === 'pin' ? (pinned ? null : { pinned: togglePin(list.pinned, p.id) })
     : action === 'unpin' ? (pinned ? { pinned: togglePin(list.pinned, p.id) } : null)
     : action === 'hide' ? (hidden ? null : { hidden: [...list.hidden, p.id] })
-    : action === 'show' ? (hidden ? { hidden: list.hidden.filter((x) => x !== p.id) } : null)
+    : action === 'show' ? (hidden ? showAgain(list, p.id) : null) // FD-123: one that was off is turned on too
+    : action === 'turn-off' || action === 'turn-on' ? setOff(list, p.id, action === 'turn-off')
     : (categoryOf(p, list.kinds) === 'service') === (action === 'as-service') ? null
     : { kinds: setKind(list.kinds, p, action === 'as-service' ? 'service' : 'agent') };
   const after = patch ? store.update({ layout: { list: patch } }).layout.list : list;
   if (error) throw new ToolError(`the choice was not saved: ${error}`);
-  return { service: key, product: p.id, pinned: after.pinned.includes(p.id), hidden: after.hidden.includes(p.id), category: categoryOf(p, after.kinds), changed: Boolean(patch) };
+  return { service: key, product: p.id, pinned: after.pinned.includes(p.id), hidden: after.hidden.includes(p.id), off: after.off.includes(p.id), category: categoryOf(p, after.kinds), changed: Boolean(patch) };
 }
 // #endregion arrange
 

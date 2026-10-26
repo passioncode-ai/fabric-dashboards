@@ -40,6 +40,8 @@ export function ModeSwitch({ mode, rows, rail, onMode }: { mode: Mode; rows: rea
 export interface RowActions {
   pin: (id: string) => void;
   hide: (id: string) => void;
+  /** FD-123: turn an agent off (hidden, not watched, no alerts) or back on. */
+  setOff: (id: string, off: boolean) => void;
   kind: (p: Product, kind: 'agent' | 'service') => void;
   isPinned: (id: string) => boolean;
   isHidden: (id: string) => boolean;
@@ -89,6 +91,9 @@ interface AgentsNavProps {
 export function AgentsNav({ page, status, arranged, products, currentProduct, layout, changeLayout, open, go, rail, queue, urgent, auditErrors, hiddenProblem, menu }: AgentsNavProps) {
   const { t } = useT();
   const { pinned, hidden } = arranged;
+  // FD-123: agents turned off are on disk but not watched; they sit greyed at the end of Hidden.
+  const off = status.off ?? [];
+  const hiddenCount = hidden.length + off.length;
   // FD-121 (SCN-087): one drag at a time, within one section; what a screen reader hears after a move.
   const [drag, setDrag] = useState<{ section: MoveSection; id: string; dropAt: number | null } | null>(null);
   const [said, setSaid] = useState('');
@@ -158,15 +163,16 @@ export function AgentsNav({ page, status, arranged, products, currentProduct, la
           </div>
         ))}
         {/* FD-78: hidden agents, folded at the bottom; a problem among them still shows on the fold. */}
-        {hidden.length > 0 && (
+        {hiddenCount > 0 && (
           <div className="nav-hidden">
             {/* In the narrow rail the fold is an entry of its own, so hidden agents stay one click away. */}
-            <button className={rail ? 'nav-item' : 'nav-section nav-fold-section'} aria-expanded={layout.list.hiddenOpen} title={rail ? t('nav.hidden', { count: hidden.length }) : undefined} onClick={() => changeLayout({ list: { hiddenOpen: !layout.list.hiddenOpen } })}>
-              <span aria-hidden="true">{layout.list.hiddenOpen ? '▾' : '▸'}</span> <span className={rail ? 'nav-label' : undefined}>{t('nav.hidden', { count: hidden.length })}</span>
+            <button className={rail ? 'nav-item' : 'nav-section nav-fold-section'} aria-expanded={layout.list.hiddenOpen} title={rail ? t('nav.hidden', { count: hiddenCount }) : undefined} onClick={() => changeLayout({ list: { hiddenOpen: !layout.list.hiddenOpen } })}>
+              <span aria-hidden="true">{layout.list.hiddenOpen ? '▾' : '▸'}</span> <span className={rail ? 'nav-label' : undefined}>{t('nav.hidden', { count: hiddenCount })}</span>
               {hiddenProblem && <span className="count alert" title={t('nav.hiddenProblem')} aria-hidden="true">!</span>}
               {hiddenProblem && <span className="visually-hidden">{t('nav.hiddenProblem')}</span>}
             </button>
             {layout.list.hiddenOpen && hidden.map((p, i) => <ProductItem key={p.id} p={p} current={currentProduct === p} open={open} rail={rail} pinned={false} menu={menu} drag={dragFor('hidden', i, hidden.length)} hiddenRow />)}
+            {layout.list.hiddenOpen && off.map((o) => <OffItem key={o.product} name={o.name} id={o.product} rail={rail} menu={menu} />)}
           </div>
         )}
       </div>
@@ -256,11 +262,32 @@ function RowMenu({ p, menu }: { p: Product; menu: RowActions }) {
           {!hidden && <button role="menuitem" onClick={act(() => menu.pin(p.id))}>{t(pinned ? 'list.unpin' : 'list.pin', { name })}</button>}
           <button role="menuitem" onClick={act(() => menu.kind(p, service ? 'agent' : 'service'))}>{t(service ? 'list.asAgent' : 'list.asService')}</button>
           <button role="menuitem" onClick={act(() => menu.hide(p.id))}>{t(hidden ? 'list.unhide' : 'list.hide')}</button>
+          <button role="menuitem" onClick={act(() => menu.setOff(p.id, true))}>{t('list.turnOff')}</button>
         </div>
       )}
     </div>
   );
 }
+
+// #region agent-off — docs: docs/ux/scenarios.md#scn-072-hide-an-agent-without-stopping-it
+/** FD-123: an agent turned off: its name greyed, the word "Off", and one button that turns it back on (it stays hidden
+ *  and watched). No page opens from it: nothing about it is read. The narrow rail shows the name only. */
+function OffItem({ id, name, rail, menu }: { id: string; name: string; rail: boolean; menu: RowActions }) {
+  const { t } = useT();
+  return (
+    <div className="nav-item nav-off" title={t('list.offRow', { name })}>
+      <span className="glyph" aria-hidden="true">○</span>
+      <span className="nav-label">{name}</span>
+      {!rail && <span className="off-word">{t('list.off')}</span>}
+      {!rail && (
+        <button className="pin-btn turn-on-btn" title={t('list.turnOn', { name })} aria-label={t('list.turnOn', { name })} onClick={() => menu.setOff(id, false)}>
+          <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true"><path d="M8 1.5v6M4.6 3.8a5.2 5.2 0 1 0 6.8 0" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /></svg>
+        </button>
+      )}
+    </div>
+  );
+}
+// #endregion agent-off
 
 /** The mark a session row carries beside its words: the shapes of the agents' states (VIS-08), never alone. Waiting for
  *  a limit reset has no agent state of its own: it is a clock in the info colour (R1-V2: the starting ring ◌ in the muted

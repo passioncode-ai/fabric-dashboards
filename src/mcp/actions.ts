@@ -30,6 +30,8 @@ export const OWN_ACTIONS: DeclaredAction[] = [
   { id: 'show', title: 'Show again', tool: 'arrange', gate: 'none' },
   { id: 'as-service', title: 'Show as a service', tool: 'arrange', gate: 'none' },
   { id: 'as-agent', title: 'Show as an agent', tool: 'arrange', gate: 'none' },
+  { id: 'turn-off', title: 'Turn off', tool: 'arrange', gate: 'none' },
+  { id: 'turn-on', title: 'Turn on', tool: 'arrange', gate: 'none' },
 ];
 
 /** The `_meta` of the initialize answer: this app's declared actions (DEC-0121 AP-1). */

@@ -127,6 +127,9 @@ export interface ListLayout {
   hiddenOpen: boolean;
   /** FD-121 (SCN-087): product ids in the order the person dragged them; read when `sort` is `manual`. */
   order: string[];
+  /** FD-123 (SCN-072): product ids the person or an agent turned off: never probed, never alerting, listed greyed in
+   *  Hidden. Every one is also in `hidden`, so turning it on leaves it hidden and watched. */
+  off: string[];
 }
 
 /** A change to the settings: any field, and any part of the layout or of one service's console alone. */
@@ -160,7 +163,7 @@ export const DEFAULT_SETTINGS: Settings = {
     pausedUntil: null,
     channel: 'auto',
   },
-  layout: { sidebar: 'expanded', sidebarWidth: SIDEBAR_WIDTH.default, header: 'compact', console: { open: false, height: CONSOLE_HEIGHT.default }, list: { sort: 'name', pinned: [], hidden: [], kinds: {}, hiddenOpen: false, order: [] }, mode: 'agents', sessionId: null, endedOpen: false },
+  layout: { sidebar: 'expanded', sidebarWidth: SIDEBAR_WIDTH.default, header: 'compact', console: { open: false, height: CONSOLE_HEIGHT.default }, list: { sort: 'name', pinned: [], hidden: [], kinds: {}, hiddenOpen: false, order: [], off: [] }, mode: 'agents', sessionId: null, endedOpen: false },
   consoles: {},
   resumeAfterLimit: true,
   sessions: { records: [], dismissed: [] },
@@ -179,6 +182,8 @@ export interface Listener {
 
 export interface AppStatus {
   services: ServiceSnapshot[];
+  /** FD-123: the services of agents turned off, not watched; the window lists them greyed in Hidden. */
+  off?: { key: string; product: string; name: string }[];
   servicesDir: string;
   dirError: string | null;
   scanning: boolean;

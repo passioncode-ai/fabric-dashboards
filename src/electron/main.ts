@@ -116,6 +116,7 @@ if (!app.requestSingleInstanceLock()) {
   // FD-122: a change someone else writes into settings.json (an agent's MCP `arrange`) reaches the window at once.
   const stopSettingsWatch = settings.watch(() => {
     log('settings: changed outside the app; read again');
+    monitor.listChanged(); // FD-123: an agent turned off or on by an agent's MCP `arrange`
     if (window && !window.isDestroyed()) window.webContents.send(CHANNELS.settingsPush, settings.get());
     pushStatus();
   });
@@ -231,7 +232,7 @@ if (!app.requestSingleInstanceLock()) {
   let lastShown: { at: string; afterHiddenMs: number } | undefined;
   let hiddenSince: number | null = Date.now(); // the app starts with nothing on screen (a login start stays hidden)
   const status = (): AppStatus => ({
-    services: monitor.snapshots(), ...monitor.meta(), unread: activity.unread(), activityRev: activity.revision, update: updater.state, estate: estate.state, version: app.getVersion(),
+    services: monitor.snapshots(), off: monitor.offServices(), ...monitor.meta(), unread: activity.unread(), activityRev: activity.revision, update: updater.state, estate: estate.state, version: app.getVersion(),
     alerts: alerts.status(), sessions: consoles.sessionsStatus(),
     limits: personLimits, ...(lastShown ? { shown: lastShown } : {}),
   });
@@ -736,6 +737,7 @@ if (!app.requestSingleInstanceLock()) {
       const choosing = 'launchAtLogin' in patch;
       const before = settings.get().autoUpdate;
       const next = settings.update(choosing ? { ...patch, launchAtLoginAsked: true } : patch);
+      if (patch.layout?.list) monitor.listChanged(); // FD-123: who is turned off takes effect at once
       if (patch.notifications) schedulePauseEnd(); // U-7: a pause set here also rebuilds the tray when it ends
       if (typeof patch.autoUpdate === 'boolean' && patch.autoUpdate !== before) updater.switched(patch.autoUpdate); // LC-16 auto_update on|off
       // #region estate-update — docs: docs/adr/0018-estate-updates-from-inside-the-app.md#decision

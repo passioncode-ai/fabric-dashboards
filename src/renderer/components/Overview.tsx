@@ -148,6 +148,7 @@ export function Overview({ status, products, open, act, goSpend, agent, visit, o
   const online = shown.filter((p) => categoryOf(p, list?.kinds) === 'online');
   const service = shown.filter((p) => categoryOf(p, list?.kinds) === 'service');
   const hidden = products.filter((p) => hiddenIds.has(p.id));
+  const off = status.off ?? []; // FD-123
 
   const attentionLine = (s: ServiceSnapshot) => {
     // UX-06: a limit that stopped work says so first, in the auditor's words.
@@ -272,12 +273,14 @@ export function Overview({ status, products, open, act, goSpend, agent, visit, o
           </div>
         </section>
       )}
-      {hidden.length > 0 && (
+      {hidden.length + off.length > 0 && (
         <section className="online" aria-labelledby="hidden-title">
           <h2 id="hidden-title"><button className="btn-link fold" aria-expanded={Boolean(list?.hiddenOpen)} onClick={() => onHiddenOpen?.(!list?.hiddenOpen)}>
-            <span aria-hidden="true">{list?.hiddenOpen ? '▾' : '▸'}</span> {t('nav.hidden', { count: hidden.length })}
+            <span aria-hidden="true">{list?.hiddenOpen ? '▾' : '▸'}</span> {t('nav.hidden', { count: hidden.length + off.length })}
           </button></h2>
-          {list?.hiddenOpen && <div className="cards">{hidden.map((p) => <Card key={p.id} p={p} open={open} />)}</div>}
+          {list?.hiddenOpen && hidden.length > 0 && <div className="cards">{hidden.map((p) => <Card key={p.id} p={p} open={open} />)}</div>}
+          {/* FD-123: agents turned off have no state to show; the sidebar's Hidden turns them on. */}
+          {list?.hiddenOpen && off.length > 0 && <p className="muted off-list">{t('overview.offList', { names: off.map((o) => o.name).join(', ') })}</p>}
         </section>
       )}
     </>

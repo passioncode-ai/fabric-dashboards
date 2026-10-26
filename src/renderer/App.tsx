@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { langFor, t as tr, type Lang } from '../core/i18n';
 import { DEFAULT_SETTINGS, SIDEBAR_WIDTH, type AppStatus, type Settings as AppSettings, type SettingsPatch, type ListSort } from '../core/types';
-import { groupProducts, productOf, type Product, arrangeProducts, categoryOf, setKind, toggleHidden, togglePin } from '../core/products';
+import { groupProducts, productOf, type Product, arrangeProducts, categoryOf, setKind, setOff, showAgain, togglePin } from '../core/products';
 import { Activity, type ActivityFilter } from './components/Activity';
 import { SetupCard, Overview } from './components/Overview';
 import { ServiceView } from './components/ServiceView';
@@ -253,7 +253,9 @@ function Shell({ status, route, setRoute, mode, switchMode, stopKey, setStopKey,
   // FD-78: the row's menu: pin, agent or service, hide. A hidden agent is still watched and still alerts.
   const rowMenu: RowActions = {
     pin,
-    hide: (id) => changeLayout({ list: { hidden: toggleHidden(layout.list.hidden, id) } }),
+    hide: (id) => changeLayout({ list: layout.list.hidden.includes(id) ? showAgain(layout.list, id) : { hidden: [...layout.list.hidden, id] } }),
+    // FD-123: off is also hidden; on leaves it hidden and watched until shown again.
+    setOff: (id, off) => { const patch = setOff(layout.list, id, off); if (patch) changeLayout({ list: patch }); },
     kind: (p, kind) => changeLayout({ list: { kinds: setKind(layout.list.kinds, p, kind) } }),
     isPinned: (id) => layout.list.pinned.includes(id),
     isHidden: (id) => layout.list.hidden.includes(id),

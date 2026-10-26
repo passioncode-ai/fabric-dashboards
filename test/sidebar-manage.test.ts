@@ -59,14 +59,14 @@ test('FD-121: settings keep the order and the width; a damaged value reads as us
   assert.deepEqual(merge({ layout: { list: { sort: 'sideways' } } }).layout.list.sort, 'name');
 });
 
-function nav(services: ServiceSnapshot[], listPatch: Partial<ListLayout>, rail = false): string {
+function nav(services: ServiceSnapshot[], listPatch: Partial<ListLayout>, rail = false, off: AppStatus['off'] = []): string {
   const ps = groupProducts(services);
   const layout = { ...DEFAULT_SETTINGS.layout, list: list(listPatch) };
-  const status = { services, unread: 0 } as unknown as AppStatus;
+  const status = { services, off, unread: 0 } as unknown as AppStatus;
   return renderToStaticMarkup(React.createElement(AgentsNav, {
     page: 'overview', status, arranged: arrangeProducts(ps, layout.list), products: ps, currentProduct: undefined, layout, changeLayout: noop,
     open: noop, go: noop, rail, queue: 0, urgent: false, auditErrors: 0, hiddenProblem: false,
-    menu: { pin: noop, hide: noop, kind: noop, isPinned: () => false, isHidden: (id: string) => (listPatch.hidden ?? []).includes(id), isService: () => false },
+    menu: { pin: noop, hide: noop, setOff: noop, kind: noop, isPinned: () => false, isHidden: (id: string) => (listPatch.hidden ?? []).includes(id), isService: () => false },
   }));
 }
 

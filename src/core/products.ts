@@ -108,6 +108,22 @@ export function toggleHidden(hidden: readonly string[], id: string): string[] {
   return hidden.includes(id) ? hidden.filter((x) => x !== id) : [...hidden, id];
 }
 
+// #region agent-off — docs: docs/ux/scenarios.md#scn-072-hide-an-agent-without-stopping-it
+/** FD-123 (SCN-072): turn an agent off (it is hidden too, never probed and never alerting) or back on (it stays hidden
+ *  and watched until shown again). What to store, or null when nothing changes. */
+export function setOff(list: Pick<ListLayout, 'hidden' | 'off'>, id: string, off: boolean): Pick<ListLayout, 'hidden' | 'off'> | null {
+  if (off === list.off.includes(id)) return null;
+  return off
+    ? { off: [...list.off, id], hidden: list.hidden.includes(id) ? [...list.hidden] : [...list.hidden, id] }
+    : { off: list.off.filter((x) => x !== id), hidden: [...list.hidden] };
+}
+
+/** FD-123: show a hidden agent again; one that was off is turned on, since only a hidden agent can be off. */
+export function showAgain(list: Pick<ListLayout, 'hidden' | 'off'>, id: string): Pick<ListLayout, 'hidden' | 'off'> {
+  return { hidden: list.hidden.filter((x) => x !== id), off: list.off.filter((x) => x !== id) };
+}
+// #endregion agent-off
+
 /** FD-78: the kind the person sets; choosing what the app would guess anyway removes the override. */
 export function setKind(kinds: Readonly<Record<string, ProductKind>>, p: Product, kind: ProductKind): Record<string, ProductKind> {
   const next = { ...kinds };

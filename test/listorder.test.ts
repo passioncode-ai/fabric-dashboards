@@ -47,15 +47,15 @@ test('FD-39 SCN-056: pinned agents lead in pin order whatever the sort, leave th
 test('FD-39 SCN-056/057: the pin list and the sort persist, and a damaged one reads as a usable one', () => {
   const dir = tmp('fd-list-');
   const s = new SettingsStore(dir);
-  assert.deepEqual(s.get().layout.list, { sort: 'name', pinned: [], hidden: [], kinds: {}, hiddenOpen: false, order: [] });
+  assert.deepEqual(s.get().layout.list, { sort: 'name', pinned: [], hidden: [], kinds: {}, hiddenOpen: false, order: [], off: [] });
   s.update({ layout: { list: { pinned: ['delta', 'alpha'] } } });
   s.update({ layout: { list: { sort: 'activity' } } });
-  assert.deepEqual(new SettingsStore(dir).get().layout.list, { sort: 'activity', pinned: ['delta', 'alpha'], hidden: [], kinds: {}, hiddenOpen: false, order: [] }, 'one field changes alone, and both survive a restart');
+  assert.deepEqual(new SettingsStore(dir).get().layout.list, { sort: 'activity', pinned: ['delta', 'alpha'], hidden: [], kinds: {}, hiddenOpen: false, order: [], off: [] }, 'one field changes alone, and both survive a restart');
   const file = path.join(dir, 'settings.json');
   const raw = JSON.parse(fs.readFileSync(file, 'utf8'));
   raw.layout.list = { sort: 'random', pinned: ['ok', 'Bad Id', 'ok', 7, '../x'], hidden: ['h', 'H!'], kinds: { a: 'service', b: 'robot', 'C D': 'agent' }, hiddenOpen: 'yes' };
   fs.writeFileSync(file, JSON.stringify(raw));
-  assert.deepEqual(new SettingsStore(dir).get().layout.list, { sort: 'name', pinned: ['ok'], hidden: ['h'], kinds: { a: 'service' }, hiddenOpen: false, order: [] });
+  assert.deepEqual(new SettingsStore(dir).get().layout.list, { sort: 'name', pinned: ['ok'], hidden: ['h'], kinds: { a: 'service' }, hiddenOpen: false, order: [], off: [] });
 });
 
 function online(key: string, name: string, dashboard = true): ServiceSnapshot {
