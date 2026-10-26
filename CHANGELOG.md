@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- **The auditor reads the buttons each agent declares** (FD-110, contract DEC-0121). An agent lists every action its
+  pages let you take and the agent tool that takes the same action. Connections now names a button with no such tool
+  ("The button "Send" has no agent twin"), a wrongly written declaration, and, as worth knowing, an agent that has a
+  dashboard but declares no actions yet, so an agent cannot tell which buttons it may press for you. MCP `audit`
+  answers the same findings.
+
 ## 0.8.3 - 2026-10-26
 
 ### Changed

@@ -13,3 +13,4 @@ export * from './usage';
 export * from './connections';
 export * from './latch';
 export * from './load';
+export * from './actions';

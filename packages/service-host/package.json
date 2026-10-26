@@ -44,6 +44,10 @@
       "types": "./dist/load.d.ts",
       "default": "./dist/load.js"
     },
+    "./actions": {
+      "types": "./dist/actions.d.ts",
+      "default": "./dist/actions.js"
+    },
     "./test-vectors/state-precedence.json": "./test-vectors/state-precedence.json",
     "./package.json": "./package.json"
   },
@@ -63,6 +67,9 @@
       ],
       "load": [
         "dist/load.d.ts"
+      ],
+      "actions": [
+        "dist/actions.d.ts"
       ]
     }
   },

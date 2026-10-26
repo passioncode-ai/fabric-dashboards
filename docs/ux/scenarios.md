@@ -1280,13 +1280,13 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 ### SCN-074: See how agents are wired and what the auditor found
 - **Persona:** P-01
 - **Feature:** connections
-- **Traces:** ST-019 (JTBD-01); FD-81 (operator 2026-10-21); ADR-0023
+- **Traces:** ST-019 (JTBD-01); FD-81 (operator 2026-10-21); ADR-0023; FD-110 (contract DEC-0121, CT-126: `extensions/actions/0.1`, FAC-SEM-142)
 - **Entry point:** sidebar → Connections (its count is what does not work)
 - **Preconditions:** at least one agent
 - **Steps:**
-  1. User opens Connections -> one line: "Does not work: N · Partly working: N · Waits for you: N · Updates: N" (only the ones above zero), or "The auditor found nothing to fix."; below it "Agents that declare their connections: X of Y."
+  1. User opens Connections -> one line: "Does not work: N · Partly working: N · Waits for you: N · Worth knowing: N" (only the ones above zero), or "The auditor found nothing to fix."; below it "Agents that declare their connections: X of Y."
   2. User reads the Map -> each agent a box with its state as a shape and a colour, calls drawn left to right, the worse state of the call and the agent reached on each line; an agent named but not installed is a dashed box "not installed here"; agents with no line are under "Not connected"
-  3. User reads the Auditor -> one row per agent to fix, worst first: its name, its key and each finding in a sentence ("google-ads fails: quota exhausted", "It relies on Relay, which does not answer.", "Version 2.0.0 is available.")
+  3. User reads the Auditor -> one row per agent to fix, worst first: its name, its key and each finding in a sentence ("google-ads fails: quota exhausted", "It relies on Relay, which does not answer.", "Version 2.0.0 is available.", and for the buttons its pages declare (DEC-0121, FD-110): "The button "Send" has no agent twin: its MCP surface does not serve replies.send.", or, worth knowing, "It has a dashboard but declares no actions, so an agent cannot tell which buttons it may press for you.")
   4. User picks the coding agent in "Coding agent" (the one chosen for that agent, Claude Code by default) and presses "Fix with coding agent" -> the agent's page opens with its console, the chosen coding agent starts in the agent's folder with the findings as its task
   5. User clicks an agent's name or box -> its page opens on its Connections tab
 - **Expected result:** every problem in the estate in one place, where each comes from, and one click to hand it to a coding agent
@@ -1295,7 +1295,7 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **States covered:** empty, success, error
 - **Errors & recovery:** an agent's spend report that cannot be read leaves its limits out, never the rest
 - **Status:** validated (test/e2e/connections.test.ts *FD-78* (the map and the auditor, FD-81 steps) passed on the running app, 2026-10-23 00:00 UTC)
-- **Coverage:** src/core/audit.ts, src/core/estate-map.ts, src/renderer/components/ConnectionsMap.tsx, src/core/handoff.ts (auditTask), src/mcp/tools.ts (auditAll, setupCheck), test/audit.test.ts, test/mcp.test.ts *FD-81*, test/e2e/connections.test.ts, test/e2e/focus-console.test.ts *FD-81*
+- **Coverage:** src/core/audit.ts, packages/service-host/src/actions.ts, packages/service-host/test/actions.test.ts, test/audit.test.ts *FD-110*, src/core/estate-map.ts, src/renderer/components/ConnectionsMap.tsx, src/core/handoff.ts (auditTask), src/mcp/tools.ts (auditAll, setupCheck), test/audit.test.ts, test/mcp.test.ts *FD-81*, test/e2e/connections.test.ts, test/e2e/focus-console.test.ts *FD-81*
 - **Product:** unobserved
 
 ### SCN-075: A session stopped on a limit continues by itself

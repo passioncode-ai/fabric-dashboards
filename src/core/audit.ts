@@ -5,6 +5,7 @@
 // its line. Each finding names the agent to fix, so the person can hand it to a coding agent in one click. Pure: the
 // window, the tray and the MCP server read the same findings. Findings are codes with parameters, translated by the
 // reader (never a sentence of the app's own here), and an agent's own words stay as it wrote them.
+import { actionsOf } from '@passioncode-ai/fabric-service-host/actions';
 import { loadOf } from '@passioncode-ai/fabric-service-host/load';
 import { connectionsOf } from '@passioncode-ai/fabric-service-host/connections';
 import type { LimitView } from '@passioncode-ai/fabric-service-host/usage';
@@ -69,6 +70,27 @@ export function audit(all: readonly Seen[], limits: Readonly<Record<string, read
     const load = loadOf(s.wellKnown);
     if (load.reported) {
       add({ id: `${s.key}:load-declaration`, key: s.key, severity: 'warn', kind: 'declaration', reason: { code: 'audit.declaration.loadInvalid', params: { errors: load.errors.slice(0, 3).join('; ') } } });
+    }
+    // FD-110 (DEC-0121, CT-126): the actions a service's pages offer and their agent twins. FAC-SEM-142 on the declaration
+    // (an invalid value, an id twice, a humanStep that disagrees with gate, a tool its MCP surface does not serve); a
+    // service that serves a dashboard and declares none has not adopted the contract's action parity yet.
+    const actions = actionsOf(s.wellKnown);
+    if (actions.reported) {
+      add({ id: `${s.key}:actions-declaration`, key: s.key, severity: 'warn', kind: 'declaration', reason: { code: 'audit.declaration.actionsInvalid', params: { errors: actions.errors.slice(0, 3).join('; ') } } });
+    }
+    if (!actions.reported) for (const f of actions.findings) {
+      const tool = /\/actions\/(\d+)\/tool$/.exec(f.instancePath);
+      const at = /\/actions\/(\d+)\//.exec(f.instancePath);
+      const action = at ? actions.actions[Number(at[1])] : undefined;
+      add({
+        id: `${s.key}:action:${f.instancePath.slice(f.instancePath.indexOf('/actions/') + 1)}`, key: s.key, severity: 'warn', kind: 'declaration',
+        reason: tool && action
+          ? { code: 'audit.action.noTwin', params: { title: action.title, tool: action.tool } }
+          : { code: 'audit.action.invalid', params: { title: action?.title ?? '', text: f.message } },
+      });
+    }
+    if (!actions.declared && !actions.reported && s.wellKnown?.surfaces.dashboard) {
+      add({ id: `${s.key}:actions-not-adopted`, key: s.key, severity: 'info', kind: 'declaration', reason: { code: 'audit.action.notAdopted', params: {} } });
     }
     for (const c of view.connections) {
       const failing = c.state === 'down' || c.state === 'degraded';

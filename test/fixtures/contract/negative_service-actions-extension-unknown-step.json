@@ -1,0 +1,11 @@
+{
+  "actions": [
+    {
+      "id": "pay",
+      "title": "Pay",
+      "tool": "billing.pay",
+      "gate": "human",
+      "humanStep": "captcha"
+    }
+  ]
+}
