@@ -245,7 +245,7 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **Expected result:** the operator knows the restart failed and where to look; nothing keeps spinning
 - **UI elements:** failure message, Logs button, Run self-check button
 - **States covered:** error
-- **Errors & recovery:** launchctl itself refuses -> "launchctl refused: <its message>"
+- **Errors & recovery:** launchctl itself refuses -> "launchctl refused: <its message>. Press Start again; if it refuses again, reinstall the agent." (FD-113 COPY-24)
 - **Status:** validated
 - **Coverage:** src/core/monitor.ts, test/e2e/launchd-control.test.ts
 - **Product:** unobserved
@@ -420,8 +420,8 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **Entry point:** SCN-014 step 2
 - **Preconditions:** the token file cannot be read, the service refuses a login code, or the page does not load
 - **Steps:**
-  1. System fails to get a login code -> the tab shows "Cannot sign in to <Service>: <reason>" (for example "the token file is readable by others; set mode 0600") and the token file path
-- **Alt paths:** the page itself does not load -> "The page of <Service> could not load: <reason>" with Retry and no token path; the reason is the error's name, never the address it loaded (S-3)
+  1. System fails to get a login code -> the tab shows "Cannot sign in to <Service>: <reason>. Press Retry; if it repeats, restart the agent." (for example "the token file is readable by others; set mode 0600") and the token file path
+- **Alt paths:** the page itself does not load -> "The page of <Service> could not load: <reason>. Press Retry; if it repeats, restart the agent." with Retry and no token path; the reason is the error's name, never the address it loaded (S-3)
 - **Expected result:** the reason and the file to fix are named; the app never falls back to a URL carrying a secret
 - **UI elements:** sign-in error panel, path, Retry
 - **States covered:** error
