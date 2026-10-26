@@ -151,10 +151,10 @@ test('DEC-0027: every limit reads in words — stopped work and breaches lead, a
   assert.equal(limitWindow(byId.get('machine.emergency.24h')!, en, (iso) => iso.slice(0, 10)), 'last 24 h');
   assert.equal(limitWindow(byId.get('project.demo.velocity')!, ru, (iso) => iso), 'за последние 15 мин');
   assert.equal(limitWindow(byId.get('pool.trends')!, en, (iso) => iso.slice(0, 10)), 'since 2026-10-01');
-  assert.equal(limitWindow(byId.get('project.demo.per_job')!, en, (iso) => iso), 'one order');
+  assert.equal(limitWindow(byId.get('project.demo.per_job')!, en, (iso) => iso), 'one job');
   assert.equal(limitAmount(byId.get('project.demo.per_job')!, en), 'up to $2.00');
   assert.equal(byId.get('project.demo.per_job')!.state, 'cap', 'a per-order cap is not "spend not counted"');
-  assert.equal(limitWindow(byId.get('machine.rate_card')!, en, (iso) => iso), 'no window', 'an unknown kind without a window is not "one order"');
+  assert.equal(limitWindow(byId.get('machine.rate_card')!, en, (iso) => iso), 'no window', 'an unknown kind without a window is not "one job"');
   assert.equal(limitAmount(byId.get('project.demo.velocity')!, en), '$0.00 · relative');
   assert.equal(limitAmount(byId.get('machine.monthly')!, ru), '$1.59 из $100.00');
   assert.equal(byId.get('project.demo.approval')!.state, 'off');
