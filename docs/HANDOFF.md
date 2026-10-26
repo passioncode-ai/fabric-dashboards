@@ -25,6 +25,16 @@ message `35112a93`); Q-03 is the operator's passkey sign-in, in their queue.
 **Exact next task:** step 2 of the iteration (module dossiers) for 0.9.0, starting with FD-109 (target 2026-10-31) and
 FD-96 (2026-10-31), then FD-110, FD-94 and FD-95 (2026-11-07).
 
+## 0.8.4: start here (2026-10-26)
+
+**Objective:** ship what merged after 0.8.3: FD-94 (the Windows token check through a compiled reader), FD-118 (a
+waiting session says Switchboard 0.6.83's reason), FD-110 complete (the auditor reads declared actions; this app
+declares its own and takes the operator's relayed decision, MD-10), FD-96 (the Windows signing cache), and seven text
+findings of FD-113. **Checks:** each PR's `npm run check` green before its merge; FD-94's rehearsal validate run
+40253470840 green on five checks and four package jobs. **Exact next task:** after the `v0.8.4` release run, confirm
+its Windows jobs signed without the cache error (FD-96's live proof) and that the installed copy updates; then the
+screen-bound work (FD-111, the visual findings of FD-113) and FD-120.
+
 ## Session 2026-10-26: start here
 
 **Objective:** the operator's «чего ждем?»: take every authorized task while the waits run. **Done, each merged to
