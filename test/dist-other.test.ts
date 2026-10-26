@@ -171,6 +171,8 @@ test('FD-37 packages.yml: every system and architecture on its native runner, si
   assert.ok(wf.includes('run: node scripts/nsis-smoke.mjs release/Fabric-Dashboards-*-windows-${{ matrix.arch }}-setup.exe'));
   const nsis = fs.readFileSync(path.join(root, 'scripts/nsis-smoke.mjs'), 'utf8');
   assert.ok(nsis.includes("'Uninstall Fabric Dashboards.exe'"), 'the name uninstallTarget looks for');
+  // FD-95: both failures that name processes left from before name each one's parent and command line.
+  assert.ok(nsis.includes('Get-CimInstance Win32_Process') && nsis.split('described(appPids()').length - 1 === 2, 'survivors are described');
   assert.ok(wf.includes('!release/*.blockmap'), 'electron-updater\'s blockmap is not ours to publish');
   const smoke = fs.readFileSync(path.join(root, 'scripts/deb-smoke.sh'), 'utf8');
   for (const step of ['apt-get install -y -qq "$deb" xvfb xauth', 'app=/opt/fabric-dashboards', "grep 'not found'", 'useradd -m smoke', 'initialize', 'xvfb-run -a /usr/bin/fabric-dashboards', 'started $version', 'apt-get remove -y -qq fabric-dashboards']) assert.ok(smoke.includes(step), step);

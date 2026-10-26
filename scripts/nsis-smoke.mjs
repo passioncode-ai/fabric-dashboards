@@ -58,6 +58,20 @@ const appPids = () => spawnSync('tasklist', ['/FI', 'IMAGENAME eq Fabric Dashboa
   .split('\n').map((l) => /^"[^"]+","(\d+)"/.exec(l.trim())?.[1]).filter(Boolean);
 const stable = async (ms) => { let last = ''; let since = Date.now(); const end = Date.now() + 60_000; while (Date.now() < end) { const now = appPids().sort().join(' '); if (now !== last) { last = now; since = Date.now(); } else if (now && Date.now() - since >= ms) return now.split(' '); await sleep(500); } return appPids(); };
 const stop = (pids) => { for (const pid of pids) spawnSync('taskkill', ['/PID', pid, '/T', '/F'], { windowsHide: true }); };
+// FD-95: a process of the old copy that outlives the update or taskkill is named with its parent and command line, so
+// the failure says whether it is an Electron helper (`--type=`), crashpad or the main process. Only on a failure path:
+// Windows PowerShell takes up to a minute to start on windows-11-arm (FD-94).
+const described = (pids) => {
+  const ids = pids.map(Number).filter((n) => Number.isInteger(n) && n > 0);
+  if (!ids.length) return 'none';
+  const env = { ...process.env }; delete env.PSModulePath; // a Windows PowerShell under pwsh, as windowsPowerShellEnv
+  const filter = ids.map((id) => `ProcessId=${id}`).join(' OR ');
+  const r = spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command',
+    `Get-CimInstance Win32_Process -Filter '${filter}' | ForEach-Object { "$($_.ProcessId) (parent $($_.ParentProcessId)): $($_.CommandLine)" }`],
+  { encoding: 'utf8', timeout: 120_000, windowsHide: true, env });
+  const lines = (r.stdout ?? '').split(/\r?\n/).map((l) => l.trim()).filter(Boolean).map((l) => (l.length > 400 ? `${l.slice(0, 400)}…` : l));
+  return lines.length ? lines.join('; ') : `${ids.join(' ')} (command lines unread: ${String(r.error ?? r.stderr ?? '').trim().slice(0, 200) || 'gone'})`;
+};
 const data = mkdtempSync(path.join(os.tmpdir(), 'fd-nsis-data-'));
 const watched = mkdtempSync(path.join(os.tmpdir(), 'fd-nsis-svc-'));
 const appEnv = { ...process.env, FABRIC_DASHBOARDS_USER_DATA: data, FABRIC_SERVICES_DIR: watched };
@@ -82,7 +96,7 @@ try {
   // windows-11-arm (run 38166001899), whose 7-Zip decoding is slow.
   const anew = await until(() => { const now = appPids(); return now.length > 0 && now.every((pid) => !before.includes(pid)); }, 900_000);
   appPids().forEach((pid) => started.add(pid));
-  requireThat(anew, `after the update the app is not running anew (before: ${before.join(' ')}; now: ${appPids().join(' ') || 'none'})`);
+  requireThat(anew, `after the update the app is not running anew (before: ${before.join(' ')}; now: ${appPids().join(' ') || 'none'}; still running from before: ${described(appPids().filter((pid) => before.includes(pid)))})`);
   requireThat(existsSync(exe) && existsSync(uninstaller), 'the update left no app or no uninstaller in place');
   console.log(`the waiter ran the installer after the app exited; it installed in place and started the app again in ${Math.round((Date.now() - updateStarted) / 1000)} s`);
 } finally {
@@ -90,7 +104,7 @@ try {
   const survivors = await until(() => appPids().every((pid) => !started.has(pid)), 30_000);
   rmSync(data, { recursive: true, force: true });
   rmSync(watched, { recursive: true, force: true });
-  requireThat(survivors, `processes of this run survived taskkill: ${appPids().filter((pid) => started.has(pid)).join(' ')}`);
+  requireThat(survivors, `processes of this run survived taskkill: ${described(appPids().filter((pid) => started.has(pid)))}`);
 }
 
 // The NSIS uninstaller copies itself to %TEMP% and returns at once; the removal finishes after.
