@@ -551,7 +551,7 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **Persona:** P-01
 - **Feature:** estate
 - **Traces:** ST-008, ST-017 (JTBD-01, JRN-01/#6)
-- **Entry point:** app running; Settings → Estate updates
+- **Entry point:** app running; Settings → Fabric contract and skills updates (named "Estate updates" before FD-113 COPY-22)
 - **Preconditions:** "Watch the contract and skill versions" is on (default)
 - **Steps:**
   1. System checks 90 s after start, every 6 hours and 5 s after a settings change: the contract clone named in Settings (the remote's `main` against what the clone has fetched) and the published sshlg-skills version against the installed-version record -> Settings → Estate updates shows the contract state, the clone's own `main`, and which consumer pins (every `fabric-contract.lock.json` beside the clone, Fabric's and Dashboards' fixtures) name an older commit; one retry within the hour after a failure
@@ -560,7 +560,7 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
   4. User turns "Watch the contract and skill versions" off -> nothing runs until it is back on
 - **Expected result:** the operator's estate — the contract and the skill family — stays visible, and only the safe steps ever run by themselves
 - **Alt paths:** no clone named -> the section says so and no git runs (the skills are still checked); the named folder does not exist -> the section says so; it is not a clone of passioncode-ai/fabric-agent-contract -> the section says so, and only `git remote get-url` ran in it; the sshlg-skills family is not installed on this computer -> the section says so and nothing about it is read or asked (FD-34); the installed version is the family runtime's, whoever updated it; a clone path that is not absolute or `~/` -> the field says it was not saved
-- **UI elements:** Settings → Estate updates (watch switch, auto-update skills switch, clone path field, status lines for the contract, the pins and the skills)
+- **UI elements:** Settings → Fabric contract and skills updates (watch switch, auto-update skills switch, the contract's folder field ("Local copy of the contract"), status lines for the contract, the pins and the skills)
 - **States covered:** loading, success, error
 - **Errors & recovery:** a probe fails -> the section shows "could not be checked", `estate_check failed` is logged with one retry within the hour; the publisher check fails -> the apply is refused, `estate_update refused` is logged, nothing runs; an update that fails -> `estate_update failed` and a failed check, retried within the hour; every check and update is logged in `main.log` with the codes `estate_check` / `estate_update`
 - **Status:** validated
