@@ -292,7 +292,13 @@ function Card({ p, open }: { p: Product; open: (key: string) => void }) {
   const uptime = wk ? Date.now() - new Date(wk.process.startedAt).getTime() : null;
   return (
     // U-14: the label a screen reader reads carries what the card says first: name, state, purpose, connections.
-    <button className="card" onClick={() => open(s.key)} aria-label={[t('join.nameState', { name: nameOf(s), state: t(`state.${s.state}`) }), s.descriptor?.summary, ...others.map((m) => `${instanceOf(m.key)}: ${t(`state.${m.state}`)}`)].filter(Boolean).join('. ')}>
+    // VIS-11 (FD-113): and what a sighted person reads next: the tiles flagged for attention and the latest event.
+    <button className="card" onClick={() => open(s.key)} aria-label={[
+      t('join.nameState', { name: nameOf(s), state: t(`state.${s.state}`) }), s.descriptor?.summary,
+      ...others.map((m) => `${instanceOf(m.key)}: ${t(`state.${m.state}`)}`),
+      ...(wk?.summary ?? []).slice(0, 6).filter((tile) => tile.attention).map((tile) => `${tile.label}: ${tile.value}`),
+      s.latestEvent ? `${time(s.latestEvent.at)} ${s.latestEvent.text}` : null,
+    ].filter(Boolean).join('. ')}>
       <div className="card-head">
         <div>
           <h3>{nameOf(s)}</h3>
