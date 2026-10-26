@@ -73,7 +73,7 @@ test('a window with calls and no priced call stays unknown; a window with no cal
   assert.equal(later.month.calls, 19, 'both days are inside the last 30');
 });
 
-test('models are summed over the report, the most expensive first and the unknown last', () => {
+test('models are summed over the last 30 days, the most expensive first and the unknown last', () => {
   const s = summarizeUsage(REPORT(), AT('2026-10-04'));
   assert.deepEqual(s.models.map((m) => m.model), ['claude-sonnet-5-5', 'google/gemini-3-flash', 'llama-4-8b']);
   assert.ok(Math.abs(s.models[0]!.costUsd! - 1.52) < 1e-9);
@@ -210,4 +210,13 @@ test('FD-97 (DEC-0110 usageSpend): a subscription\'s estimate is unknown when no
   }
   const money = summarizeUsage(report([row('subscription', 300, 140.47), row('key', 40, 4.8, 0, 'k'), row('platform-metered', 2, 1, 0, 'pm'), row(undefined, 1, 1, 0, 'u')]), AT('2026-10-22'));
   assert.equal(money.today.costUsd, 6.8, 'money is every row off the subscription');
+});
+
+test('COPY-15 (FD-113): the per-model rows cover the same last 30 UTC days as the month, never the report\'s 31st day', () => {
+  const r = REPORT();
+  const day = r.days[0]!;
+  const old = { ...day, date: '2026-09-04', byModel: [{ ...day.byModel[0]!, model: 'old-model' }] };
+  const s = summarizeUsage({ ...r, days: [old, ...r.days] }, AT('2026-10-04'));
+  assert.ok(!s.models.some((m) => m.model === 'old-model'), 'a model called only 31 days ago is outside the window');
+  assert.equal(s.month.calls, s.models.reduce((n, m) => n + m.calls, 0), 'the rows add up to the month');
 });

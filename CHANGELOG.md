@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+### Fixed
+
+- **Spend used two windows** (FD-113, COPY-15). Overview, Spend and Connections counted 30 days, while an agent's page
+  and the per-model rows summed the whole report, up to 31 days, so the rows could add up to more than the 30-day
+  total. Every spend figure now covers the same last 30 UTC days.
+
 ### Added
 
 - **The auditor reads the buttons each agent declares** (FD-110, contract DEC-0121). An agent lists every action its
