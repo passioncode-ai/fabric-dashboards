@@ -344,3 +344,12 @@ test('FD-103: the machine-wide read runs on its own, and Clear removes every end
   await r.host.clearEnded();
   assert.deepEqual(r.host.sessionsStatus().rows, []);
 });
+
+test('FD-118: a waiting row carries Switchboard\'s reason, so the page says why instead of "No other account has capacity"', () => {
+  const rows = mergeSessions(input({ stops: [
+    { event: 'cc-a-1', session: SID, dir: '/w/a', provider: 'claude', stoppedAt: NOW - MIN, attempt: 1, verdict: 'waiting', candidates: [], probeAt: null, waitReason: 'account_removed' },
+    { event: 'cc-b-1', session: SID2, dir: '/w/b', provider: 'claude', stoppedAt: NOW - MIN, attempt: 1, verdict: 'waiting', candidates: [], probeAt: null },
+  ] }));
+  assert.equal(rows.find((r) => r.folder === '/w/a')!.waitReason, 'account_removed');
+  assert.equal(rows.find((r) => r.folder === '/w/b')!.waitReason, null);
+});

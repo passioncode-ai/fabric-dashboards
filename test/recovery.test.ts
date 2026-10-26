@@ -29,7 +29,7 @@ test('FD-83: the stop list is read strictly — a malformed row is skipped, neve
     row(), row({ session: 'not-a-uuid' }), row({ dir: 'relative/dir', session: '00000000-0000-0000-0000-000000000001' }), row({ provider: 'gemini', session: '00000000-0000-0000-0000-000000000002' }), { stop: null }, 'x',
   ] } }));
   assert.equal(stops?.length, 1);
-  assert.deepEqual(stops![0], { event: `cc-${SID}-1792066929`, session: SID, dir: '/tmp', provider: 'claude', candidates: ['acc-2', 'acc-3'], ready: true, kind: 'limit', state: 'waiting', stoppedAt: NOW - 60_000, attempt: 2, probeAt: null, account: 'acc-1' });
+  assert.deepEqual(stops![0], { event: `cc-${SID}-1792066929`, session: SID, dir: '/tmp', provider: 'claude', candidates: ['acc-2', 'acc-3'], ready: true, kind: 'limit', state: 'waiting', stoppedAt: NOW - 60_000, attempt: 2, probeAt: null, account: 'acc-1', waitReason: null });
   assert.equal(parseRecovery('{"ok":false}'), null);
   assert.equal(parseRecovery('not json'), null);
 });
@@ -335,4 +335,16 @@ test('FD-85: a limit-stop read that failed and then works again is said once eac
   await r.host.pollRecovery();
   assert.equal(r.logs.filter((l) => /limit stops cannot be read \(error\)/.test(l)).length, 1, 'the failure is logged once');
   assert.equal(r.logs.filter((l) => /limit stops can be read again/.test(l)).length, 1, 'the recovery is logged once');
+});
+
+test('FD-118: Switchboard 0.6.83 says why a waiting stop is not ready; an unknown reason is no reason, never a guess', () => {
+  const sessions = [
+    { ...row(), reason: 'no_account', ready: false, candidates: [] },
+    { ...row({ session: '00000000-0000-4000-8000-000000000011' }), reason: 'account_removed' },
+    { ...row({ session: '00000000-0000-4000-8000-000000000012' }), reason: 'billing' },
+    { ...row({ session: '00000000-0000-4000-8000-000000000013' }), reason: 'backoff', probe_at: Math.floor(NOW / 1000) + 300 },
+    { ...row({ session: '00000000-0000-4000-8000-000000000014' }), reason: 'something-new' },
+  ];
+  const stops = parseRecovery(JSON.stringify({ ok: true, data: { sessions } }))!;
+  assert.deepEqual(stops.map((s) => s.waitReason), ['no_account', 'account_removed', 'billing', 'backoff', null]);
 });

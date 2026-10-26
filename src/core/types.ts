@@ -210,7 +210,9 @@ export interface StopView { event: string; session: string; dir: string; provide
   probeAt?: number | null;
   /** V-1 (FIX-2): the label of the account the session stopped on (Switchboard's `account`, named by its label when the
    *  account list has it); null or absent when unknown. */
-  account?: string | null }
+  account?: string | null;
+  /** FD-118: Switchboard's reason a waiting stop is not ready (0.6.83); null or absent when it names none. */
+  waitReason?: 'billing' | 'account_removed' | 'no_account' | 'backoff' | null }
 
 /** What the app knows about sessions stopped on a limit: off, unreadable, or the stops still open. */
 export interface RecoveryStatus {
