@@ -10,6 +10,13 @@
   which no web page can reach. With the app closed they say so and start nothing. Like Start and Stop, they record
   your words as your decision when the agent passes them.
 
+### Changed
+
+- **Setup knows Switchboard 0.7.0's organization steps.** The setup brief a coding agent follows names the steps
+  `switchboard onboard` adds per organization (`org_group`, `seat`, `hook`, `launch`, and an optional `organization`),
+  and that `hook` stays optional: its `next.turn_off` is never a command to run.
+
+
 ## 0.8.6 - 2026-10-26
 
 ### Fixed
