@@ -174,8 +174,10 @@ What the app does and how an agent does the same (FD-81, ADR-0023):
 Tools: `host_status`, `list_services`, `service_status`, `service_context`, `link`, `open`, `control`, `doctor`, `update`,
 `activity`, `spend`, `connections`, `load`, `audit`, `setup_check` (`load` from 0.7.26: how busy one agent is, as its Load tab shows it; `audit` and `setup_check` from 0.7.19: the auditor's findings and map, and Check setup's read-only doctor; `connections` from 0.7.18, what one agent is connected to, as its Connections tab shows it; `spend` from 0.5.6; `service_context` — everything about one service a coding agent needs before working on it, its descriptor without `auth` — from FD-39). A console the app starts for a service already holds that context and this server (ADR-0020). An agent that starts work on a service hands the operator the `open_link` from
 `link` — `fabric-dashboards://service/<id.instance>?path=/…`, which opens that page inside the
-app. Keep `http_url` for diagnostics or confirmed-absent fallback. `open` opens it now;
-`fallback=never` forbids the browser, and installed-host failure never falls back. `spend` gives
+app. Keep `http_url` for diagnostics. `open` opens it now and never opens a browser by default
+(`fallback=never`, FD-109); `fallback=if_absent` allows one only when the app is confirmed absent, and an
+installed-host failure never falls back. A page on an address no descriptor names is refused with the step that
+registers its agent. `spend` gives
 each agent's own usage entries; a service that does not answer is an error entry (unknown spend),
 never "not reporting". `list_services` and `service_status` carry `category` (`local`, `online` or `service`) and `hidden`, as the app lists them (from 0.7.18), and `dashboard_min_width`: the floor a
 service declares for its dashboard (contract DEC-0036 ED-9), `null` when it declares none; the app
@@ -209,7 +211,7 @@ Versions up to and including v0.3.0 were released under PolyForm Noncommercial o
 For a registered dashboard, consumers return `link.open_link` as the primary
 action; `http_url` remains diagnostic data. `host_status` reads installation,
 version and the registered handler without launching anything. `open` accepts
-`fallback=if_absent` (default) or `never`: an installed host failure never opens
+`fallback=never` (default, FD-109) or `if_absent`: an installed host failure never opens
 a browser. Its `accepted_by_os` receipt is not proof of page readiness. See the
 [implementation and checks](docs/runs/2026-10-01-dashboard-links/README.md#host-routing).
 These additions require Fabric Dashboards 0.3.2 or later.

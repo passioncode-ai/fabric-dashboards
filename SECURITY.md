@@ -85,7 +85,7 @@ service data.
   `fabric-dashboards://` handler without launching anything. `open` runs `/usr/bin/open`
   (through `/usr/bin/env -u ELECTRON_RUN_AS_NODE`): the deep link with `-a` and the app that
   query found, or the plain service address in the default browser only when the app is
-  confirmed absent and `fallback` is `if_absent`.
+  confirmed absent and the caller passed `fallback=if_absent` (the default is `never`, FD-109).
 - **Opens** `fabric-dashboards://` links only for an installed service and a path on that
   service's own origin; any other link is refused with the reason and opens nothing
   ([ADR-0004](docs/adr/0004-deep-links-and-mcp.md)). Outside the app it opens only a

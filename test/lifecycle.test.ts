@@ -477,6 +477,40 @@ test('LC-10: after an update replaces the bundle, the old server answers stale a
   assert.ok(exit.at - at <= 1500, `left ${exit.at - at} ms after the stale call`);
 });
 
+test('FD-109 LC-10: with the installed launcher present, the stale server hands the session over and the client keeps working', { skip: process.platform === 'win32' && 'a /bin/sh launcher; the Windows launcher path is unit-tested in test/mcp.test.ts' }, async (t) => {
+  const app = fakeInstall('1.0.0');
+  const bin = path.join(app.contents, 'Resources/bin');
+  fs.mkdirSync(bin, { recursive: true });
+  const launcher = path.join(bin, 'fabric-dashboards-mcp');
+  fs.writeFileSync(launcher, `#!/bin/sh\nexec "${process.execPath}" "${app.server}" "$@"\n`, { mode: 0o755 });
+  const services = tmp('fd-mcp-svc-');
+  const s = speak(app.server, { FABRIC_SERVICES_DIR: services });
+  // A failed assertion must not leave either server running: the file's process would never end.
+  t.after(() => { s.child.kill('SIGKILL'); spawnSync('pkill', ['-KILL', '-f', app.server]); });
+  let stderr = '';
+  s.child.stderr!.on('data', (chunk) => { stderr += String(chunk); });
+  s.send({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'test', version: '1' } } });
+  assert.equal((await s.reply(1)).result!.serverInfo!.version, '1.0.0');
+  s.send({ jsonrpc: '2.0', method: 'notifications/initialized' });
+  app.update('1.1.0');
+  s.send({ jsonrpc: '2.0', id: 2, method: 'tools/call', params: { name: 'list_services', arguments: {} } });
+  const two = (await s.reply(2)).result!;
+  assert.equal(two.isError, undefined, 'answered by the new copy, not stale');
+  for (const end = Date.now() + 5000; !/handing the session to the installed 1\.1\.0/.test(stderr);) { // stderr is its own pipe
+    assert.ok(Date.now() < end, `the hand-over is logged: ${stderr}`);
+    await new Promise((r) => setTimeout(r, 20));
+  }
+  s.send({ jsonrpc: '2.0', id: 3, method: 'tools/call', params: { name: 'list_services', arguments: {} } });
+  assert.equal((await s.reply(3)).result!.isError, undefined, 'and keeps answering');
+  const at = Date.now();
+  s.child.stdin!.end();
+  const exit = await s.exited;
+  assert.equal(exit.code, 0);
+  assert.ok(exit.at - at <= 2500, `left ${exit.at - at} ms after the client`);
+  const left = spawnSync('pgrep', ['-f', app.server], { encoding: 'utf8' }).stdout.trim();
+  assert.equal(left, '', 'the new copy\'s server ended with the session');
+});
+
 test('LC-10: the stale check reads the bundle outside the archive and survives a missing file', () => {
   assert.equal(codeFile('/Applications/Fabric Dashboards.app/Contents/Resources/app.asar/out/main/mcp/server.js'), '/Applications/Fabric Dashboards.app/Contents/Info.plist');
   assert.equal(codeFile('/repo/out/main/mcp/server.js'), '/repo/out/main/mcp/server.js');

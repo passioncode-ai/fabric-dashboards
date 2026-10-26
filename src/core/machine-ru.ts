@@ -113,7 +113,13 @@ const RULES: Rule[] = [
   [/^This operation was aborted$|^The operation was aborted due to timeout$/, () => 'время ожидания истекло'],
   // link refusals (deeplink.ts)
   [/^not a URL$/, () => 'это не адрес'],
+  [/^no installed service on port (\d+)$/, (_, n) => `на порту ${n} нет установленного агента`],
   [/^no installed service (.+)$/, (_, k) => `нет установленного сервиса ${k}`],
+  [/^url must be a local service on http:\/\/127\.0\.0\.1:<port> or an installed online service$/, () => 'адрес должен вести на локальный агент по http://127.0.0.1:<порт> или на установленный онлайн-агент'],
+  [/^none is at (\S+)$/, (_, o) => `по адресу ${o} его нет`],
+  // FD-109: REGISTER_STEP in deeplink.ts
+  [/^to open it here, register its agent with Fabric: put the agent's install file \(fabric-service\/0\.1\) in this computer's services folder, as the building-fabric-services skill describes$/,
+    () => 'чтобы открыть страницу здесь, зарегистрируйте её агента в Fabric: положите файл установки агента (fabric-service/0.1) в папку сервисов этого компьютера, как описывает скил building-fabric-services'],
   [/^path must be a path on the service, starting with one \/$/, () => 'путь должен быть путём на сервисе и начинаться с одного /'],
   [/^not a service key (.+?)(: .*)?$/, (_, k) => `это не ключ сервиса ${k}: id.instance, строчные латинские буквы, цифры и дефисы`],
 ];

@@ -5,9 +5,11 @@
 // It listens on no port: an agent spawns it (docs/adr/0004-deep-links-and-mcp.md, SECURITY.md).
 import fs from 'node:fs';
 import path from 'node:path';
+import type { ChildProcess } from 'node:child_process';
 import readline from 'node:readline';
 import { killOwned } from '../core/children';
 import { removeMcpRegistrations } from '../core/uninstall';
+import { liveHandover, startRelay, type Relay } from './handover';
 import { codeFile, plistVersion, StaleWatch } from './stale';
 import * as tools from './tools';
 
@@ -34,7 +36,9 @@ const INSTRUCTIONS = [
   'http_url is for diagnostics or a confirmed-absent browser fallback. Never hand-build links',
   'or start another server/browser to show a registered dashboard. `host_status` checks this Mac.',
   '`open` uses the installed host; an installed host failure never falls back to the browser.',
-  'Use fallback=never to forbid browser fallback even when absent. accepted_by_os is not page_ready.',
+  'Agent pages open in Fabric Dashboards, never in a browser: `open` refuses with host_not_installed when the',
+  'app is absent unless you pass fallback=if_absent. accepted_by_os is not page_ready. A page no service',
+  'descriptor names is refused with the step that registers it; do not open it in a browser instead.',
   'Links open on the device receiving them; remote chats need an addressed local open action.',
   '`control`, `doctor` and `update` are the operator\'s administration:',
   'say what you are about to do before calling them.',
@@ -71,8 +75,8 @@ export const TOOLS = [
   },
   {
     name: 'open',
-    description: 'Open in the existing Fabric Dashboards host. Browser fallback only for confirmed absence with if_absent; never after an installed host fails. The receipt proves OS dispatch, not page readiness.',
-    inputSchema: { type: 'object', properties: { service: serviceArg, path: pathArg, url: urlArg, fallback: { type: 'string', enum: ['if_absent', 'never'], default: 'if_absent' } }, additionalProperties: false },
+    description: 'Open in the existing Fabric Dashboards host. No browser by default (fallback=never); a browser only for a confirmed absent host when fallback=if_absent is passed, never after an installed host fails. The receipt proves OS dispatch, not page readiness.',
+    inputSchema: { type: 'object', properties: { service: serviceArg, path: pathArg, url: urlArg, fallback: { type: 'string', enum: ['if_absent', 'never'], default: 'never' } }, additionalProperties: false },
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
   },
   {
@@ -270,18 +274,26 @@ export interface ServeOptions {
   watch?: StaleWatch | null;
   /** Exit on SIGTERM / SIGINT (default true for the real process). */
   signals?: boolean;
+  /** FD-109 (4): starts the installed copy's server to take the session when this one is stale; null, or a function
+   *  answering null, when nothing can take it (then the server answers stale and leaves, as before). */
+  handover?: (() => ChildProcess | null) | null;
 }
 
 /**
  * The session loop (lifecycle LC-10). The server leaves with its session: stdin EOF or SIGTERM ends
  * every command it started (their whole process groups) and exits within a second, whatever is in
- * flight — nobody is left to read an answer. It leaves with its code: once an update has replaced
- * the bundle, a call is answered `stale` (both versions, what to do) and the process exits when
- * nothing is in flight; an idle server notices on an unref'd timer.
+ * flight — nobody is left to read an answer. It does not keep running old code: once an update has
+ * replaced the bundle and nothing is in flight, it hands the session to the installed copy's server
+ * (FD-109: same connection, the new version answers) and only passes lines on; where nothing can take
+ * it, a call is answered `stale` (both versions, what to do) and the process exits. An idle server
+ * notices on an unref'd timer.
  */
 export function serve(deps: tools.Deps = tools.liveDeps(), input: NodeJS.ReadableStream = process.stdin, output: NodeJS.WritableStream = process.stdout, options: ServeOptions = {}): void {
   const exit = options.exit ?? ((code: number) => process.exit(code));
   const watch = options.watch === undefined ? liveStaleWatch() : options.watch;
+  const handover = options.handover === undefined ? liveHandover(__filename) : options.handover;
+  let init: unknown = null; // the client's own initialize params, repeated to the server that takes the session
+  let relay: Relay | null = null;
   let inFlight = 0;
   let unflushed = 0; // answers handed to stdout whose write has not completed (pipes are async on macOS)
   let leaving = false;
@@ -306,8 +318,41 @@ export function serve(deps: tools.Deps = tools.liveDeps(), input: NodeJS.Readabl
       else output.write('', done); // the last answer reaches the pipe before the exit
     });
   };
+  const staleAnswer = (id: unknown, s: { running: string; installed: string | null }) => {
+    const details = { stale: true, running_version: s.running, installed_version: s.installed, action: STALE_ACTION };
+    return { jsonrpc: '2.0', id, result: { content: [{ type: 'text', text: JSON.stringify(details, null, 2) }], isError: true, structuredContent: details } };
+  };
+  /** FD-109 (4): give the session to the installed copy's server. False when nothing can take it. */
+  const handOver = (s: { running: string; installed: string | null }): boolean => {
+    if (relay) return true;
+    // Not held for answers still in flight or in the pipe: they reach the same output first, and JSON-RPC matches by id.
+    if (leaving || !handover || init === null) return false;
+    let child: ChildProcess | null;
+    try { child = handover(); } catch { child = null; }
+    if (!child) return false;
+    clearInterval(timer);
+    process.stderr.write(`fabric-dashboards-mcp ${s.running}: handing the session to the installed ${s.installed ?? 'copy'}\n`);
+    relay = startRelay({
+      child, init, output,
+      failed: (why, queued) => {
+        process.stderr.write(`fabric-dashboards-mcp ${s.running}: hand-over failed (${why})\n`);
+        for (const q of queued) {
+          let m: Message | null = null;
+          try { m = JSON.parse(q) as Message; } catch { /* not an answerable call */ }
+          if (m && m.id !== undefined && m.id !== null && m.method !== undefined) write(staleAnswer(m.id, s));
+        }
+        relay = null;
+        leaving = false;
+        leave(`stale, and the hand-over failed: ${why}`);
+      },
+      done: (code) => { void killOwned(300).finally(() => exit(code)); },
+    });
+    return true;
+  };
   const leaveIfStaleAndIdle = () => {
-    if (inFlight === 0 && watch?.check().stale) leave('stale: an update replaced the bundle');
+    if (inFlight !== 0 || relay) return;
+    const s = watch?.check();
+    if (s?.stale && !handOver(s)) leave('stale: an update replaced the bundle');
   };
   const timer = setInterval(leaveIfStaleAndIdle, STALE_CHECK_MS);
   timer.unref?.();
@@ -318,6 +363,7 @@ export function serve(deps: tools.Deps = tools.liveDeps(), input: NodeJS.Readabl
   const rl = readline.createInterface({ input, crlfDelay: Infinity });
   rl.on('line', (line) => {
     if (!line.trim()) return;
+    if (relay) { relay.send(line); return; }
     let message: Message;
     try {
       message = JSON.parse(line) as Message;
@@ -330,26 +376,28 @@ export function serve(deps: tools.Deps = tools.liveDeps(), input: NodeJS.Readabl
     if (message.method === 'tools/call' && message.id !== undefined && message.id !== null && watch) {
       const s = watch.check();
       if (s.stale) {
-        const details = { stale: true, running_version: s.running, installed_version: s.installed, action: STALE_ACTION };
-        write({ jsonrpc: '2.0', id: message.id, result: { content: [{ type: 'text', text: JSON.stringify(details, null, 2) }], isError: true, structuredContent: details } },
-          () => { if (inFlight === 0) leave(`stale: running ${s.running}, installed ${s.installed ?? 'unknown'}`); });
+        if (handOver(s)) { relay!.send(line); return; } // the new version answers this call
+        write(staleAnswer(message.id, s), () => { if (inFlight === 0) leave(`stale: running ${s.running}, installed ${s.installed ?? 'unknown'}`); });
         return;
       }
     }
     if (leaving) return;
+    if (message.method === 'initialize') init = message.params ?? {};
     inFlight += 1;
     void handle(deps, message)
       .then((response) => { if (response) write(response); })
       .catch((error) => { write({ jsonrpc: '2.0', id: message.id ?? null, error: { code: -32603, message: `internal error: ${(error as Error).message}` } }); })
       .finally(() => {
         inFlight -= 1;
-        if (!leaving && inFlight === 0 && message.method === 'tools/call' && watch?.check().stale) leave('stale');
+        if (leaving || relay || inFlight !== 0 || message.method !== 'tools/call') return;
+        const s = watch?.check();
+        if (s?.stale && !handOver(s)) leave('stale');
       });
   });
-  rl.on('close', () => leave('stdin closed'));
+  rl.on('close', () => (relay ? relay.end() : leave('stdin closed')));
   if (options.signals ?? true) {
-    process.once('SIGTERM', () => leave('SIGTERM'));
-    process.once('SIGINT', () => leave('SIGINT'));
+    process.once('SIGTERM', () => (relay ? relay.end() : leave('SIGTERM')));
+    process.once('SIGINT', () => (relay ? relay.end() : leave('SIGINT')));
   }
 }
 
