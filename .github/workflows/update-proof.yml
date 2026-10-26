@@ -20,6 +20,9 @@ on:
         description: "true: the installed copy is THIS ref's code, built unsigned with the `from` version number (proves a fix before its release)"
         type: boolean
         default: false
+      via:
+        description: "FD-114, with build: a release between from and to; a local feed names it, then `to` once it waits ready"
+        default: ""
 
 permissions:
   contents: read
@@ -31,7 +34,7 @@ jobs:
       matrix:
         runner: ${{ fromJSON(inputs.os == 'linux' && '["ubuntu-24.04","ubuntu-24.04-arm"]' || inputs.os == 'windows' && '["windows-latest","windows-11-arm"]' || '["ubuntu-24.04","ubuntu-24.04-arm","windows-latest","windows-11-arm"]') }}
     runs-on: ${{ matrix.runner }}
-    timeout-minutes: 50
+    timeout-minutes: ${{ inputs.via && 95 || 50 }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -49,6 +52,8 @@ jobs:
       - name: Build this ref as the installed copy, numbered as the older release
         if: inputs.build
         shell: bash
+        env:
+          FD_PROOF_FEED: ${{ inputs.via && 'http://127.0.0.1:47391/update-feed.json' || '' }}
         run: |
           npm ci
           npm version "${{ inputs.from }}" --no-git-tag-version --workspaces-update=false --allow-same-version
@@ -57,4 +62,5 @@ jobs:
       - name: The installed copy updates itself
         env:
           GH_TOKEN: ${{ github.token }}
+          FD_PROOF_VIA: ${{ inputs.via }}
         run: node scripts/update-proof.mjs "${{ inputs.from }}" "${{ inputs.to }}"

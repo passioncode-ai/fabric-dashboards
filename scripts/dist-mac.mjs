@@ -27,6 +27,14 @@ import { chmodSync, closeSync, cpSync, existsSync, mkdirSync, mkdtempSync, openS
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+
+// #region proof-feed-build — docs: docs/RUNBOOK.md#update-proof
+// FD-114: update-proof's stand-in for the release feed's `latest` pointer, read by src/electron/updater.ts. Written only
+// by a debug Windows or Linux build with FD_PROOF_FEED (a loopback http URL of an update-feed.json); removed from every
+// other build, so a stale file from an earlier proof build can never reach a release.
+export const PROOF_FEED_FILE = 'proof-feed.json';
+export const PROOF_FEED_URL = /^http:\/\/127\.0\.0\.1:\d{2,5}\/update-feed\.json$/;
+// #endregion proof-feed-build
 import { applyReleaseFuses, verifyReleaseFuses } from './fuses.mjs';
 
 export const BUNDLE_ID = 'ai.passioncode.fabric-dashboards';
@@ -416,6 +424,7 @@ async function stageApp(ctx, identity, notarizedBy) {
   for (const f of [paths.dmg, paths.zip, paths.feed, paths.receipt]) rmSync(f, { force: true });
   mkdirSync(paths.stage, { recursive: true });
   run('npm', ['run', 'build'], { stdio: ['ignore', 'pipe', 'pipe'] });
+  rmSync(path.join(root, 'out', 'main', PROOF_FEED_FILE), { force: true }); // FD-114: a macOS build never carries a proof feed
   const record = {
     product: PRODUCT, version, revision: ctx.revision, electronVersion, architectures: ['arm64', 'x86_64'], builtAt: new Date().toISOString(),
     signing: identity ? identity.name : 'unsigned', notarizedBy: identity ? notarizedBy : 'none', checks: {},

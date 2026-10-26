@@ -22,7 +22,7 @@ import { chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, rea
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { BUNDLE_ID, NATIVE_UNPACK, PRODUCT, stageVerifierModules, stageWorkspacePackages } from './dist-mac.mjs';
+import { BUNDLE_ID, NATIVE_UNPACK, PRODUCT, PROOF_FEED_FILE, PROOF_FEED_URL, stageVerifierModules, stageWorkspacePackages } from './dist-mac.mjs';
 import { fuseProblems, readFuseWires, setFuses, WANTED_FUSES, FUSES } from './fuses.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -287,6 +287,15 @@ async function stageApp(t, version, pkg, allowDirty) {
   mkdirSync(sp.dir, { recursive: true });
   // npm is a .cmd shim on Windows; its arguments have no spaces, so the shell is safe here.
   execFileSync('npm', ['run', 'build'], { cwd: root, stdio: ['ignore', 'inherit', 'inherit'], shell: process.platform === 'win32' });
+  // FD-114: an update-proof build's stand-in for the `latest` pointer; never in a release (a release is never --allow-dirty).
+  const proofFeed = path.join(root, 'out', 'main', PROOF_FEED_FILE);
+  rmSync(proofFeed, { force: true });
+  if (process.env.FD_PROOF_FEED) {
+    requireThat(allowDirty && process.env.FD_WINDOWS_RELEASE !== 'true', 'FD_PROOF_FEED is for an update-proof debug build (--allow-dirty), never a release');
+    requireThat(PROOF_FEED_URL.test(process.env.FD_PROOF_FEED), `FD_PROOF_FEED must be http://127.0.0.1:<port>/update-feed.json, got ${process.env.FD_PROOF_FEED}`);
+    writeFileSync(proofFeed, `${JSON.stringify({ url: process.env.FD_PROOF_FEED })}\n`);
+    console.log(`FD-114: this debug build reads its release pointer from ${process.env.FD_PROOF_FEED}`);
+  }
   const temp = mkdtempSync(path.join(os.tmpdir(), 'fd-dist-'));
   try {
     const stage = path.join(temp, 'app');
