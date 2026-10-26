@@ -551,7 +551,10 @@ test('LC-02: a command past its timeout loses its whole group, and killOwned lea
   const r = await runOwned('/bin/sh', ['-c', `trap '' TERM; sleep 60 & echo $! > '${pidFile}'; wait`], { timeoutMs: 300, killGraceMs: 200 });
   assert.equal(r.timedOut, true);
   const grandchild = Number(fs.readFileSync(pidFile, 'utf8'));
-  await new Promise((resolve) => setTimeout(resolve, 100));
+  // FD-119: a killed process is gone only once it is reaped, which a loaded Mac can delay past 100 ms (load ~100,
+  // 2026-10-26); wait for it with a bounded deadline, as the session tests above do.
+  const alive = () => { try { process.kill(grandchild, 0); return true; } catch { return false; } };
+  for (const gone = Date.now() + 5000; alive() && Date.now() < gone;) await new Promise((resolve) => setTimeout(resolve, 20));
   assert.throws(() => process.kill(grandchild, 0), 'the grandchild went with the group');
   const pending = runOwned('/bin/sleep', ['30'], { timeoutMs: 60_000 });
   await new Promise((resolve) => setTimeout(resolve, 50));
