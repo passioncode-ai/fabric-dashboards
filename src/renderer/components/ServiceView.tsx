@@ -183,7 +183,7 @@ export function ServiceView({ s, all, members, open, link, nonce, tab: askedTab,
       </header>
       <div className="svc-body" role="tabpanel" id={`panel-${tab}`} aria-labelledby={`tab-${tab}`}>
         {tab === 'dashboard' && <DashboardHost s={s} link={link} nonce={nonce} hidden={overlayOpen} applied={appliedLink} act={control} openLogs={tabs.includes('logs') ? () => setTab('logs') : undefined} />}
-        {tab === 'activity' && <div className="pane"><ServiceActivity serviceKey={s.key} tick={`${activityRev ?? ''}|${s.latestEvent?.id ?? ''}`} /></div>}
+        {tab === 'activity' && <div className="pane"><ServiceActivity serviceKey={s.key} tick={`${activityRev ?? ''}|${s.latestEvent?.id ?? ''}`} openAt={(k, l) => open(k, l)} /></div>}
         {tab === 'connections' && <div className="pane"><Connections s={s} all={all} open={(key) => open(key, undefined, 'connections')} /></div>}
         {tab === 'load' && tabs.includes('load') && <div className="pane"><Load s={s} /></div>}
         {tab === 'health' && <div className="pane"><Health s={s} output={output} /></div>}
@@ -412,11 +412,12 @@ function Logs({ serviceKey }: { serviceKey: string }) {
   );
 }
 
-function ServiceActivity({ serviceKey, tick }: { serviceKey: string; tick: string }) {
+function ServiceActivity({ serviceKey, tick, openAt }: { serviceKey: string; tick: string; openAt: (key: string, link?: string) => void }) {
   const [items, setItems] = useState<ActivityItem[] | null>(null);
   // P-7: new rows appear while the tab is open, as on the Activity page.
   useEffect(() => { void api().activity({ serviceKey }).then(setItems); }, [serviceKey, tick]);
-  return <Feed items={items} />;
+  // UX-15 (FD-129): the same rows open as on the Activity page; a row with a link opens that page of the dashboard.
+  return <Feed items={items} openAt={openAt} self={serviceKey} />;
 }
 
 /** The instances of one product (ADR-0012): each opens its own page with its own key, session and

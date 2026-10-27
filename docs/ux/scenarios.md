@@ -443,13 +443,14 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
   1. User opens Activity -> system shows all events newest first, grouped by day: time, service, level marker, the sentence; the app's own events ("Runner stopped answering") included
   2. User filters by service or level (All levels, Notice and above, Warnings and errors, Errors) -> the list narrows immediately; the filter is kept between visits, and new rows — the app's own included — appear while the page is open
   3. User chooses an event with a link -> system opens that service's view at the link (SCN-014)
+  4. User chooses one of the app's own events (stopped answering, restarted, runs twice) -> that agent's page opens; on an agent's own Activity tab its events open the same way, a row with a link at that page of the dashboard (FD-129 UX-15)
 - **Expected result:** everything the agents did is readable in one place and the unread count clears
 - **Alt paths:** no events yet -> "Nothing has happened yet. Events appear here as your services work."; the session ended while the page was open (the service answers 401) -> the app signs in again by itself, once a minute at most, and reopens the same page (ADR-0014)
 - **UI elements:** Activity list, day headers, service and level filters (labelled Service and Level), unread count (notice, warning and error rows since the page was last open; reading marks new rows seen)
 - **States covered:** loading, empty, success
 - **Errors & recovery:** see SCN-018
 - **Status:** validated
-- **Coverage:** src/core/activity.ts, src/renderer/components/Activity.tsx, test/e2e/app.test.ts
+- **Coverage:** src/core/activity.ts, src/renderer/components/Activity.tsx, src/renderer/components/ServiceView.tsx (ServiceActivity), test/activity-feed.test.ts, test/e2e/app.test.ts
 - **Product:** unobserved
 
 ### SCN-018: Activity when a service's feed cannot be read
