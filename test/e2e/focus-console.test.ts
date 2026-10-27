@@ -331,6 +331,32 @@ test('FD-39 SCN-058: a first launch opens the setup beside Overview; the coding 
   }
 });
 
+test('FD-113 UX-13 (SCN-058 alt path): with no coding agent installed the setup card lists each install command with Copy', { timeout: 60_000 }, async () => {
+  const base = tmp('fd-e2e-noruntime-');
+  const services = path.join(base, 'services');
+  const runtimes = path.join(base, 'bin'); // found nothing: no coding agent on this machine
+  const home = path.join(base, 'home');
+  const userData = path.join(base, 'app');
+  for (const d of [services, runtimes, home, userData]) fs.mkdirSync(d, { recursive: true });
+  let app: ElectronApplication | null = null;
+  try {
+    const env = { ...process.env, HOME: home, FABRIC_SERVICES_DIR: services, FABRIC_DASHBOARDS_USER_DATA: userData, FD_TEST_RUNTIME_DIRS: runtimes, LANG: 'en_US.UTF-8' };
+    app = await electron.launch({ args: [ROOT], env });
+    const page = await app.firstWindow();
+    await page.getByRole('heading', { name: 'Set up Fabric with your coding agent' }).waitFor({ timeout: 20_000 });
+    await page.getByText(/No coding agent is installed yet/).waitFor({ timeout: 15_000 });
+    await page.getByText('curl -fsSL https://claude.ai/install.sh | bash').waitFor();
+    await page.getByText('npm install -g @openai/codex').waitFor();
+    assert.equal(await page.getByRole('button', { name: 'Set up with my coding agent' }).count(), 0, 'nothing to start until one is installed');
+    await page.getByRole('button', { name: 'Copy the command that installs Codex' }).click();
+    assert.equal(await app.evaluate(({ clipboard }) => clipboard.readText()), 'npm install -g @openai/codex', 'Copy puts the command on the clipboard');
+    await page.getByRole('button', { name: 'Copy the command that installs Codex' }).getByText('Copied').waitFor();
+    await shot(page, '25a-setup-no-runtime');
+  } finally {
+    await closeApp(app);
+  }
+});
+
 test('FD-39 SCN-059: a later visit opens on what changed, and Continue resumes the agent\'s console with fresh context', { timeout: 120_000 }, async () => {
   const base = tmp('fd-e2e-visit-');
   const services = path.join(base, 'services');
