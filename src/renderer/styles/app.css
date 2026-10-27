@@ -658,3 +658,7 @@ div.session-group-head h2 { margin: 0; }
 .install-runtimes li { flex-wrap: wrap; gap: var(--pc-space-2); }
 .install-runtimes .install-name { min-width: 7em; font-weight: 600; }
 .install-runtimes code { overflow-wrap: anywhere; user-select: all; }
+
+/* VIS-17 (FD-129): the details card's actions in three groups, a quiet rule between them. */
+.card-actions { gap: var(--pc-space-3); align-items: center; }
+.card-actions > [role='group'] + [role='group'] { border-left: 1px solid var(--pc-border); padding-left: var(--pc-space-3); }

@@ -176,24 +176,36 @@ export function ServiceView({ s, all, members, open, link, nonce, tab: askedTab,
                 {!s.lastAction.ok && tabs.includes('logs') && s.descriptor?.paths?.logs?.length ? <button className="btn btn-sm" onClick={() => setTab('logs')}>{t('action.logs')}</button> : null}
               </p>
             )}
-            <div className="row">
-              {managed && (s.state === 'stopped'
-                ? <button className="btn btn-primary" disabled={Boolean(s.busy)} onClick={() => void api().control(s.key, 'start')}>{t('action.start')}</button>
-                : <>
-                    <button className={`btn${s.state === 'down' || s.state === 'duplicate' ? ' btn-primary' : ''}`} disabled={Boolean(s.busy) || s.state === 'invalid' || s.state === 'conflict'} onClick={() => void api().control(s.key, 'restart')}>{t('action.restart')}</button>
-                    <button className="btn" disabled={Boolean(s.busy) || !running && s.state !== 'down'} onClick={() => askStop(s.key)}>{t('action.stop')}</button>
-                  </>)}
-              {wk?.update?.available && s.descriptor?.commands?.update && (
-                <button className="btn" disabled={Boolean(s.busy)} onClick={() => void run('update')}>{t('action.update', { version: wk.update.available })}</button>
+            {/* VIS-17 (FD-129): three groups, one primary per state: run (Start, Restart, Stop), repair (Update, the self-check,
+                the coding agent), and the files as quiet links. */}
+            <div className="row wrap card-actions">
+              {managed && (
+                <div className="row" role="group" aria-label={t('card.group.run')}>
+                  {s.state === 'stopped'
+                    ? <button className="btn btn-primary" disabled={Boolean(s.busy)} onClick={() => void api().control(s.key, 'start')}>{t('action.start')}</button>
+                    : <>
+                        <button className={`btn${s.state === 'down' || s.state === 'duplicate' ? ' btn-primary' : ''}`} disabled={Boolean(s.busy) || s.state === 'invalid' || s.state === 'conflict'} onClick={() => void api().control(s.key, 'restart')}>{t('action.restart')}</button>
+                        <button className="btn" disabled={Boolean(s.busy) || !running && s.state !== 'down'} onClick={() => askStop(s.key)}>{t('action.stop')}</button>
+                      </>}
+                </div>
               )}
-              {s.descriptor?.commands?.doctor && <button className="btn" disabled={Boolean(s.busy)} onClick={() => void run('doctor')}>{t('action.doctor')}</button>}
-              {onAgent && offersFix(s) && <FixButton s={s} onFix={() => onAgent(s.key, { kind: 'fix' })} />}
-              {onAgent && offersAgentUpdate(s, updateFailure !== null) && <button className="btn" onClick={() => onAgent(s.key, { kind: 'update', ...(updateFailure ? { output: updateFailure } : {}) })}>{t('agent.update')}</button>}
-              {s.descriptor?.paths && <button className="btn" onClick={() => show(s.descriptor!.paths!.data)}>{t('action.showData')}</button>}
-              <button className="btn" onClick={() => show(s.descriptorPath)}>{t('action.showFile')}</button>
-              {conflictWith.map((o) => (
-                <button key={o.key} className="btn" onClick={() => show(o.descriptorPath)}>{t('action.showFileOf', { name: nameOf(o) })}</button>
-              ))}
+              {(Boolean(wk?.update?.available && s.descriptor?.commands?.update) || Boolean(s.descriptor?.commands?.doctor) || Boolean(onAgent && (offersFix(s) || offersAgentUpdate(s, updateFailure !== null)))) && (
+                <div className="row" role="group" aria-label={t('card.group.repair')}>
+                  {wk?.update?.available && s.descriptor?.commands?.update && (
+                    <button className={`btn${managed && ['stopped', 'down', 'duplicate'].includes(s.state) ? '' : ' btn-primary'}`} disabled={Boolean(s.busy)} onClick={() => void run('update')}>{t('action.update', { version: wk.update.available })}</button>
+                  )}
+                  {s.descriptor?.commands?.doctor && <button className="btn" disabled={Boolean(s.busy)} onClick={() => void run('doctor')}>{t('action.doctor')}</button>}
+                  {onAgent && offersFix(s) && <FixButton s={s} onFix={() => onAgent(s.key, { kind: 'fix' })} />}
+                  {onAgent && offersAgentUpdate(s, updateFailure !== null) && <button className="btn" onClick={() => onAgent(s.key, { kind: 'update', ...(updateFailure ? { output: updateFailure } : {}) })}>{t('agent.update')}</button>}
+                </div>
+              )}
+              <div className="row" role="group" aria-label={t('card.group.files')}>
+                {s.descriptor?.paths && <button className="btn-link btn" onClick={() => show(s.descriptor!.paths!.data)}>{t('action.showData')}</button>}
+                <button className="btn-link btn" onClick={() => show(s.descriptorPath)}>{t('action.showFile')}</button>
+                {conflictWith.map((o) => (
+                  <button key={o.key} className="btn-link btn" onClick={() => show(o.descriptorPath)}>{t('action.showFileOf', { name: nameOf(o) })}</button>
+                ))}
+              </div>
             </div>
             {pathError && <p className="notice error" role="alert">{pathError}</p>}
           </div>

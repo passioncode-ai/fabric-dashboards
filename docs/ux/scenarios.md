@@ -1001,7 +1001,7 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
   3. User presses "Hide details" -> back to one line; the choice holds for every service and after a relaunch
 - **Expected result:** the embedded dashboard takes the window; everything in the header is one press away
 - **Alt paths:** the service is not ready, or its last action failed within half an hour -> the bar shows one chip with the first reason ("Not answering since 10:42", "Restart did not bring it back"); pressing the chip opens the full card for this visit only, never changing the remembered choice (UX-14); the state's own action sits in the bar after the chip, before "Fix": Restart when it does not answer or runs twice, Start when it is off, "Update to <v>" when an update is available, even with nothing wrong (UX-01, UX-03); an action is running -> its spinner and label ("Restarting…") sit in the bar
-- **UI elements:** compact bar, state badge, problem chip, tabs, "Show details" / "Hide details", full card
+- **UI elements:** compact bar, state badge, problem chip, tabs, "Show details" / "Hide details", full card (its actions in three groups: Start, Restart and Stop; Update, the self-check and the coding agent, with one primary per state; the files as quiet links, FD-129 VIS-17)
 - **States covered:** success, error, loading
 - **Errors & recovery:** every error the full card shows (SCN-007, SCN-008, SCN-011, SCN-012, SCN-013, SCN-021) is reachable from the chip
 - **Status:** validated
