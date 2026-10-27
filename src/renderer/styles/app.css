@@ -99,9 +99,9 @@ a { color: var(--pc-link); text-decoration: underline; }
 .nav-row:hover .nav-item .count, .nav-row:focus-within .nav-item .count, .nav-row.pinned .nav-item .count { margin-right: 28px; }
 .pin-btn:hover { background: var(--pc-panel-raised); color: var(--pc-text); }
 .pin-btn[aria-pressed='true'] { color: var(--pc-link); }
-.nav-section-row { display: flex; align-items: center; justify-content: space-between; gap: var(--pc-space-2); }
+.nav-section-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0 var(--pc-space-2); }
 .nav-section-row > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; flex: 1 0 auto; }
-.sort-select { font: inherit; font-size: var(--pc-type-meta); text-transform: none; letter-spacing: 0; color: var(--pc-text-muted); background: transparent; border: 0; padding: 0; cursor: pointer; flex: 0 1 auto; width: auto; field-sizing: content; max-width: 50%; text-align: right; }
+.sort-select { font: inherit; font-size: var(--pc-type-meta); text-transform: none; letter-spacing: 0; color: var(--pc-text-muted); background: transparent; border: 0; padding: 0; cursor: pointer; flex: 0 1 auto; width: auto; field-sizing: content; max-width: 100%; margin-left: auto; text-align: right; } /* VIS-15: it wraps under the name, never clipped */
 .sort-select:hover, .sort-select:focus-visible { color: var(--pc-text); }
 .sidebar-footer { border-top: 1px solid var(--pc-border); padding-top: var(--pc-space-3); margin-top: var(--pc-space-3); display: flex; flex-direction: column; gap: var(--pc-space-2); }
 .main { min-width: 0; min-height: 0; display: flex; flex-direction: column; }
@@ -112,6 +112,13 @@ h1 { font-size: var(--pc-type-page); line-height: 1.15; margin: 0; font-weight: 
 h1[tabindex="-1"]:focus { outline: none; } /* focus lands here after Stop (T-21); it is a place, not a control */
 h2 { font-size: var(--pc-type-section); margin: 0 0 var(--pc-space-3); font-weight: 600; }
 h3 { font-size: var(--pc-type-card); margin: 0; font-weight: 600; }
+/* VIS-10 (FD-113): two section roles. A section inside a page reads at card size (.pane-title, and the h2 of
+   Attention, Since last visit, Online, Settings groups and Sessions); a group label is meta, muted, uppercase with
+   .04em tracking (the sidebar, Connections columns, the map). A heading inside a notice takes the notice's size. */
+.pane-title { font-size: var(--pc-type-card); margin: 0; font-weight: 600; }
+.notice h2, .notice h3 { margin: 0 0 var(--pc-space-2); font-size: inherit; }
+/* VIS-14 (FD-113): what is available, not broken, reads in the info colour; red is for failures. */
+.note-info { color: var(--pc-info); }
 
 /* state markers: shape + word, never colour alone */
 .state { display: inline-flex; align-items: center; gap: var(--pc-space-1); font-size: var(--pc-type-meta); white-space: nowrap; }
@@ -142,7 +149,7 @@ h3 { font-size: var(--pc-type-card); margin: 0; font-weight: 600; }
 
 /* overview */
 .attention { background: var(--pc-panel); border: 1px solid var(--pc-border); border-radius: var(--pc-radius-panel); margin-bottom: var(--pc-space-4); padding-bottom: var(--pc-space-1); }
-.attention h2 { display: flex; align-items: center; gap: var(--pc-space-2); padding: var(--pc-space-2) var(--pc-space-4); margin: 0; font-size: var(--pc-type-body); font-weight: 600; }
+.attention h2 { display: flex; align-items: center; gap: var(--pc-space-2); padding: var(--pc-space-2) var(--pc-space-4); margin: 0; font-size: var(--pc-type-card); font-weight: 600; }
 .attention h2 .count { font-size: var(--pc-type-meta); color: var(--pc-text-muted); font-weight: 400; }
 .attention ul { list-style: none; margin: 0; padding: 0; }
 /* ADR-0014: one line per row — state, name, the reason cut to the line, the action. */
@@ -197,7 +204,6 @@ h3 { font-size: var(--pc-type-card); margin: 0; font-weight: 600; }
 .notice.error { background: var(--pc-negative-soft); border-color: var(--pc-negative); }
 .notice.warning { background: var(--pc-warning-soft); border-color: var(--pc-warning); }
 .notice.info { background: var(--pc-info-soft); border-color: var(--pc-info); }
-.notice.setup h2 { margin: 0 0 var(--pc-space-2); font-size: inherit; }
 .notice.setup p { margin: 0 0 var(--pc-space-3); }
 
 /* service view */
@@ -377,7 +383,7 @@ table.spend th[scope='row'] { color: var(--pc-text); }
 .checklist li.done > span:first-child { color: var(--pc-link); }
 /* FD-39 SCN-059: what changed since the last visit. */
 .visit { margin: var(--pc-space-4) 0; }
-.visit h2 { font-size: var(--pc-type-body); margin: 0 0 var(--pc-space-2); }
+.visit h2 { font-size: var(--pc-type-card); margin: 0 0 var(--pc-space-2); }
 .visit > .row { align-items: baseline; }
 .visit > .row .spacer { flex: 1; }
 .visit .btn-link { font-size: var(--pc-type-meta); }
@@ -477,7 +483,7 @@ input.switch:focus-visible { outline: 2px solid var(--pc-focus); outline-offset:
 .cmap { display: flex; flex-direction: column; gap: var(--pc-space-2); }
 .cmap-summary { display: flex; flex-wrap: wrap; gap: var(--pc-space-4); margin: 0; font-size: var(--pc-type-body); }
 .cmap-section { margin-top: var(--pc-space-4); }
-.cmap-section h2 { font-size: var(--pc-type-meta); color: var(--pc-text-muted); text-transform: uppercase; letter-spacing: .06em; font-weight: 600; margin: 0 0 var(--pc-space-2); display: flex; gap: var(--pc-space-2); align-items: center; }
+.cmap-section h2 { font-size: var(--pc-type-meta); color: var(--pc-text-muted); text-transform: uppercase; letter-spacing: .04em; font-weight: 600; margin: 0 0 var(--pc-space-2); display: flex; gap: var(--pc-space-2); align-items: center; }
 .cmap-graph { overflow: auto; border: 1px solid var(--pc-border); border-radius: var(--pc-radius-panel); background: var(--pc-panel); padding: var(--pc-space-3); }
 .cmap-graph svg { display: block; }
 .edge { fill: none; stroke-width: 1.5; }
@@ -530,7 +536,6 @@ input.switch:focus-visible { outline: 2px solid var(--pc-focus); outline-offset:
 
 /* #region load-tab — docs: docs/ux/scenarios.md#scn-076-see-how-busy-an-agent-is */
 .load .strip.load-strip { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-.load .notice h2 { margin: 0 0 var(--pc-space-2); font-size: inherit; }
 .load .notice p { margin: 0 0 var(--pc-space-2); }
 .load-errors { margin: 0; padding-left: var(--pc-space-5); }
 .load-errors code { font-size: var(--pc-type-meta); word-break: break-word; }
@@ -637,3 +642,9 @@ div.session-group-head h2 { margin: 0; }
    scheme the strip under the last row stayed dark (seen in docs/reports/2026-10-24-ui-ux-iteration/shots/). The page's
    own background is the terminal's. */
 .console-term .xterm-viewport { background-color: var(--pc-bg) !important; }
+
+/* UX-13 (FD-113): a coding agent's install command on the setup card, copyable, never cut. */
+.install-runtimes ul { list-style: none; margin: var(--pc-space-2) 0; padding: 0; display: grid; gap: var(--pc-space-1); }
+.install-runtimes li { flex-wrap: wrap; gap: var(--pc-space-2); }
+.install-runtimes .install-name { min-width: 7em; font-weight: 600; }
+.install-runtimes code { overflow-wrap: anywhere; user-select: all; }

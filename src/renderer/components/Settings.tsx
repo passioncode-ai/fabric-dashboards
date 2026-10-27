@@ -292,14 +292,14 @@ function EstateState({ status }: { status: AppStatus }) {
     // The clone's own main is reported, never moved: a pull stays the person's choice.
     const local = c.localTip && c.remoteTip && c.localTip !== c.remoteTip ? ` · ${t('estate.contract.localMain', { sha: short(c.localTip) })}` : '';
     if (c.state === 'current') return <span className="meta">{t('estate.contract')}: {t('estate.contract.current', { sha: short(c.remoteTip) })}{fetched}{local}</span>;
-    if (c.state === 'behind') return <span className="meta state-down">{t('estate.contract')}: {t('estate.contract.behind', { local: short(c.knownTip ?? c.localTip), remote: short(c.remoteTip) })}{fetched}</span>;
+    if (c.state === 'behind') return <span className="meta note-info">{t('estate.contract')}: {t('estate.contract.behind', { local: short(c.knownTip ?? c.localTip), remote: short(c.remoteTip) })}{fetched}</span>;
     return <span className="meta state-down">{t('estate.contract')}: {t('estate.contract.unknown')}</span>;
   };
   const skillsLine = () => {
     const s = e.skills;
     if (s.state === 'updating') return <span className="meta">{t('estate.skills')}: {t('estate.skills.updating', { latest: s.latest ?? '?' })}</span>;
     if (s.state === 'current') return <span className="meta">{t('estate.skills')}: {t('estate.skills.current', { version: s.installed ?? '?' })}</span>;
-    if (s.state === 'update-available') return <span className="meta state-down">{t('estate.skills')}: {t('estate.skills.behind', { installed: s.installed ?? '?', latest: s.latest ?? '?' })}</span>;
+    if (s.state === 'update-available') return <span className="meta note-info">{t('estate.skills')}: {t('estate.skills.behind', { installed: s.installed ?? '?', latest: s.latest ?? '?' })}</span>;
     // A failed probe is never shown as the harmless "not tracked yet" (review finding 5, SCN-051).
     if (s.state === 'absent') return <span className="meta">{t('estate.skills')}: {t('estate.skills.absent')}</span>;
     if (s.state === 'error') return <span className="meta state-down">{t('estate.skills')}: {t('estate.skills.error')}</span>;

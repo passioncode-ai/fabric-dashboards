@@ -13,6 +13,8 @@
 - **Turn an agent off** (FD-123). Turn off in an agent's row menu hides it and stops watching it: the app no longer
   checks it or alerts about it, and it waits greyed at the end of the Hidden list. Turn it on there (or show it again)
   and it is checked at once. Agents do the same with `arrange` `turn-off` and `turn-on`.
+- **Install a coding agent from the setup card** (FD-113, UX-13). When no coding agent is installed, the first-run card
+  shows the install command for Claude Code and for Codex with Copy, and offers the setup once the app finds one.
 
 ### Changed
 
@@ -23,6 +25,9 @@
 
 - **An agent's row menu stays inside the window.** With a long agent name, the menu ran off the left edge and cut
   its items short. It now fits the sidebar and wraps a long item onto a second line.
+- **Calmer, more even pages** (FD-113). An available update of the skills or of the contract copy reads in blue, not red
+  like a failure. Section headings have one size across pages, and the sort control moves under its section name instead
+  of cutting its label. "Limit left" replaces "Budget left"; in Russian a few compact labels are shorter.
 
 ## 0.8.8 - 2026-10-27
 

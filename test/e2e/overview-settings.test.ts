@@ -60,6 +60,10 @@ test('SCN-041, SCN-006, SCN-057, SCN-024: the strip, needs attention, the list\'
     const sort = page.getByRole('combobox', { name: 'Sort' });
     await sort.selectOption('status');
     await page.waitForTimeout(300);
+    // VIS-15 (FD-113): the longest label sits whole under the section name, never cut at half the row.
+    const fits = await sort.evaluate((el) => { const r = el.getBoundingClientRect(); const row = el.parentElement!.getBoundingClientRect(); return r.right <= row.right + 1 && r.left >= row.left - 1 && el.scrollWidth <= el.clientWidth + 1; });
+    assert.ok(fits, 'the sort control shows its whole label inside the sidebar');
+    if (process.env.FD_SCREENSHOTS) await page.screenshot({ path: path.join(process.env.FD_SCREENSHOTS, '30-sort-status.png') });
     assert.match((await listed(page))[0] ?? '', /Alpha Silent/, 'the agent that needs attention comes first');
     await sort.selectOption('name');
     await page.waitForTimeout(300);

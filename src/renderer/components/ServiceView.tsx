@@ -330,7 +330,7 @@ function Health({ s, output }: { s: ServiceSnapshot; output: { title: string; te
   return (
     <>
       {s.problems.length > 0 && (
-        <div className="notice error"><h3>{t('health.problems')}</h3><ul>{s.problems.map((p) => <li key={p}>{p}</li>)}</ul></div>
+        <div className="notice error"><h2>{t('health.problems')}</h2><ul>{s.problems.map((p) => <li key={p}>{p}</li>)}</ul></div>
       )}
       {wk && wk.degraded.length === 0 && <p className="state state-ready">{t('health.allClear')}</p>}
       {wk && wk.degraded.length > 0 && <ul>{wk.degraded.map((d) => <li key={d.source}><b>{d.source}</b>: {d.reason}</li>)}</ul>}
@@ -344,7 +344,7 @@ function Health({ s, output }: { s: ServiceSnapshot; output: { title: string; te
       <Profile s={s} />
       {output && (
         <section>
-          <h3 className="row"><span className="row" role="status">{output.running ? <><Spinner /> {t(output.running === 'doctor' ? 'busy.doctor' : 'busy.updating')}</> : output.title}</span></h3>
+          <h2 className="row pane-title"><span className="row" role="status">{output.running ? <><Spinner /> {t(output.running === 'doctor' ? 'busy.doctor' : 'busy.updating')}</> : output.title}</span></h2>
           {output.text && <pre className="log">{output.text}</pre>}
         </section>
       )}
@@ -374,7 +374,7 @@ function Profile({ s }: { s: ServiceSnapshot }) {
   };
   return (
     <section aria-labelledby={`profile-${s.key}`}>
-      <h3 id={`profile-${s.key}`}>{t('profile.title')}</h3>
+      <h2 id={`profile-${s.key}`} className="pane-title">{t('profile.title')}</h2>
       <dl className="kv">
         {c.slots.includes('runner') && <><dt>{t('profile.runner')}</dt><dd>{[r.runnerKind, r.runnerProfile, r.route && t(`profile.route.${r.route}`)].filter(Boolean).join(' · ') || t('word.notStated')}</dd></>}
         {c.slots.includes('model') && <><dt>{t('profile.model')}</dt><dd>{[r.modelProfile, r.models?.join(', ')].filter(Boolean).join(' · ') || t('word.notStated')}</dd></>}

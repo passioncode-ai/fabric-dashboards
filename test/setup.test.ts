@@ -48,3 +48,14 @@ test('FD-39 SCN-058: setup.md orders the steps, marks what is done, keeps human 
   for (const a of [...r.handoff.before, ...r.handoff.after]) assert.ok(a.length <= 1024);
   assert.equal(r.env.FABRIC_DASHBOARDS_SETUP, r.files.setup);
 });
+
+test('UX-13 (SCN-058 alt path): with no coding agent the card offers each vendor\'s own install command, per platform', async () => {
+  const { installCommands } = await import('../src/core/install-commands');
+  const mac = installCommands('mac');
+  assert.deepEqual(mac.map((c) => c.id), ['claude', 'codex']);
+  assert.equal(mac[0]!.command, 'curl -fsSL https://claude.ai/install.sh | bash');
+  assert.equal(installCommands('other')[0]!.command, mac[0]!.command, 'Linux takes the same native installer');
+  assert.equal(installCommands('windows')[0]!.command, 'irm https://claude.ai/install.ps1 | iex', 'Windows takes the PowerShell installer');
+  assert.ok(installCommands('windows').every((c) => c.command.length > 0));
+  assert.equal(mac[1]!.command, 'npm install -g @openai/codex');
+});

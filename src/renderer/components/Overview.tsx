@@ -1,7 +1,9 @@
 import { offersAgentUpdate, offersFix, SETUP_KEY } from '../../core/offers';
 import type { SinceLastVisit } from '../../core/visit';
+import { installCommands } from '../../core/install-commands';
+import { platformOf } from './Sessions';
 import { areasInOrder, attention, type SetupCheckResult } from '../../core/doctor';
-import { Fragment, useEffect, useState, type ReactNode } from 'react';
+import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react';
 import { sumSpend, type SpendEntry } from '../../core/spend';
 import { attentionQueue, foldAttention, groupAttention, urgent } from '../../core/attention';
 import { FixButton } from './ServiceActions';
@@ -19,10 +21,18 @@ export function SetupCard({ onOpen, consoleOpen, onShown }: { onOpen: (mode: 'ne
   const { t } = useT();
   const [settings, setSettings] = useState<Settings | null>(null);
   const [state, setState] = useState<{ mcp: boolean; skills: boolean; firstAgent: boolean } | null>(null);
+  // UX-13 (SCN-058 alt path): which coding agents are installed, read with the checklist; null until known.
+  const [runtimes, setRuntimes] = useState<number | null>(null);
+  const [copied, setCopied] = useState<string | null>(null);
+  const found = useRef(false);
   useEffect(() => { void api().settings().then(setSettings); }, []);
   useEffect(() => {
     if (!settings || settings.setupDone) return undefined;
-    const read = () => void api().setupState().then(setState).catch(() => undefined);
+    const read = () => {
+      void api().setupState().then(setState).catch(() => undefined);
+      // Read only until one is found: the console's own read covers the rest, and Switchboard is not asked every 5 s.
+      if (!found.current) void api().consoleInfo(SETUP_KEY).then((i) => { found.current = i.runtimes.length > 0; setRuntimes(i.runtimes.length); }).catch(() => undefined);
+    };
     read();
     const timer = setInterval(read, 5000);
     return () => clearInterval(timer);
@@ -52,9 +62,25 @@ export function SetupCard({ onOpen, consoleOpen, onShown }: { onOpen: (mode: 'ne
         {item(state.firstAgent, 'setup.agent.firstAgent')}
       </ul>
       {/* FD-74: one row of actions, the start first and Hide last, with Check setup between them. */}
+      {runtimes === 0 && (
+        <div className="install-runtimes">
+          <p>{t('setup.agent.noRuntime')}</p>
+          <ul>
+            {installCommands(platformOf()).map((c) => (
+              <li key={c.id} className="row">
+                <span className="install-name">{c.name}</span>
+                <code className="mono">{c.command}</code>
+                <button className="btn btn-sm" aria-label={t('setup.agent.copyCommand', { name: c.name })}
+                  onClick={() => void api().copyText(c.command).then(() => setCopied(c.id))}>{copied === c.id ? t('view.copied') : t('view.copy')}</button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
       <SetupCheck onRepair={() => onOpen('new')}
-        lead={/* A setup stopped midway (the app quit, the runtime ended) continues where it was; it can also start over. */
-          !done && !consoleOpen && (settings.consoles[SETUP_KEY]?.runtime
+        lead={/* A setup stopped midway (the app quit, the runtime ended) continues where it was; it can also start over.
+                UX-13: with no coding agent installed there is nothing to start; the commands above come first. */
+          !done && !consoleOpen && runtimes !== 0 && (settings.consoles[SETUP_KEY]?.runtime
             ? <><button className="btn btn-primary" onClick={() => onOpen('continue')}>{t('setup.agent.continue')}</button><button className="btn" onClick={() => onOpen('new')}>{t('setup.agent.restart')}</button></>
             : <button className="btn btn-primary" onClick={() => onOpen('new')}>{t('setup.agent.start')}</button>)}
         trail={<button className="btn" onClick={() => void hide()}>{t('setup.agent.hide')}</button>} />
