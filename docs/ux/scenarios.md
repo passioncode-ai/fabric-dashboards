@@ -71,16 +71,16 @@
 | SCN-063 | A session starts only when the Mac can carry it | console | P-01 | ST-019 | validated | 2026-10-13 |
 | SCN-064 | See what Switchboard runs for this agent | console | P-01 | ST-019 | draft | 2026-10-12 |
 | SCN-065 | A provider limit does not stop the agent | console | P-01 | ST-019 | draft | 2026-10-12 |
-| SCN-066 | An idle session closes and comes back | console | P-01 | ST-019, ST-023 | draft | 2026-10-24 |
+| SCN-066 | An idle session closes and comes back | console | P-01 | ST-019, ST-023 | validated | 2026-10-27 |
 | SCN-067 | Dashboards take my scheme and theme | settings | P-01 | ST-019 | validated | 2026-10-13 |
 | SCN-068 | See which runner and model an agent uses | service | P-01 | ST-019 | validated | 2026-10-13 |
-| SCN-069 | A hand-over opens in the console | sessions | P-01 | ST-023, ST-019 | draft | 2026-10-24 |
+| SCN-069 | A hand-over opens in the console | sessions | P-01 | ST-023, ST-019 | validated | 2026-10-27 |
 | SCN-070 | Check what is set up | settings | P-01 | ST-017 | validated | 2026-10-14 |
 | SCN-071 | See agents on this Mac, online and services apart | list | P-01 | ST-021 | validated | 2026-10-23 |
 | SCN-072 | Hide an agent without stopping it | list | P-01 | ST-021 | validated | 2026-10-23 |
 | SCN-073 | See what an agent is connected to | service | P-01 | ST-019 | validated | 2026-10-23 |
 | SCN-074 | See how agents are wired and what the auditor found | connections | P-01 | ST-019 | validated | 2026-10-23 |
-| SCN-075 | A session stopped on a limit continues by itself | sessions | P-01 | ST-023, ST-019 | draft | 2026-10-24 |
+| SCN-075 | A session stopped on a limit continues by itself | sessions | P-01 | ST-023, ST-019 | validated | 2026-10-27 |
 | SCN-076 | See how busy an agent is | service | P-01 | ST-019 | validated | 2026-10-23 |
 | SCN-077 | Switch between Agents and Sessions | navigation | P-01 | ST-023 | validated | 2026-10-27 |
 | SCN-078 | See every coding session in one place | sessions | P-01 | ST-023 | validated | 2026-10-27 |
@@ -92,7 +92,7 @@
 | SCN-084 | An ended session continues or leaves | sessions | P-01 | ST-023 | validated | 2026-10-27 |
 | SCN-085 | A taken hand-over tells me once, and the tray counts sessions | sessions | P-01 | ST-023, ST-007, ST-009 | validated | 2026-10-27 |
 | SCN-086 | Settings → Sessions | settings | P-01 | ST-023, ST-010 | validated | 2026-10-27 |
-| SCN-087 | Arrange the sidebar: width and order | list | P-01 | ST-021, ST-018 | draft | 2026-10-26 |
+| SCN-087 | Arrange the sidebar: width and order | list | P-01 | ST-021, ST-018 | validated | 2026-10-27 |
 ## Personas
 
 Defined in [foundation.md](foundation.md) → P-01.
@@ -1158,8 +1158,8 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **States covered:** success
 - **Errors & recovery:** the continue cannot start (no room, SCN-063) -> that notice instead, and the row keeps both actions
 - **Supersedes:** for a hand-over or a continued session, the dead end of SES-04 (its console was reopened only from the sidebar's Hand-overs section, whose text named a "New session" button that was never drawn there): from 0.8.0 SCN-084 owns its Continue
-- **Status:** draft
-- **Coverage:** the Sessions mode: src/renderer/components/Sessions.tsx (Continue, New session here), test/sessions-ui.test.ts; the agent console's idle close and continue (validated 2026-10-14): src/core/consoles.ts, src/electron/console.ts, src/core/settings.ts, src/renderer/components/ConsolePanel.tsx, test/switchboard-sessions.test.ts
+- **Status:** validated
+- **Coverage:** the Sessions mode: src/renderer/components/Sessions.tsx (Continue, New session here), test/sessions-ui.test.ts; the agent console's idle close and continue (validated 2026-10-14): src/core/consoles.ts, src/electron/console.ts, src/core/settings.ts, src/renderer/components/ConsolePanel.tsx, test/switchboard-sessions.test.ts; the Sessions mode's "Closed at <time> after 30 idle minutes" with Continue and Remove (validated 2026-10-27): test/e2e/sessions.test.ts *SCN-077 to SCN-086*, test/sessions-ui.test.ts *SES-04*
 - **Product:** observed 2026-10-14 on this Mac (installed copy, `main.log`): an agent's console closed after 30 idle minutes at 16:29:29 UTC and, opened again at 16:39:33, continued (`started claude-code (continue) … through Switchboard`); two hand-over consoles closed the same way at 19:59 and 21:00
 
 ### SCN-067: Dashboards take my scheme and theme
@@ -1217,8 +1217,8 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **States covered:** empty, success, error
 - **Errors & recovery:** a hand-over that cannot be read or taken goes to Terminal on Switchboard's side after two minutes; nothing is lost, and the Needs you row says where it went
 - **Supersedes:** step 3's sidebar section "Hand-overs" above the agents and its hand-over page (by SCN-077, SCN-078, SCN-080); step 4's "Ended" glyph and Close in the page body under the drawer (by SCN-084); the console dropping down over the hand-over page (by SCN-080's full-height console); the alt path's silent "nothing is taken" and "logged once" (by SCN-082)
-- **Status:** draft
-- **Coverage:** the Sessions mode: src/renderer/components/Navigation.tsx, src/renderer/components/Sessions.tsx, test/sessions-ui.test.ts, test/handovers.test.ts; the taking of a hand-over (validated 2026-10-14): src/core/switchboard.ts, src/electron/console.ts, src/electron/main.ts, test/handovers.test.ts; live on the installed 0.7.9 (2026-10-14, main.log): `ho-fcdfdee61542` taken in `handover.ho-fcdfdee61542` at 19:28:32Z and `ho-3bec5ef68052` at 20:29:35Z, each once and within the 15 s poll, under Switchboard's 120 s Terminal fallback (workflow `wf_5e78a8c1a8ee6c19`, run by Switchboard's session)
+- **Status:** validated
+- **Coverage:** the Sessions mode: src/renderer/components/Navigation.tsx, src/renderer/components/Sessions.tsx, test/sessions-ui.test.ts, test/handovers.test.ts; the taking of a hand-over (validated 2026-10-14): src/core/switchboard.ts, src/electron/console.ts, src/electron/main.ts, test/handovers.test.ts; live on the installed 0.7.9 (2026-10-14, main.log): `ho-fcdfdee61542` taken in `handover.ho-fcdfdee61542` at 19:28:32Z and `ho-3bec5ef68052` at 20:29:35Z, each once and within the 15 s poll, under Switchboard's 120 s Terminal fallback (workflow `wf_5e78a8c1a8ee6c19`, run by Switchboard's session); the Sessions mode on the running app (validated 2026-10-27): test/e2e/sessions.test.ts *a hand-over taken once* (one `switchboard handovers run <id>`, one notification, a console of its own, End then Continue and Remove)
 - **Product:** unobserved
 
 ### SCN-071: See agents on this Mac, online and services apart
@@ -1318,8 +1318,8 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **States covered:** empty, success, error
 - **Errors & recovery:** a claim Switchboard refuses starts nothing ("Could not be continued here; see the log."); a claimed stop whose console cannot start is recorded `cancelled`; Switchboard not answering says so on All sessions (SCN-078); live processes that cannot be read count as open, never as none
 - **Supersedes:** Connections → "Sessions stopped on a limit" with its Open (step 4 and the section, by SCN-078, SCN-082 and SCN-083); the console "listed under Hand-overs by its folder's name" (by SCN-078 and SCN-080); the Settings group "Sessions stopped on a limit" (by SCN-086)
-- **Status:** draft
-- **Coverage:** the Sessions mode: src/renderer/components/Sessions.tsx, test/sessions-ui.test.ts; the console of its own: src/electron/console.ts (`resume`), test/recovery.test.ts *decision 8 extended*; the automatic continue (validated 2026-10-23): src/core/recovery.ts, src/electron/console.ts (pollRecovery), src/mcp/tools.ts (limitStops), test/recovery.test.ts, test/e2e/connections.test.ts *FD-83*; a stop whose session went on: src/core/recovery.ts (`continuedAfter`, `continuedOf`), test/recovery.test.ts *FIX-5*
+- **Status:** validated
+- **Coverage:** the Sessions mode: src/renderer/components/Sessions.tsx, test/sessions-ui.test.ts; the console of its own: src/electron/console.ts (`resume`), test/recovery.test.ts *decision 8 extended*; the automatic continue (validated 2026-10-23): src/core/recovery.ts, src/electron/console.ts (pollRecovery), src/mcp/tools.ts (limitStops), test/recovery.test.ts, test/e2e/connections.test.ts *FD-83*; a stop whose session went on: src/core/recovery.ts (`continuedAfter`, `continuedOf`), test/recovery.test.ts *FIX-5*; the Sessions mode on the running app (validated 2026-10-27): test/e2e/sessions.test.ts (the waiting stop under "Waiting for a limit reset", Settings → Sessions)
 - **Product:** unobserved
 
 ### SCN-076: See how busy an agent is
@@ -1911,6 +1911,6 @@ The Sessions mode (0.8.0): every coding session apart from the agents, each stat
   - "Your order" / «Свой порядок» (the sort)
   - "{name}: place {n} of {total}" / «{name}: место {n} из {total}» (said after a move)
   - "Show {name} again" / «Показать {name} снова» (the eye on a hidden row)
-- **Status:** draft
-- **Coverage:** src/core/products.ts (moveInSection, arrangeProducts), src/core/settings.ts (sidebarWidth, mergeList), src/renderer/components/Navigation.tsx, src/renderer/App.tsx (SidebarEdge), test/sidebar-manage.test.ts
+- **Status:** validated
+- **Coverage:** src/core/products.ts (moveInSection, arrangeProducts), src/core/settings.ts (sidebarWidth, mergeList), src/renderer/components/Navigation.tsx, src/renderer/App.tsx (SidebarEdge), test/sidebar-manage.test.ts, test/e2e/focus-console.test.ts *FD-121* (validated 2026-10-27: the edge drag saved, double-click and Home back to 240 px, the arrow step)
 - **Product:** unobserved
