@@ -1,13 +1,6 @@
 # Changelog
 
-## 0.8.8 - 2026-10-27
-
-### Added
-
-- **A decision an agent waits for reaches you away from the Mac** (FD-125). When an agent asks for your approval or a
-  decision, the message now also goes to your notification channel (Telegram, for example), once, with the agent's words
-  and a link that opens its page in Fabric Dashboards. The same question is not sent again for a day; quiet hours and a
-  pause hold it until morning instead of dropping it.
+## Unreleased
 
 ### Added
 
@@ -25,6 +18,18 @@
 
 - **An agent's row menu stays inside the window.** With a long agent name, the menu ran off the left edge and cut
   its items short. It now fits the sidebar and wraps a long item onto a second line.
+
+## 0.8.8 - 2026-10-27
+
+### Added
+
+- **A decision an agent waits for reaches you away from the Mac** (FD-125). When an agent asks for your approval or a
+  decision, the message now also goes to your notification channel (Telegram, for example), once, with the agent's words
+  and a link that opens its page in Fabric Dashboards. The same question is not sent again for a day; quiet hours and a
+  pause hold it until morning instead of dropping it.
+
+### Fixed
+
 - **A screen reader names every box on the Connections map** (FD-113 VIS-07). The map was one image, which hid the
   agents inside it; it is now a group of named buttons, and a name cut short on screen is read in full.
 - **A screen reader reads what an agent card shows** (FD-113 VIS-11): after the name and state, the figures flagged
