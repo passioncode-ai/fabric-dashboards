@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+### Added
+
+- The app is driven end to end on Windows and Linux too (FD-128, SCN-052): `test/e2e/desktop-other.test.ts` checks the
+  File menu, the services listed, a dashboard without launchd controls and the window closing into the tray; the
+  nightly `validate.yml` runs it on Windows x64 and arm64 and Linux x64 and arm64 (job `e2e-other`, also on a dispatch
+  with `e2e: true`). The sample service is now fabric-agent-adapter v0.54.0's, which runs on Windows, so the monitor
+  tests no longer skip there.
+
 ### Fixed
 
 - A Dock icon that would not leave after the window hid is asked to leave again on the 15-second visibility pass, at
