@@ -335,7 +335,7 @@ test('service/<id>.<instance> links open the service, a stopped one on its Start
     forward('fabric-dashboards://service/resting.default');
     await page.getByRole('heading', { level: 1, name: 'Resting Service' }).waitFor({ timeout: 20_000 });
     await page.getByRole('button', { name: 'Start', exact: true }).waitFor({ timeout: 20_000 });
-    assert.ok(await page.getByText('Off', { exact: true }).first().isVisible(), 'the stopped service is shown Off');
+    assert.ok(await page.getByText('Stopped', { exact: true }).first().isVisible(), 'the stopped service is shown Stopped');
     await shot(page, '07-service-link-stopped');
 
     const refusals = async (n: number) => {

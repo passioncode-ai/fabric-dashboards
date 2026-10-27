@@ -48,7 +48,7 @@ test('SCN-041, SCN-006, SCN-057, SCN-024: the strip, needs attention, the list\'
 
     // SCN-041: the strip reads the whole estate before any card.
     for (const label of ['Ready', 'Not answering or in conflict', 'Need attention', 'Spent today', 'Spent in 30 days']) {
-      await page.getByText(label, { exact: true }).first().waitFor();
+      await page.locator('.strip').getByText(label).first().waitFor(); // a pressable cell carries a › mark (VIS-12)
     }
 
     // SCN-006: a service that stops answering is listed under Needs attention with its reason.

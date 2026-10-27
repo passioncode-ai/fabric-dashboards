@@ -65,7 +65,8 @@ test('SCN-012, SCN-013, SCN-035, SCN-025: wrong program, a port claimed twice, o
     await page.getByRole('button', { name: /Sample Service: Ready/ }).first().waitFor({ timeout: 30_000 });
     await stopProcess(b);
     await page.locator('[title="A connection of this agent needs attention"], [aria-label*="A connection of this agent needs attention"]').first().waitFor({ timeout: 60_000 });
-    assert.ok(await page.getByRole('button', { name: /Sample Service: Ready/ }).count() > 0, 'the agent itself still reads Ready');
+    // The agent itself still reads Ready; the list re-renders as the mark lands, so wait rather than count at one instant.
+    await page.getByRole('button', { name: /Sample Service: Ready/ }).first().waitFor({ timeout: 10_000 });
     b = serve(pb, db, ['--instance', 'preview']);
 
     // SCN-025: Logs shows the declared file; Doctor runs the declared command and shows its exit and output.
@@ -73,8 +74,8 @@ test('SCN-012, SCN-013, SCN-035, SCN-025: wrong program, a port claimed twice, o
     await page.getByRole('tab', { name: 'Logs' }).click();
     await page.getByText('the sample is fine').first().waitFor({ timeout: 15_000 });
     if (await page.getByRole('button', { name: 'Show details' }).count()) await page.getByRole('button', { name: 'Show details' }).first().click();
-    await page.getByRole('button', { name: 'Doctor', exact: true }).first().click();
-    await page.getByText('Doctor finished with exit code 0.').first().waitFor({ timeout: 30_000 });
+    await page.getByRole('button', { name: 'Run self-check', exact: true }).first().click();
+    await page.getByText('Self-check finished with exit code 0.').first().waitFor({ timeout: 30_000 });
     await page.getByText('doctor says all good').first().waitFor();
   } finally {
     await closeApp(app); await stopProcess(a); await stopProcess(b);

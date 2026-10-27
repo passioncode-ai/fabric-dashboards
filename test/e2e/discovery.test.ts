@@ -34,7 +34,7 @@ test('SCN-002, SCN-003, SCN-004: an empty folder explains itself; installs, remo
     // SCN-002: no service yet — the empty state says what makes one appear, and where.
     await page.getByText('No agents yet').first().waitFor({ timeout: 20_000 });
     await page.getByText('Agents appear here once they are installed.').first().waitFor();
-    await page.getByRole('button', { name: 'Show folder' }).first().waitFor();
+    await page.getByRole('button', { name: 'Show the services folder' }).first().waitFor();
 
     // SCN-003: an installer writes a descriptor — the service appears within seconds, and Activity says so.
     register(port, data, services);
@@ -45,7 +45,7 @@ test('SCN-002, SCN-003, SCN-004: an empty folder explains itself; installs, remo
     // SCN-004: a broken descriptor is shown as Invalid with its first problem, once it stays broken (U-16).
     fs.writeFileSync(path.join(services, 'broken.default.json'), JSON.stringify({ protocol: 'fabric-service/0.1', id: 'broken', instance: 'default', name: 'Broken', origin: 'http://192.168.1.5:80', auth: { tokenFile: '~/t' }, lifecycle: { manager: 'none' }, paths: { data: '~/b', logs: [] }, installedAt: '2026-10-13T00:00:00Z', installedBy: 'test' }));
     await page.getByText('origin must be http://127.0.0.1:<port>').first().waitFor({ timeout: 20_000 });
-    await page.getByText('Invalid').first().waitFor();
+    await page.getByText('Broken install file').first().waitFor();
 
     // SCN-003: the uninstaller removes the descriptor — the service leaves the list, and Activity says so.
     const sample = fs.readdirSync(services).find((n) => n !== 'broken.default.json')!;
