@@ -28,7 +28,7 @@ test('FD-125: an ask is queued once per event, the same question is not repeated
   assert.equal(enqueueAsk(s, id, ask(2_000)), s, 'the same event twice');
   assert.equal(enqueueAsk(s, 'ask:x:2', ask(1_000 + ASK_REPEAT_MS - 1)), s, 'the same question again within a day');
   const due = owedAsks(s, 5_000, words, () => true);
-  assert.deepEqual(due, [{ id, msg: { serviceKey: 'sshlg-growth.default', kind: 'question', eventId: id, subject: 'Growth waits for your decision', text: `A config draft waits for approval.\nOpen: ${LINK}` } }]);
+  assert.deepEqual(due, [{ id, msg: { serviceKey: 'sshlg-growth.default', kind: 'result', eventId: id, subject: 'Growth waits for your decision', text: `A config draft waits for approval.\nOpen: ${LINK}` } }]);
   assert.deepEqual(owedAsks(s, 5_000, words, () => false), [], 'paused, quiet hours or a muted agent: it waits');
   s = askDelivered(s, id);
   assert.deepEqual(owedAsks(s, 5_000, words, () => true), []);
@@ -59,4 +59,15 @@ test('FD-125: the sender delivers an ask through the channel once and keeps it a
   b.ask('sshlg-growth.default', 'evt-1', { name: 'Growth', episode: 'e', at: Date.now(), text: 't', link: null });
   b.stop();
   assert.equal(Object.keys(JSON.parse(fs.readFileSync(path.join(dir, 'outage-alerts.json'), 'utf8')).asks).length, 1, 'read back after a restart, not queued twice');
+});
+
+test('FD-131: an ask goes as a kind the channel takes without a reply binding; the decision is on the agent page it links', () => {
+  // The operator channel refuses `question` without {questionId, revision, expiresAt} and a peer to route the reply to
+  // (question_binding_required): 567 asks were refused that way from 2026-10-27 18:58 UTC (main.log).
+  const id = askIdOf('sshlg-growth.default', 'e1');
+  const [due] = owedAsks(enqueueAsk(emptyOutageState(), id, ask(0)), 1, words, () => true);
+  assert.ok(due, 'the ask is owed');
+  assert.equal(due.msg.kind, 'result');
+  assert.ok(!('question' in due.msg), 'no reply binding is sent');
+  assert.match(due.msg.text, /fabric-dashboards:\/\/service\/sshlg-growth\.default/, 'the link to decide on the agent page');
 });

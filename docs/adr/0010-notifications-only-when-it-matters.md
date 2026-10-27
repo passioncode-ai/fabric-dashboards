@@ -164,3 +164,8 @@ already carry what a host needs (`notify` and the kind), and the ask intent is t
 your decision"; every agent that waits for the operator gets the same treatment without a list to keep. A field that
 marks a decision explicitly belongs to the contract (CT-150, Fabric CO-448), not to one host.
 
+**Correction 2026-10-27 (FD-131).** The message goes as the channel's kind `result`, never `question`: the channel's
+`question` carries a binding (`questionId`, `revision`, `expiresAt`) and a peer it routes the person's reply to
+(the channel's own check of each event), and refuses one without it (`question_binding_required`).
+The decision is taken on the agent's page the message links, so nothing waits for a reply in the channel.
+
