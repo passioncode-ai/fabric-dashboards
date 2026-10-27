@@ -83,6 +83,12 @@ jobs:
       - run: npm ci
       - run: npm run build
       - run: npx install-electron
+      # FD-94, as in `check`: a fresh windows-11-arm runner's first Windows PowerShell takes about a minute, and a
+      # copy run from source reads the token's ACL with it before the dashboard signs in.
+      - name: Warm up Windows PowerShell
+        if: runner.os == 'Windows'
+        shell: cmd
+        run: powershell.exe -NoProfile -NonInteractive -Command "Measure-Command { Get-Acl $env:TEMP | Out-Null } | Select-Object -ExpandProperty TotalSeconds"
       - name: Drive the app (Windows)
         if: runner.os == 'Windows'
         run: node --import tsx --test test/e2e/desktop-other.test.ts

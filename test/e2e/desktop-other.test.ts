@@ -51,7 +51,7 @@ test('SCN-052: a File menu, the services listed, a dashboard without launchd con
     // Step 3: its dashboard opens, and the service is ready; no launchd control is offered on this system.
     await page.getByText('Sample Service').first().click();
     await page.getByRole('heading', { level: 1, name: 'Sample Service' }).waitFor({ timeout: 20_000 });
-    await waitFor('the dashboard view', async () => (await app!.evaluate(({ BrowserWindow }) => (BrowserWindow.getAllWindows()[0]!.contentView as unknown as { children: unknown[] }).children.length)) >= 1, 30_000);
+    await waitFor('the dashboard view', async () => (await app!.evaluate(({ BrowserWindow }) => (BrowserWindow.getAllWindows()[0]!.contentView as unknown as { children: unknown[] }).children.length)) >= 1, 90_000); // the token's ACL is read first (FD-94)
     for (const name of ['Start', 'Stop', 'Restart']) assert.equal(await page.getByRole('button', { name, exact: true }).count(), 0, `no ${name} on ${process.platform}`);
     if (SHOTS) await page.screenshot({ path: path.join(SHOTS, `52-${process.platform}-service.png`) });
 
