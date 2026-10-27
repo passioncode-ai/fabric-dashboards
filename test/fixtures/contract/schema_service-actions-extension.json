@@ -58,7 +58,8 @@
             "payment",
             "secret",
             "spend-above-limit",
-            "passkey"
+            "passkey",
+            "comparison"
           ],
           "description": "Present exactly when gate is human (FAC-SEM-142): the step the tool hands the person with human-step-required."
         }

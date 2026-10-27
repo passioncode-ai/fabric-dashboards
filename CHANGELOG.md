@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- **Reads the contract of 2026-10-27** (FD-126). An agent's declared action may now hand you a comparison to make
+  (`humanStep: comparison`); the app reads it instead of reporting the declaration as broken.
+
 ## 0.8.8 - 2026-10-27
 
 ### Added
