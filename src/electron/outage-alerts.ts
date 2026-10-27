@@ -8,7 +8,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { atomicWrite } from '../core/fsutil';
 import { callCapability } from '../core/mcp-client';
-import { chooseChannel, delivered, emptyOutageState, notifyChannelOf, observe, owed, watchedOf, type AlertMessage, type OutageState, type Words } from '../core/outage-alerts';
+import { askDelivered, askIdOf, chooseChannel, delivered, emptyOutageState, enqueueAsk, notifyChannelOf, observe, owed, owedAsks, watchedOf, type AlertMessage, type Ask, type OutageState, type Words } from '../core/outage-alerts';
 import { authHeaders, readTokenAsync } from '../core/probe';
 import type { AppStatus, ServiceSnapshot, Settings } from '../core/types';
 
@@ -52,7 +52,9 @@ export class OutageAlerts {
       try { text = fs.readFileSync(file, 'utf8'); } catch { continue; }
       try {
         const raw = JSON.parse(text) as Partial<OutageState>;
-        if (typeof raw.baselines === 'object' && raw.baselines && typeof raw.episodes === 'object' && raw.episodes) return { baselines: raw.baselines, episodes: raw.episodes };
+        if (typeof raw.baselines === 'object' && raw.baselines && typeof raw.episodes === 'object' && raw.episodes) {
+          return { baselines: raw.baselines, episodes: raw.episodes, ...(raw.asks && typeof raw.asks === 'object' ? { asks: raw.asks } : {}) };
+        }
         this.o.log(`alerts: ${path.basename(file)} has no episodes; ignored`);
       } catch (error) {
         this.o.log(`alerts: ${path.basename(file)} is damaged (${(error as Error).message}); trying its copy`);
@@ -98,6 +100,16 @@ export class OutageAlerts {
     this.schedule(0);
   }
 
+  // #region operator-asks — docs: docs/adr/0010-notifications-only-when-it-matters.md#amendment-2026-10-27-a-decision-reaches-the-operator-away-from-the-mac-fd-125
+  /** FD-125: an agent waits for the operator's decision (an events-feed row with `notify` whose intent is `ask`):
+   *  queue it for the channel, once per event, and send it now if the person's rules allow. */
+  ask(serviceKey: string, eventId: string, ask: Omit<Ask, 'delivered' | 'serviceKey'>): void {
+    if (this.stopped) return;
+    this.save(enqueueAsk(this.state, askIdOf(serviceKey, eventId), { ...ask, serviceKey }));
+    this.schedule(0);
+  }
+  // #endregion operator-asks
+
   status(): NonNullable<AppStatus['alerts']> {
     const services = this.o.snapshots();
     const chosen = chooseChannel(services, this.o.settings().notifications.channel);
@@ -134,7 +146,12 @@ export class OutageAlerts {
     let more = false;
     try {
       const now = this.now();
-      const due = owed(this.state, now, this.o.words(), (key) => this.o.allowed(key, new Date(now)));
+      const allowed = (key: string) => this.o.allowed(key, new Date(now));
+      // Outages first, in order; then the decisions agents wait for (FD-125), oldest first.
+      const due: { id: string; step: 'failure' | 'recovery' | 'ask'; msg: AlertMessage }[] = [
+        ...owed(this.state, now, this.o.words(), allowed),
+        ...owedAsks(this.state, now, this.o.words(), allowed).map((a) => ({ ...a, step: 'ask' as const })),
+      ];
       const outages = due.filter((d) => (this.retryAt.get(d.msg.eventId) ?? 0) <= now);
       more = due.length > outages.length;
       if (!outages.length) return;
@@ -154,7 +171,7 @@ export class OutageAlerts {
           more = true;
           return;
         }
-        this.save(delivered(this.state, d.id, d.step));
+        this.save(d.step === 'ask' ? askDelivered(this.state, d.id) : delivered(this.state, d.id, d.step));
         this.retryAt.delete(d.msg.eventId);
         this.o.log(`alerts: sent ${d.msg.kind} ${d.msg.eventId} via ${channel.key}`);
         this.last = { at: new Date(this.now()).toISOString(), ok: true, subject: d.msg.subject };
