@@ -57,7 +57,7 @@
 | SCN-049 | Start a runtime in the agent's repository | console | P-01 | ST-019 | validated | 2026-10-06 |
 | SCN-050 | A folder bound to a Switchboard project runs on that project's account | console | P-01 | ST-019 | validated | 2026-10-06 |
 | SCN-051 | The app watches contract and skill versions | estate | P-01 | ST-008, ST-017 | validated | 2026-10-14 |
-| SCN-052 | Fabric Dashboards on Windows or Linux | platform | P-01 | ST-001, ST-008 | draft | 2026-10-24 |
+| SCN-052 | Fabric Dashboards on Windows or Linux | platform | P-01 | ST-001, ST-008 | validated | 2026-10-27 |
 | SCN-053 | The console's agent already knows which agent it works on | console | P-01 | ST-020 | validated | 2026-10-12 |
 | SCN-054 | Fix with coding agent | console | P-01 | ST-020 | validated | 2026-10-12 |
 | SCN-055 | Update with coding agent | console | P-01 | ST-020 | validated | 2026-10-14 |
@@ -1396,8 +1396,8 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **UI elements:** system window frame, File / View / Window / Help menus, tray icon and menu, Settings → Uninstall
 - **States covered:** success, error
 - **Errors & recovery:** a Windows copy with no uninstaller beside it, or a Linux copy that is neither an AppImage nor a package -> "Fabric Dashboards is uninstalled from your settings. To remove the app itself: …" with what to do; updates: a Windows copy installed by the installer and a Linux AppImage update themselves as on macOS, and a .deb or a copy the installer did not set up says where the newer version is (SCN-022, FD-37 M4b and M4c)
-- **Status:** draft
-- **Coverage:** src/core/platform.ts, src/electron/main.ts, src/electron/tray.ts, test/platform.test.ts
+- **Status:** validated
+- **Coverage:** src/core/platform.ts, src/electron/main.ts, src/electron/tray.ts, test/platform.test.ts, test/e2e/desktop-other.test.ts (validated 2026-10-27 on Windows x64 and arm64 and Linux x64 and arm64, validate run 40508339382: steps 1 to 3); step 4 by the package smokes, scripts/nsis-smoke.mjs and scripts/deb-smoke.sh
 - **Product:** unobserved
 
 ### SCN-053: The console's agent already knows which agent it works on

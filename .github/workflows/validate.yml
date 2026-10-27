@@ -16,6 +16,10 @@ on:
         description: 'then build the Windows and Linux packages (packages.yml) — a rehearsal from any branch'
         type: boolean
         default: false
+      e2e:
+        description: 'also drive the real app on Windows and Linux (SCN-052, test/e2e/desktop-other.test.ts)'
+        type: boolean
+        default: false
   workflow_call:
     inputs:
       os:
@@ -56,6 +60,53 @@ jobs:
         shell: cmd
         run: powershell.exe -NoProfile -NonInteractive -Command "Measure-Command { Get-Acl $env:TEMP | Out-Null } | Select-Object -ExpandProperty TotalSeconds"
       - run: npm run check
+
+  # FD-37 (SCN-052): the app itself on Windows and Linux, driven by Playwright as the macOS suite is on a Mac:
+  # nightly and on a dispatch with `e2e: true`. A Linux runner has no display, so the test runs under Xvfb.
+  e2e-other:
+    if: ${{ github.event_name == 'schedule' || inputs.e2e == true }}
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [windows-latest, windows-11-arm, ubuntu-24.04, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        if: runner.os == 'Windows'
+        with:
+          python-version: '3.13'
+      - run: npm ci
+      - run: npm run build
+      - run: npx install-electron
+      # FD-94, as in `check`: a fresh windows-11-arm runner's first Windows PowerShell takes about a minute, and a
+      # copy run from source reads the token's ACL with it before the dashboard signs in.
+      - name: Warm up Windows PowerShell
+        if: runner.os == 'Windows'
+        shell: cmd
+        run: powershell.exe -NoProfile -NonInteractive -Command "Measure-Command { Get-Acl $env:TEMP | Out-Null } | Select-Object -ExpandProperty TotalSeconds"
+      - name: Drive the app (Windows)
+        if: runner.os == 'Windows'
+        run: node --import tsx --test test/e2e/desktop-other.test.ts
+        env:
+          FD_SCREENSHOTS: ${{ runner.temp }}/shots
+      - name: Drive the app (Linux, under Xvfb)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq xvfb
+          xvfb-run -a node --import tsx --test test/e2e/desktop-other.test.ts
+        env:
+          FD_SCREENSHOTS: ${{ runner.temp }}/shots
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: ${{ !cancelled() }}
+        with:
+          name: e2e-other-${{ matrix.runner }}
+          path: ${{ runner.temp }}/shots
+          if-no-files-found: ignore
 
   # FD-37: a dispatched rehearsal of the Windows and Linux packages, from any branch
   # (a workflow dispatched by name must exist on the default branch; one it calls need not).

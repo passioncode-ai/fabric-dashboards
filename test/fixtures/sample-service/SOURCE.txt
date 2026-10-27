@@ -1,1 +1,2 @@
-Copied from passioncode-ai/fabric-agent-adapter@726646da8b8d (tag v0.8.0) plugins/fabric-agent-adapter/skills/building-fabric-services/scripts: fabric_service.py, fabric_interop.py, sample_service.py. Re-copy when the kit changes; never edit here.
+Copied from passioncode-ai/fabric-agent-adapter@5575cc6 (tag v0.54.0) plugins/fabric-agent-adapter/skills/building-fabric-services/scripts: every *.py and *.json there (sample_service.py imports the split kit: fabric_service.py and the fabric_*.py modules it loads). Re-copy when the kit changes; never edit here.
+Before 2026-10-27: tag v0.8.0 (726646da8b8d), fabric_service.py, fabric_interop.py and sample_service.py only, POSIX-only; v0.54.0 runs on Windows too (the adapter's own validate.yml, job windows).

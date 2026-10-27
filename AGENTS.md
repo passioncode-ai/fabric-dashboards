@@ -41,7 +41,7 @@ These come from `CONTRIBUTING.md`:
 The integration test drives the real launchd with the fixed label
 `ai.passioncode.fabric-dashboards.test.sample`. `.github/workflows/validate.yml` runs `npm ci`
 and `npm run check` every night, on manual dispatch and before every release on macOS, Windows x64
-and arm64 and Linux x64 and arm64 (PL-08), with `FD_SKIP_LAUNCHD=1`.
+and arm64 and Linux x64 and arm64 (PL-08), with `FD_SKIP_LAUNCHD=1`. Its job `e2e-other` drives the app itself on Windows x64 and arm64 and Linux x64 and arm64 (SCN-052, `test/e2e/desktop-other.test.ts`, Linux under Xvfb) every night and on a dispatch with `e2e: true`.
 
 ## Where things live
 

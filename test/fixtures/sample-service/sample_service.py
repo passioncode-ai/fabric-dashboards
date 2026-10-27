@@ -9,6 +9,11 @@ once, and `sample.draft` is a job that stops for a titled choice before it compl
 
   sample_service.py serve --port 47190 --data-dir DIR [--id sample] [--instance default]
   sample_service.py register --port 47190 --data-dir DIR [--services-dir DIR]
+
+Opt-in, off by default: `serve --board-project <Project uuid>` also answers that Project's `sample.echo` requests on
+Fabric's project board (fabric-project-comms/0.1, FAA-12b) with fabric_board.Responder, from a board.respond grant whose
+credential is in `<data>/board.credential` (0600; `--board-credential` names another file). The request body is data:
+the gate admits plain text of at most 2,000 characters, and the answer is a reply carrying the same text.
 """
 
 from __future__ import annotations
@@ -21,18 +26,34 @@ import os
 from http.server import BaseHTTPRequestHandler
 from pathlib import Path
 import sys
+import time
 from typing import Any, Dict, Optional
 from urllib.parse import parse_qs, urlparse
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import fabric_service as fs  # noqa: E402
 import fabric_interop as fi  # noqa: E402
+import fabric_board as fbd  # noqa: E402 - the board responder (opt-in)
+import fabric_hub as fhb  # noqa: E402
 
 VERSION = "0.1.0"
+# The dashboard is built from the dashboard kit (fabric-dashboard/0.1, DEC-0036) and declares it
+# in the well-known document only when the kit is there to serve.
+KIT_DIR = Path(__file__).resolve().parent.parent / "assets" / "dashboard-kit"
+KIT_FILES = {"/kit/fabric-dashboard.css": ("fabric-dashboard.css", "text/css; charset=utf-8"),
+             "/kit/fabric-dashboard.js": ("fabric-dashboard.js", "text/javascript; charset=utf-8"),
+             "/kit/fabric-button.js": ("fabric-button.js", "text/javascript; charset=utf-8")}  # DEC-0040, FB-7
 PAGE = """<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1"><title>{name}</title>
-<style>body{{font:15px system-ui;margin:2rem;color:#e9e4ec;background:#0a070d}}li{{margin:.3rem 0}}</style>
-</head><body><h1>{name}</h1><p>Status: {status}</p><ul>{rows}</ul></body></html>"""
+<link rel="stylesheet" href="/kit/fabric-dashboard.css"><script src="/kit/fabric-dashboard.js" defer></script>
+<script src="/kit/fabric-button.js" defer data-service="{agent}" data-service-name="{name}"></script>
+</head><body><div class="fd-chrome"><header class="fd-header"><p class="fd-title">{name}</p>
+<span class="fd-chip fd-s-ok"><span class="fd-dot"></span>Status: {status}</span></header>
+<nav class="fd-nav" aria-label="Sections"><ul class="fd-nav-list"><li><a href="#events" aria-current="page">Events</a></li>
+<li><a href="#about">About</a></li></ul></nav></div>
+<main class="fd-page"><section id="events"><h2>Events</h2><ul>{rows}</ul></section>
+<section id="about"><h2>About</h2><p class="fd-hint">A sample fabric-service/0.1 service built on the kit.</p></section></main>
+</body></html>"""
 
 
 def _schema(name: str, body: Dict[str, Any]) -> Dict[str, Any]:
@@ -64,6 +85,10 @@ class Service:
         self.degraded = [{"source": "demo", "reason": args.degraded}] if args.degraded else []
         self.started_at = fs.now_iso()
         self.build = {"commit": os.environ.get("FABRIC_BUILD_COMMIT", "0000000"), "builtAt": self.started_at}
+        self.board_project = getattr(args, "board_project", None)
+        self.board_capability = getattr(args, "board_capability", None) or "sample.echo"
+        self.board_credential = Path(args.board_credential) if getattr(args, "board_credential", None) else self.data / "board.credential"
+        self.board: Optional[fbd.Responder] = None
         self.drain = fs.Drain()  # LC-01: SIGTERM drains in-flight calls, then the server stops
 
     def start(self) -> None:
@@ -73,13 +98,32 @@ class Service:
         self.log = fs.JsonlEventLog(self.data / "events.jsonl")
         self.usage = fs.JsonlUsageLedger(self.data / "usage.jsonl")  # DEC-0021
         self.usage.prune()
-        self.codes = fs.LoginCodes(self.data / "auth")
+        # DEC-0039: the token= revision ends sessions begun under a token that has since rotated.
+        self.codes = fs.LoginCodes(self.data / "auth", token=self.token)
         self.jobs = fi.JobStore(self.data / "jobs")
         self.mcp = fi.McpToolServer(self.id, VERSION, jobs=self.jobs, on_job_started=self.draft_started, on_input=self.draft_answered)
         for cap in CAPABILITIES:
             handler = self.echo if cap["name"] == "sample.echo" else self.draft
             self.mcp.add_tool(fi.tool_for_capability(cap, cap["input"], cap["output"]), handler)
+        if self.board_project:
+            # After the lock, like every other piece of state: the responder's checkpoint lives in the data directory.
+            self.board = fbd.Responder(hub=fhb.HubClient(), project_id=self.board_project, capabilities=[self.board_capability],
+                                       credential_file=self.board_credential, checkpoint_file=self.data / "board-checkpoint.json",
+                                       handler=self.board_answer, admit=self.board_admit, emit=self.log.append, service=self.id)
         self.log.append("service.started", "info", "%s started on build %s." % (self.name, self.build["commit"]))
+
+    # --- the project board (opt-in): the input gate and the answer -------------------
+    def board_admit(self, request: fbd.BoardRequest) -> Optional[str]:
+        """The service's own input gate: the body is data, never an instruction; only short plain text is echoed."""
+        if request.body_format != "text/plain":
+            return "this service echoes plain text only"
+        if len(request.body or "") > 2000:
+            return "the text is longer than the 2,000 characters this service echoes"
+        return None
+
+    def board_answer(self, request: fbd.BoardRequest, ctx: fbd.WorkContext) -> Dict[str, Any]:
+        # No effect outside the service: no begin_effect, so the outcome needs no observation.
+        return {"state": "completed", "summary": "Echoed the request's text.", "reply": {"text": request.body}}
 
     # --- fabric-interop/0.1: the two capabilities ------------------------------------
     def echo(self, args: Dict[str, Any], ctx: fi.CallContext) -> Dict[str, Any]:
@@ -130,6 +174,9 @@ class Service:
             surfaces={"dashboard": {"path": "/", "login": True}, "events": {"path": "/fabric/v1/events"},
                       "mcp": {"path": "/mcp", "transport": "streamable-http", "capabilities": [c["name"] for c in CAPABILITIES]},
                       "usage": {"path": fs.USAGE_PATH}},
+            extensions=fs.dashboard_extension() if (KIT_DIR / "fabric-dashboard.css").is_file() else None,
+            # DEC-0067: listed only when the board is on — a host pinned before DEC-0067 refuses the member.
+            protocols=["fabric-service/0.1", "fabric-project-comms/0.1"] if self.board is not None else None,
         )
 
 
@@ -148,7 +195,7 @@ def make_handler(svc: Service):
             self.send_response(status)
             self.send_header("Cache-Control", "no-store")
             self.send_header("X-Content-Type-Options", "nosniff")
-            self.send_header("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; frame-ancestors 'self'")
+            self.send_header("Content-Security-Policy", "default-src 'none'; style-src 'self'; script-src 'self'; frame-ancestors 'self'")
             if body is not None:
                 self.send_header("Content-Type", content_type)
                 self.send_header("Content-Length", str(len(payload)))
@@ -203,14 +250,29 @@ def make_handler(svc: Service):
                 if not cookie:
                     return self._send(403, "This sign-in link was already used or has expired.", content_type="text/plain")
                 return self._send(302, None, {"Location": "/", "Set-Cookie": fs.session_cookie_header(cookie)})
+            if url.path in KIT_FILES:
+                name, kind = KIT_FILES[url.path]
+                try:
+                    return self._send(200, (KIT_DIR / name).read_text(encoding="utf-8"), content_type=kind)
+                except OSError:
+                    return self._send(404, {"error": "Not found."})
             if url.path == "/":
                 if not self._session_ok():
                     return self._send(401, "Open this dashboard from Fabric Dashboards.", content_type="text/plain")
-                rows = "".join("<li>%s — %s</li>" % (html.escape(e["at"]), html.escape(e["text"]))
+                rows = "".join("<li>%s: %s</li>" % (html.escape(e["at"]), html.escape(e["text"]))
                                for e in reversed(svc.log.fetch(None, 20)))
-                return self._send(200, PAGE.format(name=html.escape(svc.name), status="ready", rows=rows),
+                return self._send(200, PAGE.format(name=html.escape(svc.name), agent=html.escape("%s.%s" % (svc.id, svc.instance)), status="ready", rows=rows),
                                   content_type="text/html; charset=utf-8")
             self._send(404, {"error": "Not found."})
+
+        def _length(self, cap: int) -> "int | None":
+            """The body's declared length, 0..cap; anything else answers 400 and reads nothing (finding 17)."""
+            raw = (self.headers.get("Content-Length") or "0").strip()
+            if raw.isdigit() and raw.isascii() and int(raw) <= cap:
+                return int(raw)
+            self.close_connection = True  # an unread body must not be taken for the next request
+            self._send(400, {"error": "Content-Length must be a whole number of bytes up to %d." % cap})
+            return None
 
         def do_POST(self) -> None:  # noqa: N802
             if not self._guard():
@@ -219,10 +281,12 @@ def make_handler(svc: Service):
             if url.path == "/mcp":
                 if not self._token_ok():
                     return
-                length = min(int(self.headers.get("Content-Length") or 0), 1048576)
+                length = self._length(1048576)
+                if length is None:
+                    return
                 try:
                     message = json.loads(self.rfile.read(length) or b"null")
-                except ValueError:
+                except (ValueError, RecursionError):
                     return self._send(400, {"jsonrpc": "2.0", "id": None, "error": {"code": -32700, "message": "Parse error."}})
                 try:
                     with svc.drain.work():
@@ -237,16 +301,29 @@ def make_handler(svc: Service):
                 if not self._token_ok():
                     return
                 return self._send(200, svc.codes.issue())
+            if url.path == "/logout":
+                # A browser write: the custom header keeps another site's form from signing the operator out.
+                if self.headers.get("X-Fabric-Request") != "1":
+                    return self._send(403, {"error": "Missing request header."})
+                svc.codes.logout(fs.cookie_value(self.headers.get("Cookie")))
+                return self._send(204, None, {"Set-Cookie": fs.expired_session_cookie_header()})
             if url.path == "/api/emit":
                 if not (self._session_ok() or fs.token_matches(self.headers.get("Authorization"), svc.token)):
                     return self._send(401, {"error": "Sign in first."})
                 if self.headers.get("X-Fabric-Request") != "1":
                     return self._send(403, {"error": "Missing request header."})
-                length = min(int(self.headers.get("Content-Length") or 0), 65536)
-                body = json.loads(self.rfile.read(length) or b"{}")
-                event = svc.log.append(body.get("kind", "demo.note"), body.get("level", "info"),
-                                       body.get("text", "A note from the sample service."),
-                                       notify=bool(body.get("notify")), link=body.get("link"))
+                length = self._length(65536)
+                if length is None:
+                    return
+                try:
+                    body = json.loads(self.rfile.read(length) or b"{}")
+                    if not isinstance(body, dict):
+                        raise ValueError("not an object")
+                    event = svc.log.append(body.get("kind", "demo.note"), body.get("level", "info"),
+                                           body.get("text", "A note from the sample service."),
+                                           notify=bool(body.get("notify")), link=body.get("link"))
+                except (ValueError, RecursionError, fs.ServiceError) as exc:  # finding 17: a 400, never a crash
+                    return self._send(400, {"error": "The note is a JSON object the event log takes: %s" % exc})
                 return self._send(200, event)
             self._send(404, {"error": "Not found."})
 
@@ -264,11 +341,29 @@ def serve(args: argparse.Namespace) -> int:
 
     # Stop taking calls, let in-flight ones finish (8 s at most), then end serve_forever; a
     # hand-over that hangs is cut by the kit's hard exit, inside launchd's ExitTimeOut.
-    svc.drain.install(lambda drained: server.shutdown(),
-                      on_stopping=lambda: svc.log.append("service.stopping", "info", "%s is stopping." % svc.name))
+    import threading
+    board_stop = threading.Event()
+    board_thread = None
+    if svc.board is not None:
+        board_thread = threading.Thread(target=svc.board.run, args=(board_stop, 5.0), name="board-responder", daemon=True)
+        board_thread.start()
+
+    stop_asked: list = []
+
+    def stopping() -> None:
+        stop_asked.append(time.monotonic())
+        board_stop.set()  # stop claiming; the responder drains its request and leaves its board session
+        svc.log.append("service.stopping", "info", "%s is stopping." % svc.name)
+    svc.drain.install(lambda drained: server.shutdown(), on_stopping=stopping)
     try:
         server.serve_forever(poll_interval=0.2)
     finally:
+        board_stop.set()
+        if board_thread is not None:
+            # The responder drains (5 s at most) and leaves its board session, which releases its slots and forgets their
+            # records (FAA-155): joined, so the process does not end before that.
+            # Bounded by the kit's hard exit, 8 + 2 s after the stop was asked: 1.5 s are left for the rest of the stop.
+            board_thread.join(max(0.5, 8.5 - (time.monotonic() - (stop_asked[0] if stop_asked else time.monotonic()))))
         server.server_close()
         svc.lock.release()
     return 0
@@ -323,7 +418,8 @@ def register(args: argparse.Namespace) -> int:
         else {"manager": "none"},
         "paths": {"data": str(data), "logs": []},
         "fabricManifest": str(manifest),
-        "installedAt": fs.now_iso(), "installedBy": "sample_service.py register",
+        # DEC-0061: who installed it, by role and never by name — a person runs this register command.
+        "installedAt": fs.now_iso(), "installedBy": {"by": "person", "role": "operator", "tool": "sample_service.py register %s" % VERSION},
     }
     try:
         path = fs.write_descriptor(descriptor, Path(args.services_dir) if args.services_dir else None)
@@ -334,11 +430,13 @@ def register(args: argparse.Namespace) -> int:
     return 0
 
 
-def main(argv: Optional[list] = None) -> int:
+def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    fs.add_supervisor_argument(parser)  # the marker a supervisor passes (DEC-0057), before or after the command
     sub = parser.add_subparsers(dest="command", required=True)
     for name in ("serve", "register"):
         p = sub.add_parser(name)
+        fs.add_supervisor_argument(p)
         p.add_argument("--port", type=int, required=True)
         p.add_argument("--data-dir", required=True)
         p.add_argument("--token-file")
@@ -347,11 +445,18 @@ def main(argv: Optional[list] = None) -> int:
         p.add_argument("--name", default="Sample Service")
         if name == "serve":
             p.add_argument("--degraded", help="report one degraded source with this reason")
+            p.add_argument("--board-project", help="opt-in: answer this Project's requests on Fabric's project board")
+            p.add_argument("--board-capability", default="sample.echo")
+            p.add_argument("--board-credential", help="the board.respond credential file (0600); default <data>/board.credential")
         else:
             p.add_argument("--services-dir")
             p.add_argument("--label")
             p.add_argument("--plist")
-    args = parser.parse_args(argv)
+    return parser
+
+
+def main(argv: Optional[list] = None) -> int:
+    args = build_parser().parse_args(argv)
     return serve(args) if args.command == "serve" else register(args)
 
 
