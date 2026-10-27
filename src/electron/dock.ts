@@ -28,9 +28,14 @@ export interface DockSyncOptions {
 
 const DEFAULTS: DockSyncOptions = { tries: 25, retryMs: 200, showGuardMs: 1100 };
 
+/** How many later passes a hide that gave up gets before it waits for the next show or hide. */
+export const DOCK_RECHECKS = 3;
+
 export class DockSync {
   private wanted = true;
   private lastShowAt = Number.NEGATIVE_INFINITY;
+  private hiding = false;
+  private rechecks = 0;
   private readonly opts: DockSyncOptions;
 
   constructor(
@@ -48,6 +53,7 @@ export class DockSync {
    */
   async want(visible: boolean): Promise<boolean> {
     this.wanted = visible;
+    this.rechecks = 0;
     const dock = this.dock;
     if (!dock) return true;
     if (!visible) return this.hide(dock);
@@ -60,7 +66,25 @@ export class DockSync {
     return dock.isVisible();
   }
 
+  /**
+   * A hide that gave up left the icon in the Dock while the window stays hidden (seen four times on this Mac,
+   * 2026-10-25 to 27, around an update restart and FD-64's events that never came). The slow visibility tick asks
+   * again, at most DOCK_RECHECKS times until the next show or hide. Only after a hide was wished: a window the
+   * person hid with ⌘H keeps its icon, as before. Null when there is nothing to do; else whether the icon left.
+   */
+  async recheck(): Promise<boolean | null> {
+    const dock = this.dock;
+    if (!dock || this.wanted || this.hiding || this.rechecks >= DOCK_RECHECKS || !dock.isVisible()) return null;
+    this.rechecks += 1;
+    return this.hide(dock);
+  }
+
   private async hide(dock: DockApi): Promise<boolean> {
+    this.hiding = true;
+    try { return await this.hideTries(dock); } finally { this.hiding = false; }
+  }
+
+  private async hideTries(dock: DockApi): Promise<boolean> {
     for (let i = 0; i < this.opts.tries; i += 1) {
       if (this.wanted) return false; // the window came back: a show owns the Dock now
       const sinceShow = this.now() - this.lastShowAt;
