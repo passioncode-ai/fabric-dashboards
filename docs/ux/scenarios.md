@@ -82,16 +82,16 @@
 | SCN-074 | See how agents are wired and what the auditor found | connections | P-01 | ST-019 | validated | 2026-10-23 |
 | SCN-075 | A session stopped on a limit continues by itself | sessions | P-01 | ST-023, ST-019 | draft | 2026-10-24 |
 | SCN-076 | See how busy an agent is | service | P-01 | ST-019 | validated | 2026-10-23 |
-| SCN-077 | Switch between Agents and Sessions | navigation | P-01 | ST-023 | draft | 2026-10-24 |
-| SCN-078 | See every coding session in one place | sessions | P-01 | ST-023 | draft | 2026-10-24 |
-| SCN-079 | The Sessions page explains itself once | sessions | P-01 | ST-023 | draft | 2026-10-24 |
-| SCN-080 | Open one session's page | sessions | P-01 | ST-023, ST-019 | draft | 2026-10-24 |
-| SCN-081 | A running session: end it, or find where it runs | sessions | P-01 | ST-023 | draft | 2026-10-24 |
-| SCN-082 | A session that needs you | sessions | P-01 | ST-023 | draft | 2026-10-24 |
-| SCN-083 | A session waiting for a limit reset | sessions | P-01 | ST-023 | draft | 2026-10-24 |
-| SCN-084 | An ended session continues or leaves | sessions | P-01 | ST-023 | draft | 2026-10-24 |
-| SCN-085 | A taken hand-over tells me once, and the tray counts sessions | sessions | P-01 | ST-023, ST-007, ST-009 | draft | 2026-10-24 |
-| SCN-086 | Settings → Sessions | settings | P-01 | ST-023, ST-010 | draft | 2026-10-24 |
+| SCN-077 | Switch between Agents and Sessions | navigation | P-01 | ST-023 | validated | 2026-10-27 |
+| SCN-078 | See every coding session in one place | sessions | P-01 | ST-023 | validated | 2026-10-27 |
+| SCN-079 | The Sessions page explains itself once | sessions | P-01 | ST-023 | validated | 2026-10-27 |
+| SCN-080 | Open one session's page | sessions | P-01 | ST-023, ST-019 | validated | 2026-10-27 |
+| SCN-081 | A running session: end it, or find where it runs | sessions | P-01 | ST-023 | validated | 2026-10-27 |
+| SCN-082 | A session that needs you | sessions | P-01 | ST-023 | validated | 2026-10-27 |
+| SCN-083 | A session waiting for a limit reset | sessions | P-01 | ST-023 | validated | 2026-10-27 |
+| SCN-084 | An ended session continues or leaves | sessions | P-01 | ST-023 | validated | 2026-10-27 |
+| SCN-085 | A taken hand-over tells me once, and the tray counts sessions | sessions | P-01 | ST-023, ST-007, ST-009 | validated | 2026-10-27 |
+| SCN-086 | Settings → Sessions | settings | P-01 | ST-023, ST-010 | validated | 2026-10-27 |
 | SCN-087 | Arrange the sidebar: width and order | list | P-01 | ST-021, ST-018 | draft | 2026-10-26 |
 ## Personas
 
@@ -1598,8 +1598,8 @@ The Sessions mode (0.8.0): every coding session apart from the agents, each stat
   - "Sessions, need you: {n}" / «Сессии, нужно ваше решение: {n}» (the switch's accessible name with a badge; one name for the needs-you state, orchestrator 2026-10-24)
   - "All sessions" / «Все сессии»
   - "On this Mac" / «На этом Mac» (existing; "On this computer" / «На этом компьютере» elsewhere)
-- **Status:** draft
-- **Coverage:** src/renderer/components/Navigation.tsx (ModeSwitch, AgentsNav, SessionsNav), src/renderer/App.tsx (mode and the page last open in each mode), src/core/settings.ts (`layout.mode`, `layout.sessionId`), src/core/platform.ts (`modeMenuItems`), src/electron/main.ts (View menu); test/navigation.test.ts. Partly: the Sessions mode reopens on its page after a relaunch; the Agents mode remembers its page within a run and reopens on Overview after a relaunch
+- **Status:** validated
+- **Coverage:** src/renderer/components/Navigation.tsx (ModeSwitch, AgentsNav, SessionsNav), src/renderer/App.tsx (mode and the page last open in each mode), src/core/settings.ts (`layout.mode`, `layout.sessionId`), src/core/platform.ts (`modeMenuItems`), src/electron/main.ts (View menu); test/navigation.test.ts. Partly: the Sessions mode reopens on its page after a relaunch; the Agents mode remembers its page within a run and reopens on Overview after a relaunch Validated 2026-10-27 on the running app by test/e2e/sessions.test.ts (both tests green on an unlocked screen).
 - **Product:** unobserved
 
 ### SCN-078: See every coding session in one place
@@ -1636,8 +1636,8 @@ The Sessions mode (0.8.0): every coding session apart from the agents, each stat
   - "Switchboard is not installed, so only sessions started in this app's consoles are listed." / «Switchboard не установлен, поэтому здесь только сессии из консолей этого приложения.»
   - "Switchboard has not answered since {time}, so sessions it runs may be missing." / «Switchboard не отвечает с {time}, поэтому его сессий здесь может не быть.» (FD-107: the time is the first failed read, never called a check)
   - "Sessions started in a terminal without Switchboard are not listed." / «Сессии, запущенные в терминале без Switchboard, здесь не видны.»
-- **Status:** draft
-- **Coverage:** src/core/sessions.ts (S2), src/core/sessions-view.ts (`groupRows`, `secondLine`, `stateWords`), src/renderer/components/Navigation.tsx (SessionsNav), src/renderer/components/Sessions.tsx (AllSessions); test/sessions.test.ts, test/sessions-ui.test.ts, test/sessions-polish.test.ts (FD-107)
+- **Status:** validated
+- **Coverage:** src/core/sessions.ts (S2), src/core/sessions-view.ts (`groupRows`, `secondLine`, `stateWords`), src/renderer/components/Navigation.tsx (SessionsNav), src/renderer/components/Sessions.tsx (AllSessions); test/sessions.test.ts, test/sessions-ui.test.ts, test/sessions-polish.test.ts (FD-107) Validated 2026-10-27 on the running app by test/e2e/sessions.test.ts (both tests green on an unlocked screen).
 - **Product:** unobserved
 
 ### SCN-079: The Sessions page explains itself once
@@ -1661,8 +1661,8 @@ The Sessions mode (0.8.0): every coding session apart from the agents, each stat
   - "Install Fabric Switchboard so that a session that hits a limit continues here." / «Установите Fabric Switchboard, чтобы сессия, упёршаяся в лимит, продолжалась здесь.»
   - "Choose where sessions continue" / «Выбрать, где продолжаются сессии» (COPY-17: "hand-over" is Switchboard's word, orchestrator 2026-10-24)
   - "Got it" / «Понятно» (accessible name "Hide this explanation" / «Скрыть это пояснение»)
-- **Status:** draft
-- **Coverage:** src/renderer/components/Sessions.tsx (AllSessions), src/renderer/App.tsx (`sessionsNoteSeen`, Settings on its Sessions section), src/core/settings.ts; test/sessions-ui.test.ts
+- **Status:** validated
+- **Coverage:** src/renderer/components/Sessions.tsx (AllSessions), src/renderer/App.tsx (`sessionsNoteSeen`, Settings on its Sessions section), src/core/settings.ts; test/sessions-ui.test.ts Validated 2026-10-27 on the running app by test/e2e/sessions.test.ts (both tests green on an unlocked screen).
 - **Product:** unobserved
 
 ### SCN-080: Open one session's page
@@ -1701,8 +1701,8 @@ The Sessions mode (0.8.0): every coding session apart from the agents, each stat
   - "Folder" / «Папка», "Stopped" / «Остановлена» (FD-107)
   - "Type to it in the window Switchboard opened. Remove takes it off this list." / «Пишите ей в окне, которое открыл Switchboard. Кнопка «Убрать» уберёт её из списка.»; when it opened nowhere "Nothing of this session runs in this app. Remove takes it off this list." / «В этом приложении эта сессия не идёт. Кнопка «Убрать» уберёт её из списка.» (FD-107)
   - "No console of this app holds this session, so there is nothing to show here." / «Ни одна консоль этого приложения не держит эту сессию, поэтому показать здесь нечего.» (FD-107)
-- **Status:** draft
-- **Coverage:** src/renderer/components/Sessions.tsx (SessionHeader, SessionBody), src/renderer/App.tsx (sessions-shell region; the console area), src/core/layout.ts (`drawerBoundsFor`), src/electron/drawer.ts (`full`), src/renderer/DrawerApp.tsx, src/renderer/components/ConsolePanel.tsx (page mode; Esc then Tab; the scheme followed live), src/core/sessions-view.ts (`terminalKey`, `resolveSessionRoute`); test/sessions-ui.test.ts, test/sessions-polish.test.ts (FD-107). The e2e of a synthetic hand-over's page is still owed
+- **Status:** validated
+- **Coverage:** src/renderer/components/Sessions.tsx (SessionHeader, SessionBody), src/renderer/App.tsx (sessions-shell region; the console area), src/core/layout.ts (`drawerBoundsFor`), src/electron/drawer.ts (`full`), src/renderer/DrawerApp.tsx, src/renderer/components/ConsolePanel.tsx (page mode; Esc then Tab; the scheme followed live), src/core/sessions-view.ts (`terminalKey`, `resolveSessionRoute`); test/sessions-ui.test.ts, test/sessions-polish.test.ts (FD-107). The e2e of a synthetic hand-over's page is still owed Validated 2026-10-27 on the running app by test/e2e/sessions.test.ts (both tests green on an unlocked screen).
 - **Product:** unobserved
 
 ### SCN-081: A running session: end it, or find where it runs
@@ -1733,8 +1733,8 @@ The Sessions mode (0.8.0): every coding session apart from the agents, each stat
   - "End session" / «Завершить сессию»; "Cancel" / «Отмена»
   - "The session could not be ended: {reason}" / «Не удалось завершить сессию: {reason}»
   - "Could not open {path}: {reason}" / «Не удалось открыть {path}: {reason}»
-- **Status:** draft
-- **Coverage:** src/renderer/components/Sessions.tsx (SessionActions), src/renderer/App.tsx (the End question); test/sessions-ui.test.ts. "Show in Terminal" is not drawn (decision 10)
+- **Status:** validated
+- **Coverage:** src/renderer/components/Sessions.tsx (SessionActions), src/renderer/App.tsx (the End question); test/sessions-ui.test.ts. "Show in Terminal" is not drawn (decision 10) Validated 2026-10-27 on the running app by test/e2e/sessions.test.ts (both tests green on an unlocked screen).
 - **Product:** unobserved
 
 ### SCN-082: A session that needs you
@@ -1766,8 +1766,8 @@ The Sessions mode (0.8.0): every coding session apart from the agents, each stat
   - "The session could not start here; see the log." / «Сессия не смогла запуститься здесь, подробности в журнале.» (a hand-over whose console did not start)
   - "Stopped on a payment limit: a top-up is needed." / «Остановлена денежным лимитом: нужно пополнение.» (existing)
   - "Remove" / «Убрать»
-- **Status:** draft
-- **Coverage:** src/core/sessions.ts (S2), src/core/sessions-view.ts (`stateWords`), src/renderer/components/Sessions.tsx; test/sessions.test.ts, test/sessions-ui.test.ts, test/sessions-needs-you.test.ts (FD-108)
+- **Status:** validated
+- **Coverage:** src/core/sessions.ts (S2), src/core/sessions-view.ts (`stateWords`), src/renderer/components/Sessions.tsx; test/sessions.test.ts, test/sessions-ui.test.ts, test/sessions-needs-you.test.ts (FD-108) Validated 2026-10-27 on the running app by test/e2e/sessions.test.ts (both tests green on an unlocked screen).
 - **Product:** unobserved
 
 ### SCN-083: A session waiting for a limit reset
@@ -1799,8 +1799,8 @@ The Sessions mode (0.8.0): every coding session apart from the agents, each stat
   - "Do not continue" / «Не продолжать»
   - "Continuing by itself is off in Settings, so continue it yourself." / «Автоматическое продолжение выключено в настройках, поэтому продолжите её сами.»
   - "Could not be continued here; see the log." / «Продолжить здесь не удалось, подробности в журнале.» (existing)
-- **Status:** draft
-- **Coverage:** src/core/sessions.ts (S2), src/renderer/components/Sessions.tsx (SessionActions: the account menu), src/electron/console.ts (`continueStop`); test/sessions-ui.test.ts, test/sessions-polish.test.ts (the page's panel, FD-107)
+- **Status:** validated
+- **Coverage:** src/core/sessions.ts (S2), src/renderer/components/Sessions.tsx (SessionActions: the account menu), src/electron/console.ts (`continueStop`); test/sessions-ui.test.ts, test/sessions-polish.test.ts (the page's panel, FD-107) Validated 2026-10-27 on the running app by test/e2e/sessions.test.ts (both tests green on an unlocked screen).
 - **Product:** unobserved
 
 ### SCN-084: An ended session continues or leaves
@@ -1828,8 +1828,8 @@ The Sessions mode (0.8.0): every coding session apart from the agents, each stat
   - "Continue" / «Продолжить»
   - "New session here" / «Новая сессия здесь»
   - "Remove" / «Убрать»
-- **Status:** draft
-- **Coverage:** src/core/sessions.ts (S2: `resumable`, 24 h memory, `ended-cannot-continue`), src/core/sessions-view.ts (`continueLabel`, `stateWords`), src/renderer/components/Sessions.tsx (SessionBody); test/sessions.test.ts, test/sessions-ui.test.ts, test/sessions-needs-you.test.ts (FD-108)
+- **Status:** validated
+- **Coverage:** src/core/sessions.ts (S2: `resumable`, 24 h memory, `ended-cannot-continue`), src/core/sessions-view.ts (`continueLabel`, `stateWords`), src/renderer/components/Sessions.tsx (SessionBody); test/sessions.test.ts, test/sessions-ui.test.ts, test/sessions-needs-you.test.ts (FD-108) Validated 2026-10-27 on the running app by test/e2e/sessions.test.ts (both tests green on an unlocked screen).
 - **Product:** unobserved
 
 ### SCN-085: A taken hand-over tells me once, and the tray counts sessions
@@ -1856,8 +1856,8 @@ The Sessions mode (0.8.0): every coding session apart from the agents, each stat
   - "Sessions: running {running}, need you {waiting}" / «Сессии: идут {running}, нужно ваше решение {waiting}»
   - "Sessions: running {running}" / «Сессии: идут {running}»
   - "Sessions: need you {waiting}" / «Сессии: нужно ваше решение {waiting}»
-- **Status:** draft
-- **Coverage:** src/core/sessions-notice.ts, src/core/sessions-view.ts (`traySessionsLine`), src/electron/main.ts (the notice becomes a notification; its click opens the session), src/electron/tray.ts; test/sessions-ui.test.ts, test/review-round1.test.ts; test/e2e/sessions.test.ts walks a synthetic hand-over with its notification (R1-E1), written 2026-10-24 and not yet run: the screen was locked
+- **Status:** validated
+- **Coverage:** src/core/sessions-notice.ts, src/core/sessions-view.ts (`traySessionsLine`), src/electron/main.ts (the notice becomes a notification; its click opens the session), src/electron/tray.ts; test/sessions-ui.test.ts, test/review-round1.test.ts; test/e2e/sessions.test.ts walks a synthetic hand-over with its notification (R1-E1) Validated 2026-10-27 on the running app by test/e2e/sessions.test.ts (both tests green on an unlocked screen).
 - **Product:** unobserved
 
 ### SCN-086: Settings → Sessions
@@ -1884,8 +1884,8 @@ The Sessions mode (0.8.0): every coding session apart from the agents, each stat
   - "Install Fabric Switchboard to have sessions handed over here." / «Чтобы сессии передавались сюда, установите Fabric Switchboard.»
   - "This Switchboard cannot change this setting; update Switchboard." / «Эта версия Switchboard не умеет менять эту настройку; обновите Switchboard.»
   - "Switchboard did not change it: {reason}" / «Switchboard не изменил настройку: {reason}»
-- **Status:** draft
-- **Coverage:** src/renderer/components/Settings.tsx (sessions-settings region; the scroll by `revealScrollTop` of src/core/layout.ts), src/electron/console.ts (`readHandoversSwitch`, `setHandoversSwitch`); i18n parity in test/copy.test.ts; test/sessions-polish.test.ts (`revealScrollTop`, FD-107)
+- **Status:** validated
+- **Coverage:** src/renderer/components/Settings.tsx (sessions-settings region; the scroll by `revealScrollTop` of src/core/layout.ts), src/electron/console.ts (`readHandoversSwitch`, `setHandoversSwitch`); i18n parity in test/copy.test.ts; test/sessions-polish.test.ts (`revealScrollTop`, FD-107) Validated 2026-10-27 on the running app by test/e2e/sessions.test.ts (both tests green on an unlocked screen).
 - **Product:** unobserved
 
 ### SCN-087: Arrange the sidebar: width and order
