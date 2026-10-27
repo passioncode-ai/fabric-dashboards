@@ -172,6 +172,18 @@ export function onScreen(w: { exists: boolean; visible: boolean; minimized: bool
   return w.exists && w.visible && !w.minimized && !w.appHidden;
 }
 
+/** FD-80: whether the person can see the window. On macOS a window fully covered by others, or on another Space, is
+ *  on screen for `onScreen` and still unseen: macOS's list of on-screen windows says so (`sightOf`,
+ *  `src/core/occlusion.ts`); Electron's Page Visibility does not (measured 2026-10-27). Only the automatic install asks
+ *  this: the monitor's cadence and the dashboards' release keep `onScreen`, so a covered window keeps its live pages.
+ *  0.8.7 waited nine hours on this Mac with its window open behind others. Unknown (null) decides nothing. */
+export function inSight(onScreenNow: boolean, sight: 'visible' | 'covered' | 'off-screen' | null): boolean {
+  return onScreenNow && sight !== 'covered' && sight !== 'off-screen';
+}
+
+/** FD-80: how often the window list is read while an update waits with the window on screen (one osascript, ~0.1 s). */
+export const OCCLUSION_PROBE_MS = 60_000;
+
 export class VisibilitySync {
   private last: boolean;
 
@@ -288,6 +300,14 @@ export function relaunchHidden(markerText: string | null, now: number): boolean 
  *  starts after the install opens on it, not on Overview. */
 export const RESUME_ROUTE_MARKER = '.resume-route.json';
 export type ResumeRoute = { page: 'overview' | 'activity' | 'spend' | 'map' | 'settings' | 'sessions' } | { page: 'service'; key: string };
+
+/** FD-80: an automatic install while the window was open behind others marks its resume route `behind`: the next
+ *  copy opens the window on that screen without taking the focus, where the person left it, instead of leaving it in
+ *  the menu bar or putting it in front of their work. */
+export function resumeBehind(markerText: string | null): boolean {
+  if (markerText === null) return false;
+  try { return (JSON.parse(markerText) as { behind?: unknown }).behind === true; } catch { return false; }
+}
 
 /** The route in a resume marker, if it is well-formed and was written for this relaunch. */
 export function resumeRoute(markerText: string | null, now: number): ResumeRoute | null {

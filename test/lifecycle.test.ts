@@ -1030,3 +1030,44 @@ test('FD-80: a window of a hidden app is not on screen, so a ready update can in
   assert.equal(onScreen({ ...w, minimized: true }), false);
   assert.equal(onScreen({ ...w, exists: false }), false);
 });
+
+test('FD-80: a window covered by other windows is out of sight, and the install brings it back behind them', async () => {
+  const { inSight, resumeBehind, resumeRoute, autoInstallNow } = await import('../src/electron/policy');
+  assert.equal(inSight(true, 'visible'), true);
+  assert.equal(inSight(true, 'covered'), false, 'macOS lists every point of it under other windows');
+  assert.equal(inSight(true, 'off-screen'), false, 'on another Space it is not in the on-screen list');
+  assert.equal(inSight(true, null), true, 'unknown (no update waiting, another system, the list unread): on screen decides');
+  assert.equal(inSight(false, 'visible'), false);
+  assert.equal(autoInstallNow({ ready: true, autoUpdate: true, visible: inSight(true, 'covered'), busy: 0 }), true, 'covered for its grace, it installs');
+  assert.equal(autoInstallNow({ ready: true, autoUpdate: true, visible: inSight(true, 'covered'), busy: 1 }), false, 'a running console still holds it');
+  const at = new Date(1_000_000).toISOString();
+  const behind = JSON.stringify({ at, route: { page: 'service', key: 'alpha.default' }, behind: true });
+  assert.equal(resumeBehind(behind), true);
+  assert.deepEqual(resumeRoute(behind, 1_000_500), { page: 'service', key: 'alpha.default' }, 'and on the screen it was on');
+  assert.equal(resumeBehind(JSON.stringify({ at, route: { page: 'overview' } })), false, 'Restart to update comes to the front');
+  assert.equal(resumeBehind(at), false, 'a hidden relaunch marker is no route');
+  assert.equal(resumeBehind(null), false);
+});
+
+test('FD-80: macOS\'s on-screen window list decides covered, on another Space or in sight', async () => {
+  const { sightOf, windowNumberOf, parseWindows, WINDOW_LIST_JXA } = await import('../src/core/occlusion');
+  const own = { id: 7, layer: 0, alpha: 1, x: 100, y: 100, w: 800, h: 600 };
+  const menuBar = { id: 1, layer: 25, alpha: 1, x: 0, y: 0, w: 1728, h: 33 };
+  assert.equal(sightOf([menuBar, own], 7), 'visible', 'nothing above it');
+  assert.equal(sightOf([menuBar, { id: 2, layer: 0, alpha: 1, x: 0, y: 33, w: 1728, h: 1000 }, own], 7), 'covered', 'one window over all of it');
+  assert.equal(sightOf([{ id: 2, layer: 0, alpha: 1, x: 0, y: 0, w: 500, h: 900 }, { id: 3, layer: 0, alpha: 1, x: 500, y: 0, w: 600, h: 900 }, own], 7), 'covered', 'two windows that cover it together');
+  assert.equal(sightOf([{ id: 2, layer: 0, alpha: 1, x: 0, y: 0, w: 850, h: 900 }, own], 7), 'visible', 'a strip of it is still in sight');
+  assert.equal(sightOf([{ id: 2, layer: 0, alpha: 0, x: 0, y: 0, w: 2000, h: 2000 }, own], 7), 'visible', 'a transparent window covers nothing');
+  assert.equal(sightOf([own, { id: 2, layer: 0, alpha: 1, x: 0, y: 0, w: 2000, h: 2000 }], 7), 'visible', 'a window below it covers nothing');
+  assert.equal(sightOf([{ id: 9, layer: 20, alpha: 1, x: 0, y: 0, w: 1728, h: 1117 }, own], 7), 'visible', 'the system\'s own full-screen window (the Dock\'s level) hides nothing');
+  assert.equal(sightOf([menuBar], 7), 'off-screen', 'not listed on screen: another Space');
+  assert.equal(sightOf(null, 7), null, 'the list unread decides nothing');
+  assert.equal(sightOf([own], null), null, 'no window number decides nothing');
+  assert.equal(windowNumberOf('window:241:0'), 241);
+  assert.equal(windowNumberOf('screen:1:0'), null);
+  assert.deepEqual(parseWindows(JSON.stringify([own])), [own]);
+  assert.equal(parseWindows('[{"id":1}]'), null, 'a row without its bounds is unknown, not a window');
+  assert.equal(parseWindows('not json'), null);
+  assert.match(WINDOW_LIST_JXA, /kCGWindowListOptionOnScreenOnly/);
+  assert.doesNotMatch(WINDOW_LIST_JXA, /kCGWindowName|kCGWindowOwnerName/, 'titles and owners are never read');
+});

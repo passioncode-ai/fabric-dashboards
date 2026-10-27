@@ -7,6 +7,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { ActivityStore } from '../core/activity';
+import { parseWindows, sightOf, windowNumberOf, WINDOW_LIST_JXA, type Sight } from '../core/occlusion';
 import { CHANNELS, type DrawerChange, type DrawerState, type NavTarget, type Rect } from '../core/api';
 import { sessionNotification } from '../core/sessions-notice';
 import { commandEnv, killOwned, ownedCount, runOwned } from '../core/children';
@@ -37,7 +38,7 @@ import { powerShellAfterExit } from '../core/after-exit';
 import { rendererSettingsPatch, SettingsStore } from '../core/settings';
 import type { AppStatus, Settings, SettingsPatch } from '../core/types';
 import { ALWAYS_KEPT, cancelStagedUpdate, clearRestoreRecord, KEPT_FILES, productDataPaths, purgeAfterExit, readRestoreRecord, removeMcpRegistrations, repairMcpRegistrations, restoreMcpRegistrations, writeRestoreRecord } from '../core/uninstall';
-import { autoInstallNow, autoInstallWait, cookieRewrite, onScreen, COOKIES_REENCRYPTED_MARKER, HiddenGrace, partitionFor, RELAUNCH_MARKER, relaunchHidden, RESUME_ROUTE_MARKER, resumeRoute, type ResumeRoute, stalePartitions, UPDATE_IDLE_MS, VIEW_RELEASE_ALL_MS, VIEW_RELEASE_GRACE_MS, VISIBILITY_SYNC_MS, VisibilitySync, WARM_VIEWS } from './policy';
+import { autoInstallNow, autoInstallWait, cookieRewrite, inSight, OCCLUSION_PROBE_MS, onScreen, resumeBehind, COOKIES_REENCRYPTED_MARKER, HiddenGrace, partitionFor, RELAUNCH_MARKER, relaunchHidden, RESUME_ROUTE_MARKER, resumeRoute, type ResumeRoute, stalePartitions, UPDATE_IDLE_MS, VIEW_RELEASE_ALL_MS, VIEW_RELEASE_GRACE_MS, VISIBILITY_SYNC_MS, VisibilitySync, WARM_VIEWS } from './policy';
 import { AppTray } from './tray';
 import { DockSync } from './dock';
 import { linkInArgv, menuKeys, modeMenuItems, notificationSettingsUrl, places, startHidden, uninstallCommand, uninstallTarget, windowChrome } from '../core/platform';
@@ -188,7 +189,7 @@ if (!app.requestSingleInstanceLock()) {
         log(`update: asked to restart and finish installing ${updater.state.version}`);
       } catch { /* no notification centre */ }
     }
-    if (updater.state.state === 'ready' && !windowVisible()) updateGrace.hidden();
+    if (updater.state.state === 'ready' && !windowSeen()) updateGrace.hidden();
     // FD-80: a ready update held by a shown window says so once, not only when the grace fires.
     else if (updater.state.state === 'ready') autoInstall();
     if (updater.state.state === 'error') {
@@ -253,6 +254,10 @@ if (!app.requestSingleInstanceLock()) {
   // FD-80: a window of a hidden app (⌘H, or hidden by another program) is not on screen, whatever isVisible() says;
   // measured 2026-10-21: System Events hid the app and Electron still reported the window visible for an hour.
   const windowVisible = () => onScreen({ exists: Boolean(window && !window.isDestroyed()), visible: Boolean(window && !window.isDestroyed() && window.isVisible()), minimized: Boolean(window && !window.isDestroyed() && window.isMinimized()), appHidden: process.platform === 'darwin' && app.isHidden() });
+  // FD-80: on screen and neither covered by other windows nor on another Space, from macOS's window list; read only
+  // while an update waits for the window (`probeSight`), unknown otherwise.
+  let occlusion: Sight | null = null;
+  const windowSeen = () => inSight(windowVisible(), occlusion);
   function pushStatus(): void {
     if (pushTimer) return;
     pushTimer = setTimeout(() => {
@@ -292,7 +297,7 @@ if (!app.requestSingleInstanceLock()) {
   let waitSaid: string | null = null;
   function autoInstall(): void {
     const busy = ownedCount() + consoles.manager.runningCount(); // ADR-0017: a running console is work in progress
-    const now = { ready: updater.state.state === 'ready', autoUpdate: settings.get().autoUpdate, visible: windowVisible(), busy };
+    const now = { ready: updater.state.state === 'ready', autoUpdate: settings.get().autoUpdate, visible: windowSeen(), busy };
     if (!autoInstallNow(now)) {
       // FD-64: a held install says why, once per reason — 0.7.7 waited two silent hours on this Mac.
       const why = autoInstallWait(now);
@@ -303,9 +308,13 @@ if (!app.requestSingleInstanceLock()) {
       busyRetry?.unref();
       return;
     }
-    try { fs.writeFileSync(path.join(userData, RELAUNCH_MARKER), new Date().toISOString(), { mode: 0o600 }); } catch (error) { log(`update: could not mark the relaunch hidden: ${(error as Error).message}`); }
-    log(`update: installing ${updater.state.version ?? 'the downloaded update'} while the window is hidden`);
-    if (!updater.restart()) { try { fs.rmSync(path.join(userData, RELAUNCH_MARKER), { force: true }); } catch { /* gone */ } }
+    // FD-80: a window open behind others comes back on its screen, behind them; a hidden one stays in the menu bar.
+    const behind = windowVisible();
+    const marker = path.join(userData, behind ? RESUME_ROUTE_MARKER : RELAUNCH_MARKER);
+    const body = behind ? JSON.stringify({ at: new Date().toISOString(), route: shownRoute, behind: true }) : new Date().toISOString();
+    try { fs.writeFileSync(marker, body, { mode: 0o600 }); } catch (error) { log(`update: could not mark the relaunch: ${(error as Error).message}`); }
+    log(`update: installing ${updater.state.version ?? 'the downloaded update'} while the window is ${behind ? 'covered by other windows' : 'hidden'}`);
+    if (!updater.restart()) { try { fs.rmSync(marker, { force: true }); } catch { /* gone */ } }
   }
   // #endregion auto-install-flow
   // #region restart-to-update — docs: docs/adr/0015-data-survives-uninstall-updates-install-themselves.md#decision
@@ -358,6 +367,7 @@ if (!app.requestSingleInstanceLock()) {
     if (hiddenSince !== null || !lastShown) lastShown = { at: new Date().toISOString(), afterHiddenMs: hiddenSince === null ? 0 : Date.now() - hiddenSince };
     hiddenSince = null;
     visibility.note(true);
+    sight.note(true); // FD-80: a window shown behind others is found covered on the next sync, and its grace starts
     updateGrace.shown();
     if (busyRetry) { clearTimeout(busyRetry); busyRetry = null; }
     viewGrace.shown();
@@ -369,6 +379,7 @@ if (!app.requestSingleInstanceLock()) {
   function windowHidden(): void {
     hiddenSince ??= Date.now();
     visibility.note(false);
+    sight.note(false);
     monitor.setVisible(false);
     viewGrace.hidden();
     viewGraceAll.hidden();
@@ -380,8 +391,33 @@ if (!app.requestSingleInstanceLock()) {
   const syncVisibility = () => { if (visibility.sync()) log(`window ${windowVisible() ? 'shown' : 'hidden'} without a window event (FD-64)`); };
   app.on('did-resign-active', () => setTimeout(syncVisibility, 500));
   app.on('did-become-active', () => setTimeout(syncVisibility, 500));
-  const visibilityTick = setInterval(syncVisibility, VISIBILITY_SYNC_MS);
+  // FD-80: covering and uncovering the window fire no event either; only the update's grace follows it.
+  const sight = new VisibilitySync(windowSeen, () => { updateGrace.shown(); if (busyRetry) { clearTimeout(busyRetry); busyRetry = null; } }, () => updateGrace.hidden(), false);
+  const syncSight = () => { if (sight.sync() && windowVisible()) log(`window ${windowSeen() ? 'in sight again' : occlusion === 'off-screen' ? 'on another Space' : 'covered by other windows'} (FD-80)`); };
+  // FD-80: the window list is read only while an update waits with the window on screen and installing by itself is
+  // on: one osascript a minute (~0.1 s), never otherwise; anything else leaves the sight unknown, as before.
+  let probing = false;
+  const probeSight = async () => {
+    const wants = process.platform === 'darwin' && updater.state.state === 'ready' && settings.get().autoUpdate && windowVisible() && window && !window.isDestroyed();
+    if (!wants) { if (occlusion !== null) { occlusion = null; syncSight(); } return; }
+    if (probing) return;
+    probing = true;
+    try {
+      const r = await runOwned('/usr/bin/osascript', ['-l', 'JavaScript', '-e', WINDOW_LIST_JXA], { timeoutMs: 5_000, env: commandEnv() });
+      const next = r.code === 0 ? sightOf(parseWindows((r.stdout ?? r.output).trim()), window && !window.isDestroyed() ? windowNumberOf(window.getMediaSourceId()) : null) : null;
+      if (next !== occlusion) { occlusion = next; syncSight(); }
+    } catch {
+      occlusion = null;
+    } finally {
+      probing = false;
+    }
+  };
+  app.on('did-resign-active', () => setTimeout(() => { syncSight(); void probeSight(); }, 500));
+  app.on('did-become-active', () => setTimeout(() => { syncSight(); void probeSight(); }, 500));
+  const visibilityTick = setInterval(() => { syncVisibility(); syncSight(); }, VISIBILITY_SYNC_MS);
   visibilityTick.unref();
+  const sightTick = setInterval(() => void probeSight(), OCCLUSION_PROBE_MS);
+  sightTick.unref();
   // FD-62 (SB-108): hand-overs Switchboard leaves for a console — every 15 s while the window is shown, every
   // 60 s while it is hidden, nothing without Switchboard (ConsoleHost.pollHandovers). FD-83: limit stops too.
   let handoverTimer: NodeJS.Timeout | null = null;
@@ -409,9 +445,10 @@ if (!app.requestSingleInstanceLock()) {
     void dockSync.want(visible).then((ok) => { if (!ok && !visible) log('dock_hide failed: the Dock still shows the icon after the window hid'); });
   }
 
-  function showWindow(): BrowserWindow {
+  function showWindow(inactive = false): BrowserWindow {
     if (window && !window.isDestroyed()) {
       if (window.isMinimized()) window.restore();
+      if (inactive) { window.showInactive(); return window; }
       window.show();
       window.focus();
       return window;
@@ -439,7 +476,7 @@ if (!app.requestSingleInstanceLock()) {
       // FD-42: the scheme and the dashboard theme the operator chose, for `fabric_appearance`.
       () => ({ scheme: settings.get().theme, theme: settings.get().pageTheme, systemDark: nativeTheme.shouldUseDarkColors }),
       log);
-    w.once('ready-to-show', () => w.show());
+    w.once('ready-to-show', () => (inactive ? w.showInactive() : w.show())); // FD-80: back behind the person's work
     // FD-05 (operator decision 2026-10-05): a hidden window leaves only the menu-bar icon; showing
     // it brings the Dock icon back. A minimized window keeps its Dock icon — that is where it lives.
     w.on('show', () => { syncDock(true); windowShown(); });
@@ -465,8 +502,8 @@ if (!app.requestSingleInstanceLock()) {
   let shownRoute: ResumeRoute = { page: 'overview' };
   let rendererListening = false;
   let pendingNav: NavTarget | null = null;
-  function navigate(target: NavTarget): void {
-    const w = showWindow();
+  function navigate(target: NavTarget, inactive = false): void {
+    const w = showWindow(inactive);
     if (rendererListening) w.webContents.send(CHANNELS.navigate, target);
     else pendingNav = target; // the latest wins, as a click would
   }
@@ -931,6 +968,7 @@ if (!app.requestSingleInstanceLock()) {
     viewGraceAll.dispose();
     updateGrace.dispose();
     clearInterval(visibilityTick); // FD-64
+    clearInterval(sightTick); // FD-80
     if (handoverTimer) clearTimeout(handoverTimer); handoverTimer = null; // FD-62: no read after quit begins
     // #region estate-update — docs: docs/adr/0018-estate-updates-from-inside-the-app.md#decision
     estate.stop(); // ADR-0018: no estate check or retry past this point
@@ -1083,8 +1121,9 @@ if (!app.requestSingleInstanceLock()) {
     const resumeFile = path.join(userData, RESUME_ROUTE_MARKER);
     try { resumeText = fs.readFileSync(resumeFile, 'utf8'); fs.rmSync(resumeFile, { force: true }); } catch { /* none */ }
     const resume = hidden ? null : resumeRoute(resumeText, Date.now());
-    if (resume && resume.page !== 'overview') { navigate(resume); log(`update: reopened on ${resume.page} after Restart to update`); }
-    else if (!hidden) showWindow();
+    const behind = Boolean(resume) && resumeBehind(resumeText); // FD-80: installed while the window was covered
+    if (resume && resume.page !== 'overview') { navigate(resume, behind); log(`update: reopened on ${resume.page} ${behind ? 'behind other windows after an automatic install' : 'after Restart to update'}`); }
+    else if (!hidden) { showWindow(behind); if (behind) log('update: reopened behind other windows after an automatic install'); }
     else { syncDock(false); updateGrace.hidden(); } // the menu bar only, as when the window is hidden (FD-05)
     if (!hidden) void offerMoveToApplications();
     log(`started ${app.getVersion()} watching ${monitor.meta().servicesDir}`);
