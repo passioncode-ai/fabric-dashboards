@@ -79,7 +79,7 @@
 | SCN-071 | See agents on this Mac, online and services apart | list | P-01 | ST-021 | validated | 2026-10-23 |
 | SCN-072 | Hide an agent without stopping it | list | P-01 | ST-021 | validated | 2026-10-23 |
 | SCN-073 | See what an agent is connected to | service | P-01 | ST-019 | validated | 2026-10-23 |
-| SCN-074 | See how agents are wired and what the auditor found | connections | P-01 | ST-019 | validated | 2026-10-23 |
+| SCN-074 | See how agents are wired and what problems were found | connections | P-01 | ST-019 | validated | 2026-10-23 |
 | SCN-075 | A session stopped on a limit continues by itself | sessions | P-01 | ST-023, ST-019 | validated | 2026-10-27 |
 | SCN-076 | See how busy an agent is | service | P-01 | ST-019 | validated | 2026-10-23 |
 | SCN-077 | Switch between Agents and Sessions | navigation | P-01 | ST-023 | validated | 2026-10-27 |
@@ -1014,12 +1014,13 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **Entry point:** the sidebar's "Collapse sidebar" control, or View → Show or Hide Sidebar (⌃⌘S)
 - **Preconditions:** none
 - **Steps:**
-  1. User collapses the sidebar -> it becomes a narrow rail: the mark, the mode switch as two icons (SCN-077), icons for Overview, Activity, Connections, Spend and Settings, and one entry per agent with its state mark and initials; the Overview and Activity badges stay (src/renderer/components/Navigation.tsx `ModeSwitch`, `AgentsNav`; Settings in src/renderer/App.tsx)
+  1. User collapses the sidebar -> it becomes a narrow rail: the mark, the mode switch as two icons (SCN-077), icons for Overview, Activity, Agent map, Spend and Settings, and one entry per agent with its state mark and initials; the Overview and Activity badges stay (src/renderer/components/Navigation.tsx `ModeSwitch`, `AgentsNav`; Settings in src/renderer/App.tsx)
   2. User points at an entry -> its name (and state) shows as a tooltip; a screen reader reads the same. The expanded list shows the same tooltip on every agent, since it cuts a long name too (FD-113 VIS-15)
-  3. User presses "Expand sidebar" -> the full list returns; the choice holds after a relaunch
+  3. User right-clicks an agent's entry (or presses the context-menu key on it) -> the row menu opens beside the rail: pin, agent or service, hide or show again, turn off; a dashboard on the page steps aside while it is open, and Escape closes it with focus back on the entry. The expanded list opens the same menu on a right-click too (FD-129 UX-23)
+  4. User presses "Expand sidebar" -> the full list returns; the choice holds after a relaunch
 - **Expected result:** the dashboard gains the sidebar's width, and every page and agent stays one press away
 - **Alt paths:** an agent needs attention -> its rail entry carries the same mark as in the full list; the app's own update is ready, held, or cannot install -> the rail shows an entry of its own with an arrow (or "!"), named by its tooltip, that restarts into the update or opens Settings
-- **UI elements:** rail, nav icons, agent entries with state marks and initials, tooltips, "Collapse sidebar" / "Expand sidebar", View menu item
+- **UI elements:** rail, nav icons, agent entries with state marks and initials, the row menu on a right-click, tooltips, "Collapse sidebar" / "Expand sidebar", View menu item
 - **States covered:** success
 - **Errors & recovery:** n/a — a layout choice that never fails
 - **Status:** validated
@@ -1281,21 +1282,21 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **Coverage:** packages/service-host/src/connections.ts, src/core/connections.ts, src/renderer/components/Connections.tsx, src/mcp/tools.ts (connections, listing), packages/service-host/test/connections.test.ts, test/connections.test.ts, test/mcp.test.ts *FD-78*, test/e2e/connections.test.ts, test/e2e/focus-console.test.ts *SCN-073*
 - **Product:** unobserved
 
-### SCN-074: See how agents are wired and what the auditor found
+### SCN-074: See how agents are wired and what problems were found
 - **Persona:** P-01
 - **Feature:** connections
 - **Traces:** ST-019 (JTBD-01); FD-81 (operator 2026-10-21); ADR-0023; FD-110 (contract DEC-0121, CT-126: `extensions/actions/0.1`, FAC-SEM-142)
-- **Entry point:** sidebar → Connections (its count is what does not work)
+- **Entry point:** sidebar → Agent map (its count is what does not work; named apart from each agent's own Connections tab, FD-129 UX-21)
 - **Preconditions:** at least one agent
 - **Steps:**
-  1. User opens Connections -> one line: "Does not work: N · Partly working: N · Waits for you: N · Worth knowing: N" (only the ones above zero), or "The auditor found nothing to fix."; below it "Agents that declare their connections: X of Y."
+  1. User opens Agent map -> one line: "Does not work: N · Partly working: N · Waits for you: N · Worth knowing: N" (only the ones above zero), or "Nothing to fix: every agent and connection works." (FD-129 COPY-32); below it "Agents that declare their connections: X of Y."
   2. User reads the Map -> each agent a box with its state as a shape and a colour, calls drawn left to right, the worse state of the call and the agent reached on each line; an agent named but not installed is a dashed box "not installed here"; agents with no line are under "Not connected"
-  3. User reads the Auditor -> one row per agent to fix, worst first: its name, its key and each finding in a sentence ("google-ads fails: quota exhausted", "It relies on Relay, which does not answer.", "Version 2.0.0 is available.", and for the buttons its pages declare (DEC-0121, FD-110): "The button "Send" has no agent twin: its MCP surface does not serve replies.send.", or, worth knowing, "It has a dashboard but declares no actions, so an agent cannot tell which buttons it may press for you.")
+  3. User reads Problems -> one row per agent to fix, worst first: its name, its key and each finding in a sentence ("google-ads fails: quota exhausted", "It relies on Relay, which does not answer.", "Version 2.0.0 is available.", and for the buttons its pages declare (DEC-0121, FD-110): "The button "Send" has no agent twin: its MCP surface does not serve replies.send.", or, worth knowing, "It has a dashboard but declares no actions, so an agent cannot tell which buttons it may press for you.")
   4. User picks the coding agent in "Coding agent" (the one chosen for that agent, Claude Code by default) and presses "Fix with coding agent" -> the agent's page opens with its console, the chosen coding agent starts in the agent's folder with the findings as its task
   5. User clicks an agent's name or box -> its page opens on its Connections tab
 - **Expected result:** every problem in the estate in one place, where each comes from, and one click to hand it to a coding agent
 - **Alt paths:** no agent declares a connection to another -> "No agent declares a connection to another agent yet, so there is no line to draw." with how to declare one; a row whose only findings are about an agent it relies on, or an update -> no Fix button (the fix goes where the cause is); no coding agent installed -> "No coding agent is installed, so a session cannot start here."; an agent asks through MCP -> `audit` answers the same findings, counts, coverage and edges
-- **UI elements:** Connections nav item with its count, the summary line, the coverage line, the Map, Not connected chips, the Auditor rows with the Coding agent picker and Fix with coding agent
+- **UI elements:** Agent map nav item with its count, the summary line, the coverage line, the Map, Not connected chips, the Problems rows with the Coding agent picker and Fix with coding agent
 - **States covered:** empty, success, error
 - **Errors & recovery:** an agent's spend report that cannot be read leaves its limits out, never the rest
 - **Status:** validated (test/e2e/connections.test.ts *FD-78* (the map and the auditor, FD-81 steps) passed on the running app, 2026-10-23 00:00 UTC)
@@ -1334,7 +1335,7 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
   3. User reads By context (two contexts or more) -> one row per context: running, waiting, done, failed, wait and run at 95 %, a time never measured reads "not measured"
   4. User presses Refresh -> it is read now; while the tab is open it is read again every minute
 - **Expected result:** the person sees whether an agent keeps up with its calls, where it waits, and whether its queue refuses work, without opening the agent's own dashboard
-- **Alt paths:** the agent declares its load wrongly -> "This agent declares its load wrongly, so it is not read" with each reason (FAC-SEM-133) and no read is made; the report refuses the token, does not answer, is not JSON or fails its checks (FAC-SEM-132) -> "The load report could not be read" with the reason, and the limits it declared; the report has no window -> "Nothing has run yet"; the report is older than two of its windows -> a note that its counts are of then; an agent that declares nothing has no Load tab; the declaration goes while the tab is open (the agent stops answering, or drops the key) -> the page falls back to Dashboard or Health, never an empty pane; an invalid declaration is a finding of the auditor too (Connections page, MCP `audit`); an agent asks through MCP -> `load` answers the same declaration and sums, or `invalid` / `error` with the reason; the window is hidden -> the last read is answered, nothing is read (LC-08)
+- **Alt paths:** the agent declares its load wrongly -> "This agent declares its load wrongly, so it is not read" with each reason (FAC-SEM-133) and no read is made; the report refuses the token, does not answer, is not JSON or fails its checks (FAC-SEM-132) -> "The load report could not be read" with the reason, and the limits it declared; the report has no window -> "Nothing has run yet"; the report is older than two of its windows -> a note that its counts are of then; an agent that declares nothing has no Load tab; the declaration goes while the tab is open (the agent stops answering, or drops the key) -> the page falls back to Dashboard or Health, never an empty pane; an invalid declaration is a finding under Problems too (Agent map page, MCP `audit`); an agent asks through MCP -> `load` answers the same declaration and sums, or `invalid` / `error` with the reason; the window is hidden -> the last read is answered, nothing is read (LC-08)
 - **UI elements:** Load tab, read-at line with Refresh, the four-number strip, the limits line, the wait and run lines, the bar chart, the By context table, the warning and error notices
 - **States covered:** loading, empty, success, error
 - **Errors & recovery:** any failure is that agent's notice with its reason, never a blank tab or a zero; the token goes only to the agent's own well-known answer (S-1)
@@ -1584,7 +1585,7 @@ The Sessions mode (0.8.0): every coding session apart from the agents, each stat
 - **Steps:**
   1. User opens the window -> under the app's mark a two-part switch reads "Agents" and "Sessions"; the mode the window was closed in is selected (Agents the first time) and the sidebar below lists that mode's entries
   2. User presses "Sessions" (or ⌘2) -> the sidebar lists "All sessions" and the sessions in their groups (SCN-078); the main area shows the page last open in this mode ("All sessions" the first time)
-  3. User presses "Agents" (or ⌘1) -> the sidebar lists Overview, Activity, Connections, Spend, Pinned, On this Mac, Online, Services and Hidden, with no session among them and no hand-over section; the main area shows the page last open in this mode (Overview the first time)
+  3. User presses "Agents" (or ⌘1) -> the sidebar lists Overview, Activity, Agent map, Spend, Pinned, On this Mac, Online, Services and Hidden, with no session among them and no hand-over section; the main area shows the page last open in this mode (Overview the first time)
   4. A session needs a person (SCN-082) -> "Sessions" carries a count badge in either mode, named to a screen reader "Sessions, need you: 2"; with none it carries no badge
   5. User quits and opens the app again -> it opens in the mode and on the page it was closed on
 - **Expected result:** agents and coding sessions never share one list; one press or one key moves between them, and the app remembers where the person was

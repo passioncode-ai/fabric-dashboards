@@ -223,6 +223,13 @@ test('ADR-0017: a one-line header, a folding sidebar, and an agent console besid
     assert.ok((await page.locator('.sidebar').boundingBox())!.width <= 80, 'the rail is narrow');
     await page.getByRole('button', { name: /Sample Service/ }).first().waitFor();
     await shot(page, '22-rail-and-console');
+    // FD-129 (UX-23): in the rail a right-click opens the same row menu beside the row; Escape gives focus back to it.
+    await page.locator('.nav-row .nav-item', { hasText: 'Sample Service' }).first().click({ button: 'right' });
+    await page.getByRole('menuitem', { name: 'Unpin Sample Service' }).waitFor();
+    const menuBox = (await page.getByRole('menu', { name: 'Sample Service' }).boundingBox())!;
+    assert.ok(menuBox.x >= (await page.locator('.sidebar').boundingBox())!.width, 'the rail menu opens beside the rail');
+    await page.keyboard.press('Escape');
+    assert.equal(await page.getByRole('menu').count(), 0);
 
     // Remembered (Settings.layout, Settings.consoles).
     const saved = JSON.parse(fs.readFileSync(path.join(userData, 'settings.json'), 'utf8'));

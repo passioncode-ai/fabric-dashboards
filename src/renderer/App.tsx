@@ -250,6 +250,8 @@ function Shell({ status, route, setRoute, mode, switchMode, stopKey, setStopKey,
   const arranged = arrangeProducts(products, layout.list);
   const { hidden } = arranged;
   const pin = (id: string) => changeLayout({ list: { pinned: togglePin(layout.list.pinned, id) } });
+  // FD-129 (UX-23): a sidebar menu or a session header's menu is open over the page; the native views step aside.
+  const [menuOverPage, setMenuOverPage] = useState(false);
   // FD-78: the row's menu: pin, agent or service, hide. A hidden agent is still watched and still alerts.
   const rowMenu: RowActions = {
     pin,
@@ -260,6 +262,7 @@ function Shell({ status, route, setRoute, mode, switchMode, stopKey, setStopKey,
     isPinned: (id) => layout.list.pinned.includes(id),
     isHidden: (id) => layout.list.hidden.includes(id),
     isService: (p) => categoryOf(p, layout.list.kinds) === 'service',
+    onMenu: (o) => setMenuOverPage(o),
   };
   const hiddenProblem = hidden.some((p) => PROBLEM.has(p.primary.state) || p.memberProblem);
   // FD-39 D-3: Fix / Update with agent opens the agent's page and console; the console starts the task once it is ready.
@@ -324,7 +327,6 @@ function Shell({ status, route, setRoute, mode, switchMode, stopKey, setStopKey,
   // open and where the area is. A fold, a new height or a taken job comes back from the drawer's page.
   // FD-103 (SCN-080): on a session's page the console is the page under its header, full height, never a drawer.
   const pageConsole = route.page === 'session' && sessionRow && hasConsole(sessionRow) ? sessionRow.key : null;
-  const [menuOverPage, setMenuOverPage] = useState(false);
   const drawerKey = pageConsole ?? (route.page === 'service' && current ? (layout.console.open ? current.key : null)
     : route.page === 'overview' && setupOpen ? SETUP_KEY : null);
   const mainRef = useRef<HTMLElement>(null);
@@ -407,7 +409,7 @@ function Shell({ status, route, setRoute, mode, switchMode, stopKey, setStopKey,
             : <div className="page-wrap"><div className="page"><p className="muted row" role="status"><Spinner /> {t('sessions.reading')}</p></div></div>)
         : route.page === 'service' && current
           ? <div className="svc-page">
-            <ServiceView key={current.key} s={current} all={status.services} members={currentProduct?.members ?? [current]} open={open} link={route.link} nonce={route.nonce} tab={route.tab} runUpdate={route.tab === 'health' && route.page === 'service'} activityRev={status.activityRev} overlayOpen={stopOpen || resizing} askStop={askStop} updateStarted={() => setRoute({ ...route, tab: undefined })}
+            <ServiceView key={current.key} s={current} all={status.services} members={currentProduct?.members ?? [current]} open={open} link={route.link} nonce={route.nonce} tab={route.tab} runUpdate={route.tab === 'health' && route.page === 'service'} activityRev={status.activityRev} overlayOpen={stopOpen || resizing || menuOverPage} askStop={askStop} updateStarted={() => setRoute({ ...route, tab: undefined })}
               headerFull={layout.header === 'full'} onToggleHeader={() => changeLayout({ header: layout.header === 'full' ? 'compact' : 'full' })}
               consoleOpen={layout.console.open} onToggleConsole={() => changeLayout({ console: { open: !layout.console.open } })} onAgent={handToAgent} />
           </div>

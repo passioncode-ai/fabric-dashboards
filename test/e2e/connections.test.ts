@@ -100,9 +100,11 @@ test('FD-78: Connections draws the chain and the worst state in it; a service wi
     await page.locator('.conn').getByRole('button', { name: /Ads Manager/ }).waitFor();
     if (SHOTS) await page.screenshot({ path: path.join(SHOTS, '28-connections-used-by.png') });
 
-    // FD-81 SCN-074: the Connections page draws the map left to right and the auditor lists what to fix, by agent.
-    await page.getByRole('button', { name: /^Connections/ }).first().click();
-    await page.getByRole('heading', { level: 1, name: 'Connections' }).waitFor();
+    // FD-81 SCN-074: the Agent map page draws the map left to right and Problems lists what to fix, by agent.
+    // FD-129 (UX-21, COPY-32): the page is no longer named like the agent's own Connections tab.
+    await page.getByRole('button', { name: /^Agent map/ }).first().click();
+    await page.getByRole('heading', { level: 2, name: /^Problems/ }).waitFor();
+    await page.getByRole('heading', { level: 1, name: 'Agent map' }).waitFor();
     await page.locator('.cmap-graph svg').waitFor();
     assert.equal(await page.locator('.cmap-graph .edge').count(), 2, 'ads → communicator → relay');
     await page.locator('.cmap-summary').getByText('Does not work').waitFor();
@@ -114,7 +116,7 @@ test('FD-78: Connections draws the chain and the worst state in it; a service wi
     assert.equal(await page.locator('.audit-group', { hasText: 'Relay' }).getByRole('button', { name: 'Fix with coding agent' }).count(), 1);
     if (SHOTS) await page.screenshot({ path: path.join(SHOTS, '29-connections-map.png') });
     // The nav carries what does not work.
-    assert.match(await page.locator('.nav-item', { hasText: 'Connections' }).innerText(), /\d/);
+    assert.match(await page.locator('.nav-item', { hasText: 'Agent map' }).innerText(), /\d/);
   } finally {
     await closeApp(app);
     for (const s of servers) await new Promise<void>((r) => s.close(() => r()));
