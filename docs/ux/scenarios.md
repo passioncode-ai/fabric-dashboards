@@ -69,8 +69,8 @@
 | SCN-061 | Talk to Fabric about this agent | console | P-01 | ST-020 | validated | 2026-10-12 |
 | SCN-062 | Outages reach me away from the Mac | notifications | P-01 | ST-002 | validated | 2026-10-13 |
 | SCN-063 | A session starts only when the Mac can carry it | console | P-01 | ST-019 | validated | 2026-10-13 |
-| SCN-064 | See what Switchboard runs for this agent | console | P-01 | ST-019 | draft | 2026-10-12 |
-| SCN-065 | A provider limit does not stop the agent | console | P-01 | ST-019 | draft | 2026-10-12 |
+| SCN-064 | See what Switchboard runs for this agent | console | P-01 | ST-019 | validated | 2026-10-27 |
+| SCN-065 | A provider limit does not stop the agent | console | P-01 | ST-019 | validated | 2026-10-27 |
 | SCN-066 | An idle session closes and comes back | console | P-01 | ST-019, ST-023 | validated | 2026-10-27 |
 | SCN-067 | Dashboards take my scheme and theme | settings | P-01 | ST-019 | validated | 2026-10-13 |
 | SCN-068 | See which runner and model an agent uses | service | P-01 | ST-019 | validated | 2026-10-13 |
@@ -1120,8 +1120,8 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **UI elements:** session lines under the folder line
 - **States covered:** empty, success, error
 - **Errors & recovery:** Switchboard's answer cannot be read -> "Switchboard did not list its sessions: <its words>"
-- **Status:** draft
-- **Coverage:** src/core/switchboard.ts, src/electron/console.ts, src/renderer/components/ConsolePanel.tsx, test/switchboard-sessions.test.ts
+- **Status:** validated
+- **Coverage:** src/core/switchboard.ts, src/electron/console.ts, src/renderer/components/ConsolePanel.tsx, test/switchboard-sessions.test.ts, test/e2e/switchboard-strip.test.ts (validated 2026-10-27: only the session running in this folder, its account, mode and start; read again 15 s later while the console is on screen, not while it is folded)
 - **Product:** unobserved
 
 ### SCN-065: A provider limit does not stop the agent
@@ -1138,8 +1138,8 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **UI elements:** session line with the moved notice
 - **States covered:** success
 - **Errors & recovery:** Switchboard refuses the launch -> its own words in the console, and "New session" again
-- **Status:** draft
-- **Coverage:** src/core/consoles.ts, src/core/switchboard.ts, src/electron/console.ts, test/switchboard-sessions.test.ts
+- **Status:** validated
+- **Coverage:** src/core/consoles.ts, src/core/switchboard.ts, src/electron/console.ts, test/switchboard-sessions.test.ts, test/e2e/switchboard-strip.test.ts (validated 2026-10-27: step 2, the move to the pool's next account after a limit); step 1, a managed launch in place, seen in `main.log` since 2026-10-14
 - **Product:** unobserved
 
 ### SCN-066: An idle session closes and comes back
