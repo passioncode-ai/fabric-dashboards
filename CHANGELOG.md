@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- A Dock icon that would not leave after the window hid is asked to leave again on the 15-second visibility pass, at
+  most three times until the next show or hide (FD-127). macOS dropped the hide four times on 2026-10-25 to 27, around
+  an update restart and windows hidden without an event; the icon then stayed until the window was shown again.
+
 ## 0.8.9 - 2026-10-27
 
 ### Added
