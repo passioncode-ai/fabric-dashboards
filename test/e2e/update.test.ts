@@ -63,7 +63,7 @@ test('SCN-021, SCN-055: Update runs the declared command and says how it ended; 
     // SCN-063 (LC-17) decides first: on a disk with less than 5 GB free the console defers the start and says why.
     const st = fs.statfsSync(repo);
     const roomy = st.bavail * st.bsize >= 5 * 1024 ** 3;
-    await page.getByRole('button', { name: 'Update with agent' }).first().click({ timeout: 20_000 });
+    await page.getByRole('button', { name: 'Update with coding agent' }).first().click({ timeout: 20_000 });
     // FD-92: the console is a drawer in a view of its own; Playwright sees its page as a window.
     const deadlineDrawer = Date.now() + 20_000;
     let con = app!.windows().find((p) => p.url().includes('drawer=1'));

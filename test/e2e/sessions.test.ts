@@ -70,7 +70,10 @@ test('SCN-085, SCN-080: a hand-over is announced once, its notification opens it
       return n.length ? n : null;
     }, 60_000) as { title: string; body: string }[];
     assert.deepEqual(notices, [{ title: 'Sessions', body: 'Switchboard handed over a session: handover-repo continues on Claude Code' }], 'one notification, once');
-    assert.equal(fs.readFileSync(journal, 'utf8').split('\n').filter((l) => l === `handovers run ${HO}`).length, 1, 'taken once');
+    // The notice is sent once the console is started; the PTY's own process writes the journal a moment later.
+    const runs = () => fs.readFileSync(journal, 'utf8').split('\n').filter((l) => l === `handovers run ${HO}`).length;
+    await waitFor('the hand-over to run', async () => runs() > 0 || null, 15_000);
+    assert.equal(runs(), 1, 'taken once');
     // SCN-077: a new hand-over never switches the mode by itself; the switch's badge would count it if it needed you.
     assert.equal(await page.getByRole('button', { name: /^Agents/ }).first().getAttribute('aria-pressed'), 'true');
 
