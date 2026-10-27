@@ -318,7 +318,7 @@ export function ConsolePanel({ serviceKey, height, maxHeight, onHeight, onDrag, 
       {info && !ownHandover && runtime && folderOk && !running && (
         <div className="console-actions">
           {terminalOnly
-            ? <button className="btn btn-sm btn-primary" onClick={() => void openTerminal('new')}>{t('console.openTerminalSb')}</button>
+            ? <button className="btn btn-sm btn-primary" onClick={() => void openTerminal('new')} title={t('console.openTerminalSb')} aria-label={t('console.openTerminalSb')}>{t('console.openTerminalSb.short')}</button>
             : <>
                 <button className="btn btn-sm btn-primary" disabled={starting} onClick={() => void start('new')}>{starting ? <Spinner /> : null}{t('console.new')}</button>
                 {runtime.canContinue && <button className="btn btn-sm" disabled={starting} onClick={() => void start('continue')}>{t('console.continue')}</button>}

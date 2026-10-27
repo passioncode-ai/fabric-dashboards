@@ -31,6 +31,7 @@ One name per state, the same on the chip, in Connections, in the map's summary a
 | down | Not answering | Не отвечает |
 | stopped | Stopped (the result of Stop) | Выключен (the result of «Выключить») |
 | invalid | Broken install file | Ошибка в файле установки |
+| foreign | Wrong program on port | Чужая программа (short for the chip; the reason names the port) |
 
 ## Actions
 
