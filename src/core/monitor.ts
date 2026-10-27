@@ -7,6 +7,7 @@ import { EventEmitter } from 'node:events';
 import fs from 'node:fs';
 import { ActivityStore } from './activity';
 import { runOwned } from './children';
+import { productIdOf } from '@passioncode-ai/fabric-service-host/links';
 import { SystemdReader, authHeaders, claimConflicts, dashboardMinWidth, deriveState, expand, fetchWellKnown, portOf, readDirectory, RemoteTokenLatch, REMOTE_TIMEOUT_MS, type DescriptorEntry, type WellKnownOptions, type WellKnownResult } from '@passioncode-ai/fabric-service-host';
 import { tail } from './fsutil';
 import { commandReason, type CommandResult } from './outcome';
@@ -203,7 +204,7 @@ export class Monitor extends EventEmitter {
       let next = this.lastRescan + this.rescanEvery();
       for (const since of this.missingSince.values()) next = Math.min(next, since + REMOVAL_GRACE_MS); // confirm a removal
       for (const since of this.unsettledSince.values()) next = Math.min(next, since + REMOVAL_GRACE_MS); // U-16: settle a new file
-      for (const t of this.tracked.values()) if (!t.busy) next = Math.min(next, t.nextProbeAt);
+      for (const t of this.tracked.values()) if (!t.busy && !this.isOff(t)) next = Math.min(next, t.nextProbeAt);
       wait = Math.max(MIN_WAKE_MS, next - now);
     }
     this.wakeTimer = setTimeout(() => { this.wakeTimer = null; void this.tick(); }, wait);
@@ -224,7 +225,7 @@ export class Monitor extends EventEmitter {
   /** What the window, the tray and the Dock show, minus what changes on every answer without
    *  meaning anything (the time of the last answer). Equal fingerprints are not news. */
   private fingerprint(): string {
-    return JSON.stringify([this.snapshots().map((s) => ({ ...s, lastAnswerAt: null })), this.meta(), this.o.activity.revision]);
+    return JSON.stringify([this.snapshots().map((s) => ({ ...s, lastAnswerAt: null })), this.offServices(), this.meta(), this.o.activity.revision]);
   }
 
   /** Emit `change` only when what a person can see differs from the last emit (LC-08). */
@@ -253,7 +254,8 @@ export class Monitor extends EventEmitter {
         this.lastRescan = now;
         this.rescan();
       }
-      const due = [...this.tracked.values()].filter((t) => t.nextProbeAt <= now && !t.busy);
+      this.syncOff();
+      const due = [...this.tracked.values()].filter((t) => t.nextProbeAt <= now && !t.busy && !this.isOff(t));
       if (due.length) {
         let table: Promise<string> | null = null;
         const disabledTable = () => (table ??= this.disabledTable());
@@ -494,6 +496,7 @@ export class Monitor extends EventEmitter {
   }
 
   private notify(h: Happening, tracked: Tracked, titleKey: string, bodyKey: string, params: Record<string, string | number>, link?: string): void {
+    if (this.isOff(tracked)) return; // FD-123: an agent turned off never alerts, even from a probe already in flight
     if (!shouldNotify(this.o.settings(), h, new Date(this.now()))) return;
     const lang = this.o.lang();
     const name = this.name(tracked);
@@ -508,7 +511,7 @@ export class Monitor extends EventEmitter {
     this.lastPollAt = now;
     try {
       // An online service's feed is read no faster than `remote`, like its probe.
-      const due = [...this.tracked.values()].filter((t) => t.entry.descriptor?.placement !== 'remote' || t.polledAt === null || now - t.polledAt >= this.intervals.remote - MIN_WAKE_MS);
+      const due = [...this.tracked.values()].filter((t) => !this.isOff(t)).filter((t) => t.entry.descriptor?.placement !== 'remote' || t.polledAt === null || now - t.polledAt >= this.intervals.remote - MIN_WAKE_MS);
       await Promise.all(due.map((t) => this.pollOne(t)));
     } finally {
       this.polling = false;
@@ -688,14 +691,59 @@ export class Monitor extends EventEmitter {
     };
   }
 
+  /** The services the app watches. FD-123: an agent turned off is not among them (offServices names it), so no count,
+   *  badge, tray entry, outage alert or spend read sees a state nobody measured. */
   snapshots(): ServiceSnapshot[] {
-    return [...this.tracked.values()].map((t) => this.snapshotOf(t)).sort((a, b) => (a.descriptor?.name ?? a.key).localeCompare(b.descriptor?.name ?? b.key));
+    return [...this.tracked.values()].filter((t) => !this.isOff(t)).map((t) => this.snapshotOf(t)).sort((a, b) => (a.descriptor?.name ?? a.key).localeCompare(b.descriptor?.name ?? b.key));
   }
 
   snapshot(key: string): ServiceSnapshot | null {
     const t = this.tracked.get(key);
-    return t ? this.snapshotOf(t) : null;
+    return t && !this.isOff(t) ? this.snapshotOf(t) : null;
   }
+
+  // #region agent-off — docs: docs/ux/scenarios.md#scn-072-hide-an-agent-without-stopping-it
+  /** FD-123: the product ids turned off, as the settings say now (an agent's MCP `arrange` writes them too). */
+  private offIds(): ReadonlySet<string> {
+    return new Set(this.o.settings().layout.list.off ?? []);
+  }
+
+  private isOff(t: Tracked): boolean {
+    return this.offIds().has(productIdOf(t.entry.key));
+  }
+
+  private wasOff: ReadonlySet<string> = new Set();
+
+  /** An agent turned back on starts from nothing: no stale outage, no old feed replayed as news, probed at once. */
+  private syncOff(): void {
+    const off = this.offIds();
+    for (const t of this.tracked.values()) {
+      const id = productIdOf(t.entry.key);
+      if (!this.wasOff.has(id) || off.has(id)) continue;
+      Object.assign(t, {
+        probe: null, firstUnansweredAt: null, misses: 0, lastAnswer: null, nextProbeAt: this.now(), backoff: 0, feedError: null,
+        downNotified: false, lastState: null, baselined: false, launchdAt: null, polledAt: null,
+        launchd: { managed: supervises(this.platform, t.entry.descriptor?.lifecycle.manager), loaded: true, pid: null, disabled: false },
+      } satisfies Partial<Tracked>);
+      this.outageStart.delete(t.entry.key);
+    }
+    this.wasOff = off;
+  }
+
+  /** FD-123: the services of agents turned off: on disk, never probed; the window lists them greyed in Hidden. */
+  offServices(): { key: string; product: string; name: string }[] {
+    return [...this.tracked.values()].filter((t) => this.isOff(t))
+      .map((t) => ({ key: t.entry.key, product: productIdOf(t.entry.key), name: t.entry.descriptor?.name ?? t.entry.key }))
+      .sort((a, b) => a.name.localeCompare(b.name) || (a.key < b.key ? -1 : 1));
+  }
+
+  /** The list layout changed (the window, or settings written outside the app): apply who is off now. */
+  listChanged(): void {
+    this.syncOff();
+    this.changed();
+    this.schedule(0);
+  }
+  // #endregion agent-off
 
   meta(): { servicesDir: string; dirError: string | null; scanning: boolean } {
     return { servicesDir: this.o.servicesDir, dirError: this.dirError, scanning: this.scanning };

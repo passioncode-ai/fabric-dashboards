@@ -2,7 +2,7 @@
 // lists every coding session of this computer by what it needs. The switch above them says which is shown.
 import { useEffect, useRef, useState } from 'react';
 import type { AppStatus, ListSort, Settings as AppSettings, SettingsPatch } from '../../core/types';
-import type { Product } from '../../core/products';
+import { moveInSection, type MoveSection, type Product } from '../../core/products';
 import type { SessionGroup, SessionRow } from '../../core/sessions';
 import { groupRows, navLines, stateShort, waitingForYou } from '../../core/sessions-view';
 import { revealScrollTop } from '../../core/layout';
@@ -40,11 +40,32 @@ export function ModeSwitch({ mode, rows, rail, onMode }: { mode: Mode; rows: rea
 export interface RowActions {
   pin: (id: string) => void;
   hide: (id: string) => void;
+  /** FD-123: turn an agent off (hidden, not watched, no alerts) or back on. */
+  setOff: (id: string, off: boolean) => void;
   kind: (p: Product, kind: 'agent' | 'service') => void;
   isPinned: (id: string) => boolean;
   isHidden: (id: string) => boolean;
   isService: (p: Product) => boolean;
 }
+
+// #region list-drag — docs: docs/ux/scenarios.md#scn-087-arrange-the-sidebar-width-and-order
+/** FD-121 (SCN-087): what dragging a row needs: where it is, and the move it asks for (null: no move). */
+interface RowDrag {
+  section: MoveSection;
+  index: number;
+  count: number;
+  /** The row being dragged, and where a drop would put it, for the line the person sees. */
+  dragging: string | null;
+  dropAt: number | null;
+  start: (id: string) => void;
+  over: (index: number, after: boolean) => void;
+  drop: () => void;
+  end: () => void;
+  /** Alt+Up / Alt+Down: one place up or down. */
+  step: (id: string, by: -1 | 1) => void;
+}
+const DRAG_TYPE = 'application/x-fabric-dashboards-agent';
+// #endregion list-drag
 
 export type AgentsPage = 'overview' | 'activity' | 'map' | 'spend' | 'service' | 'settings' | 'other';
 
@@ -70,8 +91,40 @@ interface AgentsNavProps {
 export function AgentsNav({ page, status, arranged, products, currentProduct, layout, changeLayout, open, go, rail, queue, urgent, auditErrors, hiddenProblem, menu }: AgentsNavProps) {
   const { t } = useT();
   const { pinned, hidden } = arranged;
+  // FD-123: agents turned off are on disk but not watched; they sit greyed at the end of Hidden.
+  const off = status.off ?? [];
+  const hiddenCount = hidden.length + off.length;
+  // FD-121 (SCN-087): one drag at a time, within one section; what a screen reader hears after a move.
+  const [drag, setDrag] = useState<{ section: MoveSection; id: string; dropAt: number | null } | null>(null);
+  const [said, setSaid] = useState('');
+  const move = (section: MoveSection, id: string, to: number) => {
+    const patch = moveInSection(arranged, section, id, to);
+    if (!patch) return;
+    changeLayout({ list: patch });
+    const p = arranged[section].find((x) => x.id === id);
+    const total = arranged[section].length;
+    if (p) setSaid(t('list.moved', { name: nameOf(p.primary), n: Math.max(1, Math.min(total, to + 1)), total }));
+  };
+  const dragFor = (section: MoveSection, index: number, count: number): RowDrag | null => (rail ? null : {
+    section, index, count,
+    dragging: drag?.section === section ? drag.id : null,
+    dropAt: drag?.section === section ? drag.dropAt : null,
+    start: (id) => setDrag({ section, id, dropAt: null }),
+    // The line goes between rows; dropping below oneself counts the row taken out.
+    over: (i, after) => setDrag((d) => (d && d.section === section ? { ...d, dropAt: i + (after ? 1 : 0) } : d)),
+    drop: () => {
+      if (drag?.section === section && drag.dropAt !== null) {
+        const from = arranged[section].findIndex((x) => x.id === drag.id);
+        move(section, drag.id, drag.dropAt > from ? drag.dropAt - 1 : drag.dropAt);
+      }
+      setDrag(null);
+    },
+    end: () => setDrag(null),
+    step: (id, by) => move(section, id, arranged[section].findIndex((x) => x.id === id) + by),
+  });
   return (
     <>
+      <p className="visually-hidden" role="status" aria-live="polite">{said}</p>
       <div className="nav">
         <button className="nav-item" aria-current={page === 'overview' ? 'page' : undefined} title={rail ? t('nav.overview') : undefined} onClick={() => go('overview')}>
           <Icon name="overview" /><span className="nav-label">{t('nav.overview')}</span>
@@ -91,7 +144,7 @@ export function AgentsNav({ page, status, arranged, products, currentProduct, la
       </div>
       <div className="nav nav-scroll">
         {pinned.length > 0 && <div className="nav-section">{t('nav.pinned')}</div>}
-        {pinned.map((p) => <ProductItem key={p.id} p={p} current={currentProduct === p} open={open} rail={rail} pinned menu={menu} />)}
+        {pinned.map((p, i) => <ProductItem key={p.id} p={p} current={currentProduct === p} open={open} rail={rail} pinned menu={menu} drag={dragFor('pinned', i, pinned.length)} />)}
         {/* FD-78: on this Mac, online, services; the sort applies inside each section. */}
         {(['local', 'online', 'service'] as const).map((c, i) => arranged[c].length > 0 && (
           <div key={c} role="group" aria-labelledby={`nav-${c}`}>
@@ -102,22 +155,24 @@ export function AgentsNav({ page, status, arranged, products, currentProduct, la
                   <option value="name">{t('list.sort.name')}</option>
                   <option value="status">{t('list.sort.status')}</option>
                   <option value="activity">{t('list.sort.activity')}</option>
+                  <option value="manual">{t('list.sort.manual')}</option>
                 </select>
               )}
             </div>
-            {arranged[c].map((p) => <ProductItem key={p.id} p={p} current={currentProduct === p} open={open} rail={rail} pinned={false} menu={menu} />)}
+            {arranged[c].map((p, i) => <ProductItem key={p.id} p={p} current={currentProduct === p} open={open} rail={rail} pinned={false} menu={menu} drag={dragFor(c, i, arranged[c].length)} />)}
           </div>
         ))}
         {/* FD-78: hidden agents, folded at the bottom; a problem among them still shows on the fold. */}
-        {hidden.length > 0 && (
+        {hiddenCount > 0 && (
           <div className="nav-hidden">
             {/* In the narrow rail the fold is an entry of its own, so hidden agents stay one click away. */}
-            <button className={rail ? 'nav-item' : 'nav-section nav-fold-section'} aria-expanded={layout.list.hiddenOpen} title={rail ? t('nav.hidden', { count: hidden.length }) : undefined} onClick={() => changeLayout({ list: { hiddenOpen: !layout.list.hiddenOpen } })}>
-              <span aria-hidden="true">{layout.list.hiddenOpen ? '▾' : '▸'}</span> <span className={rail ? 'nav-label' : undefined}>{t('nav.hidden', { count: hidden.length })}</span>
+            <button className={rail ? 'nav-item' : 'nav-section nav-fold-section'} aria-expanded={layout.list.hiddenOpen} title={rail ? t('nav.hidden', { count: hiddenCount }) : undefined} onClick={() => changeLayout({ list: { hiddenOpen: !layout.list.hiddenOpen } })}>
+              <span aria-hidden="true">{layout.list.hiddenOpen ? '▾' : '▸'}</span> <span className={rail ? 'nav-label' : undefined}>{t('nav.hidden', { count: hiddenCount })}</span>
               {hiddenProblem && <span className="count alert" title={t('nav.hiddenProblem')} aria-hidden="true">!</span>}
               {hiddenProblem && <span className="visually-hidden">{t('nav.hiddenProblem')}</span>}
             </button>
-            {layout.list.hiddenOpen && hidden.map((p) => <ProductItem key={p.id} p={p} current={currentProduct === p} open={open} rail={rail} pinned={false} menu={menu} />)}
+            {layout.list.hiddenOpen && hidden.map((p, i) => <ProductItem key={p.id} p={p} current={currentProduct === p} open={open} rail={rail} pinned={false} menu={menu} drag={dragFor('hidden', i, hidden.length)} hiddenRow />)}
+            {layout.list.hiddenOpen && off.map((o) => <OffItem key={o.product} name={o.name} id={o.product} rail={rail} menu={menu} />)}
           </div>
         )}
       </div>
@@ -126,34 +181,69 @@ export function AgentsNav({ page, status, arranged, products, currentProduct, la
 }
 
 /** A product in the sidebar: the primary's name and state; a member in trouble adds a mark, never a changed state (ADR-0012). */
-function ProductItem({ p, current, open, rail, pinned, menu }: { p: Product; current: boolean; open: (key: string) => void; rail: boolean; pinned: boolean; menu: RowActions }) {
+function ProductItem({ p, current, open, rail, pinned, menu, drag = null, hiddenRow = false }: { p: Product; current: boolean; open: (key: string) => void; rail: boolean; pinned: boolean; menu: RowActions; drag?: RowDrag | null; hiddenRow?: boolean }) {
   const { t } = useT();
   const s = p.primary;
+  // FD-121 (SCN-087): the line shows above the row the drop lands before, or below the last one.
+  const line = drag && drag.dragging && drag.dropAt !== null ? (drag.dropAt === drag.index ? ' drop-before' : drag.dropAt === drag.index + 1 && drag.index === drag.count - 1 ? ' drop-after' : '') : '';
   return (
-    <div className={`nav-row${pinned ? ' pinned' : ''}`}>
+    <div className={`nav-row${pinned ? ' pinned' : ''}${drag?.dragging === p.id ? ' dragging' : ''}${line}`}
+      draggable={Boolean(drag) && drag!.count > 1}
+      onDragStart={drag ? (e) => { e.dataTransfer.setData(DRAG_TYPE, p.id); e.dataTransfer.effectAllowed = 'move'; drag.start(p.id); } : undefined}
+      onDragOver={drag ? (e) => {
+        if (!drag.dragging || !e.dataTransfer.types.includes(DRAG_TYPE)) return; // another section's row, or not ours
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        const r = e.currentTarget.getBoundingClientRect();
+        drag.over(drag.index, e.clientY > r.top + r.height / 2);
+      } : undefined}
+      onDrop={drag ? (e) => { if (drag.dragging) { e.preventDefault(); drag.drop(); } } : undefined}
+      onDragEnd={drag ? () => drag.end() : undefined}>
       {/* VIS-15 (FD-113): the title in both widths, since an expanded row cuts a long name too. */}
-      <button className="nav-item" aria-current={current ? 'page' : undefined} title={t('join.nameState', { name: nameOf(s), state: t(`state.${s.state}`) })} onClick={() => open(s.key)}>
+      <button className="nav-item" aria-current={current ? 'page' : undefined} title={t('join.nameState', { name: nameOf(s), state: t(`state.${s.state}`) })} onClick={() => open(s.key)}
+        aria-keyshortcuts={drag && drag.count > 1 ? 'Alt+ArrowUp Alt+ArrowDown' : undefined}
+        onKeyDown={drag ? (e) => { if (e.altKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) { e.preventDefault(); drag.step(p.id, e.key === 'ArrowUp' ? -1 : 1); } } : undefined}>
         <span className={`state state-${s.state}`} aria-hidden="true"><span className="glyph">{GLYPH[s.state]}</span></span>
         {rail && <span className="initials" aria-hidden="true">{initialsOf(nameOf(s))}</span>}
         <span className="nav-label">{nameOf(s)}</span>
         {p.memberProblem && <span className="count alert" title={t('nav.memberProblem')} aria-hidden="true">!</span>}
         <span className="visually-hidden">{t(`state.${s.state}`)}{p.memberProblem ? `, ${t('nav.memberProblem')}` : ''}</span>
       </button>
+      {/* FD-121 (SCN-072): a hidden agent comes back with one press on its eye. */}
+      {!rail && hiddenRow && (
+        <button className="pin-btn unhide-btn" title={t('list.showAgain', { name: nameOf(s) })} aria-label={t('list.showAgain', { name: nameOf(s) })} onClick={() => menu.hide(p.id)}>
+          <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M1 8s2.6-4.5 7-4.5S15 8 15 8s-2.6 4.5-7 4.5S1 8 1 8z" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" /><circle cx="8" cy="8" r="2" fill="currentColor" /></svg>
+        </button>
+      )}
       {!rail && <RowMenu p={p} menu={menu} />}
     </div>
   );
 }
 
 /** FD-78: one small button per row opens its actions (global rule: one primary action, the rest in a menu). */
+/** The row menu's width bounds: from MENU_EDGE px inside the window to the button's right edge; its usual 200 px
+ *  minimum shrinks when the sidebar is narrower than that. */
+export const MENU_EDGE = 8;
+export function menuWidth(buttonRight: number): { maxWidth: number; minWidth: number } {
+  const maxWidth = Math.max(120, Math.round(buttonRight - MENU_EDGE));
+  return { maxWidth, minWidth: Math.min(200, maxWidth) };
+}
+
 function RowMenu({ p, menu }: { p: Product; menu: RowActions }) {
   const { t } = useT();
   const [open, setOpen] = useState(false);
   // The list scrolls, so the menu is placed against the window: below the button, or above it near the bottom.
-  const [at, setAt] = useState<{ top?: number; bottom?: number; right: number }>({ right: 0 });
+  // It ends at the button's right edge and never starts left of the window: a long item wraps instead of
+  // pushing the menu out (seen 2026-10-27). It stays over the sidebar, since a dashboard to its right is drawn
+  // above the page and would cover it.
+  const [at, setAt] = useState<{ top?: number; bottom?: number; right: number; maxWidth?: number; minWidth?: number }>({ right: 0 });
   const box = useRef<HTMLDivElement | null>(null);
   const toggle = () => {
     const r = box.current?.querySelector('.row-menu-btn')?.getBoundingClientRect();
-    if (r) setAt(window.innerHeight - r.bottom < 140 ? { bottom: window.innerHeight - r.top + 4, right: window.innerWidth - r.right } : { top: r.bottom + 4, right: window.innerWidth - r.right });
+    if (r) {
+      const room = { right: window.innerWidth - r.right, ...menuWidth(r.right) };
+      setAt(window.innerHeight - r.bottom < 140 ? { bottom: window.innerHeight - r.top + 4, ...room } : { top: r.bottom + 4, ...room });
+    }
     setOpen(!open);
   };
   const name = nameOf(p.primary);
@@ -186,11 +276,32 @@ function RowMenu({ p, menu }: { p: Product; menu: RowActions }) {
           {!hidden && <button role="menuitem" onClick={act(() => menu.pin(p.id))}>{t(pinned ? 'list.unpin' : 'list.pin', { name })}</button>}
           <button role="menuitem" onClick={act(() => menu.kind(p, service ? 'agent' : 'service'))}>{t(service ? 'list.asAgent' : 'list.asService')}</button>
           <button role="menuitem" onClick={act(() => menu.hide(p.id))}>{t(hidden ? 'list.unhide' : 'list.hide')}</button>
+          <button role="menuitem" onClick={act(() => menu.setOff(p.id, true))}>{t('list.turnOff')}</button>
         </div>
       )}
     </div>
   );
 }
+
+// #region agent-off — docs: docs/ux/scenarios.md#scn-072-hide-an-agent-without-stopping-it
+/** FD-123: an agent turned off: its name greyed, the word "Off", and one button that turns it back on (it stays hidden
+ *  and watched). No page opens from it: nothing about it is read. The narrow rail shows the name only. */
+function OffItem({ id, name, rail, menu }: { id: string; name: string; rail: boolean; menu: RowActions }) {
+  const { t } = useT();
+  return (
+    <div className="nav-item nav-off" title={t('list.offRow', { name })}>
+      <span className="glyph" aria-hidden="true">○</span>
+      <span className="nav-label">{name}</span>
+      {!rail && <span className="off-word">{t('list.off')}</span>}
+      {!rail && (
+        <button className="pin-btn turn-on-btn" title={t('list.turnOn', { name })} aria-label={t('list.turnOn', { name })} onClick={() => menu.setOff(id, false)}>
+          <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true"><path d="M8 1.5v6M4.6 3.8a5.2 5.2 0 1 0 6.8 0" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /></svg>
+        </button>
+      )}
+    </div>
+  );
+}
+// #endregion agent-off
 
 /** The mark a session row carries beside its words: the shapes of the agents' states (VIS-08), never alone. Waiting for
  *  a limit reset has no agent state of its own: it is a clock in the info colour (R1-V2: the starting ring ◌ in the muted

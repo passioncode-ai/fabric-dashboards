@@ -58,6 +58,14 @@ a { color: var(--pc-link); text-decoration: underline; }
   -webkit-app-region: drag;
 }
 .sidebar > * { -webkit-app-region: no-drag; }
+/* FD-121 (SCN-087): the expanded sidebar's right edge: a thin strip over its border, a line when pointed at or focused. */
+.sidebar { position: relative; }
+.sidebar-edge { position: absolute; top: 0; bottom: 0; right: -4px; width: 8px; z-index: 2; cursor: col-resize; touch-action: none; }
+.sidebar-edge::after { content: ''; position: absolute; top: 0; bottom: 0; left: 3px; width: 2px; background: transparent; transition: background-color var(--pc-duration-hover) var(--pc-ease); }
+.sidebar-edge:hover::after, .sidebar-edge:focus-visible::after, .app.resizing .sidebar-edge::after { background: var(--pc-link); }
+.sidebar-edge:focus-visible { outline: 2px solid var(--pc-focus); outline-offset: -2px; border-radius: 0; }
+.app.resizing, .app.resizing * { cursor: col-resize !important; user-select: none; }
+@media (prefers-reduced-motion: reduce) { .sidebar-edge::after { transition: none; } }
 .brand { display: flex; align-items: center; gap: var(--pc-space-2); padding: 0 var(--pc-space-2) var(--pc-space-4); font-weight: 600; }
 .brand img { width: 24px; height: 24px; }
 .nav { display: flex; flex-direction: column; gap: 2px; }
@@ -78,6 +86,11 @@ a { color: var(--pc-link); text-decoration: underline; }
 .nav-scroll :focus-visible { outline-offset: -2px; }
 /* FD-39: pin and sort (ADR-0020). The pin shows on hover or focus, and always on a pinned row. */
 .nav-row { position: relative; display: flex; align-items: center; }
+/* FD-121 (SCN-087): a row being dragged fades; the line between rows shows where it lands. */
+.nav-row.dragging { opacity: .45; }
+.nav-row.drop-before { box-shadow: inset 0 2px 0 var(--pc-link); }
+.nav-row.drop-after { box-shadow: inset 0 -2px 0 var(--pc-link); }
+.nav-row[draggable='true'] > .nav-item { cursor: default; }
 .nav-row > .nav-item { flex: 1; min-width: 0; }
 .pin-btn { position: absolute; right: var(--pc-space-1); top: 50%; transform: translateY(-50%); display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; border: 0; border-radius: var(--pc-radius-control); background: transparent; color: var(--pc-text-muted); cursor: pointer; opacity: 0; }
 /* VIS-03: hidden by opacity, never display: none, so the button keeps its place in the tab order; it shows on hover,
@@ -386,10 +399,20 @@ table.spend th[scope='row'] { color: var(--pc-text); }
 /* No transform here: the menu is position: fixed, and a transformed ancestor would become its frame. */
 .row-menu { position: absolute; right: var(--pc-space-1); top: 0; bottom: 0; display: flex; align-items: center; }
 .row-menu .row-menu-btn { position: static; transform: none; }
+/* FD-121 (SCN-072): the eye on a hidden row, left of its menu and always shown: bringing it back is the fold's job. */
+.unhide-btn { right: calc(var(--pc-space-1) + 28px); opacity: 1; }
+.nav-hidden .nav-row .nav-item { padding-right: 60px; }
+/* FD-123 (SCN-072): an agent turned off reads greyed, says "Off" in words, and keeps one button that turns it on. */
+.nav-off { position: relative; color: var(--pc-text-muted); cursor: default; padding-right: 36px; }
+.nav-off .off-word { margin-left: auto; font-size: var(--pc-type-meta); }
+.turn-on-btn { right: var(--pc-space-1); opacity: 1; }
+.off-list { margin-top: var(--pc-space-2); }
 .nav-row:hover .row-menu .row-menu-btn, .nav-row:focus-within .row-menu .row-menu-btn, .row-menu.shown .row-menu-btn, .row-menu-btn:focus-visible { opacity: 1; }
 .menu { position: fixed; z-index: 30; min-width: 200px; display: flex; flex-direction: column; padding: var(--pc-space-1); background: var(--pc-panel-raised); border: 1px solid var(--pc-border-strong); border-radius: var(--pc-radius-control); box-shadow: var(--fd-shadow-menu); }
 .menu [role='menuitem'] { text-align: left; min-height: var(--fd-control-sm); padding: 0 var(--pc-space-2); border: 0; border-radius: var(--pc-radius-control); background: transparent; color: var(--pc-text); font: inherit; font-size: var(--pc-type-meta); cursor: pointer; white-space: nowrap; }
 .menu [role='menuitem']:hover { background: var(--pc-panel); }
+/* A row menu fits the sidebar: a long item ("Pin <a long name> to the top") wraps rather than leave the window. */
+.row-menu .menu [role='menuitem'] { white-space: normal; overflow-wrap: anywhere; padding-top: var(--pc-space-1); padding-bottom: var(--pc-space-1); line-height: 1.3; }
 /* VIS-04: the item Enter will run is ringed, not told by a 1.1:1 background change alone. */
 .menu [role='menuitem']:focus-visible { background: var(--pc-accent-soft); outline: 2px solid var(--pc-focus); outline-offset: -2px; }
 .nav-fold-section { display: flex; align-items: center; gap: var(--pc-space-1); width: calc(100% - 2 * var(--pc-space-2)); border: 0; background: transparent; cursor: pointer; padding: 0; text-align: left; }

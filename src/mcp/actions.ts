@@ -23,6 +23,15 @@ export const OWN_ACTIONS: DeclaredAction[] = [
   // ADR-0025 (FD-120): the console's buttons, through the app's channel; they start a program in the person's folder.
   { id: 'new-session', title: 'New session', tool: 'console_new', gate: 'relayed' },
   { id: 'fix-with-coding-agent', title: 'Fix with coding agent', tool: 'console_fix', gate: 'relayed' },
+  // FD-122: the sidebar row's menu and its eye (SCN-071, SCN-072); a list choice, nothing outside this app changes.
+  { id: 'pin', title: 'Pin to the top', tool: 'arrange', gate: 'none' },
+  { id: 'unpin', title: 'Unpin', tool: 'arrange', gate: 'none' },
+  { id: 'hide', title: 'Hide', tool: 'arrange', gate: 'none' },
+  { id: 'show', title: 'Show again', tool: 'arrange', gate: 'none' },
+  { id: 'as-service', title: 'Show as a service', tool: 'arrange', gate: 'none' },
+  { id: 'as-agent', title: 'Show as an agent', tool: 'arrange', gate: 'none' },
+  { id: 'turn-off', title: 'Turn off', tool: 'arrange', gate: 'none' },
+  { id: 'turn-on', title: 'Turn on', tool: 'arrange', gate: 'none' },
 ];
 
 /** The `_meta` of the initialize answer: this app's declared actions (DEC-0121 AP-1). */
@@ -30,7 +39,7 @@ export const ACTIONS_META = { [ACTIONS_EXTENSION]: { actions: OWN_ACTIONS } };
 
 /** The declared action a tool call performs, or null for a call no button stands for. */
 export function actionOf(tool: string, args: Record<string, unknown>): DeclaredAction | null {
-  if (tool === 'control') return OWN_ACTIONS.find((a) => a.tool === 'control' && a.id === args.action) ?? null;
+  if (tool === 'control' || tool === 'arrange') return OWN_ACTIONS.find((a) => a.tool === tool && a.id === args.action) ?? null;
   return OWN_ACTIONS.find((a) => a.tool === tool) ?? null;
 }
 

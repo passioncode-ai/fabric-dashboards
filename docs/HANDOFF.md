@@ -39,6 +39,32 @@ covered window (draft PR #247, waiting for a live check).
 recorded it, PR #492). **Exact next task:** see the installed copy take it (`main.log` `update_install installed
 from=0.8.7 to=0.8.8`); it waits while the window is shown until PR #247 (FD-80) ships.
 
+## Sidebar and agents turned off: start here (2026-10-26 evening, FD-121 to FD-124)
+
+**Objective:** the operator asked in this repository's session for more control of the sidebar («немножко не хватает
+менеджмента левой панели»): a width to drag, agents to drag into an order, hidden agents folded at the bottom with an
+eye to bring them back (hidden agents keep working), and a look at where the window falls behind the local agents.
+
+**Done (branches, not merged):** draft PR #243 `feat/sidebar-manage`: FD-121 (width 200 to 420 px, drag and
+Alt+arrows within a section, the "Your order" sort, the eye on hidden rows) and FD-122 (MCP `arrange`; settings
+written outside the app are read again at once and kept by the app's next write: a folder watch plus a 5 s stat).
+Draft PR #245 `feat/fd-123-off`, stacked on it: FD-123, an agent turned off (`layout.list.off`, also hidden) is never
+probed, never alerts and counts nowhere; Hidden lists it greyed with Turn on; MCP `arrange` `turn-off`/`turn-on`.
+Backlog FD-124 filed for Switchboard SB-212 (session chain, transcript link, output kept across a restart). FD-105's
+plan agreed with Fabric (PR #244, merged): Fabric 0.3.14 shows agents at work; our Sessions mode narrows in 0.9.0 and
+takes Fabric's status words (MD-12, answered on thread `d683f99d`).
+
+**Checks run:** `npm run check` on #245: 824 tests, 817 pass, 0 fail, brand pins, regions and UX lint pass. Text checks
+en `7ed6473c`, ru `714705d8` (FD-123), clean. e2e not run: the machine is under its floors (1.4 to 2.9 GB free disk,
+swap nearly full; HV-02 needs 5 GB) or the screen is locked.
+
+**Waits:** the session's watcher runs the FD-111 e2e files (`test/fd-111-e2e`) and `test/e2e/focus-console.test.ts`
+on the #245 tree once the disk has 5.5 GB free and the screen is unlocked; it dies with the session. Fallback: run
+`npm run test:e2e -- test/e2e/focus-console.test.ts` in `~/DATA/_worktrees/sidebar-manage` by hand.
+
+**Exact next task:** when that e2e is green, undraft and merge #243, retarget #245 to main and merge it, merge
+`test/fd-111-e2e` and close FD-111, FD-121, FD-122 and FD-123; then 0.9.0 per *Consolidation 2026-10-25*.
+
 ## Consolidation 2026-10-25: start here
 
 **Objective:** the operator asked to check what the other sessions did, the board, the debts, worktrees and branches;
@@ -83,8 +109,8 @@ Observatory 0.29.2: `node.lifecycle` is macOS only, so no Windows or Linux targe
 (790, 793 tests).
 
 **Exact next task:** after the installed copy updates (`main.log`: `update_install installed from=0.8.6 to=0.8.7`),
-check that `console.sock` (0600) and `console.key` (0600) exist in the app's data folder (a successful open writes no
-log line; a failure writes `console channel: not opened` or `another program answers`) and that a request with a wrong
+check that `console.sock` (0600) and `console.key` (0600) exist in the app's data folder (a successful open writes
+`console channel open`, `src/electron/main.ts`; a failure writes `console channel: not opened` or `another program answers`) and that a request with a wrong
 key gets `bad-key` and the line `console channel: a request with a wrong key was refused`; with the screen
 unlocked, run the e2e suite (FD-111) and call `console_new` against a test service. FD-52 waits
 for its context source (the Observatory node, Fabric's organization contexts, 2026-11-21).

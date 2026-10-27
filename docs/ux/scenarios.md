@@ -92,6 +92,7 @@
 | SCN-084 | An ended session continues or leaves | sessions | P-01 | ST-023 | draft | 2026-10-24 |
 | SCN-085 | A taken hand-over tells me once, and the tray counts sessions | sessions | P-01 | ST-023, ST-007, ST-009 | draft | 2026-10-24 |
 | SCN-086 | Settings → Sessions | settings | P-01 | ST-023, ST-010 | draft | 2026-10-24 |
+| SCN-087 | Arrange the sidebar: width and order | list | P-01 | ST-021, ST-018 | draft | 2026-10-26 |
 ## Personas
 
 Defined in [foundation.md](foundation.md) → P-01.
@@ -714,7 +715,8 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
   2. Agent calls `link` for a job it started -> it receives the deep link as the primary dashboard action and the plain address for diagnostics; `host_status` distinguishes installed/absent/unknown/version/handler; `open` uses the existing host and by default never a browser (`fallback=never`, FD-109; a browser only for confirmed absence when the agent passes `fallback=if_absent`); an address no descriptor names is refused with the step that registers its agent, never opened
   3. Agent calls `control` (start, stop, restart), `doctor` or `update` -> the same launchd verbs and descriptor commands as the app run, and the tool returns the result it observed; an agent that carries the operator's decision in `_meta.decision` has it recorded as the operator's in `decisions.jsonl` beside the app's log, an invalid one is refused `decision-invalid` and nothing runs, and a call without one still runs as the agent's own act (FD-110, DEC-0121, MD-10). `initialize` declares this app's buttons and their tools in its `_meta`; with the app running, `console_new` and `console_fix` start a console session or a fix in it through the app's own channel (ADR-0025, FD-120), and with the app closed they answer `app-not-running` and start nothing
   4. Agent calls `activity` -> recent events as sentences, each with a deep link when it points at a page
-  5. Agent calls `spend` -> each agent's own usage entries (today, 7 and 30 days, per model, budget and every limit with its state; a null cost is unknown, `partial` a lower bound); a service that does not answer, or whose address another program answers, is an error entry — its spend is unknown, never "not reporting"
+  5. Agent calls `arrange` with an agent and pin, unpin, hide, show, as-service, as-agent, turn-off or turn-on (FD-123: off hides it too and the app stops watching it; on keeps it hidden and watched; show turns it on as well) -> the same choice the row menu and the hidden row's eye make (FD-122), written to the app's settings: a running app shows it within seconds (it watches settings.json, and stats it every 5 s for what the watch misses), a closed one when it opens; a choice that holds already changes nothing (`changed: false`); a hidden agent is still watched and still alerts
+  6. Agent calls `spend` -> each agent's own usage entries (today, 7 and 30 days, per model, budget and every limit with its state; a null cost is unknown, `partial` a lower bound); a service that does not answer, or whose address another program answers, is an error entry — its spend is unknown, never "not reporting"
 - **Expected result:** agents hand the operator the exact page and use the app's rules for administration instead of launchctl by hand
 - **Alt paths:** an online service or one without launchd lifecycle -> `control` refuses; a missing launchd plist -> `control` refuses before calling launchctl; no declared doctor or update -> the tool refuses; an unknown tool -> a JSON-RPC error (-32602); an argument the tool does not declare -> refused; the app was updated under a running session -> the server hands the session to the installed copy's server and the new version answers the next call, on the same connection (FD-109); where no installed launcher can take it, the next call answers stale with both versions, and the server exits; `doctor` and `update` run the service's programs and are not marked read-only
 - **UI elements:** none (agent tool results); the opened service view
@@ -1241,20 +1243,22 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 ### SCN-072: Hide an agent without stopping it
 - **Persona:** P-01
 - **Feature:** list
-- **Traces:** ST-021 (JTBD-01); FD-78 (operator 2026-10-20)
-- **Entry point:** the agent's row menu → Hide
+- **Traces:** ST-021 (JTBD-01); FD-78 (operator 2026-10-20); FD-123 (board `8a8647e3`, the operator 2026-10-26: «спрячем, пусть не будем совсем стирать, но пока он будет скрыт, неактивен, задизейблен»)
+- **Entry point:** the agent's row menu → Hide, or → Turn off
 - **Preconditions:** at least one agent
 - **Steps:**
   1. User chooses Hide -> the agent leaves its section (and Pinned) and a folded "Hidden: 1" appears at the bottom of the sidebar and of Overview; in the narrow rail the fold is an entry of its own
   2. User opens the fold -> the hidden agents are listed; clicking one opens it as usual
-  3. User chooses "Show again" -> it returns to its section, pinned again if it was pinned
+  3. User chooses "Show again" in the row menu, or presses the eye beside a hidden agent in the open fold (FD-121) -> it returns to its section, pinned again if it was pinned
+  4. User chooses Turn off in the row menu (FD-123) -> the agent is hidden too and the app stops watching it: no checks, no events read, no notifications, no outage alerts, and it counts in no badge, tray entry or Needs attention; the open fold lists it last, greyed, with "Off" in words and a Turn on button ("Turn {name} on"); "Hidden: N" counts it; Overview's open fold names the agents turned off in one line
+  5. User presses Turn on -> it is checked at once, starting afresh (an outage it had before it was turned off is not carried over and its old events are not replayed as news), and it stays hidden until shown again; the eye or Show again on an agent that is off shows it and turns it on
 - **Expected result:** service agents the person does not look at take no room, and nothing about them stops
-- **Alt paths:** a hidden agent fails -> Needs attention lists it as before, its outage still reaches the operator channel, and the folded header carries a "!" ("A hidden agent needs attention"); the fold's open or closed state is remembered; a hidden agent that is removed leaves the list
-- **UI elements:** Hide and Show again in the row menu, the "Hidden: N" fold with its mark
+- **Alt paths:** a hidden agent fails -> Needs attention lists it as before, its outage still reaches the operator channel, and the folded header carries a "!" ("A hidden agent needs attention"); the fold's open or closed state is remembered; a hidden agent that is removed leaves the list; an agent turned off opens no page (nothing about it is read) and keeps its descriptor on disk; an agent turns one off or on with MCP `arrange` `turn-off`/`turn-on` (SCN-028)
+- **UI elements:** Hide, Show again and Turn off in the row menu, a greyed row with "Off" and a Turn on button for an agent turned off (the rail shows its name only), the "Hidden: N" fold with its mark, an eye button on each hidden row named "Show {name} again" (FD-121; not in the narrow rail, where the row menu is gone too: the person widens the sidebar)
 - **States covered:** success, empty, error
 - **Errors & recovery:** n/a
 - **Status:** validated (test/e2e/focus-console.test.ts (ADR-0017 test, FD-78 steps) passed on the running app, 2026-10-23 00:00 UTC)
-- **Coverage:** src/core/products.ts (toggleHidden, arrangeProducts), src/renderer/App.tsx, src/renderer/components/Overview.tsx, test/listorder.test.ts *FD-78*, test/e2e/focus-console.test.ts *FD-78*
+- **Coverage:** src/core/products.ts (toggleHidden, arrangeProducts, setOff, showAgain), src/core/monitor.ts (offServices, listChanged), src/renderer/App.tsx, src/renderer/components/Navigation.tsx (OffItem), src/renderer/components/Overview.tsx, test/listorder.test.ts *FD-78*, test/agent-off.test.ts *FD-123*, test/e2e/focus-console.test.ts *FD-78*
 - **Product:** unobserved
 
 ### SCN-073: See what an agent is connected to
@@ -1882,4 +1886,31 @@ The Sessions mode (0.8.0): every coding session apart from the agents, each stat
   - "Switchboard did not change it: {reason}" / «Switchboard не изменил настройку: {reason}»
 - **Status:** draft
 - **Coverage:** src/renderer/components/Settings.tsx (sessions-settings region; the scroll by `revealScrollTop` of src/core/layout.ts), src/electron/console.ts (`readHandoversSwitch`, `setHandoversSwitch`); i18n parity in test/copy.test.ts; test/sessions-polish.test.ts (`revealScrollTop`, FD-107)
+- **Product:** unobserved
+
+### SCN-087: Arrange the sidebar: width and order
+- **Persona:** P-01
+- **Feature:** list
+- **Traces:** ST-021, ST-018 (JTBD-01); FD-121 (operator 2026-10-26: «чтобы я мог её чуть по ширине двигать», «менять местами агентов, просто зажать их, подвинуть»)
+- **Entry point:** the sidebar's right edge; an agent's row in the sidebar
+- **Preconditions:** the sidebar is expanded (SCN-047)
+- **Steps:**
+  1. User drags the sidebar's right edge -> the sidebar follows the pointer between 200 and 420 px, the dashboard beside it takes the rest; while the edge is held the dashboard steps aside (a native view would take the pointer) and comes back on release; the width is kept across restarts
+  2. User double-clicks the edge -> it returns to 240 px
+  3. User holds an agent's row and drags it up or down within its section -> a line shows where it lands; on release it stays there, the sort reads "Your order", and every section keeps what the person saw, on Overview too
+  4. User drags a pinned agent within Pinned -> the pin order changes; the sort of the other sections stays as it was
+  5. User restarts the app -> width and order are as they were; a new agent arrives after the ones the person placed
+- **Expected result:** the sidebar is as wide as the person's names need and lists the agents in the order they work in
+- **Alt paths:** keyboard -> the edge is a separator: Left and Right arrows change the width by 16 px, Home returns it to 240; on an agent's row Alt+Up and Alt+Down move it one place within its section and a screen reader hears its new place; the person chooses another sort (By name, Needs attention first, Recent activity) -> the list follows that sort, and choosing "Your order" again brings the dragged order back; an agent is dropped on another section -> nothing moves (sections are On this Mac, Online, Services, Pinned and Hidden; Pin and Show as a service move between them); the sidebar is folded into the rail -> no edge and no dragging; a damaged width in settings reads as 240
+- **UI elements:** the sidebar's edge (a separator, "Sidebar width"), the drop line, the "Your order" sort
+- **States covered:** success
+- **Errors & recovery:** n/a: nothing is sent anywhere; a write of settings that fails keeps the screen as the person left it (R-9)
+- **Copy:**
+  - "Sidebar width" / «Ширина боковой панели» (the separator's name)
+  - "Drag to change the width. Double-click returns it to the start." / «Потяните, чтобы изменить ширину. Двойной щелчок вернёт исходную.» (its tooltip)
+  - "Your order" / «Свой порядок» (the sort)
+  - "{name}: place {n} of {total}" / «{name}: место {n} из {total}» (said after a move)
+  - "Show {name} again" / «Показать {name} снова» (the eye on a hidden row)
+- **Status:** draft
+- **Coverage:** src/core/products.ts (moveInSection, arrangeProducts), src/core/settings.ts (sidebarWidth, mergeList), src/renderer/components/Navigation.tsx, src/renderer/App.tsx (SidebarEdge), test/sidebar-manage.test.ts
 - **Product:** unobserved
