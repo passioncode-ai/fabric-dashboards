@@ -14,10 +14,12 @@ export interface SinceLastVisit {
   alerts: { key: string; level: string; text: string; at: string }[];
   /** Agents the person ran a console for, the last selected first; each can Continue. */
   continueKeys: string[];
+  /** UX-09 (FD-129): agents with an update waiting, named with its version; the Update button is in Needs attention. */
+  updates: { key: string; version: string }[];
 }
 
 export function sinceLastVisit(o: {
-  services: readonly Pick<ServiceSnapshot, 'key' | 'latestEvent'>[];
+  services: readonly (Pick<ServiceSnapshot, 'key' | 'latestEvent'> & Partial<Pick<ServiceSnapshot, 'wellKnown'>>)[];
   lastVisitAt: string | null;
   known: readonly string[];
   consoles: Record<string, { runtime: string | null }>;
@@ -40,6 +42,7 @@ export function sinceLastVisit(o: {
     removed: since ? o.known.filter((k) => !current.has(k)) : [],
     alerts,
     continueKeys,
+    updates: since ? o.services.flatMap((s) => (s.wellKnown?.update?.available ? [{ key: s.key, version: s.wellKnown.update.available }] : [])) : [],
   };
 }
 

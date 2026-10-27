@@ -1523,11 +1523,11 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **Entry point:** any launch after setup
 - **Preconditions:** the person has used the app before
 - **Steps:**
-  1. User opens the app -> Overview leads with "Since you were last here": agents that broke (each with Fix with coding agent), updates (Update, or Update with coding agent), and new or removed agents
+  1. User opens the app -> Overview shows, after Needs attention, "Since you were last here": agents that broke (each with Fix with coding agent), "Updates waiting: <agent> <version>, …" (the Update button is the agent's row in Needs attention above, FD-129 UX-09), and new or removed agents
   2. User sees the agents they worked with -> each offers Continue (the last console session, resumed with fresh context)
   3. User opens one -> the agent they had selected last time is selected
 - **Expected result:** the person starts from what needs them, not from the whole list
-- **Alt paths:** nothing changed -> the section says so in one line and Overview reads as before; Dismiss puts the section away; the window shown again after an hour or more hidden (the app lives in the menu bar for days) -> the section is computed again from the previous show (UX-08)
+- **Alt paths:** nothing changed -> the section says so in one line ("Nothing changed since <when>."), also for a person with no console history (UX-09), and Overview reads as before; Dismiss puts the section away; the window shown again after an hour or more hidden (the app lives in the menu bar for days) -> the section is computed again from the previous show (UX-08)
 - **UI elements:** "Since you were last here" section, Continue buttons
 - **States covered:** success, empty
 - **Errors & recovery:** n/a
