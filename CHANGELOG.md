@@ -10,6 +10,28 @@
 - The console's cursor stops blinking when the system asks for reduced motion (FD-129: VIS-23).
 - The menu-bar menu leaves out agents the person hid; one that needs attention is still listed and counted first
   (FD-129: UX-19). The console's terminal takes its font size from a style token (FD-129: VIS-19).
+- The sidebar page is now «Agent map» («Карта агентов»), apart from each agent's own Connections tab, and its list
+  of what to fix is «Problems» («Проблемы»): no person audits your agents (FD-129: UX-21, COPY-32).
+- Spend: figures line up on the right and read at body size, dollars carry a thousands separator ("$1,234.56"), and
+  every agent's row and every "Could not read" line has Open, which opens that agent (FD-129: VIS-18, UX-22).
+- Settings opens with an index of its groups, puts Uninstall last, folds the notification rows of hidden agents
+  under "Hidden: N", and marks a refused text field with a red border (FD-129: UX-20, VIS-21).
+- The details card groups its actions (run, repair, files as quiet links) with one primary per state; a tab list cut
+  by a narrow window fades where more tabs are; Overview's blocks share one radius and every agent name that opens
+  it is underlined; small controls share one size and chips one shape (FD-129: VIS-16, VIS-17, VIS-20, VIS-24).
+- "Since you were last here" names the updates waiting and always says when nothing changed (FD-129: UX-09).
+
+### Added
+
+- A right-click (or the context-menu key) on an agent opens its row menu, also in the folded rail, where it opens
+  beside the rail and the dashboard steps aside while it is open (FD-129: UX-23).
+- Fix or Update with coding agent while a session already runs keeps the task: the console offers "Send the task to
+  this session", which writes the task file and types one line pointing at it, without pressing Enter (FD-129: UX-16).
+- The app's own Activity rows (stopped answering, restarted, runs twice) open their agent, and an agent's own
+  Activity tab opens its rows as the Activity page does (FD-129: UX-15).
+
+Copy check reports for the new strings: `6baa9afc`, `db3cfdd7`, `4b318012`, `e10d81c5`, `858601c8`, `87668ab8`,
+`cfd3edf4`, `dfd39ef0`, `63576e44`, `d6ad9d93`.
 
 ## 0.8.10 - 2026-10-27
 
