@@ -146,7 +146,7 @@ test('ADR-0017: a one-line header, a folding sidebar, and an agent console besid
     await con.locator('.console-term').click();
     await con.keyboard.type('bye');
     await con.keyboard.press('Enter');
-    await con.getByText('Exited (code 0).').waitFor({ timeout: 15_000 });
+    await con.getByText('The session exited with code 0.').waitFor({ timeout: 15_000 });
     await con.getByRole('button', { name: 'Continue last' }).click();
     await waitFor('the resumed runtime', async () => /--continue\]/.test(await termText(con)));
 
@@ -172,7 +172,7 @@ test('ADR-0017: a one-line header, a folding sidebar, and an agent console besid
     await con.locator('.console-term').click();
     await con.keyboard.type('bye');
     await con.keyboard.press('Enter');
-    await con.getByText('Exited (code 0).').waitFor({ timeout: 15_000 });
+    await con.getByText('The session exited with code 0.').waitFor({ timeout: 15_000 });
 
     // FD-81 SCN-074: the auditor hands the same agent's findings to the coding agent picked in its row.
     await page.getByRole('button', { name: /^Connections/ }).first().click();
@@ -184,11 +184,11 @@ test('ADR-0017: a one-line header, a folding sidebar, and an agent console besid
     await waitFor('the audit task to be written', () => /^# Task: Audit findings for Sample Service/.test(fs.readFileSync(path.join(pack, 'task.md'), 'utf8')));
     assert.match(fs.readFileSync(path.join(pack, 'task.md'), 'utf8'), /the Fabric Dashboards auditor found/);
     await page.getByRole('heading', { level: 1, name: 'Sample Service' }).waitFor();
-    await waitFor('the runtime to start on the audit task', async () => /Do the task in [^\]]*task\.md\.\]/.test(await termText(con)) && !(await termText(con)).includes('Exited (code 0).'));
+    await waitFor('the runtime to start on the audit task', async () => /Do the task in [^\]]*task\.md\.\]/.test(await termText(con)) && !(await termText(con)).includes('The session exited with code 0.'));
     await con.locator('.console-term').click();
     await con.keyboard.type('bye');
     await con.keyboard.press('Enter');
-    await waitFor('the second session to end', async () => (await con.getByText('Exited (code 0).').count()) > 0);
+    await waitFor('the second session to end', async () => (await con.getByText('The session exited with code 0.').count()) > 0);
 
     // FD-39 SCN-056: pin the agent to the top; a Pinned section holds it, and the choice is remembered.
     // FD-78: the row's actions live in one small menu.
@@ -314,7 +314,7 @@ test('FD-39 SCN-058: a first launch opens the setup beside Overview; the coding 
     await con.locator('.console-term').click();
     await con.keyboard.type('bye');
     await con.keyboard.press('Enter');
-    await con.getByText('Exited (code 0).').waitFor({ timeout: 15_000 });
+    await con.getByText('The session exited with code 0.').waitFor({ timeout: 15_000 });
     await page.getByRole('button', { name: 'Hide', exact: true }).click();
     await page.getByRole('heading', { name: 'Set up Fabric with your coding agent' }).waitFor({ state: 'detached' });
     assert.equal(JSON.parse(fs.readFileSync(path.join(userData, 'settings.json'), 'utf8')).setupDone, true, 'hidden for good');
@@ -368,7 +368,7 @@ test('FD-39 SCN-059: a later visit opens on what changed, and Continue resumes t
     await con.locator('.console-term').click();
     await con.keyboard.type('bye');
     await con.keyboard.press('Enter');
-    await con.getByText('Exited (code 0).').waitFor({ timeout: 15_000 });
+    await con.getByText('The session exited with code 0.').waitFor({ timeout: 15_000 });
   } finally {
     await closeApp(app);
     await stopProcess(proc);

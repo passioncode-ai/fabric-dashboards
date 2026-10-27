@@ -79,7 +79,7 @@ test('FD-78: Connections draws the chain and the worst state in it; a service wi
     app = await electron.launch({ args: [ROOT], env: { ...process.env, FABRIC_SERVICES_DIR: services, FABRIC_DASHBOARDS_USER_DATA: path.join(base, 'app'), LANG: 'en_US.UTF-8' } });
     const page = await app.firstWindow();
     await page.setViewportSize({ width: 1440, height: 900 }).catch(() => undefined);
-    await page.getByRole('button', { name: /Ads Manager — / }).first().waitFor({ timeout: 30_000 });
+    await page.getByRole('button', { name: /Ads Manager: / }).first().waitFor({ timeout: 30_000 });
     // SCN-071: the communicator answers and offers no dashboard: a service.
     await page.locator('[role="group"]', { has: page.locator('.nav-section', { hasText: 'Services' }) }).getByText('Communicator').waitFor({ timeout: 20_000 });
 
@@ -89,7 +89,7 @@ test('FD-78: Connections draws the chain and the worst state in it; a service wi
     await conn.getByText('Communicator', { exact: true }).waitFor({ timeout: 20_000 });
     // The relay does not answer: the chain through the communicator reaches it and the summary reads the worst.
     await conn.locator('.conn-tree .conn-tree .conn-label', { hasText: 'Relay' }).first().waitFor({ timeout: 40_000 });
-    await conn.locator('.conn-summary').getByText('Does not work').waitFor({ timeout: 40_000 });
+    await conn.locator('.conn-summary').getByText('Not answering').waitFor({ timeout: 40_000 });
     assert.match(await conn.locator('.conn-node', { hasText: 'Google Ads API' }).innerText(), /quota exhausted/, 'a failing part a declaration names marks that connection');
     await conn.getByText('ads.report').waitFor();
     if (SHOTS) await page.screenshot({ path: path.join(SHOTS, '27-connections-chain.png') });
