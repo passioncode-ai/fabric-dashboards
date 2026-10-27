@@ -39,7 +39,7 @@ function agentsNav(services: ServiceSnapshot[], extra: Record<string, unknown> =
 
 test('SCN-077: the Agents mode lists the agents and never a session or a Hand-overs section (SES-01, SES-02)', () => {
   const html = agentsNav([snap('alpha.default', 'ready'), snap('bravo.default', 'down')], OLD_SESSIONS);
-  for (const label of ['Overview', 'Activity', 'Connections', 'Spend', 'Alpha', 'Bravo']) assert.match(html, new RegExp(`>${label}<`), label);
+  for (const label of ['Overview', 'Activity', 'Agent map', 'Spend', 'Alpha', 'Bravo']) assert.match(html, new RegExp(`>${label}<`), label);
   assert.doesNotMatch(html, /Hand-overs|passioncode-platform|handover/i);
   assert.equal(t('en', 'nav.handovers'), 'nav.handovers', 'the section\'s heading is gone from the dictionary');
 });

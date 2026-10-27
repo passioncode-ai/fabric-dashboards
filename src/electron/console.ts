@@ -12,7 +12,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { execRunner, type Runner } from '@passioncode-ai/fabric-service-host';
 import { CHANNELS, type ConsoleInfo, type ConsoleStartResult, type ConsoleTask } from '../core/api';
-import { prepareHandoff, type McpCommand } from '../core/handoff';
+import { prepareHandoff, writeTaskOnly, type McpCommand } from '../core/handoff';
 import { prepareSetup, SETUP_KEY, setupFolder, type SetupState } from '../core/setup';
 import type { DoctorReport } from '../core/doctor';
 import type { ActivityItem } from '../core/types';
@@ -325,6 +325,23 @@ export class ConsoleHost {
     } catch (error) {
       this.o.log(`console: ${key} starts without its context pack: ${(error as Error).message}`);
       return null;
+    }
+  }
+
+  /** FD-129 (UX-16): the task goes to the session that runs: its `task.md` is written and one line pointing at it is
+   *  typed in, with no Enter, so the person reads it and sends it. Nothing is typed when no session runs. */
+  sendTask(key: string, task: ConsoleTask): { ok: boolean; error?: string } {
+    if (this.manager.snapshot(key).state !== 'running') return { ok: false, error: 'not-running' };
+    const snap = this.o.snapshot(key);
+    const folder = this.folderOf(key);
+    if (!snap || !folder?.exists || !this.o.packRoot) return { ok: false, error: 'no-pack' };
+    try {
+      const r = writeTaskOnly({ snapshot: snap, activity: this.o.activity?.(key) ?? [], folder: folder.path, dir: path.join(this.o.packRoot, key), task });
+      this.manager.input(key, r.line);
+      this.o.log(`console: ${key} got a ${task.kind} task typed into its running session`);
+      return { ok: true };
+    } catch (error) {
+      return { ok: false, error: (error as Error).message };
     }
   }
 
@@ -1048,6 +1065,7 @@ export class ConsoleHost {
     // #endregion sessions-host
     ipcMain.handle(CHANNELS.consoleSessions, (_e, key) => (keyOk(key) ? this.sessions(key) : Promise.reject(new Error('not a service key'))));
     ipcMain.handle(CHANNELS.consoleOpenTerminal, (_e, key, mode) => (keyOk(key) ? this.openTerminal(key, mode === 'continue' ? 'continue' : 'new') : Promise.reject(new Error('not a service key'))));
+    ipcMain.handle(CHANNELS.consoleSendTask, (_e, key, task) => { const job = taskOf(task); return keyOk(key) && job ? this.sendTask(key, job) : { ok: false, error: 'bad-request' }; });
     ipcMain.on(CHANNELS.consoleInput, (_e, key, data) => { if (keyOk(key) && typeof data === 'string' && data.length <= 1_000_000) this.manager.input(key, data); });
     ipcMain.on(CHANNELS.consoleResize, (_e, key, cols, rows) => { if (keyOk(key)) { const s = size({ cols, rows }); this.manager.resize(key, s.cols, s.rows); } });
   }

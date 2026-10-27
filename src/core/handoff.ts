@@ -237,6 +237,18 @@ export function writePack(dir: string, files: { context: string; task: string | 
   return out;
 }
 
+/** FD-129 (UX-16): a task for a session that already runs: only `task.md` is written, beside the pack that session
+ *  started with, and the line that points the running agent at it is returned for the person to send. */
+export function writeTaskOnly(o: { snapshot: ServiceSnapshot; activity: ActivityItem[]; folder: string; dir: string; task: { kind: 'fix' | 'update' | 'audit'; output?: string } }): { path: string; line: string } {
+  const ctx = handoffContext(o.snapshot, o.activity, o.folder);
+  const job = o.task.kind === 'fix' ? fixTask(ctx) : o.task.kind === 'audit' ? auditTask(ctx, o.task.output ?? '') : updateTask(ctx, o.task.output ?? null);
+  // A session started outside this app (a hand-over, a continue) may have no pack folder yet.
+  fs.mkdirSync(o.dir, { recursive: true, mode: 0o700 });
+  try { fs.chmodSync(o.dir, 0o700); } catch { /* Windows: the profile's ACL */ }
+  const file = put(o.dir, 'task.md', taskMarkdown(job));
+  return { path: file, line: `Read ${file} and do the task it describes.` };
+}
+
 /**
  * Everything one console start needs from the pack (FD-47, `session-handoff/1`): the files written now, the
  * arguments and environment that carry them, and — for a runtime the brief reaches — `handoff.json`, the

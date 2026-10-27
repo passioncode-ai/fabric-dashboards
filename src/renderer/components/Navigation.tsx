@@ -46,6 +46,8 @@ export interface RowActions {
   isPinned: (id: string) => boolean;
   isHidden: (id: string) => boolean;
   isService: (p: Product) => boolean;
+  /** A row menu opened or closed: a dashboard to the right of the sidebar is drawn above the page and must step aside. */
+  onMenu?: (open: boolean) => void;
 }
 
 // #region list-drag — docs: docs/ux/scenarios.md#scn-087-arrange-the-sidebar-width-and-order
@@ -186,6 +188,8 @@ function ProductItem({ p, current, open, rail, pinned, menu, drag = null, hidden
   const s = p.primary;
   // FD-121 (SCN-087): the line shows above the row the drop lands before, or below the last one.
   const line = drag && drag.dragging && drag.dropAt !== null ? (drag.dropAt === drag.index ? ' drop-before' : drag.dropAt === drag.index + 1 && drag.index === drag.count - 1 ? ' drop-after' : '') : '';
+  // FD-129 (UX-23): a right-click, or the context-menu key, opens the row's menu in both widths; the rail has no ⋯ button.
+  const [ask, setAsk] = useState<MenuAsk | null>(null);
   return (
     <div className={`nav-row${pinned ? ' pinned' : ''}${drag?.dragging === p.id ? ' dragging' : ''}${line}`}
       draggable={Boolean(drag) && drag!.count > 1}
@@ -202,6 +206,7 @@ function ProductItem({ p, current, open, rail, pinned, menu, drag = null, hidden
       {/* VIS-15 (FD-113): the title in both widths, since an expanded row cuts a long name too. */}
       <button className="nav-item" aria-current={current ? 'page' : undefined} title={t('join.nameState', { name: nameOf(s), state: t(`state.${s.state}`) })} onClick={() => open(s.key)}
         aria-keyshortcuts={drag && drag.count > 1 ? 'Alt+ArrowUp Alt+ArrowDown' : undefined}
+        onContextMenu={(e) => { e.preventDefault(); setAsk({ rect: e.currentTarget.getBoundingClientRect(), n: (ask?.n ?? 0) + 1 }); }}
         onKeyDown={drag ? (e) => { if (e.altKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) { e.preventDefault(); drag.step(p.id, e.key === 'ArrowUp' ? -1 : 1); } } : undefined}>
         <span className={`state state-${s.state}`} aria-hidden="true"><span className="glyph">{GLYPH[s.state]}</span></span>
         {rail && <span className="initials" aria-hidden="true">{initialsOf(nameOf(s))}</span>}
@@ -215,7 +220,7 @@ function ProductItem({ p, current, open, rail, pinned, menu, drag = null, hidden
           <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M1 8s2.6-4.5 7-4.5S15 8 15 8s-2.6 4.5-7 4.5S1 8 1 8z" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" /><circle cx="8" cy="8" r="2" fill="currentColor" /></svg>
         </button>
       )}
-      {!rail && <RowMenu p={p} menu={menu} />}
+      <RowMenu p={p} menu={menu} rail={rail} ask={ask} />
     </div>
   );
 }
@@ -229,28 +234,45 @@ export function menuWidth(buttonRight: number): { maxWidth: number; minWidth: nu
   return { maxWidth, minWidth: Math.min(200, maxWidth) };
 }
 
-function RowMenu({ p, menu }: { p: Product; menu: RowActions }) {
+/** Where a right-click asked for the menu: the row's box, and a count so the same row can ask twice. */
+interface MenuAsk { rect: DOMRect; n: number }
+
+function RowMenu({ p, menu, rail, ask }: { p: Product; menu: RowActions; rail: boolean; ask: MenuAsk | null }) {
   const { t } = useT();
   const [open, setOpen] = useState(false);
   // The list scrolls, so the menu is placed against the window: below the button, or above it near the bottom.
   // It ends at the button's right edge and never starts left of the window: a long item wraps instead of
   // pushing the menu out (seen 2026-10-27). It stays over the sidebar, since a dashboard to its right is drawn
   // above the page and would cover it.
-  const [at, setAt] = useState<{ top?: number; bottom?: number; right: number; maxWidth?: number; minWidth?: number }>({ right: 0 });
+  const [at, setAt] = useState<{ top?: number; bottom?: number; right?: number; left?: number; maxWidth?: number; minWidth?: number }>({ right: 0 });
   const box = useRef<HTMLDivElement | null>(null);
+  const place = (r: DOMRect) => {
+    const room = { right: window.innerWidth - r.right, ...menuWidth(r.right) };
+    setAt(window.innerHeight - r.bottom < 140 ? { bottom: window.innerHeight - r.top + 4, ...room } : { top: r.bottom + 4, ...room });
+  };
   const toggle = () => {
     const r = box.current?.querySelector('.row-menu-btn')?.getBoundingClientRect();
-    if (r) {
-      const room = { right: window.innerWidth - r.right, ...menuWidth(r.right) };
-      setAt(window.innerHeight - r.bottom < 140 ? { bottom: window.innerHeight - r.top + 4, ...room } : { top: r.bottom + 4, ...room });
-    }
+    if (r) place(r);
     setOpen(!open);
   };
+  // FD-129 (UX-23): a right-click opens it under the ⋯ button, or in the rail beside the row (the dashboard steps aside).
+  useEffect(() => {
+    if (!ask) return;
+    const r = box.current?.querySelector('.row-menu-btn')?.getBoundingClientRect();
+    if (r) place(r);
+    else setAt(window.innerHeight - ask.rect.bottom < 140 ? { bottom: window.innerHeight - ask.rect.bottom, left: ask.rect.right + 4, minWidth: 200 } : { top: ask.rect.top, left: ask.rect.right + 4, minWidth: 200 });
+    setOpen(true);
+  }, [ask]);
+  useEffect(() => {
+    if (!open) return;
+    menu.onMenu?.(true);
+    return () => menu.onMenu?.(false);
+  }, [open]);
   const name = nameOf(p.primary);
   useEffect(() => {
     if (!open) return;
     const away = (e: MouseEvent) => { if (box.current && !box.current.contains(e.target as Node)) setOpen(false); };
-    const key = (e: KeyboardEvent) => { if (e.key === 'Escape') { setOpen(false); (box.current?.querySelector('.row-menu-btn') as HTMLButtonElement | null)?.focus(); } };
+    const key = (e: KeyboardEvent) => { if (e.key === 'Escape') { setOpen(false); ((box.current?.querySelector('.row-menu-btn') ?? box.current?.parentElement?.querySelector('.nav-item')) as HTMLButtonElement | null)?.focus(); } };
     document.addEventListener('mousedown', away);
     document.addEventListener('keydown', key);
     (box.current?.querySelector('[role="menuitem"]') as HTMLButtonElement | null)?.focus();
@@ -260,11 +282,11 @@ function RowMenu({ p, menu }: { p: Product; menu: RowActions }) {
   const act = (f: () => void) => () => { f(); setOpen(false); };
   return (
     <div className={`row-menu${open || pinned ? ' shown' : ''}`} ref={box}>
-      <button className="row-menu-btn pin-btn" aria-haspopup="menu" aria-expanded={open} title={t('list.menu', { name })} aria-label={t('list.menu', { name })} onClick={toggle}>
+      {!rail && <button className="row-menu-btn pin-btn" aria-haspopup="menu" aria-expanded={open} title={t('list.menu', { name })} aria-label={t('list.menu', { name })} onClick={toggle}>
         {pinned
           ? <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true"><path d="M6 1h4l-.5 4 2.5 2.5V9H8.6L8 15l-.6-6H4V7.5L6.5 5z" fill="currentColor" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" /></svg>
           : <span aria-hidden="true">⋯</span>}
-      </button>
+      </button>}
       {open && (
         <div className="menu" role="menu" aria-label={name} style={at} onKeyDown={(e) => {
           if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;

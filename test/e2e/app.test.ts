@@ -178,7 +178,7 @@ test('discovers a live service, opens its dashboard signed in, keeps one view, s
     await page.getByText('No calls in the last 30 days.').waitFor();
     assert.equal(await page.getByText(/Not reporting spend yet/).count(), 0, 'the sample is not listed as silent');
     await page.getByRole('button', { name: 'Settings' }).click();
-    await page.getByText('Unattributed listeners').waitFor();
+    await page.getByRole('heading', { name: 'Unattributed listeners' }).waitFor();
     // ADR-0015: updates install by themselves by default; a development run says it gets none.
     assert.equal(await page.getByRole('switch', { name: 'Install updates automatically' }).isChecked(), true);
     await page.getByText('Updates come with the installed app, not a development run.').waitFor();

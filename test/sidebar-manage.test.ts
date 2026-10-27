@@ -94,7 +94,7 @@ test('FD-121 (SCN-087): the edge is a named separator; holding it steps the dash
   const app = fs.readFileSync(path.join(__dirname, '../src/renderer/App.tsx'), 'utf8');
   assert.match(app, /role="separator" aria-orientation="vertical" aria-label=\{t\('sidebar\.width'\)\}/);
   assert.match(app, /aria-valuenow=\{width\} aria-valuemin=\{SIDEBAR_WIDTH\.min\} aria-valuemax=\{SIDEBAR_WIDTH\.max\}/);
-  assert.match(app, /overlayOpen=\{stopOpen \|\| resizing\}/, 'the native dashboard view steps aside');
+  assert.match(app, /overlayOpen=\{stopOpen \|\| resizing \|\| menuOverPage\}/, 'the native dashboard view steps aside');
   assert.match(app, /suspended: stopOpen \|\| menuOverPage \|\| resizing/, 'and the console drawer');
   assert.match(app, /onWidth\(last\.current, false\)/, 'moving shows, never writes');
   assert.match(app, /onWidth\(last\.current, true\)/, 'release writes once');
@@ -141,4 +141,13 @@ test('a row menu ends at its button and never starts left of the window; a narro
   assert.deepEqual(menuWidth(412), { maxWidth: 404, minWidth: 200 });
   assert.deepEqual(menuWidth(190), { maxWidth: 182, minWidth: 182 }, 'narrower than 200: the minimum gives way');
   assert.deepEqual(menuWidth(40), { maxWidth: 120, minWidth: 120 }, 'never too narrow to read');
+});
+
+test('FD-129 (UX-23): the rail keeps the row menu, opened by a right-click; an open menu steps the dashboard aside', () => {
+  const nav = fs.readFileSync(path.join(__dirname, '..', 'src', 'renderer', 'components', 'Navigation.tsx'), 'utf8');
+  const app = fs.readFileSync(path.join(__dirname, '..', 'src', 'renderer', 'App.tsx'), 'utf8');
+  assert.match(nav, /<RowMenu p=\{p\} menu=\{menu\} rail=\{rail\} ask=\{ask\} \/>/, 'rendered in both widths');
+  assert.doesNotMatch(nav, /\{!rail && <RowMenu/, 'never left out of the rail');
+  assert.match(nav, /onContextMenu=\{\(e\) => \{ e\.preventDefault\(\); setAsk\(/, 'a right-click asks for it');
+  assert.match(app, /onMenu: \(o\) => setMenuOverPage\(o\)/, 'its opening reaches the page');
 });

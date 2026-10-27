@@ -23,7 +23,7 @@ function overview(services: ServiceSnapshot[], props: Record<string, unknown> = 
 const at = (html: string, needle: string) => { const i = html.indexOf(needle); assert.notEqual(i, -1, `missing ${needle}`); return i; };
 
 test('VIS-12: Needs attention comes before "Since you were last here"; the strip\'s attention and down cells jump to it', () => {
-  const visit = { since: '2026-10-23T08:00:00Z', added: ['bravo.default'], removed: [], alerts: [], continueKeys: [] };
+  const visit = { since: '2026-10-23T08:00:00Z', added: ['bravo.default'], removed: [], alerts: [], continueKeys: [], updates: [] };
   const html = overview([snap('alpha.default', 'down'), snap('bravo.default', 'ready')], { visit });
   assert.ok(at(html, 'id="attention-title"') < at(html, 'id="visit-title"'));
   assert.match(html, /<button[^>]*class="cell[^"]*bad[^"]*"[^>]*>.*?Not answering or in conflict/, 'the down cell is a button');
@@ -45,7 +45,7 @@ test('UX-07: a folded row of agents down for one reason offers to restart them a
 });
 
 test('UX-08: the visit section can be dismissed', () => {
-  const visit = { since: '2026-10-23T08:00:00Z', added: ['alpha.default'], removed: [], alerts: [], continueKeys: [] };
+  const visit = { since: '2026-10-23T08:00:00Z', added: ['alpha.default'], removed: [], alerts: [], continueKeys: [], updates: [] };
   assert.match(overview([snap('alpha.default', 'ready')], { visit, onDismissVisit: noop }), />Dismiss</);
 });
 
@@ -127,4 +127,13 @@ test('VIS-15 (FD-113): a card\'s name and an attention row\'s name keep their fu
   const html = overview([snap('an-agent-with-a-very-long-name.default', 'down')]);
   assert.match(html, /<h3 title="An-agent-with-a-very-long-name">/);
   assert.match(html, /<button class="linkish name" title="An-agent-with-a-very-long-name">/);
+});
+
+test('FD-129 (UX-09): with no console history, an unchanged visit still says "Nothing changed since"; updates waiting are named', () => {
+  const quiet = { since: '2026-10-23T08:00:00Z', added: [], removed: [], alerts: [], continueKeys: [], updates: [] };
+  assert.match(overview([snap('alpha.default', 'ready')], { visit: quiet }), /Nothing changed since/);
+  const updated = { ...quiet, updates: [{ key: 'alpha.default', version: '2.0.0' }] };
+  const html = overview([snap('alpha.default', 'ready')], { visit: updated });
+  assert.match(html, /Updates waiting: [^<]* 2\.0\.0/);
+  assert.doesNotMatch(html, /Nothing changed since/);
 });

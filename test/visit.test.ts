@@ -25,3 +25,9 @@ test('FD-39 SCN-059: Continue lists the agents the person worked with, the last 
   const first = sinceLastVisit({ services, lastVisitAt: null, known: [], consoles: {}, lastService: null });
   assert.deepEqual([first.added, first.removed, first.alerts], [[], [], []]);
 });
+
+test('FD-129 (UX-09): agents with an update waiting are named with its version; a first visit names none', () => {
+  const withUpdate = [...services, { key: 'echo.default', latestEvent: null, wellKnown: { update: { available: '2.0.0' } } as never }];
+  assert.deepEqual(sinceLastVisit({ services: withUpdate, lastVisitAt: '2026-10-10T00:00:00Z', known: [], consoles: {}, lastService: null }).updates, [{ key: 'echo.default', version: '2.0.0' }]);
+  assert.deepEqual(sinceLastVisit({ services: withUpdate, lastVisitAt: null, known: [], consoles: {}, lastService: null }).updates, []);
+});

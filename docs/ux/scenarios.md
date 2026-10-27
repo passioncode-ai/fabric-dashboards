@@ -79,7 +79,7 @@
 | SCN-071 | See agents on this Mac, online and services apart | list | P-01 | ST-021 | validated | 2026-10-23 |
 | SCN-072 | Hide an agent without stopping it | list | P-01 | ST-021 | validated | 2026-10-23 |
 | SCN-073 | See what an agent is connected to | service | P-01 | ST-019 | validated | 2026-10-23 |
-| SCN-074 | See how agents are wired and what the auditor found | connections | P-01 | ST-019 | validated | 2026-10-23 |
+| SCN-074 | See how agents are wired and what problems were found | connections | P-01 | ST-019 | validated | 2026-10-23 |
 | SCN-075 | A session stopped on a limit continues by itself | sessions | P-01 | ST-023, ST-019 | validated | 2026-10-27 |
 | SCN-076 | See how busy an agent is | service | P-01 | ST-019 | validated | 2026-10-23 |
 | SCN-077 | Switch between Agents and Sessions | navigation | P-01 | ST-023 | validated | 2026-10-27 |
@@ -443,13 +443,14 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
   1. User opens Activity -> system shows all events newest first, grouped by day: time, service, level marker, the sentence; the app's own events ("Runner stopped answering") included
   2. User filters by service or level (All levels, Notice and above, Warnings and errors, Errors) -> the list narrows immediately; the filter is kept between visits, and new rows — the app's own included — appear while the page is open
   3. User chooses an event with a link -> system opens that service's view at the link (SCN-014)
+  4. User chooses one of the app's own events (stopped answering, restarted, runs twice) -> that agent's page opens; on an agent's own Activity tab its events open the same way, a row with a link at that page of the dashboard (FD-129 UX-15)
 - **Expected result:** everything the agents did is readable in one place and the unread count clears
 - **Alt paths:** no events yet -> "Nothing has happened yet. Events appear here as your services work."; the session ended while the page was open (the service answers 401) -> the app signs in again by itself, once a minute at most, and reopens the same page (ADR-0014)
 - **UI elements:** Activity list, day headers, service and level filters (labelled Service and Level), unread count (notice, warning and error rows since the page was last open; reading marks new rows seen)
 - **States covered:** loading, empty, success
 - **Errors & recovery:** see SCN-018
 - **Status:** validated
-- **Coverage:** src/core/activity.ts, src/renderer/components/Activity.tsx, test/e2e/app.test.ts
+- **Coverage:** src/core/activity.ts, src/renderer/components/Activity.tsx, src/renderer/components/ServiceView.tsx (ServiceActivity), test/activity-feed.test.ts, test/e2e/app.test.ts
 - **Product:** unobserved
 
 ### SCN-018: Activity when a service's feed cannot be read
@@ -597,13 +598,13 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **Entry point:** sidebar Settings
 - **Preconditions:** none
 - **Steps:**
-  1. User opens Settings -> system shows Open at login (on by default since 2026-10-16: the first launch of an installed copy registers it once, with no question; the person turns it off here; `loginItemAtStartup` in src/core/loginitem.ts), Theme, Language (Same as the system, English, Русский), Updates (SCN-022), Notifications per service with levels, Quiet hours (from–to), the services folder, Uninstall, and Unattributed listeners
+  1. User opens Settings -> system shows Open at login (on by default since 2026-10-16: the first launch of an installed copy registers it once, with no question; the person turns it off here; `loginItemAtStartup` in src/core/loginitem.ts), Theme, Language (Same as the system, English, Русский), Updates (SCN-022), Notifications per service with levels (the rows of agents hidden from the sidebar folded under "Hidden: N", FD-129 UX-20), Quiet hours (from–to), the services folder, Unattributed listeners and, last, Uninstall (VIS-21); a line of section names at the top brings each group into view (UX-20); a text field that refuses its value has a red border as well as the message under it
   2. User changes a setting -> it applies immediately and is kept across restarts; after the first launch, launch at login is registered or removed only by the person's choice here, never by a launch or an update
   3. User opens Unattributed listeners -> system lists local ports listening on all interfaces that no descriptor claims, with the program name and pid
   4. User chooses Uninstall Fabric Dashboards… and confirms, leaving "Also delete my settings and activity history" unticked -> the app removes its login item and its entry in Claude Code's MCP servers, moves itself to the Trash and quits; once it has exited, its caches, logs and dashboard sessions are removed, and the settings, the activity history and a note of what to restore stay (SCN-043); services and their data always stay
 - **Expected result:** the app fits the operator's day, stray network listeners are visible, and leaving the app removes everything it added without losing what the person set up
 - **Alt paths:** user picks Русский (or English) under Language -> the window, the app menu and the tray switch at once, and machine reasons (a descriptor check, a network error) read in that language where they are known, while a service's own words (tiles, events) stay as the service wrote them; Same as the system follows the system language; the person turned the login item off in System Settings -> the next launch shows it off here and does not turn it back on; macOS holds the login item for approval -> every launch shows a notification "Fabric Dashboards cannot open at login" with "Allow it in System Settings → General → Login Items. Click to open it.", and clicking it opens that pane; an update has been downloaded and verified -> a notification "Restart to finish updating" once per version, and clicking it restarts the app (asking first when a console session or a command runs); the person ticks "Also delete my settings and activity history" -> everything the app wrote is removed after it exits, nothing is restored later; settings.json is damaged -> the last good copy is restored and the log says so
-- **UI elements:** toggles, Language select, per-service rows, time pickers, folder path with Show, Uninstall button and its confirmation with the delete-data box, listeners list
+- **UI elements:** the section index, toggles, Language select, per-service rows (hidden agents folded), time pickers, folder path with Show, listeners list, Uninstall button and its confirmation with the delete-data box
 - **States covered:** empty, success, error
 - **Errors & recovery:** macOS refuses the login item -> the toggle returns to off with "macOS refused the login item: <reason>" ("approve Fabric Dashboards in System Settings → General → Login Items" when it needs approval); the listener scan fails -> "Cannot list listeners: <reason>", and nothing listening is "None", not an error; uninstall cannot remove the MCP entry or the login item -> "Nothing was removed: <reason>" and the app stays (a refused login item puts the MCP entry back); the app cannot be moved to the Trash -> it says so and is still uninstalled; Show the services folder fails -> "Could not open <path>: <reason>"
 - **Status:** validated
@@ -858,10 +859,11 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
   1. User clicks Spend -> system reads each agent's usage report now, with its token in the main process, and shows "read at HH:MM", Refresh and totals for Today, 7 days and 30 days across agents (when at least one agent reports)
   2. User reads the table -> one row per reporting agent: today, 7 days, 30 days, and Limits — the limit that most needs a person ("Over the limit: $6.00 of $5.00 · Daily · project demo (+7 more)"; a limit that stopped work or is breached shows first and in red, one at 80 % or more in amber), or the older single budget ("$1.59 of $100.00 this month") from an agent that lists no limits
   3. User clicks an agent's name -> the row expands to every limit the agent applies (DEC-0027) — which limit and for whom, its window, spent of limit, and its state (Stopped work, Over the limit, Close to the limit, Within, Spend not counted, Caps each job, Jobs above it wait for your approval, Not enforced) — and below it the models: model, provider, calls, tokens in / out, cost over the last 30 days (the same window as the 30-day column, FD-113 COPY-15), most expensive first; a model the agent ran on the operator's own subscription is its own row, its cost read "~$140.47 subscription" (FD-88)
-  4. User leaves the page open -> it is read again every minute while the window shows; a hidden window gets the last sums; Refresh reads now
+  4. User clicks Open beside an agent's name -> its page opens (FD-129 UX-22); figures in every table line up on the right and read at body size, dollars with a thousands separator ("$1,234.56", VIS-18)
+  5. User leaves the page open -> it is read again every minute while the window shows; a hidden window gets the last sums; Refresh reads now
 - **Expected result:** where the money goes, per agent and per model, without opening a provider console
 - **Alt paths:** a limit the operator chose not to apply -> still listed, muted, "Not enforced"; an approval threshold crossed -> "Jobs above it wait for your approval", never a breach; a kind of limit the app does not know -> listed by the agent's own name for it; no agent reports -> "No agent reports its spend yet" with what an agent must publish; some agents report and others do not -> "Not reporting spend yet: …" names the others; an agent ran calls on the operator's own subscription (`route: subscription`) -> they spent no money and stay out of every sum; their list-price value shows beside it, "+ ~$140.47 on subscriptions", with a note under the table (FD-88); an agent asks through MCP `spend` -> the same sums, `estimateUsd` apart
-- **UI elements:** Spend nav item, totals tiles, agents table with the Limits column, limits table, model breakdown, Refresh
+- **UI elements:** Spend nav item, totals tiles, agents table with the Limits column and an Open button per agent, limits table, model breakdown, Refresh
 - **States covered:** loading, empty, success
 - **Errors & recovery:** see SCN-038
 - **Status:** validated
@@ -896,9 +898,10 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **Steps:**
   1. User opens Spend -> "Could not read" lists the agent with the reason in a sentence ("the service refused the token (HTTP 401)", "the usage report is malformed: …")
   2. User reads the totals -> when another agent reports, they carry "≥", because one agent's spend is missing; when none reports, only "Could not read" shows
+  3. User clicks Open on the agent's line -> its page opens, where the same reason and its fix show (FD-129 UX-22)
 - **Expected result:** a failure is named and never silently counted as zero; the other agents still show
 - **Alt paths:** the token file is not 0600 -> the reason names it; the agent answers a report for another instance -> refused; an agent that reported earlier and does not answer now -> "it does not answer now, so its usage report could not be read"; another program answers its address -> "another program answers on its address, so its usage report is not read" (its token is never sent there); the reasons follow the window's language
-- **UI elements:** "Could not read" notice, "≥" totals
+- **UI elements:** "Could not read" notice with Open per agent, "≥" totals
 - **States covered:** error
 - **Errors & recovery:** the next read (a minute later, or Refresh) shows the agent again once it answers
 - **Status:** validated
@@ -995,12 +998,12 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **Entry point:** any service page; View → Show or Hide Agent Details (⌃⌘D)
 - **Preconditions:** none
 - **Steps:**
-  1. User opens a service -> the header is one line: the state mark, the name, the state badge, the tabs (Dashboard, Activity, Connections, Load when the agent declares its load, Health, and Logs for a local agent; src/renderer/components/ServiceView.tsx `tabs`), the Fabric and Console buttons and a "Show details" control; the dashboard fills the rest; pointing at the name shows the agent's summary
+  1. User opens a service -> the header is one line: the state mark, the name, the state badge, the tabs (Dashboard, Activity, Connections, Load when the agent declares its load, Health, and Logs for a local agent; src/renderer/components/ServiceView.tsx `tabs`); in a narrow window the tab list fades at the side where more tabs are and the chosen tab scrolls into view (FD-129 VIS-16), the Fabric and Console buttons and a "Show details" control; the dashboard fills the rest; pointing at the name shows the agent's summary
   2. User presses "Show details" -> the full card opens under the bar: summary, version, build, pid, port, uptime, Tools, reasons, the last action and the actions (Restart, Stop, Update, Run self-check, Show data folder, Show file); the control reads "Hide details"
   3. User presses "Hide details" -> back to one line; the choice holds for every service and after a relaunch
 - **Expected result:** the embedded dashboard takes the window; everything in the header is one press away
 - **Alt paths:** the service is not ready, or its last action failed within half an hour -> the bar shows one chip with the first reason ("Not answering since 10:42", "Restart did not bring it back"); pressing the chip opens the full card for this visit only, never changing the remembered choice (UX-14); the state's own action sits in the bar after the chip, before "Fix": Restart when it does not answer or runs twice, Start when it is off, "Update to <v>" when an update is available, even with nothing wrong (UX-01, UX-03); an action is running -> its spinner and label ("Restarting…") sit in the bar
-- **UI elements:** compact bar, state badge, problem chip, tabs, "Show details" / "Hide details", full card
+- **UI elements:** compact bar, state badge, problem chip, tabs, "Show details" / "Hide details", full card (its actions in three groups: Start, Restart and Stop; Update, the self-check and the coding agent, with one primary per state; the files as quiet links, FD-129 VIS-17)
 - **States covered:** success, error, loading
 - **Errors & recovery:** every error the full card shows (SCN-007, SCN-008, SCN-011, SCN-012, SCN-013, SCN-021) is reachable from the chip
 - **Status:** validated
@@ -1014,12 +1017,13 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **Entry point:** the sidebar's "Collapse sidebar" control, or View → Show or Hide Sidebar (⌃⌘S)
 - **Preconditions:** none
 - **Steps:**
-  1. User collapses the sidebar -> it becomes a narrow rail: the mark, the mode switch as two icons (SCN-077), icons for Overview, Activity, Connections, Spend and Settings, and one entry per agent with its state mark and initials; the Overview and Activity badges stay (src/renderer/components/Navigation.tsx `ModeSwitch`, `AgentsNav`; Settings in src/renderer/App.tsx)
+  1. User collapses the sidebar -> it becomes a narrow rail: the mark, the mode switch as two icons (SCN-077), icons for Overview, Activity, Agent map, Spend and Settings, and one entry per agent with its state mark and initials; the Overview and Activity badges stay (src/renderer/components/Navigation.tsx `ModeSwitch`, `AgentsNav`; Settings in src/renderer/App.tsx)
   2. User points at an entry -> its name (and state) shows as a tooltip; a screen reader reads the same. The expanded list shows the same tooltip on every agent, since it cuts a long name too (FD-113 VIS-15)
-  3. User presses "Expand sidebar" -> the full list returns; the choice holds after a relaunch
+  3. User right-clicks an agent's entry (or presses the context-menu key on it) -> the row menu opens beside the rail: pin, agent or service, hide or show again, turn off; a dashboard on the page steps aside while it is open, and Escape closes it with focus back on the entry. The expanded list opens the same menu on a right-click too (FD-129 UX-23)
+  4. User presses "Expand sidebar" -> the full list returns; the choice holds after a relaunch
 - **Expected result:** the dashboard gains the sidebar's width, and every page and agent stays one press away
 - **Alt paths:** an agent needs attention -> its rail entry carries the same mark as in the full list; the app's own update is ready, held, or cannot install -> the rail shows an entry of its own with an arrow (or "!"), named by its tooltip, that restarts into the update or opens Settings
-- **UI elements:** rail, nav icons, agent entries with state marks and initials, tooltips, "Collapse sidebar" / "Expand sidebar", View menu item
+- **UI elements:** rail, nav icons, agent entries with state marks and initials, the row menu on a right-click, tooltips, "Collapse sidebar" / "Expand sidebar", View menu item
 - **States covered:** success
 - **Errors & recovery:** n/a — a layout choice that never fails
 - **Status:** validated
@@ -1281,21 +1285,21 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **Coverage:** packages/service-host/src/connections.ts, src/core/connections.ts, src/renderer/components/Connections.tsx, src/mcp/tools.ts (connections, listing), packages/service-host/test/connections.test.ts, test/connections.test.ts, test/mcp.test.ts *FD-78*, test/e2e/connections.test.ts, test/e2e/focus-console.test.ts *SCN-073*
 - **Product:** unobserved
 
-### SCN-074: See how agents are wired and what the auditor found
+### SCN-074: See how agents are wired and what problems were found
 - **Persona:** P-01
 - **Feature:** connections
 - **Traces:** ST-019 (JTBD-01); FD-81 (operator 2026-10-21); ADR-0023; FD-110 (contract DEC-0121, CT-126: `extensions/actions/0.1`, FAC-SEM-142)
-- **Entry point:** sidebar → Connections (its count is what does not work)
+- **Entry point:** sidebar → Agent map (its count is what does not work; named apart from each agent's own Connections tab, FD-129 UX-21)
 - **Preconditions:** at least one agent
 - **Steps:**
-  1. User opens Connections -> one line: "Does not work: N · Partly working: N · Waits for you: N · Worth knowing: N" (only the ones above zero), or "The auditor found nothing to fix."; below it "Agents that declare their connections: X of Y."
+  1. User opens Agent map -> one line: "Does not work: N · Partly working: N · Waits for you: N · Worth knowing: N" (only the ones above zero), or "Nothing to fix: every agent and connection works." (FD-129 COPY-32); below it "Agents that declare their connections: X of Y."
   2. User reads the Map -> each agent a box with its state as a shape and a colour, calls drawn left to right, the worse state of the call and the agent reached on each line; an agent named but not installed is a dashed box "not installed here"; agents with no line are under "Not connected"
-  3. User reads the Auditor -> one row per agent to fix, worst first: its name, its key and each finding in a sentence ("google-ads fails: quota exhausted", "It relies on Relay, which does not answer.", "Version 2.0.0 is available.", and for the buttons its pages declare (DEC-0121, FD-110): "The button "Send" has no agent twin: its MCP surface does not serve replies.send.", or, worth knowing, "It has a dashboard but declares no actions, so an agent cannot tell which buttons it may press for you.")
+  3. User reads Problems -> one row per agent to fix, worst first: its name, its key and each finding in a sentence ("google-ads fails: quota exhausted", "It relies on Relay, which does not answer.", "Version 2.0.0 is available.", and for the buttons its pages declare (DEC-0121, FD-110): "The button "Send" has no agent twin: its MCP surface does not serve replies.send.", or, worth knowing, "It has a dashboard but declares no actions, so an agent cannot tell which buttons it may press for you.")
   4. User picks the coding agent in "Coding agent" (the one chosen for that agent, Claude Code by default) and presses "Fix with coding agent" -> the agent's page opens with its console, the chosen coding agent starts in the agent's folder with the findings as its task
   5. User clicks an agent's name or box -> its page opens on its Connections tab
 - **Expected result:** every problem in the estate in one place, where each comes from, and one click to hand it to a coding agent
 - **Alt paths:** no agent declares a connection to another -> "No agent declares a connection to another agent yet, so there is no line to draw." with how to declare one; a row whose only findings are about an agent it relies on, or an update -> no Fix button (the fix goes where the cause is); no coding agent installed -> "No coding agent is installed, so a session cannot start here."; an agent asks through MCP -> `audit` answers the same findings, counts, coverage and edges
-- **UI elements:** Connections nav item with its count, the summary line, the coverage line, the Map, Not connected chips, the Auditor rows with the Coding agent picker and Fix with coding agent
+- **UI elements:** Agent map nav item with its count, the summary line, the coverage line, the Map, Not connected chips, the Problems rows with the Coding agent picker and Fix with coding agent
 - **States covered:** empty, success, error
 - **Errors & recovery:** an agent's spend report that cannot be read leaves its limits out, never the rest
 - **Status:** validated (test/e2e/connections.test.ts *FD-78* (the map and the auditor, FD-81 steps) passed on the running app, 2026-10-23 00:00 UTC)
@@ -1334,7 +1338,7 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
   3. User reads By context (two contexts or more) -> one row per context: running, waiting, done, failed, wait and run at 95 %, a time never measured reads "not measured"
   4. User presses Refresh -> it is read now; while the tab is open it is read again every minute
 - **Expected result:** the person sees whether an agent keeps up with its calls, where it waits, and whether its queue refuses work, without opening the agent's own dashboard
-- **Alt paths:** the agent declares its load wrongly -> "This agent declares its load wrongly, so it is not read" with each reason (FAC-SEM-133) and no read is made; the report refuses the token, does not answer, is not JSON or fails its checks (FAC-SEM-132) -> "The load report could not be read" with the reason, and the limits it declared; the report has no window -> "Nothing has run yet"; the report is older than two of its windows -> a note that its counts are of then; an agent that declares nothing has no Load tab; the declaration goes while the tab is open (the agent stops answering, or drops the key) -> the page falls back to Dashboard or Health, never an empty pane; an invalid declaration is a finding of the auditor too (Connections page, MCP `audit`); an agent asks through MCP -> `load` answers the same declaration and sums, or `invalid` / `error` with the reason; the window is hidden -> the last read is answered, nothing is read (LC-08)
+- **Alt paths:** the agent declares its load wrongly -> "This agent declares its load wrongly, so it is not read" with each reason (FAC-SEM-133) and no read is made; the report refuses the token, does not answer, is not JSON or fails its checks (FAC-SEM-132) -> "The load report could not be read" with the reason, and the limits it declared; the report has no window -> "Nothing has run yet"; the report is older than two of its windows -> a note that its counts are of then; an agent that declares nothing has no Load tab; the declaration goes while the tab is open (the agent stops answering, or drops the key) -> the page falls back to Dashboard or Health, never an empty pane; an invalid declaration is a finding under Problems too (Agent map page, MCP `audit`); an agent asks through MCP -> `load` answers the same declaration and sums, or `invalid` / `error` with the reason; the window is hidden -> the last read is answered, nothing is read (LC-08)
 - **UI elements:** Load tab, read-at line with Refresh, the four-number strip, the limits line, the wait and run lines, the bar chart, the By context table, the warning and error notices
 - **States covered:** loading, empty, success, error
 - **Errors & recovery:** any failure is that agent's notice with its reason, never a blank tab or a zero; the token goes only to the agent's own well-known answer (S-1)
@@ -1430,7 +1434,7 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
   2. User watches -> the runtime's own interface shows what it reads and runs; it asks before anything destructive, any sign-in or secret
   3. The agent fixes it -> the agent's state turns ready in the list and the page, with no refresh
 - **Expected result:** a problem becomes a running fix in one click, and the person sees it resolve
-- **Alt paths:** a console already runs for this agent -> the app says so and offers to show it, never a second session; no runtime installed -> the console's install guidance (SCN-049)
+- **Alt paths:** a console already runs for this agent -> never a second session: the console says, as information, "A session already runs here. The task waits: send it to this session, or start a new one when this one ends." with "Send the task to this session", which writes the task file and types one line pointing at it into the running session without pressing Enter ("The task is typed into the session. Press Enter in it to send."); New, once that session ends, starts with the task (FD-129 UX-16); no runtime installed -> the console's install guidance (SCN-049)
 - **UI elements:** "Fix with coding agent" button; console panel
 - **States covered:** success, error, loading
 - **Errors & recovery:** the runtime fails to start -> the console says why (SCN-049's errors)
@@ -1521,11 +1525,11 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **Entry point:** any launch after setup
 - **Preconditions:** the person has used the app before
 - **Steps:**
-  1. User opens the app -> Overview leads with "Since you were last here": agents that broke (each with Fix with coding agent), updates (Update, or Update with coding agent), and new or removed agents
+  1. User opens the app -> Overview shows, after Needs attention, "Since you were last here": agents that broke (each with Fix with coding agent), "Updates waiting: <agent> <version>, …" (the Update button is the agent's row in Needs attention above, FD-129 UX-09), and new or removed agents
   2. User sees the agents they worked with -> each offers Continue (the last console session, resumed with fresh context)
   3. User opens one -> the agent they had selected last time is selected
 - **Expected result:** the person starts from what needs them, not from the whole list
-- **Alt paths:** nothing changed -> the section says so in one line and Overview reads as before; Dismiss puts the section away; the window shown again after an hour or more hidden (the app lives in the menu bar for days) -> the section is computed again from the previous show (UX-08)
+- **Alt paths:** nothing changed -> the section says so in one line ("Nothing changed since <when>."), also for a person with no console history (UX-09), and Overview reads as before; Dismiss puts the section away; the window shown again after an hour or more hidden (the app lives in the menu bar for days) -> the section is computed again from the previous show (UX-08)
 - **UI elements:** "Since you were last here" section, Continue buttons
 - **States covered:** success, empty
 - **Errors & recovery:** n/a
@@ -1584,7 +1588,7 @@ The Sessions mode (0.8.0): every coding session apart from the agents, each stat
 - **Steps:**
   1. User opens the window -> under the app's mark a two-part switch reads "Agents" and "Sessions"; the mode the window was closed in is selected (Agents the first time) and the sidebar below lists that mode's entries
   2. User presses "Sessions" (or ⌘2) -> the sidebar lists "All sessions" and the sessions in their groups (SCN-078); the main area shows the page last open in this mode ("All sessions" the first time)
-  3. User presses "Agents" (or ⌘1) -> the sidebar lists Overview, Activity, Connections, Spend, Pinned, On this Mac, Online, Services and Hidden, with no session among them and no hand-over section; the main area shows the page last open in this mode (Overview the first time)
+  3. User presses "Agents" (or ⌘1) -> the sidebar lists Overview, Activity, Agent map, Spend, Pinned, On this Mac, Online, Services and Hidden, with no session among them and no hand-over section; the main area shows the page last open in this mode (Overview the first time)
   4. A session needs a person (SCN-082) -> "Sessions" carries a count badge in either mode, named to a screen reader "Sessions, need you: 2"; with none it carries no badge
   5. User quits and opens the app again -> it opens in the mode and on the page it was closed on
 - **Expected result:** agents and coding sessions never share one list; one press or one key moves between them, and the app remembers where the person was

@@ -95,6 +95,8 @@ test('SCN-042, SCN-016, SCN-018, SCN-038: four problems stay compact; a bad toke
     await page.getByRole('button', { name: 'Spend' }).first().click();
     await page.getByText('Could not read').first().waitFor({ timeout: 30_000 });
     await page.getByText(/readable by others/).first().waitFor();
+    // FD-129 (UX-22): the unreadable agent is one click away.
+    assert.equal(await page.locator('.notice.error').getByRole('button', { name: 'Open Sample Service' }).count(), 1);
 
     // SCN-016: its page cannot sign in, and says why.
     await page.locator('.nav-item', { hasText: 'Sample Service' }).first().click();

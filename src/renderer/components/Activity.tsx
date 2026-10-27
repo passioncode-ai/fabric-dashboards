@@ -48,7 +48,7 @@ export function Activity({ status, openAt, filter, setFilter }: Props) {
   );
 }
 
-export function Feed({ items, openAt }: { items: ActivityItem[] | null; openAt?: (key: string, link?: string) => void }) {
+export function Feed({ items, openAt, self }: { items: ActivityItem[] | null; openAt?: (key: string, link?: string) => void; self?: string }) {
   const { t, time, lang } = useT();
   if (!items) return <p className="row muted" role="status"><Spinner /> {t('app.loading')}</p>;
   if (!items.length) return <p className="muted">{t('activity.empty')}</p>;
@@ -78,7 +78,9 @@ export function Feed({ items, openAt }: { items: ActivityItem[] | null; openAt?:
         return [
           header,
           <li key={`${e.serviceKey}-${e.source}-${e.id}`}>
-            {openAt && e.source === 'service'
+            {/* UX-15 (FD-129): the app's own rows (restarted, installed, runs twice) open their agent too; on that agent's
+                own page they have nowhere else to go. A service's row opens the page its link names. */}
+            {openAt && (e.source === 'service' || e.serviceKey !== self)
               ? <button className="feed-row" onClick={() => openAt(e.serviceKey, e.link)}>{body}</button>
               : <div className="feed-row">{body}</div>}
           </li>,

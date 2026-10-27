@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useState } from 'react';
 import type { SpendSum } from '@passioncode-ai/fabric-service-host/usage';
-import { limitAmount, limitHeadline, limitName, limitWindow } from '../../core/limits';
+import { limitAmount, limitHeadline, limitName, limitUsd, limitWindow } from '../../core/limits';
 import { sumSpend, type SpendEntry, type SpendWindow } from '../../core/spend';
 import type { AppStatus, ServiceSnapshot } from '../../core/types';
 import { api, nameOf, Spinner, useT } from '../lib';
@@ -9,7 +9,7 @@ import { api, nameOf, Spinner, useT } from '../lib';
 const REFRESH_MS = 60_000;
 
 /** SCN-036…038 (ADR-0013): what every agent spent, from its own usage report. */
-export function Spend({ status }: { status: AppStatus }) {
+export function Spend({ status, onOpen }: { status: AppStatus; onOpen: (key: string) => void }) {
   const { t, time, lang, reason } = useT();
   const day = (iso: string) => new Date(iso).toLocaleDateString(lang, { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
   const [entries, setEntries] = useState<SpendEntry[] | null>(null);
@@ -39,6 +39,8 @@ export function Spend({ status }: { status: AppStatus }) {
 
   const byKey = new Map(status.services.map((s) => [s.key, s]));
   const name = (key: string) => { const s = byKey.get(key); return s ? nameOf(s) : key; };
+  // FD-129 (UX-22): from a breached limit or an unreadable report, one click to the agent itself.
+  const openAgent = (key: string) => byKey.has(key) ? <button className="btn btn-sm" aria-label={t('conn.open', { name: name(key) })} onClick={() => onOpen(key)}>{t('action.open')}</button> : null;
   const reports = entries.filter((e): e is Extract<SpendEntry, { kind: 'report' }> => e.kind === 'report');
   const errors = entries.filter((e): e is Extract<SpendEntry, { kind: 'error' }> => e.kind === 'error');
   const silent = entries.filter((e) => e.kind === 'none').map((e) => byKey.get(e.key)).filter((s): s is ServiceSnapshot => Boolean(s));
@@ -66,17 +68,17 @@ export function Spend({ status }: { status: AppStatus }) {
       {reports.length > 0 && (
         <table className="spend">
           <thead>
-            <tr><th scope="col">{t('spend.agent')}</th><th scope="col">{t('spend.today')}</th><th scope="col">{t('spend.week')}</th><th scope="col">{t('spend.month')}</th><th scope="col">{t('spend.budget')}</th></tr>
+            <tr><th scope="col">{t('spend.agent')}</th><th scope="col" className="num">{t('spend.today')}</th><th scope="col" className="num">{t('spend.week')}</th><th scope="col" className="num">{t('spend.month')}</th><th scope="col">{t('spend.budget')}</th></tr>
           </thead>
           <tbody>
             {reports.map((e) => (
               <Fragment key={e.key}>
                 <tr>
                   <th scope="row">
-                    <button className="linkish" aria-expanded={open === e.key} onClick={() => setOpen(open === e.key ? null : e.key)}>{name(e.key)}</button>
+                    <span className="spend-agent"><button className="linkish" aria-expanded={open === e.key} onClick={() => setOpen(open === e.key ? null : e.key)}>{name(e.key)}</button>{openAgent(e.key)}</span>
                   </th>
                   {(['today', 'week', 'month'] as const).map((k) => (
-                    <td key={k}>{money(e.summary[k], t)}{estimate(e.summary[k], t) && <span className="muted"> {estimate(e.summary[k], t)}</span>}</td>
+                    <td key={k} className="num">{money(e.summary[k], t)}{estimate(e.summary[k], t) && <span className="muted"> {estimate(e.summary[k], t)}</span>}</td>
                   ))}
                   <td>{(() => {
                     // DEC-0027: the limit that most needs a person; a report with only the older `budget` keeps that line.
@@ -90,13 +92,13 @@ export function Spend({ status }: { status: AppStatus }) {
                     <td colSpan={5}>
                       {(e.summary.limits ?? []).length > 0 && (
                         <table className="spend-limits" aria-label={t('spend.limits')}>
-                          <thead><tr><th scope="col">{t('spend.limits.limit')}</th><th scope="col">{t('spend.limits.window')}</th><th scope="col">{t('spend.limits.amount')}</th><th scope="col">{t('spend.limits.state')}</th></tr></thead>
+                          <thead><tr><th scope="col">{t('spend.limits.limit')}</th><th scope="col">{t('spend.limits.window')}</th><th scope="col" className="num">{t('spend.limits.amount')}</th><th scope="col">{t('spend.limits.state')}</th></tr></thead>
                           <tbody>
                             {(e.summary.limits ?? []).map((l) => (
                               <tr key={l.id} className={l.state === 'off' ? 'muted' : undefined}>
                                 <td>{limitName(l, t)}</td>
                                 <td>{limitWindow(l, t, day)}</td>
-                                <td>{limitAmount(l, t)}</td>
+                                <td className="num">{limitAmount(l, t)}</td>
                                 <td className={l.state === 'tripped' || l.state === 'breach' ? 'state-down' : l.state === 'near' ? 'state-degraded' : undefined}>{t(`limit.state.${l.state}`)}</td>
                               </tr>
                             ))}
@@ -105,14 +107,14 @@ export function Spend({ status }: { status: AppStatus }) {
                       )}
                       {e.summary.models.length === 0 ? <span className="muted">{t('spend.noCalls')}</span> : (
                         <table>
-                          <thead><tr><th scope="col">{t('spend.model')}</th><th scope="col">{t('spend.calls')}</th><th scope="col">{t('spend.tokens')}</th><th scope="col">{t('spend.cost')}</th></tr></thead>
+                          <thead><tr><th scope="col">{t('spend.model')}</th><th scope="col" className="num">{t('spend.calls')}</th><th scope="col" className="num">{t('spend.tokens')}</th><th scope="col" className="num">{t('spend.cost')}</th></tr></thead>
                           <tbody>
                             {e.summary.models.map((m) => (
                               <tr key={`${m.provider}/${m.model}/${m.route ?? ''}`}>
                                 <td><span className="mono">{m.model}</span> <span className="muted">{m.provider}</span></td>
-                                <td>{m.calls}</td>
-                                <td>{tokens(m, t, lang)}</td>
-                                <td>{m.route === 'subscription' ? <span className="muted">{subscriptionCost(m, t)}</span> : money(m, t)}</td>
+                                <td className="num">{m.calls.toLocaleString(lang)}</td>
+                                <td className="num">{tokens(m, t, lang)}</td>
+                                <td className="num">{m.route === 'subscription' ? <span className="muted">{subscriptionCost(m, t)}</span> : money(m, t)}</td>
                               </tr>
                             ))}
                           </tbody>
@@ -129,7 +131,7 @@ export function Spend({ status }: { status: AppStatus }) {
       {errors.length > 0 && (
         <section className="notice error" aria-labelledby="spend-errors-title">
           <h2 id="spend-errors-title">{t('spend.errors')}</h2>
-          <ul>{errors.map((e) => <li key={e.key}><b>{name(e.key)}</b>: {e.reason ? reason(e.reason) : e.error}</li>)}</ul>
+          <ul>{errors.map((e) => <li key={e.key}><b>{name(e.key)}</b>: {e.reason ? reason(e.reason) : e.error} {openAgent(e.key)}</li>)}</ul>
         </section>
       )}
       {silent.length > 0 && <p className="meta">{t('spend.silent', { names: silent.map(nameOf).join(', ') })}</p>}
@@ -143,9 +145,7 @@ export function Spend({ status }: { status: AppStatus }) {
 export type T = (key: string, params?: Record<string, string | number>) => string;
 
 export function usd(x: number | null, t: T): string {
-  if (x === null) return t('spend.unknown');
-  if (x > 0 && x < 0.01) return '<$0.01';
-  return `$${x.toFixed(2)}`;
+  return limitUsd(x, t);
 }
 
 /** Tokens in / out; «≥» while some calls' tokens were not measured in full (DEC-0091). */

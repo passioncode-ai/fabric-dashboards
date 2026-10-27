@@ -10,7 +10,7 @@ import { Feed } from './Activity';
 import { CompactActions, FixButton, UnavailablePane } from './ServiceActions';
 import { Connections } from './Connections';
 import { Load } from './Load';
-import { subscriptionCost } from './Spend';
+import { subscriptionCost, usd } from './Spend';
 import { loadOf } from '@passioncode-ai/fabric-service-host/load';
 import fabricMark from '../brand/passioncode-mark.svg';
 
@@ -53,6 +53,25 @@ export function ServiceView({ s, all, members, open, link, nonce, tab: askedTab,
   const [tab, setTabState] = useState<Tab>(hasDashboard ? 'dashboard' : 'health');
   const chosen = useRef(false); // the operator picked a tab; stop choosing for them
   const setTab = (x: Tab) => { chosen.current = true; setTabState(x); };
+  // VIS-16 (FD-129): a tab list cut by a narrow window fades at the side where more tabs are, and the chosen tab scrolls
+  // into view, so Health and Logs never vanish without a sign.
+  const tabList = useRef<HTMLDivElement | null>(null);
+  const [tabsMore, setTabsMore] = useState<'' | 'start' | 'end' | 'both'>('');
+  const measureTabs = () => {
+    const el = tabList.current;
+    if (!el) return;
+    const start = el.scrollLeft > 1, end = el.scrollLeft + el.clientWidth < el.scrollWidth - 1;
+    setTabsMore(start && end ? 'both' : start ? 'start' : end ? 'end' : '');
+  };
+  useEffect(() => {
+    const el = tabList.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    measureTabs();
+    const ro = new ResizeObserver(measureTabs);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  useEffect(() => { document.getElementById(`tab-${tab}`)?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' }); measureTabs(); }, [tab]);
   const [output, setOutput] = useState<{ title: string; text: string; running: 'doctor' | 'update' | null } | null>(null);
   const [updateFailure, setUpdateFailure] = useState<string | null>(null);
   useEffect(() => { chosen.current = false; setOutput(null); }, [s.key]);
@@ -118,7 +137,7 @@ export function ServiceView({ s, all, members, open, link, nonce, tab: askedTab,
           {/* UX-01, UX-03 (SCN-054): the state's own action first (Restart, Start, "Update to <v>"), then the one-click
               fix beside its problem, even in the one-line header. */}
           {!cardShown && <CompactActions s={s} problem={Boolean(problem)} act={control} runUpdate={() => void run('update')} onAgent={onAgent} updateFailed={updateFailure !== null} />}
-          <div className="tabs" role="tablist" aria-label={nameOf(s)} onKeyDown={(e) => {
+          <div className="tabs" role="tablist" aria-label={nameOf(s)} ref={tabList} data-more={tabsMore} onScroll={measureTabs} onKeyDown={(e) => {
             // U-14: arrow keys move between tabs, as a tab list should.
             if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
             const i = tabs.indexOf(tab);
@@ -157,24 +176,36 @@ export function ServiceView({ s, all, members, open, link, nonce, tab: askedTab,
                 {!s.lastAction.ok && tabs.includes('logs') && s.descriptor?.paths?.logs?.length ? <button className="btn btn-sm" onClick={() => setTab('logs')}>{t('action.logs')}</button> : null}
               </p>
             )}
-            <div className="row">
-              {managed && (s.state === 'stopped'
-                ? <button className="btn btn-primary" disabled={Boolean(s.busy)} onClick={() => void api().control(s.key, 'start')}>{t('action.start')}</button>
-                : <>
-                    <button className={`btn${s.state === 'down' || s.state === 'duplicate' ? ' btn-primary' : ''}`} disabled={Boolean(s.busy) || s.state === 'invalid' || s.state === 'conflict'} onClick={() => void api().control(s.key, 'restart')}>{t('action.restart')}</button>
-                    <button className="btn" disabled={Boolean(s.busy) || !running && s.state !== 'down'} onClick={() => askStop(s.key)}>{t('action.stop')}</button>
-                  </>)}
-              {wk?.update?.available && s.descriptor?.commands?.update && (
-                <button className="btn" disabled={Boolean(s.busy)} onClick={() => void run('update')}>{t('action.update', { version: wk.update.available })}</button>
+            {/* VIS-17 (FD-129): three groups, one primary per state: run (Start, Restart, Stop), repair (Update, the self-check,
+                the coding agent), and the files as quiet links. */}
+            <div className="row wrap card-actions">
+              {managed && (
+                <div className="row" role="group" aria-label={t('card.group.run')}>
+                  {s.state === 'stopped'
+                    ? <button className="btn btn-primary" disabled={Boolean(s.busy)} onClick={() => void api().control(s.key, 'start')}>{t('action.start')}</button>
+                    : <>
+                        <button className={`btn${s.state === 'down' || s.state === 'duplicate' ? ' btn-primary' : ''}`} disabled={Boolean(s.busy) || s.state === 'invalid' || s.state === 'conflict'} onClick={() => void api().control(s.key, 'restart')}>{t('action.restart')}</button>
+                        <button className="btn" disabled={Boolean(s.busy) || !running && s.state !== 'down'} onClick={() => askStop(s.key)}>{t('action.stop')}</button>
+                      </>}
+                </div>
               )}
-              {s.descriptor?.commands?.doctor && <button className="btn" disabled={Boolean(s.busy)} onClick={() => void run('doctor')}>{t('action.doctor')}</button>}
-              {onAgent && offersFix(s) && <FixButton s={s} onFix={() => onAgent(s.key, { kind: 'fix' })} />}
-              {onAgent && offersAgentUpdate(s, updateFailure !== null) && <button className="btn" onClick={() => onAgent(s.key, { kind: 'update', ...(updateFailure ? { output: updateFailure } : {}) })}>{t('agent.update')}</button>}
-              {s.descriptor?.paths && <button className="btn" onClick={() => show(s.descriptor!.paths!.data)}>{t('action.showData')}</button>}
-              <button className="btn" onClick={() => show(s.descriptorPath)}>{t('action.showFile')}</button>
-              {conflictWith.map((o) => (
-                <button key={o.key} className="btn" onClick={() => show(o.descriptorPath)}>{t('action.showFileOf', { name: nameOf(o) })}</button>
-              ))}
+              {(Boolean(wk?.update?.available && s.descriptor?.commands?.update) || Boolean(s.descriptor?.commands?.doctor) || Boolean(onAgent && (offersFix(s) || offersAgentUpdate(s, updateFailure !== null)))) && (
+                <div className="row" role="group" aria-label={t('card.group.repair')}>
+                  {wk?.update?.available && s.descriptor?.commands?.update && (
+                    <button className={`btn${managed && ['stopped', 'down', 'duplicate'].includes(s.state) ? '' : ' btn-primary'}`} disabled={Boolean(s.busy)} onClick={() => void run('update')}>{t('action.update', { version: wk.update.available })}</button>
+                  )}
+                  {s.descriptor?.commands?.doctor && <button className="btn" disabled={Boolean(s.busy)} onClick={() => void run('doctor')}>{t('action.doctor')}</button>}
+                  {onAgent && offersFix(s) && <FixButton s={s} onFix={() => onAgent(s.key, { kind: 'fix' })} />}
+                  {onAgent && offersAgentUpdate(s, updateFailure !== null) && <button className="btn" onClick={() => onAgent(s.key, { kind: 'update', ...(updateFailure ? { output: updateFailure } : {}) })}>{t('agent.update')}</button>}
+                </div>
+              )}
+              <div className="row" role="group" aria-label={t('card.group.files')}>
+                {s.descriptor?.paths && <button className="btn-link btn" onClick={() => show(s.descriptor!.paths!.data)}>{t('action.showData')}</button>}
+                <button className="btn-link btn" onClick={() => show(s.descriptorPath)}>{t('action.showFile')}</button>
+                {conflictWith.map((o) => (
+                  <button key={o.key} className="btn-link btn" onClick={() => show(o.descriptorPath)}>{t('action.showFileOf', { name: nameOf(o) })}</button>
+                ))}
+              </div>
             </div>
             {pathError && <p className="notice error" role="alert">{pathError}</p>}
           </div>
@@ -183,7 +214,7 @@ export function ServiceView({ s, all, members, open, link, nonce, tab: askedTab,
       </header>
       <div className="svc-body" role="tabpanel" id={`panel-${tab}`} aria-labelledby={`tab-${tab}`}>
         {tab === 'dashboard' && <DashboardHost s={s} link={link} nonce={nonce} hidden={overlayOpen} applied={appliedLink} act={control} openLogs={tabs.includes('logs') ? () => setTab('logs') : undefined} />}
-        {tab === 'activity' && <div className="pane"><ServiceActivity serviceKey={s.key} tick={`${activityRev ?? ''}|${s.latestEvent?.id ?? ''}`} /></div>}
+        {tab === 'activity' && <div className="pane"><ServiceActivity serviceKey={s.key} tick={`${activityRev ?? ''}|${s.latestEvent?.id ?? ''}`} openAt={(k, l) => open(k, l)} /></div>}
         {tab === 'connections' && <div className="pane"><Connections s={s} all={all} open={(key) => open(key, undefined, 'connections')} /></div>}
         {tab === 'load' && tabs.includes('load') && <div className="pane"><Load s={s} /></div>}
         {tab === 'health' && <div className="pane"><Health s={s} output={output} /></div>}
@@ -380,7 +411,7 @@ function Profile({ s }: { s: ServiceSnapshot }) {
         {c.slots.includes('model') && <><dt>{t('profile.model')}</dt><dd>{[r.modelProfile, r.models?.join(', ')].filter(Boolean).join(' · ') || t('word.notStated')}</dd></>}
         {r.from && <><dt>{t('profile.from')}</dt><dd>{t(`profile.from.${r.from}`)}</dd></>}
         <dt>{t('profile.spend')}</dt>
-        <dd>{models === null ? <Spinner /> : models.length ? models.map((m) => `${m.model} ${m.route === 'subscription' ? subscriptionCost({ estimateUsd: m.estimateUsd, estimatePartial: m.estimatePartial === true }, t) : m.costUsd === null ? t('spend.unknown') : `$${m.costUsd.toFixed(2)}`}`).join(' · ') : t('profile.spend.none')}</dd>
+        <dd>{models === null ? <Spinner /> : models.length ? models.map((m) => `${m.model} ${m.route === 'subscription' ? subscriptionCost({ estimateUsd: m.estimateUsd, estimatePartial: m.estimatePartial === true }, t) : m.costUsd === null ? t('spend.unknown') : usd(m.costUsd, t)}`).join(' · ') : t('profile.spend.none')}</dd>
         <dt>{t('profile.budget')}</dt><dd className="muted">{t('profile.budget.pending')}</dd>
       </dl>
       <button className="btn btn-sm" onClick={change}>{t('profile.change')}</button>
@@ -412,11 +443,12 @@ function Logs({ serviceKey }: { serviceKey: string }) {
   );
 }
 
-function ServiceActivity({ serviceKey, tick }: { serviceKey: string; tick: string }) {
+function ServiceActivity({ serviceKey, tick, openAt }: { serviceKey: string; tick: string; openAt: (key: string, link?: string) => void }) {
   const [items, setItems] = useState<ActivityItem[] | null>(null);
   // P-7: new rows appear while the tab is open, as on the Activity page.
   useEffect(() => { void api().activity({ serviceKey }).then(setItems); }, [serviceKey, tick]);
-  return <Feed items={items} />;
+  // UX-15 (FD-129): the same rows open as on the Activity page; a row with a link opens that page of the dashboard.
+  return <Feed items={items} openAt={openAt} self={serviceKey} />;
 }
 
 /** The instances of one product (ADR-0012): each opens its own page with its own key, session and

@@ -163,7 +163,7 @@ What the app does and how an agent does the same (FD-81, ADR-0023):
 | Spend and its limits | `spend` |
 | An agent's Connections tab | `connections` |
 | An agent's Load tab | `load` |
-| The Connections page: the auditor, the map, sessions stopped on a limit | `audit` (`limitStops` from 0.7.20) |
+| The Agent map page: problems across agents and the map (sessions stopped on a limit are in the Sessions mode) | `audit` (`limitStops` from 0.7.20) |
 | Settings → Check setup | `setup_check` |
 | Context for a console | `service_context` |
 | This Mac's installation | `host_status` |

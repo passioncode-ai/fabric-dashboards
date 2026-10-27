@@ -247,8 +247,9 @@ export function Overview({ status, products, open, act, goSpend, agent, visit, o
         const byKey = new Map(services.map((x) => [x.key, x]));
         const names = (keys: string[]) => keys.map((k) => (byKey.get(k) ? nameOf(byKey.get(k)!) : k)).join(', ');
         const worked = visit.continueKeys.filter((k) => byKey.has(k));
-        const changed = visit.added.length + visit.removed.length + visit.alerts.length > 0;
-        if (!changed && !worked.length) return null;
+        const updates = (visit.updates ?? []).filter((u) => byKey.has(u.key));
+        const changed = visit.added.length + visit.removed.length + visit.alerts.length + updates.length > 0;
+        // UX-09 (FD-129): the section always says what changed, "Nothing changed since …" included.
         return (
           <section className="visit" aria-labelledby="visit-title">
             <div className="row">
@@ -268,6 +269,7 @@ export function Overview({ status, products, open, act, goSpend, agent, visit, o
               ))}
               {visit.added.length > 0 && <li className="meta">{t('visit.added', { names: names(visit.added) })}</li>}
               {visit.removed.length > 0 && <li className="meta">{t('visit.removed', { names: names(visit.removed) })}</li>}
+              {updates.length > 0 && <li className="meta">{t('visit.updates', { names: updates.map((u) => `${nameOf(byKey.get(u.key)!)} ${u.version}`).join(', ') })}</li>}
             </ul>
             {onContinue && worked.length > 0 && (
               <div className="row wrap">

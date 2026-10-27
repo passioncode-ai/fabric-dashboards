@@ -1,4 +1,4 @@
-// #region connections-map — docs: docs/ux/scenarios.md#scn-074-see-how-agents-are-wired-and-what-the-auditor-found
+// #region connections-map — docs: docs/ux/scenarios.md#scn-074-see-how-agents-are-wired-and-what-problems-were-found
 // FD-81: the Connections page. The auditor's summary first (one line, worst first), then the map of how agents are
 // wired (left calls right), then the findings grouped by the agent to fix, each with "Fix with coding agent" in the coding
 // agent the person picks. Honest state (ADR-0023): an agent that declares nothing has no line, and the page says how
