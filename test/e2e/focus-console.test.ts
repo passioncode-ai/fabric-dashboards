@@ -175,7 +175,7 @@ test('ADR-0017: a one-line header, a folding sidebar, and an agent console besid
     await con.getByText('The session exited with code 0.').waitFor({ timeout: 15_000 });
 
     // FD-81 SCN-074: the auditor hands the same agent's findings to the coding agent picked in its row.
-    await page.getByRole('button', { name: /^Connections/ }).first().click();
+    await page.getByRole('button', { name: /^Agent map/ }).first().click();
     const auditRow = page.locator('.audit-group', { hasText: 'Sample Service' });
     await auditRow.getByRole('combobox').waitFor();
     assert.equal(await auditRow.getByRole('combobox').inputValue(), 'claude-code', 'the runtime chosen for this agent');
@@ -226,8 +226,8 @@ test('ADR-0017: a one-line header, a folding sidebar, and an agent console besid
     // FD-129 (UX-23): in the rail a right-click opens the same row menu beside the row; Escape gives focus back to it.
     await page.locator('.nav-row .nav-item', { hasText: 'Sample Service' }).first().click({ button: 'right' });
     await page.getByRole('menuitem', { name: 'Unpin Sample Service' }).waitFor();
-    const menuBox = (await page.getByRole('menu', { name: 'Sample Service' }).boundingBox())!;
-    assert.ok(menuBox.x >= (await page.locator('.sidebar').boundingBox())!.width, 'the rail menu opens beside the rail');
+    const railMenu = (await page.getByRole('menu', { name: 'Sample Service' }).boundingBox())!;
+    assert.ok(railMenu.x >= (await page.locator('.sidebar').boundingBox())!.width, 'the rail menu opens beside the rail');
     await page.keyboard.press('Escape');
     assert.equal(await page.getByRole('menu').count(), 0);
 
