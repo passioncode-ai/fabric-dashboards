@@ -858,10 +858,11 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
   1. User clicks Spend -> system reads each agent's usage report now, with its token in the main process, and shows "read at HH:MM", Refresh and totals for Today, 7 days and 30 days across agents (when at least one agent reports)
   2. User reads the table -> one row per reporting agent: today, 7 days, 30 days, and Limits — the limit that most needs a person ("Over the limit: $6.00 of $5.00 · Daily · project demo (+7 more)"; a limit that stopped work or is breached shows first and in red, one at 80 % or more in amber), or the older single budget ("$1.59 of $100.00 this month") from an agent that lists no limits
   3. User clicks an agent's name -> the row expands to every limit the agent applies (DEC-0027) — which limit and for whom, its window, spent of limit, and its state (Stopped work, Over the limit, Close to the limit, Within, Spend not counted, Caps each job, Jobs above it wait for your approval, Not enforced) — and below it the models: model, provider, calls, tokens in / out, cost over the last 30 days (the same window as the 30-day column, FD-113 COPY-15), most expensive first; a model the agent ran on the operator's own subscription is its own row, its cost read "~$140.47 subscription" (FD-88)
-  4. User leaves the page open -> it is read again every minute while the window shows; a hidden window gets the last sums; Refresh reads now
+  4. User clicks Open beside an agent's name -> its page opens (FD-129 UX-22); figures in every table line up on the right and read at body size, dollars with a thousands separator ("$1,234.56", VIS-18)
+  5. User leaves the page open -> it is read again every minute while the window shows; a hidden window gets the last sums; Refresh reads now
 - **Expected result:** where the money goes, per agent and per model, without opening a provider console
 - **Alt paths:** a limit the operator chose not to apply -> still listed, muted, "Not enforced"; an approval threshold crossed -> "Jobs above it wait for your approval", never a breach; a kind of limit the app does not know -> listed by the agent's own name for it; no agent reports -> "No agent reports its spend yet" with what an agent must publish; some agents report and others do not -> "Not reporting spend yet: …" names the others; an agent ran calls on the operator's own subscription (`route: subscription`) -> they spent no money and stay out of every sum; their list-price value shows beside it, "+ ~$140.47 on subscriptions", with a note under the table (FD-88); an agent asks through MCP `spend` -> the same sums, `estimateUsd` apart
-- **UI elements:** Spend nav item, totals tiles, agents table with the Limits column, limits table, model breakdown, Refresh
+- **UI elements:** Spend nav item, totals tiles, agents table with the Limits column and an Open button per agent, limits table, model breakdown, Refresh
 - **States covered:** loading, empty, success
 - **Errors & recovery:** see SCN-038
 - **Status:** validated
@@ -896,9 +897,10 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **Steps:**
   1. User opens Spend -> "Could not read" lists the agent with the reason in a sentence ("the service refused the token (HTTP 401)", "the usage report is malformed: …")
   2. User reads the totals -> when another agent reports, they carry "≥", because one agent's spend is missing; when none reports, only "Could not read" shows
+  3. User clicks Open on the agent's line -> its page opens, where the same reason and its fix show (FD-129 UX-22)
 - **Expected result:** a failure is named and never silently counted as zero; the other agents still show
 - **Alt paths:** the token file is not 0600 -> the reason names it; the agent answers a report for another instance -> refused; an agent that reported earlier and does not answer now -> "it does not answer now, so its usage report could not be read"; another program answers its address -> "another program answers on its address, so its usage report is not read" (its token is never sent there); the reasons follow the window's language
-- **UI elements:** "Could not read" notice, "≥" totals
+- **UI elements:** "Could not read" notice with Open per agent, "≥" totals
 - **States covered:** error
 - **Errors & recovery:** the next read (a minute later, or Refresh) shows the agent again once it answers
 - **Status:** validated

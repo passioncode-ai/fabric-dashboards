@@ -421,7 +421,7 @@ function Shell({ status, route, setRoute, mode, switchMode, stopKey, setStopKey,
               {route.page === 'overview' && <SetupCard onOpen={openSetup} consoleOpen={setupOpen} onShown={setSetupCard} />}
               {route.page === 'overview' && <Overview status={status} products={products} open={open} act={act} agent={handToAgent} onSetup={() => openSetup('new')} setupCard={setupCard} visit={visit} onDismissVisit={() => setVisit(null)} onContinue={continueWith} goSpend={() => setRoute({ page: 'spend' })} list={layout.list} onHiddenOpen={(o) => changeLayout({ list: { hiddenOpen: o } })} />}
               {route.page === 'activity' && <Activity status={status} openAt={open} filter={activityFilter} setFilter={setActivityFilter} />}
-              {route.page === 'spend' && <Spend status={status} />}
+              {route.page === 'spend' && <Spend status={status} onOpen={(key) => open(key)} />}
               {route.page === 'map' && <ConnectionsMap status={status} open={(key) => open(key, undefined, 'connections')} onAgent={handToAgent} />}
               {route.page === 'settings' && <Settings status={status} onTheme={onTheme} onLanguage={onLanguage} onSetup={() => openSetup('new')} section={route.section} nonce={route.nonce} />}
               {route.page === 'sessions' && <AllSessions sessions={status.sessions} noteSeen={noteSeen} onNoteSeen={onNoteSeen} onSetUp={() => setRoute({ page: 'settings', section: 'sessions', nonce: Date.now() })}
