@@ -411,6 +411,8 @@ table.spend th[scope='row'] { color: var(--pc-text); }
 .menu { position: fixed; z-index: 30; min-width: 200px; display: flex; flex-direction: column; padding: var(--pc-space-1); background: var(--pc-panel-raised); border: 1px solid var(--pc-border-strong); border-radius: var(--pc-radius-control); box-shadow: var(--fd-shadow-menu); }
 .menu [role='menuitem'] { text-align: left; min-height: var(--fd-control-sm); padding: 0 var(--pc-space-2); border: 0; border-radius: var(--pc-radius-control); background: transparent; color: var(--pc-text); font: inherit; font-size: var(--pc-type-meta); cursor: pointer; white-space: nowrap; }
 .menu [role='menuitem']:hover { background: var(--pc-panel); }
+/* A row menu fits the sidebar: a long item ("Pin <a long name> to the top") wraps rather than leave the window. */
+.row-menu .menu [role='menuitem'] { white-space: normal; overflow-wrap: anywhere; padding-top: var(--pc-space-1); padding-bottom: var(--pc-space-1); line-height: 1.3; }
 /* VIS-04: the item Enter will run is ringed, not told by a 1.1:1 background change alone. */
 .menu [role='menuitem']:focus-visible { background: var(--pc-accent-soft); outline: 2px solid var(--pc-focus); outline-offset: -2px; }
 .nav-fold-section { display: flex; align-items: center; gap: var(--pc-space-1); width: calc(100% - 2 * var(--pc-space-2)); border: 0; background: transparent; cursor: pointer; padding: 0; text-align: left; }

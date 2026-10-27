@@ -16,6 +16,8 @@
 
 ### Fixed
 
+- **An agent's row menu stays inside the window.** With a long agent name, the menu ran off the left edge and cut
+  its items short. It now fits the sidebar and wraps a long item onto a second line.
 - **A screen reader names every box on the Connections map** (FD-113 VIS-07). The map was one image, which hid the
   agents inside it; it is now a group of named buttons, and a name cut short on screen is read in full.
 - **A screen reader reads what an agent card shows** (FD-113 VIS-11): after the name and state, the figures flagged

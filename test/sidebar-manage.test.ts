@@ -134,3 +134,11 @@ test('FD-122: a change someone else writes into settings.json is read again, and
   app.refresh();
   assert.deepEqual(app.get().layout.list.hidden, []);
 });
+
+test('a row menu ends at its button and never starts left of the window; a narrow sidebar shrinks its minimum', async () => {
+  const { menuWidth, MENU_EDGE } = await import('../src/renderer/components/Navigation');
+  assert.deepEqual(menuWidth(232), { maxWidth: 232 - MENU_EDGE, minWidth: 200 }, 'the default sidebar: the menu fits between the edge and the button');
+  assert.deepEqual(menuWidth(412), { maxWidth: 404, minWidth: 200 });
+  assert.deepEqual(menuWidth(190), { maxWidth: 182, minWidth: 182 }, 'narrower than 200: the minimum gives way');
+  assert.deepEqual(menuWidth(40), { maxWidth: 120, minWidth: 120 }, 'never too narrow to read');
+});

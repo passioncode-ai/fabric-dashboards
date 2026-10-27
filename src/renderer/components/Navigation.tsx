@@ -221,15 +221,29 @@ function ProductItem({ p, current, open, rail, pinned, menu, drag = null, hidden
 }
 
 /** FD-78: one small button per row opens its actions (global rule: one primary action, the rest in a menu). */
+/** The row menu's width bounds: from MENU_EDGE px inside the window to the button's right edge; its usual 200 px
+ *  minimum shrinks when the sidebar is narrower than that. */
+export const MENU_EDGE = 8;
+export function menuWidth(buttonRight: number): { maxWidth: number; minWidth: number } {
+  const maxWidth = Math.max(120, Math.round(buttonRight - MENU_EDGE));
+  return { maxWidth, minWidth: Math.min(200, maxWidth) };
+}
+
 function RowMenu({ p, menu }: { p: Product; menu: RowActions }) {
   const { t } = useT();
   const [open, setOpen] = useState(false);
   // The list scrolls, so the menu is placed against the window: below the button, or above it near the bottom.
-  const [at, setAt] = useState<{ top?: number; bottom?: number; right: number }>({ right: 0 });
+  // It ends at the button's right edge and never starts left of the window: a long item wraps instead of
+  // pushing the menu out (seen 2026-10-27). It stays over the sidebar, since a dashboard to its right is drawn
+  // above the page and would cover it.
+  const [at, setAt] = useState<{ top?: number; bottom?: number; right: number; maxWidth?: number; minWidth?: number }>({ right: 0 });
   const box = useRef<HTMLDivElement | null>(null);
   const toggle = () => {
     const r = box.current?.querySelector('.row-menu-btn')?.getBoundingClientRect();
-    if (r) setAt(window.innerHeight - r.bottom < 140 ? { bottom: window.innerHeight - r.top + 4, right: window.innerWidth - r.right } : { top: r.bottom + 4, right: window.innerWidth - r.right });
+    if (r) {
+      const room = { right: window.innerWidth - r.right, ...menuWidth(r.right) };
+      setAt(window.innerHeight - r.bottom < 140 ? { bottom: window.innerHeight - r.top + 4, ...room } : { top: r.bottom + 4, ...room });
+    }
     setOpen(!open);
   };
   const name = nameOf(p.primary);
