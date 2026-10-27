@@ -51,7 +51,8 @@ export function shouldNotify(settings: Settings, h: Happening, now: Date): boole
 export type Intent = 'ask' | 'failed' | 'attention' | 'quiet';
 
 /** A question or a step only a person can take: the agent is blocked until the operator acts. */
-const ASK = /(awaiting|approval|approve_requested|human_step\.opened|needs?_(you|review|decision|input)|review_requested|confirmation_requested|choice_needed)/;
+// FD-125: `decision_needed` (a stopped experiment owes a decision) and a guardrail stop or breach the product must act on.
+const ASK = /(awaiting|approval|approve_requested|human_step\.opened|needs?_(you|review|decision|input)|review_requested|confirmation_requested|choice_needed|decision_needed|guardrail_(stopped|breached))/;
 /** Endings and progress: something got better or moved on. Never a banner. */
 const SETTLED = /\.(recovered|cleared|back|resumed|closed|resolved|choice_made|approved|granted|cancelled|started|queued|delivered|done|finished|completed|ready|synced|written|checked|observed|planned)$/;
 

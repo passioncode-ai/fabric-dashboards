@@ -88,6 +88,9 @@ const DEFAULT_INTERVALS = {
 const MIN_WAKE_MS = 250;
 // #endregion idle-cadence
 
+/** FD-125: an events-feed row asking the operator for a decision, for the operator channel. */
+export interface AskNotice { serviceKey: string; name: string; id: string; at: number; text: string; link: string | null; episode: string }
+
 export class Monitor extends EventEmitter {
   private readonly tracked = new Map<string, Tracked>();
   private readonly launchd: Launchd;
@@ -549,6 +552,9 @@ export class Monitor extends EventEmitter {
       for (const e of fresh) {
         const intent = e.notify ? intentOf(e) : 'quiet';
         if (intent === 'quiet') continue;
+        // FD-125: a decision the agent waits for also goes to the operator channel, whatever the banner rules say;
+        // the channel's sender applies the person's own rules (pause, quiet hours, a muted agent) when it sends.
+        if (intent === 'ask') this.emit('ask', { serviceKey: t.entry.key, name: this.name(t), id: e.id, at: Date.parse(e.at) || now, text: e.text, link: e.link ?? null, episode: episodeKey({ key: t.entry.key, id: d.id }, e) } satisfies AskNotice);
         if (!shouldNotify(this.o.settings(), { kind: 'event', serviceKey: t.entry.key, level: e.level }, new Date(now))) continue;
         if (!this.ledger.admit(episodeKey({ key: t.entry.key, id: d.id }, e), intent, now)) continue;
         told.push({ intent, text: e.text, link: e.link });

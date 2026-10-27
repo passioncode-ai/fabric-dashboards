@@ -141,3 +141,26 @@ apart). The failure was owed by the age of the open episode, and an episode stay
 calm. Since 0.7.16 the failure is owed only while the agent is unavailable at that moment (`owed`, `clearSince ===
 null`); a fall within the calm is still the same case and is told at once. Proof: `test/outage-alerts.test.ts`, *FD-76:
 a short outage looked at every minute through its calm sends nothing*.
+
+## Amendment 2026-10-27: a decision reaches the operator away from the Mac (FD-125)
+
+**Context.** sshlg-growth's config draft `19b6e758` waited eleven hours (2026-10-25): growth wrote a notifying events-feed
+row (`draft.awaiting_approval`, `notify: true`) at night, it stayed a banner on the Mac under the 2026-10-19 rule, and the
+operator never saw it. The operator, relayed by another of the operator's projects (finding `5792c0e4`, 2026-10-25): «передай
+агенту гроуз что по UX на дашборде полная беда и уведомления пусть включит»; in growth's chat 2026-10-27: «делай».
+Growth's request on this board: `482a8030`.
+
+**Decision.** A notifying events-feed row whose intent is `ask` (a person must act: an approval, a choice, a decision
+owed, a guardrail stop; `intentOf` in `src/core/notify.ts`, which now also reads `decision_needed` and
+`guardrail_stopped`/`guardrail_breached`) also goes to the operator channel, from any agent: one message per event id
+(`ask:<service key>:<event id>`), with the agent's own words and the `fabric-dashboards://` link to the page the row names.
+The same question (its notification episode) is not sent again within a day. The person's own rules hold at send time:
+a pause, quiet hours or a muted agent hold the message until they allow it (it is not lost), and a message the channel
+never takes is given up a day after the event. The queue lives in `outage-alerts.json` beside the outages, which are sent
+first. Failures, warnings and routine stay on the Mac, as the 2026-10-19 rule says.
+
+**Why not a kind list per agent.** Growth offered a list of its kinds, or a field it would set. The contract's events
+already carry what a host needs (`notify` and the kind), and the ask intent is the one the Mac banner uses for "Needs
+your decision"; every agent that waits for the operator gets the same treatment without a list to keep. A field that
+marks a decision explicitly belongs to the contract (CT-150, Fabric CO-448), not to one host.
+
