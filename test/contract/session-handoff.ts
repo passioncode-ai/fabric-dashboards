@@ -1,11 +1,11 @@
-// Copied from passioncode-ai/fabric-agent-contract src/session-handoff.ts @213e5a3a2f4d (DEC-0042), unchanged except
+// Copied from passioncode-ai/fabric-agent-contract src/session-handoff.ts @802c8d270fdb (DEC-0042, DEC-0145), unchanged except
 // its one kit import, a type, which is declared here. Test-only: test/session-handoff.test.ts runs it against the
 // folders the console writes (FD-47). Never edit here; re-copy when the contract changes.
 import { createHash } from "node:crypto";
 import { closeSync, constants, existsSync, fstatSync, lstatSync, openSync, readdirSync, readSync, realpathSync } from "node:fs";
 import path from "node:path";
 /** The kit's finding (fabric-agent-contract src/findings.ts), copied as a type: the module's one kit import. */
-interface Finding { code: string; instancePath: string; message: string; severity?: "rejected" | "accepted" }
+interface Finding { code: string; instancePath: string; message: string; severity?: "rejected" | "accepted"; help?: string }
 
 /*
  * session-handoff/1 (DEC-0042, docs/specification/session-handoff.md): the folder a host hands a coding-agent
@@ -31,6 +31,18 @@ export const MAX_LAUNCH_ARG = 1024;
 export const MAX_HANDOFF_FILE = 1_048_576;
 
 type Json = Record<string, unknown>;
+/*
+ * A value as text, without the throw `String()` raises on an object such as `{"toString": 1}`: the `show` of
+ * `src/findings.ts`, copied so this module stays standalone. `test/session-handoff-standalone.test.ts` checks the copy.
+ */
+function show(value: unknown): string {
+  if (typeof value === "string") return value;
+  try {
+    return String(value);
+  } catch {
+    return JSON.stringify(value) ?? typeof value;
+  }
+}
 const isObject = (value: unknown): value is Json => typeof value === "object" && value !== null && !Array.isArray(value);
 const strings = (value: unknown): string[] => (Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : []);
 // eslint-disable-next-line no-control-regex
@@ -38,8 +50,8 @@ const CONTROL = /[\u0000-\u001f\u007f]/;
 /** A tool name as MCP servers in this family spell them: snake_case with at least one underscore. */
 const TOOL_WORD = /\b[a-z][a-z0-9]*(?:_[a-z0-9]+)+\b/g;
 /*
- * The credential matcher of DEC-0041 (src/fabric-links.ts, CO-260), copied so this module stays dependency-free;
- * `test/session-handoff.test.ts` checks that the copy agrees with the original.
+ * The credential detector of `src/secret-shape.ts` (DEC-0041, DEC-0044), copied so this module stays dependency-free:
+ * Fabric vendors this file alone. `test/session-handoff-review.test.ts` checks that the copy agrees with the original.
  */
 /** A name's words: split at `.`, `_`, `-` and camelCase humps, lowercased (`refreshToken_v2-Id` is `refresh token v2 id`). */
 function nameWords(name: string): string[] {
@@ -152,6 +164,16 @@ export interface SessionHandoffVerdict {
   /** The manifest against `session-handoff.schema.json`; empty when handoff.json could not be read. */
   schemaErrors: SchemaError[];
   findings: Finding[];
+}
+
+/**
+ * Two paths name the same file for SH-4 and SH-11: byte for byte on POSIX, macOS included even on a case-insensitive
+ * volume; on Windows with either separator and in either case (DEC-0032's Windows paths take `\\` or `/`; DEC-0145).
+ */
+export function samePath(a: string, b: string, platform: string = process.platform): boolean {
+  if (platform !== "win32") return a === b;
+  const fold = (value: string) => value.replace(/\//g, "\\").toLowerCase();
+  return fold(a) === fold(b);
 }
 
 const octal = (mode: number) => (mode & 0o777).toString(8).padStart(3, "0");
@@ -308,7 +330,7 @@ export function sessionHandoffManifestFindings(manifest: Json): Finding[] {
   // SH-7 — a pack kept per agent key opens that agent's console, no other.
   const callArguments = isObject(firstCall.arguments) ? firstCall.arguments : undefined;
   if (lifetime.kind === "agent-key" && callArguments && typeof callArguments.key === "string" && callArguments.key !== lifetime.agentKey) {
-    findings.push(sem053("/firstCall/arguments/key", `a pack kept for agent key ${String(lifetime.agentKey)} opens that agent's console; the first call names ${callArguments.key}`));
+    findings.push(sem053("/firstCall/arguments/key", `a pack kept for agent key ${show(lifetime.agentKey)} opens that agent's console; the first call names ${callArguments.key}`));
   }
 
   // SH-6 — the preamble names one tool, the first call, and holds no rule; it is one line.
@@ -352,7 +374,7 @@ export function sessionHandoffManifestFindings(manifest: Json): Finding[] {
     if (configs.length !== 1) findings.push(sem053(at, `Claude Code is given exactly one --mcp-config=<path>/mcp.json; found ${configs.length}`));
     for (const config of configs) {
       const value = config.slice("--mcp-config=".length);
-      if (!path.isAbsolute(value) || path.basename(value) !== "mcp.json") findings.push(sem053(at, `--mcp-config names the handoff's mcp.json by its absolute path; found ${value}`));
+      if (!path.isAbsolute(value) || !samePath(path.basename(value), "mcp.json")) findings.push(sem053(at, `--mcp-config names the handoff's mcp.json by its absolute path; found ${value}`));
     }
     if (args.includes("--strict-mcp-config") !== strict) findings.push(sem053(at, strict ? "mcp.strict is true, so Claude Code is given --strict-mcp-config" : "mcp.strict is false, so Claude Code is not given --strict-mcp-config"));
     const inline = flagValues(args, "--append-system-prompt");
@@ -360,7 +382,7 @@ export function sessionHandoffManifestFindings(manifest: Json): Finding[] {
     if (brief.delivery === "inline" && (inline.length !== 1 || inline[0] !== brief.text || file.length)) findings.push(sem053(at, "an inline brief is the one value of --append-system-prompt"));
     if (brief.delivery === "file") {
       if (file.length !== 1 || inline.length) findings.push(sem053(at, "a brief file is the one value of --append-system-prompt-file"));
-      for (const value of file) if (!path.isAbsolute(value) || path.basename(value) !== "brief.md") findings.push(sem053(at, `--append-system-prompt-file names the handoff's brief.md by its absolute path; found ${value}`));
+      for (const value of file) if (!path.isAbsolute(value) || !samePath(path.basename(value), "brief.md")) findings.push(sem053(at, `--append-system-prompt-file names the handoff's brief.md by its absolute path; found ${value}`));
     }
   } else if (runtime === "codex") {
     const overrides = codexOverrides(args);
@@ -380,7 +402,7 @@ export function sessionHandoffManifestFindings(manifest: Json): Finding[] {
     if (args.length) findings.push(sem053(at, "Kilo's handoff travels in KILO_CONFIG_CONTENT, not in arguments"));
   } else if (runtime === "hermes") {
     if ((env.HERMES_ACP_SKIP_CONFIGURED_MCP === "1") !== strict) findings.push(sem053("/launch/env", strict ? "mcp.strict is true, so Hermes is started with HERMES_ACP_SKIP_CONFIGURED_MCP=1" : "mcp.strict is false, so HERMES_ACP_SKIP_CONFIGURED_MCP is not set"));
-  } else if (runtime === "kimi-code" || runtime === "cline") {
+  } else if (runtime === "kimi-code" || runtime === "cline" || runtime === "pi") {
     if (strict) findings.push(sem053("/mcp/strict", `${runtime} offers no measured switch that loads only the handoff's servers; mcp.strict is false`));
   }
   return findings;
@@ -438,8 +460,8 @@ export function sessionHandoffFolderFindings(snapshot: HandoffSnapshot): Finding
   const launch = isObject(manifest.launch) ? manifest.launch : {};
   const args = strings(launch.args);
   if (launch.runtime === "claude-code") {
-    for (const value of flagValues(args, "--mcp-config")) if (value !== path.join(snapshot.path, "mcp.json")) findings.push(sem054("/launch/args", `--mcp-config names this folder's mcp.json, ${path.join(snapshot.path, "mcp.json")}; found ${value}`));
-    for (const value of flagValues(args, "--append-system-prompt-file")) if (value !== path.join(snapshot.path, "brief.md")) findings.push(sem054("/launch/args", `--append-system-prompt-file names this folder's brief.md; found ${value}`));
+    for (const value of flagValues(args, "--mcp-config")) if (!samePath(value, path.join(snapshot.path, "mcp.json"))) findings.push(sem054("/launch/args", `--mcp-config names this folder's mcp.json, ${path.join(snapshot.path, "mcp.json")}; found ${value}`));
+    for (const value of flagValues(args, "--append-system-prompt-file")) if (!samePath(value, path.join(snapshot.path, "brief.md"))) findings.push(sem054("/launch/args", `--append-system-prompt-file names this folder's brief.md; found ${value}`));
   }
   const brief = isObject(manifest.brief) ? manifest.brief : {};
   const preamble = typeof manifest.preamble === "string" ? manifest.preamble : "";
@@ -536,11 +558,11 @@ export function snapshotFromFixture(value: Json): HandoffSnapshot {
     if (!isObject(raw)) continue;
     const kind = raw.kind === "directory" || raw.kind === "symlink" || raw.kind === "other" ? raw.kind : "file";
     const text = typeof raw.text === "string" ? raw.text : raw.json !== undefined ? `${JSON.stringify(raw.json, null, 2)}\n` : undefined;
-    entries[name] = { mode: String(raw.mode ?? "600"), kind, ...(kind === "file" && text !== undefined ? { text } : {}), ...(raw.tooLarge === true ? { tooLarge: true } : {}) };
+    entries[name] = { mode: show(raw.mode ?? "600"), kind, ...(kind === "file" && text !== undefined ? { text } : {}), ...(raw.tooLarge === true ? { tooLarge: true } : {}) };
   }
   return {
-    path: String(value.path ?? ""),
-    mode: String(value.mode ?? "700"),
+    path: show(value.path ?? ""),
+    mode: show(value.mode ?? "700"),
     kind: value.kind === "symlink" ? "symlink" : "directory",
     permissions: value.permissions === "acl" ? "acl" : "posix",
     repository: typeof value.repository === "string" ? value.repository : null,
