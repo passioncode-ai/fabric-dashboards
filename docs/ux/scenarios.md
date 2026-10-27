@@ -1431,7 +1431,7 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
   2. User watches -> the runtime's own interface shows what it reads and runs; it asks before anything destructive, any sign-in or secret
   3. The agent fixes it -> the agent's state turns ready in the list and the page, with no refresh
 - **Expected result:** a problem becomes a running fix in one click, and the person sees it resolve
-- **Alt paths:** a console already runs for this agent -> the app says so and offers to show it, never a second session; no runtime installed -> the console's install guidance (SCN-049)
+- **Alt paths:** a console already runs for this agent -> never a second session: the console says, as information, "A session already runs here. The task waits: send it to this session, or start a new one when this one ends." with "Send the task to this session", which writes the task file and types one line pointing at it into the running session without pressing Enter ("The task is typed into the session. Press Enter in it to send."); New, once that session ends, starts with the task (FD-129 UX-16); no runtime installed -> the console's install guidance (SCN-049)
 - **UI elements:** "Fix with coding agent" button; console panel
 - **States covered:** success, error, loading
 - **Errors & recovery:** the runtime fails to start -> the console says why (SCN-049's errors)

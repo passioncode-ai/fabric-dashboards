@@ -135,6 +135,8 @@ export interface FabricApi {
   consolePickFolder(key: string): Promise<ConsoleInfo>;
   /** FD-39: `task` hands a job with the context (Fix / Update with agent, ADR-0020). */
   consoleStart(key: string, mode: 'new' | 'continue', size: { cols: number; rows: number }, task?: ConsoleTask): Promise<ConsoleStartResult>;
+  /** FD-129 (UX-16): type a Fix / Update task into the session already running, without pressing Enter for the person. */
+  consoleSendTask(key: string, task: ConsoleTask): Promise<{ ok: boolean; error?: string }>;
   consoleInput(key: string, data: string): void;
   consoleResize(key: string, cols: number, rows: number): void;
   consoleStop(key: string): Promise<void>;
@@ -222,6 +224,7 @@ export const CHANNELS = {
   consoleChoose: 'fd:console-choose',
   consolePickFolder: 'fd:console-pick-folder',
   consoleStart: 'fd:console-start',
+  consoleSendTask: 'fd:console-send-task',
   consoleInput: 'fd:console-input',
   consoleResize: 'fd:console-resize',
   consoleStop: 'fd:console-stop',

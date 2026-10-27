@@ -52,6 +52,7 @@ const api: FabricApi = {
   setupCheck: () => ipcRenderer.invoke(CHANNELS.setupCheck),
   setupCheckLast: () => ipcRenderer.invoke(CHANNELS.setupCheckLast),
   consoleStart: (key, mode, size, task) => ipcRenderer.invoke(CHANNELS.consoleStart, key, mode, size, task),
+  consoleSendTask: (key, task) => ipcRenderer.invoke(CHANNELS.consoleSendTask, key, task),
   consoleInput: (key, data) => ipcRenderer.send(CHANNELS.consoleInput, key, data),
   consoleResize: (key, cols, rows) => ipcRenderer.send(CHANNELS.consoleResize, key, cols, rows),
   consoleStop: (key) => ipcRenderer.invoke(CHANNELS.consoleStop, key),

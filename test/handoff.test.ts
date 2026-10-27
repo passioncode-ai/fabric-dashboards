@@ -187,3 +187,17 @@ test('FD-81: an audit task writes the auditor\'s findings into task.md', async (
   assert.match(t.body, /- db fails/);
   assert.match(auditTask({ name: 'Ads', key: 'ads.default' } as Parameters<typeof auditTask>[0], '').body, /found nothing at the time of the start/);
 });
+
+test('FD-129 (UX-16): a task for a running session writes only task.md and returns the line that points at it', async () => {
+  const fs = await import('node:fs');
+  const path = await import('node:path');
+  const { tmp } = await import('./helpers');
+  const { writeTaskOnly } = await import('../src/core/handoff');
+  const dir = path.join(tmp('fd-task-'), 'runner.dev');
+  const r = writeTaskOnly({ snapshot: snap(), activity: [], folder: '/w/runner', dir, task: { kind: 'fix' } });
+  assert.equal(r.path, path.join(dir, 'task.md'));
+  assert.deepEqual(fs.readdirSync(dir), ['task.md'], 'the pack the session started with is left alone');
+  assert.match(fs.readFileSync(r.path, 'utf8'), /service_status/);
+  assert.equal(r.line, `Read ${r.path} and do the task it describes.`);
+  assert.doesNotMatch(r.line, /[\r\n]/, 'no Enter: the person sends it');
+});

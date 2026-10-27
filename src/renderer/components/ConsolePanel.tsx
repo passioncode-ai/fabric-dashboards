@@ -194,11 +194,16 @@ export function ConsolePanel({ serviceKey, height, maxHeight, onHeight, onDrag, 
   }, [info?.key, info?.idle?.at]);
 
   // FD-39 SCN-054/055: a handed-over task starts once the panel knows its session; a running session
-  // is never doubled — the person sees it and the notice says why.
+  // is never doubled. FD-129 (UX-16): the task is kept, and the notice offers to send it to that session.
+  const [waiting, setWaiting] = useState<ConsoleTask | null>(null);
   useEffect(() => {
     if (!task || !info || info.key !== serviceKey || starting) return;
     onTaskTaken?.();
-    if (info.session.state === 'running') { setNotice({ text: t('console.running') }); return; }
+    if (info.session.state === 'running') {
+      setWaiting(task.task ?? null);
+      setNotice({ text: task.task ? t('console.taskWaits') : t('console.running'), info: true });
+      return;
+    }
     void start(task.mode ?? 'new', task.task);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [task?.nonce, info?.key]);
@@ -311,6 +316,11 @@ export function ConsolePanel({ serviceKey, height, maxHeight, onHeight, onDrag, 
       )}
       {notice && <div className={`console-state notice${notice.terminalOnly || notice.info ? '' : ' error'}`} role={notice.info ? 'status' : 'alert'}>
         <p>{notice.text}</p>
+        {waiting && running && <button className="btn btn-sm btn-primary" onClick={() => void api().consoleSendTask(serviceKey, waiting).then((r) => {
+          setWaiting(null);
+          setNotice(r.ok ? { text: t('console.taskSent'), info: true } : { text: t('console.spawnError', { detail: r.error ?? '' }) });
+          term.current?.focus();
+        })}>{t('console.sendTask')}</button>}
         {notice.terminalOnly && <button className="btn btn-primary" onClick={() => void openTerminal('new')}>{t('console.openTerminalSb')}</button>}
       </div>}
       {ownHandover && info?.session.state === 'exited' && <p className="console-actions meta" role="status">{info.session.signal ? t('console.stopped') : info.session.exitCode === null ? t('console.ended') : t('console.exited', { code: info.session.exitCode })}</p>}
@@ -320,7 +330,7 @@ export function ConsolePanel({ serviceKey, height, maxHeight, onHeight, onDrag, 
           {terminalOnly
             ? <button className="btn btn-sm btn-primary" onClick={() => void openTerminal('new')} title={t('console.openTerminalSb')} aria-label={t('console.openTerminalSb')}>{t('console.openTerminalSb.short')}</button>
             : <>
-                <button className="btn btn-sm btn-primary" disabled={starting} onClick={() => void start('new')}>{starting ? <Spinner /> : null}{t('console.new')}</button>
+                <button className="btn btn-sm btn-primary" disabled={starting} onClick={() => { const job = waiting ?? undefined; setWaiting(null); void start('new', job); }}>{starting ? <Spinner /> : null}{t('console.new')}</button>
                 {runtime.canContinue && <button className="btn btn-sm" disabled={starting} onClick={() => void start('continue')}>{t('console.continue')}</button>}
                 {info.session.state === 'exited' && <span className="meta console-exit" role="status">{info.session.signal ? t('console.stopped') : info.session.exitCode === null ? t('console.ended') : t('console.exited', { code: info.session.exitCode })}</span>}
                 <span className="spacer" />
