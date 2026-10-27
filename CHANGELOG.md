@@ -1,6 +1,13 @@
 # Changelog
 
-## Unreleased
+## 0.8.8 - 2026-10-27
+
+### Added
+
+- **A decision an agent waits for reaches you away from the Mac** (FD-125). When an agent asks for your approval or a
+  decision, the message now also goes to your notification channel (Telegram, for example), once, with the agent's words
+  and a link that opens its page in Fabric Dashboards. The same question is not sent again for a day; quiet hours and a
+  pause hold it until morning instead of dropping it.
 
 ### Fixed
 
