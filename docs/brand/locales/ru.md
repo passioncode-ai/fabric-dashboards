@@ -17,3 +17,5 @@ Inherits the parent `locales/ru.md`. Narrowed here:
 4. **«Обновить» is for a version.** Data: «Обновить данные»; a page: «Перезагрузить страницу».
 5. **A quoted label is a real label.** A sentence that names a button quotes it exactly as the button reads.
 6. «Mac» is written as Apple writes it, only in `.mac` keys and macOS-only flows; elsewhere «этот компьютер».
+7. **A line about work in progress speaks as «мы»**: «Проверяем…», «Читаем, какие модели…»; never «Проверяю…» (COPY-19,
+   2026-10-27). Abbreviated days carry their period: «{n} дн.» (COPY-31).
