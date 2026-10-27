@@ -17,7 +17,8 @@ update-proof 0.8.8 -> 0.8.9 green on all four runners (run 40505780246); the deb
 remote branches and 7 stale worktrees.
 
 **Published:** 2026-10-27 14:57:48 UTC, run 40520876992, tag on `c00ddf2`, 16 assets, `update-feed.json` naming
-darwin-universal, win32-x64, win32-arm64, linux-x64 and linux-arm64. update-proof 0.8.9 -> 0.8.10: run 40535180610.
+darwin-universal, win32-x64, win32-arm64, linux-x64 and linux-arm64. update-proof 0.8.9 -> 0.8.10 green on Windows
+x64/arm64 and Linux x64/arm64 (run 40535180610, completed 2026-10-27).
 
 **After the tag, MD-18 (the debts review, fabric-workspace `knowledge/integration.md`):** the 28 low findings of the
 2026-10-24 review checked against the tree: 7 gone, COPY-19, COPY-31, COPY-33, VIS-23, UX-19 and VIS-19 fixed (PRs #266,
@@ -25,9 +26,16 @@ darwin-universal, win32-x64, win32-arm64, linux-x64 and linux-arm64. update-proo
 test's cold-start timeout. This Mac's disk had 1.8 GB free during the 0.8.9 install (12 minutes in ShipIt): the machine's
 disk guard owns it, not this app.
 
-**Exact next task:** the FD-129 items in order of reach (UX-23 the row menu in the folded rail, UX-21 the two
-«Connections», UX-22 and VIS-18 on Spend, then the Settings and Overview layout ones), each with its scenario, a copy
-check and an e2e; release them together before 2026-11-14. Open rows wait on others: FD-124 (Switchboard 0.7.0), FD-117
+**FD-129 done on branch `fix/fd-129-nav` (PR #269, 2026-10-27):** every code item (UX-09, UX-15, UX-16, UX-20 to UX-23,
+VIS-16 to VIS-18, VIS-20, VIS-21, VIS-24, COPY-32) with its scenario and copy checks; `npm run check` 837 of 837. Its e2e
+(`spend`, `products-problems`, `connections`, `focus-console`, `overview-settings`, `app`) were not run: the screen was
+locked and the HV-02 preflight refuses that. A background watcher in this session runs them once the screen is unlocked
+(log `e2e-nav.log` in the session scratchpad); it does not outlive the session.
+
+**Exact next task:** run those six e2e files on the branch on an unlocked screen
+(`node scripts/run-e2e.mjs test/e2e/spend.test.ts test/e2e/products-problems.test.ts test/e2e/connections.test.ts
+test/e2e/focus-console.test.ts test/e2e/overview-settings.test.ts test/e2e/app.test.ts` after `npm run build`), fix
+what fails, merge #269, then release it as 0.8.11 and walk UX-27 (SCN-043) on the signed reinstall. Open rows wait on others: FD-124 (Switchboard 0.7.0), FD-117
 (the operator), FD-52 and FD-40 (the Observatory node), FD-105 (Fabric's 2026-11-05 release); FD-98's macOS half stays
 deferred.
 
