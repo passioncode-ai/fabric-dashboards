@@ -172,6 +172,15 @@ export function onScreen(w: { exists: boolean; visible: boolean; minimized: bool
   return w.exists && w.visible && !w.minimized && !w.appHidden;
 }
 
+/** FD-80: whether the person can see the window. On macOS a window fully covered by others (or, as Chromium reports
+ *  it, on another Space) is on screen for `onScreen` and still unseen: its page reads `hidden` (Electron's Page
+ *  Visibility, macOS occlusion; `backgroundThrottling` is left on for that). Only the automatic install asks this:
+ *  the monitor's cadence and the dashboards' release keep `onScreen`, so a covered window keeps its live pages.
+ *  0.8.7 waited nine hours on this Mac with its window open behind others. */
+export function inSight(onScreenNow: boolean, pageVisibility: string | null): boolean {
+  return onScreenNow && pageVisibility !== 'hidden';
+}
+
 export class VisibilitySync {
   private last: boolean;
 
@@ -288,6 +297,14 @@ export function relaunchHidden(markerText: string | null, now: number): boolean 
  *  starts after the install opens on it, not on Overview. */
 export const RESUME_ROUTE_MARKER = '.resume-route.json';
 export type ResumeRoute = { page: 'overview' | 'activity' | 'spend' | 'map' | 'settings' | 'sessions' } | { page: 'service'; key: string };
+
+/** FD-80: an automatic install while the window was open behind others marks its resume route `behind`: the next
+ *  copy opens the window on that screen without taking the focus, where the person left it, instead of leaving it in
+ *  the menu bar or putting it in front of their work. */
+export function resumeBehind(markerText: string | null): boolean {
+  if (markerText === null) return false;
+  try { return (JSON.parse(markerText) as { behind?: unknown }).behind === true; } catch { return false; }
+}
 
 /** The route in a resume marker, if it is well-formed and was written for this relaunch. */
 export function resumeRoute(markerText: string | null, now: number): ResumeRoute | null {

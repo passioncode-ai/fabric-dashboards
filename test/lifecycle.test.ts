@@ -1030,3 +1030,20 @@ test('FD-80: a window of a hidden app is not on screen, so a ready update can in
   assert.equal(onScreen({ ...w, minimized: true }), false);
   assert.equal(onScreen({ ...w, exists: false }), false);
 });
+
+test('FD-80: a window covered by other windows is out of sight, and the install brings it back behind them', async () => {
+  const { inSight, resumeBehind, resumeRoute, autoInstallNow } = await import('../src/electron/policy');
+  assert.equal(inSight(true, 'visible'), true);
+  assert.equal(inSight(true, 'hidden'), false, 'macOS reports a fully covered window as a hidden page');
+  assert.equal(inSight(true, null), true, 'no page state (another system, no window yet): on screen decides');
+  assert.equal(inSight(false, 'visible'), false);
+  assert.equal(autoInstallNow({ ready: true, autoUpdate: true, visible: inSight(true, 'hidden'), busy: 0 }), true, 'covered for its grace, it installs');
+  assert.equal(autoInstallNow({ ready: true, autoUpdate: true, visible: inSight(true, 'hidden'), busy: 1 }), false, 'a running console still holds it');
+  const at = new Date(1_000_000).toISOString();
+  const behind = JSON.stringify({ at, route: { page: 'service', key: 'alpha.default' }, behind: true });
+  assert.equal(resumeBehind(behind), true);
+  assert.deepEqual(resumeRoute(behind, 1_000_500), { page: 'service', key: 'alpha.default' }, 'and on the screen it was on');
+  assert.equal(resumeBehind(JSON.stringify({ at, route: { page: 'overview' } })), false, 'Restart to update comes to the front');
+  assert.equal(resumeBehind(at), false, 'a hidden relaunch marker is no route');
+  assert.equal(resumeBehind(null), false);
+});

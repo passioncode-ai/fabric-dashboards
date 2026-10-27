@@ -79,7 +79,10 @@ What already held, and stays:
      and relaunches in the menu bar. Before quitting it writes the marker `.relaunch-hidden`; a
      marker younger than 10 min makes the next start hidden.
    - **What never triggers it:** a visible window, or a command in flight. A busy app retries a
-     minute later.
+     minute later. Amended 2026-10-27 (FD-80): on macOS a window fully covered by other windows is not
+     visible for this rule (its page reports `hidden`, `inSight` in `src/electron/policy.ts`); 0.8.7 waited
+     nine hours behind other windows. The install then writes the resume route marked `behind` instead of
+     `.relaunch-hidden`, and the next copy shows the window on that screen without taking the focus.
    - **With the setting off:** the update installs on quit or on Restart, as in 0.5.3.
    - **Checking and downloading:** these stay always on, at start plus 10 s and every 6 h.
 6. **A copy outside Applications says why it cannot update, and offers to move.** The updater
