@@ -11,6 +11,7 @@ function subscribe<T>(channel: string, listener: (value: T) => void): () => void
 const api: FabricApi = {
   status: () => ipcRenderer.invoke(CHANNELS.status),
   onStatus: (l) => subscribe(CHANNELS.statusPush, l),
+  onSettings: (l) => subscribe(CHANNELS.settingsPush, l),
   control: (key, action) => ipcRenderer.invoke(CHANNELS.control, key, action),
   command: (key, which) => ipcRenderer.invoke(CHANNELS.command, key, which),
   logs: (key) => ipcRenderer.invoke(CHANNELS.logs, key),

@@ -92,6 +92,7 @@
 | SCN-084 | An ended session continues or leaves | sessions | P-01 | ST-023 | draft | 2026-10-24 |
 | SCN-085 | A taken hand-over tells me once, and the tray counts sessions | sessions | P-01 | ST-023, ST-007, ST-009 | draft | 2026-10-24 |
 | SCN-086 | Settings → Sessions | settings | P-01 | ST-023, ST-010 | draft | 2026-10-24 |
+| SCN-087 | Arrange the sidebar: width and order | list | P-01 | ST-021, ST-018 | draft | 2026-10-26 |
 ## Personas
 
 Defined in [foundation.md](foundation.md) → P-01.
@@ -714,7 +715,8 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
   2. Agent calls `link` for a job it started -> it receives the deep link as the primary dashboard action and the plain address for diagnostics; `host_status` distinguishes installed/absent/unknown/version/handler; `open` uses the existing host and by default never a browser (`fallback=never`, FD-109; a browser only for confirmed absence when the agent passes `fallback=if_absent`); an address no descriptor names is refused with the step that registers its agent, never opened
   3. Agent calls `control` (start, stop, restart), `doctor` or `update` -> the same launchd verbs and descriptor commands as the app run, and the tool returns the result it observed; an agent that carries the operator's decision in `_meta.decision` has it recorded as the operator's in `decisions.jsonl` beside the app's log, an invalid one is refused `decision-invalid` and nothing runs, and a call without one still runs as the agent's own act (FD-110, DEC-0121, MD-10). `initialize` declares this app's buttons and their tools in its `_meta`; with the app running, `console_new` and `console_fix` start a console session or a fix in it through the app's own channel (ADR-0025, FD-120), and with the app closed they answer `app-not-running` and start nothing
   4. Agent calls `activity` -> recent events as sentences, each with a deep link when it points at a page
-  5. Agent calls `spend` -> each agent's own usage entries (today, 7 and 30 days, per model, budget and every limit with its state; a null cost is unknown, `partial` a lower bound); a service that does not answer, or whose address another program answers, is an error entry — its spend is unknown, never "not reporting"
+  5. Agent calls `arrange` with an agent and pin, unpin, hide, show, as-service, as-agent, turn-off or turn-on (FD-123: off hides it too and the app stops watching it; on keeps it hidden and watched; show turns it on as well) -> the same choice the row menu and the hidden row's eye make (FD-122), written to the app's settings: a running app shows it within seconds (it watches settings.json, and stats it every 5 s for what the watch misses), a closed one when it opens; a choice that holds already changes nothing (`changed: false`); a hidden agent is still watched and still alerts
+  6. Agent calls `spend` -> each agent's own usage entries (today, 7 and 30 days, per model, budget and every limit with its state; a null cost is unknown, `partial` a lower bound); a service that does not answer, or whose address another program answers, is an error entry — its spend is unknown, never "not reporting"
 - **Expected result:** agents hand the operator the exact page and use the app's rules for administration instead of launchctl by hand
 - **Alt paths:** an online service or one without launchd lifecycle -> `control` refuses; a missing launchd plist -> `control` refuses before calling launchctl; no declared doctor or update -> the tool refuses; an unknown tool -> a JSON-RPC error (-32602); an argument the tool does not declare -> refused; the app was updated under a running session -> the server hands the session to the installed copy's server and the new version answers the next call, on the same connection (FD-109); where no installed launcher can take it, the next call answers stale with both versions, and the server exits; `doctor` and `update` run the service's programs and are not marked read-only
 - **UI elements:** none (agent tool results); the opened service view
@@ -1241,20 +1243,22 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 ### SCN-072: Hide an agent without stopping it
 - **Persona:** P-01
 - **Feature:** list
-- **Traces:** ST-021 (JTBD-01); FD-78 (operator 2026-10-20)
-- **Entry point:** the agent's row menu → Hide
+- **Traces:** ST-021 (JTBD-01); FD-78 (operator 2026-10-20); FD-123 (board `8a8647e3`, the operator 2026-10-26: «спрячем, пусть не будем совсем стирать, но пока он будет скрыт, неактивен, задизейблен»)
+- **Entry point:** the agent's row menu → Hide, or → Turn off
 - **Preconditions:** at least one agent
 - **Steps:**
   1. User chooses Hide -> the agent leaves its section (and Pinned) and a folded "Hidden: 1" appears at the bottom of the sidebar and of Overview; in the narrow rail the fold is an entry of its own
   2. User opens the fold -> the hidden agents are listed; clicking one opens it as usual
-  3. User chooses "Show again" -> it returns to its section, pinned again if it was pinned
+  3. User chooses "Show again" in the row menu, or presses the eye beside a hidden agent in the open fold (FD-121) -> it returns to its section, pinned again if it was pinned
+  4. User chooses Turn off in the row menu (FD-123) -> the agent is hidden too and the app stops watching it: no checks, no events read, no notifications, no outage alerts, and it counts in no badge, tray entry or Needs attention; the open fold lists it last, greyed, with "Off" in words and a Turn on button ("Turn {name} on"); "Hidden: N" counts it; Overview's open fold names the agents turned off in one line
+  5. User presses Turn on -> it is checked at once, starting afresh (an outage it had before it was turned off is not carried over and its old events are not replayed as news), and it stays hidden until shown again; the eye or Show again on an agent that is off shows it and turns it on
 - **Expected result:** service agents the person does not look at take no room, and nothing about them stops
-- **Alt paths:** a hidden agent fails -> Needs attention lists it as before, its outage still reaches the operator channel, and the folded header carries a "!" ("A hidden agent needs attention"); the fold's open or closed state is remembered; a hidden agent that is removed leaves the list
-- **UI elements:** Hide and Show again in the row menu, the "Hidden: N" fold with its mark
+- **Alt paths:** a hidden agent fails -> Needs attention lists it as before, its outage still reaches the operator channel, and the folded header carries a "!" ("A hidden agent needs attention"); the fold's open or closed state is remembered; a hidden agent that is removed leaves the list; an agent turned off opens no page (nothing about it is read) and keeps its descriptor on disk; an agent turns one off or on with MCP `arrange` `turn-off`/`turn-on` (SCN-028)
+- **UI elements:** Hide, Show again and Turn off in the row menu, a greyed row with "Off" and a Turn on button for an agent turned off (the rail shows its name only), the "Hidden: N" fold with its mark, an eye button on each hidden row named "Show {name} again" (FD-121; not in the narrow rail, where the row menu is gone too: the person widens the sidebar)
 - **States covered:** success, empty, error
 - **Errors & recovery:** n/a
 - **Status:** validated (test/e2e/focus-console.test.ts (ADR-0017 test, FD-78 steps) passed on the running app, 2026-10-23 00:00 UTC)
-- **Coverage:** src/core/products.ts (toggleHidden, arrangeProducts), src/renderer/App.tsx, src/renderer/components/Overview.tsx, test/listorder.test.ts *FD-78*, test/e2e/focus-console.test.ts *FD-78*
+- **Coverage:** src/core/products.ts (toggleHidden, arrangeProducts, setOff, showAgain), src/core/monitor.ts (offServices, listChanged), src/renderer/App.tsx, src/renderer/components/Navigation.tsx (OffItem), src/renderer/components/Overview.tsx, test/listorder.test.ts *FD-78*, test/agent-off.test.ts *FD-123*, test/e2e/focus-console.test.ts *FD-78*
 - **Product:** unobserved
 
 ### SCN-073: See what an agent is connected to
@@ -1507,7 +1511,7 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **States covered:** success, empty, error, loading
 - **Errors & recovery:** a step fails -> the agent says why in the console; the checklist shows what is done and what is not
 - **Status:** validated
-- **Coverage:** src/core/setup.ts, src/core/offers.ts (SETUP_KEY), src/electron/console.ts, src/renderer/components/Overview.tsx (SetupCard), src/renderer/App.tsx, test/setup.test.ts, test/e2e/focus-console.test.ts
+- **Coverage:** src/core/setup.ts, src/core/offers.ts (SETUP_KEY), src/core/install-commands.ts (the alt path's commands, UX-13), src/electron/console.ts, src/renderer/components/Overview.tsx (SetupCard), src/renderer/App.tsx, test/setup.test.ts, test/e2e/focus-console.test.ts
 - **Product:** unobserved
 
 ### SCN-059: A later session opens on what changed
@@ -1550,20 +1554,21 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 ### SCN-062: Outages reach me away from the Mac
 - **Persona:** P-01
 - **Feature:** notifications
-- **Traces:** ST-002 (JTBD-01); ADR-0010 amendments 2026-10-11 (FD-48) and 2026-10-19 (FD-76); operator decisions 2026-10-11 and 2026-10-19 (the Telegram rule)
+- **Traces:** ST-002 (JTBD-01); ADR-0010 amendments 2026-10-11 (FD-48), 2026-10-19 (FD-76) and 2026-10-27 (FD-125); operator decisions 2026-10-11 and 2026-10-19 (the Telegram rule), 2026-10-25 and 2026-10-27 (a decision an agent waits for, relayed by growth `482a8030`)
 - **Entry point:** nothing — the watcher acts; Settings → Notifications → Also send outages to
 - **Preconditions:** an installed agent offers a notify capability (for example the person's Telegram channel)
 - **Steps:**
   1. An agent stops answering and stays so for 15 minutes -> one message reaches the channel: "<Agent> is down" with how long and why
   2. The agent works again and keeps working for 15 minutes -> one more message: "<Agent> is back", after how many minutes
-  3. User opens Settings → Notifications -> Also send outages to: Automatic (<channel>), the agents that offer it, Off; under it what it does and the last delivery ("Last sent HH:MM: …" or "Sending failed HH:MM: …")
-- **Expected result:** an outage longer than fifteen minutes is known wherever the person is, once, and its end too; nothing routine reaches the channel
+  3. An agent asks for the operator's decision (an events-feed row with `notify` whose kind asks for one: an approval, a choice, a decision owed, a guardrail stop) -> one message reaches the channel: "<Agent> waits for your decision", the agent's own words and "Open in Fabric Dashboards: <link>" to the page it names; the same question is not sent again for a day; during a pause, quiet hours or with the agent muted it waits until they allow it (FD-125)
+  4. User opens Settings → Notifications -> Also send outages to: Automatic (<channel>), the agents that offer it, Off; under it what it does and the last delivery ("Last sent HH:MM: …" or "Sending failed HH:MM: …")
+- **Expected result:** an outage longer than fifteen minutes is known wherever the person is, once, and its end too; so is every decision an agent waits for; nothing routine reaches the channel
 - **Alt paths:** shorter than 15 minutes -> nothing is sent (the Mac banner of ADR-0008 still shows after a minute), and nothing later either: an agent that is well again when its fifteen minutes come round sends neither "down" nor "back" (0.7.16); the agent falls again within 15 minutes of coming back -> the same outage, no new message; while it is down a part of it fails ("<Agent>: <part> is failing") -> still the same outage, no "back"; an agent that answers but reports a failing part, or a setup state -> shown on this Mac only; the person paused notifications, is in quiet hours or switched the agent off -> nothing is sent for it, nor its recovery; no agent offers the capability -> Settings says outages are shown on this Mac only; several do -> Settings asks to choose; an events-feed failure or warning banner -> shown on this Mac only (FD-76)
 - **UI elements:** Settings → Notifications: Also send outages to (select), its help line and its last-delivery line
 - **States covered:** success, error, empty
 - **Errors & recovery:** the channel does not answer -> retried every minute, at most five times; the last failure shows in Settings with its reason; the app's log has `alerts:` lines
 - **Status:** validated
-- **Coverage:** src/core/outage-alerts.ts, src/core/mcp-client.ts, src/electron/outage-alerts.ts, src/electron/main.ts (outage-alerts), src/renderer/components/Settings.tsx (AlertChannel), test/outage-alerts.test.ts
+- **Coverage:** src/core/outage-alerts.ts, src/core/mcp-client.ts, src/electron/outage-alerts.ts, src/electron/main.ts (outage-alerts), src/renderer/components/Settings.tsx (AlertChannel), src/core/notify.ts (intentOf), test/outage-alerts.test.ts, test/operator-asks.test.ts *FD-125*
 - **Product:** observed 2026-10-12 on this Mac: 22 failure alerts sent 5.0–5.4 min after an outage began, none for the 34 shorter episodes (FD-01). FD-76 (2026-10-19): the installed 0.7.14 had sent 798 messages in 8 days (311 outages, 309 recoveries, 203 banners); the 15-minute rule, one case per outage and Mac-only banners are counted on a fake clock by `test/outage-alerts.test.ts`, the live count is owed after the release
 
 ## sessions
@@ -1881,4 +1886,31 @@ The Sessions mode (0.8.0): every coding session apart from the agents, each stat
   - "Switchboard did not change it: {reason}" / «Switchboard не изменил настройку: {reason}»
 - **Status:** draft
 - **Coverage:** src/renderer/components/Settings.tsx (sessions-settings region; the scroll by `revealScrollTop` of src/core/layout.ts), src/electron/console.ts (`readHandoversSwitch`, `setHandoversSwitch`); i18n parity in test/copy.test.ts; test/sessions-polish.test.ts (`revealScrollTop`, FD-107)
+- **Product:** unobserved
+
+### SCN-087: Arrange the sidebar: width and order
+- **Persona:** P-01
+- **Feature:** list
+- **Traces:** ST-021, ST-018 (JTBD-01); FD-121 (operator 2026-10-26: «чтобы я мог её чуть по ширине двигать», «менять местами агентов, просто зажать их, подвинуть»)
+- **Entry point:** the sidebar's right edge; an agent's row in the sidebar
+- **Preconditions:** the sidebar is expanded (SCN-047)
+- **Steps:**
+  1. User drags the sidebar's right edge -> the sidebar follows the pointer between 200 and 420 px, the dashboard beside it takes the rest; while the edge is held the dashboard steps aside (a native view would take the pointer) and comes back on release; the width is kept across restarts
+  2. User double-clicks the edge -> it returns to 240 px
+  3. User holds an agent's row and drags it up or down within its section -> a line shows where it lands; on release it stays there, the sort reads "Your order", and every section keeps what the person saw, on Overview too
+  4. User drags a pinned agent within Pinned -> the pin order changes; the sort of the other sections stays as it was
+  5. User restarts the app -> width and order are as they were; a new agent arrives after the ones the person placed
+- **Expected result:** the sidebar is as wide as the person's names need and lists the agents in the order they work in
+- **Alt paths:** keyboard -> the edge is a separator: Left and Right arrows change the width by 16 px, Home returns it to 240; on an agent's row Alt+Up and Alt+Down move it one place within its section and a screen reader hears its new place; the person chooses another sort (By name, Needs attention first, Recent activity) -> the list follows that sort, and choosing "Your order" again brings the dragged order back; an agent is dropped on another section -> nothing moves (sections are On this Mac, Online, Services, Pinned and Hidden; Pin and Show as a service move between them); the sidebar is folded into the rail -> no edge and no dragging; a damaged width in settings reads as 240
+- **UI elements:** the sidebar's edge (a separator, "Sidebar width"), the drop line, the "Your order" sort
+- **States covered:** success
+- **Errors & recovery:** n/a: nothing is sent anywhere; a write of settings that fails keeps the screen as the person left it (R-9)
+- **Copy:**
+  - "Sidebar width" / «Ширина боковой панели» (the separator's name)
+  - "Drag to change the width. Double-click returns it to the start." / «Потяните, чтобы изменить ширину. Двойной щелчок вернёт исходную.» (its tooltip)
+  - "Your order" / «Свой порядок» (the sort)
+  - "{name}: place {n} of {total}" / «{name}: место {n} из {total}» (said after a move)
+  - "Show {name} again" / «Показать {name} снова» (the eye on a hidden row)
+- **Status:** draft
+- **Coverage:** src/core/products.ts (moveInSection, arrangeProducts), src/core/settings.ts (sidebarWidth, mergeList), src/renderer/components/Navigation.tsx, src/renderer/App.tsx (SidebarEdge), test/sidebar-manage.test.ts
 - **Product:** unobserved

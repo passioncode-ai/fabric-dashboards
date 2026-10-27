@@ -2,6 +2,42 @@
 
 ## Unreleased
 
+### Added
+
+- **Arrange the sidebar your way** (FD-121). Drag its right edge to make it wider or narrower; double-click the edge to
+  go back. Drag an agent up or down within its section to put it where you want it (or press Alt+Up and Alt+Down); the
+  sort then reads "Your order". In the Hidden list, the eye beside an agent shows it again.
+- **Agents can arrange the list for you** (FD-122). A new MCP tool, `arrange`, does what an agent's row menu does: pin
+  or unpin, hide or show again, show as a service or as an agent. The app now picks up a change to its settings made
+  while it runs, and its own next change keeps it instead of writing over it.
+- **Turn an agent off** (FD-123). Turn off in an agent's row menu hides it and stops watching it: the app no longer
+  checks it or alerts about it, and it waits greyed at the end of the Hidden list. Turn it on there (or show it again)
+  and it is checked at once. Agents do the same with `arrange` `turn-off` and `turn-on`.
+- **Install a coding agent from the setup card** (FD-113, UX-13). When no coding agent is installed, the first-run card
+  shows the install command for Claude Code and for Codex with Copy, and offers the setup once the app finds one.
+
+### Changed
+
+- **Reads the contract of 2026-10-27** (FD-126). An agent's declared action may now hand you a comparison to make
+  (`humanStep: comparison`); the app reads it instead of reporting the declaration as broken.
+
+### Fixed
+
+- **An agent's row menu stays inside the window.** With a long agent name, the menu ran off the left edge and cut
+  its items short. It now fits the sidebar and wraps a long item onto a second line.
+- **Calmer, more even pages** (FD-113). An available update of the skills or of the contract copy reads in blue, not red
+  like a failure. Section headings have one size across pages, and the sort control moves under its section name instead
+  of cutting its label. "Limit left" replaces "Budget left"; in Russian a few compact labels are shorter.
+
+## 0.8.8 - 2026-10-27
+
+### Added
+
+- **A decision an agent waits for reaches you away from the Mac** (FD-125). When an agent asks for your approval or a
+  decision, the message now also goes to your notification channel (Telegram, for example), once, with the agent's words
+  and a link that opens its page in Fabric Dashboards. The same question is not sent again for a day; quiet hours and a
+  pause hold it until morning instead of dropping it.
+
 ### Fixed
 
 - **Updates no longer wait behind other windows** (FD-80). On a Mac, a ready update waited as long as the window was

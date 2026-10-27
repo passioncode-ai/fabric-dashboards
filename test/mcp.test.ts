@@ -488,7 +488,7 @@ test('FD-78: list_services says how the app lists each product, with the person\
   assert.deepEqual([(await tools.serviceStatus(w.deps, KEY)).category], ['service']);
   const dir = tmp('fd-mcp-layout-');
   fs.writeFileSync(path.join(dir, 'settings.json'), JSON.stringify({ layout: { list: { hidden: ['a', 'Bad!'], kinds: { a: 'service', b: 'x' } } } }));
-  assert.deepEqual(tools.readListLayout(path.join(dir, 'settings.json')), { hidden: ['a'], kinds: { a: 'service' } });
+  assert.deepEqual(tools.readListLayout(path.join(dir, 'settings.json')), { hidden: ['a'], kinds: { a: 'service' }, off: [] });
   assert.equal(tools.readListLayout(path.join(dir, 'missing.json')), null, 'no settings: nothing chosen');
   assert.equal(tools.appSettingsFile('darwin', { FABRIC_DASHBOARDS_USER_DATA: '/x/app' }, '/h'), path.join('/x/app', 'settings.json'));
   assert.equal(tools.appSettingsFile('darwin', {}, '/h'), path.join('/h', 'Library', 'Application Support', 'Fabric Dashboards', 'settings.json'));
@@ -793,4 +793,57 @@ test('ADR-0025: console_new and console_fix reach the running app through its ch
   } finally {
     await ch!.close();
   }
+});
+
+test('FD-122: arrange writes the row menu\'s choices to the app\'s settings, once, and says the agent\'s list state', async () => {
+  const w = world();
+  const userData = tmp('fd-arrange-');
+  const file = path.join(userData, 'settings.json');
+  w.deps.settingsFile = () => file;
+  const product = 'example-agent';
+  const hidden = await tools.arrange(w.deps, KEY, 'hide');
+  assert.deepEqual([hidden.product, hidden.hidden, hidden.changed], [product, true, true]);
+  const read = () => JSON.parse(fs.readFileSync(file, 'utf8')).layout.list;
+  assert.deepEqual(read().hidden, [product]);
+  assert.equal((await tools.arrange(w.deps, KEY, 'hide')).changed, false, 'a choice that holds changes nothing');
+  assert.equal((await tools.arrange(w.deps, KEY, 'show')).hidden, false);
+  assert.deepEqual((await tools.arrange(w.deps, KEY, 'pin')).pinned, true);
+  assert.deepEqual(read().pinned, [product]);
+  const asService = await tools.arrange(w.deps, KEY, 'as-service');
+  assert.equal(asService.category, 'service');
+  assert.equal((await tools.arrange(w.deps, KEY, 'as-agent')).category, 'local');
+  assert.deepEqual(read().kinds, {}, 'choosing what the app guesses removes the choice');
+  await assert.rejects(tools.arrange(w.deps, 'nobody.default', 'hide'), /no installed service/);
+  await assert.rejects(tools.arrange(w.deps, KEY, 'delete' as never), /action must be one of/);
+  w.deps.settingsFile = () => path.join(userData, 'never', 'settings.json');
+  await assert.rejects(tools.arrange(w.deps, KEY, 'hide'), /open it once/);
+});
+
+test('FD-123: arrange turns an agent off (hidden too) and on (still hidden); show turns it on as well; list_services says off', async () => {
+  const w = world();
+  const userData = tmp('fd-arrange-off-');
+  const file = path.join(userData, 'settings.json');
+  w.deps.settingsFile = () => file;
+  w.deps.listLayout = () => tools.readListLayout(file);
+  const read = () => JSON.parse(fs.readFileSync(file, 'utf8')).layout.list;
+  const off = await tools.arrange(w.deps, KEY, 'turn-off');
+  assert.deepEqual([off.off, off.hidden, off.changed], [true, true, true]);
+  assert.deepEqual([read().off, read().hidden], [['example-agent'], ['example-agent']]);
+  assert.equal((await tools.listServices(w.deps)).services.find((s) => s.key === KEY)?.off, true);
+  assert.equal((await tools.arrange(w.deps, KEY, 'turn-off')).changed, false);
+  const on = await tools.arrange(w.deps, KEY, 'turn-on');
+  assert.deepEqual([on.off, on.hidden], [false, true], 'turned on, it stays hidden and is watched again');
+  await tools.arrange(w.deps, KEY, 'turn-off');
+  const shown = await tools.arrange(w.deps, KEY, 'show');
+  assert.deepEqual([shown.off, shown.hidden], [false, false], 'show brings it back and turns it on');
+  assert.equal((await tools.listServices(w.deps)).services.find((s) => s.key === KEY)?.off, false);
+});
+
+test('FD-122, FD-123: arrange is declared as eight actions with no gate; the tool is listed', async () => {
+  const { OWN_ACTIONS, actionOf } = await import('../src/mcp/actions');
+  const ids = OWN_ACTIONS.filter((a) => a.tool === 'arrange').map((a) => `${a.id}:${a.gate}`);
+  assert.deepEqual(ids, ['pin:none', 'unpin:none', 'hide:none', 'show:none', 'as-service:none', 'as-agent:none', 'turn-off:none', 'turn-on:none']);
+  assert.equal(actionOf('arrange', { action: 'hide' })?.id, 'hide');
+  assert.equal(actionOf('arrange', { action: 'nope' }), null);
+  assert.ok(TOOLS.some((t) => t.name === 'arrange'));
 });

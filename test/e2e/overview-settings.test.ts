@@ -44,15 +44,15 @@ test('SCN-041, SCN-006, SCN-057, SCN-024: the strip, needs attention, the list\'
     }));
     app = await electron.launch({ args: [ROOT], env });
     const page = await app.firstWindow();
-    await page.getByRole('button', { name: /Sample Service — Ready/ }).first().waitFor({ timeout: 20_000 });
+    await page.getByRole('button', { name: /Sample Service: Ready/ }).first().waitFor({ timeout: 20_000 });
 
     // SCN-041: the strip reads the whole estate before any card.
-    for (const label of ['agents ready', 'not answering or in conflict', 'need attention', 'spent today', 'spent in 30 days']) {
-      await page.getByText(label, { exact: true }).first().waitFor();
+    for (const label of ['Ready', 'Not answering or in conflict', 'Need attention', 'Spent today', 'Spent in 30 days']) {
+      await page.locator('.strip').getByText(label).first().waitFor(); // a pressable cell carries a › mark (VIS-12)
     }
 
     // SCN-006: a service that stops answering is listed under Needs attention with its reason.
-    await page.getByRole('button', { name: /Alpha Silent — Not answering/ }).first().waitFor({ timeout: 60_000 });
+    await page.getByRole('button', { name: /Alpha Silent: Not answering/ }).first().waitFor({ timeout: 60_000 });
     await page.locator(':text-is("Needs attention"):visible').first().waitFor();
     await page.getByText(/Not answering since/).first().waitFor();
 
@@ -60,6 +60,10 @@ test('SCN-041, SCN-006, SCN-057, SCN-024: the strip, needs attention, the list\'
     const sort = page.getByRole('combobox', { name: 'Sort' });
     await sort.selectOption('status');
     await page.waitForTimeout(300);
+    // VIS-15 (FD-113): the longest label sits whole under the section name, never cut at half the row.
+    const fits = await sort.evaluate((el) => { const r = el.getBoundingClientRect(); const row = el.parentElement!.getBoundingClientRect(); return r.right <= row.right + 1 && r.left >= row.left - 1 && el.scrollWidth <= el.clientWidth + 1; });
+    assert.ok(fits, 'the sort control shows its whole label inside the sidebar');
+    if (process.env.FD_SCREENSHOTS) await page.screenshot({ path: path.join(process.env.FD_SCREENSHOTS, '30-sort-status.png') });
     assert.match((await listed(page))[0] ?? '', /Alpha Silent/, 'the agent that needs attention comes first');
     await sort.selectOption('name');
     await page.waitForTimeout(300);
@@ -104,7 +108,7 @@ test('SCN-070: Check setup lists what needs the person and hands the repair to t
     assert.match(items[1]!, /Warning.*0\.17\.0 is out/s);
     await group.getByText('claude mcp add --scope user fabric-dashboards', { exact: false }).waitFor();
     assert.deepEqual(await group.locator('.setup-check-area h3').allInnerTexts(), ['MCP servers', 'Apps'], 'the area with a failure comes first');
-    await group.getByRole('button', { name: 'Repair with my coding agent' }).click();
+    await group.getByRole('button', { name: 'Fix with my coding agent' }).click();
     // FD-92: the Setup console is the drawer, a view of its own over the content area.
     const end = Date.now() + 10_000;
     let con = app!.windows().find((p) => p.url().includes('drawer=1'));

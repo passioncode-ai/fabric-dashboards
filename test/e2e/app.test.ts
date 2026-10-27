@@ -38,7 +38,7 @@ test('discovers a live service, opens its dashboard signed in, keeps one view, s
       env: { ...process.env, FABRIC_SERVICES_DIR: services, FABRIC_DASHBOARDS_USER_DATA: path.join(base, 'app'), LANG: 'en_US.UTF-8', FD_TEST_FABRIC: 'present' },
     });
     const page = await app.firstWindow();
-    await page.getByRole('button', { name: /Sample Service — Ready/ }).waitFor({ timeout: 20_000 });
+    await page.getByRole('button', { name: /Sample Service: Ready/ }).waitFor({ timeout: 20_000 });
     await shot(page, '01-overview');
     const logs = await app.evaluate(({ app: a }) => a.getPath('logs'));
     assert.ok(logs.startsWith(path.join(base, 'app')), `a test run logs inside its own data, not the operator's (${logs})`);
@@ -46,7 +46,7 @@ test('discovers a live service, opens its dashboard signed in, keeps one view, s
 
     // ADR-0016: what the agent is for, under its name, on the card and on its page; its tools there too.
     await page.locator('.card-summary').getByText('Sample fabric-service/0.1 service.').waitFor();
-    await page.getByRole('button', { name: /Sample Service — Ready/ }).click();
+    await page.getByRole('button', { name: /Sample Service: Ready/ }).click();
     await page.getByRole('heading', { name: 'Sample Service' }).waitFor();
     // ADR-0017: on the page the summary names the agent on hover, and sits in the full card with its tools.
     assert.equal(await page.getByRole('heading', { level: 1, name: 'Sample Service' }).getAttribute('title'), 'Sample fabric-service/0.1 service.');
@@ -175,7 +175,7 @@ test('discovers a live service, opens its dashboard signed in, keeps one view, s
     await spendRow.waitFor({ timeout: 20_000 });
     assert.match(await spendRow.innerText(), /\$0\.00/);
     await spendRow.getByRole('button', { name: 'Sample Service', exact: true }).click();
-    await page.getByText('No calls in the last 31 days.').waitFor();
+    await page.getByText('No calls in the last 30 days.').waitFor();
     assert.equal(await page.getByText(/Not reporting spend yet/).count(), 0, 'the sample is not listed as silent');
     await page.getByRole('button', { name: 'Settings' }).click();
     await page.getByText('Unattributed listeners').waitFor();
@@ -322,7 +322,7 @@ test('service/<id>.<instance> links open the service, a stopped one on its Start
       menu = fs.readFileSync(path.join(fabricLogs, 'main.log'), 'utf8').split('\n').find((l) => l.includes('fabric_menu ')) ?? '';
       if (!menu) await new Promise((r) => setTimeout(r, 100));
     }
-    assert.match(menu, / fabric_menu Fabric is not installed\. Get it at passioncode\.ai\/fabric$/);
+    assert.match(menu, / fabric_menu Fabric is not installed\. Get it at passioncode\.ai\/fabric\.$/);
     assert.ok(!fs.readFileSync(path.join(fabricLogs, 'main.log'), 'utf8').includes('fabric_open'), 'a press without Fabric opens nothing by itself');
 
     // Refusals are shown in a native dialog; capture it instead of leaving one on the screen.
@@ -335,7 +335,7 @@ test('service/<id>.<instance> links open the service, a stopped one on its Start
     forward('fabric-dashboards://service/resting.default');
     await page.getByRole('heading', { level: 1, name: 'Resting Service' }).waitFor({ timeout: 20_000 });
     await page.getByRole('button', { name: 'Start', exact: true }).waitFor({ timeout: 20_000 });
-    assert.ok(await page.getByText('Off', { exact: true }).first().isVisible(), 'the stopped service is shown Off');
+    assert.ok(await page.getByText('Stopped', { exact: true }).first().isVisible(), 'the stopped service is shown Stopped');
     await shot(page, '07-service-link-stopped');
 
     const refusals = async (n: number) => {
@@ -422,8 +422,8 @@ test('switching between two loaded dashboards keeps the chosen dashboard on scre
       }
       return onScreen();
     };
-    await page.getByRole('button', { name: /Alpha Service — Ready/ }).waitFor({ timeout: 20_000 });
-    assert.equal(await page.getByRole('button', { name: /Beta Service — / }).count(), 0, 'one card for the product, not one per instance');
+    await page.getByRole('button', { name: /Alpha Service: Ready/ }).waitFor({ timeout: 20_000 });
+    assert.equal(await page.getByRole('button', { name: /Beta Service: / }).count(), 0, 'one card for the product, not one per instance');
     await page.locator('.card-members').getByText('beta').waitFor({ timeout: 20_000 });
     assert.equal((await open(0))[0], `http://127.0.0.1:${ports[0]}/`, 'Alpha opens');
     assert.equal((await open(1))[0], `http://127.0.0.1:${ports[1]}/`, 'Beta opens');

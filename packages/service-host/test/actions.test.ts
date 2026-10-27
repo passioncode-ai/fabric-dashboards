@@ -56,3 +56,15 @@ test('FD-110: absent is not declared and not reported; anything not a document d
   assert.equal(tooLong.reported, true);
   assert.ok(tooLong.errors.some((e) => e.startsWith('/actions/0/title')));
 });
+
+test('DEC-0142 (contract v0.1.0+2026-10-27.3): a human step of kind comparison reads; an unknown step is still refused', () => {
+  const base = fixture('positive_service-well-known-actions');
+  const ext = (base.extensions as Record<string, { actions: Record<string, unknown>[] }>)[ACTIONS_EXTENSION]!;
+  const human = ext.actions.find((a) => a.gate === 'human');
+  assert.ok(human, 'the positive fixture declares a human action');
+  const withStep = (step: string) => ({ ...base, extensions: { [ACTIONS_EXTENSION]: { ...ext, actions: ext.actions.map((a) => (a === human ? { ...a, humanStep: step } : a)) } } });
+  const read = actionsOf(withStep('comparison'));
+  assert.deepEqual(read.findings, []);
+  assert.equal(read.actions.find((a) => a.id === human.id)?.humanStep, 'comparison');
+  assert.equal(actionsOf(withStep('telepathy')).declared, false);
+});

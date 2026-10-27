@@ -68,6 +68,8 @@ export interface PageState { key: string; address: string; link: string; canGoBa
 export interface FabricApi {
   status(): Promise<AppStatus>;
   onStatus(listener: (status: AppStatus) => void): () => void;
+  /** FD-122: settings.json changed outside the app (an agent's MCP `arrange`, an editor) and was read again. */
+  onSettings(listener: (settings: Settings) => void): () => void;
   control(key: string, action: 'restart' | 'stop' | 'start'): Promise<{ ok: boolean; reason: Reason }>;
   /** Run the descriptor's doctor or update. `refused` says why nothing ran (busy, not declared); `code: null` without `timedOut` means it could not start. */
   command(key: string, which: 'doctor' | 'update'): Promise<CommandResult & { refused?: string }>;
@@ -188,6 +190,7 @@ export const CHANNELS = {
   activitySeen: 'fd:activity-seen',
   settings: 'fd:settings',
   settingsUpdate: 'fd:settings-update',
+  settingsPush: 'fd:settings-push',
   setupState: 'fd:setup-state',
   setupCheck: 'fd:setup-check',
   setupCheckLast: 'fd:setup-check-last',

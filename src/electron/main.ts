@@ -17,7 +17,7 @@ import { pendingInstallVersion, stepAside } from './pending-install';
 import { displayName } from '../core/names';
 import { ConsoleHost, HANDOVER_POLL_MS } from './console';
 import { appendLog, sweepTemps } from '../core/fsutil';
-import { parseDeepLink, SCHEME } from '../core/deeplink';
+import { linkFor, parseDeepLink, safePath, SCHEME } from '../core/deeplink';
 import { servicesDir, setWindowsAclReader, windowsPowerShellEnv } from '@passioncode-ai/fabric-service-host';
 import { openChannel, startAnswer, type Channel } from './console-channel';
 import { chooseLang, langFor, t, type Lang } from '../core/i18n';
@@ -25,7 +25,7 @@ import { execRunner } from '../core/launchd';
 import { listListeners, unattributed } from '../core/listeners';
 import { applyLoginItem, LOGIN_NEEDS_APPROVAL, loginItemAtStartup, type LoginItemOs } from '../core/loginitem';
 import { xdgLoginItem } from '../core/autostart';
-import { Monitor, type Notice } from '../core/monitor';
+import { Monitor, type AskNotice, type Notice } from '../core/monitor';
 import { fetchLoad, fetchUsage, readTokenAsync } from '../core/probe';
 import { limitsNeedingPerson, readSpend, type SpendEntry } from '../core/spend';
 import { attentionQueue, badgeText, nextNewsExpiry } from '../core/attention';
@@ -113,6 +113,13 @@ if (!app.requestSingleInstanceLock()) {
   // A writer killed between write and rename leaves its temporary file; nothing else removes it (LC-12).
   for (const name of sweepTemps(userData)) log(`removed a temporary file left by a stopped process: ${name}`);
   const settings = new SettingsStore(userData, (message) => log(message));
+  // FD-122: a change someone else writes into settings.json (an agent's MCP `arrange`) reaches the window at once.
+  const stopSettingsWatch = settings.watch(() => {
+    log('settings: changed outside the app; read again');
+    monitor.listChanged(); // FD-123: an agent turned off or on by an agent's MCP `arrange`
+    if (window && !window.isDestroyed()) window.webContents.send(CHANNELS.settingsPush, settings.get());
+    pushStatus();
+  });
   if (settings.recovered) log(`settings: ${settings.recovered}`);
   // Embedded dashboards follow the app's theme, not only macOS (prefers-color-scheme in every page).
   nativeTheme.themeSource = settings.get().theme;
@@ -215,17 +222,24 @@ if (!app.requestSingleInstanceLock()) {
         after: (minutes) => t(l, 'alerts.after', { minutes }),
         removed: (name) => t(l, 'alerts.removed', { name }),
         wasDown: (minutes, reason) => t(l, 'alerts.wasDown', { minutes, reason }),
+        ask: (name) => t(l, 'alerts.ask', { name }),
+        open: (link) => t(l, 'alerts.open', { link }),
       };
     },
     changed: () => pushStatus(),
   });
+  // FD-125: a decision an agent waits for reaches the operator channel too, with the link that opens its page.
+  monitor.on('ask', (a: AskNotice) => alerts.ask(a.serviceKey, a.id, { name: a.name, episode: a.episode, at: a.at, text: a.text, link: askLink(a.serviceKey, a.link) }));
+  function askLink(key: string, link: string | null): string | null {
+    try { return linkFor(key, link && safePath(link) ? link : undefined); } catch { return null; }
+  }
   // #endregion outage-alerts
   // W2 (UX-05, UX-06): the limits that need a person, from the last spend read; W2 (UX-08): the last show.
   let personLimits: Record<string, LimitView[]> = {};
   let lastShown: { at: string; afterHiddenMs: number } | undefined;
   let hiddenSince: number | null = Date.now(); // the app starts with nothing on screen (a login start stays hidden)
   const status = (): AppStatus => ({
-    services: monitor.snapshots(), ...monitor.meta(), unread: activity.unread(), activityRev: activity.revision, update: updater.state, estate: estate.state, version: app.getVersion(),
+    services: monitor.snapshots(), off: monitor.offServices(), ...monitor.meta(), unread: activity.unread(), activityRev: activity.revision, update: updater.state, estate: estate.state, version: app.getVersion(),
     alerts: alerts.status(), sessions: consoles.sessionsStatus(),
     limits: personLimits, ...(lastShown ? { shown: lastShown } : {}),
   });
@@ -748,6 +762,7 @@ if (!app.requestSingleInstanceLock()) {
       const choosing = 'launchAtLogin' in patch;
       const before = settings.get().autoUpdate;
       const next = settings.update(choosing ? { ...patch, launchAtLoginAsked: true } : patch);
+      if (patch.layout?.list) monitor.listChanged(); // FD-123: who is turned off takes effect at once
       if (patch.notifications) schedulePauseEnd(); // U-7: a pause set here also rebuilds the tray when it ends
       if (typeof patch.autoUpdate === 'boolean' && patch.autoUpdate !== before) updater.switched(patch.autoUpdate); // LC-16 auto_update on|off
       // #region estate-update — docs: docs/adr/0018-estate-updates-from-inside-the-app.md#decision
@@ -926,6 +941,7 @@ if (!app.requestSingleInstanceLock()) {
   app.on('will-quit', (event) => {
     // Nothing starts after quit begins; pending state reaches disk; commands we started end with us (LC-01, LC-02).
     void consoleChannel?.close(); // ADR-0025: the socket and its key go with the run
+    stopSettingsWatch();
     consoleChannel = null;
     monitor.stop();
     alerts.stop(); // FD-48: no tick after quit begins

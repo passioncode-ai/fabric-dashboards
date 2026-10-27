@@ -74,9 +74,9 @@ test('Spend shows what an agent reported, a lower bound where calls carry no pri
   try {
     app = await electron.launch({ args: [ROOT], env: { ...process.env, FABRIC_SERVICES_DIR: services, FABRIC_DASHBOARDS_USER_DATA: path.join(base, 'app'), LANG: 'en_US.UTF-8', FD_TEST_SPEND_FRESH_MS: '0' } });
     const page = await app.firstWindow();
-    await page.getByRole('button', { name: /Spender — Ready/ }).waitFor({ timeout: 30_000 });
+    await page.getByRole('button', { name: /Spender: Ready/ }).waitFor({ timeout: 30_000 });
     // ADR-0014: the Overview strip reads spend while the window is visible; a hidden window reads none (below).
-    await page.locator('.strip').getByText(/spent today/).waitFor({ timeout: 15_000 });
+    await page.locator('.strip').getByText(/Spent today/).waitFor({ timeout: 15_000 });
 
     await page.getByRole('button', { name: 'Spend', exact: true }).click();
     await page.getByRole('heading', { level: 1, name: 'Spend' }).waitFor();
@@ -85,7 +85,7 @@ test('Spend shows what an agent reported, a lower bound where calls carry no pri
     const cells = await row.getByRole('cell').allInnerTexts();
     assert.deepEqual(cells.slice(0, 4), ['≥ $0.31 + at least ~$140.47 on subscriptions', '≥ $1.59 + at least ~$140.47 on subscriptions', '≥ $1.59 + at least ~$140.47 on subscriptions', '$1.59 of $100.00 this month'], 'today, 7 and 30 days are lower bounds; a subscription is beside the money, never in it (FD-88); the budget is the agent\'s own');
     await page.getByText(/An unknown cost is never counted as \$0/).waitFor();
-    await page.getByText(/They spent no money, so they are not in the sums/).waitFor();
+    await page.getByText(/no money was spent\. The figure is what they would cost/).waitFor();
 
     await row.getByRole('button', { name: 'Spender', exact: true }).click();
     const models = page.locator('.spend-models');

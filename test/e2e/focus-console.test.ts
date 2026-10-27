@@ -146,7 +146,7 @@ test('ADR-0017: a one-line header, a folding sidebar, and an agent console besid
     await con.locator('.console-term').click();
     await con.keyboard.type('bye');
     await con.keyboard.press('Enter');
-    await con.getByText('Exited (code 0).').waitFor({ timeout: 15_000 });
+    await con.getByText('The session exited with code 0.').waitFor({ timeout: 15_000 });
     await con.getByRole('button', { name: 'Continue last' }).click();
     await waitFor('the resumed runtime', async () => /--continue\]/.test(await termText(con)));
 
@@ -172,7 +172,7 @@ test('ADR-0017: a one-line header, a folding sidebar, and an agent console besid
     await con.locator('.console-term').click();
     await con.keyboard.type('bye');
     await con.keyboard.press('Enter');
-    await con.getByText('Exited (code 0).').waitFor({ timeout: 15_000 });
+    await con.getByText('The session exited with code 0.').waitFor({ timeout: 15_000 });
 
     // FD-81 SCN-074: the auditor hands the same agent's findings to the coding agent picked in its row.
     await page.getByRole('button', { name: /^Connections/ }).first().click();
@@ -184,11 +184,11 @@ test('ADR-0017: a one-line header, a folding sidebar, and an agent console besid
     await waitFor('the audit task to be written', () => /^# Task: Audit findings for Sample Service/.test(fs.readFileSync(path.join(pack, 'task.md'), 'utf8')));
     assert.match(fs.readFileSync(path.join(pack, 'task.md'), 'utf8'), /the Fabric Dashboards auditor found/);
     await page.getByRole('heading', { level: 1, name: 'Sample Service' }).waitFor();
-    await waitFor('the runtime to start on the audit task', async () => /Do the task in [^\]]*task\.md\.\]/.test(await termText(con)) && !(await termText(con)).includes('Exited (code 0).'));
+    await waitFor('the runtime to start on the audit task', async () => /Do the task in [^\]]*task\.md\.\]/.test(await termText(con)) && !(await termText(con)).includes('The session exited with code 0.'));
     await con.locator('.console-term').click();
     await con.keyboard.type('bye');
     await con.keyboard.press('Enter');
-    await waitFor('the second session to end', async () => (await con.getByText('Exited (code 0).').count()) > 0);
+    await waitFor('the second session to end', async () => (await con.getByText('The session exited with code 0.').count()) > 0);
 
     // FD-39 SCN-056: pin the agent to the top; a Pinned section holds it, and the choice is remembered.
     // FD-78: the row's actions live in one small menu.
@@ -200,6 +200,10 @@ test('ADR-0017: a one-line header, a folding sidebar, and an agent console besid
     await shot(page, '23a-row-menu');
     const item = (await page.getByRole('menuitem', { name: 'Pin Sample Service to the top' }).boundingBox())!;
     assert.ok(item.x >= 0 && item.y >= 0 && item.x + item.width <= 1440, 'the row menu opens on screen, beside its row');
+    // Seen 2026-10-27: a menu wider than the room left of its button started off the window. It fits the sidebar.
+    const menuBox = (await page.getByRole('menu', { name: 'Sample Service' }).boundingBox())!;
+    const row = (await page.locator('.nav-row').filter({ hasText: 'Sample Service' }).boundingBox())!;
+    assert.ok(menuBox.x >= 8 && menuBox.x + menuBox.width <= row.x + row.width + 1, `the row menu stays over the sidebar (menu ${menuBox.x}..${menuBox.x + menuBox.width}, row ends at ${row.x + row.width})`);
     await page.getByRole('menuitem', { name: 'Pin Sample Service to the top' }).click();
     await page.locator('.nav-section', { hasText: 'Pinned' }).waitFor();
     await rowMenu();
@@ -250,6 +254,32 @@ test('ADR-0017: a one-line header, a folding sidebar, and an agent console besid
     const list = () => JSON.parse(fs.readFileSync(path.join(userData, 'settings.json'), 'utf8')).layout.list;
     await waitFor('the list choices to be saved', async () => list().hidden.length === 0 && list().kinds.sample === 'service');
     assert.deepEqual([list().hidden, list().kinds, list().pinned], [[], { sample: 'service' }, []]);
+
+    // FD-121 SCN-072: in the open fold the eye brings a hidden agent back with one press.
+    await rowMenu();
+    await page.getByRole('menuitem', { name: 'Hide' }).click();
+    await page.getByRole('button', { name: 'Show Sample Service again' }).click();
+    await page.locator('.nav-section', { hasText: 'Services' }).waitFor();
+    await waitFor('the eye to show the agent again', async () => list().hidden.length === 0);
+
+    // FD-121 SCN-087: the sidebar's edge follows the pointer and is kept; double-click and Home bring back 240 px.
+    const sideEdge = page.getByRole('separator', { name: 'Sidebar width' });
+    const sideBox = (await sideEdge.boundingBox())!;
+    await page.mouse.move(sideBox.x + sideBox.width / 2, sideBox.y + 200);
+    await page.mouse.down();
+    await page.mouse.move(320, sideBox.y + 220, { steps: 8 });
+    await page.mouse.up();
+    const width = () => JSON.parse(fs.readFileSync(path.join(userData, 'settings.json'), 'utf8')).layout.sidebarWidth;
+    await waitFor('the dragged width to be saved', async () => width() === 320);
+    assert.equal(Math.round((await page.locator('nav.sidebar').boundingBox())!.width), 320, 'the sidebar is as wide as dragged');
+    await shot(page, '27-sidebar-width');
+    await sideEdge.dblclick();
+    await waitFor('double-click to return to 240', async () => width() === 240);
+    await sideEdge.focus();
+    await page.keyboard.press('ArrowRight');
+    await waitFor('the arrow to widen by a step', async () => width() === 256);
+    await page.keyboard.press('Home');
+    await waitFor('Home to return to 240', async () => width() === 240);
   } finally {
     await closeApp(app);
     await stopProcess(proc);
@@ -284,7 +314,7 @@ test('FD-39 SCN-058: a first launch opens the setup beside Overview; the coding 
     await con.locator('.console-term').click();
     await con.keyboard.type('bye');
     await con.keyboard.press('Enter');
-    await con.getByText('Exited (code 0).').waitFor({ timeout: 15_000 });
+    await con.getByText('The session exited with code 0.').waitFor({ timeout: 15_000 });
     await page.getByRole('button', { name: 'Hide', exact: true }).click();
     await page.getByRole('heading', { name: 'Set up Fabric with your coding agent' }).waitFor({ state: 'detached' });
     assert.equal(JSON.parse(fs.readFileSync(path.join(userData, 'settings.json'), 'utf8')).setupDone, true, 'hidden for good');
@@ -296,6 +326,32 @@ test('FD-39 SCN-058: a first launch opens the setup beside Overview; the coding 
     await con.getByRole('button', { name: 'Collapse console' }).click(); // the card offers Continue once the console is folded
     await page.getByRole('button', { name: 'Continue setup' }).click();
     await waitFor('the setup to continue', async () => { const x = await termText(con); return x.includes('--continue') && x.includes('setup.md and run the setup with me'); });
+  } finally {
+    await closeApp(app);
+  }
+});
+
+test('FD-113 UX-13 (SCN-058 alt path): with no coding agent installed the setup card lists each install command with Copy', { timeout: 60_000 }, async () => {
+  const base = tmp('fd-e2e-noruntime-');
+  const services = path.join(base, 'services');
+  const runtimes = path.join(base, 'bin'); // found nothing: no coding agent on this machine
+  const home = path.join(base, 'home');
+  const userData = path.join(base, 'app');
+  for (const d of [services, runtimes, home, userData]) fs.mkdirSync(d, { recursive: true });
+  let app: ElectronApplication | null = null;
+  try {
+    const env = { ...process.env, HOME: home, FABRIC_SERVICES_DIR: services, FABRIC_DASHBOARDS_USER_DATA: userData, FD_TEST_RUNTIME_DIRS: runtimes, LANG: 'en_US.UTF-8' };
+    app = await electron.launch({ args: [ROOT], env });
+    const page = await app.firstWindow();
+    await page.getByRole('heading', { name: 'Set up Fabric with your coding agent' }).waitFor({ timeout: 20_000 });
+    await page.getByText(/No coding agent is installed yet/).waitFor({ timeout: 15_000 });
+    await page.getByText('curl -fsSL https://claude.ai/install.sh | bash').waitFor();
+    await page.getByText('npm install -g @openai/codex').waitFor();
+    assert.equal(await page.getByRole('button', { name: 'Set up with my coding agent' }).count(), 0, 'nothing to start until one is installed');
+    await page.getByRole('button', { name: 'Copy the command that installs Codex' }).click();
+    assert.equal(await app.evaluate(({ clipboard }) => clipboard.readText()), 'npm install -g @openai/codex', 'Copy puts the command on the clipboard');
+    await page.getByRole('button', { name: 'Copy the command that installs Codex' }).getByText('Copied').waitFor();
+    await shot(page, '25a-setup-no-runtime');
   } finally {
     await closeApp(app);
   }
@@ -338,7 +394,7 @@ test('FD-39 SCN-059: a later visit opens on what changed, and Continue resumes t
     await con.locator('.console-term').click();
     await con.keyboard.type('bye');
     await con.keyboard.press('Enter');
-    await con.getByText('Exited (code 0).').waitFor({ timeout: 15_000 });
+    await con.getByText('The session exited with code 0.').waitFor({ timeout: 15_000 });
   } finally {
     await closeApp(app);
     await stopProcess(proc);

@@ -72,6 +72,8 @@ export interface Settings {
   /** ADR-0017: how much of the window the dashboard gets. Remembered across services and launches. */
   layout: {
     sidebar: 'expanded' | 'collapsed';
+    /** FD-121 (SCN-087): the expanded sidebar's width in px, as the person dragged it (SIDEBAR_WIDTH bounds). */
+    sidebarWidth: number;
     header: 'compact' | 'full';
     console: { open: boolean; height: number };
     /** FD-39 (ADR-0020): pinned products in pin order (product ids, ADR-0012), and how the rest is sorted.
@@ -111,7 +113,8 @@ export interface Settings {
 }
 
 /** FD-39: the order of the agents list below the pinned ones. */
-export type ListSort = 'name' | 'status' | 'activity';
+/** FD-121 (SCN-087): `manual` is the order the person dragged the agents into (ListLayout.order). */
+export type ListSort = 'name' | 'status' | 'activity' | 'manual';
 
 /** FD-78: what a product is, as the person set it; absent means the app decides (a product with no dashboard is a service). */
 export type ProductKind = 'agent' | 'service';
@@ -122,6 +125,11 @@ export interface ListLayout {
   hidden: string[];
   kinds: Record<string, ProductKind>;
   hiddenOpen: boolean;
+  /** FD-121 (SCN-087): product ids in the order the person dragged them; read when `sort` is `manual`. */
+  order: string[];
+  /** FD-123 (SCN-072): product ids the person or an agent turned off: never probed, never alerting, listed greyed in
+   *  Hidden. Every one is also in `hidden`, so turning it on leaves it hidden and watched. */
+  off: string[];
 }
 
 /** A change to the settings: any field, and any part of the layout or of one service's console alone. */
@@ -133,6 +141,8 @@ export type SettingsPatch = Partial<Omit<Settings, 'layout' | 'notifications'>> 
 /** The console panel's width bounds, in CSS pixels (the window may make it narrower still). */
 /** FD-92: the console drawer's height in CSS px; `reveal` is the least of the page that always shows under it. */
 export const CONSOLE_HEIGHT = { min: 180, max: 2400, default: 380, reveal: 96 } as const;
+/** FD-121 (SCN-087): the expanded sidebar's width; the default is the width it had before it could change. */
+export const SIDEBAR_WIDTH = { min: 200, max: 420, default: 240, step: 16 } as const;
 
 export const DEFAULT_SETTINGS: Settings = {
   launchAtLogin: false,
@@ -153,7 +163,7 @@ export const DEFAULT_SETTINGS: Settings = {
     pausedUntil: null,
     channel: 'auto',
   },
-  layout: { sidebar: 'expanded', header: 'compact', console: { open: false, height: CONSOLE_HEIGHT.default }, list: { sort: 'name', pinned: [], hidden: [], kinds: {}, hiddenOpen: false }, mode: 'agents', sessionId: null, endedOpen: false },
+  layout: { sidebar: 'expanded', sidebarWidth: SIDEBAR_WIDTH.default, header: 'compact', console: { open: false, height: CONSOLE_HEIGHT.default }, list: { sort: 'name', pinned: [], hidden: [], kinds: {}, hiddenOpen: false, order: [], off: [] }, mode: 'agents', sessionId: null, endedOpen: false },
   consoles: {},
   resumeAfterLimit: true,
   sessions: { records: [], dismissed: [] },
@@ -172,6 +182,8 @@ export interface Listener {
 
 export interface AppStatus {
   services: ServiceSnapshot[];
+  /** FD-123: the services of agents turned off, not watched; the window lists them greyed in Hidden. */
+  off?: { key: string; product: string; name: string }[];
   servicesDir: string;
   dirError: string | null;
   scanning: boolean;

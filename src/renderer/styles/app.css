@@ -58,6 +58,14 @@ a { color: var(--pc-link); text-decoration: underline; }
   -webkit-app-region: drag;
 }
 .sidebar > * { -webkit-app-region: no-drag; }
+/* FD-121 (SCN-087): the expanded sidebar's right edge: a thin strip over its border, a line when pointed at or focused. */
+.sidebar { position: relative; }
+.sidebar-edge { position: absolute; top: 0; bottom: 0; right: -4px; width: 8px; z-index: 2; cursor: col-resize; touch-action: none; }
+.sidebar-edge::after { content: ''; position: absolute; top: 0; bottom: 0; left: 3px; width: 2px; background: transparent; transition: background-color var(--pc-duration-hover) var(--pc-ease); }
+.sidebar-edge:hover::after, .sidebar-edge:focus-visible::after, .app.resizing .sidebar-edge::after { background: var(--pc-link); }
+.sidebar-edge:focus-visible { outline: 2px solid var(--pc-focus); outline-offset: -2px; border-radius: 0; }
+.app.resizing, .app.resizing * { cursor: col-resize !important; user-select: none; }
+@media (prefers-reduced-motion: reduce) { .sidebar-edge::after { transition: none; } }
 .brand { display: flex; align-items: center; gap: var(--pc-space-2); padding: 0 var(--pc-space-2) var(--pc-space-4); font-weight: 600; }
 .brand img { width: 24px; height: 24px; }
 .nav { display: flex; flex-direction: column; gap: 2px; }
@@ -78,6 +86,11 @@ a { color: var(--pc-link); text-decoration: underline; }
 .nav-scroll :focus-visible { outline-offset: -2px; }
 /* FD-39: pin and sort (ADR-0020). The pin shows on hover or focus, and always on a pinned row. */
 .nav-row { position: relative; display: flex; align-items: center; }
+/* FD-121 (SCN-087): a row being dragged fades; the line between rows shows where it lands. */
+.nav-row.dragging { opacity: .45; }
+.nav-row.drop-before { box-shadow: inset 0 2px 0 var(--pc-link); }
+.nav-row.drop-after { box-shadow: inset 0 -2px 0 var(--pc-link); }
+.nav-row[draggable='true'] > .nav-item { cursor: default; }
 .nav-row > .nav-item { flex: 1; min-width: 0; }
 .pin-btn { position: absolute; right: var(--pc-space-1); top: 50%; transform: translateY(-50%); display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; border: 0; border-radius: var(--pc-radius-control); background: transparent; color: var(--pc-text-muted); cursor: pointer; opacity: 0; }
 /* VIS-03: hidden by opacity, never display: none, so the button keeps its place in the tab order; it shows on hover,
@@ -86,9 +99,9 @@ a { color: var(--pc-link); text-decoration: underline; }
 .nav-row:hover .nav-item .count, .nav-row:focus-within .nav-item .count, .nav-row.pinned .nav-item .count { margin-right: 28px; }
 .pin-btn:hover { background: var(--pc-panel-raised); color: var(--pc-text); }
 .pin-btn[aria-pressed='true'] { color: var(--pc-link); }
-.nav-section-row { display: flex; align-items: center; justify-content: space-between; gap: var(--pc-space-2); }
+.nav-section-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0 var(--pc-space-2); }
 .nav-section-row > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; flex: 1 0 auto; }
-.sort-select { font: inherit; font-size: var(--pc-type-meta); text-transform: none; letter-spacing: 0; color: var(--pc-text-muted); background: transparent; border: 0; padding: 0; cursor: pointer; flex: 0 1 auto; width: auto; field-sizing: content; max-width: 50%; text-align: right; }
+.sort-select { font: inherit; font-size: var(--pc-type-meta); text-transform: none; letter-spacing: 0; color: var(--pc-text-muted); background: transparent; border: 0; padding: 0; cursor: pointer; flex: 0 1 auto; width: auto; field-sizing: content; max-width: 100%; margin-left: auto; text-align: right; } /* VIS-15: it wraps under the name, never clipped */
 .sort-select:hover, .sort-select:focus-visible { color: var(--pc-text); }
 .sidebar-footer { border-top: 1px solid var(--pc-border); padding-top: var(--pc-space-3); margin-top: var(--pc-space-3); display: flex; flex-direction: column; gap: var(--pc-space-2); }
 .main { min-width: 0; min-height: 0; display: flex; flex-direction: column; }
@@ -99,6 +112,13 @@ h1 { font-size: var(--pc-type-page); line-height: 1.15; margin: 0; font-weight: 
 h1[tabindex="-1"]:focus { outline: none; } /* focus lands here after Stop (T-21); it is a place, not a control */
 h2 { font-size: var(--pc-type-section); margin: 0 0 var(--pc-space-3); font-weight: 600; }
 h3 { font-size: var(--pc-type-card); margin: 0; font-weight: 600; }
+/* VIS-10 (FD-113): two section roles. A section inside a page reads at card size (.pane-title, and the h2 of
+   Attention, Since last visit, Online, Settings groups and Sessions); a group label is meta, muted, uppercase with
+   .04em tracking (the sidebar, Connections columns, the map). A heading inside a notice takes the notice's size. */
+.pane-title { font-size: var(--pc-type-card); margin: 0; font-weight: 600; }
+.notice h2, .notice h3 { margin: 0 0 var(--pc-space-2); font-size: inherit; }
+/* VIS-14 (FD-113): what is available, not broken, reads in the info colour; red is for failures. */
+.note-info { color: var(--pc-info); }
 
 /* state markers: shape + word, never colour alone */
 .state { display: inline-flex; align-items: center; gap: var(--pc-space-1); font-size: var(--pc-type-meta); white-space: nowrap; }
@@ -129,7 +149,7 @@ h3 { font-size: var(--pc-type-card); margin: 0; font-weight: 600; }
 
 /* overview */
 .attention { background: var(--pc-panel); border: 1px solid var(--pc-border); border-radius: var(--pc-radius-panel); margin-bottom: var(--pc-space-4); padding-bottom: var(--pc-space-1); }
-.attention h2 { display: flex; align-items: center; gap: var(--pc-space-2); padding: var(--pc-space-2) var(--pc-space-4); margin: 0; font-size: var(--pc-type-body); font-weight: 600; }
+.attention h2 { display: flex; align-items: center; gap: var(--pc-space-2); padding: var(--pc-space-2) var(--pc-space-4); margin: 0; font-size: var(--pc-type-card); font-weight: 600; }
 .attention h2 .count { font-size: var(--pc-type-meta); color: var(--pc-text-muted); font-weight: 400; }
 .attention ul { list-style: none; margin: 0; padding: 0; }
 /* ADR-0014: one line per row — state, name, the reason cut to the line, the action. */
@@ -184,7 +204,6 @@ h3 { font-size: var(--pc-type-card); margin: 0; font-weight: 600; }
 .notice.error { background: var(--pc-negative-soft); border-color: var(--pc-negative); }
 .notice.warning { background: var(--pc-warning-soft); border-color: var(--pc-warning); }
 .notice.info { background: var(--pc-info-soft); border-color: var(--pc-info); }
-.notice.setup h2 { margin: 0 0 var(--pc-space-2); font-size: inherit; }
 .notice.setup p { margin: 0 0 var(--pc-space-3); }
 
 /* service view */
@@ -364,7 +383,7 @@ table.spend th[scope='row'] { color: var(--pc-text); }
 .checklist li.done > span:first-child { color: var(--pc-link); }
 /* FD-39 SCN-059: what changed since the last visit. */
 .visit { margin: var(--pc-space-4) 0; }
-.visit h2 { font-size: var(--pc-type-body); margin: 0 0 var(--pc-space-2); }
+.visit h2 { font-size: var(--pc-type-card); margin: 0 0 var(--pc-space-2); }
 .visit > .row { align-items: baseline; }
 .visit > .row .spacer { flex: 1; }
 .visit .btn-link { font-size: var(--pc-type-meta); }
@@ -386,10 +405,20 @@ table.spend th[scope='row'] { color: var(--pc-text); }
 /* No transform here: the menu is position: fixed, and a transformed ancestor would become its frame. */
 .row-menu { position: absolute; right: var(--pc-space-1); top: 0; bottom: 0; display: flex; align-items: center; }
 .row-menu .row-menu-btn { position: static; transform: none; }
+/* FD-121 (SCN-072): the eye on a hidden row, left of its menu and always shown: bringing it back is the fold's job. */
+.unhide-btn { right: calc(var(--pc-space-1) + 28px); opacity: 1; }
+.nav-hidden .nav-row .nav-item { padding-right: 60px; }
+/* FD-123 (SCN-072): an agent turned off reads greyed, says "Off" in words, and keeps one button that turns it on. */
+.nav-off { position: relative; color: var(--pc-text-muted); cursor: default; padding-right: 36px; }
+.nav-off .off-word { margin-left: auto; font-size: var(--pc-type-meta); }
+.turn-on-btn { right: var(--pc-space-1); opacity: 1; }
+.off-list { margin-top: var(--pc-space-2); }
 .nav-row:hover .row-menu .row-menu-btn, .nav-row:focus-within .row-menu .row-menu-btn, .row-menu.shown .row-menu-btn, .row-menu-btn:focus-visible { opacity: 1; }
 .menu { position: fixed; z-index: 30; min-width: 200px; display: flex; flex-direction: column; padding: var(--pc-space-1); background: var(--pc-panel-raised); border: 1px solid var(--pc-border-strong); border-radius: var(--pc-radius-control); box-shadow: var(--fd-shadow-menu); }
 .menu [role='menuitem'] { text-align: left; min-height: var(--fd-control-sm); padding: 0 var(--pc-space-2); border: 0; border-radius: var(--pc-radius-control); background: transparent; color: var(--pc-text); font: inherit; font-size: var(--pc-type-meta); cursor: pointer; white-space: nowrap; }
 .menu [role='menuitem']:hover { background: var(--pc-panel); }
+/* A row menu fits the sidebar: a long item ("Pin <a long name> to the top") wraps rather than leave the window. */
+.row-menu .menu [role='menuitem'] { white-space: normal; overflow-wrap: anywhere; padding-top: var(--pc-space-1); padding-bottom: var(--pc-space-1); line-height: 1.3; }
 /* VIS-04: the item Enter will run is ringed, not told by a 1.1:1 background change alone. */
 .menu [role='menuitem']:focus-visible { background: var(--pc-accent-soft); outline: 2px solid var(--pc-focus); outline-offset: -2px; }
 .nav-fold-section { display: flex; align-items: center; gap: var(--pc-space-1); width: calc(100% - 2 * var(--pc-space-2)); border: 0; background: transparent; cursor: pointer; padding: 0; text-align: left; }
@@ -454,7 +483,7 @@ input.switch:focus-visible { outline: 2px solid var(--pc-focus); outline-offset:
 .cmap { display: flex; flex-direction: column; gap: var(--pc-space-2); }
 .cmap-summary { display: flex; flex-wrap: wrap; gap: var(--pc-space-4); margin: 0; font-size: var(--pc-type-body); }
 .cmap-section { margin-top: var(--pc-space-4); }
-.cmap-section h2 { font-size: var(--pc-type-meta); color: var(--pc-text-muted); text-transform: uppercase; letter-spacing: .06em; font-weight: 600; margin: 0 0 var(--pc-space-2); display: flex; gap: var(--pc-space-2); align-items: center; }
+.cmap-section h2 { font-size: var(--pc-type-meta); color: var(--pc-text-muted); text-transform: uppercase; letter-spacing: .04em; font-weight: 600; margin: 0 0 var(--pc-space-2); display: flex; gap: var(--pc-space-2); align-items: center; }
 .cmap-graph { overflow: auto; border: 1px solid var(--pc-border); border-radius: var(--pc-radius-panel); background: var(--pc-panel); padding: var(--pc-space-3); }
 .cmap-graph svg { display: block; }
 .edge { fill: none; stroke-width: 1.5; }
@@ -507,7 +536,6 @@ input.switch:focus-visible { outline: 2px solid var(--pc-focus); outline-offset:
 
 /* #region load-tab — docs: docs/ux/scenarios.md#scn-076-see-how-busy-an-agent-is */
 .load .strip.load-strip { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-.load .notice h2 { margin: 0 0 var(--pc-space-2); font-size: inherit; }
 .load .notice p { margin: 0 0 var(--pc-space-2); }
 .load-errors { margin: 0; padding-left: var(--pc-space-5); }
 .load-errors code { font-size: var(--pc-type-meta); word-break: break-word; }
@@ -614,3 +642,9 @@ div.session-group-head h2 { margin: 0; }
    scheme the strip under the last row stayed dark (seen in docs/reports/2026-10-24-ui-ux-iteration/shots/). The page's
    own background is the terminal's. */
 .console-term .xterm-viewport { background-color: var(--pc-bg) !important; }
+
+/* UX-13 (FD-113): a coding agent's install command on the setup card, copyable, never cut. */
+.install-runtimes ul { list-style: none; margin: var(--pc-space-2) 0; padding: 0; display: grid; gap: var(--pc-space-1); }
+.install-runtimes li { flex-wrap: wrap; gap: var(--pc-space-2); }
+.install-runtimes .install-name { min-width: 7em; font-weight: 600; }
+.install-runtimes code { overflow-wrap: anywhere; user-select: all; }
