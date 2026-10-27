@@ -19,7 +19,8 @@ export const OUTAGE_CLEAR_AFTER_MS = 15 * 60_000;
 export const OUTAGE_GIVE_UP_MS = 24 * 60 * 60_000;
 
 /** One message to the operator channel; its eventId is the same on every retry, so it is delivered once. */
-export interface AlertMessage { eventId: string; kind: 'failure' | 'recovery' | 'question'; subject: string; text: string; serviceKey: string }
+/** `kind` is the channel's: `question` would need a reply binding it routes to a peer (FD-131), so an ask goes as `result`. */
+export interface AlertMessage { eventId: string; kind: 'failure' | 'recovery' | 'result'; subject: string; text: string; serviceKey: string }
 
 export interface Episode {
   start: number;
@@ -182,7 +183,7 @@ export function enqueueAsk(state: OutageState, eventId: string, ask: Omit<Ask, '
 export function owedAsks(state: OutageState, now: number, words: Words, allowed: (key: string) => boolean): { id: string; msg: AlertMessage }[] {
   return Object.entries(state.asks ?? {}).filter(([, a]) => !a.delivered && now - a.at <= OUTAGE_GIVE_UP_MS && allowed(a.serviceKey))
     .sort((x, y) => x[1].at - y[1].at)
-    .map(([id, a]) => ({ id, msg: { serviceKey: a.serviceKey, kind: 'question' as const, eventId: id, subject: words.ask ? words.ask(a.name) : a.name, text: a.link && words.open ? `${a.text}\n${words.open(a.link)}` : a.text } }));
+    .map(([id, a]) => ({ id, msg: { serviceKey: a.serviceKey, kind: 'result' as const, eventId: id, subject: words.ask ? words.ask(a.name) : a.name, text: a.link && words.open ? `${a.text}\n${words.open(a.link)}` : a.text } }));
 }
 
 export function askDelivered(state: OutageState, id: string): OutageState {

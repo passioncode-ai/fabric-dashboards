@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- A decision an agent waits for reaches the operator channel again (FD-131): since 0.8.8 each one went as a `question`
+  without the reply binding the channel requires and was refused (`question_binding_required`, 567 times on this Mac
+  since 2026-10-27 18:58 UTC); it now goes as a plain message with the link to decide on the agent's page (copy check report `2ad82409`, no findings).
+
 ## 0.8.11 - 2026-10-27
 
 ### Changed

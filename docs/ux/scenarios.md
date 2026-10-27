@@ -1572,8 +1572,8 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **States covered:** success, error, empty
 - **Errors & recovery:** the channel does not answer -> retried every minute, at most five times; the last failure shows in Settings with its reason; the app's log has `alerts:` lines
 - **Status:** validated
-- **Coverage:** src/core/outage-alerts.ts, src/core/mcp-client.ts, src/electron/outage-alerts.ts, src/electron/main.ts (outage-alerts), src/renderer/components/Settings.tsx (AlertChannel), src/core/notify.ts (intentOf), test/outage-alerts.test.ts, test/operator-asks.test.ts *FD-125*
-- **Product:** observed 2026-10-12 on this Mac: 22 failure alerts sent 5.0–5.4 min after an outage began, none for the 34 shorter episodes (FD-01). FD-76 (2026-10-19): the installed 0.7.14 had sent 798 messages in 8 days (311 outages, 309 recoveries, 203 banners); the 15-minute rule, one case per outage and Mac-only banners are counted on a fake clock by `test/outage-alerts.test.ts`, the live count is owed after the release
+- **Coverage:** src/core/outage-alerts.ts, src/core/mcp-client.ts, src/electron/outage-alerts.ts, src/electron/main.ts (outage-alerts), src/renderer/components/Settings.tsx (AlertChannel), src/core/notify.ts (intentOf), test/outage-alerts.test.ts, test/operator-asks.test.ts *FD-125*, *FD-131*
+- **Product:** observed 2026-10-12 on this Mac: 22 failure alerts sent 5.0–5.4 min after an outage began, none for the 34 shorter episodes (FD-01). FD-76 (2026-10-19): the installed 0.7.14 had sent 798 messages in 8 days (311 outages, 309 recoveries, 203 banners); the 15-minute rule, one case per outage and Mac-only banners are counted on a fake clock by `test/outage-alerts.test.ts`, the live count is owed after the release. FD-131 (2026-10-27): step 3 never reached the channel on the installed 0.8.8 to 0.8.11: each ask went as `question` without the reply binding the channel requires and was refused (`question_binding_required`, 567 times since 18:58 UTC, `main.log`); asks now go as `result`, and step 3 is observed again after the next release
 
 ## sessions
 
