@@ -94,3 +94,12 @@ test('UX-08: a window shown again after an hour hidden is a new visit; a short l
   assert.equal(revisitDue('2026-10-24T09:00:00Z', { at: '2026-10-24T10:00:00Z', afterHiddenMs: 10 * 60_000 }), false);
   assert.equal(revisitDue('2026-10-24T09:00:00Z', undefined), false);
 });
+
+test('FD-129 (UX-19): an agent the person hid leaves the tray\'s list of other agents; one that needs attention stays counted', () => {
+  const services = [snap('alpha.default', 'ready'), snap('bravo.default', 'ready'), snap('bravo.second', 'ready'), snap('charlie.default', 'down')];
+  const shown = trayMenuModel(services, { now: NOW, lang: 'en', hidden: ['bravo', 'charlie'] });
+  assert.deepEqual(shown.rest.map((i) => i.key), ['alpha.default'], 'both bravo instances leave with their product');
+  assert.deepEqual(shown.attention.map((i) => i.key), ['charlie.default'], 'a hidden agent that is down still needs attention');
+  assert.equal(shown.headline, 'Needs attention: 1');
+  assert.deepEqual(trayMenuModel(services, { now: NOW, lang: 'en' }).rest.map((i) => i.key), ['alpha.default', 'bravo.default', 'bravo.second']);
+});

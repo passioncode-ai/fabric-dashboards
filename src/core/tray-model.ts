@@ -6,6 +6,7 @@ import type { LimitView } from '@passioncode-ai/fabric-service-host/usage';
 import { attentionQueue } from './attention';
 import { t, type Lang } from './i18n';
 import { displayName } from './names';
+import { productIdOf } from './products';
 import type { ServiceSnapshot, ServiceState } from './types';
 
 export const MARK: Record<ServiceState, string> = {
@@ -15,7 +16,9 @@ export const MARK: Record<ServiceState, string> = {
 export interface TrayItem { key: string; label: string }
 export interface TrayMenuModel { headline: string; attention: TrayItem[]; rest: TrayItem[] }
 
-export function trayMenuModel(services: readonly ServiceSnapshot[], o: { now: number; limits?: Readonly<Record<string, readonly LimitView[]>>; lang: Lang }): TrayMenuModel {
+/** `hidden`: the products the person hid (FD-78; FD-129 UX-19): they leave the menu's list of other agents. The
+ *  attention queue keeps them, so the menu counts what Overview, the sidebar and the Dock count. */
+export function trayMenuModel(services: readonly ServiceSnapshot[], o: { now: number; limits?: Readonly<Record<string, readonly LimitView[]>>; lang: Lang; hidden?: readonly string[] }): TrayMenuModel {
   const { lang } = o;
   const queue = attentionQueue(services, o);
   // U-7: the name a person reads elsewhere, instance included, so two instances never read alike.
@@ -32,6 +35,7 @@ export function trayMenuModel(services: readonly ServiceSnapshot[], o: { now: nu
   const notReady = services.filter((s) => s.state !== 'ready').length;
   const headline = queue.length ? t(lang, 'tray.problems', { count: queue.length })
     : notReady ? t(lang, 'tray.notAllReady', { ready: services.length - notReady, total: services.length }) : t(lang, 'tray.allReady');
-  return { headline, attention, rest: services.filter((s) => !inQueue.has(s.key)).map(plain) };
+  const hidden = new Set(o.hidden ?? []);
+  return { headline, attention, rest: services.filter((s) => !inQueue.has(s.key) && !hidden.has(productIdOf(s.key))).map(plain) };
 }
 // #endregion tray-model

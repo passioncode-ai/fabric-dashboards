@@ -30,6 +30,8 @@ export interface TrayActions {
   resume(): void;
   paused(): boolean;
   quit(): void;
+  /** FD-129 (UX-19): the product ids the person hid; they leave the list of other agents. */
+  hidden(): readonly string[];
 }
 
 export class AppTray {
@@ -54,7 +56,7 @@ export class AppTray {
     const lang = this.lang();
     const level = trayLevel(services, limits, sessions);
     // W2 (UX-04): the headline and the first items are the attention queue Overview, the sidebar and the Dock count.
-    const model = trayMenuModel(services, { now: Date.now(), limits, lang });
+    const model = trayMenuModel(services, { now: Date.now(), limits, lang, hidden: this.actions.hidden() });
     const sessionsLine = traySessionsLine(lang, sessions);
     const signature = JSON.stringify([lang, level, this.actions.paused(), model, sessionsLine]);
     if (signature === this.shown) return;

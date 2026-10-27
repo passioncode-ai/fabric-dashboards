@@ -94,7 +94,7 @@ export function ConsolePanel({ serviceKey, height, maxHeight, onHeight, onDrag, 
   }, [serviceKey]);
 
   useEffect(() => {
-    const x = new Terminal({ fontFamily: getComputedStyle(document.documentElement).getPropertyValue('--pc-font-data').trim() || 'ui-monospace, Menlo, monospace', fontSize: 12.5, cursorBlink: !window.matchMedia('(prefers-reduced-motion: reduce)').matches, scrollback: 5000, theme: themeOf(), allowProposedApi: false });
+    const x = new Terminal({ fontFamily: getComputedStyle(document.documentElement).getPropertyValue('--pc-font-data').trim() || 'ui-monospace, Menlo, monospace', fontSize: parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--fd-type-terminal')) || 12.5, cursorBlink: !window.matchMedia('(prefers-reduced-motion: reduce)').matches, scrollback: 5000, theme: themeOf(), allowProposedApi: false });
     const f = new FitAddon();
     x.loadAddon(f);
     term.current = x;

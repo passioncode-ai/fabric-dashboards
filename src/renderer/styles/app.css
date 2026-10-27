@@ -11,6 +11,7 @@
 :root {
   --fd-type-micro: 11px;                 /* state glyphs, the rail's count, the map's small text */
   --fd-type-label: 13px;                 /* the map's node names, sized to its 196 px boxes */
+  --fd-type-terminal: 12.5px;            /* the console's terminal; xterm reads it (FD-129 VIS-19) */
   --fd-shadow-edge: #00000073;           /* the console drawer's shadow on the page under it */
   --fd-shadow-menu: 0 8px 24px #00000059;
   --fd-control-sm: 28px;                 /* one height for every small control (VIS-20) */

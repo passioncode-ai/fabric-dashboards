@@ -8,6 +8,8 @@
   «и это предел для этого компьютера», days read «{n} дн.», and an agent's events surface on Connections is «Лента
   событий», apart from the «События» page (FD-129: COPY-19, COPY-31, COPY-33; copy check report `9768afa2`, no findings).
 - The console's cursor stops blinking when the system asks for reduced motion (FD-129: VIS-23).
+- The menu-bar menu leaves out agents the person hid; one that needs attention is still listed and counted first
+  (FD-129: UX-19). The console's terminal takes its font size from a style token (FD-129: VIS-19).
 
 ## 0.8.10 - 2026-10-27
 
