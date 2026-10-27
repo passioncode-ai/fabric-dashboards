@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- Russian lines about work in progress speak as «мы» («Проверяем…», «Читаем, какие модели…»), the session cap says
+  «и это предел для этого компьютера», days read «{n} дн.», and an agent's events surface on Connections is «Лента
+  событий», apart from the «События» page (FD-129: COPY-19, COPY-31, COPY-33; copy check report `9768afa2`, no findings).
+- The console's cursor stops blinking when the system asks for reduced motion (FD-129: VIS-23).
+
 ## 0.8.10 - 2026-10-27
 
 ### Added

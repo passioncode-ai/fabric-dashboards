@@ -55,7 +55,7 @@ test('the em dash scanner counts code and never a comment', () => {
 
 test('COPY-04, COPY-05: a Russian count follows its label, so no form depends on the number', () => {
   const ru = dictionary('ru');
-  const before = Object.entries(ru).filter(([, v]) => /\{(count|n|ready|total|cap)\} (?!из )[а-яё]/i.test(v) && !/^\{n\} (мс|с|мин|ч|дн)( назад)?$/.test(v)).map(([k]) => k);
+  const before = Object.entries(ru).filter(([, v]) => /\{(count|n|ready|total|cap)\} (?!из )[а-яё]/i.test(v) && !/^\{n\} (мс|с|мин|ч|дн\.)( назад)?$/.test(v)).map(([k]) => k);
   assert.deepEqual(before, [], 'write «Агентов: {count}», not «{count} агентов»');
   assert.equal(ru['overview.count.one'], 'Агентов: 1');
   for (const key of ['overview.strip.ready', 'overview.strip.down', 'overview.strip.attention'] as const) {

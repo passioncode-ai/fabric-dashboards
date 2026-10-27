@@ -17,6 +17,7 @@ this app (ADR-0022 for agents and services).
 | services folder | папка сервисов | the folder descriptors are installed into (a path, not a category) | |
 | spend report | отчёт о расходах | an agent's own report of calls, tokens and cost | usage report (in the interface; the contract and MCP machine sentences keep the contract's own word) |
 | spend | расходы | the topic: what agents spent (the page, a profile line, a limit's name) | «траты» |
+| Activity (the page and the tab) | События | what the agents and the app did, newest first | «Лента событий» (that is an agent's events surface on the Connections page, COPY-33) |
 | job | задача | one piece of work an agent runs, which a per-job limit caps (`per_job`) | order, «заказ» (it reads as a purchase) |
 | self-check | проверка | an agent's `doctor` command | Doctor, «Диагностика» |
 
