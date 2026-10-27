@@ -159,13 +159,13 @@ h3 { font-size: var(--pc-type-card); margin: 0; font-weight: 600; }
 .attention li { display: grid; grid-template-columns: max-content minmax(120px, max-content) minmax(12ch, 1fr) auto; gap: var(--pc-space-3); align-items: center; min-height: 40px; padding: 0 var(--pc-space-4); border-top: 1px solid var(--pc-border); }
 .attention li .row-actions { display: flex; align-items: center; justify-content: flex-end; gap: var(--pc-space-2); flex-wrap: nowrap; white-space: nowrap; }
 .attention li .row-actions:empty { display: none; }
-.attention li .name { font-weight: 600; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-decoration: none; }
+.attention li .name { font-weight: 600; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } /* VIS-24: underlined like every name that opens its agent (.linkish) */
 .attention li .why { color: var(--pc-text-muted); font-size: var(--pc-type-meta); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .attention li .btn { min-height: var(--fd-control-sm); padding: 0 var(--pc-space-2); font-size: var(--pc-type-meta); }
 .attention .more { margin: var(--pc-space-1) var(--pc-space-4) var(--pc-space-1); font-size: var(--pc-type-meta); }
 /* ADR-0014: the strip — one number and one label per cell. */
 .strip { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: var(--pc-space-2); margin-bottom: var(--pc-space-4); }
-.strip .cell { display: flex; flex-direction: column; gap: 2px; text-align: left; padding: var(--pc-space-2) var(--pc-space-3); background: var(--pc-panel); border: 1px solid var(--pc-border); border-radius: var(--pc-radius-control); color: inherit; font: inherit; min-width: 0; }
+.strip .cell { display: flex; flex-direction: column; gap: 2px; text-align: left; padding: var(--pc-space-2) var(--pc-space-3); background: var(--pc-panel); border: 1px solid var(--pc-border); border-radius: var(--pc-radius-panel); /* VIS-24: Overview's blocks share the panel radius */ color: inherit; font: inherit; min-width: 0; }
 .strip button.cell { cursor: pointer; }
 .strip button.cell:hover:not(:disabled) { border-color: var(--pc-border-strong); }
 .strip button.cell:disabled { cursor: default; }
@@ -218,6 +218,10 @@ h3 { font-size: var(--pc-type-card); margin: 0; font-weight: 600; }
 .svc-bar > .state, .svc-bar > .icon-btn { flex: none; }
 .svc-bar .chip-problem { flex: 0 100 auto; min-width: 4ch; }
 .svc-bar .tabs { border-bottom: 0; padding: 0; margin-left: var(--pc-space-3); align-self: stretch; flex: 0 1 auto; min-width: 0; overflow-x: auto; scrollbar-width: none; }
+/* VIS-16 (FD-129): the side with more tabs fades out, a sign the list goes on (a mask reads only the alpha of its colour). */
+.svc-bar .tabs[data-more='end'] { mask-image: linear-gradient(to right, var(--pc-text) calc(100% - 28px), transparent); }
+.svc-bar .tabs[data-more='start'] { mask-image: linear-gradient(to left, var(--pc-text) calc(100% - 28px), transparent); }
+.svc-bar .tabs[data-more='both'] { mask-image: linear-gradient(to right, transparent, var(--pc-text) 28px, var(--pc-text) calc(100% - 28px), transparent); }
 /* Before the container queries: same specificity, so the narrow-bar padding below must come later. */
 .svc-bar .tab { padding: 0 var(--pc-space-3); }
 /* Narrow bar (a console open, a small window): labels fold into icons, tabs tighten; the name stays. */
@@ -476,7 +480,7 @@ input.switch:checked::after { transform: translateX(14px); background: var(--pc-
 input.switch:focus-visible { outline: 2px solid var(--pc-focus); outline-offset: 2px; }
 .setting input.switch { width: 32px; height: 18px; }
 @media (prefers-reduced-motion: reduce) { input.switch, input.switch::after { transition: none; } }
-.setup-done { display: flex; align-items: center; justify-content: space-between; gap: var(--pc-space-3); flex-wrap: wrap; padding: var(--pc-space-2) var(--pc-space-3); margin-bottom: var(--pc-space-3); border: 1px solid var(--pc-border); border-radius: var(--pc-radius-control); background: var(--pc-panel); font-size: var(--pc-type-meta); }
+.setup-done { display: flex; align-items: center; justify-content: space-between; gap: var(--pc-space-3); flex-wrap: wrap; padding: var(--pc-space-2) var(--pc-space-3); margin-bottom: var(--pc-space-3); border: 1px solid var(--pc-border); border-radius: var(--pc-radius-panel); background: var(--pc-panel); font-size: var(--pc-type-meta); }
 .setup-done .row { gap: var(--pc-space-2); }
 .sev { display: inline-flex; align-items: baseline; gap: var(--pc-space-1); }
 .sev-ok > span:first-child { color: var(--pc-positive); }

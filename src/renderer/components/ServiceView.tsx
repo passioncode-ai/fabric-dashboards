@@ -53,6 +53,25 @@ export function ServiceView({ s, all, members, open, link, nonce, tab: askedTab,
   const [tab, setTabState] = useState<Tab>(hasDashboard ? 'dashboard' : 'health');
   const chosen = useRef(false); // the operator picked a tab; stop choosing for them
   const setTab = (x: Tab) => { chosen.current = true; setTabState(x); };
+  // VIS-16 (FD-129): a tab list cut by a narrow window fades at the side where more tabs are, and the chosen tab scrolls
+  // into view, so Health and Logs never vanish without a sign.
+  const tabList = useRef<HTMLDivElement | null>(null);
+  const [tabsMore, setTabsMore] = useState<'' | 'start' | 'end' | 'both'>('');
+  const measureTabs = () => {
+    const el = tabList.current;
+    if (!el) return;
+    const start = el.scrollLeft > 1, end = el.scrollLeft + el.clientWidth < el.scrollWidth - 1;
+    setTabsMore(start && end ? 'both' : start ? 'start' : end ? 'end' : '');
+  };
+  useEffect(() => {
+    const el = tabList.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    measureTabs();
+    const ro = new ResizeObserver(measureTabs);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  useEffect(() => { document.getElementById(`tab-${tab}`)?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' }); measureTabs(); }, [tab]);
   const [output, setOutput] = useState<{ title: string; text: string; running: 'doctor' | 'update' | null } | null>(null);
   const [updateFailure, setUpdateFailure] = useState<string | null>(null);
   useEffect(() => { chosen.current = false; setOutput(null); }, [s.key]);
@@ -118,7 +137,7 @@ export function ServiceView({ s, all, members, open, link, nonce, tab: askedTab,
           {/* UX-01, UX-03 (SCN-054): the state's own action first (Restart, Start, "Update to <v>"), then the one-click
               fix beside its problem, even in the one-line header. */}
           {!cardShown && <CompactActions s={s} problem={Boolean(problem)} act={control} runUpdate={() => void run('update')} onAgent={onAgent} updateFailed={updateFailure !== null} />}
-          <div className="tabs" role="tablist" aria-label={nameOf(s)} onKeyDown={(e) => {
+          <div className="tabs" role="tablist" aria-label={nameOf(s)} ref={tabList} data-more={tabsMore} onScroll={measureTabs} onKeyDown={(e) => {
             // U-14: arrow keys move between tabs, as a tab list should.
             if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
             const i = tabs.indexOf(tab);

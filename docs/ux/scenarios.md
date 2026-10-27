@@ -996,7 +996,7 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **Entry point:** any service page; View → Show or Hide Agent Details (⌃⌘D)
 - **Preconditions:** none
 - **Steps:**
-  1. User opens a service -> the header is one line: the state mark, the name, the state badge, the tabs (Dashboard, Activity, Connections, Load when the agent declares its load, Health, and Logs for a local agent; src/renderer/components/ServiceView.tsx `tabs`), the Fabric and Console buttons and a "Show details" control; the dashboard fills the rest; pointing at the name shows the agent's summary
+  1. User opens a service -> the header is one line: the state mark, the name, the state badge, the tabs (Dashboard, Activity, Connections, Load when the agent declares its load, Health, and Logs for a local agent; src/renderer/components/ServiceView.tsx `tabs`); in a narrow window the tab list fades at the side where more tabs are and the chosen tab scrolls into view (FD-129 VIS-16), the Fabric and Console buttons and a "Show details" control; the dashboard fills the rest; pointing at the name shows the agent's summary
   2. User presses "Show details" -> the full card opens under the bar: summary, version, build, pid, port, uptime, Tools, reasons, the last action and the actions (Restart, Stop, Update, Run self-check, Show data folder, Show file); the control reads "Hide details"
   3. User presses "Hide details" -> back to one line; the choice holds for every service and after a relaunch
 - **Expected result:** the embedded dashboard takes the window; everything in the header is one press away
