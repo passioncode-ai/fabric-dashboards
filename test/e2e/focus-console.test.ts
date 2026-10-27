@@ -201,9 +201,9 @@ test('ADR-0017: a one-line header, a folding sidebar, and an agent console besid
     const item = (await page.getByRole('menuitem', { name: 'Pin Sample Service to the top' }).boundingBox())!;
     assert.ok(item.x >= 0 && item.y >= 0 && item.x + item.width <= 1440, 'the row menu opens on screen, beside its row');
     // Seen 2026-10-27: a menu wider than the room left of its button started off the window. It fits the sidebar.
-    const box = (await page.getByRole('menu', { name: 'Sample Service' }).boundingBox())!;
+    const menuBox = (await page.getByRole('menu', { name: 'Sample Service' }).boundingBox())!;
     const row = (await page.locator('.nav-row').filter({ hasText: 'Sample Service' }).boundingBox())!;
-    assert.ok(box.x >= 8 && box.x + box.width <= row.x + row.width + 1, `the row menu stays over the sidebar (menu ${box.x}..${box.x + box.width}, row ends at ${row.x + row.width})`);
+    assert.ok(menuBox.x >= 8 && menuBox.x + menuBox.width <= row.x + row.width + 1, `the row menu stays over the sidebar (menu ${menuBox.x}..${menuBox.x + menuBox.width}, row ends at ${row.x + row.width})`);
     await page.getByRole('menuitem', { name: 'Pin Sample Service to the top' }).click();
     await page.locator('.nav-section', { hasText: 'Pinned' }).waitFor();
     await rowMenu();
@@ -263,19 +263,19 @@ test('ADR-0017: a one-line header, a folding sidebar, and an agent console besid
     await waitFor('the eye to show the agent again', async () => list().hidden.length === 0);
 
     // FD-121 SCN-087: the sidebar's edge follows the pointer and is kept; double-click and Home bring back 240 px.
-    const edge = page.getByRole('separator', { name: 'Sidebar width' });
-    const box = (await edge.boundingBox())!;
-    await page.mouse.move(box.x + box.width / 2, box.y + 200);
+    const sideEdge = page.getByRole('separator', { name: 'Sidebar width' });
+    const sideBox = (await sideEdge.boundingBox())!;
+    await page.mouse.move(sideBox.x + sideBox.width / 2, sideBox.y + 200);
     await page.mouse.down();
-    await page.mouse.move(320, box.y + 220, { steps: 8 });
+    await page.mouse.move(320, sideBox.y + 220, { steps: 8 });
     await page.mouse.up();
     const width = () => JSON.parse(fs.readFileSync(path.join(userData, 'settings.json'), 'utf8')).layout.sidebarWidth;
     await waitFor('the dragged width to be saved', async () => width() === 320);
     assert.equal(Math.round((await page.locator('nav.sidebar').boundingBox())!.width), 320, 'the sidebar is as wide as dragged');
     await shot(page, '27-sidebar-width');
-    await edge.dblclick();
+    await sideEdge.dblclick();
     await waitFor('double-click to return to 240', async () => width() === 240);
-    await edge.focus();
+    await sideEdge.focus();
     await page.keyboard.press('ArrowRight');
     await waitFor('the arrow to widen by a step', async () => width() === 256);
     await page.keyboard.press('Home');
