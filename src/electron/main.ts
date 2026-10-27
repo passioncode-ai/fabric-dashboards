@@ -17,7 +17,7 @@ import { pendingInstallVersion, stepAside } from './pending-install';
 import { displayName } from '../core/names';
 import { ConsoleHost, HANDOVER_POLL_MS } from './console';
 import { appendLog, sweepTemps } from '../core/fsutil';
-import { parseDeepLink, SCHEME } from '../core/deeplink';
+import { linkFor, parseDeepLink, safePath, SCHEME } from '../core/deeplink';
 import { servicesDir, setWindowsAclReader, windowsPowerShellEnv } from '@passioncode-ai/fabric-service-host';
 import { openChannel, startAnswer, type Channel } from './console-channel';
 import { chooseLang, langFor, t, type Lang } from '../core/i18n';
@@ -25,7 +25,7 @@ import { execRunner } from '../core/launchd';
 import { listListeners, unattributed } from '../core/listeners';
 import { applyLoginItem, LOGIN_NEEDS_APPROVAL, loginItemAtStartup, type LoginItemOs } from '../core/loginitem';
 import { xdgLoginItem } from '../core/autostart';
-import { Monitor, type Notice } from '../core/monitor';
+import { Monitor, type AskNotice, type Notice } from '../core/monitor';
 import { fetchLoad, fetchUsage, readTokenAsync } from '../core/probe';
 import { limitsNeedingPerson, readSpend, type SpendEntry } from '../core/spend';
 import { attentionQueue, badgeText, nextNewsExpiry } from '../core/attention';
@@ -221,10 +221,17 @@ if (!app.requestSingleInstanceLock()) {
         after: (minutes) => t(l, 'alerts.after', { minutes }),
         removed: (name) => t(l, 'alerts.removed', { name }),
         wasDown: (minutes, reason) => t(l, 'alerts.wasDown', { minutes, reason }),
+        ask: (name) => t(l, 'alerts.ask', { name }),
+        open: (link) => t(l, 'alerts.open', { link }),
       };
     },
     changed: () => pushStatus(),
   });
+  // FD-125: a decision an agent waits for reaches the operator channel too, with the link that opens its page.
+  monitor.on('ask', (a: AskNotice) => alerts.ask(a.serviceKey, a.id, { name: a.name, episode: a.episode, at: a.at, text: a.text, link: askLink(a.serviceKey, a.link) }));
+  function askLink(key: string, link: string | null): string | null {
+    try { return linkFor(key, link && safePath(link) ? link : undefined); } catch { return null; }
+  }
   // #endregion outage-alerts
   // W2 (UX-05, UX-06): the limits that need a person, from the last spend read; W2 (UX-08): the last show.
   let personLimits: Record<string, LimitView[]> = {};

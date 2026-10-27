@@ -19,7 +19,7 @@ export const OUTAGE_CLEAR_AFTER_MS = 15 * 60_000;
 export const OUTAGE_GIVE_UP_MS = 24 * 60 * 60_000;
 
 /** One message to the operator channel; its eventId is the same on every retry, so it is delivered once. */
-export interface AlertMessage { eventId: string; kind: 'failure' | 'recovery'; subject: string; text: string; serviceKey: string }
+export interface AlertMessage { eventId: string; kind: 'failure' | 'recovery' | 'question'; subject: string; text: string; serviceKey: string }
 
 export interface Episode {
   start: number;
@@ -43,7 +43,26 @@ export interface OutageState {
   baselines: Record<string, { startedAt: string; sources: string[] }>;
   /** One episode per service, open or closed-but-owing. */
   episodes: Record<string, Episode>;
+  /** FD-125: events an agent marked `notify` that wait for the operator's decision, by message id; absent in a file
+   *  written before it. */
+  asks?: Record<string, Ask>;
 }
+
+/** FD-125: one decision an agent waits for (an events-feed row whose intent is `ask`, ADR-0010). */
+export interface Ask {
+  serviceKey: string;
+  name: string;
+  /** The notification episode (`episodeKey`): the same question asked again within ASK_REPEAT_MS is not sent again. */
+  episode: string;
+  at: number;
+  text: string;
+  /** The `fabric-dashboards://` link that opens the agent's page on the row's link, or null. */
+  link: string | null;
+  delivered: boolean;
+}
+
+/** FD-125: a question already sent is not sent again for a day (ADR-0010's cooldown for `ask`). */
+export const ASK_REPEAT_MS = 24 * 60 * 60_000;
 
 export const emptyOutageState = (): OutageState => ({ baselines: {}, episodes: {} });
 
@@ -59,6 +78,9 @@ export interface Words {
   removed: (name: string) => string; since: (minutes: number, reason: string) => string; after: (minutes: number) => string;
   /** The channel could not be reached during the outage: one message after it, with how long. */
   wasDown: (minutes: number, reason: string) => string;
+  /** FD-125: an agent waits for the operator's decision; `open` names the link that opens its page. */
+  ask?: (name: string) => string;
+  open?: (link: string) => string;
 }
 
 const minutes = (ms: number) => Math.max(1, Math.round(ms / 60_000));
@@ -71,7 +93,7 @@ const minutes = (ms: number) => Math.max(1, Math.round(ms / 60_000));
  * folder closes its episode as removed.
  */
 export function observe(prev: OutageState, services: readonly Watched[], now: number): OutageState {
-  const state: OutageState = { baselines: { ...prev.baselines }, episodes: { ...prev.episodes } };
+  const state: OutageState = { baselines: { ...prev.baselines }, episodes: { ...prev.episodes }, ...(prev.asks ? { asks: pruneAsks(prev.asks, now) } : {}) };
   const present = new Set(services.map((s) => s.key));
   for (const [key, ep] of Object.entries(state.episodes)) {
     if (!present.has(key) && ep.end === null) state.episodes[key] = { ...ep, end: now, removed: true };
@@ -145,6 +167,37 @@ export function owed(state: OutageState, now: number, words: Words, allowed: (ke
   }
   return out;
 }
+
+// #region operator-asks — docs: docs/adr/0010-notifications-only-when-it-matters.md#amendment-2026-10-27-a-decision-reaches-the-operator-away-from-the-mac-fd-125
+/** FD-125: queue a decision for the operator channel. Once per event id; the same question (its episode) sent within
+ *  ASK_REPEAT_MS is not queued again. */
+export function enqueueAsk(state: OutageState, eventId: string, ask: Omit<Ask, 'delivered'>): OutageState {
+  const asks = state.asks ?? {};
+  if (asks[eventId]) return state;
+  if (Object.values(asks).some((a) => a.episode === ask.episode && ask.at - a.at < ASK_REPEAT_MS)) return state;
+  return { ...state, asks: { ...asks, [eventId]: { ...ask, delivered: false } } };
+}
+
+/** What the asks owe now, oldest first: each undelivered one the person's rules allow, given up a day after it came. */
+export function owedAsks(state: OutageState, now: number, words: Words, allowed: (key: string) => boolean): { id: string; msg: AlertMessage }[] {
+  return Object.entries(state.asks ?? {}).filter(([, a]) => !a.delivered && now - a.at <= OUTAGE_GIVE_UP_MS && allowed(a.serviceKey))
+    .sort((x, y) => x[1].at - y[1].at)
+    .map(([id, a]) => ({ id, msg: { serviceKey: a.serviceKey, kind: 'question' as const, eventId: id, subject: words.ask ? words.ask(a.name) : a.name, text: a.link && words.open ? `${a.text}\n${words.open(a.link)}` : a.text } }));
+}
+
+export function askDelivered(state: OutageState, id: string): OutageState {
+  const a = state.asks?.[id];
+  return a ? { ...state, asks: { ...state.asks, [id]: { ...a, delivered: true } } } : state;
+}
+
+/** Kept two cooldowns: long enough to hold back a repeat, then forgotten whether sent or given up. */
+function pruneAsks(asks: Record<string, Ask>, now: number): Record<string, Ask> {
+  return Object.fromEntries(Object.entries(asks).filter(([, a]) => now - a.at < 2 * ASK_REPEAT_MS));
+}
+
+/** The message id of an event: the same on every retry and restart; never a `/`, at most 160 characters. */
+export const askIdOf = (serviceKey: string, eventId: string) => `ask:${serviceKey.slice(0, 80)}:${eventId.replace(/[^A-Za-z0-9._:-]/g, '_').slice(0, 72)}`;
+// #endregion operator-asks
 
 /** The channel took a message: the only place an episode's delivery is recorded. */
 export function delivered(state: OutageState, id: string, step: 'failure' | 'recovery'): OutageState {
