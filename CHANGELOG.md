@@ -14,6 +14,11 @@
   checks it or alerts about it, and it waits greyed at the end of the Hidden list. Turn it on there (or show it again)
   and it is checked at once. Agents do the same with `arrange` `turn-off` and `turn-on`.
 
+### Changed
+
+- **Reads the contract of 2026-10-27** (FD-126). An agent's declared action may now hand you a comparison to make
+  (`humanStep: comparison`); the app reads it instead of reporting the declaration as broken.
+
 ### Fixed
 
 - **An agent's row menu stays inside the window.** With a long agent name, the menu ran off the left edge and cut

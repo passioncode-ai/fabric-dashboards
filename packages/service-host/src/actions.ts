@@ -11,7 +11,7 @@
 export const ACTIONS_EXTENSION = 'https://fabric.passioncode.ai/agent-contract/extensions/actions/0.1';
 
 export type ActionGate = 'none' | 'relayed' | 'human';
-export type HumanStep = 'sign-in' | 'consent' | 'payment' | 'secret' | 'spend-above-limit' | 'passkey';
+export type HumanStep = 'sign-in' | 'consent' | 'payment' | 'secret' | 'spend-above-limit' | 'passkey' | 'comparison';
 export interface DeclaredAction { id: string; title: string; tool: string; gate: ActionGate; humanStep?: HumanStep }
 
 /** One FAC-SEM-142 finding: where in the well-known document, and what is wrong. */
@@ -31,7 +31,7 @@ export interface ActionsView {
 }
 
 const GATES: readonly string[] = ['none', 'relayed', 'human'];
-const STEPS: readonly string[] = ['sign-in', 'consent', 'payment', 'secret', 'spend-above-limit', 'passkey'];
+const STEPS: readonly string[] = ['sign-in', 'consent', 'payment', 'secret', 'spend-above-limit', 'passkey', 'comparison'];
 const REQUEST_KEY = /^[A-Za-z0-9_.-]{1,64}$/; // interop-common.schema.json#/$defs/requestKey
 const CAPABILITY = /^[a-z][a-z0-9._-]{1,127}$/; // common.schema.json#/$defs/capabilityName
 const isPlain = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
