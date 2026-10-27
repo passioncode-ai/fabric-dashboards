@@ -125,6 +125,10 @@ test('Spend shows what an agent reported, a lower bound where calls carry no pri
     assert.ok(lines.some((l) => /Approval threshold · project demo[\s\S]*Not enforced/.test(l)), 'a limit that is not enforced is still shown');
     assert.ok(lines.some((l) => /rate_card_review · all projects/.test(l)), 'an unknown kind shows by its own name');
     if (process.env.FD_SCREENSHOTS) await page.screenshot({ path: path.join(process.env.FD_SCREENSHOTS, '20-spend.png') });
+    // FD-129 (VIS-18): the figures line up on the right; (UX-22) a row opens its agent.
+    assert.equal(await row.getByRole('cell').first().evaluate((c) => getComputedStyle(c).textAlign), 'right');
+    await row.getByRole('button', { name: 'Open Spender' }).click();
+    await page.getByRole('heading', { level: 1, name: 'Spender' }).waitFor({ timeout: 15_000 });
   } finally {
     await closeApp(app);
     await new Promise<void>((r) => server.close(() => r()));

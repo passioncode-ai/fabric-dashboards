@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import { readSpend, sumSpend, type SpendDeps, type SpendEntry } from '../src/core/spend';
+import { limitUsd } from '../src/core/limits';
 import type { SpendSum } from '@passioncode-ai/fabric-service-host/usage';
 import type { Descriptor, WellKnown } from '../src/core/types';
 
@@ -173,4 +174,12 @@ test('FD-97 review: the estimate beside the money: unknown, at least (even at $0
   assert.equal(estimate({ estimateUsd: 140.47, estimatePartial: false, subscriptionCalls: 4 }, t), '+ ~$140.47 on subscriptions');
   assert.equal(estimate({ estimateUsd: 0, estimatePartial: false, subscriptionCalls: 0 }, t), '');
   assert.equal(subscriptionCost({ estimateUsd: 0.004, estimatePartial: false }, t), '~<$0.01 subscription', 'one formatter for Spend and the agent\'s Health tab');
+});
+
+test('FD-129 (VIS-18): dollars carry a thousands separator in every language; tiny and unknown amounts keep their words', () => {
+  const t = (k: string) => k;
+  assert.equal(limitUsd(1234.5, t), '$1,234.50');
+  assert.equal(limitUsd(0, t), '$0.00');
+  assert.equal(limitUsd(0.004, t), '<$0.01');
+  assert.equal(limitUsd(null, t), 'spend.unknown');
 });

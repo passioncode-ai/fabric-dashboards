@@ -10,7 +10,7 @@ import { Feed } from './Activity';
 import { CompactActions, FixButton, UnavailablePane } from './ServiceActions';
 import { Connections } from './Connections';
 import { Load } from './Load';
-import { subscriptionCost } from './Spend';
+import { subscriptionCost, usd } from './Spend';
 import { loadOf } from '@passioncode-ai/fabric-service-host/load';
 import fabricMark from '../brand/passioncode-mark.svg';
 
@@ -411,7 +411,7 @@ function Profile({ s }: { s: ServiceSnapshot }) {
         {c.slots.includes('model') && <><dt>{t('profile.model')}</dt><dd>{[r.modelProfile, r.models?.join(', ')].filter(Boolean).join(' · ') || t('word.notStated')}</dd></>}
         {r.from && <><dt>{t('profile.from')}</dt><dd>{t(`profile.from.${r.from}`)}</dd></>}
         <dt>{t('profile.spend')}</dt>
-        <dd>{models === null ? <Spinner /> : models.length ? models.map((m) => `${m.model} ${m.route === 'subscription' ? subscriptionCost({ estimateUsd: m.estimateUsd, estimatePartial: m.estimatePartial === true }, t) : m.costUsd === null ? t('spend.unknown') : `$${m.costUsd.toFixed(2)}`}`).join(' · ') : t('profile.spend.none')}</dd>
+        <dd>{models === null ? <Spinner /> : models.length ? models.map((m) => `${m.model} ${m.route === 'subscription' ? subscriptionCost({ estimateUsd: m.estimateUsd, estimatePartial: m.estimatePartial === true }, t) : m.costUsd === null ? t('spend.unknown') : usd(m.costUsd, t)}`).join(' · ') : t('profile.spend.none')}</dd>
         <dt>{t('profile.budget')}</dt><dd className="muted">{t('profile.budget.pending')}</dd>
       </dl>
       <button className="btn btn-sm" onClick={change}>{t('profile.change')}</button>
