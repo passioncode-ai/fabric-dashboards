@@ -16,6 +16,11 @@
 - **Install a coding agent from the setup card** (FD-113, UX-13). When no coding agent is installed, the first-run card
   shows the install command for Claude Code and for Codex with Copy, and offers the setup once the app finds one.
 
+### Changed
+
+- **Reads the contract of 2026-10-27** (FD-126). An agent's declared action may now hand you a comparison to make
+  (`humanStep: comparison`); the app reads it instead of reporting the declaration as broken.
+
 ### Fixed
 
 - **An agent's row menu stays inside the window.** With a long agent name, the menu ran off the left edge and cut
