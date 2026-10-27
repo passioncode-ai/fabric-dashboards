@@ -73,6 +73,10 @@ test('SCN-041, SCN-006, SCN-057, SCN-024: the strip, needs attention, the list\'
     // SCN-024: settings apply at once and are kept across a restart.
     await page.getByRole('button', { name: 'Settings' }).first().click();
     for (const label of ['Open at login', 'Unattributed listeners', 'Uninstall']) await page.getByText(label).first().waitFor();
+    // FD-129 (UX-20, VIS-21): an index of the groups, and the destructive one last.
+    await page.getByRole('navigation', { name: 'Sections' }).getByRole('button', { name: 'Unattributed listeners' }).click();
+    const groups = await page.locator('.settings > section.group h2').allInnerTexts();
+    assert.equal(groups.at(-1), 'Uninstall', 'Uninstall is the last group');
     await page.getByRole('combobox', { name: /Theme/ }).selectOption('light');
     await page.waitForFunction(() => document.documentElement.dataset.theme === 'light');
     await closeApp(app);

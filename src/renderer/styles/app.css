@@ -93,7 +93,7 @@ a { color: var(--pc-link); text-decoration: underline; }
 .nav-row.drop-after { box-shadow: inset 0 -2px 0 var(--pc-link); }
 .nav-row[draggable='true'] > .nav-item { cursor: default; }
 .nav-row > .nav-item { flex: 1; min-width: 0; }
-.pin-btn { position: absolute; right: var(--pc-space-1); top: 50%; transform: translateY(-50%); display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; border: 0; border-radius: var(--pc-radius-control); background: transparent; color: var(--pc-text-muted); cursor: pointer; opacity: 0; }
+.pin-btn { position: absolute; right: var(--pc-space-1); top: 50%; transform: translateY(-50%); display: inline-flex; align-items: center; justify-content: center; width: var(--fd-control-sm); height: var(--fd-control-sm); border: 0; border-radius: var(--pc-radius-control); background: transparent; color: var(--pc-text-muted); cursor: pointer; opacity: 0; } /* VIS-20: the one small-control size */
 /* VIS-03: hidden by opacity, never display: none, so the button keeps its place in the tab order; it shows on hover,
    on keyboard focus anywhere in its row, while its menu is open and on a pinned row. 24 px meets WCAG 2.5.8. */
 .nav-row:hover .pin-btn, .nav-row:focus-within .pin-btn, .pin-btn:focus-visible, .nav-row.pinned .pin-btn { opacity: 1; }
@@ -287,7 +287,7 @@ html.drawer-page, html.drawer-page body, html.drawer-page #root { background: tr
 .facts b { font: 500 var(--pc-type-meta) var(--pc-font-data); color: var(--pc-text); }
 .reasons { margin: 0 0 var(--pc-space-3); padding-left: var(--pc-space-4); color: var(--pc-text-muted); }
 .instances { display: flex; flex-wrap: wrap; gap: var(--pc-space-1); padding: var(--pc-space-3) var(--pc-space-6) 0; }
-.instance { display: inline-flex; align-items: center; gap: var(--pc-space-1); border: 1px solid var(--pc-border); background: transparent; color: var(--pc-text-muted); border-radius: var(--pc-radius-pill); padding: var(--pc-space-1) var(--pc-space-3); cursor: pointer; font-size: var(--pc-type-meta); }
+.instance { display: inline-flex; align-items: center; gap: var(--pc-space-1); border: 1px solid var(--pc-border); background: transparent; color: var(--pc-text-muted); border-radius: var(--pc-radius-pill); min-height: var(--fd-control-sm); padding: 0 var(--pc-space-3); cursor: pointer; font-size: var(--pc-type-meta); }
 .instance:hover { background: var(--pc-panel-raised); }
 .instance[aria-current='page'] { color: var(--pc-text); background: var(--pc-accent-soft); border-color: var(--pc-link); }
 .setting-note { display: grid; gap: var(--pc-space-1); }
@@ -295,7 +295,7 @@ html.drawer-page, html.drawer-page body, html.drawer-page #root { background: tr
 .card-summary { margin: 0; font-size: var(--pc-type-meta); color: var(--pc-text-muted); line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; text-align: left; }
 .svc-summary { margin: var(--pc-space-1) 0 var(--pc-space-2); color: var(--pc-text-muted); max-width: 72ch; }
 .svc-tools { display: flex; flex-wrap: wrap; align-items: center; gap: var(--pc-space-1) var(--pc-space-2); margin: var(--pc-space-2) 0 var(--pc-space-3); }
-.tool-chip { font-size: var(--pc-type-meta); padding: 1px var(--pc-space-2); border: 1px solid var(--pc-border); border-radius: var(--pc-radius-control); color: var(--pc-text); background: transparent; }
+.tool-chip { font-size: var(--pc-type-meta); padding: 1px var(--pc-space-2); border: 1px solid var(--pc-border); border-radius: var(--pc-radius-pill); /* VIS-20: the .chip shape */ color: var(--pc-text); background: transparent; }
 .card-members { font-size: var(--pc-type-meta); color: var(--pc-text-muted); display: flex; flex-wrap: wrap; gap: var(--pc-space-2); }
 .tabs { display: flex; gap: var(--pc-space-1); padding: 0 var(--pc-space-6); border-bottom: 1px solid var(--pc-border); }
 .tab { border: 0; background: transparent; padding: var(--pc-space-2) var(--pc-space-3); cursor: pointer; border-bottom: 2px solid transparent; color: var(--pc-text-muted); }
@@ -320,7 +320,12 @@ pre.log { background: var(--pc-panel); border: 1px solid var(--pc-border); borde
 
 /* activity */
 .filters { display: flex; gap: var(--pc-space-2); margin-bottom: var(--pc-space-4); }
-select, input[type='time'] { background: var(--pc-panel); border: 1px solid var(--pc-border-strong); border-radius: var(--pc-radius-control); padding: 0 var(--pc-space-2); min-height: 32px; }
+select, input[type='time'], input[type='text'] { background: var(--pc-panel); border: 1px solid var(--pc-border-strong); border-radius: var(--pc-radius-control); padding: 0 var(--pc-space-2); min-height: 32px; color: var(--pc-text); font: inherit; }
+/* VIS-21 (FD-129): a value the field refuses is marked on the field, not only in the message under it. */
+input[aria-invalid='true'] { border-color: var(--pc-negative); }
+/* UX-20 (FD-129): the Settings index, and the notification rows of hidden agents folded under their count. */
+.settings-index { display: flex; flex-wrap: wrap; gap: var(--pc-space-1) var(--pc-space-3); }
+.settings-hidden > summary { cursor: pointer; color: var(--pc-text-muted); font-size: var(--pc-type-meta); margin-top: var(--pc-space-2); }
 .feed { list-style: none; margin: 0; padding: 0; }
 .day { font-size: var(--pc-type-meta); color: var(--pc-text-muted); margin: var(--pc-space-4) 0 var(--pc-space-2); }
 .feed-row {

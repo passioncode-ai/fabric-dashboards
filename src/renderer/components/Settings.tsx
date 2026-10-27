@@ -4,6 +4,7 @@ import type { AppStatus, Listener, Settings as SettingsValue } from '../../core/
 import { api, nameOf, Spinner, useT } from '../lib';
 import { REFERENCE_THEMES } from '../../core/appearance';
 import { revealScrollTop } from '../../core/layout';
+import { productIdOf } from '../../core/products';
 
 export function Settings({ status, onTheme, onLanguage, onSetup, section, nonce }: { status: AppStatus; onTheme: (theme: SettingsValue['theme']) => void; onLanguage: () => void;
   /** FD-39 SCN-058: the Setup console stays reachable after the card is hidden. */
@@ -59,6 +60,12 @@ export function Settings({ status, onTheme, onLanguage, onSetup, section, nonce 
 
   return (
     <div className="settings">
+      {/* UX-20 (FD-129): a page of nine groups gets an index; each entry brings its group into view. */}
+      <nav className="settings-index" aria-label={t('settings.index')}>
+        {SECTIONS.filter((x) => x.id !== 'g-setup' || onSetup).map((x) => (
+          <button key={x.id} type="button" className="btn-link btn" onClick={() => { const h = document.getElementById(x.id); h?.scrollIntoView({ block: 'start' }); h?.setAttribute('tabindex', '-1'); h?.focus({ preventScroll: true }); }}>{x.id === 'g-app' ? t('app.name') : t(x.label)}</button>
+        ))}
+      </nav>
       <section className="group" aria-labelledby="g-app">
         <h2 id="g-app">{t('app.name')}</h2>
         <label className="setting">{t('settings.launchAtLogin')}
@@ -162,11 +169,16 @@ export function Settings({ status, onTheme, onLanguage, onSetup, section, nonce 
             : <button className="btn" onClick={() => setN({ pausedUntil: new Date(Date.now() + 3600_000).toISOString() })}>{t('settings.pause')}</button>}
         </div>
         <AlertChannel status={status} choice={n.channel} onChoose={(channel) => setN({ channel })} />
-        {status.services.length > 0 && (
+        {(() => {
+          // UX-20 (FD-129): agents the person hid from the sidebar fold here too; they still alert, so they stay listed.
+          const hiddenIds = new Set(value.layout.list.hidden);
+          const shown = status.services.filter((s) => !hiddenIds.has(productIdOf(s.key)));
+          const folded = status.services.filter((s) => hiddenIds.has(productIdOf(s.key)));
+          const table = (rows: typeof status.services) => (
           <table>
             <thead><tr><th>{t('settings.perService')}</th><th>{t('settings.notifications.enabled')}</th><th>{t('settings.minLevel')}</th></tr></thead>
             <tbody>
-              {status.services.map((s) => {
+              {rows.map((s) => {
                 const per = n.perService[s.key] ?? { enabled: true, minLevel: 'notice' as const };
                 const set = (p: Partial<typeof per>) => setN({ perService: { ...n.perService, [s.key]: { ...per, ...p } } });
                 return (
@@ -185,7 +197,14 @@ export function Settings({ status, onTheme, onLanguage, onSetup, section, nonce 
               })}
             </tbody>
           </table>
-        )}
+          );
+          return (
+            <>
+              {shown.length > 0 && table(shown)}
+              {folded.length > 0 && <details className="settings-hidden"><summary>{t('nav.hidden', { count: folded.length })}</summary>{table(folded)}</details>}
+            </>
+          );
+        })()}
       </section>
 
       <section className="group" aria-labelledby="g-folder">
@@ -204,13 +223,6 @@ export function Settings({ status, onTheme, onLanguage, onSetup, section, nonce 
         </section>
       )}
 
-      <section className="group" aria-labelledby="g-uninstall">
-        <h2 id="g-uninstall">{t('settings.uninstall')}</h2>
-        <p className="meta">{t('settings.uninstall.body')}</p>
-        {uninstallError && <p className="notice error" role="alert">{uninstallError}</p>}
-        <div><button className="btn btn-danger" onClick={() => void api().uninstall().then((r) => setUninstallError(r.ok || r.cancelled ? '' : r.error ?? ''))}>{t('settings.uninstall.action')}</button></div>
-      </section>
-
       <section className="group" aria-labelledby="g-listeners">
         <h2 id="g-listeners">{t('settings.listeners')}</h2>
         <p className="meta">{t('settings.listeners.body')}</p>
@@ -225,9 +237,30 @@ export function Settings({ status, onTheme, onLanguage, onSetup, section, nonce 
         )}
         <div><button className="btn" onClick={() => { setListeners(null); void api().listeners().then(setListeners); }}>{t('settings.listeners.scan')}</button></div>
       </section>
+
+      {/* VIS-21 (FD-129): the one destructive group comes last. */}
+      <section className="group" aria-labelledby="g-uninstall">
+        <h2 id="g-uninstall">{t('settings.uninstall')}</h2>
+        <p className="meta">{t('settings.uninstall.body')}</p>
+        {uninstallError && <p className="notice error" role="alert">{uninstallError}</p>}
+        <div><button className="btn btn-danger" onClick={() => void api().uninstall().then((r) => setUninstallError(r.ok || r.cancelled ? '' : r.error ?? ''))}>{t('settings.uninstall.action')}</button></div>
+      </section>
     </div>
   );
 }
+
+/** UX-20: the index's entries, in the page's order; their labels are the groups' own headings. */
+const SECTIONS = [
+  { id: 'g-app', label: 'app.name' },
+  { id: 'g-sessions', label: 'settings.sessions' },
+  { id: 'g-updates', label: 'settings.updates' },
+  { id: 'g-estate', label: 'settings.estate' },
+  { id: 'g-notify', label: 'settings.notifications' },
+  { id: 'g-folder', label: 'settings.folder' },
+  { id: 'g-setup', label: 'settings.setup' },
+  { id: 'g-listeners', label: 'settings.listeners' },
+  { id: 'g-uninstall', label: 'settings.uninstall' },
+] as const;
 
 /** Where the self-update stands, with the one action that state needs (ADR-0015). */
 function UpdateState({ status }: { status: AppStatus }) {
