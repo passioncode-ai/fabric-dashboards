@@ -1550,20 +1550,21 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 ### SCN-062: Outages reach me away from the Mac
 - **Persona:** P-01
 - **Feature:** notifications
-- **Traces:** ST-002 (JTBD-01); ADR-0010 amendments 2026-10-11 (FD-48) and 2026-10-19 (FD-76); operator decisions 2026-10-11 and 2026-10-19 (the Telegram rule)
+- **Traces:** ST-002 (JTBD-01); ADR-0010 amendments 2026-10-11 (FD-48), 2026-10-19 (FD-76) and 2026-10-27 (FD-125); operator decisions 2026-10-11 and 2026-10-19 (the Telegram rule), 2026-10-25 and 2026-10-27 (a decision an agent waits for, relayed by growth `482a8030`)
 - **Entry point:** nothing — the watcher acts; Settings → Notifications → Also send outages to
 - **Preconditions:** an installed agent offers a notify capability (for example the person's Telegram channel)
 - **Steps:**
   1. An agent stops answering and stays so for 15 minutes -> one message reaches the channel: "<Agent> is down" with how long and why
   2. The agent works again and keeps working for 15 minutes -> one more message: "<Agent> is back", after how many minutes
-  3. User opens Settings → Notifications -> Also send outages to: Automatic (<channel>), the agents that offer it, Off; under it what it does and the last delivery ("Last sent HH:MM: …" or "Sending failed HH:MM: …")
-- **Expected result:** an outage longer than fifteen minutes is known wherever the person is, once, and its end too; nothing routine reaches the channel
+  3. An agent asks for the operator's decision (an events-feed row with `notify` whose kind asks for one: an approval, a choice, a decision owed, a guardrail stop) -> one message reaches the channel: "<Agent> waits for your decision", the agent's own words and "Open in Fabric Dashboards: <link>" to the page it names; the same question is not sent again for a day; during a pause, quiet hours or with the agent muted it waits until they allow it (FD-125)
+  4. User opens Settings → Notifications -> Also send outages to: Automatic (<channel>), the agents that offer it, Off; under it what it does and the last delivery ("Last sent HH:MM: …" or "Sending failed HH:MM: …")
+- **Expected result:** an outage longer than fifteen minutes is known wherever the person is, once, and its end too; so is every decision an agent waits for; nothing routine reaches the channel
 - **Alt paths:** shorter than 15 minutes -> nothing is sent (the Mac banner of ADR-0008 still shows after a minute), and nothing later either: an agent that is well again when its fifteen minutes come round sends neither "down" nor "back" (0.7.16); the agent falls again within 15 minutes of coming back -> the same outage, no new message; while it is down a part of it fails ("<Agent>: <part> is failing") -> still the same outage, no "back"; an agent that answers but reports a failing part, or a setup state -> shown on this Mac only; the person paused notifications, is in quiet hours or switched the agent off -> nothing is sent for it, nor its recovery; no agent offers the capability -> Settings says outages are shown on this Mac only; several do -> Settings asks to choose; an events-feed failure or warning banner -> shown on this Mac only (FD-76)
 - **UI elements:** Settings → Notifications: Also send outages to (select), its help line and its last-delivery line
 - **States covered:** success, error, empty
 - **Errors & recovery:** the channel does not answer -> retried every minute, at most five times; the last failure shows in Settings with its reason; the app's log has `alerts:` lines
 - **Status:** validated
-- **Coverage:** src/core/outage-alerts.ts, src/core/mcp-client.ts, src/electron/outage-alerts.ts, src/electron/main.ts (outage-alerts), src/renderer/components/Settings.tsx (AlertChannel), test/outage-alerts.test.ts
+- **Coverage:** src/core/outage-alerts.ts, src/core/mcp-client.ts, src/electron/outage-alerts.ts, src/electron/main.ts (outage-alerts), src/renderer/components/Settings.tsx (AlertChannel), src/core/notify.ts (intentOf), test/outage-alerts.test.ts, test/operator-asks.test.ts *FD-125*
 - **Product:** observed 2026-10-12 on this Mac: 22 failure alerts sent 5.0–5.4 min after an outage began, none for the 34 shorter episodes (FD-01). FD-76 (2026-10-19): the installed 0.7.14 had sent 798 messages in 8 days (311 outages, 309 recoveries, 203 banners); the 15-minute rule, one case per outage and Mac-only banners are counted on a fake clock by `test/outage-alerts.test.ts`, the live count is owed after the release
 
 ## sessions
