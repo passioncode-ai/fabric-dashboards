@@ -414,7 +414,7 @@ if (!app.requestSingleInstanceLock()) {
   };
   app.on('did-resign-active', () => setTimeout(() => { syncSight(); void probeSight(); }, 500));
   app.on('did-become-active', () => setTimeout(() => { syncSight(); void probeSight(); }, 500));
-  const visibilityTick = setInterval(() => { syncVisibility(); syncSight(); }, VISIBILITY_SYNC_MS);
+  const visibilityTick = setInterval(() => { syncVisibility(); syncSight(); recheckDock(); }, VISIBILITY_SYNC_MS);
   visibilityTick.unref();
   const sightTick = setInterval(() => void probeSight(), OCCLUSION_PROBE_MS);
   sightTick.unref();
@@ -443,6 +443,14 @@ if (!app.requestSingleInstanceLock()) {
   const dockSync = new DockSync(app.dock);
   function syncDock(visible: boolean): void {
     void dockSync.want(visible).then((ok) => { if (!ok && !visible) log('dock_hide failed: the Dock still shows the icon after the window hid'); });
+  }
+  /** FD-35 follow-up: a hide that gave up is asked again on the slow tick while the window stays hidden. */
+  function recheckDock(): void {
+    if (windowVisible()) return;
+    void dockSync.recheck().then((ok) => {
+      if (ok === true) log('dock_hide recovered: the icon left the Dock on a later pass');
+      else if (ok === false) log('dock_hide failed again on a later pass');
+    });
   }
 
   function showWindow(inactive = false): BrowserWindow {

@@ -3,7 +3,7 @@
 // settling is dropped, so one hide() call left the icon in the Dock for good.
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { DockSync, type DockApi } from '../src/electron/dock';
+import { DOCK_RECHECKS, DockSync, type DockApi } from '../src/electron/dock';
 
 class FakeDock implements DockApi {
   visible = true;
@@ -111,4 +111,38 @@ test('no Dock (not macOS): nothing to do, and that is not a failure', async () =
   const sync = new DockSync(undefined, noWait);
   assert.equal(await sync.want(false), true);
   assert.equal(await sync.want(true), true);
+});
+
+test('FD-35 follow-up: a hide that gave up is asked again on later passes, at most DOCK_RECHECKS times', async () => {
+  const dock = new FakeDock();
+  dock.dropHides = 1000; // macOS drops every hide for now
+  const sync = new DockSync(dock, noWait, { tries: 2 });
+  assert.equal(await sync.want(false), false, 'the first hide gives up');
+  assert.equal(await sync.recheck(), false, 'a later pass still fails');
+  dock.dropHides = 0; // the Dock settles
+  assert.equal(await sync.recheck(), true, 'a later pass takes it out');
+  assert.equal(dock.isVisible(), false);
+  assert.equal(await sync.recheck(), null, 'nothing left to do once hidden');
+});
+
+test('FD-35 follow-up: recheck stops after DOCK_RECHECKS passes and starts again with the next wish', async () => {
+  const dock = new FakeDock();
+  dock.dropHides = 1000;
+  const sync = new DockSync(dock, noWait, { tries: 1 });
+  await sync.want(false);
+  for (let i = 0; i < DOCK_RECHECKS; i += 1) assert.equal(await sync.recheck(), false);
+  assert.equal(await sync.recheck(), null, 'given up until the next show or hide');
+  const hides = dock.hides;
+  await sync.want(false);
+  assert.equal(dock.hides, hides + 1, 'a new wish asks again');
+  assert.equal(await sync.recheck(), false, 'and earns its own later passes');
+});
+
+test('FD-35 follow-up: a window shown, or hidden by the person with ⌘H (no hide wished), keeps its icon', async () => {
+  const dock = new FakeDock();
+  const sync = new DockSync(dock, noWait);
+  assert.equal(await sync.recheck(), null, 'no hide was wished');
+  assert.equal(dock.hides, 0);
+  const off = new DockSync(undefined, noWait);
+  assert.equal(await off.recheck(), null, 'no Dock off macOS');
 });
