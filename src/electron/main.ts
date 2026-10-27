@@ -7,6 +7,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { ActivityStore } from '../core/activity';
+import { parseWindows, sightOf, windowNumberOf, WINDOW_LIST_JXA, type Sight } from '../core/occlusion';
 import { CHANNELS, type DrawerChange, type DrawerState, type NavTarget, type Rect } from '../core/api';
 import { sessionNotification } from '../core/sessions-notice';
 import { commandEnv, killOwned, ownedCount, runOwned } from '../core/children';
@@ -37,7 +38,7 @@ import { powerShellAfterExit } from '../core/after-exit';
 import { rendererSettingsPatch, SettingsStore } from '../core/settings';
 import type { AppStatus, Settings, SettingsPatch } from '../core/types';
 import { ALWAYS_KEPT, cancelStagedUpdate, clearRestoreRecord, KEPT_FILES, productDataPaths, purgeAfterExit, readRestoreRecord, removeMcpRegistrations, repairMcpRegistrations, restoreMcpRegistrations, writeRestoreRecord } from '../core/uninstall';
-import { autoInstallNow, autoInstallWait, cookieRewrite, inSight, onScreen, resumeBehind, COOKIES_REENCRYPTED_MARKER, HiddenGrace, partitionFor, RELAUNCH_MARKER, relaunchHidden, RESUME_ROUTE_MARKER, resumeRoute, type ResumeRoute, stalePartitions, UPDATE_IDLE_MS, VIEW_RELEASE_ALL_MS, VIEW_RELEASE_GRACE_MS, VISIBILITY_SYNC_MS, VisibilitySync, WARM_VIEWS } from './policy';
+import { autoInstallNow, autoInstallWait, cookieRewrite, inSight, OCCLUSION_PROBE_MS, onScreen, resumeBehind, COOKIES_REENCRYPTED_MARKER, HiddenGrace, partitionFor, RELAUNCH_MARKER, relaunchHidden, RESUME_ROUTE_MARKER, resumeRoute, type ResumeRoute, stalePartitions, UPDATE_IDLE_MS, VIEW_RELEASE_ALL_MS, VIEW_RELEASE_GRACE_MS, VISIBILITY_SYNC_MS, VisibilitySync, WARM_VIEWS } from './policy';
 import { AppTray } from './tray';
 import { DockSync } from './dock';
 import { linkInArgv, menuKeys, modeMenuItems, notificationSettingsUrl, places, startHidden, uninstallCommand, uninstallTarget, windowChrome } from '../core/platform';
@@ -253,12 +254,10 @@ if (!app.requestSingleInstanceLock()) {
   // FD-80: a window of a hidden app (⌘H, or hidden by another program) is not on screen, whatever isVisible() says;
   // measured 2026-10-21: System Events hid the app and Electron still reported the window visible for an hour.
   const windowVisible = () => onScreen({ exists: Boolean(window && !window.isDestroyed()), visible: Boolean(window && !window.isDestroyed() && window.isVisible()), minimized: Boolean(window && !window.isDestroyed() && window.isMinimized()), appHidden: process.platform === 'darwin' && app.isHidden() });
-  // FD-80: on screen and not covered by other windows (macOS occlusion, read from the page's visibility state).
-  const pageVisibility = (): string | null => {
-    if (process.platform !== 'darwin' || !window || window.isDestroyed()) return null;
-    try { return window.webContents.mainFrame?.visibilityState ?? null; } catch { return null; }
-  };
-  const windowSeen = () => inSight(windowVisible(), pageVisibility());
+  // FD-80: on screen and neither covered by other windows nor on another Space, from macOS's window list; read only
+  // while an update waits for the window (`probeSight`), unknown otherwise.
+  let occlusion: Sight | null = null;
+  const windowSeen = () => inSight(windowVisible(), occlusion);
   function pushStatus(): void {
     if (pushTimer) return;
     pushTimer = setTimeout(() => {
@@ -394,11 +393,31 @@ if (!app.requestSingleInstanceLock()) {
   app.on('did-become-active', () => setTimeout(syncVisibility, 500));
   // FD-80: covering and uncovering the window fire no event either; only the update's grace follows it.
   const sight = new VisibilitySync(windowSeen, () => { updateGrace.shown(); if (busyRetry) { clearTimeout(busyRetry); busyRetry = null; } }, () => updateGrace.hidden(), false);
-  const syncSight = () => { if (sight.sync() && windowVisible()) log(`window ${windowSeen() ? 'uncovered' : 'covered by other windows'} (FD-80)`); };
-  app.on('did-resign-active', () => setTimeout(syncSight, 500));
-  app.on('did-become-active', () => setTimeout(syncSight, 500));
+  const syncSight = () => { if (sight.sync() && windowVisible()) log(`window ${windowSeen() ? 'in sight again' : occlusion === 'off-screen' ? 'on another Space' : 'covered by other windows'} (FD-80)`); };
+  // FD-80: the window list is read only while an update waits with the window on screen and installing by itself is
+  // on: one osascript a minute (~0.1 s), never otherwise; anything else leaves the sight unknown, as before.
+  let probing = false;
+  const probeSight = async () => {
+    const wants = process.platform === 'darwin' && updater.state.state === 'ready' && settings.get().autoUpdate && windowVisible() && window && !window.isDestroyed();
+    if (!wants) { if (occlusion !== null) { occlusion = null; syncSight(); } return; }
+    if (probing) return;
+    probing = true;
+    try {
+      const r = await runOwned('/usr/bin/osascript', ['-l', 'JavaScript', '-e', WINDOW_LIST_JXA], { timeoutMs: 5_000, env: commandEnv() });
+      const next = r.code === 0 ? sightOf(parseWindows((r.stdout ?? r.output).trim()), window && !window.isDestroyed() ? windowNumberOf(window.getMediaSourceId()) : null) : null;
+      if (next !== occlusion) { occlusion = next; syncSight(); }
+    } catch {
+      occlusion = null;
+    } finally {
+      probing = false;
+    }
+  };
+  app.on('did-resign-active', () => setTimeout(() => { syncSight(); void probeSight(); }, 500));
+  app.on('did-become-active', () => setTimeout(() => { syncSight(); void probeSight(); }, 500));
   const visibilityTick = setInterval(() => { syncVisibility(); syncSight(); }, VISIBILITY_SYNC_MS);
   visibilityTick.unref();
+  const sightTick = setInterval(() => void probeSight(), OCCLUSION_PROBE_MS);
+  sightTick.unref();
   // FD-62 (SB-108): hand-overs Switchboard leaves for a console — every 15 s while the window is shown, every
   // 60 s while it is hidden, nothing without Switchboard (ConsoleHost.pollHandovers). FD-83: limit stops too.
   let handoverTimer: NodeJS.Timeout | null = null;
@@ -949,6 +968,7 @@ if (!app.requestSingleInstanceLock()) {
     viewGraceAll.dispose();
     updateGrace.dispose();
     clearInterval(visibilityTick); // FD-64
+    clearInterval(sightTick); // FD-80
     if (handoverTimer) clearTimeout(handoverTimer); handoverTimer = null; // FD-62: no read after quit begins
     // #region estate-update — docs: docs/adr/0018-estate-updates-from-inside-the-app.md#decision
     estate.stop(); // ADR-0018: no estate check or retry past this point

@@ -80,7 +80,9 @@ What already held, and stays:
      marker younger than 10 min makes the next start hidden.
    - **What never triggers it:** a visible window, or a command in flight. A busy app retries a
      minute later. Amended 2026-10-27 (FD-80): on macOS a window fully covered by other windows is not
-     visible for this rule (its page reports `hidden`, `inSight` in `src/electron/policy.ts`); 0.8.7 waited
+     visible for this rule, nor is one on another Space: macOS's list of on-screen windows says so, read once a
+     minute while an update waits (`sightOf`, `src/core/occlusion.ts`; `inSight`, `src/electron/policy.ts`), since
+     Electron's Page Visibility does not track it (measured 2026-10-27: `visible` under a screen-saver-level window); 0.8.7 waited
      nine hours behind other windows. The install then writes the resume route marked `behind` instead of
      `.relaunch-hidden`, and the next copy shows the window on that screen without taking the focus.
    - **With the setting off:** the update installs on quit or on Restart, as in 0.5.3.

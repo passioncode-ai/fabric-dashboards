@@ -23,6 +23,10 @@
 
 ### Fixed
 
+- **Updates no longer wait behind other windows** (FD-80). On a Mac, a ready update waited as long as the window was
+  open, even when other windows covered it completely or it sat on another desktop (0.8.7 waited nine hours). Now a
+  window covered, or on another desktop, for ten minutes counts as out of sight: the update installs, and the window
+  comes back where it was, behind your work.
 - **An agent's row menu stays inside the window.** With a long agent name, the menu ran off the left edge and cut
   its items short. It now fits the sidebar and wraps a long item onto a second line.
 - **Calmer, more even pages** (FD-113). An available update of the skills or of the contract copy reads in blue, not red
@@ -40,9 +44,6 @@
 
 ### Fixed
 
-- **Updates no longer wait behind other windows** (FD-80). On a Mac, a ready update waited as long as the window was
-  open, even when other windows covered it completely (0.8.7 waited nine hours). Now a window covered for ten minutes
-  counts as out of sight: the update installs, and the window comes back where it was, behind your work.
 - **A screen reader names every box on the Connections map** (FD-113 VIS-07). The map was one image, which hid the
   agents inside it; it is now a group of named buttons, and a name cut short on screen is read in full.
 - **A screen reader reads what an agent card shows** (FD-113 VIS-11): after the name and state, the figures flagged

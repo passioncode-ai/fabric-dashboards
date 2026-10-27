@@ -172,14 +172,17 @@ export function onScreen(w: { exists: boolean; visible: boolean; minimized: bool
   return w.exists && w.visible && !w.minimized && !w.appHidden;
 }
 
-/** FD-80: whether the person can see the window. On macOS a window fully covered by others (or, as Chromium reports
- *  it, on another Space) is on screen for `onScreen` and still unseen: its page reads `hidden` (Electron's Page
- *  Visibility, macOS occlusion; `backgroundThrottling` is left on for that). Only the automatic install asks this:
- *  the monitor's cadence and the dashboards' release keep `onScreen`, so a covered window keeps its live pages.
- *  0.8.7 waited nine hours on this Mac with its window open behind others. */
-export function inSight(onScreenNow: boolean, pageVisibility: string | null): boolean {
-  return onScreenNow && pageVisibility !== 'hidden';
+/** FD-80: whether the person can see the window. On macOS a window fully covered by others, or on another Space, is
+ *  on screen for `onScreen` and still unseen: macOS's list of on-screen windows says so (`sightOf`,
+ *  `src/core/occlusion.ts`); Electron's Page Visibility does not (measured 2026-10-27). Only the automatic install asks
+ *  this: the monitor's cadence and the dashboards' release keep `onScreen`, so a covered window keeps its live pages.
+ *  0.8.7 waited nine hours on this Mac with its window open behind others. Unknown (null) decides nothing. */
+export function inSight(onScreenNow: boolean, sight: 'visible' | 'covered' | 'off-screen' | null): boolean {
+  return onScreenNow && sight !== 'covered' && sight !== 'off-screen';
 }
+
+/** FD-80: how often the window list is read while an update waits with the window on screen (one osascript, ~0.1 s). */
+export const OCCLUSION_PROBE_MS = 60_000;
 
 export class VisibilitySync {
   private last: boolean;
