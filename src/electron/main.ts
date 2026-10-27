@@ -789,7 +789,7 @@ if (!app.requestSingleInstanceLock()) {
       const choosing = 'launchAtLogin' in patch;
       const before = settings.get().autoUpdate;
       const next = settings.update(choosing ? { ...patch, launchAtLoginAsked: true } : patch);
-      if (patch.layout?.list) monitor.listChanged(); // FD-123: who is turned off takes effect at once
+      if (patch.layout?.list) { monitor.listChanged(); pushStatus(); } // FD-123: who is off takes effect at once; FD-129: the tray drops a hidden agent
       if (patch.notifications) schedulePauseEnd(); // U-7: a pause set here also rebuilds the tray when it ends
       if (typeof patch.autoUpdate === 'boolean' && patch.autoUpdate !== before) updater.switched(patch.autoUpdate); // LC-16 auto_update on|off
       // #region estate-update — docs: docs/adr/0018-estate-updates-from-inside-the-app.md#decision
@@ -1022,6 +1022,7 @@ if (!app.requestSingleInstanceLock()) {
       resume: () => { settings.update({ notifications: { ...settings.get().notifications, pausedUntil: null } }); pushStatus(); },
       paused: () => { const p = settings.get().notifications.pausedUntil; return Boolean(p && new Date(p) > new Date()); },
       quit: () => void quitAsked(), // the menu itself says quitting stops no service (LC-07)
+      hidden: () => settings.get().layout.list.hidden,
     }, lang);
     monitor.on('change', pushStatus);
     monitor.on('change', () => alerts.tick());

@@ -578,14 +578,14 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **Preconditions:** app running (window may be closed; while it is closed the app has no Dock icon and lives in the menu bar only)
 - **Steps:**
   1. User looks at the icon -> it shows one of three states: calm (nothing degraded, starting or wrong; a service you turned off keeps it calm), something degraded or starting, something down or wrong; the Dock icon, while shown, carries the Needs attention count as a number, the same count as the menu's first line, Overview's Needs attention and the sidebar badge (`badgeText` over `attentionQueue`, src/electron/main.ts pushStatus), and no badge when nothing needs attention
-  2. User clicks it -> the menu starts with a line "Needs attention: 2" (the same count as Overview's Needs attention, the sidebar badge and the Dock), "Ready: 5 of 7" or "All agents ready", lists what needs attention first ("Growth: spending limit stopped work", "Relay: update 2.0.0 available"), then every service with its state and instance ("● Growth · projection: Ready", src/core/tray-model.ts); items Open Fabric Dashboards, Pause notifications for 1 hour (Resume notifications while paused; the menu updates when a pause set here or in Settings ends), the line "Quitting Dashboards does not stop your agents.", Quit
+  2. User clicks it -> the menu starts with a line "Needs attention: 2" (the same count as Overview's Needs attention, the sidebar badge and the Dock), "Ready: 5 of 7" or "All agents ready", lists what needs attention first ("Growth: spending limit stopped work", "Relay: update 2.0.0 available"), then every other agent the person has not hidden, with its state and instance ("● Growth · projection: Ready", src/core/tray-model.ts; a hidden agent that needs attention stays in the first part, FD-129 UX-19); items Open Fabric Dashboards, Pause notifications for 1 hour (Resume notifications while paused; the menu updates when a pause set here or in Settings ends), the line "Quitting Dashboards does not stop your agents.", Quit
   3. User chooses a service -> the window opens at its view, and the Dock icon comes back with it
 - **Expected result:** the state is known without opening the window
 - **UI elements:** menu bar icon, tray menu, service items, Pause notifications item; from 0.8.0, while a coding session runs or needs the person, a line "Sessions: running N, need you M" under the headline that opens the Sessions mode (SCN-085)
 - **States covered:** success, error
 - **Errors & recovery:** nothing can fail in the menu; quitting leaves every service running and the menu says so above Quit — no dialog on the way out, except when an agent's console session or a command the app started is running: then Quit names them and asks (Cancel keeps them; ADR-0017 amendment 2026-10-07)
 - **Status:** validated
-- **Coverage:** src/electron/tray.ts, src/core/tray-model.ts, src/core/attention.ts (`attentionQueue`, `badgeText`), src/electron/main.ts (`syncDock`, pushStatus), test/attention-queue.test.ts, test/e2e/spend.test.ts
+- **Coverage:** src/electron/tray.ts, src/core/tray-model.ts, src/core/attention.ts (`attentionQueue`, `badgeText`), src/electron/main.ts (`syncDock`, pushStatus), test/attention-queue.test.ts, test/e2e/spend.test.ts (*FD-129 (UX-19)* for hidden agents)
 - **Product:** unobserved
 
 ## settings
