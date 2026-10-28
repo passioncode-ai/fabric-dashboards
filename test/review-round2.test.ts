@@ -422,7 +422,7 @@ test('V-5: an ended row whose console holds nothing after a restart says that ou
   assert.equal(row.consoleEmpty, true);
   assert.equal(hasConsole(row), false, 'no empty console under the header');
   const html = renderToStaticMarkup(React.createElement(LangContext.Provider, { value: 'en' }, React.createElement(SessionBody, { row })));
-  assert.match(html, /What this session printed is not kept after the app restarts\./);
+  assert.match(html, /Nothing this session printed was kept\./);
 });
 
 test('V-6: a session running in Terminal offers Show in Finder for its folder', () => {

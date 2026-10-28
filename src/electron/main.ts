@@ -161,7 +161,7 @@ if (!app.requestSingleInstanceLock()) {
   let lastSetupCheck: SetupCheckResult | null = null;
   let setupCheckRun: Promise<SetupCheckResult> | null = null;
   const consoles = new ConsoleHost({ settings, snapshot: (key) => monitor.snapshot(key), window: () => window, drawer: () => drawer?.contents() ?? null, visible: () => windowVisible(), log: (line) => log(line), testDirs: testRuntimeDirs, scriptsDir: path.join(userData, 'console'),
-    packRoot: path.join(userData, 'consoles'), version: app.getVersion(), activity: (key) => activity.list({ serviceKey: key }, 200), mcpServer,
+    packRoot: path.join(userData, 'consoles'), keptDir: path.join(userData, 'console-output'), version: app.getVersion(), activity: (key) => activity.list({ serviceKey: key }, 200), mcpServer,
     setupState: () => readSetupState(os.homedir(), monitor.snapshots().length),
     doctor: () => (lastSetupCheck?.kind === 'report' ? lastSetupCheck.report : null),
     keys: () => monitor.snapshots().map((x) => x.key), changed: () => pushStatus(),

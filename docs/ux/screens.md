@@ -250,7 +250,7 @@
   | terminal | it runs in a Terminal window Switchboard opened | none | no console; "This session runs in a Terminal window that Switchboard opened. Type to it there." |
   | waiting | it waits for a limit reset | none | no console; a panel: when Switchboard tries it again, Continue now or "Do not continue", its folder and when it stopped (FD-107) |
   | not opened | a hand-over that could not open here | none | no console; a panel: where it is and that Remove takes it off the list (FD-107) |
-  | empty | an ended session after the app restarted | none | "What this session printed is not kept after the app restarts." with Continue and Remove |
+  | empty | an ended session whose output was not kept (FD-124: Terminal, nothing printed, or replaced by a later session) | none | "Nothing this session printed was kept." with Continue and Remove |
   | error | the console cannot start (SCN-063), the session cannot be ended, or the continue is refused | none | the reason in the console's place or beside the action; the state's actions stay |
   | gone | the session left the list while open | none | All sessions opens instead (UX-18) |
 - **Coverage:** src/renderer/components/Sessions.tsx (SessionHeader, SessionBody), src/renderer/App.tsx, src/electron/drawer.ts, src/core/layout.ts (`drawerBoundsFor`), src/renderer/components/ConsolePanel.tsx (page mode); test/sessions-ui.test.ts, test/sessions-polish.test.ts; docs/reports/2026-10-24-ui-ux-iteration/shots/
