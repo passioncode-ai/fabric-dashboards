@@ -87,6 +87,25 @@ function killGroup(child: ChildProcess, graceMs: number): Promise<void> {
   });
 }
 
+// #region windows-batch — docs: docs/backlog.md
+/** FD-133: Node refuses to start a `.cmd` or `.bat` file without a shell on Windows (`spawn EINVAL`, CVE-2024-27980), so
+ *  `npx.cmd` (Check setup, MCP `setup_check`) never ran there. Such a file runs through cmd.exe with the line quoted as
+ *  cmd reads it; an argument cmd could read as an operator or a variable is refused, never escaped by guesswork. */
+const BATCH = /\.(cmd|bat)$/i;
+const CMD_SPECIAL = /["%^&|<>!\r\n]/;
+
+export type BatchCommand = { command: string; args: string[]; verbatim: boolean } | { refused: string };
+
+export function batchCommand(command: string, args: string[], o: { windows: boolean; comspec?: string }): BatchCommand {
+  if (!o.windows || !BATCH.test(command)) return { command, args, verbatim: false };
+  const bad = [command, ...args].find((a) => CMD_SPECIAL.test(a));
+  if (bad !== undefined) return { refused: `a batch file's argument holds a character cmd.exe would read: ${JSON.stringify(bad).slice(0, 80)}` };
+  const quote = (a: string) => (a === '' || /\s/.test(a) ? `"${a}"` : a);
+  // cmd /s strips one pair of outer quotes, so the whole line is quoted once more (as the MCP launcher is started).
+  return { command: o.comspec || 'cmd.exe', args: ['/d', '/s', '/c', `"${[`"${command}"`, ...args.map(quote)].join(' ')}"`], verbatim: true };
+}
+// #endregion windows-batch
+
 /** Run `command args` in its own process group, with the descriptor-safe environment. */
 export function runOwned(command: string, args: string[], o: OwnedOptions): Promise<OwnedResult> {
   const maxBuffer = o.maxBuffer ?? 8 * 1024 * 1024;
@@ -95,8 +114,10 @@ export function runOwned(command: string, args: string[], o: OwnedOptions): Prom
     try {
       // POSIX: its own process group (detached). Windows: `detached` would open a console window; the
       // tree is followed by parent chain instead (killWindowsTree, killWindowsLeftovers).
-      child = spawn(command, args, WIN
-        ? { stdio: ['ignore', 'pipe', 'pipe'], env: o.env ?? commandEnv(), windowsHide: true }
+      const b = batchCommand(command, args, { windows: WIN, comspec: process.env.ComSpec });
+      if ('refused' in b) throw new Error(b.refused);
+      child = spawn(b.command, b.args, WIN
+        ? { stdio: ['ignore', 'pipe', 'pipe'], env: o.env ?? commandEnv(), windowsHide: true, windowsVerbatimArguments: b.verbatim }
         : { detached: true, stdio: ['ignore', 'pipe', 'pipe'], env: o.env ?? commandEnv() });
     } catch (error) {
       resolve({ code: null, output: (error as Error).message, timedOut: false, started: false, signal: null });

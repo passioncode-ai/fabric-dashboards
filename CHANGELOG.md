@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- Windows and Linux (FD-133, critical): the MCP server no longer starts copies of itself without end at the first tool
+  call. Electron's archive reader gives a file inside `app.asar` a new inode at every stat, so the server read itself as
+  replaced by an update and handed its session to a copy of itself, which did the same (Windows 10 acceptance
+  2026-10-28: 1,641 processes and 155 GB in six minutes on 0.8.9, reproduced 3 of 3 on 0.8.13). The check now reads the
+  archive itself through the real file system, and a server that took a session never hands it on. The release's
+  package check calls `tools/call list_services` on the packaged server and fails if it does not answer itself.
+- Windows (FD-133): Check setup and MCP `setup_check` run `npx.cmd` through cmd.exe; Node refused it without a shell
+  (`spawn EINVAL`).
+
 ## 0.8.15 - 2026-10-28
 
 Carries 0.8.14, tagged and not published: its release check failed on both Windows runners on a test that compared a

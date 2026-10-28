@@ -11,7 +11,7 @@ import type { StaleWatch } from '../src/mcp/stale';
 import { EventEmitter } from 'node:events';
 import { PassThrough } from 'node:stream';
 import type { ChildProcess } from 'node:child_process';
-import { HANDOVER_ID, launcherOf } from '../src/mcp/handover';
+import { HANDED_ENV, handedEnv, HANDOVER_ID, launcherOf, liveHandover } from '../src/mcp/handover';
 import * as tools from '../src/mcp/tools';
 import { tmp } from './helpers';
 
@@ -642,6 +642,23 @@ test('FD-109: a hand-over the new copy does not take answers the waiting call st
   assert.equal(s.lines.find((l) => l.id === 2)!.result!.structuredContent!.stale, true);
   await s.until(() => s.exited() !== null);
   assert.equal(s.exited(), 0);
+});
+
+test('FD-133: a server started by a hand-over never hands its session on, so servers cannot start each other without end', () => {
+  const dir = tmp('fd-handed-');
+  const resources = path.join(dir, 'resources');
+  fs.mkdirSync(path.join(resources, 'bin'), { recursive: true });
+  const launcher = path.join(resources, 'bin', process.platform === 'win32' ? 'fabric-dashboards-mcp.cmd' : 'fabric-dashboards-mcp');
+  fs.writeFileSync(launcher, '');
+  const from = path.join(resources, 'app.asar', 'out', 'main', 'mcp', 'server.js');
+  const started: string[] = [];
+  const start = (l: string) => { started.push(l); return {} as ChildProcess; };
+  assert.notEqual(liveHandover(from, {}, start)(), null, 'a server the client started hands over after an update');
+  assert.deepEqual(started, [launcher]);
+  assert.equal(liveHandover(from, { [HANDED_ENV]: '1' }, start)(), null, 'one that took a session answers stale instead');
+  assert.equal(started.length, 1);
+  assert.equal(handedEnv({ PATH: '/bin' })[HANDED_ENV], '1');
+  assert.equal(handedEnv({ PATH: '/bin' }).PATH, '/bin');
 });
 
 test('FD-109: no hand-over without a launcher or before the client initialized; the launcher sits beside app.asar on every system', async () => {

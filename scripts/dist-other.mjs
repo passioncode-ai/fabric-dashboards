@@ -187,10 +187,30 @@ function checks(appDir, t, version) {
   try {
     // cmd /s strips one pair of outer quotes, so the path (it has a space) is quoted twice.
     const [cmd, args] = t.platform === 'win32' ? [process.env.ComSpec || 'cmd.exe', ['/d', '/s', '/c', `""${launcher}""`]] : [launcher, []];
-    const hello = spawnSync(cmd, args, { input: '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}\n', encoding: 'utf8', timeout: 30_000, windowsHide: true, windowsVerbatimArguments: t.platform === 'win32', env: { ...process.env, FABRIC_SERVICES_DIR: services } });
-    const answer = (() => { try { return JSON.parse(hello.stdout.split('\n')[0]); } catch { return null; } })();
-    requireThat(answer?.result?.serverInfo?.version === version, `The packaged MCP launcher did not answer initialize: ${(hello.stderr || hello.stdout || String(hello.error)).slice(0, 400)}`);
-    out.mcpLauncher = `resources/bin/${t.launcher} answers initialize as ${answer.result.serverInfo.name} ${version}`;
+    // FD-133: initialize, then a tool call, as a coding agent's first step does. The packaged server must answer the call
+    // itself: 0.8.9 to 0.8.13 read themselves as replaced at the first call on Windows and Linux and handed the session to
+    // a copy of themselves, which did the same, without end (1,641 processes in six minutes on Windows 10).
+    const driver = path.join(services, 'drive.cjs');
+    writeFileSync(driver, `const { spawn } = require('node:child_process');
+const c = spawn(${JSON.stringify(cmd)}, ${JSON.stringify(args)}, { stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true, windowsVerbatimArguments: ${t.platform === 'win32'}, env: { ...process.env, FABRIC_SERVICES_DIR: ${JSON.stringify(services)} } });
+let out = '', err = '', done = false;
+const finish = (why) => { if (done) return; done = true; try { c.stdin.end(); } catch {} setTimeout(() => { try { c.kill(); } catch {} process.stdout.write(JSON.stringify({ why, out, err })); process.exit(0); }, 1500); };
+c.stdout.on('data', (d) => { out += d; if (out.split('\\n').some((l) => { try { return JSON.parse(l).id === 2; } catch { return false; } })) finish('answered'); });
+c.stderr.on('data', (d) => { err += d; });
+c.on('exit', () => finish('exited'));
+setTimeout(() => finish('timeout'), 30000);
+for (const m of [{ jsonrpc: '2.0', id: 1, method: 'initialize', params: {} }, { jsonrpc: '2.0', method: 'notifications/initialized' }, { jsonrpc: '2.0', id: 2, method: 'tools/call', params: { name: 'list_services', arguments: {} } }]) c.stdin.write(JSON.stringify(m) + '\\n');
+`);
+    const run = spawnSync(process.execPath, [driver], { encoding: 'utf8', timeout: 45_000, windowsHide: true });
+    const report = (() => { try { return JSON.parse(run.stdout); } catch { return null; } })();
+    const lines = (report?.out ?? '').split('\n').map((l) => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean);
+    const hello = lines.find((m) => m.id === 1);
+    const call = lines.find((m) => m.id === 2);
+    const tail = `${report?.err ?? run.stderr ?? ''}`.slice(-400);
+    requireThat(hello?.result?.serverInfo?.version === version, `The packaged MCP launcher did not answer initialize: ${tail || (run.stdout || String(run.error)).slice(0, 400)}`);
+    requireThat(call?.result && !call.result.isError && Array.isArray(call.result.structuredContent?.services), `The packaged MCP server did not answer tools/call list_services itself (${report?.why ?? 'no report'}): ${JSON.stringify(call ?? null).slice(0, 300)} ${tail}`);
+    requireThat(!/handing the session/.test(report?.err ?? ''), `The packaged MCP server handed its session on with no update (FD-133): ${tail}`);
+    out.mcpLauncher = `resources/bin/${t.launcher} answers initialize as ${hello.result.serverInfo.name} ${version} and tools/call list_services itself`;
   } finally {
     rmSync(services, { recursive: true, force: true });
   }
