@@ -158,6 +158,18 @@ test('FD-124: a row carries its Switchboard launch facts, from its own session o
   assert.equal(n!.launch, null);
 });
 
+test('FD-124: a paid hand-over stays marked on its row: running, ended, not opened, lapsed; a tampered record is no mark', () => {
+  const base = { switchboard: [], stops: [], dismissed: [], now: NOW };
+  const [run] = mergeSessions({ ...base, pending: [], records: [], consoles: [{ key: 'handover.ho-0123456789ab', folder: '/w/alpha', agent: 'claude-code', origin: 'handover', startedAt: NOW - MIN, account: null, handoverId: 'ho-0123456789ab', paid: 'openrouter' }] });
+  assert.equal(run!.paid, 'openrouter');
+  const [ended] = mergeSessions({ ...base, pending: [], consoles: [], records: [record({ end: 'ended', paid: 'api_key_account' })] });
+  assert.equal(ended!.paid, 'api_key_account');
+  const [lapsed] = mergeSessions({ ...base, consoles: [], records: [], pending: [{ id: 'ho-0123456789ac', dir: '/w/beta', agent: 'claude-code', account: '', workflow: 'w', offeredUntil: NOW - MIN, paid: 'openrouter' }] });
+  assert.equal(lapsed!.paid, 'openrouter');
+  const [bad] = mergeSessions({ ...base, pending: [], consoles: [], records: [record({ end: 'ended', paid: 'card' as never })] });
+  assert.equal(bad!.paid, null);
+});
+
 test('FD-124: a session of Switchboard 0.7.0 says who launched it, how it ended, where its work went and where its transcript is', async () => {
   const base = { account_id: 'acc-1', home: '/sb/runtimes/claude-agents', in_place: false, label: 'Work', launched_at: 1_792_617_000, mode: 'managed', pool: 'agents', provider: 'claude', started_at: 1_792_617_001, state: 'ended', working_directory: '/w/alpha' };
   const run: Runner = async () => ok({ sessions: [

@@ -8,7 +8,7 @@ import type { Runner } from '@passioncode-ai/fabric-service-host';
 import path from 'node:path';
 import fs from 'node:fs';
 import type { RuntimeSpec } from './runtimes';
-import type { LaunchFacts, SbSessionRecord, SourceResult } from './sessions';
+import type { LaunchFacts, Paid, SbSessionRecord, SourceResult } from './sessions';
 
 export type Binding =
   | { kind: 'none' } // no project or managed rule for this provider: the ordinary sign-in
@@ -244,6 +244,8 @@ export interface SbHandover {
   dir: string;
   /** Milliseconds since the epoch; past it, Switchboard no longer offers it. */
   offeredUntil: number;
+  /** FD-124 (SB-212): the hand-over runs on money, not a subscription: an OpenRouter key or an API key account. */
+  paid: Paid;
 }
 
 export type SbHandovers = { enabled: boolean; handovers: SbHandover[] } | { unavailable: 'old' | 'error'; detail: string };
@@ -271,6 +273,7 @@ export async function handoversOf(run: Runner, sb: string): Promise<SbHandovers>
       workflow: typeof x.workflow === 'string' ? x.workflow.slice(0, 200) : '',
       agent: typeof x.agent === 'string' ? x.agent.slice(0, 64) : '',
       account: typeof x.account_label === 'string' ? x.account_label.slice(0, 200) : '',
+      paid: x.paid === 'openrouter' || x.paid === 'api_key_account' ? x.paid : null,
     });
   }
   return { enabled: data.enabled === true, handovers };

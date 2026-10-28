@@ -183,3 +183,12 @@ test('FD-124: the session page folds what Switchboard recorded about the launch 
   assert.ok(bare.includes(`<dd>${t('en', 'sessions.chain.ended.finished', { time: '' }).replace(/, $/, '')}</dd>`));
   assert.ok(!bare.includes(t('en', 'sessions.transcript')));
 });
+
+test('FD-124: a hand-over that runs on money carries a chip saying what pays for it', () => {
+  for (const lang of ['en', 'ru'] as const) {
+    const row = srow({ id: 'c:handover.ho-0123456789ab:1', key: 'handover.ho-0123456789ab', state: 'running-ours', paid: 'openrouter' });
+    const html = renderToStaticMarkup(React.createElement(LangContext.Provider, { value: lang }, React.createElement(SessionHeader, { row, autoContinue: true, open: noop, askEnd: noop, continued: noop })));
+    assert.ok(html.includes(t(lang, 'sessions.paid.openrouter')), lang);
+  }
+  assert.ok(!header(srow({ id: 'c:handover.ho-0123456789ab:1', key: 'handover.ho-0123456789ab', state: 'running-ours' })).includes('Paid:'));
+});

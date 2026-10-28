@@ -6,6 +6,9 @@
 // folders, labels and times only: never a prompt, a transcript or a token.
 import type { StopView } from './types';
 
+/** FD-124 (SB-212): a hand-over that runs on money, not a subscription: an OpenRouter key or an API key account. */
+export type Paid = 'openrouter' | 'api_key_account' | null;
+
 /** How long an ended entry, a hand-over that did not open, and a dismissal are kept (the dossier: 24 hours). */
 export const SESSION_KEEP_MS = 24 * 60 * 60_000;
 /** Two sources name one session when they name one folder and starts at most this far apart (a Switchboard launch in
@@ -89,6 +92,8 @@ export interface SessionRow {
   /** FD-124: what Switchboard's launch record says about this session (who started it, how it ended, where its work went,
    *  its transcript), from the row's own Switchboard session or its twin; null when there is none. */
   launch: LaunchFacts | null;
+  /** FD-124: a hand-over that runs on money, not a subscription; null for every other row. */
+  paid: Paid;
   /** The row's latest known time, the list's order (newest first). */
   at: number;
 }
@@ -149,7 +154,7 @@ export interface LaunchFacts {
 }
 
 /** A hand-over Switchboard still offers. */
-export interface PendingHandover { id: string; dir: string; agent: string; account: string; workflow: string; offeredUntil: number }
+export interface PendingHandover { id: string; dir: string; agent: string; account: string; workflow: string; offeredUntil: number; paid?: Paid }
 
 /** A limit stop as the console host judged it, with the accounts that could take it now. */
 export type StopInput = Pick<StopView, 'event' | 'session' | 'dir' | 'provider' | 'stoppedAt' | 'attempt' | 'verdict' | 'key' | 'probeAt' | 'account' | 'waitReason'> & { candidates?: { id: string; label: string }[] };
@@ -165,6 +170,8 @@ export interface ConsoleInput {
   /** A session continued after a limit that did not take up its conversation (FD-84) and still runs. */
   failedResume?: boolean;
   handoverId?: string | null;
+  /** FD-124: a hand-over that runs on money (an OpenRouter key or an API key account). */
+  paid?: Paid;
 }
 
 /** What is kept in the settings for 24 hours: a console session that ended, and a hand-over that did not open here. */
@@ -186,6 +193,8 @@ export interface SessionRecord {
   sessionId: string | null;
   provider: 'claude' | 'codex' | null;
   handoverId: string | null;
+  /** FD-124: kept from the hand-over, so the row still says it ran on money once Switchboard stops offering it. */
+  paid?: Paid;
 }
 
 export interface Dismissal { id: string; at: number }
@@ -295,7 +304,7 @@ function isRecord(r: unknown): r is SessionRecord {
     && (x.key === null || typeof x.key === 'string');
 }
 
-function row(o: Omit<SessionRow, 'project' | 'group' | 'at' | 'actions' | 'contextName' | 'openedInTerminal' | 'expectedAt' | 'candidates' | 'resumable' | 'consoleEmpty' | 'waitReason' | 'launch'> & Partial<Pick<SessionRow, 'actions' | 'contextName' | 'openedInTerminal' | 'expectedAt' | 'candidates' | 'resumable' | 'waitReason' | 'launch'>>): SessionRow {
+function row(o: Omit<SessionRow, 'project' | 'group' | 'at' | 'actions' | 'contextName' | 'openedInTerminal' | 'expectedAt' | 'candidates' | 'resumable' | 'consoleEmpty' | 'waitReason' | 'launch' | 'paid'> & Partial<Pick<SessionRow, 'actions' | 'contextName' | 'openedInTerminal' | 'expectedAt' | 'candidates' | 'resumable' | 'waitReason' | 'launch' | 'paid'>>): SessionRow {
   const group = groupOf(o.state);
   return {
     ...o, project: base(o.folder), group, actions: o.actions ?? actionsFor(o.state),
@@ -303,6 +312,7 @@ function row(o: Omit<SessionRow, 'project' | 'group' | 'at' | 'actions' | 'conte
     resumable: group === 'ended' && (o.resumable ?? false),
     consoleEmpty: false,
     launch: o.launch ?? null,
+    paid: o.paid === 'openrouter' || o.paid === 'api_key_account' ? o.paid : null, // a kept record is read back from disk
     at: Math.max(o.endedAt ?? 0, o.startedAt ?? 0),
   };
 }
@@ -341,7 +351,7 @@ export function mergeSessions(i: MergeInput): SessionRow[] {
     add(row({
       id: consoleRowId(c.key, c.startedAt), key: c.key, folder: c.folder, agent: c.agent, account: c.account ?? s?.account ?? null,
       context: s?.context ?? null, contextName: s?.contextName ?? null, origin: c.origin, reason: null,
-      state: c.failedResume ? 'needs-you-resume-failed' : 'running-ours', startedAt: c.startedAt, endedAt: null, launch: s?.launch ?? null,
+      state: c.failedResume ? 'needs-you-resume-failed' : 'running-ours', startedAt: c.startedAt, endedAt: null, launch: s?.launch ?? null, paid: c.paid ?? null,
     }));
   }
 
@@ -356,7 +366,7 @@ export function mergeSessions(i: MergeInput): SessionRow[] {
       if (r.handoverId) notOpened.add(r.handoverId);
       add(row({
         id: r.id, key: r.key, folder: r.folder, agent: r.agent, account: r.account, context: r.context, origin: r.origin, reason: r.reason,
-        state: 'needs-you-not-opened', startedAt: r.startedAt, endedAt: r.endedAt,
+        state: 'needs-you-not-opened', startedAt: r.startedAt, endedAt: r.endedAt, paid: r.paid ?? null,
         openedInTerminal: r.origin === 'handover' && i.pending !== null && !pending.has(r.handoverId ?? '') && r.reason !== 'expired' && r.reason !== 'switchboard-old',
       }));
       continue;
@@ -365,7 +375,7 @@ export function mergeSessions(i: MergeInput): SessionRow[] {
     add(row({
       id: r.id, key: r.key, folder: r.folder, agent: r.agent, account: r.account ?? s?.account ?? null, context: r.context ?? s?.context ?? null,
       contextName: s?.contextName ?? null, origin: r.end === 'declined' ? 'limit' : r.origin, reason: END_REASON[r.end] ?? null, state: END_STATE[r.end], startedAt: r.startedAt, endedAt: r.endedAt, // V-1: 0.8.0 builds wrote 'resume' for a decline
-      resumable: r.sessionId !== null || r.provider === 'claude' || (r.origin === 'here' && r.key !== null), launch: s?.launch ?? null,
+      resumable: r.sessionId !== null || r.provider === 'claude' || (r.origin === 'here' && r.key !== null), launch: s?.launch ?? null, paid: r.paid ?? null,
     }));
   }
 
@@ -376,7 +386,7 @@ export function mergeSessions(i: MergeInput): SessionRow[] {
     if (notOpened.has(h.id) || named.has(h.id) || consoleKeys.has(handoverOwnKey(h.id)) || h.offeredUntil > i.now) continue;
     add(row({
       id: handoverRowId(h.id), key: null, folder: h.dir, agent: h.agent, account: h.account || null, context: null, origin: 'handover',
-      reason: 'expired', state: 'needs-you-not-opened', startedAt: null, endedAt: null,
+      reason: 'expired', state: 'needs-you-not-opened', startedAt: null, endedAt: null, paid: h.paid ?? null,
     }));
   }
 

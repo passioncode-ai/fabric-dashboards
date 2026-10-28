@@ -635,7 +635,7 @@ export class ConsoleHost {
       // FD-103 (SES-05): one that still runs is listed as needing the person, and its console opens by its key.
       if (alive) {
         this.failedResumes.add(key);
-        this.handoverOf.set(key, { id: own.slice('handover.'.length), workflow: path.basename(stop.dir), agent: label, account: '', dir: stop.dir, offeredUntil: 0 });
+        this.handoverOf.set(key, { id: own.slice('handover.'.length), workflow: path.basename(stop.dir), agent: label, account: '', dir: stop.dir, offeredUntil: 0, paid: null });
         this.resumedKeys.add(key);
         this.sessionIds.set(key, { sessionId: stop.session, provider: stop.provider });
       }
@@ -647,7 +647,7 @@ export class ConsoleHost {
       return null;
     }
     await this.finish(stop, sb, 'resumed');
-    this.handoverOf.set(key, { id: own.slice('handover.'.length), workflow: path.basename(stop.dir), agent: label, account: '', dir: stop.dir, offeredUntil: 0 });
+    this.handoverOf.set(key, { id: own.slice('handover.'.length), workflow: path.basename(stop.dir), agent: label, account: '', dir: stop.dir, offeredUntil: 0, paid: null });
     this.resumedKeys.add(key);
     this.sessionIds.set(key, { sessionId: stop.session, provider: stop.provider });
     this.actedStops.set(stop.event, view('resumed', key));
@@ -690,7 +690,7 @@ export class ConsoleHost {
   private notOpened(h: SbHandover, reason: SessionReason, now = Date.now()): void {
     this.keep({
       id: handoverRowId(h.id), key: null, folder: h.dir, agent: h.agent || 'agent', account: h.account || null, context: null, origin: 'handover',
-      end: 'not-opened', reason, startedAt: null, endedAt: now, sessionId: null, provider: providerOf(h.agent), handoverId: h.id,
+      end: 'not-opened', reason, startedAt: null, endedAt: now, sessionId: null, provider: providerOf(h.agent), handoverId: h.id, paid: h.paid,
     });
     this.o.changed?.();
   }
@@ -717,6 +717,7 @@ export class ConsoleHost {
       id: consoleRowId(key, snap.startedAt), key, folder: h?.dir ?? snap.cwd, agent: h?.agent || snap.label || 'agent', account: h?.account || null, context: null,
       origin: h ? (resumed ? 'resume' : 'handover') : 'here', end, reason: null, startedAt: snap.startedAt, endedAt: now,
       sessionId: known?.sessionId ?? null, provider: known?.provider ?? providerOf(h?.agent ?? snap.label), handoverId: h && !resumed ? h.id : null,
+      paid: h && !resumed ? h.paid : null,
     });
   }
 
@@ -760,7 +761,7 @@ export class ConsoleHost {
       return {
         key, folder: h?.dir ?? snap.cwd, agent: h?.agent || snap.label || 'agent', startedAt: snap.startedAt ?? now,
         origin: h ? (resumed ? 'resume' : 'handover') : 'here', account: h?.account || null,
-        failedResume: this.failedResumes.has(key), handoverId: h && !resumed ? h.id : null,
+        failedResume: this.failedResumes.has(key), handoverId: h && !resumed ? h.id : null, paid: h && !resumed ? h.paid : null,
       };
     });
     const rows = mergeSessions({
@@ -813,7 +814,7 @@ export class ConsoleHost {
     const inv = await this.inventory();
     // FIX-4: a limit stop's account is the one that ran out; the new session's account comes from Switchboard's in-place
     // record of it (mergeSessions), never from the stop.
-    const before = { id: key.slice('handover.'.length), workflow: row.project, agent: row.agent, account: row.origin === 'limit' ? '' : (row.account ?? ''), dir: row.folder, offeredUntil: 0 };
+    const before = { id: key.slice('handover.'.length), workflow: row.project, agent: row.agent, account: row.origin === 'limit' ? '' : (row.account ?? ''), dir: row.folder, offeredUntil: 0, paid: row.paid };
     const resumed = row.origin === 'resume' || id.startsWith('st:');
     const tookUp = Boolean(sessionId && provider && transcriptOf({ session: sessionId, provider } as SbStop, home));
     if (sessionId && provider && tookUp) {

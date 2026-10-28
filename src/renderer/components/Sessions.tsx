@@ -209,6 +209,7 @@ export function SessionHeader({ row, autoContinue, open, askEnd, continued, onMe
       <div className="session-meta">
         <span className="chip">{originChip(lang, row)}</span>
         {row.account && row.origin !== 'limit' && <span className="chip">{t('sessions.account', { account: row.account })}</span>}
+        {row.paid && <span className="chip">{t(`sessions.paid.${row.paid}`)}</span>}
         {ctx && <span className="chip">{ctx}</span>}
         <span className="meta">{agentName(row.agent)}</span>
         <span className="meta mono session-folder" title={row.folder}>{shortPath(row.folder)}</span>
