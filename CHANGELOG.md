@@ -4,6 +4,10 @@
 
 ### Added
 
+- FD-124: what an ended console session printed outlives an app restart: its page shows it again for as long as the
+  session is listed (24 hours). Kept in `console-output/` in the app's data folder, a file per session readable only by
+  the person, removed with the session's row, and by Uninstall with the rest of the app's data.
+
 - FD-124: a session's page folds what Switchboard 0.7.0 recorded about its launch under one line, "About this launch":
   where it was asked for, who asked, how and when it ended, where its work went on and its turns, with Show transcript,
   which shows the coding agent's own transcript in the file manager (the path is taken in the main process from

@@ -18,6 +18,7 @@ import { prepareSetup, SETUP_KEY, setupFolder, type SetupState } from '../core/s
 import type { DoctorReport } from '../core/doctor';
 import type { ActivityItem } from '../core/types';
 import { ConsoleManager, planStart, terminalScript, type SpawnPty } from '../core/consoles';
+import { dropKept, loadKept, saveKept } from '../core/kept-output';
 import { admit, machineProbe, type MachineState } from '../core/admission';
 import { findCheckout } from '../core/repofind';
 import { detectRuntimes, KNOWN_RUNTIMES, readLoginPath, searchDirs, specsFromSwitchboard, type Runtime, type RuntimeSpec } from '../core/runtimes';
@@ -66,6 +67,8 @@ export interface ConsoleHostOptions {
   spawn?: SpawnPty;
   /** FD-39 (ADR-0020): the context pack — where it is written (the app's data, never the repository),
    *  the agent's recent activity, and how this app's MCP server starts. Absent: no pack (older callers, tests). */
+  /** FD-124: where an ended session's output is kept for its 24 hours; absent, nothing is kept (tests). */
+  keptDir?: string;
   packRoot?: string;
   /** This app's version, the `writer.version` of each `handoff.json` (FD-47). */
   version?: string;
@@ -183,6 +186,7 @@ export class ConsoleHost {
     // FD-50 (LC-18): an idle session is saved and closed, checked once a minute; nothing else wakes.
     const idleMs = o.idleMs ?? IDLE_CLOSE_MS;
     if (idleMs > 0) setInterval(() => void this.closeIdle(idleMs), 60_000).unref();
+    this.restoreKept();
     this.manager.on('exit', (e: { key: string; code: number | null; signal: number | null }) => {
       this.o.log(`console: ${e.key} exited with ${e.code}${e.signal ? ` (signal ${e.signal})` : ''}`);
       this.send({ key: e.key, kind: 'exit', code: e.code, signal: e.signal });
@@ -190,6 +194,35 @@ export class ConsoleHost {
       this.o.changed?.(); // FD-62: the shell's list shows it ended; FD-103: so does the Sessions list
     });
   }
+
+  // #region kept-output — docs: docs/ux/scenarios.md#scn-080-open-one-sessions-page
+  /** FD-124: the ended sessions still listed get back what they printed; the rest of the kept files are removed. */
+  private restoreKept(): void {
+    const dir = this.o.keptDir;
+    if (!dir) return;
+    try {
+      const m = this.memory();
+      const hidden = new Set(m.dismissed.map((d) => d.id));
+      const listed = new Set(m.records.filter((r) => r.id.startsWith('c:') && !hidden.has(r.id)).map((r) => r.id));
+      const kept = loadKept(dir, listed, Date.now());
+      for (const k of kept) this.manager.restore(k.key, k);
+      if (kept.length) this.o.log(`console: ${kept.length} ended session(s) read back with their output`);
+    } catch (error) { this.o.log(`console: kept output not read: ${(error as Error).message}`); }
+  }
+
+  private saveKeptOutput(id: string, key: string, endedAt: number): void {
+    const dir = this.o.keptDir;
+    const snap = this.manager.snapshot(key);
+    if (!dir || snap.startedAt === null || !snap.output) return;
+    try {
+      saveKept(dir, { id, key, label: snap.label, cwd: snap.cwd, startedAt: snap.startedAt, endedAt, exitCode: snap.exitCode, signal: snap.signal, output: snap.output });
+    } catch (error) { this.o.log(`console: output of ${key} not kept: ${(error as Error).message}`); }
+  }
+
+  private dropKeptOutput(id: string): void {
+    if (this.o.keptDir && id.startsWith('c:')) { try { dropKept(this.o.keptDir, id); } catch { /* gone already */ } }
+  }
+  // #endregion kept-output
 
   /** LC-08: a hidden window receives nothing; it reads the ring again when it shows. */
   private send(event: unknown): void {
@@ -719,6 +752,7 @@ export class ConsoleHost {
       sessionId: known?.sessionId ?? null, provider: known?.provider ?? providerOf(h?.agent ?? snap.label), handoverId: h && !resumed ? h.id : null,
       paid: h && !resumed ? h.paid : null,
     });
+    this.saveKeptOutput(consoleRowId(key, snap.startedAt), key, now);
   }
 
   /** R1-S4: the app quits: every running console ends, each recorded as closed when the app quit (not as ended by
@@ -862,6 +896,7 @@ export class ConsoleHost {
    *  a row of its own (R1-U1), and a declined stop stays declined (R1-U2). */
   private forgetRow(id: string): void {
     this.remember((m) => { m.dismissed = [...m.dismissed.filter((d) => d.id !== id), { id, at: Date.now() }]; });
+    this.dropKeptOutput(id);
   }
 
   /** R1-C: the ended row of `key`'s last session, which a Continue in its console takes up, leaves the list. */

@@ -226,6 +226,15 @@ export class ConsoleManager extends EventEmitter {
     return { key, state: s.pty ? 'running' : 'exited', label: s.label, cwd: s.cwd, output: s.chunks.join(''), end: s.emitted, exitCode: s.exitCode, signal: s.signal, startedAt: s.startedAt };
   }
 
+  /** FD-124: an ended session read back after a restart, shown as it ended; never over a session this launch has. */
+  restore(key: string, k: { label: string; cwd: string; output: string; startedAt: number; exitCode: number | null; signal: number | null }): boolean {
+    if (this.sessions.has(key)) return false;
+    const output = k.output.length > this.ringChars ? k.output.slice(-this.ringChars) : k.output;
+    this.sessions.set(key, { pty: null, label: k.label, cwd: k.cwd, chunks: output ? [output] : [], size: output.length, emitted: output.length,
+      exitCode: k.exitCode, signal: k.signal, startedAt: k.startedAt, lastActivity: k.startedAt, killTimer: null, exited: Promise.resolve(), resolveExit: () => undefined });
+    return true;
+  }
+
   /** The services whose console session runs now (a removed service's dying session is not named). */
   runningKeys(): string[] {
     return [...this.sessions.entries()].filter(([, s]) => s.pty).map(([k]) => k);
