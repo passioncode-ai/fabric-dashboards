@@ -87,6 +87,12 @@ test('UX-01, UX-03: the agent page\'s first action is Restart, Start or Update, 
   assert.equal(firstAction(snap('a.default', 'down', { busy: 'restart' })), null, 'a running action shows its progress instead');
 });
 
+test('FD-132: an agent placed on the other machine offers no Start or Restart here: either would make a second copy', () => {
+  assert.equal(firstAction(snap('a.default', 'stopped', { reasons: [{ code: 'reason.elsewhere', params: { machine: 'studio-2' } }] })), null);
+  assert.equal(firstAction(snap('a.default', 'duplicate', { reasons: [{ code: 'reason.duplicate.elsewhere', params: { machine: 'studio-2' } }] })), null);
+  assert.deepEqual(firstAction(snap('a.default', 'stopped', { reasons: [{ code: 'reason.not-loaded' }] })), { kind: 'start' }, 'without the record it is off here, as before');
+});
+
 test('UX-08: a window shown again after an hour hidden is a new visit; a short look away is not', () => {
   assert.equal(VISIT_GAP_MS, 60 * 60_000);
   assert.equal(revisitDue(null, { at: '2026-10-24T10:00:00Z', afterHiddenMs: 2 * VISIT_GAP_MS }), true);

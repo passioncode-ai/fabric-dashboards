@@ -94,6 +94,7 @@
 | SCN-086 | Settings → Sessions | settings | P-01 | ST-023, ST-010 | validated | 2026-10-27 |
 | SCN-087 | Arrange the sidebar: width and order | list | P-01 | ST-021, ST-018 | validated | 2026-10-27 |
 | SCN-088 | Choose the default and fallback coding agents | settings | P-01 | ST-010 | validated | 2026-10-28 |
+| SCN-089 | See which agents are placed on the other machine | health | P-01 | ST-004 | validated | 2026-10-28 |
 ## Personas
 
 Defined in [foundation.md](foundation.md) → P-01.
@@ -1945,4 +1946,28 @@ The Sessions mode (0.8.0): every coding session apart from the agents, each stat
   - "on its account's model" / «на модели своего аккаунта»; "on {model} through OpenRouter" / «на {model} через OpenRouter»
 - **Status:** validated (2026-10-28: `test/e2e/fallback.test.ts` walks steps 1 to 4, the refused default and the empty order against a Switchboard fake that keeps its state; `test/fallback.test.ts` the reads, the pins, the models, the old and silent Switchboard and the refusals before Switchboard sees a malformed change; the section read on this Mac's Switchboard 0.6.83, read-only)
 - **Coverage:** src/core/fallback.ts, src/core/fallback-types.ts, src/electron/console.ts (fallback-host), src/renderer/components/Fallback.tsx, src/renderer/components/Settings.tsx (index), test/fallback.test.ts, test/e2e/fallback.test.ts
+- **Product:** unobserved
+
+### SCN-089: See which agents are placed on the other machine
+- **Persona:** P-01
+- **Feature:** health
+- **Traces:** ST-004, ST-003; FD-132 (MV-9 of the second-machine move, fabric-workspace `docs/reports/2026-10-28-second-machine-move/README.md`); the placement record Observatory writes (OBS-283, `observatory-placement/1`), decision MD-20 of fabric-workspace-7f: "a label is there: placed on the other machine, no Start; no label: off, as before"
+- **Entry point:** the agent list, Needs attention and an agent's page
+- **Preconditions:** the person runs agents on two machines; Observatory wrote this machine's placement record, `${XDG_DATA_HOME:-~/.local/share}/project-observatory/placement.json` (owner only), naming the agents placed on the other machine by launchd label or `id.instance`
+- **Steps:**
+  1. An agent the record places on the other machine does not answer here -> it reads "Stopped" with "Placed on the other machine, {machine}: it runs there, so here it stays off."; it is never "Not answering", raises no notification and no outage alert, and its page offers no Start
+  2. The person presses Start through an agent anyway (MCP `control`) -> it is refused before launchd runs anything: "{name} is placed on {machine}: starting it here would run a second copy."
+  3. An agent the record places on the other machine answers here too -> it reads "Two copies" with "Placed on {machine}, yet a copy runs here too. Stop it here to keep one."; its page offers Stop and no Restart, and Needs attention lists it
+  4. Observatory moves the agent back (its label leaves the record) -> at its next probe it reads as before: off with Start, or ready
+- **Expected result:** on each machine the person sees which agents run here and which run on the other machine, and a copy on both is named as a second copy, so the move between machines leaves no duplicate or missing agent unseen
+- **Alt paths:** no record on this machine -> every agent reads as placed here, as before; an online agent -> its platform places it, the record is not read for it
+- **UI elements:** the state and reason on the agent's row, its page and Needs attention; the run group on the agent's page (Start hidden, Stop alone for a second copy)
+- **States covered:** success, empty, error
+- **Errors & recovery:** a record another user owns, that others may write, larger than 1 MB or not of `observatory-placement/1` is not read (it could hide Start), the reason goes to `main.log` once (`placement_unreadable <reason>`) and the agents read as placed here
+- **Copy:**
+  - "Placed on the other machine, {machine}: it runs there, so here it stays off." / «Размещён на другой машине ({machine}): работает там, а здесь выключен.»
+  - "Placed on {machine}, yet a copy runs here too. Stop it here to keep one." / «Агент размещён на машине {machine}, но копия работает и здесь. Остановите её здесь, чтобы осталась одна.»
+  - "{name} is placed on {machine}: starting it here would run a second copy." / «{name} размещён на машине {machine}: если запустить его здесь, будут работать две копии.»
+- **Status:** validated (2026-10-28: `test/e2e/elsewhere.test.ts` walks steps 1 and 3 on the built app with a record under a temporary `XDG_DATA_HOME`, an agent off here and the sample answering here; `test/elsewhere.test.ts` the monitor (off for longer than the notice delay with nothing said, the second copy, Start refused before launchctl, an unusable record said once); `test/control.test.ts` and `test/attention-queue.test.ts` the refusal and the first action; the package's vectors and `packages/service-host/test/placement.test.ts` the state and the record; copy check reports `b66cfed9` (en) and `4927b853` (ru), no findings)
+- **Coverage:** packages/service-host/src/placement.ts, packages/service-host/src/state.ts, packages/service-host/src/look.ts, src/core/monitor.ts (placed-elsewhere), src/core/control.ts, src/core/focus.ts, src/mcp/tools.ts, src/renderer/components/ServiceView.tsx, test/e2e/elsewhere.test.ts, test/elsewhere.test.ts
 - **Product:** unobserved

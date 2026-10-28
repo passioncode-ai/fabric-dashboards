@@ -1,6 +1,7 @@
 // ADR-0017: what the compact service bar must still say. It is one line, so it carries one problem:
 // the first reason of a state that is not ready, else a failed action that is still news. Nothing
 // a person needs is hidden by folding the header away. No Node imports: the renderer uses it.
+import { placedElsewhere } from '@passioncode-ai/fabric-service-host/state';
 import type { Reason, ServiceSnapshot } from './types';
 
 /** How long a finished action stays news on Overview and the service page (U-1, P-15). */
@@ -24,8 +25,10 @@ export function problemOf(s: Pick<ServiceSnapshot, 'state' | 'reasons' | 'lastAc
  *  action is already running. */
 export type FirstAction = { kind: 'restart' } | { kind: 'start' } | { kind: 'update'; version: string };
 
-export function firstAction(s: Pick<ServiceSnapshot, 'state' | 'busy' | 'launchd' | 'descriptor' | 'wellKnown'>): FirstAction | null {
+export function firstAction(s: Pick<ServiceSnapshot, 'state' | 'busy' | 'launchd' | 'descriptor' | 'wellKnown' | 'reasons'>): FirstAction | null {
   if (s.busy || s.descriptor?.placement === 'remote') return null;
+  // FD-132: placed on the other machine, so Start or Restart here would make a second copy; Stop stays on the card.
+  if (placedElsewhere(s.reasons) !== null) return null;
   const managed = s.launchd.managed && (s.launchd.by ?? 'launchd') === 'launchd';
   if (managed && (s.state === 'down' || s.state === 'duplicate')) return { kind: 'restart' };
   if (managed && s.state === 'stopped') return { kind: 'start' };

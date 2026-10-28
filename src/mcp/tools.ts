@@ -16,6 +16,7 @@ import { discoverHost, type HostStatus } from './host';
 import {
   APP_NAME, dashboardMinWidth, expand, lookAtServices, readDirectory, servicesDir as defaultServicesDir,
   type Descriptor, type DescriptorEntry, type ServiceLook, type ServiceState, type WellKnownResult, authHeaders, portOf, RemoteTokenLatch, REMOTE_TIMEOUT_MS, type WellKnownOptions,
+  elsewhereOf, PlacementReader, type Placement,
 } from '@passioncode-ai/fabric-service-host';
 import { runOwned } from '../core/children';
 import { fromServiceUrl, isServiceKey, linkFor, safePath } from '../core/deeplink';
@@ -70,6 +71,8 @@ export interface Deps {
   exists?: (path: string) => boolean;
   /** S-2 for this server: one latch for the process's lifetime (T-4). Default: created on first use. */
   latch?: RemoteTokenLatch;
+  /** FD-132: this machine's placement record; default Observatory's file. */
+  placement?: () => Placement | null;
   /** FD-81: runs the launcher's read-only doctor (Check setup); default: the owned runner with this process's PATH. */
   setupRun?: (command: string, args: string[]) => Promise<{ code: number | null; output: string; timedOut: boolean; started?: boolean; stdout?: string; stderr?: string }>;
   /** FD-78: the person's kinds and hidden agents, read from the app's settings; null when there are none to read. */
@@ -200,7 +203,7 @@ function view(s: ServiceLook, list?: { category: Category; hidden: boolean; off:
 
 /** One look, as the package reads it; an unreadable services directory is the tool's error. */
 async function look(deps: Deps, only?: string[]): Promise<ServiceLook[]> {
-  const out = await lookAtServices({ servicesDir: deps.servicesDir(), wellKnown: deps.wellKnown, launchd: deps.launchd, now: deps.now, only, token: deps.token, latch: latchOf(deps) });
+  const out = await lookAtServices({ servicesDir: deps.servicesDir(), wellKnown: deps.wellKnown, launchd: deps.launchd, now: deps.now, only, token: deps.token, latch: latchOf(deps), ...(deps.placement ? { placement: deps.placement() } : {}) });
   if (out.error) throw new ToolError(`cannot read the services directory ${out.servicesDir}: ${out.error}`);
   return out.services;
 }
@@ -395,6 +398,7 @@ export async function control(deps: Deps, key: string, action: 'start' | 'stop' 
   const before = d.placement === 'remote' ? null : await deps.wellKnown(d.origin);
   // FD-20: the sequence is src/core/control.ts's, shared with the app; here it becomes a result or a refusal.
   const out = await controlService(d, action, {
+    elsewhere: elsewhereOf(deps.placement ? deps.placement() : new PlacementReader().get(deps.now()), d),
     platform: deps.platform, launchd: deps.launchd, wellKnown: (origin) => deps.wellKnown(origin), exists: deps.exists,
     now: deps.now, sleep: deps.sleep, pollMs: 500,
   }, { oldPid: before?.kind === 'answer' ? before.doc.process.pid : null });
@@ -404,6 +408,8 @@ export async function control(deps: Deps, key: string, action: 'start' | 'stop' 
       // ADR-0019 §7: launchd is macOS's; elsewhere the service is shown, never controlled, and the agent is told why.
       if (out.why === 'unsupervised-here') throw new ToolError(`${d.name} is supervised by launchd, which this system does not have; start and stop it on the system that runs it`);
       if (out.why === 'plist-missing') throw new ToolError(`${d.name}: the launchd plist is missing at ${out.plist}; reinstall the service`);
+      // FD-132: a second copy here would run beside the one on the other machine.
+      if (out.why === 'placed-elsewhere') throw new ToolError(`${d.name} is placed on ${out.machine}; starting it here would run a second copy. Move it in Observatory's placement first`);
       throw new ToolError(`${d.name} is not managed by launchd; it cannot be ${action}ed from here`);
     case 'launchctl-failed':
       return { ok: false, state: (await serviceStatus(deps, key)).state, detail: out.detail };

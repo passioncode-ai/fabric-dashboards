@@ -151,6 +151,7 @@ due probe or rescan — no fixed 1-second poll — and one for the events feed:
 | `launchctl print-disabled` | at most once a minute, and only when a `print` runs | same |
 | An agent turned off (FD-123, `layout.list.off`) | never probed, its events never read, no `launchctl`, no notification or outage alert | same |
 | Directory rescan (reads small JSON files, no spawn) | on `fs.watch`, plus every 5 s | on `fs.watch`, plus every 60 s (30 s if the watcher failed) |
+| Placement record (FD-132: `${XDG_DATA_HOME:-~/.local/share}/project-observatory/placement.json`, Observatory's) | a stat at most every 5 s when a state is read; read only when its time or size changed | same |
 | `settings.json` written outside the app (FD-122: an agent's MCP `arrange`, an editor) | a folder watch, plus a stat of the file every 5 s (`SETTINGS_POLL_MS`); read only when it changed | same |
 | Switchboard hand-overs (`switchboard --json handovers`, FD-62; only where Switchboard is installed) | every 15 s | every 60 s |
 | Switchboard's session list (`switchboard --json sessions --all`, FD-103; same tick, one read in flight at most) | every 15 s | every 60 s |

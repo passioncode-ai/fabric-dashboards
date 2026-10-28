@@ -50,6 +50,17 @@ test('FD-20: the refusals come first, in order, and launchctl is never called fo
   assert.deepEqual(calls, [], 'a missing plist is said at once, not retried by bootstrap (M-3)');
 });
 
+test('FD-132: placed on the other machine, start and restart are refused before launchctl; stop still runs', async () => {
+  for (const action of ['start', 'restart'] as const) {
+    const { d: dp, calls } = deps([none], { elsewhere: { placedOn: 'studio-2' } });
+    assert.deepEqual(await controlService(desc(), action, dp), { kind: 'refused', why: 'placed-elsewhere', machine: 'studio-2' });
+    assert.deepEqual(calls, []);
+  }
+  const { d: dp, calls } = deps([answer(10), none], { elsewhere: { placedOn: 'studio-2' } });
+  assert.equal((await controlService(desc(), 'stop', dp)).kind, 'stopped');
+  assert.deepEqual(calls, ['stop ai.example.agent']);
+});
+
 test('FD-20: a stop needs the service to stop answering; a stop that keeps answering says so', async () => {
   const stopped = await controlService(desc(), 'stop', deps([answer(10), none]).d);
   assert.equal(stopped.kind, 'stopped');

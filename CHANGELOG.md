@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- Agents placed on the other machine (FD-132, SCN-089): when Observatory's placement record
+  (`project-observatory/placement.json`, `observatory-placement/1`) puts an agent on another machine, a silent copy
+  here reads "Stopped" with the machine named, never "Not answering", with no notice, no outage alert and no Start;
+  a copy answering here anyway reads as a second copy, with Stop and no Restart. Start and restart are refused
+  before launchd runs, in the app and through MCP `control`. `@passioncode-ai/fabric-service-host` 0.10.0
+  (`placement.ts`, state vectors). Copy check reports `b66cfed9` (en) and `4927b853` (ru), no findings.
+
 ## 0.8.13 - 2026-10-28
 
 ### Added

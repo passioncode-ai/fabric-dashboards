@@ -4,7 +4,7 @@
 // lacked the missing-plist refusal). Both now call this and only translate its outcome — the app
 // into a Reason and its tracked state, the MCP tool into a result or a ToolError.
 import fs from 'node:fs';
-import { expand, portOf, type Descriptor, type WellKnownResult } from '@passioncode-ai/fabric-service-host';
+import { expand, portOf, type Descriptor, type Elsewhere, type WellKnownResult } from '@passioncode-ai/fabric-service-host';
 import { supervises } from './platform';
 import type { RunResult } from './launchd';
 
@@ -29,11 +29,15 @@ export interface ControlDeps {
   /** Called once the refusals have passed, before launchctl runs — the app marks the service busy
    *  here, so a second click during a slow bootstrap is refused (audit R-8). */
   onLaunch?: () => void;
+  /** FD-132: where the placement record puts the service; start and restart are refused when it is elsewhere. */
+  elsewhere?: Elsewhere | null;
 }
 
 export type ControlOutcome =
   | { kind: 'refused'; why: 'remote' | 'unsupervised-here' | 'unmanaged' }
   | { kind: 'refused'; why: 'plist-missing'; plist: string }
+  /** FD-132: the placement record puts it on another machine; starting it here would make a second copy. */
+  | { kind: 'refused'; why: 'placed-elsewhere'; machine: string }
   | { kind: 'launchctl-failed'; detail: string }
   | { kind: 'stopped'; probe: WellKnownResult }
   | { kind: 'answered'; probe: Extract<WellKnownResult, { kind: 'answer' }>; pid: number }
@@ -54,6 +58,7 @@ export async function controlService(
   // ADR-0019 §7: launchd is macOS's; elsewhere the service is shown, never controlled.
   if (d.lifecycle.manager === 'launchd' && !supervises(deps.platform, d.lifecycle.manager)) return { kind: 'refused', why: 'unsupervised-here' };
   if (d.lifecycle.manager !== 'launchd' || !d.lifecycle.label || !d.lifecycle.plist) return { kind: 'refused', why: 'unmanaged' };
+  if (action !== 'stop' && deps.elsewhere) return { kind: 'refused', why: 'placed-elsewhere', machine: deps.elsewhere.placedOn };
   const label = d.lifecycle.label;
   const plist = expand(d.lifecycle.plist);
   // M-3: a missing plist is said at once, not retried by bootstrap.

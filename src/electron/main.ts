@@ -229,6 +229,8 @@ if (!app.requestSingleInstanceLock()) {
     },
     changed: () => pushStatus(),
   });
+  // FD-132: a placement record that cannot be used is said once in the log; the agents then read as placed here.
+  monitor.on('placement-error', (error: string | null) => log(error ? `placement_unreadable ${error}` : 'placement_readable'));
   // FD-125: a decision an agent waits for reaches the operator channel too, with the link that opens its page.
   monitor.on('ask', (a: AskNotice) => alerts.ask(a.serviceKey, a.id, { name: a.name, episode: a.episode, at: a.at, text: a.text, link: askLink(a.serviceKey, a.link) }));
   function askLink(key: string, link: string | null): string | null {
