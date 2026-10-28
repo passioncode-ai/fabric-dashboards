@@ -22,7 +22,7 @@ import { admit, machineProbe, type MachineState } from '../core/admission';
 import { findCheckout } from '../core/repofind';
 import { detectRuntimes, KNOWN_RUNTIMES, readLoginPath, searchDirs, specsFromSwitchboard, type Runtime, type RuntimeSpec } from '../core/runtimes';
 import type { SettingsStore } from '../core/settings';
-import { accountsOf, allSessionsOf, bindingFor, canLaunchInPlace, findSwitchboard, handoverOwnKey, handoverRunArgv, handoversOf, handoversSwitch, isHandoverKey, managesProvider, sessionsIn, terminalLaunchArgv, type Binding, type SbHandover, type SbSessions } from '../core/switchboard';
+import { accountsOf, allSessionsOf, bindingFor, findSwitchboard, handoverOwnKey, handoverRunArgv, handoversOf, handoversSwitch, isHandoverKey, launchFeatures, managesProvider, sessionsIn, terminalLaunchArgv, type Binding, type SbHandover, type SbSessions } from '../core/switchboard';
 import type { ServiceSnapshot } from '../core/types';
 import { claimStop, continuedOf, finishStop, liveAgents, recoveryOf, resumeArgs, resumeOwnKey, sessionOpen, transcriptIn, transcriptOf, verdictOf, writtenAt, RESUME_SETTLE_MS, RESUMES_PER_PASS, type RecoveryStatus, type SbStop, type StopView } from '../core/recovery';
 import { consoleRowId, handoverRowId, mergeSessions, pruneDismissed, pruneRecords, SourceReader, stopRowId, type ConsoleInput, type PendingHandover, type SbSessionRecord, type SessionActionResult, type SessionReason, type SessionRecord, type SessionNotice, type SessionRow, type SessionsStatus, type SourceDegraded } from '../core/sessions';
@@ -114,7 +114,7 @@ export class ConsoleHost {
   readonly manager: ConsoleManager;
   private dirs: Promise<string[]> | null = null;
   private catalog: Promise<Runtime[]> | null = null;
-  private inPlaceFor: { key: string; value: boolean } | null = null;
+  private inPlaceFor: { key: string; value: { inPlace: boolean; surface: boolean } } | null = null;
   /** FD-74: what Switchboard said about each folder, for showing the console at once (BINDING_FRESH_MS). */
   private readonly bindings = new Map<string, { at: number; value: Binding | { kind: 'absent' }; pending: boolean }>();
   private readonly run: Runner;
@@ -208,7 +208,7 @@ export class ConsoleHost {
   /** The runtimes installed, read once per launch (looked for again while none is found), and
    *  Switchboard, looked for on every call: one installed later must bind its folders at once
    *  (review R-3) — a stat per folder, and `launch --help` only when the binary changed. */
-  private async inventory(): Promise<{ runtimes: Runtime[]; switchboard: string | null; inPlace: boolean; dirs: string[] }> {
+  private async inventory(): Promise<{ runtimes: Runtime[]; switchboard: string | null; inPlace: boolean; surface: boolean; dirs: string[] }> {
     const dirs = await this.searchPath();
     const switchboard = findSwitchboard(dirs);
     if (!this.catalog) {
@@ -226,13 +226,14 @@ export class ConsoleHost {
     const runtimes = await this.catalog;
     if (!runtimes.length) this.catalog = null; // nothing found: look again next time
     let inPlace = false;
+    let surface = false;
     if (switchboard) {
       let stamp = switchboard;
       try { stamp += `:${fs.statSync(switchboard).mtimeMs}`; } catch { /* checked below anyway */ }
-      if (this.inPlaceFor?.key !== stamp) this.inPlaceFor = { key: stamp, value: await canLaunchInPlace(this.run, switchboard) };
-      inPlace = this.inPlaceFor.value;
+      if (this.inPlaceFor?.key !== stamp) this.inPlaceFor = { key: stamp, value: await launchFeatures(this.run, switchboard) };
+      ({ inPlace, surface } = this.inPlaceFor.value);
     }
-    return { runtimes, switchboard, inPlace, dirs };
+    return { runtimes, switchboard, inPlace, surface, dirs };
   }
 
   private folderOf(key: string): ConsoleInfo['folder'] {
@@ -365,7 +366,7 @@ export class ConsoleHost {
     const pack = this.pack(key, runtime, folder.path, task);
     // FD-51 (LC-20): with a Switchboard route for this provider, every start runs managed.
     const managed = inv.switchboard && runtime.provider && inv.inPlace ? managesProvider(await accountsOf(this.run, inv.switchboard), runtime.provider) : false;
-    const plan = planStart({ runtime, mode, folder: folder.path, binding: b.kind === 'absent' ? { kind: 'none' } : b, switchboard: inv.switchboard, inPlace: inv.inPlace, managed, handoff: pack?.handoff });
+    const plan = planStart({ runtime, mode, folder: folder.path, binding: b.kind === 'absent' ? { kind: 'none' } : b, switchboard: inv.switchboard, inPlace: inv.inPlace, surface: inv.surface, managed, handoff: pack?.handoff });
     if (plan.kind === 'refused') return { ok: false, reason: plan.reason, detail: plan.detail };
     if (plan.kind === 'terminal-only') return { ok: false, reason: 'terminal-only', project: plan.project };
     // Review R-1: the session runs with the login shell's PATH, not the one an app opened from Finder has.
@@ -634,7 +635,7 @@ export class ConsoleHost {
       // FD-103 (SES-05): one that still runs is listed as needing the person, and its console opens by its key.
       if (alive) {
         this.failedResumes.add(key);
-        this.handoverOf.set(key, { id: own.slice('handover.'.length), workflow: path.basename(stop.dir), agent: label, account: '', dir: stop.dir, offeredUntil: 0 });
+        this.handoverOf.set(key, { id: own.slice('handover.'.length), workflow: path.basename(stop.dir), agent: label, account: '', dir: stop.dir, offeredUntil: 0, paid: null });
         this.resumedKeys.add(key);
         this.sessionIds.set(key, { sessionId: stop.session, provider: stop.provider });
       }
@@ -646,7 +647,7 @@ export class ConsoleHost {
       return null;
     }
     await this.finish(stop, sb, 'resumed');
-    this.handoverOf.set(key, { id: own.slice('handover.'.length), workflow: path.basename(stop.dir), agent: label, account: '', dir: stop.dir, offeredUntil: 0 });
+    this.handoverOf.set(key, { id: own.slice('handover.'.length), workflow: path.basename(stop.dir), agent: label, account: '', dir: stop.dir, offeredUntil: 0, paid: null });
     this.resumedKeys.add(key);
     this.sessionIds.set(key, { sessionId: stop.session, provider: stop.provider });
     this.actedStops.set(stop.event, view('resumed', key));
@@ -689,7 +690,7 @@ export class ConsoleHost {
   private notOpened(h: SbHandover, reason: SessionReason, now = Date.now()): void {
     this.keep({
       id: handoverRowId(h.id), key: null, folder: h.dir, agent: h.agent || 'agent', account: h.account || null, context: null, origin: 'handover',
-      end: 'not-opened', reason, startedAt: null, endedAt: now, sessionId: null, provider: providerOf(h.agent), handoverId: h.id,
+      end: 'not-opened', reason, startedAt: null, endedAt: now, sessionId: null, provider: providerOf(h.agent), handoverId: h.id, paid: h.paid,
     });
     this.o.changed?.();
   }
@@ -716,6 +717,7 @@ export class ConsoleHost {
       id: consoleRowId(key, snap.startedAt), key, folder: h?.dir ?? snap.cwd, agent: h?.agent || snap.label || 'agent', account: h?.account || null, context: null,
       origin: h ? (resumed ? 'resume' : 'handover') : 'here', end, reason: null, startedAt: snap.startedAt, endedAt: now,
       sessionId: known?.sessionId ?? null, provider: known?.provider ?? providerOf(h?.agent ?? snap.label), handoverId: h && !resumed ? h.id : null,
+      paid: h && !resumed ? h.paid : null,
     });
   }
 
@@ -759,7 +761,7 @@ export class ConsoleHost {
       return {
         key, folder: h?.dir ?? snap.cwd, agent: h?.agent || snap.label || 'agent', startedAt: snap.startedAt ?? now,
         origin: h ? (resumed ? 'resume' : 'handover') : 'here', account: h?.account || null,
-        failedResume: this.failedResumes.has(key), handoverId: h && !resumed ? h.id : null,
+        failedResume: this.failedResumes.has(key), handoverId: h && !resumed ? h.id : null, paid: h && !resumed ? h.paid : null,
       };
     });
     const rows = mergeSessions({
@@ -812,7 +814,7 @@ export class ConsoleHost {
     const inv = await this.inventory();
     // FIX-4: a limit stop's account is the one that ran out; the new session's account comes from Switchboard's in-place
     // record of it (mergeSessions), never from the stop.
-    const before = { id: key.slice('handover.'.length), workflow: row.project, agent: row.agent, account: row.origin === 'limit' ? '' : (row.account ?? ''), dir: row.folder, offeredUntil: 0 };
+    const before = { id: key.slice('handover.'.length), workflow: row.project, agent: row.agent, account: row.origin === 'limit' ? '' : (row.account ?? ''), dir: row.folder, offeredUntil: 0, paid: row.paid };
     const resumed = row.origin === 'resume' || id.startsWith('st:');
     const tookUp = Boolean(sessionId && provider && transcriptOf({ session: sessionId, provider } as SbStop, home));
     if (sessionId && provider && tookUp) {
@@ -968,6 +970,17 @@ export class ConsoleHost {
     return { ok: true, key: row.key };
   }
 
+  /** FD-124: Show transcript, for the file Switchboard's launch record names; the path comes from the row in this process,
+   *  never from the page, and is only shown in Finder, never read or sent. */
+  async revealTranscript(id: string): Promise<SessionActionResult> {
+    const row = this.rowOf(id);
+    if (!row) return { ok: false, reason: 'unknown' };
+    const file = transcriptFile(row.launch?.transcript);
+    if (!file) return { ok: false, reason: 'no-transcript' };
+    shell.showItemInFolder(file);
+    return { ok: true, key: row.key };
+  }
+
   /** FD-103: Switchboard's switch for handing sessions over to a console, as last read with the hand-overs. */
   async readHandoversSwitch(): Promise<{ available: boolean; enabled: boolean | null }> {
     const inv = await this.inventory();
@@ -1078,6 +1091,7 @@ export class ConsoleHost {
     ipcMain.handle(CHANNELS.sessionsClearEnded, () => this.clearEnded());
     ipcMain.handle(CHANNELS.sessionsEnd, (_e, id) => (idOk(id) ? this.endSession(id) : notARow()));
     ipcMain.handle(CHANNELS.sessionsReveal, (_e, id) => (idOk(id) ? this.revealSession(id) : notARow()));
+    ipcMain.handle(CHANNELS.sessionsRevealTranscript, (_e, id) => (idOk(id) ? this.revealTranscript(id) : notARow()));
     ipcMain.handle(CHANNELS.sessionsHandovers, () => this.readHandoversSwitch());
     ipcMain.handle(CHANNELS.sessionsHandoversSet, (_e, on) => (typeof on === 'boolean' ? this.setHandoversSwitch(on) : Promise.reject(new Error('not a switch value'))));
     ipcMain.handle(CHANNELS.fallback, () => this.readFallback());
@@ -1099,6 +1113,12 @@ function clampInt(v: unknown, min: number, max: number, fallback: number): numbe
 function providerOf(agent: string | null | undefined): 'claude' | 'codex' | null {
   const a = (agent ?? '').toLowerCase();
   return a.includes('codex') ? 'codex' : a.includes('claude') ? 'claude' : null;
+}
+
+/** FD-124: a transcript worth showing: an absolute path to a regular `.jsonl` file that exists now. */
+export function transcriptFile(p: string | null | undefined): string | null {
+  if (!p || !path.isAbsolute(p) || path.extname(p).toLowerCase() !== '.jsonl') return null;
+  try { return fs.statSync(p).isFile() ? p : null; } catch { return null; }
 }
 
 function isDir(p: string): boolean {

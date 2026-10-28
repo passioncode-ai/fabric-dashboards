@@ -21,7 +21,14 @@ test('FD-62: the hand-over list is read strictly — a malformed record is skipp
   assert.ok('handovers' in r);
   assert.equal(r.enabled, true);
   assert.deepEqual(r.handovers.map((h) => h.id), [ID]);
-  assert.deepEqual({ ...r.handovers[0], offeredUntil: 0 }, { id: ID, workflow: 'nightly-report', agent: 'claude-code', account: 'Work Max', dir: '/tmp', offeredUntil: 0 });
+  assert.deepEqual({ ...r.handovers[0], offeredUntil: 0 }, { id: ID, workflow: 'nightly-report', agent: 'claude-code', account: 'Work Max', dir: '/tmp', offeredUntil: 0, paid: null });
+});
+
+test('FD-124: a hand-over that runs on money says so; any other value of `paid` is no mark at all', async () => {
+  const run: Runner = async () => ok({ enabled: true, handovers: [record({ paid: 'openrouter' }), record({ id: 'ho-0123456789ac', paid: 'api_key_account' }), record({ id: 'ho-0123456789ad', paid: 'card' })] });
+  const r = await handoversOf(run, '/bin/switchboard');
+  assert.ok('handovers' in r);
+  assert.deepEqual(r.handovers.map((h) => h.paid), ['openrouter', 'api_key_account', null]);
 });
 
 test('FD-62: a running Switchboard older than its CLI, or one without hand-overs, says so; anything else is an error', async () => {

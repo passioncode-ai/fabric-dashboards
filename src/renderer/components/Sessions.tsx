@@ -4,7 +4,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { AppStatus } from '../../core/types';
 import type { SessionActionResult, SessionRow } from '../../core/sessions';
-import { agentName, clock, contextChip, continueLabel, groupRows, originChip, revealLabel, secondLine, stateShort, stateWords } from '../../core/sessions-view';
+import { agentName, chainFacts, clock, contextChip, continueLabel, groupRows, originChip, revealLabel, secondLine, stateShort, stateWords } from '../../core/sessions-view';
 import { api, useT } from '../lib';
 import { SESSION_MARK, SessionMark } from './Navigation';
 
@@ -209,13 +209,36 @@ export function SessionHeader({ row, autoContinue, open, askEnd, continued, onMe
       <div className="session-meta">
         <span className="chip">{originChip(lang, row)}</span>
         {row.account && row.origin !== 'limit' && <span className="chip">{t('sessions.account', { account: row.account })}</span>}
+        {row.paid && <span className="chip">{t(`sessions.paid.${row.paid}`)}</span>}
         {ctx && <span className="chip">{ctx}</span>}
         <span className="meta">{agentName(row.agent)}</span>
         <span className="meta mono session-folder" title={row.folder}>{shortPath(row.folder)}</span>
       </div>
+      <SessionChain row={row} />
       {long && <p className="session-why">{stateWords(lang, row, { autoContinue })}</p>}
       {row.origin === 'resume' && row.group === 'running' && <p className="meta session-why">{t('console.resumed', { agent: agentName(row.agent) })}</p>}
     </header>
+  );
+}
+
+/** FD-124 (SCN-080): what Switchboard's launch record says, folded under one line so the console keeps its height: who
+ *  started the session, how it ended, where its work went, and the transcript shown in the file manager. */
+function SessionChain({ row }: { row: SessionRow }) {
+  const { t, lang } = useT();
+  const [gone, setGone] = useState(false);
+  const facts = chainFacts(lang, row);
+  if (!facts.length && !row.launch?.transcript) return null;
+  const reveal = async () => {
+    const r = await api().sessionsRevealTranscript(row.id).catch(() => null);
+    setGone(!r?.ok);
+  };
+  return (
+    <details className="session-chain" aria-label={t('sessions.chain.label')}>
+      <summary>{t('sessions.chain.summary')}</summary>
+      {facts.length > 0 && <dl className="session-facts">{facts.map((f) => <div key={f.label}><dt>{f.label}</dt><dd>{f.value}</dd></div>)}</dl>}
+      {row.launch?.transcript && <button className="btn btn-sm" aria-label={t('sessions.transcript.label')} onClick={() => void reveal()}>{t('sessions.transcript')}</button>}
+      {gone && <p className="meta" role="status">{t('sessions.transcript.gone')}</p>}
+    </details>
   );
 }
 

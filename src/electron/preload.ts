@@ -64,6 +64,7 @@ const api: FabricApi = {
   sessionsClearEnded: () => ipcRenderer.invoke(CHANNELS.sessionsClearEnded),
   sessionsEnd: (id) => ipcRenderer.invoke(CHANNELS.sessionsEnd, id),
   sessionsReveal: (id) => ipcRenderer.invoke(CHANNELS.sessionsReveal, id),
+  sessionsRevealTranscript: (id) => ipcRenderer.invoke(CHANNELS.sessionsRevealTranscript, id),
   sessionsHandovers: () => ipcRenderer.invoke(CHANNELS.sessionsHandovers),
   setSessionsHandovers: (on) => ipcRenderer.invoke(CHANNELS.sessionsHandoversSet, on),
   fallback: () => ipcRenderer.invoke(CHANNELS.fallback),

@@ -17,6 +17,20 @@ export function clock(lang: Lang, at: number): string {
   return new Date(at).toLocaleTimeString(lang, { hour: lang === 'ru' ? '2-digit' : 'numeric', minute: '2-digit' });
 }
 
+/** FD-124: the launch facts Switchboard recorded, as label and value pairs in reading order; empty when it kept none. */
+export function chainFacts(lang: Lang, r: SessionRow): { label: string; value: string }[] {
+  const l = r.launch;
+  if (!l) return [];
+  const out: { label: string; value: string }[] = [];
+  if (l.by.surface) out.push({ label: t(lang, 'sessions.chain.started'), value: t(lang, `sessions.chain.started.${l.by.surface}`) });
+  const asker = l.by.by ?? l.by.program;
+  if (asker) out.push({ label: t(lang, 'sessions.chain.asker'), value: asker });
+  if (l.ended) out.push({ label: t(lang, 'sessions.chain.ended'), value: t(lang, `sessions.chain.ended.${l.ended}`, { time: l.endedAt ? clock(lang, l.endedAt) : '' }).replace(/, $/, '') });
+  if (l.continuedAs) out.push({ label: t(lang, 'sessions.chain.went'), value: t(lang, `sessions.chain.went.${l.continuedAs.kind}`, { id: l.continuedAs.id }) });
+  if (l.turns !== null) out.push({ label: t(lang, 'sessions.chain.turns'), value: String(l.turns) });
+  return out;
+}
+
 /** The groups in GROUP_ORDER, each with its rows (newest first, as the list comes); an empty group is not drawn. */
 export function groupRows(rows: readonly SessionRow[]): { group: SessionGroup; rows: SessionRow[] }[] {
   return GROUP_ORDER.map((group) => ({ group, rows: rows.filter((r) => r.group === group) })).filter((g) => g.rows.length > 0);

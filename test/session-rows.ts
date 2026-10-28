@@ -8,7 +8,7 @@ export function srow(o: Partial<SessionRow> & Pick<SessionRow, 'id' | 'state'>):
   const group = o.group ?? groupOf(o.state);
   return {
     key: null, folder, project: folder.split('/').pop()!, agent: 'claude-code', account: 'claude4', context: null, contextName: null,
-    origin: 'handover', reason: null, openedInTerminal: false, startedAt: AT, endedAt: null, expectedAt: null, candidates: [], resumable: false, consoleEmpty: false, at: AT,
+    origin: 'handover', reason: null, openedInTerminal: false, startedAt: AT, endedAt: null, expectedAt: null, candidates: [], resumable: false, consoleEmpty: false, launch: null, paid: null, at: AT,
     actions: actionsFor(o.state, { continueNow: (o.candidates ?? []).length > 0 }),
     ...o, group,
   };

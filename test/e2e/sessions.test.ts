@@ -117,7 +117,11 @@ test('SCN-077, SCN-078, SCN-079, SCN-082, SCN-083, SCN-084, SCN-086: the Session
   for (const d of [services, bin, running!, ended!, stopped!]) fs.mkdirSync(d, { recursive: true });
   const now = Math.floor(Date.now() / 1000);
   const record = (dir: string, state: string, launched: number) => ({ working_directory: dir, home: path.join(base, 'home'), provider: 'claude', agent: 'claude-code', pool: 'default', mode: 'managed', label: 'claude4', account_id: 'acc-1', in_place: false, launched_at: launched, started_at: launched, state });
-  const sessions = JSON.stringify({ ok: true, data: { sessions: [record(running!, 'running', now - 1800), record(ended!, 'ended', now - 7200)] } });
+  // FD-124: the ended session carries Switchboard 0.7.0's launch facts; its transcript is a real file.
+  const transcript = path.join(base, 'transcript.jsonl');
+  fs.writeFileSync(transcript, '{}\n');
+  const launch = { launch_id: '0b8f6c1e-1f2a-4c3d-9e8f-0123456789ab', launched_by: { surface: 'fallback', by: 'nightly-agent', caller_program: 'switchboard' }, transcript, turns: 7, ended: 'limit', ended_at: now - 7000, continued_as: { kind: 'handover', id: 'ho-00000000beef' } };
+  const sessions = JSON.stringify({ ok: true, data: { sessions: [record(running!, 'running', now - 1800), { ...record(ended!, 'ended', now - 7200), ...launch }] } });
   const recovery = JSON.stringify({ ok: true, data: { sessions: [{ ready: false, reason: 'no_account', candidates: [], probe_at: null, stop: { event: 'ev-stopped-1', session: '0b2c3d4e-0000-4000-8000-00000000c0de', directory: stopped, provider: 'claude', state: 'waiting', kind: 'limit', stopped_at: now - 600, attempt: 1, account: 'acc-1' } }] } });
   // SCN-082: a hand-over whose offer lapsed before the app saw it needs the person.
   const lapsed = JSON.stringify({ ok: true, data: { enabled: true, handovers: [{ id: 'ho-00000000beef', workflow: 'nightly', agent: 'claude-code', account_label: 'claude4', dir: running, offered_until: new Date(Date.now() - 60_000).toISOString() }] } });
@@ -150,6 +154,19 @@ test('SCN-077, SCN-078, SCN-079, SCN-082, SCN-083, SCN-084, SCN-086: the Session
     await page.locator('.session-card', { hasText: 'running-repo' }).first().waitFor();
     await page.locator('.session-card', { hasText: 'stopped-repo' }).getByText(/No account in its group can take it|Waits for an account with capacity/).first().waitFor();
     if (SHOTS) await page.screenshot({ path: path.join(SHOTS, '32-all-sessions.png') });
+    // FD-124 (SCN-080 step 6): the ended session's page folds its launch facts under "About this launch".
+    await endedCard.getByRole('button', { name: 'ended-repo' }).click();
+    await page.getByRole('heading', { level: 1, name: 'ended-repo' }).waitFor({ timeout: 20_000 });
+    const chain = page.locator('details.session-chain');
+    await chain.locator('summary', { hasText: 'About this launch' }).click();
+    for (const fact of ['when another session reached its limit', 'nightly-agent', 'a hand-over', '7']) await chain.getByText(fact, { exact: true }).first().waitFor();
+    await chain.getByRole('button', { name: "Show this session's transcript in the file manager" }).waitFor();
+    assert.equal(await chain.getByText(transcript).count(), 0, 'the transcript path is never drawn');
+    if (SHOTS) await page.screenshot({ path: path.join(SHOTS, '33-session-launch-chain.png') });
+    await page.locator('nav .nav-item', { hasText: 'All sessions' }).first().click();
+    await page.getByRole('heading', { level: 1, name: 'All sessions' }).waitFor();
+    if (!(await endedCard.isVisible())) await page.getByRole('main').getByRole('button', { name: /Ended in the last 24 hours: 1/ }).click();
+    await endedCard.waitFor();
     // SCN-084: an ended session offers Continue and Remove; Remove takes it out of the list.
     await endedCard.getByRole('button', { name: /^Continue/ }).first().waitFor();
     await endedCard.getByRole('button', { name: /^Remove/ }).first().click();

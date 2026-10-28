@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- FD-124: a session's page folds what Switchboard 0.7.0 recorded about its launch under one line, "About this launch":
+  where it was asked for, who asked, how and when it ended, where its work went on and its turns, with Show transcript,
+  which shows the coding agent's own transcript in the file manager (the path is taken in the main process from
+  Switchboard's record, never from the page, and the file is never read or sent). Our in-place launches carry
+  `--surface dashboards` where Switchboard's `launch` takes it, so its records say they came from here (SCN-080).
+- FD-124: a hand-over Switchboard runs on money (its `paid`: an OpenRouter key or an API key account) carries a
+  "Paid" chip on its page, kept with the session after Switchboard stops offering it.
+
 ## 0.8.16 - 2026-10-28
 
 ### Fixed
