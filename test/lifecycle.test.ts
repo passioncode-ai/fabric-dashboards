@@ -9,7 +9,7 @@ import path from 'node:path';
 import test from 'node:test';
 import type { Descriptor, RunResult, WellKnown, WellKnownResult } from '@passioncode-ai/fabric-service-host';
 import { ActivityStore } from '../src/core/activity';
-import { commandEnv, killOwned, ownedCount, runOwned } from '../src/core/children';
+import { batchCommand, commandEnv, killOwned, ownedCount, runOwned } from '../src/core/children';
 import { commandRan, commandReason } from '../src/core/outcome';
 import { appendLog, sweepTemps } from '../src/core/fsutil';
 import { Launchd } from '../src/core/launchd';
@@ -509,6 +509,34 @@ test('FD-109 LC-10: with the installed launcher present, the stale server hands 
   assert.ok(exit.at - at <= 2500, `left ${exit.at - at} ms after the client`);
   const left = spawnSync('pgrep', ['-f', app.server], { encoding: 'utf8' }).stdout.trim();
   assert.equal(left, '', 'the new copy\'s server ended with the session');
+});
+
+test('FD-133: on Windows and Linux the stale check reads the archive itself, never a file inside it that Electron stats anew each time', () => {
+  const win = 'C:\\Program Files\\Fabric Dashboards\\resources\\app.asar\\out\\main\\mcp\\server.js';
+  const lin = '/opt/Fabric Dashboards/resources/app.asar/out/main/mcp/server.js';
+  assert.equal(codeFile(win), 'C:\\Program Files\\Fabric Dashboards\\resources\\app.asar');
+  assert.equal(codeFile(lin), '/opt/Fabric Dashboards/resources/app.asar');
+  // Electron's archive reader, measured 2026-10-28 on the installed 0.8.13: every stat of a file inside app.asar has a
+  // new inode (1, 2, 3, ...); the archive file itself is a real file with a stable stat.
+  let ino = 0;
+  const electronStat = (f: string) => (/app\.asar[\\/]/.test(f) ? { dev: 1, ino: ++ino, size: 10, mtimeMs: 5 } : { dev: 9, ino: 77, size: 99, mtimeMs: 5 });
+  for (const from of [win, lin]) {
+    const watch = new StaleWatch(codeFile(from), () => '0.8.13', electronStat);
+    for (let i = 0; i < 5; i += 1) assert.equal(watch.check().stale, false, `${from}: check ${i} reads the same code`);
+    const before = new StaleWatch(from, () => '0.8.13', electronStat); // what 0.8.13 watched
+    assert.equal(before.check().stale, true, 'the file inside the archive read as replaced at the first call: the defect');
+  }
+});
+
+test('FD-133: a .cmd runs through cmd.exe on Windows, quoted as cmd reads it; anything cmd could read as an operator is refused', () => {
+  const npx = 'C:\\Program Files\\nodejs\\npx.cmd';
+  assert.deepEqual(batchCommand(npx, ['--yes', '@passioncode-ai/passioncode@0.2.2', 'doctor', '--json'], { windows: true, comspec: 'C:\\Windows\\system32\\cmd.exe' }), {
+    command: 'C:\\Windows\\system32\\cmd.exe', args: ['/d', '/s', '/c', '""C:\\Program Files\\nodejs\\npx.cmd" --yes @passioncode-ai/passioncode@0.2.2 doctor --json"'], verbatim: true,
+  });
+  assert.deepEqual(batchCommand(npx, ['a b'], { windows: true }).args?.[3], '""C:\\Program Files\\nodejs\\npx.cmd" "a b""');
+  for (const bad of ['a&b', 'x|y', '%PATH%', 'a"b', 'c^d', 'e>f', 'g!h']) assert.ok('refused' in batchCommand(npx, [bad], { windows: true }), bad);
+  assert.deepEqual(batchCommand('/usr/local/bin/npx', ['--yes'], { windows: false }), { command: '/usr/local/bin/npx', args: ['--yes'], verbatim: false });
+  assert.deepEqual(batchCommand('C:\\tools\\git.exe', ['status'], { windows: true }), { command: 'C:\\tools\\git.exe', args: ['status'], verbatim: false }, 'an .exe runs as before');
 });
 
 test('LC-10: the stale check reads the bundle outside the archive and survives a missing file', () => {

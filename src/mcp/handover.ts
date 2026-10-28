@@ -13,6 +13,14 @@ const MAC = /[\\/]Contents[\\/]Resources[\\/]app\.asar[\\/]/;
 const OTHER = /[\\/]resources[\\/]app\.asar[\\/]/i;
 export const HANDOVER_ID = 'fabric-dashboards-handover';
 export const HANDOVER_TIMEOUT_MS = 15_000;
+/** FD-133: set in the environment of a server another one started to take its session. Such a server never hands its
+ *  session on: one hand-over per update, never a chain of servers starting each other. */
+export const HANDED_ENV = 'FABRIC_DASHBOARDS_MCP_HANDED';
+
+/** The environment a hand-over starts the installed copy's server with. */
+export function handedEnv(env: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
+  return { ...env, [HANDED_ENV]: '1' };
+}
 
 /** The MCP launcher of the installed copy this server file belongs to; null outside a packaged app. */
 export function launcherOf(from: string, platform: NodeJS.Platform = process.platform): string | null {
@@ -27,7 +35,7 @@ export function launcherOf(from: string, platform: NodeJS.Platform = process.pla
 export function spawnLauncher(launcher: string, platform: NodeJS.Platform = process.platform): ChildProcess {
   // cmd /s strips one pair of outer quotes, so the path (it has a space) is quoted twice (scripts/dist-other.mjs).
   const [cmd, args] = platform === 'win32' ? [process.env.ComSpec || 'cmd.exe', ['/d', '/s', '/c', `""${launcher}""`]] : [launcher, []];
-  return spawn(cmd, args, { stdio: ['pipe', 'pipe', 'inherit'], windowsHide: true, windowsVerbatimArguments: platform === 'win32' });
+  return spawn(cmd, args, { stdio: ['pipe', 'pipe', 'inherit'], env: handedEnv(), windowsHide: true, windowsVerbatimArguments: platform === 'win32' });
 }
 
 export interface Relay {
@@ -107,10 +115,11 @@ export function startRelay(o: RelayOptions): Relay {
 
 /** The live hand-over for a server started from `from`: the installed copy's server, or null when no launcher is
  *  there to take the session (a checkout, or the app was removed rather than updated). Looked up at hand-over time. */
-export function liveHandover(from: string): () => ChildProcess | null {
+export function liveHandover(from: string, env: NodeJS.ProcessEnv = process.env, start: (launcher: string) => ChildProcess = spawnLauncher): () => ChildProcess | null {
   return () => {
+    if (env[HANDED_ENV] === '1') return null; // FD-133: it was handed a session itself; it answers stale and leaves instead
     const launcher = launcherOf(from);
-    return launcher && fs.existsSync(launcher) ? spawnLauncher(launcher) : null;
+    return launcher && fs.existsSync(launcher) ? start(launcher) : null;
   };
 }
 // #endregion mcp-handover
