@@ -8,7 +8,7 @@ import type { Runner } from '@passioncode-ai/fabric-service-host';
 import path from 'node:path';
 import fs from 'node:fs';
 import type { RuntimeSpec } from './runtimes';
-import type { SbSessionRecord, SourceResult } from './sessions';
+import type { LaunchFacts, SbSessionRecord, SourceResult } from './sessions';
 
 export type Binding =
   | { kind: 'none' } // no project or managed rule for this provider: the ordinary sign-in
@@ -55,14 +55,23 @@ export async function bindingFor(run: Runner, sb: string, folder: string, provid
 
 /** Whether this Switchboard can run a prepared session in the caller's terminal (SB-75). */
 export async function canLaunchInPlace(run: Runner, sb: string): Promise<boolean> {
-  const r = await run(sb, ['launch', '--help'], 10_000);
-  const text = `${r.stdout}\n${r.stderr}`;
-  return r.code === 0 && /--in-place\b/.test(text) && /--provider\b/.test(text);
+  return (await launchFeatures(run, sb)).inPlace;
 }
 
-/** The command the console runs for a bound folder once Switchboard launches in place. */
-export function inPlaceArgv(sb: string, provider: 'claude' | 'codex', folder: string, runtimeArgs: string[]): string[] {
-  return [sb, 'launch', '--provider', provider, '--mode', 'managed', '--working-directory', folder, '--in-place', ...(runtimeArgs.length ? ['--', ...runtimeArgs] : [])];
+/** What this Switchboard's `launch` takes: in place (SB-75), and since 0.7.0 `--surface` (SB-212, FD-124), which
+ *  marks a launch as asked for from here in its launch record. */
+export async function launchFeatures(run: Runner, sb: string): Promise<{ inPlace: boolean; surface: boolean }> {
+  const r = await run(sb, ['launch', '--help'], 10_000);
+  const text = `${r.stdout}\n${r.stderr}`;
+  const ok = r.code === 0;
+  return { inPlace: ok && /--in-place\b/.test(text) && /--provider\b/.test(text), surface: ok && /--surface\b/.test(text) };
+}
+
+/** The command the console runs for a bound folder once Switchboard launches in place; with `surface`, the launch
+ *  record says it was asked for from Fabric Dashboards (FD-124). */
+export function inPlaceArgv(sb: string, provider: 'claude' | 'codex', folder: string, runtimeArgs: string[], surface = false): string[] {
+  return [sb, 'launch', '--provider', provider, '--mode', 'managed', '--working-directory', folder, '--in-place',
+    ...(surface ? ['--surface', 'dashboards'] : []), ...(runtimeArgs.length ? ['--', ...runtimeArgs] : [])];
 }
 
 /** Until SB-75: the account Switchboard selects in the pool, for its existing Terminal launch. */
@@ -183,12 +192,44 @@ export async function allSessionsOf(run: Runner, sb: string): Promise<SourceResu
       account: str(x.label) || str(x.account_id, 64), accountId: str(x.account_id, 64),
       context: typeof x.context === 'string' ? x.context.slice(0, 120) : null, contextName: typeof x.context_name === 'string' ? x.context_name.slice(0, 120) : null,
       continues: typeof x.continues === 'string' && x.continues ? x.continues.slice(0, 64) : null, inPlace: x.in_place === true,
-      launchedAt: ms(x.launched_at), startedAt: ms(x.started_at), state,
+      launchedAt: ms(x.launched_at), startedAt: ms(x.started_at), state, launch: launchFactsOf(x),
     });
   }
   return { ok: true, value: out };
 }
 // #endregion switchboard-sessions
+
+// #region switchboard-launch-chain — docs: docs/ux/scenarios.md#scn-080-open-one-sessions-page
+const LAUNCH_KEYS = ['launch_id', 'launched_by', 'provider_session_id', 'transcript', 'turns', 'last_turn_at', 'ended', 'ended_at', 'continued_as'];
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const NAME = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
+const SURFACES = ['window', 'cli', 'mcp', 'fallback', 'recovery', 'dashboards'] as const;
+const ENDS = ['finished', 'limit', 'killed', 'not_started', 'unknown'] as const;
+const CONTINUED = ['handover', 'workflow', 'launch'] as const;
+
+/** FD-124 (SB-212): the launch facts a Switchboard 0.7.0 session row copies from its launch record. A field that is
+ *  not of the expected form is dropped, never guessed at; a row with none of them is a launch Switchboard kept no
+ *  record for. */
+export function launchFactsOf(x: Record<string, unknown>): LaunchFacts | null {
+  if (!LAUNCH_KEYS.some((k) => k in x)) return null;
+  const id = (v: unknown) => (typeof v === 'string' && UUID.test(v) ? v.toLowerCase() : null);
+  const name = (v: unknown) => (typeof v === 'string' && NAME.test(v) ? v : null);
+  const one = <T extends string>(v: unknown, of: readonly T[]) => (of as readonly unknown[]).includes(v) ? v as T : null;
+  const b = x.launched_by && typeof x.launched_by === 'object' ? x.launched_by as Record<string, unknown> : {};
+  const c = x.continued_as && typeof x.continued_as === 'object' ? x.continued_as as Record<string, unknown> : null;
+  const kind = c ? one(c.kind, CONTINUED) : null;
+  const target = c && typeof c.id === 'string' && /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(c.id) ? c.id : null;
+  const turns = typeof x.turns === 'number' && Number.isInteger(x.turns) && x.turns >= 0 ? x.turns : null;
+  return {
+    launchId: id(x.launch_id),
+    by: { surface: one(b.surface, SURFACES), by: name(b.by), program: name(b.caller_program), project: name(b.caller_project), parent: id(b.parent), caller: id(b.caller_launch_id) },
+    transcript: typeof x.transcript === 'string' && path.isAbsolute(x.transcript) && x.transcript.length <= 1024 ? x.transcript : null,
+    turns, lastTurnAt: ms(x.last_turn_at),
+    ended: one(x.ended, ENDS), endedAt: ms(x.ended_at),
+    continuedAs: kind && target ? { kind, id: target } : null,
+  };
+}
+// #endregion switchboard-launch-chain
 
 // #region switchboard-handovers — docs: docs/ux/scenarios.md#scn-069-a-hand-over-opens-in-the-console
 /** FD-62 (SB-108): a session Switchboard prepared and left for a console to take instead of opening Terminal.

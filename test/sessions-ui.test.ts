@@ -10,6 +10,7 @@ import { AllSessions, SessionBody, SessionHeader } from '../src/renderer/compone
 import { clock, resolveSessionRoute, secondLine, stateWords, terminalKey, traySessionsLine } from '../src/core/sessions-view';
 import { sessionNotification } from '../src/core/sessions-notice';
 import { drawerBoundsFor } from '../src/core/layout';
+import { LangContext } from '../src/renderer/lib';
 import { setWording, t } from '../src/core/i18n';
 import { DEFAULT_SETTINGS } from '../src/core/types';
 import type { SessionRow, SessionsStatus } from '../src/core/sessions';
@@ -158,4 +159,27 @@ test('SCN-085, decision 9: a taken hand-over and an automatic continue are one n
   const paused = { ...DEFAULT_SETTINGS, notifications: { ...DEFAULT_SETTINGS.notifications, pausedUntil: new Date(AT + 3600_000).toISOString() } };
   assert.equal(sessionNotification('en', n, paused, new Date(AT)), null);
   assert.equal(t('en', 'tray.sessions.both', { running: 2, waiting: 1 }), 'Sessions: running 2, need you 1');
+});
+
+test('FD-124: the session page folds what Switchboard recorded about the launch under one line, with Show transcript', () => {
+  const launch = { launchId: '0b8f6c1e-1f2a-4c3d-9e8f-0123456789ab', by: { surface: 'fallback' as const, by: 'voc-learn', program: 'switchboard', project: 'agents', parent: null, caller: null },
+    transcript: '/x/t.jsonl', turns: 7, lastTurnAt: AT, ended: 'limit' as const, endedAt: AT + 60_000, continuedAs: { kind: 'handover' as const, id: 'ho-0123456789ab' } };
+  for (const lang of ['en', 'ru'] as const) {
+    const row = srow({ id: 'sb:claude:agents:1:/w/alpha', state: 'ended', origin: 'switchboard', launch });
+    const html = renderToStaticMarkup(React.createElement(LangContext.Provider, { value: lang }, React.createElement(SessionHeader, { row, autoContinue: true, open: noop, askEnd: noop, continued: noop })));
+    assert.match(html, /<details class="session-chain"/, lang);
+    assert.ok(!/<details[^>]*open/.test(html), `${lang}: folded until asked, so the console keeps its height`);
+    assert.ok(html.includes(t(lang, 'sessions.chain.started.fallback')), lang);
+    assert.ok(html.includes('voc-learn'), lang);
+    assert.ok(html.includes(t(lang, 'sessions.chain.ended.limit', { time: clock(lang, AT + 60_000) })), lang);
+    assert.ok(html.includes(t(lang, 'sessions.chain.went.handover')), lang);
+    assert.ok(html.includes(t(lang, 'sessions.transcript')), lang);
+    assert.ok(!html.includes('/x/t.jsonl'), `${lang}: the transcript path is never drawn`);
+  }
+  // No record (Switchboard before 0.7.0): no fold at all.
+  assert.ok(!header(srow({ id: 'sb:claude:agents:2:/w/alpha', state: 'ended', origin: 'switchboard' })).includes('session-chain'));
+  // A record without a time of end says how it ended without a dangling comma.
+  const bare = header(srow({ id: 'sb:claude:agents:3:/w/alpha', state: 'ended', origin: 'switchboard', launch: { ...launch, transcript: null, endedAt: null, ended: 'finished' } }));
+  assert.ok(bare.includes(`<dd>${t('en', 'sessions.chain.ended.finished', { time: '' }).replace(/, $/, '')}</dd>`));
+  assert.ok(!bare.includes(t('en', 'sessions.transcript')));
 });

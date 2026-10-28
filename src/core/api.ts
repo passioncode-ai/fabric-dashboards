@@ -155,6 +155,8 @@ export interface FabricApi {
   sessionsEnd(id: string): Promise<SessionActionResult>;
   /** `reveal`: shows the row's folder in Finder. */
   sessionsReveal(id: string): Promise<SessionActionResult>;
+  /** FD-124: shows the session's transcript in Finder, the path Switchboard's launch record names; the page never sees it. */
+  sessionsRevealTranscript(id: string): Promise<SessionActionResult>;
   /** Switchboard's own switch for handing sessions over to this app (`handovers set on|off`), read and written through its CLI. */
   sessionsHandovers(): Promise<{ available: boolean; enabled: boolean | null }>;
   setSessionsHandovers(on: boolean): Promise<{ ok: boolean; enabled: boolean | null; detail?: string }>;
@@ -240,6 +242,7 @@ export const CHANNELS = {
   sessionsClearEnded: 'fd:sessions-clear-ended',
   sessionsEnd: 'fd:sessions-end',
   sessionsReveal: 'fd:sessions-reveal',
+  sessionsRevealTranscript: 'fd:sessions-reveal-transcript',
   sessionsHandovers: 'fd:sessions-handovers',
   sessionsHandoversSet: 'fd:sessions-handovers-set',
   fallback: 'fd:fallback',

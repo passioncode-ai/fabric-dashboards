@@ -21,6 +21,7 @@ this app (ADR-0022 for agents and services).
 | Activity (the page and the tab) | События | what the agents and the app did, newest first | «Лента событий» (that is an agent's events surface on the Connections page, COPY-33) |
 | Agent map (the page) | Карта агентов | how agents are wired and the problems found across them (FD-129 UX-21) | Connections, «Связи» (that is an agent's own tab), «Аудитор» (no person audits; the list is «Проблемы», COPY-32) |
 | job | задача | one piece of work an agent runs, which a per-job limit caps (`per_job`) | order, «заказ» (it reads as a purchase) |
+| transcript | запись разговора | a coding agent's own file of a session's turns, shown in the file manager (FD-124) | «транскрипт», «лог» |
 | self-check | проверка | an agent's `doctor` command | Doctor, «Диагностика» |
 
 ## States

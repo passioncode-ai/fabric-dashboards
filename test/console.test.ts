@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import { findCheckout, originOf, repoId } from '../src/core/repofind';
-import { bindingFor, canLaunchInPlace, findSwitchboard, inPlaceArgv, terminalLaunchArgv } from '../src/core/switchboard';
+import { bindingFor, canLaunchInPlace, findSwitchboard, inPlaceArgv, launchFeatures, terminalLaunchArgv } from '../src/core/switchboard';
 import { detectRuntimes, KNOWN_RUNTIMES, loginPathFrom, readLoginPath, runtimeArgs, searchDirs, type RuntimeSpec } from '../src/core/runtimes';
 import { ConsoleManager, endWorkQuestion, planStart, shellQuote, terminalScript, type PtyLike, type SpawnPty } from '../src/core/consoles';
 import { tmp } from './helpers';
@@ -383,4 +383,17 @@ test('audit HIGH-2: a restart or a quit asks before ending consoles or commands,
   assert.match(ru.message, /^Завершить Fabric Dashboards/);
   assert.match(ru.detail, /Работает консоль агента Research/);
   assert.equal(ru.confirm, 'Завершить');
+});
+
+test('FD-124: a Switchboard whose launch takes --surface records our launches as asked for from Fabric Dashboards', async () => {
+  const sb070 = fakeSwitchboard({ 'launch --help': { stdout: '--provider <P>\n--in-place\n--surface <SURFACE>\n--by <NAME>' } });
+  assert.deepEqual(await launchFeatures(sb070.run, '/sb'), { inPlace: true, surface: true });
+  const sb06 = fakeSwitchboard({ 'launch --help': { stdout: '--provider <P>\n--in-place' } });
+  assert.deepEqual(await launchFeatures(sb06.run, '/sb'), { inPlace: true, surface: false });
+  assert.deepEqual(inPlaceArgv('/sb', 'claude', '/x', ['--continue'], true), ['/sb', 'launch', '--provider', 'claude', '--mode', 'managed', '--working-directory', '/x', '--in-place', '--surface', 'dashboards', '--', '--continue']);
+  const bound = { runtime: CLAUDE, mode: 'new' as const, folder: '/r', binding: { kind: 'project' as const, name: 'Growth', pool: 'growth' }, switchboard: '/sb', inPlace: true };
+  const marked = planStart({ ...bound, surface: true });
+  assert.ok(marked.kind === 'run' && marked.argv.join(' ').includes('--in-place --surface dashboards'));
+  const plain = planStart(bound);
+  assert.ok(plain.kind === 'run' && !plain.argv.includes('--surface'), 'an older Switchboard is never given a flag it does not know');
 });

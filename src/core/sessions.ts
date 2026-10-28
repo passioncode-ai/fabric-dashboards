@@ -86,6 +86,9 @@ export interface SessionRow {
   /** V-5 (FIX-2): an ended row whose console of this app holds nothing it printed (the app restarted since): its page
    *  says so instead of showing an empty console. Set by the console host; false in the pure merge. */
   consoleEmpty: boolean;
+  /** FD-124: what Switchboard's launch record says about this session (who started it, how it ended, where its work went,
+   *  its transcript), from the row's own Switchboard session or its twin; null when there is none. */
+  launch: LaunchFacts | null;
   /** The row's latest known time, the list's order (newest first). */
   at: number;
 }
@@ -111,6 +114,38 @@ export interface SbSessionRecord {
   launchedAt: number | null;
   startedAt: number | null;
   state: 'starting' | 'running' | 'ended' | 'unknown';
+  /** FD-124 (SB-212, Switchboard 0.7.0): what the launch record says about where the session came from and where its
+   *  work went; null when Switchboard keeps no such record (an earlier version, or a launch before 0.7.0). */
+  launch: LaunchFacts | null;
+}
+
+/** Who started a launch, as Switchboard recorded it. Each field is null when absent or not of the expected form. */
+export interface LaunchedBy {
+  /** Where the launch was asked for: Switchboard's window, its CLI or MCP, a fallback after a limit, a recovery, or us. */
+  surface: 'window' | 'cli' | 'mcp' | 'fallback' | 'recovery' | 'dashboards' | null;
+  /** The agent or person name the caller gave (`--by`). */
+  by: string | null;
+  /** The program that asked (a bare name, never a command line). */
+  program: string | null;
+  /** The group of the caller. */
+  project: string | null;
+  /** The launch this one was started from (`--parent`). */
+  parent: string | null;
+  /** The launch of the calling session, when the caller ran inside one. */
+  caller: string | null;
+}
+
+export interface LaunchFacts {
+  launchId: string | null;
+  by: LaunchedBy;
+  /** Absolute path of the runtime's own transcript; shown in Finder only, never read or sent. */
+  transcript: string | null;
+  turns: number | null;
+  lastTurnAt: number | null;
+  ended: 'finished' | 'limit' | 'killed' | 'not_started' | 'unknown' | null;
+  endedAt: number | null;
+  /** Where its work went on: a hand-over, a workflow, or another launch. */
+  continuedAs: { kind: 'handover' | 'workflow' | 'launch'; id: string } | null;
 }
 
 /** A hand-over Switchboard still offers. */
@@ -191,7 +226,7 @@ export interface SessionNotice { kind: 'handover' | 'resume'; id: string; key: s
  *  the console's own start refusals (ConsoleStartResult). */
 export type SessionActionResult =
   | { ok: true; key: string | null }
-  | { ok: false; reason: 'unknown' | 'not-allowed' | 'account' | 'claim' | 'no-switchboard' | 'no-folder' | 'no-runtime' | 'no-continue' | 'running' | 'switchboard' | 'terminal-only' | 'spawn' | 'admission'; detail?: string };
+  | { ok: false; reason: 'unknown' | 'not-allowed' | 'account' | 'claim' | 'no-switchboard' | 'no-folder' | 'no-runtime' | 'no-continue' | 'running' | 'switchboard' | 'terminal-only' | 'spawn' | 'admission' | 'no-transcript'; detail?: string };
 
 export const consoleRowId = (key: string, startedAt: number) => `c:${key}:${startedAt}`;
 export const handoverRowId = (id: string) => `ho:${id}`;
@@ -260,13 +295,14 @@ function isRecord(r: unknown): r is SessionRecord {
     && (x.key === null || typeof x.key === 'string');
 }
 
-function row(o: Omit<SessionRow, 'project' | 'group' | 'at' | 'actions' | 'contextName' | 'openedInTerminal' | 'expectedAt' | 'candidates' | 'resumable' | 'consoleEmpty' | 'waitReason'> & Partial<Pick<SessionRow, 'actions' | 'contextName' | 'openedInTerminal' | 'expectedAt' | 'candidates' | 'resumable' | 'waitReason'>>): SessionRow {
+function row(o: Omit<SessionRow, 'project' | 'group' | 'at' | 'actions' | 'contextName' | 'openedInTerminal' | 'expectedAt' | 'candidates' | 'resumable' | 'consoleEmpty' | 'waitReason' | 'launch'> & Partial<Pick<SessionRow, 'actions' | 'contextName' | 'openedInTerminal' | 'expectedAt' | 'candidates' | 'resumable' | 'waitReason' | 'launch'>>): SessionRow {
   const group = groupOf(o.state);
   return {
     ...o, project: base(o.folder), group, actions: o.actions ?? actionsFor(o.state),
     contextName: o.contextName ?? null, openedInTerminal: o.openedInTerminal ?? false, expectedAt: o.expectedAt ?? null, candidates: o.candidates ?? [], waitReason: o.waitReason ?? null,
     resumable: group === 'ended' && (o.resumable ?? false),
     consoleEmpty: false,
+    launch: o.launch ?? null,
     at: Math.max(o.endedAt ?? 0, o.startedAt ?? 0),
   };
 }
@@ -305,7 +341,7 @@ export function mergeSessions(i: MergeInput): SessionRow[] {
     add(row({
       id: consoleRowId(c.key, c.startedAt), key: c.key, folder: c.folder, agent: c.agent, account: c.account ?? s?.account ?? null,
       context: s?.context ?? null, contextName: s?.contextName ?? null, origin: c.origin, reason: null,
-      state: c.failedResume ? 'needs-you-resume-failed' : 'running-ours', startedAt: c.startedAt, endedAt: null,
+      state: c.failedResume ? 'needs-you-resume-failed' : 'running-ours', startedAt: c.startedAt, endedAt: null, launch: s?.launch ?? null,
     }));
   }
 
@@ -329,7 +365,7 @@ export function mergeSessions(i: MergeInput): SessionRow[] {
     add(row({
       id: r.id, key: r.key, folder: r.folder, agent: r.agent, account: r.account ?? s?.account ?? null, context: r.context ?? s?.context ?? null,
       contextName: s?.contextName ?? null, origin: r.end === 'declined' ? 'limit' : r.origin, reason: END_REASON[r.end] ?? null, state: END_STATE[r.end], startedAt: r.startedAt, endedAt: r.endedAt, // V-1: 0.8.0 builds wrote 'resume' for a decline
-      resumable: r.sessionId !== null || r.provider === 'claude' || (r.origin === 'here' && r.key !== null),
+      resumable: r.sessionId !== null || r.provider === 'claude' || (r.origin === 'here' && r.key !== null), launch: s?.launch ?? null,
     }));
   }
 
@@ -387,7 +423,8 @@ export function mergeSessions(i: MergeInput): SessionRow[] {
       id: sbRowId(s), key: null, folder: s.folder, agent: s.agent,
       account: s.account || null, context: s.context, contextName: s.contextName, origin: s.continues ? 'handover' : 'switchboard', reason: null,
       // SB-201: only a Claude Code session has a Claude Code conversation to resume; a proxy launch rides `claude` too.
-      state: running ? 'running-terminal' : 'ended', startedAt: started, endedAt: null, resumable: s.agent === 'claude-code',
+      state: running ? 'running-terminal' : 'ended', startedAt: started, endedAt: running ? null : s.launch?.endedAt ?? null, resumable: s.agent === 'claude-code',
+      launch: s.launch,
     }));
   }
 

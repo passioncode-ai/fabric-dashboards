@@ -6,7 +6,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import type { Runner } from '@passioncode-ai/fabric-service-host';
-import { ConsoleHost } from '../src/electron/console';
+import { ConsoleHost, transcriptFile } from '../src/electron/console';
 import { consoleRowId, mergeSessions, pruneRecords, SESSION_KEEP_MS, SourceReader, type MergeInput, type SbSessionRecord, type SessionNotice, type SessionRecord } from '../src/core/sessions';
 import { allSessionsOf, handoversSwitch, isHandoverKey } from '../src/core/switchboard';
 import { SettingsStore } from '../src/core/settings';
@@ -26,7 +26,7 @@ const POSIX = { skip: process.platform === 'win32' && 'POSIX execute bits: the f
 
 const sb = (o: Partial<SbSessionRecord> = {}): SbSessionRecord => ({
   home: '/sb/homes/a', folder: '/w/alpha', provider: 'claude', agent: 'claude-code', pool: 'default', mode: 'managed', account: 'Work Max', accountId: 'acc-1',
-  context: 'org:acme', contextName: 'Acme', continues: null, inPlace: false, launchedAt: NOW - 10 * MIN, startedAt: NOW - 10 * MIN, state: 'running' as const, ...o,
+  context: 'org:acme', contextName: 'Acme', continues: null, inPlace: false, launchedAt: NOW - 10 * MIN, startedAt: NOW - 10 * MIN, state: 'running' as const, launch: null, ...o,
 });
 const record = (o: Partial<SessionRecord> = {}): SessionRecord => ({
   id: 'c:handover.ho-0123456789ab:1', key: 'handover.ho-0123456789ab', folder: '/w/alpha', agent: 'claude-code', account: null, context: null,
@@ -141,6 +141,43 @@ test('FD-103: restart keeps the ended entries of the last 24 h and drops the old
   assert.deepEqual(new SettingsStore(tmp('fd-ses-empty-')).get().sessions, { records: [], dismissed: [] }, 'a file from an earlier version has none');
 });
 
+test('FD-124: a row carries its Switchboard launch facts, from its own session or its console twin', () => {
+  const facts = { launchId: '0b8f6c1e-1f2a-4c3d-9e8f-0123456789ab', by: { surface: 'fallback' as const, by: 'voc-learn', program: 'switchboard', project: 'agents', parent: null, caller: null },
+    transcript: '/x/t.jsonl', turns: 3, lastTurnAt: NOW - 5 * MIN, ended: 'limit' as const, endedAt: NOW - 4 * MIN, continuedAs: { kind: 'handover' as const, id: 'ho-0123456789ab' } };
+  const base = { pending: [], stops: [], records: [], dismissed: [], now: NOW };
+  // A session in Terminal, ended: its row says when it ended, from the launch record.
+  const [t] = mergeSessions({ ...base, consoles: [], switchboard: [sb({ state: 'ended', launch: facts })] });
+  assert.deepEqual(t!.launch, facts);
+  assert.equal(t!.endedAt, NOW - 4 * MIN);
+  // One of our consoles: its Switchboard twin's facts.
+  const [c] = mergeSessions({ ...base, consoles: [{ key: 'svc.a', folder: '/w/alpha', agent: 'claude-code', origin: 'here', startedAt: NOW - 10 * MIN }], switchboard: [sb({ inPlace: true, launch: facts })] });
+  assert.equal(c!.key, 'svc.a');
+  assert.deepEqual(c!.launch, facts);
+  // No record: null, never an empty object.
+  const [n] = mergeSessions({ ...base, consoles: [], switchboard: [sb()] });
+  assert.equal(n!.launch, null);
+});
+
+test('FD-124: a session of Switchboard 0.7.0 says who launched it, how it ended, where its work went and where its transcript is', async () => {
+  const base = { account_id: 'acc-1', home: '/sb/runtimes/claude-agents', in_place: false, label: 'Work', launched_at: 1_792_617_000, mode: 'managed', pool: 'agents', provider: 'claude', started_at: 1_792_617_001, state: 'ended', working_directory: '/w/alpha' };
+  const run: Runner = async () => ok({ sessions: [
+    { ...base, launch_id: '0b8f6c1e-1f2a-4c3d-9e8f-0123456789ab', launched_by: { surface: 'fallback', caller_launch_id: null, caller_project: 'agents', caller_program: 'switchboard', by: 'voc-learn', parent: '1c9e7d2f-2a3b-4d4e-8f9a-123456789abc' },
+      provider_session_id: 'f1e2d3c4-b5a6-4789-8abc-def012345678', transcript: '/opt/h/.sb/runtimes/claude-agents/projects/-w-alpha/f1e2.jsonl', turns: 7, last_turn_at: 1_792_617_900, ended: 'limit', ended_at: 1_792_618_000,
+      continued_as: { kind: 'handover', id: 'ho-0123456789ab', launch_id: '2d0f8e3a-3b4c-4e5f-9a0b-23456789abcd' } },
+    { ...base, working_directory: '/w/beta', launch_id: 'not-a-uuid', launched_by: { surface: 'teleport', by: 'x y', parent: 'nope', caller_program: '/bin/zsh -c secret' }, transcript: 'relative/path.jsonl', ended: 'exploded', continued_as: { kind: 'elsewhere', id: '' } },
+  ] });
+  const r = await allSessionsOf(run, '/bin/switchboard');
+  assert.ok(r.ok);
+  assert.deepEqual(r.value[0]!.launch, {
+    launchId: '0b8f6c1e-1f2a-4c3d-9e8f-0123456789ab',
+    by: { surface: 'fallback', by: 'voc-learn', program: 'switchboard', project: 'agents', parent: '1c9e7d2f-2a3b-4d4e-8f9a-123456789abc', caller: null },
+    transcript: '/opt/h/.sb/runtimes/claude-agents/projects/-w-alpha/f1e2.jsonl', turns: 7, lastTurnAt: 1_792_617_900_000,
+    ended: 'limit', endedAt: 1_792_618_000_000, continuedAs: { kind: 'handover', id: 'ho-0123456789ab' },
+  });
+  // Nothing malformed is guessed at: an unknown surface, a name that is not one, a relative transcript, an unknown end.
+  assert.deepEqual(r.value[1]!.launch, { launchId: null, by: { surface: null, by: null, program: null, project: null, parent: null, caller: null }, transcript: null, turns: null, lastTurnAt: null, ended: null, endedAt: null, continuedAs: null });
+});
+
 test('FD-103: Switchboard\'s machine-wide list is read strictly; a failure is a degraded source, never an empty list', async () => {
   const run: Runner = async (_f, args) => {
     assert.deepEqual(args, ['--json', 'sessions', '--all']);
@@ -152,7 +189,7 @@ test('FD-103: Switchboard\'s machine-wide list is read strictly; a failure is a 
   };
   const r = await allSessionsOf(run, '/bin/switchboard');
   assert.ok(r.ok);
-  assert.deepEqual(r.value, [{ home: '/sb/homes/a', folder: '/w/alpha', provider: 'claude', agent: 'claude-code', pool: 'default', mode: 'managed', account: 'Work Max', accountId: 'acc-1', context: 'personal', contextName: null, continues: 'wf_0123456789abcdef', inPlace: true, launchedAt: 1_792_617_000_000, startedAt: 1_792_617_001_000, state: 'running' }]);
+  assert.deepEqual(r.value, [{ home: '/sb/homes/a', folder: '/w/alpha', provider: 'claude', agent: 'claude-code', pool: 'default', mode: 'managed', account: 'Work Max', accountId: 'acc-1', context: 'personal', contextName: null, continues: 'wf_0123456789abcdef', inPlace: true, launchedAt: 1_792_617_000_000, startedAt: 1_792_617_001_000, state: 'running', launch: null }]);
   const old = await allSessionsOf(async () => ({ code: 2, stdout: '', stderr: "error: unexpected argument '--all' found" }), 'sb');
   assert.deepEqual(old, { ok: false, reason: 'old', detail: "error: unexpected argument '--all' found" });
 
@@ -373,4 +410,20 @@ test('SB-201 (Switchboard 0.7.0): a session row is the agent Switchboard names; 
   assert.equal(by('/w/kimi').agent, 'kimi-code');
   const twin = mergeSessions(input({ switchboard: [{ ...r.value[0]!, folder: '/w/same' }, { ...r.value[1]!, folder: '/w/same' }] }));
   assert.equal(new Set(twin.map((x) => x.id)).size, twin.length, 'two agents on one route, folder and time are two rows');
+});
+
+test('FD-124: Show transcript shows only an absolute .jsonl file that exists, never a folder or a relative path', () => {
+  const dir = tmp();
+  try {
+    const file = path.join(dir, 'f1e2.jsonl');
+    fs.writeFileSync(file, '{}\n');
+    fs.mkdirSync(path.join(dir, 'd.jsonl'));
+    fs.writeFileSync(path.join(dir, 'notes.txt'), 'x');
+    assert.equal(transcriptFile(file), file);
+    assert.equal(transcriptFile(path.join(dir, 'gone.jsonl')), null, 'gone');
+    assert.equal(transcriptFile(path.join(dir, 'd.jsonl')), null, 'a folder');
+    assert.equal(transcriptFile(path.join(dir, 'notes.txt')), null, 'not a transcript');
+    assert.equal(transcriptFile('f1e2.jsonl'), null, 'relative');
+    assert.equal(transcriptFile(null), null);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });
