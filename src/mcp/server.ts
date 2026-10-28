@@ -62,7 +62,7 @@ export const TOOLS = [
   },
   {
     name: 'list_services',
-    description: 'Every installed service, local and online: its product (every instance of one id is one product), placement, state (ready, degraded, down, stopped…), version, dashboard URL, the dashboard\'s declared minimum width (dashboard_min_width, null when it declares none), a fabric-dashboards:// link, tiles, pending update, and how the app lists it: category (local, online, or service: the section its product is listed in, so every instance of one product carries its product\'s; placement says where this instance runs) and hidden (the person hid it; it is still watched).',
+    description: 'Every installed service, local and online: its product (every instance of one id is one product), placement, state (ready, degraded, down, stopped…; stopped with reason.elsewhere when this machine\'s placement record puts it on another machine, duplicate with reason.duplicate.elsewhere when it runs here anyway, FD-132), version, dashboard URL, the dashboard\'s declared minimum width (dashboard_min_width, null when it declares none), a fabric-dashboards:// link, tiles, pending update, and how the app lists it: category (local, online, or service: the section its product is listed in, so every instance of one product carries its product\'s; placement says where this instance runs) and hidden (the person hid it; it is still watched).',
     inputSchema: { type: 'object', properties: {}, additionalProperties: false },
     annotations: { readOnlyHint: true },
   },
@@ -86,7 +86,7 @@ export const TOOLS = [
   },
   {
     name: 'control',
-    description: 'Start, stop or restart a local service through launchd, and wait for the expected answer. Stop keeps it off across logins. An online service is supervised by its platform and is refused.',
+    description: 'Start, stop or restart a local service through launchd, and wait for the expected answer. Stop keeps it off across logins. An online service is supervised by its platform and is refused; so are start and restart of one this machine\'s placement record puts on another machine (FD-132: a second copy).',
     inputSchema: {
       type: 'object',
       properties: { service: serviceArg, action: { type: 'string', enum: ['start', 'stop', 'restart'] } },

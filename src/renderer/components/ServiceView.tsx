@@ -12,6 +12,7 @@ import { Connections } from './Connections';
 import { Load } from './Load';
 import { subscriptionCost, usd } from './Spend';
 import { loadOf } from '@passioncode-ai/fabric-service-host/load';
+import { placedElsewhere } from '@passioncode-ai/fabric-service-host/state';
 import fabricMark from '../brand/passioncode-mark.svg';
 
 type Tab = 'dashboard' | 'activity' | 'connections' | 'load' | 'health' | 'logs';
@@ -97,6 +98,7 @@ export function ServiceView({ s, all, members, open, link, nonce, tab: askedTab,
   const wk = s.wellKnown;
   const managed = s.launchd.managed && (s.launchd.by ?? 'launchd') === 'launchd'; // ADR-0019 §7: the monitor decides — launchd is macOS's; systemd is read (FD-55), never driven
   const running = ['ready', 'degraded', 'duplicate'].includes(s.state);
+  const away = placedElsewhere(s.reasons); // FD-132: the machine the placement record puts it on, or null
   // U-2: an explicit running state, a failure that ends the spinner, and the output on Health for both commands.
   const run = async (which: 'doctor' | 'update') => {
     const command = t(`command.${which}`);
@@ -179,11 +181,14 @@ export function ServiceView({ s, all, members, open, link, nonce, tab: askedTab,
             {/* VIS-17 (FD-129): three groups, one primary per state: run (Start, Restart, Stop), repair (Update, the self-check,
                 the coding agent), and the files as quiet links. */}
             <div className="row wrap card-actions">
-              {managed && (
+              {/* FD-132: placed on the other machine: no Start or Restart here (a second copy); a copy running here anyway can be stopped. */}
+              {managed && !(away !== null && s.state === 'stopped') && (
                 <div className="row" role="group" aria-label={t('card.group.run')}>
                   {s.state === 'stopped'
                     ? <button className="btn btn-primary" disabled={Boolean(s.busy)} onClick={() => void api().control(s.key, 'start')}>{t('action.start')}</button>
-                    : <>
+                    : away !== null
+                      ? <button className="btn btn-primary" disabled={Boolean(s.busy)} onClick={() => askStop(s.key)}>{t('action.stop')}</button>
+                      : <>
                         <button className={`btn${s.state === 'down' || s.state === 'duplicate' ? ' btn-primary' : ''}`} disabled={Boolean(s.busy) || s.state === 'invalid' || s.state === 'conflict'} onClick={() => void api().control(s.key, 'restart')}>{t('action.restart')}</button>
                         <button className="btn" disabled={Boolean(s.busy) || !running && s.state !== 'down'} onClick={() => askStop(s.key)}>{t('action.stop')}</button>
                       </>}

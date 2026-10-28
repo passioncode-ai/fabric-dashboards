@@ -14,3 +14,4 @@ export * from './connections';
 export * from './latch';
 export * from './load';
 export * from './actions';
+export * from './placement';

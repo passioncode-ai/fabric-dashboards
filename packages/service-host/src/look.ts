@@ -7,6 +7,7 @@
 import { claimConflicts, readDirectory, servicesDir as defaultServicesDir, type DescriptorEntry } from './descriptor';
 import { authHeaders, fetchWellKnown, readTokenAsync, REMOTE_TIMEOUT_MS, type WellKnownOptions } from './health';
 import { LaunchdReader, UNMANAGED } from './launchd';
+import { elsewhereOf, PlacementReader, type Placement } from './placement';
 import type { RemoteTokenLatch } from './latch';
 import type { ClaimConflict, LaunchdStatus, Reason, ServiceState, WellKnown, WellKnownResult } from './protocol';
 import { DOWN_AFTER_MS, REMOTE_DOWN_AFTER_MS, deriveState } from './state';
@@ -28,6 +29,8 @@ export interface LookOptions {
   /** A reader that looks more than once (the MCP server) passes one latch for its lifetime: an online
    *  origin that answered as something else then gets no token again (RemoteTokenLatch). */
   latch?: RemoteTokenLatch;
+  /** FD-132: this machine's placement record. Default: read once from placementFile(); null: placed here. */
+  placement?: Placement | null;
 }
 
 export interface ServiceLook {
@@ -65,7 +68,8 @@ export async function lookAtServices(o: LookOptions = {}): Promise<Look> {
   const managed = (e: DescriptorEntry) => onLaunchd && e.descriptor?.lifecycle.manager === 'launchd' && Boolean(e.descriptor.lifecycle.label);
   const chosen = o.only ? entries.filter((e) => o.only!.includes(e.key)) : entries;
   const table = chosen.some(managed) ? await reader.disabledTable() : '';
-  const services = await Promise.all(chosen.map((e) => lookAtEntry(e, conflicts.get(e.key) ?? null, table, reader, o)));
+  const placement = o.placement !== undefined ? o.placement : new PlacementReader().get((o.now ?? Date.now)());
+  const services = await Promise.all(chosen.map((e) => lookAtEntry(e, conflicts.get(e.key) ?? null, table, reader, { ...o, placement })));
   return { servicesDir: dir, error: null, services };
 }
 
@@ -99,6 +103,7 @@ async function lookAtEntry(entry: DescriptorEntry, conflict: ClaimConflict | nul
   const { state, reasons } = deriveState({
     descriptor: d, problems, conflict, launchd, probe,
     firstUnansweredAt: now - (remote ? REMOTE_DOWN_AFTER_MS : DOWN_AFTER_MS), now, busy: null,
+    elsewhere: elsewhereOf(o.placement ?? null, d),
   });
   return {
     key: entry.key, path: entry.path, descriptor: d, problems, conflict, state, reasons,

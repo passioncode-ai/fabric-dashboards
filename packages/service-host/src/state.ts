@@ -2,7 +2,7 @@
 // shared vectors (test-vectors/state-precedence.json) are the normative test of this order; any
 // host that reads services/ runs them. Pure: no Node import, so a renderer may import
 // `@passioncode-ai/fabric-service-host/state`.
-import type { Busy, ClaimConflict, Descriptor, LaunchdStatus, Reason, ServiceState, WellKnown, WellKnownResult } from './protocol';
+import type { Busy, ClaimConflict, Descriptor, Elsewhere, LaunchdStatus, Reason, ServiceState, WellKnown, WellKnownResult } from './protocol';
 
 // #region state-precedence — docs: packages/service-host/README.md#state-precedence
 
@@ -20,6 +20,8 @@ export interface StateInput {
   firstUnansweredAt: number | null; // ms epoch when answers stopped
   now: number;
   busy: Busy;
+  /** FD-132: the placement record puts it on another machine; absent or null: placed here. */
+  elsewhere?: Elsewhere | null;
 }
 
 export interface StateOutput { state: ServiceState; reasons: Reason[] }
@@ -37,11 +39,14 @@ export function deriveState(i: StateInput): StateOutput {
 
   const probe = i.probe;
   if (d.placement === 'remote') return remoteState(d, probe, i);
+  const away = i.elsewhere ?? null;
   if (probe?.kind === 'answer') {
     const svc = probe.doc.service;
     if (svc.id !== d.id || svc.instance !== d.instance) {
       return { state: 'foreign', reasons: [{ code: 'reason.foreign.other', params: { port: portNum(d.origin), answer: `${svc.id}.${svc.instance}` } }] };
     }
+    // FD-132: placed on the other machine yet answering here: two copies, one of them on the wrong machine.
+    if (away) return { state: 'duplicate', reasons: [{ code: 'reason.duplicate.elsewhere', params: { machine: away.placedOn } }] };
     if (i.launchd.managed && i.launchd.loaded && i.launchd.pid !== null && i.launchd.pid !== probe.doc.process.pid) {
       return { state: 'duplicate', reasons: [{ code: 'reason.duplicate', params: { answering: probe.doc.process.pid, launchd: i.launchd.pid } }] };
     }
@@ -51,6 +56,8 @@ export function deriveState(i: StateInput): StateOutput {
     return { state: 'foreign', reasons: [{ code: 'reason.foreign.protocol', params: { port: portNum(d.origin), detail: probe.detail } }] };
   }
   // No answer.
+  // FD-132: silent here because it runs on the other machine: off here, never down, whatever launchd says.
+  if (away) return { state: 'stopped', reasons: [{ code: 'reason.elsewhere', params: { machine: away.placedOn } }] };
   if (i.launchd.managed && (i.launchd.disabled || !i.launchd.loaded)) {
     return { state: 'stopped', reasons: [{ code: i.launchd.disabled ? 'reason.stopped' : 'reason.not-loaded' }] };
   }
@@ -106,5 +113,10 @@ export function attentionRank(state: ServiceState, wellKnown: WellKnown | null):
   if (wellKnown?.update?.available) return 8;
   if (wellKnown?.summary?.some((t) => t.attention)) return 7;
   return null;
+}
+/** FD-132: the reason that says the service is placed on another machine, if it carries one. */
+export function placedElsewhere(reasons: readonly Reason[]): string | null {
+  const r = reasons.find((x) => x.code === 'reason.elsewhere' || x.code === 'reason.duplicate.elsewhere');
+  return r ? String(r.params?.machine ?? '') : null;
 }
 // #endregion state-precedence

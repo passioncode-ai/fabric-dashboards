@@ -8,7 +8,7 @@ import fs from 'node:fs';
 import { ActivityStore } from './activity';
 import { runOwned } from './children';
 import { productIdOf } from '@passioncode-ai/fabric-service-host/links';
-import { SystemdReader, authHeaders, claimConflicts, dashboardMinWidth, deriveState, expand, fetchWellKnown, portOf, readDirectory, RemoteTokenLatch, REMOTE_TIMEOUT_MS, type DescriptorEntry, type WellKnownOptions, type WellKnownResult } from '@passioncode-ai/fabric-service-host';
+import { SystemdReader, authHeaders, claimConflicts, dashboardMinWidth, deriveState, elsewhereOf, PlacementReader, type Elsewhere, expand, fetchWellKnown, portOf, readDirectory, RemoteTokenLatch, REMOTE_TIMEOUT_MS, type DescriptorEntry, type WellKnownOptions, type WellKnownResult } from '@passioncode-ai/fabric-service-host';
 import { tail } from './fsutil';
 import { commandReason, type CommandResult } from './outcome';
 import { duration, t as tr, type Lang } from './i18n';
@@ -49,6 +49,8 @@ export interface MonitorOptions {
   /** The events feed reader and the token reader. Defaults: probe.ts. */
   events?: typeof fetchEvents;
   token?: (tokenFile: string) => string | Promise<string>;
+  /** FD-132: this machine's placement record (default: Observatory's file, read again only when it changed). */
+  placement?: Pick<PlacementReader, 'get' | 'error'>;
 }
 
 interface Tracked {
@@ -136,7 +138,23 @@ export class Monitor extends EventEmitter {
     this.ledger = o.ledger ?? new NotifyLedger(null);
     this.events = o.events ?? fetchEvents;
     this.token = o.token ?? readTokenAsync;
+    this.placement = o.placement ?? new PlacementReader();
   }
+
+  // #region placed-elsewhere — docs: docs/ux/scenarios.md#scn-089-see-which-agents-are-placed-on-the-other-machine
+  private readonly placement: Pick<PlacementReader, 'get' | 'error'>;
+  private placementError: string | null = null;
+
+  /** FD-132: where the placement record puts this service; a changed reason the record cannot be used is said once. */
+  private elsewhere(t: Tracked): Elsewhere | null {
+    const placement = this.placement.get(this.now());
+    if (this.placement.error !== this.placementError) {
+      this.placementError = this.placement.error;
+      this.emit('placement-error', this.placementError);
+    }
+    return elsewhereOf(placement, t.entry.descriptor);
+  }
+  // #endregion placed-elsewhere
 
   // --- lifecycle -----------------------------------------------------------------
   // #region idle-scheduler — docs: AGENTS.md#lifecycle
@@ -589,6 +607,7 @@ export class Monitor extends EventEmitter {
     // and the tracked state the window shows.
     const oldPid = t.probe?.kind === 'answer' ? t.probe.doc.process.pid : null;
     const out = await controlService(d, action, {
+      elsewhere: this.elsewhere(t),
       platform: this.platform,
       launchd: this.launchd,
       wellKnown: (origin) => fetchWellKnown(origin, 1500),
@@ -603,6 +622,7 @@ export class Monitor extends EventEmitter {
       case 'refused':
         if (out.why === 'unsupervised-here') return finish(false, { code: 'result.unsupervisedHere', params: { name } });
         if (out.why === 'plist-missing') return finish(false, { code: 'result.plistMissing', params: { name, path: out.plist } });
+        if (out.why === 'placed-elsewhere') return finish(false, { code: 'result.placedElsewhere', params: { name, machine: out.machine } });
         return finish(false, { code: 'result.unmanaged', params: { name } });
       case 'launchctl-failed':
         return finish(false, { code: 'result.launchctl', params: { detail: out.detail } });
@@ -675,7 +695,7 @@ export class Monitor extends EventEmitter {
     const seen = this.evidence(t);
     const { state, reasons } = deriveState({
       descriptor: t.entry.descriptor, problems: t.tokenProblem ? [...t.entry.problems, t.tokenProblem] : t.entry.problems, conflict: this.conflicts().get(t.entry.key),
-      launchd: t.launchd, probe: seen.probe, firstUnansweredAt: seen.firstUnansweredAt, now: this.now(), busy: t.busy,
+      launchd: t.launchd, probe: seen.probe, firstUnansweredAt: seen.firstUnansweredAt, now: this.now(), busy: t.busy, elsewhere: this.elsewhere(t),
     });
     // P-12: an unreadable token file is a problem of this computer's file, not of the descriptor.
     if (t.tokenProblem && state === 'invalid' && !t.entry.problems.length) reasons.splice(0, reasons.length, { code: 'reason.token', params: { problem: t.tokenProblem } });

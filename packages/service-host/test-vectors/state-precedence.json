@@ -157,6 +157,31 @@
       "expect": { "state": "stopped", "reasons": [{ "code": "reason.not-loaded" }] }
     },
     {
+      "name": "placed on another machine (FD-132) and silent here: off here, not down",
+      "input": { "elsewhere": { "placedOn": "studio-2" }, "probe": { "kind": "no-answer", "detail": "connect ECONNREFUSED 127.0.0.1:47195" }, "launchd": { "managed": true, "loaded": false, "pid": null, "disabled": false }, "firstUnansweredAt": 0 },
+      "expect": { "state": "stopped", "reasons": [{ "code": "reason.elsewhere", "params": { "machine": "studio-2" } }] }
+    },
+    {
+      "name": "placed on another machine and silent although launchd loaded it here: still off here, never down",
+      "input": { "elsewhere": { "placedOn": "studio-2" }, "probe": { "kind": "no-answer", "detail": "connect ECONNREFUSED 127.0.0.1:47195" }, "firstUnansweredAt": 0 },
+      "expect": { "state": "stopped", "reasons": [{ "code": "reason.elsewhere", "params": { "machine": "studio-2" } }] }
+    },
+    {
+      "name": "placed on another machine yet answering here: a second copy",
+      "input": { "elsewhere": { "placedOn": "studio-2" } },
+      "expect": { "state": "duplicate", "reasons": [{ "code": "reason.duplicate.elsewhere", "params": { "machine": "studio-2" } }] }
+    },
+    {
+      "name": "placed on another machine, another program on the port: that program is said first",
+      "input": { "elsewhere": { "placedOn": "studio-2" }, "probe": { "kind": "not-protocol", "detail": "the answer is not JSON" } },
+      "expect": { "state": "foreign" }
+    },
+    {
+      "name": "placed on another machine, the host stopping it here: its action comes first",
+      "input": { "elsewhere": { "placedOn": "studio-2" }, "busy": "stopping" },
+      "expect": { "state": "stopping" }
+    },
+    {
       "name": "loaded, silent for less than the grace window: starting",
       "input": { "probe": { "kind": "no-answer", "detail": "connect ECONNREFUSED 127.0.0.1:47195" }, "firstUnansweredAt": 999000 },
       "expect": { "state": "starting", "reasons": [{ "code": "reason.waiting" }] }
@@ -185,6 +210,11 @@
       "name": "remote (DEC-0019): answers as itself with the token, ready",
       "input": { "descriptor": { "protocol": "fabric-service/0.1", "id": "example-agent", "instance": "default", "name": "Example Agent", "placement": "remote", "origin": "https://agent.example.com", "auth": { "tokenFile": "~/Library/Application Support/ai.passioncode.fabric/tokens/example-agent.default.token" }, "lifecycle": { "manager": "none" }, "installedAt": "2026-10-02T18:00:00Z", "installedBy": "fabric-service register-remote" }, "launchd": { "managed": false, "loaded": false, "pid": null, "disabled": false } },
       "expect": { "state": "ready", "reasons": [] }
+    },
+    {
+      "name": "remote: the placement record is not read for an online service (its platform places it)",
+      "input": { "elsewhere": { "placedOn": "studio-2" }, "descriptor": { "protocol": "fabric-service/0.1", "id": "example-agent", "instance": "default", "name": "Example Agent", "placement": "remote", "origin": "https://agent.example.com", "auth": { "tokenFile": "~/Library/Application Support/ai.passioncode.fabric/tokens/example-agent.default.token" }, "lifecycle": { "manager": "none" }, "installedAt": "2026-10-02T18:00:00Z", "installedBy": "fabric-service register-remote" }, "launchd": { "managed": false, "loaded": false, "pid": null, "disabled": false } },
+      "expect": { "state": "ready" }
     },
     {
       "name": "remote: a different pid than any launchd job is not a duplicate",

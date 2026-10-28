@@ -145,16 +145,44 @@ A remote placement (DEC-0019) has no launchd and no `duplicate`: `refused`, TLS 
    that is not launchd's → `duplicate` (`reason.duplicate`); otherwise the service's own status:
    `starting` / `stopping`, `degraded` (one `reason.degraded` per source), `ready`;
 5. something that is not a fabric service answers → `foreign` (`reason.foreign.protocol`);
-6. silence and launchd disabled or not loaded → `stopped` (`reason.stopped` / `reason.not-loaded`);
-7. silence shorter than `DOWN_AFTER_MS` (15 s) → `starting` (`reason.waiting`), else `down`
+6. silence while the placement record puts the service on another machine → `stopped`
+   (`reason.elsewhere`, the machine), whatever launchd says (0.10.0, FD-132); an answer as itself
+   while placed there is in step 4 a `duplicate` (`reason.duplicate.elsewhere`, the machine);
+7. silence and launchd disabled or not loaded → `stopped` (`reason.stopped` / `reason.not-loaded`);
+8. silence shorter than `DOWN_AFTER_MS` (15 s) → `starting` (`reason.waiting`), else `down`
    (`reason.down`, since when).
+
+The input `elsewhere` (`{ placedOn, since? }`, optional) comes from the placement record (below);
+an online placement never reads it. `placedElsewhere(reasons)` names the machine a state's reasons
+place it on, or `null`.
 
 `attentionRank(state, wellKnown)` sorts what needs a person first (`down` first; `null` for
 nothing to show).
 
+## Placement
+
+`src/placement.ts` (0.10.0, FD-132). Which services this machine's placement record puts on another
+machine. Until Observatory's node serves the estate record's `machines[].packages[]` (FAC-SEM-074),
+the record is one file Observatory writes on each machine (OBS-283):
+`${XDG_DATA_HOME:-~/.local/share}/project-observatory/placement.json`, schema
+`observatory-placement/1`, `{ machine, updatedAt, elsewhere: [{ label, serviceId, placedOn, since, by }] }`.
+
+- `placementFile(env?, home?)` → the path; `parsePlacement(text)` → `{ placement, error }`: a
+  document of another schema, or without an `elsewhere` list, is refused with its reason; an entry
+  without a machine, or with neither a label nor a key, is dropped, never guessed.
+- `elsewhereOf(placement, descriptor)` → `{ placedOn, since? } | null`: matched by the launchd label,
+  or by the key `id.instance` (an id alone stands for the default instance); an entry placed on the
+  record's own machine places nothing elsewhere.
+- `PlacementReader` reads the file again only when its time or size changed, and at most once per
+  `everyMs` (5 s). No file: nothing is placed elsewhere and `error` is `null`. A file another user
+  owns, or others may write (it could hide Start), or larger than 1 MB is not read, and `error` says
+  why (`placementFileProblem`).
+
+`lookAtServices` reads the record once per look unless `placement` is passed (`null`: placed here).
+
 ## One look
 
-`src/look.ts`. `lookAtServices({ servicesDir?, wellKnown?, launchd?, now?, only?, token?, latch?, platform? })` →
+`src/look.ts`. `lookAtServices({ servicesDir?, wellKnown?, launchd?, now?, only?, token?, latch?, platform?, placement? })` →
 `{ servicesDir, error, services: ServiceLook[] }` — read the descriptors, find conflicts, read
 launchd once (on macOS only: elsewhere a launchd descriptor is unmanaged and no `launchctl` runs, 0.4.0), probe each usable service once, derive each state. A reader with no history (a
 registry scan, an MCP call) has no earlier answer to measure silence from, so a service that
