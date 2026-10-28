@@ -260,7 +260,11 @@ function RowMenu({ p, menu, rail, ask }: { p: Product; menu: RowActions; rail: b
     if (!ask) return;
     const r = box.current?.querySelector('.row-menu-btn')?.getBoundingClientRect();
     if (r) place(r);
-    else setAt(window.innerHeight - ask.rect.bottom < 140 ? { bottom: window.innerHeight - ask.rect.bottom, left: ask.rect.right + 4, minWidth: 200 } : { top: ask.rect.top, left: ask.rect.right + 4, minWidth: 200 });
+    else {
+      // Beside the rail, not over it: the row ends inside the rail's padding, so the rail's own edge is the start.
+      const left = Math.max(ask.rect.right, box.current?.closest('.sidebar')?.getBoundingClientRect().right ?? 0) + 4;
+      setAt(window.innerHeight - ask.rect.bottom < 140 ? { bottom: window.innerHeight - ask.rect.bottom, left, minWidth: 200 } : { top: ask.rect.top, left, minWidth: 200 });
+    }
     setOpen(true);
   }, [ask]);
   useEffect(() => {
