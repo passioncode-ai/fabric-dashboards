@@ -1,6 +1,12 @@
 # Changelog
 
-## 0.8.14 - 2026-10-28
+## 0.8.15 - 2026-10-28
+
+Carries 0.8.14, tagged and not published: its release check failed on both Windows runners on a test that compared a
+path built with the system separator against `/` (run 40631127412). The test now builds the expected path the same way;
+the app is unchanged from 0.8.14.
+
+## 0.8.14 - 2026-10-28 (tagged, not published)
 
 ### Added
 
