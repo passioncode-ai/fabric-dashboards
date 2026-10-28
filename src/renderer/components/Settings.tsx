@@ -1,4 +1,5 @@
 import { SetupCheck } from './Overview';
+import { Fallback } from './Fallback';
 import { useEffect, useRef, useState } from 'react';
 import type { AppStatus, Listener, Settings as SettingsValue } from '../../core/types';
 import { api, nameOf, Spinner, useT } from '../lib';
@@ -113,6 +114,7 @@ export function Settings({ status, onTheme, onLanguage, onSetup, section, nonce 
         <p className="meta" id="resume-body">{t('settings.resumeAfterLimit.body')}</p>
       </section>
       {/* #endregion sessions-settings */}
+      <Fallback />
       <section className="group" aria-labelledby="g-updates">
         <h2 id="g-updates">{t('settings.updates')}</h2>
         <label className="setting">{t('settings.autoUpdate')}
@@ -253,6 +255,7 @@ export function Settings({ status, onTheme, onLanguage, onSetup, section, nonce 
 const SECTIONS = [
   { id: 'g-app', label: 'app.name' },
   { id: 'g-sessions', label: 'settings.sessions' },
+  { id: 'g-fallback', label: 'fallback.title' },
   { id: 'g-updates', label: 'settings.updates' },
   { id: 'g-estate', label: 'settings.estate' },
   { id: 'g-notify', label: 'settings.notifications' },

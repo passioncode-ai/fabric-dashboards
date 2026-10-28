@@ -1,5 +1,6 @@
 // The typed bridge between the renderer and the main process. The renderer
 // never sees a token, a file handle or a process: it asks, the main process acts.
+import type { FallbackChange, FallbackRead } from './fallback-types';
 import type { SetupCheckResult } from './doctor';
 import type { CommandResult } from './outcome';
 import type { SpendEntry } from './spend';
@@ -157,6 +158,10 @@ export interface FabricApi {
   /** Switchboard's own switch for handing sessions over to this app (`handovers set on|off`), read and written through its CLI. */
   sessionsHandovers(): Promise<{ available: boolean; enabled: boolean | null }>;
   setSessionsHandovers(on: boolean): Promise<{ ok: boolean; enabled: boolean | null; detail?: string }>;
+  /** FD-117: Switchboard's default and fallback coding agents and their models; `absent` when Switchboard is not installed. */
+  fallback(): Promise<FallbackRead | { kind: 'absent' }>;
+  /** FD-117: one change written through Switchboard's CLI, then the state read back. */
+  setFallback(change: FallbackChange): Promise<{ ok: boolean; detail?: string; state: FallbackRead | { kind: 'absent' } }>;
   /** Once per taken hand-over and per automatic continue after a limit reset (decision 9), while the window is shown. */
   onSessionNotice(listener: (notice: SessionNotice) => void): () => void;
   /** Continue the same runtime and folder in Terminal (through Switchboard for a bound folder). */
@@ -237,6 +242,8 @@ export const CHANNELS = {
   sessionsReveal: 'fd:sessions-reveal',
   sessionsHandovers: 'fd:sessions-handovers',
   sessionsHandoversSet: 'fd:sessions-handovers-set',
+  fallback: 'fd:fallback',
+  fallbackSet: 'fd:fallback-set',
   sessionsNotice: 'fd:sessions-notice',
   consoleEvent: 'fd:console-event',
   drawerState: 'fd:drawer-state',

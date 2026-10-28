@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- Settings → Coding agents (FD-117): the default coding agent, the fallback order (level 1, level 2 and on) with the
+  model each level works on, and the OpenRouter and Hermes models, all Switchboard's and changed here through its CLI.
+  Groups and tasks with an order of their own are listed read-only. Copy check reports `72968823` (en) and `d69750bc`
+  (ru), no findings.
+
 ## 0.8.12 - 2026-10-27
 
 ### Fixed

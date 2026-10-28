@@ -12,6 +12,7 @@ this app (ADR-0022 for agents and services).
 | agent | агент | any item the app watches, local or online, in counts, filters, empty states, alerts and the tray | service (for a watched item), «сервис» (for a watched item) |
 | service, Services (the sidebar section) | служебный сервис, «Служебные» (раздел) | a helper agent with no dashboard (ADR-0022) | |
 | coding agent | агент для кода | the program the console starts (Claude Code, Codex and others) | runtime, Runner, «кодинг-агент», «агент» alone |
+| fallback order, level | порядок запасных, уровень | Switchboard's chain: the coding agents that continue work, in turn, when one reaches its limit (Settings → Coding agents, FD-117) | fallback chain, executor, «цепочка», «фоллбек» (in the interface) |
 | runs on (what an agent's own model calls run on) | работает на | the runner an agent reports (DEC-0046), in the profile block and in Connections | «Агент для кода» for it |
 | install file | файл установки | the descriptor in the services folder, as a person reads it | descriptor, «дескриптор» (outside the Health details) |
 | services folder | папка сервисов | the folder descriptors are installed into (a path, not a category) | |

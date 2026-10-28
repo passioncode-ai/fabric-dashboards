@@ -13,6 +13,7 @@ import path from 'node:path';
 import { execRunner, type Runner } from '@passioncode-ai/fabric-service-host';
 import { CHANNELS, type ConsoleInfo, type ConsoleStartResult, type ConsoleTask } from '../core/api';
 import { prepareHandoff, writeTaskOnly, type McpCommand } from '../core/handoff';
+import { readFallback, writeFallback, type FallbackChange, type FallbackRead } from '../core/fallback';
 import { prepareSetup, SETUP_KEY, setupFolder, type SetupState } from '../core/setup';
 import type { DoctorReport } from '../core/doctor';
 import type { ActivityItem } from '../core/types';
@@ -987,6 +988,23 @@ export class ConsoleHost {
   }
   // #endregion sessions-host
 
+  // #region fallback-host — docs: docs/ux/scenarios.md#scn-088-choose-the-default-and-fallback-coding-agents
+  /** FD-117: what Settings → Coding agents shows, read from Switchboard each time the section asks. */
+  async readFallback(): Promise<FallbackRead | { kind: 'absent' }> {
+    const inv = await this.inventory();
+    return inv.switchboard ? readFallback(this.run, inv.switchboard) : { kind: 'absent' };
+  }
+
+  /** FD-117: one change through Switchboard's CLI, then the state as Switchboard holds it. */
+  async setFallback(change: FallbackChange): Promise<{ ok: boolean; detail?: string; state: FallbackRead | { kind: 'absent' } }> {
+    const inv = await this.inventory();
+    if (!inv.switchboard) return { ok: false, detail: 'Switchboard is not installed', state: { kind: 'absent' } };
+    const r = await writeFallback(this.run, inv.switchboard, change);
+    this.o.log(r.ok ? `console: Switchboard ${Object.keys(change)[0]} changed from Settings` : `console: Switchboard refused a ${Object.keys(change)[0]} change: ${r.detail}`);
+    return { ...r, state: await readFallback(this.run, inv.switchboard) };
+  }
+  // #endregion fallback-host
+
   async openTerminal(key: string, mode: 'new' | 'continue'): Promise<{ ok: boolean; error?: string }> {
     // FD-37: Terminal through LaunchServices is macOS's; a Windows or Linux terminal comes with M2.
     if (process.platform !== 'darwin') return { ok: false, error: 'Opening a terminal window is not available on this system yet.' };
@@ -1062,6 +1080,8 @@ export class ConsoleHost {
     ipcMain.handle(CHANNELS.sessionsReveal, (_e, id) => (idOk(id) ? this.revealSession(id) : notARow()));
     ipcMain.handle(CHANNELS.sessionsHandovers, () => this.readHandoversSwitch());
     ipcMain.handle(CHANNELS.sessionsHandoversSet, (_e, on) => (typeof on === 'boolean' ? this.setHandoversSwitch(on) : Promise.reject(new Error('not a switch value'))));
+    ipcMain.handle(CHANNELS.fallback, () => this.readFallback());
+    ipcMain.handle(CHANNELS.fallbackSet, (_e, change) => (change && typeof change === 'object' && !Array.isArray(change) ? this.setFallback(change as FallbackChange) : Promise.reject(new Error('not a change'))));
     // #endregion sessions-host
     ipcMain.handle(CHANNELS.consoleSessions, (_e, key) => (keyOk(key) ? this.sessions(key) : Promise.reject(new Error('not a service key'))));
     ipcMain.handle(CHANNELS.consoleOpenTerminal, (_e, key, mode) => (keyOk(key) ? this.openTerminal(key, mode === 'continue' ? 'continue' : 'new') : Promise.reject(new Error('not a service key'))));
