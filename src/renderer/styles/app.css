@@ -476,6 +476,14 @@ button.conn-node:hover { border-color: var(--pc-border-strong); }
 .strip.strip-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .strip .l { font-size: var(--pc-type-meta); color: var(--pc-text-muted); }
 .setting select { min-width: 200px; }
+/* FD-117 (SCN-088): the fallback order as a numbered list; each level its select, its model line and its moves. */
+.fallback-heading { font-size: var(--pc-type-body); font-weight: 600; margin: var(--pc-space-3) 0 var(--pc-space-1); }
+.fallback-levels { list-style: none; margin: 0 0 var(--pc-space-2); padding: 0; display: grid; gap: var(--pc-space-2); }
+.fallback-level { border-top: 1px solid var(--pc-border); padding-top: var(--pc-space-2); }
+.fallback-level .meta { margin: var(--pc-space-1) 0 0; }
+.fallback-actions { display: flex; gap: var(--pc-space-1); margin-top: var(--pc-space-1); }
+.fallback-add { align-self: flex-start; justify-self: start; width: auto; }
+.fallback-others { margin: 0; padding-left: var(--pc-space-4); color: var(--pc-text-muted); }
 input.switch { appearance: none; -webkit-appearance: none; width: 32px; height: 18px; border-radius: var(--pc-radius-pill); background: var(--pc-panel-raised); border: 1px solid var(--pc-border-strong); position: relative; cursor: pointer; flex: none; margin: 0; transition: background-color var(--pc-duration-hover) var(--pc-ease), border-color var(--pc-duration-hover) var(--pc-ease); }
 input.switch::after { content: ''; position: absolute; top: 2px; left: 2px; width: 12px; height: 12px; border-radius: 50%; background: var(--pc-text-muted); transition: transform var(--pc-duration-state) var(--pc-ease), background-color var(--pc-duration-hover) var(--pc-ease); }
 /* VIS-01: the "on" track is the readable gold (the gold itself in dark), so it holds 3:1 against the light panel. */

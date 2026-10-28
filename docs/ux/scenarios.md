@@ -93,6 +93,7 @@
 | SCN-085 | A taken hand-over tells me once, and the tray counts sessions | sessions | P-01 | ST-023, ST-007, ST-009 | validated | 2026-10-27 |
 | SCN-086 | Settings → Sessions | settings | P-01 | ST-023, ST-010 | validated | 2026-10-27 |
 | SCN-087 | Arrange the sidebar: width and order | list | P-01 | ST-021, ST-018 | validated | 2026-10-27 |
+| SCN-088 | Choose the default and fallback coding agents | settings | P-01 | ST-010 | validated | 2026-10-28 |
 ## Personas
 
 Defined in [foundation.md](foundation.md) → P-01.
@@ -1917,4 +1918,31 @@ The Sessions mode (0.8.0): every coding session apart from the agents, each stat
   - "Show {name} again" / «Показать {name} снова» (the eye on a hidden row)
 - **Status:** validated
 - **Coverage:** src/core/products.ts (moveInSection, arrangeProducts), src/core/settings.ts (sidebarWidth, mergeList), src/renderer/components/Navigation.tsx, src/renderer/App.tsx (SidebarEdge), test/sidebar-manage.test.ts, test/e2e/focus-console.test.ts *FD-121* (validated 2026-10-27: the edge drag saved, double-click and Home back to 240 px, the arrow step)
+- **Product:** unobserved
+
+### SCN-088: Choose the default and fallback coding agents
+- **Persona:** P-01
+- **Feature:** settings
+- **Traces:** ST-010 (JTBD-01); FD-117 (operator 2026-10-25: «понятную в интерфейсе настройку ... фоллбека, с какого агента на какой агент пробрасывается, какие там модели включаются в каком агенте ... дефолтный этот, фоллбек ... уровень один этот, два этот»); Switchboard's fallback chains and default agent (fabric-switchboard `docs/CLI.md`)
+- **Entry point:** Settings → Coding agents, from the Settings index
+- **Preconditions:** Fabric Switchboard is installed; the settings are Switchboard's (its chain per machine and its default agent), and this app reads and writes them through Switchboard's CLI, never its files
+- **Steps:**
+  1. User opens Settings → Coding agents -> the default coding agent ("Auto" or one agent) and the fallback order, level 1, level 2 and on, each with the model it works on: "on its account's model" for Claude Code, Codex and Kimi Code, "on <model> through OpenRouter" for OpenCode and Hermes
+  2. User picks another default coding agent -> Switchboard saves it (`agents default`) and the screen reads it back
+  3. User picks another agent for a level, adds a level, removes one or moves one up or down -> Switchboard saves the whole order (`chain set`; `chain clear` when no level is left) and the screen reads it back; a level whose agent did not change keeps its pinned account or key
+  4. User picks the OpenRouter model, or Hermes's own model -> Switchboard saves it (`agents openrouter model`, `agents hermes set`); the note says it applies to every session of that agent on this Mac, and every level on that model shows the new one
+  5. Groups and tasks with an order of their own are listed under the machine's order, read-only: "<group>: <agents>", "Tasks with their own order: <n>"
+- **Expected result:** the person sees who starts work, who continues it at a limit and on which model, and changes it in one place
+- **Alt paths:** no order is set -> "No order is set: when a coding agent reaches its limit, its work waits." and Add level; eight levels -> Add level is off and says Switchboard takes at most eight; a level names an agent that cannot take over work now (not installed or turned off in Switchboard) -> it stays listed with why, and the person can replace or remove it; no OpenRouter key saved -> the model choice says so instead of a list; Hermes does not answer -> its level shows the OpenRouter key's model and the Hermes model choice says Hermes did not answer; an agent asks for this through MCP -> it uses Switchboard's own tools (`switchboard_chain_set`, `switchboard_agent_set`, `switchboard_openrouter_model`, `switchboard_hermes_set`), so this app adds none (dashboard parity holds through Switchboard)
+- **UI elements:** the Coding agents section in Settings and its index entry; a select for the default coding agent; per level a select, Move up, Move down and Remove; Add level; the OpenRouter model and Hermes model selects; the read-only list of groups with their own order
+- **States covered:** success, empty, error, loading
+- **Errors & recovery:** Switchboard is not installed -> "Install Fabric Switchboard to choose coding agents here." and no controls; a Switchboard without fallback orders -> "This Switchboard has no fallback order; update Switchboard."; Switchboard does not answer -> "Switchboard did not answer: <its sentence>"; a write is refused -> "Switchboard did not change it: <its sentence>" and the screen shows what Switchboard holds
+- **Copy:**
+  - "Coding agents" / «Агенты для кода» (the section)
+  - "Which coding agent starts work, and which ones continue it in turn when its accounts reach their limits. The settings are Switchboard's; they are changed here through Switchboard." / «Какой агент для кода начинает работу и какие по очереди продолжают её, когда у его аккаунтов кончаются лимиты. Настройки принадлежат Switchboard, здесь они меняются через него.»
+  - "Default coding agent" / «Агент для кода по умолчанию»; "Auto" / «Авто»
+  - "Fallback order" / «Порядок запасных»; "Level {n}" / «Уровень {n}»; "Add level" / «Добавить уровень»
+  - "on its account's model" / «на модели своего аккаунта»; "on {model} through OpenRouter" / «на {model} через OpenRouter»
+- **Status:** validated (2026-10-28: `test/e2e/fallback.test.ts` walks steps 1 to 4, the refused default and the empty order against a Switchboard fake that keeps its state; `test/fallback.test.ts` the reads, the pins, the models, the old and silent Switchboard and the refusals before Switchboard sees a malformed change; the section read on this Mac's Switchboard 0.6.83, read-only)
+- **Coverage:** src/core/fallback.ts, src/core/fallback-types.ts, src/electron/console.ts (fallback-host), src/renderer/components/Fallback.tsx, src/renderer/components/Settings.tsx (index), test/fallback.test.ts, test/e2e/fallback.test.ts
 - **Product:** unobserved
