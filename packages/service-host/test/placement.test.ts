@@ -1,5 +1,6 @@
 // FD-132: the placement record (observatory-placement/1) and how a descriptor is matched against it.
 import assert from 'node:assert/strict';
+import path from 'node:path';
 import test from 'node:test';
 import { elsewhereOf, parsePlacement, placementFile, placementFileProblem, PlacementReader, type Descriptor } from '../src/index';
 
@@ -7,9 +8,10 @@ const doc = (elsewhere: unknown[], extra: Record<string, unknown> = {}) => JSON.
 const d = (over: Partial<Descriptor> = {}) => ({ id: 'example-agent', instance: 'default', lifecycle: { manager: 'launchd', label: 'com.example.example-agent' }, ...over }) as Descriptor;
 
 test('FD-132: the file lives under XDG_DATA_HOME, else ~/.local/share', () => {
-  assert.equal(placementFile({ XDG_DATA_HOME: '/x/data' }, '/opt/h'), '/x/data/project-observatory/placement.json');
-  assert.equal(placementFile({}, '/opt/h'), '/opt/h/.local/share/project-observatory/placement.json');
-  assert.equal(placementFile({ XDG_DATA_HOME: ' ' }, '/opt/h'), '/opt/h/.local/share/project-observatory/placement.json');
+  // path.join: Windows joins with its own separator (the release's Windows check, 2026-10-28).
+  assert.equal(placementFile({ XDG_DATA_HOME: '/x/data' }, '/opt/h'), path.join('/x/data', 'project-observatory', 'placement.json'));
+  assert.equal(placementFile({}, '/opt/h'), path.join('/opt/h', '.local', 'share', 'project-observatory', 'placement.json'));
+  assert.equal(placementFile({ XDG_DATA_HOME: ' ' }, '/opt/h'), path.join('/opt/h', '.local', 'share', 'project-observatory', 'placement.json'));
 });
 
 test('FD-132: a launchd label places the service on the named machine', () => {
