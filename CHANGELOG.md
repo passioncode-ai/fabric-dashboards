@@ -11,6 +11,11 @@
   before launchd runs, in the app and through MCP `control`. `@passioncode-ai/fabric-service-host` 0.10.0
   (`placement.ts`, state vectors). Copy check reports `b66cfed9` (en) and `4927b853` (ru), no findings.
 
+### Fixed
+
+- In the folded sidebar a right-click's row menu opens beside the rail again, not 5 px over it: it started at the
+  row's right edge, which ends inside the rail's padding (FD-129 UX-23; caught by `test/e2e/focus-console.test.ts`).
+
 ## 0.8.13 - 2026-10-28
 
 ### Added
