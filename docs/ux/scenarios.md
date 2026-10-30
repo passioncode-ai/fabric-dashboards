@@ -1197,7 +1197,7 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
   1. User opens Health -> "How it runs": what it runs on (kind, profile, subscription or API key), the model profile and its models, who set it (this agent, the project, the default), what it spent per model over 31 days, and the budget left
   2. User presses "Change in Fabric" -> Fabric opens a conversation about this agent, where the profile is changed
 - **Expected result:** the person sees what the agent runs on and what it costs, one press from changing it
-- **Alt paths:** the agent declares no configuration -> no section; it reports no usage -> "No spend reported"; budget left -> "Shown here once Project Observatory publishes its budgets" until it does (FD-40); Fabric is not installed -> Fabric's button offers its download (ADR-0021)
+- **Alt paths:** the agent declares no configuration -> no section; it reports no usage -> "No spend reported"; limit left -> "Shown here once Project Observatory publishes its spending limits" until it does (FD-40); Fabric is not installed -> Fabric's button offers its download (ADR-0021)
 - **UI elements:** Health → How it runs, Change in Fabric
 - **States covered:** empty, loading, success
 - **Errors & recovery:** the spend report cannot be read -> no spend line beyond "No spend reported"; Spend says why

@@ -58,7 +58,7 @@ test('SCN-068: Health shows the runner and model profile, spend by model, and Ch
     await page.getByText(/balanced · claude-sonnet-5-5/).first().waitFor();
     await page.getByText('this agent').first().waitFor();
     await page.getByText(/claude-sonnet-5-5 \$\d+\.\d\d/).first().waitFor({ timeout: 20_000 });
-    await page.getByText('Shown here once Project Observatory publishes its budgets').first().waitFor();
+    await page.getByText('Shown here once Project Observatory publishes its spending limits').first().waitFor();
     assert.equal(await page.getByRole('button', { name: 'Change in Fabric' }).count(), 1);
   } finally {
     await closeApp(app);
