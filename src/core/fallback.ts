@@ -4,7 +4,7 @@
 // model and Hermes's own model); this app reads and writes them through Switchboard's CLI, never its files, and
 // passes nothing malformed to it.
 import type { Runner } from '@passioncode-ai/fabric-service-host';
-import { accountsOf } from './switchboard';
+import { accountsOf, sbFailure } from './switchboard';
 
 export { MAX_LEVELS, modelOf } from './fallback-types';
 export type { FbAgent, FbLevel, FallbackState, FallbackRead, FallbackChange } from './fallback-types';
@@ -26,8 +26,7 @@ async function call(run: Runner, sb: string, args: string[]): Promise<Answer> {
   if (r.code === 0 && parsed?.ok === true && parsed.data && typeof parsed.data === 'object') return { data: parsed.data as Record<string, unknown> };
   const text = `${r.stdout}\n${r.stderr}`;
   if (/unrecognized subcommand|unexpected argument|earlier version than this command/i.test(text)) return { old: true };
-  if (typeof parsed?.error === 'string') return { error: parsed.error.slice(0, 300) };
-  return { error: text.trim().split('\n').pop()?.slice(0, 200) || `exit ${r.code}` };
+  return { error: sbFailure(r) };
 }
 
 const str = (v: unknown, max = 200): string | null => (typeof v === 'string' && v ? v.slice(0, max) : null);

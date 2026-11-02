@@ -14,6 +14,7 @@ import type { Runner } from '@passioncode-ai/fabric-service-host';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
+import { sbFailure } from './switchboard';
 import type { StopVerdict } from './types';
 
 export type { RecoveryStatus, StopVerdict, StopView } from './types';
@@ -84,7 +85,7 @@ function parseData(stdout: string): Record<string, unknown> | null {
 function failure(r: { code: number | null; stdout: string; stderr: string }): { unavailable: 'old' | 'error'; detail: string } {
   const text = `${r.stdout}\n${r.stderr}`;
   const old = /unrecognized subcommand|unexpected argument|earlier version than this command/i.test(text);
-  return { unavailable: old ? 'old' : 'error', detail: text.trim().split('\n').pop()?.slice(0, 200) || `exit ${r.code}` };
+  return { unavailable: old ? 'old' : 'error', detail: sbFailure(r) };
 }
 
 /** Every open stop (waiting or claimed), as Switchboard reports it; a malformed row is skipped, never guessed at, and a
