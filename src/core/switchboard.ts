@@ -24,6 +24,21 @@ export function findSwitchboard(dirs: string[]): string | null {
   return null;
 }
 
+/** FD-134 (SB-189): what to show when a Switchboard command fails. Switchboard prints a refusal on stderr: with
+ *  `--json`, since SB-189, as `{"ok":false,"error":<a sentence for a person>,"raw":<the backend's text>}`; in text mode
+ *  as one line. The `error` of a JSON refusal (stdout, then the last line of stderr) is shown; anything else is shown
+ *  as its last line, as before. */
+export function sbFailure(r: { code: number | null; stdout: string; stderr: string }, max = 200): string {
+  for (const line of [r.stdout.trim(), r.stderr.trim().split('\n').pop() ?? '']) {
+    if (!line.startsWith('{')) continue;
+    try {
+      const e = JSON.parse(line) as { error?: unknown } | null;
+      if (e && typeof e.error === 'string' && e.error.trim()) return e.error.trim().slice(0, Math.max(max, 300));
+    } catch { /* plain text */ }
+  }
+  return `${r.stdout}\n${r.stderr}`.trim().split('\n').pop()?.slice(0, max) || `exit ${r.code}`;
+}
+
 function parse(stdout: string): Record<string, unknown> | null {
   try {
     const v = JSON.parse(stdout) as { ok?: boolean; data?: unknown };
@@ -38,7 +53,7 @@ export async function bindingFor(run: Runner, sb: string, folder: string, provid
   if (!provider) return { kind: 'none' };
   const r = await run(sb, ['--json', 'project', 'show', '--path', folder], 10_000);
   const data = r.code === 0 ? parse(r.stdout) : null;
-  if (!data) return { kind: 'error', detail: (r.stderr || r.stdout).trim().split('\n').pop()?.slice(0, 200) || `exit ${r.code}` };
+  if (!data) return { kind: 'error', detail: sbFailure(r) };
   const project = data.project as { name?: unknown; pool?: unknown } | null;
   if (project && typeof project.name === 'string' && typeof project.pool === 'string') return { kind: 'project', name: project.name, pool: project.pool };
   // A folder rule whose effective target is a managed session also routes through Switchboard, in
@@ -80,7 +95,7 @@ export async function terminalLaunchArgv(run: Runner, sb: string, provider: 'cla
   const data = r.code === 0 ? parse(r.stdout) : null;
   const account = (data?.routes as Record<string, unknown> | undefined)?.[`${provider}:${pool}`];
   if (typeof account !== 'string' || !/^[0-9a-f-]{8,64}$/i.test(account)) {
-    return { error: data ? `Switchboard selects no ${provider} account in pool ${pool}` : ((r.stderr || r.stdout).trim().split('\n').pop()?.slice(0, 200) || `exit ${r.code}`) };
+    return { error: data ? `Switchboard selects no ${provider} account in pool ${pool}` : sbFailure(r) };
   }
   return { argv: [sb, 'launch', account, '--mode', 'managed', '--working-directory', folder] };
 }
@@ -145,7 +160,7 @@ export async function sessionsIn(run: Runner, sb: string, folder: string, accoun
   const data = r.code === 0 ? parse(r.stdout) : null;
   if (!data) {
     const old = /unrecognized subcommand|unexpected argument|invalid value.*sessions/i.test(text);
-    return { unavailable: old ? 'old' : 'error', detail: text.trim().split('\n').pop()?.slice(0, 200) || `exit ${r.code}` };
+    return { unavailable: old ? 'old' : 'error', detail: sbFailure(r) };
   }
   const list = Array.isArray(data.sessions) ? (data.sessions as Record<string, unknown>[]) : [];
   const sessions: SbSession[] = [];
@@ -176,7 +191,7 @@ export async function allSessionsOf(run: Runner, sb: string): Promise<SourceResu
   const data = r.code === 0 ? parse(r.stdout) : null;
   if (!data) {
     const old = /unrecognized subcommand|unexpected argument|earlier version than this command/i.test(text);
-    return { ok: false, reason: old ? 'old' : 'error', detail: text.trim().split('\n').pop()?.slice(0, 200) || `exit ${r.code}` };
+    return { ok: false, reason: old ? 'old' : 'error', detail: sbFailure(r) };
   }
   const str = (v: unknown, max = 200) => (typeof v === 'string' ? v.slice(0, max) : '');
   const out: SbSessionRecord[] = [];
@@ -260,9 +275,7 @@ export async function handoversOf(run: Runner, sb: string): Promise<SbHandovers>
   const data = r.code === 0 ? parse(r.stdout) : null;
   if (!data) {
     const old = /unrecognized subcommand|unexpected argument|earlier version than this command/i.test(text);
-    let detail = text.trim().split('\n').pop()?.slice(0, 200) || `exit ${r.code}`;
-    try { const e = JSON.parse(r.stdout) as { error?: unknown }; if (typeof e.error === 'string') detail = e.error.slice(0, 300); } catch { /* plain text */ }
-    return { unavailable: old ? 'old' : 'error', detail };
+    return { unavailable: old ? 'old' : 'error', detail: sbFailure(r) };
   }
   const handovers: SbHandover[] = [];
   for (const x of Array.isArray(data.handovers) ? (data.handovers as Record<string, unknown>[]) : []) {
@@ -294,6 +307,6 @@ export function handoverRunArgv(sb: string, id: string): string[] {
  *  this app never writes Switchboard's files. It is read with the hand-overs (`enabled`). */
 export async function handoversSwitch(run: Runner, sb: string, on: boolean): Promise<{ ok: true } | { ok: false; detail: string }> {
   const r = await run(sb, ['handovers', 'set', on ? 'on' : 'off'], 10_000);
-  return r.code === 0 ? { ok: true } : { ok: false, detail: `${r.stderr}\n${r.stdout}`.trim().split('\n').pop()?.slice(0, 200) || `exit ${r.code}` };
+  return r.code === 0 ? { ok: true } : { ok: false, detail: sbFailure(r) };
 }
 // #endregion switchboard-handovers
