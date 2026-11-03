@@ -103,6 +103,9 @@ const en = {
   'reason.duplicate': 'Two copies run: process {answering} answers, while the system started process {launchd}. Restart it to keep one.',
   'reason.elsewhere': 'Placed on the other machine, {machine}: it runs there, so here it stays off.',
   'reason.duplicate.elsewhere': 'Placed on {machine}, yet a copy runs here too. Stop it here to keep one.',
+  // FD-132: Observatory writes placedOn `unknown` when the moved bundle named no machine; `t` picks these then.
+  'reason.elsewhere.unknown': 'Placed on another machine: it runs there, so here it stays off.',
+  'reason.duplicate.elsewhere.unknown': 'Placed on another machine, yet a copy runs here too. Stop it here to keep one.',
   'reason.stopped': 'Stopped by you. It stays stopped until you start it.',
   'reason.not-loaded': 'The system has not loaded it, so it does not run. Press Start; if it stays down, reinstall the agent.',
   'reason.waiting': 'Waiting for the first answer…',
@@ -539,6 +542,7 @@ const en = {
   'result.launchctl': 'launchctl refused: {detail}. Press Start again; if it refuses again, reinstall the agent.',
   'result.plistMissing': 'The launchd file is missing: reinstall {name}. ({path})',
   'result.placedElsewhere': '{name} is placed on {machine}: starting it here would run a second copy.',
+  'result.placedElsewhere.unknown': '{name} is placed on another machine: starting it here would run a second copy.',
   'result.unmanaged': '{name} is not managed by launchd, so it cannot be controlled from here.',
   'result.unsupervisedHere': '{name} is supervised by launchd, which this system does not have, so it is shown here but not started or stopped.',
   'result.command': '{command} finished with exit code {code}.',
@@ -1020,6 +1024,8 @@ const ru: Record<Key, string> = {
   'reason.duplicate': 'Запущены две копии: отвечает процесс {answering}, а система запустила процесс {launchd}. Перезапустите, чтобы осталась одна.',
   'reason.elsewhere': 'Размещён на другой машине ({machine}): работает там, а здесь выключен.',
   'reason.duplicate.elsewhere': 'Агент размещён на машине {machine}, но копия работает и здесь. Остановите её здесь, чтобы осталась одна.',
+  'reason.elsewhere.unknown': 'Размещён на другой машине: работает там, а здесь выключен.',
+  'reason.duplicate.elsewhere.unknown': 'Агент размещён на другой машине, но копия работает и здесь. Остановите её здесь, чтобы осталась одна.',
   'reason.stopped': 'Вы выключили этого агента. Он останется выключенным, пока вы его не запустите.',
   'reason.not-loaded': 'Система его не загрузила, поэтому он не работает. Нажмите «Запустить»; если он не заработает, переустановите агента.',
   'reason.waiting': 'Ждём первого ответа…',
@@ -1454,6 +1460,7 @@ const ru: Record<Key, string> = {
   'result.launchctl': 'launchctl отказался выполнить команду: {detail}. Нажмите «Запустить» ещё раз; если отказ повторится, переустановите агента.',
   'result.plistMissing': 'Файл launchd не найден ({path}). Переустановите {name}.',
   'result.placedElsewhere': '{name} размещён на машине {machine}: если запустить его здесь, будут работать две копии.',
+  'result.placedElsewhere.unknown': '{name} размещён на другой машине: если запустить его здесь, будут работать две копии.',
   'result.unmanaged': '{name} не управляется через launchd, поэтому отсюда им управлять нельзя.',
   'result.unsupervisedHere': '{name} работает под launchd, которого в этой системе нет: здесь его видно, но запускать и останавливать его отсюда нельзя.',
   'result.command': '{command}: завершено с кодом {code}.',
@@ -1874,8 +1881,13 @@ export function setWording(next: Wording): Wording {
   return was;
 }
 
+/** FD-132: the machine Observatory names when a moved bundle named none (observatory-placement/1). */
+export const UNKNOWN_MACHINE = 'unknown';
+
 export function t(lang: Lang, key: Key | string, params: Record<string, string | number> = {}): string {
   const dict = dictionaries[lang];
+  // FD-132: a sentence that names the machine has a form without it, for a placement whose machine is unknown.
+  if (params.machine === UNKNOWN_MACHINE && `${key}.unknown` in en) key = `${key}.unknown`;
   const variant = wording === 'other' ? undefined : `${key}.${wording}`;
   const own = variant ? ((dict[variant as Key] ?? en[variant as Key]) as string | undefined) : undefined;
   const template = own ?? dict[key as Key] ?? en[key as Key] ?? key;

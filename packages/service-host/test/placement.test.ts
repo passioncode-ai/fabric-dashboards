@@ -87,3 +87,48 @@ test('FD-132: the reader reads again only when the file changed, and no more oft
   assert.equal(reader.get(30000), null);
   assert.match(reader.error ?? '', /not JSON/);
 });
+
+// Written by Observatory 0.30.1's own writer (`machine_identity.place_elsewhere`, OBS-283) into a temporary
+// XDG_DATA_HOME on 2026-11-03, byte for byte: what this reader must take from the producer.
+const OBSERVATORY_0301 = `{
+  "schema": "observatory-placement/1",
+  "machine": "m-thismac0001",
+  "updatedAt": "2026-11-03T02:48:10Z",
+  "elsewhere": [
+    {
+      "label": "com.example.agent",
+      "serviceId": "example-agent.default",
+      "placedOn": "m-studio0001",
+      "since": "2026-11-03T02:48:10Z",
+      "by": "machine-restore"
+    },
+    {
+      "label": "com.example.bot",
+      "serviceId": null,
+      "placedOn": "unknown",
+      "since": "2026-11-03T02:48:10Z",
+      "by": "machine-restore"
+    },
+    {
+      "label": "com.example.here",
+      "serviceId": null,
+      "placedOn": "m-thismac0001",
+      "since": "2026-11-03T02:48:10Z",
+      "by": "machine-move leave"
+    }
+  ]
+}
+`;
+
+test('FD-132: the file Observatory 0.30.1 writes is read: by label, by key, with serviceId null and placedOn unknown', () => {
+  const r = parsePlacement(OBSERVATORY_0301);
+  assert.equal(r.error, null);
+  assert.equal(r.placement?.machine, 'm-thismac0001');
+  assert.equal(r.placement?.elsewhere.length, 3);
+  const since = '2026-11-03T02:48:10Z';
+  assert.deepEqual(elsewhereOf(r.placement, d({ lifecycle: { manager: 'launchd', label: 'com.example.agent' } } as Partial<Descriptor>)), { placedOn: 'm-studio0001', since });
+  assert.deepEqual(elsewhereOf(r.placement, d({ lifecycle: { manager: 'none' } } as Partial<Descriptor>)), { placedOn: 'm-studio0001', since });
+  assert.deepEqual(elsewhereOf(r.placement, d({ id: 'bot', lifecycle: { manager: 'launchd', label: 'com.example.bot' } } as Partial<Descriptor>)), { placedOn: 'unknown', since });
+  // An entry that names this machine is placed here.
+  assert.equal(elsewhereOf(r.placement, d({ id: 'here', lifecycle: { manager: 'launchd', label: 'com.example.here' } } as Partial<Descriptor>)), null);
+});
