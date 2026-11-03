@@ -72,6 +72,9 @@ export interface FabricApi {
   /** FD-122: settings.json changed outside the app (an agent's MCP `arrange`, an editor) and was read again. */
   onSettings(listener: (settings: Settings) => void): () => void;
   control(key: string, action: 'restart' | 'stop' | 'start'): Promise<{ ok: boolean; reason: Reason }>;
+  /** FD-135 (SCN-090): gives the agent a name in its own GitHub repository (null: its own name again). `refused` says
+   *  why nothing was asked of GitHub; `error` is the reason otherwise. */
+  renameAgent(key: string, name: string | null): Promise<{ ok: true } | { ok: false; refused?: 'no-repository' | 'not-github' | 'no-gh'; error: string }>;
   /** Run the descriptor's doctor or update. `refused` says why nothing ran (busy, not declared); `code: null` without `timedOut` means it could not start. */
   command(key: string, which: 'doctor' | 'update'): Promise<CommandResult & { refused?: string }>;
   logs(key: string): Promise<{ path: string; text?: string; error?: string }[]>;
@@ -191,6 +194,7 @@ export const CHANNELS = {
   status: 'fd:status',
   statusPush: 'fd:status-push',
   control: 'fd:control',
+  renameAgent: 'fd:rename-agent',
   command: 'fd:command',
   logs: 'fd:logs',
   spend: 'fd:spend',

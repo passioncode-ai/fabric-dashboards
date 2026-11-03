@@ -126,6 +126,12 @@ export const TOOLS = [
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
   },
   {
+    name: 'rename',
+    description: 'Give an agent a name of the operator\'s, as the row menu\'s Rename does (FD-135): the name is committed to the agent\'s own GitHub repository (`.fabric/names.json` on its default branch, a commit made with the GitHub CLI\'s sign-in), so every Mac running Fabric Dashboards shows it; null gives the agent its own name back. The agent\'s descriptor must name its repository (`source.repository`) on GitHub. Answers the name shown now, the agent\'s own name, the repository and the commit (null when nothing changed). Pass the operator\'s words in params._meta.decision when you have them (action rename).',
+    inputSchema: { type: 'object', properties: { service: serviceArg, name: { type: ['string', 'null'], maxLength: 80 } }, required: ['service', 'name'], additionalProperties: false },
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true },
+  },
+  {
     name: 'service_context',
     description: 'Everything about one service a coding agent needs before working on it, read now: state and reasons as sentences, descriptor problems, version and pending update, repository, origin, dashboard, its descriptor (auth left out), its recent events and the rules for a console session. Call it first when a console was opened for this service (the first call of a session-handoff/1 pack, with key).',
     // FD-47 (DEC-0042 SH-7): the handoff's first call passes the agent's key as `key`; `service` is kept for older callers.
@@ -212,6 +218,10 @@ export async function call(deps: tools.Deps, name: string, args: Args): Promise<
     case 'doctor': return tools.command(deps, need(args, 'service'), 'doctor');
     case 'update': return tools.command(deps, need(args, 'service'), 'update');
     case 'arrange': return tools.arrange(deps, need(args, 'service'), need(args, 'action') as tools.ArrangeAction);
+    case 'rename': {
+      if (args.name !== null && typeof args.name !== 'string') throw new tools.ToolError('name must be a string, or null for the agent\'s own name');
+      return tools.rename(deps, need(args, 'service'), args.name as string | null);
+    }
     case 'console_new': return tools.consoleChannel(deps, { op: 'console.new', service: need(args, 'service') });
     case 'console_fix': return tools.consoleChannel(deps, { op: 'console.fix', service: need(args, 'service'), task: { kind: need(args, 'kind') as 'fix' | 'audit', output: need(args, 'findings') } });
     case 'service_context': {

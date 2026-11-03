@@ -95,6 +95,7 @@
 | SCN-087 | Arrange the sidebar: width and order | list | P-01 | ST-021, ST-018 | validated | 2026-10-27 |
 | SCN-088 | Choose the default and fallback coding agents | settings | P-01 | ST-010 | validated | 2026-10-28 |
 | SCN-089 | See which agents are placed on the other machine | health | P-01 | ST-004 | validated | 2026-10-28 |
+| SCN-090 | Rename an agent | list | P-01 | ST-003 | validated | 2026-11-03 |
 ## Personas
 
 Defined in [foundation.md](foundation.md) → P-01.
@@ -1978,4 +1979,33 @@ The Sessions mode (0.8.0): every coding session apart from the agents, each stat
   - Machine unknown: "Placed on another machine: it runs there, so here it stays off." / «Размещён на другой машине: работает там, а здесь выключен.»; "Placed on another machine, yet a copy runs here too. Stop it here to keep one." / «Агент размещён на другой машине, но копия работает и здесь. Остановите её здесь, чтобы осталась одна.»; "{name} is placed on another machine: starting it here would run a second copy." / «{name} размещён на другой машине: если запустить его здесь, будут работать две копии.»
 - **Status:** validated (2026-10-28: `test/e2e/elsewhere.test.ts` walks steps 1 and 3 on the built app with a record under a temporary `XDG_DATA_HOME`, an agent off here and the sample answering here; `test/elsewhere.test.ts` the monitor (off for longer than the notice delay with nothing said, the second copy, Start refused before launchctl, an unusable record said once); `test/control.test.ts` and `test/attention-queue.test.ts` the refusal and the first action; the package's vectors and `packages/service-host/test/placement.test.ts` the state and the record; copy check reports `b66cfed9` (en) and `4927b853` (ru), no findings. 2026-11-03: the record Observatory 0.30.1's own writer makes is read (`packages/service-host/test/placement.test.ts`); the machine-unknown sentences: `test/elsewhere.test.ts`, copy check reports `5420d6ed` (en) and `f13c7774` (ru), no findings)
 - **Coverage:** packages/service-host/src/placement.ts, packages/service-host/src/state.ts, packages/service-host/src/look.ts, src/core/monitor.ts (placed-elsewhere), src/core/control.ts, src/core/focus.ts, src/mcp/tools.ts, src/renderer/components/ServiceView.tsx, test/e2e/elsewhere.test.ts, test/elsewhere.test.ts
+- **Product:** unobserved
+
+### SCN-090: Rename an agent
+- **Persona:** P-01
+- **Feature:** list
+- **Traces:** ST-003; FD-135; ADR-0026; the operator in chat, 2026-11-03: names of agents set from the menu and kept in the agent's own GitHub repository
+- **Entry point:** the agent's row menu in the sidebar (⋯, or a right-click in either width), item Rename…
+- **Preconditions:** the agent's descriptor names its repository on GitHub (`source.repository`); the GitHub CLI (`gh`) is installed and signed in with write access to that repository
+- **Steps:**
+  1. The person opens the row's menu and chooses Rename… -> a dialog shows the name now in a field, selected, and says where it goes: "Saved in the agent's repository on GitHub ({repo}), so each of your Macs shows it."; the dashboard steps aside while the dialog is open
+  2. The person types a name and presses Save (or Return) -> "Saving to GitHub…" with a spinner; the app commits `.fabric/names.json` to the repository's default branch
+  3. GitHub takes it -> the dialog closes and the new name shows at once in the sidebar, the page header, the tray and notifications; another Mac shows it within 30 minutes of its last read
+  4. The person opens Rename… on a renamed agent -> the dialog also shows "Its own name: {name}" with Use its own name, which removes the name from the file
+- **Expected result:** the person sees the agents under names of their own on every Mac, and the agent's own name is one click away
+- **Alt paths:** the name is the agent's own name again -> it is removed from the file, not written twice; the same name as now -> Save stays off; a name set meanwhile on another Mac -> both are kept (the file is read again and the change made on it); the descriptor names no repository, or one not on GitHub -> the field is off and the dialog says why before anything is asked
+- **UI elements:** the row menu item Rename…; the Rename agent dialog (field Name, the sentence where it goes, Its own name with Use its own name, Cancel, Save)
+- **States covered:** success, loading, error, empty
+- **Errors & recovery:** a name over 80 characters -> "At most {max} characters." and Save off; `gh` not installed -> "GitHub CLI (gh) is not installed. Install it and sign in with gh auth login."; GitHub refuses (no permission, a protected branch, sign-in expired) -> "GitHub did not take the name: {error}" in GitHub's words, the field keeps the text, the person can try again or cancel; Escape or Cancel closes the dialog unless it is saving
+- **Copy:**
+  - "Rename…" / «Переименовать…»; "Rename agent" / «Переименовать агента»; "Name" / «Имя»
+  - "Saved in the agent's repository on GitHub ({repo}), so each of your Macs shows it." / «Имя сохранится в репозитории агента на GitHub ({repo}), и его покажет каждый ваш Mac.»
+  - "Its own name: {name}" / «Собственное имя агента: {name}»; "Use its own name" / «Вернуть собственное имя»
+  - "Save" / «Сохранить»; "Saving to GitHub…" / «Сохраняю на GitHub…»; "At most {max} characters." / «Не длиннее {max} символов.»
+  - "The agent does not name its repository, so the name has nowhere to go." / «Агент не указывает свой репозиторий, поэтому имя негде сохранить.»
+  - "The agent's repository is not on GitHub: {repo}." / «Репозиторий агента не на GitHub: {repo}.»
+  - "GitHub CLI (gh) is not installed. Install it and sign in with gh auth login." / «Не установлен GitHub CLI (gh). Установите его и войдите командой gh auth login.»
+  - "GitHub did not take the name: {error}" / «GitHub не принял имя: {error}»
+- **Status:** validated (2026-11-03: `test/e2e/rename.test.ts` walks steps 1 to 4 and the no-repository path on the built app against a fake `gh` (FD_TEST_GH); `test/agent-names.test.ts` walks the file, the reads, the commits against a fake GitHub (create, change, give back, delete the file, a change made meanwhile on another Mac, a refused write), the store's cadence and cache, the monitor's names and the MCP tool `rename`; copy check reports `12b0541b` (en) and `5933b2b3` (ru), no findings; the other-platform sentence `7e52bfd0` (en, none) and `502a2af7` (ru, one suggestion: no full stop in a one-sentence hint, kept for consistency with the other dialog sentences); a live read of the 20 GitHub repositories the agents of this Mac name, one call, 2 s, none failed)
+- **Coverage:** src/core/agent-names.ts, src/core/monitor.ts (agent-names), src/electron/main.ts (agent-names), src/renderer/components/RenameDialog.tsx, src/renderer/components/Navigation.tsx, src/mcp/tools.ts (agent-names), test/agent-names.test.ts, test/e2e/rename.test.ts
 - **Product:** unobserved

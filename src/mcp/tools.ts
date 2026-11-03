@@ -40,6 +40,7 @@ import { continuedOf, liveAgents, recoveryOf, transcriptOf, verdictOf } from '..
 import { findSwitchboard } from '../core/switchboard';
 import { searchDirs } from '../core/runtimes';
 import type { StopView } from '../core/types';
+import { AgentNameStore, customNameOf, findGh, readNamesCache } from '../core/agent-names';
 
 export const COMMAND_TIMEOUT_MS = 120_000;
 import { CONTROL_TIMEOUT_MS, controlService } from '../core/control';
@@ -48,6 +49,9 @@ export { CONTROL_TIMEOUT_MS };
 export interface Deps {
   /** ADR-0025: the app's settings file (its data folder holds the channel's key) and the channel's address, for tests. */
   settingsFile?: () => string;
+  /** FD-135: what runs `gh` and where it is (tests replace both). */
+  ghRun?: Runner;
+  gh?: () => Promise<string | null>;
   channelAddress?: (userData: string) => string;
   /** FD-110 part 3: where a relayed operator decision is recorded; the live one appends to decisions.jsonl beside the log. */
   recordDecision?: (row: Record<string, unknown>) => void;
@@ -205,8 +209,17 @@ function view(s: ServiceLook, list?: { category: Category; hidden: boolean; off:
 async function look(deps: Deps, only?: string[]): Promise<ServiceLook[]> {
   const out = await lookAtServices({ servicesDir: deps.servicesDir(), wellKnown: deps.wellKnown, launchd: deps.launchd, now: deps.now, only, token: deps.token, latch: latchOf(deps), ...(deps.placement ? { placement: deps.placement() } : {}) });
   if (out.error) throw new ToolError(`cannot read the services directory ${out.servicesDir}: ${out.error}`);
-  return out.services;
+  // FD-135: the names the agents' repositories give them, as the app last read them (agent-names.json beside its settings).
+  const cache = readNamesCache(namesFile(deps));
+  return out.services.map((l) => {
+    const custom = l.descriptor ? customNameOf(cache, l.key, l.descriptor.source?.repository) : null;
+    return custom && l.descriptor && custom !== l.descriptor.name
+      ? { ...l, descriptor: { ...l.descriptor, name: custom }, wellKnown: l.wellKnown ? { ...l.wellKnown, service: { ...l.wellKnown.service, name: custom } } : null }
+      : l;
+  });
 }
+
+const namesFile = (deps: Deps) => path.join(path.dirname(deps.settingsFile?.() ?? appSettingsFile()), 'agent-names.json');
 
 function entries(deps: Deps): DescriptorEntry[] {
   return readDirectory(deps.servicesDir());
@@ -261,6 +274,24 @@ export async function arrange(deps: Deps, key: string, action: ArrangeAction): P
   return { service: key, product: p.id, pinned: after.pinned.includes(p.id), hidden: after.hidden.includes(p.id), off: after.off.includes(p.id), category: categoryOf(p, after.kinds), changed: Boolean(patch) };
 }
 // #endregion arrange
+
+// #region agent-names — docs: docs/ux/scenarios.md#scn-090-rename-an-agent
+/** FD-135: the row menu's Rename as a tool (dashboard parity): commits the name to the agent's own GitHub repository
+ *  (`.fabric/names.json`, ADR-0026) and writes the app's cache, which a running app reads again within seconds. */
+export async function rename(deps: Deps, key: string, name: string | null): Promise<{ service: string; name: string; own_name: string; repository: string; commit: string | null; changed: boolean }> {
+  const entry = find(deps, key);
+  const file = namesFile(deps);
+  if (!fs.existsSync(path.dirname(file))) throw new ToolError('Fabric Dashboards has kept no data on this computer yet: open it once, then rename');
+  const store = new AgentNameStore({
+    file, run: deps.ghRun ?? execRunner,
+    gh: deps.gh ?? (async () => findGh(searchDirs((process.env.PATH ?? '').split(path.delimiter).filter(Boolean)))),
+  });
+  const res = await store.rename(key, entry.descriptor.source?.repository, name);
+  if (!res.ok) throw new ToolError(res.error);
+  const own = entry.descriptor.name;
+  return { service: key, name: displayName(res.names[key] ?? own, entry.descriptor.instance), own_name: own, repository: entry.descriptor.source!.repository!, commit: res.commit, changed: res.commit !== null };
+}
+// #endregion agent-names
 
 export async function listServices(deps: Deps): Promise<{ services: ServiceView[]; services_dir: string }> {
   const looks = await look(deps);

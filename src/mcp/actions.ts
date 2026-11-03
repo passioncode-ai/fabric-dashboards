@@ -32,6 +32,8 @@ export const OWN_ACTIONS: DeclaredAction[] = [
   { id: 'as-agent', title: 'Show as an agent', tool: 'arrange', gate: 'none' },
   { id: 'turn-off', title: 'Turn off', tool: 'arrange', gate: 'none' },
   { id: 'turn-on', title: 'Turn on', tool: 'arrange', gate: 'none' },
+  // FD-135 (SCN-090): the row menu's Rename commits to the agent's own repository, outside this app: relayed, as Update.
+  { id: 'rename', title: 'Rename', tool: 'rename', gate: 'relayed' },
 ];
 
 /** The `_meta` of the initialize answer: this app's declared actions (DEC-0121 AP-1). */
