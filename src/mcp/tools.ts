@@ -409,7 +409,7 @@ export async function control(deps: Deps, key: string, action: 'start' | 'stop' 
       if (out.why === 'unsupervised-here') throw new ToolError(`${d.name} is supervised by launchd, which this system does not have; start and stop it on the system that runs it`);
       if (out.why === 'plist-missing') throw new ToolError(`${d.name}: the launchd plist is missing at ${out.plist}; reinstall the service`);
       // FD-132: a second copy here would run beside the one on the other machine.
-      if (out.why === 'placed-elsewhere') throw new ToolError(`${d.name} is placed on ${out.machine}; starting it here would run a second copy. Move it in Observatory's placement first`);
+      if (out.why === 'placed-elsewhere') throw new ToolError(`${d.name} is placed on ${out.machine === 'unknown' ? 'another machine' : out.machine}; starting it here would run a second copy. Move it in Observatory's placement first`);
       throw new ToolError(`${d.name} is not managed by launchd; it cannot be ${action}ed from here`);
     case 'launchctl-failed':
       return { ok: false, state: (await serviceStatus(deps, key)).state, detail: out.detail };

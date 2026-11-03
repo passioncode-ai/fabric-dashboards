@@ -81,3 +81,16 @@ test('FD-132: a record that cannot be used is said once, and the agent reads as 
   r.monitor.snapshot(KEY);
   assert.deepEqual(said, ['others may write the placement file; set mode 0600', null]);
 });
+
+test('FD-132: a machine Observatory could not name (placedOn unknown) is said as another machine, in both languages', async () => {
+  const { t } = await import('../src/core/i18n');
+  for (const lang of ['en', 'ru'] as const) {
+    for (const key of ['reason.elsewhere', 'reason.duplicate.elsewhere', 'result.placedElsewhere']) {
+      const named = t(lang, key, { name: 'Bot', machine: 'm-studio0001' });
+      const unknown = t(lang, key, { name: 'Bot', machine: 'unknown' });
+      assert.match(named, /m-studio0001/);
+      assert.doesNotMatch(unknown, /unknown|\{machine\}/);
+      assert.match(unknown, lang === 'en' ? /another machine/ : /другой машине/);
+    }
+  }
+});
