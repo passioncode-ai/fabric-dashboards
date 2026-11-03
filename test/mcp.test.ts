@@ -729,7 +729,7 @@ test('FD-110: initialize declares this app\'s buttons; each has its tool on this
   const view = actionsOf({ surfaces: { mcp: { capabilities: TOOLS.map((t) => t.name) } }, extensions: meta });
   assert.equal(view.declared, true);
   assert.deepEqual(view.findings, []);
-  assert.deepEqual(view.actions.filter((a) => a.gate === 'relayed').map((a) => a.id), ['start', 'stop', 'restart', 'update', 'new-session', 'fix-with-coding-agent']);
+  assert.deepEqual(view.actions.filter((a) => a.gate === 'relayed').map((a) => a.id), ['start', 'stop', 'restart', 'update', 'new-session', 'fix-with-coding-agent', 'rename']);
   assert.ok(ACTIONS_EXTENSION in meta);
 });
 

@@ -51,6 +51,8 @@ export interface MonitorOptions {
   token?: (tokenFile: string) => string | Promise<string>;
   /** FD-132: this machine's placement record (default: Observatory's file, read again only when it changed). */
   placement?: Pick<PlacementReader, 'get' | 'error'>;
+  /** FD-135: the name the agent's own repository gives this service key (`.fabric/names.json`, ADR-0026), or null. */
+  customName?: (key: string, repository: string | undefined) => string | null;
 }
 
 interface Tracked {
@@ -502,7 +504,7 @@ export class Monitor extends EventEmitter {
   }
 
   private name(t: Tracked): string {
-    const d = t.entry.descriptor;
+    const d = this.named(t.entry.descriptor, t.entry.key);
     if (d) return displayName(d.name, d.instance);
     return t.probe?.kind === 'answer' ? displayName(t.probe.doc.service.name, t.probe.doc.service.instance) : t.entry.key;
   }
@@ -702,9 +704,12 @@ export class Monitor extends EventEmitter {
     // S-5: what another program says about itself is never shown as this service's own.
     const wk = seen.probe?.kind === 'answer' && state !== 'foreign' ? seen.probe.doc : null;
     if (wk?.update?.available) reasons.push({ code: 'reason.update', params: { version: wk.update.available } });
+    // FD-135: a name from the agent's repository replaces its own everywhere a name is read; its own is kept beside it.
+    const descriptor = this.named(t.entry.descriptor, t.entry.key);
+    const renamed = descriptor !== t.entry.descriptor && t.entry.descriptor;
     return {
-      key: t.entry.key, descriptorPath: t.entry.path, descriptor: t.entry.descriptor, problems: t.tokenProblem ? [...t.entry.problems, t.tokenProblem] : t.entry.problems, state, reasons,
-      wellKnown: wk, dashboardMinWidth: dashboardMinWidth(wk), launchd: t.launchd, usagePath: t.usagePath,
+      key: t.entry.key, descriptorPath: t.entry.path, descriptor, ...(renamed ? { agentName: renamed.name } : {}), problems: t.tokenProblem ? [...t.entry.problems, t.tokenProblem] : t.entry.problems, state, reasons,
+      wellKnown: wk && renamed ? { ...wk, service: { ...wk.service, name: descriptor!.name } } : wk, dashboardMinWidth: dashboardMinWidth(wk), launchd: t.launchd, usagePath: t.usagePath,
       firstUnansweredAt: t.firstUnansweredAt ? new Date(t.firstUnansweredAt).toISOString() : null,
       lastAnswerAt: t.lastAnswerAt ? new Date(t.lastAnswerAt).toISOString() : null,
       busy: t.busy, lastAction: t.lastAction, latestEvent: this.o.activity.latest(t.entry.key), feedError: t.feedError,
@@ -753,7 +758,7 @@ export class Monitor extends EventEmitter {
   /** FD-123: the services of agents turned off: on disk, never probed; the window lists them greyed in Hidden. */
   offServices(): { key: string; product: string; name: string }[] {
     return [...this.tracked.values()].filter((t) => this.isOff(t))
-      .map((t) => ({ key: t.entry.key, product: productIdOf(t.entry.key), name: t.entry.descriptor?.name ?? t.entry.key }))
+      .map((t) => ({ key: t.entry.key, product: productIdOf(t.entry.key), name: this.named(t.entry.descriptor, t.entry.key)?.name ?? t.entry.key }))
       .sort((a, b) => a.name.localeCompare(b.name) || (a.key < b.key ? -1 : 1));
   }
 
@@ -764,6 +769,20 @@ export class Monitor extends EventEmitter {
     this.schedule(0);
   }
   // #endregion agent-off
+
+  // #region agent-names — docs: docs/adr/0026-agent-names-in-their-repositories.md#decision
+  /** FD-135: the descriptor with the name its repository gives it, or itself when there is none. */
+  private named<D extends { name: string; source?: { repository?: string } } | null>(d: D, key: string): D {
+    const custom = d && this.o.customName?.(key, d.source?.repository);
+    return d && custom && custom !== d.name ? { ...d, name: custom } : d;
+  }
+
+  /** A name changed in an agent's repository (read, or renamed here): show it now. */
+  namesChanged(): void {
+    this.changed();
+    this.schedule(0);
+  }
+  // #endregion agent-names
 
   meta(): { servicesDir: string; dirError: string | null; scanning: boolean } {
     return { servicesDir: this.o.servicesDir, dirError: this.dirError, scanning: this.scanning };

@@ -27,6 +27,7 @@ import { listListeners, unattributed } from '../core/listeners';
 import { applyLoginItem, LOGIN_NEEDS_APPROVAL, loginItemAtStartup, type LoginItemOs } from '../core/loginitem';
 import { xdgLoginItem } from '../core/autostart';
 import { Monitor, type AskNotice, type Notice } from '../core/monitor';
+import { AgentNameStore, findGh, githubRepoOf, NAMES_EVERY_MS, NAMES_FIRST_MS, NAMES_TICK_MS, type GithubRepo } from '../core/agent-names';
 import { fetchLoad, fetchUsage, readTokenAsync } from '../core/probe';
 import { limitsNeedingPerson, readSpend, type SpendEntry } from '../core/spend';
 import { attentionQueue, badgeText, nextNewsExpiry } from '../core/attention';
@@ -145,7 +146,32 @@ if (!app.requestSingleInstanceLock()) {
     if (testFabric) { log(`fabric_open ${url}`); return; }
     await shell.openExternal(url);
   };
+  // #region agent-names — docs: docs/adr/0026-agent-names-in-their-repositories.md#decision
+  // FD-135: the names agents' repositories give them, read from GitHub with `gh` (cache: agent-names.json).
+  let ghDirs: Promise<string[]> | null = null;
+  // FD_TEST_GH stands in for `gh` (a fake GitHub for the e2e suite); honoured only when the app is not packaged.
+  const testGh = !app.isPackaged ? process.env.FD_TEST_GH : undefined;
+  const agentNames = new AgentNameStore({
+    file: path.join(userData, 'agent-names.json'), run: execRunner, log,
+    gh: async () => testGh || findGh(await (ghDirs ??= readLoginPath().then((p) => searchDirs(p)))),
+    onChange: () => { monitor.namesChanged(); pushStatus(); },
+  });
+  /** The GitHub repositories the agents on this Mac name; a repository GitHub never showed is asked again in 30 min. */
+  const agentRepos = (): GithubRepo[] => monitor.snapshots().map((x) => githubRepoOf(x.descriptor?.source?.repository)).filter((r): r is GithubRepo => r !== null);
+  let namesTimer: NodeJS.Timeout | null = null;
+  let namesStopped = false;
+  function startAgentNames(): void {
+    const tick = () => {
+      if (namesStopped) return;
+      agentNames.reloadIfChanged(); // the MCP server's rename wrote the cache
+      const due = agentNames.stale(agentRepos(), NAMES_EVERY_MS);
+      if (due.length) void agentNames.refresh(due);
+    };
+    setTimeout(() => { if (namesStopped) return; tick(); namesTimer = setInterval(tick, NAMES_TICK_MS); namesTimer.unref?.(); }, NAMES_FIRST_MS).unref?.();
+  }
+  // #endregion agent-names
   const monitor = new Monitor({ servicesDir: servicesDir(), activity, settings: () => settings.get(), lang, ledger: new NotifyLedger(path.join(userData, 'notified.json')),
+    customName: (key, repository) => agentNames.name(key, repository),
     intervals: Number.isFinite(testRemoteMs) && testRemoteMs >= 1_000 ? { remote: testRemoteMs } : undefined });
   // ADR-0017: the agent consoles. FD_TEST_RUNTIME_DIRS replaces where runtimes are looked for, only
   // in a development run (the e2e suite's scripted runtime); a packaged app reads the login shell's PATH.
@@ -714,6 +740,14 @@ if (!app.requestSingleInstanceLock()) {
       pendingNav = null;
       return target;
     });
+    // FD-135 (SCN-090): the row menu's Rename; the agent's repository is the one its descriptor names.
+    ipcMain.handle(CHANNELS.renameAgent, async (_e, key: string, name: string | null) => {
+      if (typeof key !== 'string' || (name !== null && typeof name !== 'string')) throw new Error('bad rename');
+      const d = monitor.snapshot(key)?.descriptor;
+      if (!d) return { ok: false, error: `no agent ${key}` };
+      const res = await agentNames.rename(key, d.source?.repository, name);
+      return res.ok ? { ok: true } : res;
+    });
     ipcMain.handle(CHANNELS.control, async (_e, key: string, action: 'restart' | 'stop' | 'start') => {
       if (!['restart', 'stop', 'start'].includes(action)) throw new Error('unknown action');
       if (action !== 'restart') views?.drop(key);
@@ -982,6 +1016,8 @@ if (!app.requestSingleInstanceLock()) {
     if (handoverTimer) clearTimeout(handoverTimer); handoverTimer = null; // FD-62: no read after quit begins
     // #region estate-update — docs: docs/adr/0018-estate-updates-from-inside-the-app.md#decision
     estate.stop(); // ADR-0018: no estate check or retry past this point
+    namesStopped = true; // FD-135: no names read past this point
+    if (namesTimer) clearInterval(namesTimer);
     // #endregion estate-update
     activity.flush();
     // R-4: Electron does not wait for timers, so the SIGKILL that follows SIGTERM would never run.
@@ -1076,6 +1112,7 @@ if (!app.requestSingleInstanceLock()) {
     updater.onInstallWhenReady = () => void restartToUpdate(); // FD-75
     updater.start();
     // #region estate-update — docs: docs/adr/0018-estate-updates-from-inside-the-app.md#decision
+    startAgentNames(); // FD-135: names read 20 s after start, then each repository every 30 min
     estate.start(); // ADR-0018: first estate check 90 s after start, then every 6 h — only when the switch is on
     // #endregion estate-update
     if (app.isPackaged) app.setAsDefaultProtocolClient(SCHEME);

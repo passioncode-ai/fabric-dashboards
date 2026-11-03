@@ -13,6 +13,7 @@ const api: FabricApi = {
   onStatus: (l) => subscribe(CHANNELS.statusPush, l),
   onSettings: (l) => subscribe(CHANNELS.settingsPush, l),
   control: (key, action) => ipcRenderer.invoke(CHANNELS.control, key, action),
+  renameAgent: (key, name) => ipcRenderer.invoke(CHANNELS.renameAgent, key, name),
   command: (key, which) => ipcRenderer.invoke(CHANNELS.command, key, which),
   logs: (key) => ipcRenderer.invoke(CHANNELS.logs, key),
   spend: (force) => ipcRenderer.invoke(CHANNELS.spend, force === true),

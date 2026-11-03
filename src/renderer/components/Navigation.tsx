@@ -43,6 +43,8 @@ export interface RowActions {
   /** FD-123: turn an agent off (hidden, not watched, no alerts) or back on. */
   setOff: (id: string, off: boolean) => void;
   kind: (p: Product, kind: 'agent' | 'service') => void;
+  /** FD-135 (SCN-090): give the row's agent a name of the operator's, kept in its own repository. */
+  rename?: (key: string) => void;
   isPinned: (id: string) => boolean;
   isHidden: (id: string) => boolean;
   isService: (p: Product) => boolean;
@@ -300,6 +302,7 @@ function RowMenu({ p, menu, rail, ask }: { p: Product; menu: RowActions; rail: b
           items[(i + (e.key === 'ArrowDown' ? 1 : items.length - 1)) % items.length]?.focus();
         }}>
           {!hidden && <button role="menuitem" onClick={act(() => menu.pin(p.id))}>{t(pinned ? 'list.unpin' : 'list.pin', { name })}</button>}
+          {menu.rename && <button role="menuitem" onClick={act(() => menu.rename!(p.primary.key))}>{t('rename.menu')}</button>}
           <button role="menuitem" onClick={act(() => menu.kind(p, service ? 'agent' : 'service'))}>{t(service ? 'list.asAgent' : 'list.asService')}</button>
           <button role="menuitem" onClick={act(() => menu.hide(p.id))}>{t(hidden ? 'list.unhide' : 'list.hide')}</button>
           <button role="menuitem" onClick={act(() => menu.setOff(p.id, true))}>{t('list.turnOff')}</button>

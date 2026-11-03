@@ -15,6 +15,8 @@ export interface ServiceSnapshot {
   key: string; // `${id}.${instance}`
   descriptorPath: string;
   descriptor: Descriptor | null;
+  /** FD-135: the agent's own name when its repository gives it another (`descriptor.name` is then that one). */
+  agentName?: string;
   problems: string[];
   state: ServiceState;
   reasons: Reason[];

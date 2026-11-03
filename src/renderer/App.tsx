@@ -9,6 +9,7 @@ import { Settings } from './components/Settings';
 import { Spend } from './components/Spend';
 import { ConnectionsMap } from './components/ConnectionsMap';
 import { AgentsNav, ModeSwitch, SessionsNav, type AgentsPage, type Mode, type RowActions } from './components/Navigation';
+import { RenameDialog } from './components/RenameDialog';
 import { AllSessions, hasConsole, SessionBody, SessionHeader } from './components/Sessions';
 import { resolveSessionRoute } from '../core/sessions-view';
 import type { SessionRow } from '../core/sessions';
@@ -174,6 +175,9 @@ function Shell({ status, route, setRoute, mode, switchMode, stopKey, setStopKey,
   const auditErrors = audit(status.services, status.limits ?? {}).counts.error;
   const current = route.page === 'service' ? status.services.find((s) => s.key === route.key) : undefined;
   const stopping = stopKey ? status.services.find((s) => s.key === stopKey) : undefined;
+  // FD-135 (SCN-090): the agent whose Rename dialog is open.
+  const [renameKey, setRenameKey] = useState<string | null>(null);
+  const renaming = renameKey ? status.services.find((s) => s.key === renameKey) : undefined;
   // #region sessions-shell — docs: docs/ux/scenarios.md#scn-080-open-one-sessions-page
   // FD-103: the session on show, followed through a Continue (its new row) and waited for while it may still arrive;
   // a session that left the list returns the page to All sessions, never to an empty page (UX-18).
@@ -220,7 +224,7 @@ function Shell({ status, route, setRoute, mode, switchMode, stopKey, setStopKey,
   // control that opened it, when that control is still on screen.
   const opener = useRef<HTMLElement | null>(null);
   const askStop = (key: string) => { opener.current = document.activeElement instanceof HTMLElement ? document.activeElement : null; setStopKey(key); };
-  const stopOpen = Boolean(stopping) || Boolean(ending);
+  const stopOpen = Boolean(stopping) || Boolean(ending) || Boolean(renaming);
   useEffect(() => {
     if (stopOpen) return;
     const el = opener.current;
@@ -230,6 +234,7 @@ function Shell({ status, route, setRoute, mode, switchMode, stopKey, setStopKey,
   // T-18: a service removed while its Stop dialog is open takes the dialog with it — never a hidden
   // dashboard behind an invisible dialog, never the dialog coming back by itself when it returns.
   useEffect(() => { if (stopKey && !stopping) setStopKey(null); }, [stopKey, stopping]);
+  useEffect(() => { if (renameKey && !renaming) setRenameKey(null); }, [renameKey, renaming]);
   // T-21: Escape closes the dialog wherever focus is, including after a click on the backdrop.
   useEffect(() => {
     if (!stopOpen) return;
@@ -263,6 +268,7 @@ function Shell({ status, route, setRoute, mode, switchMode, stopKey, setStopKey,
     isHidden: (id) => layout.list.hidden.includes(id),
     isService: (p) => categoryOf(p, layout.list.kinds) === 'service',
     onMenu: (o) => setMenuOverPage(o),
+    rename: (key) => { opener.current = document.activeElement instanceof HTMLElement ? document.activeElement : null; setRenameKey(key); },
   };
   const hiddenProblem = hidden.some((p) => PROBLEM.has(p.primary.state) || p.memberProblem);
   // FD-39 D-3: Fix / Update with agent opens the agent's page and console; the console starts the task once it is ready.
@@ -444,6 +450,7 @@ function Shell({ status, route, setRoute, mode, switchMode, stopKey, setStopKey,
           </div>
         </div>
       )}
+      {renaming && <RenameDialog key={renaming.key} s={renaming} onClose={() => setRenameKey(null)} />}
       {ending && (
         <div className="scrim" role="presentation">
           <div className="dialog" role="alertdialog" aria-modal="true" aria-labelledby="end-title" aria-describedby="end-body">
