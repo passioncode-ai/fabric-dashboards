@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.8.18 - 2026-11-03
+
+### Added
+
+- FD-135: an agent can be renamed from its row menu (Rename…). The name is kept in the agent's own GitHub repository,
+  in `.fabric/names.json` on its default branch, so every computer running Fabric Dashboards shows it; the dialog says
+  where it goes, and Use its own name gives the agent its own name back. The app commits through the GitHub CLI (`gh`),
+  which holds the sign-in, never touches a working tree, keeps a name set meanwhile on another computer, and reads the
+  names of every agent's repository in one call 20 s after start and every 30 minutes (ADR-0026, SCN-090). Agents get
+  the MCP tool `rename`.
+
+### Fixed
+
+- FD-134: a Switchboard refusal shows its sentence for a person, not the JSON line that carries it (SB-189).
+- FD-132: an agent Observatory 0.30.1 places on another machine without naming it reads "another machine", not
+  "unknown"; the reader is checked on the file Observatory's own writer makes.
+- `COMMERCIAL-LICENSE.md` matches the organization's template byte for byte.
+
 ## 0.8.17 - 2026-10-28
 
 ### Added
