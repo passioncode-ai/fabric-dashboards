@@ -100,9 +100,11 @@ export function modeMenuItems(platform: NodeJS.Platform, label: (key: 'menu.agen
 }
 
 /** A login launch starts hidden: macOS reports it (`wasOpenedAtLogin`); Windows and Linux register the
- *  login item with `--hidden`, as an automatic update's relaunch does. */
+ *  login item with `--hidden`, as an automatic update's relaunch does. FD-142: `--background`, the flag the local
+ *  lifecycle broker passes to a target enrolled with `backgroundLaunch: true` (fabric-workspace `knowledge/lifecycle.md`,
+ *  "Background launch"), starts the same way: no window, nothing activated; the window shows when the person opens it. */
 export function startHidden(platform: NodeJS.Platform, o: { argv: string[]; wasOpenedAtLogin: boolean | undefined; afterUpdate: boolean }): boolean {
-  return o.afterUpdate || o.argv.includes('--hidden') || (platform === 'darwin' && o.wasOpenedAtLogin === true);
+  return o.afterUpdate || o.argv.includes('--hidden') || o.argv.includes('--background') || (platform === 'darwin' && o.wasOpenedAtLogin === true);
 }
 /**
  * The `fabric-dashboards:` link in a process's arguments (ADR-0004). Windows and Linux hand a link to the

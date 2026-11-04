@@ -74,7 +74,7 @@ export function readOrCreateInstallation(file: string, now: () => Date): { id: s
 
 /** Counts and the kinds below only: a free string could carry a name, so anything else is dropped. */
 export type Props = Record<string, number | boolean | string>;
-export const KNOWN_KINDS: ReadonlySet<string> = new Set(['ordinary', 'login', 'link', 'main', 'renderer', 'gpu', 'utility', 'zygote', 'unknown']);
+export const KNOWN_KINDS: ReadonlySet<string> = new Set(['ordinary', 'login', 'link', 'background', 'main', 'renderer', 'gpu', 'utility', 'zygote', 'unknown']);
 const CODE = /^[A-Za-z0-9_.-]{1,40}$/;
 export function cleanProps(props: Record<string, unknown>): Props {
   const out: Props = {};
@@ -215,7 +215,7 @@ export function createAnalytics(deps: AnalyticsDeps) {
     track,
     flush,
     /** Every start: `app_installed` once, `app_updated` when the version changed, then `app_started`. */
-    started(launch: 'ordinary' | 'login' | 'link', counts: Record<string, number> = {}): void {
+    started(launch: 'ordinary' | 'login' | 'link' | 'background', counts: Record<string, number> = {}): void {
       if (availability() !== 'on') return;
       const state = readState();
       const next: AnalyticsState = { ...state };
