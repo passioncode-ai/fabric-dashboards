@@ -60,11 +60,13 @@ is one `analytics.flush` line in `main.log` with its outcome and count, never a 
 Only a release build: `scripts/analytics-bundle.mjs` writes `analytics.json` (`appKey`, `host`, `debug`) into the app's
 resources when `FABRIC_DASHBOARDS_ANALYTICS_APP_KEY` and `FABRIC_DASHBOARDS_ANALYTICS_HOST` are set. The release
 workflow sets them only for a `v*` tag, from the secret `FABRIC_DASHBOARDS_ANALYTICS_APP_KEY` and the variable
-`FABRIC_DASHBOARDS_ANALYTICS_HOST`; the source names no host. Source builds, `npm start`, the tests and a rehearsal
-carry no key and send nothing, and Settings says so. The App Key comes from the analytics server's vault slot
+`FABRIC_DASHBOARDS_ANALYTICS_HOST` (set 2026-11-04 to the organization's server, `https://analytics.passioncode.ai`, as for Fabric, Fabric Inbox and Switchboard, PLAT-132); the source names no host. Source builds, `npm start`, the tests and a rehearsal
+carry no key and send nothing, and Settings says so. The App Key comes from the organization's vault slot (`passioncode-platform/prod`)
 `APTABASE_APP_KEY_FABRIC_DASHBOARDS`, put into the repository's secret with Observatory's `use_secret.py run`, never
 printed.
 
-**Not yet sending (2026-11-04):** the app is not registered on the analytics server and in growth yet; its owner's
-session could not write the vault slot and left the registration script for the operator (FD-136). Until the secret is
-set, a release build carries no key and sends nothing.
+**Not yet sending (2026-11-04):** the app is not registered on the organization's analytics server yet. Growth's
+session could not write the vault slot and left `register-fabric-dashboards.sh` for the operator, which creates the
+app with `app.sh` from `passioncode-platform/infra/analytics`, puts its key into `passioncode-platform/prod` and probes
+it. Whether growth counts PassionCode products is the passioncode-platform owner's decision. Until the secret is set, a
+release build carries no key and sends nothing.
