@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.8.19 - 2026-11-04
+
+### Added
+
+- FD-136: anonymous usage and error data, on by default for new installs and installs already out. The first time the
+  window shows, a notice says what is shared (counts of agents, days of use, which part of the app crashed) and what
+  never is (names, paths, addresses, keys, what agents do), with OK and Turn off. Settings → Privacy turns it off for
+  Fabric Dashboards alone; off sends nothing at all. Only a released build carries the key to send; events go to the
+  organization's analytics server in batches, with the shared PassionCode installation id. See `docs/ANALYTICS.md`.
+
 ## 0.8.18 - 2026-11-03
 
 ### Added

@@ -65,8 +65,8 @@ carry no key and send nothing, and Settings says so. The App Key comes from the 
 `APTABASE_APP_KEY_FABRIC_DASHBOARDS`, put into the repository's secret with Observatory's `use_secret.py run`, never
 printed.
 
-**Not yet sending (2026-11-04):** the app is not registered on the organization's analytics server yet. Growth's
-session could not write the vault slot and left `register-fabric-dashboards.sh` for the operator, which creates the
-app with `app.sh` from `passioncode-platform/infra/analytics`, puts its key into `passioncode-platform/prod` and probes
-it. Whether growth counts PassionCode products is the passioncode-platform owner's decision. Until the secret is set, a
-release build carries no key and sends nothing.
+**Registered 2026-11-04:** the Aptabase app *Fabric Dashboards* on the organization's server (created with the
+platform's `app.sh`, a Debug probe answered 200), its key in the repository secret `FABRIC_DASHBOARDS_ANALYTICS_APP_KEY`
+(taken from `passioncode-platform/prod` through `use_secret.py`, never printed). 0.8.19 is the first release that
+sends. growth registered `fabric-dashboards` but reads only the personal server, so its numbers stay empty until it
+reads the organization's (growth's backlog); until then read the counts in the organization's Aptabase dashboard.
