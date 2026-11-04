@@ -82,3 +82,11 @@ test('FD-137: the header chip and the sidebar name Fabric, never Switchboard, fo
   const plain = { ...row(launchFactsOf({ launch_id: RECORD.launch_id, launched_by: { surface: 'cli' } })), origin: 'switchboard', group: 'ended' } as SessionRow;
   assert.match(originChip('en', plain), /^Started by Switchboard, /);
 });
+
+test('FD-137: an exit Switchboard did not wait for itself names no code (SB-247: exit_code only when the owner waited)', () => {
+  const l = launchFactsOf({ ...RECORD, ended: { kind: 'exited', at: 1793790000 } });
+  const en = Object.fromEntries(chainFacts('en', row(l)).map((f) => [f.label, f.value]));
+  assert.match(en.Ended!, /^exited, /);
+  assert.doesNotMatch(en.Ended!, /code/);
+  assert.match(dispatchLines('ru', [{ ...row(l), agentKey: 'k' } as SessionRow], 'k')[0]!.outcome, /^завершилась, /);
+});

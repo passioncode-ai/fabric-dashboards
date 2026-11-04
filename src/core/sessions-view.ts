@@ -26,6 +26,12 @@ function requestText(lang: Lang, d: { request: string | null; thread: string | n
   return d.thread ? t(lang, 'sessions.chain.requestIds', { request, thread: d.thread.slice(0, 8) }) : request;
 }
 
+/** FD-137: how a launch ended, with its time; an exit Switchboard did not wait for itself names no code (SB-247). */
+function endedText(lang: Lang, l: NonNullable<SessionRow['launch']>): string {
+  const kind = l.ended === 'exited' && typeof l.exitCode !== 'number' ? 'exitedNoCode' : l.ended;
+  return t(lang, `sessions.chain.ended.${kind}`, { time: l.endedAt ? clock(lang, l.endedAt) : '', code: l.exitCode ?? '' }).replace(/, $/, '');
+}
+
 /** FD-124: the launch facts Switchboard recorded, as label and value pairs in reading order; empty when it kept none. */
 export function chainFacts(lang: Lang, r: SessionRow): { label: string; value: string }[] {
   const l = r.launch;
@@ -37,7 +43,7 @@ export function chainFacts(lang: Lang, r: SessionRow): { label: string; value: s
   // FD-137 (SCN-092): a session Fabric started for a board request: which request (ids only), how long it ran.
   const dispatch = l.by.dispatch;
   if (dispatch?.request) out.push({ label: t(lang, 'sessions.chain.request'), value: requestText(lang, dispatch) });
-  if (l.ended) out.push({ label: t(lang, 'sessions.chain.ended'), value: t(lang, `sessions.chain.ended.${l.ended}`, { time: l.endedAt ? clock(lang, l.endedAt) : '', code: l.exitCode ?? '?' }).replace(/, $/, '') });
+  if (l.ended) out.push({ label: t(lang, 'sessions.chain.ended'), value: endedText(lang, l) });
   if (dispatch && l.endedAt && r.startedAt && l.endedAt >= r.startedAt) out.push({ label: t(lang, 'sessions.chain.ran'), value: t(lang, 'duration.m', { n: Math.max(1, Math.round((l.endedAt - r.startedAt) / 60_000)) }) });
   if (l.continuedAs) out.push({ label: t(lang, 'sessions.chain.went'), value: t(lang, `sessions.chain.went.${l.continuedAs.kind}`, { id: l.continuedAs.id }) });
   if (l.turns !== null) out.push({ label: t(lang, 'sessions.chain.turns'), value: String(l.turns) });
@@ -51,7 +57,7 @@ export function dispatchLines(lang: Lang, rows: readonly SessionRow[], key: stri
     const l = r.launch!;
     const d = l.by.dispatch;
     const request = d?.request ? requestText(lang, d) : t(lang, 'dispatch.noRequest');
-    const outcome = l.ended ? t(lang, `sessions.chain.ended.${l.ended}`, { time: l.endedAt ? clock(lang, l.endedAt) : '', code: l.exitCode ?? '?' }).replace(/, $/, '') : stateWords(lang, r);
+    const outcome = l.ended ? endedText(lang, l) : stateWords(lang, r);
     const ran = l.endedAt && r.startedAt && l.endedAt >= r.startedAt ? t(lang, 'duration.m', { n: Math.max(1, Math.round((l.endedAt - r.startedAt) / 60_000)) }) : null;
     return { id: r.id, request, outcome, ran };
   });
