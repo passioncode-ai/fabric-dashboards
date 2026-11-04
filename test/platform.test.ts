@@ -63,6 +63,9 @@ test('FD-37: window, tray and menu keys per OS', () => {
 test('FD-37: a login launch starts hidden — macOS reports it, Windows and Linux pass --hidden', () => {
   assert.equal(startHidden('darwin', { argv: [], wasOpenedAtLogin: true, afterUpdate: false }), true);
   assert.equal(startHidden('win32', { argv: [], wasOpenedAtLogin: undefined, afterUpdate: false }), false);
+  // FD-142: the broker's background launch starts without a window on every system; an unknown argument changes nothing.
+  for (const p of ['darwin', 'win32', 'linux'] as const) assert.equal(startHidden(p, { argv: ['/app', '--background'], wasOpenedAtLogin: false, afterUpdate: false }), true);
+  assert.equal(startHidden('darwin', { argv: ['/app', '--some-unknown-flag'], wasOpenedAtLogin: false, afterUpdate: false }), false);
   assert.equal(startHidden('win32', { argv: ['app.exe', '--hidden'], wasOpenedAtLogin: undefined, afterUpdate: false }), true);
   assert.equal(startHidden('linux', { argv: [], wasOpenedAtLogin: true, afterUpdate: false }), false, 'only macOS reports a login launch');
   assert.equal(startHidden('linux', { argv: [], wasOpenedAtLogin: undefined, afterUpdate: true }), true);

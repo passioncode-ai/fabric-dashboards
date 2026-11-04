@@ -31,7 +31,7 @@ stays listed with its date.
 |---|---|---|---|---|
 | `app_installed` | live since 0.8.19 | the first start with the switch on (once; `installedAt` in `analytics-state.json`) | `first_passioncode_app` (this app made the shared file), `agents_local`, `agents_online` | `src/core/analytics.ts` `started` |
 | `app_updated` | live since 0.8.19 | the first start of a new version | `from`: the version that ran before | `src/core/analytics.ts` `started` |
-| `app_started` | live since 0.8.19 | every start | `launch`: `ordinary`, `login` (opened hidden at login) or `link` (a `fabric-dashboards://` link); `agents_local`, `agents_online` | `src/electron/main.ts` (usage-analytics) |
+| `app_started` | live since 0.8.19 | every start | `launch`: `ordinary`, `login` (opened hidden at login), `link` (a `fabric-dashboards://` link) or `background` (the lifecycle broker's `--background`, since 0.8.20); `agents_local`, `agents_online` | `src/electron/main.ts` (usage-analytics) |
 | `app_active` | live since 0.8.19 | once per UTC day while the app runs, window open or not (checked a minute after start, then hourly) | `agents_local`, `agents_online` | `src/electron/main.ts` (usage-analytics) |
 | `app_error` | live since 0.8.19 | a crash the app noticed, once per launch for each `where` and `code`: the main process's uncaught exception (watched with `uncaughtExceptionMonitor`, so its default handling stays), the window's renderer or a helper process gone for a reason other than a clean exit | `where`: `main`, `renderer`, `gpu`, `utility`, `zygote` or `unknown`; `code`: the error's code or name, or the process's reason (letters, digits, `_.-`, at most 40) | `src/electron/main.ts` (usage-analytics) |
 

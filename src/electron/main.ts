@@ -1191,7 +1191,7 @@ if (!app.requestSingleInstanceLock()) {
     if (afterUpdate) log(`update: relaunched as ${app.getVersion()} after an automatic install`);
     const hidden = startHidden(process.platform, { argv: process.argv, wasOpenedAtLogin: process.platform === 'darwin' ? app.getLoginItemSettings().wasOpenedAtLogin : undefined, afterUpdate });
     // FD-136: the start, then one `app_active` a UTC day while the app runs (checked hourly; LC-08: unref'd, no spawn).
-    analytics.started(launchLink ? 'link' : hidden && !afterUpdate ? 'login' : 'ordinary', analyticsCounts());
+    analytics.started(launchLink ? 'link' : process.argv.includes('--background') ? 'background' : hidden && !afterUpdate ? 'login' : 'ordinary', analyticsCounts());
     setTimeout(() => analytics.activeTick(analyticsCounts()), 60_000).unref();
     analyticsTimer = setInterval(() => analytics.activeTick(analyticsCounts()), 3_600_000);
     analyticsTimer.unref();
