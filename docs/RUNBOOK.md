@@ -218,6 +218,28 @@ ADR-0015). The copy runs hidden with its own data folder, and the proof is read 
     beside the ready one (`recheckReady`, `src/electron/updater.ts`), and the proof fails on a second restart.
   - Tests: `test/proof-feed.test.ts`.
 
+## Log digests
+
+FD-144 (ADR-0188 in Fabric, the operator's relay of 2026-11-04): the app counts what `main.log` takes, by operation and
+outcome, and writes digests beside its data in `digests/` (0700, files 0600):
+
+- `hourly-YYYY-MM.jsonl`: one `ops.digest.hourly@1` per closed hour, `{schema, from, to, ops[{op, ok, failed, unknown}],
+  total, risen[{op, failed, previous}]}`; written within a minute of the hour's end.
+- `daily-YYYY-MM.jsonl`: one `ops.digest.daily@1` per closed UTC day, `{schema, day, hours, ops, total, risen[{op, hours,
+  failed}]}`.
+- `open.json`: the hour still open, kept across a quit so a restart in the same hour neither loses nor doubles it.
+
+What is counted (`classify` in `src/core/ops-digest.ts`): the structured events (`update_check`, `update_download`,
+`update_install`, `update_restart`, `auto_update`, `estate_check`, `dock_hide`, `fabric_button`, `analytics.flush`),
+an outcome with `fail`, `error`, `refused`, `mismatch`, `timeout` or `denied` in it being a failure; alert deliveries
+(`alerts`: sent or not delivered); agent-name reads (`agent_names`); crashes (`crash`). Prose lines are not counted
+rather than guessed at. A rise is at least 10 failures in an hour and at least twice the previous hour's (a previous
+hour with none counts as one). Files older than three months go when a new month's file starts. The shape follows
+Fabric's reference (`apps/desktop/src/shared/opsDigest.ts` at `e1eecec0`) until the contract's schema (CT-219) lands;
+sending the daily digest to Observatory waits for its record kind (OBS-330).
+
+Read the last day: `tail -1 ~/Library/Application\ Support/Fabric\ Dashboards/digests/daily-$(date -u +%Y-%m).jsonl`.
+
 ## Tests that touch this Mac
 
 `test/monitor.test.ts` bootstraps a throwaway LaunchAgent labelled
