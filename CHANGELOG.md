@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.8.20 - 2026-11-04
+
+### Added
+
+- FD-137: sessions Fabric starts for a board request that no session took. The Sessions list says "on a board request";
+  the session's page says Fabric started it, which request and thread, how it ended (exited with its code, stopped by
+  Fabric, or stopped at its time limit) and how long it ran. The agent in whose folder such a session ran lists it on its
+  Activity tab, under Board requests, each opening its session. Read from Switchboard's launch record (SB-247); ids
+  only, never the request's text.
+- FD-141: actions that did not succeed (a start, stop or restart, a command, a rename, a console start, an update) are
+  counted by action and a short code with the anonymous usage and error data, so problems people meet show up without
+  their words. See `docs/ANALYTICS.md`.
+- FD-142: `--background` starts the app without a window, as a login launch does, for the local lifecycle broker.
+
+### Changed
+
+- FD-139: the sample service used in the tests is fabric-agent-adapter v0.62.0's.
+
 ## 0.8.19 - 2026-11-04
 
 ### Added
