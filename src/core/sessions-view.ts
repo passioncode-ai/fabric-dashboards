@@ -25,7 +25,11 @@ export function chainFacts(lang: Lang, r: SessionRow): { label: string; value: s
   if (l.by.surface) out.push({ label: t(lang, 'sessions.chain.started'), value: t(lang, `sessions.chain.started.${l.by.surface}`) });
   const asker = l.by.by ?? l.by.program;
   if (asker) out.push({ label: t(lang, 'sessions.chain.asker'), value: asker });
-  if (l.ended) out.push({ label: t(lang, 'sessions.chain.ended'), value: t(lang, `sessions.chain.ended.${l.ended}`, { time: l.endedAt ? clock(lang, l.endedAt) : '' }).replace(/, $/, '') });
+  // FD-137 (SCN-092): a session Fabric started for a board request: which request (ids only), how long it ran.
+  const dispatch = l.by.dispatch;
+  if (dispatch?.request) out.push({ label: t(lang, 'sessions.chain.request'), value: t(lang, 'sessions.chain.requestIds', { request: dispatch.request.slice(0, 8), thread: (dispatch.thread ?? '').slice(0, 8) }).replace(/ · $/, '') });
+  if (l.ended) out.push({ label: t(lang, 'sessions.chain.ended'), value: t(lang, `sessions.chain.ended.${l.ended}`, { time: l.endedAt ? clock(lang, l.endedAt) : '', code: l.exitCode ?? '?' }).replace(/, $/, '') });
+  if (dispatch && l.endedAt && r.startedAt && l.endedAt >= r.startedAt) out.push({ label: t(lang, 'sessions.chain.ran'), value: t(lang, 'duration.m', { n: Math.max(1, Math.round((l.endedAt - r.startedAt) / 60_000)) }) });
   if (l.continuedAs) out.push({ label: t(lang, 'sessions.chain.went'), value: t(lang, `sessions.chain.went.${l.continuedAs.kind}`, { id: l.continuedAs.id }) });
   if (l.turns !== null) out.push({ label: t(lang, 'sessions.chain.turns'), value: String(l.turns) });
   return out;
@@ -43,7 +47,9 @@ export const runningCount = (rows: readonly SessionRow[]): number => rows.filter
 /** SCN-078 step 2: the second line of a row, "Claude Code · claude4 · handed over · 14:02". */
 export function secondLine(lang: Lang, r: SessionRow): string {
   const when = r.startedAt ?? r.at;
-  return [agentName(r.agent), r.account, t(lang, `sessions.origin.${r.origin}`), when ? clock(lang, when) : null].filter(Boolean).join(' · ');
+  // FD-137: a session Fabric started for a board request says so in place of how it came.
+  const how = r.launch?.by.surface === 'fabric' ? t(lang, 'sessions.origin.dispatch') : t(lang, `sessions.origin.${r.origin}`);
+  return [agentName(r.agent), r.account, how, when ? clock(lang, when) : null].filter(Boolean).join(' · ');
 }
 
 /** R1-V1: a sidebar row's two lines. The first is the project with the time beside it, right-aligned and never cut; the
