@@ -155,3 +155,20 @@ test('FD-136: the bundle, the environment rule and the settings default', () => 
   assert.equal(merge({ analytics: false } as never).analytics, false);
   assert.equal(merge({}).analyticsNoticeSeen, false);
 });
+
+test('FD-141: an action that did not succeed is counted once per launch for its action and code, never its message', async () => {
+  const r = rig();
+  r.a.failed('start', 'result.placedElsewhere');
+  r.a.failed('start', 'result.placedElsewhere');
+  r.a.failed('update', 'exit_1');
+  r.a.failed('console', 'admission_disk');
+  r.a.failed('self_update', 'the server said: no such release at https://example.test/x');
+  await r.run();
+  const failed = events(r.sent).filter((e) => e.eventName === 'action_failed').map((e) => (e as { props: Record<string, unknown> }).props);
+  assert.deepEqual(failed.map((p) => [p.action, p.code]), [['start', 'result.placedElsewhere'], ['update', 'exit_1'], ['console', 'admission_disk'], ['self_update', 'unknown']]);
+  r.setEnabled(false);
+  r.a.failed('rename', 'no-gh');
+  await r.run();
+  assert.equal(events(r.sent).filter((e) => e.eventName === 'action_failed').length, 4, 'off sends nothing');
+});
+

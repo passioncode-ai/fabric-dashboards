@@ -52,6 +52,8 @@ function loadSpawn(): SpawnPty {
 }
 
 export interface ConsoleHostOptions {
+  /** FD-141: a console start that was refused, by its reason only (usage and error data, docs/ANALYTICS.md). */
+  failed?: (code: string) => void;
   settings: SettingsStore;
   snapshot: (key: string) => ServiceSnapshot | null;
   window: () => BrowserWindow | null;
@@ -1115,7 +1117,7 @@ export class ConsoleHost {
       if (!x || (x.kind !== 'fix' && x.kind !== 'update' && x.kind !== 'audit')) return undefined;
       return { kind: x.kind, ...(typeof x.output === 'string' ? { output: x.output.slice(-20_000) } : {}) };
     };
-    ipcMain.handle(CHANNELS.consoleStart, (_e, key, mode, s, task) => (keyOk(key) ? this.start(key, mode === 'continue' ? 'continue' : 'new', size(s), taskOf(task)) : Promise.reject(new Error('not a service key'))));
+    ipcMain.handle(CHANNELS.consoleStart, (_e, key, mode, s, task) => (keyOk(key) ? this.start(key, mode === 'continue' ? 'continue' : 'new', size(s), taskOf(task)).then((r) => { if (!r.ok && r.reason !== 'running') this.o.failed?.(r.reason === 'admission' ? `admission_${r.why}` : r.reason); return r; }) : Promise.reject(new Error('not a service key'))));
     ipcMain.handle(CHANNELS.consoleStop, (_e, key) => { if (keyOk(key)) this.stopByPerson(key); });
     // #region sessions-host — docs: docs/reports/2026-10-24-ui-ux-iteration/sessions-and-navigation.md#every-state-has-an-action
     // FD-103: the Sessions list's actions name a row by its id; the main process finds what it stands for.

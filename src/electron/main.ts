@@ -209,7 +209,7 @@ if (!app.requestSingleInstanceLock()) {
   // FD-65: the last Check setup, kept until the next press; a run in progress is shared, never doubled.
   let lastSetupCheck: SetupCheckResult | null = null;
   let setupCheckRun: Promise<SetupCheckResult> | null = null;
-  const consoles = new ConsoleHost({ settings, snapshot: (key) => monitor.snapshot(key), window: () => window, drawer: () => drawer?.contents() ?? null, visible: () => windowVisible(), log: (line) => log(line), testDirs: testRuntimeDirs, scriptsDir: path.join(userData, 'console'),
+  const consoles = new ConsoleHost({ failed: (code) => analytics.failed('console', code), settings, snapshot: (key) => monitor.snapshot(key), window: () => window, drawer: () => drawer?.contents() ?? null, visible: () => windowVisible(), log: (line) => log(line), testDirs: testRuntimeDirs, scriptsDir: path.join(userData, 'console'),
     packRoot: path.join(userData, 'consoles'), keptDir: path.join(userData, 'console-output'), version: app.getVersion(), activity: (key) => activity.list({ serviceKey: key }, 200), mcpServer,
     setupState: () => readSetupState(os.homedir(), monitor.snapshots().length),
     doctor: () => (lastSetupCheck?.kind === 'report' ? lastSetupCheck.report : null),
@@ -249,6 +249,7 @@ if (!app.requestSingleInstanceLock()) {
     }
   }, log, () => { installing = true; quitting = true; }, () => settings.get().autoUpdate);
   let installing = false;
+  updater.onFailure = (code) => analytics.failed('self_update', code); // FD-141
   // #region estate-update — docs: docs/adr/0018-estate-updates-from-inside-the-app.md#decision
   // ADR-0018: the estate watcher lives in this process next to the Updater — git/npm tool spawns on
   // the LC-16 cadence, started in whenReady, stopped in will-quit, nothing while its switch is off.
@@ -769,16 +770,24 @@ if (!app.requestSingleInstanceLock()) {
       const d = monitor.snapshot(key)?.descriptor;
       if (!d) return { ok: false, error: `no agent ${key}` };
       const res = await agentNames.rename(key, d.source?.repository, name);
+      if (!res.ok) analytics.failed('rename', 'refused' in res ? res.refused : 'github'); // FD-141
       return res.ok ? { ok: true } : res;
     });
     ipcMain.handle(CHANNELS.control, async (_e, key: string, action: 'restart' | 'stop' | 'start') => {
       if (!['restart', 'stop', 'start'].includes(action)) throw new Error('unknown action');
       if (action !== 'restart') views?.drop(key);
-      return monitor.control(key, action);
+      const res = await monitor.control(key, action);
+      if (!res.ok) analytics.failed(action, res.reason.code); // FD-141
+      return res;
     });
     ipcMain.handle(CHANNELS.command, (_e, key: string, which: 'doctor' | 'update') => {
       if (which !== 'doctor' && which !== 'update') throw new Error('unknown command');
-      return monitor.command(key, which);
+      // FD-141: a refusal, a deadline or a non-zero exit, as a code only (never the command's output).
+      return monitor.command(key, which).then((r) => {
+        const code = r.refused ? 'refused' : r.timedOut ? 'timeout' : r.code === null ? 'not_started' : r.code !== 0 ? `exit_${r.code}` : null;
+        if (code) analytics.failed(which, code);
+        return r;
+      });
     });
     ipcMain.handle(CHANNELS.logs, (_e, key: string) => monitor.logs(key));
     // LC-08: a hidden window reads nothing — the Spend page's timer may keep running while hidden,
