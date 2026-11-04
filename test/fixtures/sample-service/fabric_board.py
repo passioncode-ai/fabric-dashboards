@@ -54,6 +54,7 @@ from fabric_board_session import (  # noqa: F401
     STOP_CODES,
     TERMINAL,
     HOLD_RETRY_MAX_SECONDS,
+    IDLE_LEAVE_SECONDS,
     BoardSession,
     Checkpoint,
     BoardRequest,
@@ -61,6 +62,7 @@ from fabric_board_session import (  # noqa: F401
     _Work,
     Handler,
     Responder,
+    PERSONAL_BOARD,
 )
 from fabric_board_fixture import (  # noqa: F401
     _FIXTURE_PROJECT,
