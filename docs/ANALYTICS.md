@@ -49,6 +49,12 @@ All PassionCode apps share one file: `~/Library/Application Support/PassionCode/
 apps starting at the same moment end with one id); a file that does not parse is never repaired, and the events then go
 without an id. It is read only while this product's switch is on.
 
+## Breaks in the series
+
+| Series | From | Why | Read it as |
+|---|---|---|---|
+| `app_installed.first_passioncode_app` | the publication of the PassionCode launcher 0.2.76 (PC-123; date to be named on board thread `3f490ae7`) | the launcher counts its own first run and creates the shared `installation.json` itself, often before this app first starts, so on machines the launcher set up this app no longer finds itself first | a break in the series, not a finding: the share of `true` falls while people do the same; the launcher sends the same id as `install_id`, so joins by it hold |
+
 ## Delivery
 
 Batches of at most 25 to `POST /api/v0/events` with the `App-Key` header, through Node's `fetch` in the main process.
