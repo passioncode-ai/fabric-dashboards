@@ -1516,7 +1516,7 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
   3. The agent asks for a consent, a sign-in or a secret -> the user answers in the console (a secret in a hidden prompt)
   4. A service lands -> it appears in the list while the setup runs; the setup card ticks what is done (MCP registered, skills found, first agent)
 - **Expected result:** a working system without a manual, and every step visible
-- **Alt paths:** no coding agent installed -> the card shows each vendor's install command to copy, and Start setup appears once one is found; the person declines a product -> the agent moves on; the person closes the app mid-setup -> the next launch offers Continue setup
+- **Alt paths:** no coding agent installed -> the card shows each vendor's install command to copy, and Start setup appears once one is found; the person declines a product -> the agent moves on; the person closes the app mid-setup -> the next launch offers Continue setup; the PassionCode launcher prints its one-time line about anonymous usage counts -> the agent gives it to the person word for word (setup.md asks it to, `test/setup.test.ts`)
 - **UI elements:** setup card with its checklist, Setup console, "Start setup", "Continue setup"
 - **States covered:** success, empty, error, loading
 - **Errors & recovery:** a step fails -> the agent says why in the console; the checklist shows what is done and what is not

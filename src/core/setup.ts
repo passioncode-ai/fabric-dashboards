@@ -72,6 +72,9 @@ export function setupMarkdown(o: { runtimeId: string; runtimeName: string; serve
     '   They teach you to create, adapt and run Fabric agents (`creating-fabric-agents`, `adapting-projects-to-fabric`, `building-fabric-services`).',
     '   If the family setup entry exists (`npx @passioncode-ai/passioncode onboard --help` answers), run it and follow it: it orders the steps below itself.',
     '   Otherwise, with the person\'s consent: `npx --yes @passioncode-ai/passioncode@latest update`. Skills load when a session starts: tell the person to restart you after this step, and continue with `--continue`.',
+    // The launcher (0.2.76, PC-123) tells once per machine, on stderr, that it counts anonymous usage; run here, the
+    // person would never see it (board finding 3dae11d0).
+    '   If the launcher prints a line about anonymous usage counts, give it to the person word for word.',
     '',
     '3. **The family products, one at a time, each only with the person\'s consent**, in the order fabric-workspace `knowledge/agents-first.md` gives (its one home). Say in one sentence what each does, then ask.',
     '   **Every download is verified before it runs:** `gpg --verify SHA256SUMS.asc SHA256SUMS` against the organization key (fingerprint `63B3 0DC3 24BD 6974 87AA 3194 4FAF B8AE C803 B6A7`, published in passioncode-ai/.github `release-signing/passioncode-release-signing.asc`), then `shasum -a 256 -c SHA256SUMS --ignore-missing`. A file that fails either is not installed.',
