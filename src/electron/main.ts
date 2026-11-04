@@ -27,6 +27,7 @@ import { listListeners, unattributed } from '../core/listeners';
 import { applyLoginItem, LOGIN_NEEDS_APPROVAL, loginItemAtStartup, type LoginItemOs } from '../core/loginitem';
 import { xdgLoginItem } from '../core/autostart';
 import { Monitor, type AskNotice, type Notice } from '../core/monitor';
+import { BUNDLE_FILE, createAnalytics, installationPath, osNameOf, readBundle } from '../core/analytics';
 import { AgentNameStore, findGh, githubRepoOf, NAMES_EVERY_MS, NAMES_FIRST_MS, NAMES_TICK_MS, type GithubRepo } from '../core/agent-names';
 import { fetchLoad, fetchUsage, readTokenAsync } from '../core/probe';
 import { limitsNeedingPerson, readSpend, type SpendEntry } from '../core/spend';
@@ -173,6 +174,28 @@ if (!app.requestSingleInstanceLock()) {
   const monitor = new Monitor({ servicesDir: servicesDir(), activity, settings: () => settings.get(), lang, ledger: new NotifyLedger(path.join(userData, 'notified.json')),
     customName: (key, repository) => agentNames.name(key, repository),
     intervals: Number.isFinite(testRemoteMs) && testRemoteMs >= 1_000 ? { remote: testRemoteMs } : undefined });
+  // #region usage-analytics — docs: docs/ANALYTICS.md#what-is-sent
+  // FD-136: anonymous usage and error data, on by default, this product's own switch; only a release build that
+  // carries `analytics.json` (its App Key) sends anything.
+  let bundleText: string | null = null;
+  try { bundleText = app.isPackaged ? fs.readFileSync(path.join(process.resourcesPath, BUNDLE_FILE), 'utf8') : null; } catch { /* no key: nothing is sent */ }
+  const analytics = createAnalytics({
+    // A smoke run on a CI runner is never production: its events land in the Debug dataset.
+    bundle: bundleText ? readBundle(bundleText) : null, appVersion: app.getVersion(), packaged: app.isPackaged && process.env.CI !== 'true',
+    osName: osNameOf(process.platform), osVersion: process.getSystemVersion(), locale: app.getLocale(), engineVersion: process.versions.electron,
+    installationFile: installationPath(process.platform, process.env, os.homedir()), stateFile: path.join(userData, 'analytics-state.json'),
+    enabled: () => settings.get().analytics, fetch: (url, init) => fetch(url, init), log: (line) => log(JSON.stringify(line)),
+  });
+  const analyticsCounts = (): Record<string, number> => {
+    const all = monitor.snapshots();
+    return { agents_local: all.filter((x) => x.descriptor?.placement !== 'remote').length, agents_online: all.filter((x) => x.descriptor?.placement === 'remote').length };
+  };
+  // A crash the app noticed: where and a code only; the default handling stays (an observing handler).
+  process.on('uncaughtExceptionMonitor', (e) => analytics.error('main', String((e as NodeJS.ErrnoException).code ?? e.name ?? 'Error')));
+  app.on('render-process-gone', (_e, _wc, d) => { if (d.reason !== 'clean-exit') analytics.error('renderer', d.reason); });
+  app.on('child-process-gone', (_e, d) => { if (d.reason !== 'clean-exit') analytics.error(['gpu', 'utility', 'zygote'].includes(d.type.toLowerCase()) ? d.type.toLowerCase() : 'unknown', d.reason); });
+  let analyticsTimer: NodeJS.Timeout | null = null;
+  // #endregion usage-analytics
   // ADR-0017: the agent consoles. FD_TEST_RUNTIME_DIRS replaces where runtimes are looked for, only
   // in a development run (the e2e suite's scripted runtime); a packaged app reads the login shell's PATH.
   const testRuntimeDirs = !app.isPackaged && process.env.FD_TEST_RUNTIME_DIRS ? process.env.FD_TEST_RUNTIME_DIRS.split(path.delimiter).filter(Boolean) : undefined;
@@ -269,7 +292,7 @@ if (!app.requestSingleInstanceLock()) {
   let hiddenSince: number | null = Date.now(); // the app starts with nothing on screen (a login start stays hidden)
   const status = (): AppStatus => ({
     services: monitor.snapshots(), off: monitor.offServices(), ...monitor.meta(), unread: activity.unread(), activityRev: activity.revision, update: updater.state, estate: estate.state, version: app.getVersion(),
-    alerts: alerts.status(), sessions: consoles.sessionsStatus(),
+    alerts: alerts.status(), sessions: consoles.sessionsStatus(), analyticsAvailable: analytics.availability() !== 'unavailable-no-key',
     limits: personLimits, ...(lastShown ? { shown: lastShown } : {}),
   });
 
@@ -828,6 +851,7 @@ if (!app.requestSingleInstanceLock()) {
       if (patch.layout?.list) { monitor.listChanged(); pushStatus(); } // FD-123: who is off takes effect at once; FD-129: the tray drops a hidden agent
       if (patch.notifications) schedulePauseEnd(); // U-7: a pause set here also rebuilds the tray when it ends
       if (typeof patch.autoUpdate === 'boolean' && patch.autoUpdate !== before) updater.switched(patch.autoUpdate); // LC-16 auto_update on|off
+      if (typeof patch.analytics === 'boolean') { analytics.switched(patch.analytics); pushStatus(); } // FD-136: off drops what waits
       // #region estate-update — docs: docs/adr/0018-estate-updates-from-inside-the-app.md#decision
       if (patch.estate) {
         estate.switched(next.estate.enabled); // ADR-0018: the switch starts/stops the timers at once
@@ -1017,6 +1041,8 @@ if (!app.requestSingleInstanceLock()) {
     // #region estate-update — docs: docs/adr/0018-estate-updates-from-inside-the-app.md#decision
     estate.stop(); // ADR-0018: no estate check or retry past this point
     namesStopped = true; // FD-135: no names read past this point
+    if (analyticsTimer) clearInterval(analyticsTimer); // FD-136
+    analytics.stop();
     if (namesTimer) clearInterval(namesTimer);
     // #endregion estate-update
     activity.flush();
@@ -1164,6 +1190,11 @@ if (!app.requestSingleInstanceLock()) {
     const afterUpdate = relaunchHidden(markerText, Date.now());
     if (afterUpdate) log(`update: relaunched as ${app.getVersion()} after an automatic install`);
     const hidden = startHidden(process.platform, { argv: process.argv, wasOpenedAtLogin: process.platform === 'darwin' ? app.getLoginItemSettings().wasOpenedAtLogin : undefined, afterUpdate });
+    // FD-136: the start, then one `app_active` a UTC day while the app runs (checked hourly; LC-08: unref'd, no spawn).
+    analytics.started(launchLink ? 'link' : hidden && !afterUpdate ? 'login' : 'ordinary', analyticsCounts());
+    setTimeout(() => analytics.activeTick(analyticsCounts()), 60_000).unref();
+    analyticsTimer = setInterval(() => analytics.activeTick(analyticsCounts()), 3_600_000);
+    analyticsTimer.unref();
     // U-18: after Restart to update, back on the screen the person left (never for a hidden relaunch).
     let resumeText: string | null = null;
     const resumeFile = path.join(userData, RESUME_ROUTE_MARKER);

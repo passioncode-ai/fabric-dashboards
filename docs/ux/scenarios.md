@@ -96,6 +96,7 @@
 | SCN-088 | Choose the default and fallback coding agents | settings | P-01 | ST-010 | validated | 2026-10-28 |
 | SCN-089 | See which agents are placed on the other machine | health | P-01 | ST-004 | validated | 2026-10-28 |
 | SCN-090 | Rename an agent | list | P-01 | ST-003 | validated | 2026-11-03 |
+| SCN-091 | Learn that anonymous usage and error data is shared | settings | P-01 | ST-017 | implemented | 2026-11-04 |
 ## Personas
 
 Defined in [foundation.md](foundation.md) → P-01.
@@ -2009,3 +2010,32 @@ The Sessions mode (0.8.0): every coding session apart from the agents, each stat
 - **Status:** validated (2026-11-03: `test/e2e/rename.test.ts` walks steps 1 to 4 and the no-repository path on the built app against a fake `gh` (FD_TEST_GH); `test/agent-names.test.ts` walks the file, the reads, the commits against a fake GitHub (create, change, give back, delete the file, a change made meanwhile on another Mac, a refused write), the store's cadence and cache, the monitor's names and the MCP tool `rename`; copy check reports `12b0541b` (en) and `5933b2b3` (ru), no findings; the other-platform sentence `7e52bfd0` (en, none) and `502a2af7` (ru, one suggestion: no full stop in a one-sentence hint, kept for consistency with the other dialog sentences); a live read of the 20 GitHub repositories the agents of this Mac name, one call, 2 s, none failed)
 - **Coverage:** src/core/agent-names.ts, src/core/monitor.ts (agent-names), src/electron/main.ts (agent-names), src/renderer/components/RenameDialog.tsx, src/renderer/components/Navigation.tsx, src/mcp/tools.ts (agent-names), test/agent-names.test.ts, test/e2e/rename.test.ts
 - **Product:** unobserved
+
+### SCN-091: Learn that anonymous usage and error data is shared
+- **Persona:** P-01
+- **Feature:** settings
+- **Traces:** ST-017; FD-136; docs/ANALYTICS.md; the operator, 2026-11-04 (relayed by Fabric's session 5d9bed98): anonymous usage and error data on by default, for installs already out too, a notice at the first launch, off in each product's settings
+- **Entry point:** the first time the window shows in a release build; Settings → Privacy
+- **Preconditions:** a release build that carries an App Key (a source build sends nothing and shows no notice)
+- **Steps:**
+  1. The window shows for the first time -> a dialog: "Fabric Dashboards shares anonymous usage and error data", what is counted and what never is, with OK and Turn off; the dashboard steps aside while it is open
+  2. The person presses OK -> the dialog closes and does not come back; counting goes on
+  3. The person presses Turn off -> the dialog closes and does not come back; nothing more is sent and what waited is dropped
+  4. Later, in Settings → Privacy, the person turns *Share anonymous usage and error data* on or off -> it takes effect at once, for Fabric Dashboards only
+- **Expected result:** the person knows what the app shares before it matters to them, and turns it off in one place
+- **Alt paths:** an install that ran an earlier version -> on, and the notice shows once; another PassionCode app turned its own sharing off -> this one is not turned off; a build without a key -> no notice, and Settings says "This build sends nothing: only a released Fabric Dashboards carries the key to send."
+- **UI elements:** the notice dialog (title, two sentences, Turn off, OK); Settings → Privacy (the switch and its note)
+- **States covered:** success, empty
+- **Errors & recovery:** a send that fails is kept and tried again later (60 s, then 10 min) and never shown; a shared installation file that cannot be read sends the counts without an id
+- **Copy:**
+  - "Fabric Dashboards shares anonymous usage and error data" / «Fabric Dashboards отправляет анонимные данные об использовании и сбоях»
+  - "To make the app better, it sends counts: how many agents it watches, which days it is used, and which part of it crashed." / «Чтобы приложение становилось лучше, оно отправляет счётчики: сколько агентов отслеживает, в какие дни им пользуются и какая его часть дала сбой.»
+  - "Never names, paths, addresses, keys or what your agents do. You can turn it off any time in Settings, under Privacy." / «Никаких имён, путей, адресов, ключей и того, что делают ваши агенты. Выключить можно в любой момент в Настройках, в разделе «Конфиденциальность».»
+  - "OK" / «Хорошо»; "Turn off" / «Выключить»; "Privacy" / «Конфиденциальность»
+  - "Share anonymous usage and error data" / «Отправлять анонимные данные об использовании и сбоях»
+  - "Counts of agents and days of use, and which part of the app crashed. Never names, paths or what your agents do. For Fabric Dashboards only." / «Счётчики агентов и дней использования и то, какая часть приложения дала сбой. Никаких имён, путей и того, что делают ваши агенты. Только для Fabric Dashboards.»
+  - "This build sends nothing: only a released Fabric Dashboards carries the key to send." / «Эта сборка ничего не отправляет: ключ для отправки есть только у выпущенного Fabric Dashboards.»
+- **Status:** implemented (2026-11-04: `test/analytics.test.ts` walks the client against a fake server (no key, on by default, the install once, an update, off drops everything, retries, crashes once and nothing that names, one active day, an unreadable shared file, another app's switch); copy check reports `8178a7f5` (en, no findings) and `3f537438` (ru, two suggestions on lists of three, kept: they are the facts); the notice and the switch are not yet walked in a built app, which needs a build with a key)
+- **Coverage:** src/core/analytics.ts, src/electron/main.ts (usage-analytics), src/renderer/components/AnalyticsNotice.tsx, src/renderer/components/Settings.tsx, src/core/settings.ts, test/analytics.test.ts
+- **Product:** unobserved
+

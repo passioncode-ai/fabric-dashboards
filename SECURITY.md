@@ -76,6 +76,11 @@ service data.
 - **Allows inline styles** in its window (`style-src 'self' 'unsafe-inline'`), because the
   terminal view (xterm.js) injects `<style>` elements and takes no nonce. Scripts stay `'self'`,
   and `connect-src 'none'` and `img-src 'self' data:` mean injected CSS cannot send anything out.
+- **Sends** anonymous usage and error data (FD-136, [docs/ANALYTICS.md](docs/ANALYTICS.md)) only from a release build
+  that carries an App Key, from the main process to the analytics host that key names, over HTTPS: counts, kinds,
+  the app's version and system, and the shared PassionCode installation id. Never an agent's name, key, origin or
+  repository, a path, a token, a message or what an agent did. On by default; Settings → Privacy turns it off, and
+  off sends nothing at all.
 - **Listens** on no port. The MCP server (`Contents/Resources/bin/fabric-dashboards-mcp`)
   is started by an agent and speaks only over its stdin and stdout; it reads the same
   folder and token files, talks to the same origins and runs the same `launchctl` verbs and

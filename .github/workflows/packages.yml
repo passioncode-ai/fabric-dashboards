@@ -71,6 +71,10 @@ jobs:
         shell: bash
         run: echo "version=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
       - name: Build and check the app
+        env:
+          # FD-136 (docs/ANALYTICS.md#which-builds-send): the App Key only a release build carries; empty in rehearsals.
+          FABRIC_DASHBOARDS_ANALYTICS_APP_KEY: ${{ startsWith(github.ref, 'refs/tags/v') && secrets.FABRIC_DASHBOARDS_ANALYTICS_APP_KEY || '' }}
+          FABRIC_DASHBOARDS_ANALYTICS_HOST: ${{ vars.FABRIC_DASHBOARDS_ANALYTICS_HOST }}
         run: node scripts/dist-other.mjs --stage app
       # Signing pass 1: the app's executable, before the installer packs it — the organization's action
       # (passioncode-ai/.github, PL-03): OIDC sign-in, SHA-256 + RFC 3161 timestamp, fails unless Valid and timestamped.

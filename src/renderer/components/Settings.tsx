@@ -127,6 +127,15 @@ export function Settings({ status, onTheme, onLanguage, onSetup, section, nonce 
         </div>
       </section>
 
+      <section className="group" aria-labelledby="g-privacy">
+        <h2 id="g-privacy">{t('settings.privacy')}</h2>
+        {/* FD-136 (SCN-091): this product's own switch for anonymous usage and error data, on by default. */}
+        <label className="setting">{t('settings.analytics')}
+          <input type="checkbox" role="switch" className="switch" aria-describedby="analytics-body-setting" checked={value.analytics} onChange={(e) => void save({ analytics: e.target.checked })} />
+        </label>
+        <p className="meta" id="analytics-body-setting">{t(status.analyticsAvailable ? 'settings.analytics.body' : 'settings.analytics.unavailable')}</p>
+      </section>
+
       {/* #region estate-update — docs: docs/adr/0018-estate-updates-from-inside-the-app.md#decision */}
       <section className="group" aria-labelledby="g-estate">
         <h2 id="g-estate">{t('settings.estate')}</h2>
@@ -257,6 +266,7 @@ const SECTIONS = [
   { id: 'g-sessions', label: 'settings.sessions' },
   { id: 'g-fallback', label: 'fallback.title' },
   { id: 'g-updates', label: 'settings.updates' },
+  { id: 'g-privacy', label: 'settings.privacy' },
   { id: 'g-estate', label: 'settings.estate' },
   { id: 'g-notify', label: 'settings.notifications' },
   { id: 'g-folder', label: 'settings.folder' },
