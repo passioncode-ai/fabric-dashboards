@@ -2044,23 +2044,25 @@ The Sessions mode (0.8.0): every coding session apart from the agents, each stat
 - **Persona:** P-01
 - **Feature:** sessions
 - **Traces:** ST-023; FD-137; Switchboard SB-247 (`switchboard dispatch`, the launch record's shape agreed on the board, thread a9672312); the operator, 2026-11-04 (relayed by Fabric's session 5d9bed98): sessions started on demand are shown in Dashboards, who started them, for which request and how they ended
-- **Entry point:** the Sessions mode; a session's page (SCN-080), its launch fold
+- **Entry point:** the Sessions mode; a session's page (SCN-080), its launch fold; the agent's page, Activity tab
 - **Preconditions:** Switchboard is installed and its launch history holds a launch with `launched_by.surface: fabric` (a board request no live session took, which Fabric handed to Switchboard)
 - **Steps:**
-  1. The person opens the Sessions mode -> the session's second line says "on a board request"
-  2. The person opens the session -> its launch fold says who started it ("by Fabric, for a board request no session took"), which request and thread (the first eight characters of each id), how it ended (exited with its code, stopped by Fabric, or stopped at its time limit) with the time, and how long it ran
+  1. The person opens the Sessions mode -> the session's second line says "on a board request", its sidebar row "board request", and its page's header "Started by Fabric, {time}" (Switchboard ran it, Fabric asked for it)
+  2. The person opens the agent in whose folder it ran, Activity tab -> above the events, "Board requests": one line per such session, newest first (at most ten), with the request, how it went and how long it ran, and Open session
+  3. The person opens the session -> its launch fold says who started it ("by Fabric, for a board request no session took"), which request and thread (the first eight characters of each id), how it ended (exited with its code, stopped by Fabric, or stopped at its time limit) with the time, and how long it ran
 - **Expected result:** the person sees that Fabric itself started this session, for which request, and how it ended, without opening the board or a terminal
-- **Alt paths:** a record without a request or thread id -> the Request line is not shown; an end of a kind the app does not know -> no Ended line; a record in the older form (`ended` as a word) -> read as before
-- **UI elements:** the session's second line in the list; the launch fold (Started, Request, Ended, Ran)
+- **Alt paths:** a record without a request id -> the Request line is not shown, and the agent's page says "request not named"; a request without a thread id -> the request alone; a session that ran in a folder no agent of this Mac uses -> listed in the Sessions mode only; an agent with no such session -> no Board requests section; an end of a kind the app does not know -> no Ended line; a record in the older form (`ended` as a word) -> read as before
+- **UI elements:** the session's second line in the list; the launch fold (Started, Request, Ended, Ran); the agent's Board requests section (title, note, one line per session, Open session)
 - **States covered:** success, empty
 - **Errors & recovery:** an id that is not an id (spaces, too long) is dropped and the line it would fill is not shown; the record carries ids only, never the request's text
 - **Copy:**
-  - "on a board request" / «по запросу с доски»
+  - "on a board request" / «по запросу с доски»; "board request" / «с доски» (sidebar); "Started by Fabric, {time}" / «Запущена Fabric, {time}» (header)
   - "by Fabric, for a board request no session took" / «Fabric, по запросу с доски, который не взяла ни одна сессия»
   - "Request" / «Запрос»; "{request} · thread {thread}" / «{request} · тред {thread}»
   - "exited with code {code}, {time}" / «вышла с кодом {code}, {time}»; "stopped by Fabric, {time}" / «остановлена Fabric, {time}»; "stopped at its time limit, {time}" / «остановлена по лимиту времени, {time}»
   - "Ran" / «Работала»
-- **Status:** implemented (2026-11-04: `test/dispatch.test.ts` reads a record in the agreed shape, a thin one, an unknown end and the older form, and walks the launch fold and the list line in both languages; copy check reports `217f5b0e` (en, no findings) and `7ef98a03` (ru, two suggestions kept: the digits are an id, and minutes use the app's existing duration string); not yet seen on a real record: Switchboard's SB-247 is not in its main yet; the agent's own page does not list its dispatches yet, FD-137 keeps that open)
-- **Coverage:** src/core/switchboard.ts, src/core/sessions.ts, src/core/sessions-view.ts, src/core/i18n.ts, test/dispatch.test.ts
+  - "Board requests" / «Запросы с доски»; "Sessions Fabric started in this agent's folder for a board request no session took." / «Сессии, которые Fabric запустила в папке этого агента по запросу с доски, когда его не взяла ни одна сессия.»; "request not named" / «запрос не назван»; "Open session" / «Открыть сессию»
+- **Status:** implemented (2026-11-04: `test/dispatch.test.ts` reads a record in the agreed shape, a thin one, an unknown end and the older form, and walks the launch fold and the list line in both languages; copy check reports `217f5b0e` (en, no findings) and `7ef98a03` (ru, two suggestions kept: the digits are an id, and minutes use the app's existing duration string); the agent's page: `test/dispatch.test.ts` lists only its own folder's board-request sessions, `test/sessions.test.ts` *FD-137* matches a session to the agent whose console folder it ran in; copy check reports `d5d7f42f`, `bd98b45b` (en) and `78b4f723`, `80a4bb21` (ru), no findings; `test/e2e/dispatch.test.ts` walks it in the built app against a Switchboard fake: the agent's Board requests line, Open session, the header, the sidebar and the unfolded launch fold; not yet seen on a real record: Switchboard's SB-247 is not in its main yet)
+- **Coverage:** src/core/switchboard.ts, src/core/sessions.ts, src/core/sessions-view.ts, src/core/i18n.ts, src/electron/console.ts (dispatch-agent), src/renderer/components/ServiceView.tsx (dispatch-agent-page), src/renderer/App.tsx, test/dispatch.test.ts, test/sessions.test.ts, test/e2e/dispatch.test.ts
 - **Product:** unobserved
 

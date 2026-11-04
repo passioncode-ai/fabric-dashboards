@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { launchFactsOf } from '../src/core/switchboard';
-import { chainFacts, secondLine } from '../src/core/sessions-view';
+import { chainFacts, dispatchLines, navLines, originChip, secondLine } from '../src/core/sessions-view';
 import type { SessionRow } from '../src/core/sessions';
 
 const REQUEST = '45bf7553-8ae0-4e23-93ef-8c3acefddf91';
@@ -48,4 +48,37 @@ test('FD-137: a session Fabric started reads "on a board request" in the list', 
   assert.match(secondLine('en', row(launchFactsOf(RECORD))), /on a board request/);
   assert.match(secondLine('ru', row(launchFactsOf(RECORD))), /по запросу с доски/);
   assert.doesNotMatch(secondLine('en', row(launchFactsOf({ launch_id: RECORD.launch_id, launched_by: { surface: 'cli' } }))), /board request/);
+});
+
+test('FD-137: a request the record names without its thread reads as the request alone', () => {
+  const l = launchFactsOf({ ...RECORD, launched_by: { surface: 'fabric', dispatch: { request: REQUEST } } });
+  const by = Object.fromEntries(chainFacts('en', row(l)).map((f) => [f.label, f.value]));
+  assert.equal(by.Request, '45bf7553');
+});
+
+test('FD-137: an agent page lists the board-request sessions that ran in its folder, newest first, and nothing else', () => {
+  const ours = { ...row(launchFactsOf(RECORD)), id: 'sb:a', agentKey: 'svc.one' } as SessionRow;
+  const running = { ...row(launchFactsOf({ launch_id: RECORD.launch_id, launched_by: { surface: 'fabric', dispatch: { request: REQUEST, thread: THREAD } } })), id: 'sb:b', agentKey: 'svc.one', group: 'running', state: 'running' } as unknown as SessionRow;
+  const other = { ...row(launchFactsOf(RECORD)), id: 'sb:c', agentKey: 'svc.two' } as SessionRow;
+  const notBoard = { ...row(launchFactsOf({ launch_id: RECORD.launch_id, launched_by: { surface: 'cli' } })), id: 'sb:d', agentKey: 'svc.one' } as SessionRow;
+  const lines = dispatchLines('en', [running, ours, other, notBoard], 'svc.one');
+  assert.deepEqual(lines.map((l) => l.id), ['sb:b', 'sb:a']);
+  assert.equal(lines[1]!.request, '45bf7553 · thread a9672312');
+  assert.match(lines[1]!.outcome, /^exited with code 0, /);
+  assert.equal(lines[1]!.ran, '7 min');
+  assert.equal(lines[0]!.ran, null, 'a session still running has not ended');
+  assert.ok(lines[0]!.outcome.length > 0);
+  const unnamed = { ...row(launchFactsOf({ launch_id: RECORD.launch_id, launched_by: { surface: 'fabric' } })), id: 'sb:e', agentKey: 'svc.one' } as SessionRow;
+  assert.equal(dispatchLines('ru', [unnamed], 'svc.one')[0]!.request, 'запрос не назван');
+  assert.equal(dispatchLines('en', [ours], 'svc.one', 0).length, 0);
+});
+
+test('FD-137: the header chip and the sidebar name Fabric, never Switchboard, for a session Fabric started', () => {
+  const r = { ...row(launchFactsOf(RECORD)), origin: 'switchboard', group: 'ended' } as SessionRow;
+  assert.match(originChip('en', r), /^Started by Fabric, /);
+  assert.match(originChip('ru', r), /^Запущена Fabric, /);
+  assert.equal(navLines('en', r).sub, 'claude4 · board request');
+  assert.equal(navLines('ru', r).sub, 'claude4 · с доски');
+  const plain = { ...row(launchFactsOf({ launch_id: RECORD.launch_id, launched_by: { surface: 'cli' } })), origin: 'switchboard', group: 'ended' } as SessionRow;
+  assert.match(originChip('en', plain), /^Started by Switchboard, /);
 });

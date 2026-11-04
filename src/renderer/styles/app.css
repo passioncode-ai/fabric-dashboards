@@ -683,3 +683,9 @@ div.session-group-head h2 { margin: 0; }
 /* VIS-17 (FD-129): the details card's actions in three groups, a quiet rule between them. */
 .card-actions { gap: var(--pc-space-3); align-items: center; }
 .card-actions > [role='group'] + [role='group'] { border-left: 1px solid var(--pc-border); padding-left: var(--pc-space-3); }
+
+/* FD-137 (SCN-092): the board requests Fabric started a session for, above an agent's activity. */
+.dispatches { margin-bottom: var(--pc-space-4); }
+.dispatches h2 { font-size: inherit; margin: 0 0 var(--pc-space-1); }
+.dispatches ul { list-style: none; margin: var(--pc-space-2) 0 0; padding: 0; }
+.dispatches li { gap: var(--pc-space-3); padding: var(--pc-space-1) 0; flex-wrap: wrap; }
