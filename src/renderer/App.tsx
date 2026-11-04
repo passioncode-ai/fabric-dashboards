@@ -478,6 +478,7 @@ function UpdateLine({ status }: { status: AppStatus }) {
   const u = status.update;
   if (u.state === 'checking') return <p className="meta row"><Spinner /> {t('update.checking')}</p>;
   if (u.state === 'downloading') return <p className="meta row"><Spinner /> {t('update.downloading')}</p>;
+  if (u.state === 'available') return <div className="row"><span className="meta">{t('update.available', { version: u.version ?? '' })}</span><button className="btn btn-primary" onClick={() => void api().checkForUpdates()}>{t('action.update', { version: u.version ?? '' })}</button></div>;
   if (u.state === 'held') return <div className="row"><span className="meta">{t('update.held', { version: u.version ?? '' })}</span>{u.steps && <button className="btn" onClick={() => void api().openUpdateSteps()}>{t('update.steps')}</button>}<button className="btn btn-primary" onClick={() => void api().restartToUpdate()}>{t('update.installNow')}</button></div>;
   if (u.state === 'ready') return <div className="row"><span className="meta">{(u.version ? t('update.ready', { version: u.version }) : t('update.readyUnnamed'))}</span><button className="btn btn-primary" onClick={() => void api().restartToUpdate()}>{t('update.restart')}</button></div>;
   if (u.state === 'misplaced') return <div className="row"><span className="meta state-down">{t('update.misplaced')}</span><button className="btn" onClick={() => void api().moveToApplications()}>{t('move.confirm')}</button></div>;
@@ -490,14 +491,15 @@ function UpdateLine({ status }: { status: AppStatus }) {
 function RailUpdate({ status, goSettings }: { status: AppStatus; goSettings: () => void }) {
   const { t } = useT();
   const u = status.update;
-  if (!['ready', 'held', 'misplaced', 'error'].includes(u.state)) return null;
-  const ready = u.state === 'ready' || u.state === 'held';
-  const label = u.state === 'held' ? t('update.held', { version: u.version ?? '' })
+  if (!['ready', 'held', 'available', 'misplaced', 'error'].includes(u.state)) return null;
+  const ready = u.state === 'ready' || u.state === 'held' || u.state === 'available';
+  const label = u.state === 'available' ? t('update.available', { version: u.version ?? '' })
+    : u.state === 'held' ? t('update.held', { version: u.version ?? '' })
     : u.state === 'ready' ? (u.version ? t('update.ready', { version: u.version }) : t('update.readyUnnamed'))
     : u.state === 'misplaced' ? t('update.misplaced') : t('update.error', { error: u.error ?? '' });
-  const action = ready ? (u.state === 'held' ? t('update.installNow') : t('update.restart')) : t('nav.settings');
+  const action = ready ? (u.state === 'available' ? t('action.update', { version: u.version ?? '' }) : u.state === 'held' ? t('update.installNow') : t('update.restart')) : t('nav.settings');
   return (
-    <button className="nav-item nav-update" title={`${label} ${action}`} onClick={() => (ready ? void api().restartToUpdate() : goSettings())}>
+    <button className="nav-item nav-update" title={`${label} ${action}`} onClick={() => (u.state === 'available' ? void api().checkForUpdates() : ready ? void api().restartToUpdate() : goSettings())}>
       <Icon name="update" /><span className="nav-label">{`${label}. ${action}`}</span>
       <span className={`count${ready ? '' : ' alert'}`} aria-hidden="true">{ready ? '↑' : '!'}</span>
     </button>

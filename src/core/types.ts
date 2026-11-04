@@ -199,7 +199,7 @@ export interface AppStatus {
   /** Grows with every activity row, so an open Activity page refreshes for app events too (U-8). */
   activityRev?: number;
   /** `held`: a release that needs a person's step first (LC-16), verified, not installed; `steps` is its runbook. */
-  update: { state: 'idle' | 'checking' | 'downloading' | 'ready' | 'held' | 'error' | 'unsupported' | 'misplaced' | 'package' | 'notyet'; version?: string; error?: string; checkedAt?: string; steps?: string };
+  update: { state: 'idle' | 'checking' | 'available' | 'downloading' | 'ready' | 'held' | 'error' | 'unsupported' | 'misplaced' | 'package' | 'notyet'; version?: string; error?: string; checkedAt?: string; steps?: string };
   /** FD-136: whether this build carries an App Key and can send usage and error data (docs/ANALYTICS.md). */
   analyticsAvailable?: boolean;
   /** FD-48: the operator channel outages go to, why there is none, and the last delivery. */

@@ -4,7 +4,9 @@
 //
 // LC-16, the same in every product of the organization:
 // - switch: the `auto-update` file in the app's data folder (absent = on, `off` = off). Off stops
-//   automatic checks, downloads and installs; "Check for Updates…" always works.
+//   automatic downloads and installs; the timer still reads the feed and announces a newer version
+//   (`available`, FD-143), which downloads and installs only when the person presses Update.
+//   "Check for Updates…" always works.
 // - cadence: first check 90 s after start, then every 6 h while the process runs; after a failed
 //   check one retry within the hour.
 // - verification, before Squirrel may stage anything: the release's SHA256SUMS signed by the pinned
@@ -24,7 +26,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { FEED_FILE, PROOF_FEED_FILE, feedNamesOwnRelease, localFeed, parseSums, proofFeedUrl, releaseFile, signedFeed, sumsSignedByRelease, zipName } from '../core/release-verify';
-import { APP_UPDATE_EVERY_MS, FIRST_CHECK_MS, isNewer, quietCheck, mayCheck, recheckWhileReady, stagedBundlePath, stagedRefusal, stagingLost, strayShipIt } from '../core/version';
+import { APP_UPDATE_EVERY_MS, FIRST_CHECK_MS, isNewer, quietCheck, mayCheck, mayPeek, recheckWhileReady, stagedBundlePath, stagedRefusal, stagingLost, strayShipIt } from '../core/version';
 import type { AppStatus } from '../core/types';
 import { appImageRelaunchCommand, nsisInstalledAt, nsisUpdateCommand, PENDING_UPDATE_DIR, platformKey, platformUpdate, replaceAppImage, stagedAppImage, unpackFailure, unpackRoomRefusal, updateChannel } from '../core/self-update';
 import { uninstallTarget } from '../core/platform';
@@ -229,9 +231,28 @@ export class Updater {
   check(manual = false): void {
     if (this.lostStaging()) { this.restage(false); return; }
     if (recheckWhileReady({ channel: this.channel, state: this.state.state, manual, enabled: this.enabled() })) { void this.recheckReady(); return; }
+    // #region offer-when-off — docs: docs/ux/scenarios.md#scn-093-hear-of-a-new-version-with-automatic-updates-off
+    if (mayPeek({ manual, enabled: this.enabled(), state: this.state.state })) { void this.peek(); return; }
+    // #endregion offer-when-off
     if (!mayCheck({ manual, enabled: this.enabled(), state: this.state.state })) return;
     this.set({ state: 'checking' });
     void this.run(manual);
+  }
+
+  /** FD-143: automatic updates off: read the feed only, and name a newer version; nothing is downloaded. A feed that
+   *  cannot be read leaves the state as it was (an announced version stays announced). */
+  private async peek(): Promise<void> {
+    const feed = await this.readFeed();
+    if ('error' in feed) return;
+    const version = typeof feed.currentRelease === 'string' ? feed.currentRelease : null;
+    if (!version) return;
+    if (!isNewer(version, app.getVersion())) {
+      if (this.state.state === 'available') this.set({ state: 'idle', checkedAt: new Date().toISOString() });
+      return;
+    }
+    if (this.state.state === 'available' && this.state.version === version) return;
+    this.event('update_check', 'available', `version=${version} auto=off`);
+    this.set({ state: 'available', version });
   }
 
   private async readFeed(): Promise<Feed | { error: string }> {

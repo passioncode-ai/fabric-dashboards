@@ -47,6 +47,12 @@ export function mayCheck(o: { manual: boolean; enabled: boolean; state: string }
   return o.manual || o.enabled;
 }
 
+/** FD-143 (operator 2026-11-04): with automatic updates off, the timer still reads the feed, only to tell the person a
+ *  newer version is out; nothing is downloaded or installed until they press Update (a manual check). */
+export function mayPeek(o: { manual: boolean; enabled: boolean; state: string }): boolean {
+  return !o.manual && !o.enabled && ['idle', 'available', 'error'].includes(o.state);
+}
+
 /** FD-98: while an update waits ready, a Windows or Linux copy still reads the release pointer on its checks, so a
  *  release published meanwhile is prepared instead and one restart installs the newest. macOS keeps waiting: restaging
  *  Squirrel over a staged update has no proof yet (FD-114 proves only Windows and Linux). */

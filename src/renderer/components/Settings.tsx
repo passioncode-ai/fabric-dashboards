@@ -284,6 +284,7 @@ function UpdateState({ status }: { status: AppStatus }) {
   if (u.state === 'package') return <p className="meta">{t('update.package')}</p>;
   if (u.state === 'notyet') return <p className="meta">{t('update.notYet')}</p>;
   if (u.state === 'misplaced') return <p className="notice warning">{t('update.misplaced')} <button className="btn" onClick={() => void api().moveToApplications()}>{t('move.confirm')}</button></p>;
+  if (u.state === 'available') return <div className="row"><span className="meta">{t('update.available', { version: u.version ?? '' })}</span><button className="btn btn-primary" onClick={() => void api().checkForUpdates()}>{t('action.update', { version: u.version ?? '' })}</button></div>;
   if (u.state === 'held') return <div className="row"><span className="meta">{t('update.held', { version: u.version ?? '' })}</span>{u.steps && <button className="btn" onClick={() => void api().openUpdateSteps()}>{t('update.steps')}</button>}<button className="btn btn-primary" onClick={() => void api().restartToUpdate()}>{t('update.installNow')}</button></div>;
   if (u.state === 'ready') return <div className="row"><span className="meta">{(u.version ? t('update.ready', { version: u.version }) : t('update.readyUnnamed'))}</span><button className="btn btn-primary" onClick={() => void api().restartToUpdate()}>{t('update.restart')}</button></div>;
   if (u.state === 'checking' || u.state === 'downloading') return <p className="meta row"><Spinner /> {t(`update.${u.state}`)}</p>;

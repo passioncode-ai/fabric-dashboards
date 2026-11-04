@@ -98,6 +98,7 @@
 | SCN-090 | Rename an agent | list | P-01 | ST-003 | validated | 2026-11-03 |
 | SCN-091 | Learn that anonymous usage and error data is shared | settings | P-01 | ST-017 | implemented | 2026-11-04 |
 | SCN-092 | See a session Fabric started for a board request | sessions | P-01 | ST-023 | implemented | 2026-11-04 |
+| SCN-093 | Hear of a new version with automatic updates off | updates | P-01 | ST-008 | implemented | 2026-11-04 |
 ## Personas
 
 Defined in [foundation.md](foundation.md) → P-01.
@@ -2066,3 +2067,26 @@ The Sessions mode (0.8.0): every coding session apart from the agents, each stat
 - **Coverage:** src/core/switchboard.ts, src/core/sessions.ts, src/core/sessions-view.ts, src/core/i18n.ts, src/electron/console.ts (dispatch-agent), src/renderer/components/ServiceView.tsx (dispatch-agent-page), src/renderer/App.tsx, test/dispatch.test.ts, test/sessions.test.ts, test/e2e/dispatch.test.ts
 - **Product:** unobserved
 
+
+### SCN-093: Hear of a new version with automatic updates off
+- **Persona:** P-01
+- **Feature:** updates
+- **Traces:** ST-008; FD-143; LC-16; the operator, 2026-11-04 (relayed by Fabric's session 5d9bed98, board thread `f7758225`): every product updates itself by default; it can be turned off in Settings, and off still tells the person a new version is out
+- **Entry point:** a notification; Settings → Updates; the folded sidebar's update entry
+- **Preconditions:** Settings → *Install updates automatically* is off (the `auto-update` file says `off`); a newer release is published
+- **Steps:**
+  1. The app reads the update feed on its usual cadence -> a newer version is out: one notification per version, "Fabric Dashboards {version} is out", "Automatic updates are off. Click to update."; nothing is downloaded
+  2. Settings → Updates and the folded sidebar say "Version {version} is out" with "Update to {version}"
+  3. The person presses Update to {version}, or clicks the notification -> the update is downloaded and verified as with the switch on, and "Restart to update" follows (SCN-022)
+- **Expected result:** the person who turned automatic updates off still learns of every new version, and decides when it installs
+- **Alt paths:** the feed cannot be read -> nothing changes, an announced version stays announced; a still newer version is published -> it is announced once more; the person turns automatic updates on -> the usual update takes over; the installed copy is already the newest -> no line, no notification
+- **UI elements:** the notification; the "Update to {version}" line in Settings → Updates and in the sidebar
+- **States covered:** success, empty
+- **Errors & recovery:** a download or a verification that fails after Update says why, as SCN-022 does, with Try again
+- **Copy:**
+  - "Fabric Dashboards {version} is out" / «Вышел Fabric Dashboards {version}»; "Automatic updates are off. Click to update." / «Автообновление выключено. Нажмите, чтобы обновить.»
+  - "Version {version} is out" / «Вышла версия {version}»; "Update to {version}" / «Обновить до {version}» (the terminology's existing label)
+  - Settings note, its last sentence: "Off: a new version is announced, and it installs only when you choose to update." / «Выключено: о новой версии приходит уведомление, а устанавливается она, только когда вы решите обновить.»
+- **Status:** implemented (2026-11-04: `test/offer-when-off.test.ts`: with the switch off the timer only reads the feed, the person's Update runs the whole update, the main process tells once per version and its click is Update, the words in both languages; copy check reports `d220b8c0`, `5858d67b` (en, no findings) and `e35aa7ba`, `56c29655` (ru: one suggestion on the final period, kept: in the app it closes the last of several sentences); not yet seen on a released copy, which needs the release after this one)
+- **Coverage:** src/core/version.ts (mayPeek), src/electron/updater.ts (offer-when-off), src/electron/main.ts, src/renderer/App.tsx, src/renderer/components/Settings.tsx, src/core/i18n.ts, test/offer-when-off.test.ts
+- **Product:** unobserved
