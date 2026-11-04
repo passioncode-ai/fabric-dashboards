@@ -24,6 +24,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { BUNDLE_ID, NATIVE_UNPACK, PRODUCT, PROOF_FEED_FILE, PROOF_FEED_URL, stageVerifierModules, stageWorkspacePackages } from './dist-mac.mjs';
 import { fuseProblems, readFuseWires, setFuses, WANTED_FUSES, FUSES } from './fuses.mjs';
+import { analyticsBundle } from './analytics-bundle.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 function requireThat(condition, message) { if (!condition) throw new Error(message); }
@@ -332,7 +333,8 @@ async function stageApp(t, version, pkg, allowDirty) {
     const [packaged] = await packager({
       dir: stage, name: PRODUCT, executableName: t.executableName, appVersion: version, buildVersion: version,
       platform: t.platform, arch: t.arch, electronVersion, out: path.join(temp, 'out'), overwrite: true, asar: { unpack: NATIVE_UNPACK }, prune: false,
-      icon: t.icon, extraResource: [path.join(root, 'build/assets'), bin],
+      // FD-136: the App Key, only when the release workflow set it (docs/ANALYTICS.md#which-builds-send).
+      icon: t.icon, extraResource: [path.join(root, 'build/assets'), bin, ...[analyticsBundle(temp)].filter(Boolean)],
       win32metadata: { CompanyName: 'PassionCode.ai', ProductName: PRODUCT, FileDescription: PRODUCT, OriginalFilename: t.executable, InternalName: PRODUCT },
     });
     cpSync(packaged, sp.app, { recursive: true, verbatimSymlinks: true });

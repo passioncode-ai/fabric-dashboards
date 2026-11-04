@@ -253,6 +253,9 @@ export function merge(raw: Partial<Settings>): Settings {
     language: raw.language === 'en' || raw.language === 'ru' ? raw.language : 'system',
     // Absent in a file from an earlier version: on, so every install keeps itself current.
     autoUpdate: raw.autoUpdate !== false,
+    // FD-136: absent in a file from an earlier version: on (the operator, 2026-11-04: on for installs already out).
+    analytics: raw.analytics !== false,
+    analyticsNoticeSeen: raw.analyticsNoticeSeen === true,
     moveToApplicationsAsked: raw.moveToApplicationsAsked === true,
     setupDone: raw.setupDone === true,
     lastVisitAt: typeof raw.lastVisitAt === 'string' && !Number.isNaN(Date.parse(raw.lastVisitAt)) ? raw.lastVisitAt : null,

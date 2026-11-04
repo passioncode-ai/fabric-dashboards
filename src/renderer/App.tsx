@@ -10,6 +10,7 @@ import { Spend } from './components/Spend';
 import { ConnectionsMap } from './components/ConnectionsMap';
 import { AgentsNav, ModeSwitch, SessionsNav, type AgentsPage, type Mode, type RowActions } from './components/Navigation';
 import { RenameDialog } from './components/RenameDialog';
+import { AnalyticsNotice } from './components/AnalyticsNotice';
 import { AllSessions, hasConsole, SessionBody, SessionHeader } from './components/Sessions';
 import { resolveSessionRoute } from '../core/sessions-view';
 import type { SessionRow } from '../core/sessions';
@@ -177,6 +178,8 @@ function Shell({ status, route, setRoute, mode, switchMode, stopKey, setStopKey,
   const stopping = stopKey ? status.services.find((s) => s.key === stopKey) : undefined;
   // FD-135 (SCN-090): the agent whose Rename dialog is open.
   const [renameKey, setRenameKey] = useState<string | null>(null);
+  // FD-136 (SCN-091): the usage-data notice is open over the page.
+  const [noticeOpen, setNoticeOpen] = useState(false);
   const renaming = renameKey ? status.services.find((s) => s.key === renameKey) : undefined;
   // #region sessions-shell — docs: docs/ux/scenarios.md#scn-080-open-one-sessions-page
   // FD-103: the session on show, followed through a Continue (its new row) and waited for while it may still arrive;
@@ -224,7 +227,7 @@ function Shell({ status, route, setRoute, mode, switchMode, stopKey, setStopKey,
   // control that opened it, when that control is still on screen.
   const opener = useRef<HTMLElement | null>(null);
   const askStop = (key: string) => { opener.current = document.activeElement instanceof HTMLElement ? document.activeElement : null; setStopKey(key); };
-  const stopOpen = Boolean(stopping) || Boolean(ending) || Boolean(renaming);
+  const stopOpen = Boolean(stopping) || Boolean(ending) || Boolean(renaming) || noticeOpen;
   useEffect(() => {
     if (stopOpen) return;
     const el = opener.current;
@@ -450,6 +453,7 @@ function Shell({ status, route, setRoute, mode, switchMode, stopKey, setStopKey,
           </div>
         </div>
       )}
+      <AnalyticsNotice available={Boolean(status.analyticsAvailable)} onOpen={setNoticeOpen} />
       {renaming && <RenameDialog key={renaming.key} s={renaming} onClose={() => setRenameKey(null)} />}
       {ending && (
         <div className="scrim" role="presentation">

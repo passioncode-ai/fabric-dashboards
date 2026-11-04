@@ -55,6 +55,10 @@ export interface Settings {
   language: 'system' | 'en' | 'ru';
   /** Install a downloaded update by itself once the window has been hidden a while (ADR-0015). On by default. */
   autoUpdate: boolean;
+  /** FD-136: share anonymous usage and error data (docs/ANALYTICS.md); this product's own switch, on by default. */
+  analytics: boolean;
+  /** FD-136: the notice about it was shown once (OK or Turn off). */
+  analyticsNoticeSeen: boolean;
   /** Whether the app has offered once to move itself into Applications, where updates can install. */
   moveToApplicationsAsked: boolean;
   /** FD-39 SCN-058: the person finished or hid the setup card; the Setup console stays reachable from Settings. */
@@ -153,6 +157,8 @@ export const DEFAULT_SETTINGS: Settings = {
   pageTheme: 'graphite',
   language: 'system',
   autoUpdate: true,
+  analytics: true,
+  analyticsNoticeSeen: false,
   moveToApplicationsAsked: false,
   setupDone: false,
   lastVisitAt: null,
@@ -194,6 +200,8 @@ export interface AppStatus {
   activityRev?: number;
   /** `held`: a release that needs a person's step first (LC-16), verified, not installed; `steps` is its runbook. */
   update: { state: 'idle' | 'checking' | 'downloading' | 'ready' | 'held' | 'error' | 'unsupported' | 'misplaced' | 'package' | 'notyet'; version?: string; error?: string; checkedAt?: string; steps?: string };
+  /** FD-136: whether this build carries an App Key and can send usage and error data (docs/ANALYTICS.md). */
+  analyticsAvailable?: boolean;
   /** FD-48: the operator channel outages go to, why there is none, and the last delivery. */
   alerts?: { channel: { key: string; capability: string } | null; none?: 'off' | 'none-installed' | 'several' | 'chosen-gone' | 'chosen-unreachable'; candidates: string[]; last?: { at: string; ok: boolean; subject: string; error?: string } };
   // #region estate-update — docs: docs/adr/0018-estate-updates-from-inside-the-app.md#decision

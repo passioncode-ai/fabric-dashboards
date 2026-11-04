@@ -152,6 +152,7 @@ due probe or rescan — no fixed 1-second poll — and one for the events feed:
 | An agent turned off (FD-123, `layout.list.off`) | never probed, its events never read, no `launchctl`, no notification or outage alert | same |
 | Directory rescan (reads small JSON files, no spawn) | on `fs.watch`, plus every 5 s | on `fs.watch`, plus every 60 s (30 s if the watcher failed) |
 | Placement record (FD-132: `${XDG_DATA_HOME:-~/.local/share}/project-observatory/placement.json`, Observatory's) | a stat at most every 5 s when a state is read; read only when its time or size changed | same |
+| Usage and error data (FD-136, [docs/ANALYTICS.md](docs/ANALYTICS.md); only a release build with an App Key, while the Settings switch is on) | a batch of at most 25 events over HTTPS when something is counted (start, one `app_active` a UTC day checked hourly, a crash); a refused send waits 60 s, then 10 min | same |
 | Agent names (FD-135, ADR-0026: `.fabric/names.json` in each agent's GitHub repository) | `gh api graphql` once for every repository, 20 s after start, then a repository again 30 min after its last read or failed read (a stat of `agent-names.json` every 5 s picks up the MCP server's `rename`); `gh api` contents GET and PUT or DELETE only when the person or an agent renames | same |
 | `settings.json` written outside the app (FD-122: an agent's MCP `arrange`, an editor) | a folder watch, plus a stat of the file every 5 s (`SETTINGS_POLL_MS`); read only when it changed | same |
 | Switchboard hand-overs (`switchboard --json handovers`, FD-62; only where Switchboard is installed) | every 15 s | every 60 s |
@@ -175,7 +176,7 @@ CPU **0.258 % hidden** and 0.386 % shown on Overview (`node --import tsx scripts
 monitor costs about 1.7 ms of CPU per probe or events read. (Before this change, 0.4.1 measured 1.3 % CPU and about
 7,200 `launchctl` spawns an hour after a login launch: lifecycle audit 2026-10-03, F-2/F-4.)
 
-**Files it writes** (LC-12): `~/Library/Application Support/Fabric Dashboards/` — `agent-names.json` (FD-135: the names last read from the agents' repositories, rewritten whole after each read or rename), `settings.json` (with the panel layout, pinned agents,
+**Files it writes** (LC-12): `~/Library/Application Support/Fabric Dashboards/` — `analytics-state.json` (FD-136: when the install was counted, the last version and the last day counted; with the switch on, the shared `PassionCode/installation.json` beside the app's own folder is created once if no PassionCode app made it), `agent-names.json` (FD-135: the names last read from the agents' repositories, rewritten whole after each read or rename), `settings.json` (with the panel layout, pinned agents,
 the list's sort, hidden agents, agents turned off (FD-123) and the kinds the person chose (FD-78, read by the MCP server without writing), each service's console runtime and folder, ADR-0017, and the previous visit and setup state, ADR-0020),
 `consoles/<key>/` (FD-39, ADR-0020: the context pack each console start writes — `context.md`, `task.md` for a Fix/Update, `mcp.json`,
 `brief.md` when the brief exceeds one argument and `handoff.json`, the contract's `session-handoff/1` manifest (FD-47, DEC-0042), for Claude Code, Codex and Gemini CLI;

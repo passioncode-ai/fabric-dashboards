@@ -36,6 +36,7 @@ export const PROOF_FEED_FILE = 'proof-feed.json';
 export const PROOF_FEED_URL = /^http:\/\/127\.0\.0\.1:\d{2,5}\/update-feed\.json$/;
 // #endregion proof-feed-build
 import { applyReleaseFuses, verifyReleaseFuses } from './fuses.mjs';
+import { analyticsBundle } from './analytics-bundle.mjs';
 
 export const BUNDLE_ID = 'ai.passioncode.fabric-dashboards';
 export const PRODUCT = 'Fabric Dashboards';
@@ -447,7 +448,8 @@ async function stageApp(ctx, identity, notarizedBy) {
       platform: 'darwin', arch: 'universal', electronVersion, out: path.join(temp, 'out'), overwrite: true, asar: { unpack: NATIVE_UNPACK }, prune: false,
       // Both builds carry both architectures' node-pty prebuilds, byte for byte: nothing to lipo.
       osxUniversal: { x64ArchFiles: NATIVE_BOTH_ARCHS },
-      extraResource: [path.join(root, 'build/assets'), path.join(root, 'build/bin')],
+      // FD-136: the App Key, only when the release workflow set it (docs/ANALYTICS.md#which-builds-send).
+      extraResource: [path.join(root, 'build/assets'), path.join(root, 'build/bin'), ...[analyticsBundle(temp)].filter(Boolean)],
       extendInfo: { NSHumanReadableCopyright: `${PRODUCT} — PassionCode.ai`, NSRequiresAquaSystemAppearance: false, LSMinimumSystemVersion: '13.0', LSUIElement: false, ...UPDATE_INFO },
       // `fabric-dashboards://` opens a service page here (docs/adr/0004-deep-links-and-mcp.md).
       protocols: [{ name: PRODUCT, schemes: ['fabric-dashboards'] }],
