@@ -74,8 +74,8 @@ export function readOrCreateInstallation(file: string, now: () => Date): { id: s
 
 /** Counts and the kinds below only: a free string could carry a name, so anything else is dropped. */
 export type Props = Record<string, number | boolean | string>;
-export const KNOWN_KINDS: ReadonlySet<string> = new Set(['ordinary', 'login', 'link', 'background', 'main', 'renderer', 'gpu', 'utility', 'zygote', 'unknown']);
-const CODE = /^[A-Za-z0-9_.-]{1,40}$/;
+export const KNOWN_KINDS: ReadonlySet<string> = new Set(['ordinary', 'login', 'link', 'background', 'start', 'stop', 'restart', 'doctor', 'update', 'self_update', 'console', 'rename', 'main', 'renderer', 'gpu', 'utility', 'zygote', 'unknown']);
+const CODE = /^[A-Za-z0-9_.-]{1,60}$/;
 export function cleanProps(props: Record<string, unknown>): Props {
   const out: Props = {};
   for (const [k, v] of Object.entries(props)) {
@@ -243,6 +243,13 @@ export function createAnalytics(deps: AnalyticsDeps) {
       if (errorsSeen.has(`${w}:${c}`)) return;
       errorsSeen.add(`${w}:${c}`);
       track('app_error', { where: w, code: c });
+    },
+    /** FD-141: an action that did not succeed (not a crash): which one and a code, once per launch for each. */
+    failed(action: 'start' | 'stop' | 'restart' | 'doctor' | 'update' | 'self_update' | 'console' | 'rename', code: string): void {
+      const c = CODE.test(code) ? code : 'unknown';
+      if (errorsSeen.has(`failed:${action}:${c}`)) return;
+      errorsSeen.add(`failed:${action}:${c}`);
+      track('action_failed', { action, code: c });
     },
     /** The switch was turned: off drops what waits; on takes effect at the next event. */
     switched(enabled: boolean): void {

@@ -583,7 +583,11 @@ export class Updater {
     return true;
   }
 
+  /** FD-141: told of every failed check, download or verification, by its code only. */
+  onFailure: ((code: string) => void) | null = null;
+
   private fail(code: string, error: string): void {
+    this.onFailure?.(code);
     this.lastQuiet = null; // the next quiet check after a failure is logged: it says the failure is over
     this.event('update_check', code, error.replace(/\s+/g, ' ').slice(0, 300));
     this.set({ state: 'error', error });
