@@ -51,6 +51,7 @@ import { ServiceViews } from './views';
 import { ConsoleDrawer } from './drawer';
 import { FABRIC_GET_URL, fabricPress, fabricPresentFrom } from '../core/fabric-button';
 import { parseTestRemote, setTestRemote } from '../core/testhooks';
+import { OpsDigester } from '../core/ops-digest';
 
 app.enableSandbox();
 app.setName('Fabric Dashboards');
@@ -67,6 +68,10 @@ if (process.env.FABRIC_DASHBOARDS_USER_DATA) {
   app.setPath('userData', process.env.FABRIC_DASHBOARDS_USER_DATA);
   app.setPath('logs', path.join(process.env.FABRIC_DASHBOARDS_USER_DATA, 'logs'));
 }
+// FD-144 (docs/RUNBOOK.md#log-digests): what the log takes is counted by operation and outcome, hour by hour; a digest
+// that cannot be written never stops the log.
+const digester = new OpsDigester(path.join(app.getPath('userData'), 'digests'));
+let digestTick: NodeJS.Timeout | null = null;
 
 // DEC-0019 test hook — an unpackaged build only (testhooks.ts). Chromium resolves the test name to
 // the dial address; the main process dials it directly. A packaged app ignores FD_TEST_REMOTE.
@@ -84,6 +89,7 @@ const SERVICE_GUIDE = 'https://github.com/passioncode-ai/fabric-agent-adapter#re
 /** ~/Library/Logs/Fabric Dashboards/main.log: timestamped, 0600, 5 × 5 MB at most (LC-12). */
 function log(message: string): void {
   appendLog(path.join(app.getPath('logs'), 'main.log'), `${new Date().toISOString()} ${message}`);
+  try { digester.record(message); } catch { /* the digest is best effort */ }
 }
 // R-2: installed first — an exception during start-up is logged instead of leaving a process that
 // holds the single-instance lock with no window, tray or link handler.
@@ -1057,6 +1063,8 @@ if (!app.requestSingleInstanceLock()) {
     updateGrace.dispose();
     clearInterval(visibilityTick); // FD-64
     clearInterval(sightTick); // FD-80
+    if (digestTick) clearInterval(digestTick); // FD-144: the open hour is kept for the next start
+    try { digester.save(); } catch { /* best effort */ }
     if (handoverTimer) clearTimeout(handoverTimer); handoverTimer = null; // FD-62: no read after quit begins
     // #region estate-update — docs: docs/adr/0018-estate-updates-from-inside-the-app.md#decision
     estate.stop(); // ADR-0018: no estate check or retry past this point
@@ -1087,6 +1095,9 @@ if (!app.requestSingleInstanceLock()) {
     const pending = pendingInstallVersion();
     if (pending) { stepAside(pending, lang(), log); return; }
     registerIpc();
+    // FD-144: closed hours and days are written within a minute of their end.
+    digestTick = setInterval(() => { try { digester.roll(); } catch { /* best effort */ } }, 60_000);
+    digestTick.unref();
     // #region console-channel-start — docs: docs/adr/0025-the-console-channel.md#decision
     // ADR-0025 (FD-120): the app's own MCP server starts a console session or a fix through the buttons' code path.
     void openChannel({
