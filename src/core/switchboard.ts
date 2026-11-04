@@ -218,8 +218,10 @@ export async function allSessionsOf(run: Runner, sb: string): Promise<SourceResu
 const LAUNCH_KEYS = ['launch_id', 'launched_by', 'provider_session_id', 'transcript', 'turns', 'last_turn_at', 'ended', 'ended_at', 'continued_as'];
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const NAME = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
-const SURFACES = ['window', 'cli', 'mcp', 'fallback', 'recovery', 'dashboards'] as const;
+const SURFACES = ['window', 'cli', 'mcp', 'fallback', 'recovery', 'dashboards', 'fabric'] as const;
 const ENDS = ['finished', 'limit', 'killed', 'not_started', 'unknown'] as const;
+/** FD-137 (SB-247): `ended` as an object, `{kind, exit_code, at}`. */
+const END_KINDS = ['exited', 'stopped', 'timed_out'] as const;
 const CONTINUED = ['handover', 'workflow', 'launch'] as const;
 
 /** FD-124 (SB-212): the launch facts a Switchboard 0.7.0 session row copies from its launch record. A field that is
@@ -231,16 +233,23 @@ export function launchFactsOf(x: Record<string, unknown>): LaunchFacts | null {
   const name = (v: unknown) => (typeof v === 'string' && NAME.test(v) ? v : null);
   const one = <T extends string>(v: unknown, of: readonly T[]) => (of as readonly unknown[]).includes(v) ? v as T : null;
   const b = x.launched_by && typeof x.launched_by === 'object' ? x.launched_by as Record<string, unknown> : {};
+  const d = b.dispatch && typeof b.dispatch === 'object' ? b.dispatch as Record<string, unknown> : null;
+  const e = x.ended && typeof x.ended === 'object' ? x.ended as Record<string, unknown> : null;
   const c = x.continued_as && typeof x.continued_as === 'object' ? x.continued_as as Record<string, unknown> : null;
   const kind = c ? one(c.kind, CONTINUED) : null;
   const target = c && typeof c.id === 'string' && /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(c.id) ? c.id : null;
   const turns = typeof x.turns === 'number' && Number.isInteger(x.turns) && x.turns >= 0 ? x.turns : null;
   return {
     launchId: id(x.launch_id),
-    by: { surface: one(b.surface, SURFACES), by: name(b.by), program: name(b.caller_program), project: name(b.caller_project), parent: id(b.parent), caller: id(b.caller_launch_id) },
+    by: {
+      surface: one(b.surface, SURFACES), by: name(b.by), program: name(b.caller_program), project: name(b.caller_project), parent: id(b.parent), caller: id(b.caller_launch_id),
+      // FD-137: a dispatch's ids; a field the packet lacked is null, never guessed.
+      dispatch: d ? { id: typeof d.id === 'string' && /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(d.id) ? d.id : null, request: id(d.request), thread: id(d.thread), project: id(d.project), workflow: typeof d.workflow === 'string' && /^wf_[0-9a-f]{16}$/.test(d.workflow) ? d.workflow : null } : null,
+    },
     transcript: typeof x.transcript === 'string' && path.isAbsolute(x.transcript) && x.transcript.length <= 1024 ? x.transcript : null,
     turns, lastTurnAt: ms(x.last_turn_at),
-    ended: one(x.ended, ENDS), endedAt: ms(x.ended_at),
+    ended: e ? one(e.kind, END_KINDS) : one(x.ended, ENDS), endedAt: e ? ms(e.at) : ms(x.ended_at),
+    ...(e && e.kind === 'exited' && Number.isInteger(e.exit_code) ? { exitCode: e.exit_code as number } : {}),
     continuedAs: kind && target ? { kind, id: target } : null,
   };
 }

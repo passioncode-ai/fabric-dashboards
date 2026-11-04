@@ -97,6 +97,7 @@
 | SCN-089 | See which agents are placed on the other machine | health | P-01 | ST-004 | validated | 2026-10-28 |
 | SCN-090 | Rename an agent | list | P-01 | ST-003 | validated | 2026-11-03 |
 | SCN-091 | Learn that anonymous usage and error data is shared | settings | P-01 | ST-017 | implemented | 2026-11-04 |
+| SCN-092 | See a session Fabric started for a board request | sessions | P-01 | ST-023 | implemented | 2026-11-04 |
 ## Personas
 
 Defined in [foundation.md](foundation.md) → P-01.
@@ -2037,5 +2038,29 @@ The Sessions mode (0.8.0): every coding session apart from the agents, each stat
   - "This build sends nothing: only a released Fabric Dashboards carries the key to send." / «Эта сборка ничего не отправляет: ключ для отправки есть только у выпущенного Fabric Dashboards.»
 - **Status:** implemented (2026-11-04: `test/analytics.test.ts` walks the client against a fake server (no key, on by default, the install once, an update, off drops everything, retries, crashes once and nothing that names, one active day, an unreadable shared file, another app's switch); copy check reports `8178a7f5` (en, no findings) and `3f537438` (ru, two suggestions on lists of three, kept: they are the facts); the notice and the switch are not yet walked in a built app, which needs a build with a key)
 - **Coverage:** src/core/analytics.ts, src/electron/main.ts (usage-analytics), src/renderer/components/AnalyticsNotice.tsx, src/renderer/components/Settings.tsx, src/core/settings.ts, test/analytics.test.ts
+- **Product:** unobserved
+
+### SCN-092: See a session Fabric started for a board request
+- **Persona:** P-01
+- **Feature:** sessions
+- **Traces:** ST-023; FD-137; Switchboard SB-247 (`switchboard dispatch`, the launch record's shape agreed on the board, thread a9672312); the operator, 2026-11-04 (relayed by Fabric's session 5d9bed98): sessions started on demand are shown in Dashboards, who started them, for which request and how they ended
+- **Entry point:** the Sessions mode; a session's page (SCN-080), its launch fold
+- **Preconditions:** Switchboard is installed and its launch history holds a launch with `launched_by.surface: fabric` (a board request no live session took, which Fabric handed to Switchboard)
+- **Steps:**
+  1. The person opens the Sessions mode -> the session's second line says "on a board request"
+  2. The person opens the session -> its launch fold says who started it ("by Fabric, for a board request no session took"), which request and thread (the first eight characters of each id), how it ended (exited with its code, stopped by Fabric, or stopped at its time limit) with the time, and how long it ran
+- **Expected result:** the person sees that Fabric itself started this session, for which request, and how it ended, without opening the board or a terminal
+- **Alt paths:** a record without a request or thread id -> the Request line is not shown; an end of a kind the app does not know -> no Ended line; a record in the older form (`ended` as a word) -> read as before
+- **UI elements:** the session's second line in the list; the launch fold (Started, Request, Ended, Ran)
+- **States covered:** success, empty
+- **Errors & recovery:** an id that is not an id (spaces, too long) is dropped and the line it would fill is not shown; the record carries ids only, never the request's text
+- **Copy:**
+  - "on a board request" / «по запросу с доски»
+  - "by Fabric, for a board request no session took" / «Fabric, по запросу с доски, который не взяла ни одна сессия»
+  - "Request" / «Запрос»; "{request} · thread {thread}" / «{request} · тред {thread}»
+  - "exited with code {code}, {time}" / «вышла с кодом {code}, {time}»; "stopped by Fabric, {time}" / «остановлена Fabric, {time}»; "stopped at its time limit, {time}" / «остановлена по лимиту времени, {time}»
+  - "Ran" / «Работала»
+- **Status:** implemented (2026-11-04: `test/dispatch.test.ts` reads a record in the agreed shape, a thin one, an unknown end and the older form, and walks the launch fold and the list line in both languages; copy check reports `217f5b0e` (en, no findings) and `7ef98a03` (ru, two suggestions kept: the digits are an id, and minutes use the app's existing duration string); not yet seen on a real record: Switchboard's SB-247 is not in its main yet; the agent's own page does not list its dispatches yet, FD-137 keeps that open)
+- **Coverage:** src/core/switchboard.ts, src/core/sessions.ts, src/core/sessions-view.ts, src/core/i18n.ts, test/dispatch.test.ts
 - **Product:** unobserved
 

@@ -127,7 +127,7 @@ export interface SbSessionRecord {
 /** Who started a launch, as Switchboard recorded it. Each field is null when absent or not of the expected form. */
 export interface LaunchedBy {
   /** Where the launch was asked for: Switchboard's window, its CLI or MCP, a fallback after a limit, a recovery, or us. */
-  surface: 'window' | 'cli' | 'mcp' | 'fallback' | 'recovery' | 'dashboards' | null;
+  surface: 'window' | 'cli' | 'mcp' | 'fallback' | 'recovery' | 'dashboards' | 'fabric' | null;
   /** The agent or person name the caller gave (`--by`). */
   by: string | null;
   /** The program that asked (a bare name, never a command line). */
@@ -138,6 +138,8 @@ export interface LaunchedBy {
   parent: string | null;
   /** The launch of the calling session, when the caller ran inside one. */
   caller: string | null;
+  /** FD-137 (SB-247): a session Fabric started for a board request no live session took; ids only, never its text. */
+  dispatch?: { id: string | null; request: string | null; thread: string | null; project: string | null; workflow: string | null } | null;
 }
 
 export interface LaunchFacts {
@@ -147,8 +149,10 @@ export interface LaunchFacts {
   transcript: string | null;
   turns: number | null;
   lastTurnAt: number | null;
-  ended: 'finished' | 'limit' | 'killed' | 'not_started' | 'unknown' | null;
+  ended: 'finished' | 'limit' | 'killed' | 'not_started' | 'unknown' | 'exited' | 'stopped' | 'timed_out' | null;
   endedAt: number | null;
+  /** FD-137 (SB-247): the exit code of a run that `exited`. */
+  exitCode?: number | null;
   /** Where its work went on: a hand-over, a workflow, or another launch. */
   continuedAs: { kind: 'handover' | 'workflow' | 'launch'; id: string } | null;
 }
