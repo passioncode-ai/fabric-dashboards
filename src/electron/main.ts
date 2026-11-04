@@ -227,6 +227,8 @@ if (!app.requestSingleInstanceLock()) {
   // Squirrel's before-quit-for-update. A failed install puts the window back to hiding on close.
   // Operator 2026-10-16 (LC-16): a downloaded, verified update asks once per version to restart and finish.
   let restartAsked: string | null = null;
+  // FD-143: with automatic updates off, a newer version is announced once per version; the click updates.
+  let availableTold: string | null = null;
   const updater = new Updater(() => {
     pushStatus();
     if (updater.state.state === 'ready' && updater.state.version && restartAsked !== updater.state.version) {
@@ -236,6 +238,15 @@ if (!app.requestSingleInstanceLock()) {
         n.on('click', () => void restartToUpdate());
         n.show();
         log(`update: asked to restart and finish installing ${updater.state.version}`);
+      } catch { /* no notification centre */ }
+    }
+    if (updater.state.state === 'available' && updater.state.version && availableTold !== updater.state.version) {
+      availableTold = updater.state.version;
+      try {
+        const n = new Notification({ title: t(lang(), 'update.available.title', { version: updater.state.version }), body: t(lang(), 'update.available.body'), silent: true });
+        n.on('click', () => updater.check(true));
+        n.show();
+        log(`update: told that ${updater.state.version} is out (automatic updates off)`);
       } catch { /* no notification centre */ }
     }
     if (updater.state.state === 'ready' && !windowSeen()) updateGrace.hidden();
