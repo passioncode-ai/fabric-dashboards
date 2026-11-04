@@ -394,6 +394,25 @@ test('FD-103: the machine-wide read runs on its own, and Clear removes every end
   assert.deepEqual(r.host.sessionsStatus().rows, []);
 });
 
+test('FD-137: a session Fabric started for a board request belongs to the agent whose folder it ran in', POSIX, async () => {
+  const at = Math.floor(Date.now() / 1000) - 60;
+  const board = { account_id: 'acc-1', home: '/sb/homes/a', label: 'Spare', mode: 'managed', pool: 'default', provider: 'claude', state: 'ended', in_place: true,
+    launch_id: '0b8f6c1e-1f2a-4c3d-9e8f-0123456789ab', launched_by: { surface: 'fabric', dispatch: { request: '45bf7553-8ae0-4e23-93ef-8c3acefddf91' } }, ended: { kind: 'exited', exit_code: 0, at: at + 30 } };
+  const sessions: unknown[] = [];
+  const r = rig({ agentFolder: true, sessions });
+  // The records are read at each poll, so they can name the rig's own checkout once it exists.
+  sessions.push(
+    { ...board, launched_at: at, working_directory: r.dir },
+    { ...board, launched_at: at - 5, working_directory: r.dir, launched_by: { surface: 'cli' } },
+    { ...board, launched_at: at - 10, working_directory: path.join(r.base, 'elsewhere') },
+  );
+  await r.host.pollSessions();
+  const rows = r.host.sessionsStatus().rows;
+  assert.equal(rows.length, 3);
+  const of = (x: (typeof rows)[number]) => `${x.launch?.by.surface}:${x.folder === r.dir ? 'agent' : 'other'}:${x.agentKey ?? '-'}`;
+  assert.deepEqual(rows.map(of).sort(), ['cli:agent:-', 'fabric:agent:agent.default', 'fabric:other:-']);
+});
+
 test('FD-118: a waiting row carries Switchboard\'s reason, so the page says why instead of "No other account has capacity"', () => {
   const rows = mergeSessions(input({ stops: [
     { event: 'cc-a-1', session: SID, dir: '/w/a', provider: 'claude', stoppedAt: NOW - MIN, attempt: 1, verdict: 'waiting', candidates: [], probeAt: null, waitReason: 'account_removed' },

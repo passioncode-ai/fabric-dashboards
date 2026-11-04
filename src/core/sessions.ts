@@ -92,6 +92,9 @@ export interface SessionRow {
   /** FD-124: what Switchboard's launch record says about this session (who started it, how it ended, where its work went,
    *  its transcript), from the row's own Switchboard session or its twin; null when there is none. */
   launch: LaunchFacts | null;
+  /** FD-137 (SCN-092): a session Fabric started for a board request, the service key of the agent in whose folder it ran;
+   *  set by the console host, absent for every other row. */
+  agentKey?: string;
   /** FD-124: a hand-over that runs on money, not a subscription; null for every other row. */
   paid: Paid;
   /** The row's latest known time, the list's order (newest first). */

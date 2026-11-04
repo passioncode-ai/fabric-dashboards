@@ -114,6 +114,9 @@ export const QUIT_FINISH_MS = 1500;
 
 /** FD-74: how long the console trusts Switchboard's last answer about a folder before asking again in the background. */
 export const BINDING_FRESH_MS = 30_000;
+/** FD-137: how long the agents' folders, matched to board-request sessions, are kept before they are looked up again. */
+export const AGENT_FOLDER_MS = 5 * 60_000;
+const realOf = (p: string) => { try { return fs.realpathSync(p); } catch { return path.resolve(p); } };
 
 export class ConsoleHost {
   readonly manager: ConsoleManager;
@@ -806,9 +809,28 @@ export class ConsoleHost {
     });
     // V-5 of FIX-2: an ended row whose console holds nothing (the app restarted since) says so on its page.
     for (const r of rows) if (r.group === 'ended' && r.key && this.manager.snapshot(r.key).state === 'idle') r.consoleEmpty = true;
+    // FD-137 (SCN-092): a session Fabric started for a board request belongs to the agent in whose folder it ran.
+    for (const r of rows) if (r.launch?.by.surface === 'fabric') { const k = this.agentOfFolder(r.folder, now); if (k) r.agentKey = k; }
     const degraded = [this.sbSessions.degraded, this.handoverDegraded, this.recoveryDegraded].filter((d): d is SourceDegraded => d !== null);
     return { rows, degraded, switchboard: this.switchboardPresent, handovers: { enabled: this.handoversEnabled }, autoContinue: this.o.settings.get().resumeAfterLimit !== false };
   }
+
+  // #region dispatch-agent — docs: docs/ux/scenarios.md#scn-092-see-a-session-fabric-started-for-a-board-request
+  /** FD-137: each agent's folder (the console's own: chosen, or the agent's checkout), kept AGENT_FOLDER_MS, so a list
+   *  read every 15 s does not look for checkouts each time; only asked while a board-request session is listed. */
+  private agentFolders: { at: number; byFolder: Map<string, string> } | null = null;
+  private agentOfFolder(folder: string, now: number): string | null {
+    if (!this.agentFolders || now - this.agentFolders.at > AGENT_FOLDER_MS) {
+      const byFolder = new Map<string, string>();
+      for (const key of this.o.keys?.() ?? []) {
+        const f = this.folderOf(key);
+        if (f?.exists && !byFolder.has(realOf(f.path))) byFolder.set(realOf(f.path), key);
+      }
+      this.agentFolders = { at: now, byFolder };
+    }
+    return this.agentFolders.byFolder.get(realOf(folder)) ?? null;
+  }
+  // #endregion dispatch-agent
 
   private rowOf(id: string): SessionRow | undefined {
     return this.sessionsStatus().rows.find((r) => r.id === id);

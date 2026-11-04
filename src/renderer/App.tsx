@@ -12,7 +12,7 @@ import { AgentsNav, ModeSwitch, SessionsNav, type AgentsPage, type Mode, type Ro
 import { RenameDialog } from './components/RenameDialog';
 import { AnalyticsNotice } from './components/AnalyticsNotice';
 import { AllSessions, hasConsole, SessionBody, SessionHeader } from './components/Sessions';
-import { resolveSessionRoute } from '../core/sessions-view';
+import { dispatchLines, resolveSessionRoute } from '../core/sessions-view';
 import type { SessionRow } from '../core/sessions';
 import { audit } from '../core/audit';
 import { attentionQueue, urgent } from '../core/attention';
@@ -158,7 +158,7 @@ interface ShellProps {
 }
 
 function Shell({ status, route, setRoute, mode, switchMode, stopKey, setStopKey, activityFilter, setActivityFilter, layout, changeLayout, onLanguage, scheme, onTheme, noteSeen, onNoteSeen }: ShellProps) {
-  const { t } = useT();
+  const { t, lang } = useT();
   const open = (key: string, link?: string, tab?: 'logs' | 'health' | 'connections') => setRoute({ page: 'service', key, link, nonce: Date.now(), tab });
   // SCN-059: the agent selected last leads the next visit's Continue list.
   const routeKey = route.page === 'service' ? route.key : null;
@@ -420,7 +420,8 @@ function Shell({ status, route, setRoute, mode, switchMode, stopKey, setStopKey,
           ? <div className="svc-page">
             <ServiceView key={current.key} s={current} all={status.services} members={currentProduct?.members ?? [current]} open={open} link={route.link} nonce={route.nonce} tab={route.tab} runUpdate={route.tab === 'health' && route.page === 'service'} activityRev={status.activityRev} overlayOpen={stopOpen || resizing || menuOverPage} askStop={askStop} updateStarted={() => setRoute({ ...route, tab: undefined })}
               headerFull={layout.header === 'full'} onToggleHeader={() => changeLayout({ header: layout.header === 'full' ? 'compact' : 'full' })}
-              consoleOpen={layout.console.open} onToggleConsole={() => changeLayout({ console: { open: !layout.console.open } })} onAgent={handToAgent} />
+              consoleOpen={layout.console.open} onToggleConsole={() => changeLayout({ console: { open: !layout.console.open } })} onAgent={handToAgent}
+              dispatches={dispatchLines(lang, status.sessions?.rows ?? [], current.key)} onSession={(id) => setRoute({ page: 'session', id })} />
           </div>
           : (
             <div className="page-wrap">

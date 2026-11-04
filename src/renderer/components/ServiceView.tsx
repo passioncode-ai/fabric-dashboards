@@ -43,9 +43,12 @@ interface Props {
   onToggleConsole: () => void;
   /** FD-39 D-3: hand a fix or an update to the coding agent, with the context. */
   onAgent?: (key: string, task: { kind: 'fix' | 'update'; output?: string }) => void;
+  /** FD-137 (SCN-092): the sessions Fabric started in this agent's folder for board requests, as lines; and opening one. */
+  dispatches?: { id: string; request: string; outcome: string; ran: string | null }[];
+  onSession?: (id: string) => void;
 }
 
-export function ServiceView({ s, all, members, open, link, nonce, tab: askedTab, runUpdate, activityRev, overlayOpen, askStop, updateStarted, headerFull, onToggleHeader, consoleOpen, onToggleConsole, onAgent }: Props) {
+export function ServiceView({ s, all, members, open, link, nonce, tab: askedTab, runUpdate, activityRev, overlayOpen, askStop, updateStarted, headerFull, onToggleHeader, consoleOpen, onToggleConsole, onAgent, dispatches, onSession }: Props) {
   const [pathError, setPathError] = useState('');
   // P-6: a folder or file that cannot be shown says so here, as Overview's Show folder does.
   const show = (p: string) => void api().showPath(p).then((r) => setPathError(r.ok ? '' : t('overview.showFailed', { path: p, error: r.error ?? '' })));
@@ -219,7 +222,7 @@ export function ServiceView({ s, all, members, open, link, nonce, tab: askedTab,
       </header>
       <div className="svc-body" role="tabpanel" id={`panel-${tab}`} aria-labelledby={`tab-${tab}`}>
         {tab === 'dashboard' && <DashboardHost s={s} link={link} nonce={nonce} hidden={overlayOpen} applied={appliedLink} act={control} openLogs={tabs.includes('logs') ? () => setTab('logs') : undefined} />}
-        {tab === 'activity' && <div className="pane"><ServiceActivity serviceKey={s.key} tick={`${activityRev ?? ''}|${s.latestEvent?.id ?? ''}`} openAt={(k, l) => open(k, l)} /></div>}
+        {tab === 'activity' && <div className="pane">{dispatches && dispatches.length > 0 && <Dispatches lines={dispatches} onSession={onSession} />}<ServiceActivity serviceKey={s.key} tick={`${activityRev ?? ''}|${s.latestEvent?.id ?? ''}`} openAt={(k, l) => open(k, l)} /></div>}
         {tab === 'connections' && <div className="pane"><Connections s={s} all={all} open={(key) => open(key, undefined, 'connections')} /></div>}
         {tab === 'load' && tabs.includes('load') && <div className="pane"><Load s={s} /></div>}
         {tab === 'health' && <div className="pane"><Health s={s} output={output} /></div>}
@@ -528,3 +531,25 @@ function FabricButton({ serviceKey }: { serviceKey: string }) {
   );
 }
 // #endregion fabric-button
+
+// #region dispatch-agent-page — docs: docs/ux/scenarios.md#scn-092-see-a-session-fabric-started-for-a-board-request
+/** FD-137: the board requests Fabric started a session for in this agent's folder, newest first; each opens its session. */
+function Dispatches({ lines, onSession }: { lines: NonNullable<Props['dispatches']>; onSession?: (id: string) => void }) {
+  const { t } = useT();
+  return (
+    <section className="dispatches" aria-labelledby="dispatches-title">
+      <h2 id="dispatches-title">{t('dispatch.title')}</h2>
+      <p className="muted">{t('dispatch.note')}</p>
+      <ul>
+        {lines.map((l) => (
+          <li key={l.id} className="row">
+            <span>{l.request}</span>
+            <span className="muted">{[l.outcome, l.ran].filter(Boolean).join(' · ')}</span>
+            {onSession && <button className="linkish" onClick={() => onSession(l.id)}>{t('dispatch.open')}</button>}
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+// #endregion dispatch-agent-page

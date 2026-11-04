@@ -17,6 +17,15 @@ export function clock(lang: Lang, at: number): string {
   return new Date(at).toLocaleTimeString(lang, { hour: lang === 'ru' ? '2-digit' : 'numeric', minute: '2-digit' });
 }
 
+/** FD-137: a session Fabric started for a board request (Switchboard's launch record says so). */
+const dispatched = (r: SessionRow) => r.launch?.by.surface === 'fabric';
+
+/** FD-137: a board request by the first eight characters of its id, and of its thread's when the record names one. */
+function requestText(lang: Lang, d: { request: string | null; thread: string | null }): string {
+  const request = (d.request ?? '').slice(0, 8);
+  return d.thread ? t(lang, 'sessions.chain.requestIds', { request, thread: d.thread.slice(0, 8) }) : request;
+}
+
 /** FD-124: the launch facts Switchboard recorded, as label and value pairs in reading order; empty when it kept none. */
 export function chainFacts(lang: Lang, r: SessionRow): { label: string; value: string }[] {
   const l = r.launch;
@@ -27,12 +36,25 @@ export function chainFacts(lang: Lang, r: SessionRow): { label: string; value: s
   if (asker) out.push({ label: t(lang, 'sessions.chain.asker'), value: asker });
   // FD-137 (SCN-092): a session Fabric started for a board request: which request (ids only), how long it ran.
   const dispatch = l.by.dispatch;
-  if (dispatch?.request) out.push({ label: t(lang, 'sessions.chain.request'), value: t(lang, 'sessions.chain.requestIds', { request: dispatch.request.slice(0, 8), thread: (dispatch.thread ?? '').slice(0, 8) }).replace(/ · $/, '') });
+  if (dispatch?.request) out.push({ label: t(lang, 'sessions.chain.request'), value: requestText(lang, dispatch) });
   if (l.ended) out.push({ label: t(lang, 'sessions.chain.ended'), value: t(lang, `sessions.chain.ended.${l.ended}`, { time: l.endedAt ? clock(lang, l.endedAt) : '', code: l.exitCode ?? '?' }).replace(/, $/, '') });
   if (dispatch && l.endedAt && r.startedAt && l.endedAt >= r.startedAt) out.push({ label: t(lang, 'sessions.chain.ran'), value: t(lang, 'duration.m', { n: Math.max(1, Math.round((l.endedAt - r.startedAt) / 60_000)) }) });
   if (l.continuedAs) out.push({ label: t(lang, 'sessions.chain.went'), value: t(lang, `sessions.chain.went.${l.continuedAs.kind}`, { id: l.continuedAs.id }) });
   if (l.turns !== null) out.push({ label: t(lang, 'sessions.chain.turns'), value: String(l.turns) });
   return out;
+}
+
+/** FD-137 (SCN-092): the sessions Fabric started for board requests in this agent's folder, newest first, at most
+ *  `max`, each as one line: the request, how it went, how long it ran. */
+export function dispatchLines(lang: Lang, rows: readonly SessionRow[], key: string, max = 10): { id: string; request: string; outcome: string; ran: string | null }[] {
+  return rows.filter((r) => r.agentKey === key && r.launch?.by.surface === 'fabric').slice(0, max).map((r) => {
+    const l = r.launch!;
+    const d = l.by.dispatch;
+    const request = d?.request ? requestText(lang, d) : t(lang, 'dispatch.noRequest');
+    const outcome = l.ended ? t(lang, `sessions.chain.ended.${l.ended}`, { time: l.endedAt ? clock(lang, l.endedAt) : '', code: l.exitCode ?? '?' }).replace(/, $/, '') : stateWords(lang, r);
+    const ran = l.endedAt && r.startedAt && l.endedAt >= r.startedAt ? t(lang, 'duration.m', { n: Math.max(1, Math.round((l.endedAt - r.startedAt) / 60_000)) }) : null;
+    return { id: r.id, request, outcome, ran };
+  });
 }
 
 /** The groups in GROUP_ORDER, each with its rows (newest first, as the list comes); an empty group is not drawn. */
@@ -48,7 +70,7 @@ export const runningCount = (rows: readonly SessionRow[]): number => rows.filter
 export function secondLine(lang: Lang, r: SessionRow): string {
   const when = r.startedAt ?? r.at;
   // FD-137: a session Fabric started for a board request says so in place of how it came.
-  const how = r.launch?.by.surface === 'fabric' ? t(lang, 'sessions.origin.dispatch') : t(lang, `sessions.origin.${r.origin}`);
+  const how = dispatched(r) ? t(lang, 'sessions.origin.dispatch') : t(lang, `sessions.origin.${r.origin}`);
   return [agentName(r.agent), r.account, how, when ? clock(lang, when) : null].filter(Boolean).join(' · ');
 }
 
@@ -62,7 +84,7 @@ export function navLines(lang: Lang, r: SessionRow): { time: string | null; sub:
   const agent = agentName(r.agent);
   return {
     time: when ? clock(lang, when) : null,
-    sub: [agent === 'Claude Code' ? null : agent, r.account, t(lang, `sessions.navOrigin.${r.origin}`)].filter(Boolean).join(' · '),
+    sub: [agent === 'Claude Code' ? null : agent, r.account, t(lang, dispatched(r) ? 'sessions.navOrigin.dispatch' : `sessions.navOrigin.${r.origin}`)].filter(Boolean).join(' · '),
   };
 }
 
@@ -113,6 +135,8 @@ export function originChip(lang: Lang, r: SessionRow): string {
   const time = when ? clock(lang, when) : '';
   if (r.origin === 'limit') return r.account ? t(lang, 'sessions.chip.limit', { account: r.account, time }) : t(lang, 'sessions.chip.limitNoAccount', { time });
   if (r.origin === 'resume' && r.state === 'needs-you-resume-failed') return t(lang, 'sessions.chip.resumeTried', { time });
+  // FD-137: Switchboard ran it, but Fabric asked for it: the chip names who started it, as the launch fold does.
+  if (dispatched(r)) return t(lang, 'sessions.chip.dispatch', { time });
   return t(lang, `sessions.chip.${r.origin}`, { time });
 }
 
