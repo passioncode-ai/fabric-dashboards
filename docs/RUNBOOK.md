@@ -236,9 +236,18 @@ outcome, and writes digests beside its data in `digests/` (0700, files 0600):
 
 What is counted (`classify` in `src/core/ops-digest.ts`): the structured events (`update_check`, `update_download`,
 `update_install`, `update_restart`, `auto_update`, `estate_check`, `dock_hide`, `fabric_button`, `analytics.flush`),
-an outcome with `fail`, `error`, `refused`, `mismatch`, `timeout` or `denied` in it being a failure; alert deliveries
-(`alerts`: sent or not delivered); agent-name reads (`agent_names`); crashes (`crash`). Prose lines are not counted
-rather than guessed at. A rise is at least 10 failures in an hour and at least twice the previous hour's (a previous
+alert deliveries (`alerts`: sent or not delivered), agent-name reads (`agent_names`) and crashes (`crash`). Prose lines are
+not counted rather than guessed at.
+
+The map of outcomes (OD-3 of the contract's DEC-0153 allows a product its own, published here; FD-153):
+
+| Counted as | Outcomes |
+|---|---|
+| `ok`: the operation did what it was asked | `current`, `ready`, `available`, `newer_while_ready`, `started`, `done`, `installed`, `restaged`, `resumed`, `requested`, `confirmed`, `on`, `off`, `opened`, `recovered`, `sent`, `shipit_removed`, `ok`, `alerts: sent`, `agent_names failed=0` |
+| `failed`: it tried and could not | any outcome with `fail`, `error`, `mismatch` or `timeout` in it (`check_failed`, `download_failed`, `recheck_failed`, `signature_failed`, `shipit_remove_failed`, `failed`), `kept` (an analytics batch the server did not take), `alerts: … not delivered`, `agent_names failed=N` with N above 0, a crash |
+| `unknown`: an answer of setup or policy | `unsupported`, `needs_migration`, `refused`, `denied`, `skipped`, `held`, `misplaced`, `staging_lost` |
+
+A rise is at least 10 failures in an hour and at least twice the previous hour's (a previous
 hour with none counts as one). Files older than three months go when a new month's file starts. The shape follows
 Fabric's reference (`apps/desktop/src/shared/opsDigest.ts` at `e1eecec0`) until the contract's schema (CT-219) lands;
 sending the daily digest to Observatory waits for its record kind (OBS-330).

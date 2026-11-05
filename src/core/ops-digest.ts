@@ -87,7 +87,12 @@ export function foldDay(day: string, hourly: readonly HourlyDigest[]): DailyDige
 /** The log's structured events (LC-12 `<op> <outcome>`, and the JSON lines `{"event","outcome"}`) whose operation
  *  this app names; prose lines are not counted rather than guessed at. */
 const OPS = new Set(['update_check', 'update_download', 'update_install', 'update_restart', 'auto_update', 'estate_check', 'dock_hide', 'fabric_button', 'analytics.flush']);
-const failedWord = (w: string) => /fail|error|refused|mismatch|timeout|denied/.test(w);
+// OD-3 (DEC-0153) lets a product publish its own map of outcomes (docs/RUNBOOK.md#log-digests, FD-153): ok when the
+// operation did what it was asked; failed when it tried and could not; unknown for an answer of setup or policy (the
+// app is not in Applications, the release needs a person, a restart refused while a console runs), so an unfinished
+// setup never reads as a rise of failures.
+const UNKNOWN_WORDS = new Set(['unsupported', 'needs_migration', 'refused', 'denied', 'skipped', 'held', 'misplaced', 'staging_lost']);
+const outcomeOf = (w: string): DigestOutcome => (UNKNOWN_WORDS.has(w) ? 'unknown' : /fail|error|mismatch|timeout|^kept$/.test(w) ? 'failed' : 'ok');
 
 /** One log line (without its timestamp) as an operation and an outcome, or null when it is not one this app counts. */
 export function classify(line: string): { op: string; outcome: DigestOutcome } | null {
@@ -95,7 +100,7 @@ export function classify(line: string): { op: string; outcome: DigestOutcome } |
   if (line.startsWith('{')) {
     try {
       const j = JSON.parse(line) as { event?: unknown; outcome?: unknown };
-      if (typeof j.event === 'string' && OPS.has(j.event) && typeof j.outcome === 'string') return { op: j.event, outcome: failedWord(j.outcome) ? 'failed' : 'ok' };
+      if (typeof j.event === 'string' && OPS.has(j.event) && typeof j.outcome === 'string') return { op: j.event, outcome: outcomeOf(j.outcome) };
     } catch { /* not JSON */ }
     return null;
   }
@@ -105,7 +110,7 @@ export function classify(line: string): { op: string; outcome: DigestOutcome } |
   if (names) return { op: 'agent_names', outcome: names[1] === '0' ? 'ok' : 'failed' };
   const m = /^([a-z][a-z0-9_]*) ([a-z][a-z0-9_]*):?(?: |$)/.exec(line);
   if (!m || !OPS.has(m[1]!)) return null;
-  return { op: m[1]!, outcome: failedWord(m[2]!) ? 'failed' : 'ok' };
+  return { op: m[1]!, outcome: outcomeOf(m[2]!) };
 }
 
 const monthOf = (iso: string) => iso.slice(0, 7);

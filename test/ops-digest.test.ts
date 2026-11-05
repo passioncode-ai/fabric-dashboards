@@ -126,3 +126,10 @@ test('FD-153: after a crash the open hour the timer already wrote is not written
   const from = fs.readFileSync(path.join(dir, 'hourly-2026-11.jsonl'), 'utf8').trim().split('\n').map((l) => (JSON.parse(l) as HourlyDigest).from);
   assert.deepEqual(from, ['2026-11-04T10:00:00.000Z'], 'the 10:00 hour once; 11:00 was a gap');
 });
+
+test('FD-153 (OD-3): the published map: setup and policy answers are unknown, an attempt that could not is failed', () => {
+  const out = (line: string) => classify(line)?.outcome;
+  for (const ok of ['update_check current', 'update_check ready', 'update_check available', 'update_install installed', 'update_restart requested', 'auto_update off', 'fabric_button opened', 'dock_hide recovered']) assert.equal(out(ok), 'ok', ok);
+  for (const failed of ['update_check check_failed x', 'update_check signature_failed x', 'update_install shipit_remove_failed x', 'dock_hide failed: gave up', 'estate_check failed x', '{"event":"analytics.flush","outcome":"kept","status":503}']) assert.equal(out(failed), 'failed', failed);
+  for (const unknown of ['update_check unsupported channel=deb', 'update_check needs_migration version=1.0.0', 'update_restart refused console running', 'update_check staging_lost version=0.8.22']) assert.equal(out(unknown), 'unknown', unknown);
+});
