@@ -63,9 +63,6 @@ export function audit(all: readonly Seen[], limits: Readonly<Record<string, read
     if (PROBLEM.has(s.state)) {
       add({ id: `${s.key}:state`, key: s.key, severity: 'error', kind: 'state', reason: s.reasons[0] ?? { code: `audit.state.${s.state}`, params: {} } });
     }
-    for (const d of s.wellKnown?.degraded ?? []) {
-      add({ id: `${s.key}:part:${d.source}`, key: s.key, severity: d.setup ? 'setup' : 'warn', kind: 'part', reason: { code: d.setup ? 'audit.part.setup' : 'audit.part.failing', params: { source: d.source, text: d.reason } } });
-    }
     if (s.wellKnown?.update?.available) {
       add({ id: `${s.key}:update`, key: s.key, severity: 'info', kind: 'update', reason: { code: 'audit.update', params: { version: s.wellKnown.update.available } } });
     }
@@ -84,6 +81,16 @@ export function audit(all: readonly Seen[], limits: Readonly<Record<string, read
     // #endregion short-extension-key
     const view = connectionsOf(s.wellKnown);
     if (view.declared) declaring += 1;
+    // #region part-into-connection — docs: docs/ux/scenarios.md#scn-074-see-how-agents-are-wired-and-what-problems-were-found
+    // FD-155: a failing part whose source is the id of a connection the agent declares down or degraded is that one
+    // failure, told once on the connection (with the part's words when the connection gives none), not twice.
+    const told = new Map(view.connections.filter((c) => c.state === 'down' || c.state === 'degraded').map((c) => [c.id, c]));
+    const partWords = new Map<string, string>();
+    for (const d of s.wellKnown?.degraded ?? []) {
+      if (!d.setup && told.has(d.source)) { partWords.set(d.source, d.reason); continue; }
+      add({ id: `${s.key}:part:${d.source}`, key: s.key, severity: d.setup ? 'setup' : 'warn', kind: 'part', reason: { code: d.setup ? 'audit.part.setup' : 'audit.part.failing', params: { source: d.source, text: d.reason } } });
+    }
+    // #endregion part-into-connection
     if (view.errors.length) {
       add({ id: `${s.key}:declaration`, key: s.key, severity: 'warn', kind: 'declaration', reason: { code: 'audit.declaration.invalid', params: { errors: view.errors.slice(0, 3).join('; ') } } });
     }
@@ -116,7 +123,7 @@ export function audit(all: readonly Seen[], limits: Readonly<Record<string, read
     for (const c of view.connections) {
       const failing = c.state === 'down' || c.state === 'degraded';
       if (c.kind !== 'service') {
-        if (failing) add({ id: `${s.key}:conn:${c.id}`, key: s.key, severity: c.state === 'down' ? 'error' : 'warn', kind: 'connection', reason: { code: `audit.connection.${c.state}`, params: { name: c.label ?? c.target, text: c.reason ?? '' } } });
+        if (failing) add({ id: `${s.key}:conn:${c.id}`, key: s.key, severity: c.state === 'down' ? 'error' : 'warn', kind: 'connection', reason: { code: `audit.connection.${c.state}`, params: { name: c.label ?? c.target, text: c.reason ?? partWords.get(c.id) ?? '' } } });
         continue;
       }
       const reached = resolveTarget(c.target, all);
@@ -142,7 +149,7 @@ export function audit(all: readonly Seen[], limits: Readonly<Record<string, read
       // #endregion ambiguous-target
       const theirs = stateOfService(reached.state);
       if (failing) {
-        add({ id: `${s.key}:conn:${c.id}`, key: s.key, severity: c.state === 'down' ? 'error' : 'warn', kind: 'connection', reason: { code: `audit.connection.${c.state}`, params: { name: nameOf(reached), text: c.reason ?? '' } } });
+        add({ id: `${s.key}:conn:${c.id}`, key: s.key, severity: c.state === 'down' ? 'error' : 'warn', kind: 'connection', reason: { code: `audit.connection.${c.state}`, params: { name: nameOf(reached), text: c.reason ?? partWords.get(c.id) ?? '' } } });
       } else if (theirs === 'down' || theirs === 'degraded') {
         // The agent's own call is fine as far as it knows; the one it relies on is not. Named on the caller, so the
         // person sees whose work is at risk; the fix belongs to the agent reached, which has its own finding.

@@ -99,3 +99,14 @@ test('FD-152: a connection nobody checks never pulls a working agent below Ready
   assert.equal(headState('down', []), 'down');
   assert.equal(chainState([node('unknown')]), 'unknown', 'the chain itself still says unknown where the map draws it');
 });
+
+test('FD-155: a part waiting for setup gives a declared connection its reason but never makes it worse', () => {
+  const store = (id: string, state: string) => ({ id, kind: 'connector', target: `${id}.example`, state });
+  const s = svc('pilot.default', 'ready', [store('adspower', 'unknown'), store('database', 'ok')], {
+    degraded: [{ source: 'adspower', reason: 'AdsPower is closed', setup: true }, { source: 'database', reason: 'refused' }],
+  });
+  const g = buildGraph(s, [s]);
+  const by = (id: string) => g.uses.find((n) => n.id === id)!;
+  assert.deepEqual([by('adspower').state, by('adspower').reason], ['unknown', 'AdsPower is closed'], 'setup: as declared');
+  assert.equal(by('database').state, 'degraded', 'a real failure still marks it');
+});
