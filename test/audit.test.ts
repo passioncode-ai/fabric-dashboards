@@ -127,3 +127,16 @@ test('FD-151: an extension under its short key is named, with the full key, and 
   ], 'the full key present settles it');
   assert.equal(r.coverage.declaring, 1);
 });
+
+test('FD-155: one failure of a declared connection is one finding, on the connection, with the part\'s words', () => {
+  const conn = (id: string, state: string) => ({ id, kind: 'store', target: id, state });
+  const s = svc('pilot.default', 'ready', {
+    degraded: [{ source: 'database', reason: 'connection refused' }, { source: 'queue', reason: 'slow' }, { source: 'adspower', reason: 'closed', setup: true }],
+  }, [conn('database', 'down'), conn('queue', 'ok'), conn('adspower', 'unknown')]);
+  const f = audit([s]).findings.filter((x) => x.kind === 'part' || x.kind === 'connection');
+  assert.deepEqual(f.map((x) => [x.kind, x.severity, x.reason.code, x.reason.params?.text]), [
+    ['connection', 'error', 'audit.connection.down', 'connection refused'],
+    ['part', 'warn', 'audit.part.failing', 'slow'],
+    ['part', 'setup', 'audit.part.setup', 'closed'],
+  ], 'database once; a part whose connection says ok is still told; setup stays setup');
+});

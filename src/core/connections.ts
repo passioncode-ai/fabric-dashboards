@@ -114,7 +114,8 @@ export function buildGraph(s: Seen, all: readonly Seen[], models: readonly Model
   // A failing part no declaration names is still a dependency the agent has: drawn as a part, in its words.
   for (const d of s.wellKnown?.degraded ?? []) {
     const known = uses.find((n) => n.source === 'declared' && n.id === d.source);
-    if (known) { known.state = worst(known.state, 'degraded'); known.reason = known.reason ?? d.reason; continue; }
+    // FD-155: a part waiting for setup does not make the agent's own declared state worse; it only gives the reason.
+    if (known) { if (!d.setup) known.state = worst(known.state, 'degraded'); known.reason = known.reason ?? d.reason; continue; }
     uses.push({ id: `part:${d.source}`, kind: 'part', label: d.source, state: d.setup ? 'unknown' : 'degraded', reason: d.reason, source: 'degraded', children: [] });
   }
   const me = productIdOf(s.key);
