@@ -44,6 +44,11 @@ export interface Audit {
 const PROBLEM = new Set(['down', 'duplicate', 'foreign', 'conflict', 'invalid']);
 const ORDER: Record<Severity, number> = { error: 0, warn: 1, setup: 2, info: 3 };
 const nameOf = (s: Seen) => s.descriptor?.name ?? s.wellKnown?.service.name ?? s.key;
+/** A repository address's last segment (`https://github.com/org/name.git` → `name`), or null. */
+const repoNameOf = (url: string | undefined): string | null => {
+  const m = /([^/:\s]+?)(?:\.git)?\/?$/.exec(url?.trim() ?? '');
+  return m ? m[1]! : null;
+};
 
 /** Every finding for the agents installed now. `limits` are the ranked spending limits each agent reported, by key. */
 export function audit(all: readonly Seen[], limits: Readonly<Record<string, readonly LimitView[]>> = {}): Audit {
@@ -100,7 +105,13 @@ export function audit(all: readonly Seen[], limits: Readonly<Record<string, read
       }
       const reached = resolveTarget(c.target, all);
       if (!reached) {
-        add({ id: `${s.key}:conn:${c.id}`, key: s.key, severity: 'warn', kind: 'connection', reason: { code: 'audit.connection.missing', params: { name: c.label ?? c.target } } });
+        // FD-147: a target that is the repository of agents installed here names a repository, not a service; the
+        // finding says which services it holds instead of reading as an agent that is missing. Nothing is resolved
+        // from it: a repository may hold several services, and the declaration is the agent's to correct.
+        const held = all.filter((x) => repoNameOf(x.descriptor?.source?.repository) === c.target).map(nameOf);
+        add({ id: `${s.key}:conn:${c.id}`, key: s.key, severity: 'warn', kind: 'connection', reason: held.length
+          ? { code: 'audit.connection.repository', params: { name: c.target, services: held.join(', ') } }
+          : { code: 'audit.connection.missing', params: { name: c.label ?? c.target } } });
         continue;
       }
       const theirs = stateOfService(reached.state);

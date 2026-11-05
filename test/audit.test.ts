@@ -88,3 +88,18 @@ test('FD-110 (DEC-0121, CT-126): the auditor reports a button without an agent t
   assert.deepEqual(audit([svc('d.default', 'ready')]).findings, [], 'no dashboard, no buttons: nothing to declare');
   assert.deepEqual(audit([svc('e.default', 'ready', declared([{ id: 'approve', title: 'Approve the reply', tool: 'replies.approve', gate: 'relayed' }]))]).findings, [], 'every button has its twin');
 });
+
+test('FD-147: a connection that names the repository of installed agents says so and names them, and resolves nothing', () => {
+  const repo = (key: string, url: string) => ({ ...svc(key, 'ready'), descriptor: { name: key.split('.')[0], source: { repository: url } } } as ServiceSnapshot);
+  const all = [
+    svc('voc.default', 'ready', {}, [use('ads-bot', 'personal-os'), use('ghost', 'nowhere')]),
+    repo('ads-bot.default', 'https://github.com/someone/personal-os.git'),
+    repo('communicator.default', 'git@github.com:someone/personal-os'),
+    repo('other.default', 'https://github.com/someone/personal-os-extra'),
+  ];
+  const f = audit(all).findings.filter((x) => x.kind === 'connection');
+  assert.deepEqual(f.map((x) => [x.reason.code, x.reason.params]), [
+    ['audit.connection.repository', { name: 'personal-os', services: 'ads-bot, communicator' }],
+    ['audit.connection.missing', { name: 'nowhere' }],
+  ]);
+});
