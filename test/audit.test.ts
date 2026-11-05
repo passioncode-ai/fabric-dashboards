@@ -117,3 +117,13 @@ test('FD-149: a bare id with several instances and none default is followed to t
     ['warn', 'audit.connection.ambiguous', { name: 'writer', instances: 'writer.cloud, writer.team', chosen: 'writer.cloud' }],
   ], 'a default instance settles it, and a full id is never ambiguous');
 });
+
+test('FD-151: an extension under its short key is named, with the full key, and still reads as not declared', () => {
+  const short = { extensions: { 'extensions/connections/0.1': { connections: [] } } };
+  const both = { extensions: { 'extensions/connections/0.1': { connections: [] }, [CONNECTIONS_EXTENSION]: { connections: [] } } };
+  const r = audit([svc('a.default', 'ready', short), svc('b.default', 'ready', both)]);
+  assert.deepEqual(r.findings.filter((f) => f.reason.code === 'audit.declaration.shortKey').map((f) => [f.key, f.severity, f.reason.params]), [
+    ['a.default', 'warn', { key: 'extensions/connections/0.1', full: CONNECTIONS_EXTENSION }],
+  ], 'the full key present settles it');
+  assert.equal(r.coverage.declaring, 1);
+});

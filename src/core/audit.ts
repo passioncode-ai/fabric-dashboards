@@ -5,13 +5,16 @@
 // its line. Each finding names the agent to fix, so the person can hand it to a coding agent in one click. Pure: the
 // window, the tray and the MCP server read the same findings. Findings are codes with parameters, translated by the
 // reader (never a sentence of the app's own here), and an agent's own words stay as it wrote them.
-import { actionsOf } from '@passioncode-ai/fabric-service-host/actions';
-import { loadOf } from '@passioncode-ai/fabric-service-host/load';
-import { connectionsOf } from '@passioncode-ai/fabric-service-host/connections';
+import { ACTIONS_EXTENSION, actionsOf } from '@passioncode-ai/fabric-service-host/actions';
+import { LOAD_EXTENSION, loadOf } from '@passioncode-ai/fabric-service-host/load';
+import { CONNECTIONS_EXTENSION, connectionsOf } from '@passioncode-ai/fabric-service-host/connections';
 import type { LimitView } from '@passioncode-ai/fabric-service-host/usage';
 import { resolveTarget, stateOfService, type Seen } from './connections';
 import { productIdOf } from './products';
 import type { Reason } from './types';
+
+/** FD-151: extensions whose short key an agent may write by mistake. */
+const SHORTENED = [CONNECTIONS_EXTENSION, LOAD_EXTENSION, ACTIONS_EXTENSION, 'https://fabric.passioncode.ai/agent-contract/extensions/dashboard/0.1'];
 
 /** error: something does not work · warn: works in part · setup: waits for a person · info: worth knowing. */
 export type Severity = 'error' | 'warn' | 'setup' | 'info';
@@ -66,6 +69,19 @@ export function audit(all: readonly Seen[], limits: Readonly<Record<string, read
     if (s.wellKnown?.update?.available) {
       add({ id: `${s.key}:update`, key: s.key, severity: 'info', kind: 'update', reason: { code: 'audit.update', params: { version: s.wellKnown.update.available } } });
     }
+    // #region short-extension-key — docs: docs/ux/scenarios.md#scn-074-see-how-agents-are-wired-and-what-problems-were-found
+    // FD-151: an extension declared under the short form of its key (`extensions/connections/0.1`) is read by nobody;
+    // without this the agent simply looks as if it declared nothing.
+    const ext = (s.wellKnown as { extensions?: unknown } | undefined)?.extensions;
+    if (ext && typeof ext === 'object' && !Array.isArray(ext)) {
+      for (const full of SHORTENED) {
+        const short = full.slice(full.indexOf('extensions/'));
+        if (Object.hasOwn(ext, short) && !Object.hasOwn(ext, full)) {
+          add({ id: `${s.key}:short:${short}`, key: s.key, severity: 'warn', kind: 'declaration', reason: { code: 'audit.declaration.shortKey', params: { key: short, full } } });
+        }
+      }
+    }
+    // #endregion short-extension-key
     const view = connectionsOf(s.wellKnown);
     if (view.declared) declaring += 1;
     if (view.errors.length) {
