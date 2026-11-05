@@ -161,12 +161,12 @@ export class OpsDigester {
   /** Closes every hour that has ended and every UTC day that has ended; called on a timer and at quit. */
   roll(now = this.now()): void {
     const h = hourStart(now);
+    // OD-1 (DEC-0153): an hour the app ran through is written even when nothing was counted, so the next hour
+    // compares with zero; an hour it did not run is a gap and is not written.
     if (this.hour !== null && this.hour < h) {
-      if (this.counts.size) {
-        const d = foldHour(this.counts, this.hour, this.last);
-        this.append('hourly', d.from, d);
-        this.last = d;
-      }
+      const d = foldHour(this.counts, this.hour, this.last);
+      this.append('hourly', d.from, d);
+      this.last = d;
       this.counts = new Map();
     }
     if (this.hour === null || this.hour < h) this.hour = h;

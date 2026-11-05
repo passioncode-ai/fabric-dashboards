@@ -223,7 +223,8 @@ ADR-0015). The copy runs hidden with its own data folder, and the proof is read 
 FD-144 (ADR-0188 in Fabric, the operator's relay of 2026-11-04): the app counts what `main.log` takes, by operation and
 outcome, and writes digests beside its data in `digests/` (0700, files 0600):
 
-- `hourly-YYYY-MM.jsonl`: one `ops.digest.hourly@1` per closed hour, `{schema, from, to, ops[{op, ok, failed, unknown}],
+- `hourly-YYYY-MM.jsonl`: one `ops.digest.hourly@1` per closed hour the app ran through, empty ones included (OD-1 of
+  the contract's draft DEC-0153: the next hour then compares with zero; an hour the app did not run is a gap), `{schema, from, to, ops[{op, ok, failed, unknown}],
   total, risen[{op, failed, previous}]}`; written within a minute of the hour's end.
 - `daily-YYYY-MM.jsonl`: one `ops.digest.daily@1` per closed UTC day, `{schema, day, hours, ops, total, risen[{op, hours,
   failed}]}`.
