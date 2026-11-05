@@ -864,3 +864,15 @@ test('FD-122, FD-123: arrange is declared as eight actions with no gate; the too
   assert.equal(actionOf('arrange', { action: 'nope' }), null);
   assert.ok(TOOLS.some((t) => t.name === 'arrange'));
 });
+
+test('FD-148: calls made while a read of every agent runs share it; the next call reads afresh', async () => {
+  const w = world();
+  let reads = 0;
+  const inner = w.deps.wellKnown;
+  w.deps.wellKnown = async (...a: Parameters<typeof inner>) => { reads += 1; await new Promise((r) => setTimeout(r, 20)); return inner(...a); };
+  const many = await Promise.all(Array.from({ length: 20 }, () => tools.connections(w.deps, KEY)));
+  assert.equal(reads, 1, 'twenty concurrent calls, one read');
+  assert.ok(many.every((g) => g.state === many[0]!.state));
+  await tools.connections(w.deps, KEY);
+  assert.equal(reads, 2, 'a later call reads again');
+});
