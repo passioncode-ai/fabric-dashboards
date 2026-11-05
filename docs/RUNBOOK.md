@@ -227,15 +227,27 @@ outcome, and writes digests beside its data in `digests/` (0700, files 0600):
 - `hourly-YYYY-MM.jsonl`: one `ops.digest.hourly@1` per closed hour the app ran through, empty ones included (OD-1 of
   the contract's draft DEC-0153: the next hour then compares with zero; an hour the app did not run is a gap), `{schema, from, to, ops[{op, ok, failed, unknown}],
   total, risen[{op, failed, previous}]}`; written within a minute of the hour's end.
-- `daily-YYYY-MM.jsonl`: one `ops.digest.daily@1` per closed UTC day, `{schema, day, hours, ops, total, risen[{op, hours,
-  failed}]}`.
-- `open.json`: the hour still open, kept across a quit so a restart in the same hour neither loses nor doubles it.
+- `daily-YYYY-MM.jsonl`: one `ops.digest.daily@1` per closed UTC day that has hours, `{schema, day, hours, ops, total,
+  risen[{op, hours, failed}]}`. Once a UTC day, and at the first roll after a start, every closed day of this month and
+  the one before with hours and no daily line is folded (OD-5, FD-153), so a Mac closed over midnight still gets its days;
+  a day the app did not run has no daily line.
+- `open.json`: the hour still open, kept across a quit so a restart in the same hour neither loses nor doubles it; after a
+  crash it may hold an hour the minute timer already wrote, and that hour is not written again (FD-153).
 
 What is counted (`classify` in `src/core/ops-digest.ts`): the structured events (`update_check`, `update_download`,
 `update_install`, `update_restart`, `auto_update`, `estate_check`, `dock_hide`, `fabric_button`, `analytics.flush`),
-an outcome with `fail`, `error`, `refused`, `mismatch`, `timeout` or `denied` in it being a failure; alert deliveries
-(`alerts`: sent or not delivered); agent-name reads (`agent_names`); crashes (`crash`). Prose lines are not counted
-rather than guessed at. A rise is at least 10 failures in an hour and at least twice the previous hour's (a previous
+alert deliveries (`alerts`: sent or not delivered), agent-name reads (`agent_names`) and crashes (`crash`). Prose lines are
+not counted rather than guessed at.
+
+The map of outcomes (OD-3 of the contract's DEC-0153 allows a product its own, published here; FD-153):
+
+| Counted as | Outcomes |
+|---|---|
+| `ok`: the operation did what it was asked | `current`, `ready`, `available`, `newer_while_ready`, `started`, `done`, `installed`, `restaged`, `resumed`, `requested`, `confirmed`, `on`, `off`, `opened`, `recovered`, `sent`, `shipit_removed`, `ok`, `alerts: sent`, `agent_names failed=0` (only these) |
+| `failed`: it tried and could not | any outcome with `fail`, `error`, `mismatch` or `timeout` in it (`check_failed`, `download_failed`, `recheck_failed`, `signature_failed`, `shipit_remove_failed`, `get_failed`, `failed`), `kept` (an analytics batch the server did not take, kept to send again), `dropped` (one it gave up on), `alerts: … not delivered`, `agent_names failed=N` with N above 0, a crash |
+| `unknown`: an answer of setup or policy, or the person's | `unsupported`, `needs_migration`, `refused` (also the person declining Restart to update), `denied`, `skipped`, `held`, `misplaced`, `staging_lost`, and any outcome not named in this table |
+
+A rise is at least 10 failures in an hour and at least twice the previous hour's (a previous
 hour with none counts as one). Files older than three months go when a new month's file starts. The shape follows
 Fabric's reference (`apps/desktop/src/shared/opsDigest.ts` at `e1eecec0`) until the contract's schema (CT-219) lands;
 sending the daily digest to Observatory waits for its record kind (OBS-330).

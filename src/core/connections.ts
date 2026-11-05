@@ -140,4 +140,19 @@ export function chainState(nodes: readonly ConnectionNode[]): ConnectionState {
   for (const n of nodes) out = worst(worst(out, n.state), chainState(n.children));
   return out;
 }
+
+// #region connection-head — docs: docs/ux/scenarios.md#scn-073-see-what-an-agent-is-connected-to
+// FD-152: the one-line state of an agent on its Connections tab. A connection nobody checks (unknown) says nothing is
+// wrong, so it never pulls a working agent's line below "Ready"; it is counted on its own beside it. Down and degraded
+// anywhere in the chain still win, and an agent whose own state is unknown stays unknown.
+export function headState(self: ConnectionState, nodes: readonly ConnectionNode[]): ConnectionState {
+  const chain = chainState(nodes);
+  return worst(self, chain === 'unknown' ? 'ok' : chain);
+}
+
+/** How many connections in the chain nobody checks. */
+export function uncheckedCount(nodes: readonly ConnectionNode[]): number {
+  return nodes.reduce((n, x) => n + (x.state === 'unknown' ? 1 : 0) + uncheckedCount(x.children), 0);
+}
+// #endregion connection-head
 // #endregion connections-graph
