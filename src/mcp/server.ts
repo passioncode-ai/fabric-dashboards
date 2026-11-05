@@ -11,7 +11,7 @@ import { killOwned } from '../core/children';
 import { removeMcpRegistrations } from '../core/uninstall';
 import { setWindowsAclReader } from '@passioncode-ai/fabric-service-host';
 import { ACTIONS_META, actionOf, decisionFor, decisionsFile, recordDecision } from './actions';
-import { launcherOf, liveHandover, startRelay, type Relay } from './handover';
+import { launcherOf, liveHandover, REHAND_ENV, REHAND_EXIT, REHAND_MAX, REHAND_WINDOW_MS, startRelay, type Relay } from './handover';
 import { codeFile, plistVersion, StaleWatch } from './stale';
 import * as tools from './tools';
 
@@ -338,6 +338,9 @@ export interface ServeOptions {
   /** FD-109 (4): starts the installed copy's server to take the session when this one is stale; null, or a function
    *  answering null, when nothing can take it (then the server answers stale and leaves, as before). */
   handover?: (() => ChildProcess | null) | null;
+  /** FD-150: this server was handed its session by one that can start the next copy itself (REHAND_ENV); when it goes
+   *  stale it exits with REHAND_EXIT, leaving its calls to be sent again, instead of answering stale. */
+  rehand?: boolean;
 }
 
 /**
@@ -353,20 +356,22 @@ export function serve(deps: tools.Deps = tools.liveDeps(), input: NodeJS.Readabl
   const exit = options.exit ?? ((code: number) => process.exit(code));
   const watch = options.watch === undefined ? liveStaleWatch() : options.watch;
   const handover = options.handover === undefined ? liveHandover(__filename) : options.handover;
+  const rehand = options.rehand ?? process.env[REHAND_ENV] === '1';
+  const rehands: number[] = []; // FD-150: when each fresh copy was started after the first hand-over
   let init: unknown = null; // the client's own initialize params, repeated to the server that takes the session
   let relay: Relay | null = null;
   let inFlight = 0;
   let unflushed = 0; // answers handed to stdout whose write has not completed (pipes are async on macOS)
   let leaving = false;
   const idle = () => inFlight === 0 && unflushed === 0;
-  const leave = (why: string) => {
+  const leave = (why: string, code = 0) => {
     if (leaving) return;
     leaving = true;
     clearInterval(timer);
     process.stderr.write(`fabric-dashboards-mcp ${watch?.runningVersion ?? appVersion()}: leaving (${why})\n`);
     // Up to 300 ms for calls already answering (an answer written just before EOF still lands), then
     // every owned group gets SIGTERM and SIGKILL 300 ms later. The exit is never later than 900 ms.
-    const deadline = setTimeout(() => exit(0), 900);
+    const deadline = setTimeout(() => exit(code), 900);
     deadline.unref?.();
     const settled = new Promise<void>((resolve) => {
       const started = Date.now();
@@ -374,7 +379,7 @@ export function serve(deps: tools.Deps = tools.liveDeps(), input: NodeJS.Readabl
       poll();
     });
     void settled.then(() => killOwned(300)).finally(() => {
-      const done = () => { clearTimeout(deadline); exit(0); };
+      const done = () => { clearTimeout(deadline); exit(code); };
       if (unflushed === 0) done();
       else output.write('', done); // the last answer reaches the pipe before the exit
     });
@@ -383,8 +388,9 @@ export function serve(deps: tools.Deps = tools.liveDeps(), input: NodeJS.Readabl
     const details = { stale: true, running_version: s.running, installed_version: s.installed, action: STALE_ACTION };
     return { jsonrpc: '2.0', id, result: { content: [{ type: 'text', text: JSON.stringify(details, null, 2) }], isError: true, structuredContent: details } };
   };
-  /** FD-109 (4): give the session to the installed copy's server. False when nothing can take it. */
-  const handOver = (s: { running: string; installed: string | null }): boolean => {
+  /** FD-109 (4): give the session to the installed copy's server. False when nothing can take it. `carry` are calls a
+   *  previous copy took and did not answer (FD-150); they go to this one after its initialize. */
+  const handOver = (s: { running: string; installed: string | null }, carry: string[] = []): boolean => {
     if (relay) return true;
     // Not held for answers still in flight or in the pipe: they reach the same output first, and JSON-RPC matches by id.
     if (leaving || !handover || init === null) return false;
@@ -393,27 +399,46 @@ export function serve(deps: tools.Deps = tools.liveDeps(), input: NodeJS.Readabl
     if (!child) return false;
     clearInterval(timer);
     process.stderr.write(`fabric-dashboards-mcp ${s.running}: handing the session to the installed ${s.installed ?? 'copy'}\n`);
+    const answerStale = (lines: string[]) => {
+      for (const q of lines) {
+        let m: Message | null = null;
+        try { m = JSON.parse(q) as Message; } catch { /* not an answerable call */ }
+        if (m && m.id !== undefined && m.id !== null && m.method !== undefined) write(staleAnswer(m.id, s));
+      }
+    };
     relay = startRelay({
       child, init, output,
       failed: (why, queued) => {
         process.stderr.write(`fabric-dashboards-mcp ${s.running}: hand-over failed (${why})\n`);
-        for (const q of queued) {
-          let m: Message | null = null;
-          try { m = JSON.parse(q) as Message; } catch { /* not an answerable call */ }
-          if (m && m.id !== undefined && m.id !== null && m.method !== undefined) write(staleAnswer(m.id, s));
-        }
+        answerStale(queued);
         relay = null;
         leaving = false;
         leave(`stale, and the hand-over failed: ${why}`);
       },
       done: (code) => { void killOwned(300).finally(() => exit(code)); },
+      // #region mcp-rehand — docs: AGENTS.md#lifecycle
+      // FD-150: the copy behind the relay went stale (another update): start the copy installed now, from this process,
+      // and send it the calls the old one left unanswered. A copy that keeps going stale at once ends the session.
+      rehand: (pending) => {
+        relay = null;
+        const now = Date.now();
+        while (rehands.length && now - rehands[0]! > REHAND_WINDOW_MS) rehands.shift();
+        rehands.push(now);
+        const next = watch?.check() ?? s;
+        if (rehands.length > REHAND_MAX || !handOver(next, pending)) {
+          answerStale(pending);
+          leave(rehands.length > REHAND_MAX ? 'stale: the installed copy kept going stale' : 'stale, and no copy took the session again');
+        }
+      },
+      // #endregion mcp-rehand
     });
+    for (const line of carry) relay.send(line);
     return true;
   };
   const leaveIfStaleAndIdle = () => {
     if (inFlight !== 0 || relay) return;
     const s = watch?.check();
-    if (s?.stale && !handOver(s)) leave('stale: an update replaced the bundle');
+    if (s?.stale && !handOver(s)) leave('stale: an update replaced the bundle', rehand ? REHAND_EXIT : 0);
   };
   const timer = setInterval(leaveIfStaleAndIdle, STALE_CHECK_MS);
   timer.unref?.();
@@ -438,6 +463,7 @@ export function serve(deps: tools.Deps = tools.liveDeps(), input: NodeJS.Readabl
       const s = watch.check();
       if (s.stale) {
         if (handOver(s)) { relay!.send(line); return; } // the new version answers this call
+        if (rehand) { leave(`stale: running ${s.running}, the relay starts ${s.installed ?? 'the installed copy'}`, REHAND_EXIT); return; } // FD-150: sent again there
         write(staleAnswer(message.id, s), () => { if (inFlight === 0) leave(`stale: running ${s.running}, installed ${s.installed ?? 'unknown'}`); });
         return;
       }
@@ -452,7 +478,7 @@ export function serve(deps: tools.Deps = tools.liveDeps(), input: NodeJS.Readabl
         inFlight -= 1;
         if (leaving || relay || inFlight !== 0 || message.method !== 'tools/call') return;
         const s = watch?.check();
-        if (s?.stale && !handOver(s)) leave('stale');
+        if (s?.stale && !handOver(s)) leave('stale', rehand ? REHAND_EXIT : 0);
       });
   });
   rl.on('close', () => (relay ? relay.end() : leave('stdin closed')));
