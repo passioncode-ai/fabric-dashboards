@@ -103,3 +103,17 @@ test('FD-147: a connection that names the repository of installed agents says so
     ['audit.connection.missing', { name: 'nowhere' }],
   ]);
 });
+
+test('FD-149: a bare id with several instances and none default is followed to the first and says so', () => {
+  const all = [
+    svc('brand.default', 'ready', {}, [use('copy', 'writer'), use('found', 'foundry'), use('exact', 'writer.team')]),
+    svc('writer.cloud', 'ready'),
+    svc('writer.team', 'ready'),
+    svc('foundry.default', 'ready'),
+    svc('foundry.second', 'ready'),
+  ];
+  const f = audit(all).findings.filter((x) => x.kind === 'connection');
+  assert.deepEqual(f.map((x) => [x.severity, x.reason.code, x.reason.params]), [
+    ['warn', 'audit.connection.ambiguous', { name: 'writer', instances: 'writer.cloud, writer.team', chosen: 'writer.cloud' }],
+  ], 'a default instance settles it, and a full id is never ambiguous');
+});

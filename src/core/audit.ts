@@ -114,6 +114,16 @@ export function audit(all: readonly Seen[], limits: Readonly<Record<string, read
           : { code: 'audit.connection.missing', params: { name: c.label ?? c.target } } });
         continue;
       }
+      // #region ambiguous-target — docs: docs/ux/scenarios.md#scn-074-see-how-agents-are-wired-and-what-problems-were-found
+      // FD-149: a bare product id with several instances here and no `.default` is followed to the first by key, which
+      // may not be the one the agent calls; the finding names them all and the one followed, never guesses further.
+      if (reached.key !== c.target) {
+        const twins = all.filter((x) => productIdOf(x.key) === c.target).map((x) => x.key).sort();
+        if (twins.length > 1 && !twins.some((k) => k.endsWith('.default'))) {
+          add({ id: `${s.key}:ambiguous:${c.id}`, key: s.key, severity: 'warn', kind: 'connection', reason: { code: 'audit.connection.ambiguous', params: { name: c.target, instances: twins.join(', '), chosen: reached.key } } });
+        }
+      }
+      // #endregion ambiguous-target
       const theirs = stateOfService(reached.state);
       if (failing) {
         add({ id: `${s.key}:conn:${c.id}`, key: s.key, severity: c.state === 'down' ? 'error' : 'warn', kind: 'connection', reason: { code: `audit.connection.${c.state}`, params: { name: nameOf(reached), text: c.reason ?? '' } } });
