@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.8.22 - 2026-11-05
+
+### Fixed
+
+- FD-150: an agent session kept the Fabric Dashboards MCP server only through one app update; at the second its server
+  left and the agent lost the tools until its session restarted. Now the session's first server starts each newly
+  installed copy itself and sends it the calls left unanswered, so a session outlives any number of updates. Sessions
+  that already went through one update before this version lose it once more when it installs.
+- FD-149: a connection that names a service installed here more than once, with no default instance, now says which
+  instances there are and which one Fabric Dashboards follows, instead of following the first without a word.
+
 ## 0.8.21 - 2026-11-05
 
 ### Added
