@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.8.21 - 2026-11-05
+
+### Added
+
+- FD-143: with automatic updates off, a newer version is still announced once per version (a notification and an
+  Update line); it downloads and installs only when the person presses Update.
+- FD-144: hourly and daily digests of the app's own log in `digests/` in the app's data folder: counts by operation and
+  outcome, no names, paths or text (ADR-0188, `docs/RUNBOOK.md#log-digests`). Nothing is sent anywhere.
+
+### Fixed
+
+- FD-147: a connection whose target is the name of a repository rather than a service now says which installed agents
+  that repository holds, instead of "not installed".
+- FD-148: many MCP calls at once share one read of every agent, so a working agent no longer reads as down or as
+  declaring no connections while an agent asks in parallel.
+- FD-137: a session whose exit Switchboard did not wait for says it exited, without a code.
+- Setup: the agent passes the launcher's notice about anonymous usage counts to the person word for word.
+
+### Changed
+
+- FD-146: `npm run check` fails a test line that asserts a POSIX file mode or runs a POSIX shell unless it is skipped
+  on Windows.
+
 ## 0.8.20 - 2026-11-04
 
 ### Added
