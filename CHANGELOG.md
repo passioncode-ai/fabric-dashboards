@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.8.24 - 2026-11-05
+
+### Fixed
+
+- FD-155: a part an agent reports as waiting for setup no longer makes the connection it declares look partly working on
+  the Connections tab; the connection keeps the state the agent gave it and shows the reason. And one failure of a
+  declared dependency is now one finding in the auditor, on the connection, instead of two.
+
 ## 0.8.23 - 2026-11-05
 
 ### Fixed
