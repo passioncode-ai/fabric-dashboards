@@ -240,6 +240,13 @@ hour with none counts as one). Files older than three months go when a new month
 Fabric's reference (`apps/desktop/src/shared/opsDigest.ts` at `e1eecec0`) until the contract's schema (CT-219) lands;
 sending the daily digest to Observatory waits for its record kind (OBS-330).
 
+Who sends it (Fabric's CO-503, board thread `f7758225`, 2026-11-05): nobody in this app. Fabric reads
+`digests/daily-YYYY-MM.jsonl` once a day after the UTC day closes and passes the day's line as it is to Observatory's
+`ops.digest.record` with source `app`, under this product's project. Dashboards has no fabric-service descriptor, so
+Fabric keeps the folder in its own list of known hosts (macOS `~/Library/Application Support/Fabric Dashboards/digests`,
+Windows `%APPDATA%\Fabric Dashboards\digests`, Linux `~/.config/Fabric Dashboards/digests`). **Moving the folder breaks
+that list**: say so on that thread before the release that moves it.
+
 Read the last day: `tail -1 ~/Library/Application\ Support/Fabric\ Dashboards/digests/daily-$(date -u +%Y-%m).jsonl`.
 
 ## Tests that touch this Mac
