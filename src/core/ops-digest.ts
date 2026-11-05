@@ -63,7 +63,9 @@ export function foldHour(counts: HourCounts, from: number, previous: HourlyDiges
 /** The day's hourly digests (those whose hour starts on that UTC day) folded into one; null for a day with no hours,
  *  which has no daily digest (OD-5 of the contract's DEC-0153, FD-153). */
 export function foldDay(day: string, hourly: readonly HourlyDigest[]): DailyDigest | null {
-  const mine = hourly.filter((h) => h.from.slice(0, 10) === day);
+  // An hour written twice (an older build after a crash) is folded once: its first line counts, as every reader's does.
+  const seen = new Set<string>();
+  const mine = hourly.filter((h) => h.from.slice(0, 10) === day && !seen.has(h.from) && seen.add(h.from));
   if (mine.length === 0) return null;
   const sum = new Map<string, OpCount>();
   const rose = new Map<string, { hours: number; failed: number }>();

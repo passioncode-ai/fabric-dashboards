@@ -156,3 +156,10 @@ test('FD-153 (OD-3): every outcome the code logs is in the published map, and th
   assert.equal(classify('update_check something_new x')?.outcome, 'unknown', 'an outcome nobody mapped is unknown, never ok');
   assert.equal(classify('fabric_button get_failed: x')?.outcome, 'failed');
 });
+
+test('FD-153: an hour written twice is folded once, its first line kept (the contract vector of the same name)', () => {
+  const one = foldHour(new Map([['x', { ok: 1, failed: 0, unknown: 0 }]]), Date.parse('2026-11-04T01:00:00Z'), null);
+  const again = foldHour(new Map([['x', { ok: 0, failed: 50, unknown: 0 }]]), Date.parse('2026-11-04T01:00:00Z'), null);
+  const d = foldDay('2026-11-04', [one, again])!;
+  assert.deepEqual([d.hours, d.total], [1, { ok: 1, failed: 0, unknown: 0 }]);
+});
