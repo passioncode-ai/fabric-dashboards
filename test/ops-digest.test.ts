@@ -163,3 +163,19 @@ test('FD-153: an hour written twice is folded once, its first line kept (the con
   const d = foldDay('2026-11-04', [one, again])!;
   assert.deepEqual([d.hours, d.total], [1, { ok: 1, failed: 0, unknown: 0 }]);
 });
+
+test('FD-153 (OD-1, OD-5): at a start the kept stop hour is written before the closed days fold, so day D keeps hour 23', () => {
+  const dir = path.join(tmp('fd-digest-'), 'digests');
+  let now = Date.parse('2026-11-04T20:10:00Z');
+  const a = new OpsDigester(dir, () => now);
+  a.record('update_check current');
+  now = Date.parse('2026-11-04T21:05:00Z'); a.roll(); // 20:00 written
+  now = Date.parse('2026-11-04T23:20:00Z'); a.roll(); // 21:00 written; 23:00 open
+  a.record('update_check check_failed x');
+  now = Date.parse('2026-11-04T23:30:00Z');
+  a.save(); // quit: 23:00 kept in open.json
+  const b = new OpsDigester(dir, () => Date.parse('2026-11-05T09:00:00Z'));
+  b.roll();
+  const daily = fs.readFileSync(path.join(dir, 'daily-2026-11.jsonl'), 'utf8').trim().split('\n').map((l) => JSON.parse(l) as { day: string; hours: number; total: { ok: number; failed: number } });
+  assert.deepEqual(daily.map((d) => [d.day, d.hours, d.total.ok, d.total.failed]), [['2026-11-04', 3, 1, 1]], 'hours 20, 21 and 23; the stop hour is in it');
+});
