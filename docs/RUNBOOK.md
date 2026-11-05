@@ -32,6 +32,7 @@
 |---|---|
 | A `fabric-dashboards://` link opens nothing | `grep 'deep link' ~/Library/Logs/Fabric\ Dashboards/main.log` names the refusal; the app registers the scheme only when packaged, so a checkout build (`npm start`) does not receive links |
 | The link opens another copy of the app | two installed copies: `mdfind "kMDItemCFBundleIdentifier == 'ai.passioncode.fabric-dashboards'"`; keep the one in `/Applications` |
+| Many tool calls at once read agents as down | concurrent calls share one read of every agent while it runs (FD-148, `look` in `src/mcp/tools.ts`); a call that comes after it reads afresh, so a second answer that still reads down is the agent's own state |
 | The MCP server does not connect | `printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}' \| "/Applications/Fabric Dashboards.app/Contents/Resources/bin/fabric-dashboards-mcp"` must print one line with `serverInfo` |
 
 ## Release

@@ -206,7 +206,22 @@ function view(s: ServiceLook, list?: { category: Category; hidden: boolean; off:
 }
 
 /** One look, as the package reads it; an unreadable services directory is the tool's error. */
-async function look(deps: Deps, only?: string[]): Promise<ServiceLook[]> {
+// #region look-coalesce — docs: docs/RUNBOOK.md#a-link-or-the-mcp-server-does-not-work
+/** FD-148: calls that ask while a whole-estate read is under way share it. Forty concurrent `connections` calls read
+ *  every agent forty times, the reads crowded each other past their timeouts, and an agent that answers read as down
+ *  and declaring nothing. Nothing is kept once the read ends: the next call reads afresh. */
+const inFlight = new WeakMap<Deps, Promise<ServiceLook[]>>();
+function look(deps: Deps, only?: string[]): Promise<ServiceLook[]> {
+  if (only) return lookOnce(deps, only);
+  const running = inFlight.get(deps);
+  if (running) return running;
+  const p = lookOnce(deps).finally(() => { if (inFlight.get(deps) === p) inFlight.delete(deps); });
+  inFlight.set(deps, p);
+  return p;
+}
+// #endregion look-coalesce
+
+async function lookOnce(deps: Deps, only?: string[]): Promise<ServiceLook[]> {
   const out = await lookAtServices({ servicesDir: deps.servicesDir(), wellKnown: deps.wellKnown, launchd: deps.launchd, now: deps.now, only, token: deps.token, latch: latchOf(deps), ...(deps.placement ? { placement: deps.placement() } : {}) });
   if (out.error) throw new ToolError(`cannot read the services directory ${out.servicesDir}: ${out.error}`);
   // FD-135: the names the agents' repositories give them, as the app last read them (agent-names.json beside its settings).
