@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
-import { classify, foldDay, foldHour, KEEP_MONTHS, OpsDigester, type HourCounts, type HourlyDigest } from '../src/core/ops-digest';
+import { classify, FAILED_OUTCOME, foldDay, foldHour, KEEP_MONTHS, OK_OUTCOMES, OpsDigester, UNKNOWN_OUTCOMES, type HourCounts, type HourlyDigest } from '../src/core/ops-digest';
 import { tmp } from './helpers';
 
 const H = 60 * 60_000;
@@ -132,4 +132,27 @@ test('FD-153 (OD-3): the published map: setup and policy answers are unknown, an
   for (const ok of ['update_check current', 'update_check ready', 'update_check available', 'update_install installed', 'update_restart requested', 'auto_update off', 'fabric_button opened', 'dock_hide recovered']) assert.equal(out(ok), 'ok', ok);
   for (const failed of ['update_check check_failed x', 'update_check signature_failed x', 'update_install shipit_remove_failed x', 'dock_hide failed: gave up', 'estate_check failed x', '{"event":"analytics.flush","outcome":"kept","status":503}']) assert.equal(out(failed), 'failed', failed);
   for (const unknown of ['update_check unsupported channel=deb', 'update_check needs_migration version=1.0.0', 'update_restart refused console running', 'update_check staging_lost version=0.8.22']) assert.equal(out(unknown), 'unknown', unknown);
+});
+
+test('FD-153 (OD-3): every outcome the code logs is in the published map, and the map in RUNBOOK names each one', () => {
+  const root = path.join(__dirname, '..');
+  const files = ['src/electron/updater.ts', 'src/electron/main.ts', 'src/electron/pending-install.ts', 'src/electron/estate-updater.ts', 'src/core/analytics.ts'];
+  const words = new Set<string>();
+  for (const f of files) {
+    const text = fs.readFileSync(path.join(root, f), 'utf8');
+    for (const m of text.matchAll(/event\('(?:update_[a-z]+|auto_update|estate_check)', '([a-z_]+)'/g)) words.add(m[1]!);
+    for (const m of text.matchAll(/this\.fail\('([a-z_]+)'/g)) words.add(m[1]!);
+    for (const m of text.matchAll(/code: '([a-z_]+)'/g)) words.add(m[1]!);
+    for (const m of text.matchAll(/(?:dock_hide|fabric_button|update_install|update_restart) ([a-z_]+)/g)) words.add(m[1]!);
+    for (const m of text.matchAll(/event: 'analytics\.flush', outcome: '([a-z_]+)'/g)) words.add(m[1]!);
+  }
+  assert.ok(words.size >= 20, `read the outcomes (${[...words].join(', ')})`);
+  const runbook = fs.readFileSync(path.join(root, 'docs/RUNBOOK.md'), 'utf8');
+  for (const w of words) {
+    const known = OK_OUTCOMES.has(w) || UNKNOWN_OUTCOMES.has(w) || FAILED_OUTCOME.test(w);
+    assert.ok(known, `${w} is mapped on purpose, not by default`);
+    assert.ok(runbook.includes(`\`${w}\``), `RUNBOOK's map names ${w}`);
+  }
+  assert.equal(classify('update_check something_new x')?.outcome, 'unknown', 'an outcome nobody mapped is unknown, never ok');
+  assert.equal(classify('fabric_button get_failed: x')?.outcome, 'failed');
 });

@@ -968,7 +968,7 @@ if (!app.requestSingleInstanceLock()) {
         }
       }
       const label = t(lang(), 'fabric.notInstalled');
-      const get = () => void openOutside(FABRIC_GET_URL).catch((error: Error) => log(`fabric_button get failed: ${error.message}`));
+      const get = () => void openOutside(FABRIC_GET_URL).catch((error: Error) => log(`fabric_button get_failed: ${error.message}`));
       if (testFabric) { log(`fabric_menu ${label}`); return { opened: 'menu' }; }
       const w = window;
       if (!w || w.isDestroyed()) return { opened: 'none' };

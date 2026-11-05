@@ -243,9 +243,9 @@ The map of outcomes (OD-3 of the contract's DEC-0153 allows a product its own, p
 
 | Counted as | Outcomes |
 |---|---|
-| `ok`: the operation did what it was asked | `current`, `ready`, `available`, `newer_while_ready`, `started`, `done`, `installed`, `restaged`, `resumed`, `requested`, `confirmed`, `on`, `off`, `opened`, `recovered`, `sent`, `shipit_removed`, `ok`, `alerts: sent`, `agent_names failed=0` |
-| `failed`: it tried and could not | any outcome with `fail`, `error`, `mismatch` or `timeout` in it (`check_failed`, `download_failed`, `recheck_failed`, `signature_failed`, `shipit_remove_failed`, `failed`), `kept` (an analytics batch the server did not take), `alerts: … not delivered`, `agent_names failed=N` with N above 0, a crash |
-| `unknown`: an answer of setup or policy | `unsupported`, `needs_migration`, `refused`, `denied`, `skipped`, `held`, `misplaced`, `staging_lost` |
+| `ok`: the operation did what it was asked | `current`, `ready`, `available`, `newer_while_ready`, `started`, `done`, `installed`, `restaged`, `resumed`, `requested`, `confirmed`, `on`, `off`, `opened`, `recovered`, `sent`, `shipit_removed`, `ok`, `alerts: sent`, `agent_names failed=0` (only these) |
+| `failed`: it tried and could not | any outcome with `fail`, `error`, `mismatch` or `timeout` in it (`check_failed`, `download_failed`, `recheck_failed`, `signature_failed`, `shipit_remove_failed`, `get_failed`, `failed`), `kept` (an analytics batch the server did not take, kept to send again), `dropped` (one it gave up on), `alerts: … not delivered`, `agent_names failed=N` with N above 0, a crash |
+| `unknown`: an answer of setup or policy, or the person's | `unsupported`, `needs_migration`, `refused` (also the person declining Restart to update), `denied`, `skipped`, `held`, `misplaced`, `staging_lost`, and any outcome not named in this table |
 
 A rise is at least 10 failures in an hour and at least twice the previous hour's (a previous
 hour with none counts as one). Files older than three months go when a new month's file starts. The shape follows

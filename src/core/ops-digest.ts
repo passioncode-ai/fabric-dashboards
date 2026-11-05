@@ -91,8 +91,11 @@ const OPS = new Set(['update_check', 'update_download', 'update_install', 'updat
 // operation did what it was asked; failed when it tried and could not; unknown for an answer of setup or policy (the
 // app is not in Applications, the release needs a person, a restart refused while a console runs), so an unfinished
 // setup never reads as a rise of failures.
-const UNKNOWN_WORDS = new Set(['unsupported', 'needs_migration', 'refused', 'denied', 'skipped', 'held', 'misplaced', 'staging_lost']);
-const outcomeOf = (w: string): DigestOutcome => (UNKNOWN_WORDS.has(w) ? 'unknown' : /fail|error|mismatch|timeout|^kept$/.test(w) ? 'failed' : 'ok');
+// An outcome the map does not name is unknown, never ok (test/ops-digest.test.ts *FD-153* checks the code's against it).
+export const OK_OUTCOMES = new Set(['available', 'current', 'done', 'installed', 'newer_while_ready', 'ok', 'ready', 'requested', 'restaged', 'started', 'resumed', 'confirmed', 'on', 'off', 'opened', 'recovered', 'sent', 'shipit_removed']);
+export const UNKNOWN_OUTCOMES = new Set(['unsupported', 'needs_migration', 'refused', 'denied', 'skipped', 'held', 'misplaced', 'staging_lost']);
+export const FAILED_OUTCOME = /fail|error|mismatch|timeout|^kept$|^dropped$/;
+const outcomeOf = (w: string): DigestOutcome => (UNKNOWN_OUTCOMES.has(w) ? 'unknown' : FAILED_OUTCOME.test(w) ? 'failed' : OK_OUTCOMES.has(w) ? 'ok' : 'unknown');
 
 /** One log line (without its timestamp) as an operation and an outcome, or null when it is not one this app counts. */
 export function classify(line: string): { op: string; outcome: DigestOutcome } | null {
