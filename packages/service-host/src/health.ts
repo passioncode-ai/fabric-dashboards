@@ -34,6 +34,31 @@ export function request(origin: string, method: 'GET' | 'POST', path: string, he
   const port = portOf(origin);
   const remote = port === null && remoteOriginProblem(origin) === null;
   if (port === null && !remote) return Promise.reject(new Error(`origin ${origin} is not http://127.0.0.1:<port>, nor a remote https origin`));
+  // FD-156: a token goes to a loopback port only when this user's own process listens there (the check the host set).
+  if (!remote && loopbackOwner && carriesSecret(headers)) {
+    const check = loopbackOwner;
+    return check(port!).then((ours) => (ours ? send(origin, method, path, headers, timeoutMs, tls, port, remote)
+      : Promise.reject(new Error(`127.0.0.1:${port} is not listened on by this user's process, so its token was not sent`))));
+  }
+  return send(origin, method, path, headers, timeoutMs, tls, port, remote);
+}
+
+// #region loopback-owner — docs: SECURITY.md#what-the-app-touches
+// FD-156: on a Mac with several macOS users, 127.0.0.1 is shared. When an agent of this user is not running, another
+// user's process may hold its port and would receive the token a probe carries. A host that can tell whose process
+// listens on a port sets this check; without it (the default) nothing changes.
+export type LoopbackOwnerCheck = (port: number) => Promise<boolean>;
+let loopbackOwner: LoopbackOwnerCheck | null = null;
+/** Whether a loopback port is listened on by this user's own process; null turns the check off. */
+export function setLoopbackOwnerCheck(check: LoopbackOwnerCheck | null): void {
+  loopbackOwner = check;
+}
+const PLAIN_HEADERS = new Set(['host', 'accept', 'content-type', 'content-length']);
+/** True when a request carries something other than plain headers: a token, in whatever header the descriptor names. */
+export const carriesSecret = (headers: Record<string, string>): boolean => Object.keys(headers).some((k) => !PLAIN_HEADERS.has(k.toLowerCase()));
+// #endregion loopback-owner
+
+function send(origin: string, method: 'GET' | 'POST', path: string, headers: Record<string, string>, timeoutMs: number, tls: TlsOptions, port: number | null, remote: boolean): Promise<HttpResult> {
   const started = Date.now();
   const target = remote ? new URL(origin) : null;
   const options = remote

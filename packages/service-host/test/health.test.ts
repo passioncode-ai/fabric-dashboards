@@ -6,7 +6,7 @@ import type { AddressInfo } from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import { checkWellKnown, fetchWellKnown, request, tokenFileProblem, windowsAclProblem, windowsAclRefusal, windowsPowerShellEnv } from '../src/health';
+import { carriesSecret, checkWellKnown, fetchWellKnown, request, setLoopbackOwnerCheck, tokenFileProblem, windowsAclProblem, windowsAclRefusal, windowsPowerShellEnv } from '../src/health';
 
 const WELL_KNOWN = JSON.parse(fs.readFileSync(path.join(__dirname, '../../../test/fixtures/contract/positive_service-well-known.json'), 'utf8'));
 
@@ -185,4 +185,25 @@ test('FD-94: the compiled reader and Windows PowerShell give one verdict; a read
   setWindowsAclReader(path.join(dir, 'missing.exe'));
   await assert.rejects(readTokenAsync(token), /S-1-1-0/, 'a reader that does not start is never trusted: PowerShell reads it');
   t.diagnostic(`reader read the token in ${viaReader} ms`);
+});
+
+test('FD-156: a token goes to a loopback port only when the host says this user listens there; plain reads never ask', async (t) => {
+  const seen: string[] = [];
+  const s = await server((req, res) => { seen.push(String(req.headers.authorization ?? '')); res.end('{}'); });
+  t.after(() => { setLoopbackOwnerCheck(null); return s.close(); });
+  const asked: number[] = [];
+  let ours = false;
+  setLoopbackOwnerCheck(async (port) => { asked.push(port); return ours; });
+  await assert.rejects(request(s.origin, 'GET', '/e', { Authorization: 'Bearer t0ken-of-sixteen' }), /is not listened on by this user's process, so its token was not sent/);
+  assert.deepEqual(seen, [], 'nothing reached the port');
+  await request(s.origin, 'GET', '/.well-known/fabric-service');
+  assert.deepEqual(seen, [''], 'a read without a token is not checked');
+  ours = true;
+  await request(s.origin, 'GET', '/e', { 'X-Fabric-Token': 't0ken-of-sixteen' });
+  assert.equal(asked.length, 2, 'asked for each request that carried a token, whatever its header');
+  assert.equal(asked[0], Number(new URL(s.origin).port));
+  assert.equal(carriesSecret({ Accept: 'x', 'Content-Type': 'y' }), false);
+  setLoopbackOwnerCheck(null);
+  await request(s.origin, 'GET', '/e', { Authorization: 'Bearer t0ken-of-sixteen' });
+  assert.equal(seen.length, 3, 'without a check, nothing changes');
 });

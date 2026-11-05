@@ -93,6 +93,7 @@ const RULES: Rule[] = [
   [/^budget is malformed$/, () => 'в бюджете ошибка'],
   // Node: network and files
   [/^connect ECONNREFUSED (\S+)$/, (_, a) => `соединение отклонено (${a})`],
+  [/^127\.0\.0\.1:(\d+) is not listened on by this user's process, so its token was not sent$/, (_, p) => `на 127.0.0.1:${p} слушает не процесс этого пользователя, поэтому токен не отправлен`],
   [/^getaddrinfo ENOTFOUND (\S+)$/, (_, h) => `имя ${h} не найдено`],
   [/^read ECONNRESET$/, () => 'соединение разорвано'],
   [/^socket hang up$/, () => 'соединение оборвалось'],
