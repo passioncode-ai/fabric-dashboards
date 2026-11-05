@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.8.25 - 2026-11-06
+
+### Security
+
+- FD-156: on a Mac with several macOS users, Fabric Dashboards sends an agent's token to 127.0.0.1 only when that
+  user's own process listens on the port. While an agent is stopped, another user's process may hold its port; it no
+  longer receives the token with the events feed, usage, load or a dashboard sign-in. macOS only for now.
+
+### Documentation
+
+- FD-157: the runbook says what moves to another Mac or macOS user and what is made again.
+
 ## 0.8.24 - 2026-11-05
 
 ### Fixed
