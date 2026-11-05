@@ -9,7 +9,9 @@ import type { ChildProcess } from 'node:child_process';
 import readline from 'node:readline';
 import { killOwned } from '../core/children';
 import { removeMcpRegistrations } from '../core/uninstall';
-import { setWindowsAclReader } from '@passioncode-ai/fabric-service-host';
+import { setLoopbackOwnerCheck, setWindowsAclReader } from '@passioncode-ai/fabric-service-host';
+import { loopbackOwnerCheck } from '../core/loopback-owner';
+import { execRunner } from '../core/launchd';
 import { ACTIONS_META, actionOf, decisionFor, decisionsFile, recordDecision } from './actions';
 import { launcherOf, liveHandover, REHAND_ENV, REHAND_EXIT, REHAND_MAX, REHAND_WINDOW_MS, startRelay, type Relay } from './handover';
 import { codeFile, plistVersion, StaleWatch } from './stale';
@@ -507,6 +509,8 @@ if (require.main === module) {
   const launcher = process.platform === 'win32' ? launcherOf(__filename) : null;
   const reader = launcher ? path.join(path.dirname(launcher), 'fabric-dashboards-acl.exe') : null;
   if (reader && fs.existsSync(reader)) setWindowsAclReader(reader);
+  // FD-156: as the app does, a token goes to 127.0.0.1 only when this user's own process listens there.
+  if (process.platform === 'darwin' && typeof process.getuid === 'function') setLoopbackOwnerCheck(loopbackOwnerCheck(execRunner, process.getuid()));
   const code = cli(process.argv.slice(2));
   if (code === null) serve();
   else process.exitCode = code;

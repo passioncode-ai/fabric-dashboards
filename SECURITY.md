@@ -81,6 +81,13 @@ service data.
   the app's version and system, and the shared PassionCode installation id. Never an agent's name, key, origin or
   repository, a path, a token, a message or what an agent did. On by default; Settings → Privacy turns it off, and
   off sends nothing at all.
+- **Sends a service's token to 127.0.0.1** only when this macOS user's own process listens on that port (FD-156): on a
+  Mac with several macOS users, loopback is shared, and while this user's agent is stopped another user's process may
+  hold its port. Before a request that carries a token, the app and its MCP server list this user's listening sockets
+  with `lsof -a -u <uid>` (macOS shows a user only their own; one listing serves every port for 30 s, a port not in it
+  is read again after 5 s) and refuse a port that is not there, with the reason. When `lsof` cannot answer, the request
+  goes as before and the log says so once. A plain read with no token (a local well-known probe) is not checked.
+  Windows and Linux do not check yet.
 - **Listens** on no port. The MCP server (`Contents/Resources/bin/fabric-dashboards-mcp`)
   is started by an agent and speaks only over its stdin and stdout; it reads the same
   folder and token files, talks to the same origins and runs the same `launchctl` verbs and
