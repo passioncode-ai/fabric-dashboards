@@ -11,7 +11,7 @@ import type { StaleWatch } from '../src/mcp/stale';
 import { EventEmitter } from 'node:events';
 import { PassThrough } from 'node:stream';
 import type { ChildProcess } from 'node:child_process';
-import { HANDED_ENV, handedEnv, HANDOVER_ID, launcherOf, liveHandover } from '../src/mcp/handover';
+import { HANDED_ENV, handedEnv, HANDOVER_ID, launcherOf, liveHandover, REHAND_ENV, REHAND_EXIT, REHAND_MAX } from '../src/mcp/handover';
 import * as tools from '../src/mcp/tools';
 import { tmp } from './helpers';
 
@@ -561,7 +561,7 @@ test('FD-85: a call that arrives while the server leaves for an update is answer
 // ── FD-109 (4): a stale server hands its session to the installed copy's server ─────────────
 
 /** A stand-in for the new copy's server: answers initialize and tools/call as version 1.1.0, records what it read. */
-function newServer(opts: { answers?: boolean } = {}) {
+function newServer(opts: { answers?: boolean; version?: string; staleOnCall?: boolean } = {}) {
   const child = new EventEmitter() as ChildProcess & EventEmitter;
   const stdin = new PassThrough();
   const stdout = new PassThrough();
@@ -575,8 +575,10 @@ function newServer(opts: { answers?: boolean } = {}) {
       const m = JSON.parse(buffer.slice(0, i)) as { id?: unknown; method?: string };
       buffer = buffer.slice(i + 1);
       read.push(m);
+      if (opts.staleOnCall && m.method === 'tools/call') { setImmediate(() => child.emit('exit', REHAND_EXIT, null)); continue; } // FD-150: went stale itself
       if (opts.answers === false || m.id === undefined) continue;
-      const result = m.method === 'initialize' ? { serverInfo: { name: 'fabric-dashboards', version: '1.1.0' } } : { content: [], answeredBy: '1.1.0' };
+      const v = opts.version ?? '1.1.0';
+      const result = m.method === 'initialize' ? { serverInfo: { name: 'fabric-dashboards', version: v } } : { content: [], answeredBy: v };
       stdout.write(`${JSON.stringify({ jsonrpc: '2.0', id: m.id, result })}\n`);
     }
   });
@@ -659,6 +661,54 @@ test('FD-133: a server started by a hand-over never hands its session on, so ser
   assert.equal(started.length, 1);
   assert.equal(handedEnv({ PATH: '/bin' })[HANDED_ENV], '1');
   assert.equal(handedEnv({ PATH: '/bin' }).PATH, '/bin');
+});
+
+test('FD-150: when the copy behind the relay goes stale too, the first server starts the newly installed one and the waiting call is answered there', async () => {
+  const first = newServer({ staleOnCall: true });
+  const second = newServer({ version: '1.2.0' });
+  const queue = [first.child, second.child];
+  let started = 0;
+  const s = session(() => { started += 1; return queue.shift() ?? null; }, 1);
+  s.send({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { clientInfo: { name: 'claude-code' } } });
+  s.send({ jsonrpc: '2.0', id: 2, method: 'tools/call', params: { name: 'list_services', arguments: {} } });
+  await s.until(() => s.lines.some((l) => l.id === 2));
+  assert.equal(started, 2, 'one relay, two copies behind it in turn, never a chain');
+  assert.equal(s.lines.find((l) => l.id === 2)!.result!.answeredBy, '1.2.0', 'the copy installed now answered the call the stale one left');
+  assert.deepEqual((second.read[0] as { params?: unknown }).params, { clientInfo: { name: 'claude-code' } }, 'the client\'s own initialize again');
+  s.send({ jsonrpc: '2.0', id: 3, method: 'tools/call', params: { name: 'list_services', arguments: {} } });
+  await s.until(() => s.lines.some((l) => l.id === 3));
+  assert.equal(s.lines.filter((l) => l.id === 2).length, 1, 'answered once');
+  assert.equal(s.exited(), null, 'the session goes on');
+});
+
+test('FD-150: copies that go stale again at once end the session with a stale answer after REHAND_MAX tries', async () => {
+  let started = 0;
+  const s = session(() => { started += 1; return newServer({ staleOnCall: true }).child; }, 1);
+  s.send({ jsonrpc: '2.0', id: 1, method: 'initialize', params: {} });
+  s.send({ jsonrpc: '2.0', id: 2, method: 'tools/call', params: { name: 'list_services', arguments: {} } });
+  await s.until(() => s.lines.some((l) => l.id === 2));
+  assert.equal(s.lines.find((l) => l.id === 2)!.result!.structuredContent!.stale, true);
+  assert.equal(started, REHAND_MAX + 1);
+  await s.until(() => s.exited() !== null);
+});
+
+test('FD-150: a handed server that can be started again leaves its call unanswered and exits REHAND_EXIT; without the mark it answers stale', async () => {
+  for (const rehand of [true, false]) {
+    const watch = { runningVersion: '1.1.0', check: () => ({ stale: true, running: '1.1.0', installed: '1.2.0' }) } as unknown as StaleWatch;
+    const input = new PassThrough();
+    const output = new PassThrough();
+    let out = '';
+    output.on('data', (c) => { out += String(c); });
+    let exited: number | null = null;
+    serve(world().deps, input, output, { exit: (code) => { exited = code; }, watch, signals: false, handover: () => null, rehand });
+    input.write(`${JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'initialize', params: {} })}\n`);
+    input.write(`${JSON.stringify({ jsonrpc: '2.0', id: 7, method: 'tools/call', params: { name: 'list_services', arguments: {} } })}\n`);
+    const end = Date.now() + 5000;
+    while (exited === null) { assert.ok(Date.now() < end, 'in time'); await new Promise((r) => setTimeout(r, 5)); }
+    assert.equal(exited, rehand ? REHAND_EXIT : 0);
+    assert.equal(out.includes('"id":7'), !rehand, rehand ? 'the relay sends it again' : 'answered stale, as before');
+  }
+  assert.equal(handedEnv({})[REHAND_ENV], '1', 'every hand-over marks the copy it starts');
 });
 
 test('FD-109: no hand-over without a launcher or before the client initialized; the launcher sits beside app.asar on every system', async () => {

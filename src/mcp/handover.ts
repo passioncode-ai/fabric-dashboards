@@ -17,9 +17,20 @@ export const HANDOVER_TIMEOUT_MS = 15_000;
  *  session on: one hand-over per update, never a chain of servers starting each other. */
 export const HANDED_ENV = 'FABRIC_DASHBOARDS_MCP_HANDED';
 
+/** FD-150: set beside HANDED_ENV by a server that can start the next copy itself. A handed server that goes stale
+ *  then exits with REHAND_EXIT and leaves its unanswered calls unanswered; the server that started it starts the newly
+ *  installed copy, repeats initialize and sends those calls again. A session outlives any number of updates, and there
+ *  is still never more than one relay and one server behind it. Without this mark (a relay from before FD-150) the
+ *  handed server answers stale and leaves, as before. */
+export const REHAND_ENV = 'FABRIC_DASHBOARDS_MCP_REHAND';
+export const REHAND_EXIT = 75;
+/** At most this many fresh copies within REHAND_WINDOW_MS; a copy that keeps going stale at once is a fault, not updates. */
+export const REHAND_MAX = 3;
+export const REHAND_WINDOW_MS = 60_000;
+
 /** The environment a hand-over starts the installed copy's server with. */
 export function handedEnv(env: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
-  return { ...env, [HANDED_ENV]: '1' };
+  return { ...env, [HANDED_ENV]: '1', [REHAND_ENV]: '1' };
 }
 
 /** The MCP launcher of the installed copy this server file belongs to; null outside a packaged app. */
@@ -54,6 +65,8 @@ export interface RelayOptions {
   failed(why: string, queued: string[]): void;
   /** The relay is over (the new server exited, or the client went away): the old process exits with this code. */
   done(code: number): void;
+  /** FD-150: the new server went stale itself (it exited with REHAND_EXIT); these calls it took are unanswered. */
+  rehand?(pending: string[]): void;
   timeoutMs?: number;
 }
 
@@ -62,6 +75,9 @@ export function startRelay(o: RelayOptions): Relay {
   let state: 'handshake' | 'open' | 'over' = 'handshake';
   let queued: string[] = [];
   let ending = false;
+  // FD-150: the calls the new server took and has not answered, by id, so a fresh copy can be sent them again.
+  const pending = new Map<string, string>();
+  const keyOf = (id: unknown) => JSON.stringify(id);
   const fail = (why: string) => {
     if (state !== 'handshake') return;
     state = 'over';
@@ -73,17 +89,31 @@ export function startRelay(o: RelayOptions): Relay {
   const timer = setTimeout(() => fail('the new server did not answer initialize in time'), o.timeoutMs ?? HANDOVER_TIMEOUT_MS);
   timer.unref?.();
   const toChild = (line: string) => { try { child.stdin?.write(`${line}\n`); } catch { /* its exit ends the relay */ } };
+  const track = (line: string) => {
+    try {
+      const m = JSON.parse(line) as { id?: unknown; method?: unknown };
+      if (m && m.id !== undefined && m.id !== null && typeof m.method === 'string') pending.set(keyOf(m.id), line);
+    } catch { /* not a call */ }
+  };
   child.once('error', (error) => fail(`the new server did not start: ${error.message}`));
   child.stdin?.on('error', () => { /* a closed pipe: the exit below ends the relay */ });
   child.once('exit', (code) => {
     if (state === 'handshake') return fail(`the new server exited before it answered (code ${code})`);
     if (state === 'over') return;
     state = 'over';
+    if (code === REHAND_EXIT && !ending && o.rehand) return o.rehand([...pending.values()]);
     o.done(ending ? 0 : code ?? 0);
   });
   if (child.stdout) {
     readline.createInterface({ input: child.stdout, crlfDelay: Infinity }).on('line', (line) => {
-      if (state === 'open') { output.write(`${line}\n`); return; }
+      if (state === 'open') {
+        try {
+          const m = JSON.parse(line) as { id?: unknown; method?: unknown };
+          if (m && m.id !== undefined && m.id !== null && m.method === undefined) pending.delete(keyOf(m.id));
+        } catch { /* passed on as it is */ }
+        output.write(`${line}\n`);
+        return;
+      }
       if (state !== 'handshake') return;
       let answer: { id?: unknown; result?: unknown };
       try { answer = JSON.parse(line) as typeof answer; } catch { return; }
@@ -92,14 +122,14 @@ export function startRelay(o: RelayOptions): Relay {
       clearTimeout(timer);
       state = 'open';
       toChild(JSON.stringify({ jsonrpc: '2.0', method: 'notifications/initialized' }));
-      for (const q of queued.splice(0)) toChild(q);
+      for (const q of queued.splice(0)) { track(q); toChild(q); }
       if (ending) child.stdin?.end();
     });
   }
   toChild(JSON.stringify({ jsonrpc: '2.0', id: HANDOVER_ID, method: 'initialize', params: o.init ?? {} }));
   return {
     send(line) {
-      if (state === 'open') toChild(line);
+      if (state === 'open') { track(line); toChild(line); }
       else if (state === 'handshake') queued.push(line);
     },
     end() {
