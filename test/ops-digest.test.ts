@@ -72,6 +72,11 @@ test('FD-144: closed hours and days are written once, a restart in the hour keep
   b.roll();
   const daily = fs.readFileSync(path.join(dir, 'daily-2026-11.jsonl'), 'utf8').trim().split('\n').map((l) => JSON.parse(l) as { day: string; hours: number; total: { ok: number } });
   assert.deepEqual(daily.map((d) => [d.day, d.hours, d.total.ok]), [['2026-11-04', 2, 3]]);
+  // OD-1: an hour the app ran through with nothing counted is written, empty, and the next hour compares with zero.
+  now = Date.parse('2026-11-05T01:30:00Z');
+  b.roll();
+  const nov5 = fs.readFileSync(path.join(dir, 'hourly-2026-11.jsonl'), 'utf8').trim().split('\n').map((l) => JSON.parse(l) as HourlyDigest).filter((h) => h.from.startsWith('2026-11-05'));
+  assert.deepEqual(nov5.map((h) => [h.from, h.ops.length, h.total]), [['2026-11-05T00:00:00.000Z', 0, { ok: 0, failed: 0, unknown: 0 }]]);
   // A new month's first file removes files older than KEEP_MONTHS months.
   fs.writeFileSync(path.join(dir, 'hourly-2026-07.jsonl'), '');
   fs.writeFileSync(path.join(dir, 'hourly-2026-09.jsonl'), '');
