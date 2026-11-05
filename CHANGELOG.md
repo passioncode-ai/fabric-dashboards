@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.8.23 - 2026-11-05
+
+### Fixed
+
+- FD-151: an agent that declares an extension under its short key (`extensions/connections/0.1` instead of the full URI)
+  is named by the auditor, with the full key; before, it simply looked as if it declared nothing.
+- FD-152: on the Connections tab a connection nobody checks no longer turns a working agent's line into "Not known"; such
+  connections are counted beside it ("not checked: N"). A connection that is down or partly working still shows.
+- FD-153: the hourly and daily log digests follow the contract (DEC-0153): every closed day with hours gets its daily
+  digest at the next start, a day without hours gets none, a crash never writes an hour twice, and outcomes are counted
+  by a published map in which answers of setup or policy count as unknown, not as failures (`docs/RUNBOOK.md`).
+
 ## 0.8.22 - 2026-11-05
 
 ### Fixed
