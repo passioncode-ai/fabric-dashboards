@@ -62,7 +62,8 @@ test('FD-144: closed hours and days are written once, a restart in the hour keep
   const hourly = fs.readFileSync(path.join(dir, 'hourly-2026-11.jsonl'), 'utf8').trim().split('\n').map((l) => JSON.parse(l) as HourlyDigest);
   assert.equal(hourly.length, 1);
   assert.deepEqual(hourly[0]!.ops, [{ op: 'alerts', ok: 1, failed: 0, unknown: 0 }, { op: 'update_check', ok: 1, failed: 1, unknown: 0 }]);
-  assert.equal((fs.statSync(path.join(dir, 'hourly-2026-11.jsonl')).mode & 0o777), 0o600);
+  // A file mode is POSIX's: Windows reports 0o666 whatever was asked (the profile's ACL guards it there).
+  if (process.platform !== 'win32') assert.equal((fs.statSync(path.join(dir, 'hourly-2026-11.jsonl')).mode & 0o777), 0o600);
   b.roll();
   assert.equal(fs.readFileSync(path.join(dir, 'hourly-2026-11.jsonl'), 'utf8').trim().split('\n').length, 1, 'an hour is written once');
   // The next UTC day: yesterday's hours fold into one daily digest, once.
