@@ -261,6 +261,24 @@ that list**: say so on that thread before the release that moves it.
 
 Read the last day: `tail -1 ~/Library/Application\ Support/Fabric\ Dashboards/digests/daily-$(date -u +%Y-%m).jsonl`.
 
+## Moving to another Mac or another macOS user
+
+FD-157 (the operator's instruction of 2026-11-05, relayed on board thread `1fe66e6e`). Dashboards keeps nothing that
+binds it to one machine: everything it writes is under the user's home (AGENTS.md, Lifecycle, "Files it writes").
+
+| What | On the new Mac or user |
+|---|---|
+| The app | installed fresh from the release, into `/Applications` on a one-user Mac or `~/Applications` where several macOS users share it (FD-145); it updates itself there |
+| Settings, layout, pinned and hidden agents, activity history | copy `~/Library/Application Support/Fabric Dashboards/settings.json` (and `activity.jsonl`) with the app quit, or start fresh; nothing else in that folder needs to move |
+| Agent names | nothing to move: they live in each agent's own GitHub repository (`.fabric/names.json`, ADR-0026) and are read again 20 s after start |
+| The MCP entry for Claude Code and the login item | made again by the first launch of the installed copy, for that user only |
+| Dashboard sign-ins | not moved: the cookies are encrypted with this Mac's «Fabric Dashboards Safe Storage» Keychain item (FD-04), so each dashboard asks for a new sign-in code once |
+| Descriptors and token files | belong to the services, not to Dashboards: each agent writes its own when it is installed on the new Mac (`~/Library/Application Support/ai.passioncode.fabric/services`); Dashboards never copies a token |
+| Ports | none to choose: Dashboards listens on no port; its one channel is a socket in its own data folder (ADR-0025) |
+
+On a Mac with several macOS users, a service token goes to 127.0.0.1 only when that user's own process listens on the
+port (FD-156, SECURITY.md), so one user's Dashboards never sends a token to another user's agent.
+
 ## Tests that touch this Mac
 
 `test/monitor.test.ts` bootstraps a throwaway LaunchAgent labelled
