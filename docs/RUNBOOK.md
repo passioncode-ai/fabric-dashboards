@@ -227,9 +227,12 @@ outcome, and writes digests beside its data in `digests/` (0700, files 0600):
 - `hourly-YYYY-MM.jsonl`: one `ops.digest.hourly@1` per closed hour the app ran through, empty ones included (OD-1 of
   the contract's draft DEC-0153: the next hour then compares with zero; an hour the app did not run is a gap), `{schema, from, to, ops[{op, ok, failed, unknown}],
   total, risen[{op, failed, previous}]}`; written within a minute of the hour's end.
-- `daily-YYYY-MM.jsonl`: one `ops.digest.daily@1` per closed UTC day, `{schema, day, hours, ops, total, risen[{op, hours,
-  failed}]}`.
-- `open.json`: the hour still open, kept across a quit so a restart in the same hour neither loses nor doubles it.
+- `daily-YYYY-MM.jsonl`: one `ops.digest.daily@1` per closed UTC day that has hours, `{schema, day, hours, ops, total,
+  risen[{op, hours, failed}]}`. Once a UTC day, and at the first roll after a start, every closed day of this month and
+  the one before with hours and no daily line is folded (OD-5, FD-153), so a Mac closed over midnight still gets its days;
+  a day the app did not run has no daily line.
+- `open.json`: the hour still open, kept across a quit so a restart in the same hour neither loses nor doubles it; after a
+  crash it may hold an hour the minute timer already wrote, and that hour is not written again (FD-153).
 
 What is counted (`classify` in `src/core/ops-digest.ts`): the structured events (`update_check`, `update_download`,
 `update_install`, `update_restart`, `auto_update`, `estate_check`, `dock_hide`, `fabric_button`, `analytics.flush`),

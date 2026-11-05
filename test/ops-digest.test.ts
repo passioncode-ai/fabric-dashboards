@@ -96,3 +96,33 @@ test('FD-144: the main process counts every line it logs, rolls on a minute time
   const quit = main.slice(main.indexOf("app.on('will-quit'"));
   assert.match(quit.slice(0, 3000), /digester\.save\(\)/);
 });
+
+test('FD-153: a start folds every closed day that has hours and no daily digest; a day with no hours has none', () => {
+  const dir = path.join(tmp('fd-digest-'), 'digests');
+  fs.mkdirSync(dir, { recursive: true });
+  const hour = (from: string): HourlyDigest => foldHour(new Map([['update_check', { ok: 1, failed: 0, unknown: 0 }]]), Date.parse(from), null);
+  // Two days the app ran and closed before midnight, one from the month before; no daily lines were written.
+  const lines = ['2026-10-31T22:00:00Z', '2026-11-02T09:00:00Z', '2026-11-02T10:00:00Z'].map((f) => JSON.stringify(hour(f)));
+  fs.writeFileSync(path.join(dir, 'hourly-2026-10.jsonl'), `${lines[0]}\n`);
+  fs.writeFileSync(path.join(dir, 'hourly-2026-11.jsonl'), `${lines[1]}\n${lines[2]}\n`);
+  const d = new OpsDigester(dir, () => Date.parse('2026-11-04T08:00:00Z'));
+  d.roll();
+  d.roll();
+  const read = (f: string) => (fs.existsSync(path.join(dir, f)) ? fs.readFileSync(path.join(dir, f), 'utf8').trim().split('\n').map((l) => JSON.parse(l) as { day: string; hours: number }) : []);
+  assert.deepEqual([...read('daily-2026-10.jsonl'), ...read('daily-2026-11.jsonl')].map((x) => [x.day, x.hours]), [['2026-10-31', 1], ['2026-11-02', 2]], 'once each, none for the days it did not run');
+  assert.equal(foldDay('2026-11-03', [hour('2026-11-02T10:00:00Z')]), null);
+});
+
+test('FD-153: after a crash the open hour the timer already wrote is not written again', () => {
+  const dir = path.join(tmp('fd-digest-'), 'digests');
+  let now = T0 + 5 * 60_000;
+  const a = new OpsDigester(dir, () => now);
+  a.record('update_check current');
+  a.save(); // open.json: the 10:00 hour
+  now = T0 + H + 60_000;
+  a.roll(); // the timer writes 10:00, and the process dies without saving
+  const b = new OpsDigester(dir, () => now);
+  b.roll(T0 + 2 * H + 60_000);
+  const from = fs.readFileSync(path.join(dir, 'hourly-2026-11.jsonl'), 'utf8').trim().split('\n').map((l) => (JSON.parse(l) as HourlyDigest).from);
+  assert.deepEqual(from, ['2026-11-04T10:00:00.000Z'], 'the 10:00 hour once; 11:00 was a gap');
+});

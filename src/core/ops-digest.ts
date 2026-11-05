@@ -60,9 +60,11 @@ export function foldHour(counts: HourCounts, from: number, previous: HourlyDiges
   return { schema: 'ops.digest.hourly@1', from: new Date(from).toISOString(), to: new Date(from + HOUR_MS).toISOString(), ops, total: sumOf(ops), risen };
 }
 
-/** The day's hourly digests (those whose hour starts on that UTC day) folded into one. */
-export function foldDay(day: string, hourly: readonly HourlyDigest[]): DailyDigest {
+/** The day's hourly digests (those whose hour starts on that UTC day) folded into one; null for a day with no hours,
+ *  which has no daily digest (OD-5 of the contract's DEC-0153, FD-153). */
+export function foldDay(day: string, hourly: readonly HourlyDigest[]): DailyDigest | null {
   const mine = hourly.filter((h) => h.from.slice(0, 10) === day);
+  if (mine.length === 0) return null;
   const sum = new Map<string, OpCount>();
   const rose = new Map<string, { hours: number; failed: number }>();
   for (const h of mine) {
@@ -118,7 +120,7 @@ export class OpsDigester {
   private hour: number | null = null;
   private counts: HourCounts = new Map();
   private last: HourlyDigest | null = null;
-  private lastDay: string | null = null;
+  private checkedDay: string | null = null;
 
   constructor(private readonly dir: string, private readonly now: () => number = Date.now) {
     try {
@@ -126,9 +128,17 @@ export class OpsDigester {
       this.hour = open.hour;
       for (const c of open.ops) this.counts.set(c.op, { ok: c.ok, failed: c.failed, unknown: c.unknown });
     } catch { /* none */ }
-    const at = new Date(this.now()).toISOString();
-    this.last = readLines<HourlyDigest>(this.file('hourly', at)).at(-1) ?? null;
-    this.lastDay = readLines<DailyDigest>(this.file('daily', at)).at(-1)?.day ?? null;
+    const at = this.now();
+    this.last = [...this.monthsBack(at).flatMap((iso) => readLines<HourlyDigest>(this.file('hourly', iso)))].at(-1) ?? null;
+    // FD-153: after a crash `open.json` holds an hour the minute timer has already written; it is not written again.
+    if (this.hour !== null && this.last && this.hour <= Date.parse(this.last.from)) { this.hour = null; this.counts = new Map(); }
+  }
+
+  /** This month and the one before, oldest first: where a day still to fold can be. */
+  private monthsBack(at: number): string[] {
+    const d = new Date(at);
+    const prev = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() - 1, 1)).toISOString();
+    return [prev, d.toISOString()];
   }
 
   private file(kind: 'hourly' | 'daily', iso: string): string { return path.join(this.dir, `${kind}-${monthOf(iso)}.jsonl`); }
@@ -170,12 +180,23 @@ export class OpsDigester {
       this.counts = new Map();
     }
     if (this.hour === null || this.hour < h) this.hour = h;
+    // FD-153 (OD-5): once a UTC day, and at the first roll after a start, every closed day that has hours and no daily
+    // digest is folded, so an app closed over midnight still writes the days it ran.
     const today = new Date(now).toISOString().slice(0, 10);
-    const lastHour = this.last?.from.slice(0, 10);
-    if (lastHour && lastHour < today && this.lastDay !== lastHour) {
-      const daily = foldDay(lastHour, readLines<HourlyDigest>(this.file('hourly', this.last!.from)));
-      this.append('daily', `${lastHour}T00:00:00Z`, daily);
-      this.lastDay = lastHour;
+    if (this.checkedDay !== today) {
+      this.checkedDay = today;
+      this.foldClosedDays(now, today);
+    }
+  }
+
+  private foldClosedDays(now: number, today: string): void {
+    const months = this.monthsBack(now);
+    const hourly = months.flatMap((iso) => readLines<HourlyDigest>(this.file('hourly', iso)));
+    const done = new Set(months.flatMap((iso) => readLines<DailyDigest>(this.file('daily', iso))).map((d) => d.day));
+    const days = [...new Set(hourly.map((h) => h.from.slice(0, 10)))].filter((d) => d < today && !done.has(d)).sort();
+    for (const day of days) {
+      const daily = foldDay(day, hourly);
+      if (daily) this.append('daily', `${day}T00:00:00Z`, daily);
     }
   }
 
