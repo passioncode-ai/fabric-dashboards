@@ -2,7 +2,7 @@
 // FD-78: who uses this agent, what it offers, and what it uses, with the chain through the agents it reaches.
 // Three columns read left to right; each connection says its state in a word and a shape, never by colour alone.
 import { useEffect, useState } from 'react';
-import { buildGraph, chainState, stateOfService, worstOf, type ConnectionNode, type ModelUse, type NodeKind } from '../../core/connections';
+import { buildGraph, headState, stateOfService, uncheckedCount, type ConnectionNode, type ModelUse, type NodeKind } from '../../core/connections';
 import type { ServiceSnapshot } from '../../core/types';
 import { api, CONN_MARK as MARK, useT } from '../lib';
 
@@ -27,7 +27,7 @@ export function Connections({ s, all, open }: { s: ServiceSnapshot; all: Service
   const total = g.uses.length;
   // The agent's own state counts first: an agent that does not answer never reads "Works" for want of connections.
   const self = stateOfService(s.state);
-  const worst = worstOf(self, chainState(g.uses));
+  const worst = headState(self, g.uses); // FD-152: an unchecked connection is counted, never read as a problem
   const trouble = (nodes: readonly ConnectionNode[]): number => nodes.reduce((n, x) => n + (x.state === 'down' || x.state === 'degraded' ? 1 : 0) + trouble(x.children), 0);
 
   return (
@@ -36,6 +36,7 @@ export function Connections({ s, all, open }: { s: ServiceSnapshot; all: Service
       <p className="meta conn-summary">
         <span className={`conn-state conn-${worst}`}><span aria-hidden="true">{MARK[worst]}</span> {t(`conn.state.${worst}`)}</span>
         {' · '}{t('conn.count', { count: total })}{trouble(g.uses) > 0 && <> · {t('conn.trouble', { count: trouble(g.uses) })}</>}
+        {uncheckedCount(g.uses) > 0 && <> · {t('conn.unchecked', { count: uncheckedCount(g.uses) })}</>}
         {models === null && <> · {t('conn.readingUsage')}</>}
       </p>
       {g.errors.length > 0 && <p className="notice error" role="alert">{t('conn.invalid', { errors: g.errors.slice(0, 3).join('; ') })}</p>}

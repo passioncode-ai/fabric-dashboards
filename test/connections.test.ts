@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { CONNECTIONS_EXTENSION } from '@passioncode-ai/fabric-service-host/connections';
-import { buildGraph, chainState, MAX_DEPTH, resolveTarget, stateOfService } from '../src/core/connections';
+import { buildGraph, chainState, headState, MAX_DEPTH, resolveTarget, stateOfService, uncheckedCount } from '../src/core/connections';
 import type { ServiceSnapshot } from '../src/core/types';
 
 function svc(key: string, state: ServiceSnapshot['state'], connections?: unknown[], extra: Record<string, unknown> = {}): ServiceSnapshot {
@@ -87,4 +87,15 @@ test('FD-78: the worse of two states is the one a person reads first', async () 
   assert.equal(worstOf('ok', 'down'), 'down');
   assert.equal(worstOf('unknown', 'degraded'), 'degraded');
   assert.equal(worstOf(stateOfService('down'), chainState([])), 'down', 'an agent that does not answer, with no connections, is not "Works"');
+});
+
+test('FD-152: a connection nobody checks never pulls a working agent below Ready; it is counted instead', () => {
+  const node = (state: string, children: unknown[] = []) => ({ id: 'x', kind: 'model', label: 'x', state, source: 'declared', children }) as never;
+  assert.equal(headState('ok', [node('ok'), node('unknown'), node('unknown', [node('unknown')])]), 'ok');
+  assert.equal(uncheckedCount([node('ok'), node('unknown'), node('unknown', [node('unknown')])]), 3, 'the chain counts too');
+  assert.equal(headState('ok', [node('unknown'), node('degraded')]), 'degraded', 'a real problem still wins');
+  assert.equal(headState('ok', [node('ok', [node('down')])]), 'down');
+  assert.equal(headState('unknown', [node('ok')]), 'unknown', 'an agent nobody can read stays unknown');
+  assert.equal(headState('down', []), 'down');
+  assert.equal(chainState([node('unknown')]), 'unknown', 'the chain itself still says unknown where the map draws it');
 });

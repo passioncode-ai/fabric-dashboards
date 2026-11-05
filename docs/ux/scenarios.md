@@ -1278,7 +1278,7 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **Entry point:** an agent's page → Connections tab (every agent, services included)
 - **Preconditions:** the agent answered at least once
 - **Steps:**
-  1. User opens Connections -> one line: the worst state anywhere in its connections in a word and a shape ("Works", "Partly works", "Does not work", "Not known"), how many connections, how many with problems
+  1. User opens Connections -> one line: the worst state of the agent and anywhere in its connections in a word and a shape ("Works", "Partly works", "Does not work", "Not known"), how many connections, how many with problems and how many nobody checks; a connection nobody checks is counted there and never pulls a working agent below "Works" (FD-152)
   2. User reads three columns -> "Used by": the agents here whose declarations name it; in the middle the agent itself, what it offers (dashboard, MCP and its capabilities, events, spend report); "Uses": agents, models, runner, connectors, data stores, channels and the parts it reports, each with its state, its target and why
   3. User reads a connection to another agent -> it carries that agent's own state too (the worse of the two) and, below it, that agent's connections, up to three levels; an agent already shown in the chain is not repeated
   4. User clicks a connected agent -> its page opens on its Connections tab
@@ -1288,7 +1288,7 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **States covered:** loading (models being read), empty, success, error
 - **Errors & recovery:** an unreadable spend report leaves models out, never blocks the tab
 - **Status:** validated (test/e2e/focus-console.test.ts and test/e2e/connections.test.ts *FD-78* passed on the running app, 2026-10-23 00:00 UTC)
-- **Coverage:** packages/service-host/src/connections.ts, src/core/connections.ts, src/renderer/components/Connections.tsx, src/mcp/tools.ts (connections, listing), packages/service-host/test/connections.test.ts, test/connections.test.ts, test/mcp.test.ts *FD-78*, test/e2e/connections.test.ts, test/e2e/focus-console.test.ts *SCN-073*
+- **Coverage:** packages/service-host/src/connections.ts, src/core/connections.ts (FD-152: `headState`, `uncheckedCount`, test/connections.test.ts *FD-152*), src/renderer/components/Connections.tsx, src/mcp/tools.ts (connections, listing), packages/service-host/test/connections.test.ts, test/connections.test.ts, test/mcp.test.ts *FD-78*, test/e2e/connections.test.ts, test/e2e/focus-console.test.ts *SCN-073*
 - **Product:** unobserved
 
 ### SCN-074: See how agents are wired and what problems were found
