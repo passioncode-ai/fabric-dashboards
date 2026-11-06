@@ -66,7 +66,7 @@ export const worstOf = worst;
 export function stateOfService(s: ServiceState): ConnectionState {
   if (s === 'ready') return 'ok';
   if (s === 'degraded' || s === 'starting' || s === 'stopping') return 'degraded';
-  if (s === 'down' || s === 'duplicate' || s === 'foreign' || s === 'conflict' || s === 'invalid' || s === 'stopped') return 'down';
+  if (s === 'down' || s === 'duplicate' || s === 'foreign-user' || s === 'foreign' || s === 'conflict' || s === 'invalid' || s === 'stopped') return 'down';
   return 'unknown';
 }
 

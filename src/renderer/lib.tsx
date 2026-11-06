@@ -49,7 +49,7 @@ export function useT() {
  *  always goes with it; colour is the third signal, never the only one. src/electron/tray.ts keeps a copy that a
  *  test holds equal to this table. */
 export const GLYPH: Record<ServiceState, string> = {
-  ready: '●', degraded: '▲', duplicate: '▲', down: '✕', foreign: '✕', conflict: '✕', invalid: '✕', stopped: '○', starting: '◌', stopping: '◌',
+  ready: '●', degraded: '▲', duplicate: '▲', down: '✕', 'foreign-user': '✕', foreign: '✕', conflict: '✕', invalid: '✕', stopped: '○', starting: '◌', stopping: '◌',
 };
 
 /** A connection's state in the same shapes: works as ready, slow as degraded, broken as down (VIS-08). */

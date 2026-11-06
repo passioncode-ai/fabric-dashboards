@@ -53,6 +53,10 @@ let loopbackOwner: LoopbackOwnerCheck | null = null;
 export function setLoopbackOwnerCheck(check: LoopbackOwnerCheck | null): void {
   loopbackOwner = check;
 }
+/** FD-158: whether this user's own process listens on a loopback port; null when no host check is set. */
+export async function loopbackOwnerOf(port: number): Promise<boolean | null> {
+  return loopbackOwner ? loopbackOwner(port) : null;
+}
 const PLAIN_HEADERS = new Set(['host', 'accept', 'content-type', 'content-length']);
 /** True when a request carries something other than plain headers: a token, in whatever header the descriptor names. */
 export const carriesSecret = (headers: Record<string, string>): boolean => Object.keys(headers).some((k) => !PLAIN_HEADERS.has(k.toLowerCase()));

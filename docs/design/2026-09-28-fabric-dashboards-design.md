@@ -305,6 +305,7 @@ Derived by the host from descriptor + launchd + well-known, in this precedence:
 | `invalid` | descriptor fails its schema | ✕ with the schema error |
 | `stopped` | launchd job disabled or not loaded, by the operator | ○ Off, *Start* |
 | `conflict` | another descriptor claims the same port | ✕ naming both |
+| `foreign-user` | the port is held by another macOS user's process, whatever it answers (FD-158) | ✕ "another user's program" |
 | `foreign` | well-known answers with another `service.id`/`instance` | ✕ "another program answers on :port" |
 | `duplicate` | well-known pid ≠ launchd pid | ▲ "two copies", *Restart* |
 | `down` | loaded, three probes in a row unanswered and no answer for > 15 s ([ADR-0008](../adr/0008-a-missed-probe-is-not-an-outage.md)) | ✕ since HH:MM, *Restart · Logs* |

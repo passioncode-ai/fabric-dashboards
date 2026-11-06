@@ -21,7 +21,7 @@ export interface LoadDeps {
  *  well-known document of another service, is never read. A failure is an entry with its reason, never a throw. */
 export async function readLoad(s: { key: string; state?: string; descriptor: Descriptor | null; wellKnown: WellKnown | null }, deps: LoadDeps): Promise<LoadEntry> {
   const d = s.descriptor;
-  const own = Boolean(d && s.wellKnown && s.wellKnown.service.id === d.id && s.wellKnown.service.instance === d.instance && s.state !== 'foreign');
+  const own = Boolean(d && s.wellKnown && s.wellKnown.service.id === d.id && s.wellKnown.service.instance === d.instance && s.state !== 'foreign' && s.state !== 'foreign-user');
   if (!d || !own) return { key: s.key, kind: 'none' };
   const view = loadOf(s.wellKnown);
   if (view.reported) return { key: s.key, kind: 'invalid', errors: view.errors };

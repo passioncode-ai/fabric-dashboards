@@ -270,6 +270,21 @@
       "name": "remote with an http origin is invalid and never probed",
       "input": { "descriptor": null, "problems": ["a remote origin must be https://<dns-name>[:<port>] with no path, query or IP literal"], "launchd": { "managed": false, "loaded": false, "pid": null, "disabled": false }, "probe": null },
       "expect": { "state": "invalid" }
+    },
+    {
+      "name": "FD-158: another macOS user's listener answering as this agent is foreign-user, not ready",
+      "input": { "foreignUser": true },
+      "expect": { "state": "foreign-user", "reasons": [{ "code": "reason.foreign.user", "params": { "port": 47195 } }] }
+    },
+    {
+      "name": "FD-158: foreign-user wins over an answer as another agent",
+      "input": { "foreignUser": true, "probe": {"kind": "answer", "ms": 3, "doc": {"protocol": "fabric-service/0.1", "service": {"id": "other-agent", "instance": "default", "name": "Example Agent", "version": "0.2.0", "build": {"commit": "8b80be9"}}, "process": {"pid": 51234, "startedAt": "2026-09-28T17:41:02Z"}, "status": "ready", "degraded": [], "surfaces": {"dashboard": {"path": "/dashboard", "login": true}, "events": {"path": "/fabric/v1/events"}}}} },
+      "expect": { "state": "foreign-user" }
+    },
+    {
+      "name": "FD-158: a port nobody holds stays down, whatever the owner check said",
+      "input": { "foreignUser": true, "probe": { "kind": "no-answer", "detail": "connect ECONNREFUSED 127.0.0.1:47195" }, "firstUnansweredAt": 0 },
+      "expect": { "state": "down" }
     }
   ]
 }

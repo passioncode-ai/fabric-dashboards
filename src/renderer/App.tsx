@@ -33,7 +33,7 @@ const modeOfRoute = (r: Route): Mode | null => (r.page === 'sessions' || r.page 
 /** How long a session page waits for a row that is not listed yet (a notification clicked before the next read). */
 const SESSION_WAIT_MS = 20_000;
 
-const PROBLEM = new Set(['down', 'duplicate', 'foreign', 'conflict', 'invalid']);
+const PROBLEM = new Set(['down', 'duplicate', 'foreign-user', 'foreign', 'conflict', 'invalid']);
 
 export function App() {
   const [status, setStatus] = useState<AppStatus | null>(null);

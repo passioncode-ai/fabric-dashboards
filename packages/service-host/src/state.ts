@@ -22,6 +22,8 @@ export interface StateInput {
   busy: Busy;
   /** FD-132: the placement record puts it on another machine; absent or null: placed here. */
   elsewhere?: Elsewhere | null;
+  /** FD-158: the host checked its port and the listening socket is not this macOS user's own; absent: not checked. */
+  foreignUser?: boolean;
 }
 
 export interface StateOutput { state: ServiceState; reasons: Reason[] }
@@ -40,6 +42,11 @@ export function deriveState(i: StateInput): StateOutput {
   const probe = i.probe;
   if (d.placement === 'remote') return remoteState(d, probe, i);
   const away = i.elsewhere ?? null;
+  // FD-158 (the contract's draft norm on loopback owners): a listener of another macOS user wins over whatever it
+  // answers, its own id included; its answer is never shown as this agent's. A port nobody holds stays `down` below.
+  if (i.foreignUser && (probe?.kind === 'answer' || probe?.kind === 'not-protocol')) {
+    return { state: 'foreign-user', reasons: [{ code: 'reason.foreign.user', params: { port: portNum(d.origin) } }] };
+  }
   if (probe?.kind === 'answer') {
     const svc = probe.doc.service;
     if (svc.id !== d.id || svc.instance !== d.instance) {
@@ -108,7 +115,7 @@ function portNum(origin: string): number {
 
 /** Needs-attention severity: lower sorts first; null means nothing to show. */
 export function attentionRank(state: ServiceState, wellKnown: WellKnown | null): number | null {
-  const order: Partial<Record<ServiceState, number>> = { down: 0, duplicate: 1, foreign: 2, conflict: 3, invalid: 4, degraded: 6 };
+  const order: Partial<Record<ServiceState, number>> = { down: 0, duplicate: 1, 'foreign-user': 2, foreign: 2, conflict: 3, invalid: 4, degraded: 6 };
   if (state in order) return order[state]!;
   if (wellKnown?.update?.available) return 8;
   if (wellKnown?.summary?.some((t) => t.attention)) return 7;

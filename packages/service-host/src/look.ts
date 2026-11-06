@@ -4,8 +4,8 @@
 // reader with no history needs (Fabric's registry scan, the Fabric Dashboards MCP server): with
 // no earlier answer to measure silence from, a service that does not answer now is `down`, never
 // «starting». Fabric Dashboards' own monitor keeps history and uses the parts directly.
-import { claimConflicts, readDirectory, servicesDir as defaultServicesDir, type DescriptorEntry } from './descriptor';
-import { authHeaders, fetchWellKnown, readTokenAsync, REMOTE_TIMEOUT_MS, type WellKnownOptions } from './health';
+import { claimConflicts, portOf, readDirectory, servicesDir as defaultServicesDir, type DescriptorEntry } from './descriptor';
+import { authHeaders, fetchWellKnown, loopbackOwnerOf, readTokenAsync, REMOTE_TIMEOUT_MS, type WellKnownOptions } from './health';
 import { LaunchdReader, UNMANAGED } from './launchd';
 import { elsewhereOf, PlacementReader, type Placement } from './placement';
 import type { RemoteTokenLatch } from './latch';
@@ -100,15 +100,18 @@ async function lookAtEntry(entry: DescriptorEntry, conflict: ClaimConflict | nul
   const launchd: LaunchdStatus = d && (o.platform ?? process.platform) === 'darwin' && d.lifecycle.manager === 'launchd' && d.lifecycle.label
     ? { managed: true, ...(await reader.status(d.lifecycle.label, table)) }
     : { ...UNMANAGED };
+  // FD-158: an answer on loopback is this user's only when this user's own process listens there.
+  const port = d && !remote && probe && probe.kind !== 'no-answer' ? portOf(d.origin) : null;
+  const foreignUser = port !== null && (await loopbackOwnerOf(port)) === false;
   const { state, reasons } = deriveState({
     descriptor: d, problems, conflict, launchd, probe,
     firstUnansweredAt: now - (remote ? REMOTE_DOWN_AFTER_MS : DOWN_AFTER_MS), now, busy: null,
-    elsewhere: elsewhereOf(o.placement ?? null, d),
+    elsewhere: elsewhereOf(o.placement ?? null, d), foreignUser,
   });
   return {
     key: entry.key, path: entry.path, descriptor: d, problems, conflict, state, reasons,
     // A foreign answer is another program's document: never this service's version, tiles or usage.
-    wellKnown: probe?.kind === 'answer' && state !== 'foreign' ? probe.doc : null, probe, launchd,
+    wellKnown: probe?.kind === 'answer' && state !== 'foreign' && state !== 'foreign-user' ? probe.doc : null, probe, launchd,
   };
 }
 // #endregion one-look

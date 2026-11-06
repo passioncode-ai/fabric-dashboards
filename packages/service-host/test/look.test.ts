@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import { hostView, LaunchdReader, lookAtServices, type Runner, type WellKnownResult } from '../src/index';
+import { hostView, LaunchdReader, lookAtServices, setLoopbackOwnerCheck, type Runner, type WellKnownResult } from '../src/index';
 import { tmpDir } from './tmp';
 
 const FIXTURES = path.join(__dirname, '../../../test/fixtures/contract');
@@ -104,4 +104,20 @@ test('FD-56: every dashboard-declaration vector of the contract gets the contrac
     assert.deepEqual(view, (({ errors: _e, ...rest }) => rest)(c.expect), c.name);
     assert.equal(errors.length > 0, c.expect.reported, `${c.name}: errors iff reported`);
   }
+});
+
+test("FD-158: an answer from another macOS user's listener is foreign-user and never this service's document; a silent port is never asked", async (t) => {
+  const w = world();
+  const asked: number[] = [];
+  setLoopbackOwnerCheck(async (port) => { asked.push(port); return false; });
+  t.after(() => setLoopbackOwnerCheck(null));
+  const look = await lookAtServices({ servicesDir: w.dir, wellKnown: w.wellKnown, launchd: w.launchd, now: () => 1_000_000, platform: 'darwin' });
+  const ready = look.services.find((x) => x.key === 'ready-one.default')!;
+  assert.equal(ready.state, 'foreign-user');
+  assert.deepEqual(ready.reasons, [{ code: 'reason.foreign.user', params: { port: 47301 } }]);
+  assert.equal(ready.wellKnown, null, 'its answer is not shown as this service');
+  assert.deepEqual(asked, [47301], 'only the port that answered is checked');
+  setLoopbackOwnerCheck(async () => true);
+  const own = await lookAtServices({ servicesDir: w.dir, wellKnown: w.wellKnown, launchd: w.launchd, now: () => 1_000_000, platform: 'darwin' });
+  assert.equal(own.services.find((x) => x.key === 'ready-one.default')!.state, 'ready');
 });

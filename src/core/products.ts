@@ -19,7 +19,7 @@ export interface Product {
   memberProblem: boolean;
 }
 
-const PROBLEM = new Set(['down', 'duplicate', 'foreign', 'conflict', 'invalid']);
+const PROBLEM = new Set(['down', 'duplicate', 'foreign-user', 'foreign', 'conflict', 'invalid']);
 
 // FD-21 (audit M-4): the key grammar lives in the shared package, so Fabric splits keys the same way.
 import { instanceOf, productIdOf } from '@passioncode-ai/fabric-service-host/links';
@@ -60,7 +60,7 @@ export function productOf(products: readonly Product[], key: string): Product | 
 // #region list-order — docs: docs/adr/0020-agents-first-handoff-and-setup.md#decision
 /** FD-39 (ADR-0020): pinned products first, in pin order and never re-sorted (Fabric's favourites rule);
  *  the rest by name, status (needing attention first) or recent activity, each section as before. */
-const RANK: Record<string, number> = { down: 0, duplicate: 0, foreign: 0, conflict: 0, invalid: 0, degraded: 1, starting: 2, stopping: 2, ready: 3, stopped: 4 };
+const RANK: Record<string, number> = { down: 0, duplicate: 0, 'foreign-user': 0, foreign: 0, conflict: 0, invalid: 0, degraded: 1, starting: 2, stopping: 2, ready: 3, stopped: 4 };
 const nameOf = (p: Product) => (p.primary.descriptor?.name ?? p.primary.key).toLocaleLowerCase();
 const rankOf = (p: Product) => (p.memberProblem ? 0 : Math.min(...p.members.map((m) => RANK[m.state] ?? 5)));
 const lastOf = (p: Product) => p.members.reduce<string>((best, m) => (m.latestEvent?.at && m.latestEvent.at > best ? m.latestEvent.at : best), '');

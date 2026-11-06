@@ -8,7 +8,7 @@ import fs from 'node:fs';
 import { ActivityStore } from './activity';
 import { runOwned } from './children';
 import { productIdOf } from '@passioncode-ai/fabric-service-host/links';
-import { SystemdReader, authHeaders, claimConflicts, dashboardMinWidth, deriveState, elsewhereOf, PlacementReader, type Elsewhere, expand, fetchWellKnown, portOf, readDirectory, RemoteTokenLatch, REMOTE_TIMEOUT_MS, type DescriptorEntry, type WellKnownOptions, type WellKnownResult } from '@passioncode-ai/fabric-service-host';
+import { SystemdReader, authHeaders, claimConflicts, dashboardMinWidth, deriveState, elsewhereOf, PlacementReader, type Elsewhere, expand, fetchWellKnown, loopbackOwnerOf, portOf, readDirectory, RemoteTokenLatch, REMOTE_TIMEOUT_MS, type DescriptorEntry, type WellKnownOptions, type WellKnownResult } from '@passioncode-ai/fabric-service-host';
 import { tail } from './fsutil';
 import { commandReason, type CommandResult } from './outcome';
 import { duration, t as tr, type Lang } from './i18n';
@@ -73,6 +73,8 @@ interface Tracked {
   lastPid: number | null;
   baselined: boolean; // first events poll records history without notifying
   tokenProblem: string | null; // DEC-0019: a remote placement whose token cannot be read is invalid, never probed
+  /** FD-158: the last probe answered from a socket that is not this macOS user's own. */
+  foreignUser?: boolean;
   launchdAt: number | null; // when launchd was last read for this service
   polledAt: number | null; // when its events feed was last read
   /** The usage path its own last answer declared (ADR-0013): kept while it is down, so Spend says it could not read it instead of "not reporting". */
@@ -391,6 +393,9 @@ export class Monitor extends EventEmitter {
     const probe = d.placement === 'remote'
       ? await this.latch.probe(d, (withToken) => ask(withToken ? options : tlsFor(d.origin)))
       : await ask(options);
+    // FD-158: an answer on loopback is this user's agent only when this user's own process listens on the port.
+    const port = d.placement !== 'remote' && probe.kind !== 'no-answer' ? portOf(d.origin) : null;
+    t.foreignUser = port !== null && (await loopbackOwnerOf(port)) === false;
     // #region launchd-reads — docs: AGENTS.md#lifecycle
     // launchd is read on every probe while a window shows it. Hidden, a `launchctl print` (a process
     // spawn) runs only when it can change the verdict: the probe missed, the answering pid moved, or
@@ -467,7 +472,7 @@ export class Monitor extends EventEmitter {
     t.lastState = snap.state;
     // R-8: a new pid is a restart even when the state did not change between two probes (ready → ready).
     // T-5: only a local placement has one process; an online origin may answer from several replicas.
-    const pid = t.probe?.kind === 'answer' && snap.state !== 'foreign' && t.entry.descriptor?.placement !== 'remote' ? t.probe.doc.process.pid : null;
+    const pid = t.probe?.kind === 'answer' && snap.state !== 'foreign' && snap.state !== 'foreign-user' && t.entry.descriptor?.placement !== 'remote' ? t.probe.doc.process.pid : null;
     if (pid && t.lastPid && pid !== t.lastPid) this.emit('restarted', t.entry.key);
     if (pid) t.lastPid = pid;
     if (prev === null || prev === snap.state) return;
@@ -487,6 +492,10 @@ export class Monitor extends EventEmitter {
     if (snap.state === 'foreign') {
       this.appEvent(t.entry.key, t, 'service.foreign', 'warning', 'app.event.foreign');
       this.notify({ kind: 'foreign', serviceKey: t.entry.key }, t, 'notify.foreign.title', snap.reasons[0]?.code ?? 'reason.foreign.protocol', snap.reasons[0]?.params ?? {});
+    }
+    if (snap.state === 'foreign-user') {
+      this.appEvent(t.entry.key, t, 'service.foreign-user', 'warning', 'app.event.foreignUser');
+      this.notify({ kind: 'foreign-user', serviceKey: t.entry.key }, t, 'notify.foreignUser.title', 'reason.foreign.user', snap.reasons[0]?.params ?? {});
     }
   }
 
@@ -543,7 +552,7 @@ export class Monitor extends EventEmitter {
     const d = t.entry.descriptor;
     // U-9: a service that does not answer (or a foreign one) is not read; an old feed error would
     // only be stale beside its state, which says why.
-    if (!d || t.probe?.kind !== 'answer' || this.snapshotOf(t).state === 'foreign') { t.feedError = null; return; }
+    if (!d || t.probe?.kind !== 'answer' || ['foreign', 'foreign-user'].includes(this.snapshotOf(t).state)) { t.feedError = null; return; }
     t.polledAt = this.now();
     const path = t.probe.doc.surfaces.events.path;
     let token: string;
@@ -697,12 +706,12 @@ export class Monitor extends EventEmitter {
     const seen = this.evidence(t);
     const { state, reasons } = deriveState({
       descriptor: t.entry.descriptor, problems: t.tokenProblem ? [...t.entry.problems, t.tokenProblem] : t.entry.problems, conflict: this.conflicts().get(t.entry.key),
-      launchd: t.launchd, probe: seen.probe, firstUnansweredAt: seen.firstUnansweredAt, now: this.now(), busy: t.busy, elsewhere: this.elsewhere(t),
+      launchd: t.launchd, probe: seen.probe, firstUnansweredAt: seen.firstUnansweredAt, now: this.now(), busy: t.busy, elsewhere: this.elsewhere(t), foreignUser: t.foreignUser,
     });
     // P-12: an unreadable token file is a problem of this computer's file, not of the descriptor.
     if (t.tokenProblem && state === 'invalid' && !t.entry.problems.length) reasons.splice(0, reasons.length, { code: 'reason.token', params: { problem: t.tokenProblem } });
     // S-5: what another program says about itself is never shown as this service's own.
-    const wk = seen.probe?.kind === 'answer' && state !== 'foreign' ? seen.probe.doc : null;
+    const wk = seen.probe?.kind === 'answer' && state !== 'foreign' && state !== 'foreign-user' ? seen.probe.doc : null;
     if (wk?.update?.available) reasons.push({ code: 'reason.update', params: { version: wk.update.available } });
     // FD-135: a name from the agent's repository replaces its own everywhere a name is read; its own is kept beside it.
     const descriptor = this.named(t.entry.descriptor, t.entry.key);
