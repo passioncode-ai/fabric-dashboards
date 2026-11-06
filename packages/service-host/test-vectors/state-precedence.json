@@ -285,6 +285,11 @@
       "name": "FD-158: a port nobody holds stays down, whatever the owner check said",
       "input": { "foreignUser": true, "probe": { "kind": "no-answer", "detail": "connect ECONNREFUSED 127.0.0.1:47195" }, "firstUnansweredAt": 0 },
       "expect": { "state": "down" }
+    },
+    {
+      "name": "FD-159: a listener whose owner could not be told is foreign-user with its own reason (DEC-0154 HA-2)",
+      "input": { "foreignUser": "unknown" },
+      "expect": { "state": "foreign-user", "reasons": [{ "code": "reason.foreign.unknown", "params": { "port": 47195 } }] }
     }
   ]
 }

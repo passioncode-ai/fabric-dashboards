@@ -2,6 +2,7 @@
 // On a Mac with several macOS users (the Studio, fabric-workspace docs/plans/2026-11-04-studio-spaces) 127.0.0.1 is
 // shared: while this user's agent is stopped, another user's process may hold its port.
 // #region loopback-owner — docs: SECURITY.md#what-the-app-touches
+import type { LoopbackOwner } from '@passioncode-ai/fabric-service-host';
 import type { Runner } from './launchd';
 
 /** How long a read of this user's listening ports is trusted, and how soon a port not in it reads them again. */
@@ -21,10 +22,12 @@ export function portsOf(stdout: string): Set<number> {
 /**
  * A check for `setLoopbackOwnerCheck` over a list of the ports this user's own processes listen on. One read serves
  * every call that asks at once; it is trusted `OWNED_FRESH_MS`, and a port not in it reads it again after
- * `MISS_REREAD_MS`. When the list cannot be read, the check says yes rather than stop every probe: it guards against
- * another user's process, and an unreadable list is no evidence of one; `failed` tells the caller.
+ * `MISS_REREAD_MS`. A port not in the list, or a list that cannot be read, is decided by `miss` when there is one;
+ * otherwise a port not in a list read is not ours, and an unreadable list is `unknown`, which DEC-0154 HA-2 makes
+ * `foreign-user`: nothing is sent (FD-159).
+ * `failed` tells the caller why a list could not be read.
  */
-export function ownedPortsCheck(list: () => Promise<Set<number>>, now: () => number = Date.now, failed: (why: string) => void = () => {}) {
+export function ownedPortsCheck(list: () => Promise<Set<number>>, now: () => number = Date.now, failed: (why: string) => void = () => {}, miss?: (port: number) => Promise<LoopbackOwner>) {
   let ports: Set<number> | null = null;
   let readAt = 0;
   let reading: Promise<void> | null = null;
@@ -35,23 +38,90 @@ export function ownedPortsCheck(list: () => Promise<Set<number>>, now: () => num
       .finally(() => { readAt = now(); reading = null; });
     return reading;
   };
-  return async (port: number): Promise<boolean> => {
+  return async (port: number): Promise<LoopbackOwner> => {
     const age = now() - readAt;
     if (ports === null || age > OWNED_FRESH_MS || (!ports.has(port) && age > MISS_REREAD_MS)) await read();
-    return ports === null ? true : ports.has(port);
+    if (ports !== null && ports.has(port)) return true;
+    if (miss) return miss(port);
+    return ports === null ? 'unknown' : false;
+  };
+}
+
+/**
+ * FD-159: the processes listening on each port where a connection to 127.0.0.1 lands, from `netstat -anv -p tcp`
+ * (macOS). Its rows name the owning process even for another user's socket: `tcp4  0  0  127.0.0.1.47851  *.*  LISTEN
+ * ...  <name>:<pid>  <state> <options> ...`, the name possibly with spaces. Only IPv4 listeners on 127.0.0.1 or on any
+ * address (`tcp4`, `tcp46`) take such a connection; an IPv6-only one does not. A row whose process it cannot read
+ * gives pid 0, which no process has: an owner that cannot be told.
+ */
+export function listenersOf(stdout: string): Map<number, number[]> {
+  const out = new Map<number, number[]>();
+  for (const line of stdout.split('\n')) {
+    const m = /^(tcp4|tcp46)\s+\d+\s+\d+\s+(\S+)\s+\S+\s+LISTEN\s+(.*)$/.exec(line.trim());
+    if (!m) continue;
+    const local = m[2]!;
+    const dot = local.lastIndexOf('.');
+    const address = local.slice(0, dot);
+    const port = Number(local.slice(dot + 1));
+    if (!Number.isInteger(port) || port <= 0 || (address !== '127.0.0.1' && address !== '*')) continue;
+    const pid = /:(\d+)\s+[0-9a-f]{5}\s+[0-9a-f]{8}\s/.exec(m[3]!);
+    out.set(port, [...(out.get(port) ?? []), pid ? Number(pid[1]) : 0]);
+  }
+  return out;
+}
+
+/**
+ * FD-159, DEC-0154 HA-2: on macOS a user's lsof finds its own listener but cannot tell an empty port from another
+ * user's, so a port it does not find is decided by the socket table: `netstat -anv -p tcp` for the listening processes
+ * (read again after `MISS_REREAD_MS`), then `ps` for their uids. Ours only when every listener there is this user's;
+ * nobody listening or another user's process is not ours, and an owner it cannot tell is `unknown`.
+ */
+export function socketTableOwner(run: Runner, uid: number, now: () => number = Date.now, failed: (why: string) => void = () => {}) {
+  let table: Map<number, number[]> | null = null;
+  let readAt = -Infinity;
+  let reading: Promise<void> | null = null;
+  const read = (): Promise<void> => {
+    reading ??= run('netstat', ['-anv', '-p', 'tcp'], 10_000)
+      .then((r) => {
+        if (r.code !== 0) throw new Error(r.stderr.trim() || `netstat exit ${r.code}`);
+        table = listenersOf(r.stdout);
+      })
+      .catch((error: Error) => { table = null; failed(error.message); })
+      .finally(() => { readAt = now(); reading = null; });
+    return reading;
+  };
+  return async (port: number): Promise<LoopbackOwner> => {
+    if (table === null || now() - readAt > MISS_REREAD_MS) await read();
+    if (table === null) return 'unknown';
+    const pids = table.get(port);
+    if (!pids?.length) return false;
+    if (pids.some((p) => p <= 0)) return 'unknown';
+    try {
+      const r = await run('ps', ['-o', 'pid=,uid=', '-p', pids.join(',')], 10_000);
+      const uids = new Map<number, number>();
+      for (const line of r.stdout.split('\n')) {
+        const m = /^\s*(\d+)\s+(\d+)\s*$/.exec(line);
+        if (m) uids.set(Number(m[1]), Number(m[2]));
+      }
+      if (pids.some((p) => uids.get(p) === undefined)) return 'unknown';
+      return pids.every((p) => uids.get(p) === uid);
+    } catch (error) {
+      failed((error as Error).message);
+      return 'unknown';
+    }
   };
 }
 
 /**
  * macOS: this user's own listening TCP sockets, from `lsof -a -u <uid>`. A user's lsof never sees another user's
- * sockets, so a port held by someone else, or by nobody, is not there.
+ * sockets; a port it does not find, or a listing that cannot be read, goes to the socket table (`socketTableOwner`).
  */
 export function loopbackOwnerCheck(run: Runner, uid: number, now: () => number = Date.now, failed: (why: string) => void = () => {}) {
   return ownedPortsCheck(() => run('lsof', ['-nP', '-a', '-u', String(uid), '-iTCP', '-sTCP:LISTEN', '-F', 'n'], 10_000).then((r) => {
     // lsof exits 1 with nothing printed when nothing listens: that is an empty list, not a failure.
     if (r.code !== 0 && (r.stdout.trim() || r.stderr.trim())) throw new Error(r.stderr.trim() || `lsof exit ${r.code}`);
     return portsOf(r.stdout);
-  }), now, failed);
+  }), now, failed, socketTableOwner(run, uid, now, failed));
 }
 
 /**

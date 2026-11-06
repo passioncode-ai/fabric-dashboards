@@ -37,8 +37,10 @@ export function request(origin: string, method: 'GET' | 'POST', path: string, he
   // FD-156: a token goes to a loopback port only when this user's own process listens there (the check the host set).
   if (!remote && loopbackOwner && carriesSecret(headers)) {
     const check = loopbackOwner;
-    return check(port!).then((ours) => (ours ? send(origin, method, path, headers, timeoutMs, tls, port, remote)
-      : Promise.reject(new Error(`127.0.0.1:${port} is not listened on by this user's process, so its token was not sent`))));
+    return check(port!).then((ours) => (ours === true ? send(origin, method, path, headers, timeoutMs, tls, port, remote)
+      : Promise.reject(new Error(ours === 'unknown'
+        ? `the owner of the program on 127.0.0.1:${port} could not be told, so its token was not sent`
+        : `127.0.0.1:${port} is not listened on by this user's process, so its token was not sent`))));
   }
   return send(origin, method, path, headers, timeoutMs, tls, port, remote);
 }
@@ -47,14 +49,16 @@ export function request(origin: string, method: 'GET' | 'POST', path: string, he
 // FD-156: on a Mac with several macOS users, 127.0.0.1 is shared. When an agent of this user is not running, another
 // user's process may hold its port and would receive the token a probe carries. A host that can tell whose process
 // listens on a port sets this check; without it (the default) nothing changes.
-export type LoopbackOwnerCheck = (port: number) => Promise<boolean>;
+// FD-159, DEC-0154 HA-2: `unknown` is an owner the system's tables could not tell; it is refused like another user's.
+export type LoopbackOwner = boolean | 'unknown';
+export type LoopbackOwnerCheck = (port: number) => Promise<LoopbackOwner>;
 let loopbackOwner: LoopbackOwnerCheck | null = null;
 /** Whether a loopback port is listened on by this user's own process; null turns the check off. */
 export function setLoopbackOwnerCheck(check: LoopbackOwnerCheck | null): void {
   loopbackOwner = check;
 }
-/** FD-158: whether this user's own process listens on a loopback port; null when no host check is set. */
-export async function loopbackOwnerOf(port: number): Promise<boolean | null> {
+/** FD-158: whether this user's own process listens on a loopback port (FD-159: or `unknown`); null when no host check is set. */
+export async function loopbackOwnerOf(port: number): Promise<LoopbackOwner | null> {
   return loopbackOwner ? loopbackOwner(port) : null;
 }
 const PLAIN_HEADERS = new Set(['host', 'accept', 'content-type', 'content-length']);

@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+### Security
+
+- FD-159, the contract's DEC-0154: when Fabric Dashboards cannot tell whose program listens on an agent's port, it now
+  sends nothing there and the agent reads "Another user's program", with the words "a program whose owner could not be
+  told"; before, such a port was trusted. On a Mac, a port the person's own listing does not show is checked in the
+  system's socket table, which also sees other users' programs.
+
 ## 0.8.27 - 2026-11-06
 
 ### Security

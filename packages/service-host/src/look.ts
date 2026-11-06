@@ -102,7 +102,8 @@ async function lookAtEntry(entry: DescriptorEntry, conflict: ClaimConflict | nul
     : { ...UNMANAGED };
   // FD-158: an answer on loopback is this user's only when this user's own process listens there.
   const port = d && !remote && probe && probe.kind !== 'no-answer' ? portOf(d.origin) : null;
-  const foreignUser = port !== null && (await loopbackOwnerOf(port)) === false;
+  const owner = port === null ? null : await loopbackOwnerOf(port);
+  const foreignUser = owner === 'unknown' ? 'unknown' : owner === false;
   const { state, reasons } = deriveState({
     descriptor: d, problems, conflict, launchd, probe,
     firstUnansweredAt: now - (remote ? REMOTE_DOWN_AFTER_MS : DOWN_AFTER_MS), now, busy: null,

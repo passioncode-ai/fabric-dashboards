@@ -22,8 +22,9 @@ export interface StateInput {
   busy: Busy;
   /** FD-132: the placement record puts it on another machine; absent or null: placed here. */
   elsewhere?: Elsewhere | null;
-  /** FD-158: the host checked its port and the listening socket is not this macOS user's own; absent: not checked. */
-  foreignUser?: boolean;
+  /** FD-158: the host checked its port and the listening socket is not this OS user's own (FD-159: `unknown`, its owner
+   * could not be told, DEC-0154 HA-2); absent: not checked. */
+  foreignUser?: boolean | 'unknown';
 }
 
 export interface StateOutput { state: ServiceState; reasons: Reason[] }
@@ -45,7 +46,7 @@ export function deriveState(i: StateInput): StateOutput {
   // FD-158 (the contract's draft norm on loopback owners): a listener of another macOS user wins over whatever it
   // answers, its own id included; its answer is never shown as this agent's. A port nobody holds stays `down` below.
   if (i.foreignUser && (probe?.kind === 'answer' || probe?.kind === 'not-protocol')) {
-    return { state: 'foreign-user', reasons: [{ code: 'reason.foreign.user', params: { port: portNum(d.origin) } }] };
+    return { state: 'foreign-user', reasons: [{ code: i.foreignUser === 'unknown' ? 'reason.foreign.unknown' : 'reason.foreign.user', params: { port: portNum(d.origin) } }] };
   }
   if (probe?.kind === 'answer') {
     const svc = probe.doc.service;
