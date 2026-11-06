@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.8.26 - 2026-11-06
+
+### Added
+
+- FD-158: on a Mac with several macOS users, an agent whose port answers from another user's program reads "Another
+  user's program", not "Works", whatever that program says; what it answers is never shown as the agent's own, and a
+  notification says so once. A port nobody holds still reads "Not answering". macOS only for now.
+
 ## 0.8.25 - 2026-11-06
 
 ### Security
