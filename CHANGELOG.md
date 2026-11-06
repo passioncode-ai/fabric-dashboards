@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.8.29 - 2026-11-06
+
 ### Added
 
 - FD-162: an Organizations menu above the agent list shows every agent, one organization's or several's; the choice
