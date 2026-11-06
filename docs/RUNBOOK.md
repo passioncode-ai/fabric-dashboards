@@ -278,7 +278,8 @@ binds it to one machine: everything it writes is under the user's home (AGENTS.m
 | Ports | none to choose: Dashboards listens on no port; its one channel is a socket in its own data folder (ADR-0025) |
 
 On a Mac with several macOS users, a service token goes to 127.0.0.1 only when that user's own process listens on the
-port (FD-156, SECURITY.md), so one user's Dashboards never sends a token to another user's agent.
+port (FD-156, SECURITY.md), so one user's Dashboards never sends a token to another user's agent. A Linux computer
+with several users checks the same way (FD-159).
 
 ## Tests that touch this Mac
 

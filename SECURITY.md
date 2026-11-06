@@ -87,7 +87,8 @@ service data.
   with `lsof -a -u <uid>` (macOS shows a user only their own; one listing serves every port for 30 s, a port not in it
   is read again after 5 s) and refuse a port that is not there, with the reason. When `lsof` cannot answer, the request
   goes as before and the log says so once. A plain read with no token (a local well-known probe) is not checked.
-  Windows and Linux do not check yet.
+  On Linux (FD-159) the same check reads the kernel's socket tables, `/proc/net/tcp` and `/proc/net/tcp6`, which name
+  each listening socket's owner (no process is started). Windows does not check yet.
 - **Listens** on no port. The MCP server (`Contents/Resources/bin/fabric-dashboards-mcp`)
   is started by an agent and speaks only over its stdin and stdout; it reads the same
   folder and token files, talks to the same origins and runs the same `launchctl` verbs and
