@@ -4,7 +4,8 @@ import fs from 'node:fs';
 import net from 'node:net';
 import test from 'node:test';
 import { execRunner } from '../src/core/launchd';
-import { linuxLoopbackOwnerCheck, listenersOf, loopbackOwnerCheck, MISS_REREAD_MS, OWNED_FRESH_MS, portsOf, procNetPorts, socketTableOwner } from '../src/core/loopback-owner';
+import { linuxLoopbackOwnerCheck, listenersOf, loopbackOwnerCheck, MISS_REREAD_MS, OWNED_FRESH_MS, portsOf, procNetPorts, socketTableOwner, windowsListenersOf, windowsLoopbackOwnerCheck } from '../src/core/loopback-owner';
+import { windowsAclReader } from './win-acl';
 import { machineRu } from '../src/core/machine-ru';
 
 test('FD-156: the ports of lsof -F n, IPv4, IPv6 and every interface', () => {
@@ -143,6 +144,56 @@ test("FD-159: on Linux this process's own listener is found in the kernel's tabl
     assert.equal(await check(port), true);
     const other = linuxLoopbackOwnerCheck((p) => fs.promises.readFile(p, 'utf8'), process.getuid!() + 1);
     assert.equal(await other(port), false, 'under another uid the same port is not ours');
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
+});
+
+// FD-159: Windows reads the compiled reader's `--listeners` (GetExtendedTcpTable, then each process's token user).
+const ME = 'S-1-5-21-1-2-3-1001';
+const WIN = JSON.stringify({ user: ME, listeners: [
+  { port: 47851, pid: 10, sid: ME },
+  { port: 47852, pid: 11, sid: 'S-1-5-21-1-2-3-1002' },
+  { port: 47853, pid: 4, sid: null },
+  { port: 47854, pid: 10, sid: ME }, { port: 47854, pid: 12, sid: 'S-1-5-21-1-2-3-1002' },
+] });
+
+test("FD-159: the Windows reader's listeners by port, with their owners", () => {
+  const w = windowsListenersOf(WIN);
+  assert.equal(w.user, ME);
+  assert.deepEqual(w.byPort.get(47854), [ME, 'S-1-5-21-1-2-3-1002']);
+  assert.deepEqual(w.byPort.get(47853), [null]);
+  assert.throws(() => windowsListenersOf('{}'), /no user or listeners/);
+});
+
+test("FD-159, DEC-0154 HA-2: on Windows a port is ours only when every listener runs as this user", async () => {
+  let t = 1_000_000;
+  let out = { code: 0, stdout: WIN, stderr: '' };
+  const calls: string[][] = [];
+  const failures: string[] = [];
+  const check = windowsLoopbackOwnerCheck(async (c, args) => { calls.push([c, ...args]); return out; }, 'C:\\app\\fabric-dashboards-acl.exe', () => t, (why) => failures.push(why));
+  assert.deepEqual(await Promise.all([check(47851), check(47852), check(47853), check(47854), check(47855)]), [true, false, 'unknown', false, false],
+    "ours; another user's; a process it could not open; two listeners, one not ours; nobody");
+  assert.deepEqual(calls, [['C:\\app\\fabric-dashboards-acl.exe', '--listeners']], 'one read for every port asked at once');
+  t += MISS_REREAD_MS + 1;
+  await check(47851);
+  assert.equal(calls.length, 1, 'an answer that the port is ours is trusted OWNED_FRESH_MS');
+  await check(47852);
+  assert.equal(calls.length, 2, 'anything else reads again after MISS_REREAD_MS');
+  t += OWNED_FRESH_MS + 1;
+  out = { code: 1, stdout: '', stderr: 'GetExtendedTcpTable failed: 87' };
+  assert.equal(await check(47851), 'unknown', 'a reader that fails is an owner it cannot tell');
+  assert.deepEqual(failures, ['GetExtendedTcpTable failed: 87']);
+});
+
+test("FD-159: on Windows the compiled reader finds this process's own listener", { skip: process.platform !== 'win32' && 'runs build/win/acl.cs' }, async () => {
+  const reader = windowsAclReader();
+  assert.ok(reader, 'csc.exe builds the reader on every Windows runner');
+  const server = net.createServer();
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+  try {
+    const port = (server.address() as net.AddressInfo).port;
+    assert.equal(await windowsLoopbackOwnerCheck(execRunner, reader!)(port), true);
   } finally {
     await new Promise((resolve) => server.close(resolve));
   }

@@ -105,7 +105,7 @@ other than `Host`, `Accept` or `Content-Type` (a token), whether this user's own
 (an owner the host could not tell, FD-159, DEC-0154 HA-2) refuses the request with the reason and sends nothing, and
 `deriveState` reads either as `foreign-user` (`reason.foreign.user`, `reason.foreign.unknown`). The package sets no
 check itself: a host that can tell whose process listens (the app uses `lsof -a -u <uid>`, then `netstat -anv` and `ps`
-on macOS, `/proc/net/tcp` on Linux, `src/core/loopback-owner.ts`) sets one, and `null` turns it off. On a Mac with several users loopback is shared, so a stopped agent's port may be held by another user's process.
+on macOS, `/proc/net/tcp` on Linux, `fabric-dashboards-acl.exe --listeners` on Windows, `src/core/loopback-owner.ts`) sets one, and `null` turns it off. On a Mac with several users loopback is shared, so a stopped agent's port may be held by another user's process.
 
 ## Remote token latch
 

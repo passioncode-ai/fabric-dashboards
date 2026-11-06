@@ -8,6 +8,9 @@
   sends nothing there and the agent reads "Another user's program", with the words "a program whose owner could not be
   told"; before, such a port was trusted. On a Mac, a port the person's own listing does not show is checked in the
   system's socket table, which also sees other users' programs.
+- FD-159: Windows checks too. Before an agent's token goes to 127.0.0.1, the app's own signed helper reads which
+  program listens on the port and which Windows user runs it; another user's program, or one whose owner it cannot
+  read, gets nothing and reads "Another user's program".
 
 ## 0.8.27 - 2026-11-06
 

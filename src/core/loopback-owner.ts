@@ -152,4 +152,52 @@ export function linuxLoopbackOwnerCheck(read: (path: string) => Promise<string>,
     return new Set([...procNetPorts(v4, uid), ...procNetPorts(v6, uid)]);
   }, now, failed);
 }
+/**
+ * FD-159: the listeners of `fabric-dashboards-acl --listeners` (Windows, build/win/acl.cs): this user's SID and, for
+ * each port a connection to 127.0.0.1 reaches, the owners' SIDs (null: a process or token it could not open).
+ */
+export function windowsListenersOf(stdout: string): { user: string; byPort: Map<number, (string | null)[]> } {
+  const doc = JSON.parse(stdout) as { user?: unknown; listeners?: unknown };
+  if (typeof doc.user !== 'string' || !Array.isArray(doc.listeners)) throw new Error('the listener reader answered no user or listeners');
+  const byPort = new Map<number, (string | null)[]>();
+  for (const l of doc.listeners as { port?: unknown; sid?: unknown }[]) {
+    if (typeof l.port !== 'number' || !Number.isInteger(l.port) || l.port <= 0) continue;
+    byPort.set(l.port, [...(byPort.get(l.port) ?? []), typeof l.sid === 'string' ? l.sid : null]);
+  }
+  return { user: doc.user, byPort };
+}
+
+/**
+ * FD-159, DEC-0154 HA-2: Windows, from the app's compiled reader (`GetExtendedTcpTable`, then each owning process's
+ * token user). Ours only when every listener on the port runs as this user; nobody listening or another user's process
+ * is not ours, and a process it could not open, or a reader that fails, is `unknown`. An answer that the port is ours
+ * is trusted `OWNED_FRESH_MS`; anything else reads the table again after `MISS_REREAD_MS`.
+ */
+export function windowsLoopbackOwnerCheck(run: Runner, reader: string, now: () => number = Date.now, failed: (why: string) => void = () => {}) {
+  let table: ReturnType<typeof windowsListenersOf> | null = null;
+  let readAt = -Infinity;
+  let reading: Promise<void> | null = null;
+  const read = (): Promise<void> => {
+    reading ??= run(reader, ['--listeners'], 15_000)
+      .then((r) => {
+        if (r.code !== 0) throw new Error(r.stderr.trim() || `listener reader exit ${r.code}`);
+        table = windowsListenersOf(r.stdout);
+      })
+      .catch((error: Error) => { table = null; failed(error.message); })
+      .finally(() => { readAt = now(); reading = null; });
+    return reading;
+  };
+  const decide = (port: number): LoopbackOwner => {
+    if (table === null) return 'unknown';
+    const sids = table.byPort.get(port);
+    if (!sids?.length) return false;
+    if (sids.some((s) => s === null)) return 'unknown';
+    return sids.every((s) => s === table!.user);
+  };
+  return async (port: number): Promise<LoopbackOwner> => {
+    const age = now() - readAt;
+    if (table === null || age > OWNED_FRESH_MS || (decide(port) !== true && age > MISS_REREAD_MS)) await read();
+    return decide(port);
+  };
+}
 // #endregion loopback-owner

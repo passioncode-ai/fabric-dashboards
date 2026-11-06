@@ -20,7 +20,7 @@ import { ConsoleHost, HANDOVER_POLL_MS } from './console';
 import { appendLog, sweepTemps } from '../core/fsutil';
 import { linkFor, parseDeepLink, safePath, SCHEME } from '../core/deeplink';
 import { servicesDir, setLoopbackOwnerCheck, setWindowsAclReader, windowsPowerShellEnv } from '@passioncode-ai/fabric-service-host';
-import { linuxLoopbackOwnerCheck, loopbackOwnerCheck } from '../core/loopback-owner';
+import { linuxLoopbackOwnerCheck, loopbackOwnerCheck, windowsLoopbackOwnerCheck } from '../core/loopback-owner';
 import { openChannel, startAnswer, type Channel } from './console-channel';
 import { chooseLang, langFor, t, type Lang } from '../core/i18n';
 import { execRunner } from '../core/launchd';
@@ -1088,7 +1088,7 @@ if (!app.requestSingleInstanceLock()) {
 
   // FD-156, FD-159: a service token goes to 127.0.0.1 only when this user's own process listens on the port (several
   // users share loopback on the Studio). macOS: a user's lsof sees only its own sockets; Linux: /proc/net/tcp names
-  // each socket's owner. Windows does not check yet (FD-159).
+  // each socket's owner. Windows: the compiled reader below (FD-159).
   if ((process.platform === 'darwin' || process.platform === 'linux') && typeof process.getuid === 'function') {
     let told = false;
     const failed = (why: string) => { if (!told) { told = true; log(`loopback_owner unreadable: ${why}`.slice(0, 300)); } };
@@ -1099,7 +1099,12 @@ if (!app.requestSingleInstanceLock()) {
   // FD-94: the installed copy's compiled ACL reader, so a token check never waits for Windows PowerShell to start.
   if (process.platform === 'win32' && app.isPackaged) {
     const reader = path.join(process.resourcesPath, 'bin', 'fabric-dashboards-acl.exe');
-    if (fs.existsSync(reader)) setWindowsAclReader(reader);
+    if (fs.existsSync(reader)) {
+      setWindowsAclReader(reader);
+      // FD-159: the same reader names whose process listens on a loopback port (DEC-0154 HA-2).
+      let told = false;
+      setLoopbackOwnerCheck(windowsLoopbackOwnerCheck(execRunner, reader, Date.now, (why) => { if (!told) { told = true; log(`loopback_owner unreadable: ${why}`.slice(0, 300)); } }));
+    }
   }
   void app.whenReady().then(() => {
     // FD-31: ShipIt is replacing this bundle — stay out of its way; the helper reopens the app after.

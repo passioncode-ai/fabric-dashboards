@@ -92,7 +92,10 @@ service data.
   reads "Another user's program" (an owner that could not be told says so in its own words). A plain read with no
   token (a local well-known probe) is not checked. On Linux (FD-159) the same check reads the kernel's socket tables,
   `/proc/net/tcp` and `/proc/net/tcp6`, which name each listening socket's owner (no process is started); a table it
-  cannot read is an owner it cannot tell. Windows does not check yet.
+  cannot read is an owner it cannot tell. On Windows (FD-159) the app's compiled reader (`fabric-dashboards-acl.exe
+  --listeners`, build/win/acl.cs) takes the listeners from `GetExtendedTcpTable` and each one's owner from its
+  process's token; a process it cannot open is an owner it cannot tell. An unpackaged run on Windows has no reader and
+  does not check.
 - **Listens** on no port. The MCP server (`Contents/Resources/bin/fabric-dashboards-mcp`)
   is started by an agent and speaks only over its stdin and stdout; it reads the same
   folder and token files, talks to the same origins and runs the same `launchctl` verbs and
