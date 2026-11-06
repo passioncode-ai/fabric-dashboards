@@ -11,6 +11,8 @@
 - FD-159: Windows checks too. Before an agent's token goes to 127.0.0.1, the app's own signed helper reads which
   program listens on the port and which Windows user runs it; another user's program, or one whose owner it cannot
   read, gets nothing and reads "Another user's program".
+- FD-159: a dashboard opens in the app's window only right after its port is checked: a page load sends the
+  dashboard's sign-in cookie, so another user's program that took the port since the last check gets no page.
 
 ## 0.8.27 - 2026-11-06
 

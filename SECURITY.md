@@ -95,7 +95,9 @@ service data.
   cannot read is an owner it cannot tell. On Windows (FD-159) the app's compiled reader (`fabric-dashboards-acl.exe
   --listeners`, build/win/acl.cs) takes the listeners from `GetExtendedTcpTable` and each one's owner from its
   process's token; a process it cannot open is an owner it cannot tell. An unpackaged run on Windows has no reader and
-  does not check.
+  does not check. A dashboard page sends its session cookie, so the same check runs right before each page load in
+  the app's window (open, Home, Reload, a sign-in, a new window on its origin), not only at the last probe (FD-159,
+  `src/electron/views.ts` `ownerOk`); links a person follows inside the page stay with the probe's state.
 - **Listens** on no port. The MCP server (`Contents/Resources/bin/fabric-dashboards-mcp`)
   is started by an agent and speaks only over its stdin and stdout; it reads the same
   folder and token files, talks to the same origins and runs the same `launchctl` verbs and
