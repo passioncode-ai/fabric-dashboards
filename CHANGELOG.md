@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- FD-161: an agent's Health tab says who installed it: you, an organization's administrator, or Project Observatory
+  from your own or an organization's list of agents, with the tool it used. It names a role, never a person.
+
 ## 0.8.28 - 2026-11-06
 
 ### Fixed

@@ -3,6 +3,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { PageState } from '../../core/api';
 import type { ActivityItem, ServiceSnapshot } from '../../core/types';
 import { instanceOf } from '../../core/products';
+import { installedByWords } from '../../core/installed-by';
 import { commandRan, commandReason } from '../../core/outcome';
 import { problemOf } from '../../core/focus';
 import { api, GLYPH, Icon, nameOf, NEWS_MS, portOf, shortBuild, Spinner, StateBadge, useExpiry, useT } from '../lib';
@@ -375,6 +376,7 @@ function Health({ s, output }: { s: ServiceSnapshot; output: { title: string; te
       {wk && wk.degraded.length > 0 && <ul>{wk.degraded.map((d) => <li key={d.source}><b>{d.source}</b>: {d.reason}</li>)}</ul>}
       <dl className="kv">
         <dt>{t('health.descriptor')}</dt><dd>{s.descriptorPath}</dd>
+        {(() => { const w = installedByWords(s.descriptor); return w && <><dt>{t('health.installedBy')}</dt><dd>{t(w.code, w.params)}</dd></>; })()}
         {s.descriptor && <><dt>{t('health.origin')}</dt><dd>{s.descriptor.origin}</dd></>}
         {s.descriptor?.lifecycle.label && <><dt>{t('health.launchd')}</dt><dd>{s.descriptor.lifecycle.label}{s.launchd.pid ? ` · ${t('health.pid')} ${s.launchd.pid}` : ''}{s.launchd.disabled ? ` · ${t('health.disabled')}` : ''}</dd></>}
         {wk && <><dt>{t('health.started')}</dt><dd>{new Date(wk.process.startedAt).toLocaleString(lang)}</dd></>}

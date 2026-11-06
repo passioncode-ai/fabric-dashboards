@@ -29,7 +29,9 @@ export interface Descriptor {
   source?: { repository?: string };
   fabricManifest?: string;
   installedAt: string;
-  installedBy: string;
+  /** The installer's name, or (DEC-0061) `{ by, role?, tool }`: a person (`operator` or `administrator`), Observatory's
+   *  node from the estate record, or the node from an organization's listing. Never a person's name. */
+  installedBy: string | { by: 'person' | 'node' | 'organization'; role?: 'operator' | 'administrator'; tool: string };
 }
 
 export interface WellKnown {
