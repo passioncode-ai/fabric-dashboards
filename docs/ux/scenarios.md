@@ -302,7 +302,7 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
   1. User opens Logs -> system shows the last 300 lines of each declared log file, newest at the bottom, refreshed while visible
   2. User chooses "Run self-check" -> system runs the declared doctor command (no shell), switches to Health and shows "Running the self-check…", then "Self-check finished with exit code <n>." and its output
 - **Expected result:** the operator sees why a service misbehaves without a terminal
-- **Alt paths:** no doctor declared -> the button is absent; no logs declared -> "This agent declares no log files."
+- **Alt paths:** no doctor declared -> the button is absent; no logs declared -> "This agent declares no log files."; the Health tab's properties name who installed the agent from its descriptor (FD-161, contract DEC-0061): "installed by: you, with <tool>", "an organization's administrator, with <tool>", "Project Observatory, from your list of agents (<tool>)" or "Project Observatory, from an organization's list of agents (<tool>)", a role and never a person; an older install file names only its installer, shown as written
 - **UI elements:** Logs tab, log panes, Run self-check button, output panel
 - **States covered:** loading, empty, success, error
 - **Errors & recovery:** the command times out after 120 s -> "Self-check did not finish within 120 s." and the partial output; the command cannot start -> "Self-check could not run: <reason>"; the service is busy with another action -> "<Service> is busy with another action…"; a log file is unreadable -> "Cannot read <path>: <reason>"; an online service has no Logs tab
