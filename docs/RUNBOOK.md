@@ -248,9 +248,10 @@ The map of outcomes (OD-3 of the contract's DEC-0153 allows a product its own, p
 | `unknown`: an answer of setup or policy, or the person's | `unsupported`, `needs_migration`, `refused` (also the person declining Restart to update), `denied`, `skipped`, `held`, `misplaced`, `staging_lost`, and any outcome not named in this table |
 
 A rise is at least 10 failures in an hour and at least twice the previous hour's (a previous
-hour with none counts as one). Files older than three months go when a new month's file starts. The shape follows
-Fabric's reference (`apps/desktop/src/shared/opsDigest.ts` at `e1eecec0`) until the contract's schema (CT-219) lands;
-sending the daily digest to Observatory waits for its record kind (OBS-330).
+hour with none counts as one). Files older than three months go when a new month's file starts. The shape is the contract's DEC-0153 as released (fabric-agent-contract `v0.1.0+2026-11-06.1`): its vectors and its
+closed schemas run in `npm run check` (`test/ops-digest-contract.test.ts`, the files in `test/fixtures/contract/`), and on
+a Mac that has digests the same test checks every line already written. Sending the daily digest to Observatory is
+Fabric's (below) and waits for Observatory's record kind (OBS-330).
 
 Who sends it (Fabric's CO-503, board thread `f7758225`, 2026-11-05): nobody in this app. Fabric reads
 `digests/daily-YYYY-MM.jsonl` once a day after the UTC day closes and passes the day's line as it is to Observatory's
