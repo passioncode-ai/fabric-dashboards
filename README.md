@@ -102,10 +102,13 @@ only ([SECURITY](SECURITY.md)). Optional environment variables: `FABRIC_DASHBOAR
 ### MCP
 
 Register the stdio server that ships inside the app, once, for every project (`--scope user`;
-without it Claude Code registers it for the current directory only):
+without it Claude Code registers it for the current directory only). Use the copy you run: the PassionCode launcher
+installs it in your own `~/Applications` (on a Mac with several users each user has one there), a drag from the disk
+image puts it in `/Applications`. The app itself repoints an entry of ours whose launcher is gone at the copy that runs.
 
 ```bash
-claude mcp add --scope user fabric-dashboards -- "/Applications/Fabric Dashboards.app/Contents/Resources/bin/fabric-dashboards-mcp"
+APP="$HOME/Applications/Fabric Dashboards.app"; [ -d "$APP" ] || APP="/Applications/Fabric Dashboards.app"
+claude mcp add --scope user fabric-dashboards -- "$APP/Contents/Resources/bin/fabric-dashboards-mcp"
 claude mcp get fabric-dashboards        # Status: ✔ Connected
 ```
 
@@ -124,7 +127,7 @@ lines prove the server answers:
 printf '%s\n' \
   '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18"}}' \
   '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"list_services","arguments":{}}}' \
-  | "/Applications/Fabric Dashboards.app/Contents/Resources/bin/fabric-dashboards-mcp"; echo "exit $?"
+  | "$APP/Contents/Resources/bin/fabric-dashboards-mcp"; echo "exit $?"
 ```
 
 Two JSON lines come back — `serverInfo` with the app's version, then `services` and

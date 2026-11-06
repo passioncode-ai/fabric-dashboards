@@ -7,7 +7,7 @@
 | Services folder (descriptors) | `~/Library/Application Support/ai.passioncode.fabric/services/` (`FABRIC_SERVICES_DIR` overrides) |
 | App settings and activity | `~/Library/Application Support/Fabric Dashboards/` (`settings.json`, `activity.jsonl`, `activity-state.json`) |
 | App log | `~/Library/Logs/Fabric Dashboards/main.log` |
-| MCP server | `/Applications/Fabric Dashboards.app/Contents/Resources/bin/fabric-dashboards-mcp` (stdio; from a checkout: `npm run build:main && node out/main/mcp/server.js`) |
+| MCP server | `Contents/Resources/bin/fabric-dashboards-mcp` inside the copy that runs: `~/Applications/Fabric Dashboards.app` when the PassionCode launcher installed it (each user of a shared Mac has their own), else `/Applications/Fabric Dashboards.app` (stdio; from a checkout: `npm run build:main && node out/main/mcp/server.js`) |
 | Update feed | `https://github.com/passioncode-ai/fabric-dashboards/releases/latest/download/update-feed.json` (pinned in `src/electron/updater.ts`; no override, LC-16) |
 
 ## A service is missing from the list
@@ -33,7 +33,7 @@
 | A `fabric-dashboards://` link opens nothing | `grep 'deep link' ~/Library/Logs/Fabric\ Dashboards/main.log` names the refusal; the app registers the scheme only when packaged, so a checkout build (`npm start`) does not receive links |
 | The link opens another copy of the app | two installed copies: `mdfind "kMDItemCFBundleIdentifier == 'ai.passioncode.fabric-dashboards'"`; keep the one in `/Applications` |
 | Many tool calls at once read agents as down | concurrent calls share one read of every agent while it runs (FD-148, `look` in `src/mcp/tools.ts`); a call that comes after it reads afresh, so a second answer that still reads down is the agent's own state |
-| The MCP server does not connect | `printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}' \| "/Applications/Fabric Dashboards.app/Contents/Resources/bin/fabric-dashboards-mcp"` must print one line with `serverInfo` |
+| The MCP server does not connect | `printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}' \| "$APP/Contents/Resources/bin/fabric-dashboards-mcp"` (`APP` the copy that runs, as above) must print one line with `serverInfo` |
 
 ## Release
 
