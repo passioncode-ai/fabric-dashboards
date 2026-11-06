@@ -4,6 +4,11 @@
 
 ### Added
 
+- FD-162: an Organizations menu above the agent list shows every agent, one organization's or several's; the choice
+  holds across the sidebar, Overview, Agent map and Spend and is kept across restarts. Each agent's Health tab names its
+  organization. The organization comes from Project Observatory's project registry, by the agent's repository.
+- FD-163: the Agent map flags a connection from an agent of one organization to an agent of another: agents of an
+  organization work only with agents of the same organization.
 - FD-161: an agent's Health tab says who installed it: you, an organization's administrator, or Project Observatory
   from your own or an organization's list of agents, with the tool it used. It names a role, never a person.
 

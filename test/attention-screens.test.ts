@@ -109,7 +109,7 @@ test('VIS-02: the reason column keeps a floor; the row\'s actions share one cell
 test('UX-04, UX-05: the sidebar counts the attention queue and audits with the limits the main process holds; the rail shows an update', () => {
   const app = source('src/renderer/App.tsx');
   assert.match(app, /attentionQueue\(status\.services, \{[^}]*limits: status\.limits/);
-  assert.match(app, /audit\(status\.services, status\.limits/);
+  assert.match(app, /audit\(everyAgent\.services, status\.limits/); // FD-162: every agent is audited, the count is the shown ones
   assert.doesNotMatch(app, /const problems = status\.services\.filter\(\(s\) => PROBLEM\.has/, 'no second, narrower count');
   assert.match(app, /className="nav-item nav-update"/, 'a folded rail still offers the app\'s own update');
 });

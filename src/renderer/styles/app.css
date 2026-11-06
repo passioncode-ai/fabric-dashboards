@@ -104,6 +104,14 @@ a { color: var(--pc-link); text-decoration: underline; }
 .nav-section-row > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; flex: 1 0 auto; }
 .sort-select { font: inherit; font-size: var(--pc-type-meta); text-transform: none; letter-spacing: 0; color: var(--pc-text-muted); background: transparent; border: 0; padding: 0; cursor: pointer; flex: 0 1 auto; width: auto; field-sizing: content; max-width: 100%; margin-left: auto; text-align: right; } /* VIS-15: it wraps under the name, never clipped */
 .sort-select:hover, .sort-select:focus-visible { color: var(--pc-text); }
+/* FD-162 (SCN-094): the Organizations menu above the agent sections */
+.org-menu { margin: 0 0 var(--pc-space-2); font-size: var(--pc-type-meta); color: var(--pc-text-muted); }
+.org-menu > summary { cursor: pointer; padding: var(--pc-space-1) var(--pc-space-2); border-radius: var(--pc-radius-control); list-style: none; }
+.org-menu > summary:hover, .org-menu > summary:focus-visible { color: var(--pc-text); }
+.org-menu > summary::-webkit-details-marker { display: none; }
+.org-menu-list { display: flex; flex-direction: column; gap: var(--pc-space-1); padding: var(--pc-space-1) var(--pc-space-2); }
+.org-menu-list label { display: flex; align-items: center; gap: var(--pc-space-2); cursor: pointer; color: var(--pc-text); }
+.org-menu-list .count { margin-left: auto; color: var(--pc-text-muted); }
 .sidebar-footer { border-top: 1px solid var(--pc-border); padding-top: var(--pc-space-3); margin-top: var(--pc-space-3); display: flex; flex-direction: column; gap: var(--pc-space-2); }
 .main { min-width: 0; min-height: 0; display: flex; flex-direction: column; }
 .page { overflow: auto; padding: calc(var(--pc-space-6) + var(--pc-space-2)) var(--pc-space-6) var(--pc-space-6); min-height: 0; flex: 1; }

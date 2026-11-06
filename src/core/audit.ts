@@ -147,6 +147,13 @@ export function audit(all: readonly Seen[], limits: Readonly<Record<string, read
         }
       }
       // #endregion ambiguous-target
+      // #region cross-organization — docs: docs/ux/scenarios.md#scn-074-see-how-agents-are-wired-and-what-problems-were-found
+      // FD-163 (operator 2026-11-06): an organization's agents work only with agents of the same organization. Told only
+      // when both organizations are known (Project Observatory's registry); one not known is never guessed.
+      if (s.organization && reached.organization && s.organization.name !== reached.organization.name) {
+        add({ id: `${s.key}:org:${c.id}`, key: s.key, severity: 'error', kind: 'connection', reason: { code: 'audit.connection.crossOrg', params: { name: nameOf(reached), theirs: reached.organization.label, ours: s.organization.label } } });
+      }
+      // #endregion cross-organization
       const theirs = stateOfService(reached.state);
       if (failing) {
         add({ id: `${s.key}:conn:${c.id}`, key: s.key, severity: c.state === 'down' ? 'error' : 'warn', kind: 'connection', reason: { code: `audit.connection.${c.state}`, params: { name: nameOf(reached), text: c.reason ?? partWords.get(c.id) ?? '' } } });

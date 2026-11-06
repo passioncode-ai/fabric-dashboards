@@ -41,6 +41,8 @@ import { findSwitchboard } from '../core/switchboard';
 import { searchDirs } from '../core/runtimes';
 import type { StopView } from '../core/types';
 import { AgentNameStore, customNameOf, findGh, readNamesCache } from '../core/agent-names';
+import { keepsOrganization, organizationOf, type Organization } from '../core/organizations';
+import { readOrganizations } from '../core/organization-store';
 
 export const COMMAND_TIMEOUT_MS = 120_000;
 import { CONTROL_TIMEOUT_MS, controlService } from '../core/control';
@@ -174,9 +176,12 @@ export interface ServiceView {
   hidden: boolean;
   /** FD-123: turned off in the app: not watched there and no alerts (also hidden). This answer still reads it once. */
   off: boolean;
+  /** FD-162: the organization its repository belongs to in Project Observatory's registry, as the app last read it
+   *  (organizations.json beside its settings); null when not known. */
+  organization: Organization | null;
 }
 
-function view(s: ServiceLook, list?: { category: Category; hidden: boolean; off: boolean }): ServiceView {
+function view(s: ServiceLook, list?: { category: Category; hidden: boolean; off: boolean }, organization: Organization | null = null): ServiceView {
   const d = s.descriptor;
   const wk = s.wellKnown;
   const dashPath = wk?.surfaces.dashboard?.path ?? null;
@@ -202,6 +207,7 @@ function view(s: ServiceLook, list?: { category: Category; hidden: boolean; off:
     category: list?.category ?? (d?.placement === 'remote' ? 'online' : 'local'),
     hidden: list?.hidden ?? false,
     off: list?.off ?? false,
+    organization,
   };
 }
 
@@ -308,17 +314,26 @@ export async function rename(deps: Deps, key: string, name: string | null): Prom
 }
 // #endregion agent-names
 
-export async function listServices(deps: Deps): Promise<{ services: ServiceView[]; services_dir: string }> {
+export async function listServices(deps: Deps, organizations?: string[]): Promise<{ services: ServiceView[]; services_dir: string }> {
   const looks = await look(deps);
   const of = listing(looks, deps.listLayout?.() ?? null);
-  return { services: looks.map((l) => view(l, of(l.key))), services_dir: deps.servicesDir() };
+  const orgOf = organizationReader(deps);
+  // FD-162: `organizations` lists only those organizations' agents ('' is "Not attributed"); none lists every agent.
+  const views = looks.map((l) => view(l, of(l.key), orgOf(l)));
+  return { services: organizations?.length ? views.filter((v) => keepsOrganization(organizations, v.organization)) : views, services_dir: deps.servicesDir() };
+}
+
+/** FD-162: each look's organization, from the map the app last read (organizations.json beside its settings). */
+function organizationReader(deps: Deps): (l: ServiceLook) => Organization | null {
+  const cache = readOrganizations(path.join(path.dirname(deps.settingsFile?.() ?? appSettingsFile()), 'organizations.json'));
+  return (l) => organizationOf(cache, l.descriptor?.source?.repository);
 }
 
 export async function serviceStatus(deps: Deps, key: string): Promise<ServiceView> {
   const looks = await look(deps);
   const one = looks.find((l) => l.key === key);
   if (!one) throw new ToolError(`no installed service ${JSON.stringify(key)}`);
-  return view(one, listing(looks, deps.listLayout?.() ?? null)(key));
+  return view(one, listing(looks, deps.listLayout?.() ?? null)(key), organizationReader(deps)(one));
 }
 
 /** FD-78: what one agent is connected to, as its Connections tab shows it: who uses it, what it offers, what it uses
@@ -556,7 +571,8 @@ export async function setupCheck(deps: Deps): Promise<SetupCheckResult> {
  *  to fix, its severity and the sentence the app shows (English), the declaring coverage, and the map's edges.
  *  Spending limits come from each agent's own usage report, read now. */
 export async function auditAll(deps: Deps): Promise<{ findings: (Finding & { name: string; text: string })[]; counts: Record<string, number>; coverage: { agents: number; declaring: number }; edges: EstateMap['edges']; missing: string[]; limitStops: Awaited<ReturnType<typeof limitStops>> }> {
-  const looks = await look(deps);
+  const orgOf = organizationReader(deps);
+  const looks = (await look(deps)).map((l) => ({ ...l, organization: orgOf(l) })); // FD-163: as the app reads them
   const spendEntries = await readSpend(looks, { token: deps.token, fetchUsage: deps.usage, now: deps.now });
   const limits = Object.fromEntries(spendEntries.flatMap((e) => (e.kind === 'report' ? [[e.key, e.summary.limits]] : [])));
   const a = runAudit(looks, limits);

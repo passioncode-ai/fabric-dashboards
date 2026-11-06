@@ -64,8 +64,8 @@ export const TOOLS = [
   },
   {
     name: 'list_services',
-    description: 'Every installed service, local and online: its product (every instance of one id is one product), placement, state (ready, degraded, down, stopped…; stopped with reason.elsewhere when this machine\'s placement record puts it on another machine, duplicate with reason.duplicate.elsewhere when it runs here anyway, FD-132), version, dashboard URL, the dashboard\'s declared minimum width (dashboard_min_width, null when it declares none), a fabric-dashboards:// link, tiles, pending update, and how the app lists it: category (local, online, or service: the section its product is listed in, so every instance of one product carries its product\'s; placement says where this instance runs) and hidden (the person hid it; it is still watched).',
-    inputSchema: { type: 'object', properties: {}, additionalProperties: false },
+    description: 'Every installed service, local and online: its product (every instance of one id is one product), placement, state (ready, degraded, down, stopped…; stopped with reason.elsewhere when this machine\'s placement record puts it on another machine, duplicate with reason.duplicate.elsewhere when it runs here anyway, FD-132), version, dashboard URL, the dashboard\'s declared minimum width (dashboard_min_width, null when it declares none), a fabric-dashboards:// link, tiles, pending update, and how the app lists it: category (local, online, or service: the section its product is listed in, so every instance of one product carries its product\'s; placement says where this instance runs) and hidden (the person hid it; it is still watched); organization (FD-162: {name, label} of the organization its repository belongs to in Project Observatory\'s registry, null when not known). organizations lists only those organizations\' agents (by name; "" is not attributed).',
+    inputSchema: { type: 'object', properties: { organizations: { type: 'array', items: { type: 'string', maxLength: 64 }, maxItems: 50, description: 'Only the agents of these organizations, by name (acme, personal); "" is the agents not attributed. Omit for every agent.' } }, additionalProperties: false },
     annotations: { readOnlyHint: true },
   },
   {
@@ -209,7 +209,7 @@ const str = (a: Args, k: string): string | undefined => (typeof a[k] === 'string
 export async function call(deps: tools.Deps, name: string, args: Args): Promise<unknown> {
   switch (name) {
     case 'host_status': return deps.host();
-    case 'list_services': return tools.listServices(deps);
+    case 'list_services': return tools.listServices(deps, Array.isArray(args.organizations) ? (args.organizations as unknown[]).filter((x): x is string => typeof x === 'string') : undefined);
     case 'service_status': return tools.serviceStatus(deps, need(args, 'service'));
     case 'link': return tools.link(deps, { service: str(args, 'service'), path: str(args, 'path'), url: str(args, 'url') });
     case 'open': {
