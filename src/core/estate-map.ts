@@ -20,16 +20,20 @@ export interface EstateMap {
 
 const nameOf = (s: Seen) => s.descriptor?.name ?? s.wellKnown?.service.name ?? s.key;
 
-export function estateMap(all: readonly Seen[]): EstateMap {
+/** FD-162: `scope` (the agents an organization filter shows) limits the map to them and the agents they call; every
+ *  agent still resolves a target, so one outside the filter is drawn as itself, never as "not installed". */
+export function estateMap(all: readonly Seen[], scope?: ReadonlySet<string>): EstateMap {
   const nodes = new Map<string, Omit<MapNode, 'column' | 'row'>>();
-  for (const s of all) nodes.set(s.key, { id: s.key, key: s.key, name: nameOf(s), state: stateOfService(s.state), missing: false });
+  const shown = scope ? all.filter((s) => scope.has(s.key)) : all;
+  for (const s of shown) nodes.set(s.key, { id: s.key, key: s.key, name: nameOf(s), state: stateOfService(s.state), missing: false });
   const edges: MapEdge[] = [];
   const seen = new Set<string>();
-  for (const s of all) {
+  for (const s of shown) {
     for (const c of connectionsOf(s.wellKnown).connections) {
       if (c.kind !== 'service') continue;
       const reached = resolveTarget(c.target, all);
       const to = reached ? reached.key : `missing:${c.target}`;
+      if (reached && !nodes.has(to)) nodes.set(to, { id: to, key: to, name: nameOf(reached), state: stateOfService(reached.state), missing: false });
       if (!reached && !nodes.has(to)) nodes.set(to, { id: to, key: null, name: c.label ?? c.target, state: 'unknown', missing: true });
       if (to === s.key) continue;
       const id = `${s.key}>${to}`;

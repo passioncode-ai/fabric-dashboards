@@ -13,6 +13,7 @@ import { tail } from './fsutil';
 import { commandReason, type CommandResult } from './outcome';
 import { duration, t as tr, type Lang } from './i18n';
 import { Launchd } from './launchd';
+import type { Organization } from './organizations';
 import { composeEventNotice, displayName, DOWN_NOTIFY_AFTER_MS, episodeKey, intentOf, NotifyLedger, shouldNotify, type Happening, type Intent } from './notify';
 import { fetchEvents, PROBE_TIMEOUT_MS, readTokenAsync } from './probe';
 import { tlsFor } from './testhooks';
@@ -53,6 +54,9 @@ export interface MonitorOptions {
   placement?: Pick<PlacementReader, 'get' | 'error'>;
   /** FD-135: the name the agent's own repository gives this service key (`.fabric/names.json`, ADR-0026), or null. */
   customName?: (key: string, repository: string | undefined) => string | null;
+  /** FD-162: the organization of an agent's repository, from Project Observatory's registry; undefined when no map was
+   *  ever read (the snapshot then carries none). */
+  organizationOf?: (repository: string | undefined) => Organization | null | undefined;
 }
 
 interface Tracked {
@@ -717,7 +721,7 @@ export class Monitor extends EventEmitter {
     const descriptor = this.named(t.entry.descriptor, t.entry.key);
     const renamed = descriptor !== t.entry.descriptor && t.entry.descriptor;
     return {
-      key: t.entry.key, descriptorPath: t.entry.path, descriptor, ...(renamed ? { agentName: renamed.name } : {}), problems: t.tokenProblem ? [...t.entry.problems, t.tokenProblem] : t.entry.problems, state, reasons,
+      key: t.entry.key, descriptorPath: t.entry.path, descriptor, ...(renamed ? { agentName: renamed.name } : {}), ...this.organized(t), problems: t.tokenProblem ? [...t.entry.problems, t.tokenProblem] : t.entry.problems, state, reasons,
       wellKnown: wk && renamed ? { ...wk, service: { ...wk.service, name: descriptor!.name } } : wk, dashboardMinWidth: dashboardMinWidth(wk), launchd: t.launchd, usagePath: t.usagePath,
       firstUnansweredAt: t.firstUnansweredAt ? new Date(t.firstUnansweredAt).toISOString() : null,
       lastAnswerAt: t.lastAnswerAt ? new Date(t.lastAnswerAt).toISOString() : null,
@@ -784,6 +788,12 @@ export class Monitor extends EventEmitter {
   private named<D extends { name: string; source?: { repository?: string } } | null>(d: D, key: string): D {
     const custom = d && this.o.customName?.(key, d.source?.repository);
     return d && custom && custom !== d.name ? { ...d, name: custom } : d;
+  }
+
+  /** FD-162: the agent's organization, or nothing when no map was ever read. */
+  private organized(t: Tracked): { organization?: Organization | null } {
+    const org = this.o.organizationOf?.(t.entry.descriptor?.source?.repository);
+    return org === undefined ? {} : { organization: org };
   }
 
   /** A name changed in an agent's repository (read, or renamed here): show it now. */

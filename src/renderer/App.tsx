@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { langFor, t as tr, type Lang } from '../core/i18n';
 import { DEFAULT_SETTINGS, SIDEBAR_WIDTH, type AppStatus, type Settings as AppSettings, type SettingsPatch, type ListSort } from '../core/types';
+import { filterServices } from '../core/organizations';
 import { groupProducts, productOf, type Product, arrangeProducts, categoryOf, setKind, setOff, showAgain, togglePin } from '../core/products';
 import { Activity, type ActivityFilter } from './components/Activity';
 import { SetupCard, Overview } from './components/Overview';
@@ -157,8 +158,11 @@ interface ShellProps {
   noteSeen: boolean; onNoteSeen: () => void;
 }
 
-function Shell({ status, route, setRoute, mode, switchMode, stopKey, setStopKey, activityFilter, setActivityFilter, layout, changeLayout, onLanguage, scheme, onTheme, noteSeen, onNoteSeen }: ShellProps) {
+function Shell({ status: everyAgent, route, setRoute, mode, switchMode, stopKey, setStopKey, activityFilter, setActivityFilter, layout, changeLayout, onLanguage, scheme, onTheme, noteSeen, onNoteSeen }: ShellProps) {
   const { t, lang } = useT();
+  // FD-162 (SCN-094): the organizations chosen in the sidebar narrow every list below; the agent open on the page stays.
+  const orgs = layout.list.orgs ?? [];
+  const status: AppStatus = orgs.length ? { ...everyAgent, services: filterServices(everyAgent.services, orgs, route.page === 'service' ? route.key : null) } : everyAgent;
   const open = (key: string, link?: string, tab?: 'logs' | 'health' | 'connections') => setRoute({ page: 'service', key, link, nonce: Date.now(), tab });
   // SCN-059: the agent selected last leads the next visit's Continue list.
   const routeKey = route.page === 'service' ? route.key : null;
@@ -173,7 +177,9 @@ function Shell({ status, route, setRoute, mode, switchMode, stopKey, setStopKey,
   const queue = attentionQueue(status.services, { now: Date.now(), limits: status.limits });
   // FD-81: the auditor runs with every status push; the nav carries what does not work, the page the rest. UX-05: with
   // the limits the main process holds, as the page reads them.
-  const auditErrors = audit(status.services, status.limits ?? {}).counts.error;
+  // FD-162: every agent is audited (a target outside the organization filter is itself); the count is the shown agents'.
+  const shownKeys = new Set(status.services.map((s) => s.key));
+  const auditErrors = audit(everyAgent.services, status.limits ?? {}).findings.filter((f) => f.severity === 'error' && shownKeys.has(f.key)).length;
   const current = route.page === 'service' ? status.services.find((s) => s.key === route.key) : undefined;
   const stopping = stopKey ? status.services.find((s) => s.key === stopKey) : undefined;
   // FD-135 (SCN-090): the agent whose Rename dialog is open.
@@ -392,7 +398,7 @@ function Shell({ status, route, setRoute, mode, switchMode, stopKey, setStopKey,
         <div className="brand"><img src={mark} alt="" /> <span className="brand-name">{t('app.name')}</span></div>
         <ModeSwitch mode={mode} rows={sessionsRows} rail={rail} onMode={switchMode} />
         {mode === 'agents'
-          ? <AgentsNav page={agentsPage} status={status} arranged={arranged} products={products} currentProduct={currentProduct} layout={layout} changeLayout={changeLayout} open={open}
+          ? <AgentsNav page={agentsPage} status={status} everyAgent={everyAgent.services} arranged={arranged} products={products} currentProduct={currentProduct} layout={layout} changeLayout={changeLayout} open={open}
             go={(page) => setRoute({ page })} rail={rail} queue={queue.length} urgent={queue.some(urgent)} auditErrors={auditErrors} hiddenProblem={hiddenProblem} menu={rowMenu} />
           : <SessionsNav sessions={status.sessions} currentId={route.page === 'session' ? (sessionRow?.id ?? route.id) : null} allCurrent={route.page === 'sessions'} rail={rail}
             endedOpen={layout.endedOpen} onEndedOpen={(o) => changeLayout({ endedOpen: o })} openAll={() => setRoute({ page: 'sessions' })} openRow={openSession} />}
@@ -434,7 +440,7 @@ function Shell({ status, route, setRoute, mode, switchMode, stopKey, setStopKey,
               {route.page === 'overview' && <Overview status={status} products={products} open={open} act={act} agent={handToAgent} onSetup={() => openSetup('new')} setupCard={setupCard} visit={visit} onDismissVisit={() => setVisit(null)} onContinue={continueWith} goSpend={() => setRoute({ page: 'spend' })} list={layout.list} onHiddenOpen={(o) => changeLayout({ list: { hiddenOpen: o } })} />}
               {route.page === 'activity' && <Activity status={status} openAt={open} filter={activityFilter} setFilter={setActivityFilter} />}
               {route.page === 'spend' && <Spend status={status} onOpen={(key) => open(key)} />}
-              {route.page === 'map' && <ConnectionsMap status={status} open={(key) => open(key, undefined, 'connections')} onAgent={handToAgent} />}
+              {route.page === 'map' && <ConnectionsMap status={status} every={orgs.length ? everyAgent.services : undefined} open={(key) => open(key, undefined, 'connections')} onAgent={handToAgent} />}
               {route.page === 'settings' && <Settings status={status} onTheme={onTheme} onLanguage={onLanguage} onSetup={() => openSetup('new')} section={route.section} nonce={route.nonce} />}
               {route.page === 'sessions' && <AllSessions sessions={status.sessions} noteSeen={noteSeen} onNoteSeen={onNoteSeen} onSetUp={() => setRoute({ page: 'settings', section: 'sessions', nonce: Date.now() })}
                 endedOpen={layout.endedOpen} onEndedOpen={(o) => changeLayout({ endedOpen: o })} open={openSession} askEnd={askEnd} continued={(key) => setRoute({ page: 'session', id: '', follow: key, until: Date.now() + SESSION_WAIT_MS })} />}

@@ -10,7 +10,7 @@ import { productIdOf } from '@passioncode-ai/fabric-service-host/links';
 import type { Reason, ServiceSnapshot, ServiceState } from './types';
 
 /** What the graph needs of a service: the app's snapshot and the MCP server's look both carry it. */
-export type Seen = Pick<ServiceSnapshot, 'key' | 'state' | 'reasons' | 'descriptor' | 'wellKnown'>;
+export type Seen = Pick<ServiceSnapshot, 'key' | 'state' | 'reasons' | 'descriptor' | 'wellKnown'> & Partial<Pick<ServiceSnapshot, 'organization'>>;
 
 export type NodeKind = ConnectionKind | 'runner' | 'part';
 export type NodeSource = 'declared' | 'usage' | 'runner' | 'degraded';
