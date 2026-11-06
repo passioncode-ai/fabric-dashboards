@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- FD-160: an agent that answers 403 (or 401) to its well-known document no longer reads "Wrong program on port" with
+  "a program that is not a Fabric agent". It reads "Not answering": the program on its port refuses this app, and a
+  refusal says nothing about which program it is. An agent did this on 2026-11-06 while it could not tell who was
+  connecting.
+
 ## 0.8.27 - 2026-11-06
 
 ### Security
