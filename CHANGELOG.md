@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+### Security
+
+- FD-159: on a Linux computer with several users, Fabric Dashboards sends an agent's token to 127.0.0.1 only when that
+  user's own process listens on the port, and an agent whose port answers from another user's program reads "Another
+  user's program", as on a Mac since 0.8.25 and 0.8.26. It reads the kernel's socket tables and starts no process.
+  Windows does not check yet.
+
 ## 0.8.26 - 2026-11-06
 
 ### Added
