@@ -135,7 +135,7 @@ test('VIS-08: one mark per state on every surface', () => {
   }
   // The tray menu (main process, src/core/tray-model.ts since W2) cannot import the renderer; its copy must stay the same table.
   const tray = /const MARK: Record<ServiceState, string> = \{([^}]*)\}/.exec(read('src/core/tray-model.ts'))?.[1] ?? '';
-  const trayTable = Object.fromEntries([...tray.matchAll(/(\w+):\s*'([^']+)'/g)].map((m) => [m[1], m[2]]));
+  const trayTable = Object.fromEntries([...tray.matchAll(/'?([\w-]+)'?:\s*'([^']+)'/g)].map((m) => [m[1], m[2]]));
   assert.deepEqual(trayTable, GLYPH);
 });
 

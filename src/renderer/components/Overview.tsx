@@ -394,7 +394,7 @@ function StatusStrip({ status, products, attention, urgent, goSpend, goAttention
     return () => { alive = false; clearInterval(timer); };
   }, []);
   const ready = products.filter((p) => p.primary.state === 'ready').length;
-  const problems = status.services.filter((s) => ['down', 'duplicate', 'foreign', 'conflict', 'invalid'].includes(s.state)).length;
+  const problems = status.services.filter((s) => ['down', 'duplicate', 'foreign-user', 'foreign', 'conflict', 'invalid'].includes(s.state)).length;
   // Reachable when anything reports or failed to report: Spend lists the failures (D-3). With no
   // report at all the sum is unknown, never "≥ $0.00" (T-22).
   const reporting = spend?.some((e) => e.kind === 'report' || e.kind === 'error') ?? false;

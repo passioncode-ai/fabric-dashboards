@@ -76,10 +76,10 @@ export interface ServiceEvent {
 
 /** The one state a host derives for a service (Fabric Dashboards design §3.3). */
 export type ServiceState =
-  | 'invalid' | 'stopped' | 'conflict' | 'foreign' | 'duplicate'
+  | 'invalid' | 'stopped' | 'conflict' | 'foreign-user' | 'foreign' | 'duplicate'
   | 'down' | 'starting' | 'stopping' | 'degraded' | 'ready';
 
-export const SERVICE_STATES: readonly ServiceState[] = ['invalid', 'stopped', 'conflict', 'foreign', 'duplicate', 'down', 'starting', 'stopping', 'degraded', 'ready'];
+export const SERVICE_STATES: readonly ServiceState[] = ['invalid', 'stopped', 'conflict', 'foreign-user', 'foreign', 'duplicate', 'down', 'starting', 'stopping', 'degraded', 'ready'];
 
 /** A reason a host localizes: a message key plus the values it names. */
 export interface Reason {

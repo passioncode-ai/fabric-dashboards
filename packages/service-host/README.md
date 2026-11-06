@@ -40,7 +40,7 @@ repository root). Node 20 or later.
 
 `src/protocol.ts`. `PROTOCOL` (`'fabric-service/0.1'`); `Descriptor`, `WellKnown`,
 `WellKnownResult` (`answer` | `not-protocol` | `no-answer`), `ServiceEvent`, `ServiceState` and
-`SERVICE_STATES` (`invalid`, `stopped`, `conflict`, `foreign`, `duplicate`, `down`, `starting`,
+`SERVICE_STATES` (`invalid`, `stopped`, `conflict`, `foreign-user`, `foreign`, `duplicate`, `down`, `starting`,
 `stopping`, `degraded`, `ready`), `Reason` and `REASON_CODES` — every code `deriveState` can
 return, so a host's message catalogue can be checked against it — `Busy`, `LaunchdStatus`,
 `ClaimConflict`, `ID_PATTERN`, `INSTANCE_PATTERN`. `WellKnown.surfaces` carries `mcp.capabilities` and `usage` (DEC-0021). The Fabric Agent Contract's
@@ -147,15 +147,19 @@ A remote placement (DEC-0019) has no launchd and no `duplicate`: `refused`, TLS 
 1. `invalid` — no usable descriptor (`reason.invalid`, its first problem);
 2. `conflict` — a claim conflict (`reason.conflict.port` / `reason.conflict.key`);
 3. the host's own action: `stopping`, or `starting` while starting or restarting;
-4. an answer from another `id.instance` → `foreign` (`reason.foreign.other`); an answering pid
+4. an answer (or a non-protocol answer) on a loopback port the host found held by another macOS user → `foreign-user`
+   (`reason.foreign.user`, the port), whatever it answers, its own id included; the host says so with `foreignUser: true`
+   in the input, after `setLoopbackOwnerCheck` (FD-158, the contract's draft norm on loopback owners). A port nobody
+   holds is silence below, never `foreign-user`;
+5. an answer from another `id.instance` → `foreign` (`reason.foreign.other`); an answering pid
    that is not launchd's → `duplicate` (`reason.duplicate`); otherwise the service's own status:
    `starting` / `stopping`, `degraded` (one `reason.degraded` per source), `ready`;
-5. something that is not a fabric service answers → `foreign` (`reason.foreign.protocol`);
-6. silence while the placement record puts the service on another machine → `stopped`
+6. something that is not a fabric service answers → `foreign` (`reason.foreign.protocol`);
+7. silence while the placement record puts the service on another machine → `stopped`
    (`reason.elsewhere`, the machine), whatever launchd says (0.10.0, FD-132); an answer as itself
-   while placed there is in step 4 a `duplicate` (`reason.duplicate.elsewhere`, the machine);
-7. silence and launchd disabled or not loaded → `stopped` (`reason.stopped` / `reason.not-loaded`);
-8. silence shorter than `DOWN_AFTER_MS` (15 s) → `starting` (`reason.waiting`), else `down`
+   while placed there is in step 5 a `duplicate` (`reason.duplicate.elsewhere`, the machine);
+8. silence and launchd disabled or not loaded → `stopped` (`reason.stopped` / `reason.not-loaded`);
+9. silence shorter than `DOWN_AFTER_MS` (15 s) → `starting` (`reason.waiting`), else `down`
    (`reason.down`, since when).
 
 The input `elsewhere` (`{ placedOn, since? }`, optional) comes from the placement record (below);

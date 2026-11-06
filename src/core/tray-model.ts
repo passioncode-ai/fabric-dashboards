@@ -10,7 +10,7 @@ import { productIdOf } from './products';
 import type { ServiceSnapshot, ServiceState } from './types';
 
 export const MARK: Record<ServiceState, string> = {
-  ready: '●', degraded: '▲', duplicate: '▲', down: '✕', foreign: '✕', conflict: '✕', invalid: '✕', stopped: '○', starting: '◌', stopping: '◌',
+  ready: '●', degraded: '▲', duplicate: '▲', down: '✕', 'foreign-user': '✕', foreign: '✕', conflict: '✕', invalid: '✕', stopped: '○', starting: '◌', stopping: '◌',
 };
 
 export interface TrayItem { key: string; label: string }

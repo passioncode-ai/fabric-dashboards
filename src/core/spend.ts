@@ -26,10 +26,10 @@ export interface SpendDeps {
 export async function readSpend(services: readonly { key: string; state?: string; descriptor: Descriptor | null; wellKnown: WellKnown | null; usagePath?: string | null }[], deps: SpendDeps): Promise<SpendEntry[]> {
   return Promise.all(services.map(async (s): Promise<SpendEntry> => {
     const d = s.descriptor;
-    const own = Boolean(d && s.wellKnown && s.wellKnown.service.id === d.id && s.wellKnown.service.instance === d.instance && s.state !== 'foreign');
+    const own = Boolean(d && s.wellKnown && s.wellKnown.service.id === d.id && s.wellKnown.service.instance === d.instance && s.state !== 'foreign' && s.state !== 'foreign-user');
     const usagePath = own ? s.wellKnown!.surfaces.usage?.path : undefined;
     if (d && !usagePath && s.usagePath && (!own || !s.wellKnown)) {
-      return s.state === 'foreign'
+      return s.state === 'foreign' || s.state === 'foreign-user'
         ? { key: s.key, kind: 'error', error: 'another program answers on its address, so its usage report is not read', reason: { code: 'spend.err.foreign' } }
         : { key: s.key, kind: 'error', error: 'it does not answer now, so its usage report could not be read', reason: { code: 'spend.err.notAnswering' } };
     }

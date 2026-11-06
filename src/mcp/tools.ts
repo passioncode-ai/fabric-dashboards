@@ -601,7 +601,7 @@ export async function spend(deps: Deps, key?: string): Promise<{ services: (Spen
     services: entries.map((e) => {
       const state = unknown.get(e.key);
       const out: SpendEntry = e.kind === 'none' && state
-        ? state === 'foreign'
+        ? state === 'foreign' || state === 'foreign-user'
           ? { key: e.key, kind: 'error', error: 'another program answers on its address, so its spend is unknown', reason: { code: 'spend.err.foreign' } }
           : { key: e.key, kind: 'error', error: `it does not answer now (${state}), so its spend is unknown`, reason: { code: 'spend.err.notAnswering' } }
         : e;
@@ -617,7 +617,7 @@ export async function load(deps: Deps, key: string): Promise<LoadEntry & { produ
   const [one] = await look(deps, [find(deps, key).key]);
   if (!one) throw new ToolError(`no installed service ${JSON.stringify(key)}`);
   if (one.descriptor && !one.wellKnown && !['invalid', 'conflict'].includes(one.state)) {
-    const error = one.state === 'foreign' ? 'another program answers on its address, so its load is unknown' : `it does not answer now (${one.state}), so its load is unknown`;
+    const error = one.state === 'foreign' || one.state === 'foreign-user' ? 'another program answers on its address, so its load is unknown' : `it does not answer now (${one.state}), so its load is unknown`;
     return { key: one.key, kind: 'error', declaration: null, error, reason: { code: 'load.err.unreachable', params: { error } }, product: productIdOf(one.key) };
   }
   const entry = await readLoad(one, { token: deps.token, fetchLoad: deps.load ?? fetchLoad, now: deps.now });

@@ -339,11 +339,12 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
   1. System probes -> state becomes "Wrong program on port", with "Port 47187 answers as maker.default, not as this service. Nothing is sent to it." or "Port 47187 answers without fabric-service/0.1 (<detail>). Nothing is sent to it."; a notification "Wrong program on <Service>'s port"
   2. User opens the service -> it opens on Health; the Dashboard tab says "The dashboard opens when the service answers as itself."; no token is sent, and no version, tiles, tools or update of the other program are shown as the service's (S-5); Spend never reads it (S-1)
 - **Expected result:** the operator knows the port is taken by another program and nothing is sent to it
+- **Alt paths:** on a Mac with several macOS users, the port answers from another user's process (FD-158, the contract's draft norm on loopback owners) -> state "Another user's program", reason "Port {port} is held by a program of another macOS user on this Mac. Nothing is sent to it.", a notification "Another user's program on <name>'s port" once; whatever that process answers, its own id included, is never shown as this service's, no token is sent there (FD-156), and a port nobody holds is still "Not answering"
 - **UI elements:** "Wrong program on port" badge, reason line, Dashboard tab notice
 - **States covered:** error
 - **Errors & recovery:** resolved when the port answers as the service again
 - **Status:** validated
-- **Coverage:** packages/service-host/src/state.ts, test/monitor.test.ts, test/flap.test.ts, test/e2e/health-states.test.ts
+- **Coverage:** packages/service-host/src/state.ts, test/monitor.test.ts, test/flap.test.ts, test/e2e/health-states.test.ts; FD-158: test/foreign-user.test.ts, packages/service-host/test/look.test.ts *FD-158*, the `state-precedence.json` cases *FD-158*
 - **Product:** unobserved
 
 ### SCN-013: Two services claim one port

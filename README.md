@@ -37,7 +37,8 @@ Screenshots of the real app against the kit's sample service under example names
 | **MCP for agents** | list services, hand out links, open a page, restart or update — through the app's own rules |
 
 States it tells apart: Ready, Partly working, Not answering, Stopped, Starting/Stopping, Two copies
-(the answering pid is not launchd's), Wrong program on port (another id answers),
+(the answering pid is not launchd's), Wrong program on port (another id answers), Another user's program (another macOS
+user's process holds the port),
 Port conflict (two descriptors claim one port), Broken install file (a descriptor that fails the
 protocol's rules).
 

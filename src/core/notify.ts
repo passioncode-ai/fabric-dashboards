@@ -10,7 +10,7 @@ import type { ServiceEvent, Settings } from './types';
 export const DOWN_NOTIFY_AFTER_MS = 60_000;
 
 export type Happening =
-  | { kind: 'down' | 'back' | 'duplicate' | 'foreign'; serviceKey: string }
+  | { kind: 'down' | 'back' | 'duplicate' | 'foreign' | 'foreign-user'; serviceKey: string }
   | { kind: 'event'; serviceKey: string; level: ServiceEvent['level'] }
   | { kind: 'update'; serviceKey: string };
 

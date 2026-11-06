@@ -44,7 +44,7 @@ export interface Audit {
   counts: Record<Severity, number>;
 }
 
-const PROBLEM = new Set(['down', 'duplicate', 'foreign', 'conflict', 'invalid']);
+const PROBLEM = new Set(['down', 'duplicate', 'foreign-user', 'foreign', 'conflict', 'invalid']);
 const ORDER: Record<Severity, number> = { error: 0, warn: 1, setup: 2, info: 3 };
 const nameOf = (s: Seen) => s.descriptor?.name ?? s.wellKnown?.service.name ?? s.key;
 /** A repository address's last segment (`https://github.com/org/name.git` → `name`), or null. */
