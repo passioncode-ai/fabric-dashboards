@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.8.28 - 2026-11-06
 
 ### Fixed
 
@@ -8,6 +8,11 @@
   "a program that is not a Fabric agent". It reads "Not answering": the program on its port refuses this app, and a
   refusal says nothing about which program it is. An agent did this on 2026-11-06 while it could not tell who was
   connecting.
+
+### Documentation
+
+- The commands that register and check the MCP server take the copy of the app you run: `~/Applications` when the
+  PassionCode launcher installed it there (each user of a shared Mac has their own), else `/Applications`.
 
 ## 0.8.27 - 2026-11-06
 
