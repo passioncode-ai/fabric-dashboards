@@ -41,6 +41,12 @@ test('fetchWellKnown: an answer, another program, garbage, silence', async () =>
     assert.equal(seen.host, s.origin.slice('http://'.length));
     reply = { status: 404, body: 'no' };
     assert.deepEqual(await fetchWellKnown(s.origin), { kind: 'not-protocol', detail: 'HTTP 404 on /.well-known/fabric-service' });
+    // A program that turns this host away (an agent refusing a peer it cannot place, DEC-0154 HA-2) is a refusal, not
+    // another program: nothing in a 401 or 403 says which program answered.
+    reply = { status: 403, body: '{"error":"peer-unverified"}' };
+    assert.deepEqual(await fetchWellKnown(s.origin), { kind: 'refused', detail: 'HTTP 403 on /.well-known/fabric-service' });
+    reply = { status: 401, body: '' };
+    assert.deepEqual(await fetchWellKnown(s.origin), { kind: 'refused', detail: 'HTTP 401 on /.well-known/fabric-service' });
     reply = { status: 200, body: '<html>' };
     assert.deepEqual(await fetchWellKnown(s.origin), { kind: 'not-protocol', detail: 'the answer is not JSON' });
     reply = { status: 200, body: JSON.stringify({ ...WELL_KNOWN, degraded: undefined }) };

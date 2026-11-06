@@ -131,7 +131,9 @@ export interface WellKnownOptions extends TlsOptions {
  * GET /.well-known/fabric-service. Never throws: silence is `no-answer` (with its cause for a
  * remote origin), a remote `401` is `refused`, a redirect is `no-answer` with cause `redirect`
  * (never followed), a remote 5xx is `no-answer` with cause `http` (a deploy or an outage, not
- * another program), anything else `not-protocol`.
+ * another program), a local 401 or 403 is `refused` (a program on the port turned this host away, as an agent that
+ * refuses a peer it cannot place does, DEC-0154 HA-2: that says nothing about which program it is), anything else
+ * `not-protocol`.
  */
 export async function fetchWellKnown(origin: string, timeoutMs = 2000, options: WellKnownOptions = {}): Promise<WellKnownResult> {
   let res: HttpResult;
@@ -145,6 +147,7 @@ export async function fetchWellKnown(origin: string, timeoutMs = 2000, options: 
   if (res.status === 401 && portOf(origin) === null) return { kind: 'refused', detail: 'HTTP 401 on /.well-known/fabric-service' };
   if (portOf(origin) === null && res.status >= 300 && res.status < 400) return { kind: 'no-answer', detail: `HTTP ${res.status}: the service answered with a redirect, which a host does not follow`, cause: 'redirect' };
   if (portOf(origin) === null && res.status >= 500) return { kind: 'no-answer', detail: `HTTP ${res.status} on /.well-known/fabric-service`, cause: 'http' };
+  if (portOf(origin) !== null && (res.status === 401 || res.status === 403)) return { kind: 'refused', detail: `HTTP ${res.status} on /.well-known/fabric-service` };
   if (res.status !== 200) return { kind: 'not-protocol', detail: `HTTP ${res.status} on /.well-known/fabric-service` };
   let doc: unknown;
   try {
