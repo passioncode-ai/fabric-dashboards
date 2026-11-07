@@ -25,6 +25,10 @@ report:
 - The board threads of 2026-11-06 and 2026-11-07: the estate review `eefa7959`, the agent audit `5d2a61f1`, ports and
   owners `1fe66e6e`, isolation `22876238`, sessions `b250bec9`.
 - Our answer to the estate review: [2026-11-06-estate-flows](../2026-11-06-estate-flows/README.md).
+- Refresh 2026-11-07 15:40 UTC: the North Star at fabric-workspace `f0645de1` (its §14 now names FD-164, FD-165, FD-170
+  and FD-168), Fabric's plan of everything left (fabric-workspace `docs/plans/2026-11-07-remaining-to-north-star/README.md`,
+  which records our decision 8 as decided and our question as its decision 7), and this Mac's `main.log` and
+  `digests/` (section *What the logs say*).
 
 ## What the North Star asks of Dashboards
 
@@ -50,9 +54,10 @@ And it relies on Dashboards indirectly in four more:
 
 ## The plan
 
-The coordinator's pause (thread `eefa7959`) holds new code until the shared source of truth; started steps and the
-operator's direct requests continue. The 2026-11-21 organization slice (Fabric 0.4.0, the relay, member tokens) is the
-next cross-product date. The waves below follow those two dates.
+The coordinator's pause (thread `eefa7959`) holds new code until the shared source of truth (Fabric's plan, decision
+1); started steps and the operator's direct requests continue. The 2026-11-21 organization slice (Fabric's P-27: contexts
+`org:<id>`, the hub, the relay, member tokens) is the next cross-product date. It is not Fabric 0.4.0: Fabric keeps the
+slice and 0.4.0 apart (Fabric's plan, contradiction 7). The waves below follow those two dates.
 
 ### Wave 0: now, inside the pause (security and started steps only)
 
@@ -60,6 +65,7 @@ next cross-product date. The waves below follow those two dates.
 |---|---|---|---|
 | FD-168 | check the listener's owner on the open connection before the token is written; the listener at 127.0.0.1 first; procfs read to the end | the contract's CT-254 on its main and tagged (PR #250) | tests for the swapped listener and both address orders on Linux and macOS; a five-platform validate; a release |
 | audit, point 3 | the last descriptor without `source.repository` names it | its owner (request on thread `7c9c610d`) | the auditor reads its organization |
+| FD-172, FD-173 | two defects the logs show (section *What the logs say*): the Dock icon recheck almost never succeeds; Switchboard's hand-over and limit-stop reads time out at 10 s | nothing; they wait for the pause like any code, unless one turns into an outage | a reproduction and a test each |
 
 ### Wave 1: after the shared source of truth, before 2026-11-21
 
@@ -71,7 +77,7 @@ next cross-product date. The waves below follow those two dates.
 | FD-154 | §5 | the sample service on the adapter kit 0.74.0 (two new modules, the channel-agent schema, `fabric_peer_owner`) | nothing |
 | FD-161 rest | §4 | group the list by where an agent came from (`installedBy`) next to the organization filter | nothing |
 | FD-129, FD-130 | quality | the 28 low UI findings; the first e2e's cold start | nothing |
-| audit rerun | §11 | the agent audit again: cross-organization links and descriptor modes | the pilot organization's agents on their own signal server (needs the operator's bot in the organization's cloud gateway), Observatory's fix R1 |
+| audit rerun | §11 | the agent audit again: cross-organization links and descriptor modes | the pilot organization's signal server delivers through its own cloud gateway since 2026-11-07 15:21 UTC (thread `5d2a61f1`, message `3ed4382c`); left: each agent's «switched» on thread `1c854f87` with its old token revoked, and Observatory's registry fix R1 (`2c259d5b`) |
 
 ### Wave 2: with and after the 2026-11-21 organization slice
 
@@ -79,7 +85,7 @@ next cross-product date. The waves below follow those two dates.
 |---|---|---|---|
 | FD-164 | §1 principle 2, §3 | log the caller's level (owner, administrator, architect, user) with each action; a user's action on an organization's agent through the organization's approval | the contract's CT-250 (architect role, approve by level), the organization service's VES-AUTHORITY-LEVELS |
 | FD-52 | §13 head machines | "this machine": which agents this place holds, grouped by where they come from (one Dashboards per place, decided 2026-11-07) | Fabric's organization contexts (G5) |
-| FD-171 (new) | §4 «One system» | a person's own dashboard as a small local service from the adapter's kit, and a *New dashboard* action that has an agent build it | the kit's template for a dashboard-only service |
+| FD-171 | §4 «One system» | a person's own dashboard as a small local service from the adapter's kit, and a *New dashboard* action that has an agent build it | the adapter's `recipes/dashboard-only/` (form agreed on thread `38c35e11`: `install.py --id --folder`, last line JSON with descriptor, key and port, idempotent); its row and commit after the adapter's 0.75.0 |
 | FD-165 | §0, S0 G1-e | hand the activity journal each agent's spend and activity with its organization | Observatory's event schema OBS-378 (by 2026-11-13) |
 | FD-170 (new) | §4, G26 | a dashboard per role cut from the same record: owner (money and M), administrator (agents and grants), architect (the project's work), member (what was granted) | FD-165 and the journal (G1-d), the organization service's roles, FD-164 |
 | FD-53 | §4 | the organization server's own pages embedded like a service's | the operator's sign-in to that server |
@@ -112,13 +118,26 @@ FD-138 (each release is a wave; continues).
    - a *New dashboard* action starts a console session with that template and the person's words, so an agent builds it (the console already exists, MCP `console_new`);
    - a fork of this repository stays for contributors (AGPL): a forked app loses the signed update feed, needs its own signing, and holds every agent's token, so it is not the way to customise.
 
+## What the logs say
+
+Read 2026-11-07 from `~/Library/Logs/Fabric Dashboards/main.log` (it holds lines since 2026-09-28) and `digests/`:
+
+| Finding | Evidence | Where it goes |
+|---|---|---|
+| The Dock icon recheck of FD-127 almost never succeeds | `dock_hide failed` 23 times from 2026-10-28 to 2026-11-06, `dock_hide recovered` once; the daily digests count `dock_hide` failed 1 on 2026-11-05 and 2 on 2026-11-06 | FD-172 |
+| Switchboard's background reads time out | since 2026-11-06: `hand-overs cannot be read … no answer within 10 s` 39 times (22 between 11:00 and 14:00 UTC that day), `limit stops cannot be read` 25 times; deadline `src/core/switchboard.ts:282` | FD-173 |
+| The flood of refused asks to the operator channel | `question_binding_required` 1,287 times on 2026-10-27 and 28, then nothing of it | fixed by FD-131; since then two asks refused as `question_expired` (2026-11-04, 2026-11-06), which is the channel's correct answer to a stale ask |
+| The update feed unreachable at times | `update_check check_failed` for lost network, network change, timeout and reset; one failed check on 2026-11-05 in the digest, retried 5 minutes later | the network, not the app; nothing to do |
+| Everything else the digests count | agent names, alerts, analytics, estate checks, update download, install and restart: no failures on 2026-11-05 and 2026-11-06 except the above and one alert on 2026-11-06 | nothing |
+
 ## Questions for the operator
 
 1. **Until the organization's agents leave the personal macOS user, should Dashboards refuse to control them (start,
-   stop, console) from a personal session?** North Star §11 forbids crossing; the filter only hides. The safe default
+   stop, console) from a personal session?** (Fabric's plan, decision 7.) North Star §11 forbids crossing; the filter only hides. The safe default
    proposed: allow, flag in the auditor (as now), and make control refuse once each organization has its own user.
 
 ## Next step
 
-The first task is FD-168 the day the contract tags CT-254 (it will post on thread `1fe66e6e`); then wave 1 in the
-order above once the coordinator lifts the pause.
+The first task is FD-168 the day the contract tags CT-254 (it will post on thread `1fe66e6e`; Fabric's plan puts the
+tag in its wave 1, by 2026-11-13); then wave 1 in the order above once the operator accepts the shared source of truth
+and the coordinator lifts the pause; FD-172 and FD-173 go first in that wave because they touch what already ships.
