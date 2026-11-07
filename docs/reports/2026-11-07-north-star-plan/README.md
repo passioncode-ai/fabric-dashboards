@@ -78,7 +78,8 @@ next cross-product date. The waves below follow those two dates.
 | Row | North Star | What | Depends on |
 |---|---|---|---|
 | FD-164 | §1 principle 2, §3 | log the caller's level (owner, administrator, architect, user) with each action; a user's action on an organization's agent through the organization's approval | the contract's CT-250 (architect role, approve by level), the organization service's VES-AUTHORITY-LEVELS |
-| FD-52 | §13 head machines | "this machine" and the organization across machines: which places hold which agents | the operator's answer to question 1; Fabric's organization contexts and the relay (G5) |
+| FD-52 | §13 head machines | "this machine": which agents this place holds, grouped by where they come from (one Dashboards per place, decided 2026-11-07) | Fabric's organization contexts (G5) |
+| FD-171 (new) | §4 «One system» | a person's own dashboard as a small local service from the adapter's kit, and a *New dashboard* action that has an agent build it | the kit's template for a dashboard-only service |
 | FD-165 | §0, S0 G1-e | hand the activity journal each agent's spend and activity with its organization | Observatory's event schema OBS-378 (by 2026-11-13) |
 | FD-170 (new) | §4, G26 | a dashboard per role cut from the same record: owner (money and M), administrator (agents and grants), architect (the project's work), member (what was granted) | FD-165 and the journal (G1-d), the organization service's roles, FD-164 |
 | FD-53 | §4 | the organization server's own pages embedded like a service's | the operator's sign-in to that server |
@@ -102,12 +103,18 @@ FD-138 (each release is a wave; continues).
 | G27 a security agent | the auditor's findings (descriptor modes, tokens in foreign folders, cross-organization links, ports held by another account) are a ready input; the agent audit of 2026-11-06 was run from them |
 | G14, G28 rebuild and Linux | Dashboards installs in two minutes from the release and needs no port; its copies in headless spaces need the host agent to update them (measured 2026-11-07, message `85580023`) |
 
+## Decided by the operator
+
+1. **One Dashboards per place** (2026-11-07, in this repository's session `0edbdfdf`, in their words: «у каждого свой, агент один но если локально его поставить как репозиторий еще то можно сделать свой дашборд, так или подумай как лучше»). Each person, and each place, runs its own copy; there is one product. FD-52 stays "this machine"; the organization-wide picture a head machine needs (North Star §13) comes from the organization's hub as an online service with its own pages (FD-53), never from one Dashboards reaching into other machines.
+2. **"Your own dashboard" is a page, not a fork** (our proposal on the operator's «или подумай как лучше»):
+   - the layout, filters, pins and hidden agents are already per person (settings, MCP `arrange`); the role preset is FD-170;
+   - a person's own dashboard is a small local service made from the adapter's kit: a `fabric-service/0.1` descriptor and a dashboard page that reads Dashboards' MCP (`list_services`, `spend`, `connections`) and Observatory; it appears in the list the moment it is installed, signs in like any agent, updates on its own and crosses no organization boundary (FD-171);
+   - a *New dashboard* action starts a console session with that template and the person's words, so an agent builds it (the console already exists, MCP `console_new`);
+   - a fork of this repository stays for contributors (AGPL): a forked app loses the signed update feed, needs its own signing, and holds every agent's token, so it is not the way to customise.
+
 ## Questions for the operator
 
-1. **One Dashboards per place, or one view of every place from a head machine?** North Star §13 says a head machine
-   "sees the organization in Dashboards". Today each copy sees its own macOS user. The second needs a read path across
-   machines (the hub or the relay, G5). This decides FD-52's scope.
-2. **Until the organization's agents leave the personal macOS user, should Dashboards refuse to control them (start,
+1. **Until the organization's agents leave the personal macOS user, should Dashboards refuse to control them (start,
    stop, console) from a personal session?** North Star §11 forbids crossing; the filter only hides. The safe default
    proposed: allow, flag in the auditor (as now), and make control refuse once each organization has its own user.
 
