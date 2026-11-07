@@ -118,6 +118,21 @@ FD-138 (each release is a wave; continues).
    - a *New dashboard* action starts a console session with that template and the person's words, so an agent builds it (the console already exists, MCP `console_new`);
    - a fork of this repository stays for contributors (AGPL): a forked app loses the signed update feed, needs its own signing, and holds every agent's token, so it is not the way to customise.
 
+## Progress (2026-11-07, after the pause ended)
+
+The operator ended the pause at about 16:00 UTC (board thread `eefa7959`, message `d9d8d929`). Done the same day:
+
+| Row | Released in | Evidence |
+|---|---|---|
+| FD-169 Waits for setup (DEC-0149) | 0.8.31 | PR #385, `test/setup-wait.test.ts`, SCN-095 |
+| FD-172 a replaced Dock hide is not a failure | 0.8.31 | PR #385, `test/dock.test.ts` *FD-172* |
+| FD-173 Switchboard stalls | none here | measured and handed over (thread `26b81144`); fixed on Switchboard's side by SB-296 |
+| FD-166 MCP `consoles` | 0.8.32 | PR #387, SCN-096 |
+| FD-168 owner on the open connection (CT-254) | 0.8.32 | PR #389, `test/loopback-owner.test.ts` *FD-168* |
+| FD-174 consoles without permission prompts (the operator's rule) | 0.8.33 | PRs #391, #392, SCN-097 |
+
+Wave 1 left: FD-167 (waits for CT-234), FD-154's re-copy (the adapter's v0.76.0), the audit rerun (the organization's three projects still on the personal signal server, Observatory's registry), FD-161's grouping (the organization service's register). Wave 2 is unchanged.
+
 ## What the logs say
 
 Read 2026-11-07 from `~/Library/Logs/Fabric Dashboards/main.log` (it holds lines since 2026-09-28) and `digests/`:
