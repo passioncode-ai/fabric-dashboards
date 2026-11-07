@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+### Added
+
+- FD-161: "Group by organization" at the bottom of the Organizations menu splits each section of the agent list under
+  a small heading per organization, the chosen sort inside each, "Not attributed" last. Rows are not dragged while the
+  list is grouped. The choice is kept across restarts.
+
 ## 0.8.33 - 2026-11-07
 
 ### Changed

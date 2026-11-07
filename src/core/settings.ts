@@ -158,7 +158,7 @@ const productIds = (x: unknown) => (Array.isArray(x) ? [...new Set(x.filter((v):
 /** FD-39: a sort the app knows, and pinned product ids — each a valid id, once, at most 200. FD-78: hidden product ids
  *  the same way, a kind per product (`agent` or `service`; anything else is dropped), and whether Hidden is open. */
 function mergeList(raw: unknown): Settings['layout']['list'] {
-  const l = (raw && typeof raw === 'object' ? raw : {}) as { sort?: unknown; pinned?: unknown; hidden?: unknown; kinds?: unknown; hiddenOpen?: unknown; order?: unknown; off?: unknown; orgs?: unknown };
+  const l = (raw && typeof raw === 'object' ? raw : {}) as { sort?: unknown; pinned?: unknown; hidden?: unknown; kinds?: unknown; hiddenOpen?: unknown; order?: unknown; off?: unknown; orgs?: unknown; groupByOrg?: unknown };
   const sort = l.sort === 'status' || l.sort === 'activity' || l.sort === 'manual' ? l.sort : 'name';
   const kinds: Settings['layout']['list']['kinds'] = {};
   if (l.kinds && typeof l.kinds === 'object' && !Array.isArray(l.kinds)) {
@@ -169,7 +169,7 @@ function mergeList(raw: unknown): Settings['layout']['list'] {
   const hidden = productIds([...productIds(l.hidden), ...off]);
   // FD-162: organization names as Project Observatory gives them, and '' for "Not attributed".
   const orgs = Array.isArray(l.orgs) ? [...new Set(l.orgs.filter((v): v is string => typeof v === 'string' && /^[a-z0-9._-]{0,64}$/i.test(v)))].slice(0, 50) : [];
-  return { sort, pinned: productIds(l.pinned), hidden, kinds, hiddenOpen: l.hiddenOpen === true, order: productIds(l.order), off, orgs };
+  return { sort, pinned: productIds(l.pinned), hidden, kinds, hiddenOpen: l.hiddenOpen === true, order: productIds(l.order), off, orgs, groupByOrg: l.groupByOrg === true };
 }
 
 /** FD-121 (SCN-087): a width from any file reads as one inside the bounds; anything else is the default. */

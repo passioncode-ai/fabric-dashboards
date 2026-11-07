@@ -142,6 +142,8 @@ export interface ListLayout {
   off: string[];
   /** FD-162 (SCN-094): the organizations the lists show, by name; `''` is "Not attributed"; empty shows every agent. */
   orgs: string[];
+  /** FD-161 (SCN-094): each section of the list split by organization, under a small heading per organization. */
+  groupByOrg: boolean;
 }
 
 /** A change to the settings: any field, and any part of the layout or of one service's console alone. */
@@ -177,7 +179,7 @@ export const DEFAULT_SETTINGS: Settings = {
     pausedUntil: null,
     channel: 'auto',
   },
-  layout: { sidebar: 'expanded', sidebarWidth: SIDEBAR_WIDTH.default, header: 'compact', console: { open: false, height: CONSOLE_HEIGHT.default }, list: { sort: 'name', pinned: [], hidden: [], kinds: {}, hiddenOpen: false, order: [], off: [], orgs: [] }, mode: 'agents', sessionId: null, endedOpen: false },
+  layout: { sidebar: 'expanded', sidebarWidth: SIDEBAR_WIDTH.default, header: 'compact', console: { open: false, height: CONSOLE_HEIGHT.default }, list: { sort: 'name', pinned: [], hidden: [], kinds: {}, hiddenOpen: false, order: [], off: [], orgs: [], groupByOrg: false }, mode: 'agents', sessionId: null, endedOpen: false },
   consoles: {},
   resumeAfterLimit: true,
   sessions: { records: [], dismissed: [] },
