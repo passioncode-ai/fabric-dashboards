@@ -130,8 +130,13 @@ The operator ended the pause at about 16:00 UTC (board thread `eefa7959`, messag
 | FD-166 MCP `consoles` | 0.8.32 | PR #387, SCN-096 |
 | FD-168 owner on the open connection (CT-254) | 0.8.32 | PR #389, `test/loopback-owner.test.ts` *FD-168* |
 | FD-174 consoles without permission prompts (the operator's rule) | 0.8.33 | PRs #391, #392, SCN-097 |
+| FD-161 the list grouped by organization | 0.8.34 | PR #396, `test/organizations.test.ts` *FD-161*, SCN-094 step 6 |
+| FD-154 the sample service on the adapter kit 0.75.0, then 0.76.0 | 0.8.34, 0.8.35 | PRs #395, #400; 44 modules equal to `kit.json` |
+| FD-175 every window button for an agent (the operator's rule) | 0.8.35, 0.8.37 | PRs #398, #399, #404; `test/agent-doors.test.ts`, SCN-098 |
+| FD-176 a restricted macOS socket table (DEC-0155 RT-1) | 0.8.36 | PR #402, `test/loopback-owner.test.ts` *FD-176* |
+| FD-130 the login-shell test under load | 0.8.37 (test only) | PR #405 |
 
-Wave 1 left: FD-167 (waits for CT-234), FD-154's re-copy (the adapter's v0.76.0), the audit rerun (the organization's three projects still on the personal signal server, Observatory's registry), FD-161's grouping (the organization service's register). Wave 2 is unchanged.
+Wave 1 left: FD-167 (waits for CT-234), the audit rerun (the organization's three projects still on the personal signal server, Observatory's registry), naming an agent by the organization that installed it (the organization service's register of product instances; FD-161's grouping by organization shipped in 0.8.34), FD-129's UX-27 (a signed reinstall walked at a release). Wave 2 is unchanged.
 
 ## What the logs say
 
