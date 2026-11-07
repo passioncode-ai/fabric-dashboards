@@ -108,6 +108,9 @@ service data.
   all (macOS 27.2 hides other processes' sockets from some programs), are an owner that cannot be told: the connection
   is closed with nothing written. One table read serves every connection waiting at once. Windows keeps the listener
   check above, which already refuses a port where any listener is not this user's.
+  A macOS table that shows no socket of another process, or not the checked connection's own end (macOS 27.2 hides
+  other processes' sockets from some programs; the contract's DEC-0155 RT-1, FD-176), is an owner that cannot be told,
+  never "nobody listens".
 - **Listens** on no port. The MCP server (`Contents/Resources/bin/fabric-dashboards-mcp`)
   is started by an agent and speaks only over its stdin and stdout; it reads the same
   folder and token files, talks to the same origins and runs the same `launchctl` verbs and
