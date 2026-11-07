@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.8.32 - 2026-11-07
+
 ### Security
 
 - FD-168, the contract's CT-254: a request that carries an agent's token now connects first, checks who holds the other
