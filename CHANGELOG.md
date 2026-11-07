@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.8.30 - 2026-11-07
+
 ### Security
 
 - FD-159, the contract's DEC-0154: when Fabric Dashboards cannot tell whose program listens on an agent's port, it now
