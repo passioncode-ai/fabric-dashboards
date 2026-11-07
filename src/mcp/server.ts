@@ -128,6 +128,24 @@ export const TOOLS = [
     annotations: { readOnlyHint: true },
   },
   {
+    name: 'settings',
+    description: 'Settings as a person changes them in the window (FD-175, the operator 2026-11-07: every action of the interface by an agent at their request): without patch, the settings an agent may change as they stand; with patch, a partial change applied through Settings\' own code in the running app: language (system, en, ru), theme (dark, light, system), pageTheme, autoUpdate, analytics, launchAtLogin, notifications (its fields), resumeAfterLimit, estate, layout.list.sort, layout.list.orgs, layout.list.groupByOrg. Answers the fields changed and the ones refused (anything else, such as a console\'s folder). A change needs the app running (app-not-running otherwise).',
+    inputSchema: { type: 'object', properties: { patch: { type: 'object' } }, additionalProperties: false },
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
+  },
+  {
+    name: 'session_action',
+    description: 'A Sessions row\'s buttons in the running app (FD-175): continue (Continue, or Continue now with account, an account id of the row\'s candidates), end (End, which stops the coding session), dismiss (removes an ended row), clear-ended (every ended row; no row). row is the Sessions row id that consoles and the Sessions page give. Pass the operator\'s words in params._meta.decision when you have them (actions session-continue, session-end, session-dismiss, sessions-clear-ended).',
+    inputSchema: { type: 'object', properties: { act: { type: 'string', enum: ['continue', 'end', 'dismiss', 'clear-ended'] }, row: { type: 'string', maxLength: 500 }, account: { type: 'string', maxLength: 64 } }, required: ['act'], additionalProperties: false },
+    annotations: { readOnlyHint: false, destructiveHint: true },
+  },
+  {
+    name: 'app_update',
+    description: 'Check for updates, or Restart to update, as the window\'s buttons do (FD-175). check reads the update feed now (also with automatic updates off) and answers the update\'s state; restart installs a ready update, which may first ask the person when coding sessions run, as the button does. Pass the operator\'s words in params._meta.decision when you have them (actions check-for-updates, restart-to-update).',
+    inputSchema: { type: 'object', properties: { action: { type: 'string', enum: ['check', 'restart'] } }, required: ['action'], additionalProperties: false },
+    annotations: { readOnlyHint: false, destructiveHint: false },
+  },
+  {
     name: 'arrange',
     description: 'Arrange the app\'s sidebar as its row menu and eye do (FD-122): pin or unpin an agent, hide it or show it again, show it as a service or as an agent, turn it off or on (FD-123). A hidden agent is still watched and still alerts; one turned off is also hidden, the app no longer probes it or alerts about it, and turning it on leaves it hidden and watched (show brings it back and turns it on). The choice is written to the app\'s settings and shows at once in a running app; with the app closed it applies when it opens. Answers the agent\'s list state after the change.',
     inputSchema: { type: 'object', properties: { service: serviceArg, action: { type: 'string', enum: [...tools.ARRANGE] } }, required: ['service', 'action'], additionalProperties: false },
@@ -231,6 +249,14 @@ export async function call(deps: tools.Deps, name: string, args: Args): Promise<
       return tools.rename(deps, need(args, 'service'), args.name as string | null);
     }
     case 'consoles': return tools.consoles(deps);
+    case 'settings': return tools.settings(deps, args.patch as Record<string, unknown> | undefined);
+    case 'session_action': {
+      const act = need(args, 'act') as 'continue' | 'end' | 'dismiss' | 'clear-ended';
+      const row = typeof args.row === 'string' ? args.row : undefined;
+      if ((act === 'clear-ended') === Boolean(row)) throw new tools.ToolError(act === 'clear-ended' ? 'clear-ended takes no row' : `${act} needs the row`);
+      return tools.sessionAction(deps, act, row, typeof args.account === 'string' ? args.account : undefined);
+    }
+    case 'app_update': return tools.appUpdate(deps, need(args, 'action') as 'check' | 'restart');
     case 'console_new': return tools.consoleChannel(deps, { op: 'console.new', service: need(args, 'service') });
     case 'console_fix': return tools.consoleChannel(deps, { op: 'console.fix', service: need(args, 'service'), task: { kind: need(args, 'kind') as 'fix' | 'audit', output: need(args, 'findings') } });
     case 'service_context': {
@@ -294,7 +320,7 @@ export async function handle(deps: tools.Deps, message: Message): Promise<Record
       const own = actionOf(name, args);
       if (own) {
         const meta = params._meta && typeof params._meta === 'object' ? params._meta as Record<string, unknown> : {};
-        const target = typeof args.service === 'string' ? args.service : null;
+        const target = typeof args.service === 'string' ? args.service : typeof args.row === 'string' ? args.row : null;
         const now = deps.now();
         const outcome = decisionFor(own, target, meta.decision, now, 'stdio');
         if (!outcome.ok) {

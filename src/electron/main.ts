@@ -22,6 +22,7 @@ import { linkFor, parseDeepLink, safePath, SCHEME } from '../core/deeplink';
 import { servicesDir, setLoopbackConnectionCheck, setLoopbackOwnerCheck, setWindowsAclReader, windowsPowerShellEnv } from '@passioncode-ai/fabric-service-host';
 import { linuxConnectionCheck, linuxLoopbackOwnerCheck, loopbackOwnerCheck, macConnectionCheck, windowsLoopbackOwnerCheck } from '../core/loopback-owner';
 import { openChannel, startAnswer, type Channel } from './console-channel';
+import type { ChannelAnswer } from '../core/console-channel';
 import { chooseLang, langFor, t, type Lang } from '../core/i18n';
 import { execRunner } from '../core/launchd';
 import { listListeners, unattributed } from '../core/listeners';
@@ -41,7 +42,7 @@ import { readLoad, type LoadEntry } from '../core/load';
 import { NotifyLedger, shouldNotify } from '../core/notify';
 import { OutageAlerts } from './outage-alerts';
 import { powerShellAfterExit } from '../core/after-exit';
-import { rendererSettingsPatch, SettingsStore } from '../core/settings';
+import { agentSettingsPatch, rendererSettingsPatch, SettingsStore } from '../core/settings';
 import type { AppStatus, Settings, SettingsPatch } from '../core/types';
 import { ALWAYS_KEPT, cancelStagedUpdate, clearRestoreRecord, KEPT_FILES, productDataPaths, purgeAfterExit, readRestoreRecord, removeMcpRegistrations, repairMcpRegistrations, restoreMcpRegistrations, writeRestoreRecord } from '../core/uninstall';
 import { autoInstallNow, autoInstallWait, cookieRewrite, inSight, OCCLUSION_PROBE_MS, onScreen, resumeBehind, COOKIES_REENCRYPTED_MARKER, HiddenGrace, partitionFor, RELAUNCH_MARKER, relaunchHidden, RESUME_ROUTE_MARKER, resumeRoute, type ResumeRoute, stalePartitions, UPDATE_IDLE_MS, VIEW_RELEASE_ALL_MS, VIEW_RELEASE_GRACE_MS, VISIBILITY_SYNC_MS, VisibilitySync, WARM_VIEWS } from './policy';
@@ -808,6 +809,8 @@ if (!app.requestSingleInstanceLock()) {
   }
   // #endregion reinstall
 
+  /** FD-175: Settings' own change, for the console channel (set by registerIpc, where it lives beside its handler). */
+  let applySettingsFn: ((patch: SettingsPatch) => { settings: Settings; error?: string }) | null = null;
   function registerIpc(): void {
     consoles.register();
     const snap = (key: string) => monitor.snapshot(key);
@@ -907,10 +910,11 @@ if (!app.requestSingleInstanceLock()) {
       return setupCheckRun;
     });
     // #endregion setup-check
-    ipcMain.handle(CHANNELS.settingsUpdate, (_e, raw: SettingsPatch) => {
-      // Review R-4, R1-S1: a console's runtime and folder, and the Sessions list's records, are never written through a
-      // generic settings change.
-      const patch = rendererSettingsPatch(raw);
+    // Review R-4, R1-S1: a console's runtime and folder, and the Sessions list's records, are never written through a
+    // generic settings change. FD-175: an agent's change (MCP `settings`) takes this same path.
+    ipcMain.handle(CHANNELS.settingsUpdate, (_e, raw: SettingsPatch) => applySettings(rendererSettingsPatch(raw)));
+    applySettingsFn = applySettings;
+    function applySettings(patch: SettingsPatch): { settings: Settings; error?: string } {
       // Choosing launch at login — on the first-run card or in Settings — is the one moment it is registered (LC-07).
       const choosing = 'launchAtLogin' in patch;
       const before = settings.get().autoUpdate;
@@ -936,7 +940,7 @@ if (!app.requestSingleInstanceLock()) {
       }
       pushStatus();
       return { settings: next };
-    });
+    }
     ipcMain.handle(CHANNELS.listeners, async () => {
       try {
         const claimed = new Set(monitor.snapshots().map((s) => Number(/:(\d+)$/.exec(s.descriptor?.origin ?? '')?.[1] ?? 0)));
@@ -1164,8 +1168,32 @@ if (!app.requestSingleInstanceLock()) {
     void openChannel({
       userData, log,
       // FD-166: the read answers what the Sessions list shows; the starts take the buttons' own path.
-      start: (r) => (r.op === 'console.list' ? Promise.resolve({ ok: true as const, consoles: consoles.openConsoles() })
-        : consoles.start(r.service, 'new', { cols: 120, rows: 32 }, r.task).then((x) => startAnswer(r.service, x))),
+      start: async (r): Promise<ChannelAnswer> => {
+        if (r.op === 'console.list') return { ok: true, consoles: consoles.openConsoles() };
+        // #region agent-doors — docs: docs/ux/scenarios.md#scn-098-an-agent-changes-what-a-person-changes-in-settings-and-on-the-sessions-page
+        // FD-175: the window's own buttons for an agent, each through the code its button runs.
+        if (r.op === 'settings.update') {
+          const { patch, refused } = agentSettingsPatch(r.patch);
+          if (!applySettingsFn) return { ok: false, code: 'not-ready' };
+          const done = applySettingsFn(patch);
+          return { ok: true, result: { changed: Object.keys(patch), refused, ...(done.error ? { error: done.error } : {}) } };
+        }
+        if (r.op === 'sessions.act' && r.session) {
+          const { act, row, account } = r.session;
+          if (act === 'clear-ended') { await consoles.clearEnded(); return { ok: true, result: { act } }; }
+          const done = act === 'continue' ? await consoles.continueSession(row!, { cols: 100, rows: 30 }, account)
+            : act === 'end' ? await consoles.endSession(row!) : await consoles.dismissSession(row!);
+          return done.ok ? { ok: true, result: { act, ...done } } : { ok: false, code: done.reason ?? 'refused', ...(done.detail ? { detail: String(done.detail).slice(0, 200) } : {}) };
+        }
+        if (r.op === 'app.update') {
+          if (r.update === 'check') { await updater.check(true); return { ok: true, result: { state: updater.state.state, version: updater.state.version ?? null } }; }
+          // Restart to update may ask the person first (running consoles): started, never awaited here.
+          void restartToUpdate();
+          return { ok: true, result: { state: updater.state.state, version: updater.state.version ?? null, restarting: updater.state.state === 'ready' } };
+        }
+        // #endregion agent-doors
+        return consoles.start(r.service, 'new', { cols: 120, rows: 32 }, r.task).then((x) => startAnswer(r.service, x));
+      },
     }).then((c) => { consoleChannel = c; if (c) log('console channel open'); });
     // #endregion console-channel-start
     appMenu();

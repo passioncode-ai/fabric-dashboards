@@ -34,6 +34,14 @@ export const OWN_ACTIONS: DeclaredAction[] = [
   { id: 'turn-on', title: 'Turn on', tool: 'arrange', gate: 'none' },
   // FD-135 (SCN-090): the row menu's Rename commits to the agent's own repository, outside this app: relayed, as Update.
   { id: 'rename', title: 'Rename', tool: 'rename', gate: 'relayed' },
+  // FD-175 (the operator, 2026-11-07): the window's own buttons, each with its twin.
+  { id: 'change-settings', title: 'Change settings', tool: 'settings', gate: 'none' },
+  { id: 'session-continue', title: 'Continue', tool: 'session_action', gate: 'relayed' },
+  { id: 'session-end', title: 'End', tool: 'session_action', gate: 'relayed' },
+  { id: 'session-dismiss', title: 'Dismiss', tool: 'session_action', gate: 'none' },
+  { id: 'sessions-clear-ended', title: 'Clear ended', tool: 'session_action', gate: 'none' },
+  { id: 'check-for-updates', title: 'Check for updates', tool: 'app_update', gate: 'none' },
+  { id: 'restart-to-update', title: 'Restart to update', tool: 'app_update', gate: 'relayed' },
 ];
 
 /** The `_meta` of the initialize answer: this app's declared actions (DEC-0121 AP-1). */
@@ -42,6 +50,8 @@ export const ACTIONS_META = { [ACTIONS_EXTENSION]: { actions: OWN_ACTIONS } };
 /** The declared action a tool call performs, or null for a call no button stands for. */
 export function actionOf(tool: string, args: Record<string, unknown>): DeclaredAction | null {
   if (tool === 'control' || tool === 'arrange') return OWN_ACTIONS.find((a) => a.tool === tool && a.id === args.action) ?? null;
+  if (tool === 'session_action') return OWN_ACTIONS.find((a) => a.id === (args.act === 'clear-ended' ? 'sessions-clear-ended' : `session-${String(args.act)}`)) ?? null;
+  if (tool === 'app_update') return OWN_ACTIONS.find((a) => a.id === (args.action === 'restart' ? 'restart-to-update' : 'check-for-updates')) ?? null;
   return OWN_ACTIONS.find((a) => a.tool === tool) ?? null;
 }
 

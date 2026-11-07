@@ -30,7 +30,7 @@ import { buildGraph, chainState, stateOfService, worstOf, type ConnectionGraph }
 import { audit as runAudit, type Finding } from '../core/audit';
 import { estateMap, type EstateMap } from '../core/estate-map';
 import { doctorArgv, doctorResult, DOCTOR_TIMEOUT_MS, type SetupCheckResult } from '../core/doctor';
-import { merge as mergeSettings, SettingsStore } from '../core/settings';
+import { AGENT_SETTINGS, merge as mergeSettings, SettingsStore } from '../core/settings';
 import { places } from '../core/platform';
 import type { ListLayout, ServiceSnapshot } from '../core/types';
 import os from 'node:os';
@@ -644,7 +644,7 @@ export async function load(deps: Deps, key: string): Promise<LoadEntry & { produ
 // #region console-channel-client — docs: docs/adr/0025-the-console-channel.md#decision
 /** One request to the running app, through its per-user channel and this run's key. The app not running is an answer
  *  (`app-not-running`), never a start of the app. */
-async function askChannel(deps: Deps, request: { op: ChannelOp; service?: string; task?: { kind: 'fix' | 'audit'; output: string } }, notRunning: string): Promise<ChannelAnswer> {
+async function askChannel(deps: Deps, request: { op: ChannelOp; service?: string; task?: { kind: 'fix' | 'audit'; output: string }; patch?: Record<string, unknown>; session?: unknown; update?: string }, notRunning: string): Promise<ChannelAnswer> {
   const userData = path.dirname(deps.settingsFile?.() ?? appSettingsFile());
   let key: string;
   try { key = fs.readFileSync(path.join(userData, CHANNEL_KEY_FILE), 'utf8').trim(); } catch { throw new ToolError(notRunning); }
@@ -679,4 +679,40 @@ export async function consoles(deps: Deps): Promise<{ consoles: (OpenConsole & {
   if (!('consoles' in answer)) throw new ToolError('the app answered a start where a list was asked');
   return { consoles: answer.consoles.map((c) => ({ ...c, open_link: sessionLink(c.row) })) };
 }
+
+// #region agent-doors-mcp — docs: docs/ux/scenarios.md#scn-098-an-agent-changes-what-a-person-changes-in-settings-and-on-the-sessions-page
+/** FD-175 (the operator, 2026-11-07: every action of the interface by Claude Code at their request): Settings as an
+ *  agent changes them. Without `patch`, the settings an agent may change, as they stand (read from the app's file,
+ *  the app need not run); with one, the change goes through Settings' own code in the running app, which says which
+ *  fields it changed and which it refused (a console's folder, the Sessions records: never through here). */
+export async function settings(deps: Deps, patch?: Record<string, unknown>): Promise<Record<string, unknown>> {
+  if (patch === undefined) {
+    const file = deps.settingsFile?.() ?? appSettingsFile();
+    const s = new SettingsStore(path.dirname(file), () => undefined).get();
+    const shown: Record<string, unknown> = {};
+    for (const k of AGENT_SETTINGS) shown[k] = s[k as keyof typeof s];
+    shown.layout = { list: { sort: s.layout.list.sort, orgs: s.layout.list.orgs, groupByOrg: s.layout.list.groupByOrg } };
+    return { settings: shown, changeable: [...AGENT_SETTINGS, 'layout.list.sort', 'layout.list.orgs', 'layout.list.groupByOrg'] };
+  }
+  const answer = await askChannel(deps, { op: 'settings.update', patch } as never, 'app-not-running: Fabric Dashboards is not running, so Settings cannot change now; open it and call again');
+  if (!answer.ok) throw new ToolError(`${answer.code}${answer.detail ? `: ${answer.detail}` : ''}`);
+  return 'result' in answer ? answer.result : {};
+}
+
+/** FD-175: a Sessions row's buttons (Continue, Continue now with `account`, End, Dismiss) and Clear ended, through the
+ *  running app. The row id is the one `consoles` and the Sessions page give (`c:…`, `sb:…`, `ho:…`, `st:…`). */
+export async function sessionAction(deps: Deps, act: 'continue' | 'end' | 'dismiss' | 'clear-ended', row?: string, account?: string): Promise<Record<string, unknown>> {
+  const answer = await askChannel(deps, { op: 'sessions.act', session: { act, ...(row ? { row } : {}), ...(account ? { account } : {}) } } as never, 'app-not-running: Fabric Dashboards is not running, so no session can be acted on here; open it and call again');
+  if (!answer.ok) throw new ToolError(`${answer.code}${answer.detail ? `: ${answer.detail}` : ''}`, { done: false, code: answer.code });
+  return 'result' in answer ? answer.result : {};
+}
+
+/** FD-175: Check for updates, and Restart to update (which may ask the person first when consoles run, as the button
+ *  does; the answer says it started). */
+export async function appUpdate(deps: Deps, action: 'check' | 'restart'): Promise<Record<string, unknown>> {
+  const answer = await askChannel(deps, { op: 'app.update', update: action } as never, 'app-not-running: Fabric Dashboards is not running; open it and call again');
+  if (!answer.ok) throw new ToolError(`${answer.code}${answer.detail ? `: ${answer.detail}` : ''}`);
+  return 'result' in answer ? answer.result : {};
+}
+// #endregion agent-doors-mcp
 // #endregion console-channel-client

@@ -66,6 +66,12 @@ only (Q-08) and moves to Fabric (FD-105), so MD-12 closes them as not needed.
 
 ## Consequences
 
+- **Amendment 2026-11-07 (FD-175, the operator: «любое действие в интерфейсе должно уметь делаться клауд кодом по моему
+  запросу»).** Three more operations, each through the code its button runs: `settings.update` (a patch the app checks
+  again against the fields Settings offers, `AGENT_SETTINGS`), `sessions.act` (a Sessions row's Continue, Continue now,
+  End and Dismiss, and Clear ended) and `app.update` (Check for updates, Restart to update, which may ask the person
+  first when consoles run, as the button does). MCP `settings`, `session_action` and `app_update` read them; End,
+  Continue and Restart to update are relayed actions (DEC-0121).
 - **Amendment 2026-11-07 (FD-166, Fabric's CO-457).** A third operation, `console.list`, reads the consoles running now
   for one screen of sessions in Fabric: per console the Sessions row, the console key, the agent (or none for a console
   of its own), the runtime, the folder, the session ids when Switchboard or a resume named them, and the start time.

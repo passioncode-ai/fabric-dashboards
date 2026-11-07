@@ -18,8 +18,18 @@ export const CHANNEL_KEY_FILE = 'console.key';
 export const CHANNEL_SOCKET_FILE = 'console.sock';
 export const CHANNEL_TASK_MAX = 16 * 1024;
 
-export type ChannelOp = 'console.new' | 'console.fix' | 'console.list';
-export interface ChannelRequest { key: string; op: ChannelOp; service: string; task?: { kind: 'fix' | 'audit'; output: string } }
+export type ChannelOp = 'console.new' | 'console.fix' | 'console.list' | 'settings.update' | 'sessions.act' | 'app.update';
+/** FD-175: what a session row's button does, and what the app's update buttons do. */
+export type SessionAct = 'continue' | 'end' | 'dismiss' | 'clear-ended';
+export interface ChannelRequest {
+  key: string; op: ChannelOp; service: string; task?: { kind: 'fix' | 'audit'; output: string };
+  /** FD-175, `settings.update`: a settings patch, checked again by the app against AGENT_SETTINGS. */
+  patch?: Record<string, unknown>;
+  /** FD-175, `sessions.act`: the button and its row (none for `clear-ended`), and Continue now's account. */
+  session?: { act: SessionAct; row?: string; account?: string };
+  /** FD-175, `app.update`: Check for updates, or Restart to update. */
+  update?: 'check' | 'restart';
+}
 /** FD-166: one console of this app that runs now, as the Sessions list joins it with Switchboard's record. Ids only:
  *  never what the console printed, its prompt or a path inside the agent's data. */
 export interface OpenConsole {
@@ -39,7 +49,7 @@ export interface OpenConsole {
   /** When it started, ISO 8601. */
   since: string;
 }
-export type ChannelAnswer = { ok: true; consoleKey: string } | { ok: true; consoles: OpenConsole[] } | { ok: false; code: string; detail?: string };
+export type ChannelAnswer = { ok: true; consoleKey: string } | { ok: true; consoles: OpenConsole[] } | { ok: true; result: Record<string, unknown> } | { ok: false; code: string; detail?: string };
 
 /** Where the channel listens: a socket in the app's data folder, or on Windows a pipe named for this user. */
 export function channelAddress(userData: string, platform: NodeJS.Platform = process.platform, user = os.userInfo().username, home = os.homedir()): string {
@@ -70,8 +80,31 @@ export function parseRequest(line: string): { ok: true; request: ChannelRequest 
   try { v = JSON.parse(line); } catch { return { ok: false, code: 'not-json' }; }
   if (!v || typeof v !== 'object' || Array.isArray(v)) return { ok: false, code: 'not-an-object' };
   const r = v as Record<string, unknown>;
-  for (const k of Object.keys(r)) if (!['key', 'op', 'service', 'task'].includes(k)) return { ok: false, code: 'unknown-field' };
-  if (r.op !== 'console.new' && r.op !== 'console.fix' && r.op !== 'console.list') return { ok: false, code: 'unknown-op' };
+  for (const k of Object.keys(r)) if (!['key', 'op', 'service', 'task', 'patch', 'session', 'update'].includes(k)) return { ok: false, code: 'unknown-field' };
+  if (!['console.new', 'console.fix', 'console.list', 'settings.update', 'sessions.act', 'app.update'].includes(String(r.op))) return { ok: false, code: 'unknown-op' };
+  // FD-175: the window's own buttons, each with only its own field.
+  const only = (field: string) => Object.keys(r).every((k) => k === 'key' || k === 'op' || k === field);
+  if (r.op === 'settings.update') {
+    if (!only('patch') || !r.patch || typeof r.patch !== 'object' || Array.isArray(r.patch)) return { ok: false, code: 'bad-patch' };
+    return { ok: true, request: { key: String(r.key ?? ''), op: r.op, service: '', patch: r.patch as Record<string, unknown> } };
+  }
+  if (r.op === 'sessions.act') {
+    const s = r.session as Record<string, unknown> | undefined;
+    if (!only('session') || !s || typeof s !== 'object') return { ok: false, code: 'bad-session' };
+    const act = s.act;
+    if (act !== 'continue' && act !== 'end' && act !== 'dismiss' && act !== 'clear-ended') return { ok: false, code: 'bad-session' };
+    const row = s.row;
+    if (act === 'clear-ended' ? row !== undefined : typeof row !== 'string' || row.length < 1 || row.length > 500) return { ok: false, code: 'bad-session' };
+    const account = s.account;
+    if (account !== undefined && (act !== 'continue' || typeof account !== 'string' || !/^[A-Za-z0-9._:-]{1,64}$/.test(account))) return { ok: false, code: 'bad-session' };
+    return { ok: true, request: { key: String(r.key ?? ''), op: r.op, service: '', session: { act, ...(typeof row === 'string' ? { row } : {}), ...(typeof account === 'string' ? { account } : {}) } } };
+  }
+  if (r.op === 'app.update') {
+    if (!only('update') || (r.update !== 'check' && r.update !== 'restart')) return { ok: false, code: 'bad-update' };
+    return { ok: true, request: { key: String(r.key ?? ''), op: r.op, service: '', update: r.update } };
+  }
+  // A console operation carries none of the window's fields.
+  if (r.patch !== undefined || r.session !== undefined || r.update !== undefined) return { ok: false, code: 'unknown-field' };
   if (r.op === 'console.list') {
     // FD-166: a read names no service and carries no task.
     if (r.service !== undefined || r.task !== undefined) return { ok: false, code: 'unknown-field' };
@@ -84,7 +117,7 @@ export function parseRequest(line: string): { ok: true; request: ChannelRequest 
     return { ok: true, request: { key: String(r.key ?? ''), op: r.op, service: r.service, task: { kind: t.kind, output: t.output } } };
   }
   if (r.task !== undefined) return { ok: false, code: 'bad-task' };
-  return { ok: true, request: { key: String(r.key ?? ''), op: r.op, service: r.service } };
+  return { ok: true, request: { key: String(r.key ?? ''), op: r.op as ChannelOp, service: r.service } };
 }
 
 const SESSION_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
