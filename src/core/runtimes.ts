@@ -27,11 +27,13 @@ export interface RuntimeSpec {
  * publishing to people and secrets stay under the agents' and services' own rules, not a permission dialog. Each flag
  * is the runtime's own, read from its `--help` on 2026-11-07 (Claude Code, Codex, Gemini CLI, OpenCode, Cursor CLI);
  * a runtime whose flag was not read from an installed copy gets none, rather than a guess that would stop it starting.
+ * Where the contract's catalogue of coding agents (`catalogue/coding-agents.json`, `permissions.skip`) names a flag, its
+ * form is used, so every launcher passes the same one.
  */
 export const BYPASS_ARGS: Readonly<Record<string, readonly string[]>> = {
   'claude-code': ['--dangerously-skip-permissions'],
   codex: ['--dangerously-bypass-approvals-and-sandbox'],
-  'gemini-cli': ['--yolo'],
+  'gemini-cli': ['--approval-mode', 'yolo'], // the contract catalogue's form (DEC-0093); `--yolo` is its alias
   opencode: ['--auto'],
   'cursor-cli': ['--force'],
 };

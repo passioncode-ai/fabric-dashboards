@@ -6,7 +6,7 @@
 
 - FD-174, the operator's rule for every PassionCode project: a console starts its coding agent without permission
   prompts, since nobody is there to answer them: Claude Code with `--dangerously-skip-permissions`, Codex with
-  `--dangerously-bypass-approvals-and-sandbox`, Gemini CLI with `--yolo`, OpenCode with `--auto`, Cursor CLI with
+  `--dangerously-bypass-approvals-and-sandbox`, Gemini CLI with `--approval-mode yolo`, OpenCode with `--auto`, Cursor CLI with
   `--force` (each read from that runtime's own help). This covers New session, Continue, Fix and Set up with coding
   agent, MCP `console_new` and `console_fix`, and sessions continued after a limit. A runtime whose flag was not read
   from an installed copy starts as before.
