@@ -176,7 +176,7 @@ function rig(o: { sessions?: (dir: string) => unknown[]; live?: { inFolder?: boo
       if (o.spawnFails) throw new Error('posix_spawnp failed');
       spawned.push({ file, args, cwd: opts.cwd });
       // Like a real `claude --resume <id> <brief>`: it appends the brief to its own transcript at once.
-      const own = path.join(home, '.claude', 'projects', 'p', `${args[1]}.jsonl`);
+      const own = path.join(home, '.claude', 'projects', 'p', `${args[args.indexOf('--resume') + 1]}.jsonl`); // FD-174: after the bypass flag
       if (!o.silent && !o.exitsAtOnce) setTimeout(() => { try { fs.appendFileSync(own, '{"brief":true}\n'); fs.utimesSync(own, new Date(), new Date(Date.now() + 1000)); } catch { /* none */ } }, 20);
       return { pid: 999_999_999, onData: () => ({ dispose() {} }), onExit: (cb: (e: { exitCode: number; signal?: number }) => void) => { if (o.exitsAtOnce) setTimeout(() => cb({ exitCode: 1 }), 10); return { dispose() {} }; }, write() {}, resize() {}, kill() {} };
     },
@@ -200,7 +200,7 @@ test('FD-83/FD-84: a ready stop is claimed once, continued by the agent\'s own C
   assert.equal(r.spawned.length, 1);
   assert.equal(r.spawned[0]!.cwd, r.dir);
   assert.equal(path.basename(r.spawned[0]!.file), 'claude', 'FD-84: the plain CLI, never a Switchboard managed launch');
-  assert.deepEqual(r.spawned[0]!.args, ['--resume', SID, RESUME_BRIEF]);
+  assert.deepEqual(r.spawned[0]!.args, ['--dangerously-skip-permissions', '--resume', SID, RESUME_BRIEF], 'FD-174: without permission prompts');
   const event = `cc-${SID}-1792066929`;
   assert.deepEqual(sbCalls(r.calls), ['--json recovery', `--json recovery claim --account acc-2 ${event}`, `--json recovery finish ${event} resumed`]);
   const status = r.host.recoveryStatus();

@@ -140,11 +140,11 @@ test('FD-39 REQ-003 (Switchboard SB-94): a bound folder carries the pack after -
   assert.equal(p.kind, 'run');
   const argv = (p as { argv: string[] }).argv;
   const after = argv.slice(argv.indexOf('--') + 1);
-  assert.deepEqual(after, ['--mcp-config=/d/mcp.json', '--append-system-prompt', 'B', '--continue']);
+  assert.deepEqual(after, ['--dangerously-skip-permissions', '--mcp-config=/d/mcp.json', '--append-system-prompt', 'B', '--continue'], 'FD-174: a flag, never a bare value');
   const codex = { ...runtime, id: 'codex', binary: 'codex', provider: 'codex' as const, continueArgs: ['resume', '--last'] };
   const hc = handoffArgs('codex', { mcp: 'm', mcpServer: { command: 'x', args: [] }, brief: { inline: 'P' }, task: null });
   const pc = planStart({ runtime: codex, mode: 'continue', folder: '/w', binding: { kind: 'none' }, switchboard: null, inPlace: false, handoff: hc });
-  assert.deepEqual((pc as { argv: string[] }).argv.slice(1), ['-c', 'mcp_servers.fabric-dashboards.command="x"', '-c', 'mcp_servers.fabric-dashboards.args=[]', 'resume', '--last', 'P'], 'Codex options come before its subcommand');
+  assert.deepEqual((pc as { argv: string[] }).argv.slice(1), ['--dangerously-bypass-approvals-and-sandbox', '-c', 'mcp_servers.fabric-dashboards.command="x"', '-c', 'mcp_servers.fabric-dashboards.args=[]', 'resume', '--last', 'P'], 'Codex options come before its subcommand');
 });
 
 test('FD-39 REQ-001/002/005: a console start writes the pack and carries it — Claude with a fix task gets the MCP config, the brief and the task as its first prompt', async () => {

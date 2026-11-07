@@ -104,8 +104,8 @@ function rig(o: RigOptions = {}) {
     },
     spawn: (file, args, opts) => {
       spawned.push({ file, args, cwd: opts.cwd });
-      const own = path.join(home, '.claude', 'projects', 'p', `${args[1]}.jsonl`);
-      if (args[0] === '--resume' && !o.stop?.silent) setTimeout(() => { try { fs.appendFileSync(own, '{"brief":true}\n'); fs.utimesSync(own, new Date(), new Date(Date.now() + 1000)); } catch { /* none */ } }, 20);
+      const own = path.join(home, '.claude', 'projects', 'p', `${args[args.indexOf('--resume') + 1]}.jsonl`); // FD-174: after the bypass flag
+      if (args.includes('--resume') && !o.stop?.silent) setTimeout(() => { try { fs.appendFileSync(own, '{"brief":true}\n'); fs.utimesSync(own, new Date(), new Date(Date.now() + 1000)); } catch { /* none */ } }, 20);
       const me = pid++;
       return { pid: me, onData: () => ({ dispose() {} }), onExit: (cb: (e: { exitCode: number; signal?: number }) => void) => { exits.set(me, cb); return { dispose() {} }; }, write() {}, resize() {}, kill() {} };
     },
@@ -250,7 +250,7 @@ test('R1-U4: Continue on a Switchboard row never takes up a conversation that ma
   };
   assert.ok(!(await resumeArgs(setup({ writtenAgo: 5_000 }))).includes('--resume'), 'written in the last minute: a new session');
   assert.ok(!(await resumeArgs(setup({ writtenAgo: 5 * MIN, live: true }))).includes('--resume'), 'a live agent in its folder: a new session');
-  assert.deepEqual(await resumeArgs(setup({ writtenAgo: 5 * MIN })), ['--resume', SID], 'quiet and held by nobody: its conversation');
+  assert.deepEqual(await resumeArgs(setup({ writtenAgo: 5 * MIN })), ['--dangerously-skip-permissions', '--resume', SID], 'quiet and held by nobody: its conversation (FD-174: without permission prompts)');
 });
 
 // ── R1-U5 ──

@@ -19,6 +19,31 @@ export interface RuntimeSpec {
   continueArgs: string[] | null;
 }
 
+// #region bypass-permissions — docs: docs/ux/scenarios.md#scn-097-a-console-session-runs-without-permission-prompts
+/**
+ * FD-174: the operator's rule for every PassionCode project (2026-11-07, relayed on board thread `eefa7959`, message
+ * `aa7c14a9`, said in fabric-switchboard's session 38adf103): agents run without permission prompts, since nobody is
+ * there to answer them, above all on remote machines; a task's questions and limits are settled when it is set. Money,
+ * publishing to people and secrets stay under the agents' and services' own rules, not a permission dialog. Each flag
+ * is the runtime's own, read from its `--help` on 2026-11-07 (Claude Code, Codex, Gemini CLI, OpenCode, Cursor CLI);
+ * a runtime whose flag was not read from an installed copy gets none, rather than a guess that would stop it starting.
+ */
+export const BYPASS_ARGS: Readonly<Record<string, readonly string[]>> = {
+  'claude-code': ['--dangerously-skip-permissions'],
+  codex: ['--dangerously-bypass-approvals-and-sandbox'],
+  'gemini-cli': ['--yolo'],
+  opencode: ['--auto'],
+  'cursor-cli': ['--force'],
+};
+
+/** The arguments that start `runtimeId` without permission prompts; empty for a runtime with no verified flag. */
+export function bypassArgs(runtimeId: string): string[] {
+  return [...(BYPASS_ARGS[runtimeId] ?? [])];
+}
+/** The same by Switchboard provider (a session continued after a limit or from the Sessions list). */
+export const bypassArgsOfProvider = (provider: 'claude' | 'codex'): string[] => bypassArgs(provider === 'codex' ? 'codex' : 'claude-code');
+// #endregion bypass-permissions
+
 export interface Runtime extends RuntimeSpec {
   /** Absolute path of the executable found. */
   path: string;

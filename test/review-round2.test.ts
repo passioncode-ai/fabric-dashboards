@@ -112,8 +112,8 @@ function rig(o: Opt = {}) {
     },
     spawn: (file, args, opts) => {
       spawned.push({ file, args, cwd: opts.cwd });
-      const own = path.join(home, '.claude', 'projects', 'p', `${args[1]}.jsonl`);
-      if (args[0] === '--resume') setTimeout(() => { try { fs.appendFileSync(own, '{"brief":true}\n'); fs.utimesSync(own, new Date(), new Date(Date.now() + 1000)); } catch { /* none */ } }, 20);
+      const own = path.join(home, '.claude', 'projects', 'p', `${args[args.indexOf('--resume') + 1]}.jsonl`); // FD-174: after the bypass flag
+      if (args.includes('--resume')) setTimeout(() => { try { fs.appendFileSync(own, '{"brief":true}\n'); fs.utimesSync(own, new Date(), new Date(Date.now() + 1000)); } catch { /* none */ } }, 20);
       const me = pid++;
       return { pid: me, onData: () => ({ dispose() {} }), onExit: (cb: (e: { exitCode: number; signal?: number }) => void) => { exits.set(me, cb); return { dispose() {} }; }, write() {}, resize() {}, kill() {} };
     },
