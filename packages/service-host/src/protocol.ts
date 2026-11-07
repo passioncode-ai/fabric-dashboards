@@ -29,7 +29,9 @@ export interface Descriptor {
   source?: { repository?: string };
   fabricManifest?: string;
   installedAt: string;
-  installedBy: string;
+  /** The installer's name, or (DEC-0061) `{ by, role?, tool }`: a person (`operator` or `administrator`), Observatory's
+   *  node from the estate record, or the node from an organization's listing. Never a person's name. */
+  installedBy: string | { by: 'person' | 'node' | 'organization'; role?: 'operator' | 'administrator'; tool: string };
 }
 
 export interface WellKnown {
@@ -60,7 +62,7 @@ export interface WellKnown {
 export type WellKnownResult =
   | { kind: 'answer'; doc: WellKnown; ms: number }
   | { kind: 'not-protocol'; detail: string } // something answers, but not fabric-service
-  | { kind: 'refused'; detail: string } // DEC-0019: a remote service refused the token (401) — nothing disclosed
+  | { kind: 'refused'; detail: string } // DEC-0019: a remote service refused the token (401); a local program refused this host (401, 403) — nothing disclosed
   | { kind: 'no-answer'; detail: string; cause?: 'tls' | 'redirect' | 'timeout' | 'network' | 'http' };
 
 export interface ServiceEvent {

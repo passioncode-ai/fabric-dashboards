@@ -6,6 +6,7 @@
 import type { LimitView } from '@passioncode-ai/fabric-service-host/usage';
 import type { Busy, Descriptor, LaunchdStatus, Reason, ServiceEvent, ServiceState, WellKnown } from '@passioncode-ai/fabric-service-host/protocol';
 import type { EstateStatus } from './estate-update';
+import type { Organization } from './organizations';
 import type { Dismissal, SessionRecord, SessionsStatus } from './sessions';
 
 export { PROTOCOL } from '@passioncode-ai/fabric-service-host/protocol';
@@ -17,6 +18,9 @@ export interface ServiceSnapshot {
   descriptor: Descriptor | null;
   /** FD-135: the agent's own name when its repository gives it another (`descriptor.name` is then that one). */
   agentName?: string;
+  /** FD-162: the organization its repository belongs to in Project Observatory's registry; null when not known,
+   *  absent when no map was ever read. */
+  organization?: Organization | null;
   problems: string[];
   state: ServiceState;
   reasons: Reason[];
@@ -136,6 +140,8 @@ export interface ListLayout {
   /** FD-123 (SCN-072): product ids the person or an agent turned off: never probed, never alerting, listed greyed in
    *  Hidden. Every one is also in `hidden`, so turning it on leaves it hidden and watched. */
   off: string[];
+  /** FD-162 (SCN-094): the organizations the lists show, by name; `''` is "Not attributed"; empty shows every agent. */
+  orgs: string[];
 }
 
 /** A change to the settings: any field, and any part of the layout or of one service's console alone. */
@@ -171,7 +177,7 @@ export const DEFAULT_SETTINGS: Settings = {
     pausedUntil: null,
     channel: 'auto',
   },
-  layout: { sidebar: 'expanded', sidebarWidth: SIDEBAR_WIDTH.default, header: 'compact', console: { open: false, height: CONSOLE_HEIGHT.default }, list: { sort: 'name', pinned: [], hidden: [], kinds: {}, hiddenOpen: false, order: [], off: [] }, mode: 'agents', sessionId: null, endedOpen: false },
+  layout: { sidebar: 'expanded', sidebarWidth: SIDEBAR_WIDTH.default, header: 'compact', console: { open: false, height: CONSOLE_HEIGHT.default }, list: { sort: 'name', pinned: [], hidden: [], kinds: {}, hiddenOpen: false, order: [], off: [], orgs: [] }, mode: 'agents', sessionId: null, endedOpen: false },
   consoles: {},
   resumeAfterLimit: true,
   sessions: { records: [], dismissed: [] },

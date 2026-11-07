@@ -30,7 +30,10 @@ import { xdgLoginItem } from '../core/autostart';
 import { Monitor, type AskNotice, type Notice } from '../core/monitor';
 import { BUNDLE_FILE, createAnalytics, installationPath, osNameOf, readBundle } from '../core/analytics';
 import { AgentNameStore, findGh, githubRepoOf, NAMES_EVERY_MS, NAMES_FIRST_MS, NAMES_TICK_MS, type GithubRepo } from '../core/agent-names';
-import { fetchLoad, fetchUsage, readTokenAsync } from '../core/probe';
+import { authHeaders, fetchLoad, fetchUsage, readTokenAsync } from '../core/probe';
+import { callCapability } from '../core/mcp-client';
+import { OrganizationStore } from '../core/organization-store';
+import { ORGANIZATIONS_EVERY_MS, ORGANIZATIONS_FIRST_MS } from '../core/organizations';
 import { limitsNeedingPerson, readSpend, type SpendEntry } from '../core/spend';
 import { attentionQueue, badgeText, nextNewsExpiry } from '../core/attention';
 import type { LimitView } from '@passioncode-ai/fabric-service-host/usage';
@@ -178,8 +181,44 @@ if (!app.requestSingleInstanceLock()) {
     setTimeout(() => { if (namesStopped) return; tick(); namesTimer = setInterval(tick, NAMES_TICK_MS); namesTimer.unref?.(); }, NAMES_FIRST_MS).unref?.();
   }
   // #endregion agent-names
+  // #region organizations — docs: docs/ux/scenarios.md#scn-094-show-only-one-organizations-agents
+  // FD-162: each agent's organization, from Project Observatory's registry (its MCP `observatory_status`, full detail,
+  // read on this Mac with Observatory's own descriptor token); kept in organizations.json beside the settings.
+  const organizations = new OrganizationStore({
+    file: path.join(userData, 'organizations.json'), log,
+    // Observatory's own registry on this Mac, read without a token (as FD-132 reads its placement record); its MCP
+    // surface below asks for its own credential (`auth: own`), so it is the fallback.
+    readRegistry: () => {
+      const base = path.join(process.env.XDG_DATA_HOME || path.join(os.homedir(), '.local', 'share'), 'project-observatory-full');
+      let projects: Record<string, unknown>;
+      try { projects = JSON.parse(fs.readFileSync(path.join(base, 'registry', 'projects.json'), 'utf8')) as Record<string, unknown>; } catch { return null; }
+      try {
+        const cfg = JSON.parse(fs.readFileSync(path.join(base, 'config', 'organizations.json'), 'utf8')) as { organizations?: Record<string, { label?: unknown }> };
+        projects.organization_labels = Object.fromEntries(Object.entries(cfg.organizations ?? {}).map(([k, v]) => [k, v?.label]));
+      } catch { /* no labels: names are shown as they are */ }
+      return projects;
+    },
+    onChange: () => { monitor.namesChanged(); pushStatus(); },
+    fetchPage: async (cursor) => {
+      const obs = monitor.snapshots().find((x) => x.descriptor?.id === 'project-observatory' && x.descriptor.placement !== 'remote' && (x.state === 'ready' || x.state === 'degraded'));
+      const mcp = obs?.wellKnown?.surfaces.mcp;
+      if (!obs?.descriptor || !mcp || mcp.transport !== 'streamable-http') return null;
+      const tokenFile = obs.descriptor.auth.tokenFile;
+      const headers = tokenFile ? authHeaders(obs.descriptor, await readTokenAsync(tokenFile)) : {};
+      const result = await callCapability({ origin: obs.descriptor.origin, path: mcp.path, headers }, 'observatory_status',
+        { detail: 'full', limit: 100, ...(cursor ? { cursor } : {}) }, app.getVersion(), 60_000) as { structuredContent?: unknown; content?: { text?: string }[] } | undefined;
+      return result?.structuredContent ?? JSON.parse(result?.content?.[0]?.text ?? 'null');
+    },
+  });
+  let orgTimer: NodeJS.Timeout | null = null;
+  function startOrganizations(): void {
+    const tick = () => { if (organizations.due()) void organizations.refresh(); };
+    setTimeout(() => { tick(); orgTimer = setInterval(tick, ORGANIZATIONS_EVERY_MS / 6); orgTimer.unref?.(); }, ORGANIZATIONS_FIRST_MS).unref?.();
+  }
+  // #endregion organizations
   const monitor = new Monitor({ servicesDir: servicesDir(), activity, settings: () => settings.get(), lang, ledger: new NotifyLedger(path.join(userData, 'notified.json')),
     customName: (key, repository) => agentNames.name(key, repository),
+    organizationOf: (repository) => (organizations.get().readAt ? organizations.of(repository) : undefined),
     intervals: Number.isFinite(testRemoteMs) && testRemoteMs >= 1_000 ? { remote: testRemoteMs } : undefined });
   // #region usage-analytics — docs: docs/ANALYTICS.md#what-is-sent
   // FD-136: anonymous usage and error data, on by default, this product's own switch; only a release build that
@@ -1073,6 +1112,7 @@ if (!app.requestSingleInstanceLock()) {
     if (analyticsTimer) clearInterval(analyticsTimer); // FD-136
     analytics.stop();
     if (namesTimer) clearInterval(namesTimer);
+    if (orgTimer) clearInterval(orgTimer); // FD-162
     // #endregion estate-update
     activity.flush();
     // R-4: Electron does not wait for timers, so the SIGKILL that follows SIGTERM would never run.
@@ -1186,6 +1226,7 @@ if (!app.requestSingleInstanceLock()) {
     updater.start();
     // #region estate-update — docs: docs/adr/0018-estate-updates-from-inside-the-app.md#decision
     startAgentNames(); // FD-135: names read 20 s after start, then each repository every 30 min
+    startOrganizations(); // FD-162: Observatory's organization map 25 s after start, then every 30 min
     estate.start(); // ADR-0018: first estate check 90 s after start, then every 6 h — only when the switch is on
     // #endregion estate-update
     if (app.isPackaged) app.setAsDefaultProtocolClient(SCHEME);

@@ -45,7 +45,7 @@ export function deriveState(i: StateInput): StateOutput {
   const away = i.elsewhere ?? null;
   // FD-158 (the contract's draft norm on loopback owners): a listener of another macOS user wins over whatever it
   // answers, its own id included; its answer is never shown as this agent's. A port nobody holds stays `down` below.
-  if (i.foreignUser && (probe?.kind === 'answer' || probe?.kind === 'not-protocol')) {
+  if (i.foreignUser && (probe?.kind === 'answer' || probe?.kind === 'not-protocol' || probe?.kind === 'refused')) {
     return { state: 'foreign-user', reasons: [{ code: i.foreignUser === 'unknown' ? 'reason.foreign.unknown' : 'reason.foreign.user', params: { port: portNum(d.origin) } }] };
   }
   if (probe?.kind === 'answer') {
@@ -63,6 +63,10 @@ export function deriveState(i: StateInput): StateOutput {
   if (probe?.kind === 'not-protocol') {
     return { state: 'foreign', reasons: [{ code: 'reason.foreign.protocol', params: { port: portNum(d.origin), detail: probe.detail } }] };
   }
+  // A program on the port answers 401 or 403 to the well-known document: it turned this host away. That is not proof of
+  // another program (the agent itself may refuse a peer it cannot place, DEC-0154 HA-2), and nothing is read from it:
+  // the agent serves this host nothing, so it reads down, with the refusal as the reason.
+  if (probe?.kind === 'refused') return { state: 'down', reasons: [{ code: 'reason.refused', params: { port: portNum(d.origin), detail: probe.detail } }] };
   // No answer.
   // FD-132: silent here because it runs on the other machine: off here, never down, whatever launchd says.
   if (away) return { state: 'stopped', reasons: [{ code: 'reason.elsewhere', params: { machine: away.placedOn } }] };

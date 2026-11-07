@@ -13,7 +13,7 @@ import { api, CONN_MARK as MARK, nameOf, SEV_MARK, useT } from '../lib';
 
 const COL_W = 196, COL_GAP = 72, NODE_H = 40, ROW_GAP = 14, PAD = 8;
 
-export function ConnectionsMap({ status, open, onAgent }: { status: AppStatus; open: (key: string) => void; onAgent: (key: string, task: ConsoleTask) => void }) {
+export function ConnectionsMap({ status, every, open, onAgent }: { status: AppStatus; every?: AppStatus['services']; open: (key: string) => void; onAgent: (key: string, task: ConsoleTask) => void }) {
   const { t, reason } = useT();
   const [limits, setLimits] = useState<Record<string, LimitView[]>>({});
   useEffect(() => {
@@ -22,9 +22,12 @@ export function ConnectionsMap({ status, open, onAgent }: { status: AppStatus; o
     void api().spend(false).then((r) => { if (live) setLimits(Object.fromEntries(r.entries.flatMap((e) => (e.kind === 'report' ? [[e.key, e.summary.limits]] : [])))); }).catch(() => undefined);
     return () => { live = false; };
   }, []);
-  const services = status.services;
-  const a = useMemo(() => audit(services, limits), [services, limits]);
-  const map = useMemo(() => estateMap(services), [services]);
+  // FD-162: the auditor and the map read every agent, so a target outside the organization filter is itself; the page
+  // shows the agents the filter keeps and the ones they call.
+  const services = every ?? status.services;
+  const scope = useMemo(() => (every ? new Set(status.services.map((s) => s.key)) : undefined), [every, status.services]);
+  const a = useMemo(() => { const r = audit(services, limits); return scope ? { ...r, findings: r.findings.filter((f) => scope.has(f.key)), counts: countOf(r.findings.filter((f) => scope.has(f.key))) } : r; }, [services, limits, scope]);
+  const map = useMemo(() => estateMap(services, scope), [services, scope]);
   const byKey = new Map(services.map((s) => [s.key, s]));
   const name = (key: string) => (byKey.get(key) ? nameOf(byKey.get(key)!) : key);
   const text = (f: Finding) => reason(f.reason);
@@ -162,3 +165,10 @@ function Graph({ nodes, edges, columns, rows, open, t }: { nodes: MapNode[]; edg
   );
 }
 // #endregion connections-map
+
+/** FD-162: the counts of the findings an organization filter keeps. */
+function countOf(findings: readonly Finding[]): Record<'error' | 'warn' | 'setup' | 'info', number> {
+  const c = { error: 0, warn: 0, setup: 0, info: 0 };
+  for (const f of findings) c[f.severity] += 1;
+  return c;
+}

@@ -14,6 +14,32 @@
 - FD-159: a dashboard opens in the app's window only right after its port is checked: a page load sends the
   dashboard's sign-in cookie, so another user's program that took the port since the last check gets no page.
 
+## 0.8.29 - 2026-11-06
+
+### Added
+
+- FD-162: an Organizations menu above the agent list shows every agent, one organization's or several's; the choice
+  holds across the sidebar, Overview, Agent map and Spend and is kept across restarts. Each agent's Health tab names its
+  organization. The organization comes from Project Observatory's project registry, by the agent's repository.
+- FD-163: the Agent map flags a connection from an agent of one organization to an agent of another: agents of an
+  organization work only with agents of the same organization.
+- FD-161: an agent's Health tab says who installed it: you, an organization's administrator, or Project Observatory
+  from your own or an organization's list of agents, with the tool it used. It names a role, never a person.
+
+## 0.8.28 - 2026-11-06
+
+### Fixed
+
+- FD-160: an agent that answers 403 (or 401) to its well-known document no longer reads "Wrong program on port" with
+  "a program that is not a Fabric agent". It reads "Not answering": the program on its port refuses this app, and a
+  refusal says nothing about which program it is. An agent did this on 2026-11-06 while it could not tell who was
+  connecting.
+
+### Documentation
+
+- The commands that register and check the MCP server take the copy of the app you run: `~/Applications` when the
+  PassionCode launcher installed it there (each user of a shared Mac has their own), else `/Applications`.
+
 ## 0.8.27 - 2026-11-06
 
 ### Security

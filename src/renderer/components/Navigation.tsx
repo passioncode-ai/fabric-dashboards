@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { AppStatus, ListSort, Settings as AppSettings, SettingsPatch } from '../../core/types';
 import { moveInSection, type MoveSection, type Product } from '../../core/products';
+import { organizationCounts } from '../../core/organizations';
 import type { SessionGroup, SessionRow } from '../../core/sessions';
 import { groupRows, navLines, stateShort, waitingForYou } from '../../core/sessions-view';
 import { revealScrollTop } from '../../core/layout';
@@ -76,6 +77,8 @@ export type AgentsPage = 'overview' | 'activity' | 'map' | 'spend' | 'service' |
 interface AgentsNavProps {
   page: AgentsPage;
   status: AppStatus;
+  /** FD-162: every agent before the organization filter, for the menu's counts. */
+  everyAgent?: AppStatus['services'];
   arranged: { pinned: Product[]; local: Product[]; online: Product[]; service: Product[]; hidden: Product[] };
   products: Product[];
   currentProduct: Product | undefined;
@@ -92,7 +95,7 @@ interface AgentsNavProps {
 }
 
 /** SCN-077 step 3: the Agents mode is the sidebar as it was, with no session and no hand-over section in it. */
-export function AgentsNav({ page, status, arranged, products, currentProduct, layout, changeLayout, open, go, rail, queue, urgent, auditErrors, hiddenProblem, menu }: AgentsNavProps) {
+export function AgentsNav({ page, status, everyAgent, arranged, products, currentProduct, layout, changeLayout, open, go, rail, queue, urgent, auditErrors, hiddenProblem, menu }: AgentsNavProps) {
   const { t } = useT();
   const { pinned, hidden } = arranged;
   // FD-123: agents turned off are on disk but not watched; they sit greyed at the end of Hidden.
@@ -147,6 +150,7 @@ export function AgentsNav({ page, status, arranged, products, currentProduct, la
         </button>
       </div>
       <div className="nav nav-scroll">
+        {!rail && <OrgMenu services={everyAgent ?? status.services} chosen={layout.list.orgs ?? []} onChange={(orgs) => changeLayout({ list: { orgs } })} />}
         {pinned.length > 0 && <div className="nav-section">{t('nav.pinned')}</div>}
         {pinned.map((p, i) => <ProductItem key={p.id} p={p} current={currentProduct === p} open={open} rail={rail} pinned menu={menu} drag={dragFor('pinned', i, pinned.length)} />)}
         {/* FD-78: on this Mac, online, services; the sort applies inside each section. */}
@@ -422,3 +426,29 @@ export function SessionsNav({ sessions, currentId, allCurrent, rail, endedOpen, 
     </>
   );
 }
+
+// #region organizations — docs: docs/ux/scenarios.md#scn-094-show-only-one-organizations-agents
+/** FD-162 (SCN-094): show every agent, or one or several organizations'; shown once agents carry organizations from
+ *  Project Observatory and there is more than one to tell apart. */
+function OrgMenu({ services, chosen, onChange }: { services: AppStatus['services']; chosen: string[]; onChange: (orgs: string[]) => void }) {
+  const { t } = useT();
+  const rows = organizationCounts(services);
+  if (rows.length < 2 && chosen.length === 0) return null;
+  const nameOf = (name: string) => (name === '' ? t('orgs.none') : rows.find((r) => r.name === name)?.label ?? name);
+  const label = chosen.length === 0 ? t('orgs.all') : chosen.length === 1 ? nameOf(chosen[0]!) : t('orgs.several', { count: chosen.length });
+  const toggle = (name: string) => onChange(chosen.includes(name) ? chosen.filter((x) => x !== name) : [...chosen, name]);
+  const gone = chosen.filter((n) => !rows.some((r) => r.name === n));
+  return (
+    <details className="org-menu">
+      <summary aria-label={`${t('orgs.menu')}. ${label}`} title={t('orgs.menu')}>{label}</summary>
+      <div className="org-menu-list" role="group" aria-label={t('orgs.menu')}>
+        <label><input type="checkbox" checked={chosen.length === 0} onChange={() => onChange([])} /> {t('orgs.all')}</label>
+        {rows.map((r) => (
+          <label key={r.name}><input type="checkbox" checked={chosen.includes(r.name)} onChange={() => toggle(r.name)} /> {nameOf(r.name)} <span className="count">{r.count}</span></label>
+        ))}
+        {gone.map((n) => <label key={`gone-${n}`}><input type="checkbox" checked onChange={() => toggle(n)} /> {nameOf(n)} <span className="count">0</span></label>)}
+      </div>
+    </details>
+  );
+}
+// #endregion organizations
