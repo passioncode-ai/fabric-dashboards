@@ -122,6 +122,12 @@ export const TOOLS = [
     annotations: { readOnlyHint: false, destructiveHint: false },
   },
   {
+    name: 'consoles',
+    description: 'The coding-agent consoles running now in Fabric Dashboards on this machine (FD-166, for one screen of sessions): one row each with the agent it belongs to (service, or null for a console of its own: a hand-over, a session continued after a limit), the runtime, the folder, sessionId (Switchboard\'s provider_session_id, null when it named none, never guessed), runtimeSessionId (the runtime\'s own session id, the one fabric_session_observe records, null when not known), since, the Sessions row and open_link, which opens that session\'s page in the app. Never what a console printed. Answers app-not-running when the app is not open.',
+    inputSchema: { type: 'object', properties: {}, additionalProperties: false },
+    annotations: { readOnlyHint: true },
+  },
+  {
     name: 'arrange',
     description: 'Arrange the app\'s sidebar as its row menu and eye do (FD-122): pin or unpin an agent, hide it or show it again, show it as a service or as an agent, turn it off or on (FD-123). A hidden agent is still watched and still alerts; one turned off is also hidden, the app no longer probes it or alerts about it, and turning it on leaves it hidden and watched (show brings it back and turns it on). The choice is written to the app\'s settings and shows at once in a running app; with the app closed it applies when it opens. Answers the agent\'s list state after the change.',
     inputSchema: { type: 'object', properties: { service: serviceArg, action: { type: 'string', enum: [...tools.ARRANGE] } }, required: ['service', 'action'], additionalProperties: false },
@@ -224,6 +230,7 @@ export async function call(deps: tools.Deps, name: string, args: Args): Promise<
       if (args.name !== null && typeof args.name !== 'string') throw new tools.ToolError('name must be a string, or null for the agent\'s own name');
       return tools.rename(deps, need(args, 'service'), args.name as string | null);
     }
+    case 'consoles': return tools.consoles(deps);
     case 'console_new': return tools.consoleChannel(deps, { op: 'console.new', service: need(args, 'service') });
     case 'console_fix': return tools.consoleChannel(deps, { op: 'console.fix', service: need(args, 'service'), task: { kind: need(args, 'kind') as 'fix' | 'audit', output: need(args, 'findings') } });
     case 'service_context': {

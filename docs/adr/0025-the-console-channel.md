@@ -66,6 +66,13 @@ only (Q-08) and moves to Fabric (FD-105), so MD-12 closes them as not needed.
 
 ## Consequences
 
+- **Amendment 2026-11-07 (FD-166, Fabric's CO-457).** A third operation, `console.list`, reads the consoles running now
+  for one screen of sessions in Fabric: per console the Sessions row, the console key, the agent (or none for a console
+  of its own), the runtime, the folder, the session ids when Switchboard or a resume named them, and the start time.
+  Never what a console printed. It names no service, carries no task, is not logged, and has its own budget of 30 a
+  minute so a polling screen never takes a start's place. MCP `consoles` reads it and adds each session's link,
+  `fabric-dashboards://sessions?id=<row>`, which opens that session's page in the app.
+
 - `SECURITY.md` keeps "Listens on no port" and, once the code lands, names the socket or pipe, its key and the two
   operations; AGENTS.md's lifecycle table gains its row (made at start, removed at quit). Until then the app has no
   channel.

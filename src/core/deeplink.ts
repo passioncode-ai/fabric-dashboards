@@ -15,6 +15,8 @@ export { isServiceKey, safePath, SCHEME } from '@passioncode-ai/fabric-service-h
 export type DeepLink =
   | { page: 'service'; key: string; link?: string }
   | { page: 'activity' }
+  /** FD-166: one coding session's page in the Sessions mode, by its row id; without one, the list. */
+  | { page: 'sessions'; key?: string }
   | { page: 'overview' };
 
 export type DeepLinkResult = { ok: true; target: DeepLink } | { ok: false; reason: string };
@@ -32,6 +34,7 @@ const PATH_REFUSED = 'path must be a path on the service, starting with one /';
  * `fabric-dashboards://open?service=<id.instance>[&path=/…]`        (0.2.0; still accepted)
  * `fabric-dashboards://open?url=http://127.0.0.1:<port>/…`          (the service found by its origin)
  * `fabric-dashboards://activity`, `fabric-dashboards://` (overview)
+ * `fabric-dashboards://sessions[?id=<row>]`                         (FD-166: a session's page, as MCP `consoles` hands out)
  */
 export function parseDeepLink(raw: string, known: Known): DeepLinkResult {
   let url: URL;
@@ -46,6 +49,7 @@ export function parseDeepLink(raw: string, known: Known): DeepLinkResult {
   const verb = (url.hostname || url.pathname.replace(/^\/+/, '')).toLowerCase();
   if (verb === '' || verb === 'overview') return { ok: true, target: { page: 'overview' } };
   if (verb === 'activity') return { ok: true, target: { page: 'activity' } };
+  if (verb === 'sessions') return sessionsForm(url);
   if (verb === 'service' && url.hostname) return serviceForm(url, known);
   if (verb !== 'open') return { ok: false, reason: `unknown link verb ${quote(verb, 40)}` };
 
@@ -138,3 +142,26 @@ export function fromServiceUrl(raw: string, known: Known): DeepLinkResult {
 export function linkFor(key: string, path?: string): string {
   return serviceLink(key, path);
 }
+
+// #region session-link — docs: docs/ux/scenarios.md#scn-096-fabric-opens-a-console-session-here
+/** FD-166: a Sessions row id as the app makes them (`c:<console key>:<start>`, `sb:…`, `ho:…`, `st:…`): printable,
+ *  no spaces, bounded. Anything else is refused, never shown. */
+const ROW_ID = /^(c|sb|ho|st):[A-Za-z0-9._:\/@+-]{1,400}$/;
+
+/** The link that opens one session's page in the Sessions mode. */
+export function sessionLink(row: string): string {
+  return `${SCHEME}://sessions?id=${encodeURIComponent(row)}`;
+}
+
+function sessionsForm(url: URL): DeepLinkResult {
+  if ((url.pathname && url.pathname !== '/') || url.hash) return { ok: false, reason: 'sessions takes one parameter only: sessions?id=…' };
+  for (const name of new Set(url.searchParams.keys())) {
+    if (name !== 'id') return { ok: false, reason: `unknown parameter ${quote(name, 40)}; a sessions link takes only id=` };
+    if (url.searchParams.getAll(name).length > 1) return { ok: false, reason: 'the parameter "id" appears more than once' };
+  }
+  const id = url.searchParams.get('id');
+  if (id === null) return { ok: true, target: { page: 'sessions' } };
+  if (!ROW_ID.test(id)) return { ok: false, reason: `not a session id ${quote(id, 60)}` };
+  return { ok: true, target: { page: 'sessions', key: id } };
+}
+// #endregion session-link

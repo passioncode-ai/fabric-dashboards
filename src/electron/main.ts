@@ -1159,7 +1159,9 @@ if (!app.requestSingleInstanceLock()) {
     // ADR-0025 (FD-120): the app's own MCP server starts a console session or a fix through the buttons' code path.
     void openChannel({
       userData, log,
-      start: (r) => consoles.start(r.service, 'new', { cols: 120, rows: 32 }, r.task).then((x) => startAnswer(r.service, x)),
+      // FD-166: the read answers what the Sessions list shows; the starts take the buttons' own path.
+      start: (r) => (r.op === 'console.list' ? Promise.resolve({ ok: true as const, consoles: consoles.openConsoles() })
+        : consoles.start(r.service, 'new', { cols: 120, rows: 32 }, r.task).then((x) => startAnswer(r.service, x))),
     }).then((c) => { consoleChannel = c; if (c) log('console channel open'); });
     // #endregion console-channel-start
     appMenu();

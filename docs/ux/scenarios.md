@@ -101,6 +101,7 @@
 | SCN-093 | Hear of a new version with automatic updates off | updates | P-01 | ST-008 | implemented | 2026-11-04 |
 | SCN-094 | Show only one organization's agents | organizations | P-01 | ST-019 | implemented | 2026-11-06 |
 | SCN-095 | See an agent that only waits for setup | health | P-01 | ST-002 | implemented | 2026-11-07 |
+| SCN-096 | Fabric opens a console session here | sessions | P-01 | ST-023 | implemented | 2026-11-07 |
 ## Personas
 
 Defined in [foundation.md](foundation.md) → P-01.
@@ -1334,6 +1335,24 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **Errors & recovery:** a page of the registry that cannot be read keeps the last full map and is read again in 30 minutes; a repository Project Observatory does not know reads "Not attributed", never a guessed organization
 - **Status:** implemented
 - **Coverage:** src/core/organizations.ts, src/renderer/components/Navigation.tsx, src/renderer/App.tsx, src/mcp/tools.ts, test/organizations.test.ts
+- **Product:** unobserved
+
+### SCN-096: Fabric opens a console session here
+- **Persona:** P-01
+- **Feature:** sessions
+- **Traces:** ST-023; FD-166; Fabric's CO-457 (board thread `b250bec9`, messages `5c5a4923`, `c8788f35`): one screen of sessions in Fabric marks a session this app's console holds as "open in Fabric Dashboards"
+- **Entry point:** a session in Fabric's sessions screen, or any agent, through MCP `consoles`; the link it hands out
+- **Preconditions:** Fabric Dashboards is open and at least one console runs a coding session
+- **Steps:**
+  1. Fabric (or an agent) calls `consoles` -> one row per console running now: the agent it belongs to (or none for a console of its own), the runtime, the folder, the session ids when Switchboard or a resume named them, since when, and `open_link`
+  2. The person clicks the session in Fabric -> `fabric-dashboards://sessions?id=<row>` opens this app on that session's page, its console on screen
+- **Expected result:** a session the operator sees in Fabric opens where it runs, never a second copy of it
+- **Alt paths:** the app is closed -> `consoles` answers app-not-running and nothing starts; the session ended between the read and the click -> its page shows it ended, as SCN-080 does; a link with a malformed id -> refused with the reason, nothing opens
+- **UI elements:** none new: the Sessions mode's session page
+- **States covered:** success, empty, error
+- **Errors & recovery:** a refused link says why (as every link does, SCN-031); a read the app does not answer within 15 s is an error to the caller, never an empty list
+- **Status:** implemented (2026-11-07: `test/consoles-read.test.ts`, `test/mcp.test.ts` *FD-166*)
+- **Coverage:** src/core/console-channel.ts, src/electron/console-channel.ts, src/electron/console.ts, src/electron/main.ts, src/core/deeplink.ts, src/mcp/tools.ts, src/mcp/server.ts, test/consoles-read.test.ts, test/mcp.test.ts
 - **Product:** unobserved
 
 ### SCN-095: See an agent that only waits for setup

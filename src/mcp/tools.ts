@@ -11,7 +11,7 @@
 import { supervises } from '../core/platform';
 import fs from 'node:fs';
 import net from 'node:net';
-import { CHANNEL_KEY_FILE, channelAddress, type ChannelAnswer, type ChannelOp } from '../core/console-channel';
+import { CHANNEL_KEY_FILE, channelAddress, type ChannelAnswer, type ChannelOp, type OpenConsole } from '../core/console-channel';
 import { discoverHost, type HostStatus } from './host';
 import {
   APP_NAME, dashboardMinWidth, expand, lookAtServices, readDirectory, servicesDir as defaultServicesDir,
@@ -19,7 +19,7 @@ import {
   elsewhereOf, PlacementReader, type Placement,
 } from '@passioncode-ai/fabric-service-host';
 import { runOwned } from '../core/children';
-import { fromServiceUrl, isServiceKey, linkFor, safePath } from '../core/deeplink';
+import { fromServiceUrl, isServiceKey, linkFor, safePath, sessionLink } from '../core/deeplink';
 import { displayName } from '../core/names';
 import { Launchd, execRunner, type Runner } from '../core/launchd';
 import { fetchEvents, fetchLoad, fetchUsage, fetchWellKnown, PROBE_TIMEOUT_MS, readTokenAsync } from '../core/probe';
@@ -642,14 +642,13 @@ export async function load(deps: Deps, key: string): Promise<LoadEntry & { produ
 // #endregion load-mcp
 
 // #region console-channel-client — docs: docs/adr/0025-the-console-channel.md#decision
-/** ADR-0025 (FD-120): start a console session, or a fix in one, in the running app, through its per-user channel and
- *  this run's key. The app not running is an answer, never a start of the app. */
-export async function consoleChannel(deps: Deps, request: { op: ChannelOp; service: string; task?: { kind: 'fix' | 'audit'; output: string } }): Promise<{ started: true; console: string }> {
-  find(deps, request.service);
+/** One request to the running app, through its per-user channel and this run's key. The app not running is an answer
+ *  (`app-not-running`), never a start of the app. */
+async function askChannel(deps: Deps, request: { op: ChannelOp; service?: string; task?: { kind: 'fix' | 'audit'; output: string } }, notRunning: string): Promise<ChannelAnswer> {
   const userData = path.dirname(deps.settingsFile?.() ?? appSettingsFile());
   let key: string;
-  try { key = fs.readFileSync(path.join(userData, CHANNEL_KEY_FILE), 'utf8').trim(); } catch { throw new ToolError('app-not-running: Fabric Dashboards is not running, so no console can start; open it and call again'); }
-  const answer = await new Promise<ChannelAnswer>((resolve, reject) => {
+  try { key = fs.readFileSync(path.join(userData, CHANNEL_KEY_FILE), 'utf8').trim(); } catch { throw new ToolError(notRunning); }
+  return new Promise<ChannelAnswer>((resolve, reject) => {
     const socket = net.connect(deps.channelAddress?.(userData) ?? channelAddress(userData));
     let buffer = '';
     const timer = setTimeout(() => { socket.destroy(); reject(new ToolError('the app did not answer within 15 s')); }, 15_000);
@@ -658,10 +657,26 @@ export async function consoleChannel(deps: Deps, request: { op: ChannelOp; servi
     socket.on('end', () => { clearTimeout(timer); try { resolve(JSON.parse(buffer) as ChannelAnswer); } catch { reject(new ToolError('the app answered something that is not JSON')); } });
     socket.on('error', (error: NodeJS.ErrnoException) => {
       clearTimeout(timer);
-      reject(new ToolError(error.code === 'ENOENT' || error.code === 'ECONNREFUSED' ? 'app-not-running: Fabric Dashboards is not running, so no console can start; open it and call again' : `the app's channel failed: ${error.code ?? error.message}`));
+      reject(new ToolError(error.code === 'ENOENT' || error.code === 'ECONNREFUSED' ? notRunning : `the app's channel failed: ${error.code ?? error.message}`));
     });
   });
+}
+
+/** ADR-0025 (FD-120): start a console session, or a fix in one, in the running app. */
+export async function consoleChannel(deps: Deps, request: { op: ChannelOp; service: string; task?: { kind: 'fix' | 'audit'; output: string } }): Promise<{ started: true; console: string }> {
+  find(deps, request.service);
+  const answer = await askChannel(deps, request, 'app-not-running: Fabric Dashboards is not running, so no console can start; open it and call again');
   if (!answer.ok) throw new ToolError(`${answer.code}${answer.detail ? `: ${answer.detail}` : ''}`, { started: false, code: answer.code });
+  if (!('consoleKey' in answer)) throw new ToolError('the app answered a list where a start was asked');
   return { started: true, console: answer.consoleKey };
+}
+
+/** FD-166 (Fabric's CO-457): the consoles running now in the app on this machine, one row each, with the link that opens
+ *  the session's page there. Ids, the folder and the time only, never what a console printed. */
+export async function consoles(deps: Deps): Promise<{ consoles: (OpenConsole & { open_link: string })[] }> {
+  const answer = await askChannel(deps, { op: 'console.list' }, 'app-not-running: Fabric Dashboards is not running, so it holds no console now; nothing is open in it');
+  if (!answer.ok) throw new ToolError(`${answer.code}${answer.detail ? `: ${answer.detail}` : ''}`);
+  if (!('consoles' in answer)) throw new ToolError('the app answered a start where a list was asked');
+  return { consoles: answer.consoles.map((c) => ({ ...c, open_link: sessionLink(c.row) })) };
 }
 // #endregion console-channel-client

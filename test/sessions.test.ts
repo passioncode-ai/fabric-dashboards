@@ -183,11 +183,11 @@ test('FD-124: a session of Switchboard 0.7.0 says who launched it, how it ended,
   assert.deepEqual(r.value[0]!.launch, {
     launchId: '0b8f6c1e-1f2a-4c3d-9e8f-0123456789ab',
     by: { surface: 'fallback', by: 'voc-learn', program: 'switchboard', project: 'agents', parent: '1c9e7d2f-2a3b-4d4e-8f9a-123456789abc', caller: null, dispatch: null },
-    transcript: '/opt/h/.sb/runtimes/claude-agents/projects/-w-alpha/f1e2.jsonl', turns: 7, lastTurnAt: 1_792_617_900_000,
+    transcript: '/opt/h/.sb/runtimes/claude-agents/projects/-w-alpha/f1e2.jsonl', providerSessionId: 'f1e2d3c4-b5a6-4789-8abc-def012345678', turns: 7, lastTurnAt: 1_792_617_900_000,
     ended: 'limit', endedAt: 1_792_618_000_000, continuedAs: { kind: 'handover', id: 'ho-0123456789ab' },
   });
   // Nothing malformed is guessed at: an unknown surface, a name that is not one, a relative transcript, an unknown end.
-  assert.deepEqual(r.value[1]!.launch, { launchId: null, by: { surface: null, by: null, program: null, project: null, parent: null, caller: null, dispatch: null }, transcript: null, turns: null, lastTurnAt: null, ended: null, endedAt: null, continuedAs: null });
+  assert.deepEqual(r.value[1]!.launch, { launchId: null, by: { surface: null, by: null, program: null, project: null, parent: null, caller: null, dispatch: null }, transcript: null, providerSessionId: null, turns: null, lastTurnAt: null, ended: null, endedAt: null, continuedAs: null });
 });
 
 test('FD-103: Switchboard\'s machine-wide list is read strictly; a failure is a degraded source, never an empty list', async () => {
