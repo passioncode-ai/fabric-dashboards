@@ -1344,19 +1344,22 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **Persona:** P-01
 - **Feature:** mcp
 - **Traces:** ST-010; FD-175; the operator, 2026-11-07 (said in fabric-agents-database's session 12c8d3fa, relayed on board thread `a5885efd`, message `ea54cd39`): «я не хочу пользоваться интерфейсом любое действие в интерфейсе должно уметь делаться клауд кодом по моему запросу»
-- **Entry point:** the person asks a coding agent; the agent calls MCP `settings`, `session_action` or `app_update`
+- **Entry point:** the person asks a coding agent; the agent calls MCP `settings`, `session_action`, `app_update`, `console_choose` or `app_install`
 - **Preconditions:** the app runs (a change or an act); reading the settings needs nothing running
 - **Steps:**
   1. The person asks: "switch Dashboards to the light theme and group the list by organization" -> the agent calls `settings` with `{theme: "light", layout: {list: {groupByOrg: true}}}` -> the window changes at once, as if the person had clicked
   2. The person asks to end a session -> the agent reads the row from `consoles` and calls `session_action` `end` with the operator's words in `_meta.decision` -> the session ends as with End
   3. The person asks to update -> the agent calls `app_update` `check`, then `restart` -> the update installs; when consoles run, the window asks the person first, as the button does
+  4. The person asks: "run Codex in the growth agent's console, in its worktree" -> the agent calls `console_choose` with `runtime: "codex"` and the folder -> the console's pickers show them, and the next New session takes them
+  5. The person asks to send the auditor's findings to an agent whose session already runs -> the agent calls `console_fix` -> the task is typed into that session without Enter (`typed: true`), as Send to the running session does
+  6. The person asks to move the app to Applications, or to uninstall it -> the agent calls `app_install` with the action repeated in `confirm` and the operator's words in `_meta.decision` -> the app answers, then moves itself and opens from Applications, or uninstalls as Settings → Uninstall does (`uninstall` keeps settings and history; `uninstall-all` deletes them, as the confirmation's box ticked)
 - **Expected result:** nothing the window offers needs the person's hands, except their own gates (sign-in, a code, a typed secret, payment)
-- **Alt paths:** a field Settings does not offer (a console's folder, the Sessions records) -> named in `refused`, nothing written; the app closed -> `app-not-running` for a change, a read still answers; a row that is gone -> the refusal in the app's words
+- **Alt paths:** a field Settings does not offer (a console's folder, which `console_choose` sets, or the Sessions records) -> named in `refused`, nothing written; a runtime not installed here or a folder that does not exist -> `unknown-runtime` (with the ids installed) or `no-folder`, nothing saved; `confirm` that does not repeat the action -> refused before the app is asked; Move to Applications where it is not needed -> `moved: false` with why; the app closed -> `app-not-running` for a change, a read still answers; a row that is gone -> the refusal in the app's words
 - **UI elements:** none new
 - **States covered:** success, error
 - **Errors & recovery:** a decision for another action or another row is refused `decision-invalid` (DEC-0121); every act is recorded as the caller's or the operator's
 - **Status:** implemented (2026-11-07: `test/agent-doors.test.ts`)
-- **Coverage:** src/core/settings.ts, src/core/console-channel.ts, src/electron/main.ts, src/mcp/tools.ts, src/mcp/server.ts, src/mcp/actions.ts, test/agent-doors.test.ts
+- **Coverage:** src/core/settings.ts, src/core/console-channel.ts, src/electron/main.ts, src/electron/console.ts (`chooseFor`), src/mcp/tools.ts, src/mcp/server.ts, src/mcp/actions.ts, test/agent-doors.test.ts
 - **Product:** unobserved
 
 ### SCN-097: A console session runs without permission prompts

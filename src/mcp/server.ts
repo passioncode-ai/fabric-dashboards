@@ -117,7 +117,7 @@ export const TOOLS = [
   },
   {
     name: 'console_fix',
-    description: 'Start a coding-agent session that fixes an agent, as Fix with coding agent does (ADR-0025): kind fix (the agent\'s problem) or audit (the auditor\'s findings), with the findings as text. Answers app-not-running when the app is not open. Pass the operator\'s words in params._meta.decision when you have them (action fix-with-coding-agent).',
+    description: 'Start a coding-agent session that fixes an agent, as Fix with coding agent does (ADR-0025): kind fix (the agent\'s problem) or audit (the auditor\'s findings), with the findings as text. When that agent\'s console already runs a session, the task is typed into it without Enter, as the console\'s Send to the running session does (answers typed: true). Answers app-not-running when the app is not open. Pass the operator\'s words in params._meta.decision when you have them (action fix-with-coding-agent).',
     inputSchema: { type: 'object', properties: { service: serviceArg, kind: { type: 'string', enum: ['fix', 'audit'] }, findings: { type: 'string', maxLength: 16384 } }, required: ['service', 'kind', 'findings'], additionalProperties: false },
     annotations: { readOnlyHint: false, destructiveHint: false },
   },
@@ -144,6 +144,18 @@ export const TOOLS = [
     description: 'Check for updates, or Restart to update, as the window\'s buttons do (FD-175). check reads the update feed now (also with automatic updates off) and answers the update\'s state; restart installs a ready update, which may first ask the person when coding sessions run, as the button does. Pass the operator\'s words in params._meta.decision when you have them (actions check-for-updates, restart-to-update).',
     inputSchema: { type: 'object', properties: { action: { type: 'string', enum: ['check', 'restart'] } }, required: ['action'], additionalProperties: false },
     annotations: { readOnlyHint: false, destructiveHint: false },
+  },
+  {
+    name: 'console_choose',
+    description: 'The console\'s pickers for one agent (FD-175): runtime, the coding agent that runs in its console (an id such as claude-code or codex, installed on this machine), and folder, the absolute path of an existing folder it opens in. Saved as the person\'s choice; the next New session takes them. Answers the runtime and folder in force, or unknown-runtime (with the ids installed here) or no-folder. Needs the app running.',
+    inputSchema: { type: 'object', properties: { service: serviceArg, runtime: { type: 'string', maxLength: 64 }, folder: { type: 'string', maxLength: 4096 } }, required: ['service'], additionalProperties: false },
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
+  },
+  {
+    name: 'app_install',
+    description: 'Move to Applications, and Uninstall from Settings, as their buttons do (FD-175). Call only when the operator asked for this act. move-to-applications: the app moves itself to /Applications and opens from there (macOS; answers moved: false with why when it is not needed). uninstall: the app removes its login item and its MCP entry (this tool\'s own), moves itself to the Trash and quits; settings and history stay for a reinstall. uninstall-all: the same, and settings and history are deleted too, which cannot be undone. confirm repeats the action. The app answers before it quits; a refusal after that is in its main.log.',
+    inputSchema: { type: 'object', properties: { action: { type: 'string', enum: ['move-to-applications', 'uninstall', 'uninstall-all'] }, confirm: { type: 'string', maxLength: 40 } }, required: ['action', 'confirm'], additionalProperties: false },
+    annotations: { readOnlyHint: false, destructiveHint: true },
   },
   {
     name: 'arrange',
@@ -257,6 +269,8 @@ export async function call(deps: tools.Deps, name: string, args: Args): Promise<
       return tools.sessionAction(deps, act, row, typeof args.account === 'string' ? args.account : undefined);
     }
     case 'app_update': return tools.appUpdate(deps, need(args, 'action') as 'check' | 'restart');
+    case 'console_choose': return tools.consoleChoose(deps, need(args, 'service'), { ...(typeof args.runtime === 'string' ? { runtime: args.runtime } : {}), ...(typeof args.folder === 'string' ? { folder: args.folder } : {}) });
+    case 'app_install': return tools.appInstall(deps, need(args, 'action') as 'move-to-applications' | 'uninstall' | 'uninstall-all', need(args, 'confirm'));
     case 'console_new': return tools.consoleChannel(deps, { op: 'console.new', service: need(args, 'service') });
     case 'console_fix': return tools.consoleChannel(deps, { op: 'console.fix', service: need(args, 'service'), task: { kind: need(args, 'kind') as 'fix' | 'audit', output: need(args, 'findings') } });
     case 'service_context': {

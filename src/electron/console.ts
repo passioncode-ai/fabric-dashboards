@@ -1131,6 +1131,25 @@ export class ConsoleHost {
     return this.info(key);
   }
 
+  /** FD-175: the console's pickers for an agent (the console channel's `console.choose`): a runtime installed here and
+   *  an existing folder, saved as the person's choice would be. Nothing is saved when either is refused. */
+  async chooseFor(key: string, choice: { runtime?: string; folder?: string }): Promise<{ ok: true; runtime: string | null; folder: string | null } | { ok: false; reason: 'unknown-runtime' | 'no-folder'; detail: string }> {
+    const inv = await this.inventory();
+    if (choice.runtime !== undefined && !inv.runtimes.some((r) => r.id === choice.runtime)) {
+      return { ok: false, reason: 'unknown-runtime', detail: `installed here: ${inv.runtimes.map((r) => r.id).join(', ') || 'none'}` };
+    }
+    if (choice.folder !== undefined) {
+      let dir = false;
+      try { dir = fs.statSync(choice.folder).isDirectory(); } catch { /* absent */ }
+      if (!dir) return { ok: false, reason: 'no-folder', detail: 'not an existing folder on this machine' };
+    }
+    const saved = this.o.settings.get().consoles[key];
+    this.o.settings.update({ consoles: { [key]: { runtime: choice.runtime ?? saved?.runtime ?? null, folder: choice.folder ?? saved?.folder ?? null } } });
+    const info = await this.info(key);
+    this.o.log(`console: ${key} runtime or folder chosen by an agent`);
+    return { ok: true, runtime: info.runtime, folder: info.folder?.path ?? null };
+  }
+
   register(): void {
     const keyOk = (key: unknown): key is string => typeof key === 'string' && /^[a-z0-9][a-z0-9-]*\.[a-z0-9][a-z0-9-]*$/.test(key);
     const size = (v: unknown) => {
