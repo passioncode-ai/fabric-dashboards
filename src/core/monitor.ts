@@ -8,7 +8,7 @@ import fs from 'node:fs';
 import { ActivityStore } from './activity';
 import { runOwned } from './children';
 import { productIdOf } from '@passioncode-ai/fabric-service-host/links';
-import { SystemdReader, authHeaders, claimConflicts, dashboardMinWidth, deriveState, elsewhereOf, PlacementReader, type Elsewhere, expand, fetchWellKnown, loopbackOwnerOf, portOf, readDirectory, RemoteTokenLatch, REMOTE_TIMEOUT_MS, type DescriptorEntry, type WellKnownOptions, type WellKnownResult } from '@passioncode-ai/fabric-service-host';
+import { SystemdReader, authHeaders, claimConflicts, dashboardMinWidth, deriveState, elsewhereOf, PlacementReader, type Elsewhere, expand, fetchWellKnown, heldButSilent, loopbackOwnerOf, portOf, readDirectory, RemoteTokenLatch, REMOTE_TIMEOUT_MS, type DescriptorEntry, type WellKnownOptions, type WellKnownResult } from '@passioncode-ai/fabric-service-host';
 import { tail } from './fsutil';
 import { commandReason, type CommandResult } from './outcome';
 import { duration, t as tr, type Lang } from './i18n';
@@ -78,7 +78,7 @@ interface Tracked {
   baselined: boolean; // first events poll records history without notifying
   tokenProblem: string | null; // DEC-0019: a remote placement whose token cannot be read is invalid, never probed
   /** FD-158: the last probe answered from a socket that is not this macOS user's own. */
-  foreignUser?: boolean;
+  foreignUser?: boolean | 'unknown';
   launchdAt: number | null; // when launchd was last read for this service
   polledAt: number | null; // when its events feed was last read
   /** The usage path its own last answer declared (ADR-0013): kept while it is down, so Spend says it could not read it instead of "not reporting". */
@@ -397,9 +397,11 @@ export class Monitor extends EventEmitter {
     const probe = d.placement === 'remote'
       ? await this.latch.probe(d, (withToken) => ask(withToken ? options : tlsFor(d.origin)))
       : await ask(options);
-    // FD-158: an answer on loopback is this user's agent only when this user's own process listens on the port.
-    const port = d.placement !== 'remote' && probe.kind !== 'no-answer' ? portOf(d.origin) : null;
-    t.foreignUser = port !== null && (await loopbackOwnerOf(port)) === false;
+    // FD-158, DEC-0154 HA-2: an answer on loopback, or a silent listener, is this user's agent only when this user's own
+    // process listens on the port.
+    const port = d.placement !== 'remote' && (probe.kind !== 'no-answer' || heldButSilent(probe)) ? portOf(d.origin) : null;
+    const owner = port === null ? null : await loopbackOwnerOf(port);
+    t.foreignUser = owner === 'unknown' ? 'unknown' : owner === false;
     // #region launchd-reads — docs: AGENTS.md#lifecycle
     // launchd is read on every probe while a window shows it. Hidden, a `launchctl print` (a process
     // spawn) runs only when it can change the verdict: the probe missed, the answering pid moved, or
@@ -499,7 +501,7 @@ export class Monitor extends EventEmitter {
     }
     if (snap.state === 'foreign-user') {
       this.appEvent(t.entry.key, t, 'service.foreign-user', 'warning', 'app.event.foreignUser');
-      this.notify({ kind: 'foreign-user', serviceKey: t.entry.key }, t, 'notify.foreignUser.title', 'reason.foreign.user', snap.reasons[0]?.params ?? {});
+      this.notify({ kind: 'foreign-user', serviceKey: t.entry.key }, t, 'notify.foreignUser.title', snap.reasons[0]?.code ?? 'reason.foreign.user', snap.reasons[0]?.params ?? {});
     }
   }
 

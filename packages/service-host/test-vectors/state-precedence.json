@@ -287,6 +287,11 @@
       "expect": { "state": "down" }
     },
     {
+      "name": "FD-159: a listener whose owner could not be told is foreign-user with its own reason (DEC-0154 HA-2)",
+      "input": { "foreignUser": "unknown" },
+      "expect": { "state": "foreign-user", "reasons": [{ "code": "reason.foreign.unknown", "params": { "port": 47195 } }] }
+    },
+    {
       "name": "a local program that answers 403 to the well-known document refused this host: down with the refusal, not foreign",
       "input": { "probe": { "kind": "refused", "detail": "HTTP 403 on /.well-known/fabric-service" } },
       "expect": { "state": "down", "reasons": [{ "code": "reason.refused", "params": { "port": 47195, "detail": "HTTP 403 on /.well-known/fabric-service" } }] }
@@ -295,6 +300,16 @@
       "name": "FD-158: a refusal from another user's listener is foreign-user",
       "input": { "foreignUser": true, "probe": { "kind": "refused", "detail": "HTTP 403 on /.well-known/fabric-service" } },
       "expect": { "state": "foreign-user" }
+    },
+    {
+      "name": "DEC-0154 HA-2: another account's listener that accepts the connection and stays silent is foreign-user, not starting or down",
+      "input": { "foreignUser": true, "probe": { "kind": "no-answer", "detail": "no answer within 1500 ms" }, "firstUnansweredAt": 0 },
+      "expect": { "state": "foreign-user", "reasons": [{ "code": "reason.foreign.user", "params": { "port": 47195 } }] }
+    },
+    {
+      "name": "DEC-0154 HA-2: a silent listener whose owner could not be told is foreign-user with its own reason",
+      "input": { "foreignUser": "unknown", "probe": { "kind": "no-answer", "detail": "no answer within 1500 ms" }, "firstUnansweredAt": 0 },
+      "expect": { "state": "foreign-user", "reasons": [{ "code": "reason.foreign.unknown", "params": { "port": 47195 } }] }
     }
   ]
 }

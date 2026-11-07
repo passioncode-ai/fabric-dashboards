@@ -85,10 +85,19 @@ service data.
   Mac with several macOS users, loopback is shared, and while this user's agent is stopped another user's process may
   hold its port. Before a request that carries a token, the app and its MCP server list this user's listening sockets
   with `lsof -a -u <uid>` (macOS shows a user only their own; one listing serves every port for 30 s, a port not in it
-  is read again after 5 s) and refuse a port that is not there, with the reason. When `lsof` cannot answer, the request
-  goes as before and the log says so once. A plain read with no token (a local well-known probe) is not checked.
-  On Linux (FD-159) the same check reads the kernel's socket tables, `/proc/net/tcp` and `/proc/net/tcp6`, which name
-  each listening socket's owner (no process is started). Windows does not check yet.
+  is read again after 5 s). A port `lsof` does not find, or a listing `lsof` cannot give, is decided by the socket
+  table (FD-159, the contract's DEC-0154 HA-2): `netstat -anv -p tcp` names the process listening there even for
+  another user, and `ps -o pid=,uid=` its owner. The token goes only when every listener there is this user's; nobody
+  listening, another user's process, or an owner neither can tell refuses the request with the reason, and the agent
+  reads "Another user's program" (an owner that could not be told says so in its own words). A plain read with no
+  token (a local well-known probe) is not checked. On Linux (FD-159) the same check reads the kernel's socket tables,
+  `/proc/net/tcp` and `/proc/net/tcp6`, which name each listening socket's owner (no process is started); a table it
+  cannot read is an owner it cannot tell. On Windows (FD-159) the app's compiled reader (`fabric-dashboards-acl.exe
+  --listeners`, build/win/acl.cs) takes the listeners from `GetExtendedTcpTable` and each one's owner from its
+  process's token; a process it cannot open is an owner it cannot tell. An unpackaged run on Windows has no reader and
+  does not check. A dashboard page sends its session cookie, so the same check runs right before each page load in
+  the app's window (open, Home, Reload, a sign-in, a new window on its origin), not only at the last probe (FD-159,
+  `src/electron/views.ts` `ownerOk`); links a person follows inside the page stay with the probe's state.
 - **Listens** on no port. The MCP server (`Contents/Resources/bin/fabric-dashboards-mcp`)
   is started by an agent and speaks only over its stdin and stdout; it reads the same
   folder and token files, talks to the same origins and runs the same `launchctl` verbs and

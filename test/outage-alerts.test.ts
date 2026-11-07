@@ -186,3 +186,14 @@ test('FD-48: the start baseline is taken after the service left starting, so a s
   assert.deepEqual(r.sent, []);
 });
 
+
+test('DEC-0154 HA-2: a watcher counts foreign and foreign-user as unavailable, as it counts down: the agent serves nothing', () => {
+  for (const state of ['foreign', 'foreign-user'] as const) {
+    const held = svc({ state, reason: 'Port 47195 is held by a program of another macOS user on this Mac. Nothing is sent to it.' });
+    const r = run([{ at: 0, services: [held] }, { at: OUTAGE_ALERT_AFTER_MS, services: [held] }, { at: 20 * MIN, services: [svc()] }, { at: 36 * MIN, services: [svc()] }]);
+    assert.deepEqual(r.sent.map((m) => [m.kind, m.subject, m.text]), [
+      ['failure', 'Copy is down', 'For 15 min: Port 47195 is held by a program of another macOS user on this Mac. Nothing is sent to it.'],
+      ['recovery', 'Copy is back', 'Back after 20 min.'],
+    ], state);
+  }
+});

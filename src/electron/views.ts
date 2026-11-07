@@ -10,7 +10,7 @@ import { loginUrl, readTokenAsync } from '../core/probe';
 import type { ServiceSnapshot } from '../core/types';
 import { fabricButtonCookie, fabricPress } from '../core/fabric-button';
 import { appearanceCookie, appearanceValue, viewBackground, type Scheme } from '../core/appearance';
-import { hostView } from '@passioncode-ai/fabric-service-host';
+import { hostView, loopbackOwnerOf, portOf } from '@passioncode-ai/fabric-service-host';
 import { afterCrash, clampRect, dashboardPathOf, loadErrorText, navigation, pageAddress, partitionFor, resolveLink, resumePath, routeLink, ViewSlot } from './policy';
 import { testRemote } from '../core/testhooks';
 
@@ -107,6 +107,18 @@ export class ServiceViews {
     }
   }
 
+  // #region view-owner-check — docs: SECURITY.md#what-the-app-touches
+  /** FD-159, DEC-0154 HA-2: a page load sends the dashboard's session cookie, a credential, so the loopback port's
+   *  listener is checked right before it, not only by the last probe: another user's program, or one whose owner
+   *  cannot be told, gets no load. A remote origin, or a host with no owner check set, is not checked here. */
+  private async ownerOk(origin: string): Promise<boolean> {
+    const port = portOf(origin);
+    if (port === null) return true;
+    const owner = await loopbackOwnerOf(port);
+    return owner === null || owner === true;
+  }
+  // #endregion view-owner-check
+
   /** The service as it is now, when it may get a token: answering as itself, with its well-known. */
   private live(key: string): ServiceSnapshot | null {
     const snap = this.snapshotFor(key);
@@ -171,7 +183,7 @@ export class ServiceViews {
     };
     wc.setWindowOpenHandler(({ url }) => {
       // A new window on the service's own origin opens in place: the view is the service's window.
-      if (follow(url)) void wc.loadURL(url);
+      if (follow(url)) void this.ownerOk(d.origin).then((ok) => (ok ? wc.loadURL(url) : undefined)).catch(() => undefined);
       return { action: 'deny' };
     });
     wc.on('will-navigate', (event, url) => {
@@ -243,6 +255,7 @@ export class ServiceViews {
     const d = snap.descriptor!;
     const dash = snap.wellKnown?.surfaces.dashboard;
     if (!dash) return { ok: false, error: 'no dashboard', stage: 'page' };
+    if (!(await this.ownerOk(d.origin))) return { ok: false, error: 'unavailable', stage: 'page' }; // FD-159
     let stage: ShowResult['stage'] = dash.login ? 'sign-in' : 'page';
     await this.fabricCookie(snap.key, d.origin);
     await this.appearanceCookie(snap.key, d.origin);
@@ -289,6 +302,7 @@ export class ServiceViews {
 
   /** Open a path on an already loaded view; a failed navigation is a result, never a rejection (R-5). */
   private async go(entry: Entry, url: string): Promise<ShowResult> {
+    if (!(await this.ownerOk(entry.origin))) return { ok: false, error: 'unavailable', stage: 'page' }; // FD-159
     try {
       await entry.view.webContents.loadURL(url);
       return { ok: true };
@@ -431,7 +445,7 @@ export class ServiceViews {
     if (action === 'refresh') { void this.refresh(key, entry); return; }
     this.refreshes.delete(key);
     entry.navigationEpoch += 1;
-    if (action === 'home') void this.fabricCookie(key, entry.origin).then(() => this.appearanceCookie(key, entry.origin)).then(() => wc.loadURL(resolveLink(entry.origin, undefined, entry.dashboardPath))).catch(() => undefined);
+    if (action === 'home') void this.ownerOk(entry.origin).then((ok) => (ok ? this.fabricCookie(key, entry.origin).then(() => this.appearanceCookie(key, entry.origin)).then(() => wc.loadURL(resolveLink(entry.origin, undefined, entry.dashboardPath))) : undefined)).catch(() => undefined);
   }
 
   // #region dashboard-session-refresh — docs: docs/handoffs/2026-10-09-dashboard-session-refresh/README.md#requirements-and-delivery-profile
@@ -444,7 +458,14 @@ export class ServiceViews {
       this.emit({ key, kind: 'error', error: 'unavailable' });
       return;
     }
-    if (!snap.wellKnown?.surfaces.dashboard?.login) { void this.fabricCookie(key, entry.origin); void this.appearanceCookie(key, entry.origin); entry.view.webContents.reload(); return; }
+    if (!snap.wellKnown?.surfaces.dashboard?.login) {
+      // FD-159: a sign-in goes through load(), which checks the port's owner; a plain reload checks it here.
+      void this.ownerOk(entry.origin).then((ok) => {
+        if (!ok) { this.emit({ key, kind: 'error', error: 'unavailable' }); return; }
+        void this.fabricCookie(key, entry.origin); void this.appearanceCookie(key, entry.origin); entry.view.webContents.reload();
+      });
+      return;
+    }
     const attempt = Symbol('refresh');
     this.refreshes.set(key, attempt);
     entry.navigationEpoch += 1;

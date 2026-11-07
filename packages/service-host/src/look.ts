@@ -5,7 +5,7 @@
 // no earlier answer to measure silence from, a service that does not answer now is `down`, never
 // «starting». Fabric Dashboards' own monitor keeps history and uses the parts directly.
 import { claimConflicts, portOf, readDirectory, servicesDir as defaultServicesDir, type DescriptorEntry } from './descriptor';
-import { authHeaders, fetchWellKnown, loopbackOwnerOf, readTokenAsync, REMOTE_TIMEOUT_MS, type WellKnownOptions } from './health';
+import { authHeaders, fetchWellKnown, heldButSilent, loopbackOwnerOf, readTokenAsync, REMOTE_TIMEOUT_MS, type WellKnownOptions } from './health';
 import { LaunchdReader, UNMANAGED } from './launchd';
 import { elsewhereOf, PlacementReader, type Placement } from './placement';
 import type { RemoteTokenLatch } from './latch';
@@ -100,9 +100,11 @@ async function lookAtEntry(entry: DescriptorEntry, conflict: ClaimConflict | nul
   const launchd: LaunchdStatus = d && (o.platform ?? process.platform) === 'darwin' && d.lifecycle.manager === 'launchd' && d.lifecycle.label
     ? { managed: true, ...(await reader.status(d.lifecycle.label, table)) }
     : { ...UNMANAGED };
-  // FD-158: an answer on loopback is this user's only when this user's own process listens there.
-  const port = d && !remote && probe && probe.kind !== 'no-answer' ? portOf(d.origin) : null;
-  const foreignUser = port !== null && (await loopbackOwnerOf(port)) === false;
+  // FD-158, DEC-0154 HA-2: an answer on loopback, or a silent listener, is this user's only when this user's own process
+  // listens there.
+  const port = d && !remote && probe && (probe.kind !== 'no-answer' || heldButSilent(probe)) ? portOf(d.origin) : null;
+  const owner = port === null ? null : await loopbackOwnerOf(port);
+  const foreignUser = owner === 'unknown' ? 'unknown' : owner === false;
   const { state, reasons } = deriveState({
     descriptor: d, problems, conflict, launchd, probe,
     firstUnansweredAt: now - (remote ? REMOTE_DOWN_AFTER_MS : DOWN_AFTER_MS), now, busy: null,

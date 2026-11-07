@@ -9,7 +9,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import type { ServiceSnapshot } from '../src/core/types';
-import { setWindowsAclReader } from '@passioncode-ai/fabric-service-host';
+import { setLoopbackOwnerCheck, setWindowsAclReader } from '@passioncode-ai/fabric-service-host';
 import { windowsAclReader } from './win-acl';
 
 let Views: typeof import('../src/electron/views').ServiceViews;
@@ -186,6 +186,7 @@ for (const mode of ['down', 'foreign']) test(`${mode} service gets no sign-in re
 test('non-login dashboard preserves ordinary browser refresh', async (t) => {
   const f = await fixture(t, false);
   f.view.navigate('fixture.default', 'refresh'); await f.settled();
+  await new Promise((r) => setTimeout(r, 10)); // FD-159: the reload follows the port-owner check
   assert.equal(f.logins, 0); assert.equal(f.wc.reloads, 1);
 });
 
@@ -363,4 +364,24 @@ test('FD-74: a reload ignoring the cache empties the service\'s cache, then sign
   await f.settled();
   assert.equal(cacheCleared, 1, 'a plain reload keeps the cache');
   assert.equal(f.view.shownKey(), 'fixture.default');
+});
+
+test("FD-159, DEC-0154 HA-2: a dashboard page loads only while this user's process holds the port", async (t) => {
+  t.after(() => setLoopbackOwnerCheck(null));
+  const f = await fixture(t);
+  const loads = f.wc.calls.length;
+  const logins = f.logins;
+  for (const owner of [false, 'unknown'] as const) {
+    setLoopbackOwnerCheck(async () => owner);
+    f.view.navigate('fixture.default', 'refresh');
+    await f.settled();
+    f.view.navigate('fixture.default', 'home');
+    await new Promise((r) => setTimeout(r, 20));
+    assert.deepEqual(await f.view.show(f.snap, { x: 0, y: 0, width: 400, height: 300 }, '/answers', 'owner', true), { ok: false, error: 'unavailable', stage: 'page' }, `owner ${String(owner)}`);
+  }
+  assert.equal(f.wc.calls.length, loads, 'no page was loaded, so no session cookie went to the port');
+  assert.equal(f.logins, logins, 'no login code was asked for');
+  assert.ok(f.events.some((e) => e.kind === 'error' && e.error === 'unavailable'), 'a refresh says the page is unavailable');
+  setLoopbackOwnerCheck(async () => true);
+  assert.deepEqual(await f.view.show(f.snap, { x: 0, y: 0, width: 400, height: 300 }, '/answers', 'owner', true), { ok: true }, 'its own process: the page loads again');
 });

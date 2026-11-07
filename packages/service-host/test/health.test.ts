@@ -6,7 +6,7 @@ import type { AddressInfo } from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import { carriesSecret, checkWellKnown, fetchWellKnown, request, setLoopbackOwnerCheck, tokenFileProblem, windowsAclProblem, windowsAclRefusal, windowsPowerShellEnv } from '../src/health';
+import { carriesSecret, checkWellKnown, fetchWellKnown, loopbackOwnerOf, request, setLoopbackOwnerCheck, tokenFileProblem, windowsAclProblem, windowsAclRefusal, windowsPowerShellEnv } from '../src/health';
 
 const WELL_KNOWN = JSON.parse(fs.readFileSync(path.join(__dirname, '../../../test/fixtures/contract/positive_service-well-known.json'), 'utf8'));
 
@@ -191,6 +191,16 @@ test('FD-94: the compiled reader and Windows PowerShell give one verdict; a read
   setWindowsAclReader(path.join(dir, 'missing.exe'));
   await assert.rejects(readTokenAsync(token), /S-1-1-0/, 'a reader that does not start is never trusted: PowerShell reads it');
   t.diagnostic(`reader read the token in ${viaReader} ms`);
+});
+
+test('FD-159: a loopback owner the host could not tell is refused too, with its own words', async (t) => {
+  const seen: string[] = [];
+  const s = await server((req, res) => { seen.push(String(req.headers.authorization ?? '')); res.end('{}'); });
+  t.after(() => { setLoopbackOwnerCheck(null); return s.close(); });
+  setLoopbackOwnerCheck(async () => 'unknown');
+  await assert.rejects(request(s.origin, 'GET', '/e', { Authorization: 'Bearer t0ken-of-sixteen' }), /the owner of the program on 127\.0\.0\.1:\d+ could not be told, so its token was not sent/);
+  assert.deepEqual(seen, [], 'nothing reached the port');
+  assert.equal(await loopbackOwnerOf(1), 'unknown');
 });
 
 test('FD-156: a token goes to a loopback port only when the host says this user listens there; plain reads never ask', async (t) => {

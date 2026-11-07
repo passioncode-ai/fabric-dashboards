@@ -2,6 +2,7 @@
 // shared vectors (test-vectors/state-precedence.json) are the normative test of this order; any
 // host that reads services/ runs them. Pure: no Node import, so a renderer may import
 // `@passioncode-ai/fabric-service-host/state`.
+import { heldButSilent } from './health';
 import type { Busy, ClaimConflict, Descriptor, Elsewhere, LaunchdStatus, Reason, ServiceState, WellKnown, WellKnownResult } from './protocol';
 
 // #region state-precedence — docs: packages/service-host/README.md#state-precedence
@@ -22,8 +23,9 @@ export interface StateInput {
   busy: Busy;
   /** FD-132: the placement record puts it on another machine; absent or null: placed here. */
   elsewhere?: Elsewhere | null;
-  /** FD-158: the host checked its port and the listening socket is not this macOS user's own; absent: not checked. */
-  foreignUser?: boolean;
+  /** FD-158: the host checked its port and the listening socket is not this OS user's own (FD-159: `unknown`, its owner
+   * could not be told, DEC-0154 HA-2); absent: not checked. */
+  foreignUser?: boolean | 'unknown';
 }
 
 export interface StateOutput { state: ServiceState; reasons: Reason[] }
@@ -42,10 +44,11 @@ export function deriveState(i: StateInput): StateOutput {
   const probe = i.probe;
   if (d.placement === 'remote') return remoteState(d, probe, i);
   const away = i.elsewhere ?? null;
-  // FD-158 (the contract's draft norm on loopback owners): a listener of another macOS user wins over whatever it
-  // answers, its own id included; its answer is never shown as this agent's. A port nobody holds stays `down` below.
-  if (i.foreignUser && (probe?.kind === 'answer' || probe?.kind === 'not-protocol' || probe?.kind === 'refused')) {
-    return { state: 'foreign-user', reasons: [{ code: 'reason.foreign.user', params: { port: portNum(d.origin) } }] };
+  // FD-158, DEC-0154 HA-2: a listener of another OS account, or one whose owner cannot be told, wins over whatever it
+  // answers, its own id included, and over its silence; its answer is never shown as this agent's. A port nobody holds
+  // (a refused connection) stays `down` below.
+  if (i.foreignUser && (probe?.kind === 'answer' || probe?.kind === 'not-protocol' || probe?.kind === 'refused' || heldButSilent(probe))) {
+    return { state: 'foreign-user', reasons: [{ code: i.foreignUser === 'unknown' ? 'reason.foreign.unknown' : 'reason.foreign.user', params: { port: portNum(d.origin) } }] };
   }
   if (probe?.kind === 'answer') {
     const svc = probe.doc.service;
