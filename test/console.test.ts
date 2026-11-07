@@ -2,6 +2,7 @@
 // how Switchboard decides the account, and the console sessions themselves on a fake PTY.
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { findCheckout, originOf, repoId } from '../src/core/repofind';
@@ -361,12 +362,15 @@ test('audit 2026-10-07: a login shell that hangs is cut at the deadline with eve
   const dir = tmp('fd-shell-');
   const pidFile = path.join(dir, 'child.pid');
   const shell = path.join(dir, 'fake-shell');
-  // Prints first, then hangs with a background child: the deadline (2 s, roomy under a loaded suite) cuts both.
+  // Prints first, then hangs with a background child: the deadline cuts both. FD-130: 2 s, longer on a machine whose
+  // load is several times its cores (three misses at load averages 66 to 253, where the fake shell had not printed yet),
+  // at most 10 s.
+  const deadline = Math.min(10_000, 2000 * Math.max(1, Math.ceil(os.loadavg()[0]! / Math.max(1, os.cpus().length))));
   fs.writeFileSync(shell, `#!/bin/sh\nprintf '\\n__FD_PATH__/opt/a:/opt/b\\n'\nsleep 30 &\necho $! > ${JSON.stringify(pidFile)}\nwait\n`, { mode: 0o755 });
   const started = Date.now();
-  const dirs = await readLoginPath(2000, shell);
-  assert.deepEqual(dirs, ['/opt/a', '/opt/b'], 'what was printed before the deadline is kept');
-  assert.ok(Date.now() - started < 5000, `ended after ${Date.now() - started} ms`);
+  const dirs = await readLoginPath(deadline, shell);
+  assert.deepEqual(dirs, ['/opt/a', '/opt/b'], `what was printed before the deadline (${deadline} ms) is kept`);
+  assert.ok(Date.now() - started < deadline + 3000, `ended after ${Date.now() - started} ms, the deadline ${deadline} ms`);
   const pid = Number(fs.readFileSync(pidFile, 'utf8'));
   await new Promise((r) => setTimeout(r, 200));
   assert.throws(() => process.kill(pid, 0), /ESRCH/, 'the shell\'s background child is gone too');
