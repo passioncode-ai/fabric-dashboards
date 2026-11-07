@@ -165,6 +165,8 @@ if (!app.requestSingleInstanceLock()) {
   const testGh = !app.isPackaged ? process.env.FD_TEST_GH : undefined;
   const agentNames = new AgentNameStore({
     file: path.join(userData, 'agent-names.json'), run: execRunner, log,
+    // FD-177: an unchanged read is counted in the log digest without a main.log line.
+    quiet: (line) => { try { digester.record(line); } catch { /* the digest is best effort */ } },
     gh: async () => testGh || findGh(await (ghDirs ??= readLoginPath().then((p) => searchDirs(p)))),
     onChange: () => { monitor.namesChanged(); pushStatus(); },
   });
