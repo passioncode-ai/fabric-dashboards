@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.8.34 - 2026-11-07
+
 ### Added
 
 - FD-161: "Group by organization" at the bottom of the Organizations menu splits each section of the agent list under
