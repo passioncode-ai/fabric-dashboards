@@ -11,7 +11,7 @@
 import { supervises } from '../core/platform';
 import fs from 'node:fs';
 import net from 'node:net';
-import { CHANNEL_KEY_FILE, channelAddress, type ChannelAnswer, type ChannelOp, type OpenConsole } from '../core/console-channel';
+import { CHANNEL_KEY_FILE, channelAddress, type AppInstall, type ChannelAnswer, type ChannelOp, type OpenConsole } from '../core/console-channel';
 import { discoverHost, type HostStatus } from './host';
 import {
   APP_NAME, dashboardMinWidth, expand, lookAtServices, readDirectory, servicesDir as defaultServicesDir,
@@ -644,7 +644,7 @@ export async function load(deps: Deps, key: string): Promise<LoadEntry & { produ
 // #region console-channel-client — docs: docs/adr/0025-the-console-channel.md#decision
 /** One request to the running app, through its per-user channel and this run's key. The app not running is an answer
  *  (`app-not-running`), never a start of the app. */
-async function askChannel(deps: Deps, request: { op: ChannelOp; service?: string; task?: { kind: 'fix' | 'audit'; output: string }; patch?: Record<string, unknown>; session?: unknown; update?: string }, notRunning: string): Promise<ChannelAnswer> {
+async function askChannel(deps: Deps, request: { op: ChannelOp; service?: string; task?: { kind: 'fix' | 'audit'; output: string }; patch?: Record<string, unknown>; session?: unknown; update?: string; choice?: { runtime?: string; folder?: string }; install?: AppInstall }, notRunning: string): Promise<ChannelAnswer> {
   const userData = path.dirname(deps.settingsFile?.() ?? appSettingsFile());
   let key: string;
   try { key = fs.readFileSync(path.join(userData, CHANNEL_KEY_FILE), 'utf8').trim(); } catch { throw new ToolError(notRunning); }
@@ -663,10 +663,12 @@ async function askChannel(deps: Deps, request: { op: ChannelOp; service?: string
 }
 
 /** ADR-0025 (FD-120): start a console session, or a fix in one, in the running app. */
-export async function consoleChannel(deps: Deps, request: { op: ChannelOp; service: string; task?: { kind: 'fix' | 'audit'; output: string } }): Promise<{ started: true; console: string }> {
+export async function consoleChannel(deps: Deps, request: { op: ChannelOp; service: string; task?: { kind: 'fix' | 'audit'; output: string } }): Promise<{ started: true; console: string } | Record<string, unknown>> {
   find(deps, request.service);
   const answer = await askChannel(deps, request, 'app-not-running: Fabric Dashboards is not running, so no console can start; open it and call again');
   if (!answer.ok) throw new ToolError(`${answer.code}${answer.detail ? `: ${answer.detail}` : ''}`, { started: false, code: answer.code });
+  // FD-175: a fix for an agent whose session runs was typed into it (no Enter), as the console's own button does.
+  if ('result' in answer) return { started: false, ...answer.result };
   if (!('consoleKey' in answer)) throw new ToolError('the app answered a list where a start was asked');
   return { started: true, console: answer.consoleKey };
 }
@@ -711,6 +713,25 @@ export async function sessionAction(deps: Deps, act: 'continue' | 'end' | 'dismi
  *  does; the answer says it started). */
 export async function appUpdate(deps: Deps, action: 'check' | 'restart'): Promise<Record<string, unknown>> {
   const answer = await askChannel(deps, { op: 'app.update', update: action } as never, 'app-not-running: Fabric Dashboards is not running; open it and call again');
+  if (!answer.ok) throw new ToolError(`${answer.code}${answer.detail ? `: ${answer.detail}` : ''}`);
+  return 'result' in answer ? answer.result : {};
+}
+/** FD-175: the console's pickers: which coding agent runs in an agent's console, and in which folder (an existing one on
+ *  this machine). Saved as the person's choice; the next New session takes them. */
+export async function consoleChoose(deps: Deps, service: string, choice: { runtime?: string; folder?: string }): Promise<Record<string, unknown>> {
+  find(deps, service);
+  if (choice.runtime === undefined && choice.folder === undefined) throw new ToolError('name runtime, folder or both');
+  const answer = await askChannel(deps, { op: 'console.choose', service, choice }, 'app-not-running: Fabric Dashboards is not running, so the console cannot change now; open it and call again');
+  if (!answer.ok) throw new ToolError(`${answer.code}${answer.detail ? `: ${answer.detail}` : ''}`, { done: false, code: answer.code });
+  return 'result' in answer ? { service, ...answer.result } : { service };
+}
+
+/** FD-175: Move to Applications, and Uninstall from Settings (keeping settings and history, or with them). `confirm`
+ *  repeats the action: a guard against a call made by mistake, since the app quits and an uninstall puts it in the
+ *  Trash and removes its MCP entry, this tool's own door. */
+export async function appInstall(deps: Deps, action: AppInstall, confirm: string): Promise<Record<string, unknown>> {
+  if (confirm !== action) throw new ToolError(`confirm must repeat the action: ${action}`);
+  const answer = await askChannel(deps, { op: 'app.install', install: action }, 'app-not-running: Fabric Dashboards is not running; open it and call again');
   if (!answer.ok) throw new ToolError(`${answer.code}${answer.detail ? `: ${answer.detail}` : ''}`);
   return 'result' in answer ? answer.result : {};
 }

@@ -42,6 +42,9 @@ export const OWN_ACTIONS: DeclaredAction[] = [
   { id: 'sessions-clear-ended', title: 'Clear ended', tool: 'session_action', gate: 'none' },
   { id: 'check-for-updates', title: 'Check for updates', tool: 'app_update', gate: 'none' },
   { id: 'restart-to-update', title: 'Restart to update', tool: 'app_update', gate: 'relayed' },
+  { id: 'console-choose', title: 'Choose the console\'s agent and folder', tool: 'console_choose', gate: 'none' },
+  { id: 'move-to-applications', title: 'Move to Applications', tool: 'app_install', gate: 'relayed' },
+  { id: 'uninstall', title: 'Uninstall', tool: 'app_install', gate: 'relayed' },
 ];
 
 /** The `_meta` of the initialize answer: this app's declared actions (DEC-0121 AP-1). */
@@ -51,6 +54,7 @@ export const ACTIONS_META = { [ACTIONS_EXTENSION]: { actions: OWN_ACTIONS } };
 export function actionOf(tool: string, args: Record<string, unknown>): DeclaredAction | null {
   if (tool === 'control' || tool === 'arrange') return OWN_ACTIONS.find((a) => a.tool === tool && a.id === args.action) ?? null;
   if (tool === 'session_action') return OWN_ACTIONS.find((a) => a.id === (args.act === 'clear-ended' ? 'sessions-clear-ended' : `session-${String(args.act)}`)) ?? null;
+  if (tool === 'app_install') return OWN_ACTIONS.find((a) => a.id === (args.action === 'move-to-applications' ? 'move-to-applications' : 'uninstall')) ?? null;
   if (tool === 'app_update') return OWN_ACTIONS.find((a) => a.id === (args.action === 'restart' ? 'restart-to-update' : 'check-for-updates')) ?? null;
   return OWN_ACTIONS.find((a) => a.tool === tool) ?? null;
 }

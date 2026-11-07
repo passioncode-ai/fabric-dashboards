@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- FD-175, the rest of the window's buttons for an agent: MCP `console_choose` sets which coding agent runs in an
+  agent's console and in which folder; `app_install` is Move to Applications and Uninstall (keeping or deleting settings
+  and history), with the action repeated in `confirm`; `console_fix` for an agent whose session already runs types the
+  task into it, as Send to the running session does.
+
 ## 0.8.36 - 2026-11-07
 
 ### Security

@@ -18,7 +18,8 @@ export const CHANNEL_KEY_FILE = 'console.key';
 export const CHANNEL_SOCKET_FILE = 'console.sock';
 export const CHANNEL_TASK_MAX = 16 * 1024;
 
-export type ChannelOp = 'console.new' | 'console.fix' | 'console.list' | 'settings.update' | 'sessions.act' | 'app.update';
+export type ChannelOp = 'console.new' | 'console.fix' | 'console.list' | 'console.choose' | 'settings.update' | 'sessions.act' | 'app.update' | 'app.install';
+const OPS: readonly string[] = ['console.new', 'console.fix', 'console.list', 'console.choose', 'settings.update', 'sessions.act', 'app.update', 'app.install'];
 /** FD-175: what a session row's button does, and what the app's update buttons do. */
 export type SessionAct = 'continue' | 'end' | 'dismiss' | 'clear-ended';
 export interface ChannelRequest {
@@ -29,7 +30,14 @@ export interface ChannelRequest {
   session?: { act: SessionAct; row?: string; account?: string };
   /** FD-175, `app.update`: Check for updates, or Restart to update. */
   update?: 'check' | 'restart';
+  /** FD-175, `console.choose`: the console's coding agent (a runtime id) and its folder (absolute), as the console's
+   *  own pickers set them. At least one. */
+  choice?: { runtime?: string; folder?: string };
+  /** FD-175, `app.install`: Move to Applications, or Uninstall keeping settings and history (`uninstall`) or with them
+   *  (`uninstall-all`), as the confirmation's box ticked. */
+  install?: AppInstall;
 }
+export type AppInstall = 'move-to-applications' | 'uninstall' | 'uninstall-all';
 /** FD-166: one console of this app that runs now, as the Sessions list joins it with Switchboard's record. Ids only:
  *  never what the console printed, its prompt or a path inside the agent's data. */
 export interface OpenConsole {
@@ -80,8 +88,8 @@ export function parseRequest(line: string): { ok: true; request: ChannelRequest 
   try { v = JSON.parse(line); } catch { return { ok: false, code: 'not-json' }; }
   if (!v || typeof v !== 'object' || Array.isArray(v)) return { ok: false, code: 'not-an-object' };
   const r = v as Record<string, unknown>;
-  for (const k of Object.keys(r)) if (!['key', 'op', 'service', 'task', 'patch', 'session', 'update'].includes(k)) return { ok: false, code: 'unknown-field' };
-  if (!['console.new', 'console.fix', 'console.list', 'settings.update', 'sessions.act', 'app.update'].includes(String(r.op))) return { ok: false, code: 'unknown-op' };
+  for (const k of Object.keys(r)) if (!['key', 'op', 'service', 'task', 'patch', 'session', 'update', 'choice', 'install'].includes(k)) return { ok: false, code: 'unknown-field' };
+  if (!OPS.includes(String(r.op))) return { ok: false, code: 'unknown-op' };
   // FD-175: the window's own buttons, each with only its own field.
   const only = (field: string) => Object.keys(r).every((k) => k === 'key' || k === 'op' || k === field);
   if (r.op === 'settings.update') {
@@ -103,8 +111,25 @@ export function parseRequest(line: string): { ok: true; request: ChannelRequest 
     if (!only('update') || (r.update !== 'check' && r.update !== 'restart')) return { ok: false, code: 'bad-update' };
     return { ok: true, request: { key: String(r.key ?? ''), op: r.op, service: '', update: r.update } };
   }
+  if (r.op === 'app.install') {
+    if (!only('install') || (r.install !== 'move-to-applications' && r.install !== 'uninstall' && r.install !== 'uninstall-all')) return { ok: false, code: 'bad-install' };
+    return { ok: true, request: { key: String(r.key ?? ''), op: r.op, service: '', install: r.install } };
+  }
+  if (r.op === 'console.choose') {
+    const c = r.choice as Record<string, unknown> | undefined;
+    if (Object.keys(r).some((k) => !['key', 'op', 'service', 'choice'].includes(k))) return { ok: false, code: 'unknown-field' };
+    if (typeof r.service !== 'string' || !SERVICE_KEY.test(r.service)) return { ok: false, code: 'bad-service' };
+    if (!c || typeof c !== 'object' || Array.isArray(c) || Object.keys(c).some((k) => k !== 'runtime' && k !== 'folder')) return { ok: false, code: 'bad-choice' };
+    const runtime = c.runtime;
+    const folder = c.folder;
+    if (runtime === undefined && folder === undefined) return { ok: false, code: 'bad-choice' };
+    if (runtime !== undefined && (typeof runtime !== 'string' || !/^[a-z0-9][a-z0-9-]{0,63}$/.test(runtime))) return { ok: false, code: 'bad-choice' };
+    // An absolute path, no NUL; whether it is a folder is the app's check.
+    if (folder !== undefined && (typeof folder !== 'string' || folder.length > 4096 || folder.includes('\u0000') || !(folder.startsWith('/') || /^[A-Za-z]:[\\/]/.test(folder)))) return { ok: false, code: 'bad-choice' };
+    return { ok: true, request: { key: String(r.key ?? ''), op: r.op, service: r.service, choice: { ...(typeof runtime === 'string' ? { runtime } : {}), ...(typeof folder === 'string' ? { folder } : {}) } } };
+  }
   // A console operation carries none of the window's fields.
-  if (r.patch !== undefined || r.session !== undefined || r.update !== undefined) return { ok: false, code: 'unknown-field' };
+  if (r.patch !== undefined || r.session !== undefined || r.update !== undefined || r.choice !== undefined || r.install !== undefined) return { ok: false, code: 'unknown-field' };
   if (r.op === 'console.list') {
     // FD-166: a read names no service and carries no task.
     if (r.service !== undefined || r.task !== undefined) return { ok: false, code: 'unknown-field' };

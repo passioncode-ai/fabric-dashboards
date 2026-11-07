@@ -664,7 +664,8 @@ if (!app.requestSingleInstanceLock()) {
   // #region uninstall-flow — docs: docs/ux/scenarios.md#scn-024-settings-launch-at-login-notifications-quiet-hours
   /** LC-14: undo what installing and running added. Registrations go first and stop the flow on
    *  failure, so a half-uninstalled app never deletes its data and leaves an entry behind. */
-  async function uninstall(): Promise<{ ok: boolean; cancelled?: boolean; error?: string }> {
+  /** `decided`: FD-175, the operator's words relayed by an agent stand for the confirmation and its box. */
+  async function uninstall(decided?: { deleteData: boolean }): Promise<{ ok: boolean; cancelled?: boolean; error?: string }> {
     const l = lang();
     const parent = window && !window.isDestroyed() ? window : undefined;
     // LC-14: data goes only when the person asks. The box is unticked: settings and history stay,
@@ -673,7 +674,8 @@ if (!app.requestSingleInstanceLock()) {
       type: 'warning' as const, buttons: [t(l, 'uninstall.confirm'), t(l, 'action.cancel')], defaultId: 1, cancelId: 1,
       message: t(l, 'uninstall.title'), detail: t(l, 'settings.uninstall.body'), checkboxLabel: t(l, 'uninstall.deleteData'), checkboxChecked: false,
     };
-    const { response, checkboxChecked: deleteData } = parent ? await dialog.showMessageBox(parent, ask) : await dialog.showMessageBox(ask);
+    const { response, checkboxChecked: deleteData } = decided ? { response: 0, checkboxChecked: decided.deleteData }
+      : parent ? await dialog.showMessageBox(parent, ask) : await dialog.showMessageBox(ask);
     if (response !== 0) return { ok: false, cancelled: true };
     const wasAtLogin = Boolean(loginOs && settings.get().launchAtLogin);
     let mcp: ReturnType<typeof removeMcpRegistrations>['entries'] = [];
@@ -782,7 +784,8 @@ if (!app.requestSingleInstanceLock()) {
 
   /** U-6/R-3: a move that macOS refuses says so, and leaves the app as it was. A move that works
    *  quits through app.quit (before-quit sets `quitting`) and relaunches from Applications. */
-  async function moveToApplications(): Promise<{ ok: boolean; error?: string }> {
+  /** `quiet`: FD-175, an agent asked; its answer says the refusal, so no box waits for a person. */
+  async function moveToApplications(quiet = false): Promise<{ ok: boolean; error?: string }> {
     if (!app.isPackaged || process.platform !== 'darwin' || app.isInApplicationsFolder()) return { ok: true }; // the Applications folder is macOS's
     let error = '';
     try {
@@ -794,7 +797,7 @@ if (!app.requestSingleInstanceLock()) {
       error = (e as Error).message;
     }
     log(`move to Applications failed: ${error}`);
-    await dialog.showMessageBox({ type: 'warning', message: t(lang(), 'move.failed', { error }), buttons: ['OK'] });
+    if (!quiet) await dialog.showMessageBox({ type: 'warning', message: t(lang(), 'move.failed', { error }), buttons: ['OK'] });
     return { ok: false, error };
   }
 
@@ -1191,8 +1194,32 @@ if (!app.requestSingleInstanceLock()) {
           void restartToUpdate();
           return { ok: true, result: { state: updater.state.state, version: updater.state.version ?? null, restarting: updater.state.state === 'ready' } };
         }
+        if (r.op === 'console.choose' && r.choice) {
+          const done = await consoles.chooseFor(r.service, r.choice);
+          return done.ok ? { ok: true, result: { runtime: done.runtime, folder: done.folder } } : { ok: false, code: done.reason, detail: done.detail };
+        }
+        if (r.op === 'app.install' && r.install) {
+          if (r.install === 'move-to-applications') {
+            const where = !app.isPackaged ? 'not-packaged' : process.platform !== 'darwin' ? 'not-macos' : app.isInApplicationsFolder() ? 'already-there' : null;
+            if (where) return { ok: true, result: { moved: false, why: where } };
+            // A move that works quits and relaunches from Applications: the answer goes first.
+            setTimeout(() => { void moveToApplications(true); }, 500);
+            return { ok: true, result: { moving: true } };
+          }
+          const deleteData = r.install === 'uninstall-all';
+          // The app quits once its helpers run: the answer goes first, and a refusal is in main.log.
+          setTimeout(() => { void uninstall({ deleteData }).then((u) => { if (!u.ok) log(`uninstall asked by an agent stopped: ${u.error ?? 'cancelled'}`); }); }, 500);
+          return { ok: true, result: { uninstalling: true, deleteData } };
+        }
         // #endregion agent-doors
-        return consoles.start(r.service, 'new', { cols: 120, rows: 32 }, r.task).then((x) => startAnswer(r.service, x));
+        return consoles.start(r.service, 'new', { cols: 120, rows: 32 }, r.task).then((x) => {
+          // FD-175 (FD-129's button): a fix for an agent whose session runs is typed into that session, not a second one.
+          if (!x.ok && x.reason === 'running' && r.task) {
+            const sent = consoles.sendTask(r.service, r.task);
+            return sent.ok ? { ok: true, result: { typed: true, console: r.service, waitsForEnter: true } } : { ok: false, code: sent.error ?? 'not-sent' };
+          }
+          return startAnswer(r.service, x);
+        });
       },
     }).then((c) => { consoleChannel = c; if (c) log('console channel open'); });
     // #endregion console-channel-start

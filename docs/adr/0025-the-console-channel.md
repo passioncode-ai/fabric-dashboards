@@ -66,6 +66,13 @@ only (Q-08) and moves to Fabric (FD-105), so MD-12 closes them as not needed.
 
 ## Consequences
 
+- **Amendment 2026-11-07 (FD-175, the rest of the window's buttons).** Two more operations: `console.choose` (the
+  console's pickers: a runtime installed here and an existing absolute folder, saved only when both halves are valid)
+  and `app.install` (Move to Applications, and Uninstall keeping or deleting settings and history). The app answers an
+  install before it acts, since both quit it; a refusal after that is in `main.log`. `console.fix` for an agent whose
+  session already runs types the task into it without Enter, as Send to the running session does (FD-129), instead of
+  refusing `running`. MCP `console_choose` and `app_install` read them; Move to Applications and Uninstall are relayed
+  actions, and `app_install` refuses a call whose `confirm` does not repeat the action before it reaches the app.
 - **Amendment 2026-11-07 (FD-175, the operator: «любое действие в интерфейсе должно уметь делаться клауд кодом по моему
   запросу»).** Three more operations, each through the code its button runs: `settings.update` (a patch the app checks
   again against the fields Settings offers, `AGENT_SETTINGS`), `sessions.act` (a Sessions row's Continue, Continue now,
