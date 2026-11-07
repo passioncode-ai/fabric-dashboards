@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import net from 'node:net';
 import test from 'node:test';
 import { execRunner } from '../src/core/launchd';
-import { linuxConnectionCheck, linuxConnectionUids, linuxLoopbackOwnerCheck, listenersOf, macConnectionCheck, macConnectionPids, loopbackOwnerCheck, MISS_REREAD_MS, OWNED_FRESH_MS, portsOf, procNetPorts, socketTableOwner, windowsListenersOf, windowsLoopbackOwnerCheck } from '../src/core/loopback-owner';
+import { tableRestricted, linuxConnectionCheck, linuxConnectionUids, linuxLoopbackOwnerCheck, listenersOf, macConnectionCheck, macConnectionPids, loopbackOwnerCheck, MISS_REREAD_MS, OWNED_FRESH_MS, portsOf, procNetPorts, socketTableOwner, windowsListenersOf, windowsLoopbackOwnerCheck } from '../src/core/loopback-owner';
 import { windowsAclReader } from './win-acl';
 import { machineRu } from '../src/core/machine-ru';
 
@@ -17,7 +17,8 @@ test('FD-156, FD-159: one lsof for every port asked at once; a miss reads again 
   let t = 1_000_000;
   const calls: string[][] = [];
   let out = { code: 0, stdout: 'p1\nn127.0.0.1:47851\n', stderr: '' };
-  let table = { code: 0, stdout: '', stderr: '' };
+  // FD-176: a full table (other processes' rows) without 47851 and 47852: a port missing from it is nobody's.
+  let table = { code: 0, stdout: NETSTAT.split('\n').filter((l) => !l.includes('.47851 ') && !l.includes('.47852 ')).join('\n'), stderr: '' };
   const failures: string[] = [];
   const check = loopbackOwnerCheck(async (c, args) => {
     calls.push([c, ...args]);
@@ -209,16 +210,22 @@ test('FD-168: macOS names the connection by its own row; without one, the listen
   const accepted = [NS_HEAD, ns('tcp4', '127.0.0.1.47851', '127.0.0.1.53122', 'ESTABLISHED', 'agent:701'), ns('tcp4', '127.0.0.1.53122', '127.0.0.1.47851', 'ESTABLISHED', 'Fabric Dash:900'), ns('tcp4', '*.47851', '*.*', 'LISTEN', 'other:702')].join('\n');
   assert.deepEqual(macConnectionPids(accepted, 47851, 53122), [701], 'the connection row wins over every listener');
   // The swapped listener: ours on any address, another user's on 127.0.0.1. A connection to 127.0.0.1 lands on theirs.
-  const swapped = [NS_HEAD, ns('tcp46', '*.47851', '*.*', 'LISTEN', 'agent:701'), ns('tcp4', '127.0.0.1.47851', '*.*', 'LISTEN', 'thief:802')].join('\n');
+  const own = ns('tcp4', '127.0.0.1.53122', '127.0.0.1.47851', 'ESTABLISHED', 'Fabric Dash:900'); // this connection's own end
+  const swapped = [NS_HEAD, own, ns('tcp46', '*.47851', '*.*', 'LISTEN', 'agent:701'), ns('tcp4', '127.0.0.1.47851', '*.*', 'LISTEN', 'thief:802')].join('\n');
   assert.deepEqual(macConnectionPids(swapped, 47851, 53122), [802]);
-  assert.deepEqual(macConnectionPids([NS_HEAD, ns('tcp4', '*.47851', '*.*', 'LISTEN', 'agent:701')].join('\n'), 47851, 53122), [701], 'a wildcard counts when nobody listens on 127.0.0.1');
-  assert.deepEqual(macConnectionPids([NS_HEAD, ns('tcp6', '::1.47851', '*.*', 'LISTEN', 'v6:703')].join('\n'), 47851, 53122), [], 'an IPv6-only listener takes nothing');
+  assert.deepEqual(macConnectionPids([NS_HEAD, own, ns('tcp4', '*.47851', '*.*', 'LISTEN', 'agent:701')].join('\n'), 47851, 53122, 900), [701], 'a wildcard counts when nobody listens on 127.0.0.1');
+  assert.deepEqual(macConnectionPids([NS_HEAD, own, ns('tcp6', '::1.47851', '*.*', 'LISTEN', 'v6:703')].join('\n'), 47851, 53122, 900), [], 'an IPv6-only listener takes nothing');
   assert.equal(macConnectionPids('', 47851, 53122), 'restricted', 'an empty table (macOS 27.2, a program that may not see other sockets)');
+  // FD-176, DEC-0155 RT-1: a header only, only this process's own rows, or no row of this connection: restricted.
+  assert.equal(macConnectionPids(NS_HEAD, 47851, 53122, 900), 'restricted', 'a header only');
+  assert.equal(macConnectionPids([NS_HEAD, own].join('\n'), 47851, 53122, 900), 'restricted', 'only our own rows: nobody else is visible');
+  assert.equal(macConnectionPids([NS_HEAD, ns('tcp4', '127.0.0.1.47851', '*.*', 'LISTEN', 'agent:701')].join('\n'), 47851, 53122, 900), 'restricted', 'other rows but not this connection\'s own end');
 });
 
 test('FD-168: the macOS check reads the table once for connections asked at once, and refuses another account or an unreadable one', async () => {
   const runs: string[] = [];
-  const table = [NS_HEAD, ns('tcp4', '127.0.0.1.47851', '127.0.0.1.53122', 'ESTABLISHED', 'agent:701'), ns('tcp4', '127.0.0.1.47852', '127.0.0.1.53123', 'ESTABLISHED', 'thief:802'),
+  const ends = [53122, 53123, 53124, 53125].map((c, i) => ns('tcp4', `127.0.0.1.${c}`, `127.0.0.1.${47851 + i}`, 'ESTABLISHED', 'Fabric Dash:900'));
+  const table = [NS_HEAD, ...ends, ns('tcp4', '127.0.0.1.47851', '127.0.0.1.53122', 'ESTABLISHED', 'agent:701'), ns('tcp4', '127.0.0.1.47852', '127.0.0.1.53123', 'ESTABLISHED', 'thief:802'),
     ns('tcp4', '127.0.0.1.47853', '*.*', 'LISTEN', 'a:701'), ns('tcp4', '127.0.0.1.47853', '*.*', 'LISTEN', 'b:802')].join('\n');
   const check = macConnectionCheck(async (cmd, args) => {
     runs.push(cmd);
@@ -290,4 +297,16 @@ test('FD-168: on this system the check finds this process\'s own connection', { 
 test('FD-168: the refusals on the open connection read in Russian', () => {
   assert.equal(machineRu('the open connection to 127.0.0.1:47851 reached another user\'s program, so its token was not sent'), 'соединение с 127.0.0.1:47851 попало в программу другого пользователя, поэтому токен не отправлен');
   assert.equal(machineRu('the owner of the program on 127.0.0.1:47851 could not be told on the open connection, so its token was not sent'), 'владельца программы на 127.0.0.1:47851 не удалось определить по открытому соединению, поэтому токен не отправлен');
+});
+
+test('FD-176 (DEC-0155 RT-1): a socket table that shows nobody else is not "another user": the listener check reads it as an owner it cannot tell', async () => {
+  const head = NETSTAT.split('\n').slice(0, 2).join('\n');
+  const failures: string[] = [];
+  const restricted = socketTableOwner(async (c) => (c === 'netstat' ? { code: 0, stdout: head, stderr: '' } : { code: 0, stdout: '', stderr: '' }), 502, () => 0, (why) => failures.push(why));
+  assert.equal(await restricted(47859), 'unknown', 'a header only: never "nobody", never another account');
+  assert.match(failures[0]!, /^table-restricted/);
+  const own = socketTableOwner(async (c) => (c === 'netstat' ? { code: 0, stdout: `${head}\ntcp4       0      0  127.0.0.1.47851        *.*                    LISTEN                 0            0  131072  131072       me:${process.pid}  00000 00000006 000000000ce1a4ae 00000000 00000800      1      0 000000`, stderr: '' } : { code: 0, stdout: '', stderr: '' }), 502, () => 0);
+  assert.equal(await own(47852), 'unknown', 'only this process\'s rows: another port is not known to be free');
+  assert.equal(tableRestricted(NETSTAT, 1), false, 'a full table');
+  assert.equal(tableRestricted(''), true);
 });

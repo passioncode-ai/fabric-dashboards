@@ -70,6 +70,23 @@ export function listenersOf(stdout: string): Map<number, number[]> {
   return out;
 }
 
+const ROW_PID = /:(\d+)\s+[0-9a-f]{5}\s+[0-9a-f]{8}\s/;
+
+/**
+ * FD-176, the contract's DEC-0155 RT-1 (tag `v0.1.0+2026-11-07.5`): a `netstat -anv -p tcp` table this process may not
+ * fully see. macOS 27.2 shows some programs only their own sockets: then a port not in the table is not "nobody", and
+ * not another account's either; its owner cannot be told. Restricted: nothing printed, only a header, or no row of a
+ * process other than `self`.
+ */
+export function tableRestricted(stdout: string, self: number = process.pid): boolean {
+  for (const line of stdout.split('\n')) {
+    if (!/^(tcp4|tcp46|tcp6)\s/.test(line.trim())) continue;
+    const pid = ROW_PID.exec(line);
+    if (pid && Number(pid[1]) > 0 && Number(pid[1]) !== self) return false;
+  }
+  return true;
+}
+
 /**
  * FD-159, DEC-0154 HA-2: on macOS a user's lsof finds its own listener but cannot tell an empty port from another
  * user's, so a port it does not find is decided by the socket table: `netstat -anv -p tcp` for the listening processes
@@ -84,6 +101,8 @@ export function socketTableOwner(run: Runner, uid: number, now: () => number = D
     reading ??= run('netstat', ['-anv', '-p', 'tcp'], 10_000)
       .then((r) => {
         if (r.code !== 0) throw new Error(r.stderr.trim() || `netstat exit ${r.code}`);
+        // FD-176 (DEC-0155 RT-1): a table that shows nobody else's socket tells nothing about another's port.
+        if (tableRestricted(r.stdout)) throw new Error('table-restricted: netstat shows no socket of another process');
         table = listenersOf(r.stdout);
       })
       .catch((error: Error) => { table = null; failed(error.message); })
@@ -239,16 +258,19 @@ const splitAddress = (a: string) => { const dot = a.lastIndexOf('.'); return { a
  * the listeners on 127.0.0.1, or on any address only when none listens on 127.0.0.1. `restricted`: the table printed
  * nothing, so this process may not see other processes' sockets. A pid 0 is a process the row could not name.
  */
-export function macConnectionPids(stdout: string, server: number, client: number): number[] | 'restricted' {
-  if (!stdout.trim()) return 'restricted';
+export function macConnectionPids(stdout: string, server: number, client: number, self: number = process.pid): number[] | 'restricted' {
+  // FD-176 (DEC-0155 RT-1): a table that shows nobody else's socket, or not this connection's own end, is restricted.
+  if (tableRestricted(stdout, self)) return 'restricted';
+  let ownEnd = false;
   const local: number[] = [];
   const wildcard: number[] = [];
   for (const line of stdout.split('\n')) {
     const m = MAC_ROW.exec(line.trim());
     if (!m) continue;
     const here = splitAddress(m[2]!);
+    if (here.port === client && LOOPBACK_V4.has(here.address) && splitAddress(m[3]!).port === server) ownEnd = true;
     if (here.port !== server) continue;
-    const pid = /:(\d+)\s+[0-9a-f]{5}\s+[0-9a-f]{8}\s/.exec(m[5]!);
+    const pid = ROW_PID.exec(m[5]!);
     const p = pid ? Number(pid[1]) : 0;
     const there = splitAddress(m[3]!);
     if (m[4] === 'ESTABLISHED' && LOOPBACK_V4.has(here.address) && LOOPBACK_V4.has(there.address) && there.port === client && p > 0) return [p];
@@ -256,6 +278,7 @@ export function macConnectionPids(stdout: string, server: number, client: number
     if (here.address === '127.0.0.1') local.push(p);
     else if (here.address === '*') wildcard.push(p);
   }
+  if (!ownEnd) return 'restricted';
   return local.length ? local : wildcard;
 }
 

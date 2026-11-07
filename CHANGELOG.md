@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+### Security
+
+- FD-176, the contract's DEC-0155: on macOS a socket table that shows no other process's socket (macOS 27.2 hides
+  them from some programs), or not the checked connection's own end, now reads as an owner that cannot be told, never
+  as "nobody listens" or "another user's program". Nothing is sent either way; the agent reads "Another user's program"
+  with the words that its owner could not be told.
+
 ## 0.8.35 - 2026-11-07
 
 ### Added
