@@ -93,6 +93,10 @@ const minutes = (ms: number) => Math.max(1, Math.round(ms / 60_000));
  * recovery. A baseline source that recovers leaves the baseline, so its next failure counts. A service gone from the
  * folder closes its episode as removed.
  */
+/** DEC-0154 HA-2: a watcher counts `foreign` and `foreign-user` as unavailable, as it counts `down`: the service serves
+ *  nothing (another program, or another OS account's, holds its port). */
+const unavailable = (state: string): boolean => state === 'down' || state === 'foreign' || state === 'foreign-user';
+
 export function observe(prev: OutageState, services: readonly Watched[], now: number): OutageState {
   const state: OutageState = { baselines: { ...prev.baselines }, episodes: { ...prev.episodes }, ...(prev.asks ? { asks: pruneAsks(prev.asks, now) } : {}) };
   const present = new Set(services.map((s) => s.key));
@@ -107,16 +111,16 @@ export function observe(prev: OutageState, services: readonly Watched[], now: nu
     // The baseline is the first look after the service LEFT `starting`: a service fills its degraded list during
     // start-up (its first health check), so a look while it still starts would see an empty list.
     if (s.startedAt && base?.startedAt !== s.startedAt) { if (s.state !== 'starting') state.baselines[s.key] = { startedAt: s.startedAt, sources }; }
-    else if (base && s.state !== 'down') state.baselines[s.key] = { ...base, sources: base.sources.filter((x) => sources.includes(x)) };
+    else if (base && !unavailable(s.state)) state.baselines[s.key] = { ...base, sources: base.sources.filter((x) => sources.includes(x)) };
     const baseline = new Set(state.baselines[s.key]?.sources ?? []);
     // DEC-0044 first: an entry marked `setup: true` waits for a person and never opens an episode. The start baseline
     // stays the fallback for a service that does not send the flag yet.
     const fresh = s.state === 'degraded' ? s.degraded.filter((d) => d.setup !== true && !baseline.has(d.source)) : [];
-    const cause: Pick<Episode, 'cause' | 'why' | 'source'> | null = s.state === 'down'
+    const cause: Pick<Episode, 'cause' | 'why' | 'source'> | null = unavailable(s.state)
       ? { cause: 'down', why: s.reason }
       : fresh.length ? { cause: 'degraded', why: fresh[0]!.reason, source: fresh[0]!.source } : null;
     const ep = state.episodes[s.key];
-    if (cause && (s.state === 'down' || (ep && ep.end === null))) {
+    if (cause && (unavailable(s.state) || (ep && ep.end === null))) {
       if (!ep || ep.end !== null) {
         // A closed episode that still owes its recovery keeps its own key until delivered; the new one starts now.
         if (ep && ep.end !== null) state.episodes[`${s.key}#${ep.start}`] = ep;

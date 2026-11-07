@@ -58,6 +58,12 @@ export function setLoopbackOwnerCheck(check: LoopbackOwnerCheck | null): void {
   loopbackOwner = check;
 }
 /** FD-158: whether this user's own process listens on a loopback port (FD-159: or `unknown`); null when no host check is set. */
+/** DEC-0154 HA-2: a local probe that got no answer, yet was not refused a connection, met a listener that stays silent
+ *  (a refused connection is the only sign that nobody listens). Its owner is asked too: another account's silent
+ *  listener is `foreign-user`, never `starting` or `down`. */
+export function heldButSilent(probe: { kind: string; detail?: string } | null | undefined): boolean {
+  return probe?.kind === 'no-answer' && !/\bECONNREFUSED\b/.test(probe.detail ?? '');
+}
 export async function loopbackOwnerOf(port: number): Promise<LoopbackOwner | null> {
   return loopbackOwner ? loopbackOwner(port) : null;
 }

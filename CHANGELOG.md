@@ -5,14 +5,19 @@
 ### Security
 
 - FD-159, the contract's DEC-0154: when Fabric Dashboards cannot tell whose program listens on an agent's port, it now
-  sends nothing there and the agent reads "Another user's program", with the words "a program whose owner could not be
-  told"; before, such a port was trusted. On a Mac, a port the person's own listing does not show is checked in the
+  sends nothing there and the agent reads "Another user's program", with the words "This computer would not say whose program
+  holds port"; before, such a port was trusted. On a Mac, a port the person's own listing does not show is checked in the
   system's socket table, which also sees other users' programs.
 - FD-159: Windows checks too. Before an agent's token goes to 127.0.0.1, the app's own signed helper reads which
   program listens on the port and which Windows user runs it; another user's program, or one whose owner it cannot
   read, gets nothing and reads "Another user's program".
 - FD-159: a dashboard opens in the app's window only right after its port is checked: a page load sends the
   dashboard's sign-in cookie, so another user's program that took the port since the last check gets no page.
+- DEC-0154 HA-2: a program of another user that takes an agent's port and stays silent now reads "Another user's
+  program" at once; before, it read "Starting" and then "Not answering", as if the agent had stopped.
+- DEC-0154 HA-2: outage alerts to the operator channel count "Wrong program on port" and "Another user's program"
+  as unavailable, as they count "Not answering": after fifteen minutes the operator gets one message and one when
+  it is back.
 
 ## 0.8.29 - 2026-11-06
 
