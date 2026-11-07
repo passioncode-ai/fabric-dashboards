@@ -6,15 +6,15 @@ import type { AddressInfo } from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import { carriesSecret, checkWellKnown, fetchWellKnown, loopbackOwnerOf, request, setLoopbackOwnerCheck, tokenFileProblem, windowsAclProblem, windowsAclRefusal, windowsPowerShellEnv } from '../src/health';
+import { carriesSecret, checkWellKnown, fetchWellKnown, loopbackOwnerOf, request, setLoopbackConnectionCheck, setLoopbackOwnerCheck, tokenFileProblem, windowsAclProblem, windowsAclRefusal, windowsPowerShellEnv } from '../src/health';
 
 const WELL_KNOWN = JSON.parse(fs.readFileSync(path.join(__dirname, '../../../test/fixtures/contract/positive_service-well-known.json'), 'utf8'));
 
-async function server(handler: http.RequestListener): Promise<{ origin: string; close: () => Promise<void> }> {
+async function server(handler: http.RequestListener): Promise<{ origin: string; server: http.Server; close: () => Promise<void> }> {
   const s = http.createServer(handler);
   await new Promise<void>((r) => s.listen(0, '127.0.0.1', r));
   const port = (s.address() as AddressInfo).port;
-  return { origin: `http://127.0.0.1:${port}`, close: () => new Promise((r) => s.close(() => r())) };
+  return { origin: `http://127.0.0.1:${port}`, server: s, close: () => new Promise((r) => { s.closeAllConnections(); s.close(() => r()); }) };
 }
 
 test('checkWellKnown names the first thing missing', () => {
@@ -201,6 +201,34 @@ test('FD-159: a loopback owner the host could not tell is refused too, with its 
   await assert.rejects(request(s.origin, 'GET', '/e', { Authorization: 'Bearer t0ken-of-sixteen' }), /the owner of the program on 127\.0\.0\.1:\d+ could not be told, so its token was not sent/);
   assert.deepEqual(seen, [], 'nothing reached the port');
   assert.equal(await loopbackOwnerOf(1), 'unknown');
+});
+
+test('FD-168 (CT-254): the open connection is checked after it connects and before a byte is written; another owner, or one that cannot be told, gets nothing', async (t) => {
+  const seen: string[] = [];
+  const peers: number[] = [];
+  const s = await server((req, res) => { seen.push(String(req.headers.authorization ?? '')); peers.push(req.socket.remotePort ?? 0); res.end('{}'); });
+  const bytes: number[] = [];
+  s.server.on('connection', (socket) => { let n = 0; socket.on('data', (c: Buffer) => { n += c.length; }); socket.on('close', () => bytes.push(n)); });
+  t.after(() => { setLoopbackOwnerCheck(null); setLoopbackConnectionCheck(null); return s.close(); });
+  const port = Number(new URL(s.origin).port);
+  setLoopbackOwnerCheck(async () => true); // the port's listener is ours: only the connection check decides
+  const asked: [number, number][] = [];
+  let answer: boolean | 'unknown' = false;
+  setLoopbackConnectionCheck(async (server, client) => { asked.push([server, client]); return answer; });
+  await assert.rejects(request(s.origin, 'GET', '/e', { Authorization: 'Bearer t0ken-of-sixteen' }), /the open connection to 127\.0\.0\.1:\d+ reached another user's program, so its token was not sent/);
+  answer = 'unknown';
+  await assert.rejects(request(s.origin, 'GET', '/e', { Authorization: 'Bearer t0ken-of-sixteen' }), /could not be told on the open connection, so its token was not sent/);
+  await new Promise((r) => setTimeout(r, 50));
+  assert.deepEqual(seen, [], 'no request reached the service');
+  assert.deepEqual(bytes, [0, 0], 'two connections were opened and closed with nothing written');
+  answer = true;
+  await request(s.origin, 'GET', '/e', { Authorization: 'Bearer t0ken-of-sixteen' });
+  assert.deepEqual(seen, ['Bearer t0ken-of-sixteen']);
+  assert.equal(asked.length, 3);
+  assert.ok(asked.every(([server]) => server === port), 'asked about the service\'s port');
+  assert.equal(asked[2]![1], peers[0], 'and about this connection: its local port is the one the service saw');
+  await request(s.origin, 'GET', '/.well-known/fabric-service');
+  assert.equal(asked.length, 3, 'a read without a token opens no checked connection');
 });
 
 test('FD-156: a token goes to a loopback port only when the host says this user listens there; plain reads never ask', async (t) => {
