@@ -4,12 +4,12 @@
 import fs from 'node:fs';
 import net from 'node:net';
 import path from 'node:path';
-import { CHANNEL_KEY_FILE, CHANNEL_MAX_BYTES, CHANNEL_READ_MS, RateLimit, channelAddress, keyMatches, newChannelKey, parseRequest, type ChannelAnswer, type ChannelRequest } from '../core/console-channel';
+import { CHANNEL_KEY_FILE, CHANNEL_MAX_BYTES, CHANNEL_READ_MS, CHANNEL_READS_PER_MINUTE, RateLimit, channelAddress, keyMatches, newChannelKey, parseRequest, type ChannelAnswer, type ChannelRequest } from '../core/console-channel';
 
 export interface ChannelOptions {
   userData: string;
   platform?: NodeJS.Platform;
-  /** The buttons' own code path: start a console session, or a fix in one. */
+  /** The buttons' own code path: start a console session, or a fix in one; FD-166: or list the consoles open now. */
   start: (request: ChannelRequest) => Promise<ChannelAnswer>;
   log: (line: string) => void;
   now?: () => number;
@@ -46,6 +46,8 @@ export async function openChannel(o: ChannelOptions): Promise<Channel | null> {
   fs.writeFileSync(temp, key, { mode: 0o600 });
   fs.renameSync(temp, keyFile);
   const limit = new RateLimit();
+  // FD-166: reads have their own budget, so a screen that polls the open consoles never takes a start's place.
+  const reads = new RateLimit(CHANNEL_READS_PER_MINUTE);
   const answer = (socket: net.Socket, a: ChannelAnswer) => { socket.end(`${JSON.stringify(a)}\n`); };
   const server = net.createServer((socket) => {
     let buffer = '';
@@ -63,8 +65,8 @@ export async function openChannel(o: ChannelOptions): Promise<Channel | null> {
       const parsed = parseRequest(buffer.slice(0, nl));
       if (!parsed.ok) return answer(socket, { ok: false, code: parsed.code });
       if (!keyMatches(parsed.request.key, key)) { o.log('console channel: a request with a wrong key was refused'); return answer(socket, { ok: false, code: 'bad-key' }); }
-      if (!limit.take(now())) return answer(socket, { ok: false, code: 'busy' });
-      o.log(`console channel: ${parsed.request.op} for ${parsed.request.service}`);
+      if (!(parsed.request.op === 'console.list' ? reads : limit).take(now())) return answer(socket, { ok: false, code: 'busy' });
+      if (parsed.request.op !== 'console.list') o.log(`console channel: ${parsed.request.op} for ${parsed.request.service}`); // a read is not logged
       o.start(parsed.request).then((a) => answer(socket, a), (error: Error) => answer(socket, { ok: false, code: 'internal', detail: error.message.slice(0, 200) }));
     });
   });

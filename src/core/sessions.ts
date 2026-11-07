@@ -150,6 +150,9 @@ export interface LaunchFacts {
   by: LaunchedBy;
   /** Absolute path of the runtime's own transcript; shown in Finder only, never read or sent. */
   transcript: string | null;
+  /** FD-166: the coding agent's own session id (Claude Code's `session_id`), from Switchboard's launch record; null when
+   *  absent. Optional: records built before it carry none. */
+  providerSessionId?: string | null;
   turns: number | null;
   lastTurnAt: number | null;
   ended: 'finished' | 'limit' | 'killed' | 'not_started' | 'unknown' | 'exited' | 'stopped' | 'timed_out' | null;

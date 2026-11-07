@@ -12,6 +12,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { execRunner, type Runner } from '@passioncode-ai/fabric-service-host';
 import { CHANNELS, type ConsoleInfo, type ConsoleStartResult, type ConsoleTask } from '../core/api';
+import { openConsolesOf, type OpenConsole } from '../core/console-channel';
 import { prepareHandoff, writeTaskOnly, type McpCommand } from '../core/handoff';
 import { readFallback, writeFallback, type FallbackChange, type FallbackRead } from '../core/fallback';
 import { prepareSetup, SETUP_KEY, setupFolder, type SetupState } from '../core/setup';
@@ -788,6 +789,11 @@ export class ConsoleHost {
     await this.sbSessions.poll();
     const shown = JSON.stringify(this.sessionsStatus());
     if (shown !== this.shownSessions) { this.shownSessions = shown; this.o.changed?.(); }
+  }
+
+  /** FD-166 (Fabric's CO-457): the consoles running now, for the console channel's read and MCP `consoles`. */
+  openConsoles(now = Date.now()): OpenConsole[] {
+    return openConsolesOf(this.sessionsStatus(now).rows, (key) => this.sessionIds.get(key)?.sessionId ?? null);
   }
 
   /** FD-103: every coding session of this Mac, as the window lists it (`status.sessions`). */

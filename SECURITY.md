@@ -111,8 +111,9 @@ service data.
 - **Accepts** requests from its own MCP server on a per-user channel and nothing else (FD-120)
   ([ADR-0025](docs/adr/0025-the-console-channel.md)): a Unix socket 0600 in a 0700 data folder, or on Windows a
   first-instance named pipe, each request carrying a key rewritten at every start (`console.key`, never logged or
-  returned), two operations (start a console session, start a fix in one), one request per connection, 64 KB, 5 s,
-  10 a minute. A web page cannot reach it; another account holds no key; a process of the same user can read the key
+  returned), two operations (start a console session, start a fix in one) and one read (the consoles open now: ids,
+  folder and start time, never what a console printed; FD-166), one request per connection, 64 KB, 5 s,
+  10 starts and 30 reads a minute. A web page cannot reach it; another account holds no key; a process of the same user can read the key
   as it can read a token file, which this app does not defend against (below). A socket path longer than the system
   allows, or a pipe another program already holds, leaves the channel closed and says so in the log.
 - **Opens** `fabric-dashboards://` links only for an installed service and a path on that

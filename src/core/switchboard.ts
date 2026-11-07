@@ -247,6 +247,8 @@ export function launchFactsOf(x: Record<string, unknown>): LaunchFacts | null {
       dispatch: d ? { id: typeof d.id === 'string' && /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(d.id) ? d.id : null, request: id(d.request), thread: id(d.thread), project: id(d.project), workflow: typeof d.workflow === 'string' && /^wf_[0-9a-f]{16}$/.test(d.workflow) ? d.workflow : null } : null,
     },
     transcript: typeof x.transcript === 'string' && path.isAbsolute(x.transcript) && x.transcript.length <= 1024 ? x.transcript : null,
+    // FD-166: the coding agent's own session id, as Switchboard recorded it; a value not of a session id's form is dropped.
+    providerSessionId: id(x.provider_session_id),
     turns, lastTurnAt: ms(x.last_turn_at),
     ended: e ? one(e.kind, END_KINDS) : one(x.ended, ENDS), endedAt: e ? ms(e.at) : ms(x.ended_at),
     ...(e && e.kind === 'exited' && Number.isInteger(e.exit_code) ? { exitCode: e.exit_code as number } : {}),

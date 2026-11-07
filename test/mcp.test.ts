@@ -862,6 +862,31 @@ test('ADR-0025: console_new and console_fix reach the running app through its ch
   }
 });
 
+test('FD-166: consoles reads the open consoles through the channel, each with the link to its session page; with the app closed it says so', { skip: process.platform === 'win32' && 'a Unix socket' }, async () => {
+  const { openChannel } = await import('../src/electron/console-channel');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'fd-chan-list-'));
+  const w = world();
+  w.deps.settingsFile = () => path.join(dir, 'settings.json');
+  const closed = await handle(w.deps, { id: 1, method: 'tools/call', params: { name: 'consoles', arguments: {} } });
+  assert.equal((closed!.result as { isError: boolean }).isError, true);
+  assert.match((closed!.result as { content: { text: string }[] }).content[0]!.text, /app-not-running/);
+  const row = { row: `c:${KEY}:1762531200000`, consoleKey: KEY, service: KEY, runtime: 'claude-code', folder: '/w/agent', sessionId: null, runtimeSessionId: '0f3c2a9e-1b2c-4d5e-8f90-a1b2c3d4e5f6', since: '2026-11-07T16:00:00.000Z' };
+  const asked: string[] = [];
+  const ch = await openChannel({ userData: dir, log: () => undefined, start: async (r) => { asked.push(r.op); return r.op === 'console.list' ? { ok: true, consoles: [row] } : { ok: false, code: 'unexpected' }; } });
+  try {
+    const out = await handle(w.deps, { id: 2, method: 'tools/call', params: { name: 'consoles', arguments: {} } });
+    const got = (out!.result as { structuredContent: { consoles: (typeof row & { open_link: string })[] } }).structuredContent.consoles;
+    assert.deepEqual(asked, ['console.list']);
+    assert.equal(got.length, 1);
+    assert.deepEqual({ ...got[0]!, open_link: undefined }, { ...row, open_link: undefined });
+    assert.equal(got[0]!.open_link, `fabric-dashboards://sessions?id=${encodeURIComponent(row.row)}`);
+    const tool = TOOLS.find((t) => t.name === 'consoles')!;
+    assert.equal((tool.annotations as { readOnlyHint?: boolean }).readOnlyHint, true, 'a read');
+  } finally {
+    await ch!.close();
+  }
+});
+
 test('FD-122: arrange writes the row menu\'s choices to the app\'s settings, once, and says the agent\'s list state', async () => {
   const w = world();
   const userData = tmp('fd-arrange-');

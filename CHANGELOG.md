@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+### Added
+
+- FD-166, for Fabric's one screen of sessions (CO-457): the MCP tool `consoles` lists the coding-agent consoles running
+  now in the app, each with its agent, runtime, folder, session ids when Switchboard or a resume named them, start time
+  and a link, `fabric-dashboards://sessions?id=…`, that opens that session's page here. Never what a console printed.
+
 ## 0.8.31 - 2026-11-07
 
 ### Changed
