@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.8.31 - 2026-11-07
+
 ### Changed
 
 - FD-169, the contract's DEC-0149: an agent that runs but only waits for a person to set it up (every entry of its
