@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.8.33 - 2026-11-07
+
 ### Changed
 
 - FD-174, the operator's rule for every PassionCode project: a console starts its coding agent without permission
