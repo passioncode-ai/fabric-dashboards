@@ -211,6 +211,9 @@ export interface AgentNameStoreOptions {
   gh: () => Promise<string | null>;
   now?: () => number;
   log?: (line: string) => void;
+  /** FD-177: a read that went as the one before it (no failure, no name changed) is counted here instead of `log`: the
+   *  log digest still counts it, and `main.log` keeps only what changed. Absent: such a read is logged as before. */
+  quiet?: (line: string) => void;
   /** Some agent's shown name changed (a read, a rename, or the cache written by the MCP server). */
   onChange?: () => void;
 }
@@ -227,6 +230,8 @@ export class AgentNameStore {
   /** When a repository was last asked about and could not be read: it is not asked again before its turn. */
   private readonly triedAt = new Map<string, number>();
   private readonly now: () => number;
+  /** FD-177: whether the last read had a failure (null before the first): the first read after a failure is logged. */
+  private lastFailed: boolean | null = null;
 
   constructor(private readonly o: AgentNameStoreOptions) {
     this.now = o.now ?? Date.now;
@@ -268,7 +273,11 @@ export class AgentNameStore {
         this.cache.repos[slug] = { names: r.names, readAt: at };
       }
       this.save();
-      this.o.log?.(`agent_names read=${read.size - failed.length} failed=${failed.length}${failed.length ? ` (${failed.slice(0, 3).join('; ')})` : ''}`);
+      const line = `agent_names read=${read.size - failed.length} failed=${failed.length}${failed.length ? ` (${failed.slice(0, 3).join('; ')})` : ''}`;
+      // FD-177: one line per changed state, as the update check logs a quiet check (half of a day's main.log was these).
+      const quiet = !failed.length && !changed && this.lastFailed === false && this.o.quiet;
+      if (quiet) quiet(line); else this.o.log?.(line);
+      this.lastFailed = failed.length > 0;
       if (changed) this.o.onChange?.();
     })().finally(() => { this.reading = null; });
     return this.reading;

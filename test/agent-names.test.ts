@@ -223,3 +223,36 @@ test('FD-135: MCP rename commits to the agent\'s repository and list_services sh
   assert.equal((await tools.rename(deps, KEY, null)).name, DESCRIPTOR.name);
   await assert.rejects(tools.rename(deps, 'nobody.default', 'x'), /no installed service/);
 });
+
+test('FD-177: a read that changes nothing is counted, not logged; a failure, the first read after it and a changed name are logged', async () => {
+  const dir = tmp('fd-names-');
+  const files: Record<string, string> = { 'example/example-agent': namesFileText({ [KEY]: 'Named' }) };
+  let fail = false;
+  let now = Date.parse('2026-11-07T20:00:00Z');
+  const logged: string[] = [];
+  const counted: string[] = [];
+  const run = async (c: string, a: string[]) => (fail ? { code: 1, stdout: '', stderr: 'gh: HTTP 502: Bad Gateway\n' } : fakeGithub(files).run(c, a));
+  const store = new AgentNameStore({ file: path.join(dir, 'agent-names.json'), run, gh: async () => '/fake/gh', now: () => now, log: (l) => logged.push(l), quiet: (l) => counted.push(l) });
+  const read = async () => { now += 30 * 60_000; await store.refresh([REPO]); };
+  await read();
+  assert.deepEqual([logged.length, counted.length], [1, 0], 'the first read is logged');
+  await read();
+  await read();
+  assert.deepEqual([logged.length, counted.length], [1, 2], 'unchanged reads are counted only');
+  assert.match(counted[0]!, /^agent_names read=1 failed=0$/, 'counted as the digest classifies it');
+  fail = true;
+  await read();
+  assert.match(logged.at(-1)!, /^agent_names read=0 failed=1 \(example\/example-agent: /, 'a failure is logged with its cause');
+  fail = false;
+  await read();
+  assert.equal(logged.length, 3, 'the first read after a failure is logged');
+  files['example/example-agent'] = namesFileText({ [KEY]: 'Renamed' });
+  await read();
+  assert.equal(logged.length, 4, 'a changed name is logged');
+  const plain: string[] = [];
+  const old = new AgentNameStore({ file: path.join(dir, 'b.json'), run, gh: async () => '/fake/gh', now: () => now, log: (l) => plain.push(l) });
+  await old.refresh([REPO]);
+  now += 30 * 60_000;
+  await old.refresh([REPO]);
+  assert.equal(plain.length, 2, 'without quiet, every read is logged as before (the MCP server)');
+});

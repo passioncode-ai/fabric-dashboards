@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- FD-177: `main.log` no longer takes a line for every read of the agents' names that changed nothing (half of a day's
+  lines); the log digest still counts each read, and a failure, the first read after it and a changed name are logged.
+
 ## 0.8.37 - 2026-11-07
 
 ### Added

@@ -237,7 +237,8 @@ outcome, and writes digests beside its data in `digests/` (0700, files 0600):
 What is counted (`classify` in `src/core/ops-digest.ts`): the structured events (`update_check`, `update_download`,
 `update_install`, `update_restart`, `auto_update`, `estate_check`, `dock_hide`, `fabric_button`, `analytics.flush`),
 alert deliveries (`alerts`: sent or not delivered), agent-name reads (`agent_names`) and crashes (`crash`). Prose lines are
-not counted rather than guessed at.
+not counted rather than guessed at. An agent-name read that went as the one before it (nothing failed, no name changed) is
+counted without a line in `main.log` (FD-177); a failure, the first read after one, and a changed name are logged.
 
 The map of outcomes (OD-3 of the contract's DEC-0153 allows a product its own, published here; FD-153):
 
