@@ -95,6 +95,9 @@ const RULES: Rule[] = [
   [/^connect ECONNREFUSED (\S+)$/, (_, a) => `соединение отклонено (${a})`],
   [/^the owner of the program on 127\.0\.0\.1:(\d+) could not be told, so its token was not sent$/, (_, p) => `владельца программы на 127.0.0.1:${p} не удалось определить, поэтому токен не отправлен`],
   [/^127\.0\.0\.1:(\d+) is not listened on by this user's process, so its token was not sent$/, (_, p) => `на 127.0.0.1:${p} слушает не процесс этого пользователя, поэтому токен не отправлен`],
+  // FD-168 (CT-254): the same refusals, decided on the open connection.
+  [/^the owner of the program on 127\.0\.0\.1:(\d+) could not be told on the open connection, so its token was not sent$/, (_, p) => `владельца программы на 127.0.0.1:${p} не удалось определить по открытому соединению, поэтому токен не отправлен`],
+  [/^the open connection to 127\.0\.0\.1:(\d+) reached another user's program, so its token was not sent$/, (_, p) => `соединение с 127.0.0.1:${p} попало в программу другого пользователя, поэтому токен не отправлен`],
   [/^getaddrinfo ENOTFOUND (\S+)$/, (_, h) => `имя ${h} не найдено`],
   [/^read ECONNRESET$/, () => 'соединение разорвано'],
   [/^socket hang up$/, () => 'соединение оборвалось'],

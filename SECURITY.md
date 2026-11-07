@@ -98,6 +98,16 @@ service data.
   does not check. A dashboard page sends its session cookie, so the same check runs right before each page load in
   the app's window (open, Home, Reload, a sign-in, a new window on its origin), not only at the last probe (FD-159,
   `src/electron/views.ts` `ownerOk`); links a person follows inside the page stay with the probe's state.
+  The decision is made again on the open connection itself (FD-168, the contract's CT-254, tag `v0.1.0+2026-11-07.3`):
+  a request that carries a token connects, then asks who holds the other end of that very connection, and writes
+  nothing until the answer is this user. On macOS the connection's own row in `netstat -anv -p tcp` names the process
+  (`ps` its uid); on Linux the row in `/proc/net/tcp` or `/proc/net/tcp6` read to its end names the uid when its inode is
+  not 0. Without such a row (a connection still in the accept queue) the listener on 127.0.0.1 decides, and one on any
+  address only when none listens on 127.0.0.1, so another user's program bound to 127.0.0.1 next to this user's
+  wildcard listener gets nothing. Listeners of different users on the chosen address, or a table that shows no row at
+  all (macOS 27.2 hides other processes' sockets from some programs), are an owner that cannot be told: the connection
+  is closed with nothing written. One table read serves every connection waiting at once. Windows keeps the listener
+  check above, which already refuses a port where any listener is not this user's.
 - **Listens** on no port. The MCP server (`Contents/Resources/bin/fabric-dashboards-mcp`)
   is started by an agent and speaks only over its stdin and stdout; it reads the same
   folder and token files, talks to the same origins and runs the same `launchctl` verbs and

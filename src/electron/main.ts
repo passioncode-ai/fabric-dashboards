@@ -19,8 +19,8 @@ import { displayName } from '../core/names';
 import { ConsoleHost, HANDOVER_POLL_MS } from './console';
 import { appendLog, sweepTemps } from '../core/fsutil';
 import { linkFor, parseDeepLink, safePath, SCHEME } from '../core/deeplink';
-import { servicesDir, setLoopbackOwnerCheck, setWindowsAclReader, windowsPowerShellEnv } from '@passioncode-ai/fabric-service-host';
-import { linuxLoopbackOwnerCheck, loopbackOwnerCheck, windowsLoopbackOwnerCheck } from '../core/loopback-owner';
+import { servicesDir, setLoopbackConnectionCheck, setLoopbackOwnerCheck, setWindowsAclReader, windowsPowerShellEnv } from '@passioncode-ai/fabric-service-host';
+import { linuxConnectionCheck, linuxLoopbackOwnerCheck, loopbackOwnerCheck, macConnectionCheck, windowsLoopbackOwnerCheck } from '../core/loopback-owner';
 import { openChannel, startAnswer, type Channel } from './console-channel';
 import { chooseLang, langFor, t, type Lang } from '../core/i18n';
 import { execRunner } from '../core/launchd';
@@ -1136,6 +1136,10 @@ if (!app.requestSingleInstanceLock()) {
     setLoopbackOwnerCheck(process.platform === 'darwin'
       ? loopbackOwnerCheck(execRunner, process.getuid(), Date.now, failed)
       : linuxLoopbackOwnerCheck((p) => fs.promises.readFile(p, 'utf8'), process.getuid(), Date.now, failed));
+    // FD-168 (CT-254): and the open connection itself is checked just before the token is written.
+    setLoopbackConnectionCheck(process.platform === 'darwin'
+      ? macConnectionCheck(execRunner, process.getuid(), failed)
+      : linuxConnectionCheck((p) => fs.promises.readFile(p, 'utf8'), process.getuid(), failed));
   }
   // FD-94: the installed copy's compiled ACL reader, so a token check never waits for Windows PowerShell to start.
   if (process.platform === 'win32' && app.isPackaged) {
