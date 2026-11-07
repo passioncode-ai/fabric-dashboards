@@ -238,6 +238,41 @@ function mergeSessionMemory(raw: unknown): Settings['sessions'] {
 /** Review R-4, R1-S1: what the window's generic settings change may write. A console's runtime and folder are set only
  *  through the console's own calls (a folder only from the folder dialog), and the Sessions list's memory only by the
  *  main process: a session record names a folder Continue starts a coding agent in. */
+// #region agent-settings — docs: docs/ux/scenarios.md#scn-098-an-agent-changes-what-a-person-changes-in-settings-and-on-the-sessions-page
+/**
+ * FD-175 (the operator, 2026-11-07: every action of the interface can be done by Claude Code at their request): the
+ * settings an agent may change through MCP `settings`, the same fields a person changes in Settings and the list's
+ * menus. A console's runtime and folder, the Sessions records and the first-run markers are not among them; a field
+ * not listed is named in `refused`, never written.
+ */
+export const AGENT_SETTINGS = ['language', 'theme', 'pageTheme', 'autoUpdate', 'analytics', 'launchAtLogin', 'notifications', 'resumeAfterLimit', 'estate'] as const;
+const AGENT_LIST = ['sort', 'orgs', 'groupByOrg'] as const;
+
+export function agentSettingsPatch(raw: unknown): { patch: SettingsPatch; refused: string[] } {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return { patch: {}, refused: [] };
+  const patch: Record<string, unknown> = {};
+  const refused: string[] = [];
+  for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+    if ((AGENT_SETTINGS as readonly string[]).includes(k)) { patch[k] = v; continue; }
+    if (k === 'layout' && v && typeof v === 'object' && !Array.isArray(v)) {
+      const { list, ...rest } = v as Record<string, unknown>;
+      for (const r of Object.keys(rest)) refused.push(`layout.${r}`);
+      if (list && typeof list === 'object' && !Array.isArray(list)) {
+        const kept: Record<string, unknown> = {};
+        for (const [lk, lv] of Object.entries(list as Record<string, unknown>)) {
+          if ((AGENT_LIST as readonly string[]).includes(lk)) kept[lk] = lv;
+          else refused.push(`layout.list.${lk}`);
+        }
+        if (Object.keys(kept).length) patch.layout = { list: kept };
+      }
+      continue;
+    }
+    refused.push(k);
+  }
+  return { patch: patch as SettingsPatch, refused };
+}
+// #endregion agent-settings
+
 export function rendererSettingsPatch(raw: unknown): SettingsPatch {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
   const { consoles: _consoles, sessions: _sessions, ...patch } = raw as SettingsPatch & Record<string, unknown>;

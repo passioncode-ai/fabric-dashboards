@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+### Added
+
+- FD-175, the operator's rule that every action of the interface can be done by an agent at their request: MCP
+  `settings` reads and changes what Settings offers (language, theme, automatic updates, notifications, launch at
+  login, continuing sessions after a limit, the list's sort, organization filter and grouping); `session_action` is a
+  Sessions row's Continue, End and Dismiss and Clear ended; `app_update` is Check for updates and Restart to update.
+  Each goes through the same code as its button; End, Continue and Restart to update take the operator's words.
+
 ## 0.8.34 - 2026-11-07
 
 ### Added
