@@ -5,6 +5,7 @@
 import type { LimitView } from '@passioncode-ai/fabric-service-host/usage';
 import { attentionRank } from '@passioncode-ai/fabric-service-host/state';
 import { NEWS_MS } from './focus';
+import { SETUP_RANK, waitsForSetup } from './setup-wait';
 import type { ServiceSnapshot } from './types';
 
 export interface AttentionEntry<T> {
@@ -50,7 +51,7 @@ export const BUSY_RANK = 0.5;
 export const LIMIT_RANK = 4.5;
 export const FAILED_RANK = 5;
 
-type Queued = Pick<ServiceSnapshot, 'key' | 'state' | 'wellKnown' | 'busy' | 'lastAction'>;
+type Queued = Pick<ServiceSnapshot, 'key' | 'state' | 'reasons' | 'wellKnown' | 'busy' | 'lastAction'>;
 export interface QueueItem<S extends Queued> {
   s: S;
   rank: number;
@@ -69,7 +70,8 @@ export function attentionQueue<S extends Queued>(services: readonly S[], o: { no
   for (const s of services) {
     const failed = failedNow(s, o.now);
     const limit = o.limits?.[s.key]?.find((l) => l.state === 'tripped') ?? null;
-    let rank = attentionRank(s.state, s.wellKnown) ?? (s.busy ? BUSY_RANK : failed ? FAILED_RANK : null);
+    // FD-169: an agent that only waits for setup sits after degraded and before tiles, never urgent.
+    let rank = (waitsForSetup(s) ? SETUP_RANK : attentionRank(s.state, s.wellKnown)) ?? (s.busy ? BUSY_RANK : failed ? FAILED_RANK : null);
     if (limit) rank = Math.min(rank ?? LIMIT_RANK, LIMIT_RANK);
     if (rank !== null) out.push({ s, rank, failed, limit });
   }

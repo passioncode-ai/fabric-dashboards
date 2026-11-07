@@ -7,10 +7,11 @@ import { attentionQueue } from './attention';
 import { t, type Lang } from './i18n';
 import { displayName } from './names';
 import { productIdOf } from './products';
-import type { ServiceSnapshot, ServiceState } from './types';
+import type { ServiceSnapshot } from './types';
+import { shownState, type ShownState } from './setup-wait';
 
-export const MARK: Record<ServiceState, string> = {
-  ready: '●', degraded: '▲', duplicate: '▲', down: '✕', 'foreign-user': '✕', foreign: '✕', conflict: '✕', invalid: '✕', stopped: '○', starting: '◌', stopping: '◌',
+export const MARK: Record<ShownState, string> = {
+  setup: '◆', ready: '●', degraded: '▲', duplicate: '▲', down: '✕', 'foreign-user': '✕', foreign: '✕', conflict: '✕', invalid: '✕', stopped: '○', starting: '◌', stopping: '◌',
 };
 
 export interface TrayItem { key: string; label: string }
@@ -23,7 +24,7 @@ export function trayMenuModel(services: readonly ServiceSnapshot[], o: { now: nu
   const queue = attentionQueue(services, o);
   // U-7: the name a person reads elsewhere, instance included, so two instances never read alike.
   const name = (s: ServiceSnapshot) => (s.descriptor ? displayName(s.descriptor.name, s.descriptor.instance) : s.key);
-  const plain = (s: ServiceSnapshot): TrayItem => ({ key: s.key, label: `${MARK[s.state]}  ${t(lang, 'join.nameState', { name: name(s), state: t(lang, `state.${s.state}`) })}` });
+  const plain = (s: ServiceSnapshot): TrayItem => ({ key: s.key, label: `${MARK[shownState(s)]}  ${t(lang, 'join.nameState', { name: name(s), state: t(lang, `state.${shownState(s)}`) })}` });
   const attention = queue.map(({ s, limit }): TrayItem => {
     if (limit && s.state === 'ready') return { key: s.key, label: `✕  ${t(lang, 'tray.limit', { name: name(s) })}` };
     const version = s.wellKnown?.update?.available;

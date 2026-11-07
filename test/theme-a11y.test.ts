@@ -128,13 +128,14 @@ test('VIS-08: one mark per state on every surface', () => {
   assert.equal(CONN_MARK.down, GLYPH.down);
   assert.equal(SEV_MARK.error, GLYPH.down);
   assert.equal(SEV_MARK.warn, GLYPH.degraded);
+  assert.equal(SEV_MARK.setup, GLYPH.setup, 'FD-169: an auditor setup finding and an agent waiting for setup share the diamond');
   for (const f of ['src/renderer/components/Connections.tsx', 'src/renderer/components/ConnectionsMap.tsx']) {
     const src = read(f);
     assert.doesNotMatch(src, /const (MARK|SEV_MARK|STOP_MARK)\s*=/, `${f} draws states with the shared tables`);
     assert.doesNotMatch(src, /■/, `${f}: down is ${GLYPH.down}, not ■`);
   }
   // The tray menu (main process, src/core/tray-model.ts since W2) cannot import the renderer; its copy must stay the same table.
-  const tray = /const MARK: Record<ServiceState, string> = \{([^}]*)\}/.exec(read('src/core/tray-model.ts'))?.[1] ?? '';
+  const tray = /const MARK: Record<ShownState, string> = \{([^}]*)\}/.exec(read('src/core/tray-model.ts'))?.[1] ?? '';
   const trayTable = Object.fromEntries([...tray.matchAll(/'?([\w-]+)'?:\s*'([^']+)'/g)].map((m) => [m[1], m[2]]));
   assert.deepEqual(trayTable, GLYPH);
 });

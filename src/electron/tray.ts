@@ -8,6 +8,7 @@ import { traySessionsLine } from '../core/sessions-view';
 import type { SessionRow } from '../core/sessions';
 import type { LimitView } from '@passioncode-ai/fabric-service-host/usage';
 import { attentionQueue, urgent } from '../core/attention';
+import { waitsForSetup } from '../core/setup-wait';
 import type { ServiceSnapshot } from '../core/types';
 
 export type TrayLevel = 'ok' | 'degraded' | 'attention' | 'problem';
@@ -18,7 +19,8 @@ export type TrayLevel = 'ok' | 'degraded' | 'attention' | 'problem';
 export function trayLevel(services: readonly ServiceSnapshot[], limits: Readonly<Record<string, readonly LimitView[]>> = {}, sessions: readonly SessionRow[] = [], now = Date.now()): TrayLevel {
   if (attentionQueue(services, { now, limits }).some(urgent)) return 'problem';
   if (sessions.some((r) => r.group === 'needs-you')) return 'attention';
-  if (services.some((s) => s.state === 'degraded' || s.state === 'starting' || s.state === 'stopping')) return 'degraded';
+  // FD-169: an agent that only waits for setup is not partly working; the tray stays calm for it.
+  if (services.some((s) => (s.state === 'degraded' && !waitsForSetup(s)) || s.state === 'starting' || s.state === 'stopping')) return 'degraded';
   return 'ok';
 }
 

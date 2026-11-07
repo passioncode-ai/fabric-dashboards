@@ -15,6 +15,7 @@ import { subscriptionCost, usd } from './Spend';
 import { loadOf } from '@passioncode-ai/fabric-service-host/load';
 import { placedElsewhere } from '@passioncode-ai/fabric-service-host/state';
 import fabricMark from '../brand/passioncode-mark.svg';
+import { shownState } from '../../core/setup-wait';
 
 type Tab = 'dashboard' | 'activity' | 'connections' | 'load' | 'health' | 'logs';
 
@@ -133,7 +134,7 @@ export function ServiceView({ s, all, members, open, link, nonce, tab: askedTab,
       <header className={`svc-head${cardShown ? ' full' : ''}`} data-drawer-top="">
         <div className="svc-bar">
           <h1 id="svc-title" tabIndex={-1} title={s.descriptor?.summary || undefined}>{nameOf(s)}</h1>
-          <StateBadge state={s.state} />
+          <StateBadge state={shownState(s)} />
           {s.busy && <span className="row meta" role="status"><Spinner /> {t(`busy.${s.busy}`)}</span>}
           {!cardShown && problem && (
             <button className="chip chip-problem" title={reason(problem)} aria-label={t('svc.problem', { reason: reason(problem) })} onClick={() => setPeek(true)}>
@@ -475,9 +476,9 @@ function InstanceSwitch({ current, members, open }: { current: ServiceSnapshot; 
     <nav className="instances" aria-label={t('instance.switch', { name: nameOf(members[0] ?? current) })}>
       {members.map((m) => (
         <button key={m.key} className="instance" aria-current={m.key === current.key ? 'page' : undefined} onClick={() => open(m.key)}>
-          <span className={`state state-${m.state}`} aria-hidden="true"><span className="glyph">{GLYPH[m.state]}</span></span>
+          <span className={`state state-${shownState(m)}`} aria-hidden="true"><span className="glyph">{GLYPH[shownState(m)]}</span></span>
           {label(m)}
-          <span className="visually-hidden">{t(`state.${m.state}`)}</span>
+          <span className="visually-hidden">{t(`state.${shownState(m)}`)}</span>
         </button>
       ))}
     </nav>

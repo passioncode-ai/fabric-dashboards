@@ -12,6 +12,7 @@ import { categoryOf, instanceOf, type Product } from '../../core/products';
 import type { ListLayout } from '../../core/types';
 import type { AppStatus, ServiceSnapshot, Settings } from '../../core/types';
 import { api, GLYPH, nameOf, NEWS_MS, shortBuild, Spinner, StateBadge, useExpiry, useT } from '../lib';
+import { shownState } from '../../core/setup-wait';
 
 /** FD-39 SCN-058: the setup the person's coding agent runs. The card shows what is done — read every few
  *  seconds while it is on screen — and opens the Setup console; the app runs none of the steps itself. */
@@ -214,7 +215,7 @@ export function Overview({ status, products, open, act, goSpend, agent, visit, o
           <ul>
             {fold.shown.map(({ lead: { s }, members }) => members.length > 1 ? (
               <li key={s.key} className="group">
-                <StateBadge state={s.state} />
+                <StateBadge state={shownState(s)} />
                 <span className="name">{t('overview.attention.group', { count: members.length })} {members.map(({ s: m }, i) => (
                   <Fragment key={m.key}>{i > 0 && ', '}<button className="linkish" title={nameOf(m)} onClick={() => open(m.key)}>{nameOf(m)}</button></Fragment>
                 ))}</span>
@@ -224,7 +225,7 @@ export function Overview({ status, products, open, act, goSpend, agent, visit, o
               </li>
             ) : (
               <li key={s.key}>
-                <StateBadge state={s.state} />
+                <StateBadge state={shownState(s)} />
                 <button className="linkish name" title={nameOf(s)} onClick={() => open(s.key)}>{nameOf(s)}</button>
                 <span className="why" title={attentionLine(s)}>{attentionLine(s)}</span>
                 {/* VIS-02: every action of the row in one cell, so the row stays one line and the reason keeps its room. */}
@@ -325,8 +326,8 @@ function Card({ p, open }: { p: Product; open: (key: string) => void }) {
     // U-14: the label a screen reader reads carries what the card says first: name, state, purpose, connections.
     // VIS-11 (FD-113): and what a sighted person reads next: the tiles flagged for attention and the latest event.
     <button className="card" onClick={() => open(s.key)} aria-label={[
-      t('join.nameState', { name: nameOf(s), state: t(`state.${s.state}`) }), s.descriptor?.summary,
-      ...others.map((m) => `${instanceOf(m.key)}: ${t(`state.${m.state}`)}`),
+      t('join.nameState', { name: nameOf(s), state: t(`state.${shownState(s)}`) }), s.descriptor?.summary,
+      ...others.map((m) => `${instanceOf(m.key)}: ${t(`state.${shownState(m)}`)}`),
       ...(wk?.summary ?? []).slice(0, 6).filter((tile) => tile.attention).map((tile) => `${tile.label}: ${tile.value}`),
       s.latestEvent ? `${time(s.latestEvent.at)} ${s.latestEvent.text}` : null,
     ].filter(Boolean).join('. ')}>
@@ -339,7 +340,7 @@ function Card({ p, open }: { p: Product; open: (key: string) => void }) {
             {isOnline(s) && <> · {t('card.online', { host: hostOf(s) })}</>}
           </div>
         </div>
-        <StateBadge state={s.state} />
+        <StateBadge state={shownState(s)} />
       </div>
       {s.descriptor?.summary && <p className="card-summary" title={s.descriptor.summary}>{s.descriptor.summary}</p>}
       {wk?.summary && wk.summary.length > 0 && (
@@ -356,9 +357,9 @@ function Card({ p, open }: { p: Product; open: (key: string) => void }) {
         <div className="card-members">
           {t('card.members')}
           {others.map((m) => (
-            <span key={m.key} className={`state state-${m.state}`}>
-              <span className="glyph" aria-hidden="true">{GLYPH[m.state]}</span> {instanceOf(m.key)}
-              <span className="visually-hidden">{t(`state.${m.state}`)}</span>
+            <span key={m.key} className={`state state-${shownState(m)}`}>
+              <span className="glyph" aria-hidden="true">{GLYPH[shownState(m)]}</span> {instanceOf(m.key)}
+              <span className="visually-hidden">{t(`state.${shownState(m)}`)}</span>
             </span>
           ))}
         </div>

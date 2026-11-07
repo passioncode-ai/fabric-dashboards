@@ -8,6 +8,7 @@ import type { SessionGroup, SessionRow } from '../../core/sessions';
 import { groupRows, navLines, stateShort, waitingForYou } from '../../core/sessions-view';
 import { revealScrollTop } from '../../core/layout';
 import { api, GLYPH, Icon, nameOf, Spinner, useT } from '../lib';
+import { shownState } from '../../core/setup-wait';
 
 export type Mode = 'agents' | 'sessions';
 
@@ -210,15 +211,15 @@ function ProductItem({ p, current, open, rail, pinned, menu, drag = null, hidden
       onDrop={drag ? (e) => { if (drag.dragging) { e.preventDefault(); drag.drop(); } } : undefined}
       onDragEnd={drag ? () => drag.end() : undefined}>
       {/* VIS-15 (FD-113): the title in both widths, since an expanded row cuts a long name too. */}
-      <button className="nav-item" aria-current={current ? 'page' : undefined} title={t('join.nameState', { name: nameOf(s), state: t(`state.${s.state}`) })} onClick={() => open(s.key)}
+      <button className="nav-item" aria-current={current ? 'page' : undefined} title={t('join.nameState', { name: nameOf(s), state: t(`state.${shownState(s)}`) })} onClick={() => open(s.key)}
         aria-keyshortcuts={drag && drag.count > 1 ? 'Alt+ArrowUp Alt+ArrowDown' : undefined}
         onContextMenu={(e) => { e.preventDefault(); setAsk({ rect: e.currentTarget.getBoundingClientRect(), n: (ask?.n ?? 0) + 1 }); }}
         onKeyDown={drag ? (e) => { if (e.altKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) { e.preventDefault(); drag.step(p.id, e.key === 'ArrowUp' ? -1 : 1); } } : undefined}>
-        <span className={`state state-${s.state}`} aria-hidden="true"><span className="glyph">{GLYPH[s.state]}</span></span>
+        <span className={`state state-${shownState(s)}`} aria-hidden="true"><span className="glyph">{GLYPH[shownState(s)]}</span></span>
         {rail && <span className="initials" aria-hidden="true">{initialsOf(nameOf(s))}</span>}
         <span className="nav-label">{nameOf(s)}</span>
         {p.memberProblem && <span className="count alert" title={t('nav.memberProblem')} aria-hidden="true">!</span>}
-        <span className="visually-hidden">{t(`state.${s.state}`)}{p.memberProblem ? `, ${t('nav.memberProblem')}` : ''}</span>
+        <span className="visually-hidden">{t(`state.${shownState(s)}`)}{p.memberProblem ? `, ${t('nav.memberProblem')}` : ''}</span>
       </button>
       {/* FD-121 (SCN-072): a hidden agent comes back with one press on its eye. */}
       {!rail && hiddenRow && (

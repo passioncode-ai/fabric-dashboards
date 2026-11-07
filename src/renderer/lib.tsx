@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useState } from 'react';
 import type { FabricApi } from '../core/api';
 import { duration as fmtDuration, hasKey, t as translate, type Lang } from '../core/i18n';
 import type { Reason, ServiceSnapshot, ServiceState } from '../core/types';
+import type { ShownState } from '../core/setup-wait';
 import { displayName } from '../core/names';
 import { NEWS_MS } from '../core/focus';
 import { machineRu } from '../core/machine-ru';
@@ -48,7 +49,8 @@ export function useT() {
 /** The one mark per state, on every surface (VIS-08): sidebar, cards, tray menu, Connections tab and map. The word
  *  always goes with it; colour is the third signal, never the only one. src/electron/tray.ts keeps a copy that a
  *  test holds equal to this table. */
-export const GLYPH: Record<ServiceState, string> = {
+export const GLYPH: Record<ShownState, string> = {
+  setup: '◆', // FD-169: degraded only by setup a person owes (src/core/setup-wait.ts)
   ready: '●', degraded: '▲', duplicate: '▲', down: '✕', 'foreign-user': '✕', foreign: '✕', conflict: '✕', invalid: '✕', stopped: '○', starting: '◌', stopping: '◌',
 };
 
@@ -57,9 +59,9 @@ export const CONN_MARK = { ok: GLYPH.ready, degraded: GLYPH.degraded, down: GLYP
 
 /** An auditor finding or a stopped session: an error is drawn as down, a warning as degraded, a fine one as ready.
  *  `setup` has no agent state of its own and keeps its diamond. */
-export const SEV_MARK = { ok: GLYPH.ready, error: GLYPH.down, warn: GLYPH.degraded, setup: '◆', info: GLYPH.stopped } as const;
+export const SEV_MARK = { ok: GLYPH.ready, error: GLYPH.down, warn: GLYPH.degraded, setup: GLYPH.setup, info: GLYPH.stopped } as const;
 
-export function StateBadge({ state }: { state: ServiceState }) {
+export function StateBadge({ state }: { state: ShownState }) {
   const { t } = useT();
   return (
     <span className={`state state-${state}`}>

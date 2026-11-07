@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+### Changed
+
+- FD-169, the contract's DEC-0149: an agent that runs but only waits for a person to set it up (every entry of its
+  degraded list marked setup) now reads "Waits for setup" with a diamond, not "Partly working". It sits in Needs
+  attention after the agents that are partly working, never turns the badge red or the menu bar icon to its partly
+  working state, and offers "Set up with coding agent", whose task is to set up each part it names. Everything read
+  outside the window (MCP, events, digests) still says `degraded` with the setup reason.
+
+### Fixed
+
+- FD-172: a hide of the Dock icon that was replaced because the window came back is no longer logged as
+  `dock_hide failed`; only a hide still wished when it gives up is. The 23 such lines logged on one Mac from
+  2026-10-28 to 2026-11-06 came with no `failed again on a later pass`, so no icon was left behind.
+
 ## 0.8.30 - 2026-11-07
 
 ### Security
