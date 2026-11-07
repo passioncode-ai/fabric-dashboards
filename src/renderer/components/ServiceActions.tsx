@@ -3,17 +3,20 @@
 // that does not show its dashboard. The state's one deterministic action (Restart, Start, "Update to <v>") comes
 // first, as on Overview; *Fix with coding agent* (a paid session) after it, one component with one wording
 // everywhere, the short form only in the one-line bar. No assets imported: tests render these to markup.
-import { offersAgentUpdate, offersFix } from '../../core/offers';
+import { offersAgentUpdate, offersFix, offersSetup } from '../../core/offers';
 import { firstAction } from '../../core/focus';
 import type { ServiceSnapshot } from '../../core/types';
 import { nameOf, useT } from '../lib';
+import { shownState } from '../../core/setup-wait';
 
 /** VIS-09: *Fix with coding agent*, the same words and look on Overview, the agent page and since-last-visit;
  *  `short` reads "Fix" (its full name stays the accessible one) where the bar has one line. */
 export function FixButton({ s, onFix, short = false, small = false }: { s: ServiceSnapshot; onFix: () => void; short?: boolean; small?: boolean }) {
   const { t } = useT();
-  const label = t('join.action', { action: t('agent.fix'), name: nameOf(s) });
-  return <button className={`btn${small ? ' btn-sm' : ''}`} title={short ? t('agent.fix') : undefined} aria-label={label} onClick={onFix}>{t(short ? 'agent.fixShort' : 'agent.fix')}</button>;
+  // FD-169: an agent that only waits for setup gets the same button, worded as setting it up.
+  const k = offersSetup(s) ? 'agent.setup' : 'agent.fix';
+  const label = t('join.action', { action: t(k), name: nameOf(s) });
+  return <button className={`btn${small ? ' btn-sm' : ''}`} title={short ? t(k) : undefined} aria-label={label} onClick={onFix}>{t(short ? `${k}Short` : k)}</button>;
 }
 
 /** The one-line bar's actions, shown while the full card is folded: the first action, then Fix when something is
@@ -66,7 +69,7 @@ export function UnavailablePane({ s, act, openLogs }: { s: ServiceSnapshot; act:
   if (s.state === 'down' || s.state === 'duplicate') {
     return (
       <div className="dash-overlay">
-        <p>{why || t(`state.${s.state}`)}</p>
+        <p>{why || t(`state.${shownState(s)}`)}</p>
         <div className="row">
           {first?.kind === 'restart' && <button className="btn btn-primary" onClick={() => act('restart')}>{t('action.restart')}</button>}
           {logs && <button className="btn" onClick={openLogs}>{t('action.logs')}</button>}

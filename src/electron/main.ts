@@ -551,7 +551,8 @@ if (!app.requestSingleInstanceLock()) {
   // FD-05 / FD-35: the Dock follows the window, and a hide always wins (src/electron/dock.ts).
   const dockSync = new DockSync(app.dock);
   function syncDock(visible: boolean): void {
-    void dockSync.want(visible).then((ok) => { if (!ok && !visible) log('dock_hide failed: the Dock still shows the icon after the window hid'); });
+    // FD-172: a hide replaced by a show is not a failure; only one still wished when it gives up is logged.
+    void dockSync.want(visible).then((ok) => { if (!ok && !visible && dockSync.wantsHidden) log('dock_hide failed: the Dock still shows the icon after the window hid'); });
   }
   /** FD-35 follow-up: a hide that gave up is asked again on the slow tick while the window stays hidden. */
   function recheckDock(): void {

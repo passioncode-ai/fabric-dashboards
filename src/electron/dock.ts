@@ -67,6 +67,16 @@ export class DockSync {
   }
 
   /**
+   * FD-172: whether the last wish is still a hide. A hide that resolved false because the window came back was
+   * replaced, not failed, yet it was logged as `dock_hide failed`: 23 such lines on this Mac from 2026-10-28 to
+   * 2026-11-06, and not one `failed again on a later pass`, so no icon was left behind. Only a hide still wished
+   * when it gives up is a failure.
+   */
+  get wantsHidden(): boolean {
+    return !this.wanted;
+  }
+
+  /**
    * A hide that gave up left the icon in the Dock while the window stays hidden (seen four times on this Mac,
    * 2026-10-25 to 27, around an update restart and FD-64's events that never came). The slow visibility tick asks
    * again, at most DOCK_RECHECKS times until the next show or hide. Only after a hide was wished: a window the

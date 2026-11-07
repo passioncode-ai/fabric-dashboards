@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import { buildGraph, headState, stateOfService, uncheckedCount, type ConnectionNode, type ModelUse, type NodeKind } from '../../core/connections';
 import type { ServiceSnapshot } from '../../core/types';
 import { api, CONN_MARK as MARK, useT } from '../lib';
+import { shownState } from '../../core/setup-wait';
 
 const ORDER: NodeKind[] = ['service', 'model', 'runner', 'connector', 'store', 'channel', 'part'];
 
@@ -63,7 +64,7 @@ export function Connections({ s, all, open }: { s: ServiceSnapshot; all: Service
           <div className={`conn-self conn-${self}`}>
             <div className="conn-self-name">{s.descriptor?.name ?? s.key}</div>
             <div className="meta mono">{s.key}</div>
-            <div className={`conn-state conn-${self}`}><span aria-hidden="true">{MARK[self]}</span> {t(`state.${s.state}`)}</div>
+            <div className={`conn-state conn-${self}`}><span aria-hidden="true">{MARK[self]}</span> {t(`state.${shownState(s)}`)}</div>
             {g.offers.surfaces.length > 0 && <div className="conn-chips">{g.offers.surfaces.map((x) => <span key={x} className="chip">{t(`conn.surface.${x}`)}</span>)}</div>}
             {g.offers.capabilities.length > 0 && (
               <>

@@ -100,6 +100,7 @@
 | SCN-092 | See a session Fabric started for a board request | sessions | P-01 | ST-023 | implemented | 2026-11-04 |
 | SCN-093 | Hear of a new version with automatic updates off | updates | P-01 | ST-008 | implemented | 2026-11-04 |
 | SCN-094 | Show only one organization's agents | organizations | P-01 | ST-019 | implemented | 2026-11-06 |
+| SCN-095 | See an agent that only waits for setup | health | P-01 | ST-002 | implemented | 2026-11-07 |
 ## Personas
 
 Defined in [foundation.md](foundation.md) → P-01.
@@ -1333,6 +1334,29 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **Errors & recovery:** a page of the registry that cannot be read keeps the last full map and is read again in 30 minutes; a repository Project Observatory does not know reads "Not attributed", never a guessed organization
 - **Status:** implemented
 - **Coverage:** src/core/organizations.ts, src/renderer/components/Navigation.tsx, src/renderer/App.tsx, src/mcp/tools.ts, test/organizations.test.ts
+- **Product:** unobserved
+
+### SCN-095: See an agent that only waits for setup
+- **Persona:** P-01
+- **Feature:** health
+- **Traces:** ST-002; FD-169; the contract's DEC-0149 (an agent with a source manifest starts before its instance is set up and names each missing slot as `degraded[]` with `setup: true`), decided with the contract 2026-11-07 (board thread `1fe66e6e`, message `5549a61a`): a presentation over `degraded`, not a host state
+- **Entry point:** Overview, the sidebar, an agent's page, the menu bar icon, the Dock badge
+- **Preconditions:** an agent answers with status `degraded` and every entry of its `degraded[]` carries `setup: true`
+- **Steps:**
+  1. The app reads the agent -> it reads "Waits for setup" with a diamond, not "Partly working"; each entry is said as "{source} waits for you to set it up: {reason}"
+  2. Overview lists it under Needs attention after the agents that are partly working, before the tiles that ask for attention; it never turns the sidebar badge red, and the menu bar icon stays calm for it
+  3. User presses "Set up with coding agent" -> a console opens with a task to set up each part it names, asking the person for every secret through a hidden prompt (SCN-058's console, the Fix path)
+  4. The last setup entry goes -> the agent reads "Ready"
+- **Expected result:** an agent that is new and waits for a person is told apart from one that broke, and the person is offered to set it up
+- **Alt paths:** its list mixes a setup entry with a failing one -> it reads "Partly working" with both reasons, and Fix is offered; it also has a descriptor problem or a failed last action -> Fix is offered, not Set up
+- **UI elements:** the state badge, the diamond glyph, the Needs attention row, the Set up with coding agent button
+- **States covered:** success, partial
+- **Errors & recovery:** nothing new: the state everything outside the window reads (MCP `list_services` and `service_status`, events, digests, the operator channel) stays `degraded` with `reason.setup`, and no outage message is ever sent for a setup entry (DEC-0044)
+- **Copy:**
+  - "Waits for setup" / «Ждёт настройки»
+  - "Set up with coding agent" / «Настроить с агентом для кода»; short "Set up" / «Настроить»
+- **Status:** implemented (2026-11-07: `test/setup-wait.test.ts`; copy checks `7e9f9d7e` (en) and `4b2b4ccb` (ru), no findings)
+- **Coverage:** src/core/setup-wait.ts, src/core/attention.ts, src/core/tray-model.ts, src/core/offers.ts, src/core/handoff.ts, src/electron/tray.ts, src/renderer/lib.tsx, src/renderer/components/ServiceActions.tsx, src/renderer/components/Overview.tsx, src/renderer/components/Navigation.tsx, src/renderer/components/ServiceView.tsx, src/core/i18n.ts, test/setup-wait.test.ts
 - **Product:** unobserved
 
 ### SCN-075: A session stopped on a limit continues by itself

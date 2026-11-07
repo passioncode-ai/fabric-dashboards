@@ -134,6 +134,7 @@ h3 { font-size: var(--pc-type-card); margin: 0; font-weight: 600; }
 .state .glyph { font-size: var(--fd-type-micro); width: 1em; text-align: center; }
 .state-ready { color: var(--pc-positive); }
 .state-degraded, .state-duplicate { color: var(--pc-warning); }
+.state-setup { color: var(--pc-text-muted); } /* FD-169: waits for a person, nothing is broken */
 .state-down, .state-foreign-user, .state-foreign, .state-conflict, .state-invalid { color: var(--pc-negative); }
 .state-stopped, .state-starting, .state-stopping { color: var(--pc-text-muted); }
 /* R1-V2: waiting for a limit reset is a clock, not the starting ring, in a colour with 3:1 or more on the sidebar */

@@ -79,6 +79,19 @@ test('FD-35: a show asked for while a hide retries ends the retries', async () =
   assert.ok(dock.hides <= 3, `stopped retrying once the window came back (hides=${dock.hides})`);
 });
 
+test('FD-172: a hide replaced by a show is not a failure; one still wished when it gives up is', async () => {
+  const dock = new FakeDock();
+  dock.dropHides = Number.POSITIVE_INFINITY;
+  let sync!: DockSync;
+  let waits = 0;
+  sync = new DockSync(dock, () => { waits += 1; if (waits === 2) void sync.want(true); return Promise.resolve(); }, { tries: 25, retryMs: 1 });
+  assert.equal(await sync.want(false), false);
+  assert.equal(sync.wantsHidden, false, 'the window came back: the hide was replaced, nothing to log');
+  const stuck = new DockSync(dock, noWait, { tries: 2 });
+  assert.equal(await stuck.want(false), false);
+  assert.equal(stuck.wantsHidden, true, 'still wished and given up: a real failure');
+});
+
 /**
  * Electron 44's Dock as `shell/browser/browser_mac.mm:441-504` builds it, for an app that is not
  * frontmost: show() transforms at once and records the time; hide() is a no-op within 1 s of a show;

@@ -11,6 +11,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { t, type Lang } from './i18n';
 import type { ActivityItem, ServiceSnapshot } from './types';
+import { waitsForSetup } from './setup-wait';
 
 /** What the pack says. Built from the monitor's snapshot and the activity store; no token ever. */
 export interface HandoffContext {
@@ -19,6 +20,8 @@ export interface HandoffContext {
   summary: string | null;
   placement: 'local' | 'remote';
   state: string;
+  /** FD-169: every degraded entry is a setup one: the job is setting it up, not finding a fault. */
+  waitsForSetup: boolean;
   reasons: string[];
   problems: string[];
   version: string | null;
@@ -57,6 +60,7 @@ export function handoffContext(s: ServiceSnapshot, activity: ActivityItem[], fol
     summary: d?.summary ?? null,
     placement: d?.placement === 'remote' ? 'remote' : 'local',
     state: s.state,
+    waitsForSetup: waitsForSetup(s),
     reasons: s.reasons.map((r) => t(lang, r.code, r.params)),
     problems: s.problems,
     version: s.wellKnown?.service.version ?? null,
@@ -119,6 +123,12 @@ export function taskMarkdown(task: HandoffTask): string {
 /** What a *Fix with agent* hands over: the problem in the person's words and what "fixed" means. */
 export function fixTask(c: HandoffContext): HandoffTask {
   const why = [...c.reasons, ...c.problems].map((r) => `- ${r}`).join('\n') || '- (no reason reported)';
+  // FD-169: nothing is broken; the agent waits for what a person sets up (DEC-0149). Same button, a setup job.
+  if (c.waitsForSetup && c.problems.length === 0) return {
+    kind: 'fix',
+    title: `${c.name} waits for setup`,
+    body: `${c.name} (\`${c.key}\`) runs but waits for you to set it up (Fabric Dashboards):\n\n${why}\n\nSet up each part it names the way its repository documents (README, AGENTS.md, its setup command), and confirm with the MCP tool \`service_status\` that no setup entry is left. Ask me for every secret through a hidden prompt (never print one), and before any sign-in or anything destructive.`,
+  };
   return {
     kind: 'fix',
     title: `${c.name} is ${c.state}`,
