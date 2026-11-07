@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.8.35 - 2026-11-07
+
 ### Added
 
 - FD-175, the operator's rule that every action of the interface can be done by an agent at their request: MCP
