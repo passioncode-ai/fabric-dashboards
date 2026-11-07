@@ -96,4 +96,14 @@ export function organizationCounts(services: readonly { organization?: Organizat
   }
   return [...by.values()].sort((a, b) => (a.name === '' ? 1 : b.name === '' ? -1 : (a.label ?? a.name).localeCompare(b.label ?? b.name)));
 }
+/**
+ * FD-161 (SCN-094): one section's rows split by organization, in the order `organizationCounts` names them ("Not
+ * attributed" last), each group keeping the rows' own order (the sort the person chose). Null when the rows are of one
+ * organization, or no organization is known: then there is nothing to split and no heading is drawn.
+ */
+export function groupByOrganization<P extends { primary: { organization?: Organization | null } }>(rows: readonly P[]): { name: string; label: string | null; rows: P[] }[] | null {
+  const order = organizationCounts(rows.map((r) => r.primary));
+  if (order.length < 2) return null;
+  return order.map((o) => ({ name: o.name, label: o.label, rows: rows.filter((r) => (r.primary.organization?.name ?? '') === o.name) }));
+}
 // #endregion organizations

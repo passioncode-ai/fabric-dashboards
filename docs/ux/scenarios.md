@@ -1329,13 +1329,14 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
   3. User ticks a second one -> both are shown; the button reads "2 organizations"
   4. User chooses "All organizations" -> every agent is shown again
   5. User opens an agent -> its Health tab names its organization ("organization: Acme")
+  6. User ticks "Group by organization" at the bottom of the menu -> each section of the list (on this Mac, online, services) shows a small heading per organization, the chosen sort inside each, "Not attributed" last; a section of one organization has no heading; rows are not dragged while grouped (FD-161)
 - **Expected result:** the operator sees one organization's agents at a time, or several, or all, and every agent says which organization it belongs to
 - **Alt paths:** Project Observatory is not installed and its registry was never read -> no Organizations menu, and the Health tab names no organization; its registry cannot be read later -> the last organizations it gave are kept (`organizations.json` beside the settings) and the menu still works; an organization chosen earlier has no agent here now -> it stays chosen and reads "0" until unticked; an agent asks through MCP -> `list_services` carries `organization` on every row and takes `organizations` to list only theirs
-- **UI elements:** Organizations menu button, its checkbox list with counts, "All organizations", the Health tab's organization row
+- **UI elements:** Organizations menu button, its checkbox list with counts, "All organizations", "Group by organization" and its headings in the list, the Health tab's organization row
 - **States covered:** empty, success, error
 - **Errors & recovery:** a page of the registry that cannot be read keeps the last full map and is read again in 30 minutes; a repository Project Observatory does not know reads "Not attributed", never a guessed organization
 - **Status:** implemented
-- **Coverage:** src/core/organizations.ts, src/renderer/components/Navigation.tsx, src/renderer/App.tsx, src/mcp/tools.ts, test/organizations.test.ts
+- **Coverage:** src/core/organizations.ts (`groupByOrganization`, FD-161; copy checks `9c0f84f2` en and `0a3a4fd8` ru, no findings), src/renderer/components/Navigation.tsx, src/renderer/App.tsx, src/mcp/tools.ts, test/organizations.test.ts
 - **Product:** unobserved
 
 ### SCN-097: A console session runs without permission prompts

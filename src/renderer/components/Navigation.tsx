@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { AppStatus, ListSort, Settings as AppSettings, SettingsPatch } from '../../core/types';
 import { moveInSection, type MoveSection, type Product } from '../../core/products';
-import { organizationCounts } from '../../core/organizations';
+import { groupByOrganization, organizationCounts } from '../../core/organizations';
 import type { SessionGroup, SessionRow } from '../../core/sessions';
 import { groupRows, navLines, stateShort, waitingForYou } from '../../core/sessions-view';
 import { revealScrollTop } from '../../core/layout';
@@ -151,7 +151,7 @@ export function AgentsNav({ page, status, everyAgent, arranged, products, curren
         </button>
       </div>
       <div className="nav nav-scroll">
-        {!rail && <OrgMenu services={everyAgent ?? status.services} chosen={layout.list.orgs ?? []} onChange={(orgs) => changeLayout({ list: { orgs } })} />}
+        {!rail && <OrgMenu services={everyAgent ?? status.services} chosen={layout.list.orgs ?? []} onChange={(orgs) => changeLayout({ list: { orgs } })} grouped={layout.list.groupByOrg === true} onGroup={(groupByOrg) => changeLayout({ list: { groupByOrg } })} />}
         {pinned.length > 0 && <div className="nav-section">{t('nav.pinned')}</div>}
         {pinned.map((p, i) => <ProductItem key={p.id} p={p} current={currentProduct === p} open={open} rail={rail} pinned menu={menu} drag={dragFor('pinned', i, pinned.length)} />)}
         {/* FD-78: on this Mac, online, services; the sort applies inside each section. */}
@@ -168,7 +168,18 @@ export function AgentsNav({ page, status, everyAgent, arranged, products, curren
                 </select>
               )}
             </div>
-            {arranged[c].map((p, i) => <ProductItem key={p.id} p={p} current={currentProduct === p} open={open} rail={rail} pinned={false} menu={menu} drag={dragFor(c, i, arranged[c].length)} />)}
+            {(() => {
+              // FD-161: split by organization when the person asked and the section holds more than one; a row's drag
+              // is off meanwhile, so an order is never dragged across a heading it does not belong to.
+              const groups = !rail && layout.list.groupByOrg ? groupByOrganization(arranged[c]) : null;
+              if (!groups) return arranged[c].map((p, i) => <ProductItem key={p.id} p={p} current={currentProduct === p} open={open} rail={rail} pinned={false} menu={menu} drag={dragFor(c, i, arranged[c].length)} />);
+              return groups.map((g) => (
+                <div key={g.name} role="group" aria-label={g.name === '' ? t('orgs.none') : g.label ?? g.name}>
+                  <div className="nav-subsection" aria-hidden="true">{g.name === '' ? t('orgs.none') : g.label ?? g.name}</div>
+                  {g.rows.map((p) => <ProductItem key={p.id} p={p} current={currentProduct === p} open={open} rail={rail} pinned={false} menu={menu} drag={null} />)}
+                </div>
+              ));
+            })()}
           </div>
         ))}
         {/* FD-78: hidden agents, folded at the bottom; a problem among them still shows on the fold. */}
@@ -431,7 +442,7 @@ export function SessionsNav({ sessions, currentId, allCurrent, rail, endedOpen, 
 // #region organizations — docs: docs/ux/scenarios.md#scn-094-show-only-one-organizations-agents
 /** FD-162 (SCN-094): show every agent, or one or several organizations'; shown once agents carry organizations from
  *  Project Observatory and there is more than one to tell apart. */
-function OrgMenu({ services, chosen, onChange }: { services: AppStatus['services']; chosen: string[]; onChange: (orgs: string[]) => void }) {
+function OrgMenu({ services, chosen, onChange, grouped, onGroup }: { services: AppStatus['services']; chosen: string[]; onChange: (orgs: string[]) => void; grouped: boolean; onGroup: (on: boolean) => void }) {
   const { t } = useT();
   const rows = organizationCounts(services);
   if (rows.length < 2 && chosen.length === 0) return null;
@@ -448,6 +459,8 @@ function OrgMenu({ services, chosen, onChange }: { services: AppStatus['services
           <label key={r.name}><input type="checkbox" checked={chosen.includes(r.name)} onChange={() => toggle(r.name)} /> {nameOf(r.name)} <span className="count">{r.count}</span></label>
         ))}
         {gone.map((n) => <label key={`gone-${n}`}><input type="checkbox" checked onChange={() => toggle(n)} /> {nameOf(n)} <span className="count">0</span></label>)}
+        {/* FD-161: the same list, split by organization under a small heading each. */}
+        <label className="org-menu-group"><input type="checkbox" checked={grouped} onChange={() => onGroup(!grouped)} /> {t('orgs.group')}</label>
       </div>
     </details>
   );

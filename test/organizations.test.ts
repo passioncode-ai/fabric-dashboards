@@ -5,12 +5,20 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import { addRegistryProjects, addSurveyPage, filterServices, keepsOrganization, organizationCounts, organizationOf, repositoryKey, type OrganizationsCache } from '../src/core/organizations';
+import { addRegistryProjects, addSurveyPage, filterServices, groupByOrganization, keepsOrganization, organizationCounts, organizationOf, repositoryKey, type OrganizationsCache } from '../src/core/organizations';
 import { OrganizationStore, readOrganizations } from '../src/core/organization-store';
 import { merge as mergeSettings } from '../src/core/settings';
 import { audit } from '../src/core/audit';
 import { estateMap } from '../src/core/estate-map';
 import { t } from '../src/core/i18n';
+import * as React from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
+import { AgentsNav } from '../src/renderer/components/Navigation';
+import { arrangeProducts, groupProducts } from '../src/core/products';
+import { DEFAULT_SETTINGS } from '../src/core/types';
+import { snap } from './snap';
+
+(globalThis as { React?: unknown }).React = React; // the components' classic JSX, as the other render tests do
 
 const PAGE_1 = {
   projects: [
@@ -157,4 +165,51 @@ test("FD-162: Observatory's registry file, read without a token, comes first; th
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
+});
+
+test('FD-161: a section split by organization keeps the sort inside each group, "Not attributed" last; one organization is not split', () => {
+  const p = (id: string, org: string | null) => ({ id, primary: { organization: org ? { name: org, label: org[0]!.toUpperCase() + org.slice(1) } : null } });
+  const rows = [p('zeta', 'personal'), p('alpha', 'acme'), p('beta', null), p('gamma', 'acme'), p('delta', 'personal')];
+  const groups = groupByOrganization(rows)!;
+  assert.deepEqual(groups.map((g) => [g.name, g.label, g.rows.map((r) => r.id)]), [
+    ['acme', 'Acme', ['alpha', 'gamma']],
+    ['personal', 'Personal', ['zeta', 'delta']],
+    ['', null, ['beta']],
+  ], 'by label, the person\'s order inside each, not attributed last');
+  assert.equal(groupByOrganization([p('a', 'acme'), p('b', 'acme')]), null, 'one organization: nothing to split');
+  assert.equal(groupByOrganization([{ id: 'x', primary: {} }, { id: 'y', primary: {} }]), null, 'no map read: nothing to split');
+  assert.equal(t('en', 'orgs.group'), 'Group by organization');
+  assert.equal(t('ru', 'orgs.group'), 'Группировать по организациям');
+});
+
+test('FD-161: the grouping is kept in the settings; anything but true is off', () => {
+  assert.equal(mergeSettings({ layout: { list: { groupByOrg: true } } }).layout.list.groupByOrg, true);
+  assert.equal(mergeSettings({ layout: { list: { groupByOrg: 'yes' } } }).layout.list.groupByOrg, false);
+  assert.equal(mergeSettings({}).layout.list.groupByOrg, false);
+});
+
+test('FD-161: grouped, each section reads a small heading per organization and no row is dragged; off, the list is as before', () => {
+  const services = [
+    { ...snap('alpha.default', 'ready'), organization: { name: 'acme', label: 'Acme' } },
+    { ...snap('bravo.default', 'ready'), organization: { name: 'personal', label: 'Personal' } },
+    { ...snap('charlie.default', 'ready'), organization: null },
+  ];
+  const render = (groupByOrg: boolean) => {
+    const ps = groupProducts(services);
+    const layout = { ...DEFAULT_SETTINGS.layout, list: { ...DEFAULT_SETTINGS.layout.list, groupByOrg } };
+    const noop = () => undefined;
+    return renderToStaticMarkup(React.createElement(AgentsNav, {
+      page: 'overview', status: { services, off: [], unread: 0 } as never, arranged: arrangeProducts(ps, layout.list), products: ps, currentProduct: undefined, layout, changeLayout: noop,
+      open: noop, go: noop, rail: false, queue: 0, urgent: false, auditErrors: 0, hiddenProblem: false,
+      menu: { pin: noop, hide: noop, setOff: noop, kind: noop, isPinned: () => false, isHidden: () => false, isService: () => false },
+    }));
+  };
+  const on = render(true);
+  const headings = [...on.matchAll(/<div class="nav-subsection" aria-hidden="true">([^<]+)<\/div>/g)].map((m) => m[1]);
+  assert.deepEqual(headings, ['Acme', 'Personal', 'Not attributed']);
+  assert.doesNotMatch(on, /draggable="true"/, 'no drag across a heading');
+  assert.match(on, /Group by organization/);
+  const off = render(false);
+  assert.doesNotMatch(off, /nav-subsection/);
+  assert.match(off, /draggable="true"/, 'off: the rows drag as before');
 });
