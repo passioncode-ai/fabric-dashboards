@@ -5,6 +5,7 @@
 import { execFile, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import http from 'node:http';
+import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 import https from 'node:https';
@@ -37,7 +38,7 @@ export function request(origin: string, method: 'GET' | 'POST', path: string, he
   // FD-156: a token goes to a loopback port only when this user's own process listens there (the check the host set).
   if (!remote && loopbackOwner && carriesSecret(headers)) {
     const check = loopbackOwner;
-    return check(port!).then((ours) => (ours === true ? send(origin, method, path, headers, timeoutMs, tls, port, remote)
+    return check(port!).then((ours) => (ours === true ? send(origin, method, path, headers, timeoutMs, tls, port, remote, connectionOwner)
       : Promise.reject(new Error(ours === 'unknown'
         ? `the owner of the program on 127.0.0.1:${port} could not be told, so its token was not sent`
         : `127.0.0.1:${port} is not listened on by this user's process, so its token was not sent`))));
@@ -67,12 +68,45 @@ export function heldButSilent(probe: { kind: string; detail?: string } | null | 
 export async function loopbackOwnerOf(port: number): Promise<LoopbackOwner | null> {
   return loopbackOwner ? loopbackOwner(port) : null;
 }
+
+/** FD-168, the contract's CT-254 (DEC-0154 HA-2 as annotated, tag `v0.1.0+2026-11-07.3`): the owner of the other end of
+ *  one open connection to 127.0.0.1, asked after it connects and before a byte of the request is written. `server` is the
+ *  service's port, `client` this connection's own local port, which names the connection in the system's socket table. */
+export type LoopbackConnectionCheck = (server: number, client: number) => Promise<LoopbackOwner>;
+let connectionOwner: LoopbackConnectionCheck | null = null;
+/** The connection check a host that can read the socket table sets; null (the default) leaves only the port check. */
+export function setLoopbackConnectionCheck(check: LoopbackConnectionCheck | null): void {
+  connectionOwner = check;
+}
+
+/** FD-168: a connection that is handed to the request only once its other end is this user's; else it is closed and
+ *  nothing is written. A connection the check cannot judge is refused like another user's (DEC-0154 HA-2). */
+function checkedConnection(port: number, check: LoopbackConnectionCheck) {
+  return (_options: unknown, oncreate: (error: Error | null, socket?: net.Socket) => void): undefined => {
+    const socket = net.connect({ host: '127.0.0.1', port });
+    const failed = (error: Error) => { socket.destroy(); oncreate(error); };
+    socket.once('error', failed);
+    socket.once('connect', () => {
+      check(port, socket.localPort ?? 0).then((ours) => {
+        if (ours !== true) {
+          failed(new Error(ours === 'unknown'
+            ? `the owner of the program on 127.0.0.1:${port} could not be told on the open connection, so its token was not sent`
+            : `the open connection to 127.0.0.1:${port} reached another user's program, so its token was not sent`));
+          return;
+        }
+        socket.off('error', failed);
+        oncreate(null, socket);
+      }, failed);
+    });
+    return undefined;
+  };
+}
 const PLAIN_HEADERS = new Set(['host', 'accept', 'content-type', 'content-length']);
 /** True when a request carries something other than plain headers: a token, in whatever header the descriptor names. */
 export const carriesSecret = (headers: Record<string, string>): boolean => Object.keys(headers).some((k) => !PLAIN_HEADERS.has(k.toLowerCase()));
 // #endregion loopback-owner
 
-function send(origin: string, method: 'GET' | 'POST', path: string, headers: Record<string, string>, timeoutMs: number, tls: TlsOptions, port: number | null, remote: boolean): Promise<HttpResult> {
+function send(origin: string, method: 'GET' | 'POST', path: string, headers: Record<string, string>, timeoutMs: number, tls: TlsOptions, port: number | null, remote: boolean, onConnection: LoopbackConnectionCheck | null = null): Promise<HttpResult> {
   const started = Date.now();
   const target = remote ? new URL(origin) : null;
   const options = remote
@@ -81,7 +115,9 @@ function send(origin: string, method: 'GET' | 'POST', path: string, headers: Rec
       method, path, headers: { Host: target!.host, Accept: 'application/json', ...headers }, timeout: timeoutMs,
       ...(tls.ca ? { ca: tls.ca } : {}), rejectUnauthorized: true,
     }
-    : { host: '127.0.0.1', port: port!, method, path, headers: { Host: `127.0.0.1:${port}`, Accept: 'application/json', ...headers }, timeout: timeoutMs };
+    : { host: '127.0.0.1', port: port!, method, path, headers: { Host: `127.0.0.1:${port}`, Accept: 'application/json', ...headers }, timeout: timeoutMs,
+      // FD-168: a request carrying a token writes it only on a connection whose other end was checked just now.
+      ...(onConnection ? { createConnection: checkedConnection(port!, onConnection) as unknown as http.RequestOptions['createConnection'] } : {}) };
   return new Promise((resolve, reject) => {
     const client = remote ? https : http;
     // `timeout` above is only the socket's idle time: a service that trickles a byte now and then

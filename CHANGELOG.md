@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+### Security
+
+- FD-168, the contract's CT-254: a request that carries an agent's token now connects first, checks who holds the other
+  end of that very connection, and writes nothing unless it is this user's program; before, the owner came from a list
+  of listeners up to 30 seconds old. On Linux the listener on 127.0.0.1 counts before one on any address, so another
+  user's program bound to 127.0.0.1 next to this user's wildcard listener no longer receives the token. A socket table
+  that shows nothing, or listeners of two users on one address, refuse the request as an owner that cannot be told.
+
 ## 0.8.31 - 2026-11-07
 
 ### Changed

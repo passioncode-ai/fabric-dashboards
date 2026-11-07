@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import net from 'node:net';
 import test from 'node:test';
 import { execRunner } from '../src/core/launchd';
-import { linuxLoopbackOwnerCheck, listenersOf, loopbackOwnerCheck, MISS_REREAD_MS, OWNED_FRESH_MS, portsOf, procNetPorts, socketTableOwner, windowsListenersOf, windowsLoopbackOwnerCheck } from '../src/core/loopback-owner';
+import { linuxConnectionCheck, linuxConnectionUids, linuxLoopbackOwnerCheck, listenersOf, macConnectionCheck, macConnectionPids, loopbackOwnerCheck, MISS_REREAD_MS, OWNED_FRESH_MS, portsOf, procNetPorts, socketTableOwner, windowsListenersOf, windowsLoopbackOwnerCheck } from '../src/core/loopback-owner';
 import { windowsAclReader } from './win-acl';
 import { machineRu } from '../src/core/machine-ru';
 
@@ -197,4 +197,97 @@ test("FD-159: on Windows the compiled reader finds this process's own listener",
   } finally {
     await new Promise((resolve) => server.close(resolve));
   }
+});
+
+// ── FD-168, the contract's CT-254 (tag `v0.1.0+2026-11-07.3`): the owner of the open connection ─────────────────────
+
+const NS_HEAD = 'Proto Recv-Q Send-Q  Local Address          Foreign Address        (state)      rhiwat  shiwat    process:pid state  options';
+const ns = (proto: string, local: string, foreign: string, state: string, proc: string) => `${proto}       0      0  ${local}  ${foreign}  ${state}  131072  131072  ${proc}  00000 00000006 0000000000000001 00000000 00000800      1      0 000001`;
+
+test('FD-168: macOS names the connection by its own row; without one, the listener on 127.0.0.1 before a wildcard', () => {
+  // The service's end of our connection 127.0.0.1:53122 -> 127.0.0.1:47851, and our own end, which is never asked.
+  const accepted = [NS_HEAD, ns('tcp4', '127.0.0.1.47851', '127.0.0.1.53122', 'ESTABLISHED', 'agent:701'), ns('tcp4', '127.0.0.1.53122', '127.0.0.1.47851', 'ESTABLISHED', 'Fabric Dash:900'), ns('tcp4', '*.47851', '*.*', 'LISTEN', 'other:702')].join('\n');
+  assert.deepEqual(macConnectionPids(accepted, 47851, 53122), [701], 'the connection row wins over every listener');
+  // The swapped listener: ours on any address, another user's on 127.0.0.1. A connection to 127.0.0.1 lands on theirs.
+  const swapped = [NS_HEAD, ns('tcp46', '*.47851', '*.*', 'LISTEN', 'agent:701'), ns('tcp4', '127.0.0.1.47851', '*.*', 'LISTEN', 'thief:802')].join('\n');
+  assert.deepEqual(macConnectionPids(swapped, 47851, 53122), [802]);
+  assert.deepEqual(macConnectionPids([NS_HEAD, ns('tcp4', '*.47851', '*.*', 'LISTEN', 'agent:701')].join('\n'), 47851, 53122), [701], 'a wildcard counts when nobody listens on 127.0.0.1');
+  assert.deepEqual(macConnectionPids([NS_HEAD, ns('tcp6', '::1.47851', '*.*', 'LISTEN', 'v6:703')].join('\n'), 47851, 53122), [], 'an IPv6-only listener takes nothing');
+  assert.equal(macConnectionPids('', 47851, 53122), 'restricted', 'an empty table (macOS 27.2, a program that may not see other sockets)');
+});
+
+test('FD-168: the macOS check reads the table once for connections asked at once, and refuses another account or an unreadable one', async () => {
+  const runs: string[] = [];
+  const table = [NS_HEAD, ns('tcp4', '127.0.0.1.47851', '127.0.0.1.53122', 'ESTABLISHED', 'agent:701'), ns('tcp4', '127.0.0.1.47852', '127.0.0.1.53123', 'ESTABLISHED', 'thief:802'),
+    ns('tcp4', '127.0.0.1.47853', '*.*', 'LISTEN', 'a:701'), ns('tcp4', '127.0.0.1.47853', '*.*', 'LISTEN', 'b:802')].join('\n');
+  const check = macConnectionCheck(async (cmd, args) => {
+    runs.push(cmd);
+    if (cmd === 'netstat') return { code: 0, stdout: table, stderr: '' };
+    return { code: 0, stdout: args.at(-1)!.split(',').map((p) => `${p} ${p === '701' ? 501 : 502}`).join('\n'), stderr: '' };
+  }, 501);
+  const answers = await Promise.all([check(47851, 53122), check(47852, 53123), check(47853, 53124), check(47854, 53125)]);
+  assert.deepEqual(answers, [true, false, 'unknown', false], 'ours; another account; listeners of two accounts; nobody');
+  assert.equal(runs.filter((c) => c === 'netstat').length, 1, 'one table for every connection waiting');
+  const empty = macConnectionCheck(async () => ({ code: 0, stdout: '', stderr: '' }), 501);
+  assert.equal(await empty(47851, 53122), 'unknown');
+  const broken = macConnectionCheck(async () => ({ code: 1, stdout: '', stderr: 'netstat: denied' }), 501);
+  assert.equal(await broken(47851, 53122), 'unknown');
+});
+
+// /proc/net/tcp rows: sl local rem st tx:rx tr:when retrnsmt uid timeout inode
+const proc = (local: string, rem: string, st: string, uid: number, inode: number) => `   0: ${local} ${rem} ${st} 00000000:00000000 00:00000000 00000000  ${uid}        0 ${inode} 1 0000000000000000 20 4 30 10 -1`;
+const HEAD = '  sl  local_address rem_address   st tx_queue rx_queue tr tm->when retrnsmt   uid  timeout inode';
+const SERVER = '0100007F:BAEB'; // 127.0.0.1:47851
+const CLIENT = '0100007F:CF82'; // 127.0.0.1:53122
+
+test('FD-168: Linux names the connection by its row when accepted (inode not 0), else the listener on 127.0.0.1 before a wildcard', () => {
+  const accepted = [HEAD, proc(SERVER, CLIENT, '01', 1001, 4242), proc('00000000:BAEB', '00000000:0000', '0A', 1002, 99)].join('\n');
+  assert.deepEqual([...linuxConnectionUids([accepted], 47851, 53122)], [1001]);
+  // In the accept queue the row has inode 0: the listener decides. The swapped listener: ours on any address, theirs on 127.0.0.1.
+  const queued = [HEAD, proc(SERVER, CLIENT, '01', 0, 0), proc('00000000:BAEB', '00000000:0000', '0A', 1001, 98), proc(SERVER, '00000000:0000', '0A', 1002, 99)].join('\n');
+  assert.deepEqual([...linuxConnectionUids([queued], 47851, 53122)], [1002]);
+  // Both address orders: the wildcard first or last in the table, the same answer.
+  const reversed = [HEAD, proc(SERVER, '00000000:0000', '0A', 1002, 99), proc('00000000:BAEB', '00000000:0000', '0A', 1001, 98)].join('\n');
+  assert.deepEqual([...linuxConnectionUids([reversed], 47851, 53122)], [1002]);
+  // tcp6: the mapped ::ffff:127.0.0.1 counts as 127.0.0.1; :: as a wildcard; ::1 never.
+  const v6 = [HEAD, proc('0000000000000000FFFF00000100007F:BAEB', '00000000000000000000000000000000:0000', '0A', 1003, 97), proc('00000000000000000000000001000000:BAEB', '00000000000000000000000000000000:0000', '0A', 1004, 96)].join('\n');
+  assert.deepEqual([...linuxConnectionUids([[HEAD].join('\n'), v6], 47851, 53122)], [1003]);
+  assert.deepEqual([...linuxConnectionUids([[HEAD, proc('00000000000000000000000001000000:BAEB', '00000000000000000000000000000000:0000', '0A', 1004, 96)].join('\n')], 47851, 53122)], [], '::1 alone takes nothing');
+  // Listeners of two accounts on 127.0.0.1 (SO_REUSEPORT): the owner cannot be told.
+  assert.deepEqual([...linuxConnectionUids([[HEAD, proc(SERVER, '00000000:0000', '0A', 1001, 1), proc(SERVER, '00000000:0000', '0A', 1002, 2)].join('\n')], 47851, 53122)].sort(), [1001, 1002]);
+});
+
+test('FD-168: the Linux check reads both tables once for connections asked at once', async () => {
+  const reads: string[] = [];
+  const table = [HEAD, proc(SERVER, CLIENT, '01', 1001, 4242), proc('0100007F:BAEC', '00000000:0000', '0A', 1001, 1), proc('0100007F:BAEC', '00000000:0000', '0A', 1002, 2)].join('\n');
+  const check = linuxConnectionCheck(async (p) => { reads.push(p); if (p.endsWith('6')) throw new Error('ENOENT'); return table; }, 1001);
+  assert.deepEqual(await Promise.all([check(47851, 53122), check(47852, 53123), check(47853, 53124)]), [true, 'unknown', false]);
+  assert.deepEqual(reads, ['/proc/net/tcp', '/proc/net/tcp6'], 'one read of each, a missing tcp6 is IPv6 off');
+  const other = linuxConnectionCheck(async () => table, 1002);
+  assert.equal(await other(47851, 53122), false, 'the same connection is not another account\'s');
+  const broken = linuxConnectionCheck(async () => { throw new Error('EACCES'); }, 1001);
+  assert.equal(await broken(47851, 53122), 'unknown');
+});
+
+test('FD-168: on this system the check finds this process\'s own connection', { skip: process.platform !== 'darwin' && process.platform !== 'linux' && 'reads netstat or /proc/net/tcp' }, async () => {
+  const server = net.createServer();
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const socket = net.connect((server.address() as net.AddressInfo).port, '127.0.0.1');
+  await new Promise((resolve) => socket.once('connect', resolve));
+  try {
+    const port = (server.address() as net.AddressInfo).port;
+    const make = (uid: number) => (process.platform === 'darwin' ? macConnectionCheck(execRunner, uid) : linuxConnectionCheck((p) => fs.promises.readFile(p, 'utf8'), uid));
+    const mine = await make(process.getuid!())(port, socket.localPort!);
+    // A program that may not see the whole table (macOS 27.2, some signed builds) reads it as unknown, never as ours.
+    assert.ok(mine === true || mine === 'unknown', `ours or unknown, got ${mine}`);
+    assert.notEqual(await make(process.getuid!() + 1)(port, socket.localPort!), true, 'never another uid\'s');
+  } finally {
+    socket.destroy();
+    await new Promise((resolve) => server.close(resolve));
+  }
+});
+
+test('FD-168: the refusals on the open connection read in Russian', () => {
+  assert.equal(machineRu('the open connection to 127.0.0.1:47851 reached another user\'s program, so its token was not sent'), 'соединение с 127.0.0.1:47851 попало в программу другого пользователя, поэтому токен не отправлен');
+  assert.equal(machineRu('the owner of the program on 127.0.0.1:47851 could not be told on the open connection, so its token was not sent'), 'владельца программы на 127.0.0.1:47851 не удалось определить по открытому соединению, поэтому токен не отправлен');
 });
