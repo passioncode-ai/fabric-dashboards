@@ -401,7 +401,7 @@ test('FD-124: a Switchboard whose launch takes --surface records our launches as
 test('FD-174: every console starts its runtime without permission prompts, with the flag read from that runtime\'s --help; one with no verified flag gets none', () => {
   assert.deepEqual(bypassArgs('claude-code'), ['--dangerously-skip-permissions']);
   assert.deepEqual(bypassArgs('codex'), ['--dangerously-bypass-approvals-and-sandbox']);
-  assert.deepEqual(bypassArgs('gemini-cli'), ['--yolo']);
+  assert.deepEqual(bypassArgs('gemini-cli'), ['--approval-mode', 'yolo'], 'the contract catalogue\'s form');
   assert.deepEqual(bypassArgs('opencode'), ['--auto']);
   assert.deepEqual(bypassArgs('cursor-cli'), ['--force']);
   assert.deepEqual(bypassArgs('aider'), [], 'not read from an installed copy: no guess that could stop it starting');

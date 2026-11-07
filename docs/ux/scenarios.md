@@ -1345,7 +1345,7 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **Entry point:** New session, Continue last, Fix or Set up with coding agent, Update with coding agent, MCP `console_new` and `console_fix`, a session continued after a limit or from the Sessions list
 - **Preconditions:** a coding agent is installed (SCN-058)
 - **Steps:**
-  1. The person or an agent starts a console -> the runtime starts with its own flag that turns permission prompts off (Claude Code `--dangerously-skip-permissions`, Codex `--dangerously-bypass-approvals-and-sandbox`, Gemini CLI `--yolo`, OpenCode `--auto`, Cursor CLI `--force`), placed before Codex's `resume`, and passed through Switchboard's in-place launch after `--`
+  1. The person or an agent starts a console -> the runtime starts with its own flag that turns permission prompts off (Claude Code `--dangerously-skip-permissions`, Codex `--dangerously-bypass-approvals-and-sandbox`, Gemini CLI `--approval-mode yolo`, OpenCode `--auto`, Cursor CLI `--force`), placed before Codex's `resume`, and passed through Switchboard's in-place launch after `--`
   2. The agent works through its task without stopping to ask for a tool's permission
 - **Expected result:** a console never waits on a permission prompt nobody is there to answer
 - **Alt paths:** a runtime whose flag was not read from an installed copy (Qwen Code, Goose, Aider, GitHub Copilot CLI, Amp) starts as before, without a flag, rather than with a guess that could stop it starting; a hand-over Switchboard runs (`handovers run`) takes Switchboard's own setting (its SB-298)
