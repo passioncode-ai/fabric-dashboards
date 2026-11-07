@@ -7,7 +7,7 @@
 import { EventEmitter } from 'node:events';
 import { commandEnv } from './children';
 import { t, type Lang } from './i18n';
-import { runtimeArgs, type Runtime } from './runtimes';
+import { bypassArgs, runtimeArgs, type Runtime } from './runtimes';
 import { inPlaceArgv, type Binding } from './switchboard';
 
 export interface PtyLike {
@@ -55,7 +55,8 @@ export function planStart(o: { runtime: Runtime; mode: 'new' | 'continue'; folde
   handoff?: { before: string[]; after: string[] } }): Plan {
   let args: string[];
   try {
-    args = [...(o.handoff?.before ?? []), ...runtimeArgs(o.runtime, o.mode), ...(o.handoff?.after ?? [])];
+    // FD-174: without permission prompts, first, so it is a top-level flag even before Codex's `resume`.
+    args = [...bypassArgs(o.runtime.id), ...(o.handoff?.before ?? []), ...runtimeArgs(o.runtime, o.mode), ...(o.handoff?.after ?? [])];
   } catch (error) {
     return { kind: 'refused', reason: 'no-continue', detail: (error as Error).message };
   }

@@ -22,7 +22,7 @@ import { ConsoleManager, planStart, terminalScript, type SpawnPty } from '../cor
 import { dropKept, loadKept, saveKept } from '../core/kept-output';
 import { admit, machineProbe, type MachineState } from '../core/admission';
 import { findCheckout } from '../core/repofind';
-import { detectRuntimes, KNOWN_RUNTIMES, readLoginPath, searchDirs, specsFromSwitchboard, type Runtime, type RuntimeSpec } from '../core/runtimes';
+import { bypassArgsOfProvider, detectRuntimes, KNOWN_RUNTIMES, readLoginPath, searchDirs, specsFromSwitchboard, type Runtime, type RuntimeSpec } from '../core/runtimes';
 import type { SettingsStore } from '../core/settings';
 import { accountsOf, allSessionsOf, bindingFor, findSwitchboard, handoverOwnKey, handoverRunArgv, handoversOf, handoversSwitch, isHandoverKey, launchFeatures, managesProvider, sbFailure, sessionsIn, terminalLaunchArgv, type Binding, type SbHandover, type SbSessions } from '../core/switchboard';
 import type { ServiceSnapshot } from '../core/types';
@@ -647,7 +647,7 @@ export class ConsoleHost {
     // Switchboard group routes it through Switchboard by its own settings.
     const cli = dirs.map((d) => path.join(d, stop.provider)).find((f) => { try { fs.accessSync(f, fs.constants.X_OK); return fs.statSync(f).isFile(); } catch { return false; } });
     const label = stop.provider === 'codex' ? 'Codex' : 'Claude Code';
-    const r = cli ? this.manager.start(key, { argv: [cli, ...resumeArgs(stop)], cwd: stop.dir, label, env: { PATH: dirs.join(path.delimiter) } }, { cols: 100, rows: 30 }) : { ok: false as const, error: `${stop.provider} is not installed here` };
+    const r = cli ? this.manager.start(key, { argv: [cli, ...bypassArgsOfProvider(stop.provider === 'codex' ? 'codex' : 'claude'), ...resumeArgs(stop)], cwd: stop.dir, label, env: { PATH: dirs.join(path.delimiter) } }, { cols: 100, rows: 30 }) : { ok: false as const, error: `${stop.provider} is not installed here` };
     if (!r.ok && r.error === 'running') {
       // FIX-4: its own console already runs (an earlier continue the person kept open); this claim starts nothing, so it
       // is finished as cancelled rather than left claimed for nobody to settle.
@@ -886,7 +886,7 @@ export class ConsoleHost {
       if (!cli) return { ok: false, reason: 'no-runtime' };
       const a = admit(await (this.o.machine ?? machineProbe)(row.folder, this.manager.runningCount()));
       if (!a.ok) return { ok: false, reason: 'admission', detail: a.why };
-      const args = provider === 'codex' ? ['resume', sessionId] : ['--resume', sessionId];
+      const args = [...bypassArgsOfProvider(provider), ...(provider === 'codex' ? ['resume', sessionId] : ['--resume', sessionId])]; // FD-174
       const r = this.manager.start(key, { argv: [cli, ...args], cwd: row.folder, label: provider === 'codex' ? 'Codex' : 'Claude Code', env: { PATH: inv.dirs.join(path.delimiter) } }, size);
       if (!r.ok) return { ok: false, reason: r.error === 'running' ? 'running' : 'spawn', detail: r.error };
       this.sessionIds.set(key, { sessionId, provider });

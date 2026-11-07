@@ -102,6 +102,7 @@
 | SCN-094 | Show only one organization's agents | organizations | P-01 | ST-019 | implemented | 2026-11-06 |
 | SCN-095 | See an agent that only waits for setup | health | P-01 | ST-002 | implemented | 2026-11-07 |
 | SCN-096 | Fabric opens a console session here | sessions | P-01 | ST-023 | implemented | 2026-11-07 |
+| SCN-097 | A console session runs without permission prompts | console | P-01 | ST-010 | implemented | 2026-11-07 |
 ## Personas
 
 Defined in [foundation.md](foundation.md) → P-01.
@@ -1335,6 +1336,24 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **Errors & recovery:** a page of the registry that cannot be read keeps the last full map and is read again in 30 minutes; a repository Project Observatory does not know reads "Not attributed", never a guessed organization
 - **Status:** implemented
 - **Coverage:** src/core/organizations.ts, src/renderer/components/Navigation.tsx, src/renderer/App.tsx, src/mcp/tools.ts, test/organizations.test.ts
+- **Product:** unobserved
+
+### SCN-097: A console session runs without permission prompts
+- **Persona:** P-01
+- **Feature:** console
+- **Traces:** ST-010; FD-174; the operator's rule for every PassionCode project (2026-11-07, said in fabric-switchboard's session 38adf103, relayed on board thread `eefa7959`, message `aa7c14a9`): agents run with permissions bypassed, since nobody can answer a prompt, above all on remote machines; a task's questions are settled when it is set
+- **Entry point:** New session, Continue last, Fix or Set up with coding agent, Update with coding agent, MCP `console_new` and `console_fix`, a session continued after a limit or from the Sessions list
+- **Preconditions:** a coding agent is installed (SCN-058)
+- **Steps:**
+  1. The person or an agent starts a console -> the runtime starts with its own flag that turns permission prompts off (Claude Code `--dangerously-skip-permissions`, Codex `--dangerously-bypass-approvals-and-sandbox`, Gemini CLI `--yolo`, OpenCode `--auto`, Cursor CLI `--force`), placed before Codex's `resume`, and passed through Switchboard's in-place launch after `--`
+  2. The agent works through its task without stopping to ask for a tool's permission
+- **Expected result:** a console never waits on a permission prompt nobody is there to answer
+- **Alt paths:** a runtime whose flag was not read from an installed copy (Qwen Code, Goose, Aider, GitHub Copilot CLI, Amp) starts as before, without a flag, rather than with a guess that could stop it starting; a hand-over Switchboard runs (`handovers run`) takes Switchboard's own setting (its SB-298)
+- **UI elements:** none new
+- **States covered:** success
+- **Errors & recovery:** money, publishing to people and secrets stay under the agents' and services' own rules (doors, limits, checks), not a permission dialog
+- **Status:** implemented (2026-11-07: `test/console.test.ts` *FD-174*, `test/handoff.test.ts`, `test/recovery.test.ts`, `test/sessions.test.ts`)
+- **Coverage:** src/core/runtimes.ts, src/core/consoles.ts, src/electron/console.ts, test/console.test.ts
 - **Product:** unobserved
 
 ### SCN-096: Fabric opens a console session here

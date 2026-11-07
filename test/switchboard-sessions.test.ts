@@ -61,9 +61,9 @@ test('FD-43: a Switchboard before SB-95 says it cannot list sessions, rather tha
 test('FD-51 (LC-20): with a Switchboard route for the provider, an unbound folder starts managed, in place', () => {
   const claude = { ...KNOWN_RUNTIMES.find((r) => r.id === 'claude-code')!, path: '/bin/claude' };
   const base = { runtime: claude, mode: 'new' as const, folder: '/w', binding: { kind: 'none' as const }, switchboard: '/sb', inPlace: true };
-  assert.deepEqual(planStart({ ...base, managed: true }), { kind: 'run', argv: ['/sb', 'launch', '--provider', 'claude', '--mode', 'managed', '--working-directory', '/w', '--in-place'], cwd: '/w' });
-  assert.deepEqual(planStart({ ...base, managed: false }), { kind: 'run', argv: ['/bin/claude'], cwd: '/w' }, 'no route: the ordinary sign-in');
-  assert.deepEqual(planStart({ ...base, managed: true, inPlace: false }), { kind: 'run', argv: ['/bin/claude'], cwd: '/w' }, 'a Switchboard that cannot launch in place cannot host it in the console');
+  assert.deepEqual(planStart({ ...base, managed: true }), { kind: 'run', argv: ['/sb', 'launch', '--provider', 'claude', '--mode', 'managed', '--working-directory', '/w', '--in-place', '--', '--dangerously-skip-permissions'], cwd: '/w' });
+  assert.deepEqual(planStart({ ...base, managed: false }), { kind: 'run', argv: ['/bin/claude', '--dangerously-skip-permissions'], cwd: '/w' }, 'no route: the ordinary sign-in');
+  assert.deepEqual(planStart({ ...base, managed: true, inPlace: false }), { kind: 'run', argv: ['/bin/claude', '--dangerously-skip-permissions'], cwd: '/w' }, 'a Switchboard that cannot launch in place cannot host it in the console');
   assert.equal(managesProvider({ routes: { 'codex:default': 'x' }, labels: {} }, 'claude'), false);
   assert.equal(managesProvider({ routes: { 'claude:team': 'x' }, labels: {} }, 'claude'), true);
 });

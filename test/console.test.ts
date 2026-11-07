@@ -6,7 +6,7 @@ import path from 'node:path';
 import test from 'node:test';
 import { findCheckout, originOf, repoId } from '../src/core/repofind';
 import { bindingFor, canLaunchInPlace, findSwitchboard, inPlaceArgv, launchFeatures, terminalLaunchArgv } from '../src/core/switchboard';
-import { detectRuntimes, KNOWN_RUNTIMES, loginPathFrom, readLoginPath, runtimeArgs, searchDirs, type RuntimeSpec } from '../src/core/runtimes';
+import { bypassArgs, detectRuntimes, KNOWN_RUNTIMES, loginPathFrom, readLoginPath, runtimeArgs, searchDirs, type RuntimeSpec } from '../src/core/runtimes';
 import { ConsoleManager, endWorkQuestion, planStart, shellQuote, terminalScript, type PtyLike, type SpawnPty } from '../src/core/consoles';
 import { tmp } from './helpers';
 
@@ -308,9 +308,9 @@ test('REQ-08: a runtime that cannot start is an error result, never a throw', ()
 
 test('REQ-07, REQ-09: the start plan — plain runtime, Switchboard in place, Terminal only, or a refusal', () => {
   assert.deepEqual(planStart({ runtime: CLAUDE, mode: 'continue', folder: '/r', binding: { kind: 'none' }, switchboard: null, inPlace: false }),
-    { kind: 'run', argv: ['/bin/claude', '--continue'], cwd: '/r' });
+    { kind: 'run', argv: ['/bin/claude', '--dangerously-skip-permissions', '--continue'], cwd: '/r' }, 'FD-174: without permission prompts');
   assert.deepEqual(planStart({ runtime: CLAUDE, mode: 'new', folder: '/r', binding: { kind: 'project', name: 'Growth', pool: 'growth' }, switchboard: '/sb', inPlace: true }),
-    { kind: 'run', argv: ['/sb', 'launch', '--provider', 'claude', '--mode', 'managed', '--working-directory', '/r', '--in-place'], cwd: '/r' });
+    { kind: 'run', argv: ['/sb', 'launch', '--provider', 'claude', '--mode', 'managed', '--working-directory', '/r', '--in-place', '--', '--dangerously-skip-permissions'], cwd: '/r' });
   assert.deepEqual(planStart({ runtime: CLAUDE, mode: 'new', folder: '/r', binding: { kind: 'project', name: 'Growth', pool: 'growth' }, switchboard: '/sb', inPlace: false }),
     { kind: 'terminal-only', project: 'Growth', pool: 'growth' });
   assert.deepEqual(planStart({ runtime: CLAUDE, mode: 'new', folder: '/r', binding: { kind: 'error', detail: 'down' }, switchboard: '/sb', inPlace: true }),
@@ -396,4 +396,16 @@ test('FD-124: a Switchboard whose launch takes --surface records our launches as
   assert.ok(marked.kind === 'run' && marked.argv.join(' ').includes('--in-place --surface dashboards'));
   const plain = planStart(bound);
   assert.ok(plain.kind === 'run' && !plain.argv.includes('--surface'), 'an older Switchboard is never given a flag it does not know');
+});
+
+test('FD-174: every console starts its runtime without permission prompts, with the flag read from that runtime\'s --help; one with no verified flag gets none', () => {
+  assert.deepEqual(bypassArgs('claude-code'), ['--dangerously-skip-permissions']);
+  assert.deepEqual(bypassArgs('codex'), ['--dangerously-bypass-approvals-and-sandbox']);
+  assert.deepEqual(bypassArgs('gemini-cli'), ['--yolo']);
+  assert.deepEqual(bypassArgs('opencode'), ['--auto']);
+  assert.deepEqual(bypassArgs('cursor-cli'), ['--force']);
+  assert.deepEqual(bypassArgs('aider'), [], 'not read from an installed copy: no guess that could stop it starting');
+  const codex = { id: 'codex', name: 'Codex', binary: 'codex', provider: 'codex' as const, continueArgs: ['resume', '--last'], path: '/bin/codex' };
+  const plan = planStart({ runtime: codex, mode: 'continue', folder: '/r', binding: { kind: 'none' }, switchboard: null, inPlace: false, handoff: { before: ['-c', 'x=1'], after: ['go'] } });
+  assert.deepEqual(plan, { kind: 'run', argv: ['/bin/codex', '--dangerously-bypass-approvals-and-sandbox', '-c', 'x=1', 'resume', '--last', 'go'], cwd: '/r' }, 'a top-level flag, before Codex\'s subcommand');
 });
