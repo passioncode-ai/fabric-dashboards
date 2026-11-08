@@ -479,6 +479,8 @@ export async function control(deps: Deps, key: string, action: 'start' | 'stop' 
       // FD-132: a second copy here would run beside the one on the other machine.
       // FD-167: only root starts or stops a system daemon of this space; the host agent does it.
       if (out.why === 'system-daemon') throw new ToolError(`${d.name} runs as a system service of this space, which only the administrator can start or stop; ask the host agent (studio.service.control)`);
+      // FD-179: the job is not loaded here; what answers on its port is the placed copy, through a forward.
+      if (out.why === 'not-here') throw new ToolError(`${d.name} runs on ${out.machine === 'unknown' ? 'another machine' : out.machine} and its job is not loaded here: nothing of it runs on this machine to stop. Stop it on the machine that runs it`);
       if (out.why === 'placed-elsewhere') throw new ToolError(`${d.name} is placed on ${out.machine === 'unknown' ? 'another machine' : out.machine}; starting it here would run a second copy. Move it in Observatory's placement first`);
       throw new ToolError(`${d.name} is not managed by launchd; it cannot be ${action}ed from here`);
     case 'launchctl-failed':

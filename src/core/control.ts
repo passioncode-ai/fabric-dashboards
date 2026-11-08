@@ -17,6 +17,8 @@ export interface ControlDeps {
     start(label: string, plist: string): Promise<RunResult>;
     stop(label: string): Promise<RunResult>;
     restart(label: string, plist: string): Promise<RunResult>;
+    /** FD-179: this machine's own job for the label (read only when the service is placed elsewhere and asked to stop). */
+    status?(label: string): Promise<{ loaded: boolean; pid: number | null }>;
   };
   /** One look at the service's well-known document. */
   wellKnown(origin: string): Promise<WellKnownResult>;
@@ -42,6 +44,8 @@ export type ControlOutcome =
   | { kind: 'refused'; why: 'placed-elsewhere'; machine: string }
   /** FD-167: a system daemon of this space; Start, Stop and Restart go through the host agent, never launchctl here. */
   | { kind: 'refused'; why: 'system-daemon' }
+  /** FD-179: placed on another machine and its job is not loaded here: nothing of it runs on this machine to stop. */
+  | { kind: 'refused'; why: 'not-here'; machine: string }
   | { kind: 'launchctl-failed'; detail: string }
   | { kind: 'stopped'; probe: WellKnownResult }
   | { kind: 'answered'; probe: Extract<WellKnownResult, { kind: 'answer' }>; pid: number }
@@ -65,6 +69,15 @@ export async function controlService(
   if (action !== 'stop' && deps.elsewhere) return { kind: 'refused', why: 'placed-elsewhere', machine: deps.elsewhere.placedOn };
   if (deps.systemDaemon) return { kind: 'refused', why: 'system-daemon' };
   const label = d.lifecycle.label;
+  // FD-179: placed elsewhere, a stop acts on this machine's own job only. Not loaded: nothing here to stop, and an answer on
+  // its port is the placed copy through a forward, which waiting would never see go quiet. Loaded without a process: the
+  // unload is the whole stop, so the port is not watched.
+  let ownIdle = false;
+  if (action === 'stop' && deps.elsewhere && deps.launchd.status) {
+    const own = await deps.launchd.status(label);
+    if (!own.loaded) return { kind: 'refused', why: 'not-here', machine: deps.elsewhere.placedOn };
+    ownIdle = own.pid === null;
+  }
   const plist = expand(d.lifecycle.plist);
   // M-3: a missing plist is said at once, not retried by bootstrap.
   if (action !== 'stop' && !(deps.exists ?? fs.existsSync)(plist)) return { kind: 'refused', why: 'plist-missing', plist };
@@ -73,6 +86,7 @@ export async function controlService(
     : action === 'stop' ? await deps.launchd.stop(label)
     : await deps.launchd.start(label, plist);
   if (r.code !== 0) return { kind: 'launchctl-failed', detail: (r.stderr || r.stdout).trim() || `launchctl exit ${r.code}` };
+  if (ownIdle) return { kind: 'stopped', probe: await deps.wellKnown(d.origin) };
   const strayPid = seen.duplicate ? seen.oldPid : null;
   let lastSeenPid: number | null = null;
   const deadline = deps.now() + CONTROL_TIMEOUT_MS;
