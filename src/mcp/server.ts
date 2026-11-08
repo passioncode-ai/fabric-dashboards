@@ -117,7 +117,7 @@ export const TOOLS = [
   },
   {
     name: 'console_fix',
-    description: 'Start a coding-agent session that fixes an agent, as Fix with coding agent does (ADR-0025): kind fix (the agent\'s problem) or audit (the auditor\'s findings), with the findings as text. When that agent\'s console already runs a session, the task is typed into it without Enter, as the console\'s Send to the running session does (answers typed: true). Answers app-not-running when the app is not open. Pass the operator\'s words in params._meta.decision when you have them (action fix-with-coding-agent).',
+    description: 'Start a coding-agent session that fixes an agent, as Fix with coding agent does (ADR-0025): kind fix (the agent\'s problem) or audit (the auditor\'s findings), with the findings as text. When that agent\'s console already runs a session, the task is typed into it without Enter, as the console\'s Send to the running session does (answers typed: true). FD-187: with service `fabric-dashboards.setup` the findings are your request for the Setup console: a new one opens its brief with it, a running one gets it in `request.md` with one line typed in. Answers app-not-running when the app is not open. Pass the operator\'s words in params._meta.decision when you have them (action fix-with-coding-agent).',
     inputSchema: { type: 'object', properties: { service: serviceArg, kind: { type: 'string', enum: ['fix', 'audit'] }, findings: { type: 'string', maxLength: 16384 } }, required: ['service', 'kind', 'findings'], additionalProperties: false },
     annotations: { readOnlyHint: false, destructiveHint: false },
   },
