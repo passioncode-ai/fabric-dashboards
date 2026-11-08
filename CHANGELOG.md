@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- FD-187: an agent that starts the Setup console can hand it a request (MCP `console_fix` with the service
+  `fabric-dashboards.setup`): a new Setup console begins with it, before its own steps; one that already runs gets it
+  as a line to read, typed in without Enter.
+
 ## 0.8.41 - 2026-11-08
 
 ### Added

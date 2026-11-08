@@ -48,7 +48,7 @@ export function registerCommand(runtimeId: string, server: McpCommand): string |
 }
 
 /** `setup.md`: the steps, in order, with this machine's commands; done steps are marked, not repeated. */
-export function setupMarkdown(o: { runtimeId: string; runtimeName: string; server: McpCommand; state: SetupState; platform: NodeJS.Platform; doctor?: DoctorReport | null }): string {
+export function setupMarkdown(o: { runtimeId: string; runtimeName: string; server: McpCommand; state: SetupState; platform: NodeJS.Platform; doctor?: DoctorReport | null; request?: string | null }): string {
   const reg = registerCommand(o.runtimeId, o.server);
   const done = (b: boolean) => (b ? ' (**already done; check it, do not repeat it**)' : '');
   return [
@@ -62,6 +62,8 @@ export function setupMarkdown(o: { runtimeId: string; runtimeName: string; serve
     '',
     // FD-65: a Check setup the person ran before opening this console comes first: it names what is broken now.
     ...(o.doctor ? [doctorMarkdown(o.doctor)].filter(Boolean) : []),
+    // FD-187: an agent that started this console (MCP console_fix) passed what to set up first.
+    ...(o.request ? [setupRequestMarkdown(o.request)] : []),
     '## Steps, in order',
     '',
     `1. **Fabric Dashboards' MCP server, for every session**${done(o.state.mcp)}.`,
@@ -96,8 +98,32 @@ export function setupMarkdown(o: { runtimeId: string; runtimeName: string; serve
   ].join('\n');
 }
 
+// #region setup-request — docs: docs/ux/scenarios.md#scn-098-an-agent-changes-what-a-person-changes-in-settings-and-on-the-sessions-page
+/** FD-187: what the agent that started the Setup console asked for, as a section of the brief. It is that agent's text,
+ *  fenced so it cannot close the brief's own markup; the steps below it still apply. */
+export const SETUP_REQUEST_MAX = 16_384;
+export function setupRequestMarkdown(request: string): string {
+  const text = request.slice(0, SETUP_REQUEST_MAX).replace(/~~~/g, '~ ~ ~');
+  return ['## Asked first, by the agent that started this console', '',
+    'Do this before the steps below, then go on with them. It is that agent\'s request, not a setting of this app.', '',
+    '~~~text', text, '~~~', ''].join('\n');
+}
+
+/** FD-187: a request for a Setup console that already runs: written to `request.md` beside `setup.md`, with the one line
+ *  typed into the session (no Enter), as a Fix for an agent's running session is. */
+export function writeSetupRequest(dir: string, request: string): { path: string; line: string } {
+  fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+  try { fs.chmodSync(dir, 0o700); } catch { /* Windows: the profile's ACL */ }
+  const file = path.join(dir, 'request.md');
+  const temp = `${file}.${process.pid}.tmp`;
+  fs.writeFileSync(temp, `# A request for this setup\n\n${setupRequestMarkdown(request)}`, { mode: 0o600 });
+  fs.renameSync(temp, file);
+  return { path: file, line: `Read ${file} and do what it asks, then go on with the setup.` };
+}
+// #endregion setup-request
+
 /** The Setup console's start: setup.md written, and the runtime told to begin with it. */
-export function prepareSetup(o: { dir: string; runtimeId: string; runtimeName: string; server: McpCommand; state: SetupState; platform?: NodeJS.Platform; doctor?: DoctorReport | null }): { handoff: { before: string[]; after: string[] }; env: Record<string, string>; files: { setup: string; mcp: string } } {
+export function prepareSetup(o: { dir: string; runtimeId: string; runtimeName: string; server: McpCommand; state: SetupState; platform?: NodeJS.Platform; doctor?: DoctorReport | null; request?: string | null }): { handoff: { before: string[]; after: string[] }; env: Record<string, string>; files: { setup: string; mcp: string } } {
   const packed = writePack(o.dir, { context: setupMarkdown({ ...o, platform: o.platform ?? process.platform }), task: null, mcp: mcpConfig(o.server) });
   const setup = path.join(o.dir, 'setup.md');
   fs.renameSync(packed.context, setup);

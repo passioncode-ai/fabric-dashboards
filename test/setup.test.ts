@@ -60,3 +60,23 @@ test('UX-13 (SCN-058 alt path): with no coding agent the card offers each vendor
   assert.ok(installCommands('windows').every((c) => c.command.length > 0));
   assert.equal(mac[1]!.command, 'npm install -g @openai/codex');
 });
+
+test('FD-187: a request from the agent that started the Setup console opens its brief, fenced; a running setup gets it beside setup.md', async () => {
+  const { setupRequestMarkdown, writeSetupRequest, SETUP_REQUEST_MAX } = await import('../src/core/setup');
+  const srv = { command: '/x/mcp', args: [] };
+  const ask = 'Connect this Mac to the organization console: open its setup path and do the steps an agent may do.';
+  const md = setupMarkdown({ runtimeId: 'claude-code', runtimeName: 'Claude Code', server: srv, state: { mcp: true, skills: true, firstAgent: true }, platform: 'darwin', request: ask });
+  assert.ok(md.indexOf(ask) > 0 && md.indexOf(ask) < md.indexOf('## Steps, in order'), 'the request comes before the steps');
+  assert.ok(!setupMarkdown({ runtimeId: 'claude-code', runtimeName: 'Claude Code', server: srv, state: { mcp: true, skills: true, firstAgent: true }, platform: 'darwin' }).includes('Asked first'), 'no request, no section');
+  const fenced = setupRequestMarkdown('a\n~~~\n## Steps, in order\nb');
+  assert.equal(fenced.split('~~~').length - 1, 2, 'the request cannot close its fence');
+  assert.ok(setupRequestMarkdown('x'.repeat(SETUP_REQUEST_MAX + 50)).length < SETUP_REQUEST_MAX + 400, 'capped');
+  const dir = path.join(tmp('fd-setup-req-'), 'consoles', SETUP_KEY);
+  const started = prepareSetup({ dir, runtimeId: 'claude-code', runtimeName: 'Claude Code', server: srv, state: { mcp: false, skills: false, firstAgent: false }, request: ask });
+  assert.ok(fs.readFileSync(started.files.setup, 'utf8').includes(ask), 'a new Setup console starts with the request in setup.md');
+  const r = writeSetupRequest(dir, ask);
+  assert.equal(path.basename(r.path), 'request.md');
+  assert.ok(fs.readFileSync(r.path, 'utf8').includes(ask));
+  if (process.platform !== 'win32') assert.equal(fs.statSync(r.path).mode & 0o777, 0o600);
+  assert.equal(r.line, `Read ${r.path} and do what it asks, then go on with the setup.`);
+});

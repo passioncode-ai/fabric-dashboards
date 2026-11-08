@@ -15,7 +15,7 @@ import { CHANNELS, type ConsoleInfo, type ConsoleStartResult, type ConsoleTask }
 import { openConsolesOf, type OpenConsole } from '../core/console-channel';
 import { prepareHandoff, writeTaskOnly, type McpCommand } from '../core/handoff';
 import { readFallback, writeFallback, type FallbackChange, type FallbackRead } from '../core/fallback';
-import { prepareSetup, SETUP_KEY, setupFolder, type SetupState } from '../core/setup';
+import { prepareSetup, SETUP_KEY, setupFolder, writeSetupRequest, type SetupState } from '../core/setup';
 import type { DoctorReport } from '../core/doctor';
 import type { ActivityItem } from '../core/types';
 import { ConsoleManager, planStart, terminalScript, type SpawnPty } from '../core/consoles';
@@ -351,7 +351,7 @@ export class ConsoleHost {
   private pack(key: string, runtime: Runtime, folder: string, task?: ConsoleTask): { handoff: { before: string[]; after: string[] }; env: Record<string, string> } | null {
     if (key === SETUP_KEY && this.o.packRoot && this.o.mcpServer) {
       try {
-        const r = prepareSetup({ dir: path.join(this.o.packRoot, key), runtimeId: runtime.id, runtimeName: runtime.name, server: this.o.mcpServer(), state: this.o.setupState?.() ?? { mcp: false, skills: false, firstAgent: false }, doctor: this.o.doctor?.() ?? null });
+        const r = prepareSetup({ dir: path.join(this.o.packRoot, key), runtimeId: runtime.id, runtimeName: runtime.name, server: this.o.mcpServer(), state: this.o.setupState?.() ?? { mcp: false, skills: false, firstAgent: false }, doctor: this.o.doctor?.() ?? null, request: task?.output ?? null });
         return { handoff: r.handoff, env: r.env };
       } catch (error) {
         this.o.log(`console: setup starts without its brief: ${(error as Error).message}`);
@@ -373,6 +373,18 @@ export class ConsoleHost {
    *  typed in, with no Enter, so the person reads it and sends it. Nothing is typed when no session runs. */
   sendTask(key: string, task: ConsoleTask): { ok: boolean; error?: string } {
     if (this.manager.snapshot(key).state !== 'running') return { ok: false, error: 'not-running' };
+    // FD-187: the Setup console has no agent snapshot; its request is written beside setup.md.
+    if (key === SETUP_KEY) {
+      if (!this.o.packRoot || !task.output) return { ok: false, error: 'no-pack' };
+      try {
+        const r = writeSetupRequest(path.join(this.o.packRoot, key), task.output);
+        this.manager.input(key, r.line);
+        this.o.log('console: the setup got a request typed into its running session');
+        return { ok: true };
+      } catch (error) {
+        return { ok: false, error: (error as Error).message };
+      }
+    }
     const snap = this.o.snapshot(key);
     const folder = this.folderOf(key);
     if (!snap || !folder?.exists || !this.o.packRoot) return { ok: false, error: 'no-pack' };
