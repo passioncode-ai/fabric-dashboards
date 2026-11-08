@@ -29,7 +29,7 @@ import { categoryOf, groupProducts, productIdOf, setKind, setOff, showAgain, tog
 import { buildGraph, chainState, stateOfService, worstOf, type ConnectionGraph } from '../core/connections';
 import { audit as runAudit, type Finding } from '../core/audit';
 import { estateMap, type EstateMap } from '../core/estate-map';
-import { doctorArgv, doctorResult, DOCTOR_TIMEOUT_MS, type SetupCheckResult } from '../core/doctor';
+import { doctorArgv, doctorResult, DOCTOR_TIMEOUT_MS, setupSteps, type SetupCheckResult, type SetupStep } from '../core/doctor';
 import { SETUP_KEY } from '../core/offers';
 import { AGENT_SETTINGS, merge as mergeSettings, SettingsStore } from '../core/settings';
 import { places } from '../core/platform';
@@ -569,14 +569,16 @@ export const CONSOLE_RULES: readonly string[] = [
 
 /** FD-81 (MCP parity with Settings → Check setup, SCN-070): the PassionCode launcher's read-only doctor at its pinned
  *  version, never `--fix`; `npx` from this process's PATH. The same parse as the app's. */
-export async function setupCheck(deps: Deps): Promise<SetupCheckResult> {
+export async function setupCheck(deps: Deps): Promise<SetupCheckResult | (SetupCheckResult & { steps: SetupStep[]; next: string | null })> {
   const sep = deps.platform === 'win32' ? ';' : ':';
   const name = deps.platform === 'win32' ? 'npx.cmd' : 'npx';
   const npx = (process.env.PATH ?? '').split(sep).filter(Boolean).map((d) => path.join(d, name)).find((f) => (deps.exists ?? fs.existsSync)(f));
   if (!npx && !deps.setupRun) return { kind: 'no-node' };
   const [cmd, args] = doctorArgv(npx ?? 'npx');
   const run = deps.setupRun ?? ((c: string, a: string[]) => runOwned(c, a, { timeoutMs: DOCTOR_TIMEOUT_MS }));
-  return doctorResult(await run(cmd, args));
+  const r = doctorResult(await run(cmd, args));
+  // FD-185: the steps the setup card shows, so an agent reads where the setup is in one look.
+  return r.kind === 'report' ? { ...r, ...setupSteps(r.report) } : r;
 }
 
 /** FD-81: the auditor over every installed agent, as the app's Connections map shows it: each finding with the agent

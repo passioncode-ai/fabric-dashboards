@@ -2,17 +2,19 @@
 
 ## Unreleased
 
+### Added
+
+- FD-185: MCP `setup_check` also answers the setup as steps, one per area in the launcher's order (done, attention or
+  todo, with the first check that keeps each from done), and `next`, the first step not done.
+- FD-187: an agent that starts the Setup console can hand it a request (MCP `console_fix` with the service
+  `fabric-dashboards.setup`): a new Setup console begins with it, before its own steps; one that already runs gets it
+  as a line to read, typed in without Enter.
+
 ### Changed
 
 - FD-185: the setup asks once. The coding agent in the Setup console starts with one message: what it installs, one
   consent for all of it, and every step that needs you (each sign-in, code, secret or payment) listed together; it no
   longer asks before each product.
-
-### Added
-
-- FD-187: an agent that starts the Setup console can hand it a request (MCP `console_fix` with the service
-  `fabric-dashboards.setup`): a new Setup console begins with it, before its own steps; one that already runs gets it
-  as a line to read, typed in without Enter.
 
 ## 0.8.41 - 2026-11-08
 
