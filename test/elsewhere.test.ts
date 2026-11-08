@@ -104,3 +104,32 @@ test('FD-179: placed elsewhere, answering here, and its own job not loaded here:
   assert.equal(snap.state, 'ready', 'the copy it reaches is ready');
   assert.deepEqual(snap.reasons, [{ code: 'reason.reached.elsewhere', params: { machine: 'studio-2' } }]);
 });
+
+test('FD-167: a system daemon of this space is read in the system domain, and Start, Stop and Restart are refused before launchctl changes anything', async () => {
+  const base = tmp('fd-sysd-');
+  const services = path.join(base, 'services');
+  fs.mkdirSync(services);
+  fs.writeFileSync(path.join(services, `${KEY}.json`), JSON.stringify(DESCRIPTOR));
+  const calls: string[] = [];
+  const runner = async (_command: string, args: string[]): Promise<RunResult> => {
+    calls.push(args.join(' '));
+    if (args[0] === 'print' && args[1] === `system/${DESCRIPTOR.lifecycle.label}`) return { code: 0, stdout: `pid = ${READY.process.pid}\n`, stderr: '' };
+    if (args[0] === 'print') return { code: 113, stdout: '', stderr: 'Could not find service' };
+    return { code: 0, stdout: '', stderr: '' };
+  };
+  const monitor = new Monitor({ platform: 'darwin', servicesDir: services, activity: new ActivityStore(path.join(base, 'app')), settings: () => DEFAULT_SETTINGS,
+    lang: () => 'en', now: () => T0, launchd: new Launchd(runner, 501), wellKnown: async () => ({ kind: 'answer', doc: READY, ms: 3 }),
+    placement: { get: () => null, error: null }, daemons: { isSystem: (label) => label === DESCRIPTOR.lifecycle.label } });
+  await monitor.tick();
+  const snap = monitor.snapshot(KEY)!;
+  assert.equal(snap.state, 'ready', 'running as root\'s job for this space: not a duplicate, not stopped');
+  assert.equal(snap.launchd.domain, 'system');
+  assert.ok(calls.includes(`print system/${DESCRIPTOR.lifecycle.label}`));
+  assert.ok(!calls.some((c) => c.startsWith('print gui/')), 'never read in gui');
+  for (const action of ['start', 'stop', 'restart'] as const) {
+    const r = await monitor.control(KEY, action);
+    assert.equal(r.ok, false);
+    assert.equal(r.reason?.code, 'result.systemDaemon');
+  }
+  assert.ok(!calls.some((c) => /^(bootstrap|bootout|enable|disable|kickstart)/.test(c)), 'launchctl changed nothing');
+});

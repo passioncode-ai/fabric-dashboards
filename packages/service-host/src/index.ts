@@ -15,3 +15,4 @@ export * from './latch';
 export * from './load';
 export * from './actions';
 export * from './placement';
+export * from './space-daemons';

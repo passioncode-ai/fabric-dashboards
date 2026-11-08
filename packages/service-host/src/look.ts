@@ -8,6 +8,7 @@ import { claimConflicts, portOf, readDirectory, servicesDir as defaultServicesDi
 import { authHeaders, fetchWellKnown, heldButSilent, loopbackOwnerOf, readTokenAsync, REMOTE_TIMEOUT_MS, type WellKnownOptions } from './health';
 import { LaunchdReader, UNMANAGED } from './launchd';
 import { elsewhereOf, PlacementReader, type Placement } from './placement';
+import { SpaceDaemonReader } from './space-daemons';
 import type { RemoteTokenLatch } from './latch';
 import type { ClaimConflict, LaunchdStatus, Reason, ServiceState, WellKnown, WellKnownResult } from './protocol';
 import { DOWN_AFTER_MS, REMOTE_DOWN_AFTER_MS, deriveState } from './state';
@@ -23,6 +24,8 @@ export interface LookOptions {
   launchd?: LaunchdReader;
   /** FD-37: launchd is read only on macOS (default `process.platform`); elsewhere a launchd service is unmanaged here. */
   platform?: NodeJS.Platform;
+  /** FD-167: which labels are system daemons of this user's space. Default: a SpaceDaemonReader on Observatory's record. */
+  daemons?: Pick<SpaceDaemonReader, 'isSystem'>;
   now?: () => number;
   /** Look only at these keys (id.instance); claim conflicts are still found across every descriptor. */
   only?: readonly string[];
@@ -68,12 +71,17 @@ export async function lookAtServices(o: LookOptions = {}): Promise<Look> {
   const managed = (e: DescriptorEntry) => onLaunchd && e.descriptor?.lifecycle.manager === 'launchd' && Boolean(e.descriptor.lifecycle.label);
   const chosen = o.only ? entries.filter((e) => o.only!.includes(e.key)) : entries;
   const table = chosen.some(managed) ? await reader.disabledTable() : '';
+  // FD-167: the system domain's disabled table, read once when any chosen job is a system daemon of this space.
+  const daemons = o.daemons ?? new SpaceDaemonReader({ platform: o.platform });
+  const at = (o.now ?? Date.now)();
+  const system = (e: DescriptorEntry) => managed(e) && daemons.isSystem(e.descriptor!.lifecycle.label!, at);
+  const systemTable = chosen.some(system) ? await reader.disabledTable('system') : '';
   const placement = o.placement !== undefined ? o.placement : new PlacementReader().get((o.now ?? Date.now)());
-  const services = await Promise.all(chosen.map((e) => lookAtEntry(e, conflicts.get(e.key) ?? null, table, reader, { ...o, placement })));
+  const services = await Promise.all(chosen.map((e) => lookAtEntry(e, conflicts.get(e.key) ?? null, system(e) ? systemTable : table, reader, { ...o, placement }, system(e))));
   return { servicesDir: dir, error: null, services };
 }
 
-async function lookAtEntry(entry: DescriptorEntry, conflict: ClaimConflict | null, table: string, reader: LaunchdReader, o: LookOptions): Promise<ServiceLook> {
+async function lookAtEntry(entry: DescriptorEntry, conflict: ClaimConflict | null, table: string, reader: LaunchdReader, o: LookOptions, system = false): Promise<ServiceLook> {
   const d = entry.descriptor;
   const now = (o.now ?? Date.now)();
   const remote = d?.placement === 'remote';
@@ -98,7 +106,7 @@ async function lookAtEntry(entry: DescriptorEntry, conflict: ClaimConflict | nul
     }
   }
   const launchd: LaunchdStatus = d && (o.platform ?? process.platform) === 'darwin' && d.lifecycle.manager === 'launchd' && d.lifecycle.label
-    ? { managed: true, ...(await reader.status(d.lifecycle.label, table)) }
+    ? { managed: true, ...(await reader.status(d.lifecycle.label, table, system ? 'system' : 'gui')), ...(system ? { domain: 'system' as const } : {}) }
     : { ...UNMANAGED };
   // FD-158, DEC-0154 HA-2: an answer on loopback, or a silent listener, is this user's only when this user's own process
   // listens there.

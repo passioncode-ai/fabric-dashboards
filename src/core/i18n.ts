@@ -593,6 +593,9 @@ const en = {
   'result.launchctl': 'launchctl refused: {detail}. Press Start again; if it refuses again, reinstall the agent.',
   'result.plistMissing': 'The launchd file is missing: reinstall {name}. ({path})',
   'result.placedElsewhere': '{name} is placed on {machine}: starting it here would run a second copy.',
+  // FD-167: copy check 903f23c3.
+  'result.systemDaemon': '{name} runs as a system service of this space: only the administrator starts or stops it.',
+  'card.systemDaemon': 'Runs as a system service of this space: only the administrator starts or stops it.',
   'result.placedElsewhere.unknown': '{name} is placed on another machine: starting it here would run a second copy.',
   'result.unmanaged': '{name} is not managed by launchd, so it cannot be controlled from here.',
   'result.unsupervisedHere': '{name} is supervised by launchd, which this system does not have, so it is shown here but not started or stopped.',
@@ -1586,6 +1589,9 @@ const ru: Record<Key, string> = {
   'result.launchctl': 'launchctl отказался выполнить команду: {detail}. Нажмите «Запустить» ещё раз; если отказ повторится, переустановите агента.',
   'result.plistMissing': 'Файл launchd не найден ({path}). Переустановите {name}.',
   'result.placedElsewhere': '{name} размещён на машине {machine}: если запустить его здесь, будут работать две копии.',
+  // FD-167: copy check 6622e99f.
+  'result.systemDaemon': '{name} работает как системная служба этого пространства: запускает и останавливает её только администратор.',
+  'card.systemDaemon': 'Работает как системная служба этого пространства: запускает и останавливает её только администратор.',
   'result.placedElsewhere.unknown': '{name} размещён на другой машине: если запустить его здесь, будут работать две копии.',
   'result.unmanaged': '{name} не управляется через launchd, поэтому отсюда им управлять нельзя.',
   'result.unsupervisedHere': '{name} работает под launchd, которого в этой системе нет: здесь его видно, но запускать и останавливать его отсюда нельзя.',

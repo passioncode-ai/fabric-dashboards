@@ -8,7 +8,7 @@ import fs from 'node:fs';
 import { ActivityStore } from './activity';
 import { runOwned } from './children';
 import { productIdOf } from '@passioncode-ai/fabric-service-host/links';
-import { SystemdReader, authHeaders, claimConflicts, dashboardMinWidth, deriveState, elsewhereOf, PlacementReader, type Elsewhere, expand, fetchWellKnown, heldButSilent, loopbackOwnerOf, portOf, readDirectory, RemoteTokenLatch, REMOTE_TIMEOUT_MS, type DescriptorEntry, type WellKnownOptions, type WellKnownResult } from '@passioncode-ai/fabric-service-host';
+import { SystemdReader, authHeaders, claimConflicts, dashboardMinWidth, deriveState, elsewhereOf, PlacementReader, SpaceDaemonReader, type Elsewhere, expand, fetchWellKnown, heldButSilent, loopbackOwnerOf, portOf, readDirectory, RemoteTokenLatch, REMOTE_TIMEOUT_MS, type DescriptorEntry, type WellKnownOptions, type WellKnownResult } from '@passioncode-ai/fabric-service-host';
 import { tail } from './fsutil';
 import { commandReason, type CommandResult } from './outcome';
 import { duration, t as tr, type Lang } from './i18n';
@@ -52,6 +52,8 @@ export interface MonitorOptions {
   token?: (tokenFile: string) => string | Promise<string>;
   /** FD-132: this machine's placement record (default: Observatory's file, read again only when it changed). */
   placement?: Pick<PlacementReader, 'get' | 'error'>;
+  /** FD-167: which launchd labels are system daemons of this user's space (default: Observatory's root-owned record). */
+  daemons?: Pick<SpaceDaemonReader, 'isSystem'>;
   /** FD-135: the name the agent's own repository gives this service key (`.fabric/names.json`, ADR-0026), or null. */
   customName?: (key: string, repository: string | undefined) => string | null;
   /** FD-162: the organization of an agent's repository, from Project Observatory's registry; undefined when no map was
@@ -134,6 +136,8 @@ export class Monitor extends EventEmitter {
   private changeTimer: NodeJS.Timeout | null = null;
   private lastEmitted: string | null = null;
   private disabled: { at: number; table: string } | null = null;
+  private disabledSystem: { at: number; table: string } | null = null;
+  private readonly daemons: Pick<SpaceDaemonReader, 'isSystem'>;
 
   constructor(private readonly o: MonitorOptions) {
     super();
@@ -147,6 +151,12 @@ export class Monitor extends EventEmitter {
     this.events = o.events ?? fetchEvents;
     this.token = o.token ?? readTokenAsync;
     this.placement = o.placement ?? new PlacementReader();
+    this.daemons = o.daemons ?? new SpaceDaemonReader({ platform: this.platform });
+  }
+
+  /** FD-167: a job Observatory installed as a system daemon of this space is read in `system`. */
+  private where(label: string): 'gui' | 'system' {
+    return this.daemons.isSystem(label, this.now()) ? 'system' : 'gui';
   }
 
   // #region placed-elsewhere — docs: docs/ux/scenarios.md#scn-089-see-which-agents-are-placed-on-the-other-machine
@@ -297,11 +307,13 @@ export class Monitor extends EventEmitter {
   }
 
   /** One `launchctl print-disabled` serves every probe for `disabledTtl`; a control action clears it. */
-  private async disabledTable(): Promise<string> {
+  private async disabledTable(where: 'gui' | 'system' = 'gui'): Promise<string> {
     const now = this.now();
-    if (this.disabled && now - this.disabled.at < this.intervals.disabledTtl) return this.disabled.table;
-    const table = await this.launchd.disabledTable();
-    this.disabled = { at: now, table };
+    const cached = where === 'system' ? this.disabledSystem : this.disabled;
+    if (cached && now - cached.at < this.intervals.disabledTtl) return cached.table;
+    const table = await this.launchd.disabledTable(where);
+    if (where === 'system') this.disabledSystem = { at: now, table };
+    else this.disabled = { at: now, table };
     return table;
   }
 
@@ -410,8 +422,9 @@ export class Monitor extends EventEmitter {
       const steady = probe.kind === 'answer' && pidBefore === probe.doc.process.pid && t.launchd.managed;
       const fresh = t.launchdAt !== null && this.now() - t.launchdAt < this.intervals.launchdRefresh;
       if (this.visible || !steady || !fresh) {
-        const s = await this.launchd.status(d.lifecycle.label, await disabledTable());
-        t.launchd = { managed: true, ...s };
+        const where = this.where(d.lifecycle.label);
+        const s = await this.launchd.status(d.lifecycle.label, where === 'system' ? await this.disabledTable('system') : await disabledTable(), where);
+        t.launchd = { managed: true, ...s, ...(where === 'system' ? { domain: 'system' as const } : {}) };
         t.launchdAt = this.now();
       }
     } else if (this.platform === 'linux' && d.lifecycle.manager === 'systemd' && d.lifecycle.unit) {
@@ -625,6 +638,7 @@ export class Monitor extends EventEmitter {
     const oldPid = t.probe?.kind === 'answer' ? t.probe.doc.process.pid : null;
     const out = await controlService(d, action, {
       elsewhere: this.elsewhere(t),
+      systemDaemon: Boolean(d.lifecycle.label) && this.where(d.lifecycle.label!) === 'system',
       platform: this.platform,
       launchd: this.launchd,
       wellKnown: (origin) => fetchWellKnown(origin, 1500),
@@ -640,6 +654,7 @@ export class Monitor extends EventEmitter {
         if (out.why === 'unsupervised-here') return finish(false, { code: 'result.unsupervisedHere', params: { name } });
         if (out.why === 'plist-missing') return finish(false, { code: 'result.plistMissing', params: { name, path: out.plist } });
         if (out.why === 'placed-elsewhere') return finish(false, { code: 'result.placedElsewhere', params: { name, machine: out.machine } });
+        if (out.why === 'system-daemon') return finish(false, { code: 'result.systemDaemon', params: { name } });
         return finish(false, { code: 'result.unmanaged', params: { name } });
       case 'launchctl-failed':
         return finish(false, { code: 'result.launchctl', params: { detail: out.detail } });

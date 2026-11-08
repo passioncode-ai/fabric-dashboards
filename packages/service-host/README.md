@@ -132,6 +132,8 @@ and `lookAtServices` takes one as `latch` (third review pass T-2, T-4).
 print-disabled` per look) and `status(label, table?)` → `{ loaded, pid, disabled }`; a
 `launchctl` that fails reads as not loaded. `parsePrint`, `parseDisabled`, `execRunner` (no
 shell), `UNMANAGED`. Reading only: the verbs that change a job are Fabric Dashboards' own.
+FD-167: `status(label, table?, 'system')` and `disabledTable('system')` read a job in the `system` domain;
+`target(label, where?)` names it. The default stays `gui/<uid>`.
 
 
 `src/systemd.ts` (FD-55, contract DEC-0057): `SystemdReader.status(unit)` reads `systemctl --user show`
@@ -193,6 +195,24 @@ the record is one file Observatory writes on each machine (OBS-283):
   why (`placementFileProblem`).
 
 `lookAtServices` reads the record once per look unless `placement` is passed (`null`: placed here).
+
+## Space daemons
+
+`src/space-daemons.ts` (FD-167). In a space nobody logs into there is no `gui/<uid>` domain, so Observatory
+installs the space's agents as system daemons that run as the space's user (`UserName`, OBS-361) and records each in
+one root-owned file: `/Library/Application Support/ProjectObservatory/space-daemons.json`, schema
+`observatory-space-daemons/1`, `{ entries: [{ label, user, uid, source, sourceSha256, written, writtenSha256, at }] }`.
+
+- `parseSpaceDaemons(text)` → `{ daemons: [{ label, user, uid }], error }`: another schema or no `entries` list is
+  refused with its reason; an entry without a label, a user or a whole uid is dropped, never guessed.
+- `SpaceDaemonReader.isSystem(label, now)`: true when the record installs `label` for this process's uid (macOS
+  only). Read again only when the file's time or size changed, at most once per `everyMs` (5 s). A file not owned by
+  root, or that others may write, is not read (`spaceDaemonsFileProblem`), and `error` says why. No file: every job
+  is in `gui/<uid>`, as before.
+
+`lookAtServices` reads such a job with `launchctl print system/<label>` and marks its `launchd.domain` `system`;
+pass `daemons` to replace the reader. Until the contract names the descriptor's own field (CT-234,
+`lifecycle.domain`), the record is the only source.
 
 ## One look
 
