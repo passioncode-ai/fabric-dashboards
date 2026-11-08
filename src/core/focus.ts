@@ -29,7 +29,8 @@ export function firstAction(s: Pick<ServiceSnapshot, 'state' | 'busy' | 'launchd
   if (s.busy || s.descriptor?.placement === 'remote') return null;
   // FD-132: placed on the other machine, so Start or Restart here would make a second copy; Stop stays on the card.
   if (placedElsewhere(s.reasons) !== null) return null;
-  const managed = s.launchd.managed && (s.launchd.by ?? 'launchd') === 'launchd';
+  // FD-167: a system daemon of this space is started and stopped by the administrator, never from here.
+  const managed = s.launchd.managed && (s.launchd.by ?? 'launchd') === 'launchd' && s.launchd.domain !== 'system';
   if (managed && (s.state === 'down' || s.state === 'duplicate')) return { kind: 'restart' };
   if (managed && s.state === 'stopped') return { kind: 'start' };
   const version = s.wellKnown?.update?.available;

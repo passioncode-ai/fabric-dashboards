@@ -113,7 +113,11 @@ export type Busy = 'restarting' | 'stopping' | 'starting' | 'updating' | 'doctor
 /** What launchd says of the service's job; `managed: false` when the descriptor names no launchd job. */
 /** What the service's supervisor says. `by` names which one was read (FD-55): launchd, the only one this
  *  app also controls, or systemd, read for its MainPID only; absent means launchd, as before. */
-export interface LaunchdStatus { managed: boolean; loaded: boolean; pid: number | null; disabled: boolean; by?: 'launchd' | 'systemd' }
+export interface LaunchdStatus {
+  managed: boolean; loaded: boolean; pid: number | null; disabled: boolean; by?: 'launchd' | 'systemd';
+  /** FD-167: the job is a system daemon of this user's space (read in `system`, never started or stopped from here). */
+  domain?: 'system';
+}
 
 /** Two descriptors claim the same port (`port` set) or the same id.instance (FAC-SEM-010). */
 export interface ClaimConflict { port?: number; with: string[] }

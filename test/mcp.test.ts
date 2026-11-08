@@ -951,3 +951,15 @@ test('FD-148: calls made while a read of every agent runs share it; the next cal
   await tools.connections(w.deps, KEY);
   assert.equal(reads, 2, 'a later call reads again');
 });
+
+test('FD-167: control refuses a system daemon of this space before launchctl changes anything, and says who starts it', async () => {
+  const w = world();
+  w.deps.daemons = { isSystem: (label) => label === DESCRIPTOR.lifecycle.label };
+  for (const action of ['start', 'stop', 'restart']) {
+    const out = await handle(w.deps, { id: 1, method: 'tools/call', params: { name: 'control', arguments: { service: KEY, action } } });
+    const res = out!.result as { isError: boolean; content: { text: string }[] };
+    assert.equal(res.isError, true, action);
+    assert.match(res.content[0]!.text, /system service of this space.*studio\.service\.control/);
+  }
+  assert.ok(!w.calls.launchctl.some((c) => /^(bootstrap|bootout|enable|disable|kickstart)$/.test(c[1] ?? '')), 'launchctl changed nothing');
+});
