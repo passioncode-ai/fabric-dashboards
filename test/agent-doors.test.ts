@@ -156,3 +156,20 @@ test('FD-175: the console host saves an agent\'s choice only when the runtime is
   assert.deepEqual(done, { ok: true, runtime: 'claude-code', folder });
   assert.deepEqual(settings.consoles[key], { runtime: 'claude-code', folder });
 });
+
+test('FD-182: the Setup console is a console an agent starts too; any other key still has to be an installed service', { skip: process.platform === 'win32' && 'a Unix socket' }, async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'fd-setup-door-'));
+  const services = path.join(dir, 'services');
+  fs.mkdirSync(services);
+  const deps = { settingsFile: () => path.join(dir, 'settings.json'), servicesDir: () => services } as unknown as tools.Deps;
+  await assert.rejects(tools.consoleChannel(deps, { op: 'console.new', service: 'fabric-dashboards.setup' }), /app-not-running/, 'not refused as an unknown service');
+  await assert.rejects(tools.consoleChannel(deps, { op: 'console.new', service: 'b.default' }), /no installed service/);
+  const asked: ChannelRequest[] = [];
+  const ch = await openChannel({ userData: dir, log: () => undefined, start: async (r) => { asked.push(r); return { ok: true, consoleKey: r.service }; } });
+  try {
+    assert.deepEqual(await tools.consoleChannel(deps, { op: 'console.new', service: 'fabric-dashboards.setup' }), { started: true, console: 'fabric-dashboards.setup' });
+    assert.deepEqual(asked.map((r) => [r.op, r.service]), [['console.new', 'fabric-dashboards.setup']]);
+  } finally {
+    await ch!.close();
+  }
+});
