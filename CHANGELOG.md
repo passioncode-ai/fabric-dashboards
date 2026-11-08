@@ -6,7 +6,8 @@
 
 - FD-184: Check setup shows the setup as numbered steps (Prerequisites, Skills, Apps, MCP servers, Services), each
   Done, Worth a look or To do, the first not done marked Next; the full list of findings folds below. On a new install
-  the setup card checks once by itself, so the first screen already says where the setup is.
+  the setup card checks once by itself, so the first screen already says where the setup is. While the Setup console
+  works, the next step reads "Your coding agent is on it"; when it ends, the check runs once more by itself.
 - FD-185: MCP `setup_check` also answers the setup as steps, one per area in the launcher's order (done, attention or
   todo, with the first check that keeps each from done), and `next`, the first step not done.
 - FD-187: an agent that starts the Setup console can hand it a request (MCP `console_fix` with the service
