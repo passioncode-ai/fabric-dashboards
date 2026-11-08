@@ -26,6 +26,14 @@ export function SetupCard({ onOpen, consoleOpen, onShown }: { onOpen: (mode: 'ne
   const [runtimes, setRuntimes] = useState<number | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
   const found = useRef(false);
+  // FD-184 (SCN-100 steps 3 and 5): the Setup console's own events say the agent is working, and when it ends.
+  const [working, setWorking] = useState(false);
+  const [ended, setEnded] = useState(0);
+  useEffect(() => api().onConsoleEvent((e) => {
+    if (e.key !== SETUP_KEY) return;
+    if (e.kind === 'data') setWorking(true);
+    else { setWorking(false); setEnded((n) => n + 1); }
+  }), []);
   useEffect(() => { void api().settings().then(setSettings); }, []);
   useEffect(() => {
     if (!settings || settings.setupDone) return undefined;
@@ -78,7 +86,7 @@ export function SetupCard({ onOpen, consoleOpen, onShown }: { onOpen: (mode: 'ne
           </ul>
         </div>
       )}
-      <SetupCheck onRepair={() => onOpen('new')} autoRun
+      <SetupCheck onRepair={() => onOpen('new')} autoRun agentWorking={working} recheck={ended}
         lead={/* A setup stopped midway (the app quit, the runtime ended) continues where it was; it can also start over.
                 UX-13: with no coding agent installed there is nothing to start; the commands above come first. */
           !done && !consoleOpen && runtimes !== 0 && (settings.consoles[SETUP_KEY]?.runtime
@@ -426,9 +434,13 @@ function Go() {
 // #region setup-check — docs: docs/ux/scenarios.md#scn-070-check-what-is-set-up
 /** FD-65 (SCN-070): Check setup runs the PassionCode launcher's read-only doctor and lists what needs the person,
  *  grouped by area, each with its fix; Repair with my coding agent opens the Setup console with those lines. */
-export function SetupCheck({ onRepair, lead, trail, autoRun }: { onRepair: () => void; lead?: ReactNode; trail?: ReactNode;
+export function SetupCheck({ onRepair, lead, trail, autoRun, agentWorking, recheck }: { onRepair: () => void; lead?: ReactNode; trail?: ReactNode;
   /** FD-184: run the check once by itself when no earlier result exists (the setup card on a first launch). */
-  autoRun?: boolean }) {
+  autoRun?: boolean;
+  /** FD-184: the Setup console's agent is working: the next step says so. */
+  agentWorking?: boolean;
+  /** FD-184: bumped when the Setup console ends: check once more by itself. */
+  recheck?: number }) {
   const { t, lang } = useT();
   const [result, setResult] = useState<SetupCheckResult | null>(null);
   const [running, setRunning] = useState(false);
@@ -449,6 +461,8 @@ export function SetupCheck({ onRepair, lead, trail, autoRun }: { onRepair: () =>
       }
     }).catch(() => undefined);
   }, []);
+  // FD-184: a Setup console that ended leaves the steps current; never more than once per end.
+  useEffect(() => { if (recheck) void check(true); }, [recheck]);
   const lines = result?.kind === 'report' ? attention(result.report) : [];
   const time = (iso: string) => new Date(iso).toLocaleTimeString(lang, { hour: '2-digit', minute: '2-digit' });
   return (
@@ -472,7 +486,7 @@ export function SetupCheck({ onRepair, lead, trail, autoRun }: { onRepair: () =>
               <li key={s.area} className={`setup-step setup-step-${s.state}`} aria-current={s.area === next ? 'step' : undefined}>
                 <span className="setup-step-name">{t(`setupCheck.area.${s.area}`)}</span>
                 <span className="chip">{t(`setupCheck.step.${s.state}`)}</span>
-                {s.area === next && <span className="chip setup-step-next">{t('setupCheck.step.next')}</span>}
+                {s.area === next && <span className="chip setup-step-next">{t(agentWorking ? 'setupCheck.step.working' : 'setupCheck.step.next')}</span>}
                 {s.first && s.state !== 'done' && <div className="meta">{s.first.detail}</div>}
               </li>
             ))}
