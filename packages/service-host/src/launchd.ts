@@ -53,19 +53,25 @@ export class LaunchdReader {
     return `gui/${this.uid}`;
   }
 
-  target(label: string): string {
-    return `${this.domain}/${label}`;
+  /** FD-167: `system` for a job the space daemons record installs as a system daemon of this user, else gui/<uid>. */
+  domainOf(where: 'gui' | 'system' = 'gui'): string {
+    return where === 'system' ? 'system' : this.domain;
+  }
+
+  target(label: string, where: 'gui' | 'system' = 'gui'): string {
+    return `${this.domainOf(where)}/${label}`;
   }
 
   /** One `print-disabled` for the whole domain; read it once per look and pass it to status(). */
-  async disabledTable(): Promise<string> {
-    const r = await this.run('launchctl', ['print-disabled', this.domain]);
+  async disabledTable(where: 'gui' | 'system' = 'gui'): Promise<string> {
+    const r = await this.run('launchctl', ['print-disabled', this.domainOf(where)]);
     return r.code === 0 ? r.stdout : '';
   }
 
-  async status(label: string, disabledTable?: string): Promise<JobStatus> {
-    const r = await this.run('launchctl', ['print', this.target(label)]);
-    const disabled = parseDisabled(disabledTable ?? (await this.disabledTable()), label);
+  /** `launchctl print` and `print-disabled` need no root in the system domain either: reading is open to every user. */
+  async status(label: string, disabledTable?: string, where: 'gui' | 'system' = 'gui'): Promise<JobStatus> {
+    const r = await this.run('launchctl', ['print', this.target(label, where)]);
+    const disabled = parseDisabled(disabledTable ?? (await this.disabledTable(where)), label);
     if (r.code !== 0) return { loaded: false, pid: null, disabled };
     return { loaded: true, pid: parsePrint(r.stdout).pid, disabled };
   }

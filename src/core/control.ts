@@ -31,6 +31,8 @@ export interface ControlDeps {
   onLaunch?: () => void;
   /** FD-132: where the placement record puts the service; start and restart are refused when it is elsewhere. */
   elsewhere?: Elsewhere | null;
+  /** FD-167: the job is a system daemon of this space: only root, through the host agent, starts or stops it. */
+  systemDaemon?: boolean;
 }
 
 export type ControlOutcome =
@@ -38,6 +40,8 @@ export type ControlOutcome =
   | { kind: 'refused'; why: 'plist-missing'; plist: string }
   /** FD-132: the placement record puts it on another machine; starting it here would make a second copy. */
   | { kind: 'refused'; why: 'placed-elsewhere'; machine: string }
+  /** FD-167: a system daemon of this space; Start, Stop and Restart go through the host agent, never launchctl here. */
+  | { kind: 'refused'; why: 'system-daemon' }
   | { kind: 'launchctl-failed'; detail: string }
   | { kind: 'stopped'; probe: WellKnownResult }
   | { kind: 'answered'; probe: Extract<WellKnownResult, { kind: 'answer' }>; pid: number }
@@ -59,6 +63,7 @@ export async function controlService(
   if (d.lifecycle.manager === 'launchd' && !supervises(deps.platform, d.lifecycle.manager)) return { kind: 'refused', why: 'unsupervised-here' };
   if (d.lifecycle.manager !== 'launchd' || !d.lifecycle.label || !d.lifecycle.plist) return { kind: 'refused', why: 'unmanaged' };
   if (action !== 'stop' && deps.elsewhere) return { kind: 'refused', why: 'placed-elsewhere', machine: deps.elsewhere.placedOn };
+  if (deps.systemDaemon) return { kind: 'refused', why: 'system-daemon' };
   const label = d.lifecycle.label;
   const plist = expand(d.lifecycle.plist);
   // M-3: a missing plist is said at once, not retried by bootstrap.

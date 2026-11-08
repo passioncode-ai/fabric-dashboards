@@ -104,6 +104,7 @@
 | SCN-096 | Fabric opens a console session here | sessions | P-01 | ST-023 | implemented | 2026-11-07 |
 | SCN-097 | A console session runs without permission prompts | console | P-01 | ST-010 | implemented | 2026-11-07 |
 | SCN-098 | An agent changes what a person changes in Settings and on the Sessions page | mcp | P-01 | ST-010 | implemented | 2026-11-07 |
+| SCN-099 | See the agents a space runs as system services | health | P-01 | ST-004 | implemented | 2026-11-08 |
 ## Personas
 
 Defined in [foundation.md](foundation.md) → P-01.
@@ -1338,6 +1339,28 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **Errors & recovery:** a page of the registry that cannot be read keeps the last full map and is read again in 30 minutes; a repository Project Observatory does not know reads "Not attributed", never a guessed organization
 - **Status:** implemented
 - **Coverage:** src/core/organizations.ts (`groupByOrganization`, FD-161; copy checks `9c0f84f2` en and `0a3a4fd8` ru, no findings), src/renderer/components/Navigation.tsx, src/renderer/App.tsx, src/mcp/tools.ts, test/organizations.test.ts
+- **Product:** unobserved
+
+### SCN-099: See the agents a space runs as system services
+- **Persona:** P-01
+- **Feature:** health
+- **Traces:** ST-004; FD-167; Observatory's OBS-361 (a space nobody logs into has no `gui/<uid>` domain, so its agents' jobs are system daemons with `UserName`); the host agent's measurement of 2026-11-07 on the second machine: 17 such agents read "Stopped"
+- **Entry point:** the agent list and an agent's page, in Fabric Dashboards running in such a space (or its MCP server)
+- **Preconditions:** Observatory installed the agent as a system daemon of this space and recorded it in `/Library/Application Support/ProjectObservatory/space-daemons.json` (owned by root) for this user's uid
+- **Steps:**
+  1. The person opens the app in the space -> the agent reads its real state ("Ready" when it runs), read with `launchctl print system/<label>`, never "Stopped" for want of a `gui` domain
+  2. The person opens its page -> it offers no Start, Stop or Restart and says "Runs as a system service of this space: only the administrator starts or stops it."
+  3. An agent calls MCP `control` on it -> refused before launchctl changes anything: "{name} runs as a system service of this space, which only the administrator can start or stop; ask the host agent (studio.service.control)"
+- **Expected result:** the space's agents read as they are, and nothing in the app tries an action only root can do
+- **Alt paths:** no record, or a record not owned by root or writable by others -> every job is read in `gui/<uid>` as before (a record others could write could hide Start); a label the record lists for another uid -> read in `gui`, as it is not this user's
+- **UI elements:** the state on the agent's row and page; the note in place of the run group
+- **States covered:** success, error
+- **Errors & recovery:** the record unreadable -> as no record
+- **Copy:**
+  - "Runs as a system service of this space: only the administrator starts or stops it." / «Работает как системная служба этого пространства: запускает и останавливает её только администратор.»
+  - "{name} runs as a system service of this space: only the administrator starts or stops it." / «{name} работает как системная служба этого пространства: запускает и останавливает её только администратор.»
+- **Status:** implemented (2026-11-08: `packages/service-host/test/space-daemons.test.ts`, `test/elsewhere.test.ts` *FD-167*, `test/mcp.test.ts` *FD-167*; copy check reports `903f23c3` (en) and `6622e99f` (ru), no findings). Start and stop through the host agent's `studio.service.control` and the descriptor's own field (CT-234) come later
+- **Coverage:** packages/service-host/src/space-daemons.ts, packages/service-host/src/launchd.ts, packages/service-host/src/look.ts, src/core/monitor.ts, src/core/control.ts, src/core/focus.ts, src/mcp/tools.ts, src/renderer/components/ServiceView.tsx
 - **Product:** unobserved
 
 ### SCN-098: An agent changes what a person changes in Settings and on the Sessions page
