@@ -8,7 +8,7 @@ import { claimConflicts, portOf, readDirectory, servicesDir as defaultServicesDi
 import { authHeaders, fetchWellKnown, heldButSilent, loopbackOwnerOf, readTokenAsync, REMOTE_TIMEOUT_MS, type WellKnownOptions } from './health';
 import { LaunchdReader, UNMANAGED } from './launchd';
 import { elsewhereOf, PlacementReader, type Placement } from './placement';
-import { SpaceDaemonReader } from './space-daemons';
+import { isSystemJob, SpaceDaemonReader } from './space-daemons';
 import type { RemoteTokenLatch } from './latch';
 import type { ClaimConflict, LaunchdStatus, Reason, ServiceState, WellKnown, WellKnownResult } from './protocol';
 import { DOWN_AFTER_MS, REMOTE_DOWN_AFTER_MS, deriveState } from './state';
@@ -74,7 +74,7 @@ export async function lookAtServices(o: LookOptions = {}): Promise<Look> {
   // FD-167: the system domain's disabled table, read once when any chosen job is a system daemon of this space.
   const daemons = o.daemons ?? new SpaceDaemonReader({ platform: o.platform });
   const at = (o.now ?? Date.now)();
-  const system = (e: DescriptorEntry) => managed(e) && daemons.isSystem(e.descriptor!.lifecycle.label!, at);
+  const system = (e: DescriptorEntry) => managed(e) && isSystemJob(e.descriptor, daemons, at);
   const systemTable = chosen.some(system) ? await reader.disabledTable('system') : '';
   const placement = o.placement !== undefined ? o.placement : new PlacementReader().get((o.now ?? Date.now)());
   const services = await Promise.all(chosen.map((e) => lookAtEntry(e, conflicts.get(e.key) ?? null, system(e) ? systemTable : table, reader, { ...o, placement }, system(e))));

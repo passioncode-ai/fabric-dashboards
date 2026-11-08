@@ -48,3 +48,16 @@ test('FD-167: launchd is read in the system domain for such a job', async () => 
   assert.deepEqual(calls, ['print system/com.example.agent', 'print-disabled system']);
   assert.equal(reader.target('com.example.agent'), 'gui/502/com.example.agent', 'gui stays the default');
 });
+
+test('FD-180: a plist in /Library/LaunchDaemons makes the job a system daemon with no record; anything else needs the record', async () => {
+  const { isSystemJob, plistIsDaemon } = await import('../src/index');
+  const none = { isSystem: () => false };
+  assert.equal(plistIsDaemon('/Library/LaunchDaemons/com.example.agent.plist'), true);
+  assert.equal(plistIsDaemon('/Library/LaunchDaemons/sub/com.example.agent.plist'), false, 'only the folder itself');
+  assert.equal(plistIsDaemon('~/Library/LaunchAgents/com.example.agent.plist'), false);
+  assert.equal(plistIsDaemon('/Library/LaunchAgents/com.example.agent.plist'), false);
+  assert.equal(isSystemJob({ lifecycle: { label: 'com.example.agent', plist: '/Library/LaunchDaemons/com.example.agent.plist' } }, none, 0), true);
+  assert.equal(isSystemJob({ lifecycle: { label: 'com.example.agent', plist: '~/Library/LaunchAgents/com.example.agent.plist' } }, none, 0), false);
+  assert.equal(isSystemJob({ lifecycle: { label: 'com.example.agent', plist: '~/Library/LaunchAgents/com.example.agent.plist' } }, { isSystem: () => true }, 0), true, 'the record still counts');
+  assert.equal(isSystemJob({ lifecycle: { plist: '/Library/LaunchDaemons/x.plist' } }, none, 0), false, 'no label, no job');
+});

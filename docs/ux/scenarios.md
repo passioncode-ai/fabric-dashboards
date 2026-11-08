@@ -1346,7 +1346,7 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **Feature:** health
 - **Traces:** ST-004; FD-167; Observatory's OBS-361 (a space nobody logs into has no `gui/<uid>` domain, so its agents' jobs are system daemons with `UserName`); the host agent's measurement of 2026-11-07 on the second machine: 17 such agents read "Stopped"
 - **Entry point:** the agent list and an agent's page, in Fabric Dashboards running in such a space (or its MCP server)
-- **Preconditions:** Observatory installed the agent as a system daemon of this space and recorded it in `/Library/Application Support/ProjectObservatory/space-daemons.json` (owned by root) for this user's uid
+- **Preconditions:** Observatory installed the agent as a system daemon of this space and recorded it in `/Library/Application Support/ProjectObservatory/space-daemons.json` (owned by root) for this user's uid, or the agent's descriptor names its plist in `/Library/LaunchDaemons/` (FD-180: the adapter's kit 0.78.0 installs a service there to run at boot)
 - **Steps:**
   1. The person opens the app in the space -> the agent reads its real state ("Ready" when it runs), read with `launchctl print system/<label>`, never "Stopped" for want of a `gui` domain
   2. The person opens its page -> it offers no Start, Stop or Restart and says "Runs as a system service of this space: only the administrator starts or stops it."

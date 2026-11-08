@@ -11,6 +11,20 @@ export const SPACE_DAEMONS_FILE = '/Library/Application Support/ProjectObservato
 
 export interface SpaceDaemon { label: string; user: string; uid: number }
 
+/** FD-180 (the adapter's FAA-287): the folder of the job's plist decides its domain; one in /Library/LaunchDaemons is
+ *  a system daemon (the kit 0.78.0 installs a service there to run at boot without a login). */
+export const LAUNCH_DAEMONS_DIR = '/Library/LaunchDaemons/';
+export function plistIsDaemon(plist: string | undefined | null): boolean {
+  return typeof plist === 'string' && plist.startsWith(LAUNCH_DAEMONS_DIR) && !plist.slice(LAUNCH_DAEMONS_DIR.length).includes('/');
+}
+
+/** A launchd job of `d` is a system daemon here when its plist is in /Library/LaunchDaemons or Observatory's record
+ *  lists its label for this user (FD-167, FD-180). */
+export function isSystemJob(d: { lifecycle: { label?: string; plist?: string } } | null | undefined, daemons: Pick<SpaceDaemonReader, 'isSystem'>, now: number): boolean {
+  if (!d?.lifecycle.label) return false;
+  return plistIsDaemon(d.lifecycle.plist) || daemons.isSystem(d.lifecycle.label, now);
+}
+
 export type SpaceDaemonsRead = { daemons: SpaceDaemon[]; error: null } | { daemons: null; error: string };
 
 const text = (v: unknown, max = 256): string | undefined => (typeof v === 'string' && v.trim() && v.length <= max ? v.trim() : undefined);

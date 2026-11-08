@@ -8,7 +8,7 @@ import fs from 'node:fs';
 import { ActivityStore } from './activity';
 import { runOwned } from './children';
 import { productIdOf } from '@passioncode-ai/fabric-service-host/links';
-import { SystemdReader, authHeaders, claimConflicts, dashboardMinWidth, deriveState, elsewhereOf, PlacementReader, SpaceDaemonReader, type Elsewhere, expand, fetchWellKnown, heldButSilent, loopbackOwnerOf, portOf, readDirectory, RemoteTokenLatch, REMOTE_TIMEOUT_MS, type DescriptorEntry, type WellKnownOptions, type WellKnownResult } from '@passioncode-ai/fabric-service-host';
+import { SystemdReader, authHeaders, claimConflicts, dashboardMinWidth, deriveState, elsewhereOf, isSystemJob, PlacementReader, SpaceDaemonReader, type Elsewhere, expand, fetchWellKnown, heldButSilent, loopbackOwnerOf, portOf, readDirectory, RemoteTokenLatch, REMOTE_TIMEOUT_MS, type DescriptorEntry, type WellKnownOptions, type WellKnownResult } from '@passioncode-ai/fabric-service-host';
 import { tail } from './fsutil';
 import { commandReason, type CommandResult } from './outcome';
 import { duration, t as tr, type Lang } from './i18n';
@@ -154,9 +154,10 @@ export class Monitor extends EventEmitter {
     this.daemons = o.daemons ?? new SpaceDaemonReader({ platform: this.platform });
   }
 
-  /** FD-167: a job Observatory installed as a system daemon of this space is read in `system`. */
-  private where(label: string): 'gui' | 'system' {
-    return this.daemons.isSystem(label, this.now()) ? 'system' : 'gui';
+  /** FD-167, FD-180: a job whose plist is in /Library/LaunchDaemons, or that Observatory installed as a system daemon of
+   *  this space, is read in `system`. */
+  private where(d: NonNullable<DescriptorEntry['descriptor']>): 'gui' | 'system' {
+    return isSystemJob(d, this.daemons, this.now()) ? 'system' : 'gui';
   }
 
   // #region placed-elsewhere — docs: docs/ux/scenarios.md#scn-089-see-which-agents-are-placed-on-the-other-machine
@@ -422,7 +423,7 @@ export class Monitor extends EventEmitter {
       const steady = probe.kind === 'answer' && pidBefore === probe.doc.process.pid && t.launchd.managed;
       const fresh = t.launchdAt !== null && this.now() - t.launchdAt < this.intervals.launchdRefresh;
       if (this.visible || !steady || !fresh) {
-        const where = this.where(d.lifecycle.label);
+        const where = this.where(d);
         const s = await this.launchd.status(d.lifecycle.label, where === 'system' ? await this.disabledTable('system') : await disabledTable(), where);
         t.launchd = { managed: true, ...s, ...(where === 'system' ? { domain: 'system' as const } : {}) };
         t.launchdAt = this.now();
@@ -638,7 +639,7 @@ export class Monitor extends EventEmitter {
     const oldPid = t.probe?.kind === 'answer' ? t.probe.doc.process.pid : null;
     const out = await controlService(d, action, {
       elsewhere: this.elsewhere(t),
-      systemDaemon: Boolean(d.lifecycle.label) && this.where(d.lifecycle.label!) === 'system',
+      systemDaemon: this.where(d) === 'system',
       platform: this.platform,
       launchd: this.launchd,
       wellKnown: (origin) => fetchWellKnown(origin, 1500),
