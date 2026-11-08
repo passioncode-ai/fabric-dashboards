@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+### Changed
+
+- FD-185: the setup asks once. The coding agent in the Setup console starts with one message: what it installs, one
+  consent for all of it, and every step that needs you (each sign-in, code, secret or payment) listed together; it no
+  longer asks before each product.
+
 ### Added
 
 - FD-187: an agent that starts the Setup console can hand it a request (MCP `console_fix` with the service

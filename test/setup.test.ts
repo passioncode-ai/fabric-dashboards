@@ -80,3 +80,12 @@ test('FD-187: a request from the agent that started the Setup console opens its 
   if (process.platform !== 'win32') assert.equal(fs.statSync(r.path).mode & 0o777, 0o600);
   assert.equal(r.line, `Read ${r.path} and do what it asks, then go on with the setup.`);
 });
+
+test('FD-185: the setup asks one consent for the whole set and names every human gate at once, never one product at a time', () => {
+  const md = setupMarkdown({ runtimeId: 'claude-code', runtimeName: 'Claude Code', server: { command: '/x/mcp', args: [] }, state: { mcp: false, skills: false, firstAgent: false }, platform: 'darwin' });
+  const first = md.indexOf('## First, one message to the person');
+  assert.ok(first > 0 && first < md.indexOf('## Steps, in order'), 'the one message comes before the steps');
+  assert.ok(md.includes('one consent for all of it'));
+  for (const gate of ['sign-in', 'one-time code', 'hidden prompt', 'payment']) assert.ok(md.slice(first, md.indexOf('## Steps, in order')).includes(gate), gate);
+  assert.ok(!/one at a time, each only with/.test(md), 'no consent per product');
+});
