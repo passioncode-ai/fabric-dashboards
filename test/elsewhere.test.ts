@@ -134,7 +134,7 @@ test('FD-167: a system daemon of this space is read in the system domain, and St
   assert.ok(!calls.some((c) => /^(bootstrap|bootout|enable|disable|kickstart)/.test(c)), 'launchctl changed nothing');
 });
 
-test('FD-180: a descriptor whose plist is in /Library/LaunchDaemons is read in system and never bootstrapped into gui, with no record', async () => {
+test('FD-180: a descriptor whose plist is in /Library/LaunchDaemons is read in system and never bootstrapped into gui, with no record', { skip: process.platform === 'win32' && 'a POSIX plist path, which a descriptor on Windows may not name (FD-37)' }, async () => {
   const base = tmp('fd-ld-');
   const services = path.join(base, 'services');
   fs.mkdirSync(services);
