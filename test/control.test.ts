@@ -101,3 +101,28 @@ test('FD-20: the wait ends at the shared deadline', async () => {
   assert.equal((await controlService(desc(), 'start', d)).kind, 'timeout');
   assert.ok(d.now() - started >= CONTROL_TIMEOUT_MS);
 });
+
+test('FD-179: placed elsewhere, stop acts on this machine\'s own job only', async () => {
+  // Not loaded here: refused before launchctl; the tunnel's answer on the port is never waited on.
+  const idle = deps([answer(77)], { elsewhere: { placedOn: 'studio-2' } });
+  idle.d.launchd.status = async () => ({ loaded: false, pid: null });
+  assert.deepEqual(await controlService(desc(), 'stop', idle.d), { kind: 'refused', why: 'not-here', machine: 'studio-2' });
+  assert.deepEqual(idle.calls, []);
+  // Loaded without a process: the unload is the whole stop, the forwarded answer is not waited out.
+  const loaded = deps([answer(77)], { elsewhere: { placedOn: 'studio-2' } });
+  loaded.d.launchd.status = async () => ({ loaded: true, pid: null });
+  const out = await controlService(desc(), 'stop', loaded.d);
+  assert.equal(out.kind, 'stopped');
+  assert.deepEqual(loaded.calls, ['stop ai.example.agent']);
+  // Running here too (FD-132's duplicate): the stop waits for its port to go quiet as before.
+  const dup = deps([answer(10), none], { elsewhere: { placedOn: 'studio-2' } });
+  dup.d.launchd.status = async () => ({ loaded: true, pid: 10 });
+  assert.equal((await controlService(desc(), 'stop', dup.d)).kind, 'stopped');
+  assert.deepEqual(dup.calls, ['stop ai.example.agent']);
+  // Not placed elsewhere: the job is not read at all.
+  let read = 0;
+  const local = deps([answer(10), none]);
+  local.d.launchd.status = async () => { read += 1; return { loaded: true, pid: 10 }; };
+  assert.equal((await controlService(desc(), 'stop', local.d)).kind, 'stopped');
+  assert.equal(read, 0);
+});

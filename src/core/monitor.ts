@@ -656,6 +656,7 @@ export class Monitor extends EventEmitter {
         if (out.why === 'plist-missing') return finish(false, { code: 'result.plistMissing', params: { name, path: out.plist } });
         if (out.why === 'placed-elsewhere') return finish(false, { code: 'result.placedElsewhere', params: { name, machine: out.machine } });
         if (out.why === 'system-daemon') return finish(false, { code: 'result.systemDaemon', params: { name } });
+        if (out.why === 'not-here') return finish(false, { code: 'result.notHere', params: { name, machine: out.machine } });
         return finish(false, { code: 'result.unmanaged', params: { name } });
       case 'launchctl-failed':
         return finish(false, { code: 'result.launchctl', params: { detail: out.detail } });

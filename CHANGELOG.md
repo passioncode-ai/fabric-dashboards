@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- FD-179: asking to stop an agent that runs on the other machine, while this computer only reaches it through its
+  port, no longer waits 40 seconds for a port the forward keeps open. With its job not loaded here, the stop is
+  refused at once and says nothing of it runs on this computer; with its job loaded but no process, the job is
+  unloaded and that is the stop.
+
 ## 0.8.40 - 2026-11-08
 
 ### Added
