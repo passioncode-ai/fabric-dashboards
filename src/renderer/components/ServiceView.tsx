@@ -104,6 +104,8 @@ export function ServiceView({ s, all, members, open, link, nonce, tab: askedTab,
   const managed = s.launchd.managed && (s.launchd.by ?? 'launchd') === 'launchd'; // ADR-0019 §7: the monitor decides — launchd is macOS's; systemd is read (FD-55), never driven
   const running = ['ready', 'degraded', 'duplicate'].includes(s.state);
   const away = placedElsewhere(s.reasons); // FD-132: the machine the placement record puts it on, or null
+  // FD-179: the copy on that machine, reached through its forwarded port: nothing of it runs here to start or stop.
+  const reached = s.reasons.some((r) => r.code === 'reason.reached.elsewhere');
   // U-2: an explicit running state, a failure that ends the spinner, and the output on Health for both commands.
   const run = async (which: 'doctor' | 'update') => {
     const command = t(`command.${which}`);
@@ -187,7 +189,7 @@ export function ServiceView({ s, all, members, open, link, nonce, tab: askedTab,
                 the coding agent), and the files as quiet links. */}
             <div className="row wrap card-actions">
               {/* FD-132: placed on the other machine: no Start or Restart here (a second copy); a copy running here anyway can be stopped. */}
-              {managed && !(away !== null && s.state === 'stopped') && (
+              {managed && !(away !== null && (s.state === 'stopped' || reached)) && (
                 <div className="row" role="group" aria-label={t('card.group.run')}>
                   {s.state === 'stopped'
                     ? <button className="btn btn-primary" disabled={Boolean(s.busy)} onClick={() => void api().control(s.key, 'start')}>{t('action.start')}</button>

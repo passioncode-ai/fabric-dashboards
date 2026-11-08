@@ -139,6 +139,9 @@ const en = {
   // FD-132: Observatory writes placedOn `unknown` when the moved bundle named no machine; `t` picks these then.
   'reason.elsewhere.unknown': 'Placed on another machine: it runs there, so here it stays off.',
   'reason.duplicate.elsewhere.unknown': 'Placed on another machine, yet a copy runs here too. Stop it here to keep one.',
+  // FD-179: placed on another machine, its port forwarded here (an SSH tunnel); copy check 436b7448.
+  'reason.reached.elsewhere': 'Runs on {machine}. This computer reaches it through its port, so what you see here is that copy.',
+  'reason.reached.elsewhere.unknown': 'Runs on another machine. This computer reaches it through its port, so what you see here is that copy.',
   'reason.stopped': 'Stopped by you. It stays stopped until you start it.',
   'reason.not-loaded': 'The system has not loaded it, so it does not run. Press Start; if it stays down, reinstall the agent.',
   'reason.waiting': 'Waiting for the first answer…',
@@ -1131,6 +1134,9 @@ const ru: Record<Key, string> = {
   'reason.duplicate.elsewhere': 'Агент размещён на машине {machine}, но копия работает и здесь. Остановите её здесь, чтобы осталась одна.',
   'reason.elsewhere.unknown': 'Размещён на другой машине: работает там, а здесь выключен.',
   'reason.duplicate.elsewhere.unknown': 'Агент размещён на другой машине, но копия работает и здесь. Остановите её здесь, чтобы осталась одна.',
+  // FD-179: copy check 952943eb.
+  'reason.reached.elsewhere': 'Работает на машине {machine}. Этот компьютер обращается к агенту через его порт, поэтому здесь вы видите ту копию.',
+  'reason.reached.elsewhere.unknown': 'Работает на другой машине. Этот компьютер обращается к агенту через его порт, поэтому здесь вы видите ту копию.',
   'reason.stopped': 'Вы выключили этого агента. Он останется выключенным, пока вы его не запустите.',
   'reason.not-loaded': 'Система его не загрузила, поэтому он не работает. Нажмите «Запустить»; если он не заработает, переустановите агента.',
   'reason.waiting': 'Ждём первого ответа…',

@@ -158,7 +158,10 @@ A remote placement (DEC-0019) has no launchd and no `duplicate`: `refused`, TLS 
 6. something that is not a fabric service answers → `foreign` (`reason.foreign.protocol`);
 7. silence while the placement record puts the service on another machine → `stopped`
    (`reason.elsewhere`, the machine), whatever launchd says (0.10.0, FD-132); an answer as itself
-   while placed there is in step 5 a `duplicate` (`reason.duplicate.elsewhere`, the machine);
+   while placed there is in step 5 a `duplicate` (`reason.duplicate.elsewhere`, the machine) when this
+   machine's own launchd job runs it, and otherwise the placed copy reached through a forward of its port
+   (an SSH tunnel): its own status with `reason.reached.elsewhere` (the machine) last (FD-179); a host that
+   does not supervise the service cannot tell, and reads it as `duplicate`;
 8. silence and launchd disabled or not loaded → `stopped` (`reason.stopped` / `reason.not-loaded`);
 9. silence shorter than `DOWN_AFTER_MS` (15 s) → `starting` (`reason.waiting`), else `down`
    (`reason.down`, since when).

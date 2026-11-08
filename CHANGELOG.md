@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- FD-179: an agent placed on another machine whose port this Mac reaches through a forward (an SSH tunnel the move
+  leaves) read "Two copies" with Stop offered. It now reads with that copy's own state and "Runs
+  on {machine}. This computer reaches it through its port", with no Start, Restart or Stop; a copy really running here, from
+  this Mac's own launchd job, is still a second copy.
+
 ## 0.8.38 - 2026-11-07
 
 ### Changed
