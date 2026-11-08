@@ -105,6 +105,7 @@
 | SCN-097 | A console session runs without permission prompts | console | P-01 | ST-010 | implemented | 2026-11-07 |
 | SCN-098 | An agent changes what a person changes in Settings and on the Sessions page | mcp | P-01 | ST-010 | implemented | 2026-11-07 |
 | SCN-099 | See the agents a space runs as system services | health | P-01 | ST-004 | implemented | 2026-11-08 |
+| SCN-100 | See the setup as steps the agent works through | setup | P-01 | ST-022 | draft | 2026-11-08 |
 ## Personas
 
 Defined in [foundation.md](foundation.md) → P-01.
@@ -1339,6 +1340,28 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **Errors & recovery:** a page of the registry that cannot be read keeps the last full map and is read again in 30 minutes; a repository Project Observatory does not know reads "Not attributed", never a guessed organization
 - **Status:** implemented
 - **Coverage:** src/core/organizations.ts (`groupByOrganization`, FD-161; copy checks `9c0f84f2` en and `0a3a4fd8` ru, no findings), src/renderer/components/Navigation.tsx, src/renderer/App.tsx, src/mcp/tools.ts, test/organizations.test.ts
+- **Product:** unobserved
+
+### SCN-100: See the setup as steps the agent works through
+- **Persona:** P-01
+- **Feature:** setup
+- **Traces:** ST-022, ST-017; FD-184, FD-185 (wave 2 of `docs/reports/2026-11-08-agent-led-setup/README.md`); the operator, 2026-11-08, this repository's session `0edbdfdf`: the setup agent-led, the interface clear steps one by one; SCN-058 and SCN-070, which it folds together
+- **Entry point:** Overview's setup card, and Settings → Setup
+- **Preconditions:** the setup is not hidden (`setupDone` false)
+- **Steps:**
+  1. The person opens the app for the first time -> Check setup runs once by itself; the card shows the steps in the doctor's order (Prerequisites, Skills, Apps, MCP servers, Services), numbered, each one line: done, the agent works on it, or needs you, with the first step not done marked
+  2. The person presses "Set up with my coding agent", or asks an agent to (MCP `console_new` with the Setup service, SCN-098 step 7) -> the Setup console starts; its first message names everything it installs and every step that needs the person (FD-185)
+  3. The agent works -> the step it is on reads "Your coding agent is on it"; a step finished turns done without a refresh
+  4. A step needs the person (a sign-in, a code, a secret, a payment) -> it reads "Needs you" with what and where in one line; the console beside it has the prompt
+  5. The Setup console ends -> Check setup runs once more and the card shows what is left, with Continue setup when something is
+- **Expected result:** the person sees at any moment where the setup is and what, if anything, is theirs to do, and never has to decide what to do next
+- **Alt paths:** every step done -> one quiet line "Everything is set up." with Check setup and Hide (as SCN-070); no coding agent installed -> the first step is "Install a coding agent" with each vendor's command (SCN-058 alt path); Node.js missing -> the check cannot run and the first step says so (SCN-070); an agent reads the same steps (MCP `setup_check`)
+- **UI elements:** the numbered step list on the setup card and in Settings → Setup, Set up with my coding agent, Continue setup, Check setup, Hide
+- **States covered:** loading, success, empty, error
+- **Errors & recovery:** the check fails to run -> the steps from the last check stay, with the reason; pressing Check setup again is always safe
+- **Copy:** to be written with the change and checked in en and ru (FD-184)
+- **Status:** draft
+- **Coverage:** none yet
 - **Product:** unobserved
 
 ### SCN-099: See the agents a space runs as system services
