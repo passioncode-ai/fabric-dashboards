@@ -50,7 +50,7 @@ const api: FabricApi = {
   consoleChoose: (key, choice) => ipcRenderer.invoke(CHANNELS.consoleChoose, key, choice),
   consolePickFolder: (key) => ipcRenderer.invoke(CHANNELS.consolePickFolder, key),
   setupState: () => ipcRenderer.invoke(CHANNELS.setupState),
-  setupCheck: () => ipcRenderer.invoke(CHANNELS.setupCheck),
+  setupCheck: (auto?: boolean) => ipcRenderer.invoke(CHANNELS.setupCheck, auto === true),
   setupCheckLast: () => ipcRenderer.invoke(CHANNELS.setupCheckLast),
   consoleStart: (key, mode, size, task) => ipcRenderer.invoke(CHANNELS.consoleStart, key, mode, size, task),
   consoleSendTask: (key, task) => ipcRenderer.invoke(CHANNELS.consoleSendTask, key, task),

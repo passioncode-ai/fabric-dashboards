@@ -429,6 +429,16 @@ table.spend th.num, table.spend td.num { text-align: right; }
 .setup-check-warn .chip { color: var(--pc-warning); border-color: var(--pc-warning); }
 .setup-check-fix { margin-top: var(--pc-space-1); overflow-wrap: anywhere; }
 .setup-check-fix code { white-space: pre-wrap; }
+/* FD-184: the setup as numbered steps. */
+.setup-steps { margin: 0; padding-left: var(--pc-space-5); display: flex; flex-direction: column; gap: var(--pc-space-1); }
+.setup-step { line-height: 1.5; }
+.setup-step .chip { margin-left: var(--pc-space-2); }
+.setup-step .meta { overflow-wrap: anywhere; }
+.setup-step-done { color: var(--pc-text-muted); }
+.setup-step-todo .chip { color: var(--pc-text); border-color: var(--pc-negative); }
+.setup-step-attention .chip { color: var(--pc-warning); border-color: var(--pc-warning); }
+.setup-step-next { color: var(--pc-link); border-color: var(--pc-link); }
+.setup-check-all summary { cursor: pointer; color: var(--pc-text-muted); font-size: var(--pc-type-meta); }
 
 /* FD-78: the row menu, the Hidden fold, and the Connections tab */
 /* No transform here: the menu is position: fixed, and a transformed ancestor would become its frame. */

@@ -2,7 +2,7 @@ import { offersAgentUpdate, offersFix, SETUP_KEY } from '../../core/offers';
 import type { SinceLastVisit } from '../../core/visit';
 import { installCommands } from '../../core/install-commands';
 import { platformOf } from './Sessions';
-import { areasInOrder, attention, type SetupCheckResult } from '../../core/doctor';
+import { areasInOrder, attention, setupSteps, type SetupCheckResult } from '../../core/doctor';
 import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react';
 import { sumSpend, type SpendEntry } from '../../core/spend';
 import { attentionQueue, foldAttention, groupAttention, urgent } from '../../core/attention';
@@ -78,7 +78,7 @@ export function SetupCard({ onOpen, consoleOpen, onShown }: { onOpen: (mode: 'ne
           </ul>
         </div>
       )}
-      <SetupCheck onRepair={() => onOpen('new')}
+      <SetupCheck onRepair={() => onOpen('new')} autoRun
         lead={/* A setup stopped midway (the app quit, the runtime ended) continues where it was; it can also start over.
                 UX-13: with no coding agent installed there is nothing to start; the commands above come first. */
           !done && !consoleOpen && runtimes !== 0 && (settings.consoles[SETUP_KEY]?.runtime
@@ -426,15 +426,29 @@ function Go() {
 // #region setup-check — docs: docs/ux/scenarios.md#scn-070-check-what-is-set-up
 /** FD-65 (SCN-070): Check setup runs the PassionCode launcher's read-only doctor and lists what needs the person,
  *  grouped by area, each with its fix; Repair with my coding agent opens the Setup console with those lines. */
-export function SetupCheck({ onRepair, lead, trail }: { onRepair: () => void; lead?: ReactNode; trail?: ReactNode }) {
+export function SetupCheck({ onRepair, lead, trail, autoRun }: { onRepair: () => void; lead?: ReactNode; trail?: ReactNode;
+  /** FD-184: run the check once by itself when no earlier result exists (the setup card on a first launch). */
+  autoRun?: boolean }) {
   const { t, lang } = useT();
   const [result, setResult] = useState<SetupCheckResult | null>(null);
   const [running, setRunning] = useState(false);
-  useEffect(() => { void api().setupCheckLast().then((r) => setResult((x) => x ?? r)).catch(() => undefined); }, []);
-  const check = async () => {
+  const check = async (auto = false) => {
     setRunning(true);
-    try { setResult(await api().setupCheck()); } catch (error) { setResult({ kind: 'error', detail: String((error as Error)?.message ?? error), checkedAt: new Date().toISOString() }); } finally { setRunning(false); }
+    try { setResult(await api().setupCheck(auto)); } catch (error) { setResult({ kind: 'error', detail: String((error as Error)?.message ?? error), checkedAt: new Date().toISOString() }); } finally { setRunning(false); }
   };
+  useEffect(() => {
+    void api().setupCheckLast().then((r) => {
+      setResult((x) => x ?? r);
+      // FD-184: the first showing of the setup card on this install checks by itself, once; after that only a press does.
+      if (!r && autoRun) {
+        void api().settings().then((s) => {
+          if (s.setupChecked) return;
+          void api().updateSettings({ setupChecked: true }).catch(() => undefined);
+          void check(true);
+        }).catch(() => undefined);
+      }
+    }).catch(() => undefined);
+  }, []);
   const lines = result?.kind === 'report' ? attention(result.report) : [];
   const time = (iso: string) => new Date(iso).toLocaleTimeString(lang, { hour: '2-digit', minute: '2-digit' });
   return (
@@ -449,8 +463,26 @@ export function SetupCheck({ onRepair, lead, trail }: { onRepair: () => void; le
       {!running && result?.kind === 'no-node' && <p className="notice error" role="alert">{t('setupCheck.noNode')}</p>}
       {!running && result?.kind === 'error' && <p className="notice error" role="alert">{t('setupCheck.error', { detail: result.detail })}</p>}
       {!running && result?.kind === 'report' && !lines.length && <p className="meta">{t('setupCheck.clean')}</p>}
+      {/* FD-184: the setup as numbered steps in the launcher's order, the first not done marked; the full findings fold. */}
+      {!running && result?.kind === 'report' && lines.length > 0 && (() => {
+        const { steps, next } = setupSteps(result.report);
+        return (
+          <ol className="setup-steps" aria-label={t('setupCheck.steps')}>
+            {steps.map((s) => (
+              <li key={s.area} className={`setup-step setup-step-${s.state}`} aria-current={s.area === next ? 'step' : undefined}>
+                <span className="setup-step-name">{t(`setupCheck.area.${s.area}`)}</span>
+                <span className="chip">{t(`setupCheck.step.${s.state}`)}</span>
+                {s.area === next && <span className="chip setup-step-next">{t('setupCheck.step.next')}</span>}
+                {s.first && s.state !== 'done' && <div className="meta">{s.first.detail}</div>}
+              </li>
+            ))}
+          </ol>
+        );
+      })()}
       {!running && lines.length > 0 && (
         <>
+          <details className="setup-check-all">
+            <summary>{t('setupCheck.all', { n: lines.length })}</summary>
           {areasInOrder(lines).map((a) => (
             <div key={a} className="setup-check-area">
               <h3>{t(`setupCheck.area.${a}`)}</h3>
@@ -464,6 +496,7 @@ export function SetupCheck({ onRepair, lead, trail }: { onRepair: () => void; le
               </ul>
             </div>
           ))}
+          </details>
           <button className="btn btn-primary" onClick={onRepair}>{t('setupCheck.repair')}</button>
         </>
       )}

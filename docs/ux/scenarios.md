@@ -1349,7 +1349,7 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **Entry point:** Overview's setup card, and Settings → Setup
 - **Preconditions:** the setup is not hidden (`setupDone` false)
 - **Steps:**
-  1. The person opens the app for the first time -> Check setup runs once by itself; the card shows the steps in the doctor's order (Prerequisites, Skills, Apps, MCP servers, Services), numbered, each one line: done, the agent works on it, or needs you, with the first step not done marked
+  1. The person opens the app for the first time -> Check setup runs once by itself (once per install, kept in `setupChecked`; a build from source runs it only with the test fixture); the card shows the steps in the doctor's order (Prerequisites, Skills, Apps, MCP servers, Services), numbered, each one line: done, the agent works on it, or needs you, with the first step not done marked
   2. The person presses "Set up with my coding agent", or asks an agent to (MCP `console_new` with the Setup service, SCN-098 step 7) -> the Setup console starts; its first message names everything it installs and every step that needs the person (FD-185)
   3. The agent works -> the step it is on reads "Your coding agent is on it"; a step finished turns done without a refresh
   4. A step needs the person (a sign-in, a code, a secret, a payment) -> it reads "Needs you" with what and where in one line; the console beside it has the prompt
@@ -1359,9 +1359,10 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **UI elements:** the numbered step list on the setup card and in Settings → Setup, Set up with my coding agent, Continue setup, Check setup, Hide
 - **States covered:** loading, success, empty, error
 - **Errors & recovery:** the check fails to run -> the steps from the last check stay, with the reason; pressing Check setup again is always safe
-- **Copy:** to be written with the change and checked in en and ru (FD-184)
-- **Status:** draft
-- **Coverage:** none yet
+- **Copy:**
+  - "Setup steps" / «Шаги настройки»; "Done" / «Готово»; "Worth a look" / «Стоит проверить»; "To do" / «Сделать»; "Next" / «Следующий»; "Everything the check found ({n})" / «Всё, что нашла проверка ({n})»
+- **Status:** draft (2026-11-08, FD-184 in part: steps 1 and 2 built, the numbered steps with Next and the folded findings, the one check by itself per install; copy check reports `240f0d85`, `0f4fd628`, `f97934cb`, `5c9faf2c`, `487510d0`, `61679b61` (en), `0fbc03d6`, `e10000f4`, `333ed424`, `bf143fe1`, `cbc7e41d`, `fefa1079` (ru), no findings; `test/e2e/overview-settings.test.ts` *SCN-070* asserts the steps but has not run: the screen was locked. Left: step 3 "Your coding agent is on it", step 4 "Needs you", step 5 the check when a Setup console ends)
+- **Coverage:** src/core/doctor.ts (setupSteps), src/renderer/components/Overview.tsx (SetupCheck), src/electron/main.ts (setup check by itself), test/doctor.test.ts, test/e2e/overview-settings.test.ts
 - **Product:** unobserved
 
 ### SCN-099: See the agents a space runs as system services
@@ -1516,7 +1517,7 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **Preconditions:** none; Node.js 18 or later is needed for the check itself
 - **Steps:**
   1. User presses "Check setup" -> "Checking… this can take up to two minutes." while the app runs the PassionCode launcher's read-only `doctor` at a pinned version (`npx --yes @passioncode-ai/passioncode@0.2.75 doctor --json`, no shell, two-minute cap)
-  2. The check ends -> one line: "Failing: <n> · Warnings: <n> · OK: <n> · checked at HH:MM"; below it every failing and warning check, grouped by area (Prerequisites, Skills, Apps, MCP servers, Services), an area with a failure first and failures first within it, each with its own words and "Fix:" followed by the launcher's fix
+  2. The check ends -> one line: "Failing: <n> · Warnings: <n> · OK: <n> · checked at HH:MM"; below it "Setup steps": one numbered line per area in the launcher's order with Done, Worth a look or To do, the first not done marked Next, each not done with the check that holds it (FD-184); then, folded under "Everything the check found (<n>)", every failing and warning check, grouped by area (Prerequisites, Skills, Apps, MCP servers, Services), an area with a failure first and failures first within it, each with its own words and "Fix:" followed by the launcher's fix
   3. User presses "Fix with my coding agent" -> the Setup console opens beside Overview; its brief starts with what the check found, failures first, each with its fix
 - **Expected result:** the person sees in one place what is not set up on this computer and hands the repair to their coding agent; the app runs no repair itself
 - **Alt paths:** the setup card's three steps are done -> the card is one quiet line "Everything is set up." with Check setup and Hide (FD-81); an agent asks through MCP -> `setup_check` runs the same read-only doctor and answers with it the steps, one per area (done, attention or todo, with the first check that keeps each from done) and `next`, the first step not done (FD-185); every check passes -> "Every check passed." and no repair button; Node.js is not installed -> "Node.js 18 or later is not installed, so the check cannot run. Install it from nodejs.org, then check again."; the launcher answers anything but its report -> "The check could not run: <its first line>"; no answer in two minutes -> "The check could not run: no answer within 120 s"; a second press while a check runs joins it; the last result stays until the next press and is never re-run on its own

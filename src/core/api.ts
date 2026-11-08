@@ -89,7 +89,8 @@ export interface FabricApi {
   /** FD-39 SCN-058: what is set up already (read only). */
   setupState(): Promise<{ mcp: boolean; skills: boolean; firstAgent: boolean }>;
   /** FD-65: runs the launcher's read-only doctor now (up to two minutes); the last result until the next press. */
-  setupCheck(): Promise<SetupCheckResult>;
+  /** FD-184: `auto` is the setup card's one check by itself; a build from source without the test fixture answers the last result instead. */
+  setupCheck(auto?: boolean): Promise<SetupCheckResult | null>;
   setupCheckLast(): Promise<SetupCheckResult | null>;
   updateSettings(patch: SettingsPatch): Promise<{ settings: Settings; error?: string }>;
   listeners(): Promise<{ listeners: Listener[]; error?: string }>;
