@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- FD-181: MCP `list_services` and `service_status` name each agent's launchd domain (`launchd_domain`: `gui`, or
+  `system` for a system service of the space, which only the administrator starts or stops).
+
 ## 0.8.39 - 2026-11-08
 
 ### Added

@@ -963,3 +963,13 @@ test('FD-167: control refuses a system daemon of this space before launchctl cha
   }
   assert.ok(!w.calls.launchctl.some((c) => /^(bootstrap|bootout|enable|disable|kickstart)$/.test(c[1] ?? '')), 'launchctl changed nothing');
 });
+
+test('FD-181: list_services names the launchd domain: gui, system for a system daemon of this space, null when unsupervised', { skip: process.platform !== 'darwin' && 'launchd is read only on macOS (FD-37)' }, async () => {
+  const w = world();
+  const gui = await handle(w.deps, { id: 1, method: 'tools/call', params: { name: 'list_services', arguments: {} } });
+  const one = (r: unknown) => ((r as { result: { structuredContent: { services: { key: string; launchd_domain: string | null }[] } } }).result.structuredContent.services.find((s) => s.key === KEY)!);
+  assert.equal(one(gui).launchd_domain, 'gui');
+  w.deps.daemons = { isSystem: (label) => label === DESCRIPTOR.lifecycle.label };
+  const sys = await handle(w.deps, { id: 2, method: 'tools/call', params: { name: 'list_services', arguments: {} } });
+  assert.equal(one(sys).launchd_domain, 'system');
+});

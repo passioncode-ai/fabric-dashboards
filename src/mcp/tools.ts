@@ -178,6 +178,9 @@ export interface ServiceView {
   hidden: boolean;
   /** FD-123: turned off in the app: not watched there and no alerts (also hidden). This answer still reads it once. */
   off: boolean;
+  /** FD-181: the launchd domain its job is read in, `gui` (this user's) or `system` (a system daemon of this space,
+   *  FD-167, FD-180: started and stopped only by the administrator); null when launchd does not supervise it here. */
+  launchd_domain: 'gui' | 'system' | null;
   /** FD-162: the organization its repository belongs to in Project Observatory's registry, as the app last read it
    *  (organizations.json beside its settings); null when not known. */
   organization: Organization | null;
@@ -209,6 +212,7 @@ function view(s: ServiceLook, list?: { category: Category; hidden: boolean; off:
     category: list?.category ?? (d?.placement === 'remote' ? 'online' : 'local'),
     hidden: list?.hidden ?? false,
     off: list?.off ?? false,
+    launchd_domain: s.launchd.managed && (s.launchd.by ?? 'launchd') === 'launchd' ? (s.launchd.domain ?? 'gui') : null,
     organization,
   };
 }
