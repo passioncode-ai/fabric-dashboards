@@ -55,8 +55,17 @@ export function deriveState(i: StateInput): StateOutput {
     if (svc.id !== d.id || svc.instance !== d.instance) {
       return { state: 'foreign', reasons: [{ code: 'reason.foreign.other', params: { port: portNum(d.origin), answer: `${svc.id}.${svc.instance}` } }] };
     }
-    // FD-132: placed on the other machine yet answering here: two copies, one of them on the wrong machine.
-    if (away) return { state: 'duplicate', reasons: [{ code: 'reason.duplicate.elsewhere', params: { machine: away.placedOn } }] };
+    if (away) {
+      // FD-179: this machine's own job for it is not running (launchd has it unloaded, or loaded without a process): the
+      // answer comes from the placed copy through a forward of the port, as the move's SSH tunnels do. It is that copy's
+      // health, said with where it runs. A host that does not supervise it cannot tell, and keeps the FD-132 rule.
+      if (i.launchd.managed && (!i.launchd.loaded || i.launchd.pid === null)) {
+        const own = fromWellKnown(probe.doc);
+        return { state: own.state, reasons: [...own.reasons, { code: 'reason.reached.elsewhere', params: { machine: away.placedOn } }] };
+      }
+      // FD-132: placed on the other machine and running here too: two copies, one of them on the wrong machine.
+      return { state: 'duplicate', reasons: [{ code: 'reason.duplicate.elsewhere', params: { machine: away.placedOn } }] };
+    }
     if (i.launchd.managed && i.launchd.loaded && i.launchd.pid !== null && i.launchd.pid !== probe.doc.process.pid) {
       return { state: 'duplicate', reasons: [{ code: 'reason.duplicate', params: { answering: probe.doc.process.pid, launchd: i.launchd.pid } }] };
     }
@@ -130,7 +139,7 @@ export function attentionRank(state: ServiceState, wellKnown: WellKnown | null):
 }
 /** FD-132: the reason that says the service is placed on another machine, if it carries one. */
 export function placedElsewhere(reasons: readonly Reason[]): string | null {
-  const r = reasons.find((x) => x.code === 'reason.elsewhere' || x.code === 'reason.duplicate.elsewhere');
+  const r = reasons.find((x) => x.code === 'reason.elsewhere' || x.code === 'reason.duplicate.elsewhere' || x.code === 'reason.reached.elsewhere');
   return r ? String(r.params?.machine ?? '') : null;
 }
 // #endregion state-precedence
