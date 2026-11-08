@@ -95,6 +95,8 @@ export const REASON_CODES = [
   'reason.duplicate', 'reason.degraded', 'reason.setup', 'reason.stopped', 'reason.not-loaded', 'reason.waiting', 'reason.down',
   // FD-132 — placed on another machine (observatory-placement/1)
   'reason.elsewhere', 'reason.duplicate.elsewhere',
+  // FD-179 — placed on another machine and reached here through a forward of its port (an SSH tunnel)
+  'reason.reached.elsewhere',
   // DEC-0019 — a remote placement
   'reason.remote.refused', 'reason.remote.tls', 'reason.remote.redirect', 'reason.remote.foreign', 'reason.remote.down',
 ] as const;

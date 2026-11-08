@@ -11,6 +11,16 @@
 - FD-180: an agent whose launchd plist is in /Library/LaunchDaemons (a service installed to run at boot without a
   login) is read as a system service too, and is never started into the user's own launchd domain.
 
+### Fixed
+
+- FD-178: while the update feed kept failing (GitHub answered 504 on 2026-11-08), every 5-minute check was followed a
+  fraction of a second later by the retry of the previous failure, so the feed was read twice. A check that starts now
+  cancels the waiting retry: one read per 5 minutes, and a failure with no check after it is still retried once.
+- FD-179: an agent placed on another machine whose port this Mac reaches through a forward (an SSH tunnel the move
+  leaves) read "Two copies" with Stop offered. It now reads with that copy's own state and "Runs
+  on {machine}. This computer reaches it through its port", with no Start, Restart or Stop; a copy really running here, from
+  this Mac's own launchd job, is still a second copy.
+
 ## 0.8.38 - 2026-11-07
 
 ### Changed

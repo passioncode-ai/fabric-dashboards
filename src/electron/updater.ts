@@ -30,6 +30,7 @@ import { APP_UPDATE_EVERY_MS, FIRST_CHECK_MS, isNewer, quietCheck, mayCheck, may
 import type { AppStatus } from '../core/types';
 import { appImageRelaunchCommand, nsisInstalledAt, nsisUpdateCommand, PENDING_UPDATE_DIR, platformKey, platformUpdate, replaceAppImage, stagedAppImage, unpackFailure, unpackRoomRefusal, updateChannel } from '../core/self-update';
 import { uninstallTarget } from '../core/platform';
+import { RetryOnce } from '../core/retry-once';
 import { powerShellAfterExit, spawnAfterExit } from '../core/after-exit';
 import { windowsPowerShellEnv } from '@passioncode-ai/fabric-service-host';
 
@@ -115,7 +116,8 @@ export class Updater {
   private lastQuiet: string | null = null;
   state: UpdateState = { state: 'idle' };
   private timer: NodeJS.Timeout | null = null;
-  private retry: NodeJS.Timeout | null = null;
+  /** LC-16's one retry after a failure; any check that starts cancels it (FD-178). */
+  private readonly retry = new RetryOnce(RETRY_AFTER_FAILURE_MS, () => { if (this.state.state === 'error') this.check(); });
   private verified: Verified | null = null;
   private stuck: NodeJS.Timeout | null = null;
   /** FD-37 M4: how this copy updates, from how it was installed (`src/core/self-update.ts`). */
@@ -235,6 +237,7 @@ export class Updater {
     if (mayPeek({ manual, enabled: this.enabled(), state: this.state.state })) { void this.peek(); return; }
     // #endregion offer-when-off
     if (!mayCheck({ manual, enabled: this.enabled(), state: this.state.state })) return;
+    this.retry.cancel(); // FD-178: this check is the retry's; it is not run a second time
     this.set({ state: 'checking' });
     void this.run(manual);
   }
@@ -613,10 +616,7 @@ export class Updater {
     this.event('update_check', code, error.replace(/\s+/g, ' ').slice(0, 300));
     this.set({ state: 'error', error });
     // One retry at the check's own pace (5 minutes), then the regular checks go on.
-    if (!this.retry) {
-      this.retry = setTimeout(() => { this.retry = null; if (this.state.state === 'error') this.check(); }, RETRY_AFTER_FAILURE_MS);
-      this.retry.unref();
-    }
+    this.retry.arm();
   }
 
   private set(state: UpdateState): void {

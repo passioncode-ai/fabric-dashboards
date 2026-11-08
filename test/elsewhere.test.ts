@@ -20,7 +20,7 @@ const T0 = Date.parse('2026-10-28T12:00:00Z');
 const MISS: WellKnownResult = { kind: 'no-answer', detail: 'connect ECONNREFUSED' };
 const PLACED: Placement = { machine: 'studio-1', updatedAt: null, elsewhere: [{ label: DESCRIPTOR.lifecycle.label!, placedOn: 'studio-2' }] };
 
-function rig(answer: WellKnownResult, placement: { get: () => Placement | null; error: string | null }) {
+function rig(answer: WellKnownResult, placement: { get: () => Placement | null; error: string | null }, print?: RunResult) {
   const base = tmp('fd-elsewhere-');
   const services = path.join(base, 'services');
   fs.mkdirSync(services);
@@ -28,7 +28,7 @@ function rig(answer: WellKnownResult, placement: { get: () => Placement | null; 
   const calls: string[] = [];
   const runner = async (_command: string, args: string[]): Promise<RunResult> => {
     calls.push(args.join(' '));
-    if (args[0] === 'print') return { code: 0, stdout: `pid = ${READY.process.pid}\n`, stderr: '' }; // loaded here, as a restored copy would be
+    if (args[0] === 'print') return print ?? { code: 0, stdout: `pid = ${READY.process.pid}\n`, stderr: '' }; // loaded here, as a restored copy would be
     return { code: 0, stdout: '', stderr: '' };
   };
   const clock = { ms: T0 };
@@ -93,6 +93,16 @@ test('FD-132: a machine Observatory could not name (placedOn unknown) is said as
       assert.match(unknown, lang === 'en' ? /another machine/ : /другой машине/);
     }
   }
+});
+
+test('FD-179: placed elsewhere, answering here, and its own job not loaded here: the placed copy reached through a forwarded port, never a duplicate', async () => {
+  // The move leaves an SSH tunnel on the port (seen 2026-11-08): launchd has no job for the label, yet the port answers.
+  const r = rig({ kind: 'answer', doc: READY, ms: 3 }, { get: () => PLACED, error: null }, { code: 113, stdout: '', stderr: 'Could not find service' });
+  await r.monitor.tick();
+  await r.monitor.tick();
+  const snap = r.monitor.snapshot(KEY)!;
+  assert.equal(snap.state, 'ready', 'the copy it reaches is ready');
+  assert.deepEqual(snap.reasons, [{ code: 'reason.reached.elsewhere', params: { machine: 'studio-2' } }]);
 });
 
 test('FD-167: a system daemon of this space is read in the system domain, and Start, Stop and Restart are refused before launchctl changes anything', async () => {
