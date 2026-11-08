@@ -530,6 +530,9 @@ test('FD-81: setup_check runs the pinned read-only doctor and parses its report;
   assert.equal(r.kind, 'report');
   assert.ok(ran[0]!.join(' ').includes('@passioncode-ai/passioncode@'), 'the pinned launcher');
   assert.ok(!ran[0]!.includes('--fix'), 'never a repair');
+  // FD-185: the steps come with the report.
+  assert.equal((r as { next?: string | null }).next, null);
+  assert.equal((r as { steps?: unknown[] }).steps?.length, 5);
   const t = TOOLS.find((x) => x.name === 'setup_check')!;
   assert.equal(t.annotations.readOnlyHint, false, 'it runs a program from npm: never auto-approved as read-only');
 });

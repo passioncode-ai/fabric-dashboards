@@ -49,3 +49,20 @@ test('FD-65: Repair with my coding agent — the Setup brief starts from what th
   const without = setupMarkdown({ runtimeId: 'codex', runtimeName: 'Codex', server: { command: '/x/mcp', args: [] }, state: { mcp: true, skills: true, firstAgent: true }, platform: 'darwin' });
   assert.doesNotMatch(without, /Check setup found/);
 });
+
+test('FD-185: the setup reads as steps, one per area in the launcher\'s order, with the first one not done', async () => {
+  const { setupSteps } = await import('../src/core/doctor');
+  const report = parseDoctor(JSON.stringify({ version: '0.2.75', at: 't', ok: false, checks: [
+    { id: 'node', area: 'prerequisites', state: 'ok', detail: 'Node 26' },
+    { id: 'skills.adapter', area: 'skills', state: 'warn', detail: 'old', fix: 'update' },
+    { id: 'app.fabric', area: 'apps', state: 'fail', detail: 'missing', fix: 'install' },
+    { id: 'app.inbox', area: 'apps', state: 'warn', detail: 'old' },
+    { id: 'svc', area: 'services', state: 'info', detail: 'one' },
+  ] }))!;
+  const { steps, next } = setupSteps(report);
+  assert.deepEqual(steps.map((s) => [s.area, s.state]), [['prerequisites', 'done'], ['skills', 'attention'], ['apps', 'todo'], ['mcp', 'done'], ['services', 'done']]);
+  assert.equal(steps[2]!.first!.id, 'app.fabric', 'a failure is named before a warning of the same step');
+  assert.deepEqual([steps[2]!.fail, steps[2]!.warn], [1, 1]);
+  assert.equal(next, 'skills');
+  assert.equal(setupSteps(parseDoctor(JSON.stringify({ version: 'x', at: 't', ok: true, checks: [] }))!).next, null, 'nothing left');
+});

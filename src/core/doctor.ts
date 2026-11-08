@@ -70,6 +70,22 @@ export function areasInOrder(lines: DoctorCheck[]): DoctorArea[] {
   return [...present.filter(failing), ...present.filter((a) => !failing(a))];
 }
 
+/** FD-185 (wave 2 of docs/reports/2026-11-08-agent-led-setup): the setup as steps, one per area in the launcher's
+ *  order: `todo` when a check of it fails, `attention` when one only warns, `done` otherwise; `next` is the first step
+ *  not done, so a person or an agent reads where the setup is without reading every check. */
+export type SetupStepState = 'done' | 'attention' | 'todo';
+export interface SetupStep { area: DoctorArea; state: SetupStepState; fail: number; warn: number; first: DoctorCheck | null }
+export function setupSteps(report: DoctorReport): { steps: SetupStep[]; next: DoctorArea | null } {
+  const steps = DOCTOR_AREAS.map((area): SetupStep => {
+    const mine = report.checks.filter((c) => c.area === area);
+    const fail = mine.filter((c) => c.state === 'fail').length;
+    const warn = mine.filter((c) => c.state === 'warn').length;
+    const first = mine.find((c) => c.state === 'fail') ?? mine.find((c) => c.state === 'warn') ?? null;
+    return { area, state: fail ? 'todo' : warn ? 'attention' : 'done', fail, warn, first };
+  });
+  return { steps, next: steps.find((s) => s.state !== 'done')?.area ?? null };
+}
+
 /** For the Setup console's brief: what the last check found, so the agent starts from it. */
 export function doctorMarkdown(report: DoctorReport): string {
   const lines = attention(report);
