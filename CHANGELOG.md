@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+### Added
+
+- FD-167: in a space nobody logs into, where the agents run as system services, the app reads each agent's real state
+  from the system domain (it read "Stopped" before) and offers no Start, Stop or Restart for it: only the
+  administrator starts or stops a system service. The source is Observatory's root-owned record of the services it
+  installs for the space.
+- FD-180: an agent whose launchd plist is in /Library/LaunchDaemons (a service installed to run at boot without a
+  login) is read as a system service too, and is never started into the user's own launchd domain.
+
 ### Fixed
 
 - FD-178: while the update feed kept failing (GitHub answered 504 on 2026-11-08), every 5-minute check was followed a

@@ -133,3 +133,25 @@ test('FD-167: a system daemon of this space is read in the system domain, and St
   }
   assert.ok(!calls.some((c) => /^(bootstrap|bootout|enable|disable|kickstart)/.test(c)), 'launchctl changed nothing');
 });
+
+test('FD-180: a descriptor whose plist is in /Library/LaunchDaemons is read in system and never bootstrapped into gui, with no record', { skip: process.platform === 'win32' && 'a POSIX plist path, which a descriptor on Windows may not name (FD-37)' }, async () => {
+  const base = tmp('fd-ld-');
+  const services = path.join(base, 'services');
+  fs.mkdirSync(services);
+  const d = { ...DESCRIPTOR, lifecycle: { ...DESCRIPTOR.lifecycle, plist: `/Library/LaunchDaemons/${DESCRIPTOR.lifecycle.label}.plist` } };
+  fs.writeFileSync(path.join(services, `${KEY}.json`), JSON.stringify(d));
+  const calls: string[] = [];
+  const runner = async (_command: string, args: string[]): Promise<RunResult> => {
+    calls.push(args.join(' '));
+    return args[0] === 'print' ? { code: 113, stdout: '', stderr: 'Could not find service' } : { code: 0, stdout: '', stderr: '' };
+  };
+  const monitor = new Monitor({ platform: 'darwin', servicesDir: services, activity: new ActivityStore(path.join(base, 'app')), settings: () => DEFAULT_SETTINGS,
+    lang: () => 'en', now: () => T0, launchd: new Launchd(runner, 501), wellKnown: async () => MISS,
+    placement: { get: () => null, error: null }, daemons: { isSystem: () => false } });
+  await monitor.tick();
+  assert.equal(monitor.snapshot(KEY)!.launchd.domain, 'system');
+  assert.ok(calls.includes(`print system/${DESCRIPTOR.lifecycle.label}`));
+  const r = await monitor.control(KEY, 'restart');
+  assert.equal(r.reason?.code, 'result.systemDaemon');
+  assert.ok(!calls.some((c) => c.startsWith('bootstrap') || c.includes('gui/')), 'nothing in gui, nothing bootstrapped');
+});

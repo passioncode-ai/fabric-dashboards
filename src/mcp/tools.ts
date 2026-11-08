@@ -16,7 +16,7 @@ import { discoverHost, type HostStatus } from './host';
 import {
   APP_NAME, dashboardMinWidth, expand, lookAtServices, readDirectory, servicesDir as defaultServicesDir,
   type Descriptor, type DescriptorEntry, type ServiceLook, type ServiceState, type WellKnownResult, authHeaders, portOf, RemoteTokenLatch, REMOTE_TIMEOUT_MS, type WellKnownOptions,
-  elsewhereOf, PlacementReader, SpaceDaemonReader, type Placement,
+  elsewhereOf, PlacementReader, SpaceDaemonReader, isSystemJob, type Placement,
 } from '@passioncode-ai/fabric-service-host';
 import { runOwned } from '../core/children';
 import { fromServiceUrl, isServiceKey, linkFor, safePath, sessionLink } from '../core/deeplink';
@@ -462,7 +462,7 @@ export async function control(deps: Deps, key: string, action: 'start' | 'stop' 
   // FD-20: the sequence is src/core/control.ts's, shared with the app; here it becomes a result or a refusal.
   const out = await controlService(d, action, {
     elsewhere: elsewhereOf(deps.placement ? deps.placement() : new PlacementReader().get(deps.now()), d),
-    systemDaemon: Boolean(d.lifecycle.label) && (deps.daemons ?? new SpaceDaemonReader({ platform: deps.platform })).isSystem(d.lifecycle.label!, deps.now()),
+    systemDaemon: isSystemJob(d, deps.daemons ?? new SpaceDaemonReader({ platform: deps.platform }), deps.now()),
     platform: deps.platform, launchd: deps.launchd, wellKnown: (origin) => deps.wellKnown(origin), exists: deps.exists,
     now: deps.now, sleep: deps.sleep, pollMs: 500,
   }, { oldPid: before?.kind === 'answer' ? before.doc.process.pid : null });

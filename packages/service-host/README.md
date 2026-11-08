@@ -210,6 +210,10 @@ one root-owned file: `/Library/Application Support/ProjectObservatory/space-daem
   root, or that others may write, is not read (`spaceDaemonsFileProblem`), and `error` says why. No file: every job
   is in `gui/<uid>`, as before.
 
+FD-180 (the adapter's FAA-287): a descriptor whose `lifecycle.plist` is in `/Library/LaunchDaemons/` is a system
+daemon too, with or without the record (`plistIsDaemon`, `isSystemJob(descriptor, daemons, now)`): the kit 0.78.0
+installs a service there to run at boot without a login.
+
 `lookAtServices` reads such a job with `launchctl print system/<label>` and marks its `launchd.domain` `system`;
 pass `daemons` to replace the reader. Until the contract names the descriptor's own field (CT-234,
 `lifecycle.domain`), the record is the only source.
