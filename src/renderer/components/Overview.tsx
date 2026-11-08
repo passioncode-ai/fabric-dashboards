@@ -487,7 +487,8 @@ export function SetupCheck({ onRepair, lead, trail, autoRun, agentWorking, reche
                 <span className="setup-step-name">{t(`setupCheck.area.${s.area}`)}</span>
                 <span className="chip">{t(`setupCheck.step.${s.state}`)}</span>
                 {s.area === next && <span className="chip setup-step-next">{t(agentWorking ? 'setupCheck.step.working' : 'setupCheck.step.next')}</span>}
-                {s.first && s.state !== 'done' && <div className="meta">{s.first.detail}</div>}
+                {s.gate && s.state !== 'done' && <span className="chip setup-step-gate">{t('setupCheck.step.needsYou', { what: t(`setupCheck.gate.${s.gate}`) })}</span>}
+                {s.first && s.state !== 'done' && <div className="meta">{(s.gateCheck ?? s.first).detail}</div>}
               </li>
             ))}
           </ol>

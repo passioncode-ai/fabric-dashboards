@@ -66,3 +66,21 @@ test('FD-185: the setup reads as steps, one per area in the launcher\'s order, w
   assert.equal(next, 'skills');
   assert.equal(setupSteps(parseDoctor(JSON.stringify({ version: 'x', at: 't', ok: true, checks: [] }))!).next, null, 'nothing left');
 });
+
+test('FD-184 (the launcher\'s PC-171): a check names what its fix needs from a person; a step says Needs you with it', async () => {
+  const { setupSteps, doctorMarkdown } = await import('../src/core/doctor');
+  const report = parseDoctor(JSON.stringify({ version: '0.2.76', at: 't', ok: false, checks: [
+    { id: 'app.switchboard', area: 'apps', state: 'fail', detail: 'not signed in', fix: 'switchboard onboard', gate: 'sign-in' },
+    { id: 'app.inbox', area: 'apps', state: 'warn', detail: 'old', fix: 'update it', gate: null },
+    { id: 'mcp.x', area: 'mcp', state: 'fail', detail: 'missing', fix: 'add it', gate: 'teleport' },
+    { id: 'svc.y', area: 'services', state: 'warn', detail: 'waits', gate: 'secret' },
+  ] }))!;
+  assert.deepEqual(report.checks.map((c) => c.gate), ['sign-in', null, null, null], 'unknown gates and gates without a fix read as an agent\'s step');
+  const steps = setupSteps(report).steps;
+  assert.equal(steps.find((s) => s.area === 'apps')!.gate, 'sign-in');
+  assert.equal(steps.find((s) => s.area === 'apps')!.gateCheck!.id, 'app.switchboard');
+  assert.equal(steps.find((s) => s.area === 'mcp')!.gate, null);
+  assert.match(doctorMarkdown(report), /app\.switchboard.*needs the person: sign-in/);
+  const old = parseDoctor(JSON.stringify({ version: '0.2.75', at: 't', ok: false, checks: [{ id: 'a', area: 'apps', state: 'fail', detail: 'd', fix: 'f' }] }))!;
+  assert.equal(old.checks[0]!.gate, null, 'a launcher before 0.2.76 has no gates');
+});
