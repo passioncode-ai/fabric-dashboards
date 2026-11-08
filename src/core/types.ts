@@ -67,6 +67,8 @@ export interface Settings {
   moveToApplicationsAsked: boolean;
   /** FD-39 SCN-058: the person finished or hid the setup card; the Setup console stays reachable from Settings. */
   setupDone: boolean;
+  /** FD-184: Check setup has run once by itself on this install (the setup card's first showing); never again on its own. */
+  setupChecked: boolean;
   /** FD-39 SCN-059: the previous visit — when, which agents it saw, which one was selected last. */
   lastVisitAt: string | null;
   knownServices: string[];
@@ -169,6 +171,7 @@ export const DEFAULT_SETTINGS: Settings = {
   analyticsNoticeSeen: false,
   moveToApplicationsAsked: false,
   setupDone: false,
+  setupChecked: false,
   lastVisitAt: null,
   knownServices: [],
   lastService: null,

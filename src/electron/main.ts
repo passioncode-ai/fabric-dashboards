@@ -899,7 +899,9 @@ if (!app.requestSingleInstanceLock()) {
     // #region setup-check — docs: docs/ux/scenarios.md#scn-070-check-what-is-set-up
     // FD-65: the launcher's read-only doctor, run only when the person presses Check setup, one at a time.
     ipcMain.handle(CHANNELS.setupCheckLast, () => lastSetupCheck);
-    ipcMain.handle(CHANNELS.setupCheck, () => {
+    ipcMain.handle(CHANNELS.setupCheck, (_e, auto?: boolean) => {
+      // FD-184: a check by itself runs npx from npm; a build from source (e2e, development) runs it only with the fixture.
+      if (auto === true && !app.isPackaged && !process.env.FD_TEST_DOCTOR) return Promise.resolve(lastSetupCheck);
       setupCheckRun ??= (async () => {
         const dirs = searchDirs(await readLoginPath());
         const testDoctor = !app.isPackaged ? process.env.FD_TEST_DOCTOR : undefined; // e2e: a fixture stands in for npx

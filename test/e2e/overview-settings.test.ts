@@ -106,6 +106,14 @@ test('SCN-070: Check setup lists what needs the person and hands the repair to t
     const group = page.locator('section[aria-labelledby="g-setup"]');
     await group.getByRole('button', { name: 'Check setup' }).click();
     await group.getByText(/Failing: 1 · Warnings: 1 · OK: 1 · checked at/).waitFor({ timeout: 30_000 });
+    // FD-184 (SCN-100): the steps in the launcher's order, the first not done marked Next; the findings fold below.
+    const steps = await group.locator('.setup-step').allInnerTexts();
+    assert.equal(steps.length, 5, JSON.stringify(steps));
+    assert.match(steps[0]!, /Prerequisites.*Done/s);
+    assert.match(steps[2]!, /Apps.*Worth a look.*Next.*0\.17\.0 is out/s);
+    assert.match(steps[3]!, /MCP servers.*To do.*points at a missing file/s);
+    assert.equal(await group.locator('.setup-step[aria-current="step"]').count(), 1);
+    await group.getByText('Everything the check found (2)').click();
     const items = await group.locator('.setup-check-area li').allInnerTexts();
     assert.equal(items.length, 2, JSON.stringify(items));
     assert.match(items[0]!, /Failing.*points at a missing file/s, 'the failure first');
