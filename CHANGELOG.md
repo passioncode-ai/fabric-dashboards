@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- FD-178: while the update feed kept failing (GitHub answered 504 on 2026-11-08), every 5-minute check was followed a
+  fraction of a second later by the retry of the previous failure, so the feed was read twice. A check that starts now
+  cancels the waiting retry: one read per 5 minutes, and a failure with no check after it is still retried once.
+
 ## 0.8.38 - 2026-11-07
 
 ### Changed
