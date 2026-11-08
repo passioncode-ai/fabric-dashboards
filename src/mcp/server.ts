@@ -111,7 +111,7 @@ export const TOOLS = [
   },
   {
     name: 'console_new',
-    description: 'Start a new coding-agent session in the agent\'s console inside the running Fabric Dashboards, as its New session button does (ADR-0025): the runtime chosen for that agent, in its folder, with its context pack. Answers app-not-running when the app is not open; never starts the app. Pass the operator\'s words in params._meta.decision when you have them (action new-session).',
+    description: 'Start a new coding-agent session in the agent\'s console inside the running Fabric Dashboards, as its New session button does (ADR-0025): the runtime chosen for that agent, in its folder, with its context pack. FD-182: service `fabric-dashboards.setup` starts the Setup console, as Start setup does, its brief opening with the last Check setup\'s findings (Fix with my coding agent). Answers app-not-running when the app is not open; never starts the app. Pass the operator\'s words in params._meta.decision when you have them (action new-session).',
     inputSchema: { type: 'object', properties: { service: serviceArg }, required: ['service'], additionalProperties: false },
     annotations: { readOnlyHint: false, destructiveHint: false },
   },

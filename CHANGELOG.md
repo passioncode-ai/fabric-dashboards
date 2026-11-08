@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+### Added
+
+- FD-182: an agent can start the Setup console for the person, as Start setup does, through MCP `console_new` with
+  the service `fabric-dashboards.setup`; its brief opens with what the last Check setup found, so asking an agent to
+  repair the setup no longer needs a press on Fix with my coding agent.
+
+### Changed
+
+- FD-183: Check setup runs the PassionCode launcher 0.2.75 (it ran 0.2.2), which checks today's products and MCP
+  servers; its report reads the same.
+
 ### Fixed
 
 - FD-179: asking to stop an agent that runs on the other machine, while this computer only reaches it through its

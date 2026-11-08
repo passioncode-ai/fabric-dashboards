@@ -30,6 +30,7 @@ import { buildGraph, chainState, stateOfService, worstOf, type ConnectionGraph }
 import { audit as runAudit, type Finding } from '../core/audit';
 import { estateMap, type EstateMap } from '../core/estate-map';
 import { doctorArgv, doctorResult, DOCTOR_TIMEOUT_MS, type SetupCheckResult } from '../core/doctor';
+import { SETUP_KEY } from '../core/offers';
 import { AGENT_SETTINGS, merge as mergeSettings, SettingsStore } from '../core/settings';
 import { places } from '../core/platform';
 import type { ListLayout, ServiceSnapshot } from '../core/types';
@@ -675,7 +676,8 @@ async function askChannel(deps: Deps, request: { op: ChannelOp; service?: string
 
 /** ADR-0025 (FD-120): start a console session, or a fix in one, in the running app. */
 export async function consoleChannel(deps: Deps, request: { op: ChannelOp; service: string; task?: { kind: 'fix' | 'audit'; output: string } }): Promise<{ started: true; console: string } | Record<string, unknown>> {
-  find(deps, request.service);
+  // FD-182: the Setup console (Start setup, and Fix with my coding agent after Check setup) is no installed service.
+  if (request.service !== SETUP_KEY) find(deps, request.service);
   const answer = await askChannel(deps, request, 'app-not-running: Fabric Dashboards is not running, so no console can start; open it and call again');
   if (!answer.ok) throw new ToolError(`${answer.code}${answer.detail ? `: ${answer.detail}` : ''}`, { started: false, code: answer.code });
   // FD-175: a fix for an agent whose session runs was typed into it (no Enter), as the console's own button does.
