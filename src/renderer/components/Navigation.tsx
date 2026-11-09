@@ -371,9 +371,11 @@ export function SessionMark({ group }: { group: SessionGroup }) {
 
 /** SCN-078: the Sessions mode's list: All sessions, then the groups in their order, each heading with its count; the
  *  Ended group folds (folded by default, the fold remembered) and offers Clear. An empty group is not drawn. */
-export function SessionsNav({ sessions, currentId, allCurrent, rail, endedOpen, onEndedOpen, openAll, openRow }: {
+export function SessionsNav({ sessions, currentId, allCurrent, rail, endedOpen, onEndedOpen, openAll, openRow, onNew }: {
   sessions: AppStatus['sessions']; currentId: string | null; allCurrent: boolean; rail: boolean; endedOpen: boolean;
   onEndedOpen: (open: boolean) => void; openAll: () => void; openRow: (id: string) => void;
+  /** FD-191 (SCN-101): New session, which opens its dialog. */
+  onNew?: () => void;
 }) {
   const { t, lang } = useT();
   const groups = groupRows(sessions?.rows ?? []);
@@ -395,6 +397,11 @@ export function SessionsNav({ sessions, currentId, allCurrent, rail, endedOpen, 
         <button className="nav-item" aria-current={allCurrent ? 'page' : undefined} title={rail ? t('sessions.all') : undefined} onClick={openAll}>
           <Icon name="sessions" /><span className="nav-label">{t('sessions.all')}</span>
         </button>
+        {onNew && (
+          <button className="nav-item" title={rail ? t('newSession.button') : undefined} onClick={onNew}>
+            <Icon name="plus" /><span className="nav-label">{t('newSession.button')}</span>
+          </button>
+        )}
       </div>
       <div className="nav nav-scroll" ref={scroller}>
         {!sessions && !rail && <p className="meta nav-note row" role="status"><Spinner /> {t('sessions.reading')}</p>}

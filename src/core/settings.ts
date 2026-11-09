@@ -104,6 +104,16 @@ export class SettingsStore {
     return this.get();
   }
 
+  /** FD-191: forget the console choices of these keys (sessions of their own that are no longer listed). */
+  dropConsoles(keys: readonly string[]): void {
+    if (!keys.length) return;
+    this.refresh();
+    const consoles = { ...this.value.consoles };
+    for (const k of keys) delete consoles[k];
+    this.value = { ...this.value, consoles };
+    this.persist();
+  }
+
   /** settings.json first, then its copy: a failure between the two leaves the older good copy. */
   private persist(): void {
     const text = JSON.stringify(this.value, null, 2);
@@ -184,16 +194,29 @@ function mergeConsoles(raw: unknown): Settings['consoles'] {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return out;
   for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
     if (!SERVICE_KEY.test(key) || !value || typeof value !== 'object') continue;
-    const v = value as { runtime?: unknown; folder?: unknown; idle?: unknown };
+    const v = value as { runtime?: unknown; folder?: unknown; idle?: unknown; bypass?: unknown; isolated?: unknown };
     const idle = v.idle as { at?: unknown; account?: unknown } | null | undefined;
     out[key] = {
       runtime: typeof v.runtime === 'string' && /^[a-z0-9][a-z0-9-]{0,40}$/.test(v.runtime) ? v.runtime : null,
       folder: typeof v.folder === 'string' && isAbsoluteFolder(v.folder, process.platform) ? v.folder : null,
       ...(idle && typeof idle === 'object' && typeof idle.at === 'string' && Number.isFinite(Date.parse(idle.at))
         ? { idle: { at: idle.at, account: typeof idle.account === 'string' ? idle.account.slice(0, 120) : null } } : {}),
+      ...(typeof v.bypass === 'boolean' ? { bypass: v.bypass } : {}),
+      ...(typeof v.isolated === 'boolean' ? { isolated: v.isolated } : {}),
     };
   }
   return out;
+}
+
+/** FD-191: the New session dialog's last choices; a runtime that is not an id or a folder that is not absolute is dropped. */
+function mergeNewSession(raw: unknown): Settings['newSession'] {
+  const v = (raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {}) as { runtime?: unknown; folder?: unknown; bypass?: unknown; isolated?: unknown };
+  return {
+    runtime: typeof v.runtime === 'string' && /^[a-z0-9][a-z0-9-]{0,40}$/.test(v.runtime) ? v.runtime : null,
+    folder: typeof v.folder === 'string' && isAbsoluteFolder(v.folder, process.platform) ? v.folder : null,
+    bypass: v.bypass !== false,
+    isolated: v.isolated === true,
+  };
 }
 
 /** ADR-0018: the estate watcher; the clone path is absolute, `~/…` (resolved against the home folder
@@ -275,7 +298,7 @@ export function agentSettingsPatch(raw: unknown): { patch: SettingsPatch; refuse
 
 export function rendererSettingsPatch(raw: unknown): SettingsPatch {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
-  const { consoles: _consoles, sessions: _sessions, ...patch } = raw as SettingsPatch & Record<string, unknown>;
+  const { consoles: _consoles, sessions: _sessions, newSession: _newSession, ...patch } = raw as SettingsPatch & Record<string, unknown>;
   return patch as SettingsPatch;
 }
 
@@ -312,6 +335,7 @@ export function merge(raw: Partial<Settings>): Settings {
     },
     layout: mergeLayout(raw.layout),
     consoles: mergeConsoles(raw.consoles),
+    newSession: mergeNewSession(raw.newSession),
     // FD-83: absent in a file from an earlier version: on, as the operator asked (2026-10-21).
     resumeAfterLimit: raw.resumeAfterLimit !== false,
     sessions: mergeSessionMemory(raw.sessions),

@@ -84,8 +84,8 @@ export async function launchFeatures(run: Runner, sb: string): Promise<{ inPlace
 
 /** The command the console runs for a bound folder once Switchboard launches in place; with `surface`, the launch
  *  record says it was asked for from Fabric Dashboards (FD-124). */
-export function inPlaceArgv(sb: string, provider: 'claude' | 'codex', folder: string, runtimeArgs: string[], surface = false): string[] {
-  return [sb, 'launch', '--provider', provider, '--mode', 'managed', '--working-directory', folder, '--in-place',
+export function inPlaceArgv(sb: string, provider: 'claude' | 'codex', folder: string, runtimeArgs: string[], surface = false, mode: 'managed' | 'isolated' = 'managed'): string[] {
+  return [sb, 'launch', '--provider', provider, '--mode', mode, '--working-directory', folder, '--in-place',
     ...(surface ? ['--surface', 'dashboards'] : []), ...(runtimeArgs.length ? ['--', ...runtimeArgs] : [])];
 }
 

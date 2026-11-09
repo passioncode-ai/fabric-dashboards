@@ -106,6 +106,8 @@
 | SCN-098 | An agent changes what a person changes in Settings and on the Sessions page | mcp | P-01 | ST-010 | implemented | 2026-11-07 |
 | SCN-099 | See the agents a space runs as system services | health | P-01 | ST-004 | implemented | 2026-11-08 |
 | SCN-100 | See the setup as steps the agent works through | setup | P-01 | ST-022 | draft | 2026-11-08 |
+| SCN-101 | Start a new session in a folder | sessions | P-01 | ST-019 | implemented | 2026-11-09 |
+| SCN-102 | Start a new agent from the agent list | console | P-01 | ST-019, ST-022 | implemented | 2026-11-09 |
 ## Personas
 
 Defined in [foundation.md](foundation.md) → P-01.
@@ -2250,4 +2252,52 @@ The Sessions mode (0.8.0): every coding session apart from the agents, each stat
   - Settings note, its last sentence: "Off: a new version is announced, and it installs only when you choose to update." / «Выключено: о новой версии приходит уведомление, а устанавливается она, только когда вы решите обновить.»
 - **Status:** implemented (2026-11-04: `test/offer-when-off.test.ts`: with the switch off the timer only reads the feed, the person's Update runs the whole update, the main process tells once per version and its click is Update, the words in both languages; copy check reports `d220b8c0`, `5858d67b` (en, no findings) and `e35aa7ba`, `56c29655` (ru: one suggestion on the final period, kept: in the app it closes the last of several sentences); not yet seen on a released copy, which needs the release after this one)
 - **Coverage:** src/core/version.ts (mayPeek), src/electron/updater.ts (offer-when-off), src/electron/main.ts, src/renderer/App.tsx, src/renderer/components/Settings.tsx, src/core/i18n.ts, test/offer-when-off.test.ts
+- **Product:** unobserved
+
+### SCN-101: Start a new session in a folder
+- **Persona:** P-01
+- **Feature:** sessions
+- **Traces:** ST-019; FD-191; the operator, 2026-11-09, this repository's session `0edbdfdf` (an organization member's report: a session could be opened only from an agent's console, "and if there is no agent yet?"): New session in the Sessions mode, the coding agent chosen from those installed, the permission mode as a box ticked by default, a folder only, the projects folder by default and any other through the picker; operator rule 2026-10-09 (a folder through the system picker only, an isolated box in the same dialog)
+- **Entry point:** the Sessions mode: New session in the sidebar under All sessions, and on the All sessions page's header; an agent, MCP `session_new`
+- **Preconditions:** at least one coding agent is installed
+- **Steps:**
+  1. The person presses New session -> a dialog: the coding agents installed here as choices (the last one used chosen, else Claude Code), the folder (the last one chosen, else the folder that holds most agents' folders, else a usual projects folder such as `~/DATA` or `~/Projects`, else the home folder) with Change…, "Run without permission prompts" ticked, "Isolated session" not ticked
+  2. The person presses Change… -> the system folder picker opens on the folder shown; the folder chosen replaces it (nothing is typed)
+  3. The person presses Start session -> the session's page opens with its console running the chosen coding agent in that folder; the Sessions list shows it under Running, like any console of this app
+  4. The person ends it and comes back later -> its row is under Ended with Continue, which starts it again with the same coding agent, folder, permission and isolation
+- **Expected result:** a coding session runs in any folder without an agent to hang it on, in two clicks when the defaults suit
+- **Alt paths:** the chosen coding agent has no verified switch to run without prompts -> the box is off and greyed with "{agent} has no such switch, so it asks as usual."; Switchboard is not installed, cannot launch in place, or the coding agent is neither Claude Code nor Codex -> "Isolated session" is greyed with the one-line reason; isolated ticked -> Switchboard launches it on the folder's account in that account's own home (`--mode isolated`), never quietly as an ordinary session; no coding agent installed -> the dialog says which it looked for, and Start is off; an agent calls `session_new` -> the same start, every choice it leaves out is the dialog's default, and the answer gives the session's link
+- **UI elements:** New session (sidebar item, page header button), the dialog: Coding agent (choices), Folder with Change…, Run without permission prompts, Isolated session, Cancel, Start session
+- **States covered:** loading, success, empty, error
+- **Errors & recovery:** the folder was removed -> "This folder no longer exists. Choose another."; the coding agent was uninstalled -> "This coding agent is no longer installed. Choose another."; the computer cannot carry another session (disk, six sessions, swap) -> the console's own sentence (SCN-048 LC-17); each keeps the dialog open with the choices made
+- **Copy:**
+  - "New session" / «Новая сессия»; "A session of a coding agent in any folder, not tied to an agent. It is listed with your other sessions." / «Сессия агента для кода в любой папке, без привязки к агенту. Она появится в списке сессий.»
+  - "Coding agent" / «Агент для кода»; "Folder" / «Папка»; "Change…" / «Изменить…»
+  - "Run without permission prompts" / «Без запросов разрешений»; "The coding agent runs each command without stopping to ask you first." / «Агент для кода выполняет команды, не останавливаясь, чтобы спросить вас.»; "{agent} has no such switch, so it asks as usual." / «У {agent} нет такого переключателя, поэтому он спрашивает как обычно.»
+  - "Isolated session" / «Изолированная сессия»; "Runs on a Switchboard account's own home, apart from your usual sign-in." / «Работает в собственной папке аккаунта Switchboard, отдельно от вашего обычного входа.»; "Needs Fabric Switchboard." / «Нужен Fabric Switchboard.»; "Needs a newer Fabric Switchboard." / «Нужна более новая версия Fabric Switchboard.»; "Switchboard isolates only Claude Code and Codex sessions." / «Switchboard изолирует только сессии Claude Code и Codex.»
+  - "Start session" / «Начать сессию»; "Starting…" / «Запускается…»; "The session did not start. Try again." / «Сессия не запустилась. Попробуйте ещё раз.»; "This folder no longer exists. Choose another." / «Этой папки больше нет. Выберите другую.»; "This coding agent is no longer installed. Choose another." / «Этот агент для кода больше не установлен. Выберите другого.»; "The coding agents could not be read: {detail}" / «Не удалось прочитать список агентов для кода: {detail}»
+- **Status:** implemented (2026-11-09: `test/new-session.test.ts` (15 tests: keys, projects folder, isolation, planStart, the channel's `session.new`, the start, Continue keeping the choices, the refusals, `session_started`); copy check reports `a5d3255a`, `fc72ec24`, `80fd401e`, `5ea46063`, `70fdb920`, `7ffb4bd5`, `5c96a390`, `a5e34167`, `dcd96f12`, `110bce85`, `0c3922cb`, `aa339d59`, `d5642f8a`, `aef79220`, `8d5b7acf`, `02b50d76`, `33b45c07`, `7e768098`, `cf0a352b`, `b3217f2b`, `d1c32086`, `96bc9e0c` (en, no findings) and `5311537e`, `0048c334`, `4a06c2ff`, `ced4d270`, `f4419e5e`, `7ff0445c`, `23d5e5c2`, `ab45e37c`, `8b246697`, `158c9c9c`, `fc9c3413`, `bb8eaf79`, `add10723`, `2015e45a`, `2918dab7`, `3c1cf234`, `c7d8a566`, `1a949a5a`, `35c97fc2`, `4f79ddec`, `9be2c8eb`, `0f59f9dd` (ru: seven suggestions to drop the final full stop of a hint, kept: each is a whole sentence, voice rule 2))
+- **Coverage:** src/core/new-session.ts, src/core/consoles.ts (planStart bypass, isolated), src/electron/console.ts (startNew), src/renderer/components/NewSessionDialog.tsx, src/renderer/components/Navigation.tsx (SessionsNav), src/renderer/App.tsx, src/core/console-channel.ts (session.new), src/mcp/tools.ts (sessionNew), test/new-session.test.ts
+- **Product:** unobserved
+
+### SCN-102: Start a new agent from the agent list
+- **Persona:** P-01
+- **Feature:** console
+- **Traces:** ST-019, ST-022; FD-191; the operator, 2026-11-09, this repository's session `0edbdfdf`: "where the agents are, a button to create a new agent: we open a Claude session and describe it"
+- **Entry point:** Overview's header (the agent list): New agent; an agent, MCP `session_new` with kind agent
+- **Preconditions:** at least one coding agent is installed
+- **Steps:**
+  1. The person presses New agent -> the same dialog as SCN-101, titled New agent, with "Your coding agent asks what the new agent should do, builds it in this folder and sets it to run by itself, so it shows in this list."
+  2. The person presses Create with coding agent -> the session's page opens; the coding agent starts with the brief to create one agent (written beside its console, never in the person's folder) and this app's MCP server, and asks its first question: what the agent should do
+  3. The coding agent builds it (the `creating-fabric-agents` skill, or `adapting-projects-to-fabric` for a project the person names) in the projects folder and makes it run by itself (`building-fabric-services`) -> the new agent appears in the agent list, which the coding agent checks with `list_services`
+- **Expected result:** a person with an idea for an agent starts from the agent list, answers questions, and ends with the agent in the list
+- **Alt paths:** as SCN-101 (no switch, no Switchboard, no coding agent installed, an agent's call); the Fabric skills are not installed -> the brief tells the coding agent to say so and install the adapter as the setup does
+- **UI elements:** New agent (Overview's header), the dialog of SCN-101 with Create with coding agent
+- **States covered:** loading, success, empty, error
+- **Errors & recovery:** as SCN-101
+- **Copy:**
+  - "New agent" / «Новый агент»; "Your coding agent asks what the new agent should do, builds it in this folder and sets it to run by itself, so it shows in this list." / «Агент для кода спросит, что должен делать новый агент, соберёт его в этой папке и настроит, чтобы он работал сам и появился в этом списке.»
+  - "Create with coding agent" / «Создать с агентом для кода»
+- **Status:** implemented (2026-11-09: `test/new-session.test.ts` *FD-191 (SCN-102)*: the brief names the folder, the skills and the proof, 0600, the runtime's arguments; New agent starts with it; copy checks as SCN-101)
+- **Coverage:** src/core/new-session.ts (newAgentMarkdown, prepareNewAgent), src/electron/console.ts (pack), src/renderer/App.tsx, test/new-session.test.ts
 - **Product:** unobserved

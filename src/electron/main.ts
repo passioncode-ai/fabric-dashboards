@@ -10,6 +10,7 @@ import { ActivityStore } from '../core/activity';
 import { parseWindows, sightOf, windowNumberOf, WINDOW_LIST_JXA, type Sight } from '../core/occlusion';
 import { CHANNELS, type DrawerChange, type DrawerState, type NavTarget, type Rect } from '../core/api';
 import { sessionNotification } from '../core/sessions-notice';
+import { consoleRowId } from '../core/sessions';
 import { commandEnv, killOwned, ownedCount, runOwned } from '../core/children';
 import { doctorArgv, doctorResult, DOCTOR_TIMEOUT_MS, type SetupCheckResult } from '../core/doctor';
 import { readLoginPath, searchDirs } from '../core/runtimes';
@@ -258,7 +259,7 @@ if (!app.requestSingleInstanceLock()) {
   // FD-65: the last Check setup, kept until the next press; a run in progress is shared, never doubled.
   let lastSetupCheck: SetupCheckResult | null = null;
   let setupCheckRun: Promise<SetupCheckResult> | null = null;
-  const consoles = new ConsoleHost({ failed: (code) => analytics.failed('console', code), settings, snapshot: (key) => monitor.snapshot(key), window: () => window, drawer: () => drawer?.contents() ?? null, visible: () => windowVisible(), log: (line) => log(line), testDirs: testRuntimeDirs, scriptsDir: path.join(userData, 'console'),
+  const consoles = new ConsoleHost({ failed: (code) => analytics.failed('console', code), started: (props) => analytics.sessionStarted(props), settings, snapshot: (key) => monitor.snapshot(key), window: () => window, drawer: () => drawer?.contents() ?? null, visible: () => windowVisible(), log: (line) => log(line), testDirs: testRuntimeDirs, scriptsDir: path.join(userData, 'console'),
     packRoot: path.join(userData, 'consoles'), keptDir: path.join(userData, 'console-output'), version: app.getVersion(), activity: (key) => activity.list({ serviceKey: key }, 200), mcpServer,
     setupState: () => readSetupState(os.homedir(), monitor.snapshots().length),
     doctor: () => (lastSetupCheck?.kind === 'report' ? lastSetupCheck.report : null),
@@ -458,7 +459,10 @@ if (!app.requestSingleInstanceLock()) {
   async function mayEndWork(kind: 'restart' | 'quit'): Promise<boolean> {
     const names = consoles.manager.runningKeys().map((key) => {
       const d = monitor.snapshot(key)?.descriptor;
-      return d ? displayName(d.name, d.instance) : key;
+      if (d) return displayName(d.name, d.instance);
+      // FD-191: a console of its own (a new session, a hand-over) is named by its coding agent and folder, not its key.
+      const snap = consoles.manager.snapshot(key);
+      return snap.cwd ? `${snap.label || key} · ${path.basename(snap.cwd)}` : key;
     });
     const q = endWorkQuestion(lang(), { kind, consoles: names, commands: ownedCount() });
     if (!q) return true;
@@ -1197,6 +1201,19 @@ if (!app.requestSingleInstanceLock()) {
           // Restart to update may ask the person first (running consoles): started, never awaited here.
           void restartToUpdate();
           return { ok: true, result: { state: updater.state.state, version: updater.state.version ?? null, restarting: updater.state.state === 'ready' } };
+        }
+        if (r.op === 'session.new' && r.start) {
+          // FD-191 (SCN-101, SCN-102): the New session and New agent dialogs' Start; a choice left out is the dialog's default.
+          const o = await consoles.newSessionOptions();
+          const runtime = r.start.runtime ?? o.runtime;
+          if (!runtime) return { ok: false, code: 'no-runtime' };
+          const done = await consoles.startNew({ kind: r.start.kind, runtime, folder: r.start.folder ?? o.folder, bypass: r.start.bypass ?? o.bypass, isolated: r.start.isolated ?? false }, { cols: 120, rows: 32 });
+          if (!done.ok) {
+            if ('why' in done) return { ok: false, code: `admission_${done.why}` };
+            return { ok: false, code: done.reason, ...(done.detail ? { detail: String(done.detail).slice(0, 200) } : {}) };
+          }
+          const snap = consoles.manager.snapshot(done.key);
+          return { ok: true, result: { started: true, console: done.key, row: consoleRowId(done.key, snap.startedAt ?? Date.now()), kind: r.start.kind, runtime, folder: snap.cwd } };
         }
         if (r.op === 'console.choose' && r.choice) {
           const done = await consoles.chooseFor(r.service, r.choice);

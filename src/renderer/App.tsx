@@ -13,6 +13,7 @@ import { AgentsNav, ModeSwitch, SessionsNav, type AgentsPage, type Mode, type Ro
 import { RenameDialog } from './components/RenameDialog';
 import { AnalyticsNotice } from './components/AnalyticsNotice';
 import { AllSessions, hasConsole, SessionBody, SessionHeader } from './components/Sessions';
+import { NewSessionDialog } from './components/NewSessionDialog';
 import { dispatchLines, resolveSessionRoute } from '../core/sessions-view';
 import type { SessionRow } from '../core/sessions';
 import { audit } from '../core/audit';
@@ -363,10 +364,12 @@ function Shell({ status: everyAgent, route, setRoute, mode, switchMode, stopKey,
     window.addEventListener('resize', measure);
     return () => { observer.disconnect(); window.removeEventListener('resize', measure); };
   }, [route.page, route.page === 'service' ? route.key : '', layout.header, layout.sidebar, drawerKey, sessionRow?.id]);
+  // FD-191 (SCN-101, SCN-102): New session and New agent; the console steps aside while the dialog is open.
+  const [newSession, setNewSession] = useState<'session' | 'agent' | null>(null);
   const drawerTask = agentTask && agentTask.key === drawerKey ? { task: agentTask.task, mode: agentTask.mode, nonce: agentTask.nonce } : null;
   useEffect(() => {
-    api().consoleDrawer({ key: drawerKey, open: Boolean(drawerKey), rect: area, height: layout.console.height, task: drawerTask, suspended: stopOpen || menuOverPage || resizing, full: Boolean(pageConsole), scheme });
-  }, [drawerKey, area, layout.console.height, drawerTask?.nonce, stopOpen, menuOverPage, resizing, Boolean(pageConsole), scheme]);
+    api().consoleDrawer({ key: drawerKey, open: Boolean(drawerKey), rect: area, height: layout.console.height, task: drawerTask, suspended: stopOpen || menuOverPage || resizing || Boolean(newSession), full: Boolean(pageConsole), scheme });
+  }, [drawerKey, area, layout.console.height, drawerTask?.nonce, stopOpen, menuOverPage, resizing, Boolean(pageConsole), scheme, Boolean(newSession)]);
   const focusOutRef = useRef<(back: boolean) => void>(() => undefined);
   const drawerOwner = useRef({ route, drawerKey });
   drawerOwner.current = { route, drawerKey };
@@ -401,7 +404,7 @@ function Shell({ status: everyAgent, route, setRoute, mode, switchMode, stopKey,
           ? <AgentsNav page={agentsPage} status={status} everyAgent={everyAgent.services} arranged={arranged} products={products} currentProduct={currentProduct} layout={layout} changeLayout={changeLayout} open={open}
             go={(page) => setRoute({ page })} rail={rail} queue={queue.length} urgent={queue.some(urgent)} auditErrors={auditErrors} hiddenProblem={hiddenProblem} menu={rowMenu} />
           : <SessionsNav sessions={status.sessions} currentId={route.page === 'session' ? (sessionRow?.id ?? route.id) : null} allCurrent={route.page === 'sessions'} rail={rail}
-            endedOpen={layout.endedOpen} onEndedOpen={(o) => changeLayout({ endedOpen: o })} openAll={() => setRoute({ page: 'sessions' })} openRow={openSession} />}
+            endedOpen={layout.endedOpen} onEndedOpen={(o) => changeLayout({ endedOpen: o })} openAll={() => setRoute({ page: 'sessions' })} openRow={openSession} onNew={() => setNewSession('session')} />}
         <div className="sidebar-footer">
           {!rail && <UpdateLine status={status} />}
           {rail && <RailUpdate status={status} goSettings={() => setRoute({ page: 'settings' })} />}
@@ -435,6 +438,9 @@ function Shell({ status: everyAgent, route, setRoute, mode, switchMode, stopKey,
               <div className="page-head" data-drawer-top="">
                 <h1>{t(route.page === 'activity' ? 'activity.title' : route.page === 'spend' ? 'spend.title' : route.page === 'map' ? 'map.title' : route.page === 'settings' ? 'settings.title' : route.page === 'sessions' ? 'sessions.all' : 'overview.title')}</h1>
                 {route.page === 'overview' && count > 0 && <span className="meta">{count === 1 ? t('overview.count.one') : t('overview.count', { count })}</span>}
+                {(route.page === 'overview' || route.page === 'sessions') && <span className="spacer" />}
+                {route.page === 'overview' && <button className="btn btn-sm" onClick={() => setNewSession('agent')}>{t('newAgent.button')}</button>}
+                {route.page === 'sessions' && <button className="btn btn-sm btn-primary" onClick={() => setNewSession('session')}>{t('newSession.button')}</button>}
               </div>
               {route.page === 'overview' && <SetupCard onOpen={openSetup} consoleOpen={setupOpen} onShown={setSetupCard} />}
               {route.page === 'overview' && <Overview status={status} products={products} open={open} act={act} agent={handToAgent} onSetup={() => openSetup('new')} setupCard={setupCard} visit={visit} onDismissVisit={() => setVisit(null)} onContinue={continueWith} goSpend={() => setRoute({ page: 'spend' })} list={layout.list} onHiddenOpen={(o) => changeLayout({ list: { hiddenOpen: o } })} />}
@@ -462,6 +468,8 @@ function Shell({ status: everyAgent, route, setRoute, mode, switchMode, stopKey,
       )}
       <AnalyticsNotice available={Boolean(status.analyticsAvailable)} onOpen={setNoticeOpen} />
       {renaming && <RenameDialog key={renaming.key} s={renaming} onClose={() => setRenameKey(null)} />}
+      {newSession && <NewSessionDialog kind={newSession} onClose={() => setNewSession(null)}
+        onStarted={(key) => { setNewSession(null); setRoute({ page: 'session', id: '', follow: key, until: Date.now() + SESSION_WAIT_MS }); }} />}
       {ending && (
         <div className="scrim" role="presentation">
           <div className="dialog" role="alertdialog" aria-modal="true" aria-labelledby="end-title" aria-describedby="end-body">

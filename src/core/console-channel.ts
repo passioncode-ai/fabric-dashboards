@@ -7,6 +7,7 @@
 import crypto from 'node:crypto';
 import os from 'node:os';
 import path from 'node:path';
+import { isOwnConsoleKey } from './new-session';
 import type { SessionRow } from './sessions';
 
 export const CHANNEL_MAX_BYTES = 64 * 1024;
@@ -18,8 +19,8 @@ export const CHANNEL_KEY_FILE = 'console.key';
 export const CHANNEL_SOCKET_FILE = 'console.sock';
 export const CHANNEL_TASK_MAX = 16 * 1024;
 
-export type ChannelOp = 'console.new' | 'console.fix' | 'console.list' | 'console.choose' | 'settings.update' | 'sessions.act' | 'app.update' | 'app.install';
-const OPS: readonly string[] = ['console.new', 'console.fix', 'console.list', 'console.choose', 'settings.update', 'sessions.act', 'app.update', 'app.install'];
+export type ChannelOp = 'console.new' | 'console.fix' | 'console.list' | 'console.choose' | 'settings.update' | 'sessions.act' | 'app.update' | 'app.install' | 'session.new';
+const OPS: readonly string[] = ['console.new', 'console.fix', 'console.list', 'console.choose', 'settings.update', 'sessions.act', 'app.update', 'app.install', 'session.new'];
 /** FD-175: what a session row's button does, and what the app's update buttons do. */
 export type SessionAct = 'continue' | 'end' | 'dismiss' | 'clear-ended';
 export interface ChannelRequest {
@@ -36,7 +37,10 @@ export interface ChannelRequest {
   /** FD-175, `app.install`: Move to Applications, or Uninstall keeping settings and history (`uninstall`) or with them
    *  (`uninstall-all`), as the confirmation's box ticked. */
   install?: AppInstall;
+  /** FD-191, `session.new`: the New session (or New agent) dialog's choices; one left out is the dialog's default. */
+  start?: NewSessionRequest;
 }
+export interface NewSessionRequest { kind: 'session' | 'agent'; runtime?: string; folder?: string; bypass?: boolean; isolated?: boolean }
 export type AppInstall = 'move-to-applications' | 'uninstall' | 'uninstall-all';
 /** FD-166: one console of this app that runs now, as the Sessions list joins it with Switchboard's record. Ids only:
  *  never what the console printed, its prompt or a path inside the agent's data. */
@@ -88,7 +92,7 @@ export function parseRequest(line: string): { ok: true; request: ChannelRequest 
   try { v = JSON.parse(line); } catch { return { ok: false, code: 'not-json' }; }
   if (!v || typeof v !== 'object' || Array.isArray(v)) return { ok: false, code: 'not-an-object' };
   const r = v as Record<string, unknown>;
-  for (const k of Object.keys(r)) if (!['key', 'op', 'service', 'task', 'patch', 'session', 'update', 'choice', 'install'].includes(k)) return { ok: false, code: 'unknown-field' };
+  for (const k of Object.keys(r)) if (!['key', 'op', 'service', 'task', 'patch', 'session', 'update', 'choice', 'install', 'start'].includes(k)) return { ok: false, code: 'unknown-field' };
   if (!OPS.includes(String(r.op))) return { ok: false, code: 'unknown-op' };
   // FD-175: the window's own buttons, each with only its own field.
   const only = (field: string) => Object.keys(r).every((k) => k === 'key' || k === 'op' || k === field);
@@ -115,6 +119,18 @@ export function parseRequest(line: string): { ok: true; request: ChannelRequest 
     if (!only('install') || (r.install !== 'move-to-applications' && r.install !== 'uninstall' && r.install !== 'uninstall-all')) return { ok: false, code: 'bad-install' };
     return { ok: true, request: { key: String(r.key ?? ''), op: r.op, service: '', install: r.install } };
   }
+  if (r.op === 'session.new') {
+    // FD-191: a session of its own names no service; each choice is checked here and again by the app.
+    const c = r.start as Record<string, unknown> | undefined;
+    if (!only('start') || !c || typeof c !== 'object' || Array.isArray(c) || Object.keys(c).some((k) => !['kind', 'runtime', 'folder', 'bypass', 'isolated'].includes(k))) return { ok: false, code: 'bad-start' };
+    if (c.kind !== 'session' && c.kind !== 'agent') return { ok: false, code: 'bad-start' };
+    if (c.runtime !== undefined && (typeof c.runtime !== 'string' || !/^[a-z0-9][a-z0-9-]{0,63}$/.test(c.runtime))) return { ok: false, code: 'bad-start' };
+    if (c.folder !== undefined && (typeof c.folder !== 'string' || c.folder.length > 4096 || c.folder.includes('\u0000') || !(c.folder.startsWith('/') || /^[A-Za-z]:[\\/]/.test(c.folder)))) return { ok: false, code: 'bad-start' };
+    if ((c.bypass !== undefined && typeof c.bypass !== 'boolean') || (c.isolated !== undefined && typeof c.isolated !== 'boolean')) return { ok: false, code: 'bad-start' };
+    const start: NewSessionRequest = { kind: c.kind, ...(typeof c.runtime === 'string' ? { runtime: c.runtime } : {}), ...(typeof c.folder === 'string' ? { folder: c.folder } : {}),
+      ...(typeof c.bypass === 'boolean' ? { bypass: c.bypass } : {}), ...(typeof c.isolated === 'boolean' ? { isolated: c.isolated } : {}) };
+    return { ok: true, request: { key: String(r.key ?? ''), op: r.op, service: '', start } };
+  }
   if (r.op === 'console.choose') {
     const c = r.choice as Record<string, unknown> | undefined;
     if (Object.keys(r).some((k) => !['key', 'op', 'service', 'choice'].includes(k))) return { ok: false, code: 'unknown-field' };
@@ -129,7 +145,7 @@ export function parseRequest(line: string): { ok: true; request: ChannelRequest 
     return { ok: true, request: { key: String(r.key ?? ''), op: r.op, service: r.service, choice: { ...(typeof runtime === 'string' ? { runtime } : {}), ...(typeof folder === 'string' ? { folder } : {}) } } };
   }
   // A console operation carries none of the window's fields.
-  if (r.patch !== undefined || r.session !== undefined || r.update !== undefined || r.choice !== undefined || r.install !== undefined) return { ok: false, code: 'unknown-field' };
+  if (r.patch !== undefined || r.session !== undefined || r.update !== undefined || r.choice !== undefined || r.install !== undefined || r.start !== undefined) return { ok: false, code: 'unknown-field' };
   if (r.op === 'console.list') {
     // FD-166: a read names no service and carries no task.
     if (r.service !== undefined || r.task !== undefined) return { ok: false, code: 'unknown-field' };
@@ -163,7 +179,7 @@ export function openConsolesOf(rows: readonly SessionRow[], resumed: (consoleKey
     const fromTranscript = r.launch?.transcript ? path.basename(r.launch.transcript).replace(/\.jsonl$/, '') : '';
     const runtimeSessionId = own ?? (back && SESSION_ID.test(back) ? back.toLowerCase() : null) ?? (SESSION_ID.test(fromTranscript) ? fromTranscript.toLowerCase() : null);
     out.push({
-      row: r.id, consoleKey: r.key, service: AGENT_KEY.test(r.key) && !r.key.startsWith('handover.') ? r.key : null, runtime: r.agent, folder: r.folder, // `handover.<id>`: a console of its own
+      row: r.id, consoleKey: r.key, service: AGENT_KEY.test(r.key) && !isOwnConsoleKey(r.key) ? r.key : null, runtime: r.agent, folder: r.folder, // `handover.<id>`, `session.<id>`: a console of its own
       sessionId: own, runtimeSessionId, since: new Date(r.startedAt ?? r.at).toISOString(),
     });
   }

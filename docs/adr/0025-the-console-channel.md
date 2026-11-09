@@ -85,6 +85,12 @@ only (Q-08) and moves to Fabric (FD-105), so MD-12 closes them as not needed.
   Never what a console printed. It names no service, carries no task, is not logged, and has its own budget of 30 a
   minute so a polling screen never takes a start's place. MCP `consoles` reads it and adds each session's link,
   `fabric-dashboards://sessions?id=<row>`, which opens that session's page in the app.
+- **Amendment 2026-11-09 (FD-191, the operator: New session in the Sessions mode, New agent in the agent list).** One
+  more operation, `session.new` (`{kind: session | agent, runtime?, folder?, bypass?, isolated?}`, no service), starts a
+  session of its own through the dialog's code (`ConsoleHost.startNew`): a choice left out is the dialog's default (the
+  last chosen, else the projects folder and Claude Code, without permission prompts, not isolated). The app checks each
+  field again (`newSessionChoiceOf`); the answer names the console key and its Sessions row. MCP `session_new` reads it
+  and adds the session's link; it is a relayed action (`new-standalone-session`, `new-agent`).
 
 - `SECURITY.md` keeps "Listens on no port" and, once the code lands, names the socket or pipe, its key and the two
   operations; AGENTS.md's lifecycle table gains its row (made at start, removed at quit). Until then the app has no
