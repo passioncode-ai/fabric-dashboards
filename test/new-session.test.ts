@@ -32,13 +32,14 @@ test('FD-191: a session of its own gets a console key of its own that no agent h
 });
 
 test('FD-191: the dialog opens on the projects folder: the last chosen, else the parent of most consoles\' folders, else a usual one, else home', () => {
-  const home = '/Users/p';
-  const dirs = new Set(['/Users/p/Developer', '/Users/p/work', '/Users/p/last']);
+  const home = path.resolve('/Users/p');
+  const at = (...p: string[]) => path.join(home, ...p);
+  const dirs = new Set([at('Developer'), at('work'), at('last')]);
   const isDir = (p: string) => dirs.has(p);
-  assert.equal(projectsFolder({ last: '/Users/p/last', consoleFolders: [], home, isDir }), '/Users/p/last');
-  assert.equal(projectsFolder({ last: '/Users/p/gone', consoleFolders: ['/Users/p/work/a', '/Users/p/work/b', '/Users/p/Developer/c'], home, isDir }), '/Users/p/work', 'two agents in one folder make it the projects folder');
-  assert.equal(projectsFolder({ last: null, consoleFolders: ['/Users/p/work/a'], home, isDir }), '/Users/p/Developer', 'one is not a pattern: the usual folder');
-  assert.equal(projectsFolder({ last: null, consoleFolders: ['/Users/p/x', '/Users/p/y'], home, isDir }), '/Users/p/Developer', 'folders straight in home do not make home the find');
+  assert.equal(projectsFolder({ last: at('last'), consoleFolders: [], home, isDir }), at('last'));
+  assert.equal(projectsFolder({ last: at('gone'), consoleFolders: [at('work', 'a'), at('work', 'b'), at('Developer', 'c')], home, isDir }), at('work'), 'two agents in one folder make it the projects folder');
+  assert.equal(projectsFolder({ last: null, consoleFolders: [at('work', 'a')], home, isDir }), at('Developer'), 'one is not a pattern: the usual folder');
+  assert.equal(projectsFolder({ last: null, consoleFolders: [at('x'), at('y')], home, isDir }), at('Developer'), 'folders straight in home do not make home the find');
   assert.equal(projectsFolder({ last: null, consoleFolders: [null], home, isDir: () => false }), home);
 });
 
@@ -84,12 +85,13 @@ test('FD-191 (SCN-102): the new agent\'s brief names the folder, the skills and 
 test('FD-191: the last choices are kept, a bad one dropped; a session\'s permission and isolation survive a reload', () => {
   const d = merge({});
   assert.deepEqual(d.newSession, { runtime: null, folder: null, bypass: true, isolated: false }, 'without prompts at first (FD-174), not isolated');
-  const m = merge({ newSession: { runtime: 'Bad Id', folder: 'relative', bypass: false, isolated: true }, consoles: { 'session.0123456789ab': { runtime: 'codex', folder: '/w', bypass: false, isolated: true }, 'a.b': { runtime: 'codex', folder: '/w', bypass: 'yes' } } } as never);
+  const w = tmp('fd-ns-w-'); // absolute on every system
+  const m = merge({ newSession: { runtime: 'Bad Id', folder: 'relative', bypass: false, isolated: true }, consoles: { 'session.0123456789ab': { runtime: 'codex', folder: w, bypass: false, isolated: true }, 'a.b': { runtime: 'codex', folder: w, bypass: 'yes' } } } as never);
   assert.deepEqual(m.newSession, { runtime: null, folder: null, bypass: false, isolated: true });
-  assert.deepEqual(m.consoles['session.0123456789ab'], { runtime: 'codex', folder: '/w', bypass: false, isolated: true });
+  assert.deepEqual(m.consoles['session.0123456789ab'], { runtime: 'codex', folder: w, bypass: false, isolated: true });
   assert.ok(!('bypass' in m.consoles['a.b']!), 'not a boolean: dropped');
   const store = new SettingsStore(tmp('fd-ns-set-'));
-  store.update({ consoles: { 'session.0123456789ab': { runtime: 'codex', folder: '/w' }, 'a.b': { runtime: null, folder: null } } });
+  store.update({ consoles: { 'session.0123456789ab': { runtime: 'codex', folder: w }, 'a.b': { runtime: null, folder: null } } });
   store.dropConsoles(['session.0123456789ab']);
   assert.deepEqual(Object.keys(store.get().consoles), ['a.b']);
 });
