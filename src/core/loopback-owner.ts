@@ -282,15 +282,43 @@ export function macConnectionPids(stdout: string, server: number, client: number
   return local.length ? local : wildcard;
 }
 
+/**
+ * FD-190: where the socket table is restricted (macOS 27.2, DEC-0155 RT-1), whether a process of this user other than
+ * `self` holds the server's end of `127.0.0.1:<client>` -> `127.0.0.1:<server>`, from `lsof -F pn` limited to this user
+ * (lsof reads each process's own sockets through libproc, which the restriction does not hide from their owner). Only
+ * that end names the owner: a listener alone does not, since another account's copy cannot be seen from here.
+ */
+export function macLsofServerEnd(stdout: string, server: number, client: number, self: number = process.pid): boolean {
+  const end = `n127.0.0.1:${server}->127.0.0.1:${client}`;
+  let pid = 0;
+  for (const line of stdout.split('\n')) {
+    if (line.startsWith('p')) pid = Number(line.slice(1)) || 0;
+    else if (line === end && pid > 0 && pid !== self) return true;
+  }
+  return false;
+}
+
+/** FD-190: the lsof reads of a restricted table's connection, a few ms apart while the server may not have accepted yet. */
+export const LSOF_TRIES = 3;
+export const LSOF_GAP_MS = 60;
+
 /** FD-168: the macOS connection check: one `netstat` for every connection waiting, then `ps` for the owners' uids. */
-export function macConnectionCheck(run: Runner, uid: number, failed: (why: string) => void = () => {}) {
+export function macConnectionCheck(run: Runner, uid: number, failed: (why: string) => void = () => {}, sleep: (ms: number) => Promise<void> = (ms) => new Promise((r) => setTimeout(r, ms))) {
   return batched(async () => {
     const r = await run('netstat', ['-anv', '-p', 'tcp'], 10_000);
     if (r.code !== 0) throw new Error(r.stderr.trim() || `netstat exit ${r.code}`);
     return r.stdout;
   }, async (stdout, server, client): Promise<LoopbackOwner> => {
     const pids = macConnectionPids(stdout, server, client);
-    if (pids === 'restricted') return 'unknown';
+    if (pids === 'restricted') {
+      // FD-190: the table hides other processes; this user's own server end, found by lsof, still names the owner.
+      for (let i = 0; i < LSOF_TRIES; i += 1) {
+        if (i) await sleep(LSOF_GAP_MS);
+        const r = await run('lsof', ['-nP', '-a', '-u', String(uid), `-iTCP@127.0.0.1:${server}`, '-F', 'pn'], 10_000);
+        if (macLsofServerEnd(r.stdout, server, client)) return true;
+      }
+      return 'unknown';
+    }
     if (!pids.length) return false;
     if (pids.some((p) => p <= 0)) return 'unknown';
     const r = await run('ps', ['-o', 'pid=,uid=', '-p', [...new Set(pids)].join(',')], 10_000);
