@@ -19,7 +19,7 @@
 Fabric Dashboards: a macOS desktop app (Electron) that finds every local agent service speaking
 `fabric-service/0.1`, shows whether it is alive and what it did last, starts, stops and restarts
 it through launchd and opens each service's dashboard inside the app. Fabric's monitoring tool;
-also works on its own. The current version is 0.8.44 (`package.json`, `CHANGELOG.md`); the README
+also works on its own. The current version is 0.8.45 (`package.json`, `CHANGELOG.md`); the README
 *Quick start for a new teammate* is the path for a new user. Licence:
 `AGPL-3.0-only OR LicenseRef-PassionCode-Commercial` ([ADR-0007](docs/adr/0007-agpl-or-commercial.md)).
 
@@ -31,7 +31,7 @@ These come from `CONTRIBUTING.md`:
 |---|---|
 | Install | `npm ci` |
 | Test (the gate) | `npm run check` — typecheck, unit + integration tests, brand pins, code regions, POSIX-only test lines guarded for Windows (`scripts/check-posix-tests.mjs`, FD-146), UX lint (`FD_SKIP_LAUNCHD=1` without a GUI login session) |
-| End-to-end | `npm run test:e2e`: refuses at once on a locked screen (`scripts/check-screen.mjs`: macOS sends windows no show/hide events then) and on a loaded machine (`scripts/check-machine.mjs`, HV-02: 1-minute load average above 150 or free disk under 5 GB; `FD_E2E_MAX_LOAD`, `FD_E2E_MIN_FREE_GB` move the floors), builds, installs Electron's binary (Electron 44 fetches it on first use; parallel test files would race for it), then drives the real Electron app against a live sample service, one file at a time (`scripts/run-e2e.mjs`; `-- --parallel` or `FD_E2E_CONCURRENCY=<n>` opts into more) |
+| End-to-end | `npm run test:e2e`: refuses at once on a locked screen (`scripts/check-screen.mjs`: macOS sends windows no show/hide events then) and on a loaded machine (`scripts/check-machine.mjs`, HV-02: 1-minute load average above 40 (FD-192) or free disk under 5 GB; `FD_E2E_MAX_LOAD`, `FD_E2E_MIN_FREE_GB` move the floors), builds, installs Electron's binary (Electron 44 fetches it on first use; parallel test files would race for it), then drives the real Electron app against a live sample service, one file at a time (`scripts/run-e2e.mjs`; `-- --parallel` or `FD_E2E_CONCURRENCY=<n>` opts into more) |
 | Run from source | `npm start` |
 | Release | push an annotated `v<version>` tag; `.github/workflows/release.yml` builds, signs, notarizes, attests and publishes once `guard` passes — approval by checks, no click (operator 2026-10-11; only `release-approvers` can push a `v*` tag). Rehearsal: a `v<version>-rc.<n>` tag, then `gh workflow run release.yml --ref <tag> -f publish=false` ([RUNBOOK](docs/RUNBOOK.md#release)) |
 | Local build (debug only, never published) | `npm run dist -- --unsigned`, or signed: `npm run dist [-- --identity NAME] [--notary-profile NAME]` |

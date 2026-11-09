@@ -2,12 +2,14 @@
 // e2e preflight (HV-02): every e2e file starts its own Electron, and on a loaded Mac the run measured the machine, not
 // the app (0.7.28: the suite stopped with 130 MB of disk free and swap full). Refuse at once, as check-screen.mjs
 // refuses a locked screen, when the 1-minute load average is above a floor or free disk is under a floor. Both floors
-// are overridable: FD_E2E_MAX_LOAD (default 150), FD_E2E_MIN_FREE_GB (default 5).
+// are overridable: FD_E2E_MAX_LOAD (default 40, FD-192: at a load of 50 to 237 four files failed on main and on a branch
+// alike, and the same file passed at 38; the estate's coordinator asks every project for one heavy run under 40),
+// FD_E2E_MIN_FREE_GB (default 5).
 import { statfsSync } from 'node:fs';
 import os from 'node:os';
 import { pathToFileURL } from 'node:url';
 
-export const DEFAULT_MAX_LOAD = 150;
+export const DEFAULT_MAX_LOAD = 40;
 export const DEFAULT_MIN_FREE_GB = 5;
 const GB = 1024 ** 3;
 

@@ -8,11 +8,11 @@ const GB = 1024 ** 3;
 const floors = { maxLoad: DEFAULT_MAX_LOAD, minFreeGb: DEFAULT_MIN_FREE_GB };
 
 test('HV-02: a load above the floor or free disk under it refuses the run, with the reason and the override', () => {
-  assert.equal(DEFAULT_MAX_LOAD, 150);
+  assert.equal(DEFAULT_MAX_LOAD, 40, 'FD-192');
   assert.equal(DEFAULT_MIN_FREE_GB, 5);
-  assert.equal(machineRefusal({ load1: 42, freeBytes: 80 * GB, ...floors }), null);
-  assert.equal(machineRefusal({ load1: 150, freeBytes: 5 * GB, ...floors }), null, 'at the floor is allowed');
-  assert.match(machineRefusal({ load1: 162.4, freeBytes: 80 * GB, ...floors })!, /load average is 162\.4, above 150.*FD_E2E_MAX_LOAD/);
+  assert.equal(machineRefusal({ load1: 12, freeBytes: 80 * GB, ...floors }), null);
+  assert.equal(machineRefusal({ load1: 40, freeBytes: 5 * GB, ...floors }), null, 'at the floor is allowed');
+  assert.match(machineRefusal({ load1: 50.4, freeBytes: 80 * GB, ...floors })!, /load average is 50\.4, above 40.*FD_E2E_MAX_LOAD/);
   assert.match(machineRefusal({ load1: 3, freeBytes: 0.13 * GB, ...floors })!, /0\.1 GB of disk is free, under 5 GB.*FD_E2E_MIN_FREE_GB/);
   assert.equal(machineRefusal({ load1: Number.NaN, freeBytes: Number.NaN, ...floors }), null, 'a figure that cannot be read refuses nothing');
   assert.equal(machineRefusal({ load1: 162, freeBytes: 80 * GB, maxLoad: 400, minFreeGb: 5 }), null, 'an overridden floor runs');

@@ -36,7 +36,7 @@ npm run dist -- --unsigned                       # a local test build of the DMG
 `npm run test:e2e` starts its own Electron for every test file, so it guards the machine before it builds anything:
 
 - It refuses at once on a locked screen (`scripts/check-screen.mjs`): macOS then sends windows no show/hide events.
-- It refuses at once when the 1-minute load average is above 150 or free disk is under 5 GB
+- It refuses at once when the 1-minute load average is above 40 (FD-192) or free disk is under 5 GB
   (`scripts/check-machine.mjs`, HV-02), with the figure it read. `FD_E2E_MAX_LOAD` and `FD_E2E_MIN_FREE_GB` move the
   floors when you mean to run anyway.
 - It runs the files one at a time (`scripts/run-e2e.mjs`). `npm run test:e2e -- --parallel` runs them side by side,

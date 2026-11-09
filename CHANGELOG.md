@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.8.45 - 2026-11-09
 
 ### Added
 
@@ -8,6 +8,11 @@
   organizations (an agent whose product runs here for two organizations or more), above each organization; tick any
   together to see every agent they keep. Agents filter the same way through MCP `list_services` (`@mine`, `@others`,
   `@shared`).
+
+### Fixed
+
+- FD-192: the end-to-end suite refuses to start when the machine's 1-minute load average is above 40 (was 150): four
+  tests failed on a loaded machine and passed once it was quiet.
 
 ## 0.8.44 - 2026-11-09
 
