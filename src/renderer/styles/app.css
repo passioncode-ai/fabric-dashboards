@@ -438,6 +438,7 @@ table.spend th.num, table.spend td.num { text-align: right; }
 .setup-step-todo .chip { color: var(--pc-text); border-color: var(--pc-negative); }
 .setup-step-attention .chip { color: var(--pc-warning); border-color: var(--pc-warning); }
 .setup-step-next { color: var(--pc-link); border-color: var(--pc-link); }
+.setup-step-gate { color: var(--pc-warning); border-color: var(--pc-warning); }
 .setup-check-all summary { cursor: pointer; color: var(--pc-text-muted); font-size: var(--pc-type-meta); }
 
 /* FD-78: the row menu, the Hidden fold, and the Connections tab */

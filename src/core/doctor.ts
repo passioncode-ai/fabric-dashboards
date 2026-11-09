@@ -9,7 +9,10 @@ export const DOCTOR_AREAS = ['prerequisites', 'skills', 'apps', 'mcp', 'services
 
 export type DoctorArea = (typeof DOCTOR_AREAS)[number];
 export type DoctorState = 'ok' | 'warn' | 'fail' | 'info';
-export interface DoctorCheck { id: string; area: DoctorArea; product: string | null; state: DoctorState; detail: string; fix: string | null }
+/** FD-184 (the launcher's PC-171, from 0.2.76): the first thing a check's fix needs from a person; null when an agent does it. */
+export const DOCTOR_GATES = ['sign-in', 'code', 'consent', 'payment', 'secret'] as const;
+export type DoctorGate = (typeof DOCTOR_GATES)[number];
+export interface DoctorCheck { id: string; area: DoctorArea; product: string | null; state: DoctorState; detail: string; fix: string | null; gate: DoctorGate | null }
 export interface DoctorReport { version: string; at: string; ok: boolean; summary: Record<DoctorState, number>; checks: DoctorCheck[] }
 
 /** What a press of Check setup ended with. */
@@ -38,7 +41,10 @@ export function parseDoctor(stdout: string): DoctorReport | null {
     const id = str(c?.id, 200);
     const detail = str(c?.detail, 500);
     if (!id || detail === null || !AREAS.has(String(c.area)) || !STATES.has(c.state as DoctorState)) continue;
-    checks.push({ id, area: c.area as DoctorArea, product: str(c.product, 64), state: c.state as DoctorState, detail, fix: str(c.fix, 1000) });
+    const fix = str(c.fix, 1000);
+    // FD-184: an unknown gate, or one without a fix, reads as an agent's step (the launcher's own rule: no fix, no gate).
+    const gate = fix && (DOCTOR_GATES as readonly unknown[]).includes(c.gate) ? c.gate as DoctorGate : null;
+    checks.push({ id, area: c.area as DoctorArea, product: str(c.product, 64), state: c.state as DoctorState, detail, fix, gate });
   }
   const summary: Record<DoctorState, number> = { ok: 0, warn: 0, fail: 0, info: 0 };
   for (const c of checks) summary[c.state] += 1;
@@ -74,14 +80,17 @@ export function areasInOrder(lines: DoctorCheck[]): DoctorArea[] {
  *  order: `todo` when a check of it fails, `attention` when one only warns, `done` otherwise; `next` is the first step
  *  not done, so a person or an agent reads where the setup is without reading every check. */
 export type SetupStepState = 'done' | 'attention' | 'todo';
-export interface SetupStep { area: DoctorArea; state: SetupStepState; fail: number; warn: number; first: DoctorCheck | null }
+export interface SetupStep { area: DoctorArea; state: SetupStepState; fail: number; warn: number; first: DoctorCheck | null;
+  /** FD-184: what the step needs from the person (the first failing or warning check that names a gate), or null. */
+  gate: DoctorGate | null; gateCheck: DoctorCheck | null }
 export function setupSteps(report: DoctorReport): { steps: SetupStep[]; next: DoctorArea | null } {
   const steps = DOCTOR_AREAS.map((area): SetupStep => {
     const mine = report.checks.filter((c) => c.area === area);
     const fail = mine.filter((c) => c.state === 'fail').length;
     const warn = mine.filter((c) => c.state === 'warn').length;
     const first = mine.find((c) => c.state === 'fail') ?? mine.find((c) => c.state === 'warn') ?? null;
-    return { area, state: fail ? 'todo' : warn ? 'attention' : 'done', fail, warn, first };
+    const gateCheck = mine.find((c) => c.state === 'fail' && c.gate) ?? mine.find((c) => c.state === 'warn' && c.gate) ?? null;
+    return { area, state: fail ? 'todo' : warn ? 'attention' : 'done', fail, warn, first, gate: gateCheck?.gate ?? null, gateCheck };
   });
   return { steps, next: steps.find((s) => s.state !== 'done')?.area ?? null };
 }
@@ -95,7 +104,7 @@ export function doctorMarkdown(report: DoctorReport): string {
     '',
     `The person pressed Check setup in Fabric Dashboards; the launcher's \`doctor\` (${report.version}, ${report.at}) reported ${report.summary.fail} failing and ${report.summary.warn} warning checks. Start with these, failures first; each names its fix. Prove each one with \`npx --yes @passioncode-ai/passioncode@latest doctor --json\` after you fix it.`,
     '',
-    ...lines.map((c) => `- **${c.state}** \`${c.id}\` (${c.area}): ${c.detail}${c.fix ? `; fix: ${c.fix}` : ''}`),
+    ...lines.map((c) => `- **${c.state}** \`${c.id}\` (${c.area}): ${c.detail}${c.fix ? `; fix: ${c.fix}` : ''}${c.gate ? ` (needs the person: ${c.gate}; do the rest yourself and ask for this once)` : ''}`),
     '',
   ].join('\n');
 }
