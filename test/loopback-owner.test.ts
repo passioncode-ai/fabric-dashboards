@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import net from 'node:net';
 import test from 'node:test';
 import { execRunner } from '../src/core/launchd';
-import { tableRestricted, linuxConnectionCheck, linuxConnectionUids, linuxLoopbackOwnerCheck, listenersOf, macConnectionCheck, macConnectionPids, loopbackOwnerCheck, MISS_REREAD_MS, OWNED_FRESH_MS, portsOf, procNetPorts, socketTableOwner, windowsListenersOf, windowsLoopbackOwnerCheck } from '../src/core/loopback-owner';
+import { macLsofServerEnd, LSOF_TRIES, tableRestricted, linuxConnectionCheck, linuxConnectionUids, linuxLoopbackOwnerCheck, listenersOf, macConnectionCheck, macConnectionPids, loopbackOwnerCheck, MISS_REREAD_MS, OWNED_FRESH_MS, portsOf, procNetPorts, socketTableOwner, windowsListenersOf, windowsLoopbackOwnerCheck } from '../src/core/loopback-owner';
 import { windowsAclReader } from './win-acl';
 import { machineRu } from '../src/core/machine-ru';
 
@@ -309,4 +309,31 @@ test('FD-176 (DEC-0155 RT-1): a socket table that shows nobody else is not "anot
   assert.equal(await own(47852), 'unknown', 'only this process\'s rows: another port is not known to be free');
   assert.equal(tableRestricted(NETSTAT, 1), false, 'a full table');
   assert.equal(tableRestricted(''), true);
+});
+
+test('FD-190: with a restricted table, this user\'s own server end of the connection, found by lsof, names the owner; nothing else does', async () => {
+  const self = process.pid;
+  const lsof = (rows: string[]) => rows.join('\n');
+  // The live shape (lsof -F pn on this Mac): our client end, the agent's listener and the agent's end of this connection.
+  const seen = lsof([`p${self}`, 'f17', 'n127.0.0.1:53122->127.0.0.1:47418', 'p701', 'f4', 'n127.0.0.1:47418', 'f6', 'n127.0.0.1:47418->127.0.0.1:53122']);
+  assert.equal(macLsofServerEnd(seen, 47418, 53122), true);
+  assert.equal(macLsofServerEnd(seen, 47418, 53999), false, 'another connection\'s end');
+  assert.equal(macLsofServerEnd(lsof(['p701', 'f4', 'n127.0.0.1:47418']), 47418, 53122), false, 'a listener alone does not name it');
+  assert.equal(macLsofServerEnd(lsof([`p${self}`, 'n127.0.0.1:47418->127.0.0.1:53122']), 47418, 53122), false, 'never this process');
+  const restricted = [NS_HEAD, ns('tcp4', '127.0.0.1.53122', '127.0.0.1.47418', 'ESTABLISHED', `Fabric Dash:${self}`)].join('\n');
+  const runs: string[][] = [];
+  const make = (lsofOut: string[]) => macConnectionCheck(async (cmd, args) => {
+    runs.push([cmd, ...args]);
+    if (cmd === 'netstat') return { code: 0, stdout: restricted, stderr: '' };
+    if (cmd === 'lsof') return { code: lsofOut.length ? 0 : 1, stdout: lsofOut.shift() ?? '', stderr: '' };
+    throw new Error(`unexpected ${cmd}`);
+  }, 501, () => {}, async () => {});
+  assert.equal(await make([seen])(47418, 53122), true, 'ours, found on the first lsof read');
+  const lsofArgs = runs.find((r) => r[0] === 'lsof')!;
+  assert.deepEqual(lsofArgs, ['lsof', '-nP', '-a', '-u', '501', '-iTCP@127.0.0.1:47418', '-F', 'pn'], 'only this user\'s processes');
+  runs.length = 0;
+  assert.equal(await make(['', seen])(47418, 53122), true, 'the server accepts a moment later');
+  runs.length = 0;
+  assert.equal(await make([])(47418, 53122), 'unknown', 'no end of ours: the owner cannot be told, as before');
+  assert.equal(runs.filter((r) => r[0] === 'lsof').length, LSOF_TRIES);
 });

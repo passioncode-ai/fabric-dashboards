@@ -110,7 +110,11 @@ service data.
   check above, which already refuses a port where any listener is not this user's.
   A macOS table that shows no socket of another process, or not the checked connection's own end (macOS 27.2 hides
   other processes' sockets from some programs; the contract's DEC-0155 RT-1, FD-176), is an owner that cannot be told,
-  never "nobody listens".
+  never "nobody listens". For the open connection (FD-190), such a table is then asked once more where the restriction
+  does not reach: `lsof` limited to this user's processes (it reads each process's own sockets through libproc) must
+  show a process other than the app holding the server's end of exactly this connection
+  (`127.0.0.1:<port>->127.0.0.1:<client port>`), up to three reads 60 ms apart for a server that has not accepted yet;
+  only then is the token written. A listener alone never counts, since another account's copy is invisible from here.
 - **Listens** on no port. The MCP server (`Contents/Resources/bin/fabric-dashboards-mcp`)
   is started by an agent and speaks only over its stdin and stdout; it reads the same
   folder and token files, talks to the same origins and runs the same `launchctl` verbs and

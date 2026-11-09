@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- FD-190: on a Mac whose socket table hides other programs' connections (macOS 27.2 for some apps), an agent's
+  dashboard did not open ("the owner of the program on 127.0.0.1:<port> could not be told on the open connection").
+  The app now also looks through this user's own programs for the other end of that very connection and signs in
+  when one of them holds it; when none does, it still sends nothing.
+
 ## 0.8.42 - 2026-11-09
 
 ### Added
