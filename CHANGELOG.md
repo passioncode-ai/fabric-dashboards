@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- FD-196: an agent placed on the other machine that does not answer here now says that its dashboard opens here while
+  a port forward from that machine runs; when Observatory's placement record names the forward (`forward`), it says
+  that this forward is not running.
+
 ## 0.8.45 - 2026-11-09
 
 ### Added

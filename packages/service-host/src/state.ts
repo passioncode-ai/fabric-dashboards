@@ -80,7 +80,8 @@ export function deriveState(i: StateInput): StateOutput {
   if (probe?.kind === 'refused') return { state: 'down', reasons: [{ code: 'reason.refused', params: { port: portNum(d.origin), detail: probe.detail } }] };
   // No answer.
   // FD-132: silent here because it runs on the other machine: off here, never down, whatever launchd says.
-  if (away) return { state: 'stopped', reasons: [{ code: 'reason.elsewhere', params: { machine: away.placedOn } }] };
+  // FD-196: a record that names the forward which should bring it here says that forward is not working.
+  if (away) return { state: 'stopped', reasons: [{ code: 'reason.elsewhere', params: { machine: away.placedOn, ...(away.forward ? { forward: away.forward } : {}) } }] };
   if (i.launchd.managed && (i.launchd.disabled || !i.launchd.loaded)) {
     return { state: 'stopped', reasons: [{ code: i.launchd.disabled ? 'reason.stopped' : 'reason.not-loaded' }] };
   }

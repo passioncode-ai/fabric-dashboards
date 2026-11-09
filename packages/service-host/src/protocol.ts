@@ -107,6 +107,8 @@ export interface Elsewhere {
   placedOn: string;
   /** ISO time it was placed there, when the record says. */
   since?: string;
+  /** FD-196: the launchd label of the forward that brings its port here, when the record names one (OBS-480). */
+  forward?: string;
 }
 
 /** An action the host has in flight for the service. */

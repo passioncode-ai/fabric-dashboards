@@ -19,6 +19,8 @@ export interface PlacementEntry {
   placedOn: string;
   since?: string;
   by?: string;
+  /** FD-196 (OBS-480): the launchd label of the job that forwards the service's port from the machine it runs on. */
+  forward?: string;
 }
 
 export interface Placement {
@@ -57,7 +59,7 @@ export function parsePlacement(raw: string): PlacementRead {
     const label = text(x.label);
     const serviceId = text(x.serviceId);
     if (!placedOn || (!label && !serviceId)) continue;
-    elsewhere.push({ placedOn, ...(label ? { label } : {}), ...(serviceId ? { serviceId } : {}), ...(text(x.since) ? { since: text(x.since) } : {}), ...(text(x.by) ? { by: text(x.by) } : {}) });
+    elsewhere.push({ placedOn, ...(label ? { label } : {}), ...(serviceId ? { serviceId } : {}), ...(text(x.since) ? { since: text(x.since) } : {}), ...(text(x.by) ? { by: text(x.by) } : {}), ...(text(x.forward) ? { forward: text(x.forward) } : {}) });
   }
   return { placement: { machine: text(o.machine) ?? null, updatedAt: text(o.updatedAt) ?? null, elsewhere }, error: null };
 }
@@ -69,7 +71,7 @@ export function elsewhereOf(placement: Placement | null, d: Pick<Descriptor, 'id
   const label = d.lifecycle.label;
   const hit = placement.elsewhere.find((e) => (label && e.label === label) || e.serviceId === key || (e.serviceId === d.id && d.instance === 'default'));
   if (!hit || hit.placedOn === placement.machine) return null;
-  return { placedOn: hit.placedOn, ...(hit.since ? { since: hit.since } : {}) };
+  return { placedOn: hit.placedOn, ...(hit.since ? { since: hit.since } : {}), ...(hit.forward ? { forward: hit.forward } : {}) };
 }
 
 export interface PlacementFileInfo { uid: number; mode: number; size: number; mtimeMs: number }

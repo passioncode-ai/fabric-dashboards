@@ -20,6 +20,13 @@ test('FD-132: a launchd label places the service on the named machine', () => {
   assert.deepEqual(elsewhereOf(r.placement, d()), { placedOn: 'studio-2', since: '2026-10-28T09:00:00Z' });
 });
 
+test('FD-196: a record that names the forward which brings the port here hands it on; a blank one is left out', () => {
+  const r = parsePlacement(doc([{ label: 'com.example.example-agent', placedOn: 'studio-2', forward: 'com.example.example-agent-tunnel' }])).placement;
+  assert.deepEqual(elsewhereOf(r, d()), { placedOn: 'studio-2', forward: 'com.example.example-agent-tunnel' });
+  const blank = parsePlacement(doc([{ label: 'com.example.example-agent', placedOn: 'studio-2', forward: ' ' }])).placement;
+  assert.deepEqual(elsewhereOf(blank, d()), { placedOn: 'studio-2' });
+});
+
 test('FD-132: a key matches without a label; an id alone stands for the default instance only', () => {
   const r = parsePlacement(doc([{ serviceId: 'example-agent', placedOn: 'studio-2' }])).placement;
   assert.deepEqual(elsewhereOf(r, d({ lifecycle: { manager: 'none' } } as Partial<Descriptor>)), { placedOn: 'studio-2' });

@@ -162,6 +162,11 @@
       "expect": { "state": "stopped", "reasons": [{ "code": "reason.elsewhere", "params": { "machine": "studio-2" } }] }
     },
     {
+      "name": "placed on another machine with a named forward (FD-196) and silent here: off here, the forward named",
+      "input": { "elsewhere": { "placedOn": "studio-2", "forward": "com.example.example-agent-tunnel" }, "probe": { "kind": "no-answer", "detail": "connect ECONNREFUSED 127.0.0.1:47195" }, "launchd": { "managed": true, "loaded": false, "pid": null, "disabled": false }, "firstUnansweredAt": 0 },
+      "expect": { "state": "stopped", "reasons": [{ "code": "reason.elsewhere", "params": { "machine": "studio-2", "forward": "com.example.example-agent-tunnel" } }] }
+    },
+    {
       "name": "placed on another machine and silent although launchd loaded it here: still off here, never down",
       "input": { "elsewhere": { "placedOn": "studio-2" }, "probe": { "kind": "no-answer", "detail": "connect ECONNREFUSED 127.0.0.1:47195" }, "firstUnansweredAt": 0 },
       "expect": { "state": "stopped", "reasons": [{ "code": "reason.elsewhere", "params": { "machine": "studio-2" } }] }
