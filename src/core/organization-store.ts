@@ -13,7 +13,7 @@ export function readOrganizations(file: string): OrganizationsCache {
     const raw = JSON.parse(fs.readFileSync(file, 'utf8')) as Partial<OrganizationsCache>;
     const byRepository = raw.byRepository && typeof raw.byRepository === 'object' ? raw.byRepository : {};
     const organizations = raw.organizations && typeof raw.organizations === 'object' ? raw.organizations : {};
-    return { readAt: typeof raw.readAt === 'string' ? raw.readAt : null, byRepository, organizations };
+    return { readAt: typeof raw.readAt === 'string' ? raw.readAt : null, byRepository, organizations, personal: typeof raw.personal === 'string' && raw.personal ? raw.personal : null };
   } catch {
     return { ...EMPTY_ORGANIZATIONS };
   }

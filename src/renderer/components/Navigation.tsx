@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { AppStatus, ListSort, Settings as AppSettings, SettingsPatch } from '../../core/types';
 import { moveInSection, type MoveSection, type Product } from '../../core/products';
-import { groupByOrganization, organizationCounts } from '../../core/organizations';
+import { groupByOrganization, kindCounts, ORG_KINDS, ORG_MINE, ORG_OTHERS, ORG_SHARED, organizationCounts } from '../../core/organizations';
 import type { SessionGroup, SessionRow } from '../../core/sessions';
 import { groupRows, navLines, stateShort, waitingForYou } from '../../core/sessions-view';
 import { revealScrollTop } from '../../core/layout';
@@ -453,15 +453,28 @@ function OrgMenu({ services, chosen, onChange, grouped, onGroup }: { services: A
   const { t } = useT();
   const rows = organizationCounts(services);
   if (rows.length < 2 && chosen.length === 0) return null;
-  const nameOf = (name: string) => (name === '' ? t('orgs.none') : rows.find((r) => r.name === name)?.label ?? name);
-  const label = chosen.length === 0 ? t('orgs.all') : chosen.length === 1 ? nameOf(chosen[0]!) : t('orgs.several', { count: chosen.length });
+  // FD-195 (SCN-094 steps 7 to 9): Mine, Other organizations and Shared first, then each organization.
+  const kinds = kindCounts(services);
+  const kindRows = [
+    ...(kinds.mine !== null ? [{ name: ORG_MINE, label: t('orgs.mine'), count: kinds.mine }] : []),
+    { name: ORG_OTHERS, label: t('orgs.others'), count: kinds.others },
+    ...(kinds.shared > 0 || chosen.includes(ORG_SHARED) ? [{ name: ORG_SHARED, label: t('orgs.shared'), count: kinds.shared }] : []),
+  ];
+  const nameOf = (name: string) => kindRows.find((k) => k.name === name)?.label
+    ?? (name === '' ? t('orgs.none') : ((r) => (r?.personal ? t('orgs.mineOf', { label: r.label ?? name }) : r?.label ?? name))(rows.find((r) => r.name === name)));
+  const label = chosen.length === 0 ? t('orgs.all') : chosen.length === 1 ? nameOf(chosen[0]!)
+    : t(chosen.some((n) => ORG_KINDS.includes(n)) ? 'orgs.chosen' : 'orgs.several', { count: chosen.length });
   const toggle = (name: string) => onChange(chosen.includes(name) ? chosen.filter((x) => x !== name) : [...chosen, name]);
-  const gone = chosen.filter((n) => !rows.some((r) => r.name === n));
+  const gone = chosen.filter((n) => !rows.some((r) => r.name === n) && !kindRows.some((k) => k.name === n));
   return (
     <details className="org-menu">
       <summary aria-label={`${t('orgs.menu')}. ${label}`} title={t('orgs.menu')}>{label}</summary>
       <div className="org-menu-list" role="group" aria-label={t('orgs.menu')}>
         <label><input type="checkbox" checked={chosen.length === 0} onChange={() => onChange([])} /> {t('orgs.all')}</label>
+        {kindRows.map((k) => (
+          <label key={k.name}><input type="checkbox" checked={chosen.includes(k.name)} onChange={() => toggle(k.name)} /> {k.label} <span className="count">{k.count}</span></label>
+        ))}
+        <div className="org-menu-sep" role="presentation" />
         {rows.map((r) => (
           <label key={r.name}><input type="checkbox" checked={chosen.includes(r.name)} onChange={() => toggle(r.name)} /> {nameOf(r.name)} <span className="count">{r.count}</span></label>
         ))}

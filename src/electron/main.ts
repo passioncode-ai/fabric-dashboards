@@ -197,8 +197,10 @@ if (!app.requestSingleInstanceLock()) {
       let projects: Record<string, unknown>;
       try { projects = JSON.parse(fs.readFileSync(path.join(base, 'registry', 'projects.json'), 'utf8')) as Record<string, unknown>; } catch { return null; }
       try {
-        const cfg = JSON.parse(fs.readFileSync(path.join(base, 'config', 'organizations.json'), 'utf8')) as { organizations?: Record<string, { label?: unknown }> };
+        const cfg = JSON.parse(fs.readFileSync(path.join(base, 'config', 'organizations.json'), 'utf8')) as { organizations?: Record<string, { label?: unknown; default?: unknown }> };
         projects.organization_labels = Object.fromEntries(Object.entries(cfg.organizations ?? {}).map(([k, v]) => [k, v?.label]));
+        // FD-195: the organization marked `default: true` is the operator's own: the filter's "Mine".
+        projects.organization_personal = Object.entries(cfg.organizations ?? {}).find(([, v]) => v?.default === true)?.[0] ?? null;
       } catch { /* no labels: names are shown as they are */ }
       return projects;
     },
