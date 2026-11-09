@@ -147,10 +147,13 @@ const en = {
   'reason.foreign.protocol': 'Port {port} is used by a program that is not a Fabric agent ({detail}). The app sends it no token until it asks for one.',
   'reason.refused': 'The program on port {port} refuses this app ({detail}). Nothing is read from it.',
   'reason.duplicate': 'Two copies run: process {answering} answers, while the system started process {launchd}. Restart it to keep one.',
-  'reason.elsewhere': 'Placed on the other machine, {machine}: it runs there, so here it stays off.',
+  'reason.elsewhere': 'Placed on the other machine, {machine}: it runs there, so here it stays off. Its dashboard opens here while a port forward from that machine runs.',
+  // FD-196: the placement record names the forward that should bring its port here (OBS-480), and nothing answers.
+  'reason.elsewhere.forward': 'Runs on {machine}, and its port forward to this computer ({forward}) is not running, so its dashboard does not open here.',
+  'reason.elsewhere.forward.unknown': 'Runs on another machine, and its port forward to this computer ({forward}) is not running, so its dashboard does not open here.',
   'reason.duplicate.elsewhere': 'Placed on {machine}, yet a copy runs here too. Stop it here to keep one.',
   // FD-132: Observatory writes placedOn `unknown` when the moved bundle named no machine; `t` picks these then.
-  'reason.elsewhere.unknown': 'Placed on another machine: it runs there, so here it stays off.',
+  'reason.elsewhere.unknown': 'Placed on another machine: it runs there, so here it stays off. Its dashboard opens here while a port forward from that machine runs.',
   'reason.duplicate.elsewhere.unknown': 'Placed on another machine, yet a copy runs here too. Stop it here to keep one.',
   // FD-179: placed on another machine, its port forwarded here (an SSH tunnel); copy check 436b7448.
   'reason.reached.elsewhere': 'Runs on {machine}. This computer reaches it through its port, so what you see here is that copy.',
@@ -1192,9 +1195,11 @@ const ru: Record<Key, string> = {
   'reason.foreign.protocol': 'Порт {port} занят программой, которая не является агентом Fabric ({detail}). Приложение не отправляет ей токен, пока она сама его не запросит.',
   'reason.refused': 'Программа на порту {port} отказывает этому приложению ({detail}). Из её ответа ничего не читается.',
   'reason.duplicate': 'Запущены две копии: отвечает процесс {answering}, а система запустила процесс {launchd}. Перезапустите, чтобы осталась одна.',
-  'reason.elsewhere': 'Размещён на другой машине ({machine}): работает там, а здесь выключен.',
+  'reason.elsewhere': 'Размещён на другой машине ({machine}): работает там, а здесь выключен. Его дашборд открывается здесь, пока идёт проброс порта с той машины.',
+  'reason.elsewhere.forward': 'Работает на {machine}, а проброс его порта на этот компьютер ({forward}) не идёт, поэтому дашборд здесь не открывается.',
+  'reason.elsewhere.forward.unknown': 'Работает на другой машине, а проброс его порта на этот компьютер ({forward}) не идёт, поэтому дашборд здесь не открывается.',
   'reason.duplicate.elsewhere': 'Агент размещён на машине {machine}, но копия работает и здесь. Остановите её здесь, чтобы осталась одна.',
-  'reason.elsewhere.unknown': 'Размещён на другой машине: работает там, а здесь выключен.',
+  'reason.elsewhere.unknown': 'Размещён на другой машине: работает там, а здесь выключен. Его дашборд открывается здесь, пока идёт проброс порта с той машины.',
   'reason.duplicate.elsewhere.unknown': 'Агент размещён на другой машине, но копия работает и здесь. Остановите её здесь, чтобы осталась одна.',
   // FD-179: copy check 952943eb.
   'reason.reached.elsewhere': 'Работает на машине {machine}. Этот компьютер обращается к агенту через его порт, поэтому здесь вы видите ту копию.',
@@ -2135,6 +2140,8 @@ export const UNKNOWN_MACHINE = 'unknown';
 export function t(lang: Lang, key: Key | string, params: Record<string, string | number> = {}): string {
   const dict = dictionaries[lang];
   // FD-132: a sentence that names the machine has a form without it, for a placement whose machine is unknown.
+  // FD-196: a reason that names the forward which should bring the agent here has its own sentence.
+  if (params.forward !== undefined && `${key}.forward` in en) key = `${key}.forward`;
   if (params.machine === UNKNOWN_MACHINE && `${key}.unknown` in en) key = `${key}.unknown`;
   const variant = wording === 'other' ? undefined : `${key}.${wording}`;
   const own = variant ? ((dict[variant as Key] ?? en[variant as Key]) as string | undefined) : undefined;

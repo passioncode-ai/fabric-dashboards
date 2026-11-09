@@ -163,12 +163,13 @@ A remote placement (DEC-0019) has no launchd and no `duplicate`: `refused`, TLS 
    while placed there is in step 5 a `duplicate` (`reason.duplicate.elsewhere`, the machine) when this
    machine's own launchd job runs it, and otherwise the placed copy reached through a forward of its port
    (an SSH tunnel): its own status with `reason.reached.elsewhere` (the machine) last (FD-179); a host that
-   does not supervise the service cannot tell, and reads it as `duplicate`;
+   does not supervise the service cannot tell, and reads it as `duplicate`; when the record names the
+   forward that should bring the port here, the `stopped` reason carries it as `forward` (FD-196);
 8. silence and launchd disabled or not loaded → `stopped` (`reason.stopped` / `reason.not-loaded`);
 9. silence shorter than `DOWN_AFTER_MS` (15 s) → `starting` (`reason.waiting`), else `down`
    (`reason.down`, since when).
 
-The input `elsewhere` (`{ placedOn, since? }`, optional) comes from the placement record (below);
+The input `elsewhere` (`{ placedOn, since?, forward? }`, optional) comes from the placement record (below);
 an online placement never reads it. `placedElsewhere(reasons)` names the machine a state's reasons
 place it on, or `null`.
 
@@ -181,12 +182,13 @@ nothing to show).
 machine. Until Observatory's node serves the estate record's `machines[].packages[]` (FAC-SEM-074),
 the record is one file Observatory writes on each machine (OBS-283):
 `${XDG_DATA_HOME:-~/.local/share}/project-observatory/placement.json`, schema
-`observatory-placement/1`, `{ machine, updatedAt, elsewhere: [{ label, serviceId, placedOn, since, by }] }`.
+`observatory-placement/1`, `{ machine, updatedAt, elsewhere: [{ label, serviceId, placedOn, since, by, forward }] }`
+(`forward`, optional: the launchd label of the job that forwards the port here, OBS-480; FD-196).
 
 - `placementFile(env?, home?)` → the path; `parsePlacement(text)` → `{ placement, error }`: a
   document of another schema, or without an `elsewhere` list, is refused with its reason; an entry
   without a machine, or with neither a label nor a key, is dropped, never guessed.
-- `elsewhereOf(placement, descriptor)` → `{ placedOn, since? } | null`: matched by the launchd label,
+- `elsewhereOf(placement, descriptor)` → `{ placedOn, since?, forward? } | null`: matched by the launchd label,
   or by the key `id.instance` (an id alone stands for the default instance); an entry placed on the
   record's own machine places nothing elsewhere.
 - `PlacementReader` reads the file again only when its time or size changed, and at most once per

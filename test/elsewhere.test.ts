@@ -95,6 +95,27 @@ test('FD-132: a machine Observatory could not name (placedOn unknown) is said as
   }
 });
 
+test('FD-196: off here, the sentence says how its dashboard opens here, and names the forward the record gives', async () => {
+  const { t } = await import('../src/core/i18n');
+  const fwd = 'com.example.example-agent-tunnel';
+  for (const lang of ['en', 'ru'] as const) {
+    const plain = t(lang, 'reason.elsewhere', { machine: 'studio-2' });
+    assert.match(plain, /studio-2/);
+    assert.match(plain, lang === 'en' ? /port forward/ : /проброс порта/);
+    const named = t(lang, 'reason.elsewhere', { machine: 'studio-2', forward: fwd });
+    assert.match(named, /studio-2/);
+    assert.ok(named.includes(fwd), named);
+    assert.match(named, lang === 'en' ? /not running/ : /не идёт/);
+    const unknown = t(lang, 'reason.elsewhere', { machine: 'unknown', forward: fwd });
+    assert.ok(unknown.includes(fwd) && !/\bunknown\b|\{machine\}/.test(unknown), unknown);
+    assert.match(unknown, lang === 'en' ? /another machine/ : /другой машине/);
+  }
+  const placed: Placement = { machine: 'studio-1', updatedAt: null, elsewhere: [{ label: DESCRIPTOR.lifecycle.label!, placedOn: 'studio-2', forward: fwd }] };
+  const r = rig(MISS, { get: () => placed, error: null });
+  await r.monitor.tick();
+  assert.deepEqual(r.monitor.snapshot(KEY)!.reasons, [{ code: 'reason.elsewhere', params: { machine: 'studio-2', forward: fwd } }]);
+});
+
 test('FD-179: placed elsewhere, answering here, and its own job not loaded here: the placed copy reached through a forwarded port, never a duplicate', async () => {
   // The move leaves an SSH tunnel on the port (seen 2026-11-08): launchd has no job for the label, yet the port answers.
   const r = rig({ kind: 'answer', doc: READY, ms: 3 }, { get: () => PLACED, error: null }, { code: 113, stdout: '', stderr: 'Could not find service' });
