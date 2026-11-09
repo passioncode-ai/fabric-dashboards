@@ -23,6 +23,9 @@ export const OWN_ACTIONS: DeclaredAction[] = [
   // ADR-0025 (FD-120): the console's buttons, through the app's channel; they start a program in the person's folder.
   { id: 'new-session', title: 'New session', tool: 'console_new', gate: 'relayed' },
   { id: 'fix-with-coding-agent', title: 'Fix with coding agent', tool: 'console_fix', gate: 'relayed' },
+  // FD-191: the Sessions mode's New session and the agent list's New agent (SCN-101, SCN-102).
+  { id: 'new-standalone-session', title: 'New session in a folder', tool: 'session_new', gate: 'relayed' },
+  { id: 'new-agent', title: 'New agent', tool: 'session_new', gate: 'relayed' },
   // FD-122: the sidebar row's menu and its eye (SCN-071, SCN-072); a list choice, nothing outside this app changes.
   { id: 'pin', title: 'Pin to the top', tool: 'arrange', gate: 'none' },
   { id: 'unpin', title: 'Unpin', tool: 'arrange', gate: 'none' },

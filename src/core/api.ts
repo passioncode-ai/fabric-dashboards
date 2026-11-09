@@ -59,9 +59,24 @@ export type ConsoleSessions =
 /** Why a start did not run in the console, worded by the renderer. */
 export type ConsoleStartResult =
   | { ok: true }
-  | { ok: false; reason: 'running' | 'no-runtime' | 'no-folder' | 'no-continue' | 'switchboard' | 'terminal-only' | 'spawn'; detail?: string; project?: string }
+  | { ok: false; reason: 'running' | 'no-runtime' | 'no-folder' | 'no-continue' | 'switchboard' | 'terminal-only' | 'spawn' | 'isolated'; detail?: string; project?: string }
   /** FD-49 (LC-17): deferred — the machine cannot carry another session now. */
   | { ok: false; reason: 'admission'; why: 'disk' | 'swap' | 'cap'; freeGb?: number; running?: number; cap?: number };
+
+/** FD-191 (SCN-101, SCN-102): what the New session and New agent dialogs offer: the coding agents installed here, each
+ *  with whether it has a verified switch to run without permission prompts and the provider Switchboard runs it on; the
+ *  folder they open on (the last chosen, else the projects folder); the last choices; and whether an isolated session can
+ *  be run here, with the reason when it cannot. */
+export interface NewSessionOptions {
+  runtimes: { id: string; name: string; bypass: boolean; provider: 'claude' | 'codex' | null }[];
+  runtime: string | null;
+  folder: string;
+  bypass: boolean;
+  isolated: boolean;
+  switchboard: boolean;
+  inPlace: boolean;
+}
+export type NewSessionResult = { ok: true; key: string } | Extract<ConsoleStartResult, { ok: false }> | { ok: false; reason: 'bad-request'; detail?: string };
 
 /** Where an embedded dashboard is now (ADR-0014). */
 export interface PageState { key: string; address: string; link: string; canGoBack: boolean; canGoForward: boolean; loading: boolean }
@@ -138,6 +153,12 @@ export interface FabricApi {
   consoleChoose(key: string, choice: { runtime?: string }): Promise<ConsoleInfo>;
   /** A folder dialog; the choice is saved for this service. */
   consolePickFolder(key: string): Promise<ConsoleInfo>;
+  /** FD-191: what the New session / New agent dialog offers now. */
+  newSessionOptions(): Promise<NewSessionOptions>;
+  /** FD-191: the system folder picker, opened on `current`; null when the person cancelled. */
+  newSessionPickFolder(current: string): Promise<string | null>;
+  /** FD-191: start a session of its own (or a new agent's) with these choices; the answer names its console key. */
+  newSessionStart(choice: { kind: 'session' | 'agent'; runtime: string; folder: string; bypass: boolean; isolated: boolean }, size: { cols: number; rows: number }): Promise<NewSessionResult>;
   /** FD-39: `task` hands a job with the context (Fix / Update with agent, ADR-0020). */
   consoleStart(key: string, mode: 'new' | 'continue', size: { cols: number; rows: number }, task?: ConsoleTask): Promise<ConsoleStartResult>;
   /** FD-129 (UX-16): type a Fix / Update task into the session already running, without pressing Enter for the person. */
@@ -235,6 +256,9 @@ export const CHANNELS = {
   consoleInfo: 'fd:console-info',
   consoleChoose: 'fd:console-choose',
   consolePickFolder: 'fd:console-pick-folder',
+  newSessionOptions: 'fd:new-session-options',
+  newSessionPickFolder: 'fd:new-session-pick-folder',
+  newSessionStart: 'fd:new-session-start',
   consoleStart: 'fd:console-start',
   consoleSendTask: 'fd:console-send-task',
   consoleInput: 'fd:console-input',

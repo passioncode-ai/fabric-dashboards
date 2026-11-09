@@ -11,7 +11,7 @@
 import { supervises } from '../core/platform';
 import fs from 'node:fs';
 import net from 'node:net';
-import { CHANNEL_KEY_FILE, channelAddress, type AppInstall, type ChannelAnswer, type ChannelOp, type OpenConsole } from '../core/console-channel';
+import { CHANNEL_KEY_FILE, channelAddress, type AppInstall, type ChannelAnswer, type ChannelOp, type NewSessionRequest, type OpenConsole } from '../core/console-channel';
 import { discoverHost, type HostStatus } from './host';
 import {
   APP_NAME, dashboardMinWidth, expand, lookAtServices, readDirectory, servicesDir as defaultServicesDir,
@@ -658,7 +658,7 @@ export async function load(deps: Deps, key: string): Promise<LoadEntry & { produ
 // #region console-channel-client — docs: docs/adr/0025-the-console-channel.md#decision
 /** One request to the running app, through its per-user channel and this run's key. The app not running is an answer
  *  (`app-not-running`), never a start of the app. */
-async function askChannel(deps: Deps, request: { op: ChannelOp; service?: string; task?: { kind: 'fix' | 'audit'; output: string }; patch?: Record<string, unknown>; session?: unknown; update?: string; choice?: { runtime?: string; folder?: string }; install?: AppInstall }, notRunning: string): Promise<ChannelAnswer> {
+async function askChannel(deps: Deps, request: { op: ChannelOp; service?: string; task?: { kind: 'fix' | 'audit'; output: string }; patch?: Record<string, unknown>; session?: unknown; update?: string; choice?: { runtime?: string; folder?: string }; install?: AppInstall; start?: NewSessionRequest }, notRunning: string): Promise<ChannelAnswer> {
   const userData = path.dirname(deps.settingsFile?.() ?? appSettingsFile());
   let key: string;
   try { key = fs.readFileSync(path.join(userData, CHANNEL_KEY_FILE), 'utf8').trim(); } catch { throw new ToolError(notRunning); }
@@ -739,6 +739,14 @@ export async function consoleChoose(deps: Deps, service: string, choice: { runti
   const answer = await askChannel(deps, { op: 'console.choose', service, choice }, 'app-not-running: Fabric Dashboards is not running, so the console cannot change now; open it and call again');
   if (!answer.ok) throw new ToolError(`${answer.code}${answer.detail ? `: ${answer.detail}` : ''}`, { done: false, code: answer.code });
   return 'result' in answer ? { service, ...answer.result } : { service };
+}
+
+/** FD-191 (SCN-101, SCN-102): the Sessions mode's New session and the agent list's New agent, through the running app. */
+export async function sessionNew(deps: Deps, start: NewSessionRequest): Promise<Record<string, unknown>> {
+  const answer = await askChannel(deps, { op: 'session.new', start }, 'app-not-running: Fabric Dashboards is not running, so no session can start; open it and call again');
+  if (!answer.ok) throw new ToolError(`${answer.code}${answer.detail ? `: ${answer.detail}` : ''}`, { started: false, code: answer.code });
+  const r = 'result' in answer ? answer.result : {};
+  return typeof r.row === 'string' ? { ...r, open_link: sessionLink(r.row) } : r;
 }
 
 /** FD-175: Move to Applications, and Uninstall from Settings (keeping settings and history, or with them). `confirm`

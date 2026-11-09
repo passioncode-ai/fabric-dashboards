@@ -388,6 +388,23 @@ table.spend th.num, table.spend td.num { text-align: right; }
 .rename-field { display: flex; flex-direction: column; gap: var(--pc-space-1); margin-top: var(--pc-space-3); }
 .rename-field input { width: 100%; }
 .dialog .row.rename-own { justify-content: flex-start; margin-top: var(--pc-space-2); gap: var(--pc-space-2); }
+/* FD-191 (SCN-101, SCN-102): the New session and New agent dialog: the coding agents as choices, the folder with its
+   picker, and the two boxes, each with its one line under it. */
+.new-session-field { border: 0; padding: 0; margin: var(--pc-space-4) 0 0; display: flex; flex-direction: column; gap: var(--pc-space-2); min-width: 0; }
+.new-session-field legend, .new-session-label { padding: 0; font-size: var(--pc-type-meta); color: var(--pc-text-muted); }
+.new-session-runtimes { display: flex; flex-wrap: wrap; gap: var(--pc-space-2); }
+.new-session-runtimes .choice { display: inline-flex; align-items: center; gap: var(--pc-space-1); padding: var(--pc-space-1) var(--pc-space-3); border: 1px solid var(--pc-border); border-radius: var(--pc-radius-pill); cursor: pointer; transition: border-color var(--pc-duration-hover) var(--pc-ease), background-color var(--pc-duration-hover) var(--pc-ease); }
+.new-session-runtimes .choice:hover { border-color: var(--pc-border-strong); }
+.new-session-runtimes .choice.chosen { border-color: var(--pc-link); background: var(--pc-accent-soft); }
+.new-session-runtimes .choice:has(input:focus-visible) { outline: 2px solid var(--pc-focus); outline-offset: 2px; }
+.new-session-runtimes input { margin: 0; accent-color: var(--pc-link); }
+.dialog .row.new-session-folder { justify-content: space-between; flex-wrap: nowrap; margin-top: 0; gap: var(--pc-space-2); min-width: 0; }
+.new-session-folder .mono { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; font-family: var(--pc-font-data); }
+.new-session-check { display: flex; align-items: center; gap: var(--pc-space-2); margin-top: var(--pc-space-4); cursor: pointer; }
+.new-session-check input { margin: 0; accent-color: var(--pc-link); }
+.new-session-check:has(input:disabled) { cursor: default; color: var(--pc-text-muted); }
+.dialog p.new-session-hint { margin: var(--pc-space-1) 0 0 calc(13px + var(--pc-space-2)); font-size: var(--pc-type-meta); }
+@media (prefers-reduced-motion: reduce) { .new-session-runtimes .choice { transition: none; } }
 
 /* progress: constant motion while an action runs; a still half ring under reduced motion (VIS-23), never the plain
    ring that reads as ○ stopped */

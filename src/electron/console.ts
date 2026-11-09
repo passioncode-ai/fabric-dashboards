@@ -11,7 +11,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { execRunner, type Runner } from '@passioncode-ai/fabric-service-host';
-import { CHANNELS, type ConsoleInfo, type ConsoleStartResult, type ConsoleTask } from '../core/api';
+import { CHANNELS, type ConsoleInfo, type ConsoleStartResult, type ConsoleTask, type NewSessionOptions, type NewSessionResult } from '../core/api';
 import { openConsolesOf, type OpenConsole } from '../core/console-channel';
 import { prepareHandoff, writeTaskOnly, type McpCommand } from '../core/handoff';
 import { readFallback, writeFallback, type FallbackChange, type FallbackRead } from '../core/fallback';
@@ -22,7 +22,8 @@ import { ConsoleManager, planStart, terminalScript, type SpawnPty } from '../cor
 import { dropKept, loadKept, saveKept } from '../core/kept-output';
 import { admit, machineProbe, type MachineState } from '../core/admission';
 import { findCheckout } from '../core/repofind';
-import { bypassArgsOfProvider, detectRuntimes, KNOWN_RUNTIMES, readLoginPath, searchDirs, specsFromSwitchboard, type Runtime, type RuntimeSpec } from '../core/runtimes';
+import { isNewAgentKey, isNewSessionKey, isolatedBlock, newSessionKey, prepareNewAgent, projectsFolder, type NewSessionChoice } from '../core/new-session';
+import { bypassArgs, bypassArgsOfProvider, detectRuntimes, KNOWN_RUNTIMES, readLoginPath, searchDirs, specsFromSwitchboard, type Runtime, type RuntimeSpec } from '../core/runtimes';
 import type { SettingsStore } from '../core/settings';
 import { accountsOf, allSessionsOf, bindingFor, findSwitchboard, handoverOwnKey, handoverRunArgv, handoversOf, handoversSwitch, isHandoverKey, launchFeatures, managesProvider, sbFailure, sessionsIn, terminalLaunchArgv, type Binding, type SbHandover, type SbSessions } from '../core/switchboard';
 import type { ServiceSnapshot } from '../core/types';
@@ -55,6 +56,8 @@ function loadSpawn(): SpawnPty {
 export interface ConsoleHostOptions {
   /** FD-141: a console start that was refused, by its reason only (usage and error data, docs/ANALYTICS.md). */
   failed?: (code: string) => void;
+  /** FD-191: a session of its own or a new agent started from its dialog (usage data `session_started`, kinds only). */
+  started?: (props: { kind: 'session' | 'agent'; runtime: string; bypass: boolean; isolated: boolean }) => void;
   settings: SettingsStore;
   snapshot: (key: string) => ServiceSnapshot | null;
   window: () => BrowserWindow | null;
@@ -358,6 +361,16 @@ export class ConsoleHost {
         return null;
       }
     }
+    // FD-191 (SCN-102): a new agent's console starts with the brief to create one, and this app's MCP server.
+    if (isNewAgentKey(key) && this.o.packRoot && this.o.mcpServer) {
+      try {
+        const r = prepareNewAgent({ dir: path.join(this.o.packRoot, key), runtimeId: runtime.id, folder, server: this.o.mcpServer() });
+        return { handoff: r.handoff, env: r.env };
+      } catch (error) {
+        this.o.log(`console: ${key} starts without its new-agent brief: ${(error as Error).message}`);
+        return null;
+      }
+    }
     const snap = this.o.snapshot(key);
     if (!snap || !this.o.packRoot || !this.o.mcpServer) return null;
     try {
@@ -417,7 +430,9 @@ export class ConsoleHost {
     const pack = this.pack(key, runtime, folder.path, task);
     // FD-51 (LC-20): with a Switchboard route for this provider, every start runs managed.
     const managed = inv.switchboard && runtime.provider && inv.inPlace ? managesProvider(await accountsOf(this.run, inv.switchboard), runtime.provider) : false;
-    const plan = planStart({ runtime, mode, folder: folder.path, binding: b.kind === 'absent' ? { kind: 'none' } : b, switchboard: inv.switchboard, inPlace: inv.inPlace, surface: inv.surface, managed, handoff: pack?.handoff });
+    // FD-191: a session of its own keeps the permission and isolation it was started with, Continue included.
+    const saved = this.o.settings.get().consoles[key];
+    const plan = planStart({ runtime, mode, folder: folder.path, binding: b.kind === 'absent' ? { kind: 'none' } : b, switchboard: inv.switchboard, inPlace: inv.inPlace, surface: inv.surface, managed, handoff: pack?.handoff, bypass: saved?.bypass, isolated: saved?.isolated });
     if (plan.kind === 'refused') return { ok: false, reason: plan.reason, detail: plan.detail };
     if (plan.kind === 'terminal-only') return { ok: false, reason: 'terminal-only', project: plan.project };
     // Review R-1: the session runs with the login shell's PATH, not the one an app opened from Finder has.
@@ -428,8 +443,9 @@ export class ConsoleHost {
     // Continue in the list clears the console's idle mark (SCN-066, SCN-084).
     if (mode === 'continue') this.forgetLatestEnded(key);
     // Remember what was started, so the panel offers it next time.
-    this.o.settings.update({ consoles: { [key]: { runtime: runtime.id, folder: folder.source === 'saved' ? folder.path : this.o.settings.get().consoles[key]?.folder ?? null, idle: null } } });
-    this.o.log(`console: ${key} started ${runtime.id} (${mode}) in ${folder.path}${plan.argv[0] === inv.switchboard ? ' through Switchboard' : ''}${pack ? ` with its context${task ? ` and a ${task.kind} task` : ''}` : ''}`);
+    this.o.settings.update({ consoles: { [key]: { runtime: runtime.id, folder: folder.source === 'saved' ? folder.path : this.o.settings.get().consoles[key]?.folder ?? null, idle: null,
+      ...(saved?.bypass !== undefined ? { bypass: saved.bypass } : {}), ...(saved?.isolated !== undefined ? { isolated: saved.isolated } : {}) } } });
+    this.o.log(`console: ${key} started ${runtime.id} (${mode}) in ${folder.path}${plan.argv[0] === inv.switchboard ? ' through Switchboard' : ''}${saved?.isolated ? ' isolated' : ''}${saved?.bypass === false ? ' with permission prompts' : ''}${pack ? ` with its context${task ? ` and a ${task.kind} task` : ''}` : ''}`);
     return { ok: true };
   }
 
@@ -1162,6 +1178,69 @@ export class ConsoleHost {
     return { ok: true, runtime: info.runtime, folder: info.folder?.path ?? null };
   }
 
+  // #region new-session — docs: docs/ux/scenarios.md#scn-101-start-a-new-session-in-a-folder
+  /** FD-191: what the New session and New agent dialogs offer now. */
+  async newSessionOptions(): Promise<NewSessionOptions> {
+    const inv = await this.inventory();
+    const st = this.o.settings.get();
+    const last = st.newSession ?? { runtime: null, folder: null, bypass: true, isolated: false };
+    const runtime = inv.runtimes.find((r) => r.id === last.runtime) ?? inv.runtimes.find((r) => r.id === 'claude-code') ?? inv.runtimes[0] ?? null;
+    const folder = projectsFolder({ last: last.folder, consoleFolders: Object.entries(st.consoles).filter(([k]) => !isNewSessionKey(k)).map(([, v]) => v.folder), home: this.o.home ?? os.homedir(), isDir });
+    return {
+      runtimes: inv.runtimes.map((r) => ({ id: r.id, name: r.name, bypass: bypassArgs(r.id).length > 0, provider: r.provider ?? null })),
+      runtime: runtime?.id ?? null, folder, bypass: last.bypass, isolated: last.isolated, switchboard: Boolean(inv.switchboard), inPlace: inv.inPlace,
+    };
+  }
+
+  /** FD-191: the system folder picker (operator rule 2026-10-09: a folder is chosen, never typed), opened where it is now. */
+  async pickNewSessionFolder(current: string): Promise<string | null> {
+    const w = this.o.window();
+    const options = { properties: ['openDirectory' as const, 'createDirectory' as const], defaultPath: isDir(current) ? current : undefined };
+    const r = w ? await dialog.showOpenDialog(w, options) : await dialog.showOpenDialog(options);
+    return r.canceled ? null : r.filePaths[0] ?? null;
+  }
+
+  /** FD-191 (SCN-101, SCN-102): a session of its own, or a new agent's, in the chosen folder with the chosen coding agent,
+   *  permission and isolation; the choices are remembered for the next dialog. Starts through start(), so the machine's
+   *  admission (LC-17), Switchboard's account (LC-20) and the Sessions list hold as for any console. */
+  async startNew(choice: NewSessionChoice, size: { cols: number; rows: number }): Promise<NewSessionResult> {
+    const inv = await this.inventory();
+    const runtime = inv.runtimes.find((r) => r.id === choice.runtime);
+    if (!runtime) return { ok: false, reason: 'no-runtime' };
+    if (!isDir(choice.folder)) return { ok: false, reason: 'no-folder' };
+    const bypass = choice.bypass && bypassArgs(runtime.id).length > 0;
+    if (choice.isolated) {
+      const why = isolatedBlock({ switchboard: Boolean(inv.switchboard), inPlace: inv.inPlace, provider: runtime.provider ?? null });
+      if (why) return { ok: false, reason: 'isolated', detail: why };
+    }
+    this.pruneNewSessions();
+    const key = newSessionKey(choice.kind);
+    this.o.settings.update({
+      consoles: { [key]: { runtime: runtime.id, folder: choice.folder, idle: null, bypass, isolated: choice.isolated } },
+      newSession: { runtime: runtime.id, folder: choice.folder, bypass: choice.bypass, isolated: choice.isolated },
+    });
+    const r = await this.start(key, 'new', size);
+    if (!r.ok) {
+      this.o.settings.dropConsoles?.([key]);
+      this.o.failed?.(r.reason === 'admission' ? `admission_${r.why}` : r.reason);
+      this.o.log(`console: new ${choice.kind} not started: ${r.reason}`);
+      return r;
+    }
+    this.o.started?.({ kind: choice.kind, runtime: runtime.id, bypass, isolated: choice.isolated });
+    this.o.log(`console: new ${choice.kind} ${key} started (${runtime.id}${bypass ? '' : ', with permission prompts'}${choice.isolated ? ', isolated' : ''})`);
+    this.o.changed?.();
+    return { ok: true, key };
+  }
+
+  /** FD-191: the console choices of sessions of their own that neither run nor are listed any more are forgotten. */
+  private pruneNewSessions(): void {
+    const running = new Set(this.manager.runningKeys());
+    const listed = new Set(this.memory().records.map((r) => r.key).filter((k): k is string => Boolean(k)));
+    const gone = Object.keys(this.o.settings.get().consoles).filter((k) => isNewSessionKey(k) && !running.has(k) && !listed.has(k) && this.manager.snapshot(k).state !== 'exited');
+    if (gone.length) this.o.settings.dropConsoles?.(gone);
+  }
+  // #endregion new-session
+
   register(): void {
     const keyOk = (key: unknown): key is string => typeof key === 'string' && /^[a-z0-9][a-z0-9-]*\.[a-z0-9][a-z0-9-]*$/.test(key);
     const size = (v: unknown) => {
@@ -1171,6 +1250,13 @@ export class ConsoleHost {
     ipcMain.handle(CHANNELS.consoleInfo, (_e, key) => (keyOk(key) ? this.info(key) : Promise.reject(new Error('not a service key'))));
     ipcMain.handle(CHANNELS.consoleChoose, (_e, key, choice) => (keyOk(key) ? this.choose(key, choice ?? {}) : Promise.reject(new Error('not a service key'))));
     ipcMain.handle(CHANNELS.consolePickFolder, (_e, key) => (keyOk(key) ? this.pickFolder(key) : Promise.reject(new Error('not a service key'))));
+    // FD-191: the New session and New agent dialogs.
+    ipcMain.handle(CHANNELS.newSessionOptions, () => this.newSessionOptions());
+    ipcMain.handle(CHANNELS.newSessionPickFolder, (_e, current) => this.pickNewSessionFolder(typeof current === 'string' && current.length <= 4096 ? current : ''));
+    ipcMain.handle(CHANNELS.newSessionStart, (_e, choice, s) => {
+      const c = newSessionChoiceOf(choice);
+      return c ? this.startNew(c, size(s)) : { ok: false, reason: 'bad-request' };
+    });
     const taskOf = (v: unknown): ConsoleTask | undefined => {
       const x = (v ?? null) as { kind?: unknown; output?: unknown } | null;
       if (!x || (x.kind !== 'fix' && x.kind !== 'update' && x.kind !== 'audit')) return undefined;
@@ -1199,6 +1285,17 @@ export class ConsoleHost {
     ipcMain.on(CHANNELS.consoleInput, (_e, key, data) => { if (keyOk(key) && typeof data === 'string' && data.length <= 1_000_000) this.manager.input(key, data); });
     ipcMain.on(CHANNELS.consoleResize, (_e, key, cols, rows) => { if (keyOk(key)) { const s = size({ cols, rows }); this.manager.resize(key, s.cols, s.rows); } });
   }
+}
+
+/** FD-191: a New session request from the window or the console channel, checked field by field; null when malformed. */
+export function newSessionChoiceOf(v: unknown): NewSessionChoice | null {
+  const c = (v ?? null) as Record<string, unknown> | null;
+  if (!c || typeof c !== 'object' || Array.isArray(c)) return null;
+  if (c.kind !== 'session' && c.kind !== 'agent') return null;
+  if (typeof c.runtime !== 'string' || !/^[a-z0-9][a-z0-9-]{0,63}$/.test(c.runtime)) return null;
+  if (typeof c.folder !== 'string' || c.folder.length > 4096 || c.folder.includes('\u0000') || !path.isAbsolute(c.folder)) return null;
+  if (typeof c.bypass !== 'boolean' || typeof c.isolated !== 'boolean') return null;
+  return { kind: c.kind, runtime: c.runtime, folder: c.folder, bypass: c.bypass, isolated: c.isolated };
 }
 
 function clampInt(v: unknown, min: number, max: number, fallback: number): number {

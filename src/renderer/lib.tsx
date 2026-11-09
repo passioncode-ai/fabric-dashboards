@@ -117,6 +117,8 @@ const ICONS: Record<string, string> = {
   // FD-103: the mode switch in the folded rail, and All sessions: agents as a node with its ring, sessions as stacked
   // terminal windows.
   agents: 'M10 4a3 3 0 1 0 0 6 3 3 0 0 0 0-6zM4.5 16.5c.6-2.6 2.8-4.2 5.5-4.2s4.9 1.6 5.5 4.2',
+  // FD-191: New session in the Sessions sidebar.
+  plus: 'M10 4v12M4 10h12',
   sessions: 'M2.5 6.5h12v10h-12zM5.5 3.5h12v10M5 10l2 1.5L5 13M9 13h3',
 };
 export function Icon({ name }: { name: keyof typeof ICONS | string }) {

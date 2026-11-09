@@ -103,7 +103,12 @@ export interface Settings {
   consoles: Record<string, { runtime: string | null; folder: string | null;
     /** FD-50 (LC-18): the session closed after the idle time — when, and the Switchboard account it ran on;
      *  opening the console again continues it. Cleared by the next start. */
-    idle?: { at: string; account: string | null } | null }>;
+    idle?: { at: string; account: string | null } | null;
+    /** FD-191: a session of its own started without permission prompts (absent: as FD-174, without them) and isolated
+     *  on a Switchboard account's home; Continue starts it the same way. */
+    bypass?: boolean; isolated?: boolean }>;
+  /** FD-191: the New session dialog's last choices, offered next time (null: not chosen yet). */
+  newSession: { runtime: string | null; folder: string | null; bypass: boolean; isolated: boolean };
   /** FD-83: continue a session stopped on a usage limit in the console once Switchboard has capacity for it (default on). */
   resumeAfterLimit: boolean;
   /** FD-103: the Sessions list's memory, kept 24 hours (src/core/sessions.ts): console sessions that ended and hand-overs
@@ -184,6 +189,7 @@ export const DEFAULT_SETTINGS: Settings = {
   },
   layout: { sidebar: 'expanded', sidebarWidth: SIDEBAR_WIDTH.default, header: 'compact', console: { open: false, height: CONSOLE_HEIGHT.default }, list: { sort: 'name', pinned: [], hidden: [], kinds: {}, hiddenOpen: false, order: [], off: [], orgs: [], groupByOrg: false }, mode: 'agents', sessionId: null, endedOpen: false },
   consoles: {},
+  newSession: { runtime: null, folder: null, bypass: true, isolated: false },
   resumeAfterLimit: true,
   sessions: { records: [], dismissed: [] },
   sessionsNoteSeen: false,

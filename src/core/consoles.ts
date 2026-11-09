@@ -43,7 +43,7 @@ export interface StartPlan { argv: string[]; cwd: string; label: string; env?: R
 export type Plan =
   | { kind: 'run'; argv: string[]; cwd: string }
   | { kind: 'terminal-only'; project: string; pool: string } // a bound folder this Switchboard cannot run in place
-  | { kind: 'refused'; reason: 'switchboard' | 'no-continue'; detail: string };
+  | { kind: 'refused'; reason: 'switchboard' | 'no-continue' | 'isolated'; detail: string };
 
 export function planStart(o: { runtime: Runtime; mode: 'new' | 'continue'; folder: string; binding: Binding; switchboard: string | null; inPlace: boolean;
   /** FD-51 (LC-20): Switchboard holds a route for this runtime's provider, so even an unbound folder runs
@@ -52,16 +52,25 @@ export function planStart(o: { runtime: Runtime; mode: 'new' | 'continue'; folde
   /** FD-124: this Switchboard takes `launch --surface`, so the launch is marked as asked for from here. */
   surface?: boolean;
   /** FD-39: the context pack's arguments, around the runtime's own (Codex's `-c` before its `resume`). */
-  handoff?: { before: string[]; after: string[] } }): Plan {
+  handoff?: { before: string[]; after: string[] };
+  /** FD-191: false starts it with the runtime's own permission prompts; absent or true, without them (FD-174). */
+  bypass?: boolean;
+  /** FD-191 (operator rule 2026-10-09): run it isolated, on a Switchboard account's private home, straight to the provider. */
+  isolated?: boolean }): Plan {
   let args: string[];
   try {
     // FD-174: without permission prompts, first, so it is a top-level flag even before Codex's `resume`.
-    args = [...bypassArgs(o.runtime.id), ...(o.handoff?.before ?? []), ...runtimeArgs(o.runtime, o.mode), ...(o.handoff?.after ?? [])];
+    args = [...(o.bypass === false ? [] : bypassArgs(o.runtime.id)), ...(o.handoff?.before ?? []), ...runtimeArgs(o.runtime, o.mode), ...(o.handoff?.after ?? [])];
   } catch (error) {
     return { kind: 'refused', reason: 'no-continue', detail: (error as Error).message };
   }
   // A folder Switchboard could not answer about is never started on a guess: it might be bound.
   if (o.binding.kind === 'error') return { kind: 'refused', reason: 'switchboard', detail: o.binding.detail };
+  // FD-191: an isolated session runs only through Switchboard, in this console; never quietly as an ordinary one.
+  if (o.isolated) {
+    if (!o.switchboard || !o.inPlace || !o.runtime.provider) return { kind: 'refused', reason: 'isolated', detail: !o.switchboard ? 'no-switchboard' : !o.inPlace ? 'old-switchboard' : 'provider' };
+    return { kind: 'run', argv: inPlaceArgv(o.switchboard, o.runtime.provider, o.folder, args, o.surface, 'isolated'), cwd: o.folder };
+  }
   if (o.binding.kind === 'project' && o.runtime.provider) {
     if (o.switchboard && o.inPlace) return { kind: 'run', argv: inPlaceArgv(o.switchboard, o.runtime.provider, o.folder, args, o.surface), cwd: o.folder };
     return { kind: 'terminal-only', project: o.binding.name, pool: o.binding.pool };

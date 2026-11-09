@@ -245,7 +245,7 @@ export interface SessionNotice { kind: 'handover' | 'resume'; id: string; key: s
  *  the console's own start refusals (ConsoleStartResult). */
 export type SessionActionResult =
   | { ok: true; key: string | null }
-  | { ok: false; reason: 'unknown' | 'not-allowed' | 'account' | 'claim' | 'no-switchboard' | 'no-folder' | 'no-runtime' | 'no-continue' | 'running' | 'switchboard' | 'terminal-only' | 'spawn' | 'admission' | 'no-transcript'; detail?: string };
+  | { ok: false; reason: 'unknown' | 'not-allowed' | 'account' | 'claim' | 'no-switchboard' | 'no-folder' | 'no-runtime' | 'no-continue' | 'running' | 'switchboard' | 'terminal-only' | 'spawn' | 'admission' | 'no-transcript' | 'isolated'; detail?: string };
 
 export const consoleRowId = (key: string, startedAt: number) => `c:${key}:${startedAt}`;
 export const handoverRowId = (id: string) => `ho:${id}`;

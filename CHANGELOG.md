@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- FD-191: New session in the Sessions mode starts a coding session in any folder, not tied to an agent: choose the
+  coding agent from those installed, the folder (the projects folder by default, any other through the folder picker),
+  whether it runs without permission prompts (ticked by default) and whether it runs isolated on a Switchboard account's
+  own home. It is listed with the other sessions, and Continue starts it again the same way. New agent on the agent list
+  opens the same dialog and starts a coding agent that asks what the agent should do, builds it and makes it run by
+  itself. Agents do both through the new MCP tool `session_new`.
+
 ## 0.8.43 - 2026-11-09
 
 ### Fixed
