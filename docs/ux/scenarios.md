@@ -1325,7 +1325,7 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 ### SCN-094: Show only one organization's agents
 - **Persona:** P-01
 - **Feature:** organizations
-- **Traces:** FD-162 (operator 2026-11-06: "filters ... all agents or one organization, or several"); FD-163 (operator 2026-11-06: agents of an organization work only with agents of the same organization); board thread `22876238`
+- **Traces:** FD-162 (operator 2026-11-06: "filters ... all agents or one organization, or several"); FD-163 (operator 2026-11-06: agents of an organization work only with agents of the same organization); board thread `22876238`; FD-195 (operator 2026-11-09, this repository's session `0edbdfdf`: my agents apart from other organizations' agents, filters, all or chosen, the shared agents and the crossings, in step with the Studio's spaces: `personal` and `org:<name>`)
 - **Entry point:** the sidebar's Organizations menu, beside the sort, above the agent sections; an agent's Health tab
 - **Preconditions:** Project Observatory is installed here (its registry file is read on this Mac), so each agent's organization is known from its repository
 - **Steps:**
@@ -1335,13 +1335,18 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
   4. User chooses "All organizations" -> every agent is shown again
   5. User opens an agent -> its Health tab names its organization ("organization: Acme")
   6. User ticks "Group by organization" at the bottom of the menu -> each section of the list (on this Mac, online, services) shows a small heading per organization, the chosen sort inside each, "Not attributed" last; a section of one organization has no heading; rows are not dragged while grouped (FD-161)
+  7. User ticks "Mine" at the top of the menu -> only the agents of the operator's own organization (the one Project Observatory's config marks `default`, the context Switchboard and the Studio call `personal`) are shown; that organization's own line below reads "{label} (mine)" (FD-195)
+  8. User ticks "Other organizations" -> every agent of an organization that is not theirs is shown (an agent not attributed is not one of them); with Mine as well, both
+  9. User ticks "Shared between organizations" -> the agents whose product runs here in two organizations or more (one copy each, as one product's instances for two organizations) are shown; the line is there only when such an agent exists; any kinds and organizations ticked together show every agent any of them keeps, and the button reads "Filters: {count}"
 - **Expected result:** the operator sees one organization's agents at a time, or several, or all, and every agent says which organization it belongs to
-- **Alt paths:** Project Observatory is not installed and its registry was never read -> no Organizations menu, and the Health tab names no organization; its registry cannot be read later -> the last organizations it gave are kept (`organizations.json` beside the settings) and the menu still works; an organization chosen earlier has no agent here now -> it stays chosen and reads "0" until unticked; an agent asks through MCP -> `list_services` carries `organization` on every row and takes `organizations` to list only theirs
-- **UI elements:** Organizations menu button, its checkbox list with counts, "All organizations", "Group by organization" and its headings in the list, the Health tab's organization row
+- **Alt paths:** Observatory's config marks no organization `default` -> no "Mine" line; Other organizations then keeps every attributed agent; an agent asks through MCP -> `list_services` marks the personal organization `personal: true` and takes `@mine`, `@others`, `@shared` among `organizations`, and Settings (MCP `settings`) keeps them in `layout.list.orgs`; Project Observatory is not installed and its registry was never read -> no Organizations menu, and the Health tab names no organization; its registry cannot be read later -> the last organizations it gave are kept (`organizations.json` beside the settings) and the menu still works; an organization chosen earlier has no agent here now -> it stays chosen and reads "0" until unticked; an agent asks through MCP -> `list_services` carries `organization` on every row and takes `organizations` to list only theirs
+- **UI elements:** Organizations menu button, its checkbox list with counts, "All organizations", "Mine", "Other organizations", "Shared between organizations" above a rule, each organization below it, "Group by organization" and its headings in the list, the Health tab's organization row
+- **Copy:**
+  - "Mine" / «Мои»; "Other organizations" / «Другие организации»; "Shared between organizations" / «Общие для организаций»; "{label} (mine)" / «{label} (мои)»; "Filters: {count}" / «Фильтров: {count}» (copy checks `aee4cea1`, `b98403e9`, `0f3e202e`, `30e985f4`, `3e3bab49` en and `1e2ccd03`, `be898b6b`, `34aeb850`, `6e94c092`, `f3890070` ru, no findings)
 - **States covered:** empty, success, error
 - **Errors & recovery:** a page of the registry that cannot be read keeps the last full map and is read again in 30 minutes; a repository Project Observatory does not know reads "Not attributed", never a guessed organization
 - **Status:** implemented
-- **Coverage:** src/core/organizations.ts (`groupByOrganization`, FD-161; copy checks `9c0f84f2` en and `0a3a4fd8` ru, no findings), src/renderer/components/Navigation.tsx, src/renderer/App.tsx, src/mcp/tools.ts, test/organizations.test.ts
+- **Coverage:** src/core/organizations.ts (`groupByOrganization`, FD-161; copy checks `9c0f84f2` en and `0a3a4fd8` ru, no findings; `keepsOrganization` with `@mine`, `@others`, `@shared`, `sharedProducts`, `kindCounts`, FD-195), src/renderer/components/Navigation.tsx, src/renderer/App.tsx, src/mcp/tools.ts, src/electron/main.ts (`organization_personal`), test/organizations.test.ts, test/org-kinds.test.ts
 - **Product:** unobserved
 
 ### SCN-100: See the setup as steps the agent works through

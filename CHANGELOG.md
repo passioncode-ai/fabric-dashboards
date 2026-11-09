@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- FD-195: the Organizations menu filters by Mine (your own organization), Other organizations and Shared between
+  organizations (an agent whose product runs here for two organizations or more), above each organization; tick any
+  together to see every agent they keep. Agents filter the same way through MCP `list_services` (`@mine`, `@others`,
+  `@shared`).
+
 ## 0.8.44 - 2026-11-09
 
 ### Added

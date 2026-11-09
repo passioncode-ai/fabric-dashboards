@@ -4,7 +4,9 @@
 // The app keeps the map in `organizations.json` beside the settings (src/core/organization-store.ts).
 // #region organizations — docs: docs/ux/scenarios.md#scn-094-show-only-one-organizations-agents
 
-export interface Organization { name: string; label: string }
+/** `personal`: the operator's own organization (Observatory's `default: true`, the context Switchboard and the Studio call
+ *  `personal`); the filter's "Mine" (FD-195). */
+export interface Organization { name: string; label: string; personal?: boolean }
 
 export interface OrganizationsCache {
   readAt: string | null;
@@ -12,6 +14,8 @@ export interface OrganizationsCache {
   byRepository: Record<string, string>;
   /** Organization name -> its label as the operator named it (`acme` -> `Acme`). */
   organizations: Record<string, string>;
+  /** FD-195: the operator's own organization, the one Observatory's config marks `default: true`; null when not known. */
+  personal?: string | null;
 }
 
 export const EMPTY_ORGANIZATIONS: OrganizationsCache = { readAt: null, byRepository: {}, organizations: {} };
@@ -50,8 +54,10 @@ export function addSurveyPage(into: OrganizationsCache, page: unknown): string |
  *  (a rule for a local folder names none); `organization_labels` (from Observatory's `config/organizations.json`, added
  *  by the reader) names them as the operator did. Whether it was the expected shape. */
 export function addRegistryProjects(into: OrganizationsCache, doc: unknown): boolean {
-  const d = (doc && typeof doc === 'object' ? doc : {}) as { schema_version?: unknown; projects?: unknown; organization_labels?: Record<string, unknown> };
+  const d = (doc && typeof doc === 'object' ? doc : {}) as { schema_version?: unknown; projects?: unknown; organization_labels?: Record<string, unknown>; organization_personal?: unknown };
   if (d.schema_version !== 2 || !Array.isArray(d.projects)) return false;
+  // FD-195: the organization Observatory's config marks `default: true` (added by the reader beside the labels).
+  if (typeof d.organization_personal === 'string' && d.organization_personal) into.personal = d.organization_personal;
   const labelOf = (name: string) => (typeof d.organization_labels?.[name] === 'string' && d.organization_labels[name] ? d.organization_labels[name] as string : name);
   for (const p of d.projects) {
     const project = (p && typeof p === 'object' ? p : {}) as { organization?: unknown; membership_rules?: unknown };
@@ -70,27 +76,68 @@ export function addRegistryProjects(into: OrganizationsCache, doc: unknown): boo
 export function organizationOf(cache: OrganizationsCache, repository: string | undefined | null): Organization | null {
   const key = repositoryKey(repository);
   const name = key ? cache.byRepository[key] : undefined;
-  return name ? { name, label: cache.organizations[name] ?? name } : null;
+  return name ? { name, label: cache.organizations[name] ?? name, ...(cache.personal && cache.personal === name ? { personal: true } : {}) } : null;
 }
 
-/** The agents an organization filter keeps: every one when nothing is chosen; `''` stands for "Not attributed". */
-export function keepsOrganization(chosen: readonly string[], organization: Organization | null | undefined): boolean {
-  return chosen.length === 0 || chosen.includes(organization?.name ?? '');
+// FD-195 (SCN-094 steps 7 to 9): the filter's three kinds besides organization names: "Mine" (the personal
+// organization's agents), "Other organizations" (every attributed agent that is not mine) and "Shared between
+// organizations" (an agent whose product runs here in two organizations or more, as one copy each). A name and a kind
+// combine as a union.
+export const ORG_MINE = '@mine';
+export const ORG_OTHERS = '@others';
+export const ORG_SHARED = '@shared';
+export const ORG_KINDS: readonly string[] = [ORG_MINE, ORG_OTHERS, ORG_SHARED];
+
+/** The product of a service key (`example-agent.acme` -> `example-agent`). */
+const productOf = (key: string) => key.slice(0, key.indexOf('.') < 0 ? key.length : key.indexOf('.'));
+
+/** FD-195: the products that run here in two organizations or more (an agent not attributed counts for none). */
+export function sharedProducts(services: readonly { key: string; organization?: Organization | null }[]): Set<string> {
+  const orgs = new Map<string, Set<string>>();
+  for (const s of services) {
+    if (!s.organization) continue;
+    const p = productOf(s.key);
+    orgs.set(p, (orgs.get(p) ?? new Set()).add(s.organization.name));
+  }
+  return new Set([...orgs].filter(([, set]) => set.size >= 2).map(([p]) => p));
+}
+export const isShared = (shared: ReadonlySet<string>, key: string): boolean => shared.has(productOf(key));
+
+/** The agents an organization filter keeps: every one when nothing is chosen; `''` stands for "Not attributed"; the
+ *  kinds of FD-195 keep mine, the other organizations' and the shared ones. */
+export function keepsOrganization(chosen: readonly string[], organization: Organization | null | undefined, shared = false): boolean {
+  if (chosen.length === 0 || chosen.includes(organization?.name ?? '')) return true;
+  if (chosen.includes(ORG_MINE) && organization?.personal) return true;
+  if (chosen.includes(ORG_OTHERS) && organization && !organization.personal) return true;
+  return chosen.includes(ORG_SHARED) && shared;
 }
 /** The services an organization filter keeps, and the one open on the page whatever the filter (it never vanishes
  *  under the person's eyes). */
 export function filterServices<S extends { key: string; organization?: Organization | null }>(services: readonly S[], chosen: readonly string[], keep?: string | null): S[] {
-  return chosen.length === 0 ? [...services] : services.filter((s) => s.key === keep || keepsOrganization(chosen, s.organization));
+  if (chosen.length === 0) return [...services];
+  const shared = chosen.includes(ORG_SHARED) ? sharedProducts(services) : new Set<string>();
+  return services.filter((s) => s.key === keep || keepsOrganization(chosen, s.organization, isShared(shared, s.key)));
+}
+
+/** FD-195: how many agents each kind of the filter keeps; `mine` is null when the personal organization is not known. */
+export function kindCounts(services: readonly { key: string; organization?: Organization | null }[]): { mine: number | null; others: number; shared: number } {
+  const shared = sharedProducts(services);
+  const personal = services.some((s) => s.organization?.personal);
+  return {
+    mine: personal ? services.filter((s) => s.organization?.personal).length : null,
+    others: services.filter((s) => s.organization && !s.organization.personal).length,
+    shared: services.filter((s) => isShared(shared, s.key)).length,
+  };
 }
 
 /** The organizations among the services, with how many agents each has, by label; `''` (not attributed) last. Empty
  *  when no service carries an organization at all (no map was read). */
-export function organizationCounts(services: readonly { organization?: Organization | null }[]): { name: string; label: string | null; count: number }[] {
+export function organizationCounts(services: readonly { organization?: Organization | null }[]): { name: string; label: string | null; count: number; personal?: boolean }[] {
   if (!services.some((s) => s.organization !== undefined)) return [];
-  const by = new Map<string, { name: string; label: string | null; count: number }>();
+  const by = new Map<string, { name: string; label: string | null; count: number; personal?: boolean }>();
   for (const s of services) {
     const name = s.organization?.name ?? '';
-    const row = by.get(name) ?? { name, label: s.organization?.label ?? null, count: 0 };
+    const row = by.get(name) ?? { name, label: s.organization?.label ?? null, count: 0, ...(s.organization?.personal ? { personal: true } : {}) };
     row.count += 1;
     by.set(name, row);
   }

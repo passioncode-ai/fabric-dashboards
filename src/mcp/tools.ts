@@ -42,7 +42,7 @@ import { findSwitchboard } from '../core/switchboard';
 import { searchDirs } from '../core/runtimes';
 import type { StopView } from '../core/types';
 import { AgentNameStore, customNameOf, findGh, readNamesCache } from '../core/agent-names';
-import { keepsOrganization, organizationOf, type Organization } from '../core/organizations';
+import { isShared, keepsOrganization, organizationOf, sharedProducts, type Organization } from '../core/organizations';
 import { readOrganizations } from '../core/organization-store';
 
 export const COMMAND_TIMEOUT_MS = 120_000;
@@ -327,7 +327,9 @@ export async function listServices(deps: Deps, organizations?: string[]): Promis
   const orgOf = organizationReader(deps);
   // FD-162: `organizations` lists only those organizations' agents ('' is "Not attributed"); none lists every agent.
   const views = looks.map((l) => view(l, of(l.key), orgOf(l)));
-  return { services: organizations?.length ? views.filter((v) => keepsOrganization(organizations, v.organization)) : views, services_dir: deps.servicesDir() };
+  // FD-195: `@mine`, `@others` and `@shared` keep the personal organization's, the other organizations' and the shared agents.
+  const shared = sharedProducts(views.map((v) => ({ key: v.key, organization: v.organization })));
+  return { services: organizations?.length ? views.filter((v) => keepsOrganization(organizations, v.organization, isShared(shared, v.key))) : views, services_dir: deps.servicesDir() };
 }
 
 /** FD-162: each look's organization, from the map the app last read (organizations.json beside its settings). */

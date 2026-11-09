@@ -178,7 +178,8 @@ function mergeList(raw: unknown): Settings['layout']['list'] {
   const off = productIds(l.off);
   const hidden = productIds([...productIds(l.hidden), ...off]);
   // FD-162: organization names as Project Observatory gives them, and '' for "Not attributed".
-  const orgs = Array.isArray(l.orgs) ? [...new Set(l.orgs.filter((v): v is string => typeof v === 'string' && /^[a-z0-9._-]{0,64}$/i.test(v)))].slice(0, 50) : [];
+  // FD-195: an organization's name, '' (not attributed), or one of the kinds `@mine`, `@others`, `@shared`.
+  const orgs = Array.isArray(l.orgs) ? [...new Set(l.orgs.filter((v): v is string => typeof v === 'string' && (/^[a-z0-9._-]{0,64}$/i.test(v) || v === '@mine' || v === '@others' || v === '@shared')))].slice(0, 50) : [];
   return { sort, pinned: productIds(l.pinned), hidden, kinds, hiddenOpen: l.hiddenOpen === true, order: productIds(l.order), off, orgs, groupByOrg: l.groupByOrg === true };
 }
 
