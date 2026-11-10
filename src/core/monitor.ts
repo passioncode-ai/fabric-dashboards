@@ -521,6 +521,36 @@ export class Monitor extends EventEmitter {
 
   private readonly outageStart = new Map<string, number>();
 
+  // #region log-reason — docs: docs/ux/scenarios.md#scn-012-another-program-answers-on-the-services-port
+  // FD-198 (telegram-gateway TG-260): a service that cannot answer as itself (silent, a stranger on its port, two copies)
+  // often says why on stderr, which launchd writes to the file its descriptor names in `paths.logs`. The last line of
+  // that file, when it was written during this episode, is shown as one more reason and added to the notification on
+  // this Mac; never to the operator channel (FD-48 sends the first reason only): a log may carry more than a person
+  // should forward. Read only for a local service, at most once per file change.
+  private readonly logLines = new Map<string, { mtimeMs: number; size: number; line: string | null }>();
+
+  private logReason(t: Tracked, state: string): Reason | null {
+    const d = t.entry.descriptor;
+    if (!d || d.placement === 'remote' || !LOG_REASON_STATES.has(state)) return null;
+    const since = Math.min(t.firstUnansweredAt ?? Infinity, this.now() - LOG_FRESH_MS) - 60_000;
+    for (const p of d.paths?.logs ?? []) {
+      const file = expand(p);
+      let stat: fs.Stats;
+      try { stat = fs.statSync(file); } catch { continue; }
+      if (!stat.isFile() || stat.mtimeMs < since) continue;
+      let cached = this.logLines.get(file);
+      if (!cached || cached.mtimeMs !== stat.mtimeMs || cached.size !== stat.size) {
+        let line: string | null = null;
+        try { line = lastLogLine(tail(file, 20, 16 * 1024)); } catch { /* unreadable: no line */ }
+        cached = { mtimeMs: stat.mtimeMs, size: stat.size, line };
+        this.logLines.set(file, cached);
+      }
+      if (cached.line) return { code: 'reason.log', params: { line: cached.line } };
+    }
+    return null;
+  }
+  // #endregion log-reason
+
   /** Called right after a failed probe: the outage is notified only when that probe confirms it
    *  has lasted past DOWN_NOTIFY_AFTER_MS. A tick without a probe never decides. */
   private checkDown(t: Tracked, now: number): void {
@@ -549,7 +579,10 @@ export class Monitor extends EventEmitter {
     if (!shouldNotify(this.o.settings(), h, new Date(this.now()))) return;
     const lang = this.o.lang();
     const name = this.name(tracked);
-    this.emit('notify', { serviceKey: h.serviceKey, title: tr(lang, titleKey, { name, ...params }), body: tr(lang, bodyKey, { name, ...params }), link, target: 'service' } satisfies Notice);
+    // FD-198: the episode's notification says what the service's own log said, when it said something.
+    const logged = h.kind === 'down' || h.kind === 'duplicate' || h.kind === 'foreign' || h.kind === 'foreign-user' ? this.logReason(tracked, h.kind) : null;
+    const body = [tr(lang, bodyKey, { name, ...params }), logged ? tr(lang, logged.code, logged.params) : ''].filter(Boolean).join(' ');
+    this.emit('notify', { serviceKey: h.serviceKey, title: tr(lang, titleKey, { name, ...params }), body, link, target: 'service' } satisfies Notice);
   }
 
   // --- events feed ----------------------------------------------------------------
@@ -736,6 +769,8 @@ export class Monitor extends EventEmitter {
     // S-5: what another program says about itself is never shown as this service's own.
     const wk = seen.probe?.kind === 'answer' && state !== 'foreign' && state !== 'foreign-user' ? seen.probe.doc : null;
     if (wk?.update?.available) reasons.push({ code: 'reason.update', params: { version: wk.update.available } });
+    const logged = this.logReason(t, state); // FD-198
+    if (logged) reasons.push(logged);
     // FD-135: a name from the agent's repository replaces its own everywhere a name is read; its own is kept beside it.
     const descriptor = this.named(t.entry.descriptor, t.entry.key);
     const renamed = descriptor !== t.entry.descriptor && t.entry.descriptor;
@@ -827,3 +862,18 @@ export class Monitor extends EventEmitter {
     return { servicesDir: this.o.servicesDir, dirError: this.dirError, scanning: this.scanning };
   }
 }
+
+// #region log-reason — docs: docs/ux/scenarios.md#scn-012-another-program-answers-on-the-services-port
+/** FD-198: the states a service's own log may explain, and how recent its last write must be to count for this episode. */
+export const LOG_REASON_STATES: ReadonlySet<string> = new Set(['down', 'foreign', 'foreign-user', 'duplicate']);
+export const LOG_FRESH_MS = 15 * 60_000;
+const LOG_LINE_MAX = 240;
+
+/** FD-198: the last non-empty line of a log's tail, without terminal colours or control characters, at most 240 characters. */
+export function lastLogLine(text: string): string | null {
+  const lines = text.split(/\r?\n/).map((l) => l.replace(/\x1b\[[0-9;?]*[A-Za-z]/g, '').replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim());
+  const last = lines.reverse().find((l) => l.length > 0);
+  if (!last) return null;
+  return last.length > LOG_LINE_MAX ? `${last.slice(0, LOG_LINE_MAX - 1)}…` : last;
+}
+// #endregion log-reason

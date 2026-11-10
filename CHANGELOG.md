@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- FD-198: when an agent on this Mac is not answering, finds another program on its port or runs twice, the last line
+  its own log wrote during that episode shows as one more reason ("Its log says: ..."), and the notification on this Mac
+  ends with it. The line never goes to the operator channel.
+
 ## 0.8.48 - 2026-11-10
 
 ### Fixed
