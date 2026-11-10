@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- FD-197: an agent belongs to the organization of the context it runs in before the owner of its repository: an
+  instance named after an organization is that organization's, an online one belongs to the organization of the
+  Cloudflare account Project Observatory lists it in, and a platform service running on this Mac belongs to this space's
+  own organization. The Organizations filter, MCP `list_services` and the auditor's cross-organization finding follow it.
+
 ## 0.8.46 - 2026-11-09
 
 ### Changed

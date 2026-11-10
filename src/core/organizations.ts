@@ -16,6 +16,14 @@ export interface OrganizationsCache {
   organizations: Record<string, string>;
   /** FD-195: the operator's own organization, the one Observatory's config marks `default: true`; null when not known. */
   personal?: string | null;
+  /** FD-197: the organizations whose products are the platform (Observatory's config `platform: true`, else the one that
+   *  owns this app's repository); an instance of one runs for the organization of the context it runs in. */
+  platform?: string[];
+  /** FD-197: a Cloudflare Worker's name -> the organization of the one account Observatory lists it in (accounts matched
+   *  by `match.cloudflare_accounts`); a name listed in two accounts is left out, never guessed. */
+  byWorker?: Record<string, string>;
+  /** FD-197: a Cloudflare zone (`example.com`) -> the organization of its account. */
+  byZone?: Record<string, string>;
 }
 
 export const EMPTY_ORGANIZATIONS: OrganizationsCache = { readAt: null, byRepository: {}, organizations: {} };
@@ -54,11 +62,16 @@ export function addSurveyPage(into: OrganizationsCache, page: unknown): string |
  *  (a rule for a local folder names none); `organization_labels` (from Observatory's `config/organizations.json`, added
  *  by the reader) names them as the operator did. Whether it was the expected shape. */
 export function addRegistryProjects(into: OrganizationsCache, doc: unknown): boolean {
-  const d = (doc && typeof doc === 'object' ? doc : {}) as { schema_version?: unknown; projects?: unknown; organization_labels?: Record<string, unknown>; organization_personal?: unknown };
+  const d = (doc && typeof doc === 'object' ? doc : {}) as { schema_version?: unknown; projects?: unknown; organization_labels?: Record<string, unknown>; organization_personal?: unknown; organization_platform?: unknown; cloudflare_accounts?: unknown };
   if (d.schema_version !== 2 || !Array.isArray(d.projects)) return false;
   // FD-195: the organization Observatory's config marks `default: true` (added by the reader beside the labels).
   if (typeof d.organization_personal === 'string' && d.organization_personal) into.personal = d.organization_personal;
+  // FD-197: the platform's organizations and the Cloudflare accounts' (added by the reader beside the labels).
+  if (Array.isArray(d.organization_platform)) into.platform = d.organization_platform.filter((x): x is string => typeof x === 'string' && x !== '');
+  if (d.cloudflare_accounts !== undefined) addCloudflareAccounts(into, d.cloudflare_accounts);
   const labelOf = (name: string) => (typeof d.organization_labels?.[name] === 'string' && d.organization_labels[name] ? d.organization_labels[name] as string : name);
+  // FD-197: every organization the operator configured is known by name, so an instance named after one finds it.
+  for (const name of Object.keys(d.organization_labels ?? {})) into.organizations[name] ??= labelOf(name);
   for (const p of d.projects) {
     const project = (p && typeof p === 'object' ? p : {}) as { organization?: unknown; membership_rules?: unknown };
     if (typeof project.organization !== 'string' || !project.organization) continue;
@@ -72,11 +85,85 @@ export function addRegistryProjects(into: OrganizationsCache, doc: unknown): boo
   return true;
 }
 
+/** FD-197: Observatory's Cloudflare inventory (`registry/cloudflare-account.json`): each account's `organization` (its
+ *  config's `match.cloudflare_accounts`) given to the Workers and zones listed in it. An account with no organization,
+ *  or a Worker name listed in two accounts, gives nothing. */
+export function addCloudflareAccounts(into: OrganizationsCache, doc: unknown): void {
+  const d = (doc && typeof doc === 'object' ? doc : {}) as { accounts?: unknown; resources?: unknown };
+  const orgOf = new Map<string, string>();
+  for (const a of Array.isArray(d.accounts) ? d.accounts : []) {
+    const acc = (a && typeof a === 'object' ? a : {}) as { id?: unknown; organization?: unknown };
+    if (typeof acc.id === 'string' && typeof acc.organization === 'string' && acc.organization) orgOf.set(acc.id, acc.organization);
+  }
+  const workers = new Map<string, Set<string>>();
+  const zones: Record<string, string> = {};
+  for (const r of Array.isArray(d.resources) ? d.resources : []) {
+    const res = (r && typeof r === 'object' ? r : {}) as { kind?: unknown; name?: unknown; account_ref?: unknown };
+    if (typeof res.name !== 'string' || typeof res.account_ref !== 'string') continue;
+    const name = res.name.toLowerCase();
+    if (res.kind === 'worker') workers.set(name, (workers.get(name) ?? new Set()).add(res.account_ref));
+    const org = orgOf.get(res.account_ref);
+    if (res.kind === 'zone' && org) zones[name] = org;
+  }
+  const byWorker: Record<string, string> = {};
+  for (const [name, accounts] of workers) {
+    const [only] = accounts;
+    const org = accounts.size === 1 && only ? orgOf.get(only) : undefined;
+    if (org) byWorker[name] = org;
+  }
+  into.byWorker = byWorker;
+  into.byZone = zones;
+}
+
+const named = (cache: OrganizationsCache, name: string): Organization =>
+  ({ name, label: cache.organizations[name] ?? name, ...(cache.personal && cache.personal === name ? { personal: true } : {}) });
+
 /** The organization of a repository, or null when the map does not know it. */
 export function organizationOf(cache: OrganizationsCache, repository: string | undefined | null): Organization | null {
   const key = repositoryKey(repository);
   const name = key ? cache.byRepository[key] : undefined;
-  return name ? { name, label: cache.organizations[name] ?? name, ...(cache.personal && cache.personal === name ? { personal: true } : {}) } : null;
+  return name ? named(cache, name) : null;
+}
+
+/** FD-197: the owner of this app's own repository (package.json `repository`, held by a test): the platform's
+ *  publisher, whose organization is the platform's when Observatory's config marks none `platform: true`. */
+export const OWN_REPOSITORY_OWNER = 'passioncode-ai';
+
+/** What FD-197 reads of an installed service to place it in the context it runs in. */
+export interface InstanceContext {
+  /** `id.instance`. */
+  key: string;
+  repository?: string | null;
+  placement?: string | null;
+  origin?: string | null;
+}
+
+// FD-197 (studio-agent's DEC-0052, board thread `6e6a922d`): an instance belongs to the organization of the context it
+// runs in, before the owner of its repository. In order: an instance named after an organization (`.acme`) is that
+// organization's; an online one whose host is a Worker or a zone of a Cloudflare account Observatory attributes is that
+// account's organization's; an instance of a platform product (Observatory, Fabric Inbox: infrastructure each
+// organization runs a copy of) on this Mac runs in this space, so it is this space's own organization's. Anything else
+// keeps its repository's organization (FD-162); nothing is guessed.
+/** The organization of one installed instance, or null when nothing names it. */
+export function organizationOfInstance(cache: OrganizationsCache, s: InstanceContext): Organization | null {
+  const instance = s.key.includes('.') ? s.key.slice(s.key.indexOf('.') + 1).toLowerCase() : '';
+  if (instance && instance in cache.organizations) return named(cache, instance);
+  const host = s.placement === 'remote' && s.origin ? hostOf(s.origin) : null;
+  if (host) {
+    const worker = host.endsWith('.workers.dev') ? cache.byWorker?.[host.slice(0, host.indexOf('.'))] : undefined;
+    if (worker) return named(cache, worker);
+    const zones = cache.byZone ?? {};
+    const zone = Object.keys(zones).filter((z) => host === z || host.endsWith(`.${z}`)).sort((a, b) => b.length - a.length)[0];
+    const owner = zone ? zones[zone] : undefined;
+    if (owner) return named(cache, owner);
+  }
+  const own = organizationOf(cache, s.repository);
+  if (own && s.placement !== 'remote' && cache.personal && cache.platform?.includes(own.name)) return named(cache, cache.personal);
+  return own;
+}
+
+function hostOf(origin: string): string | null {
+  try { return new URL(origin).hostname.toLowerCase() || null; } catch { return null; }
 }
 
 // FD-195 (SCN-094 steps 7 to 9): the filter's three kinds besides organization names: "Mine" (the personal

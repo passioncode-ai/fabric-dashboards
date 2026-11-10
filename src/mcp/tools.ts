@@ -42,7 +42,7 @@ import { findSwitchboard } from '../core/switchboard';
 import { searchDirs } from '../core/runtimes';
 import type { StopView } from '../core/types';
 import { AgentNameStore, customNameOf, findGh, readNamesCache } from '../core/agent-names';
-import { isShared, keepsOrganization, organizationOf, sharedProducts, type Organization } from '../core/organizations';
+import { isShared, keepsOrganization, organizationOfInstance, sharedProducts, type Organization } from '../core/organizations';
 import { readOrganizations } from '../core/organization-store';
 
 export const COMMAND_TIMEOUT_MS = 120_000;
@@ -335,7 +335,7 @@ export async function listServices(deps: Deps, organizations?: string[]): Promis
 /** FD-162: each look's organization, from the map the app last read (organizations.json beside its settings). */
 function organizationReader(deps: Deps): (l: ServiceLook) => Organization | null {
   const cache = readOrganizations(path.join(path.dirname(deps.settingsFile?.() ?? appSettingsFile()), 'organizations.json'));
-  return (l) => organizationOf(cache, l.descriptor?.source?.repository);
+  return (l) => organizationOfInstance(cache, { key: l.key, repository: l.descriptor?.source?.repository, placement: l.descriptor?.placement, origin: l.descriptor?.origin });
 }
 
 export async function serviceStatus(deps: Deps, key: string): Promise<ServiceView> {

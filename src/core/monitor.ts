@@ -13,7 +13,7 @@ import { tail } from './fsutil';
 import { commandReason, type CommandResult } from './outcome';
 import { duration, t as tr, type Lang } from './i18n';
 import { Launchd } from './launchd';
-import type { Organization } from './organizations';
+import type { InstanceContext, Organization } from './organizations';
 import { composeEventNotice, displayName, DOWN_NOTIFY_AFTER_MS, episodeKey, intentOf, NotifyLedger, shouldNotify, type Happening, type Intent } from './notify';
 import { fetchEvents, PROBE_TIMEOUT_MS, readTokenAsync } from './probe';
 import { tlsFor } from './testhooks';
@@ -58,7 +58,7 @@ export interface MonitorOptions {
   customName?: (key: string, repository: string | undefined) => string | null;
   /** FD-162: the organization of an agent's repository, from Project Observatory's registry; undefined when no map was
    *  ever read (the snapshot then carries none). */
-  organizationOf?: (repository: string | undefined) => Organization | null | undefined;
+  organizationOf?: (instance: InstanceContext) => Organization | null | undefined;
 }
 
 interface Tracked {
@@ -811,7 +811,8 @@ export class Monitor extends EventEmitter {
 
   /** FD-162: the agent's organization, or nothing when no map was ever read. */
   private organized(t: Tracked): { organization?: Organization | null } {
-    const org = this.o.organizationOf?.(t.entry.descriptor?.source?.repository);
+    const d = t.entry.descriptor;
+    const org = this.o.organizationOf?.({ key: t.entry.key, repository: d?.source?.repository, placement: d?.placement, origin: d?.origin });
     return org === undefined ? {} : { organization: org };
   }
 
