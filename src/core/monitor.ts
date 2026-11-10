@@ -173,6 +173,12 @@ export class Monitor extends EventEmitter {
     }
     return elsewhereOf(placement, t.entry.descriptor);
   }
+
+  /** FD-199: where the placement record puts this agent, when it is another machine; null for an unknown key. */
+  placedElsewhere(key: string): Elsewhere | null {
+    const t = this.tracked.get(key);
+    return t ? this.elsewhere(t) : null;
+  }
   // #endregion placed-elsewhere
 
   // --- lifecycle -----------------------------------------------------------------

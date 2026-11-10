@@ -158,6 +158,7 @@ export function ConsolePanel({ serviceKey, height, maxHeight, onHeight, onDrag, 
     else if (r.reason === 'spawn') setNotice({ text: t('console.spawnError', { detail }) });
     else if (r.reason === 'running') setNotice({ text: t('console.running') });
     else if (r.reason === 'no-continue') setNotice({ text: detail });
+    else if (r.reason === 'remote') setNotice({ text: t('console.remote.noRoute') }); // FD-199
     else setNotice(null); // no-runtime, no-folder: the panel's own state says it
   };
 
@@ -243,7 +244,9 @@ export function ConsolePanel({ serviceKey, height, maxHeight, onHeight, onDrag, 
   const runtime = info?.runtimes.find((r) => r.id === info.runtime) ?? null;
   const bound = info?.binding.kind === 'project' ? info.binding : null;
   const terminalOnly = Boolean(bound && runtime?.viaSwitchboard && !bound.inPlace);
-  const folderOk = Boolean(info?.folder?.exists);
+  // FD-199: on another machine the folder is that machine's; it need not exist here.
+  const remote = info?.remote ?? null;
+  const folderOk = Boolean(info?.folder?.exists || (remote?.destination && info?.folder));
   // FD-62 (SB-108): a hand-over's own console runs only what Switchboard handed over — no runtime, folder or start of its own.
   const ownHandover = /^handover\./.test(serviceKey);
   const handover = info?.handover ?? null;
@@ -293,10 +296,12 @@ export function ConsolePanel({ serviceKey, height, maxHeight, onHeight, onDrag, 
             : <span className="console-folder muted">{t('console.folder')}: {t('console.folderNone')}</span>}
           <button className="btn btn-sm" disabled={running} onClick={() => void api().consolePickFolder(serviceKey).then((i) => { setInfo(i); setNotice(null); })}>{info?.folder ? t('console.other') : t('console.chooseFolder')}</button>
           {bound && <span className="chip" title={t('console.project', { name: bound.name })}>{t('console.project', { name: bound.name })}</span>}
+          {remote?.destination && <span className="chip" title={t('console.remote.hint')}>{t('console.remote', { destination: remote.destination })}</span>}
         </div>}
       </div>
       {!info && <p className="console-state muted row" role="status"><Spinner /> {t('console.loading')}</p>}
       {info && !ownHandover && !info.runtimes.length && <p className="console-state notice">{t('console.noRuntime', { list: 'claude, codex, gemini, opencode, qwen, goose, aider, agent, copilot, amp' })}</p>}
+      {info && !ownHandover && remote && !remote.destination && <p className="console-state notice" role="status">{t('console.remote.noRoute')}</p>}
       {info && !ownHandover && info.runtimes.length > 0 && !folderOk && (
         <div className="console-state notice">
           <p>{info.folder && !info.folder.exists ? t('console.folderGone', { path: info.folder.path }) : t('console.noFolder')}</p>

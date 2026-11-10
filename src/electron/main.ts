@@ -270,7 +270,7 @@ if (!app.requestSingleInstanceLock()) {
   // FD-65: the last Check setup, kept until the next press; a run in progress is shared, never doubled.
   let lastSetupCheck: SetupCheckResult | null = null;
   let setupCheckRun: Promise<SetupCheckResult> | null = null;
-  const consoles = new ConsoleHost({ failed: (code) => analytics.failed('console', code), started: (props) => analytics.sessionStarted(props), settings, snapshot: (key) => monitor.snapshot(key), window: () => window, drawer: () => drawer?.contents() ?? null, visible: () => windowVisible(), log: (line) => log(line), testDirs: testRuntimeDirs, scriptsDir: path.join(userData, 'console'),
+  const consoles = new ConsoleHost({ failed: (code) => analytics.failed('console', code), started: (props) => analytics.sessionStarted(props), settings, snapshot: (key) => monitor.snapshot(key), placedElsewhere: (key) => monitor.placedElsewhere(key), window: () => window, drawer: () => drawer?.contents() ?? null, visible: () => windowVisible(), log: (line) => log(line), testDirs: testRuntimeDirs, scriptsDir: path.join(userData, 'console'),
     packRoot: path.join(userData, 'consoles'), keptDir: path.join(userData, 'console-output'), version: app.getVersion(), activity: (key) => activity.list({ serviceKey: key }, 200), mcpServer,
     setupState: () => readSetupState(os.homedir(), monitor.snapshots().length),
     doctor: () => (lastSetupCheck?.kind === 'report' ? lastSetupCheck.report : null),

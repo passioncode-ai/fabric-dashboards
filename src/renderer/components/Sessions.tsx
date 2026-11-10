@@ -28,6 +28,7 @@ export function failText(t: T, r: Extract<SessionActionResult, { ok: false }>, o
   // R1-B: the refusal says the cause the check found (disk, six sessions, swap).
   if (r.reason === 'admission') return t(r.detail === 'disk' || r.detail === 'cap' || r.detail === 'swap' ? `sessions.reason.busy-${r.detail}` : 'sessions.reason.busy');
   if (r.reason === 'no-folder') return t('sessions.reason.no-folder');
+  if (r.reason === 'remote') return t('console.remote.noRoute'); // FD-199
   return t('sessions.reason.resume-failed');
 }
 
