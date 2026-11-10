@@ -22,8 +22,6 @@ export interface OrganizationsCache {
   /** FD-197: a Cloudflare Worker's name -> the organization of the one account Observatory lists it in (accounts matched
    *  by `match.cloudflare_accounts`); a name listed in two accounts is left out, never guessed. */
   byWorker?: Record<string, string>;
-  /** FD-197: a Cloudflare zone (`example.com`) -> the organization of its account. */
-  byZone?: Record<string, string>;
 }
 
 export const EMPTY_ORGANIZATIONS: OrganizationsCache = { readAt: null, byRepository: {}, organizations: {} };
@@ -86,8 +84,9 @@ export function addRegistryProjects(into: OrganizationsCache, doc: unknown): boo
 }
 
 /** FD-197: Observatory's Cloudflare inventory (`registry/cloudflare-account.json`): each account's `organization` (its
- *  config's `match.cloudflare_accounts`) given to the Workers and zones listed in it. An account with no organization,
- *  or a Worker name listed in two accounts, gives nothing. */
+ *  config's `match.cloudflare_accounts`) given to the Workers deployed in it. An account with no organization, or a
+ *  Worker name listed in two accounts, gives nothing. A zone gives nothing either: where a domain's DNS is hosted does
+ *  not move a project (the operator's decision Observatory records, board thread `6e6a922d`). */
 export function addCloudflareAccounts(into: OrganizationsCache, doc: unknown): void {
   const d = (doc && typeof doc === 'object' ? doc : {}) as { accounts?: unknown; resources?: unknown };
   const orgOf = new Map<string, string>();
@@ -96,14 +95,11 @@ export function addCloudflareAccounts(into: OrganizationsCache, doc: unknown): v
     if (typeof acc.id === 'string' && typeof acc.organization === 'string' && acc.organization) orgOf.set(acc.id, acc.organization);
   }
   const workers = new Map<string, Set<string>>();
-  const zones: Record<string, string> = {};
   for (const r of Array.isArray(d.resources) ? d.resources : []) {
     const res = (r && typeof r === 'object' ? r : {}) as { kind?: unknown; name?: unknown; account_ref?: unknown };
     if (typeof res.name !== 'string' || typeof res.account_ref !== 'string') continue;
     const name = res.name.toLowerCase();
     if (res.kind === 'worker') workers.set(name, (workers.get(name) ?? new Set()).add(res.account_ref));
-    const org = orgOf.get(res.account_ref);
-    if (res.kind === 'zone' && org) zones[name] = org;
   }
   const byWorker: Record<string, string> = {};
   for (const [name, accounts] of workers) {
@@ -112,7 +108,6 @@ export function addCloudflareAccounts(into: OrganizationsCache, doc: unknown): v
     if (org) byWorker[name] = org;
   }
   into.byWorker = byWorker;
-  into.byZone = zones;
 }
 
 const named = (cache: OrganizationsCache, name: string): Organization =>
@@ -140,8 +135,8 @@ export interface InstanceContext {
 
 // FD-197 (studio-agent's DEC-0052, board thread `6e6a922d`): an instance belongs to the organization of the context it
 // runs in, before the owner of its repository. In order: an instance named after an organization (`.acme`) is that
-// organization's; an online one whose host is a Worker or a zone of a Cloudflare account Observatory attributes is that
-// account's organization's; an instance of a platform product (Observatory, Fabric Inbox: infrastructure each
+// organization's; an online one served as a Worker (`<name>.<subdomain>.workers.dev`) of a Cloudflare account Observatory
+// attributes is that account's organization's (a custom domain's zone is not a deployment and gives nothing); an instance of a platform product (Observatory, Fabric Inbox: infrastructure each
 // organization runs a copy of) on this Mac runs in this space, so it is this space's own organization's. Anything else
 // keeps its repository's organization (FD-162); nothing is guessed.
 /** The organization of one installed instance, or null when nothing names it. */
@@ -152,10 +147,6 @@ export function organizationOfInstance(cache: OrganizationsCache, s: InstanceCon
   if (host) {
     const worker = host.endsWith('.workers.dev') ? cache.byWorker?.[host.slice(0, host.indexOf('.'))] : undefined;
     if (worker) return named(cache, worker);
-    const zones = cache.byZone ?? {};
-    const zone = Object.keys(zones).filter((z) => host === z || host.endsWith(`.${z}`)).sort((a, b) => b.length - a.length)[0];
-    const owner = zone ? zones[zone] : undefined;
-    if (owner) return named(cache, owner);
   }
   const own = organizationOf(cache, s.repository);
   if (own && s.placement !== 'remote' && cache.personal && cache.platform?.includes(own.name)) return named(cache, cache.personal);

@@ -1,5 +1,5 @@
 // FD-197 (studio-agent's DEC-0052): an instance belongs to the organization of the context it runs in (its instance
-// name, the Cloudflare account it is deployed in, this space for a platform product), before its repository's owner.
+// name, the Cloudflare account its Worker is deployed in, this space for a platform product), before its repository's owner.
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -47,7 +47,8 @@ test('FD-197: an online instance belongs to the organization of the Cloudflare a
   assert.deepEqual(organizationOfInstance(m, { key: 'inbox.default', repository: repo('vendor-ai/inbox'), placement: 'remote', origin: 'https://inbox.someone.workers.dev' }),
     { name: 'home', label: 'Home', personal: true }, "the personal account's Worker: the personal organization, whoever publishes it");
   assert.deepEqual(organizationOfInstance(m, { key: 'inbox.cloud', repository: repo('vendor-ai/inbox'), placement: 'remote', origin: 'https://acme-inbox.acme-dev.workers.dev' }), { name: 'acme', label: 'Acme' });
-  assert.deepEqual(organizationOfInstance(m, { key: 'voc-agent.cloud', repository: repo('someone/support-bot'), placement: 'remote', origin: 'https://voc.api.acme.example' }), { name: 'acme', label: 'Acme' }, 'a host under a zone of the account');
+  assert.deepEqual(organizationOfInstance(m, { key: 'voc-agent.cloud', repository: repo('someone/support-bot'), placement: 'remote', origin: 'https://voc.api.acme.example' }),
+    { name: 'home', label: 'Home', personal: true }, "a custom domain's zone is not a deployment: the repository decides");
 });
 
 test('FD-197: a Worker name in two accounts, or an account Observatory does not attribute, falls back to the repository', () => {
@@ -78,7 +79,7 @@ test('FD-197: the instance context survives the saved map, and the platform owne
   const back = readOrganizations(file);
   assert.deepEqual(back.platform, ['vendor']);
   assert.deepEqual(back.byWorker, { inbox: 'home', 'acme-inbox': 'acme' });
-  assert.deepEqual(back.byZone, { 'acme.example': 'acme' });
+  assert.equal('byZone' in back, false);
   const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'package.json'), 'utf8')) as { repository: { url: string } };
   assert.match(pkg.repository.url, new RegExp(`github\\.com/${OWN_REPOSITORY_OWNER}/`));
 });
