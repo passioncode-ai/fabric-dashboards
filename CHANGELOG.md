@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- FD-197: an online agent belongs to the organization of the Cloudflare account only when it is served as a Worker of
+  that account; a custom domain's zone no longer counts, since where a domain's DNS is hosted does not move a project.
+
 ## 0.8.47 - 2026-11-10
 
 ### Changed

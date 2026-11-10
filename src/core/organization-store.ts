@@ -19,7 +19,6 @@ export function readOrganizations(file: string): OrganizationsCache {
       // FD-197: the instance context, as the app last read it.
       ...(Array.isArray(raw.platform) ? { platform: raw.platform.filter((x): x is string => typeof x === 'string') } : {}),
       ...(record(raw.byWorker) ? { byWorker: record(raw.byWorker) } : {}),
-      ...(record(raw.byZone) ? { byZone: record(raw.byZone) } : {}),
     };
   } catch {
     return { ...EMPTY_ORGANIZATIONS };
