@@ -3,7 +3,7 @@
 // #region organization-store — docs: docs/ux/scenarios.md#scn-094-show-only-one-organizations-agents
 import fs from 'node:fs';
 import path from 'node:path';
-import { addRegistryProjects, addSurveyPage, EMPTY_ORGANIZATIONS, organizationOf, ORGANIZATIONS_EVERY_MS, type Organization, type OrganizationsCache } from './organizations';
+import { addRegistryProjects, addSurveyPage, EMPTY_ORGANIZATIONS, organizationOf, organizationOfInstance, ORGANIZATIONS_EVERY_MS, type InstanceContext, type Organization, type OrganizationsCache } from './organizations';
 
 const MAX_PAGES = 20;
 
@@ -13,7 +13,14 @@ export function readOrganizations(file: string): OrganizationsCache {
     const raw = JSON.parse(fs.readFileSync(file, 'utf8')) as Partial<OrganizationsCache>;
     const byRepository = raw.byRepository && typeof raw.byRepository === 'object' ? raw.byRepository : {};
     const organizations = raw.organizations && typeof raw.organizations === 'object' ? raw.organizations : {};
-    return { readAt: typeof raw.readAt === 'string' ? raw.readAt : null, byRepository, organizations, personal: typeof raw.personal === 'string' && raw.personal ? raw.personal : null };
+    const record = (x: unknown) => (x && typeof x === 'object' && !Array.isArray(x) ? x as Record<string, string> : undefined);
+    return {
+      readAt: typeof raw.readAt === 'string' ? raw.readAt : null, byRepository, organizations, personal: typeof raw.personal === 'string' && raw.personal ? raw.personal : null,
+      // FD-197: the instance context, as the app last read it.
+      ...(Array.isArray(raw.platform) ? { platform: raw.platform.filter((x): x is string => typeof x === 'string') } : {}),
+      ...(record(raw.byWorker) ? { byWorker: record(raw.byWorker) } : {}),
+      ...(record(raw.byZone) ? { byZone: record(raw.byZone) } : {}),
+    };
   } catch {
     return { ...EMPTY_ORGANIZATIONS };
   }
@@ -45,8 +52,10 @@ export class OrganizationStore {
     return this.cache;
   }
 
-  of(repository: string | undefined | null): Organization | null {
-    return organizationOf(this.cache, repository);
+  /** The organization of a repository, or (FD-197) of one installed instance, by the context it runs in, then its
+   *  repository. */
+  of(what: InstanceContext | string | null | undefined): Organization | null {
+    return what && typeof what === 'object' ? organizationOfInstance(this.cache, what) : organizationOf(this.cache, what);
   }
 
   /** Whether the map is older than `everyMs` (or was never read). */

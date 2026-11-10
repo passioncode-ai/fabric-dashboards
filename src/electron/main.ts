@@ -35,7 +35,7 @@ import { AgentNameStore, findGh, githubRepoOf, NAMES_EVERY_MS, NAMES_FIRST_MS, N
 import { authHeaders, fetchLoad, fetchUsage, readTokenAsync } from '../core/probe';
 import { callCapability } from '../core/mcp-client';
 import { OrganizationStore } from '../core/organization-store';
-import { ORGANIZATIONS_EVERY_MS, ORGANIZATIONS_FIRST_MS } from '../core/organizations';
+import { ORGANIZATIONS_EVERY_MS, ORGANIZATIONS_FIRST_MS, OWN_REPOSITORY_OWNER } from '../core/organizations';
 import { limitsNeedingPerson, readSpend, type SpendEntry } from '../core/spend';
 import { attentionQueue, badgeText, nextNewsExpiry } from '../core/attention';
 import type { LimitView } from '@passioncode-ai/fabric-service-host/usage';
@@ -197,11 +197,20 @@ if (!app.requestSingleInstanceLock()) {
       let projects: Record<string, unknown>;
       try { projects = JSON.parse(fs.readFileSync(path.join(base, 'registry', 'projects.json'), 'utf8')) as Record<string, unknown>; } catch { return null; }
       try {
-        const cfg = JSON.parse(fs.readFileSync(path.join(base, 'config', 'organizations.json'), 'utf8')) as { organizations?: Record<string, { label?: unknown; default?: unknown }> };
+        const cfg = JSON.parse(fs.readFileSync(path.join(base, 'config', 'organizations.json'), 'utf8')) as { organizations?: Record<string, { label?: unknown; default?: unknown; platform?: unknown; match?: { repository_owners?: unknown } }> };
         projects.organization_labels = Object.fromEntries(Object.entries(cfg.organizations ?? {}).map(([k, v]) => [k, v?.label]));
         // FD-195: the organization marked `default: true` is the operator's own: the filter's "Mine".
         projects.organization_personal = Object.entries(cfg.organizations ?? {}).find(([, v]) => v?.default === true)?.[0] ?? null;
+        // FD-197: the platform's organizations: those the config marks `platform: true`, else the one that owns this
+        // app's own repository (the platform's publisher).
+        const entries = Object.entries(cfg.organizations ?? {});
+        const marked = entries.filter(([, v]) => v?.platform === true).map(([k]) => k);
+        projects.organization_platform = marked.length ? marked : entries
+          .filter(([, v]) => Array.isArray(v?.match?.repository_owners) && (v.match.repository_owners as unknown[]).some((o) => typeof o === 'string' && o.toLowerCase() === OWN_REPOSITORY_OWNER))
+          .map(([k]) => k);
       } catch { /* no labels: names are shown as they are */ }
+      // FD-197: which organization each Cloudflare account belongs to, for the online instances.
+      try { projects.cloudflare_accounts = JSON.parse(fs.readFileSync(path.join(base, 'registry', 'cloudflare-account.json'), 'utf8')); } catch { /* none: online instances keep their repository's organization */ }
       return projects;
     },
     onChange: () => { monitor.namesChanged(); pushStatus(); },
@@ -224,7 +233,7 @@ if (!app.requestSingleInstanceLock()) {
   // #endregion organizations
   const monitor = new Monitor({ servicesDir: servicesDir(), activity, settings: () => settings.get(), lang, ledger: new NotifyLedger(path.join(userData, 'notified.json')),
     customName: (key, repository) => agentNames.name(key, repository),
-    organizationOf: (repository) => (organizations.get().readAt ? organizations.of(repository) : undefined),
+    organizationOf: (instance) => (organizations.get().readAt ? organizations.of(instance) : undefined),
     intervals: Number.isFinite(testRemoteMs) && testRemoteMs >= 1_000 ? { remote: testRemoteMs } : undefined });
   // #region usage-analytics — docs: docs/ANALYTICS.md#what-is-sent
   // FD-136: anonymous usage and error data, on by default, this product's own switch; only a release build that
