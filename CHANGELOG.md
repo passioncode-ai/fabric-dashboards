@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- FD-199: an agent placed on another machine (FD-132) opens its console there. New session and Continue run the chosen
+  coding agent on that machine over SSH, in the same repository folder under that machine's home, through the route
+  its port forward to this Mac already uses (the forward the placement record names, else the one that brings the
+  agent's port here); Open in Terminal does the same. The console's header says where it runs; with no forward that
+  reaches the machine, nothing starts and the console says why.
+
 ## 0.8.49 - 2026-11-10
 
 ### Added

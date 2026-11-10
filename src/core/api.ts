@@ -49,6 +49,9 @@ export interface ConsoleInfo {
   /** FD-62: the session this console runs came from a Switchboard hand-over (SB-108). */
   /** FD-62; FD-83: `kind: 'resume'` is a session this app continued after a usage limit. */
   handover?: { id: string; workflow: string; agent: string; account: string; dir: string; kind?: 'handover' | 'resume' } | null;
+  /** FD-199: the placement record puts the agent on another machine, so the console runs there; `destination` is the ssh
+   *  destination of its port forward, null when no forward reaches that machine. */
+  remote?: { machine: string; destination: string | null } | null;
 }
 
 /** FD-43/FD-51: the Switchboard sessions of a console's folder, or why there are none to show. */
@@ -59,7 +62,7 @@ export type ConsoleSessions =
 /** Why a start did not run in the console, worded by the renderer. */
 export type ConsoleStartResult =
   | { ok: true }
-  | { ok: false; reason: 'running' | 'no-runtime' | 'no-folder' | 'no-continue' | 'switchboard' | 'terminal-only' | 'spawn' | 'isolated'; detail?: string; project?: string }
+  | { ok: false; reason: 'running' | 'no-runtime' | 'no-folder' | 'no-continue' | 'switchboard' | 'terminal-only' | 'spawn' | 'isolated' | 'remote'; detail?: string; project?: string }
   /** FD-49 (LC-17): deferred — the machine cannot carry another session now. */
   | { ok: false; reason: 'admission'; why: 'disk' | 'swap' | 'cap'; freeGb?: number; running?: number; cap?: number };
 

@@ -342,6 +342,10 @@ const en = {
   'console.folderGone': 'The folder {path} no longer exists.',
   'console.foundFrom': "Found from the agent's repository",
   'console.project': 'Switchboard project {name}',
+  // FD-199: the agent is placed on another machine (FD-132), so its console runs there over ssh; copy checks 613d9dd5, 3421ae8c, 4482fe7b.
+  'console.remote': 'Runs on {destination}',
+  'console.remote.hint': 'This agent is placed on another machine, so its coding agent runs there, in the same folder.',
+  'console.remote.noRoute': 'This agent runs on another machine, and no port forward on this computer says how to reach it, so a session cannot open there.',
   'console.terminalOnly': 'This folder runs on Switchboard project {name}. This Switchboard opens its sessions in Terminal.',
   'console.sbError': 'Switchboard did not answer, so the session was not started: {detail}',
   'console.spawnError': 'The coding agent could not start: {detail}',
@@ -1386,6 +1390,10 @@ const ru: Record<Key, string> = {
   'console.folderGone': 'Папки {path} больше нет.',
   'console.foundFrom': 'Найдена по репозиторию агента',
   'console.project': 'Проект Switchboard {name}',
+  // FD-199: copy checks 40222fa0, 3f541ccb, 3fe54dbd (the no-final-full-stop suggestion kept, voice rule 2).
+  'console.remote': 'Работает на {destination}',
+  'console.remote.hint': 'Агент размещён на другой машине, поэтому агент для кода работает там, в той же папке.',
+  'console.remote.noRoute': 'Этот агент работает на другой машине, а на этом компьютере нет проброса порта, по которому до неё можно дойти, поэтому сессия там не откроется.',
   'console.terminalOnly': 'Эта папка привязана к проекту Switchboard {name}. Эта версия Switchboard открывает его сессии в Терминале.',
   'console.sbError': 'Switchboard не ответил, поэтому сессия не запущена: {detail}',
   'console.spawnError': 'Агент для кода не запустился: {detail}',

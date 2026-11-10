@@ -10,7 +10,8 @@ import { execFile } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { execRunner, type Runner } from '@passioncode-ai/fabric-service-host';
+import { execRunner, portOf, type Runner } from '@passioncode-ai/fabric-service-host';
+import { readLaunchJobs, remoteArgv, remoteRuntimeArgv, routeTo, type LaunchJob, type SshRoute } from '../core/remote-console';
 import { CHANNELS, type ConsoleInfo, type ConsoleStartResult, type ConsoleTask, type NewSessionOptions, type NewSessionResult } from '../core/api';
 import { openConsolesOf, type OpenConsole } from '../core/console-channel';
 import { prepareHandoff, writeTaskOnly, type McpCommand } from '../core/handoff';
@@ -101,6 +102,10 @@ export interface ConsoleHostOptions {
   changed?: () => void;
   /** FD-103 (decision 9): once per taken hand-over and per automatic continue after a limit reset. */
   notice?: (n: SessionNotice) => void;
+  /** FD-199: where the placement record puts an agent other than this machine (FD-132), and the forward it names. */
+  placedElsewhere?: (key: string) => { placedOn: string; forward?: string } | null;
+  /** FD-199: this user's launchd jobs, for the ssh route of a forward (default: `~/Library/LaunchAgents`; tests pass jobs). */
+  launchJobs?: () => LaunchJob[];
 }
 
 /** FD-62: how often hand-overs are read, in AGENTS.md's lifecycle table. */
@@ -341,8 +346,27 @@ export class ConsoleHost {
       session: { state: s.state, label: s.label, cwd: s.cwd, output: s.output, end: s.end, exitCode: s.exitCode, signal: s.signal },
       idle: this.o.settings.get().consoles[key]?.idle ?? null,
       handover: this.handoverInfo(key),
+      remote: this.remoteInfo(key),
     };
   }
+
+  // #region remote-console-host — docs: docs/ux/scenarios.md#scn-103-edit-an-agent-on-the-machine-it-runs-on
+  /** FD-199: an agent placed on another machine is edited there: the ssh route its port forward uses (null: no route). */
+  private remoteOf(key: string): { placedOn: string; route: SshRoute | null } | null {
+    const placed = this.o.placedElsewhere?.(key) ?? null;
+    if (!placed) return null;
+    const origin = this.o.snapshot(key)?.descriptor?.origin;
+    let port: number | null = null;
+    try { port = origin ? portOf(origin) : null; } catch { port = null; }
+    const jobs = (this.o.launchJobs ?? (() => readLaunchJobs(path.join(os.homedir(), 'Library', 'LaunchAgents'))))();
+    return { placedOn: placed.placedOn, route: routeTo({ forward: placed.forward, port, jobs }) };
+  }
+
+  private remoteInfo(key: string): ConsoleInfo['remote'] {
+    const r = this.remoteOf(key);
+    return r ? { machine: r.placedOn, destination: r.route?.destination ?? null } : null;
+  }
+  // #endregion remote-console-host
 
   private handoverInfo(key: string): ConsoleInfo['handover'] {
     const h = this.handoverOf.get(key);
@@ -417,21 +441,38 @@ export class ConsoleHost {
     const runtime = this.chosen(key, inv.runtimes);
     if (!runtime) return { ok: false, reason: 'no-runtime' };
     const folder = this.folderOf(key);
-    if (!folder?.exists) return { ok: false, reason: 'no-folder' };
+    // FD-199: an agent placed on another machine runs its coding agent there, in the same folder; it need not exist here.
+    const remote = this.remoteOf(key);
+    if (remote && !remote.route) return { ok: false, reason: 'remote', detail: remote.placedOn };
+    if (!folder || (!remote && !folder.exists)) return { ok: false, reason: 'no-folder' };
+    const home = this.o.home ?? os.homedir();
     // FD-49 (LC-17): start only what the machine can carry; otherwise defer, saying why.
-    const a = admit(await (this.o.machine ?? machineProbe)(folder.path, this.manager.runningCount()));
+    const a = admit(await (this.o.machine ?? machineProbe)(remote ? home : folder.path, this.manager.runningCount()));
     if (!a.ok) {
       this.o.log(`console: ${key} start deferred (LC-17): ${a.why}`);
       if (a.why === 'disk') return { ok: false, reason: 'admission', why: 'disk', freeGb: Math.round((a.freeDisk / 1024 ** 3) * 10) / 10 };
       if (a.why === 'cap') return { ok: false, reason: 'admission', why: 'cap', running: a.running, cap: a.cap };
       return { ok: false, reason: 'admission', why: 'swap' };
     }
+    // FD-199: on the other machine, plain: its own coding agent and sign-in; the context pack is a file of this machine.
+    const saved = this.o.settings.get().consoles[key];
+    if (remote?.route) {
+      const local = planStart({ runtime, mode, folder: folder.path, binding: { kind: 'none' }, switchboard: null, inPlace: false, bypass: saved?.bypass });
+      if (local.kind !== 'run') return local.kind === 'refused' ? { ok: false, reason: local.reason, detail: local.detail } : { ok: false, reason: 'spawn' };
+      const argv = remoteArgv({ route: remote.route, folder: folder.path, home, argv: remoteRuntimeArgv(local.argv) });
+      const r = this.manager.start(key, { argv, cwd: home, label: `${runtime.name} · ${remote.route.destination}`, env: { PATH: inv.dirs.join(path.delimiter) } }, size);
+      if (!r.ok) return { ok: false, reason: r.error === 'running' ? 'running' : 'spawn', detail: r.error };
+      this.handoverOf.delete(key);
+      if (mode === 'continue') this.forgetLatestEnded(key);
+      this.o.settings.update({ consoles: { [key]: { runtime: runtime.id, folder: folder.source === 'saved' ? folder.path : saved?.folder ?? null, idle: null, ...(saved?.bypass !== undefined ? { bypass: saved.bypass } : {}) } } });
+      this.o.log(`console: ${key} started ${runtime.id} (${mode}) on ${remote.route.destination} in ${folder.path}, through ${remote.route.via}`);
+      return { ok: true };
+    }
     const b = await this.bindingFor(runtime, folder.path, inv);
     const pack = this.pack(key, runtime, folder.path, task);
     // FD-51 (LC-20): with a Switchboard route for this provider, every start runs managed.
     const managed = inv.switchboard && runtime.provider && inv.inPlace ? managesProvider(await accountsOf(this.run, inv.switchboard), runtime.provider) : false;
     // FD-191: a session of its own keeps the permission and isolation it was started with, Continue included.
-    const saved = this.o.settings.get().consoles[key];
     const plan = planStart({ runtime, mode, folder: folder.path, binding: b.kind === 'absent' ? { kind: 'none' } : b, switchboard: inv.switchboard, inPlace: inv.inPlace, surface: inv.surface, managed, handoff: pack?.handoff, bypass: saved?.bypass, isolated: saved?.isolated });
     if (plan.kind === 'refused') return { ok: false, reason: plan.reason, detail: plan.detail };
     if (plan.kind === 'terminal-only') return { ok: false, reason: 'terminal-only', project: plan.project };
@@ -1118,6 +1159,15 @@ export class ConsoleHost {
     const runtime = this.chosen(key, inv.runtimes);
     const folder = this.folderOf(key);
     if (!runtime) return { ok: false, error: 'no-runtime' };
+    // FD-199: Terminal opens the same session on the machine the agent is placed on.
+    const remote = this.remoteOf(key);
+    if (remote) {
+      if (!remote.route || !folder) return { ok: false, error: !remote.route ? `no port forward reaches ${remote.placedOn}` : 'no-folder' };
+      const local = planStart({ runtime, mode, folder: folder.path, binding: { kind: 'none' }, switchboard: null, inPlace: false, bypass: this.o.settings.get().consoles[key]?.bypass });
+      if (local.kind !== 'run') return { ok: false, error: local.kind === 'refused' ? local.detail : 'unavailable' };
+      const home = this.o.home ?? os.homedir();
+      return openInTerminal(this.o.scriptsDir, terminalScript(remoteArgv({ route: remote.route, folder: folder.path, home, argv: remoteRuntimeArgv(local.argv) }), home));
+    }
     if (!folder?.exists) return { ok: false, error: 'no-folder' };
     const b = await this.bindingFor(runtime, folder.path, inv);
     if (b.kind === 'error') return { ok: false, error: b.detail };

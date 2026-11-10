@@ -108,6 +108,7 @@
 | SCN-100 | See the setup as steps the agent works through | setup | P-01 | ST-022 | draft | 2026-11-08 |
 | SCN-101 | Start a new session in a folder | sessions | P-01 | ST-019 | implemented | 2026-11-09 |
 | SCN-102 | Start a new agent from the agent list | console | P-01 | ST-019, ST-022 | implemented | 2026-11-09 |
+| SCN-103 | Edit an agent on the machine it runs on | console | P-01 | ST-004, ST-019 | implemented | 2026-11-11 |
 ## Personas
 
 Defined in [foundation.md](foundation.md) → P-01.
@@ -2309,4 +2310,27 @@ The Sessions mode (0.8.0): every coding session apart from the agents, each stat
   - "Create with coding agent" / «Создать с агентом для кода»
 - **Status:** implemented (2026-11-09: `test/new-session.test.ts` *FD-191 (SCN-102)*: the brief names the folder, the skills and the proof, 0600, the runtime's arguments; New agent starts with it; copy checks as SCN-101)
 - **Coverage:** src/core/new-session.ts (newAgentMarkdown, prepareNewAgent), src/electron/console.ts (pack), src/renderer/App.tsx, test/new-session.test.ts
+- **Product:** unobserved
+
+### SCN-103: Edit an agent on the machine it runs on
+- **Persona:** P-01
+- **Feature:** console
+- **Traces:** ST-004, ST-019; FD-199; the operator, 2026-11-11, this repository's session `a1bc2cc0`: "connect to remote agents you have access to, and if you can edit them, start from the code here and run the editing there"; FD-132 (the placement record), FD-179 and FD-196 (the port forward that brings a moved agent here)
+- **Entry point:** the console of an agent the placement record puts on another machine (SCN-089); an agent, MCP `console_new`
+- **Preconditions:** Observatory's placement record puts the agent on another machine; a launchd job of this user forwards the agent's port from that machine over ssh (`ssh -N -L <port>:127.0.0.1:<port> <user>@<host>` with its key), as the move left it; the coding agent is installed there and signed in
+- **Steps:**
+  1. The person opens the agent's console -> its header shows the folder and a chip "Runs on {destination}" (the ssh destination of the forward), with the hint "This agent is placed on another machine, so its coding agent runs there, in the same folder."
+  2. The person presses New session -> the console runs `ssh -t` to that destination with the forward's key options, enters the same repository folder under that machine's home (`~/DATA/agent` here is `~/DATA/agent` there, whatever the user), and starts the chosen coding agent through a login shell; the session's label ends with "· {destination}"
+  3. The person edits, commits and pushes there; Stop, Continue and the idle close (LC-18) work as for any console; Open in Terminal opens the same session on that machine in Terminal
+- **Expected result:** a person on this Mac edits a moved agent where it runs, from its own console, with no new setting: the forward the move made is the route
+- **Alt paths:** the record names the forward (`forward`, OBS-480) -> that job's route is used, else the job that brings the agent's port here; the folder does not exist on this Mac -> it is still started there (only the other machine's folder matters); an agent placed here -> the console runs on this Mac as before
+- **UI elements:** the console header's chip, the session label
+- **States covered:** success, error
+- **Errors & recovery:** no forward reaches the machine -> nothing starts, and the console and a refused Continue say "This agent runs on another machine, and no port forward on this computer says how to reach it, so a session cannot open there."; the other machine refuses the key or does not answer -> ssh's own words show in the console and the session ends (no prompt is ever shown: `BatchMode=yes`); the coding agent is missing there -> the remote shell's own error shows in the console
+- **Copy:**
+  - "Runs on {destination}" / «Работает на {destination}»
+  - "This agent is placed on another machine, so its coding agent runs there, in the same folder." / «Агент размещён на другой машине, поэтому агент для кода работает там, в той же папке.»
+  - "This agent runs on another machine, and no port forward on this computer says how to reach it, so a session cannot open there." / «Этот агент работает на другой машине, а на этом компьютере нет проброса порта, по которому до неё можно дойти, поэтому сессия там не откроется.»
+- **Status:** implemented (2026-11-11: `test/remote-console.test.ts` (10 tests: the forward's route and ports, the record's forward first, the remote line under the remote home, the ssh argv, reading launchd jobs, the start on the other machine, the refusal, an agent placed here unchanged, the refused Continue's sentence); live against the Studio: the argv the console builds ran `claude --version` (2.1.319) in `sshlg` and `assessment`, in the agent's folder; copy check reports `613d9dd5`, `3421ae8c`, `4482fe7b` (en, no findings) and `40222fa0`, `3f541ccb`, `3fe54dbd` (ru: two suggestions to drop the final full stop, kept, voice rule 2))
+- **Coverage:** src/core/remote-console.ts, src/electron/console.ts (remote-console-host, start, openTerminal), src/core/monitor.ts (placedElsewhere), src/renderer/components/ConsolePanel.tsx, src/renderer/components/Sessions.tsx (failText), test/remote-console.test.ts
 - **Product:** unobserved
