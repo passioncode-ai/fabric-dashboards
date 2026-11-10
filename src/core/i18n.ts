@@ -154,6 +154,8 @@ const en = {
   'reason.duplicate.elsewhere': 'Placed on {machine}, yet a copy runs here too. Stop it here to keep one.',
   // FD-132: Observatory writes placedOn `unknown` when the moved bundle named no machine; `t` picks these then.
   'reason.elsewhere.unknown': 'Placed on another machine: it runs there, so here it stays off. Its dashboard opens here while a port forward from that machine runs.',
+  // FD-198: the last line the service wrote to its own log in this episode, as it wrote it.
+  'reason.log': 'Its log says: {line}',
   'reason.duplicate.elsewhere.unknown': 'Placed on another machine, yet a copy runs here too. Stop it here to keep one.',
   // FD-179: placed on another machine, its port forwarded here (an SSH tunnel); copy check 436b7448.
   'reason.reached.elsewhere': 'Runs on {machine}. This computer reaches it through its port, so what you see here is that copy.',
@@ -1200,6 +1202,7 @@ const ru: Record<Key, string> = {
   'reason.elsewhere.forward.unknown': 'Работает на другой машине, а проброс его порта на этот компьютер ({forward}) не идёт, поэтому дашборд здесь не открывается.',
   'reason.duplicate.elsewhere': 'Агент размещён на машине {machine}, но копия работает и здесь. Остановите её здесь, чтобы осталась одна.',
   'reason.elsewhere.unknown': 'Размещён на другой машине: работает там, а здесь выключен. Его дашборд открывается здесь, пока идёт проброс порта с той машины.',
+  'reason.log': 'В его логах: {line}',
   'reason.duplicate.elsewhere.unknown': 'Агент размещён на другой машине, но копия работает и здесь. Остановите её здесь, чтобы осталась одна.',
   // FD-179: copy check 952943eb.
   'reason.reached.elsewhere': 'Работает на машине {machine}. Этот компьютер обращается к агенту через его порт, поэтому здесь вы видите ту копию.',
