@@ -8,11 +8,12 @@ import { sumSpend, type SpendEntry } from '../../core/spend';
 import { attentionQueue, foldAttention, groupAttention, urgent } from '../../core/attention';
 import { FixButton } from './ServiceActions';
 import { money as formatMoney } from './Spend';
-import { categoryOf, instanceOf, type Product } from '../../core/products';
+import { categoryOf, instanceOf, offProducts, type Product } from '../../core/products';
 import type { ListLayout } from '../../core/types';
 import type { AppStatus, ServiceSnapshot, Settings } from '../../core/types';
 import { api, GLYPH, nameOf, NEWS_MS, shortBuild, Spinner, StateBadge, useExpiry, useT } from '../lib';
 import { shownState } from '../../core/setup-wait';
+import { firstAction } from '../../core/focus';
 
 /** FD-39 SCN-058: the setup the person's coding agent runs. The card shows what is done — read every few
  *  seconds while it is on screen — and opens the Setup console; the app runs none of the steps itself. */
@@ -162,12 +163,16 @@ export function Overview({ status, products, open, act, goSpend, agent, visit, o
     // T-20: an online service has no Logs tab.
     const logs = failed(s) && !isOnline(s) && s.descriptor?.paths?.logs?.length
       ? <button className="btn" aria-label={t('join.action', { action: t('action.logs'), name: nameOf(s) })} onClick={() => open(s.key, undefined, 'logs')}>{t('action.logs')}</button> : null;
-    if (logs && !(s.state === 'down' || s.state === 'duplicate')) return logs;
+    // Scenario walk 2026-11-11 (SCN-089, SCN-099, SCN-006): Restart only where the agent page offers it (firstAction):
+    // never for an agent placed on another machine (its Stop is on its page), a system daemon of the space or a job
+    // launchd does not manage.
+    const restart = (s.state === 'down' || s.state === 'duplicate') && firstAction(s)?.kind === 'restart';
+    if (logs && !restart) return logs;
     // DEC-0019: an online service is supervised by its platform — nothing here can restart it.
     if (isOnline(s)) return <button className="btn" onClick={() => open(s.key)}>{t('action.open')}</button>;
     // U-14: each action names the service it acts on, for a screen reader reading the button alone.
     const label = (action: string) => t('join.action', { action, name: nameOf(s) });
-    if (s.state === 'down' || s.state === 'duplicate') return <span className="row">{logs}<button className="btn btn-primary" aria-label={label(t('action.restart'))} onClick={() => act(s.key, 'restart')}>{t('action.restart')}</button></span>;
+    if (restart) return <span className="row">{logs}<button className="btn btn-primary" aria-label={label(t('action.restart'))} onClick={() => act(s.key, 'restart')}>{t('action.restart')}</button></span>;
     if (s.wellKnown?.update?.available && s.descriptor?.commands?.update) { // P-9: also when degraded — the update may be the fix
       const text = t('action.update', { version: s.wellKnown.update.available });
       return <button className="btn" aria-label={label(text)} onClick={() => act(s.key, 'update')}>{text}</button>;
@@ -183,7 +188,7 @@ export function Overview({ status, products, open, act, goSpend, agent, visit, o
   const online = shown.filter((p) => categoryOf(p, list?.kinds) === 'online');
   const service = shown.filter((p) => categoryOf(p, list?.kinds) === 'service');
   const hidden = products.filter((p) => hiddenIds.has(p.id));
-  const off = status.off ?? []; // FD-123
+  const off = offProducts(status.off ?? []); // FD-123; Scenario walk 2026-11-11 (SCN-072): one name per agent, not per instance
 
   const attentionLine = (s: ServiceSnapshot) => {
     // UX-06: a limit that stopped work says so first, in the auditor's words.
@@ -207,7 +212,8 @@ export function Overview({ status, products, open, act, goSpend, agent, visit, o
   // UX-07: a folded row's shared action, applied to each member: Restart N when every member is a local agent that
   // is down or runs twice; otherwise each name opens its agent.
   const groupAction = (members: ServiceSnapshot[]) => {
-    if (!members.every((m) => (m.state === 'down' || m.state === 'duplicate') && !isOnline(m) && !m.busy)) return null;
+    // Scenario walk 2026-11-11 (SCN-089, SCN-099, SCN-006): only members the agent page would restart (firstAction).
+    if (!members.every((m) => (m.state === 'down' || m.state === 'duplicate') && !isOnline(m) && firstAction(m)?.kind === 'restart')) return null;
     const text = t('overview.attention.restartAll', { count: members.length });
     return <button className="btn btn-primary" aria-label={`${text}: ${members.map(nameOf).join(', ')}`} onClick={() => members.forEach((m) => act(m.key, 'restart'))}>{text}</button>;
   };
@@ -432,6 +438,22 @@ function Go() {
 }
 
 // #region setup-check — docs: docs/ux/scenarios.md#scn-070-check-what-is-set-up
+/** Scenario walk 2026-11-11 (SCN-100 step 3): how often the steps are checked again while the Setup console's agent
+ *  works, so a step it finished mid-session reads done without a press. */
+export const SETUP_RECHECK_MS = 60_000;
+
+/** Scenario walk 2026-11-11 (SCN-100 step 3): run `check` every `every` ms, never two at once (one still running
+ *  skips the beat). Returns the stop. */
+export function recheckEvery(check: () => Promise<unknown>, every = SETUP_RECHECK_MS, timers: { set: typeof setInterval; clear: typeof clearInterval } = { set: setInterval, clear: clearInterval }): () => void {
+  let inFlight = false;
+  const id = timers.set(() => {
+    if (inFlight) return;
+    inFlight = true;
+    void check().catch(() => undefined).finally(() => { inFlight = false; });
+  }, every);
+  return () => timers.clear(id);
+}
+
 /** FD-65 (SCN-070): Check setup runs the PassionCode launcher's read-only doctor and lists what needs the person,
  *  grouped by area, each with its fix; Repair with my coding agent opens the Setup console with those lines. */
 export function SetupCheck({ onRepair, lead, trail, autoRun, agentWorking, recheck }: { onRepair: () => void; lead?: ReactNode; trail?: ReactNode;
@@ -444,10 +466,13 @@ export function SetupCheck({ onRepair, lead, trail, autoRun, agentWorking, reche
   const { t, lang } = useT();
   const [result, setResult] = useState<SetupCheckResult | null>(null);
   const [running, setRunning] = useState(false);
-  const check = async (auto = false) => {
-    setRunning(true);
-    try { setResult(await api().setupCheck(auto)); } catch (error) { setResult({ kind: 'error', detail: String((error as Error)?.message ?? error), checkedAt: new Date().toISOString() }); } finally { setRunning(false); }
+  // Scenario walk 2026-11-11 (SCN-100 step 3): a quiet check (the timer's) keeps the steps on screen while it runs.
+  const check = async (auto = false, quiet = false) => {
+    if (!quiet) setRunning(true);
+    try { setResult(await api().setupCheck(auto)); } catch (error) { setResult({ kind: 'error', detail: String((error as Error)?.message ?? error), checkedAt: new Date().toISOString() }); } finally { if (!quiet) setRunning(false); }
   };
+  const latest = useRef(check);
+  latest.current = check;
   useEffect(() => {
     void api().setupCheckLast().then((r) => {
       setResult((x) => x ?? r);
@@ -463,6 +488,8 @@ export function SetupCheck({ onRepair, lead, trail, autoRun, agentWorking, reche
   }, []);
   // FD-184: a Setup console that ended leaves the steps current; never more than once per end.
   useEffect(() => { if (recheck) void check(true); }, [recheck]);
+  // Scenario walk 2026-11-11 (SCN-100 step 3): while the agent works, the steps are checked again once a minute.
+  useEffect(() => (agentWorking ? recheckEvery(() => latest.current(true, true)) : undefined), [agentWorking]);
   const lines = result?.kind === 'report' ? attention(result.report) : [];
   const time = (iso: string) => new Date(iso).toLocaleTimeString(lang, { hour: '2-digit', minute: '2-digit' });
   return (

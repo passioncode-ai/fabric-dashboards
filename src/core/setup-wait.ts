@@ -7,9 +7,15 @@ import type { Reason, ServiceState } from '@passioncode-ai/fabric-service-host/p
 
 type Read = { state: ServiceState; reasons: readonly Reason[] };
 
-/** Degraded, with at least one reason, every one of them a setup entry. A mixed list stays degraded. */
+// Scenario walk 2026-11-11 (SCN-095): the monitor adds reasons that are not degraded entries: an update waiting
+// (`reason.update`) and the last line of its log (`reason.log`, FD-198). Neither makes a setup a failure.
+const BESIDE = new Set(['reason.update', 'reason.log']);
+
+/** Degraded, with at least one setup entry and every degraded entry a setup one. A mixed list stays degraded. */
 export function waitsForSetup(s: Read): boolean {
-  return s.state === 'degraded' && s.reasons.length > 0 && s.reasons.every((r) => r.code === 'reason.setup');
+  if (s.state !== 'degraded') return false;
+  const own = s.reasons.filter((r) => !BESIDE.has(r.code));
+  return own.length > 0 && own.every((r) => r.code === 'reason.setup');
 }
 
 /** What a person reads: the host state, or `setup` over a degraded one that only waits for setup. */

@@ -134,8 +134,10 @@ function portNum(origin: string): number {
 export function attentionRank(state: ServiceState, wellKnown: WellKnown | null): number | null {
   const order: Partial<Record<ServiceState, number>> = { down: 0, duplicate: 1, 'foreign-user': 2, foreign: 2, conflict: 3, invalid: 4, degraded: 6 };
   if (state in order) return order[state]!;
-  if (wellKnown?.update?.available) return 8;
+  // Scenario walk 2026-11-11 (SCN-006): a tile asking for attention (7) comes before an update waiting (8), also when
+  // the agent has both; the update was checked first and gave 8.
   if (wellKnown?.summary?.some((t) => t.attention)) return 7;
+  if (wellKnown?.update?.available) return 8;
   return null;
 }
 /** FD-132: the reason that says the service is placed on another machine, if it carries one. */

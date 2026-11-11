@@ -3,7 +3,7 @@
 // deriveState; the file ships in the package at test-vectors/state-precedence.json.
 import fs from 'node:fs';
 import path from 'node:path';
-import type { Reason, ServiceState } from './protocol';
+import type { Reason, ServiceState, WellKnown } from './protocol';
 import type { StateInput } from './state';
 
 export interface StateVectors {
@@ -12,6 +12,8 @@ export interface StateVectors {
   downAfterMs: number;
   base: StateInput;
   cases: { name: string; input: Partial<StateInput>; expect: { state: ServiceState; reasons?: Reason[] } }[];
+  /** attentionRank cases: `wellKnown` is a shallow override of `base.probe.doc`, or null for no answer. */
+  attention?: { name: string; state: ServiceState; wellKnown: Partial<WellKnown> | null; expect: number | null }[];
 }
 
 /** The path of the vectors file inside the installed package. */
