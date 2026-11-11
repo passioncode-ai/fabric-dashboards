@@ -33,7 +33,7 @@ export interface ChannelRequest {
   update?: 'check' | 'restart';
   /** FD-175, `console.choose`: the console's coding agent (a runtime id) and its folder (absolute), as the console's
    *  own pickers set them. At least one. */
-  choice?: { runtime?: string; folder?: string };
+  choice?: { runtime?: string; folder?: string; where?: 'here' | 'there' };
   /** FD-175, `app.install`: Move to Applications, or Uninstall keeping settings and history (`uninstall`) or with them
    *  (`uninstall-all`), as the confirmation's box ticked. */
   install?: AppInstall;
@@ -135,14 +135,17 @@ export function parseRequest(line: string): { ok: true; request: ChannelRequest 
     const c = r.choice as Record<string, unknown> | undefined;
     if (Object.keys(r).some((k) => !['key', 'op', 'service', 'choice'].includes(k))) return { ok: false, code: 'unknown-field' };
     if (typeof r.service !== 'string' || !SERVICE_KEY.test(r.service)) return { ok: false, code: 'bad-service' };
-    if (!c || typeof c !== 'object' || Array.isArray(c) || Object.keys(c).some((k) => k !== 'runtime' && k !== 'folder')) return { ok: false, code: 'bad-choice' };
+    if (!c || typeof c !== 'object' || Array.isArray(c) || Object.keys(c).some((k) => k !== 'runtime' && k !== 'folder' && k !== 'where')) return { ok: false, code: 'bad-choice' };
     const runtime = c.runtime;
     const folder = c.folder;
-    if (runtime === undefined && folder === undefined) return { ok: false, code: 'bad-choice' };
+    const where = c.where;
+    if (runtime === undefined && folder === undefined && where === undefined) return { ok: false, code: 'bad-choice' };
+    // FD-205: where an agent placed on another machine runs its console.
+    if (where !== undefined && where !== 'here' && where !== 'there') return { ok: false, code: 'bad-choice' };
     if (runtime !== undefined && (typeof runtime !== 'string' || !/^[a-z0-9][a-z0-9-]{0,63}$/.test(runtime))) return { ok: false, code: 'bad-choice' };
     // An absolute path, no NUL; whether it is a folder is the app's check.
     if (folder !== undefined && (typeof folder !== 'string' || folder.length > 4096 || folder.includes('\u0000') || !(folder.startsWith('/') || /^[A-Za-z]:[\\/]/.test(folder)))) return { ok: false, code: 'bad-choice' };
-    return { ok: true, request: { key: String(r.key ?? ''), op: r.op, service: r.service, choice: { ...(typeof runtime === 'string' ? { runtime } : {}), ...(typeof folder === 'string' ? { folder } : {}) } } };
+    return { ok: true, request: { key: String(r.key ?? ''), op: r.op, service: r.service, choice: { ...(typeof runtime === 'string' ? { runtime } : {}), ...(typeof folder === 'string' ? { folder } : {}), ...(where === 'here' || where === 'there' ? { where } : {}) } } };
   }
   // A console operation carries none of the window's fields.
   if (r.patch !== undefined || r.session !== undefined || r.update !== undefined || r.choice !== undefined || r.install !== undefined || r.start !== undefined) return { ok: false, code: 'unknown-field' };

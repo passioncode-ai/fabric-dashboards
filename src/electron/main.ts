@@ -1239,7 +1239,7 @@ if (!app.requestSingleInstanceLock()) {
         }
         if (r.op === 'console.choose' && r.choice) {
           const done = await consoles.chooseFor(r.service, r.choice);
-          return done.ok ? { ok: true, result: { runtime: done.runtime, folder: done.folder } } : { ok: false, code: done.reason, detail: done.detail };
+          return done.ok ? { ok: true, result: { runtime: done.runtime, folder: done.folder, where: done.where } } : { ok: false, code: done.reason, detail: done.detail };
         }
         if (r.op === 'app.install' && r.install) {
           if (r.install === 'move-to-applications') {

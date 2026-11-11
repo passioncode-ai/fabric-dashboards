@@ -7,6 +7,7 @@ import test from 'node:test';
 import { ConsoleHost } from '../src/electron/console';
 import { remoteRefusal } from '../src/core/remote-words';
 import { accessOf, accessProbeArgv, folderOf, folderProbeArgv, forwardOf, remoteFolderCandidates, launchJobOf, placeCommand, remoteCommandArgv, readLaunchJobs, remoteArgv, remoteRuntimeArgv, remoteScript, routeTo, type LaunchJob } from '../src/core/remote-console';
+import { SettingsStore } from '../src/core/settings';
 import { failText } from '../src/renderer/components/Sessions';
 import { t } from '../src/core/i18n';
 import { tmp } from './helpers';
@@ -116,7 +117,7 @@ test('FD-199: an agent placed on another machine starts its coding agent there, 
   // The admission asks about this machine (its home), not a folder that is only on the other one.
   assert.deepEqual(r.machineAsked, [r.home]);
   const info = await r.host.info('example-agent.default');
-  assert.deepEqual(info.remote, { machine: 'm-studio', destination: 'me@192.0.2.9', access: 'edit' });
+  assert.deepEqual(info.remote, { machine: 'm-studio', destination: 'me@192.0.2.9', access: 'edit', where: 'there' });
   assert.match(info.session.label, /· me@192\.0\.2\.9$/);
 });
 
@@ -124,7 +125,7 @@ test('FD-199: with no forward that reaches the machine, nothing starts and the r
   const r = rig({ placed: { placedOn: 'm-studio' }, jobs: [], folderHere: true });
   assert.deepEqual(await r.host.start('example-agent.default', 'new', { cols: 80, rows: 24 }), { ok: false, reason: 'remote', detail: 'no-route' });
   assert.deepEqual(r.spawned, []);
-  assert.deepEqual((await r.host.info('example-agent.default')).remote, { machine: 'm-studio', destination: null, access: null });
+  assert.deepEqual((await r.host.info('example-agent.default')).remote, { machine: 'm-studio', destination: null, access: null, where: 'there' });
 });
 
 test('FD-199: an agent placed here starts on this machine as before', POSIX, async () => {
@@ -229,4 +230,50 @@ test('FD-203: a machine with neither folder refuses before anything starts, and 
   assert.equal(remoteRefusal('no-folder'), 'console.remote.noFolder');
   const silent = rig({ placed: { placedOn: 'm-studio' }, jobs: [TUNNEL], folderHere: true, there: () => ({ code: 255, stdout: '', stderr: 'timeout' }) });
   assert.deepEqual(await silent.host.start('example-agent.default', 'new', { cols: 80, rows: 24 }), { ok: false, reason: 'remote', detail: 'unreachable' });
+});
+
+test('FD-205: run here: an agent placed on another machine starts its coding agent on this Mac, in the folder here', POSIX, async () => {
+  const r = rig({ placed: { placedOn: 'm-studio' }, jobs: [TUNNEL], folderHere: true });
+  const chosen = await r.host.choose('example-agent.default', { where: 'here' });
+  assert.equal(chosen.remote?.where, 'here');
+  assert.equal(chosen.remote?.destination, 'me@192.0.2.9');
+  assert.deepEqual(await r.host.start('example-agent.default', 'new', { cols: 80, rows: 24 }), { ok: true });
+  assert.equal(path.basename(r.spawned[0]!.file), 'claude');
+  assert.equal(r.spawned[0]!.cwd, r.folder);
+  // The admission asks about the folder here, as for an agent placed here.
+  assert.deepEqual(r.machineAsked, [r.folder]);
+  // Back to its machine: the next start goes over ssh again.
+  assert.equal((await r.host.choose('example-agent.default', { where: 'there' })).remote?.where, 'there');
+});
+
+test('FD-205: run here needs the folder on this Mac; an agent placed here has nothing to choose', POSIX, async () => {
+  const r = rig({ placed: { placedOn: 'm-studio' }, jobs: [TUNNEL], folderHere: false });
+  await r.host.choose('example-agent.default', { where: 'here' });
+  assert.deepEqual(await r.host.start('example-agent.default', 'new', { cols: 80, rows: 24 }), { ok: false, reason: 'no-folder' });
+  assert.deepEqual(r.spawned, []);
+  const local = rig({ placed: null, jobs: [], folderHere: true });
+  assert.equal((await local.host.choose('example-agent.default', { where: 'here' })).remote, null);
+  const refused = await local.host.chooseFor('example-agent.default', { where: 'here' });
+  assert.equal(refused.ok, false);
+  assert.equal(!refused.ok && refused.reason, 'not-placed-elsewhere');
+});
+
+test('FD-205: the choice to run here survives a runtime or folder chosen and a start, and is dropped by there', () => {
+  const dir = tmp('fd-205-settings-');
+  const store = new SettingsStore(dir);
+  const key = 'example-agent.default';
+  store.update({ consoles: { [key]: { runtime: 'claude-code', folder: '/srv/a', where: 'here' } } });
+  store.update({ consoles: { [key]: { runtime: 'codex', folder: '/srv/b', idle: null } } });
+  assert.equal(store.get().consoles[key]?.where, 'here');
+  assert.equal(new SettingsStore(dir).get().consoles[key]?.where, 'here');
+  store.update({ consoles: { [key]: { runtime: 'codex', folder: '/srv/b', where: 'there' } } });
+  assert.equal(store.get().consoles[key]?.where, undefined);
+  assert.equal(new SettingsStore(dir).get().consoles[key]?.where, undefined);
+});
+
+test('FD-205: the console channel takes where for console.choose, and only here or there', async () => {
+  const { parseRequest } = await import('../src/core/console-channel');
+  const ok = parseRequest(JSON.stringify({ key: 'k', op: 'console.choose', service: 'example-agent.default', choice: { where: 'here' } }));
+  assert.ok(ok.ok && ok.request.choice?.where === 'here');
+  assert.deepEqual(parseRequest(JSON.stringify({ key: 'k', op: 'console.choose', service: 'example-agent.default', choice: { where: 'elsewhere' } })), { ok: false, code: 'bad-choice' });
 });

@@ -54,7 +54,8 @@ export interface ConsoleInfo {
   /** FD-199: the placement record puts the agent on another machine, so the console runs there; `destination` is the ssh
    *  destination of its port forward, null when no forward reaches that machine; `access` (FD-200) what its key was last
    *  seen to allow there, null before the first start asked. */
-  remote?: { machine: string; destination: string | null; access?: 'edit' | 'view' | 'denied' | 'unreachable' | null } | null;
+  /** FD-199: the agent is placed on another machine. FD-205: `where` says whether its console runs there or here. */
+  remote?: { machine: string; destination: string | null; access?: 'edit' | 'view' | 'denied' | 'unreachable' | null; where?: 'here' | 'there' } | null;
 }
 
 /** FD-43/FD-51: the Switchboard sessions of a console's folder, or why there are none to show. */
@@ -156,7 +157,7 @@ export interface FabricApi {
   locale(): Promise<string>;
   // ── ADR-0017: the agent console beside a service's dashboard ──
   consoleInfo(key: string): Promise<ConsoleInfo>;
-  consoleChoose(key: string, choice: { runtime?: string }): Promise<ConsoleInfo>;
+  consoleChoose(key: string, choice: { runtime?: string; where?: 'here' | 'there' }): Promise<ConsoleInfo>;
   /** A folder dialog; the choice is saved for this service. */
   consolePickFolder(key: string): Promise<ConsoleInfo>;
   /** FD-191: what the New session / New agent dialog offers now. */
