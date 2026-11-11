@@ -277,3 +277,12 @@ test('FD-205: the console channel takes where for console.choose, and only here 
   assert.ok(ok.ok && ok.request.choice?.where === 'here');
   assert.deepEqual(parseRequest(JSON.stringify({ key: 'k', op: 'console.choose', service: 'example-agent.default', choice: { where: 'elsewhere' } })), { ok: false, code: 'bad-choice' });
 });
+
+test('FD-204: a session on another machine is listed with the folder it opened in there, not this Mac\'s home', POSIX, async () => {
+  const r = rig({ placed: { placedOn: 'm-studio' }, jobs: [TUNNEL], folderHere: false });
+  assert.deepEqual(await r.host.start('example-agent.default', 'new', { cols: 80, rows: 24 }), { ok: true });
+  const listed = r.host.openConsoles().find((c) => c.consoleKey === 'example-agent.default');
+  assert.equal(listed?.folder, `${remoteHome}/DATA/agent`);
+  const row = r.host.sessionsStatus().rows.find((x) => x.key === 'example-agent.default');
+  assert.equal(row?.folder, `${remoteHome}/DATA/agent`);
+});
