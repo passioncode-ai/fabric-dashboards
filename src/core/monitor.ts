@@ -536,9 +536,12 @@ export class Monitor extends EventEmitter {
     }
     if (snap.state === 'down') this.outageStart.set(t.entry.key, t.firstUnansweredAt ?? this.now());
     if (snap.state === 'duplicate') {
-      const params = (snap.reasons[0]?.params ?? {}) as Record<string, number>;
-      this.appEvent(t.entry.key, t, 'service.duplicate', 'warning', 'app.event.duplicate', params);
-      this.notify({ kind: 'duplicate', serviceKey: t.entry.key }, t, 'notify.duplicate.title', 'reason.duplicate', params);
+      const params = (snap.reasons[0]?.params ?? {}) as Record<string, string | number>;
+      // Scenario walk 2026-11-11 (SCN-089): a copy here of an agent placed on another machine is said as such, with
+      // that machine, and asks for Stop here; the two-pid words would leave their placeholders empty and say Restart.
+      const elsewhere = snap.reasons[0]?.code === 'reason.duplicate.elsewhere';
+      this.appEvent(t.entry.key, t, 'service.duplicate', 'warning', elsewhere ? 'app.event.duplicate.elsewhere' : 'app.event.duplicate', params);
+      this.notify({ kind: 'duplicate', serviceKey: t.entry.key }, t, 'notify.duplicate.title', elsewhere ? 'reason.duplicate.elsewhere' : 'reason.duplicate', params);
     }
     if (snap.state === 'foreign') {
       this.appEvent(t.entry.key, t, 'service.foreign', 'warning', 'app.event.foreign');

@@ -20,6 +20,18 @@ for (const c of vectors.cases) {
   });
 }
 
+// Scenario walk 2026-11-11 (SCN-006): the attention order is shared too; a tile comes before an update.
+for (const c of vectors.attention ?? []) {
+  test(`attention rank: ${c.name}`, () => {
+    const doc = (vectors.base.probe as { doc: NonNullable<Parameters<typeof attentionRank>[1]> }).doc;
+    assert.equal(attentionRank(c.state, c.wellKnown ? { ...doc, ...c.wellKnown } : null), c.expect);
+  });
+}
+
+test('the vectors carry attention ranks, the tile before the update among them', () => {
+  assert.ok((vectors.attention ?? []).some((c) => c.wellKnown?.update?.available && c.wellKnown.summary?.some((t) => t.attention) && c.expect === 7));
+});
+
 test('attention ranks put down first and hide what is fine', () => {
   const wk = (vectors.base.probe as { doc: Parameters<typeof attentionRank>[1] }).doc!;
   assert.equal(attentionRank('ready', { ...wk, summary: [], update: { available: null } }), null);
@@ -27,5 +39,6 @@ test('attention ranks put down first and hide what is fine', () => {
   assert.ok(attentionRank('invalid', null)! < attentionRank('degraded', null)!);
   assert.equal(attentionRank('ready', { ...wk, summary: [{ label: 'Awaiting you', value: 1, attention: true }], update: { available: null } }), 7);
   assert.equal(attentionRank('ready', { ...wk, summary: [], update: { available: '0.2.1' } }), 8);
+  assert.equal(attentionRank('ready', { ...wk, summary: [{ label: 'Awaiting you', value: 1, attention: true }], update: { available: '0.2.1' } }), 7, 'a tile before an update');
   assert.equal(attentionRank('stopped', null), null);
 });
