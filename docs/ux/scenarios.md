@@ -1105,7 +1105,7 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **Alt paths:** the folder is in no project but Switchboard holds an account for the runtime's provider -> the session still runs through Switchboard, managed, on the account it selects for the folder (SCN-065); Switchboard is not installed, or holds no account for the provider -> the runtime runs on its ordinary sign-in, and the folder line says nothing about Switchboard
 - **UI elements:** folder line with the project name, "Open in Terminal via Switchboard"
 - **States covered:** success, error
-- **Errors & recovery:** Switchboard needs its app or `switchboard serve` running -> its own message, shown as it says it; a managed session for the same project already runs -> Switchboard's refusal is shown as it says it; Switchboard's answer cannot be read -> "Switchboard did not answer, so the session was not started: <detail>"; never a silent fallback to the ordinary sign-in
+- **Errors & recovery:** Switchboard needs its app or `switchboard serve` running -> its own message, shown as it says it; a managed session for the same project already runs -> Switchboard's refusal is shown as it says it; Switchboard's answer cannot be read -> "Switchboard did not start the session: <detail>"; never a silent fallback to the ordinary sign-in
 - **Status:** validated
 - **Coverage:** src/core/switchboard.ts, src/core/consoles.ts, src/electron/console.ts, test/console.test.ts
 - **Product:** unobserved
