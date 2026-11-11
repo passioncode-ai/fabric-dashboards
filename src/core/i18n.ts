@@ -354,7 +354,8 @@ const en = {
   'result.remote.view': '{name} runs on {machine}, and your key opens no shell there, so {command} cannot run there from this computer.',
   'result.remote.noRoute': '{name} runs on {machine}, and no port forward on this computer says how to reach it, so {command} cannot run there.',
   'console.terminalOnly': 'This folder runs on Switchboard project {name}. This Switchboard opens its sessions in Terminal.',
-  'console.sbError': 'Switchboard did not answer, so the session was not started: {detail}',
+  // Scenario walk 2026-11-11 (SCN-050): also a refusal Switchboard answered (a rule with no account), so not "did not answer"; copy check 45536e96.
+  'console.sbError': 'Switchboard did not start the session: {detail}',
   'console.spawnError': 'The coding agent could not start: {detail}',
   'console.terminalFailed': 'Terminal could not open: {detail}',
   'console.continueUnsupported': 'Switchboard opens a new session in Terminal; it cannot continue the last one.',
@@ -1409,7 +1410,8 @@ const ru: Record<Key, string> = {
   'result.remote.view': '{name} работает на машине {machine}, а ваш ключ не открывает там командную строку, поэтому {command} отсюда там не запустится.',
   'result.remote.noRoute': '{name} работает на машине {machine}, а на этом компьютере нет проброса порта, по которому до неё можно дойти, поэтому {command} там не запустится.',
   'console.terminalOnly': 'Эта папка привязана к проекту Switchboard {name}. Эта версия Switchboard открывает его сессии в Терминале.',
-  'console.sbError': 'Switchboard не ответил, поэтому сессия не запущена: {detail}',
+  // Scenario walk 2026-11-11: copy check 61c3904a.
+  'console.sbError': 'Switchboard не запустил сессию: {detail}',
   'console.spawnError': 'Агент для кода не запустился: {detail}',
   'console.terminalFailed': 'Не удалось открыть Терминал: {detail}',
   'console.continueUnsupported': 'Switchboard открывает в Терминале новую сессию и не может продолжить последнюю.',

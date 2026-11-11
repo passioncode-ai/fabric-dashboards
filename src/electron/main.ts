@@ -560,7 +560,8 @@ if (!app.requestSingleInstanceLock()) {
       handoverTimer.unref();
     });
   };
-  handoverTimer = setTimeout(pollHandovers, HANDOVER_POLL_MS.visible);
+  // Scenario walk 2026-11-11 (SCN-078): the first read 3 s after start, not 15 s, so the Sessions page is not empty that long.
+  handoverTimer = setTimeout(pollHandovers, 3_000);
   // FD-74: the runtimes and the login shell's PATH are read 3 s after start, so the first console opens at once.
   setTimeout(() => { if (!quitting) consoles.warm(); }, 3_000).unref();
   handoverTimer.unref();
@@ -1198,6 +1199,8 @@ if (!app.requestSingleInstanceLock()) {
           const { patch, refused } = agentSettingsPatch(r.patch);
           if (!applySettingsFn) return { ok: false, code: 'not-ready' };
           const done = applySettingsFn(patch);
+          // Scenario walk 2026-11-11 (SCN-098 step 1): the window changes at once, as if the person had clicked.
+          if (window && !window.isDestroyed()) window.webContents.send(CHANNELS.settingsPush, settings.get());
           return { ok: true, result: { changed: Object.keys(patch), refused, ...(done.error ? { error: done.error } : {}) } };
         }
         if (r.op === 'sessions.act' && r.session) {
@@ -1342,8 +1345,10 @@ if (!app.requestSingleInstanceLock()) {
     };
     // The first scan fills the snapshots a link is checked against; a link that arrived with the
     // launch waits for it rather than being refused as «no installed service».
+    // Scenario walk 2026-11-11 (SCN-026, SCN-052): the launch link is queued once, above (linkInArgv); queued twice it
+    // opened two refusal dialogs, or navigated twice, on Windows and Linux.
     const argvLink = process.argv.find((a) => a.startsWith(`${SCHEME}:`));
-    if (argvLink) pendingLinks.push(argvLink);
+    if (argvLink && !pendingLinks.includes(argvLink)) pendingLinks.push(argvLink);
     const flush = () => { for (const raw of pendingLinks.splice(0)) handleLink?.(raw); };
     if (monitor.snapshots().length || !pendingLinks.length) flush();
     else monitor.once('change', flush);

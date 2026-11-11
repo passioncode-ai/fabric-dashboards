@@ -64,7 +64,7 @@ export class ConsoleDrawer {
 
   private apply(): void {
     if (this.window.isDestroyed()) return;
-    if (!this.shown()) { this.detach(); return; }
+    if (!this.shown()) { const was = this.attached; this.detach(); if (was) this.push(false); return; }
     const view = this.ensure();
     const rect = this.state.rect!;
     const bounds: Rect = drawerBoundsFor({ rect, saved: this.state.height, full: this.state.full, dragging: this.dragging, shadow: DRAWER_SHADOW });
@@ -74,12 +74,12 @@ export class ConsoleDrawer {
     this.push();
   }
 
-  private push(): void {
+  private push(shown = true): void {
     if (!this.view || !this.ready || this.view.webContents.isDestroyed()) return;
     const s = this.state;
     const payload: DrawerPush = s.full
-      ? { key: s.key, height: s.rect?.height ?? 0, areaHeight: s.rect?.height ?? 0, task: s.task, full: true, scheme: s.scheme }
-      : { key: s.key, height: s.rect ? drawerHeightFor({ saved: s.height, areaHeight: s.rect.height }) : s.height, areaHeight: s.rect?.height ?? 0, task: s.task, scheme: s.scheme };
+      ? { key: s.key, height: s.rect?.height ?? 0, areaHeight: s.rect?.height ?? 0, task: s.task, full: true, scheme: s.scheme, shown }
+      : { key: s.key, height: s.rect ? drawerHeightFor({ saved: s.height, areaHeight: s.rect.height }) : s.height, areaHeight: s.rect?.height ?? 0, task: s.task, scheme: s.scheme, shown };
     this.view.webContents.send(CHANNELS.drawerPush, payload);
   }
 

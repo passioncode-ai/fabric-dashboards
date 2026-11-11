@@ -24,6 +24,8 @@ interface Props {
   /** FD-39 D-3: a job to start with (Fix / Update with agent); taken once, then cleared by the shell. */
   task?: { task?: ConsoleTask; mode?: 'new' | 'continue'; nonce: number } | null;
   onTaskTaken?: () => void;
+  /** Scenario walk 2026-11-11: whether the drawer is shown now; a folded drawer never continues an idle-closed session. */
+  active?: boolean;
   /** FD-103 (SCN-080): a session's page: the terminal fills the page under its header; no fold, no edge, no start
    *  controls of its own (the header holds the session's actions). */
   page?: boolean;
@@ -44,7 +46,7 @@ function shortPath(p: string): string {
   return home ? `~${p.slice(home.length)}` : p;
 }
 
-export function ConsolePanel({ serviceKey, height, maxHeight, onHeight, onDrag, onHide, task, onTaskTaken, page = false, onFocusOut }: Props) {
+export function ConsolePanel({ serviceKey, height, maxHeight, onHeight, onDrag, onHide, task, onTaskTaken, page = false, onFocusOut, active = true }: Props) {
   const { t, lang } = useT();
   const host = useRef<HTMLDivElement>(null);
   const term = useRef<Terminal | null>(null);
@@ -163,17 +165,20 @@ export function ConsolePanel({ serviceKey, height, maxHeight, onHeight, onDrag, 
     else setNotice(null); // no-runtime, no-folder: the panel's own state says it
   };
 
-  const start = async (mode: 'new' | 'continue', job?: ConsoleTask) => {
+  const start = async (mode: 'new' | 'continue', job?: ConsoleTask): Promise<ConsoleStartResult | null> => {
     setStarting(true);
     try {
       const x = term.current;
       try { fit.current?.fit(); } catch { /* not laid out */ }
       x?.write('\x1bc');
       shown.current = 0; // a new session counts from its own first character
-      say(await api().consoleStart(serviceKey, mode, { cols: x?.cols ?? 80, rows: x?.rows ?? 24 }, job));
+      const r = await api().consoleStart(serviceKey, mode, { cols: x?.cols ?? 80, rows: x?.rows ?? 24 }, job);
+      say(r);
       x?.focus();
+      return r;
     } catch (error) {
       setNotice({ text: t('console.spawnError', { detail: String((error as Error)?.message ?? error) }) });
+      return null;
     } finally {
       setStarting(false);
       void refresh();
@@ -183,17 +188,21 @@ export function ConsolePanel({ serviceKey, height, maxHeight, onHeight, onDrag, 
   // once per opening, and only with a runtime that can continue; otherwise the panel says New starts afresh.
   const resumed = useRef<string | null>(null);
   useEffect(() => {
-    if (page || !info?.idle || info.key !== serviceKey || resumed.current === serviceKey || task || starting) return;
+    // Scenario walk 2026-11-11: once per idle close (its time), not once per key, and only while the console is shown:
+    // a folded drawer still gets the console's events, and continuing there would undo the idle close (LC-18).
+    if (page || !active || !info?.idle || info.key !== serviceKey || resumed.current === `${serviceKey}@${info.idle.at}` || task || starting) return;
     if (info.session.state === 'running') return;
-    resumed.current = serviceKey;
+    resumed.current = `${serviceKey}@${info.idle.at}`;
     const rt = info.runtimes.find((r) => r.id === info.runtime);
-    if (rt?.canContinue && info.folder?.exists) {
+    // FD-199: a session on another machine needs no folder here.
+    if (rt?.canContinue && (info.folder?.exists || (info.remote?.destination && info.folder))) {
       // VIS-14 (FD-113): the idle close is news, not an error: a calm notice a screen reader reads politely.
       setNotice({ text: t('console.idle.resumed', { account: info.idle.account ?? t('word.notRecorded') }), info: true });
-      void start('continue').then(() => setNotice({ text: t('console.idle.resumed', { account: info.idle?.account ?? t('word.notRecorded') }), info: true }));
+      // A refused continue keeps its own sentence (say), never this one.
+      void start('continue').then((r) => { if (r?.ok) setNotice({ text: t('console.idle.resumed', { account: info.idle?.account ?? t('word.notRecorded') }), info: true }); });
     } else setNotice({ text: t('console.idle.closed'), info: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [info?.key, info?.idle?.at]);
+  }, [info?.key, info?.idle?.at, active]);
 
   // FD-39 SCN-054/055: a handed-over task starts once the panel knows its session; a running session
   // is never doubled. FD-129 (UX-16): the task is kept, and the notice offers to send it to that session.
@@ -206,7 +215,8 @@ export function ConsolePanel({ serviceKey, height, maxHeight, onHeight, onDrag, 
       setNotice({ text: task.task ? t('console.taskWaits') : t('console.running'), info: true });
       return;
     }
-    void start(task.mode ?? 'new', task.task);
+    // Scenario walk 2026-11-11: a start that was refused keeps its task for the next New session.
+    void start(task.mode ?? 'new', task.task).then((r) => { if (!r?.ok && task.task) setWaiting(task.task); });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [task?.nonce, info?.key]);
 
@@ -298,7 +308,7 @@ export function ConsolePanel({ serviceKey, height, maxHeight, onHeight, onDrag, 
           <button className="btn btn-sm" disabled={running} onClick={() => void api().consolePickFolder(serviceKey).then((i) => { setInfo(i); setNotice(null); })}>{info?.folder ? t('console.other') : t('console.chooseFolder')}</button>
           {bound && <span className="chip" title={t('console.project', { name: bound.name })}>{t('console.project', { name: bound.name })}</span>}
           {remote?.destination && <span className="chip" title={t('console.remote.hint')}>{t('console.remote', { destination: remote.destination })}</span>}
-          {remote?.access && remote.access !== 'edit' && <span className="chip" title={t(remoteRefusal(remote.access))}>{t('console.remote.viewOnly')}</span>}
+          {remote?.access === 'view' && <span className="chip" title={t(remoteRefusal(remote.access))}>{t('console.remote.viewOnly')}</span>}
         </div>}
       </div>
       {!info && <p className="console-state muted row" role="status"><Spinner /> {t('console.loading')}</p>}

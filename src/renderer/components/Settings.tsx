@@ -20,13 +20,19 @@ export function Settings({ status, onTheme, onLanguage, onSetup, section, nonce 
   const [pathError, setPathError] = useState('');
 
   // FD-103 (SCN-086): Switchboard's own switch for handing sessions over here, read and written through its CLI.
-  const [handovers, setHandovers] = useState<{ available: boolean; enabled: boolean | null } | null>(null);
+  const [handovers, setHandovers] = useState<{ available: boolean; enabled: boolean | null; old?: boolean } | null>(null);
   const [handoverError, setHandoverError] = useState('');
   useEffect(() => {
     void api().settings().then(setValue);
     void api().listeners().then(setListeners);
     void api().sessionsHandovers().then(setHandovers).catch(() => setHandovers({ available: false, enabled: null }));
   }, []);
+  // Scenario walk 2026-11-11 (SCN-086): a switch that could not be read is read again every 15 s while the page is open.
+  useEffect(() => {
+    if (!handovers?.available || handovers.enabled !== null) return;
+    const timer = setInterval(() => { void api().sessionsHandovers().then(setHandovers).catch(() => undefined); }, 15_000);
+    return () => clearInterval(timer);
+  }, [handovers?.available, handovers?.enabled]);
   const sessionsRef = useRef<HTMLElement | null>(null);
   useEffect(() => {
     if (section !== 'sessions' || !value) return;
@@ -106,7 +112,7 @@ export function Settings({ status, onTheme, onLanguage, onSetup, section, nonce 
         </label>
         <p className="meta" id="handovers-body">{t('settings.handovers.body')}</p>
         {handovers && !handovers.available && <p className="meta" role="status">{t('settings.handovers.absent')}</p>}
-        {handovers?.available && handovers.enabled === null && <p className="meta" role="status">{t('settings.handovers.old')}</p>}
+        {handovers?.available && handovers.enabled === null && handovers.old && <p className="meta" role="status">{t('settings.handovers.old')}</p>}
         {handoverError && <p className="notice error" role="alert">{handoverError}</p>}
         <label className="setting">{t('settings.resumeAfterLimit')}
           <input type="checkbox" role="switch" className="switch" aria-describedby="resume-body" checked={value.resumeAfterLimit} onChange={(e) => void save({ resumeAfterLimit: e.target.checked })} />
