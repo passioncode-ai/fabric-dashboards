@@ -91,7 +91,8 @@ export const NO_DIR_MARK = 'fabric-dir-none';
 /** The folders to look for on the other machine, in order, each once: the one this machine chose, then the checkout. */
 export function remoteFolderCandidates(o: { folder: string | null; home: string; repository?: string }): string[] {
   const name = /([^/]+?)(?:\.git)?\/?$/.exec(o.repository ?? '')?.[1];
-  const all = [o.folder, name ? path.join(o.home, 'DATA', name) : null].filter((d): d is string => Boolean(d));
+  // The other machine is POSIX: its paths join with /, whatever this machine is.
+  const all = [o.folder, name ? path.posix.join(o.home, 'DATA', name) : null].filter((d): d is string => Boolean(d));
   return [...new Set(all)];
 }
 
