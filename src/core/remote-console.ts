@@ -71,10 +71,44 @@ export function routeTo(o: { forward?: string; port: number | null; jobs: Launch
 /** The line the remote machine's shell runs: into the folder (under the remote home when it is under the home here),
  *  then the coding agent through a login shell, so its PATH is the one a person there has. */
 export function remoteScript(o: { folder: string; home: string; argv: string[] }): string {
-  const rel = o.folder === o.home ? '' : o.folder.startsWith(o.home + '/') ? o.folder.slice(o.home.length + 1) : null;
-  const dir = rel === null ? shellQuote(o.folder) : rel === '' ? '"$HOME"' : `"$HOME"/${shellQuote(rel)}`;
-  return `cd ${dir} && exec "\${SHELL:-/bin/zsh}" -lc ${shellQuote(`exec ${o.argv.map(shellQuote).join(' ')}`)}`;
+  return `cd ${remoteDir(o.folder, o.home)} && exec "\${SHELL:-/bin/zsh}" -lc ${shellQuote(`exec ${o.argv.map(shellQuote).join(' ')}`)}`;
 }
+
+/** A folder of this machine as the other machine's shell names it: under its home when it is under the home here. */
+function remoteDir(folder: string, home: string): string {
+  const rel = folder === home ? '' : folder.startsWith(home + '/') ? folder.slice(home.length + 1) : null;
+  return rel === null ? shellQuote(folder) : rel === '' ? '"$HOME"' : `"$HOME"/${shellQuote(rel)}`;
+}
+
+// #region remote-folder — docs: docs/ux/scenarios.md#scn-103-edit-an-agent-on-the-machine-it-runs-on
+// FD-203: the folder this machine knows for an agent (a checkout or a worktree of this Mac) need not exist on the machine
+// the agent is placed on. Before a session opens there, that machine is asked which of the candidate folders it has: the
+// chosen one first, then the repository's checkout under its projects folder (~/DATA/<repository>), as the move lays it
+// out. The answer is the folder as that machine names it; none is a refusal the console explains, never a `cd` that fails.
+export const DIR_MARK = 'fabric-dir:';
+export const NO_DIR_MARK = 'fabric-dir-none';
+
+/** The folders to look for on the other machine, in order, each once: the one this machine chose, then the checkout. */
+export function remoteFolderCandidates(o: { folder: string | null; home: string; repository?: string }): string[] {
+  const name = /([^/]+?)(?:\.git)?\/?$/.exec(o.repository ?? '')?.[1];
+  const all = [o.folder, name ? path.join(o.home, 'DATA', name) : null].filter((d): d is string => Boolean(d));
+  return [...new Set(all)];
+}
+
+/** The argv that asks the other machine which candidate folder it has: no terminal, no prompt, a short connect, a plain sh. */
+export function folderProbeArgv(route: SshRoute, candidates: string[], home: string, ssh = '/usr/bin/ssh'): string[] {
+  const script = `for d in ${candidates.map((c) => remoteDir(c, home)).join(' ')}; do if [ -d "$d" ]; then printf '${DIR_MARK}%s\\n' "$d"; exit 0; fi; done; echo ${NO_DIR_MARK}`;
+  return [ssh, '-T', '-n', '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=10', ...route.options, route.destination, `/bin/sh -c ${shellQuote(script)}`];
+}
+
+/** The probe's answer: the folder found there, `none` when the machine has none of them, null when it did not answer. */
+export function folderOf(r: { code: number | null; stdout: string }): string | 'none' | null {
+  const lines = r.stdout.split('\n').map((l) => l.trim());
+  const found = lines.find((l) => l.startsWith(DIR_MARK));
+  if (found && found.length > DIR_MARK.length) return found.slice(DIR_MARK.length);
+  return r.code === 0 && lines.includes(NO_DIR_MARK) ? 'none' : null;
+}
+// #endregion remote-folder
 
 /** The argv this Mac runs for a console on the other machine: ssh with a terminal, no prompt (the key is the forward's),
  *  a bounded connect, the route's key options, the destination and the remote line. */

@@ -351,6 +351,8 @@ const en = {
   'console.remote.denied': "The other machine refuses this computer's key, so a session cannot open there.",
   'console.remote.unreachable': 'The other machine does not answer over SSH now, so a session cannot open there. Try again later.',
   'console.remote.viewOnly': 'View only',
+  // FD-203: the other machine has neither the chosen folder nor the repository's checkout; copy check fe95b777.
+  'console.remote.noFolder': "The other machine has neither this folder nor the agent's repository in ~/DATA, so a session cannot open there. Press Other… and choose the folder it has.",
   'result.remote.view': '{name} runs on {machine}, and your key opens no shell there, so {command} cannot run there from this computer.',
   'result.remote.noRoute': '{name} runs on {machine}, and no port forward on this computer says how to reach it, so {command} cannot run there.',
   'console.terminalOnly': 'This folder runs on Switchboard project {name}. This Switchboard opens its sessions in Terminal.',
@@ -1411,6 +1413,8 @@ const ru: Record<Key, string> = {
   'console.remote.denied': 'Другая машина не принимает ключ этого компьютера, поэтому сессия там не откроется.',
   'console.remote.unreachable': 'Другая машина сейчас не отвечает по SSH, поэтому сессия там не откроется. Попробуйте позже.',
   'console.remote.viewOnly': 'Только просмотр',
+  // FD-203: copy check 7bd50c0a (DATA is the folder's name, kept in capitals).
+  'console.remote.noFolder': 'На другой машине нет ни этой папки, ни репозитория агента в ~/DATA, поэтому сессия там не откроется. Выберите папку, которая там есть, кнопкой «Другая папка…».',
   'result.remote.view': '{name} работает на машине {machine}, а ваш ключ не открывает там командную строку, поэтому {command} отсюда там не запустится.',
   'result.remote.noRoute': '{name} работает на машине {machine}, а на этом компьютере нет проброса порта, по которому до неё можно дойти, поэтому {command} там не запустится.',
   'console.terminalOnly': 'Эта папка привязана к проекту Switchboard {name}. Эта версия Switchboard открывает его сессии в Терминале.',

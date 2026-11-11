@@ -11,7 +11,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { execRunner, portOf, type Runner } from '@passioncode-ai/fabric-service-host';
-import { accessOf, accessProbeArgv, readLaunchJobs, remoteArgv, remoteRuntimeArgv, routeTo, type LaunchJob, type RemoteAccess, type SshRoute } from '../core/remote-console';
+import { accessOf, accessProbeArgv, folderOf as remoteFolderOf, folderProbeArgv, readLaunchJobs, remoteArgv, remoteFolderCandidates, remoteRuntimeArgv, routeTo, type LaunchJob, type RemoteAccess, type SshRoute } from '../core/remote-console';
 import { CHANNELS, type ConsoleInfo, type ConsoleStartResult, type ConsoleTask, type NewSessionOptions, type NewSessionResult } from '../core/api';
 import { openConsolesOf, type OpenConsole } from '../core/console-channel';
 import { prepareHandoff, writeTaskOnly, type McpCommand } from '../core/handoff';
@@ -391,6 +391,21 @@ export class ConsoleHost {
     this.o.log(`console: ${route.destination} through ${route.via} gives ${access}`);
     return access;
   }
+
+  /** FD-203: the folder the session opens in on the other machine: the first of the chosen folder and the repository's
+   *  checkout there that exists, as that machine names it; none, or no answer, says why nothing opens. Asked at each start. */
+  private async remoteFolder(key: string, route: SshRoute, folder: string | null): Promise<{ path: string } | { refused: 'no-folder' | 'unreachable' }> {
+    const home = this.o.home ?? os.homedir();
+    const candidates = remoteFolderCandidates({ folder, home, repository: this.o.snapshot(key)?.descriptor?.source?.repository });
+    if (candidates.length === 0) return { refused: 'no-folder' };
+    const [cmd, ...args] = folderProbeArgv(route, candidates, home);
+    let found: string | 'none' | null;
+    try { found = remoteFolderOf(await this.run(cmd!, args, 20_000)); } catch { found = null; }
+    this.o.log(`console: ${key} on ${route.destination} has ${found === null ? 'no answer about its folder' : found === 'none' ? `none of ${candidates.join(', ')}` : `its folder ${found}`}`);
+    if (found === null) return { refused: 'unreachable' };
+    if (found === 'none') return { refused: 'no-folder' };
+    return { path: found };
+  }
   // #endregion remote-console-host
 
   private handoverInfo(key: string): ConsoleInfo['handover'] {
@@ -485,15 +500,17 @@ export class ConsoleHost {
       // FD-200: only a key that opens a shell there edits; one that only forwards views and uses the agent.
       const access = await this.remoteAccess(remote.route);
       if (access !== 'edit') return { ok: false, reason: 'remote', detail: access };
+      const there = await this.remoteFolder(key, remote.route, folder.path);
+      if ('refused' in there) return { ok: false, reason: 'remote', detail: there.refused };
       const local = planStart({ runtime, mode, folder: folder.path, binding: { kind: 'none' }, switchboard: null, inPlace: false, bypass: saved?.bypass });
       if (local.kind !== 'run') return local.kind === 'refused' ? { ok: false, reason: local.reason, detail: local.detail } : { ok: false, reason: 'spawn' };
-      const argv = remoteArgv({ route: remote.route, folder: folder.path, home, argv: remoteRuntimeArgv(local.argv) });
+      const argv = remoteArgv({ route: remote.route, folder: there.path, home, argv: remoteRuntimeArgv(local.argv) });
       const r = this.manager.start(key, { argv, cwd: home, label: `${runtime.name} · ${remote.route.destination}`, env: { PATH: inv.dirs.join(path.delimiter) } }, size);
       if (!r.ok) return { ok: false, reason: r.error === 'running' ? 'running' : 'spawn', detail: r.error };
       this.handoverOf.delete(key);
       if (mode === 'continue') this.forgetLatestEnded(key);
       this.o.settings.update({ consoles: { [key]: { runtime: runtime.id, folder: folder.source === 'saved' ? folder.path : saved?.folder ?? null, idle: null, ...(saved?.bypass !== undefined ? { bypass: saved.bypass } : {}) } } });
-      this.o.log(`console: ${key} started ${runtime.id} (${mode}) on ${remote.route.destination} in ${folder.path}, through ${remote.route.via}`);
+      this.o.log(`console: ${key} started ${runtime.id} (${mode}) on ${remote.route.destination} in ${there.path}, through ${remote.route.via}`);
       return { ok: true };
     }
     const b = await this.bindingFor(runtime, folder.path, inv);
@@ -1208,10 +1225,12 @@ export class ConsoleHost {
       if (!remote.route || !folder) return { ok: false, error: !remote.route ? `no port forward reaches ${remote.placedOn}` : 'no-folder' };
       const access = await this.remoteAccess(remote.route);
       if (access !== 'edit') return { ok: false, error: `${remote.route.destination}: ${access === 'view' ? 'this key opens no shell there, so it views and uses the agent but does not edit it' : access === 'denied' ? 'the key is refused there' : 'the machine does not answer'}` };
+      const there = await this.remoteFolder(key, remote.route, folder.path);
+      if ('refused' in there) return { ok: false, error: `${remote.route.destination}: ${there.refused === 'no-folder' ? `neither ${folder.path} nor the repository's checkout under ~/DATA is on that machine` : 'the machine does not answer'}` };
       const local = planStart({ runtime, mode, folder: folder.path, binding: { kind: 'none' }, switchboard: null, inPlace: false, bypass: this.o.settings.get().consoles[key]?.bypass });
       if (local.kind !== 'run') return { ok: false, error: local.kind === 'refused' ? local.detail : 'unavailable' };
       const home = this.o.home ?? os.homedir();
-      return openInTerminal(this.o.scriptsDir, terminalScript(remoteArgv({ route: remote.route, folder: folder.path, home, argv: remoteRuntimeArgv(local.argv) }), home));
+      return openInTerminal(this.o.scriptsDir, terminalScript(remoteArgv({ route: remote.route, folder: there.path, home, argv: remoteRuntimeArgv(local.argv) }), home));
     }
     if (!folder?.exists) return { ok: false, error: 'no-folder' };
     const b = await this.bindingFor(runtime, folder.path, inv);

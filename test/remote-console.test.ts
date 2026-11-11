@@ -6,7 +6,7 @@ import path from 'node:path';
 import test from 'node:test';
 import { ConsoleHost } from '../src/electron/console';
 import { remoteRefusal } from '../src/core/remote-words';
-import { accessOf, accessProbeArgv, forwardOf, launchJobOf, placeCommand, remoteCommandArgv, readLaunchJobs, remoteArgv, remoteRuntimeArgv, remoteScript, routeTo, type LaunchJob } from '../src/core/remote-console';
+import { accessOf, accessProbeArgv, folderOf, folderProbeArgv, forwardOf, remoteFolderCandidates, launchJobOf, placeCommand, remoteCommandArgv, readLaunchJobs, remoteArgv, remoteRuntimeArgv, remoteScript, routeTo, type LaunchJob } from '../src/core/remote-console';
 import { failText } from '../src/renderer/components/Sessions';
 import { t } from '../src/core/i18n';
 import { tmp } from './helpers';
@@ -71,7 +71,7 @@ test('FD-199: launchd jobs are read from XML property lists; a binary one is ski
   assert.deepEqual(readLaunchJobs(path.join(dir, 'absent')), []);
 });
 
-function rig(o: { placed: { placedOn: string; forward?: string } | null; jobs: LaunchJob[]; folderHere: boolean; access?: { code: number | null; stdout: string; stderr: string } }) {
+function rig(o: { placed: { placedOn: string; forward?: string } | null; jobs: LaunchJob[]; folderHere: boolean; access?: { code: number | null; stdout: string; stderr: string }; there?: (candidates: string) => { code: number | null; stdout: string; stderr: string }; repository?: string }) {
   const base = tmp('fd-199-');
   const bin = path.join(base, 'bin');
   const home = path.join(base, 'home');
@@ -84,9 +84,12 @@ function rig(o: { placed: { placedOn: string; forward?: string } | null; jobs: L
   const machineAsked: string[] = [];
   const host = new ConsoleHost({
     settings: { get: () => settings, update: (p: Record<string, unknown>) => { settings = { ...settings, ...p }; } } as never,
-    snapshot: () => ({ descriptor: { origin: 'http://127.0.0.1:47861' } }) as never, window: () => null, visible: () => false, log: () => {},
+    snapshot: () => ({ descriptor: { origin: 'http://127.0.0.1:47861', source: { repository: o.repository } } }) as never, window: () => null, visible: () => false, log: () => {},
     testDirs: [bin], scriptsDir: path.join(base, 'scripts'), home,
-    run: async (_cmd: string, args: string[]) => (args.at(-1) === 'echo fabric-edit-ok' ? o.access ?? { code: 0, stdout: 'fabric-edit-ok\n', stderr: '' } : { code: 1, stdout: '', stderr: '' }),
+    run: async (_cmd: string, args: string[]) => (args.at(-1) === 'echo fabric-edit-ok' ? o.access ?? { code: 0, stdout: 'fabric-edit-ok\n', stderr: '' }
+      // FD-203: the other machine answers which folder it has; by default the first one asked about.
+      : args.at(-1)!.startsWith('/bin/sh -c ') ? (o.there ?? (() => ({ code: 0, stdout: `fabric-dir:${remoteHome}/DATA/agent\n`, stderr: '' })))(args.at(-1)!)
+      : { code: 1, stdout: '', stderr: '' }),
     spawn: (file, args, opts) => { spawned.push({ file, args, cwd: opts.cwd }); return { pid: 999_999_999, onData: () => ({ dispose() {} }), onExit: () => ({ dispose() {} }), write() {}, resize() {}, kill() {} }; },
     killGroup: () => {},
     machine: async (f) => { machineAsked.push(f); return { freeDisk: 50 * 1024 ** 3, swap: null, running: 0 }; },
@@ -95,6 +98,8 @@ function rig(o: { placed: { placedOn: string; forward?: string } | null; jobs: L
   });
   return { host, spawned, machineAsked, folder, home };
 }
+
+const remoteHome = '/srv/them';
 
 const POSIX = { skip: process.platform === 'win32' && 'POSIX execute bits: the fake runtime is a shell script' };
 
@@ -106,7 +111,7 @@ test('FD-199: an agent placed on another machine starts its coding agent there, 
   assert.equal(s.file, '/usr/bin/ssh');
   assert.equal(s.cwd, r.home);
   assert.equal(s.args.at(-2), 'me@192.0.2.9');
-  assert.match(s.args.at(-1)!, /^cd "\$HOME"\/'DATA\/agent' && /);
+  assert.match(s.args.at(-1)!, /^cd '\/srv\/them\/DATA\/agent' && /);
   assert.match(s.args.at(-1)!, /'\\''claude'\\''/);
   // The admission asks about this machine (its home), not a folder that is only on the other one.
   assert.deepEqual(r.machineAsked, [r.home]);
@@ -186,4 +191,42 @@ test('FD-200: with the agent key, the other machine runs the command its own des
   assert.match(line, /exec "\$HOME"\/'\\''old\/bin\/agent'\\''/, 'this machine’s command is the fallback');
   // A key that is not a service key never reaches the remote line.
   assert.doesNotMatch(remoteCommandArgv({ route: forwardOf(TUNNEL)!.route, home: '/srv/me', argv: ['x'], key: 'bad;key', which: 'doctor' }).at(-1)!, /services\//);
+});
+
+// FD-203: the folder this Mac knows (here a worktree of its own) is not on the machine the agent is placed on; the session
+// opens in the folder that machine has, and a machine that has none says so before anything starts.
+test('FD-203: the candidates are the chosen folder, then the repository checkout under DATA, each once', () => {
+  assert.deepEqual(remoteFolderCandidates({ folder: '/srv/me/DATA/_worktrees/tool-copy', home: '/srv/me', repository: 'https://github.com/example/tool-agent' }),
+    ['/srv/me/DATA/_worktrees/tool-copy', '/srv/me/DATA/tool-agent']);
+  assert.deepEqual(remoteFolderCandidates({ folder: '/srv/me/DATA/agent', home: '/srv/me', repository: 'git@github.com:example/agent.git' }), ['/srv/me/DATA/agent']);
+  assert.deepEqual(remoteFolderCandidates({ folder: null, home: '/srv/me' }), []);
+});
+
+test('FD-203: the folder probe asks a plain sh for each candidate under the remote home and reads its answer', () => {
+  const argv = folderProbeArgv(forwardOf(TUNNEL)!.route, ['/srv/me/DATA/_worktrees/tool-copy', '/srv/me/DATA/tool-agent'], '/srv/me');
+  assert.deepEqual(argv.slice(0, 7), ['/usr/bin/ssh', '-T', '-n', '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=10']);
+  assert.equal(argv.at(-2), 'me@192.0.2.9');
+  assert.match(argv.at(-1)!, /^\/bin\/sh -c '/);
+  assert.match(argv.at(-1)!, /"\$HOME"\/'\\''DATA\/_worktrees\/tool-copy'\\'' "\$HOME"\/'\\''DATA\/tool-agent'\\''/);
+  assert.equal(folderOf({ code: 0, stdout: 'fabric-dir:/srv/them/DATA/tool-agent\n' }), '/srv/them/DATA/tool-agent');
+  assert.equal(folderOf({ code: 0, stdout: 'fabric-dir-none\n' }), 'none');
+  assert.equal(folderOf({ code: 255, stdout: '' }), null);
+});
+
+test('FD-203: a worktree of this Mac absent there: the session opens in the repository checkout the other machine has', POSIX, async () => {
+  const asked: string[] = [];
+  const r = rig({ placed: { placedOn: 'm-studio' }, jobs: [TUNNEL], folderHere: true, repository: 'https://github.com/example/tool-agent',
+    there: (line) => { asked.push(line); return { code: 0, stdout: `fabric-dir:${remoteHome}/DATA/tool-agent\n`, stderr: '' }; } });
+  assert.deepEqual(await r.host.start('example-agent.default', 'new', { cols: 80, rows: 24 }), { ok: true });
+  assert.match(asked[0]!, /DATA\/agent.*DATA\/tool-agent/);
+  assert.match(r.spawned[0]!.args.at(-1)!, /^cd '\/srv\/them\/DATA\/tool-agent' && /);
+});
+
+test('FD-203: a machine with neither folder refuses before anything starts, and the console names why', POSIX, async () => {
+  const r = rig({ placed: { placedOn: 'm-studio' }, jobs: [TUNNEL], folderHere: true, there: () => ({ code: 0, stdout: 'fabric-dir-none\n', stderr: '' }) });
+  assert.deepEqual(await r.host.start('example-agent.default', 'new', { cols: 80, rows: 24 }), { ok: false, reason: 'remote', detail: 'no-folder' });
+  assert.deepEqual(r.spawned, []);
+  assert.equal(remoteRefusal('no-folder'), 'console.remote.noFolder');
+  const silent = rig({ placed: { placedOn: 'm-studio' }, jobs: [TUNNEL], folderHere: true, there: () => ({ code: 255, stdout: '', stderr: 'timeout' }) });
+  assert.deepEqual(await silent.host.start('example-agent.default', 'new', { cols: 80, rows: 24 }), { ok: false, reason: 'remote', detail: 'unreachable' });
 });
