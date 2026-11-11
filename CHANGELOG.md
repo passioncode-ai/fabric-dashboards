@@ -1,5 +1,20 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- FD-200: editing an agent placed on another machine needs a key that opens a shell there. Before a console session
+  starts the app asks that machine once; a key that reaches only the agent's port is view only (the console says so and
+  shows "View only"), a refused key or a silent machine is named too. Doctor and Update of such an agent, from the window
+  or MCP, run on that machine through its forward, as that machine's own descriptor declares them, and are refused for a
+  view-only key; they no longer run on this Mac's stale copy.
+
+### Fixed
+
+- FD-201: an agent whose port owner the system tables could not tell for one read (as while launchd restarts it) no
+  longer reads "Another user's program" at once: it must stay unknown for 15 s, and is read again within 6 s.
+
 ## 0.8.50 - 2026-11-11
 
 ### Added

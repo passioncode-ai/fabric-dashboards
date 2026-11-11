@@ -5,7 +5,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import { ConsoleHost } from '../src/electron/console';
-import { forwardOf, launchJobOf, readLaunchJobs, remoteArgv, remoteRuntimeArgv, remoteScript, routeTo, type LaunchJob } from '../src/core/remote-console';
+import { remoteRefusal } from '../src/core/remote-words';
+import { accessOf, accessProbeArgv, forwardOf, launchJobOf, placeCommand, remoteCommandArgv, readLaunchJobs, remoteArgv, remoteRuntimeArgv, remoteScript, routeTo, type LaunchJob } from '../src/core/remote-console';
 import { failText } from '../src/renderer/components/Sessions';
 import { t } from '../src/core/i18n';
 import { tmp } from './helpers';
@@ -70,7 +71,7 @@ test('FD-199: launchd jobs are read from XML property lists; a binary one is ski
   assert.deepEqual(readLaunchJobs(path.join(dir, 'absent')), []);
 });
 
-function rig(o: { placed: { placedOn: string; forward?: string } | null; jobs: LaunchJob[]; folderHere: boolean }) {
+function rig(o: { placed: { placedOn: string; forward?: string } | null; jobs: LaunchJob[]; folderHere: boolean; access?: { code: number | null; stdout: string; stderr: string } }) {
   const base = tmp('fd-199-');
   const bin = path.join(base, 'bin');
   const home = path.join(base, 'home');
@@ -85,7 +86,7 @@ function rig(o: { placed: { placedOn: string; forward?: string } | null; jobs: L
     settings: { get: () => settings, update: (p: Record<string, unknown>) => { settings = { ...settings, ...p }; } } as never,
     snapshot: () => ({ descriptor: { origin: 'http://127.0.0.1:47861' } }) as never, window: () => null, visible: () => false, log: () => {},
     testDirs: [bin], scriptsDir: path.join(base, 'scripts'), home,
-    run: async () => ({ code: 1, stdout: '', stderr: '' }),
+    run: async (_cmd: string, args: string[]) => (args.at(-1) === 'echo fabric-edit-ok' ? o.access ?? { code: 0, stdout: 'fabric-edit-ok\n', stderr: '' } : { code: 1, stdout: '', stderr: '' }),
     spawn: (file, args, opts) => { spawned.push({ file, args, cwd: opts.cwd }); return { pid: 999_999_999, onData: () => ({ dispose() {} }), onExit: () => ({ dispose() {} }), write() {}, resize() {}, kill() {} }; },
     killGroup: () => {},
     machine: async (f) => { machineAsked.push(f); return { freeDisk: 50 * 1024 ** 3, swap: null, running: 0 }; },
@@ -110,15 +111,15 @@ test('FD-199: an agent placed on another machine starts its coding agent there, 
   // The admission asks about this machine (its home), not a folder that is only on the other one.
   assert.deepEqual(r.machineAsked, [r.home]);
   const info = await r.host.info('example-agent.default');
-  assert.deepEqual(info.remote, { machine: 'm-studio', destination: 'me@192.0.2.9' });
+  assert.deepEqual(info.remote, { machine: 'm-studio', destination: 'me@192.0.2.9', access: 'edit' });
   assert.match(info.session.label, /· me@192\.0\.2\.9$/);
 });
 
 test('FD-199: with no forward that reaches the machine, nothing starts and the reason is remote', POSIX, async () => {
   const r = rig({ placed: { placedOn: 'm-studio' }, jobs: [], folderHere: true });
-  assert.deepEqual(await r.host.start('example-agent.default', 'new', { cols: 80, rows: 24 }), { ok: false, reason: 'remote', detail: 'm-studio' });
+  assert.deepEqual(await r.host.start('example-agent.default', 'new', { cols: 80, rows: 24 }), { ok: false, reason: 'remote', detail: 'no-route' });
   assert.deepEqual(r.spawned, []);
-  assert.deepEqual((await r.host.info('example-agent.default')).remote, { machine: 'm-studio', destination: null });
+  assert.deepEqual((await r.host.info('example-agent.default')).remote, { machine: 'm-studio', destination: null, access: null });
 });
 
 test('FD-199: an agent placed here starts on this machine as before', POSIX, async () => {
@@ -132,4 +133,57 @@ test('FD-199: an agent placed here starts on this machine as before', POSIX, asy
 test('FD-199: a refused continue on another machine reads the remote sentence', () => {
   const tr = (key: string, params?: Record<string, string | number>) => t('en', key, params);
   assert.equal(failText(tr as never, { ok: false, reason: 'remote' }, { action: 'continue', folder: '/x' }), t('en', 'console.remote.noRoute'));
+});
+
+test('FD-200: the probe answer tells edit, view, denied and unreachable apart', () => {
+  assert.equal(accessOf({ code: 0, stdout: 'fabric-edit-ok\n', stderr: '' }), 'edit');
+  assert.equal(accessOf({ code: 255, stdout: '', stderr: 'me@192.0.2.9: Permission denied (publickey).' }), 'denied');
+  assert.equal(accessOf({ code: 1, stdout: '', stderr: '' }), 'view', 'a forced command ran instead of the echo');
+  assert.equal(accessOf({ code: 0, stdout: 'forwarding only\n', stderr: '' }), 'view', 'connected, and something else answered');
+  assert.equal(accessOf({ code: 255, stdout: '', stderr: 'PTY allocation request failed\nshell request failed on channel 0' }), 'view');
+  assert.equal(accessOf({ code: 255, stdout: '', stderr: 'ssh: connect to host 192.0.2.9 port 22: Operation timed out' }), 'unreachable');
+  assert.deepEqual(accessProbeArgv(forwardOf(TUNNEL)!.route).slice(-2), ['me@192.0.2.9', 'echo fabric-edit-ok']);
+});
+
+test('FD-200: a descriptor command runs on the other machine with its paths under that home', () => {
+  const argv = remoteCommandArgv({ route: forwardOf(TUNNEL)!.route, home: '/srv/me', argv: ['/srv/me/DATA/agent/bin/agent', 'doctor', '--json'] });
+  assert.deepEqual(argv.slice(0, 3), ['/usr/bin/ssh', '-T', '-n']);
+  assert.equal(argv.at(-2), 'me@192.0.2.9');
+  assert.equal(argv.at(-1), `exec "\${SHELL:-/bin/zsh}" -lc 'exec "$HOME"/'\\''DATA/agent/bin/agent'\\'' '\\''doctor'\\'' '\\''--json'\\'''`);
+});
+
+test('FD-200: where doctor and update run: here, there by a key that edits, refused for a view-only key or no route', async () => {
+  const base = { origin: 'http://127.0.0.1:47861', argv: ['/srv/me/DATA/agent/bin/agent', 'update'], home: '/srv/me', jobs: () => [TUNNEL] };
+  const edit = async () => ({ code: 0, stdout: 'fabric-edit-ok\n', stderr: '' });
+  const view = async () => ({ code: 1, stdout: '', stderr: '' });
+  const denied = async () => ({ code: 255, stdout: '', stderr: 'Permission denied (publickey).' });
+  assert.deepEqual(await placeCommand({ ...base, elsewhere: null, probe: edit }), { kind: 'here' });
+  const there = await placeCommand({ ...base, elsewhere: { placedOn: 'm-studio' }, probe: edit });
+  assert.equal(there.kind, 'there');
+  assert.equal(there.kind === 'there' && there.destination, 'me@192.0.2.9');
+  assert.deepEqual(await placeCommand({ ...base, elsewhere: { placedOn: 'm-studio' }, probe: view }), { kind: 'refused', code: 'result.remote.view', machine: 'me@192.0.2.9' });
+  assert.deepEqual(await placeCommand({ ...base, elsewhere: { placedOn: 'm-studio' }, probe: denied }), { kind: 'refused', code: 'result.remote.view', machine: 'me@192.0.2.9' });
+  assert.deepEqual(await placeCommand({ ...base, jobs: () => [], elsewhere: { placedOn: 'm-studio' }, probe: edit }), { kind: 'refused', code: 'result.remote.noRoute', machine: 'm-studio' });
+  assert.match(t('en', 'result.remote.view', { name: 'Agent', machine: 'me@192.0.2.9', command: 'Update' }), /your key opens no shell there/);
+});
+
+test('FD-200: a key that only reaches the port gives view only: nothing starts, and the console says so', POSIX, async () => {
+  const r = rig({ placed: { placedOn: 'm-studio' }, jobs: [TUNNEL], folderHere: true, access: { code: 1, stdout: '', stderr: '' } });
+  assert.deepEqual(await r.host.start('example-agent.default', 'new', { cols: 80, rows: 24 }), { ok: false, reason: 'remote', detail: 'view' });
+  assert.deepEqual(r.spawned, []);
+  assert.equal((await r.host.info('example-agent.default')).remote?.access, 'view');
+  assert.equal(remoteRefusal('view'), 'console.remote.view');
+  assert.equal(remoteRefusal('denied'), 'console.remote.denied');
+  assert.equal(remoteRefusal('unreachable'), 'console.remote.unreachable');
+  assert.equal(remoteRefusal('no-route'), 'console.remote.noRoute');
+});
+
+test('FD-200: with the agent key, the other machine runs the command its own descriptor declares, else this one', () => {
+  const argv = remoteCommandArgv({ route: forwardOf(TUNNEL)!.route, home: '/srv/me', argv: ['/srv/me/old/bin/agent', 'doctor'], key: 'example-agent.default', which: 'doctor' });
+  const line = argv.at(-1)!;
+  assert.match(line, /ai\.passioncode\.fabric\/services\/example-agent\.default\.json/);
+  assert.match(line, /k=commands\.doctor/);
+  assert.match(line, /exec "\$HOME"\/'\\''old\/bin\/agent'\\''/, 'this machine’s command is the fallback');
+  // A key that is not a service key never reaches the remote line.
+  assert.doesNotMatch(remoteCommandArgv({ route: forwardOf(TUNNEL)!.route, home: '/srv/me', argv: ['x'], key: 'bad;key', which: 'doctor' }).at(-1)!, /services\//);
 });

@@ -1,6 +1,7 @@
 // ADR-0017 (SCN-048…050), FD-92: the agent console, a drawer from the top of the content area over the dashboard.
 // A real terminal (xterm.js) on the PTY the main process holds: the runtime's own interface, nothing of our own in
 // between. It is drawn in the drawer's own view (src/electron/drawer.ts), so it lies over the dashboard, never beside it.
+import { remoteRefusal } from '../../core/remote-words';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
@@ -158,7 +159,7 @@ export function ConsolePanel({ serviceKey, height, maxHeight, onHeight, onDrag, 
     else if (r.reason === 'spawn') setNotice({ text: t('console.spawnError', { detail }) });
     else if (r.reason === 'running') setNotice({ text: t('console.running') });
     else if (r.reason === 'no-continue') setNotice({ text: detail });
-    else if (r.reason === 'remote') setNotice({ text: t('console.remote.noRoute') }); // FD-199
+    else if (r.reason === 'remote') setNotice({ text: t(remoteRefusal(r.detail)) }); // FD-199, FD-200
     else setNotice(null); // no-runtime, no-folder: the panel's own state says it
   };
 
@@ -297,6 +298,7 @@ export function ConsolePanel({ serviceKey, height, maxHeight, onHeight, onDrag, 
           <button className="btn btn-sm" disabled={running} onClick={() => void api().consolePickFolder(serviceKey).then((i) => { setInfo(i); setNotice(null); })}>{info?.folder ? t('console.other') : t('console.chooseFolder')}</button>
           {bound && <span className="chip" title={t('console.project', { name: bound.name })}>{t('console.project', { name: bound.name })}</span>}
           {remote?.destination && <span className="chip" title={t('console.remote.hint')}>{t('console.remote', { destination: remote.destination })}</span>}
+          {remote?.access && remote.access !== 'edit' && <span className="chip" title={t(remoteRefusal(remote.access))}>{t('console.remote.viewOnly')}</span>}
         </div>}
       </div>
       {!info && <p className="console-state muted row" role="status"><Spinner /> {t('console.loading')}</p>}

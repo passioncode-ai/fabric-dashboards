@@ -11,7 +11,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { execRunner, portOf, type Runner } from '@passioncode-ai/fabric-service-host';
-import { readLaunchJobs, remoteArgv, remoteRuntimeArgv, routeTo, type LaunchJob, type SshRoute } from '../core/remote-console';
+import { accessOf, accessProbeArgv, readLaunchJobs, remoteArgv, remoteRuntimeArgv, routeTo, type LaunchJob, type RemoteAccess, type SshRoute } from '../core/remote-console';
 import { CHANNELS, type ConsoleInfo, type ConsoleStartResult, type ConsoleTask, type NewSessionOptions, type NewSessionResult } from '../core/api';
 import { openConsolesOf, type OpenConsole } from '../core/console-channel';
 import { prepareHandoff, writeTaskOnly, type McpCommand } from '../core/handoff';
@@ -364,7 +364,24 @@ export class ConsoleHost {
 
   private remoteInfo(key: string): ConsoleInfo['remote'] {
     const r = this.remoteOf(key);
-    return r ? { machine: r.placedOn, destination: r.route?.destination ?? null } : null;
+    if (!r) return null;
+    const known = r.route ? this.accessSeen.get(r.route.via) : undefined;
+    return { machine: r.placedOn, destination: r.route?.destination ?? null, access: known?.access ?? null };
+  }
+
+  /** FD-200: whether this route opens a shell on the other machine (edit) or only reaches it (view); asked before a start,
+   *  remembered five minutes when it may edit and thirty seconds otherwise, so a key granted or revoked shows soon. */
+  private readonly accessSeen = new Map<string, { access: RemoteAccess; at: number }>();
+  private async remoteAccess(route: SshRoute): Promise<RemoteAccess> {
+    const seen = this.accessSeen.get(route.via);
+    const now = Date.now();
+    if (seen && now - seen.at < (seen.access === 'edit' ? 300_000 : 30_000)) return seen.access;
+    const [cmd, ...args] = accessProbeArgv(route);
+    let access: RemoteAccess;
+    try { access = accessOf(await this.run(cmd!, args, 20_000)); } catch { access = 'unreachable'; }
+    this.accessSeen.set(route.via, { access, at: now });
+    this.o.log(`console: ${route.destination} through ${route.via} gives ${access}`);
+    return access;
   }
   // #endregion remote-console-host
 
@@ -443,7 +460,7 @@ export class ConsoleHost {
     const folder = this.folderOf(key);
     // FD-199: an agent placed on another machine runs its coding agent there, in the same folder; it need not exist here.
     const remote = this.remoteOf(key);
-    if (remote && !remote.route) return { ok: false, reason: 'remote', detail: remote.placedOn };
+    if (remote && !remote.route) return { ok: false, reason: 'remote', detail: 'no-route' };
     if (!folder || (!remote && !folder.exists)) return { ok: false, reason: 'no-folder' };
     const home = this.o.home ?? os.homedir();
     // FD-49 (LC-17): start only what the machine can carry; otherwise defer, saying why.
@@ -457,6 +474,9 @@ export class ConsoleHost {
     // FD-199: on the other machine, plain: its own coding agent and sign-in; the context pack is a file of this machine.
     const saved = this.o.settings.get().consoles[key];
     if (remote?.route) {
+      // FD-200: only a key that opens a shell there edits; one that only forwards views and uses the agent.
+      const access = await this.remoteAccess(remote.route);
+      if (access !== 'edit') return { ok: false, reason: 'remote', detail: access };
       const local = planStart({ runtime, mode, folder: folder.path, binding: { kind: 'none' }, switchboard: null, inPlace: false, bypass: saved?.bypass });
       if (local.kind !== 'run') return local.kind === 'refused' ? { ok: false, reason: local.reason, detail: local.detail } : { ok: false, reason: 'spawn' };
       const argv = remoteArgv({ route: remote.route, folder: folder.path, home, argv: remoteRuntimeArgv(local.argv) });
@@ -1163,6 +1183,8 @@ export class ConsoleHost {
     const remote = this.remoteOf(key);
     if (remote) {
       if (!remote.route || !folder) return { ok: false, error: !remote.route ? `no port forward reaches ${remote.placedOn}` : 'no-folder' };
+      const access = await this.remoteAccess(remote.route);
+      if (access !== 'edit') return { ok: false, error: `${remote.route.destination}: ${access === 'view' ? 'this key opens no shell there, so it views and uses the agent but does not edit it' : access === 'denied' ? 'the key is refused there' : 'the machine does not answer'}` };
       const local = planStart({ runtime, mode, folder: folder.path, binding: { kind: 'none' }, switchboard: null, inPlace: false, bypass: this.o.settings.get().consoles[key]?.bypass });
       if (local.kind !== 'run') return { ok: false, error: local.kind === 'refused' ? local.detail : 'unavailable' };
       const home = this.o.home ?? os.homedir();

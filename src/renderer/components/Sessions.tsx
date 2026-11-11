@@ -1,6 +1,7 @@
 // FD-103 (SCN-078 to SCN-084): the Sessions mode's pages. All sessions lists every coding session of this computer by
 // what it needs, each with its state's actions; a session's page heads its console (the console itself is the drawer's
 // view, placed under this header by src/electron/drawer.ts).
+import { remoteRefusal } from '../../core/remote-words';
 import { useEffect, useRef, useState } from 'react';
 import type { AppStatus } from '../../core/types';
 import type { SessionActionResult, SessionRow } from '../../core/sessions';
@@ -28,7 +29,7 @@ export function failText(t: T, r: Extract<SessionActionResult, { ok: false }>, o
   // R1-B: the refusal says the cause the check found (disk, six sessions, swap).
   if (r.reason === 'admission') return t(r.detail === 'disk' || r.detail === 'cap' || r.detail === 'swap' ? `sessions.reason.busy-${r.detail}` : 'sessions.reason.busy');
   if (r.reason === 'no-folder') return t('sessions.reason.no-folder');
-  if (r.reason === 'remote') return t('console.remote.noRoute'); // FD-199
+  if (r.reason === 'remote') return t(remoteRefusal(r.detail)); // FD-199, FD-200
   return t('sessions.reason.resume-failed');
 }
 
