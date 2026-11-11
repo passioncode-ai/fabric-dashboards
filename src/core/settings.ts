@@ -299,7 +299,8 @@ export function agentSettingsPatch(raw: unknown): { patch: SettingsPatch; refuse
 
 export function rendererSettingsPatch(raw: unknown): SettingsPatch {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
-  const { consoles: _consoles, sessions: _sessions, newSession: _newSession, ...patch } = raw as SettingsPatch & Record<string, unknown>;
+  // Scenario walk 2026-11-11 (SCN-093): `updateAnnounced` is the main process's own record, never the page's.
+  const { consoles: _consoles, sessions: _sessions, newSession: _newSession, updateAnnounced: _updateAnnounced, ...patch } = raw as SettingsPatch & Record<string, unknown>;
   return patch as SettingsPatch;
 }
 
@@ -314,6 +315,8 @@ export function merge(raw: Partial<Settings>): Settings {
     language: raw.language === 'en' || raw.language === 'ru' ? raw.language : 'system',
     // Absent in a file from an earlier version: on, so every install keeps itself current.
     autoUpdate: raw.autoUpdate !== false,
+    // Scenario walk 2026-11-11 (SCN-093): the announced version is kept across launches; anything else reads as none.
+    updateAnnounced: typeof raw.updateAnnounced === 'string' && /^\d+\.\d+\.\d+[\w.+-]*$/.test(raw.updateAnnounced) ? raw.updateAnnounced : null,
     // FD-136: absent in a file from an earlier version: on (the operator, 2026-11-04: on for installs already out).
     analytics: raw.analytics !== false,
     analyticsNoticeSeen: raw.analyticsNoticeSeen === true,

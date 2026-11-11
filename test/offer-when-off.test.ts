@@ -29,8 +29,8 @@ test('FD-143: the updater peeks before it decides a check, the main process tell
   assert.doesNotMatch(peek, /verify\(|stage\(|prepareFile\(|autoUpdater\./, 'a peek downloads and stages nothing');
   assert.match(peek, /this\.set\(\{ state: 'available', version \}\)/);
   const main = fs.readFileSync(path.join(__dirname, '../src/electron/main.ts'), 'utf8');
-  assert.match(main, /availableTold !== updater\.state\.version/, 'once per version');
-  assert.match(main, /n\.on\('click', \(\) => updater\.check\(true\)\);/, 'the click is the person\'s Update');
+  assert.match(main, /settings\.get\(\)\.updateAnnounced !== updater\.state\.version/, 'once per version');
+  assert.match(main, /keepNotice\(n, \(\) => updater\.check\(true\)\);/, 'the click is the person\'s Update');
 });
 
 test('FD-143: the words say it is out, and what Update and the switch do, in both languages', () => {

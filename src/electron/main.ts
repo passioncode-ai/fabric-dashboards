@@ -284,28 +284,45 @@ if (!app.requestSingleInstanceLock()) {
       if (text) notify({ title: text.title, body: text.body, target: 'sessions', serviceKey: n.id });
     } });
   let tray: AppTray | null = null;
+  const MAX_KEPT_NOTICES = 50;
+  const shownNotices = new Set<Notification>();
+  /** R-12: kept until clicked or closed: a collected notification loses its click handler. T-13:
+   *  macOS does not always send close (a banner that times out into Notification Center), so only
+   *  the newest MAX_KEPT_NOTICES are kept; an older one's click is the one that may be lost.
+   *  Scenario walk 2026-11-11 (SCN-093, SCN-024): declared before the updater so the update and login-item notices
+   *  are kept the same way as notify()'s; a local one could be collected and its click lost. */
+  function keepNotice(n: Notification, onClick: () => void): void {
+    shownNotices.add(n);
+    for (const old of shownNotices) { if (shownNotices.size <= MAX_KEPT_NOTICES) break; shownNotices.delete(old); }
+    const forget = () => shownNotices.delete(n);
+    n.on('click', () => { forget(); onClick(); });
+    n.on('close', forget);
+  }
   // R-3: the window lets itself close only once a quit is really under way — before-quit, or
   // Squirrel's before-quit-for-update. A failed install puts the window back to hiding on close.
   // Operator 2026-10-16 (LC-16): a downloaded, verified update asks once per version to restart and finish.
   let restartAsked: string | null = null;
   // FD-143: with automatic updates off, a newer version is announced once per version; the click updates.
-  let availableTold: string | null = null;
+  // Scenario walk 2026-11-11 (SCN-093): the announced version lives in settings (`updateAnnounced`), so the same
+  // banner does not come back at every launch.
   const updater = new Updater(() => {
     pushStatus();
     if (updater.state.state === 'ready' && updater.state.version && restartAsked !== updater.state.version) {
       restartAsked = updater.state.version;
       try {
         const n = new Notification({ title: t(lang(), 'update.finish.title'), body: t(lang(), 'update.finish.body', { version: updater.state.version }), silent: true });
-        n.on('click', () => void restartToUpdate());
+        // Scenario walk 2026-11-11 (SCN-093): kept like notify()'s, so its click still restarts after a collection.
+        keepNotice(n, () => void restartToUpdate());
         n.show();
         log(`update: asked to restart and finish installing ${updater.state.version}`);
       } catch { /* no notification centre */ }
     }
-    if (updater.state.state === 'available' && updater.state.version && availableTold !== updater.state.version) {
-      availableTold = updater.state.version;
+    if (updater.state.state === 'available' && updater.state.version && settings.get().updateAnnounced !== updater.state.version) {
+      settings.update({ updateAnnounced: updater.state.version });
       try {
         const n = new Notification({ title: t(lang(), 'update.available.title', { version: updater.state.version }), body: t(lang(), 'update.available.body'), silent: true });
-        n.on('click', () => updater.check(true));
+        // Scenario walk 2026-11-11 (SCN-093): kept like notify()'s, so its click (the person's Update) is not lost.
+        keepNotice(n, () => updater.check(true));
         n.show();
         log(`update: told that ${updater.state.version} is out (automatic updates off)`);
       } catch { /* no notification centre */ }
@@ -654,19 +671,10 @@ if (!app.requestSingleInstanceLock()) {
     pauseTimer = setTimeout(() => { pauseTimer = null; pushStatus(); }, Math.min(until - Date.now() + 1000, 2 ** 31 - 1));
     pauseTimer.unref();
   }
-  const MAX_KEPT_NOTICES = 50;
-  const shownNotices = new Set<Notification>();
   function notify(notice: Omit<Notice, 'target'> & { target: NavTarget['page'] }): void {
     if (!Notification.isSupported()) return;
     const n = new Notification({ title: notice.title, subtitle: notice.subtitle, body: notice.body, silent: false });
-    // R-12: kept until clicked or closed — a collected notification loses its click handler. T-13:
-    // macOS does not always send close (a banner that times out into Notification Center), so only
-    // the newest MAX_KEPT_NOTICES are kept; an older one's click is the one that may be lost.
-    shownNotices.add(n);
-    for (const old of shownNotices) { if (shownNotices.size <= MAX_KEPT_NOTICES) break; shownNotices.delete(old); }
-    const forget = () => shownNotices.delete(n);
-    n.on('click', () => { forget(); navigate({ page: notice.target, key: notice.serviceKey, link: notice.link }); });
-    n.on('close', forget);
+    keepNotice(n, () => navigate({ page: notice.target, key: notice.serviceKey, link: notice.link }));
     n.show();
   }
 
@@ -1359,7 +1367,8 @@ if (!app.requestSingleInstanceLock()) {
       log('login item: macOS holds it for approval (System Settings → General → Login Items)');
       try {
         const n = new Notification({ title: t(lang(), 'login.approval.title'), body: t(lang(), 'login.approval.body'), silent: true });
-        if (process.platform === 'darwin') n.on('click', () => void shell.openExternal('x-apple.systempreferences:com.apple.LoginItems-Settings.extension'));
+        // Scenario walk 2026-11-11 (SCN-024): kept like notify()'s, so its click still opens Login Items.
+        keepNotice(n, () => { if (process.platform === 'darwin') void shell.openExternal('x-apple.systempreferences:com.apple.LoginItems-Settings.extension'); });
         n.show();
       } catch { /* no notification centre */ }
     }

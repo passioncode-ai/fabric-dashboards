@@ -59,6 +59,9 @@ export interface Settings {
   language: 'system' | 'en' | 'ru';
   /** Install a downloaded update by itself once the window has been hidden a while (ADR-0015). On by default. */
   autoUpdate: boolean;
+  /** Scenario walk 2026-11-11 (SCN-093): the newer version last announced while automatic updates are off, so
+   *  "one notification per version" holds across launches, not only within one run. */
+  updateAnnounced: string | null;
   /** FD-136: share anonymous usage and error data (docs/ANALYTICS.md); this product's own switch, on by default. */
   analytics: boolean;
   /** FD-136: the notice about it was shown once (OK or Turn off). */
@@ -172,6 +175,7 @@ export const DEFAULT_SETTINGS: Settings = {
   pageTheme: 'graphite',
   language: 'system',
   autoUpdate: true,
+  updateAnnounced: null,
   analytics: true,
   analyticsNoticeSeen: false,
   moveToApplicationsAsked: false,

@@ -7,6 +7,7 @@
 // without visiting an agent twice. Pure: the renderer uses it.
 import { connectionsOf, type Connection, type ConnectionKind, type ConnectionState } from '@passioncode-ai/fabric-service-host/connections';
 import { productIdOf } from '@passioncode-ai/fabric-service-host/links';
+import { configurationOf } from '@passioncode-ai/fabric-service-host/configuration';
 import type { Reason, ServiceSnapshot, ServiceState } from './types';
 
 /** What the graph needs of a service: the app's snapshot and the MCP server's look both carry it. */
@@ -107,7 +108,8 @@ export function buildGraph(s: Seen, all: readonly Seen[], models: readonly Model
     if (named.has(m.model) || named.has(`${m.provider}/${m.model}`)) continue;
     uses.push({ id: `model:${m.provider}/${m.model}`, kind: 'model', label: m.model, target: m.provider, state: 'ok', source: 'usage', calls: m.calls, children: [] });
   }
-  const r = s.wellKnown?.configuration?.resolved;
+  // Scenario walk 2026-11-11 (SCN-068): read through the check; a malformed configuration draws no runner.
+  const r = configurationOf(s.wellKnown)?.resolved;
   if (r && (r.runnerKind || r.runnerProfile)) {
     uses.push({ id: 'runner', kind: 'runner', label: r.runnerKind ?? r.runnerProfile!, target: r.route, purpose: r.models?.length ? r.models.join(', ') : undefined, state: 'ok', source: 'runner', children: [] });
   }
