@@ -37,6 +37,7 @@ import type { ListLayout, ServiceSnapshot } from '../core/types';
 import os from 'node:os';
 import path from 'node:path';
 import { t as tr } from '../core/i18n';
+import { placeCommand, userLaunchJobs, type LaunchJob } from '../core/remote-console';
 import { continuedOf, liveAgents, recoveryOf, transcriptOf, verdictOf } from '../core/recovery';
 import { findSwitchboard } from '../core/switchboard';
 import { searchDirs } from '../core/runtimes';
@@ -50,6 +51,10 @@ import { CONTROL_TIMEOUT_MS, controlService } from '../core/control';
 export { CONTROL_TIMEOUT_MS };
 
 export interface Deps {
+  /** FD-200: this user's launchd jobs, for the route of an agent placed elsewhere (default `~/Library/LaunchAgents`). */
+  launchJobs?: () => LaunchJob[];
+  /** FD-200: runs the ssh probe that asks whether that route may edit (default the plain runner). */
+  remoteProbe?: (cmd: string, args: string[], timeoutMs: number) => Promise<{ code: number | null; stdout: string; stderr: string }>;
   /** ADR-0025: the app's settings file (its data folder holds the channel's key) and the channel's address, for tests. */
   settingsFile?: () => string;
   /** FD-135: what runs `gh` and where it is (tests replace both). */
@@ -506,7 +511,11 @@ export async function command(deps: Deps, key: string, which: 'doctor' | 'update
   const d = find(deps, key).descriptor;
   const argv = d.commands?.[which];
   if (!argv) throw new ToolError(`${d.name} declares no ${which} command`);
-  const r = await deps.run(argv, COMMAND_TIMEOUT_MS);
+  // FD-200: placed on another machine, it runs there through its forward's route when that key may edit; never here.
+  const place = await placeCommand({ elsewhere: elsewhereOf(deps.placement ? deps.placement() : new PlacementReader().get(deps.now()), d), origin: d.origin,
+    argv: argv.map((a, i) => (i === 0 ? expand(a) : a)), home: os.homedir(), key: `${d.id}.${d.instance}`, which, jobs: deps.launchJobs ?? userLaunchJobs, probe: deps.remoteProbe ?? execRunner });
+  if (place.kind === 'refused') throw new ToolError(tr('en', place.code, { name: d.name, machine: place.machine, command: which }));
+  const r = await deps.run(place.kind === 'there' ? place.argv : argv, COMMAND_TIMEOUT_MS);
   // M2-3: a command that never started is a refusal an agent reads as one, not a result with code null.
   // T-6: only a command that never started is a refusal; one ended by a signal returns its output and the signal.
   if (r.code === null && !r.timedOut && !r.signal && r.started !== true) throw new ToolError(`${d.name}: the ${which} command could not run: ${r.output.trim().split('\n').pop() ?? ''}`);

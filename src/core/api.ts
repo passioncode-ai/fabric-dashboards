@@ -50,8 +50,9 @@ export interface ConsoleInfo {
   /** FD-62; FD-83: `kind: 'resume'` is a session this app continued after a usage limit. */
   handover?: { id: string; workflow: string; agent: string; account: string; dir: string; kind?: 'handover' | 'resume' } | null;
   /** FD-199: the placement record puts the agent on another machine, so the console runs there; `destination` is the ssh
-   *  destination of its port forward, null when no forward reaches that machine. */
-  remote?: { machine: string; destination: string | null } | null;
+   *  destination of its port forward, null when no forward reaches that machine; `access` (FD-200) what its key was last
+   *  seen to allow there, null before the first start asked. */
+  remote?: { machine: string; destination: string | null; access?: 'edit' | 'view' | 'denied' | 'unreachable' | null } | null;
 }
 
 /** FD-43/FD-51: the Switchboard sessions of a console's folder, or why there are none to show. */

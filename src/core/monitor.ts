@@ -7,6 +7,9 @@ import { EventEmitter } from 'node:events';
 import fs from 'node:fs';
 import { ActivityStore } from './activity';
 import { runOwned } from './children';
+import { placeCommand, userLaunchJobs, type LaunchJob } from './remote-console';
+import { execRunner } from './launchd';
+import os from 'node:os';
 import { productIdOf } from '@passioncode-ai/fabric-service-host/links';
 import { SystemdReader, authHeaders, claimConflicts, dashboardMinWidth, deriveState, elsewhereOf, isSystemJob, PlacementReader, SpaceDaemonReader, type Elsewhere, expand, fetchWellKnown, heldButSilent, loopbackOwnerOf, portOf, readDirectory, RemoteTokenLatch, REMOTE_TIMEOUT_MS, type DescriptorEntry, type WellKnownOptions, type WellKnownResult } from '@passioncode-ai/fabric-service-host';
 import { tail } from './fsutil';
@@ -26,7 +29,15 @@ export const DOWN_AFTER_MISSES = 3;
 
 export interface Notice { serviceKey: string; title: string; subtitle?: string; body: string; link?: string; target: 'service' | 'activity'; /** FD-48: set on an events-feed banner — what it wants (ADR-0010). */ intent?: Exclude<Intent, 'quiet'> }
 
+/** FD-201: how long an unknown loopback owner must last before it reads as `foreign-user`, and how soon it is read again. */
+export const UNKNOWN_OWNER_CONFIRM_MS = 15_000;
+export const UNKNOWN_OWNER_RECHECK_MS = 6_000;
+
 export interface MonitorOptions {
+  /** FD-200: this user's launchd jobs, for the route of an agent placed elsewhere (default `~/Library/LaunchAgents`). */
+  launchJobs?: () => LaunchJob[];
+  /** FD-200: runs the ssh probe that asks whether that route may edit (default the plain runner); tests pass a fake. */
+  remoteProbe?: (cmd: string, args: string[], timeoutMs: number) => Promise<{ code: number | null; stdout: string; stderr: string }>;
   /** The operating system whose supervisor runs services (default `process.platform`; ADR-0019 §7). */
   platform?: NodeJS.Platform;
   servicesDir: string;
@@ -81,6 +92,8 @@ interface Tracked {
   tokenProblem: string | null; // DEC-0019: a remote placement whose token cannot be read is invalid, never probed
   /** FD-158: the last probe answered from a socket that is not this macOS user's own. */
   foreignUser?: boolean | 'unknown';
+  /** FD-201: when the port's owner was first read as unknown in this run of unknowns; null once it is told. */
+  unknownOwnerSince?: number | null;
   launchdAt: number | null; // when launchd was last read for this service
   polledAt: number | null; // when its events feed was last read
   /** The usage path its own last answer declared (ADR-0013): kept while it is down, so Spend says it could not read it instead of "not reporting". */
@@ -420,7 +433,17 @@ export class Monitor extends EventEmitter {
     // process listens on the port.
     const port = d.placement !== 'remote' && (probe.kind !== 'no-answer' || heldButSilent(probe)) ? portOf(d.origin) : null;
     const owner = port === null ? null : await loopbackOwnerOf(port);
-    t.foreignUser = owner === 'unknown' ? 'unknown' : owner === false;
+    // FD-201: an owner the tables could not tell once (a pid that exited between netstat and ps while launchd restarts the
+    // job, a port read between two lists) is not yet another user's program: it becomes `foreign-user` only when it is
+    // still unknown at a read UNKNOWN_OWNER_CONFIRM_MS later. Until then the last verdict stands, and the next probe comes
+    // soon. A token is never sent on this: every request that carries one asks the owner again (FD-156, FD-168).
+    if (owner === 'unknown') {
+      t.unknownOwnerSince ??= this.now();
+      if (this.now() - t.unknownOwnerSince >= UNKNOWN_OWNER_CONFIRM_MS) t.foreignUser = 'unknown';
+    } else {
+      t.unknownOwnerSince = null;
+      t.foreignUser = owner === false;
+    }
     // #region launchd-reads — docs: AGENTS.md#lifecycle
     // launchd is read on every probe while a window shows it. Hidden, a `launchctl print` (a process
     // spawn) runs only when it can change the verdict: the probe missed, the answering pid moved, or
@@ -472,6 +495,8 @@ export class Monitor extends EventEmitter {
       t.lastAnswer = probe.kind === 'answer' ? probe : null;
       t.nextProbeAt = now + cadence;
     }
+    // FD-201: an unknown owner not yet confirmed is read again soon, whatever the window.
+    if (t.unknownOwnerSince != null && t.foreignUser !== 'unknown') t.nextProbeAt = Math.min(t.nextProbeAt, now + UNKNOWN_OWNER_RECHECK_MS);
     this.observe(t);
     if (probe.kind === 'no-answer') this.checkDown(t, now);
     // #endregion probe-confirmation
@@ -733,9 +758,18 @@ export class Monitor extends EventEmitter {
     const argv = t?.entry.descriptor?.commands?.[which];
     if (!t || !argv) return { code: null, output: '', timedOut: false, refused: tr(this.o.lang(), 'result.noCommand', { command: tr(this.o.lang(), `command.${which}`) }) };
     if (t.busy) return { code: null, output: '', timedOut: false, refused: tr(this.o.lang(), 'result.busy', { name: this.name(t) }) };
-    t.busy = which === 'doctor' ? 'doctor' : 'updating';
+    t.busy = which === 'doctor' ? 'doctor' : 'updating'; // R-8: taken before anything is awaited, so a second press is refused
     this.changed();
-    const [cmd, ...args] = argv.map((a, i) => (i === 0 ? expand(a) : a));
+    // FD-200: an agent placed on another machine runs its command there, by whoever may edit there; never here.
+    const expanded = argv.map((a, i) => (i === 0 ? expand(a) : a));
+    const place = await placeCommand({ elsewhere: this.elsewhere(t), origin: t.entry.descriptor!.origin, argv: expanded, home: os.homedir(), key, which,
+      jobs: this.o.launchJobs ?? userLaunchJobs, probe: this.o.remoteProbe ?? execRunner });
+    if (place.kind === 'refused') {
+      t.busy = null;
+      this.changed();
+      return { code: null, output: '', timedOut: false, refused: tr(this.o.lang(), place.code, { name: this.name(t), machine: place.machine, command: tr(this.o.lang(), `command.${which}`) }) };
+    }
+    const [cmd, ...args] = place.kind === 'there' ? place.argv : expanded;
     // Its own process group, the descriptor-safe environment, killed with the group on timeout or quit (LC-02).
     const result = await runOwned(cmd!, args, { timeoutMs: COMMAND_TIMEOUT_MS });
     t.busy = null;

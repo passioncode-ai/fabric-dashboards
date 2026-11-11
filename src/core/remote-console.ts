@@ -5,6 +5,7 @@
 // The forward is the one fact on this machine that says how that machine is reached, by whom and with which key, so
 // nothing new is configured and no secret is read: the key stays a file path that ssh opens itself.
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { shellQuote } from './consoles';
 
@@ -80,6 +81,72 @@ export function remoteScript(o: { folder: string; home: string; argv: string[] }
 export function remoteArgv(o: { ssh?: string; route: SshRoute; folder: string; home: string; argv: string[] }): string[] {
   return [o.ssh ?? '/usr/bin/ssh', '-t', '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=15', '-o', 'ServerAliveInterval=30', ...o.route.options, o.route.destination, remoteScript(o)];
 }
+
+// #region remote-access — docs: docs/ux/scenarios.md#scn-103-edit-an-agent-on-the-machine-it-runs-on
+// FD-200: editing on the other machine needs a shell there. Whoever holds only a forward (a key restricted to port
+// forwarding, or a forced command) can view the agent and use it through its port, never edit it. Asked once before a
+// session or a command starts: ssh runs one echo, and the answer says which of the four it is.
+export type RemoteAccess = 'edit' | 'view' | 'denied' | 'unreachable';
+export const EDIT_MARK = 'fabric-edit-ok';
+
+/** The argv that asks whether this route opens a shell: no terminal, no prompt, a short connect, one echo. */
+export function accessProbeArgv(route: SshRoute, ssh = '/usr/bin/ssh'): string[] {
+  return [ssh, '-T', '-n', '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=10', ...route.options, route.destination, `echo ${EDIT_MARK}`];
+}
+
+/** What the probe's answer means: the mark printed is a shell; a refused key is denied; a connection that ran something
+ *  else (a forced command, a key for forwarding only) is view; anything else (no route, timeout) is unreachable. */
+export function accessOf(r: { code: number | null; stdout: string; stderr: string }): RemoteAccess {
+  if (r.code === 0 && r.stdout.split('\n').some((l) => l.trim() === EDIT_MARK)) return 'edit';
+  if (/Permission denied|Too many authentication failures|no matching host key|Host key verification failed/i.test(r.stderr)) return 'denied';
+  if (r.code !== 255 && r.code !== null) return 'view'; // ssh connected and the other side ran something else
+  if (/(shell|command) request failed|This (account|service) (is not available|allows)/i.test(r.stderr)) return 'view';
+  return 'unreachable';
+}
+
+/** The argv that runs a descriptor command (doctor, update) on the other machine, as that machine declares it: the
+ *  agent's descriptor there (`~/Library/Application Support/ai.passioncode.fabric/services/<key>.json`, read with plutil)
+ *  names the command its own copy runs, which may be another release than this machine's. Without one there, this
+ *  machine's command runs with its paths under this home moved under that one. No terminal, a login shell. */
+export function remoteCommandArgv(o: { route: SshRoute; home: string; argv: string[]; key?: string; which?: 'doctor' | 'update'; ssh?: string }): string[] {
+  const word = (a: string) => (a === o.home ? '"$HOME"' : a.startsWith(o.home + '/') ? `"$HOME"/${shellQuote(a.slice(o.home.length + 1))}` : shellQuote(a));
+  const fallback = `exec ${o.argv.map(word).join(' ')}`;
+  const own = o.key && o.which && /^[a-z0-9][a-z0-9-]*\.[a-z0-9][a-z0-9-]*$/.test(o.key)
+    ? `f="$HOME/Library/Application Support/ai.passioncode.fabric/services/${o.key}.json"; k=commands.${o.which}; `
+      + 'n=$(plutil -extract "$k" raw -o - "$f" 2>/dev/null); '
+      + 'if [ -n "$n" ] && [ "$n" -gt 0 ] 2>/dev/null; then set --; i=0; while [ "$i" -lt "$n" ]; do '
+      + 'a=$(plutil -extract "$k.$i" raw -o - "$f") || exit 70; case "$a" in "~/"*) a="$HOME/${a#\~/}";; esac; set -- "$@" "$a"; i=$((i+1)); done; exec "$@"; fi; '
+    : '';
+  return [o.ssh ?? '/usr/bin/ssh', '-T', '-n', '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=15', ...o.route.options, o.route.destination, `exec "\${SHELL:-/bin/zsh}" -lc ${shellQuote(own + fallback)}`];
+}
+
+/** FD-200: where a descriptor command (doctor, update) of an agent runs. Placed here: here. Placed on another machine:
+ *  there, through its forward's route, only when that key opens a shell (a refused or view-only key is told so, never
+ *  run here against this machine's stale copy); no route: refused. A machine that does not answer runs, and fails, as
+ *  ssh says. */
+export type CommandPlace =
+  | { kind: 'here' }
+  | { kind: 'there'; argv: string[]; destination: string }
+  | { kind: 'refused'; code: 'result.remote.noRoute' | 'result.remote.view'; machine: string };
+export async function placeCommand(o: { elsewhere: { placedOn: string; forward?: string } | null; origin: string; argv: string[]; home: string; key?: string; which?: 'doctor' | 'update';
+  jobs: () => LaunchJob[]; probe: (cmd: string, args: string[], timeoutMs: number) => Promise<{ code: number | null; stdout: string; stderr: string }> }): Promise<CommandPlace> {
+  if (!o.elsewhere) return { kind: 'here' };
+  let port: number | null = null;
+  try { const u = new URL(o.origin); port = u.port ? Number(u.port) : null; } catch { port = null; }
+  const route = routeTo({ forward: o.elsewhere.forward, port, jobs: o.jobs() });
+  if (!route) return { kind: 'refused', code: 'result.remote.noRoute', machine: o.elsewhere.placedOn };
+  const [cmd, ...args] = accessProbeArgv(route);
+  let access: RemoteAccess;
+  try { access = accessOf(await o.probe(cmd!, args, 20_000)); } catch { access = 'unreachable'; }
+  if (access === 'view' || access === 'denied') return { kind: 'refused', code: 'result.remote.view', machine: route.destination };
+  return { kind: 'there', argv: remoteCommandArgv({ route, home: o.home, argv: o.argv, key: o.key, which: o.which }), destination: route.destination };
+}
+
+/** This user's launchd jobs, where a forward's route is read. */
+export function userLaunchJobs(): LaunchJob[] {
+  return readLaunchJobs(path.join(os.homedir(), 'Library', 'LaunchAgents'));
+}
+// #endregion remote-access
 
 /** The coding agent's command on the other machine: its program by name (the remote PATH finds it), its arguments. */
 export function remoteRuntimeArgv(argv: string[]): string[] {

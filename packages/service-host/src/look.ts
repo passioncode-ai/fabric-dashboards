@@ -22,6 +22,8 @@ export interface LookOptions {
   token?: (tokenFile: string) => string | Promise<string>;
   /** Default: a LaunchdReader on launchctl. */
   launchd?: LaunchdReader;
+  /** FD-201: how long a one-shot read waits before it asks an unknown loopback owner again (default 5.5 s; tests pass 0). */
+  ownerRecheckMs?: number;
   /** FD-37: launchd is read only on macOS (default `process.platform`); elsewhere a launchd service is unmanaged here. */
   platform?: NodeJS.Platform;
   /** FD-167: which labels are system daemons of this user's space. Default: a SpaceDaemonReader on Observatory's record. */
@@ -111,7 +113,12 @@ async function lookAtEntry(entry: DescriptorEntry, conflict: ClaimConflict | nul
   // FD-158, DEC-0154 HA-2: an answer on loopback, or a silent listener, is this user's only when this user's own process
   // listens there.
   const port = d && !remote && probe && (probe.kind !== 'no-answer' || heldButSilent(probe)) ? portOf(d.origin) : null;
-  const owner = port === null ? null : await loopbackOwnerOf(port);
+  // FD-201: a one-shot read asks an unknown owner once more after the tables' re-read time before saying `foreign-user`.
+  let owner = port === null ? null : await loopbackOwnerOf(port);
+  if (owner === 'unknown' && port !== null) {
+    await new Promise((r) => setTimeout(r, o.ownerRecheckMs ?? 5_500));
+    owner = await loopbackOwnerOf(port);
+  }
   const foreignUser = owner === 'unknown' ? 'unknown' : owner === false;
   const { state, reasons } = deriveState({
     descriptor: d, problems, conflict, launchd, probe,
