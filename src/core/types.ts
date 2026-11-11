@@ -109,7 +109,10 @@ export interface Settings {
     idle?: { at: string; account: string | null } | null;
     /** FD-191: a session of its own started without permission prompts (absent: as FD-174, without them) and isolated
      *  on a Switchboard account's home; Continue starts it the same way. */
-    bypass?: boolean; isolated?: boolean }>;
+    bypass?: boolean; isolated?: boolean;
+    /** FD-205: for an agent placed on another machine, where its console runs: absent (or 'there' in a patch) on that
+     *  machine, as FD-199; 'here' on this Mac, in a checkout here. A write that does not name it keeps it. */
+    where?: 'here' | 'there' }>;
   /** FD-191: the New session dialog's last choices, offered next time (null: not chosen yet). */
   newSession: { runtime: string | null; folder: string | null; bypass: boolean; isolated: boolean };
   /** FD-83: continue a session stopped on a usage limit in the console once Switchboard has capacity for it (default on). */

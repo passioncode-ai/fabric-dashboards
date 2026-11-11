@@ -195,7 +195,7 @@ export function ConsolePanel({ serviceKey, height, maxHeight, onHeight, onDrag, 
     resumed.current = `${serviceKey}@${info.idle.at}`;
     const rt = info.runtimes.find((r) => r.id === info.runtime);
     // FD-199: a session on another machine needs no folder here.
-    if (rt?.canContinue && (info.folder?.exists || (info.remote?.destination && info.folder))) {
+    if (rt?.canContinue && (info.folder?.exists || (info.remote?.where !== 'here' && info.remote?.destination && info.folder))) {
       // VIS-14 (FD-113): the idle close is news, not an error: a calm notice a screen reader reads politely.
       setNotice({ text: t('console.idle.resumed', { account: info.idle.account ?? t('word.notRecorded') }), info: true });
       // A refused continue keeps its own sentence (say), never this one.
@@ -256,7 +256,9 @@ export function ConsolePanel({ serviceKey, height, maxHeight, onHeight, onDrag, 
   const bound = info?.binding.kind === 'project' ? info.binding : null;
   const terminalOnly = Boolean(bound && runtime?.viaSwitchboard && !bound.inPlace);
   // FD-199: on another machine the folder is that machine's; it need not exist here.
-  const remote = info?.remote ?? null;
+  // FD-205: the person may run it here instead, in a folder of this Mac.
+  const placed = info?.remote ?? null;
+  const remote = placed && placed.where !== 'here' ? placed : null;
   const folderOk = Boolean(info?.folder?.exists || (remote?.destination && info?.folder));
   // FD-62 (SB-108): a hand-over's own console runs only what Switchboard handed over — no runtime, folder or start of its own.
   const ownHandover = /^handover\./.test(serviceKey);
@@ -307,7 +309,14 @@ export function ConsolePanel({ serviceKey, height, maxHeight, onHeight, onDrag, 
             : <span className="console-folder muted">{t('console.folder')}: {t('console.folderNone')}</span>}
           <button className="btn btn-sm" disabled={running} onClick={() => void api().consolePickFolder(serviceKey).then((i) => { setInfo(i); setNotice(null); })}>{info?.folder ? t('console.other') : t('console.chooseFolder')}</button>
           {bound && <span className="chip" title={t('console.project', { name: bound.name })}>{t('console.project', { name: bound.name })}</span>}
-          {remote?.destination && <span className="chip" title={t('console.remote.hint')}>{t('console.remote', { destination: remote.destination })}</span>}
+          {placed && <>
+            <label className="visually-hidden" htmlFor="console-where">{t('console.where')}</label>
+            <select id="console-where" value={placed.where === 'here' ? 'here' : 'there'} disabled={running} title={placed.where === 'here' ? t('console.where.hereHint') : t('console.remote.hint')}
+              onChange={(e) => void api().consoleChoose(serviceKey, { where: e.target.value === 'here' ? 'here' : 'there' }).then((i) => { setInfo(i); setNotice(null); })}>
+              <option value="there">{placed.destination ? t('console.remote', { destination: placed.destination }) : t('console.where.there')}</option>
+              <option value="here">{t('console.where.here')}</option>
+            </select>
+          </>}
           {remote?.access === 'view' && <span className="chip" title={t(remoteRefusal(remote.access))}>{t('console.remote.viewOnly')}</span>}
         </div>}
       </div>

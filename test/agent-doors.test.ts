@@ -118,7 +118,7 @@ test('FD-175: the pickers and the install buttons reach the running app; a mista
   try {
     assert.deepEqual(await tools.consoleChoose(deps, 'alpha.default', { runtime: 'codex' }), { service: 'alpha.default', runtime: 'codex', folder: null });
     await assert.rejects(tools.consoleChoose(deps, 'alpha.default', { runtime: 'nope' }), /unknown-runtime: installed here: claude-code, codex/);
-    await assert.rejects(tools.consoleChoose(deps, 'alpha.default', {}), /name runtime, folder or both/);
+    await assert.rejects(tools.consoleChoose(deps, 'alpha.default', {}), /name runtime, folder, where or several/);
     assert.deepEqual(await tools.consoleChannel(deps, { op: 'console.fix', service: 'alpha.default', task: { kind: 'fix', output: 'x' } }), { started: false, typed: true, console: 'alpha.default', waitsForEnter: true });
     await assert.rejects(tools.appInstall(deps, 'uninstall-all', 'uninstall'), /confirm must repeat the action: uninstall-all/);
     assert.deepEqual(await tools.appInstall(deps, 'uninstall', 'uninstall'), { uninstalling: true, deleteData: false });
@@ -153,7 +153,8 @@ test('FD-175: the console host saves an agent\'s choice only when the runtime is
   assert.equal((await host.chooseFor(key, { runtime: 'claude-code', folder: path.join(base, 'absent') }) as { reason: string }).reason, 'no-folder');
   assert.equal(updates.length, 0, 'a refused choice saves nothing, not even its valid half');
   const done = await host.chooseFor(key, { runtime: 'claude-code', folder });
-  assert.deepEqual(done, { ok: true, runtime: 'claude-code', folder });
+  // FD-205: an agent placed here has no place to choose: where is null.
+  assert.deepEqual(done, { ok: true, runtime: 'claude-code', folder, where: null });
   assert.deepEqual(settings.consoles[key], { runtime: 'claude-code', folder });
 });
 
