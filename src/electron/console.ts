@@ -299,7 +299,11 @@ export class ConsoleHost {
     // Scenario walk 2026-11-11 (SCN-103): an agent placed on another machine needs no checkout here; its folder there is
     // the repository's name under the projects folder of that home, as the move lays it out.
     const name = /([^/]+?)(?:\.git)?\/?$/.exec(d.source?.repository ?? '')?.[1];
-    if (name && this.o.placedElsewhere?.(key)) return { path: path.join(this.o.home ?? os.homedir(), 'DATA', name), source: 'found', exists: false };
+    if (name && this.o.placedElsewhere?.(key)) {
+      // FD-205: run here, the same folder must be on this Mac.
+      const there = path.join(this.o.home ?? os.homedir(), 'DATA', name);
+      return { path: there, source: 'found', exists: this.runsHere(key) && isDir(there) };
+    }
     return null;
   }
 
@@ -361,6 +365,17 @@ export class ConsoleHost {
   // #region remote-console-host — docs: docs/ux/scenarios.md#scn-103-edit-an-agent-on-the-machine-it-runs-on
   /** FD-199: an agent placed on another machine is edited there: the ssh route its port forward uses (null: no route). */
   private remoteOf(key: string): { placedOn: string; route: SshRoute | null } | null {
+    // FD-205: the person chose to run this agent's console on this Mac, in a checkout here.
+    if (this.runsHere(key)) return null;
+    return this.placementOf(key);
+  }
+
+  /** FD-205: an agent placed on another machine whose console the person runs here. */
+  private runsHere(key: string): boolean {
+    return this.o.settings.get().consoles[key]?.where === 'here' && Boolean(this.o.placedElsewhere?.(key));
+  }
+
+  private placementOf(key: string): { placedOn: string; route: SshRoute | null } | null {
     const placed = this.o.placedElsewhere?.(key) ?? null;
     if (!placed) return null;
     const origin = this.o.snapshot(key)?.descriptor?.origin;
@@ -371,10 +386,10 @@ export class ConsoleHost {
   }
 
   private remoteInfo(key: string): ConsoleInfo['remote'] {
-    const r = this.remoteOf(key);
+    const r = this.placementOf(key);
     if (!r) return null;
     const known = r.route ? this.accessSeen.get(r.route.via) : undefined;
-    return { machine: r.placedOn, destination: r.route?.destination ?? null, access: known?.access ?? null };
+    return { machine: r.placedOn, destination: r.route?.destination ?? null, access: known?.access ?? null, where: this.runsHere(key) ? 'here' : 'there' };
   }
 
   /** FD-200: whether this route opens a shell on the other machine (edit) or only reaches it (view); asked before a start,
@@ -1265,17 +1280,24 @@ export class ConsoleHost {
     return this.info(key);
   }
 
-  async choose(key: string, choice: { runtime?: string }): Promise<ConsoleInfo> {
+  async choose(key: string, choice: { runtime?: string; where?: 'here' | 'there' }): Promise<ConsoleInfo> {
     const inv = await this.inventory();
+    const saved = this.o.settings.get().consoles[key];
     if (choice.runtime && inv.runtimes.some((r) => r.id === choice.runtime)) {
-      this.o.settings.update({ consoles: { [key]: { runtime: choice.runtime, folder: this.o.settings.get().consoles[key]?.folder ?? null } } });
+      this.o.settings.update({ consoles: { [key]: { runtime: choice.runtime, folder: saved?.folder ?? null } } });
+    }
+    // FD-205: where the console of an agent placed on another machine runs; nothing to choose for one placed here.
+    if ((choice.where === 'here' || choice.where === 'there') && this.o.placedElsewhere?.(key)) {
+      const now = this.o.settings.get().consoles[key];
+      this.o.settings.update({ consoles: { [key]: { ...(now ?? { runtime: null, folder: null }), where: choice.where } } });
+      this.o.log(`console: ${key} runs ${choice.where === 'here' ? 'on this Mac' : 'on the machine it is placed on'}`);
     }
     return this.info(key);
   }
 
   /** FD-175: the console's pickers for an agent (the console channel's `console.choose`): a runtime installed here and
    *  an existing folder, saved as the person's choice would be. Nothing is saved when either is refused. */
-  async chooseFor(key: string, choice: { runtime?: string; folder?: string }): Promise<{ ok: true; runtime: string | null; folder: string | null } | { ok: false; reason: 'unknown-runtime' | 'no-folder'; detail: string }> {
+  async chooseFor(key: string, choice: { runtime?: string; folder?: string; where?: 'here' | 'there' }): Promise<{ ok: true; runtime: string | null; folder: string | null; where: 'here' | 'there' | null } | { ok: false; reason: 'unknown-runtime' | 'no-folder' | 'not-placed-elsewhere'; detail: string }> {
     const inv = await this.inventory();
     if (choice.runtime !== undefined && !inv.runtimes.some((r) => r.id === choice.runtime)) {
       return { ok: false, reason: 'unknown-runtime', detail: `installed here: ${inv.runtimes.map((r) => r.id).join(', ') || 'none'}` };
@@ -1285,11 +1307,12 @@ export class ConsoleHost {
       try { dir = fs.statSync(choice.folder).isDirectory(); } catch { /* absent */ }
       if (!dir) return { ok: false, reason: 'no-folder', detail: 'not an existing folder on this machine' };
     }
+    if (choice.where !== undefined && !this.o.placedElsewhere?.(key)) return { ok: false, reason: 'not-placed-elsewhere', detail: 'this agent runs on this machine, so its console already runs here' };
     const saved = this.o.settings.get().consoles[key];
-    this.o.settings.update({ consoles: { [key]: { runtime: choice.runtime ?? saved?.runtime ?? null, folder: choice.folder ?? saved?.folder ?? null } } });
+    this.o.settings.update({ consoles: { [key]: { runtime: choice.runtime ?? saved?.runtime ?? null, folder: choice.folder ?? saved?.folder ?? null, ...(choice.where ? { where: choice.where } : {}) } } });
     const info = await this.info(key);
-    this.o.log(`console: ${key} runtime or folder chosen by an agent`);
-    return { ok: true, runtime: info.runtime, folder: info.folder?.path ?? null };
+    this.o.log(`console: ${key} runtime, folder or place chosen by an agent`);
+    return { ok: true, runtime: info.runtime, folder: info.folder?.path ?? null, where: info.remote?.where ?? null };
   }
 
   // #region new-session — docs: docs/ux/scenarios.md#scn-101-start-a-new-session-in-a-folder

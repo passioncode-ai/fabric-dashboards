@@ -345,6 +345,12 @@ const en = {
   // FD-199: the agent is placed on another machine (FD-132), so its console runs there over ssh; copy checks 613d9dd5, 3421ae8c, 4482fe7b.
   'console.remote': 'Runs on {destination}',
   'console.remote.hint': 'This agent is placed on another machine, so its coding agent runs there, in the same folder.',
+  'console.where': 'Where the session runs',
+  'console.where.here': 'Runs on this computer',
+  'console.where.here.mac': 'Runs on this Mac',
+  'console.where.there': "Runs on the agent's machine",
+  'console.where.hereHint': 'The agent itself stays on its machine; this session runs here, in the folder on this computer.',
+  'console.where.hereHint.mac': 'The agent itself stays on its machine; this session runs here, in the folder on this Mac.',
   'console.remote.noRoute': 'This agent runs on another machine, and no port forward on this computer says how to reach it, so a session cannot open there.',
   // FD-200: what the key of the forward allows on the other machine; copy checks fff7be30, 34958a82, fac8d03c, 4bb3aad1, 6f5465b7, ebfa1b4f.
   'console.remote.view': "Your key opens only this agent's port on the other machine, so you can view and use the agent but not edit it there.",
@@ -352,7 +358,8 @@ const en = {
   'console.remote.unreachable': 'The other machine does not answer over SSH now, so a session cannot open there. Try again later.',
   'console.remote.viewOnly': 'View only',
   // FD-203: the other machine has neither the chosen folder nor the repository's checkout; copy check fe95b777.
-  'console.remote.noFolder': "The other machine has neither this folder nor the agent's repository in ~/DATA, so a session cannot open there. Press Other… and choose the folder it has.",
+  'console.remote.noFolder': "The other machine has neither this folder nor the agent's repository in ~/DATA, so a session cannot open there. Press Other… and choose the folder it has, or run the session on this computer.",
+  'console.remote.noFolder.mac': "The other machine has neither this folder nor the agent's repository in ~/DATA, so a session cannot open there. Press Other… and choose the folder it has, or run the session on this Mac.",
   'result.remote.view': '{name} runs on {machine}, and your key opens no shell there, so {command} cannot run there from this computer.',
   'result.remote.noRoute': '{name} runs on {machine}, and no port forward on this computer says how to reach it, so {command} cannot run there.',
   'console.terminalOnly': 'This folder runs on Switchboard project {name}. This Switchboard opens its sessions in Terminal.',
@@ -1407,6 +1414,12 @@ const ru: Record<Key, string> = {
   // FD-199: copy checks 40222fa0, 3f541ccb, 3fe54dbd (the no-final-full-stop suggestion kept, voice rule 2).
   'console.remote': 'Работает на {destination}',
   'console.remote.hint': 'Агент размещён на другой машине, поэтому агент для кода работает там, в той же папке.',
+  'console.where': 'Где работает сессия',
+  'console.where.here': 'Работает на этом компьютере',
+  'console.where.here.mac': 'Работает на этом Mac',
+  'console.where.there': 'Работает на машине агента',
+  'console.where.hereHint': 'Сам агент остаётся на своей машине, а эта сессия работает здесь, в папке на этом компьютере.',
+  'console.where.hereHint.mac': 'Сам агент остаётся на своей машине, а эта сессия работает здесь, в папке на этом Mac.',
   'console.remote.noRoute': 'Этот агент работает на другой машине, а на этом компьютере нет проброса порта, по которому до неё можно дойти, поэтому сессия там не откроется.',
   // FD-200: copy checks 2d3942f6, a82a6759, 91f27b76, 467bb832, 68c2e25e, 2ff8d894 (the no-final-full-stop suggestion kept, voice rule 2).
   'console.remote.view': 'Ваш ключ открывает на другой машине только порт агента: смотреть и пользоваться агентом можно, а править его там нельзя.',
@@ -1414,7 +1427,8 @@ const ru: Record<Key, string> = {
   'console.remote.unreachable': 'Другая машина сейчас не отвечает по SSH, поэтому сессия там не откроется. Попробуйте позже.',
   'console.remote.viewOnly': 'Только просмотр',
   // FD-203: copy check 7bd50c0a (DATA is the folder's name, kept in capitals).
-  'console.remote.noFolder': 'На другой машине нет ни этой папки, ни репозитория агента в ~/DATA, поэтому сессия там не откроется. Выберите папку, которая там есть, кнопкой «Другая папка…».',
+  'console.remote.noFolder': 'На другой машине нет ни этой папки, ни репозитория агента в ~/DATA, поэтому сессия там не откроется. Выберите папку, которая там есть, кнопкой «Другая папка…» или запустите сессию на этом компьютере.',
+  'console.remote.noFolder.mac': 'На другой машине нет ни этой папки, ни репозитория агента в ~/DATA, поэтому сессия там не откроется. Выберите папку, которая там есть, кнопкой «Другая папка…» или запустите сессию на этом Mac.',
   'result.remote.view': '{name} работает на машине {machine}, а ваш ключ не открывает там командную строку, поэтому {command} отсюда там не запустится.',
   'result.remote.noRoute': '{name} работает на машине {machine}, а на этом компьютере нет проброса порта, по которому до неё можно дойти, поэтому {command} там не запустится.',
   'console.terminalOnly': 'Эта папка привязана к проекту Switchboard {name}. Эта версия Switchboard открывает его сессии в Терминале.',

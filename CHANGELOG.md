@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.8.55 - 2026-11-11
+
+### Added
+
+- FD-205: the console of an agent placed on another machine can run on this Mac. A place picker in the console's header
+  (and MCP `console_choose` with `where`) switches between "Runs on {destination}" and "Runs on this Mac"; the agent
+  itself stays where it is placed, and the choice is kept per agent. For an agent whose machine cannot run a session
+  (its account there has no checkout or no coding agent), the console now starts here in the folder on this Mac.
+
 ## 0.8.54 - 2026-11-11
 
 ### Fixed

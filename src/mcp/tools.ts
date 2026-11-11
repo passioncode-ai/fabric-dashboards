@@ -747,9 +747,9 @@ export async function appUpdate(deps: Deps, action: 'check' | 'restart'): Promis
 }
 /** FD-175: the console's pickers: which coding agent runs in an agent's console, and in which folder (an existing one on
  *  this machine). Saved as the person's choice; the next New session takes them. */
-export async function consoleChoose(deps: Deps, service: string, choice: { runtime?: string; folder?: string }): Promise<Record<string, unknown>> {
+export async function consoleChoose(deps: Deps, service: string, choice: { runtime?: string; folder?: string; where?: 'here' | 'there' }): Promise<Record<string, unknown>> {
   find(deps, service);
-  if (choice.runtime === undefined && choice.folder === undefined) throw new ToolError('name runtime, folder or both');
+  if (choice.runtime === undefined && choice.folder === undefined && choice.where === undefined) throw new ToolError('name runtime, folder, where or several');
   const answer = await askChannel(deps, { op: 'console.choose', service, choice }, 'app-not-running: Fabric Dashboards is not running, so the console cannot change now; open it and call again');
   if (!answer.ok) throw new ToolError(`${answer.code}${answer.detail ? `: ${answer.detail}` : ''}`, { done: false, code: answer.code });
   return 'result' in answer ? { service, ...answer.result } : { service };

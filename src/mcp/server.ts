@@ -153,8 +153,8 @@ export const TOOLS = [
   },
   {
     name: 'console_choose',
-    description: 'The console\'s pickers for one agent (FD-175): runtime, the coding agent that runs in its console (an id such as claude-code or codex, installed on this machine), and folder, the absolute path of an existing folder it opens in. Saved as the person\'s choice; the next New session takes them. Answers the runtime and folder in force, or unknown-runtime (with the ids installed here) or no-folder. Needs the app running.',
-    inputSchema: { type: 'object', properties: { service: serviceArg, runtime: { type: 'string', maxLength: 64 }, folder: { type: 'string', maxLength: 4096 } }, required: ['service'], additionalProperties: false },
+    description: 'The console\'s pickers for one agent (FD-175): runtime, the coding agent that runs in its console (an id such as claude-code or codex, installed on this machine), and folder, the absolute path of an existing folder it opens in. For an agent placed on another machine (FD-205), where: there (the default) runs the console on that machine over ssh, here runs it on this Mac in the folder here. Saved as the person\'s choice; the next New session takes them. Answers the runtime, folder and where in force, or unknown-runtime (with the ids installed here), no-folder or not-placed-elsewhere. Needs the app running.',
+    inputSchema: { type: 'object', properties: { service: serviceArg, runtime: { type: 'string', maxLength: 64 }, folder: { type: 'string', maxLength: 4096 }, where: { type: 'string', enum: ['here', 'there'] } }, required: ['service'], additionalProperties: false },
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
   },
   {
@@ -275,7 +275,7 @@ export async function call(deps: tools.Deps, name: string, args: Args): Promise<
       return tools.sessionAction(deps, act, row, typeof args.account === 'string' ? args.account : undefined);
     }
     case 'app_update': return tools.appUpdate(deps, need(args, 'action') as 'check' | 'restart');
-    case 'console_choose': return tools.consoleChoose(deps, need(args, 'service'), { ...(typeof args.runtime === 'string' ? { runtime: args.runtime } : {}), ...(typeof args.folder === 'string' ? { folder: args.folder } : {}) });
+    case 'console_choose': return tools.consoleChoose(deps, need(args, 'service'), { ...(typeof args.runtime === 'string' ? { runtime: args.runtime } : {}), ...(typeof args.folder === 'string' ? { folder: args.folder } : {}), ...(args.where === 'here' || args.where === 'there' ? { where: args.where } : {}) });
     case 'app_install': return tools.appInstall(deps, need(args, 'action') as 'move-to-applications' | 'uninstall' | 'uninstall-all', need(args, 'confirm'));
     case 'console_new': return tools.consoleChannel(deps, { op: 'console.new', service: need(args, 'service') });
     case 'session_new': return tools.sessionNew(deps, {
