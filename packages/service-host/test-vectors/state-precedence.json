@@ -1,6 +1,6 @@
 {
   "schema": "fabric-service-host/state-precedence@1",
-  "about": "The state a host derives for one service from its descriptor, its claim conflicts, launchd, one well-known probe and the host's own action in flight. Each case is `base` with the case's `input` keys replaced (a shallow merge); `expect.state` must equal the derived state and, when given, `expect.reasons` the derived reasons exactly. Any host that reads services/ runs these cases against its own use of deriveState: Fabric Dashboards in test/core.test.ts, the package in packages/service-host/test/state.test.ts.",
+  "about": "The state a host derives for one service from its descriptor, its claim conflicts, launchd, one well-known probe and the host's own action in flight. Each case is `base` with the case's `input` keys replaced (a shallow merge); `expect.state` must equal the derived state and, when given, `expect.reasons` the derived reasons exactly. Any host that reads services/ runs these cases against its own use of deriveState: Fabric Dashboards in test/core.test.ts, the package in packages/service-host/test/state.test.ts. `attention` cases check attentionRank(state, wellKnown): `wellKnown` is a shallow override of `base.probe.doc` (null for no answer) and `expect` the rank, or null for nothing to show.",
   "downAfterMs": 15000,
   "remoteDownAfterMs": 60000,
   "base": {
@@ -321,5 +321,14 @@
       "input": { "foreignUser": "unknown", "probe": { "kind": "no-answer", "detail": "no answer within 1500 ms" }, "firstUnansweredAt": 0 },
       "expect": { "state": "foreign-user", "reasons": [{ "code": "reason.foreign.unknown", "params": { "port": 47195 } }] }
     }
+  ],
+  "attention": [
+    { "name": "down sorts first", "state": "down", "wellKnown": null, "expect": 0 },
+    { "name": "degraded", "state": "degraded", "wellKnown": {}, "expect": 6 },
+    { "name": "ready and fine: nothing to show", "state": "ready", "wellKnown": { "summary": [], "update": { "available": null } }, "expect": null },
+    { "name": "a tile asking for attention", "state": "ready", "wellKnown": { "summary": [{ "label": "Awaiting you", "value": 1, "attention": true }], "update": { "available": null } }, "expect": 7 },
+    { "name": "an update waiting", "state": "ready", "wellKnown": { "summary": [], "update": { "available": "0.2.1" } }, "expect": 8 },
+    { "name": "a tile and an update: the tile's rank, the tile comes before the update", "state": "ready", "wellKnown": { "summary": [{ "label": "Awaiting you", "value": 1, "attention": true }], "update": { "available": "0.2.1" } }, "expect": 7 },
+    { "name": "stopped: nothing to show", "state": "stopped", "wellKnown": null, "expect": null }
   ]
 }

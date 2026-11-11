@@ -22,7 +22,9 @@ export interface DrawerState { key: string | null; open: boolean; rect: Rect | n
   /** VIS-06: the colour scheme the window's page paints, so the console's terminal follows it live. */
   scheme?: 'system' | 'dark' | 'light' }
 /** FD-92: what the drawer's own page is told: which console, its height now, the area's height and a job to start. */
-export interface DrawerPush { key: string | null; height: number; areaHeight: number; task: DrawerTask | null; full?: boolean; scheme?: 'system' | 'dark' | 'light' }
+export interface DrawerPush { key: string | null; height: number; areaHeight: number; task: DrawerTask | null; full?: boolean; scheme?: 'system' | 'dark' | 'light';
+  /** Whether the drawer is shown; false once it is folded, so its page does not act as if it were seen. */
+  shown?: boolean }
 /** FD-92: what the drawer's page reports back to the window's page. */
 /** `focusOut` (VIS-05): Esc then Tab left the terminal; the window's page takes focus (`back`: Shift+Tab). */
 export type DrawerChange = { kind: 'hide' } | { kind: 'height'; height: number } | { kind: 'taskTaken'; nonce: number } | { kind: 'focusOut'; back: boolean };
@@ -187,7 +189,7 @@ export interface FabricApi {
   /** FD-124: shows the session's transcript in Finder, the path Switchboard's launch record names; the page never sees it. */
   sessionsRevealTranscript(id: string): Promise<SessionActionResult>;
   /** Switchboard's own switch for handing sessions over to this app (`handovers set on|off`), read and written through its CLI. */
-  sessionsHandovers(): Promise<{ available: boolean; enabled: boolean | null }>;
+  sessionsHandovers(): Promise<{ available: boolean; enabled: boolean | null; old?: boolean }>;
   setSessionsHandovers(on: boolean): Promise<{ ok: boolean; enabled: boolean | null; detail?: string }>;
   /** FD-117: Switchboard's default and fallback coding agents and their models; `absent` when Switchboard is not installed. */
   fallback(): Promise<FallbackRead | { kind: 'absent' }>;

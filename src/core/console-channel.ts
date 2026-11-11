@@ -173,7 +173,8 @@ const AGENT_KEY = /^[a-z0-9][a-z0-9-]{0,62}\.[a-z0-9][a-z0-9-]{0,62}$/;
 export function openConsolesOf(rows: readonly SessionRow[], resumed: (consoleKey: string) => string | null): OpenConsole[] {
   const out: OpenConsole[] = [];
   for (const r of rows) {
-    if (r.group !== 'running' || !r.key) continue;
+    // Scenario walk 2026-11-11 (SCN-096): a continue that did not take up its conversation still runs in a console here.
+    if ((r.group !== 'running' && r.state !== 'needs-you-resume-failed') || !r.key) continue;
     const own = r.launch?.providerSessionId ?? null;
     const back = resumed(r.key);
     const fromTranscript = r.launch?.transcript ? path.basename(r.launch.transcript).replace(/\.jsonl$/, '') : '';

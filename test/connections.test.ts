@@ -110,3 +110,11 @@ test('FD-155: a part waiting for setup gives a declared connection its reason bu
   assert.deepEqual([by('adspower').state, by('adspower').reason], ['unknown', 'AdsPower is closed'], 'setup: as declared');
   assert.equal(by('database').state, 'degraded', 'a real failure still marks it');
 });
+
+// Scenario walk 2026-11-11 (SCN-068): a malformed configuration (one a cached or test snapshot still carries) draws no
+// runner and throws nothing; before, `models.join` threw on a non-list.
+test('SCN-068: a malformed configuration draws no runner and does not throw', () => {
+  const a = svc('cfg.default', 'ready', undefined, { configuration: { slots: 'runner', resolved: { runnerKind: 'claude-code', models: 'one' } } });
+  const g = buildGraph(a, [a]);
+  assert.equal(g.uses.some((n) => n.kind === 'runner'), false);
+});

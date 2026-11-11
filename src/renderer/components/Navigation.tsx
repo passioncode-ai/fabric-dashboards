@@ -2,7 +2,7 @@
 // lists every coding session of this computer by what it needs. The switch above them says which is shown.
 import { useEffect, useRef, useState } from 'react';
 import type { AppStatus, ListSort, Settings as AppSettings, SettingsPatch } from '../../core/types';
-import { moveInSection, type MoveSection, type Product } from '../../core/products';
+import { moveInSection, offProducts, type MoveSection, type Product } from '../../core/products';
 import { groupByOrganization, kindCounts, ORG_KINDS, ORG_MINE, ORG_OTHERS, ORG_SHARED, organizationCounts } from '../../core/organizations';
 import type { SessionGroup, SessionRow } from '../../core/sessions';
 import { groupRows, navLines, stateShort, waitingForYou } from '../../core/sessions-view';
@@ -100,13 +100,13 @@ export function AgentsNav({ page, status, everyAgent, arranged, products, curren
   const { t } = useT();
   const { pinned, hidden } = arranged;
   // FD-123: agents turned off are on disk but not watched; they sit greyed at the end of Hidden.
-  const off = status.off ?? [];
+  const off = offProducts(status.off ?? []); // Scenario walk 2026-11-11 (SCN-072): one row per agent, not per instance
   const hiddenCount = hidden.length + off.length;
   // FD-121 (SCN-087): one drag at a time, within one section; what a screen reader hears after a move.
   const [drag, setDrag] = useState<{ section: MoveSection; id: string; dropAt: number | null } | null>(null);
   const [said, setSaid] = useState('');
   const move = (section: MoveSection, id: string, to: number) => {
-    const patch = moveInSection(arranged, section, id, to);
+    const patch = moveInSection(arranged, section, id, to, layout.list.pinned, layout.list.order); // Scenario walk 2026-11-11 (SCN-056): keep the pins not shown
     if (!patch) return;
     changeLayout({ list: patch });
     const p = arranged[section].find((x) => x.id === id);

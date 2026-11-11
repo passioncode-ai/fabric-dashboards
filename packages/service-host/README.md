@@ -30,6 +30,7 @@ Private to this repository's workspace and not published to npm; see
 | `…/usage` | `checkUsage`, `summarizeUsage` and the usage-report shapes | none — safe in a renderer |
 | `…/connections` | `connectionsOf` and the declared-connections shapes (FD-78) | none, safe in a renderer |
 | `…/load` | `loadOf`, `loadReportProblems`, `summarizeLoad` and the load shapes (FD-93) | none, safe in a renderer |
+| `…/configuration` | `configurationOf`, `configurationProblem`: the well-known `configuration` checked; an invalid one reads as absent | none, safe in a renderer |
 | `…/actions` | `actionsOf`, `actionDeclarationErrors` and the declared-action shapes (FD-110) | none, safe in a renderer |
 | `…/test-vectors/state-precedence.json` | the shared state-precedence vectors | — |
 
@@ -174,7 +175,8 @@ an online placement never reads it. `placedElsewhere(reasons)` names the machine
 place it on, or `null`.
 
 `attentionRank(state, wellKnown)` sorts what needs a person first (`down` first; `null` for
-nothing to show).
+nothing to show): down 0, duplicate 1, foreign 2, conflict 3, invalid 4, degraded 6, a tile asking
+for attention 7, an update waiting 8 (a tile before an update when the agent has both).
 
 ## Placement
 
@@ -348,7 +350,7 @@ port of the contract's `actionsView` and `actionsExtensionRules`, run on the con
 
 `test-vectors/state-precedence.json` (`fabric-service-host/state-precedence@1`): a `base` input
 and its cases, each a shallow override of `base` with the expected state and, where it matters,
-the exact reasons. `loadStateVectors()` reads it from the installed package. The package runs
+the exact reasons; its `attention` cases check `attentionRank` the same way. `loadStateVectors()` reads it from the installed package. The package runs
 them (`test/state.test.ts`), Fabric Dashboards runs them through its own import
 (`test/core.test.ts`), and a consumer runs the same file against its own use of `deriveState`:
 

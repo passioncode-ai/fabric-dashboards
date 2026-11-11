@@ -29,7 +29,7 @@ import type { SettingsStore } from '../core/settings';
 import { accountsOf, allSessionsOf, bindingFor, findSwitchboard, handoverOwnKey, handoverRunArgv, handoversOf, handoversSwitch, isHandoverKey, launchFeatures, managesProvider, sbFailure, sessionsIn, terminalLaunchArgv, type Binding, type SbHandover, type SbSessions } from '../core/switchboard';
 import type { ServiceSnapshot } from '../core/types';
 import { claimStop, continuedOf, finishStop, liveAgents, recoveryOf, resumeArgs, resumeOwnKey, sessionOpen, transcriptIn, transcriptOf, verdictOf, writtenAt, RESUME_SETTLE_MS, RESUMES_PER_PASS, type RecoveryStatus, type SbStop, type StopView } from '../core/recovery';
-import { consoleRowId, handoverRowId, mergeSessions, pruneDismissed, pruneRecords, SourceReader, stopRowId, type ConsoleInput, type PendingHandover, type SbSessionRecord, type SessionActionResult, type SessionReason, type SessionRecord, type SessionNotice, type SessionRow, type SessionsStatus, type SourceDegraded } from '../core/sessions';
+import { consoleRowId, handoverRowId, mergeSessions, pruneDismissed, pruneRecords, SourceReader, stopRowId, type ConsoleInput, type PendingHandover, type SbSessionRecord, type SessionActionResult, type SessionReason, type SessionRecord, type SessionNotice, type SessionOrigin, type SessionRow, type SessionsStatus, type SourceDegraded } from '../core/sessions';
 
 /** node-pty 1.1.0 ships its macOS `spawn-helper` without the executable bit, and its postinstall
  *  does not set it: without it every spawn fails with `posix_spawnp failed`. A development checkout
@@ -175,7 +175,10 @@ export class ConsoleHost {
   /** R1-U6: an unreadable recovery since its first failure, like the hand-overs' (a status that changes every tick is
    *  pushed every tick). */
   private recoveryDegraded: SourceDegraded | null = null;
-  private switchboardPresent = false;
+  /** Scenario walk 2026-11-11 (SCN-078): null until the first inventory answers, so a launch never says "not installed" for a Switchboard it has not looked for yet. */
+  private switchboardPresent: boolean | null = null;
+  /** Scenario walk 2026-11-11 (SCN-084): the origin a continued session keeps, by console key. */
+  private readonly originOf = new Map<string, SessionOrigin>();
   private readonly sbSessions = new SourceReader<SbSessionRecord[]>('sessions', async () => {
     const inv = await this.inventory();
     this.switchboardPresent = Boolean(inv.switchboard);
@@ -292,7 +295,12 @@ export class ConsoleHost {
     if (!d) return null;
     const commandPaths = Object.values(d.commands ?? {}).map((argv) => String(argv?.[0] ?? '')).filter(Boolean).map(expandHome);
     const found = findCheckout({ repository: d.source?.repository, commandPaths });
-    return found ? { path: found, source: 'found', exists: true } : null;
+    if (found) return { path: found, source: 'found', exists: true };
+    // Scenario walk 2026-11-11 (SCN-103): an agent placed on another machine needs no checkout here; its folder there is
+    // the repository's name under the projects folder of that home, as the move lays it out.
+    const name = /([^/]+?)(?:\.git)?\/?$/.exec(d.source?.repository ?? '')?.[1];
+    if (name && this.o.placedElsewhere?.(key)) return { path: path.join(this.o.home ?? os.homedir(), 'DATA', name), source: 'found', exists: false };
+    return null;
   }
 
   private chosen(key: string, runtimes: Runtime[]): Runtime | null {
@@ -717,7 +725,9 @@ export class ConsoleHost {
     this.claiming.set(stop.event, { stop, sb });
     const claim = await claimStop(this.run, sb, stop, account).finally(() => this.claiming.delete(stop.event));
     if (!claim.ok) {
-      this.actedStops.set(stop.event, view('failed'));
+      // Scenario walk 2026-11-11 (SCN-083): a Continue now the person pressed that was refused leaves the stop waiting, so
+      // another account can be tried; only an automatic continue that failed is recorded as failed.
+      if (automatic) this.actedStops.set(stop.event, view('failed'));
       this.o.log(`console: limit stop ${stop.event} not claimed: ${claim.detail}`);
       this.showActed();
       return null;
@@ -746,7 +756,7 @@ export class ConsoleHost {
     }
     if (!r.ok) {
       await this.finish(stop, sb, 'cancelled');
-      this.actedStops.set(stop.event, view('failed'));
+      if (automatic) this.actedStops.set(stop.event, view('failed')); // SCN-083: a refused manual continue stays waiting
       this.o.log(`console: limit stop ${stop.event} claimed but not started in ${key}: ${r.error}; recorded as cancelled`);
       this.showActed();
       return null;
@@ -843,7 +853,7 @@ export class ConsoleHost {
     }
     this.keep({
       id: consoleRowId(key, snap.startedAt), key, folder: h?.dir ?? snap.cwd, agent: h?.agent || snap.label || 'agent', account: h?.account || null, context: null,
-      origin: h ? (resumed ? 'resume' : 'handover') : 'here', end, reason: null, startedAt: snap.startedAt, endedAt: now,
+      origin: this.originOf.get(key) ?? (h ? (resumed ? 'resume' : 'handover') : 'here'), end, reason: null, startedAt: snap.startedAt, endedAt: now,
       sessionId: known?.sessionId ?? null, provider: known?.provider ?? providerOf(h?.agent ?? snap.label), handoverId: h && !resumed ? h.id : null,
       paid: h && !resumed ? h.paid : null,
     });
@@ -894,16 +904,19 @@ export class ConsoleHost {
       const resumed = this.resumedKeys.has(key);
       return {
         key, folder: h?.dir ?? snap.cwd, agent: h?.agent || snap.label || 'agent', startedAt: snap.startedAt ?? now,
-        origin: h ? (resumed ? 'resume' : 'handover') : 'here', account: h?.account || null,
+        origin: this.originOf.get(key) ?? (h ? (resumed ? 'resume' : 'handover') : 'here'), account: h?.account || null,
         failedResume: this.failedResumes.has(key), handoverId: h && !resumed ? h.id : null, paid: h && !resumed ? h.paid : null,
       };
     });
     const rows = mergeSessions({
-      now, switchboard: this.sbSessions.value ?? (this.switchboardPresent ? null : []), pending: this.pending,
+      now, switchboard: this.sbSessions.value ?? (this.switchboardPresent === false ? [] : null), pending: this.pending,
       stops: this.recovery.stops, consoles, records: m.records, dismissed: m.dismissed,
     });
     // V-5 of FIX-2: an ended row whose console holds nothing (the app restarted since) says so on its page.
     for (const r of rows) if (r.group === 'ended' && r.key && this.manager.snapshot(r.key).state === 'idle') r.consoleEmpty = true;
+    // Scenario walk 2026-11-11 (SCN-084 alt): an ended session whose folder is gone from this Mac offers no Continue that
+    // would only fail; its row says why instead.
+    for (const r of rows) if (r.group === 'ended' && r.actions.includes('continue') && r.folder && !isDir(r.folder)) { r.actions = r.actions.filter((a) => a !== 'continue'); r.reason ??= 'no-folder'; }
     // FD-137 (SCN-092): a session Fabric started for a board request belongs to the agent in whose folder it ran.
     for (const r of rows) if (r.launch?.by.surface === 'fabric') { const k = this.agentOfFolder(r.folder, now); if (k) r.agentKey = k; }
     const degraded = [this.sbSessions.degraded, this.handoverDegraded, this.recoveryDegraded].filter((d): d is SourceDegraded => d !== null);
@@ -987,6 +1000,8 @@ export class ConsoleHost {
       if (!r.ok) return r.reason === 'admission' ? { ok: false, reason: 'admission', detail: r.why } : { ok: false, reason: r.reason, detail: r.detail };
     }
     this.handoverOf.set(key, before);
+    // Scenario walk 2026-11-11 (SCN-084 step 2): Continue keeps the row's origin (started by Switchboard stays so).
+    if (row.origin === 'switchboard' || row.origin === 'handover') this.originOf.set(key, row.origin); else this.originOf.delete(key);
     if (resumed) this.resumedKeys.add(key); else this.resumedKeys.delete(key);
     if (id.startsWith('st:')) await this.undecline(id, key, inv.switchboard, tookUp);
     else this.forgetRow(id);
@@ -1136,9 +1151,17 @@ export class ConsoleHost {
   }
 
   /** FD-103: Switchboard's switch for handing sessions over to a console, as last read with the hand-overs. */
-  async readHandoversSwitch(): Promise<{ available: boolean; enabled: boolean | null }> {
+  async readHandoversSwitch(): Promise<{ available: boolean; enabled: boolean | null; old?: boolean }> {
     const inv = await this.inventory();
-    return { available: Boolean(inv.switchboard), enabled: inv.switchboard ? this.handoversEnabled : null };
+    if (!inv.switchboard) return { available: false, enabled: null };
+    // Scenario walk 2026-11-11 (SCN-086): not read yet (the first poll) or the last read failed: read it now, and say
+    // "update Switchboard" only when Switchboard itself says it is too old.
+    if (this.handoversEnabled === null) {
+      const r = await handoversOf(this.run, inv.switchboard);
+      if ('enabled' in r) this.handoversEnabled = r.enabled;
+      else return { available: true, enabled: null, old: r.unavailable === 'old' };
+    }
+    return { available: true, enabled: this.handoversEnabled };
   }
 
   /** FD-103: turns Switchboard's switch on or off through its CLI, then reads it back. */

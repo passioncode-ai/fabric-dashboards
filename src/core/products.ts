@@ -118,6 +118,13 @@ export function setOff(list: Pick<ListLayout, 'hidden' | 'off'>, id: string, off
     : { off: list.off.filter((x) => x !== id), hidden: [...list.hidden] };
 }
 
+/** Scenario walk 2026-11-11 (SCN-072 step 4): agents turned off, one entry per product, as lists show them; the
+ *  monitor names each service, so an agent with two instances would be listed twice. */
+export function offProducts<T extends { product: string }>(off: readonly T[]): T[] {
+  const seen = new Set<string>();
+  return off.filter((o) => !seen.has(o.product) && Boolean(seen.add(o.product)));
+}
+
 /** FD-123: show a hidden agent again; one that was off is turned on, since only a hidden agent can be off. */
 export function showAgain(list: Pick<ListLayout, 'hidden' | 'off'>, id: string): Pick<ListLayout, 'hidden' | 'off'> {
   return { hidden: list.hidden.filter((x) => x !== id), off: list.off.filter((x) => x !== id) };
@@ -139,7 +146,7 @@ export type MoveSection = 'pinned' | Category | 'hidden';
 /** FD-121 (SCN-087): move one agent to `to` (its index in the section as shown) and say what to store. Pinned keeps its
  *  own order (the pin order); any other section freezes what the person sees, every section, into their own order and
  *  turns the sort to `manual`, so nothing else on screen jumps. An agent not in that section, or no move, is null. */
-export function moveInSection(arranged: Arranged, section: MoveSection, id: string, to: number): Partial<ListLayout> | null {
+export function moveInSection(arranged: Arranged, section: MoveSection, id: string, to: number, pinned?: readonly string[], order?: readonly string[]): Partial<ListLayout> | null {
   const ids = arranged[section].map((p) => p.id);
   const from = ids.indexOf(id);
   if (from < 0) return null;
@@ -148,9 +155,24 @@ export function moveInSection(arranged: Arranged, section: MoveSection, id: stri
   const moved = [...ids];
   moved.splice(from, 1);
   moved.splice(target, 0, id);
-  if (section === 'pinned') return { pinned: moved };
+  // Scenario walk 2026-11-11 (SCN-056, SCN-072 step 3): `pinned`, the stored pin list, also holds pins of agents not
+  // shown (hidden, outside the organization filter, not installed now); they keep their places and the shown ones are
+  // reordered among themselves, so a move never erases a pin.
+  if (section === 'pinned') {
+    if (!pinned) return { pinned: moved };
+    const shown = new Set(ids);
+    let next = 0;
+    return { pinned: pinned.map((x) => (shown.has(x) ? moved[next++]! : x)) };
+  }
   const of = (c: Exclude<MoveSection, 'pinned'>) => (c === section ? moved : arranged[c].map((p) => p.id));
-  return { sort: 'manual', order: [...of('local'), ...of('online'), ...of('service'), ...of('hidden')] };
+  const visible = [...of('local'), ...of('online'), ...of('service'), ...of('hidden')];
+  // Scenario walk 2026-11-11 (SCN-072): the same for a manual order: agents not shown now (outside the organization
+  // filter, not installed) keep their places in the stored order; the shown ones take the new order among themselves.
+  if (!order?.length) return { sort: 'manual', order: visible };
+  const shown = new Set(visible);
+  let next = 0;
+  const kept = order.map((x) => (shown.has(x) ? visible[next++]! : x)).filter((x) => x !== undefined);
+  return { sort: 'manual', order: [...kept, ...visible.slice(next)] };
 }
 // #endregion list-move
 

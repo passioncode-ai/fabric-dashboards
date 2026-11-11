@@ -354,7 +354,8 @@ const en = {
   'result.remote.view': '{name} runs on {machine}, and your key opens no shell there, so {command} cannot run there from this computer.',
   'result.remote.noRoute': '{name} runs on {machine}, and no port forward on this computer says how to reach it, so {command} cannot run there.',
   'console.terminalOnly': 'This folder runs on Switchboard project {name}. This Switchboard opens its sessions in Terminal.',
-  'console.sbError': 'Switchboard did not answer, so the session was not started: {detail}',
+  // Scenario walk 2026-11-11 (SCN-050): also a refusal Switchboard answered (a rule with no account), so not "did not answer"; copy check 45536e96.
+  'console.sbError': 'Switchboard did not start the session: {detail}',
   'console.spawnError': 'The coding agent could not start: {detail}',
   'console.terminalFailed': 'Terminal could not open: {detail}',
   'console.continueUnsupported': 'Switchboard opens a new session in Terminal; it cannot continue the last one.',
@@ -880,6 +881,8 @@ const en = {
   'app.event.down': '{name} stopped answering.',
   'app.event.back': '{name} is back after {duration}.',
   'app.event.duplicate': '{name} runs as two copies (pid {answering} and pid {launchd}).',
+  // Scenario walk 2026-11-11: copy checks 80452199, f7356d3e (en), 15f1aacd, d7244963 (ru, the no-final-full-stop suggestion kept).
+  'app.event.duplicate.elsewhere': '{name} runs here too while it is placed on {machine}.',
   'app.event.foreign': 'Another program answers on {name}\'s port.',
   'app.event.foreignUser': 'A program of another user of this computer answers on {name}\'s port.',
   'app.event.foreignUser.mac': 'A program of another macOS user answers on {name}\'s port.',
@@ -992,6 +995,8 @@ const en = {
   'update.retry': 'Retry',
   'update.misplaced': 'Updates install only from the Applications folder.',
   'view.loadError': 'The page of {name} could not load: {error}. Press Retry; if it repeats, restart the agent.',
+  // Scenario walk 2026-11-11 (SCN-068): a tab that failed to draw an agent's answer, instead of a blank window.
+  'view.paneError': 'This tab of {name} could not be shown: {error}. The other tabs still work, and it is shown again with the next answer.',
   'svc.tools': 'Tools',
   'svc.tools.more': '+{count} more',
   'svc.tools.fewer': 'Show fewer',
@@ -1409,7 +1414,8 @@ const ru: Record<Key, string> = {
   'result.remote.view': '{name} работает на машине {machine}, а ваш ключ не открывает там командную строку, поэтому {command} отсюда там не запустится.',
   'result.remote.noRoute': '{name} работает на машине {machine}, а на этом компьютере нет проброса порта, по которому до неё можно дойти, поэтому {command} там не запустится.',
   'console.terminalOnly': 'Эта папка привязана к проекту Switchboard {name}. Эта версия Switchboard открывает его сессии в Терминале.',
-  'console.sbError': 'Switchboard не ответил, поэтому сессия не запущена: {detail}',
+  // Scenario walk 2026-11-11: copy check 61c3904a.
+  'console.sbError': 'Switchboard не запустил сессию: {detail}',
   'console.spawnError': 'Агент для кода не запустился: {detail}',
   'console.terminalFailed': 'Не удалось открыть Терминал: {detail}',
   'console.continueUnsupported': 'Switchboard открывает в Терминале новую сессию и не может продолжить последнюю.',
@@ -1934,6 +1940,7 @@ const ru: Record<Key, string> = {
   'app.event.down': 'Агент {name} перестал отвечать.',
   'app.event.back': 'Агент {name} снова отвечает после {duration} простоя.',
   'app.event.duplicate': '{name} работает в двух копиях (pid {answering} и pid {launchd}).',
+  'app.event.duplicate.elsewhere': '{name} работает и здесь, хотя размещён на машине {machine}.',
   'app.event.foreign': 'На порту {name} отвечает другая программа.',
   'app.event.foreignUser': 'На порту {name} отвечает программа другого пользователя этого компьютера.',
   'app.event.foreignUser.mac': 'На порту {name} отвечает программа другого пользователя macOS.',
@@ -2046,6 +2053,7 @@ const ru: Record<Key, string> = {
   'update.retry': 'Повторить',
   'update.misplaced': 'Обновления устанавливаются только из папки «Программы».',
   'view.loadError': 'Страница {name} не загрузилась: {error}. Нажмите «Повторить»; если не поможет, перезапустите агента.',
+  'view.paneError': 'Эта вкладка {name} не показалась: {error}. Другие вкладки работают, а эта покажется снова со следующим ответом.',
   'svc.tools': 'Инструменты',
   'svc.tools.more': 'ещё {count}',
   'svc.tools.fewer': 'Свернуть',

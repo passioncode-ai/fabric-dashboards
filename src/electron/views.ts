@@ -210,8 +210,12 @@ export class ServiceViews {
       entry.loadedOnce = false;
       entry.loadedAt = 0;
       const now = next.recreate ? this.live(snap.key) : null;
-      if (now) void this.load(now);
-      else this.emit({ key: snap.key, kind: 'crashed' });
+      if (now) {
+        // Scenario walk 2026-11-11 (SCN-015): back on the page that crashed, not the dashboard's home, and a load that
+        // fails says so as any other load does, instead of leaving a dead view.
+        const link = now.descriptor ? resumePath(wc.getURL(), now.descriptor.origin) : undefined;
+        void this.load(now, link).then((r) => { if (!r.ok) this.emit({ key: snap.key, kind: 'error', error: r.error }); });
+      } else this.emit({ key: snap.key, kind: 'crashed' });
     });
     this.views.set(snap.key, entry);
     return entry;
@@ -256,7 +260,9 @@ export class ServiceViews {
     const dash = snap.wellKnown?.surfaces.dashboard;
     if (!dash) return { ok: false, error: 'no dashboard', stage: 'page' };
     if (!(await this.ownerOk(d.origin))) return { ok: false, error: 'unavailable', stage: 'page' }; // FD-159
-    let stage: ShowResult['stage'] = dash.login ? 'sign-in' : 'page';
+    // Scenario walk 2026-11-11 (SCN-016, SCN-031): 'page' until the token is read. The warm reopen below loads the page
+    // without signing in, so its failure is a page that would not load, never a sign-in error naming the token file.
+    let stage: ShowResult['stage'] = 'page';
     await this.fabricCookie(snap.key, d.origin);
     await this.appearanceCookie(snap.key, d.origin);
     const page = async (url: string) => {
@@ -279,6 +285,7 @@ export class ServiceViews {
       }
       if (dash.login) {
         entry.directAt = 0;
+        stage = 'sign-in'; // Scenario walk 2026-11-11 (SCN-016): the sign-in starts here, with the token's read
         const token = await readTokenAsync(d.auth.tokenFile); // main process only
         url = await loginUrl(d, token);
         if (!current()) return { ok: true };

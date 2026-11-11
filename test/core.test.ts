@@ -3,7 +3,7 @@
 // Fabric runs — packages/service-host/test-vectors/state-precedence.json, AR-2.2).
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { deriveState, DOWN_AFTER_MS, loadStateVectors, type StateInput } from '@passioncode-ai/fabric-service-host';
+import { attentionRank, deriveState, DOWN_AFTER_MS, loadStateVectors, type StateInput } from '@passioncode-ai/fabric-service-host';
 import { Launchd, type Runner } from '../src/core/launchd';
 import { DOWN_AFTER_MS as MONITOR_GRACE } from '@passioncode-ai/fabric-service-host/state';
 
@@ -51,6 +51,10 @@ test('the shared state-precedence vectors hold for the app', () => {
     assert.equal(out.state, c.expect.state, c.name);
     if (c.expect.reasons) assert.deepEqual(out.reasons, c.expect.reasons, c.name);
   }
+  // Scenario walk 2026-11-11 (SCN-006): the shared attention ranks, through the app's own import.
+  const doc = (vectors.base.probe as { doc: NonNullable<Parameters<typeof attentionRank>[1]> }).doc;
+  assert.ok((vectors.attention ?? []).length > 0);
+  for (const c of vectors.attention ?? []) assert.equal(attentionRank(c.state, c.wellKnown ? { ...doc, ...c.wellKnown } : null), c.expect, c.name);
 });
 
 test('F-1: an installed copy moves only forward — the feed\'s version must be newer', async () => {

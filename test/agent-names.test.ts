@@ -256,3 +256,24 @@ test('FD-177: a read that changes nothing is counted, not logged; a failure, the
   await old.refresh([REPO]);
   assert.equal(plain.length, 2, 'without quiet, every read is logged as before (the MCP server)');
 });
+
+// Scenario walk 2026-11-11 (SCN-090): over MCP, the agent's own name gives it back (as the Rename dialog does): the
+// stored name is removed, never replaced by a copy of the name the agent already has.
+test('SCN-090: MCP rename to the agent\'s own name removes the stored name', async () => {
+  const dir = tmp('fd-names-own-');
+  const services = path.join(dir, 'services');
+  const userData = path.join(dir, 'app');
+  fs.mkdirSync(services);
+  fs.mkdirSync(userData);
+  fs.writeFileSync(path.join(services, `${KEY}.json`), JSON.stringify(DESCRIPTOR));
+  const gh = fakeGithub();
+  const deps = {
+    servicesDir: () => services, settingsFile: () => path.join(userData, 'settings.json'), ghRun: gh.run, gh: async () => '/fake/gh',
+  } as unknown as tools.Deps;
+  await tools.rename(deps, KEY, 'Another name');
+  assert.equal(gh.store.size, 1, 'the name is stored');
+  const out = await tools.rename(deps, KEY, `  ${DESCRIPTOR.name} `);
+  assert.equal(out.name, DESCRIPTOR.name);
+  assert.equal(gh.store.size, 0, 'the file with no name left is removed, not given the own name');
+  assert.equal(gh.writes.at(-1)?.method, 'DELETE');
+});

@@ -163,10 +163,10 @@ export function AllSessions({ sessions, noteSeen, onNoteSeen, onSetUp, endedOpen
           </div>
         </section>
       )}
-      {!sessions && <p className="muted row" role="status"><span className="spinner" aria-hidden="true" /> {t('sessions.reading')}</p>}
-      {sessions && !sessions.switchboard && <p className="notice" role="status">{`${t('sessions.noSwitchboard')} ${t('sessions.note.install')}`}</p>}
+      {(!sessions || sessions.switchboard === null) && <p className="muted row" role="status"><span className="spinner" aria-hidden="true" /> {t('sessions.reading')}</p>}
+      {sessions && sessions.switchboard === false && <p className="notice" role="status">{`${t('sessions.noSwitchboard')} ${t('sessions.note.install')}`}</p>}
       {sessions?.switchboard && failing && <p className="notice warning" role="status">{t('sessions.degraded', { time: clock(lang, failing.since) })}</p>}
-      {sessions && rows.length === 0 && <div className="empty"><p>{t('sessions.empty')}</p></div>}
+      {sessions && sessions.switchboard !== null && rows.length === 0 && <div className="empty"><p>{t('sessions.empty')}</p></div>}
       {groups.map(({ group, rows: list }) => {
         const heading = t(`sessions.group.${group}`, { n: list.length });
         const folded = group === 'ended' && !endedOpen;

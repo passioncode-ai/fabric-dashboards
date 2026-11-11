@@ -175,7 +175,7 @@ export interface ConsoleInput {
   folder: string;
   agent: string;
   startedAt: number;
-  origin: 'handover' | 'resume' | 'here';
+  origin: SessionOrigin; // Scenario walk 2026-11-11 (SCN-084): a continued row keeps where it came from
   account: string | null;
   /** A session continued after a limit that did not take up its conversation (FD-84) and still runs. */
   failedResume?: boolean;
@@ -229,7 +229,7 @@ export interface SessionsStatus {
   rows: SessionRow[];
   degraded: SourceDegraded[];
   /** Whether Switchboard is installed; without it only this app's own consoles are listed. */
-  switchboard: boolean;
+  switchboard: boolean | null; // null: not looked for yet (SCN-078)
   /** Switchboard's switch for handing sessions over to a console (`handovers set on|off`); null until read. */
   handovers: { enabled: boolean | null };
   /** Settings → Sessions → "Continue sessions after a limit reset" (SCN-083: a waiting row says when it is off). */
@@ -409,6 +409,7 @@ export function mergeSessions(i: MergeInput): SessionRow[] {
   // here, or that this app failed to continue, is Ended "Cannot be continued here", with Remove, and is not counted. One
   // another host claimed is not listed. A resumed one, or a failed one whose console still runs, is that console's row; a
   // declined one is its ended record (above).
+  const recordKeys = new Set(pruneRecords(i.records, i.now).map((r) => r.key).filter((k): k is string => Boolean(k)));
   const latest = new Map<string, StopInput>();
   for (const s of i.stops) {
     const was = latest.get(s.session);
@@ -417,7 +418,9 @@ export function mergeSessions(i: MergeInput): SessionRow[] {
   for (const s of latest.values()) {
     if (s.verdict === 'resumed' || s.verdict === 'claimed' || s.verdict === 'open' || s.verdict === 'old' || s.verdict === 'continued') continue;
     if (!(i.now - s.stoppedAt <= SESSION_KEEP_MS)) continue; // older than a day, or a time Switchboard did not give
-    if (s.verdict === 'failed' && s.key && consoleKeys.has(s.key)) continue;
+    // Scenario walk 2026-11-11 (SCN-082): a failed continue whose console already ended is that console's ended record,
+    // with Continue; listing the stop too showed one session twice, as ended and as "cannot be continued here".
+    if (s.verdict === 'failed' && s.key && (consoleKeys.has(s.key) || recordKeys.has(s.key))) continue;
     // V-1 of FIX-2: a stop is "stopped by a limit on" the account it stopped on, never "continued after a limit reset".
     const common = { id: stopRowId(s.event), key: s.key ?? null, folder: s.dir, agent: s.provider === 'codex' ? 'codex' : 'claude-code', account: s.account ?? null, context: null, origin: 'limit' as const, startedAt: s.stoppedAt || null, endedAt: null };
     if (s.verdict === 'waiting' || s.verdict === 'resume') {

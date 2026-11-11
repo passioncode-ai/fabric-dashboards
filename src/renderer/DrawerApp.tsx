@@ -61,6 +61,7 @@ export function DrawerApp() {
         onDrag={(active) => api().drawerDrag(active)}
         onHide={() => api().drawerChange({ kind: 'hide' })}
         task={task}
+        active={push.shown !== false}
         onTaskTaken={() => { if (push.task) { taken.current = push.task.nonce; api().drawerChange({ kind: 'taskTaken', nonce: push.task.nonce }); } }}
       />
     </LangContext.Provider>

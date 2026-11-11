@@ -42,7 +42,7 @@ import { continuedOf, liveAgents, recoveryOf, transcriptOf, verdictOf } from '..
 import { findSwitchboard } from '../core/switchboard';
 import { searchDirs } from '../core/runtimes';
 import type { StopView } from '../core/types';
-import { AgentNameStore, customNameOf, findGh, readNamesCache } from '../core/agent-names';
+import { AgentNameStore, cleanName, customNameOf, findGh, readNamesCache } from '../core/agent-names';
 import { isShared, keepsOrganization, organizationOfInstance, sharedProducts, type Organization } from '../core/organizations';
 import { readOrganizations } from '../core/organization-store';
 
@@ -319,7 +319,10 @@ export async function rename(deps: Deps, key: string, name: string | null): Prom
     file, run: deps.ghRun ?? execRunner,
     gh: deps.gh ?? (async () => findGh(searchDirs((process.env.PATH ?? '').split(path.delimiter).filter(Boolean)))),
   });
-  const res = await store.rename(key, entry.descriptor.source?.repository, name);
+  // Scenario walk 2026-11-11 (SCN-090): the agent's own name is a removal, as the Rename dialog does, never a stored
+  // copy of the name it already has.
+  const wanted = name !== null && cleanName(name) === entry.descriptor.name ? null : name;
+  const res = await store.rename(key, entry.descriptor.source?.repository, wanted);
   if (!res.ok) throw new ToolError(res.error);
   const own = entry.descriptor.name;
   return { service: key, name: displayName(res.names[key] ?? own, entry.descriptor.instance), own_name: own, repository: entry.descriptor.source!.repository!, commit: res.commit, changed: res.commit !== null };

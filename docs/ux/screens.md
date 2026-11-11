@@ -188,7 +188,7 @@
   | no runtime | none installed | none | "No supported coding agent is installed. Looked for: …" with the list |
   | no folder | no checkout found, or the folder is gone | — | "Choose the folder this agent's code lives in" + "Choose folder…" |
   | switchboard project, not in place | a project folder; Switchboard without `--in-place` | — | the explanation + "Open in Terminal via Switchboard"; no start in the panel |
-  | switchboard error | Switchboard did not answer | — | "Switchboard did not answer; the session was not started" |
+  | switchboard error | Switchboard did not start it | — | "Switchboard did not start the session: {detail}" |
   | folded | folded by the person (the fold arrow, or "Console" in the bar) | none | nothing drawn; the session keeps running |
 - **Coverage:** src/renderer/components/ConsolePanel.tsx (the `page` mode on a session's page), src/electron/console.ts, src/core/consoles.ts
 - **Scenarios:** SCN-048, SCN-049, SCN-050, SCN-066, SCN-069, SCN-080

@@ -82,7 +82,7 @@ export function App() {
     });
     const offStatus = api().onStatus(setStatus);
     // FD-122: what an agent arranged through MCP shows at once; a drag in progress is not undone (R-9 holds for writes).
-    const offSettings = api().onSettings((s) => { setLayout(s.layout); applyTheme(s.theme); setScheme(s.theme); });
+    const offSettings = api().onSettings((s) => { setLayout(s.layout); applyTheme(s.theme); setScheme(s.theme); reloadLang(); }); // and the language (SCN-098)
     const go = (target: NavTarget) => {
       navigated.current = true;
       if (target.page === 'agents') switchMode('agents');
@@ -290,9 +290,11 @@ function Shell({ status: everyAgent, route, setRoute, mode, switchMode, stopKey,
     setAgentTask({ key, mode: 'continue', nonce: Date.now() });
   };
   const [visit, setVisit] = useState<SinceLastVisit | null>(null);
+  // Scenario walk 2026-11-11 (SCN-059): the visit and its baseline read every agent, never the organization filter's
+  // part: an agent outside the filter is neither "removed" now nor "added" when the filter changes.
   const startVisit = (s: AppSettings) => {
-    setVisit(sinceLastVisit({ services: status.services, lastVisitAt: s.lastVisitAt, known: s.knownServices, consoles: s.consoles, lastService: s.lastService }));
-    void api().updateSettings({ lastVisitAt: new Date().toISOString(), knownServices: status.services.map((x) => x.key) }).catch(() => undefined);
+    setVisit(sinceLastVisit({ services: everyAgent.services, lastVisitAt: s.lastVisitAt, known: s.knownServices, consoles: s.consoles, lastService: s.lastService }));
+    void api().updateSettings({ lastVisitAt: new Date().toISOString(), knownServices: everyAgent.services.map((x) => x.key) }).catch(() => undefined);
   };
   // The setup card offers Start; the empty state below it then does not offer it again.
   const [setupCard, setSetupCard] = useState(false);

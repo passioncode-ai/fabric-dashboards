@@ -136,3 +136,11 @@ test('FD-108: an ended stop says why it cannot be continued here, in both langua
   const [f] = only(stop({ verdict: 'failed' }));
   assert.equal(stateWords('en', f!), 'Cannot be continued here: it did not start; see the log.');
 });
+
+test('Scenario walk 2026-11-11 (SCN-082): a failed continue whose console already ended is one row, its ended record, never also "cannot be continued here"', () => {
+  const key = 'handover.rs-0123456789ab';
+  const record = { id: `c:${key}:${NOW - 5 * MIN}`, key, folder: '/work/a', agent: 'Claude Code', account: null, context: null, origin: 'resume', end: 'ended', reason: null, startedAt: NOW - 5 * MIN, endedAt: NOW - 4 * MIN, sessionId: null, provider: 'claude', handoverId: null, paid: null };
+  const rows = mergeSessions(input({ stops: [stop({ verdict: 'failed', key })], records: [record] as never }));
+  assert.deepEqual(rows.map((r) => r.id), [record.id]);
+  assert.ok(rows[0]!.actions.includes('continue'));
+});
