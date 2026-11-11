@@ -395,6 +395,12 @@ export class ConsoleHost {
   /** FD-200: whether this route opens a shell on the other machine (edit) or only reaches it (view); asked before a start,
    *  remembered five minutes when it may edit and thirty seconds otherwise, so a key granted or revoked shows soon. */
   private readonly accessSeen = new Map<string, { access: RemoteAccess; at: number }>();
+  /** FD-204: the folder a session on another machine opened in there; the session's own cwd is this Mac's home. */
+  private readonly remoteRuns = new Map<string, string>();
+  /** The folder a session works in, as a person reads it: a hand-over's, the other machine's (FD-204), else its own. */
+  private shownFolder(key: string, cwd: string): string {
+    return this.handoverOf.get(key)?.dir ?? this.remoteRuns.get(key) ?? cwd;
+  }
   private async remoteAccess(route: SshRoute): Promise<RemoteAccess> {
     const seen = this.accessSeen.get(route.via);
     const now = Date.now();
@@ -525,6 +531,7 @@ export class ConsoleHost {
       this.handoverOf.delete(key);
       if (mode === 'continue') this.forgetLatestEnded(key);
       this.o.settings.update({ consoles: { [key]: { runtime: runtime.id, folder: folder.source === 'saved' ? folder.path : saved?.folder ?? null, idle: null, ...(saved?.bypass !== undefined ? { bypass: saved.bypass } : {}) } } });
+      this.remoteRuns.set(key, there.path);
       this.o.log(`console: ${key} started ${runtime.id} (${mode}) on ${remote.route.destination} in ${there.path}, through ${remote.route.via}`);
       return { ok: true };
     }
@@ -537,6 +544,7 @@ export class ConsoleHost {
     if (plan.kind === 'refused') return { ok: false, reason: plan.reason, detail: plan.detail };
     if (plan.kind === 'terminal-only') return { ok: false, reason: 'terminal-only', project: plan.project };
     // Review R-1: the session runs with the login shell's PATH, not the one an app opened from Finder has.
+    this.remoteRuns.delete(key);
     const r = this.manager.start(key, { argv: plan.argv, cwd: plan.cwd, label: runtime.name, env: { PATH: inv.dirs.join(path.delimiter), ...(pack?.env ?? {}) } }, size);
     if (!r.ok) return { ok: false, reason: r.error === 'running' ? 'running' : 'spawn', detail: r.error };
     this.handoverOf.delete(key); // FD-62: this console now runs the person's own session
@@ -666,7 +674,7 @@ export class ConsoleHost {
     const read = pending.some((s) => s.ready) ? await liveAgents(this.run).catch(() => null) : null;
     // F4 of FIX-2: a folder one of this app's consoles works in is live too (a hand-over taken on this tick has no claude
     // process yet that lsof could see), so a hand-over and a stop of one folder never both start.
-    const live = read && { dirs: [...read.dirs, ...this.manager.runningKeys().map((k) => this.handoverOf.get(k)?.dir ?? this.manager.snapshot(k).cwd).filter(Boolean)], args: read.args };
+    const live = read && { dirs: [...read.dirs, ...this.manager.runningKeys().filter((k) => !this.remoteRuns.has(k)).map((k) => this.handoverOf.get(k)?.dir ?? this.manager.snapshot(k).cwd).filter(Boolean)], args: read.args };
     // FD-103: Continue now on another account names its candidates, and a stop names the account it stopped on (V-1 of
     // FIX-2); their labels are read only when there are some.
     const labels = pending.some((s) => s.candidates.length || s.account) ? await this.labelsOf(inv.switchboard, now) : {};
@@ -850,7 +858,7 @@ export class ConsoleHost {
   private notice(kind: SessionNotice['kind'], key: string): void {
     const snap = this.manager.snapshot(key);
     const h = this.handoverOf.get(key);
-    const folder = h?.dir ?? snap.cwd;
+    const folder = this.shownFolder(key, snap.cwd);
     try {
       this.o.notice?.({ kind, id: consoleRowId(key, snap.startedAt ?? Date.now()), key, project: path.basename(folder), agent: h?.agent || snap.label, at: Date.now() });
     } catch (error) { this.o.log(`console: session notice not delivered: ${(error as Error).message}`); }
@@ -884,7 +892,7 @@ export class ConsoleHost {
       return;
     }
     this.keep({
-      id: consoleRowId(key, snap.startedAt), key, folder: h?.dir ?? snap.cwd, agent: h?.agent || snap.label || 'agent', account: h?.account || null, context: null,
+      id: consoleRowId(key, snap.startedAt), key, folder: this.shownFolder(key, snap.cwd), agent: h?.agent || snap.label || 'agent', account: h?.account || null, context: null,
       origin: this.originOf.get(key) ?? (h ? (resumed ? 'resume' : 'handover') : 'here'), end, reason: null, startedAt: snap.startedAt, endedAt: now,
       sessionId: known?.sessionId ?? null, provider: known?.provider ?? providerOf(h?.agent ?? snap.label), handoverId: h && !resumed ? h.id : null,
       paid: h && !resumed ? h.paid : null,
@@ -935,7 +943,7 @@ export class ConsoleHost {
       const h = this.handoverOf.get(key);
       const resumed = this.resumedKeys.has(key);
       return {
-        key, folder: h?.dir ?? snap.cwd, agent: h?.agent || snap.label || 'agent', startedAt: snap.startedAt ?? now,
+        key, folder: this.shownFolder(key, snap.cwd), agent: h?.agent || snap.label || 'agent', startedAt: snap.startedAt ?? now,
         origin: this.originOf.get(key) ?? (h ? (resumed ? 'resume' : 'handover') : 'here'), account: h?.account || null,
         failedResume: this.failedResumes.has(key), handoverId: h && !resumed ? h.id : null, paid: h && !resumed ? h.paid : null,
       };

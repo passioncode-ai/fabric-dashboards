@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.8.56 - 2026-11-11
+
+### Fixed
+
+- FD-204: a console session on another machine is listed with the folder it opened in there. The Sessions row and MCP
+  `consoles` named this Mac's home folder, the working folder of the local ssh process.
+
 ## 0.8.55 - 2026-11-11
 
 ### Added
