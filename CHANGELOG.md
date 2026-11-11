@@ -1,6 +1,15 @@
 # Changelog
 
-## Unreleased
+## 0.8.53 - 2026-11-11
+
+### Fixed
+
+- FD-203: the console of an agent placed on another machine opens in the folder that machine has. It entered this Mac's
+  folder there, so a worktree of this Mac (absent on the other machine) ended the session at once with code 1. The app
+  now asks the other machine for the console's folder, else the agent's repository under `~/DATA`, and when it has
+  neither the console says so before anything starts.
+
+## 0.8.52 - 2026-11-11
 
 ### Fixed
 
