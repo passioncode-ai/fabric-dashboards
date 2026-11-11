@@ -10,6 +10,7 @@ import os from 'node:os';
 import path from 'node:path';
 import https from 'node:https';
 import { expand, portOf, remoteOriginProblem } from './descriptor';
+import { configurationOf } from './configuration';
 import { PROTOCOL, type WellKnown, type WellKnownResult } from './protocol';
 
 export interface HttpResult { status: number; body: string; ms: number }
@@ -203,7 +204,14 @@ export async function fetchWellKnown(origin: string, timeoutMs = 2000, options: 
   }
   const problem = checkWellKnown(doc);
   if (problem) return { kind: 'not-protocol', detail: problem };
-  return { kind: 'answer', doc: doc as WellKnown, ms: res.ms };
+  // Scenario walk 2026-11-11 (SCN-068): an invalid `configuration` is treated as absent, never handed to a reader
+  // that would draw it (an unchecked one blanked the window).
+  const d = doc as WellKnown;
+  if (Object.hasOwn(d, 'configuration')) {
+    const configuration = configurationOf(d);
+    if (configuration) d.configuration = configuration; else delete d.configuration;
+  }
+  return { kind: 'answer', doc: d, ms: res.ms };
 }
 // #endregion health-probe
 

@@ -11,8 +11,10 @@ import { Feed } from './Activity';
 import { CompactActions, FixButton, UnavailablePane } from './ServiceActions';
 import { Connections } from './Connections';
 import { Load } from './Load';
+import { PaneBoundary } from './PaneBoundary';
 import { subscriptionCost, usd } from './Spend';
 import { loadOf } from '@passioncode-ai/fabric-service-host/load';
+import { configurationOf } from '@passioncode-ai/fabric-service-host/configuration';
 import { placedElsewhere } from '@passioncode-ai/fabric-service-host/state';
 import fabricMark from '../brand/passioncode-mark.svg';
 import { shownState } from '../../core/setup-wait';
@@ -228,12 +230,15 @@ export function ServiceView({ s, all, members, open, link, nonce, tab: askedTab,
         {!cardShown && pathError && <p className="notice error" role="alert">{pathError}</p>}
       </header>
       <div className="svc-body" role="tabpanel" id={`panel-${tab}`} aria-labelledby={`tab-${tab}`}>
+        {/* Scenario walk 2026-11-11 (SCN-068): a tab that throws on a bad answer says so here; the window stays. */}
+        <PaneBoundary name={nameOf(s)} reset={[s.key, tab, s.wellKnown]}>
         {tab === 'dashboard' && <DashboardHost s={s} link={link} nonce={nonce} hidden={overlayOpen} applied={appliedLink} act={control} openLogs={tabs.includes('logs') ? () => setTab('logs') : undefined} />}
         {tab === 'activity' && <div className="pane">{dispatches && dispatches.length > 0 && <Dispatches lines={dispatches} onSession={onSession} />}<ServiceActivity serviceKey={s.key} tick={`${activityRev ?? ''}|${s.latestEvent?.id ?? ''}`} openAt={(k, l) => open(k, l)} /></div>}
         {tab === 'connections' && <div className="pane"><Connections s={s} all={all} open={(key) => open(key, undefined, 'connections')} /></div>}
         {tab === 'load' && tabs.includes('load') && <div className="pane"><Load s={s} /></div>}
         {tab === 'health' && <div className="pane"><Health s={s} output={output} /></div>}
         {tab === 'logs' && <div className="pane"><Logs serviceKey={s.key} /></div>}
+        </PaneBoundary>
       </div>
     </div>
   );
@@ -413,7 +418,8 @@ function Profile({ s }: { s: ServiceSnapshot }) {
     }).catch(() => alive && setModels([]));
     return () => { alive = false; };
   }, [s.key]);
-  const c = s.wellKnown?.configuration;
+  // Scenario walk 2026-11-11 (SCN-068): read through the check, so a malformed answer shows no profile, not a blank window.
+  const c = configurationOf(s.wellKnown);
   if (!c) return null; // an agent that declares no configurable profile shows none
   const r = c.resolved ?? {};
   const change = (e: React.MouseEvent<HTMLButtonElement>) => {

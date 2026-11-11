@@ -385,3 +385,32 @@ test("FD-159, DEC-0154 HA-2: a dashboard page loads only while this user's proce
   setLoopbackOwnerCheck(async () => true);
   assert.deepEqual(await f.view.show(f.snap, { x: 0, y: 0, width: 400, height: 300 }, '/answers', 'owner', true), { ok: true }, 'its own process: the page loads again');
 });
+
+// Scenario walk 2026-11-11 (SCN-016, SCN-031): a warm reopen loads the page without signing in, so its failure is a
+// page that would not load (stage 'page'), never a sign-in error that names the token file.
+test('SCN-016: a warm reopen that fails is a page failure, not a sign-in failure', async (t) => {
+  const f = await signedInWithPid(t);
+  loadFailure = true;
+  const r = await f.view.show(f.snap, RECT, '/answers', 'owner');
+  assert.equal(r.ok, false);
+  assert.equal(r.stage, 'page');
+  assert.equal(f.logins - f.base, 1, 'no login code was asked for');
+});
+
+// Scenario walk 2026-11-11 (SCN-015): after a crash the view comes back on the page it was on, and a load that fails
+// says so, as any other load does.
+test('SCN-015: a crashed page loads again where it was, and a failed reload is an error event', async (t) => {
+  const f = await fixture(t);
+  assert.equal(f.wc.url, `${f.origin}/answers?tab=open#thread`);
+  const calls = f.wc.calls.length;
+  f.wc.emit('render-process-gone');
+  for (let i = 0; i < 200 && f.wc.calls.length < calls + 2; i++) await new Promise((r) => setTimeout(r, 10));
+  assert.equal(f.wc.url, `${f.origin}/answers?tab=open#thread`, 'the same page, not the dashboard home');
+  const g = await fixture(t); // a second crash at once is a crash streak, shown as crashed: a fresh view fails its reload
+  loadFailure = true;
+  g.wc.emit('render-process-gone');
+  for (let i = 0; i < 200 && !g.events.some((e) => e.kind === 'error'); i++) await new Promise((r) => setTimeout(r, 10));
+  const error = g.events.find((e) => e.kind === 'error');
+  assert.match(error?.error ?? '', /ERR_CONNECTION_REFUSED/);
+  assert.equal(JSON.stringify(g.events).includes('code='), false, 'no login code in an event');
+});

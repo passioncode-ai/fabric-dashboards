@@ -13,6 +13,7 @@ export * from './usage';
 export * from './connections';
 export * from './latch';
 export * from './load';
+export * from './configuration';
 export * from './actions';
 export * from './placement';
 export * from './space-daemons';

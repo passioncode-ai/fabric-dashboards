@@ -44,6 +44,10 @@
       "types": "./dist/load.d.ts",
       "default": "./dist/load.js"
     },
+    "./configuration": {
+      "types": "./dist/configuration.d.ts",
+      "default": "./dist/configuration.js"
+    },
     "./actions": {
       "types": "./dist/actions.d.ts",
       "default": "./dist/actions.js"

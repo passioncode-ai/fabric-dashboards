@@ -994,6 +994,8 @@ const en = {
   'update.retry': 'Retry',
   'update.misplaced': 'Updates install only from the Applications folder.',
   'view.loadError': 'The page of {name} could not load: {error}. Press Retry; if it repeats, restart the agent.',
+  // Scenario walk 2026-11-11 (SCN-068): a tab that failed to draw an agent's answer, instead of a blank window.
+  'view.paneError': 'This tab of {name} could not be shown: {error}. The other tabs still work, and it is shown again with the next answer.',
   'svc.tools': 'Tools',
   'svc.tools.more': '+{count} more',
   'svc.tools.fewer': 'Show fewer',
@@ -2050,6 +2052,7 @@ const ru: Record<Key, string> = {
   'update.retry': 'Повторить',
   'update.misplaced': 'Обновления устанавливаются только из папки «Программы».',
   'view.loadError': 'Страница {name} не загрузилась: {error}. Нажмите «Повторить»; если не поможет, перезапустите агента.',
+  'view.paneError': 'Эта вкладка {name} не показалась: {error}. Другие вкладки работают, а эта покажется снова со следующим ответом.',
   'svc.tools': 'Инструменты',
   'svc.tools.more': 'ещё {count}',
   'svc.tools.fewer': 'Свернуть',

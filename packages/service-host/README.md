@@ -30,6 +30,7 @@ Private to this repository's workspace and not published to npm; see
 | `…/usage` | `checkUsage`, `summarizeUsage` and the usage-report shapes | none — safe in a renderer |
 | `…/connections` | `connectionsOf` and the declared-connections shapes (FD-78) | none, safe in a renderer |
 | `…/load` | `loadOf`, `loadReportProblems`, `summarizeLoad` and the load shapes (FD-93) | none, safe in a renderer |
+| `…/configuration` | `configurationOf`, `configurationProblem`: the well-known `configuration` checked; an invalid one reads as absent | none, safe in a renderer |
 | `…/actions` | `actionsOf`, `actionDeclarationErrors` and the declared-action shapes (FD-110) | none, safe in a renderer |
 | `…/test-vectors/state-precedence.json` | the shared state-precedence vectors | — |
 
