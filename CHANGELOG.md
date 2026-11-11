@@ -1,5 +1,20 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- FD-202, a walk of every scenario: the console continues an idle-closed session only when it is shown, once per idle
+  close, and says so only when it ran; a refused Fix or Update keeps its task; settings an agent changes reach the open
+  window, language included; a link that starts the app opens once; Sessions does not say Switchboard is missing before
+  it looked; a failed continue shows once, a refused Continue now stays waiting, Continue keeps where a session came from
+  and is not offered when its folder is gone; the hand-over switch reads Switchboard when it opens; Overview offers
+  Restart only where the agent page does; an agent waiting for setup stays so with an update; a second copy of an agent
+  placed elsewhere is named rightly; pins and manual order of agents not shown are kept; an agent turned off is listed
+  once; setup steps update while the agent works; update and login notifications open what they say; a new version is
+  announced once, not at every launch; a malformed agent answer no longer blanks the window; a dashboard that fails to
+  load says so instead of a sign-in error; a crashed dashboard comes back on its page.
+
 ## 0.8.51 - 2026-11-11
 
 ### Changed

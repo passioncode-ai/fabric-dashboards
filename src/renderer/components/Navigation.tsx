@@ -106,7 +106,7 @@ export function AgentsNav({ page, status, everyAgent, arranged, products, curren
   const [drag, setDrag] = useState<{ section: MoveSection; id: string; dropAt: number | null } | null>(null);
   const [said, setSaid] = useState('');
   const move = (section: MoveSection, id: string, to: number) => {
-    const patch = moveInSection(arranged, section, id, to, layout.list.pinned); // Scenario walk 2026-11-11 (SCN-056): keep the pins not shown
+    const patch = moveInSection(arranged, section, id, to, layout.list.pinned, layout.list.order); // Scenario walk 2026-11-11 (SCN-056): keep the pins not shown
     if (!patch) return;
     changeLayout({ list: patch });
     const p = arranged[section].find((x) => x.id === id);

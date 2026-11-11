@@ -77,3 +77,13 @@ test('SCN-083: a refused Continue now leaves the stop waiting; only an automatic
   const host = read('src/electron/console.ts');
   assert.equal((host.match(/if \(automatic\) this\.actedStops\.set\(stop\.event, view\('failed'\)\)/g) ?? []).length, 2);
 });
+
+test('SCN-072: moving an agent keeps the manual places of agents the filter hides', async () => {
+  const { moveInSection } = await import('../src/core/products');
+  const p = (id: string) => ({ id }) as never;
+  const arranged = { pinned: [], local: [p('a'), p('b'), p('c')], online: [], service: [], hidden: [] } as never;
+  // Stored order: x (another organization, filtered out) sits between a and b.
+  const patch = moveInSection(arranged, 'local' as never, 'c', 0, [], ['a', 'x', 'b', 'c']);
+  assert.deepEqual(patch, { sort: 'manual', order: ['c', 'x', 'a', 'b'] });
+  assert.deepEqual(moveInSection(arranged, 'local' as never, 'c', 0), { sort: 'manual', order: ['c', 'a', 'b'] }, 'no stored order: the shown one');
+});

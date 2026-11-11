@@ -146,7 +146,7 @@ export type MoveSection = 'pinned' | Category | 'hidden';
 /** FD-121 (SCN-087): move one agent to `to` (its index in the section as shown) and say what to store. Pinned keeps its
  *  own order (the pin order); any other section freezes what the person sees, every section, into their own order and
  *  turns the sort to `manual`, so nothing else on screen jumps. An agent not in that section, or no move, is null. */
-export function moveInSection(arranged: Arranged, section: MoveSection, id: string, to: number, pinned?: readonly string[]): Partial<ListLayout> | null {
+export function moveInSection(arranged: Arranged, section: MoveSection, id: string, to: number, pinned?: readonly string[], order?: readonly string[]): Partial<ListLayout> | null {
   const ids = arranged[section].map((p) => p.id);
   const from = ids.indexOf(id);
   if (from < 0) return null;
@@ -165,7 +165,14 @@ export function moveInSection(arranged: Arranged, section: MoveSection, id: stri
     return { pinned: pinned.map((x) => (shown.has(x) ? moved[next++]! : x)) };
   }
   const of = (c: Exclude<MoveSection, 'pinned'>) => (c === section ? moved : arranged[c].map((p) => p.id));
-  return { sort: 'manual', order: [...of('local'), ...of('online'), ...of('service'), ...of('hidden')] };
+  const visible = [...of('local'), ...of('online'), ...of('service'), ...of('hidden')];
+  // Scenario walk 2026-11-11 (SCN-072): the same for a manual order: agents not shown now (outside the organization
+  // filter, not installed) keep their places in the stored order; the shown ones take the new order among themselves.
+  if (!order?.length) return { sort: 'manual', order: visible };
+  const shown = new Set(visible);
+  let next = 0;
+  const kept = order.map((x) => (shown.has(x) ? visible[next++]! : x)).filter((x) => x !== undefined);
+  return { sort: 'manual', order: [...kept, ...visible.slice(next)] };
 }
 // #endregion list-move
 

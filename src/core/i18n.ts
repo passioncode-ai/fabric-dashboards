@@ -881,6 +881,7 @@ const en = {
   'app.event.down': '{name} stopped answering.',
   'app.event.back': '{name} is back after {duration}.',
   'app.event.duplicate': '{name} runs as two copies (pid {answering} and pid {launchd}).',
+  // Scenario walk 2026-11-11: copy checks 80452199, f7356d3e (en), 15f1aacd, d7244963 (ru, the no-final-full-stop suggestion kept).
   'app.event.duplicate.elsewhere': '{name} runs here too while it is placed on {machine}.',
   'app.event.foreign': 'Another program answers on {name}\'s port.',
   'app.event.foreignUser': 'A program of another user of this computer answers on {name}\'s port.',
