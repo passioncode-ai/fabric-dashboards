@@ -209,6 +209,7 @@ export async function allSessionsOf(run: Runner, sb: string): Promise<SourceResu
       context: typeof x.context === 'string' ? x.context.slice(0, 120) : null, contextName: typeof x.context_name === 'string' ? x.context_name.slice(0, 120) : null,
       continues: typeof x.continues === 'string' && x.continues ? x.continues.slice(0, 64) : null, inPlace: x.in_place === true,
       launchedAt: ms(x.launched_at), startedAt: ms(x.started_at), state, launch: launchFactsOf(x),
+      ...(x.attachable === true ? { attachable: true } : {}), // FD-211 (SB-342 H-1)
     });
   }
   return { ok: true, value: out };
@@ -308,7 +309,7 @@ export async function handoversOf(run: Runner, sb: string): Promise<SbHandovers>
 export { handoverOwnKey } from './sessions'; // one definition: the pure Sessions list compares by it too (R1-U3)
 /** FD-83: a session continued after a limit takes a console of its own the same way (`handover.rs-<12 hex>`); FD-103:
  *  so does a session continued from the Sessions list in a folder no agent's console owns (`handover.cs-<12 hex>`). */
-export const isHandoverKey = (key: string) => /^handover\.(ho|rs|cs)-[0-9a-f]{12}$/.test(key);
+export const isHandoverKey = (key: string) => /^handover\.(ho|rs|cs|at)-[0-9a-f]{12}$/.test(key); // FD-211: `at`, a hosted session opened here
 
 /** The command a console runs to take the hand-over: Switchboard takes it once and runs its session here. */
 export function handoverRunArgv(sb: string, id: string): string[] {

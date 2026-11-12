@@ -58,6 +58,8 @@ export interface ConsoleInfo {
   remote?: { machine: string; destination: string | null; access?: 'edit' | 'view' | 'denied' | 'unreachable' | null; where?: 'here' | 'there' } | null;
   /** FD-206: a session of its own started on another machine, as ssh knows it; null for one of this machine. */
   machine?: string | null;
+  /** FD-211: the console only shows a session Switchboard's session host holds; closing it leaves the session running. */
+  view?: boolean;
 }
 
 /** FD-43/FD-51: the Switchboard sessions of a console's folder, or why there are none to show. */
@@ -190,6 +192,8 @@ export interface FabricApi {
   sessionsContinue(id: string, size?: { cols: number; rows: number }, account?: string): Promise<SessionActionResult>;
   /** `dismiss` (Remove), and `dontContinue` on a waiting stop (moved to Ended as declined). */
   sessionsDismiss(id: string): Promise<SessionActionResult>;
+  /** FD-211: Open here, a session Switchboard's session host holds. */
+  sessionsAttach(id: string, size?: { cols: number; rows: number }): Promise<SessionActionResult>;
   /** Clear in the Ended group: every ended row. */
   sessionsClearEnded(): Promise<void>;
   /** `end`: stops the session in its console (the window asks first). */
@@ -285,6 +289,7 @@ export const CHANNELS = {
   consoleOpenTerminal: 'fd:console-open-terminal',
   sessionsContinue: 'fd:sessions-continue',
   sessionsDismiss: 'fd:sessions-dismiss',
+  sessionsAttach: 'fd:sessions-attach',
   sessionsClearEnded: 'fd:sessions-clear-ended',
   sessionsEnd: 'fd:sessions-end',
   sessionsReveal: 'fd:sessions-reveal',

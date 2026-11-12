@@ -66,6 +66,7 @@ const api: FabricApi = {
   onConsoleEvent: (l) => subscribe(CHANNELS.consoleEvent, l),
   sessionsContinue: (id, size, account) => ipcRenderer.invoke(CHANNELS.sessionsContinue, id, size, account),
   sessionsDismiss: (id) => ipcRenderer.invoke(CHANNELS.sessionsDismiss, id),
+  sessionsAttach: (id, size) => ipcRenderer.invoke(CHANNELS.sessionsAttach, id, size),
   sessionsClearEnded: () => ipcRenderer.invoke(CHANNELS.sessionsClearEnded),
   sessionsEnd: (id) => ipcRenderer.invoke(CHANNELS.sessionsEnd, id),
   sessionsReveal: (id) => ipcRenderer.invoke(CHANNELS.sessionsReveal, id),

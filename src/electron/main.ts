@@ -485,7 +485,8 @@ if (!app.requestSingleInstanceLock()) {
   // console session or a running command silently — it names them and waits for a yes. The automatic
   // install never asks: it waits until nothing runs (auto-install-flow).
   async function mayEndWork(kind: 'restart' | 'quit'): Promise<boolean> {
-    const names = consoles.manager.runningKeys().map((key) => {
+    // FD-211: a console that only shows a hosted session is not named: quitting closes the view, the session runs on.
+    const names = consoles.manager.runningKeys().filter((key) => !consoles.isView(key)).map((key) => {
       const d = monitor.snapshot(key)?.descriptor;
       if (d) return displayName(d.name, d.instance);
       // FD-191: a console of its own (a new session, a hand-over) is named by its coding agent and folder, not its key.
@@ -1215,7 +1216,7 @@ if (!app.requestSingleInstanceLock()) {
           const { act, row, account } = r.session;
           if (act === 'clear-ended') { await consoles.clearEnded(); return { ok: true, result: { act } }; }
           const done = act === 'continue' ? await consoles.continueSession(row!, { cols: 100, rows: 30 }, account)
-            : act === 'end' ? await consoles.endSession(row!) : await consoles.dismissSession(row!);
+            : act === 'end' ? await consoles.endSession(row!) : act === 'attach' ? await consoles.attachSession(row!) : await consoles.dismissSession(row!);
           return done.ok ? { ok: true, result: { act, ...done } } : { ok: false, code: done.reason ?? 'refused', ...(done.detail ? { detail: String(done.detail).slice(0, 200) } : {}) };
         }
         if (r.op === 'app.update') {
