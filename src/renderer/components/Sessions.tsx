@@ -250,6 +250,7 @@ function SessionChain({ row }: { row: SessionRow }) {
 export function SessionBody({ row, autoContinue = true }: { row: SessionRow; autoContinue?: boolean }) {
   const { t, lang } = useT();
   if (row.state === 'running-terminal') return <div className="page session-body"><p>{t('sessions.inTerminal')}</p></div>;
+  if (row.state === 'running-background') return <div className="page session-body"><p>{t('sessions.inBackground')}</p></div>;
   // FD-108: a limit stop that cannot be continued here never had a console of this app: its card says why, its page that
   // nothing of it runs here and that Remove takes it off the list.
   if (row.state === 'ended-cannot-continue') return <div className="page session-body"><section className="session-panel"><p>{t('sessions.body.notOpened')}</p></section></div>;

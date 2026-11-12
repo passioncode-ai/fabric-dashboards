@@ -458,3 +458,18 @@ test('FD-124: Show transcript shows only an absolute .jsonl file that exists, ne
     assert.equal(transcriptFile(null), null);
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });
+
+test('FD-207: a board run Fabric started has no window: it is listed as running in the background, not in Terminal', () => {
+  const base = { pending: [], stops: [], records: [], dismissed: [], now: NOW, consoles: [] };
+  const by = (o: Partial<NonNullable<SbSessionRecord['launch']>['by']>) => ({ launchId: 'l-1', by: { surface: null, by: null, program: null, project: null, parent: null, caller: null, ...o },
+    transcript: null, turns: null, lastTurnAt: null, ended: null, endedAt: null, continuedAs: null });
+  const dispatch = { id: 'd-1', request: 'r-1', thread: 't-1', project: 'p-1', workflow: 'wf_0123456789abcdef' };
+  const [run] = mergeSessions({ ...base, switchboard: [sb({ launch: by({ surface: 'fabric', dispatch }) })] });
+  assert.deepEqual([run!.state, run!.group, run!.actions], ['running-background', 'running', ['reveal']]);
+  const [fabricNotInPlace] = mergeSessions({ ...base, switchboard: [sb({ launch: by({ surface: 'fabric' }) })] });
+  assert.equal(fabricNotInPlace!.state, 'running-background');
+  const [terminal] = mergeSessions({ ...base, switchboard: [sb({ launch: by({ surface: 'window' }) })] });
+  assert.equal(terminal!.state, 'running-terminal', 'a launch from Switchboard\'s window still runs in Terminal');
+  const [unknown] = mergeSessions({ ...base, switchboard: [sb({ launch: null })] });
+  assert.equal(unknown!.state, 'running-terminal', 'no launch record: as before');
+});
