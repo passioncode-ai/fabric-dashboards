@@ -405,7 +405,7 @@ test('R1-V4: a session page draws no exit strip for an idle close or a person\'s
   assert.equal(line!('en', { state: 'exited', exitCode: 0, signal: null }, false), null, 'a clean end: the header says when');
   assert.equal(line!('en', { state: 'running', exitCode: null, signal: null }, false), null);
   assert.equal(line!('en', { state: 'exited', exitCode: 2, signal: null }, false), 'The session exited with code 2.');
-  assert.match(read('src/renderer/components/ConsolePanel.tsx'), /pageExitLine\(lang, info\.session, Boolean\(info\.idle\)\)/, 'the session page draws its strip through it');
+  assert.match(read('src/renderer/components/ConsolePanel.tsx'), /pageExitLine\(lang, info\.session, Boolean\(info\.idle\), info\.machine\)/, 'the session page draws its strip through it');
 });
 
 // ── Added by the coordinator during FIX-1, found by DOCS-1 (R1-A, R1-B, R1-C) ──

@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.8.59 - 2026-11-12
+
+### Fixed
+
+- FD-210: a session on another machine is no longer refused for this Mac's free disk: it writes to that machine's
+  disk. A machine may be named by any of Switchboard's names for it, and when no account there can run the folder
+  (Switchboard's exit code 3) the session page says so instead of a bare code.
+
 ## 0.8.58 - 2026-11-12
 
 ### Fixed

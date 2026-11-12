@@ -56,6 +56,8 @@ export interface ConsoleInfo {
    *  seen to allow there, null before the first start asked. */
   /** FD-199: the agent is placed on another machine. FD-205: `where` says whether its console runs there or here. */
   remote?: { machine: string; destination: string | null; access?: 'edit' | 'view' | 'denied' | 'unreachable' | null; where?: 'here' | 'there' } | null;
+  /** FD-206: a session of its own started on another machine, as ssh knows it; null for one of this machine. */
+  machine?: string | null;
 }
 
 /** FD-43/FD-51: the Switchboard sessions of a console's folder, or why there are none to show. */
