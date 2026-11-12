@@ -5,7 +5,11 @@
 // presses the button, and the last result is kept until the next press.
 export const DOCTOR_PIN = '0.2.75';
 export const DOCTOR_TIMEOUT_MS = 120_000;
-export const DOCTOR_AREAS = ['prerequisites', 'skills', 'apps', 'mcp', 'services'] as const;
+// FD-212: `memory` (the launcher's PC-178, after 0.2.76: the agents' wiki memory); `other` holds a check of an area this
+// version does not know yet, so a failing check is never dropped from a report whose `ok` it made false.
+export const DOCTOR_AREAS = ['prerequisites', 'skills', 'apps', 'mcp', 'services', 'memory', 'other'] as const;
+/** The areas every report has a step for; `memory` and `other` are steps only when the report has their checks. */
+const ALWAYS_STEPS: readonly string[] = ['prerequisites', 'skills', 'apps', 'mcp', 'services'];
 
 export type DoctorArea = (typeof DOCTOR_AREAS)[number];
 export type DoctorState = 'ok' | 'warn' | 'fail' | 'info';
@@ -40,11 +44,12 @@ export function parseDoctor(stdout: string): DoctorReport | null {
   for (const c of x.checks.slice(0, 500) as Record<string, unknown>[]) {
     const id = str(c?.id, 200);
     const detail = str(c?.detail, 500);
-    if (!id || detail === null || !AREAS.has(String(c.area)) || !STATES.has(c.state as DoctorState)) continue;
+    if (!id || detail === null || typeof c.area !== 'string' || !/^[a-z][a-z0-9-]{0,31}$/.test(c.area) || !STATES.has(c.state as DoctorState)) continue;
+    const area = (AREAS.has(c.area) ? c.area : 'other') as DoctorArea;
     const fix = str(c.fix, 1000);
     // FD-184: an unknown gate, or one without a fix, reads as an agent's step (the launcher's own rule: no fix, no gate).
     const gate = fix && (DOCTOR_GATES as readonly unknown[]).includes(c.gate) ? c.gate as DoctorGate : null;
-    checks.push({ id, area: c.area as DoctorArea, product: str(c.product, 64), state: c.state as DoctorState, detail, fix, gate });
+    checks.push({ id, area, product: str(c.product, 64), state: c.state as DoctorState, detail, fix, gate });
   }
   const summary: Record<DoctorState, number> = { ok: 0, warn: 0, fail: 0, info: 0 };
   for (const c of checks) summary[c.state] += 1;
@@ -84,7 +89,7 @@ export interface SetupStep { area: DoctorArea; state: SetupStepState; fail: numb
   /** FD-184: what the step needs from the person (the first failing or warning check that names a gate), or null. */
   gate: DoctorGate | null; gateCheck: DoctorCheck | null }
 export function setupSteps(report: DoctorReport): { steps: SetupStep[]; next: DoctorArea | null } {
-  const steps = DOCTOR_AREAS.map((area): SetupStep => {
+  const steps = DOCTOR_AREAS.filter((a) => ALWAYS_STEPS.includes(a) || report.checks.some((c) => c.area === a)).map((area): SetupStep => {
     const mine = report.checks.filter((c) => c.area === area);
     const fail = mine.filter((c) => c.state === 'fail').length;
     const warn = mine.filter((c) => c.state === 'warn').length;

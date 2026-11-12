@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.8.60 - 2026-11-12
+
+### Fixed
+
+- FD-212: Check setup keeps every check the launcher reports. The agents' wiki memory gets its own step ("Agent
+  memory"), and a check of an area this version does not know is shown under "Other" instead of dropped, so a failed
+  report always shows the line that failed it.
+
 ## 0.8.59 - 2026-11-12
 
 ### Fixed

@@ -15,11 +15,11 @@ test('FD-65: the pinned, read-only doctor — never `--fix`, never an unpinned l
   assert.match(DOCTOR_PIN, /^\d+\.\d+\.\d+$/, 'an exact version, not latest');
 });
 
-test('FD-65: the report is read strictly — a check without the documented area or state is dropped, the summary recounted', () => {
+test('FD-65: the report is read strictly: a check without a documented state is dropped, the summary recounted; FD-212: one of an area this version does not know is kept under Other', () => {
   const r = parseDoctor(FIXTURE)!;
   assert.equal(r.ok, false);
-  assert.deepEqual(r.checks.map((c) => c.id), ['prereq.node', 'app.inbox', 'app.dashboards.running', 'mcp.claude.fabric-dashboards']);
-  assert.deepEqual(r.summary, { ok: 1, warn: 1, fail: 1, info: 1 });
+  assert.deepEqual(r.checks.map((c) => [c.id, c.area]), [['prereq.node', 'prerequisites'], ['app.inbox', 'apps'], ['app.dashboards.running', 'apps'], ['mcp.claude.fabric-dashboards', 'mcp'], ['bad.check', 'other']]);
+  assert.deepEqual(r.summary, { ok: 2, warn: 1, fail: 1, info: 1 });
   assert.equal(parseDoctor('not json'), null);
   assert.equal(parseDoctor('{"checks":"x","ok":true}'), null);
 });
@@ -83,4 +83,21 @@ test('FD-184 (the launcher\'s PC-171): a check names what its fix needs from a p
   assert.match(doctorMarkdown(report), /app\.switchboard.*needs the person: sign-in/);
   const old = parseDoctor(JSON.stringify({ version: '0.2.75', at: 't', ok: false, checks: [{ id: 'a', area: 'apps', state: 'fail', detail: 'd', fix: 'f' }] }))!;
   assert.equal(old.checks[0]!.gate, null, 'a launcher before 0.2.76 has no gates');
+});
+
+test('FD-212: the memory area and an area this version does not know are kept, so a failing check never vanishes', async () => {
+  const { setupSteps } = await import('../src/core/doctor');
+  const report = parseDoctor(JSON.stringify({ version: '0.2.77', at: 't', ok: false, checks: [
+    { id: 'node', area: 'prerequisites', state: 'ok', detail: 'Node 26' },
+    { id: 'memory.vault', area: 'memory', state: 'fail', detail: 'no vault', fix: 'set up the wiki' },
+    { id: 'future.thing', area: 'future-area', state: 'fail', detail: 'broken' },
+    { id: 'bad', area: 'Bad Area!', state: 'fail', detail: 'dropped: not an area name' },
+  ] }))!;
+  assert.deepEqual(report.checks.map((c) => [c.id, c.area]), [['node', 'prerequisites'], ['memory.vault', 'memory'], ['future.thing', 'other']]);
+  assert.equal(report.summary.fail, 2, 'the summary counts every failure the report is failed for');
+  const { steps } = setupSteps(report);
+  assert.deepEqual(steps.map((s) => s.area), ['prerequisites', 'skills', 'apps', 'mcp', 'services', 'memory', 'other']);
+  assert.deepEqual(setupSteps(parseDoctor(JSON.stringify({ version: 'x', at: 't', ok: true, checks: [] }))!).steps.map((s) => s.area),
+    ['prerequisites', 'skills', 'apps', 'mcp', 'services'], 'memory and other are steps only when the report has their checks');
+  assert.ok(areasInOrder(report.checks).includes('other'));
 });
