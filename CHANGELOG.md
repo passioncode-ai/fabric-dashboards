@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.8.62 - 2026-11-12
+
+### Added
+
+- FD-208, FD-209: MCP `setup_check` also answers the setup as fabric-agent-contract's draft `setup-layer/1` records
+  (CT-290): the layers in order with their owners, every step's state, who takes it and, for a step that is the
+  person's, what it needs and why, plus the list of the person's steps not done and a count of what is next. Today
+  the launcher's checks are the computer layer; a layer another product owns is read once it answers.
+
 ## 0.8.61 - 2026-11-12
 
 ### Changed

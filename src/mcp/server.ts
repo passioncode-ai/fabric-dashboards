@@ -201,7 +201,7 @@ export const TOOLS = [
   },
   {
     name: 'setup_check',
-    description: 'Check what is set up on this computer, as Settings → Check setup does: runs the PassionCode launcher\'s read-only doctor at its pinned version (npx, never --fix, up to two minutes) and returns its report: a summary (fail, warn, ok, info) and every check with its area, its own words and its fix, then `steps` (FD-185: one per area in order, done, attention or todo, with the first check that keeps it from done) and `next`, the first step not done. kind no-node: Node.js is not installed. It runs a program from npm: say so before calling it.',
+    description: 'Check what is set up on this computer, as Settings → Check setup does: runs the PassionCode launcher\'s read-only doctor at its pinned version (npx, never --fix, up to two minutes) and returns its report: a summary (fail, warn, ok, info) and every check with its area, its own words and its fix, then `steps` (FD-185: one per area in order, done, attention or todo, with the first check that keeps it from done) and `next`, the first step not done, and `setup` (FD-208, FD-209: the same steps as fabric-agent-contract\'s draft `setup-layer/1` records, CT-290: `layers` in order, each with its owner and steps (state, actor, a person\'s `gate` and `why`), `sheet` the person\'s steps not done, `next` {steps, yours}). kind no-node: Node.js is not installed. It runs a program from npm: say so before calling it.',
     inputSchema: { type: 'object', properties: {}, additionalProperties: false },
     annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: true },
   },

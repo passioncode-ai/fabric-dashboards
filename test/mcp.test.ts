@@ -533,6 +533,11 @@ test('FD-81: setup_check runs the pinned read-only doctor and parses its report;
   // FD-185: the steps come with the report.
   assert.equal((r as { next?: string | null }).next, null);
   assert.equal((r as { steps?: unknown[] }).steps?.length, 5);
+  // FD-208, FD-209: the same steps as `setup-layer/1` records, the computer layer read from the launcher.
+  const setup = (r as { setup?: { layers: { layer: string; read: boolean; steps: { title: string; state: string }[] }[]; sheet: unknown[]; next: { steps: number; yours: number } } }).setup!;
+  assert.deepEqual(setup.layers.map((l) => [l.layer, l.read]), [['computer', true]]);
+  assert.equal(setup.layers[0].steps[0].title, 'Prerequisites');
+  assert.deepEqual(setup.next, { steps: 0, yours: 0 });
   const t = TOOLS.find((x) => x.name === 'setup_check')!;
   assert.equal(t.annotations.readOnlyHint, false, 'it runs a program from npm: never auto-approved as read-only');
 });
