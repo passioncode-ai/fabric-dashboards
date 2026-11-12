@@ -179,7 +179,7 @@ export const SIDEBAR_WIDTH = { min: 200, max: 420, default: 240, step: 16 } as c
 export const DEFAULT_SETTINGS: Settings = {
   launchAtLogin: false,
   launchAtLoginAsked: false,
-  theme: 'dark',
+  theme: 'light',
   pageTheme: 'graphite',
   language: 'system',
   autoUpdate: true,
