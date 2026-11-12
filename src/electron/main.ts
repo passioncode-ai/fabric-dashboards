@@ -1230,7 +1230,7 @@ if (!app.requestSingleInstanceLock()) {
           const o = await consoles.newSessionOptions();
           const runtime = r.start.runtime ?? o.runtime;
           if (!runtime) return { ok: false, code: 'no-runtime' };
-          const done = await consoles.startNew({ kind: r.start.kind, runtime, folder: r.start.folder ?? o.folder, bypass: r.start.bypass ?? o.bypass, isolated: r.start.isolated ?? false, ...(r.start.machine ? { machine: r.start.machine } : {}) }, { cols: 120, rows: 32 });
+          const done = await consoles.startNew({ kind: r.start.kind, runtime, folder: r.start.folder ?? o.folder, bypass: r.start.bypass ?? o.bypass, isolated: r.start.isolated ?? false, ...(r.start.machine ? { machine: r.start.machine } : {}) }, { cols: 120, rows: 32 }, 'mcp');
           if (!done.ok) {
             if ('why' in done) return { ok: false, code: `admission_${done.why}` };
             return { ok: false, code: done.reason, ...(done.detail ? { detail: String(done.detail).slice(0, 200) } : {}) };

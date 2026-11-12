@@ -76,7 +76,9 @@ export function readOrCreateInstallation(file: string, now: () => Date): { id: s
 export type Props = Record<string, number | boolean | string>;
 export const KNOWN_KINDS: ReadonlySet<string> = new Set(['ordinary', 'login', 'link', 'background', 'start', 'stop', 'restart', 'doctor', 'update', 'self_update', 'console', 'rename', 'main', 'renderer', 'gpu', 'utility', 'zygote', 'unknown',
   // FD-191: `session_started`'s kind and coding agent (any agent but the two is `other`).
-  'session', 'agent', 'claude-code', 'codex', 'other']);
+  'session', 'agent', 'claude-code', 'codex', 'other',
+  // `session_started`'s `surface` and `actor` (the analytics agent's review, board message `2d48d83f`, rules 2 and 11).
+  'dialog', 'mcp', 'human']);
 const CODE = /^[A-Za-z0-9_.-]{1,60}$/;
 export function cleanProps(props: Record<string, unknown>): Props {
   const out: Props = {};
@@ -255,8 +257,10 @@ export function createAnalytics(deps: AnalyticsDeps) {
     },
     /** FD-191: a session of its own, or a new agent's, started from its dialog: the kind, the coding agent (Claude Code,
      *  Codex, or `other`), and whether it runs without permission prompts and isolated. Never the folder. */
-    sessionStarted(o: { kind: 'session' | 'agent'; runtime: string; bypass: boolean; isolated: boolean }): void {
-      track('session_started', { kind: o.kind, runtime: o.runtime === 'claude-code' || o.runtime === 'codex' ? o.runtime : 'other', bypass: o.bypass, isolated: o.isolated });
+    sessionStarted(o: { kind: 'session' | 'agent'; runtime: string; bypass: boolean; isolated: boolean; surface?: 'dialog' | 'mcp' }): void {
+      // Added after 0.8.44, never renamed (docs/ANALYTICS.md): where it was started from, and so who started it.
+      const surface = o.surface ?? 'dialog';
+      track('session_started', { kind: o.kind, runtime: o.runtime === 'claude-code' || o.runtime === 'codex' ? o.runtime : 'other', bypass: o.bypass, isolated: o.isolated, surface, actor: surface === 'mcp' ? 'agent' : 'human' });
     },
     /** The switch was turned: off drops what waits; on takes effect at the next event. */
     switched(enabled: boolean): void {
