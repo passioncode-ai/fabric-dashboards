@@ -144,3 +144,6 @@ export function places(platform: NodeJS.Platform, env: NodeJS.ProcessEnv, home: 
   return null;
 }
 // #endregion platform-policy
+
+/** FD-206: a machine as ssh knows it: an ssh config alias or `user@host`; nothing that ssh could read as an option. */
+export const MACHINE = /^[A-Za-z0-9_][A-Za-z0-9._-]{0,63}(@[A-Za-z0-9._:-]{1,253})?$/;

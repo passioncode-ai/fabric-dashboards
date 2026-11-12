@@ -112,9 +112,14 @@ export interface Settings {
     bypass?: boolean; isolated?: boolean;
     /** FD-205: for an agent placed on another machine, where its console runs: absent (or 'there' in a patch) on that
      *  machine, as FD-199; 'here' on this Mac, in a checkout here. A write that does not name it keeps it. */
-    where?: 'here' | 'there' }>;
+    where?: 'here' | 'there';
+    /** FD-206: a session of its own started on another machine, as ssh knows it; its folder is that machine's. Kept
+     *  through a write that does not name it. */
+    machine?: string }>;
   /** FD-191: the New session dialog's last choices, offered next time (null: not chosen yet). */
-  newSession: { runtime: string | null; folder: string | null; bypass: boolean; isolated: boolean };
+  newSession: { runtime: string | null; folder: string | null; bypass: boolean; isolated: boolean;
+    /** FD-206: the machine the last one started on (null: this one) and its folder there. */
+    machine?: string | null; remoteFolder?: string | null };
   /** FD-83: continue a session stopped on a usage limit in the console once Switchboard has capacity for it (default on). */
   resumeAfterLimit: boolean;
   /** FD-103: the Sessions list's memory, kept 24 hours (src/core/sessions.ts): console sessions that ended and hand-overs

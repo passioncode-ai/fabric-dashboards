@@ -56,7 +56,8 @@ export function isolatedBlock(o: { switchboard: boolean; inPlace: boolean; provi
 }
 
 /** What the dialog's start asks for, checked against what is installed; null fields fall back to the remembered choice. */
-export interface NewSessionChoice { kind: NewSessionKind; runtime: string; folder: string; bypass: boolean; isolated: boolean }
+/** FD-206: `machine` starts it on another machine (as ssh knows it), and `folder` is then that machine's. */
+export interface NewSessionChoice { kind: NewSessionKind; runtime: string; folder: string; bypass: boolean; isolated: boolean; machine?: string }
 
 /** The brief a new agent's console starts with: create one Fabric agent with the person, in their projects folder. */
 export function newAgentMarkdown(o: { folder: string }): string {

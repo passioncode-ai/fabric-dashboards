@@ -8,6 +8,7 @@ import crypto from 'node:crypto';
 import os from 'node:os';
 import path from 'node:path';
 import { isOwnConsoleKey } from './new-session';
+import { MACHINE } from './platform';
 import type { SessionRow } from './sessions';
 
 export const CHANNEL_MAX_BYTES = 64 * 1024;
@@ -40,7 +41,7 @@ export interface ChannelRequest {
   /** FD-191, `session.new`: the New session (or New agent) dialog's choices; one left out is the dialog's default. */
   start?: NewSessionRequest;
 }
-export interface NewSessionRequest { kind: 'session' | 'agent'; runtime?: string; folder?: string; bypass?: boolean; isolated?: boolean }
+export interface NewSessionRequest { kind: 'session' | 'agent'; runtime?: string; folder?: string; bypass?: boolean; isolated?: boolean; machine?: string }
 export type AppInstall = 'move-to-applications' | 'uninstall' | 'uninstall-all';
 /** FD-166: one console of this app that runs now, as the Sessions list joins it with Switchboard's record. Ids only:
  *  never what the console printed, its prompt or a path inside the agent's data. */
@@ -122,13 +123,15 @@ export function parseRequest(line: string): { ok: true; request: ChannelRequest 
   if (r.op === 'session.new') {
     // FD-191: a session of its own names no service; each choice is checked here and again by the app.
     const c = r.start as Record<string, unknown> | undefined;
-    if (!only('start') || !c || typeof c !== 'object' || Array.isArray(c) || Object.keys(c).some((k) => !['kind', 'runtime', 'folder', 'bypass', 'isolated'].includes(k))) return { ok: false, code: 'bad-start' };
+    if (!only('start') || !c || typeof c !== 'object' || Array.isArray(c) || Object.keys(c).some((k) => !['kind', 'runtime', 'folder', 'bypass', 'isolated', 'machine'].includes(k))) return { ok: false, code: 'bad-start' };
+    // FD-206: a machine as ssh knows it, and then a folder there is required.
+    if (c.machine !== undefined && (typeof c.machine !== 'string' || !MACHINE.test(c.machine) || typeof c.folder !== 'string' || !c.folder.startsWith('/'))) return { ok: false, code: 'bad-start' };
     if (c.kind !== 'session' && c.kind !== 'agent') return { ok: false, code: 'bad-start' };
     if (c.runtime !== undefined && (typeof c.runtime !== 'string' || !/^[a-z0-9][a-z0-9-]{0,63}$/.test(c.runtime))) return { ok: false, code: 'bad-start' };
     if (c.folder !== undefined && (typeof c.folder !== 'string' || c.folder.length > 4096 || c.folder.includes('\u0000') || !(c.folder.startsWith('/') || /^[A-Za-z]:[\\/]/.test(c.folder)))) return { ok: false, code: 'bad-start' };
     if ((c.bypass !== undefined && typeof c.bypass !== 'boolean') || (c.isolated !== undefined && typeof c.isolated !== 'boolean')) return { ok: false, code: 'bad-start' };
     const start: NewSessionRequest = { kind: c.kind, ...(typeof c.runtime === 'string' ? { runtime: c.runtime } : {}), ...(typeof c.folder === 'string' ? { folder: c.folder } : {}),
-      ...(typeof c.bypass === 'boolean' ? { bypass: c.bypass } : {}), ...(typeof c.isolated === 'boolean' ? { isolated: c.isolated } : {}) };
+      ...(typeof c.bypass === 'boolean' ? { bypass: c.bypass } : {}), ...(typeof c.isolated === 'boolean' ? { isolated: c.isolated } : {}), ...(typeof c.machine === 'string' ? { machine: c.machine } : {}) };
     return { ok: true, request: { key: String(r.key ?? ''), op: r.op, service: '', start } };
   }
   if (r.op === 'console.choose') {
