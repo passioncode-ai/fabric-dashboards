@@ -31,7 +31,7 @@ import type { SettingsStore } from '../core/settings';
 import { accountsOf, allSessionsOf, bindingFor, findSwitchboard, handoverOwnKey, handoverRunArgv, handoversOf, handoversSwitch, isHandoverKey, launchFeatures, managesProvider, sbFailure, sessionsIn, terminalLaunchArgv, type Binding, type SbHandover, type SbSessions } from '../core/switchboard';
 import type { ServiceSnapshot, Settings } from '../core/types';
 import { claimStop, continuedOf, finishStop, liveAgents, recoveryOf, resumeArgs, resumeOwnKey, sessionOpen, transcriptIn, transcriptOf, verdictOf, writtenAt, RESUME_SETTLE_MS, RESUMES_PER_PASS, type RecoveryStatus, type SbStop, type StopView } from '../core/recovery';
-import { attachOwnKey, consoleRowId, handoverRowId, mergeSessions, pruneDismissed, pruneRecords, SourceReader, stopRowId, type ConsoleInput, type PendingHandover, type SbSessionRecord, type SessionActionResult, type SessionReason, type SessionRecord, type SessionNotice, type SessionOrigin, type SessionRow, type SessionsStatus, type SourceDegraded } from '../core/sessions';
+import { attachOwnKey, consoleRowId, handoverRowId, SAME_START_MS, mergeSessions, pruneDismissed, pruneRecords, SourceReader, stopRowId, type ConsoleInput, type PendingHandover, type SbSessionRecord, type SessionActionResult, type SessionReason, type SessionRecord, type SessionNotice, type SessionOrigin, type SessionRow, type SessionsStatus, type SourceDegraded } from '../core/sessions';
 
 /** node-pty 1.1.0 ships its macOS `spawn-helper` without the executable bit, and its postinstall
  *  does not set it: without it every spawn fails with `posix_spawnp failed`. A development checkout
@@ -127,13 +127,15 @@ export const QUIT_FINISH_MS = 1500;
 export const BINDING_FRESH_MS = 30_000;
 /** FD-137: how long the agents' folders, matched to board-request sessions, are kept before they are looked up again. */
 export const AGENT_FOLDER_MS = 5 * 60_000;
+/** FD-211: a folder as Switchboard and this app may each write it, without a trailing separator. */
+const trimSlash = (p: string) => (p.length > 1 ? p.replace(/[\\/]+$/, '') : p);
 const realOf = (p: string) => { try { return fs.realpathSync(p); } catch { return path.resolve(p); } };
 
 export class ConsoleHost {
   readonly manager: ConsoleManager;
   private dirs: Promise<string[]> | null = null;
   private catalog: Promise<Runtime[]> | null = null;
-  private inPlaceFor: { key: string; value: { inPlace: boolean; surface: boolean; target: boolean } } | null = null;
+  private inPlaceFor: { key: string; value: { inPlace: boolean; surface: boolean; target: boolean; hosted: boolean } } | null = null;
   /** FD-74: what Switchboard said about each folder, for showing the console at once (BINDING_FRESH_MS). */
   private readonly bindings = new Map<string, { at: number; value: Binding | { kind: 'absent' }; pending: boolean }>();
   private readonly run: Runner;
@@ -183,6 +185,10 @@ export class ConsoleHost {
   private readonly originOf = new Map<string, SessionOrigin>();
   /** FD-211: consoles that show a session Switchboard's session host holds, by the launch id they show. */
   private readonly attachedOf = new Map<string, string>();
+  /** FD-211: consoles whose own session runs in Switchboard's session host (`launch --hosted`). */
+  private readonly hostedKeys = new Set<string>();
+  /** FD-211: hosted consoles whose view this app closed while their session runs on (the app quitting). */
+  private readonly detached = new Set<string>();
   private readonly sbSessions = new SourceReader<SbSessionRecord[]>('sessions', async () => {
     const inv = await this.inventory();
     this.switchboardPresent = Boolean(inv.switchboard);
@@ -262,7 +268,7 @@ export class ConsoleHost {
   /** The runtimes installed, read once per launch (looked for again while none is found), and
    *  Switchboard, looked for on every call: one installed later must bind its folders at once
    *  (review R-3) — a stat per folder, and `launch --help` only when the binary changed. */
-  private async inventory(): Promise<{ runtimes: Runtime[]; switchboard: string | null; inPlace: boolean; surface: boolean; target: boolean; dirs: string[] }> {
+  private async inventory(): Promise<{ runtimes: Runtime[]; switchboard: string | null; inPlace: boolean; surface: boolean; target: boolean; hosted: boolean; dirs: string[] }> {
     const dirs = await this.searchPath();
     const switchboard = findSwitchboard(dirs);
     if (!this.catalog) {
@@ -282,13 +288,14 @@ export class ConsoleHost {
     let inPlace = false;
     let surface = false;
     let target = false;
+    let hosted = false;
     if (switchboard) {
       let stamp = switchboard;
       try { stamp += `:${fs.statSync(switchboard).mtimeMs}`; } catch { /* checked below anyway */ }
       if (this.inPlaceFor?.key !== stamp) this.inPlaceFor = { key: stamp, value: await launchFeatures(this.run, switchboard) };
-      ({ inPlace, surface, target } = this.inPlaceFor.value);
+      ({ inPlace, surface, target, hosted } = this.inPlaceFor.value);
     }
-    return { runtimes, switchboard, inPlace, surface, target, dirs };
+    return { runtimes, switchboard, inPlace, surface, target, hosted, dirs };
   }
 
   private folderOf(key: string): ConsoleInfo['folder'] {
@@ -552,7 +559,7 @@ export class ConsoleHost {
     // FD-51 (LC-20): with a Switchboard route for this provider, every start runs managed.
     const managed = inv.switchboard && runtime.provider && inv.inPlace ? managesProvider(await accountsOf(this.run, inv.switchboard), runtime.provider) : false;
     // FD-191: a session of its own keeps the permission and isolation it was started with, Continue included.
-    const plan = planStart({ runtime, mode, folder: folder.path, binding: b.kind === 'absent' ? { kind: 'none' } : b, switchboard: inv.switchboard, inPlace: inv.inPlace, surface: inv.surface, managed, handoff: pack?.handoff, bypass: saved?.bypass, isolated: saved?.isolated });
+    const plan = planStart({ runtime, mode, folder: folder.path, binding: b.kind === 'absent' ? { kind: 'none' } : b, switchboard: inv.switchboard, inPlace: inv.inPlace, surface: inv.surface, managed, handoff: pack?.handoff, bypass: saved?.bypass, isolated: saved?.isolated, hosted: inv.hosted });
     if (plan.kind === 'refused') return { ok: false, reason: plan.reason, detail: plan.detail };
     if (plan.kind === 'terminal-only') return { ok: false, reason: 'terminal-only', project: plan.project };
     // Review R-1: the session runs with the login shell's PATH, not the one an app opened from Finder has.
@@ -560,6 +567,8 @@ export class ConsoleHost {
     const r = this.manager.start(key, { argv: plan.argv, cwd: plan.cwd, label: runtime.name, env: { PATH: inv.dirs.join(path.delimiter), ...(pack?.env ?? {}) } }, size);
     if (!r.ok) return { ok: false, reason: r.error === 'running' ? 'running' : 'spawn', detail: r.error };
     this.handoverOf.delete(key); // FD-62: this console now runs the person's own session
+    // FD-211: a session Switchboard's host holds outlives this app; Stop and the idle close end it there.
+    if (plan.argv[0] === inv.switchboard && plan.argv.includes('--hosted')) this.hostedKeys.add(key); else this.hostedKeys.delete(key);
     // R1-C: Continue in the console takes up its last session, so that session's ended row leaves the Sessions list, as
     // Continue in the list clears the console's idle mark (SCN-066, SCN-084).
     if (mode === 'continue') this.forgetLatestEnded(key);
@@ -642,7 +651,7 @@ export class ConsoleHost {
       const entry = this.o.settings.get().consoles[key] ?? { runtime: null, folder: null };
       this.o.settings.update({ consoles: { [key]: { ...entry, idle: { at: new Date(now).toISOString(), account } } } });
       this.endReasons.set(key, 'idle');
-      this.manager.stop(key);
+      await this.endConsole(key);
       this.o.log(`console: ${key} closed after ${Math.round(idleMs / 60_000)} idle minutes (LC-18); opening it again continues it`);
     }
     return keys;
@@ -950,6 +959,8 @@ export class ConsoleHost {
   private recordEnd(key: string, code: number | null): void {
     // FD-211: a view of a hosted session ending is no session ending: the session is Switchboard's row, and it may run on.
     if (this.attachedOf.delete(key)) { this.endReasons.delete(key); this.originOf.delete(key); return; }
+    if (this.detached.delete(key)) { this.hostedKeys.delete(key); this.endReasons.delete(key); return; }
+    this.hostedKeys.delete(key);
     const snap = this.manager.snapshot(key);
     const end = this.endReasons.get(key) ?? 'ended';
     this.endReasons.delete(key);
@@ -977,7 +988,8 @@ export class ConsoleHost {
    *  itself); resolves once each has exited or been killed (LC-02). */
   async endAllForQuit(): Promise<void> {
     this.quitting = true;
-    for (const key of this.manager.runningKeys()) this.endReasons.set(key, 'quit');
+    // FD-211: a hosted session is not ended by the app quitting: only its view closes, and Switchboard lists it running.
+    for (const key of this.manager.runningKeys()) { if (this.hostedKeys.has(key)) this.detached.add(key); else this.endReasons.set(key, 'quit'); }
     await this.manager.stopAll();
     // F3 of FIX-2: a continue in flight sees its console gone and settles its stop in Switchboard; it gets a few seconds,
     // and a stop still claimed after them is finished as cancelled, so none is left claimed by an app that is gone.
@@ -992,7 +1004,47 @@ export class ConsoleHost {
   /** The person's Stop (the console's button, or End in the Sessions list). */
   stopByPerson(key: string): void {
     if (this.manager.snapshot(key).state === 'running') this.endReasons.set(key, 'you');
+    void this.endConsole(key);
+  }
+
+  /** FD-211: ends a console's session. One Switchboard's host holds is ended there (`sessions end`): closing its view
+   *  alone would leave it running. Its launch is found as the Sessions list pairs a console with Switchboard's record;
+   *  when it cannot be found or ended, the view is closed as before and the host closes the session after 30 idle minutes. */
+  async endConsole(key: string): Promise<void> {
+    if (!this.hostedKeys.has(key) || this.manager.snapshot(key).state !== 'running') { this.manager.stop(key); return; }
+    const inv = await this.inventory();
+    const snap = this.manager.snapshot(key);
+    const launch = inv.switchboard && snap.startedAt !== null ? await this.launchOf(inv.switchboard, snap.cwd, snap.startedAt) : null;
+    if (inv.switchboard && launch) {
+      const r = await this.run(inv.switchboard, ['--json', 'sessions', 'end', launch], 20_000);
+      if (r.code === 0) {
+        this.o.log(`console: ${key} ended its hosted session ${launch}`);
+        // Its view ends with the session; one that does not within a few seconds is closed.
+        setTimeout(() => { if (this.manager.snapshot(key).state === 'running') this.manager.stop(key); }, 5_000).unref?.();
+        return;
+      }
+      this.o.log(`console: ${key} could not end hosted session ${launch}: ${sbFailure(r)}`);
+    } else this.o.log(`console: ${key} hosted session not found in Switchboard's list; its view is closed`);
     this.manager.stop(key);
+  }
+
+  /** FD-211: the launch id of a console's own session: Switchboard's in-place record in its folder, the nearest start. */
+  private async launchOf(sb: string, folder: string | null, startedAt: number): Promise<string | null> {
+    if (!folder) return null;
+    const read = await allSessionsOf(this.run, sb);
+    const list = read.ok ? read.value : this.sbSessions.value ?? [];
+    let hit: SbSessionRecord | null = null;
+    for (const s of list) {
+      if (!s.inPlace || s.state === 'ended' || !s.launch?.launchId || s.launchedAt === null || trimSlash(s.folder) !== trimSlash(folder)) continue;
+      const gap = Math.abs(s.launchedAt - startedAt);
+      if (gap <= SAME_START_MS && (!hit || gap < Math.abs(hit.launchedAt! - startedAt))) hit = s;
+    }
+    return hit?.launch?.launchId ?? null;
+  }
+
+  /** FD-211: a console whose session runs on when the app quits (a view, or a session Switchboard's host holds). */
+  runsOnWithoutApp(key: string): boolean {
+    return this.attachedOf.has(key) || this.hostedKeys.has(key);
   }
 
   /** FD-103: Switchboard's machine-wide session list, on the hand-overs' tick (15 s shown, 60 s hidden); never more than

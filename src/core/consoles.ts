@@ -56,7 +56,9 @@ export function planStart(o: { runtime: Runtime; mode: 'new' | 'continue'; folde
   /** FD-191: false starts it with the runtime's own permission prompts; absent or true, without them (FD-174). */
   bypass?: boolean;
   /** FD-191 (operator rule 2026-10-09): run it isolated, on a Switchboard account's private home, straight to the provider. */
-  isolated?: boolean }): Plan {
+  isolated?: boolean;
+  /** FD-211: this Switchboard runs a launch in its session host and ends it there, so the session outlives the app. */
+  hosted?: boolean }): Plan {
   let args: string[];
   try {
     // FD-174: without permission prompts, first, so it is a top-level flag even before Codex's `resume`.
@@ -69,14 +71,14 @@ export function planStart(o: { runtime: Runtime; mode: 'new' | 'continue'; folde
   // FD-191: an isolated session runs only through Switchboard, in this console; never quietly as an ordinary one.
   if (o.isolated) {
     if (!o.switchboard || !o.inPlace || !o.runtime.provider) return { kind: 'refused', reason: 'isolated', detail: !o.switchboard ? 'no-switchboard' : !o.inPlace ? 'old-switchboard' : 'provider' };
-    return { kind: 'run', argv: inPlaceArgv(o.switchboard, o.runtime.provider, o.folder, args, o.surface, 'isolated'), cwd: o.folder };
+    return { kind: 'run', argv: inPlaceArgv(o.switchboard, o.runtime.provider, o.folder, args, o.surface, 'isolated', o.hosted), cwd: o.folder };
   }
   if (o.binding.kind === 'project' && o.runtime.provider) {
-    if (o.switchboard && o.inPlace) return { kind: 'run', argv: inPlaceArgv(o.switchboard, o.runtime.provider, o.folder, args, o.surface), cwd: o.folder };
+    if (o.switchboard && o.inPlace) return { kind: 'run', argv: inPlaceArgv(o.switchboard, o.runtime.provider, o.folder, args, o.surface, 'managed', o.hosted), cwd: o.folder };
     return { kind: 'terminal-only', project: o.binding.name, pool: o.binding.pool };
   }
   if (o.binding.kind === 'none' && o.managed && o.runtime.provider && o.switchboard && o.inPlace) {
-    return { kind: 'run', argv: inPlaceArgv(o.switchboard, o.runtime.provider, o.folder, args, o.surface), cwd: o.folder };
+    return { kind: 'run', argv: inPlaceArgv(o.switchboard, o.runtime.provider, o.folder, args, o.surface, 'managed', o.hosted), cwd: o.folder };
   }
   return { kind: 'run', argv: [o.runtime.path, ...args], cwd: o.folder };
 }
