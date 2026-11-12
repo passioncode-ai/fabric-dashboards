@@ -25,6 +25,7 @@ export type SessionOrigin = 'handover' | 'resume' | 'limit' | 'switchboard' | 'h
 export type SessionState =
   | 'running-ours' // runs in a console of this app
   | 'running-terminal' // runs elsewhere (Switchboard launched it in Terminal or another app's console)
+  | 'running-background' // FD-207: runs with no window, a board run Fabric started (`switchboard dispatch`, SB-247)
   | 'needs-you-resume-failed' // continued after a limit, did not take up its conversation, still runs
   | 'needs-you-not-opened' // could not open here; `reason` says why
   | 'waiting-reset' // stopped on a limit; `expectedAt` says when it is likely to continue
@@ -270,12 +271,19 @@ export function groupOf(state: SessionState): SessionGroup {
   return 'ended';
 }
 
+/** FD-207: a launch with no window, as Switchboard records it: a dispatch's ids, or Fabric's surface not in place. */
+export function isBackground(s: Pick<SbSessionRecord, 'inPlace' | 'launch'>): boolean {
+  const by = s.launch?.by;
+  return Boolean(by?.dispatch) || (by?.surface === 'fabric' && !s.inPlace);
+}
+
 /** The dossier's table, *Every state has an action*. Show in Terminal is not offered: Switchboard does not say which
  *  window runs a session. */
 export function actionsFor(state: SessionState, o: { continueNow?: boolean } = {}): SessionAction[] {
   switch (state) {
     case 'running-ours': return ['end', 'reveal'];
     case 'running-terminal': return ['reveal']; // V-6 of FIX-2: its folder, the one thing this app can show
+    case 'running-background': return ['reveal'];
     case 'needs-you-resume-failed': return ['openConsole', 'end'];
     case 'needs-you-not-opened': return ['dismiss'];
     case 'ended-cannot-continue': return ['dismiss'];
@@ -446,7 +454,8 @@ export function mergeSessions(i: MergeInput): SessionRow[] {
       id: sbRowId(s), key: null, folder: s.folder, agent: s.agent,
       account: s.account || null, context: s.context, contextName: s.contextName, origin: s.continues ? 'handover' : 'switchboard', reason: null,
       // SB-201: only a Claude Code session has a Claude Code conversation to resume; a proxy launch rides `claude` too.
-      state: running ? 'running-terminal' : 'ended', startedAt: started, endedAt: running ? null : s.launch?.endedAt ?? null, resumable: s.agent === 'claude-code',
+      // FD-207: a board run (`switchboard dispatch`) has no window; one launched in place runs in someone's terminal.
+      state: running ? (isBackground(s) ? 'running-background' : 'running-terminal') : 'ended', startedAt: started, endedAt: running ? null : s.launch?.endedAt ?? null, resumable: s.agent === 'claude-code',
       launch: s.launch,
     }));
   }

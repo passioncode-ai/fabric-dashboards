@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.8.58 - 2026-11-12
+
+### Fixed
+
+- FD-207: a board run Fabric started (`switchboard dispatch`, no terminal) is listed as running in the background, not
+  as running in Terminal: there is no window to type to, and its page now says so.
+
 ## 0.8.57 - 2026-11-12
 
 ### Added
