@@ -130,6 +130,9 @@ export function setupView(owners: { layer: SetupLayer; owner: string }[], answer
 
 const GATE: Record<DoctorGate, SetupGate> = { 'sign-in': 'sign-in', code: 'one-time-code', consent: 'consent', payment: 'payment', secret: 'secret' };
 const SETUP_DOOR = ['npx', '--yes', '@passioncode-ai/passioncode@latest', 'setup'];
+/** A line `setup` does not fix (the launcher's `manual`, or no `fix` at all) is the Setup console's agent's, working
+ *  from the line's own fix: MCP `console_fix` with `fabric-dashboards.setup` hands it over (FD-187). */
+const FIX_DOOR = { name: 'console_fix' };
 
 /** FD-208: the launcher's doctor steps (FD-185) as the computer layer, until the launcher emits `setup-step/1` itself
  *  (PC-179). A failing area is `blocked`, a warning one `next`; a step whose check names a gate is the person's. */
@@ -141,9 +144,14 @@ export function doctorLayer(report: DoctorReport, generatedAt: string, title: (a
       return { ...base, state: 'done', actor: 'agent', door: { argv: SETUP_DOOR }, ...(evidence.length ? { evidence } : {}) };
     }
     const state: SetupState = step.state === 'todo' ? 'blocked' : 'next';
-    const why = ((step.gateCheck ?? step.first)?.detail.split(/\r?\n/)[0] ?? '').slice(0, 500) || 'The check names no detail.';
-    if (step.gate) return { ...base, state, actor: 'person', gate: GATE[step.gate], why };
-    return { ...base, state, actor: 'agent', door: { argv: SETUP_DOOR }, why };
+    const line = (s: string | null | undefined) => (s?.split(/\r?\n/)[0] ?? '').trim().slice(0, 500);
+    const check = step.gateCheck ?? step.first;
+    if (step.gate) return { ...base, state, actor: 'person', gate: GATE[step.gate], why: line(check?.detail) || 'The check names no detail.' };
+    // A step whose lines `setup` cannot fix shows the line's own fix, and the Setup console's agent takes it.
+    const open = report.checks.filter((c) => c.area === step.area && (c.state === 'fail' || c.state === 'warn'));
+    const bySetup = open.some((c) => !c.manual && c.fix);
+    if (!bySetup && check) return { ...base, state, actor: 'agent', door: FIX_DOOR, why: line(check.fix) || line(check.detail) || 'The check names no detail.' };
+    return { ...base, state, actor: 'agent', door: { argv: SETUP_DOOR }, why: line(check?.detail) || 'The check names no detail.' };
   });
   return { type: 'setup-layer/1', layer: 'computer', owner: LAUNCHER_OWNER, generatedAt, steps };
 }

@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.8.66 - 2026-11-13
+
+### Fixed
+
+- Check setup: a check the launcher's `setup` cannot fix (marked `manual`, or naming no fix) is no longer shown as a
+  step for `setup` to take, which would never close. Its step shows the check's own fix, and the Setup console's agent
+  takes it from there.
+
 ## 0.8.65 - 2026-11-12
 
 ### Changed

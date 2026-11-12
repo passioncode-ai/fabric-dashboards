@@ -16,7 +16,9 @@ export type DoctorState = 'ok' | 'warn' | 'fail' | 'info';
 /** FD-184 (the launcher's PC-171, from 0.2.76): the first thing a check's fix needs from a person; null when an agent does it. */
 export const DOCTOR_GATES = ['sign-in', 'code', 'consent', 'payment', 'secret'] as const;
 export type DoctorGate = (typeof DOCTOR_GATES)[number];
-export interface DoctorCheck { id: string; area: DoctorArea; product: string | null; state: DoctorState; detail: string; fix: string | null; gate: DoctorGate | null }
+export interface DoctorCheck { id: string; area: DoctorArea; product: string | null; state: DoctorState; detail: string; fix: string | null; gate: DoctorGate | null;
+  /** The launcher's PC-178 (its board message `84198dd6`): `setup` does not fix this line; its own `fix` says what does. */
+  manual?: boolean }
 export interface DoctorReport { version: string; at: string; ok: boolean; summary: Record<DoctorState, number>; checks: DoctorCheck[] }
 
 /** What a press of Check setup ended with. */
@@ -49,7 +51,7 @@ export function parseDoctor(stdout: string): DoctorReport | null {
     const fix = str(c.fix, 1000);
     // FD-184: an unknown gate, or one without a fix, reads as an agent's step (the launcher's own rule: no fix, no gate).
     const gate = fix && (DOCTOR_GATES as readonly unknown[]).includes(c.gate) ? c.gate as DoctorGate : null;
-    checks.push({ id, area, product: str(c.product, 64), state: c.state as DoctorState, detail, fix, gate });
+    checks.push({ id, area, product: str(c.product, 64), state: c.state as DoctorState, detail, fix, gate, ...(c.manual === true ? { manual: true } : {}) });
   }
   const summary: Record<DoctorState, number> = { ok: 0, warn: 0, fail: 0, info: 0 };
   for (const c of checks) summary[c.state] += 1;
@@ -109,7 +111,7 @@ export function doctorMarkdown(report: DoctorReport): string {
     '',
     `The person pressed Check setup in Fabric Dashboards; the launcher's \`doctor\` (${report.version}, ${report.at}) reported ${report.summary.fail} failing and ${report.summary.warn} warning checks. Start with these, failures first; each names its fix. Prove each one with \`npx --yes @passioncode-ai/passioncode@latest doctor --json\` after you fix it.`,
     '',
-    ...lines.map((c) => `- **${c.state}** \`${c.id}\` (${c.area}): ${c.detail}${c.fix ? `; fix: ${c.fix}` : ''}${c.gate ? ` (needs the person: ${c.gate}; do the rest yourself and ask for this once)` : ''}`),
+    ...lines.map((c) => `- **${c.state}** \`${c.id}\` (${c.area}): ${c.detail}${c.fix ? `; fix: ${c.fix}` : ''}${c.manual ? ' (`setup` does not fix this: do what the fix says)' : ''}${c.gate ? ` (needs the person: ${c.gate}; do the rest yourself and ask for this once)` : ''}`),
     '',
   ].join('\n');
 }
