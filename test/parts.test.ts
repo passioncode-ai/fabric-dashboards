@@ -139,7 +139,9 @@ test('settings persist atomically and heal a damaged file', () => {
   const lost = new SettingsStore(dir);
   assert.deepEqual(lost.get(), DEFAULT_SETTINGS);
   assert.match(lost.recovered!, /no readable copy; defaults in use/);
-  assert.equal(merge({ theme: 'neon' as never }).theme, 'dark');
+  assert.equal(merge({ theme: 'neon' as never }).theme, 'light', 'FD-214: an unknown theme reads as the default, light');
+  assert.equal(merge({ theme: 'dark' }).theme, 'dark', 'FD-214: a saved dark is kept');
+  assert.equal(merge({}).theme, 'light', 'FD-214: none saved reads as light');
 });
 
 test('updates install by themselves unless the person turned it off; a file from an earlier version keeps it on', () => {

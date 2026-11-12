@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.8.61 - 2026-11-12
+
+### Changed
+
+- FD-214: a new install opens in the light theme. Dark stays one choice away in Settings, and a theme already chosen
+  is kept.
+
 ## 0.8.60 - 2026-11-12
 
 ### Fixed

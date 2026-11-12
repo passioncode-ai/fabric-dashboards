@@ -329,7 +329,8 @@ export function merge(raw: Partial<Settings>): Settings {
     launchAtLogin: typeof raw.launchAtLogin === 'boolean' ? raw.launchAtLogin : DEFAULT_SETTINGS.launchAtLogin,
     // A file written by an earlier version never asked: its `launchAtLogin` was the old default, not a choice.
     launchAtLoginAsked: raw.launchAtLoginAsked === true,
-    theme: raw.theme === 'light' || raw.theme === 'system' ? raw.theme : 'dark',
+    // FD-214: a saved choice is kept; none, or one this version does not know, is the default (light).
+    theme: raw.theme === 'light' || raw.theme === 'system' || raw.theme === 'dark' ? raw.theme : DEFAULT_SETTINGS.theme,
     pageTheme: typeof raw.pageTheme === 'string' && (REFERENCE_THEMES as readonly string[]).includes(raw.pageTheme) ? raw.pageTheme : DEFAULT_PAGE_THEME,
     language: raw.language === 'en' || raw.language === 'ru' ? raw.language : 'system',
     // Absent in a file from an earlier version: on, so every install keeps itself current.

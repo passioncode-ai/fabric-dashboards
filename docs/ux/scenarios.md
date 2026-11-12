@@ -1187,11 +1187,11 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 ### SCN-067: Dashboards take my scheme and theme
 - **Persona:** P-01
 - **Feature:** settings
-- **Traces:** ST-019; contract DEC-0036 ED-8/ED-10, DEC-0059; FD-42, FD-56
+- **Traces:** ST-019; contract DEC-0036 ED-8/ED-10, DEC-0059; FD-42, FD-56, FD-214
 - **Entry point:** Settings → the app group
 - **Preconditions:** none
 - **Steps:**
-  1. User picks the colour scheme: Same as the system, Dark or Light -> the app follows it at once
+  1. User picks the colour scheme: Same as the system, Dark or Light -> the app follows it at once. FD-214: a new install opens in Light (the operator, 2026-11-12, relayed by Project Observatory on board thread `8207a3b6`: light by default in all our software); a saved choice is kept
   2. User picks the dashboard theme: Graphite, Fabric, Paper, Forest, Ocean, Ember or High contrast -> every open dashboard that follows the app takes the scheme and the theme without a reload; the others keep their own
   3. User opens a dashboard later -> it opens in that scheme and theme, and the empty view behind it is already the right colour
 - **Expected result:** one choice in one place sets the look of every dashboard that follows the app
