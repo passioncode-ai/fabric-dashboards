@@ -124,11 +124,12 @@ test('FD-191: `session_started` carries kinds only: any coding agent but the two
     fetch: async (_u, init) => { for (const e of JSON.parse(init.body) as { eventName: string; props: Record<string, unknown> }[]) sent.push({ name: e.eventName, ...e.props }); return { status: 200 }; },
   } as never);
   a.sessionStarted({ kind: 'agent', runtime: 'goose', bypass: true, isolated: false });
-  a.sessionStarted({ kind: 'session', runtime: 'codex', bypass: false, isolated: true });
+  a.sessionStarted({ kind: 'session', runtime: 'codex', bypass: false, isolated: true, surface: 'mcp' });
   return a.flush().then(() => {
-    assert.deepEqual(sent.map(({ name, kind, runtime, bypass, isolated }) => ({ name, kind, runtime, bypass, isolated })), [
-      { name: 'session_started', kind: 'agent', runtime: 'other', bypass: true, isolated: false },
-      { name: 'session_started', kind: 'session', runtime: 'codex', bypass: false, isolated: true },
+    // The analytics agent's review (board message `2d48d83f`): `surface` and `actor` added, nothing renamed.
+    assert.deepEqual(sent.map(({ name, kind, runtime, bypass, isolated, surface, actor }) => ({ name, kind, runtime, bypass, isolated, surface, actor })), [
+      { name: 'session_started', kind: 'agent', runtime: 'other', bypass: true, isolated: false, surface: 'dialog', actor: 'human' },
+      { name: 'session_started', kind: 'session', runtime: 'codex', bypass: false, isolated: true, surface: 'mcp', actor: 'agent' },
     ]);
   });
 });
@@ -191,7 +192,7 @@ test('FD-191 (SCN-101): New session starts the chosen coding agent in the chosen
   assert.ok(isNewSessionKey(key) && !isNewAgentKey(key));
   assert.equal(r.spawned[0]!.cwd, r.folder);
   assert.ok(r.spawned[0]!.args.includes('--dangerously-skip-permissions'));
-  assert.deepEqual(r.started, [{ kind: 'session', runtime: 'claude-code', bypass: true, isolated: false }]);
+  assert.deepEqual(r.started, [{ kind: 'session', runtime: 'claude-code', bypass: true, isolated: false, surface: 'dialog' }]);
   const row = r.host.sessionsStatus().rows.find((x) => x.key === key);
   assert.equal(row?.state, 'running-ours');
   assert.equal(row?.folder, r.folder);
@@ -236,7 +237,7 @@ test('FD-191: a refused start says why and leaves no console choice behind', POS
   // A runtime with no verified switch starts with its prompts, whatever the box said.
   const goose = await r.host.startNew({ kind: 'session', runtime: 'goose', folder: r.folder, bypass: true, isolated: false }, { cols: 80, rows: 24 });
   assert.ok(goose.ok);
-  assert.deepEqual(r.started, [{ kind: 'session', runtime: 'goose', bypass: false, isolated: false }]);
+  assert.deepEqual(r.started, [{ kind: 'session', runtime: 'goose', bypass: false, isolated: false, surface: 'dialog' }]);
 });
 
 test('FD-191: an isolated session runs through Switchboard in place, on the account\'s own home', POSIX, async () => {

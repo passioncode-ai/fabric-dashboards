@@ -60,7 +60,7 @@ export interface ConsoleHostOptions {
   /** FD-141: a console start that was refused, by its reason only (usage and error data, docs/ANALYTICS.md). */
   failed?: (code: string) => void;
   /** FD-191: a session of its own or a new agent started from its dialog (usage data `session_started`, kinds only). */
-  started?: (props: { kind: 'session' | 'agent'; runtime: string; bypass: boolean; isolated: boolean }) => void;
+  started?: (props: { kind: 'session' | 'agent'; runtime: string; bypass: boolean; isolated: boolean; surface: 'dialog' | 'mcp' }) => void;
   settings: SettingsStore;
   snapshot: (key: string) => ServiceSnapshot | null;
   window: () => BrowserWindow | null;
@@ -1510,7 +1510,7 @@ export class ConsoleHost {
   /** FD-191 (SCN-101, SCN-102): a session of its own, or a new agent's, in the chosen folder with the chosen coding agent,
    *  permission and isolation; the choices are remembered for the next dialog. Starts through start(), so the machine's
    *  admission (LC-17), Switchboard's account (LC-20) and the Sessions list hold as for any console. */
-  async startNew(choice: NewSessionChoice, size: { cols: number; rows: number }): Promise<NewSessionResult> {
+  async startNew(choice: NewSessionChoice, size: { cols: number; rows: number }, surface: 'dialog' | 'mcp' = 'dialog'): Promise<NewSessionResult> {
     const inv = await this.inventory();
     const runtime = inv.runtimes.find((r) => r.id === choice.runtime);
     if (!runtime) return { ok: false, reason: 'no-runtime' };
@@ -1543,7 +1543,7 @@ export class ConsoleHost {
       this.o.log(`console: new ${choice.kind} not started: ${r.reason}`);
       return r;
     }
-    this.o.started?.({ kind: choice.kind, runtime: runtime.id, bypass, isolated: choice.isolated });
+    this.o.started?.({ kind: choice.kind, runtime: runtime.id, bypass, isolated: choice.isolated, surface });
     this.o.log(`console: new ${choice.kind} ${key} started (${runtime.id}${bypass ? '' : ', with permission prompts'}${choice.isolated ? ', isolated' : ''}${choice.machine ? `, on ${choice.machine}` : ''})`);
     this.o.changed?.();
     return { ok: true, key };

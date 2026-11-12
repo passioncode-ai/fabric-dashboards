@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.8.65 - 2026-11-12
+
+### Changed
+
+- Usage data: the `session_started` event also says where the session was started (`surface`: the dialog or MCP) and
+  so who started it (`actor`: a person or an agent), as the analytics agent's review asked. Nothing was renamed.
+
 ## 0.8.64 - 2026-11-12
 
 ### Changed
