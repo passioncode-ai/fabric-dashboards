@@ -42,6 +42,7 @@ export const OWN_ACTIONS: DeclaredAction[] = [
   { id: 'session-continue', title: 'Continue', tool: 'session_action', gate: 'relayed' },
   { id: 'session-end', title: 'End', tool: 'session_action', gate: 'relayed' },
   { id: 'session-dismiss', title: 'Dismiss', tool: 'session_action', gate: 'none' },
+  { id: 'session-attach', title: 'Open here', tool: 'session_action', gate: 'none' },
   { id: 'sessions-clear-ended', title: 'Clear ended', tool: 'session_action', gate: 'none' },
   { id: 'check-for-updates', title: 'Check for updates', tool: 'app_update', gate: 'none' },
   { id: 'restart-to-update', title: 'Restart to update', tool: 'app_update', gate: 'relayed' },

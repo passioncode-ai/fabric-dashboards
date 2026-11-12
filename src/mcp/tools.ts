@@ -736,7 +736,7 @@ export async function settings(deps: Deps, patch?: Record<string, unknown>): Pro
 
 /** FD-175: a Sessions row's buttons (Continue, Continue now with `account`, End, Dismiss) and Clear ended, through the
  *  running app. The row id is the one `consoles` and the Sessions page give (`c:…`, `sb:…`, `ho:…`, `st:…`). */
-export async function sessionAction(deps: Deps, act: 'continue' | 'end' | 'dismiss' | 'clear-ended', row?: string, account?: string): Promise<Record<string, unknown>> {
+export async function sessionAction(deps: Deps, act: 'continue' | 'end' | 'dismiss' | 'clear-ended' | 'attach', row?: string, account?: string): Promise<Record<string, unknown>> {
   const answer = await askChannel(deps, { op: 'sessions.act', session: { act, ...(row ? { row } : {}), ...(account ? { account } : {}) } } as never, 'app-not-running: Fabric Dashboards is not running, so no session can be acted on here; open it and call again');
   if (!answer.ok) throw new ToolError(`${answer.code}${answer.detail ? `: ${answer.detail}` : ''}`, { done: false, code: answer.code });
   return 'result' in answer ? answer.result : {};

@@ -141,8 +141,8 @@ export const TOOLS = [
   },
   {
     name: 'session_action',
-    description: 'A Sessions row\'s buttons in the running app (FD-175): continue (Continue, or Continue now with account, an account id of the row\'s candidates), end (End, which stops the coding session), dismiss (removes an ended row), clear-ended (every ended row; no row). row is the Sessions row id that consoles and the Sessions page give. Pass the operator\'s words in params._meta.decision when you have them (actions session-continue, session-end, session-dismiss, sessions-clear-ended).',
-    inputSchema: { type: 'object', properties: { act: { type: 'string', enum: ['continue', 'end', 'dismiss', 'clear-ended'] }, row: { type: 'string', maxLength: 500 }, account: { type: 'string', maxLength: 64 } }, required: ['act'], additionalProperties: false },
+    description: 'A Sessions row\'s buttons in the running app (FD-175): continue (Continue, or Continue now with account, an account id of the row\'s candidates), end (End, which stops the coding session), dismiss (removes an ended row), clear-ended (every ended row; no row), attach (Open here, FD-211: a session Switchboard\'s session host holds opens in a console of its own; closing that console leaves the session running). row is the Sessions row id that consoles and the Sessions page give. Pass the operator\'s words in params._meta.decision when you have them (actions session-continue, session-end, session-dismiss, sessions-clear-ended, session-attach).',
+    inputSchema: { type: 'object', properties: { act: { type: 'string', enum: ['continue', 'end', 'dismiss', 'clear-ended', 'attach'] }, row: { type: 'string', maxLength: 500 }, account: { type: 'string', maxLength: 64 } }, required: ['act'], additionalProperties: false },
     annotations: { readOnlyHint: false, destructiveHint: true },
   },
   {
@@ -269,7 +269,7 @@ export async function call(deps: tools.Deps, name: string, args: Args): Promise<
     case 'consoles': return tools.consoles(deps);
     case 'settings': return tools.settings(deps, args.patch as Record<string, unknown> | undefined);
     case 'session_action': {
-      const act = need(args, 'act') as 'continue' | 'end' | 'dismiss' | 'clear-ended';
+      const act = need(args, 'act') as 'continue' | 'end' | 'dismiss' | 'clear-ended' | 'attach';
       const row = typeof args.row === 'string' ? args.row : undefined;
       if ((act === 'clear-ended') === Boolean(row)) throw new tools.ToolError(act === 'clear-ended' ? 'clear-ended takes no row' : `${act} needs the row`);
       return tools.sessionAction(deps, act, row, typeof args.account === 'string' ? args.account : undefined);

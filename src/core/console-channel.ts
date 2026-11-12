@@ -23,7 +23,7 @@ export const CHANNEL_TASK_MAX = 16 * 1024;
 export type ChannelOp = 'console.new' | 'console.fix' | 'console.list' | 'console.choose' | 'settings.update' | 'sessions.act' | 'app.update' | 'app.install' | 'session.new';
 const OPS: readonly string[] = ['console.new', 'console.fix', 'console.list', 'console.choose', 'settings.update', 'sessions.act', 'app.update', 'app.install', 'session.new'];
 /** FD-175: what a session row's button does, and what the app's update buttons do. */
-export type SessionAct = 'continue' | 'end' | 'dismiss' | 'clear-ended';
+export type SessionAct = 'continue' | 'end' | 'dismiss' | 'clear-ended' | 'attach';
 export interface ChannelRequest {
   key: string; op: ChannelOp; service: string; task?: { kind: 'fix' | 'audit'; output: string };
   /** FD-175, `settings.update`: a settings patch, checked again by the app against AGENT_SETTINGS. */
@@ -105,7 +105,7 @@ export function parseRequest(line: string): { ok: true; request: ChannelRequest 
     const s = r.session as Record<string, unknown> | undefined;
     if (!only('session') || !s || typeof s !== 'object') return { ok: false, code: 'bad-session' };
     const act = s.act;
-    if (act !== 'continue' && act !== 'end' && act !== 'dismiss' && act !== 'clear-ended') return { ok: false, code: 'bad-session' };
+    if (act !== 'continue' && act !== 'end' && act !== 'dismiss' && act !== 'clear-ended' && act !== 'attach') return { ok: false, code: 'bad-session' };
     const row = s.row;
     if (act === 'clear-ended' ? row !== undefined : typeof row !== 'string' || row.length < 1 || row.length > 500) return { ok: false, code: 'bad-session' };
     const account = s.account;

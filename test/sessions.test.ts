@@ -473,3 +473,59 @@ test('FD-207: a board run Fabric started has no window: it is listed as running 
   const [unknown] = mergeSessions({ ...base, switchboard: [sb({ launch: null })] });
   assert.equal(unknown!.state, 'running-terminal', 'no launch record: as before');
 });
+
+test('FD-211: a session a host holds offers Open here; once it is open here it is one row, without an End that would only close the view', () => {
+  const LID = sid(7);
+  const launch = { launchId: LID, by: { surface: 'window' as const, by: null, program: null, project: null, parent: null, caller: null },
+    transcript: null, turns: null, lastTurnAt: null, ended: null, endedAt: null, continuedAs: null };
+  const [hosted] = mergeSessions(input({ switchboard: [sb({ attachable: true, launch })] }));
+  assert.deepEqual([hosted!.state, hosted!.actions], ['running-terminal', ['attach', 'reveal']]);
+  const [plain] = mergeSessions(input({ switchboard: [sb({ launch })] }));
+  assert.deepEqual(plain!.actions, ['reveal'], 'no host: nothing to open here');
+  const [ended] = mergeSessions(input({ switchboard: [sb({ attachable: true, launch, state: 'ended' })] }));
+  assert.ok(!ended!.actions.includes('attach'), 'an ended session has nothing to show');
+  const [noId] = mergeSessions(input({ switchboard: [sb({ attachable: true, launch: { ...launch, launchId: null } })] }));
+  assert.ok(!noId!.actions.includes('attach'), 'no launch id: nothing to attach to');
+  const open = mergeSessions(input({
+    switchboard: [sb({ attachable: true, launch })],
+    consoles: [{ key: 'handover.at-0123456789ab', folder: '/w/alpha', agent: 'claude-code', startedAt: NOW - MIN, origin: 'switchboard', account: null, attachedTo: LID }],
+  }));
+  assert.equal(open.length, 1, 'one session, one row');
+  assert.deepEqual([open[0]!.id, open[0]!.state, open[0]!.key, open[0]!.actions], [hosted!.id, 'running-ours', 'handover.at-0123456789ab', ['reveal']]);
+});
+
+test('FD-211: Open here runs `switchboard attach` in a console of its own; closing it records no ended session, and the row offers Open here again', POSIX, async () => {
+  const LID = sid(8);
+  const sessions: unknown[] = [];
+  const r2 = rig({ sessions });
+  sessions.push({ working_directory: r2.dir, state: 'running', provider: 'claude', agent: 'claude-code', launch_id: LID, launched_by: { surface: 'window' }, attachable: true, in_place: false, launched_at: new Date(Date.now() - MIN).toISOString() });
+  await r2.host.pollSessions();
+  const row = r2.host.sessionsStatus().rows.find((x) => x.launch?.launchId === LID)!;
+  assert.deepEqual(row.actions, ['attach', 'reveal']);
+  const done = await r2.host.attachSession(row.id);
+  assert.ok(done.ok && done.key && /^handover\.at-[0-9a-f]{12}$/.test(done.key), JSON.stringify(done));
+  const view = r2.spawned.at(-1)!;
+  assert.deepEqual([path.basename(view.file), ...view.args.slice(-2)], ['switchboard', 'attach', LID]);
+  assert.equal(view.cwd, r2.dir);
+  assert.ok(r2.host.isView(done.key!));
+  assert.equal((await r2.host.info(done.key!)).view, true, 'its console says it only shows the session');
+  const rows = r2.host.sessionsStatus().rows;
+  assert.deepEqual(rows.map((x) => [x.state, x.key, x.actions]), [['running-ours', done.key, ['reveal']]], 'its row is the open view');
+  assert.deepEqual(await r2.host.attachSession(rows[0]!.id), { ok: false, reason: 'not-allowed' }, 'an open view offers no second Open here');
+  r2.host.stopByPerson(done.key!);
+  await tick();
+  assert.equal(r2.settings.get().sessions.records.length, 0, 'closing a view is no ended session');
+  assert.ok(!r2.host.isView(done.key!));
+  assert.deepEqual(r2.host.sessionsStatus().rows.map((x) => [x.state, x.actions]), [['running-terminal', ['attach', 'reveal']]], 'the session runs on, and opens here again');
+});
+
+test('FD-211: Switchboard\'s `attachable` is read; anything but true is not', async () => {
+  const run: Runner = async () => ok({ sessions: [
+    { working_directory: '/w/a', state: 'running', provider: 'claude', attachable: true },
+    { working_directory: '/w/b', state: 'running', provider: 'claude', attachable: 'yes' },
+    { working_directory: '/w/c', state: 'running', provider: 'claude' },
+  ] });
+  const r = await allSessionsOf(run, '/bin/switchboard');
+  assert.ok(r.ok);
+  assert.deepEqual(r.value.map((s) => s.attachable === true), [true, false, false]);
+});

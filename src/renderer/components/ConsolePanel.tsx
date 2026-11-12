@@ -247,6 +247,8 @@ export function ConsolePanel({ serviceKey, height, maxHeight, onHeight, onDrag, 
   };
   // FD-92: the red cross closes the console: a running session is ended after a confirmation, then the drawer folds.
   const close = () => {
+    // FD-211: closing a view of a hosted session ends nothing, so it asks nothing.
+    if (info?.session.state === 'running' && info.view) { void api().consoleStop(serviceKey).finally(onHide); return; }
     if (info?.session.state === 'running') { setConfirmClose(true); return; }
     onHide();
   };
@@ -302,6 +304,7 @@ export function ConsolePanel({ serviceKey, height, maxHeight, onHeight, onDrag, 
           <button className="icon-btn" title={t('console.hide')} aria-label={t('console.hide')} onClick={onHide}><Icon name="chevronUp" /></button>
           <button className="icon-btn icon-btn-close" title={t('console.close')} aria-label={t('console.close')} onClick={close}><Icon name="close" /></button>
         </div>
+        {info?.view && <p className="console-row console-line meta" role="status">{t('console.view')}</p>}
         {handover && <p className="console-row console-line meta" role="status">{handover.kind === 'resume' ? t('console.resumed', { agent: handover.agent }) : t('console.handover', { workflow: handover.workflow || handover.agent, account: handover.account || t('word.notRecorded') })}</p>}
         {!ownHandover && <div className="console-row meta">
           {info?.folder

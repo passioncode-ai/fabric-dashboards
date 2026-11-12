@@ -31,7 +31,7 @@ import type { SettingsStore } from '../core/settings';
 import { accountsOf, allSessionsOf, bindingFor, findSwitchboard, handoverOwnKey, handoverRunArgv, handoversOf, handoversSwitch, isHandoverKey, launchFeatures, managesProvider, sbFailure, sessionsIn, terminalLaunchArgv, type Binding, type SbHandover, type SbSessions } from '../core/switchboard';
 import type { ServiceSnapshot, Settings } from '../core/types';
 import { claimStop, continuedOf, finishStop, liveAgents, recoveryOf, resumeArgs, resumeOwnKey, sessionOpen, transcriptIn, transcriptOf, verdictOf, writtenAt, RESUME_SETTLE_MS, RESUMES_PER_PASS, type RecoveryStatus, type SbStop, type StopView } from '../core/recovery';
-import { consoleRowId, handoverRowId, mergeSessions, pruneDismissed, pruneRecords, SourceReader, stopRowId, type ConsoleInput, type PendingHandover, type SbSessionRecord, type SessionActionResult, type SessionReason, type SessionRecord, type SessionNotice, type SessionOrigin, type SessionRow, type SessionsStatus, type SourceDegraded } from '../core/sessions';
+import { attachOwnKey, consoleRowId, handoverRowId, mergeSessions, pruneDismissed, pruneRecords, SourceReader, stopRowId, type ConsoleInput, type PendingHandover, type SbSessionRecord, type SessionActionResult, type SessionReason, type SessionRecord, type SessionNotice, type SessionOrigin, type SessionRow, type SessionsStatus, type SourceDegraded } from '../core/sessions';
 
 /** node-pty 1.1.0 ships its macOS `spawn-helper` without the executable bit, and its postinstall
  *  does not set it: without it every spawn fails with `posix_spawnp failed`. A development checkout
@@ -181,6 +181,8 @@ export class ConsoleHost {
   private switchboardPresent: boolean | null = null;
   /** Scenario walk 2026-11-11 (SCN-084): the origin a continued session keeps, by console key. */
   private readonly originOf = new Map<string, SessionOrigin>();
+  /** FD-211: consoles that show a session Switchboard's session host holds, by the launch id they show. */
+  private readonly attachedOf = new Map<string, string>();
   private readonly sbSessions = new SourceReader<SbSessionRecord[]>('sessions', async () => {
     const inv = await this.inventory();
     this.switchboardPresent = Boolean(inv.switchboard);
@@ -363,6 +365,7 @@ export class ConsoleHost {
       handover: this.handoverInfo(key),
       remote: this.remoteInfo(key),
       machine: this.o.settings.get().consoles[key]?.machine ?? null,
+      ...(this.attachedOf.has(key) ? { view: true } : {}),
     };
   }
 
@@ -945,6 +948,8 @@ export class ConsoleHost {
    *  hand-over whose `handovers run` failed at once because Switchboard is older than this app is a hand-over that did
    *  not open, not a session that ended. */
   private recordEnd(key: string, code: number | null): void {
+    // FD-211: a view of a hosted session ending is no session ending: the session is Switchboard's row, and it may run on.
+    if (this.attachedOf.delete(key)) { this.endReasons.delete(key); this.originOf.delete(key); return; }
     const snap = this.manager.snapshot(key);
     const end = this.endReasons.get(key) ?? 'ended';
     this.endReasons.delete(key);
@@ -1014,6 +1019,7 @@ export class ConsoleHost {
         key, folder: this.shownFolder(key, snap.cwd), agent: h?.agent || snap.label || 'agent', startedAt: snap.startedAt ?? now,
         origin: this.originOf.get(key) ?? (h ? (resumed ? 'resume' : 'handover') : 'here'), account: h?.account || null,
         failedResume: this.failedResumes.has(key), handoverId: h && !resumed ? h.id : null, paid: h && !resumed ? h.paid : null,
+        attachedTo: this.attachedOf.get(key) ?? null,
       };
     });
     const rows = mergeSessions({
@@ -1235,6 +1241,36 @@ export class ConsoleHost {
     if (!row.actions.includes('end')) return { ok: false, reason: 'not-allowed' };
     this.stopByPerson(row.key);
     return { ok: true, key: row.key };
+  }
+
+  /** FD-211 (SB-342 H-1): Open here, for a session Switchboard's session host holds: a console of its own runs
+   *  `switchboard attach <launch_id>` and shows it. Closing that console only closes the view; the session runs on. A
+   *  second Open here finds the console already showing it. */
+  async attachSession(id: string, size = { cols: 100, rows: 30 }): Promise<SessionActionResult> {
+    const row = this.rowOf(id);
+    if (!row) return { ok: false, reason: 'unknown' };
+    const launchId = row.launch?.launchId;
+    if (!row.actions.includes('attach') || !launchId) return { ok: false, reason: 'not-allowed' };
+    const key = attachOwnKey(launchId);
+    if (this.manager.snapshot(key).state === 'running') return { ok: true, key };
+    const inv = await this.inventory();
+    if (!inv.switchboard) return { ok: false, reason: 'no-switchboard' };
+    const cwd = isDir(row.folder) ? row.folder : os.homedir();
+    // A view writes nothing to this Mac's disk, so only the count of consoles and the swap hold it back (LC-17).
+    const a = admit({ ...await (this.o.machine ?? machineProbe)(cwd, this.manager.runningCount()), freeDisk: null });
+    if (!a.ok) return { ok: false, reason: 'admission', detail: a.why };
+    const r = this.manager.start(key, { argv: [inv.switchboard, 'attach', launchId], cwd, label: row.agent, env: { PATH: inv.dirs.join(path.delimiter) } }, size);
+    if (!r.ok) return { ok: false, reason: 'spawn', detail: r.error };
+    this.attachedOf.set(key, launchId);
+    this.originOf.set(key, 'switchboard');
+    this.o.log(`console: hosted session ${launchId} opened in ${key}`);
+    this.o.changed?.();
+    return { ok: true, key };
+  }
+
+  /** FD-211: a console that only shows a hosted session; quitting or closing it leaves the session running. */
+  isView(key: string): boolean {
+    return this.attachedOf.has(key);
   }
 
   /** FD-103: Show in Finder, for a row's folder; the folder comes from the row, never from the page. */
@@ -1500,6 +1536,7 @@ export class ConsoleHost {
     const notARow = () => Promise.reject(new Error('not a session id'));
     ipcMain.handle(CHANNELS.sessionsContinue, (_e, id, s, account) => (idOk(id) ? this.continueSession(id, size(s ?? { cols: 100, rows: 30 }), typeof account === 'string' && account.length <= 64 ? account : undefined) : notARow()));
     ipcMain.handle(CHANNELS.sessionsDismiss, (_e, id) => (idOk(id) ? this.dismissSession(id) : notARow()));
+    ipcMain.handle(CHANNELS.sessionsAttach, (_e, id, s) => (idOk(id) ? this.attachSession(id, size(s ?? { cols: 100, rows: 30 })) : notARow()));
     ipcMain.handle(CHANNELS.sessionsClearEnded, () => this.clearEnded());
     ipcMain.handle(CHANNELS.sessionsEnd, (_e, id) => (idOk(id) ? this.endSession(id) : notARow()));
     ipcMain.handle(CHANNELS.sessionsReveal, (_e, id) => (idOk(id) ? this.revealSession(id) : notARow()));

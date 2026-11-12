@@ -23,11 +23,12 @@ export function shortPath(p: string): string {
 }
 
 /** What a refused action says, in one sentence. */
-export function failText(t: T, r: Extract<SessionActionResult, { ok: false }>, o: { action: 'end' | 'reveal' | 'continue' | 'dismiss'; folder: string }): string {
+export function failText(t: T, r: Extract<SessionActionResult, { ok: false }>, o: { action: 'end' | 'reveal' | 'continue' | 'dismiss' | 'attach'; folder: string }): string {
   if (o.action === 'end') return t('sessions.endFailed', { reason: r.detail ?? r.reason });
   if (o.action === 'reveal') return r.reason === 'no-folder' ? t('sessions.reason.no-folder') : t('sessions.revealFailed', { path: o.folder, reason: r.detail ?? r.reason });
   // R1-B: the refusal says the cause the check found (disk, six sessions, swap).
   if (r.reason === 'admission') return t(r.detail === 'disk' || r.detail === 'cap' || r.detail === 'swap' ? `sessions.reason.busy-${r.detail}` : 'sessions.reason.busy');
+  if (o.action === 'attach') return t('sessions.attachFailed', { reason: r.detail ?? r.reason }); // FD-211
   if (r.reason === 'no-folder') return t('sessions.reason.no-folder');
   if (r.reason === 'remote') return t(remoteRefusal(r.detail)); // FD-199, FD-200
   return t('sessions.reason.resume-failed');
@@ -63,13 +64,13 @@ export function SessionActions({ row, place, open, askEnd, continued, onMenu }: 
     (box.current?.querySelector('[role="menuitem"]') as HTMLButtonElement | null)?.focus();
     return () => { document.removeEventListener('mousedown', away); document.removeEventListener('keydown', key); };
   }, [menu]);
-  const run = async (action: 'reveal' | 'continue' | 'dismiss', call: () => Promise<SessionActionResult>) => {
+  const run = async (action: 'reveal' | 'continue' | 'dismiss' | 'attach', call: () => Promise<SessionActionResult>) => {
     setBusy(true);
     setError('');
     try {
       const r = await call();
       if (!r.ok) setError(failText(t, r, { action, folder: row.folder }));
-      else if (action === 'continue' && r.key) continued(r.key);
+      else if ((action === 'continue' || action === 'attach') && r.key) continued(r.key);
     } catch (e) {
       setError(failText(t, { ok: false, reason: 'spawn', detail: String((e as Error)?.message ?? e) }, { action, folder: row.folder }));
     } finally {
@@ -101,6 +102,8 @@ export function SessionActions({ row, place, open, askEnd, continued, onMenu }: 
       </div>
     ),
     waitingNoCandidate && <button key="now-off" className="btn btn-sm" disabled aria-describedby={`nocand-${row.id}`}>{t('sessions.continueNow')}</button>,
+    // FD-211: a session Switchboard's session host holds opens in this app; closing it here leaves it running.
+    has('attach') && <button key="attach" className="btn btn-sm btn-primary" disabled={busy} onClick={() => void run('attach', () => api().sessionsAttach(row.id, size))}>{t('sessions.attach')}</button>,
     has('end') && <button key="end" className="btn btn-sm btn-danger" onClick={() => askEnd(row)}>{t('sessions.end')}</button>,
     has('reveal') && <button key="reveal" className="btn btn-sm" disabled={busy} onClick={() => void run('reveal', () => api().sessionsReveal(row.id))}>{revealLabel(lang, platformOf())}</button>,
     has('dontContinue') && <button key="dont" className="btn btn-sm" disabled={busy} onClick={() => void run('dismiss', () => api().sessionsDismiss(row.id))}>{t('sessions.dontContinue')}</button>,

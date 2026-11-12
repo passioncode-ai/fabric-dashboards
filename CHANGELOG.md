@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.8.63 - 2026-11-12
+
+### Added
+
+- FD-211: a session Switchboard's session host holds (Switchboard 0.7.63 and later, and from 0.7.64 every Terminal
+  window it opens) offers Open here on the Sessions page: it opens in a console of its own, the same session you see in
+  Terminal. Closing that console, or quitting the app, leaves the session running. Agents do the same with MCP
+  `session_action` `attach`.
+
 ## 0.8.62 - 2026-11-12
 
 ### Added

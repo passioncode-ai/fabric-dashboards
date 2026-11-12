@@ -38,7 +38,7 @@ export type SessionGroup = 'needs-you' | 'running' | 'waiting' | 'ended';
 export const GROUP_ORDER: readonly SessionGroup[] = ['needs-you', 'running', 'waiting', 'ended'];
 /** What a person may do with a row: `end` asks first; `continueNow` claims a limit stop on another account now;
  *  `dontContinue` keeps a waiting stop from being continued; `dismiss` removes the row. */
-export type SessionAction = 'end' | 'reveal' | 'openConsole' | 'dismiss' | 'continueNow' | 'dontContinue' | 'continue';
+export type SessionAction = 'end' | 'reveal' | 'openConsole' | 'dismiss' | 'continueNow' | 'dontContinue' | 'continue' | 'attach';
 /** Why a row is not running: a hand-over that did not open (`expired`, `no-folder`, `busy-disk`, `busy-cap`, `busy-swap`
  *  for the LC-17 refusal the check found (R1-B; `busy` in records of 0.8.0 builds before it), `switchboard-old`,
  *  `not-started`; `pending`, still on offer, is never listed); a stop this app does not continue (`billing`, which needs the
@@ -126,6 +126,8 @@ export interface SbSessionRecord {
   /** FD-124 (SB-212, Switchboard 0.7.0): what the launch record says about where the session came from and where its
    *  work went; null when Switchboard keeps no such record (an earlier version, or a launch before 0.7.0). */
   launch: LaunchFacts | null;
+  /** FD-211 (SB-342 H-1, Switchboard 0.7.63): a session host holds it, so any app may open it (`switchboard attach`). */
+  attachable?: boolean;
 }
 
 /** Who started a launch, as Switchboard recorded it. Each field is null when absent or not of the expected form. */
@@ -183,6 +185,8 @@ export interface ConsoleInput {
   handoverId?: string | null;
   /** FD-124: a hand-over that runs on money (an OpenRouter key or an API key account). */
   paid?: Paid;
+  /** FD-211: this console only shows a session Switchboard's session host holds (`switchboard attach`): the launch id. */
+  attachedTo?: string | null;
 }
 
 /** What is kept in the settings for 24 hours: a console session that ended, and a hand-over that did not open here. */
@@ -251,6 +255,8 @@ export type SessionActionResult =
 export const consoleRowId = (key: string, startedAt: number) => `c:${key}:${startedAt}`;
 export const handoverRowId = (id: string) => `ho:${id}`;
 export const stopRowId = (event: string) => `st:${event}`;
+/** FD-211: the console of its own that shows one hosted session; one per launch, so a second Open here finds it. */
+export const attachOwnKey = (launchId: string) => `handover.at-${fnv64(launchId).slice(0, 12)}`;
 /** FNV-1a, 64 bits as hex: a stable short name for a long folder. Pure, so the renderer can import this module. */
 function fnv64(text: string): string {
   let h = 0xcbf29ce484222325n;
@@ -365,6 +371,18 @@ export function mergeSessions(i: MergeInput): SessionRow[] {
   const consoleKeys = new Set<string>();
   for (const c of i.consoles) {
     consoleKeys.add(c.key);
+    if (c.attachedTo) {
+      // FD-211: a console that shows a hosted session is that session's row, not a session of its own. Its End would
+      // only close the view, so the row offers none: the session ends where it runs, or by itself.
+      const s = sb.find((x) => !used.has(x) && x.launch?.launchId === c.attachedTo);
+      if (s) used.add(s);
+      add(row({
+        id: s ? sbRowId(s) : consoleRowId(c.key, c.startedAt), key: c.key, folder: s?.folder ?? c.folder, agent: s?.agent ?? c.agent,
+        account: s?.account || null, context: s?.context ?? null, contextName: s?.contextName ?? null, origin: 'switchboard', reason: null,
+        state: 'running-ours', startedAt: s?.launchedAt ?? s?.startedAt ?? c.startedAt, endedAt: null, launch: s?.launch ?? null, actions: ['reveal'],
+      }));
+      continue;
+    }
     const s = sbOf(c.folder, c.startedAt);
     add(row({
       id: consoleRowId(c.key, c.startedAt), key: c.key, folder: c.folder, agent: c.agent, account: c.account ?? s?.account ?? null,
@@ -450,12 +468,15 @@ export function mergeSessions(i: MergeInput): SessionRow[] {
     const running = s.state === 'running' || s.state === 'starting' || s.state === 'unknown';
     const started = s.launchedAt ?? s.startedAt;
     if (!running && !fresh(started, i.now)) continue; // ended more than a day ago, as far as can be told
+    // FD-211: a session a host holds opens here, beside what its state offers.
+    const state: SessionState = running ? (isBackground(s) ? 'running-background' : 'running-terminal') : 'ended';
     add(row({
       id: sbRowId(s), key: null, folder: s.folder, agent: s.agent,
+      actions: running && s.attachable && s.launch?.launchId ? ['attach', ...actionsFor(state)] : undefined,
       account: s.account || null, context: s.context, contextName: s.contextName, origin: s.continues ? 'handover' : 'switchboard', reason: null,
       // SB-201: only a Claude Code session has a Claude Code conversation to resume; a proxy launch rides `claude` too.
       // FD-207: a board run (`switchboard dispatch`) has no window; one launched in place runs in someone's terminal.
-      state: running ? (isBackground(s) ? 'running-background' : 'running-terminal') : 'ended', startedAt: started, endedAt: running ? null : s.launch?.endedAt ?? null, resumable: s.agent === 'claude-code',
+      state, startedAt: started, endedAt: running ? null : s.launch?.endedAt ?? null, resumable: s.agent === 'claude-code',
       launch: s.launch,
     }));
   }
