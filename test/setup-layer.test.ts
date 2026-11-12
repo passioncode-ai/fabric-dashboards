@@ -114,3 +114,24 @@ test('FD-208: the launcher\'s doctor steps read as the computer layer until it e
   assert.equal(by['computer.services'].state, 'done', 'an area with nothing failing is done');
   assert.deepEqual(answer.steps.map((s) => s.title).slice(0, 2), ['Area prerequisites', 'Area skills']);
 });
+
+test('FD-215 (the launcher\'s message 84198dd6): a line `setup` does not fix is no `setup` step; it shows its own fix', async () => {
+  const { parseDoctor, doctorMarkdown } = await import('../src/core/doctor');
+  const { doctorLayer, parseSetupLayer } = await import('../src/core/setup-layer');
+  const report = parseDoctor(JSON.stringify({ version: '0.2.77', at: 't', ok: false, checks: [
+    { id: 'memory.vault', area: 'memory', state: 'fail', detail: 'the vault folder is missing', fix: 'create the vault in Obsidian, then press Check setup', gate: null, manual: true },
+    { id: 'skills.x', area: 'skills', state: 'warn', detail: 'old', fix: 'setup', manual: true },
+    { id: 'skills.y', area: 'skills', state: 'fail', detail: 'missing', fix: 'setup' },
+    { id: 'apps.z', area: 'apps', state: 'warn', detail: 'no fix named' },
+  ] }))!;
+  assert.equal(report.checks[0]!.manual, true);
+  assert.equal(report.checks[2]!.manual, undefined, 'only a true is read');
+  const by = Object.fromEntries(doctorLayer(report, '2026-11-13T00:00:00Z', (a) => a).steps.map((s) => [s.id, s]));
+  assert.deepEqual(by['computer.memory']!.door, { name: 'console_fix' }, 'not SETUP_DOOR');
+  assert.equal(by['computer.memory']!.why, 'create the vault in Obsidian, then press Check setup');
+  assert.deepEqual(by['computer.skills']!.door, { argv: ['npx', '--yes', '@passioncode-ai/passioncode@latest', 'setup'] }, 'one line setup fixes: setup first');
+  assert.deepEqual(by['computer.apps']!.door, { name: 'console_fix' }, 'a line with no fix is no setup step either');
+  assert.equal(by['computer.apps']!.why, 'no fix named');
+  assert.ok(parseSetupLayer(doctorLayer(report, '2026-11-13T00:00:00Z', (a) => a)).ok);
+  assert.match(doctorMarkdown(report), /memory\.vault.*`setup` does not fix this/);
+});
