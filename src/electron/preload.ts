@@ -52,6 +52,7 @@ const api: FabricApi = {
   newSessionOptions: () => ipcRenderer.invoke(CHANNELS.newSessionOptions),
   newSessionPickFolder: (current) => ipcRenderer.invoke(CHANNELS.newSessionPickFolder, current),
   newSessionStart: (choice, size) => ipcRenderer.invoke(CHANNELS.newSessionStart, choice, size),
+  newSessionMachineFolders: (machine) => ipcRenderer.invoke(CHANNELS.newSessionMachineFolders, machine),
   setupState: () => ipcRenderer.invoke(CHANNELS.setupState),
   setupCheck: (auto?: boolean) => ipcRenderer.invoke(CHANNELS.setupCheck, auto === true),
   setupCheckLast: () => ipcRenderer.invoke(CHANNELS.setupCheckLast),

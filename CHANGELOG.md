@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.8.57 - 2026-11-12
+
+### Added
+
+- FD-206: New session can start on another machine. The dialog lists the machines Switchboard knows; the folder
+  there is picked from that machine's projects under `~/DATA`, and the session runs through that machine's
+  Switchboard in the console here. MCP `session_new` takes `machine` with a folder there.
+
 ## 0.8.56 - 2026-11-11
 
 ### Fixed

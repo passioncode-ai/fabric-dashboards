@@ -1,7 +1,7 @@
 // The person's settings (SCN-024). Written atomically, with the last good copy beside it: a file
 // that cannot be read — a partial copy from another machine, an editor, a full disk at the wrong
 // moment — is restored from that copy instead of silently becoming the defaults (ADR-0015).
-import { isAbsoluteFolder } from './platform';
+import { isAbsoluteFolder, MACHINE } from './platform';
 import fs from 'node:fs';
 import path from 'node:path';
 import { atomicWrite } from './fsutil';
@@ -195,16 +195,18 @@ function mergeConsoles(raw: unknown): Settings['consoles'] {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return out;
   for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
     if (!SERVICE_KEY.test(key) || !value || typeof value !== 'object') continue;
-    const v = value as { runtime?: unknown; folder?: unknown; idle?: unknown; bypass?: unknown; isolated?: unknown; where?: unknown };
+    const v = value as { runtime?: unknown; folder?: unknown; idle?: unknown; bypass?: unknown; isolated?: unknown; where?: unknown; machine?: unknown };
     const idle = v.idle as { at?: unknown; account?: unknown } | null | undefined;
     out[key] = {
       runtime: typeof v.runtime === 'string' && /^[a-z0-9][a-z0-9-]{0,40}$/.test(v.runtime) ? v.runtime : null,
-      folder: typeof v.folder === 'string' && isAbsoluteFolder(v.folder, process.platform) ? v.folder : null,
+      // FD-206: a folder on another machine is a POSIX path there, whatever this machine is.
+      folder: typeof v.folder === 'string' && (isAbsoluteFolder(v.folder, process.platform) || (typeof v.machine === 'string' && MACHINE.test(v.machine) && v.folder.startsWith('/'))) ? v.folder : null,
       ...(idle && typeof idle === 'object' && typeof idle.at === 'string' && Number.isFinite(Date.parse(idle.at))
         ? { idle: { at: idle.at, account: typeof idle.account === 'string' ? idle.account.slice(0, 120) : null } } : {}),
       ...(typeof v.bypass === 'boolean' ? { bypass: v.bypass } : {}),
       ...(typeof v.isolated === 'boolean' ? { isolated: v.isolated } : {}),
       ...(v.where === 'here' ? { where: 'here' as const } : {}),
+      ...(typeof v.machine === 'string' && MACHINE.test(v.machine) ? { machine: v.machine } : {}),
     };
   }
   return out;
@@ -218,6 +220,7 @@ function patchConsoles(old: Settings['consoles'], patch: Settings['consoles'] | 
     const next = { ...entry };
     if (next.where === undefined && old[key]?.where === 'here') next.where = 'here';
     if (next.where === 'there') delete next.where;
+    if (next.machine === undefined && old[key]?.machine) next.machine = old[key]!.machine;
     out[key] = next;
   }
   return out;
@@ -225,12 +228,14 @@ function patchConsoles(old: Settings['consoles'], patch: Settings['consoles'] | 
 
 /** FD-191: the New session dialog's last choices; a runtime that is not an id or a folder that is not absolute is dropped. */
 function mergeNewSession(raw: unknown): Settings['newSession'] {
-  const v = (raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {}) as { runtime?: unknown; folder?: unknown; bypass?: unknown; isolated?: unknown };
+  const v = (raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {}) as { runtime?: unknown; folder?: unknown; bypass?: unknown; isolated?: unknown; machine?: unknown; remoteFolder?: unknown };
   return {
     runtime: typeof v.runtime === 'string' && /^[a-z0-9][a-z0-9-]{0,40}$/.test(v.runtime) ? v.runtime : null,
     folder: typeof v.folder === 'string' && isAbsoluteFolder(v.folder, process.platform) ? v.folder : null,
     bypass: v.bypass !== false,
     isolated: v.isolated === true,
+    ...(typeof v.machine === 'string' && MACHINE.test(v.machine) ? { machine: v.machine } : {}),
+    ...(typeof v.remoteFolder === 'string' && v.remoteFolder.startsWith('/') && v.remoteFolder.length <= 4096 ? { remoteFolder: v.remoteFolder } : {}),
   };
 }
 

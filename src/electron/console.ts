@@ -23,11 +23,13 @@ import { ConsoleManager, planStart, terminalScript, type SpawnPty } from '../cor
 import { dropKept, loadKept, saveKept } from '../core/kept-output';
 import { admit, machineProbe, type MachineState } from '../core/admission';
 import { findCheckout } from '../core/repofind';
+import { projectsOf, projectsProbeArgv, targetLaunchArgv, targetsOf } from '../core/target-session';
+import { MACHINE } from '../core/platform';
 import { isNewAgentKey, isNewSessionKey, isolatedBlock, newSessionKey, prepareNewAgent, projectsFolder, type NewSessionChoice } from '../core/new-session';
 import { bypassArgs, bypassArgsOfProvider, detectRuntimes, KNOWN_RUNTIMES, readLoginPath, searchDirs, specsFromSwitchboard, type Runtime, type RuntimeSpec } from '../core/runtimes';
 import type { SettingsStore } from '../core/settings';
 import { accountsOf, allSessionsOf, bindingFor, findSwitchboard, handoverOwnKey, handoverRunArgv, handoversOf, handoversSwitch, isHandoverKey, launchFeatures, managesProvider, sbFailure, sessionsIn, terminalLaunchArgv, type Binding, type SbHandover, type SbSessions } from '../core/switchboard';
-import type { ServiceSnapshot } from '../core/types';
+import type { ServiceSnapshot, Settings } from '../core/types';
 import { claimStop, continuedOf, finishStop, liveAgents, recoveryOf, resumeArgs, resumeOwnKey, sessionOpen, transcriptIn, transcriptOf, verdictOf, writtenAt, RESUME_SETTLE_MS, RESUMES_PER_PASS, type RecoveryStatus, type SbStop, type StopView } from '../core/recovery';
 import { consoleRowId, handoverRowId, mergeSessions, pruneDismissed, pruneRecords, SourceReader, stopRowId, type ConsoleInput, type PendingHandover, type SbSessionRecord, type SessionActionResult, type SessionReason, type SessionRecord, type SessionNotice, type SessionOrigin, type SessionRow, type SessionsStatus, type SourceDegraded } from '../core/sessions';
 
@@ -131,7 +133,7 @@ export class ConsoleHost {
   readonly manager: ConsoleManager;
   private dirs: Promise<string[]> | null = null;
   private catalog: Promise<Runtime[]> | null = null;
-  private inPlaceFor: { key: string; value: { inPlace: boolean; surface: boolean } } | null = null;
+  private inPlaceFor: { key: string; value: { inPlace: boolean; surface: boolean; target: boolean } } | null = null;
   /** FD-74: what Switchboard said about each folder, for showing the console at once (BINDING_FRESH_MS). */
   private readonly bindings = new Map<string, { at: number; value: Binding | { kind: 'absent' }; pending: boolean }>();
   private readonly run: Runner;
@@ -258,7 +260,7 @@ export class ConsoleHost {
   /** The runtimes installed, read once per launch (looked for again while none is found), and
    *  Switchboard, looked for on every call: one installed later must bind its folders at once
    *  (review R-3) — a stat per folder, and `launch --help` only when the binary changed. */
-  private async inventory(): Promise<{ runtimes: Runtime[]; switchboard: string | null; inPlace: boolean; surface: boolean; dirs: string[] }> {
+  private async inventory(): Promise<{ runtimes: Runtime[]; switchboard: string | null; inPlace: boolean; surface: boolean; target: boolean; dirs: string[] }> {
     const dirs = await this.searchPath();
     const switchboard = findSwitchboard(dirs);
     if (!this.catalog) {
@@ -277,13 +279,14 @@ export class ConsoleHost {
     if (!runtimes.length) this.catalog = null; // nothing found: look again next time
     let inPlace = false;
     let surface = false;
+    let target = false;
     if (switchboard) {
       let stamp = switchboard;
       try { stamp += `:${fs.statSync(switchboard).mtimeMs}`; } catch { /* checked below anyway */ }
       if (this.inPlaceFor?.key !== stamp) this.inPlaceFor = { key: stamp, value: await launchFeatures(this.run, switchboard) };
-      ({ inPlace, surface } = this.inPlaceFor.value);
+      ({ inPlace, surface, target } = this.inPlaceFor.value);
     }
-    return { runtimes, switchboard, inPlace, surface, dirs };
+    return { runtimes, switchboard, inPlace, surface, target, dirs };
   }
 
   private folderOf(key: string): ConsoleInfo['folder'] {
@@ -501,6 +504,9 @@ export class ConsoleHost {
     const inv = await this.inventory();
     const runtime = this.chosen(key, inv.runtimes);
     if (!runtime) return { ok: false, reason: 'no-runtime' };
+    // FD-206: a session of its own started on another machine runs there through that machine's Switchboard.
+    const onMachine = this.o.settings.get().consoles[key];
+    if (onMachine?.machine) return this.startOnMachine(key, mode, size, runtime, inv, onMachine as typeof onMachine & { machine: string });
     const folder = this.folderOf(key);
     // FD-199: an agent placed on another machine runs its coding agent there, in the same folder; it need not exist here.
     const remote = this.remoteOf(key);
@@ -557,6 +563,56 @@ export class ConsoleHost {
     this.o.log(`console: ${key} started ${runtime.id} (${mode}) in ${folder.path}${plan.argv[0] === inv.switchboard ? ' through Switchboard' : ''}${saved?.isolated ? ' isolated' : ''}${saved?.bypass === false ? ' with permission prompts' : ''}${pack ? ` with its context${task ? ` and a ${task.kind} task` : ''}` : ''}`);
     return { ok: true };
   }
+
+  // #region target-session-host — docs: docs/ux/scenarios.md#scn-101-start-a-new-session-in-a-folder
+  /** FD-206: the coding agent starts on the machine through its Switchboard (`launch --target`), in the folder chosen
+   *  there, with this Mac's free space as the admission (the session's terminal is here); the label names the machine. */
+  private async startOnMachine(key: string, mode: 'new' | 'continue', size: { cols: number; rows: number }, runtime: Runtime,
+    inv: { switchboard: string | null; inPlace: boolean; surface: boolean; target: boolean; dirs: string[] },
+    saved: Settings['consoles'][string] & { machine: string }): Promise<ConsoleStartResult> {
+    if (!inv.switchboard) return { ok: false, reason: 'remote', detail: 'no-switchboard' };
+    if (!inv.target || !inv.inPlace) return { ok: false, reason: 'remote', detail: 'old-switchboard' };
+    if (!runtime.provider) return { ok: false, reason: 'remote', detail: 'provider' };
+    if (!saved.folder || !saved.folder.startsWith('/')) return { ok: false, reason: 'no-folder' };
+    const home = this.o.home ?? os.homedir();
+    const a = admit(await (this.o.machine ?? machineProbe)(home, this.manager.runningCount()));
+    if (!a.ok) {
+      this.o.log(`console: ${key} start deferred (LC-17): ${a.why}`);
+      if (a.why === 'disk') return { ok: false, reason: 'admission', why: 'disk', freeGb: Math.round((a.freeDisk / 1024 ** 3) * 10) / 10 };
+      if (a.why === 'cap') return { ok: false, reason: 'admission', why: 'cap', running: a.running, cap: a.cap };
+      return { ok: false, reason: 'admission', why: 'swap' };
+    }
+    // The runtime's own arguments (permission, continue) as a plain start would pass them; the account is that machine's.
+    const local = planStart({ runtime, mode, folder: saved.folder, binding: { kind: 'none' }, switchboard: null, inPlace: false, bypass: saved.bypass });
+    if (local.kind !== 'run') return local.kind === 'refused' ? { ok: false, reason: local.reason, detail: local.detail } : { ok: false, reason: 'spawn' };
+    const argv = targetLaunchArgv({ sb: inv.switchboard, machine: saved.machine, provider: runtime.provider, isolated: saved.isolated === true, folder: saved.folder, args: local.argv.slice(1), surface: inv.surface });
+    const r = this.manager.start(key, { argv, cwd: home, label: `${runtime.name} · ${saved.machine}`, env: { PATH: inv.dirs.join(path.delimiter) } }, size);
+    if (!r.ok) return { ok: false, reason: r.error === 'running' ? 'running' : 'spawn', detail: r.error };
+    this.handoverOf.delete(key);
+    if (mode === 'continue') this.forgetLatestEnded(key);
+    this.o.settings.update({ consoles: { [key]: { runtime: runtime.id, folder: saved.folder, idle: null, machine: saved.machine,
+      ...(saved.bypass !== undefined ? { bypass: saved.bypass } : {}), ...(saved.isolated !== undefined ? { isolated: saved.isolated } : {}) } } });
+    this.remoteRuns.set(key, saved.folder);
+    this.o.log(`console: ${key} started ${runtime.id} (${mode}) on ${saved.machine} in ${saved.folder} through Switchboard${saved.isolated ? ' isolated' : ''}`);
+    return { ok: true };
+  }
+
+  /** FD-206: the machines a session can start on: Switchboard's targets, when it can start one there. */
+  private async machinesOf(inv: { switchboard: string | null; inPlace: boolean; target: boolean }): Promise<string[]> {
+    return inv.switchboard && inv.target && inv.inPlace ? targetsOf(this.run, inv.switchboard) : [];
+  }
+
+  /** FD-206: the folders a session can open in on that machine: its home and its projects under `~/DATA`. */
+  async machineFolders(machine: string): Promise<{ ok: true; home: string; folders: string[] } | { ok: false; why: 'unknown-machine' | 'unreachable' }> {
+    const inv = await this.inventory();
+    if (!(await this.machinesOf(inv)).includes(machine)) return { ok: false, why: 'unknown-machine' };
+    const [cmd, ...args] = projectsProbeArgv(machine);
+    let found: { home: string; folders: string[] } | null;
+    try { found = projectsOf(await this.run(cmd!, args, 20_000)); } catch { found = null; }
+    this.o.log(`console: ${machine} ${found ? `has ${found.folders.length} projects` : 'did not answer about its folders'}`);
+    return found ? { ok: true, ...found } : { ok: false, why: 'unreachable' };
+  }
+  // #endregion target-session-host
 
   /** FD-50 (LC-18): save each idle session (when, and the Switchboard account it ran on) and close it, so it
    *  holds neither memory nor MCP servers; opening the console again continues it. */
@@ -1334,6 +1390,12 @@ export class ConsoleHost {
     return {
       runtimes: inv.runtimes.map((r) => ({ id: r.id, name: r.name, bypass: bypassArgs(r.id).length > 0, provider: r.provider ?? null })),
       runtime: runtime?.id ?? null, folder, bypass: last.bypass, isolated: last.isolated, switchboard: Boolean(inv.switchboard), inPlace: inv.inPlace,
+      // FD-206: where it can start; the last machine is offered again only while Switchboard still lists it.
+      ...await (async () => {
+        const machines = await this.machinesOf(inv);
+        const machine = last.machine && machines.includes(last.machine) ? last.machine : null;
+        return { machines, machine, remoteFolder: machine ? last.remoteFolder ?? null : null };
+      })(),
     };
   }
 
@@ -1352,17 +1414,27 @@ export class ConsoleHost {
     const inv = await this.inventory();
     const runtime = inv.runtimes.find((r) => r.id === choice.runtime);
     if (!runtime) return { ok: false, reason: 'no-runtime' };
-    if (!isDir(choice.folder)) return { ok: false, reason: 'no-folder' };
+    // FD-206: on another machine the folder is that machine's: it is checked there, when the session starts.
+    if (choice.machine) {
+      if (!inv.switchboard) return { ok: false, reason: 'remote', detail: 'no-switchboard' };
+      if (!inv.target || !inv.inPlace) return { ok: false, reason: 'remote', detail: 'old-switchboard' };
+      if (!runtime.provider) return { ok: false, reason: 'remote', detail: 'provider' };
+      if (!(await this.machinesOf(inv)).includes(choice.machine)) return { ok: false, reason: 'remote', detail: 'unknown-machine' };
+    } else if (!isDir(choice.folder)) return { ok: false, reason: 'no-folder' };
     const bypass = choice.bypass && bypassArgs(runtime.id).length > 0;
-    if (choice.isolated) {
+    if (choice.isolated && !choice.machine) {
       const why = isolatedBlock({ switchboard: Boolean(inv.switchboard), inPlace: inv.inPlace, provider: runtime.provider ?? null });
       if (why) return { ok: false, reason: 'isolated', detail: why };
     }
     this.pruneNewSessions();
     const key = newSessionKey(choice.kind);
+    const last = this.o.settings.get().newSession;
     this.o.settings.update({
-      consoles: { [key]: { runtime: runtime.id, folder: choice.folder, idle: null, bypass, isolated: choice.isolated } },
-      newSession: { runtime: runtime.id, folder: choice.folder, bypass: choice.bypass, isolated: choice.isolated },
+      consoles: { [key]: { runtime: runtime.id, folder: choice.folder, idle: null, bypass, isolated: choice.isolated, ...(choice.machine ? { machine: choice.machine } : {}) } },
+      // FD-206: this Mac's last folder stays when a session starts elsewhere, and the other way round.
+      newSession: choice.machine
+        ? { runtime: runtime.id, folder: last?.folder ?? null, bypass: choice.bypass, isolated: choice.isolated, machine: choice.machine, remoteFolder: choice.folder }
+        : { runtime: runtime.id, folder: choice.folder, bypass: choice.bypass, isolated: choice.isolated, ...(last?.remoteFolder ? { remoteFolder: last.remoteFolder } : {}) },
     });
     const r = await this.start(key, 'new', size);
     if (!r.ok) {
@@ -1372,7 +1444,7 @@ export class ConsoleHost {
       return r;
     }
     this.o.started?.({ kind: choice.kind, runtime: runtime.id, bypass, isolated: choice.isolated });
-    this.o.log(`console: new ${choice.kind} ${key} started (${runtime.id}${bypass ? '' : ', with permission prompts'}${choice.isolated ? ', isolated' : ''})`);
+    this.o.log(`console: new ${choice.kind} ${key} started (${runtime.id}${bypass ? '' : ', with permission prompts'}${choice.isolated ? ', isolated' : ''}${choice.machine ? `, on ${choice.machine}` : ''})`);
     this.o.changed?.();
     return { ok: true, key };
   }
@@ -1397,6 +1469,7 @@ export class ConsoleHost {
     ipcMain.handle(CHANNELS.consolePickFolder, (_e, key) => (keyOk(key) ? this.pickFolder(key) : Promise.reject(new Error('not a service key'))));
     // FD-191: the New session and New agent dialogs.
     ipcMain.handle(CHANNELS.newSessionOptions, () => this.newSessionOptions());
+    ipcMain.handle(CHANNELS.newSessionMachineFolders, (_e, machine) => (typeof machine === 'string' && MACHINE.test(machine) ? this.machineFolders(machine) : { ok: false, why: 'unknown-machine' }));
     ipcMain.handle(CHANNELS.newSessionPickFolder, (_e, current) => this.pickNewSessionFolder(typeof current === 'string' && current.length <= 4096 ? current : ''));
     ipcMain.handle(CHANNELS.newSessionStart, (_e, choice, s) => {
       const c = newSessionChoiceOf(choice);
@@ -1438,9 +1511,12 @@ export function newSessionChoiceOf(v: unknown): NewSessionChoice | null {
   if (!c || typeof c !== 'object' || Array.isArray(c)) return null;
   if (c.kind !== 'session' && c.kind !== 'agent') return null;
   if (typeof c.runtime !== 'string' || !/^[a-z0-9][a-z0-9-]{0,63}$/.test(c.runtime)) return null;
-  if (typeof c.folder !== 'string' || c.folder.length > 4096 || c.folder.includes('\u0000') || !path.isAbsolute(c.folder)) return null;
+  // FD-206: a machine as ssh knows it; its folder is a POSIX path there.
+  if (c.machine !== undefined && c.machine !== null && (typeof c.machine !== 'string' || !MACHINE.test(c.machine))) return null;
+  const machine = typeof c.machine === 'string' ? c.machine : undefined;
+  if (typeof c.folder !== 'string' || c.folder.length > 4096 || c.folder.includes('\u0000') || !(machine ? c.folder.startsWith('/') : path.isAbsolute(c.folder))) return null;
   if (typeof c.bypass !== 'boolean' || typeof c.isolated !== 'boolean') return null;
-  return { kind: c.kind, runtime: c.runtime, folder: c.folder, bypass: c.bypass, isolated: c.isolated };
+  return { kind: c.kind, runtime: c.runtime, folder: c.folder, bypass: c.bypass, isolated: c.isolated, ...(machine ? { machine } : {}) };
 }
 
 function clampInt(v: unknown, min: number, max: number, fallback: number): number {

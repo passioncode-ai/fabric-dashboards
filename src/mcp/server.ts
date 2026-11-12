@@ -117,8 +117,8 @@ export const TOOLS = [
   },
   {
     name: 'session_new',
-    description: 'Start a coding session of its own in the running Fabric Dashboards, as the Sessions mode\'s New session button does, or a new agent with kind agent, as the agent list\'s New agent button does (FD-191, SCN-101, SCN-102): the coding agent (runtime, an id installed here), the folder (absolute; default the last chosen, else the projects folder), without permission prompts (bypass, default the last choice, on at first) and isolated on a Switchboard account\'s own home (isolated, default false; needs Switchboard and Claude Code or Codex). A new agent\'s session starts with the brief to create one with the person. Answers the console key, its Sessions row and open_link, or a refusal (no-runtime, no-folder, isolated with why, admission_disk, admission_cap, admission_swap). Answers app-not-running when the app is not open. Pass the operator\'s words in params._meta.decision when you have them (action new-standalone-session or new-agent).',
-    inputSchema: { type: 'object', properties: { kind: { type: 'string', enum: ['session', 'agent'] }, runtime: { type: 'string', maxLength: 64 }, folder: { type: 'string', maxLength: 4096 }, bypass: { type: 'boolean' }, isolated: { type: 'boolean' } }, additionalProperties: false },
+    description: 'Start a coding session of its own in the running Fabric Dashboards, as the Sessions mode\'s New session button does, or a new agent with kind agent, as the agent list\'s New agent button does (FD-191, SCN-101, SCN-102): the coding agent (runtime, an id installed here), the folder (absolute; default the last chosen, else the projects folder), without permission prompts (bypass, default the last choice, on at first) and isolated on a Switchboard account\'s own home (isolated, default false; needs Switchboard and Claude Code or Codex). A new agent\'s session starts with the brief to create one with the person. Answers the console key, its Sessions row and open_link, or a refusal (no-runtime, no-folder, isolated with why, admission_disk, admission_cap, admission_swap). Answers app-not-running when the app is not open. Pass the operator\'s words in params._meta.decision when you have them (action new-standalone-session or new-agent). FD-206: machine (as ssh knows it, one of Switchboard\'s targets) starts it on another machine through that machine\'s Switchboard, with folder a path there (required with machine); Claude Code or Codex only.',
+    inputSchema: { type: 'object', properties: { kind: { type: 'string', enum: ['session', 'agent'] }, runtime: { type: 'string', maxLength: 64 }, folder: { type: 'string', maxLength: 4096 }, bypass: { type: 'boolean' }, isolated: { type: 'boolean' }, machine: { type: 'string', maxLength: 320 } }, additionalProperties: false },
     annotations: { readOnlyHint: false, destructiveHint: false },
   },
   {
@@ -282,6 +282,7 @@ export async function call(deps: tools.Deps, name: string, args: Args): Promise<
       kind: args.kind === 'agent' ? 'agent' : 'session',
       ...(typeof args.runtime === 'string' ? { runtime: args.runtime } : {}), ...(typeof args.folder === 'string' ? { folder: args.folder } : {}),
       ...(typeof args.bypass === 'boolean' ? { bypass: args.bypass } : {}), ...(typeof args.isolated === 'boolean' ? { isolated: args.isolated } : {}),
+      ...(typeof args.machine === 'string' ? { machine: args.machine } : {}),
     });
     case 'console_fix': return tools.consoleChannel(deps, { op: 'console.fix', service: need(args, 'service'), task: { kind: need(args, 'kind') as 'fix' | 'audit', output: need(args, 'findings') } });
     case 'service_context': {

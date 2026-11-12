@@ -1229,13 +1229,13 @@ if (!app.requestSingleInstanceLock()) {
           const o = await consoles.newSessionOptions();
           const runtime = r.start.runtime ?? o.runtime;
           if (!runtime) return { ok: false, code: 'no-runtime' };
-          const done = await consoles.startNew({ kind: r.start.kind, runtime, folder: r.start.folder ?? o.folder, bypass: r.start.bypass ?? o.bypass, isolated: r.start.isolated ?? false }, { cols: 120, rows: 32 });
+          const done = await consoles.startNew({ kind: r.start.kind, runtime, folder: r.start.folder ?? o.folder, bypass: r.start.bypass ?? o.bypass, isolated: r.start.isolated ?? false, ...(r.start.machine ? { machine: r.start.machine } : {}) }, { cols: 120, rows: 32 });
           if (!done.ok) {
             if ('why' in done) return { ok: false, code: `admission_${done.why}` };
             return { ok: false, code: done.reason, ...(done.detail ? { detail: String(done.detail).slice(0, 200) } : {}) };
           }
           const snap = consoles.manager.snapshot(done.key);
-          return { ok: true, result: { started: true, console: done.key, row: consoleRowId(done.key, snap.startedAt ?? Date.now()), kind: r.start.kind, runtime, folder: snap.cwd } };
+          return { ok: true, result: { started: true, console: done.key, row: consoleRowId(done.key, snap.startedAt ?? Date.now()), kind: r.start.kind, runtime, folder: r.start.machine ? r.start.folder : snap.cwd, ...(r.start.machine ? { machine: r.start.machine } : {}) } };
         }
         if (r.op === 'console.choose' && r.choice) {
           const done = await consoles.chooseFor(r.service, r.choice);

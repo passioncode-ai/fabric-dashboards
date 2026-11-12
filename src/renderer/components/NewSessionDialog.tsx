@@ -3,7 +3,7 @@
 // coding agent, the folder (the system picker only, operator rule 2026-10-09), whether it runs without permission
 // prompts and whether it runs isolated; Start opens the session's page, where its console runs.
 import { useEffect, useRef, useState } from 'react';
-import type { NewSessionOptions, NewSessionResult } from '../../core/api';
+import type { MachineFolders, NewSessionOptions, NewSessionResult } from '../../core/api';
 import { api, Spinner, useT } from '../lib';
 import { shortPath } from './Sessions';
 
@@ -24,6 +24,8 @@ export function newSessionFailText(t: T, r: Extract<NewSessionResult, { ok: fals
   if (r.reason === 'isolated') return t(`newSession.isolated.${r.detail === 'old-switchboard' || r.detail === 'provider' ? r.detail : 'no-switchboard'}`);
   if (r.reason === 'switchboard') return t('console.sbError', { detail: r.detail ?? '' });
   if (r.reason === 'spawn') return t('console.spawnError', { detail: r.detail ?? '' });
+  // FD-206: a session on another machine refused before it started.
+  if (r.reason === 'remote' && ['provider', 'old-switchboard', 'no-switchboard', 'unknown-machine'].includes(r.detail ?? '')) return t(`newSession.remote.${r.detail}`);
   return t('newSession.failed');
 }
 
@@ -36,6 +38,10 @@ export function NewSessionDialog({ kind, onClose, onStarted }: { kind: 'session'
   const [isolated, setIsolated] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // FD-206: '' is this computer; another machine's folder is chosen from what that machine has.
+  const [machine, setMachine] = useState('');
+  const [remoteFolder, setRemoteFolder] = useState('');
+  const [there, setThere] = useState<MachineFolders | 'loading' | null>(null);
   const first = useRef<HTMLInputElement | null>(null);
   useEffect(() => {
     let live = true;
@@ -46,17 +52,33 @@ export function NewSessionDialog({ kind, onClose, onStarted }: { kind: 'session'
       setFolder(o.folder);
       setBypass(o.bypass);
       setIsolated(o.isolated);
+      if (o.machine) { setMachine(o.machine); setRemoteFolder(o.remoteFolder ?? ''); }
     }).catch((e: Error) => { if (live) setError(t('newSession.failed.read', { detail: e.message })); });
     return () => { live = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   useEffect(() => { if (options) first.current?.focus(); }, [options]);
   useEffect(() => {
+    if (!machine) { setThere(null); return; }
+    let live = true;
+    setThere('loading');
+    void api().newSessionMachineFolders(machine).then((f) => {
+      if (!live) return;
+      setThere(f);
+      // The last folder there stays chosen while the machine still has it; else its first project, else its home.
+      if (f.ok) setRemoteFolder((cur) => (cur && (cur === f.home || f.folders.includes(cur)) ? cur : f.folders[0] ?? f.home));
+    }).catch(() => { if (live) setThere({ ok: false, why: 'unreachable' }); });
+    return () => { live = false; };
+  }, [machine]);
+  useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape' && !busy) onClose(); };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
   }, [busy, onClose]);
-  const chosen = options?.runtimes.find((r) => r.id === runtime) ?? null;
+  // FD-206: on another machine only the coding agents its Switchboard starts.
+  const runtimes = options ? (machine ? options.runtimes.filter((r) => r.provider) : options.runtimes) : [];
+  const chosen = runtimes.find((r) => r.id === runtime) ?? (machine ? runtimes[0] ?? null : null);
+  const target = machine ? (there && there !== 'loading' && there.ok ? remoteFolder : '') : folder;
   const why = options ? isolatedWhy(options, chosen?.provider ?? null) : 'no-switchboard';
   const canBypass = Boolean(chosen?.bypass);
   const pick = async () => {
@@ -64,11 +86,11 @@ export function NewSessionDialog({ kind, onClose, onStarted }: { kind: 'session'
     if (p) { setFolder(p); setError(null); }
   };
   const start = async () => {
-    if (!chosen || !folder) return;
+    if (!chosen || !target) return;
     setBusy(true);
     setError(null);
     try {
-      const r = await api().newSessionStart({ kind, runtime: chosen.id, folder, bypass: canBypass && bypass, isolated: !why && isolated }, { cols: 100, rows: 30 });
+      const r = await api().newSessionStart({ kind, runtime: chosen.id, folder: target, bypass: canBypass && bypass, isolated: !why && isolated, ...(machine ? { machine } : {}) }, { cols: 100, rows: 30 });
       if (r.ok) { onStarted(r.key); return; }
       setError(newSessionFailText(t, r));
     } catch (e) {
@@ -91,20 +113,45 @@ export function NewSessionDialog({ kind, onClose, onStarted }: { kind: 'session'
             <fieldset className="new-session-field">
               <legend>{t('newSession.runtime')}</legend>
               <div className="new-session-runtimes" role="radiogroup" aria-label={t('newSession.runtime')}>
-                {options.runtimes.map((r, i) => (
-                  <label key={r.id} className={`choice${r.id === runtime ? ' chosen' : ''}`}>
-                    <input type="radio" name="new-session-runtime" ref={i === 0 ? first : undefined} value={r.id} checked={r.id === runtime} disabled={busy} onChange={() => setRuntime(r.id)} />
+                {runtimes.map((r, i) => (
+                  <label key={r.id} className={`choice${r.id === chosen?.id ? ' chosen' : ''}`}>
+                    <input type="radio" name="new-session-runtime" ref={i === 0 ? first : undefined} value={r.id} checked={r.id === chosen?.id} disabled={busy} onChange={() => setRuntime(r.id)} />
                     <span>{r.name}</span>
                   </label>
                 ))}
               </div>
             </fieldset>
-            <div className="new-session-field">
-              <span className="new-session-label" id="new-session-folder-label">{t('newSession.folder')}</span>
-              <div className="row new-session-folder">
-                <span className="mono" title={folder} aria-labelledby="new-session-folder-label">{shortPath(folder)}</span>
-                <button type="button" className="btn btn-sm" disabled={busy} onClick={() => void pick()}>{t('newSession.change')}</button>
+            {options.machines.length > 0 && (
+              <div className="new-session-field">
+                <label className="new-session-label" htmlFor="new-session-machine">{t('newSession.machine')}</label>
+                <select id="new-session-machine" value={machine} disabled={busy} aria-describedby={machine ? 'new-session-machine-hint' : undefined} onChange={(e) => { setMachine(e.target.value); setError(null); }}>
+                  <option value="">{t('newSession.machine.here')}</option>
+                  {options.machines.map((m) => <option key={m} value={m}>{m}</option>)}
+                </select>
+                {machine && <p id="new-session-machine-hint" className="meta new-session-hint">{t('newSession.machine.hint', { machine })}</p>}
               </div>
+            )}
+            <div className="new-session-field">
+              {machine
+                ? <>
+                  <label className="new-session-label" htmlFor="new-session-remote-folder">{t('newSession.folder')}</label>
+                  {there === 'loading' && <p className="muted row" role="status"><Spinner /> {t('newSession.machine.loading', { machine })}</p>}
+                  {there && there !== 'loading' && !there.ok && <p className="notice" role="status">{t(there.why === 'unknown-machine' ? 'newSession.remote.unknown-machine' : 'newSession.machine.unreachable', { machine })}</p>}
+                  {there && there !== 'loading' && there.ok && <>
+                    <select id="new-session-remote-folder" className="mono" value={remoteFolder} disabled={busy} onChange={(e) => setRemoteFolder(e.target.value)}>
+                      {there.folders.map((f) => <option key={f} value={f}>{shortPath(f.startsWith(`${there.home}/`) ? `~${f.slice(there.home.length)}` : f)}</option>)}
+                      <option value={there.home}>{t('newSession.machine.home')}</option>
+                    </select>
+                    {there.folders.length === 0 && <p className="meta new-session-hint">{t('newSession.machine.noFolders', { machine })}</p>}
+                  </>}
+                </>
+                : <>
+                  <span className="new-session-label" id="new-session-folder-label">{t('newSession.folder')}</span>
+                  <div className="row new-session-folder">
+                    <span className="mono" title={folder} aria-labelledby="new-session-folder-label">{shortPath(folder)}</span>
+                    <button type="button" className="btn btn-sm" disabled={busy} onClick={() => void pick()}>{t('newSession.change')}</button>
+                  </div>
+                </>}
             </div>
             <label className="check new-session-check">
               <input type="checkbox" checked={canBypass && bypass} disabled={busy || !canBypass} aria-describedby="new-session-bypass-hint" onChange={(e) => setBypass(e.target.checked)} />
@@ -122,7 +169,7 @@ export function NewSessionDialog({ kind, onClose, onStarted }: { kind: 'session'
         <div className="row">
           {busy && <span className="meta row"><Spinner /> {t('newSession.starting')}</span>}
           <button type="button" className="btn" disabled={busy} onClick={onClose}>{t('action.cancel')}</button>
-          <button type="submit" className="btn btn-primary" disabled={busy || !chosen || !folder}>{kind === 'agent' ? t('newAgent.start') : t('newSession.start')}</button>
+          <button type="submit" className="btn btn-primary" disabled={busy || !chosen || !target}>{kind === 'agent' ? t('newAgent.start') : t('newSession.start')}</button>
         </div>
       </form>
     </div>

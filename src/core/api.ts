@@ -82,7 +82,13 @@ export interface NewSessionOptions {
   isolated: boolean;
   switchboard: boolean;
   inPlace: boolean;
+  /** FD-206: the machines Switchboard can start a session on (empty: only this one), the last one chosen and its folder. */
+  machines: string[];
+  machine: string | null;
+  remoteFolder: string | null;
 }
+/** FD-206: what another machine has to open a session in, or why it said nothing. */
+export type MachineFolders = { ok: true; home: string; folders: string[] } | { ok: false; why: 'unknown-machine' | 'unreachable' };
 export type NewSessionResult = { ok: true; key: string } | Extract<ConsoleStartResult, { ok: false }> | { ok: false; reason: 'bad-request'; detail?: string };
 
 /** Where an embedded dashboard is now (ADR-0014). */
@@ -165,7 +171,8 @@ export interface FabricApi {
   /** FD-191: the system folder picker, opened on `current`; null when the person cancelled. */
   newSessionPickFolder(current: string): Promise<string | null>;
   /** FD-191: start a session of its own (or a new agent's) with these choices; the answer names its console key. */
-  newSessionStart(choice: { kind: 'session' | 'agent'; runtime: string; folder: string; bypass: boolean; isolated: boolean }, size: { cols: number; rows: number }): Promise<NewSessionResult>;
+  newSessionStart(choice: { kind: 'session' | 'agent'; runtime: string; folder: string; bypass: boolean; isolated: boolean; machine?: string }, size: { cols: number; rows: number }): Promise<NewSessionResult>;
+  newSessionMachineFolders(machine: string): Promise<MachineFolders>;
   /** FD-39: `task` hands a job with the context (Fix / Update with agent, ADR-0020). */
   consoleStart(key: string, mode: 'new' | 'continue', size: { cols: number; rows: number }, task?: ConsoleTask): Promise<ConsoleStartResult>;
   /** FD-129 (UX-16): type a Fix / Update task into the session already running, without pressing Enter for the person. */
@@ -266,6 +273,7 @@ export const CHANNELS = {
   newSessionOptions: 'fd:new-session-options',
   newSessionPickFolder: 'fd:new-session-pick-folder',
   newSessionStart: 'fd:new-session-start',
+  newSessionMachineFolders: 'fd:new-session-machine-folders',
   consoleStart: 'fd:console-start',
   consoleSendTask: 'fd:console-send-task',
   consoleInput: 'fd:console-input',
