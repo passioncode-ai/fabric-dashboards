@@ -362,6 +362,7 @@ export class ConsoleHost {
       idle: this.o.settings.get().consoles[key]?.idle ?? null,
       handover: this.handoverInfo(key),
       remote: this.remoteInfo(key),
+      machine: this.o.settings.get().consoles[key]?.machine ?? null,
     };
   }
 
@@ -514,7 +515,9 @@ export class ConsoleHost {
     if (!folder || (!remote && !folder.exists)) return { ok: false, reason: 'no-folder' };
     const home = this.o.home ?? os.homedir();
     // FD-49 (LC-17): start only what the machine can carry; otherwise defer, saying why.
-    const a = admit(await (this.o.machine ?? machineProbe)(remote ? home : folder.path, this.manager.runningCount()));
+    // FD-210: a session on another machine writes to that machine's disk; here it is only ssh, so this disk is not asked.
+    const probed = await (this.o.machine ?? machineProbe)(remote ? home : folder.path, this.manager.runningCount());
+    const a = admit(remote ? { ...probed, freeDisk: null } : probed);
     if (!a.ok) {
       this.o.log(`console: ${key} start deferred (LC-17): ${a.why}`);
       if (a.why === 'disk') return { ok: false, reason: 'admission', why: 'disk', freeGb: Math.round((a.freeDisk / 1024 ** 3) * 10) / 10 };
@@ -575,7 +578,8 @@ export class ConsoleHost {
     if (!runtime.provider) return { ok: false, reason: 'remote', detail: 'provider' };
     if (!saved.folder || !saved.folder.startsWith('/')) return { ok: false, reason: 'no-folder' };
     const home = this.o.home ?? os.homedir();
-    const a = admit(await (this.o.machine ?? machineProbe)(home, this.manager.runningCount()));
+    // FD-210: the session writes to that machine's disk, not this one's.
+    const a = admit({ ...await (this.o.machine ?? machineProbe)(home, this.manager.runningCount()), freeDisk: null });
     if (!a.ok) {
       this.o.log(`console: ${key} start deferred (LC-17): ${a.why}`);
       if (a.why === 'disk') return { ok: false, reason: 'admission', why: 'disk', freeGb: Math.round((a.freeDisk / 1024 ** 3) * 10) / 10 };
@@ -599,13 +603,21 @@ export class ConsoleHost {
 
   /** FD-206: the machines a session can start on: Switchboard's targets, when it can start one there. */
   private async machinesOf(inv: { switchboard: string | null; inPlace: boolean; target: boolean }): Promise<string[]> {
-    return inv.switchboard && inv.target && inv.inPlace ? targetsOf(this.run, inv.switchboard) : [];
+    return (await this.targetsRead(inv)).machines;
+  }
+
+  /** FD-210: the machines and every name ssh also knows them by (Switchboard's `aliases`, SB-340): an alias chosen before
+   *  is still that machine. */
+  private async targetsRead(inv: { switchboard: string | null; inPlace: boolean; target: boolean }): Promise<{ machines: string[]; known: string[] }> {
+    if (!inv.switchboard || !inv.target || !inv.inPlace) return { machines: [], known: [] };
+    const t = await targetsOf(this.run, inv.switchboard, { withAliases: true });
+    return { machines: t.machines, known: [...t.machines, ...t.aliases] };
   }
 
   /** FD-206: the folders a session can open in on that machine: its home and its projects under `~/DATA`. */
   async machineFolders(machine: string): Promise<{ ok: true; home: string; folders: string[] } | { ok: false; why: 'unknown-machine' | 'unreachable' }> {
     const inv = await this.inventory();
-    if (!(await this.machinesOf(inv)).includes(machine)) return { ok: false, why: 'unknown-machine' };
+    if (!(await this.targetsRead(inv)).known.includes(machine)) return { ok: false, why: 'unknown-machine' };
     const [cmd, ...args] = projectsProbeArgv(machine);
     let found: { home: string; folders: string[] } | null;
     try { found = projectsOf(await this.run(cmd!, args, 20_000)); } catch { found = null; }
@@ -1419,7 +1431,7 @@ export class ConsoleHost {
       if (!inv.switchboard) return { ok: false, reason: 'remote', detail: 'no-switchboard' };
       if (!inv.target || !inv.inPlace) return { ok: false, reason: 'remote', detail: 'old-switchboard' };
       if (!runtime.provider) return { ok: false, reason: 'remote', detail: 'provider' };
-      if (!(await this.machinesOf(inv)).includes(choice.machine)) return { ok: false, reason: 'remote', detail: 'unknown-machine' };
+      if (!(await this.targetsRead(inv)).known.includes(choice.machine)) return { ok: false, reason: 'remote', detail: 'unknown-machine' };
     } else if (!isDir(choice.folder)) return { ok: false, reason: 'no-folder' };
     const bypass = choice.bypass && bypassArgs(runtime.id).length > 0;
     if (choice.isolated && !choice.machine) {

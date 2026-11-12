@@ -266,7 +266,7 @@ export function ConsolePanel({ serviceKey, height, maxHeight, onHeight, onDrag, 
 
   if (page) {
     // R1-V4: the page's header says how the session ended; the strip adds only an unclean exit's code.
-    const exitLine = info ? pageExitLine(lang, info.session, Boolean(info.idle)) : null;
+    const exitLine = info ? pageExitLine(lang, info.session, Boolean(info.idle), info.machine) : null;
     return (
       <section className="console-drawer console-page" aria-label={t('console.title')}>
         {!info && <p className="console-state muted row" role="status"><Spinner /> {t('console.loading')}</p>}

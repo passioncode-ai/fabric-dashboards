@@ -9,14 +9,15 @@ import { projectsOf, projectsProbeArgv, targetLaunchArgv, targetsOf, MACHINE } f
 import { parseRequest } from '../src/core/console-channel';
 import { SettingsStore } from '../src/core/settings';
 import { newSessionFailText } from '../src/renderer/components/NewSessionDialog';
+import { pageExitLine } from '../src/core/sessions-view';
 import { t } from '../src/core/i18n';
 import { tmp } from './helpers';
 
 const POSIX = { skip: process.platform === 'win32' && 'POSIX execute bits: the fake runtimes are shell scripts' };
-const TARGETS = JSON.stringify({ ok: true, data: { targets: [{ machine: 'me@192.0.2.9', known_by: ['moves'] }, { machine: 'studio-org' }, { machine: '-oProxyCommand=x' }, { machine: 'me@192.0.2.9' }] } });
+const TARGETS = JSON.stringify({ ok: true, data: { targets: [{ machine: 'me@192.0.2.9', aliases: ['studio-me', '-oBad'], known_by: ['moves'] }, { machine: 'studio-org' }, { machine: '-oProxyCommand=x' }, { machine: 'me@192.0.2.9' }] } });
 const PROJECTS = 'fabric-home:/srv/them\nfabric-folder:/srv/them/DATA/zeta\nfabric-folder:/srv/them/DATA/alpha\nfabric-folders-end\n';
 
-function rig(o: { target?: boolean; answers?: boolean } = {}) {
+function rig(o: { target?: boolean; answers?: boolean; freeGb?: number } = {}) {
   const base = tmp('fd-206-');
   const bin = path.join(base, 'bin');
   fs.mkdirSync(bin);
@@ -45,7 +46,7 @@ function rig(o: { target?: boolean; answers?: boolean } = {}) {
       return { pid: me, onData: () => ({ dispose() {} }), onExit: (cb: (e: { exitCode: number; signal?: number }) => void) => { exits.set(me, cb); return { dispose() {} }; }, write() {}, resize() {}, kill() {} };
     },
     killGroup: (p) => { setTimeout(() => exits.get(p)?.({ exitCode: 0, signal: 1 }), 1); }, idleMs: 0,
-    machine: async () => ({ freeDisk: 50 * 1024 ** 3, swap: null, running: 0 }),
+    machine: async () => ({ freeDisk: (o.freeGb ?? 50) * 1024 ** 3, swap: null, running: 0 }),
     home: base,
   });
   return { host, base, bin, settings, spawned, asked };
@@ -146,4 +147,19 @@ test('FD-206: a session\'s machine and its folder there survive a restart and a 
   const again = new SettingsStore(dir).get().consoles['session.abc123'];
   assert.equal(again?.machine, 'studio-org');
   assert.equal(again?.folder, '/srv/them/DATA/a');
+});
+
+test('FD-210: a session on another machine is not held back by this disk, takes the machine by any name it has, and says why when no account there can run it', POSIX, async () => {
+  const run = async () => ({ code: 0, stdout: TARGETS, stderr: '' });
+  assert.deepEqual(await targetsOf(run, '/bin/sb', { withAliases: true }), { machines: ['me@192.0.2.9', 'studio-org'], aliases: ['studio-me'] });
+  const r = rig({ freeGb: 1 });
+  assert.deepEqual((await r.host.newSessionOptions()).machines, ['me@192.0.2.9', 'studio-org'], 'an alias is not listed twice');
+  const done = await r.host.startNew({ kind: 'session', runtime: 'claude-code', folder: '/srv/them/DATA/alpha', bypass: false, isolated: false, machine: 'studio-me' }, { cols: 80, rows: 24 });
+  assert.ok(done.ok, 'this Mac has 1 GB free, the session writes to the other machine');
+  assert.equal(r.spawned[0]!.args[2], 'studio-me');
+  assert.deepEqual(await r.host.machineFolders('studio-me'), { ok: true, home: '/srv/them', folders: ['/srv/them/DATA/alpha', '/srv/them/DATA/zeta'] });
+  const here = await r.host.startNew({ kind: 'session', runtime: 'claude-code', folder: r.base, bypass: false, isolated: false }, { cols: 80, rows: 24 });
+  assert.equal(!here.ok && here.reason, 'admission', 'a session here still needs the free space here');
+  assert.match(pageExitLine('en', { state: 'exited', exitCode: 3, signal: null }, false, 'studio-me')!, /^studio-me has no account that can run a session in this folder\./);
+  assert.match(pageExitLine('en', { state: 'exited', exitCode: 3, signal: null }, false, null)!, /3/, 'code 3 here is just a code');
 });

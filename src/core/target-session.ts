@@ -12,21 +12,29 @@ export const HOME_MARK = 'fabric-home:';
 export const FOLDER_MARK = 'fabric-folder:';
 export const FOLDERS_END = 'fabric-folders-end';
 
-/** The machines Switchboard can start a session on, newest first; none when it does not answer or has none. */
-export async function targetsOf(run: Runner, sb: string): Promise<string[]> {
+/** The machines Switchboard can start a session on, newest first; none when it does not answer or has none. With
+ *  `withAliases`, also the other names ssh knows each by (`aliases`, Switchboard 0.7.60, SB-340). */
+export async function targetsOf(run: Runner, sb: string): Promise<string[]>;
+export async function targetsOf(run: Runner, sb: string, o: { withAliases: true }): Promise<{ machines: string[]; aliases: string[] }>;
+export async function targetsOf(run: Runner, sb: string, o?: { withAliases: true }): Promise<string[] | { machines: string[]; aliases: string[] }> {
+  const machines: string[] = [];
+  const aliases: string[] = [];
+  const done = () => (o?.withAliases ? { machines, aliases } : machines);
   const r = await run(sb, ['--json', 'targets'], 10_000);
-  if (r.code !== 0) return [];
+  if (r.code !== 0) return done();
   let data: unknown;
-  try { data = JSON.parse(r.stdout); } catch { return []; }
+  try { data = JSON.parse(r.stdout); } catch { return done(); }
   const list = (data as { data?: { targets?: unknown } })?.data?.targets;
-  if (!Array.isArray(list)) return [];
-  const out: string[] = [];
+  if (!Array.isArray(list)) return done();
   for (const t of list) {
     const m = (t as { machine?: unknown })?.machine;
-    if (typeof m === 'string' && MACHINE.test(m) && !out.includes(m)) out.push(m);
-    if (out.length >= 20) break;
+    if (typeof m !== 'string' || !MACHINE.test(m) || machines.includes(m)) continue;
+    machines.push(m);
+    const al = (t as { aliases?: unknown })?.aliases;
+    if (Array.isArray(al)) for (const a of al) if (typeof a === 'string' && MACHINE.test(a) && !aliases.includes(a) && a !== m) aliases.push(a);
+    if (machines.length >= 20) break;
   }
-  return out;
+  return done();
 }
 
 /** Asks the machine for its home and the projects under its `~/DATA`, with no prompt and a bounded connect. */

@@ -97,8 +97,10 @@ export function navLines(lang: Lang, r: SessionRow): { time: string | null; sub:
 /** R1-V4: the strip a session's page draws over its console once the session is over, or null. The page's header already
  *  says how it ended (an idle close, the person's End, the app quitting, a clean end at a time), so the strip is drawn
  *  only for what the header does not say: an unclean exit's code. */
-export function pageExitLine(lang: Lang, s: { state: string; exitCode: number | null; signal: number | null }, idle: boolean): string | null {
+export function pageExitLine(lang: Lang, s: { state: string; exitCode: number | null; signal: number | null }, idle: boolean, machine?: string | null): string | null {
   if (s.state !== 'exited' || idle || s.signal || s.exitCode === null || s.exitCode === 0) return null;
+  // FD-210: Switchboard's `launch --target` exits 3 when no account there can run the session (`no-route`, SB-343).
+  if (machine && s.exitCode === 3) return t(lang, 'console.remote.noAccount', { machine });
   return t(lang, 'console.exited', { code: s.exitCode });
 }
 
