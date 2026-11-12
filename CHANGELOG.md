@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.8.64 - 2026-11-12
+
+### Changed
+
+- FD-211: with Switchboard 0.7.66 or later, a console's coding session runs in Switchboard's session host. Quitting or
+  updating Fabric Dashboards no longer ends it: the session keeps running and stays in Switchboard's list. Stop, End
+  and the 30-minute idle close still end it, now through Switchboard.
+
 ## 0.8.63 - 2026-11-12
 
 ### Added

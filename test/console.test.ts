@@ -391,9 +391,9 @@ test('audit HIGH-2: a restart or a quit asks before ending consoles or commands,
 
 test('FD-124: a Switchboard whose launch takes --surface records our launches as asked for from Fabric Dashboards', async () => {
   const sb070 = fakeSwitchboard({ 'launch --help': { stdout: '--provider <P>\n--in-place\n--surface <SURFACE>\n--by <NAME>' } });
-  assert.deepEqual(await launchFeatures(sb070.run, '/sb'), { inPlace: true, surface: true, target: false });
+  assert.deepEqual(await launchFeatures(sb070.run, '/sb'), { inPlace: true, surface: true, target: false, hosted: false });
   const sb06 = fakeSwitchboard({ 'launch --help': { stdout: '--provider <P>\n--in-place' } });
-  assert.deepEqual(await launchFeatures(sb06.run, '/sb'), { inPlace: true, surface: false, target: false });
+  assert.deepEqual(await launchFeatures(sb06.run, '/sb'), { inPlace: true, surface: false, target: false, hosted: false });
   assert.deepEqual(inPlaceArgv('/sb', 'claude', '/x', ['--continue'], true), ['/sb', 'launch', '--provider', 'claude', '--mode', 'managed', '--working-directory', '/x', '--in-place', '--surface', 'dashboards', '--', '--continue']);
   const bound = { runtime: CLAUDE, mode: 'new' as const, folder: '/r', binding: { kind: 'project' as const, name: 'Growth', pool: 'growth' }, switchboard: '/sb', inPlace: true };
   const marked = planStart({ ...bound, surface: true });

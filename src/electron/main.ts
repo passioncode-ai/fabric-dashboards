@@ -485,8 +485,8 @@ if (!app.requestSingleInstanceLock()) {
   // console session or a running command silently — it names them and waits for a yes. The automatic
   // install never asks: it waits until nothing runs (auto-install-flow).
   async function mayEndWork(kind: 'restart' | 'quit'): Promise<boolean> {
-    // FD-211: a console that only shows a hosted session is not named: quitting closes the view, the session runs on.
-    const names = consoles.manager.runningKeys().filter((key) => !consoles.isView(key)).map((key) => {
+    // FD-211: a console whose session runs on without the app (a view, or one Switchboard's host holds) is not named.
+    const names = consoles.manager.runningKeys().filter((key) => !consoles.runsOnWithoutApp(key)).map((key) => {
       const d = monitor.snapshot(key)?.descriptor;
       if (d) return displayName(d.name, d.instance);
       // FD-191: a console of its own (a new session, a hand-over) is named by its coding agent and folder, not its key.
