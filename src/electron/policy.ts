@@ -181,6 +181,17 @@ export function inSight(onScreenNow: boolean, sight: 'visible' | 'covered' | 'of
   return onScreenNow && sight !== 'covered' && sight !== 'off-screen';
 }
 
+/** Issue #335: macOS 14 and later let an app come forward only when the active app yields to it. A link opened by
+ *  a program in the background (an agent's `open`, a script) shows its page behind whatever the person is using, and
+ *  nothing tells them (measured 2026-11-13 on macOS 26.6: `open <link>` from a background shell, `app.focus({ steal:
+ *  true })` and AppleScript `activate` all left the active app in front). The window is checked this long after the
+ *  link; still shown and not focused, the Dock icon bounces once. */
+export const LINK_FRONT_CHECK_MS = 2_000;
+
+export function linkLeftBehind(w: { platform: NodeJS.Platform; shown: boolean; focused: boolean }): boolean {
+  return w.platform === 'darwin' && w.shown && !w.focused;
+}
+
 /** FD-80: how often the window list is read while an update waits with the window on screen (one osascript, ~0.1 s). */
 export const OCCLUSION_PROBE_MS = 60_000;
 

@@ -4,6 +4,7 @@ import path from 'node:path';
 import test from 'node:test';
 import { fromServiceUrl, linkFor, parseDeepLink, safePath, type Known } from '../src/core/deeplink';
 import type { Descriptor } from '../src/core/types';
+import { LINK_FRONT_CHECK_MS, linkLeftBehind } from '../src/electron/policy';
 
 const base = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures/contract/positive_service-descriptor.json'), 'utf8')) as Descriptor;
 const known: Known = [
@@ -145,4 +146,13 @@ test('T-8: open takes parameters only, and an empty url= still counts as naming 
   const both = parseDeepLink('fabric-dashboards://open?service=example-agent.default&url=', known);
   assert.deepEqual(both, { ok: false, reason: 'name a service or a url, not both' });
   assert.equal(parseDeepLink('fabric-dashboards://open/?service=example-agent.default', known).ok, true, 'one trailing slash stays fine');
+});
+
+test('issue #335: a link left behind the active app on macOS bounces the Dock icon; elsewhere, focused or hidden it does not', () => {
+  assert.equal(linkLeftBehind({ platform: 'darwin', shown: true, focused: false }), true);
+  assert.equal(linkLeftBehind({ platform: 'darwin', shown: true, focused: true }), false);
+  assert.equal(linkLeftBehind({ platform: 'darwin', shown: false, focused: false }), false, 'a window not on screen has no page behind anything');
+  assert.equal(linkLeftBehind({ platform: 'win32', shown: true, focused: false }), false);
+  assert.equal(linkLeftBehind({ platform: 'linux', shown: true, focused: false }), false);
+  assert.ok(LINK_FRONT_CHECK_MS >= 1_000 && LINK_FRONT_CHECK_MS <= 5_000);
 });
