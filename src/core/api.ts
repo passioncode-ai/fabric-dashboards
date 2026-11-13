@@ -10,6 +10,9 @@ import type { SessionActionResult, SessionNotice } from './sessions';
 
 /** A job a console is opened to do (FD-39 D-3): fix what is wrong, or update; `output` is a failed command's. */
 /** `audit` (FD-81): `output` carries the auditor's findings for this agent, as the person read them. */
+/** The View menu's commands the window carries out (ADR-0017; FD-220 focus; FD-227 the open agents). */
+export type LayoutCommand = 'sidebar' | 'console' | 'details' | 'focus' | 'next-agent' | 'previous-agent' | 'close-agent';
+
 export interface ConsoleTask { kind: 'fix' | 'update' | 'audit'; output?: string }
 
 /** FD-92: a job the console starts once it is shown (Fix / Update with agent, Continue); taken once by its nonce. */
@@ -221,7 +224,7 @@ export interface FabricApi {
   consoleOpenTerminal(key: string, mode: 'new' | 'continue'): Promise<{ ok: boolean; error?: string }>;
   /** Output and exits while the window is visible; a hidden window gets nothing and asks `consoleInfo` again. */
   /** View menu: fold or unfold a panel (ADR-0017). */
-  onLayoutCommand(listener: (which: 'sidebar' | 'console' | 'details' | 'focus') => void): () => void;
+  onLayoutCommand(listener: (which: LayoutCommand) => void): () => void;
   /** FD-92: the window's page sets what the console drawer shows. */
   consoleDrawer(state: DrawerState): void;
   /** FD-92: the drawer's page: what to show (pushed on every change and after it loads). */

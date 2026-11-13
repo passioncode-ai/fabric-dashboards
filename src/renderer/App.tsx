@@ -22,6 +22,7 @@ import { attentionQueue, urgent } from '../core/attention';
 import { SETUP_KEY } from '../core/offers';
 import { revisitDue, sinceLastVisit, type SinceLastVisit } from '../core/visit';
 import type { ConsoleTask, NavTarget, Rect } from '../core/api';
+import { tabStep } from '../core/layout';
 import mark from './brand/dashboards-mark.svg';
 import { api, Icon, LangContext, nameOf, Spinner, useT } from './lib';
 
@@ -100,7 +101,10 @@ export function App() {
       } else if (target.key) setRoute({ page: 'service', key: target.key, link: target.link, nonce: Date.now() });
     };
     const offNav = api().onNavigate(go);
-    const offLayout = api().onLayoutCommand((which) => setLayout((l) => {
+    const offLayout = api().onLayoutCommand((which) => {
+      // FD-227 (SCN-105): the open agents' strip moves in Shell, which holds it.
+      if (which === 'next-agent' || which === 'previous-agent' || which === 'close-agent') return;
+      setLayout((l) => {
       // On a session's page the console is the page itself (SCN-080): the menu's console toggle has nothing to fold.
       const patch = which === 'sidebar' ? { sidebar: l.sidebar === 'collapsed' ? 'expanded' as const : 'collapsed' as const }
         : which === 'console' ? { console: { open: !l.console.open } }
@@ -108,7 +112,8 @@ export function App() {
         : { header: l.header === 'full' ? 'compact' as const : 'full' as const };
       void api().updateSettings({ layout: patch }).catch(() => undefined);
       return { ...l, ...patch, console: { ...l.console, ...('console' in patch ? patch.console : {}) } };
-    }));
+      });
+    });
     void api().takeNavigation().then((target) => { if (target) go(target); }); // after subscribing: nothing falls between
     return () => { offStatus(); offSettings(); offNav(); offLayout(); };
   }, []);
@@ -386,6 +391,10 @@ function Shell({ status: everyAgent, route, setRoute, mode, switchMode, stopKey,
     api().consoleDrawer({ key: drawerKey, open: Boolean(drawerKey), rect: area, height: layout.console.height, task: drawerTask, suspended: stopOpen || menuOverPage || resizing || Boolean(newSession), full: Boolean(pageConsole) || expand === 'full', scheme, ...(expand ? { expand } : {}) });
   }, [drawerKey, area, layout.console.height, drawerTask?.nonce, stopOpen, menuOverPage, resizing, Boolean(pageConsole), scheme, Boolean(newSession), expand]);
   const focusOutRef = useRef<(back: boolean) => void>(() => undefined);
+  const tabCommandRef = useRef<(which: 'next-agent' | 'previous-agent' | 'close-agent') => void>(() => undefined);
+  useEffect(() => api().onLayoutCommand((which) => {
+    if (which === 'next-agent' || which === 'previous-agent' || which === 'close-agent') tabCommandRef.current(which);
+  }), []);
   const drawerOwner = useRef({ route, drawerKey });
   drawerOwner.current = { route, drawerKey };
   useEffect(() => api().onDrawerChange((c) => {
@@ -427,6 +436,13 @@ function Shell({ status: everyAgent, route, setRoute, mode, switchMode, stopKey,
       const next = rest[Math.min(at, rest.length - 1)];
       if (next) open(next); else setRoute({ page: 'overview' });
     }
+  };
+  // FD-227: Next and Previous open agent go round the strip; Close agent closes the one on show, as its × does.
+  tabCommandRef.current = (which) => {
+    const shown = route.page === 'service' ? route.key : null;
+    if (which === 'close-agent') { if (shown && tabs.includes(shown)) closeTab(shown); return; }
+    const next = tabStep(tabs, shown, which === 'next-agent' ? 1 : -1);
+    if (next && next !== shown) open(next);
   };
   // FD-220: an agent's dashboard may fill the window: the agent list and the page header step aside; Esc brings them back.
   const focus = layout.focus && route.page === 'service' && Boolean(current);

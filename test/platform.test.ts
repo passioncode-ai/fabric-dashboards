@@ -58,6 +58,15 @@ test('FD-37: window, tray and menu keys per OS', () => {
     assert.equal(menuKeys(p).hardReload, 'Shift+F5');
     assert.ok(Object.values(menuKeys(p)).every((v) => typeof v !== 'string' || !/^Ctrl\+R$/.test(v)), 'Ctrl+R stays the shell\'s');
   }
+  // FD-227: the open agents move with Ctrl+Tab everywhere; closing one is never the window's own close key.
+  for (const p of ['darwin', 'win32', 'linux'] as const) {
+    const k = menuKeys(p);
+    assert.equal(k.nextAgent, 'Ctrl+Tab');
+    assert.equal(k.previousAgent, 'Ctrl+Shift+Tab');
+    assert.ok(!['Command+W', 'Ctrl+W', 'CmdOrCtrl+W'].includes(k.closeAgent), k.closeAgent);
+    const all = Object.values(k).filter((v): v is string => typeof v === 'string');
+    assert.equal(new Set(all).size, all.length, `no two commands share a key on ${p}`);
+  }
 });
 
 test('FD-37: a login launch starts hidden — macOS reports it, Windows and Linux pass --hidden', () => {

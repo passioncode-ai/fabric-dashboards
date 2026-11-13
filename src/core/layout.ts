@@ -38,3 +38,14 @@ export function revealScrollTop(view: { scrollTop: number; height: number }, el:
   if (el.top + el.height + margin <= viewBottom) return viewTop;
   return Math.max(0, Math.min(el.top + el.height + margin - view.height, el.top - margin));
 }
+
+// #region open-agents — docs: docs/ux/scenarios.md#scn-105-keep-several-agents-open-and-move-between-them
+/** FD-227: the open agent a step away from the one on show (`step` 1 next, -1 previous), round the strip. With no agent
+ *  on show, or one not in the strip, the next step is the first and the previous the last; an empty strip has none. */
+export function tabStep(tabs: readonly string[], current: string | null, step: 1 | -1): string | null {
+  if (!tabs.length) return null;
+  const at = current === null ? -1 : tabs.indexOf(current);
+  if (at < 0) return step === 1 ? tabs[0]! : tabs[tabs.length - 1]!;
+  return tabs[(at + step + tabs.length) % tabs.length]!;
+}
+// #endregion open-agents

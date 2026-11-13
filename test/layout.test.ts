@@ -1,7 +1,7 @@
 // FD-92 (SCN-048): the console drawer's height over the content area; the dashboard is never resized.
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { drawerHeightFor } from '../src/core/layout';
+import { drawerHeightFor, tabStep } from '../src/core/layout';
 import { CONSOLE_HEIGHT } from '../src/core/types';
 
 test('FD-92: the drawer keeps its saved height, its minimum, and always leaves some of the page showing', () => {
@@ -12,4 +12,16 @@ test('FD-92: the drawer keeps its saved height, its minimum, and always leaves s
   assert.equal(drawerHeightFor({ saved: Number.NaN, areaHeight: 900 }), CONSOLE_HEIGHT.default);
   assert.equal(drawerHeightFor({ saved: 500, areaHeight: 0 }), 500, 'not laid out yet: only the drawer\'s own bounds');
   assert.equal(drawerHeightFor({ saved: 5000, areaHeight: 0 }), CONSOLE_HEIGHT.max);
+});
+
+test('FD-227: the next and previous open agent go round the strip; none on show starts at an end', () => {
+  const tabs = ['a.x', 'b.x', 'c.x'];
+  assert.equal(tabStep(tabs, 'a.x', 1), 'b.x');
+  assert.equal(tabStep(tabs, 'c.x', 1), 'a.x', 'after the last comes the first');
+  assert.equal(tabStep(tabs, 'a.x', -1), 'c.x', 'before the first comes the last');
+  assert.equal(tabStep(tabs, null, 1), 'a.x');
+  assert.equal(tabStep(tabs, null, -1), 'c.x');
+  assert.equal(tabStep(tabs, 'gone.x', 1), 'a.x', 'an agent not in the strip counts as none');
+  assert.equal(tabStep(['a.x'], 'a.x', 1), 'a.x');
+  assert.equal(tabStep([], 'a.x', 1), null);
 });
