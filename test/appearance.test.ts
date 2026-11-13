@@ -1,7 +1,7 @@
 // FD-42, FD-56 (contract DEC-0036 ED-8/ED-10, DEC-0059): the appearance carrier a host writes per service.
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { appearanceCookie, appearanceValue, REFERENCE_THEMES, viewBackground } from '../src/core/appearance';
+import { appearanceCookie, appearanceValue, loadedBackground, REFERENCE_THEMES, viewBackground } from '../src/core/appearance';
 import { merge } from '../src/core/settings';
 
 test('FD-42 (ED-8): the value carries v=1, the scheme the operator chose and the theme', () => {
@@ -37,4 +37,15 @@ test('FD-42: settings keep the scheme (system included) and only a reference the
   assert.equal(merge({ pageTheme: 'made-up' } as never).pageTheme, 'graphite');
   assert.equal(merge({} as never).pageTheme, 'graphite');
   assert.deepEqual([...REFERENCE_THEMES], ['graphite', 'fabric', 'paper', 'forest', 'ocean', 'ember', 'contrast']);
+});
+
+test('FD-221: a loaded page that declares no dark scheme gets the white canvas a browser gives it', () => {
+  assert.equal(loadedBackground('dark', false, 'normal '), '#ffffff', 'no declaration: black default text needs white');
+  assert.equal(loadedBackground('dark', false, 'light '), '#ffffff');
+  assert.equal(loadedBackground('dark', false, 'normal light dark'), '#0a070d', 'the meta declares dark');
+  assert.equal(loadedBackground('dark', false, 'light dark '), '#0a070d');
+  assert.equal(loadedBackground('light', true, 'dark '), '#ffffff', 'a dark-capable page in a light app stays light');
+  assert.equal(loadedBackground('system', true, 'only dark'), '#0a070d');
+  assert.equal(loadedBackground('dark', false, 'darkish'), '#ffffff', 'a token, not a substring');
+  assert.equal(loadedBackground('dark', false, null), null, 'unread: left as it was');
 });

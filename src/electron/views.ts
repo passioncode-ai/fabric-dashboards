@@ -9,13 +9,15 @@ import { t, type Lang } from '../core/i18n';
 import { loginUrl, readTokenAsync } from '../core/probe';
 import type { ServiceSnapshot } from '../core/types';
 import { fabricButtonCookie, fabricPress } from '../core/fabric-button';
-import { appearanceCookie, appearanceValue, viewBackground, type Scheme } from '../core/appearance';
+import { appearanceCookie, appearanceValue, loadedBackground, PAGE_SCHEME_SCRIPT, viewBackground, type Scheme } from '../core/appearance';
 import { hostView, loopbackOwnerOf, portOf } from '@passioncode-ai/fabric-service-host';
 import { afterCrash, clampRect, dashboardPathOf, loadErrorText, navigation, pageAddress, partitionFor, resolveLink, resumePath, routeLink, ViewSlot } from './policy';
 import { testRemote } from '../core/testhooks';
 
 /** A view signs in again after a 401 at most this often (an agent owner's finding, 2026-10-05). */
 const RESIGN_EVERY_MS = 60_000;
+/** FD-221: the isolated world the page's colour scheme is read in (any id but 0, the page's own). */
+const FIT_WORLD = 1221;
 // #region warm-session — docs: docs/ux/scenarios.md#scn-015-dashboard-view-keeps-its-place
 /** FD-74: a view made again opens the page straight away, without a new login code, while the same service
  *  process signed this app in less than this long ago. Measured 2026-10-19: a login code took 35–541 ms on
@@ -37,7 +39,9 @@ interface Entry { view: WebContentsView; origin: string; crashes: number; loaded
   directAt: number;
   refusedWhileDirect?: boolean;
   /** FD-74: where a page left behind by a service restart reopens when it is shown again. */
-  resumeLink?: string }
+  resumeLink?: string;
+  /** FD-221: the colour schemes the loaded page declares, as `PAGE_SCHEME_SCRIPT` read them. */
+  pageSchemes?: string | null }
 
 
 export class ServiceViews {
@@ -90,9 +94,27 @@ export class ServiceViews {
   async applyAppearance(): Promise<void> {
     const a = this.appearance();
     for (const [key, entry] of this.views) {
-      entry.view.setBackgroundColor(viewBackground(a.scheme, a.systemDark));
+      entry.view.setBackgroundColor(loadedBackground(a.scheme, a.systemDark, entry.pageSchemes ?? null) ?? viewBackground(a.scheme, a.systemDark));
+      setTimeout(() => void this.fitBackground(entry), 400); // a page that applies the cookie may change its scheme
       try { await session.fromPartition(partitionFor(key)).cookies.set(appearanceCookie(entry.origin, appearanceValue(a, (() => { const w = this.snapshotFor(key)?.wellKnown; return w ? hostView(w) : null; })()))); } catch { /* best effort */ }
     }
+  }
+
+  /** FD-221: once the page's document is ready, its background is what a browser would give it: white unless it
+   *  declares a dark scheme (`loadedBackground`). Read in an isolated world; a page that cannot be read keeps its own. */
+  private async fitBackground(entry: Entry): Promise<void> {
+    const wc = entry.view.webContents;
+    if (wc.isDestroyed()) return;
+    let declared: string | null = null;
+    try {
+      const r: unknown = await wc.executeJavaScriptInIsolatedWorld(FIT_WORLD, [{ code: PAGE_SCHEME_SCRIPT }]);
+      declared = typeof r === 'string' ? r.slice(0, 200) : null;
+    } catch { declared = null; }
+    if (wc.isDestroyed()) return;
+    entry.pageSchemes = declared;
+    const a = this.appearance();
+    const bg = loadedBackground(a.scheme, a.systemDark, declared);
+    if (bg) entry.view.setBackgroundColor(bg);
   }
 
   /** FB-6 (ADR-0021 decision 5): before a show or a reload, tell the page whether the host draws Fabric's
@@ -193,6 +215,7 @@ export class ServiceViews {
       if (navigation(d.origin, url) !== 'allow') event.preventDefault();
     });
     wc.on('did-finish-load', () => { entry.loadedOnce = true; entry.loadedAt = Date.now(); this.emit({ key: snap.key, kind: 'loaded' }); });
+    wc.on('dom-ready', () => void this.fitBackground(entry));
     // ADR-0014: the toolbar follows the page — a full navigation, an in-page route, loading on and off.
     const navigated = () => { const page = this.page(snap.key); if (page) this.emit({ key: snap.key, kind: 'navigated', page }); };
     wc.on('did-navigate', (_event, _url, status) => { entry.lastStatus = status; navigated(); });

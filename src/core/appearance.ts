@@ -34,4 +34,17 @@ export function viewBackground(scheme: Scheme, systemDark: boolean): string {
   const dark = scheme === 'dark' || (scheme === 'system' && systemDark);
   return dark ? '#0a070d' : '#ffffff';
 }
+
+/** FD-221: the background once the page has loaded. A page that does not declare a dark colour scheme (CSS
+ *  `color-scheme` on its root, or `<meta name="color-scheme">`) draws its default text black on a canvas a browser
+ *  paints white; the app's dark background behind it would leave that text unreadable. Only a page that declares dark
+ *  keeps the dark one, and only while the scheme in force is dark. `declared` is both declarations joined, `null`
+ *  when they could not be read (the page's own background stays as it was). */
+export function loadedBackground(scheme: Scheme, systemDark: boolean, declared: string | null): string | null {
+  if (declared === null) return null;
+  return /(^|\s)dark(\s|$)/.test(declared.toLowerCase()) ? viewBackground(scheme, systemDark) : '#ffffff';
+}
+
+/** FD-221: read in an isolated world, so the page's own script cannot answer for it; reads only, writes nothing. */
+export const PAGE_SCHEME_SCRIPT = "(() => { const m = document.querySelector('meta[name=\"color-scheme\"]'); return [getComputedStyle(document.documentElement).colorScheme || '', m ? m.getAttribute('content') || '' : ''].join(' '); })()";
 // #endregion appearance-carrier

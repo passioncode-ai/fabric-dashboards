@@ -1190,7 +1190,7 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 ### SCN-067: Dashboards take my scheme and theme
 - **Persona:** P-01
 - **Feature:** settings
-- **Traces:** ST-019; contract DEC-0036 ED-8/ED-10, DEC-0059; FD-42, FD-56, FD-214
+- **Traces:** ST-019; contract DEC-0036 ED-8/ED-10, DEC-0059; FD-42, FD-56, FD-214, FD-221
 - **Entry point:** Settings → the app group
 - **Preconditions:** none
 - **Steps:**
@@ -1198,7 +1198,7 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
   2. User picks the dashboard theme: Graphite, Fabric, Paper, Forest, Ocean, Ember or High contrast -> every open dashboard that follows the app takes the scheme and the theme without a reload; the others keep their own
   3. User opens a dashboard later -> it opens in that scheme and theme, and the empty view behind it is already the right colour
 - **Expected result:** one choice in one place sets the look of every dashboard that follows the app
-- **Alt paths:** a dashboard declares the themes it ships and the chosen one is not among them -> it gets the scheme only and keeps its own default theme; a dashboard declares nothing, or an invalid profile -> it follows macOS's light or dark only, and an invalid profile is written to the log once per load; Same as the system -> the system switching light/dark is followed live
+- **Alt paths:** a dashboard declares the themes it ships and the chosen one is not among them -> it gets the scheme only and keeps its own default theme; a dashboard declares nothing, or an invalid profile -> it follows macOS's light or dark only, and an invalid profile is written to the log once per load; a page that does not declare a dark colour scheme is shown on white once it has loaded, as a browser shows it, so its default black text reads in the dark scheme (FD-221); Same as the system -> the system switching light/dark is followed live
 - **UI elements:** Settings → colour scheme, dashboard theme, the hint under them
 - **States covered:** success
 - **Errors & recovery:** the cookie cannot be written -> the dashboard follows macOS's light or dark, which every dashboard must handle
