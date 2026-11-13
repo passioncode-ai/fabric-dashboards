@@ -46,7 +46,7 @@ import { powerShellAfterExit } from '../core/after-exit';
 import { agentSettingsPatch, rendererSettingsPatch, SettingsStore } from '../core/settings';
 import type { AppStatus, Settings, SettingsPatch } from '../core/types';
 import { ALWAYS_KEPT, cancelStagedUpdate, clearRestoreRecord, KEPT_FILES, productDataPaths, purgeAfterExit, readRestoreRecord, removeMcpRegistrations, repairMcpRegistrations, restoreMcpRegistrations, writeRestoreRecord } from '../core/uninstall';
-import { autoInstallNow, autoInstallWait, cookieRewrite, inSight, LINK_FRONT_CHECK_MS, linkLeftBehind, OCCLUSION_PROBE_MS, onScreen, resumeBehind, COOKIES_REENCRYPTED_MARKER, HiddenGrace, partitionFor, RELAUNCH_MARKER, relaunchHidden, RESUME_ROUTE_MARKER, resumeRoute, type ResumeRoute, stalePartitions, UPDATE_IDLE_MS, VIEW_RELEASE_ALL_MS, VIEW_RELEASE_GRACE_MS, VISIBILITY_SYNC_MS, VisibilitySync, WARM_VIEWS } from './policy';
+import { autoInstallNow, autoInstallWait, cookieRewrite, inSight, LINK_FRONT_CHECK_MS, linkLeftBehind, moveSkip, OCCLUSION_PROBE_MS, offerMove, onScreen, resumeBehind, COOKIES_REENCRYPTED_MARKER, HiddenGrace, partitionFor, RELAUNCH_MARKER, relaunchHidden, RESUME_ROUTE_MARKER, resumeRoute, type ResumeRoute, stalePartitions, tryMove, UPDATE_IDLE_MS, VIEW_RELEASE_ALL_MS, VIEW_RELEASE_GRACE_MS, VISIBILITY_SYNC_MS, VisibilitySync, WARM_VIEWS } from './policy';
 import { AppTray } from './tray';
 import { DockSync } from './dock';
 import { linkInArgv, menuKeys, modeMenuItems, notificationSettingsUrl, places, startHidden, uninstallCommand, uninstallTarget, windowChrome } from '../core/platform';
@@ -812,17 +812,15 @@ if (!app.requestSingleInstanceLock()) {
   /** U-6/R-3: a move that macOS refuses says so, and leaves the app as it was. A move that works
    *  quits through app.quit (before-quit sets `quitting`) and relaunches from Applications. */
   /** `quiet`: FD-175, an agent asked; its answer says the refusal, so no box waits for a person. */
+  /** Where this copy runs, for the SCN-044 rules in policy.ts. */
+  const copyAt = () => ({ packaged: app.isPackaged, platform: process.platform, inApplications: process.platform === 'darwin' && app.isInApplicationsFolder() });
   async function moveToApplications(quiet = false): Promise<{ ok: boolean; error?: string }> {
-    if (!app.isPackaged || process.platform !== 'darwin' || app.isInApplicationsFolder()) return { ok: true }; // the Applications folder is macOS's
-    let error = '';
-    try {
-      // An older copy already in Applications is replaced; a running one cannot be, since this
-      // copy holds the single-instance lock.
-      if (app.moveToApplicationsFolder({ conflictHandler: () => true })) return { ok: true };
-      error = t(lang(), 'move.refused');
-    } catch (e) {
-      error = (e as Error).message;
-    }
+    if (moveSkip(copyAt())) return { ok: true };
+    // An older copy already in Applications is replaced; a running one cannot be, since this
+    // copy holds the single-instance lock.
+    const moved = tryMove(() => app.moveToApplicationsFolder({ conflictHandler: () => true }), t(lang(), 'move.refused'));
+    if (moved.ok) return moved;
+    const { error } = moved;
     log(`move to Applications failed: ${error}`);
     if (!quiet) await dialog.showMessageBox({ type: 'warning', message: t(lang(), 'move.failed', { error }), buttons: ['OK'] });
     return { ok: false, error };
@@ -830,7 +828,7 @@ if (!app.requestSingleInstanceLock()) {
 
   /** Asked once (LC-07): a copy outside Applications cannot update itself. */
   async function offerMoveToApplications(): Promise<void> {
-    if (!app.isPackaged || process.platform !== 'darwin' || app.isInApplicationsFolder() || settings.get().moveToApplicationsAsked) return;
+    if (!offerMove({ ...copyAt(), asked: settings.get().moveToApplicationsAsked })) return;
     settings.update({ moveToApplicationsAsked: true });
     const l = lang();
     const ask = { type: 'question' as const, buttons: [t(l, 'move.confirm'), t(l, 'move.later')], defaultId: 0, cancelId: 1, message: t(l, 'move.title'), detail: t(l, 'move.body') };
@@ -1253,8 +1251,8 @@ if (!app.requestSingleInstanceLock()) {
         }
         if (r.op === 'app.install' && r.install) {
           if (r.install === 'move-to-applications') {
-            const where = !app.isPackaged ? 'not-packaged' : process.platform !== 'darwin' ? 'not-macos' : app.isInApplicationsFolder() ? 'already-there' : null;
-            if (where) return { ok: true, result: { moved: false, why: where } };
+            const skip = moveSkip(copyAt());
+            if (skip) return { ok: true, result: { moved: false, why: skip } };
             // A move that works quits and relaunches from Applications: the answer goes first.
             setTimeout(() => { void moveToApplications(true); }, 500);
             return { ok: true, result: { moving: true } };
