@@ -150,6 +150,8 @@ export class ConsoleHost {
   private readonly resumedKeys = new Set<string>();
   /** FD-83: stops this launch acted on (continued, or failed to), by event — each is acted on once. */
   private readonly actedStops = new Map<string, StopView>();
+  /** FD-233: the reason each stop last waited for room (LC-17), so a stop that keeps waiting is logged once per reason. */
+  private readonly waitNoted = new Map<string, string>();
   private recovery: RecoveryStatus = { on: true, stops: [], resumed: 0 };
   /** F2 of FIX-2: stops being taken up now (an automatic continue, Continue now, or Continue on a declined stop), by
    *  event: marked before the claim, so a second press or the background pass never claims or starts the same stop. */
@@ -764,6 +766,7 @@ export class ConsoleHost {
     const held = new Set([...m.records.filter((x) => x.end === 'declined').map((x) => x.id), ...m.dismissed.filter((d) => d.id.startsWith('st:')).map((d) => d.id)]);
     this.lastStops.clear();
     for (const s of r.stops) this.lastStops.set(s.event, s);
+    for (const e of [...this.waitNoted.keys()]) if (!this.lastStops.has(e)) this.waitNoted.delete(e);
     const pending = r.stops.filter((s) => s.state !== 'resumed' && !this.actedStops.has(s.event) && !this.taking.has(s.event));
     const read = pending.some((s) => s.ready) ? await liveAgents(this.run).catch(() => null) : null;
     // F4 of FIX-2: a folder one of this app's consoles works in is live too (a hand-over taken on this tick has no claude
@@ -854,7 +857,13 @@ export class ConsoleHost {
 
   private async resumeOnce(stop: SbStop, sb: string, dirs: string[], account: string, automatic: boolean): Promise<string | null> {
     const a = admit(await (this.o.machine ?? machineProbe)(stop.dir, this.manager.runningCount()));
-    if (!a.ok) { this.o.log(`console: limit stop ${stop.event} waits (LC-17: ${a.why})`); return null; }
+    if (!a.ok) {
+      // FD-233: a pass every 15 s logged the same wait each time (477 lines on 2026-11-13); once per reason is enough.
+      if (this.waitNoted.get(stop.event) !== a.why) this.o.log(`console: limit stop ${stop.event} waits (LC-17: ${a.why})`);
+      this.waitNoted.set(stop.event, a.why);
+      return null;
+    }
+    this.waitNoted.delete(stop.event);
     // FIX-4: a stop this launch acted on keeps the account it stopped on (V-1 of FIX-2), from the labels last read.
     const stoppedOn = stop.account ? this.accountLabels?.value[stop.account] ?? null : null;
     const view = (verdict: StopView['verdict'], key?: string): StopView => ({ event: stop.event, session: stop.session, dir: stop.dir, provider: stop.provider, stoppedAt: stop.stoppedAt, attempt: stop.attempt, verdict, key, account: stoppedOn });

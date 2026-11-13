@@ -249,6 +249,13 @@ test('FD-83: a machine that cannot carry a console now (LC-17) claims nothing; t
   assert.deepEqual(r.host.recoveryStatus().stops.map((s) => s.verdict), ['resume']);
 });
 
+test('FD-233: a stop that keeps waiting for room (LC-17) is logged once per reason, not on every pass', POSIX, async () => {
+  const r = rig({ freeDisk: 1 * GB });
+  for (let i = 0; i < 3; i++) await r.host.pollRecovery();
+  assert.equal(r.logs.filter((l) => /waits \(LC-17: /.test(l)).length, 1, 'three passes, one line');
+  assert.ok(!r.calls.some((c) => c.includes('claim')), 'still nothing claimed');
+});
+
 test('FD-83: a refused claim starts nothing; a claimed stop that cannot start is recorded as cancelled', POSIX, async () => {
   const refused = rig({ claim: 1 });
   assert.deepEqual(await refused.host.pollRecovery(), []);

@@ -44,7 +44,7 @@
 Fabric Dashboards: a macOS desktop app (Electron) that finds every local agent service speaking
 `fabric-service/0.1`, shows whether it is alive and what it did last, starts, stops and restarts
 it through launchd and opens each service's dashboard inside the app. Fabric's monitoring tool;
-also works on its own. The current version is 0.8.75 (`package.json`, `CHANGELOG.md`); the README
+also works on its own. The current version is 0.8.76 (`package.json`, `CHANGELOG.md`); the README
 *Quick start for a new teammate* is the path for a new user. Licence:
 `AGPL-3.0-only OR LicenseRef-PassionCode-Commercial` ([ADR-0007](docs/adr/0007-agpl-or-commercial.md)).
 
@@ -208,7 +208,9 @@ fake clock by `test/lifecycle.test.ts` (*LC-08: … a quiet hour stays inside th
 probes ≤ 120 *L* + 60 *R*; event reads ≤ 120 *L* + 60 *R*; `launchctl print` ≤ 12 *L* plus one per
 missed probe; `print-disabled` ≤ 13; status pushes 0 when nothing changed. CPU and memory targets:
 main process ≤ 0.3 % average CPU over 10 hidden minutes; the app with no dashboard open ≤ 400 MB
-RSS; each MCP server ≤ 60 MB RSS. Measured 2026-10-13 on the signed 0.7.6 with 13 local and 9 online
+RSS; each MCP server ≤ 60 MB physical footprint (`vmmap --summary <pid>`: its RSS also counts the shared Electron
+framework, and an empty Electron 44.4.5 run as Node is already 62 MB RSS and 27 MB footprint; measured 2026-11-14 on
+0.8.75, 32 MCP servers at 19.6 to 50.4 MB footprint, 63 to 85 MB RSS, the app 271 MB RSS). Measured 2026-10-13 on the signed 0.7.6 with 13 local and 9 online
 services (FD-07, FD-60): RSS ≈ 230 MB for the app and 32–56 MB per MCP server (both inside); main-process
 CPU **0.258 % hidden** and 0.386 % shown on Overview (`node --import tsx scripts/measure-idle.ts 180` after
 `npm run build`: the built app on the real services in an isolated profile with notifications paused); the
