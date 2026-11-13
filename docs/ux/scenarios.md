@@ -2379,7 +2379,7 @@ The Sessions mode (0.8.0): every coding session apart from the agents, each stat
 - **Entry point:** the Agents mode, any page
 - **Preconditions:** the person opened at least one agent's page
 - **Steps:**
-  1. The person opens an agent -> it joins a strip of open agents above the page, in the order they were opened (at most 12, remembered across launches); each shows its state mark and name
+  1. The person opens an agent -> it joins a strip of open agents above the page, in the order they were opened (at most 12, remembered across launches; a thirteenth pushes out the oldest, whose dashboard is released as Close releases it, FD-228); each shows its state mark and name
   2. The person opens another agent -> both are in the strip, the one on show marked; one press on a name moves to that agent, its dashboard still loaded
   3. The person presses Fold on the agent on show -> Overview opens and the agent stays in the strip, its dashboard loaded
   4. The person presses Close on an agent -> it leaves the strip and its dashboard is released at once; if it was on show, its neighbour opens, else Overview
@@ -2392,8 +2392,8 @@ The Sessions mode (0.8.0): every coding session apart from the agents, each stat
 - **Copy:**
   - "Open agents" / «Открытые агенты» (the strip's label); "Fold {name} away; it stays open" / «Свернуть {name}, агент останется открытым»; "Close {name}" / «Закрыть {name}»
   - "Next Open Agent" / «Следующий открытый агент»; "Previous Open Agent" / «Предыдущий открытый агент»; "Close Agent" / «Закрыть агента» (the View menu, FD-227)
-- **Status:** implemented (2026-11-13, 0.8.68: `test/parts.test.ts` *FD-220*; 0.8.71: the menu commands, `test/layout.test.ts` and `test/platform.test.ts` *FD-227*, copy check reports `1f952e98`, `7d0d360d`, `182df42d` (en), `0fa3eb81`, `4a747011`, `1c7475e6` (ru), no findings; copy check reports `f0aa3911`, `6e2acd19`, `35578507` (en), `1ff81300`, `80f628ee`, `537ebc53` (ru), no findings; seen on the built app with the kit's sample agents)
-- **Coverage:** src/renderer/components/OpenAgents.tsx, src/renderer/App.tsx (tabs, closeTab, tabCommandRef), src/core/layout.ts (tabStep), src/core/platform.ts (menuKeys nextAgent, previousAgent, closeAgent), src/core/settings.ts (mergeLayout `tabs`), src/electron/main.ts (`viewClose`, the View menu), src/electron/views.ts (`drop`)
+- **Status:** implemented (2026-11-13, 0.8.68: `test/parts.test.ts` *FD-220*; 0.8.71: the menu commands, `test/layout.test.ts` and `test/platform.test.ts` *FD-227*, copy check reports `1f952e98`, `7d0d360d`, `182df42d` (en), `0fa3eb81`, `4a747011`, `1c7475e6` (ru), no findings; 0.8.72: the oldest agent pushed out releases its dashboard, `test/layout.test.ts` *FD-228*; copy check reports `f0aa3911`, `6e2acd19`, `35578507` (en), `1ff81300`, `80f628ee`, `537ebc53` (ru), no findings; seen on the built app with the kit's sample agents)
+- **Coverage:** src/renderer/components/OpenAgents.tsx, src/renderer/App.tsx (tabs, closeTab, tabCommandRef), src/core/layout.ts (tabStep, addTab, MAX_TABS), src/core/platform.ts (menuKeys nextAgent, previousAgent, closeAgent), src/core/settings.ts (mergeLayout `tabs`), src/electron/main.ts (`viewClose`, the View menu), src/electron/views.ts (`drop`)
 - **Product:** unobserved
 
 ### SCN-106: Give an agent's dashboard or console the whole window

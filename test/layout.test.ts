@@ -1,7 +1,7 @@
 // FD-92 (SCN-048): the console drawer's height over the content area; the dashboard is never resized.
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { drawerHeightFor, tabStep } from '../src/core/layout';
+import { addTab, drawerHeightFor, MAX_TABS, tabStep } from '../src/core/layout';
 import { CONSOLE_HEIGHT } from '../src/core/types';
 
 test('FD-92: the drawer keeps its saved height, its minimum, and always leaves some of the page showing', () => {
@@ -24,4 +24,12 @@ test('FD-227: the next and previous open agent go round the strip; none on show 
   assert.equal(tabStep(tabs, 'gone.x', 1), 'a.x', 'an agent not in the strip counts as none');
   assert.equal(tabStep(['a.x'], 'a.x', 1), 'a.x');
   assert.equal(tabStep([], 'a.x', 1), null);
+});
+
+test('FD-228: a full strip makes room by dropping its oldest agent, which is named so its dashboard is released', () => {
+  assert.deepEqual(addTab(['a', 'b'], 'c'), { tabs: ['a', 'b', 'c'], dropped: [] });
+  assert.deepEqual(addTab(['a', 'b'], 'a'), { tabs: ['a', 'b'], dropped: [] }, 'already open: nothing moves');
+  const full = Array.from({ length: MAX_TABS }, (_, i) => `s${i}`);
+  assert.deepEqual(addTab(full, 'new'), { tabs: [...full.slice(1), 'new'], dropped: ['s0'] });
+  assert.deepEqual(addTab(['a', 'b', 'c'], 'd', 2), { tabs: ['c', 'd'], dropped: ['a', 'b'] }, 'a strip over the cap is cut back to it');
 });

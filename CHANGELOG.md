@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.8.72 - 2026-11-13
+
+### Fixed
+
+- FD-228: when a thirteenth agent opens and the oldest leaves the strip of open agents, its dashboard is released as
+  Close releases it; before, it stayed loaded while the window was shown.
+
 ## 0.8.71 - 2026-11-13
 
 ### Added
