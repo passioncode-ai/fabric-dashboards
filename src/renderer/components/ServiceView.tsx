@@ -146,7 +146,7 @@ export function ServiceView({ s, all, members, open, link, nonce, tab: askedTab,
       {!focused && members.length > 1 && <InstanceSwitch current={s} members={members} open={open} />}
       {/* ADR-0017: one line by default — state, name, the first problem, the tabs — and the full card on demand.
           FD-220: none of it while the dashboard fills the window. */}
-      <header className={`svc-head${cardShown ? ' full' : ''}`} data-drawer-top="" hidden={focused}>
+      <header className={`svc-head${cardShown ? ' full' : ''}`} data-drawer-top={focused ? undefined : ''} hidden={focused}>
         <div className="svc-bar">
           <h1 id="svc-title" tabIndex={-1} title={s.descriptor?.summary || undefined}>{nameOf(s)}</h1>
           <StateBadge state={shownState(s)} />
@@ -316,10 +316,10 @@ function DashboardHost({ s, link, nonce, hidden, applied, act, openLogs }: { s: 
 
   const reload = () => { fresh.current = true; setAttempt((n) => n + 1); };
 
-  if (!s.wellKnown?.surfaces.dashboard && s.wellKnown) return <div className="dash-overlay muted">{t('view.noDashboard')}</div>;
+  if (!s.wellKnown?.surfaces.dashboard && s.wellKnown) return <><FocusFallbackBar s={s} /><div className="dash-overlay muted">{t('view.noDashboard')}</div></>;
   return (
     <div className="dash-frame">
-    {available && phase === 'open' && <DashboardToolbar serviceKey={s.key} />}
+    {available && phase === 'open' ? <DashboardToolbar serviceKey={s.key} /> : <FocusFallbackBar s={s} />}
     <div className="dash-host" ref={ref}>
       {!available && <UnavailablePane s={s} act={act} openLogs={openLogs} />}
       {available && phase === 'opening' && <div className="dash-overlay muted row"><Spinner /> {t('view.opening')}</div>}
@@ -377,7 +377,7 @@ function DashboardToolbar({ serviceKey }: { serviceKey: string }) {
     if (which) setCopied(which);
   };
   return (
-    <div className="dash-toolbar" role="toolbar" aria-label={t('view.toolbar')}>
+    <div className="dash-toolbar" role="toolbar" aria-label={t('view.toolbar')} data-drawer-top={chrome?.focus ? '' : undefined}>
       <button className="icon-btn" disabled={!page?.canGoBack} onClick={() => go('back')} aria-label={t('view.back')} title={t('view.back')}><Icon name="back" /></button>
       <button className="icon-btn" disabled={!page?.canGoForward} onClick={() => go('forward')} aria-label={t('view.forward')} title={t('view.forward')}><Icon name="forward" /></button>
       <button className="icon-btn" onClick={() => go('refresh')} aria-label={t('view.refresh')} title={t('view.refreshHint', { keys: reloadKeys })}>{page?.loading ? <Spinner /> : <Icon name="reload" />}</button>
@@ -386,13 +386,35 @@ function DashboardToolbar({ serviceKey }: { serviceKey: string }) {
       {restarted && <span className="meta toolbar-note" role="status">{t('view.restartedReloading')}</span>}
       <button className="icon-btn" disabled={!page} onClick={(e) => void copy(e)} aria-label={copied ? t('view.copied') : t('view.copy')} title={t('view.copyHint')} aria-haspopup="menu">{copied ? <Icon name="check" /> : <Icon name="copy" />}</button>
       <span className="visually-hidden" role="status">{copied ? t('view.copied') : ''}</span>
-      {/* FD-220: the console's own toggle while the header is hidden, and filling the window and back. */}
-      {chrome?.focus && (
-        <button className="icon-btn" aria-pressed={chrome.consoleOpen} title={t(chrome.consoleOpen ? 'console.hide' : 'console.show')} aria-label={t(chrome.consoleOpen ? 'console.hide' : 'console.show')} onClick={chrome.toggleConsole}><Icon name="console" /></button>
-      )}
-      {chrome?.focus && (
-        <button className="icon-btn" aria-pressed title={t('view.focusExit')} aria-label={t('view.focusExit')} onClick={chrome.toggleFocus}><Icon name="shrink" /></button>
-      )}
+      <FocusButtons />
+    </div>
+  );
+}
+
+/** FD-220: the console's own toggle while the header is hidden, and filling the window and back. */
+function FocusButtons() {
+  const { t } = useT();
+  const chrome = useContext(DashChromeContext);
+  if (!chrome?.focus) return null;
+  return (
+    <>
+      <button className="icon-btn" aria-pressed={chrome.consoleOpen} title={t(chrome.consoleOpen ? 'console.hide' : 'console.show')} aria-label={t(chrome.consoleOpen ? 'console.hide' : 'console.show')} onClick={chrome.toggleConsole}><Icon name="console" /></button>
+      <button className="icon-btn" aria-pressed title={t('view.focusExit')} aria-label={t('view.focusExit')} onClick={chrome.toggleFocus}><Icon name="shrink" /></button>
+    </>
+  );
+}
+
+/** FD-224: while the dashboard fills the window and is not on screen (opening, failed, crashed, unavailable, none
+ *  declared), a bar with the agent's name keeps the console and the way back; the page header is hidden. */
+function FocusFallbackBar({ s }: { s: ServiceSnapshot }) {
+  const { t } = useT();
+  const chrome = useContext(DashChromeContext);
+  if (!chrome?.focus) return null;
+  return (
+    <div className="dash-toolbar" role="toolbar" aria-label={t('view.toolbar')} data-drawer-top="">
+      <span className="dash-toolbar-name">{nameOf(s)}</span>
+      <span className="spacer" />
+      <FocusButtons />
     </div>
   );
 }

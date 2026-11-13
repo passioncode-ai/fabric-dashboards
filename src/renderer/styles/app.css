@@ -48,6 +48,10 @@ a { color: var(--pc-link); text-decoration: underline; }
 /* The toolbar is the window's top edge now: it moves the window, and starts right of macOS's traffic lights. */
 .app.focus .dash-toolbar { -webkit-app-region: drag; }
 [data-os='mac'] .app.focus .dash-toolbar { padding-left: 84px; }
+/* FD-224: on another tab the page header (and an instance switch above it) is the top edge instead. */
+.app.focus .instances { -webkit-app-region: drag; }
+.app.focus .instances > * { -webkit-app-region: no-drag; }
+[data-os='mac'] .app.focus .svc-bar, [data-os='mac'] .app.focus .instances { padding-left: 84px; }
 .app.focus .dash-toolbar > * { -webkit-app-region: no-drag; }
 .app.focus .dash-toolbar .address { -webkit-app-region: drag; }
 .svc-head[hidden] { display: none; }
@@ -342,6 +346,7 @@ html.drawer-page, html.drawer-page body, html.drawer-page #root { background: tr
 /* ADR-0014: the dashboard toolbar sits above the embedded page; the page's bounds are the host below it. */
 .dash-frame { position: absolute; inset: 0; display: flex; flex-direction: column; }
 .dash-toolbar { display: flex; align-items: center; gap: var(--pc-space-1); padding: var(--pc-space-1) var(--pc-space-4); border-bottom: 1px solid var(--pc-border); background: var(--pc-panel); flex: none; }
+.dash-toolbar-name { font-weight: 600; padding: 0 var(--pc-space-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .dash-toolbar .address { flex: 1; min-width: 0; margin: 0 var(--pc-space-2); padding: var(--pc-space-1) var(--pc-space-2); background: var(--pc-bg); color: var(--pc-text-muted); border: 1px solid var(--pc-border); border-radius: var(--pc-radius-control); text-overflow: ellipsis; }
 .dash-toolbar .address:focus { color: var(--pc-text); outline: 2px solid var(--pc-focus); outline-offset: -1px; }
 .icon-btn { width: 28px; height: 28px; display: inline-flex; align-items: center; justify-content: center; border: 0; border-radius: var(--pc-radius-control); background: transparent; color: var(--pc-text-muted); font-size: var(--pc-type-card); line-height: 1; cursor: pointer; }

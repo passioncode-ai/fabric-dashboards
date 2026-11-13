@@ -368,9 +368,14 @@ function Shell({ status: everyAgent, route, setRoute, mode, switchMode, stopKey,
     observer.observe(el);
     const head = el.querySelector('[data-drawer-top]');
     if (head) observer.observe(head);
+    // FD-224: the element the console starts under can change without the page resizing (the dashboard's toolbar takes
+    // over from the bar shown while it opens); one measure per frame at most.
+    let frame = 0;
+    const swapped = new MutationObserver(() => { if (!frame) frame = requestAnimationFrame(() => { frame = 0; measure(); }); });
+    swapped.observe(el, { childList: true, subtree: true });
     window.addEventListener('resize', measure);
-    return () => { observer.disconnect(); window.removeEventListener('resize', measure); };
-  }, [route.page, route.page === 'service' ? route.key : '', layout.header, layout.sidebar, drawerKey, sessionRow?.id]);
+    return () => { observer.disconnect(); swapped.disconnect(); if (frame) cancelAnimationFrame(frame); window.removeEventListener('resize', measure); };
+  }, [route.page, route.page === 'service' ? route.key : '', layout.header, layout.sidebar, layout.focus, drawerKey, sessionRow?.id]);
   // FD-191 (SCN-101, SCN-102): New session and New agent; the console steps aside while the dialog is open.
   const [newSession, setNewSession] = useState<'session' | 'agent' | null>(null);
   const drawerTask = agentTask && agentTask.key === drawerKey ? { task: agentTask.task, mode: agentTask.mode, nonce: agentTask.nonce } : null;

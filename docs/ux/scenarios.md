@@ -2406,7 +2406,7 @@ The Sessions mode (0.8.0): every coding session apart from the agents, each stat
   3. The person opens an agent's console -> it fills the area under the agent's header, as the agent's own window, with its controls at the top and no edge to drag
   4. The person presses Show the console as a panel -> it becomes the drawer over the dashboard, with its edge, as before; the choice is remembered, and Fill the window with the console brings it back
 - **Expected result:** a dashboard or a console that needs the room gets all of it, with one press back
-- **Alt paths:** a tab other than the dashboard keeps the header while the list is hidden, with the same button to bring it back; a session's page keeps its console as the page (SCN-080)
+- **Alt paths:** a tab other than the dashboard keeps the header while the list is hidden, with the same button to bring it back; a session's page keeps its console as the page (SCN-080); the console opens under the dashboard's toolbar, never over it, and while the dashboard is opening, failed or declares none a bar with the agent's name keeps the console and the way back (FD-224)
 - **UI elements:** Fill the window / Show the agent list and header (the header and, while filled, the toolbar), Console in the toolbar while filled, the console's Fill the window with the console / Show the console as a panel
 - **States covered:** success
 - **Errors & recovery:** none

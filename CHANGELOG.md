@@ -6,6 +6,8 @@
 
 - FD-223: with many agents open, their names stay readable in the strip above the page, which scrolls, and the agent
   on screen is always in view there.
+- FD-224: with the dashboard filling the window, the console opens under the dashboard's toolbar instead of over it,
+  and the way back stays on screen while the dashboard is opening, failed or has none.
 
 ## 0.8.69 - 2026-11-13
 
