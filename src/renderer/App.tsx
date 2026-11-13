@@ -5,7 +5,8 @@ import { filterServices } from '../core/organizations';
 import { groupProducts, productOf, type Product, arrangeProducts, categoryOf, setKind, setOff, showAgain, togglePin } from '../core/products';
 import { Activity, type ActivityFilter } from './components/Activity';
 import { SetupCard, Overview } from './components/Overview';
-import { ServiceView } from './components/ServiceView';
+import { DashChromeContext, ServiceView, type DashChrome } from './components/ServiceView';
+import { OpenAgents } from './components/OpenAgents';
 import { Settings } from './components/Settings';
 import { Spend } from './components/Spend';
 import { ConnectionsMap } from './components/ConnectionsMap';
@@ -103,6 +104,7 @@ export function App() {
       // On a session's page the console is the page itself (SCN-080): the menu's console toggle has nothing to fold.
       const patch = which === 'sidebar' ? { sidebar: l.sidebar === 'collapsed' ? 'expanded' as const : 'collapsed' as const }
         : which === 'console' ? { console: { open: !l.console.open } }
+        : which === 'focus' ? { focus: !l.focus }
         : { header: l.header === 'full' ? 'compact' as const : 'full' as const };
       void api().updateSettings({ layout: patch }).catch(() => undefined);
       return { ...l, ...patch, console: { ...l.console, ...('console' in patch ? patch.console : {}) } };
@@ -135,6 +137,9 @@ export function App() {
     </LangContext.Provider>
   );
 }
+
+// FD-220: macOS draws the traffic lights over the window's top left corner; a page edge that reaches it moves aside.
+if (typeof navigator !== 'undefined' && /Mac/.test(navigator.userAgent)) document.documentElement.dataset.os = 'mac';
 
 // FD-42: `system` follows macOS (nativeTheme reports it to prefers-color-scheme), live.
 const systemLight = typeof window !== 'undefined' && window.matchMedia ? window.matchMedia('(prefers-color-scheme: light)') : null;
@@ -369,9 +374,12 @@ function Shell({ status: everyAgent, route, setRoute, mode, switchMode, stopKey,
   // FD-191 (SCN-101, SCN-102): New session and New agent; the console steps aside while the dialog is open.
   const [newSession, setNewSession] = useState<'session' | 'agent' | null>(null);
   const drawerTask = agentTask && agentTask.key === drawerKey ? { task: agentTask.task, mode: agentTask.mode, nonce: agentTask.nonce } : null;
+  // FD-220: an agent's console fills the area under its header (the agent's window) unless the person keeps it a drawer.
+  const agentConsole = route.page === 'service' && Boolean(drawerKey) && !pageConsole;
+  const expand = agentConsole ? (layout.console.full ? 'full' as const : 'drawer' as const) : undefined;
   useEffect(() => {
-    api().consoleDrawer({ key: drawerKey, open: Boolean(drawerKey), rect: area, height: layout.console.height, task: drawerTask, suspended: stopOpen || menuOverPage || resizing || Boolean(newSession), full: Boolean(pageConsole), scheme });
-  }, [drawerKey, area, layout.console.height, drawerTask?.nonce, stopOpen, menuOverPage, resizing, Boolean(pageConsole), scheme, Boolean(newSession)]);
+    api().consoleDrawer({ key: drawerKey, open: Boolean(drawerKey), rect: area, height: layout.console.height, task: drawerTask, suspended: stopOpen || menuOverPage || resizing || Boolean(newSession), full: Boolean(pageConsole) || expand === 'full', scheme, ...(expand ? { expand } : {}) });
+  }, [drawerKey, area, layout.console.height, drawerTask?.nonce, stopOpen, menuOverPage, resizing, Boolean(pageConsole), scheme, Boolean(newSession), expand]);
   const focusOutRef = useRef<(back: boolean) => void>(() => undefined);
   const drawerOwner = useRef({ route, drawerKey });
   drawerOwner.current = { route, drawerKey };
@@ -380,6 +388,7 @@ function Shell({ status: everyAgent, route, setRoute, mode, switchMode, stopKey,
     if (c.kind === 'height') changeLayout({ console: { height: c.height } });
     else if (c.kind === 'taskTaken') setAgentTask((x) => (x && x.nonce === c.nonce ? null : x));
     else if (c.kind === 'focusOut') focusOutRef.current(c.back); // VIS-05
+    else if (c.kind === 'expand') changeLayout({ console: { full: c.full } }); // FD-220
     else if (r.page === 'service') changeLayout({ console: { open: false } });
     else if (r.page === 'overview') setSetupOpen(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -396,9 +405,41 @@ function Shell({ status: everyAgent, route, setRoute, mode, switchMode, stopKey,
     pick?.focus();
   };
   focusOutRef.current = focusOutOfConsole;
+  // FD-220: the agents whose dashboards are open: an agent shown is added once, at the end; one removed from the Mac leaves.
+  const tabs = layout.tabs.filter((k) => everyAgent.services.some((s) => s.key === k));
+  useEffect(() => {
+    if (route.page !== 'service' || !current || layout.tabs.includes(current.key)) return;
+    changeLayout({ tabs: [...layout.tabs, current.key].slice(-12) });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [route.page, current?.key]);
+  const closeTab = (key: string) => {
+    const at = tabs.indexOf(key);
+    const rest = tabs.filter((k) => k !== key);
+    changeLayout({ tabs: rest });
+    void api().closeView(key);
+    // The agent on show closed: its neighbour opens, else Overview.
+    if (route.page === 'service' && route.key === key) {
+      const next = rest[Math.min(at, rest.length - 1)];
+      if (next) open(next); else setRoute({ page: 'overview' });
+    }
+  };
+  // FD-220: an agent's dashboard may fill the window: the agent list and the page header step aside; Esc brings them back.
+  const focus = layout.focus && route.page === 'service' && Boolean(current);
+  const chrome: DashChrome = {
+    focus, toggleFocus: () => changeLayout({ focus: !layout.focus }),
+    consoleOpen: layout.console.open, toggleConsole: () => changeLayout({ console: { open: !layout.console.open } }),
+  };
+  useEffect(() => {
+    if (!focus) return;
+    const key = (e: KeyboardEvent) => { if (e.key === 'Escape' && !e.defaultPrevented) changeLayout({ focus: false }); };
+    window.addEventListener('keydown', key);
+    return () => window.removeEventListener('keydown', key);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focus]);
   return (
-    <div className={`app${rail ? ' rail' : ''}${resizing ? ' resizing' : ''}`} style={rail ? undefined : { gridTemplateColumns: `${layout.sidebarWidth}px 1fr` }}>
-      <nav className="sidebar" aria-label="Fabric Dashboards" inert={stopOpen}>
+    <DashChromeContext.Provider value={chrome}>
+    <div className={`app${rail ? ' rail' : ''}${resizing ? ' resizing' : ''}${focus ? ' focus' : ''}`} style={rail || focus ? undefined : { gridTemplateColumns: `${layout.sidebarWidth}px 1fr` }}>
+      <nav className="sidebar" aria-label="Fabric Dashboards" inert={stopOpen} hidden={focus}>
         {!rail && <SidebarEdge width={layout.sidebarWidth} onWidth={(w, persist) => changeLayout({ sidebarWidth: w }, persist)} onHold={setResizing} />}
         <div className="brand"><img src={mark} alt="" /> <span className="brand-name">{t('app.name')}</span></div>
         <ModeSwitch mode={mode} rows={sessionsRows} rail={rail} onMode={switchMode} />
@@ -420,6 +461,10 @@ function Shell({ status: everyAgent, route, setRoute, mode, switchMode, stopKey,
         </div>
       </nav>
       <main className="main" inert={stopOpen} ref={mainRef}>
+        {mode === 'agents' && !focus && route.page !== 'session' && (
+          <OpenAgents tabs={tabs} services={everyAgent.services} current={route.page === 'service' ? route.key : null} open={(key) => open(key)}
+            fold={() => setRoute({ page: 'overview' })} close={closeTab} />
+        )}
         {route.page === 'session'
           ? (sessionRow
             ? <div className="session-page">
@@ -486,6 +531,7 @@ function Shell({ status: everyAgent, route, setRoute, mode, switchMode, stopKey,
         </div>
       )}
     </div>
+    </DashChromeContext.Provider>
   );
 }
 

@@ -144,13 +144,10 @@ test('FD-37 packages.yml: every system and architecture on its native runner, si
   const order = ['--stage app', 'Sign the app\'s executable', '--stage installer', 'Sign the installer', '--stage seal', 'nsis-smoke.mjs', 'upload-artifact'].map((n) => wf.indexOf(n));
   assert.ok(order.every((i) => i > 0), 'every stage and signing step is there');
   assert.deepEqual([...order].sort((x, y) => x - y), order, 'sign between the stages, check the installer after sealing');
-  assert.equal(wf.split("if: env.FD_WINDOWS_SIGNING == 'true'").length - 1, 4, 'both signing passes, and the cache drop before each, only when signing is on');
-  // FD-96: the step right before each signing pass deletes the signing module's cache, so the action installs it itself.
-  for (const pass of ["- name: Sign the app's executable", '- name: Sign the installer']) {
-    const before = wf.slice(0, wf.indexOf(pass));
-    const lastStep = before.slice(before.lastIndexOf('      - name:'));
-    assert.match(lastStep, /^ {6}- name: Drop the signing module's cache\n[^]*gh cache delete/, `${pass} follows the cache drop`);
-  }
+  assert.equal(wf.split("if: env.FD_WINDOWS_SIGNING == 'true'").length - 1, 2, 'both signing passes, only when signing is on');
+  // FD-216: the organization's action no longer caches its module (passioncode-ai/.github v1.3.2, on @v1 since
+  // 2026-11-10), so FD-96's cache drop and the `actions: write` it needed are gone.
+  assert.doesNotMatch(wf, /ArtifactSigning-|gh cache delete/, 'no cache drop left');
   assert.equal(wf.split('uses: passioncode-ai/.github/actions/windows-signing@v1').length - 1, 2, 'the organization\'s action signs and verifies (PL-03)');
   assert.doesNotMatch(wf, /artifact-signing-action|azure\/login/, 'no copied signing steps (PL-10)');
   assert.equal(wf.split('expected-subject: O=Siarhei Sheleh').length - 1, 2, 'both passes pin the organization\'s signer');
@@ -213,7 +210,7 @@ test('FD-37: every release job that calls a workflow grants what that workflow\'
   // A called workflow may not exceed its caller's permissions; GitHub refuses the whole run at startup
   // (v0.6.7-rc.1, run 38073408992: startup_failure) — even for a nested job that would be skipped.
   const read = (f: string) => fs.readFileSync(path.join(root, '.github/workflows', f), 'utf8');
-  // FD-96 widened it from id-token to every scope a called job writes (packages.yml asks for actions: write).
+  // FD-96 widened it from id-token to every scope a called job writes; FD-216 took `actions: write` back out.
   const writes = (f: string): Set<string> => new Set([
     ...[...read(f).matchAll(/^ +([a-z-]+): write\b/gm)].map((m) => m[1]!),
     ...[...read(f).matchAll(/uses: \.\/\.github\/workflows\/([\w.-]+)/g)].flatMap((m) => [...writes(m[1]!)]),
@@ -224,7 +221,7 @@ test('FD-37: every release job that calls a workflow grants what that workflow\'
   };
   const callersOf = (f: string) => jobsOf(f).filter((j) => /uses: \.\/\.github\/workflows\//.test(j.body));
   assert.deepEqual(callersOf('release.yml').map((j) => j.name).sort(), ['check', 'linux', 'windows']);
-  assert.ok(writes('packages.yml').has('actions') && writes('packages.yml').has('id-token'), 'packages.yml signs (OIDC) and drops the signing cache');
+  assert.ok(!writes('packages.yml').has('actions') && writes('packages.yml').has('id-token'), 'packages.yml signs (OIDC) and writes nothing else');
   for (const f of ['release.yml', 'validate.yml']) {
     for (const j of callersOf(f)) {
       const called = /uses: \.\/\.github\/workflows\/([\w.-]+)/.exec(j.body)![1]!;

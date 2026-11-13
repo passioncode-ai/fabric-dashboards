@@ -78,8 +78,8 @@ export class ConsoleDrawer {
     if (!this.view || !this.ready || this.view.webContents.isDestroyed()) return;
     const s = this.state;
     const payload: DrawerPush = s.full
-      ? { key: s.key, height: s.rect?.height ?? 0, areaHeight: s.rect?.height ?? 0, task: s.task, full: true, scheme: s.scheme, shown }
-      : { key: s.key, height: s.rect ? drawerHeightFor({ saved: s.height, areaHeight: s.rect.height }) : s.height, areaHeight: s.rect?.height ?? 0, task: s.task, scheme: s.scheme, shown };
+      ? { key: s.key, height: s.rect?.height ?? 0, areaHeight: s.rect?.height ?? 0, task: s.task, full: true, scheme: s.scheme, shown, ...(s.expand ? { expand: s.expand } : {}) }
+      : { key: s.key, height: s.rect ? drawerHeightFor({ saved: s.height, areaHeight: s.rect.height }) : s.height, areaHeight: s.rect?.height ?? 0, task: s.task, scheme: s.scheme, shown, ...(s.expand ? { expand: s.expand } : {}) };
     this.view.webContents.send(CHANNELS.drawerPush, payload);
   }
 

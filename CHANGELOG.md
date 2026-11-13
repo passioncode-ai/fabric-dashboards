@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.8.68 - 2026-11-13
+
+### Added
+
+- FD-220: an agent's dashboard can fill the window: Fill the window in its header, or View → Dashboard Fills the
+  Window (Ctrl+Cmd+M). The agent list and the header step aside; the dashboard's toolbar keeps the console and the way
+  back.
+- FD-220: the agents you opened stay in a strip above the page. One press moves between them, Fold keeps an agent open
+  while you look elsewhere, and Close frees its dashboard.
+
+### Changed
+
+- FD-220: an agent's console opens over the whole area under its header, like the agent's own window. Show the
+  console as a panel brings back the drawer, and the app remembers your choice.
+- FD-216: the release no longer clears the Windows signing cache before each signing pass; the organization's signing
+  action stopped caching it.
+
 ## 0.8.67 - 2026-11-13
 
 ### Fixed

@@ -90,7 +90,12 @@ export interface Settings {
     /** FD-121 (SCN-087): the expanded sidebar's width in px, as the person dragged it (SIDEBAR_WIDTH bounds). */
     sidebarWidth: number;
     header: 'compact' | 'full';
-    console: { open: boolean; height: number };
+    /** FD-220: `full` fills the content area under the page header (the agent's window), else a drawer of `height`. */
+    console: { open: boolean; height: number; full: boolean };
+    /** FD-220: the dashboard fills the window: no agent list, no page header, only its own toolbar. */
+    focus: boolean;
+    /** FD-220: the agents whose dashboards are open, in the order they were opened (service keys, at most 12). */
+    tabs: string[];
     /** FD-39 (ADR-0020): pinned products in pin order (product ids, ADR-0012), and how the rest is sorted.
      *  FD-78: products the person hid (still watched, listed in a folded Hidden section), a kind the person chose for a
      *  product (`service` or `agent`, else the app's guess), and whether the Hidden section is open. */
@@ -199,7 +204,7 @@ export const DEFAULT_SETTINGS: Settings = {
     pausedUntil: null,
     channel: 'auto',
   },
-  layout: { sidebar: 'expanded', sidebarWidth: SIDEBAR_WIDTH.default, header: 'compact', console: { open: false, height: CONSOLE_HEIGHT.default }, list: { sort: 'name', pinned: [], hidden: [], kinds: {}, hiddenOpen: false, order: [], off: [], orgs: [], groupByOrg: false }, mode: 'agents', sessionId: null, endedOpen: false },
+  layout: { sidebar: 'expanded', sidebarWidth: SIDEBAR_WIDTH.default, header: 'compact', console: { open: false, height: CONSOLE_HEIGHT.default, full: true }, focus: false, tabs: [], list: { sort: 'name', pinned: [], hidden: [], kinds: {}, hiddenOpen: false, order: [], off: [], orgs: [], groupByOrg: false }, mode: 'agents', sessionId: null, endedOpen: false },
   consoles: {},
   newSession: { runtime: null, folder: null, bypass: true, isolated: false },
   resumeAfterLimit: true,

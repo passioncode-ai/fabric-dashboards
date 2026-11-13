@@ -153,7 +153,9 @@ function mergeLayout(raw: unknown): Settings['layout'] {
     sidebar: l.sidebar === 'collapsed' ? 'collapsed' : 'expanded',
     sidebarWidth: sidebarWidth(l.sidebarWidth),
     header: l.header === 'full' ? 'full' : 'compact',
-    console: { open: c.open === true, height: Math.min(CONSOLE_HEIGHT.max, Math.max(CONSOLE_HEIGHT.min, height)) },
+    console: { open: c.open === true, height: Math.min(CONSOLE_HEIGHT.max, Math.max(CONSOLE_HEIGHT.min, height)), full: c.full !== false },
+    focus: l.focus === true,
+    tabs: Array.isArray(l.tabs) ? [...new Set(l.tabs.filter((k): k is string => typeof k === 'string' && /^[a-z0-9][a-z0-9._-]{0,128}$/.test(k)))].slice(-12) : [],
     list: mergeList(l.list),
     // FD-103 (SCN-077): a damaged value reads as Agents on Overview; nothing else depends on it.
     mode: l.mode === 'sessions' ? 'sessions' : 'agents',
