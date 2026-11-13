@@ -681,12 +681,12 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
   1. User opens the link -> macOS hands it to Fabric Dashboards; if the app was not running it starts, waits for its first scan of the services folder, then continues
   2. System checks the link against the installed descriptors -> the window comes forward on the service view, and its dashboard opens at the path, signed in as in SCN-014
 - **Expected result:** the page the agent meant, inside the app, with no second window, no browser tab and no token in any address
-- **Alt paths:** a link with no path opens the service's dashboard; `fabric-dashboards://activity` opens Activity; `fabric-dashboards://` opens the overview; the app is not installed -> the agent's own tool opens the plain `http://127.0.0.1` address in the browser instead (SCN-028); `fabric-dashboards://` opens the Overview, whatever page was open
+- **Alt paths:** a link with no path opens the service's dashboard; `fabric-dashboards://activity` opens Activity; `fabric-dashboards://` opens the overview; the app is not installed -> the agent's own tool opens the plain `http://127.0.0.1` address in the browser instead (SCN-028); `fabric-dashboards://` opens the Overview, whatever page was open; a link a program opens in the background (an agent's `open`, a script) opens its page behind the app the person is using, since macOS 14 and later keep that app in front, and the Dock icon bounces once (FD-229, issue #335)
 - **UI elements:** service view, embedded dashboard
 - **States covered:** loading, success
 - **Errors & recovery:** see SCN-027; a dashboard that cannot sign in -> SCN-016
 - **Status:** validated
-- **Coverage:** src/core/deeplink.ts, src/electron/main.ts, test/deeplink.test.ts, test/e2e/app.test.ts
+- **Coverage:** src/core/deeplink.ts, src/electron/main.ts, src/electron/policy.ts (linkLeftBehind), test/deeplink.test.ts, test/e2e/app.test.ts
 - **Product:** unobserved
 
 ### SCN-027: A link that cannot be opened

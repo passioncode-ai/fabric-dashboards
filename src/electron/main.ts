@@ -46,7 +46,7 @@ import { powerShellAfterExit } from '../core/after-exit';
 import { agentSettingsPatch, rendererSettingsPatch, SettingsStore } from '../core/settings';
 import type { AppStatus, Settings, SettingsPatch } from '../core/types';
 import { ALWAYS_KEPT, cancelStagedUpdate, clearRestoreRecord, KEPT_FILES, productDataPaths, purgeAfterExit, readRestoreRecord, removeMcpRegistrations, repairMcpRegistrations, restoreMcpRegistrations, writeRestoreRecord } from '../core/uninstall';
-import { autoInstallNow, autoInstallWait, cookieRewrite, inSight, OCCLUSION_PROBE_MS, onScreen, resumeBehind, COOKIES_REENCRYPTED_MARKER, HiddenGrace, partitionFor, RELAUNCH_MARKER, relaunchHidden, RESUME_ROUTE_MARKER, resumeRoute, type ResumeRoute, stalePartitions, UPDATE_IDLE_MS, VIEW_RELEASE_ALL_MS, VIEW_RELEASE_GRACE_MS, VISIBILITY_SYNC_MS, VisibilitySync, WARM_VIEWS } from './policy';
+import { autoInstallNow, autoInstallWait, cookieRewrite, inSight, LINK_FRONT_CHECK_MS, linkLeftBehind, OCCLUSION_PROBE_MS, onScreen, resumeBehind, COOKIES_REENCRYPTED_MARKER, HiddenGrace, partitionFor, RELAUNCH_MARKER, relaunchHidden, RESUME_ROUTE_MARKER, resumeRoute, type ResumeRoute, stalePartitions, UPDATE_IDLE_MS, VIEW_RELEASE_ALL_MS, VIEW_RELEASE_GRACE_MS, VISIBILITY_SYNC_MS, VisibilitySync, WARM_VIEWS } from './policy';
 import { AppTray } from './tray';
 import { DockSync } from './dock';
 import { linkInArgv, menuKeys, modeMenuItems, notificationSettingsUrl, places, startHidden, uninstallCommand, uninstallTarget, windowChrome } from '../core/platform';
@@ -1360,6 +1360,13 @@ if (!app.requestSingleInstanceLock()) {
       const { target } = result;
       if (target.page === 'overview') navigate({ page: 'overview' }); // U-5: the overview, not whatever page was open
       else navigate(target);
+      // Issue #335: a link from a program in the background opens behind the active app; the Dock icon says so.
+      setTimeout(() => {
+        const w = window;
+        if (!w || w.isDestroyed() || !linkLeftBehind({ platform: process.platform, shown: windowVisible(), focused: w.isFocused() })) return;
+        app.dock?.bounce('informational');
+        log('deep link opened behind the active app: macOS kept it in front, the Dock icon bounced (#335)');
+      }, LINK_FRONT_CHECK_MS).unref();
     };
     // The first scan fills the snapshots a link is checked against; a link that arrived with the
     // launch waits for it rather than being refused as «no installed service».

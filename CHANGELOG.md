@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.8.73 - 2026-11-13
+
+### Fixed
+
+- FD-229 (issue #335): when an agent opens a link to a page in the background, macOS keeps the app you are using in
+  front, so the page opened unseen. Now the Dock icon bounces once to say the page is open.
+
 ## 0.8.72 - 2026-11-13
 
 ### Fixed
