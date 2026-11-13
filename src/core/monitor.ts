@@ -17,7 +17,7 @@ import { commandReason, type CommandResult } from './outcome';
 import { duration, t as tr, type Lang } from './i18n';
 import { Launchd } from './launchd';
 import type { InstanceContext, Organization } from './organizations';
-import { composeEventNotice, displayName, DOWN_NOTIFY_AFTER_MS, episodeKey, intentOf, NotifyLedger, shouldNotify, type Happening, type Intent } from './notify';
+import { closedFamily, composeEventNotice, displayName, DOWN_NOTIFY_AFTER_MS, episodeKey, intentOf, NotifyLedger, shouldNotify, type Happening, type Intent } from './notify';
 import { fetchEvents, PROBE_TIMEOUT_MS, readTokenAsync } from './probe';
 import { tlsFor } from './testhooks';
 import type { Busy, Reason, ServiceSnapshot, Settings } from './types';
@@ -666,6 +666,9 @@ export class Monitor extends EventEmitter {
       const now = this.now();
       const told: { intent: Exclude<Intent, 'quiet'>; text: string; link?: string }[] = [];
       for (const e of fresh) {
+        // FD-218: an ending (`board.slot.returned`) closes its family's episode, so the next one is told again.
+        const family = closedFamily(e.kind);
+        if (family) this.ledger.close({ key: t.entry.key, id: d.id }, family, now);
         const intent = e.notify ? intentOf(e) : 'quiet';
         if (intent === 'quiet') continue;
         // FD-125: a decision the agent waits for also goes to the operator channel, whatever the banner rules say;
