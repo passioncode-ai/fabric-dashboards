@@ -77,7 +77,7 @@ test('SCN-041, SCN-006, SCN-057, SCN-024: the strip, needs attention, the list\'
     await page.getByRole('navigation', { name: 'Sections' }).getByRole('button', { name: 'Unattributed listeners' }).click();
     const groups = await page.locator('.settings > section.group h2').allInnerTexts();
     assert.equal(groups.at(-1), 'Uninstall', 'Uninstall is the last group');
-    await page.getByRole('combobox', { name: /Theme/ }).selectOption('light');
+    await page.getByRole('combobox', { name: /Colour scheme/ }).selectOption('light');
     await page.waitForFunction(() => document.documentElement.dataset.theme === 'light');
     await closeApp(app);
     app = await electron.launch({ args: [ROOT], env });

@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { CONNECTIONS_EXTENSION } from '@passioncode-ai/fabric-service-host/connections';
 import { audit, auditBrief, byAgent } from '../src/core/audit';
+import { t } from '../src/core/i18n';
 import { estateMap } from '../src/core/estate-map';
 import type { ServiceSnapshot } from '../src/core/types';
 
@@ -139,4 +140,11 @@ test('FD-155: one failure of a declared connection is one finding, on the connec
     ['part', 'warn', 'audit.part.failing', 'slow'],
     ['part', 'setup', 'audit.part.setup', 'closed'],
   ], 'database once; a part whose connection says ok is still told; setup stays setup');
+});
+
+test('FD-226: a failing part reads as one sentence: its name, then the agent\'s own words after a colon, or a full stop', () => {
+  assert.equal(t('en', 'audit.connection.degraded', { name: 'demo', text: 'the mail provider answers slowly' }), 'demo works only in part: the mail provider answers slowly');
+  assert.equal(t('ru', 'audit.connection.down', { name: 'demo', text: 'нет ответа' }), 'demo не работает: нет ответа');
+  assert.equal(t('en', 'audit.connection.degraded.bare', { name: 'demo' }), 'demo works only in part.');
+  assert.equal(t('ru', 'audit.connection.down.bare', { name: 'demo' }), 'demo не работает.');
 });
