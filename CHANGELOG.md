@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.8.75 - 2026-11-13
+
+### Added
+
+- FD-231: Sessions also lists the Claude Code and Codex sessions someone started by hand, outside Switchboard and this
+  app, with their folder and how long they have written nothing. It needs a Switchboard that lists them (0.7.72 or
+  later); with an older one the list stays as it was.
+
 ## 0.8.74 - 2026-11-13
 
 ### Fixed

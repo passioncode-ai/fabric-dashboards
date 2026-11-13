@@ -5,7 +5,7 @@ import { remoteRefusal } from '../../core/remote-words';
 import { useEffect, useRef, useState } from 'react';
 import type { AppStatus } from '../../core/types';
 import type { SessionActionResult, SessionRow } from '../../core/sessions';
-import { agentName, chainFacts, clock, contextChip, continueLabel, groupRows, originChip, revealLabel, secondLine, stateShort, stateWords } from '../../core/sessions-view';
+import { agentName, chainFacts, clock, contextChip, continueLabel, groupRows, originChip, projectName, revealLabel, secondLine, stateShort, stateWords } from '../../core/sessions-view';
 import { api, useT } from '../lib';
 import { SESSION_MARK, SessionMark } from './Navigation';
 
@@ -111,7 +111,7 @@ export function SessionActions({ row, place, open, askEnd, continued, onMenu }: 
   ].filter(Boolean);
   if (!buttons.length && !error) return null;
   return (
-    <div className="session-actions" role="group" aria-label={t('sessions.actions', { project: row.project })}>
+    <div className="session-actions" role="group" aria-label={t('sessions.actions', { project: projectName(lang, row) })}>
       <div className="row-actions">{buttons}</div>
       {waitingNoCandidate && <span id={`nocand-${row.id}`} className="meta">{t(row.waitReason ? `sessions.noCandidate.${row.waitReason}` : 'sessions.noCandidate')}</span>}
       {error && <p className="notice error session-error" role="alert">{error}</p>}
@@ -126,7 +126,7 @@ function SessionCard({ row, autoContinue, ...actions }: Omit<ActionsProps, 'plac
   return (
     <li className={`session-card sg-${row.group}`}>
       <div className="session-card-head">
-        <h3><button className="linkish session-title" onClick={() => actions.open(row.id)}>{row.project}</button></h3>
+        <h3><button className="linkish session-title" onClick={() => actions.open(row.id)}>{projectName(lang, row)}</button></h3>
         <p className="meta session-sub">{secondLine(lang, row)}</p>
       </div>
       <p className={`session-state state ${mark.cls}`}><SessionMark group={row.group} /><span className="session-state-text">{stateWords(lang, row, { autoContinue })}</span></p>
@@ -188,7 +188,7 @@ export function AllSessions({ sessions, noteSeen, onNoteSeen, onSetUp, endedOpen
         );
       })}
       {/* FD-107: the footnote speaks of the list, so it waits for the list; under the loading line it is not drawn. */}
-      {sessions && <p className="meta sessions-footnote">{t('sessions.footnote')}</p>}
+      {sessions && !sessions.machine && <p className="meta sessions-footnote">{t('sessions.footnote')}</p>}
     </div>
   );
 }
@@ -206,7 +206,7 @@ export function SessionHeader({ row, autoContinue, open, askEnd, continued, onMe
   return (
     <header className="session-head" data-drawer-top="">
       <div className="session-bar">
-        <h1 id="session-title" tabIndex={-1}>{row.project}</h1>
+        <h1 id="session-title" tabIndex={-1}>{projectName(lang, row)}</h1>
         <span className={`state ${mark.cls}`}><SessionMark group={row.group} />{long ? stateShort(lang, row) : stateWords(lang, row)}</span>
         <span className="spacer" />
         <SessionActions row={row} place="page" open={open} askEnd={askEnd} continued={continued} onMenu={onMenu} />
@@ -254,6 +254,7 @@ export function SessionBody({ row, autoContinue = true }: { row: SessionRow; aut
   const { t, lang } = useT();
   if (row.state === 'running-terminal') return <div className="page session-body"><p>{t('sessions.inTerminal')}</p></div>;
   if (row.state === 'running-background') return <div className="page session-body"><p>{t('sessions.inBackground')}</p></div>;
+  if (row.state === 'running-unmanaged') return <div className="page session-body"><p>{t('sessions.inMachine')}</p></div>; // FD-231
   // FD-108: a limit stop that cannot be continued here never had a console of this app: its card says why, its page that
   // nothing of it runs here and that Remove takes it off the list.
   if (row.state === 'ended-cannot-continue') return <div className="page session-body"><section className="session-panel"><p>{t('sessions.body.notOpened')}</p></section></div>;

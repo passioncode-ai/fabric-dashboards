@@ -121,6 +121,8 @@ export function stateWords(lang: Lang, r: SessionRow, o: { autoContinue?: boolea
       if (r.reason === 'quit') return t(lang, 'sessions.state.quit'); // R1-S4
       return t(lang, 'sessions.state.ended', { time: clock(lang, r.endedAt ?? r.at) });
     // FD-107: every ended state with an end of its own says when, so a card's order (by its end) reads in its words.
+    case 'running-unmanaged': // FD-231: one whose transcripts went quiet says for how long
+      return r.quietMinutes !== undefined ? t(lang, 'sessions.state.running-unmanaged.quiet', { minutes: r.quietMinutes }) : t(lang, 'sessions.state.running-unmanaged');
     case 'idle-closed':
     case 'ended-by-you':
       return t(lang, `sessions.state.${r.state}`, { time: clock(lang, r.endedAt ?? r.at) });
@@ -128,6 +130,9 @@ export function stateWords(lang: Lang, r: SessionRow, o: { autoContinue?: boolea
       return t(lang, `sessions.state.${r.state}`);
   }
 }
+
+/** FD-231: a row's name, its folder's last name; a process whose folder Switchboard could not read says so. */
+export const projectName = (lang: Lang, r: Pick<SessionRow, 'project'>): string => r.project || t(lang, 'sessions.folderUnknown');
 
 /** The short state word a sidebar row names to a screen reader (the group heading shows it on screen). */
 export function stateShort(lang: Lang, r: SessionRow): string {
