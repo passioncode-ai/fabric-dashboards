@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.8.76 - 2026-11-14
+
+### Fixed
+
+- FD-233: a session stopped on a usage limit that waits for a free console is now written to the app's log once,
+  not every 15 seconds, so the log keeps its older history.
+
 ## 0.8.75 - 2026-11-13
 
 ### Added
