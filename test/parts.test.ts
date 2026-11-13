@@ -503,3 +503,17 @@ test('FD-223: many open agents keep readable tabs in a strip that scrolls, the o
   const tsx = fs.readFileSync(path.join(root, 'src/renderer/components/OpenAgents.tsx'), 'utf8');
   assert.match(tsx, /\.open-agent\.current'\)\?\.scrollIntoView\?\.\(\{ block: 'nearest', inline: 'nearest' \}\); \}, \[current, tabs\.length\]/);
 });
+
+test('FD-224: while the dashboard fills the window the console starts under the bar that is shown, and the way back is always there', () => {
+  const root = path.resolve(__dirname, '..');
+  const view = fs.readFileSync(path.join(root, 'src/renderer/components/ServiceView.tsx'), 'utf8');
+  assert.match(view, /data-drawer-top=\{focused \? undefined : ''\} hidden=\{focused\}/, 'the hidden header is not what the console measures');
+  assert.match(view, /data-drawer-top=\{chrome\?\.focus \? '' : undefined\}/, 'the toolbar is, while the header is hidden');
+  assert.match(view, /available && phase === 'open' \? <DashboardToolbar serviceKey=\{s\.key\} \/> : <FocusFallbackBar s=\{s\} \/>/, 'a page not on screen still shows the way back');
+  assert.match(view, /<><FocusFallbackBar s=\{s\} \/><div className="dash-overlay muted">\{t\('view\.noDashboard'\)\}/);
+  const app = fs.readFileSync(path.join(root, 'src/renderer/App.tsx'), 'utf8');
+  assert.match(app, /layout\.focus, drawerKey, sessionRow\?\.id\]\)/, 'filling the window measures the console again');
+  assert.match(app, /new MutationObserver/, 'and so does the bar changing under it');
+  const css = fs.readFileSync(path.join(root, 'src/renderer/styles/app.css'), 'utf8');
+  assert.match(css, /\[data-os='mac'\] \.app\.focus \.svc-bar, \[data-os='mac'\] \.app\.focus \.instances \{ padding-left: 84px; \}/);
+});
