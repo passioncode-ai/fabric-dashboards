@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
-import { composeEventNotice, COOLDOWN_MS, displayName, episodeKey, intentOf, NotifyLedger } from '../src/core/notify';
+import { closedFamily, composeEventNotice, COOLDOWN_MS, displayName, episodeKey, intentOf, NotifyLedger, REOPEN_AFTER_MS } from '../src/core/notify';
 import { tmp } from './helpers';
 
 const HOUR = 3_600_000;
@@ -82,4 +82,24 @@ test('compose: who (the agent), what it wants (subtitle) and the sentence; sever
     { intent: 'ask', text: 'Order icon-8 waits for your pick.', link: '/dashboard/icon-8' },
   ]);
   assert.deepEqual(many, { title: 'Example Agent', subtitle: '3 need you · needs your decision', body: 'Order icon-8 waits for your pick.', link: undefined, target: 'activity', intent: 'ask' });
+});
+
+test('FD-218: an ending closes its family\'s episode, so a second move after a return is told; a flapping agent stays quiet', () => {
+  const t0 = Date.parse('2026-11-13T00:00:00Z');
+  const svc = { key: 'growth.default', id: 'growth' };
+  const moved = { kind: 'board.slot.moved', level: 'warning' as const, text: 'The responder slot moved.', subject: null };
+  const key = episodeKey(svc, moved);
+  assert.equal(intentOf({ kind: 'board.slot.returned', level: 'info' }), 'quiet', 'a return is never a banner');
+  assert.equal(closedFamily('board.slot.returned'), 'board.slot');
+  assert.equal(closedFamily('service.recovered'), 'service');
+  assert.equal(closedFamily('board.slot.moved'), null);
+  assert.equal(closedFamily('job.done'), null, 'progress closes nothing');
+  const l = new NotifyLedger(null);
+  assert.equal(l.admit(key, 'attention', t0), true);
+  l.close(svc, 'board.slot', t0 + REOPEN_AFTER_MS + 1);
+  assert.equal(l.admit(key, 'attention', t0 + REOPEN_AFTER_MS + 2), true, 'moved again after it returned: told');
+  l.close(svc, 'board.slot', t0 + REOPEN_AFTER_MS + 60_000);
+  assert.equal(l.admit(key, 'attention', t0 + REOPEN_AFTER_MS + 120_000), false, 'returned within 15 minutes of the banner: the cool-down holds');
+  l.close({ key: 'other.default', id: 'other' }, 'board.slot', t0 + 3 * REOPEN_AFTER_MS);
+  assert.equal(l.admit(key, 'attention', t0 + 3 * REOPEN_AFTER_MS + 1), false, 'another agent\'s return closes nothing here');
 });

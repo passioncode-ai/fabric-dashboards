@@ -38,7 +38,10 @@ from a sender that was not Fabric Dashboards. Counted from
    instances of that agent share it; a failure without a subject is told apart by its sentence. An
    episode is told again only after its cool-down: failed 6 h, attention 12 h, ask 24 h
    (`COOLDOWN_MS`). The record (`notified.json` in the app's data; episodes older than 48 h are
-   forgotten) survives a restart.
+   forgotten) survives a restart. Amendment 2026-11-13 (FD-218): an ending of the same family on the same agent
+   (`*.recovered`, `*.cleared`, `*.back`, `*.returned`, `*.resumed`, `*.resolved`; `board.slot.returned` for
+   `board.slot.moved`) closes the episode, so the next one is told at once, unless it was told less than 15 minutes
+   before (`REOPEN_AFTER_MS`), which keeps a flapping agent quiet (`closedFamily`, `NotifyLedger.close`).
 3. **Who and what.** Title: the agent, with its instance when it is not `default`
    (`displayName` in `src/core/names.ts`, also used in the sidebar). Subtitle: what it wants —
    "Needs your decision", "Failed", "Needs attention". Body: the agent's own sentence. A click opens

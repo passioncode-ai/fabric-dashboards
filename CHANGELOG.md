@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.8.67 - 2026-11-13
+
+### Fixed
+
+- FD-218: when an agent reports that a problem ended (its board slot returned, a service recovered), the next time it
+  happens you are told again, instead of waiting out the 12-hour quiet period. A problem that comes back within 15
+  minutes of the last notification still stays quiet.
+
 ## 0.8.66 - 2026-11-13
 
 ### Fixed

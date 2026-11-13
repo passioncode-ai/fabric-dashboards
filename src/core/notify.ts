@@ -54,7 +54,17 @@ export type Intent = 'ask' | 'failed' | 'attention' | 'quiet';
 // FD-125: `decision_needed` (a stopped experiment owes a decision) and a guardrail stop or breach the product must act on.
 const ASK = /(awaiting|approval|approve_requested|human_step\.opened|needs?_(you|review|decision|input)|review_requested|confirmation_requested|choice_needed|decision_needed|guardrail_(stopped|breached))/;
 /** Endings and progress: something got better or moved on. Never a banner. */
-const SETTLED = /\.(recovered|cleared|back|resumed|closed|resolved|choice_made|approved|granted|cancelled|started|queued|delivered|done|finished|completed|ready|synced|written|checked|observed|planned)$/;
+const SETTLED = /\.(recovered|cleared|back|returned|resumed|closed|resolved|choice_made|approved|granted|cancelled|started|queued|delivered|done|finished|completed|ready|synced|written|checked|observed|planned)$/;
+/** FD-218: the endings that close an episode of their own family (`board.slot.returned` closes `board.slot.moved`). */
+const CLOSING = /\.(recovered|cleared|back|returned|resumed|resolved)$/;
+
+/** FD-218: the event family an ending closes (`board.slot` for `board.slot.returned`), or null for any other event. */
+export function closedFamily(kind: string): string | null {
+  const k = kind.toLowerCase();
+  return CLOSING.test(k) ? k.slice(0, k.lastIndexOf('.')) : null;
+}
+/** FD-218: a closed episode may be told again at once, unless it was told this recently (a flapping agent stays quiet). */
+export const REOPEN_AFTER_MS = 15 * 60_000;
 
 export function intentOf(e: Pick<ServiceEvent, 'kind' | 'level'>): Intent {
   const kind = e.kind.toLowerCase();
@@ -93,6 +103,19 @@ export class NotifyLedger {
         for (const [k, v] of Object.entries(raw)) if (typeof v === 'number' && Number.isFinite(v)) this.told[k] = v;
       }
     } catch { /* first run or a torn file: start empty */ }
+  }
+
+  /** FD-218: an ending closes the episodes of its family on this agent, so the next one is told; one told within
+   *  REOPEN_AFTER_MS keeps its cool-down. */
+  close(service: { key: string; id: string }, family: string, now: number): void {
+    const heads = [`${service.key}|${family}.`, `${service.id}|${family}.`];
+    let changed = false;
+    for (const [k, at] of Object.entries(this.told)) {
+      if (heads.some((h) => k.startsWith(h)) && now - at >= REOPEN_AFTER_MS) { delete this.told[k]; changed = true; }
+    }
+    if (changed && this.file) {
+      try { atomicWrite(this.file, JSON.stringify(this.told)); } catch { /* as in admit */ }
+    }
   }
 
   /** True when this episode may be told now; records it. */
