@@ -54,6 +54,12 @@ const repoNameOf = (url: string | undefined): string | null => {
 };
 
 /** Every finding for the agents installed now. `limits` are the ranked spending limits each agent reported, by key. */
+/** FD-226: a failing connection or part, in a sentence that reads whole: its name, then the agent's own words after a
+ *  colon, or a full stop when it gave none. */
+function connectionReason(state: string, name: string, text: string): { code: string; params: Record<string, string> } {
+  return text.trim() ? { code: `audit.connection.${state}`, params: { name, text } } : { code: `audit.connection.${state}.bare`, params: { name } };
+}
+
 export function audit(all: readonly Seen[], limits: Readonly<Record<string, readonly LimitView[]>> = {}): Audit {
   const out: Finding[] = [];
   const add = (f: Finding) => out.push(f);
@@ -123,7 +129,7 @@ export function audit(all: readonly Seen[], limits: Readonly<Record<string, read
     for (const c of view.connections) {
       const failing = c.state === 'down' || c.state === 'degraded';
       if (c.kind !== 'service') {
-        if (failing) add({ id: `${s.key}:conn:${c.id}`, key: s.key, severity: c.state === 'down' ? 'error' : 'warn', kind: 'connection', reason: { code: `audit.connection.${c.state}`, params: { name: c.label ?? c.target, text: c.reason ?? partWords.get(c.id) ?? '' } } });
+        if (failing) add({ id: `${s.key}:conn:${c.id}`, key: s.key, severity: c.state === 'down' ? 'error' : 'warn', kind: 'connection', reason: connectionReason(c.state, c.label ?? c.target, c.reason ?? partWords.get(c.id) ?? '') });
         continue;
       }
       const reached = resolveTarget(c.target, all);
@@ -156,7 +162,7 @@ export function audit(all: readonly Seen[], limits: Readonly<Record<string, read
       // #endregion cross-organization
       const theirs = stateOfService(reached.state);
       if (failing) {
-        add({ id: `${s.key}:conn:${c.id}`, key: s.key, severity: c.state === 'down' ? 'error' : 'warn', kind: 'connection', reason: { code: `audit.connection.${c.state}`, params: { name: nameOf(reached), text: c.reason ?? partWords.get(c.id) ?? '' } } });
+        add({ id: `${s.key}:conn:${c.id}`, key: s.key, severity: c.state === 'down' ? 'error' : 'warn', kind: 'connection', reason: connectionReason(c.state, nameOf(reached), c.reason ?? partWords.get(c.id) ?? '') });
       } else if (theirs === 'down' || theirs === 'degraded') {
         // The agent's own call is fine as far as it knows; the one it relies on is not. Named on the caller, so the
         // person sees whose work is at risk; the fix belongs to the agent reached, which has its own finding.

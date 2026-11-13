@@ -8,6 +8,8 @@
   on screen is always in view there.
 - FD-224: with the dashboard filling the window, the console opens under the dashboard's toolbar instead of over it,
   and the way back stays on screen while the dashboard is opening, failed or has none.
+- FD-226: on the agent map a failing part reads as one sentence ("demo works only in part: the mail provider answers
+  slowly"), and Settings calls the colour scheme Colour scheme instead of Theme.
 
 ## 0.8.69 - 2026-11-13
 
