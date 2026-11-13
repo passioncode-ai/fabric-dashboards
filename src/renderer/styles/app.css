@@ -279,9 +279,10 @@ h3 { font-size: var(--pc-type-card); margin: 0; font-weight: 600; }
 /* FD-92 (SCN-048): the service page takes the whole area; the console is a drawer over it, in a view of its own. */
 .svc-page { display: flex; flex: 1; min-height: 0; min-width: 0; }
 /* FD-220: the open agents, a strip at the top of the page; it moves the window like the page header. */
-.open-agents { flex: none; display: flex; gap: var(--pc-space-1); padding: var(--pc-space-2) var(--pc-space-4) 0; border-bottom: 1px solid var(--pc-border); overflow-x: auto; -webkit-app-region: drag; }
+.open-agents { flex: none; display: flex; gap: var(--pc-space-1); padding: var(--pc-space-2) var(--pc-space-4) 0; border-bottom: 1px solid var(--pc-border); overflow-x: auto; scrollbar-width: thin; -webkit-app-region: drag; }
+/* FD-223: many open agents keep their names readable (each tab its own width up to 220 px) and the strip scrolls. */
 .open-agents > * { -webkit-app-region: no-drag; }
-.open-agent { display: flex; align-items: center; gap: 2px; min-width: 0; max-width: 220px; padding: 0 var(--pc-space-1) 0 var(--pc-space-2); border: 1px solid var(--pc-border); border-bottom: none; border-radius: var(--pc-radius-control) var(--pc-radius-control) 0 0; background: var(--pc-panel); }
+.open-agent { display: flex; align-items: center; gap: 2px; flex: none; min-width: 0; max-width: 220px; padding: 0 var(--pc-space-1) 0 var(--pc-space-2); border: 1px solid var(--pc-border); border-bottom: none; border-radius: var(--pc-radius-control) var(--pc-radius-control) 0 0; background: var(--pc-panel); }
 .open-agent.current { background: var(--pc-accent-soft); border-color: var(--pc-link); }
 .open-agent-name { display: flex; align-items: center; gap: var(--pc-space-1); min-width: 0; padding: var(--pc-space-1) 0; background: none; border: none; color: inherit; font: inherit; cursor: pointer; }
 .open-agent-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
