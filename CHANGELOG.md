@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.8.70 - 2026-11-13
+
+### Fixed
+
+- FD-223: with many agents open, their names stay readable in the strip above the page, which scrolls, and the agent
+  on screen is always in view there.
+
 ## 0.8.69 - 2026-11-13
 
 ### Fixed

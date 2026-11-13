@@ -2384,7 +2384,7 @@ The Sessions mode (0.8.0): every coding session apart from the agents, each stat
   3. The person presses Fold on the agent on show -> Overview opens and the agent stays in the strip, its dashboard loaded
   4. The person presses Close on an agent -> it leaves the strip and its dashboard is released at once; if it was on show, its neighbour opens, else Overview
 - **Expected result:** the agents in use are one press away, and closing one frees what it held
-- **Alt paths:** an agent removed from this Mac leaves the strip by itself; the Sessions mode and the window filled by a dashboard (SCN-106) show no strip
+- **Alt paths:** an agent removed from this Mac leaves the strip by itself; more agents than fit: the strip scrolls, each keeps its name, and the agent on screen is kept in view (FD-223); the Sessions mode and the window filled by a dashboard (SCN-106) show no strip
 - **UI elements:** the strip of open agents: name with state mark, Fold (on the agent on show), Close
 - **States covered:** success, empty
 - **Errors & recovery:** none; a name that no longer answers keeps its state mark and opens its page as any agent's

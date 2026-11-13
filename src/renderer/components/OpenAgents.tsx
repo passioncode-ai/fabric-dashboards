@@ -1,6 +1,7 @@
 // #region open-agents — docs: docs/ux/scenarios.md#scn-105-keep-several-agents-open-and-move-between-them
 // FD-220: the agents whose dashboards are open, as a strip above the page: one press moves to an agent, the current one
 // folds away (its dashboard stays loaded), and closing one releases its dashboard. The order is the order they were opened.
+import { useEffect, useRef } from 'react';
 import type { ServiceSnapshot } from '../../core/types';
 import { shownState } from '../../core/setup-wait';
 import { GLYPH, Icon, nameOf, useT } from '../lib';
@@ -16,10 +17,13 @@ interface Props {
 
 export function OpenAgents({ tabs, services, current, open, fold, close }: Props) {
   const { t } = useT();
+  const strip = useRef<HTMLDivElement>(null);
+  // FD-223: the agent on screen is always in view in the strip, however many are open.
+  useEffect(() => { strip.current?.querySelector('.open-agent.current')?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' }); }, [current, tabs.length]);
   const shown = tabs.map((key) => services.find((s) => s.key === key)).filter((s): s is ServiceSnapshot => Boolean(s));
   if (!shown.length) return null;
   return (
-    <div className="open-agents" role="toolbar" aria-label={t('tabs.label')}>
+    <div ref={strip} className="open-agents" role="toolbar" aria-label={t('tabs.label')}>
       {shown.map((s) => {
         const here = s.key === current;
         const name = nameOf(s);

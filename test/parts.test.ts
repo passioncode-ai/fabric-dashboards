@@ -494,3 +494,12 @@ test('FD-220: the dashboard filling the window, the console filling the area and
   assert.equal(merge({ layout: { focus: 'yes', console: { full: 'no' } } } as never).layout.focus, false, 'only true is true');
   assert.equal(merge({ layout: { console: { full: 'no' } } } as never).layout.console.full, true, 'only false keeps the drawer');
 });
+
+test('FD-223: many open agents keep readable tabs in a strip that scrolls, the one on screen kept in view', () => {
+  const root = path.resolve(__dirname, '..');
+  const css = fs.readFileSync(path.join(root, 'src/renderer/styles/app.css'), 'utf8');
+  assert.match(css, /\.open-agents \{[^}]*overflow-x: auto/);
+  assert.match(css, /\.open-agent \{[^}]*flex: none/, 'a tab does not shrink to nothing');
+  const tsx = fs.readFileSync(path.join(root, 'src/renderer/components/OpenAgents.tsx'), 'utf8');
+  assert.match(tsx, /\.open-agent\.current'\)\?\.scrollIntoView\?\.\(\{ block: 'nearest', inline: 'nearest' \}\); \}, \[current, tabs\.length\]/);
+});
