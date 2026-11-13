@@ -42,6 +42,15 @@ a { color: var(--pc-link); text-decoration: underline; }
 .app { display: grid; grid-template-columns: 240px 1fr; height: 100%; }
 /* ADR-0017 (SCN-047): the sidebar folds into a rail as wide as the window's traffic lights. */
 .app.rail { grid-template-columns: 76px 1fr; }
+/* FD-220: the dashboard fills the window: no agent list (the page header hides itself, svc-head[hidden]). */
+.app.focus { grid-template-columns: 1fr; }
+.app.focus .sidebar { display: none; }
+/* The toolbar is the window's top edge now: it moves the window, and starts right of macOS's traffic lights. */
+.app.focus .dash-toolbar { -webkit-app-region: drag; }
+[data-os='mac'] .app.focus .dash-toolbar { padding-left: 84px; }
+.app.focus .dash-toolbar > * { -webkit-app-region: no-drag; }
+.app.focus .dash-toolbar .address { -webkit-app-region: drag; }
+.svc-head[hidden] { display: none; }
 .app.rail .sidebar { padding-left: var(--pc-space-2); padding-right: var(--pc-space-2); }
 .app.rail .brand { justify-content: center; padding: 0 0 var(--pc-space-4); }
 .app.rail .brand-name, .app.rail .nav-label, .app.rail .nav-section { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
@@ -265,7 +274,15 @@ h3 { font-size: var(--pc-type-card); margin: 0; font-weight: 600; }
 .fabric-mark { width: 18px; height: 18px; flex: none; }
 .icon-btn[aria-pressed='true'] { color: var(--pc-text); background: var(--pc-accent-soft); }
 /* FD-92 (SCN-048): the service page takes the whole area; the console is a drawer over it, in a view of its own. */
-.svc-page { display: flex; height: 100%; min-height: 0; min-width: 0; }
+.svc-page { display: flex; flex: 1; min-height: 0; min-width: 0; }
+/* FD-220: the open agents, a strip at the top of the page; it moves the window like the page header. */
+.open-agents { flex: none; display: flex; gap: var(--pc-space-1); padding: var(--pc-space-2) var(--pc-space-4) 0; border-bottom: 1px solid var(--pc-border); overflow-x: auto; -webkit-app-region: drag; }
+.open-agents > * { -webkit-app-region: no-drag; }
+.open-agent { display: flex; align-items: center; gap: 2px; min-width: 0; max-width: 220px; padding: 0 var(--pc-space-1) 0 var(--pc-space-2); border: 1px solid var(--pc-border); border-bottom: none; border-radius: var(--pc-radius-control) var(--pc-radius-control) 0 0; background: var(--pc-panel); }
+.open-agent.current { background: var(--pc-accent-soft); border-color: var(--pc-link); }
+.open-agent-name { display: flex; align-items: center; gap: var(--pc-space-1); min-width: 0; padding: var(--pc-space-1) 0; background: none; border: none; color: inherit; font: inherit; cursor: pointer; }
+.open-agent-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.open-agent-btn { width: 24px; height: 24px; }
 .svc-page > .svc { flex: 1; min-width: 0; }
 /* The drawer's own page: transparent, so while its edge is dragged (the view then covers the area) only the drawer shows. */
 html.drawer-page, html.drawer-page body, html.drawer-page #root { background: transparent; height: 100%; overflow: hidden; }

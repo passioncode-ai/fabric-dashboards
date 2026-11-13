@@ -85,15 +85,15 @@ async function main(): Promise<void> {
     });
     const page = await app.firstWindow();
     await app.evaluate(({ BrowserWindow }, size) => { const w = BrowserWindow.getAllWindows()[0]!; w.setContentSize(size.width, size.height); w.center(); }, SIZE);
-    for (const a of AGENTS.filter((x) => x.serve)) await page.getByRole('button', { name: new RegExp(`${a.name} — (Ready|Degraded)`) }).first().waitFor({ timeout: 30_000 });
+    for (const a of AGENTS.filter((x) => x.serve)) await page.getByRole('button', { name: new RegExp(`^${a.name}\\s*(Ready|Partly working)`) }).first().waitFor({ timeout: 30_000 });
     // Data Sync stops after its first answer; a missed probe is not an outage, a quarter-minute of silence is.
     await Promise.race([stopProcess(stopping!), new Promise((r) => setTimeout(() => { stopping!.kill('SIGKILL'); r(undefined); }, 5_000))]);
     running.splice(running.indexOf(stopping!), 1);
-    await page.getByRole('button', { name: /Data Sync — Not answering|Data Sync — Down/ }).first().waitFor({ timeout: 60_000 });
+    await page.getByRole('button', { name: /Data Sync\s*(Not answering|Down)/ }).first().waitFor({ timeout: 60_000 });
     await new Promise((r) => setTimeout(r, 1500)); // spend strip and activity settle
     await capture(app, path.join(OUT, 'overview.png'));
 
-    await page.getByRole('button', { name: /Docs Writer — Ready/ }).first().click();
+    await page.getByRole('button', { name: /Docs Writer\s*Ready/ }).first().click();
     await page.getByRole('heading', { name: 'Docs Writer' }).waitFor();
     await page.getByRole('button', { name: 'Copy address' }).waitFor({ timeout: 20_000 });
     await new Promise((r) => setTimeout(r, 2500)); // the dashboard signs in and paints

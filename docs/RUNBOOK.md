@@ -158,13 +158,12 @@ first, then push the new tag. A run waiting on an environment approval (only und
 
 **Re-running a failed job of a release run** (`gh run rerun <id> --failed`) keeps the tag and the version, and is
 right for a failure the product's code did not cause (a runner, a network, a flake that passed on the same code
-before). A **Windows package job** needs nothing more since FD-96: before each signing pass it deletes the signing
-module's cache (`ArtifactSigning-*`; step *Drop the signing module's cache* in `packages.yml`), so the action installs
-the module itself. Azure's action keeps that module under one key for both Windows images, at the first
-`PSModulePath` entry of the job that saved it, and a job that restored another's copy could not load it ("The term
-'Invoke-ArtifactSigning' is not recognized", measured on 0.7.26's run 39955756486: attempt 2 failed that way, attempt
-3 after a manual deletion signed and published). By hand, if that step ever fails: `gh cache list --key
-ArtifactSigning`, then `gh cache delete <id>`.
+before). A **Windows package job** needs nothing more: the organization's signing action
+(`passioncode-ai/.github/actions/windows-signing@v1`) no longer caches Azure's PowerShell module (its v1.3.2, on the
+floating `v1` since 2026-11-10), so FD-96's step that deleted that cache before each pass, and the `actions: write` it
+needed, were removed in FD-216. If a pass ever fails with "The term 'Invoke-ArtifactSigning' is not recognized" again
+(as 0.7.26's run 39955756486 did), delete the cache by hand (`gh cache list --key ArtifactSigning`, then
+`gh cache delete <id>`), rerun the failed job, and tell the action's owner on the board.
 
 A published release is never rewritten; a fix is a new tag. Verify a download with
 `gpg --verify SHA256SUMS.asc SHA256SUMS`, `shasum -a 256 -c SHA256SUMS --ignore-missing` and

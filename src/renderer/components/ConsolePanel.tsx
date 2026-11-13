@@ -26,6 +26,9 @@ interface Props {
   onTaskTaken?: () => void;
   /** Scenario walk 2026-11-11: whether the drawer is shown now; a folded drawer never continues an idle-closed session. */
   active?: boolean;
+  /** FD-220: an agent's console offers to fill the area (`drawer` now) or to go back to a drawer (`full` now, no edge). */
+  expand?: 'full' | 'drawer';
+  onExpand?: () => void;
   /** FD-103 (SCN-080): a session's page: the terminal fills the page under its header; no fold, no edge, no start
    *  controls of its own (the header holds the session's actions). */
   page?: boolean;
@@ -46,7 +49,7 @@ function shortPath(p: string): string {
   return home ? `~${p.slice(home.length)}` : p;
 }
 
-export function ConsolePanel({ serviceKey, height, maxHeight, onHeight, onDrag, onHide, task, onTaskTaken, page = false, onFocusOut, active = true }: Props) {
+export function ConsolePanel({ serviceKey, height, maxHeight, onHeight, onDrag, onHide, task, onTaskTaken, page = false, onFocusOut, active = true, expand, onExpand }: Props) {
   const { t, lang } = useT();
   const host = useRef<HTMLDivElement>(null);
   const term = useRef<Terminal | null>(null);
@@ -301,6 +304,11 @@ export function ConsolePanel({ serviceKey, height, maxHeight, onHeight, onDrag, 
               <button className="btn btn-sm" autoFocus onClick={() => setConfirmClose(false)}>{t('action.cancel')}</button>
             </span>
           )}
+          {expand && onExpand && (
+            <button className="icon-btn" title={t(expand === 'full' ? 'console.toDrawer' : 'console.toFull')} aria-label={t(expand === 'full' ? 'console.toDrawer' : 'console.toFull')} onClick={onExpand}>
+              <Icon name={expand === 'full' ? 'shrink' : 'expand'} />
+            </button>
+          )}
           <button className="icon-btn" title={t('console.hide')} aria-label={t('console.hide')} onClick={onHide}><Icon name="chevronUp" /></button>
           <button className="icon-btn icon-btn-close" title={t('console.close')} aria-label={t('console.close')} onClick={close}><Icon name="close" /></button>
         </div>
@@ -372,7 +380,7 @@ export function ConsolePanel({ serviceKey, height, maxHeight, onHeight, onDrag, 
         </div>
       )}
       <div className="console-term" ref={host} onClick={() => term.current?.focus()} />
-      <div className="console-edge" role="separator" aria-orientation="horizontal" aria-label={t('console.resize')} aria-valuemin={CONSOLE_HEIGHT.min} aria-valuemax={maxHeight} aria-valuenow={height} tabIndex={0} onPointerDown={drag} onKeyDown={nudge}><span className="console-grip" /></div>
+      {expand !== 'full' && <div className="console-edge" role="separator" aria-orientation="horizontal" aria-label={t('console.resize')} aria-valuemin={CONSOLE_HEIGHT.min} aria-valuemax={maxHeight} aria-valuenow={height} tabIndex={0} onPointerDown={drag} onKeyDown={nudge}><span className="console-grip" /></div>}
       <div className="console-shadow" aria-hidden="true" />
     </section>
   );

@@ -244,13 +244,13 @@ const ABS_A = process.platform === 'win32' ? 'C:\\tmp\\a' : '/tmp/a';
 
 test('ADR-0017: layout and per-service consoles merge with defaults and clamp what they cannot hold', () => {
   const d = merge({});
-  assert.deepEqual(d.layout, { sidebar: 'expanded', sidebarWidth: 240, header: 'compact', console: { open: false, height: 380 }, list: { sort: 'name', pinned: [], hidden: [], kinds: {}, hiddenOpen: false, order: [], off: [], orgs: [], groupByOrg: false }, mode: 'agents', sessionId: null, endedOpen: false });
+  assert.deepEqual(d.layout, { sidebar: 'expanded', sidebarWidth: 240, header: 'compact', console: { open: false, height: 380, full: true }, focus: false, tabs: [], list: { sort: 'name', pinned: [], hidden: [], kinds: {}, hiddenOpen: false, order: [], off: [], orgs: [], groupByOrg: false }, mode: 'agents', sessionId: null, endedOpen: false });
   assert.deepEqual(d.consoles, {});
   const s = merge({
     layout: { sidebar: 'collapsed', sidebarWidth: 240, header: 'full', console: { open: true, height: 99999 } },
     consoles: { 'a.default': { runtime: 'codex', folder: ABS_A }, 'b.default': { runtime: 7, folder: 'relative/path' }, 'bad key': { runtime: 'claude', folder: null } },
   } as never);
-  assert.deepEqual(s.layout, { sidebar: 'collapsed', sidebarWidth: 240, header: 'full', console: { open: true, height: 2400 }, list: { sort: 'name', pinned: [], hidden: [], kinds: {}, hiddenOpen: false, order: [], off: [], orgs: [], groupByOrg: false }, mode: 'agents', sessionId: null, endedOpen: false });
+  assert.deepEqual(s.layout, { sidebar: 'collapsed', sidebarWidth: 240, header: 'full', console: { open: true, height: 2400, full: true }, focus: false, tabs: [], list: { sort: 'name', pinned: [], hidden: [], kinds: {}, hiddenOpen: false, order: [], off: [], orgs: [], groupByOrg: false }, mode: 'agents', sessionId: null, endedOpen: false });
   assert.deepEqual(s.consoles, { 'a.default': { runtime: 'codex', folder: ABS_A }, 'b.default': { runtime: null, folder: null } });
   assert.equal(merge({ layout: { console: { height: 10 } } } as never).layout.console.height, 180);
   assert.equal(merge({ layout: { console: { open: true, width: 900 } } } as never).layout.console.height, 380, 'FD-92: a width from the side panel reads as the default height');
@@ -265,7 +265,7 @@ test('ADR-0017: an update of one console or one layout field keeps the others', 
   store.update({ layout: { console: { open: true } } } as never);
   const v = store.get();
   assert.deepEqual(Object.keys(v.consoles).sort(), ['a.default', 'b.default']);
-  assert.deepEqual(v.layout, { sidebar: 'collapsed', sidebarWidth: 240, header: 'compact', console: { open: true, height: 380 }, list: { sort: 'name', pinned: [], hidden: [], kinds: {}, hiddenOpen: false, order: [], off: [], orgs: [], groupByOrg: false }, mode: 'agents', sessionId: null, endedOpen: false });
+  assert.deepEqual(v.layout, { sidebar: 'collapsed', sidebarWidth: 240, header: 'compact', console: { open: true, height: 380, full: true }, focus: false, tabs: [], list: { sort: 'name', pinned: [], hidden: [], kinds: {}, hiddenOpen: false, order: [], off: [], orgs: [], groupByOrg: false }, mode: 'agents', sessionId: null, endedOpen: false });
 });
 
 test('ADR-0017 REQ-02: the compact bar carries the first problem — a state that is not ready, else a failed action still news', async () => {
@@ -479,4 +479,18 @@ test('operator 2026-10-18: no interface string carries an em dash (U+2014) or a 
     const bad = Object.entries(dictionary(lang)).filter(([, v]) => v.includes('\u2014') || / -- /.test(v)).map(([k]) => k);
     assert.deepEqual(bad, [], `${lang}: use a full stop, comma, colon or parentheses instead`);
   }
+});
+
+test('FD-220: the dashboard filling the window, the console filling the area and the open agents are remembered, read strictly', () => {
+  const d = merge({});
+  assert.equal(d.layout.focus, false);
+  assert.equal(d.layout.console.full, true, 'an agent\'s console opens as the agent\'s window');
+  assert.deepEqual(d.layout.tabs, []);
+  const s = merge({ layout: { focus: true, console: { full: false }, tabs: ['a.default', 'a.default', 'bad key', 7, 'b.default', ...Array.from({ length: 14 }, (_, i) => `k${i}.default`)] } } as never);
+  assert.equal(s.layout.focus, true);
+  assert.equal(s.layout.console.full, false, 'a drawer chosen stays a drawer');
+  assert.equal(s.layout.tabs.length, 12, 'the 12 opened last');
+  assert.ok(!s.layout.tabs.includes('bad key') && s.layout.tabs.at(-1) === 'k13.default');
+  assert.equal(merge({ layout: { focus: 'yes', console: { full: 'no' } } } as never).layout.focus, false, 'only true is true');
+  assert.equal(merge({ layout: { console: { full: 'no' } } } as never).layout.console.full, true, 'only false keeps the drawer');
 });

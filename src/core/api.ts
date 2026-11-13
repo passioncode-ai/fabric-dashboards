@@ -20,14 +20,18 @@ export interface DrawerState { key: string | null; open: boolean; rect: Rect | n
   /** FD-103 (SCN-080): a session page's console fills the area under the page header, full height: no fold, no edge. */
   full?: boolean;
   /** VIS-06: the colour scheme the window's page paints, so the console's terminal follows it live. */
-  scheme?: 'system' | 'dark' | 'light' }
+  scheme?: 'system' | 'dark' | 'light';
+  /** FD-220: an agent's console, which the person may fill the area with (`full`) or keep as a drawer (`drawer`). */
+  expand?: 'full' | 'drawer' }
 /** FD-92: what the drawer's own page is told: which console, its height now, the area's height and a job to start. */
 export interface DrawerPush { key: string | null; height: number; areaHeight: number; task: DrawerTask | null; full?: boolean; scheme?: 'system' | 'dark' | 'light';
   /** Whether the drawer is shown; false once it is folded, so its page does not act as if it were seen. */
-  shown?: boolean }
+  shown?: boolean;
+  /** FD-220: as DrawerState's `expand`: the console offers to fill the area, or to go back to a drawer. */
+  expand?: 'full' | 'drawer' }
 /** FD-92: what the drawer's page reports back to the window's page. */
 /** `focusOut` (VIS-05): Esc then Tab left the terminal; the window's page takes focus (`back`: Shift+Tab). */
-export type DrawerChange = { kind: 'hide' } | { kind: 'height'; height: number } | { kind: 'taskTaken'; nonce: number } | { kind: 'focusOut'; back: boolean };
+export type DrawerChange = { kind: 'hide' } | { kind: 'height'; height: number } | { kind: 'taskTaken'; nonce: number } | { kind: 'focusOut'; back: boolean } | { kind: 'expand'; full: boolean };
 
 /** Where a link, a notification, the tray or the menu sends the window. FD-103: `agents` opens the Agents mode on its
  *  last page; `sessions` the Sessions mode on its last page, on All sessions with key `all`, or on one row by its id. */
@@ -134,6 +138,8 @@ export interface FabricApi {
   showView(key: string, rect: Rect, link: string | undefined, owner: string, fresh?: boolean): Promise<{ ok: boolean; error?: string; stage?: 'sign-in' | 'page' }>;
   /** With an owner, hide only that host's view; without, hide whatever is shown. */
   hideView(owner?: string): Promise<void>;
+  /** FD-220: an open agent closed from the strip: its dashboard's view is released now, not after the grace. */
+  closeView(key: string): Promise<void>;
   viewBounds(rect: Rect): void;
   /** Where a service's embedded dashboard is now — address, app link, history (ADR-0014). */
   viewPage(key: string): Promise<PageState | null>;
@@ -215,7 +221,7 @@ export interface FabricApi {
   consoleOpenTerminal(key: string, mode: 'new' | 'continue'): Promise<{ ok: boolean; error?: string }>;
   /** Output and exits while the window is visible; a hidden window gets nothing and asks `consoleInfo` again. */
   /** View menu: fold or unfold a panel (ADR-0017). */
-  onLayoutCommand(listener: (which: 'sidebar' | 'console' | 'details') => void): () => void;
+  onLayoutCommand(listener: (which: 'sidebar' | 'console' | 'details' | 'focus') => void): () => void;
   /** FD-92: the window's page sets what the console drawer shows. */
   consoleDrawer(state: DrawerState): void;
   /** FD-92: the drawer's page: what to show (pushed on every change and after it loads). */
@@ -253,6 +259,7 @@ export const CHANNELS = {
   showPath: 'fd:show-path',
   viewShow: 'fd:view-show',
   viewHide: 'fd:view-hide',
+  viewClose: 'fd:view-close',
   viewBounds: 'fd:view-bounds',
   viewPage: 'fd:view-page',
   viewNavigate: 'fd:view-navigate',

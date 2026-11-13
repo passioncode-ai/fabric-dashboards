@@ -99,7 +99,7 @@ test('FD-121 (SCN-087): the edge is a named separator; holding it steps the dash
   assert.match(app, /onWidth\(last\.current, false\)/, 'moving shows, never writes');
   assert.match(app, /onWidth\(last\.current, true\)/, 'release writes once');
   assert.match(app, /onDoubleClick=\{\(\) => onWidth\(SIDEBAR_WIDTH\.default, true\)\}/);
-  assert.match(app, /style=\{rail \? undefined : \{ gridTemplateColumns: `\$\{layout\.sidebarWidth\}px 1fr` \}\}/);
+  assert.match(app, /style=\{rail \|\| focus \? undefined : \{ gridTemplateColumns: `\$\{layout\.sidebarWidth\}px 1fr` \}\}/); // FD-220: no column for the list while the dashboard fills the window
 });
 
 test('FD-122: a change someone else writes into settings.json is read again, and the app\'s next write keeps it', async () => {

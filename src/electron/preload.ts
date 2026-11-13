@@ -26,6 +26,7 @@ const api: FabricApi = {
   showPath: (p) => ipcRenderer.invoke(CHANNELS.showPath, p),
   showView: (key, rect, link, owner, fresh) => ipcRenderer.invoke(CHANNELS.viewShow, key, rect, link, owner, fresh === true),
   hideView: (owner) => ipcRenderer.invoke(CHANNELS.viewHide, owner),
+  closeView: (key) => ipcRenderer.invoke(CHANNELS.viewClose, key),
   viewBounds: (rect) => ipcRenderer.send(CHANNELS.viewBounds, rect),
   viewPage: (key) => ipcRenderer.invoke(CHANNELS.viewPage, key),
   viewNavigate: (key, action) => ipcRenderer.invoke(CHANNELS.viewNavigate, key, action),

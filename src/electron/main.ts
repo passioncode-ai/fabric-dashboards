@@ -1005,6 +1005,8 @@ if (!app.requestSingleInstanceLock()) {
       return views.show(s, rect, typeof link === 'string' ? link : undefined, owner, fresh === true);
     });
     ipcMain.handle(CHANNELS.viewHide, (_e, owner?: string) => views?.hide(typeof owner === 'string' ? owner : undefined));
+    // FD-220: closing an open agent releases its view at once; a key that has no view changes nothing.
+    ipcMain.handle(CHANNELS.viewClose, (_e, key: unknown) => { if (typeof key === 'string' && key.length <= 200) views?.drop(key); });
     ipcMain.handle(CHANNELS.viewPage, (_e, key: string) => views?.page(String(key)) ?? null);
     ipcMain.handle(CHANNELS.viewNavigate, (_e, key: string, action: string) => {
       if (!['back', 'forward', 'home', 'refresh'].includes(action)) throw new Error('unknown navigation');
@@ -1081,7 +1083,7 @@ if (!app.requestSingleInstanceLock()) {
     void monitor.tick(true);
   }
 
-  function layoutCommand(which: 'sidebar' | 'console' | 'details'): void {
+  function layoutCommand(which: 'sidebar' | 'console' | 'details' | 'focus'): void {
     if (window && !window.isDestroyed()) window.webContents.send(CHANNELS.layoutCommand, which);
   }
 
@@ -1110,6 +1112,8 @@ if (!app.requestSingleInstanceLock()) {
         { label: t(l, 'menu.toggleSidebar'), accelerator: keys.sidebar, click: () => layoutCommand('sidebar') },
         { label: t(l, 'menu.toggleConsole'), accelerator: keys.console, click: () => layoutCommand('console') },
         { label: t(l, 'menu.toggleDetails'), accelerator: keys.details, click: () => layoutCommand('details') },
+        // FD-220: an agent's dashboard fills the window, and back.
+        { label: t(l, 'menu.focus'), accelerator: keys.focus, click: () => layoutCommand('focus') },
       ] },
       { role: 'windowMenu' },
       ...(keys.appMenu ? [] : [{ role: 'help' as const, submenu: [{ role: 'about' as const }] }]),

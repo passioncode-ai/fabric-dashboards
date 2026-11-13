@@ -35,6 +35,18 @@ export function DrawerApp() {
   }, [pending]);
   if (!push?.key) return null;
   const focusOut = (back: boolean) => api().drawerChange({ kind: 'focusOut', back });
+  // FD-220: an agent's console filling the area under its page header, with its own controls and no edge.
+  const toggle = () => api().drawerChange({ kind: 'expand', full: push.expand !== 'full' });
+  if (push.full && push.expand === 'full') {
+    const task = push.task && push.task.nonce !== taken.current ? push.task : null;
+    return (
+      <LangContext.Provider value={lang}>
+        <ConsolePanel key="drawer" serviceKey={push.key} onFocusOut={focusOut} height={push.areaHeight} maxHeight={push.areaHeight} onHeight={() => undefined} onDrag={() => undefined}
+          onHide={() => api().drawerChange({ kind: 'hide' })} task={task} active={push.shown !== false} expand="full" onExpand={toggle}
+          onTaskTaken={() => { if (push.task) { taken.current = push.task.nonce; api().drawerChange({ kind: 'taskTaken', nonce: push.task.nonce }); } }} />
+      </LangContext.Provider>
+    );
+  }
   // FD-103 (SCN-080): a session's page: the console fills the page under its header.
   if (push.full) {
     return (
@@ -60,6 +72,8 @@ export function DrawerApp() {
         }}
         onDrag={(active) => api().drawerDrag(active)}
         onHide={() => api().drawerChange({ kind: 'hide' })}
+        expand={push.expand}
+        onExpand={push.expand ? toggle : undefined}
         task={task}
         active={push.shown !== false}
         onTaskTaken={() => { if (push.task) { taken.current = push.task.nonce; api().drawerChange({ kind: 'taskTaken', nonce: push.task.nonce }); } }}

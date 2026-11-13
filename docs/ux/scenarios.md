@@ -110,6 +110,8 @@
 | SCN-102 | Start a new agent from the agent list | console | P-01 | ST-019, ST-022 | implemented | 2026-11-09 |
 | SCN-103 | Edit an agent on the machine it runs on | console | P-01 | ST-004, ST-019 | implemented | 2026-11-11 |
 | SCN-104 | Open here a session Switchboard's session host holds | sessions | P-01 | ST-019 | implemented | 2026-11-12 |
+| SCN-105 | Keep several agents open and move between them | layout | P-01 | ST-002 | implemented | 2026-11-13 |
+| SCN-106 | Give an agent's dashboard or console the whole window | layout | P-01 | ST-002, ST-019 | implemented | 2026-11-13 |
 ## Personas
 
 Defined in [foundation.md](foundation.md) → P-01.
@@ -2368,4 +2370,48 @@ The Sessions mode (0.8.0): every coding session apart from the agents, each stat
   - "Switchboard runs this session; this console shows it. Closing the console leaves the session running." / «Эту сессию ведёт Switchboard, консоль только показывает её. Если закрыть консоль, сессия продолжит работать.»
 - **Status:** implemented (2026-11-12, 0.8.64: step 5, `test/hosted-console.test.ts` (5 tests); live: `switchboard sessions end` ended a hosted session in 0.5 s on this MacBook. 0.8.63: `test/sessions.test.ts` *FD-211* (3 tests); copy check reports `43a2631b`, `4b6eadf3`, `3746748f` (en), `0869a8b7`, `cbe35b12`, `6f29571d` (ru), no findings). Open here waits on Switchboard listing `attachable` in `sessions --all` (today only `--history` has it; asked on thread `b401662f`, message `748d91ca`)
 - **Coverage:** src/core/switchboard.ts (allSessionsOf: `attachable`; launchFeatures: `hosted`; inPlaceArgv), src/core/consoles.ts (planStart `hosted`), src/core/sessions.ts (mergeSessions, attachOwnKey), src/electron/console.ts (attachSession, isView, recordEnd, endConsole, launchOf, runsOnWithoutApp, endAllForQuit), src/electron/main.ts (sessions.act, the quit question), src/mcp/server.ts, src/mcp/tools.ts, src/mcp/actions.ts (session_action `attach`), src/renderer/components/Sessions.tsx, src/renderer/components/ConsolePanel.tsx
+- **Product:** unobserved
+
+### SCN-105: Keep several agents open and move between them
+- **Persona:** P-01
+- **Feature:** layout
+- **Traces:** ST-002; FD-220; the operator, 2026-11-13, this repository's session `a1bc2cc0`: «показывать агентов открытых к дашборду и возможность закрыть/свернуть/открыть»
+- **Entry point:** the Agents mode, any page
+- **Preconditions:** the person opened at least one agent's page
+- **Steps:**
+  1. The person opens an agent -> it joins a strip of open agents above the page, in the order they were opened (at most 12, remembered across launches); each shows its state mark and name
+  2. The person opens another agent -> both are in the strip, the one on show marked; one press on a name moves to that agent, its dashboard still loaded
+  3. The person presses Fold on the agent on show -> Overview opens and the agent stays in the strip, its dashboard loaded
+  4. The person presses Close on an agent -> it leaves the strip and its dashboard is released at once; if it was on show, its neighbour opens, else Overview
+- **Expected result:** the agents in use are one press away, and closing one frees what it held
+- **Alt paths:** an agent removed from this Mac leaves the strip by itself; the Sessions mode and the window filled by a dashboard (SCN-106) show no strip
+- **UI elements:** the strip of open agents: name with state mark, Fold (on the agent on show), Close
+- **States covered:** success, empty
+- **Errors & recovery:** none; a name that no longer answers keeps its state mark and opens its page as any agent's
+- **Copy:**
+  - "Open agents" / «Открытые агенты» (the strip's label); "Fold {name} away; it stays open" / «Свернуть {name}, агент останется открытым»; "Close {name}" / «Закрыть {name}»
+- **Status:** implemented (2026-11-13, 0.8.68: `test/parts.test.ts` *FD-220*; copy check reports `f0aa3911`, `6e2acd19`, `35578507` (en), `1ff81300`, `80f628ee`, `537ebc53` (ru), no findings; seen on the built app with the kit's sample agents)
+- **Coverage:** src/renderer/components/OpenAgents.tsx, src/renderer/App.tsx (tabs, closeTab), src/core/settings.ts (mergeLayout `tabs`), src/electron/main.ts (`viewClose`), src/electron/views.ts (`drop`)
+- **Product:** unobserved
+
+### SCN-106: Give an agent's dashboard or console the whole window
+- **Persona:** P-01
+- **Feature:** layout
+- **Traces:** ST-002, ST-019; FD-220; the operator, 2026-11-13, this repository's session `a1bc2cc0`: «сделать возможность скрыть агентов слева и шапку дашборда чтобы он был на весь экран, консоль агента открывать на весь экран как окно агента а не попап»
+- **Entry point:** an agent's page: the header's Fill the window button, View → Dashboard Fills the Window (Ctrl+Cmd+M; Ctrl+Shift+M elsewhere); the console's own button
+- **Preconditions:** none
+- **Steps:**
+  1. The person presses Fill the window -> the agent list, the strip of open agents and the agent's header step aside; the dashboard keeps its own toolbar (back, forward, reload, home, address), which now moves the window and also holds the console and Show the agent list and header
+  2. The person presses Show the agent list and header, the menu item again, or Esc while the window's page has the keyboard -> everything comes back; the choice is remembered across launches
+  3. The person opens an agent's console -> it fills the area under the agent's header, as the agent's own window, with its controls at the top and no edge to drag
+  4. The person presses Show the console as a panel -> it becomes the drawer over the dashboard, with its edge, as before; the choice is remembered, and Fill the window with the console brings it back
+- **Expected result:** a dashboard or a console that needs the room gets all of it, with one press back
+- **Alt paths:** a tab other than the dashboard keeps the header while the list is hidden, with the same button to bring it back; a session's page keeps its console as the page (SCN-080)
+- **UI elements:** Fill the window / Show the agent list and header (the header and, while filled, the toolbar), Console in the toolbar while filled, the console's Fill the window with the console / Show the console as a panel
+- **States covered:** success
+- **Errors & recovery:** none
+- **Copy:**
+  - "Dashboard Fills the Window" / «Дашборд на всё окно» (menu); "Fill the window with the dashboard" / «Развернуть дашборд на всё окно»; "Show the agent list and header" / «Вернуть список агентов и шапку»; "Fill the window with the console" / «Развернуть консоль на всё окно»; "Show the console as a panel" / «Показать консоль панелью»
+- **Status:** implemented (2026-11-13, 0.8.68: `test/parts.test.ts` *FD-220*, `test/sidebar-manage.test.ts` *FD-121*; copy check reports `ce1de9a2`, `9345d320`, `930f80b3`, `ef799040` (en), `171b2822` (en), `5f5e84d3`, `99e6dbb4`, `cefe7e10`, `8019ef48`, `ea4d0c61` (ru), no findings; seen on the built app: the filled dashboard, the console filling the area)
+- **Coverage:** src/renderer/App.tsx (focus, DashChromeContext, the drawer's `expand`), src/renderer/components/ServiceView.tsx (header and toolbar buttons), src/renderer/DrawerApp.tsx, src/renderer/components/ConsolePanel.tsx (expand), src/electron/drawer.ts, src/electron/main.ts (menu, layoutCommand), src/core/platform.ts (menuKeys.focus), src/renderer/styles/app.css (.app.focus)
 - **Product:** unobserved

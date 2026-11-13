@@ -1,5 +1,5 @@
 import { offersAgentUpdate, offersFix } from '../../core/offers';
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { createContext, useContext, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { PageState } from '../../core/api';
 import type { ActivityItem, ServiceSnapshot } from '../../core/types';
 import { instanceOf } from '../../core/products';
@@ -20,6 +20,11 @@ import fabricMark from '../brand/passioncode-mark.svg';
 import { shownState } from '../../core/setup-wait';
 
 type Tab = 'dashboard' | 'activity' | 'connections' | 'load' | 'health' | 'logs';
+
+/** FD-220: what the dashboard's toolbar offers when the page around it can step aside: fill the window (no agent list,
+ *  no page header) and back, and the console, which the hidden header no longer offers. */
+export interface DashChrome { focus: boolean; toggleFocus: () => void; consoleOpen: boolean; toggleConsole: () => void }
+export const DashChromeContext = createContext<DashChrome | null>(null);
 
 interface Props {
   s: ServiceSnapshot;
@@ -100,6 +105,9 @@ export function ServiceView({ s, all, members, open, link, nonce, tab: askedTab,
   // UX-14: the problem chip opens the full card for this visit only; the remembered choice is Show/Hide details'.
   const [peek, setPeek] = useState(false);
   const cardShown = headerFull || peek;
+  // FD-220: the dashboard fills the window only on its own tab; another tab keeps the header to leave by.
+  const chromeCtx = useContext(DashChromeContext);
+  const focused = Boolean(chromeCtx?.focus) && tab === 'dashboard';
   const toggleDetails = () => { setPeek(false); if (headerFull || !peek) onToggleHeader(); };
   const control = (action: 'restart' | 'start') => void api().control(s.key, action);
   const wk = s.wellKnown;
@@ -135,9 +143,10 @@ export function ServiceView({ s, all, members, open, link, nonce, tab: askedTab,
 
   return (
     <div className="svc">
-      {members.length > 1 && <InstanceSwitch current={s} members={members} open={open} />}
-      {/* ADR-0017: one line by default — state, name, the first problem, the tabs — and the full card on demand. */}
-      <header className={`svc-head${cardShown ? ' full' : ''}`} data-drawer-top="">
+      {!focused && members.length > 1 && <InstanceSwitch current={s} members={members} open={open} />}
+      {/* ADR-0017: one line by default — state, name, the first problem, the tabs — and the full card on demand.
+          FD-220: none of it while the dashboard fills the window. */}
+      <header className={`svc-head${cardShown ? ' full' : ''}`} data-drawer-top="" hidden={focused}>
         <div className="svc-bar">
           <h1 id="svc-title" tabIndex={-1} title={s.descriptor?.summary || undefined}>{nameOf(s)}</h1>
           <StateBadge state={shownState(s)} />
@@ -167,6 +176,11 @@ export function ServiceView({ s, all, members, open, link, nonce, tab: askedTab,
           <button className="icon-btn" aria-pressed={consoleOpen} title={t(consoleOpen ? 'console.hide' : 'console.show')} onClick={onToggleConsole}>
             <Icon name="console" /><span className="icon-btn-label">{t('console.show')}</span>
           </button>
+          {chromeCtx && (
+            <button className="icon-btn" aria-pressed={chromeCtx.focus} title={t(chromeCtx.focus ? 'view.focusExit' : 'view.focus')} aria-label={t(chromeCtx.focus ? 'view.focusExit' : 'view.focus')} onClick={chromeCtx.toggleFocus}>
+              <Icon name={chromeCtx.focus ? 'shrink' : 'expand'} />
+            </button>
+          )}
           <button className="icon-btn" aria-expanded={cardShown} aria-controls="svc-card" title={t(cardShown ? 'svc.details.hide' : 'svc.details.show')} onClick={toggleDetails}>
             <Icon name={cardShown ? 'chevronUp' : 'chevronDown'} /><span className="visually-hidden">{t(cardShown ? 'svc.details.hide' : 'svc.details.show')}</span>
           </button>
@@ -331,6 +345,7 @@ const reloadKeys = /Mac/.test(navigator.userAgent) ? '⌘R' : 'F5';
 
 function DashboardToolbar({ serviceKey }: { serviceKey: string }) {
   const { t } = useT();
+  const chrome = useContext(DashChromeContext);
   const [page, setPage] = useState<PageState | null>(null);
   const [copied, setCopied] = useState<'address' | 'link' | null>(null);
   const [restarted, setRestarted] = useState(false);
@@ -371,6 +386,13 @@ function DashboardToolbar({ serviceKey }: { serviceKey: string }) {
       {restarted && <span className="meta toolbar-note" role="status">{t('view.restartedReloading')}</span>}
       <button className="icon-btn" disabled={!page} onClick={(e) => void copy(e)} aria-label={copied ? t('view.copied') : t('view.copy')} title={t('view.copyHint')} aria-haspopup="menu">{copied ? <Icon name="check" /> : <Icon name="copy" />}</button>
       <span className="visually-hidden" role="status">{copied ? t('view.copied') : ''}</span>
+      {/* FD-220: the console's own toggle while the header is hidden, and filling the window and back. */}
+      {chrome?.focus && (
+        <button className="icon-btn" aria-pressed={chrome.consoleOpen} title={t(chrome.consoleOpen ? 'console.hide' : 'console.show')} aria-label={t(chrome.consoleOpen ? 'console.hide' : 'console.show')} onClick={chrome.toggleConsole}><Icon name="console" /></button>
+      )}
+      {chrome?.focus && (
+        <button className="icon-btn" aria-pressed title={t('view.focusExit')} aria-label={t('view.focusExit')} onClick={chrome.toggleFocus}><Icon name="shrink" /></button>
+      )}
     </div>
   );
 }
