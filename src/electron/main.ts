@@ -8,7 +8,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { ActivityStore } from '../core/activity';
 import { parseWindows, sightOf, windowNumberOf, WINDOW_LIST_JXA, type Sight } from '../core/occlusion';
-import { CHANNELS, type DrawerChange, type DrawerState, type NavTarget, type Rect } from '../core/api';
+import { CHANNELS, type DrawerChange, type DrawerState, type LayoutCommand, type NavTarget, type Rect } from '../core/api';
 import { sessionNotification } from '../core/sessions-notice';
 import { consoleRowId } from '../core/sessions';
 import { commandEnv, killOwned, ownedCount, runOwned } from '../core/children';
@@ -1083,7 +1083,7 @@ if (!app.requestSingleInstanceLock()) {
     void monitor.tick(true);
   }
 
-  function layoutCommand(which: 'sidebar' | 'console' | 'details' | 'focus'): void {
+  function layoutCommand(which: LayoutCommand): void {
     if (window && !window.isDestroyed()) window.webContents.send(CHANNELS.layoutCommand, which);
   }
 
@@ -1114,6 +1114,11 @@ if (!app.requestSingleInstanceLock()) {
         { label: t(l, 'menu.toggleDetails'), accelerator: keys.details, click: () => layoutCommand('details') },
         // FD-220: an agent's dashboard fills the window, and back.
         { label: t(l, 'menu.focus'), accelerator: keys.focus, click: () => layoutCommand('focus') },
+        // FD-227 (SCN-105): the open agents' strip from the keyboard.
+        { type: 'separator' },
+        { label: t(l, 'menu.nextAgent'), accelerator: keys.nextAgent, click: () => layoutCommand('next-agent') },
+        { label: t(l, 'menu.previousAgent'), accelerator: keys.previousAgent, click: () => layoutCommand('previous-agent') },
+        { label: t(l, 'menu.closeAgent'), accelerator: keys.closeAgent, click: () => layoutCommand('close-agent') },
       ] },
       { role: 'windowMenu' },
       ...(keys.appMenu ? [] : [{ role: 'help' as const, submenu: [{ role: 'about' as const }] }]),

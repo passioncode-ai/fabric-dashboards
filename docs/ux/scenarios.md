@@ -2383,6 +2383,7 @@ The Sessions mode (0.8.0): every coding session apart from the agents, each stat
   2. The person opens another agent -> both are in the strip, the one on show marked; one press on a name moves to that agent, its dashboard still loaded
   3. The person presses Fold on the agent on show -> Overview opens and the agent stays in the strip, its dashboard loaded
   4. The person presses Close on an agent -> it leaves the strip and its dashboard is released at once; if it was on show, its neighbour opens, else Overview
+  5. The person moves along the strip from the keyboard: View → Next Open Agent (Ctrl+Tab) and Previous Open Agent (Ctrl+Shift+Tab) go round it, from Overview to its first or last agent, and Close Agent (Shift+Cmd+W; Ctrl+Shift+W elsewhere) closes the agent on show as its Close does (FD-227)
 - **Expected result:** the agents in use are one press away, and closing one frees what it held
 - **Alt paths:** an agent removed from this Mac leaves the strip by itself; more agents than fit: the strip scrolls, each keeps its name, and the agent on screen is kept in view (FD-223); the Sessions mode and the window filled by a dashboard (SCN-106) show no strip
 - **UI elements:** the strip of open agents: name with state mark, Fold (on the agent on show), Close
@@ -2390,8 +2391,9 @@ The Sessions mode (0.8.0): every coding session apart from the agents, each stat
 - **Errors & recovery:** none; a name that no longer answers keeps its state mark and opens its page as any agent's
 - **Copy:**
   - "Open agents" / «Открытые агенты» (the strip's label); "Fold {name} away; it stays open" / «Свернуть {name}, агент останется открытым»; "Close {name}" / «Закрыть {name}»
-- **Status:** implemented (2026-11-13, 0.8.68: `test/parts.test.ts` *FD-220*; copy check reports `f0aa3911`, `6e2acd19`, `35578507` (en), `1ff81300`, `80f628ee`, `537ebc53` (ru), no findings; seen on the built app with the kit's sample agents)
-- **Coverage:** src/renderer/components/OpenAgents.tsx, src/renderer/App.tsx (tabs, closeTab), src/core/settings.ts (mergeLayout `tabs`), src/electron/main.ts (`viewClose`), src/electron/views.ts (`drop`)
+  - "Next Open Agent" / «Следующий открытый агент»; "Previous Open Agent" / «Предыдущий открытый агент»; "Close Agent" / «Закрыть агента» (the View menu, FD-227)
+- **Status:** implemented (2026-11-13, 0.8.68: `test/parts.test.ts` *FD-220*; 0.8.71: the menu commands, `test/layout.test.ts` and `test/platform.test.ts` *FD-227*, copy check reports `1f952e98`, `7d0d360d`, `182df42d` (en), `0fa3eb81`, `4a747011`, `1c7475e6` (ru), no findings; copy check reports `f0aa3911`, `6e2acd19`, `35578507` (en), `1ff81300`, `80f628ee`, `537ebc53` (ru), no findings; seen on the built app with the kit's sample agents)
+- **Coverage:** src/renderer/components/OpenAgents.tsx, src/renderer/App.tsx (tabs, closeTab, tabCommandRef), src/core/layout.ts (tabStep), src/core/platform.ts (menuKeys nextAgent, previousAgent, closeAgent), src/core/settings.ts (mergeLayout `tabs`), src/electron/main.ts (`viewClose`, the View menu), src/electron/views.ts (`drop`)
 - **Product:** unobserved
 
 ### SCN-106: Give an agent's dashboard or console the whole window

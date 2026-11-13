@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.8.71 - 2026-11-13
+
+### Added
+
+- FD-227: the agents open in the strip above the page move from the keyboard: View → Next Open Agent (Ctrl+Tab),
+  Previous Open Agent (Ctrl+Shift+Tab) and Close Agent (Shift+Cmd+W; Ctrl+Shift+W on Windows and Linux).
+
 ## 0.8.70 - 2026-11-13
 
 ### Fixed
