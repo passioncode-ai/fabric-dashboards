@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.8.74 - 2026-11-13
+
+### Fixed
+
+- FD-217: a session stopped on a usage limit whose work an agent already continued in a new session is no longer
+  listed as waiting, and is not continued twice.
+
+### Changed
+
+- FD-230: the checks behind moving the app to Applications are now covered by tests. Nothing changes for you.
+
 ## 0.8.73 - 2026-11-13
 
 ### Fixed

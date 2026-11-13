@@ -30,7 +30,7 @@ import { bypassArgs, bypassArgsOfProvider, detectRuntimes, KNOWN_RUNTIMES, readL
 import type { SettingsStore } from '../core/settings';
 import { accountsOf, allSessionsOf, bindingFor, findSwitchboard, handoverOwnKey, handoverRunArgv, handoversOf, handoversSwitch, isHandoverKey, launchFeatures, managesProvider, sbFailure, sessionsIn, terminalLaunchArgv, type Binding, type SbHandover, type SbSessions } from '../core/switchboard';
 import type { ServiceSnapshot, Settings } from '../core/types';
-import { claimStop, continuedOf, finishStop, liveAgents, recoveryOf, resumeArgs, resumeOwnKey, sessionOpen, transcriptIn, transcriptOf, verdictOf, writtenAt, RESUME_SETTLE_MS, RESUMES_PER_PASS, type RecoveryStatus, type SbStop, type StopView } from '../core/recovery';
+import { claimStop, continuedLaunches, continuedOf, finishStop, liveAgents, recoveryOf, resumeArgs, resumeOwnKey, sessionOpen, transcriptIn, transcriptOf, verdictOf, writtenAt, RESUME_SETTLE_MS, RESUMES_PER_PASS, type RecoveryStatus, type SbStop, type StopView } from '../core/recovery';
 import { attachOwnKey, consoleRowId, handoverRowId, SAME_START_MS, mergeSessions, pruneDismissed, pruneRecords, SourceReader, stopRowId, type ConsoleInput, type PendingHandover, type SbSessionRecord, type SessionActionResult, type SessionReason, type SessionRecord, type SessionNotice, type SessionOrigin, type SessionRow, type SessionsStatus, type SourceDegraded } from '../core/sessions';
 
 /** node-pty 1.1.0 ships its macOS `spawn-helper` without the executable bit, and its postinstall
@@ -763,7 +763,9 @@ export class ConsoleHost {
     const views: StopView[] = [];
     const due: SbStop[] = [];
     // FIX-5: a stop whose session went on after it (or stopped again later) is not waiting and is never continued again.
-    const continued = continuedOf(r.stops, this.o.home ?? os.homedir(), now);
+    // FD-217: a stop whose launch another launch continued is read once a pass, only when a stop names its launch.
+    const movedOn = pending.some((s) => s.launchId) ? await continuedLaunches(this.run, inv.switchboard).catch(() => null) : null;
+    const continued = continuedOf(r.stops, this.o.home ?? os.homedir(), now, movedOn);
     for (const s of pending) {
       const verdict = verdictOf(s, live, now, isDir, (x) => transcriptOf(x, this.o.home ?? os.homedir()), continued);
       if (verdict === 'continued') continue;

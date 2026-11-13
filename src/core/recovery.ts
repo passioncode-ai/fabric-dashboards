@@ -41,6 +41,11 @@ export interface SbStop {
   /** FD-118 (Switchboard 0.6.83, SB-205): why a waiting stop is not ready; null when it names none or one this app
    *  does not know. Read only from Switchboard, never inferred. */
   waitReason: WaitReason | null;
+  /** FD-217 (Switchboard 0.7.69, SB-348): the launch that ran the session, when Switchboard launched it; null otherwise. */
+  launchId: string | null;
+  /** FD-217: the session's transcript as its launch recorded it (a Switchboard home, `homes/<account>/projects/...`);
+   *  null when Switchboard names none. Read to learn whether the session went on (FIX-5), never to continue it here. */
+  transcript: string | null;
 }
 
 export type WaitReason = 'billing' | 'account_removed' | 'no_account' | 'backoff';
@@ -114,6 +119,8 @@ export function parseRecovery(stdout: string): SbStop[] | null {
       probeAt: typeof row.probe_at === 'number' && Number.isFinite(row.probe_at) ? row.probe_at * 1000 : null,
       account: typeof s.account === 'string' && /^[A-Za-z0-9-]{1,64}$/.test(s.account) ? s.account : null,
       waitReason: typeof row.reason === 'string' && WAIT_REASONS.includes(row.reason) ? row.reason as WaitReason : null,
+      launchId: typeof row.launch_id === 'string' && SESSION.test(row.launch_id) ? row.launch_id : null,
+      transcript: typeof row.transcript === 'string' && path.isAbsolute(row.transcript) && path.basename(row.transcript).includes(session) && /\.jsonl$/.test(row.transcript) ? row.transcript : null,
     });
   }
   return out;
@@ -123,6 +130,20 @@ export async function recoveryOf(run: Runner, sb: string): Promise<SbRecovery> {
   const r = await run(sb, ['--json', 'recovery'], RECOVERY_DEADLINE_MS);
   const stops = r.code === 0 ? parseRecovery(r.stdout) : null;
   return stops ? { stops } : failure(r);
+}
+
+/** FD-217: the launches whose work another launch took over (`continued_as` in `sessions --history`, SB-219): a stop of
+ *  such a launch is not waiting, since its task went on in the later launch. Null when the history cannot be read. */
+export async function continuedLaunches(run: Runner, sb: string): Promise<Set<string> | null> {
+  const r = await run(sb, ['--json', 'sessions', '--history'], RECOVERY_DEADLINE_MS);
+  const data = r.code === 0 ? parseData(r.stdout) : null;
+  if (!data || !Array.isArray(data.launches)) return null;
+  const out = new Set<string>();
+  for (const l of data.launches as Record<string, unknown>[]) {
+    const to = (l?.continued_as ?? null) as Record<string, unknown> | null;
+    if (typeof l?.launch_id === 'string' && to && typeof to.id === 'string' && to.id) out.add(l.launch_id);
+  }
+  return out;
 }
 
 /** Claims a ready stop once on one of its candidates. Switchboard persists the claim before it answers. */
@@ -274,14 +295,22 @@ export function continuedAfter(file: string | null, provider: SbStop['provider']
 /** FIX-5: the stops whose session went on: a later stop of the same session replaces an earlier one, and a session that
  *  answered after its stop is not stopped. Read only for stops of the last day (an older one is neither listed nor
  *  continued here), so one pass reads a handful of transcript ends. */
-export function continuedOf(stops: readonly SbStop[], home: string, now: number): (stop: SbStop) => boolean {
+export function continuedOf(stops: readonly SbStop[], home: string, now: number, movedOn: ReadonlySet<string> | null = null): (stop: SbStop) => boolean {
   const newest = new Map<string, number>();
   for (const s of stops) newest.set(s.session, Math.max(newest.get(s.session) ?? 0, s.stoppedAt));
   return (s) => {
     if ((newest.get(s.session) ?? 0) > s.stoppedAt) return true;
+    // FD-217: a later launch took the work over (a Fabric dispatch continues a workflow in a new launch).
+    if (s.launchId && movedOn?.has(s.launchId)) return true;
     if (!(now - s.stoppedAt <= RESUME_MAX_AGE_MS)) return false;
-    return continuedAfter(transcriptOf(s, home), s.provider, s.stoppedAt) === true;
+    return continuedAfter(transcriptOf(s, home) ?? launchTranscript(s), s.provider, s.stoppedAt) === true;
   };
+}
+
+/** FD-217: the transcript Switchboard's launch record names, while it is a file on disk; null otherwise. */
+export function launchTranscript(stop: SbStop): string | null {
+  if (!stop.transcript) return null;
+  try { return fs.statSync(stop.transcript).isFile() ? stop.transcript : null; } catch { return null; }
 }
 
 export function verdictOf(stop: SbStop, live: Live | null, now: number, exists: (dir: string) => boolean, transcript: (stop: SbStop) => string | null = () => 'unchecked', continued: (stop: SbStop) => boolean = () => false): StopVerdict {

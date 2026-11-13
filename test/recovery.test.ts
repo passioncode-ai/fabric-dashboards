@@ -7,7 +7,7 @@ import path from 'node:path';
 import test from 'node:test';
 import type { Runner } from '@passioncode-ai/fabric-service-host';
 import { ConsoleHost } from '../src/electron/console';
-import { CONTINUED_TAIL_BYTES, continuedAfter, continuedOf, liveAgents, parseRecovery, RESUME_BRIEF, RESUME_MAX_AGE_MS, resumeArgs, resumeOwnKey, sessionOpen, transcriptOf, verdictOf, type SbStop } from '../src/core/recovery';
+import { CONTINUED_TAIL_BYTES, continuedAfter, continuedLaunches, continuedOf, launchTranscript, liveAgents, parseRecovery, RESUME_BRIEF, RESUME_MAX_AGE_MS, resumeArgs, resumeOwnKey, sessionOpen, transcriptOf, verdictOf, type SbStop } from '../src/core/recovery';
 import { isHandoverKey } from '../src/core/switchboard';
 import { limitStops } from '../src/mcp/tools';
 import { merge } from '../src/core/settings';
@@ -21,7 +21,7 @@ const row = (o: { dir?: string; session?: string; event?: string; ready?: boolea
   candidates: o.candidates ?? ['acc-2', 'acc-3'], mode: 'capacity', probe_at: null, ready: o.ready ?? true,
   stop: { account: 'acc-1', attempt: 2, directory: o.dir ?? '/tmp', event: o.event ?? `cc-${o.session ?? SID}-1792066929`, kind: o.kind ?? 'limit', mode: null, pool: 'default', provider: o.provider ?? 'claude', selected_account: null, session: o.session ?? SID, state: o.state ?? 'waiting', stopped_at: (o.at ?? NOW - 60_000) / 1000 },
 });
-const stop = (o: Partial<SbStop> = {}): SbStop => ({ event: `cc-${SID}-1`, session: SID, dir: '/tmp', provider: 'claude', candidates: ['acc-2'], ready: true, kind: 'limit', state: 'waiting', stoppedAt: NOW - 60_000, attempt: 1, probeAt: null, account: null, ...o });
+const stop = (o: Partial<SbStop> = {}): SbStop => ({ event: `cc-${SID}-1`, session: SID, dir: '/tmp', provider: 'claude', candidates: ['acc-2'], ready: true, kind: 'limit', state: 'waiting', stoppedAt: NOW - 60_000, attempt: 1, probeAt: null, account: null, waitReason: null, launchId: null, transcript: null, ...o });
 const none = { dirs: [], args: '' };
 
 test('FD-83: the stop list is read strictly — a malformed row is skipped, never guessed at', () => {
@@ -29,7 +29,7 @@ test('FD-83: the stop list is read strictly — a malformed row is skipped, neve
     row(), row({ session: 'not-a-uuid' }), row({ dir: 'relative/dir', session: '00000000-0000-0000-0000-000000000001' }), row({ provider: 'gemini', session: '00000000-0000-0000-0000-000000000002' }), { stop: null }, 'x',
   ] } }));
   assert.equal(stops?.length, 1);
-  assert.deepEqual(stops![0], { event: `cc-${SID}-1792066929`, session: SID, dir: '/tmp', provider: 'claude', candidates: ['acc-2', 'acc-3'], ready: true, kind: 'limit', state: 'waiting', stoppedAt: NOW - 60_000, attempt: 2, probeAt: null, account: 'acc-1', waitReason: null });
+  assert.deepEqual(stops![0], { event: `cc-${SID}-1792066929`, session: SID, dir: '/tmp', provider: 'claude', candidates: ['acc-2', 'acc-3'], ready: true, kind: 'limit', state: 'waiting', stoppedAt: NOW - 60_000, attempt: 2, probeAt: null, account: 'acc-1', waitReason: null, launchId: null, transcript: null });
   assert.equal(parseRecovery('{"ok":false}'), null);
   assert.equal(parseRecovery('not json'), null);
 });
@@ -145,7 +145,7 @@ test('FD-83: settings from an earlier version continue sessions by themselves; a
   assert.equal(merge({ resumeAfterLimit: false }).resumeAfterLimit, false);
 });
 
-function rig(o: { sessions?: (dir: string) => unknown[]; live?: { inFolder?: boolean; args?: string }; on?: boolean; claim?: number; freeDisk?: number; serviceFolder?: boolean; spawnFails?: boolean; exitsAtOnce?: boolean; noTranscript?: boolean; silent?: boolean } = {}) {
+function rig(o: { sessions?: (dir: string) => unknown[]; live?: { inFolder?: boolean; args?: string }; on?: boolean; claim?: number; freeDisk?: number; serviceFolder?: boolean; spawnFails?: boolean; exitsAtOnce?: boolean; noTranscript?: boolean; silent?: boolean; history?: unknown[] } = {}) {
   const base = tmp('fd-rs-');
   const bin = path.join(base, 'bin');
   const dir = path.join(base, 'checkout');
@@ -168,6 +168,7 @@ function rig(o: { sessions?: (dir: string) => unknown[]; live?: { inFolder?: boo
       if (args.join(' ') === '--json recovery') return ok({ sessions: (o.sessions ?? ((d) => [row({ dir: d, at: Date.now() - 60_000 })]))(dir) });
       if (args[1] === 'recovery' && args[2] === 'claim') return o.claim === 1 ? { code: 1, stdout: '', stderr: 'already claimed' } : ok({ claimed: true });
       if (args[1] === 'recovery' && args[2] === 'finish') return ok({});
+      if (args.join(' ') === '--json sessions --history' && o.history) return ok({ launches: o.history });
       if (path.basename(file) === 'lsof') return { code: o.live?.inFolder ? 0 : 1, stdout: o.live?.inFolder ? `p1\nn${dir}\n` : '', stderr: '' };
       if (path.basename(file) === 'ps') return { code: 0, stdout: o.live?.args ?? 'zsh\n', stderr: '' };
       return { code: 1, stdout: '', stderr: '' };
@@ -347,4 +348,73 @@ test('FD-118: Switchboard 0.6.83 says why a waiting stop is not ready; an unknow
   ];
   const stops = parseRecovery(JSON.stringify({ ok: true, data: { sessions } }))!;
   assert.deepEqual(stops.map((s) => s.waitReason), ['no_account', 'account_removed', 'billing', 'backoff', null]);
+});
+
+// FD-217 (Switchboard 0.7.69, SB-348): on 2026-11-13 Switchboard held 24 open stops of Fabric dispatches whose
+// transcripts live in `homes/<account>/projects/...`; 16 of their launches had been continued by a later launch.
+const LAUNCH = '1d0a1f5c-0aa5-43e2-a406-13e3ce27218f';
+const LATER = 'd76298d2-6ff4-4ef8-a198-5da9d3e3e367';
+
+test('FD-217: a stop names its launch and its transcript in a Switchboard home; a malformed one is left out', () => {
+  const file = `/sb/homes/acc-1/projects/-w-x/${SID}.jsonl`;
+  const parsed = (extra: Record<string, unknown>) => parseRecovery(JSON.stringify({ ok: true, data: { sessions: [{ ...row(), ...extra }] } }))![0]!;
+  assert.deepEqual([parsed({ launch_id: LAUNCH, transcript: file }).launchId, parsed({ launch_id: LAUNCH, transcript: file }).transcript], [LAUNCH, file]);
+  assert.deepEqual([parsed({}).launchId, parsed({}).transcript], [null, null], 'an older Switchboard names neither');
+  assert.equal(parsed({ launch_id: 'not-a-launch' }).launchId, null);
+  assert.equal(parsed({ transcript: 'relative/x.jsonl' }).transcript, null, 'a relative path');
+  assert.equal(parsed({ transcript: '/sb/homes/acc-1/projects/-w-x/another.jsonl' }).transcript, null, 'another session\'s file');
+  assert.equal(parsed({ transcript: `/sb/${SID}.txt` }).transcript, null, 'not a transcript');
+});
+
+test('FD-217: a stop whose launch a later launch continued is not waiting; one whose Switchboard-home transcript answered after it is not either', async () => {
+  const history: Runner = async (_f, args) => {
+    assert.deepEqual(args, ['--json', 'sessions', '--history']);
+    return ok({ launches: [{ launch_id: LAUNCH, continued_as: { id: LATER, kind: 'launch' } }, { launch_id: LATER, continued_as: null }, { launch_id: 7 }] });
+  };
+  const moved = await continuedLaunches(history, '/bin/switchboard');
+  assert.deepEqual([...moved!], [LAUNCH]);
+  assert.equal(await continuedLaunches(async () => ({ code: 1, stdout: '', stderr: 'unrecognized subcommand' }), '/bin/switchboard'), null, 'an older Switchboard: unknown, not "none"');
+  const home = tmp('fd-217-home-');
+  const continued = continuedOf([stop({ launchId: LAUNCH }), stop({ launchId: LATER, session: '00000000-0000-4000-8000-000000000002' })], home, NOW, moved);
+  assert.equal(continued(stop({ launchId: LAUNCH })), true, 'its work went on in the later launch');
+  assert.equal(continued(stop({ launchId: LATER, session: '00000000-0000-4000-8000-000000000002' })), false, 'the last launch of the chain still waits');
+  assert.equal(continuedOf([stop({ launchId: LAUNCH })], home, NOW, null)(stop({ launchId: LAUNCH })), false, 'history unread: nothing concluded');
+  // The session's own transcript in a Switchboard home answered after its stop (FIX-5 reads it there too).
+  const sbHome = tmp('fd-217-sb-');
+  const file = path.join(sbHome, 'homes', 'acc-1', 'projects', '-w-x', `${SID}.jsonl`);
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, limitLines + replyLine);
+  const s = stop({ stoppedAt: LIMIT_AT, transcript: file });
+  assert.equal(launchTranscript(s), file);
+  assert.equal(launchTranscript(stop({ transcript: path.join(sbHome, 'gone.jsonl') })), null);
+  assert.equal(continuedOf([s], home, LIMIT_AT + 10 * 60_000)(s), true);
+  // It is still never continued from here: the plain CLI reads the person's home, where the conversation is not.
+  assert.equal(verdictOf(s, none, LIMIT_AT + 60_000, () => true, (x) => transcriptOf(x, home)), 'no-transcript');
+});
+
+test('FD-217: MCP `audit` leaves out a stop whose launch was continued, and reads the history only when a stop names its launch', POSIX, async () => {
+  const dir = tmp('fd-217-mcp-');
+  const asked: string[] = [];
+  const cli: Runner = async (file, args) => {
+    asked.push(`${file} ${args.join(' ')}`);
+    if (args.join(' ') === '--json recovery') return ok({ sessions: [{ ...row({ dir, at: NOW - 60_000 }), launch_id: LAUNCH }, { ...row({ dir, at: NOW - 60_000, session: '00000000-0000-4000-8000-000000000002' }), launch_id: LATER }] });
+    if (args.join(' ') === '--json sessions --history') return ok({ launches: [{ launch_id: LAUNCH, continued_as: { id: LATER, kind: 'launch' } }] });
+    if (file === 'lsof') return { code: 1, stdout: '', stderr: '' };
+    if (file === 'ps') return { code: 0, stdout: 'zsh\n', stderr: '' };
+    throw new Error(`unexpected ${file} ${args.join(' ')}`);
+  };
+  const out = await limitStops({ now: () => NOW, platform: 'darwin', switchboard: () => '/bin/switchboard', cli, home: tmp('fd-217-mcp-home-') } as never);
+  assert.deepEqual(out.stops.map((x) => [x.session, x.verdict]), [['00000000-0000-4000-8000-000000000002', 'no-transcript']]);
+  assert.equal(asked.filter((a) => a.endsWith('--history')).length, 1);
+});
+
+test('FD-217: the app neither lists nor continues a stop whose launch a later launch continued', POSIX, async () => {
+  const r = rig({ sessions: (d) => [{ ...row({ dir: d, at: Date.now() - 60_000 }), launch_id: LAUNCH }], history: [{ launch_id: LAUNCH, continued_as: { id: LATER, kind: 'launch' } }] });
+  assert.deepEqual(await r.host.pollRecovery(), []);
+  assert.equal(r.spawned.length, 0);
+  assert.ok(!r.calls.some((c) => c.includes('claim')), 'nothing is claimed for work that went on');
+  assert.deepEqual(r.host.recoveryStatus().stops, []);
+  // The same stop with its launch not continued is continued as before.
+  const waiting = rig({ sessions: (d) => [{ ...row({ dir: d, at: Date.now() - 60_000 }), launch_id: LAUNCH }], history: [] });
+  assert.equal((await waiting.host.pollRecovery()).length, 1);
 });
