@@ -1,0 +1,185 @@
+{
+ "src": "45e7cc299793",
+ "commit": "7a8596b",
+ "libraries": [
+  "electron",
+  "electron-builder",
+  "electron/osx-sign",
+  "electron/packager",
+  "esbuild",
+  "node-pty",
+  "openpgp",
+  "playwright",
+  "react",
+  "react-dom",
+  "sharp",
+  "tsx",
+  "types/node",
+  "types/react",
+  "types/react-dom",
+  "typescript",
+  "vite",
+  "vitejs/plugin-react",
+  "xterm/addon-fit",
+  "xterm/xterm"
+ ],
+ "ranking": [
+  {
+   "template": "delivery-gateway",
+   "score": 9.053,
+   "library_hits": [
+    "playwright",
+    "sharp",
+    "typescript"
+   ],
+   "text_similarity": 0.305
+  },
+  {
+   "template": "content-brand",
+   "score": 8.884,
+   "library_hits": [
+    "playwright",
+    "tsx",
+    "typescript"
+   ],
+   "text_similarity": 0.288
+  },
+  {
+   "template": "web-quality",
+   "score": 7.881,
+   "library_hits": [
+    "playwright",
+    "typescript"
+   ],
+   "text_similarity": 0.388
+  },
+  {
+   "template": "host-operations",
+   "score": 7.748,
+   "library_hits": [
+    "electron",
+    "openpgp"
+   ],
+   "text_similarity": 0.375
+  },
+  {
+   "template": "search-traffic",
+   "score": 6.721,
+   "library_hits": [
+    "playwright",
+    "typescript"
+   ],
+   "text_similarity": 0.272
+  },
+  {
+   "template": "media-production",
+   "score": 6.709,
+   "library_hits": [
+    "esbuild",
+    "typescript"
+   ],
+   "text_similarity": 0.271
+  },
+  {
+   "template": "growth-analytics",
+   "score": 6.639,
+   "library_hits": [
+    "playwright",
+    "typescript"
+   ],
+   "text_similarity": 0.264
+  },
+  {
+   "template": "chat-assistant",
+   "score": 6.571,
+   "library_hits": [
+    "playwright",
+    "typescript"
+   ],
+   "text_similarity": 0.257
+  },
+  {
+   "template": "support-answerer",
+   "score": 6.528,
+   "library_hits": [
+    "playwright",
+    "typescript"
+   ],
+   "text_similarity": 0.253
+  },
+  {
+   "template": "data-room",
+   "score": 5.179,
+   "library_hits": [
+    "typescript"
+   ],
+   "text_similarity": 0.318
+  },
+  {
+   "template": "product-bot",
+   "score": 4.808,
+   "library_hits": [
+    "typescript"
+   ],
+   "text_similarity": 0.281
+  },
+  {
+   "template": "org-administrator",
+   "score": 4.744,
+   "library_hits": [
+    "typescript"
+   ],
+   "text_similarity": 0.274
+  },
+  {
+   "template": "marketing-analyst",
+   "score": 4.532,
+   "library_hits": [
+    "typescript"
+   ],
+   "text_similarity": 0.253
+  },
+  {
+   "template": "listening",
+   "score": 4.52,
+   "library_hits": [
+    "typescript"
+   ],
+   "text_similarity": 0.252
+  },
+  {
+   "template": "research",
+   "score": 4.374,
+   "library_hits": [
+    "playwright"
+   ],
+   "text_similarity": 0.237
+  },
+  {
+   "template": "sales-leads",
+   "score": 4.241,
+   "library_hits": [
+    "typescript"
+   ],
+   "text_similarity": 0.224
+  },
+  {
+   "template": "store-publisher",
+   "score": 2.754,
+   "library_hits": [],
+   "text_similarity": 0.275
+  },
+  {
+   "template": "assessment",
+   "score": 2.586,
+   "library_hits": [],
+   "text_similarity": 0.259
+  },
+  {
+   "template": "deal-desk",
+   "score": 2.234,
+   "library_hits": [],
+   "text_similarity": 0.223
+  }
+ ]
+}

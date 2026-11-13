@@ -11,6 +11,11 @@
    the [North Star](https://github.com/passioncode-ai/fabric-workspace/blob/main/knowledge/north-star.md) metric and
    gaps, and the [one plan in waves](https://github.com/passioncode-ai/fabric-workspace/blob/main/docs/plans/2026-11-11-unified/README.md).
    Name the track, plan row or gap the change serves; work that serves none goes to the board first.
+   **North Star sections this repository serves:** §4 (the *Dashboards* row: what runs, its health, spend and
+   connections, filtered by organization; «One system, not a pile of tools»), §0 and gap G1 (with Observatory, the
+   measure's spend per agent), gap G26 (a dashboard per role, FD-170). When our state changes against them (a release,
+   a gap closed or opened), write fabric-workspace a board message naming the section and the evidence. The
+   architect's validation at each release is kept in [docs/evidence/architect/](docs/evidence/architect/README.md).
 2. The PassionCode.ai knowledge base — `fabric-workspace/knowledge/` in your clone (org-index
    `scripts/clone_all.sh` makes it) or https://wiki.passioncode.ai/knowledge — at least its
    [README](https://github.com/passioncode-ai/fabric-workspace/blob/main/knowledge/README.md),
