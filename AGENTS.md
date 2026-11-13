@@ -28,6 +28,10 @@
    guard, a readback of the published build). The operator is asked only at a human gate (sign-in, one-time code,
    consent, typed secret, payment, spend above a limit, a send outside the estate, wider access than the act needs). A
    request on this project's board is answered by the session that reads it (`com.reply`).
+   The Fabric coordinator's rule of the same day (board `35556d27`): the operator's decision relayed on the board with his
+   words verbatim, the date, where he said it and its scope is his approval (act and cite the relay, never ask him to
+   repeat it); a question left for a person goes only to `fabric_question_ask` or to the Fabric coordinator on the board,
+   never into a chat's text; a run whose `fabric` MCP dropped says so in its summary.
 2. The PassionCode.ai knowledge base — `fabric-workspace/knowledge/` in your clone (org-index
    `scripts/clone_all.sh` makes it) or https://wiki.passioncode.ai/knowledge — at least its
    [README](https://github.com/passioncode-ai/fabric-workspace/blob/main/knowledge/README.md),
