@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.8.69 - 2026-11-13
+
+### Fixed
+
+- FD-221: in the dark scheme, an agent's dashboard that does not support dark is shown on white, so its text reads;
+  before, its black text sat on the app's dark background.
+- FD-222: the agent's name in its page header stays whole in a wide window; the problem note beside it and the tabs
+  give way first.
+
 ## 0.8.68 - 2026-11-13
 
 ### Added

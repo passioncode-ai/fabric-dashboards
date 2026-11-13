@@ -236,10 +236,12 @@ h3 { font-size: var(--pc-type-card); margin: 0; font-weight: 600; }
 .svc-bar { display: flex; align-items: center; gap: var(--pc-space-3); min-height: 44px; padding: var(--pc-space-1) var(--pc-space-4) 0 var(--pc-space-6); }
 .svc-bar > * { -webkit-app-region: no-drag; }
 .svc-bar > .spacer { -webkit-app-region: drag; }
-.svc-bar h1 { font-size: var(--pc-type-section); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 28ch; flex: 0 40 auto; min-width: 7ch; }
+.svc-bar h1 { font-size: var(--pc-type-section); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 28ch; flex: none; min-width: 7ch; }
+/* The name gives way last: in a wide bar it never shrinks (the problem chip and the tabs do, the tabs fading, VIS-16);
+   only a narrow bar lets it, below. */
 .svc-bar > .state, .svc-bar > .icon-btn { flex: none; }
-.svc-bar .chip-problem { flex: 0 100 auto; min-width: 4ch; }
-.svc-bar .tabs { border-bottom: 0; padding: 0; margin-left: var(--pc-space-3); align-self: stretch; flex: 0 1 auto; min-width: 0; overflow-x: auto; scrollbar-width: none; }
+.svc-bar .chip-problem { flex: 0 1000 auto; min-width: 4ch; }
+.svc-bar .tabs { border-bottom: 0; padding: 0; margin-left: var(--pc-space-3); align-self: stretch; flex: 0 6 auto; min-width: 0; overflow-x: auto; scrollbar-width: none; }
 /* VIS-16 (FD-129): the side with more tabs fades out, a sign the list goes on (a mask reads only the alpha of its colour). */
 .svc-bar .tabs[data-more='end'] { mask-image: linear-gradient(to right, var(--pc-text) calc(100% - 28px), transparent); }
 .svc-bar .tabs[data-more='start'] { mask-image: linear-gradient(to left, var(--pc-text) calc(100% - 28px), transparent); }
@@ -248,6 +250,7 @@ h3 { font-size: var(--pc-type-card); margin: 0; font-weight: 600; }
 .svc-bar .tab { padding: 0 var(--pc-space-3); }
 /* Narrow bar (a console open, a small window): labels fold into icons, tabs tighten; the name stays. */
 @container svchead (max-width: 900px) {
+  .svc-bar h1 { flex: 0 1 auto; }
   .svc-bar .icon-btn-label { display: none; }
   .svc-bar .tab { padding: 0 var(--pc-space-2); }
   .svc-bar .tabs { margin-left: var(--pc-space-1); }
