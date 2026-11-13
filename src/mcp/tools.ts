@@ -39,7 +39,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { t as tr } from '../core/i18n';
 import { placeCommand, userLaunchJobs, type LaunchJob } from '../core/remote-console';
-import { continuedOf, liveAgents, recoveryOf, transcriptOf, verdictOf } from '../core/recovery';
+import { continuedLaunches, continuedOf, liveAgents, recoveryOf, transcriptOf, verdictOf } from '../core/recovery';
 import { findSwitchboard } from '../core/switchboard';
 import { searchDirs } from '../core/runtimes';
 import type { StopView } from '../core/types';
@@ -631,7 +631,8 @@ export async function limitStops(deps: Deps, now = deps.now()): Promise<{ availa
   const live = pending.some((s) => s.ready) ? await liveAgents(run, deps.platform).catch(() => null) : null;
   const exists = (dir: string) => { try { return fs.statSync(dir).isDirectory(); } catch { return false; } };
   const home = deps.home ?? os.homedir();
-  const continued = continuedOf(pending, home, now); // FIX-5: a stop whose session went on is not listed
+  const movedOn = pending.some((s) => s.launchId) ? await continuedLaunches(run, sb).catch(() => null) : null; // FD-217
+  const continued = continuedOf(pending, home, now, movedOn); // FIX-5: a stop whose session went on is not listed
   return { available: true, stops: pending.map((s) => ({ event: s.event, session: s.session, dir: s.dir, provider: s.provider, stoppedAt: s.stoppedAt, attempt: s.attempt, probeAt: s.probeAt, verdict: verdictOf(s, live, now, exists, (x) => transcriptOf(x, home), continued) })).filter((s) => s.verdict !== 'continued') };
 }
 // #endregion limit-recovery
