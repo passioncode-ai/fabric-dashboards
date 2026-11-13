@@ -1,14 +1,18 @@
 """How a service is found (fabric-service/0.1): its descriptor, peers and app descriptors (DEC-0061, DEC-0069),
 build identity and the well-known document, the loopback HTTP server. Part of the service kit (FAA-65, layer L3)."""
+# Example URLs write their scheme in angle brackets: read `<https>` as `https` (FAA-212).
 from __future__ import annotations
 
 import hashlib
 import http.server
+import ipaddress
 import json
 import os
 import re
+import socket
 import socketserver
 import subprocess
+import threading
 import warnings
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Tuple
@@ -18,6 +22,7 @@ from pathlib import Path as _Path  # noqa: E402
 if str(_Path(__file__).resolve().parent) not in _sys.path:  # the kit loads from any working directory (FAA-65)
     _sys.path.insert(0, str(_Path(__file__).resolve().parent))
 from fabric_base import (
+    PRIMARY_CAPABILITY,
     PROTOCOL,
     ServiceError,
     _ID,
@@ -28,6 +33,7 @@ from fabric_base import (
     expand,
     now_iso,
 )
+import fabric_peer_owner  # noqa: E402 - L0: who listens on a port (DEC-0154 HA-2, FAA-225)
 from fabric_paths import (
     atomic_write,
     ensure_private_dir,
@@ -49,7 +55,7 @@ from fabric_usage import (
 DASHBOARD_EXTENSION_KEY = "https://fabric.passioncode.ai/agent-contract/extensions/dashboard/0.1"
 
 
-DASHBOARD_KIT = "fabric-dashboard-kit@1.1.5"
+DASHBOARD_KIT = "fabric-dashboard-kit@1.1.7"
 
 
 REFERENCE_THEMES = ("graphite", "fabric", "paper", "forest", "ocean", "ember", "contrast")
@@ -84,18 +90,100 @@ _NOT_LAUNCHD = ("systemd", "task-scheduler", "node", "person")
 _AUTH_HEADER = re.compile(r"[A-Za-z][A-Za-z0-9-]{0,63}")
 
 
+#: How a loopback server treats the OS account of the process that connected (DEC-0154 HA-2's server side, HA-3;
+#: FAA-227): `refuse` (the default) closes a connection whose peer is another OS account's before reading a byte of
+#: it and serves the rest, labelled; `strict` also refuses a peer whose owner cannot be told and a system account
+#: other than root (uid 0, which can read every account's files and installs a LaunchDaemon); `off` reads no table.
+PEER_CHECKS = ("refuse", "strict", "off")
+
+
+def connection_refusal(owner: Any, mode: str = "refuse") -> Optional[str]:
+    """Why a server refuses the peer `owner` (a fabric_peer_owner.Owner) under `mode`, or None to serve it. The reason
+    is the owner's kind, or for `unknown` its reason; it names no address and nothing the peer sent."""
+    if mode not in PEER_CHECKS:
+        raise ValueError("peer_check must be one of %s" % ", ".join(PEER_CHECKS))
+    if mode == "off" or owner is None:
+        return None
+    kind = getattr(owner, "kind", fabric_peer_owner.UNKNOWN)
+    if kind == fabric_peer_owner.ANOTHER_ACCOUNT:
+        return kind
+    if mode == "strict" and kind != fabric_peer_owner.THIS_ACCOUNT:
+        if kind == fabric_peer_owner.SYSTEM and getattr(owner, "uid", None) == 0:
+            return None
+        return getattr(owner, "reason", None) or kind
+    return None
+
+
+def is_loopback_peer(client_address: Any) -> bool:
+    """Whether an accepted connection's peer address is a loopback one (127.0.0.0/8, ::1, or either IPv4-mapped): the
+    only peers whose owner can be another account of this computer (DEC-0154 HA-2). An address that cannot be read
+    counts as loopback, so its owner is still read from the table."""
+    try:
+        return ipaddress.ip_address(fabric_peer_owner.norm_host(str(client_address[0]))).is_loopback
+    except Exception:
+        return True
+
+
 class LoopbackHTTPServer(http.server.ThreadingHTTPServer):
     """ThreadingHTTPServer for a loopback service: threads are daemons, and the bind asks
     no resolver. HTTPServer.server_bind() calls socket.getfqdn() between bind() and listen();
     on a Mac with a slow resolver the port then stays bound but silent, so a host sees
-    neither an answer nor a refusal."""
+    neither an answer nor a refusal.
+
+    Each accepted connection's peer is told from the computer's socket table (`fabric_peer_owner.peer`) in the
+    connection's own thread, before the handler reads a byte (DEC-0154 HA-2's server side, FAA-227). `peer_check`
+    (`PEER_CHECKS`) decides which owners are closed unread; a served handler finds its peer's owner with
+    `self.server.peer_owner()`. A refusal writes one line to stderr with the owner's kind, uid and pid and nothing the
+    peer sent (`peer_refused`), and counts in `peer_refusals`. The check applies to loopback peers only: a peer at
+    another address (a service bound to 0.0.0.0) is no local account, so its table is not read and it is served under
+    `refuse` and `strict` alike, with `peer_owner()` None."""
 
     daemon_threads = True
+    peer_check = "refuse"
+    #: The reader of an accepted socket's peer; a test replaces it.
+    peer_reader = staticmethod(lambda sock: fabric_peer_owner.peer(sock))
+
+    def __init__(self, server_address: Any, handler: Any, bind_and_activate: bool = True, *,
+                 peer_check: Optional[str] = None) -> None:
+        mode = self.peer_check if peer_check is None else peer_check
+        connection_refusal(None, mode)  # refuses an unknown mode before the port is bound
+        self.peer_check = mode
+        self.peer_refusals = 0
+        self._peer = threading.local()
+        super().__init__(server_address, handler, bind_and_activate)
 
     def server_bind(self) -> None:
         socketserver.TCPServer.server_bind(self)
         host, port = self.server_address[:2]
         self.server_name, self.server_port = host, port
+
+    def peer_owner(self) -> Any:
+        """The owner of the peer this thread's handler serves (None under `peer_check="off"`)."""
+        return getattr(self._peer, "owner", None)
+
+    def finish_request(self, request: Any, client_address: Any) -> None:
+        owner = None
+        if self.peer_check != "off" and is_loopback_peer(client_address):
+            try:
+                owner = self.peer_reader(request)
+            except Exception as exc:  # a reader that fails is an owner nobody can tell, never a crash of the server
+                owner = fabric_peer_owner.Owner(fabric_peer_owner.UNKNOWN, None, None, "none",
+                                                "reader: %s" % type(exc).__name__)
+        reason = connection_refusal(owner, self.peer_check)
+        if reason is not None:
+            self.peer_refusals += 1
+            self.peer_refused(owner, reason)
+            return  # process_request_thread closes the socket unread (shutdown_request)
+        self._peer.owner = owner
+        try:
+            super().finish_request(request, client_address)
+        finally:
+            self._peer.owner = None
+
+    def peer_refused(self, owner: Any, reason: str) -> None:
+        """One line on stderr per refused connection; override to log it elsewhere. Never the peer's bytes."""
+        _sys.stderr.write("fabric: refused a loopback peer (%s, uid %s, pid %s) before reading it (DEC-0154)\n"
+                          % (reason, getattr(owner, "uid", None), getattr(owner, "pid", None)))
 
 
 def descriptor_path(service_id: str, instance: str = "default", directory: Optional[Path] = None) -> Path:
@@ -476,8 +564,35 @@ def source_refusal(descriptor: Dict[str, Any], directory: Optional[Path] = None)
     return "Descriptor %s %s. %s" % (me, NO_SOURCE_REPOSITORY, PASS_SOURCE)
 
 
-def write_descriptor(descriptor: Dict[str, Any], directory: Optional[Path] = None, *, _stacklevel: int = 2) -> Path:
-    """Installer-only. Refuses a port or id.instance another descriptor claims (a port is a claim).
+def port_owner(port: int) -> Optional[Tuple[str, Optional[int]]]:
+    """Who listens on 127.0.0.1:<port> now, as (kind, uid) from the kit's fabric_peer_owner, or None when a plain bind
+    of that address succeeds (nothing holds it, and the socket table is not read). FAA-225, DEC-0154 HA-2."""
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
+        try:
+            probe.bind(("127.0.0.1", port))
+            return None
+        except OSError:
+            pass
+    owner = fabric_peer_owner.listener(port)
+    return owner.kind, owner.uid
+
+
+def port_listener_refusal(port: int, reader: Optional[Any] = None) -> Optional[str]:
+    """Why an install may not take ``port``: another OS account listens on it (FAA-225). This account, the system
+    (launchd holds a socket-activated job's socket), nobody and an unreadable table pass: the refusal is for a port
+    that is surely another account's. The recorded port per account and its claim file wait on contract DEC-0160."""
+    found = (reader or port_owner)(port)
+    if not found or found[0] != fabric_peer_owner.ANOTHER_ACCOUNT:
+        return None
+    uid = " (uid %d)" % found[1] if isinstance(found[1], int) else ""
+    return ("Port %d is listened on by another OS account%s: choose a port no other account holds (DEC-0154, "
+            "FAA-225)." % (port, uid))
+
+
+def write_descriptor(descriptor: Dict[str, Any], directory: Optional[Path] = None, *, _stacklevel: int = 2,
+                     port_owner: Optional[Any] = None) -> Path:
+    """Installer-only. Refuses a port or id.instance another descriptor claims (a port is a claim), and a port another
+    OS account listens on (FAA-225; ``port_owner(port) -> (kind, uid) | None`` reads it, the kit's own by default).
 
     FAA-198: a new descriptor names its ``source.repository``; rewriting one already installed without it only
     warns (``NoSourceRepositoryWarning``), so an installed agent's update keeps working."""
@@ -504,6 +619,9 @@ def write_descriptor(descriptor: Dict[str, Any], directory: Optional[Path] = Non
             continue
         if other_port == port:
             raise ServiceError("Port %d is already claimed by %s (%s)." % (port, key, path))
+    held = port_listener_refusal(port, port_owner) if port is not None else None
+    if held:
+        raise ServiceError(held)
     ensure_private_dir(root)
     target = descriptor_path(descriptor["id"], descriptor["instance"], root)
     atomic_write(target, (json.dumps(descriptor, indent=2, ensure_ascii=False) + "\n").encode(), 0o600)
@@ -628,6 +746,11 @@ def configuration_problems(doc: Any) -> List[str]:
     return problems
 
 
+#: FAA-244: DEC-0140 PR-1 reserves the primary responder's capability; a service never publishes it.
+_RESERVED = ("%%s: %s is reserved for a Project's primary responder, a session (DEC-0140 PR-1); a service never "
+             "serves it as a tool or declares it." % PRIMARY_CAPABILITY)
+
+
 def build_well_known(*, service_id: str, instance: str, name: str, version: str, build: Dict[str, Any],
                      started_at: str, status: str, degraded: Sequence[Dict[str, str]],
                      surfaces: Dict[str, Any], summary: Optional[Sequence[Dict[str, Any]]] = None,
@@ -664,6 +787,10 @@ def build_well_known(*, service_id: str, instance: str, name: str, version: str,
         problems = a2a_surface_problems(surfaces["a2a"])
         if problems:
             raise ServiceError("surfaces.a2a: %s." % "; ".join(problems))
+    mcp_surface = surfaces.get("mcp")
+    listed = mcp_surface.get("capabilities") if isinstance(mcp_surface, dict) else None
+    if isinstance(listed, list) and PRIMARY_CAPABILITY in listed:
+        raise ServiceError(_RESERVED % "surfaces.mcp.capabilities")
     doc: Dict[str, Any] = {
         "protocol": PROTOCOL,
         "service": {"id": service_id, "instance": instance, "name": name, "version": version, "build": build},
@@ -698,6 +825,9 @@ def build_well_known(*, service_id: str, instance: str, name: str, version: str,
                                                 "surfaces": surfaces})
             if findings:
                 raise ServiceError("Actions declaration: %s." % "; ".join(f["message"] for f in findings))
+            if any(isinstance(a, dict) and a.get("tool") == PRIMARY_CAPABILITY
+                   for a in extensions[ACTIONS_EXTENSION_KEY].get("actions") or []):
+                raise ServiceError(_RESERVED % "an action's tool")
         doc["extensions"] = dict(extensions)
     if configuration is not None:
         problems = configuration_problems(configuration)

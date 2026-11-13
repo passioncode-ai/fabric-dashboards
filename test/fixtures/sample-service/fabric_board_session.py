@@ -148,6 +148,9 @@ class Responder(SlotKeeper):
         caps = list(capabilities)
         if not caps or any(not isinstance(c, str) or not _CAPABILITY.fullmatch(c) for c in caps) or len(set(caps)) != len(caps):
             raise BoardError("invalid_arguments", "Name each capability once, [a-z][a-z0-9._-]{1,127}.")
+        if _fs.PRIMARY_CAPABILITY in caps:  # FAA-244: DEC-0140 PR-1, a session's slot, never a service's
+            raise BoardError("invalid_arguments", "%s is a Project's primary responder's, a session's: a service answers "
+                             "the capabilities it declares (DEC-0140 PR-1)." % _fs.PRIMARY_CAPABILITY)
         self.hub, self.project = hub, _hub._project(project_id)
         #: FAA-135: read the operator's mandate from a trusted request of his own Project (opt-in; None reads none).
         self.mandate_from, self.agent_id, self.wall = _link.mandate_options(agent_id, mandate_from), agent_id, wall
@@ -165,6 +168,7 @@ class Responder(SlotKeeper):
         self.state = "idle"
         self.wait_until = 0.0
         self.stopping = False
+        self.shutting_down, self.draining = threading.Event(), None  # shutdown began; it found work to drain (FAA-186)
         self.claim_keys: Dict[str, str] = {}
         self._probing: set = set()  # moved slots whose move-back claim lost its answer: asked again under the same key
         self._said: Dict[str, str] = {}
@@ -258,7 +262,7 @@ class Responder(SlotKeeper):
         status = self._status()
         if missing:
             self._emit("board.access.needed", "warning", "The operator has not let this service answer %s on this Project; ask in "
-                       "Fabric (Agents & access)." % ", ".join(missing), notify=True, episode=",".join(missing),
+                       "Fabric (Settings → Agent access)." % ", ".join(missing), notify=True, episode=",".join(missing),
                        capabilities=missing)
         self.slots = {}
         self._recover(status, [c for c in self.capabilities if c in grant.capabilities])
@@ -430,7 +434,8 @@ class Responder(SlotKeeper):
         try:
             self._receipt("com.reply", self._call("com.reply", dict(self._reply_extra(entry), fence=self._fence(old, probe["key"]))))
         except BoardError as exc:
-            if exc.code in ("unreachable", "session-ended", "authority_changed", "not_authorized", "not_available", "capacity_exceeded"):
+            if exc.code in ("unreachable", "foreign-user", "session-ended", "authority_changed", "not_authorized", "not_available",
+                            "capacity_exceeded"):  # foreign-user: nothing was sent now, so nothing is known (0.79.0 seam)
                 raise
         else:
             entry["replied"] = True
@@ -549,7 +554,7 @@ class Responder(SlotKeeper):
             self.state = "not-authorized"
             self._drop_session()
             self._emit("board.access.needed", "warning", "This service may not answer requests for this Project: the operator "
-                       "has to allow it in Fabric (Agents & access). Nothing is claimed until then.", notify=True,
+                       "has to allow it in Fabric (Settings → Agent access). Nothing is claimed until then.", notify=True,
                        episode="access", reason=code)
         elif code == "held":
             self.state = "paused"
@@ -564,9 +569,13 @@ class Responder(SlotKeeper):
         else:
             self.state = "down"
             # In recovery with no slot held a refusal reconnects (seam 6); with some held they are served (seam 7).
-            if (connecting or code in ("session-ended", "unreachable", "not-running", "not-a-hub", "hub-unavailable", "protocol")) and not keep:
+            if (connecting or code in ("session-ended", "unreachable", "not-running", "not-a-hub", "hub-unavailable", "protocol",
+                                       "foreign-user")) and not keep:
                 self._drop_session()
-            self._emit("board.down", "warning", "Fabric's board cannot be reached; the responder tries again with a growing pause.",
+            # FAA-252: a port another OS account holds is said as such; nothing was sent there
+            self._emit("board.down", "warning", "Fabric's board port is held by another OS account's process; nothing was sent, "
+                       "and the responder tries again with a growing pause." if code == "foreign-user" else
+                       "Fabric's board cannot be reached; the responder tries again with a growing pause.",
                        episode="down", reason=code)
         return wait
 
@@ -974,8 +983,8 @@ class Responder(SlotKeeper):
     def shutdown(self, drain: float = DRAIN_SECONDS) -> None:
         """Stop claiming, give running work up to `drain` seconds to finish and be completed, then leave the session
         (its DELETE releases the slots). What is still open stays in the checkpoint for the next start."""
-        self.stopping = True
-        work = self.current
+        self.stopping, work = True, self.current
+        self.draining = work is not None; self.shutting_down.set()  # noqa: E702 - published before it waits (FAA-186)
         if work is not None and not work.done.wait(drain):
             work.ctx.stopped.set()
         if work is not None and work.done.is_set() and self.session is not None:

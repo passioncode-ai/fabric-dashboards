@@ -80,7 +80,7 @@ import fabric_connections as fcn  # noqa: E402
 from check_service_rules import shown_repository  # noqa: E402 - a repository in evidence carries no userinfo or query
 import fabric_interop as fi  # noqa: E402
 import fabric_peer_owner as po  # noqa: E402 - DEC-0154 HA-2: the listener's owner before any credential
-from check_service_rules import ForeignUser, PORT_RULES_UNREAD, listener_owner_verdict  # noqa: E402 - DEC-0154 HA-2
+from check_service_rules import ForeignUser, PORT_RULES_UNREAD, in_launch_daemons, listener_owner_verdict, other_domain_copy, port_claim_verdict  # noqa: E402 - DEC-0154 HA-2
 
 Result = Dict[str, str]
 
@@ -97,7 +97,7 @@ from check_service_rules import usage_problems  # noqa: E402,F401 - moved (FAA-6
 from check_service_rules import same_repository  # noqa: E402,F401 - moved (FAA-65)
 from check_service_rules import merge_headers, session_cookie  # noqa: E402,F401 - FAA-115
 from check_service_rules import well_known_actions_verdict, action_tools_verdict, actions_declared_verdict  # noqa: E402 - DEC-0121
-from check_service_rules import opens_in_host_verdict, service_checkout  # noqa: E402 - FAA-118
+from check_service_rules import opens_in_host_verdict, service_checkout, declared_limits, holds_verdict  # noqa: E402 - FAA-118, FAA-298
 from check_service_rules import well_known_a2a_verdict, a2a_card_verdict  # noqa: E402 - DEC-0122
 import fabric_a2a as fa2  # noqa: E402 - DEC-0122
 import check_service_channel_agent as cac  # noqa: E402 - DEC-0150, FAA-197
@@ -153,6 +153,7 @@ class Probe:
 
     def request(self, method: str, path: str, headers: Optional[Dict[str, str]] = None,
                 body: Optional[bytes] = None) -> Tuple[int, Dict[str, str], bytes]:
+        """`connected_at`: when a local connect and its owner check ended, so the answer is timed from there (r11)."""
         if self.remote:
             context = ssl.create_default_context(cafile=self.ca_file) if self.ca_file else ssl.create_default_context()
             if self.connect:
@@ -167,6 +168,9 @@ class Probe:
             base = {"Host": "127.0.0.1:%d" % self.port}
         base.update(headers or {})
         try:
+            if not self.remote:
+                conn.connect()
+                self.connected_at = time.perf_counter()
             conn.request(method, path, body=body, headers=base)
             resp = conn.getresponse()
             return resp.status, merge_headers(resp.getheaders()), resp.read()
@@ -203,25 +207,7 @@ class Probe:
         else:
             mode = stat.S_IMODE(os.stat(self.path).st_mode)
             self.add("descriptor.private", "PASS" if mode & 0o077 == 0 else "FAIL", "mode %o" % mode)
-        me = "%s.%s" % (self.d.get("id"), self.d.get("instance", "default"))
-        clashes = []
-        for path, other in fs.read_descriptors(self.dir):
-            key = "%s.%s" % (other.get("id"), other.get("instance", "default"))
-            if path.resolve() == self.path.resolve():
-                continue
-            if key == me:
-                clashes.append("%s declared again in %s" % (me, path.name))
-            # DEC-0069: a descriptor without an origin (an app's) claims no port, so two of them never clash.
-            elif (not self.remote and "origin" in self.d and fs.placement_of(other) != "remote"
-                  and other.get("origin") == self.d.get("origin")):
-                clashes.append("port %d also claimed by %s" % (self.port, key))
-        if self.remote:
-            unique = "a remote origin claims no port here"
-        elif "origin" not in self.d:
-            unique = "an app's descriptor names no origin, so it claims no port (FAC-SEM-010)"
-        else:
-            unique = "no other descriptor here declares port %d (HA-1's claim on the computer is FAA-225)" % self.port
-        self.add("descriptor.port-claim", "FAIL" if clashes else "PASS", "; ".join(clashes) or unique)
+        self.add("descriptor.port-claim", *port_claim_verdict(self.path, self.d, self.dir, self.port, self.remote))
         # FAA-198: the repository that links the agent to its project; a new install is refused without it, an installed one
         # is named here (NOT_RUN is no pass) until its owner adds it.
         # A source descriptor.valid refuses is no pass either, and the evidence never carries a URL's userinfo or query,
@@ -260,9 +246,9 @@ class Probe:
         try:
             timings = []
             for _ in range(3):
-                started = time.perf_counter()
+                started = self.connected_at = time.perf_counter()
                 status, headers, body = self.request("GET", "/.well-known/fabric-service", protected)
-                timings.append((time.perf_counter() - started) * 1000)
+                timings.append((time.perf_counter() - max(started, self.connected_at)) * 1000)
         except OSError as exc:
             if self.remote:
                 self.add_no_token(no_token, None)
@@ -276,7 +262,7 @@ class Probe:
         try:
             self.wk = json.loads(body)
             self.wk_bytes = len(body)  # D4 of the 0.73.0 brief: a well-known answer shares a 2 MiB cap
-        except ValueError:
+        except (ValueError, RecursionError):  # Python 3.9 to 3.13 raise RecursionError on deep nesting (unit reading 10)
             if self.remote:
                 self.add_no_token(no_token, None)
             self.add("well-known.answers", "FAIL", "body is not JSON")
@@ -467,7 +453,7 @@ class Probe:
             self.add("usage.report", "FAIL", "HTTP %d with the token" % status)
             return
         try:
-            report = json.loads(body)
+            report = self.usage_report = json.loads(body)  # FAA-298: limits.holds reads its budgets
         except ValueError:
             self.add("usage.report", "FAIL", "not JSON")
             return
@@ -673,12 +659,14 @@ class Probe:
         self.events_trace_rule(self.events)
 
     def channel_agent_rule(self) -> None:
-        """DEC-0150 (FAA-197): the channel agent's declaration, read from the manifest the descriptor names, else from the
-        well-known answer (CA-1); one read as not declared is NOT_RUN with its evidence, never a FAIL (D3), except a string
-        shaped like a credential in it or in a copy the probe reads beside it (CA-5)."""
+        """DEC-0150 (FAA-197): the declaration, from the manifest the descriptor names, else the well-known answer (CA-1); one
+        read as not declared is NOT_RUN, never a FAIL (D3), except a credential's shape in it or a copy beside it (CA-5)."""
         manifest, _, where = self.load_manifest()
-        self.add("channel-agent.declaration", *cac.declaration_verdict(
-            manifest, bool(self.d.get("fabricManifest")), where, self.wk, getattr(self, "wk_bytes", None)))
+        try:  # a copy of the probe without its schema file is NOT_RUN, and the later rules run (FAA-250)
+            verdict = cac.declaration_verdict(manifest, bool(self.d.get("fabricManifest")), where, self.wk, getattr(self, "wk_bytes", None))
+        except (OSError, ValueError) as exc:
+            verdict = ("NOT_RUN", "the probe cannot read %s beside it (%s)" % (cac.cas.SCHEMA_FILE.name, type(exc).__name__))
+        self.add("channel-agent.declaration", *verdict)
 
     def configuration_rule(self) -> None:
         """DEC-0046: a well-known `configuration` is {slots, resolved} as the schema types it; absent is NOT_RUN."""
@@ -821,7 +809,7 @@ class Probe:
         except (OSError, ValueError) as exc:
             self.add("lifecycle.plist", "FAIL", "cannot read %s: %s" % (plist_path, exc))
             return
-        problems = plist_problems(plist, life.get("label"), self.token)
+        problems = plist_problems(plist, life.get("label"), self.token, system=in_launch_daemons(plist_path), commands=self.d.get("commands"))
         self.add("lifecycle.plist", "FAIL" if problems else "PASS", "; ".join(problems) or "%s: RunAtLoad, KeepAlive, no secrets" % plist_path.name)
         marker = marker_problem(plist)
         self.add("lifecycle.supervisor-marker", "FAIL" if marker else "PASS",
@@ -833,13 +821,19 @@ class Probe:
         if sys.platform != "darwin" or not shutil.which("launchctl"):
             self.add("lifecycle.one-copy", "NOT_RUN", "launchctl is not available")
             return
-        out = subprocess.run(["launchctl", "print", "gui/%d/%s" % (os.getuid(), life.get("label"))], capture_output=True, text=True)
+        domain = fs.launchd_domain(plist_path)  # a plist in /Library/LaunchDaemons is a LaunchDaemon (FAA-278)
+        out = subprocess.run(["launchctl", "print", "%s/%s" % (domain, life.get("label"))], capture_output=True, text=True)
         match = re.search(r"^\s*pid = (\d+)", out.stdout, re.MULTILINE)
         served = ((self.wk or {}).get("process") or {}).get("pid")
+        # a LaunchDaemon's leftover LaunchAgent runs in its UserName's gui/<uid> (FAA-317)
+        second = other_domain_copy(life.get("label"), domain, plist.get("UserName")) if out.returncode == 0 and match else None
         if out.returncode != 0:
-            self.add("lifecycle.one-copy", "FAIL", "launchd job %s is not loaded" % life.get("label"))
+            self.add("lifecycle.one-copy", "FAIL", "launchd job %s is not loaded in %s" % (life.get("label"), domain))
         elif not match:
             self.add("lifecycle.one-copy", "FAIL", "launchd job loaded but not running")
+        elif second:  # loaded in both domains: two copies (FAA-286 item 6)
+            self.add("lifecycle.one-copy", "FAIL", "launchd job %s is loaded in %s and in %s: two copies; uninstall one"
+                     % (life.get("label"), domain, second))
         else:
             same = int(match.group(1)) == served
             self.add("lifecycle.one-copy", "PASS" if same else "FAIL",
@@ -944,8 +938,8 @@ class Probe:
             self.login_rules()
             self.interop_rules()
             self.channel_agent_rule()
-            verdict, evidence = board_responder_verdict(self.wk, self.board_kit)
-            self.add("board.responder", verdict, evidence)
+            self.add("limits.holds", *holds_verdict(declared_limits(self.wk, getattr(self, "usage_report", None)), *service_checkout(self.d, self.repo)))
+            self.add("board.responder", *board_responder_verdict(self.wk, self.board_kit))
         self.lifecycle_rules()
         return self.results
 

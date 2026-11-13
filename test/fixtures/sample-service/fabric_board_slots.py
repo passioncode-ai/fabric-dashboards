@@ -20,7 +20,7 @@ HOLD_RETRY_MAX_SECONDS = 900.0
 #: Refusals that are about the board session, not one capability: they end recovery and go to the responder's fault.
 SESSION_CODES = frozenset(["unreachable", "session-ended", "not_authorized", "authority_changed", "credential", "no-epoch",
                            "schema-unsupported", "checkpoint", "receipt-shape", "idempotency_conflict", "not-running",
-                           "not-a-hub", "hub-unavailable", "protocol", "not_available"])
+                           "not-a-hub", "hub-unavailable", "protocol", "not_available", "foreign-user"])
 
 _whole = lambda v: int(v) if isinstance(v, float) and v.is_integer() else v  # noqa: E731 - 2.0 is 2, as Node reads it
 
@@ -78,7 +78,7 @@ class SlotKeeper:
                 if _is_int(generation, 1) and (answer.get("repeated") is True or not moved):
                     rest = {"project": self.project, "generation": generation}
             except BoardError as exc:
-                if exc.code in ("unreachable", "session-ended"):
+                if exc.code in ("unreachable", "session-ended", "foreign-user"):  # foreign-user: the earlier ask is unknown
                     raise
                 if exc.code == "idempotency_window_expired":
                     rest = {}  # a retired epoch refuses even a repeat: unknown, so no record (a first start, never a move)
@@ -247,3 +247,5 @@ class SlotKeeper:
             self._retry_later(capability, entries or [], exc)
             if exc.code in SESSION_CODES:
                 raise
+            if exc.code == "idempotency_window_expired":
+                self._status()  # the epoch moved: read it before the retry, which no held slot would do (FAA-186)
