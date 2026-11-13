@@ -16,6 +16,18 @@
    measure's spend per agent), gap G26 (a dashboard per role, FD-170). When our state changes against them (a release,
    a gap closed or opened), write fabric-workspace a board message naming the section and the evidence. The
    architect's validation at each release is kept in [docs/evidence/architect/](docs/evidence/architect/README.md).
+1b. **Step 0, the workstation, before every change** ([rules §0](https://github.com/passioncode-ai/fabric-workspace/blob/5694460b/knowledge/rules.md#0-the-course-check-the-plan-and-the-north-star-before-every-change),
+   item 0, operator 2026-11-13): the skills updated (`npx --yes sshlg-skills@latest update`), the launcher's
+   `npx @passioncode-ai/passioncode doctor` with no `fail` (skills, Fabric and its board, Fabric Dashboards, Switchboard,
+   Observatory and their MCP), and only then a change, through `task-pipeline`. Keys come from the operator's Observatory
+   vault by name (`use_secret.py`), per project where it can be done. A changed workflow is a new version beside the old one.
+1c. **Questions close by access level** (fabric-workspace [`knowledge/authority.md`](https://github.com/passioncode-ai/fabric-workspace/blob/main/knowledge/authority.md),
+   «Agents close questions themselves, by access level», operator 2026-11-13): an agent here decides by the access levels,
+   the operator's recorded decisions and this product's goal, then the safest reversible option; writes the decision and
+   its reason in the backlog row or handoff; and continues. Trust comes from the checks (`npm run check`, the release
+   guard, a readback of the published build). The operator is asked only at a human gate (sign-in, one-time code,
+   consent, typed secret, payment, spend above a limit, a send outside the estate, wider access than the act needs). A
+   request on this project's board is answered by the session that reads it (`com.reply`).
 2. The PassionCode.ai knowledge base — `fabric-workspace/knowledge/` in your clone (org-index
    `scripts/clone_all.sh` makes it) or https://wiki.passioncode.ai/knowledge — at least its
    [README](https://github.com/passioncode-ai/fabric-workspace/blob/main/knowledge/README.md),
