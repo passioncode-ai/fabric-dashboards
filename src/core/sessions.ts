@@ -21,11 +21,12 @@ export const handoverOwnKey = (id: string) => `handover.${id}`;
 /** How a session came to be listed: handed over by Switchboard after a limit, continued here after a limit reset,
  *  stopped by a limit and not continued yet (`limit`: a waiting stop, one this app does not continue, or one the person
  *  declined; V-1 of FIX-2), launched by Switchboard elsewhere, or opened in this app. */
-export type SessionOrigin = 'handover' | 'resume' | 'limit' | 'switchboard' | 'here';
+export type SessionOrigin = 'handover' | 'resume' | 'limit' | 'switchboard' | 'here' | 'machine';
 export type SessionState =
   | 'running-ours' // runs in a console of this app
   | 'running-terminal' // runs elsewhere (Switchboard launched it in Terminal or another app's console)
   | 'running-background' // FD-207: runs with no window, a board run Fabric started (`switchboard dispatch`, SB-247)
+  | 'running-unmanaged' // FD-231 (SL-8): a Claude Code or Codex process no owner started (Switchboard's `sessions --machine`)
   | 'needs-you-resume-failed' // continued after a limit, did not take up its conversation, still runs
   | 'needs-you-not-opened' // could not open here; `reason` says why
   | 'waiting-reset' // stopped on a limit; `expectedAt` says when it is likely to continue
@@ -98,6 +99,9 @@ export interface SessionRow {
   agentKey?: string;
   /** FD-124: a hand-over that runs on money, not a subscription; null for every other row. */
   paid: Paid;
+  /** FD-231: a session no owner started whose folder's transcripts Switchboard found unwritten for its quiet time (30
+   *  minutes): how many minutes. Absent for every other row. */
+  quietMinutes?: number;
   /** The row's latest known time, the list's order (newest first). */
   at: number;
 }
@@ -189,6 +193,19 @@ export interface ConsoleInput {
   attachedTo?: string | null;
 }
 
+/** FD-231 (SL-8, SB-353): one Claude Code or Codex process of this user, as `switchboard --json sessions --machine` reads
+ *  the process table: its launch when an owner started it, else none. Times in ms. */
+export interface SbMachineProcess {
+  pid: number;
+  agent: 'claude-code' | 'codex';
+  folder: string | null;
+  startedAt: number | null;
+  lastWriteAt: number | null;
+  quietMinutes: number | null;
+  quiet: boolean;
+  launchId: string | null;
+}
+
 /** What is kept in the settings for 24 hours: a console session that ended, and a hand-over that did not open here. */
 export interface SessionRecord {
   id: string;
@@ -223,9 +240,11 @@ export interface MergeInput {
   consoles: ConsoleInput[];
   records: SessionRecord[];
   dismissed: Dismissal[];
+  /** FD-231: every agent process on the Mac; null or absent where Switchboard cannot list them. */
+  machine?: SbMachineProcess[] | null;
 }
 
-export type SessionSource = 'sessions' | 'handovers' | 'recovery';
+export type SessionSource = 'sessions' | 'handovers' | 'recovery' | 'machine';
 /** A source that did not answer: its last good answer is still used, and the list says it may be out of date. */
 export interface SourceDegraded { source: SessionSource; reason: 'old' | 'error'; detail: string; since: number }
 
@@ -233,6 +252,9 @@ export interface SourceDegraded { source: SessionSource; reason: 'old' | 'error'
 export interface SessionsStatus {
   rows: SessionRow[];
   degraded: SourceDegraded[];
+  /** FD-231: whether every agent process of the Mac is listed (Switchboard answered `sessions --machine`); absent or false,
+   *  the page keeps its footnote that sessions started without Switchboard are not listed. */
+  machine?: boolean;
   /** Whether Switchboard is installed; without it only this app's own consoles are listed. */
   switchboard: boolean | null; // null: not looked for yet (SCN-078)
   /** Switchboard's switch for handing sessions over to a console (`handovers set on|off`); null until read. */
@@ -255,6 +277,7 @@ export type SessionActionResult =
 export const consoleRowId = (key: string, startedAt: number) => `c:${key}:${startedAt}`;
 export const handoverRowId = (id: string) => `ho:${id}`;
 export const stopRowId = (event: string) => `st:${event}`;
+export const processRowId = (pid: number, startedAt: number | null) => `pr:${pid}:${startedAt ?? 0}`;
 /** FD-211: the console of its own that shows one hosted session; one per launch, so a second Open here finds it. */
 export const attachOwnKey = (launchId: string) => `handover.at-${fnv64(launchId).slice(0, 12)}`;
 /** FNV-1a, 64 bits as hex: a stable short name for a long folder. Pure, so the renderer can import this module. */
@@ -290,6 +313,7 @@ export function actionsFor(state: SessionState, o: { continueNow?: boolean } = {
     case 'running-ours': return ['end', 'reveal'];
     case 'running-terminal': return ['reveal']; // V-6 of FIX-2: its folder, the one thing this app can show
     case 'running-background': return ['reveal'];
+    case 'running-unmanaged': return ['reveal']; // not ours to end or type to: its folder is what this app can show
     case 'needs-you-resume-failed': return ['openConsole', 'end'];
     case 'needs-you-not-opened': return ['dismiss'];
     case 'ended-cannot-continue': return ['dismiss'];
@@ -479,6 +503,22 @@ export function mergeSessions(i: MergeInput): SessionRow[] {
       state, startedAt: started, endedAt: running ? null : s.launch?.endedAt ?? null, resumable: s.agent === 'claude-code',
       launch: s.launch,
     }));
+  }
+
+  // 6. FD-231 (SL-8): agent processes no owner started. One with a launch is Switchboard's and listed above; one in the
+  // folder of a console of this app that started within SAME_START_MS is that console (a runtime this app ran itself,
+  // with no Switchboard account): neither is listed twice.
+  for (const p of i.machine ?? []) {
+    if (p.launchId) continue;
+    if (p.folder && i.consoles.some((c) => norm(c.folder) === norm(p.folder!) && p.startedAt !== null && Math.abs(c.startedAt - p.startedAt) <= SAME_START_MS)) continue;
+    const r = row({
+      id: processRowId(p.pid, p.startedAt), key: null, folder: p.folder ?? '', agent: p.agent, account: null, context: null,
+      origin: 'machine', state: 'running-unmanaged', reason: null, startedAt: p.startedAt, endedAt: null,
+      actions: p.folder ? actionsFor('running-unmanaged') : [],
+    });
+    r.at = Math.max(r.at, p.lastWriteAt ?? 0);
+    if (p.quiet && p.quietMinutes !== null) r.quietMinutes = p.quietMinutes;
+    add(r);
   }
 
   return rows.sort((a, b) => b.at - a.at || a.id.localeCompare(b.id));

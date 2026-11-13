@@ -8,7 +8,7 @@ import type { Runner } from '@passioncode-ai/fabric-service-host';
 import path from 'node:path';
 import fs from 'node:fs';
 import type { RuntimeSpec } from './runtimes';
-import type { LaunchFacts, Paid, SbSessionRecord, SourceResult } from './sessions';
+import type { LaunchFacts, Paid, SbMachineProcess, SbSessionRecord, SourceResult } from './sessions';
 
 export type Binding =
   | { kind: 'none' } // no project or managed rule for this provider: the ordinary sign-in
@@ -217,6 +217,34 @@ export async function allSessionsOf(run: Runner, sb: string): Promise<SourceResu
       continues: typeof x.continues === 'string' && x.continues ? x.continues.slice(0, 64) : null, inPlace: x.in_place === true,
       launchedAt: ms(x.launched_at), startedAt: ms(x.started_at), state, launch: launchFactsOf(x),
       ...(x.attachable === true ? { attachable: true } : {}), // FD-211 (SB-342 H-1)
+    });
+  }
+  return { ok: true, value: out };
+}
+
+/** FD-231 (SL-8, SB-353): every Claude Code and Codex process of this user, Switchboard's or not (`sessions --machine`,
+ *  Switchboard 0.7.72). A Switchboard without the flag answers `Invalid arguments`: that is `unsupported`, not a failure,
+ *  so the list is not called out of date on a Mac whose Switchboard is older. A malformed row is skipped. */
+export async function machineSessionsOf(run: Runner, sb: string): Promise<SourceResult<SbMachineProcess[]> | { ok: false; reason: 'unsupported' }> {
+  const r = await run(sb, ['--json', 'sessions', '--machine'], 10_000);
+  const text = `${r.stdout}\n${r.stderr}`;
+  const data = r.code === 0 ? parse(r.stdout) : null;
+  if (!data) {
+    if (/invalid arguments|unexpected argument|unrecognized|earlier version than this command/i.test(text)) return { ok: false, reason: 'unsupported' };
+    return { ok: false, reason: 'error', detail: sbFailure(r) };
+  }
+  const out: SbMachineProcess[] = [];
+  for (const x of Array.isArray(data.sessions) ? (data.sessions as Record<string, unknown>[]).slice(0, 500) : []) {
+    if (!x || typeof x !== 'object' || typeof x.pid !== 'number' || !Number.isInteger(x.pid) || x.pid <= 0) continue;
+    const agent = x.agent === 'claude-code' || x.agent === 'codex' ? x.agent : null;
+    if (!agent) continue;
+    const minutes = typeof x.quiet_minutes === 'number' && Number.isFinite(x.quiet_minutes) && x.quiet_minutes >= 0 ? Math.floor(x.quiet_minutes) : null;
+    out.push({
+      pid: x.pid, agent,
+      folder: typeof x.folder === 'string' && path.isAbsolute(x.folder) ? x.folder.slice(0, 1000) : null,
+      startedAt: ms(x.started_at), lastWriteAt: ms(x.last_write_at),
+      quietMinutes: minutes, quiet: x.quiet === true,
+      launchId: typeof x.launch_id === 'string' && x.launch_id ? x.launch_id.slice(0, 64) : null,
     });
   }
   return { ok: true, value: out };

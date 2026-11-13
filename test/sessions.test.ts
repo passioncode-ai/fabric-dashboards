@@ -7,8 +7,9 @@ import path from 'node:path';
 import test from 'node:test';
 import type { Runner } from '@passioncode-ai/fabric-service-host';
 import { ConsoleHost, transcriptFile } from '../src/electron/console';
-import { consoleRowId, mergeSessions, pruneRecords, SESSION_KEEP_MS, SourceReader, type MergeInput, type SbSessionRecord, type SessionNotice, type SessionRecord } from '../src/core/sessions';
-import { allSessionsOf, handoversSwitch, isHandoverKey } from '../src/core/switchboard';
+import { consoleRowId, mergeSessions, processRowId, pruneRecords, SESSION_KEEP_MS, SourceReader, type MergeInput, type SbMachineProcess, type SbSessionRecord, type SessionNotice, type SessionRecord } from '../src/core/sessions';
+import { allSessionsOf, handoversSwitch, isHandoverKey, machineSessionsOf } from '../src/core/switchboard';
+import { projectName, stateWords } from '../src/core/sessions-view';
 import { SettingsStore } from '../src/core/settings';
 import { tmp } from './helpers';
 
@@ -247,7 +248,7 @@ test('FD-103: Switchboard\'s hand-over switch is read and written through its CL
 // ── ConsoleHost: the main process's side ──
 
 const HO = 'ho-0123456789ab';
-function rig(o: { stop?: { silent?: boolean; candidates?: string[] }; sessions?: unknown[]; agentFolder?: boolean } = {}) {
+function rig(o: { stop?: { silent?: boolean; candidates?: string[] }; sessions?: unknown[]; agentFolder?: boolean; machine?: unknown[] } = {}) {
   const base = tmp('fd-ses-');
   const bin = path.join(base, 'bin');
   const dir = path.join(base, 'checkout');
@@ -273,6 +274,8 @@ function rig(o: { stop?: { silent?: boolean; candidates?: string[] }; sessions?:
       const line = args.join(' ');
       if (line === '--json handovers') return ok({ enabled: true, handovers: [{ id: HO, workflow: 'nightly', agent: 'claude-code', account_label: 'Work Max', dir, offered_until: new Date(Date.now() + MIN).toISOString() }] });
       if (line === '--json sessions --all') return ok({ sessions: o.sessions ?? [] });
+      // FD-231: by default the published Switchboard of 2026-11-13 (0.7.71), which does not know `--machine`.
+      if (line === '--json sessions --machine') return o.machine ? ok({ sessions: o.machine }) : { code: 2, stdout: '{"error":"Invalid arguments. Run switchboard --help.","ok":false}', stderr: '' };
       if (line === '--json recovery') return ok({ sessions: o.stop ? [{ candidates: o.stop.candidates ?? ['acc-2'], ready: true, stop: { attempt: 1, directory: dir, event: `cc-${SID}-1`, kind: 'limit', provider: 'claude', session: SID, state: 'waiting', stopped_at: (Date.now() - MIN) / 1000 } }] : [] });
       if (args[1] === 'recovery') return ok({});
       if (line.startsWith('--json project show')) return ok({ project: null, rules: [] });
@@ -528,4 +531,74 @@ test('FD-211: Switchboard\'s `attachable` is read; anything but true is not', as
   const r = await allSessionsOf(run, '/bin/switchboard');
   assert.ok(r.ok);
   assert.deepEqual(r.value.map((s) => s.attachable === true), [true, false, false]);
+});
+
+// FD-231 (SL-8, fabric-workspace knowledge/lifecycle.md; Switchboard SB-353): one answer to «what runs now». Every Claude
+// Code and Codex process Switchboard finds is listed once: its own launches as before, the others as started by hand.
+test('FD-231: a process no owner started is listed as running, started by hand, once, with its folder and quiet time', () => {
+  const proc = (o: Partial<SbMachineProcess>): SbMachineProcess => ({ pid: 4242, agent: 'claude-code', folder: '/w/gamma', startedAt: NOW - 40 * MIN, lastWriteAt: NOW - 35 * MIN, quietMinutes: 35, quiet: true, launchId: null, ...o });
+  const rows = mergeSessions(input({
+    consoles: [{ key: 'demo.default', folder: '/w/ours', agent: 'claude-code', startedAt: NOW - 5 * MIN, origin: 'here', account: null }],
+    machine: [
+      proc({}),
+      // Switchboard's own launch: listed from its record, never twice.
+      proc({ pid: 4243, folder: '/w/alpha', launchId: 'a1b2c3d4-0000-4000-8000-000000000001', quiet: false, quietMinutes: 1 }),
+      // A runtime this app ran itself (no Switchboard account): the console's row, never twice.
+      proc({ pid: 4244, folder: '/w/ours/', startedAt: NOW - 5 * MIN + 900, quiet: false, quietMinutes: 0 }),
+      // A process whose folder Switchboard could not read: still listed, with nothing to show.
+      proc({ pid: 4245, agent: 'codex', folder: null, quiet: false, quietMinutes: null, lastWriteAt: null }),
+    ],
+  }));
+  const hand = rows.filter((r) => r.origin === 'machine');
+  assert.deepEqual(hand.map((r) => r.id).sort(), [processRowId(4242, NOW - 40 * MIN), processRowId(4245, NOW - 40 * MIN)].sort());
+  const gamma = hand.find((r) => r.folder === '/w/gamma')!;
+  assert.equal(gamma.state, 'running-unmanaged');
+  assert.equal(gamma.group, 'running');
+  assert.deepEqual(gamma.actions, ['reveal']);
+  assert.equal(gamma.quietMinutes, 35);
+  assert.equal(gamma.at, NOW - 35 * MIN, 'ordered by its last write');
+  assert.equal(stateWords('en', gamma), 'Running, but has written nothing for 35 min');
+  const unknown = hand.find((r) => r.agent === 'codex')!;
+  assert.deepEqual(unknown.actions, [], 'no folder, nothing to reveal');
+  assert.equal(unknown.quietMinutes, undefined);
+  assert.equal(stateWords('ru', unknown), 'Идёт, запущена вручную');
+  assert.equal(projectName('en', unknown), 'Folder unknown');
+  assert.equal(projectName('en', gamma), 'gamma');
+  // Absent or unread: nothing extra, as before FD-231.
+  assert.equal(mergeSessions(input({ machine: null })).length, 0);
+});
+
+test('FD-231: `sessions --machine` is read and checked; a Switchboard without it is unsupported, not a failure', async () => {
+  const row = { pid: 7, agent: 'claude-code', folder: '/w/a', started_at: (NOW - HOUR) / 1000, last_write_at: (NOW - 31 * MIN) / 1000, quiet_minutes: 31, quiet: true, launch_id: null, managed: false };
+  const good = await machineSessionsOf(async (_c, args) => {
+    assert.deepEqual(args, ['--json', 'sessions', '--machine']);
+    return ok({ sessions: [row, { ...row, pid: -1 }, { ...row, pid: 8, agent: 'cursor' }, { ...row, pid: 9, folder: 'relative/x' }], total: 4 });
+  }, '/bin/switchboard');
+  assert.deepEqual(good, { ok: true, value: [
+    { pid: 7, agent: 'claude-code', folder: '/w/a', startedAt: NOW - HOUR, lastWriteAt: NOW - 31 * MIN, quietMinutes: 31, quiet: true, launchId: null },
+    { pid: 9, agent: 'claude-code', folder: null, startedAt: NOW - HOUR, lastWriteAt: NOW - 31 * MIN, quietMinutes: 31, quiet: true, launchId: null },
+  ] });
+  // Switchboard 0.7.71 on this Mac, 2026-11-13: `{"error":"Invalid arguments. Run switchboard --help.","ok":false}`.
+  const old = await machineSessionsOf(async () => ({ code: 2, stdout: '{"error":"Invalid arguments. Run switchboard --help.","ok":false}', stderr: '' }), '/bin/switchboard');
+  assert.deepEqual(old, { ok: false, reason: 'unsupported' });
+  const broken = await machineSessionsOf(async () => ({ code: 1, stdout: '', stderr: 'owner not answering' }), '/bin/switchboard');
+  assert.equal(broken.ok, false);
+  assert.equal((broken as { reason: string }).reason, 'error');
+});
+
+test('FD-231: the console host lists a process started by hand, and leaves an older Switchboard unasked for ten minutes', POSIX, async () => {
+  const at = Math.floor(Date.now() / 1000) - 120;
+  const r = rig({ machine: [{ pid: 5151, agent: 'codex', folder: '/w/eta', started_at: at, last_write_at: at + 60, quiet_minutes: 1, quiet: false, launch_id: null, managed: false }] });
+  await r.host.pollSessions();
+  const st = r.host.sessionsStatus();
+  assert.deepEqual(st.rows.map((x) => [x.project, x.state, x.origin, x.agent]), [['eta', 'running-unmanaged', 'machine', 'codex']]);
+  assert.deepEqual(st.degraded, []);
+  assert.equal(st.machine, true, 'every process is listed, so the page drops its footnote');
+
+  const old = rig();
+  await old.host.pollSessions();
+  await old.host.pollSessions();
+  assert.equal(old.calls.filter((c) => c.join(' ') === 'switchboard --json sessions --machine').length, 1, 'asked once, then left for MACHINE_RECHECK_MS');
+  assert.deepEqual(old.host.sessionsStatus().degraded, [], 'an older Switchboard is not an out-of-date list');
+  assert.equal(old.host.sessionsStatus().machine, false, 'the footnote stays');
 });
