@@ -28,8 +28,32 @@ CREDENTIAL_PAIRS = {
     'session': {'token', 'id'},
     'code': {'login', 'auth', 'access', 'session'}}
 JWT_SHAPE = re.compile(r'eyJ[A-Za-z0-9_-]{2,}\.[A-Za-z0-9_-]{2,}\.[A-Za-z0-9_-]*')
-SECRET_VALUE = re.compile(r'(^bearer\s.+|sk-[A-Za-z0-9_-]{16,}|gh[pousr]_[A-Za-z0-9]{20,}|xox[abposr]-[A-Za-z0-9-]{10,}'
-                          r'|AKIA[0-9A-Z]{16}|glpat-[A-Za-z0-9_-]{20,})', re.I | re.S)
+URL_BASE64_RUN = re.compile(r'[A-Za-z0-9_-]*')
+
+
+def has_jwt(text):
+    # Whether JWT_SHAPE matches anywhere, read in one pass (the contract's hasJwt, FAA-313): the expression backtracks
+    # from every `eyJ` of a long run, quadratic in it, while every `eyJ` of one run shares that run's end, so only its
+    # first is tried. The kit's fabric_secrets.has_jwt reads the same way; this file stands alone, so it has its own.
+    at = text.find('eyJ')
+    while at >= 0:
+        one = URL_BASE64_RUN.match(text, at + 3).end()
+        if one - at - 3 >= 2 and text[one:one + 1] == '.':
+            two = URL_BASE64_RUN.match(text, one + 1).end()
+            if two - one - 1 >= 2 and text[two:two + 1] == '.':
+                return True
+        at = text.find('eyJ', one)
+    return False
+
+
+# The contract's SECRET_VALUE at the pin (DEC-0151): `Bearer ` at a value's start in any case, or a provider key with its
+# prefix in its canonical case after a boundary (the start, a character that is no ASCII letter or digit, or an escape);
+# an `sk-` key holds a digit and an upper-case letter with 16 or more characters, or a digit with 32 or more.
+SECRET_VALUE = re.compile(r'(^[Bb][Ee][Aa][Rr][Ee][Rr]\s.+|(?:^|[^A-Za-z0-9]|%[0-9A-Fa-f]{2}|\\[nrt"\']|\\u[0-9A-Fa-f]{4}'
+                          r'|\\x[0-9A-Fa-f]{2}|\\[bfv0ae]|\\[0-7]{1,3}|%25[0-9A-Fa-f]{2}|\x1b\[[0-9;:]*m'
+                          r'|(?:\\u001[bB]|\\x1[bB]|\\e|\\033|\\33)\[[0-9;:]*m)'
+                          r'(?:sk-(?=[A-Za-z0-9_-]{0,255}?[0-9])(?:(?=[A-Za-z0-9_-]{0,255}?[A-Z])[A-Za-z0-9_-]{16,}|[A-Za-z0-9_-]{32,})'
+                          r'|gh[pousr]_[A-Za-z0-9]{20,}|xox[abposr]-[A-Za-z0-9-]{10,}|AKIA[0-9A-Z]{16}|glpat-[A-Za-z0-9_-]{20,}))', re.S)
 LONG_RUN = re.compile(r'[A-Za-z0-9+/=_-]{40,}')
 
 
@@ -52,7 +76,7 @@ def credential_name(name):
 def secret_value(value):
     long_secret = any(re.search(r'[a-z]', run) and re.search(r'[A-Z]', run) and re.search(r'[0-9]', run)
                       for run in LONG_RUN.findall(value))
-    return bool(JWT_SHAPE.search(value) or SECRET_VALUE.search(value) or long_secret)
+    return bool(has_jwt(value) or SECRET_VALUE.search(value) or long_secret)
 
 
 def carries_credential(text):
@@ -115,6 +139,11 @@ def check(data):
     require(all(isinstance(v, str) and 0 < len(v) <= 200 for v in (target, viewer)), 'missing_device')
     fallback = data.get('fallback', 'if_absent')
     require(fallback in ('if_absent', 'never'), 'invalid_fallback')
+    # DEC-0154 PL-3 and HA-2 (FAA-251): who listens on http_url's port, as the host read it from the socket table
+    # (fabric_peer_owner's kinds, or check_service.py's foreign-user). A browser opens a raw loopback address only
+    # after that listener is this OS account's; absent, it is unknown.
+    owner = data.get('listener_owner', 'unknown')
+    require(owner in ('this-account', 'another-account', 'system', 'unknown', 'none', 'foreign-user'), 'invalid_listener_owner')
     kind = action.get('kind')
     if kind == 'remote_open':
         require(set(action) <= {'kind', 'device_id', 'service', 'path'}, 'unexpected_action_field')
@@ -128,17 +157,26 @@ def check(data):
         require(set(action) == {'kind', 'url'} and action.get('url') == http, 'not_resolved_http_url')
         require(viewer == target, 'wrong_viewer_device')
         require(state == 'not_installed' and fallback == 'if_absent', 'browser_fallback_forbidden')
+        require(owner == 'this-account', 'listener_not_this_account')
     else:
         raise ValueError('unsupported_dashboard_action')
     return {'ok': True, 'kind': kind}
 
 
+def read_input(limit=65536):
+    # The handoff's bytes, decoded as UTF-8 with a byte order mark dropped: Windows before Python 3.15 decodes a text
+    # stdin with its code page, which misreads a Cyrillic handoff (FAA-210). A stream without bytes is read as text.
+    stream = getattr(sys.stdin, 'buffer', None)
+    raw = stream.read(limit + 1) if stream is not None else sys.stdin.read(limit + 1)
+    require(len(raw) <= limit, 'input_too_large')
+    return raw.decode('utf-8-sig') if isinstance(raw, bytes) else raw.lstrip('\ufeff')
+
+
 def main():
     try:
-        raw = sys.stdin.read(65537)
-        require(len(raw) <= 65536, 'input_too_large')
-        result = check(json.loads(raw))
-    except (ValueError, TypeError, KeyError, AttributeError):
+        result = check(json.loads(read_input()))
+    # RecursionError: Python 3.9 to 3.13 raise it on a deeply nested document under the cap
+    except (ValueError, TypeError, KeyError, AttributeError, RecursionError):
         # Fixed reasons only: never echo a submitted URL, token or JSON blob.
         result = {'ok': False, 'reason': 'dashboard_handoff_refused'}
     print(json.dumps(result))

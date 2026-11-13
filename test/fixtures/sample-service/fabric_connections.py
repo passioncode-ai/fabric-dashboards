@@ -4,7 +4,6 @@
 `degraded[]`. Part of the service kit (FAA-62, layer L3). Standard library only."""
 from __future__ import annotations
 
-import ipaddress
 import re
 import urllib.parse
 from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence
@@ -16,7 +15,12 @@ if str(_Path(__file__).resolve().parent) not in _sys.path:  # the kit loads from
 
 from fabric_base import ServiceError  # noqa: E402
 from fabric_secrets import (  # noqa: E402
-    JWT_SHAPE, _BEARER_INSIDE as _BEARER, _long_secret, credential_name, raw_values, secret_argument, secret_value,
+    _BEARER_INSIDE as _BEARER, _long_secret, credential_name, has_jwt, raw_values, secret_argument, secret_value,
+)
+# The WHATWG host reading and its IDNA tables (FAA-98) live in fabric_secrets since FAA-309, where secret_url reads a
+# URL's host with them; the names stay here for code and tests that reached them.
+from fabric_secrets import (  # noqa: E402,F401
+    _FORBIDDEN_DOMAIN, _FORBIDDEN_HOST, _IDNA_DISALLOWED, _IDNA_IGNORED, _domain_ok, _idna_host, _ipv4_number, _ipv6_ok,
 )
 
 CONNECTIONS_EXTENSION_KEY = "https://fabric.passioncode.ai/agent-contract/extensions/connections/0.1"
@@ -169,61 +173,6 @@ _credential_name, _secret_value, _secret_argument = credential_name, secret_valu
 
 
 _SPECIAL = ("http", "https", "ws", "wss", "ftp", "file")
-_FORBIDDEN_HOST = set("\x00\t\n\r #/:<>?@[\\]^|")
-_FORBIDDEN_DOMAIN = _FORBIDDEN_HOST | set(chr(c) for c in range(0x20)) | {"%", "\x7f"}
-
-
-def _ipv4_number(part: str) -> Optional[int]:
-    if part == "":
-        return None  # an empty part fails WHATWG's IPv4 parser (`1..2`); `0x` alone is 0
-    base = 10
-    if part[:2].lower() == "0x":
-        part, base = part[2:], 16
-    elif len(part) > 1 and part[0] == "0":
-        part, base = part[1:], 8
-    if part == "":
-        return 0
-    digits = {10: "0123456789", 16: "0123456789abcdefABCDEF", 8: "01234567"}[base]
-    return int(part, base) if all(c in digits for c in part) else None
-
-
-def _domain_ok(host: str) -> bool:
-    """The WHATWG host parser on a special scheme's host, enough to know when `new URL` refuses it."""
-    if host.startswith("["):
-        return host.endswith("]") and _ipv6_ok(host[1:-1])
-    if re.search(r"%(?![0-9A-Fa-f]{2})", host) is None:
-        try:
-            host = urllib.parse.unquote_to_bytes(host).decode("utf-8")
-        except UnicodeDecodeError:
-            return False
-    if any(c in _FORBIDDEN_DOMAIN for c in host):
-        return False
-    # A non-ASCII host goes through UTS46 in WHATWG; this module does not port it. When unsure, the host is taken as
-    # valid, so its URL's credentials are read: the doubt then hides a list rather than publish one (round-2 reading).
-    if any(ord(c) > 0x7f for c in host):
-        return True
-    labels = host.split(".")
-    if labels and labels[-1] == "" and len(labels) > 1:
-        labels = labels[:-1]
-    last = labels[-1] if labels else ""
-    if not (last and (last.isdigit() and last.isascii() or re.fullmatch(r"0[xX][0-9A-Fa-f]*", last))):
-        return host != ""
-    numbers = [_ipv4_number(label) for label in labels]
-    if len(numbers) > 4 or any(n is None for n in numbers):
-        return False
-    return all(n <= 255 for n in numbers[:-1]) and numbers[-1] < 256 ** (5 - len(numbers))
-
-
-def _ipv6_ok(text: str) -> bool:
-    if "%" in text:
-        return False  # a zone id: `ipaddress` takes one, WHATWG does not
-    try:
-        ipaddress.IPv6Address(text)
-        return True
-    except ValueError:
-        return False
-
-
 _SURROGATE = re.compile("[\ud800-\udfff]")
 _QUERY_ENCODE = set(chr(c) for c in range(0x21)) | set('"#<>')
 _FRAGMENT_ENCODE = set(chr(c) for c in range(0x21)) | set('"<>`')
@@ -294,7 +243,7 @@ def _whatwg_parts(value: str) -> Optional[Dict[str, str]]:
             return None
     elif any(c in _FORBIDDEN_HOST for c in host):
         return None
-    elif host == "" and ("@" in authority or port):
+    elif host == "" and ("@" in authority or ":" in hostport):
         return None
     return {"password": password, "query": query, "fragment": fragment}
 
@@ -330,7 +279,7 @@ def _secret_url(value: str) -> bool:
 
 
 def _credential(value: str, runs: bool) -> bool:
-    return bool(JWT_SHAPE.search(value) or _KEY_SHAPE.search(value) or _BEARER.search(value)
+    return bool(has_jwt(value) or _KEY_SHAPE.search(value) or _BEARER.search(value)  # has_jwt: one pass (FAA-313)
                 or (runs and _long_run(value)) or any(_secret_url(url) for url in _urls_in(value)))
 
 
