@@ -49,7 +49,7 @@
 | SCN-041 | Overview at a glance | overview | P-01 | ST-016, ST-002, ST-015 | validated | 2026-10-13 |
 | SCN-042 | Many problems stay compact | overview | P-01 | ST-016, ST-002 | validated | 2026-10-13 |
 | SCN-043 | Reinstall picks up where I left off | settings | P-01 | ST-017, ST-010 | draft | 2026-10-27 |
-| SCN-044 | A copy outside Applications moves itself so it can update | updates | P-01 | ST-017, ST-008 | draft | 2026-10-24 |
+| SCN-044 | A copy outside Applications moves itself so it can update | updates | P-01 | ST-017, ST-008 | implemented | 2026-11-13 |
 | SCN-045 | A dashboard hands me to another agent | dashboards | P-01 | ST-005, ST-011 | validated | 2026-10-12 |
 | SCN-046 | The dashboard gets the screen: a one-line header that opens to the full card | focus | P-01 | ST-018 | validated | 2026-10-24 |
 | SCN-047 | The agents list folds into a rail | focus | P-01 | ST-018 | validated | 2026-10-24 |
@@ -665,8 +665,8 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **UI elements:** move question, footer line and Settings → Updates notice with Move to Applications
 - **States covered:** error, success
 - **Errors & recovery:** the move fails -> a message names the reason and says to drag the app to Applications in Finder
-- **Status:** draft (re-read 2026-10-24: the code is there, but no test moves a copy; only the `misplaced` state is tested, in test/parts.test.ts "LC-16: the switch stops automatic checks; a check the person asks for always runs; busy states never stack", and the `moveToApplicationsAsked` default in "updates install by themselves unless the person turned it off; a file from an earlier version keeps it on")
-- **Coverage:** src/electron/updater.ts (misplaced), src/electron/main.ts (moveToApplications, offerMoveToApplications), src/renderer/App.tsx (UpdateLine), src/renderer/components/Settings.tsx (UpdateState)
+- **Status:** implemented (2026-11-13, FD-230: the rules are pure functions in `src/electron/policy.ts` (`moveSkip`, `offerMove`, `tryMove`), used by the question, the Settings and footer button and MCP `app_install`; `test/lifecycle.test.ts` "SCN-044: a packaged macOS copy outside Applications is asked once, moves, and a refused or failed move gives its reason". Not validated: no test moves a real signed copy, since Electron's move writes to /Applications and the installed copy holds the single-instance lock)
+- **Coverage:** src/electron/policy.ts (moveSkip, offerMove, tryMove), src/electron/updater.ts (misplaced), src/electron/main.ts (moveToApplications, offerMoveToApplications), src/renderer/App.tsx (UpdateLine), src/renderer/components/Settings.tsx (UpdateState), test/lifecycle.test.ts
 - **Product:** unobserved
 
 ## links

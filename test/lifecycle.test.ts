@@ -20,7 +20,7 @@ import { DEFAULT_SETTINGS } from '../src/core/types';
 import { clearRestoreRecord, KEPT_FILES, MCP_SERVER_NAME, productDataPaths, purgeAfterExit, purgeData, readRestoreRecord, removeMcpRegistrations, repairMcpRegistrations, restoreMcpRegistrations, RESTORE_FILE, writeRestoreRecord } from '../src/core/uninstall';
 import { NotifyLedger } from '../src/core/notify';
 import { SettingsStore } from '../src/core/settings';
-import { autoInstallNow, autoInstallWait, HiddenGrace, relaunchHidden, resumePath, resumeRoute, stalePartitions, UPDATE_IDLE_MS, VisibilitySync } from '../src/electron/policy';
+import { autoInstallNow, autoInstallWait, HiddenGrace, moveSkip, offerMove, relaunchHidden, resumePath, resumeRoute, stalePartitions, tryMove, UPDATE_IDLE_MS, VisibilitySync } from '../src/electron/policy';
 import { codeFile, StaleWatch } from '../src/mcp/stale';
 import { APP_UPDATE_EVERY_MS, CHECK_EVERY_MS, quietCheck } from '../src/core/version';
 import { tmp } from './helpers';
@@ -1098,4 +1098,25 @@ test('FD-80: macOS\'s on-screen window list decides covered, on another Space or
   assert.equal(parseWindows('not json'), null);
   assert.match(WINDOW_LIST_JXA, /kCGWindowListOptionOnScreenOnly/);
   assert.doesNotMatch(WINDOW_LIST_JXA, /kCGWindowName|kCGWindowOwnerName/, 'titles and owners are never read');
+});
+
+test('SCN-044: a packaged macOS copy outside Applications is asked once, moves, and a refused or failed move gives its reason', () => {
+  const out = { packaged: true, platform: 'darwin' as const, inApplications: false };
+  assert.equal(moveSkip(out), null);
+  assert.equal(moveSkip({ ...out, packaged: false }), 'not-packaged');
+  assert.equal(moveSkip({ ...out, platform: 'win32' }), 'not-macos');
+  assert.equal(moveSkip({ ...out, platform: 'linux' }), 'not-macos');
+  assert.equal(moveSkip({ ...out, inApplications: true }), 'already-there');
+  // Step 1: asked once; Not now marks it asked, so the next launch does not ask again (alt path).
+  assert.equal(offerMove({ ...out, asked: false }), true);
+  assert.equal(offerMove({ ...out, asked: true }), false);
+  assert.equal(offerMove({ ...out, inApplications: true, asked: false }), false);
+  assert.equal(offerMove({ ...out, packaged: false, asked: false }), false);
+  // Step 2: Electron's move relaunches from Applications (true), refuses (false) or throws.
+  let calls = 0;
+  assert.deepEqual(tryMove(() => { calls += 1; return true; }, 'refused'), { ok: true });
+  assert.deepEqual(tryMove(() => false, 'macOS did not move it'), { ok: false, error: 'macOS did not move it' });
+  assert.deepEqual(tryMove(() => { throw new Error('EACCES: permission denied'); }, 'refused'), { ok: false, error: 'EACCES: permission denied' });
+  assert.deepEqual(tryMove(() => { throw new Error(''); }, 'macOS did not move it'), { ok: false, error: 'macOS did not move it' });
+  assert.equal(calls, 1);
 });

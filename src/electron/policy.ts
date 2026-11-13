@@ -347,3 +347,26 @@ export function afterCrash(crashes: number, loadedAt: number, now: number): { cr
   const streak = loadedAt > 0 && now - loadedAt > CRASH_FORGIVEN_AFTER_MS ? 1 : crashes + 1;
   return { crashes: streak, recreate: streak === 1 };
 }
+
+/** SCN-044: why a copy stays where it is, or null when it may move to Applications (a folder only macOS has). */
+export type MoveSkip = 'not-packaged' | 'not-macos' | 'already-there';
+export function moveSkip(w: { packaged: boolean; platform: NodeJS.Platform; inApplications: boolean }): MoveSkip | null {
+  if (!w.packaged) return 'not-packaged';
+  if (w.platform !== 'darwin') return 'not-macos';
+  return w.inApplications ? 'already-there' : null;
+}
+
+/** SCN-044 step 1: the question is asked once, of a copy that may move. */
+export function offerMove(w: { packaged: boolean; platform: NodeJS.Platform; inApplications: boolean; asked: boolean }): boolean {
+  return !w.asked && moveSkip(w) === null;
+}
+
+/** SCN-044 step 2 and its error path: Electron's move either relaunches the app (true), refuses
+ *  (false: `refused` is the reason) or throws (its message is). Never throws itself. */
+export function tryMove(move: () => boolean, refused: string): { ok: true } | { ok: false; error: string } {
+  try {
+    return move() ? { ok: true } : { ok: false, error: refused };
+  } catch (e) {
+    return { ok: false, error: (e as Error).message || refused };
+  }
+}
