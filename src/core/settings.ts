@@ -9,6 +9,7 @@ import { autoUpdateOn, carryOverAutoUpdate, setAutoUpdate } from './autoupdate';
 import { CONSOLE_HEIGHT, DEFAULT_SETTINGS, SIDEBAR_WIDTH, type Settings, type SettingsPatch } from './types';
 import { DEFAULT_PAGE_THEME, REFERENCE_THEMES } from './appearance';
 import { pruneDismissed, pruneRecords } from './sessions';
+import { MAX_TABS } from './layout';
 
 /** FD-122: how often settings.json is looked at for a change written outside the app (a stat, no read). */
 export const SETTINGS_POLL_MS = 5_000;
@@ -155,7 +156,7 @@ function mergeLayout(raw: unknown): Settings['layout'] {
     header: l.header === 'full' ? 'full' : 'compact',
     console: { open: c.open === true, height: Math.min(CONSOLE_HEIGHT.max, Math.max(CONSOLE_HEIGHT.min, height)), full: c.full !== false },
     focus: l.focus === true,
-    tabs: Array.isArray(l.tabs) ? [...new Set(l.tabs.filter((k): k is string => typeof k === 'string' && /^[a-z0-9][a-z0-9._-]{0,128}$/.test(k)))].slice(-12) : [],
+    tabs: Array.isArray(l.tabs) ? [...new Set(l.tabs.filter((k): k is string => typeof k === 'string' && /^[a-z0-9][a-z0-9._-]{0,128}$/.test(k)))].slice(-MAX_TABS) : [],
     list: mergeList(l.list),
     // FD-103 (SCN-077): a damaged value reads as Agents on Overview; nothing else depends on it.
     mode: l.mode === 'sessions' ? 'sessions' : 'agents',

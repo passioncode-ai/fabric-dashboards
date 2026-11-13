@@ -22,7 +22,7 @@ import { attentionQueue, urgent } from '../core/attention';
 import { SETUP_KEY } from '../core/offers';
 import { revisitDue, sinceLastVisit, type SinceLastVisit } from '../core/visit';
 import type { ConsoleTask, NavTarget, Rect } from '../core/api';
-import { tabStep } from '../core/layout';
+import { addTab, tabStep } from '../core/layout';
 import mark from './brand/dashboards-mark.svg';
 import { api, Icon, LangContext, nameOf, Spinner, useT } from './lib';
 
@@ -423,7 +423,10 @@ function Shell({ status: everyAgent, route, setRoute, mode, switchMode, stopKey,
   const tabs = layout.tabs.filter((k) => everyAgent.services.some((s) => s.key === k));
   useEffect(() => {
     if (route.page !== 'service' || !current || layout.tabs.includes(current.key)) return;
-    changeLayout({ tabs: [...layout.tabs, current.key].slice(-12) });
+    // FD-228: an agent pushed out of a full strip leaves as Close takes it, its dashboard released.
+    const next = addTab(layout.tabs, current.key);
+    changeLayout({ tabs: next.tabs });
+    for (const key of next.dropped) void api().closeView(key);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [route.page, current?.key]);
   const closeTab = (key: string) => {

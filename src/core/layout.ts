@@ -40,6 +40,18 @@ export function revealScrollTop(view: { scrollTop: number; height: number }, el:
 }
 
 // #region open-agents — docs: docs/ux/scenarios.md#scn-105-keep-several-agents-open-and-move-between-them
+/** FD-220: at most this many agents stay open in the strip. */
+export const MAX_TABS = 12;
+
+/** FD-228: the strip with `key` added at the end, and the agents that leave it to make room (the oldest first), whose
+ *  dashboards are released as Close releases one. An agent already in the strip changes nothing. */
+export function addTab(tabs: readonly string[], key: string, max = MAX_TABS): { tabs: string[]; dropped: string[] } {
+  if (tabs.includes(key)) return { tabs: [...tabs], dropped: [] };
+  const all = [...tabs, key];
+  const cut = Math.max(0, all.length - max);
+  return { tabs: all.slice(cut), dropped: all.slice(0, cut) };
+}
+
 /** FD-227: the open agent a step away from the one on show (`step` 1 next, -1 previous), round the strip. With no agent
  *  on show, or one not in the strip, the next step is the first and the previous the last; an empty strip has none. */
 export function tabStep(tabs: readonly string[], current: string | null, step: 1 | -1): string | null {
