@@ -24,12 +24,18 @@ Close opens the neighbour, from Overview Previous goes to the last agent, an emp
 reports in SCN-105, no findings. FD-229: gate exit 0 (1187 tests, 1177 pass, 0 fail); on the built app a second
 instance handed `fabric-dashboards://activity` to an unfocused window: Activity opened and the `#335` line was logged. A turned-off agent's tab (FD-123) opens its page, which says it is off: not a defect.
 
-**Open.** The project board was not read: the `fabric` MCP server stays disconnected (22 unread at the last read).
-The local install updates itself only after the window has been hidden 10 minutes (ADR-0015); it was not restarted.
+**Published.** 0.8.72 (run 43454405255, 16:07 UTC) and 0.8.73 (`v0.8.73` on `c2f9f48`, run 43459786008, 16:43 UTC):
+`gh release list` shows both, 0.8.73 Latest. FD-230 (PR #497, merge `7b5f3a1`, no behaviour change, ships with the next
+release): the move to Applications rules are pure (`moveSkip`, `offerMove`, `tryMove` in `src/electron/policy.ts`) and
+tested (`test/lifecycle.test.ts` *SCN-044*); SCN-044 is implemented. `npm run check` exit 0, 1188 tests, 0 failed.
 
-**Next task.** When run 43454405255 succeeds, confirm `gh release view v0.8.72` is published and tag `v0.8.73` on the
-merge of FD-229 and watch it; then read the board (`com.list {unread: true}`) and tell fabric-workspace that 0.8.69 to 0.8.72
-shipped (North Star §4, Dashboards row).
+**Open.** The project board was not read: the `fabric` MCP server stays disconnected (22 unread at the last read).
+The local install is 0.8.68: its log says the automatic install waits while a console session runs (ADR-0015); it was
+not restarted.
+
+**Next task.** Read the board (`com.list {unread: true}`) when `fabric` reconnects and tell fabric-workspace that 0.8.69
+to 0.8.73 shipped (North Star §4, Dashboards row); then the remaining draft scenarios: SCN-043 (signed reinstall walk) and
+SCN-100 (waits for the launcher's PC-178).
 
 ## 0.8.69 and 0.8.70: start here (2026-11-13)
 
