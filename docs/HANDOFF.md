@@ -3,7 +3,66 @@
 Updated 2026-10-26 (0.8.7 current, see *0.8.7: start here*; earlier the same day 0.8.6, see *0.8.5: start here* and *Session 2026-10-26: start here*). Earlier: updated 2026-10-25 (0.8.1 current; the consolidation, see *Consolidation 2026-10-25: start here*). Earlier: updated 2026-10-24 (0.7.28). Earlier header: updated 2026-10-07 (0.6.2: 0.6.1 withdrawn for audit HIGH-2, audit fixes, signed feed; 0.6.1: LC-16 in detail updater, Russian by choice; 0.6.0 published 2026-10-06 21:35 UTC; release 0.5.6: third review pass, token latch; release 0.5.5 withdrawn: release audit and its second pass, A2A plan, ADR-0016, ADR-0015 data and updates, FD-05, FD-06, FD-13; Spend and DEC-0021; one entry per agent, ADR-0012; lifecycle contract landed from PR #21, unreleased; CI release rehearsal
 `v0.4.1-rc.1` green; releases move to CI signing; release 0.4.1, MCP links to online services).
 
-Current release: **0.8.75** (published 2026-11-13 20:38 UTC, release run 43497426594, tag `v0.8.75` on `a29954a`). The newest entry below is the one to start from.
+Current release: **0.8.78** (tag `v0.8.78` on `d9a9f1c`, release run 43552666969; `v0.8.77` on `b2c473c` stopped at its Linux checks and was not published). The newest entry below is the one to start from.
+
+## 0.8.78: start here (2026-11-14)
+
+**Asked.** The operator: restore the last work, audit, collect bugs and gaps, finish autonomously to the last release,
+check the board and the North Star; then (screenshot of the Organizations menu) group by organizations PassionCode
+knows or by GitHub owners, both, with a proper UI, and walk the system UI fixing what is off.
+
+**Published.** 0.8.78 (PR #508, merge `d9a9f1c`). It carries:
+- FD-234 (PR #507, merge `b2c473c`): the agents database's audit B1. Service-written text reaches a coding agent fenced
+  as data (`src/core/untrusted.ts`), and a start whose text reads like instructions, or whose pack cannot be written,
+  runs with an explicit ask mode (`askArgs`, `src/core/runtimes.ts`), which also makes a console set to keep prompts
+  keep them through Switchboard (its SB-298 adds a bypass unless a mode is named). 24 blind readings; rows in FD-236,
+  proposals P1 to P9 in FD-235.
+- FD-237: the Organizations menu by one source at a time, Observatory's organizations or GitHub owners (`gh:<owner>`).
+- FD-238: narrow Needs attention rows, the strip by width, words at body size.
+- The two FD-234 tests that drive Open in Terminal run on macOS only; that is what stopped `v0.8.77` on Linux.
+
+**Release run** 43552666969: every job success, published 2026-11-14 04:10:42 UTC (16 files); the feed names darwin-universal,
+win32-x64, win32-arm64, linux-x64 and linux-arm64; this Mac's copy installed it by itself (`main.log`: `update_install
+installed from=0.8.76 to=0.8.78` at 06:55:07 UTC).
+
+**Checks.** `npm run check` exit 0 (1231 tests, 0 failed); `validate.yml` on all five systems (run 43551986054)
+success before the tag; the release run's own checks. e2e not run: the load average stayed near 100 all session
+(other agents' processes), above the 40 floor.
+
+**Board.** Answered the agents database's audit on thread `16093ded` (`bb40ecd9`: B1 closed by FD-234). FD-231's live
+check done on Switchboard 0.7.79 (34 processes, as `ps` counts; reply `a301a82a` on `b401662f`). Still waiting:
+thread `22ad5d46` for BL-1396 (closes FD-232), `@passioncode-ai/passioncode` above 0.2.75 (FD-215).
+
+**Decisions.** A miss or false reading of the instruction heuristic is a row, not a release blocker (FD-236); the fence
+with its random id is the guarantee. A failed release tag is not moved: the next version carries its changes.
+
+**Next task.** FD-236 (1): record a held start (and a saved keep-prompts choice) with the session, so a limit
+continuation and a Switchboard row resume with `askArgs`, not the bypass; then FD-236 (2), one `untrusted` field on
+`service_status`, `list_services` and `audit`. Run `npm run test:e2e` once the load average is under 40.
+
+## 0.8.76 (2026-11-14)
+
+**Audit.** Restored from the 0.8.75 entry, then audited: step 0 (`passioncode doctor` 0.2.75: 29 ok, 9 warn, 0 fail;
+`sshlg-skills update` partial only on the Codex side, deferred for active sessions), the gate on `main` (`npm run check`
+exit 0, 1195 tests, 0 failed), nightly `validate.yml` (green 11-11 to 11-13), the two open issues (#294 is FD-140,
+#26 is FD-12, both unchanged), and the installed 0.8.75's `main.log`. Found and fixed FD-233 (below). Not ours: the
+`hand-overs`/`limit stops cannot be read` lines are Switchboard answering slower than 10 s under load (logged once per
+change; 0.1 to 0.8 s when measured); the 120 s MCP `audit` of this session's server did not reproduce (8 s over stdio).
+AGENTS.md: the MCP server budget is now a physical footprint (all 32 servers at 19.6 to 50.4 MB; their RSS of 63 to 85
+MB counts the shared Electron framework, an empty Electron 44 as Node being 62 MB RSS).
+
+**Published.** 0.8.76 (PR #506, merge `45403f9`, tag `v0.8.76`, release run 43528733950). FD-233: a limit stop waiting
+for room (LC-17) is logged once per reason instead of every 15 s (477 lines on 2026-11-13). Gate exit 0, 1196 tests, 0
+failed; the new test fails on 0.8.75 and passes after; the copy check of the changelog line found nothing.
+
+**Board.** Read 2026-11-14 00:22 Warsaw: 2 unread (fabric-agent-adapter's pulse and SL answers), read and marked. The
+broker's owner took FD-232's request (`19dce343`, their BL-1396); waiting for their commit on thread `22ad5d46`. Told
+fabric-switchboard (`7e5b6d44`, thread `b401662f`) that 0.7.76 still lists 0 Claude Code processes against 30 in `ps`.
+
+**Next task.** Watch thread `b401662f` for a Switchboard release that recognises `claude.exe`, then check Sessions
+against `ps` (FD-231 live check); thread `22ad5d46` for BL-1396 (close FD-232); `npm view @passioncode-ai/passioncode
+version` above 0.2.75 for FD-215. Until then, the next unblocked backlog row; run `npm run test:e2e` once the load
+average is under 40 (it was 147 at 00:35, other agents' processes).
 
 ## 0.8.75: start here (2026-11-13)
 
