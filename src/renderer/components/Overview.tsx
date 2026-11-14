@@ -394,7 +394,7 @@ function hostOf(s: ServiceSnapshot): string {
   try { return new URL(s.descriptor?.origin ?? '').host; } catch { return s.descriptor?.origin ?? ''; }
 }
 
-/** FD-238 (verifier rounds 3 and 4): a strip spend cell shows a word, not a sum ("No spending reported", "unknown"),
+/** FD-238 (verifier rounds 3 and 4): a strip spend cell shows a word, not a sum ("not reported", "unknown"),
  *  when no usage report was read (some may have failed) or every call it reports is unpriced; a word reads at body
  *  size and may wrap. */
 export const spendIsWord = (spend: readonly SpendEntry[] | null, window: 'today' | 'month'): boolean =>

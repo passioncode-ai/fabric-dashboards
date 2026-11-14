@@ -45,7 +45,7 @@ On 2026-10-05 the operator reported five things about the main screen and the se
    *Amended 2026-11-14 (FD-238):* in a card 820 px wide or narrower the four cells do not fit; there the
    reason takes a second line under the name and the actions stay on the first line, so no button runs past
    the card's edge. The strip's cells lay out by width (at least 120 px each) and a word in place of a number
-   ("No spending reported", "unknown") reads at body size.
+   ("not reported", "unknown") reads at body size.
 5. **Denser cards.**
    - The grid fits four cards across a 1440 px window, and the cards in a row share one height.
    - Tile values take one line, labels at most two, and the full text is the tile's tooltip.

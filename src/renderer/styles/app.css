@@ -220,7 +220,7 @@ h3 { font-size: var(--pc-type-card); margin: 0; font-weight: 600; }
 .strip button.cell:hover:not(:disabled) { border-color: var(--pc-border-strong); }
 .strip button.cell:disabled { cursor: default; }
 .strip .v { font-size: var(--pc-type-section); font-weight: 600; font-variant-numeric: tabular-nums; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-/* FD-238: a word in place of a number ("not reported") reads at the label's weight on two lines at most, never broken mid-word. */
+/* FD-238: a word in place of a number ("not reported", "unknown") reads at body size and wraps between words. */
 .strip .v.v-text { font-size: var(--pc-type-body); white-space: normal; overflow: visible; }
 .strip .v .of { font-size: var(--pc-type-body); color: var(--pc-text-muted); font-weight: 400; }
 .strip .l { font-size: var(--pc-type-meta); color: var(--pc-text-muted); line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; } /* W-4: two lines before an ellipsis — Russian labels are long */
