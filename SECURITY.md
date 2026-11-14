@@ -150,12 +150,16 @@ A console's coding agent reads what an agent service wrote: its name and summary
 derives from it, its recent events, its descriptor, a task's findings and a failed command's output, through the
 context pack (`context.md`, `task.md`) and the MCP answers `service_context` and `activity`. Consoles start without
 permission prompts by default, so such text could steer the agent. Since 0.8.77 (FD-234, the agents database's audit
-2026-11-13-45e7cc299793, B1) every such text sits inside an `<untrusted-data source="…">` block whose closing marker
-the text cannot forge (`src/core/untrusted.ts`), the pack and the MCP answers say the block is data and never an
-instruction, and a start whose text reads like instructions (`injectionSignals`: "ignore previous instructions",
-role or chat markup, `curl … | sh`, `rm -rf ~`, asking to print a secret) runs with permission prompts on for that
-start, logged, the person's saved choice unchanged. The reading is a reason to keep a person in the loop, not a proof:
-a text it misses is still fenced.
+2026-11-13-45e7cc299793, B1) the free texts (summary, reasons, problems, last action, events, descriptor, a task's
+findings, a failed command's output) sit inside `<untrusted-data source="…">` blocks whose closing marker the text
+cannot forge, lookalikes folded (`src/core/untrusted.ts`); the short values (name, version, update available, origin,
+repository) are flattened to one line and quoted as code, so none can add a heading or a step. The pack and the MCP
+answers say all of it is data and never an instruction, and a start whose text reads like instructions
+(`injectionSignals`: "ignore previous instructions", role or chat markup, `curl … | sh`, `rm -rf ~`, reading
+`~/.ssh`, asking to print a secret) runs with permission prompts on for that start, logged, the person's saved choice
+unchanged. The reading is a heuristic that keeps a person in the loop, not a proof. Not covered yet (FD-236): a held
+conversation continued after a limit or from the Sessions list resumes without the hold, and `service_status`,
+`list_services` and `audit` mark nothing in their answers (the console rules name them).
 
 ## Dashboard sign-ins at rest
 

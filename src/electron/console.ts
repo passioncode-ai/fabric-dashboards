@@ -519,7 +519,8 @@ export class ConsoleHost {
     try {
       const r = writeTaskOnly({ snapshot: snap, activity: this.o.activity?.(key) ?? [], folder: folder.path, dir: path.join(this.o.packRoot, key), task });
       this.manager.input(key, r.line);
-      this.o.log(`console: ${key} got a ${task.kind} task typed into its running session`);
+      // FD-234: the line is typed with no Enter, so the person still decides; the log says when its text reads like instructions.
+      this.o.log(`console: ${key} got a ${task.kind} task typed into its running session${r.signals.length ? `; its text reads like instructions (${r.signals.join(', ')}): the person sends it` : ''}`);
       return { ok: true };
     } catch (error) {
       return { ok: false, error: (error as Error).message };
