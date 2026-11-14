@@ -67,7 +67,8 @@ service data.
   `fabric-dashboards` entry from Claude Code's `~/.claude.json`, and a later launch puts it back
   or points it at the installed copy; nothing else in that file is changed.
 - **Runs** the agent console's runtime (ADR-0017) when the person presses New session, New agent, Continue
-  last, Fix or Update with coding agent, Set up with my coding agent, or Continue on a Sessions row, when an agent asks through MCP (`console_new`, `console_fix`, `session_new`, `session_action`), on another
+  last, Fix or Update with coding agent, Set up or Fix with my coding agent, Open in Terminal, or Continue or Continue
+  now on a Sessions row, when an agent asks through MCP (`console_new`, `console_fix`, `session_new`, `session_action`), on another
   machine over ssh for an agent placed there (FD-199), and when a session stopped on a
   limit is continued (FD-83): the runtime's own CLI found on the login shell's `PATH`, in the folder shown, with
   `ELECTRON_RUN_AS_NODE` and `NODE_OPTIONS` removed. A folder bound to a Fabric Switchboard project

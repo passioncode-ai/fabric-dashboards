@@ -9,7 +9,7 @@
   or when that information cannot be saved, the console starts with permission prompts on (Claude Code, Codex,
   Gemini CLI), also when Switchboard launches it.
 - A Claude Code, Codex or Gemini CLI console set to keep permission prompts now keeps them when Switchboard launches
-  it and when the coding agent's own settings would skip them.
+  it and when the coding agent's own settings would skip them, except a session continued after a usage limit.
 - Open in Terminal now follows the console's saved choice about permission prompts, as the console does, outside a
   folder bound to a Switchboard group (there Switchboard's own setting decides).
 
