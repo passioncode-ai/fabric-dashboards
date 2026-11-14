@@ -19,6 +19,7 @@ export function readOrganizations(file: string): OrganizationsCache {
       // FD-197: the instance context, as the app last read it.
       ...(Array.isArray(raw.platform) ? { platform: raw.platform.filter((x): x is string => typeof x === 'string') } : {}),
       ...(Array.isArray(raw.platformProducts) ? { platformProducts: raw.platformProducts.filter((x): x is string => typeof x === 'string') } : {}),
+      ...(Array.isArray(raw.platformRepositories) ? { platformRepositories: raw.platformRepositories.filter((x): x is string => typeof x === 'string') } : {}),
       ...(record(raw.byWorker) ? { byWorker: record(raw.byWorker) } : {}),
     };
   } catch {

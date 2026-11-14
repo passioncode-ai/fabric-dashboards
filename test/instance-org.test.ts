@@ -92,3 +92,29 @@ test("FD-252: only a product the platform installs in every organization moves t
   assert.deepEqual(organizationOfInstance(listed, { key: 'admin-agent.admin', repository: repo('vendor-ai/inbox'), placement: 'local' }), { name: 'home', label: 'Home', personal: true }, "the registry's own list wins over the default one");
   assert.deepEqual(organizationOfInstance(listed, { key: 'project-observatory.default', repository: repo('vendor-ai/observatory'), placement: 'local' }), { name: 'vendor', label: 'Vendor.ai' });
 });
+
+test('FD-252 (OBS-564): once Observatory marks project rows `platform_product: true`, that mark decides, by repository', () => {
+  const marked = map({ ...REGISTRY, platform_products: ['admin-agent'], projects: [
+    ...REGISTRY.projects.slice(0, 2),
+    { organization: 'vendor', platform_product: true, membership_rules: ['vendor-ai/inbox: the repository'] },
+    { organization: 'vendor', membership_rules: ['vendor-ai/admin: the repository'] },
+  ] });
+  assert.deepEqual(marked.platformRepositories, ['vendor-ai/inbox']);
+  assert.deepEqual(organizationOfInstance(marked, { key: 'fabric-inbox.default', repository: repo('vendor-ai/inbox'), placement: 'local' }), { name: 'home', label: 'Home', personal: true }, 'a marked project runs here as this space\'s own');
+  assert.deepEqual(organizationOfInstance(marked, { key: 'admin-agent.admin', repository: repo('vendor-ai/admin'), placement: 'local' }), { name: 'vendor', label: 'Vendor.ai' }, 'an unmarked one stays its organization\'s, whatever the old lists say');
+  assert.deepEqual(organizationOfInstance(marked, { key: 'fabric-inbox.default', repository: repo('vendor-ai/inbox'), placement: 'remote', origin: 'https://inbox.example' }), { name: 'vendor', label: 'Vendor.ai' }, 'an online copy keeps its organization');
+  const dir = tmp('fd-252-');
+  const file = path.join(dir, 'organizations.json');
+  fs.writeFileSync(file, JSON.stringify(marked));
+  assert.deepEqual(readOrganizations(file).platformRepositories, ['vendor-ai/inbox'], 'the MCP server reads the same mark back');
+});
+
+test('FD-252 (OBS-564): the survey fallback carries the same mark as `platformProduct: true`', async () => {
+  const { addSurveyPage } = await import('../src/core/organizations');
+  const m: OrganizationsCache = { ...EMPTY_ORGANIZATIONS, byRepository: {}, organizations: {} };
+  addSurveyPage(m, { projects: [
+    { organization: { name: 'vendor', label: 'Vendor.ai' }, platformProduct: true, repositories: [{ nameWithOwner: 'vendor-ai/inbox' }] },
+    { organization: { name: 'vendor', label: 'Vendor.ai' }, repositories: [{ nameWithOwner: 'vendor-ai/admin' }] },
+  ] });
+  assert.deepEqual(m.platformRepositories, ['vendor-ai/inbox']);
+});

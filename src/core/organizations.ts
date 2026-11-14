@@ -22,6 +22,9 @@ export interface OrganizationsCache {
   /** FD-252: the products the platform installs in every organization (Observatory's registry `platform_products`, else
    *  PLATFORM_PRODUCTS); only their local instances run in this space as its own. */
   platformProducts?: string[];
+  /** FD-252 (OBS-564, Observatory 0.37.0): the repositories of the projects Observatory marks `platform_product: true`
+   *  (registry row) or `platformProduct: true` (survey); when present it decides, and the product lists above do not. */
+  platformRepositories?: string[];
   /** FD-197: a Cloudflare Worker's name -> the organization of the one account Observatory lists it in (accounts matched
    *  by `match.cloudflare_accounts`); a name listed in two accounts is left out, never guessed. */
   byWorker?: Record<string, string>;
@@ -46,13 +49,14 @@ export function repositoryKey(repository: string | undefined | null): string | n
 export function addSurveyPage(into: OrganizationsCache, page: unknown): string | null {
   const doc = (page && typeof page === 'object' ? page : {}) as { projects?: unknown; nextCursor?: unknown };
   for (const p of Array.isArray(doc.projects) ? doc.projects : []) {
-    const project = (p && typeof p === 'object' ? p : {}) as { organization?: { name?: unknown; label?: unknown }; repositories?: unknown };
+    const project = (p && typeof p === 'object' ? p : {}) as { organization?: { name?: unknown; label?: unknown }; repositories?: unknown; platformProduct?: unknown };
     const name = typeof project.organization?.name === 'string' ? project.organization.name : null;
     if (!name) continue;
     into.organizations[name] = typeof project.organization?.label === 'string' && project.organization.label ? project.organization.label : name;
     for (const r of Array.isArray(project.repositories) ? project.repositories : []) {
       const key = repositoryKey((r as { nameWithOwner?: unknown })?.nameWithOwner as string | undefined);
       if (key && !(key in into.byRepository)) into.byRepository[key] = name;
+      if (key && project.platformProduct === true) addPlatformRepository(into, key);
     }
   }
   return typeof doc.nextCursor === 'string' && doc.nextCursor ? doc.nextCursor : null;
@@ -75,16 +79,21 @@ export function addRegistryProjects(into: OrganizationsCache, doc: unknown): boo
   // FD-197: every organization the operator configured is known by name, so an instance named after one finds it.
   for (const name of Object.keys(d.organization_labels ?? {})) into.organizations[name] ??= labelOf(name);
   for (const p of d.projects) {
-    const project = (p && typeof p === 'object' ? p : {}) as { organization?: unknown; membership_rules?: unknown };
+    const project = (p && typeof p === 'object' ? p : {}) as { organization?: unknown; membership_rules?: unknown; platform_product?: unknown };
     if (typeof project.organization !== 'string' || !project.organization) continue;
     into.organizations[project.organization] ??= labelOf(project.organization);
     for (const rule of Array.isArray(project.membership_rules) ? project.membership_rules : []) {
       const m = typeof rule === 'string' ? /^([A-Za-z0-9][\w.-]*\/[\w.-]+): /.exec(rule) : null;
       const key = m ? repositoryKey(m[1]) : null;
       if (key && !(key in into.byRepository)) into.byRepository[key] = project.organization;
+      if (key && project.platform_product === true) addPlatformRepository(into, key);
     }
   }
   return true;
+}
+
+function addPlatformRepository(into: OrganizationsCache, key: string): void {
+  if (!into.platformRepositories?.includes(key)) into.platformRepositories = [...(into.platformRepositories ?? []), key];
 }
 
 /** FD-197: Observatory's Cloudflare inventory (`registry/cloudflare-account.json`): each account's `organization` (its
@@ -159,7 +168,9 @@ export function organizationOfInstance(cache: OrganizationsCache, s: InstanceCon
   // FD-252: a product the platform installs everywhere, not every repository its organization owns (the organization's
   // own agents, such as its space administrator or its PM agent, stay its own wherever they run).
   const product = s.key.includes('.') ? s.key.slice(0, s.key.indexOf('.')) : s.key;
-  const platformProduct = (cache.platformProducts ?? PLATFORM_PRODUCTS).includes(product);
+  // OBS-564: Observatory's own mark on the project row decides once it is there; before 0.37.0 the product lists do.
+  const repoKey = repositoryKey(s.repository);
+  const platformProduct = cache.platformRepositories ? !!repoKey && cache.platformRepositories.includes(repoKey) : (cache.platformProducts ?? PLATFORM_PRODUCTS).includes(product);
   if (own && platformProduct && s.placement !== 'remote' && cache.personal && cache.platform?.includes(own.name)) return named(cache, cache.personal);
   return own;
 }

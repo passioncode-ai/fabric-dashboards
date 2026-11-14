@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.8.92 - 2026-11-14
+
+### Fixed
+
+- FD-252: which agents run here as this space's own now follows Observatory's own mark on each project
+  (`platform_product`, Observatory 0.37.0), with the built-in list kept until that version is installed.
+
 ## 0.8.91 - 2026-11-14
 
 ### Security
