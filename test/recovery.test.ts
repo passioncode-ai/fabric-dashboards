@@ -446,3 +446,16 @@ test('FD-260 (fabric-switchboard finding baef1df0): a stop whose session a live 
   assert.equal(sessionOpen(s, { dirs: [], args: '', sessions: ids }), true, 'held by a live process: open');
   assert.equal(verdictOf(s, { dirs: [], args: '', sessions: ids }, s.stoppedAt + 1000, () => true), 'open', 'never resumed into a second copy');
 });
+
+test('FD-260 (Switchboard 0.7.83, SB-376): a stop Switchboard reads as live is open; null or an older Switchboard leaves the local read to decide', () => {
+  const row = (live?: unknown) => ({ ready: true, candidates: ['acc-2'], ...(live === undefined ? {} : { live }), stop: { event: `cc-${SID}-1`, session: SID, directory: '/tmp', provider: 'claude', state: 'waiting', stopped_at: (NOW - 60_000) / 1000 } });
+  const [held, free, old, odd] = parseRecovery(JSON.stringify({ ok: true, data: { sessions: [row({ pid: 28198, status: 'busy' }), row(null), row(), row('yes')] } }))!;
+  assert.deepEqual(held!.live, { pid: 28198, status: 'busy' });
+  assert.equal(free!.live, null);
+  assert.equal('live' in old!, false, 'an older Switchboard says nothing');
+  assert.deepEqual(odd!.live, { pid: 0, status: 'unknown' }, 'present but not a pid counts as held: unknown is not none');
+  const nobody = { dirs: [], args: '', sessions: [] };
+  assert.equal(verdictOf(held!, nobody, NOW, () => true), 'open', 'held elsewhere: never resumed into a second copy');
+  assert.equal(sessionOpen(free!, nobody), false);
+  assert.equal(sessionOpen({ ...free!, live: null }, { dirs: [], args: '', sessions: [SID] }), true, 'Switchboard\'s null never overrides a live process this app sees');
+});

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.8.93 - 2026-11-14
+
+### Fixed
+
+- FD-260: a session that stopped on a usage limit is never continued while Switchboard 0.7.83 or later sees it
+  still running in another terminal, beside the app's own check of Claude Code's session files.
+
 ## 0.8.92 - 2026-11-14
 
 ### Fixed

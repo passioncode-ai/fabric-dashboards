@@ -46,6 +46,9 @@ export interface SbStop {
   /** FD-217: the session's transcript as its launch recorded it (a Switchboard home, `homes/<account>/projects/...`);
    *  null when Switchboard names none. Read to learn whether the session went on (FIX-5), never to continue it here. */
   transcript: string | null;
+  /** FD-260 (Switchboard 0.7.83, SB-376): the live Claude Code process that holds this session now, as Switchboard reads
+   *  it; null when it says none holds it, undefined when an older Switchboard does not say. */
+  live?: { pid: number; status: string } | null;
 }
 
 export type WaitReason = 'billing' | 'account_removed' | 'no_account' | 'backoff';
@@ -121,9 +124,17 @@ export function parseRecovery(stdout: string): SbStop[] | null {
       waitReason: typeof row.reason === 'string' && WAIT_REASONS.includes(row.reason) ? row.reason as WaitReason : null,
       launchId: typeof row.launch_id === 'string' && SESSION.test(row.launch_id) ? row.launch_id : null,
       transcript: typeof row.transcript === 'string' && path.isAbsolute(row.transcript) && path.basename(row.transcript).includes(session) && /\.jsonl$/.test(row.transcript) ? row.transcript : null,
+      ...('live' in row ? { live: liveOf(row.live) } : {}),
     });
   }
   return out;
+}
+
+/** FD-260: Switchboard's `live` (SB-376). Anything present but not a pid counts as held: unknown is not "none". */
+function liveOf(v: unknown): { pid: number; status: string } | null {
+  if (v === null) return null;
+  const o = (v && typeof v === 'object' ? v : {}) as { pid?: unknown; status?: unknown };
+  return { pid: typeof o.pid === 'number' && Number.isInteger(o.pid) ? o.pid : 0, status: typeof o.status === 'string' ? o.status.slice(0, 32) : 'unknown' };
 }
 
 export async function recoveryOf(run: Runner, sb: string): Promise<SbRecovery> {
@@ -267,6 +278,7 @@ const real = (p: string) => { try { return fs.realpathSync(p); } catch { return 
 
 /** Whether something may still be writing this session: its folder has a live agent, or a process names its id. */
 export function sessionOpen(stop: SbStop, live: Live): boolean {
+  if (stop.live) return true; // FD-260: Switchboard 0.7.83 (SB-376) sees a live process holding it
   if (live.args.includes(stop.session)) return true;
   if (live.sessions?.includes(stop.session)) return true; // FD-260: a live process holds it, wherever it runs
   const dir = real(stop.dir);
