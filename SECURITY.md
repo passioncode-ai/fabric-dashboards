@@ -143,6 +143,14 @@ service data.
   connection, 64 KB, 5 s, 10 such requests and 30 reads a minute. A web page cannot reach it; another account holds no key; a process of the same user can read the key
   as it can read a token file, which this app does not defend against (below). A socket path longer than the system
   allows, or a pipe another program already holds, leaves the channel closed and says so in the log.
+- **Answers** its window's IPC calls only from the app's own page in its main frame (FD-259): every `ipcMain` handler
+  is wrapped once at start, so a service view, a subframe or a page navigated off the app's file is refused and logged
+  once per address. Only the window and the console drawer load the preload, so this keeps a mistake from opening it.
+- **Asks** a dashboard's external-link and save-file questions one at a time per dashboard, and not again within 2 s
+  of the last one (FD-259), so a page cannot stack dialogs over the window. A coding agent in a console inherits the
+  app's environment minus `ELECTRON_RUN_AS_NODE` and `NODE_OPTIONS`; the app keeps no secret there (tokens are read
+  from their files), and an allowlist would drop the proxy, locale and provider settings a person relies on, so it is
+  not filtered further (decision FD-259, 2026-11-14).
 - **Opens** `fabric-dashboards://` links only for an installed service and a path on that
   service's own origin; any other link is refused with the reason and opens nothing
   ([ADR-0004](docs/adr/0004-deep-links-and-mcp.md)). Outside the app it opens only a

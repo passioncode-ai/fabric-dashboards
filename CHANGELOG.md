@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.8.91 - 2026-11-14
+
+### Security
+
+- FD-259: the app answers its window's calls only from its own page, and a dashboard can show one link or save
+  question at a time, not again within 2 seconds.
+
 ## 0.8.90 - 2026-11-14
 
 ### Security

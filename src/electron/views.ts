@@ -13,6 +13,7 @@ import { appearanceCookie, appearanceValue, loadedBackground, PAGE_SCHEME_SCRIPT
 import { hostView, loopbackOwnerOf, portOf } from '@passioncode-ai/fabric-service-host';
 import { afterCrash, clampRect, dashboardPathOf, loadErrorText, navigation, pageAddress, partitionFor, resolveLink, resumePath, routeLink, ViewSlot } from './policy';
 import { testRemote } from '../core/testhooks';
+import { DialogGate } from '../core/ipc-guard';
 
 /** A view signs in again after a 401 at most this often (an agent owner's finding, 2026-10-05). */
 const RESIGN_EVERY_MS = 60_000;
@@ -46,6 +47,9 @@ interface Entry { view: WebContentsView; origin: string; crashes: number; loaded
 
 export class ServiceViews {
   private readonly views = new Map<string, Entry>();
+  /** FD-259 (F9): external-link and save dialogs, one at a time per dashboard. */
+  private readonly dialogs = new DialogGate();
+  private readonly downloadsGated = new WeakSet<object>();
   private shown: string | null = null;
   private readonly refreshes = new Map<string, symbol>();
   private readonly slot = new ViewSlot();
@@ -168,6 +172,14 @@ export class ServiceViews {
       });
     }
     ses.setPermissionRequestHandler((_wc, _permission, callback) => callback(false));
+    // FD-259 (F9): a download asks where to save one at a time, so a page cannot stack save dialogs over the window.
+    if (!this.downloadsGated.has(ses) && typeof ses.on === 'function') {
+      this.downloadsGated.add(ses); // the partition's session outlives a view; one listener for its life
+      ses.on('will-download', (event, item) => {
+        if (!this.dialogs.take(`download:${snap.key}`)) { event.preventDefault(); this.log(`dashboard: ${snap.key} download refused: another is in progress or just asked`); return; }
+        item.once('done', () => this.dialogs.done(`download:${snap.key}`));
+      });
+    }
     // A dashboard session that ended while the page was open answers 401 on the main frame: sign
     // in again once, on the same page, instead of leaving the operator on the service's 401 text.
     // At most once a minute, so a service that refuses every code cannot loop. Read from the
@@ -260,12 +272,18 @@ export class ServiceViews {
 
   private async external(url: string, origin: string): Promise<void> {
     if (navigation(origin, url) !== 'external') return;
-    const lang = this.lang();
-    const { response } = await dialog.showMessageBox(this.window, {
-      type: 'question', buttons: [t(lang, 'external.open'), t(lang, 'action.cancel')], defaultId: 1, cancelId: 1,
-      message: t(lang, 'external.title'), detail: t(lang, 'external.body', { url }),
-    });
-    if (response === 0) await shell.openExternal(url);
+    const gate = `external:${origin}`;
+    if (!this.dialogs.take(gate)) return; // FD-259 (F9): one at a time per dashboard, not again within 2 s
+    try {
+      const lang = this.lang();
+      const { response } = await dialog.showMessageBox(this.window, {
+        type: 'question', buttons: [t(lang, 'external.open'), t(lang, 'action.cancel')], defaultId: 1, cancelId: 1,
+        message: t(lang, 'external.title'), detail: t(lang, 'external.body', { url }),
+      });
+      if (response === 0) await shell.openExternal(url);
+    } finally {
+      this.dialogs.done(gate);
+    }
   }
 
   /** FD-74: whether this service's current process signed this app in recently enough to skip a login code. */
