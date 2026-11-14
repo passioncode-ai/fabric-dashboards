@@ -9,7 +9,7 @@ import path from 'node:path';
 import { packDir } from './handoff';
 import { commandEnv } from './children';
 import { t, type Lang } from './i18n';
-import { bypassArgs, runtimeArgs, type Runtime } from './runtimes';
+import { askArgs, bypassArgs, runtimeArgs, type Runtime } from './runtimes';
 import { inPlaceArgv, type Binding } from './switchboard';
 
 export interface PtyLike {
@@ -63,8 +63,9 @@ export function planStart(o: { runtime: Runtime; mode: 'new' | 'continue'; folde
   hosted?: boolean }): Plan {
   let args: string[];
   try {
-    // FD-174: without permission prompts, first, so it is a top-level flag even before Codex's `resume`.
-    args = [...(o.bypass === false ? [] : bypassArgs(o.runtime.id)), ...(o.handoff?.before ?? []), ...runtimeArgs(o.runtime, o.mode), ...(o.handoff?.after ?? [])];
+    // FD-174: without permission prompts, first, so it is a top-level flag even before Codex's `resume`. FD-234: with
+    // prompts, an explicit mode, so neither the runtime's own settings nor Switchboard's launch turn them off.
+    args = [...(o.bypass === false ? askArgs(o.runtime.id) : bypassArgs(o.runtime.id)), ...(o.handoff?.before ?? []), ...runtimeArgs(o.runtime, o.mode), ...(o.handoff?.after ?? [])];
   } catch (error) {
     return { kind: 'refused', reason: 'no-continue', detail: (error as Error).message };
   }

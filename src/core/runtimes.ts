@@ -42,6 +42,22 @@ export const BYPASS_ARGS: Readonly<Record<string, readonly string[]>> = {
 export function bypassArgs(runtimeId: string): string[] {
   return [...(BYPASS_ARGS[runtimeId] ?? [])];
 }
+/**
+ * FD-234 (verifier round 18): the arguments that keep a runtime's permission prompts on, whatever its own settings say,
+ * for a start with prompts (the person's choice, or a start held for its context). Naming a mode is also what stops
+ * Switchboard adding its own bypass to a launch (its SB-298 adds one unless the arguments name a permission mode).
+ * Each value read from the installed `--help` and run on 2026-11-14: Claude Code 2.1.299 (`--permission-mode default`
+ * starts and asks), Codex 0.165.0 (`-a on-request`; `untrusted` is refused there), Gemini CLI (`--approval-mode
+ * default`). A runtime with none here keeps its own default, as it has no bypass flag either.
+ */
+export const ASK_ARGS: Readonly<Record<string, readonly string[]>> = {
+  'claude-code': ['--permission-mode', 'default'],
+  codex: ['-a', 'on-request'],
+  'gemini-cli': ['--approval-mode', 'default'],
+};
+export function askArgs(runtimeId: string): string[] {
+  return [...(ASK_ARGS[runtimeId] ?? [])];
+}
 /** The same by Switchboard provider (a session continued after a limit or from the Sessions list). */
 export const bypassArgsOfProvider = (provider: 'claude' | 'codex'): string[] => bypassArgs(provider === 'codex' ? 'codex' : 'claude-code');
 // #endregion bypass-permissions

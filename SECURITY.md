@@ -68,11 +68,13 @@ service data.
   or points it at the installed copy; nothing else in that file is changed.
 - **Runs** the agent console's runtime (ADR-0017) when the person presses New session or Continue
   last, when an agent asks through MCP (`console_new`, `console_fix`), and when a session stopped on a
-  limit or handed over by Switchboard is continued (FD-83, FD-62): the runtime's own CLI found on the login shell's `PATH`, in the folder shown, with
+  limit is continued (FD-83): the runtime's own CLI found on the login shell's `PATH`, in the folder shown, with
   `ELECTRON_RUN_AS_NODE` and `NODE_OPTIONS` removed. A folder bound to a Fabric Switchboard project
-  is started by `switchboard launch` itself, so no token passes through the app. The runtime starts
-  with its own flag that skips permission prompts (SCN-097) unless the console's saved choice turns it off or
-  the start is held for its context (FD-234, below); otherwise it has whatever its settings allow. Reading which
+  is started by `switchboard launch` itself, so no token passes through the app; a hand-over (FD-62) runs
+  `switchboard handovers run`, and Switchboard picks its runtime and flags. The runtime starts with its own flag
+  that skips permission prompts (SCN-097); a console whose saved choice keeps prompts, or a start held for its context
+  (FD-234, below), gets an explicit mode that asks instead. A session continued after a limit or from the Sessions
+  list always gets the skipping flag (FD-236 (1)). A runtime with no known flag starts with its own settings. Reading which
   account a folder uses runs `switchboard --json project show` and `accounts list` (no credentials
   are printed by either).
 - **Allows inline styles** in its window (`style-src 'self' 'unsafe-inline'`), because the
@@ -164,11 +166,11 @@ one character into 18), past that its first 256 K and the last 16 K of the text 
 most 256 K characters of it. The pack and the MCP
 answers (`service_context`, `activity`: an `untrusted` list of fields) say all of it is data and never an instruction, and a start whose text reads like instructions
 (`injectionSignals`: "ignore previous instructions", role or chat markup, `curl … | sh`, `rm -rf ~`, reading
-`~/.ssh` and sending it, asking to print a secret; every descriptor string up to 64 levels deep is read as written, a value that is not a string as its text) starts without the
-flag that turns permission prompts off, for that start (a console or Open in Terminal; a pack that cannot be
-written holds the start too), so the coding agent's own
-permission setting decides each step, logged, the person's saved choice
-unchanged. The reading is a heuristic that keeps a person in the loop, not a proof. Not covered yet (FD-236): a held
+`~/.ssh` and sending it, asking to print a secret; every descriptor string up to 64 levels deep is read as written, a value that is not a string as its text) starts with
+permission prompts on, for that start (a console or Open in Terminal; a pack that cannot be written holds the start
+too): the runtime gets an explicit mode that asks (Claude Code `--permission-mode default`, Codex `-a on-request`,
+Gemini CLI `--approval-mode default`), which neither its own settings nor Switchboard's launch override (Switchboard
+adds its bypass only when the arguments name no mode); logged, the person's saved choice unchanged. The reading is a heuristic that keeps a person in the loop, not a proof. Not covered yet (FD-236): a held
 conversation continued after a limit or from the Sessions list resumes without the hold; a Fix or Update typed into a
 session that already runs is fenced but only logged, not held (the person sends it); the console's own Continue reads only the events listed now, so a conversation that read an instruction-like event continues unheld once that event has scrolled out; the Setup console's `setup.md` carries the launcher doctor's text unfenced, and the Setup and New agent consoles (which carry no service text) are not held when their pack cannot be written; and `service_status`,
 `list_services`, `audit`, `doctor` and `update` mark nothing in their answers (the console rules name them; only
