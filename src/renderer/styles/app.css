@@ -136,8 +136,6 @@ a { color: var(--pc-link); text-decoration: underline; }
 .org-menu-caret svg { width: 14px; height: 14px; }
 .org-menu[open] .org-menu-caret { transform: rotate(180deg); }
 @media (prefers-reduced-motion: reduce) { .org-menu-caret { transition: none; } }
-/* FD-195: Mine, Other organizations and Shared above the organizations themselves. */
-.org-menu-sep { border-top: 1px solid var(--pc-border); margin: var(--pc-space-1) 0; }
 .org-menu { margin: 0 0 var(--pc-space-2); font-size: var(--pc-type-meta); color: var(--pc-text-muted); }
 .org-menu > summary { cursor: pointer; padding: var(--pc-space-1) var(--pc-space-2); border-radius: var(--pc-radius-control); list-style: none; }
 .org-menu > summary:hover, .org-menu > summary:focus-visible { color: var(--pc-text); }

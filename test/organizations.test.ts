@@ -275,6 +275,7 @@ test('FD-237: the menu offers both sources, rows with counts and the person\'s o
   assert.doesNotMatch(org, />Mine<|>Other organizations<|>Shared between organizations</);
   const gh = render('github');
   assert.match(gh, />GitHub: all</);
+  assert.match(render('org', ['acme']), /title="Organizations: Acme"/, 'the hover text is the button\'s own label');
   assert.match(gh, />acme-co<\/span><span class="count">2</);
   assert.match(gh, /Group by GitHub owner/);
   assert.match(render('org', ['@mine']), />Mine<\/span><span class="count">2</, 'a kind chosen before stays visible to clear, with what it keeps');

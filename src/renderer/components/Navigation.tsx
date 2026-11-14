@@ -460,7 +460,6 @@ function OrgMenu({ services, chosen, onChange, grouped, onGroup, source, onSourc
   const kindLabel: Record<string, string> = { [ORG_MINE]: t('orgs.mine'), [ORG_OTHERS]: t('orgs.others'), [ORG_SHARED]: t('orgs.shared') };
   const none = source === 'github' ? t('orgs.noRepository') : t('orgs.none');
   const nameOf = (name: string) => kindLabel[name] ?? (name === '' ? none : rows.find((r) => r.name === name)?.label ?? name.replace(GITHUB_PREFIX, ''));
-  const all = source === 'github' ? t('orgs.allGithub') : t('orgs.all');
   // FD-237: the button names the source and what is chosen ("GitHub: acme-co"), so the open menu does not say "All" twice.
   const picked = chosen.length === 0 ? t('orgs.every') : chosen.length === 1 ? nameOf(chosen[0]!) : t('orgs.count', { count: chosen.length });
   const label = t('orgs.summary', { source: t(source === 'github' ? 'orgs.sourceGithub' : 'orgs.sourceOrg'), value: picked });
@@ -469,7 +468,7 @@ function OrgMenu({ services, chosen, onChange, grouped, onGroup, source, onSourc
   const gone = chosen.filter((n) => !rows.some((r) => r.name === n));
   return (
     <details className="org-menu">
-      <summary aria-label={`${t('orgs.menu')}. ${label}`} title={all}><span className="org-menu-label">{label}</span><span className="org-menu-caret" aria-hidden="true"><Icon name="chevronDown" /></span></summary>
+      <summary aria-label={`${t('orgs.menu')}. ${label}`} title={label}><span className="org-menu-label">{label}</span><span className="org-menu-caret" aria-hidden="true"><Icon name="chevronDown" /></span></summary>
       <div className="org-menu-list" role="group" aria-label={t('orgs.menu')}>
         {/* FD-237: the switch whenever the other source tells two or more apart, so no source is a dead end. */}
         {offered.some((s) => s !== source) && (

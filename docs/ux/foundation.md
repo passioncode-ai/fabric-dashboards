@@ -260,7 +260,7 @@ hunt browser tabs to learn whether an agent is alive or what it did.
 - **Traces:** JTBD-01, JTBD-04, JRN-01/#2, JRN-01/#5; ADR-0014
 - **Acceptance criteria:**
   - Given Overview, when it opens, then a strip shows agents ready, not answering, needing attention, spent today and in 30 days, each as a label over one number.
-  - Given more than three problems, when I look at Needs attention, then three single-line rows show and "Show all" opens the rest.
+  - Given more than three problems, when I look at Needs attention, then three rows show (single-line in a wide card; the reason on a second line in a narrow one, FD-238) and "Show all" opens the rest.
   - Given an embedded dashboard, when I use its toolbar, then I can go back, forward, reload, go home, see the page's address, and copy either the address or a fabric-dashboards:// link to this page — never a login code.
 - **Priority:** should
 - **Status:** proposed
