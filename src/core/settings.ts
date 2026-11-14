@@ -191,7 +191,9 @@ function mergeList(raw: unknown): Settings['layout']['list'] {
 /** FD-237: a change of source with no choice of its own clears the choice, whose names belong to the other source. */
 function listSourceReset(before: Settings['layout']['list'], patch: unknown): { orgs?: string[] } {
   const p = (patch && typeof patch === 'object' ? patch : {}) as { orgSource?: unknown; orgs?: unknown };
-  return p.orgSource !== undefined && p.orgSource !== before.orgSource && p.orgs === undefined ? { orgs: [] } : {};
+  // A source the app does not know reads as `org`, so it changes nothing when the source already is `org`.
+  const next = p.orgSource === undefined ? before.orgSource : p.orgSource === 'github' ? 'github' : 'org';
+  return next !== before.orgSource && p.orgs === undefined ? { orgs: [] } : {};
 }
 
 /** FD-121 (SCN-087): a width from any file reads as one inside the bounds; anything else is the default. */

@@ -159,7 +159,7 @@
   | success | default | — | entries and counts |
   | rail | collapsed | — | icons, state marks and initials; names in tooltips |
 - **Coverage:** src/renderer/App.tsx, src/renderer/components/Navigation.tsx (ModeSwitch, AgentsNav); test/navigation.test.ts
-- **Scenarios:** SCN-001, SCN-006, SCN-017, SCN-022, SCN-033, SCN-035, SCN-044, SCN-047
+- **Scenarios:** SCN-001, SCN-006, SCN-017, SCN-022, SCN-033, SCN-035, SCN-044, SCN-047, SCN-056, SCN-057, SCN-077, SCN-094
 - **Status:** built
 
 ### SCR-09: System dialogs

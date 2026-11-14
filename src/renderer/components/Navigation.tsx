@@ -466,9 +466,16 @@ function OrgMenu({ services, chosen, onChange, grouped, onGroup, source, onSourc
   const toggle = (name: string) => onChange(chosen.includes(name) ? chosen.filter((x) => x !== name) : [...chosen, name]);
   // A value no row offers now (a kind of FD-195, a name gone, the other source's) stays visible, so it can be cleared.
   const gone = chosen.filter((n) => !rows.some((r) => r.name === n));
+  // FD-237 (verifier round 5): a change of source keeps the focus in the menu: on the source chosen, or on the menu's
+  // button when the switch goes away (the new source leaves the other one nothing to tell apart).
+  const choose = (next: OrgSource, from: HTMLElement) => {
+    const menu = from.closest('details');
+    onSource(next);
+    requestAnimationFrame(() => (menu?.querySelector<HTMLElement>('.org-source [aria-checked="true"]') ?? menu?.querySelector<HTMLElement>('summary'))?.focus());
+  };
   return (
     <details className="org-menu">
-      <summary aria-label={`${t('orgs.menu')}. ${label}`} title={label}><span className="org-menu-label">{label}</span><span className="org-menu-caret" aria-hidden="true"><Icon name="chevronDown" /></span></summary>
+      <summary title={label}><span className="org-menu-label">{label}</span><span className="org-menu-caret" aria-hidden="true"><Icon name="chevronDown" /></span></summary>
       <div className="org-menu-list" role="group" aria-label={t('orgs.menu')}>
         {/* FD-237: the switch whenever the other source tells two or more apart, so no source is a dead end. */}
         {offered.some((s) => s !== source) && (
@@ -476,12 +483,10 @@ function OrgMenu({ services, chosen, onChange, grouped, onGroup, source, onSourc
             // FD-237 (verifier round 3): a radio group moves with the arrow keys.
             if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) return;
             e.preventDefault();
-            const next = source === 'org' ? 'github' : 'org';
-            const group = e.currentTarget;
-            if (offered.includes(next)) { onSource(next); requestAnimationFrame(() => group.querySelector<HTMLButtonElement>('[aria-checked="true"]')?.focus()); }
+            choose(source === 'org' ? 'github' : 'org', e.currentTarget);
           }}>
             {(['org', 'github'] as const).filter((s) => s === source || offered.includes(s)).map((s) => (
-              <button key={s} type="button" role="radio" aria-checked={source === s} className="mode-btn org-source-btn" onClick={() => { if (s !== source) onSource(s); }}>{t(s === 'github' ? 'orgs.sourceGithub' : 'orgs.sourceOrg')}</button>
+              <button key={s} type="button" role="radio" aria-checked={source === s} tabIndex={source === s ? 0 : -1} className="mode-btn org-source-btn" onClick={(e) => { if (s !== source) choose(s, e.currentTarget); }}>{t(s === 'github' ? 'orgs.sourceGithub' : 'orgs.sourceOrg')}</button>
             ))}
           </div>
         )}

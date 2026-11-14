@@ -342,3 +342,12 @@ test('FD-238 (verifier rounds 3 and 4): a spend cell reads as a word whenever no
   assert.equal(spendIsWord([report(1.5)], 'month'), false, 'a sum');
   assert.equal(spendIsWord([report(null)], 'month'), true, 'every call unpriced: "unknown"');
 });
+
+test('FD-237 (verifier rounds 5 and 6): an unknown source sent to the store keeps the choice; owners may carry _', async () => {
+  const { SettingsStore } = await import('../src/core/settings');
+  const { githubOwnerOf } = await import('../src/core/organizations');
+  const store = new SettingsStore(fs.mkdtempSync(path.join(os.tmpdir(), 'fd-237-')));
+  store.update({ layout: { list: { orgs: ['acme'] } } });
+  assert.deepEqual(store.update({ layout: { list: { orgSource: 'bogus' as never } } }).layout.list.orgs, ['acme']);
+  assert.equal(githubOwnerOf('https://github.com/acme_emu/x')?.name, 'gh:acme_emu');
+});

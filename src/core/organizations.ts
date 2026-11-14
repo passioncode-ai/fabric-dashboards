@@ -195,9 +195,9 @@ export function githubOwnerOf(repository: string | undefined | null): Organizati
   // The owner of a repository path after the host: `https://github.com/Acme/x/tree/main/y`, `github.com/acme/x`,
   // `ssh://git@github.com/acme/x`, `git+https://…`, `git@github.com:acme/x.git`, or a bare `owner/name`. Its case is
   // kept for the label; a GitHub page that is not an owner's (`/orgs/acme`, `/sponsors/acme`) names none.
-  const m = /^(?:(?:git\+)?(?:https?|ssh|git):\/\/(?:[^@/]+@)?)?(?:www\.)?github\.com(?::\d+)?\/([A-Za-z0-9][A-Za-z0-9-]{0,38})(?:\/[\w.-]+)?(?:[/?#]|$)/i.exec(r)
-    ?? /^git@github\.com:([A-Za-z0-9][A-Za-z0-9-]{0,38})\//i.exec(r)
-    ?? /^([A-Za-z0-9][A-Za-z0-9-]{0,38})\/[\w.-]+$/.exec(r);
+  const m = /^(?:(?:git\+)?(?:https?|ssh|git):\/\/(?:[^@/]+@)?)?(?:www\.)?github\.com(?::\d+)?\/([A-Za-z0-9][A-Za-z0-9_-]{0,38})(?:\/[\w.-]+)?(?:[/?#]|$)/i.exec(r)
+    ?? /^git@github\.com:([A-Za-z0-9][A-Za-z0-9_-]{0,38})\//i.exec(r)
+    ?? /^([A-Za-z0-9][A-Za-z0-9_-]{0,38})\/[\w.-]+$/.exec(r);
   if (!m || NOT_OWNERS.has(m[1]!.toLowerCase())) return null;
   return { name: `${GITHUB_PREFIX}${m[1]!.toLowerCase()}`, label: m[1]! };
 }
