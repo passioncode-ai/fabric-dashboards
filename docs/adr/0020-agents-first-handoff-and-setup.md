@@ -107,7 +107,8 @@ service wrote as plain lines, while consoles start without permission prompts. S
   brief and the first prompt too (the task file's path is quoted as code: ``Do the task in `<task.md>`.``) (`src/core/untrusted.ts`, `src/core/handoff.ts`).
 - A start whose text reads like instructions (`injectionSignals`), or whose pack cannot be written, starts with
   an explicit mode that asks (`askArgs`, `src/core/runtimes.ts`) for that start, a console or *Open in Terminal*,
-  which the runtime's settings and Switchboard's launch both respect; the saved choice is unchanged
+  which the runtime's settings and Switchboard's launch both respect (OpenCode and Cursor CLI have none: their skip
+  flag is dropped; a Claude Code allow rule still approves its tools, SECURITY.md); the saved choice is unchanged
   (`ConsoleHost.start`). This is the security exception to SCN-097 the operator's bypass rule leaves room for.
 - A key that is not a plain name gets the folder `consoles/key-<digest>/` (`packDir`), and
   `FABRIC_DASHBOARDS_SERVICE` carries that folder's name, so no path or variable handed to a runtime carries the key.

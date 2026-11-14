@@ -6,11 +6,12 @@
 
 - FD-234: what an agent service writes (its summary, reasons, events, descriptor, a command's output) now reaches a
   console's coding agent marked as data, never as instructions. When that text reads like instructions to the agent,
-  or when that information cannot be saved, the console starts with permission prompts on, also when Switchboard
-  launches it.
-- A console set to keep permission prompts now keeps them when Switchboard launches it and when the coding agent's
-  own settings would skip them.
-- Open in Terminal now follows the console's saved choice about permission prompts, as the console does.
+  or when that information cannot be saved, the console starts with permission prompts on (Claude Code, Codex,
+  Gemini CLI), also when Switchboard launches it.
+- A Claude Code, Codex or Gemini CLI console set to keep permission prompts now keeps them when Switchboard launches
+  it and when the coding agent's own settings would skip them.
+- Open in Terminal now follows the console's saved choice about permission prompts, as the console does, outside a
+  folder bound to a Switchboard group (there Switchboard's own setting decides).
 
 ## 0.8.76 - 2026-11-14
 
