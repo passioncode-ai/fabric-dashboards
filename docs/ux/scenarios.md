@@ -35,7 +35,7 @@
 | SCN-027 | A link that cannot be opened | links | P-01 | ST-011 | validated | 2026-10-12 |
 | SCN-028 | An agent reads and administers services through MCP | agents | P-01 | ST-012, ST-003 | validated | 2026-10-13 |
 | SCN-029 | Open a service from Fabric's agent registry | links | P-01 | ST-011, ST-005, ST-003 | validated | 2026-10-12 |
-| SCN-030 | Online services appear in their own group | overview | P-01 | ST-013, ST-002 | validated | 2026-10-13 |
+| SCN-030 | Online agents appear with the others and say where they run | overview | P-01 | ST-013, ST-002 | validated | 2026-10-13 |
 | SCN-031 | Open an online service's dashboard, signed in | dashboards | P-01 | ST-013, ST-005 | validated | 2026-10-12 |
 | SCN-032 | An online service that cannot be reached says why | health | P-01 | ST-013, ST-004 | validated | 2026-10-14 |
 | SCN-033 | Several instances of one agent read as one agent | products | P-01 | ST-014, ST-002 | validated | 2026-10-13 |
@@ -753,23 +753,23 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 
 ## online
 
-### SCN-030: Online services appear in their own group
+### SCN-030: Online agents appear with the others and say where they run
 - **Persona:** P-01
 - **Feature:** overview
 - **Traces:** ST-013, ST-002 (JTBD-01, JRN-01/#1)
 - **Entry point:** Overview, with a remote descriptor in the services directory (`placement: "remote"`, origin `https://…`)
 - **Preconditions:** the descriptor's token file is readable (0600, mine)
 - **Steps:**
-  1. The app reads the descriptor -> the service appears under **Online**, after the local services, with its state badge, version, build and tiles
-  2. I read the card -> it names the origin's host, so I know it runs online
+  1. The app reads the descriptor -> the agent appears under **Agents** with the ones on this Mac (FD-244: one group, as in the sidebar), with its state badge, version, build and tiles; an online service without a dashboard goes under Services
+  2. I read the card -> it names the origin's host, so I know it runs online; an agent that runs on this Mac and online shows a laptop and a cloud, each in its own place's state colour ("Online: Down" in its tooltip and in what a screen reader reads)
   3. I look for start, stop or restart -> there are none: its platform supervises it
-- **Expected result:** every agent I run, local or online, on one overview, each in the group that says where it runs
-- **Alt paths:** no online service -> the group is not shown; an online service that needs attention also appears in Needs attention, as a local one does
-- **UI elements:** Overview → Online group, service card (host line), state badge
+- **Expected result:** every agent I run, local or online, on one overview, each card saying where it runs
+- **Alt paths:** no agent -> the group is not shown; an online service that needs attention also appears in Needs attention, as a local one does
+- **UI elements:** Overview → Agents group, service card (host line, place icons), state badge
 - **States covered:** success, empty
 - **Errors & recovery:** the token file is missing or readable by others -> the card is "Broken install file" with "The token file cannot be used: <reason>" and the service is never contacted; fix the file and the next scan reads it
 - **Status:** validated
-- **Coverage:** src/renderer/components/Overview.tsx, packages/service-host/src/descriptor.ts, test/remote.test.ts, test/e2e/remote.test.ts
+- **Coverage:** src/renderer/components/Overview.tsx (FD-244: agents, placeStates), packages/service-host/src/descriptor.ts, test/remote.test.ts, test/e2e/remote.test.ts
 - **Product:** unobserved
 
 ### SCN-031: Open an online service's dashboard, signed in
@@ -1254,7 +1254,7 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **Entry point:** the sidebar and Overview
 - **Preconditions:** at least one agent
 - **Steps:**
-  1. User opens the app -> the sidebar lists Pinned, then "Agents" (every agent in one list, on this Mac and online together: one row per agent, its places as icons after the name, a laptop for "On this Mac" ("On this computer" on Windows and Linux, COPY-23), a cloud for "Online", both when it runs in both, then each icon in its own place's state colour with its state in the tooltip, such as "Online: Down" beside a ready laptop, the primary speaking for its own place and otherwise the copy most in need of attention; FD-244) and "Services", each sorted by the chosen sort; Overview still shows "On this Mac", "Online" and "Services" as three groups of cards
+  1. User opens the app -> the sidebar lists Pinned, then "Agents" (every agent in one list, on this Mac and online together: one row per agent, its places as icons after the name, a laptop for "On this Mac" ("On this computer" on Windows and Linux, COPY-23), a cloud for "Online", both when it runs in both, then each icon in its own place's state colour with its state in the tooltip, such as "Online: Down" beside a ready laptop, the primary speaking for its own place and otherwise the copy most in need of attention; FD-244) and "Services", each sorted by the chosen sort; Overview shows the same two groups of cards, "Agents" and "Services" (FD-244)
   2. User opens an agent's row menu and chooses "Show as a service" -> it moves to Services at once, in the sidebar and on Overview; "Show as an agent" moves it back
   3. User restarts the app -> every choice is as it was
 - **Expected result:** the agents the person works with are not mixed with the services that keep them running

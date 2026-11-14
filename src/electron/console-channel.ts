@@ -30,7 +30,8 @@ function answers(address: string): Promise<boolean> {
 
 export async function openChannel(o: ChannelOptions): Promise<Channel | null> {
   const platform = o.platform ?? process.platform;
-  const address = o.address ?? channelAddress(o.userData, platform);
+  const key = newChannelKey();
+  const address = o.address ?? channelAddress(o.userData, platform, undefined, undefined, key); // FD-258: on Windows, named from the key
   const keyFile = path.join(o.userData, CHANNEL_KEY_FILE);
   const now = o.now ?? Date.now;
   fs.mkdirSync(o.userData, { recursive: true, mode: 0o700 });
@@ -41,7 +42,6 @@ export async function openChannel(o: ChannelOptions): Promise<Channel | null> {
       fs.rmSync(address, { force: true }); // left by a killed run
     }
   }
-  const key = newChannelKey();
   const temp = `${keyFile}.${process.pid}.tmp`;
   fs.writeFileSync(temp, key, { mode: 0o600 });
   fs.renameSync(temp, keyFile);

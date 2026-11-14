@@ -66,11 +66,14 @@ export interface OpenConsole {
 }
 export type ChannelAnswer = { ok: true; consoleKey: string } | { ok: true; consoles: OpenConsole[] } | { ok: true; result: Record<string, unknown> } | { ok: false; code: string; detail?: string };
 
-/** Where the channel listens: a socket in the app's data folder, or on Windows a pipe named for this user. */
-export function channelAddress(userData: string, platform: NodeJS.Platform = process.platform, user = os.userInfo().username, home = os.homedir()): string {
+/** Where the channel listens: a socket in the app's data folder, or on Windows a pipe named from this run's key.
+ *  FD-258 (security audit F6): a pipe name another account could predict lets it take the name first and receive the
+ *  key a client sends; named from the key (which only this account can read, in its own profile), nobody else can
+ *  guess it. Without a key (an older caller) the name falls back to the account's, as before 0.8.97. */
+export function channelAddress(userData: string, platform: NodeJS.Platform = process.platform, user = os.userInfo().username, home = os.homedir(), key?: string): string {
   if (platform === 'win32') {
-    // Named for the account (its name and profile, hashed), so two accounts on one machine never share one pipe.
-    const who = crypto.createHash('sha256').update(`${user}\u0000${home}`).digest('hex').slice(0, 16);
+    const seed = key ? `fabric-dashboards-pipe\u0000${key}` : `${user}\u0000${home}`;
+    const who = crypto.createHash('sha256').update(seed).digest('hex').slice(0, key ? 32 : 16);
     return `\\\\.\\pipe\\fabric-dashboards-console-${who}`;
   }
   return path.join(userData, CHANNEL_SOCKET_FILE);

@@ -23,9 +23,9 @@ only (Q-08) and moves to Fabric (FD-105), so MD-12 closes them as not needed.
    app's data folder (`~/Library/Application Support/Fabric Dashboards/`, PL-06 places elsewhere), the folder 0700 and
    the socket 0600, made by the main process at start and removed at quit. A socket file left by a killed run is
    removed at start only when a connect to it is refused (nobody listens). On Windows a named pipe
-   `\\.\pipe\fabric-dashboards-console-<16 hex>` named for the account (its name and profile, hashed), created as the
-   first instance (a second server is refused, so no
-   process can sit on the name first and catch the client's requests).
+   `\\.\pipe\fabric-dashboards-console-<32 hex>` named from this run's key (amendment FD-258 below; before 0.8.97 named
+   for the account, 16 hex), created as the first instance, so no process that cannot read the key can sit on the name
+   first and catch the client's requests.
 2. **A secret on every request.** At start the main process writes 32 random bytes, hex, to `console.key` in the same
    folder (0600 on POSIX; on Windows inside the user's profile, whose ACL keeps it private, as the token rule of
    DEC-0032 reads it). Every request carries it and is refused on a mismatch with a constant-time comparison. The key is
@@ -98,3 +98,11 @@ only (Q-08) and moves to Fabric (FD-105), so MD-12 closes them as not needed.
 - FD-120: the Sessions part is closed as not needed (MD-12); the console part is built, with tests for a wrong key, a
   socket a killed run left, a live channel never taken over, a new key per run, the size and rate limits, and the MCP
   tools with the app closed. A socket path longer than macOS allows (104 bytes) leaves the channel closed, logged.
+
+## Amendment 2026-11-15 (FD-258, security audit F6)
+
+The first-instance rule alone did not keep the name: another account on the same Windows machine could compute the
+account's pipe name, create the pipe before the app and receive the key the MCP server sends. Since 0.8.97 the pipe is
+named from this run's key (SHA-256 of a fixed prefix and the key, 32 hex), so only a process that can read
+`console.key` in this account's profile can know it. The socket on macOS and Linux is unchanged (a 0600 file in a 0700
+folder). Test: `test/console-channel.test.ts`.
