@@ -795,3 +795,7 @@ div.session-group-head h2 { margin: 0; }
 .dispatches h2 { font-size: inherit; margin: 0 0 var(--pc-space-1); }
 .dispatches ul { list-style: none; margin: var(--pc-space-2) 0 0; padding: 0; }
 .dispatches li { gap: var(--pc-space-3); padding: var(--pc-space-1) 0; flex-wrap: wrap; }
+
+/* FD-244: where an agent runs, as small icons after its name: this computer, online, or both. */
+.nav-places { display: inline-flex; gap: 2px; margin-left: auto; flex: none; color: var(--pc-text-muted); }
+.nav-place .icon { width: 12px; height: 12px; }

@@ -1253,7 +1253,7 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **Entry point:** the sidebar and Overview
 - **Preconditions:** at least one agent
 - **Steps:**
-  1. User opens the app -> the sidebar lists Pinned, then "On this Mac" ("On this computer" on Windows and Linux, COPY-23), "Online" and "Services", each sorted by the chosen sort; Overview shows the same three groups of cards
+  1. User opens the app -> the sidebar lists Pinned, then "Agents" (every agent in one list, on this Mac and online together: one row per agent, its places as icons after the name, a laptop for "On this Mac" ("On this computer" on Windows and Linux, COPY-23), a cloud for "Online", both when it runs in both; FD-244) and "Services", each sorted by the chosen sort; Overview still shows "On this Mac", "Online" and "Services" as three groups of cards
   2. User opens an agent's row menu and chooses "Show as a service" -> it moves to Services at once, in the sidebar and on Overview; "Show as an agent" moves it back
   3. User restarts the app -> every choice is as it was
 - **Expected result:** the agents the person works with are not mixed with the services that keep them running
@@ -1262,7 +1262,7 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **States covered:** success, empty
 - **Errors & recovery:** a damaged choice in settings is dropped and the app's guess applies
 - **Status:** validated (test/e2e/focus-console.test.ts (ADR-0017 test, FD-78 steps) passed on the running app, 2026-10-23 00:00 UTC)
-- **Coverage:** src/core/products.ts (categoryOf, arrangeProducts, setKind), src/core/settings.ts (mergeList), src/renderer/App.tsx (RowMenu), src/renderer/components/Overview.tsx, test/listorder.test.ts *FD-78*, test/e2e/focus-console.test.ts *FD-78*
+- **Coverage:** src/core/products.ts (categoryOf, arrangeProducts, setKind, placesOf), src/renderer/components/Navigation.tsx (FD-244), src/core/settings.ts (mergeList), src/renderer/App.tsx (RowMenu), src/renderer/components/Overview.tsx, test/listorder.test.ts *FD-78*, *FD-244* (copy checks `44ea15ec`, `e74b4aa9`, `ca355810`, `d186bd73`, `3bd881d4`, `45b4fd76`, `1b057525`, `35532c3c`, no findings), test/e2e/focus-console.test.ts *FD-78*
 - **Product:** unobserved
 
 ### SCN-072: Hide an agent without stopping it
