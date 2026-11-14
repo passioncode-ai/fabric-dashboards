@@ -3,9 +3,25 @@
 Updated 2026-10-26 (0.8.7 current, see *0.8.7: start here*; earlier the same day 0.8.6, see *0.8.5: start here* and *Session 2026-10-26: start here*). Earlier: updated 2026-10-25 (0.8.1 current; the consolidation, see *Consolidation 2026-10-25: start here*). Earlier: updated 2026-10-24 (0.7.28). Earlier header: updated 2026-10-07 (0.6.2: 0.6.1 withdrawn for audit HIGH-2, audit fixes, signed feed; 0.6.1: LC-16 in detail updater, Russian by choice; 0.6.0 published 2026-10-06 21:35 UTC; release 0.5.6: third review pass, token latch; release 0.5.5 withdrawn: release audit and its second pass, A2A plan, ADR-0016, ADR-0015 data and updates, FD-05, FD-06, FD-13; Spend and DEC-0021; one entry per agent, ADR-0012; lifecycle contract landed from PR #21, unreleased; CI release rehearsal
 `v0.4.1-rc.1` green; releases move to CI signing; release 0.4.1, MCP links to online services).
 
-Current release: **0.8.88** published 2026-11-14 22:53 UTC; 0.8.89 to 0.8.94 merged and tagged in turn by watchers, one after the previous publishes (see *0.8.88 to 0.8.94*). Before: 0.8.87 published 22:22 UTC.
+Current release: **0.8.96** publishing (run 43651837789), 0.8.97 merged and tagged by a watcher once 0.8.96 publishes. 0.8.89 to 0.8.95 were tagged but never published: the release check failed on Windows (the FD-257 test ran git from `/usr/bin`); 0.8.96 ships them. Before: 0.8.88 published 2026-11-14 22:53 UTC.
 
-## 0.8.88 to 0.8.94: start here (2026-11-14)
+## 0.8.95 to 0.8.97: start here (2026-11-15)
+
+**Done.**
+- 0.8.95 (PR #532): FD-244, one status per place on an agent's sidebar row (`placeStates`).
+- 0.8.96 (PR #533, `4058d17`): the FD-257 test runs the machine's own git, so the Windows check passes
+  (`validate.yml` os=all green on the branch, run 43651404845); ships 0.8.89 to 0.8.95.
+- 0.8.97 (PR #534, `f26c85c`): FD-244, Overview's Agents group (this Mac and online together, SCN-030 renamed) with
+  each card's place states; FD-258, the Windows console pipe named from the run's key (ADR-0025 amendment).
+
+**Lesson.** A test that shells out must find its program on every runner: a fixed POSIX path broke six tags at once.
+A chain of tags stops at the first failed one; read each run's result, not only "published".
+
+**Next task.** Merge `test/fd-251-e2e-defaults` once its e2e watcher runs green; FD-244's last part (another
+organization's copy out of the operator's row) needs a design: pins, hidden and off are stored by product id in about
+ten places (`productIdOf` callers); FD-261 when Switchboard ships `capacity`; FD-246, FD-247, FD-248.
+
+## 0.8.88 to 0.8.94 (2026-11-14)
 
 **Asked.** The operator: «дальше».
 
