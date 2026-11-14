@@ -3,9 +3,35 @@
 Updated 2026-10-26 (0.8.7 current, see *0.8.7: start here*; earlier the same day 0.8.6, see *0.8.5: start here* and *Session 2026-10-26: start here*). Earlier: updated 2026-10-25 (0.8.1 current; the consolidation, see *Consolidation 2026-10-25: start here*). Earlier: updated 2026-10-24 (0.7.28). Earlier header: updated 2026-10-07 (0.6.2: 0.6.1 withdrawn for audit HIGH-2, audit fixes, signed feed; 0.6.1: LC-16 in detail updater, Russian by choice; 0.6.0 published 2026-10-06 21:35 UTC; release 0.5.6: third review pass, token latch; release 0.5.5 withdrawn: release audit and its second pass, A2A plan, ADR-0016, ADR-0015 data and updates, FD-05, FD-06, FD-13; Spend and DEC-0021; one entry per agent, ADR-0012; lifecycle contract landed from PR #21, unreleased; CI release rehearsal
 `v0.4.1-rc.1` green; releases move to CI signing; release 0.4.1, MCP links to online services).
 
-Current release: **0.8.79** (tag `v0.8.79` on `9454920`, release run 43618675824). Before it 0.8.78 (tag `v0.8.78` on `d9a9f1c`, run 43552666969; `v0.8.77` was not published). The newest entry below is the one to start from.
+Current release: **0.8.80** published (run 43622051182, 18:06 UTC); 0.8.81, 0.8.82 and 0.8.83 are merged and tagged in turn by a watcher (see *0.8.80 to 0.8.83*). Before: 0.8.79 (tag `v0.8.79` on `9454920`, run 43618675824).
 
-## 0.8.79: start here (2026-11-14)
+## 0.8.80 to 0.8.83: start here (2026-11-14)
+
+**Asked.** The operator: «перезапусти что упало и продолжи».
+
+**Done.**
+- 0.8.80 (PR #512, `be99f45`, published 18:06 UTC): FD-252, the platform rule (FD-197) applies only to products the
+  platform installs everywhere (`platform_products` in Observatory's registry, else `PLATFORM_PRODUCTS`); answered
+  Observatory on board thread `c5d9cdc9` (`5a5ddc0a`), asking it to publish the list.
+- 0.8.81 (PR #513, `98f493d`, tag `v0.8.81`, run 43624741875): FD-244 part 1, one Agents list after Pinned with place
+  icons (SCN-071).
+- 0.8.82 (PR #514, `f7f0974`): FD-245, the instance switch inside the one-line header (SCN-034).
+- 0.8.83 (PR #515, `56f066e`): FD-241, the task line on every agent page (SCN-107; walked end to end on the built app).
+- Tags 0.8.82 and 0.8.83 are pushed by background watchers after the previous release publishes.
+
+**Not restarted.** The failed Claude Code console of the SEO agent: MCP `console_new` answers `admission` (LC-17, disk):
+the volume swings between 3.3 and 6.6 GB free under other agents' writes, below the 5 GB a session needs. Freed
+what is ours to free (`npm run clean`, npm cache, `uv cache prune`, `brew cleanup -s`); `cleanupPeriodDays` was
+already 14. The rest (simulator runtimes, other agents' caches, VM disks, transcripts by hand) is not ours.
+
+**Checks.** `npm run check` exit 0 on each (1238 to 1240 tests, 0 failed); built-app screenshots for each UI change;
+copy checks with no findings (report ids in SCN-071, SCN-107 and the backlog rows).
+
+**Next task.** FD-244 part 2 (Overview's groups, a status per place, another organization's copy out of the operator's
+row), FD-242 (console close frees memory, measured), FD-251 (e2e on `main`); retry the SEO agent's console once the
+disk has 5 GB free.
+
+## 0.8.79 (2026-11-14)
 
 **Asked.** The operator (session `36babb6c`, a long voice note): audit what is done and not, collect it in one place, then
 the dashboard's next work: compact reorderable top tabs; a task line at the top of every agent page and the Fabric page;
