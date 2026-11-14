@@ -1438,7 +1438,7 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **States covered:** success
 - **Errors & recovery:** money, publishing to people and secrets stay under the agents' and services' own rules (doors, limits, checks), not a permission dialog
 - **Status:** implemented (2026-11-07: `test/console.test.ts` *FD-174*, `test/handoff.test.ts`, `test/recovery.test.ts`, `test/sessions.test.ts`; the FD-234 hold 2026-11-14: `test/untrusted.test.ts`)
-- **Coverage:** src/core/runtimes.ts, src/core/consoles.ts, src/electron/console.ts, test/console.test.ts
+- **Coverage:** src/core/runtimes.ts, src/core/consoles.ts, src/electron/console.ts, src/core/untrusted.ts (the FD-234 hold), test/console.test.ts, test/untrusted.test.ts
 - **Product:** unobserved
 
 ### SCN-096: Fabric opens a console session here

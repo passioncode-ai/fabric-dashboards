@@ -67,12 +67,12 @@ const SIGNALS: readonly [string, RegExp][] = [
   ['ignore-instructions', /(игнорируй|забудь|проигнорируй)[^.\n]{0,40}(инструкци|правил|указани)/i],
   ['role-change', /\byou are now (an? |the )?(admin|root|system|developer|assistant|agent|unrestricted|jailbroken)\b|\bnew instructions?\s*:/i],
   ['system-prompt', /\b(reveal|print|show|ignore|override|repeat)\b[^.\n]{0,20}\bsystem (prompt|message)\b|(покажи|игнорируй)[^.\n]{0,20}системн(ый|ое) (промпт|сообщение)/i],
-  ['chat-markup', /<\/?\s*(system|assistant|tool_call|function_calls?)\s*>|\[INST\][^\n]{0,300}\[\/INST\]|<\|im[ _](start|end)\|>/i],
+  ['chat-markup', /<\/?\s*(system|assistant|tool[ _]call|function[ _]calls?)\s*>|\[INST\][^\n]{0,300}\[\/INST\]|<\|im[ _](start|end)\|>/i],
   ['pipe-to-shell', /\b(curl|wget)\b[^\n|]{0,200}\|\s*(sudo\s+)?["']?(\/bin\/)?(ba|z|da|k)?sh\b/i],
   ['pipe-to-shell', /\b(ba|z)?sh\s+-c\s+["']?\$\(\s*(curl|wget)\b|\b(curl|wget)\b[^\n&]{0,200}&&\s*(sudo\s+)?(ba|z)?sh\b/i],
   ['destructive-command', /\brm\s+-[a-qs-z]*r[a-z]*\s+["']?(~\/?|\$\{?HOME\}?\/?|\/)\*?["']?(\s|$|[`'"\];])|\bmkfs(\.\w+)?\s+\/dev\/|\bdd\s+if=[^\n]{0,100}\bof=\/dev\/(r?disk|sd|nvme|hd)/i],
   ['secret-exfiltration', /\b(cat|read|copy)\s+[^\n:]{0,40}\.(ssh|aws|gnupg|config\/gh)\b[^\n]{0,60}\b(post|send|upload|paste|curl)\b|\b(send|post|upload|paste)\s+[^\n:]{0,40}\.(ssh|aws|gnupg|config\/gh)\b[^\n]{0,40}\bto\s+\S/i],
-  ['secret-exfiltration', /\b(print|send|post|upload|reveal|show|echo|paste)\s+(?!\/)[^.\n]{0,30}\b(your|all|every)\s+(tokens?|secrets?|api[ _-]?keys?|passwords?|credentials)\b[^.\n]{0,30}(\bto (me|us)\b|\bto https?:\/\/|\bhere\b|\bin (the|your) (reply|answer|chat|output)\b)|\b(print|send|post|upload|reveal|cat|paste)\s+(?!\/)[^.\n]{0,30}(\.env\b|id_rsa|id_ed25519)/i],
+  ['secret-exfiltration', /\b(print|send|post|upload|reveal|show|echo|paste)\s+(?!\/)[^.\n]{0,30}\b(your|all|every)\s+(tokens?|secrets?|api[ _-]?keys?|passwords?|credentials)\b[^.\n]{0,30}(\bto (me|us)\b|\bto https?:\/\/|\bhere\b|\bin (the|your) (reply|answer|chat|output)\b)|\b(print|send|post|upload|reveal|cat|paste)\s+(?!\/)[^.\n]{0,30}(\.env\b|id[ _]rsa|id[ _]ed25519)/i],
   ['fence-marker', /<\s*(\/\s*)?untrusted[-_\s\u2010-\u2015]{0,8}d[a\u0430]t[a\u0430]|&lt;\s*(\/\s*)?untrusted|&#(60|x3c);\s*(\/\s*)?untrusted/iu],
 ];
 

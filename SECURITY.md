@@ -66,11 +66,13 @@ service data.
   (settings, activity) and logs under `~/Library/Logs/Fabric Dashboards/`. Uninstall removes the
   `fabric-dashboards` entry from Claude Code's `~/.claude.json`, and a later launch puts it back
   or points it at the installed copy; nothing else in that file is changed.
-- **Runs** the agent console's runtime (ADR-0017) only when the person presses New session or
-  Continue last: the runtime's own CLI found on the login shell's `PATH`, in the folder shown, with
+- **Runs** the agent console's runtime (ADR-0017) when the person presses New session or Continue
+  last, when an agent asks through MCP (`console_new`, `console_fix`), and when a session stopped on a
+  limit or handed over by Switchboard is continued (FD-83, FD-62): the runtime's own CLI found on the login shell's `PATH`, in the folder shown, with
   `ELECTRON_RUN_AS_NODE` and `NODE_OPTIONS` removed. A folder bound to a Fabric Switchboard project
-  is started by `switchboard launch` itself, so no token passes through the app. The console is the
-  person's own terminal: the runtime has whatever their runtime settings allow. Reading which
+  is started by `switchboard launch` itself, so no token passes through the app. The runtime starts
+  with its own flag that skips permission prompts (SCN-097) unless the console's saved choice turns it off or
+  the start is held for its context (FD-234, below); otherwise it has whatever its settings allow. Reading which
   account a folder uses runs `switchboard --json project show` and `accounts list` (no credentials
   are printed by either).
 - **Allows inline styles** in its window (`style-src 'self' 'unsafe-inline'`), because the
@@ -157,7 +159,7 @@ guarantee. Common forms of the marker inside the text (any case or spacing, full
 are also made inert, as a second line, not every lookalike (`src/core/untrusted.ts`). The short
 values (the service's key, name, version, update available, origin, repository) are flattened to one line and quoted as code, in
 headings, the brief, the first prompt and a typed task line too; a key that is not a plain name gets a
-pack folder named by its digest, so no path handed to a runtime carries it, so none can add a heading or a step. Every pattern is linear; a text is read whole up to 256 K characters after NFKC folding (an invisible character counts as one space; NFKC can grow
+pack folder named by its digest, so no path handed to a runtime carries it, so none can add a heading or a step. Every pattern is linear; a text is read whole up to 256 K characters (UTF-16 code units, as every length here) after NFKC folding (an invisible character counts as one space; NFKC can grow
 one character into 18), past that its first 256 K and the last 16 K of the text as written, and a block holds at
 most 256 K characters of it. The pack and the MCP
 answers (`service_context`, `activity`: an `untrusted` list of fields) say all of it is data and never an instruction, and a start whose text reads like instructions
