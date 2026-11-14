@@ -213,7 +213,7 @@ export interface DescriptorEntry {
  * problem, never a throw; an absent directory is an empty list. Anything else the directory
  * itself refuses (not a directory, no permission) is thrown for the caller to report.
  */
-export function readDirectory(dir: string, platform: NodeJS.Platform = process.platform): DescriptorEntry[] {
+export function readDirectory(dir: string, platform: NodeJS.Platform = process.platform, uid: number | undefined = process.getuid?.()): DescriptorEntry[] {
   let names: string[];
   try {
     names = fs.readdirSync(dir).filter((n) => n.endsWith('.json') && !n.startsWith('.')).sort();
@@ -223,6 +223,9 @@ export function readDirectory(dir: string, platform: NodeJS.Platform = process.p
   }
   // DEC-0069: an app's descriptor (`lifecycle.manager: person`) says the app is installed, never that it
   // runs, and may name no origin: it is not a service to probe, so it is not among the entries returned.
+  // FD-256 (security audit F4): a descriptor names commands this app runs (`doctor`, `update`) and paths it opens, so a
+  // folder or a file another user owns, or that group or others may write, is refused as a token file is.
+  const folderProblem = writableByOthers(dir, platform, uid, 'the services folder');
   return names.flatMap((name) => {
     const entry = readEntry(name);
     return entry.descriptor?.lifecycle.manager === 'person' ? [] : [entry];
@@ -230,6 +233,8 @@ export function readDirectory(dir: string, platform: NodeJS.Platform = process.p
   function readEntry(name: string): DescriptorEntry {
     const file = path.join(dir, name);
     const stem = name.slice(0, -'.json'.length);
+    const unsafe = folderProblem ?? writableByOthers(file, platform, uid, 'the descriptor');
+    if (unsafe) return { path: file, key: stem, descriptor: null, problems: [unsafe] };
     let raw: unknown;
     try {
       raw = JSON.parse(fs.readFileSync(file, 'utf8'));
@@ -247,6 +252,17 @@ export function readDirectory(dir: string, platform: NodeJS.Platform = process.p
     }
     return { path: file, key, descriptor: problems.length ? null : d, problems };
   }
+}
+
+/** FD-256: why a path is not this user's own to trust (another owner, or writable by group or others); null when it is,
+ *  on Windows (the profile's ACL decides there), or when it cannot be read (the read itself then reports it). */
+export function writableByOthers(p: string, platform: NodeJS.Platform, uid: number | undefined, what: string): string | null {
+  if (platform === 'win32' || uid === undefined) return null;
+  let st: fs.Stats;
+  try { st = fs.statSync(p); } catch { return null; }
+  if (st.uid !== uid) return `${what} belongs to another user (uid ${st.uid}), so it is not trusted`;
+  if (st.mode & 0o022) return `${what} can be changed by other users (mode ${(st.mode & 0o777).toString(8).padStart(4, '0')}), so it is not trusted; chmod go-w fixes it`;
+  return null;
 }
 
 /** FAC-SEM-010: which entries claim a port or an id.instance another entry claims. */
