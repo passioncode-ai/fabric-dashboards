@@ -714,7 +714,7 @@ async function askChannel(deps: Deps, request: { op: ChannelOp; service?: string
   let key: string;
   try { key = fs.readFileSync(path.join(userData, CHANNEL_KEY_FILE), 'utf8').trim(); } catch { throw new ToolError(notRunning); }
   return new Promise<ChannelAnswer>((resolve, reject) => {
-    const socket = net.connect(deps.channelAddress?.(userData) ?? channelAddress(userData));
+    const socket = net.connect(deps.channelAddress?.(userData) ?? channelAddress(userData, process.platform, undefined, undefined, key)); // FD-258
     let buffer = '';
     const timer = setTimeout(() => { socket.destroy(); reject(new ToolError('the app did not answer within 15 s')); }, 15_000);
     socket.on('connect', () => socket.write(`${JSON.stringify({ key, ...request })}\n`));

@@ -37,6 +37,13 @@ test('ADR-0025: a request is read strictly, the key in constant time, and at mos
   assert.equal(limit.take(1011), false, 'the eleventh in a minute');
   assert.equal(limit.take(61_011), true, 'a minute later');
   assert.match(channelAddress('C:\\U', 'win32', 'ann', 'C:\\Users\\ann'), /^\\\\\.\\pipe\\fabric-dashboards-console-[0-9a-f]{16}$/);
+  // FD-258 (security audit F6): named from this run's key, so another account cannot predict it and take it first.
+  const k1 = 'a'.repeat(64), k2 = 'b'.repeat(64);
+  assert.match(channelAddress('C:\\U', 'win32', 'ann', 'C:\\Users\\ann', k1), /^\\\\\.\\pipe\\fabric-dashboards-console-[0-9a-f]{32}$/);
+  assert.equal(channelAddress('C:\\U', 'win32', 'ann', 'C:\\Users\\ann', k1), channelAddress('C:\\U', 'win32', 'bob', 'C:\\Users\\bob', k1), 'the key alone names it: the app and its MCP server agree');
+  assert.notEqual(channelAddress('C:\\U', 'win32', 'ann', 'C:\\Users\\ann', k1), channelAddress('C:\\U', 'win32', 'ann', 'C:\\Users\\ann', k2), 'a new run, a new name');
+  assert.notEqual(channelAddress('C:\\U', 'win32', 'ann', 'C:\\Users\\ann', k1), channelAddress('C:\\U', 'win32', 'ann', 'C:\\Users\\ann'), 'never the account\'s predictable name');
+  assert.equal(channelAddress('/d', 'darwin', 'ann', '/Users/ann', k1), path.join('/d', 'console.sock'), 'the socket keeps its 0600 file in a 0700 folder');
   assert.notEqual(channelAddress('C:\\U', 'win32', 'ann', 'C:\\Users\\ann'), channelAddress('C:\\U', 'win32', 'bob', 'C:\\Users\\bob'), 'one pipe per account');
   assert.equal(channelAddress('/d', 'darwin'), path.join('/d', 'console.sock'));
 });

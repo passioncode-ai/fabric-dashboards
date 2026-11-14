@@ -135,7 +135,8 @@ service data.
   confirmed absent and the caller passed `fallback=if_absent` (the default is `never`, FD-109).
 - **Accepts** requests from its own MCP server on a per-user channel and nothing else (FD-120)
   ([ADR-0025](docs/adr/0025-the-console-channel.md)): a Unix socket 0600 in a 0700 data folder, or on Windows a
-  first-instance named pipe, each request carrying a key rewritten at every start (`console.key`, never logged or
+  first-instance named pipe named from this run's key, which another account cannot read and so cannot guess and take
+  first (FD-258), each request carrying a key rewritten at every start (`console.key`, never logged or
   returned), two operations (start a console session, start a fix in one) and one read (the consoles open now: ids,
   folder and start time, never what a console printed; FD-166) and, FD-175, the window's own buttons through their own
   code: a Settings change limited to the fields Settings offers (a console's folder or the Sessions records are refused),
