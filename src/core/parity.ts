@@ -19,7 +19,7 @@ export const PARITY: Record<keyof typeof CHANNELS, Route> = {
   spend: { tool: 'spend' },
   load: { tool: 'load' },
   activity: { tool: 'activity' },
-  activitySeen: { gap: 'FD-249: marking Activity read' },
+  activitySeen: { person: 'marks what the person has seen; an agent marking it would hide news from them (FD-249)' },
   settings: { tool: 'settings' },
   settingsUpdate: { tool: 'settings' },
   settingsPush: { window: 'the main process pushes settings to its page' },
@@ -42,7 +42,7 @@ export const PARITY: Record<keyof typeof CHANNELS, Route> = {
   navigate: { tool: 'open' },
   navigateTake: { tool: 'open' },
   routeChanged: { window: 'the page reports where it is' },
-  rescan: { gap: 'FD-249: Rescan the services folder' },
+  rescan: { tool: 'list_services' }, // FD-249: the MCP server reads the services folder at every call; nothing to rescan
   serviceGuide: { tool: 'service_context' },
   updateRestart: { tool: 'app_update' },
   updateCheck: { tool: 'app_update' },

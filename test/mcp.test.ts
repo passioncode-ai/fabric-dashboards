@@ -987,3 +987,32 @@ test('FD-237: list_services takes gh:<owner>, as the menu\'s GitHub source does'
   assert.equal((await tools.listServices(deps, ['gh:example'])).services.length, 1);
   assert.equal((await tools.listServices(deps, ['gh:someone-else'])).services.length, 0);
 });
+
+test('FD-249: arrange moves an agent one place in its section and its open tab one place, as the sidebar and the tabs do', async () => {
+  const w = world();
+  const dir = w.deps.servicesDir();
+  for (const id of ['alpha-agent', 'zulu-agent']) {
+    fs.writeFileSync(path.join(dir, `${id}.default.json`), JSON.stringify({ ...DESCRIPTOR, id, name: id, origin: `http://127.0.0.1:${id === 'alpha-agent' ? 47301 : 47302}`, lifecycle: { ...DESCRIPTOR.lifecycle, label: `com.example.${id}` } }));
+  }
+  const userData = tmp('fd-arrange-move-');
+  const file = path.join(userData, 'settings.json');
+  w.deps.settingsFile = () => file;
+  const read = () => JSON.parse(fs.readFileSync(file, 'utf8')).layout;
+  await tools.arrange(w.deps, KEY, 'pin'); // writes the file; then unpin to move in the agents list
+  await tools.arrange(w.deps, KEY, 'unpin');
+  const up = await tools.arrange(w.deps, KEY, 'move-up');
+  assert.equal(up.changed, true);
+  assert.equal(read().list.sort, 'manual', 'a move freezes what is shown into the person\'s own order');
+  const order: string[] = read().list.order;
+  assert.ok(order.indexOf('example-agent') < order.indexOf('alpha-agent'), `example-agent moved above alpha-agent: ${order.join(', ')}`);
+  assert.equal((await tools.arrange(w.deps, KEY, 'move-up')).changed, false, 'already first: nothing changes');
+  await tools.arrange(w.deps, KEY, 'move-down');
+  assert.deepEqual(read().list.order.slice(0, 2), ['alpha-agent', 'example-agent']);
+  await assert.rejects(tools.arrange(w.deps, KEY, 'tab-right'), /has no open tab/);
+  const s = JSON.parse(fs.readFileSync(file, 'utf8'));
+  s.layout.tabs = ['alpha-agent.default', KEY, 'zulu-agent.default'];
+  fs.writeFileSync(file, JSON.stringify(s));
+  assert.deepEqual((await tools.arrange(w.deps, KEY, 'tab-left')).tabs, [KEY, 'alpha-agent.default', 'zulu-agent.default']);
+  assert.equal((await tools.arrange(w.deps, KEY, 'tab-left')).changed, false, 'the first tab stays first');
+  assert.deepEqual((await tools.arrange(w.deps, KEY, 'tab-right')).tabs, ['alpha-agent.default', KEY, 'zulu-agent.default']);
+});
