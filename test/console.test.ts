@@ -413,3 +413,32 @@ test('FD-174: every console starts its runtime without permission prompts, with 
   const plan = planStart({ runtime: codex, mode: 'continue', folder: '/r', binding: { kind: 'none' }, switchboard: null, inPlace: false, handoff: { before: ['-c', 'x=1'], after: ['go'] } });
   assert.deepEqual(plan, { kind: 'run', argv: ['/bin/codex', '--dangerously-bypass-approvals-and-sandbox', '-c', 'x=1', 'resume', '--last', 'go'], cwd: '/r' }, 'a top-level flag, before Codex\'s subcommand');
 });
+
+test('FD-242: closing a console leaves nothing running: a child that ignores the hang-up is killed after the grace, even once the runtime itself has exited', { skip: process.platform === 'win32' && 'POSIX process groups' }, async () => {
+  const { spawn } = await import('node:child_process');
+  const dir = tmp('fd-242-');
+  const pidFile = path.join(dir, 'child.pid');
+  // The runtime starts a child that ignores SIGHUP (as an MCP server may), then waits; SIGHUP ends the runtime only.
+  const script = `(trap '' HUP; exec sleep 600) & echo $! > ${shellQuote(pidFile)}; trap 'exit 0' HUP; while :; do sleep 1; done`;
+  const real: SpawnPty = (file, args, o) => {
+    const c = spawn(file, args, { cwd: o.cwd, env: o.env, detached: true, stdio: 'ignore' }); // its own process group, as node-pty makes it
+    return {
+      pid: c.pid!,
+      onData: () => ({ dispose() {} }),
+      onExit: (cb) => { c.on('exit', (code, sig) => cb({ exitCode: code ?? 0, signal: sig ? 1 : undefined })); return { dispose() {} }; },
+      write() {}, resize() {}, kill: (sig) => { try { c.kill(sig as NodeJS.Signals); } catch { /* gone */ } },
+    } as PtyLike;
+  };
+  const m = new ConsoleManager({ spawn: real, env: () => ({ PATH: process.env.PATH ?? '/bin:/usr/bin' }), killGraceMs: 300 });
+  assert.deepEqual(m.start('a.default', { argv: ['/bin/sh', '-c', script], cwd: dir, label: 'fake' }, { cols: 80, rows: 24 }), { ok: true });
+  const alive = (pid: number) => { try { process.kill(pid, 0); return true; } catch { return false; } };
+  const deadline = Date.now() + 5000;
+  while (!fs.existsSync(pidFile) && Date.now() < deadline) await new Promise((r) => setTimeout(r, 20));
+  const child = Number(fs.readFileSync(pidFile, 'utf8'));
+  assert.ok(alive(child), 'the child runs');
+  m.stop('a.default');
+  await new Promise((r) => setTimeout(r, 1200));
+  const gone = !alive(child);
+  if (!gone) try { process.kill(child, 'SIGKILL'); } catch { /* cleanup */ }
+  assert.ok(gone, 'no orphan left after the console closed');
+});

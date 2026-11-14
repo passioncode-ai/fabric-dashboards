@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.8.84 - 2026-11-14
+
+### Fixed
+
+- FD-242: closing a console no longer leaves a coding agent's helper process running. A child that ignored the
+  hang-up (an MCP server, for one) outlived the session when the agent itself exited first; the whole process group
+  is now ended two seconds after a stop.
+
 ## 0.8.83 - 2026-11-14
 
 ### Added
