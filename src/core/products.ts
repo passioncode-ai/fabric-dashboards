@@ -113,6 +113,21 @@ export function placesOf(p: Pick<Product, 'members'>): ('local' | 'online')[] {
   return [...(local ? ['local' as const] : []), ...(remote ? ['online' as const] : [])];
 }
 
+/** FD-244: how much a state asks for attention, most first: a problem, then errors, then a change under way, stopped, ready. */
+function attention(state: string): number {
+  return PROBLEM.has(state) ? 0 : state === 'degraded' ? 1 : state === 'starting' || state === 'stopping' ? 2 : state === 'stopped' ? 3 : 4;
+}
+
+/** FD-244: one status per place on the row: the member each place shows, the primary where it runs, else the member of
+ *  that place that most needs attention (a cloud copy that is down shows red beside a local one that is ready). */
+export function placeStates(p: Pick<Product, 'members' | 'primary'>): { place: 'local' | 'online'; member: ServiceSnapshot }[] {
+  return placesOf(p).map((place) => {
+    const here = p.members.filter((m) => (m.descriptor?.placement === 'remote') === (place === 'online'));
+    const member = here.includes(p.primary) ? p.primary : [...here].sort((a, b) => attention(a.state) - attention(b.state))[0]!;
+    return { place, member };
+  });
+}
+
 /** FD-78: hide or show again; a hidden product keeps its pin and its kind. */
 export function toggleHidden(hidden: readonly string[], id: string): string[] {
   return hidden.includes(id) ? hidden.filter((x) => x !== id) : [...hidden, id];

@@ -2,7 +2,7 @@
 // lists every coding session of this computer by what it needs. The switch above them says which is shown.
 import { useEffect, useRef, useState } from 'react';
 import type { AppStatus, ListSort, Settings as AppSettings, SettingsPatch } from '../../core/types';
-import { moveInSection, offProducts, placesOf, type MoveSection, type Product } from '../../core/products';
+import { moveInSection, offProducts, placeStates, type MoveSection, type Product } from '../../core/products';
 import { filterServices, GITHUB_PREFIX, groupByOrganization, ORG_MINE, ORG_OTHERS, ORG_SHARED, organizationCounts, type OrgSource } from '../../core/organizations';
 import type { SessionGroup, SessionRow } from '../../core/sessions';
 import { groupRows, navLines, projectName, stateShort, waitingForYou } from '../../core/sessions-view';
@@ -205,6 +205,7 @@ export function AgentsNav({ page, status, everyAgent, arranged, products, curren
 function ProductItem({ p, current, open, rail, pinned, menu, drag = null, hiddenRow = false }: { p: Product; current: boolean; open: (key: string) => void; rail: boolean; pinned: boolean; menu: RowActions; drag?: RowDrag | null; hiddenRow?: boolean }) {
   const { t } = useT();
   const s = p.primary;
+  const places = placeStates(p);
   // FD-121 (SCN-087): the line shows above the row the drop lands before, or below the last one.
   const line = drag && drag.dragging && drag.dropAt !== null ? (drag.dropAt === drag.index ? ' drop-before' : drag.dropAt === drag.index + 1 && drag.index === drag.count - 1 ? ' drop-after' : '') : '';
   // FD-129 (UX-23): a right-click, or the context-menu key, opens the row's menu in both widths; the rail has no ⋯ button.
@@ -230,9 +231,10 @@ function ProductItem({ p, current, open, rail, pinned, menu, drag = null, hidden
         <span className={`state state-${shownState(s)}`} aria-hidden="true"><span className="glyph">{GLYPH[shownState(s)]}</span></span>
         {rail && <span className="initials" aria-hidden="true">{initialsOf(nameOf(s))}</span>}
         <span className="nav-label">{nameOf(s)}</span>
-        {!rail && <span className="nav-places" aria-hidden="true">{placesOf(p).map((w) => <span key={w} className={`nav-place nav-place-${w}`} title={t(`place.${w}`)}><Icon name={w === 'local' ? 'laptop' : 'cloud'} /></span>)}</span>}
+        {/* FD-244: each place in its own state's colour when the agent runs in more than one; one place keeps the muted icon. */}
+        {!rail && <span className="nav-places" aria-hidden="true">{places.map(({ place, member }) => <span key={place} className={`nav-place nav-place-${place}${places.length > 1 ? ` state-${shownState(member)}` : ''}`} title={t('join.nameState', { name: t(`place.${place}`), state: t(`state.${shownState(member)}`) })}><Icon name={place === 'local' ? 'laptop' : 'cloud'} /></span>)}</span>}
         {p.memberProblem && <span className="count alert" title={t('nav.memberProblem')} aria-hidden="true">!</span>}
-        <span className="visually-hidden">{t(`state.${shownState(s)}`)}, {placesOf(p).map((w) => t(`place.${w}`)).join(', ')}{p.memberProblem ? `, ${t('nav.memberProblem')}` : ''}</span>
+        <span className="visually-hidden">{t(`state.${shownState(s)}`)}, {places.map(({ place, member }) => (places.length > 1 ? t('join.nameState', { name: t(`place.${place}`), state: t(`state.${shownState(member)}`) }) : t(`place.${place}`))).join(', ')}{p.memberProblem ? `, ${t('nav.memberProblem')}` : ''}</span>
       </button>
       {/* FD-121 (SCN-072): a hidden agent comes back with one press on its eye. */}
       {!rail && hiddenRow && (
