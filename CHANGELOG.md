@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.8.82 - 2026-11-14
+
+### Changed
+
+- FD-245: an agent that runs in several places switches between them in its page's one-line header, with each place's
+  state and an icon for this Mac or online, instead of a separate row above it.
+
 ## 0.8.81 - 2026-11-14
 
 ### Changed
