@@ -79,3 +79,23 @@ test('FD-78: Local, Online and Services; the person moves a product between agen
   assert.deepEqual(toggleHidden(['delta', 'prowl'], 'delta'), ['prowl']);
   assert.deepEqual(ids(arrangeProducts(all, { sort: 'name', pinned: ['delta', 'alpha'], hidden: ['prowl'] }).pinned), ['delta', 'alpha'], 'shown again, its pin comes back');
 });
+
+test('FD-244: after the pinned ones, one list of agents wherever they run; services apart; each row knows its places', async () => {
+  const { arrangeProducts: arrange, groupProducts: group, moveInSection, placesOf } = await import('../src/core/products');
+  const remote = (s: ServiceSnapshot): ServiceSnapshot => ({ ...s, descriptor: { ...s.descriptor, placement: 'remote' } as ServiceSnapshot['descriptor'] });
+  const ps = group([
+    svc('alpha.default', 'Alpha', 'ready'),
+    remote(svc('alpha.cloud', 'Alpha cloud', 'ready')),
+    remote(svc('echo.default', 'Echo', 'ready')),
+    svc('bravo.default', 'Bravo', 'ready'),
+    svc('worker.default', 'Worker', 'ready', null, false),
+  ]);
+  const a = arrange(ps, { sort: 'name', pinned: ['bravo'] });
+  assert.deepEqual(ids(a.agents), ['alpha', 'echo'], 'on this Mac and online in one list, the pinned one not repeated');
+  assert.deepEqual(ids(a.service), ['worker']);
+  assert.deepEqual(placesOf(ps.find((p) => p.id === 'alpha')!), ['local', 'online'], 'one row, both places');
+  assert.deepEqual(placesOf(ps.find((p) => p.id === 'echo')!), ['online']);
+  assert.deepEqual(placesOf(ps.find((p) => p.id === 'bravo')!), ['local']);
+  const moved = moveInSection(a, 'agents', 'echo', 0);
+  assert.deepEqual(moved, { sort: 'manual', order: ['echo', 'alpha', 'worker'] }, 'a move in the one list freezes it as shown');
+});

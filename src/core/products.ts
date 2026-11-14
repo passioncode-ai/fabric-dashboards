@@ -70,6 +70,9 @@ export interface Arranged {
   /** FD-78: agents on this Mac, online agents, and services (no dashboard of their own, or marked so by the person). */
   local: Product[];
   online: Product[];
+  /** FD-244: the sidebar's one list of agents after the pinned ones: on this Mac and online together, one row per
+   *  agent wherever its instances run, sorted as the other sections. */
+  agents: Product[];
   service: Product[];
   /** FD-78: what the person hid. Still watched and still alerting; listed in a folded section at the bottom. */
   hidden: Product[];
@@ -100,7 +103,14 @@ export function arrangeProducts(products: readonly Product[], list: Pick<ListLay
     : byName;
   const rest = products.filter((p) => !isPinned.has(p.id) && !hiddenIds.has(p.id));
   const of = (c: Category) => rest.filter((p) => categoryOf(p, list.kinds) === c).sort(cmp);
-  return { pinned, local: of('local'), online: of('online'), service: of('service'), hidden: products.filter((p) => hiddenIds.has(p.id)).sort(cmp) };
+  return { pinned, local: of('local'), online: of('online'), agents: rest.filter((p) => categoryOf(p, list.kinds) !== 'service').sort(cmp), service: of('service'), hidden: products.filter((p) => hiddenIds.has(p.id)).sort(cmp) };
+}
+
+/** FD-244: where a product's instances run, in a fixed order: on this Mac (`local`), online (`online`). */
+export function placesOf(p: Pick<Product, 'members'>): ('local' | 'online')[] {
+  const remote = p.members.some((m) => m.descriptor?.placement === 'remote');
+  const local = p.members.some((m) => m.descriptor?.placement !== 'remote');
+  return [...(local ? ['local' as const] : []), ...(remote ? ['online' as const] : [])];
 }
 
 /** FD-78: hide or show again; a hidden product keeps its pin and its kind. */
@@ -141,7 +151,7 @@ export function setKind(kinds: Readonly<Record<string, ProductKind>>, p: Product
 
 // #region list-move — docs: docs/ux/scenarios.md#scn-087-arrange-the-sidebar-width-and-order
 /** FD-121 (SCN-087): a section of the sidebar an agent can be moved within; never from one section to another. */
-export type MoveSection = 'pinned' | Category | 'hidden';
+export type MoveSection = 'pinned' | Category | 'agents' | 'hidden';
 
 /** FD-121 (SCN-087): move one agent to `to` (its index in the section as shown) and say what to store. Pinned keeps its
  *  own order (the pin order); any other section freezes what the person sees, every section, into their own order and
@@ -165,7 +175,8 @@ export function moveInSection(arranged: Arranged, section: MoveSection, id: stri
     return { pinned: pinned.map((x) => (shown.has(x) ? moved[next++]! : x)) };
   }
   const of = (c: Exclude<MoveSection, 'pinned'>) => (c === section ? moved : arranged[c].map((p) => p.id));
-  const visible = [...of('local'), ...of('online'), ...of('service'), ...of('hidden')];
+  // FD-244: the one agents list stands for both of its sections.
+  const visible = section === 'agents' ? [...moved, ...of('service'), ...of('hidden')] : [...of('local'), ...of('online'), ...of('service'), ...of('hidden')];
   // Scenario walk 2026-11-11 (SCN-072): the same for a manual order: agents not shown now (outside the organization
   // filter, not installed) keep their places in the stored order; the shown ones take the new order among themselves.
   if (!order?.length) return { sort: 'manual', order: visible };

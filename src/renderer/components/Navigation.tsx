@@ -2,7 +2,7 @@
 // lists every coding session of this computer by what it needs. The switch above them says which is shown.
 import { useEffect, useRef, useState } from 'react';
 import type { AppStatus, ListSort, Settings as AppSettings, SettingsPatch } from '../../core/types';
-import { moveInSection, offProducts, type MoveSection, type Product } from '../../core/products';
+import { moveInSection, offProducts, placesOf, type MoveSection, type Product } from '../../core/products';
 import { filterServices, GITHUB_PREFIX, groupByOrganization, ORG_MINE, ORG_OTHERS, ORG_SHARED, organizationCounts, type OrgSource } from '../../core/organizations';
 import type { SessionGroup, SessionRow } from '../../core/sessions';
 import { groupRows, navLines, projectName, stateShort, waitingForYou } from '../../core/sessions-view';
@@ -80,7 +80,7 @@ interface AgentsNavProps {
   status: AppStatus;
   /** FD-162: every agent before the organization filter, for the menu's counts. */
   everyAgent?: AppStatus['services'];
-  arranged: { pinned: Product[]; local: Product[]; online: Product[]; service: Product[]; hidden: Product[] };
+  arranged: { pinned: Product[]; local: Product[]; online: Product[]; agents: Product[]; service: Product[]; hidden: Product[] };
   products: Product[];
   currentProduct: Product | undefined;
   layout: AppSettings['layout'];
@@ -154,12 +154,13 @@ export function AgentsNav({ page, status, everyAgent, arranged, products, curren
         {!rail && <OrgMenu services={everyAgent ?? status.services} chosen={layout.list.orgs ?? []} onChange={(orgs) => changeLayout({ list: { orgs } })} grouped={layout.list.groupByOrg === true} onGroup={(groupByOrg) => changeLayout({ list: { groupByOrg } })} source={layout.list.orgSource ?? 'org'} onSource={(orgSource) => changeLayout({ list: { orgSource, orgs: [] } })} />}
         {pinned.length > 0 && <div className="nav-section">{t('nav.pinned')}</div>}
         {pinned.map((p, i) => <ProductItem key={p.id} p={p} current={currentProduct === p} open={open} rail={rail} pinned menu={menu} drag={dragFor('pinned', i, pinned.length)} />)}
-        {/* FD-78: on this Mac, online, services; the sort applies inside each section. */}
-        {(['local', 'online', 'service'] as const).map((c, i) => arranged[c].length > 0 && (
+        {/* FD-244: after the pinned ones, every agent in one list (on this Mac and online together, its places as icons on
+            the row), then services; the sort applies inside each section. */}
+        {(['agents', 'service'] as const).map((c, i) => arranged[c].length > 0 && (
           <div key={c} role="group" aria-labelledby={`nav-${c}`}>
             <div className="nav-section nav-section-row">
-              <span id={`nav-${c}`}>{t(`nav.${c}`)}</span>
-              {!rail && i === (['local', 'online', 'service'] as const).findIndex((x) => arranged[x].length > 0) && products.length > 1 && (
+              <span id={`nav-${c}`}>{t(c === 'agents' ? 'nav.agents' : `nav.${c}`)}</span>
+              {!rail && i === (['agents', 'service'] as const).findIndex((x) => arranged[x].length > 0) && products.length > 1 && (
                 <select className="sort-select" aria-label={t('list.sort')} value={layout.list.sort} onChange={(e) => changeLayout({ list: { sort: e.target.value as ListSort } })}>
                   <option value="name">{t('list.sort.name')}</option>
                   <option value="status">{t('list.sort.status')}</option>
@@ -229,8 +230,9 @@ function ProductItem({ p, current, open, rail, pinned, menu, drag = null, hidden
         <span className={`state state-${shownState(s)}`} aria-hidden="true"><span className="glyph">{GLYPH[shownState(s)]}</span></span>
         {rail && <span className="initials" aria-hidden="true">{initialsOf(nameOf(s))}</span>}
         <span className="nav-label">{nameOf(s)}</span>
+        {!rail && <span className="nav-places" aria-hidden="true">{placesOf(p).map((w) => <span key={w} className={`nav-place nav-place-${w}`} title={t(`place.${w}`)}><Icon name={w === 'local' ? 'laptop' : 'cloud'} /></span>)}</span>}
         {p.memberProblem && <span className="count alert" title={t('nav.memberProblem')} aria-hidden="true">!</span>}
-        <span className="visually-hidden">{t(`state.${shownState(s)}`)}{p.memberProblem ? `, ${t('nav.memberProblem')}` : ''}</span>
+        <span className="visually-hidden">{t(`state.${shownState(s)}`)}, {placesOf(p).map((w) => t(`place.${w}`)).join(', ')}{p.memberProblem ? `, ${t('nav.memberProblem')}` : ''}</span>
       </button>
       {/* FD-121 (SCN-072): a hidden agent comes back with one press on its eye. */}
       {!rail && hiddenRow && (

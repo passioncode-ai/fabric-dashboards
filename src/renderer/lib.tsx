@@ -120,6 +120,9 @@ const ICONS: Record<string, string> = {
   update: 'M10 15V4M5.5 8.5 10 4l4.5 4.5M4 17h12',
   // FD-103: the mode switch in the folded rail, and All sessions: agents as a node with its ring, sessions as stacked
   // terminal windows.
+  // FD-244: where an agent runs: on this computer, online.
+  laptop: 'M4 5h12v8H4zM2 15h16',
+  cloud: 'M6 15h8.5a3 3 0 0 0 .4-6A4.5 4.5 0 0 0 6.3 8.2 3.4 3.4 0 0 0 6 15z',
   agents: 'M10 4a3 3 0 1 0 0 6 3 3 0 0 0 0-6zM4.5 16.5c.6-2.6 2.8-4.2 5.5-4.2s4.9 1.6 5.5 4.2',
   // FD-191: New session in the Sessions sidebar.
   plus: 'M10 4v12M4 10h12',

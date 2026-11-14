@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.8.81 - 2026-11-14
+
+### Changed
+
+- FD-244: the sidebar lists Pinned, then every agent in one list, on this Mac and online together, then Services. An
+  agent that runs on this Mac and online is one row; small icons after its name say where it runs.
+
 ## 0.8.80 - 2026-11-14
 
 ### Fixed
