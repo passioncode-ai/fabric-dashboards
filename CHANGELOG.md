@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.8.87 - 2026-11-14
+
+### Fixed
+
+- FD-260: a session stopped on a usage limit is no longer continued a second time while it is still open in another
+  terminal. Dashboards now reads which sessions a running Claude Code holds and leaves those to the person.
+
 ## 0.8.86 - 2026-11-14
 
 ### Security

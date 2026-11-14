@@ -213,11 +213,45 @@ export function transcriptIn(folder: string, home: string, from: number | null, 
 /** The console key a continued session gets when no agent's console owns its folder: `handover.rs-<12 hex>`. */
 export const resumeOwnKey = (stop: SbStop) => `handover.rs-${crypto.createHash('sha256').update(stop.event).digest('hex').slice(0, 12)}`;
 
-/** What is alive now: the folders a claude or codex process works in, and every process's arguments. */
-export interface Live { dirs: string[]; args: string }
+/** What is alive now: the folders a claude or codex process works in, every process's arguments, and (FD-260) the
+ *  Claude Code sessions a live process holds, from its own `sessions/<pid>.json`. */
+export interface Live { dirs: string[]; args: string; sessions?: string[] }
+
+/** FD-260: where Claude Code records the session each live process holds: `~/.claude/sessions` and each Switchboard
+ *  home's `sessions` (a home is the CLAUDE_CONFIG_DIR of an account's isolated or managed launch). */
+export function claudeSessionDirs(home: string, platform: NodeJS.Platform = process.platform): string[] {
+  const homes = platform === 'darwin' ? path.join(home, 'Library', 'Application Support', 'ai.passioncode.fabric-switchboard', 'homes')
+    : platform === 'linux' ? path.join(process.env.XDG_DATA_HOME || path.join(home, '.local', 'share'), 'ai.passioncode.fabric-switchboard', 'homes') : null;
+  let accounts: string[] = [];
+  if (homes) { try { accounts = fs.readdirSync(homes); } catch { accounts = []; } }
+  return [path.join(home, '.claude', 'sessions'), ...(homes ? accounts.map((a) => path.join(homes, a, 'sessions')) : [])];
+}
+
+/** FD-260 (fabric-switchboard's finding `baef1df0`, its SB-376): the session ids a live process holds now, read from the
+ *  `sessions/<pid>.json` files Claude Code writes; a file whose pid no longer runs counts for nothing. A session opened
+ *  in another terminal (Orca, iTerm) is caught here even when no argument names it and lsof did not see its folder. */
+export function liveSessionIds(dirs: readonly string[], alive: (pid: number) => boolean = pidAlive): string[] {
+  const ids: string[] = [];
+  for (const dir of dirs) {
+    let names: string[] = [];
+    try { names = fs.readdirSync(dir).filter((n) => /^\d+\.json$/.test(n)); } catch { continue; }
+    for (const n of names) {
+      try {
+        const d = JSON.parse(fs.readFileSync(path.join(dir, n), 'utf8')) as { pid?: unknown; sessionId?: unknown };
+        const pid = typeof d.pid === 'number' ? d.pid : Number(n.replace(/\.json$/, ''));
+        if (typeof d.sessionId === 'string' && Number.isInteger(pid) && pid > 0 && alive(pid)) ids.push(d.sessionId);
+      } catch { /* a file being written, or not one of Claude Code's */ }
+    }
+  }
+  return ids;
+}
+
+function pidAlive(pid: number): boolean {
+  try { process.kill(pid, 0); return true; } catch (error) { return (error as NodeJS.ErrnoException).code === 'EPERM'; }
+}
 
 /** Reads the live agent processes. Null when it cannot be read: then nothing is resumed (unknown is not "none"). */
-export async function liveAgents(run: Runner, platform: NodeJS.Platform = process.platform): Promise<Live | null> {
+export async function liveAgents(run: Runner, platform: NodeJS.Platform = process.platform, sessionDirs?: readonly string[]): Promise<Live | null> {
   if (platform === 'win32') return null;
   const [cwd, ps] = await Promise.all([
     run('lsof', ['-a', '-d', 'cwd', '-c', 'claude', '-c', 'codex', '-Fn'], 10_000),
@@ -226,7 +260,7 @@ export async function liveAgents(run: Runner, platform: NodeJS.Platform = proces
   // lsof exits 1 when no process matched, and also when some process could not be read while others were listed:
   // both are an answer. Anything else (not installed, timed out) is unknown.
   if ((cwd.code !== 0 && cwd.code !== 1) || ps.code !== 0) return null;
-  return { dirs: cwd.stdout.split('\n').filter((l) => l.startsWith('n/')).map((l) => l.slice(1)), args: ps.stdout };
+  return { dirs: cwd.stdout.split('\n').filter((l) => l.startsWith('n/')).map((l) => l.slice(1)), args: ps.stdout, ...(sessionDirs ? { sessions: liveSessionIds(sessionDirs) } : {}) };
 }
 
 const real = (p: string) => { try { return fs.realpathSync(p); } catch { return path.resolve(p); } };
@@ -234,6 +268,7 @@ const real = (p: string) => { try { return fs.realpathSync(p); } catch { return 
 /** Whether something may still be writing this session: its folder has a live agent, or a process names its id. */
 export function sessionOpen(stop: SbStop, live: Live): boolean {
   if (live.args.includes(stop.session)) return true;
+  if (live.sessions?.includes(stop.session)) return true; // FD-260: a live process holds it, wherever it runs
   const dir = real(stop.dir);
   return live.dirs.some((d) => real(d) === dir);
 }
