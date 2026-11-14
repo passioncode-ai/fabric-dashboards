@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.8.89 - 2026-11-14
+
+### Security
+
+- FD-257: the contract clone check runs git so that the folder's own git settings cannot choose a program to run
+  (`core.sshCommand`, `core.fsmonitor`) or a custom transport.
+
+### Changed
+
+- FD-249: a test now holds every window action to an agent route (this app's MCP tool, another product's, or a named
+  gap), so a new button without one fails the build.
+
 ## 0.8.88 - 2026-11-14
 
 ### Security
