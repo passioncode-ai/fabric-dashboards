@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.8.98 - 2026-11-15
+
+### Changed
+
+- FD-261: when Switchboard sets a limit on coding sessions for this computer (Switchboard 0.7.85), a new console
+  session starts only while there is room under it, instead of under this app's own limit of six, so every launcher
+  shares one limit.
+
 ## 0.8.97 - 2026-11-15
 
 ### Changed

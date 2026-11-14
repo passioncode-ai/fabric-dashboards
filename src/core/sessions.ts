@@ -47,7 +47,7 @@ export type SessionAction = 'end' | 'reveal' | 'openConsole' | 'dismiss' | 'cont
  *  listed by 0.8.0 builds only: from 0.8.1 such a stop is no row, FD-108); or a stop the person declined
  *  (`declined`, an ended row: "Not continued: you declined"; decision 2 of 2026-10-24); or a console the app closed as
  *  it quit (`quit`, an ended row: "Closed when the app quit"; review round 1, R1-S4). */
-export type SessionReason = 'expired' | 'no-folder' | 'busy' | 'busy-disk' | 'busy-cap' | 'busy-swap' | 'switchboard-old' | 'not-started' | 'pending' | 'no-transcript' | 'resume-failed' | 'old' | 'billing' | 'open' | 'declined' | 'quit';
+export type SessionReason = 'expired' | 'no-folder' | 'busy' | 'busy-disk' | 'busy-cap' | 'busy-pool' | 'busy-swap' | 'switchboard-old' | 'not-started' | 'pending' | 'no-transcript' | 'resume-failed' | 'old' | 'billing' | 'open' | 'declined' | 'quit';
 
 export interface SessionRow {
   /** Stable across polls and restarts: `c:<console key>:<start>`, `sb:<provider>:<pool>:<launch>:<folder>` (F5 of FIX-2:

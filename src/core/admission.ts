@@ -22,16 +22,23 @@ export interface MachineState {
   swap: { total: number; free: number; growable?: boolean } | null;
   /** Console sessions running now. */
   running: number;
+  /** FD-261 (Switchboard 0.7.85, SB-378): the machine's one pool of coding sessions, when Switchboard sets a cap: live
+   *  Claude Code and Codex sessions of this user (quiet ones not counted) against it. Absent: no machine cap, this
+   *  app's own cap applies. */
+  pool?: { cap: number; used: number };
 }
 
 export type Admission =
   | { ok: true }
   | { ok: false; why: 'disk'; freeDisk: number }
   | { ok: false; why: 'swap'; swapFree: number; swapTotal: number }
-  | { ok: false; why: 'cap'; running: number; cap: number };
+  | { ok: false; why: 'cap'; running: number; cap: number }
+  | { ok: false; why: 'pool'; used: number; cap: number };
 
 export function admit(m: MachineState, cap = CONSOLE_SESSION_CAP): Admission {
-  if (m.running >= cap) return { ok: false, why: 'cap', running: m.running, cap };
+  // FD-261: the machine's cap replaces this app's own one: one gate for every launcher (the board, this console, a CLI).
+  if (m.pool) { if (m.pool.used >= m.pool.cap) return { ok: false, why: 'pool', used: m.pool.used, cap: m.pool.cap }; }
+  else if (m.running >= cap) return { ok: false, why: 'cap', running: m.running, cap };
   if (m.freeDisk !== null && m.freeDisk < MIN_FREE_DISK_BYTES) return { ok: false, why: 'disk', freeDisk: m.freeDisk };
   if (m.swap && !m.swap.growable && m.swap.total > 0 && m.swap.free / m.swap.total < SWAP_FREE_FLOOR) return { ok: false, why: 'swap', swapFree: m.swap.free, swapTotal: m.swap.total };
   return { ok: true };
@@ -70,6 +77,19 @@ function swapNow(platform: NodeJS.Platform): Promise<MachineState["swap"]> {
     const swap = error ? null : parseSwapUsage(String(out));
     resolve(swap ? { ...swap, growable: true } : null);
   }));
+}
+
+/** FD-261: `switchboard --json capacity` (SB-378): the pool when a cap is set; null without one, on an answer that cannot
+ *  be read, or from a Switchboard before 0.7.85 (then this app's own cap applies, as before). */
+export function parseCapacity(stdout: string): { cap: number; used: number } | null {
+  try {
+    const v = JSON.parse(stdout) as { ok?: boolean; data?: { cap?: unknown; used?: unknown } };
+    const d = v?.ok === true ? v.data : (v as { cap?: unknown; used?: unknown });
+    if (!d || typeof d.cap !== 'number' || !Number.isInteger(d.cap) || d.cap < 1 || typeof d.used !== 'number' || !Number.isInteger(d.used) || d.used < 0) return null;
+    return { cap: d.cap, used: d.used };
+  } catch {
+    return null;
+  }
 }
 
 /** The machine as it is now, for a session that would start in `folder`. */
