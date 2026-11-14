@@ -22,7 +22,7 @@ import { attentionQueue, urgent } from '../core/attention';
 import { SETUP_KEY } from '../core/offers';
 import { revisitDue, sinceLastVisit, type SinceLastVisit } from '../core/visit';
 import type { ConsoleTask, NavTarget, Rect } from '../core/api';
-import { addTab, tabStep } from '../core/layout';
+import { addTab, tabStep, moveTab } from '../core/layout';
 import mark from './brand/dashboards-mark.svg';
 import { api, Icon, LangContext, nameOf, Spinner, useT } from './lib';
 
@@ -487,7 +487,7 @@ function Shell({ status: everyAgent, route, setRoute, mode, switchMode, stopKey,
       <main className="main" inert={stopOpen} ref={mainRef}>
         {mode === 'agents' && !focus && route.page !== 'session' && (
           <OpenAgents tabs={tabs} services={everyAgent.services} current={route.page === 'service' ? route.key : null} open={(key) => open(key)}
-            fold={() => setRoute({ page: 'overview' })} close={closeTab} />
+            fold={() => setRoute({ page: 'overview' })} close={closeTab} move={(key, target) => changeLayout({ tabs: moveTab(layout.tabs, key, target) })} />
         )}
         {route.page === 'session'
           ? (sessionRow

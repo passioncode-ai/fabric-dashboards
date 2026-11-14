@@ -60,4 +60,14 @@ export function tabStep(tabs: readonly string[], current: string | null, step: 1
   if (at < 0) return step === 1 ? tabs[0]! : tabs[tabs.length - 1]!;
   return tabs[(at + step + tabs.length) % tabs.length]!;
 }
+/** FD-240: the strip with `key` moved to where `target` stands (dragged onto it, or a step with the keyboard): before it
+ *  when moving left, after it when moving right. An agent not in the strip, or onto itself, changes nothing. */
+export function moveTab(tabs: readonly string[], key: string, target: string): string[] {
+  const from = tabs.indexOf(key);
+  const to = tabs.indexOf(target);
+  if (from < 0 || to < 0 || from === to) return [...tabs];
+  const rest = tabs.filter((k) => k !== key);
+  rest.splice(to, 0, key);
+  return rest;
+}
 // #endregion open-agents
