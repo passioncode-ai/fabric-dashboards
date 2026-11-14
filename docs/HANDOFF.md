@@ -3,9 +3,42 @@
 Updated 2026-10-26 (0.8.7 current, see *0.8.7: start here*; earlier the same day 0.8.6, see *0.8.5: start here* and *Session 2026-10-26: start here*). Earlier: updated 2026-10-25 (0.8.1 current; the consolidation, see *Consolidation 2026-10-25: start here*). Earlier: updated 2026-10-24 (0.7.28). Earlier header: updated 2026-10-07 (0.6.2: 0.6.1 withdrawn for audit HIGH-2, audit fixes, signed feed; 0.6.1: LC-16 in detail updater, Russian by choice; 0.6.0 published 2026-10-06 21:35 UTC; release 0.5.6: third review pass, token latch; release 0.5.5 withdrawn: release audit and its second pass, A2A plan, ADR-0016, ADR-0015 data and updates, FD-05, FD-06, FD-13; Spend and DEC-0021; one entry per agent, ADR-0012; lifecycle contract landed from PR #21, unreleased; CI release rehearsal
 `v0.4.1-rc.1` green; releases move to CI signing; release 0.4.1, MCP links to online services).
 
-Current release: **0.8.78** (tag `v0.8.78` on `d9a9f1c`, release run 43552666969; `v0.8.77` on `b2c473c` stopped at its Linux checks and was not published). The newest entry below is the one to start from.
+Current release: **0.8.79** (tag `v0.8.79` on `9454920`, release run 43618675824). Before it 0.8.78 (tag `v0.8.78` on `d9a9f1c`, run 43552666969; `v0.8.77` was not published). The newest entry below is the one to start from.
 
-## 0.8.78: start here (2026-11-14)
+## 0.8.79: start here (2026-11-14)
+
+**Asked.** The operator (session `36babb6c`, a long voice note): audit what is done and not, collect it in one place, then
+the dashboard's next work: compact reorderable top tabs; a task line at the top of every agent page and the Fabric page;
+the console's coding agents in one row with the default chosen, one press to New session; Claude Code did not start
+from the console while Codex did; console lifecycle and memory on close; a security audit; one list row per agent
+across this Mac and online with status icons; the agent page header folded by default with a place switch; our kit's
+pages rendering well; Sessions redesign and remote machines; organizations set up by themselves with a join page;
+agent parity for every button; run-time failure debugging.
+
+**Audit.** Open rows before this run: FD-02, 12, 22, 40, 52, 53, 58, 59, 61, 68, 105, 106, 129, 140, 145, 164, 165, 167,
+170, 171, 184, 186, 188, 189, 193, 194, 196, 208, 209, 213, 215, 217, 232, 235, 236 (most wait on another product; see
+each row). The operator's asks are now FD-239 to FD-250 in `docs/backlog.md`; FD-251 is a new e2e finding.
+
+**Published.** 0.8.79 (PR #510, merge `9454920`, tag `v0.8.79`):
+- FD-239: the Claude Code start exited with 3 («Select an account for this provider first») because the folder is in no
+  Switchboard group and the default group selects no Claude account, while another group's route made Dashboards
+  launch managed. `startAccount` (`src/core/switchboard.ts`) now uses only the folder's own group route; an unbound folder
+  otherwise runs on the runtime's own sign-in, a bound one is refused before spawning. The head row shows the coding
+  agents as buttons, the account chip and New session (`src/core/console-view.ts`, `ConsolePanel.tsx`, SCN-049).
+- FD-240: compact open-agent tabs reordered by drag or Option+arrow (`moveTab`, SCN-105 step 6).
+
+**Checks.** `FD_SKIP_LAUNCHD=1 npm run check` exit 0 (1237 tests, 0 failed); the built app walked with the sample service
+(head row screenshot); `test/e2e/focus-console.test.ts` 2 of 4, the same 2 failing on `main` (FD-251); copy check reports
+`c31b1348` to `001fe6a1`, `0436462c`, `d89d3f21`, no findings.
+
+**Decisions.** A group's folder never falls back to the ordinary sign-in (ADR-0017); an unbound one does when the default
+group selects nothing, since Switchboard would refuse the launch anyway. Selecting an account in a Switchboard group is
+left to Switchboard (a shared state change), the panel says which.
+
+**Next task.** FD-244 (one row per agent across placements, status dots), then FD-245 (folded header with a place
+switch) and FD-241 (task line at the top of an agent page); FD-251 when the load average allows an e2e run.
+
+## 0.8.78 (2026-11-14)
 
 **Asked.** The operator: restore the last work, audit, collect bugs and gaps, finish autonomously to the last release,
 check the board and the North Star; then (screenshot of the Organizations menu) group by organizations PassionCode
