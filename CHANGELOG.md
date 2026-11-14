@@ -14,7 +14,10 @@
 - FD-238: in a narrow Needs attention card the reason moves to a second line instead of being cut, the Overview strip
   lays out by the window's width, and a word shown in place of a number no longer wraps the strip.
 
-## 0.8.77 - 2026-11-14
+## 0.8.77 - 2026-11-14 (not published)
+
+Tag `v0.8.77` stopped at the release's Linux checks: two of its tests drive Open in Terminal, which only macOS has.
+Their changes ship in 0.8.78.
 
 ### Security
 
