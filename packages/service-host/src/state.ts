@@ -87,7 +87,16 @@ export function deriveState(i: StateInput): StateOutput {
   }
   const since = i.firstUnansweredAt ?? i.now;
   if (i.now - since < DOWN_AFTER_MS) return { state: 'starting', reasons: [{ code: 'reason.waiting' }] };
-  return { state: 'down', reasons: [{ code: 'reason.down', params: { since: new Date(since).toISOString() } }] };
+  return { state: 'down', reasons: [{ code: 'reason.down', params: { since: new Date(since).toISOString() } }, ...exitReasons(i.launchd)] };
+}
+
+/** FD-250: why a local job is down, as launchd saw its last run end: a non-zero exit code or a signal, with how often
+ *  it was started (a crash loop shows as many runs). A clean exit, or a job launchd did not run, adds nothing. */
+function exitReasons(l: LaunchdStatus): Reason[] {
+  if (!l.managed || !l.lastExit) return [];
+  const runs = l.runs ?? 1;
+  if ('signal' in l.lastExit) return [{ code: 'reason.launchd.signal', params: { signal: l.lastExit.signal, runs } }];
+  return l.lastExit.code === 0 ? [] : [{ code: 'reason.launchd.exitCode', params: { code: l.lastExit.code, runs } }];
 }
 
 /**

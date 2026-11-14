@@ -121,6 +121,10 @@ export interface LaunchdStatus {
   managed: boolean; loaded: boolean; pid: number | null; disabled: boolean; by?: 'launchd' | 'systemd';
   /** FD-167: the job is a system daemon of this user's space (read in `system`, never started or stopped from here). */
   domain?: 'system';
+  /** FD-250: how many times launchd started the job, and how its last run ended (an exit code, or the signal that ended
+   *  it), as `launchctl print` says; absent when it does not say. */
+  runs?: number;
+  lastExit?: { code: number } | { signal: string };
 }
 
 /** Two descriptors claim the same port (`port` set) or the same id.instance (FAC-SEM-010). */

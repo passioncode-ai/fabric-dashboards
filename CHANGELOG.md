@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.8.86 - 2026-11-14
+
+### Security
+
+- FD-253: a request another agent sends to the Setup console is now shown to the coding agent as data, not as steps
+  to do first, and that session keeps its permission prompts.
+
+### Added
+
+- FD-250: an agent on this Mac that is down says how launchd saw its last run end (an exit code or a signal) and how
+  many times launchd started it, so a crash loop is visible at once.
+
 ## 0.8.85 - 2026-11-14
 
 ### Added

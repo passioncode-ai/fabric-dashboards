@@ -42,3 +42,16 @@ test('attention ranks put down first and hide what is fine', () => {
   assert.equal(attentionRank('ready', { ...wk, summary: [{ label: 'Awaiting you', value: 1, attention: true }], update: { available: '0.2.1' } }), 7, 'a tile before an update');
   assert.equal(attentionRank('stopped', null), null);
 });
+
+test('FD-250: a local job that is down says how launchd saw it end, and how often it was started', async () => {
+  const { deriveState } = await import('../src/state');
+  const d = { id: 'x', instance: 'default', origin: 'http://127.0.0.1:1', placement: 'local', lifecycle: { manager: 'launchd', label: 'x' } } as never;
+  const base = { descriptor: d, problems: [], conflict: null, probe: { kind: 'no-answer', detail: 'ECONNREFUSED' } as never, firstUnansweredAt: 0, now: 600_000, busy: null };
+  const down = deriveState({ ...base, launchd: { managed: true, loaded: true, pid: null, disabled: false, runs: 37, lastExit: { code: 1 } } });
+  assert.equal(down.state, 'down');
+  assert.deepEqual(down.reasons[1], { code: 'reason.launchd.exitCode', params: { code: 1, runs: 37 } });
+  const sig = deriveState({ ...base, launchd: { managed: true, loaded: true, pid: null, disabled: false, runs: 2, lastExit: { signal: 'Killed: 9' } } });
+  assert.deepEqual(sig.reasons[1], { code: 'reason.launchd.signal', params: { signal: 'Killed: 9', runs: 2 } });
+  const clean = deriveState({ ...base, launchd: { managed: true, loaded: true, pid: null, disabled: false, runs: 1, lastExit: { code: 0 } } });
+  assert.equal(clean.reasons.length, 1, 'a clean exit adds nothing');
+});

@@ -16,7 +16,7 @@ import { CHANNELS, type ConsoleInfo, type ConsoleStartResult, type ConsoleTask, 
 import { openConsolesOf, type OpenConsole } from '../core/console-channel';
 import { prepareHandoff, writeTaskOnly, type McpCommand, packDir } from '../core/handoff';
 import { readFallback, writeFallback, type FallbackChange, type FallbackRead } from '../core/fallback';
-import { prepareSetup, SETUP_KEY, setupFolder, writeSetupRequest, type SetupState } from '../core/setup';
+import { prepareSetup, SETUP_KEY, setupFolder, setupSignals, writeSetupRequest, type SetupState } from '../core/setup';
 import type { DoctorReport } from '../core/doctor';
 import type { ActivityItem } from '../core/types';
 import { ConsoleManager, planStart, terminalScript, type SpawnPty } from '../core/consoles';
@@ -490,7 +490,8 @@ export class ConsoleHost {
     if (key === SETUP_KEY && this.o.packRoot && this.o.mcpServer) {
       try {
         const r = prepareSetup({ dir: packDir(this.o.packRoot, key), runtimeId: runtime.id, runtimeName: runtime.name, server: this.o.mcpServer(), state: this.o.setupState?.() ?? { mcp: false, skills: false, firstAgent: false }, doctor: this.o.doctor?.() ?? null, request: task?.output ?? null });
-        return { handoff: r.handoff, env: r.env };
+        // FD-253: started on another agent's request, the Setup console keeps its permission prompts.
+        return { handoff: r.handoff, env: r.env, signals: setupSignals(task?.output) };
       } catch (error) {
         this.o.log(`console: setup starts without its brief: ${(error as Error).message}`);
         return null;
