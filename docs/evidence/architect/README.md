@@ -3,6 +3,8 @@
 The operator's rule of 2026-11-13 (fabric-workspace `knowledge/north-star.md` §6, «Merged with the North Star,
 validated by the architect»; board announcement `d4404828`): before an agent is built or changed, the architect is
 consulted, and at each release the architect's audit runs and its verdict is kept in the agent's repository.
+Since 2026-11-14 the architect advises and never gates (the operator's words relayed in board message `c419e464`,
+fabric-workspace `knowledge/rules.md` §4): no release waits for a verdict; an audit's findings become backlog rows.
 
 | Date | What ran | Result |
 | --- | --- | --- |

@@ -3,9 +3,32 @@
 Updated 2026-10-26 (0.8.7 current, see *0.8.7: start here*; earlier the same day 0.8.6, see *0.8.5: start here* and *Session 2026-10-26: start here*). Earlier: updated 2026-10-25 (0.8.1 current; the consolidation, see *Consolidation 2026-10-25: start here*). Earlier: updated 2026-10-24 (0.7.28). Earlier header: updated 2026-10-07 (0.6.2: 0.6.1 withdrawn for audit HIGH-2, audit fixes, signed feed; 0.6.1: LC-16 in detail updater, Russian by choice; 0.6.0 published 2026-10-06 21:35 UTC; release 0.5.6: third review pass, token latch; release 0.5.5 withdrawn: release audit and its second pass, A2A plan, ADR-0016, ADR-0015 data and updates, FD-05, FD-06, FD-13; Spend and DEC-0021; one entry per agent, ADR-0012; lifecycle contract landed from PR #21, unreleased; CI release rehearsal
 `v0.4.1-rc.1` green; releases move to CI signing; release 0.4.1, MCP links to online services).
 
-Current release: **0.8.80** published (run 43622051182, 18:06 UTC); 0.8.81, 0.8.82 and 0.8.83 are merged and tagged in turn by a watcher (see *0.8.80 to 0.8.83*). Before: 0.8.79 (tag `v0.8.79` on `9454920`, run 43618675824).
+Current release: **0.8.85** published or publishing, 0.8.86 and 0.8.87 merged and tagged in turn by watchers (see *0.8.84 to 0.8.87*). Before: 0.8.80 to 0.8.83 published 2026-11-14 18:06 to 19:40 UTC.
 
-## 0.8.80 to 0.8.83: start here (2026-11-14)
+## 0.8.84 to 0.8.87: start here (2026-11-14)
+
+**Asked.** The operator: «дальше».
+
+**Done.**
+- 0.8.84 (PR #517, `939475a`): FD-242, a stop sends SIGKILL to the whole process group after the grace even when the
+  runtime already exited, so an MCP server that ignores SIGHUP no longer outlives a closed console (real-process test).
+  FD-251: the focus-console e2e follows FD-241 and FD-220; SCN-058 passes at load 22; the drawer step's edit is not
+  yet run green (load 46 to 58, then 2.4 GB free).
+- 0.8.85 (PR #518, `d17527b`): FD-249, `console_fix` kind `ask` and `console_new` mode `continue`; the parity sweep's
+  remaining gaps are in its row.
+- 0.8.86 (PR #519, `ee0b3e4`): FD-253, security audit F1 (high): another agent's Setup request is fenced as data and
+  that start keeps prompts; FD-250, launchd's runs and last exit or signal in a down agent's reasons. FD-243 closed:
+  F2 to F9 are FD-254 to FD-259.
+- 0.8.87 (PR #520, `076d9c5`): FD-260, a limit stop whose session a live process holds (Claude Code's
+  `sessions/<pid>.json`) is `open`, never resumed into a second copy (fabric-switchboard's finding `baef1df0`).
+
+**Board.** Answered `baef1df0` (`33728a83`), plan rows 2.11 to 2.13 (`0a3d47f4`), OBS-564 (`c8cc6e2c`); 29 read.
+
+**Next task.** FD-254 (F2, medium: agent-opened starts with prompts unless the operator's decision is relayed;
+uninstall keeps its dialog), FD-255 (F3: tokens to loopback through the owner checks), the FD-249 parity test, the
+2.12 row (FD-239's own-sign-in fallback through Switchboard), FD-251's drawer step once the disk and load allow e2e.
+
+## 0.8.80 to 0.8.83 (2026-11-14)
 
 **Asked.** The operator: «перезапусти что упало и продолжи».
 
