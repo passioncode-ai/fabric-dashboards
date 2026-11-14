@@ -16,7 +16,7 @@ showed an empty list.
 
 ## Decision
 
-1. **Every console start writes a context pack** to `userData/consoles/<key>/`: the folder is 0700, each file 0600
+1. **Every console start writes a context pack** to `userData/consoles/<key>/` (`consoles/key-<digest>/` for a key that is not a plain name, FD-234 `packDir`): the folder is 0700, each file 0600
    and written whole, and none of it goes into the agent's repository (`src/core/handoff.ts` `writePack`).
    - `context.md` holds the agent's identity, its state and reasons as sentences, descriptor problems, its last
      action, its version and any pending update, its repository and folder, its last 20 events (warnings and

@@ -5,6 +5,8 @@
 // window receives nothing (LC-08) and showing the console again replays it. The PTY is injected:
 // node-pty in the app, a fake in tests.
 import { EventEmitter } from 'node:events';
+import path from 'node:path';
+import { packDir } from './handoff';
 import { commandEnv } from './children';
 import { t, type Lang } from './i18n';
 import { bypassArgs, runtimeArgs, type Runtime } from './runtimes';
@@ -145,7 +147,7 @@ export class ConsoleManager extends EventEmitter {
     if (!file) return { ok: false, error: 'nothing to run' };
     const env: Record<string, string> = {};
     for (const [k, v] of Object.entries(commandEnv(this.o.env()))) if (typeof v === 'string') env[k] = v;
-    Object.assign(env, { TERM: 'xterm-256color', COLORTERM: 'truecolor', FABRIC_DASHBOARDS_SERVICE: key });
+    Object.assign(env, { TERM: 'xterm-256color', COLORTERM: 'truecolor', FABRIC_DASHBOARDS_SERVICE: path.basename(packDir('', key)) }); // FD-234: never a key that is not a plain name
     if (!env.LANG) env.LANG = 'en_US.UTF-8';
     Object.assign(env, plan.env ?? {});
     let pty: PtyLike;

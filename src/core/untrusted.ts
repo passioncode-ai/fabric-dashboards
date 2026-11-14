@@ -64,7 +64,7 @@ const SIGNALS: readonly [string, RegExp][] = [
   ['ignore-instructions', /(игнорируй|забудь|проигнорируй)[^.\n]{0,40}(инструкци|правил|указани)/i],
   ['role-change', /\byou are now (an? |the )?(admin|root|system|developer|assistant|agent|unrestricted|jailbroken)\b|\bnew instructions?\s*:/i],
   ['system-prompt', /\b(reveal|print|show|ignore|override|repeat)\b[^.\n]{0,20}\bsystem (prompt|message)\b|(покажи|игнорируй)[^.\n]{0,20}системн(ый|ое) (промпт|сообщение)/i],
-  ['chat-markup', /<\/?\s*(system|assistant|tool_call|function_calls?)\s*>|\[INST\][^\n]{0,300}\[\/INST\]|<\|im_(start|end)\|>/i],
+  ['chat-markup', /<\/?\s*(system|assistant|tool_call|function_calls?)\s*>|\[INST\][^\n]{0,300}\[\/INST\]|<\|im[ _](start|end)\|>/i],
   ['pipe-to-shell', /\b(curl|wget)\b[^\n|]{0,200}\|\s*(sudo\s+)?["']?(\/bin\/)?(ba|z|da|k)?sh\b/i],
   ['pipe-to-shell', /\b(ba|z)?sh\s+-c\s+["']?\$\(\s*(curl|wget)\b|\b(curl|wget)\b[^\n&]{0,200}&&\s*(sudo\s+)?(ba|z)?sh\b/i],
   ['destructive-command', /\brm\s+-[a-qs-z]*r[a-z]*\s+["']?(~\/?|\$\{?HOME\}?\/?|\/)\*?["']?(\s|$|[`'"\];])|\bmkfs(\.\w+)?\s+\/dev\/|\bdd\s+if=[^\n]{0,100}\bof=\/dev\/(r?disk|sd|nvme|hd)/i],
