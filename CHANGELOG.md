@@ -6,7 +6,8 @@
 
 - FD-234: what an agent service writes (its summary, reasons, events, descriptor, a command's output) now reaches a
   console's coding agent marked as data, never as instructions. When that text reads like instructions to the agent,
-  the console starts without skipping permission prompts, so the coding agent's own permission setting applies.
+  or when that information cannot be saved, the console starts without skipping permission prompts, so the coding
+  agent's own permission setting applies.
 
 ## 0.8.76 - 2026-11-14
 

@@ -152,7 +152,7 @@ context pack (`context.md`, `task.md`) and the MCP answers `service_context` and
 permission prompts by default, so such text could steer the agent. Since 0.8.77 (FD-234, the agents database's audit
 2026-11-13-45e7cc299793, B1) the free texts (summary, reasons, problems, last action, events, descriptor, a task's
 findings, a failed command's output) sit inside `<untrusted-data id="…" source="…">` blocks that end only at a closing
-marker with the same id, a random one per document that text written before the start cannot know: that id is the
+marker with the same id, a random one per start (a task typed into a session that already runs gets its own) that text written before it cannot know: that id is the
 guarantee. Common forms of the marker inside the text (any case or spacing, fullwidth, invisible characters, dashes)
 are also made inert, as a second line, not every lookalike (`src/core/untrusted.ts`). The short
 values (the service's key, name, version, update available, origin, repository) are flattened to one line and quoted as code, in
@@ -168,10 +168,10 @@ written holds the start too), so the coding agent's own
 permission setting decides each step, logged, the person's saved choice
 unchanged. The reading is a heuristic that keeps a person in the loop, not a proof. Not covered yet (FD-236): a held
 conversation continued after a limit or from the Sessions list resumes without the hold; a Fix or Update typed into a
-session that already runs is fenced but only logged, not held (the person sends it); and `service_status`,
+session that already runs is fenced but only logged, not held (the person sends it); the console's own Continue reads only the events listed now, so a conversation that read an instruction-like event continues unheld once that event has scrolled out; the Setup console's `setup.md` carries the launcher doctor's text unfenced; and `service_status`,
 `list_services`, `audit`, `doctor` and `update` mark nothing in their answers (the console rules name them; only
 `service_context` and `activity` carry an `untrusted` field, the pack carries the blocks). The hold shows no sign in
-the app yet: its reason is in `context.md` and the app's log.
+the app yet: its reason is in `context.md` and the app's log (only in the log when the pack could not be written).
 
 ## Dashboard sign-ins at rest
 

@@ -95,3 +95,21 @@ from Fabric with the same folder. What changed here:
 - **Conformance is a test**: `test/session-handoff.test.ts` runs the contract's own `validateSessionHandoff`
   (copied in `test/contract/`) against the folders `prepareHandoff` writes.
 
+
+## Amendment 2026-11-14: text a service wrote is fenced, and instruction-like text holds the start (FD-234)
+
+The agents database's audit 2026-11-13-45e7cc299793 (B1) found that the pack handed a coding agent what an agent
+service wrote as plain lines, while consoles start without permission prompts. Since 0.8.77:
+
+- The service's free texts (summary, reasons, problems, last action, events, descriptor, a task's findings, a failed
+  command's output) sit in `<untrusted-data id="…" source="…">` blocks closed only by the start's random id; its short
+  values (key, name, version, update, origin, repository, folder) are quoted as code on one line, in headings, the
+  brief and the first prompt too (the task file's path is quoted as code: ``Do the task in `<task.md>`.``) (`src/core/untrusted.ts`, `src/core/handoff.ts`).
+- A start whose text reads like instructions (`injectionSignals`), or whose pack cannot be written, drops the flag
+  that skips permission prompts for that start, a console or *Open in Terminal*; the saved choice is unchanged
+  (`ConsoleHost.start`). This is the security exception to SCN-097 the operator's bypass rule leaves room for.
+- A key that is not a plain name gets the folder `consoles/key-<digest>/` (`packDir`), and
+  `FABRIC_DASHBOARDS_SERVICE` carries that folder's name, so no path or variable handed to a runtime carries the key.
+- *Open in Terminal* writes the pack since FD-47 (the Consequences line above predates it).
+
+What is not covered yet is listed in SECURITY.md *Text a service wrote reaches a coding agent as data* and FD-236.
