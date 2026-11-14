@@ -41,3 +41,16 @@ test('LC-17: the real probe reads this machine without throwing', async () => {
   assert.ok(m.freeDisk === null || m.freeDisk > 0);
   assert.equal(m.running, 0);
 });
+
+test('FD-261 (SB-378): Switchboard\'s machine pool replaces this app\'s own cap; without a cap the own one holds', async () => {
+  const { parseCapacity } = await import('../src/core/admission');
+  const base = { freeDisk: 50 * 1024 ** 3, swap: null, running: 0 };
+  assert.deepEqual(admit({ ...base, pool: { cap: 20, used: 20 } }), { ok: false, why: 'pool', used: 20, cap: 20 }, 'a full pool refuses, whatever this app runs');
+  assert.deepEqual(admit({ ...base, running: CONSOLE_SESSION_CAP + 3, pool: { cap: 20, used: 12 } }), { ok: true }, 'room in the pool: the own cap of six no longer applies');
+  assert.deepEqual(admit({ ...base, running: CONSOLE_SESSION_CAP }), { ok: false, why: 'cap', running: CONSOLE_SESSION_CAP, cap: CONSOLE_SESSION_CAP }, 'no machine cap: the own one, as before');
+  assert.equal(admit({ ...base, freeDisk: 1024, pool: { cap: 20, used: 1 } }).ok, false, 'the disk floor still holds');
+  assert.deepEqual(parseCapacity(JSON.stringify({ ok: true, data: { cap: 20, used: 7, free: 13, at_capacity: false } })), { cap: 20, used: 7 });
+  assert.equal(parseCapacity(JSON.stringify({ ok: true, data: { cap: null, used: 7 } })), null, 'no cap set');
+  assert.equal(parseCapacity('error: unrecognized subcommand \'capacity\''), null, 'a Switchboard before 0.7.85');
+  assert.equal(parseCapacity(JSON.stringify({ ok: true, data: { cap: 0, used: 0 } })), null, 'a cap of zero is not one');
+});

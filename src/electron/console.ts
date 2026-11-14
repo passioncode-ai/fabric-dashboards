@@ -21,7 +21,7 @@ import type { DoctorReport } from '../core/doctor';
 import type { ActivityItem } from '../core/types';
 import { ConsoleManager, planStart, terminalScript, type SpawnPty } from '../core/consoles';
 import { dropKept, loadKept, saveKept } from '../core/kept-output';
-import { admit, machineProbe, type MachineState } from '../core/admission';
+import { admit, machineProbe, parseCapacity, type MachineState } from '../core/admission';
 import { findCheckout } from '../core/repofind';
 import { projectsOf, projectsProbeArgv, targetLaunchArgv, targetsOf } from '../core/target-session';
 import { MACHINE } from '../core/platform';
@@ -281,6 +281,17 @@ export class ConsoleHost {
   private searchPath(): Promise<string[]> {
     this.dirs ??= this.o.testDirs ? Promise.resolve(this.o.testDirs) : readLoginPath().then((p) => searchDirs(p));
     return this.dirs;
+  }
+
+  /** FD-261: the machine as a new coding session on it would find it, with Switchboard's pool when it sets a cap (SB-378).
+   *  A view of a running session (attach) and a session on another machine do not ask: they add none here. */
+  private async machine(folder: string): Promise<MachineState> {
+    const m = await (this.o.machine ?? machineProbe)(folder, this.manager.runningCount());
+    const inv = await this.inventory();
+    if (!inv.switchboard) return m;
+    const r = await this.run(inv.switchboard, ['--json', 'capacity'], 5_000);
+    const pool = r.code === 0 ? parseCapacity(r.stdout) : null;
+    return pool ? { ...m, pool } : m;
   }
 
   /** The runtimes installed, read once per launch (looked for again while none is found), and
@@ -565,12 +576,13 @@ export class ConsoleHost {
     const home = this.o.home ?? os.homedir();
     // FD-49 (LC-17): start only what the machine can carry; otherwise defer, saying why.
     // FD-210: a session on another machine writes to that machine's disk; here it is only ssh, so this disk is not asked.
-    const probed = await (this.o.machine ?? machineProbe)(remote ? home : folder.path, this.manager.runningCount());
+    const probed = remote ? await (this.o.machine ?? machineProbe)(home, this.manager.runningCount()) : await this.machine(folder.path); // FD-261: a remote session counts on its own machine
     const a = admit(remote ? { ...probed, freeDisk: null } : probed);
     if (!a.ok) {
       this.o.log(`console: ${key} start deferred (LC-17): ${a.why}`);
       if (a.why === 'disk') return { ok: false, reason: 'admission', why: 'disk', freeGb: Math.round((a.freeDisk / 1024 ** 3) * 10) / 10 };
       if (a.why === 'cap') return { ok: false, reason: 'admission', why: 'cap', running: a.running, cap: a.cap };
+      if (a.why === 'pool') return { ok: false, reason: 'admission', why: 'pool', used: a.used, cap: a.cap }; // FD-261
       return { ok: false, reason: 'admission', why: 'swap' };
     }
     // FD-199: on the other machine, plain: its own coding agent and sign-in; the context pack is a file of this machine.
@@ -649,6 +661,7 @@ export class ConsoleHost {
       this.o.log(`console: ${key} start deferred (LC-17): ${a.why}`);
       if (a.why === 'disk') return { ok: false, reason: 'admission', why: 'disk', freeGb: Math.round((a.freeDisk / 1024 ** 3) * 10) / 10 };
       if (a.why === 'cap') return { ok: false, reason: 'admission', why: 'cap', running: a.running, cap: a.cap };
+      if (a.why === 'pool') return { ok: false, reason: 'admission', why: 'pool', used: a.used, cap: a.cap }; // FD-261
       return { ok: false, reason: 'admission', why: 'swap' };
     }
     // The runtime's own arguments (permission, continue) as a plain start would pass them; the account is that machine's.
@@ -757,7 +770,7 @@ export class ConsoleHost {
     // FD-103 (decision 8 of 2026-10-24): a hand-over always gets a console of its own, never an agent's free console in
     // the same folder, so one session lives in one place and the agent's console stays the person's.
     const key = handoverOwnKey(h.id);
-    const a = admit(await (this.o.machine ?? machineProbe)(h.dir, this.manager.runningCount()));
+    const a = admit(await this.machine(h.dir));
     if (!a.ok) { this.o.log(`console: hand-over ${h.id} left to Terminal (LC-17: ${a.why})`); this.notOpened(h, `busy-${a.why}`); return null; } // R1-B: the cause found
     const r = this.manager.start(key, { argv: handoverRunArgv(sb, h.id), cwd: h.dir, label: h.agent || 'agent', env: { PATH: dirs.join(path.delimiter) } }, { cols: 100, rows: 30 });
     if (!r.ok) { this.o.log(`console: hand-over ${h.id} not taken in ${key}: ${r.error}`); this.notOpened(h, 'not-started'); return null; }
@@ -893,7 +906,7 @@ export class ConsoleHost {
   }
 
   private async resumeOnce(stop: SbStop, sb: string, dirs: string[], account: string, automatic: boolean): Promise<string | null> {
-    const a = admit(await (this.o.machine ?? machineProbe)(stop.dir, this.manager.runningCount()));
+    const a = admit(await this.machine(stop.dir));
     if (!a.ok) {
       // FD-233: a pass every 15 s logged the same wait each time (477 lines on 2026-11-13); once per reason is enough.
       if (this.waitNoted.get(stop.event) !== a.why) this.o.log(`console: limit stop ${stop.event} waits (LC-17: ${a.why})`);
@@ -1215,7 +1228,7 @@ export class ConsoleHost {
     if (sessionId && provider && tookUp) {
       const cli = inv.dirs.map((d) => path.join(d, provider)).find((f) => { try { fs.accessSync(f, fs.constants.X_OK); return fs.statSync(f).isFile(); } catch { return false; } });
       if (!cli) return { ok: false, reason: 'no-runtime' };
-      const a = admit(await (this.o.machine ?? machineProbe)(row.folder, this.manager.runningCount()));
+      const a = admit(await this.machine(row.folder));
       if (!a.ok) return { ok: false, reason: 'admission', detail: a.why };
       const args = [...bypassArgsOfProvider(provider), ...(provider === 'codex' ? ['resume', sessionId] : ['--resume', sessionId])]; // FD-174
       const r = this.manager.start(key, { argv: [cli, ...args], cwd: row.folder, label: provider === 'codex' ? 'Codex' : 'Claude Code', env: { PATH: inv.dirs.join(path.delimiter) } }, size);

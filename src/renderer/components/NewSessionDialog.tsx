@@ -18,7 +18,7 @@ export function isolatedWhy(o: Pick<NewSessionOptions, 'switchboard' | 'inPlace'
 
 /** What a refused start says, in one sentence. */
 export function newSessionFailText(t: T, r: Extract<NewSessionResult, { ok: false }>): string {
-  if (r.reason === 'admission') return r.why === 'disk' ? t('console.admission.disk', { free: r.freeGb ?? 0 }) : r.why === 'cap' ? t('console.admission.cap', { cap: r.cap ?? 0 }) : t('console.admission.swap');
+  if (r.reason === 'admission') return r.why === 'disk' ? t('console.admission.disk', { free: r.freeGb ?? 0 }) : r.why === 'cap' ? t('console.admission.cap', { cap: r.cap ?? 0 }) : r.why === 'pool' ? t('console.admission.pool', { used: r.used ?? 0, cap: r.cap ?? 0 }) : t('console.admission.swap');
   if (r.reason === 'no-folder') return t('newSession.failed.noFolder');
   if (r.reason === 'no-runtime') return t('newSession.failed.noRuntime');
   if (r.reason === 'isolated') return t(`newSession.isolated.${r.detail === 'old-switchboard' || r.detail === 'provider' ? r.detail : 'no-switchboard'}`);

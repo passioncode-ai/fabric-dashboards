@@ -86,7 +86,7 @@ export type ConsoleStartResult =
   | { ok: true }
   | { ok: false; reason: 'running' | 'no-runtime' | 'no-folder' | 'no-continue' | 'switchboard' | 'terminal-only' | 'spawn' | 'isolated' | 'remote' | 'no-account'; detail?: string; project?: string }
   /** FD-49 (LC-17): deferred — the machine cannot carry another session now. */
-  | { ok: false; reason: 'admission'; why: 'disk' | 'swap' | 'cap'; freeGb?: number; running?: number; cap?: number };
+  | { ok: false; reason: 'admission'; why: 'disk' | 'swap' | 'cap' | 'pool'; freeGb?: number; running?: number; cap?: number; used?: number };
 
 /** FD-191 (SCN-101, SCN-102): what the New session and New agent dialogs offer: the coding agents installed here, each
  *  with whether it has a verified switch to run without permission prompts and the provider Switchboard runs it on; the

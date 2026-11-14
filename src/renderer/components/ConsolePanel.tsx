@@ -156,7 +156,7 @@ export function ConsolePanel({ serviceKey, height, maxHeight, onHeight, onDrag, 
     if (r.ok) { setNotice(null); return; }
     if (r.reason === 'admission') {
       // FD-49 (LC-17): what the machine lacks, and what frees it.
-      setNotice({ text: r.why === 'disk' ? t('console.admission.disk', { free: r.freeGb ?? 0 }) : r.why === 'cap' ? t('console.admission.cap', { cap: r.cap ?? 0 }) : t('console.admission.swap') });
+      setNotice({ text: r.why === 'disk' ? t('console.admission.disk', { free: r.freeGb ?? 0 }) : r.why === 'cap' ? t('console.admission.cap', { cap: r.cap ?? 0 }) : r.why === 'pool' ? t('console.admission.pool', { used: r.used ?? 0, cap: r.cap ?? 0 }) : t('console.admission.swap') });
       return;
     }
     const detail = r.detail ?? '';
