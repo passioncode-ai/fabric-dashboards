@@ -1263,10 +1263,12 @@ if (!app.requestSingleInstanceLock()) {
           return { ok: true, result: { uninstalling: true, deleteData } };
         }
         // #endregion agent-doors
-        return consoles.start(r.service, 'new', { cols: 120, rows: 32 }, r.task).then((x) => {
+        // FD-249: an `ask` over the channel is an agent's words, read as a service's text would be (FD-234).
+        const task = r.task ? { ...r.task, ...(r.task.kind === 'ask' ? { from: 'agent' as const } : {}) } : undefined;
+        return consoles.start(r.service, r.mode === 'continue' ? 'continue' : 'new', { cols: 120, rows: 32 }, task).then((x) => {
           // FD-175 (FD-129's button): a fix for an agent whose session runs is typed into that session, not a second one.
-          if (!x.ok && x.reason === 'running' && r.task) {
-            const sent = consoles.sendTask(r.service, r.task);
+          if (!x.ok && x.reason === 'running' && task) {
+            const sent = consoles.sendTask(r.service, task);
             return sent.ok ? { ok: true, result: { typed: true, console: r.service, waitsForEnter: true } } : { ok: false, code: sent.error ?? 'not-sent' };
           }
           return startAnswer(r.service, x);
