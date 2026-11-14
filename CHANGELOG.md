@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.8.78 - 2026-11-14
+
+### Changed
+
+- FD-237: the sidebar's Organizations menu filters and groups agents by one source at a time: the organizations
+  Project Observatory knows, or the GitHub owners of the agents' repositories. A switch at the top of the menu chooses
+  the source. Mine, Others and Shared are no longer lines in it; a choice saved earlier stays listed with its count so
+  it can be cleared.
+
+### Fixed
+
+- FD-238: in a narrow Needs attention card the reason moves to a second line instead of being cut, the Overview strip
+  lays out by the window's width, and a word shown in place of a number no longer wraps the strip.
+
 ## 0.8.77 - 2026-11-14
 
 ### Security
