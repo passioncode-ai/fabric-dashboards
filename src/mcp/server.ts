@@ -135,7 +135,7 @@ export const TOOLS = [
   },
   {
     name: 'settings',
-    description: 'Settings as a person changes them in the window (FD-175, the operator 2026-11-07: every action of the interface by an agent at their request): without patch, the settings an agent may change as they stand; with patch, a partial change applied through Settings\' own code in the running app: language (system, en, ru), theme (dark, light, system), pageTheme, autoUpdate, analytics, launchAtLogin, notifications (its fields), resumeAfterLimit, estate, layout.list.sort, layout.list.orgs, layout.list.groupByOrg. Answers the fields changed and the ones refused (anything else, such as a console\'s folder). A change needs the app running (app-not-running otherwise).',
+    description: 'Settings as a person changes them in the window (FD-175, the operator 2026-11-07: every action of the interface by an agent at their request): without patch, the settings an agent may change as they stand; with patch, a partial change applied through Settings\' own code in the running app: language (system, en, ru), theme (dark, light, system), pageTheme, autoUpdate, analytics, launchAtLogin, notifications (its fields), resumeAfterLimit, estate, layout.list.sort, layout.list.orgs, layout.list.groupByOrg, layout.list.orgSource (org or github, FD-237). Answers the fields changed and the ones refused (anything else, such as a console\'s folder). A change needs the app running (app-not-running otherwise).',
     inputSchema: { type: 'object', properties: { patch: { type: 'object' } }, additionalProperties: false },
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
   },

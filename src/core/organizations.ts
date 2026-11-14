@@ -181,6 +181,27 @@ export function sharedProducts(services: readonly { key: string; organization?: 
 }
 export const isShared = (shared: ReadonlySet<string>, key: string): boolean => shared.has(productOf(key));
 
+// FD-237 (the operator, 2026-11-14: «нормально по организациям … или по github … оба варианта»): the list is cut by
+// one source at a time: `org`, the organizations of Project Observatory's map (FD-162, the ones PassionCode's estate
+// defines), or `github`, the owner of each agent's repository on GitHub (its descriptor's `source.repository`), read
+// here with no network. A GitHub owner is a filter value of its own, `gh:<owner>`, so the two never mix.
+export type OrgSource = 'org' | 'github';
+export const GITHUB_PREFIX = 'gh:';
+
+/** The GitHub owner of an agent's repository as an organization (`gh:owner`), or null when it names none. */
+export function githubOwnerOf(repository: string | undefined | null): Organization | null {
+  const key = repositoryKey(repository);
+  if (!key || !/^(https?:\/\/(www\.)?github\.com\/|git@github\.com:|[a-z0-9][\w.-]*\/[\w.-]+$)/i.test(repository!.trim())) return null;
+  const owner = key.slice(0, key.indexOf('/'));
+  return { name: `${GITHUB_PREFIX}${owner}`, label: owner };
+}
+
+/** What one service counts as under a source: its organization, or its GitHub owner. */
+export interface OrgSubject { key: string; organization?: Organization | null; descriptor?: { source?: { repository?: string } } | null }
+export function organizationBy(source: OrgSource, s: OrgSubject): Organization | null | undefined {
+  return source === 'github' ? githubOwnerOf(s.descriptor?.source?.repository) : s.organization;
+}
+
 /** The agents an organization filter keeps: every one when nothing is chosen; `''` stands for "Not attributed"; the
  *  kinds of FD-195 keep mine, the other organizations' and the shared ones. */
 export function keepsOrganization(chosen: readonly string[], organization: Organization | null | undefined, shared = false): boolean {
@@ -191,8 +212,10 @@ export function keepsOrganization(chosen: readonly string[], organization: Organ
 }
 /** The services an organization filter keeps, and the one open on the page whatever the filter (it never vanishes
  *  under the person's eyes). */
-export function filterServices<S extends { key: string; organization?: Organization | null }>(services: readonly S[], chosen: readonly string[], keep?: string | null): S[] {
+export function filterServices<S extends OrgSubject>(services: readonly S[], chosen: readonly string[], keep?: string | null, source: OrgSource = 'org'): S[] {
   if (chosen.length === 0) return [...services];
+  // FD-237: a value of the other source (a saved `gh:` name under `org`, or the reverse) keeps nothing of its own.
+  if (source === 'github') return services.filter((s) => s.key === keep || chosen.includes(githubOwnerOf(s.descriptor?.source?.repository)?.name ?? ''));
   const shared = chosen.includes(ORG_SHARED) ? sharedProducts(services) : new Set<string>();
   return services.filter((s) => s.key === keep || keepsOrganization(chosen, s.organization, isShared(shared, s.key)));
 }
@@ -210,12 +233,15 @@ export function kindCounts(services: readonly { key: string; organization?: Orga
 
 /** The organizations among the services, with how many agents each has, by label; `''` (not attributed) last. Empty
  *  when no service carries an organization at all (no map was read). */
-export function organizationCounts(services: readonly { organization?: Organization | null }[]): { name: string; label: string | null; count: number; personal?: boolean }[] {
-  if (!services.some((s) => s.organization !== undefined)) return [];
+export function organizationCounts(services: readonly OrgSubjectLike[], source: OrgSource = 'org'): { name: string; label: string | null; count: number; personal?: boolean }[] {
+  const of = (s: OrgSubjectLike) => (source === 'github' ? githubOwnerOf(s.descriptor?.source?.repository) : s.organization);
+  if (source === 'org' && !services.some((s) => s.organization !== undefined)) return [];
+  if (source === 'github' && !services.some((s) => of(s))) return [];
   const by = new Map<string, { name: string; label: string | null; count: number; personal?: boolean }>();
   for (const s of services) {
-    const name = s.organization?.name ?? '';
-    const row = by.get(name) ?? { name, label: s.organization?.label ?? null, count: 0, ...(s.organization?.personal ? { personal: true } : {}) };
+    const o = of(s);
+    const name = o?.name ?? '';
+    const row = by.get(name) ?? { name, label: o?.label ?? null, count: 0, ...(o?.personal ? { personal: true } : {}) };
     row.count += 1;
     by.set(name, row);
   }
@@ -226,9 +252,12 @@ export function organizationCounts(services: readonly { organization?: Organizat
  * attributed" last), each group keeping the rows' own order (the sort the person chose). Null when the rows are of one
  * organization, or no organization is known: then there is nothing to split and no heading is drawn.
  */
-export function groupByOrganization<P extends { primary: { organization?: Organization | null } }>(rows: readonly P[]): { name: string; label: string | null; rows: P[] }[] | null {
-  const order = organizationCounts(rows.map((r) => r.primary));
+export function groupByOrganization<P extends { primary: OrgSubjectLike }>(rows: readonly P[], source: OrgSource = 'org'): { name: string; label: string | null; rows: P[] }[] | null {
+  const order = organizationCounts(rows.map((r) => r.primary), source);
   if (order.length < 2) return null;
-  return order.map((o) => ({ name: o.name, label: o.label, rows: rows.filter((r) => (r.primary.organization?.name ?? '') === o.name) }));
+  const nameOf = (s: OrgSubjectLike) => (source === 'github' ? githubOwnerOf(s.descriptor?.source?.repository)?.name : s.organization?.name) ?? '';
+  return order.map((o) => ({ name: o.name, label: o.label, rows: rows.filter((r) => nameOf(r.primary) === o.name) }));
 }
+/** What the counts read of a service (no key needed). */
+type OrgSubjectLike = Omit<OrgSubject, 'key'>;
 // #endregion organizations

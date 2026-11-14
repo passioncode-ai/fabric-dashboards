@@ -213,3 +213,69 @@ test('FD-161: grouped, each section reads a small heading per organization and n
   assert.doesNotMatch(off, /nav-subsection/);
   assert.match(off, /draggable="true"/, 'off: the rows drag as before');
 });
+
+// FD-237 (the operator, 2026-11-14): the list cut by one source at a time, the organizations or the GitHub owners.
+const withRepo = (key: string, repository: string | null, organization: { name: string; label: string; personal?: boolean } | null) => {
+  const s = snap(key, 'ready');
+  return { ...s, organization, descriptor: { ...s.descriptor!, source: repository ? { repository } : undefined } } as typeof s;
+};
+
+test('FD-237: a GitHub owner is read from the repository and is a filter value of its own (gh:owner)', async () => {
+  const { githubOwnerOf } = await import('../src/core/organizations');
+  assert.deepEqual(githubOwnerOf('https://github.com/Example-Org/agent-bot.git'), { name: 'gh:example-org', label: 'example-org' });
+  assert.deepEqual(githubOwnerOf('git@github.com:someone/tool.git'), { name: 'gh:someone', label: 'someone' });
+  assert.deepEqual(githubOwnerOf('acme-co/fabric'), { name: 'gh:acme-co', label: 'acme-co' });
+  assert.equal(githubOwnerOf('https://gitlab.com/acme/x'), null, 'another host is no GitHub owner');
+  assert.equal(githubOwnerOf(null), null);
+});
+
+test('FD-237: the filter, the counts and the grouping follow the chosen source; the other source\'s values keep nothing', () => {
+  const services = [
+    withRepo('alpha.default', 'https://github.com/acme-co/alpha', { name: 'acme', label: 'Acme' }),
+    withRepo('bravo.default', 'https://github.com/me/bravo', { name: 'personal', label: 'Personal', personal: true }),
+    withRepo('charlie.default', 'https://github.com/acme-co/charlie', { name: 'personal', label: 'Personal', personal: true }),
+    withRepo('delta.default', null, null),
+  ];
+  assert.deepEqual(organizationCounts(services, 'github').map((r) => [r.name, r.count]), [['gh:acme-co', 2], ['gh:me', 1], ['', 1]]);
+  assert.deepEqual(organizationCounts(services, 'org').map((r) => [r.name, r.count, r.personal ?? false]), [['acme', 1, false], ['personal', 2, true], ['', 1, false]]);
+  assert.deepEqual(filterServices(services, ['gh:acme-co'], null, 'github').map((s) => s.key), ['alpha.default', 'charlie.default']);
+  assert.deepEqual(filterServices(services, ['acme'], null, 'github').map((s) => s.key), [], 'an organization name means nothing under GitHub');
+  assert.deepEqual(filterServices(services, ['gh:acme-co'], 'delta.default', 'org').map((s) => s.key), ['delta.default'], 'the open agent stays; a gh: value keeps nothing under organizations');
+  const groups = groupByOrganization(services.map((s) => ({ primary: s })), 'github');
+  assert.deepEqual(groups?.map((g) => [g.label, g.rows.length]), [['acme-co', 2], ['me', 1], [null, 1]]);
+});
+
+test('FD-237: the source is kept in the settings (org by default), and gh: names are valid filter values', () => {
+  assert.equal(mergeSettings({}).layout.list.orgSource, 'org');
+  assert.equal(mergeSettings({ layout: { list: { orgSource: 'github' } } }).layout.list.orgSource, 'github');
+  assert.equal(mergeSettings({ layout: { list: { orgSource: 'gitlab' } } }).layout.list.orgSource, 'org');
+  assert.deepEqual(mergeSettings({ layout: { list: { orgs: ['gh:acme-co', 'gh:', 'gh:x/y', 'acme', '@mine'] } } }).layout.list.orgs, ['gh:acme-co', 'acme', '@mine']);
+});
+
+test('FD-237: the menu offers both sources, rows with counts and the person\'s own organization tagged; no Mine / Others / Shared rows', () => {
+  const services = [
+    withRepo('alpha.default', 'https://github.com/acme-co/alpha', { name: 'acme', label: 'Acme' }),
+    withRepo('bravo.default', 'https://github.com/me/bravo', { name: 'personal', label: 'Personal', personal: true }),
+    withRepo('charlie.default', 'https://github.com/acme-co/charlie', { name: 'personal', label: 'Personal', personal: true }),
+  ];
+  const render = (orgSource: 'org' | 'github', orgs: string[] = []) => {
+    const ps = groupProducts(services);
+    const layout = { ...DEFAULT_SETTINGS.layout, list: { ...DEFAULT_SETTINGS.layout.list, orgSource, orgs } };
+    const noop = () => undefined;
+    return renderToStaticMarkup(React.createElement(AgentsNav, {
+      page: 'overview', status: { services, off: [], unread: 0 } as never, everyAgent: services, arranged: arrangeProducts(ps, layout.list), products: ps, currentProduct: undefined, layout, changeLayout: noop,
+      open: noop, go: noop, rail: false, queue: 0, urgent: false, auditErrors: 0, hiddenProblem: false,
+      menu: { pin: noop, hide: noop, setOff: noop, kind: noop, isPinned: () => false, isHidden: () => false, isService: () => false },
+    } as never));
+  };
+  const org = render('org');
+  assert.match(org, /role="radio" aria-checked="true"[^>]*>Organizations</);
+  assert.match(org, /role="radio" aria-checked="false"[^>]*>GitHub</);
+  assert.match(org, /Personal<span class="org-tag">yours<\/span>/);
+  assert.doesNotMatch(org, />Mine<|>Other organizations<|>Shared between organizations</);
+  const gh = render('github');
+  assert.match(gh, />GitHub: all</);
+  assert.match(gh, />acme-co<\/span><span class="count">2</);
+  assert.match(gh, /Group by GitHub owner/);
+  assert.match(render('org', ['@mine']), />Mine<\/span><span class="count">0</, 'a kind chosen before stays visible to clear');
+});

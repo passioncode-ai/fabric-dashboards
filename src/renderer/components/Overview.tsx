@@ -423,10 +423,10 @@ function StatusStrip({ status, products, attention, urgent, goSpend, goAttention
       <button className={`cell${problems ? ' bad' : ''}`} onClick={goAttention} disabled={!problems}><span className="l">{t('overview.strip.down')}<Go /></span><span className="v">{problems}</span></button>
       <button className={`cell${attention ? (urgent ? ' attn urgent' : ' attn') : ''}`} onClick={goAttention} disabled={!attention}><span className="l">{t('overview.strip.attention')}<Go /></span><span className="v">{attention}</span></button>
       <button className="cell" onClick={goSpend} disabled={!reporting}>
-        <span className="l">{t('overview.strip.spendToday')}<Go /></span><span className="v">{spend === null ? <Spinner /> : reporting ? sum('today') : t('overview.strip.noSpend')}</span>
+        <span className="l">{t('overview.strip.spendToday')}<Go /></span><span className={`v${spend !== null && !reporting ? ' v-text' : ''}`}>{spend === null ? <Spinner /> : reporting ? sum('today') : t('overview.strip.noSpend')}</span>
       </button>
       <button className="cell" onClick={goSpend} disabled={!reporting}>
-        <span className="l">{t('overview.strip.spendMonth')}<Go /></span><span className="v">{spend === null ? <Spinner /> : reporting ? sum('month') : t('overview.strip.noSpend')}</span>
+        <span className="l">{t('overview.strip.spendMonth')}<Go /></span><span className={`v${spend !== null && !reporting ? ' v-text' : ''}`}>{spend === null ? <Spinner /> : reporting ? sum('month') : t('overview.strip.noSpend')}</span>
       </button>
     </section>
   );

@@ -173,7 +173,7 @@ function Shell({ status: everyAgent, route, setRoute, mode, switchMode, stopKey,
   const { t, lang } = useT();
   // FD-162 (SCN-094): the organizations chosen in the sidebar narrow every list below; the agent open on the page stays.
   const orgs = layout.list.orgs ?? [];
-  const status: AppStatus = orgs.length ? { ...everyAgent, services: filterServices(everyAgent.services, orgs, route.page === 'service' ? route.key : null) } : everyAgent;
+  const status: AppStatus = orgs.length ? { ...everyAgent, services: filterServices(everyAgent.services, orgs, route.page === 'service' ? route.key : null, layout.list.orgSource ?? 'org') } : everyAgent;
   const open = (key: string, link?: string, tab?: 'logs' | 'health' | 'connections') => setRoute({ page: 'service', key, link, nonce: Date.now(), tab });
   // SCN-059: the agent selected last leads the next visit's Continue list.
   const routeKey = route.page === 'service' ? route.key : null;
