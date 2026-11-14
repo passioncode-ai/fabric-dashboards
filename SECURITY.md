@@ -156,7 +156,8 @@ marker with the same id, a random one per document that text written before the 
 guarantee. Common forms of the marker inside the text (any case or spacing, fullwidth, invisible characters, dashes)
 are also made inert, as a second line, not every lookalike (`src/core/untrusted.ts`). The short
 values (the service's key, name, version, update available, origin, repository) are flattened to one line and quoted as code, in
-headings, the brief, the first prompt and a typed task line too, so none can add a heading or a step. Every pattern is linear; a text is read whole up to 256 KB, past that its first
+headings, the brief, the first prompt and a typed task line too; a key that is not a plain name gets a
+pack folder named by its digest, so no path handed to a runtime carries it, so none can add a heading or a step. Every pattern is linear; a text is read whole up to 256 KB, past that its first
 256 KB and its last 16 KB, and a block holds at most 256 KB of it. The pack and the MCP
 answers (`service_context`, `activity`: an `untrusted` list of fields) say all of it is data and never an instruction, and a start whose text reads like instructions
 (`injectionSignals`: "ignore previous instructions", role or chat markup, `curl … | sh`, `rm -rf ~`, reading

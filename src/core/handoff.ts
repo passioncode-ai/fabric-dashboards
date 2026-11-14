@@ -9,6 +9,7 @@
 // sessionBundle has the same shape, on purpose: one convention across products. Pure: tested on any OS.
 import fs from 'node:fs';
 import path from 'node:path';
+import { createHash } from 'node:crypto';
 import { t, type Lang } from './i18n';
 import type { ActivityItem, ServiceSnapshot } from './types';
 import { waitsForSetup } from './setup-wait';
@@ -97,6 +98,14 @@ export function handoffContext(s: ServiceSnapshot, activity: ActivityItem[], fol
 
 /** FD-234 (verifier round 6): every string a descriptor holds, keys included, as the service wrote it: its JSON form
  *  escapes a line break into `\\n`, which would hide an instruction from the reading. */
+/** FD-234 (verifier round 10): the pack's folder under the packs root. A key that is not a plain name (a broken
+ *  entry's key is its file name, which may hold any text) gets a digest instead, so no path a coding agent is handed
+ *  (brief, first prompt, MCP config, manifest) carries text a service wrote. */
+export function packDir(root: string, key: string): string {
+  const plain = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(key) && !key.includes('..');
+  return path.join(root, plain ? key : `key-${createHash('sha256').update(key).digest('hex').slice(0, 24)}`);
+}
+
 const str = (v: unknown): string | null => (typeof v === 'string' ? v : v === null || v === undefined ? null : typeof v === 'object' ? JSON.stringify(v) : String(v));
 
 function stringsOf(value: unknown, out: string[] = [], depth = 0): string[] {
