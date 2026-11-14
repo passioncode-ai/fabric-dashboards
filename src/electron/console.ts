@@ -28,7 +28,7 @@ import { MACHINE } from '../core/platform';
 import { isNewAgentKey, isNewSessionKey, isolatedBlock, newSessionKey, prepareNewAgent, projectsFolder, type NewSessionChoice } from '../core/new-session';
 import { bypassArgs, bypassArgsOfProvider, detectRuntimes, KNOWN_RUNTIMES, readLoginPath, searchDirs, specsFromSwitchboard, type Runtime, type RuntimeSpec } from '../core/runtimes';
 import type { SettingsStore } from '../core/settings';
-import { accountsOf, allSessionsOf, bindingFor, machineSessionsOf, findSwitchboard, handoverOwnKey, handoverRunArgv, handoversOf, handoversSwitch, isHandoverKey, launchFeatures, managesProvider, sbFailure, sessionsIn, terminalLaunchArgv, type Binding, type SbHandover, type SbSessions } from '../core/switchboard';
+import { accountsOf, allSessionsOf, bindingFor, machineSessionsOf, findSwitchboard, handoverOwnKey, handoverRunArgv, handoversOf, handoversSwitch, isHandoverKey, launchFeatures, sbFailure, sessionsIn, startAccount, terminalLaunchArgv, type Binding, type SbAccounts, type SbHandover, type SbSessions, type StartAccount } from '../core/switchboard';
 import type { ServiceSnapshot, Settings } from '../core/types';
 import { claimStop, continuedLaunches, continuedOf, finishStop, liveAgents, recoveryOf, resumeArgs, resumeOwnKey, sessionOpen, transcriptIn, transcriptOf, verdictOf, writtenAt, RESUME_SETTLE_MS, RESUMES_PER_PASS, type RecoveryStatus, type SbStop, type StopView } from '../core/recovery';
 import { attachOwnKey, consoleRowId, handoverRowId, SAME_START_MS, mergeSessions, pruneDismissed, pruneRecords, SourceReader, stopRowId, type ConsoleInput, type PendingHandover, type SbMachineProcess, type SbSessionRecord, type SessionActionResult, type SessionReason, type SessionRecord, type SessionNotice, type SessionOrigin, type SessionRow, type SessionsStatus, type SourceDegraded, type SourceResult } from '../core/sessions';
@@ -366,6 +366,23 @@ export class ConsoleHost {
     return c.value;
   }
 
+  /** FD-239: the account the next start will run on, for the panel: Switchboard's routes read at most once per
+   *  BINDING_FRESH_MS (an older read is shown while it asks again). Null when Switchboard is not consulted. */
+  private accountsSeen: { at: number; sb: string; value: SbAccounts | null; pending: boolean } | null = null;
+  private async shownAccount(runtime: Runtime | null, b: Binding | { kind: 'absent' }, inv: { switchboard: string | null; inPlace: boolean }): Promise<StartAccount | null> {
+    if (!runtime || !inv.switchboard || !inv.inPlace || b.kind === 'error' || b.kind === 'absent') return null;
+    const sb = inv.switchboard;
+    const c = this.accountsSeen;
+    const read = async () => { const value = await accountsOf(this.run, sb).catch(() => null); this.accountsSeen = { at: Date.now(), sb, value, pending: false }; return value; };
+    let accounts: SbAccounts | null;
+    if (!c || c.sb !== sb) accounts = await read();
+    else {
+      if (Date.now() - c.at >= BINDING_FRESH_MS && !c.pending) { c.pending = true; void read(); }
+      accounts = c.value;
+    }
+    return startAccount(accounts, runtime.provider, b);
+  }
+
   /** FD-74: read the login shell's PATH and the runtimes once, soon after start, so the first console opens at once
    *  (measured 2026-10-19: the login shell took 1.7 s on this Mac). */
   warm(): void {
@@ -385,6 +402,7 @@ export class ConsoleHost {
       runtime: runtime?.id ?? null,
       folder,
       binding: b.kind === 'project' ? { ...b, inPlace: inv.inPlace } : b,
+      account: await this.shownAccount(runtime, b, inv),
       session: { state: s.state, label: s.label, cwd: s.cwd, output: s.output, end: s.end, exitCode: s.exitCode, signal: s.signal },
       idle: this.o.settings.get().consoles[key]?.idle ?? null,
       handover: this.handoverInfo(key),
@@ -576,8 +594,18 @@ export class ConsoleHost {
     }
     const b = await this.bindingFor(runtime, folder.path, inv);
     const pack = this.pack(key, runtime, folder.path, task);
-    // FD-51 (LC-20): with a Switchboard route for this provider, every start runs managed.
-    const managed = inv.switchboard && runtime.provider && inv.inPlace ? managesProvider(await accountsOf(this.run, inv.switchboard), runtime.provider) : false;
+    // FD-51 (LC-20): with a Switchboard route for this provider, every start runs managed. FD-239: the route of the
+    // folder's own group (the default group for an unbound folder); one only another group selects makes Switchboard
+    // refuse the launch, so an unbound folder then runs on the runtime's own sign-in and a bound one is refused here.
+    const account = inv.switchboard && runtime.provider && inv.inPlace && b.kind !== 'error' && !saved?.isolated
+      ? startAccount(await accountsOf(this.run, inv.switchboard), runtime.provider, b) : null;
+    if (account) this.accountsSeen = null; // the panel reads the routes afresh after a start
+    if (account?.kind === 'missing') {
+      this.o.log(`console: ${key} not started: Switchboard group ${account.group} selects no ${runtime.provider} account`);
+      return { ok: false, reason: 'no-account', project: account.group, detail: runtime.provider ?? '' };
+    }
+    if (account?.kind === 'ordinary' && account.reason === 'no-route') this.o.log(`console: ${key}: the Switchboard default group selects no ${runtime.provider} account; ${runtime.id} starts on its own sign-in`);
+    const managed = account?.kind === 'route';
     // FD-234: text the service wrote that reads like instructions keeps a person in the loop for this start: permission
     // prompts on, the saved choice untouched.
     const held = Boolean(pack?.signals?.length) && saved?.bypass !== false;

@@ -9,6 +9,7 @@ import '@xterm/xterm/css/xterm.css';
 import type { ConsoleInfo, ConsoleSessions, ConsoleStartResult, ConsoleTask } from '../../core/api';
 import { CONSOLE_HEIGHT } from '../../core/types';
 import { pageExitLine, terminalKey } from '../../core/sessions-view';
+import { runtimeRow } from '../../core/console-view';
 import { api, Icon, Spinner, useT } from '../lib';
 
 interface Props {
@@ -161,6 +162,7 @@ export function ConsolePanel({ serviceKey, height, maxHeight, onHeight, onDrag, 
     const detail = r.detail ?? '';
     if (r.reason === 'terminal-only') setNotice({ text: t('console.terminalOnly', { name: r.project ?? '' }), terminalOnly: true });
     else if (r.reason === 'switchboard') setNotice({ text: t('console.sbError', { detail }) });
+    else if (r.reason === 'no-account') setNotice({ text: t('console.account.missing', { group: r.project ?? '' }) }); // FD-239
     else if (r.reason === 'spawn') setNotice({ text: t('console.spawnError', { detail }) });
     else if (r.reason === 'running') setNotice({ text: t('console.running') });
     else if (r.reason === 'no-continue') setNotice({ text: detail });
@@ -268,6 +270,32 @@ export function ConsolePanel({ serviceKey, height, maxHeight, onHeight, onDrag, 
   // FD-62 (SB-108): a hand-over's own console runs only what Switchboard handed over — no runtime, folder or start of its own.
   const ownHandover = /^handover\./.test(serviceKey);
   const handover = info?.handover ?? null;
+  const row = runtimeRow(info?.runtimes ?? [], info?.runtime ?? null);
+  const choose = (runtimeId: string) => void api().consoleChoose(serviceKey, { runtime: runtimeId }).then((i) => { setInfo(i); setNotice(null); });
+  // FD-239: which account the next start runs on, before it is pressed.
+  const account = runtime?.viaSwitchboard ? info?.account ?? null : null;
+  // FD-74, FD-239: the session buttons sit in the head row, beside the coding agent and its account: one press starts it.
+  const sessionButtons = info && !ownHandover && runtime && folderOk && !running ? (
+    <span className="console-actions">
+      {terminalOnly
+        ? <button className="btn btn-sm btn-primary" onClick={() => void openTerminal('new')} title={t('console.openTerminalSb')} aria-label={t('console.openTerminalSb')}>{t('console.openTerminalSb.short')}</button>
+        : <>
+            <button className="btn btn-sm btn-primary" disabled={starting} onClick={() => { const job = waiting ?? undefined; setWaiting(null); void start('new', job); }}>{starting ? <Spinner /> : null}{t('console.new')}</button>
+            {runtime.canContinue && <button className="btn btn-sm" disabled={starting} onClick={() => void start('continue')}>{t('console.continue')}</button>}
+            {info.session.state === 'exited' && <span className="meta console-exit" role="status">{info.session.signal ? t('console.stopped') : info.session.exitCode === null ? t('console.ended') : t('console.exited', { code: info.session.exitCode })}</span>}
+                            {/* Review R-8: through Switchboard, Terminal opens a new session on the project's account. */}
+            {bound && runtime.viaSwitchboard
+              ? <button className="icon-btn" onClick={() => void openTerminal('new')} aria-label={t('console.openTerminalSb')} title={t('console.openTerminalSb')}><Icon name="external" /></button>
+              : <button className="icon-btn" onClick={() => void openTerminal(runtime.canContinue ? 'continue' : 'new')} aria-label={t('console.openTerminal')} title={t('console.openTerminal')}><Icon name="external" /></button>}
+          </>}
+      {terminalOnly && info.session.state === 'exited' && <span className="meta console-exit" role="status">{info.session.signal ? t('console.stopped') : info.session.exitCode === null ? t('console.ended') : t('console.exited', { code: info.session.exitCode })}</span>}
+    </span>
+  ) : null;
+  const accountChip = account ? (
+    <span className={`chip console-account${account.kind === 'missing' ? ' is-missing' : ''}`} title={account.kind === 'route' ? t('console.account.routeHint', { pool: account.pool }) : account.kind === 'ordinary' && account.reason === 'no-route' ? t('console.account.noRouteHint', { pool: account.pool }) : account.kind === 'missing' ? t('console.account.missing', { group: account.group }) : t('console.account.ordinaryHint')}>
+      {account.kind === 'route' ? account.label : account.kind === 'missing' ? t('console.account.none') : t('console.account.ordinary')}
+    </span>
+  ) : null;
 
   if (page) {
     // R1-V4: the page's header says how the session ended; the strip adds only an unclean exit's code.
@@ -291,11 +319,23 @@ export function ConsolePanel({ serviceKey, height, maxHeight, onHeight, onDrag, 
           {ownHandover
             ? <span className="chip">{handover?.agent || t('console.title')}</span>
             : <>
-              <label className="visually-hidden" htmlFor="console-runtime">{t('console.runtime')}</label>
-              <select id="console-runtime" value={info?.runtime ?? ''} disabled={!info?.runtimes.length || running} onChange={(e) => void api().consoleChoose(serviceKey, { runtime: e.target.value }).then((i) => { setInfo(i); setNotice(null); })}>
-                {info?.runtimes.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
-              </select>
+              {/* FD-239: the coding agents as buttons in one row, the chosen one pressed; the rest under More. */}
+              <div className="console-runtimes" role="radiogroup" aria-label={t('console.runtime')}>
+                {row.inline.map((r) => (
+                  <button key={r.id} type="button" role="radio" aria-checked={info?.runtime === r.id} className="mode-btn" disabled={running}
+                    onClick={() => { if (info?.runtime !== r.id) choose(r.id); }}>{r.name}</button>
+                ))}
+              </div>
+              {row.more.length > 0 && <>
+                <label className="visually-hidden" htmlFor="console-runtime">{t('console.runtime.more')}</label>
+                <select id="console-runtime" className="console-more" value={row.more.some((r) => r.id === info?.runtime) ? info?.runtime ?? '' : ''} disabled={running} onChange={(e) => { if (e.target.value) choose(e.target.value); }}>
+                  <option value="">{t('console.runtime.more')}</option>
+                  {row.more.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
+                </select>
+              </>}
+              {accountChip}
             </>}
+          {sessionButtons}
           <span className="spacer" />
           {running && confirmClose && (
             <span className="row" role="group" aria-label={t('console.closeConfirm')}>
@@ -361,24 +401,6 @@ export function ConsolePanel({ serviceKey, height, maxHeight, onHeight, onDrag, 
         {notice.terminalOnly && <button className="btn btn-primary" onClick={() => void openTerminal('new')}>{t('console.openTerminalSb')}</button>}
       </div>}
       {ownHandover && info?.session.state === 'exited' && <p className="console-actions meta" role="status">{info.session.signal ? t('console.stopped') : info.session.exitCode === null ? t('console.ended') : t('console.exited', { code: info.session.exitCode })}</p>}
-      {/* FD-74: one compact row: the session buttons on the left, Terminal as an icon on the right. */}
-      {info && !ownHandover && runtime && folderOk && !running && (
-        <div className="console-actions">
-          {terminalOnly
-            ? <button className="btn btn-sm btn-primary" onClick={() => void openTerminal('new')} title={t('console.openTerminalSb')} aria-label={t('console.openTerminalSb')}>{t('console.openTerminalSb.short')}</button>
-            : <>
-                <button className="btn btn-sm btn-primary" disabled={starting} onClick={() => { const job = waiting ?? undefined; setWaiting(null); void start('new', job); }}>{starting ? <Spinner /> : null}{t('console.new')}</button>
-                {runtime.canContinue && <button className="btn btn-sm" disabled={starting} onClick={() => void start('continue')}>{t('console.continue')}</button>}
-                {info.session.state === 'exited' && <span className="meta console-exit" role="status">{info.session.signal ? t('console.stopped') : info.session.exitCode === null ? t('console.ended') : t('console.exited', { code: info.session.exitCode })}</span>}
-                <span className="spacer" />
-                {/* Review R-8: through Switchboard, Terminal opens a new session on the project's account. */}
-                {bound && runtime.viaSwitchboard
-                  ? <button className="icon-btn" onClick={() => void openTerminal('new')} aria-label={t('console.openTerminalSb')} title={t('console.openTerminalSb')}><Icon name="external" /></button>
-                  : <button className="icon-btn" onClick={() => void openTerminal(runtime.canContinue ? 'continue' : 'new')} aria-label={t('console.openTerminal')} title={t('console.openTerminal')}><Icon name="external" /></button>}
-              </>}
-          {terminalOnly && info.session.state === 'exited' && <span className="meta console-exit" role="status">{info.session.signal ? t('console.stopped') : info.session.exitCode === null ? t('console.ended') : t('console.exited', { code: info.session.exitCode })}</span>}
-        </div>
-      )}
       <div className="console-term" ref={host} onClick={() => term.current?.focus()} />
       {expand !== 'full' && <div className="console-edge" role="separator" aria-orientation="horizontal" aria-label={t('console.resize')} aria-valuemin={CONSOLE_HEIGHT.min} aria-valuemax={maxHeight} aria-valuenow={height} tabIndex={0} onPointerDown={drag} onKeyDown={nudge}><span className="console-grip" /></div>}
       <div className="console-shadow" aria-hidden="true" />

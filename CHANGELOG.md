@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.8.79 - 2026-11-14
+
+### Fixed
+
+- FD-239: a Claude Code console started in a folder outside every Switchboard group no longer exits at once with
+  «Select an account for this provider first». A managed launch is used only when the folder's own group (the default
+  group for a folder in none) selects an account for that coding agent; otherwise the coding agent starts on its own
+  sign-in, and a group's folder with no account says so before anything starts.
+
+### Changed
+
+- FD-239: the console's head row shows the coding agents as buttons (Claude Code and Codex, the chosen one pressed,
+  the rest under More), the account the next session runs on, and New session beside them.
+- FD-240: the open agents' tabs are compact and can be reordered by dragging, or with Option and an arrow key; the
+  order is remembered.
+
 ## 0.8.78 - 2026-11-14
 
 ### Changed

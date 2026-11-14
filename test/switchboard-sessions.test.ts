@@ -117,3 +117,45 @@ test('FD-50 (LC-18): a session idle for 30 minutes is saved with its account and
   assert.equal(idle.account, null, 'no Switchboard here: no account to name');
   assert.equal((await host.info('example-agent.default')).idle?.at, idle.at, 'the panel learns it was closed for idleness');
 });
+
+test('FD-239: the account a console start runs on is the folder group\'s selected one, never a route of another group', async () => {
+  const { startAccount } = await import('../src/core/switchboard');
+  const accounts = { routes: { 'claude:passioncode': 'acc-1', 'codex:default': 'acc-9' }, labels: { 'acc-1': 'Work 1', 'acc-9': 'Codex 1' } };
+  // Unbound folder: Switchboard uses the default group's selected account.
+  assert.deepEqual(startAccount(accounts, 'codex', { kind: 'none' }), { kind: 'route', pool: 'default', label: 'Codex 1' });
+  assert.deepEqual(startAccount(accounts, 'claude', { kind: 'none' }), { kind: 'ordinary', reason: 'no-route', pool: 'default' }, 'the default group selects no Claude account: the ordinary sign-in, not a launch Switchboard refuses');
+  // Bound folder: its own group only.
+  assert.deepEqual(startAccount(accounts, 'claude', { kind: 'project', name: 'PassionCode', pool: 'passioncode' }), { kind: 'route', pool: 'passioncode', label: 'Work 1' });
+  assert.deepEqual(startAccount(accounts, 'codex', { kind: 'project', name: 'PassionCode', pool: 'passioncode' }), { kind: 'missing', pool: 'passioncode', group: 'PassionCode' }, 'a bound folder never falls back to the ordinary sign-in');
+  // No Switchboard account for the provider at all, or a runtime Switchboard does not run.
+  assert.deepEqual(startAccount({ routes: {}, labels: {} }, 'claude', { kind: 'none' }), { kind: 'ordinary', reason: 'unmanaged' });
+  assert.deepEqual(startAccount(null, 'claude', { kind: 'none' }), { kind: 'ordinary', reason: 'unmanaged' });
+  assert.deepEqual(startAccount(accounts, null, { kind: 'none' }), { kind: 'ordinary', reason: 'unmanaged' });
+});
+
+test('FD-239: an unbound folder whose default group selects no account starts the runtime on its own sign-in, not a refused launch', { skip: process.platform === 'win32' && 'POSIX execute bits: the fake runtime is a shell script; Windows lookup is tested by the PATHEXT test' }, async () => {
+  const base = tmp('fd-239-host-');
+  const bin = path.join(base, 'bin');
+  const folder = path.join(base, 'agent');
+  fs.mkdirSync(bin); fs.mkdirSync(folder);
+  for (const name of ['claude', 'switchboard']) fs.writeFileSync(path.join(bin, name), '#!/bin/sh\n', { mode: 0o755 });
+  let settings = { consoles: { 'example-agent.default': { runtime: 'claude-code', folder } } } as Record<string, unknown>;
+  const spawned: string[][] = [];
+  const logs: string[] = [];
+  const base0 = runner(folder, []);
+  const run = async (file: string, args: string[]): Promise<RunResult> => args.join(' ') === '--json accounts list'
+    ? ok({ routes: { 'claude:passioncode': 'acc-1', 'codex:default': 'acc-9' }, accounts: [{ id: 'acc-1', label: 'Work 1' }] }) : base0(file, args);
+  const host = new ConsoleHost({
+    settings: { get: () => settings, update: (p: Record<string, unknown>) => { settings = { ...settings, ...p }; } } as never,
+    snapshot: () => null, window: () => null, visible: () => false, log: (l: string) => { logs.push(l); },
+    testDirs: [bin], scriptsDir: path.join(base, 'scripts'), run,
+    spawn: (file, args) => { spawned.push([file, ...args]); return { pid: 999_999_999, onData: () => ({ dispose() {} }), onExit: () => ({ dispose() {} }), write() {}, resize() {}, kill() {} }; },
+    killGroup: () => {},
+    machine: async () => ({ freeDisk: null, swap: null, running: 0 }),
+  });
+  const info = await host.info('example-agent.default');
+  assert.deepEqual(info.account, { kind: 'ordinary', reason: 'no-route', pool: 'default' }, 'the panel says which account the start will use');
+  assert.deepEqual(await host.start('example-agent.default', 'new', { cols: 80, rows: 24 }), { ok: true });
+  assert.equal(spawned[0]![0], path.join(bin, 'claude'), spawned[0]!.join(' '));
+  assert.ok(logs.some((l) => /selects no claude account/.test(l)), logs.join('\n'));
+});

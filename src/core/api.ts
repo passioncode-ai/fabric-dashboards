@@ -52,6 +52,10 @@ export interface ConsoleInfo {
   folder: { path: string; source: 'saved' | 'found'; exists: boolean } | null;
   /** What Switchboard binds the folder to, for the chosen runtime. */
   binding: { kind: 'none' } | { kind: 'project'; name: string; pool: string; inPlace: boolean } | { kind: 'error'; detail: string } | { kind: 'absent' };
+  /** FD-239: the account the next start runs on: the group's selected account (`route`), the runtime's own sign-in
+   *  (`ordinary`; `no-route` when the default group selects none), or none at all for a group's folder (`missing`,
+   *  the start is refused). Null when Switchboard is not consulted (absent, or no runtime). */
+  account?: { kind: 'route'; pool: string; label: string } | { kind: 'ordinary'; reason: 'unmanaged' } | { kind: 'ordinary'; reason: 'no-route'; pool: string } | { kind: 'missing'; pool: string; group: string } | null;
   session: { state: 'idle' | 'running' | 'exited'; label: string; cwd: string; output: string; end: number; exitCode: number | null; signal: number | null };
   /** FD-50 (LC-18): the session was closed after the idle time; opening the console continues it. */
   idle: { at: string; account: string | null } | null;
@@ -77,7 +81,7 @@ export type ConsoleSessions =
 /** Why a start did not run in the console, worded by the renderer. */
 export type ConsoleStartResult =
   | { ok: true }
-  | { ok: false; reason: 'running' | 'no-runtime' | 'no-folder' | 'no-continue' | 'switchboard' | 'terminal-only' | 'spawn' | 'isolated' | 'remote'; detail?: string; project?: string }
+  | { ok: false; reason: 'running' | 'no-runtime' | 'no-folder' | 'no-continue' | 'switchboard' | 'terminal-only' | 'spawn' | 'isolated' | 'remote' | 'no-account'; detail?: string; project?: string }
   /** FD-49 (LC-17): deferred — the machine cannot carry another session now. */
   | { ok: false; reason: 'admission'; why: 'disk' | 'swap' | 'cap'; freeGb?: number; running?: number; cap?: number };
 

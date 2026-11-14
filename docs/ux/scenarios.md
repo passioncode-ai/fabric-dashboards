@@ -1081,17 +1081,17 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **Entry point:** an agent's console that runs nothing yet
 - **Preconditions:** at least one coding agent (Claude Code, Codex or another known one) is installed
 - **Steps:**
-  1. User opens the console -> it shows the coding agent (the last one used for this agent, else Claude Code, else the first one found), the folder found for this agent (its repository's local checkout) with "Other…", and one compact row: "New session" and "Continue last session" on the left, the Open in Terminal icon on the right (FD-74)
+  1. User opens the console -> one head row: the coding agents as buttons (Claude Code and Codex, the chosen one pressed: the last one used for this agent, else Claude Code, else the first one found; any other installed one under "More"), the account the start will run on (the Switchboard group's selected account, or "Own sign-in"), then "New session", "Continue last session" and the Open in Terminal icon (FD-74, FD-239); under it the folder found for this agent (its repository's local checkout) with "Other…"
   2. User presses "New session" -> the coding agent's own interface starts in that folder, in the console; the user types to it as in any terminal; it runs without permission prompts (SCN-097) unless the console was set to keep them (SCN-101) or the start is held (FD-234), and then its questions appear there
   3. User presses "Continue last session" -> the coding agent resumes its last conversation in that folder (`claude --continue`, `codex resume --last`)
   4. The coding agent exits -> the console says "The session exited with code 0." with "New session" and "Continue last session" again
 - **Expected result:** the coding agent the user chose runs in the agent's repository, with their settings and skills, one press from the dashboard
 - **Alt paths:** "Other…" -> a folder dialog; the choice is remembered for this agent; the user picks another coding agent -> remembered for this agent; the red cross -> the coding agent ends after a confirmation and the console folds (SCN-048) if it is still running; "Open in Terminal" -> the same coding agent continues in that folder in Terminal, with the console's own choice about permission prompts (FD-234: held for that start when its context reads like instructions); in a folder bound to a Switchboard group, Switchboard opens Terminal and its own setting decides
-- **UI elements:** coding agent picker, folder line with "Other…", "New session", "Continue last session", the red cross (SCN-048), "Open in Terminal", terminal, exit line
+- **UI elements:** coding agent buttons with "More", the account chip, folder line with "Other…", "New session", "Continue last session", the red cross (SCN-048), "Open in Terminal", terminal, exit line
 - **States covered:** empty, loading, success, error
-- **Errors & recovery:** no coding agent installed -> "No supported coding agent is installed" with the list it looks for; no repository found -> "Choose the folder this agent's code lives in" with "Choose folder…"; the folder no longer exists -> the same; the coding agent cannot start -> its own error in the console, and "New session" again; a coding agent with no resume flag -> "Continue last session" is not offered
+- **Errors & recovery:** a folder in no Switchboard group whose default group selects no account for the provider -> the account reads "Own sign-in" and the coding agent starts on its own sign-in, never a launch Switchboard refuses (FD-239: it exited with 3 and «Select an account for this provider first»); a folder in a group that selects no account for the provider -> "No account", and New session says to select one in Switchboard, starting nothing (SCN-050); no coding agent installed -> "No supported coding agent is installed" with the list it looks for; no repository found -> "Choose the folder this agent's code lives in" with "Choose folder…"; the folder no longer exists -> the same; the coding agent cannot start -> its own error in the console, and "New session" again; a coding agent with no resume flag -> "Continue last session" is not offered
 - **Status:** validated
-- **Coverage:** src/core/runtimes.ts, src/core/repofind.ts, src/core/consoles.ts, src/electron/console.ts, src/renderer/components/ConsolePanel.tsx, test/console.test.ts, test/e2e/focus-console.test.ts
+- **Coverage:** src/core/runtimes.ts, src/core/repofind.ts, src/core/consoles.ts, src/core/console-view.ts, src/core/switchboard.ts (startAccount), src/electron/console.ts, src/renderer/components/ConsolePanel.tsx, test/console.test.ts, test/console-view.test.ts, test/switchboard-sessions.test.ts (FD-239), test/e2e/focus-console.test.ts
 - **Product:** unobserved
 
 ### SCN-050: A folder bound to a Switchboard project runs on that project's account
@@ -2385,7 +2385,8 @@ The Sessions mode (0.8.0): every coding session apart from the agents, each stat
   3. The person presses Fold on the agent on show -> Overview opens and the agent stays in the strip, its dashboard loaded
   4. The person presses Close on an agent -> it leaves the strip and its dashboard is released at once; if it was on show, its neighbour opens, else Overview
   5. The person moves along the strip from the keyboard: View → Next Open Agent (Ctrl+Tab) and Previous Open Agent (Ctrl+Shift+Tab) go round it, from Overview to its first or last agent, and Close Agent (Shift+Cmd+W; Ctrl+Shift+W elsewhere) closes the agent on show as its Close does (FD-227)
-- **Expected result:** the agents in use are one press away, and closing one frees what it held
+  6. The person drags a tab onto another, or presses Option with Left or Right on a focused tab -> it moves there, the others keep their order, and the order is remembered across launches; the tabs are compact (one 26 px row, at most 180 px each) (FD-240)
+- **Expected result:** the agents in use are one press away, in the order the person keeps them, and closing one frees what it held
 - **Alt paths:** an agent removed from this Mac leaves the strip by itself; more agents than fit: the strip scrolls, each keeps its name, and the agent on screen is kept in view (FD-223); the Sessions mode and the window filled by a dashboard (SCN-106) show no strip
 - **UI elements:** the strip of open agents: name with state mark, Fold (on the agent on show), Close
 - **States covered:** success, empty
@@ -2393,8 +2394,9 @@ The Sessions mode (0.8.0): every coding session apart from the agents, each stat
 - **Copy:**
   - "Open agents" / «Открытые агенты» (the strip's label); "Fold {name} away; it stays open" / «Свернуть {name}, агент останется открытым»; "Close {name}" / «Закрыть {name}»
   - "Next Open Agent" / «Следующий открытый агент»; "Previous Open Agent" / «Предыдущий открытый агент»; "Close Agent" / «Закрыть агента» (the View menu, FD-227)
+  - "Drag to move it; Option and an arrow key move it too" / «Перетащите, чтобы переставить; или Option и стрелка» (a tab's tooltip, FD-240; copy checks `d89d3f21` (en), `0436462c` (ru), no findings)
 - **Status:** implemented (2026-11-13, 0.8.68: `test/parts.test.ts` *FD-220*; 0.8.71: the menu commands, `test/layout.test.ts` and `test/platform.test.ts` *FD-227*, copy check reports `1f952e98`, `7d0d360d`, `182df42d` (en), `0fa3eb81`, `4a747011`, `1c7475e6` (ru), no findings; 0.8.72: the oldest agent pushed out releases its dashboard, `test/layout.test.ts` *FD-228*; copy check reports `f0aa3911`, `6e2acd19`, `35578507` (en), `1ff81300`, `80f628ee`, `537ebc53` (ru), no findings; seen on the built app with the kit's sample agents)
-- **Coverage:** src/renderer/components/OpenAgents.tsx, src/renderer/App.tsx (tabs, closeTab, tabCommandRef), src/core/layout.ts (tabStep, addTab, MAX_TABS), src/core/platform.ts (menuKeys nextAgent, previousAgent, closeAgent), src/core/settings.ts (mergeLayout `tabs`), src/electron/main.ts (`viewClose`, the View menu), src/electron/views.ts (`drop`)
+- **Coverage:** src/renderer/components/OpenAgents.tsx, src/renderer/App.tsx (tabs, closeTab, tabCommandRef), src/core/layout.ts (tabStep, addTab, moveTab, MAX_TABS), src/core/platform.ts (menuKeys nextAgent, previousAgent, closeAgent), src/core/settings.ts (mergeLayout `tabs`), src/electron/main.ts (`viewClose`, the View menu), src/electron/views.ts (`drop`)
 - **Product:** unobserved
 
 ### SCN-106: Give an agent's dashboard or console the whole window
