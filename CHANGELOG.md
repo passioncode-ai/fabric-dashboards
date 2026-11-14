@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.8.83 - 2026-11-14
+
+### Added
+
+- FD-241: a task line at the top of every agent's page. Type what the agent should do and press Enter: its console
+  starts the coding agent in the agent's folder with that task, or offers to send it to a session that already runs.
+
 ## 0.8.82 - 2026-11-14
 
 ### Changed

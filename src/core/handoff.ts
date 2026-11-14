@@ -49,7 +49,7 @@ export interface HandoffContext {
 }
 
 /** A job handed to the agent with the context (D-3). */
-export interface HandoffTask { kind: 'fix' | 'update' | 'setup' | 'audit'; title: string; body: string }
+export interface HandoffTask { kind: 'fix' | 'update' | 'setup' | 'audit' | 'ask'; title: string; body: string }
 
 /** The newest first, warnings and errors of the last ones kept even when info rows are many. */
 export function handoffContext(s: ServiceSnapshot, activity: ActivityItem[], folder: string | null, lang: Lang = 'en', limit = 20): HandoffContext {
@@ -194,6 +194,23 @@ export function auditTask(c: HandoffContext, findings: string): HandoffTask {
   return { kind: 'audit', title: `Audit findings for ${literal(c.name, 120)}`, body: findings.trim() ? fence('audit', findings.trim(), c.fenceId) : `${literal(c.name)} (${literal(c.key, 200)}): the auditor found nothing at the time of the start. Check with the MCP tool \`audit\`.` };
 }
 
+/** FD-241: a task the person typed on the agent's page, in their own words. The person is not a service: the words are
+ *  neither fenced nor read for instruction-like text (FD-234 holds a SERVICE's text, not the operator's order). */
+export function askTask(c: HandoffContext, words: string): HandoffTask {
+  return {
+    kind: 'ask',
+    title: `from the operator for ${literal(c.name, 120)}`,
+    body: `The operator asks you, working on ${literal(c.name)} (${literal(c.key, 200)}) from Fabric Dashboards:\n\n${words.trim()}\n\nDo it in this repository the way its documents say (README, AGENTS.md), and say what you did with its evidence. Ask me before anything destructive, any sign-in, or a secret (use a hidden prompt for secrets; never print one).`,
+  };
+}
+
+/** The job a console task hands over. */
+function jobOf(c: HandoffContext, t: { kind: 'fix' | 'update' | 'audit' | 'ask'; output?: string }): HandoffTask {
+  return t.kind === 'fix' ? fixTask(c) : t.kind === 'audit' ? auditTask(c, t.output ?? '') : t.kind === 'ask' ? askTask(c, t.output ?? '') : updateTask(c, t.output ?? null);
+}
+/** FD-234: the text of a task read for instruction-like text; a person's own task (FD-241) is not. */
+const taskText = (t: { kind: string; output?: string } | undefined) => (t && t.kind !== 'ask' ? t.output : undefined);
+
 /** What *Update with agent* hands over (D-3). */
 export function updateTask(c: HandoffContext, failedOutput: string | null): HandoffTask {
   const target = c.updateAvailable ? ` to ${literal(c.updateAvailable)}` : '';
@@ -302,10 +319,10 @@ export function writePack(dir: string, files: { context: string; task: string | 
 
 /** FD-129 (UX-16): a task for a session that already runs: only `task.md` is written, beside the pack that session
  *  started with, and the line that points the running agent at it is returned for the person to send. */
-export function writeTaskOnly(o: { snapshot: ServiceSnapshot; activity: ActivityItem[]; folder: string; dir: string; task: { kind: 'fix' | 'update' | 'audit'; output?: string } }): { path: string; line: string; signals: string[] } {
+export function writeTaskOnly(o: { snapshot: ServiceSnapshot; activity: ActivityItem[]; folder: string; dir: string; task: { kind: 'fix' | 'update' | 'audit' | 'ask'; output?: string } }): { path: string; line: string; signals: string[] } {
   const ctx = handoffContext(o.snapshot, o.activity, o.folder);
-  const signals = [...new Set([...ctx.signals, ...injectionSignals([o.task.output])])]; // FD-234
-  const job = o.task.kind === 'fix' ? fixTask(ctx) : o.task.kind === 'audit' ? auditTask(ctx, o.task.output ?? '') : updateTask(ctx, o.task.output ?? null);
+  const signals = [...new Set([...ctx.signals, ...injectionSignals([taskText(o.task)])])]; // FD-234
+  const job = jobOf(ctx, o.task);
   // A session started outside this app (a hand-over, a continue) may have no pack folder yet.
   fs.mkdirSync(o.dir, { recursive: true, mode: 0o700 });
   try { fs.chmodSync(o.dir, 0o700); } catch { /* Windows: the profile's ACL */ }
@@ -320,15 +337,15 @@ export function writeTaskOnly(o: { snapshot: ServiceSnapshot; activity: Activity
  */
 export function prepareHandoff(o: {
   snapshot: ServiceSnapshot; activity: ActivityItem[]; folder: string; runtimeId: string; dir: string;
-  server: McpCommand; version: string; task?: { kind: 'fix' | 'update' | 'audit'; output?: string }; now?: () => Date;
+  server: McpCommand; version: string; task?: { kind: 'fix' | 'update' | 'audit' | 'ask'; output?: string }; now?: () => Date;
 }): { handoff: { before: string[]; after: string[] }; env: Record<string, string>; signals: string[]; files: { context: string; task: string | null; mcp: string; brief: string | null; manifest: string | null } } {
   // A start that fails before the manifest is written again must not leave the last start's manifest behind.
   fs.rmSync(path.join(o.dir, 'handoff.json'), { force: true });
   const now = (o.now ?? (() => new Date()))().toISOString();
   const read = handoffContext(o.snapshot, o.activity, o.folder);
   // FD-234: a task's output (audit findings, a failed update) is read for instruction-like text too.
-  const ctx = { ...read, signals: [...new Set([...read.signals, ...injectionSignals([o.task?.output])])], asks: askArgs(o.runtimeId).length > 0, skips: bypassArgs(o.runtimeId).length > 0 };
-  const job = o.task ? (o.task.kind === 'fix' ? fixTask(ctx) : o.task.kind === 'audit' ? auditTask(ctx, o.task.output ?? '') : updateTask(ctx, o.task.output ?? null)) : null;
+  const ctx = { ...read, signals: [...new Set([...read.signals, ...injectionSignals([taskText(o.task)])])], asks: askArgs(o.runtimeId).length > 0, skips: bypassArgs(o.runtimeId).length > 0 };
+  const job = o.task ? jobOf(ctx, o.task) : null;
   const taskPath = job ? path.join(o.dir, 'task.md') : null;
   const text = brief(ctx.key, { task: taskPath });
   const inline = briefFitsInline(text);

@@ -13,7 +13,8 @@ import type { SessionActionResult, SessionNotice } from './sessions';
 /** The View menu's commands the window carries out (ADR-0017; FD-220 focus; FD-227 the open agents). */
 export type LayoutCommand = 'sidebar' | 'console' | 'details' | 'focus' | 'next-agent' | 'previous-agent' | 'close-agent';
 
-export interface ConsoleTask { kind: 'fix' | 'update' | 'audit'; output?: string }
+/** FD-241: `ask` is a task the person typed on the agent's page, `output` their words. */
+export interface ConsoleTask { kind: 'fix' | 'update' | 'audit' | 'ask'; output?: string }
 
 /** FD-92: a job the console starts once it is shown (Fix / Update with agent, Continue); taken once by its nonce. */
 export interface DrawerTask { task?: ConsoleTask; mode?: 'new' | 'continue'; nonce: number }

@@ -112,6 +112,7 @@
 | SCN-104 | Open here a session Switchboard's session host holds | sessions | P-01 | ST-019 | implemented | 2026-11-12 |
 | SCN-105 | Keep several agents open and move between them | layout | P-01 | ST-002 | implemented | 2026-11-13 |
 | SCN-106 | Give an agent's dashboard or console the whole window | layout | P-01 | ST-002, ST-019 | implemented | 2026-11-13 |
+| SCN-107 | Give an agent a task from the top of its page | console | P-01 | ST-019 | implemented | 2026-11-14 |
 ## Personas
 
 Defined in [foundation.md](foundation.md) → P-01.
@@ -2419,4 +2420,24 @@ The Sessions mode (0.8.0): every coding session apart from the agents, each stat
   - "Dashboard Fills the Window" / «Дашборд на всё окно» (menu); "Fill the window with the dashboard" / «Развернуть дашборд на всё окно»; "Show the agent list and header" / «Вернуть список агентов и шапку»; "Fill the window with the console" / «Развернуть консоль на всё окно»; "Show the console as a panel" / «Показать консоль панелью»
 - **Status:** implemented (2026-11-13, 0.8.68: `test/parts.test.ts` *FD-220*, `test/sidebar-manage.test.ts` *FD-121*; copy check reports `ce1de9a2`, `9345d320`, `930f80b3`, `ef799040` (en), `171b2822` (en), `5f5e84d3`, `99e6dbb4`, `cefe7e10`, `8019ef48`, `ea4d0c61` (ru), no findings; seen on the built app: the filled dashboard, the console filling the area)
 - **Coverage:** src/renderer/App.tsx (focus, DashChromeContext, the drawer's `expand`), src/renderer/components/ServiceView.tsx (header and toolbar buttons), src/renderer/DrawerApp.tsx, src/renderer/components/ConsolePanel.tsx (expand), src/electron/drawer.ts, src/electron/main.ts (menu, layoutCommand), src/core/platform.ts (menuKeys.focus), src/renderer/styles/app.css (.app.focus)
+- **Product:** unobserved
+
+### SCN-107: Give an agent a task from the top of its page
+- **Persona:** P-01
+- **Feature:** console
+- **Traces:** ST-019; FD-241; the operator, 2026-11-14, this repository's session `36babb6c`: «всегда вверху странички должны быть возможность дать агенту задачу типа что-то сделать»
+- **Entry point:** any agent's page: the task line under its one-line header
+- **Preconditions:** a coding agent is installed and the agent's folder is known (SCN-049)
+- **Steps:**
+  1. The person types what the agent should do in the task line and presses Enter or "Give the task" -> the agent's console opens and the coding agent starts in its folder with the task as its first prompt (`task.md`: the person's words as typed, the agent's name and key, and to ask before anything destructive)
+  2. A session already runs in that console -> the task is kept and the console offers to send it to the running session, as Fix with agent does (SCN-054)
+- **Expected result:** an agent gets a task in one line from the page the person is on, with no menu to open
+- **Alt paths:** the start is refused (no folder, no account, the machine is short of room) -> the console says why, as for any start, and keeps the task for the next New session
+- **UI elements:** the task line (a text field with "Give {name} a task: what should it do?" and "Give the task")
+- **States covered:** empty, success, error
+- **Errors & recovery:** an empty line sends nothing; the person's words are not fenced or held as a service's text (FD-234 holds what a service wrote, not the person's order)
+- **Copy:**
+  - "A task for {name}" / «Задача для агента {name}»; "Give {name} a task: what should it do?" / «Дайте задачу агенту {name}: что ему сделать?»; "Give the task" / «Дать задачу» (copy checks `9c41b463`, `84c500f3`, `aff51eb3`, `fb622bbf`, `b6e9a8e8`, `75bcc55a`, no findings)
+- **Status:** implemented (2026-11-14, 0.8.83: `test/handoff.test.ts` *FD-241*; walked on the built app: the task line, then the console's runtime given `task.md` beginning «# Task: from the operator for `Sample Service`»)
+- **Coverage:** src/renderer/components/ServiceView.tsx (TaskLine), src/core/handoff.ts (askTask, jobOf), src/core/api.ts (ConsoleTask `ask`), src/electron/console.ts (taskOf)
 - **Product:** unobserved

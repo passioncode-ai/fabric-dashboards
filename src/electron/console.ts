@@ -1643,7 +1643,8 @@ export class ConsoleHost {
     });
     const taskOf = (v: unknown): ConsoleTask | undefined => {
       const x = (v ?? null) as { kind?: unknown; output?: unknown } | null;
-      if (!x || (x.kind !== 'fix' && x.kind !== 'update' && x.kind !== 'audit')) return undefined;
+      if (!x || (x.kind !== 'fix' && x.kind !== 'update' && x.kind !== 'audit' && x.kind !== 'ask')) return undefined;
+      if (x.kind === 'ask' && (typeof x.output !== 'string' || !x.output.trim() || x.output.length > 8000)) return undefined; // FD-241
       return { kind: x.kind, ...(typeof x.output === 'string' ? { output: x.output.slice(-20_000) } : {}) };
     };
     ipcMain.handle(CHANNELS.consoleStart, (_e, key, mode, s, task) => (keyOk(key) ? this.start(key, mode === 'continue' ? 'continue' : 'new', size(s), taskOf(task)).then((r) => { if (!r.ok && r.reason !== 'running') this.o.failed?.(r.reason === 'admission' ? `admission_${r.why}` : r.reason); return r; }) : Promise.reject(new Error('not a service key'))));
