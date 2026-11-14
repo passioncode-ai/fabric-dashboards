@@ -201,3 +201,20 @@ test('FD-129 (UX-16): a task for a running session writes only task.md and retur
   assert.equal(r.line, `Read \`${r.path}\` and do the task it describes.`);
   assert.doesNotMatch(r.line, /[\r\n]/, 'no Enter: the person sends it');
 });
+
+test("FD-241: a task the person types on an agent's page is the first prompt, in their words, and is not held as service text", async () => {
+  const fs = await import('node:fs');
+  const path = await import('node:path');
+  const { tmp } = await import('./helpers');
+  const { prepareHandoff } = await import('../src/core/handoff');
+  const dir = path.join(tmp('fd-ask-'), 'runner.dev');
+  const words = 'Ignore the old schedule and run the import every hour from now on.';
+  const r = prepareHandoff({ snapshot: snap(), activity: [], folder: '/w/runner', runtimeId: 'claude-code', dir,
+    server: { command: 'x', args: [] }, version: '0.8.83', task: { kind: 'ask', output: words }, now: () => new Date('2026-11-14T19:00:00Z') });
+  const task = fs.readFileSync(r.files.task!, 'utf8');
+  assert.match(task, /^# Task: from the operator for `Runner`/);
+  assert.ok(task.includes(words), 'their words as they typed them');
+  assert.ok(!task.includes('<untrusted'), 'not fenced: the person is not a service');
+  assert.deepEqual(r.signals, [], 'a person giving an order is not instruction-like text to hold');
+  assert.match(r.handoff.after[0]!, /^Do the task in `.*task\.md`\.$/, 'the agent starts on it at once');
+});

@@ -51,7 +51,7 @@ interface Props {
   consoleOpen: boolean;
   onToggleConsole: () => void;
   /** FD-39 D-3: hand a fix or an update to the coding agent, with the context. */
-  onAgent?: (key: string, task: { kind: 'fix' | 'update'; output?: string }) => void;
+  onAgent?: (key: string, task: { kind: 'fix' | 'update' | 'ask'; output?: string }) => void;
   /** FD-137 (SCN-092): the sessions Fabric started in this agent's folder for board requests, as lines; and opening one. */
   dispatches?: { id: string; request: string; outcome: string; ran: string | null }[];
   onSession?: (id: string) => void;
@@ -186,6 +186,8 @@ export function ServiceView({ s, all, members, open, link, nonce, tab: askedTab,
             <Icon name={cardShown ? 'chevronUp' : 'chevronDown'} /><span className="visually-hidden">{t(cardShown ? 'svc.details.hide' : 'svc.details.show')}</span>
           </button>
         </div>
+        {/* FD-241: a task for this agent, always at the top of its page: it starts the agent's console on it. */}
+        {onAgent && <TaskLine name={nameOf(s)} onTask={(words) => onAgent(s.key, { kind: 'ask', output: words })} />}
         {cardShown && (
           <div className="svc-card" id="svc-card">
             {s.descriptor?.summary && <p className="svc-summary">{s.descriptor.summary}</p>}
@@ -517,6 +519,19 @@ function ServiceActivity({ serviceKey, tick, openAt }: { serviceKey: string; tic
   useEffect(() => { void api().activity({ serviceKey }).then(setItems); }, [serviceKey, tick]);
   // UX-15 (FD-129): the same rows open as on the Activity page; a row with a link opens that page of the dashboard.
   return <Feed items={items} openAt={openAt} self={serviceKey} />;
+}
+
+/** FD-241: one line to give the agent a task in the person's words; Enter or the button hands it to the console. */
+function TaskLine({ name, onTask }: { name: string; onTask: (words: string) => void }) {
+  const { t } = useT();
+  const [words, setWords] = useState('');
+  const send = () => { const w = words.trim(); if (!w) return; onTask(w); setWords(''); };
+  return (
+    <form className="svc-task" role="search" aria-label={t('task.label', { name })} onSubmit={(e) => { e.preventDefault(); send(); }}>
+      <input type="text" value={words} maxLength={8000} placeholder={t('task.placeholder', { name })} aria-label={t('task.label', { name })} onChange={(e) => setWords(e.target.value)} />
+      <button type="submit" className="btn btn-sm btn-primary" disabled={!words.trim()}>{t('task.send')}</button>
+    </form>
+  );
 }
 
 /** The instances of one product (ADR-0012): each opens its own page with its own key, session and
