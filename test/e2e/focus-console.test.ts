@@ -117,7 +117,7 @@ test('ADR-0017: a one-line header, a folding sidebar, and an agent console besid
     await waitFor('the runtime to start', async () => (await termText(con)).includes(`fake-claude ready in ${fs.realpathSync(repo)}`) || (await termText(con)).includes(`fake-claude ready in ${repo}`));
     // FD-39 SCN-053 (ADR-0020): the runtime starts holding the agent's context — its MCP and a brief naming it.
     const pack = path.join(userData, 'consoles', 'sample.default');
-    await waitFor('the context pack to reach the runtime', async () => { const x = await termText(con); return x.includes('ctx:[present]') && x.includes(`args:[--mcp-config=${pack}/mcp.json --append-system-prompt You are working on a Fabric agent, opened from Fabric Dashboards. Call the fabric-dashboards tool service_context with key sample.default`); });
+    await waitFor('the context pack to reach the runtime', async () => { const x = await termText(con); return x.includes('ctx:[present]') && x.includes(`--mcp-config=${pack}/mcp.json --append-system-prompt You are working on a Fabric agent, opened from Fabric Dashboards. Call the fabric-dashboards tool service_context with key \`sample.default\``); }); // FD-174: the bypass flag may come first; FD-234: the key is quoted
     // FD-47 (DEC-0042): the same folder carries the contract's manifest, which Fabric reads the same way.
     const manifest = JSON.parse(fs.readFileSync(path.join(pack, 'handoff.json'), 'utf8')) as { format: string; firstCall: { arguments: { key: string } }; launch: { runtime: string } };
     assert.equal(manifest.format, 'session-handoff/1');
