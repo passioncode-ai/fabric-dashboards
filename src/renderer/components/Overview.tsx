@@ -8,10 +8,10 @@ import { sumSpend, type SpendEntry } from '../../core/spend';
 import { attentionQueue, foldAttention, groupAttention, urgent } from '../../core/attention';
 import { FixButton } from './ServiceActions';
 import { money as formatMoney } from './Spend';
-import { categoryOf, instanceOf, offProducts, type Product } from '../../core/products';
+import { categoryOf, instanceOf, offProducts, placeStates, type Product } from '../../core/products';
 import type { ListLayout } from '../../core/types';
 import type { AppStatus, ServiceSnapshot, Settings } from '../../core/types';
-import { api, GLYPH, nameOf, NEWS_MS, shortBuild, Spinner, StateBadge, useExpiry, useT } from '../lib';
+import { api, GLYPH, Icon, nameOf, NEWS_MS, shortBuild, Spinner, StateBadge, useExpiry, useT } from '../lib';
 import { shownState } from '../../core/setup-wait';
 import { firstAction } from '../../core/focus';
 
@@ -181,11 +181,11 @@ export function Overview({ status, products, open, act, goSpend, agent, visit, o
   };
 
   // ADR-0012: one card per product, placed by its primary; Attention above stays per instance (hidden ones too).
-  // FD-78: on this Mac, online, services; what the person hid is folded at the bottom.
+  // FD-78: agents, services; what the person hid is folded at the bottom. FD-244: agents on this Mac and online in one
+  // group, as in the sidebar; each card names its places.
   const hiddenIds = new Set(list?.hidden ?? []);
   const shown = products.filter((p) => !hiddenIds.has(p.id));
-  const local = shown.filter((p) => categoryOf(p, list?.kinds) === 'local');
-  const online = shown.filter((p) => categoryOf(p, list?.kinds) === 'online');
+  const agents = shown.filter((p) => categoryOf(p, list?.kinds) !== 'service');
   const service = shown.filter((p) => categoryOf(p, list?.kinds) === 'service');
   const hidden = products.filter((p) => hiddenIds.has(p.id));
   const off = offProducts(status.off ?? []); // FD-123; Scenario walk 2026-11-11 (SCN-072): one name per agent, not per instance
@@ -297,14 +297,11 @@ export function Overview({ status, products, open, act, goSpend, agent, visit, o
           </section>
         );
       })()}
-      <div className="cards">
-        {local.map((p) => <Card key={p.id} p={p} open={open} />)}
-      </div>
-      {online.length > 0 && (
-        <section className="online" aria-labelledby="online-title">
-          <h2 id="online-title">{t('overview.online')}</h2>
+      {agents.length > 0 && (
+        <section className="online" aria-labelledby="agents-title">
+          <h2 id="agents-title">{t('nav.agents')}</h2>
           <div className="cards">
-            {online.map((p) => <Card key={p.id} p={p} open={open} />)}
+            {agents.map((p) => <Card key={p.id} p={p} open={open} />)}
           </div>
         </section>
       )}
@@ -334,6 +331,7 @@ function Card({ p, open }: { p: Product; open: (key: string) => void }) {
   const { t, duration, time } = useT();
   const s = p.primary;
   const others = p.members.slice(1);
+  const places = placeStates(p);
   const wk = s.wellKnown;
   const uptime = wk ? Date.now() - new Date(wk.process.startedAt).getTime() : null;
   return (
@@ -341,6 +339,7 @@ function Card({ p, open }: { p: Product; open: (key: string) => void }) {
     // VIS-11 (FD-113): and what a sighted person reads next: the tiles flagged for attention and the latest event.
     <button className="card" onClick={() => open(s.key)} aria-label={[
       t('join.nameState', { name: nameOf(s), state: t(`state.${shownState(s)}`) }), s.descriptor?.summary,
+      ...(places.length > 1 ? places.map(({ place, member }) => t('join.nameState', { name: t(`place.${place}`), state: t(`state.${shownState(member)}`) })) : []),
       ...others.map((m) => `${instanceOf(m.key)}: ${t(`state.${shownState(m)}`)}`),
       ...(wk?.summary ?? []).slice(0, 6).filter((tile) => tile.attention).map((tile) => `${tile.label}: ${tile.value}`),
       s.latestEvent ? `${time(s.latestEvent.at)} ${s.latestEvent.text}` : null,
@@ -352,6 +351,8 @@ function Card({ p, open }: { p: Product; open: (key: string) => void }) {
             {wk ? <span className="mono">{wk.service.version} · {shortBuild(s)}</span> : <span className="mono">{s.key}</span>}
             {uptime !== null && !isOnline(s) && <> · {t('card.uptime', { uptime: duration(uptime) })}</>}
             {isOnline(s) && <> · {t('card.online', { host: hostOf(s) })}</>}
+            {/* FD-244: an agent that runs on this Mac and online says each place's state on its card, as on its sidebar row. */}
+            {places.length > 1 && <span className="nav-places card-places">{places.map(({ place, member }) => <span key={place} className={`nav-place state-${shownState(member)}`} title={t('join.nameState', { name: t(`place.${place}`), state: t(`state.${shownState(member)}`) })}><Icon name={place === 'local' ? 'laptop' : 'cloud'} /></span>)}</span>}
           </div>
         </div>
         <StateBadge state={shownState(s)} />

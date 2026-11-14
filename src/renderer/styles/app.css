@@ -799,6 +799,7 @@ div.session-group-head h2 { margin: 0; }
 /* FD-244: where an agent runs, as small icons after its name: this computer, online, or both. */
 .nav-places { display: inline-flex; gap: 2px; margin-left: auto; flex: none; color: var(--pc-text-muted); }
 .nav-place .icon { width: 12px; height: 12px; }
+.card-places { margin-left: var(--pc-space-1); vertical-align: middle; }
 
 /* FD-245: the instance switch sits in the one-line header as a compact segmented control (place icon, name, state). */
 .svc-bar .instances { flex: 0 1 auto; flex-wrap: nowrap; gap: 2px; padding: 2px; min-width: 0; overflow-x: auto; border: 1px solid var(--pc-border); border-radius: var(--pc-radius-control); background: var(--pc-bg); scrollbar-width: none; }

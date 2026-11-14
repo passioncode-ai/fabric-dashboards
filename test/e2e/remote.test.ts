@@ -100,9 +100,9 @@ test('an online service sits in the Online group, opens signed in over https, an
     const page = await app.firstWindow();
     const card = page.getByRole('button', { name: /Example Online Agent: Ready/ });
     await card.waitFor({ timeout: 30_000 });
-    const group = page.getByRole('region', { name: 'Online' });
+    const group = page.getByRole('region', { name: 'Agents' });
     await group.waitFor();
-    assert.equal(await group.getByRole('button', { name: /Example Online Agent/ }).count(), 1, 'the card is in the Online group (SCN-030)');
+    assert.equal(await group.getByRole('button', { name: /Example Online Agent/ }).count(), 1, 'the card is in the one Agents group, on this Mac and online together (SCN-030, FD-244)');
     await page.getByText(`online · agent.example.com:${port}`).waitFor();
 
     await card.click();
