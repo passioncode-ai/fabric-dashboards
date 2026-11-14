@@ -5,7 +5,7 @@
 // #region organizations — docs: docs/ux/scenarios.md#scn-094-show-only-one-organizations-agents
 
 /** `personal`: the operator's own organization (Observatory's `default: true`, the context Switchboard and the Studio call
- *  `personal`); the filter's "Mine" (FD-195). */
+ *  `personal`); the kind "Mine" (FD-195), which MCP `list_services` and a choice saved before FD-237 still read. */
 export interface Organization { name: string; label: string; personal?: boolean }
 
 export interface OrganizationsCache {
@@ -157,7 +157,7 @@ function hostOf(origin: string): string | null {
   try { return new URL(origin).hostname.toLowerCase() || null; } catch { return null; }
 }
 
-// FD-195 (SCN-094 steps 7 to 9): the filter's three kinds besides organization names: "Mine" (the personal
+// FD-195, retired from the menu by FD-237 (SCN-094 step 9; MCP `list_services` still takes them): the filter's three kinds besides organization names: "Mine" (the personal
 // organization's agents), "Other organizations" (every attributed agent that is not mine) and "Shared between
 // organizations" (an agent whose product runs here in two organizations or more, as one copy each). A name and a kind
 // combine as a union.
@@ -192,18 +192,25 @@ export const GITHUB_PREFIX = 'gh:';
 export function githubOwnerOf(repository: string | undefined | null): Organization | null {
   if (typeof repository !== 'string') return null;
   const r = repository.trim();
-  // The first path segment after the host: `https://github.com/Acme/x/tree/main/y`, `ssh://git@github.com/acme/x`,
-  // `git+https://…`, `git@github.com:acme/x.git`, or a bare `owner/name`. Its case is kept for the label.
-  const m = /^(?:git\+)?(?:https?|ssh|git):\/\/(?:[^@/]+@)?(?:www\.)?github\.com(?::\d+)?\/([A-Za-z0-9][A-Za-z0-9-]{0,38})(?:\/|$)/i.exec(r)
+  // The owner of a repository path after the host: `https://github.com/Acme/x/tree/main/y`, `github.com/acme/x`,
+  // `ssh://git@github.com/acme/x`, `git+https://…`, `git@github.com:acme/x.git`, or a bare `owner/name`. Its case is
+  // kept for the label; a GitHub page that is not an owner's (`/orgs/acme`, `/sponsors/acme`) names none.
+  const m = /^(?:(?:git\+)?(?:https?|ssh|git):\/\/(?:[^@/]+@)?)?(?:www\.)?github\.com(?::\d+)?\/([A-Za-z0-9][A-Za-z0-9-]{0,38})(?:\/[\w.-]+)?(?:[/?#]|$)/i.exec(r)
     ?? /^git@github\.com:([A-Za-z0-9][A-Za-z0-9-]{0,38})\//i.exec(r)
     ?? /^([A-Za-z0-9][A-Za-z0-9-]{0,38})\/[\w.-]+$/.exec(r);
-  if (!m) return null;
+  if (!m || NOT_OWNERS.has(m[1]!.toLowerCase())) return null;
   return { name: `${GITHUB_PREFIX}${m[1]!.toLowerCase()}`, label: m[1]! };
 }
+/** GitHub's own first path segments, which name a page, not an owner. */
+const NOT_OWNERS = new Set(['orgs', 'sponsors', 'users', 'settings', 'topics', 'marketplace', 'apps', 'features', 'enterprise', 'login', 'about', 'collections', 'explore', 'notifications', 'organizations']);
+
+/** FD-237 (verifier round 3): a filter value as the filters compare it: `gh:` and its owner in lower case (GitHub owners
+ *  are case-insensitive; an agent may copy `gh:Acme` from a URL), any other value as written. */
+export const canonicalOrgValue = (v: string): string => (/^gh:/i.test(v) ? v.toLowerCase() : v);
 
 /** What one service counts as under a source: its organization, or its GitHub owner. */
 export interface OrgSubject { key: string; organization?: Organization | null; descriptor?: { source?: { repository?: string } } | null }
-export function organizationBy(source: OrgSource, s: OrgSubject): Organization | null | undefined {
+export function organizationBy(source: OrgSource, s: Omit<OrgSubject, 'key'>): Organization | null | undefined {
   return source === 'github' ? githubOwnerOf(s.descriptor?.source?.repository) : s.organization;
 }
 
@@ -220,7 +227,10 @@ export function keepsOrganization(chosen: readonly string[], organization: Organ
 export function filterServices<S extends OrgSubject>(services: readonly S[], chosen: readonly string[], keep?: string | null, source: OrgSource = 'org'): S[] {
   if (chosen.length === 0) return [...services];
   // FD-237: a value of the other source (a saved `gh:` name under `org`, or the reverse) keeps nothing of its own.
-  if (source === 'github') return services.filter((s) => s.key === keep || chosen.includes(githubOwnerOf(s.descriptor?.source?.repository)?.name ?? ''));
+  if (source === 'github') {
+    const owners = chosen.map(canonicalOrgValue);
+    return services.filter((s) => s.key === keep || owners.includes(organizationBy('github', s)?.name ?? ''));
+  }
   const shared = chosen.includes(ORG_SHARED) ? sharedProducts(services) : new Set<string>();
   return services.filter((s) => s.key === keep || keepsOrganization(chosen, s.organization, isShared(shared, s.key)));
 }
@@ -239,7 +249,7 @@ export function kindCounts(services: readonly { key: string; organization?: Orga
 /** The organizations among the services, with how many agents each has, by label; `''` (not attributed) last. Empty
  *  when no service carries an organization at all (no map was read). */
 export function organizationCounts(services: readonly OrgSubjectLike[], source: OrgSource = 'org'): { name: string; label: string | null; count: number; personal?: boolean }[] {
-  const of = (s: OrgSubjectLike) => (source === 'github' ? githubOwnerOf(s.descriptor?.source?.repository) : s.organization);
+  const of = (s: OrgSubjectLike) => organizationBy(source, s);
   if (source === 'org' && !services.some((s) => s.organization !== undefined)) return [];
   if (source === 'github' && !services.some((s) => of(s))) return [];
   const by = new Map<string, { name: string; label: string | null; count: number; personal?: boolean }>();
@@ -260,7 +270,7 @@ export function organizationCounts(services: readonly OrgSubjectLike[], source: 
 export function groupByOrganization<P extends { primary: OrgSubjectLike }>(rows: readonly P[], source: OrgSource = 'org'): { name: string; label: string | null; rows: P[] }[] | null {
   const order = organizationCounts(rows.map((r) => r.primary), source);
   if (order.length < 2) return null;
-  const nameOf = (s: OrgSubjectLike) => (source === 'github' ? githubOwnerOf(s.descriptor?.source?.repository)?.name : s.organization?.name) ?? '';
+  const nameOf = (s: OrgSubjectLike) => organizationBy(source, s)?.name ?? '';
   return order.map((o) => ({ name: o.name, label: o.label, rows: rows.filter((r) => nameOf(r.primary) === o.name) }));
 }
 /** What the counts read of a service (no key needed). */

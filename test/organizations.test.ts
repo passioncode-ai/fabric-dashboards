@@ -317,3 +317,28 @@ test('FD-237 (verifier): the GitHub owner is the first path segment after the ho
   assert.equal(githubOwnerOf('git+https://github.com/acme/x.git')?.name, 'gh:acme');
   assert.equal(githubOwnerOf('https://github.com.evil.example/acme/x'), null);
 });
+
+test('FD-237 (verifier round 3): gh: values compare without case, a refused source refuses its choice, GitHub pages name no owner', async () => {
+  const { githubOwnerOf } = await import('../src/core/organizations');
+  const { agentSettingsPatch } = await import('../src/core/settings');
+  const services = [withRepo('alpha.default', 'https://github.com/Example-Org/alpha', null), withRepo('bravo.default', 'https://github.com/me/bravo', null)];
+  assert.deepEqual(filterServices(services, ['gh:Example-Org'], null, 'github').map((s) => s.key), ['alpha.default']);
+  assert.deepEqual(mergeSettings({ layout: { list: { orgs: ['gh:Acme', 'gh:acme', 'Acme'] } } }).layout.list.orgs, ['gh:acme', 'Acme'], 'gh: is kept in lower case, an organization name as written');
+  const r = agentSettingsPatch({ layout: { list: { orgSource: 'GITHUB', orgs: ['gh:x'] } } });
+  assert.ok(r.refused.includes('layout.list.orgs'), 'the choice sent with a refused source is refused too');
+  assert.equal(githubOwnerOf('github.com/acme/x')?.name, 'gh:acme');
+  assert.equal(githubOwnerOf('https://www.github.com/acme/x')?.name, 'gh:acme');
+  assert.equal(githubOwnerOf('https://github.com/acme?tab=repositories')?.name, 'gh:acme');
+  assert.equal(githubOwnerOf('https://github.com/orgs/acme'), null);
+  assert.equal(githubOwnerOf('https://github.com/sponsors/acme'), null);
+});
+
+test('FD-238 (verifier rounds 3 and 4): a spend cell reads as a word whenever no report was read, failures included', async () => {
+  const { spendIsWord } = await import('../src/renderer/components/Overview');
+  const report = (costUsd: number | null) => ({ kind: 'report', summary: { today: { calls: 3, inputTokens: 0, outputTokens: 0, costUsd, subscriptionCalls: 0 }, month: { calls: 3, inputTokens: 0, outputTokens: 0, costUsd, subscriptionCalls: 0 } } }) as never;
+  assert.equal(spendIsWord(null, 'today'), false, 'still reading: the spinner');
+  assert.equal(spendIsWord([], 'today'), true);
+  assert.equal(spendIsWord([{ kind: 'error' } as never], 'today'), true, '"unknown" is a word too');
+  assert.equal(spendIsWord([report(1.5)], 'month'), false, 'a sum');
+  assert.equal(spendIsWord([report(null)], 'month'), true, 'every call unpriced: "unknown"');
+});

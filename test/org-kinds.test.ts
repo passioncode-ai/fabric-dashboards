@@ -1,4 +1,4 @@
-// FD-195 (SCN-094 steps 7 to 9): the agent list's filter by Mine, Other organizations and Shared between organizations,
+// FD-195 (retired from the menu by FD-237, SCN-094 step 9; MCP `list_services` and saved choices still read them): the agent list's filter by Mine, Other organizations and Shared between organizations,
 // beside each organization; the personal organization is the one Project Observatory's config marks `default: true`.
 import assert from 'node:assert/strict';
 import test from 'node:test';

@@ -10,6 +10,7 @@ import { CONSOLE_HEIGHT, DEFAULT_SETTINGS, SIDEBAR_WIDTH, type Settings, type Se
 import { DEFAULT_PAGE_THEME, REFERENCE_THEMES } from './appearance';
 import { pruneDismissed, pruneRecords } from './sessions';
 import { MAX_TABS } from './layout';
+import { canonicalOrgValue } from './organizations';
 
 /** FD-122: how often settings.json is looked at for a change written outside the app (a stat, no read). */
 export const SETTINGS_POLL_MS = 5_000;
@@ -182,7 +183,8 @@ function mergeList(raw: unknown): Settings['layout']['list'] {
   const hidden = productIds([...productIds(l.hidden), ...off]);
   // FD-162: organization names as Project Observatory gives them, and '' for "Not attributed".
   // FD-195: an organization's name, '' (not attributed), or one of the kinds `@mine`, `@others`, `@shared`.
-  const orgs = Array.isArray(l.orgs) ? [...new Set(l.orgs.filter((v): v is string => typeof v === 'string' && (/^[a-z0-9._-]{0,64}$/i.test(v) || /^gh:[a-z0-9][a-z0-9._-]{0,38}$/i.test(v) || v === '@mine' || v === '@others' || v === '@shared')))].slice(0, 50) : [];
+  // FD-237: `gh:<owner>` is kept in lower case, as the filters compare it.
+  const orgs = Array.isArray(l.orgs) ? [...new Set(l.orgs.filter((v): v is string => typeof v === 'string' && (/^[a-z0-9._-]{0,64}$/i.test(v) || /^gh:[a-z0-9][a-z0-9._-]{0,38}$/i.test(v) || v === '@mine' || v === '@others' || v === '@shared')).map(canonicalOrgValue))].slice(0, 50) : [];
   return { sort, pinned: productIds(l.pinned), hidden, kinds, hiddenOpen: l.hiddenOpen === true, order: productIds(l.order), off, orgs, groupByOrg: l.groupByOrg === true, orgSource: l.orgSource === 'github' ? 'github' : 'org' };
 }
 
@@ -317,6 +319,8 @@ export function agentSettingsPatch(raw: unknown): { patch: SettingsPatch; refuse
           else if ((AGENT_LIST as readonly string[]).includes(lk)) kept[lk] = lv;
           else refused.push(`layout.list.${lk}`);
         }
+        // FD-237 (verifier round 3): a choice sent with a refused source belongs to that source, so it is refused too.
+        if (refused.includes('layout.list.orgSource') && 'orgs' in kept) { delete kept.orgs; refused.push('layout.list.orgs'); }
         if (Object.keys(kept).length) patch.layout = { list: kept };
       }
       continue;

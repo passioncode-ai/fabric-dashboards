@@ -472,7 +472,14 @@ function OrgMenu({ services, chosen, onChange, grouped, onGroup, source, onSourc
       <div className="org-menu-list" role="group" aria-label={t('orgs.menu')}>
         {/* FD-237: the switch whenever the other source tells two or more apart, so no source is a dead end. */}
         {offered.some((s) => s !== source) && (
-          <div className="mode-switch org-source" role="radiogroup" aria-label={t('orgs.source')}>
+          <div className="mode-switch org-source" role="radiogroup" aria-label={t('orgs.source')} onKeyDown={(e) => {
+            // FD-237 (verifier round 3): a radio group moves with the arrow keys.
+            if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) return;
+            e.preventDefault();
+            const next = source === 'org' ? 'github' : 'org';
+            const group = e.currentTarget;
+            if (offered.includes(next)) { onSource(next); requestAnimationFrame(() => group.querySelector<HTMLButtonElement>('[aria-checked="true"]')?.focus()); }
+          }}>
             {(['org', 'github'] as const).filter((s) => s === source || offered.includes(s)).map((s) => (
               <button key={s} type="button" role="radio" aria-checked={source === s} className="mode-btn org-source-btn" onClick={() => { if (s !== source) onSource(s); }}>{t(s === 'github' ? 'orgs.sourceGithub' : 'orgs.sourceOrg')}</button>
             ))}
