@@ -24,4 +24,5 @@ their meaning there: Host, Provider, Agent, Capability, Profile.
 | State vectors | `packages/service-host/test-vectors/state-precedence.json`: the cases every host that reads `services/` runs against its own use of the state precedence. |
 | MCP server | `fabric-dashboards-mcp`, shipped inside the app: agents list services, get deep links, open pages, and start, stop, restart, doctor or update through the app's own rules. |
 | Auto-update switch | The `auto-update` file in the app's data folder (absent = on, `off` = off), the organization's LC-16 switch behind «Install updates automatically»; no update, reinstall or uninstall rewrites it (ADR-0015 amendment). |
+| Held start | A console start whose service-written context reads like instructions, or whose pack cannot be written (FD-234): it starts with permission prompts on where the runtime can ask; the person's saved choice is unchanged. |
 | Held release | A newer release whose feed says `needsPerson`: downloaded and verified, installed only when the person chooses Install after its steps. |

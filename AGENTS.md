@@ -44,7 +44,7 @@
 Fabric Dashboards: a macOS desktop app (Electron) that finds every local agent service speaking
 `fabric-service/0.1`, shows whether it is alive and what it did last, starts, stops and restarts
 it through launchd and opens each service's dashboard inside the app. Fabric's monitoring tool;
-also works on its own. The current version is 0.8.76 (`package.json`, `CHANGELOG.md`); the README
+also works on its own. The current version is 0.8.77 (`package.json`, `CHANGELOG.md`); the README
 *Quick start for a new teammate* is the path for a new user. Licence:
 `AGPL-3.0-only OR LicenseRef-PassionCode-Commercial` ([ADR-0007](docs/adr/0007-agpl-or-commercial.md)).
 
@@ -219,7 +219,7 @@ monitor costs about 1.7 ms of CPU per probe or events read. (Before this change,
 
 **Files it writes** (LC-12): `~/Library/Application Support/Fabric Dashboards/` — `digests/` (FD-144: `hourly-YYYY-MM.jsonl` and `daily-YYYY-MM.jsonl` appended, `open.json` the open hour; months older than three removed), `analytics-state.json` (FD-136: when the install was counted, the last version and the last day counted; with the switch on, the shared `PassionCode/installation.json` beside the app's own folder is created once if no PassionCode app made it), `agent-names.json` (FD-135: the names last read from the agents' repositories, rewritten whole after each read or rename), `organizations.json` (FD-162: each repository's organization as Project Observatory's registry gives it, 0600, rewritten whole after each read; the MCP server reads it), `settings.json` (with the panel layout, pinned agents,
 the list's sort, hidden agents, agents turned off (FD-123) and the kinds the person chose (FD-78, read by the MCP server without writing), each service's console runtime and folder, ADR-0017, the New session dialog's last choices and each session of its own's permission and isolation, FD-191, and the previous visit and setup state, ADR-0020),
-`consoles/<key>/` (FD-39, ADR-0020: the context pack each console start writes — `context.md`, `task.md` for a Fix/Update, `mcp.json`,
+`consoles/<key>/` (`key-<digest>` for a key that is not a plain name, FD-234) (FD-39, ADR-0020: the context pack each console start writes: `context.md`, `task.md` for a Fix/Update, `mcp.json`,
 `brief.md` when the brief exceeds one argument and `handoff.json`, the contract's `session-handoff/1` manifest (FD-47, DEC-0042), for Claude Code, Codex and Gemini CLI;
 `setup.md` for the Setup console, and `agent.md` for a New agent's console, FD-191; 0700 folder, 0600 files, rewritten at each start, never in the agent's repository)
 and its last good copy `settings.json.bak` (a damaged `settings.json` is restored from it, ADR-0015),

@@ -5,9 +5,11 @@
 // window receives nothing (LC-08) and showing the console again replays it. The PTY is injected:
 // node-pty in the app, a fake in tests.
 import { EventEmitter } from 'node:events';
+import path from 'node:path';
+import { packDir } from './handoff';
 import { commandEnv } from './children';
 import { t, type Lang } from './i18n';
-import { bypassArgs, runtimeArgs, type Runtime } from './runtimes';
+import { askArgs, bypassArgs, runtimeArgs, type Runtime } from './runtimes';
 import { inPlaceArgv, type Binding } from './switchboard';
 
 export interface PtyLike {
@@ -61,8 +63,9 @@ export function planStart(o: { runtime: Runtime; mode: 'new' | 'continue'; folde
   hosted?: boolean }): Plan {
   let args: string[];
   try {
-    // FD-174: without permission prompts, first, so it is a top-level flag even before Codex's `resume`.
-    args = [...(o.bypass === false ? [] : bypassArgs(o.runtime.id)), ...(o.handoff?.before ?? []), ...runtimeArgs(o.runtime, o.mode), ...(o.handoff?.after ?? [])];
+    // FD-174: without permission prompts, first, so it is a top-level flag even before Codex's `resume`. FD-234: with
+    // prompts, an explicit mode, so neither the runtime's own settings nor Switchboard's launch turn them off.
+    args = [...(o.bypass === false ? askArgs(o.runtime.id) : bypassArgs(o.runtime.id)), ...(o.handoff?.before ?? []), ...runtimeArgs(o.runtime, o.mode), ...(o.handoff?.after ?? [])];
   } catch (error) {
     return { kind: 'refused', reason: 'no-continue', detail: (error as Error).message };
   }
@@ -145,7 +148,7 @@ export class ConsoleManager extends EventEmitter {
     if (!file) return { ok: false, error: 'nothing to run' };
     const env: Record<string, string> = {};
     for (const [k, v] of Object.entries(commandEnv(this.o.env()))) if (typeof v === 'string') env[k] = v;
-    Object.assign(env, { TERM: 'xterm-256color', COLORTERM: 'truecolor', FABRIC_DASHBOARDS_SERVICE: key });
+    Object.assign(env, { TERM: 'xterm-256color', COLORTERM: 'truecolor', FABRIC_DASHBOARDS_SERVICE: path.basename(packDir('', key)) }); // FD-234: never a key that is not a plain name
     if (!env.LANG) env.LANG = 'en_US.UTF-8';
     Object.assign(env, plan.env ?? {});
     let pty: PtyLike;

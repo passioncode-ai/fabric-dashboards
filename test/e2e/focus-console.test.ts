@@ -117,14 +117,14 @@ test('ADR-0017: a one-line header, a folding sidebar, and an agent console besid
     await waitFor('the runtime to start', async () => (await termText(con)).includes(`fake-claude ready in ${fs.realpathSync(repo)}`) || (await termText(con)).includes(`fake-claude ready in ${repo}`));
     // FD-39 SCN-053 (ADR-0020): the runtime starts holding the agent's context — its MCP and a brief naming it.
     const pack = path.join(userData, 'consoles', 'sample.default');
-    await waitFor('the context pack to reach the runtime', async () => { const x = await termText(con); return x.includes('ctx:[present]') && x.includes(`args:[--mcp-config=${pack}/mcp.json --append-system-prompt You are working on a Fabric agent, opened from Fabric Dashboards. Call the fabric-dashboards tool service_context with key sample.default`); });
+    await waitFor('the context pack to reach the runtime', async () => { const x = await termText(con); return x.includes('ctx:[present]') && x.includes(`--mcp-config=${pack}/mcp.json --append-system-prompt You are working on a Fabric agent, opened from Fabric Dashboards. Call the fabric-dashboards tool service_context with key \`sample.default\``); }); // FD-174: the bypass flag may come first; FD-234: the key is quoted
     // FD-47 (DEC-0042): the same folder carries the contract's manifest, which Fabric reads the same way.
     const manifest = JSON.parse(fs.readFileSync(path.join(pack, 'handoff.json'), 'utf8')) as { format: string; firstCall: { arguments: { key: string } }; launch: { runtime: string } };
     assert.equal(manifest.format, 'session-handoff/1');
     assert.equal(manifest.firstCall.arguments.key, 'sample.default');
     assert.equal(manifest.launch.runtime, 'claude-code');
     const context = fs.readFileSync(path.join(pack, 'context.md'), 'utf8');
-    assert.match(context, /# Sample Service \(sample\.default\)/);
+    assert.match(context, /# `Sample Service` \(`sample\.default`\)/);
     assert.match(context, /\*\*State:\*\* (ready|degraded)/);
     assert.ok(!context.includes('tokenFile'), 'the token file is never in the context');
     assert.equal(fs.statSync(path.join(pack, 'context.md')).mode & 0o777, 0o600);
@@ -167,8 +167,8 @@ test('ADR-0017: a one-line header, a folding sidebar, and an agent console besid
     await page.getByRole('button', { name: 'Fix with coding agent' }).first().waitFor({ timeout: 60_000 });
     await shot(page, '24-fix-with-agent');
     await page.getByRole('button', { name: 'Fix with coding agent' }).first().click();
-    await waitFor('the runtime to start on the task', async () => /Do the task in [^\]]*task\.md\.\]/.test(await termText(con)));
-    assert.match(fs.readFileSync(path.join(pack, 'task.md'), 'utf8'), /^# Task: Sample Service is (down|stopped)/);
+    await waitFor('the runtime to start on the task', async () => /Do the task in [^\]]*task\.md`?\.\]/.test(await termText(con)));
+    assert.match(fs.readFileSync(path.join(pack, 'task.md'), 'utf8'), /^# Task: `Sample Service` is (down|stopped)/);
     await con.locator('.console-term').click();
     await con.keyboard.type('bye');
     await con.keyboard.press('Enter');
@@ -181,10 +181,10 @@ test('ADR-0017: a one-line header, a folding sidebar, and an agent console besid
     assert.equal(await auditRow.getByRole('combobox').inputValue(), 'claude-code', 'the runtime chosen for this agent');
     await shot(page, '24a-auditor');
     await auditRow.getByRole('button', { name: 'Fix with coding agent' }).click();
-    await waitFor('the audit task to be written', () => /^# Task: Audit findings for Sample Service/.test(fs.readFileSync(path.join(pack, 'task.md'), 'utf8')));
+    await waitFor('the audit task to be written', () => /^# Task: Audit findings for `Sample Service`/.test(fs.readFileSync(path.join(pack, 'task.md'), 'utf8')));
     assert.match(fs.readFileSync(path.join(pack, 'task.md'), 'utf8'), /the Fabric Dashboards auditor found/);
     await page.getByRole('heading', { level: 1, name: 'Sample Service' }).waitFor();
-    await waitFor('the runtime to start on the audit task', async () => /Do the task in [^\]]*task\.md\.\]/.test(await termText(con)) && !(await termText(con)).includes('The session exited with code 0.'));
+    await waitFor('the runtime to start on the audit task', async () => /Do the task in [^\]]*task\.md`?\.\]/.test(await termText(con)) && !(await termText(con)).includes('The session exited with code 0.'));
     await con.locator('.console-term').click();
     await con.keyboard.type('bye');
     await con.keyboard.press('Enter');

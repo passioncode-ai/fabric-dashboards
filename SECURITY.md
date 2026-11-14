@@ -66,11 +66,18 @@ service data.
   (settings, activity) and logs under `~/Library/Logs/Fabric Dashboards/`. Uninstall removes the
   `fabric-dashboards` entry from Claude Code's `~/.claude.json`, and a later launch puts it back
   or points it at the installed copy; nothing else in that file is changed.
-- **Runs** the agent console's runtime (ADR-0017) only when the person presses New session or
-  Continue last: the runtime's own CLI found on the login shell's `PATH`, in the folder shown, with
+- **Runs** the agent console's runtime (ADR-0017) when the person presses any button that opens a console (New session,
+  New agent, Continue last, Fix, Update or Set up with coding agent, Open in Terminal, Continue on a Sessions row or the
+  visit card, Continue setup; SCN-049, SCN-053 to SCN-055, SCN-059, SCN-100 to SCN-102), when an agent asks through MCP (`console_new`, `console_fix`, `session_new`, `session_action`), on another
+  machine over ssh for an agent placed there (FD-199), and when a session stopped on a
+  limit is continued (FD-83): the runtime's own CLI found on the login shell's `PATH`, in the folder shown, with
   `ELECTRON_RUN_AS_NODE` and `NODE_OPTIONS` removed. A folder bound to a Fabric Switchboard project
-  is started by `switchboard launch` itself, so no token passes through the app. The console is the
-  person's own terminal: the runtime has whatever their runtime settings allow. Reading which
+  is started by `switchboard launch` itself, so no token passes through the app; a hand-over (FD-62) runs
+  `switchboard handovers run`, and Switchboard picks its runtime and flags. The runtime starts with its own flag
+  that skips permission prompts (SCN-097); a console whose saved choice keeps prompts, or a start held for its context
+  (FD-234, below), gets an explicit mode that asks instead (Claude Code, Codex, Gemini CLI; OpenCode and Cursor CLI only lose their skip flag and their own settings decide; a runtime with no skip flag starts as before). A session continued after a limit, or a Switchboard or hand-over
+  row continued from the Sessions list, always gets the skipping flag (FD-236 (1)); a console of this app continued from
+  its row follows its saved choice and is read again. A runtime with no known flag starts with its own settings. Reading which
   account a folder uses runs `switchboard --json project show` and `accounts list` (no credentials
   are printed by either).
 - **Allows inline styles** in its window (`style-src 'self' 'unsafe-inline'`), because the
@@ -143,6 +150,38 @@ service data.
   (`shell.openPath` / `showItemInFolder`); the
   fabric-agent-adapter README ("How a service joins"); and macOS System Settings →
   Notifications.
+
+## Text a service wrote reaches a coding agent as data
+
+A console's coding agent reads what an agent service wrote: its name and summary, the reasons and problems the app
+derives from it, its recent events, its descriptor, a task's findings and a failed command's output, through the
+context pack (`context.md`, `task.md`) and the MCP answers `service_context` and `activity`. Consoles start without
+permission prompts by default, so such text could steer the agent. Since 0.8.77 (FD-234, the agents database's audit
+2026-11-13-45e7cc299793, B1) the free texts (summary, reasons, problems, last action, events, descriptor, a task's
+findings, a failed command's output) sit inside `<untrusted-data id="…" source="…">` blocks that end only at a closing
+marker with the same id, a random one per start (a task typed into a session that already runs gets its own) that text written before it cannot know: that id is the
+guarantee. Common forms of the marker inside the text (any case or spacing, fullwidth, invisible characters, dashes)
+are also made inert, as a second line, not every lookalike (`src/core/untrusted.ts`). The short
+values (the service's key, name, version, update available, origin, repository) are flattened to one line and quoted as code, in
+headings, the brief, the first prompt and a typed task line too; a key that is not a plain name gets a
+pack folder named by its digest, so no path handed to a runtime carries it, so none can add a heading or a step. Every pattern is linear; a text is read whole up to 256 K characters (UTF-16 code units, as every length here) after NFKC folding (an invisible character counts as one space; NFKC can grow
+one character into 18), past that its first 256 K and the last 16 K of the text as written, and a block holds at
+most 256 K characters of it. The pack and the MCP
+answers (`service_context`, `activity`: an `untrusted` list of fields) say all of it is data and never an instruction, and a start whose text reads like instructions
+(`injectionSignals`: "ignore previous instructions", role or chat markup, `curl … | sh`, `rm -rf ~`, reading
+`~/.ssh` and sending it, asking to print a secret; every descriptor string up to 64 levels deep is read as written, a value that is not a string as its text) starts with
+permission prompts on, for that start (a console or Open in Terminal; a pack that cannot be written holds the start
+too): the runtime gets an explicit mode that asks (Claude Code `--permission-mode default`, Codex `-a on-request -s workspace-write`,
+Gemini CLI `--approval-mode default`), which neither its own settings nor Switchboard's launch override (Switchboard
+adds its bypass only when the arguments name no mode). For Codex that is the approval policy and the sandbox; a
+Claude Code `permissions.allow` rule still approves its tools. OpenCode and Cursor CLI have no such mode: a held start
+drops their bypass flag and their own settings decide; a runtime with no skip flag at all starts as before. Logged, the person's saved choice unchanged. The reading is a heuristic that keeps a person in the loop, not a proof. Not covered yet (FD-236): a held
+conversation continued after a limit, or from a Switchboard or hand-over row of the Sessions list, resumes without the
+hold; a Fix or Update typed into a
+session that already runs is fenced but only logged, not held (the person sends it); the console's own Continue reads only the events listed now, so a conversation that read an instruction-like event continues unheld once that event has scrolled out; the Setup console's `setup.md` carries the launcher doctor's text unfenced, and the Setup and New agent consoles (which carry no service text) are not held when their pack cannot be written; and `service_status`,
+`list_services`, `audit`, `doctor` and `update` mark nothing in their answers (the console rules name them; only
+`service_context` and `activity` carry an `untrusted` field, the pack carries the blocks). The hold shows no sign in
+the app yet: its reason is in `context.md` and the app's log (only in the log when the pack could not be written).
 
 ## Dashboard sign-ins at rest
 

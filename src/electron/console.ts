@@ -14,7 +14,7 @@ import { execRunner, portOf, type Runner } from '@passioncode-ai/fabric-service-
 import { accessOf, accessProbeArgv, folderOf as remoteFolderOf, folderProbeArgv, readLaunchJobs, remoteArgv, remoteFolderCandidates, remoteRuntimeArgv, routeTo, type LaunchJob, type RemoteAccess, type SshRoute } from '../core/remote-console';
 import { CHANNELS, type ConsoleInfo, type ConsoleStartResult, type ConsoleTask, type NewSessionOptions, type NewSessionResult } from '../core/api';
 import { openConsolesOf, type OpenConsole } from '../core/console-channel';
-import { prepareHandoff, writeTaskOnly, type McpCommand } from '../core/handoff';
+import { prepareHandoff, writeTaskOnly, type McpCommand, packDir } from '../core/handoff';
 import { readFallback, writeFallback, type FallbackChange, type FallbackRead } from '../core/fallback';
 import { prepareSetup, SETUP_KEY, setupFolder, writeSetupRequest, type SetupState } from '../core/setup';
 import type { DoctorReport } from '../core/doctor';
@@ -92,6 +92,8 @@ export interface ConsoleHostOptions {
   idleMs?: number;
   /** Signals a session's process group; tests pass a fake — a fake pid is never a real group. */
   killGroup?: (pid: number, signal: NodeJS.Signals) => void;
+  /** Tests: what Open in Terminal would run, instead of opening Terminal. */
+  terminal?: (dir: string, line: string) => Promise<{ ok: boolean; error?: string }>;
   /** FD-49 (LC-17): the machine before a start; the real probe by default, a stub in tests. */
   machine?: (folder: string, running: number) => Promise<MachineState>;
   /** FD-62: the registered services' keys, to find the console a hand-over belongs in. */
@@ -466,10 +468,10 @@ export class ConsoleHost {
 
   /** The context pack for this start, written now; null when there is no snapshot or no pack root.
    *  A pack that cannot be written is logged and the session starts without it — never blocked by it. */
-  private pack(key: string, runtime: Runtime, folder: string, task?: ConsoleTask): { handoff: { before: string[]; after: string[] }; env: Record<string, string> } | null {
+  private pack(key: string, runtime: Runtime, folder: string, task?: ConsoleTask): { handoff: { before: string[]; after: string[] }; env: Record<string, string>; signals?: string[] } | null {
     if (key === SETUP_KEY && this.o.packRoot && this.o.mcpServer) {
       try {
-        const r = prepareSetup({ dir: path.join(this.o.packRoot, key), runtimeId: runtime.id, runtimeName: runtime.name, server: this.o.mcpServer(), state: this.o.setupState?.() ?? { mcp: false, skills: false, firstAgent: false }, doctor: this.o.doctor?.() ?? null, request: task?.output ?? null });
+        const r = prepareSetup({ dir: packDir(this.o.packRoot, key), runtimeId: runtime.id, runtimeName: runtime.name, server: this.o.mcpServer(), state: this.o.setupState?.() ?? { mcp: false, skills: false, firstAgent: false }, doctor: this.o.doctor?.() ?? null, request: task?.output ?? null });
         return { handoff: r.handoff, env: r.env };
       } catch (error) {
         this.o.log(`console: setup starts without its brief: ${(error as Error).message}`);
@@ -479,7 +481,7 @@ export class ConsoleHost {
     // FD-191 (SCN-102): a new agent's console starts with the brief to create one, and this app's MCP server.
     if (isNewAgentKey(key) && this.o.packRoot && this.o.mcpServer) {
       try {
-        const r = prepareNewAgent({ dir: path.join(this.o.packRoot, key), runtimeId: runtime.id, folder, server: this.o.mcpServer() });
+        const r = prepareNewAgent({ dir: packDir(this.o.packRoot, key), runtimeId: runtime.id, folder, server: this.o.mcpServer() });
         return { handoff: r.handoff, env: r.env };
       } catch (error) {
         this.o.log(`console: ${key} starts without its new-agent brief: ${(error as Error).message}`);
@@ -489,11 +491,12 @@ export class ConsoleHost {
     const snap = this.o.snapshot(key);
     if (!snap || !this.o.packRoot || !this.o.mcpServer) return null;
     try {
-      const r = prepareHandoff({ snapshot: snap, activity: this.o.activity?.(key) ?? [], folder, runtimeId: runtime.id, dir: path.join(this.o.packRoot, key), server: this.o.mcpServer(), version: this.o.version ?? '0.0.0', task });
-      return { handoff: r.handoff, env: r.env };
+      const r = prepareHandoff({ snapshot: snap, activity: this.o.activity?.(key) ?? [], folder, runtimeId: runtime.id, dir: packDir(this.o.packRoot, key), server: this.o.mcpServer(), version: this.o.version ?? '0.0.0', task });
+      return { handoff: r.handoff, env: r.env, signals: r.signals };
     } catch (error) {
-      this.o.log(`console: ${key} starts without its context pack: ${(error as Error).message}`);
-      return null;
+      // FD-234 (verifier round 8): a pack that could not be written was not read either, so the start is held.
+      this.o.log(`console: ${key} starts without its context pack, with permission prompts: ${(error as Error).message}`);
+      return { handoff: { before: [], after: [] }, env: {}, signals: ['pack-failed'] };
     }
   }
 
@@ -505,7 +508,7 @@ export class ConsoleHost {
     if (key === SETUP_KEY) {
       if (!this.o.packRoot || !task.output) return { ok: false, error: 'no-pack' };
       try {
-        const r = writeSetupRequest(path.join(this.o.packRoot, key), task.output);
+        const r = writeSetupRequest(packDir(this.o.packRoot, key), task.output);
         this.manager.input(key, r.line);
         this.o.log('console: the setup got a request typed into its running session');
         return { ok: true };
@@ -517,9 +520,10 @@ export class ConsoleHost {
     const folder = this.folderOf(key);
     if (!snap || !folder?.exists || !this.o.packRoot) return { ok: false, error: 'no-pack' };
     try {
-      const r = writeTaskOnly({ snapshot: snap, activity: this.o.activity?.(key) ?? [], folder: folder.path, dir: path.join(this.o.packRoot, key), task });
+      const r = writeTaskOnly({ snapshot: snap, activity: this.o.activity?.(key) ?? [], folder: folder.path, dir: packDir(this.o.packRoot, key), task });
       this.manager.input(key, r.line);
-      this.o.log(`console: ${key} got a ${task.kind} task typed into its running session`);
+      // FD-234: the line is typed with no Enter, so the person still decides; the log says when its text reads like instructions.
+      this.o.log(`console: ${key} got a ${task.kind} task typed into its running session${r.signals.length ? `; its text reads like instructions (${r.signals.join(', ')}): the person sends it` : ''}`);
       return { ok: true };
     } catch (error) {
       return { ok: false, error: (error as Error).message };
@@ -574,8 +578,12 @@ export class ConsoleHost {
     const pack = this.pack(key, runtime, folder.path, task);
     // FD-51 (LC-20): with a Switchboard route for this provider, every start runs managed.
     const managed = inv.switchboard && runtime.provider && inv.inPlace ? managesProvider(await accountsOf(this.run, inv.switchboard), runtime.provider) : false;
+    // FD-234: text the service wrote that reads like instructions keeps a person in the loop for this start: permission
+    // prompts on, the saved choice untouched.
+    const held = Boolean(pack?.signals?.length) && saved?.bypass !== false;
+    if (held) this.o.log(`console: ${key} starts with permission prompts: its context reads like instructions (${pack!.signals!.join(', ')})`);
     // FD-191: a session of its own keeps the permission and isolation it was started with, Continue included.
-    const plan = planStart({ runtime, mode, folder: folder.path, binding: b.kind === 'absent' ? { kind: 'none' } : b, switchboard: inv.switchboard, inPlace: inv.inPlace, surface: inv.surface, managed, handoff: pack?.handoff, bypass: saved?.bypass, isolated: saved?.isolated, hosted: inv.hosted });
+    const plan = planStart({ runtime, mode, folder: folder.path, binding: b.kind === 'absent' ? { kind: 'none' } : b, switchboard: inv.switchboard, inPlace: inv.inPlace, surface: inv.surface, managed, handoff: pack?.handoff, bypass: held ? false : saved?.bypass, isolated: saved?.isolated, hosted: inv.hosted });
     if (plan.kind === 'refused') return { ok: false, reason: plan.reason, detail: plan.detail };
     if (plan.kind === 'terminal-only') return { ok: false, reason: 'terminal-only', project: plan.project };
     // Review R-1: the session runs with the login shell's PATH, not the one an app opened from Finder has.
@@ -1455,9 +1463,13 @@ export class ConsoleHost {
     const busy = this.manager.snapshot(key).state === 'running';
     if (busy) this.o.log(`console: ${key} opens in Terminal without its context pack: a console session holds it`);
     const pack = busy ? null : this.pack(key, runtime, folder.path);
-    const plan = planStart({ runtime, mode, folder: folder.path, binding: { kind: 'none' }, switchboard: null, inPlace: false, handoff: pack?.handoff });
+    // FD-234: a Terminal window gets the same hold as a console start, and the console's saved choice.
+    const saved = this.o.settings.get().consoles[key]?.bypass;
+    const held = Boolean(pack?.signals?.length) && saved !== false;
+    if (held) this.o.log(`console: ${key} opens in Terminal with permission prompts: its context reads like instructions (${pack!.signals!.join(', ')})`);
+    const plan = planStart({ runtime, mode, folder: folder.path, binding: { kind: 'none' }, switchboard: null, inPlace: false, handoff: pack?.handoff, bypass: held ? false : saved });
     if (plan.kind !== 'run') return { ok: false, error: plan.kind === 'refused' ? plan.detail : 'unavailable' };
-    return openInTerminal(this.o.scriptsDir, terminalScript(plan.argv, folder.path, pack?.env ?? {}));
+    return (this.o.terminal ?? openInTerminal)(this.o.scriptsDir, terminalScript(plan.argv, folder.path, pack?.env ?? {}));
   }
 
   async pickFolder(key: string): Promise<ConsoleInfo> {
