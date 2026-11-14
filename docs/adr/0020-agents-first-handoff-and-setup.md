@@ -111,9 +111,9 @@ service wrote as plain lines, while consoles start without permission prompts. S
   flag is dropped; a Claude Code allow rule still approves its tools, SECURITY.md); the saved choice is unchanged
   (`ConsoleHost.start`). This is a security exception to SCN-097, decided by access level in this run (FD-236's
   decision of 2026-11-14) on the agents database's audit B1; the operator's FD-174 rule is otherwise unchanged.
-- A pack that cannot be written now holds the start too, except the Setup and New agent consoles, which carry no
-  service text (FD-236 (10); the Consequences line above predates it): the session starts
-  without its pack, with prompts where the runtime can ask.
+- An agent's pack that cannot be written now holds the start too: the agent's session starts without its pack, with
+  prompts where the runtime can ask (the Consequences line above predates it). The Setup and New agent consoles,
+  which carry no service text, are not held (FD-236 (10)).
 - A key that is not a plain name gets the folder `consoles/key-<digest>/` (`packDir`), and
   `FABRIC_DASHBOARDS_SERVICE` carries that folder's name, so no path or variable handed to a runtime carries the key.
 - *Open in Terminal* writes the pack since FD-47 (the Consequences line above predates it).
