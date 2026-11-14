@@ -242,7 +242,7 @@ export function Overview({ status, products, open, act, goSpend, agent, visit, o
                 <StateBadge state={shownState(s)} />
                 <button className="linkish name" title={nameOf(s)} onClick={() => open(s.key)}>{nameOf(s)}</button>
                 <span className="why" title={attentionLine(s)}>{attentionLine(s)}</span>
-                {/* VIS-02: every action of the row in one cell, so the row stays one line and the reason keeps its room. */}
+                {/* VIS-02: every action of the row in one cell, so a row keeps its actions together and the reason keeps its room. */}
                 <span className="row-actions">
                   {action(s)}
                   {agent && !s.busy && offersFix(s) && <FixButton s={s} onFix={() => agent(s.key, { kind: 'fix' })} />}
@@ -394,6 +394,12 @@ function hostOf(s: ServiceSnapshot): string {
   try { return new URL(s.descriptor?.origin ?? '').host; } catch { return s.descriptor?.origin ?? ''; }
 }
 
+/** FD-238 (verifier rounds 3 and 4): a strip spend cell shows a word, not a sum ("not reported", "unknown"),
+ *  when no usage report was read (some may have failed) or every call it reports is unpriced; a word reads at body
+ *  size and may wrap. */
+export const spendIsWord = (spend: readonly SpendEntry[] | null, window: 'today' | 'month'): boolean =>
+  spend !== null && (!spend.some((e) => e.kind === 'report') || sumSpend(spend, window).costUsd === null);
+
 /** The top of the main screen (ADR-0014, SCN-041): how many agents run well, what needs you, and
  *  what they spent: each cell a label over its number (COPY-04: no word agrees with the count), the spend cell
  *  opening Spend. */
@@ -423,10 +429,10 @@ function StatusStrip({ status, products, attention, urgent, goSpend, goAttention
       <button className={`cell${problems ? ' bad' : ''}`} onClick={goAttention} disabled={!problems}><span className="l">{t('overview.strip.down')}<Go /></span><span className="v">{problems}</span></button>
       <button className={`cell${attention ? (urgent ? ' attn urgent' : ' attn') : ''}`} onClick={goAttention} disabled={!attention}><span className="l">{t('overview.strip.attention')}<Go /></span><span className="v">{attention}</span></button>
       <button className="cell" onClick={goSpend} disabled={!reporting}>
-        <span className="l">{t('overview.strip.spendToday')}<Go /></span><span className="v">{spend === null ? <Spinner /> : reporting ? sum('today') : t('overview.strip.noSpend')}</span>
+        <span className="l">{t('overview.strip.spendToday')}<Go /></span><span className={`v${spendIsWord(spend, 'today') ? ' v-text' : ''}`}>{spend === null ? <Spinner /> : reporting ? sum('today') : t('overview.strip.noSpend')}</span>
       </button>
       <button className="cell" onClick={goSpend} disabled={!reporting}>
-        <span className="l">{t('overview.strip.spendMonth')}<Go /></span><span className="v">{spend === null ? <Spinner /> : reporting ? sum('month') : t('overview.strip.noSpend')}</span>
+        <span className="l">{t('overview.strip.spendMonth')}<Go /></span><span className={`v${spendIsWord(spend, 'month') ? ' v-text' : ''}`}>{spend === null ? <Spinner /> : reporting ? sum('month') : t('overview.strip.noSpend')}</span>
       </button>
     </section>
   );

@@ -36,7 +36,7 @@
 ### SCR-01: Overview
 - **Used by:** SCN-001, SCN-002, SCN-003, SCN-005, SCN-006, SCN-007, SCN-021, SCN-024, SCN-030, SCN-033, SCN-035, SCN-041, SCN-042
 - **Purpose:** JTBD-01 — the state of every agent, what needs the operator and what was spent, in one screen
-- **Elements:** header with the agent count; no launch-at-login question (open at login is on by default since 2026-10-16, SCN-001, SCN-024); the status strip, each cell a label over its number (Ready, Not answering or in conflict, Need attention, Spent today, Spent in 30 days; the spend cells open Spend, the not-answering and attention cells move to Needs attention, each such cell with an arrow; labels wrap to two lines); Needs attention, right under the strip (count, shared with the sidebar badge, the tray and the Dock, which shows it as a number; three single-line rows: state, name, reason, the actions in one cell: Restart, "Update to <v>", Open, Logs, Open Spend for a limit that stopped work, then "Fix with coding agent"; "Restarting…" while it runs; "Restart N" on a folded row; then "Show all N" / "Show fewer"); "Since you were last here" after it, with Dismiss; agent cards (state, name, version+commit, uptime or "online · <host>", the agent's one-line summary, up to six tiles, "also:" with each other instance's state, latest event); the Online group; empty state with "Set up with my coding agent", "Show the services folder" and "How to build an agent for Fabric"
+- **Elements:** header with the agent count; no launch-at-login question (open at login is on by default since 2026-10-16, SCN-001, SCN-024); the status strip, each cell a label over its number (Ready, Not answering or in conflict, Need attention, Spent today, Spent in 30 days; the spend cells open Spend, the not-answering and attention cells move to Needs attention, each such cell with an arrow; labels wrap to two lines); Needs attention, right under the strip (count, shared with the sidebar badge, the tray and the Dock, which shows it as a number; three rows (single-line in a wide card, two lines in a card 820 px or narrower, FD-238): state, name, reason, the actions in one cell: Restart, "Update to <v>", Open, Logs, Open Spend for a limit that stopped work, then "Fix with coding agent"; "Restarting…" while it runs; "Restart N" on a folded row; then "Show all N" / "Show fewer"); "Since you were last here" after it, with Dismiss; agent cards (state, name, version+commit, uptime or "online · <host>", the agent's one-line summary, up to six tiles, "also:" with each other instance's state, latest event); the Online group; empty state with "Set up with my coding agent", "Show the services folder" and "How to build an agent for Fabric"
 - **States:**
   | State | Trigger | Figma frame | Behavior |
   |-------|---------|-------------|----------|
@@ -148,18 +148,18 @@
 - **Status:** built
 
 ### SCR-08: Sidebar, Agents mode
-- **Used by:** SCN-001, SCN-006, SCN-017, SCN-022, SCN-033, SCN-035, SCN-044, SCN-047, SCN-056, SCN-057, SCN-077
+- **Used by:** SCN-001, SCN-006, SCN-017, SCN-022, SCN-033, SCN-035, SCN-044, SCN-047, SCN-056, SCN-057, SCN-077, SCN-094
 - **Mode switch (0.8.0, SCN-077):** under the mark, a two-part switch "Agents" / "Sessions" (⌘1 / ⌘2; Ctrl+1 / Ctrl+2 elsewhere), the Sessions part carrying the count of sessions that need the person; the window reopens in the mode it was closed in, and nothing switches it but the person (a click on a session's notification or the tray's Sessions line counts as the person). This record is the Agents mode; the Sessions mode is SCR-12. In the rail the switch is two icons.
 - **Purpose:** where everything is, and whether anything needs the operator
 - **Rail (SCN-047):** collapsed, the sidebar is a narrow rail — the mark, icons for Overview, Activity, Spend and Settings with their badges, one entry per agent (state mark and initials, "!" when another instance needs attention), each named in a tooltip and to a screen reader; "Collapse sidebar" / "Expand sidebar", View → Show or Hide Sidebar (⌃⌘S); remembered
-- **Elements:** the mode switch; Overview (problem count), Activity (unread count), Connections, Spend, Pinned, On this Mac (On this computer elsewhere), Online, Services and the folded Hidden section (one entry per agent with the primary's state and "!" when another instance needs attention; no hand-over or session entry from 0.8.0, SES-01, SES-02), footer update line ("Checking for updates…", "Downloading an update…", "Update <v> ready" + Restart to update, "Update <v> is verified and waits for you…" + What to do + Install, "Updates install only from the Applications folder." + Move to Applications, "Update failed: <reason>" + Retry), Settings
+- **Elements:** the mode switch; the Organizations menu at the top of the agent list, above Pinned and the sections (SCN-094: its source switch, Organizations or GitHub, and the checkbox list with counts); Overview (problem count), Activity (unread count), Connections, Spend, Pinned, On this Mac (On this computer elsewhere), Online, Services and the folded Hidden section (one entry per agent with the primary's state and "!" when another instance needs attention; no hand-over or session entry from 0.8.0, SES-01, SES-02), footer update line ("Checking for updates…", "Downloading an update…", "Update <v> ready" + Restart to update, "Update <v> is verified and waits for you…" + What to do + Install, "Updates install only from the Applications folder." + Move to Applications, "Update failed: <reason>" + Retry), Settings
 - **States:**
   | State | Trigger | Figma frame | Behavior |
   |-------|---------|-------------|----------|
   | success | default | — | entries and counts |
   | rail | collapsed | — | icons, state marks and initials; names in tooltips |
 - **Coverage:** src/renderer/App.tsx, src/renderer/components/Navigation.tsx (ModeSwitch, AgentsNav); test/navigation.test.ts
-- **Scenarios:** SCN-001, SCN-006, SCN-017, SCN-022, SCN-033, SCN-035, SCN-044, SCN-047
+- **Scenarios:** SCN-001, SCN-006, SCN-017, SCN-022, SCN-033, SCN-035, SCN-044, SCN-047, SCN-056, SCN-057, SCN-077, SCN-094
 - **Status:** built
 
 ### SCR-09: System dialogs

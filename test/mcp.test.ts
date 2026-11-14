@@ -981,3 +981,9 @@ test('FD-181: list_services names the launchd domain: gui, system for a system d
   const sys = await handle(w.deps, { id: 2, method: 'tools/call', params: { name: 'list_services', arguments: {} } });
   assert.equal(one(sys).launchd_domain, 'system');
 });
+
+test('FD-237: list_services takes gh:<owner>, as the menu\'s GitHub source does', async () => {
+  const { deps } = world({ descriptor: { source: { repository: 'https://github.com/Example/example-agent' } } as Partial<Descriptor> });
+  assert.equal((await tools.listServices(deps, ['gh:example'])).services.length, 1);
+  assert.equal((await tools.listServices(deps, ['gh:someone-else'])).services.length, 0);
+});

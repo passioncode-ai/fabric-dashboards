@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { AppStatus, ListSort, Settings as AppSettings, SettingsPatch } from '../../core/types';
 import { moveInSection, offProducts, type MoveSection, type Product } from '../../core/products';
-import { groupByOrganization, kindCounts, ORG_KINDS, ORG_MINE, ORG_OTHERS, ORG_SHARED, organizationCounts } from '../../core/organizations';
+import { filterServices, GITHUB_PREFIX, groupByOrganization, ORG_MINE, ORG_OTHERS, ORG_SHARED, organizationCounts, type OrgSource } from '../../core/organizations';
 import type { SessionGroup, SessionRow } from '../../core/sessions';
 import { groupRows, navLines, projectName, stateShort, waitingForYou } from '../../core/sessions-view';
 import { revealScrollTop } from '../../core/layout';
@@ -151,7 +151,7 @@ export function AgentsNav({ page, status, everyAgent, arranged, products, curren
         </button>
       </div>
       <div className="nav nav-scroll">
-        {!rail && <OrgMenu services={everyAgent ?? status.services} chosen={layout.list.orgs ?? []} onChange={(orgs) => changeLayout({ list: { orgs } })} grouped={layout.list.groupByOrg === true} onGroup={(groupByOrg) => changeLayout({ list: { groupByOrg } })} />}
+        {!rail && <OrgMenu services={everyAgent ?? status.services} chosen={layout.list.orgs ?? []} onChange={(orgs) => changeLayout({ list: { orgs } })} grouped={layout.list.groupByOrg === true} onGroup={(groupByOrg) => changeLayout({ list: { groupByOrg } })} source={layout.list.orgSource ?? 'org'} onSource={(orgSource) => changeLayout({ list: { orgSource, orgs: [] } })} />}
         {pinned.length > 0 && <div className="nav-section">{t('nav.pinned')}</div>}
         {pinned.map((p, i) => <ProductItem key={p.id} p={p} current={currentProduct === p} open={open} rail={rail} pinned menu={menu} drag={dragFor('pinned', i, pinned.length)} />)}
         {/* FD-78: on this Mac, online, services; the sort applies inside each section. */}
@@ -171,11 +171,11 @@ export function AgentsNav({ page, status, everyAgent, arranged, products, curren
             {(() => {
               // FD-161: split by organization when the person asked and the section holds more than one; a row's drag
               // is off meanwhile, so an order is never dragged across a heading it does not belong to.
-              const groups = !rail && layout.list.groupByOrg ? groupByOrganization(arranged[c]) : null;
+              const groups = !rail && layout.list.groupByOrg ? groupByOrganization(arranged[c], layout.list.orgSource ?? 'org') : null;
               if (!groups) return arranged[c].map((p, i) => <ProductItem key={p.id} p={p} current={currentProduct === p} open={open} rail={rail} pinned={false} menu={menu} drag={dragFor(c, i, arranged[c].length)} />);
               return groups.map((g) => (
-                <div key={g.name} role="group" aria-label={g.name === '' ? t('orgs.none') : g.label ?? g.name}>
-                  <div className="nav-subsection" aria-hidden="true">{g.name === '' ? t('orgs.none') : g.label ?? g.name}</div>
+                <div key={g.name} role="group" aria-label={g.name === '' ? t(layout.list.orgSource === 'github' ? 'orgs.noRepository' : 'orgs.none') : g.label ?? g.name}>
+                  <div className="nav-subsection" aria-hidden="true">{g.name === '' ? t(layout.list.orgSource === 'github' ? 'orgs.noRepository' : 'orgs.none') : g.label ?? g.name}</div>
                   {g.rows.map((p) => <ProductItem key={p.id} p={p} current={currentProduct === p} open={open} rail={rail} pinned={false} menu={menu} drag={null} />)}
                 </div>
               ));
@@ -448,39 +448,56 @@ export function SessionsNav({ sessions, currentId, allCurrent, rail, endedOpen, 
 
 // #region organizations — docs: docs/ux/scenarios.md#scn-094-show-only-one-organizations-agents
 /** FD-162 (SCN-094): show every agent, or one or several organizations'; shown once agents carry organizations from
- *  Project Observatory and there is more than one to tell apart. */
-function OrgMenu({ services, chosen, onChange, grouped, onGroup }: { services: AppStatus['services']; chosen: string[]; onChange: (orgs: string[]) => void; grouped: boolean; onGroup: (on: boolean) => void }) {
+ *  Project Observatory, or repositories on GitHub, and there is more than one to tell apart. FD-237: one source at a
+ *  time, the organizations or the GitHub owners, switched at the top; the kinds of FD-195 (Mine, Others, Shared) are no
+ *  longer offered here (MCP `list_services` still takes them), and one already chosen shows as a row to clear. */
+function OrgMenu({ services, chosen, onChange, grouped, onGroup, source, onSource }: { services: AppStatus['services']; chosen: string[]; onChange: (orgs: string[]) => void; grouped: boolean; onGroup: (on: boolean) => void; source: OrgSource; onSource: (s: OrgSource) => void }) {
   const { t } = useT();
-  const rows = organizationCounts(services);
-  if (rows.length < 2 && chosen.length === 0) return null;
-  // FD-195 (SCN-094 steps 7 to 9): Mine, Other organizations and Shared first, then each organization.
-  const kinds = kindCounts(services);
-  const kindRows = [
-    ...(kinds.mine !== null ? [{ name: ORG_MINE, label: t('orgs.mine'), count: kinds.mine }] : []),
-    { name: ORG_OTHERS, label: t('orgs.others'), count: kinds.others },
-    ...(kinds.shared > 0 || chosen.includes(ORG_SHARED) ? [{ name: ORG_SHARED, label: t('orgs.shared'), count: kinds.shared }] : []),
-  ];
-  const nameOf = (name: string) => kindRows.find((k) => k.name === name)?.label
-    ?? (name === '' ? t('orgs.none') : ((r) => (r?.personal ? t('orgs.mineOf', { label: r.label ?? name }) : r?.label ?? name))(rows.find((r) => r.name === name)));
-  const label = chosen.length === 0 ? t('orgs.all') : chosen.length === 1 ? nameOf(chosen[0]!)
-    : t(chosen.some((n) => ORG_KINDS.includes(n)) ? 'orgs.chosen' : 'orgs.several', { count: chosen.length });
+  const bySource = { org: organizationCounts(services, 'org'), github: organizationCounts(services, 'github') };
+  const rows = bySource[source];
+  const offered = (['org', 'github'] as const).filter((s) => bySource[s].length >= 2);
+  if (offered.length === 0 && chosen.length === 0) return null;
+  const kindLabel: Record<string, string> = { [ORG_MINE]: t('orgs.mine'), [ORG_OTHERS]: t('orgs.others'), [ORG_SHARED]: t('orgs.shared') };
+  const none = source === 'github' ? t('orgs.noRepository') : t('orgs.none');
+  const nameOf = (name: string) => kindLabel[name] ?? (name === '' ? none : rows.find((r) => r.name === name)?.label ?? name.replace(GITHUB_PREFIX, ''));
+  // FD-237: the button names the source and what is chosen ("GitHub: acme-co"), so the open menu does not say "All" twice.
+  const picked = chosen.length === 0 ? t('orgs.every') : chosen.length === 1 ? nameOf(chosen[0]!) : t('orgs.count', { count: chosen.length });
+  const label = t('orgs.summary', { source: t(source === 'github' ? 'orgs.sourceGithub' : 'orgs.sourceOrg'), value: picked });
   const toggle = (name: string) => onChange(chosen.includes(name) ? chosen.filter((x) => x !== name) : [...chosen, name]);
-  const gone = chosen.filter((n) => !rows.some((r) => r.name === n) && !kindRows.some((k) => k.name === n));
+  // A value no row offers now (a kind of FD-195, a name gone, the other source's) stays visible, so it can be cleared.
+  const gone = chosen.filter((n) => !rows.some((r) => r.name === n));
+  // FD-237 (verifier round 5): a change of source keeps the focus in the menu: on the source chosen, or on the menu's
+  // button when the switch goes away (the new source leaves the other one nothing to tell apart).
+  const choose = (next: OrgSource, from: HTMLElement) => {
+    const menu = from.closest('details');
+    onSource(next);
+    requestAnimationFrame(() => (menu?.querySelector<HTMLElement>('.org-source [aria-checked="true"]') ?? menu?.querySelector<HTMLElement>('summary'))?.focus());
+  };
   return (
     <details className="org-menu">
-      <summary aria-label={`${t('orgs.menu')}. ${label}`} title={t('orgs.menu')}>{label}</summary>
+      <summary title={label}><span className="org-menu-label">{label}</span><span className="org-menu-caret" aria-hidden="true"><Icon name="chevronDown" /></span></summary>
       <div className="org-menu-list" role="group" aria-label={t('orgs.menu')}>
-        <label><input type="checkbox" checked={chosen.length === 0} onChange={() => onChange([])} /> {t('orgs.all')}</label>
-        {kindRows.map((k) => (
-          <label key={k.name}><input type="checkbox" checked={chosen.includes(k.name)} onChange={() => toggle(k.name)} /> {k.label} <span className="count">{k.count}</span></label>
-        ))}
-        <div className="org-menu-sep" role="presentation" />
+        {/* FD-237: the switch whenever the other source tells two or more apart, so no source is a dead end. */}
+        {offered.some((s) => s !== source) && (
+          <div className="mode-switch org-source" role="radiogroup" aria-label={t('orgs.source')} onKeyDown={(e) => {
+            // FD-237 (verifier round 3): a radio group moves with the arrow keys.
+            if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) return;
+            e.preventDefault();
+            choose(source === 'org' ? 'github' : 'org', e.currentTarget);
+          }}>
+            {(['org', 'github'] as const).filter((s) => s === source || offered.includes(s)).map((s) => (
+              <button key={s} type="button" role="radio" aria-checked={source === s} tabIndex={source === s ? 0 : -1} className="mode-btn org-source-btn" onClick={(e) => { if (s !== source) choose(s, e.currentTarget); }}>{t(s === 'github' ? 'orgs.sourceGithub' : 'orgs.sourceOrg')}</button>
+            ))}
+          </div>
+        )}
+        <label className="org-row"><input type="checkbox" checked={chosen.length === 0} onChange={() => onChange([])} /><span className="org-name">{t('orgs.everyRow')}</span><span className="count">{services.length}</span></label>
         {rows.map((r) => (
-          <label key={r.name}><input type="checkbox" checked={chosen.includes(r.name)} onChange={() => toggle(r.name)} /> {nameOf(r.name)} <span className="count">{r.count}</span></label>
+          <label key={r.name} className="org-row"><input type="checkbox" checked={chosen.includes(r.name)} onChange={() => toggle(r.name)} />
+            <span className="org-name">{nameOf(r.name)}{r.personal && <span className="org-tag">{t('orgs.personal')}</span>}</span><span className="count">{r.count}</span></label>
         ))}
-        {gone.map((n) => <label key={`gone-${n}`}><input type="checkbox" checked onChange={() => toggle(n)} /> {nameOf(n)} <span className="count">0</span></label>)}
-        {/* FD-161: the same list, split by organization under a small heading each. */}
-        <label className="org-menu-group"><input type="checkbox" checked={grouped} onChange={() => onGroup(!grouped)} /> {t('orgs.group')}</label>
+        {gone.map((n) => <label key={`gone-${n}`} className="org-row"><input type="checkbox" checked onChange={() => toggle(n)} /><span className="org-name">{nameOf(n)}</span><span className="count">{filterServices(services, [n], null, source).length}</span></label>)}
+        {/* FD-161: the same list, split by the chosen source under a small heading each. */}
+        <label className="org-row org-menu-group"><input type="checkbox" checked={grouped} onChange={() => onGroup(!grouped)} /><span className="org-name">{t(source === 'github' ? 'orgs.groupGithub' : 'orgs.group')}</span></label>
       </div>
     </details>
   );

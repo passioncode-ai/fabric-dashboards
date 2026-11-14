@@ -167,6 +167,8 @@ export interface ListLayout {
   orgs: string[];
   /** FD-161 (SCN-094): each section of the list split by organization, under a small heading per organization. */
   groupByOrg: boolean;
+  /** FD-237: what the organization filter and the grouping read: the organizations (`org`) or the GitHub owners (`github`). */
+  orgSource: 'org' | 'github';
 }
 
 /** A change to the settings: any field, and any part of the layout or of one service's console alone. */
@@ -204,7 +206,7 @@ export const DEFAULT_SETTINGS: Settings = {
     pausedUntil: null,
     channel: 'auto',
   },
-  layout: { sidebar: 'expanded', sidebarWidth: SIDEBAR_WIDTH.default, header: 'compact', console: { open: false, height: CONSOLE_HEIGHT.default, full: true }, focus: false, tabs: [], list: { sort: 'name', pinned: [], hidden: [], kinds: {}, hiddenOpen: false, order: [], off: [], orgs: [], groupByOrg: false }, mode: 'agents', sessionId: null, endedOpen: false },
+  layout: { sidebar: 'expanded', sidebarWidth: SIDEBAR_WIDTH.default, header: 'compact', console: { open: false, height: CONSOLE_HEIGHT.default, full: true }, focus: false, tabs: [], list: { sort: 'name', pinned: [], hidden: [], kinds: {}, hiddenOpen: false, order: [], off: [], orgs: [], groupByOrg: false, orgSource: 'org' }, mode: 'agents', sessionId: null, endedOpen: false },
   consoles: {},
   newSession: { runtime: null, folder: null, bypass: true, isolated: false },
   resumeAfterLimit: true,

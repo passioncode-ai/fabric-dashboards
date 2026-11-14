@@ -199,7 +199,7 @@ if (!app.requestSingleInstanceLock()) {
       try {
         const cfg = JSON.parse(fs.readFileSync(path.join(base, 'config', 'organizations.json'), 'utf8')) as { organizations?: Record<string, { label?: unknown; default?: unknown; platform?: unknown; match?: { repository_owners?: unknown } }> };
         projects.organization_labels = Object.fromEntries(Object.entries(cfg.organizations ?? {}).map(([k, v]) => [k, v?.label]));
-        // FD-195: the organization marked `default: true` is the operator's own: the filter's "Mine".
+        // FD-195: the organization marked `default: true` is the operator's own: the kind "Mine" and the menu's "yours" tag (FD-237).
         projects.organization_personal = Object.entries(cfg.organizations ?? {}).find(([, v]) => v?.default === true)?.[0] ?? null;
         // FD-197: the platform's organizations: those the config marks `platform: true`, else the one that owns this
         // app's own repository (the platform's publisher).

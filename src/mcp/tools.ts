@@ -44,7 +44,7 @@ import { findSwitchboard } from '../core/switchboard';
 import { searchDirs } from '../core/runtimes';
 import type { StopView } from '../core/types';
 import { AgentNameStore, cleanName, customNameOf, findGh, readNamesCache } from '../core/agent-names';
-import { isShared, keepsOrganization, organizationOfInstance, sharedProducts, type Organization } from '../core/organizations';
+import { canonicalOrgValue, GITHUB_PREFIX, githubOwnerOf, isShared, keepsOrganization, organizationOfInstance, sharedProducts, type Organization } from '../core/organizations';
 import { readOrganizations } from '../core/organization-store';
 
 export const COMMAND_TIMEOUT_MS = 120_000;
@@ -339,7 +339,11 @@ export async function listServices(deps: Deps, organizations?: string[]): Promis
   const views = looks.map((l) => view(l, of(l.key), orgOf(l)));
   // FD-195: `@mine`, `@others` and `@shared` keep the personal organization's, the other organizations' and the shared agents.
   const shared = sharedProducts(views.map((v) => ({ key: v.key, organization: v.organization })));
-  return { services: organizations?.length ? views.filter((v) => keepsOrganization(organizations, v.organization, isShared(shared, v.key))) : views, services_dir: deps.servicesDir() };
+  // FD-237: `gh:<owner>` keeps the agents whose repository that GitHub owner holds, as the menu's GitHub source does.
+  const owners = (organizations ?? []).map(canonicalOrgValue).filter((o) => o.startsWith(GITHUB_PREFIX));
+  const keeps = (v: (typeof views)[number], i: number) => keepsOrganization(organizations!, v.organization, isShared(shared, v.key))
+    || (owners.length > 0 && owners.includes(githubOwnerOf(looks[i]?.descriptor?.source?.repository)?.name ?? ''));
+  return { services: organizations?.length ? views.filter(keeps) : views, services_dir: deps.servicesDir() };
 }
 
 /** FD-162: each look's organization, from the map the app last read (organizations.json beside its settings). */
@@ -732,8 +736,8 @@ export async function settings(deps: Deps, patch?: Record<string, unknown>): Pro
     const s = new SettingsStore(path.dirname(file), () => undefined).get();
     const shown: Record<string, unknown> = {};
     for (const k of AGENT_SETTINGS) shown[k] = s[k as keyof typeof s];
-    shown.layout = { list: { sort: s.layout.list.sort, orgs: s.layout.list.orgs, groupByOrg: s.layout.list.groupByOrg } };
-    return { settings: shown, changeable: [...AGENT_SETTINGS, 'layout.list.sort', 'layout.list.orgs', 'layout.list.groupByOrg'] };
+    shown.layout = { list: { sort: s.layout.list.sort, orgs: s.layout.list.orgs, groupByOrg: s.layout.list.groupByOrg, orgSource: s.layout.list.orgSource } };
+    return { settings: shown, changeable: [...AGENT_SETTINGS, 'layout.list.sort', 'layout.list.orgs', 'layout.list.groupByOrg', 'layout.list.orgSource'] };
   }
   const answer = await askChannel(deps, { op: 'settings.update', patch } as never, 'app-not-running: Fabric Dashboards is not running, so Settings cannot change now; open it and call again');
   if (!answer.ok) throw new ToolError(`${answer.code}${answer.detail ? `: ${answer.detail}` : ''}`);

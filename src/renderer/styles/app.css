@@ -120,8 +120,22 @@ a { color: var(--pc-link); text-decoration: underline; }
 /* FD-162 (SCN-094): the Organizations menu above the agent sections */
 .nav-subsection { padding: var(--pc-space-1) var(--pc-space-3) 0; font-size: var(--pc-type-meta); color: var(--pc-text-muted); } /* FD-161 */
 .org-menu-group { border-top: 1px solid var(--pc-border); padding-top: var(--pc-space-2); margin-top: var(--pc-space-1); }
-/* FD-195: Mine, Other organizations and Shared above the organizations themselves. */
-.org-menu-sep { border-top: 1px solid var(--pc-border); margin: var(--pc-space-1) 0; }
+/* FD-237: the source switch (Organizations | GitHub), one row per organization with its count right-aligned in
+   tabular figures, the person's own organization tagged, the label never squeezed under its checkbox. */
+.mode-switch.org-source { margin: 0 0 var(--pc-space-1); }
+.org-source-btn { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.org-source-btn[aria-checked='true'] { background: var(--pc-panel-raised); color: var(--pc-text); font-weight: 600; box-shadow: inset 0 0 0 1px var(--pc-border-strong); }
+.org-row { min-height: 24px; }
+.org-row > input { flex: none; margin: 0; }
+.org-name { flex: 1 1 auto; min-width: 0; display: flex; align-items: baseline; gap: var(--pc-space-1); overflow-wrap: anywhere; }
+.org-tag { flex: none; padding: 0 6px; border-radius: 999px; background: var(--pc-accent-soft); color: var(--pc-text-muted); font-size: 0.85em; line-height: 1.5; }
+.org-menu-list .count { flex: none; font-variant-numeric: tabular-nums; min-width: 2ch; text-align: right; }
+.org-menu > summary { display: flex; align-items: center; gap: var(--pc-space-1); }
+.org-menu-label { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.org-menu-caret { flex: none; display: inline-flex; width: 14px; height: 14px; transition: transform var(--pc-duration-hover) var(--pc-ease); }
+.org-menu-caret svg { width: 14px; height: 14px; }
+.org-menu[open] .org-menu-caret { transform: rotate(180deg); }
+@media (prefers-reduced-motion: reduce) { .org-menu-caret { transition: none; } }
 .org-menu { margin: 0 0 var(--pc-space-2); font-size: var(--pc-type-meta); color: var(--pc-text-muted); }
 .org-menu > summary { cursor: pointer; padding: var(--pc-space-1) var(--pc-space-2); border-radius: var(--pc-radius-control); list-style: none; }
 .org-menu > summary:hover, .org-menu > summary:focus-visible { color: var(--pc-text); }
@@ -189,13 +203,25 @@ h3 { font-size: var(--pc-type-card); margin: 0; font-weight: 600; }
 .attention li .why { color: var(--pc-text-muted); font-size: var(--pc-type-meta); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .attention li .btn { min-height: var(--fd-control-sm); padding: 0 var(--pc-space-2); font-size: var(--pc-type-meta); }
 .attention .more { margin: var(--pc-space-1) var(--pc-space-4) var(--pc-space-1); font-size: var(--pc-type-meta); }
+/* UI pass 2026-11-14 (FD-238): in a narrow card the four cells did not fit and the last button ran past the card's
+   edge; there the reason takes a second line under the name, and the actions stay on the first. */
+.attention { container-type: inline-size; }
+@container (max-width: 820px) {
+  .attention li { grid-template-columns: max-content minmax(0, 1fr) auto; grid-template-areas: "badge name actions" ". why why"; row-gap: 2px; padding-block: var(--pc-space-1); }
+  .attention li > :first-child { grid-area: badge; }
+  .attention li > .name { grid-area: name; }
+  .attention li > .why { grid-area: why; }
+  .attention li > .row-actions { grid-area: actions; }
+}
 /* ADR-0014: the strip — one number and one label per cell. */
-.strip { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: var(--pc-space-2); margin-bottom: var(--pc-space-4); }
+.strip { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(120px, 100%), 1fr)); gap: var(--pc-space-2); margin-bottom: var(--pc-space-4); } /* FD-238: five cells in a wide window, fewer per line in a narrow one */
 .strip .cell { display: flex; flex-direction: column; gap: 2px; text-align: left; padding: var(--pc-space-2) var(--pc-space-3); background: var(--pc-panel); border: 1px solid var(--pc-border); border-radius: var(--pc-radius-panel); /* VIS-24: Overview's blocks share the panel radius */ color: inherit; font: inherit; min-width: 0; }
 .strip button.cell { cursor: pointer; }
 .strip button.cell:hover:not(:disabled) { border-color: var(--pc-border-strong); }
 .strip button.cell:disabled { cursor: default; }
 .strip .v { font-size: var(--pc-type-section); font-weight: 600; font-variant-numeric: tabular-nums; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* FD-238: a word in place of a number ("not reported", "unknown") reads at body size and wraps between words. */
+.strip .v.v-text { font-size: var(--pc-type-body); white-space: normal; overflow: visible; }
 .strip .v .of { font-size: var(--pc-type-body); color: var(--pc-text-muted); font-weight: 400; }
 .strip .l { font-size: var(--pc-type-meta); color: var(--pc-text-muted); line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; } /* W-4: two lines before an ellipsis — Russian labels are long */
 .strip .cell.bad .v { color: var(--pc-negative); }
