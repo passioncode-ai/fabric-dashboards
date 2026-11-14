@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.8.95 - 2026-11-14
+
+### Changed
+
+- FD-244: an agent that runs both on this Mac and online shows each place's own state in the list: the laptop and the
+  cloud take the colour of their copy, and the tooltip says which is down.
+
 ## 0.8.94 - 2026-11-14
 
 ### Added

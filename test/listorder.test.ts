@@ -99,3 +99,16 @@ test('FD-244: after the pinned ones, one list of agents wherever they run; servi
   const moved = moveInSection(a, 'agents', 'echo', 0);
   assert.deepEqual(moved, { sort: 'manual', order: ['echo', 'alpha', 'worker'] }, 'a move in the one list freezes it as shown');
 });
+
+test('FD-244: one status per place on the row: the primary where it runs, else the member of that place most in need of attention', async () => {
+  const { groupProducts: group, placeStates } = await import('../src/core/products');
+  const remote = (s: ServiceSnapshot): ServiceSnapshot => ({ ...s, descriptor: { ...s.descriptor, placement: 'remote' } as ServiceSnapshot['descriptor'] });
+  const [alpha] = group([
+    svc('alpha.default', 'Alpha', 'ready'),
+    remote(svc('alpha.cloud', 'Alpha cloud', 'ready')),
+    remote(svc('alpha.preview', 'Alpha preview', 'down')),
+  ]);
+  assert.deepEqual(placeStates(alpha!).map(({ place, member }) => [place, member.key, member.state]), [['local', 'alpha.default', 'ready'], ['online', 'alpha.preview', 'down']], 'a cloud copy that is down shows beside a local one that is ready');
+  const [bravo] = group([remote(svc('bravo.default', 'Bravo', 'degraded')), remote(svc('bravo.eu', 'Bravo EU', 'down'))]);
+  assert.deepEqual(placeStates(bravo!).map(({ member }) => member.key), ['bravo.default'], 'the primary speaks for its own place');
+});
