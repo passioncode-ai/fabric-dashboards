@@ -12,7 +12,7 @@ import path from 'node:path';
 import { t, type Lang } from './i18n';
 import type { ActivityItem, ServiceSnapshot } from './types';
 import { waitsForSetup } from './setup-wait';
-import { fence, injectionSignals, literal, oneLine, UNTRUSTED_NOTE, UNTRUSTED_TAG } from './untrusted';
+import { fence, injectionSignals, literal, newFenceId, oneLine, UNTRUSTED_NOTE, UNTRUSTED_TAG } from './untrusted';
 
 /** What the pack says. Built from the monitor's snapshot and the activity store; no token ever. */
 export interface HandoffContext {
@@ -37,6 +37,8 @@ export interface HandoffContext {
   descriptor: Record<string, unknown> | null;
   /** FD-234: the kinds of instruction-like text in what the service wrote; a non-empty list keeps permission prompts on. */
   signals: string[];
+  /** FD-234: the random id that closes this document's fences; text written before the start cannot know it. */
+  fenceId: string;
 }
 
 /** A job handed to the agent with the context (D-3). */
@@ -81,6 +83,7 @@ export function handoffContext(s: ServiceSnapshot, activity: ActivityItem[], fol
     lastAction,
     events,
     descriptor,
+    fenceId: newFenceId(),
     signals: injectionSignals([d?.name, version, updateAvailable, d?.summary, ...reasons, ...s.problems, lastAction, ...events.map((e) => e.text), descriptor ? JSON.stringify(descriptor) : null]),
   };
 }
@@ -91,7 +94,7 @@ const line = (label: string, value: string | null) => (value ? `- **${label}:** 
 export function contextMarkdown(c: HandoffContext, generatedAt: string): string {
   const src = `service:${c.key}`;
   const out: (string | null)[] = [
-    `# ${oneLine(c.name)} (${c.key}): context from Fabric Dashboards`,
+    `# ${literal(c.name, 120)} (${c.key}): context from Fabric Dashboards`,
     '',
     `Written ${generatedAt}. Read it fresh any time with the \`fabric-dashboards\` MCP tool \`service_context\` (key \`${c.key}\`).`,
     '',
@@ -100,8 +103,8 @@ export function contextMarkdown(c: HandoffContext, generatedAt: string): string 
     ...(c.signals.length ? ['', `Some of that text reads like instructions (${c.signals.join(', ')}), so Fabric Dashboards started this session with permission prompts on: the person approves each step.`] : []),
     '',
     '## Who',
-    line('Agent', `${oneLine(c.name)}, the Fabric service \`${c.key}\``),
-    ...(c.summary ? ['', fence(src, c.summary), ''] : []),
+    line('Agent', `${literal(c.name, 120)}, the Fabric service \`${c.key}\``),
+    ...(c.summary ? ['', fence(src, c.summary, c.fenceId), ''] : []),
     line('Placement', c.placement === 'remote' ? 'online (runs on its own server)' : 'on this computer'),
     line('Origin', c.origin && literal(c.origin)),
     line('Repository', c.repository && literal(c.repository)),
@@ -110,16 +113,16 @@ export function contextMarkdown(c: HandoffContext, generatedAt: string): string 
     '',
     '## State now',
     `- **State:** ${c.state}`,
-    ...(c.reasons.length ? [fence(src, c.reasons.map((r) => `- ${r}`).join('\n'))] : ['- No reason reported.']),
-    ...(c.problems.length ? ['', '### Descriptor problems', fence(src, c.problems.map((p) => `- ${p}`).join('\n'))] : []),
-    ...(c.lastAction ? ['- **Last action:**', fence(src, c.lastAction)] : []),
+    ...(c.reasons.length ? [fence(src, c.reasons.map((r) => `- ${r}`).join('\n'), c.fenceId)] : ['- No reason reported.']),
+    ...(c.problems.length ? ['', '### Descriptor problems', fence(src, c.problems.map((p) => `- ${p}`).join('\n'), c.fenceId)] : []),
+    ...(c.lastAction ? ['- **Last action:**', fence(src, c.lastAction, c.fenceId)] : []),
     line('Update available', c.updateAvailable ? `${literal(c.updateAvailable)}${c.canUpdate ? ' (the descriptor has an `update` command; the MCP tool `update` runs it)' : ' (the descriptor has no `update` command)'}` : null),
     '',
     '## Recent events (newest first)',
-    ...(c.events.length ? [fence(src, c.events.map((e) => `- ${e.at} [${e.level}] ${e.text.replace(/\s+/g, ' ').slice(0, 400)}`).join('\n'))] : ['- None recorded.']),
+    ...(c.events.length ? [fence(src, c.events.map((e) => `- ${e.at} [${e.level}] ${e.text.replace(/\s+/g, ' ').slice(0, 400)}`).join('\n'), c.fenceId)] : ['- None recorded.']),
     '',
     '## Descriptor (its auth block left out)',
-    fence(src, ['```json', JSON.stringify(c.descriptor, null, 2), '```'].join('\n')),
+    fence(src, ['```json', JSON.stringify(c.descriptor, null, 2), '```'].join('\n'), c.fenceId),
     '',
     '## What you can do from here',
     '- `fabric-dashboards` MCP: `service_context`, `service_status`, `activity`, `doctor`, `update`, `control` (start/stop/restart), `link`, `open`.',
@@ -139,23 +142,23 @@ export function taskMarkdown(task: HandoffTask): string {
 /** What a *Fix with agent* hands over: the problem in the person's words and what "fixed" means. */
 export function fixTask(c: HandoffContext): HandoffTask {
   const listed = [...c.reasons, ...c.problems].map((r) => `- ${r}`).join('\n');
-  const why = listed ? fence(`service:${c.key}`, listed) : '- (no reason reported)'; // FD-234
+  const why = listed ? fence(`service:${c.key}`, listed, c.fenceId) : '- (no reason reported)'; // FD-234
   // FD-169: nothing is broken; the agent waits for what a person sets up (DEC-0149). Same button, a setup job.
   if (c.waitsForSetup && c.problems.length === 0) return {
     kind: 'fix',
-    title: `${c.name} waits for setup`,
+    title: `${literal(c.name, 120)} waits for setup`,
     body: `${literal(c.name)} (\`${c.key}\`) runs but waits for you to set it up (Fabric Dashboards):\n\n${why}\n\nSet up each part it names the way its repository documents (README, AGENTS.md, its setup command), and confirm with the MCP tool \`service_status\` that no setup entry is left. Ask me for every secret through a hidden prompt (never print one), and before any sign-in or anything destructive.`,
   };
   return {
     kind: 'fix',
-    title: `${c.name} is ${c.state}`,
+    title: `${literal(c.name, 120)} is ${c.state}`,
     body: `${literal(c.name)} (\`${c.key}\`) is **${c.state}** in Fabric Dashboards:\n\n${why}\n\nFind the cause in its repository, logs and recent events (context.md), fix it, and confirm with the MCP tool \`service_status\` that it is \`ready\`. Ask me before anything destructive, any sign-in, or a secret (use a hidden prompt for secrets; never print one).`,
   };
 }
 
 /** FD-81: what *Fix with agent* on the auditor's findings hands over: the findings as the person read them. */
 export function auditTask(c: HandoffContext, findings: string): HandoffTask {
-  return { kind: 'audit', title: `Audit findings for ${c.name}`, body: findings.trim() ? fence('audit', findings.trim()) : `${literal(c.name)} (\`${c.key}\`): the auditor found nothing at the time of the start. Check with the MCP tool \`audit\`.` };
+  return { kind: 'audit', title: `Audit findings for ${literal(c.name, 120)}`, body: findings.trim() ? fence('audit', findings.trim(), c.fenceId) : `${literal(c.name)} (\`${c.key}\`): the auditor found nothing at the time of the start. Check with the MCP tool \`audit\`.` };
 }
 
 /** What *Update with agent* hands over (D-3). */
@@ -163,9 +166,9 @@ export function updateTask(c: HandoffContext, failedOutput: string | null): Hand
   const target = c.updateAvailable ? ` to ${literal(c.updateAvailable)}` : '';
   return {
     kind: 'update',
-    title: `Update ${c.name}${c.updateAvailable ? ` to ${c.updateAvailable}` : ''}`,
+    title: `Update ${literal(c.name, 120)}${target}`,
     body: `Update ${literal(c.name)} (\`${c.key}\`) from ${c.version ? literal(c.version) : 'its current version'}${target}.\n\n`
-      + (c.canUpdate ? 'Its descriptor has an `update` command; ' + (failedOutput ? `it failed:\n\n${fence('command', `\`\`\`\n${failedOutput.slice(-2000)}\n\`\`\``)}\n\nFind out why and finish the update.` : 'run it with the MCP tool `update`, and finish what it cannot do.') : 'Its descriptor has no `update` command: update it the way its repository documents (README, AGENTS.md), then restart it.')
+      + (c.canUpdate ? 'Its descriptor has an `update` command; ' + (failedOutput ? `it failed:\n\n${fence('command', `\`\`\`\n${failedOutput.slice(-2000)}\n\`\`\``, c.fenceId)}\n\nFind out why and finish the update.` : 'run it with the MCP tool `update`, and finish what it cannot do.') : 'Its descriptor has no `update` command: update it the way its repository documents (README, AGENTS.md), then restart it.')
       + '\n\nConfirm with `service_status` that it answers as the new version. Ask me before anything destructive.',
   };
 }

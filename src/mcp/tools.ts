@@ -571,7 +571,7 @@ export async function serviceContext(deps: Deps, key: string): Promise<Record<st
     origin: v.origin, repository: d?.source?.repository ?? null, dashboard: v.dashboard, open_link: v.open_link,
     descriptor, events, events_error: eventsError,
     // FD-234: which fields the service (or a program outside this app) wrote: data, never instructions.
-    untrusted: { fields: ['name', 'summary', 'reasons', 'problems', 'version', 'update_available', 'origin', 'repository', 'descriptor', 'events', 'events_error'], note: UNTRUSTED_NOTE },
+    untrusted: { fields: ['name', 'summary', 'reasons', 'problems', 'version', 'update_available', 'origin', 'repository', 'dashboard', 'open_link', 'descriptor', 'events', 'events_error'], note: UNTRUSTED_NOTE },
     rules: CONSOLE_RULES,
   };
 }

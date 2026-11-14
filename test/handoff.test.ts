@@ -39,7 +39,7 @@ test('FD-39 REQ-001: the context names the agent, its state and why, its reposit
   const md = contextMarkdown(c, '2026-10-10T12:00:00Z');
   assert.ok(!md.includes(SECRET_PATH), 'the token file path never reaches the agent');
   assert.ok(!md.includes('X-Runner-Token'), 'nor the header that carries it');
-  for (const s of ['# Runner (runner.dev)', '**State:** down', 'https://github.com/example/runner', '/Users/me/DATA/runner', 'service_context', '"id": "runner"']) assert.ok(md.includes(s), s);
+  for (const s of ['# `Runner` (runner.dev)', '**State:** down', 'https://github.com/example/runner', '/Users/me/DATA/runner', 'service_context', '"id": "runner"']) assert.ok(md.includes(s), s);
 });
 
 test('FD-39 REQ-001: recent events are this agent\'s, newest first, and warnings survive a flood of info rows', () => {
@@ -94,12 +94,12 @@ test('FD-39 REQ-005/006: a fix task names the problem and what fixed means; an u
   const c = handoffContext(snap(), [], null);
   const fix = fixTask(c);
   assert.equal(fix.kind, 'fix');
-  assert.match(fix.title, /Runner is down/);
+  assert.match(fix.title, /`Runner` is down/);
   assert.match(fix.body, /service_status/);
   assert.match(fix.body, /hidden prompt/);
-  assert.match(taskMarkdown(fix), /^# Task: Runner is down/);
+  assert.match(taskMarkdown(fix), /^# Task: `Runner` is down/);
   const withCmd = updateTask({ ...c, updateAvailable: '2.0.0', version: '1.0.0' }, null);
-  assert.match(withCmd.title, /Update Runner to 2\.0\.0/);
+  assert.match(withCmd.title, /Update `Runner` to `2\.0\.0`/);
   assert.match(withCmd.body, /MCP tool `update`/);
   const failed = updateTask({ ...c, updateAvailable: '2.0.0' }, 'npm ERR! 404');
   assert.match(failed.body, /npm ERR! 404/);
@@ -161,7 +161,7 @@ test('FD-39 REQ-001/002/005: a console start writes the pack and carries it — 
   assert.match(r.handoff.before[2]!, /task\.md.*service_context with key runner\.dev/s, 'the brief names the task, then the first call with the agent\'s key');
   assert.match(r.handoff.after[0]!, /^Do the task in .*task\.md\.$/, 'a fix starts working at once');
   assert.match(fs.readFileSync(r.files.context, 'utf8'), /database locked/);
-  assert.match(fs.readFileSync(r.files.task!, 'utf8'), /^# Task: Runner is down/);
+  assert.match(fs.readFileSync(r.files.task!, 'utf8'), /^# Task: `Runner` is down/);
   const plain = prepareHandoff({ snapshot: snap(), activity: [], folder: '/w/runner', runtimeId: 'claude-code', dir, server: { command: 'x', args: [] }, version: '0.7.2' });
   assert.deepEqual(plain.handoff.after, [], 'a plain start: Claude waits for the person');
   assert.equal(plain.env.FABRIC_DASHBOARDS_TASK, undefined);
