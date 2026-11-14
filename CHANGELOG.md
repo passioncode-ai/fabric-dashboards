@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.8.94 - 2026-11-14
+
+### Added
+
+- FD-249: an agent can move an agent up or down in the sidebar and move its open dashboard's tab left or right
+  (MCP `arrange`), so every action in the window now has an agent route.
+
 ## 0.8.93 - 2026-11-14
 
 ### Fixed

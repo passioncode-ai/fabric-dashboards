@@ -25,7 +25,8 @@ import { Launchd, execRunner, type Runner } from '../core/launchd';
 import { fetchEvents, fetchLoad, fetchUsage, fetchWellKnown, PROBE_TIMEOUT_MS, readTokenAsync } from '../core/probe';
 import { readLoad, type LoadEntry } from '../core/load';
 import { readSpend, type SpendEntry } from '../core/spend';
-import { categoryOf, groupProducts, productIdOf, setKind, setOff, showAgain, togglePin, type Category } from '../core/products';
+import { arrangeProducts, categoryOf, groupProducts, moveInSection, productIdOf, setKind, setOff, showAgain, togglePin, type Category, type Product } from '../core/products';
+import { moveTab } from '../core/layout';
 import { buildGraph, chainState, stateOfService, worstOf, type ConnectionGraph } from '../core/connections';
 import { audit as runAudit, type Finding } from '../core/audit';
 import { estateMap, type EstateMap } from '../core/estate-map';
@@ -280,12 +281,12 @@ function listing(looks: readonly ServiceLook[], layout: Pick<ListLayout, 'hidden
 const asSnapshot = (l: ServiceLook): ServiceSnapshot => ({ ...l, descriptorPath: l.path, dashboardMinWidth: null, firstUnansweredAt: null, lastAnswerAt: null, busy: null, lastAction: null, latestEvent: null, feedError: null } as unknown as ServiceSnapshot);
 
 // #region arrange — docs: docs/ux/scenarios.md#scn-087-arrange-the-sidebar-width-and-order
-export type ArrangeAction = 'pin' | 'unpin' | 'hide' | 'show' | 'as-service' | 'as-agent' | 'turn-off' | 'turn-on';
-export const ARRANGE: readonly ArrangeAction[] = ['pin', 'unpin', 'hide', 'show', 'as-service', 'as-agent', 'turn-off', 'turn-on'];
+export type ArrangeAction = 'pin' | 'unpin' | 'hide' | 'show' | 'as-service' | 'as-agent' | 'turn-off' | 'turn-on' | 'move-up' | 'move-down' | 'tab-left' | 'tab-right';
+export const ARRANGE: readonly ArrangeAction[] = ['pin', 'unpin', 'hide', 'show', 'as-service', 'as-agent', 'turn-off', 'turn-on', 'move-up', 'move-down', 'tab-left', 'tab-right'];
 
 /** FD-122: the row menu's choices as a tool. Written to the app's settings.json (the running app reads it again at once,
  *  SettingsStore.watch); a choice that holds already changes nothing. The whole product moves, as in the sidebar. */
-export async function arrange(deps: Deps, key: string, action: ArrangeAction): Promise<{ service: string; product: string; pinned: boolean; hidden: boolean; off: boolean; category: Category; changed: boolean }> {
+export async function arrange(deps: Deps, key: string, action: ArrangeAction): Promise<{ service: string; product: string; pinned: boolean; hidden: boolean; off: boolean; category: Category; changed: boolean; tabs?: string[] }> {
   if (!ARRANGE.includes(action)) throw new ToolError(`action must be one of ${ARRANGE.join(', ')}`);
   const looks = await look(deps);
   if (!looks.some((l) => l.key === key)) throw new ToolError(`no installed service ${JSON.stringify(key)}`);
@@ -296,8 +297,22 @@ export async function arrange(deps: Deps, key: string, action: ArrangeAction): P
   const store = new SettingsStore(path.dirname(file), (m) => { error = m; });
   const list = store.get().layout.list;
   const pinned = list.pinned.includes(p.id), hidden = list.hidden.includes(p.id);
+  // FD-249: the open dashboards' tabs (FD-240's drag and Option+arrow): this agent's tab one place left or right.
+  if (action === 'tab-left' || action === 'tab-right') {
+    const tabs = store.get().layout.tabs;
+    const at = tabs.indexOf(key);
+    if (at < 0) throw new ToolError(`${key} has no open tab; open it first (open)`);
+    const target = tabs[at + (action === 'tab-left' ? -1 : 1)];
+    const next = target ? moveTab(tabs, key, target) : tabs;
+    const after = target ? store.update({ layout: { tabs: next } }).layout.tabs : tabs;
+    if (error) throw new ToolError(`the choice was not saved: ${error}`);
+    return { service: key, product: p.id, pinned, hidden, off: list.off.includes(p.id), category: categoryOf(p, list.kinds), changed: Boolean(target), tabs: after };
+  }
+  // FD-249: the sidebar's move (FD-121's drag and Option+arrow), one place up or down within the agent's own section.
+  const moved = action === 'move-up' || action === 'move-down' ? moveOne(groupProducts(looks.map(asSnapshot)), list, p.id, action === 'move-up' ? -1 : 1) : undefined;
   const patch: Partial<ListLayout> | null =
-    action === 'pin' ? (pinned ? null : { pinned: togglePin(list.pinned, p.id) })
+    moved !== undefined ? moved
+    : action === 'pin' ? (pinned ? null : { pinned: togglePin(list.pinned, p.id) })
     : action === 'unpin' ? (pinned ? { pinned: togglePin(list.pinned, p.id) } : null)
     : action === 'hide' ? (hidden ? null : { hidden: [...list.hidden, p.id] })
     : action === 'show' ? (hidden ? showAgain(list, p.id) : null) // FD-123: one that was off is turned on too
@@ -307,6 +322,14 @@ export async function arrange(deps: Deps, key: string, action: ArrangeAction): P
   const after = patch ? store.update({ layout: { list: patch } }).layout.list : list;
   if (error) throw new ToolError(`the choice was not saved: ${error}`);
   return { service: key, product: p.id, pinned: after.pinned.includes(p.id), hidden: after.hidden.includes(p.id), off: after.off.includes(p.id), category: categoryOf(p, after.kinds), changed: Boolean(patch) };
+}
+/** FD-249: one place up (-1) or down (+1) in the section the agent is shown in, as the sidebar stores a move. */
+function moveOne(products: Product[], list: ListLayout, id: string, by: -1 | 1): Partial<ListLayout> | null {
+  const arranged = arrangeProducts(products, list);
+  const section = (['pinned', 'agents', 'service', 'hidden'] as const).find((sec) => arranged[sec].some((x) => x.id === id));
+  if (!section) return null;
+  const from = arranged[section].findIndex((x) => x.id === id);
+  return moveInSection(arranged, section, id, from + by, list.pinned, list.order);
 }
 // #endregion arrange
 
