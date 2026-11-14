@@ -197,3 +197,22 @@ test('DEC-0154 HA-2: a watcher counts foreign and foreign-user as unavailable, a
     ], state);
   }
 });
+
+test('FD-255 (security audit F3): a token goes to a loopback MCP server only when this user\'s own process listens there', async (t) => {
+  const { setLoopbackOwnerCheck } = await import('@passioncode-ai/fabric-service-host');
+  let hits = 0;
+  const server = http.createServer((req, res) => { hits++; req.resume(); res.writeHead(500); res.end(); });
+  await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
+  t.after(() => { server.close(); setLoopbackOwnerCheck(null); });
+  const target = { origin: `http://127.0.0.1:${(server.address() as { port: number }).port}`, path: '/mcp', headers: { Authorization: 'Bearer x' } };
+  setLoopbackOwnerCheck(async () => false);
+  await assert.rejects(callCapability(target, 'relay.notify', {}, '0.8.88'), /not listened on by this user's process, so its token was not sent/);
+  setLoopbackOwnerCheck(async () => 'unknown');
+  await assert.rejects(callCapability(target, 'relay.notify', {}, '0.8.88'), /could not be told, so its token was not sent/);
+  assert.equal(hits, 0, 'nothing reached the port');
+  setLoopbackOwnerCheck(async () => true);
+  await assert.rejects(callCapability(target, 'relay.notify', {}, '0.8.88'), /initialize answered HTTP 500/);
+  assert.equal(hits, 1, 'our own process: the call goes');
+  setLoopbackOwnerCheck(async () => false);
+  await assert.rejects(callCapability({ ...target, headers: {} }, 'relay.notify', {}, '0.8.88'), /HTTP 500/, 'no token, no check');
+});

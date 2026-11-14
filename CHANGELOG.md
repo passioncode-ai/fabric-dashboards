@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.8.88 - 2026-11-14
+
+### Security
+
+- FD-255: outage alerts and the organizations read from Observatory send their token to a service on this Mac only
+  when the port belongs to this user's own process, as every other request of the app already did.
+
 ## 0.8.87 - 2026-11-14
 
 ### Fixed

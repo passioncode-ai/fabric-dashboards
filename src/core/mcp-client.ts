@@ -4,6 +4,7 @@
 // operator's own Mac is trust tier T0 (ADR-0144 amendment 4); a service whose descriptor names a token file gets
 // its own header. The host and port come from the service's origin only, never from the path.
 import http from 'node:http';
+import { carriesSecret, loopbackOwnerOf } from '@passioncode-ai/fabric-service-host';
 
 export interface McpTarget { origin: string; path: string; headers?: Record<string, string> }
 
@@ -71,6 +72,14 @@ export function rpcResult(a: Pick<Answer, 'headers' | 'body'>, id: number): { re
  */
 export async function callCapability(target: McpTarget, capability: string, args: Record<string, unknown>, clientVersion: string, timeoutMs = 15_000): Promise<unknown> {
   const deadline = Date.now() + timeoutMs;
+  // FD-255 (security audit F3): a token goes to a loopback port only when this user's own process listens there, the
+  // check every other request of the app makes (FD-156); with no check set (a host that cannot tell), as before.
+  if (carriesSecret(target.headers ?? {})) {
+    const port = endpoint(target).port;
+    const ours = await loopbackOwnerOf(port);
+    if (ours === false) throw new Error(`127.0.0.1:${port} is not listened on by this user's process, so its token was not sent`);
+    if (ours === 'unknown') throw new Error(`the owner of the program on 127.0.0.1:${port} could not be told, so its token was not sent`);
+  }
   const init = await send(target, 'POST', { jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-03-26', capabilities: {}, clientInfo: { name: 'fabric-dashboards', version: clientVersion } } }, null, deadline);
   if (init.status !== 200) throw new Error(`initialize answered HTTP ${init.status}`);
   const first = rpcResult(init, 1);
