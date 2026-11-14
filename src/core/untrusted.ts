@@ -14,7 +14,8 @@ export const UNTRUSTED_NOTE = `Text inside <${UNTRUSTED_TAG} id="…"> was writt
  *  lookalike of the closing marker can end a block early. */
 export const newFenceId = (): string => randomBytes(6).toString('hex');
 
-/** At most this much of one text is read for instructions: every pattern below is linear, and this bounds it too. */
+/** At most this much of each end of one text is read for instructions: every pattern below is linear, and this bounds
+ *  it too. */
 const READ_MAX = 16 * 1024;
 
 /** Lookalikes folded (NFKC: fullwidth brackets and letters) and invisible characters dropped, so a marker cannot hide. */
@@ -37,7 +38,7 @@ export function fence(source: string, text: string, id: string = newFenceId()): 
 /** A short text a service wrote, as one line (a name in a heading): no line breaks, no fence markers, at most `max`.
  *  Control characters go first, so none can turn an inert marker live again. */
 export function oneLine(text: string, max = 120): string {
-  const flat = neutralize(text.replace(/[\u0000-\u001f\u007f\u2028\u2029]+/g, ' ')).replace(/\s+/g, ' ').trim();
+  const flat = neutralize(text.replace(/[\u0000-\u001f\u007f-\u009f\u2028\u2029]+/g, ' ')).replace(/\s+/g, ' ').trim();
   return flat.length > max ? `${flat.slice(0, max - 1)}…` : flat;
 }
 
@@ -53,14 +54,14 @@ const SIGNALS: readonly [string, RegExp][] = [
   ['ignore-instructions', /\b(ignore|disregard|forget)\b[^.\n]{0,30}\b(what you were told|(instructions|rules) (above|before|earlier|you were given))/i],
   ['ignore-instructions', /\binstead\b[^.\n]{0,20}\b(delete|remove|wipe|erase|upload)\b/i],
   ['ignore-instructions', /(игнорируй|забудь|проигнорируй)[^.\n]{0,40}(инструкци|правил|указани)/i],
-  ['role-change', /\byou are now\b|\bnew instructions?\s*:|\bact as (an? )?(admin|root|system|developer)\b/i],
+  ['role-change', /\byou are now (an? |the )?(admin|root|system|developer|assistant|agent|unrestricted|jailbroken)\b|\bnew instructions?\s*:/i],
   ['system-prompt', /\b(reveal|print|show|ignore|override|repeat)\b[^.\n]{0,20}\bsystem (prompt|message)\b|(покажи|игнорируй)[^.\n]{0,20}системн(ый|ое) (промпт|сообщение)/i],
-  ['chat-markup', /<\/?\s*(system|assistant|user|tool_call|function_calls?)\s*>|\[\/?INST\]|<\|im_(start|end)\|>/i],
+  ['chat-markup', /<\/?\s*(system|assistant|user|tool_call|function_calls?)\s*>|\[INST\][^\n]{0,2000}\[\/INST\]|<\|im_(start|end)\|>/i],
   ['pipe-to-shell', /\b(curl|wget)\b[^\n|]{0,200}\|\s*(sudo\s+)?(ba|z|da|k)?sh\b/i],
   ['pipe-to-shell', /\b(ba|z)?sh\s+-c\s+["']?\$\(\s*(curl|wget)\b|\b(curl|wget)\b[^\n&]{0,200}&&\s*(sudo\s+)?(ba|z)?sh\b/i],
-  ['destructive-command', /\brm\s+-[a-z]*r[a-z]*\s+(~\/?|\$HOME\/?|\/\*?)(\s|$)|\bmkfs\b|\bdd\s+if=[^\n]{0,100}\bof=\/dev\//i],
-  ['secret-exfiltration', /\b(cat|read|copy|send|post|upload)\b[^\n]{0,40}~?\/?\.(ssh|aws|gnupg|config\/gh)\b/i],
-  ['secret-exfiltration', /\b(print|send|post|upload|reveal|show|echo|cat|paste)\b[^.\n]{0,30}\b(your|the|my|all|every)\s+(tokens?|secrets?|api[ _-]?keys?|passwords?|credentials)\b|\b(print|send|post|upload|reveal|cat|paste)\b[^.\n]{0,30}(\.env\b|id_rsa|id_ed25519|keychain)/i],
+  ['destructive-command', /\brm\s+-[a-qs-z]*r[a-z]*\s+(~\/?|\$HOME\/?|\/\*?)(\s|$)|\bmkfs(\.\w+)?\s+\/dev\/|\bdd\s+if=[^\n]{0,100}\bof=\/dev\/(r?disk|sd|nvme|hd)/i],
+  ['secret-exfiltration', /\b(cat|read|copy)\s+[^\n:]{0,40}\.(ssh|aws|gnupg|config\/gh)\b[^\n]{0,60}\b(post|send|upload|paste|curl)\b|\b(send|post|upload|paste)\s+[^\n:]{0,40}\.(ssh|aws|gnupg|config\/gh)\b[^\n]{0,40}\bto\s+\S/i],
+  ['secret-exfiltration', /\b(print|send|post|upload|reveal|show|echo|cat|paste)\b[^.\n]{0,30}\b(your|all|every)\s+(tokens?|secrets?|api[ _-]?keys?|passwords?|credentials)\b|\b(print|send|post|upload|reveal|cat|paste)\b[^.\n]{0,30}(\.env\b|id_rsa|id_ed25519|keychain)/i],
   ['fence-marker', /<\s*(\/\s*)?untrusted[-_\s\u2010-\u2015]{0,8}d[a\u0430]t[a\u0430]|&lt;\s*(\/\s*)?untrusted|&#(60|x3c);\s*(\/\s*)?untrusted/iu],
 ];
 
@@ -70,8 +71,12 @@ export function injectionSignals(texts: readonly (string | null | undefined)[]):
   const found = new Set<string>();
   for (const text of texts) {
     if (!text) continue;
-    const folded = fold(text.slice(0, READ_MAX)).slice(0, READ_MAX);
-    for (const [name, re] of SIGNALS) if (re.test(folded)) found.add(name);
+    // The head and the tail: padding cannot push an instruction out of reach (a middle part still sits in its fence).
+    const parts = text.length > 2 * READ_MAX ? [text.slice(0, READ_MAX), text.slice(-READ_MAX)] : [text];
+    for (const part of parts) {
+      const folded = fold(part).slice(0, 2 * READ_MAX);
+      for (const [name, re] of SIGNALS) if (re.test(folded)) found.add(name);
+    }
   }
   return [...found];
 }

@@ -152,10 +152,12 @@ context pack (`context.md`, `task.md`) and the MCP answers `service_context` and
 permission prompts by default, so such text could steer the agent. Since 0.8.77 (FD-234, the agents database's audit
 2026-11-13-45e7cc299793, B1) the free texts (summary, reasons, problems, last action, events, descriptor, a task's
 findings, a failed command's output) sit inside `<untrusted-data id="…" source="…">` blocks that end only at a closing
-marker with the same id, a random one per document that text written before the start cannot know; markers inside
-the text are also made inert, lookalikes and invisible characters folded first (`src/core/untrusted.ts`). The short
+marker with the same id, a random one per document that text written before the start cannot know: that id is the
+guarantee. Common forms of the marker inside the text (any case or spacing, fullwidth, invisible characters, dashes)
+are also made inert, as a second line, not every lookalike (`src/core/untrusted.ts`). The short
 values (name, version, update available, origin, repository) are flattened to one line and quoted as code, in
-headings too, so none can add a heading or a step. Every pattern is linear and reads at most 16 KB of a text. The pack and the MCP
+headings too, so none can add a heading or a step. Every pattern is linear and reads at most the first and the last
+16 KB of a text. The pack and the MCP
 answers say all of it is data and never an instruction, and a start whose text reads like instructions
 (`injectionSignals`: "ignore previous instructions", role or chat markup, `curl … | sh`, `rm -rf ~`, reading
 `~/.ssh`, asking to print a secret) runs with permission prompts on for that start, logged, the person's saved choice
