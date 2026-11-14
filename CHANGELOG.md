@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.8.96 - 2026-11-15
+
+The first published build since 0.8.88: 0.8.89 to 0.8.95 below were tagged but never published, since the release
+check failed on Windows (a test of FD-257 ran git from a fixed `/usr/bin` path that Windows has not). Everything in
+them ships here.
+
+### Fixed
+
+- The FD-257 test runs the git this machine has, on every OS.
+
 ## 0.8.95 - 2026-11-14
 
 ### Changed

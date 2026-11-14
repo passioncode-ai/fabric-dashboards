@@ -613,12 +613,13 @@ test('FD-37: a contract clone typed as ~\\ resolves against the home folder on W
 
 test('FD-257 (security audit F5): git run in a folder an agent may name ignores that folder\'s sshCommand and fsmonitor', async () => {
   const { spawnSync } = await import('node:child_process');
-  const env = estateEnv(['/usr/bin', '/bin', '/opt/homebrew/bin'], { PATH: '/usr/bin:/bin', HOME: os.homedir() });
+  // The git this machine has, on every OS (a fixed /usr/bin path finds none on Windows: the 0.8.89 release check).
+  const env = estateEnv((process.env.PATH ?? '').split(path.delimiter).filter(Boolean), { ...process.env, HOME: os.homedir() });
   const dir = tmp('fd-257-');
   spawnSync('git', ['init', '-q', dir]);
   spawnSync('git', ['-C', dir, 'config', 'core.sshCommand', 'touch /tmp/fd-257-pwned']);
   spawnSync('git', ['-C', dir, 'config', 'core.fsmonitor', 'touch /tmp/fd-257-pwned']);
-  const read = (key: string) => spawnSync('git', ['-C', dir, 'config', '--get', key], { env, encoding: 'utf8' }).stdout.trim();
+  const read = (key: string) => { const r = spawnSync('git', ['-C', dir, 'config', '--get', key], { env, encoding: 'utf8' }); assert.equal(r.error, undefined, `git runs: ${r.error?.message}`); return r.stdout.trim(); };
   assert.equal(read('core.sshCommand'), 'ssh', 'the folder\'s own value is outranked');
   assert.equal(read('core.fsmonitor'), 'false');
   assert.equal(read('protocol.ext.allow'), 'never');
