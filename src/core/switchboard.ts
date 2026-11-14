@@ -132,6 +132,29 @@ export function managesProvider(accounts: SbAccounts | null, provider: RuntimeSp
   return Boolean(provider && accounts && Object.keys(accounts.routes).some((k) => k.startsWith(`${provider}:`)));
 }
 
+/** FD-239: the account a console start runs on. Switchboard launches a managed session on the selected account of the
+ *  folder's group, and an unbound folder on the default group's (`launch --provider`); a group that selects none
+ *  refuses the launch («Select an account for this provider first», exit 3). So a route in ANOTHER group is no reason
+ *  to launch managed: an unbound folder then runs the runtime on its own sign-in, and a bound one is refused before
+ *  anything is spawned (ADR-0017: a group's folder never runs on the ordinary sign-in). */
+export type StartAccount =
+  | { kind: 'route'; pool: string; label: string }
+  | { kind: 'ordinary'; reason: 'unmanaged' }
+  | { kind: 'ordinary'; reason: 'no-route'; pool: string }
+  | { kind: 'missing'; pool: string; group: string };
+
+export function startAccount(accounts: SbAccounts | null, provider: RuntimeSpec['provider'], binding: Binding | { kind: 'absent' }): StartAccount {
+  if (!provider || !accounts || !managesProvider(accounts, provider)) {
+    if (binding.kind === 'project' && provider) return { kind: 'missing', pool: binding.pool, group: binding.name };
+    return { kind: 'ordinary', reason: 'unmanaged' };
+  }
+  const pool = binding.kind === 'project' ? binding.pool : 'default';
+  const id = accounts.routes[`${provider}:${pool}`];
+  if (id) return { kind: 'route', pool, label: accounts.labels[id] ?? id };
+  if (binding.kind === 'project') return { kind: 'missing', pool, group: binding.name };
+  return { kind: 'ordinary', reason: 'no-route', pool };
+}
+
 /** One session Switchboard launched in a folder (FD-43, SB-95), with where it runs now (FD-51). */
 export interface SbSession {
   state: 'starting' | 'running' | 'ended' | 'unknown';

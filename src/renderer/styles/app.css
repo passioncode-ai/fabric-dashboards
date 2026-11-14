@@ -335,6 +335,15 @@ html.drawer-page, html.drawer-page body, html.drawer-page #root { background: tr
 .console-head > * { -webkit-app-region: no-drag; }
 .console-row { display: flex; align-items: center; gap: var(--pc-space-2); min-width: 0; }
 .console-row select { max-width: 60%; }
+/* FD-239: the coding agents as one segmented row, the account beside them, then the session buttons; it wraps when narrow. */
+.console-head > .console-row:first-child { flex-wrap: wrap; row-gap: var(--pc-space-1); }
+.console-runtimes { display: inline-flex; gap: 2px; padding: 2px; background: var(--pc-bg); border: 1px solid var(--pc-border); border-radius: var(--pc-radius-control); }
+.console-runtimes .mode-btn[aria-checked='true'] { background: var(--pc-panel-raised); color: var(--pc-text); font-weight: 600; box-shadow: inset 0 0 0 1px var(--pc-border-strong); }
+.console-runtimes .mode-btn:disabled { cursor: default; opacity: 0.6; }
+.console-row select.console-more { max-width: 14ch; }
+.console-account { flex: 0 1 auto; min-width: 6ch; overflow: hidden; text-overflow: ellipsis; }
+.console-account.is-missing { color: var(--pc-text); border-color: var(--pc-negative); }
+.console-head .console-actions { display: inline-flex; padding: 0; border: 0; }
 .console-folder { font-family: var(--pc-font-data); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; flex: 1; }
 .console-state { margin: var(--pc-space-3); }
 .console-state p { margin: 0 0 var(--pc-space-2); }
