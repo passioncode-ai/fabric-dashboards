@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.8.80 - 2026-11-14
+
+### Fixed
+
+- FD-252: an agent of the platform's organization that runs on this Mac (its space administrator, its PM agent) is
+  listed under that organization again, not under the personal one. Only products the platform installs in every
+  organization (Observatory, Fabric Inbox and the like) count as this space's own.
+
 ## 0.8.79 - 2026-11-14
 
 ### Fixed

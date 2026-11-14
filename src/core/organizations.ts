@@ -19,6 +19,9 @@ export interface OrganizationsCache {
   /** FD-197: the organizations whose products are the platform (Observatory's config `platform: true`, else the one that
    *  owns this app's repository); an instance of one runs for the organization of the context it runs in. */
   platform?: string[];
+  /** FD-252: the products the platform installs in every organization (Observatory's registry `platform_products`, else
+   *  PLATFORM_PRODUCTS); only their local instances run in this space as its own. */
+  platformProducts?: string[];
   /** FD-197: a Cloudflare Worker's name -> the organization of the one account Observatory lists it in (accounts matched
    *  by `match.cloudflare_accounts`); a name listed in two accounts is left out, never guessed. */
   byWorker?: Record<string, string>;
@@ -60,12 +63,13 @@ export function addSurveyPage(into: OrganizationsCache, page: unknown): string |
  *  (a rule for a local folder names none); `organization_labels` (from Observatory's `config/organizations.json`, added
  *  by the reader) names them as the operator did. Whether it was the expected shape. */
 export function addRegistryProjects(into: OrganizationsCache, doc: unknown): boolean {
-  const d = (doc && typeof doc === 'object' ? doc : {}) as { schema_version?: unknown; projects?: unknown; organization_labels?: Record<string, unknown>; organization_personal?: unknown; organization_platform?: unknown; cloudflare_accounts?: unknown };
+  const d = (doc && typeof doc === 'object' ? doc : {}) as { schema_version?: unknown; projects?: unknown; organization_labels?: Record<string, unknown>; organization_personal?: unknown; organization_platform?: unknown; platform_products?: unknown; cloudflare_accounts?: unknown };
   if (d.schema_version !== 2 || !Array.isArray(d.projects)) return false;
   // FD-195: the organization Observatory's config marks `default: true` (added by the reader beside the labels).
   if (typeof d.organization_personal === 'string' && d.organization_personal) into.personal = d.organization_personal;
   // FD-197: the platform's organizations and the Cloudflare accounts' (added by the reader beside the labels).
   if (Array.isArray(d.organization_platform)) into.platform = d.organization_platform.filter((x): x is string => typeof x === 'string' && x !== '');
+  if (Array.isArray(d.platform_products)) into.platformProducts = d.platform_products.filter((x): x is string => typeof x === 'string' && x !== '');
   if (d.cloudflare_accounts !== undefined) addCloudflareAccounts(into, d.cloudflare_accounts);
   const labelOf = (name: string) => (typeof d.organization_labels?.[name] === 'string' && d.organization_labels[name] ? d.organization_labels[name] as string : name);
   // FD-197: every organization the operator configured is known by name, so an instance named after one finds it.
@@ -139,6 +143,9 @@ export interface InstanceContext {
 // attributes is that account's organization's (a custom domain's zone is not a deployment and gives nothing); an instance of a platform product (Observatory, Fabric Inbox: infrastructure each
 // organization runs a copy of) on this Mac runs in this space, so it is this space's own organization's. Anything else
 // keeps its repository's organization (FD-162); nothing is guessed.
+/** FD-252: the platform's infrastructure each organization runs a copy of, until Observatory's registry names them. */
+export const PLATFORM_PRODUCTS: readonly string[] = ['project-observatory', 'fabric-inbox', 'fabric', 'local-lifecycle', 'fabric-switchboard'];
+
 /** The organization of one installed instance, or null when nothing names it. */
 export function organizationOfInstance(cache: OrganizationsCache, s: InstanceContext): Organization | null {
   const instance = s.key.includes('.') ? s.key.slice(s.key.indexOf('.') + 1).toLowerCase() : '';
@@ -149,7 +156,11 @@ export function organizationOfInstance(cache: OrganizationsCache, s: InstanceCon
     if (worker) return named(cache, worker);
   }
   const own = organizationOf(cache, s.repository);
-  if (own && s.placement !== 'remote' && cache.personal && cache.platform?.includes(own.name)) return named(cache, cache.personal);
+  // FD-252: a product the platform installs everywhere, not every repository its organization owns (the organization's
+  // own agents, such as its space administrator or its PM agent, stay its own wherever they run).
+  const product = s.key.includes('.') ? s.key.slice(0, s.key.indexOf('.')) : s.key;
+  const platformProduct = (cache.platformProducts ?? PLATFORM_PRODUCTS).includes(product);
+  if (own && platformProduct && s.placement !== 'remote' && cache.personal && cache.platform?.includes(own.name)) return named(cache, cache.personal);
   return own;
 }
 
