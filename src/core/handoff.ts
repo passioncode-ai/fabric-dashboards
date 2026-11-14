@@ -12,6 +12,7 @@ import path from 'node:path';
 import { t, type Lang } from './i18n';
 import type { ActivityItem, ServiceSnapshot } from './types';
 import { waitsForSetup } from './setup-wait';
+import { fence, injectionSignals, oneLine, UNTRUSTED_NOTE, UNTRUSTED_TAG } from './untrusted';
 
 /** What the pack says. Built from the monitor's snapshot and the activity store; no token ever. */
 export interface HandoffContext {
@@ -34,6 +35,8 @@ export interface HandoffContext {
   events: { at: string; level: string; text: string }[];
   /** The descriptor, `auth` removed: a token file's path is not the agent's to read (SECURITY.md). */
   descriptor: Record<string, unknown> | null;
+  /** FD-234: the kinds of instruction-like text in what the service wrote; a non-empty list keeps permission prompts on. */
+  signals: string[];
 }
 
 /** A job handed to the agent with the context (D-3). */
@@ -42,18 +45,21 @@ export interface HandoffTask { kind: 'fix' | 'update' | 'setup' | 'audit'; title
 /** The newest first, warnings and errors of the last ones kept even when info rows are many. */
 export function handoffContext(s: ServiceSnapshot, activity: ActivityItem[], folder: string | null, lang: Lang = 'en', limit = 20): HandoffContext {
   const d = s.descriptor;
-  const events = activity
+  const rows = activity
     .filter((a) => a.serviceKey === s.key)
     .sort((a, b) => (a.at < b.at ? 1 : a.at > b.at ? -1 : 0));
   // Warnings and errors keep up to half the rows, however many info rows came after them.
-  const important = events.filter((e) => e.level === 'warning' || e.level === 'error').slice(0, Math.ceil(limit / 2));
-  const rest = events.filter((e) => !important.includes(e)).slice(0, limit - important.length);
+  const important = rows.filter((e) => e.level === 'warning' || e.level === 'error').slice(0, Math.ceil(limit / 2));
+  const rest = rows.filter((e) => !important.includes(e)).slice(0, limit - important.length);
   const chosen = [...important, ...rest].sort((a, b) => (a.at < b.at ? 1 : a.at > b.at ? -1 : 0));
   let descriptor: Record<string, unknown> | null = null;
   if (d) {
     const { auth: _auth, ...rest } = d as unknown as Record<string, unknown>;
     descriptor = rest;
   }
+  const reasons = s.reasons.map((r) => t(lang, r.code, r.params));
+  const lastAction = s.lastAction ? `${s.lastAction.action} ${s.lastAction.ok ? 'succeeded' : 'failed'} at ${s.lastAction.at}: ${t(lang, s.lastAction.reason.code, s.lastAction.reason.params)}` : null;
+  const events = chosen.map((e) => ({ at: e.at, level: e.level, text: e.text }));
   return {
     key: s.key,
     name: d?.name ?? s.key,
@@ -61,7 +67,7 @@ export function handoffContext(s: ServiceSnapshot, activity: ActivityItem[], fol
     placement: d?.placement === 'remote' ? 'remote' : 'local',
     state: s.state,
     waitsForSetup: waitsForSetup(s),
-    reasons: s.reasons.map((r) => t(lang, r.code, r.params)),
+    reasons,
     problems: s.problems,
     version: s.wellKnown?.service.version ?? null,
     updateAvailable: s.wellKnown?.update?.available ?? null,
@@ -69,9 +75,10 @@ export function handoffContext(s: ServiceSnapshot, activity: ActivityItem[], fol
     origin: d?.origin ?? null,
     repository: d?.source?.repository ?? null,
     folder,
-    lastAction: s.lastAction ? `${s.lastAction.action} ${s.lastAction.ok ? 'succeeded' : 'failed'} at ${s.lastAction.at}: ${t(lang, s.lastAction.reason.code, s.lastAction.reason.params)}` : null,
-    events: chosen.map((e) => ({ at: e.at, level: e.level, text: e.text })),
+    lastAction,
+    events,
     descriptor,
+    signals: injectionSignals([d?.name, d?.summary, ...reasons, ...s.problems, lastAction, ...events.map((e) => e.text), descriptor ? JSON.stringify(descriptor) : null]),
   };
 }
 
@@ -79,13 +86,19 @@ const line = (label: string, value: string | null) => (value ? `- **${label}:** 
 
 /** `context.md`: the agent's whole picture, readable by a person too. */
 export function contextMarkdown(c: HandoffContext, generatedAt: string): string {
+  const src = `service:${c.key}`;
   const out: (string | null)[] = [
-    `# ${c.name} (${c.key}): context from Fabric Dashboards`,
+    `# ${oneLine(c.name)} (${c.key}): context from Fabric Dashboards`,
     '',
     `Written ${generatedAt}. Read it fresh any time with the \`fabric-dashboards\` MCP tool \`service_context\` (key \`${c.key}\`).`,
     '',
+    // FD-234: what the service wrote is fenced; the agent is told once what the fence means.
+    UNTRUSTED_NOTE,
+    ...(c.signals.length ? ['', `Some of that text reads like instructions (${c.signals.join(', ')}), so Fabric Dashboards started this session with permission prompts on: the person approves each step.`] : []),
+    '',
     '## Who',
-    line('Agent', `${c.name}, the Fabric service \`${c.key}\`${c.summary ? `: ${c.summary}` : ''}`),
+    line('Agent', `${oneLine(c.name)}, the Fabric service \`${c.key}\``),
+    ...(c.summary ? ['', fence(src, c.summary), ''] : []),
     line('Placement', c.placement === 'remote' ? 'online (runs on its own server)' : 'on this computer'),
     line('Origin', c.origin),
     line('Repository', c.repository),
@@ -94,18 +107,16 @@ export function contextMarkdown(c: HandoffContext, generatedAt: string): string 
     '',
     '## State now',
     `- **State:** ${c.state}`,
-    ...(c.reasons.length ? c.reasons.map((r) => `- ${r}`) : ['- No reason reported.']),
-    ...(c.problems.length ? ['', '### Descriptor problems', ...c.problems.map((p) => `- ${p}`)] : []),
-    line('Last action', c.lastAction),
+    ...(c.reasons.length ? [fence(src, c.reasons.map((r) => `- ${r}`).join('\n'))] : ['- No reason reported.']),
+    ...(c.problems.length ? ['', '### Descriptor problems', fence(src, c.problems.map((p) => `- ${p}`).join('\n'))] : []),
+    ...(c.lastAction ? ['- **Last action:**', fence(src, c.lastAction)] : []),
     line('Update available', c.updateAvailable ? `${c.updateAvailable}${c.canUpdate ? ' (the descriptor has an `update` command; the MCP tool `update` runs it)' : ' (the descriptor has no `update` command)'}` : null),
     '',
     '## Recent events (newest first)',
-    ...(c.events.length ? c.events.map((e) => `- ${e.at} [${e.level}] ${e.text.replace(/\s+/g, ' ').slice(0, 400)}`) : ['- None recorded.']),
+    ...(c.events.length ? [fence(src, c.events.map((e) => `- ${e.at} [${e.level}] ${e.text.replace(/\s+/g, ' ').slice(0, 400)}`).join('\n'))] : ['- None recorded.']),
     '',
     '## Descriptor (its auth block left out)',
-    '```json',
-    JSON.stringify(c.descriptor, null, 2),
-    '```',
+    fence(src, ['```json', JSON.stringify(c.descriptor, null, 2), '```'].join('\n')),
     '',
     '## What you can do from here',
     '- `fabric-dashboards` MCP: `service_context`, `service_status`, `activity`, `doctor`, `update`, `control` (start/stop/restart), `link`, `open`.',
@@ -117,12 +128,15 @@ export function contextMarkdown(c: HandoffContext, generatedAt: string): string 
 
 /** `task.md`: the job, when the console was opened to do one. */
 export function taskMarkdown(task: HandoffTask): string {
-  return `# Task: ${task.title}\n\n${task.body.trim()}\n`;
+  // FD-234: a task that carries text a service or a command wrote says what its fence means.
+  const note = task.body.includes(`<${UNTRUSTED_TAG} `) ? `${UNTRUSTED_NOTE}\n\n` : '';
+  return `# Task: ${oneLine(task.title, 200)}\n\n${note}${task.body.trim()}\n`;
 }
 
 /** What a *Fix with agent* hands over: the problem in the person's words and what "fixed" means. */
 export function fixTask(c: HandoffContext): HandoffTask {
-  const why = [...c.reasons, ...c.problems].map((r) => `- ${r}`).join('\n') || '- (no reason reported)';
+  const listed = [...c.reasons, ...c.problems].map((r) => `- ${r}`).join('\n');
+  const why = listed ? fence(`service:${c.key}`, listed) : '- (no reason reported)'; // FD-234
   // FD-169: nothing is broken; the agent waits for what a person sets up (DEC-0149). Same button, a setup job.
   if (c.waitsForSetup && c.problems.length === 0) return {
     kind: 'fix',
@@ -138,7 +152,7 @@ export function fixTask(c: HandoffContext): HandoffTask {
 
 /** FD-81: what *Fix with agent* on the auditor's findings hands over: the findings as the person read them. */
 export function auditTask(c: HandoffContext, findings: string): HandoffTask {
-  return { kind: 'audit', title: `Audit findings for ${c.name}`, body: findings.trim() || `${c.name} (\`${c.key}\`): the auditor found nothing at the time of the start. Check with the MCP tool \`audit\`.` };
+  return { kind: 'audit', title: `Audit findings for ${c.name}`, body: findings.trim() ? fence('audit', findings.trim()) : `${c.name} (\`${c.key}\`): the auditor found nothing at the time of the start. Check with the MCP tool \`audit\`.` };
 }
 
 /** What *Update with agent* hands over (D-3). */
@@ -148,7 +162,7 @@ export function updateTask(c: HandoffContext, failedOutput: string | null): Hand
     kind: 'update',
     title: `Update ${c.name}${target}`,
     body: `Update ${c.name} (\`${c.key}\`) from ${c.version ?? 'its current version'}${target}.\n\n`
-      + (c.canUpdate ? 'Its descriptor has an `update` command; ' + (failedOutput ? `it failed:\n\n\`\`\`\n${failedOutput.slice(-2000)}\n\`\`\`\n\nFind out why and finish the update.` : 'run it with the MCP tool `update`, and finish what it cannot do.') : 'Its descriptor has no `update` command: update it the way its repository documents (README, AGENTS.md), then restart it.')
+      + (c.canUpdate ? 'Its descriptor has an `update` command; ' + (failedOutput ? `it failed:\n\n${fence('command', `\`\`\`\n${failedOutput.slice(-2000)}\n\`\`\``)}\n\nFind out why and finish the update.` : 'run it with the MCP tool `update`, and finish what it cannot do.') : 'Its descriptor has no `update` command: update it the way its repository documents (README, AGENTS.md), then restart it.')
       + '\n\nConfirm with `service_status` that it answers as the new version. Ask me before anything destructive.',
   };
 }
@@ -267,11 +281,13 @@ export function writeTaskOnly(o: { snapshot: ServiceSnapshot; activity: Activity
 export function prepareHandoff(o: {
   snapshot: ServiceSnapshot; activity: ActivityItem[]; folder: string; runtimeId: string; dir: string;
   server: McpCommand; version: string; task?: { kind: 'fix' | 'update' | 'audit'; output?: string }; now?: () => Date;
-}): { handoff: { before: string[]; after: string[] }; env: Record<string, string>; files: { context: string; task: string | null; mcp: string; brief: string | null; manifest: string | null } } {
+}): { handoff: { before: string[]; after: string[] }; env: Record<string, string>; signals: string[]; files: { context: string; task: string | null; mcp: string; brief: string | null; manifest: string | null } } {
   // A start that fails before the manifest is written again must not leave the last start's manifest behind.
   fs.rmSync(path.join(o.dir, 'handoff.json'), { force: true });
   const now = (o.now ?? (() => new Date()))().toISOString();
-  const ctx = handoffContext(o.snapshot, o.activity, o.folder);
+  const read = handoffContext(o.snapshot, o.activity, o.folder);
+  // FD-234: a task's output (audit findings, a failed update) is read for instruction-like text too.
+  const ctx = { ...read, signals: [...new Set([...read.signals, ...injectionSignals([o.task?.output])])] };
   const job = o.task ? (o.task.kind === 'fix' ? fixTask(ctx) : o.task.kind === 'audit' ? auditTask(ctx, o.task.output ?? '') : updateTask(ctx, o.task.output ?? null)) : null;
   const taskPath = job ? path.join(o.dir, 'task.md') : null;
   const text = brief(ctx.key, { task: taskPath });
@@ -297,6 +313,6 @@ export function prepareHandoff(o: {
       launch: { runtime, args: [...h.before, ...h.after], env },
     }, null, 2)}\n`);
   }
-  return { handoff: h, env, files: { ...files, manifest } };
+  return { handoff: h, env, signals: ctx.signals, files: { ...files, manifest } };
 }
 // #endregion agent-handoff

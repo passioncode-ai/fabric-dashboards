@@ -466,7 +466,7 @@ export class ConsoleHost {
 
   /** The context pack for this start, written now; null when there is no snapshot or no pack root.
    *  A pack that cannot be written is logged and the session starts without it — never blocked by it. */
-  private pack(key: string, runtime: Runtime, folder: string, task?: ConsoleTask): { handoff: { before: string[]; after: string[] }; env: Record<string, string> } | null {
+  private pack(key: string, runtime: Runtime, folder: string, task?: ConsoleTask): { handoff: { before: string[]; after: string[] }; env: Record<string, string>; signals?: string[] } | null {
     if (key === SETUP_KEY && this.o.packRoot && this.o.mcpServer) {
       try {
         const r = prepareSetup({ dir: path.join(this.o.packRoot, key), runtimeId: runtime.id, runtimeName: runtime.name, server: this.o.mcpServer(), state: this.o.setupState?.() ?? { mcp: false, skills: false, firstAgent: false }, doctor: this.o.doctor?.() ?? null, request: task?.output ?? null });
@@ -490,7 +490,7 @@ export class ConsoleHost {
     if (!snap || !this.o.packRoot || !this.o.mcpServer) return null;
     try {
       const r = prepareHandoff({ snapshot: snap, activity: this.o.activity?.(key) ?? [], folder, runtimeId: runtime.id, dir: path.join(this.o.packRoot, key), server: this.o.mcpServer(), version: this.o.version ?? '0.0.0', task });
-      return { handoff: r.handoff, env: r.env };
+      return { handoff: r.handoff, env: r.env, signals: r.signals };
     } catch (error) {
       this.o.log(`console: ${key} starts without its context pack: ${(error as Error).message}`);
       return null;
@@ -574,8 +574,12 @@ export class ConsoleHost {
     const pack = this.pack(key, runtime, folder.path, task);
     // FD-51 (LC-20): with a Switchboard route for this provider, every start runs managed.
     const managed = inv.switchboard && runtime.provider && inv.inPlace ? managesProvider(await accountsOf(this.run, inv.switchboard), runtime.provider) : false;
+    // FD-234: text the service wrote that reads like instructions keeps a person in the loop for this start: permission
+    // prompts on, the saved choice untouched.
+    const held = Boolean(pack?.signals?.length) && saved?.bypass !== false;
+    if (held) this.o.log(`console: ${key} starts with permission prompts: its context reads like instructions (${pack!.signals!.join(', ')})`);
     // FD-191: a session of its own keeps the permission and isolation it was started with, Continue included.
-    const plan = planStart({ runtime, mode, folder: folder.path, binding: b.kind === 'absent' ? { kind: 'none' } : b, switchboard: inv.switchboard, inPlace: inv.inPlace, surface: inv.surface, managed, handoff: pack?.handoff, bypass: saved?.bypass, isolated: saved?.isolated, hosted: inv.hosted });
+    const plan = planStart({ runtime, mode, folder: folder.path, binding: b.kind === 'absent' ? { kind: 'none' } : b, switchboard: inv.switchboard, inPlace: inv.inPlace, surface: inv.surface, managed, handoff: pack?.handoff, bypass: held ? false : saved?.bypass, isolated: saved?.isolated, hosted: inv.hosted });
     if (plan.kind === 'refused') return { ok: false, reason: plan.reason, detail: plan.detail };
     if (plan.kind === 'terminal-only') return { ok: false, reason: 'terminal-only', project: plan.project };
     // Review R-1: the session runs with the login shell's PATH, not the one an app opened from Finder has.

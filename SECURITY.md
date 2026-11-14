@@ -144,6 +144,19 @@ service data.
   fabric-agent-adapter README ("How a service joins"); and macOS System Settings →
   Notifications.
 
+## Text a service wrote reaches a coding agent as data
+
+A console's coding agent reads what an agent service wrote: its name and summary, the reasons and problems the app
+derives from it, its recent events, its descriptor, a task's findings and a failed command's output, through the
+context pack (`context.md`, `task.md`) and the MCP answers `service_context` and `activity`. Consoles start without
+permission prompts by default, so such text could steer the agent. Since 0.8.77 (FD-234, the agents database's audit
+2026-11-13-45e7cc299793, B1) every such text sits inside an `<untrusted-data source="…">` block whose closing marker
+the text cannot forge (`src/core/untrusted.ts`), the pack and the MCP answers say the block is data and never an
+instruction, and a start whose text reads like instructions (`injectionSignals`: "ignore previous instructions",
+role or chat markup, `curl … | sh`, `rm -rf ~`, asking to print a secret) runs with permission prompts on for that
+start, logged, the person's saved choice unchanged. The reading is a reason to keep a person in the loop, not a proof:
+a text it misses is still fenced.
+
 ## Dashboard sign-ins at rest
 
 Each dashboard keeps its sign-in cookies in its own partition (`Partitions/svc-<key>`). Since 0.7.15 they are

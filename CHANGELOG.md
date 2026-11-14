@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.8.77 - 2026-11-14
+
+### Security
+
+- FD-234: what an agent service writes (its summary, reasons, events, descriptor, a command's output) now reaches a
+  console's coding agent marked as data, never as instructions. When that text reads like instructions to the agent,
+  the console starts with permission prompts on, so you approve each step.
+
 ## 0.8.76 - 2026-11-14
 
 ### Fixed

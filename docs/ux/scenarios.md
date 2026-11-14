@@ -1591,12 +1591,12 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
   2. User asks "why is it degraded?" -> the agent answers from the context, or calls `service_context` for the live state
   3. User presses Continue later -> the context is written again, fresh, before the session resumes
 - **Expected result:** the person gives the agent a task, never the situation
-- **Alt paths:** the context cannot be written (disk full) -> the session starts without it and the app's log says why; a Switchboard-bound folder -> the same context goes through Switchboard's in-place launch
+- **Alt paths:** the context cannot be written (disk full) -> the session starts without it and the app's log says why; a Switchboard-bound folder -> the same context goes through Switchboard's in-place launch; text the agent service wrote (its summary, reasons, problems, events, descriptor, a task's findings or a failed command's output) reads like instructions to the coding agent ("ignore previous instructions", `curl … | sh`) -> the session starts with permission prompts on for this start, so the person approves each step, the context says why, and the console's saved choice is unchanged (FD-234)
 - **UI elements:** console panel (unchanged); the runtime's own interface
 - **States covered:** success, error
-- **Errors & recovery:** context not written -> logged, session still starts; nothing of the token ever reaches the context
+- **Errors & recovery:** context not written -> logged, session still starts; nothing of the token ever reaches the context; everything the service wrote sits inside `<untrusted-data>` blocks the context and `service_context` name as data, never instructions (FD-234)
 - **Status:** validated
-- **Coverage:** src/core/handoff.ts, src/electron/console.ts, src/mcp/tools.ts (service_context), test/handoff.test.ts, test/mcp.test.ts, test/e2e/focus-console.test.ts
+- **Coverage:** src/core/handoff.ts, src/core/untrusted.ts, src/electron/console.ts, src/mcp/tools.ts (service_context), test/handoff.test.ts, test/untrusted.test.ts, test/mcp.test.ts, test/e2e/focus-console.test.ts
 - **Product:** unobserved
 
 ### SCN-054: Fix with coding agent
