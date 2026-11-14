@@ -92,3 +92,14 @@ test('ADR-0025 (Windows): the pipe takes only this run\'s key, a second instance
   await ch!.close();
   assert.equal(fs.existsSync(path.join(dir, CHANNEL_KEY_FILE)), false);
 });
+
+test('FD-249: an agent gives a task in its own words (ask) and continues the last session, as a person does on the page', () => {
+  const ok = (v: unknown) => parseRequest(JSON.stringify(v)) as { ok: boolean; code?: string; request?: { task?: unknown; mode?: string } };
+  const ask = ok({ key: 'k', op: 'console.fix', service: 'a.b', task: { kind: 'ask', output: 'Add a health check' } });
+  assert.equal(ask.ok, true);
+  assert.deepEqual(ask.request?.task, { kind: 'ask', output: 'Add a health check' });
+  assert.equal(ok({ key: 'k', op: 'console.fix', service: 'a.b', task: { kind: 'ask', output: '  ' } }).code, 'bad-task', 'an empty task is refused');
+  assert.equal(ok({ key: 'k', op: 'console.new', service: 'a.b', mode: 'continue' }).request?.mode, 'continue');
+  assert.equal(ok({ key: 'k', op: 'console.new', service: 'a.b', mode: 'resume' }).code, 'bad-mode');
+  assert.equal(ok({ key: 'k', op: 'console.fix', service: 'a.b', task: { kind: 'fix', output: 'x' }, mode: 'continue' }).code, 'bad-mode', 'only console.new takes a mode');
+});

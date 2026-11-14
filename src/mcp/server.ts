@@ -112,7 +112,7 @@ export const TOOLS = [
   {
     name: 'console_new',
     description: 'Start a new coding-agent session in the agent\'s console inside the running Fabric Dashboards, as its New session button does (ADR-0025): the runtime chosen for that agent, in its folder, with its context pack. FD-182: service `fabric-dashboards.setup` starts the Setup console, as Start setup does, its brief opening with the last Check setup\'s findings (Fix with my coding agent). Answers app-not-running when the app is not open; never starts the app. Pass the operator\'s words in params._meta.decision when you have them (action new-session).',
-    inputSchema: { type: 'object', properties: { service: serviceArg }, required: ['service'], additionalProperties: false },
+    inputSchema: { type: 'object', properties: { service: serviceArg, mode: { type: 'string', enum: ['new', 'continue'], description: 'continue: Continue last session, as the console\'s button (FD-249); default new.' } }, required: ['service'], additionalProperties: false },
     annotations: { readOnlyHint: false, destructiveHint: false },
   },
   {
@@ -123,8 +123,8 @@ export const TOOLS = [
   },
   {
     name: 'console_fix',
-    description: 'Start a coding-agent session that fixes an agent, as Fix with coding agent does (ADR-0025): kind fix (the agent\'s problem) or audit (the auditor\'s findings), with the findings as text. When that agent\'s console already runs a session, the task is typed into it without Enter, as the console\'s Send to the running session does (answers typed: true). FD-187: with service `fabric-dashboards.setup` the findings are your request for the Setup console: a new one opens its brief with it, a running one gets it in `request.md` with one line typed in. Answers app-not-running when the app is not open. Pass the operator\'s words in params._meta.decision when you have them (action fix-with-coding-agent).',
-    inputSchema: { type: 'object', properties: { service: serviceArg, kind: { type: 'string', enum: ['fix', 'audit'] }, findings: { type: 'string', maxLength: 16384 } }, required: ['service', 'kind', 'findings'], additionalProperties: false },
+    description: 'Start a coding-agent session that fixes an agent, as Fix with coding agent does (ADR-0025): kind fix (the agent\'s problem), audit (the auditor\'s findings) or ask (a task in your own words, as the page\'s task line takes a person\'s, FD-249; read for instruction-like text like a service\'s), with the findings or the task as text. When that agent\'s console already runs a session, the task is typed into it without Enter, as the console\'s Send to the running session does (answers typed: true). FD-187: with service `fabric-dashboards.setup` the findings are your request for the Setup console: a new one opens its brief with it, a running one gets it in `request.md` with one line typed in. Answers app-not-running when the app is not open. Pass the operator\'s words in params._meta.decision when you have them (action fix-with-coding-agent).',
+    inputSchema: { type: 'object', properties: { service: serviceArg, kind: { type: 'string', enum: ['fix', 'audit', 'ask'] }, findings: { type: 'string', maxLength: 16384 } }, required: ['service', 'kind', 'findings'], additionalProperties: false },
     annotations: { readOnlyHint: false, destructiveHint: false },
   },
   {
@@ -277,14 +277,14 @@ export async function call(deps: tools.Deps, name: string, args: Args): Promise<
     case 'app_update': return tools.appUpdate(deps, need(args, 'action') as 'check' | 'restart');
     case 'console_choose': return tools.consoleChoose(deps, need(args, 'service'), { ...(typeof args.runtime === 'string' ? { runtime: args.runtime } : {}), ...(typeof args.folder === 'string' ? { folder: args.folder } : {}), ...(args.where === 'here' || args.where === 'there' ? { where: args.where } : {}) });
     case 'app_install': return tools.appInstall(deps, need(args, 'action') as 'move-to-applications' | 'uninstall' | 'uninstall-all', need(args, 'confirm'));
-    case 'console_new': return tools.consoleChannel(deps, { op: 'console.new', service: need(args, 'service') });
+    case 'console_new': return tools.consoleChannel(deps, { op: 'console.new', service: need(args, 'service'), ...(args.mode === 'continue' ? { mode: 'continue' as const } : {}) });
     case 'session_new': return tools.sessionNew(deps, {
       kind: args.kind === 'agent' ? 'agent' : 'session',
       ...(typeof args.runtime === 'string' ? { runtime: args.runtime } : {}), ...(typeof args.folder === 'string' ? { folder: args.folder } : {}),
       ...(typeof args.bypass === 'boolean' ? { bypass: args.bypass } : {}), ...(typeof args.isolated === 'boolean' ? { isolated: args.isolated } : {}),
       ...(typeof args.machine === 'string' ? { machine: args.machine } : {}),
     });
-    case 'console_fix': return tools.consoleChannel(deps, { op: 'console.fix', service: need(args, 'service'), task: { kind: need(args, 'kind') as 'fix' | 'audit', output: need(args, 'findings') } });
+    case 'console_fix': return tools.consoleChannel(deps, { op: 'console.fix', service: need(args, 'service'), task: { kind: need(args, 'kind') as 'fix' | 'audit' | 'ask', output: need(args, 'findings') } });
     case 'service_context': {
       const k = str(args, 'key') || undefined;
       const s = str(args, 'service') || undefined;

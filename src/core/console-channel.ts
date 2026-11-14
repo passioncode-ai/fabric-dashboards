@@ -25,7 +25,9 @@ const OPS: readonly string[] = ['console.new', 'console.fix', 'console.list', 'c
 /** FD-175: what a session row's button does, and what the app's update buttons do. */
 export type SessionAct = 'continue' | 'end' | 'dismiss' | 'clear-ended' | 'attach';
 export interface ChannelRequest {
-  key: string; op: ChannelOp; service: string; task?: { kind: 'fix' | 'audit'; output: string };
+  key: string; op: ChannelOp; service: string; task?: { kind: 'fix' | 'audit' | 'ask'; output: string };
+  /** FD-249, `console.new`: Continue last session, as the console's own button. */
+  mode?: 'continue';
   /** FD-175, `settings.update`: a settings patch, checked again by the app against AGENT_SETTINGS. */
   patch?: Record<string, unknown>;
   /** FD-175, `sessions.act`: the button and its row (none for `clear-ended`), and Continue now's account. */
@@ -93,7 +95,7 @@ export function parseRequest(line: string): { ok: true; request: ChannelRequest 
   try { v = JSON.parse(line); } catch { return { ok: false, code: 'not-json' }; }
   if (!v || typeof v !== 'object' || Array.isArray(v)) return { ok: false, code: 'not-an-object' };
   const r = v as Record<string, unknown>;
-  for (const k of Object.keys(r)) if (!['key', 'op', 'service', 'task', 'patch', 'session', 'update', 'choice', 'install', 'start'].includes(k)) return { ok: false, code: 'unknown-field' };
+  for (const k of Object.keys(r)) if (!['key', 'op', 'service', 'task', 'patch', 'session', 'update', 'choice', 'install', 'start', 'mode'].includes(k)) return { ok: false, code: 'unknown-field' };
   if (!OPS.includes(String(r.op))) return { ok: false, code: 'unknown-op' };
   // FD-175: the window's own buttons, each with only its own field.
   const only = (field: string) => Object.keys(r).every((k) => k === 'key' || k === 'op' || k === field);
@@ -154,17 +156,21 @@ export function parseRequest(line: string): { ok: true; request: ChannelRequest 
   if (r.patch !== undefined || r.session !== undefined || r.update !== undefined || r.choice !== undefined || r.install !== undefined || r.start !== undefined) return { ok: false, code: 'unknown-field' };
   if (r.op === 'console.list') {
     // FD-166: a read names no service and carries no task.
-    if (r.service !== undefined || r.task !== undefined) return { ok: false, code: 'unknown-field' };
+    if (r.service !== undefined || r.task !== undefined || r.mode !== undefined) return { ok: false, code: 'unknown-field' };
     return { ok: true, request: { key: String(r.key ?? ''), op: r.op, service: '' } };
   }
   if (typeof r.service !== 'string' || !SERVICE_KEY.test(r.service)) return { ok: false, code: 'bad-service' };
   if (r.op === 'console.fix') {
+    if (r.mode !== undefined) return { ok: false, code: 'bad-mode' }; // FD-249: only console.new takes a mode
     const t = r.task as Record<string, unknown> | undefined;
-    if (!t || typeof t !== 'object' || (t.kind !== 'fix' && t.kind !== 'audit') || typeof t.output !== 'string' || t.output.length > CHANNEL_TASK_MAX) return { ok: false, code: 'bad-task' };
+    // FD-249: `ask` is a task in the agent's own words, as the page's task line takes the person's (FD-241).
+    if (!t || typeof t !== 'object' || (t.kind !== 'fix' && t.kind !== 'audit' && t.kind !== 'ask') || typeof t.output !== 'string' || t.output.length > CHANNEL_TASK_MAX || (t.kind === 'ask' && !t.output.trim())) return { ok: false, code: 'bad-task' };
     return { ok: true, request: { key: String(r.key ?? ''), op: r.op, service: r.service, task: { kind: t.kind, output: t.output } } };
   }
   if (r.task !== undefined) return { ok: false, code: 'bad-task' };
-  return { ok: true, request: { key: String(r.key ?? ''), op: r.op as ChannelOp, service: r.service } };
+  // FD-249: Continue last session; only `console.new` takes a mode, and only that one.
+  if (r.mode !== undefined && (r.op !== 'console.new' || r.mode !== 'continue')) return { ok: false, code: 'bad-mode' };
+  return { ok: true, request: { key: String(r.key ?? ''), op: r.op as ChannelOp, service: r.service, ...(r.mode === 'continue' ? { mode: 'continue' as const } : {}) } };
 }
 
 const SESSION_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

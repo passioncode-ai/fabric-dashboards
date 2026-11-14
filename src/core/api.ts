@@ -14,7 +14,9 @@ import type { SessionActionResult, SessionNotice } from './sessions';
 export type LayoutCommand = 'sidebar' | 'console' | 'details' | 'focus' | 'next-agent' | 'previous-agent' | 'close-agent';
 
 /** FD-241: `ask` is a task the person typed on the agent's page, `output` their words. */
-export interface ConsoleTask { kind: 'fix' | 'update' | 'audit' | 'ask'; output?: string }
+export interface ConsoleTask { kind: 'fix' | 'update' | 'audit' | 'ask'; output?: string;
+  /** FD-249: an `ask` from an agent over MCP, not the person: its words are read for instruction-like text (FD-234). */
+  from?: 'agent' }
 
 /** FD-92: a job the console starts once it is shown (Fix / Update with agent, Continue); taken once by its nonce. */
 export interface DrawerTask { task?: ConsoleTask; mode?: 'new' | 'continue'; nonce: number }

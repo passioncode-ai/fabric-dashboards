@@ -205,11 +205,11 @@ export function askTask(c: HandoffContext, words: string): HandoffTask {
 }
 
 /** The job a console task hands over. */
-function jobOf(c: HandoffContext, t: { kind: 'fix' | 'update' | 'audit' | 'ask'; output?: string }): HandoffTask {
+function jobOf(c: HandoffContext, t: { kind: 'fix' | 'update' | 'audit' | 'ask'; output?: string; from?: 'agent' }): HandoffTask {
   return t.kind === 'fix' ? fixTask(c) : t.kind === 'audit' ? auditTask(c, t.output ?? '') : t.kind === 'ask' ? askTask(c, t.output ?? '') : updateTask(c, t.output ?? null);
 }
-/** FD-234: the text of a task read for instruction-like text; a person's own task (FD-241) is not. */
-const taskText = (t: { kind: string; output?: string } | undefined) => (t && t.kind !== 'ask' ? t.output : undefined);
+/** FD-234: the text of a task read for instruction-like text; a person's own task (FD-241) is not, an agent's is (FD-249). */
+const taskText = (t: { kind: string; output?: string; from?: string } | undefined) => (t && (t.kind !== 'ask' || t.from === 'agent') ? t.output : undefined);
 
 /** What *Update with agent* hands over (D-3). */
 export function updateTask(c: HandoffContext, failedOutput: string | null): HandoffTask {
@@ -319,7 +319,7 @@ export function writePack(dir: string, files: { context: string; task: string | 
 
 /** FD-129 (UX-16): a task for a session that already runs: only `task.md` is written, beside the pack that session
  *  started with, and the line that points the running agent at it is returned for the person to send. */
-export function writeTaskOnly(o: { snapshot: ServiceSnapshot; activity: ActivityItem[]; folder: string; dir: string; task: { kind: 'fix' | 'update' | 'audit' | 'ask'; output?: string } }): { path: string; line: string; signals: string[] } {
+export function writeTaskOnly(o: { snapshot: ServiceSnapshot; activity: ActivityItem[]; folder: string; dir: string; task: { kind: 'fix' | 'update' | 'audit' | 'ask'; output?: string; from?: 'agent' } }): { path: string; line: string; signals: string[] } {
   const ctx = handoffContext(o.snapshot, o.activity, o.folder);
   const signals = [...new Set([...ctx.signals, ...injectionSignals([taskText(o.task)])])]; // FD-234
   const job = jobOf(ctx, o.task);
@@ -337,7 +337,7 @@ export function writeTaskOnly(o: { snapshot: ServiceSnapshot; activity: Activity
  */
 export function prepareHandoff(o: {
   snapshot: ServiceSnapshot; activity: ActivityItem[]; folder: string; runtimeId: string; dir: string;
-  server: McpCommand; version: string; task?: { kind: 'fix' | 'update' | 'audit' | 'ask'; output?: string }; now?: () => Date;
+  server: McpCommand; version: string; task?: { kind: 'fix' | 'update' | 'audit' | 'ask'; output?: string; from?: 'agent' }; now?: () => Date;
 }): { handoff: { before: string[]; after: string[] }; env: Record<string, string>; signals: string[]; files: { context: string; task: string | null; mcp: string; brief: string | null; manifest: string | null } } {
   // A start that fails before the manifest is written again must not leave the last start's manifest behind.
   fs.rmSync(path.join(o.dir, 'handoff.json'), { force: true });

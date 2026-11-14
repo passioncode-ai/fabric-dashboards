@@ -686,7 +686,7 @@ export async function load(deps: Deps, key: string): Promise<LoadEntry & { produ
 // #region console-channel-client — docs: docs/adr/0025-the-console-channel.md#decision
 /** One request to the running app, through its per-user channel and this run's key. The app not running is an answer
  *  (`app-not-running`), never a start of the app. */
-async function askChannel(deps: Deps, request: { op: ChannelOp; service?: string; task?: { kind: 'fix' | 'audit'; output: string }; patch?: Record<string, unknown>; session?: unknown; update?: string; choice?: { runtime?: string; folder?: string }; install?: AppInstall; start?: NewSessionRequest }, notRunning: string): Promise<ChannelAnswer> {
+async function askChannel(deps: Deps, request: { op: ChannelOp; service?: string; task?: { kind: 'fix' | 'audit' | 'ask'; output: string }; mode?: 'continue'; patch?: Record<string, unknown>; session?: unknown; update?: string; choice?: { runtime?: string; folder?: string }; install?: AppInstall; start?: NewSessionRequest }, notRunning: string): Promise<ChannelAnswer> {
   const userData = path.dirname(deps.settingsFile?.() ?? appSettingsFile());
   let key: string;
   try { key = fs.readFileSync(path.join(userData, CHANNEL_KEY_FILE), 'utf8').trim(); } catch { throw new ToolError(notRunning); }
@@ -705,7 +705,7 @@ async function askChannel(deps: Deps, request: { op: ChannelOp; service?: string
 }
 
 /** ADR-0025 (FD-120): start a console session, or a fix in one, in the running app. */
-export async function consoleChannel(deps: Deps, request: { op: ChannelOp; service: string; task?: { kind: 'fix' | 'audit'; output: string } }): Promise<{ started: true; console: string } | Record<string, unknown>> {
+export async function consoleChannel(deps: Deps, request: { op: ChannelOp; service: string; task?: { kind: 'fix' | 'audit' | 'ask'; output: string }; mode?: 'continue' }): Promise<{ started: true; console: string } | Record<string, unknown>> {
   // FD-182: the Setup console (Start setup, and Fix with my coding agent after Check setup) is no installed service.
   if (request.service !== SETUP_KEY) find(deps, request.service);
   const answer = await askChannel(deps, request, 'app-not-running: Fabric Dashboards is not running, so no console can start; open it and call again');

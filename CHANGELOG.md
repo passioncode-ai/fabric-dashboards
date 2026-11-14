@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.8.85 - 2026-11-14
+
+### Added
+
+- FD-249: an agent can do over MCP what the person does in the console: give an agent a task in its own words
+  (`console_fix` with `kind: "ask"`, as the page's task line) and continue its last session (`console_new` with
+  `mode: "continue"`). An agent's words are read for instruction-like text, as a service's are.
+
 ## 0.8.84 - 2026-11-14
 
 ### Fixed
