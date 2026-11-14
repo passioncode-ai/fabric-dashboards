@@ -61,14 +61,20 @@ export function handoffContext(s: ServiceSnapshot, activity: ActivityItem[], fol
   }
   const reasons = s.reasons.map((r) => t(lang, r.code, r.params));
   const lastAction = s.lastAction ? `${s.lastAction.action} ${s.lastAction.ok ? 'succeeded' : 'failed'} at ${s.lastAction.at}: ${t(lang, s.lastAction.reason.code, s.lastAction.reason.params)}` : null;
-  const events = chosen.map((e) => ({ at: e.at, level: e.level, text: e.text }));
+  // FD-234 (verifier round 8): a value the service wrote may not be a string (a version `5`); it is read as text, so
+  // nothing here throws and leaves a console without its context.
+  const events = chosen.map((e) => ({ at: str(e.at) ?? '', level: str(e.level) ?? '', text: str(e.text) ?? '' }));
   // FD-234: short values the service wrote are kept to one line here, so no heading or step can ride in on them.
-  const version = s.wellKnown?.service.version ?? null;
-  const updateAvailable = s.wellKnown?.update?.available ?? null;
+  const version = str(s.wellKnown?.service?.version);
+  const updateAvailable = str(s.wellKnown?.update?.available);
+  const name = str(d?.name) ?? s.key;
+  const summary = str(d?.summary);
+  const origin = str(d?.origin);
+  const repository = str(d?.source?.repository);
   return {
     key: s.key,
-    name: oneLine(d?.name ?? s.key),
-    summary: d?.summary ?? null,
+    name: oneLine(name),
+    summary,
     placement: d?.placement === 'remote' ? 'remote' : 'local',
     state: s.state,
     waitsForSetup: waitsForSetup(s),
@@ -77,22 +83,26 @@ export function handoffContext(s: ServiceSnapshot, activity: ActivityItem[], fol
     version: version === null ? null : oneLine(version, 60),
     updateAvailable: updateAvailable === null ? null : oneLine(updateAvailable, 60),
     canUpdate: Boolean(d?.commands?.update?.length),
-    origin: d?.origin ? oneLine(d.origin, 300) : null,
-    repository: d?.source?.repository ? oneLine(d.source.repository, 300) : null,
+    origin: origin ? oneLine(origin, 300) : null,
+    repository: repository ? oneLine(repository, 300) : null,
     folder,
     lastAction,
     events,
     descriptor,
     fenceId: newFenceId(),
-    signals: injectionSignals([s.key, d?.name, version, updateAvailable, d?.summary, ...reasons, ...s.problems, lastAction, ...events.map((e) => e.text), ...stringsOf(descriptor)]),
+    // Each distinct string once (name and summary are also descriptor strings).
+    signals: injectionSignals([...new Set([s.key, version, updateAvailable, ...reasons, ...s.problems.map(str), lastAction, ...events.flatMap((e) => [e.at, e.text]), ...stringsOf(descriptor)])]),
   };
 }
 
 /** FD-234 (verifier round 6): every string a descriptor holds, keys included, as the service wrote it: its JSON form
  *  escapes a line break into `\\n`, which would hide an instruction from the reading. */
+const str = (v: unknown): string | null => (typeof v === 'string' ? v : v === null || v === undefined ? null : typeof v === 'object' ? JSON.stringify(v) : String(v));
+
 function stringsOf(value: unknown, out: string[] = [], depth = 0): string[] {
   if (typeof value === 'string') out.push(value);
-  else if (value && typeof value === 'object' && depth < 12) for (const [k, v] of Object.entries(value)) { out.push(k); stringsOf(v, out, depth + 1); }
+  else if (typeof value === 'number' || typeof value === 'boolean') out.push(String(value));
+  else if (value && typeof value === 'object' && depth < 64) for (const [k, v] of Object.entries(value)) { out.push(k); stringsOf(v, out, depth + 1); }
   return out;
 }
 
@@ -187,12 +197,12 @@ export function updateTask(c: HandoffContext, failedOutput: string | null): Hand
  * returns (`rules`), so a rule is never in two places.
  */
 export function preamble(key: string): string {
-  return `You are working on a Fabric agent, opened from Fabric Dashboards. Call the fabric-dashboards tool service_context with key ${oneLine(key, 200)} before you do anything else: it returns the agent's live state, its errors, events, repository and descriptor, and the rules for this console. If the call fails, say so and stop rather than guessing what it would have said.`;
+  return `You are working on a Fabric agent, opened from Fabric Dashboards. Call the fabric-dashboards tool service_context with key ${literal(key, 200)} before you do anything else: it returns the agent's live state, its errors, events, repository and descriptor, and the rules for this console. If the call fails, say so and stop rather than guessing what it would have said.`;
 }
 
 /** The brief (SH-8): the agent's own text — where its task is, when it has one — then the preamble. */
 export function brief(key: string, files: { task: string | null }): string {
-  return `${files.task ? `Your task is in ${files.task}. ` : ''}${preamble(key)}`;
+  return `${files.task ? `Your task is in ${literal(files.task, 4096)}. ` : ''}${preamble(key)}`;
 }
 
 /** Whether a brief travels in one argument (SH-8): at most 1000 characters, no control character. */
@@ -200,7 +210,7 @@ export const briefFitsInline = (text: string) => text.length <= 1000 && !/[\u000
 
 /** The first prompt that starts a task at once in a runtime that also takes a system prompt (Claude Code). */
 export function taskPrompt(task: string): string {
-  return `Do the task in ${task}.`;
+  return `Do the task in ${literal(task, 4096)}.`;
 }
 
 /** How this app's MCP server is started: its launcher in a packaged app, the binary as Node in development. */
@@ -285,7 +295,7 @@ export function writeTaskOnly(o: { snapshot: ServiceSnapshot; activity: Activity
   fs.mkdirSync(o.dir, { recursive: true, mode: 0o700 });
   try { fs.chmodSync(o.dir, 0o700); } catch { /* Windows: the profile's ACL */ }
   const file = put(o.dir, 'task.md', taskMarkdown(job));
-  return { path: file, line: `Read ${file} and do the task it describes.`, signals };
+  return { path: file, line: `Read ${literal(file, 4096)} and do the task it describes.`, signals };
 }
 
 /**

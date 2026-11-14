@@ -59,7 +59,7 @@ test('FD-39 REQ-002: Claude gets the MCP config and the brief before its first t
   const server = { command: '/Applications/Fabric Dashboards.app/Contents/Resources/bin/fabric-dashboards-mcp', args: [] };
   const a = handoffArgs('claude-code', { mcp: '/data/consoles/runner.dev/mcp.json', mcpServer: server, brief: { inline: 'B' }, task: '/data/consoles/runner.dev/task.md' });
   assert.deepEqual(a.before, ['--mcp-config=/data/consoles/runner.dev/mcp.json', '--append-system-prompt', 'B']);
-  assert.deepEqual(a.after, ['Do the task in /data/consoles/runner.dev/task.md.'], 'a task starts at once');
+  assert.deepEqual(a.after, ['Do the task in `/data/consoles/runner.dev/task.md`.'], 'a task starts at once');
   assert.ok(!a.before.includes('--mcp-config'), 'the joined form: nothing after it can be read as another config (Switchboard SB-94, measured on the CLI)');
   assert.ok(!a.before.includes('--strict-mcp-config'), 'DEC-0042 SH-9: the console keeps the person\'s own servers (mcp.strict false)');
   const none = handoffArgs('claude-code', { mcp: 'm', mcpServer: server, brief: { inline: 'B' }, task: null });
@@ -158,8 +158,8 @@ test('FD-39 REQ-001/002/005: a console start writes the pack and carries it — 
   assert.equal(r.env.FABRIC_DASHBOARDS_CONTEXT, path.join(dir, 'context.md'));
   assert.equal(r.env.FABRIC_DASHBOARDS_TASK, path.join(dir, 'task.md'));
   assert.equal(r.handoff.before[0], `--mcp-config=${path.join(dir, 'mcp.json')}`);
-  assert.match(r.handoff.before[2]!, /task\.md.*service_context with key runner\.dev/s, 'the brief names the task, then the first call with the agent\'s key');
-  assert.match(r.handoff.after[0]!, /^Do the task in .*task\.md\.$/, 'a fix starts working at once');
+  assert.match(r.handoff.before[2]!, /task\.md`.*service_context with key `runner\.dev`/s, 'the brief names the task, then the first call with the agent\'s key');
+  assert.match(r.handoff.after[0]!, /^Do the task in `.*task\.md`\.$/, 'a fix starts working at once');
   assert.match(fs.readFileSync(r.files.context, 'utf8'), /database locked/);
   assert.match(fs.readFileSync(r.files.task!, 'utf8'), /^# Task: `Runner` is down/);
   const plain = prepareHandoff({ snapshot: snap(), activity: [], folder: '/w/runner', runtimeId: 'claude-code', dir, server: { command: 'x', args: [] }, version: '0.7.2' });
@@ -198,6 +198,6 @@ test('FD-129 (UX-16): a task for a running session writes only task.md and retur
   assert.equal(r.path, path.join(dir, 'task.md'));
   assert.deepEqual(fs.readdirSync(dir), ['task.md'], 'the pack the session started with is left alone');
   assert.match(fs.readFileSync(r.path, 'utf8'), /service_status/);
-  assert.equal(r.line, `Read ${r.path} and do the task it describes.`);
+  assert.equal(r.line, `Read \`${r.path}\` and do the task it describes.`);
   assert.doesNotMatch(r.line, /[\r\n]/, 'no Enter: the person sends it');
 });

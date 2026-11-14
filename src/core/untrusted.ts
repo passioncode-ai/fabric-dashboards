@@ -26,7 +26,7 @@ const READ_WHOLE = 256 * 1024;
 /** Lookalikes folded (NFKC: fullwidth brackets and letters) and invisible characters dropped, so a marker cannot hide. */
 const fold = (text: string) => text.normalize('NFKC').replace(/\p{Default_Ignorable_Code_Point}/gu, '');
 /** For the reading only: an invisible character or `_` stands for the space it may hide, so glued words stay words. */
-const spaced = (text: string) => text.normalize('NFKC').replace(/[\p{Default_Ignorable_Code_Point}_]/gu, ' ').replace(/([a-z])([A-Z])/g, '$1 $2');
+const spaced = (text: string) => text.normalize('NFKC').slice(0, READ_RAW_MAX).replace(/[\p{Default_Ignorable_Code_Point}_]/gu, ' ').replace(/([a-z])([A-Z])/g, '$1 $2').replace(/\s+/g, ' ');
 /** A fence marker in any spacing, case or dash: `<untrusted-data`, `< / UNTRUSTED_data`, `</untrusted‐data`. Linear:
  *  no two quantifiers can split the same run of characters. */
 const MARKER = /<\s*(\/\s*)?untrusted[-_\s\u2010-\u2015]{0,8}d[a\u0430]t[a\u0430]/giu;
@@ -81,8 +81,10 @@ export function injectionSignals(texts: readonly (string | null | undefined)[]):
     if (!text) continue;
     // Folded first (NFKC can grow a character 18 times), then one line as context.md shows events, then the head and the
     // tail: neither padding nor a line break can push an instruction out of reach (a middle part still sits in its fence).
-    const flat = spaced(text.slice(0, READ_RAW_MAX)).replace(/\s+/g, ' ');
+    const flat = spaced(text.slice(0, READ_RAW_MAX));
     const parts = flat.length > READ_WHOLE ? [flat.slice(0, READ_WHOLE), flat.slice(-READ_MAX)] : [flat];
+    // FD-234 (verifier round 8): past the first READ_RAW_MAX the end of the text itself is read too.
+    if (text.length > READ_RAW_MAX) parts.push(spaced(text.slice(-READ_MAX)).slice(-READ_MAX));
     for (const part of parts) for (const [name, re] of SIGNALS) if (re.test(part)) found.add(name);
   }
   return [...found];

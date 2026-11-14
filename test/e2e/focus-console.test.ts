@@ -167,7 +167,7 @@ test('ADR-0017: a one-line header, a folding sidebar, and an agent console besid
     await page.getByRole('button', { name: 'Fix with coding agent' }).first().waitFor({ timeout: 60_000 });
     await shot(page, '24-fix-with-agent');
     await page.getByRole('button', { name: 'Fix with coding agent' }).first().click();
-    await waitFor('the runtime to start on the task', async () => /Do the task in [^\]]*task\.md\.\]/.test(await termText(con)));
+    await waitFor('the runtime to start on the task', async () => /Do the task in [^\]]*task\.md`?\.\]/.test(await termText(con)));
     assert.match(fs.readFileSync(path.join(pack, 'task.md'), 'utf8'), /^# Task: `Sample Service` is (down|stopped)/);
     await con.locator('.console-term').click();
     await con.keyboard.type('bye');
@@ -184,7 +184,7 @@ test('ADR-0017: a one-line header, a folding sidebar, and an agent console besid
     await waitFor('the audit task to be written', () => /^# Task: Audit findings for `Sample Service`/.test(fs.readFileSync(path.join(pack, 'task.md'), 'utf8')));
     assert.match(fs.readFileSync(path.join(pack, 'task.md'), 'utf8'), /the Fabric Dashboards auditor found/);
     await page.getByRole('heading', { level: 1, name: 'Sample Service' }).waitFor();
-    await waitFor('the runtime to start on the audit task', async () => /Do the task in [^\]]*task\.md\.\]/.test(await termText(con)) && !(await termText(con)).includes('The session exited with code 0.'));
+    await waitFor('the runtime to start on the audit task', async () => /Do the task in [^\]]*task\.md`?\.\]/.test(await termText(con)) && !(await termText(con)).includes('The session exited with code 0.'));
     await con.locator('.console-term').click();
     await con.keyboard.type('bye');
     await con.keyboard.press('Enter');

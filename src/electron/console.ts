@@ -494,8 +494,9 @@ export class ConsoleHost {
       const r = prepareHandoff({ snapshot: snap, activity: this.o.activity?.(key) ?? [], folder, runtimeId: runtime.id, dir: path.join(this.o.packRoot, key), server: this.o.mcpServer(), version: this.o.version ?? '0.0.0', task });
       return { handoff: r.handoff, env: r.env, signals: r.signals };
     } catch (error) {
-      this.o.log(`console: ${key} starts without its context pack: ${(error as Error).message}`);
-      return null;
+      // FD-234 (verifier round 8): a pack that could not be written was not read either, so the start is held.
+      this.o.log(`console: ${key} starts without its context pack, with permission prompts: ${(error as Error).message}`);
+      return { handoff: { before: [], after: [] }, env: {}, signals: ['pack-failed'] };
     }
   }
 
