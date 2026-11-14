@@ -2,6 +2,8 @@
 // process, sandboxed renderers, context isolation, a single instance. It owns
 // no service process — launchd does (ADR-0002) — so quitting stops nothing.
 import { app, BrowserWindow, clipboard, dialog, ipcMain, nativeTheme, Menu, Notification, session, shell } from 'electron';
+import { pathToFileURL } from 'node:url';
+import { guardIpc } from './ipc-guard';
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -840,6 +842,7 @@ if (!app.requestSingleInstanceLock()) {
   /** FD-175: Settings' own change, for the console channel (set by registerIpc, where it lives beside its handler). */
   let applySettingsFn: ((patch: SettingsPatch) => { settings: Settings; error?: string }) | null = null;
   function registerIpc(): void {
+    guardIpc(pathToFileURL(rendererIndex).href, log); // FD-259: before any handler is registered
     consoles.register();
     const snap = (key: string) => monitor.snapshot(key);
     ipcMain.handle(CHANNELS.status, () => status());
