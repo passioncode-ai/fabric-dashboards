@@ -41,8 +41,21 @@ export type Run = (command: string, args: string[], timeoutMs: number) => Promis
  * question nobody can answer: no terminal prompt, no password dialog.
  */
 export function estateEnv(dirs: readonly string[], base: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
-  return { ...commandEnv(base), PATH: dirs.join(path.delimiter), GIT_TERMINAL_PROMPT: '0' };
+  return { ...commandEnv(base), PATH: dirs.join(path.delimiter), GIT_TERMINAL_PROMPT: '0', ...GIT_SAFE };
 }
+
+/** FD-257 (security audit F5): the contract clone's folder can be set by an agent (`estate.contractClone`), and `git`
+ *  obeys that folder's `.git/config`. These keys, given at the command-line level through the environment (git 2.31+),
+ *  outrank the folder's: no `core.sshCommand` or fsmonitor program of its choosing runs, no `ext::` transport, and the
+ *  system config is not read. */
+export const GIT_SAFE: Readonly<Record<string, string>> = {
+  GIT_CONFIG_NOSYSTEM: '1',
+  GIT_CONFIG_COUNT: '4',
+  GIT_CONFIG_KEY_0: 'core.sshCommand', GIT_CONFIG_VALUE_0: 'ssh',
+  GIT_CONFIG_KEY_1: 'core.fsmonitor', GIT_CONFIG_VALUE_1: 'false',
+  GIT_CONFIG_KEY_2: 'core.hooksPath', GIT_CONFIG_VALUE_2: path.join(os.tmpdir(), 'fabric-dashboards-no-hooks'),
+  GIT_CONFIG_KEY_3: 'protocol.ext.allow', GIT_CONFIG_VALUE_3: 'never',
+};
 
 /** `~/…` (and on Windows `~\\…`) as the person typed it, resolved against their home. Anything else is returned unchanged. */
 export function expandHome(dir: string, home = os.homedir(), platform: NodeJS.Platform = process.platform): string {
