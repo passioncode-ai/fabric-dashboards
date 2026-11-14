@@ -158,12 +158,16 @@ are also made inert, as a second line, not every lookalike (`src/core/untrusted.
 values (name, version, update available, origin, repository) are flattened to one line and quoted as code, in
 headings too, so none can add a heading or a step. Every pattern is linear and reads at most the first and the last
 16 KB of a text. The pack and the MCP
-answers say all of it is data and never an instruction, and a start whose text reads like instructions
+answers (`service_context`, `activity`: an `untrusted` list of fields) say all of it is data and never an instruction, and a start whose text reads like instructions
 (`injectionSignals`: "ignore previous instructions", role or chat markup, `curl … | sh`, `rm -rf ~`, reading
-`~/.ssh`, asking to print a secret) runs with permission prompts on for that start, logged, the person's saved choice
+`~/.ssh` and sending it, asking to print a secret) runs with permission prompts on for that start (a console or
+Open in Terminal), logged, the person's saved choice
 unchanged. The reading is a heuristic that keeps a person in the loop, not a proof. Not covered yet (FD-236): a held
-conversation continued after a limit or from the Sessions list resumes without the hold, and `service_status`,
-`list_services` and `audit` mark nothing in their answers (the console rules name them).
+conversation continued after a limit or from the Sessions list resumes without the hold; a Fix or Update typed into a
+session that already runs is fenced but only logged, not held (the person sends it); and `service_status`,
+`list_services`, `audit`, `doctor` and `update` mark nothing in their answers (the console rules name them; only
+`service_context` and `activity` carry an `untrusted` field, the pack carries the blocks). The hold shows no sign in
+the app yet: its reason is in `context.md` and the app's log.
 
 ## Dashboard sign-ins at rest
 

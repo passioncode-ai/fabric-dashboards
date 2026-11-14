@@ -92,6 +92,8 @@ export interface ConsoleHostOptions {
   idleMs?: number;
   /** Signals a session's process group; tests pass a fake — a fake pid is never a real group. */
   killGroup?: (pid: number, signal: NodeJS.Signals) => void;
+  /** Tests: what Open in Terminal would run, instead of opening Terminal. */
+  terminal?: (dir: string, line: string) => Promise<{ ok: boolean; error?: string }>;
   /** FD-49 (LC-17): the machine before a start; the real probe by default, a stub in tests. */
   machine?: (folder: string, running: number) => Promise<MachineState>;
   /** FD-62: the registered services' keys, to find the console a hand-over belongs in. */
@@ -1460,9 +1462,13 @@ export class ConsoleHost {
     const busy = this.manager.snapshot(key).state === 'running';
     if (busy) this.o.log(`console: ${key} opens in Terminal without its context pack: a console session holds it`);
     const pack = busy ? null : this.pack(key, runtime, folder.path);
-    const plan = planStart({ runtime, mode, folder: folder.path, binding: { kind: 'none' }, switchboard: null, inPlace: false, handoff: pack?.handoff });
+    // FD-234: a Terminal window gets the same hold as a console start, and the console's saved choice.
+    const saved = this.o.settings.get().consoles[key]?.bypass;
+    const held = Boolean(pack?.signals?.length) && saved !== false;
+    if (held) this.o.log(`console: ${key} opens in Terminal with permission prompts: its context reads like instructions (${pack!.signals!.join(', ')})`);
+    const plan = planStart({ runtime, mode, folder: folder.path, binding: { kind: 'none' }, switchboard: null, inPlace: false, handoff: pack?.handoff, bypass: held ? false : saved });
     if (plan.kind !== 'run') return { ok: false, error: plan.kind === 'refused' ? plan.detail : 'unavailable' };
-    return openInTerminal(this.o.scriptsDir, terminalScript(plan.argv, folder.path, pack?.env ?? {}));
+    return (this.o.terminal ?? openInTerminal)(this.o.scriptsDir, terminalScript(plan.argv, folder.path, pack?.env ?? {}));
   }
 
   async pickFolder(key: string): Promise<ConsoleInfo> {

@@ -124,7 +124,7 @@ test('ADR-0017: a one-line header, a folding sidebar, and an agent console besid
     assert.equal(manifest.firstCall.arguments.key, 'sample.default');
     assert.equal(manifest.launch.runtime, 'claude-code');
     const context = fs.readFileSync(path.join(pack, 'context.md'), 'utf8');
-    assert.match(context, /# Sample Service \(sample\.default\)/);
+    assert.match(context, /# `Sample Service` \(sample\.default\)/);
     assert.match(context, /\*\*State:\*\* (ready|degraded)/);
     assert.ok(!context.includes('tokenFile'), 'the token file is never in the context');
     assert.equal(fs.statSync(path.join(pack, 'context.md')).mode & 0o777, 0o600);
@@ -168,7 +168,7 @@ test('ADR-0017: a one-line header, a folding sidebar, and an agent console besid
     await shot(page, '24-fix-with-agent');
     await page.getByRole('button', { name: 'Fix with coding agent' }).first().click();
     await waitFor('the runtime to start on the task', async () => /Do the task in [^\]]*task\.md\.\]/.test(await termText(con)));
-    assert.match(fs.readFileSync(path.join(pack, 'task.md'), 'utf8'), /^# Task: Sample Service is (down|stopped)/);
+    assert.match(fs.readFileSync(path.join(pack, 'task.md'), 'utf8'), /^# Task: `Sample Service` is (down|stopped)/);
     await con.locator('.console-term').click();
     await con.keyboard.type('bye');
     await con.keyboard.press('Enter');
@@ -181,7 +181,7 @@ test('ADR-0017: a one-line header, a folding sidebar, and an agent console besid
     assert.equal(await auditRow.getByRole('combobox').inputValue(), 'claude-code', 'the runtime chosen for this agent');
     await shot(page, '24a-auditor');
     await auditRow.getByRole('button', { name: 'Fix with coding agent' }).click();
-    await waitFor('the audit task to be written', () => /^# Task: Audit findings for Sample Service/.test(fs.readFileSync(path.join(pack, 'task.md'), 'utf8')));
+    await waitFor('the audit task to be written', () => /^# Task: Audit findings for `Sample Service`/.test(fs.readFileSync(path.join(pack, 'task.md'), 'utf8')));
     assert.match(fs.readFileSync(path.join(pack, 'task.md'), 'utf8'), /the Fabric Dashboards auditor found/);
     await page.getByRole('heading', { level: 1, name: 'Sample Service' }).waitFor();
     await waitFor('the runtime to start on the audit task', async () => /Do the task in [^\]]*task\.md\.\]/.test(await termText(con)) && !(await termText(con)).includes('The session exited with code 0.'));
