@@ -3,6 +3,7 @@
 // writing its transcript; everything else is listed for the person with why; the MCP `audit` answers the same.
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import type { Runner } from '@passioncode-ai/fabric-service-host';
@@ -424,4 +425,24 @@ test('FD-217: the app neither lists nor continues a stop whose launch a later la
   // The same stop with its launch not continued is continued as before.
   const waiting = rig({ sessions: (d) => [{ ...row({ dir: d, at: Date.now() - 60_000 }), launch_id: LAUNCH }], history: [] });
   assert.equal((await waiting.host.pollRecovery()).length, 1);
+});
+
+test('FD-260 (fabric-switchboard finding baef1df0): a stop whose session a live process holds in another terminal is open, never resumed a second time', async () => {
+  const { liveSessionIds, claudeSessionDirs } = await import('../src/core/recovery');
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'fd-260-'));
+  const mine = path.join(home, '.claude', 'sessions');
+  const sbHome = path.join(home, 'Library', 'Application Support', 'ai.passioncode.fabric-switchboard', 'homes', 'acc-1', 'sessions');
+  fs.mkdirSync(mine, { recursive: true }); fs.mkdirSync(sbHome, { recursive: true });
+  const live = '4c635d5e-566e-4e7b-a7a9-8d9e4471f87d';
+  fs.writeFileSync(path.join(mine, '28198.json'), JSON.stringify({ pid: 28198, sessionId: live, status: 'busy' }));
+  fs.writeFileSync(path.join(sbHome, '31000.json'), JSON.stringify({ pid: 31000, sessionId: '11111111-1111-4111-8111-111111111111', status: 'idle' }));
+  fs.writeFileSync(path.join(mine, '40000.json'), JSON.stringify({ pid: 40000, sessionId: '22222222-2222-4222-8222-222222222222' }));
+  fs.writeFileSync(path.join(mine, 'not-a-session.json'), '{}');
+  const dirs = claudeSessionDirs(home, 'darwin');
+  assert.deepEqual(dirs, [mine, sbHome], 'the person\'s home and every Switchboard home');
+  const ids = liveSessionIds(dirs, (pid) => pid !== 40000);
+  assert.deepEqual(ids.sort(), [live, '11111111-1111-4111-8111-111111111111'].sort(), 'a file whose pid no longer runs counts for nothing');
+  const s = { ...stop(), session: live, dir: '/elsewhere' };
+  assert.equal(sessionOpen(s, { dirs: [], args: '', sessions: ids }), true, 'held by a live process: open');
+  assert.equal(verdictOf(s, { dirs: [], args: '', sessions: ids }, s.stoppedAt + 1000, () => true), 'open', 'never resumed into a second copy');
 });

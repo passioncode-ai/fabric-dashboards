@@ -30,7 +30,7 @@ import { bypassArgs, bypassArgsOfProvider, detectRuntimes, KNOWN_RUNTIMES, readL
 import type { SettingsStore } from '../core/settings';
 import { accountsOf, allSessionsOf, bindingFor, machineSessionsOf, findSwitchboard, handoverOwnKey, handoverRunArgv, handoversOf, handoversSwitch, isHandoverKey, launchFeatures, sbFailure, sessionsIn, startAccount, terminalLaunchArgv, type Binding, type SbAccounts, type SbHandover, type SbSessions, type StartAccount } from '../core/switchboard';
 import type { ServiceSnapshot, Settings } from '../core/types';
-import { claimStop, continuedLaunches, continuedOf, finishStop, liveAgents, recoveryOf, resumeArgs, resumeOwnKey, sessionOpen, transcriptIn, transcriptOf, verdictOf, writtenAt, RESUME_SETTLE_MS, RESUMES_PER_PASS, type RecoveryStatus, type SbStop, type StopView } from '../core/recovery';
+import { claimStop, claudeSessionDirs, continuedLaunches, continuedOf, finishStop, liveAgents, recoveryOf, resumeArgs, resumeOwnKey, sessionOpen, transcriptIn, transcriptOf, verdictOf, writtenAt, RESUME_SETTLE_MS, RESUMES_PER_PASS, type RecoveryStatus, type SbStop, type StopView } from '../core/recovery';
 import { attachOwnKey, consoleRowId, handoverRowId, SAME_START_MS, mergeSessions, pruneDismissed, pruneRecords, SourceReader, stopRowId, type ConsoleInput, type PendingHandover, type SbMachineProcess, type SbSessionRecord, type SessionActionResult, type SessionReason, type SessionRecord, type SessionNotice, type SessionOrigin, type SessionRow, type SessionsStatus, type SourceDegraded, type SourceResult } from '../core/sessions';
 
 /** node-pty 1.1.0 ships its macOS `spawn-helper` without the executable bit, and its postinstall
@@ -805,7 +805,7 @@ export class ConsoleHost {
     for (const s of r.stops) this.lastStops.set(s.event, s);
     for (const e of [...this.waitNoted.keys()]) if (!this.lastStops.has(e)) this.waitNoted.delete(e);
     const pending = r.stops.filter((s) => s.state !== 'resumed' && !this.actedStops.has(s.event) && !this.taking.has(s.event));
-    const read = pending.some((s) => s.ready) ? await liveAgents(this.run).catch(() => null) : null;
+    const read = pending.some((s) => s.ready) ? await liveAgents(this.run, process.platform, claudeSessionDirs(this.o.home ?? os.homedir())).catch(() => null) : null;
     // F4 of FIX-2: a folder one of this app's consoles works in is live too (a hand-over taken on this tick has no claude
     // process yet that lsof could see), so a hand-over and a stop of one folder never both start.
     const live = read && { dirs: [...read.dirs, ...this.manager.runningKeys().filter((k) => !this.remoteRuns.has(k)).map((k) => this.handoverOf.get(k)?.dir ?? this.manager.snapshot(k).cwd).filter(Boolean)], args: read.args };
@@ -1318,7 +1318,7 @@ export class ConsoleHost {
     if (row.endedAt !== null) return transcriptIn(row.folder, home, row.startedAt, row.endedAt);
     const id = transcriptIn(row.folder, home, row.startedAt, now, now - 60_000);
     if (!id) return null;
-    const live = await liveAgents(this.run).catch(() => null);
+    const live = await liveAgents(this.run, process.platform, claudeSessionDirs(this.o.home ?? os.homedir())).catch(() => null);
     return live && !sessionOpen({ session: id, dir: row.folder } as SbStop, live) ? id : null;
   }
 
