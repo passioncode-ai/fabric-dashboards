@@ -85,7 +85,7 @@ export function injectionSignals(texts: readonly (string | null | undefined)[]):
     const parts = flat.length > READ_WHOLE ? [flat.slice(0, READ_WHOLE), flat.slice(-READ_MAX)] : [flat];
     // FD-234 (verifier round 8): past the first READ_RAW_MAX the end of the text itself is read too.
     // Folding can grow a short text 18 times and cut it; the end of the text itself is read whenever there is more.
-    if (text.length > READ_MAX) parts.push(spaced(text.slice(-READ_MAX)));
+    if (text.length > READ_MAX || flat.length > READ_WHOLE) parts.push(spaced(text.slice(-READ_MAX)));
     for (const part of parts) for (const [name, re] of SIGNALS) if (re.test(part)) found.add(name);
   }
   return [...found];
