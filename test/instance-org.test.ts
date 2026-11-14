@@ -60,10 +60,10 @@ test('FD-197: a Worker name in two accounts, or an account Observatory does not 
 
 test("FD-197: a platform product on this Mac runs in this space, so it is this space's organization; another product keeps its repository's", () => {
   const m = map();
-  assert.deepEqual(organizationOfInstance(m, { key: 'observatory.default', repository: repo('vendor-ai/observatory'), placement: 'local' }), { name: 'home', label: 'Home', personal: true });
+  assert.deepEqual(organizationOfInstance(m, { key: 'project-observatory.default', repository: repo('vendor-ai/observatory'), placement: 'local' }), { name: 'home', label: 'Home', personal: true });
   assert.deepEqual(organizationOfInstance(m, { key: 'voc-agent.default', repository: repo('acme-co/voc-agent'), placement: 'local' }), { name: 'acme', label: 'Acme' }, "an organization's own agent on this Mac stays its organization's");
   const unmarked = map({ ...REGISTRY, organization_platform: [] });
-  assert.deepEqual(organizationOfInstance(unmarked, { key: 'observatory.default', repository: repo('vendor-ai/observatory'), placement: 'local' }), { name: 'vendor', label: 'Vendor.ai' }, 'no platform named: the repository decides');
+  assert.deepEqual(organizationOfInstance(unmarked, { key: 'project-observatory.default', repository: repo('vendor-ai/observatory'), placement: 'local' }), { name: 'vendor', label: 'Vendor.ai' }, 'no platform named: the repository decides');
 });
 
 test('FD-197: an instance named after an organization is that organization\'s, even one with no project of its own', () => {
@@ -82,4 +82,13 @@ test('FD-197: the instance context survives the saved map, and the platform owne
   assert.equal('byZone' in back, false);
   const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'package.json'), 'utf8')) as { repository: { url: string } };
   assert.match(pkg.repository.url, new RegExp(`github\\.com/${OWN_REPOSITORY_OWNER}/`));
+});
+
+test("FD-252: only a product the platform installs in every organization moves to this space; the platform organization's own agents stay its own", () => {
+  const m = map();
+  assert.deepEqual(organizationOfInstance(m, { key: 'fabric-inbox.default', repository: repo('vendor-ai/inbox'), placement: 'local' }), { name: 'home', label: 'Home', personal: true });
+  assert.deepEqual(organizationOfInstance(m, { key: 'admin-agent.admin', repository: repo('vendor-ai/inbox'), placement: 'local' }), { name: 'vendor', label: 'Vendor.ai' }, "an agent of the platform's organization is that organization's, wherever it runs");
+  const listed = map({ ...REGISTRY, platform_products: ['admin-agent'] });
+  assert.deepEqual(organizationOfInstance(listed, { key: 'admin-agent.admin', repository: repo('vendor-ai/inbox'), placement: 'local' }), { name: 'home', label: 'Home', personal: true }, "the registry's own list wins over the default one");
+  assert.deepEqual(organizationOfInstance(listed, { key: 'project-observatory.default', repository: repo('vendor-ai/observatory'), placement: 'local' }), { name: 'vendor', label: 'Vendor.ai' });
 });
