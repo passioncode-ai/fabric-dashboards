@@ -109,7 +109,10 @@ service wrote as plain lines, while consoles start without permission prompts. S
   an explicit mode that asks (`askArgs`, `src/core/runtimes.ts`) for that start, a console or *Open in Terminal*,
   which the runtime's settings and Switchboard's launch both respect (OpenCode and Cursor CLI have none: their skip
   flag is dropped; a Claude Code allow rule still approves its tools, SECURITY.md); the saved choice is unchanged
-  (`ConsoleHost.start`). This is the security exception to SCN-097 the operator's bypass rule leaves room for.
+  (`ConsoleHost.start`). This is a security exception to SCN-097, decided by access level in this run (FD-236's
+  decision of 2026-11-14) on the agents database's audit B1; the operator's FD-174 rule is otherwise unchanged.
+- A pack that cannot be written now holds the start too (the Consequences line above predates it): the session starts
+  without its pack, with prompts where the runtime can ask.
 - A key that is not a plain name gets the folder `consoles/key-<digest>/` (`packDir`), and
   `FABRIC_DASHBOARDS_SERVICE` carries that folder's name, so no path or variable handed to a runtime carries the key.
 - *Open in Terminal* writes the pack since FD-47 (the Consequences line above predates it).
