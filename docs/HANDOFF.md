@@ -3,9 +3,43 @@
 Updated 2026-10-26 (0.8.7 current, see *0.8.7: start here*; earlier the same day 0.8.6, see *0.8.5: start here* and *Session 2026-10-26: start here*). Earlier: updated 2026-10-25 (0.8.1 current; the consolidation, see *Consolidation 2026-10-25: start here*). Earlier: updated 2026-10-24 (0.7.28). Earlier header: updated 2026-10-07 (0.6.2: 0.6.1 withdrawn for audit HIGH-2, audit fixes, signed feed; 0.6.1: LC-16 in detail updater, Russian by choice; 0.6.0 published 2026-10-06 21:35 UTC; release 0.5.6: third review pass, token latch; release 0.5.5 withdrawn: release audit and its second pass, A2A plan, ADR-0016, ADR-0015 data and updates, FD-05, FD-06, FD-13; Spend and DEC-0021; one entry per agent, ADR-0012; lifecycle contract landed from PR #21, unreleased; CI release rehearsal
 `v0.4.1-rc.1` green; releases move to CI signing; release 0.4.1, MCP links to online services).
 
-Current release: **0.8.85** published or publishing, 0.8.86 and 0.8.87 merged and tagged in turn by watchers (see *0.8.84 to 0.8.87*). Before: 0.8.80 to 0.8.83 published 2026-11-14 18:06 to 19:40 UTC.
+Current release: **0.8.88** published 2026-11-14 22:53 UTC; 0.8.89 to 0.8.94 merged and tagged in turn by watchers, one after the previous publishes (see *0.8.88 to 0.8.94*). Before: 0.8.87 published 22:22 UTC.
 
-## 0.8.84 to 0.8.87: start here (2026-11-14)
+## 0.8.88 to 0.8.94: start here (2026-11-14)
+
+**Asked.** The operator: «дальше».
+
+**Done.**
+- 0.8.88 (PR #522, `39697dc`): FD-255, security audit F3: outage alerts and Observatory reads send a token to
+  loopback only after the port's owner check.
+- 0.8.89 (PR #523, #524, `90ab842`): FD-249 parity test (every window channel names an agent route); FD-257, F5: the
+  contract clone check runs git with the folder's `core.sshCommand`, `core.fsmonitor` and custom transports disabled.
+- 0.8.90 (PR #525, `cf17257`): FD-256, F4: a descriptor whose file or services folder another user owns, or that
+  others may write, is a problem and never read (macOS and Linux).
+- 0.8.91 (PR #526, `da31f40`): FD-259, F7 and F9: IPC answers only the app's own page in its main frame; a dashboard's
+  link and save dialogs come one at a time. F8 (env allowlist) decided against, reason in SECURITY.md.
+- 0.8.92 (PR #527, `88993f8`): FD-252, Observatory's `platform_product: true` per project row (OBS-564, 0.37.0)
+  decides by repository; the product lists stay the fallback.
+- 0.8.93 (PR #529, `9074958`): FD-260, Switchboard 0.7.83's `live` (SB-376) makes a stop `open` too.
+- 0.8.94 (PR #530, `5e6e77b`): FD-249 closed: MCP `arrange` move-up, move-down, tab-left, tab-right; no gap left in
+  `src/core/parity.ts`.
+- Backlog only (PR #528): FD-261, the console start will read Switchboard's machine session cap (board `52f5a962`).
+
+**Checks.** `FD_SKIP_LAUNCHD=1 npm run check` green on each (1241 to 1247 pass). e2e `test/e2e/app.test.ts` at load
+about 470: the same three failures on `main` and on FD-259; one is a stale expectation (the light default of FD-214),
+fixed on branch `test/fd-251-e2e-defaults` (`1f7d666`, not merged: waits for a green run); a watcher runs
+`app.test.ts` and `focus-console.test.ts` there once the 5-minute load is under 60 and 3 GB are free.
+
+**Machine.** The MacBook fell to 0.7 GB free at load about 480 (other agents; Observatory's guard acting at level
+critical). Nothing of ours was large; `npm cache clean` and `uv cache prune` ran.
+
+**Board.** Answered OBS-564 (`c0302775`), the session pool (`5c1b3a7a`, FD-261), SB-376 (`13cc1b7f`); 9 read.
+
+**Next task.** Merge `test/fd-251-e2e-defaults` once its e2e is green (or fix what the run shows); FD-258 (F6, Windows
+pipe owner and DACL); FD-244 part 2 (Overview groups, one status per place); FD-261 when Switchboard ships
+`capacity`; FD-252 closes when Observatory 0.37.0 is installed and its registry carries the mark.
+
+## 0.8.84 to 0.8.87 (2026-11-14)
 
 **Asked.** The operator: «дальше».
 
