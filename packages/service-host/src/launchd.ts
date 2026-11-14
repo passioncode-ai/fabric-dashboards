@@ -30,14 +30,20 @@ export const execRunner: Runner = (command, args, timeoutMs = 30_000) =>
     });
   });
 
-export interface JobStatus { loaded: boolean; pid: number | null; disabled: boolean }
+export interface JobStatus { loaded: boolean; pid: number | null; disabled: boolean; runs?: number; lastExit?: { code: number } | { signal: string } }
 
 /** The status of a service whose descriptor names no launchd job. */
 export const UNMANAGED: LaunchdStatus = Object.freeze({ managed: false, loaded: false, pid: null, disabled: false }) as LaunchdStatus;
 
-export function parsePrint(stdout: string): { pid: number | null } {
+export function parsePrint(stdout: string): { pid: number | null; runs?: number; lastExit?: { code: number } | { signal: string } } {
   const m = /^\s*pid = (\d+)\s*$/m.exec(stdout);
-  return { pid: m ? Number(m[1]) : null };
+  // FD-250: the job's own lines are indented once; a nested block (endpoints, sockets) is indented further.
+  const field = (name: string) => new RegExp(`^\\t${name} = (.+)$`, 'm').exec(stdout)?.[1]?.trim();
+  const runs = Number(field('runs'));
+  const code = field('last exit code');
+  const signal = field('last terminating signal');
+  const lastExit = signal ? { signal } : code !== undefined && /^-?\d+$/.test(code) ? { code: Number(code) } : undefined;
+  return { pid: m ? Number(m[1]) : null, ...(Number.isInteger(runs) && runs > 0 ? { runs } : {}), ...(lastExit ? { lastExit } : {}) };
 }
 
 export function parseDisabled(stdout: string, label: string): boolean {
@@ -73,7 +79,7 @@ export class LaunchdReader {
     const r = await this.run('launchctl', ['print', this.target(label, where)]);
     const disabled = parseDisabled(disabledTable ?? (await this.disabledTable(where)), label);
     if (r.code !== 0) return { loaded: false, pid: null, disabled };
-    return { loaded: true, pid: parsePrint(r.stdout).pid, disabled };
+    return { loaded: true, disabled, ...parsePrint(r.stdout) };
   }
 }
 // #endregion launchd-status

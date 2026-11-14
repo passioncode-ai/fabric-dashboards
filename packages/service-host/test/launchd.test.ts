@@ -61,3 +61,11 @@ test('FD-70: a missing program, a signal and a deadline each name their cause, o
   assert.equal(failureReason(Object.assign(new Error('Command failed: x'), { killed: true, signal: 'SIGTERM' as NodeJS.Signals }), 10_000), 'no answer within 10 s (stopped)');
   assert.equal(failureReason(Object.assign(new Error('Command failed: x\n'), { code: 4 }), 10_000), 'exit 4 with nothing on stderr');
 });
+
+test('FD-250: print says how often launchd started the job and how its last run ended; nested blocks are not the job', () => {
+  const crashed = 'gui/501/x = {\n\tstate = waiting\n\truns = 37\n\tlast exit code = 1\n\tendpoints = {\n\t\t"x" = {\n\t\t\tstate = active\n\t\t}\n\t}\n}';
+  assert.deepEqual(parsePrint(crashed), { pid: null, runs: 37, lastExit: { code: 1 } });
+  const killed = 'gui/501/x = {\n\tstate = not running\n\truns = 2\n\tlast terminating signal = Killed: 9\n}';
+  assert.deepEqual(parsePrint(killed), { pid: null, runs: 2, lastExit: { signal: 'Killed: 9' } });
+  assert.deepEqual(parsePrint('gui/501/x = {\n\tstate = running\n\truns = 1\n\tpid = 9\n\tlast exit code = (never exited)\n}'), { pid: 9, runs: 1 }, 'never exited is no exit');
+});
