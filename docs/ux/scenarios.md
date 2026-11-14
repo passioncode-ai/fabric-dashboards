@@ -837,12 +837,12 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **Entry point:** a product's service page, or a `fabric-dashboards://service/growth.reader` link
 - **Preconditions:** the product has more than one instance
 - **Steps:**
-  1. User opens Growth -> above the header, a switch lists `Main · online`, `projection · this Mac`, `reader · online`, each with its state; Main is current
+  1. User opens Growth -> in the one-line header, after the state, a compact switch lists `Main`, `projection`, `reader`, each with its state and its place as an icon (a cloud online, a laptop on this Mac; the full `Main · online` in its tooltip and for a screen reader); Main is current (FD-245)
   2. User chooses `reader · online` -> the reader's page opens with its own header, tabs, session and controls; the sidebar keeps Growth selected
   3. User opens a link that names `growth.reader` directly -> the same page opens, with `reader` current in the switch
 - **Expected result:** each connection opens as itself — its own sign-in and its own authority; the switch never borrows the main instance's session
 - **Alt paths:** a product with one instance shows no switch
-- **UI elements:** instance switch above the service header
+- **UI elements:** instance switch in the service header's one line (FD-245)
 - **States covered:** success
 - **Errors & recovery:** a connection whose dashboard cannot sign in shows the sign-in error of SCN-016 for that connection only
 - **Status:** validated

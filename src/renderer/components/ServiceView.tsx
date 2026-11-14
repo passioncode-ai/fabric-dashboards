@@ -143,13 +143,14 @@ export function ServiceView({ s, all, members, open, link, nonce, tab: askedTab,
 
   return (
     <div className="svc">
-      {!focused && members.length > 1 && <InstanceSwitch current={s} members={members} open={open} />}
       {/* ADR-0017: one line by default — state, name, the first problem, the tabs — and the full card on demand.
           FD-220: none of it while the dashboard fills the window. */}
       <header className={`svc-head${cardShown ? ' full' : ''}`} data-drawer-top={focused ? undefined : ''} hidden={focused}>
         <div className="svc-bar">
           <h1 id="svc-title" tabIndex={-1} title={s.descriptor?.summary || undefined}>{nameOf(s)}</h1>
           <StateBadge state={shownState(s)} />
+          {/* FD-245: where this agent runs, in the one-line header: one press moves to its other place, no extra row. */}
+          {members.length > 1 && <InstanceSwitch current={s} members={members} open={open} />}
           {s.busy && <span className="row meta" role="status"><Spinner /> {t(`busy.${s.busy}`)}</span>}
           {!cardShown && problem && (
             <button className="chip chip-problem" title={reason(problem)} aria-label={t('svc.problem', { reason: reason(problem) })} onClick={() => setPeek(true)}>
@@ -530,10 +531,11 @@ function InstanceSwitch({ current, members, open }: { current: ServiceSnapshot; 
   return (
     <nav className="instances" aria-label={t('instance.switch', { name: nameOf(members[0] ?? current) })}>
       {members.map((m) => (
-        <button key={m.key} className="instance" aria-current={m.key === current.key ? 'page' : undefined} onClick={() => open(m.key)}>
+        <button key={m.key} className="instance" aria-current={m.key === current.key ? 'page' : undefined} title={label(m)} onClick={() => open(m.key)}>
           <span className={`state state-${shownState(m)}`} aria-hidden="true"><span className="glyph">{GLYPH[shownState(m)]}</span></span>
-          {label(m)}
-          <span className="visually-hidden">{t(`state.${shownState(m)}`)}</span>
+          <Icon name={m.descriptor?.placement === 'remote' ? 'cloud' : 'laptop'} />
+          <span className="instance-name">{instanceOf(m.key) === 'default' ? t('instance.main') : instanceOf(m.key)}</span>
+          <span className="visually-hidden"> · {t(m.descriptor?.placement === 'remote' ? 'instance.remote' : 'instance.local')}, {t(`state.${shownState(m)}`)}</span>
         </button>
       ))}
     </nav>
