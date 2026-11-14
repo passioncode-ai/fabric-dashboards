@@ -56,7 +56,8 @@ test('ADR-0017: a one-line header, a folding sidebar, and an agent console besid
   for (const d of [services, runtimes, repo, userData]) fs.mkdirSync(d, { recursive: true });
   fs.writeFileSync(path.join(runtimes, 'claude'), FAKE_CLAUDE, { mode: 0o755 });
   // The folder chosen for this service before (SCN-049 "Other…"): the dialog is not part of the walk.
-  fs.writeFileSync(path.join(userData, 'settings.json'), JSON.stringify({ consoles: { 'sample.default': { runtime: null, folder: repo } } }), { mode: 0o600 });
+  // FD-220 made the console fill the area by default; this walk is about the drawer over the dashboard (SCN-048).
+  fs.writeFileSync(path.join(userData, 'settings.json'), JSON.stringify({ consoles: { 'sample.default': { runtime: null, folder: repo } }, layout: { console: { full: false } } }), { mode: 0o600 });
   const port = await freePort();
   const proc = serve(port, path.join(base, 'data'), ['--name', 'Sample Service']);
   let app: ElectronApplication | null = null;
@@ -70,11 +71,15 @@ test('ADR-0017: a one-line header, a folding sidebar, and an agent console besid
 
     // SCN-046: one line by default; the full card opens and closes on demand.
     const head = page.locator('.svc-head');
-    assert.ok((await head.boundingBox())!.height < 64, 'the header is one line');
+    // FD-241: the task line sits under the header's one line, so the line itself is measured, then the whole header.
+    const folded = (await head.boundingBox())!.height;
+    assert.ok((await page.locator('.svc-bar').boundingBox())!.height < 64, 'the header is one line');
+    await page.getByRole('textbox', { name: 'A task for Sample Service' }).waitFor();
+    assert.ok(folded < 110, `one line and the task line (${folded} px)`);
     assert.equal(await page.getByRole('button', { name: 'Show data folder' }).count(), 0, 'the card is folded away');
     await page.getByRole('button', { name: 'Show details' }).click();
     await page.getByRole('button', { name: 'Show data folder' }).waitFor();
-    assert.ok((await head.boundingBox())!.height > 100, 'the full card is open');
+    assert.ok((await head.boundingBox())!.height > folded + 40, 'the full card is open');
     await page.getByRole('button', { name: 'Hide details' }).click();
     await page.getByRole('button', { name: 'Show data folder' }).waitFor({ state: 'detached' });
 

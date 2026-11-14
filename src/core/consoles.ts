@@ -170,7 +170,8 @@ export class ConsoleManager extends EventEmitter {
       this.emit('data', { key, data, end: s.emitted });
     });
     pty.onExit(({ exitCode, signal }) => {
-      if (s.killTimer) clearTimeout(s.killTimer);
+      // FD-242: a stop's kill timer stays: the runtime may exit on the hang-up while a child of its group (an MCP server
+      // that ignores SIGHUP) lives on, and the group's SIGKILL after the grace is what ends that child.
       s.pty = null;
       s.exitCode = exitCode;
       s.signal = signal ? signal : null;
@@ -220,10 +221,13 @@ export class ConsoleManager extends EventEmitter {
     if (!s.pty || s.killTimer) return;
     const pty = s.pty;
     const signal = (sig: NodeJS.Signals) => {
-      try { (this.o.killGroup ?? ((pid, sg) => process.kill(-pid, sg)))(pty.pid, sig); } catch { try { pty.kill(sig); } catch { /* already gone */ } }
+      // The runtime alone, when the group cannot be signalled, and only while it still runs (its pid is never reused here).
+      try { (this.o.killGroup ?? ((pid, sg) => process.kill(-pid, sg)))(pty.pid, sig); } catch { if (s.pty === pty) { try { pty.kill(sig); } catch { /* already gone */ } } }
     };
     signal('SIGHUP');
-    s.killTimer = setTimeout(() => { if (s.pty === pty) signal('SIGKILL'); }, this.killGraceMs);
+    // FD-242: the whole group after the grace, whether or not the runtime itself is still there (a killed group answers
+    // ESRCH, which is caught); another session's group is never this one's, so a new start on the key is safe.
+    s.killTimer = setTimeout(() => signal('SIGKILL'), this.killGraceMs);
   }
 
   /** The service is gone: its session ends, and nothing of it is shown again; quit still waits for it. */
