@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.8.90 - 2026-11-14
+
+### Security
+
+- FD-256: a service file that another user owns, or that other users may change, is no longer trusted: the app shows
+  it as a problem and never runs its doctor or update commands. Readable by others is still fine.
+
 ## 0.8.89 - 2026-11-14
 
 ### Security

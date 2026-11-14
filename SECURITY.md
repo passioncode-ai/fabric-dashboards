@@ -58,7 +58,8 @@ service data.
   (`ElectronSquirrelPreventDowngrades`). Nothing about services or tokens is sent (ADR-0015
   amendment, LC-16).
 - **Runs** `launchctl` on the labels descriptors declare, `lsof -nP -iTCP -sTCP:LISTEN` for the
-  listener scan, and the `doctor` and `update` argument arrays a descriptor declares — no shell,
+  listener scan, and the `doctor` and `update` argument arrays a descriptor declares (on macOS and Linux only from a
+  descriptor whose file and folder belong to this user and that no group or other user may write, FD-256) — no shell,
   in their own process group, 120 s limit; whatever a finished command leaves running in that
   group is ended. Uninstall starts one detached `/bin/sh` that waits for the app to exit (at most
   30 s) and removes the app's data.

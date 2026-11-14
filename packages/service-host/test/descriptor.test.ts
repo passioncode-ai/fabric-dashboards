@@ -159,3 +159,22 @@ test('DEC-0069: an app\'s descriptor (manager person, no origin) is skipped, and
   assert.ok(entries[0]!.descriptor);
   assert.equal(claimConflicts(entries).size, 0, 'an app claims no port');
 });
+
+test('FD-256 (security audit F4): a descriptor, or a services folder, that others may write or another user owns is refused', { skip: process.platform === 'win32' && 'POSIX modes' }, () => {
+  const dir = tmp('fd-256-');
+  fs.chmodSync(dir, 0o700);
+  const write = (name: string, mode: number) => { const f = path.join(dir, name); fs.writeFileSync(f, JSON.stringify({ protocol: 'fabric-service/0.1', id: name.split('.')[0], instance: 'default', name: 'X', origin: 'http://127.0.0.1:47001', lifecycle: { manager: 'none' }, installedAt: '2026-11-14T00:00:00Z', installedBy: 't' })); fs.chmodSync(f, mode); };
+  write('safe.default.json', 0o644);
+  write('open.default.json', 0o666);
+  const uid = process.getuid!();
+  const byKey = Object.fromEntries(readDirectory(dir, 'darwin', uid).map((e) => [e.key, e]));
+  assert.ok(!byKey['safe.default']!.problems.some((m) => /not trusted/.test(m)), 'readable by others is fine; writable is not');
+  assert.equal(byKey['open.default']!.descriptor, null);
+  assert.match(byKey['open.default']!.problems[0]!, /can be changed by other users \(mode 0666\)/);
+  const foreign = readDirectory(dir, 'darwin', uid + 1);
+  assert.ok(foreign.every((e) => e.descriptor === null && /belongs to another user/.test(e.problems[0]!)), 'another owner: nothing is trusted');
+  fs.chmodSync(dir, 0o777);
+  assert.ok(readDirectory(dir, 'darwin', uid).every((e) => /the services folder can be changed by other users/.test(e.problems[0]!)), 'a folder others may write taints every file');
+  fs.chmodSync(dir, 0o700);
+  assert.ok(!readDirectory(dir, 'win32', uid).some((e) => e.problems.some((m) => /not trusted/.test(m))), 'Windows: the profile\'s ACL decides');
+});
