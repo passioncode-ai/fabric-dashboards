@@ -8,6 +8,7 @@
   console's coding agent marked as data, never as instructions. When that text reads like instructions to the agent,
   or when that information cannot be saved, the console starts without skipping permission prompts, so the coding
   agent's own permission setting applies.
+- Open in Terminal now follows the console's saved choice about permission prompts, as the console does.
 
 ## 0.8.76 - 2026-11-14
 

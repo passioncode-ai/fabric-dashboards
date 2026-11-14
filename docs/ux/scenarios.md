@@ -1086,7 +1086,7 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
   3. User presses "Continue last session" -> the coding agent resumes its last conversation in that folder (`claude --continue`, `codex resume --last`)
   4. The coding agent exits -> the console says "The session exited with code 0." with "New session" and "Continue last session" again
 - **Expected result:** the coding agent the user chose runs in the agent's repository, with their settings and skills, one press from the dashboard
-- **Alt paths:** "Other…" -> a folder dialog; the choice is remembered for this agent; the user picks another coding agent -> remembered for this agent; the red cross -> the coding agent ends after a confirmation and the console folds (SCN-048) if it is still running; "Open in Terminal" -> the same coding agent continues in that folder in Terminal
+- **Alt paths:** "Other…" -> a folder dialog; the choice is remembered for this agent; the user picks another coding agent -> remembered for this agent; the red cross -> the coding agent ends after a confirmation and the console folds (SCN-048) if it is still running; "Open in Terminal" -> the same coding agent continues in that folder in Terminal, with the console's own choice about permission prompts (FD-234: held for that start when its context reads like instructions)
 - **UI elements:** coding agent picker, folder line with "Other…", "New session", "Continue last session", the red cross (SCN-048), "Open in Terminal", terminal, exit line
 - **States covered:** empty, loading, success, error
 - **Errors & recovery:** no coding agent installed -> "No supported coding agent is installed" with the list it looks for; no repository found -> "Choose the folder this agent's code lives in" with "Choose folder…"; the folder no longer exists -> the same; the coding agent cannot start -> its own error in the console, and "New session" again; a coding agent with no resume flag -> "Continue last session" is not offered
@@ -1432,12 +1432,12 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **Steps:**
   1. The person or an agent starts a console -> the runtime starts with its own flag that turns permission prompts off (Claude Code `--dangerously-skip-permissions`, Codex `--dangerously-bypass-approvals-and-sandbox`, Gemini CLI `--approval-mode yolo`, OpenCode `--auto`, Cursor CLI `--force`), placed before Codex's `resume`, and passed through Switchboard's in-place launch after `--`
   2. The agent works through its task without stopping to ask for a tool's permission
-- **Expected result:** a console never waits on a permission prompt nobody is there to answer
+- **Expected result:** a console never waits on a permission prompt nobody is there to answer, except a start held for its context (FD-234, below)
 - **Alt paths:** a runtime whose flag was not read from an installed copy (Qwen Code, Goose, Aider, GitHub Copilot CLI, Amp) starts as before, without a flag, rather than with a guess that could stop it starting; a hand-over Switchboard runs (`handovers run`) takes Switchboard's own setting (its SB-298); an agent's console whose service-written context reads like instructions, or whose context cannot be written (FD-234, SCN-053), starts without its flag for that start, a security exception to this rule: a start nobody watches (an MCP `console_fix`) may wait at a prompt until a person answers in the console, and the context (when written) and the app's log say why
 - **UI elements:** none new
 - **States covered:** success
 - **Errors & recovery:** money, publishing to people and secrets stay under the agents' and services' own rules (doors, limits, checks), not a permission dialog
-- **Status:** implemented (2026-11-07: `test/console.test.ts` *FD-174*, `test/handoff.test.ts`, `test/recovery.test.ts`, `test/sessions.test.ts`)
+- **Status:** implemented (2026-11-07: `test/console.test.ts` *FD-174*, `test/handoff.test.ts`, `test/recovery.test.ts`, `test/sessions.test.ts`; the FD-234 hold 2026-11-14: `test/untrusted.test.ts`)
 - **Coverage:** src/core/runtimes.ts, src/core/consoles.ts, src/electron/console.ts, test/console.test.ts
 - **Product:** unobserved
 

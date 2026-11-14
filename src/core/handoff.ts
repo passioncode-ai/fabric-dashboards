@@ -38,7 +38,7 @@ export interface HandoffContext {
   descriptor: Record<string, unknown> | null;
   /** FD-234: the kinds of instruction-like text in what the service wrote; a non-empty list keeps permission prompts on. */
   signals: string[];
-  /** FD-234: the random id that closes this document's fences; text written before the start cannot know it. */
+  /** FD-234: the random id that closes this start's fences; text written before the start cannot know it. */
   fenceId: string;
 }
 

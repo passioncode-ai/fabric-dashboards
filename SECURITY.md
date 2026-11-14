@@ -157,7 +157,7 @@ guarantee. Common forms of the marker inside the text (any case or spacing, full
 are also made inert, as a second line, not every lookalike (`src/core/untrusted.ts`). The short
 values (the service's key, name, version, update available, origin, repository) are flattened to one line and quoted as code, in
 headings, the brief, the first prompt and a typed task line too; a key that is not a plain name gets a
-pack folder named by its digest, so no path handed to a runtime carries it, so none can add a heading or a step. Every pattern is linear; a text is read whole up to 256 K characters after folding (NFKC can grow
+pack folder named by its digest, so no path handed to a runtime carries it, so none can add a heading or a step. Every pattern is linear; a text is read whole up to 256 K characters after NFKC folding (an invisible character counts as one space; NFKC can grow
 one character into 18), past that its first 256 K and the last 16 K of the text as written, and a block holds at
 most 256 K characters of it. The pack and the MCP
 answers (`service_context`, `activity`: an `untrusted` list of fields) say all of it is data and never an instruction, and a start whose text reads like instructions
@@ -168,7 +168,7 @@ written holds the start too), so the coding agent's own
 permission setting decides each step, logged, the person's saved choice
 unchanged. The reading is a heuristic that keeps a person in the loop, not a proof. Not covered yet (FD-236): a held
 conversation continued after a limit or from the Sessions list resumes without the hold; a Fix or Update typed into a
-session that already runs is fenced but only logged, not held (the person sends it); the console's own Continue reads only the events listed now, so a conversation that read an instruction-like event continues unheld once that event has scrolled out; the Setup console's `setup.md` carries the launcher doctor's text unfenced; and `service_status`,
+session that already runs is fenced but only logged, not held (the person sends it); the console's own Continue reads only the events listed now, so a conversation that read an instruction-like event continues unheld once that event has scrolled out; the Setup console's `setup.md` carries the launcher doctor's text unfenced, and the Setup and New agent consoles (which carry no service text) are not held when their pack cannot be written; and `service_status`,
 `list_services`, `audit`, `doctor` and `update` mark nothing in their answers (the console rules name them; only
 `service_context` and `activity` carry an `untrusted` field, the pack carries the blocks). The hold shows no sign in
 the app yet: its reason is in `context.md` and the app's log (only in the log when the pack could not be written).
