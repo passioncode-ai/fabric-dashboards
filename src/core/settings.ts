@@ -98,7 +98,7 @@ export class SettingsStore {
       // ADR-0018: one estate field changes alone; a partial patch never resets the others.
       estate: { ...this.value.estate, ...(patch.estate ?? {}) },
       // ADR-0017: one field of the layout, or one service's console, changes alone.
-      layout: { ...this.value.layout, ...layout, console: { ...this.value.layout.console, ...(layout.console ?? {}) }, list: mergeList({ ...this.value.layout.list, ...(layout.list ?? {}) }) },
+      layout: { ...this.value.layout, ...layout, console: { ...this.value.layout.console, ...(layout.console ?? {}) }, list: mergeList({ ...this.value.layout.list, ...(layout.list ?? {}), ...listSourceReset(this.value.layout.list, layout.list) }) },
       consoles: patchConsoles(this.value.consoles, patch.consoles),
     });
     this.persist();
@@ -184,6 +184,12 @@ function mergeList(raw: unknown): Settings['layout']['list'] {
   // FD-195: an organization's name, '' (not attributed), or one of the kinds `@mine`, `@others`, `@shared`.
   const orgs = Array.isArray(l.orgs) ? [...new Set(l.orgs.filter((v): v is string => typeof v === 'string' && (/^[a-z0-9._-]{0,64}$/i.test(v) || /^gh:[a-z0-9][a-z0-9._-]{0,38}$/i.test(v) || v === '@mine' || v === '@others' || v === '@shared')))].slice(0, 50) : [];
   return { sort, pinned: productIds(l.pinned), hidden, kinds, hiddenOpen: l.hiddenOpen === true, order: productIds(l.order), off, orgs, groupByOrg: l.groupByOrg === true, orgSource: l.orgSource === 'github' ? 'github' : 'org' };
+}
+
+/** FD-237: a change of source with no choice of its own clears the choice, whose names belong to the other source. */
+function listSourceReset(before: Settings['layout']['list'], patch: unknown): { orgs?: string[] } {
+  const p = (patch && typeof patch === 'object' ? patch : {}) as { orgSource?: unknown; orgs?: unknown };
+  return p.orgSource !== undefined && p.orgSource !== before.orgSource && p.orgs === undefined ? { orgs: [] } : {};
 }
 
 /** FD-121 (SCN-087): a width from any file reads as one inside the bounds; anything else is the default. */
@@ -306,7 +312,9 @@ export function agentSettingsPatch(raw: unknown): { patch: SettingsPatch; refuse
       if (list && typeof list === 'object' && !Array.isArray(list)) {
         const kept: Record<string, unknown> = {};
         for (const [lk, lv] of Object.entries(list as Record<string, unknown>)) {
-          if ((AGENT_LIST as readonly string[]).includes(lk)) kept[lk] = lv;
+          // FD-237: a source the app does not know is refused, never stored as the default.
+          if (lk === 'orgSource' && lv !== 'org' && lv !== 'github') refused.push(`layout.list.${lk}`);
+          else if ((AGENT_LIST as readonly string[]).includes(lk)) kept[lk] = lv;
           else refused.push(`layout.list.${lk}`);
         }
         if (Object.keys(kept).length) patch.layout = { list: kept };

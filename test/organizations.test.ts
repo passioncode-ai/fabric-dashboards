@@ -222,7 +222,7 @@ const withRepo = (key: string, repository: string | null, organization: { name: 
 
 test('FD-237: a GitHub owner is read from the repository and is a filter value of its own (gh:owner)', async () => {
   const { githubOwnerOf } = await import('../src/core/organizations');
-  assert.deepEqual(githubOwnerOf('https://github.com/Example-Org/agent-bot.git'), { name: 'gh:example-org', label: 'example-org' });
+  assert.deepEqual(githubOwnerOf('https://github.com/Example-Org/agent-bot.git'), { name: 'gh:example-org', label: 'Example-Org' });
   assert.deepEqual(githubOwnerOf('git@github.com:someone/tool.git'), { name: 'gh:someone', label: 'someone' });
   assert.deepEqual(githubOwnerOf('acme-co/fabric'), { name: 'gh:acme-co', label: 'acme-co' });
   assert.equal(githubOwnerOf('https://gitlab.com/acme/x'), null, 'another host is no GitHub owner');
@@ -277,5 +277,42 @@ test('FD-237: the menu offers both sources, rows with counts and the person\'s o
   assert.match(gh, />GitHub: all</);
   assert.match(gh, />acme-co<\/span><span class="count">2</);
   assert.match(gh, /Group by GitHub owner/);
-  assert.match(render('org', ['@mine']), />Mine<\/span><span class="count">0</, 'a kind chosen before stays visible to clear');
+  assert.match(render('org', ['@mine']), />Mine<\/span><span class="count">2</, 'a kind chosen before stays visible to clear, with what it keeps');
+});
+
+test('FD-237 (verifier): no source is a dead end; the other one is offered whenever it tells two or more apart', () => {
+  const noop = () => undefined;
+  const render = (services: ReturnType<typeof withRepo>[], orgSource: 'org' | 'github') => {
+    const ps = groupProducts(services);
+    const layout = { ...DEFAULT_SETTINGS.layout, list: { ...DEFAULT_SETTINGS.layout.list, orgSource } };
+    return renderToStaticMarkup(React.createElement(AgentsNav, {
+      page: 'overview', status: { services, off: [], unread: 0 } as never, everyAgent: services, arranged: arrangeProducts(ps, layout.list), products: ps, currentProduct: undefined, layout, changeLayout: noop,
+      open: noop, go: noop, rail: false, queue: 0, urgent: false, auditErrors: 0, hiddenProblem: false,
+      menu: { pin: noop, hide: noop, setOff: noop, kind: noop, isPinned: () => false, isHidden: () => false, isService: () => false },
+    } as never));
+  };
+  const noMap = [withRepo('alpha.default', 'https://github.com/acme/a', null), withRepo('bravo.default', 'https://github.com/me/b', null)].map((s) => ({ ...s, organization: undefined })) as never;
+  assert.match(render(noMap, 'org'), /role="radio" aria-checked="false"[^>]*>GitHub</, 'no map: GitHub is still reachable');
+  const oneOwner = [withRepo('alpha.default', 'https://github.com/acme/a', { name: 'p', label: 'P' }), withRepo('bravo.default', 'https://github.com/acme/b', { name: 'q', label: 'Q' })];
+  assert.match(render(oneOwner, 'github'), /role="radio" aria-checked="false"[^>]*>Organizations</, 'one GitHub owner left: the way back to Organizations stays');
+});
+
+test('FD-237 (verifier): a source change clears the choice it does not own, and MCP refuses an unknown source', async () => {
+  const { SettingsStore, agentSettingsPatch } = await import('../src/core/settings');
+  const store = new SettingsStore(fs.mkdtempSync(path.join(os.tmpdir(), 'fd-237-')));
+  store.update({ layout: { list: { orgs: ['acme'] } } });
+  assert.deepEqual(store.update({ layout: { list: { orgSource: 'github' } } }).layout.list.orgs, []);
+  assert.deepEqual(store.update({ layout: { list: { orgs: ['gh:acme'] } } }).layout.list.orgs, ['gh:acme'], 'a choice in the same source is kept');
+  assert.deepEqual(store.update({ layout: { list: { orgSource: 'github', orgs: ['gh:me'] } } }).layout.list.orgs, ['gh:me']);
+  const r = agentSettingsPatch({ layout: { list: { orgSource: 'gitlab' } } });
+  assert.ok(r.refused.includes('layout.list.orgSource'));
+});
+
+test('FD-237 (verifier): the GitHub owner is the first path segment after the host, its case kept for the label', async () => {
+  const { githubOwnerOf } = await import('../src/core/organizations');
+  assert.deepEqual(githubOwnerOf('https://github.com/Acme/mono/tree/main/agents/x'), { name: 'gh:acme', label: 'Acme' });
+  assert.deepEqual(githubOwnerOf('https://github.com/acme'), { name: 'gh:acme', label: 'acme' });
+  assert.equal(githubOwnerOf('ssh://git@github.com/acme/x.git')?.name, 'gh:acme');
+  assert.equal(githubOwnerOf('git+https://github.com/acme/x.git')?.name, 'gh:acme');
+  assert.equal(githubOwnerOf('https://github.com.evil.example/acme/x'), null);
 });

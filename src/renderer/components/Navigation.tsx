@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { AppStatus, ListSort, Settings as AppSettings, SettingsPatch } from '../../core/types';
 import { moveInSection, offProducts, type MoveSection, type Product } from '../../core/products';
-import { GITHUB_PREFIX, groupByOrganization, ORG_MINE, ORG_OTHERS, ORG_SHARED, organizationCounts, type OrgSource } from '../../core/organizations';
+import { filterServices, GITHUB_PREFIX, groupByOrganization, ORG_MINE, ORG_OTHERS, ORG_SHARED, organizationCounts, type OrgSource } from '../../core/organizations';
 import type { SessionGroup, SessionRow } from '../../core/sessions';
 import { groupRows, navLines, projectName, stateShort, waitingForYou } from '../../core/sessions-view';
 import { revealScrollTop } from '../../core/layout';
@@ -471,10 +471,11 @@ function OrgMenu({ services, chosen, onChange, grouped, onGroup, source, onSourc
     <details className="org-menu">
       <summary aria-label={`${t('orgs.menu')}. ${label}`} title={all}><span className="org-menu-label">{label}</span><span className="org-menu-caret" aria-hidden="true"><Icon name="chevronDown" /></span></summary>
       <div className="org-menu-list" role="group" aria-label={t('orgs.menu')}>
-        {offered.length > 1 && (
+        {/* FD-237: the switch whenever the other source tells two or more apart, so no source is a dead end. */}
+        {offered.some((s) => s !== source) && (
           <div className="mode-switch org-source" role="radiogroup" aria-label={t('orgs.source')}>
-            {offered.map((s) => (
-              <button key={s} type="button" role="radio" aria-checked={source === s} aria-pressed={source === s} className="mode-btn org-source-btn" onClick={() => { if (s !== source) onSource(s); }}>{t(s === 'github' ? 'orgs.sourceGithub' : 'orgs.sourceOrg')}</button>
+            {(['org', 'github'] as const).filter((s) => s === source || offered.includes(s)).map((s) => (
+              <button key={s} type="button" role="radio" aria-checked={source === s} className="mode-btn org-source-btn" onClick={() => { if (s !== source) onSource(s); }}>{t(s === 'github' ? 'orgs.sourceGithub' : 'orgs.sourceOrg')}</button>
             ))}
           </div>
         )}
@@ -483,7 +484,7 @@ function OrgMenu({ services, chosen, onChange, grouped, onGroup, source, onSourc
           <label key={r.name} className="org-row"><input type="checkbox" checked={chosen.includes(r.name)} onChange={() => toggle(r.name)} />
             <span className="org-name">{nameOf(r.name)}{r.personal && <span className="org-tag">{t('orgs.personal')}</span>}</span><span className="count">{r.count}</span></label>
         ))}
-        {gone.map((n) => <label key={`gone-${n}`} className="org-row"><input type="checkbox" checked onChange={() => toggle(n)} /><span className="org-name">{nameOf(n)}</span><span className="count">0</span></label>)}
+        {gone.map((n) => <label key={`gone-${n}`} className="org-row"><input type="checkbox" checked onChange={() => toggle(n)} /><span className="org-name">{nameOf(n)}</span><span className="count">{filterServices(services, [n], null, source).length}</span></label>)}
         {/* FD-161: the same list, split by the chosen source under a small heading each. */}
         <label className="org-row org-menu-group"><input type="checkbox" checked={grouped} onChange={() => onGroup(!grouped)} /><span className="org-name">{t(source === 'github' ? 'orgs.groupGithub' : 'orgs.group')}</span></label>
       </div>

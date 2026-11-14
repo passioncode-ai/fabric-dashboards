@@ -190,10 +190,15 @@ export const GITHUB_PREFIX = 'gh:';
 
 /** The GitHub owner of an agent's repository as an organization (`gh:owner`), or null when it names none. */
 export function githubOwnerOf(repository: string | undefined | null): Organization | null {
-  const key = repositoryKey(repository);
-  if (!key || !/^(https?:\/\/(www\.)?github\.com\/|git@github\.com:|[a-z0-9][\w.-]*\/[\w.-]+$)/i.test(repository!.trim())) return null;
-  const owner = key.slice(0, key.indexOf('/'));
-  return { name: `${GITHUB_PREFIX}${owner}`, label: owner };
+  if (typeof repository !== 'string') return null;
+  const r = repository.trim();
+  // The first path segment after the host: `https://github.com/Acme/x/tree/main/y`, `ssh://git@github.com/acme/x`,
+  // `git+https://…`, `git@github.com:acme/x.git`, or a bare `owner/name`. Its case is kept for the label.
+  const m = /^(?:git\+)?(?:https?|ssh|git):\/\/(?:[^@/]+@)?(?:www\.)?github\.com(?::\d+)?\/([A-Za-z0-9][A-Za-z0-9-]{0,38})(?:\/|$)/i.exec(r)
+    ?? /^git@github\.com:([A-Za-z0-9][A-Za-z0-9-]{0,38})\//i.exec(r)
+    ?? /^([A-Za-z0-9][A-Za-z0-9-]{0,38})\/[\w.-]+$/.exec(r);
+  if (!m) return null;
+  return { name: `${GITHUB_PREFIX}${m[1]!.toLowerCase()}`, label: m[1]! };
 }
 
 /** What one service counts as under a source: its organization, or its GitHub owner. */
