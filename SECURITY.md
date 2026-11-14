@@ -66,15 +66,17 @@ service data.
   (settings, activity) and logs under `~/Library/Logs/Fabric Dashboards/`. Uninstall removes the
   `fabric-dashboards` entry from Claude Code's `~/.claude.json`, and a later launch puts it back
   or points it at the installed copy; nothing else in that file is changed.
-- **Runs** the agent console's runtime (ADR-0017) when the person presses New session or Continue
-  last, when an agent asks through MCP (`console_new`, `console_fix`), and when a session stopped on a
+- **Runs** the agent console's runtime (ADR-0017) when the person presses New session, New agent or Continue
+  last, when an agent asks through MCP (`console_new`, `console_fix`, `session_new`, `session_action`), on another
+  machine over ssh for an agent placed there (FD-199), and when a session stopped on a
   limit is continued (FD-83): the runtime's own CLI found on the login shell's `PATH`, in the folder shown, with
   `ELECTRON_RUN_AS_NODE` and `NODE_OPTIONS` removed. A folder bound to a Fabric Switchboard project
   is started by `switchboard launch` itself, so no token passes through the app; a hand-over (FD-62) runs
   `switchboard handovers run`, and Switchboard picks its runtime and flags. The runtime starts with its own flag
   that skips permission prompts (SCN-097); a console whose saved choice keeps prompts, or a start held for its context
-  (FD-234, below), gets an explicit mode that asks instead. A session continued after a limit or from the Sessions
-  list always gets the skipping flag (FD-236 (1)). A runtime with no known flag starts with its own settings. Reading which
+  (FD-234, below), gets an explicit mode that asks instead. A session continued after a limit, or a Switchboard or hand-over
+  row continued from the Sessions list, always gets the skipping flag (FD-236 (1)); a console of this app continued from
+  its row follows its saved choice and is read again. A runtime with no known flag starts with its own settings. Reading which
   account a folder uses runs `switchboard --json project show` and `accounts list` (no credentials
   are printed by either).
 - **Allows inline styles** in its window (`style-src 'self' 'unsafe-inline'`), because the
@@ -168,10 +170,13 @@ answers (`service_context`, `activity`: an `untrusted` list of fields) say all o
 (`injectionSignals`: "ignore previous instructions", role or chat markup, `curl … | sh`, `rm -rf ~`, reading
 `~/.ssh` and sending it, asking to print a secret; every descriptor string up to 64 levels deep is read as written, a value that is not a string as its text) starts with
 permission prompts on, for that start (a console or Open in Terminal; a pack that cannot be written holds the start
-too): the runtime gets an explicit mode that asks (Claude Code `--permission-mode default`, Codex `-a on-request`,
+too): the runtime gets an explicit mode that asks (Claude Code `--permission-mode default`, Codex `-a on-request -s workspace-write`,
 Gemini CLI `--approval-mode default`), which neither its own settings nor Switchboard's launch override (Switchboard
-adds its bypass only when the arguments name no mode); logged, the person's saved choice unchanged. The reading is a heuristic that keeps a person in the loop, not a proof. Not covered yet (FD-236): a held
-conversation continued after a limit or from the Sessions list resumes without the hold; a Fix or Update typed into a
+adds its bypass only when the arguments name no mode). For Codex that is the approval policy and the sandbox; a
+Claude Code `permissions.allow` rule still approves its tools. OpenCode and Cursor CLI have no such mode: a held start
+drops their bypass flag and their own settings decide. Logged, the person's saved choice unchanged. The reading is a heuristic that keeps a person in the loop, not a proof. Not covered yet (FD-236): a held
+conversation continued after a limit, or from a Switchboard or hand-over row of the Sessions list, resumes without the
+hold; a Fix or Update typed into a
 session that already runs is fenced but only logged, not held (the person sends it); the console's own Continue reads only the events listed now, so a conversation that read an instruction-like event continues unheld once that event has scrolled out; the Setup console's `setup.md` carries the launcher doctor's text unfenced, and the Setup and New agent consoles (which carry no service text) are not held when their pack cannot be written; and `service_status`,
 `list_services`, `audit`, `doctor` and `update` mark nothing in their answers (the console rules name them; only
 `service_context` and `activity` carry an `untrusted` field, the pack carries the blocks). The hold shows no sign in

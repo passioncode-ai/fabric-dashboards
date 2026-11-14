@@ -173,7 +173,7 @@ test('FD-234 (verifier round 1): a held start drops the bypass flag on the Switc
   }
   const CODEX = { id: 'codex', name: 'Codex', path: '/bin/codex', provider: 'codex' as const, canContinue: true };
   const codex = planStart({ runtime: CODEX as never, mode: 'new', folder: '/r', binding: { kind: 'none' }, switchboard: '/sb', inPlace: true, bypass: false, managed: true } as never);
-  assert.ok(codex.kind === 'run' && codex.argv.join(' ').includes('-- -a on-request'), JSON.stringify(codex));
+  assert.ok(codex.kind === 'run' && codex.argv.join(' ').includes('-- -a on-request -s workspace-write'), JSON.stringify(codex));
 });
 
 test('FD-234 (verifier round 2): a block closes only on its own id; other lookalikes stay inside it', () => {

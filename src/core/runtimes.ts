@@ -46,13 +46,15 @@ export function bypassArgs(runtimeId: string): string[] {
  * FD-234 (verifier round 18): the arguments that keep a runtime's permission prompts on, whatever its own settings say,
  * for a start with prompts (the person's choice, or a start held for its context). Naming a mode is also what stops
  * Switchboard adding its own bypass to a launch (its SB-298 adds one unless the arguments name a permission mode).
- * Each value read from the installed `--help` and run on 2026-11-14: Claude Code 2.1.299 (`--permission-mode default`
- * starts and asks), Codex 0.165.0 (`-a on-request`; `untrusted` is refused there), Gemini CLI (`--approval-mode
- * default`). A runtime with none here keeps its own default, as it has no bypass flag either.
+ * Each value run on the installed copy on 2026-11-14: Claude Code 2.1.299 takes `--permission-mode default` (its long
+ * standing name, accepted though its `--help` now lists `manual`, which older copies lack); Codex 0.165.0 takes
+ * `-a on-request` (`untrusted` is refused) with `-s workspace-write`, so a `danger-full-access` sandbox in its config
+ * does not carry over; Gemini CLI 0.63.0 lists `--approval-mode default`. A runtime with none here keeps its own
+ * default, as it has no bypass flag either.
  */
 export const ASK_ARGS: Readonly<Record<string, readonly string[]>> = {
   'claude-code': ['--permission-mode', 'default'],
-  codex: ['-a', 'on-request'],
+  codex: ['-a', 'on-request', '-s', 'workspace-write'],
   'gemini-cli': ['--approval-mode', 'default'],
 };
 export function askArgs(runtimeId: string): string[] {
