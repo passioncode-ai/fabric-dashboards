@@ -84,8 +84,16 @@ export function handoffContext(s: ServiceSnapshot, activity: ActivityItem[], fol
     events,
     descriptor,
     fenceId: newFenceId(),
-    signals: injectionSignals([d?.name, version, updateAvailable, d?.summary, ...reasons, ...s.problems, lastAction, ...events.map((e) => e.text), descriptor ? JSON.stringify(descriptor) : null]),
+    signals: injectionSignals([s.key, d?.name, version, updateAvailable, d?.summary, ...reasons, ...s.problems, lastAction, ...events.map((e) => e.text), ...stringsOf(descriptor)]),
   };
+}
+
+/** FD-234 (verifier round 6): every string a descriptor holds, keys included, as the service wrote it: its JSON form
+ *  escapes a line break into `\\n`, which would hide an instruction from the reading. */
+function stringsOf(value: unknown, out: string[] = [], depth = 0): string[] {
+  if (typeof value === 'string') out.push(value);
+  else if (value && typeof value === 'object' && depth < 12) for (const [k, v] of Object.entries(value)) { out.push(k); stringsOf(v, out, depth + 1); }
+  return out;
 }
 
 const line = (label: string, value: string | null) => (value ? `- **${label}:** ${value}` : null);
@@ -94,16 +102,16 @@ const line = (label: string, value: string | null) => (value ? `- **${label}:** 
 export function contextMarkdown(c: HandoffContext, generatedAt: string): string {
   const src = `service:${c.key}`;
   const out: (string | null)[] = [
-    `# ${literal(c.name, 120)} (${c.key}): context from Fabric Dashboards`,
+    `# ${literal(c.name, 120)} (${literal(c.key, 200)}): context from Fabric Dashboards`,
     '',
-    `Written ${generatedAt}. Read it fresh any time with the \`fabric-dashboards\` MCP tool \`service_context\` (key \`${c.key}\`).`,
+    `Written ${generatedAt}. Read it fresh any time with the \`fabric-dashboards\` MCP tool \`service_context\` (key ${literal(c.key, 200)}).`,
     '',
     // FD-234: what the service wrote is fenced; the agent is told once what the fence means.
     UNTRUSTED_NOTE,
-    ...(c.signals.length ? ['', `Some of that text reads like instructions (${c.signals.join(', ')}), so Fabric Dashboards started this session with permission prompts on: the person approves each step.`] : []),
+    ...(c.signals.length ? ['', `Some of that text reads like instructions (${c.signals.join(', ')}), so Fabric Dashboards started this session without the flag that turns permission prompts off: the coding agent\'s own permission setting decides each step.`] : []),
     '',
     '## Who',
-    line('Agent', `${literal(c.name, 120)}, the Fabric service \`${c.key}\``),
+    line('Agent', `${literal(c.name, 120)}, the Fabric service ${literal(c.key, 200)}`),
     ...(c.summary ? ['', fence(src, c.summary, c.fenceId), ''] : []),
     line('Placement', c.placement === 'remote' ? 'online (runs on its own server)' : 'on this computer'),
     line('Origin', c.origin && literal(c.origin)),
@@ -147,18 +155,18 @@ export function fixTask(c: HandoffContext): HandoffTask {
   if (c.waitsForSetup && c.problems.length === 0) return {
     kind: 'fix',
     title: `${literal(c.name, 120)} waits for setup`,
-    body: `${literal(c.name)} (\`${c.key}\`) runs but waits for you to set it up (Fabric Dashboards):\n\n${why}\n\nSet up each part it names the way its repository documents (README, AGENTS.md, its setup command), and confirm with the MCP tool \`service_status\` that no setup entry is left. Ask me for every secret through a hidden prompt (never print one), and before any sign-in or anything destructive.`,
+    body: `${literal(c.name)} (${literal(c.key, 200)}) runs but waits for you to set it up (Fabric Dashboards):\n\n${why}\n\nSet up each part it names the way its repository documents (README, AGENTS.md, its setup command), and confirm with the MCP tool \`service_status\` that no setup entry is left. Ask me for every secret through a hidden prompt (never print one), and before any sign-in or anything destructive.`,
   };
   return {
     kind: 'fix',
     title: `${literal(c.name, 120)} is ${c.state}`,
-    body: `${literal(c.name)} (\`${c.key}\`) is **${c.state}** in Fabric Dashboards:\n\n${why}\n\nFind the cause in its repository, logs and recent events (context.md), fix it, and confirm with the MCP tool \`service_status\` that it is \`ready\`. Ask me before anything destructive, any sign-in, or a secret (use a hidden prompt for secrets; never print one).`,
+    body: `${literal(c.name)} (${literal(c.key, 200)}) is **${c.state}** in Fabric Dashboards:\n\n${why}\n\nFind the cause in its repository, logs and recent events (context.md), fix it, and confirm with the MCP tool \`service_status\` that it is \`ready\`. Ask me before anything destructive, any sign-in, or a secret (use a hidden prompt for secrets; never print one).`,
   };
 }
 
 /** FD-81: what *Fix with agent* on the auditor's findings hands over: the findings as the person read them. */
 export function auditTask(c: HandoffContext, findings: string): HandoffTask {
-  return { kind: 'audit', title: `Audit findings for ${literal(c.name, 120)}`, body: findings.trim() ? fence('audit', findings.trim(), c.fenceId) : `${literal(c.name)} (\`${c.key}\`): the auditor found nothing at the time of the start. Check with the MCP tool \`audit\`.` };
+  return { kind: 'audit', title: `Audit findings for ${literal(c.name, 120)}`, body: findings.trim() ? fence('audit', findings.trim(), c.fenceId) : `${literal(c.name)} (${literal(c.key, 200)}): the auditor found nothing at the time of the start. Check with the MCP tool \`audit\`.` };
 }
 
 /** What *Update with agent* hands over (D-3). */
@@ -167,7 +175,7 @@ export function updateTask(c: HandoffContext, failedOutput: string | null): Hand
   return {
     kind: 'update',
     title: `Update ${literal(c.name, 120)}${target}`,
-    body: `Update ${literal(c.name)} (\`${c.key}\`) from ${c.version ? literal(c.version) : 'its current version'}${target}.\n\n`
+    body: `Update ${literal(c.name)} (${literal(c.key, 200)}) from ${c.version ? literal(c.version) : 'its current version'}${target}.\n\n`
       + (c.canUpdate ? 'Its descriptor has an `update` command; ' + (failedOutput ? `it failed:\n\n${fence('command', `\`\`\`\n${failedOutput.slice(-2000)}\n\`\`\``, c.fenceId)}\n\nFind out why and finish the update.` : 'run it with the MCP tool `update`, and finish what it cannot do.') : 'Its descriptor has no `update` command: update it the way its repository documents (README, AGENTS.md), then restart it.')
       + '\n\nConfirm with `service_status` that it answers as the new version. Ask me before anything destructive.',
   };
@@ -179,7 +187,7 @@ export function updateTask(c: HandoffContext, failedOutput: string | null): Hand
  * returns (`rules`), so a rule is never in two places.
  */
 export function preamble(key: string): string {
-  return `You are working on a Fabric agent, opened from Fabric Dashboards. Call the fabric-dashboards tool service_context with key ${key} before you do anything else: it returns the agent's live state, its errors, events, repository and descriptor, and the rules for this console. If the call fails, say so and stop rather than guessing what it would have said.`;
+  return `You are working on a Fabric agent, opened from Fabric Dashboards. Call the fabric-dashboards tool service_context with key ${oneLine(key, 200)} before you do anything else: it returns the agent's live state, its errors, events, repository and descriptor, and the rules for this console. If the call fails, say so and stop rather than guessing what it would have said.`;
 }
 
 /** The brief (SH-8): the agent's own text — where its task is, when it has one — then the preamble. */

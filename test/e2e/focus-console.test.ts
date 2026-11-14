@@ -124,7 +124,7 @@ test('ADR-0017: a one-line header, a folding sidebar, and an agent console besid
     assert.equal(manifest.firstCall.arguments.key, 'sample.default');
     assert.equal(manifest.launch.runtime, 'claude-code');
     const context = fs.readFileSync(path.join(pack, 'context.md'), 'utf8');
-    assert.match(context, /# `Sample Service` \(sample\.default\)/);
+    assert.match(context, /# `Sample Service` \(`sample\.default`\)/);
     assert.match(context, /\*\*State:\*\* (ready|degraded)/);
     assert.ok(!context.includes('tokenFile'), 'the token file is never in the context');
     assert.equal(fs.statSync(path.join(pack, 'context.md')).mode & 0o777, 0o600);

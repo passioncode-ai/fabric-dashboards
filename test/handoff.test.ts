@@ -39,7 +39,7 @@ test('FD-39 REQ-001: the context names the agent, its state and why, its reposit
   const md = contextMarkdown(c, '2026-10-10T12:00:00Z');
   assert.ok(!md.includes(SECRET_PATH), 'the token file path never reaches the agent');
   assert.ok(!md.includes('X-Runner-Token'), 'nor the header that carries it');
-  for (const s of ['# `Runner` (runner.dev)', '**State:** down', 'https://github.com/example/runner', '/Users/me/DATA/runner', 'service_context', '"id": "runner"']) assert.ok(md.includes(s), s);
+  for (const s of ['# `Runner` (`runner.dev`)', '**State:** down', 'https://github.com/example/runner', '/Users/me/DATA/runner', 'service_context', '"id": "runner"']) assert.ok(md.includes(s), s);
 });
 
 test('FD-39 REQ-001: recent events are this agent\'s, newest first, and warnings survive a flood of info rows', () => {
