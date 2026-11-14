@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.8.97 - 2026-11-15
+
+### Changed
+
+- FD-244: Overview lists agents on this Mac and online in one Agents group, as the sidebar does; a card of an agent
+  that runs in both places shows each place's state.
+
+### Security
+
+- FD-258: on Windows the channel between the app and its MCP server is named from a secret only this account can
+  read, so another account on the machine cannot take the name first.
+
 ## 0.8.96 - 2026-11-15
 
 The first published build since 0.8.88: 0.8.89 to 0.8.95 below were tagged but never published, since the release
