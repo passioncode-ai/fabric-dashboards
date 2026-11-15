@@ -8,6 +8,12 @@
   of an agent's process is read once and reused for ten minutes while the process runs (each connection is still
   checked against a fresh socket table). With 55 agents this removes about 25 short processes a minute.
 
+### Fixed
+
+- FD-270: Start, Stop and Restart (and the MCP `control` tool) refuse a launchd job the local lifecycle broker enrolls,
+  and name the broker's target, so the app never fights the broker that owns the job. The broker enrolls only apps
+  today; the refusal holds once it enrolls a job.
+
 ## 0.8.120 - 2026-11-15
 
 ### Added

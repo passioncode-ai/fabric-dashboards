@@ -803,6 +803,7 @@ const en = {
   'result.placementUnreadable': '{name} was not started: the placement record could not be read ({detail}), so where it should run is unknown.',
   // FD-167: copy check 903f23c3.
   'result.systemDaemon': '{name} runs as a system service of this space: only the administrator starts or stops it.',
+  'result.broker': '{name} is kept by the local lifecycle broker ({target}): the broker starts, stops and restarts it, not this app.',
   'result.notHere': '{name} runs on {machine}: nothing of it runs on this computer to stop.',
   'result.notHere.unknown': '{name} runs on another machine: nothing of it runs on this computer to stop.',
   'card.systemDaemon': 'Runs as a system service of this space: only the administrator starts or stops it.',
@@ -2029,6 +2030,7 @@ const ru: Record<Key, string> = {
   'result.placementUnreadable': '{name} не запущен: запись о размещении не читается ({detail}), поэтому неизвестно, где он должен работать.',
   // FD-167: copy check 6622e99f.
   'result.systemDaemon': '{name} работает как системная служба этого пространства: запускает и останавливает её только администратор.',
+  'result.broker': '{name} ведёт брокер жизненного цикла ({target}): запускает, останавливает и перезапускает его брокер, а не это приложение.',
   'result.notHere': '{name} работает на машине {machine}: на этом компьютере останавливать нечего.',
   'result.notHere.unknown': '{name} работает на другой машине: на этом компьютере останавливать нечего.',
   'card.systemDaemon': 'Работает как системная служба этого пространства: запускает и останавливает её только администратор.',
