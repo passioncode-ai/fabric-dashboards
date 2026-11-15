@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.8.114 - 2026-11-15
+
+### Added
+
+- FD-247: with other machines, the Sessions sidebar lists each as a heading that folds; a folded machine still shows the
+  sessions that need you, those running and the one open, and the fold is kept. A machine not read now is greyed.
+
 ## 0.8.113 - 2026-11-15
 
 ### Added

@@ -103,7 +103,8 @@ machine; SCN-112 open here or end a hosted session there. SCN-078 steps 1-2 and 
 6. The renderer list: helpers, table and filters, machine tree, filters in settings.
    In part in 0.8.113: `filterRows`, `searchRows`, `machineGroups`, `machineStatusWords` in `sessions-view.ts`; All
    sessions with search, chips, "N of M shown", machine headings and greyed rows of a machine not read now;
-   `settings.layout.sessionsFilter`. Left: the table view (cards stay meanwhile) and the sidebar's machine tree.
+   `settings.layout.sessionsFilter`. 0.8.114: the sidebar's machine tree (`layout.sessionsFolded`; a folded machine keeps
+   needs-you, running and the open row). Left: the table view (cards stay meanwhile).
 7. Remote actions: attach and end argv, the machine terminal console, channel and IPC.
 8. MCP tools and the parity test.
 9. Docs: scenarios, AGENTS.md lifecycle rows, CHANGELOG, copy checks in en and ru.

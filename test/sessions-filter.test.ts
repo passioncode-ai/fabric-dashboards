@@ -5,6 +5,7 @@ import test from 'node:test';
 import * as React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { AllSessions } from '../src/renderer/components/Sessions';
+import { SessionsNav } from '../src/renderer/components/Navigation';
 import { LangContext } from '../src/renderer/lib';
 import { filterActive, filterRows, machineGroups, machineStatusWords, NO_FILTER, originKey, searchRows, type SessionFilter } from '../src/core/sessions-view';
 import { setWording } from '../src/core/i18n';
@@ -98,4 +99,27 @@ test('FD-247 step 6: the filters are kept in settings; anything unknown is dropp
   const m = merge({ layout: { ...DEFAULT_SETTINGS.layout, sessionsFilter: { machines: ['', 'studio-2', 7], groups: ['running', 'bogus'], origins: ['here', 'nope'] } as never } });
   assert.deepEqual(m.layout.sessionsFilter, { machines: ['', 'studio-2'], groups: ['running'], origins: ['here'] });
   assert.deepEqual(merge({}).layout.sessionsFilter, { machines: [], groups: [], origins: [] });
+});
+
+const nav = (s: SessionsStatus, folded: string[] = [], currentId: string | null = null) => renderToStaticMarkup(React.createElement(LangContext.Provider, { value: 'en' },
+  React.createElement(SessionsNav, { sessions: s, currentId, allCurrent: false, rail: false, endedOpen: true, onEndedOpen: noop, openAll: noop, openRow: noop, folded, onFold: noop })));
+
+test('FD-247 step 6b: the sidebar is a tree of machines; a folded one keeps what needs the person and what runs', () => {
+  const s = status({ rows: [...rows, srow({ id: 'e', state: 'idle-closed', folder: '/srv/w/old', machine: 'studio-2', endedAt: AT })] });
+  const open = text(nav(s));
+  assert.match(open, /This computer .* billing-api .* studio-2 .* docs-site .* old .* studio-3 .* ledger .* studio-4/);
+  assert.match(nav(s), /aria-expanded="true"[^>]*>.*?studio-2/);
+  const folded = nav(s, ['studio-2']);
+  assert.match(text(folded), /docs-site/, 'a running row stays when its machine is folded');
+  assert.doesNotMatch(text(folded), / old /, 'an ended row folds away');
+  assert.match(text(nav(s, ['studio-2'], 'e')), / old /, 'the open session stays in view');
+  assert.match(nav(s), /nav-machine nav-machine-stale/);
+  assert.match(nav(s), /visually-hidden">: studio-3: not reachable over ssh/);
+});
+
+test('FD-247 step 6b: with one Mac the sidebar reads as before, and folded machines are kept in settings', () => {
+  const html = nav(status({ rows: [rows[0]!], machines: [] }));
+  assert.doesNotMatch(html, /nav-machine/);
+  assert.match(html, /id="snav-running"/);
+  assert.deepEqual(merge({ layout: { ...DEFAULT_SETTINGS.layout, sessionsFolded: ['', 'studio-2', 3] as never } }).layout.sessionsFolded, ['', 'studio-2']);
 });

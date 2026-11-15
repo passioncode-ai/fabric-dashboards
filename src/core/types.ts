@@ -113,6 +113,8 @@ export interface Settings {
     /** FD-247 (step 6, SCN-109): All sessions' filters; an empty list lets every value through. `machines` holds machine
      *  names, '' for this Mac; `origins` how a session came (`sessions.origin.*`, and `dispatch`). */
     sessionsFilter: { machines: string[]; groups: ('needs-you' | 'running' | 'waiting' | 'ended')[]; origins: string[] };
+    /** FD-247 (step 6b): the machines folded in the Sessions sidebar ('' is this Mac). */
+    sessionsFolded: string[];
   };
   /** ADR-0017: per service key, the runtime and folder its console last used (null: not chosen yet). */
   consoles: Record<string, { runtime: string | null; folder: string | null;
@@ -220,7 +222,7 @@ export const DEFAULT_SETTINGS: Settings = {
     pausedUntil: null,
     channel: 'auto',
   },
-  layout: { sidebar: 'expanded', sidebarWidth: SIDEBAR_WIDTH.default, header: 'compact', console: { open: false, height: CONSOLE_HEIGHT.default, full: true }, focus: false, tabs: [], list: { sort: 'name', pinned: [], hidden: [], kinds: {}, hiddenOpen: false, order: [], off: [], orgs: [], groupByOrg: false, orgSource: 'org' }, mode: 'agents', sessionId: null, endedOpen: false, sessionsFilter: { machines: [], groups: [], origins: [] } },
+  layout: { sidebar: 'expanded', sidebarWidth: SIDEBAR_WIDTH.default, header: 'compact', console: { open: false, height: CONSOLE_HEIGHT.default, full: true }, focus: false, tabs: [], list: { sort: 'name', pinned: [], hidden: [], kinds: {}, hiddenOpen: false, order: [], off: [], orgs: [], groupByOrg: false, orgSource: 'org' }, mode: 'agents', sessionId: null, endedOpen: false, sessionsFilter: { machines: [], groups: [], origins: [] }, sessionsFolded: [] },
   consoles: {},
   newSession: { runtime: null, folder: null, bypass: true, isolated: false },
   resumeAfterLimit: true,
