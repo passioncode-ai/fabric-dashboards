@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-PassionCode-Commercial
 """The board responder's slot records (FAA-155, FAA-163): the generation it holds each slot at, a move to another
 session and its take-back, and a capability whose enroll was refused, retried on its own. Part of the board connector
 (FAA-65, layer L4); `Responder` (fabric_board_session) is a `SlotKeeper`."""
@@ -35,6 +36,10 @@ class SlotKeeper:
         self._confirmed[capability] = generation
         self._said.pop("board.slot.refused:" + capability, None)  # held again: a later refusal is said again
         self._said.pop("board.slot.contested:" + capability, None)  # and a later contest, by enroll or replace
+        if capability in self._taken_back:  # FAA-325: held again after the operator's take-back, said once
+            self._taken_back.discard(capability)
+            self._emit("board.slot.returned", "info", "The %s slot on this Project is this service's again: the operator "
+                       "took it back, and it answers it from now on." % capability, capability=capability, generation=generation)
 
     def _note(self, capability: str, record: Optional[Dict[str, Any]]) -> None:
         """The slot record, best effort: one that cannot be written now is written at the next receipt."""
@@ -125,19 +130,20 @@ class SlotKeeper:
                 self._note(capability, dict(held, moved=now))  # said again at the next start if it cannot be written
         if "moved" not in held:  # once, even across restarts
             self._emit("board.slot.moved", "warning", "The %s slot on this Project moved to another session. This service stopped answering it; accepted "
-                       "work stays `accepted` (work begun is the new holder's). The operator brings it back by take-back (once the "
-                       "other session lets it go, or at a restart with accepted work waiting; a restart alone does not) or, where "
-                       "Fabric offers it, a move back here. Else ask its maintainer." % capability,
+                       "work stays accepted (work begun is the new holder's). The operator brings it back by take-back (once the "
+                       "other session lets it go, or at a restart or reconnect with accepted work waiting; neither alone does) or, "
+                       "where Fabric can, a move back here. Else ask its maintainer." % capability,
                        notify=True, episode=capability, capability=capability, generation=now, held=held["generation"])
         return True
 
-    def _moved_back(self, capability: str) -> None:
+    def _moved_back(self, capability: str, shared: Optional[Dict[str, Any]] = None) -> None:
         """A moved slot asked about once per later generation (FAA-165): the operator may move it back to this session
         (DEC-0140 PR-2), which this client cannot hear, so when com.status shows a generation past the recorded move, one
         `com.claim` asks whether the slot is its own. A claim that lands makes it held again and starts what it handed
         out; a `lease_expired` one (the move reached this session but its lease lapsed) enrolls again; a fenced one is
         another session's, recorded so the same generation is not asked about twice. Never an enroll or a replace on a
-        slot another session holds: a slot moved off stays off unless it is handed back."""
+        slot another session holds: a slot moved off stays off unless it is handed back. `shared` holds the tick's one
+        com.status read, shared by every moved slot (FAA-194 (5))."""
         if self.current is not None or self.stopping:
             return  # a claim now could hand out a second request, or start work while the responder stops
         held = self.checkpoint.slots.get(capability) or {}
@@ -145,7 +151,12 @@ class SlotKeeper:
         if held.get("project") != self.project or not _is_int(seen, 1):
             return
         (self.slots.get(capability) or {})["renewed_at"] = self.now()
-        status = self._status()
+        if shared is not None and "status" in shared:
+            status = shared["status"]
+        else:
+            status = self._status()
+            if shared is not None:
+                shared["status"] = status
         now = _whole(next((r.get("generation") for r in status.get("responders") or [] if isinstance(r, dict) and r.get("capability") == capability), None))
         if not _is_int(now, 1) or now <= seen:
             return
@@ -200,9 +211,12 @@ class SlotKeeper:
             if self.checkpoint.slots.get(capability) != held:
                 return False  # take_back (an action thread) forgot the record meanwhile; its own next tick enrolls
             self.slots[capability] = {"state": "held", "generation": generation, "renewed_at": float("-inf")}  # no lease yet
+            self._taken_back.discard(capability)  # said below as a move back, once
             self._held_at(capability, generation)
             self._said.pop("board.slot.moved", None)  # a later move is said again
-        return True
+        self._emit("board.slot.returned", "info", "The %s slot on this Project is this service's again: the operator moved it "
+                   "back here, and it answers it from now on." % capability, capability=capability, generation=generation)
+        return True  # FAA-194 (8): the feed no longer ends on the move's warning
 
     def take_back(self, capability: str) -> None:
         """The operator's act, never the kit's: forget the move; the next tick enrolls once the slot is free (FAA-155)."""
@@ -212,9 +226,12 @@ class SlotKeeper:
             self.checkpoint.slot(capability, None)
             self.claim_keys.pop(capability, None)  # a receipt from before the take-back may be dead
             self._probing.discard(capability)
-            if (self.slots.get(capability) or {}).get("state") == "moved":
+            state = (self.slots.get(capability) or {}).get("state")
+            if state == "moved":
                 self.slots[capability] = {"state": "contested", "renewed_at": 0.0}
             self._said.pop("board.slot.moved", None)
+            if state != "held":  # board.slot.returned is said once the slot is held again (FAA-325); held, nothing to say
+                self._taken_back.add(capability)
 
     # -- one capability's refusal (FAA-163) ------------------------------------------------------------------------
     def _retry_later(self, capability: str, entries: List[Dict[str, Any]], exc: BoardError) -> None:

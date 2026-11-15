@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-PassionCode-Commercial
 """JavaScript's view of JSON values, once for the whole kit (FAA-65, layer L0).
 
 The contract's answers are computed by TypeScript, so a kit that reads JSON the way Python does disagrees with them on
@@ -117,12 +118,14 @@ def js_string(value: Any) -> str:
     if value is False:
         return "false"
     if isinstance(value, float):
+        value = float.__float__(value)  # a subclass (numpy.float64) by the number it stores, never its repr (FAA-196 (22))
         if math.isnan(value):
             return "NaN"
         if math.isinf(value):
             return "Infinity" if value > 0 else "-Infinity"
         return js_number_string(value)
     if isinstance(value, int):
+        value = int.__int__(value)
         if abs(value) < 2 ** 53:
             return str(value)
         try:

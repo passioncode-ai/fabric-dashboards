@@ -96,12 +96,19 @@ from check_service_rules import _semver  # noqa: E402,F401 - moved (FAA-65)
 from check_service_rules import usage_problems  # noqa: E402,F401 - moved (FAA-65)
 from check_service_rules import same_repository  # noqa: E402,F401 - moved (FAA-65)
 from check_service_rules import merge_headers, session_cookie  # noqa: E402,F401 - FAA-115
-from check_service_rules import well_known_actions_verdict, action_tools_verdict, actions_declared_verdict  # noqa: E402 - DEC-0121
+from check_service_rules import well_known_actions_verdict, action_tools_verdict, actions_declared_verdict, dashboard_agent_surface_verdict, login_code_url  # noqa: E402,E501 - DEC-0121, FAA-332, FAA-337
 from check_service_rules import opens_in_host_verdict, service_checkout, declared_limits, holds_verdict  # noqa: E402 - FAA-118, FAA-298
 from check_service_rules import well_known_a2a_verdict, a2a_card_verdict  # noqa: E402 - DEC-0122
 import fabric_a2a as fa2  # noqa: E402 - DEC-0122
 import check_service_channel_agent as cac  # noqa: E402 - DEC-0150, FAA-197
 
+
+
+def _member(descriptor: Dict[str, Any], key: str) -> Dict[str, Any]:
+    """An object member of the descriptor, or {} when a hand-edited one holds another type: descriptor.valid names that,
+    and no later rule raises on it (FAA-200 (38))."""
+    value = descriptor.get(key)
+    return value if isinstance(value, dict) else {}
 
 class _PinnedHTTPS(http.client.HTTPSConnection):
     """HTTPS to the origin's name (SNI, certificate, Host) over a socket dialled elsewhere."""
@@ -220,7 +227,7 @@ class Probe:
             self.add("descriptor.source-repository", "NOT_RUN", "source is refused: %s" % added[0])
         else:
             self.add("descriptor.source-repository", "PASS", "names %s" % shown_repository(self.d["source"]["repository"]))
-        if (self.d.get("lifecycle") or {}).get("manager") == "person":
+        if _member(self.d, "lifecycle").get("manager") == "person":
             # DEC-0069: installed, never running — a reader checks the app is still there; liveness is the app's own file.
             present = fs.app_present(self.d)
             self.add("descriptor.app-installed", "PASS" if present else "FAIL",
@@ -378,7 +385,7 @@ class Probe:
     def read_token(self) -> None:
         if any(r["rule"] == "auth.token-file" for r in self.results):
             return
-        token_file = str((self.d.get("auth") or {}).get("tokenFile", ""))
+        token_file = str(_member(self.d, "auth").get("tokenFile", ""))
         try:
             self.token = fs.read_token(fs.expand(token_file))
             self.add("auth.token-file", "PASS", "%s is 0600 and owned by you" % token_file)
@@ -532,12 +539,11 @@ class Probe:
             return
         try:
             status, _, body = self.request("POST", "/fabric/v1/login-code", self.auth_headers())
-            code = json.loads(body)
-            url = code["url"]
+            url = login_code_url(status, body)
             status1, headers1, _ = self.request("GET", url)
             status2, _, _ = self.request("GET", url)
         except (OSError, ValueError, KeyError) as exc:
-            self.add("login.single-use", "FAIL", "login-code flow broke: %s" % exc)
+            self.add("login.single-use", "FAIL", "login-code flow broke: %s (a dashboard signed in by a proxy declares no login)" % exc)
             return
         cookie = session_cookie(headers1.get("set-cookie", ""), self.remote)
         ok = status1 in (302, 303) and "HttpOnly" in cookie and "SameSite=Strict" in cookie and status2 not in (302, 303)
@@ -608,7 +614,7 @@ class Probe:
                      "%s names %s" % (where, named) if named else "%s carries no %s block naming %s" % (where, fs.EXTENSION_KEY, me))
         capabilities = [c for c in (manifest or {}).get("capabilities", []) if isinstance(c, dict)]
         names = {c.get("name") for c in capabilities}
-        mcp_surface = ((self.wk or {}).get("surfaces") or {}).get("mcp")
+        mcp_surface, listed_tools = ((self.wk or {}).get("surfaces") or {}).get("mcp"), None  # FAA-332: tools/list, once read
         listed = (mcp_surface or {}).get("capabilities")
         if listed is None or manifest is None:
             self.add("interop.well-known-capabilities", "NOT_RUN", "no capability list on the MCP surface" if listed is None else where)
@@ -654,8 +660,10 @@ class Probe:
                 self.tools_match_rule(capabilities, manifest_path, tools)
                 self.job_tools_rule(capabilities, tools)
                 self.add("interop.action-tools", *action_tools_verdict(self.wk, tools))  # DEC-0121 AP-1: the live twin
+                listed_tools = tools
                 self.unknown_job_rule(list(tools))
                 self.trace_rule(listing, sent)
+        self.add("dashboard.agent-surface", *dashboard_agent_surface_verdict(self.wk, listed_tools, remote=self.remote))  # FAA-332
         self.events_trace_rule(self.events)
 
     def channel_agent_rule(self) -> None:
@@ -795,8 +803,8 @@ class Probe:
         if self.remote:
             self.add("lifecycle.platform", "NOT_RUN", "a remote placement is supervised by its platform; launchd, lock and state rules do not apply")
             return
-        life = self.d.get("lifecycle") or {}
-        data = fs.expand(str((self.d.get("paths") or {}).get("data", "~/")))
+        life = _member(self.d, "lifecycle")
+        data = fs.expand(str(_member(self.d, "paths").get("data", "~/")))
         inside = subprocess.run(["git", "-C", str(data), "rev-parse", "--show-toplevel"], capture_output=True, text=True) if data.is_dir() and shutil.which("git") else None
         self.state_rule(data, inside)
         self.lock_rule(data)
@@ -809,7 +817,7 @@ class Probe:
         except (OSError, ValueError) as exc:
             self.add("lifecycle.plist", "FAIL", "cannot read %s: %s" % (plist_path, exc))
             return
-        problems = plist_problems(plist, life.get("label"), self.token, system=in_launch_daemons(plist_path), commands=self.d.get("commands"))
+        problems = plist_problems(plist, life.get("label"), self.token, system=in_launch_daemons(plist_path), commands=_member(self.d, "commands"))
         self.add("lifecycle.plist", "FAIL" if problems else "PASS", "; ".join(problems) or "%s: RunAtLoad, KeepAlive, no secrets" % plist_path.name)
         marker = marker_problem(plist)
         self.add("lifecycle.supervisor-marker", "FAIL" if marker else "PASS",

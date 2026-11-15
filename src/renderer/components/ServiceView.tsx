@@ -465,14 +465,19 @@ function Profile({ s }: { s: ServiceSnapshot }) {
     // then showed "no spend" for good. Read again in 5 s while there is no report, then every minute (ADR-0014).
     let alive = true;
     let timer: ReturnType<typeof setTimeout> | null = null;
-    const read = () => {
-      void api().spend().then((r) => {
+    // A retry asks the main process for a fresh read (`force`): the shared read serves 30 s (ADR-0014), so without it the
+    // retries got the same empty answer (FD-246's e2e walk). At most six forced reads, 5 s apart, then the minute cadence.
+    let tries = 0;
+    const read = (force = false) => {
+      void api().spend(force).then((r) => {
         if (!alive) return;
         const mine = r.entries.find((e) => e.key === s.key);
         const report = Boolean(mine && mine.kind === 'report');
         setModels(mine && mine.kind === 'report' ? mine.summary.models.slice(0, 5) : []);
-        timer = setTimeout(read, report ? 60_000 : 5_000);
-      }).catch(() => { if (alive) { setModels([]); timer = setTimeout(read, 5_000); } });
+        const retry = !report && tries < 6;
+        if (retry) tries += 1;
+        timer = setTimeout(() => read(retry), retry ? 5_000 : 60_000);
+      }).catch(() => { if (alive) { setModels([]); timer = setTimeout(() => read(false), 5_000); } });
     };
     read();
     return () => { alive = false; if (timer) clearTimeout(timer); };
