@@ -27,18 +27,46 @@ export { instanceOf, productIdOf };
 
 const hasDashboard = (s: ServiceSnapshot) => Boolean(s.wellKnown?.surfaces.dashboard);
 
-/** Groups services into products, keeping the order of each product's first member in the input. */
+// #region agent-rows-by-organization — docs: docs/design/2026-11-15-agent-rows-by-organization.md#decision
+/** The member a product opens: `default`, else the first with a dashboard, else the first by key. */
+function primaryOf<T extends { key: string }>(members: readonly T[], dashboard: (m: T) => boolean): T {
+  const sorted = [...members].sort((a, b) => (a.key < b.key ? -1 : a.key > b.key ? 1 : 0));
+  return sorted.find((m) => instanceOf(m.key) === 'default') ?? sorted.find(dashboard) ?? sorted[0]!;
+}
+
+/** FD-244 (design 2026-11-15): each instance's row. A row is the service id for the primary's organization; an instance
+ *  of another known organization is a row of its own, `<id>@<organization>`. Unknown on either side splits nothing.
+ *  Shared by the list, the monitor (agents turned off), the tray, Settings and the MCP answers. */
+export function rowIds<T extends { key: string; organization?: string | null }>(members: readonly T[], dashboard: (m: T) => boolean = () => false): Map<string, string> {
+  const byId = new Map<string, T[]>();
+  for (const m of members) { const id = productIdOf(m.key); byId.set(id, [...(byId.get(id) ?? []), m]); }
+  const out = new Map<string, string>();
+  for (const [id, list] of byId) {
+    const home = primaryOf(list, dashboard).organization ?? null;
+    for (const m of list) out.set(m.key, home && m.organization && m.organization !== home ? `${id}@${m.organization}` : id);
+  }
+  return out;
+}
+/** FD-244: `rowIds` over snapshots, with the list's own primary rule. */
+export function snapshotRows(services: readonly ServiceSnapshot[]): Map<string, string> {
+  return rowIds(services.map((s) => ({ key: s.key, organization: s.organization?.name ?? null, s })), (m) => hasDashboard(m.s));
+}
+// #endregion agent-rows-by-organization
+
+/** Groups services into products, keeping the order of each product's first member in the input. FD-244: an instance
+ *  of another organization than its product's primary is a product of its own (`rowIds`). */
 export function groupProducts(services: readonly ServiceSnapshot[]): Product[] {
+  const rows = snapshotRows(services);
   const byId = new Map<string, ServiceSnapshot[]>();
   for (const s of services) {
-    const id = productIdOf(s.key);
+    const id = rows.get(s.key) ?? productIdOf(s.key);
     const list = byId.get(id);
     if (list) list.push(s);
     else byId.set(id, [s]);
   }
   return [...byId.entries()].map(([id, list]) => {
     const sorted = [...list].sort((a, b) => (a.key < b.key ? -1 : a.key > b.key ? 1 : 0));
-    const primary = sorted.find((s) => instanceOf(s.key) === 'default') ?? sorted.find(hasDashboard) ?? sorted[0]!; // a group is never empty
+    const primary = primaryOf(sorted, hasDashboard); // a group is never empty
     const members = [primary, ...sorted.filter((s) => s !== primary)];
     const answered = members.some((s) => s.wellKnown);
     return {
