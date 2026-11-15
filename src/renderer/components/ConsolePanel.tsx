@@ -204,10 +204,10 @@ export function ConsolePanel({ serviceKey, height, maxHeight, onHeight, onDrag, 
     // FD-199: a session on another machine needs no folder here.
     if (rt?.canContinue && (info.folder?.exists || (info.remote?.where !== 'here' && info.remote?.destination && info.folder))) {
       // VIS-14 (FD-113): the idle close is news, not an error: a calm notice a screen reader reads politely.
-      setNotice({ text: t('console.idle.resumed', { account: info.idle.account ?? t('word.notRecorded') }), info: true });
+      setNotice({ text: t(info.idle.why === 'stuck' ? 'console.stuck.resumed' : 'console.idle.resumed', { account: info.idle.account ?? t('word.notRecorded') }), info: true });
       // A refused continue keeps its own sentence (say), never this one.
-      void start('continue').then((r) => { if (r?.ok) setNotice({ text: t('console.idle.resumed', { account: info.idle?.account ?? t('word.notRecorded') }), info: true }); });
-    } else setNotice({ text: t('console.idle.closed'), info: true });
+      void start('continue').then((r) => { if (r?.ok) setNotice({ text: t(info.idle?.why === 'stuck' ? 'console.stuck.resumed' : 'console.idle.resumed', { account: info.idle?.account ?? t('word.notRecorded') }), info: true }); });
+    } else setNotice({ text: t(info.idle.why === 'stuck' ? 'console.stuck.closed' : 'console.idle.closed'), info: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [info?.key, info?.idle?.at, active]);
 

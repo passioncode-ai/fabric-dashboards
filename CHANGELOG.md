@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.8.125 - 2026-11-15
+
+### Fixed
+
+- FD-275: a Claude Code console stuck with its spinner turning was never closed: the spinner kept the console's output
+  alive, so the 30-minute idle close never saw it. A console busy for 45 minutes with nothing written to its
+  conversation (Switchboard's duty officer's `stuck`) is now closed and saved like an idle one, and opening it continues
+  the conversation, with a notice that says why. One whose conversation file cannot be found is left alone.
+
 ## 0.8.124 - 2026-11-15
 
 ### Added

@@ -61,7 +61,7 @@ export interface ConsoleInfo {
   account?: { kind: 'route'; pool: string; label: string } | { kind: 'ordinary'; reason: 'unmanaged' } | { kind: 'ordinary'; reason: 'no-route'; pool: string } | { kind: 'missing'; pool: string; group: string } | { kind: 'unread'; pool: string; group: string } | null;
   session: { state: 'idle' | 'running' | 'exited'; label: string; cwd: string; output: string; end: number; exitCode: number | null; signal: number | null };
   /** FD-50 (LC-18): the session was closed after the idle time; opening the console continues it. */
-  idle: { at: string; account: string | null } | null;
+  idle: { at: string; account: string | null; why?: 'stuck' } | null;
   /** FD-236 (5): when this console's conversation was held (FD-234): it runs with permission prompts until a new
    *  session starts on a clean context. Null or absent when it was not. */
   held?: string | null;
