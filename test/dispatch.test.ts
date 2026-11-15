@@ -90,3 +90,11 @@ test('FD-137: an exit Switchboard did not wait for itself names no code (SB-247:
   assert.doesNotMatch(en.Ended!, /code/);
   assert.match(dispatchLines('ru', [{ ...row(l), agentKey: 'k' } as SessionRow], 'k')[0]!.outcome, /^завершилась, /);
 });
+
+test('FD-247 step 3: a row of another machine names it in both lines; this Mac\'s row names none', () => {
+  const there = row(null as never, { machine: 'studio-2', group: 'running' } as Partial<SessionRow>);
+  assert.match(secondLine('en', there), /Claude Code · studio-2 · claude4/);
+  assert.match(navLines('en', there).sub, /^studio-2 · claude4/);
+  const here = row(null as never, { machine: null, group: 'running' } as Partial<SessionRow>);
+  assert.doesNotMatch(secondLine('en', here), /studio/);
+});

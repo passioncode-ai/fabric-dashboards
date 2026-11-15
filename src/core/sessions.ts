@@ -58,6 +58,8 @@ export interface SessionRow {
   /** The console key of this app that runs or ran it, when there is one (opens the console). */
   key: string | null;
   folder: string;
+  /** FD-247 (step 3): the machine it runs or ran on, as ssh knows it; null for this Mac. Its folder is that machine's. */
+  machine: string | null;
   /** The folder's last name: the first line of a row. */
   project: string;
   /** The coding agent (`claude-code`, `codex`, or the runtime's name). */
@@ -352,10 +354,10 @@ function isRecord(r: unknown): r is SessionRecord {
     && (x.key === null || typeof x.key === 'string');
 }
 
-function row(o: Omit<SessionRow, 'project' | 'group' | 'at' | 'actions' | 'contextName' | 'openedInTerminal' | 'expectedAt' | 'candidates' | 'resumable' | 'consoleEmpty' | 'waitReason' | 'launch' | 'paid'> & Partial<Pick<SessionRow, 'actions' | 'contextName' | 'openedInTerminal' | 'expectedAt' | 'candidates' | 'resumable' | 'waitReason' | 'launch' | 'paid'>>): SessionRow {
+function row(o: Omit<SessionRow, 'project' | 'group' | 'at' | 'actions' | 'contextName' | 'openedInTerminal' | 'expectedAt' | 'candidates' | 'resumable' | 'consoleEmpty' | 'waitReason' | 'launch' | 'paid' | 'machine'> & Partial<Pick<SessionRow, 'actions' | 'contextName' | 'openedInTerminal' | 'expectedAt' | 'candidates' | 'resumable' | 'waitReason' | 'launch' | 'paid' | 'machine'>>): SessionRow {
   const group = groupOf(o.state);
   return {
-    ...o, project: base(o.folder), group, actions: o.actions ?? actionsFor(o.state),
+    ...o, machine: o.machine ?? null, project: base(o.folder), group, actions: o.actions ?? actionsFor(o.state),
     contextName: o.contextName ?? null, openedInTerminal: o.openedInTerminal ?? false, expectedAt: o.expectedAt ?? null, candidates: o.candidates ?? [], waitReason: o.waitReason ?? null,
     resumable: group === 'ended' && (o.resumable ?? false),
     consoleEmpty: false,

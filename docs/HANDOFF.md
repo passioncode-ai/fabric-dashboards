@@ -3,7 +3,7 @@
 Updated 2026-10-26 (0.8.7 current, see *0.8.7: start here*; earlier the same day 0.8.6, see *0.8.5: start here* and *Session 2026-10-26: start here*). Earlier: updated 2026-10-25 (0.8.1 current; the consolidation, see *Consolidation 2026-10-25: start here*). Earlier: updated 2026-10-24 (0.7.28). Earlier header: updated 2026-10-07 (0.6.2: 0.6.1 withdrawn for audit HIGH-2, audit fixes, signed feed; 0.6.1: LC-16 in detail updater, Russian by choice; 0.6.0 published 2026-10-06 21:35 UTC; release 0.5.6: third review pass, token latch; release 0.5.5 withdrawn: release audit and its second pass, A2A plan, ADR-0016, ADR-0015 data and updates, FD-05, FD-06, FD-13; Spend and DEC-0021; one entry per agent, ADR-0012; lifecycle contract landed from PR #21, unreleased; CI release rehearsal
 `v0.4.1-rc.1` green; releases move to CI signing; release 0.4.1, MCP links to online services).
 
-Current release: **0.8.105** published 2026-11-15 07:16 UTC; 0.8.108 (`de97f12`) and 0.8.109 (`33d0b30`) tagged in
+Current release: **0.8.110** published 2026-11-15 09:04 UTC (0.8.111 next); earlier **0.8.105** published 2026-11-15 07:16 UTC; 0.8.108 (`de97f12`) and 0.8.109 (`33d0b30`) tagged in
 order, their runs under way. 0.8.106 and 0.8.107 were never published (0.8.106's check failed on an unref'd timer in a
 test; both fold into 0.8.108).
 
@@ -35,9 +35,11 @@ Switchboard's `--target` doors asked, request `d2bb5562`, deadline 2026-11-29); 
 Organizations, join), then FD-52 This machine (design promised to the board by 2026-11-19, release by 2026-11-22);
 FD-268 (hidden CPU above the 0.3 % budget set for 22 agents), FD-269, FD-270, FD-271; FD-236's small items.
 
-**Next task.** FD-247 step 3 in a worktree: add `machine: string | null` to `SessionRow` and `ConsoleInput`
-(`src/core/sessions.ts`), fill it from `settings.consoles[key].machine`, drop the `· machine` label hack
-(`src/electron/console.ts` `startNew`, `src/core/sessions-view.ts`), tests in `test/sessions.test.ts`.
+**Next task.** FD-247 step 4 in a worktree (step 3 shipped in 0.8.111): `src/core/remote-sessions.ts` with the ssh
+argv of the design (`/usr/bin/ssh -T -n -o BatchMode=yes -o ConnectTimeout=5 <machine> <program> --json sessions --all
+[--data-dir D]`, `program` and `data_dir` from `switchboard --json targets`, accepted by Switchboard on the board,
+`f21276d6`; SB-380 brings `--target` by 2026-11-22), and `parseAllSessions(stdout)` split out of `allSessionsOf` in
+`src/core/switchboard.ts`; tests in `test/remote-sessions.test.ts`.
 
 Checks run: `FD_SKIP_LAUNCHD=1 npm run check` green on every merge (1275 tests at 0.8.109); the e2e suite file by file on
 an unlocked screen (wave 3 and wave 6); copy checks on every new string (no blocking finding).
