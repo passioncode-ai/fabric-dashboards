@@ -39,7 +39,7 @@ export function sbFailure(r: { code: number | null; stdout: string; stderr: stri
   return `${r.stdout}\n${r.stderr}`.trim().split('\n').pop()?.slice(0, max) || `exit ${r.code}`;
 }
 
-function parse(stdout: string): Record<string, unknown> | null {
+export function parse(stdout: string): Record<string, unknown> | null {
   try {
     const v = JSON.parse(stdout) as { ok?: boolean; data?: unknown };
     return v && v.ok === true && v.data && typeof v.data === 'object' ? (v.data as Record<string, unknown>) : null;
@@ -228,10 +228,18 @@ export async function allSessionsOf(run: Runner, sb: string): Promise<SourceResu
     const old = /unrecognized subcommand|unexpected argument|earlier version than this command/i.test(text);
     return { ok: false, reason: old ? 'old' : 'error', detail: sbFailure(r) };
   }
+  return { ok: true, value: parseAllSessions(data) };
+}
+
+/** FD-247 (step 4): the records of `switchboard --json sessions --all`, this Mac's or another machine's (read over ssh,
+ *  so untrusted there: at most `max` rows, every field capped, a malformed row skipped). */
+export function parseAllSessions(data: Record<string, unknown>, max = Infinity): SbSessionRecord[] {
   const str = (v: unknown, max = 200) => (typeof v === 'string' ? v.slice(0, max) : '');
   const out: SbSessionRecord[] = [];
   for (const x of Array.isArray(data.sessions) ? (data.sessions as Record<string, unknown>[]) : []) {
-    if (!x || typeof x !== 'object' || typeof x.working_directory !== 'string' || !path.isAbsolute(x.working_directory)) continue;
+    if (out.length >= max) break;
+    if (!x || typeof x !== 'object' || typeof x.working_directory !== 'string' || (!x.working_directory.startsWith('/') && !path.isAbsolute(x.working_directory))) continue;
+    if (x.working_directory.length > 4096) continue;
     const state = x.state === 'starting' || x.state === 'running' || x.state === 'ended' ? x.state : 'unknown';
     const provider = str(x.provider, 32);
     // SB-201: Switchboard's own fill when a record names no agent: claude is Claude Code, kimi Kimi Code, the rest kept.
@@ -246,7 +254,7 @@ export async function allSessionsOf(run: Runner, sb: string): Promise<SourceResu
       ...(x.attachable === true ? { attachable: true } : {}), // FD-211 (SB-342 H-1)
     });
   }
-  return { ok: true, value: out };
+  return out;
 }
 
 /** FD-231 (SL-8, SB-353): every Claude Code and Codex process of this user, Switchboard's or not (`sessions --machine`,
