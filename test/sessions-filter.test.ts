@@ -5,6 +5,7 @@ import test from 'node:test';
 import * as React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { AllSessions } from '../src/renderer/components/Sessions';
+import { initialMachine } from '../src/renderer/components/NewSessionDialog';
 import { SessionsNav } from '../src/renderer/components/Navigation';
 import { LangContext } from '../src/renderer/lib';
 import { filterActive, filterRows, machineGroups, machineStatusWords, NO_FILTER, originKey, searchRows, type SessionFilter } from '../src/core/sessions-view';
@@ -62,7 +63,7 @@ test('FD-247 step 6: machines in order: this Mac, those read, then any a row nam
 });
 
 const page = (s: SessionsStatus, filter: SessionFilter = NO_FILTER, lang: 'en' | 'ru' = 'en') => renderToStaticMarkup(React.createElement(LangContext.Provider, { value: lang },
-  React.createElement(AllSessions, { sessions: s, noteSeen: true, onNoteSeen: noop, onSetUp: noop, endedOpen: false, onEndedOpen: noop, open: noop, askEnd: noop, continued: noop, filter, onFilter: noop })));
+  React.createElement(AllSessions, { sessions: s, noteSeen: true, onNoteSeen: noop, onSetUp: noop, endedOpen: false, onEndedOpen: noop, open: noop, askEnd: noop, continued: noop, filter, onFilter: noop, onNewThere: noop })));
 const text = (html: string) => html.replace(/<[^>]+>/g, ' ').replace(/&#x27;/g, '\'').replace(/\s+/g, ' ').trim();
 const status = (o: Partial<SessionsStatus> = {}): SessionsStatus => ({ rows, degraded: [], switchboard: true, handovers: { enabled: true }, autoContinue: true, machines, ...o });
 
@@ -70,9 +71,10 @@ test('FD-247 step 6: All sessions has a search, filter chips and a heading per m
   const html = page(status());
   assert.match(html, /type="search"[^>]*aria-label="Search sessions"/);
   assert.match(html, /aria-pressed="false"[^>]*>This computer</);
-  assert.match(text(html), /This computer .* studio-2 · read at .* studio-3 Open terminal studio-3: not reachable over ssh\. Last read .* studio-4 · read at .* · no sessions/);
+  assert.match(text(html), /This computer .* studio-2 · read at .* studio-3 New session Open terminal studio-3: not reachable over ssh\. Last read .* studio-4 · read at .* · no sessions/);
   assert.match(html, /session-machine session-machine-stale/);
   assert.match(html, /aria-label="Open a terminal on studio-2">Open terminal</);
+  assert.match(html, /aria-label="Start a new session on studio-2">New session</);
   assert.doesNotMatch(html, /aria-label="Open a terminal on "/, 'this computer has no terminal button');
   assert.match(html, /<h2 id="sm-studio-2"/);
   assert.match(html, /<h3 id="sg-studio-2-running"/);
@@ -124,4 +126,12 @@ test('FD-247 step 6b: with one Mac the sidebar reads as before, and folded machi
   assert.doesNotMatch(html, /nav-machine/);
   assert.match(html, /id="snav-running"/);
   assert.deepEqual(merge({ layout: { ...DEFAULT_SETTINGS.layout, sessionsFolded: ['', 'studio-2', 3] as never } }).layout.sessionsFolded, ['', 'studio-2']);
+});
+
+test('FD-247: New session on a machine heading opens the dialog on that machine; one Switchboard cannot start there falls back', () => {
+  const o = { machines: ['studio-2', 'studio-3'], machine: 'studio-3', remoteFolder: '/srv/w/ledger' };
+  assert.deepEqual(initialMachine('studio-2', o), { machine: 'studio-2', remoteFolder: '' });
+  assert.deepEqual(initialMachine('studio-3', o), { machine: 'studio-3', remoteFolder: '/srv/w/ledger' }, 'the last folder there stays');
+  assert.deepEqual(initialMachine('studio-9', o), { machine: 'studio-3', remoteFolder: '/srv/w/ledger' });
+  assert.deepEqual(initialMachine(undefined, { machines: [], machine: null, remoteFolder: null }), { machine: '', remoteFolder: '' });
 });

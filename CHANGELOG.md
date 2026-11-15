@@ -6,6 +6,7 @@
 
 - FD-247: MCP `sessions` gives an agent every coding session the Sessions mode lists, other machines' included, with
   the same filters as All sessions (machine, state, how it came, a search), each row's actions and the link to its page.
+- FD-247: New session beside another machine's name opens the New session dialog with that machine chosen.
 
 ## 0.8.115 - 2026-11-15
 

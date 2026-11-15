@@ -2519,7 +2519,7 @@ The Sessions mode (0.8.0): every coding session apart from the agents, each stat
   2. The person presses it again -> the same console opens; one per machine
   3. The person ends it (End, or 30 idle minutes) -> the shell's group gets a hang-up, as any console
 - **Expected result:** the person reaches a shell on any machine of theirs without leaving the app
-- **Alt paths:** an agent does the same with MCP `session_new` `{kind: "terminal", machine}`; a machine Switchboard does not name is refused before any ssh (`unknown-machine`); an alias of a known machine opens that machine's console
+- **Alt paths:** New session beside it opens the New session dialog with that machine chosen (SCN-101); an agent does the same with MCP `session_new` `{kind: "terminal", machine}`; a machine Switchboard does not name is refused before any ssh (`unknown-machine`); an alias of a known machine opens that machine's console
 - **UI elements:** Open terminal on the machine heading (its label names the machine), the console
 - **States covered:** success, error (unknown machine, the console cap or swap, ssh failing inside the console)
 - **Errors & recovery:** held back by the console count and swap, never by this disk (only ssh runs here, FD-210); host keys are checked as ssh always does

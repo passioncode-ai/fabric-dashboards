@@ -29,7 +29,15 @@ export function newSessionFailText(t: T, r: Extract<NewSessionResult, { ok: fals
   return t('newSession.failed');
 }
 
-export function NewSessionDialog({ kind, onClose, onStarted }: { kind: 'session' | 'agent'; onClose: () => void; onStarted: (key: string) => void }) {
+/** FD-247: the machine the dialog opens on: the one a machine's heading chose while Switchboard can start a session
+ *  there (its folder then comes from what it has, unless it is the last one used), else the last one chosen, else this
+ *  computer (''). */
+export function initialMachine(preset: string | undefined, o: Pick<NewSessionOptions, 'machines' | 'machine' | 'remoteFolder'>): { machine: string; remoteFolder: string } {
+  if (preset && o.machines.includes(preset)) return { machine: preset, remoteFolder: preset === o.machine ? o.remoteFolder ?? '' : '' };
+  return o.machine ? { machine: o.machine, remoteFolder: o.remoteFolder ?? '' } : { machine: '', remoteFolder: '' };
+}
+
+export function NewSessionDialog({ kind, onClose, onStarted, machine: preset }: { kind: 'session' | 'agent'; onClose: () => void; onStarted: (key: string) => void; /** FD-247: opened from a machine's heading, that machine chosen. */ machine?: string }) {
   const { t } = useT();
   const [options, setOptions] = useState<NewSessionOptions | null>(null);
   const [runtime, setRuntime] = useState<string | null>(null);
@@ -52,7 +60,8 @@ export function NewSessionDialog({ kind, onClose, onStarted }: { kind: 'session'
       setFolder(o.folder);
       setBypass(o.bypass);
       setIsolated(o.isolated);
-      if (o.machine) { setMachine(o.machine); setRemoteFolder(o.remoteFolder ?? ''); }
+      const first = initialMachine(preset, o);
+      if (first.machine) { setMachine(first.machine); setRemoteFolder(first.remoteFolder); }
     }).catch((e: Error) => { if (live) setError(t('newSession.failed.read', { detail: e.message })); });
     return () => { live = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps

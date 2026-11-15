@@ -109,7 +109,7 @@ machine; SCN-112 open here or end a hosted session there. SCN-078 steps 1-2 and 
    In part in 0.8.115: `remoteAttachArgv`, `remoteEndArgv`, `LAUNCH_ID` (`src/core/remote-sessions.ts`); a hosted remote
    row carries `attach` and `end`, served by the existing channels (`sessionsAttach`, `sessionsEnd`, MCP `session_action`).
    Also 0.8.115: Open terminal on {machine} (SCN-111): `ConsoleHost.openMachineTerminal`, key `session.term-<fnv>`,
-   IPC `sessionsMachineTerminal`, MCP `session_new` kind `terminal`. Left: New session there from a machine heading.
+   IPC `sessionsMachineTerminal`, MCP `session_new` kind `terminal`. 0.8.116: New session there from a machine heading (`initialMachine`).
 8. MCP tools and the parity test.
    Done in 0.8.116: MCP `sessions` (channel op `sessions.list`, a read under the read limit; `sessionListRow`,
    `filterListRows`); the actions were already MCP doors (`session_action`, `session_new` kind `terminal`).

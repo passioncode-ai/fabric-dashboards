@@ -26,7 +26,7 @@ analytics, and every finding fixed in waves to the end. Audit: [docs/reports/202
   FD-235 (the hold follows the conversation, `untrusted` on every agent-written answer, one act per relayed decision,
   an unreadable placement refuses start).
 - Wave 6: FD-246 done (sample agent from kit v0.91.0, e2e 31 of 33, the two diagnosed), FD-248 step 1 (the
-  Organizations menu keeps every organization), FD-247 steps 2 to 6 (0.8.109 to 0.8.114: other machines' sessions in the list, SCN-110; search, filters, machine headings and the sidebar's machine tree, SCN-109; 0.8.115 Open here and End there, SCN-112, and a terminal on a machine, SCN-111; 0.8.116 MCP `sessions`). Designs:
+  Organizations menu keeps every organization), FD-247 steps 2 to 6 (0.8.109 to 0.8.114: other machines' sessions in the list, SCN-110; search, filters, machine headings and the sidebar's machine tree, SCN-109; 0.8.115 Open here and End there, SCN-112, and a terminal on a machine, SCN-111; 0.8.116 MCP `sessions` and New session on a machine heading). Designs:
   [Sessions with machines](design/2026-11-15-sessions-machines.md),
   [organizations and This machine](design/2026-11-15-organizations-and-this-machine.md).
 
@@ -35,8 +35,7 @@ SB-380, due 2026-11-22); FD-248 steps 4 to 8 (Settings →
 Organizations, join), then FD-52 This machine (design promised to the board by 2026-11-19, release by 2026-11-22);
 FD-268 (hidden CPU above the 0.3 % budget set for 22 agents), FD-269, FD-270, FD-271; FD-236's small items.
 
-**Next task.** FD-247 last parts: New session there from a machine heading (the FD-206 dialog with that machine and
-its folder list filled in), then the All sessions table view (state, project, machine, agent, account, how it came,
+**Next task.** FD-247 last part: the All sessions table view (state, project, machine, agent, account, how it came,
 time, the main action and More; cards below a width). Step 10 waits for Switchboard's `--target` doors (SB-380, due
 2026-11-22): then `readRemoteSessions`, `remoteAttachArgv` and `remoteEndArgv` move to them and ssh stays the fallback.
 After FD-247: FD-248 steps 4 to 8 (Settings → Organizations), FD-52 This machine (design due 2026-11-19).

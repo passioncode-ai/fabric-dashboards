@@ -150,10 +150,12 @@ interface AllProps {
   /** FD-247 (step 6, SCN-109): the filters kept in Settings.layout. */
   filter?: SessionFilter;
   onFilter?: (f: SessionFilter) => void;
+  /** FD-247: New session on a machine's heading, the dialog with that machine chosen. */
+  onNewThere?: (machine: string) => void;
 }
 
 /** SCN-078, SCN-079: All sessions. */
-export function AllSessions({ sessions, noteSeen, onNoteSeen, onSetUp, endedOpen, onEndedOpen, open, askEnd, continued, filter = NO_FILTER, onFilter }: AllProps) {
+export function AllSessions({ sessions, noteSeen, onNoteSeen, onSetUp, endedOpen, onEndedOpen, open, askEnd, continued, filter = NO_FILTER, onFilter, onNewThere }: AllProps) {
   const { t, lang } = useT();
   const [query, setQuery] = useState('');
   const all = sessions?.rows ?? [];
@@ -240,6 +242,7 @@ export function AllSessions({ sessions, noteSeen, onNoteSeen, onSetUp, endedOpen
                 {list.length === 0 && !stale && <span className="meta"> · {t('sessions.machine.empty')}</span>}
               </h2>
               {/* FD-247 (step 7b, SCN-111): a login shell on that machine, in a console of its own. */}
+              {machine && onNewThere && <button type="button" className="btn btn-sm session-machine-new" aria-label={t('sessions.machine.new.label', { machine })} onClick={() => onNewThere(machine)}>{t('newSession.button')}</button>}
               {machine && <button type="button" className="btn btn-sm session-machine-terminal" aria-label={t('sessions.machine.terminal.label', { machine })} onClick={() => void api().sessionsMachineTerminal(machine).then((r) => { if (r.ok && r.key) continued(r.key); })}>{t('sessions.machine.terminal')}</button>}
               {/* FD-247 (step 5): a machine whose list is not fresh says why; its last rows stay, greyed, up to 24 h. */}
               {stale && words && <p className="meta" role="status">{words}</p>}
