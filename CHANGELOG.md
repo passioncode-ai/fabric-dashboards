@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.8.110 - 2026-11-15
+
+### Fixed
+
+- Anonymous usage and error data are sent only after the notice about them was shown (the contract's DEC-0157 UD-1);
+  before, a launch that never showed the window could send with the switch on by default.
+
 ## 0.8.109 - 2026-11-15
 
 ### Fixed

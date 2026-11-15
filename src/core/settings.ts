@@ -419,3 +419,9 @@ function knownNamesOf(raw: unknown): Record<string, string> {
   }
   return out;
 }
+
+/** DEC-0157 UD-1 (contract `docs/specification/usage-data.md`): nothing is sent before the notice was shown, whatever the
+ *  switch says; the switch is on by default (UD-2), so the notice is what makes a send the person's informed choice. */
+export function analyticsMaySend(s: Pick<Settings, 'analytics' | 'analyticsNoticeSeen'>): boolean {
+  return s.analytics && s.analyticsNoticeSeen;
+}

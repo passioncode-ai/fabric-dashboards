@@ -47,7 +47,7 @@ import { readLoad, type LoadEntry } from '../core/load';
 import { NotifyLedger, shouldNotify } from '../core/notify';
 import { OutageAlerts } from './outage-alerts';
 import { powerShellAfterExit } from '../core/after-exit';
-import { agentSettingsPatch, rendererSettingsPatch, SettingsStore } from '../core/settings';
+import { agentSettingsPatch, analyticsMaySend, rendererSettingsPatch, SettingsStore } from '../core/settings';
 import type { AppStatus, Settings, SettingsPatch } from '../core/types';
 import { ALWAYS_KEPT, cancelStagedUpdate, clearRestoreRecord, KEPT_FILES, productDataPaths, purgeAfterExit, readRestoreRecord, removeMcpRegistrations, repairMcpRegistrations, restoreMcpRegistrations, writeRestoreRecord } from '../core/uninstall';
 import { autoInstallNow, autoInstallWait, cookieRewrite, inSight, LINK_FRONT_CHECK_MS, linkLeftBehind, moveSkip, OCCLUSION_PROBE_MS, offerMove, onScreen, resumeBehind, COOKIES_REENCRYPTED_MARKER, HiddenGrace, partitionFor, RELAUNCH_MARKER, relaunchHidden, RESUME_ROUTE_MARKER, resumeRoute, type ResumeRoute, stalePartitions, tryMove, UPDATE_IDLE_MS, VIEW_RELEASE_ALL_MS, VIEW_RELEASE_GRACE_MS, VISIBILITY_SYNC_MS, VisibilitySync, WARM_VIEWS } from './policy';
@@ -263,7 +263,7 @@ if (!app.requestSingleInstanceLock()) {
     bundle: bundleText ? readBundle(bundleText) : null, appVersion: app.getVersion(), packaged: app.isPackaged && process.env.CI !== 'true',
     osName: osNameOf(process.platform), osVersion: process.getSystemVersion(), locale: app.getLocale(), engineVersion: process.versions.electron,
     installationFile: installationPath(process.platform, process.env, os.homedir()), stateFile: path.join(userData, 'analytics-state.json'),
-    enabled: () => settings.get().analytics, fetch: (url, init) => fetch(url, init), log: (line) => log(JSON.stringify(line)),
+    enabled: () => analyticsMaySend(settings.peek()), fetch: (url, init) => fetch(url, init), log: (line) => log(JSON.stringify(line)),
   });
   const analyticsCounts = (): Record<string, number> => {
     const all = monitor.snapshots();
