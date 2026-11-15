@@ -405,3 +405,29 @@ test('FD-248 step 5: Settings → Organizations lists each organization with a l
   assert.match(html, /aria-label="Show Globex in the menu"/);
   assert.equal((html.match(/checked=""/g) ?? []).length, 1, 'acme shows, globex is hidden');
 });
+
+test('FD-248 step 6: Switchboard\'s organizations join the known list when no organization of the map matches; none moves an agent', async () => {
+  const { addSwitchboardOrganizations, parseSwitchboardOrganizations, knownOrganizations } = await import('../src/core/organizations');
+  const answer = JSON.stringify({ ok: true, data: { organizations: [{ id: 'e2cb', name: 'PassionCode.ai', passioncode: true }, { id: 'x', name: 'Initech Labs' }, { id: 'y', name: '' }, { id: 'z' }] } });
+  assert.deepEqual(parseSwitchboardOrganizations(answer), ['PassionCode.ai', 'Initech Labs']);
+  assert.deepEqual(parseSwitchboardOrganizations('not json'), []);
+  const cache = { readAt: null, byRepository: { 'acme/a': 'acme' }, organizations: { passioncode: 'PassionCode', acme: 'Acme' }, personal: 'acme' };
+  addSwitchboardOrganizations(cache, parseSwitchboardOrganizations(answer));
+  assert.deepEqual(cache.organizations, { passioncode: 'PassionCode', acme: 'Acme', 'initech-labs': 'Initech Labs' }, 'PassionCode.ai matches passioncode by letters and digits');
+  assert.deepEqual((cache as { fromSwitchboard?: string[] }).fromSwitchboard, ['initech-labs']);
+  assert.deepEqual(cache.byRepository, { 'acme/a': 'acme' }, 'no repository moves');
+  assert.deepEqual(knownOrganizations(cache).map((o) => o.name), ['acme', 'initech-labs', 'passioncode']);
+});
+
+test('FD-248 step 6: the store adds Switchboard\'s organizations on a read and keeps them in organizations.json', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'fd-org-sb-'));
+  const file = path.join(dir, 'organizations.json');
+  const registry = { schema_version: 2, organization_labels: { acme: 'Acme' }, organization_personal: 'acme', projects: [] };
+  const store = new OrganizationStore({ file, log: () => undefined, onChange: () => undefined, fetchPage: async () => null, readRegistry: () => registry,
+    readSwitchboard: async () => JSON.stringify({ ok: true, data: { organizations: [{ name: 'Globex' }] } }) });
+  await store.refresh();
+  const read = readOrganizations(file);
+  assert.ok(read.readAt);
+  assert.equal(read.organizations.globex, 'Globex');
+  assert.deepEqual(read.fromSwitchboard, ['globex']);
+});

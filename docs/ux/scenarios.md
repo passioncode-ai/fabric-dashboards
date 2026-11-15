@@ -2559,11 +2559,11 @@ The Sessions mode (0.8.0): every coding session apart from the agents, each stat
   1. The person opens the Organizations menu -> every organization Observatory's config names is a row, the personal one tagged; one with no agent on this Mac reads 0, dimmed
   2. The person ticks an organization with 0 -> the list shows no agent of it, and "All" brings every agent back
 - **Expected result:** no organization drops out of the menu because none of its agents runs here, is turned off, or was moved to the platform
-- **Alt paths:** no map read yet and no stored one -> no menu, as before; an agent reads the same list with MCP `organizations` (name, label, personal, agents)
+- **Alt paths:** an organization Switchboard knows and Observatory's map does not (matched by name without a domain ending, letters and digits, any case) is a row too, with 0 agents (FD-248 step 6); no map read yet and no stored one -> no menu, as before; an agent reads the same list with MCP `organizations` (name, label, personal, agents)
 - **UI elements:** the menu rows, the count, the personal tag
 - **States covered:** empty (0 agents), success
 - **Errors & recovery:** an unreadable map keeps the last stored list (FD-162)
-- **Coverage:** src/core/organizations.ts (knownOrganizations, organizationCounts), src/electron/main.ts (status organizations), src/renderer/components/Navigation.tsx (OrgMenu)
+- **Coverage:** src/core/organizations.ts (knownOrganizations, organizationCounts, parseSwitchboardOrganizations, addSwitchboardOrganizations), src/core/organization-store.ts (withSwitchboard), src/electron/main.ts (status organizations, readSwitchboard), src/renderer/components/Navigation.tsx (OrgMenu)
 - **Status:** implemented (2026-11-15, 0.8.108: `test/organizations.test.ts` *Wave 6*)
 
 ### SCN-114: Configure the organizations

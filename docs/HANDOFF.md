@@ -35,8 +35,7 @@ SB-380, due 2026-11-22); FD-248 steps 4 to 8 (Settings →
 Organizations, join), then FD-52 This machine (design promised to the board by 2026-11-19, release by 2026-11-22);
 FD-268 (hidden CPU above the 0.3 % budget set for 22 agents), FD-269, FD-270, FD-271; FD-236's small items.
 
-**Next task.** FD-248 step 6 (steps 4 and 5 shipped in 0.8.117): Switchboard's organizations as a source of the known
-list (`switchboard --json organizations`, matched by label without case, never moving an agent), then step 7 Join
+**Next task.** FD-248 step 7 (steps 4 to 6 in 0.8.117): Join
 (`src/core/join.ts`, an IPC that opens only `https://org.passioncode.ai` or Switchboard's `passioncode.base`,
 MCP `organization_join`, SCN-115), step 8 MCP `organizations` with the person's labels and hidden flag; then FD-52 This
 machine (design due on the board 2026-11-19, release by 2026-11-22). FD-247 step 10 waits for SB-380 (2026-11-22).

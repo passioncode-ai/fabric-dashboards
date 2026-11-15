@@ -21,6 +21,9 @@ export function knownOrganizations(cache: Pick<OrganizationsCache, 'organization
 
 export interface OrganizationsCache {
   readAt: string | null;
+  /** FD-248 (step 6): the organizations added from Switchboard (`org list`) because no organization Observatory names
+   *  matched their name; they carry no agent (Switchboard never moves one). */
+  fromSwitchboard?: string[];
   /** `owner/name` (lower case) of every repository Observatory knows -> its project's organization name. */
   byRepository: Record<string, string>;
   /** Organization name -> its label as the operator named it (`acme` -> `Acme`). */
@@ -322,6 +325,41 @@ export function groupByOrganization<P extends { primary: OrgSubjectLike }>(rows:
 export function menuOrganizations<R extends { name: string; label: string | null }>(rows: readonly R[], prefs: { orgLabels?: Readonly<Record<string, string>>; orgHidden?: readonly string[] }, chosen: readonly string[] = []): R[] {
   return rows.filter((r) => r.name === '' || !prefs.orgHidden?.includes(r.name) || chosen.includes(r.name))
     .map((r) => (prefs.orgLabels?.[r.name] ? { ...r, label: prefs.orgLabels[r.name]! } : r));
+}
+/** FD-248 (step 6): Switchboard's organizations (`switchboard --json org list`), their names only, read strictly. */
+export function parseSwitchboardOrganizations(stdout: string): string[] {
+  let list: unknown;
+  try { list = (JSON.parse(stdout) as { ok?: unknown; data?: { organizations?: unknown } } | null)?.data?.organizations; } catch { return []; }
+  if (!Array.isArray(list)) return [];
+  const out: string[] = [];
+  for (const o of list as Record<string, unknown>[]) {
+    const name = typeof o?.name === 'string' ? o.name.replace(/\s+/g, ' ').trim().slice(0, 80) : '';
+    if (name && !out.includes(name)) out.push(name);
+    if (out.length >= 30) break;
+  }
+  return out;
+}
+
+/** An organization's name or label as two sources can compare them: a domain ending dropped (`PassionCode.ai` is
+ *  PassionCode), then letters and digits only, lower case. */
+const orgKey = (text: string) => text.toLowerCase().trim().replace(/\.(ai|io|com|org|net|app|dev|co)$/, '').replace(/[^a-z0-9]/g, '');
+
+/** FD-248 (step 6): adds each of Switchboard's organizations that no organization of the map matches by name or label
+ *  (a domain ending dropped, then letters and digits in any case: `PassionCode.ai` matches `passioncode`), under a name made from its label. Only the
+ *  list of known organizations grows; no agent moves. */
+export function addSwitchboardOrganizations(cache: OrganizationsCache, labels: readonly string[]): void {
+  const known = Object.entries(cache.organizations).flatMap(([n, l]) => [orgKey(n), orgKey(l ?? '')]).filter(Boolean);
+  const added: string[] = [];
+  for (const label of labels) {
+    const key = orgKey(label);
+    if (!key || known.includes(key)) continue;
+    const base = label.toLowerCase().replace(/[^a-z0-9._-]+/g, '-').replace(/^[^a-z0-9]+|-+$/g, '').slice(0, 64) || key.slice(0, 64);
+    if (cache.organizations[base] !== undefined) continue;
+    cache.organizations[base] = label;
+    known.push(key);
+    added.push(base);
+  }
+  if (added.length) cache.fromSwitchboard = added;
 }
 /** What the counts read of a service (no key needed). */
 type OrgSubjectLike = Omit<OrgSubject, 'key'>;

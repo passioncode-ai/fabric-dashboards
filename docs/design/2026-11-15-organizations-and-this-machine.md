@@ -86,6 +86,8 @@ SCN-115 join an organization; SCN-116 see what this machine gives each context (
    Steps 4 and 5 done in 0.8.117: the fields live beside the menu's own as `layout.list.orgLabels` and
    `layout.list.orgHidden` (decision 8), `menuOrganizations`, `OrganizationsSection`.
 6. Switchboard organizations as a source.
+   Done in 0.8.117: `parseSwitchboardOrganizations`, `addSwitchboardOrganizations` (a domain ending dropped, letters and
+   digits in any case), read after each good map read (`OrganizationStore.withSwitchboard`), `fromSwitchboard` kept.
 7. Join (`src/core/join.ts`, IPC, `organization_join`), SCN-115.
 8. MCP `organizations`.
 9. Machine view core (`src/core/machine-view.ts`), `context` and `audience` readers.

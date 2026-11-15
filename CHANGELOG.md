@@ -7,6 +7,8 @@
 - FD-248: Settings → Organizations lists every organization Observatory and your agents name, with a label of your own
   (this app only), how many of its agents run here and a switch that hides it from the Organizations menu (its agents
   stay under All). Agents set the same with MCP `settings` (`layout.list.orgLabels`, `layout.list.orgHidden`).
+- FD-248: an organization Switchboard knows (`org list`) and no organization of Observatory's map matches joins the
+  known organizations, with no agent moved; `PassionCode.ai` matches `passioncode`.
 
 ## 0.8.116 - 2026-11-15
 

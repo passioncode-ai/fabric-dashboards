@@ -233,6 +233,13 @@ if (!app.requestSingleInstanceLock()) {
       return projects;
     },
     onChange: () => { monitor.namesChanged(); pushStatus(); },
+    // FD-248 (step 6): Switchboard's organizations, so one no agent here names is still known.
+    readSwitchboard: async () => {
+      const sb = await consoles.switchboardPath();
+      if (!sb) return null;
+      const r = await execRunner(sb, ['--json', 'org', 'list'], 10_000);
+      return r.code === 0 ? r.stdout : null;
+    },
     fetchPage: async (cursor) => {
       const obs = monitor.snapshots().find((x) => x.descriptor?.id === 'project-observatory' && x.descriptor.placement !== 'remote' && (x.state === 'ready' || x.state === 'degraded'));
       const mcp = obs?.wellKnown?.surfaces.mcp;
