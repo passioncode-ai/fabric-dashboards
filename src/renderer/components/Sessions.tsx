@@ -170,6 +170,12 @@ export function AllSessions({ sessions, noteSeen, onNoteSeen, onSetUp, endedOpen
       {(!sessions || sessions.switchboard === null) && <p className="muted row" role="status"><span className="spinner" aria-hidden="true" /> {t('sessions.reading')}</p>}
       {sessions && sessions.switchboard === false && <p className="notice" role="status">{`${t('sessions.noSwitchboard')} ${t('sessions.note.install')}`}</p>}
       {sessions?.switchboard && failing && <p className="notice warning" role="status">{t('sessions.degraded', { time: clock(lang, failing.since) })}</p>}
+      {/* FD-247 (step 5): another machine whose list is not fresh says so; its last rows stay, read up to 24 h ago. */}
+      {(sessions?.machines ?? []).filter((m) => m.state !== 'ok').map((m) => (
+        <p key={m.machine} className="meta" role="status">{m.state === 'unreachable'
+          ? (m.at ? t('sessions.machine.unreachable', { machine: m.machine, time: clock(lang, m.at) }) : t('sessions.machine.unreachableNever', { machine: m.machine }))
+          : t(`sessions.machine.${m.state}`, { machine: m.machine })}</p>
+      ))}
       {sessions && sessions.switchboard !== null && rows.length === 0 && <div className="empty"><p>{t('sessions.empty')}</p></div>}
       {groups.map(({ group, rows: list }) => {
         const heading = t(`sessions.group.${group}`, { n: list.length });

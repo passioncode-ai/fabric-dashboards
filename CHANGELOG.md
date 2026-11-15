@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.8.112 - 2026-11-15
+
+### Added
+
+- FD-247: the Sessions mode lists the coding sessions of the other machines Switchboard reaches, read over ssh from
+  that machine's Switchboard once a minute while the mode is on screen (two at a time, nothing while the window is
+  hidden). A machine that cannot be read says why on its own line and keeps its last rows for a day. Settings →
+  Sessions → "Show sessions on other machines" turns it off (on by default; MCP `settings` `remoteSessions`).
+
 ## 0.8.111 - 2026-11-15
 
 ### Changed

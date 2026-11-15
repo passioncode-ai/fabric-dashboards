@@ -26,20 +26,19 @@ analytics, and every finding fixed in waves to the end. Audit: [docs/reports/202
   FD-235 (the hold follows the conversation, `untrusted` on every agent-written answer, one act per relayed decision,
   an unreadable placement refuses start).
 - Wave 6: FD-246 done (sample agent from kit v0.91.0, e2e 31 of 33, the two diagnosed), FD-248 step 1 (the
-  Organizations menu keeps every organization), FD-247 step 2 (0.8.109). Designs:
+  Organizations menu keeps every organization), FD-247 steps 2 to 5 (0.8.109, 0.8.111, 0.8.112: other machines' sessions in the list, SCN-110). Designs:
   [Sessions with machines](design/2026-11-15-sessions-machines.md),
   [organizations and This machine](design/2026-11-15-organizations-and-this-machine.md).
 
-**Open, by priority.** FD-247 step 3 (the machine field on `SessionRow`) then the remote reader (waits for nothing;
-Switchboard's `--target` doors asked, request `d2bb5562`, deadline 2026-11-29); FD-248 steps 4 to 8 (Settings →
+**Open, by priority.** FD-247 steps 6 to 10 (table and filters, remote actions, MCP, docs; the `--target` doors are
+SB-380, due 2026-11-22); FD-248 steps 4 to 8 (Settings →
 Organizations, join), then FD-52 This machine (design promised to the board by 2026-11-19, release by 2026-11-22);
 FD-268 (hidden CPU above the 0.3 % budget set for 22 agents), FD-269, FD-270, FD-271; FD-236's small items.
 
-**Next task.** FD-247 step 5 (steps 3 and 4 merged): the remote reader in `src/electron/console.ts` per the design
-(read only while the window is shown and the Sessions mode is on screen, every 60 s per machine, two ssh at most, backoff
-60 s, 5 min, 15 min, last rows kept greyed 24 h, `SessionsStatus.machines[]`, Settings → Sessions "Show sessions on
-other machines" on by default), feeding `mergeSessions` with `remote` rows (id `rm:<machine>:<launch>`, `machine` set),
-using `readRemoteSessions` from `src/core/remote-sessions.ts`.
+**Next task.** FD-247 step 6: the renderer list per the design (helpers in `src/core/sessions-view.ts`, a table with
+search and filters by machine, agent, state; a machine tree in the sidebar; rows of a machine not read now greyed with
+its last read time), then step 7 (Open here and End for a hosted remote row, a terminal on that machine). The data is in
+`SessionsStatus.rows[].machine` and `SessionsStatus.machines[]` since 0.8.112.
 
 Checks run: `FD_SKIP_LAUNCHD=1 npm run check` green on every merge (1275 tests at 0.8.109); the e2e suite file by file on
 an unlocked screen (wave 3 and wave 6); copy checks on every new string (no blocking finding).

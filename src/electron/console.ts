@@ -31,7 +31,8 @@ import type { SettingsStore } from '../core/settings';
 import { accountsOf, allSessionsOf, bindingFor, machineSessionsOf, findSwitchboard, handoverOwnKey, handoverRunArgv, handoversOf, handoversSwitch, isHandoverKey, launchFeatures, sbFailure, sessionsIn, startAccount, terminalLaunchArgv, type Binding, type SbAccounts, type SbHandover, type SbSessions, type StartAccount } from '../core/switchboard';
 import type { ServiceSnapshot, Settings } from '../core/types';
 import { claimStop, claudeSessionDirs, folderLive, liveSessionFolders, liveSessionIds, continuedLaunches, continuedOf, finishStop, liveAgents, recoveryOf, resumeArgs, resumeOwnKey, sessionOpen, transcriptIn, transcriptOf, verdictOf, writtenAt, RESUME_SETTLE_MS, RESUMES_PER_PASS, type RecoveryStatus, type SbStop, type StopView } from '../core/recovery';
-import { attachOwnKey, consoleRowId, handoverRowId, SAME_START_MS, mergeSessions, pruneDismissed, pruneRecords, SourceReader, stopRowId, type ConsoleInput, type PendingHandover, type SbMachineProcess, type SbSessionRecord, type SessionActionResult, type SessionReason, type SessionRecord, type SessionNotice, type SessionOrigin, type SessionRow, type SessionsStatus, type SourceDegraded, type SourceResult } from '../core/sessions';
+import { RemoteSessions } from '../core/remote-sessions';
+import { attachOwnKey, consoleRowId, dropRemoteTwins, handoverRowId, SAME_START_MS, mergeSessions, pruneDismissed, pruneRecords, SourceReader, stopRowId, type ConsoleInput, type PendingHandover, type SbMachineProcess, type SbSessionRecord, type SessionActionResult, type SessionReason, type SessionRecord, type SessionNotice, type SessionOrigin, type SessionRow, type SessionsStatus, type SourceDegraded, type SourceResult } from '../core/sessions';
 
 /** node-pty 1.1.0 ships its macOS `spawn-helper` without the executable bit, and its postinstall
  *  does not set it: without it every spawn fails with `posix_spawnp failed`. A development checkout
@@ -214,11 +215,14 @@ export class ConsoleHost {
     if (r.ok) this.machineListed = true;
     return r as SourceResult<SbMachineProcess[]>;
   });
+  /** FD-247 (step 5): the other machines' sessions, read over ssh only while the window shows the Sessions mode. */
+  private readonly remote: RemoteSessions;
   private shownSessions = '';
   // #endregion sessions-host
 
   constructor(private readonly o: ConsoleHostOptions) {
     this.run = o.run ?? execRunner;
+    this.remote = new RemoteSessions(this.run);
     // One-shot Terminal files remove themselves when they run; one Terminal never ran is removed here.
     try {
       for (const name of fs.readdirSync(o.scriptsDir)) if (/^open-.*\.command$/.test(name)) fs.rmSync(path.join(o.scriptsDir, name), { force: true });
@@ -1199,6 +1203,22 @@ export class ConsoleHost {
   async pollSessions(): Promise<void> {
     // FD-231: the processes no owner started (SL-8), on the same tick.
     await Promise.all([this.sbSessions.poll(), this.machineSessions.poll()]);
+    void this.pollRemote();
+    this.pushSessions();
+  }
+
+  /** FD-247 (step 5): another machine's ssh can take seconds, so it runs beside the tick and pushes when it changes
+   *  something. Read only with the switch on, the window shown and the Sessions mode on screen; the switch off forgets. */
+  private async pollRemote(): Promise<void> {
+    const s = this.o.settings.get();
+    let changed: boolean;
+    if (s.remoteSessions === false) changed = this.remote.clear();
+    else if (!this.o.visible() || s.layout.mode !== 'sessions') return;
+    else changed = await this.remote.poll((await this.inventory()).switchboard).catch(() => false);
+    if (changed) this.pushSessions();
+  }
+
+  private pushSessions(): void {
     const shown = JSON.stringify(this.sessionsStatus());
     if (shown !== this.shownSessions) { this.shownSessions = shown; this.o.changed?.(); }
   }
@@ -1222,9 +1242,10 @@ export class ConsoleHost {
         attachedTo: this.attachedOf.get(key) ?? null,
       };
     });
-    const rows = mergeSessions({
+    let rows = mergeSessions({
       now, switchboard: this.sbSessions.value ?? (this.switchboardPresent === false ? [] : null), pending: this.pending,
       stops: this.recovery.stops, consoles, records: m.records, dismissed: m.dismissed, machine: this.machineSessions.value,
+      remote: this.o.settings.get().remoteSessions === false ? [] : this.remote.input(now),
     });
     // V-5 of FIX-2: an ended row whose console holds nothing (the app restarted since) says so on its page.
     for (const r of rows) if (r.group === 'ended' && r.key && this.manager.snapshot(r.key).state === 'idle') r.consoleEmpty = true;
@@ -1234,12 +1255,14 @@ export class ConsoleHost {
     const saved = this.o.settings.get().consoles;
     // FD-247 step 3: a session of its own on another machine names that machine on its row (its console's saved choice).
     for (const r of rows) if (r.key && saved[r.key]?.machine) r.machine = saved[r.key]!.machine!;
+    // FD-247 (step 5): a session of its own there is also in that machine's list; its console's row stays.
+    rows = dropRemoteTwins(rows);
     const elsewhere = (r: { machine: string | null }) => Boolean(r.machine);
     for (const r of rows) if (r.group === 'ended' && r.actions.includes('continue') && r.folder && !elsewhere(r) && !isDir(r.folder)) { r.actions = r.actions.filter((a) => a !== 'continue'); r.reason ??= 'no-folder'; }
     // FD-137 (SCN-092): a session Fabric started for a board request belongs to the agent in whose folder it ran.
     for (const r of rows) if (r.launch?.by.surface === 'fabric') { const k = this.agentOfFolder(r.folder, now); if (k) r.agentKey = k; }
     const degraded = [this.sbSessions.degraded, this.machineSessions.degraded, this.handoverDegraded, this.recoveryDegraded].filter((d): d is SourceDegraded => d !== null);
-    return { rows, degraded, machine: this.machineListed, switchboard: this.switchboardPresent, handovers: { enabled: this.handoversEnabled }, autoContinue: this.o.settings.get().resumeAfterLimit !== false };
+    return { rows, degraded, machine: this.machineListed, switchboard: this.switchboardPresent, handovers: { enabled: this.handoversEnabled }, autoContinue: this.o.settings.get().resumeAfterLimit !== false, machines: this.o.settings.get().remoteSessions === false ? [] : this.remote.status(now) };
   }
 
   // #region dispatch-agent — docs: docs/ux/scenarios.md#scn-092-see-a-session-fabric-started-for-a-board-request

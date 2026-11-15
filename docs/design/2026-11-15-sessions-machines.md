@@ -96,6 +96,10 @@ machine; SCN-112 open here or end a hosted session there. SCN-078 steps 1-2 and 
 4. `src/core/remote-sessions.ts`: argv, parse, validation; `parseAllSessions` split out of `switchboard.ts`.
 5. The remote reader in `console.ts` (cadence, backoff, the Sessions-on-screen signal, `SessionsStatus.machines[]`),
    behind Settings → Sessions "Show sessions on other machines", on by default.
+   Done in 0.8.112: `RemoteSessions` in `src/core/remote-sessions.ts` (the schedule, on the caller's tick), read by
+   `ConsoleHost.pollRemote` beside the sessions tick when the switch is on, the window shown and `layout.mode` is
+   `sessions` (the mode the window saves); rows `rm:<machine>:<launch>` carry no actions until step 7. Greying the kept
+   rows is left to step 6 (the table); meanwhile a status line per machine not read says why.
 6. The renderer list: helpers, table and filters, machine tree, filters in settings.
 7. Remote actions: attach and end argv, the machine terminal console, channel and IPC.
 8. MCP tools and the parity test.
