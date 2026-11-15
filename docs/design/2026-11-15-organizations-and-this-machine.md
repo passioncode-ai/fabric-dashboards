@@ -83,6 +83,8 @@ SCN-115 join an organization; SCN-116 see what this machine gives each context (
 3. The menu reads the known list (`Navigation.tsx`, i18n, SCN-094, SCN-113). Release: closes the lost-organization part.
 4. Settings model (labels, hidden) and the `settings` MCP allowlist.
 5. Settings section, copy checks, SCN-114.
+   Steps 4 and 5 done in 0.8.117: the fields live beside the menu's own as `layout.list.orgLabels` and
+   `layout.list.orgHidden` (decision 8), `menuOrganizations`, `OrganizationsSection`.
 6. Switchboard organizations as a source.
 7. Join (`src/core/join.ts`, IPC, `organization_join`), SCN-115.
 8. MCP `organizations`.
@@ -99,3 +101,7 @@ SCN-115 join an organization; SCN-116 see what this machine gives each context (
 5. People counts only from an agent's own aggregate report; none estimated.
 6. Hiding covers the menu and grouping headings only; Spend and Map stay whole.
 7. Join host: `https://org.passioncode.ai` until the contract names others.
+8. (2026-11-15, implementation) The label and hidden lists are kept in `layout.list` beside `orgs`, `groupByOrg` and
+   `orgSource`, which the sidebar and MCP `settings` already carry; hiding covers the menu only, and the list's
+   organization headings keep every organization (with its label), so no agent is filed under another one's heading.
+   Decision 6 is narrowed accordingly.

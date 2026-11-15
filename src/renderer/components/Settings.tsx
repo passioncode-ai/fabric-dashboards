@@ -1,4 +1,5 @@
 import { SetupCheck } from './Overview';
+import { organizationCounts } from '../../core/organizations';
 import { Fallback } from './Fallback';
 import { useEffect, useRef, useState } from 'react';
 import type { AppStatus, Listener, Settings as SettingsValue } from '../../core/types';
@@ -168,6 +169,10 @@ export function Settings({ status, onTheme, onLanguage, onSetup, section, nonce 
       </section>
       {/* #endregion estate-update */}
 
+      {/* #region org-settings — docs: docs/ux/scenarios.md#scn-114-configure-the-organizations */}
+      <OrganizationsSection status={status} list={value.layout.list} onSave={(list) => void save({ layout: { ...value.layout, list: { ...value.layout.list, ...list } } })} />
+      {/* #endregion org-settings */}
+
       <section className="group" aria-labelledby="g-notify">
         <h2 id="g-notify">{t('settings.notifications')}</h2>
         {/* U-10: Electron cannot read macOS's notification permission, so the app never claims it is
@@ -284,6 +289,7 @@ const SECTIONS = [
   { id: 'g-privacy', label: 'settings.privacy' },
   { id: 'g-bugs', label: 'settings.bugs' },
   { id: 'g-estate', label: 'settings.estate' },
+  { id: 'g-orgs', label: 'settings.orgs' },
   { id: 'g-notify', label: 'settings.notifications' },
   { id: 'g-folder', label: 'settings.folder' },
   { id: 'g-setup', label: 'settings.setup' },
@@ -345,6 +351,52 @@ function UpdateState({ status }: { status: AppStatus }) {
 // #region estate-update — docs: docs/adr/0018-estate-updates-from-inside-the-app.md#decision
 /** The clone path is typed locally and committed on blur or Enter, so settings.json is not
  *  rewritten on every keystroke; the person's spelling is kept while they type. */
+/** FD-248 (SCN-114): every organization Observatory and the agents name, with the person's own label (this app only) and
+ *  whether it shows in the Organizations menu; its agents here are counted. */
+export function OrganizationsSection({ status, list, onSave }: { status: AppStatus; list: SettingsValue['layout']['list']; onSave: (list: Pick<SettingsValue['layout']['list'], 'orgLabels' | 'orgHidden'>) => void }) {
+  const { t } = useT();
+  const rows = organizationCounts(status.services, 'org', status.organizations ?? []).filter((r) => r.name !== '');
+  const personal = (status.organizations ?? []).find((o) => o.personal)?.name;
+  return (
+    <section className="group" aria-labelledby="g-orgs">
+      <h2 id="g-orgs">{t('settings.orgs')}</h2>
+      <p className="meta">{t('settings.orgs.body')}</p>
+      {rows.length === 0
+        ? <p className="meta" role="status">{t('settings.orgs.none')}</p>
+        : (
+          <table className="org-settings">
+            <tbody>{rows.map((r) => (
+              <tr key={r.name}>
+                <th scope="row">
+                  <OrgLabel name={r.name} original={r.label ?? r.name} value={list.orgLabels[r.name] ?? ''} onSave={(text) => {
+                    const orgLabels = { ...list.orgLabels };
+                    if (text) orgLabels[r.name] = text; else delete orgLabels[r.name];
+                    onSave({ orgLabels, orgHidden: list.orgHidden });
+                  }} />
+                  {(r.personal || r.name === personal) && <span className="chip">{t('settings.orgs.yours')}</span>}
+                </th>
+                <td className="meta">{t('settings.orgs.agents', { n: r.count })}</td>
+                <td><label className="row">
+                  <input type="checkbox" role="switch" className="switch" aria-label={t('settings.orgs.show', { name: list.orgLabels[r.name] ?? r.label ?? r.name })} checked={!list.orgHidden.includes(r.name)}
+                    onChange={(e) => onSave({ orgLabels: list.orgLabels, orgHidden: e.target.checked ? list.orgHidden.filter((n) => n !== r.name) : [...list.orgHidden, r.name] })} />
+                </label></td>
+              </tr>
+            ))}</tbody>
+          </table>
+        )}
+    </section>
+  );
+}
+
+/** FD-248: an organization's label of the person's own; empty is Observatory's name again. */
+function OrgLabel({ name, original, value, onSave }: { name: string; original: string; value: string; onSave: (text: string) => void }) {
+  const { t } = useT();
+  const [text, setText] = useState(value);
+  useEffect(() => { setText(value); }, [value]);
+  const commit = () => { const next = text.replace(/\s+/g, ' ').trim().slice(0, 60); if (next !== value) onSave(next === original ? '' : next); };
+  return <input type="text" className="org-label" value={text} placeholder={original} maxLength={60} aria-label={t('settings.orgs.label', { name })} onChange={(e) => setText(e.target.value)} onBlur={commit} onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }} />;
+}
+
 function ClonePath({ value, onSave }: { value: string; onSave: (next: string) => void }) {
   const { t } = useT();
   const [text, setText] = useState(value);

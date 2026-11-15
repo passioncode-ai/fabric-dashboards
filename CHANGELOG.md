@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.8.117 - 2026-11-15
+
+### Added
+
+- FD-248: Settings → Organizations lists every organization Observatory and your agents name, with a label of your own
+  (this app only), how many of its agents run here and a switch that hides it from the Organizations menu (its agents
+  stay under All). Agents set the same with MCP `settings` (`layout.list.orgLabels`, `layout.list.orgHidden`).
+
 ## 0.8.116 - 2026-11-15
 
 ### Added

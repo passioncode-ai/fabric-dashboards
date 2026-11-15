@@ -362,3 +362,46 @@ test('Wave 6 (FD-248, SCN-113): an organization Observatory names keeps its menu
   assert.equal(organizationCounts([], 'org', known).length, 3, 'the menu has its rows before any agent is attributed');
   assert.deepEqual(organizationCounts([], 'org'), [], 'without the map, nothing');
 });
+
+test('FD-248 step 4: the menu takes the person\'s own labels and leaves out the organizations they hid, unless one is chosen', async () => {
+  const { menuOrganizations, groupByOrganization } = await import('../src/core/organizations');
+  const rows = [{ name: 'acme', label: 'Acme', count: 3 }, { name: 'globex', label: 'Globex', count: 0 }, { name: '', label: null, count: 1 }];
+  assert.deepEqual(menuOrganizations(rows, { orgLabels: { acme: 'Acme (ops)' }, orgHidden: ['globex'] }).map((r) => [r.name, r.label]), [['acme', 'Acme (ops)'], ['', null]]);
+  assert.deepEqual(menuOrganizations(rows, { orgHidden: ['globex'] }, ['globex']).map((r) => r.name), ['acme', 'globex', ''], 'a hidden one that is chosen stays, to be cleared');
+  assert.deepEqual(menuOrganizations(rows, { orgHidden: [''] }).map((r) => r.name), ['acme', 'globex', ''], '"Not attributed" is never hidden');
+  const prod = (id: string, name: string) => ({ id, primary: { organization: { name, label: name.toUpperCase() } } });
+  const g = groupByOrganization([prod('a', 'acme'), prod('b', 'globex')] as never, 'org', { acme: 'Acme (ops)' })!;
+  assert.deepEqual(g.map((x) => x.label), ['Acme (ops)', 'GLOBEX']);
+});
+
+test('FD-248 step 4: labels and hidden organizations are kept strictly, and an agent may change them through MCP settings', async () => {
+  const { merge, agentSettingsPatch } = await import('../src/core/settings');
+  const { DEFAULT_SETTINGS } = await import('../src/core/types');
+  const list = merge({ layout: { ...DEFAULT_SETTINGS.layout, list: { ...DEFAULT_SETTINGS.layout.list, orgLabels: { acme: '  Acme\n ops ', '../x': 'bad', globex: '', initech: 'x'.repeat(80) }, orgHidden: ['globex', 'globex', '-bad', 3] } as never } }).layout.list;
+  assert.deepEqual(list.orgLabels, { acme: 'Acme ops', initech: 'x'.repeat(60) });
+  assert.deepEqual(list.orgHidden, ['globex']);
+  assert.deepEqual(merge({}).layout.list.orgLabels, {});
+  const p = agentSettingsPatch({ layout: { list: { orgLabels: { acme: 'Ops' }, orgHidden: ['globex'] } } });
+  assert.deepEqual(p, { patch: { layout: { list: { orgLabels: { acme: 'Ops' }, orgHidden: ['globex'] } } }, refused: [] });
+});
+
+test('FD-248 step 5: Settings → Organizations lists each organization with a label field, its agents here and a menu switch', async () => {
+  const React = await import('react');
+  const { renderToStaticMarkup } = await import('react-dom/server');
+  const { Settings } = await import('../src/renderer/components/Settings');
+  const { LangContext } = await import('../src/renderer/lib');
+  const { DEFAULT_SETTINGS } = await import('../src/core/types');
+  (globalThis as { React?: unknown }).React = React;
+  (globalThis as { window?: unknown }).window ??= {};
+  const settings = { ...DEFAULT_SETTINGS, layout: { ...DEFAULT_SETTINGS.layout, list: { ...DEFAULT_SETTINGS.layout.list, orgLabels: { acme: 'Acme (ops)' }, orgHidden: ['globex'] } } };
+  const status = { services: [{ key: 'a.default', organization: { name: 'acme', label: 'Acme' } }], organizations: [{ name: 'acme', label: 'Acme', personal: true }, { name: 'globex', label: 'Globex' }] };
+  void Settings;
+  const html = renderToStaticMarkup(React.createElement(LangContext.Provider, { value: 'en' }, React.createElement((await import('../src/renderer/components/Settings')).OrganizationsSection, { status: status as never, list: settings.layout.list, onSave: () => undefined })));
+  assert.match(html, /aria-label="Label for acme"[^>]*|value="Acme \(ops\)"/);
+  assert.match(html, /placeholder="Acme"/);
+  assert.match(html, /Agents here: 1/);
+  assert.match(html, /Agents here: 0/);
+  assert.match(html, /your own/);
+  assert.match(html, /aria-label="Show Globex in the menu"/);
+  assert.equal((html.match(/checked=""/g) ?? []).length, 1, 'acme shows, globex is hidden');
+});

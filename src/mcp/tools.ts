@@ -841,8 +841,8 @@ export async function settings(deps: Deps, patch?: Record<string, unknown>): Pro
     const s = new SettingsStore(path.dirname(file), () => undefined).get();
     const shown: Record<string, unknown> = {};
     for (const k of AGENT_SETTINGS) shown[k] = s[k as keyof typeof s];
-    shown.layout = { list: { sort: s.layout.list.sort, orgs: s.layout.list.orgs, groupByOrg: s.layout.list.groupByOrg, orgSource: s.layout.list.orgSource } };
-    return { settings: shown, changeable: [...AGENT_SETTINGS, 'layout.list.sort', 'layout.list.orgs', 'layout.list.groupByOrg', 'layout.list.orgSource'] };
+    shown.layout = { list: { sort: s.layout.list.sort, orgs: s.layout.list.orgs, groupByOrg: s.layout.list.groupByOrg, orgSource: s.layout.list.orgSource, orgLabels: s.layout.list.orgLabels, orgHidden: s.layout.list.orgHidden } };
+    return { settings: shown, changeable: [...AGENT_SETTINGS, 'layout.list.sort', 'layout.list.orgs', 'layout.list.groupByOrg', 'layout.list.orgSource', 'layout.list.orgLabels', 'layout.list.orgHidden'] };
   }
   const answer = await askChannel(deps, { op: 'settings.update', patch } as never, 'app-not-running: Fabric Dashboards is not running, so Settings cannot change now; open it and call again');
   if (!answer.ok) throw new ToolError(`${answer.code}${answer.detail ? `: ${answer.detail}` : ''}`);

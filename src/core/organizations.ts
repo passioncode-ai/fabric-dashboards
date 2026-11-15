@@ -309,11 +309,19 @@ export function organizationCounts(services: readonly OrgSubjectLike[], source: 
  * attributed" last), each group keeping the rows' own order (the sort the person chose). Null when the rows are of one
  * organization, or no organization is known: then there is nothing to split and no heading is drawn.
  */
-export function groupByOrganization<P extends { primary: OrgSubjectLike }>(rows: readonly P[], source: OrgSource = 'org'): { name: string; label: string | null; rows: P[] }[] | null {
-  const order = organizationCounts(rows.map((r) => r.primary), source);
+export function groupByOrganization<P extends { primary: OrgSubjectLike }>(rows: readonly P[], source: OrgSource = 'org', labels: Readonly<Record<string, string>> = {}): { name: string; label: string | null; rows: P[] }[] | null {
+  // FD-248: a label of the person's own names the heading; a hidden organization keeps its heading, so no agent is filed
+  // under another organization's.
+  const order = organizationCounts(rows.map((r) => r.primary), source).map((o) => (source === 'org' && labels[o.name] ? { ...o, label: labels[o.name]! } : o));
   if (order.length < 2) return null;
   const nameOf = (s: OrgSubjectLike) => organizationBy(source, s)?.name ?? '';
   return order.map((o) => ({ name: o.name, label: o.label, rows: rows.filter((r) => nameOf(r.primary) === o.name) }));
+}
+/** FD-248 (SCN-114): the Organizations menu's rows with the person's own labels and without the organizations they
+ *  hid; one hidden that is chosen stays, so it can be cleared. Only the organizations source: GitHub owners are names. */
+export function menuOrganizations<R extends { name: string; label: string | null }>(rows: readonly R[], prefs: { orgLabels?: Readonly<Record<string, string>>; orgHidden?: readonly string[] }, chosen: readonly string[] = []): R[] {
+  return rows.filter((r) => r.name === '' || !prefs.orgHidden?.includes(r.name) || chosen.includes(r.name))
+    .map((r) => (prefs.orgLabels?.[r.name] ? { ...r, label: prefs.orgLabels[r.name]! } : r));
 }
 /** What the counts read of a service (no key needed). */
 type OrgSubjectLike = Omit<OrgSubject, 'key'>;

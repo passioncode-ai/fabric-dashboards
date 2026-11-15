@@ -119,6 +119,7 @@
 | SCN-111 | Open a terminal on another machine | sessions | P-01 | ST-019 | implemented | 2026-11-15 |
 | SCN-112 | Open here or end a session another machine's session host holds | sessions | P-01 | ST-019 | implemented | 2026-11-15 |
 | SCN-113 | The Organizations menu keeps every organization Observatory names | navigation | P-01 | ST-016 | implemented | 2026-11-15 |
+| SCN-114 | Configure the organizations | settings | P-01 | ST-016 | implemented | 2026-11-15 |
 ## Personas
 
 Defined in [foundation.md](foundation.md) → P-01.
@@ -2487,6 +2488,7 @@ The Sessions mode (0.8.0): every coding session apart from the agents, each stat
 - **UI elements:** the search field, the chip rows, the count and Clear filters, the machine headings with New session and Open terminal, and on a window 900 px wide or more a table per group (state in words, project, coding agent, account, how it came, time, actions; fixed columns) in place of the cards
 - **States covered:** empty (no match), success, stale (a machine not read now, its rows greyed)
 - **Errors & recovery:** the filters are kept in settings and read strictly (an unknown value is dropped, so a damaged file shows every row); the search is not kept
+- **Coverage:** src/core/sessions-view.ts (sessions-filter: filterRows, searchRows, machineGroups, machineStatusWords), src/renderer/components/Sessions.tsx (AllSessions: search, chips, machine sections, the table), src/renderer/components/Navigation.tsx (SessionsNav machine tree), src/core/settings.ts (mergeSessionsFilter, sessionsFolded), src/renderer/components/NewSessionDialog.tsx (initialMachine), src/renderer/styles/app.css (.session-table, .session-machine-bar)
 - **Status:** implemented (2026-11-15, 0.8.113 and 0.8.114: `test/sessions-filter.test.ts` *FD-247 step 6*, *step 6b*); the table view comes next
 
 ### SCN-110: See the sessions running on other machines
@@ -2505,6 +2507,7 @@ The Sessions mode (0.8.0): every coding session apart from the agents, each stat
 - **UI elements:** the rows' machine name, one status line per machine not read ("{machine}: not reachable over ssh. Last read {time}.", "Switchboard is not installed there", "too old to list sessions", "its answer could not be read", "reading…"), the Settings switch
 - **States covered:** loading (reading), success, error (unreachable, no Switchboard, too old, bad answer), stale (last rows kept)
 - **Errors & recovery:** a failing machine is asked again after 1, 5 and 15 minutes, then every 15; its last rows stay for 24 hours after its last good read; whatever the machine answers is untrusted and capped at 200 rows
+- **Coverage:** src/core/remote-sessions.ts (RemoteSessions, readRemoteSessions, parseTargets), src/electron/console.ts (pollRemote, sessionsStatus), src/core/sessions.ts (mergeSessions part 5b, remoteRowId, dropRemoteTwins), src/renderer/components/Settings.tsx (remoteSessions switch)
 - **Status:** implemented (2026-11-15, 0.8.112: `test/remote-sessions.test.ts` *FD-247 step 5*); Open here, End and a terminal on that machine come with SCN-111 and SCN-112
 
 ### SCN-111: Open a terminal on another machine
@@ -2523,6 +2526,7 @@ The Sessions mode (0.8.0): every coding session apart from the agents, each stat
 - **UI elements:** Open terminal on the machine heading (its label names the machine), the console
 - **States covered:** success, error (unknown machine, the console cap or swap, ssh failing inside the console)
 - **Errors & recovery:** held back by the console count and swap, never by this disk (only ssh runs here, FD-210); host keys are checked as ssh always does
+- **Coverage:** src/electron/console.ts (openMachineTerminal), src/core/sessions.ts (machineTerminalKey), src/core/console-channel.ts (kind terminal), src/electron/main.ts (session.new terminal), src/renderer/components/Sessions.tsx (Open terminal)
 - **Status:** implemented (2026-11-15, 0.8.115: `test/remote-sessions.test.ts` *FD-247 step 7b*)
 
 ### SCN-112: Open here or end a session another machine's session host holds
@@ -2541,6 +2545,7 @@ The Sessions mode (0.8.0): every coding session apart from the agents, each stat
 - **UI elements:** Open here, End with its question, the session's console
 - **States covered:** success, error (the machine not reachable, the session already gone)
 - **Errors & recovery:** End that fails says why ("not reachable over ssh", or what the machine answered, cut to 200 characters); only a launch id of the form `^[A-Za-z0-9._:-]{1,128}$` reaches the other machine, always quoted; Open here is held back by the console count and swap, never by this disk (FD-210)
+- **Coverage:** src/core/remote-sessions.ts (remoteAttachArgv, remoteEndArgv, LAUNCH_ID), src/electron/console.ts (attachRemote, endRemote), src/core/sessions.ts (remote row actions)
 - **Status:** implemented (2026-11-15, 0.8.115: `test/remote-sessions.test.ts` *FD-247 step 7*)
 
 ### SCN-113: The Organizations menu keeps every organization Observatory names
@@ -2558,4 +2563,24 @@ The Sessions mode (0.8.0): every coding session apart from the agents, each stat
 - **UI elements:** the menu rows, the count, the personal tag
 - **States covered:** empty (0 agents), success
 - **Errors & recovery:** an unreadable map keeps the last stored list (FD-162)
+- **Coverage:** src/core/organizations.ts (knownOrganizations, organizationCounts), src/electron/main.ts (status organizations), src/renderer/components/Navigation.tsx (OrgMenu)
 - **Status:** implemented (2026-11-15, 0.8.108: `test/organizations.test.ts` *Wave 6*)
+
+### SCN-114: Configure the organizations
+
+- **Persona:** P-01
+- **Feature:** settings
+- **Traces:** FD-248 steps 4 and 5 (design `docs/design/2026-11-15-organizations-and-this-machine.md` §Settings → Organizations)
+- **Entry point:** Settings → Organizations (after Estate)
+- **Preconditions:** Project Observatory's registry was read at least once
+- **Steps:**
+  1. The person opens the section -> one row per organization Observatory and the agents name, its name as the field's hint, "your own" on the personal one, "Agents here: n", and a switch for the menu
+  2. The person types a label and leaves the field -> the Organizations menu and the list's organization headings use it; clearing it brings Observatory's name back
+  3. The person turns an organization's switch off -> it leaves the Organizations menu; its agents still show under All and under its heading when the list is grouped
+- **Expected result:** the person names and trims the organizations they see without touching Observatory's config
+- **Alt paths:** no organization known yet -> "No organization is known yet…"; an agent does the same with MCP `settings` (`layout.list.orgLabels`, `layout.list.orgHidden`); a hidden organization that is chosen in the menu stays there until cleared
+- **UI elements:** the label field, the "your own" tag, the agent count, the switch
+- **States covered:** empty, success
+- **Errors & recovery:** a label is one line of at most 60 characters; a name Observatory would not give is dropped on read, so a damaged file shows every organization
+- **Coverage:** src/core/settings.ts (mergeList orgLabels, orgHidden; AGENT_LIST), src/core/organizations.ts (menuOrganizations, groupByOrganization labels), src/renderer/components/Settings.tsx (OrganizationsSection, OrgLabel), src/renderer/components/Navigation.tsx (OrgMenu prefs)
+- **Status:** implemented (2026-11-15, 0.8.117: `test/organizations.test.ts` *FD-248 step 4*, *step 5*); Join (SCN-115) comes next
