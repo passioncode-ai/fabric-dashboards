@@ -1230,7 +1230,10 @@ export class ConsoleHost {
     for (const r of rows) if (r.group === 'ended' && r.key && this.manager.snapshot(r.key).state === 'idle') r.consoleEmpty = true;
     // Scenario walk 2026-11-11 (SCN-084 alt): an ended session whose folder is gone from this Mac offers no Continue that
     // would only fail; its row says why instead.
-    for (const r of rows) if (r.group === 'ended' && r.actions.includes('continue') && r.folder && !isDir(r.folder)) { r.actions = r.actions.filter((a) => a !== 'continue'); r.reason ??= 'no-folder'; }
+    // FD-247 step 2: a session of its own that ran on another machine (FD-206) has its folder there; this Mac cannot tell.
+    const saved = this.o.settings.get().consoles;
+    const elsewhere = (r: { key: string | null }) => Boolean(r.key && saved[r.key]?.machine);
+    for (const r of rows) if (r.group === 'ended' && r.actions.includes('continue') && r.folder && !elsewhere(r) && !isDir(r.folder)) { r.actions = r.actions.filter((a) => a !== 'continue'); r.reason ??= 'no-folder'; }
     // FD-137 (SCN-092): a session Fabric started for a board request belongs to the agent in whose folder it ran.
     for (const r of rows) if (r.launch?.by.surface === 'fabric') { const k = this.agentOfFolder(r.folder, now); if (k) r.agentKey = k; }
     const degraded = [this.sbSessions.degraded, this.machineSessions.degraded, this.handoverDegraded, this.recoveryDegraded].filter((d): d is SourceDegraded => d !== null);

@@ -104,6 +104,10 @@ test('FD-206 (SCN-101): a session on another machine starts through its Switchbo
   assert.equal(next.remoteFolder, '/srv/them/DATA/alpha');
   r.host.stopByPerson(key);
   await new Promise((res) => setTimeout(res, 30));
+  // FD-247 step 2: the ended row keeps Continue, though its folder is not on this Mac.
+  const ended = r.host.sessionsStatus().rows.find((x) => x.key === key);
+  assert.ok(ended?.actions.includes('continue'), JSON.stringify(ended));
+  assert.notEqual(ended?.reason, 'no-folder');
   assert.ok((await r.host.start(key, 'continue', { cols: 80, rows: 24 })).ok);
   const c = r.spawned[1]!;
   assert.deepEqual(c.args.slice(0, 4), ['launch', '--target', 'studio-org', '--provider']);
