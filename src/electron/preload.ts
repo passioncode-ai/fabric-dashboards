@@ -70,6 +70,7 @@ const api: FabricApi = {
   sessionsContinue: (id, size, account) => ipcRenderer.invoke(CHANNELS.sessionsContinue, id, size, account),
   sessionsDismiss: (id) => ipcRenderer.invoke(CHANNELS.sessionsDismiss, id),
   sessionsAttach: (id, size) => ipcRenderer.invoke(CHANNELS.sessionsAttach, id, size),
+  sessionsMachineTerminal: (machine, size) => ipcRenderer.invoke(CHANNELS.sessionsMachineTerminal, machine, size),
   sessionsClearEnded: () => ipcRenderer.invoke(CHANNELS.sessionsClearEnded),
   sessionsEnd: (id) => ipcRenderer.invoke(CHANNELS.sessionsEnd, id),
   sessionsReveal: (id) => ipcRenderer.invoke(CHANNELS.sessionsReveal, id),

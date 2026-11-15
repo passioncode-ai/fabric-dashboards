@@ -108,7 +108,8 @@ machine; SCN-112 open here or end a hosted session there. SCN-078 steps 1-2 and 
 7. Remote actions: attach and end argv, the machine terminal console, channel and IPC.
    In part in 0.8.115: `remoteAttachArgv`, `remoteEndArgv`, `LAUNCH_ID` (`src/core/remote-sessions.ts`); a hosted remote
    row carries `attach` and `end`, served by the existing channels (`sessionsAttach`, `sessionsEnd`, MCP `session_action`).
-   Left: Open terminal on {machine} (SCN-111) and New session there from a machine heading.
+   Also 0.8.115: Open terminal on {machine} (SCN-111): `ConsoleHost.openMachineTerminal`, key `session.term-<fnv>`,
+   IPC `sessionsMachineTerminal`, MCP `session_new` kind `terminal`. Left: New session there from a machine heading.
 8. MCP tools and the parity test.
 9. Docs: scenarios, AGENTS.md lifecycle rows, CHANGELOG, copy checks in en and ru.
 10. Switch to Switchboard's `--target` doors when they ship; the ssh path stays as the fallback.

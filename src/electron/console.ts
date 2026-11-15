@@ -31,8 +31,8 @@ import type { SettingsStore } from '../core/settings';
 import { accountsOf, allSessionsOf, bindingFor, machineSessionsOf, findSwitchboard, handoverOwnKey, handoverRunArgv, handoversOf, handoversSwitch, isHandoverKey, launchFeatures, sbFailure, sessionsIn, startAccount, terminalLaunchArgv, type Binding, type SbAccounts, type SbHandover, type SbSessions, type StartAccount } from '../core/switchboard';
 import type { ServiceSnapshot, Settings } from '../core/types';
 import { claimStop, claudeSessionDirs, folderLive, liveSessionFolders, liveSessionIds, continuedLaunches, continuedOf, finishStop, liveAgents, recoveryOf, resumeArgs, resumeOwnKey, sessionOpen, transcriptIn, transcriptOf, verdictOf, writtenAt, RESUME_SETTLE_MS, RESUMES_PER_PASS, type RecoveryStatus, type SbStop, type StopView } from '../core/recovery';
-import { remoteAttachArgv, remoteEndArgv, RemoteSessions } from '../core/remote-sessions';
-import { attachOwnKey, consoleRowId, dropRemoteTwins, handoverRowId, SAME_START_MS, mergeSessions, pruneDismissed, pruneRecords, SourceReader, stopRowId, type ConsoleInput, type PendingHandover, type SbMachineProcess, type SbSessionRecord, type SessionActionResult, type SessionReason, type SessionRecord, type SessionNotice, type SessionOrigin, type SessionRow, type SessionsStatus, type SourceDegraded, type SourceResult } from '../core/sessions';
+import { parseTargets, remoteAttachArgv, remoteEndArgv, RemoteSessions } from '../core/remote-sessions';
+import { attachOwnKey, consoleRowId, dropRemoteTwins, machineTerminalKey, handoverRowId, SAME_START_MS, mergeSessions, pruneDismissed, pruneRecords, SourceReader, stopRowId, type ConsoleInput, type PendingHandover, type SbMachineProcess, type SbSessionRecord, type SessionActionResult, type SessionReason, type SessionRecord, type SessionNotice, type SessionOrigin, type SessionRow, type SessionsStatus, type SourceDegraded, type SourceResult } from '../core/sessions';
 
 /** node-pty 1.1.0 ships its macOS `spawn-helper` without the executable bit, and its postinstall
  *  does not set it: without it every spawn fails with `posix_spawnp failed`. A development checkout
@@ -194,6 +194,8 @@ export class ConsoleHost {
   private readonly originOf = new Map<string, SessionOrigin>();
   /** FD-211: consoles that show a session Switchboard's session host holds, by the launch id they show. */
   private readonly attachedOf = new Map<string, string>();
+  /** FD-247 (step 7b): the consoles that hold a login shell on another machine, by key. */
+  private readonly terminalOf = new Map<string, string>();
   /** FD-211: consoles whose own session runs in Switchboard's session host (`launch --hosted`). */
   private readonly hostedKeys = new Set<string>();
   /** FD-211: hosted consoles whose view this app closed while their session runs on (the app quitting). */
@@ -1255,6 +1257,7 @@ export class ConsoleHost {
     const saved = this.o.settings.get().consoles;
     // FD-247 step 3: a session of its own on another machine names that machine on its row (its console's saved choice).
     for (const r of rows) if (r.key && saved[r.key]?.machine) r.machine = saved[r.key]!.machine!;
+    for (const r of rows) if (r.key && this.terminalOf.has(r.key)) r.machine = this.terminalOf.get(r.key)!;
     // FD-247 (step 5): a session of its own there is also in that machine's list; its console's row stays.
     rows = dropRemoteTwins(rows);
     const elsewhere = (r: { machine: string | null }) => Boolean(r.machine);
@@ -1543,6 +1546,30 @@ export class ConsoleHost {
     void this.pollRemote();
     return { ok: true, key: null };
   }
+  /** FD-247 (step 7b, SCN-111): Open terminal on {machine}: a console of its own runs `ssh -t <machine>` into a login
+   *  shell. Only a machine Switchboard names; one console per machine (a second press finds it). Ended like any
+   *  console (SIGHUP to its group) and closed after 30 idle minutes (LC-18); held back by the count and swap (LC-17). */
+  async openMachineTerminal(machine: string, size = { cols: 120, rows: 32 }): Promise<SessionActionResult> {
+    const inv = await this.inventory();
+    let target = this.remote.target(machine)?.machine ?? null;
+    if (!target && inv.switchboard) {
+      // The Sessions mode's reader may not have read `targets` yet (switched off, another mode): read it now, strictly.
+      const r = await this.run(inv.switchboard, ['--json', 'targets'], 10_000).catch(() => null);
+      target = (r && r.code === 0 ? parseTargets(r.stdout) : []).find((t) => t.machine === machine || t.aliases.includes(machine))?.machine ?? null;
+    }
+    if (!target) return { ok: false, reason: 'remote', detail: 'unknown-machine' };
+    const key = machineTerminalKey(target);
+    if (this.manager.snapshot(key).state === 'running') return { ok: true, key };
+    const a = admit({ ...await (this.o.machine ?? machineProbe)(os.homedir(), this.manager.runningCount()), freeDisk: null });
+    if (!a.ok) return { ok: false, reason: 'admission', detail: a.why };
+    const r = this.manager.start(key, { argv: ['/usr/bin/ssh', '-t', '-o', 'ConnectTimeout=5', target], cwd: os.homedir(), label: 'ssh' }, size);
+    if (!r.ok) return { ok: false, reason: 'spawn', detail: r.error };
+    this.terminalOf.set(key, target);
+    this.originOf.set(key, 'here');
+    this.o.log(`console: terminal on ${target} opened in ${key}`);
+    this.o.changed?.();
+    return { ok: true, key };
+  }
   // #endregion remote-actions
 
   /** FD-211: a console that only shows a hosted session; quitting or closing it leaves the session running. */
@@ -1820,6 +1847,7 @@ export class ConsoleHost {
     ipcMain.handle(CHANNELS.sessionsContinue, (_e, id, s, account) => (idOk(id) ? this.continueSession(id, size(s ?? { cols: 100, rows: 30 }), typeof account === 'string' && account.length <= 64 ? account : undefined) : notARow()));
     ipcMain.handle(CHANNELS.sessionsDismiss, (_e, id) => (idOk(id) ? this.dismissSession(id) : notARow()));
     ipcMain.handle(CHANNELS.sessionsAttach, (_e, id, s) => (idOk(id) ? this.attachSession(id, size(s ?? { cols: 100, rows: 30 })) : notARow()));
+    ipcMain.handle(CHANNELS.sessionsMachineTerminal, (_e, machine, s) => (typeof machine === 'string' && MACHINE.test(machine) ? this.openMachineTerminal(machine, size(s ?? { cols: 120, rows: 32 })) : notARow()));
     ipcMain.handle(CHANNELS.sessionsClearEnded, () => this.clearEnded());
     ipcMain.handle(CHANNELS.sessionsEnd, (_e, id) => (idOk(id) ? this.endSession(id) : notARow()));
     ipcMain.handle(CHANNELS.sessionsReveal, (_e, id) => (idOk(id) ? this.revealSession(id) : notARow()));

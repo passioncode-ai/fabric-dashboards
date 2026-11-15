@@ -7,7 +7,8 @@ import { ConsoleHost } from '../src/electron/console';
 import { SettingsStore } from '../src/core/settings';
 import { tmp } from './helpers';
 import { DEFAULT_REMOTE_SWITCHBOARD, LAUNCH_ID, parseTargets, remoteAttachArgv, remoteEndArgv, readRemoteSessions, REMOTE_BACKOFF_MS, REMOTE_KEEP_MS, REMOTE_MAX_ROWS, REMOTE_POLL_MS, RemoteSessions, remoteSessionsArgv } from '../src/core/remote-sessions';
-import { dropRemoteTwins, mergeSessions, remoteRowId, type SbSessionRecord, type SessionRow } from '../src/core/sessions';
+import { parseRequest } from '../src/core/console-channel';
+import { dropRemoteTwins, machineTerminalKey, mergeSessions, remoteRowId, type SbSessionRecord, type SessionRow } from '../src/core/sessions';
 import { DEFAULT_SETTINGS } from '../src/core/types';
 import { merge as mergeSettings } from '../src/core/settings';
 
@@ -244,4 +245,36 @@ test('FD-247 step 7: the console host opens a remote hosted session in a console
   const failed = await host.endSession(row.id);
   assert.equal(failed.ok, false);
   if (!failed.ok) assert.equal(failed.detail, 'no such session');
+});
+
+test('FD-247 step 7b: Open terminal on a machine Switchboard names: one console per machine, a login shell over ssh; any other machine is refused', { skip: process.platform === 'win32' && 'the fake switchboard is a shell script' }, async () => {
+  const base = tmp('fd-remote-term-');
+  const bin = path.join(base, 'bin');
+  fs.mkdirSync(bin);
+  fs.writeFileSync(path.join(bin, 'switchboard'), '#!/bin/sh\n', { mode: 0o755 });
+  const settings = new SettingsStore(path.join(base, 'data'));
+  const spawned: string[][] = [];
+  const host = new ConsoleHost({
+    settings, snapshot: () => null, window: () => null, visible: () => true, log: () => undefined, testDirs: [bin], scriptsDir: path.join(base, 'scripts'),
+    run: async (_file, args) => (args.join(' ') === '--json targets' ? { code: 0, stdout: JSON.stringify({ data: { targets: [{ machine: 'studio-2', aliases: ['studio-two'] }] } }), stderr: '' } : { code: 1, stdout: '', stderr: '' }),
+    spawn: (file: string, args: string[]) => { spawned.push([file, ...args]); return { pid: 2_100_000_001, onData: () => ({ dispose() {} }), onExit: () => ({ dispose() {} }), write() {}, resize() {}, kill() {} }; },
+    killGroup: () => undefined, idleMs: 0,
+    machine: async () => ({ freeDisk: 50 * 1024 ** 3, swap: null, running: 0 }), keys: () => [], home: base,
+  } as ConstructorParameters<typeof ConsoleHost>[0]);
+  assert.deepEqual(await host.openMachineTerminal('studio-9'), { ok: false, reason: 'remote', detail: 'unknown-machine' });
+  const a = await host.openMachineTerminal('studio-2');
+  assert.ok(a.ok && a.key === machineTerminalKey('studio-2'));
+  assert.ok(spawned.some((x) => x.slice(-4).join(' ') === '-t -o ConnectTimeout=5 studio-2'), JSON.stringify(spawned));
+  assert.deepEqual(await host.openMachineTerminal('studio-two'), { ok: true, key: (a as { key: string }).key }, 'an alias finds the same machine and its console');
+  const row = host.sessionsStatus().rows.find((r) => r.key === (a as { key: string }).key);
+  assert.equal(row?.machine, 'studio-2');
+  assert.match(machineTerminalKey('studio-2'), /^session\.term-[0-9a-f]{12}$/);
+});
+
+test('FD-247 step 7b: the console channel takes a terminal with a machine and nothing else', () => {
+  const ok = parseRequest(JSON.stringify({ key: 'k', op: 'session.new', start: { kind: 'terminal', machine: 'studio-2' } }));
+  assert.deepEqual(ok, { ok: true, request: { key: 'k', op: 'session.new', service: '', start: { kind: 'terminal', machine: 'studio-2' } } });
+  for (const start of [{ kind: 'terminal' }, { kind: 'terminal', machine: '-oProxyCommand=x' }, { kind: 'terminal', machine: 'studio-2', folder: '/x' }, { kind: 'terminal', machine: 'studio-2', runtime: 'codex' }]) {
+    assert.deepEqual(parseRequest(JSON.stringify({ key: 'k', op: 'session.new', start })), { ok: false, code: 'bad-start' }, JSON.stringify(start));
+  }
 });

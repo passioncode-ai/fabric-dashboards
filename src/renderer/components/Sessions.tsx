@@ -239,6 +239,8 @@ export function AllSessions({ sessions, noteSeen, onNoteSeen, onSetUp, endedOpen
                 {words && !stale && <span className="meta"> · {words}</span>}
                 {list.length === 0 && !stale && <span className="meta"> · {t('sessions.machine.empty')}</span>}
               </h2>
+              {/* FD-247 (step 7b, SCN-111): a login shell on that machine, in a console of its own. */}
+              {machine && <button type="button" className="btn btn-sm session-machine-terminal" aria-label={t('sessions.machine.terminal.label', { machine })} onClick={() => void api().sessionsMachineTerminal(machine).then((r) => { if (r.ok && r.key) continued(r.key); })}>{t('sessions.machine.terminal')}</button>}
               {/* FD-247 (step 5): a machine whose list is not fresh says why; its last rows stay, greyed, up to 24 h. */}
               {stale && words && <p className="meta" role="status">{words}</p>}
               {groupsOf(list, stale, machine || 'here')}

@@ -289,6 +289,8 @@ export const stopRowId = (event: string) => `st:${event}`;
 export const processRowId = (pid: number, startedAt: number | null) => `pr:${pid}:${startedAt ?? 0}`;
 /** FD-211: the console of its own that shows one hosted session; one per launch, so a second Open here finds it. */
 export const attachOwnKey = (launchId: string) => `handover.at-${fnv64(launchId).slice(0, 12)}`;
+/** FD-247 (step 7b, SCN-111): the console of its own that holds a login shell on another machine; one per machine. */
+export const machineTerminalKey = (machine: string) => `session.term-${fnv64(machine).slice(0, 12)}`;
 /** FNV-1a, 64 bits as hex: a stable short name for a long folder. Pure, so the renderer can import this module. */
 function fnv64(text: string): string {
   let h = 0xcbf29ce484222325n;

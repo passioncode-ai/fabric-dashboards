@@ -26,7 +26,7 @@ analytics, and every finding fixed in waves to the end. Audit: [docs/reports/202
   FD-235 (the hold follows the conversation, `untrusted` on every agent-written answer, one act per relayed decision,
   an unreadable placement refuses start).
 - Wave 6: FD-246 done (sample agent from kit v0.91.0, e2e 31 of 33, the two diagnosed), FD-248 step 1 (the
-  Organizations menu keeps every organization), FD-247 steps 2 to 6 (0.8.109 to 0.8.114: other machines' sessions in the list, SCN-110; search, filters, machine headings and the sidebar's machine tree, SCN-109; 0.8.115 Open here and End there, SCN-112). Designs:
+  Organizations menu keeps every organization), FD-247 steps 2 to 6 (0.8.109 to 0.8.114: other machines' sessions in the list, SCN-110; search, filters, machine headings and the sidebar's machine tree, SCN-109; 0.8.115 Open here and End there, SCN-112, and a terminal on a machine, SCN-111). Designs:
   [Sessions with machines](design/2026-11-15-sessions-machines.md),
   [organizations and This machine](design/2026-11-15-organizations-and-this-machine.md).
 
@@ -35,11 +35,9 @@ SB-380, due 2026-11-22); FD-248 steps 4 to 8 (Settings →
 Organizations, join), then FD-52 This machine (design promised to the board by 2026-11-19, release by 2026-11-22);
 FD-268 (hidden CPU above the 0.3 % budget set for 22 agents), FD-269, FD-270, FD-271; FD-236's small items.
 
-**Next task.** FD-247 step 7b: Open terminal on {machine} from a machine heading (a console of its own, key
-`machine.<fnv(machine)>`, `/usr/bin/ssh -t <machine>` into a login shell; LC-17 cap and swap, LC-18 idle close, End is
-SIGHUP to its group), a new IPC channel with its parity row and MCP door (`session_new` with `machine` and `kind:
-'terminal'`, or a new act), SCN-111; then New session there from the heading (the FD-206 dialog filled in), then the
-All sessions table view.
+**Next task.** FD-247 step 8: an MCP read of the whole session list (`sessions` tool: rows with machine, state, origin,
+actions, and `machines[]`, filtered like All sessions; untrusted fields marked), its parity and the agent-surface test;
+then New session there from a machine heading (the FD-206 dialog filled in) and the All sessions table view.
 
 **Disk.** 2026-11-15 11:40 UTC the system disk had 2 GB free (Observatory: 26.9 GB of transcripts, 9.8 GB of tool
 caches). This session pruned its own caches (`npm cache clean --force`, `uv cache prune`, `pnpm store prune`,
