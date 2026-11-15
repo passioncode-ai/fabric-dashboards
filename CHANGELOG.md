@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.8.99 - 2026-11-15
+
+### Changed
+
+- FD-244: a copy of an agent that runs for another organization is a row of its own in the list, the tray and
+  Settings, so its state no longer colours your own row; pin, hide or turn it off on its own.
+
 ## 0.8.98 - 2026-11-15
 
 ### Changed

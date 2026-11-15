@@ -109,3 +109,11 @@ test('FD-129 (UX-19): an agent the person hid leaves the tray\'s list of other a
   assert.equal(shown.headline, 'Needs attention: 1');
   assert.deepEqual(trayMenuModel(services, { now: NOW, lang: 'en' }).rest.map((i) => i.key), ['alpha.default', 'bravo.default', 'bravo.second']);
 });
+
+test('FD-244 (design 2026-11-15): the tray hides a row of another organization on its own, and the operator\'s row alone', () => {
+  const org = (key: string, name: string) => ({ ...snap(key, 'ready'), organization: { name, label: name } });
+  const services = [org('inbox.default', 'home'), org('inbox.acme', 'acme')];
+  const keys = (hidden: string[]) => trayMenuModel(services, { now: NOW, lang: 'en', hidden }).rest.map((r) => r.key).sort();
+  assert.deepEqual(keys(['inbox@acme']), ['inbox.default']);
+  assert.deepEqual(keys(['inbox']), ['inbox.acme'], 'hiding the operator\'s row leaves the other organization\'s copy');
+});

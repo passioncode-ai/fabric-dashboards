@@ -112,3 +112,27 @@ test('FD-244: one status per place on the row: the primary where it runs, else t
   const [bravo] = group([remote(svc('bravo.default', 'Bravo', 'degraded')), remote(svc('bravo.eu', 'Bravo EU', 'down'))]);
   assert.deepEqual(placeStates(bravo!).map(({ member }) => member.key), ['bravo.default'], 'the primary speaks for its own place');
 });
+
+test('FD-244 (design 2026-11-15): an instance run for another organization is a row of its own; unknown splits nothing', async () => {
+  const { groupProducts: group, rowIds, snapshotRows } = await import('../src/core/products');
+  const org = (s: ServiceSnapshot, name: string | null): ServiceSnapshot => ({ ...s, organization: name ? { name, label: name } : null });
+  const remote = (s: ServiceSnapshot): ServiceSnapshot => ({ ...s, descriptor: { ...s.descriptor, placement: 'remote' } as ServiceSnapshot['descriptor'] });
+  const services = [
+    org(svc('inbox.default', 'Inbox', 'ready'), 'home'),
+    org(remote(svc('inbox.cloud', 'Inbox cloud', 'ready')), 'home'),
+    org(remote(svc('inbox.acme', 'Inbox Acme', 'down')), 'acme'),
+    org(remote(svc('inbox.unknown', 'Inbox ?', 'ready')), null),
+  ];
+  const ps = group(services);
+  assert.deepEqual(ps.map((p) => [p.id, p.members.map((m) => m.key)]), [['inbox', ['inbox.default', 'inbox.cloud', 'inbox.unknown']], ['inbox@acme', ['inbox.acme']]], 'the other organization\'s copy leaves the operator\'s row');
+  assert.equal(ps[0]!.memberProblem, false, 'its outage no longer marks the operator\'s row');
+  assert.equal(snapshotRows(services).get('inbox.acme'), 'inbox@acme');
+  assert.deepEqual([...rowIds([{ key: 'x.default', organization: null }, { key: 'x.acme', organization: 'acme' }]).values()], ['x', 'x'], 'a primary of unknown organization splits nothing');
+});
+
+test('FD-244: settings keep a row of another organization in every stored list', async () => {
+  const { merge } = await import('../src/core/settings');
+  const list = merge({ layout: { list: { pinned: ['inbox@acme', 'inbox'], hidden: ['inbox@acme'], off: ['x@y'], order: ['inbox@acme'], kinds: { 'inbox@acme': 'service' } } } } as never).layout.list;
+  assert.deepEqual([list.pinned, list.hidden, list.order, list.kinds], [['inbox@acme', 'inbox'], ['inbox@acme', 'x@y'], ['inbox@acme'], { 'inbox@acme': 'service' }], 'an agent turned off is hidden too (FD-123)');
+  assert.deepEqual(merge({ layout: { list: { pinned: ['bad id', '@acme', 'a@'] } } } as never).layout.list.pinned, [], 'anything else is still dropped');
+});
