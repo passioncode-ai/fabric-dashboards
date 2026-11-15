@@ -9,6 +9,8 @@ import path from 'node:path';
 import test from 'node:test';
 import { _electron as electron, type ElectronApplication, type Page } from 'playwright';
 import { tmp, waitFor } from '../helpers';
+// FD-247 (6b): a wide window shows each group as a table and hides the cards; a session is whichever row is on screen.
+const SESSION = '.session-card:visible, .session-table tbody tr:visible';
 
 const ROOT = path.resolve(__dirname, '../..');
 const SHOTS = process.env.FD_SCREENSHOTS;
@@ -100,7 +102,7 @@ test('SCN-085, SCN-080: a hand-over is announced once, its notification opens it
     await page.locator('.session-head').getByText('Ended by you').waitFor({ timeout: 20_000 });
     await page.locator('.session-head').getByRole('button', { name: 'Remove' }).click();
     await page.getByRole('heading', { level: 1, name: 'All sessions' }).waitFor({ timeout: 20_000 });
-    assert.equal(await page.locator('.session-card', { hasText: 'handover-repo' }).count(), 0, 'gone from the list');
+    assert.equal(await page.locator(SESSION, { hasText: 'handover-repo' }).count(), 0, 'gone from the list');
   } finally {
     await closeApp(app);
   }
@@ -149,10 +151,10 @@ test('SCN-077, SCN-078, SCN-079, SCN-082, SCN-083, SCN-084, SCN-086: the Session
     for (const g of [/^Needs you: 1$/, /^Running: 1$/, /^Waiting for a limit reset: 1$/, /Ended in the last 24 hours: 1$/]) await page.getByRole('main').getByRole('heading', { level: 2, name: g }).waitFor({ timeout: 30_000 });
     // The ended group comes folded; opening it shows the session that ended.
     await page.getByRole('main').getByRole('button', { name: /Ended in the last 24 hours: 1/ }).click();
-    const endedCard = page.locator('.session-card', { hasText: 'ended-repo' }).first();
+    const endedCard = page.locator(SESSION, { hasText: 'ended-repo' }).first();
     await endedCard.waitFor();
-    await page.locator('.session-card', { hasText: 'running-repo' }).first().waitFor();
-    await page.locator('.session-card', { hasText: 'stopped-repo' }).getByText(/No account in its group can take it|Waits for an account with capacity/).first().waitFor();
+    await page.locator(SESSION, { hasText: 'running-repo' }).first().waitFor();
+    await page.locator(SESSION, { hasText: 'stopped-repo' }).getByText(/No account in its group can take it|Waits for an account with capacity/).first().waitFor();
     if (SHOTS) await page.screenshot({ path: path.join(SHOTS, '32-all-sessions.png') });
     // FD-124 (SCN-080 step 6): the ended session's page folds its launch facts under "About this launch".
     await endedCard.getByRole('button', { name: 'ended-repo' }).click();
@@ -170,7 +172,7 @@ test('SCN-077, SCN-078, SCN-079, SCN-082, SCN-083, SCN-084, SCN-086: the Session
     // SCN-084: an ended session offers Continue and Remove; Remove takes it out of the list.
     await endedCard.getByRole('button', { name: /^Continue/ }).first().waitFor();
     await endedCard.getByRole('button', { name: /^Remove/ }).first().click();
-    await waitFor('the ended session to leave the list', async () => (await page.locator('.session-card', { hasText: 'ended-repo' }).count()) === 0 || null, 15_000);
+    await waitFor('the ended session to leave the list', async () => (await page.locator(SESSION, { hasText: 'ended-repo' }).count()) === 0 || null, 15_000);
     await note.getByRole('button', { name: 'Hide this explanation' }).click();
     await note.waitFor({ state: 'detached' });
     await waitFor('the note to be remembered', async () => JSON.parse(fs.readFileSync(path.join(base, 'app', 'settings.json'), 'utf8')).sessionsNoteSeen === true);

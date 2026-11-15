@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.8.123 - 2026-11-15
+
+### Fixed
+
+- FD-271: a window hidden with no `hide` event (macOS sends none for a window that is not key) left the app's icon in
+  the Dock for good: the Dock followed only that event. The 15-second visibility pass now compares the Dock with the
+  window as it is and hides or shows the icon to match; ⌘H and a minimized window keep their icon as before. Found by
+  `test/e2e/spend.test.ts`, which failed on every run.
+- Three e2e files read the Sessions mode as cards, which a wide window has shown as a table since FD-247's step 6b
+  (0.8.116): they now read whichever row is on screen; the fake coding agent of FD-83's walk takes the session id after
+  `--resume`, where FD-174's permission flag now comes first. The full e2e suite passes (35 tests, one skipped on macOS).
+
 ## 0.8.122 - 2026-11-15
 
 ### Fixed

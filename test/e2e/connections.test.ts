@@ -11,6 +11,8 @@ import test from 'node:test';
 import { _electron as electron, type ElectronApplication } from 'playwright';
 import { CONNECTIONS_EXTENSION } from '@passioncode-ai/fabric-service-host/connections';
 import { tmp } from '../helpers';
+// FD-247 (6b): a wide window shows each group as a table and hides the cards; a session is whichever row is on screen.
+const SESSION = '.session-card:visible, .session-table tbody tr:visible';
 
 const ROOT = path.resolve(__dirname, '../..');
 const SHOTS = process.env.FD_SCREENSHOTS;
@@ -148,7 +150,8 @@ test('FD-83: a session stopped on a limit continues in a console here; the rest 
   ].join('\n'), { mode: 0o755 });
   // FD-84: the session continues by the plain CLI in its folder, in the home that holds its transcript.
   // Like the real one, it appends the brief to its own transcript in the home it reads ($HOME).
-  fs.writeFileSync(path.join(runtimes, 'claude'), ['#!/bin/sh', `echo "claude $*" >> '${journal}'`, 'echo \'{"brief":true}\' >> "$HOME/.claude/projects/stopped/$2.jsonl"', 'echo "resumed by the fake claude"', '/bin/sleep 40'].join('\n'), { mode: 0o755 });
+  fs.writeFileSync(path.join(runtimes, 'claude'), ['#!/bin/sh', `echo "claude $*" >> '${journal}'`, 'id=""; prev=""; for a in "$@"; do [ "$prev" = "--resume" ] && id="$a"; prev="$a"; done', // FD-174: the permission flag comes first
+    'echo \'{"brief":true}\' >> "$HOME/.claude/projects/stopped/$id.jsonl"', 'echo "resumed by the fake claude"', '/bin/sleep 40'].join('\n'), { mode: 0o755 });
   const home = path.join(base, 'home');
   fs.mkdirSync(path.join(home, '.claude', 'projects', 'stopped'), { recursive: true });
   fs.writeFileSync(path.join(home, '.claude', 'projects', 'stopped', `${READY}.jsonl`), '{}\n');
@@ -175,9 +178,9 @@ test('FD-83: a session stopped on a limit continues in a console here; the rest 
       throw new Error(`${(error as Error).message}\nmain.log:\n${lines.join('\n') || '(none)'}\njournal:\n${fs.existsSync(journal) ? fs.readFileSync(journal, 'utf8') : '(none)'}`);
     }
     // The billing stop needs the person, with Switchboard's verdict and Remove (SCN-082 step 4).
-    await page.locator('.session-card', { hasText: 'Stopped on a payment limit: a top-up is needed.' }).getByRole('button', { name: 'Remove' }).waitFor();
+    await page.locator(SESSION, { hasText: 'Stopped on a payment limit: a top-up is needed.' }).getByRole('button', { name: 'Remove' }).waitFor();
     // The console's PTY runs the launch a moment after the claim is recorded.
-    const launched = `claude --resume ${READY} `;
+    const launched = `--resume ${READY} `; // FD-174: the permission flag may come first
     for (let i = 0; i < 50 && !fs.readFileSync(journal, 'utf8').includes(launched); i++) await new Promise((r) => setTimeout(r, 100));
     const lines = fs.readFileSync(journal, 'utf8').split('\n');
     assert.equal(lines.filter((l) => l.startsWith('--json recovery claim')).length, 1, 'claimed once');
@@ -185,7 +188,7 @@ test('FD-83: a session stopped on a limit continues in a console here; the rest 
     assert.ok(lines.some((l) => l.includes(launched)), lines.join('\n'));
     if (SHOTS) await page.screenshot({ path: path.join(SHOTS, '30-limit-stops.png') });
     // The continued session has a page of its own with its console (SCN-080), opened from its row.
-    await page.locator('.session-card.sg-running', { hasText: 'stopped-repo' }).locator('.session-title').click();
+    await page.locator('.session-card.sg-running:visible, .session-table tbody tr.sg-running:visible', { hasText: 'stopped-repo' }).locator('.session-title').click();
     await page.getByText(/Continued after a limit reset/).first().waitFor();
     await page.getByText(/stopped on a usage limit/i).first().waitFor();
   } finally {

@@ -53,7 +53,7 @@ import { powerShellAfterExit } from '../core/after-exit';
 import { agentSettingsPatch, analyticsMaySend, rendererSettingsPatch, SettingsStore } from '../core/settings';
 import type { AppStatus, Settings, SettingsPatch } from '../core/types';
 import { ALWAYS_KEPT, cancelStagedUpdate, clearRestoreRecord, KEPT_FILES, productDataPaths, purgeAfterExit, readRestoreRecord, removeMcpRegistrations, repairMcpRegistrations, restoreMcpRegistrations, writeRestoreRecord } from '../core/uninstall';
-import { autoInstallNow, autoInstallWait, cookieRewrite, inSight, LINK_FRONT_CHECK_MS, linkLeftBehind, moveSkip, OCCLUSION_PROBE_MS, offerMove, onScreen, resumeBehind, COOKIES_REENCRYPTED_MARKER, HiddenGrace, partitionFor, RELAUNCH_MARKER, relaunchHidden, RESUME_ROUTE_MARKER, resumeRoute, type ResumeRoute, stalePartitions, tryMove, UPDATE_IDLE_MS, VIEW_RELEASE_ALL_MS, VIEW_RELEASE_GRACE_MS, VISIBILITY_SYNC_MS, VisibilitySync, WARM_VIEWS } from './policy';
+import { autoInstallNow, autoInstallWait, cookieRewrite, dockOnSync, inSight, LINK_FRONT_CHECK_MS, linkLeftBehind, moveSkip, OCCLUSION_PROBE_MS, offerMove, onScreen, resumeBehind, COOKIES_REENCRYPTED_MARKER, HiddenGrace, partitionFor, RELAUNCH_MARKER, relaunchHidden, RESUME_ROUTE_MARKER, resumeRoute, type ResumeRoute, stalePartitions, tryMove, UPDATE_IDLE_MS, VIEW_RELEASE_ALL_MS, VIEW_RELEASE_GRACE_MS, VISIBILITY_SYNC_MS, VisibilitySync, WARM_VIEWS } from './policy';
 import { AppTray } from './tray';
 import { DockSync } from './dock';
 import { linkInArgv, notificationSettingsUrl, places, startHidden, uninstallCommand, uninstallTarget, windowChrome } from '../core/platform';
@@ -579,7 +579,16 @@ if (!app.requestSingleInstanceLock()) {
   }
   // FD-64: ⌘H and the return from it send the window no hide or show event, so what is on screen is
   // compared after every activation change and on a slow tick (one boolean, no spawn, no IPC).
-  const visibility = new VisibilitySync(windowVisible, windowShown, windowHidden, false);
+  // FD-271: a change only the sync found moves the Dock too (no `hide` event came for it); ⌘H and a minimized window keep it.
+  const dockFromSync = (shown: boolean) => {
+    const w = window && !window.isDestroyed() ? window : null;
+    const want = dockOnSync(shown, { visible: Boolean(w?.isVisible()), minimized: Boolean(w?.isMinimized()), appHidden: process.platform === 'darwin' && app.isHidden() });
+    if (want === null) return;
+    if (!want && dockSync.wantsHidden) return; // already asked
+    if (!want) log('window hidden with no hide event: the Dock follows (FD-271)');
+    syncDock(want);
+  };
+  const visibility = new VisibilitySync(windowVisible, () => { windowShown(); dockFromSync(true); }, () => { windowHidden(); dockFromSync(false); }, false);
   const syncVisibility = () => { if (visibility.sync()) log(`window ${windowVisible() ? 'shown' : 'hidden'} without a window event (FD-64)`); };
   app.on('did-resign-active', () => setTimeout(syncVisibility, 500));
   app.on('did-become-active', () => setTimeout(syncVisibility, 500));
@@ -640,6 +649,12 @@ if (!app.requestSingleInstanceLock()) {
   }
   /** FD-35 follow-up: a hide that gave up is asked again on the slow tick while the window stays hidden. */
   function recheckDock(): void {
+    // FD-271: the tick compares the Dock with the window as it is, since a show or hide may have come with no event and
+    // no change the visibility sync could see (a window shown and hidden between two ticks, both without events).
+    const w = window && !window.isDestroyed() ? window : null;
+    const state = { visible: Boolean(w?.isVisible()), minimized: Boolean(w?.isMinimized()), appHidden: process.platform === 'darwin' && app.isHidden() };
+    if (!dockSync.wantsHidden && dockOnSync(false, state) === false) { log('window hidden with no hide event: the Dock follows (FD-271)'); syncDock(false); return; }
+    if (dockSync.wantsHidden && windowVisible()) { syncDock(true); return; }
     if (windowVisible()) return;
     void dockSync.recheck().then((ok) => {
       if (ok === true) log('dock_hide recovered: the icon left the Dock on a later pass');
