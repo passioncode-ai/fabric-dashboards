@@ -169,6 +169,9 @@ export interface FabricApi {
   takeNavigation(): Promise<NavTarget | null>;
   /** U-18: the screen on show, so Restart to update can reopen on it. */
   routeChanged(route: { page: string; key?: string }): void;
+  /** FD-263: the bug journal, newest first, and opening a prefilled GitHub issue for one bug (the person submits it). */
+  bugs(): Promise<import('./bug-types').Bug[]>;
+  reportBug(fp: string): Promise<{ ok: boolean }>;
   /** Read the services folder again now (the unreadable-folder Retry). */
   rescan(): Promise<void>;
   /** Open how a service joins (the building-fabric-services kit) in the browser — a fixed address, never one from a page. */
@@ -281,6 +284,10 @@ export const CHANNELS = {
   navigate: 'fd:navigate',
   navigateTake: 'fd:navigate-take',
   routeChanged: 'fd:route-changed',
+  // FD-263: the bug journal.
+  reportError: 'fd:report-error',
+  bugsList: 'fd:bugs-list',
+  bugReport: 'fd:bug-report',
   rescan: 'fd:rescan',
   serviceGuide: 'fd:service-guide',
   updateRestart: 'fd:update-restart',

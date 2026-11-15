@@ -44,6 +44,7 @@ import { continuedLaunches, continuedOf, liveAgents, recoveryOf, transcriptOf, v
 import { findSwitchboard } from '../core/switchboard';
 import { searchDirs } from '../core/runtimes';
 import type { StopView } from '../core/types';
+import { BUG_REPOSITORY, BUGS_FILE, issueOf, readBugs, writeBugs, type Bug } from '../core/bugs';
 import { AgentNameStore, cleanName, customNameOf, findGh, readNamesCache } from '../core/agent-names';
 import { canonicalOrgValue, GITHUB_PREFIX, githubOwnerOf, isShared, keepsOrganization, organizationOfInstance, sharedProducts, type Organization } from '../core/organizations';
 import { readOrganizations } from '../core/organization-store';
@@ -342,6 +343,40 @@ function moveOne(products: Product[], list: ListLayout, id: string, by: -1 | 1):
   return moveInSection(arranged, section, id, from + by, list.pinned, list.order);
 }
 // #endregion arrange
+
+// #region bug-journal-mcp — docs: docs/BUGS.md#the-journal
+/** FD-263: the app's bug journal, newest first (`bugs.json` beside its settings): fingerprint, where, kind, name,
+ *  scrubbed message and our own frames, count, first and last seen, versions, and the issue it was filed as. */
+export function bugsList(deps: Deps, limit = 50): { bugs: Bug[]; total: number; file: string } {
+  const dir = path.dirname(deps.settingsFile?.() ?? appSettingsFile());
+  const all = readBugs(dir).sort((a, b) => (a.lastSeen < b.lastSeen ? 1 : -1));
+  return { bugs: all.slice(0, Math.max(1, Math.min(300, limit))), total: all.length, file: path.join(dir, BUGS_FILE) };
+}
+
+/** FD-263: one bug as a GitHub issue in the app's repository. Without `publish` it only answers the issue it would file
+ *  (the repository is public: filing publishes the scrubbed message and frames); with it, it files the issue once
+ *  (an issue already open or closed for the fingerprint is answered instead) and records it in the journal. */
+export async function bugReport(deps: Deps, fp: string, publish: boolean): Promise<{ fp: string; title: string; body: string; issue: string | null; filed: boolean }> {
+  const dir = path.dirname(deps.settingsFile?.() ?? appSettingsFile());
+  const all = readBugs(dir);
+  const bug = all.find((b) => b.fp === fp);
+  if (!bug) throw new ToolError(`no bug ${JSON.stringify(fp)} in the journal; bugs lists them`);
+  const { title, body } = issueOf(bug);
+  if (bug.issue || !publish) return { fp, title, body, issue: bug.issue ?? null, filed: false };
+  const gh = await (deps.gh ?? (async () => findGh(searchDirs((process.env.PATH ?? '').split(path.delimiter).filter(Boolean)))))();
+  if (!gh) throw new ToolError('the GitHub CLI (gh) is not installed here, so the issue cannot be filed');
+  const run = deps.ghRun ?? execRunner;
+  const found = await run(gh, ['issue', 'list', '-R', BUG_REPOSITORY, '--state', 'all', '--search', `${fp} in:title`, '--json', 'url', '-q', '.[0].url'], 30_000);
+  let issue = found.code === 0 && /^https:\/\/github\.com\//.test(found.stdout.trim()) ? found.stdout.trim() : '';
+  if (!issue) {
+    const made = await run(gh, ['issue', 'create', '-R', BUG_REPOSITORY, '--title', title, '--body', body], 30_000);
+    if (made.code !== 0) throw new ToolError(`gh could not file the issue: ${(made.stderr || made.stdout).trim().slice(0, 300)}`);
+    issue = made.stdout.trim().split('\n').pop() ?? '';
+  }
+  writeBugs(dir, all.map((b) => (b.fp === fp ? { ...b, issue } : b)));
+  return { fp, title, body, issue, filed: true };
+}
+// #endregion bug-journal-mcp
 
 // #region agent-names — docs: docs/ux/scenarios.md#scn-090-rename-an-agent
 /** FD-135: the row menu's Rename as a tool (dashboard parity): commits the name to the agent's own GitHub repository
