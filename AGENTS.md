@@ -108,6 +108,11 @@ and arm64 and Linux x64 and arm64 (PL-08), with `FD_SKIP_LAUNCHD=1`. Its job `e2
   machines (T0, T1) a token is optional and serves attribution only (operator 2026-10-11, ADR-0144 amendment 4,
   fabric-workspace `knowledge/authority.md` "Trust by machine"). Money limits, human gates and never spending
   another agent's key hold on every tier.
+- **Telegram: two channels by who reads** (agents base R33 O9, decision D-50, the operator 2026-11-15): a message to the
+  operator himself (an outage, a recovery, an ask, FD-48 and FD-125) goes only through his notification channel, a local
+  service offering `<id>.notify` (`chooseChannel`, `src/core/outage-alerts.ts`), with one stable `eventId` per event and
+  text only; anyone else, or acting as an account, only through the messaging gateway (`telegram-gateway.default`) under
+  its own grant. This app sends to nobody but the operator, so it never calls the gateway.
 - Tokens are read in the main process only. They never reach a page, a URL or a log, and the app
   listens on no port (`SECURITY.md`).
 - The repository's visibility decides whether the update feed is reachable (D-8 in
