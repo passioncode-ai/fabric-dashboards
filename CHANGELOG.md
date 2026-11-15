@@ -9,6 +9,11 @@
   `console_new` and `console_fix` answer `held: true` with `held_why`, so the calling agent knows the session may wait on
   a person.
 
+### Changed
+
+- AGENTS.md carries the agents base's R33 O9: a message to the operator goes only through his notification channel
+  (`<id>.notify`, as this app's outage alerts already do), anyone else only through the messaging gateway.
+
 ## 0.8.123 - 2026-11-15
 
 ### Fixed
