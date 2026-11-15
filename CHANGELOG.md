@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.8.116 - 2026-11-15
+
+### Added
+
+- FD-247: MCP `sessions` gives an agent every coding session the Sessions mode lists, other machines' included, with
+  the same filters as All sessions (machine, state, how it came, a search), each row's actions and the link to its page.
+- FD-247: New session beside another machine's name opens the New session dialog with that machine chosen.
+- FD-247: on a wide window All sessions is a table (state, project, agent, account, how it came, time, actions) with
+  columns that line up across groups; a narrow one keeps the cards.
+
 ## 0.8.115 - 2026-11-15
 
 ### Added

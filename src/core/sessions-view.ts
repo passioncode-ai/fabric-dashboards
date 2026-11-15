@@ -109,6 +109,26 @@ export function machineStatusWords(lang: Lang, s: RemoteMachineStatus | null): s
   if (s.state === 'unreachable') return s.at ? t(lang, 'sessions.machine.unreachable', { machine: s.machine, time: clock(lang, s.at) }) : t(lang, 'sessions.machine.unreachableNever', { machine: s.machine });
   return t(lang, `sessions.machine.${s.state}`, { machine: s.machine });
 }
+
+/** FD-247 (step 8): one row as MCP `sessions` gives it: what the list shows and what can be done, never a transcript, a
+ *  prompt or what a console printed. `origin` is `originKey` (a board request is `dispatch`). */
+export interface SessionListRow {
+  id: string; project: string; folder: string; machine: string | null; agent: string; account: string | null; context: string | null;
+  state: SessionRow['state']; group: SessionGroup; origin: string; startedAt: string | null; endedAt: string | null; actions: string[]; console: string | null;
+}
+const iso = (t: number | null) => (typeof t === 'number' && Number.isFinite(t) ? new Date(t).toISOString() : null);
+export function sessionListRow(r: SessionRow): SessionListRow {
+  return { id: r.id, project: r.project, folder: r.folder, machine: r.machine, agent: r.agent, account: r.account, context: r.contextName ?? r.context,
+    state: r.state, group: r.group, origin: originKey(r), startedAt: iso(r.startedAt), endedAt: iso(r.endedAt), actions: [...r.actions], console: r.key };
+}
+/** FD-247 (step 8): MCP `sessions`'s filters on the listed rows, as All sessions filters them (SCN-109). */
+export function filterListRows(rows: readonly SessionListRow[], f: { machines?: readonly string[]; groups?: readonly string[]; origins?: readonly string[]; query?: string }, lang: Lang = 'en'): SessionListRow[] {
+  const words = (f.query ?? '').toLocaleLowerCase(lang).split(/\s+/).filter(Boolean);
+  return rows.filter((r) => (!f.machines?.length || f.machines.includes(r.machine ?? ''))
+    && (!f.groups?.length || f.groups.includes(r.group))
+    && (!f.origins?.length || f.origins.includes(r.origin))
+    && words.every((w) => [r.project, r.folder, r.account, agentName(r.agent), r.agent, r.machine].filter(Boolean).join(' ').toLocaleLowerCase(lang).includes(w)));
+}
 // #endregion sessions-filter
 
 /** SCN-077 step 4: what the switch's badge counts. */

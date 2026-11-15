@@ -246,6 +246,8 @@ function Shell({ status: everyAgent, route, setRoute, mode, switchMode, stopKey,
   const askStop = (key: string) => { opener.current = document.activeElement instanceof HTMLElement ? document.activeElement : null; setStopKey(key); };
   // FD-191 (SCN-101, SCN-102): New session and New agent; the console steps aside while the dialog is open.
   const [newSession, setNewSession] = useState<'session' | 'agent' | null>(null);
+  // FD-247: the machine a machine heading's New session chose (null: the dialog's own choice).
+  const [newSessionMachine, setNewSessionMachine] = useState<string | null>(null);
   // Wave 1 (U-06): the New session dialog makes the page inert and hides native views, as every other dialog does.
   const stopOpen = Boolean(stopping) || Boolean(ending) || Boolean(renaming) || noticeOpen || Boolean(newSession);
   useEffect(() => {
@@ -522,7 +524,7 @@ function Shell({ status: everyAgent, route, setRoute, mode, switchMode, stopKey,
               {route.page === 'map' && <ConnectionsMap status={status} every={orgs.length ? everyAgent.services : undefined} open={(key) => open(key, undefined, 'connections')} onAgent={handToAgent} />}
               {route.page === 'settings' && <Settings status={status} onTheme={onTheme} onLanguage={onLanguage} onSetup={() => openSetup('new')} section={route.section} nonce={route.nonce} />}
               {route.page === 'sessions' && <AllSessions sessions={status.sessions} noteSeen={noteSeen} onNoteSeen={onNoteSeen} onSetUp={() => setRoute({ page: 'settings', section: 'sessions', nonce: Date.now() })}
-                endedOpen={layout.endedOpen} onEndedOpen={(o) => changeLayout({ endedOpen: o })} filter={layout.sessionsFilter} onFilter={(f) => changeLayout({ sessionsFilter: { machines: [...f.machines], groups: [...f.groups], origins: [...f.origins] } })} open={openSession} askEnd={askEnd} continued={(key) => setRoute({ page: 'session', id: '', follow: key, until: Date.now() + SESSION_WAIT_MS })} />}
+                endedOpen={layout.endedOpen} onEndedOpen={(o) => changeLayout({ endedOpen: o })} onNewThere={(m) => { setNewSessionMachine(m); setNewSession('session'); }} filter={layout.sessionsFilter} onFilter={(f) => changeLayout({ sessionsFilter: { machines: [...f.machines], groups: [...f.groups], origins: [...f.origins] } })} open={openSession} askEnd={askEnd} continued={(key) => setRoute({ page: 'session', id: '', follow: key, until: Date.now() + SESSION_WAIT_MS })} />}
             </div>
             </div>
           )}
@@ -541,8 +543,8 @@ function Shell({ status: everyAgent, route, setRoute, mode, switchMode, stopKey,
       )}
       <AnalyticsNotice available={Boolean(status.analyticsAvailable)} onOpen={setNoticeOpen} />
       {renaming && <RenameDialog key={renaming.key} s={renaming} onClose={() => setRenameKey(null)} />}
-      {newSession && <NewSessionDialog kind={newSession} onClose={() => setNewSession(null)}
-        onStarted={(key) => { setNewSession(null); setRoute({ page: 'session', id: '', follow: key, until: Date.now() + SESSION_WAIT_MS }); }} />}
+      {newSession && <NewSessionDialog kind={newSession} machine={newSessionMachine ?? undefined} onClose={() => { setNewSession(null); setNewSessionMachine(null); }}
+        onStarted={(key) => { setNewSession(null); setNewSessionMachine(null); setRoute({ page: 'session', id: '', follow: key, until: Date.now() + SESSION_WAIT_MS }); }} />}
       {ending && (
         <div className="scrim" role="presentation">
           <div className="dialog" role="alertdialog" aria-modal="true" aria-labelledby="end-title" aria-describedby="end-body">

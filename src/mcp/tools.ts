@@ -9,6 +9,7 @@
 // Reading — descriptors, claim conflicts, launchd status, the health probe, the state — is one
 // look through @passioncode-ai/fabric-service-host, the same code Fabric's registry reads with.
 import { supervises } from '../core/platform';
+import { filterListRows, type SessionListRow } from '../core/sessions-view';
 import fs from 'node:fs';
 import net from 'node:net';
 import { CHANNEL_KEY_FILE, channelAddress, type AppInstall, type ChannelAnswer, type ChannelOp, type NewSessionRequest, type OpenConsole } from '../core/console-channel';
@@ -810,6 +811,23 @@ export async function consoles(deps: Deps): Promise<{ consoles: (OpenConsole & {
   if (!answer.ok) throw new ToolError(`${answer.code}${answer.detail ? `: ${answer.detail}` : ''}`);
   if (!('consoles' in answer)) throw new ToolError('the app answered a start where a list was asked');
   return { consoles: answer.consoles.map((c) => ({ ...c, open_link: sessionLink(c.row) })) };
+}
+
+/** FD-247 (step 8): every coding session the app lists, on this Mac and the other machines it reads (SCN-109,
+ *  SCN-110), filtered as All sessions filters them, each with the link that opens its page and the actions it offers
+ *  (`session_action` acts on `id`). What another machine or Switchboard wrote is untrusted. */
+export async function sessions(deps: Deps, f: { machines?: string[]; groups?: string[]; origins?: string[]; query?: string } = {}): Promise<Record<string, unknown>> {
+  const answer = await askChannel(deps, { op: 'sessions.list' } as never, 'app-not-running: Fabric Dashboards is not running, so it lists no session now; open it and call again');
+  if (!answer.ok) throw new ToolError(`${answer.code}${answer.detail ? `: ${answer.detail}` : ''}`);
+  if (!('result' in answer)) throw new ToolError('the app answered something other than the session list');
+  const all = (answer.result.sessions ?? []) as SessionListRow[];
+  const rows = filterListRows(all, f);
+  return {
+    ...answer.result,
+    sessions: rows.map((r) => ({ ...r, open_link: sessionLink(r.id) })),
+    shown: rows.length, total: all.length,
+    untrusted: { fields: ['sessions[].project', 'sessions[].folder', 'sessions[].agent', 'sessions[].account', 'sessions[].context', 'sessions[].machine', 'machines[].machine'], note: UNTRUSTED_NOTE },
+  };
 }
 
 // #region agent-doors-mcp — docs: docs/ux/scenarios.md#scn-098-an-agent-changes-what-a-person-changes-in-settings-and-on-the-sessions-page

@@ -2,6 +2,7 @@
 // process, sandboxed renderers, context isolation, a single instance. It owns
 // no service process — launchd does (ADR-0002) — so quitting stops nothing.
 import { app, BrowserWindow, clipboard, dialog, ipcMain, nativeTheme, Menu, Notification, session, shell } from 'electron';
+import { sessionListRow } from '../core/sessions-view';
 import { pathToFileURL } from 'node:url';
 import { guardIpc } from './ipc-guard';
 import { BugStore } from './bug-store';
@@ -1264,6 +1265,11 @@ if (!app.requestSingleInstanceLock()) {
       // FD-166: the read answers what the Sessions list shows; the starts take the buttons' own path.
       start: async (r): Promise<ChannelAnswer> => {
         if (r.op === 'console.list') return { ok: true, consoles: consoles.openConsoles() };
+        if (r.op === 'sessions.list') {
+          // FD-247 (step 8): the Sessions list as the window has it, every machine included.
+          const s = consoles.sessionsStatus();
+          return { ok: true, result: { sessions: s.rows.map(sessionListRow), machines: s.machines ?? [], switchboard: s.switchboard, degraded: s.degraded.map((d) => d.source) } };
+        }
         // #region agent-doors — docs: docs/ux/scenarios.md#scn-098-an-agent-changes-what-a-person-changes-in-settings-and-on-the-sessions-page
         // FD-175: the window's own buttons for an agent, each through the code its button runs.
         if (r.op === 'settings.update') {

@@ -65,8 +65,9 @@ export async function openChannel(o: ChannelOptions): Promise<Channel | null> {
       const parsed = parseRequest(buffer.slice(0, nl));
       if (!parsed.ok) return answer(socket, { ok: false, code: parsed.code });
       if (!keyMatches(parsed.request.key, key)) { o.log('console channel: a request with a wrong key was refused'); return answer(socket, { ok: false, code: 'bad-key' }); }
-      if (!(parsed.request.op === 'console.list' ? reads : limit).take(now())) return answer(socket, { ok: false, code: 'busy' });
-      if (parsed.request.op !== 'console.list') o.log(`console channel: ${parsed.request.op} for ${parsed.request.service}`); // a read is not logged
+      const read = parsed.request.op === 'console.list' || parsed.request.op === 'sessions.list';
+      if (!(read ? reads : limit).take(now())) return answer(socket, { ok: false, code: 'busy' });
+      if (!read) o.log(`console channel: ${parsed.request.op} for ${parsed.request.service}`); // a read is not logged
       o.start(parsed.request).then((a) => answer(socket, a), (error: Error) => answer(socket, { ok: false, code: 'internal', detail: error.message.slice(0, 200) }));
     });
   });

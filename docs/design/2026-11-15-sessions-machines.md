@@ -104,13 +104,15 @@ machine; SCN-112 open here or end a hosted session there. SCN-078 steps 1-2 and 
    In part in 0.8.113: `filterRows`, `searchRows`, `machineGroups`, `machineStatusWords` in `sessions-view.ts`; All
    sessions with search, chips, "N of M shown", machine headings and greyed rows of a machine not read now;
    `settings.layout.sessionsFilter`. 0.8.114: the sidebar's machine tree (`layout.sessionsFolded`; a folded machine keeps
-   needs-you, running and the open row). Left: the table view (cards stay meanwhile).
+   needs-you, running and the open row). 0.8.116: the table view (`@container sessions (min-width: 900px)`; the machine is the section's heading, not a column).
 7. Remote actions: attach and end argv, the machine terminal console, channel and IPC.
    In part in 0.8.115: `remoteAttachArgv`, `remoteEndArgv`, `LAUNCH_ID` (`src/core/remote-sessions.ts`); a hosted remote
    row carries `attach` and `end`, served by the existing channels (`sessionsAttach`, `sessionsEnd`, MCP `session_action`).
    Also 0.8.115: Open terminal on {machine} (SCN-111): `ConsoleHost.openMachineTerminal`, key `session.term-<fnv>`,
-   IPC `sessionsMachineTerminal`, MCP `session_new` kind `terminal`. Left: New session there from a machine heading.
+   IPC `sessionsMachineTerminal`, MCP `session_new` kind `terminal`. 0.8.116: New session there from a machine heading (`initialMachine`).
 8. MCP tools and the parity test.
+   Done in 0.8.116: MCP `sessions` (channel op `sessions.list`, a read under the read limit; `sessionListRow`,
+   `filterListRows`); the actions were already MCP doors (`session_action`, `session_new` kind `terminal`).
 9. Docs: scenarios, AGENTS.md lifecycle rows, CHANGELOG, copy checks in en and ru.
 10. Switch to Switchboard's `--target` doors when they ship; the ssh path stays as the fallback.
 

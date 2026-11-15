@@ -1,10 +1,13 @@
 // FD-247 (step 6, SCN-109): All sessions searched, filtered and grouped by machine
 // (docs/design/2026-11-15-sessions-machines.md §The list).
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
 import test from 'node:test';
 import * as React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { AllSessions } from '../src/renderer/components/Sessions';
+import { initialMachine } from '../src/renderer/components/NewSessionDialog';
 import { SessionsNav } from '../src/renderer/components/Navigation';
 import { LangContext } from '../src/renderer/lib';
 import { filterActive, filterRows, machineGroups, machineStatusWords, NO_FILTER, originKey, searchRows, type SessionFilter } from '../src/core/sessions-view';
@@ -62,7 +65,7 @@ test('FD-247 step 6: machines in order: this Mac, those read, then any a row nam
 });
 
 const page = (s: SessionsStatus, filter: SessionFilter = NO_FILTER, lang: 'en' | 'ru' = 'en') => renderToStaticMarkup(React.createElement(LangContext.Provider, { value: lang },
-  React.createElement(AllSessions, { sessions: s, noteSeen: true, onNoteSeen: noop, onSetUp: noop, endedOpen: false, onEndedOpen: noop, open: noop, askEnd: noop, continued: noop, filter, onFilter: noop })));
+  React.createElement(AllSessions, { sessions: s, noteSeen: true, onNoteSeen: noop, onSetUp: noop, endedOpen: false, onEndedOpen: noop, open: noop, askEnd: noop, continued: noop, filter, onFilter: noop, onNewThere: noop })));
 const text = (html: string) => html.replace(/<[^>]+>/g, ' ').replace(/&#x27;/g, '\'').replace(/\s+/g, ' ').trim();
 const status = (o: Partial<SessionsStatus> = {}): SessionsStatus => ({ rows, degraded: [], switchboard: true, handovers: { enabled: true }, autoContinue: true, machines, ...o });
 
@@ -70,9 +73,10 @@ test('FD-247 step 6: All sessions has a search, filter chips and a heading per m
   const html = page(status());
   assert.match(html, /type="search"[^>]*aria-label="Search sessions"/);
   assert.match(html, /aria-pressed="false"[^>]*>This computer</);
-  assert.match(text(html), /This computer .* studio-2 · read at .* studio-3 Open terminal studio-3: not reachable over ssh\. Last read .* studio-4 · read at .* · no sessions/);
+  assert.match(text(html), /This computer .* studio-2 · read at .* studio-3 New session Open terminal studio-3: not reachable over ssh\. Last read .* studio-4 · read at .* · no sessions/);
   assert.match(html, /session-machine session-machine-stale/);
   assert.match(html, /aria-label="Open a terminal on studio-2">Open terminal</);
+  assert.match(html, /aria-label="Start a new session on studio-2">New session</);
   assert.doesNotMatch(html, /aria-label="Open a terminal on "/, 'this computer has no terminal button');
   assert.match(html, /<h2 id="sm-studio-2"/);
   assert.match(html, /<h3 id="sg-studio-2-running"/);
@@ -124,4 +128,23 @@ test('FD-247 step 6b: with one Mac the sidebar reads as before, and folded machi
   assert.doesNotMatch(html, /nav-machine/);
   assert.match(html, /id="snav-running"/);
   assert.deepEqual(merge({ layout: { ...DEFAULT_SETTINGS.layout, sessionsFolded: ['', 'studio-2', 3] as never } }).layout.sessionsFolded, ['', 'studio-2']);
+});
+
+test('FD-247: New session on a machine heading opens the dialog on that machine; one Switchboard cannot start there falls back', () => {
+  const o = { machines: ['studio-2', 'studio-3'], machine: 'studio-3', remoteFolder: '/srv/w/ledger' };
+  assert.deepEqual(initialMachine('studio-2', o), { machine: 'studio-2', remoteFolder: '' });
+  assert.deepEqual(initialMachine('studio-3', o), { machine: 'studio-3', remoteFolder: '/srv/w/ledger' }, 'the last folder there stays');
+  assert.deepEqual(initialMachine('studio-9', o), { machine: 'studio-3', remoteFolder: '/srv/w/ledger' });
+  assert.deepEqual(initialMachine(undefined, { machines: [], machine: null, remoteFolder: null }), { machine: '', remoteFolder: '' });
+});
+
+test('FD-247 step 6: All sessions draws each group as a table too (shown on a wide window), one row per session, columns fixed and the state in words', () => {
+  const html = page(status());
+  assert.equal((html.match(/<table class="session-table">/g) ?? []).length, 3, 'one table per unfolded group: this Mac running (Ended is folded), studio-2, studio-3');
+  assert.match(html, /<th scope="col">State<\/th><th scope="col">Project<\/th><th scope="col">Agent<\/th><th scope="col">Account<\/th><th scope="col">How it came<\/th><th scope="col">Time<\/th><th scope="col">Actions<\/th>/);
+  assert.doesNotMatch(html, /<th scope="col">Machine<\/th>/, 'the machine is its section\'s heading');
+  assert.match(html, /<colgroup><col class="c-state"\/>/);
+  assert.match(html, /<th scope="row" title="docs-site">/);
+  const css = fs.readFileSync(path.join(import.meta.dirname, '..', 'src/renderer/styles/app.css'), 'utf8');
+  assert.match(css, /@container sessions \(min-width: 900px\) \{\s*\.session-table \{ display: table; \}\s*\.session-cards \{ display: none; \}/);
 });
