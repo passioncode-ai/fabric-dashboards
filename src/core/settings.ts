@@ -14,6 +14,14 @@ import { canonicalOrgValue } from './organizations';
 
 /** FD-122: how often settings.json is looked at for a change written outside the app (a stat, no read). */
 export const SETTINGS_POLL_MS = 5_000;
+/** Wave 4 (P-01): how long `peek()` keeps the `auto-update` file's reading. */
+export const PEEK_FRESH_MS = 1_000;
+
+/** Every object inside, frozen: a `peek()` reader that tried to change it would throw instead of changing the store. */
+function deepFreeze<T>(v: T): T {
+  if (v && typeof v === 'object' && !Object.isFrozen(v)) { Object.freeze(v); for (const x of Object.values(v as object)) deepFreeze(x); }
+  return v;
+}
 
 export class SettingsStore {
   private readonly file: string;
@@ -23,6 +31,7 @@ export class SettingsStore {
   /** FD-122: the text of settings.json as this store last read or wrote it; a file that differs was written by someone
    *  else (an agent's MCP `arrange`, a person's editor) and is read again before anything is written over it. */
   private known: string | null = null;
+  private peeked: { base: Settings; at: number; value: Readonly<Settings> } | null = null;
   /** What reading found, for the log: null when settings.json was read as it is. */
   readonly recovered: string | null = null;
 
@@ -54,6 +63,17 @@ export class SettingsStore {
 
   get(): Settings {
     return { ...structuredClone(this.value), autoUpdate: autoUpdateOn(this.dir) };
+  }
+
+  /** Wave 4 (P-01): the settings for a reader that only looks, as `get()` gives them, without a copy per call: one frozen
+   *  copy kept while the settings stay the same, and the `auto-update` file read again at most once a second. The
+   *  monitor asks for each of its agents on every pass, and a deep copy and a file read each time added up. */
+  peek(now = Date.now()): Readonly<Settings> {
+    const c = this.peeked;
+    if (c && c.base === this.value && now - c.at < PEEK_FRESH_MS && now >= c.at) return c.value;
+    const value = deepFreeze({ ...structuredClone(this.value), autoUpdate: autoUpdateOn(this.dir) });
+    this.peeked = { base: this.value, at: now, value };
+    return value;
   }
 
   // #region settings-sync — docs: docs/ux/scenarios.md#scn-087-arrange-the-sidebar-width-and-order

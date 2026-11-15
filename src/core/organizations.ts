@@ -40,9 +40,16 @@ export const ORGANIZATIONS_FIRST_MS = 25_000;
  *  `owner/name` itself, in lower case; null for anything else. */
 export function repositoryKey(repository: string | undefined | null): string | null {
   if (!repository) return null;
+  // Wave 4 (P-01): every snapshot asks for every agent's repository; the same few dozen strings are parsed once.
+  const known = REPOSITORY_KEYS.get(repository);
+  if (known !== undefined) return known;
   const m = /([A-Za-z0-9][\w.-]*)\/([\w.-]+?)(?:\.git)?\/?$/.exec(repository.trim());
-  return m ? `${m[1]}/${m[2]}`.toLowerCase() : null;
+  const key = m ? `${m[1]}/${m[2]}`.toLowerCase() : null;
+  if (REPOSITORY_KEYS.size >= 2000) REPOSITORY_KEYS.clear();
+  REPOSITORY_KEYS.set(repository, key);
+  return key;
 }
+const REPOSITORY_KEYS = new Map<string, string | null>();
 
 /** One page of the survey (`projects[]` with `repositories[].nameWithOwner` and `organization {name, label}`), added
  *  to the map; the page's `nextCursor`, or null at the end. A project with no organization adds nothing. */

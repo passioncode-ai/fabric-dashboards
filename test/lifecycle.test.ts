@@ -104,7 +104,7 @@ test('LC-08: a launch with no window runs at background cadence; a quiet hour st
   }
 });
 
-test('LC-08: a shown window probes at once and at the live cadence; hiding it returns to the background cadence', async (t) => {
+test('LC-08: a shown window probes within a second and at the live cadence; hiding it returns to the background cadence', async (t) => {
   t.mock.timers.enable({ apis: ['setTimeout', 'setInterval', 'Date'], now: T0 });
   const { monitor, counts, reset, local } = idleRig();
   monitor.start();
@@ -112,7 +112,7 @@ test('LC-08: a shown window probes at once and at the live cadence; hiding it re
     await advance(t, 120);
     reset();
     monitor.setVisible(true);
-    await flush();
+    await advance(t, 2); // wave 4 (P-09): spread over the first second, not one burst
     assert.ok(counts.probes >= local, 'the window shows current states, not the last background read');
     reset();
     await advance(t, 60);

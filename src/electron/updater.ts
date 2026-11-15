@@ -116,6 +116,7 @@ export class Updater {
   private lastQuiet: string | null = null;
   state: UpdateState = { state: 'idle' };
   private timer: NodeJS.Timeout | null = null;
+  private quittingForUpdate = false;
   /** LC-16's one retry after a failure; any check that starts cancels it (FD-178). */
   private readonly retry = new RetryOnce(RETRY_AFTER_FAILURE_MS, () => { if (this.state.state === 'error') this.check(); });
   private verified: Verified | null = null;
@@ -207,7 +208,15 @@ export class Updater {
     autoUpdater.on('update-not-available', () => { this.event('update_check', 'current', `version=${app.getVersion()} by=squirrel`); this.set({ state: 'idle', checkedAt: new Date().toISOString() }); });
     autoUpdater.on('update-downloaded', () => void this.checkStaged());
     autoUpdater.on('error', (error) => { if (this.state.state === 'downloading') emptyVerifiedCache(); this.fail(this.state.state === 'downloading' ? 'download_failed' : 'check_failed', error.message); });
-    autoUpdater.on('before-quit-for-update', () => { this.event('update_install', 'started', `version=${this.state.version ?? '?'}`); this.onQuitForUpdate(); });
+    // Wave 4 (P-04): Squirrel can emit this twice for one quit (main.log shows two lines 30 to 150 ms apart for each
+    // install); the install and its event happen once per quit.
+    autoUpdater.on('before-quit-for-update', () => {
+      if (this.quittingForUpdate) return;
+      this.quittingForUpdate = true;
+      setTimeout(() => { this.quittingForUpdate = false; }, 30_000).unref(); // an install that did not quit can run again
+      this.event('update_install', 'started', `version=${this.state.version ?? '?'}`);
+      this.onQuitForUpdate();
+    });
     this.switched(this.enabled());
     setTimeout(() => this.check(), FIRST_CHECK_MS).unref();
     this.timer = setInterval(() => this.check(), APP_UPDATE_EVERY_MS);

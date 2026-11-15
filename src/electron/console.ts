@@ -129,6 +129,8 @@ export const QUIT_FINISH_MS = 1500;
 
 /** FD-74: how long the console trusts Switchboard's last answer about a folder before asking again in the background. */
 export const BINDING_FRESH_MS = 30_000;
+/** Wave 4 (P-08): how long one `switchboard capacity` answer serves the machine checks of one pass. */
+const CAPACITY_FRESH_MS = 10_000;
 /** FD-137: how long the agents' folders, matched to board-request sessions, are kept before they are looked up again. */
 export const AGENT_FOLDER_MS = 5 * 60_000;
 /** FD-211: a folder as Switchboard and this app may each write it, without a trailing separator. */
@@ -285,14 +287,22 @@ export class ConsoleHost {
 
   /** FD-261: the machine as a new coding session on it would find it, with Switchboard's pool when it sets a cap (SB-378).
    *  A view of a running session (attach) and a session on another machine do not ask: they add none here. */
-  private async machine(folder: string): Promise<MachineState> {
+  private async machine(folder: string, cached = false): Promise<MachineState> {
     const m = await (this.o.machine ?? machineProbe)(folder, this.manager.runningCount());
     const inv = await this.inventory();
     if (!inv.switchboard) return m;
-    const r = await this.run(inv.switchboard, ['--json', 'capacity'], 5_000);
-    const pool = r.code === 0 ? parseCapacity(r.stdout) : null;
+    // Wave 4 (P-08): one `switchboard capacity` serves every stop a pass looks at (each one asked before, every 15 s).
+    const c = this.capacitySeen;
+    let pool: ReturnType<typeof parseCapacity>;
+    if (cached && c && c.sb === inv.switchboard && Date.now() - c.at < CAPACITY_FRESH_MS && Date.now() >= c.at) pool = c.pool; // a start asks afresh
+    else {
+      const r = await this.run(inv.switchboard, ['--json', 'capacity'], 5_000);
+      pool = r.code === 0 ? parseCapacity(r.stdout) : null;
+      this.capacitySeen = { at: Date.now(), sb: inv.switchboard, pool };
+    }
     return pool ? { ...m, pool } : m;
   }
+  private capacitySeen: { at: number; sb: string; pool: ReturnType<typeof parseCapacity> } | null = null;
 
   /** The runtimes installed, read once per launch (looked for again while none is found), and
    *  Switchboard, looked for on every call: one installed later must bind its folders at once
@@ -384,7 +394,13 @@ export class ConsoleHost {
     if (!runtime || !inv.switchboard || !inv.inPlace || b.kind === 'error' || b.kind === 'absent') return null;
     const sb = inv.switchboard;
     const c = this.accountsSeen;
-    const read = async () => { const value = await accountsOf(this.run, sb).catch(() => null); this.accountsSeen = { at: Date.now(), sb, value, pending: false }; return value; };
+    // Wave 4 (P-06): a read that failed keeps the last answer from the same Switchboard; only none at all reads unknown.
+    const read = async () => {
+      const got = await accountsOf(this.run, sb).catch(() => null);
+      const value = got ?? (this.accountsSeen?.sb === sb ? this.accountsSeen.value : null);
+      this.accountsSeen = { at: Date.now(), sb, value, pending: false };
+      return value;
+    };
     let accounts: SbAccounts | null;
     if (!c || c.sb !== sb) accounts = await read();
     else {
@@ -613,6 +629,10 @@ export class ConsoleHost {
     const account = inv.switchboard && runtime.provider && inv.inPlace && b.kind !== 'error' && !saved?.isolated
       ? startAccount(await accountsOf(this.run, inv.switchboard), runtime.provider, b) : null;
     if (account) this.accountsSeen = null; // the panel reads the routes afresh after a start
+    if (account?.kind === 'unread') {
+      this.o.log(`console: ${key} not started: Switchboard did not answer which ${runtime.provider} account group ${account.group} uses`);
+      return { ok: false, reason: 'sb-unread', project: account.group };
+    }
     if (account?.kind === 'missing') {
       this.o.log(`console: ${key} not started: Switchboard group ${account.group} selects no ${runtime.provider} account`);
       return { ok: false, reason: 'no-account', project: account.group, detail: runtime.provider ?? '' };
@@ -934,7 +954,7 @@ export class ConsoleHost {
   }
 
   private async resumeOnce(stop: SbStop, sb: string, dirs: string[], account: string, automatic: boolean): Promise<string | null> {
-    const a = admit(await this.machine(stop.dir));
+    const a = admit(await this.machine(stop.dir, automatic));
     if (!a.ok) {
       // FD-233: a pass every 15 s logged the same wait each time (477 lines on 2026-11-13); once per reason is enough.
       if (this.waitNoted.get(stop.event) !== a.why) this.o.log(`console: limit stop ${stop.event} waits (LC-17: ${a.why})`);

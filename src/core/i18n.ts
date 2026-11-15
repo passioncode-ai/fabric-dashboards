@@ -325,6 +325,8 @@ const en = {
   'console.account.noRouteHint': 'Starts on the coding agent\'s own sign-in: this folder is in no Switchboard group, and the {pool} group selects no account for it.',
   'console.account.routeHint': 'Starts through Switchboard on the {pool} group\'s selected account.',
   'console.account.none': 'No account',
+  'console.account.unread': 'Account unknown',
+  'console.sbUnreadHint': 'Switchboard did not answer which account the {group} group uses. It is asked again in a minute.',
   'console.account.missing': 'The Switchboard group {group} selects no account for this coding agent. Select one in Switchboard, then start again.',
   'console.folder': 'Folder',
   'console.folderNone': 'not chosen',
@@ -410,6 +412,7 @@ const en = {
   'console.terminalOnly.mac': 'This folder runs on Switchboard project {name}. This Switchboard opens its sessions in Terminal.',
   // Scenario walk 2026-11-11 (SCN-050): also a refusal Switchboard answered (a rule with no account), so not "did not answer"; copy check 45536e96.
   'console.sbError': 'Switchboard did not start the session: {detail}',
+  'console.sbUnread': 'Switchboard did not answer which account the {group} group uses, so the session did not start. Start again in a minute.',
   'console.spawnError': 'The coding agent could not start: {detail}',
   'console.terminalFailed': 'Terminal could not open: {detail}',
   'console.continueUnsupported': 'Switchboard opens a new session in a terminal window; it cannot continue the last one.',
@@ -1477,6 +1480,8 @@ const ru: Record<Key, string> = {
   'console.account.noRouteHint': 'Запустится на собственном входе агента для кода: папка не входит в группы Switchboard, а в группе {pool} для него не выбран аккаунт.',
   'console.account.routeHint': 'Запустится через Switchboard на аккаунте, выбранном в группе {pool}.',
   'console.account.none': 'Нет аккаунта',
+  'console.account.unread': 'Аккаунт неизвестен',
+  'console.sbUnreadHint': 'Switchboard не ответил, какой аккаунт выбран в группе {group}. Спросим снова через минуту.',
   'console.account.missing': 'В группе Switchboard {group} не выбран аккаунт для этого агента для кода. Выберите его в Switchboard и запустите снова.',
   'console.folder': 'Папка',
   'console.folderNone': 'не выбрана',
@@ -1561,6 +1566,7 @@ const ru: Record<Key, string> = {
   'console.terminalOnly.mac': 'Эта папка привязана к проекту Switchboard {name}. Эта версия Switchboard открывает его сессии в Терминале.',
   // Scenario walk 2026-11-11: copy check 61c3904a.
   'console.sbError': 'Switchboard не запустил сессию: {detail}',
+  'console.sbUnread': 'Switchboard не ответил, какой аккаунт выбран в группе {group}, поэтому сессия не запущена. Запустите снова через минуту.',
   'console.spawnError': 'Агент для кода не запустился: {detail}',
   'console.terminalFailed': 'Не удалось открыть Терминал: {detail}',
   'console.continueUnsupported': 'Switchboard открывает новую сессию в окне терминала и не может продолжить последнюю.',

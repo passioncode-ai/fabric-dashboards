@@ -249,7 +249,7 @@ if (!app.requestSingleInstanceLock()) {
     setTimeout(() => { tick(); orgTimer = setInterval(tick, ORGANIZATIONS_EVERY_MS / 6); orgTimer.unref?.(); }, ORGANIZATIONS_FIRST_MS).unref?.();
   }
   // #endregion organizations
-  const monitor = new Monitor({ servicesDir: servicesDir(), activity, settings: () => settings.get(), lang, ledger: new NotifyLedger(path.join(userData, 'notified.json')),
+  const monitor = new Monitor({ servicesDir: servicesDir(), activity, settings: () => settings.peek(), lang, ledger: new NotifyLedger(path.join(userData, 'notified.json')),
     customName: (key, repository) => agentNames.name(key, repository),
     organizationOf: (instance) => (organizations.get().readAt ? organizations.of(instance) : undefined),
     intervals: Number.isFinite(testRemoteMs) && testRemoteMs >= 1_000 ? { remote: testRemoteMs } : undefined });
@@ -388,7 +388,7 @@ if (!app.requestSingleInstanceLock()) {
     dataDir: userData, snapshots: () => monitor.snapshots(), settings: () => settings.get(), version: app.getVersion(), log,
     nameOf: (s) => displayName(s.wellKnown?.service.name ?? s.descriptor?.name ?? s.key, s.descriptor?.instance ?? s.key.split('.')[1] ?? 'default'),
     reasonOf: (s) => (s.reasons[0] ? t(lang(), s.reasons[0].code, s.reasons[0].params) : s.state),
-    allowed: (key, now) => shouldNotify(settings.get(), { kind: 'down', serviceKey: key }, now),
+    allowed: (key, now) => shouldNotify(settings.peek(), { kind: 'down', serviceKey: key }, now),
     words: () => {
       const l = lang();
       return {

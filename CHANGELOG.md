@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.8.105 - 2026-11-15
+
+### Fixed
+
+- FD-267 (quality wave 4): less work in the background. With 55 agents on this Mac the main process takes 2.5 % of a
+  core with the window shown (3.9 % before) and 1.1 % hidden (1.5 %): settings are no longer copied and the update
+  switch no longer read from disk for every agent on every pass, a repository's name is parsed once, a shown window
+  probes its agents over a second instead of all at once, and the limit pass asks Switchboard's capacity once.
+- A message to the operator channel that is refused no longer holds back the ones behind it.
+- A Switchboard that did not answer which account a group uses no longer reads as "the group selects no account": the
+  console says Switchboard did not answer, and keeps the last account it knew.
+- An update installs once per quit; Squirrel's second signal is ignored.
+
 ## 0.8.104 - 2026-11-15
 
 ### Fixed

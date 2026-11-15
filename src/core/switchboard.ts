@@ -141,9 +141,13 @@ export type StartAccount =
   | { kind: 'route'; pool: string; label: string }
   | { kind: 'ordinary'; reason: 'unmanaged' }
   | { kind: 'ordinary'; reason: 'no-route'; pool: string }
-  | { kind: 'missing'; pool: string; group: string };
+  | { kind: 'missing'; pool: string; group: string }
+  /** Wave 4 (C-02): the accounts could not be read, so whether the group selects one is not known. */
+  | { kind: 'unread'; pool: string; group: string };
 
 export function startAccount(accounts: SbAccounts | null, provider: RuntimeSpec['provider'], binding: Binding | { kind: 'absent' }): StartAccount {
+  // Wave 4 (C-02): a read that failed is not "the group selects no account": the group's folder waits for an answer.
+  if (!accounts && provider && binding.kind === 'project') return { kind: 'unread', pool: binding.pool, group: binding.name };
   if (!provider || !accounts || !managesProvider(accounts, provider)) {
     if (binding.kind === 'project' && provider) return { kind: 'missing', pool: binding.pool, group: binding.name };
     return { kind: 'ordinary', reason: 'unmanaged' };

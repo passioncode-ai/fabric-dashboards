@@ -131,6 +131,8 @@ test('FD-239: the account a console start runs on is the folder group\'s selecte
   assert.deepEqual(startAccount({ routes: {}, labels: {} }, 'claude', { kind: 'none' }), { kind: 'ordinary', reason: 'unmanaged' });
   assert.deepEqual(startAccount(null, 'claude', { kind: 'none' }), { kind: 'ordinary', reason: 'unmanaged' });
   assert.deepEqual(startAccount(accounts, null, { kind: 'none' }), { kind: 'ordinary', reason: 'unmanaged' });
+  // Wave 4 (C-02): accounts that could not be read are not "the group selects none".
+  assert.deepEqual(startAccount(null, 'claude', { kind: 'project', name: 'PassionCode', pool: 'passioncode' }), { kind: 'unread', pool: 'passioncode', group: 'PassionCode' });
 });
 
 test('FD-239: an unbound folder whose default group selects no account starts the runtime on its own sign-in, not a refused launch', { skip: process.platform === 'win32' && 'POSIX execute bits: the fake runtime is a shell script; Windows lookup is tested by the PATHEXT test' }, async () => {

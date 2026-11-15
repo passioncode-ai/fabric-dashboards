@@ -112,6 +112,8 @@ const DEFAULT_INTERVALS = {
 };
 /** The earliest a scheduled wake may come after the last one. */
 const MIN_WAKE_MS = 250;
+/** Wave 4 (P-09): over how long the probes a shown window asks for are spread. */
+const SHOW_SPREAD_MS = 1_000;
 // #endregion idle-cadence
 
 /** FD-125: an events-feed row asking the operator for a decision, for the operator channel. */
@@ -228,8 +230,11 @@ export class Monitor extends EventEmitter {
       this.armPoll(Math.max(0, this.lastPollAt + this.intervals.eventsBackground - this.now()));
       return;
     }
-    // A window that opens shows current states, not the last background read.
-    for (const t of this.tracked.values()) t.nextProbeAt = Math.min(t.nextProbeAt, this.now());
+    // A window that opens shows current states, not the last background read. Wave 4 (P-09): spread over the first
+    // second, so 55 agents are not probed (and launchd read, and tokens checked) in one burst.
+    let i = 0;
+    const step = this.tracked.size > 1 ? Math.min(SHOW_SPREAD_MS / (this.tracked.size - 1), 50) : 0;
+    for (const t of this.tracked.values()) t.nextProbeAt = Math.min(t.nextProbeAt, this.now() + Math.round(i++ * step));
     if (this.running) void this.tick();
     this.armPoll(Math.max(0, this.lastPollAt + this.intervals.events - this.now()));
   }

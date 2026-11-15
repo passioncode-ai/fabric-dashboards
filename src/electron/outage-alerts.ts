@@ -161,15 +161,20 @@ export class OutageAlerts {
         if (channel.none !== 'off') { more = true; this.o.log(`alerts: ${outages.length} message(s) wait: no channel (${channel.none})`); }
         return;
       }
+      // Wave 4 (C-06): one message the channel refuses waits for its own retry, the ones behind it still go; three
+      // failures in a row mean the channel itself is out, and the round ends there.
+      let failures = 0;
       for (const d of outages) {
         if (this.stopped) return;
         try {
           await this.deliver(channel, d.msg);
+          failures = 0;
         } catch (error) {
           this.retryAt.set(d.msg.eventId, this.now() + RETRY_MS);
           this.failed(d.msg, channel.key, error);
           more = true;
-          return;
+          if (++failures >= 3) return;
+          continue;
         }
         this.save(d.step === 'ask' ? askDelivered(this.state, d.id) : delivered(this.state, d.id, d.step));
         this.retryAt.delete(d.msg.eventId);
