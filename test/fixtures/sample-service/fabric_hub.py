@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-PassionCode-Commercial
 """The Fabric hub's door, as a service agent reaches it (fabric-hub/0.1; Fabric ADR-0115 §1, ADR-0149 §4; FAA-12b).
 
 A service that answers a Project's requests on the board (`fabric-project-comms/0.1`) needs three things from Fabric's
@@ -96,20 +97,24 @@ def fabric_root(platform: str = sys.platform, env: Optional[Dict[str, str]] = No
 
 
 def _windows_pid_alive(pid: int, kernel: Any = None, last_error: Any = None) -> Optional[bool]:
-    """pid_alive on Windows, where os.kill(pid, 0) would send CTRL_C_EVENT: OpenProcess with query access only. Refused
-    with ERROR_ACCESS_DENIED (5), another account's or an elevated process: None, as Node's process.kill(pid, 0)
-    answers EPERM there (FAA-304); refused otherwise, no process. `kernel` and `last_error` stand in for kernel32 and
+    """pid_alive on Windows, where os.kill(pid, 0) would send CTRL_C_EVENT: the check Node's process.kill(pid, 0) makes
+    (libuv's uv_kill), asking OpenProcess for the same access (terminate, query, synchronize; never the limited query an
+    elevated process of the same user grants, FAA-323). Refused with ERROR_ACCESS_DENIED (5), another account's or an
+    elevated process: None, as Node answers EPERM there (FAA-304); refused otherwise, no process; opened, running
+    while its exit code is STILL_ACTIVE and a zero wait times out. `kernel` and `last_error` stand in for kernel32 and
     ctypes.get_last_error in a test."""
     import ctypes
     if kernel is None:
         kernel = ctypes.WinDLL("kernel32", use_last_error=True)  # type: ignore[attr-defined]
         last_error = ctypes.get_last_error  # type: ignore[attr-defined]
-    handle = kernel.OpenProcess(0x1000, False, pid)  # PROCESS_QUERY_LIMITED_INFORMATION
+    handle = kernel.OpenProcess(0x0001 | 0x0400 | 0x00100000, False, pid)  # TERMINATE | QUERY_INFORMATION | SYNCHRONIZE
     if not handle:
         return None if last_error() == 5 else False  # ERROR_ACCESS_DENIED: not verified, never called running
     try:
         code = ctypes.c_ulong()
-        return bool(kernel.GetExitCodeProcess(handle, ctypes.byref(code))) and code.value == 259  # STILL_ACTIVE
+        if not kernel.GetExitCodeProcess(handle, ctypes.byref(code)) or code.value != 259:  # STILL_ACTIVE
+            return False
+        return kernel.WaitForSingleObject(handle, 0) != 0  # WAIT_OBJECT_0: ended, with exit code 259
     finally:
         kernel.CloseHandle(handle)
 

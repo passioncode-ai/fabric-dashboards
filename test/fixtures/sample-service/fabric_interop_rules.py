@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-PassionCode-Commercial
 """fabric-interop/0.1, the rule layer: the extension's names and limits, its errors, the trace context (C3.4), a
 usage object's reading (C3.2) and the job limits and uncertain effects (DEC-0087). Every function answers by a rule
 and touches no file; fabric_interop builds the tools, the envelope, the job store and the MCP server on it and
@@ -5,6 +6,7 @@ re-exports every name here. Part of the service kit (FAA-92, split from fabric_i
 only, Python 3.9+."""
 from __future__ import annotations
 
+import base64
 import hashlib
 import json
 import math
@@ -19,8 +21,9 @@ if str(_Path(__file__).resolve().parent) not in _sys.path:  # the kit loads from
 
 from fabric_base import ServiceError  # noqa: E402
 from fabric_actions import action_decision, decision_shape, job_capability  # noqa: E402 - DEC-0121
+from fabric_levels import ACTION_LEVELS, level_contexts_well_formed  # noqa: E402 - DEC-0162
 from fabric_mandate import (  # noqa: E402 - DEC-0125, DEC-0126
-    EFFECT_CLASSES, OPERATOR_SOURCE_PROTOCOL, mandate_covers, mandate_problem, without_source)
+    EFFECT_CLASSES, OPERATOR_SOURCE_PROTOCOL, is_agent_id, mandate_covers, mandate_problem, without_source)
 
 PROTOCOL = "fabric-interop/0.1"
 EXTENSION_KEY = "https://fabric.passioncode.ai/agent-contract/extensions/interop/0.1"
@@ -377,6 +380,22 @@ def job_step(mandate: Any, *, tier: Any, now: Any, self_id: Any, capability: Any
 UNREADABLE_PROJECT = "\x00unreadable"
 
 
+#: The caller's agent id when a service's identify_agent hook answered something no chain can hold (an id the registry
+#: refuses, not a string, or the hook raised): passed as callerAgent it matches no agent, so every mandate reads
+#: mandate-not-for-this-call (fail closed, FAA-135). Never an agent id (`is_agent_id` refuses it).
+UNREADABLE_AGENT = "\x00unreadable-agent"
+
+
+def identified_agent(value: Any) -> Optional[str]:
+    """FAA-135: the caller's agent id as a service's own hook named it from a per-agent credential (contract delegation.md,
+    `surfaces.mcp.auth: own`), read as the mandate chain binds it (`callerAgent`): None (no per-agent credential) is
+    none, and the chain's end alone binds the mandate, as before; an agent id the registry accepts is that id; anything
+    else is UNREADABLE_AGENT, which no chain holds. Never a name the call itself carries."""
+    if value is None:
+        return None
+    return value if is_agent_id(value) else UNREADABLE_AGENT
+
+
 def mandate_spend(value: Any) -> Any:
     """A spend estimate as a mandate reads it (FAA-139): a number read as a double, as the contract does; one that is
     not a finite double (an int past the float range, NaN, infinity) or not a number is none, which a mandate's
@@ -405,7 +424,9 @@ def action_gate(action: Any, *, tier: Any, caller: Any, meta: Any = None, target
                 elicited: bool = False, approval: Any = None, action_digest: Optional[str] = None,
                 human_step_url: Optional[str] = None, now: Any = None, self_id: Optional[str] = None,
                 effect: Optional[str] = None, caller_agent: Optional[str] = None, spend_usd: Any = None,
-                project: Optional[str] = None, mandate_capability: Optional[str] = None) -> Dict[str, Any]:
+                project: Optional[str] = None, mandate_capability: Optional[str] = None, levels: Any = None,
+                action_level: Any = None, context: Any = None, token_mem: Any = None, token_prof: Any = None,
+                standing: bool = False) -> Dict[str, Any]:
     """One call of a declared action, before its handler runs (DEC-0121 AP-2, AP-4): fabric_actions.action_decision over
     the call's `_meta.decision` (read from `meta` only, never from arguments, decision D11), the service's authenticated
     `caller` (fabric_actions.action_caller), `target` (the object the call acts on), `elicited` (the service's own
@@ -423,7 +444,13 @@ def action_gate(action: Any, *, tier: Any, caller: Any, meta: Any = None, target
     closed, as McpToolServer reads them (FAA-139): a spend that is not a finite double is none (`mandate_spend`), a
     project that is not an exact str (a subclass included) is UNREADABLE_PROJECT, which a mandate limited to projects refuses. A covered call
     answers {ok: True, record: {by: operator, via: mandate, task, chain, caller}, decision: None, mandate}; without
-    `self_id` the mandate is not read and the call is answered as before it existed."""
+    `self_id` the mandate is not read and the call is answered as before it existed.
+
+    DEC-0162, DEC-0166 (FAA-334): a service that reads levels passes `levels` (its level contexts, a map by
+    organization), `action_level` (the called action's entry of its `actionLevels`), `context` (the call's context,
+    `personal` or `org:<orgId>`) and `token_mem` (the verified token's `mem`); one that declares `standing` passes
+    `standing=True` and `token_prof` (the token's `prof`). With either, `effect` and `project` are read as above for a
+    level decision too, so a level holder's word is decided without the service calling action_decision itself."""
     import fabric_delegation as _fd  # noqa: E402 - beside this file: DL-19
     inputs: Dict[str, Any] = {"action": action, "tier": tier, "caller": caller, "elicited": elicited is True, "now": now}
     if isinstance(meta, dict) and "decision" in meta:
@@ -431,12 +458,22 @@ def action_gate(action: Any, *, tier: Any, caller: Any, meta: Any = None, target
     for name, value in (("target", target), ("approval", approval), ("actionDigest", action_digest), ("humanStepUrl", human_step_url)):
         if value is not None:
             inputs[name] = value
-    if self_id is not None and isinstance(meta, dict) and "mandate" in meta:
+    for name, value in (("levels", levels), ("actionLevel", action_level), ("context", context), ("tokenMem", token_mem),
+                        ("tokenProf", token_prof)):
+        if value is not None:
+            inputs[name] = value
+    if standing is True:
+        inputs["standing"] = True
+    reads_mandate = self_id is not None and isinstance(meta, dict) and "mandate" in meta
+    if reads_mandate or levels is not None or standing is True:
+        project = project if project is None or type(project) is str else UNREADABLE_PROJECT
+        for name, value in (("effect", effect), ("project", project)):
+            if value is not None:
+                inputs[name] = value
+    if reads_mandate:
         inputs.update({"mandate": meta["mandate"], "self": self_id})
         spend_usd = mandate_spend(spend_usd)
-        project = project if project is None or type(project) is str else UNREADABLE_PROJECT
-        for name, value in (("effect", effect), ("callerAgent", caller_agent), ("spendUsd", spend_usd), ("project", project),
-                            ("mandateCapability", mandate_capability)):
+        for name, value in (("callerAgent", caller_agent), ("spendUsd", spend_usd), ("mandateCapability", mandate_capability)):
             if value is not None:
                 inputs[name] = value
     answer = action_decision(inputs)
@@ -461,6 +498,56 @@ def action_refusal_tool_result(answer: Any, traceparent: Optional[str] = None) -
     import fabric_delegation as _fd  # noqa: E402 - beside this file: DL-19
     refusal = _fd.refusal_from_action(answer)
     return None if refusal is None else _fd.refusal_tool_result(refusal, traceparent=traceparent)
+
+
+def authority_config_problem(authority: Any) -> Optional[str]:
+    """Why a service's authority configuration is not one McpToolServer can read (DEC-0162 LV-5, LV-7; DEC-0166 AU-3), or
+    None. It is an object of `levels` (its level contexts: a map by `org:<orgId>` of {audience, keySet, held?}),
+    `actionLevels` (a level of ACTION_LEVELS by relayed action id) and `standing` (true), at least one of them."""
+    if not isinstance(authority, dict) or not authority or set(authority) - {"levels", "actionLevels", "standing"}:
+        return "authority is an object of levels, actionLevels and standing, at least one of them"
+    if "levels" in authority and not (authority["levels"] and level_contexts_well_formed(authority["levels"])):
+        return "authority.levels is a map by org:<orgId> of {audience, keySet (org-key-set/1), held?}"
+    levels = authority.get("actionLevels")
+    if levels is not None and not (isinstance(levels, dict) and levels and all(
+            isinstance(k, str) and isinstance(v, str) and v in ACTION_LEVELS for k, v in levels.items())):
+        return "authority.actionLevels maps an action id to one of %s" % ", ".join(ACTION_LEVELS)
+    if "standing" in authority and authority["standing"] is not True:
+        return "authority.standing is true when present"
+    return None
+
+
+def authority_declaration(authority: Dict[str, Any]) -> Dict[str, Any]:
+    """The value of extensions/authority/0.1 (`AUTHORITY_EXTENSION_KEY`) for a configuration authority_config_problem
+    accepts: each organization with the audience its issuer registered the service by, never its key set."""
+    out: Dict[str, Any] = {}
+    if "levels" in authority:
+        out["levels"] = [{"org": org, "audience": entry["audience"]} for org, entry in authority["levels"].items()]
+    for name in ("actionLevels", "standing"):
+        if name in authority:
+            out[name] = authority[name] if name == "standing" else dict(authority[name])
+    return out
+
+
+def authority_gate_inputs(authority: Any, action_id: str, context: Any, claims: Any) -> Dict[str, Any]:
+    """What action_gate reads levels and a place's profile with (FAA-334): the service's level contexts, the action's
+    level, the call's `context` (kept only when a string; the gate checks its form) and the verified token's `mem` and
+    `prof` from `claims`. Empty without a configuration."""
+    if not isinstance(authority, dict):
+        return {}
+    out: Dict[str, Any] = {"standing": authority.get("standing") is True}
+    if "levels" in authority:
+        out["levels"] = authority["levels"]
+    level = (authority.get("actionLevels") or {}).get(action_id)
+    if level is not None:
+        out["action_level"] = level
+    if isinstance(context, str):
+        out["context"] = context
+    if isinstance(claims, dict):
+        for claim, name in (("mem", "token_mem"), ("prof", "token_prof")):
+            if claim in claims:
+                out[name] = claims[claim]
+    return out
 
 
 def usage_findings(usage: Any, at: str) -> List[Dict[str, str]]:
@@ -559,3 +646,83 @@ def repeated_key_decision(job: Any, now: Any, limit_holds: Optional[bool] = None
         return "same"
     return "run" if "resetsAt" not in data or utc_time(data["resetsAt"]) <= at else "same"
 # #endregion job-limits-kit
+
+
+# --- MCP 2026-07-28 header mirroring (moved from fabric_interop in 0.83.0 to make room under the line ceiling) ---
+
+NAMED_METHODS = {"tools/call": "name", "prompts/get": "name", "resources/read": "uri"}
+HEADER_MISMATCH = -32020  # the code the official 2026-07-28 server SDK answers a header/body mismatch with
+
+
+_SENTINEL = ("=?base64?", "?=")
+
+
+def encode_header_value(value: str) -> str:
+    """A body value as an HTTP header value, by MCP 2026-07-28 Streamable HTTP "Value Encoding": as
+    it is when it is printable ASCII without leading or trailing whitespace, otherwise (and for a
+    plain value that itself looks like the sentinel) `=?base64?<base64 of its UTF-8>?=`."""
+    plain = (all(0x20 <= ord(c) <= 0x7E for c in value) and value == value.strip(" ")
+             and not (value.startswith(_SENTINEL[0]) and value.endswith(_SENTINEL[1])))
+    if plain:
+        return value
+    return _SENTINEL[0] + base64.b64encode(value.encode("utf-8")).decode("ascii") + _SENTINEL[1]
+
+
+def decode_header_value(value: str) -> Optional[str]:
+    """The body value a header carries, decoding the Base64 sentinel; None for a header value with
+    invalid characters or a sentinel that is not valid Base64 of UTF-8 (a server rejects both)."""
+    if value.startswith(_SENTINEL[0]) and value.endswith(_SENTINEL[1]) and len(value) >= len(_SENTINEL[0]) + len(_SENTINEL[1]):
+        try:
+            return base64.b64decode(value[len(_SENTINEL[0]):-len(_SENTINEL[1])], validate=True).decode("utf-8")
+        except ValueError:  # binascii.Error and UnicodeDecodeError are both ValueErrors
+            return None
+    if any(not (0x20 <= ord(c) <= 0x7E or c == "\t") for c in value):
+        return None
+    return value
+
+
+def mcp_header_problem(message: Any, headers: Any) -> Optional[str]:
+    """MCP 2026-07-28 Streamable HTTP mirrors the body in `Mcp-Method` (every request and
+    notification) and `Mcp-Name` (`params.name` or `params.uri` of tools/call, prompts/get,
+    resources/read). A server MUST reject a mismatch; a request that declares 2026-07-28 must
+    carry them. Earlier revisions may omit them, but what they send must still agree.
+    `headers` is any case-insensitive mapping with `.get` (http.server's message, a dict)."""
+    if not isinstance(message, dict) or headers is None:
+        return None
+    def header(name: str) -> Optional[str]:
+        value = headers.get(name) if hasattr(headers, "get") else None
+        if value is None and isinstance(headers, dict):
+            value = next((v for k, v in headers.items() if k.lower() == name.lower()), None)
+        if isinstance(value, (list, tuple)):
+            value = value[0] if value else None
+        return None if value is None else str(value)
+    declared = header("MCP-Protocol-Version") == MCP_REVISION
+    method = message.get("method")
+    sent = header("Mcp-Method")
+    if sent is None and declared:
+        return "the body names method %s but the required Mcp-Method header is absent" % method
+    if sent is not None and sent != method:
+        return "Mcp-Method %s disagrees with the body's method %s" % (sent, method)
+    field = NAMED_METHODS.get(str(method))
+    if field:
+        params = message.get("params")
+        value = params.get(field) if isinstance(params, dict) else None
+        named = header("Mcp-Name")
+        if named is None and declared:
+            return "the body carries params.%s but the required Mcp-Name header is absent" % field
+        if named is not None:
+            decoded = decode_header_value(named)
+            if decoded is None:
+                return "Mcp-Name is malformed: invalid characters or a broken =?base64?…?= value"
+            if decoded != str(value):
+                return "Mcp-Name disagrees with the body's params.%s" % field
+    return None
+
+
+def mcp_request_headers(method: str, params: Dict[str, Any]) -> Dict[str, str]:
+    """The standard headers a 2026-07-28 client sends with one request."""
+    out = {"MCP-Protocol-Version": MCP_REVISION, "Mcp-Method": method}
+    field = NAMED_METHODS.get(method)
+    if field and params.get(field) is not None:
+        out["Mcp-Name"] = encode_header_value(str(params[field]))
+    return out
