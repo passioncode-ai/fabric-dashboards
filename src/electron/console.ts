@@ -821,7 +821,8 @@ export class ConsoleHost {
     const read = pending.some((s) => s.ready) ? await liveAgents(this.run, process.platform, claudeSessionDirs(this.o.home ?? os.homedir())).catch(() => null) : null;
     // F4 of FIX-2: a folder one of this app's consoles works in is live too (a hand-over taken on this tick has no claude
     // process yet that lsof could see), so a hand-over and a stop of one folder never both start.
-    const live = read && { dirs: [...read.dirs, ...this.manager.runningKeys().filter((k) => !this.remoteRuns.has(k)).map((k) => this.handoverOf.get(k)?.dir ?? this.manager.snapshot(k).cwd).filter(Boolean)], args: read.args };
+    // FD-262: the sessions a live process holds go along; dropping them here let FD-260's check see none (finding 36e058ab).
+    const live = read && { dirs: [...read.dirs, ...this.manager.runningKeys().filter((k) => !this.remoteRuns.has(k)).map((k) => this.handoverOf.get(k)?.dir ?? this.manager.snapshot(k).cwd).filter(Boolean)], args: read.args, sessions: read.sessions };
     // FD-103: Continue now on another account names its candidates, and a stop names the account it stopped on (V-1 of
     // FIX-2); their labels are read only when there are some.
     const labels = pending.some((s) => s.candidates.length || s.account) ? await this.labelsOf(inv.switchboard, now) : {};
@@ -848,6 +849,14 @@ export class ConsoleHost {
     }
     this.setRecovery({ on, stops: [...this.actedStops.values(), ...views.filter((v) => !this.actedStops.has(v.event))], resumed: this.recovery.resumed + started.length });
     return started;
+  }
+
+  /** FD-262: whether a live process holds this session now: Switchboard says so, or its sessions file or arguments name
+   *  it, or the live processes cannot be read. */
+  private async heldElsewhere(session: string, live?: SbStop['live']): Promise<boolean> {
+    if (live) return true;
+    const now = await liveAgents(this.run, process.platform, claudeSessionDirs(this.o.home ?? os.homedir())).catch(() => null);
+    return !now || now.args.includes(session) || Boolean(now.sessions?.includes(session));
   }
 
   /** FIX-4: the account labels, from Switchboard at most once per BINDING_FRESH_MS while stops wait; a failed read is
@@ -914,6 +923,12 @@ export class ConsoleHost {
       return null;
     }
     this.waitNoted.delete(stop.event);
+    // FD-262: every path that continues a stop (the pass, Continue now) asks once more, just before the claim, whether a
+    // live process holds the session (its sessions file, its arguments, or Switchboard's `live`); unknown is not "none".
+    if (await this.heldElsewhere(stop.session, stop.live)) {
+      this.o.log(`console: limit stop ${stop.event} not continued: a live process holds its session (FD-262)`);
+      return null;
+    }
     // FIX-4: a stop this launch acted on keeps the account it stopped on (V-1 of FIX-2), from the labels last read.
     const stoppedOn = stop.account ? this.accountLabels?.value[stop.account] ?? null : null;
     const view = (verdict: StopView['verdict'], key?: string): StopView => ({ event: stop.event, session: stop.session, dir: stop.dir, provider: stop.provider, stoppedAt: stop.stoppedAt, attempt: stop.attempt, verdict, key, account: stoppedOn });
@@ -1230,6 +1245,8 @@ export class ConsoleHost {
       if (!cli) return { ok: false, reason: 'no-runtime' };
       const a = admit(await this.machine(row.folder));
       if (!a.ok) return { ok: false, reason: 'admission', detail: a.why };
+      // FD-262: never a second copy of a conversation a live process holds (another terminal, another console).
+      if (await this.heldElsewhere(sessionId)) return { ok: false, reason: 'running', detail: 'held' };
       const args = [...bypassArgsOfProvider(provider), ...(provider === 'codex' ? ['resume', sessionId] : ['--resume', sessionId])]; // FD-174
       const r = this.manager.start(key, { argv: [cli, ...args], cwd: row.folder, label: provider === 'codex' ? 'Codex' : 'Claude Code', env: { PATH: inv.dirs.join(path.delimiter) } }, size);
       if (!r.ok) return { ok: false, reason: r.error === 'running' ? 'running' : 'spawn', detail: r.error };

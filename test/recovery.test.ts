@@ -459,3 +459,21 @@ test('FD-260 (Switchboard 0.7.83, SB-376): a stop Switchboard reads as live is o
   assert.equal(sessionOpen(free!, nobody), false);
   assert.equal(sessionOpen({ ...free!, live: null }, { dirs: [], args: '', sessions: [SID] }), true, 'Switchboard\'s null never overrides a live process this app sees');
 });
+
+test('FD-262 (fabric-switchboard finding 36e058ab): the background pass and Continue now both refuse a session a live process holds by its sessions file', POSIX, async () => {
+  const r = rig();
+  const home = path.join(path.dirname(r.dir), 'home');
+  fs.mkdirSync(path.join(home, '.claude', 'sessions'), { recursive: true });
+  // A live process (this test's own pid) holds the session in another terminal: its folder and arguments say nothing.
+  fs.writeFileSync(path.join(home, '.claude', 'sessions', `${process.pid}.json`), JSON.stringify({ pid: process.pid, sessionId: SID, status: 'busy' }));
+  assert.deepEqual(await r.host.pollRecovery(), [], 'the pass hands the sessions it read to the verdict');
+  assert.equal(r.spawned.length, 0);
+  assert.deepEqual(r.host.recoveryStatus().stops.map((s) => s.verdict), ['open']);
+  assert.ok(!r.calls.some((c) => c.includes('claim')), 'nothing is claimed for a live session');
+  const event = `cc-${SID}-1792066929`;
+  const row = await r.host.continueSession(`st:${event}`, { cols: 80, rows: 24 }, 'acc-2');
+  // The guard in resumeOnce itself, reached as Continue now reaches it on a row that offers it.
+  const direct = await (r.host as unknown as { continueStop(e: string, a: string): Promise<{ ok: boolean }> }).continueStop(event, 'acc-2');
+  assert.equal(r.spawned.length, 0, `Continue starts no second copy either (${JSON.stringify([row, direct])})`);
+  assert.ok(!r.calls.some((c) => c.includes('claim')), 'and claims nothing');
+});
