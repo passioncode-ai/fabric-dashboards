@@ -135,6 +135,8 @@ export interface Settings {
     machine?: string | null; remoteFolder?: string | null };
   /** FD-83: continue a session stopped on a usage limit in the console once Switchboard has capacity for it (default on). */
   resumeAfterLimit: boolean;
+  /** FD-247 (step 5): list the sessions of the other machines Switchboard reaches, read over ssh while the Sessions mode is shown (default on). */
+  remoteSessions: boolean;
   /** FD-103: the Sessions list's memory, kept 24 hours (src/core/sessions.ts): console sessions that ended and hand-overs
    *  that did not open here, and the rows the person removed. */
   sessions: { records: SessionRecord[]; dismissed: Dismissal[] };
@@ -219,6 +221,7 @@ export const DEFAULT_SETTINGS: Settings = {
   consoles: {},
   newSession: { runtime: null, folder: null, bypass: true, isolated: false },
   resumeAfterLimit: true,
+  remoteSessions: true,
   sessions: { records: [], dismissed: [] },
   sessionsNoteSeen: false,
   // #region estate-update — docs: docs/adr/0018-estate-updates-from-inside-the-app.md#decision

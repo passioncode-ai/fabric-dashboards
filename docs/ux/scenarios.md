@@ -114,6 +114,7 @@
 | SCN-106 | Give an agent's dashboard or console the whole window | layout | P-01 | ST-002, ST-019 | implemented | 2026-11-13 |
 | SCN-107 | Give an agent a task from the top of its page | console | P-01 | ST-019 | implemented | 2026-11-14 |
 | SCN-108 | See the bugs the app noticed and report one | settings | P-01 | ST-019 | implemented | 2026-11-15 |
+| SCN-110 | See the sessions running on other machines | sessions | P-01 | ST-019 | implemented | 2026-11-15 |
 | SCN-113 | The Organizations menu keeps every organization Observatory names | navigation | P-01 | ST-016 | implemented | 2026-11-15 |
 ## Personas
 
@@ -2465,6 +2466,24 @@ The Sessions mode (0.8.0): every coding session apart from the agents, each stat
 - **Status:** implemented (2026-11-15, 0.8.101: `test/bugs.test.ts`)
 - **Coverage:** src/core/bugs.ts, src/electron/bug-store.ts, src/electron/main.ts (bug-journal-ipc), src/electron/preload.ts, src/renderer/components/Settings.tsx (BugsSection), src/mcp/tools.ts (bugsList, bugReport), docs/BUGS.md
 - **Product:** unobserved
+
+### SCN-110: See the sessions running on other machines
+
+- **Persona:** P-01
+- **Feature:** sessions
+- **Traces:** FD-247 step 5 (design `docs/design/2026-11-15-sessions-machines.md` §Remote sessions); the operator's voice note of 2026-11-14 (sessions started on remote machines)
+- **Entry point:** the Sessions mode, All sessions
+- **Preconditions:** Switchboard on this Mac names another machine in `targets`, reachable over ssh without a prompt; Settings → Sessions → "Show sessions on other machines" on (the default)
+- **Steps:**
+  1. The person opens the Sessions mode -> within 15 s each machine Switchboard names is asked once over ssh for its sessions (two at a time)
+  2. The list shows that machine's running sessions and those ended in the last day, each naming the machine on both lines of its row; a session this app started there (SCN-101) is listed once, as its console
+  3. The person stays on the list -> each machine is read again once a minute
+- **Expected result:** every coding session of the person's machines is in one list, and a machine that cannot be read says why instead of looking empty
+- **Alt paths:** the window hidden or the Agents mode on screen -> no ssh runs; the switch off -> nothing is read and the other machines' rows go; an agent sets the switch with MCP `settings` (`remoteSessions`)
+- **UI elements:** the rows' machine name, one status line per machine not read ("{machine}: not reachable over ssh. Last read {time}.", "Switchboard is not installed there", "too old to list sessions", "its answer could not be read", "reading…"), the Settings switch
+- **States covered:** loading (reading), success, error (unreachable, no Switchboard, too old, bad answer), stale (last rows kept)
+- **Errors & recovery:** a failing machine is asked again after 1, 5 and 15 minutes, then every 15; its last rows stay for 24 hours after its last good read; whatever the machine answers is untrusted and capped at 200 rows
+- **Status:** implemented (2026-11-15, 0.8.112: `test/remote-sessions.test.ts` *FD-247 step 5*); Open here, End and a terminal on that machine come with SCN-111 and SCN-112
 
 ### SCN-113: The Organizations menu keeps every organization Observatory names
 

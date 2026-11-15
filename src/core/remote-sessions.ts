@@ -5,7 +5,7 @@
 // machine answers is untrusted: parsed by `parseAllSessions` with every field capped and at most REMOTE_MAX_ROWS rows.
 import { shellQuote } from './consoles';
 import { MACHINE } from './platform';
-import type { SbSessionRecord } from './sessions';
+import type { RemoteMachineStatus, SbSessionRecord } from './sessions';
 import { parse, parseAllSessions } from './switchboard';
 import type { Runner } from '@passioncode-ai/fabric-service-host';
 
@@ -63,5 +63,90 @@ export async function readRemoteSessions(run: Runner, known: readonly RemoteTarg
     return { ok: false, why: 'bad-answer', detail: (r.stderr || r.stdout).trim().slice(0, 300) };
   }
   return { ok: true, rows: parseAllSessions(data, REMOTE_MAX_ROWS) };
+}
+/** FD-247 (step 5): how often each machine is read while the Sessions mode is shown, the waits after failures in a row,
+ *  how long a machine's last rows stay, how often `targets` is asked again, and how many ssh run at once. */
+export const REMOTE_POLL_MS = 60_000;
+export const REMOTE_BACKOFF_MS = [60_000, 5 * 60_000, 15 * 60_000] as const;
+export const REMOTE_KEEP_MS = 24 * 60 * 60_000;
+export const REMOTE_TARGETS_MS = 10 * 60_000;
+export const REMOTE_CONCURRENCY = 2;
+
+interface MachineRead { rows: SbSessionRecord[]; state: RemoteMachineStatus['state']; at: number | null; since: number | null; failures: number; nextAt: number }
+
+/** FD-247 (step 5): the other machines' session lists, read on the caller's tick. Each machine is read at most once a
+ *  minute, after a failure only once its backoff has passed, two at a time; a failure keeps the last rows, which go
+ *  24 h after the last good read. The caller decides when to tick (only while the Sessions mode is shown). */
+export class RemoteSessions {
+  private targets: RemoteTarget[] = [];
+  private targetsAt = -Infinity;
+  private targetsOf: string | null = null;
+  private readonly machines = new Map<string, MachineRead>();
+  private inFlight: Promise<boolean> | null = null;
+
+  constructor(private readonly run: Runner, private readonly now: () => number = Date.now, private readonly ssh = '/usr/bin/ssh') {}
+
+  /** One tick; resolves true when what `input` or `status` answer changed. A tick while one runs joins it. */
+  poll(switchboard: string | null): Promise<boolean> {
+    if (this.inFlight) return this.inFlight;
+    const p = this.tick(switchboard).finally(() => { this.inFlight = null; });
+    this.inFlight = p;
+    return p;
+  }
+
+  private async tick(switchboard: string | null): Promise<boolean> {
+    if (!switchboard) return this.clear();
+    let changed = false;
+    const now = this.now();
+    if (switchboard !== this.targetsOf || now - this.targetsAt >= REMOTE_TARGETS_MS) {
+      const r = await this.run(switchboard, ['--json', 'targets'], 10_000).catch(() => null);
+      // A failed `targets` keeps the machines known, so one slow answer does not empty the list.
+      if (r && r.code === 0) { this.targets = parseTargets(r.stdout); this.targetsOf = switchboard; }
+      this.targetsAt = now;
+      for (const m of [...this.machines.keys()]) if (!this.targets.some((t) => t.machine === m)) { this.machines.delete(m); changed = true; }
+    }
+    for (const t of this.targets) if (!this.machines.has(t.machine)) { this.machines.set(t.machine, { rows: [], state: 'reading', at: null, since: null, failures: 0, nextAt: now }); changed = true; }
+    const due = this.targets.filter((t) => (this.machines.get(t.machine)?.nextAt ?? 0) <= now);
+    let next = 0;
+    const worker = async () => {
+      while (next < due.length) {
+        const t = due[next++]!;
+        const read = await readRemoteSessions(this.run, this.targets, t.machine, this.ssh).catch((): RemoteRead => ({ ok: false, why: 'bad-answer' }));
+        const m = this.machines.get(t.machine);
+        if (!m) continue;
+        const at = this.now();
+        if (read.ok) {
+          if (m.state !== 'ok' || JSON.stringify(m.rows) !== JSON.stringify(read.rows)) changed = true;
+          Object.assign(m, { rows: read.rows, state: 'ok', at, since: null, failures: 0, nextAt: at + REMOTE_POLL_MS });
+        } else {
+          const state: RemoteMachineStatus['state'] = read.why === 'unknown-machine' ? 'bad-answer' : read.why;
+          if (m.state !== state) changed = true;
+          m.failures += 1;
+          Object.assign(m, { state, since: m.since ?? at, nextAt: at + REMOTE_BACKOFF_MS[Math.min(m.failures, REMOTE_BACKOFF_MS.length) - 1]! });
+        }
+      }
+    };
+    await Promise.all(Array.from({ length: Math.min(REMOTE_CONCURRENCY, due.length) }, worker));
+    return changed;
+  }
+
+  /** The rows to merge: each machine's last good read, while it is under REMOTE_KEEP_MS old. */
+  input(now = this.now()): { machine: string; rows: SbSessionRecord[] }[] {
+    return [...this.machines].filter(([, m]) => m.at !== null && now - m.at <= REMOTE_KEEP_MS && m.rows.length > 0).map(([machine, m]) => ({ machine, rows: m.rows }));
+  }
+
+  status(now = this.now()): RemoteMachineStatus[] {
+    return [...this.machines].map(([machine, m]) => ({ machine, state: m.state, at: m.at, since: m.since, rows: m.at !== null && now - m.at <= REMOTE_KEEP_MS ? m.rows.length : 0 }));
+  }
+
+  /** Forget every machine (the switch turned off, Switchboard gone); true when something was listed. */
+  clear(): boolean {
+    const had = this.machines.size > 0;
+    this.machines.clear();
+    this.targets = [];
+    this.targetsAt = -Infinity;
+    this.targetsOf = null;
+    return had;
+  }
 }
 // #endregion remote-sessions

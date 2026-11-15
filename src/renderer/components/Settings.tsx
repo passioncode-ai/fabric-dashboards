@@ -119,6 +119,10 @@ export function Settings({ status, onTheme, onLanguage, onSetup, section, nonce 
           <input type="checkbox" role="switch" className="switch" aria-describedby="resume-body" checked={value.resumeAfterLimit} onChange={(e) => void save({ resumeAfterLimit: e.target.checked })} />
         </label>
         <p className="meta" id="resume-body">{t('settings.resumeAfterLimit.body')}</p>
+        <label className="setting">{t('settings.remoteSessions')}
+          <input type="checkbox" role="switch" className="switch" aria-describedby="remote-sessions-body" checked={value.remoteSessions} onChange={(e) => void save({ remoteSessions: e.target.checked })} />
+        </label>
+        <p className="meta" id="remote-sessions-body">{t('settings.remoteSessions.body')}</p>
       </section>
       {/* #endregion sessions-settings */}
       <Fallback />

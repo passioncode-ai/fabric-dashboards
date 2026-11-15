@@ -244,6 +244,8 @@ export interface MergeInput {
   dismissed: Dismissal[];
   /** FD-231: every agent process on the Mac; null or absent where Switchboard cannot list them. */
   machine?: SbMachineProcess[] | null;
+  /** FD-247 (step 5): the sessions other machines' Switchboards listed, read over ssh (src/core/remote-sessions.ts). */
+  remote?: { machine: string; rows: SbSessionRecord[] }[];
 }
 
 export type SessionSource = 'sessions' | 'handovers' | 'recovery' | 'machine';
@@ -263,7 +265,12 @@ export interface SessionsStatus {
   handovers: { enabled: boolean | null };
   /** Settings → Sessions → "Continue sessions after a limit reset" (SCN-083: a waiting row says when it is off). */
   autoContinue: boolean;
+  /** FD-247 (step 5): each other machine read, how its last read went and since when it fails. */
+  machines?: RemoteMachineStatus[];
 }
+
+/** FD-247: one other machine's read. `state` is `ok` or why there is no fresh list; its last rows stay until 24 h. */
+export interface RemoteMachineStatus { machine: string; state: 'ok' | 'reading' | 'unreachable' | 'no-switchboard' | 'too-old' | 'bad-answer'; at: number | null; since: number | null; rows: number }
 
 /** FD-103 (decision 9): one per taken hand-over and per automatic continue after a limit reset; the shell turns it into
  *  one system notification (node S3). `id` is the row's, so a click opens that session. */
@@ -507,6 +514,22 @@ export function mergeSessions(i: MergeInput): SessionRow[] {
     }));
   }
 
+  // 5b. FD-247 (step 5): sessions other machines' Switchboards hold. Listed, not acted on yet (step 7 adds Open here and
+  // End for a hosted one); a session this app started there (FD-206) is its console's row, not a second one.
+  for (const m of i.remote ?? []) {
+    for (const s of m.rows) {
+      const running = s.state === 'running' || s.state === 'starting' || s.state === 'unknown';
+      const started = s.launchedAt ?? s.startedAt;
+      if (!running && !fresh(started, i.now)) continue;
+      const state: SessionState = running ? (isBackground(s) ? 'running-background' : 'running-terminal') : 'ended';
+      add(row({
+        id: remoteRowId(m.machine, s), key: null, folder: s.folder, machine: m.machine, agent: s.agent, actions: [],
+        account: s.account || null, context: s.context, contextName: s.contextName, origin: s.continues ? 'handover' : 'switchboard', reason: null,
+        state, startedAt: started, endedAt: running ? null : s.launch?.endedAt ?? null, launch: s.launch,
+      }));
+    }
+  }
+
   // 6. FD-231 (SL-8): agent processes no owner started. One with a launch is Switchboard's and listed above; one in the
   // folder of a console of this app that started within SAME_START_MS is that console (a runtime this app ran itself,
   // with no Switchboard account): neither is listed twice.
@@ -556,3 +579,16 @@ export class SourceReader<T> {
   get degraded(): SourceDegraded | null { return this.failure; }
 }
 // #endregion sessions-data
+
+/** FD-247: a row of another machine's session: `rm:<machine>:<launch id>`, else its folder and start (hashed when long). */
+export function remoteRowId(machine: string, s: Pick<SbSessionRecord, 'folder' | 'launchedAt' | 'startedAt' | 'launch'>): string {
+  const tail = s.launch?.launchId ?? `${s.folder.length > 300 ? fnv64(s.folder) : s.folder}:${s.launchedAt ?? s.startedAt ?? 0}`;
+  return `rm:${machine}:${tail}`;
+}
+
+/** FD-247: a session this app started on another machine (FD-206) is listed by that machine's Switchboard too: its
+ *  console's row stays, the remote twin (same machine, same folder, a start within SAME_START_MS) goes. */
+export function dropRemoteTwins(rows: SessionRow[]): SessionRow[] {
+  const ours = rows.filter((r) => r.key && r.machine);
+  return rows.filter((r) => !(r.id.startsWith('rm:') && ours.some((o) => o.machine === r.machine && o.folder === r.folder && (o.startedAt === null || r.startedAt === null || Math.abs(o.startedAt - r.startedAt) <= SAME_START_MS))));
+}

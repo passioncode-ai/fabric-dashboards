@@ -325,7 +325,7 @@ function mergeSessionMemory(raw: unknown): Settings['sessions'] {
  * menus. A console's runtime and folder, the Sessions records and the first-run markers are not among them; a field
  * not listed is named in `refused`, never written.
  */
-export const AGENT_SETTINGS = ['language', 'theme', 'pageTheme', 'autoUpdate', 'analytics', 'launchAtLogin', 'notifications', 'resumeAfterLimit', 'estate'] as const;
+export const AGENT_SETTINGS = ['language', 'theme', 'pageTheme', 'autoUpdate', 'analytics', 'launchAtLogin', 'notifications', 'resumeAfterLimit', 'remoteSessions', 'estate'] as const;
 const AGENT_LIST = ['sort', 'orgs', 'groupByOrg', 'orgSource'] as const;
 
 export function agentSettingsPatch(raw: unknown): { patch: SettingsPatch; refused: string[] } {
@@ -404,6 +404,8 @@ export function merge(raw: Partial<Settings>): Settings {
     newSession: mergeNewSession(raw.newSession),
     // FD-83: absent in a file from an earlier version: on, as the operator asked (2026-10-21).
     resumeAfterLimit: raw.resumeAfterLimit !== false,
+    // FD-247: absent in a file from an earlier version: on, as the design says.
+    remoteSessions: raw.remoteSessions !== false,
     sessions: mergeSessionMemory(raw.sessions),
     sessionsNoteSeen: raw.sessionsNoteSeen === true,
     estate: mergeEstate(raw.estate),
