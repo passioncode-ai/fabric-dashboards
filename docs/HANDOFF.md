@@ -3,7 +3,45 @@
 Updated 2026-10-26 (0.8.7 current, see *0.8.7: start here*; earlier the same day 0.8.6, see *0.8.5: start here* and *Session 2026-10-26: start here*). Earlier: updated 2026-10-25 (0.8.1 current; the consolidation, see *Consolidation 2026-10-25: start here*). Earlier: updated 2026-10-24 (0.7.28). Earlier header: updated 2026-10-07 (0.6.2: 0.6.1 withdrawn for audit HIGH-2, audit fixes, signed feed; 0.6.1: LC-16 in detail updater, Russian by choice; 0.6.0 published 2026-10-06 21:35 UTC; release 0.5.6: third review pass, token latch; release 0.5.5 withdrawn: release audit and its second pass, A2A plan, ADR-0016, ADR-0015 data and updates, FD-05, FD-06, FD-13; Spend and DEC-0021; one entry per agent, ADR-0012; lifecycle contract landed from PR #21, unreleased; CI release rehearsal
 `v0.4.1-rc.1` green; releases move to CI signing; release 0.4.1, MCP links to online services).
 
-Current release: **0.8.98** published 2026-11-15 00:43 UTC (0.8.96 at 23:42, 0.8.97 at 00:12); 0.8.99 tagged at `5dea59d`, its run under way.
+Current release: **0.8.105** published 2026-11-15 07:16 UTC; 0.8.108 (`de97f12`) and 0.8.109 (`33d0b30`) tagged in
+order, their runs under way. 0.8.106 and 0.8.107 were never published (0.8.106's check failed on an unref'd timer in a
+test; both fold into 0.8.108).
+
+## Quality waves 0 to 6: start here (2026-11-15)
+
+The operator asked for an audit of interface, glitches, latency, performance and correctness, a bug tracker on our own
+analytics, and every finding fixed in waves to the end. Audit: [docs/reports/2026-11-15-quality-audit](reports/2026-11-15-quality-audit/README.md)
+(U, T, P, C tables); plan: [docs/plans/2026-11-15-quality-waves](plans/2026-11-15-quality-waves/README.md).
+
+**Done.**
+- Wave 0, 0.8.101: FD-263, the bug journal (`docs/BUGS.md`), `app_error` with a fingerprint, Settings and MCP `bugs`.
+- Wave 1, 0.8.102: FD-264, refusals with their real cause, the hold of a live session in the folder (C-01, C-04),
+  `viewGone` (the `isDestroyed` crash), U-01 to U-06.
+- Wave 2, 0.8.103: FD-265, the brand pack's words (State tab, «навыки», «агент для кода», another copy).
+- Wave 3, 0.8.104: FD-266, interface polish; e2e found the Setup console blanking the window (`Illegal invocation`
+  since 0.8.52, FD-251 done) and the State tab's spend stuck at none.
+- Wave 4, 0.8.105: FD-267, main-process CPU 3.9 to 2.5 % shown and 1.5 to 1.1 % hidden on 55 agents
+  (`scripts/measure-idle.ts`, `scripts/profile-idle.ts`), C-02, C-06, P-04, P-06, P-08, P-09.
+- Wave 5: backlog truth (FD-239, FD-240, FD-249, FD-252 closed; #294 and #26 answered). Wave 5b, in 0.8.108: FD-236 and
+  FD-235 (the hold follows the conversation, `untrusted` on every agent-written answer, one act per relayed decision,
+  an unreadable placement refuses start).
+- Wave 6: FD-246 done (sample agent from kit v0.91.0, e2e 31 of 33, the two diagnosed), FD-248 step 1 (the
+  Organizations menu keeps every organization), FD-247 step 2 (0.8.109). Designs:
+  [Sessions with machines](design/2026-11-15-sessions-machines.md),
+  [organizations and This machine](design/2026-11-15-organizations-and-this-machine.md).
+
+**Open, by priority.** FD-247 step 3 (the machine field on `SessionRow`) then the remote reader (waits for nothing;
+Switchboard's `--target` doors asked, request `d2bb5562`, deadline 2026-11-29); FD-248 steps 4 to 8 (Settings →
+Organizations, join), then FD-52 This machine (design promised to the board by 2026-11-19, release by 2026-11-22);
+FD-268 (hidden CPU above the 0.3 % budget set for 22 agents), FD-269, FD-270, FD-271; FD-236's small items.
+
+**Next task.** FD-247 step 3 in a worktree: add `machine: string | null` to `SessionRow` and `ConsoleInput`
+(`src/core/sessions.ts`), fill it from `settings.consoles[key].machine`, drop the `· machine` label hack
+(`src/electron/console.ts` `startNew`, `src/core/sessions-view.ts`), tests in `test/sessions.test.ts`.
+
+Checks run: `FD_SKIP_LAUNCHD=1 npm run check` green on every merge (1275 tests at 0.8.109); the e2e suite file by file on
+an unlocked screen (wave 3 and wave 6); copy checks on every new string (no blocking finding).
+
 
 ## 0.8.98 and 0.8.99: start here (2026-11-15)
 
