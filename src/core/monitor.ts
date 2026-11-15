@@ -826,7 +826,7 @@ export class Monitor extends EventEmitter {
       wellKnown: wk && renamed ? { ...wk, service: { ...wk.service, name: descriptor!.name } } : wk, dashboardMinWidth: dashboardMinWidth(wk), launchd: t.launchd, usagePath: t.usagePath,
       firstUnansweredAt: t.firstUnansweredAt ? new Date(t.firstUnansweredAt).toISOString() : null,
       lastAnswerAt: t.lastAnswerAt ? new Date(t.lastAnswerAt).toISOString() : null,
-      busy: t.busy, lastAction: t.lastAction, latestEvent: this.o.activity.latest(t.entry.key), feedError: t.feedError,
+      busy: t.busy, lastAction: t.lastAction, latestEvent: this.o.activity.latest(t.entry.key), eventsRead: t.baselined, feedError: t.feedError,
     };
   }
 

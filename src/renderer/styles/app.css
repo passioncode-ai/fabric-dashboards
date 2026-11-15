@@ -169,7 +169,9 @@ h3 { font-size: var(--pc-type-card); margin: 0; font-weight: 600; }
 .state-degraded, .state-duplicate { color: var(--pc-warning); }
 .state-setup { color: var(--pc-text-muted); } /* FD-169: waits for a person, nothing is broken */
 .state-down, .state-foreign-user, .state-foreign, .state-conflict, .state-invalid { color: var(--pc-negative); }
-.state-stopped, .state-starting, .state-stopping { color: var(--pc-text-muted); }
+.state-stopped { color: var(--pc-text-muted); }
+/* Wave 3 (U-05): a state on its way reads in the info colour, apart from a stopped one. */
+.state-starting, .state-stopping { color: var(--pc-info); }
 /* R1-V2: waiting for a limit reset is a clock, not the starting ring, in a colour with 3:1 or more on the sidebar */
 .state-waiting { color: var(--pc-info); }
 .session-mark { display: inline-flex; align-items: center; justify-content: center; }
@@ -317,6 +319,8 @@ h3 { font-size: var(--pc-type-card); margin: 0; font-weight: 600; }
 .open-agents { flex: none; display: flex; gap: var(--pc-space-1); padding: var(--pc-space-2) var(--pc-space-4) 0; border-bottom: 1px solid var(--pc-border); overflow-x: auto; scrollbar-width: thin; -webkit-app-region: drag; }
 /* FD-223: many open agents keep their names readable (each tab its own width up to 220 px) and the strip scrolls. */
 .open-agents > * { -webkit-app-region: no-drag; }
+/* Wave 3 (U-07): under the open-agent strip the page keeps less top padding, so its title stays near where it was. */
+.open-agents ~ .page { padding-top: var(--pc-space-3); }
 /* FD-240: compact tabs (a 24 px row, 180 px at most), dragged to reorder: the dragged one fades, the target shows a bar. */
 .open-agents { padding-top: var(--pc-space-1); }
 .open-agent { display: flex; align-items: center; gap: 0; flex: none; min-width: 0; max-width: 180px; height: 26px; padding: 0 2px 0 var(--pc-space-2); border: 1px solid var(--pc-border); border-bottom: none; border-radius: var(--pc-radius-control) var(--pc-radius-control) 0 0; background: var(--pc-panel); font-size: var(--pc-type-meta); cursor: default; }

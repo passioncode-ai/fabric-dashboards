@@ -31,3 +31,12 @@ test('FD-129 (UX-09): agents with an update waiting are named with its version; 
   assert.deepEqual(sinceLastVisit({ services: withUpdate, lastVisitAt: '2026-10-10T00:00:00Z', known: [], consoles: {}, lastService: null }).updates, [{ key: 'echo.default', version: '2.0.0' }]);
   assert.deepEqual(sinceLastVisit({ services: withUpdate, lastVisitAt: null, known: [], consoles: {}, lastService: null }).updates, []);
 });
+
+test('Wave 3 U-10: an agent gone since the last visit keeps the name that visit saw; names are read strictly', async () => {
+  const r = sinceLastVisit({ services, lastVisitAt: '2026-10-10T00:00:00Z', known: ['gone.default'], knownNames: { 'gone.default': 'Gone Agent' }, consoles: {}, lastService: null });
+  assert.deepEqual([r.removed, r.names['gone.default']], [['gone.default'], 'Gone Agent']);
+  const { merge } = await import('../src/core/settings');
+  const s = merge({ knownNames: { 'ok.default': '  Okay  ', 'Bad Key!': 'x', 'empty.default': ' ', 'long.default': 'y'.repeat(200) } as never });
+  assert.deepEqual(s.knownNames, { 'ok.default': 'Okay', 'long.default': 'y'.repeat(80) });
+  assert.deepEqual(merge({}).knownNames, {});
+});

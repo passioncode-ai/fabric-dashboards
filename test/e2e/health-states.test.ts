@@ -64,7 +64,7 @@ test('SCN-012, SCN-013, SCN-035, SCN-025: wrong program, a port claimed twice, o
     // SCN-035: the preview instance stops answering — the agent stays ready, with a mark on its entry.
     await page.getByRole('button', { name: /Sample Service: Ready/ }).first().waitFor({ timeout: 30_000 });
     await stopProcess(b);
-    await page.locator('[title="A connection of this agent needs attention"], [aria-label*="A connection of this agent needs attention"]').first().waitFor({ timeout: 60_000 });
+    await page.locator('[title="Another copy of this agent needs attention"], [aria-label*="Another copy of this agent needs attention"]').first().waitFor({ timeout: 60_000 });
     // The agent itself still reads Ready; the list re-renders as the mark lands, so wait rather than count at one instant.
     await page.getByRole('button', { name: /Sample Service: Ready/ }).first().waitFor({ timeout: 10_000 });
     b = serve(pb, db, ['--instance', 'preview']);

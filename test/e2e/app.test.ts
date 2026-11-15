@@ -413,7 +413,7 @@ test('switching between two loaded dashboards keeps the chosen dashboard on scre
     });
     const open = async (i: number) => {
       if (i === 0) await page.getByRole('button', { name: new RegExp(`^${names[i]}`) }).first().click();
-      else await page.getByRole('navigation', { name: /Connections of Alpha Service/ }).getByRole('button', { name: /^beta · this Mac/ }).click();
+      else await page.getByRole('navigation', { name: /Where Alpha Service runs/ }).getByRole('button', { name: /^beta · this Mac/ }).click();
       await page.getByRole('heading', { level: 1, name: names[i]! }).waitFor();
       const origin = `http://127.0.0.1:${ports[i]}`;
       for (let n = 0; n < 75; n += 1) {

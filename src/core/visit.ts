@@ -10,6 +10,8 @@ export interface SinceLastVisit {
   since: string | null;
   added: string[];
   removed: string[];
+  /** Wave 3 (U-10): the names the last visit saw, for agents no longer here. */
+  names: Record<string, string>;
   /** The newest warning or error each agent reported since the last visit. */
   alerts: { key: string; level: string; text: string; at: string }[];
   /** Agents the person ran a console for, the last selected first; each can Continue. */
@@ -22,6 +24,7 @@ export function sinceLastVisit(o: {
   services: readonly (Pick<ServiceSnapshot, 'key' | 'latestEvent'> & Partial<Pick<ServiceSnapshot, 'wellKnown'>>)[];
   lastVisitAt: string | null;
   known: readonly string[];
+  knownNames?: Record<string, string>;
   consoles: Record<string, { runtime: string | null }>;
   lastService: string | null;
 }): SinceLastVisit {
@@ -40,6 +43,7 @@ export function sinceLastVisit(o: {
     since,
     added: since ? keys.filter((k) => !o.known.includes(k)) : [],
     removed: since ? o.known.filter((k) => !current.has(k)) : [],
+    names: o.knownNames ?? {},
     alerts,
     continueKeys,
     updates: since ? o.services.flatMap((s) => (s.wellKnown?.update?.available ? [{ key: s.key, version: s.wellKnown.update.available }] : [])) : [],
