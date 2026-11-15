@@ -26,7 +26,7 @@ analytics, and every finding fixed in waves to the end. Audit: [docs/reports/202
   FD-235 (the hold follows the conversation, `untrusted` on every agent-written answer, one act per relayed decision,
   an unreadable placement refuses start).
 - Wave 6: FD-246 done (sample agent from kit v0.91.0, e2e 31 of 33, the two diagnosed), FD-248 step 1 (the
-  Organizations menu keeps every organization; 0.8.117 Settings → Organizations, SCN-114), FD-247 steps 2 to 6 (0.8.109 to 0.8.114: other machines' sessions in the list, SCN-110; search, filters, machine headings and the sidebar's machine tree, SCN-109; 0.8.115 Open here and End there, SCN-112, and a terminal on a machine, SCN-111; 0.8.116 MCP `sessions`, New session on a machine heading and the table view). Designs:
+  Organizations menu keeps every organization; 0.8.117 Settings → Organizations, Switchboard as a source and Join, SCN-114, SCN-115), FD-247 steps 2 to 6 (0.8.109 to 0.8.114: other machines' sessions in the list, SCN-110; search, filters, machine headings and the sidebar's machine tree, SCN-109; 0.8.115 Open here and End there, SCN-112, and a terminal on a machine, SCN-111; 0.8.116 MCP `sessions`, New session on a machine heading and the table view). Designs:
   [Sessions with machines](design/2026-11-15-sessions-machines.md),
   [organizations and This machine](design/2026-11-15-organizations-and-this-machine.md).
 
@@ -35,10 +35,10 @@ SB-380, due 2026-11-22); FD-248 steps 4 to 8 (Settings →
 Organizations, join), then FD-52 This machine (design promised to the board by 2026-11-19, release by 2026-11-22);
 FD-268 (hidden CPU above the 0.3 % budget set for 22 agents), FD-269, FD-270, FD-271; FD-236's small items.
 
-**Next task.** FD-248 step 7 (steps 4 to 6 in 0.8.117): Join
-(`src/core/join.ts`, an IPC that opens only `https://org.passioncode.ai` or Switchboard's `passioncode.base`,
-MCP `organization_join`, SCN-115), step 8 MCP `organizations` with the person's labels and hidden flag; then FD-52 This
-machine (design due on the board 2026-11-19, release by 2026-11-22). FD-247 step 10 waits for SB-380 (2026-11-22).
+**Next task.** FD-248 step 8 (steps 4 to 7 in 0.8.117): MCP `organizations` gives each organization's label of the
+person's own and whether it is hidden (`layout.list.orgLabels`, `orgHidden`) and where it was seen (`fromSwitchboard`);
+then FD-52 This machine (design §This machine, steps 9 to 11: `src/core/machine-view.ts`, the page after Spend, MCP
+`this_machine`; due on the board 2026-11-19, release by 2026-11-22). FD-247 step 10 waits for SB-380 (2026-11-22).
 
 **Disk.** 2026-11-15 11:40 UTC the system disk had 2 GB free (Observatory: 26.9 GB of transcripts, 9.8 GB of tool
 caches). This session pruned its own caches (`npm cache clean --force`, `uv cache prune`, `pnpm store prune`,

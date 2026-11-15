@@ -9,6 +9,7 @@
 // Reading — descriptors, claim conflicts, launchd status, the health probe, the state — is one
 // look through @passioncode-ai/fabric-service-host, the same code Fabric's registry reads with.
 import { supervises } from '../core/platform';
+import { JOIN_HOST, joinLink } from '../core/join';
 import { filterListRows, type SessionListRow } from '../core/sessions-view';
 import fs from 'node:fs';
 import net from 'node:net';
@@ -828,6 +829,17 @@ export async function sessions(deps: Deps, f: { machines?: string[]; groups?: st
     shown: rows.length, total: all.length,
     untrusted: { fields: ['sessions[].project', 'sessions[].folder', 'sessions[].agent', 'sessions[].account', 'sessions[].context', 'sessions[].machine', 'machines[].machine'], note: UNTRUSTED_NOTE },
   };
+}
+
+/** FD-248 (SCN-115): Join an organization: the page that joins it (the organizations service's own, or the invite link
+ *  given, only on its host); with `open` the running app opens it in the browser, as Settings' button does. */
+export async function organizationJoin(deps: Deps, link?: string, open = false): Promise<Record<string, unknown>> {
+  const j = joinLink(link ?? null);
+  if (!j.ok) throw new ToolError(`host: only a link on ${JOIN_HOST} opens from here`, { code: 'host' });
+  if (!open) return { link: j.url, opened: false };
+  const answer = await askChannel(deps, { op: 'org.join', ...(link ? { link } : {}) } as never, 'app-not-running: Fabric Dashboards is not running, so it opens nothing; open the link yourself or the app');
+  if (!answer.ok) throw new ToolError(`${answer.code}${answer.detail ? `: ${answer.detail}` : ''}`);
+  return { link: j.url, opened: true };
 }
 
 // #region agent-doors-mcp — docs: docs/ux/scenarios.md#scn-098-an-agent-changes-what-a-person-changes-in-settings-and-on-the-sessions-page

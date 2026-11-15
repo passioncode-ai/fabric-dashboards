@@ -120,6 +120,7 @@
 | SCN-112 | Open here or end a session another machine's session host holds | sessions | P-01 | ST-019 | implemented | 2026-11-15 |
 | SCN-113 | The Organizations menu keeps every organization Observatory names | navigation | P-01 | ST-016 | implemented | 2026-11-15 |
 | SCN-114 | Configure the organizations | settings | P-01 | ST-016 | implemented | 2026-11-15 |
+| SCN-115 | Join an organization | settings | P-01 | ST-016 | implemented | 2026-11-15 |
 ## Personas
 
 Defined in [foundation.md](foundation.md) → P-01.
@@ -2583,4 +2584,23 @@ The Sessions mode (0.8.0): every coding session apart from the agents, each stat
 - **States covered:** empty, success
 - **Errors & recovery:** a label is one line of at most 60 characters; a name Observatory would not give is dropped on read, so a damaged file shows every organization
 - **Coverage:** src/core/settings.ts (mergeList orgLabels, orgHidden; AGENT_LIST), src/core/organizations.ts (menuOrganizations, groupByOrganization labels), src/renderer/components/Settings.tsx (OrganizationsSection, OrgLabel), src/renderer/components/Navigation.tsx (OrgMenu prefs)
-- **Status:** implemented (2026-11-15, 0.8.117: `test/organizations.test.ts` *FD-248 step 4*, *step 5*); Join (SCN-115) comes next
+- **Status:** implemented (2026-11-15, 0.8.117: `test/organizations.test.ts` *FD-248 step 4*, *step 5*)
+### SCN-115: Join an organization
+
+- **Persona:** P-01
+- **Feature:** settings
+- **Traces:** FD-248 step 7 (design `docs/design/2026-11-15-organizations-and-this-machine.md` §Join one, decision 7)
+- **Entry point:** Settings → Organizations → Join an organization
+- **Preconditions:** none
+- **Steps:**
+  1. The person presses Join an organization with the field empty -> the organizations service's own page (https://org.passioncode.ai/) opens in the browser
+  2. The person pastes an invite link on that host and presses Join (or Enter) -> that link opens; the field clears
+  3. The person joins there -> the organization appears in Settings → Organizations and the menu at the next read of the map (within 30 minutes)
+- **Expected result:** the person reaches the place where membership is kept without leaving the app's flow, and nothing about membership is stored here
+- **Alt paths:** a link that is not https on that host -> "Only a link on org.passioncode.ai opens from here", nothing opens; an agent asks MCP `organization_join` for the page, with `open: true` the app opens it
+- **UI elements:** the invite link field, its note, the refusal, the Join button
+- **States covered:** success, error (another host)
+- **Errors & recovery:** a user name, password or another port in the link is refused too; the app keeps nothing (membership belongs to the organizations service)
+- **Coverage:** src/core/join.ts (joinLink, JOIN_HOST), src/electron/main.ts (organizationJoin IPC, org.join), src/core/console-channel.ts (org.join), src/mcp/tools.ts (organizationJoin), src/renderer/components/Settings.tsx (JoinOrganization)
+- **Status:** implemented (2026-11-15, 0.8.117: `test/organizations.test.ts` *FD-248 step 7*)
+

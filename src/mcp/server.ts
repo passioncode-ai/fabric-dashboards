@@ -134,6 +134,12 @@ export const TOOLS = [
     annotations: { readOnlyHint: false, destructiveHint: false },
   },
   {
+    name: 'organization_join',
+    description: 'Join an organization, as Settings → Organizations → Join does (FD-248, SCN-115): membership is kept by the organizations service, never by this app. Answers the page that joins it: the service\'s own (https://org.passioncode.ai/), or the invite link given when it is https on that host (anything else is refused with host). open: true has the running app open it in the browser (app-not-running when it is closed). The organization appears at the next read of the organizations map.',
+    inputSchema: { type: 'object', properties: { link: { type: 'string', maxLength: 2048 }, open: { type: 'boolean' } }, additionalProperties: false },
+    annotations: { readOnlyHint: false, destructiveHint: false },
+  },
+  {
     name: 'sessions',
     description: 'Every coding session Fabric Dashboards lists, as its Sessions mode shows it (FD-247, SCN-109, SCN-110): this Mac\'s and those of the other machines it reads over ssh, one row each with id, project, folder, machine (null: this Mac), coding agent, account, context, state, group (needs-you, running, waiting, ended), origin (handover, resume, limit, switchboard, here, machine, dispatch), startedAt, endedAt, the actions it offers (pass id to session_action) and open_link to its page; machines[] says how each other machine\'s last read went. Filters as All sessions: machines (\'\' for this Mac), groups, origins, query (every word in project, folder, account, agent or machine). Never what a session printed. Answers app-not-running when the app is not open.',
     inputSchema: { type: 'object', properties: { machines: { type: 'array', items: { type: 'string', maxLength: 255 }, maxItems: 20 }, groups: { type: 'array', items: { type: 'string', enum: ['needs-you', 'running', 'waiting', 'ended'] }, maxItems: 4 }, origins: { type: 'array', items: { type: 'string', enum: ['handover', 'resume', 'limit', 'switchboard', 'here', 'machine', 'dispatch'] }, maxItems: 7 }, query: { type: 'string', maxLength: 200 } }, additionalProperties: false },
@@ -298,6 +304,7 @@ export async function call(deps: tools.Deps, name: string, args: Args): Promise<
       return tools.bugReport(deps, fp, args.publish === true);
     }
     case 'consoles': return tools.consoles(deps);
+    case 'organization_join': return tools.organizationJoin(deps, typeof args.link === 'string' ? args.link : undefined, args.open === true);
     case 'sessions': {
       const list = (v: unknown) => (Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string').slice(0, 20) : undefined);
       return tools.sessions(deps, { machines: list(args.machines), groups: list(args.groups), origins: list(args.origins), ...(typeof args.query === 'string' ? { query: args.query.slice(0, 200) } : {}) });

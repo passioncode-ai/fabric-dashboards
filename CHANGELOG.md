@@ -9,6 +9,8 @@
   stay under All). Agents set the same with MCP `settings` (`layout.list.orgLabels`, `layout.list.orgHidden`).
 - FD-248: an organization Switchboard knows (`org list`) and no organization of Observatory's map matches joins the
   known organizations, with no agent moved; `PassionCode.ai` matches `passioncode`.
+- FD-248: Join an organization in Settings → Organizations opens the organizations service's page, or a pasted invite
+  link on its host only, in the browser; nothing about membership is kept here. Agents use MCP `organization_join`.
 
 ## 0.8.116 - 2026-11-15
 

@@ -52,6 +52,7 @@ export const PARITY: Record<keyof typeof CHANNELS, Route> = {
   updateSteps: { tool: 'app_update' },
   moveToApplications: { tool: 'app_install' },
   notificationSettings: { tool: 'settings' },
+  organizationJoin: { tool: 'organization_join' },
   locale: { tool: 'settings' },
   uninstall: { tool: 'app_install' },
   consoleInfo: { tool: 'console_choose' },

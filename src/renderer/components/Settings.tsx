@@ -1,4 +1,5 @@
 import { SetupCheck } from './Overview';
+import { JOIN_HOST } from '../../core/join';
 import { organizationCounts } from '../../core/organizations';
 import { Fallback } from './Fallback';
 import { useEffect, useRef, useState } from 'react';
@@ -384,7 +385,26 @@ export function OrganizationsSection({ status, list, onSave }: { status: AppStat
             ))}</tbody>
           </table>
         )}
+      <JoinOrganization />
     </section>
+  );
+}
+
+/** FD-248 (SCN-115): Join an organization: the service's own page, or a pasted invite link on its host. */
+function JoinOrganization() {
+  const { t } = useT();
+  const [link, setLink] = useState('');
+  const [refused, setRefused] = useState(false);
+  const join = async () => { const r = await api().organizationJoin(link.trim() || undefined); setRefused(!r.ok); if (r.ok) setLink(''); };
+  return (
+    <div className="org-join">
+      <label className="setting-stack">{t('settings.orgs.join.link')}
+        <input type="url" className="mono" value={link} placeholder={`https://${JOIN_HOST}/…`} aria-invalid={refused} aria-describedby="org-join-body" onChange={(e) => { setLink(e.target.value); setRefused(false); }} onKeyDown={(e) => { if (e.key === 'Enter') void join(); }} />
+      </label>
+      <p className="meta" id="org-join-body">{t('settings.orgs.join.body')}</p>
+      {refused && <p className="notice error" role="alert">{t('settings.orgs.join.host', { host: JOIN_HOST })}</p>}
+      <button type="button" className="btn btn-sm" onClick={() => void join()}>{t('settings.orgs.join')}</button>
+    </div>
   );
 }
 

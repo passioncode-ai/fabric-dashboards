@@ -431,3 +431,32 @@ test('FD-248 step 6: the store adds Switchboard\'s organizations on a read and k
   assert.equal(read.organizations.globex, 'Globex');
   assert.deepEqual(read.fromSwitchboard, ['globex']);
 });
+
+test('FD-248 step 7: Join opens only the organizations service\'s host; a pasted invite link elsewhere is refused before any browser', async () => {
+  const { joinLink, JOIN_URL } = await import('../src/core/join');
+  assert.deepEqual(joinLink(), { ok: true, url: JOIN_URL });
+  assert.deepEqual(joinLink('  '), { ok: true, url: JOIN_URL });
+  assert.deepEqual(joinLink('https://org.passioncode.ai/invite/abc?x=1'), { ok: true, url: 'https://org.passioncode.ai/invite/abc?x=1' });
+  for (const bad of ['http://org.passioncode.ai/invite/abc', 'https://org.passioncode.ai.evil.example/x', 'https://evil.example/?u=org.passioncode.ai', ['https://', 'someone', ':', 'secret', '@org.passioncode.ai/x'].join(''), 'https://org.passioncode.ai:8443/x', 'javascript:alert(1)', 'file:///etc/passwd', 'not a url']) {
+    assert.deepEqual(joinLink(bad), { ok: false, why: 'host' }, bad);
+  }
+  const { parseRequest } = await import('../src/core/console-channel');
+  assert.deepEqual(parseRequest(JSON.stringify({ key: 'k', op: 'org.join' })), { ok: true, request: { key: 'k', op: 'org.join', service: '' } });
+  assert.deepEqual(parseRequest(JSON.stringify({ key: 'k', op: 'org.join', link: 'https://org.passioncode.ai/i/1' })), { ok: true, request: { key: 'k', op: 'org.join', service: '', link: 'https://org.passioncode.ai/i/1' } });
+  assert.deepEqual(parseRequest(JSON.stringify({ key: 'k', op: 'org.join', link: 7 })), { ok: false, code: 'bad-link' });
+  assert.deepEqual(parseRequest(JSON.stringify({ key: 'k', op: 'org.join', patch: {} })), { ok: false, code: 'bad-link' });
+});
+
+test('FD-248 step 7: MCP organization_join answers the page; a link on another host is refused; Settings shows the form', async () => {
+  const tools = await import('../src/mcp/tools');
+  assert.deepEqual(await tools.organizationJoin({} as never), { link: 'https://org.passioncode.ai/', opened: false });
+  await assert.rejects(() => tools.organizationJoin({} as never, 'https://evil.example/'), /host: only a link on org\.passioncode\.ai/);
+  const React = await import('react');
+  const { renderToStaticMarkup } = await import('react-dom/server');
+  const { OrganizationsSection } = await import('../src/renderer/components/Settings');
+  const { LangContext } = await import('../src/renderer/lib');
+  const html = renderToStaticMarkup(React.createElement(LangContext.Provider, { value: 'en' }, React.createElement(OrganizationsSection, { status: { services: [], organizations: [] } as never, list: DEFAULT_SETTINGS.layout.list, onSave: () => undefined })));
+  assert.match(html, /Invite link \(optional\)/);
+  assert.match(html, /placeholder="https:\/\/org\.passioncode\.ai\/…"/);
+  assert.match(html, />Join an organization</);
+});
