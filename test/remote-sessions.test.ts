@@ -6,7 +6,7 @@ import test from 'node:test';
 import { ConsoleHost } from '../src/electron/console';
 import { SettingsStore } from '../src/core/settings';
 import { tmp } from './helpers';
-import { DEFAULT_REMOTE_SWITCHBOARD, parseTargets, readRemoteSessions, REMOTE_BACKOFF_MS, REMOTE_KEEP_MS, REMOTE_MAX_ROWS, REMOTE_POLL_MS, RemoteSessions, remoteSessionsArgv } from '../src/core/remote-sessions';
+import { DEFAULT_REMOTE_SWITCHBOARD, LAUNCH_ID, parseTargets, remoteAttachArgv, remoteEndArgv, readRemoteSessions, REMOTE_BACKOFF_MS, REMOTE_KEEP_MS, REMOTE_MAX_ROWS, REMOTE_POLL_MS, RemoteSessions, remoteSessionsArgv } from '../src/core/remote-sessions';
 import { dropRemoteTwins, mergeSessions, remoteRowId, type SbSessionRecord, type SessionRow } from '../src/core/sessions';
 import { DEFAULT_SETTINGS } from '../src/core/types';
 import { merge as mergeSettings } from '../src/core/settings';
@@ -181,4 +181,67 @@ test('FD-247 step 5: the console host reads other machines only with the window 
   await settle();
   assert.deepEqual(host.sessionsStatus().machines, []);
   assert.equal(host.sessionsStatus().rows.some((r) => r.machine === 'studio-2'), false, 'switched off, the rows go');
+});
+
+test('FD-247 step 7: Open here and End reach another machine through fixed argv; an id that is not a launch id goes nowhere', () => {
+  const [a, b] = parseTargets(TARGETS);
+  assert.deepEqual(remoteAttachArgv(a!, 'L-1.2:x'), ['/usr/bin/ssh', '-t', '-o', 'ConnectTimeout=5', 'me@192.0.2.9', `'${DEFAULT_REMOTE_SWITCHBOARD}' attach 'L-1.2:x'`]);
+  assert.equal(remoteEndArgv(b!, 'L1')!.at(-1), `'/opt/sb/bin/switchboard' --json sessions end 'L1' --data-dir '/srv/sb data'`);
+  assert.deepEqual(remoteEndArgv(b!, 'L1')!.slice(0, 7), ['/usr/bin/ssh', '-T', '-n', '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=5']);
+  for (const bad of ['', 'a b', "x';rm -rf ~;'", '$(id)', 'x'.repeat(129)]) {
+    assert.equal(LAUNCH_ID.test(bad), false);
+    assert.equal(remoteAttachArgv(a!, bad), null);
+    assert.equal(remoteEndArgv(a!, bad), null);
+  }
+});
+
+test('FD-247 step 7: a hosted session on another machine offers Open here and End; one not hosted offers nothing', () => {
+  const NOW = Date.parse('2026-11-15T10:00:00Z');
+  const base: SbSessionRecord = { home: '', folder: '/srv/w/alpha', provider: 'claude', agent: 'claude-code', pool: 'default', mode: 'managed', account: 'Work', accountId: 'a', context: null, contextName: null, continues: null, inPlace: false, launchedAt: NOW - 60_000, startedAt: NOW - 60_000, state: 'running', launch: { launchId: 'L-7' } as SbSessionRecord['launch'] };
+  const rows = mergeSessions({ now: NOW, switchboard: [], pending: [], stops: [], consoles: [], records: [], dismissed: [], remote: [{ machine: 'studio-2', rows: [{ ...base, attachable: true }, { ...base, folder: '/srv/w/beta', launch: { launchId: 'L-8' } as SbSessionRecord['launch'] }, { ...base, folder: '/srv/w/gamma', attachable: true, launch: { launchId: 'bad id' } as SbSessionRecord['launch'] }] }] });
+  const by = (f: string) => rows.find((r) => r.folder === f)!.actions;
+  assert.deepEqual(by('/srv/w/alpha'), ['attach', 'end']);
+  assert.deepEqual(by('/srv/w/beta'), []);
+  assert.deepEqual(by('/srv/w/gamma'), [], 'an id Switchboard should never write is not acted on');
+});
+
+test('FD-247 step 7: the console host opens a remote hosted session in a console of its own and ends it there', { skip: process.platform === 'win32' && 'the fake switchboard is a shell script' }, async () => {
+  const base = tmp('fd-remote-act-');
+  const bin = path.join(base, 'bin');
+  fs.mkdirSync(bin);
+  fs.writeFileSync(path.join(bin, 'switchboard'), '#!/bin/sh\n', { mode: 0o755 });
+  const settings = new SettingsStore(path.join(base, 'data'));
+  const calls: string[][] = [];
+  const spawned: string[][] = [];
+  const hosted = JSON.stringify({ ok: true, data: { sessions: [{ working_directory: '/srv/w/alpha', provider: 'claude', state: 'running', attachable: true, launch_id: '0f9e8d7c-6b5a-4f3e-9d2c-1b0a99887766', launched_at: new Date(Date.now() - 60_000).toISOString() }] } });
+  let endCode = 0;
+  const host = new ConsoleHost({
+    settings, snapshot: () => null, window: () => null, visible: () => true, log: () => undefined, testDirs: [bin], scriptsDir: path.join(base, 'scripts'),
+    run: async (file, args) => {
+      calls.push([file, ...args]);
+      if (args.join(' ') === '--json targets') return { code: 0, stdout: JSON.stringify({ data: { targets: [{ machine: 'studio-2', aliases: [] }] } }), stderr: '' };
+      if (file === '/usr/bin/ssh' && args.at(-1)!.includes('sessions --all')) return { code: 0, stdout: hosted, stderr: '' };
+      if (file === '/usr/bin/ssh' && args.at(-1)!.includes('sessions end')) return { code: endCode, stdout: '', stderr: endCode ? 'no such session' : '' };
+      if (args.join(' ') === '--json sessions --all') return { code: 0, stdout: JSON.stringify({ ok: true, data: { sessions: [] } }), stderr: '' };
+      return { code: 1, stdout: '', stderr: '' };
+    },
+    spawn: (file: string, args: string[]) => { spawned.push([file, ...args]); return { pid: 2_100_000_000, onData: () => ({ dispose() {} }), onExit: () => ({ dispose() {} }), write() {}, resize() {}, kill() {} }; },
+    killGroup: () => undefined, idleMs: 0,
+    machine: async () => ({ freeDisk: 50 * 1024 ** 3, swap: null, running: 0 }), keys: () => [], home: base,
+  } as ConstructorParameters<typeof ConsoleHost>[0]);
+  settings.update({ layout: { ...settings.get().layout, mode: 'sessions' } });
+  await host.pollSessions();
+  for (let i = 0; i < 50 && !host.sessionsStatus().rows.some((r) => r.machine === 'studio-2'); i++) await new Promise((r) => setTimeout(r, 10));
+  const row = host.sessionsStatus().rows.find((r) => r.machine === 'studio-2')!;
+  assert.deepEqual(row.actions, ['attach', 'end']);
+  const opened = await host.attachSession(row.id);
+  assert.equal(opened.ok, true);
+  assert.ok(spawned.some((a) => a.join(' ').includes("studio-2 '/Applications/Fabric Switchboard.app/Contents/MacOS/switchboard' attach '0f9e8d7c-6b5a-4f3e-9d2c-1b0a99887766'")), JSON.stringify(spawned));
+  assert.deepEqual(await host.attachSession(row.id), opened, 'a second Open here finds the same console');
+  assert.deepEqual(await host.endSession(row.id), { ok: true, key: null });
+  assert.ok(calls.some((c) => c[0] === '/usr/bin/ssh' && c.at(-1)!.endsWith("sessions end '0f9e8d7c-6b5a-4f3e-9d2c-1b0a99887766'")));
+  endCode = 2;
+  const failed = await host.endSession(row.id);
+  assert.equal(failed.ok, false);
+  if (!failed.ok) assert.equal(failed.detail, 'no such session');
 });

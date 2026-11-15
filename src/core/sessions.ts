@@ -514,8 +514,8 @@ export function mergeSessions(i: MergeInput): SessionRow[] {
     }));
   }
 
-  // 5b. FD-247 (step 5): sessions other machines' Switchboards hold. Listed, not acted on yet (step 7 adds Open here and
-  // End for a hosted one); a session this app started there (FD-206) is its console's row, not a second one.
+  // 5b. FD-247 (step 5): sessions other machines' Switchboards hold; a session this app started there (FD-206) is its
+  // console's row, not a second one. Step 7: one that machine's session host holds opens here and ends there.
   for (const m of i.remote ?? []) {
     for (const s of m.rows) {
       const running = s.state === 'running' || s.state === 'starting' || s.state === 'unknown';
@@ -523,7 +523,8 @@ export function mergeSessions(i: MergeInput): SessionRow[] {
       if (!running && !fresh(started, i.now)) continue;
       const state: SessionState = running ? (isBackground(s) ? 'running-background' : 'running-terminal') : 'ended';
       add(row({
-        id: remoteRowId(m.machine, s), key: null, folder: s.folder, machine: m.machine, agent: s.agent, actions: [],
+        id: remoteRowId(m.machine, s), key: null, folder: s.folder, machine: m.machine, agent: s.agent,
+        actions: running && s.attachable && s.launch?.launchId && /^[A-Za-z0-9._:-]{1,128}$/.test(s.launch.launchId) ? ['attach', 'end'] : [],
         account: s.account || null, context: s.context, contextName: s.contextName, origin: s.continues ? 'handover' : 'switchboard', reason: null,
         state, startedAt: started, endedAt: running ? null : s.launch?.endedAt ?? null, launch: s.launch,
       }));

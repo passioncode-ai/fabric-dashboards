@@ -31,7 +31,7 @@ import type { SettingsStore } from '../core/settings';
 import { accountsOf, allSessionsOf, bindingFor, machineSessionsOf, findSwitchboard, handoverOwnKey, handoverRunArgv, handoversOf, handoversSwitch, isHandoverKey, launchFeatures, sbFailure, sessionsIn, startAccount, terminalLaunchArgv, type Binding, type SbAccounts, type SbHandover, type SbSessions, type StartAccount } from '../core/switchboard';
 import type { ServiceSnapshot, Settings } from '../core/types';
 import { claimStop, claudeSessionDirs, folderLive, liveSessionFolders, liveSessionIds, continuedLaunches, continuedOf, finishStop, liveAgents, recoveryOf, resumeArgs, resumeOwnKey, sessionOpen, transcriptIn, transcriptOf, verdictOf, writtenAt, RESUME_SETTLE_MS, RESUMES_PER_PASS, type RecoveryStatus, type SbStop, type StopView } from '../core/recovery';
-import { RemoteSessions } from '../core/remote-sessions';
+import { remoteAttachArgv, remoteEndArgv, RemoteSessions } from '../core/remote-sessions';
 import { attachOwnKey, consoleRowId, dropRemoteTwins, handoverRowId, SAME_START_MS, mergeSessions, pruneDismissed, pruneRecords, SourceReader, stopRowId, type ConsoleInput, type PendingHandover, type SbMachineProcess, type SbSessionRecord, type SessionActionResult, type SessionReason, type SessionRecord, type SessionNotice, type SessionOrigin, type SessionRow, type SessionsStatus, type SourceDegraded, type SourceResult } from '../core/sessions';
 
 /** node-pty 1.1.0 ships its macOS `spawn-helper` without the executable bit, and its postinstall
@@ -1473,6 +1473,7 @@ export class ConsoleHost {
   /** FD-103: End (asks first, in the window) a session that runs in a console of this app. */
   async endSession(id: string): Promise<SessionActionResult> {
     const row = this.rowOf(id);
+    if (row?.machine && row.id.startsWith('rm:')) return this.endRemote(row);
     if (!row?.key) return { ok: false, reason: 'unknown' };
     if (!row.actions.includes('end')) return { ok: false, reason: 'not-allowed' };
     this.stopByPerson(row.key);
@@ -1487,6 +1488,7 @@ export class ConsoleHost {
     if (!row) return { ok: false, reason: 'unknown' };
     const launchId = row.launch?.launchId;
     if (!row.actions.includes('attach') || !launchId) return { ok: false, reason: 'not-allowed' };
+    if (row.machine && row.id.startsWith('rm:')) return this.attachRemote(row, launchId, size);
     const key = attachOwnKey(launchId);
     if (this.manager.snapshot(key).state === 'running') return { ok: true, key };
     const inv = await this.inventory();
@@ -1503,6 +1505,45 @@ export class ConsoleHost {
     this.o.changed?.();
     return { ok: true, key };
   }
+
+  // #region remote-actions — docs: docs/design/2026-11-15-sessions-machines.md#connecting-to-a-remote-machine
+  /** FD-247 (step 7): Open here for a session another machine's session host holds: a console of its own runs
+   *  `ssh -t <machine> <switchboard there> attach <launch>`; closing it only closes the view there. */
+  private async attachRemote(row: SessionRow, launchId: string, size: { cols: number; rows: number }): Promise<SessionActionResult> {
+    const target = this.remote.target(row.machine!);
+    const argv = target && remoteAttachArgv(target, launchId);
+    if (!argv) return { ok: false, reason: 'not-allowed' };
+    const key = attachOwnKey(`${target!.machine}:${launchId}`);
+    if (this.manager.snapshot(key).state === 'running') return { ok: true, key };
+    // Only ssh runs here: nothing is written to this Mac's disk (FD-210), so the count and the swap hold it back (LC-17).
+    const a = admit({ ...await (this.o.machine ?? machineProbe)(os.homedir(), this.manager.runningCount()), freeDisk: null });
+    if (!a.ok) return { ok: false, reason: 'admission', detail: a.why };
+    const r = this.manager.start(key, { argv, cwd: os.homedir(), label: row.agent }, size);
+    if (!r.ok) return { ok: false, reason: 'spawn', detail: r.error };
+    this.attachedOf.set(key, launchId);
+    this.originOf.set(key, 'switchboard');
+    this.o.log(`console: hosted session ${launchId} on ${target!.machine} opened in ${key}`);
+    this.o.changed?.();
+    return { ok: true, key };
+  }
+
+  /** FD-247 (step 7): End for a session another machine's session host holds (the page asked first): `sessions end`
+   *  there; the next read of that machine shows it ended. */
+  private async endRemote(row: SessionRow): Promise<SessionActionResult> {
+    const launchId = row.launch?.launchId;
+    if (!row.actions.includes('end') || !launchId) return { ok: false, reason: 'not-allowed' };
+    const target = this.remote.target(row.machine!);
+    const argv = target && remoteEndArgv(target, launchId);
+    if (!argv) return { ok: false, reason: 'not-allowed' };
+    const [file, ...args] = argv;
+    const r = await this.run(file!, args, 20_000).catch(() => ({ code: 1, stdout: '', stderr: 'ssh did not run' }));
+    this.o.log(`console: hosted session ${launchId} on ${target!.machine} ${r.code === 0 ? 'ended' : `did not end (exit ${r.code})`}`);
+    if (r.code !== 0) return { ok: false, reason: 'spawn', detail: r.code === 255 ? `${target!.machine}: not reachable over ssh` : (r.stderr || r.stdout).trim().slice(0, 200) || `exit ${r.code}` };
+    this.remote.invalidate(target!.machine);
+    void this.pollRemote();
+    return { ok: true, key: null };
+  }
+  // #endregion remote-actions
 
   /** FD-211: a console that only shows a hosted session; quitting or closing it leaves the session running. */
   isView(key: string): boolean {
