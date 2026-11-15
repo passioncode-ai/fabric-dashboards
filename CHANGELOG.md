@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.8.119 - 2026-11-15
+
+### Fixed
+
+- FD-274: the line that gives an agent a task could not be clicked on some agents' pages: the embedded dashboard kept
+  the place its slot had before something above it grew (the line, the details, a chip) and covered it. The dashboard now
+  follows its slot when anything above it changes size. Give the task pressed with an empty line says what it waits for
+  instead of being grey.
+
 ## 0.8.118 - 2026-11-15
 
 ### Added
