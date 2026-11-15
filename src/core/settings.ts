@@ -381,6 +381,8 @@ export function agentSettingsPatch(raw: unknown): { patch: SettingsPatch; refuse
     }
     refused.push(k);
   }
+  // DEC-0157 UD-4: an agent sets the switch on the operator's word; on is the person setting it on (UD-2), off clears that.
+  if (typeof patch.analytics === 'boolean') patch.analyticsSetOn = patch.analytics;
   return { patch: patch as SettingsPatch, refused };
 }
 // #endregion agent-settings
@@ -388,7 +390,9 @@ export function agentSettingsPatch(raw: unknown): { patch: SettingsPatch; refuse
 export function rendererSettingsPatch(raw: unknown): SettingsPatch {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
   // Scenario walk 2026-11-11 (SCN-093): `updateAnnounced` is the main process's own record, never the page's.
-  const { consoles: _consoles, sessions: _sessions, newSession: _newSession, updateAnnounced: _updateAnnounced, ...patch } = raw as SettingsPatch & Record<string, unknown>;
+  const { consoles: _consoles, sessions: _sessions, newSession: _newSession, updateAnnounced: _updateAnnounced, analyticsSetOn: _setOn, ...patch } = raw as SettingsPatch & Record<string, unknown>;
+  // DEC-0157 UD-2: the person's own switch: on sets it on for this product (ending an earlier no), off clears that.
+  if (typeof patch.analytics === 'boolean') (patch as Record<string, unknown>).analyticsSetOn = patch.analytics;
   return patch as SettingsPatch;
 }
 
@@ -409,6 +413,7 @@ export function merge(raw: Partial<Settings>): Settings {
     // FD-136: absent in a file from an earlier version: on (the operator, 2026-11-04: on for installs already out).
     analytics: raw.analytics !== false,
     analyticsNoticeSeen: raw.analyticsNoticeSeen === true,
+    analyticsSetOn: raw.analyticsSetOn === true,
     moveToApplicationsAsked: raw.moveToApplicationsAsked === true,
     setupDone: raw.setupDone === true,
     setupChecked: raw.setupChecked === true,

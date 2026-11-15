@@ -14,8 +14,19 @@ The approach is the organization's: Fabric's `apps/desktop/src/main/analytics.ts
   never is, with OK and Turn off. It is shown once (`analyticsNoticeSeen` in `settings.json`). Nothing is sent before it was shown,
   whatever the switch says (contract DEC-0157 UD-1, since 0.8.110: `analyticsMaySend`).
 - **Off, for this product alone.** Settings → Privacy → *Share anonymous usage and error data*. Off drops every event
-  still waiting, and nothing more is queued or sent. The shared `installation.json`'s `analytics` field does not turn
-  this product off (B-200): it holds only the shared id here.
+  still waiting, and nothing more is queued or sent. This product never writes the shared `installation.json`'s
+  `analytics` field.
+- **An earlier no** (contract DEC-0157 UD-2, since 0.8.126). Before this product first sends, on an install whose own
+  switch the person has not set on, a shared `analytics: false` is an earlier no: nothing is sent, what waited is
+  dropped, and `earlierNo` in `analytics-state.json` keeps it off in later runs, whatever the shared file says then. The
+  notice says it is off and where to turn it on; Settings shows the switch off with why. Setting this product's switch
+  on (in Settings, or an agent through MCP `settings` on the operator's word, UD-4) is the person's answer: it ends the
+  earlier no for this product alone (`analyticsSetOn` in `settings.json`), without writing the shared file. An install
+  that sent before 0.8.126 reads the shared file once at its first run of 0.8.126 (the stand-in for its first send).
+  After the first send (`sent` in `analytics-state.json`) a shared off written later changes nothing.
+- **A shared file that cannot be read** before the first send (a read error other than its absence, or not its shape)
+  holds the run: nothing is sent, and the next start reads it again. Settings shows the switch on but not sending, says
+  why, and offers *Share from this app*, which sets the switch on: the events then go without an id (UD-3 needs none).
 
 ## What is sent
 

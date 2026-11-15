@@ -4,7 +4,7 @@
 import { useEffect, useState } from 'react';
 import { api, useT } from '../lib';
 
-export function AnalyticsNotice({ available, onOpen }: { available: boolean; onOpen: (open: boolean) => void }) {
+export function AnalyticsNotice({ available, onOpen, earlierNo = false }: { available: boolean; onOpen: (open: boolean) => void; /** DEC-0157 UD-2: a shared earlier no keeps it off. */ earlierNo?: boolean }) {
   const { t } = useT();
   const [show, setShow] = useState(false);
   useEffect(() => {
@@ -20,11 +20,12 @@ export function AnalyticsNotice({ available, onOpen }: { available: boolean; onO
   return (
     <div className="scrim" role="presentation">
       <div className="dialog" role="dialog" aria-modal="true" aria-labelledby="analytics-title" aria-describedby="analytics-body">
-        <h2 id="analytics-title">{t('analytics.notice.title')}</h2>
-        <p id="analytics-body">{t('analytics.notice.body')}</p>
-        <p className="meta">{t('analytics.notice.never')}</p>
+        {/* DEC-0157 UD-2: an earlier no for the PassionCode apps here keeps it off; the notice says so and where to turn it on. */}
+        <h2 id="analytics-title">{t(earlierNo ? 'analytics.notice.offTitle' : 'analytics.notice.title')}</h2>
+        <p id="analytics-body">{t(earlierNo ? 'analytics.notice.offBody' : 'analytics.notice.body')}</p>
+        {!earlierNo && <p className="meta">{t('analytics.notice.never')}</p>}
         <div className="row">
-          <button type="button" className="btn" onClick={() => answer(false)}>{t('analytics.notice.off')}</button>
+          {!earlierNo && <button type="button" className="btn" onClick={() => answer(false)}>{t('analytics.notice.off')}</button>}
           <button type="button" className="btn btn-primary" autoFocus onClick={() => answer(true)}>{t('analytics.notice.ok')}</button>
         </div>
       </div>

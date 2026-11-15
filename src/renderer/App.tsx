@@ -543,7 +543,7 @@ function Shell({ status: everyAgent, route, setRoute, mode, switchMode, stopKey,
           </div>
         </div>
       )}
-      <AnalyticsNotice available={Boolean(status.analyticsAvailable)} onOpen={setNoticeOpen} />
+      <AnalyticsNotice available={Boolean(status.analyticsAvailable)} onOpen={setNoticeOpen} earlierNo={status.analyticsHold === 'earlier-no'} />
       {renaming && <RenameDialog key={renaming.key} s={renaming} onClose={() => setRenameKey(null)} />}
       {newSession && <NewSessionDialog kind={newSession} machine={newSessionMachine ?? undefined} onClose={() => { setNewSession(null); setNewSessionMachine(null); }}
         onStarted={(key) => { setNewSession(null); setNewSessionMachine(null); setRoute({ page: 'session', id: '', follow: key, until: Date.now() + SESSION_WAIT_MS }); }} />}

@@ -68,6 +68,9 @@ export interface Settings {
   analytics: boolean;
   /** FD-136: the notice about it was shown once (OK or Turn off). */
   analyticsNoticeSeen: boolean;
+  /** DEC-0157 UD-2: the person set this product's own switch on (Settings, or an agent on the operator's word): it ends a
+   *  shared earlier no and an unreadable shared file's hold for this product. Off sets it back to false. */
+  analyticsSetOn: boolean;
   /** Whether the app has offered once to move itself into Applications, where updates can install. */
   moveToApplicationsAsked: boolean;
   /** FD-39 SCN-058: the person finished or hid the setup card; the Setup console stays reachable from Settings. */
@@ -214,6 +217,7 @@ export const DEFAULT_SETTINGS: Settings = {
   updateAnnounced: null,
   analytics: true,
   analyticsNoticeSeen: false,
+  analyticsSetOn: false,
   moveToApplicationsAsked: false,
   setupDone: false,
   setupChecked: false,
@@ -263,6 +267,8 @@ export interface AppStatus {
   update: { state: 'idle' | 'checking' | 'available' | 'downloading' | 'ready' | 'held' | 'error' | 'unsupported' | 'misplaced' | 'package' | 'notyet'; version?: string; error?: string; checkedAt?: string; steps?: string };
   /** FD-136: whether this build carries an App Key and can send usage and error data (docs/ANALYTICS.md). */
   analyticsAvailable?: boolean;
+  /** DEC-0157 UD-2: why the switch does not send: a shared earlier no, or a shared file that cannot be read. */
+  analyticsHold?: 'earlier-no' | 'held' | null;
   /** FD-48: the operator channel outages go to, why there is none, and the last delivery. */
   alerts?: { channel: { key: string; capability: string } | null; none?: 'off' | 'none-installed' | 'several' | 'chosen-gone' | 'chosen-unreachable'; candidates: string[]; last?: { at: string; ok: boolean; subject: string; error?: string } };
   // #region estate-update — docs: docs/adr/0018-estate-updates-from-inside-the-app.md#decision

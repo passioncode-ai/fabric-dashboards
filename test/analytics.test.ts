@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import { cleanProps, createAnalytics, environmentFor, readBundle, readOrCreateInstallation, type AnalyticsDeps } from '../src/core/analytics';
-import { merge } from '../src/core/settings';
+import { agentSettingsPatch, merge, rendererSettingsPatch } from '../src/core/settings';
 import { DEFAULT_SETTINGS } from '../src/core/types';
 import { tmp } from './helpers';
 
@@ -120,8 +120,8 @@ test('FD-136: one app_active a UTC day', async () => {
   assert.deepEqual(names(r.sent), ['app_active', 'app_active']);
 });
 
-test('FD-136: a shared file that cannot be read is never repaired; events go without an id', async () => {
-  const r = rig();
+test('FD-136: a shared file that cannot be read is never repaired; set on by the person, events go without an id', async () => {
+  const r = rig({ personSetOn: () => true });
   fs.mkdirSync(path.join(r.dir, 'PassionCode'), { recursive: true });
   fs.writeFileSync(path.join(r.dir, 'PassionCode', 'installation.json'), 'not json');
   r.a.started('ordinary');
@@ -131,14 +131,97 @@ test('FD-136: a shared file that cannot be read is never repaired; events go wit
   assert.equal(readOrCreateInstallation(path.join(r.dir, 'PassionCode', 'installation.json'), () => new Date()), null);
 });
 
-test('FD-136: another app\'s shared switch no longer turns this product off (B-200)', async () => {
+test('DEC-0157 UD-2: a shared off read before the first send is an earlier no: nothing is sent, the shared file is not written', async () => {
   const r = rig();
-  fs.mkdirSync(path.join(r.dir, 'PassionCode'), { recursive: true });
-  fs.writeFileSync(path.join(r.dir, 'PassionCode', 'installation.json'), JSON.stringify({ version: 1, id: '4f2c1a9e-7b3d-4c5e-9a1b-2c3d4e5f6a7b', analytics: false, created_at: 1 }));
+  const file = path.join(r.dir, 'PassionCode', 'installation.json');
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  const body = JSON.stringify({ version: 1, id: '4f2c1a9e-7b3d-4c5e-9a1b-2c3d4e5f6a7b', analytics: false, created_at: 1 });
+  fs.writeFileSync(file, body);
   r.a.started('ordinary');
   await r.run();
-  assert.deepEqual(names(r.sent), ['app_installed', 'app_started']);
-  assert.equal((events(r.sent)[0] as { props: Record<string, unknown> }).props.first_passioncode_app, false);
+  assert.deepEqual(r.sent, []);
+  assert.equal(r.a.availability(), 'earlier-no');
+  assert.equal(r.a.hold(true), 'earlier-no');
+  assert.ok(JSON.parse(fs.readFileSync(path.join(r.dir, 'app', 'analytics-state.json'), 'utf8')).earlierNo, 'kept across runs');
+  assert.equal(fs.readFileSync(file, 'utf8'), body, 'never written');
+});
+
+test('DEC-0157 UD-2: the earlier no holds in the next run, until the person sets this product\'s own switch on', async () => {
+  const dir = tmp('fd-ud2-');
+  const file = path.join(dir, 'PassionCode', 'installation.json');
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, JSON.stringify({ version: 1, id: '4f2c1a9e-7b3d-4c5e-9a1b-2c3d4e5f6a7b', analytics: false, created_at: 1 }));
+  const state = path.join(dir, 'app', 'analytics-state.json');
+  const first = rig({ installationFile: file, stateFile: state });
+  first.a.started('ordinary');
+  await first.run();
+  fs.writeFileSync(file, JSON.stringify({ version: 1, id: '4f2c1a9e-7b3d-4c5e-9a1b-2c3d4e5f6a7b', analytics: true, created_at: 1 }));
+  const second = rig({ installationFile: file, stateFile: state });
+  assert.equal(second.a.availability(), 'earlier-no', 'a shared on later does not end it: only this product\'s own switch does');
+  let setOn = false;
+  const third = rig({ installationFile: file, stateFile: state, personSetOn: () => setOn });
+  assert.equal(third.a.availability(), 'earlier-no');
+  setOn = true;
+  third.a.started('ordinary');
+  await third.run();
+  assert.deepEqual(names(third.sent), ['app_installed', 'app_started']);
+});
+
+test('DEC-0157 UD-2: an unreadable shared file before the first send holds the run: nothing is sent, read again next start', async () => {
+  const r = rig();
+  const file = path.join(r.dir, 'PassionCode', 'installation.json');
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, 'not json');
+  r.a.started('ordinary');
+  await r.run();
+  assert.deepEqual(r.sent, []);
+  assert.equal(r.a.hold(true), 'held');
+  assert.equal(r.a.hold(false), null, 'off is off, not held');
+  fs.writeFileSync(file, JSON.stringify({ version: 1, id: '4f2c1a9e-7b3d-4c5e-9a1b-2c3d4e5f6a7b', analytics: true, created_at: 1 }));
+  const next = rig({ installationFile: file, stateFile: path.join(r.dir, 'app', 'analytics-state.json') });
+  next.a.started('ordinary');
+  await next.run();
+  assert.deepEqual(names(next.sent), ['app_installed', 'app_started'], 'readable at the next start: it sends');
+});
+
+test('DEC-0157 UD-2: after the first send only this product\'s own switch governs it; a shared off written later changes nothing', async () => {
+  const r = rig();
+  r.a.started('ordinary');
+  await r.run();
+  assert.ok(JSON.parse(fs.readFileSync(path.join(r.dir, 'app', 'analytics-state.json'), 'utf8')).sent);
+  const file = path.join(r.dir, 'PassionCode', 'installation.json');
+  const id = (JSON.parse(fs.readFileSync(file, 'utf8')) as { id: string }).id;
+  fs.writeFileSync(file, JSON.stringify({ version: 1, id, analytics: false, created_at: 1 }));
+  const next = rig({ installationFile: file, stateFile: path.join(r.dir, 'app', 'analytics-state.json') });
+  next.a.started('ordinary');
+  await next.run();
+  assert.deepEqual(names(next.sent), ['app_started']);
+});
+
+test('DEC-0157 UD-2: an install that sent before this rule reads the shared file once as its stand-in run', async () => {
+  const dir = tmp('fd-ud2s-');
+  const file = path.join(dir, 'PassionCode', 'installation.json');
+  const state = path.join(dir, 'app', 'analytics-state.json');
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.mkdirSync(path.dirname(state), { recursive: true });
+  fs.writeFileSync(state, JSON.stringify({ installedAt: '2026-11-01T00:00:00Z', version: '0.8.18' }));
+  fs.writeFileSync(file, JSON.stringify({ version: 1, id: '4f2c1a9e-7b3d-4c5e-9a1b-2c3d4e5f6a7b', analytics: false, created_at: 1 }));
+  const off = rig({ installationFile: file, stateFile: state });
+  assert.equal(off.a.availability(), 'earlier-no', 'a shared off at the stand-in run is the earlier no');
+  fs.writeFileSync(state, JSON.stringify({ installedAt: '2026-11-01T00:00:00Z', version: '0.8.18' }));
+  fs.writeFileSync(file, JSON.stringify({ version: 1, id: '4f2c1a9e-7b3d-4c5e-9a1b-2c3d4e5f6a7b', analytics: true, created_at: 1 }));
+  const on = rig({ installationFile: file, stateFile: state });
+  assert.equal(on.a.availability(), 'on');
+  assert.equal(JSON.parse(fs.readFileSync(state, 'utf8')).sent, true, 'the stand-in run counts as the first send');
+});
+
+test('DEC-0157 UD-2, UD-4: the switch set on in the window or by an agent records the person setting it on; off clears it', () => {
+  assert.equal(rendererSettingsPatch({ analytics: true }).analyticsSetOn, true);
+  assert.equal(rendererSettingsPatch({ analytics: false }).analyticsSetOn, false);
+  assert.equal(rendererSettingsPatch({ analyticsSetOn: true }).analyticsSetOn, undefined, 'the page cannot set it without the switch');
+  assert.equal(rendererSettingsPatch({ analyticsNoticeSeen: true }).analyticsSetOn, undefined, 'the notice\'s OK is not setting it on');
+  assert.equal(agentSettingsPatch({ analytics: true }).patch.analyticsSetOn, true);
+  assert.equal(merge({}).analyticsSetOn, false);
 });
 
 test('FD-136: the bundle, the environment rule and the settings default', () => {
