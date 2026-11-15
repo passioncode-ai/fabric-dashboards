@@ -3,9 +3,24 @@
 Updated 2026-10-26 (0.8.7 current, see *0.8.7: start here*; earlier the same day 0.8.6, see *0.8.5: start here* and *Session 2026-10-26: start here*). Earlier: updated 2026-10-25 (0.8.1 current; the consolidation, see *Consolidation 2026-10-25: start here*). Earlier: updated 2026-10-24 (0.7.28). Earlier header: updated 2026-10-07 (0.6.2: 0.6.1 withdrawn for audit HIGH-2, audit fixes, signed feed; 0.6.1: LC-16 in detail updater, Russian by choice; 0.6.0 published 2026-10-06 21:35 UTC; release 0.5.6: third review pass, token latch; release 0.5.5 withdrawn: release audit and its second pass, A2A plan, ADR-0016, ADR-0015 data and updates, FD-05, FD-06, FD-13; Spend and DEC-0021; one entry per agent, ADR-0012; lifecycle contract landed from PR #21, unreleased; CI release rehearsal
 `v0.4.1-rc.1` green; releases move to CI signing; release 0.4.1, MCP links to online services).
 
-Current release: **0.8.96** publishing (run 43651837789), 0.8.97 merged and tagged by a watcher once 0.8.96 publishes. 0.8.89 to 0.8.95 were tagged but never published: the release check failed on Windows (the FD-257 test ran git from `/usr/bin`); 0.8.96 ships them. Before: 0.8.88 published 2026-11-14 22:53 UTC.
+Current release: **0.8.98** published 2026-11-15 00:43 UTC (0.8.96 at 23:42, 0.8.97 at 00:12); 0.8.99 tagged at `5dea59d`, its run under way.
 
-## 0.8.95 to 0.8.97: start here (2026-11-15)
+## 0.8.98 and 0.8.99: start here (2026-11-15)
+
+**Done.**
+- 0.8.98 (PR #536, `4e81017`): FD-261, every new coding-agent process (console start, hand-over, limit continue,
+  Sessions continue) reads `switchboard --json capacity` (SB-378, 0.7.85) and refuses at a full pool (`why: pool`);
+  without a cap the own limit of 6 holds.
+- 0.8.99 (PR #537 design, #539 build, `5dea59d`): FD-244 done: a copy run for another organization is the row
+  `<id>@<organization>` (`rowIds`, `snapshotRows`; list, tray, Settings, monitor, MCP `row`; settings accept the id).
+- PR #538: FD-251's e2e fixes; on an unlocked screen at load 21 `app.test.ts` 4/4, `focus-console.test.ts` 4/4,
+  `remote.test.ts` 2/2. SCN-058's full path waits for 5 GB free (watcher on `test/scn-058-run`).
+
+**Next task.** SCN-058's full path once the disk allows (in one run it timed out on the setup card's Hide after the
+session ended); the Sessions mode's pool and queue once Fabric publishes the queue (CO-588); FD-246, FD-247, FD-248;
+FD-252 closes with Observatory 0.37.0.
+
+## 0.8.95 to 0.8.97 (2026-11-15)
 
 **Done.**
 - 0.8.95 (PR #532): FD-244, one status per place on an agent's sidebar row (`placeStates`).
