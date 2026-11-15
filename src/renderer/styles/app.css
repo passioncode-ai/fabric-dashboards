@@ -737,9 +737,12 @@ input.switch:focus-visible { outline: 2px solid var(--pc-focus); outline-offset:
 .filter-chip { cursor: pointer; color: var(--pc-text); }
 .filter-chip[aria-pressed='true'] { background: var(--pc-accent-soft); border-color: var(--pc-border-strong); }
 .session-machine { margin-bottom: var(--pc-space-5); }
-.session-machine-head { font-size: var(--pc-type-card); margin: 0 0 var(--pc-space-2); font-weight: 700; border-bottom: 1px solid var(--pc-border); padding-bottom: var(--pc-space-1); }
+.session-machine-bar { display: flex; align-items: center; flex-wrap: wrap; gap: var(--pc-space-2); border-bottom: 1px solid var(--pc-border); padding-bottom: var(--pc-space-1); margin-bottom: var(--pc-space-3); }
+.session-machine-head { font-size: var(--pc-type-section); margin: 0 auto 0 0; font-weight: 600; }
+.session-machine-head .meta { font-size: var(--pc-type-body); font-weight: 400; }
 .session-machine-stale .session-card, .session-card.session-stale { opacity: 0.6; }
 .nav-machine-head { font-weight: 600; color: var(--pc-text); }
+
 .nav-machine-stale .session-item { opacity: 0.6; }
 div.session-group-head { display: flex; align-items: center; gap: var(--pc-space-3); }
 div.session-group-head h2 { margin: 0; }
@@ -755,7 +758,24 @@ div.session-group-head h2 { margin: 0; }
 .session-title { text-decoration: none; font-weight: 600; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block; text-align: left; }
 .session-title:hover { text-decoration: underline; }
 .session-card .session-sub { margin: 2px 0 0; white-space: normal; overflow: visible; text-overflow: clip; } /* V-4: a card wraps its line, never cuts the time */
-.session-state { display: flex; align-items: flex-start; gap: var(--pc-space-1); margin: 0; white-space: normal; font-size: var(--pc-type-meta); line-height: 1.4; }
+/* FD-247 (step 6): All sessions is a table on a wide window and cards on a narrow one; one of the two is drawn. */
+.sessions { container-type: inline-size; container-name: sessions; }
+.session-table { display: none; margin-bottom: var(--pc-space-3); table-layout: fixed; }
+.session-table .c-state { width: 19%; } .session-table .c-project { width: 15%; } .session-table .c-agent { width: 10%; }
+.session-table .c-account { width: 10%; } .session-table .c-origin { width: 13%; } .session-table .c-time { width: 7%; } .session-table .c-actions { width: 26%; }
+/* A name is cut with an ellipsis (its full text in the title); a state or how it came wraps, never cut mid-phrase. */
+.session-table th[scope='row'], .session-table td:nth-child(4) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.session-table .row-actions { flex-wrap: nowrap; }
+.session-table td .state { white-space: normal; display: inline; }
+.session-table td, .session-table th[scope='row'] { vertical-align: middle; font-size: var(--pc-type-body); }
+.session-table th[scope='row'] { font-weight: 500; color: var(--pc-text); }
+.session-table td.num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.session-table .session-actions { margin: 0; }
+.session-table tr.session-stale { opacity: 0.6; }
+@container sessions (min-width: 900px) {
+  .session-table { display: table; }
+  .session-cards { display: none; }
+}.session-state { display: flex; align-items: flex-start; gap: var(--pc-space-1); margin: 0; white-space: normal; font-size: var(--pc-type-meta); line-height: 1.4; }
 .session-state .glyph { margin-top: 1px; }
 .session-state-text { color: var(--pc-text); }
 .session-actions { display: flex; flex-direction: column; gap: var(--pc-space-1); align-items: flex-start; min-width: 0; }

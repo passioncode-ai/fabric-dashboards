@@ -193,6 +193,33 @@ export function AllSessions({ sessions, noteSeen, onNoteSeen, onSetUp, endedOpen
           )
           : <H id={id} className="session-group-head">{heading}</H>}
         {!folded && <ul className="session-cards">{inGroup.map((r) => <SessionCard key={r.id} row={r} stale={stale} autoContinue={sessions?.autoContinue !== false} open={open} askEnd={askEnd} continued={continued} />)}</ul>}
+        {/* FD-247 (step 6): on a wide window the same rows as a table; the cards above show below that width (CSS). */}
+        {!folded && (
+          <table className="session-table">
+            <caption className="visually-hidden">{heading}</caption>
+            {/* Fixed widths, so the columns of one machine's groups line up; the machine is its section's heading. */}
+            <colgroup><col className="c-state" /><col className="c-project" /><col className="c-agent" /><col className="c-account" /><col className="c-origin" /><col className="c-time" /><col className="c-actions" /></colgroup>
+            <thead><tr>
+              <th scope="col">{t('sessions.filter.state')}</th><th scope="col">{t('sessions.col.project')}</th>
+              <th scope="col">{t('sessions.col.agent')}</th><th scope="col">{t('sessions.col.account')}</th><th scope="col">{t('sessions.filter.origin')}</th>
+              <th scope="col">{t('sessions.col.time')}</th><th scope="col">{t('sessions.col.actions')}</th>
+            </tr></thead>
+            <tbody>{inGroup.map((r) => {
+              const when = r.group === 'ended' ? (r.endedAt ?? r.at) : (r.startedAt ?? r.at);
+              return (
+                <tr key={r.id} className={`sg-${r.group}${stale ? ' session-stale' : ''}`}>
+                  <td><span className={`state ${SESSION_MARK[r.group].cls}`}><SessionMark group={r.group} /> {stateWords(lang, r, { autoContinue: sessions?.autoContinue !== false })}</span></td>
+                  <th scope="row" title={projectName(lang, r)}><button className="linkish session-title" onClick={() => open(r.id)}>{projectName(lang, r)}</button></th>
+                  <td>{agentName(r.agent)}</td>
+                  <td title={r.account ?? undefined}>{r.account ?? ''}</td>
+                  <td>{t(`sessions.origin.${originKey(r)}`)}</td>
+                  <td className="num">{when ? clock(lang, when) : ''}</td>
+                  <td><SessionActions row={r} place="card" open={open} askEnd={askEnd} continued={continued} /></td>
+                </tr>
+              );
+            })}</tbody>
+          </table>
+        )}
       </section>
     );
   });
@@ -237,6 +264,7 @@ export function AllSessions({ sessions, noteSeen, onNoteSeen, onSetUp, endedOpen
           const words = machine ? machineStatusWords(lang, status) : null;
           return (
             <section key={machine || 'here'} className={`session-machine${stale ? ' session-machine-stale' : ''}`} aria-labelledby={`sm-${machine || 'here'}`}>
+              <div className="session-machine-bar">
               <h2 id={`sm-${machine || 'here'}`} className="session-machine-head">{machine || t('sessions.machine.this')}
                 {words && !stale && <span className="meta"> · {words}</span>}
                 {list.length === 0 && !stale && <span className="meta"> · {t('sessions.machine.empty')}</span>}
@@ -244,6 +272,7 @@ export function AllSessions({ sessions, noteSeen, onNoteSeen, onSetUp, endedOpen
               {/* FD-247 (step 7b, SCN-111): a login shell on that machine, in a console of its own. */}
               {machine && onNewThere && <button type="button" className="btn btn-sm session-machine-new" aria-label={t('sessions.machine.new.label', { machine })} onClick={() => onNewThere(machine)}>{t('newSession.button')}</button>}
               {machine && <button type="button" className="btn btn-sm session-machine-terminal" aria-label={t('sessions.machine.terminal.label', { machine })} onClick={() => void api().sessionsMachineTerminal(machine).then((r) => { if (r.ok && r.key) continued(r.key); })}>{t('sessions.machine.terminal')}</button>}
+              </div>
               {/* FD-247 (step 5): a machine whose list is not fresh says why; its last rows stay, greyed, up to 24 h. */}
               {stale && words && <p className="meta" role="status">{words}</p>}
               {groupsOf(list, stale, machine || 'here')}

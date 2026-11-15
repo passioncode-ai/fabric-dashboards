@@ -1,6 +1,8 @@
 // FD-247 (step 6, SCN-109): All sessions searched, filtered and grouped by machine
 // (docs/design/2026-11-15-sessions-machines.md §The list).
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
 import test from 'node:test';
 import * as React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
@@ -134,4 +136,15 @@ test('FD-247: New session on a machine heading opens the dialog on that machine;
   assert.deepEqual(initialMachine('studio-3', o), { machine: 'studio-3', remoteFolder: '/srv/w/ledger' }, 'the last folder there stays');
   assert.deepEqual(initialMachine('studio-9', o), { machine: 'studio-3', remoteFolder: '/srv/w/ledger' });
   assert.deepEqual(initialMachine(undefined, { machines: [], machine: null, remoteFolder: null }), { machine: '', remoteFolder: '' });
+});
+
+test('FD-247 step 6: All sessions draws each group as a table too (shown on a wide window), one row per session, columns fixed and the state in words', () => {
+  const html = page(status());
+  assert.equal((html.match(/<table class="session-table">/g) ?? []).length, 3, 'one table per unfolded group: this Mac running (Ended is folded), studio-2, studio-3');
+  assert.match(html, /<th scope="col">State<\/th><th scope="col">Project<\/th><th scope="col">Agent<\/th><th scope="col">Account<\/th><th scope="col">How it came<\/th><th scope="col">Time<\/th><th scope="col">Actions<\/th>/);
+  assert.doesNotMatch(html, /<th scope="col">Machine<\/th>/, 'the machine is its section\'s heading');
+  assert.match(html, /<colgroup><col class="c-state"\/>/);
+  assert.match(html, /<th scope="row" title="docs-site">/);
+  const css = fs.readFileSync(path.join(import.meta.dirname, '..', 'src/renderer/styles/app.css'), 'utf8');
+  assert.match(css, /@container sessions \(min-width: 900px\) \{\s*\.session-table \{ display: table; \}\s*\.session-cards \{ display: none; \}/);
 });

@@ -104,7 +104,7 @@ machine; SCN-112 open here or end a hosted session there. SCN-078 steps 1-2 and 
    In part in 0.8.113: `filterRows`, `searchRows`, `machineGroups`, `machineStatusWords` in `sessions-view.ts`; All
    sessions with search, chips, "N of M shown", machine headings and greyed rows of a machine not read now;
    `settings.layout.sessionsFilter`. 0.8.114: the sidebar's machine tree (`layout.sessionsFolded`; a folded machine keeps
-   needs-you, running and the open row). Left: the table view (cards stay meanwhile).
+   needs-you, running and the open row). 0.8.116: the table view (`@container sessions (min-width: 900px)`; the machine is the section's heading, not a column).
 7. Remote actions: attach and end argv, the machine terminal console, channel and IPC.
    In part in 0.8.115: `remoteAttachArgv`, `remoteEndArgv`, `LAUNCH_ID` (`src/core/remote-sessions.ts`); a hosted remote
    row carries `attach` and `end`, served by the existing channels (`sessionsAttach`, `sessionsEnd`, MCP `session_action`).
