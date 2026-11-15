@@ -2481,3 +2481,4 @@ The Sessions mode (0.8.0): every coding session apart from the agents, each stat
 - **UI elements:** the menu rows, the count, the personal tag
 - **States covered:** empty (0 agents), success
 - **Errors & recovery:** an unreadable map keeps the last stored list (FD-162)
+- **Status:** implemented (2026-11-15, 0.8.108: `test/organizations.test.ts` *Wave 6*)

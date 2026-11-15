@@ -1,12 +1,20 @@
 # Changelog
 
-## 0.8.107 - 2026-11-15
+## 0.8.108 - 2026-11-15
 
 ### Fixed
 
 - FD-248: the Organizations menu no longer loses an organization. Every organization Project Observatory names is a
   row, the one with no agent on this Mac included (dimmed, with 0), so one never vanishes because its agents run
   elsewhere, are turned off or moved to the platform. Agents read the same list with MCP `organizations`.
+- An agent's State tab reads its spend again until the report arrives, asking for a fresh read each time instead of
+  getting the same empty answer for 30 seconds (found by FD-246's walk).
+
+### Changed
+
+- FD-246: the sample agent the tests run is the agent kit as of today (fabric-agent-adapter v0.91.0); every e2e file
+  passes with it on an unlocked screen but one Dock check that also fails on 0.8.101 (FD-271). Designs for the
+  Sessions mode with machines (FD-247) and for organizations and This machine (FD-248, FD-52) are in `docs/design/`.
 
 ## 0.8.106 - 2026-11-15
 
