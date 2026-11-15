@@ -172,3 +172,10 @@ test('FD-141: an action that did not succeed is counted once per launch for its 
   assert.equal(events(r.sent).filter((e) => e.eventName === 'action_failed').length, 4, 'off sends nothing');
 });
 
+
+test('DEC-0157 UD-1: nothing is sent before the notice was shown, whatever the switch says', async () => {
+  const { analyticsMaySend } = await import('../src/core/settings');
+  assert.equal(analyticsMaySend({ analytics: true, analyticsNoticeSeen: false }), false);
+  assert.equal(analyticsMaySend({ analytics: true, analyticsNoticeSeen: true }), true);
+  assert.equal(analyticsMaySend({ analytics: false, analyticsNoticeSeen: true }), false);
+});

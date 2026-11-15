@@ -11,7 +11,8 @@ The approach is the organization's: Fabric's `apps/desktop/src/main/analytics.ts
 - **On by default.** A settings file without the switch reads it as on (`merge` in `src/core/settings.ts`), so an
   install that ran an earlier version shares from its first start on this one.
 - **The notice.** The first time the window shows in a build that can send, a dialog says what is shared and what
-  never is, with OK and Turn off. It is shown once (`analyticsNoticeSeen` in `settings.json`).
+  never is, with OK and Turn off. It is shown once (`analyticsNoticeSeen` in `settings.json`). Nothing is sent before it was shown,
+  whatever the switch says (contract DEC-0157 UD-1, since 0.8.110: `analyticsMaySend`).
 - **Off, for this product alone.** Settings → Privacy → *Share anonymous usage and error data*. Off drops every event
   still waiting, and nothing more is queued or sent. The shared `installation.json`'s `analytics` field does not turn
   this product off (B-200): it holds only the shared id here.
