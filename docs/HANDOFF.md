@@ -38,7 +38,7 @@ FD-268 (hidden CPU 0.967 % on 0.8.121, above the 0.3 % budget set for 22 agents)
 **Next task.** FD-269 (alerts to the agent's own organization's channel), FD-268's
 next cost (events reads every 30 s per agent, or a budget per agent), FD-236's small items. Waiting: fabric-agent-contract
 on optional `access`, `tenancy` and `space` fields (board thread `589abe7e`, FD-273's second part); FD-52's per-instance
-context on CO-422; FD-247 step 10 on SB-380 (2026-11-22). Local e2e needs 5 GB free; the review screenshots of
+context on CO-422; FD-247 step 10 is unblocked (SB-380 works, board `c657822a`): take `sessions --tree --target` and the `close-copy` button next. Local e2e needs 5 GB free; the review screenshots of
 2026-11-15 came from a copy of `scripts/screenshots.ts` run against the kit's sample agents.
 
 **Disk.** 2026-11-15 11:40 UTC the system disk had 2 GB free (Observatory: 26.9 GB of transcripts, 9.8 GB of tool
