@@ -208,8 +208,11 @@ const productIds = (x: unknown) => (Array.isArray(x) ? [...new Set(x.filter((v):
 
 /** FD-39: a sort the app knows, and pinned product ids — each a valid id, once, at most 200. FD-78: hidden product ids
  *  the same way, a kind per product (`agent` or `service`; anything else is dropped), and whether Hidden is open. */
+/** FD-248: an organization's name as Project Observatory gives it. */
+const ORG_NAME = /^[a-z0-9][a-z0-9._-]{0,63}$/i;
+
 function mergeList(raw: unknown): Settings['layout']['list'] {
-  const l = (raw && typeof raw === 'object' ? raw : {}) as { sort?: unknown; pinned?: unknown; hidden?: unknown; kinds?: unknown; hiddenOpen?: unknown; order?: unknown; off?: unknown; orgs?: unknown; groupByOrg?: unknown; orgSource?: unknown };
+  const l = (raw && typeof raw === 'object' ? raw : {}) as { sort?: unknown; pinned?: unknown; hidden?: unknown; kinds?: unknown; hiddenOpen?: unknown; order?: unknown; off?: unknown; orgs?: unknown; groupByOrg?: unknown; orgSource?: unknown; orgLabels?: unknown; orgHidden?: unknown };
   const sort = l.sort === 'status' || l.sort === 'activity' || l.sort === 'manual' ? l.sort : 'name';
   const kinds: Settings['layout']['list']['kinds'] = {};
   if (l.kinds && typeof l.kinds === 'object' && !Array.isArray(l.kinds)) {
@@ -222,7 +225,16 @@ function mergeList(raw: unknown): Settings['layout']['list'] {
   // FD-195: an organization's name, '' (not attributed), or one of the kinds `@mine`, `@others`, `@shared`.
   // FD-237: `gh:<owner>` is kept in lower case, as the filters compare it.
   const orgs = Array.isArray(l.orgs) ? [...new Set(l.orgs.filter((v): v is string => typeof v === 'string' && (/^[a-z0-9._-]{0,64}$/i.test(v) || /^gh:[a-z0-9][a-z0-9._-]{0,38}$/i.test(v) || v === '@mine' || v === '@others' || v === '@shared')).map(canonicalOrgValue))].slice(0, 50) : [];
-  return { sort, pinned: productIds(l.pinned), hidden, kinds, hiddenOpen: l.hiddenOpen === true, order: productIds(l.order), off, orgs, groupByOrg: l.groupByOrg === true, orgSource: l.orgSource === 'github' ? 'github' : 'org' };
+  // FD-248: a label is one line of at most 60 characters for an organization's name; an empty one is no label.
+  const orgLabels: Record<string, string> = {};
+  if (l.orgLabels && typeof l.orgLabels === 'object' && !Array.isArray(l.orgLabels)) {
+    for (const [name, label] of Object.entries(l.orgLabels as Record<string, unknown>).slice(0, 50)) {
+      const text = typeof label === 'string' ? label.replace(/\s+/g, ' ').trim().slice(0, 60) : '';
+      if (ORG_NAME.test(name) && text) orgLabels[name] = text;
+    }
+  }
+  const orgHidden = Array.isArray(l.orgHidden) ? [...new Set(l.orgHidden.filter((v): v is string => typeof v === 'string' && ORG_NAME.test(v)))].slice(0, 50) : [];
+  return { sort, pinned: productIds(l.pinned), hidden, kinds, hiddenOpen: l.hiddenOpen === true, order: productIds(l.order), off, orgs, groupByOrg: l.groupByOrg === true, orgSource: l.orgSource === 'github' ? 'github' : 'org', orgLabels, orgHidden };
 }
 
 /** FD-237: a change of source with no choice of its own clears the choice, whose names belong to the other source. */
@@ -342,7 +354,7 @@ function mergeSessionMemory(raw: unknown): Settings['sessions'] {
  * not listed is named in `refused`, never written.
  */
 export const AGENT_SETTINGS = ['language', 'theme', 'pageTheme', 'autoUpdate', 'analytics', 'launchAtLogin', 'notifications', 'resumeAfterLimit', 'remoteSessions', 'estate'] as const;
-const AGENT_LIST = ['sort', 'orgs', 'groupByOrg', 'orgSource'] as const;
+const AGENT_LIST = ['sort', 'orgs', 'groupByOrg', 'orgSource', 'orgLabels', 'orgHidden'] as const;
 
 export function agentSettingsPatch(raw: unknown): { patch: SettingsPatch; refused: string[] } {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return { patch: {}, refused: [] };

@@ -9,6 +9,7 @@
 // Reading — descriptors, claim conflicts, launchd status, the health probe, the state — is one
 // look through @passioncode-ai/fabric-service-host, the same code Fabric's registry reads with.
 import { supervises } from '../core/platform';
+import { JOIN_HOST, joinLink } from '../core/join';
 import { filterListRows, type SessionListRow } from '../core/sessions-view';
 import fs from 'node:fs';
 import net from 'node:net';
@@ -421,12 +422,19 @@ export async function listServices(deps: Deps, organizations?: string[]): Promis
 }
 
 /** Wave 6 (FD-248, SCN-113): the organizations the map names, each with its attributed agents here (0 included). */
-export async function organizationsKnown(deps: Deps): Promise<{ read_at: string | null; organizations: { name: string; label: string | null; personal: boolean; agents: number }[] }> {
-  const cache = readOrganizations(path.join(path.dirname(deps.settingsFile?.() ?? appSettingsFile()), 'organizations.json'));
+export async function organizationsKnown(deps: Deps): Promise<{ read_at: string | null; organizations: { name: string; label: string | null; personal: boolean; agents: number; own_label: string | null; hidden: boolean; seen_in: string[] }[] }> {
+  const file = deps.settingsFile?.() ?? appSettingsFile();
+  const cache = readOrganizations(path.join(path.dirname(file), 'organizations.json'));
+  const list = new SettingsStore(path.dirname(file), () => undefined).get().layout.list;
   const looks = await look(deps);
   const orgOf = organizationReader(deps);
   const rows = organizationCounts(looks.map((l) => ({ organization: orgOf(l) })), 'org', knownOrganizations(cache));
-  return { read_at: cache.readAt, organizations: rows.filter((r) => r.name !== '').map((r) => ({ name: r.name, label: r.label, personal: r.personal === true, agents: r.count })) };
+  // FD-248 (step 8): the person's own label and the menu switch (Settings → Organizations), and where it was seen.
+  return { read_at: cache.readAt, organizations: rows.filter((r) => r.name !== '').map((r) => ({
+    name: r.name, label: r.label, personal: r.personal === true, agents: r.count,
+    own_label: list.orgLabels[r.name] ?? null, hidden: list.orgHidden.includes(r.name),
+    seen_in: cache.fromSwitchboard?.includes(r.name) ? ['switchboard'] : ['observatory'],
+  })) };
 }
 
 /** FD-162: each look's organization, from the map the app last read (organizations.json beside its settings). */
@@ -830,6 +838,17 @@ export async function sessions(deps: Deps, f: { machines?: string[]; groups?: st
   };
 }
 
+/** FD-248 (SCN-115): Join an organization: the page that joins it (the organizations service's own, or the invite link
+ *  given, only on its host); with `open` the running app opens it in the browser, as Settings' button does. */
+export async function organizationJoin(deps: Deps, link?: string, open = false): Promise<Record<string, unknown>> {
+  const j = joinLink(link ?? null);
+  if (!j.ok) throw new ToolError(`host: only a link on ${JOIN_HOST} opens from here`, { code: 'host' });
+  if (!open) return { link: j.url, opened: false };
+  const answer = await askChannel(deps, { op: 'org.join', ...(link ? { link } : {}) } as never, 'app-not-running: Fabric Dashboards is not running, so it opens nothing; open the link yourself or the app');
+  if (!answer.ok) throw new ToolError(`${answer.code}${answer.detail ? `: ${answer.detail}` : ''}`);
+  return { link: j.url, opened: true };
+}
+
 // #region agent-doors-mcp — docs: docs/ux/scenarios.md#scn-098-an-agent-changes-what-a-person-changes-in-settings-and-on-the-sessions-page
 /** FD-175 (the operator, 2026-11-07: every action of the interface by Claude Code at their request): Settings as an
  *  agent changes them. Without `patch`, the settings an agent may change, as they stand (read from the app's file,
@@ -841,8 +860,8 @@ export async function settings(deps: Deps, patch?: Record<string, unknown>): Pro
     const s = new SettingsStore(path.dirname(file), () => undefined).get();
     const shown: Record<string, unknown> = {};
     for (const k of AGENT_SETTINGS) shown[k] = s[k as keyof typeof s];
-    shown.layout = { list: { sort: s.layout.list.sort, orgs: s.layout.list.orgs, groupByOrg: s.layout.list.groupByOrg, orgSource: s.layout.list.orgSource } };
-    return { settings: shown, changeable: [...AGENT_SETTINGS, 'layout.list.sort', 'layout.list.orgs', 'layout.list.groupByOrg', 'layout.list.orgSource'] };
+    shown.layout = { list: { sort: s.layout.list.sort, orgs: s.layout.list.orgs, groupByOrg: s.layout.list.groupByOrg, orgSource: s.layout.list.orgSource, orgLabels: s.layout.list.orgLabels, orgHidden: s.layout.list.orgHidden } };
+    return { settings: shown, changeable: [...AGENT_SETTINGS, 'layout.list.sort', 'layout.list.orgs', 'layout.list.groupByOrg', 'layout.list.orgSource', 'layout.list.orgLabels', 'layout.list.orgHidden'] };
   }
   const answer = await askChannel(deps, { op: 'settings.update', patch } as never, 'app-not-running: Fabric Dashboards is not running, so Settings cannot change now; open it and call again');
   if (!answer.ok) throw new ToolError(`${answer.code}${answer.detail ? `: ${answer.detail}` : ''}`);

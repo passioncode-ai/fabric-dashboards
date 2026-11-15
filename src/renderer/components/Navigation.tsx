@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { AppStatus, ListSort, Settings as AppSettings, SettingsPatch } from '../../core/types';
 import { moveInSection, offProducts, placeStates, type MoveSection, type Product } from '../../core/products';
-import { filterServices, GITHUB_PREFIX, groupByOrganization, ORG_MINE, ORG_OTHERS, ORG_SHARED, organizationCounts, type OrgSource } from '../../core/organizations';
+import { filterServices, GITHUB_PREFIX, groupByOrganization, menuOrganizations, ORG_MINE, ORG_OTHERS, ORG_SHARED, organizationCounts, type OrgSource } from '../../core/organizations';
 import type { SessionGroup, SessionRow } from '../../core/sessions';
 import { groupRows, machineGroups, machineStatusWords, navLines, projectName, stateShort, waitingForYou } from '../../core/sessions-view';
 import { revealScrollTop } from '../../core/layout';
@@ -151,7 +151,7 @@ export function AgentsNav({ page, status, everyAgent, arranged, products, curren
         </button>
       </div>
       <div className="nav nav-scroll">
-        {!rail && <OrgMenu services={everyAgent ?? status.services} known={status.organizations} chosen={layout.list.orgs ?? []} onChange={(orgs) => changeLayout({ list: { orgs } })} grouped={layout.list.groupByOrg === true} onGroup={(groupByOrg) => changeLayout({ list: { groupByOrg } })} source={layout.list.orgSource ?? 'org'} onSource={(orgSource) => changeLayout({ list: { orgSource, orgs: [] } })} />}
+        {!rail && <OrgMenu prefs={layout.list} services={everyAgent ?? status.services} known={status.organizations} chosen={layout.list.orgs ?? []} onChange={(orgs) => changeLayout({ list: { orgs } })} grouped={layout.list.groupByOrg === true} onGroup={(groupByOrg) => changeLayout({ list: { groupByOrg } })} source={layout.list.orgSource ?? 'org'} onSource={(orgSource) => changeLayout({ list: { orgSource, orgs: [] } })} />}
         {pinned.length > 0 && <div className="nav-section">{t('nav.pinned')}</div>}
         {pinned.map((p, i) => <ProductItem key={p.id} p={p} current={currentProduct === p} open={open} rail={rail} pinned menu={menu} drag={dragFor('pinned', i, pinned.length)} />)}
         {/* FD-244: after the pinned ones, every agent in one list (on this Mac and online together, its places as icons on
@@ -172,7 +172,7 @@ export function AgentsNav({ page, status, everyAgent, arranged, products, curren
             {(() => {
               // FD-161: split by organization when the person asked and the section holds more than one; a row's drag
               // is off meanwhile, so an order is never dragged across a heading it does not belong to.
-              const groups = !rail && layout.list.groupByOrg ? groupByOrganization(arranged[c], layout.list.orgSource ?? 'org') : null;
+              const groups = !rail && layout.list.groupByOrg ? groupByOrganization(arranged[c], layout.list.orgSource ?? 'org', layout.list.orgLabels ?? {}) : null;
               if (!groups) return arranged[c].map((p, i) => <ProductItem key={p.id} p={p} current={currentProduct === p} open={open} rail={rail} pinned={false} menu={menu} drag={dragFor(c, i, arranged[c].length)} />);
               return groups.map((g) => (
                 <div key={g.name} role="group" aria-label={g.name === '' ? t(layout.list.orgSource === 'github' ? 'orgs.noRepository' : 'orgs.none') : g.label ?? g.name}>
@@ -481,9 +481,9 @@ export function SessionsNav({ sessions, currentId, allCurrent, rail, endedOpen, 
  *  Project Observatory, or repositories on GitHub, and there is more than one to tell apart. FD-237: one source at a
  *  time, the organizations or the GitHub owners, switched at the top; the kinds of FD-195 (Mine, Others, Shared) are no
  *  longer offered here (MCP `list_services` still takes them), and one already chosen shows as a row to clear. */
-function OrgMenu({ services, known, chosen, onChange, grouped, onGroup, source, onSource }: { services: AppStatus['services']; known?: AppStatus['organizations']; chosen: string[]; onChange: (orgs: string[]) => void; grouped: boolean; onGroup: (on: boolean) => void; source: OrgSource; onSource: (s: OrgSource) => void }) {
+function OrgMenu({ services, known, chosen, onChange, grouped, onGroup, source, onSource, prefs = {} }: { services: AppStatus['services']; known?: AppStatus['organizations']; chosen: string[]; onChange: (orgs: string[]) => void; grouped: boolean; onGroup: (on: boolean) => void; source: OrgSource; onSource: (s: OrgSource) => void; prefs?: { orgLabels?: Record<string, string>; orgHidden?: string[] } }) {
   const { t } = useT();
-  const bySource = { org: organizationCounts(services, 'org', known ?? []), github: organizationCounts(services, 'github') };
+  const bySource = { org: menuOrganizations(organizationCounts(services, 'org', known ?? []), prefs, chosen), github: organizationCounts(services, 'github') };
   const rows = bySource[source];
   const offered = (['org', 'github'] as const).filter((s) => bySource[s].length >= 2);
   if (offered.length === 0 && chosen.length === 0) return null;

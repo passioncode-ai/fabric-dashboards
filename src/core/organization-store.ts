@@ -3,7 +3,7 @@
 // #region organization-store — docs: docs/ux/scenarios.md#scn-094-show-only-one-organizations-agents
 import fs from 'node:fs';
 import path from 'node:path';
-import { addRegistryProjects, addSurveyPage, EMPTY_ORGANIZATIONS, organizationOf, organizationOfInstance, ORGANIZATIONS_EVERY_MS, type InstanceContext, type Organization, type OrganizationsCache } from './organizations';
+import { addRegistryProjects, addSurveyPage, addSwitchboardOrganizations, EMPTY_ORGANIZATIONS, parseSwitchboardOrganizations, organizationOf, organizationOfInstance, ORGANIZATIONS_EVERY_MS, type InstanceContext, type Organization, type OrganizationsCache } from './organizations';
 
 const MAX_PAGES = 20;
 
@@ -21,6 +21,7 @@ export function readOrganizations(file: string): OrganizationsCache {
       ...(Array.isArray(raw.platformProducts) ? { platformProducts: raw.platformProducts.filter((x): x is string => typeof x === 'string') } : {}),
       ...(Array.isArray(raw.platformRepositories) ? { platformRepositories: raw.platformRepositories.filter((x): x is string => typeof x === 'string') } : {}),
       ...(record(raw.byWorker) ? { byWorker: record(raw.byWorker) } : {}),
+      ...(Array.isArray(raw.fromSwitchboard) ? { fromSwitchboard: raw.fromSwitchboard.filter((x): x is string => typeof x === 'string') } : {}),
     };
   } catch {
     return { ...EMPTY_ORGANIZATIONS };
@@ -34,6 +35,8 @@ export interface OrganizationStoreOptions {
   /** One page of Observatory's survey, `detail: full`, after `cursor`; null when Observatory is not here. Read when
    *  the registry file is not on this Mac or not in the expected shape. */
   fetchPage: (cursor: string | null) => Promise<unknown | null>;
+  /** FD-248 (step 6): `switchboard --json org list`'s answer, or null where Switchboard is not installed or did not answer. */
+  readSwitchboard?: () => Promise<string | null>;
   log: (line: string) => void;
   onChange: () => void;
   now?: () => number;
@@ -74,7 +77,7 @@ export class OrganizationStore {
     const next: OrganizationsCache = { readAt: null, byRepository: {}, organizations: {} };
     let file: unknown = null;
     try { file = this.o.readRegistry?.() ?? null; } catch (error) { this.tell(`organizations: the registry file could not be read (${(error as Error).message.slice(0, 200)})`); }
-    if (file !== null && addRegistryProjects(next, file)) return this.keep(next);
+    if (file !== null && addRegistryProjects(next, file)) return this.keep(await this.withSwitchboard(next));
     try {
       let cursor: string | null = null;
       for (let page = 0; page < MAX_PAGES; page++) {
@@ -87,7 +90,15 @@ export class OrganizationStore {
       this.tell(`organizations: the registry could not be read (${(error as Error).message.slice(0, 200)}); the last map is kept`);
       return;
     }
-    return this.keep(next);
+    return this.keep(await this.withSwitchboard(next));
+  }
+
+  /** FD-248 (step 6): Switchboard's organizations join the map; a Switchboard that does not answer changes nothing. */
+  private async withSwitchboard(next: OrganizationsCache): Promise<OrganizationsCache> {
+    let answer: string | null = null;
+    try { answer = (await this.o.readSwitchboard?.()) ?? null; } catch { answer = null; }
+    if (answer) addSwitchboardOrganizations(next, parseSwitchboardOrganizations(answer));
+    return next;
   }
 
   private keep(next: OrganizationsCache): void {

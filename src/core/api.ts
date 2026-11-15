@@ -183,6 +183,8 @@ export interface FabricApi {
   /** Moves the app into Applications, where updates can install, and relaunches it (ADR-0015). */
   moveToApplications(): Promise<{ ok: boolean; error?: string }>;
   openNotificationSettings(): Promise<void>;
+  /** FD-248 (SCN-115): opens the organizations service's page, or a pasted invite link on its host, in the browser. */
+  organizationJoin(link?: string): Promise<{ ok: true } | { ok: false; why: 'host' }>;
   locale(): Promise<string>;
   // ── ADR-0017: the agent console beside a service's dashboard ──
   consoleInfo(key: string): Promise<ConsoleInfo>;
@@ -297,6 +299,7 @@ export const CHANNELS = {
   updateSteps: 'fd:update-steps',
   moveToApplications: 'fd:move-to-applications',
   notificationSettings: 'fd:notification-settings',
+  organizationJoin: 'fd:organization-join',
   locale: 'fd:locale',
   uninstall: 'fd:uninstall',
   consoleInfo: 'fd:console-info',

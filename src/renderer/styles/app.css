@@ -742,6 +742,12 @@ input.switch:focus-visible { outline: 2px solid var(--pc-focus); outline-offset:
 .session-machine-head .meta { font-size: var(--pc-type-body); font-weight: 400; }
 .session-machine-stale .session-card, .session-card.session-stale { opacity: 0.6; }
 .nav-machine-head { font-weight: 600; color: var(--pc-text); }
+/* FD-248 (SCN-114): Settings → Organizations, one row each. */
+.org-settings th[scope='row'] { display: flex; align-items: center; gap: var(--pc-space-2); font-weight: 400; }
+.org-settings .org-label { min-width: 0; width: 22ch; }
+.org-settings td { width: 1%; white-space: nowrap; }
+.org-join { display: grid; gap: var(--pc-space-2); justify-items: start; margin-top: var(--pc-space-4); }
+.org-join input { width: min(52ch, 100%); }
 
 .nav-machine-stale .session-item { opacity: 0.6; }
 div.session-group-head { display: flex; align-items: center; gap: var(--pc-space-3); }

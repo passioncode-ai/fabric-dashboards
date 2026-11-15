@@ -313,6 +313,11 @@ export class ConsoleHost {
   /** The runtimes installed, read once per launch (looked for again while none is found), and
    *  Switchboard, looked for on every call: one installed later must bind its folders at once
    *  (review R-3) — a stat per folder, and `launch --help` only when the binary changed. */
+  /** FD-248 (step 6): the Switchboard this app runs, or null; for readers outside the consoles (the organizations map). */
+  async switchboardPath(): Promise<string | null> {
+    return (await this.inventory()).switchboard;
+  }
+
   private async inventory(): Promise<{ runtimes: Runtime[]; switchboard: string | null; inPlace: boolean; surface: boolean; target: boolean; hosted: boolean; dirs: string[] }> {
     const dirs = await this.searchPath();
     const switchboard = findSwitchboard(dirs);

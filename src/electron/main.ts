@@ -2,6 +2,7 @@
 // process, sandboxed renderers, context isolation, a single instance. It owns
 // no service process — launchd does (ADR-0002) — so quitting stops nothing.
 import { app, BrowserWindow, clipboard, dialog, ipcMain, nativeTheme, Menu, Notification, session, shell } from 'electron';
+import { joinLink } from '../core/join';
 import { sessionListRow } from '../core/sessions-view';
 import { pathToFileURL } from 'node:url';
 import { guardIpc } from './ipc-guard';
@@ -233,6 +234,13 @@ if (!app.requestSingleInstanceLock()) {
       return projects;
     },
     onChange: () => { monitor.namesChanged(); pushStatus(); },
+    // FD-248 (step 6): Switchboard's organizations, so one no agent here names is still known.
+    readSwitchboard: async () => {
+      const sb = await consoles.switchboardPath();
+      if (!sb) return null;
+      const r = await execRunner(sb, ['--json', 'org', 'list'], 10_000);
+      return r.code === 0 ? r.stdout : null;
+    },
     fetchPage: async (cursor) => {
       const obs = monitor.snapshots().find((x) => x.descriptor?.id === 'project-observatory' && x.descriptor.placement !== 'remote' && (x.state === 'ready' || x.state === 'degraded'));
       const mcp = obs?.wellKnown?.surfaces.mcp;
@@ -1115,6 +1123,8 @@ if (!app.requestSingleInstanceLock()) {
     ipcMain.handle(CHANNELS.updateCheck, () => updater.check(true)); // the person asked: works with automatic updates off
     ipcMain.handle(CHANNELS.moveToApplications, () => moveToApplications());
     ipcMain.handle(CHANNELS.notificationSettings, async () => { const url = notificationSettingsUrl(process.platform); if (url) await shell.openExternal(url); });
+    // FD-248 (SCN-115): Join opens only the organizations service's host (`joinLink`).
+    ipcMain.handle(CHANNELS.organizationJoin, async (_e, link) => { const j = joinLink(typeof link === 'string' ? link : null); if (!j.ok) return j; await shell.openExternal(j.url); return { ok: true }; });
     ipcMain.handle(CHANNELS.locale, () => lang());
     ipcMain.handle(CHANNELS.uninstall, () => uninstall());
     ipcMain.on(CHANNELS.viewBounds, (_e, rect: Rect) => views?.setBounds(rect));
@@ -1314,6 +1324,13 @@ if (!app.requestSingleInstanceLock()) {
         if (r.op === 'console.choose' && r.choice) {
           const done = await consoles.chooseFor(r.service, r.choice);
           return done.ok ? { ok: true, result: { runtime: done.runtime, folder: done.folder, where: done.where } } : { ok: false, code: done.reason, detail: done.detail };
+        }
+        if (r.op === 'org.join') {
+          // FD-248 (SCN-115): MCP `organization_join` with `open: true`, the same check as the button.
+          const j = joinLink(r.link ?? null);
+          if (!j.ok) return { ok: false, code: 'refused', detail: 'host' };
+          await shell.openExternal(j.url);
+          return { ok: true, result: { opened: j.url } };
         }
         if (r.op === 'app.install' && r.install) {
           if (r.install === 'move-to-applications') {

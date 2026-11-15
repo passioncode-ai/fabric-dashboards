@@ -20,8 +20,8 @@ export const CHANNEL_KEY_FILE = 'console.key';
 export const CHANNEL_SOCKET_FILE = 'console.sock';
 export const CHANNEL_TASK_MAX = 16 * 1024;
 
-export type ChannelOp = 'console.new' | 'console.fix' | 'console.list' | 'sessions.list' | 'console.choose' | 'settings.update' | 'sessions.act' | 'app.update' | 'app.install' | 'session.new';
-const OPS: readonly string[] = ['console.new', 'console.fix', 'console.list', 'sessions.list', 'console.choose', 'settings.update', 'sessions.act', 'app.update', 'app.install', 'session.new'];
+export type ChannelOp = 'console.new' | 'console.fix' | 'console.list' | 'sessions.list' | 'org.join' | 'console.choose' | 'settings.update' | 'sessions.act' | 'app.update' | 'app.install' | 'session.new';
+const OPS: readonly string[] = ['console.new', 'console.fix', 'console.list', 'sessions.list', 'org.join', 'console.choose', 'settings.update', 'sessions.act', 'app.update', 'app.install', 'session.new'];
 /** FD-175: what a session row's button does, and what the app's update buttons do. */
 export type SessionAct = 'continue' | 'end' | 'dismiss' | 'clear-ended' | 'attach';
 export interface ChannelRequest {
@@ -40,6 +40,8 @@ export interface ChannelRequest {
   /** FD-175, `app.install`: Move to Applications, or Uninstall keeping settings and history (`uninstall`) or with them
    *  (`uninstall-all`), as the confirmation's box ticked. */
   install?: AppInstall;
+  /** FD-248: Join's invite link (absent: the organizations service's own page); checked again by the app. */
+  link?: string;
   /** FD-191, `session.new`: the New session (or New agent) dialog's choices; one left out is the dialog's default. */
   start?: NewSessionRequest;
 }
@@ -99,7 +101,7 @@ export function parseRequest(line: string): { ok: true; request: ChannelRequest 
   try { v = JSON.parse(line); } catch { return { ok: false, code: 'not-json' }; }
   if (!v || typeof v !== 'object' || Array.isArray(v)) return { ok: false, code: 'not-an-object' };
   const r = v as Record<string, unknown>;
-  for (const k of Object.keys(r)) if (!['key', 'op', 'service', 'task', 'patch', 'session', 'update', 'choice', 'install', 'start', 'mode'].includes(k)) return { ok: false, code: 'unknown-field' };
+  for (const k of Object.keys(r)) if (!['key', 'op', 'service', 'task', 'patch', 'session', 'update', 'choice', 'install', 'start', 'mode', 'link'].includes(k)) return { ok: false, code: 'unknown-field' };
   if (!OPS.includes(String(r.op))) return { ok: false, code: 'unknown-op' };
   // FD-175: the window's own buttons, each with only its own field.
   const only = (field: string) => Object.keys(r).every((k) => k === 'key' || k === 'op' || k === field);
@@ -121,6 +123,10 @@ export function parseRequest(line: string): { ok: true; request: ChannelRequest 
   if (r.op === 'app.update') {
     if (!only('update') || (r.update !== 'check' && r.update !== 'restart')) return { ok: false, code: 'bad-update' };
     return { ok: true, request: { key: String(r.key ?? ''), op: r.op, service: '', update: r.update } };
+  }
+  if (r.op === 'org.join') {
+    if (!only('link') || (r.link !== undefined && (typeof r.link !== 'string' || r.link.length > 2048))) return { ok: false, code: 'bad-link' };
+    return { ok: true, request: { key: String(r.key ?? ''), op: r.op, service: '', ...(typeof r.link === 'string' ? { link: r.link } : {}) } };
   }
   if (r.op === 'app.install') {
     if (!only('install') || (r.install !== 'move-to-applications' && r.install !== 'uninstall' && r.install !== 'uninstall-all')) return { ok: false, code: 'bad-install' };

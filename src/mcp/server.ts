@@ -69,7 +69,7 @@ export const TOOLS = [
     annotations: { readOnlyHint: true },
   },  {
     name: 'organizations',
-    description: 'Every organization Project Observatory names on this Mac, as the sidebar\'s Organizations menu lists them (FD-248, SCN-113): name, label, whether it is the personal one, and how many installed agents are attributed to it (0 for one with no agent here). Read from the map the app last read (organizations.json); read_at null means none was read yet. Read-only.',
+    description: 'Every organization Project Observatory names on this Mac, as the sidebar\'s Organizations menu lists them (FD-248, SCN-113): name, label, whether it is the personal one, how many installed agents are attributed to it (0 for one with no agent here), own_label (the person\'s label in Settings → Organizations, null when none), hidden (left out of the menu) and seen_in (observatory, or switchboard for one only Switchboard names). Read from the map the app last read (organizations.json); read_at null means none was read yet. Read-only.',
     inputSchema: { type: 'object', properties: {}, additionalProperties: false },
     annotations: { readOnlyHint: true },
   },
@@ -134,6 +134,12 @@ export const TOOLS = [
     annotations: { readOnlyHint: false, destructiveHint: false },
   },
   {
+    name: 'organization_join',
+    description: 'Join an organization, as Settings → Organizations → Join does (FD-248, SCN-115): membership is kept by the organizations service, never by this app. Answers the page that joins it: the service\'s own (https://org.passioncode.ai/), or the invite link given when it is https on that host (anything else is refused with host). open: true has the running app open it in the browser (app-not-running when it is closed). The organization appears at the next read of the organizations map.',
+    inputSchema: { type: 'object', properties: { link: { type: 'string', maxLength: 2048 }, open: { type: 'boolean' } }, additionalProperties: false },
+    annotations: { readOnlyHint: false, destructiveHint: false },
+  },
+  {
     name: 'sessions',
     description: 'Every coding session Fabric Dashboards lists, as its Sessions mode shows it (FD-247, SCN-109, SCN-110): this Mac\'s and those of the other machines it reads over ssh, one row each with id, project, folder, machine (null: this Mac), coding agent, account, context, state, group (needs-you, running, waiting, ended), origin (handover, resume, limit, switchboard, here, machine, dispatch), startedAt, endedAt, the actions it offers (pass id to session_action) and open_link to its page; machines[] says how each other machine\'s last read went. Filters as All sessions: machines (\'\' for this Mac), groups, origins, query (every word in project, folder, account, agent or machine). Never what a session printed. Answers app-not-running when the app is not open.',
     inputSchema: { type: 'object', properties: { machines: { type: 'array', items: { type: 'string', maxLength: 255 }, maxItems: 20 }, groups: { type: 'array', items: { type: 'string', enum: ['needs-you', 'running', 'waiting', 'ended'] }, maxItems: 4 }, origins: { type: 'array', items: { type: 'string', enum: ['handover', 'resume', 'limit', 'switchboard', 'here', 'machine', 'dispatch'] }, maxItems: 7 }, query: { type: 'string', maxLength: 200 } }, additionalProperties: false },
@@ -147,7 +153,7 @@ export const TOOLS = [
   },
   {
     name: 'settings',
-    description: 'Settings as a person changes them in the window (FD-175, the operator 2026-11-07: every action of the interface by an agent at their request): without patch, the settings an agent may change as they stand; with patch, a partial change applied through Settings\' own code in the running app: language (system, en, ru), theme (dark, light, system), pageTheme, autoUpdate, analytics, launchAtLogin, notifications (its fields), resumeAfterLimit, remoteSessions, estate, layout.list.sort, layout.list.orgs, layout.list.groupByOrg, layout.list.orgSource (org or github, FD-237). Answers the fields changed and the ones refused (anything else, such as a console\'s folder). A change needs the app running (app-not-running otherwise).',
+    description: 'Settings as a person changes them in the window (FD-175, the operator 2026-11-07: every action of the interface by an agent at their request): without patch, the settings an agent may change as they stand; with patch, a partial change applied through Settings\' own code in the running app: language (system, en, ru), theme (dark, light, system), pageTheme, autoUpdate, analytics, launchAtLogin, notifications (its fields), resumeAfterLimit, remoteSessions, estate, layout.list.sort, layout.list.orgs, layout.list.groupByOrg, layout.list.orgSource (org or github, FD-237), layout.list.orgLabels ({organization name: label} shown in this app only) and layout.list.orgHidden (organization names left out of the Organizations menu, FD-248). Answers the fields changed and the ones refused (anything else, such as a console\'s folder). A change needs the app running (app-not-running otherwise).',
     inputSchema: { type: 'object', properties: { patch: { type: 'object' } }, additionalProperties: false },
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
   },
@@ -298,6 +304,7 @@ export async function call(deps: tools.Deps, name: string, args: Args): Promise<
       return tools.bugReport(deps, fp, args.publish === true);
     }
     case 'consoles': return tools.consoles(deps);
+    case 'organization_join': return tools.organizationJoin(deps, typeof args.link === 'string' ? args.link : undefined, args.open === true);
     case 'sessions': {
       const list = (v: unknown) => (Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string').slice(0, 20) : undefined);
       return tools.sessions(deps, { machines: list(args.machines), groups: list(args.groups), origins: list(args.origins), ...(typeof args.query === 'string' ? { query: args.query.slice(0, 200) } : {}) });

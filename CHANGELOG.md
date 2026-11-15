@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.8.117 - 2026-11-15
+
+### Added
+
+- FD-248: Settings → Organizations lists every organization Observatory and your agents name, with a label of your own
+  (this app only), how many of its agents run here and a switch that hides it from the Organizations menu (its agents
+  stay under All). Agents set the same with MCP `settings` (`layout.list.orgLabels`, `layout.list.orgHidden`).
+- FD-248: an organization Switchboard knows (`org list`) and no organization of Observatory's map matches joins the
+  known organizations, with no agent moved; `PassionCode.ai` matches `passioncode`.
+- FD-248: Join an organization in Settings → Organizations opens the organizations service's page, or a pasted invite
+  link on its host only, in the browser; nothing about membership is kept here. Agents use MCP `organization_join`.
+- FD-248: MCP `organizations` also gives each organization's label of your own, whether it is hidden from the menu and
+  where it was seen (Observatory or Switchboard).
+
 ## 0.8.116 - 2026-11-15
 
 ### Added

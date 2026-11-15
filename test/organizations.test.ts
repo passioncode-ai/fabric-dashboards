@@ -362,3 +362,114 @@ test('Wave 6 (FD-248, SCN-113): an organization Observatory names keeps its menu
   assert.equal(organizationCounts([], 'org', known).length, 3, 'the menu has its rows before any agent is attributed');
   assert.deepEqual(organizationCounts([], 'org'), [], 'without the map, nothing');
 });
+
+test('FD-248 step 4: the menu takes the person\'s own labels and leaves out the organizations they hid, unless one is chosen', async () => {
+  const { menuOrganizations, groupByOrganization } = await import('../src/core/organizations');
+  const rows = [{ name: 'acme', label: 'Acme', count: 3 }, { name: 'globex', label: 'Globex', count: 0 }, { name: '', label: null, count: 1 }];
+  assert.deepEqual(menuOrganizations(rows, { orgLabels: { acme: 'Acme (ops)' }, orgHidden: ['globex'] }).map((r) => [r.name, r.label]), [['acme', 'Acme (ops)'], ['', null]]);
+  assert.deepEqual(menuOrganizations(rows, { orgHidden: ['globex'] }, ['globex']).map((r) => r.name), ['acme', 'globex', ''], 'a hidden one that is chosen stays, to be cleared');
+  assert.deepEqual(menuOrganizations(rows, { orgHidden: [''] }).map((r) => r.name), ['acme', 'globex', ''], '"Not attributed" is never hidden');
+  const prod = (id: string, name: string) => ({ id, primary: { organization: { name, label: name.toUpperCase() } } });
+  const g = groupByOrganization([prod('a', 'acme'), prod('b', 'globex')] as never, 'org', { acme: 'Acme (ops)' })!;
+  assert.deepEqual(g.map((x) => x.label), ['Acme (ops)', 'GLOBEX']);
+});
+
+test('FD-248 step 4: labels and hidden organizations are kept strictly, and an agent may change them through MCP settings', async () => {
+  const { merge, agentSettingsPatch } = await import('../src/core/settings');
+  const { DEFAULT_SETTINGS } = await import('../src/core/types');
+  const list = merge({ layout: { ...DEFAULT_SETTINGS.layout, list: { ...DEFAULT_SETTINGS.layout.list, orgLabels: { acme: '  Acme\n ops ', '../x': 'bad', globex: '', initech: 'x'.repeat(80) }, orgHidden: ['globex', 'globex', '-bad', 3] } as never } }).layout.list;
+  assert.deepEqual(list.orgLabels, { acme: 'Acme ops', initech: 'x'.repeat(60) });
+  assert.deepEqual(list.orgHidden, ['globex']);
+  assert.deepEqual(merge({}).layout.list.orgLabels, {});
+  const p = agentSettingsPatch({ layout: { list: { orgLabels: { acme: 'Ops' }, orgHidden: ['globex'] } } });
+  assert.deepEqual(p, { patch: { layout: { list: { orgLabels: { acme: 'Ops' }, orgHidden: ['globex'] } } }, refused: [] });
+});
+
+test('FD-248 step 5: Settings → Organizations lists each organization with a label field, its agents here and a menu switch', async () => {
+  const React = await import('react');
+  const { renderToStaticMarkup } = await import('react-dom/server');
+  const { Settings } = await import('../src/renderer/components/Settings');
+  const { LangContext } = await import('../src/renderer/lib');
+  const { DEFAULT_SETTINGS } = await import('../src/core/types');
+  (globalThis as { React?: unknown }).React = React;
+  (globalThis as { window?: unknown }).window ??= {};
+  const settings = { ...DEFAULT_SETTINGS, layout: { ...DEFAULT_SETTINGS.layout, list: { ...DEFAULT_SETTINGS.layout.list, orgLabels: { acme: 'Acme (ops)' }, orgHidden: ['globex'] } } };
+  const status = { services: [{ key: 'a.default', organization: { name: 'acme', label: 'Acme' } }], organizations: [{ name: 'acme', label: 'Acme', personal: true }, { name: 'globex', label: 'Globex' }] };
+  void Settings;
+  const html = renderToStaticMarkup(React.createElement(LangContext.Provider, { value: 'en' }, React.createElement((await import('../src/renderer/components/Settings')).OrganizationsSection, { status: status as never, list: settings.layout.list, onSave: () => undefined })));
+  assert.match(html, /aria-label="Label for acme"[^>]*|value="Acme \(ops\)"/);
+  assert.match(html, /placeholder="Acme"/);
+  assert.match(html, /Agents here: 1/);
+  assert.match(html, /Agents here: 0/);
+  assert.match(html, /your own/);
+  assert.match(html, /aria-label="Show Globex in the menu"/);
+  assert.equal((html.match(/checked=""/g) ?? []).length, 1, 'acme shows, globex is hidden');
+});
+
+test('FD-248 step 6: Switchboard\'s organizations join the known list when no organization of the map matches; none moves an agent', async () => {
+  const { addSwitchboardOrganizations, parseSwitchboardOrganizations, knownOrganizations } = await import('../src/core/organizations');
+  const answer = JSON.stringify({ ok: true, data: { organizations: [{ id: 'e2cb', name: 'PassionCode.ai', passioncode: true }, { id: 'x', name: 'Initech Labs' }, { id: 'y', name: '' }, { id: 'z' }] } });
+  assert.deepEqual(parseSwitchboardOrganizations(answer), ['PassionCode.ai', 'Initech Labs']);
+  assert.deepEqual(parseSwitchboardOrganizations('not json'), []);
+  const cache = { readAt: null, byRepository: { 'acme/a': 'acme' }, organizations: { passioncode: 'PassionCode', acme: 'Acme' }, personal: 'acme' };
+  addSwitchboardOrganizations(cache, parseSwitchboardOrganizations(answer));
+  assert.deepEqual(cache.organizations, { passioncode: 'PassionCode', acme: 'Acme', 'initech-labs': 'Initech Labs' }, 'PassionCode.ai matches passioncode by letters and digits');
+  assert.deepEqual((cache as { fromSwitchboard?: string[] }).fromSwitchboard, ['initech-labs']);
+  assert.deepEqual(cache.byRepository, { 'acme/a': 'acme' }, 'no repository moves');
+  assert.deepEqual(knownOrganizations(cache).map((o) => o.name), ['acme', 'initech-labs', 'passioncode']);
+});
+
+test('FD-248 step 6: the store adds Switchboard\'s organizations on a read and keeps them in organizations.json', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'fd-org-sb-'));
+  const file = path.join(dir, 'organizations.json');
+  const registry = { schema_version: 2, organization_labels: { acme: 'Acme' }, organization_personal: 'acme', projects: [] };
+  const store = new OrganizationStore({ file, log: () => undefined, onChange: () => undefined, fetchPage: async () => null, readRegistry: () => registry,
+    readSwitchboard: async () => JSON.stringify({ ok: true, data: { organizations: [{ name: 'Globex' }] } }) });
+  await store.refresh();
+  const read = readOrganizations(file);
+  assert.ok(read.readAt);
+  assert.equal(read.organizations.globex, 'Globex');
+  assert.deepEqual(read.fromSwitchboard, ['globex']);
+});
+
+test('FD-248 step 7: Join opens only the organizations service\'s host; a pasted invite link elsewhere is refused before any browser', async () => {
+  const { joinLink, JOIN_URL } = await import('../src/core/join');
+  assert.deepEqual(joinLink(), { ok: true, url: JOIN_URL });
+  assert.deepEqual(joinLink('  '), { ok: true, url: JOIN_URL });
+  assert.deepEqual(joinLink('https://org.passioncode.ai/invite/abc?x=1'), { ok: true, url: 'https://org.passioncode.ai/invite/abc?x=1' });
+  for (const bad of ['http://org.passioncode.ai/invite/abc', 'https://org.passioncode.ai.evil.example/x', 'https://evil.example/?u=org.passioncode.ai', ['https://', 'someone', ':', 'secret', '@org.passioncode.ai/x'].join(''), 'https://org.passioncode.ai:8443/x', 'javascript:alert(1)', 'file:///etc/passwd', 'not a url']) {
+    assert.deepEqual(joinLink(bad), { ok: false, why: 'host' }, bad);
+  }
+  const { parseRequest } = await import('../src/core/console-channel');
+  assert.deepEqual(parseRequest(JSON.stringify({ key: 'k', op: 'org.join' })), { ok: true, request: { key: 'k', op: 'org.join', service: '' } });
+  assert.deepEqual(parseRequest(JSON.stringify({ key: 'k', op: 'org.join', link: 'https://org.passioncode.ai/i/1' })), { ok: true, request: { key: 'k', op: 'org.join', service: '', link: 'https://org.passioncode.ai/i/1' } });
+  assert.deepEqual(parseRequest(JSON.stringify({ key: 'k', op: 'org.join', link: 7 })), { ok: false, code: 'bad-link' });
+  assert.deepEqual(parseRequest(JSON.stringify({ key: 'k', op: 'org.join', patch: {} })), { ok: false, code: 'bad-link' });
+});
+
+test('FD-248 step 7: MCP organization_join answers the page; a link on another host is refused; Settings shows the form', async () => {
+  const tools = await import('../src/mcp/tools');
+  assert.deepEqual(await tools.organizationJoin({} as never), { link: 'https://org.passioncode.ai/', opened: false });
+  await assert.rejects(() => tools.organizationJoin({} as never, 'https://evil.example/'), /host: only a link on org\.passioncode\.ai/);
+  const React = await import('react');
+  const { renderToStaticMarkup } = await import('react-dom/server');
+  const { OrganizationsSection } = await import('../src/renderer/components/Settings');
+  const { LangContext } = await import('../src/renderer/lib');
+  const html = renderToStaticMarkup(React.createElement(LangContext.Provider, { value: 'en' }, React.createElement(OrganizationsSection, { status: { services: [], organizations: [] } as never, list: DEFAULT_SETTINGS.layout.list, onSave: () => undefined })));
+  assert.match(html, /Invite link \(optional\)/);
+  assert.match(html, /placeholder="https:\/\/org\.passioncode\.ai\/…"/);
+  assert.match(html, />Join an organization</);
+});
+
+test('FD-248 step 8: MCP organizations gives each organization the person\'s own label, whether it is hidden and where it was seen', async () => {
+  const tools = await import('../src/mcp/tools');
+  const { SettingsStore } = await import('../src/core/settings');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'fd-org-mcp-'));
+  const services = path.join(dir, 'services');
+  fs.mkdirSync(services);
+  fs.writeFileSync(path.join(dir, 'organizations.json'), JSON.stringify({ readAt: '2026-11-15T10:00:00Z', byRepository: {}, organizations: { acme: 'Acme', globex: 'Globex' }, personal: 'acme', fromSwitchboard: ['globex'] }));
+  new SettingsStore(dir).update({ layout: { list: { orgLabels: { acme: 'Acme (ops)' }, orgHidden: ['globex'] } } as never });
+  const deps = { servicesDir: () => services, settingsFile: () => path.join(dir, 'settings.json'), wellKnown: async () => ({ ok: false }), launchd: async () => ({ code: 0, stdout: '', stderr: '' }), now: () => Date.parse('2026-11-15T10:00:00Z') };
+  const out = await tools.organizationsKnown(deps as never);
+  assert.deepEqual(out.organizations.map((o) => [o.name, o.own_label, o.hidden, o.seen_in]), [['acme', 'Acme (ops)', false, ['observatory']], ['globex', null, true, ['switchboard']]]);
+});

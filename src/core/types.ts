@@ -184,6 +184,11 @@ export interface ListLayout {
   groupByOrg: boolean;
   /** FD-237: what the organization filter and the grouping read: the organizations (`org`) or the GitHub owners (`github`). */
   orgSource: 'org' | 'github';
+  /** FD-248 (SCN-114): a label of the person's own per organization name, shown in this app only (Observatory owns the
+   *  organization's name). */
+  orgLabels: Record<string, string>;
+  /** FD-248 (SCN-114): organizations left out of the Organizations menu; their agents still show under All. */
+  orgHidden: string[];
 }
 
 /** A change to the settings: any field, and any part of the layout or of one service's console alone. */
@@ -222,7 +227,7 @@ export const DEFAULT_SETTINGS: Settings = {
     pausedUntil: null,
     channel: 'auto',
   },
-  layout: { sidebar: 'expanded', sidebarWidth: SIDEBAR_WIDTH.default, header: 'compact', console: { open: false, height: CONSOLE_HEIGHT.default, full: true }, focus: false, tabs: [], list: { sort: 'name', pinned: [], hidden: [], kinds: {}, hiddenOpen: false, order: [], off: [], orgs: [], groupByOrg: false, orgSource: 'org' }, mode: 'agents', sessionId: null, endedOpen: false, sessionsFilter: { machines: [], groups: [], origins: [] }, sessionsFolded: [] },
+  layout: { sidebar: 'expanded', sidebarWidth: SIDEBAR_WIDTH.default, header: 'compact', console: { open: false, height: CONSOLE_HEIGHT.default, full: true }, focus: false, tabs: [], list: { sort: 'name', pinned: [], hidden: [], kinds: {}, hiddenOpen: false, order: [], off: [], orgs: [], groupByOrg: false, orgSource: 'org', orgLabels: {}, orgHidden: [] }, mode: 'agents', sessionId: null, endedOpen: false, sessionsFilter: { machines: [], groups: [], origins: [] }, sessionsFolded: [] },
   consoles: {},
   newSession: { runtime: null, folder: null, bypass: true, isolated: false },
   resumeAfterLimit: true,
