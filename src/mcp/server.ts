@@ -134,6 +134,12 @@ export const TOOLS = [
     annotations: { readOnlyHint: false, destructiveHint: false },
   },
   {
+    name: 'sessions',
+    description: 'Every coding session Fabric Dashboards lists, as its Sessions mode shows it (FD-247, SCN-109, SCN-110): this Mac\'s and those of the other machines it reads over ssh, one row each with id, project, folder, machine (null: this Mac), coding agent, account, context, state, group (needs-you, running, waiting, ended), origin (handover, resume, limit, switchboard, here, machine, dispatch), startedAt, endedAt, the actions it offers (pass id to session_action) and open_link to its page; machines[] says how each other machine\'s last read went. Filters as All sessions: machines (\'\' for this Mac), groups, origins, query (every word in project, folder, account, agent or machine). Never what a session printed. Answers app-not-running when the app is not open.',
+    inputSchema: { type: 'object', properties: { machines: { type: 'array', items: { type: 'string', maxLength: 255 }, maxItems: 20 }, groups: { type: 'array', items: { type: 'string', enum: ['needs-you', 'running', 'waiting', 'ended'] }, maxItems: 4 }, origins: { type: 'array', items: { type: 'string', enum: ['handover', 'resume', 'limit', 'switchboard', 'here', 'machine', 'dispatch'] }, maxItems: 7 }, query: { type: 'string', maxLength: 200 } }, additionalProperties: false },
+    annotations: { readOnlyHint: true },
+  },
+  {
     name: 'consoles',
     description: 'The coding-agent consoles running now in Fabric Dashboards on this machine (FD-166, for one screen of sessions): one row each with the agent it belongs to (service, or null for a console of its own: a hand-over, a session continued after a limit), the runtime, the folder, sessionId (Switchboard\'s provider_session_id, null when it named none, never guessed), runtimeSessionId (the runtime\'s own session id, the one fabric_session_observe records, null when not known), since, the Sessions row and open_link, which opens that session\'s page in the app. Never what a console printed. Answers app-not-running when the app is not open.',
     inputSchema: { type: 'object', properties: {}, additionalProperties: false },
@@ -292,6 +298,10 @@ export async function call(deps: tools.Deps, name: string, args: Args): Promise<
       return tools.bugReport(deps, fp, args.publish === true);
     }
     case 'consoles': return tools.consoles(deps);
+    case 'sessions': {
+      const list = (v: unknown) => (Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string').slice(0, 20) : undefined);
+      return tools.sessions(deps, { machines: list(args.machines), groups: list(args.groups), origins: list(args.origins), ...(typeof args.query === 'string' ? { query: args.query.slice(0, 200) } : {}) });
+    }
     case 'settings': return tools.settings(deps, args.patch as Record<string, unknown> | undefined);
     case 'session_action': {
       const act = need(args, 'act') as 'continue' | 'end' | 'dismiss' | 'clear-ended' | 'attach';

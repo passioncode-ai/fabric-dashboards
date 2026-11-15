@@ -2483,7 +2483,7 @@ The Sessions mode (0.8.0): every coding session apart from the agents, each stat
   3. With other machines, each is a heading ("This Mac" first), with when it was read, or why it was not; under it the state groups as before
   4. In the sidebar the same machines are headings that fold; a folded machine still shows the sessions that need the person, those running and the one open, and the fold is kept
 - **Expected result:** the session the person looks for is found in a few presses, wherever it runs
-- **Alt paths:** one Mac and no other machine -> no machine headings and no Machine chips, the page reads as before; nothing matches -> "No session matches the search and filters"; a filter on unfolds Ended
+- **Alt paths:** an agent reads the same list, with the same filters, with MCP `sessions` (`machines`, `groups`, `origins`, `query`; each row's `open_link` and `actions`); one Mac and no other machine -> no machine headings and no Machine chips, the page reads as before; nothing matches -> "No session matches the search and filters"; a filter on unfolds Ended
 - **UI elements:** the search field, the chip rows, the count and Clear filters, the machine headings
 - **States covered:** empty (no match), success, stale (a machine not read now, its rows greyed)
 - **Errors & recovery:** the filters are kept in settings and read strictly (an unknown value is dropped, so a damaged file shows every row); the search is not kept

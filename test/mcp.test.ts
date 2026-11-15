@@ -898,6 +898,41 @@ test('FD-166: consoles reads the open consoles through the channel, each with th
   }
 });
 
+test('FD-247 step 8: sessions reads the whole Sessions list through the channel, filtered as All sessions, each row with its link; untrusted fields marked', { skip: process.platform === 'win32' && 'a Unix socket' }, async () => {
+  const { openChannel } = await import('../src/electron/console-channel');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'fd-chan-sessions-'));
+  const w = world();
+  w.deps.settingsFile = () => path.join(dir, 'settings.json');
+  const closed = await handle(w.deps, { id: 1, method: 'tools/call', params: { name: 'sessions', arguments: {} } });
+  assert.match((closed!.result as { content: { text: string }[] }).content[0]!.text, /app-not-running/);
+  const base = { folder: '/w/a', agent: 'claude-code', account: 'Work', context: null, state: 'running-background', group: 'running', origin: 'switchboard', startedAt: '2026-11-15T10:00:00.000Z', endedAt: null, actions: [], console: null };
+  const sessions = [
+    { ...base, id: 'sb:a', project: 'billing-api', machine: null },
+    { ...base, id: 'rm:studio-2:L1', project: 'docs-site', folder: '/srv/w/docs-site', machine: 'studio-2', actions: ['attach', 'end'] },
+    { ...base, id: 'c:k:1', project: 'ledger', state: 'ended', group: 'ended', origin: 'here', machine: null, console: 'k' },
+  ];
+  const machines = [{ machine: 'studio-2', state: 'ok', at: 1, since: null, rows: 1 }];
+  const asked: string[] = [];
+  const ch = await openChannel({ userData: dir, log: () => undefined, start: async (r) => { asked.push(r.op); return r.op === 'sessions.list' ? { ok: true, result: { sessions, machines, switchboard: true, degraded: [] } } : { ok: false, code: 'unexpected' }; } });
+  try {
+    const call = async (args: Record<string, unknown>) => (await handle(w.deps, { id: 2, method: 'tools/call', params: { name: 'sessions', arguments: args } }))!.result as { structuredContent: { sessions: { id: string; open_link: string }[]; shown: number; total: number; machines: unknown[]; untrusted: { fields: string[] } } };
+    const all = (await call({})).structuredContent;
+    assert.deepEqual(asked, ['sessions.list']);
+    assert.equal(all.total, 3);
+    assert.equal(all.sessions[1]!.open_link, `fabric-dashboards://sessions?id=${encodeURIComponent('rm:studio-2:L1')}`);
+    assert.deepEqual(all.machines, machines);
+    assert.ok(all.untrusted.fields.includes('sessions[].folder'));
+    assert.deepEqual((await call({ machines: ['studio-2'] })).structuredContent.sessions.map((r) => r.id), ['rm:studio-2:L1']);
+    assert.deepEqual((await call({ machines: [''], groups: ['running'] })).structuredContent.sessions.map((r) => r.id), ['sb:a']);
+    assert.deepEqual((await call({ origins: ['here'] })).structuredContent.sessions.map((r) => r.id), ['c:k:1']);
+    assert.deepEqual((await call({ query: 'DOCS studio' })).structuredContent.sessions.map((r) => r.id), ['rm:studio-2:L1']);
+    const tool = TOOLS.find((t) => t.name === 'sessions')!;
+    assert.equal((tool.annotations as { readOnlyHint?: boolean }).readOnlyHint, true, 'a read');
+  } finally {
+    await ch!.close();
+  }
+});
+
 test('FD-122: arrange writes the row menu\'s choices to the app\'s settings, once, and says the agent\'s list state', async () => {
   const w = world();
   const userData = tmp('fd-arrange-');

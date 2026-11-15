@@ -20,8 +20,8 @@ export const CHANNEL_KEY_FILE = 'console.key';
 export const CHANNEL_SOCKET_FILE = 'console.sock';
 export const CHANNEL_TASK_MAX = 16 * 1024;
 
-export type ChannelOp = 'console.new' | 'console.fix' | 'console.list' | 'console.choose' | 'settings.update' | 'sessions.act' | 'app.update' | 'app.install' | 'session.new';
-const OPS: readonly string[] = ['console.new', 'console.fix', 'console.list', 'console.choose', 'settings.update', 'sessions.act', 'app.update', 'app.install', 'session.new'];
+export type ChannelOp = 'console.new' | 'console.fix' | 'console.list' | 'sessions.list' | 'console.choose' | 'settings.update' | 'sessions.act' | 'app.update' | 'app.install' | 'session.new';
+const OPS: readonly string[] = ['console.new', 'console.fix', 'console.list', 'sessions.list', 'console.choose', 'settings.update', 'sessions.act', 'app.update', 'app.install', 'session.new'];
 /** FD-175: what a session row's button does, and what the app's update buttons do. */
 export type SessionAct = 'continue' | 'end' | 'dismiss' | 'clear-ended' | 'attach';
 export interface ChannelRequest {
@@ -163,8 +163,8 @@ export function parseRequest(line: string): { ok: true; request: ChannelRequest 
   }
   // A console operation carries none of the window's fields.
   if (r.patch !== undefined || r.session !== undefined || r.update !== undefined || r.choice !== undefined || r.install !== undefined || r.start !== undefined) return { ok: false, code: 'unknown-field' };
-  if (r.op === 'console.list') {
-    // FD-166: a read names no service and carries no task.
+  if (r.op === 'console.list' || r.op === 'sessions.list') {
+    // FD-166, FD-247 (step 8): a read names no service and carries no task.
     if (r.service !== undefined || r.task !== undefined || r.mode !== undefined) return { ok: false, code: 'unknown-field' };
     return { ok: true, request: { key: String(r.key ?? ''), op: r.op, service: '' } };
   }
