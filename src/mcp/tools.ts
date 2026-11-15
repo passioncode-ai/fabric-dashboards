@@ -165,6 +165,9 @@ export interface ServiceView {
   key: string;
   /** ADR-0012: the product this service belongs to — its `id`; every instance of one id is one product. */
   product: string;
+  /** FD-244 (design 2026-11-15): its row in the agent list: `product`, or `<product>@<organization>` for an instance run
+   *  for another organization than its product's primary; what `arrange` pins, hides and turns off. */
+  row: string;
   name: string;
   /** DEC-0019: `local` or `remote` (an online agent or dashboard at an https origin). */
   placement: 'local' | 'remote';
@@ -195,13 +198,14 @@ export interface ServiceView {
   organization: Organization | null;
 }
 
-function view(s: ServiceLook, list?: { category: Category; hidden: boolean; off: boolean }, organization: Organization | null = null): ServiceView {
+function view(s: ServiceLook, list?: { category: Category; hidden: boolean; off: boolean; row?: string }, organization: Organization | null = null): ServiceView {
   const d = s.descriptor;
   const wk = s.wellKnown;
   const dashPath = wk?.surfaces.dashboard?.path ?? null;
   return {
     key: s.key,
     product: productIdOf(s.key),
+    row: list?.row ?? productIdOf(s.key),
     name: d ? displayName(d.name, d.instance) : s.key, // M2-1: two instances never read alike (ADR-0010)
     placement: d?.placement === 'remote' ? 'remote' : 'local',
     state: s.state,
@@ -269,12 +273,17 @@ function find(deps: Deps, key: string): DescriptorEntry & { descriptor: Descript
 }
 
 /** FD-78: each look's section and hidden flag, as the app's list shows them (the person's choices win). */
-function listing(looks: readonly ServiceLook[], layout: Pick<ListLayout, 'hidden' | 'kinds'> & Partial<Pick<ListLayout, 'off'>> | null): (key: string) => { category: Category; hidden: boolean; off: boolean } {
-  const products = groupProducts(looks.map(asSnapshot));
+function listing(looks: readonly ServiceLook[], layout: Pick<ListLayout, 'hidden' | 'kinds'> & Partial<Pick<ListLayout, 'off'>> | null, orgOf?: (l: ServiceLook) => Organization | null): (key: string) => { category: Category; hidden: boolean; off: boolean; row: string } {
+  const products = groupProducts(snapshotsOf(looks, orgOf));
   return (key) => {
     const p = products.find((x) => x.members.some((m) => m.key === key))!;
-    return { category: categoryOf(p, layout?.kinds), hidden: Boolean(layout?.hidden.includes(p.id)), off: Boolean(layout?.off?.includes(p.id)) };
+    return { category: categoryOf(p, layout?.kinds), hidden: Boolean(layout?.hidden.includes(p.id)), off: Boolean(layout?.off?.includes(p.id)), row: p.id };
   };
+}
+
+/** FD-244: looks as snapshots with their organizations, so the MCP server groups rows as the app does. */
+function snapshotsOf(looks: readonly ServiceLook[], orgOf?: (l: ServiceLook) => Organization | null): ServiceSnapshot[] {
+  return looks.map((l) => (orgOf ? { ...asSnapshot(l), organization: orgOf(l) } : asSnapshot(l)));
 }
 
 /** A look carries what product grouping reads; the fields only the app's monitor keeps are empty. */
@@ -290,7 +299,8 @@ export async function arrange(deps: Deps, key: string, action: ArrangeAction): P
   if (!ARRANGE.includes(action)) throw new ToolError(`action must be one of ${ARRANGE.join(', ')}`);
   const looks = await look(deps);
   if (!looks.some((l) => l.key === key)) throw new ToolError(`no installed service ${JSON.stringify(key)}`);
-  const p = groupProducts(looks.map(asSnapshot)).find((x) => x.members.some((m) => m.key === key))!;
+  const snaps = snapshotsOf(looks, organizationReader(deps)); // FD-244: the row this key is in, as the list shows it
+  const p = groupProducts(snaps).find((x) => x.members.some((m) => m.key === key))!;
   const file = deps.settingsFile?.() ?? appSettingsFile();
   if (!fs.existsSync(path.dirname(file))) throw new ToolError('Fabric Dashboards has kept no settings on this computer yet: open it once, then arrange');
   let error: string | null = null;
@@ -309,7 +319,7 @@ export async function arrange(deps: Deps, key: string, action: ArrangeAction): P
     return { service: key, product: p.id, pinned, hidden, off: list.off.includes(p.id), category: categoryOf(p, list.kinds), changed: Boolean(target), tabs: after };
   }
   // FD-249: the sidebar's move (FD-121's drag and Option+arrow), one place up or down within the agent's own section.
-  const moved = action === 'move-up' || action === 'move-down' ? moveOne(groupProducts(looks.map(asSnapshot)), list, p.id, action === 'move-up' ? -1 : 1) : undefined;
+  const moved = action === 'move-up' || action === 'move-down' ? moveOne(groupProducts(snaps), list, p.id, action === 'move-up' ? -1 : 1) : undefined;
   const patch: Partial<ListLayout> | null =
     moved !== undefined ? moved
     : action === 'pin' ? (pinned ? null : { pinned: togglePin(list.pinned, p.id) })
@@ -356,8 +366,8 @@ export async function rename(deps: Deps, key: string, name: string | null): Prom
 
 export async function listServices(deps: Deps, organizations?: string[]): Promise<{ services: ServiceView[]; services_dir: string }> {
   const looks = await look(deps);
-  const of = listing(looks, deps.listLayout?.() ?? null);
   const orgOf = organizationReader(deps);
+  const of = listing(looks, deps.listLayout?.() ?? null, orgOf);
   // FD-162: `organizations` lists only those organizations' agents ('' is "Not attributed"); none lists every agent.
   const views = looks.map((l) => view(l, of(l.key), orgOf(l)));
   // FD-195: `@mine`, `@others` and `@shared` keep the personal organization's, the other organizations' and the shared agents.
@@ -379,7 +389,8 @@ export async function serviceStatus(deps: Deps, key: string): Promise<ServiceVie
   const looks = await look(deps);
   const one = looks.find((l) => l.key === key);
   if (!one) throw new ToolError(`no installed service ${JSON.stringify(key)}`);
-  return view(one, listing(looks, deps.listLayout?.() ?? null)(key), organizationReader(deps)(one));
+  const orgOf = organizationReader(deps);
+  return view(one, listing(looks, deps.listLayout?.() ?? null, orgOf)(key), orgOf(one));
 }
 
 /** FD-78: what one agent is connected to, as its Connections tab shows it: who uses it, what it offers, what it uses

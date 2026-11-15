@@ -166,7 +166,8 @@ function mergeLayout(raw: unknown): Settings['layout'] {
   };
 }
 
-const PRODUCT_ID = /^[a-z0-9][a-z0-9-]{0,63}$/;
+// FD-244 (design 2026-11-15): a row of another organization is `<id>@<organization>`.
+const PRODUCT_ID = /^[a-z0-9][a-z0-9-]{0,63}(@[a-z0-9][a-z0-9._-]{0,63})?$/i;
 const productIds = (x: unknown) => (Array.isArray(x) ? [...new Set(x.filter((v): v is string => typeof v === 'string' && PRODUCT_ID.test(v)))].slice(0, 200) : []);
 
 /** FD-39: a sort the app knows, and pinned product ids — each a valid id, once, at most 200. FD-78: hidden product ids

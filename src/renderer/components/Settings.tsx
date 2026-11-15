@@ -5,7 +5,7 @@ import type { AppStatus, Listener, Settings as SettingsValue } from '../../core/
 import { api, nameOf, Spinner, useT } from '../lib';
 import { REFERENCE_THEMES } from '../../core/appearance';
 import { revealScrollTop } from '../../core/layout';
-import { productIdOf } from '../../core/products';
+import { productIdOf, snapshotRows } from '../../core/products';
 
 export function Settings({ status, onTheme, onLanguage, onSetup, section, nonce }: { status: AppStatus; onTheme: (theme: SettingsValue['theme']) => void; onLanguage: () => void;
   /** FD-39 SCN-058: the Setup console stays reachable after the card is hidden. */
@@ -189,8 +189,10 @@ export function Settings({ status, onTheme, onLanguage, onSetup, section, nonce 
         {(() => {
           // UX-20 (FD-129): agents the person hid from the sidebar fold here too; they still alert, so they stay listed.
           const hiddenIds = new Set(value.layout.list.hidden);
-          const shown = status.services.filter((s) => !hiddenIds.has(productIdOf(s.key)));
-          const folded = status.services.filter((s) => hiddenIds.has(productIdOf(s.key)));
+          const rows = snapshotRows(status.services); // FD-244
+          const isHidden = (s: (typeof status.services)[number]) => hiddenIds.has(rows.get(s.key) ?? productIdOf(s.key));
+          const shown = status.services.filter((s) => !isHidden(s));
+          const folded = status.services.filter(isHidden);
           const table = (rows: typeof status.services) => (
           <table>
             <thead><tr><th>{t('settings.perService')}</th><th>{t('settings.notifications.enabled')}</th><th>{t('settings.minLevel')}</th></tr></thead>

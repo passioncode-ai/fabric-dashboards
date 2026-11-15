@@ -1,6 +1,6 @@
 # One row per agent and organization (FD-244, last part)
 
-Status: decided 2026-11-15, not built yet. Owner: fabric-dashboards. Serves North Star §4 (the Dashboards row:
+Status: decided and built 2026-11-15 (0.8.99: `rowIds`, `snapshotRows`, `src/core/products.ts`; tests `test/listorder.test.ts`, `test/attention-queue.test.ts`). Owner: fabric-dashboards. Serves North Star §4 (the Dashboards row:
 filtered by organization) and the operator's ask of 2026-11-14 (session `36babb6c`): one row per agent, pinned first,
 its places as icons, no duplicates.
 

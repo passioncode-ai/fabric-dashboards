@@ -6,7 +6,7 @@ import type { LimitView } from '@passioncode-ai/fabric-service-host/usage';
 import { attentionQueue } from './attention';
 import { t, type Lang } from './i18n';
 import { displayName } from './names';
-import { productIdOf } from './products';
+import { productIdOf, snapshotRows } from './products';
 import type { ServiceSnapshot } from './types';
 import { shownState, type ShownState } from './setup-wait';
 
@@ -37,6 +37,7 @@ export function trayMenuModel(services: readonly ServiceSnapshot[], o: { now: nu
   const headline = queue.length ? t(lang, 'tray.problems', { count: queue.length })
     : notReady ? t(lang, 'tray.notAllReady', { ready: services.length - notReady, total: services.length }) : t(lang, 'tray.allReady');
   const hidden = new Set(o.hidden ?? []);
-  return { headline, attention, rest: services.filter((s) => !inQueue.has(s.key) && !hidden.has(productIdOf(s.key))).map(plain) };
+  const rows = snapshotRows(services); // FD-244: a row of another organization is hidden on its own
+  return { headline, attention, rest: services.filter((s) => !inQueue.has(s.key) && !hidden.has(rows.get(s.key) ?? productIdOf(s.key))).map(plain) };
 }
 // #endregion tray-model

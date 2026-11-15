@@ -11,6 +11,7 @@ import { placeCommand, userLaunchJobs, type LaunchJob } from './remote-console';
 import { execRunner } from './launchd';
 import os from 'node:os';
 import { productIdOf } from '@passioncode-ai/fabric-service-host/links';
+import { rowIds } from './products';
 import { SystemdReader, authHeaders, claimConflicts, dashboardMinWidth, deriveState, elsewhereOf, isSystemJob, PlacementReader, SpaceDaemonReader, type Elsewhere, expand, fetchWellKnown, heldButSilent, loopbackOwnerOf, portOf, readDirectory, RemoteTokenLatch, REMOTE_TIMEOUT_MS, type DescriptorEntry, type WellKnownOptions, type WellKnownResult } from '@passioncode-ai/fabric-service-host';
 import { tail } from './fsutil';
 import { commandReason, type CommandResult } from './outcome';
@@ -847,7 +848,16 @@ export class Monitor extends EventEmitter {
   }
 
   private isOff(t: Tracked): boolean {
-    return this.offIds().has(productIdOf(t.entry.key));
+    const off = this.offIds();
+    return off.size > 0 && off.has(this.rowOf(t));
+  }
+
+  /** FD-244 (design 2026-11-15): the list row an instance is in: its product, or `<id>@<organization>` for an instance run
+   *  for another organization than its product's primary, so turning one row off leaves the other organization's alone. */
+  private rowOf(t: Tracked): string {
+    const tracked = [...this.tracked.values()];
+    const rows = rowIds(tracked.map((x) => ({ key: x.entry.key, organization: this.organized(x).organization?.name ?? null, x })), (m) => Boolean(m.x.lastAnswer?.doc.surfaces.dashboard));
+    return rows.get(t.entry.key) ?? productIdOf(t.entry.key);
   }
 
   private wasOff: ReadonlySet<string> = new Set();
@@ -856,7 +866,7 @@ export class Monitor extends EventEmitter {
   private syncOff(): void {
     const off = this.offIds();
     for (const t of this.tracked.values()) {
-      const id = productIdOf(t.entry.key);
+      const id = this.rowOf(t);
       if (!this.wasOff.has(id) || off.has(id)) continue;
       Object.assign(t, {
         probe: null, firstUnansweredAt: null, misses: 0, lastAnswer: null, nextProbeAt: this.now(), backoff: 0, feedError: null,
@@ -871,7 +881,7 @@ export class Monitor extends EventEmitter {
   /** FD-123: the services of agents turned off: on disk, never probed; the window lists them greyed in Hidden. */
   offServices(): { key: string; product: string; name: string }[] {
     return [...this.tracked.values()].filter((t) => this.isOff(t))
-      .map((t) => ({ key: t.entry.key, product: productIdOf(t.entry.key), name: this.named(t.entry.descriptor, t.entry.key)?.name ?? t.entry.key }))
+      .map((t) => ({ key: t.entry.key, product: this.rowOf(t), name: this.named(t.entry.descriptor, t.entry.key)?.name ?? t.entry.key }))
       .sort((a, b) => a.name.localeCompare(b.name) || (a.key < b.key ? -1 : 1));
   }
 
