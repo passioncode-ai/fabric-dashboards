@@ -69,6 +69,8 @@ export function ServiceView({ s, all, members, open, link, nonce, tab: askedTab,
   // VIS-16 (FD-129): a tab list cut by a narrow window fades at the side where more tabs are, and the chosen tab scrolls
   // into view, so Health and Logs never vanish without a sign.
   const tabList = useRef<HTMLDivElement | null>(null);
+  const tabNow = useRef(tab);
+  tabNow.current = tab;
   const [tabsMore, setTabsMore] = useState<'' | 'start' | 'end' | 'both'>('');
   const measureTabs = () => {
     const el = tabList.current;
@@ -80,7 +82,8 @@ export function ServiceView({ s, all, members, open, link, nonce, tab: askedTab,
     const el = tabList.current;
     if (!el || typeof ResizeObserver === 'undefined') return;
     measureTabs();
-    const ro = new ResizeObserver(measureTabs);
+    // Wave 1 (U-01): a header that narrows keeps the open tab in view, not only a tab change.
+    const ro = new ResizeObserver(() => { measureTabs(); document.getElementById(`tab-${tabNow.current}`)?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' }); });
     ro.observe(el);
     return () => ro.disconnect();
   }, []);

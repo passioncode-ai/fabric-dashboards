@@ -126,6 +126,8 @@ const RULES: Rule[] = [
   [/^to open it here, register its agent with Fabric: put the agent's install file \(fabric-service\/0\.1\) in this computer's services folder, as the building-fabric-services skill describes$/,
     () => 'чтобы открыть страницу здесь, зарегистрируйте её агента в Fabric: положите файл установки агента (fabric-service/0.1) в папку сервисов этого компьютера, как описывает скил building-fabric-services'],
   [/^path must be a path on the service, starting with one \/$/, () => 'путь должен быть путём на сервисе и начинаться с одного /'],
+  // Wave 1 (T-10): the console's answer when Switchboard is missing (`src/electron/console.ts`).
+  [/^Switchboard is not installed$/, () => 'Switchboard на этом компьютере не установлен'],
   [/^not a service key (.+?)(: .*)?$/, (_, k) => `это не ключ сервиса ${k}: id.instance, строчные латинские буквы, цифры и дефисы`],
 ];
 

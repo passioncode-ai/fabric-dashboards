@@ -165,6 +165,7 @@ export function ConsolePanel({ serviceKey, height, maxHeight, onHeight, onDrag, 
     else if (r.reason === 'no-account') setNotice({ text: t('console.account.missing', { group: r.project ?? '' }) }); // FD-239
     else if (r.reason === 'spawn') setNotice({ text: t('console.spawnError', { detail }) });
     else if (r.reason === 'running') setNotice({ text: t('console.running') });
+    else if (r.reason === 'held') setNotice({ text: t('console.held') }); // wave 1 (C-01)
     else if (r.reason === 'no-continue') setNotice({ text: detail });
     else if (r.reason === 'remote') setNotice({ text: t(remoteRefusal(r.detail)) }); // FD-199, FD-200
     else setNotice(null); // no-runtime, no-folder: the panel's own state says it

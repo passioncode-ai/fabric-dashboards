@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.8.102 - 2026-11-15
+
+### Fixed
+
+- FD-264 (quality wave 1): a refusal says its real cause. A full session pool and a session still running in another
+  terminal each have their own words in Sessions and the console, the stale "six" is gone from the busy text, and the
+  Switchboard hand-over line is back. Continue in a console no longer resumes a conversation a live agent holds in the
+  same folder (also on Windows, where 0.8.100 refused every continue).
+- The agent header no longer hides the active tab; the task line, the ⋯ menu over the place icons and the Russian
+  wording are fixed, and a place that is not ready shows its state's sign, not only its colour.
+- A dashboard closed while it loaded no longer crashes the main process (`isDestroyed` of a gone page); unhandled
+  rejections are logged with their stack; the bug journal keeps one row for a page error across releases, leaves out
+  refusals the machine's room decides, and leaves no temporary file behind.
+
 ## 0.8.101 - 2026-11-15
 
 ### Added

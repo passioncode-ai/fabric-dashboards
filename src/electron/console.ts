@@ -30,7 +30,7 @@ import { bypassArgs, bypassArgsOfProvider, detectRuntimes, KNOWN_RUNTIMES, readL
 import type { SettingsStore } from '../core/settings';
 import { accountsOf, allSessionsOf, bindingFor, machineSessionsOf, findSwitchboard, handoverOwnKey, handoverRunArgv, handoversOf, handoversSwitch, isHandoverKey, launchFeatures, sbFailure, sessionsIn, startAccount, terminalLaunchArgv, type Binding, type SbAccounts, type SbHandover, type SbSessions, type StartAccount } from '../core/switchboard';
 import type { ServiceSnapshot, Settings } from '../core/types';
-import { claimStop, claudeSessionDirs, continuedLaunches, continuedOf, finishStop, liveAgents, recoveryOf, resumeArgs, resumeOwnKey, sessionOpen, transcriptIn, transcriptOf, verdictOf, writtenAt, RESUME_SETTLE_MS, RESUMES_PER_PASS, type RecoveryStatus, type SbStop, type StopView } from '../core/recovery';
+import { claimStop, claudeSessionDirs, folderLive, liveSessionFolders, liveSessionIds, continuedLaunches, continuedOf, finishStop, liveAgents, recoveryOf, resumeArgs, resumeOwnKey, sessionOpen, transcriptIn, transcriptOf, verdictOf, writtenAt, RESUME_SETTLE_MS, RESUMES_PER_PASS, type RecoveryStatus, type SbStop, type StopView } from '../core/recovery';
 import { attachOwnKey, consoleRowId, handoverRowId, SAME_START_MS, mergeSessions, pruneDismissed, pruneRecords, SourceReader, stopRowId, type ConsoleInput, type PendingHandover, type SbMachineProcess, type SbSessionRecord, type SessionActionResult, type SessionReason, type SessionRecord, type SessionNotice, type SessionOrigin, type SessionRow, type SessionsStatus, type SourceDegraded, type SourceResult } from '../core/sessions';
 
 /** node-pty 1.1.0 ships its macOS `spawn-helper` without the executable bit, and its postinstall
@@ -619,6 +619,12 @@ export class ConsoleHost {
     }
     if (account?.kind === 'ordinary' && account.reason === 'no-route') this.o.log(`console: ${key}: the Switchboard default group selects no ${runtime.provider} account; ${runtime.id} starts on its own sign-in`);
     const managed = account?.kind === 'route';
+    // Wave 1 (C-01 of the 2026-11-15 audit): `--continue` takes the folder's newest conversation, which a coding agent
+    // working in this folder now (another terminal, another console) is writing: never a second copy of it.
+    if (mode === 'continue' && (runtime.provider === 'claude' || runtime.provider === 'codex') && await this.folderBusy(folder.path)) {
+      this.o.log(`console: ${key} not continued: a coding agent works in its folder now (C-01)`);
+      return { ok: false, reason: 'held' };
+    }
     // FD-234: text the service wrote that reads like instructions keeps a person in the loop for this start: permission
     // prompts on, the saved choice untouched.
     const held = Boolean(pack?.signals?.length) && saved?.bypass !== false;
@@ -851,11 +857,24 @@ export class ConsoleHost {
     return started;
   }
 
+  /** Wave 1 (C-01): whether a coding agent works in `folder` now; unknown (no process table on macOS or Linux) is busy. */
+  private async folderBusy(folder: string): Promise<boolean> {
+    const files = liveSessionFolders(claudeSessionDirs(this.o.home ?? os.homedir()));
+    if (process.platform === 'win32') return folderLive(folder, null, files);
+    // A person pressed Continue: a process table that cannot be read leaves only the session files to say (unlike the
+    // background pass, which never resumes on unknown, FD-262).
+    const live = await liveAgents(this.run, process.platform).catch(() => null);
+    return folderLive(folder, live, files);
+  }
+
   /** FD-262: whether a live process holds this session now: Switchboard says so, or its sessions file or arguments name
    *  it, or the live processes cannot be read. */
   private async heldElsewhere(session: string, live?: SbStop['live']): Promise<boolean> {
     if (live) return true;
-    const now = await liveAgents(this.run, process.platform, claudeSessionDirs(this.o.home ?? os.homedir())).catch(() => null);
+    const dirs = claudeSessionDirs(this.o.home ?? os.homedir());
+    // Wave 1 (C-04): Windows reads no process table (liveAgents answers null there); the session files still say.
+    if (process.platform === 'win32') return liveSessionIds(dirs).includes(session);
+    const now = await liveAgents(this.run, process.platform, dirs).catch(() => null);
     return !now || now.args.includes(session) || Boolean(now.sessions?.includes(session));
   }
 
@@ -1246,7 +1265,7 @@ export class ConsoleHost {
       const a = admit(await this.machine(row.folder));
       if (!a.ok) return { ok: false, reason: 'admission', detail: a.why };
       // FD-262: never a second copy of a conversation a live process holds (another terminal, another console).
-      if (await this.heldElsewhere(sessionId)) return { ok: false, reason: 'running', detail: 'held' };
+      if (await this.heldElsewhere(sessionId)) { this.o.log(`console: session ${id} not continued: a live process holds its conversation (FD-262)`); return { ok: false, reason: 'held' }; }
       const args = [...bypassArgsOfProvider(provider), ...(provider === 'codex' ? ['resume', sessionId] : ['--resume', sessionId])]; // FD-174
       const r = this.manager.start(key, { argv: [cli, ...args], cwd: row.folder, label: provider === 'codex' ? 'Codex' : 'Claude Code', env: { PATH: inv.dirs.join(path.delimiter) } }, size);
       if (!r.ok) return { ok: false, reason: r.error === 'running' ? 'running' : 'spawn', detail: r.error };
@@ -1279,7 +1298,11 @@ export class ConsoleHost {
     if (!inv.switchboard) return { ok: false, reason: 'no-switchboard' };
     // F2 of FIX-2: a second press, or the background pass, is taking it up now, or this launch continued it already.
     if (this.taking.has(event) || this.actedStops.get(event)?.verdict === 'resumed') return { ok: false, reason: 'running' };
+    // Wave 1 (C-03): a refusal says its cause: held by a live process, the machine short of room, or the claim.
+    if (await this.heldElsewhere(stop.session, stop.live)) return { ok: false, reason: 'held' };
     const key = await this.resume(stop, inv.switchboard, inv.dirs, account, false);
+    const waits = this.waitNoted.get(event);
+    if (!key && waits) return { ok: false, reason: 'admission', detail: waits };
     if (!key) return { ok: false, reason: 'claim', detail: this.actedStops.get(event)?.verdict };
     return { ok: true, key };
   }

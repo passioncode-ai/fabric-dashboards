@@ -232,7 +232,7 @@ function ProductItem({ p, current, open, rail, pinned, menu, drag = null, hidden
         {rail && <span className="initials" aria-hidden="true">{initialsOf(nameOf(s))}</span>}
         <span className="nav-label">{nameOf(s)}</span>
         {/* FD-244: each place in its own state's colour when the agent runs in more than one; one place keeps the muted icon. */}
-        {!rail && <span className="nav-places" aria-hidden="true">{places.map(({ place, member }) => <span key={place} className={`nav-place nav-place-${place}${places.length > 1 ? ` state-${shownState(member)}` : ''}`} title={t('join.nameState', { name: t(`place.${place}`), state: t(`state.${shownState(member)}`) })}><Icon name={place === 'local' ? 'laptop' : 'cloud'} /></span>)}</span>}
+        {!rail && <span className="nav-places" aria-hidden="true">{places.map(({ place, member }) => <span key={place} className={`nav-place nav-place-${place}${places.length > 1 ? ` state-${shownState(member)}` : ''}`} title={t('join.nameState', { name: t(`place.${place}`), state: t(`state.${shownState(member)}`) })}><Icon name={place === 'local' ? 'laptop' : 'cloud'} />{places.length > 1 && shownState(member) !== 'ready' && <span className="nav-place-glyph">{GLYPH[shownState(member)]}</span>}</span>)}</span>}
         {p.memberProblem && <span className="count alert" title={t('nav.memberProblem')} aria-hidden="true">!</span>}
         <span className="visually-hidden">{t(`state.${shownState(s)}`)}, {places.map(({ place, member }) => (places.length > 1 ? t('join.nameState', { name: t(`place.${place}`), state: t(`state.${shownState(member)}`) }) : t(`place.${place}`))).join(', ')}{p.memberProblem ? `, ${t('nav.memberProblem')}` : ''}</span>
       </button>

@@ -257,6 +257,30 @@ export function liveSessionIds(dirs: readonly string[], alive: (pid: number) => 
   return ids;
 }
 
+/** Wave 1 (C-01): the folders the live Claude Code sessions work in, from the same files (`cwd`); read on every platform,
+ *  Windows included, where no process table is read. */
+export function liveSessionFolders(dirs: readonly string[], alive: (pid: number) => boolean = pidAlive): string[] {
+  const out: string[] = [];
+  for (const dir of dirs) {
+    let names: string[] = [];
+    try { names = fs.readdirSync(dir).filter((n) => /^\d+\.json$/.test(n)); } catch { continue; }
+    for (const n of names) {
+      try {
+        const d = JSON.parse(fs.readFileSync(path.join(dir, n), 'utf8')) as { pid?: unknown; cwd?: unknown };
+        const pid = typeof d.pid === 'number' ? d.pid : Number(n.replace(/\.json$/, ''));
+        if (typeof d.cwd === 'string' && path.isAbsolute(d.cwd) && Number.isInteger(pid) && pid > 0 && alive(pid)) out.push(d.cwd);
+      } catch { /* as above */ }
+    }
+  }
+  return out;
+}
+
+/** Wave 1 (C-01): whether a coding agent works in this folder now (a process there, or a live session file naming it). */
+export function folderLive(folder: string, live: Pick<Live, 'dirs'> | null, sessionFolders: readonly string[]): boolean {
+  const dir = real(folder);
+  return [...(live?.dirs ?? []), ...sessionFolders].some((d) => real(d) === dir);
+}
+
 function pidAlive(pid: number): boolean {
   try { process.kill(pid, 0); return true; } catch (error) { return (error as NodeJS.ErrnoException).code === 'EPERM'; }
 }
