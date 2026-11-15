@@ -701,7 +701,7 @@ export class ConsoleHost {
     const local = planStart({ runtime, mode, folder: saved.folder, binding: { kind: 'none' }, switchboard: null, inPlace: false, bypass: saved.bypass });
     if (local.kind !== 'run') return local.kind === 'refused' ? { ok: false, reason: local.reason, detail: local.detail } : { ok: false, reason: 'spawn' };
     const argv = targetLaunchArgv({ sb: inv.switchboard, machine: saved.machine, provider: runtime.provider, isolated: saved.isolated === true, folder: saved.folder, args: local.argv.slice(1), surface: inv.surface });
-    const r = this.manager.start(key, { argv, cwd: home, label: `${runtime.name} · ${saved.machine}`, env: { PATH: inv.dirs.join(path.delimiter) } }, size);
+    const r = this.manager.start(key, { argv, cwd: home, label: runtime.name, env: { PATH: inv.dirs.join(path.delimiter) } }, size);
     if (!r.ok) return { ok: false, reason: r.error === 'running' ? 'running' : 'spawn', detail: r.error };
     this.handoverOf.delete(key);
     if (mode === 'continue') this.forgetLatestEnded(key);
@@ -1232,7 +1232,9 @@ export class ConsoleHost {
     // would only fail; its row says why instead.
     // FD-247 step 2: a session of its own that ran on another machine (FD-206) has its folder there; this Mac cannot tell.
     const saved = this.o.settings.get().consoles;
-    const elsewhere = (r: { key: string | null }) => Boolean(r.key && saved[r.key]?.machine);
+    // FD-247 step 3: a session of its own on another machine names that machine on its row (its console's saved choice).
+    for (const r of rows) if (r.key && saved[r.key]?.machine) r.machine = saved[r.key]!.machine!;
+    const elsewhere = (r: { machine: string | null }) => Boolean(r.machine);
     for (const r of rows) if (r.group === 'ended' && r.actions.includes('continue') && r.folder && !elsewhere(r) && !isDir(r.folder)) { r.actions = r.actions.filter((a) => a !== 'continue'); r.reason ??= 'no-folder'; }
     // FD-137 (SCN-092): a session Fabric started for a board request belongs to the agent in whose folder it ran.
     for (const r of rows) if (r.launch?.by.surface === 'fabric') { const k = this.agentOfFolder(r.folder, now); if (k) r.agentKey = k; }

@@ -77,7 +77,7 @@ export function secondLine(lang: Lang, r: SessionRow): string {
   const when = r.startedAt ?? r.at;
   // FD-137: a session Fabric started for a board request says so in place of how it came.
   const how = dispatched(r) ? t(lang, 'sessions.origin.dispatch') : t(lang, `sessions.origin.${r.origin}`);
-  return [agentName(r.agent), r.account, how, when ? clock(lang, when) : null].filter(Boolean).join(' · ');
+  return [agentName(r.agent), r.machine, r.account, how, when ? clock(lang, when) : null].filter(Boolean).join(' · ');
 }
 
 /** R1-V1: a sidebar row's two lines. The first is the project with the time beside it, right-aligned and never cut; the
@@ -90,7 +90,7 @@ export function navLines(lang: Lang, r: SessionRow): { time: string | null; sub:
   const agent = agentName(r.agent);
   return {
     time: when ? clock(lang, when) : null,
-    sub: [agent === 'Claude Code' ? null : agent, r.account, t(lang, dispatched(r) ? 'sessions.navOrigin.dispatch' : `sessions.navOrigin.${r.origin}`)].filter(Boolean).join(' · '),
+    sub: [agent === 'Claude Code' ? null : agent, r.machine, r.account, t(lang, dispatched(r) ? 'sessions.navOrigin.dispatch' : `sessions.navOrigin.${r.origin}`)].filter(Boolean).join(' · '),
   };
 }
 

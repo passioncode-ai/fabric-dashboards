@@ -98,7 +98,8 @@ test('FD-206 (SCN-101): a session on another machine starts through its Switchbo
   assert.equal(s.cwd, r.base, 'the terminal is this machine\'s');
   const row = r.host.sessionsStatus().rows.find((x) => x.key === key);
   assert.equal(row?.folder, '/srv/them/DATA/alpha');
-  assert.match(r.host.manager.snapshot(key).label, /· studio-org$/);
+  assert.equal(row?.machine, 'studio-org', 'FD-247 step 3: the row names its machine');
+  assert.equal(r.host.manager.snapshot(key).label, 'Claude Code', 'the agent is not named after the machine');
   const next = await r.host.newSessionOptions();
   assert.equal(next.machine, 'studio-org');
   assert.equal(next.remoteFolder, '/srv/them/DATA/alpha');

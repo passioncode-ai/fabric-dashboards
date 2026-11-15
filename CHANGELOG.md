@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.8.111 - 2026-11-15
+
+### Changed
+
+- FD-247: a session that runs on another machine names that machine on its row in the Sessions list and the sidebar,
+  instead of carrying it in the coding agent's name.
+
 ## 0.8.110 - 2026-11-15
 
 ### Fixed
