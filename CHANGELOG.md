@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.8.123 - 2026-11-15
+
+### Fixed
+
+- FD-271: a window hidden with no `hide` event (macOS sends none for a window that is not key) left the app's icon in
+  the Dock for good: the Dock followed only that event. The 15-second visibility pass now compares the Dock with the
+  window as it is and hides or shows the icon to match; ⌘H and a minimized window keep their icon as before. Found by
+  `test/e2e/spend.test.ts`, which failed on every run.
+
 ## 0.8.122 - 2026-11-15
 
 ### Fixed

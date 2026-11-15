@@ -172,6 +172,17 @@ export function onScreen(w: { exists: boolean; visible: boolean; minimized: bool
   return w.exists && w.visible && !w.minimized && !w.appHidden;
 }
 
+/** FD-271: what the Dock does when the visibility sync, not a window event, finds the window shown or hidden. macOS sends
+ *  no `hide` event for `BrowserWindow.hide()` on a window that is not key (measured 2026-11-15: ten seconds of no event
+ *  and the icon left in the Dock), and the Dock followed only that event. True: show the icon; false: hide it; null:
+ *  leave it, for ⌘H (a window the person hid with the app keeps its icon, FD-35) and a minimized window (it lives in the
+ *  Dock). */
+export function dockOnSync(shown: boolean, w: { visible: boolean; minimized: boolean; appHidden: boolean }): boolean | null {
+  if (shown) return true;
+  if (w.appHidden || w.minimized || w.visible) return null;
+  return false;
+}
+
 /** FD-80: whether the person can see the window. On macOS a window fully covered by others, or on another Space, is
  *  on screen for `onScreen` and still unseen: macOS's list of on-screen windows says so (`sightOf`,
  *  `src/core/occlusion.ts`); Electron's Page Visibility does not (measured 2026-10-27). Only the automatic install asks

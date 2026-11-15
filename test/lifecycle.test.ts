@@ -20,7 +20,7 @@ import { DEFAULT_SETTINGS } from '../src/core/types';
 import { clearRestoreRecord, KEPT_FILES, MCP_SERVER_NAME, productDataPaths, purgeAfterExit, purgeData, readRestoreRecord, removeMcpRegistrations, repairMcpRegistrations, restoreMcpRegistrations, RESTORE_FILE, writeRestoreRecord } from '../src/core/uninstall';
 import { NotifyLedger } from '../src/core/notify';
 import { SettingsStore } from '../src/core/settings';
-import { autoInstallNow, autoInstallWait, HiddenGrace, moveSkip, offerMove, relaunchHidden, resumePath, resumeRoute, stalePartitions, tryMove, UPDATE_IDLE_MS, VisibilitySync } from '../src/electron/policy';
+import { autoInstallNow, autoInstallWait, dockOnSync, HiddenGrace, moveSkip, offerMove, relaunchHidden, resumePath, resumeRoute, stalePartitions, tryMove, UPDATE_IDLE_MS, VisibilitySync } from '../src/electron/policy';
 import { codeFile, StaleWatch } from '../src/mcp/stale';
 import { APP_UPDATE_EVERY_MS, CHECK_EVERY_MS, quietCheck } from '../src/core/version';
 import { tmp } from './helpers';
@@ -901,6 +901,16 @@ test('FD-64: a window hidden with ⌘H (no window event) is still seen as hidden
   onScreen = false;
   assert.equal(sync.sync(), false);
   assert.deepEqual(calls, ['hidden', 'shown']);
+});
+
+test('FD-271: a hide only the visibility sync found hides the Dock icon too; ⌘H and a minimized window keep it', () => {
+  assert.equal(dockOnSync(false, { visible: false, minimized: false, appHidden: false }), false, 'BrowserWindow.hide() with no hide event');
+  assert.equal(dockOnSync(false, { visible: true, minimized: false, appHidden: true }), null, '⌘H keeps its icon (FD-35)');
+  assert.equal(dockOnSync(false, { visible: true, minimized: true, appHidden: false }), null, 'a minimized window lives in the Dock');
+  assert.equal(dockOnSync(false, { visible: true, minimized: false, appHidden: false }), null, 'still visible: nothing to follow');
+  assert.equal(dockOnSync(true, { visible: true, minimized: false, appHidden: false }), true, 'shown again: the icon is back');
+  const main = fs.readFileSync(path.join(import.meta.dirname, '..', 'src/electron/main.ts'), 'utf8');
+  assert.match(main, /new VisibilitySync\(windowVisible, \(\) => \{ windowShown\(\); dockFromSync\(true\); \}, \(\) => \{ windowHidden\(\); dockFromSync\(false\); \}/);
 });
 
 test('FD-64: a held automatic install names why, and nothing when it is not held', () => {
