@@ -335,7 +335,8 @@ test('service/<id>.<instance> links open the service, a stopped one on its Start
     forward('fabric-dashboards://service/resting.default');
     await page.getByRole('heading', { level: 1, name: 'Resting Service' }).waitFor({ timeout: 20_000 });
     await page.getByRole('button', { name: 'Start', exact: true }).waitFor({ timeout: 20_000 });
-    assert.ok(await page.getByText('Stopped', { exact: true }).first().isVisible(), 'the stopped service is shown Stopped');
+    // The first match can be a row's screen-reader text (FD-244 says each place's state there); the badge is the visible one.
+    assert.ok(await page.locator('text="Stopped" >> visible=true').count() > 0, 'the stopped service is shown Stopped');
     await shot(page, '07-service-link-stopped');
 
     const refusals = async (n: number) => {
