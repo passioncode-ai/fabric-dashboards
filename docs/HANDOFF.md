@@ -35,11 +35,11 @@ Switchboard's `--target` doors asked, request `d2bb5562`, deadline 2026-11-29); 
 Organizations, join), then FD-52 This machine (design promised to the board by 2026-11-19, release by 2026-11-22);
 FD-268 (hidden CPU above the 0.3 % budget set for 22 agents), FD-269, FD-270, FD-271; FD-236's small items.
 
-**Next task.** FD-247 step 4 in a worktree (step 3 shipped in 0.8.111): `src/core/remote-sessions.ts` with the ssh
-argv of the design (`/usr/bin/ssh -T -n -o BatchMode=yes -o ConnectTimeout=5 <machine> <program> --json sessions --all
-[--data-dir D]`, `program` and `data_dir` from `switchboard --json targets`, accepted by Switchboard on the board,
-`f21276d6`; SB-380 brings `--target` by 2026-11-22), and `parseAllSessions(stdout)` split out of `allSessionsOf` in
-`src/core/switchboard.ts`; tests in `test/remote-sessions.test.ts`.
+**Next task.** FD-247 step 5 (steps 3 and 4 merged): the remote reader in `src/electron/console.ts` per the design
+(read only while the window is shown and the Sessions mode is on screen, every 60 s per machine, two ssh at most, backoff
+60 s, 5 min, 15 min, last rows kept greyed 24 h, `SessionsStatus.machines[]`, Settings → Sessions "Show sessions on
+other machines" on by default), feeding `mergeSessions` with `remote` rows (id `rm:<machine>:<launch>`, `machine` set),
+using `readRemoteSessions` from `src/core/remote-sessions.ts`.
 
 Checks run: `FD_SKIP_LAUNCHD=1 npm run check` green on every merge (1275 tests at 0.8.109); the e2e suite file by file on
 an unlocked screen (wave 3 and wave 6); copy checks on every new string (no blocking finding).
