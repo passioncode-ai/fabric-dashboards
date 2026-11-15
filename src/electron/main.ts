@@ -5,7 +5,7 @@ import { app, BrowserWindow, clipboard, dialog, ipcMain, nativeTheme, Menu, Noti
 import { pathToFileURL } from 'node:url';
 import { guardIpc } from './ipc-guard';
 import { BugStore } from './bug-store';
-import { newIssueUrl } from '../core/bugs';
+import { expectedFailure, newIssueUrl } from '../core/bugs';
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -112,8 +112,8 @@ process.on('uncaughtException', (error) => {
   if (!exceptionsObserved) bugs().add({ where: 'main', kind: 'exception', name: error.name, message: error.message, stack: error.stack });
 });
 process.on('unhandledRejection', (error) => {
-  log(`unhandled: ${String(error)}`);
   const e = error instanceof Error ? error : null;
+  log(`unhandled: ${e?.stack ?? String(error)}`); // Wave 1 (C-07): with its stack, so main.log says where
   const b = bugs().add({ where: 'main', kind: 'rejection', name: e?.name ?? typeof error, message: e?.message ?? String(error), stack: e?.stack });
   if (b) noteError?.('main', 'rejection', b.fp);
 });
@@ -274,7 +274,7 @@ if (!app.requestSingleInstanceLock()) {
   /** FD-141 and FD-263: an action that did not succeed: counted in analytics and kept in the bug journal. */
   function noteFailed(action: Parameters<typeof analytics.failed>[0], code: string): void {
     analytics.failed(action, code);
-    bugs().add({ where: 'action', kind: 'failed', name: code, action });
+    if (!expectedFailure(code)) bugs().add({ where: 'action', kind: 'failed', name: code, action });
   }
   exceptionsObserved = true;
   process.on('uncaughtExceptionMonitor', (e) => {

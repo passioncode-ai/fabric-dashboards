@@ -244,7 +244,10 @@ function Shell({ status: everyAgent, route, setRoute, mode, switchMode, stopKey,
   // control that opened it, when that control is still on screen.
   const opener = useRef<HTMLElement | null>(null);
   const askStop = (key: string) => { opener.current = document.activeElement instanceof HTMLElement ? document.activeElement : null; setStopKey(key); };
-  const stopOpen = Boolean(stopping) || Boolean(ending) || Boolean(renaming) || noticeOpen;
+  // FD-191 (SCN-101, SCN-102): New session and New agent; the console steps aside while the dialog is open.
+  const [newSession, setNewSession] = useState<'session' | 'agent' | null>(null);
+  // Wave 1 (U-06): the New session dialog makes the page inert and hides native views, as every other dialog does.
+  const stopOpen = Boolean(stopping) || Boolean(ending) || Boolean(renaming) || noticeOpen || Boolean(newSession);
   useEffect(() => {
     if (stopOpen) return;
     const el = opener.current;
@@ -382,7 +385,6 @@ function Shell({ status: everyAgent, route, setRoute, mode, switchMode, stopKey,
     return () => { observer.disconnect(); swapped.disconnect(); if (frame) cancelAnimationFrame(frame); window.removeEventListener('resize', measure); };
   }, [route.page, route.page === 'service' ? route.key : '', layout.header, layout.sidebar, layout.focus, drawerKey, sessionRow?.id]);
   // FD-191 (SCN-101, SCN-102): New session and New agent; the console steps aside while the dialog is open.
-  const [newSession, setNewSession] = useState<'session' | 'agent' | null>(null);
   const drawerTask = agentTask && agentTask.key === drawerKey ? { task: agentTask.task, mode: agentTask.mode, nonce: agentTask.nonce } : null;
   // FD-220: an agent's console fills the area under its header (the agent's window) unless the person keeps it a drawer.
   const agentConsole = route.page === 'service' && Boolean(drawerKey) && !pageConsole;

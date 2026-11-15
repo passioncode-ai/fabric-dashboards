@@ -452,7 +452,7 @@ test('R1-B: a hand-over this computer could not carry names the cause it found: 
     assert.match(stateWords('en', row), c.en);
     assert.doesNotMatch(stateWords('en', row), / or /, 'one cause, not a list of maybes');
   }
-  assert.match(stateWords('en', srow({ id: 'ho:ho-2', state: 'needs-you-not-opened', reason: 'busy-cap' as never })), /six console sessions already run\.$/);
+  assert.match(stateWords('en', srow({ id: 'ho:ho-2', state: 'needs-you-not-opened', reason: 'busy-cap' as never })), /as many console sessions as it carries\.$/);
   assert.match(stateWords('ru', srow({ id: 'ho:ho-2', state: 'needs-you-not-opened', reason: 'busy-swap' as never })), /кончилась память подкачки\.$/);
   // Continue refused by the same check says the same cause.
   const t = (key: string, params?: Record<string, string | number>) => translate('en', key, params);

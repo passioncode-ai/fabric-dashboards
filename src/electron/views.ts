@@ -8,6 +8,7 @@ import type { PageState, Rect } from '../core/api';
 import { t, type Lang } from '../core/i18n';
 import { loginUrl, readTokenAsync } from '../core/probe';
 import type { ServiceSnapshot } from '../core/types';
+import { viewGone } from '../core/view-gone';
 import { fabricButtonCookie, fabricPress } from '../core/fabric-button';
 import { appearanceCookie, appearanceValue, loadedBackground, PAGE_SCHEME_SCRIPT, viewBackground, type Scheme } from '../core/appearance';
 import { hostView, loopbackOwnerOf, portOf } from '@passioncode-ai/fabric-service-host';
@@ -107,14 +108,14 @@ export class ServiceViews {
   /** FD-221: once the page's document is ready, its background is what a browser would give it: white unless it
    *  declares a dark scheme (`loadedBackground`). Read in an isolated world; a page that cannot be read keeps its own. */
   private async fitBackground(entry: Entry): Promise<void> {
+    if (viewGone(entry.view)) return;
     const wc = entry.view.webContents;
-    if (wc.isDestroyed()) return;
     let declared: string | null = null;
     try {
       const r: unknown = await wc.executeJavaScriptInIsolatedWorld(FIT_WORLD, [{ code: PAGE_SCHEME_SCRIPT }]);
       declared = typeof r === 'string' ? r.slice(0, 200) : null;
     } catch { declared = null; }
-    if (wc.isDestroyed()) return;
+    if (viewGone(entry.view)) return;
     entry.pageSchemes = declared;
     const a = this.appearance();
     const bg = loadedBackground(a.scheme, a.systemDark, declared);
@@ -475,7 +476,7 @@ export class ServiceViews {
   /** The toolbar's view of a service's page, or null when it has no view (ADR-0014). */
   page(key: string): PageState | null {
     const entry = this.views.get(key);
-    if (!entry || entry.view.webContents.isDestroyed()) return null;
+    if (!entry || viewGone(entry.view)) return null;
     const wc = entry.view.webContents;
     const { address, link } = pageAddress(wc.getURL(), entry.origin, entry.dashboardPath, key);
     return { key, address, link, canGoBack: wc.navigationHistory.canGoBack(), canGoForward: wc.navigationHistory.canGoForward(), loading: this.refreshes.has(key) || wc.isLoading() };
@@ -484,7 +485,7 @@ export class ServiceViews {
   /** Back, forward, the dashboard's own page, or the current page again — never another origin. */
   navigate(key: string, action: 'back' | 'forward' | 'home' | 'refresh'): void {
     const entry = this.views.get(key);
-    if (!entry || entry.view.webContents.isDestroyed()) return;
+    if (!entry || viewGone(entry.view)) return;
     const wc = entry.view.webContents;
     if (action === 'back' && wc.navigationHistory.canGoBack()) wc.navigationHistory.goBack();
     if (action === 'forward' && wc.navigationHistory.canGoForward()) wc.navigationHistory.goForward();
@@ -543,7 +544,7 @@ export class ServiceViews {
   serviceRestarted(key: string): void {
     this.signedIn.delete(key);
     const entry = this.views.get(key);
-    if (!entry || entry.view.webContents.isDestroyed()) return;
+    if (!entry || viewGone(entry.view)) return;
     if (this.shown === key) { this.emit({ key, kind: 'restarted' }); void this.refresh(key, entry); return; }
     entry.resumeLink = resumePath(entry.view.webContents.getURL(), entry.origin);
     entry.loadedOnce = false;
@@ -558,7 +559,7 @@ export class ServiceViews {
    *  every file the page uses comes from the service again. */
   async reload(key: string, hard: boolean): Promise<void> {
     const entry = this.views.get(key);
-    if (!entry || entry.view.webContents.isDestroyed()) return;
+    if (!entry || viewGone(entry.view)) return;
     if (hard) {
       try { await session.fromPartition(partitionFor(key)).clearCache(); } catch (error) { this.log(`dashboard: ${key} cache not cleared: ${(error as Error).message}`); }
     }

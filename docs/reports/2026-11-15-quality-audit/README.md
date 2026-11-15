@@ -60,10 +60,34 @@ reduced motion, terminology between sidebar and page titles, SCN-102, SCN-107.
 | T-15 | low | `console.continueUnsupported`, `console.terminalOnly`, MCP `console_choose` | Mac-only wording on every platform | `.mac` values, "a terminal window" |
 | T-16 | low | `Settings.tsx:369` | a join with a literal colon in a component | the `reason.attention` template |
 
-## P: performance and latency
+## P: performance and latency (11 findings)
 
-Pending: the audit stopped on an API limit at 2026-11-15 about 02:00 and was resumed; its findings are added here.
+Measured on the installed 0.8.100 and 0.8.101 (`ps`, `main.log`, `vmmap --summary`) and read from code.
 
-## C: correctness and logic
+| ID | Severity | Where | Finding | Fix |
+|---|---|---|---|---|
+| P-01 | high | main process | about 5 % CPU with the window hidden against the 0.3 % target (AGENTS.md *Idle budget*) | profile the hidden cadence; wave 4 |
+| P-02 | high | `main.ts` window visibility | a window covered by others keeps the on-screen cadence, so dashboard views are never released | treat covered as hidden for probes and view release |
+| P-03 | medium | updater | about six updates a day, each leaving a few minutes with no monitoring | batch releases; keep the monitor across the install |
+| P-04 | medium | `before-quit-for-update` | the handler runs twice and the update checks overlap | one guard per quit; one check in flight |
+| P-05 | medium | status push | the whole snapshot is pushed after every probe, nothing memoized | push only what changed |
+| P-06 | medium | Switchboard reads | a read that times out flips the Sessions view to "not available" | keep the last list, mark it stale |
+| P-07 | low | bug journal | every repeat rewrites the whole file synchronously; a failed write leaves a temp file | temp removed (wave 1); async write in wave 4 |
+| P-08 | low | `console.ts` limit pass | `machine()` is read for each waiting stop | one read a pass |
+| P-09 | low | FD-64 visibility check | a show that the check notices starts a burst of probes | spread the first probes |
+| P-10 | high | `views.ts` `fitBackground` | `Cannot read properties of undefined (reading 'isDestroyed')` in `main.log` 2026-11-14: a view closed while its page loaded | `viewGone` (wave 1, C-07) |
+| P-11 | low | MCP servers | one server per agent session adds up (32 servers measured 2026-11-14) | measured, inside budget each; no change |
 
-Pending, as P.
+## C: correctness and logic (9 findings)
+
+| ID | Severity | Where | Finding | Fix |
+|---|---|---|---|---|
+| C-01 | high | `console.ts` start, mode continue | Continue in a console resumes the folder's last conversation even while a live agent holds it in another terminal | check the folder's live sessions first, refuse with `held` (wave 1) |
+| C-02 | medium | Sessions | a Switchboard read that failed shows as "the group selects no account" | say the read failed; wave 4 |
+| C-03 | medium | `continueStop`, `continueRow` | a refusal loses its cause (held, the machine's room) and reads as a failed claim | typed `held` and `admission` refusals (wave 1) |
+| C-04 | high | `heldElsewhere` on Windows | 0.8.100 reads no process list on Windows, so every continue was refused as held | read the session files there (wave 1) |
+| C-05 | medium | `i18n.ts` | `console.handover` was removed while the console still shows it: the key is printed | restored; `test/i18n-used.test.ts` checks every literal key (wave 1) |
+| C-06 | medium | outage alerts | a failing send retried every minute holds the queue behind it | per-episode retry; wave 4 |
+| C-07 | high | `views.ts`, `main.ts` | the `isDestroyed` crash (P-10); unhandled rejections logged without their stack | `viewGone`; the stack in `main.log` (wave 1) |
+| C-08 | medium | bug journal | page errors take minified frame names, so a new build makes a new row; `admission_*` refusals are journaled as bugs | page errors by message; expected refusals left out (wave 1) |
+| C-09 | low | bug journal | an issue link an MCP server records between the app's read and write can be lost | the window is one read; wave 4 merges by fingerprint on write |

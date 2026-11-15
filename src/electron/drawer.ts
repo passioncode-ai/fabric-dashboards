@@ -8,6 +8,7 @@
 // page header (`full`): no fold, no edge, no shadow; the session page never shows a dashboard under it.
 import { type BrowserWindow, WebContentsView } from 'electron';
 import { CHANNELS, type DrawerPush, type DrawerState, type Rect } from '../core/api';
+import { viewGone } from '../core/view-gone';
 import { drawerBoundsFor, drawerHeightFor } from '../core/layout';
 
 /** FD-92: the strip under the drawer where its shadow falls on the dashboard (part of the drawer's view). */
@@ -47,13 +48,13 @@ export class ConsoleDrawer {
 
   /** The drawer's webContents, to receive the console's events (null while it has none). */
   contents(): Electron.WebContents | null {
-    return this.view && !this.view.webContents.isDestroyed() ? this.view.webContents : null;
+    return this.view && !viewGone(this.view) ? this.view.webContents : null;
   }
 
   destroy(): void {
     if (!this.view) return;
     this.detach();
-    if (!this.view.webContents.isDestroyed()) this.view.webContents.close();
+    if (!viewGone(this.view)) this.view.webContents.close();
     this.view = null;
   }
 
@@ -75,7 +76,7 @@ export class ConsoleDrawer {
   }
 
   private push(shown = true): void {
-    if (!this.view || !this.ready || this.view.webContents.isDestroyed()) return;
+    if (!this.view || !this.ready || viewGone(this.view)) return;
     const s = this.state;
     const payload: DrawerPush = s.full
       ? { key: s.key, height: s.rect?.height ?? 0, areaHeight: s.rect?.height ?? 0, task: s.task, full: true, scheme: s.scheme, shown, ...(s.expand ? { expand: s.expand } : {}) }
@@ -89,7 +90,7 @@ export class ConsoleDrawer {
   }
 
   private ensure(): WebContentsView {
-    if (this.view && !this.view.webContents.isDestroyed()) return this.view;
+    if (this.view && !viewGone(this.view)) return this.view;
     const view = new WebContentsView({ webPreferences: { preload: this.o.preload, sandbox: true, contextIsolation: true, nodeIntegration: false, webSecurity: true, spellcheck: false } });
     view.setBackgroundColor('#00000000');
     view.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));

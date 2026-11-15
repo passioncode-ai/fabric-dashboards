@@ -77,3 +77,53 @@ test('FD-263: MCP `bugs` reads the journal; `bug_report` answers the issue it wo
   assert.deepEqual([again.filed, calls.length], [false, 2], 'filed once: a recorded issue is answered, gh is not asked again');
   await assert.rejects(tools.bugReport(deps, '000000000000', true), /no bug/);
 });
+
+test('Wave 1 C-08: a page error keeps one row across builds; a refusal the machine decides is not a bug', async () => {
+  const { expectedFailure } = await import('../src/core/bugs');
+  const a = record([], { where: 'renderer', kind: 'exception', name: 'TypeError', message: "Cannot read 'x' of undefined at 12", stack: 'TypeError\n    at Xa (file:///app/assets/index-AAAA.js:1:200)' }, O).bug;
+  const b = record([], { where: 'renderer', kind: 'exception', name: 'TypeError', message: "Cannot read 'y' of undefined at 40", stack: 'TypeError\n    at Qz (file:///app/assets/index-BBBB.js:1:900)' }, O).bug;
+  assert.equal(a.fp, b.fp, 'minified names, quoted values and numbers do not change the fingerprint');
+  assert.equal(expectedFailure('admission_disk'), true);
+  assert.equal(expectedFailure('held'), true);
+  assert.equal(expectedFailure('spawn'), false);
+});
+
+test('Wave 1 P-07: a failed write leaves no temporary file', async () => {
+  const fs = await import('node:fs');
+  const os = await import('node:os');
+  const path = await import('node:path');
+  const { writeBugs } = await import('../src/core/bugs');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'fd-p07-'));
+  fs.mkdirSync(path.join(dir, 'bugs.json')); // a folder where the file goes: the rename fails
+  assert.throws(() => writeBugs(dir, []));
+  assert.deepEqual(fs.readdirSync(dir), ['bugs.json'], 'only the blocking folder remains');
+});
+
+test('Wave 1 C-07: a closed view whose webContents is gone reads as gone, not as a crash', async () => {
+  const { viewGone } = await import('../src/core/view-gone');
+  assert.equal(viewGone(undefined), true);
+  assert.equal(viewGone({ webContents: undefined }), true);
+  assert.equal(viewGone({ webContents: { isDestroyed: () => true } }), true);
+  assert.equal(viewGone({ webContents: { isDestroyed: () => false } }), false);
+});
+
+test('Wave 1 C-01: a folder with a live Claude Code session reads as busy', async () => {
+  const fs = await import('node:fs');
+  const os = await import('node:os');
+  const path = await import('node:path');
+  const { folderLive, liveSessionFolders, liveSessionIds } = await import('../src/core/recovery');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'fd-c01-'));
+  const work = fs.mkdtempSync(path.join(os.tmpdir(), 'fd-c01-work-'));
+  fs.writeFileSync(path.join(dir, '4242.json'), JSON.stringify({ pid: 4242, sessionId: 'abc', cwd: work }));
+  fs.writeFileSync(path.join(dir, '4343.json'), JSON.stringify({ pid: 4343, sessionId: 'dead', cwd: '/nowhere' }));
+  const alive = (pid: number) => pid === 4242;
+  assert.deepEqual(liveSessionFolders([dir], alive), [work]);
+  assert.deepEqual(liveSessionIds([dir], alive), ['abc'], 'C-04: on Windows the session files still say what is live');
+  assert.equal(folderLive(work, null, liveSessionFolders([dir], alive)), true);
+  assert.equal(folderLive('/elsewhere', null, liveSessionFolders([dir], alive)), false);
+});
+
+test('Wave 1 T-10: Switchboard missing reads in Russian', async () => {
+  const { machineRu } = await import('../src/core/machine-ru');
+  assert.equal(machineRu('Switchboard is not installed'), 'Switchboard на этом компьютере не установлен');
+});

@@ -352,7 +352,7 @@ function Card({ p, open }: { p: Product; open: (key: string) => void }) {
             {uptime !== null && !isOnline(s) && <> · {t('card.uptime', { uptime: duration(uptime) })}</>}
             {isOnline(s) && <> · {t('card.online', { host: hostOf(s) })}</>}
             {/* FD-244: an agent that runs on this Mac and online says each place's state on its card, as on its sidebar row. */}
-            {places.length > 1 && <span className="nav-places card-places">{places.map(({ place, member }) => <span key={place} className={`nav-place state-${shownState(member)}`} title={t('join.nameState', { name: t(`place.${place}`), state: t(`state.${shownState(member)}`) })}><Icon name={place === 'local' ? 'laptop' : 'cloud'} /></span>)}</span>}
+            {places.length > 1 && <span className="nav-places card-places">{places.map(({ place, member }) => <span key={place} className={`nav-place state-${shownState(member)}`} title={t('join.nameState', { name: t(`place.${place}`), state: t(`state.${shownState(member)}`) })}><Icon name={place === 'local' ? 'laptop' : 'cloud'} />{shownState(member) !== 'ready' && <span className="nav-place-glyph" aria-hidden="true">{GLYPH[shownState(member)]}</span>}</span>)}</span>}
           </div>
         </div>
         <StateBadge state={shownState(s)} />

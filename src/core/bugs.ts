@@ -45,8 +45,12 @@ export function ownFrames(stack: string | undefined): string[] {
 }
 
 /** The fingerprint: stable across versions and machines (function names, not line numbers or paths). */
-export function fingerprint(b: Pick<BugInput, 'where' | 'kind' | 'name' | 'action'>, frames: readonly string[]): string {
-  const fns = frames.slice(0, 4).map((f) => f.split(' ')[1] ?? f.split(':')[0]).join('>');
+export function fingerprint(b: Pick<BugInput, 'where' | 'kind' | 'name' | 'action' | 'message'>, frames: readonly string[]): string {
+  // Wave 1 (C-08): the window's frames are minified names that change with every build, so a page error is known by
+  // its message instead (numbers and quoted values stripped), and keeps one row across releases.
+  const fns = b.where === 'renderer'
+    ? (b.message ?? '').split('\n')[0]!.replace(/(["'`]).*?\1/g, '_').replace(/\d+/g, '#').slice(0, 120)
+    : frames.slice(0, 4).map((f) => f.split(' ')[1] ?? f.split(':')[0]).join('>');
   return crypto.createHash('sha256').update([b.where, b.kind, b.name, b.action ?? '', fns].join('|')).digest('hex').slice(0, 12);
 }
 
@@ -54,9 +58,9 @@ export function fingerprint(b: Pick<BugInput, 'where' | 'kind' | 'name' | 'actio
 export function record(bugs: readonly Bug[], input: BugInput, o: { now: string; version: string; home: string; user: string }): { bugs: Bug[]; bug: Bug; isNew: boolean } {
   const name = scrub(input.name || 'Error', o.home, o.user).slice(0, 80);
   const frames = ownFrames(input.stack).map((f) => scrub(f, o.home, o.user));
-  const fp = fingerprint({ ...input, name }, frames);
-  const at = bugs.findIndex((b) => b.fp === fp);
   const message = scrub(input.message ?? '', o.home, o.user);
+  const fp = fingerprint({ ...input, name, message }, frames);
+  const at = bugs.findIndex((b) => b.fp === fp);
   if (at >= 0) {
     const was = bugs[at]!;
     const bug: Bug = { ...was, count: was.count + 1, lastSeen: o.now, message: message || was.message, frames: frames.length ? frames : was.frames, versions: was.versions.includes(o.version) ? was.versions : [...was.versions, o.version].slice(-10) };
@@ -81,8 +85,18 @@ export function readBugs(dir: string): Bug[] {
 export function writeBugs(dir: string, bugs: readonly Bug[]): void {
   const file = path.join(dir, BUGS_FILE);
   const temp = `${file}.${process.pid}.tmp`;
-  fs.writeFileSync(temp, `${JSON.stringify({ schema: 'fabric-dashboards-bugs/1', bugs }, null, 1)}\n`, { mode: 0o600 });
-  fs.renameSync(temp, file);
+  try {
+    fs.writeFileSync(temp, `${JSON.stringify({ schema: 'fabric-dashboards-bugs/1', bugs }, null, 1)}\n`, { mode: 0o600 });
+    fs.renameSync(temp, file);
+  } finally {
+    fs.rmSync(temp, { force: true }); // Wave 1 (P-07): a failed write leaves no temporary file behind
+  }
+}
+
+/** Wave 1 (C-08): a refusal the machine's room decides (LC-17) is the app working as designed, counted in analytics
+ *  but never a bug. */
+export function expectedFailure(code: string): boolean {
+  return code.startsWith('admission_') || code === 'held';
 }
 
 /** A GitHub issue's title and body for one bug: what an engineer needs, nothing that names the person. */
