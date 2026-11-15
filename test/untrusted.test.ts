@@ -398,3 +398,39 @@ test('FD-234 (verifier round 20): a runtime with no ask mode is told its own set
     assert.ok(p.kind === 'run' && !p.argv.includes(flag), JSON.stringify(p));
   }
 });
+
+test('Wave 5b (FD-236 (7)): a held conversation keeps the hold on its Continue after the text scrolls out; a clean new session drops it', POSIX, async () => {
+  const base = tmp('fd-236h-');
+  const bin = path.join(base, 'bin');
+  const folder = path.join(base, 'work');
+  fs.mkdirSync(bin); fs.mkdirSync(folder);
+  fs.writeFileSync(path.join(bin, 'claude'), '#!/bin/sh\n', { mode: 0o755 });
+  const settings = new SettingsStore(path.join(base, 'data'));
+  settings.update({ consoles: { 'runner.dev': { runtime: 'claude-code', folder, idle: null } } });
+  const events: ActivityItem[] = [ev(ATTACK)];
+  const spawned: string[][] = [];
+  const exits: (() => void)[] = [];
+  const logs: string[] = [];
+  const host = new ConsoleHost({
+    settings, snapshot: () => snap(), activity: () => events, window: () => null, visible: () => false, log: (l) => logs.push(l),
+    testDirs: [bin], scriptsDir: path.join(base, 'scripts'), packRoot: path.join(base, 'packs'), mcpServer: () => ({ command: '/app/mcp', args: [] }),
+    run: async () => ({ code: 1, stdout: '', stderr: '' }),
+    spawn: (_file, args) => { spawned.push(args); let exit: ((e: { exitCode: number }) => void) | null = null; const done = () => { const f = exit; exit = null; f?.({ exitCode: 0 }); }; exits.push(done); return { pid: 2_340_100_000 + spawned.length, onData: () => ({ dispose() {} }), onExit: (cb: (e: { exitCode: number }) => void) => { exit = cb; return { dispose() {} }; }, write() {}, resize() {}, kill: done }; },
+    killGroup: () => { exits.forEach((f) => f()); }, idleMs: 0,
+    machine: async () => ({ freeDisk: 50 * 1024 ** 3, swap: null, running: 0 }),
+    home: base,
+  } as never);
+  assert.ok((await host.start('runner.dev', 'new', { cols: 80, rows: 24 })).ok);
+  assert.ok(settings.get().consoles['runner.dev']?.held, 'the hold is recorded with the console');
+  host.stopByPerson('runner.dev');
+  await new Promise((r) => setTimeout(r, 30));
+  events.length = 0; // the injected event scrolled out of the feed
+  const cont = await host.start('runner.dev', 'continue', { cols: 80, rows: 24 });
+  assert.ok(cont.ok, JSON.stringify(cont));
+  assert.ok(!spawned[1]!.includes('--dangerously-skip-permissions'), JSON.stringify(spawned[1]));
+  assert.ok(logs.some((l) => /continues with permission prompts: its conversation was held/.test(l)));
+  host.stopByPerson('runner.dev');
+  await new Promise((r) => setTimeout(r, 30));
+  assert.ok((await host.start('runner.dev', 'new', { cols: 80, rows: 24 })).ok);
+  assert.equal(settings.get().consoles['runner.dev']?.held, undefined, 'a new session with a clean context drops the hold');
+});

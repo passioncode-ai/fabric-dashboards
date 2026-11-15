@@ -76,6 +76,8 @@ test('list_services shows the state, the dashboard and a deep link, and no token
   const { deps } = world();
   const out = await tools.listServices(deps);
   assert.equal(out.services.length, 1);
+  assert.ok(out.untrusted.fields.includes('services[].name') && out.untrusted.fields.includes('services[].reasons'), 'wave 5b (FD-236 (2)): the agent-written fields are named');
+  assert.ok((await tools.serviceStatus(deps, KEY)).untrusted.fields.includes('reasons'));
   const s = out.services[0]!;
   assert.equal(s.key, KEY);
   assert.equal(s.product, 'example-agent', 'ADR-0012: the product is the id');
@@ -259,7 +261,8 @@ test('the server speaks newline-delimited JSON-RPC over stdio', async () => {
   assert.equal(byId.get(1)!.result!.serverInfo!.name, 'fabric-dashboards');
   assert.equal((byId.get(1)!.result!.serverInfo as { version: string }).version, JSON.parse(fs.readFileSync(path.join(__dirname, '../package.json'), 'utf8')).version);
   assert.equal(byId.get(null)!.error!.code, -32700);
-  assert.deepEqual(byId.get(2)!.result!.structuredContent, { services: [], services_dir: dir });
+  const listed = byId.get(2)!.result!.structuredContent as { services: unknown[]; services_dir: string; untrusted: { fields: string[] } };
+  assert.deepEqual([listed.services, listed.services_dir, listed.untrusted.fields.length > 0], [[], dir, true]);
 });
 
 test('an unreadable descriptor is listed with its problem and no link to open', async () => {
@@ -1015,4 +1018,10 @@ test('FD-249: arrange moves an agent one place in its section and its open tab o
   assert.deepEqual((await tools.arrange(w.deps, KEY, 'tab-left')).tabs, [KEY, 'alpha-agent.default', 'zulu-agent.default']);
   assert.equal((await tools.arrange(w.deps, KEY, 'tab-left')).changed, false, 'the first tab stays first');
   assert.deepEqual((await tools.arrange(w.deps, KEY, 'tab-right')).tabs, ['alpha-agent.default', KEY, 'zulu-agent.default']);
+});
+
+test('Wave 5b (FD-236 (3)): a call that gives no answer in time ends in a typed timeout, and a quick one passes through', async () => {
+  const { withDeadline } = await import('../src/mcp/server');
+  assert.equal(await withDeadline(Promise.resolve(7), 1_000, 'x'), 7);
+  await assert.rejects(withDeadline(new Promise(() => undefined), 20, 'audit'), (e: Error & { details?: { code?: string } }) => /audit gave no answer/.test(e.message) && e.details?.code === 'timeout');
 });

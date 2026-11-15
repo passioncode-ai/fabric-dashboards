@@ -404,7 +404,8 @@ test('LC-10: a call written just before stdin closes is still answered, then the
   s.child.stdin.end();
   const exit = await s.exited;
   assert.equal(exit.code, 0);
-  assert.deepEqual((await s.reply(1, 100)).result!.structuredContent, { services: [], services_dir: services });
+  const listed = (await s.reply(1, 100)).result!.structuredContent as { services: unknown[]; services_dir: string };
+  assert.deepEqual([listed.services, listed.services_dir], [[], services]); // its `untrusted` names the fields (wave 5b)
 });
 
 test('LC-10: a session that ends mid-command takes the command\'s whole process group with it', { skip: process.platform === 'win32' && 'POSIX process groups and /bin/sh — the Windows twin is test/windows-processes.test.ts' }, async () => {

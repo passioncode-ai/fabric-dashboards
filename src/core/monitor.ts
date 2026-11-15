@@ -715,6 +715,7 @@ export class Monitor extends EventEmitter {
     const oldPid = t.probe?.kind === 'answer' ? t.probe.doc.process.pid : null;
     const out = await controlService(d, action, {
       elsewhere: this.elsewhere(t),
+      placementError: this.placement.error,
       systemDaemon: this.where(d) === 'system',
       platform: this.platform,
       launchd: this.launchd,
@@ -733,6 +734,7 @@ export class Monitor extends EventEmitter {
         if (out.why === 'placed-elsewhere') return finish(false, { code: 'result.placedElsewhere', params: { name, machine: out.machine } });
         if (out.why === 'system-daemon') return finish(false, { code: 'result.systemDaemon', params: { name } });
         if (out.why === 'not-here') return finish(false, { code: 'result.notHere', params: { name, machine: out.machine } });
+        if (out.why === 'placement-unreadable') return finish(false, { code: 'result.placementUnreadable', params: { name, detail: out.detail } });
         return finish(false, { code: 'result.unmanaged', params: { name } });
       case 'launchctl-failed':
         return finish(false, { code: 'result.launchctl', params: { detail: out.detail } });

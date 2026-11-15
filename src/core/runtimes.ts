@@ -57,11 +57,35 @@ export const ASK_ARGS: Readonly<Record<string, readonly string[]>> = {
   codex: ['-a', 'on-request', '-s', 'workspace-write'],
   'gemini-cli': ['--approval-mode', 'default'],
 };
-export function askArgs(runtimeId: string): string[] {
+export function askArgs(runtimeId: string, readOnly: () => boolean = codexReadOnly): string[] {
+  // Wave 5b (FD-236 (16)): `-s workspace-write` would loosen a stricter sandbox the person chose; their read-only stays.
+  if (runtimeId === 'codex' && readOnly()) return ['-a', 'on-request'];
   return [...(ASK_ARGS[runtimeId] ?? [])];
+}
+
+/** Wave 5b (FD-236 (16)): whether Codex's own config (`$CODEX_HOME/config.toml`, else `~/.codex/config.toml`) sets the
+ *  top-level `sandbox_mode = "read-only"`. A file that cannot be read sets nothing. */
+export function codexReadOnly(env: NodeJS.ProcessEnv = process.env, home = os.homedir()): boolean {
+  try {
+    const text = fs.readFileSync(path.join(env.CODEX_HOME || path.join(home, '.codex'), 'config.toml'), 'utf8');
+    return codexReadOnlyIn(text);
+  } catch { return false; }
+}
+
+/** The top level only: a `sandbox_mode` inside a `[profiles.x]` table is that profile's. */
+export function codexReadOnlyIn(toml: string): boolean {
+  for (const line of toml.split(/\r?\n/)) {
+    const l = line.trim();
+    if (l.startsWith('[')) return false;
+    const m = /^sandbox_mode\s*=\s*["']([^"']+)["']/.exec(l);
+    if (m) return m[1] === 'read-only';
+  }
+  return false;
 }
 /** The same by Switchboard provider (a session continued after a limit or from the Sessions list). */
 export const bypassArgsOfProvider = (provider: 'claude' | 'codex'): string[] => bypassArgs(provider === 'codex' ? 'codex' : 'claude-code');
+/** Wave 5b (FD-236 (1)): a held conversation continues with the prompts named, as `askArgs` starts one. */
+export const askArgsOfProvider = (provider: 'claude' | 'codex'): string[] => askArgs(provider === 'codex' ? 'codex' : 'claude-code');
 // #endregion bypass-permissions
 
 export interface Runtime extends RuntimeSpec {

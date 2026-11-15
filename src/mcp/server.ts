@@ -12,7 +12,7 @@ import { removeMcpRegistrations } from '../core/uninstall';
 import { setLoopbackConnectionCheck, setLoopbackOwnerCheck, setWindowsAclReader } from '@passioncode-ai/fabric-service-host';
 import { linuxConnectionCheck, linuxLoopbackOwnerCheck, loopbackOwnerCheck, macConnectionCheck, windowsLoopbackOwnerCheck } from '../core/loopback-owner';
 import { execRunner } from '../core/launchd';
-import { ACTIONS_META, actionOf, decisionFor, decisionsFile, recordDecision } from './actions';
+import { ACTIONS_META, actionOf, decisionFor, decisionsFile, decisionUsed, recordDecision } from './actions';
 import { launcherOf, liveHandover, REHAND_ENV, REHAND_EXIT, REHAND_MAX, REHAND_WINDOW_MS, startRelay, type Relay } from './handover';
 import { codeFile, plistVersion, StaleWatch } from './stale';
 import * as tools from './tools';
@@ -313,7 +313,8 @@ export async function call(deps: tools.Deps, name: string, args: Args): Promise<
     }
     case 'activity': return tools.activity(deps, need(args, 'service'), typeof args.limit === 'number' ? args.limit : 20);
     case 'connections': return tools.connections(deps, need(args, 'service'));
-    case 'audit': return tools.auditAll(deps);
+    // Wave 5b (FD-236 (3)): a slow read (a stuck agent, a loaded machine) ends in a typed error, never a call left open.
+    case 'audit': return withDeadline(tools.auditAll(deps), AUDIT_DEADLINE_MS, 'audit');
     case 'setup_check': return tools.setupCheck(deps);
     case 'spend': return tools.spend(deps, str(args, 'service'));
     case 'load': return tools.load(deps, need(args, 'service'));
@@ -372,6 +373,11 @@ export async function handle(deps: tools.Deps, message: Message): Promise<Record
           return reply({ content: [{ type: 'text', text: JSON.stringify(refusal, null, 2) }], isError: true, structuredContent: refusal });
         }
         if (outcome.recordAs !== 'caller') {
+          const used = (deps.decisionUsed ?? ((d, t) => decisionUsed(decisionsFile(), d, t)))({ action: own.id, target, instruction: outcome.decision.instruction, at: outcome.decision.at }, now);
+          if (used) {
+            const refusal = { code: 'decision-used', message: `this decision of the operator already served an act at ${used}; a decision serves one act. Relay the operator's words for this one`, action: own.id };
+            return reply({ content: [{ type: 'text', text: JSON.stringify(refusal, null, 2) }], isError: true, structuredContent: refusal });
+          }
           try {
             (deps.recordDecision ?? ((row) => recordDecision(decisionsFile(), row)))({
               recordedAt: new Date(now).toISOString(), tool: name, action: own.id, target, ...outcome.recordAs,
@@ -602,4 +608,13 @@ if (require.main === module) {
   const code = cli(process.argv.slice(2));
   if (code === null) serve();
   else process.exitCode = code;
+}
+
+/** Wave 5b (FD-236 (3)): the whole `audit` answer in at most this long; each agent's own reads keep their deadlines. */
+export const AUDIT_DEADLINE_MS = 90_000;
+
+export function withDeadline<T>(p: Promise<T>, ms: number, what: string): Promise<T> {
+  let timer: NodeJS.Timeout | null = null;
+  const late = new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new tools.ToolError(`${what} gave no answer within ${Math.round(ms / 1000)} s`, { code: 'timeout' })), ms); timer.unref?.(); });
+  return Promise.race([p, late]).finally(() => { if (timer) clearTimeout(timer); });
 }

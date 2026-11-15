@@ -26,7 +26,7 @@ import { findCheckout } from '../core/repofind';
 import { projectsOf, projectsProbeArgv, targetLaunchArgv, targetsOf } from '../core/target-session';
 import { MACHINE } from '../core/platform';
 import { isNewAgentKey, isNewSessionKey, isolatedBlock, newSessionKey, prepareNewAgent, projectsFolder, type NewSessionChoice } from '../core/new-session';
-import { bypassArgs, bypassArgsOfProvider, detectRuntimes, KNOWN_RUNTIMES, readLoginPath, searchDirs, specsFromSwitchboard, type Runtime, type RuntimeSpec } from '../core/runtimes';
+import { askArgsOfProvider, bypassArgs, bypassArgsOfProvider, detectRuntimes, KNOWN_RUNTIMES, readLoginPath, searchDirs, specsFromSwitchboard, type Runtime, type RuntimeSpec } from '../core/runtimes';
 import type { SettingsStore } from '../core/settings';
 import { accountsOf, allSessionsOf, bindingFor, machineSessionsOf, findSwitchboard, handoverOwnKey, handoverRunArgv, handoversOf, handoversSwitch, isHandoverKey, launchFeatures, sbFailure, sessionsIn, startAccount, terminalLaunchArgv, type Binding, type SbAccounts, type SbHandover, type SbSessions, type StartAccount } from '../core/switchboard';
 import type { ServiceSnapshot, Settings } from '../core/types';
@@ -647,8 +647,14 @@ export class ConsoleHost {
     }
     // FD-234: text the service wrote that reads like instructions keeps a person in the loop for this start: permission
     // prompts on, the saved choice untouched.
-    const held = Boolean(pack?.signals?.length) && saved?.bypass !== false;
-    if (held) this.o.log(`console: ${key} starts with permission prompts: its context reads like instructions (${pack!.signals!.join(', ')})`);
+    // Wave 5b (FD-236 (7)): a conversation that was held keeps the hold on its Continue, whatever its current events say.
+    const fresh = Boolean(pack?.signals?.length);
+    const kept = mode === 'continue' && Boolean(saved?.held);
+    const held = (fresh || kept) && saved?.bypass !== false;
+    // Wave 5b (FD-236 (13)): a pack that could not be written is its own reason, not text that reads like instructions.
+    const packFailed = Boolean(pack?.signals?.includes('pack-failed'));
+    if (fresh && held) this.o.log(packFailed ? `console: ${key} starts with permission prompts: its context pack could not be written` : `console: ${key} starts with permission prompts: its context reads like instructions (${pack!.signals!.join(', ')})`);
+    else if (held) this.o.log(`console: ${key} continues with permission prompts: its conversation was held at ${saved!.held}`);
     // FD-191: a session of its own keeps the permission and isolation it was started with, Continue included.
     const plan = planStart({ runtime, mode, folder: folder.path, binding: b.kind === 'absent' ? { kind: 'none' } : b, switchboard: inv.switchboard, inPlace: inv.inPlace, surface: inv.surface, managed, handoff: pack?.handoff, bypass: held ? false : saved?.bypass, isolated: saved?.isolated, hosted: inv.hosted });
     if (plan.kind === 'refused') return { ok: false, reason: plan.reason, detail: plan.detail };
@@ -665,8 +671,9 @@ export class ConsoleHost {
     if (mode === 'continue') this.forgetLatestEnded(key);
     // Remember what was started, so the panel offers it next time.
     this.o.settings.update({ consoles: { [key]: { runtime: runtime.id, folder: folder.source === 'saved' ? folder.path : this.o.settings.get().consoles[key]?.folder ?? null, idle: null,
-      ...(saved?.bypass !== undefined ? { bypass: saved.bypass } : {}), ...(saved?.isolated !== undefined ? { isolated: saved.isolated } : {}) } } });
-    this.o.log(`console: ${key} started ${runtime.id} (${mode}) in ${folder.path}${plan.argv[0] === inv.switchboard ? ' through Switchboard' : ''}${saved?.isolated ? ' isolated' : ''}${saved?.bypass === false ? ' with permission prompts' : ''}${pack ? ` with its context${task ? ` and a ${task.kind} task` : ''}` : ''}`);
+      ...(saved?.bypass !== undefined ? { bypass: saved.bypass } : {}), ...(saved?.isolated !== undefined ? { isolated: saved.isolated } : {}),
+      ...(fresh && !packFailed ? { held: saved?.held ?? new Date().toISOString() } : mode === 'new' && !fresh ? { held: null } : {}) } } });
+    this.o.log(`console: ${key} started ${runtime.id} (${mode}) in ${folder.path}${plan.argv[0] === inv.switchboard ? ' through Switchboard' : ''}${saved?.isolated ? ' isolated' : ''}${saved?.bypass === false ? ' with permission prompts' : ''}${pack && !packFailed ? ` with its context${task ? ` and a ${task.kind} task` : ''}` : pack ? ' without its context (the pack could not be written)' : ''}`);
     return { ok: true };
   }
 
@@ -887,6 +894,14 @@ export class ConsoleHost {
     return folderLive(folder, live, files);
   }
 
+  /** Wave 5b (FD-236 (1)): whether a console whose conversation was held works in this folder: a session continued there
+   *  (after a limit, from the Sessions list) may be that conversation, so it keeps the permission prompts too. */
+  private heldIn(folder: string | null | undefined): boolean {
+    if (!folder) return false;
+    const want = path.resolve(folder);
+    return Object.values(this.o.settings.get().consoles).some((c) => Boolean(c.held && c.folder && path.resolve(c.folder) === want));
+  }
+
   /** FD-262: whether a live process holds this session now: Switchboard says so, or its sessions file or arguments name
    *  it, or the live processes cannot be read. */
   private async heldElsewhere(session: string, live?: SbStop['live']): Promise<boolean> {
@@ -995,7 +1010,10 @@ export class ConsoleHost {
     // Switchboard group routes it through Switchboard by its own settings.
     const cli = dirs.map((d) => path.join(d, stop.provider)).find((f) => { try { fs.accessSync(f, fs.constants.X_OK); return fs.statSync(f).isFile(); } catch { return false; } });
     const label = stop.provider === 'codex' ? 'Codex' : 'Claude Code';
-    const r = cli ? this.manager.start(key, { argv: [cli, ...bypassArgsOfProvider(stop.provider === 'codex' ? 'codex' : 'claude'), ...resumeArgs(stop)], cwd: stop.dir, label, env: { PATH: dirs.join(path.delimiter) } }, { cols: 100, rows: 30 }) : { ok: false as const, error: `${stop.provider} is not installed here` };
+    // Wave 5b (FD-236 (1)): a conversation held in this folder's console continues with permission prompts.
+    const resumeHeld = this.heldIn(stop.dir);
+    if (resumeHeld) this.o.log(`console: limit stop ${stop.event} continues with permission prompts: a console in its folder was held`);
+    const r = cli ? this.manager.start(key, { argv: [cli, ...(resumeHeld ? askArgsOfProvider : bypassArgsOfProvider)(stop.provider === 'codex' ? 'codex' : 'claude'), ...resumeArgs(stop)], cwd: stop.dir, label, env: { PATH: dirs.join(path.delimiter) } }, { cols: 100, rows: 30 }) : { ok: false as const, error: `${stop.provider} is not installed here` };
     if (!r.ok && r.error === 'running') {
       // FIX-4: its own console already runs (an earlier continue the person kept open); this claim starts nothing, so it
       // is finished as cancelled rather than left claimed for nobody to settle.
@@ -1286,7 +1304,9 @@ export class ConsoleHost {
       if (!a.ok) return { ok: false, reason: 'admission', detail: a.why };
       // FD-262: never a second copy of a conversation a live process holds (another terminal, another console).
       if (await this.heldElsewhere(sessionId)) { this.o.log(`console: session ${id} not continued: a live process holds its conversation (FD-262)`); return { ok: false, reason: 'held' }; }
-      const args = [...bypassArgsOfProvider(provider), ...(provider === 'codex' ? ['resume', sessionId] : ['--resume', sessionId])]; // FD-174
+      const held = this.heldIn(row.folder); // wave 5b (FD-236 (1))
+      if (held) this.o.log(`console: session ${id} continues with permission prompts: a console in its folder was held`);
+      const args = [...(held ? askArgsOfProvider : bypassArgsOfProvider)(provider), ...(provider === 'codex' ? ['resume', sessionId] : ['--resume', sessionId])]; // FD-174
       const r = this.manager.start(key, { argv: [cli, ...args], cwd: row.folder, label: provider === 'codex' ? 'Codex' : 'Claude Code', env: { PATH: inv.dirs.join(path.delimiter) } }, size);
       if (!r.ok) return { ok: false, reason: r.error === 'running' ? 'running' : 'spawn', detail: r.error };
       this.sessionIds.set(key, { sessionId, provider });
@@ -1567,8 +1587,9 @@ export class ConsoleHost {
     const pack = busy ? null : this.pack(key, runtime, folder.path);
     // FD-234: a Terminal window gets the same hold as a console start, and the console's saved choice.
     const saved = this.o.settings.get().consoles[key]?.bypass;
-    const held = Boolean(pack?.signals?.length) && saved !== false;
-    if (held) this.o.log(`console: ${key} opens in Terminal with permission prompts: its context reads like instructions (${pack!.signals!.join(', ')})`);
+    // Wave 5b (FD-236 (12)): a held conversation keeps the hold here too, also while its console runs (no pack then).
+    const held = (Boolean(pack?.signals?.length) || Boolean(this.o.settings.get().consoles[key]?.held)) && saved !== false;
+    if (held) this.o.log(`console: ${key} opens in Terminal with permission prompts: ${pack?.signals?.length ? `its context reads like instructions (${pack.signals.join(', ')})` : 'its conversation was held'}`);
     const plan = planStart({ runtime, mode, folder: folder.path, binding: { kind: 'none' }, switchboard: null, inPlace: false, handoff: pack?.handoff, bypass: held ? false : saved });
     if (plan.kind !== 'run') return { ok: false, error: plan.kind === 'refused' ? plan.detail : 'unavailable' };
     return (this.o.terminal ?? openInTerminal)(this.o.scriptsDir, terminalScript(plan.argv, folder.path, pack?.env ?? {}));

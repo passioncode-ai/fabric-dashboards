@@ -174,3 +174,18 @@ test('FD-182: the Setup console is a console an agent starts too; any other key 
     await ch!.close();
   }
 });
+
+test('Wave 5b (FD-235 P2): a relayed decision serves one act; the same words again later are refused, a quick retry is not', async () => {
+  const fs2 = await import('node:fs');
+  const os2 = await import('node:os');
+  const path2 = await import('node:path');
+  const { decisionUsed, DECISION_RETRY_MS } = await import('../src/mcp/actions');
+  const file = path2.join(fs2.mkdtempSync(path2.join(os2.tmpdir(), 'fd-p2-')), 'decisions.jsonl');
+  const d = { action: 'uninstall', target: null, instruction: 'удали приложение', at: '2026-11-15T07:00:00Z' };
+  const t0 = Date.parse('2026-11-15T07:01:00Z');
+  assert.equal(decisionUsed(file, d, t0), null, 'no file: nothing used');
+  fs2.writeFileSync(file, `${JSON.stringify({ recordedAt: new Date(t0).toISOString(), tool: 'app_install', action: 'uninstall', target: null, by: 'operator', instruction: d.instruction, decidedAt: d.at })}\n`);
+  assert.equal(decisionUsed(file, d, t0 + 60_000), null, 'a retry within minutes still goes');
+  assert.equal(decisionUsed(file, d, t0 + DECISION_RETRY_MS + 1), new Date(t0).toISOString(), 'later the same words are spent');
+  assert.equal(decisionUsed(file, { ...d, instruction: 'другие слова' }, t0 + DECISION_RETRY_MS + 1), null);
+});

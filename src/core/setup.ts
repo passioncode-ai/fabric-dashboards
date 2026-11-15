@@ -70,7 +70,7 @@ export function setupMarkdown(o: { runtimeId: string; runtimeName: string; serve
     'before each step, and what happened after it.',
     '',
     // FD-65: a Check setup the person ran before opening this console comes first: it names what is broken now.
-    ...(o.doctor ? [doctorMarkdown(o.doctor)].filter(Boolean) : []),
+    ...(o.doctor ? [doctorMarkdown(o.doctor, { fence, note: UNTRUSTED_NOTE })].filter(Boolean) : []), // wave 5b (FD-236 (8)): fenced
     // FD-187: an agent that started this console (MCP console_fix) passed what to set up first.
     ...(o.request ? [setupRequestMarkdown(o.request)] : []),
     '## Steps, in order',
