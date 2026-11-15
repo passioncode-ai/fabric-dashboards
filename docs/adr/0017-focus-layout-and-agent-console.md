@@ -208,3 +208,14 @@ pulled down from the top, fold with the same button, and close only with a separ
 - Tests: `test/layout.test.ts` *FD-92*, `test/parts.test.ts` (the layout's height), `test/e2e/focus-console.test.ts`,
   `test/e2e/update.test.ts`, `test/e2e/overview-settings.test.ts`. Scenario SCN-048 (SCN-060 retired).
 
+
+## Amendment 2026-11-15: permission prompts are this app's choice now (FD-174, FD-234, FD-236)
+
+The Consequences line "Permission prompts are the runtime's" no longer holds. Since FD-174 a console starts its runtime
+without permission prompts, with the flag that runtime's `--help` names; a session of its own keeps the choice made in
+its New session dialog (FD-191). Since FD-234 a start whose context reads like instructions runs with the prompts named
+(`askArgs`), whatever the saved choice. Since FD-236 (quality wave 5b) that hold is recorded with the console (`held`)
+and follows the conversation: its Continue, a session continued after a limit, from the Sessions list or in Terminal in
+its folder run with the prompts too, until a new session starts on a clean context; a held Codex start keeps a
+read-only sandbox the person set. Scenario SCN-097; tests `test/untrusted.test.ts` *Wave 5b*, `test/console.test.ts`
+*Wave 5b*.

@@ -729,6 +729,7 @@ const en = {
   'result.launchctl': 'launchctl refused: {detail}. Press Start again; if it refuses again, reinstall the agent.',
   'result.plistMissing': 'The launchd file is missing: reinstall {name}. ({path})',
   'result.placedElsewhere': '{name} is placed on {machine}: starting it here would run a second copy.',
+  'result.placementUnreadable': '{name} was not started: the placement record could not be read ({detail}), so where it should run is unknown.',
   // FD-167: copy check 903f23c3.
   'result.systemDaemon': '{name} runs as a system service of this space: only the administrator starts or stops it.',
   'result.notHere': '{name} runs on {machine}: nothing of it runs on this computer to stop.',
@@ -1883,6 +1884,7 @@ const ru: Record<Key, string> = {
   'result.launchctl': 'launchctl отказался выполнить команду: {detail}. Нажмите «Запустить» ещё раз; если отказ повторится, переустановите агента.',
   'result.plistMissing': 'Файл launchd не найден ({path}). Переустановите {name}.',
   'result.placedElsewhere': '{name} размещён на машине {machine}: если запустить его здесь, будут работать две копии.',
+  'result.placementUnreadable': '{name} не запущен: запись о размещении не читается ({detail}), поэтому неизвестно, где он должен работать.',
   // FD-167: copy check 6622e99f.
   'result.systemDaemon': '{name} работает как системная служба этого пространства: запускает и останавливает её только администратор.',
   'result.notHere': '{name} работает на машине {machine}: на этом компьютере останавливать нечего.',

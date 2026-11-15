@@ -112,6 +112,24 @@ export function decisionsFile(platform: NodeJS.Platform = process.platform, env:
   return p.join(logs, 'decisions.jsonl');
 }
 
+/** Wave 5b (FD-235 P2): a relayed decision serves one act. The same words (action, target, instruction, time said) used
+ *  again after `DECISION_RETRY_MS` are refused, so a decision cannot be replayed for a day; a retry of the same act soon
+ *  after (a call that failed midway) still goes. A file that cannot be read refuses nothing (the act is still recorded). */
+export const DECISION_RETRY_MS = 10 * 60_000;
+export function decisionUsed(file: string, d: { action: string; target: string | null; instruction: string; at: string }, now: number): string | null {
+  let text = '';
+  try { text = fs.readFileSync(file, 'utf8'); } catch { return null; }
+  for (const line of text.split('\n')) {
+    if (!line.includes(d.at)) continue;
+    let row: { action?: unknown; target?: unknown; instruction?: unknown; decidedAt?: unknown; recordedAt?: unknown };
+    try { row = JSON.parse(line) as typeof row; } catch { continue; }
+    if (row.action !== d.action || (row.target ?? null) !== d.target || row.instruction !== d.instruction || row.decidedAt !== d.at) continue;
+    const used = typeof row.recordedAt === 'string' ? Date.parse(row.recordedAt) : NaN;
+    if (Number.isFinite(used) && now - used > DECISION_RETRY_MS) return row.recordedAt as string;
+  }
+  return null;
+}
+
 /** One audit line per relayed act; a failure to write is reported to the caller, never swallowed into a silent act. */
 export function recordDecision(file: string, row: Record<string, unknown>): void {
   fs.mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 });

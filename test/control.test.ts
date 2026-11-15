@@ -61,6 +61,17 @@ test('FD-132: placed on the other machine, start and restart are refused before 
   assert.deepEqual(calls, ['stop ai.example.agent']);
 });
 
+test('Wave 5b (FD-235 P3): a placement record that cannot be read refuses start and restart before launchctl; stop still runs', async () => {
+  for (const action of ['start', 'restart'] as const) {
+    const { d: dp, calls } = deps([none], { placementError: 'placement.json is writable by others' });
+    assert.deepEqual(await controlService(desc(), action, dp), { kind: 'refused', why: 'placement-unreadable', detail: 'placement.json is writable by others' });
+    assert.deepEqual(calls, []);
+  }
+  const { d: dp, calls } = deps([answer(10), none], { placementError: 'damaged' });
+  assert.equal((await controlService(desc(), 'stop', dp)).kind, 'stopped');
+  assert.deepEqual(calls, ['stop ai.example.agent']);
+});
+
 test('FD-20: a stop needs the service to stop answering; a stop that keeps answering says so', async () => {
   const stopped = await controlService(desc(), 'stop', deps([answer(10), none]).d);
   assert.equal(stopped.kind, 'stopped');

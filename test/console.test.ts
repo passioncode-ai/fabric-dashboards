@@ -442,3 +442,13 @@ test('FD-242: closing a console leaves nothing running: a child that ignores the
   if (!gone) try { process.kill(child, 'SIGKILL'); } catch { /* cleanup */ }
   assert.ok(gone, 'no orphan left after the console closed');
 });
+
+test('Wave 5b (FD-236 (16)): a held Codex start keeps a read-only sandbox the person set; only the top level counts', async () => {
+  const { askArgs, codexReadOnlyIn } = await import('../src/core/runtimes');
+  assert.equal(codexReadOnlyIn('model = "o5"\nsandbox_mode = "read-only"\n'), true);
+  assert.equal(codexReadOnlyIn('sandbox_mode = "workspace-write"'), false);
+  assert.equal(codexReadOnlyIn('[profiles.safe]\nsandbox_mode = "read-only"'), false, 'a profile\'s setting is that profile\'s');
+  assert.deepEqual(askArgs('codex', () => true), ['-a', 'on-request']);
+  assert.deepEqual(askArgs('codex', () => false), ['-a', 'on-request', '-s', 'workspace-write']);
+  assert.deepEqual(askArgs('claude-code', () => true), ['--permission-mode', 'default']);
+});

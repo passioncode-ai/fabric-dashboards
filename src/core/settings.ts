@@ -229,7 +229,7 @@ function mergeConsoles(raw: unknown): Settings['consoles'] {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return out;
   for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
     if (!SERVICE_KEY.test(key) || !value || typeof value !== 'object') continue;
-    const v = value as { runtime?: unknown; folder?: unknown; idle?: unknown; bypass?: unknown; isolated?: unknown; where?: unknown; machine?: unknown };
+    const v = value as { runtime?: unknown; folder?: unknown; idle?: unknown; bypass?: unknown; isolated?: unknown; where?: unknown; machine?: unknown; held?: unknown };
     const idle = v.idle as { at?: unknown; account?: unknown } | null | undefined;
     out[key] = {
       runtime: typeof v.runtime === 'string' && /^[a-z0-9][a-z0-9-]{0,40}$/.test(v.runtime) ? v.runtime : null,
@@ -241,6 +241,7 @@ function mergeConsoles(raw: unknown): Settings['consoles'] {
       ...(typeof v.isolated === 'boolean' ? { isolated: v.isolated } : {}),
       ...(v.where === 'here' ? { where: 'here' as const } : {}),
       ...(typeof v.machine === 'string' && MACHINE.test(v.machine) ? { machine: v.machine } : {}),
+      ...(typeof v.held === 'string' && Number.isFinite(Date.parse(v.held)) ? { held: v.held } : {}),
     };
   }
   return out;
@@ -255,6 +256,8 @@ function patchConsoles(old: Settings['consoles'], patch: Settings['consoles'] | 
     if (next.where === undefined && old[key]?.where === 'here') next.where = 'here';
     if (next.where === 'there') delete next.where;
     if (next.machine === undefined && old[key]?.machine) next.machine = old[key]!.machine;
+    if (next.held === undefined && old[key]?.held) next.held = old[key]!.held;
+    if (next.held === null) delete next.held;
     out[key] = next;
   }
   return out;

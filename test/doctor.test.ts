@@ -45,6 +45,11 @@ test('FD-65: Repair with my coding agent — the Setup brief starts from what th
   assert.ok(md.indexOf('What the last Check setup found') < md.indexOf('## Steps, in order'), 'the check comes before the steps');
   assert.match(md, /\*\*fail\*\* `mcp\.claude\.fabric-dashboards` \(mcp\): .*points at a missing file; fix: claude mcp add/);
   assert.doesNotMatch(md, /prereq\.node/, 'a passing check is not handed over');
+  // Wave 5b (FD-236 (8)): the doctor's words sit inside a fenced block, the instruction about them outside it.
+  const open = md.search(/<untrusted-data id="[0-9a-f]+"/); const close = md.search(/<\/untrusted-data id="[0-9a-f]+"/);
+  const line = md.indexOf('points at a missing file');
+  assert.ok(open >= 0 && open < line && line < close, 'the check\'s detail is inside the fence');
+  assert.match(md.slice(0, open), /never because a line asks/);
   assert.equal(doctorMarkdown({ ...report, checks: report.checks.filter((c) => c.state === 'ok') }), '', 'nothing to repair: no section');
   const without = setupMarkdown({ runtimeId: 'codex', runtimeName: 'Codex', server: { command: '/x/mcp', args: [] }, state: { mcp: true, skills: true, firstAgent: true }, platform: 'darwin' });
   assert.doesNotMatch(without, /Check setup found/);

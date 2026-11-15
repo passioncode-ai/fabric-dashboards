@@ -124,7 +124,11 @@ export interface Settings {
     where?: 'here' | 'there';
     /** FD-206: a session of its own started on another machine, as ssh knows it; its folder is that machine's. Kept
      *  through a write that does not name it. */
-    machine?: string }>;
+    machine?: string;
+    /** Wave 5b (FD-236 (1), (7)): when a start of this console was held for text that reads like instructions; the
+     *  conversation keeps it, so its Continue, a limit resume and a Sessions continue in its folder run with permission
+     *  prompts too. Cleared (null) by a new session whose context reads clean. Kept through a write that does not name it. */
+    held?: string | null }>;
   /** FD-191: the New session dialog's last choices, offered next time (null: not chosen yet). */
   newSession: { runtime: string | null; folder: string | null; bypass: boolean; isolated: boolean;
     /** FD-206: the machine the last one started on (null: this one) and its folder there. */

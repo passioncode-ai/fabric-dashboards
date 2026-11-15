@@ -35,6 +35,9 @@ export interface ControlDeps {
   elsewhere?: Elsewhere | null;
   /** FD-167: the job is a system daemon of this space: only root, through the host agent, starts or stops it. */
   systemDaemon?: boolean;
+  /** Wave 5b (FD-235 P3): a placement record exists but could not be read (unsafe or damaged): where the service belongs
+   *  is unknown, so start and restart are refused (a second copy is worse than one that waits); stop still acts. */
+  placementError?: string | null;
 }
 
 export type ControlOutcome =
@@ -46,6 +49,7 @@ export type ControlOutcome =
   | { kind: 'refused'; why: 'system-daemon' }
   /** FD-179: placed on another machine and its job is not loaded here: nothing of it runs on this machine to stop. */
   | { kind: 'refused'; why: 'not-here'; machine: string }
+  | { kind: 'refused'; why: 'placement-unreadable'; detail: string }
   | { kind: 'launchctl-failed'; detail: string }
   | { kind: 'stopped'; probe: WellKnownResult }
   | { kind: 'answered'; probe: Extract<WellKnownResult, { kind: 'answer' }>; pid: number }
@@ -67,6 +71,7 @@ export async function controlService(
   if (d.lifecycle.manager === 'launchd' && !supervises(deps.platform, d.lifecycle.manager)) return { kind: 'refused', why: 'unsupervised-here' };
   if (d.lifecycle.manager !== 'launchd' || !d.lifecycle.label || !d.lifecycle.plist) return { kind: 'refused', why: 'unmanaged' };
   if (action !== 'stop' && deps.elsewhere) return { kind: 'refused', why: 'placed-elsewhere', machine: deps.elsewhere.placedOn };
+  if (action !== 'stop' && deps.placementError) return { kind: 'refused', why: 'placement-unreadable', detail: deps.placementError };
   if (deps.systemDaemon) return { kind: 'refused', why: 'system-daemon' };
   const label = d.lifecycle.label;
   // FD-179: placed elsewhere, a stop acts on this machine's own job only. Not loaded: nothing here to stop, and an answer on

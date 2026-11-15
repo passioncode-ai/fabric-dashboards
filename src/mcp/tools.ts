@@ -67,6 +67,8 @@ export interface Deps {
   channelAddress?: (userData: string) => string;
   /** FD-110 part 3: where a relayed operator decision is recorded; the live one appends to decisions.jsonl beside the log. */
   recordDecision?: (row: Record<string, unknown>) => void;
+  /** Wave 5b (FD-235 P2): when this decision already served an act (tests stand in for decisions.jsonl). */
+  decisionUsed?: (d: { action: string; target: string | null; instruction: string; at: string }, now: number) => string | null;
   servicesDir: () => string;
   /** The health probe; a remote placement (DEC-0019) passes its token header in `options`. */
   wellKnown: (origin: string, options?: WellKnownOptions) => Promise<WellKnownResult>;
@@ -399,7 +401,10 @@ export async function rename(deps: Deps, key: string, name: string | null): Prom
 }
 // #endregion agent-names
 
-export async function listServices(deps: Deps, organizations?: string[]): Promise<{ services: ServiceView[]; services_dir: string }> {
+/** Wave 5b (FD-236 (2)): what each agent wrote about itself, in the answers that carry it; the console rules (CONSOLE_RULES) name these. */
+const VIEW_UNTRUSTED = ['name', 'reasons', 'tiles', 'problems', 'version', 'build', 'update_available', 'dashboard', 'origin'];
+
+export async function listServices(deps: Deps, organizations?: string[]): Promise<{ services: ServiceView[]; services_dir: string; untrusted: { fields: string[]; note: string } }> {
   const looks = await look(deps);
   const orgOf = organizationReader(deps);
   const of = listing(looks, deps.listLayout?.() ?? null, orgOf);
@@ -411,7 +416,7 @@ export async function listServices(deps: Deps, organizations?: string[]): Promis
   const owners = (organizations ?? []).map(canonicalOrgValue).filter((o) => o.startsWith(GITHUB_PREFIX));
   const keeps = (v: (typeof views)[number], i: number) => keepsOrganization(organizations!, v.organization, isShared(shared, v.key))
     || (owners.length > 0 && owners.includes(githubOwnerOf(looks[i]?.descriptor?.source?.repository)?.name ?? ''));
-  return { services: organizations?.length ? views.filter(keeps) : views, services_dir: deps.servicesDir() };
+  return { services: organizations?.length ? views.filter(keeps) : views, services_dir: deps.servicesDir(), untrusted: { fields: VIEW_UNTRUSTED.map((f) => `services[].${f}`), note: UNTRUSTED_NOTE } };
 }
 
 /** FD-162: each look's organization, from the map the app last read (organizations.json beside its settings). */
@@ -420,12 +425,12 @@ function organizationReader(deps: Deps): (l: ServiceLook) => Organization | null
   return (l) => organizationOfInstance(cache, { key: l.key, repository: l.descriptor?.source?.repository, placement: l.descriptor?.placement, origin: l.descriptor?.origin });
 }
 
-export async function serviceStatus(deps: Deps, key: string): Promise<ServiceView> {
+export async function serviceStatus(deps: Deps, key: string): Promise<ServiceView & { untrusted: { fields: string[]; note: string } }> {
   const looks = await look(deps);
   const one = looks.find((l) => l.key === key);
   if (!one) throw new ToolError(`no installed service ${JSON.stringify(key)}`);
   const orgOf = organizationReader(deps);
-  return view(one, listing(looks, deps.listLayout?.() ?? null, orgOf)(key), orgOf(one));
+  return { ...view(one, listing(looks, deps.listLayout?.() ?? null, orgOf)(key), orgOf(one)), untrusted: { fields: VIEW_UNTRUSTED, note: UNTRUSTED_NOTE } };
 }
 
 /** FD-78: what one agent is connected to, as its Connections tab shows it: who uses it, what it offers, what it uses
@@ -550,8 +555,10 @@ export async function control(deps: Deps, key: string, action: 'start' | 'stop' 
   const d = entry.descriptor;
   const before = d.placement === 'remote' ? null : await deps.wellKnown(d.origin);
   // FD-20: the sequence is src/core/control.ts's, shared with the app; here it becomes a result or a refusal.
+  const reader = deps.placement ? null : new PlacementReader();
   const out = await controlService(d, action, {
-    elsewhere: elsewhereOf(deps.placement ? deps.placement() : new PlacementReader().get(deps.now()), d),
+    elsewhere: elsewhereOf(deps.placement ? deps.placement() : reader!.get(deps.now()), d),
+    placementError: reader?.error ?? null,
     systemDaemon: isSystemJob(d, deps.daemons ?? new SpaceDaemonReader({ platform: deps.platform }), deps.now()),
     platform: deps.platform, launchd: deps.launchd, wellKnown: (origin) => deps.wellKnown(origin), exists: deps.exists,
     now: deps.now, sleep: deps.sleep, pollMs: 500,
@@ -567,6 +574,7 @@ export async function control(deps: Deps, key: string, action: 'start' | 'stop' 
       if (out.why === 'system-daemon') throw new ToolError(`${d.name} runs as a system service of this space, which only the administrator can start or stop; ask the host agent (studio.service.control)`);
       // FD-179: the job is not loaded here; what answers on its port is the placed copy, through a forward.
       if (out.why === 'not-here') throw new ToolError(`${d.name} runs on ${out.machine === 'unknown' ? 'another machine' : out.machine} and its job is not loaded here: nothing of it runs on this machine to stop. Stop it on the machine that runs it`);
+      if (out.why === 'placement-unreadable') throw new ToolError(`${d.name}: Observatory's placement record could not be read (${out.detail}), so where it belongs is unknown; it is not started here. Fix the record, then start again`);
       if (out.why === 'placed-elsewhere') throw new ToolError(`${d.name} is placed on ${out.machine === 'unknown' ? 'another machine' : out.machine}; starting it here would run a second copy. Move it in Observatory's placement first`);
       throw new ToolError(`${d.name} is not managed by launchd; it cannot be ${action}ed from here`);
     case 'launchctl-failed':
@@ -680,7 +688,7 @@ export async function setupCheck(deps: Deps): Promise<SetupCheckResult | (SetupC
 /** FD-81: the auditor over every installed agent, as the app's Agent map shows it: each finding with the agent
  *  to fix, its severity and the sentence the app shows (English), the declaring coverage, and the map's edges.
  *  Spending limits come from each agent's own usage report, read now. */
-export async function auditAll(deps: Deps): Promise<{ findings: (Finding & { name: string; text: string })[]; counts: Record<string, number>; coverage: { agents: number; declaring: number }; edges: EstateMap['edges']; missing: string[]; limitStops: Awaited<ReturnType<typeof limitStops>> }> {
+export async function auditAll(deps: Deps): Promise<{ findings: (Finding & { name: string; text: string })[]; counts: Record<string, number>; coverage: { agents: number; declaring: number }; edges: EstateMap['edges']; missing: string[]; limitStops: Awaited<ReturnType<typeof limitStops>>; untrusted: { fields: string[]; note: string } }> {
   const orgOf = organizationReader(deps);
   const looks = (await look(deps)).map((l) => ({ ...l, organization: orgOf(l) })); // FD-163: as the app reads them
   const spendEntries = await readSpend(looks, { token: deps.token, fetchUsage: deps.usage, now: deps.now });
@@ -693,6 +701,7 @@ export async function auditAll(deps: Deps): Promise<{ findings: (Finding & { nam
     counts: a.counts, coverage: a.coverage, edges: map.edges, missing: map.nodes.filter((n) => n.missing).map((n) => n.name),
     // FD-83: the Connections page lists these under the auditor; a read that fails says why, never an empty list.
     limitStops: await limitStops(deps).catch((error: Error) => ({ available: false, why: error.message, stops: [] })),
+    untrusted: { fields: ['findings[].name', 'findings[].text', 'findings[].reason', 'missing', 'limitStops'], note: UNTRUSTED_NOTE },
   };
 }
 
