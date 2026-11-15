@@ -216,3 +216,23 @@ test('FD-255 (security audit F3): a token goes to a loopback MCP server only whe
   setLoopbackOwnerCheck(async () => false);
   await assert.rejects(callCapability({ ...target, headers: {} }, 'relay.notify', {}, '0.8.88'), /HTTP 500/, 'no token, no check');
 });
+
+test('Wave 4 C-06: a message the channel refuses waits for its own retry; the one behind it still goes', async () => {
+  const fs = await import('node:fs');
+  const os = await import('node:os');
+  const path = await import('node:path');
+  const { OutageAlerts } = await import('../src/electron/outage-alerts');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'fd-c06-'));
+  const channel = { key: 'relay.default', state: 'ready' as const, descriptor: { origin: 'http://127.0.0.1:47832' } as never, wellKnown: { surfaces: { mcp: { path: '/mcp', transport: 'streamable-http' as const, capabilities: ['relay.notify'] } } } as never };
+  const lines: string[] = [];
+  const alerts = new OutageAlerts({ dataDir: dir, snapshots: () => [channel as never], settings: () => merge({}), words: () => words, nameOf: () => 'x', reasonOf: () => 'x', allowed: () => true, version: '0.0.0', log: (l) => lines.push(l), changed: () => undefined });
+  const sent: string[] = [];
+  let calls = 0;
+  (alerts as unknown as { deliver: (c: unknown, m: { eventId: string }) => Promise<void> }).deliver = async (_c, m) => { calls++; if (calls === 1) throw new Error('refused'); sent.push(m.eventId); };
+  alerts.ask('a.default', 'e1', { name: 'A', episode: 'ep-a', at: Date.now() - 2, text: 'first?', link: null });
+  alerts.ask('b.default', 'e2', { name: 'B', episode: 'ep-b', at: Date.now() - 1, text: 'second?', link: null });
+  await (alerts as unknown as { flush: () => Promise<void> }).flush();
+  alerts.stop();
+  assert.equal(calls, 2, 'the round went on after the refusal');
+  assert.equal(sent.length, 1, 'the second message was delivered');
+});

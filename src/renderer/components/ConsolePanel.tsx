@@ -162,6 +162,7 @@ export function ConsolePanel({ serviceKey, height, maxHeight, onHeight, onDrag, 
     const detail = r.detail ?? '';
     if (r.reason === 'terminal-only') setNotice({ text: t('console.terminalOnly', { name: r.project ?? '' }), terminalOnly: true });
     else if (r.reason === 'switchboard') setNotice({ text: t('console.sbError', { detail }) });
+    else if (r.reason === 'sb-unread') setNotice({ text: t('console.sbUnread', { group: r.project ?? '' }) }); // wave 4, C-02
     else if (r.reason === 'no-account') setNotice({ text: t('console.account.missing', { group: r.project ?? '' }) }); // FD-239
     else if (r.reason === 'spawn') setNotice({ text: t('console.spawnError', { detail }) });
     else if (r.reason === 'running') setNotice({ text: t('console.running') });
@@ -293,8 +294,8 @@ export function ConsolePanel({ serviceKey, height, maxHeight, onHeight, onDrag, 
     </span>
   ) : null;
   const accountChip = account ? (
-    <span className={`chip console-account${account.kind === 'missing' ? ' is-missing' : ''}`} title={account.kind === 'route' ? t('console.account.routeHint', { pool: account.pool }) : account.kind === 'ordinary' && account.reason === 'no-route' ? t('console.account.noRouteHint', { pool: account.pool }) : account.kind === 'missing' ? t('console.account.missing', { group: account.group }) : t('console.account.ordinaryHint')}>
-      {account.kind === 'route' ? account.label : account.kind === 'missing' ? t('console.account.none') : t('console.account.ordinary')}
+    <span className={`chip console-account${account.kind === 'missing' ? ' is-missing' : ''}`} title={account.kind === 'route' ? t('console.account.routeHint', { pool: account.pool }) : account.kind === 'ordinary' && account.reason === 'no-route' ? t('console.account.noRouteHint', { pool: account.pool }) : account.kind === 'missing' ? t('console.account.missing', { group: account.group }) : account.kind === 'unread' ? t('console.sbUnreadHint', { group: account.group }) : t('console.account.ordinaryHint')}>
+      {account.kind === 'route' ? account.label : account.kind === 'missing' ? t('console.account.none') : account.kind === 'unread' ? t('console.account.unread') : t('console.account.ordinary')}
     </span>
   ) : null;
 
