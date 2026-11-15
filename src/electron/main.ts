@@ -39,7 +39,7 @@ import { AgentNameStore, findGh, githubRepoOf, NAMES_EVERY_MS, NAMES_FIRST_MS, N
 import { authHeaders, fetchLoad, fetchUsage, readTokenAsync } from '../core/probe';
 import { callCapability } from '../core/mcp-client';
 import { OrganizationStore } from '../core/organization-store';
-import { ORGANIZATIONS_EVERY_MS, ORGANIZATIONS_FIRST_MS, OWN_REPOSITORY_OWNER } from '../core/organizations';
+import { knownOrganizations, ORGANIZATIONS_EVERY_MS, ORGANIZATIONS_FIRST_MS, OWN_REPOSITORY_OWNER } from '../core/organizations';
 import { limitsNeedingPerson, readSpend, type SpendEntry } from '../core/spend';
 import { attentionQueue, badgeText, nextNewsExpiry } from '../core/attention';
 import type { LimitView } from '@passioncode-ai/fabric-service-host/usage';
@@ -420,7 +420,7 @@ if (!app.requestSingleInstanceLock()) {
   const status = (): AppStatus => ({
     services: monitor.snapshots(), off: monitor.offServices(), ...monitor.meta(), unread: activity.unread(), activityRev: activity.revision, update: updater.state, estate: estate.state, version: app.getVersion(),
     alerts: alerts.status(), sessions: consoles.sessionsStatus(), analyticsAvailable: analytics.availability() !== 'unavailable-no-key',
-    limits: personLimits, ...(lastShown ? { shown: lastShown } : {}),
+    limits: personLimits, ...(lastShown ? { shown: lastShown } : {}), organizations: knownOrganizations(organizations.get()),
   });
 
   // #region quiet-push — docs: AGENTS.md#lifecycle

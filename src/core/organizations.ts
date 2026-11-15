@@ -8,6 +8,17 @@
  *  `personal`); the kind "Mine" (FD-195), which MCP `list_services` and a choice saved before FD-237 still read. */
 export interface Organization { name: string; label: string; personal?: boolean }
 
+/** Wave 6 (FD-248): an organization Observatory's config names, whether or not an agent here is attributed to it. */
+export interface KnownOrganization { name: string; label: string | null; personal?: boolean }
+
+/** Every organization the map names (its labels come from Observatory's config, so a configured one with no project is
+ *  here too), personal first, then by label. */
+export function knownOrganizations(cache: Pick<OrganizationsCache, 'organizations' | 'personal'>): KnownOrganization[] {
+  return Object.entries(cache.organizations ?? {})
+    .map(([name, label]) => ({ name, label: label || null, ...(cache.personal === name ? { personal: true } : {}) }))
+    .sort((a, b) => (a.personal ? -1 : b.personal ? 1 : (a.label ?? a.name).localeCompare(b.label ?? b.name)));
+}
+
 export interface OrganizationsCache {
   readAt: string | null;
   /** `owner/name` (lower case) of every repository Observatory knows -> its project's organization name. */
@@ -277,9 +288,9 @@ export function kindCounts(services: readonly { key: string; organization?: Orga
 
 /** The organizations among the services, with how many agents each has, by label; `''` (not attributed) last. Empty
  *  when no service carries an organization at all (no map was read). */
-export function organizationCounts(services: readonly OrgSubjectLike[], source: OrgSource = 'org'): { name: string; label: string | null; count: number; personal?: boolean }[] {
+export function organizationCounts(services: readonly OrgSubjectLike[], source: OrgSource = 'org', known: readonly KnownOrganization[] = []): { name: string; label: string | null; count: number; personal?: boolean }[] {
   const of = (s: OrgSubjectLike) => organizationBy(source, s);
-  if (source === 'org' && !services.some((s) => s.organization !== undefined)) return [];
+  if (source === 'org' && !services.some((s) => s.organization !== undefined) && known.length === 0) return [];
   if (source === 'github' && !services.some((s) => of(s))) return [];
   const by = new Map<string, { name: string; label: string | null; count: number; personal?: boolean }>();
   for (const s of services) {
@@ -289,6 +300,8 @@ export function organizationCounts(services: readonly OrgSubjectLike[], source: 
     row.count += 1;
     by.set(name, row);
   }
+  // Wave 6 (FD-248, SCN-113): an organization Observatory knows stays a row with no agent here, so none drops out.
+  if (source === 'org') for (const k of known) if (!by.has(k.name)) by.set(k.name, { name: k.name, label: k.label, count: 0, ...(k.personal ? { personal: true } : {}) });
   return [...by.values()].sort((a, b) => (a.name === '' ? 1 : b.name === '' ? -1 : (a.label ?? a.name).localeCompare(b.label ?? b.name)));
 }
 /**
