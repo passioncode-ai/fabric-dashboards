@@ -1,4 +1,5 @@
 import { offersAgentUpdate, offersFix } from '../../core/offers';
+import { elementsAbove } from '../layout-watch';
 import { createContext, useContext, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { PageState } from '../../core/api';
 import type { ActivityItem, ServiceSnapshot } from '../../core/types';
@@ -306,6 +307,8 @@ function DashboardHost({ s, link, nonce, hidden, applied, act, openLogs }: { s: 
     if (!el) return;
     const observer = new ResizeObserver(() => api().viewBounds(rect()));
     observer.observe(el);
+    // FD-274: what grows above the slot moves it without resizing it; the view follows (else it covers the task line).
+    for (const above of elementsAbove(el, document.body)) observer.observe(above);
     const onResize = () => api().viewBounds(rect());
     window.addEventListener('resize', onResize);
     return () => { observer.disconnect(); window.removeEventListener('resize', onResize); void api().hideView(owner); };
@@ -542,11 +545,15 @@ function ServiceActivity({ serviceKey, tick, openAt }: { serviceKey: string; tic
 function TaskLine({ name, onTask }: { name: string; onTask: (words: string) => void }) {
   const { t } = useT();
   const [words, setWords] = useState('');
-  const send = () => { const w = words.trim(); if (!w) return; onTask(w); setWords(''); };
+  const [empty, setEmpty] = useState(false);
+  const input = useRef<HTMLInputElement | null>(null);
+  // FD-274: the button is never grey without a word: pressed with nothing typed it says what it waits for.
+  const send = () => { const w = words.trim(); if (!w) { setEmpty(true); input.current?.focus(); return; } onTask(w); setWords(''); setEmpty(false); };
   return (
     <form className="svc-task" aria-label={t('task.label', { name })} onSubmit={(e) => { e.preventDefault(); send(); }}>
-      <input type="text" value={words} maxLength={8000} placeholder={t('task.placeholder', { name })} aria-label={t('task.label', { name })} onChange={(e) => setWords(e.target.value)} />
-      <button type="submit" className="btn btn-sm btn-primary" disabled={!words.trim()}>{t('task.send')}</button>
+      <input ref={input} type="text" value={words} maxLength={8000} placeholder={t('task.placeholder', { name })} aria-label={t('task.label', { name })} aria-describedby={empty ? 'svc-task-empty' : undefined} onChange={(e) => { setWords(e.target.value); setEmpty(false); }} />
+      <button type="submit" className="btn btn-sm btn-primary">{t('task.send')}</button>
+      {empty && <span id="svc-task-empty" className="meta" role="status">{t('task.empty')}</span>}
     </form>
   );
 }

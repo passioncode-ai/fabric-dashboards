@@ -2445,10 +2445,10 @@ The Sessions mode (0.8.0): every coding session apart from the agents, each stat
 - **Alt paths:** the start is refused (no folder, no account, the machine is short of room) -> the console says why, as for any start, and keeps the task for the next New session
 - **UI elements:** the task line (a text field with "Give {name} a task: what should it do?" and "Give the task")
 - **States covered:** empty, success, error
-- **Errors & recovery:** an empty line sends nothing; the person's words are not fenced or held as a service's text (FD-234 holds what a service wrote, not the person's order)
+- **Errors & recovery:** an empty line sends nothing, and Give the task pressed with nothing typed puts the cursor in the line and says "Type the task first, then press Give the task" (FD-274: the button is never grey without a word); the line stays clickable when something above it grows, because the embedded dashboard follows its slot (FD-274, `elementsAbove`); the person's words are not fenced or held as a service's text (FD-234 holds what a service wrote, not the person's order)
 - **Copy:**
   - "A task for {name}" / «Задача для агента {name}»; "Give {name} a task: what should it do?" / «Дайте задачу агенту {name}: что ему сделать?»; "Give the task" / «Дать задачу» (copy checks `9c41b463`, `84c500f3`, `aff51eb3`, `fb622bbf`, `b6e9a8e8`, `75bcc55a`, no findings)
-- **Status:** implemented (2026-11-14, 0.8.83: `test/handoff.test.ts` *FD-241*; walked on the built app: the task line, then the console's runtime given `task.md` beginning «# Task: from the operator for `Sample Service`»)
+- **Status:** implemented (2026-11-14, 0.8.83: `test/handoff.test.ts` *FD-241*; 2026-11-15, 0.8.119: `test/layout-watch.test.ts` *FD-274*; walked on the built app: the task line, then the console's runtime given `task.md` beginning «# Task: from the operator for `Sample Service`»)
 - **Coverage:** src/renderer/components/ServiceView.tsx (TaskLine), src/core/handoff.ts (askTask, jobOf), src/core/api.ts (ConsoleTask `ask`), src/electron/console.ts (taskOf)
 - **Product:** unobserved
 
