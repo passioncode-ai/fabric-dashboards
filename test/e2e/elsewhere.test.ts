@@ -18,7 +18,7 @@ async function closeApp(app: ElectronApplication | null): Promise<void> {
   if (!closed) app.process().kill('SIGKILL');
 }
 
-test('SCN-089: placed on the other machine reads as off there, never down; a copy running here anyway reads as a second copy', { timeout: 180_000 }, async () => {
+test('SCN-089: placed on the other machine reads as off there, never down; one reached here through its port reads with where it runs (FD-179)', { timeout: 180_000 }, async () => {
   const base = tmp('fd-e2e-elsewhere-');
   const services = path.join(base, 'services');
   fs.mkdirSync(services);
@@ -60,12 +60,13 @@ test('SCN-089: placed on the other machine reads as off there, never down; a cop
     assert.equal(await page.getByText('Not answering').count(), 0);
     await page.getByText('Placed on the other machine, studio-2').first().waitFor();
 
-    // Answering here although placed there: a second copy; Stop, never Restart.
+    // FD-179: answering here while this machine's own job for it is not loaded: the answer is the placed copy's,
+    // reached through its port, and reads with where it runs. (Two copies, one with its job running here, read as
+    // `duplicate` with Stop and no Restart: the state rule's vectors, test/elsewhere.test.ts.)
     await page.locator('.nav-item', { hasText: 'Sample Service' }).first().click();
-    await page.getByText('Placed on studio-2, yet a copy runs here too. Stop it here to keep one.').first().waitFor({ timeout: 30_000 });
-    if (await page.getByRole('button', { name: 'Show details' }).count()) await page.getByRole('button', { name: 'Show details' }).first().click();
-    await page.getByRole('button', { name: 'Stop', exact: true }).first().waitFor();
-    assert.equal(await page.getByRole('button', { name: 'Restart', exact: true }).count(), 0, 'Restart would keep the copy here');
+    await page.getByRole('button', { name: 'Show details' }).first().click({ timeout: 30_000 });
+    await page.locator('text=Runs on studio-2. This computer reaches it through its port, so what you see here is that copy. >> visible=true').first().waitFor({ timeout: 30_000 });
+    assert.equal(await page.getByText('Not answering').count(), 0);
   } finally {
     await closeApp(app);
     await stopProcess(sample);

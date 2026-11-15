@@ -105,10 +105,10 @@ test('SCN-070: Check setup lists what needs the person and hands the repair to t
     await page.getByRole('heading', { name: 'Setup', exact: true }).waitFor();
     const group = page.locator('section[aria-labelledby="g-setup"]');
     await group.getByRole('button', { name: 'Check setup' }).click();
-    await group.getByText(/Failing: 1 · Warnings: 1 · OK: 1 · checked at/).waitFor({ timeout: 30_000 });
+    await group.getByText(/Failing: 1 · Warnings: 1 · OK: 2 · checked at/).waitFor({ timeout: 30_000 });
     // FD-184 (SCN-100): the steps in the launcher's order, the first not done marked Next; the findings fold below.
     const steps = await group.locator('.setup-step').allInnerTexts();
-    assert.equal(steps.length, 5, JSON.stringify(steps));
+    assert.equal(steps.length, 6, JSON.stringify(steps)); // Fabric services is always a step (FD-208); the unknown area is Other
     assert.match(steps[0]!, /Prerequisites.*Done/s);
     assert.match(steps[2]!, /Apps.*Worth a look.*Next.*0\.17\.0 is out/s);
     assert.match(steps[3]!, /MCP servers.*To do.*points at a missing file/s);

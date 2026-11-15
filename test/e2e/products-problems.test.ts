@@ -37,7 +37,7 @@ test('SCN-033, SCN-034: two instances of one agent read as one, and the switch o
     assert.equal(entries.length, 1, `one sidebar entry for the product: ${JSON.stringify(entries)}`);
     await page.getByText('also:').first().waitFor();
     await page.locator('.nav-item', { hasText: 'Sample Service' }).first().click();
-    const sw = page.getByRole('navigation', { name: 'Connections of Sample Service' });
+    const sw = page.getByRole('navigation', { name: 'Where Sample Service runs' });
     await sw.waitFor({ timeout: 15_000 });
     await sw.getByText('preview').first().click();
     for (let i = 0; i < 40; i += 1) {

@@ -61,11 +61,11 @@ export function SetupCard({ onOpen, consoleOpen, onShown }: { onOpen: (mode: 'ne
       </section>
     );
   }
-  const item = (ok: boolean, key: string) => <li className={ok ? 'done' : ''}><span aria-hidden="true">{ok ? '✓' : '○'}</span> {t(key)}<span className="visually-hidden">{ok ? ' ✓' : ''}</span></li>;
+  const item = (ok: boolean, key: string) => <li className={ok ? 'done' : ''}><span aria-hidden="true">{ok ? '✓' : '·'}</span> {t(key)}<span className="visually-hidden">{ok ? ' ✓' : ''}</span></li>;
   return (
     <section className="notice info setup setup-agent" aria-labelledby="setup-agent-title">
       <h2 id="setup-agent-title">{t('setup.agent.title')}</h2>
-      <p>{done ? t('setup.agent.complete') : t('setup.agent.body')}</p>
+      <p>{done ? t('setup.agent.complete') : runtimes === 0 ? t('setup.agent.bodyNoRuntime') : t('setup.agent.body')}</p>
       <ul className="checklist">
         {item(state.mcp, 'setup.agent.mcp')}
         {item(state.skills, 'setup.agent.skills')}
@@ -260,7 +260,7 @@ export function Overview({ status, products, open, act, goSpend, agent, visit, o
       )}
       {visit?.since && (() => {
         const byKey = new Map(services.map((x) => [x.key, x]));
-        const names = (keys: string[]) => keys.map((k) => (byKey.get(k) ? nameOf(byKey.get(k)!) : k)).join(', ');
+        const names = (keys: string[]) => keys.map((k) => (byKey.get(k) ? nameOf(byKey.get(k)!) : visit.names?.[k] ?? k)).join(', ');
         const worked = visit.continueKeys.filter((k) => byKey.has(k));
         const updates = (visit.updates ?? []).filter((u) => byKey.has(u.key));
         const changed = visit.added.length + visit.removed.length + visit.alerts.length + updates.length > 0;
@@ -290,7 +290,7 @@ export function Overview({ status, products, open, act, goSpend, agent, visit, o
               <div className="row wrap">
                 <span className="meta">{t('visit.worked')}</span>
                 {worked.slice(0, 6).map((k) => (
-                  <button key={k} className="btn" aria-label={t('visit.continueWith', { name: nameOf(byKey.get(k)!) })} onClick={() => onContinue(k)}>{t('visit.continue')} · {nameOf(byKey.get(k)!)}</button>
+                  <button key={k} className="btn btn-sm" aria-label={t('visit.continueWith', { name: nameOf(byKey.get(k)!) })} onClick={() => onContinue(k)}>{t('visit.continue')} · {nameOf(byKey.get(k)!)}</button>
                 ))}
               </div>
             )}
@@ -379,8 +379,8 @@ function Card({ p, open }: { p: Product; open: (key: string) => void }) {
           ))}
         </div>
       )}
-      <div className="event">
-        {s.latestEvent ? <><span className="mono">{time(s.latestEvent.at)}</span> {s.latestEvent.text}</> : t('card.noEvent')}
+      <div className="event" title={s.latestEvent ? `${time(s.latestEvent.at)} ${s.latestEvent.text}` : undefined}>
+        {s.latestEvent ? <><span className="mono">{time(s.latestEvent.at)}</span> {s.latestEvent.text}</> : s.eventsRead === false && s.state === 'ready' ? t('card.readingEvents') : t('card.noEvent')}
       </div>
     </button>
   );
@@ -451,7 +451,10 @@ export const SETUP_RECHECK_MS = 60_000;
 
 /** Scenario walk 2026-11-11 (SCN-100 step 3): run `check` every `every` ms, never two at once (one still running
  *  skips the beat). Returns the stop. */
-export function recheckEvery(check: () => Promise<unknown>, every = SETUP_RECHECK_MS, timers: { set: typeof setInterval; clear: typeof clearInterval } = { set: setInterval, clear: clearInterval }): () => void {
+export function recheckEvery(check: () => Promise<unknown>, every = SETUP_RECHECK_MS, timers: { set: typeof setInterval; clear: typeof clearInterval } = {
+  // Wave 3 (found by SCN-058's e2e): bound wrappers, because `timers.set(...)` calls the browser's setInterval with
+  // `this` = the object, which throws "Illegal invocation" and blanked the window while the Setup agent worked.
+  set: ((fn: () => void, ms: number) => setInterval(fn, ms)) as typeof setInterval, clear: (id) => clearInterval(id) }): () => void {
   let inFlight = false;
   const id = timers.set(() => {
     if (inFlight) return;

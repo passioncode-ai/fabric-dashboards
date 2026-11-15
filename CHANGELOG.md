@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.8.104 - 2026-11-15
+
+### Fixed
+
+- The window no longer goes blank while the Setup console's coding agent works (a timer called the browser's
+  `setInterval` the wrong way since 0.8.52); the setup card and its Hide button stay on screen (FD-251).
+- An agent's State tab no longer shows "no spend" for good when it opened before the agent's spend report was read;
+  it reads again until the report is there, then every minute.
+
+### Changed
+
+- FD-266 (quality wave 3): starting and stopping read apart from stopped; a card says it is reading its activity
+  instead of "No activity yet"; agents removed since your last visit are named; smaller Continue buttons; the setup
+  card without a coding agent says what comes next; the page title no longer jumps under the open-agent strip.
+
 ## 0.8.103 - 2026-11-15
 
 ### Changed

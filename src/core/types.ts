@@ -33,6 +33,8 @@ export interface ServiceSnapshot {
   busy: Busy;
   lastAction: { action: string; ok: boolean; reason: Reason; at: string } | null;
   latestEvent: ServiceEvent | null;
+  /** Wave 3 (U-08): false until this run has read the agent's events feed once, so a card says it is reading. */
+  eventsRead?: boolean;
   feedError: Reason | null;
   /** The usage path the service's own last answer declared, kept while it does not answer (ADR-0013). */
   usagePath?: string | null;
@@ -75,6 +77,8 @@ export interface Settings {
   /** FD-39 SCN-059: the previous visit — when, which agents it saw, which one was selected last. */
   lastVisitAt: string | null;
   knownServices: string[];
+  /** Wave 3 (U-10): each known agent's name then, so one removed since is named, not shown as its key. */
+  knownNames: Record<string, string>;
   lastService: string | null;
   notifications: {
     enabled: boolean;
@@ -198,6 +202,7 @@ export const DEFAULT_SETTINGS: Settings = {
   setupChecked: false,
   lastVisitAt: null,
   knownServices: [],
+  knownNames: {},
   lastService: null,
   notifications: {
     enabled: true,

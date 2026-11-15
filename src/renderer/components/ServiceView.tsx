@@ -461,12 +461,21 @@ function Profile({ s }: { s: ServiceSnapshot }) {
   const { t } = useT();
   const [models, setModels] = useState<{ provider: string; model: string; costUsd: number | null; estimateUsd: number | null; estimatePartial?: boolean; route?: string; calls: number }[] | null>(null);
   useEffect(() => {
+    // Wave 3 (found by SCN-068's e2e): the first read can come before the agent's report was read, and a single read
+    // then showed "no spend" for good. Read again in 5 s while there is no report, then every minute (ADR-0014).
     let alive = true;
-    void api().spend().then((r) => {
-      const mine = r.entries.find((e) => e.key === s.key);
-      if (alive) setModels(mine && mine.kind === 'report' ? mine.summary.models.slice(0, 5) : []);
-    }).catch(() => alive && setModels([]));
-    return () => { alive = false; };
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const read = () => {
+      void api().spend().then((r) => {
+        if (!alive) return;
+        const mine = r.entries.find((e) => e.key === s.key);
+        const report = Boolean(mine && mine.kind === 'report');
+        setModels(mine && mine.kind === 'report' ? mine.summary.models.slice(0, 5) : []);
+        timer = setTimeout(read, report ? 60_000 : 5_000);
+      }).catch(() => { if (alive) { setModels([]); timer = setTimeout(read, 5_000); } });
+    };
+    read();
+    return () => { alive = false; if (timer) clearTimeout(timer); };
   }, [s.key]);
   // Scenario walk 2026-11-11 (SCN-068): read through the check, so a malformed answer shows no profile, not a blank window.
   const c = configurationOf(s.wellKnown);
@@ -530,7 +539,7 @@ function TaskLine({ name, onTask }: { name: string; onTask: (words: string) => v
   const [words, setWords] = useState('');
   const send = () => { const w = words.trim(); if (!w) return; onTask(w); setWords(''); };
   return (
-    <form className="svc-task" role="search" aria-label={t('task.label', { name })} onSubmit={(e) => { e.preventDefault(); send(); }}>
+    <form className="svc-task" aria-label={t('task.label', { name })} onSubmit={(e) => { e.preventDefault(); send(); }}>
       <input type="text" value={words} maxLength={8000} placeholder={t('task.placeholder', { name })} aria-label={t('task.label', { name })} onChange={(e) => setWords(e.target.value)} />
       <button type="submit" className="btn btn-sm btn-primary" disabled={!words.trim()}>{t('task.send')}</button>
     </form>

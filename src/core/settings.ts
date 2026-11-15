@@ -363,6 +363,7 @@ export function merge(raw: Partial<Settings>): Settings {
     setupChecked: raw.setupChecked === true,
     lastVisitAt: typeof raw.lastVisitAt === 'string' && !Number.isNaN(Date.parse(raw.lastVisitAt)) ? raw.lastVisitAt : null,
     knownServices: Array.isArray(raw.knownServices) ? [...new Set(raw.knownServices.filter((k): k is string => typeof k === 'string' && SERVICE_KEY.test(k)))].slice(0, 500) : [],
+    knownNames: knownNamesOf(raw.knownNames),
     lastService: typeof raw.lastService === 'string' && SERVICE_KEY.test(raw.lastService) ? raw.lastService : null,
     notifications: {
       enabled: typeof n.enabled === 'boolean' ? n.enabled : true,
@@ -384,4 +385,14 @@ export function merge(raw: Partial<Settings>): Settings {
     sessionsNoteSeen: raw.sessionsNoteSeen === true,
     estate: mergeEstate(raw.estate),
   };
+}
+
+/** Wave 3 (U-10): agent names kept for the next visit, by valid key, each at most 80 characters, at most 500. */
+function knownNamesOf(raw: unknown): Record<string, string> {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
+  const out: Record<string, string> = {};
+  for (const [k, v] of Object.entries(raw as Record<string, unknown>).slice(0, 500)) {
+    if (SERVICE_KEY.test(k) && typeof v === 'string' && v.trim()) out[k] = v.trim().slice(0, 80);
+  }
+  return out;
 }
