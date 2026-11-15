@@ -779,7 +779,7 @@ div.session-group-head h2 { margin: 0; }
 .sessions { container-type: inline-size; container-name: sessions; }
 .session-table { display: none; margin-bottom: var(--pc-space-3); table-layout: fixed; }
 .session-table .c-state { width: 19%; } .session-table .c-project { width: 15%; } .session-table .c-agent { width: 10%; }
-.session-table .c-account { width: 10%; } .session-table .c-origin { width: 13%; } .session-table .c-time { width: 7%; } .session-table .c-actions { width: 26%; }
+.session-table .c-account { width: 10%; } .session-table.no-account .c-project { width: 25%; } .session-table .c-origin { width: 13%; } .session-table .c-time { width: 7%; } .session-table .c-actions { width: 26%; }
 /* A name is cut with an ellipsis (its full text in the title); a state or how it came wraps, never cut mid-phrase. */
 .session-table th[scope='row'], .session-table td:nth-child(4) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .session-table .row-actions { flex-wrap: nowrap; }

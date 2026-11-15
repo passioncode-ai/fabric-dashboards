@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.8.122 - 2026-11-15
+
+### Fixed
+
+- The details above an agent's page named its version twice (in the line of facts and in the list FD-273 added); the
+  list now leaves it to the line. The State tab no longer repeats who installed the agent and its organization while the
+  details above it are shown.
+- All sessions' table said "Running, started by hand" beside its own "How it came" column; it now says "Running". The
+  Account column shows only when a listed session has an account.
+
+### Changed
+
+- The application menu is built by `src/electron/app-menu.ts` (`appMenuTemplate`), out of the main process's closure,
+  and covered by `test/app-menu.test.ts`; the menu itself is unchanged.
+
 ## 0.8.121 - 2026-11-15
 
 ### Changed

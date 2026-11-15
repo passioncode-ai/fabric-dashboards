@@ -12,6 +12,7 @@ import { SessionsNav } from '../src/renderer/components/Navigation';
 import { LangContext } from '../src/renderer/lib';
 import { filterActive, filterRows, machineGroups, machineStatusWords, NO_FILTER, originKey, searchRows, type SessionFilter } from '../src/core/sessions-view';
 import { setWording } from '../src/core/i18n';
+import { stateWords, tableStateWords } from '../src/core/sessions-view';
 import { merge } from '../src/core/settings';
 import { DEFAULT_SETTINGS } from '../src/core/types';
 import type { RemoteMachineStatus, SessionRow, SessionsStatus } from '../src/core/sessions';
@@ -44,6 +45,20 @@ test('FD-247 step 6: filters let through only the chosen values; an empty dimens
   assert.equal(filterActive(NO_FILTER), false);
   assert.equal(filterActive(NO_FILTER, '  '), false);
   assert.equal(filterActive(NO_FILTER, 'docs'), true);
+});
+
+test('UI wave 7: the table says a hand-started session is Running (its origin has its own column), and drops Account when no row has one', () => {
+  const hand = srow({ id: 'h', state: 'running-unmanaged', folder: '/work/notes', account: null });
+  const quiet = srow({ id: 'q', state: 'running-unmanaged', folder: '/work/quiet', account: null, quietMinutes: 42 } as Partial<SessionRow>);
+  assert.equal(tableStateWords('en', hand), 'Running');
+  assert.equal(stateWords('en', hand), 'Running, started by hand', 'the cards keep the full words');
+  assert.match(tableStateWords('en', quiet), /42 min/);
+  const html = page(status({ rows: [hand, quiet], machines: [] }));
+  assert.match(html, /<table class="session-table no-account">/);
+  assert.doesNotMatch(html, /<th scope="col">Account<\/th>/);
+  assert.doesNotMatch(html, /c-account/);
+  const css = fs.readFileSync(path.join(import.meta.dirname, '..', 'src/renderer/styles/app.css'), 'utf8');
+  assert.match(css, /\.session-table\.no-account \.c-project \{ width: 25%; \}/);
 });
 
 test('FD-247 step 6: every word of a search, in any case, in the project, folder, account, agent or machine', () => {

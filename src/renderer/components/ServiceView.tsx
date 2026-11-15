@@ -262,7 +262,7 @@ export function ServiceView({ s, all, members, open, link, nonce, tab: askedTab,
         {tab === 'activity' && <div className="pane">{dispatches && dispatches.length > 0 && <Dispatches lines={dispatches} onSession={onSession} />}<ServiceActivity serviceKey={s.key} tick={`${activityRev ?? ''}|${s.latestEvent?.id ?? ''}`} openAt={(k, l) => open(k, l)} /></div>}
         {tab === 'connections' && <div className="pane"><Connections s={s} all={all} open={(key) => open(key, undefined, 'connections')} /></div>}
         {tab === 'load' && tabs.includes('load') && <div className="pane"><Load s={s} /></div>}
-        {tab === 'health' && <div className="pane"><Health s={s} output={output} /></div>}
+        {tab === 'health' && <div className="pane"><Health s={s} output={output} detailsShown={cardShown} /></div>}
         {tab === 'logs' && <div className="pane"><Logs serviceKey={s.key} /></div>}
         </PaneBoundary>
       </div>
@@ -433,7 +433,7 @@ function FocusFallbackBar({ s }: { s: ServiceSnapshot }) {
   );
 }
 
-function Health({ s, output }: { s: ServiceSnapshot; output: { title: string; text: string; running: 'doctor' | 'update' | null } | null }) {
+function Health({ s, output, detailsShown = false }: { s: ServiceSnapshot; output: { title: string; text: string; running: 'doctor' | 'update' | null } | null; detailsShown?: boolean }) {
   const { t, lang } = useT();
   const wk = s.wellKnown;
   return (
@@ -445,8 +445,9 @@ function Health({ s, output }: { s: ServiceSnapshot; output: { title: string; te
       {wk && wk.degraded.length > 0 && <ul>{wk.degraded.map((d) => <li key={d.source}><b>{d.source}</b>: {d.reason}</li>)}</ul>}
       <dl className="kv">
         <dt>{t('health.descriptor')}</dt><dd>{s.descriptorPath}</dd>
-        {(() => { const w = installedByWords(s.descriptor); return w && <><dt>{t('health.installedBy')}</dt><dd>{t(w.code, w.params)}</dd></>; })()}
-        {s.organization !== undefined && <><dt>{t('health.organization')}</dt><dd>{s.organization ? s.organization.label : t('orgs.none')}</dd></>}
+        {/* UI wave 7: the details above name who installed it and its organization (FD-273); while they are shown, not twice. */}
+        {!detailsShown && (() => { const w = installedByWords(s.descriptor); return w && <><dt>{t('health.installedBy')}</dt><dd>{t(w.code, w.params)}</dd></>; })()}
+        {!detailsShown && s.organization !== undefined && <><dt>{t('health.organization')}</dt><dd>{s.organization ? s.organization.label : t('orgs.none')}</dd></>}
         {s.descriptor && <><dt>{t('health.origin')}</dt><dd>{s.descriptor.origin}</dd></>}
         {s.descriptor?.lifecycle.label && <><dt>{t('health.launchd')}</dt><dd>{s.descriptor.lifecycle.label}{s.launchd.pid ? ` · ${t('health.pid')} ${s.launchd.pid}` : ''}{s.launchd.disabled ? ` · ${t('health.disabled')}` : ''}</dd></>}
         {wk && <><dt>{t('health.started')}</dt><dd>{new Date(wk.process.startedAt).toLocaleString(lang)}</dd></>}

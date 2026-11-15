@@ -194,6 +194,13 @@ export function stateWords(lang: Lang, r: SessionRow, o: { autoContinue?: boolea
   }
 }
 
+/** UI wave 7: the table's State column beside its own "How it came" column: a running session started by hand is
+ *  "Running" there, so the origin is not said twice on one row. */
+export function tableStateWords(lang: Lang, r: SessionRow, o: { autoContinue?: boolean } = {}): string {
+  if (r.state === 'running-unmanaged' && r.quietMinutes === undefined) return t(lang, 'sessions.state.running-ours');
+  return stateWords(lang, r, o);
+}
+
 /** FD-231: a row's name, its folder's last name; a process whose folder Switchboard could not read says so. */
 export const projectName = (lang: Lang, r: Pick<SessionRow, 'project'>): string => r.project || t(lang, 'sessions.folderUnknown');
 

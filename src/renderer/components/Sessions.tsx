@@ -5,7 +5,7 @@ import { remoteRefusal } from '../../core/remote-words';
 import { useEffect, useRef, useState } from 'react';
 import type { AppStatus } from '../../core/types';
 import type { SessionActionResult, SessionRow } from '../../core/sessions';
-import { agentName, chainFacts, clock, contextChip, continueLabel, filterActive, filterRows, groupRows, machineGroups, machineStatusWords, NO_FILTER, originChip, originKey, projectName, revealLabel, searchRows, secondLine, stateShort, stateWords, type SessionFilter } from '../../core/sessions-view';
+import { agentName, chainFacts, clock, contextChip, continueLabel, filterActive, filterRows, groupRows, machineGroups, machineStatusWords, NO_FILTER, originChip, originKey, projectName, revealLabel, searchRows, secondLine, stateShort, stateWords, tableStateWords, type SessionFilter } from '../../core/sessions-view';
 import { GROUP_ORDER } from '../../core/sessions';
 import { api, useT } from '../lib';
 import { SESSION_MARK, SessionMark } from './Navigation';
@@ -165,6 +165,8 @@ export function AllSessions({ sessions, noteSeen, onNoteSeen, onSetUp, endedOpen
   // FD-247 (step 6): machines are headings only once another machine is read or named; one Mac reads as before.
   const byMachine = machineGroups(rows, machines);
   const several = machines.length > 0 || all.some((r) => r.machine);
+  // UI wave 7: the Account column only when a shown row has an account (sessions started by hand have none).
+  const withAccount = rows.some((r) => Boolean(r.account));
   const filtering = filterActive(filter, query);
   const toggle = <K extends keyof SessionFilter>(k: K, v: SessionFilter[K][number]) => {
     const list = filter[k] as readonly string[];
@@ -195,23 +197,23 @@ export function AllSessions({ sessions, noteSeen, onNoteSeen, onSetUp, endedOpen
         {!folded && <ul className="session-cards">{inGroup.map((r) => <SessionCard key={r.id} row={r} stale={stale} autoContinue={sessions?.autoContinue !== false} open={open} askEnd={askEnd} continued={continued} />)}</ul>}
         {/* FD-247 (step 6): on a wide window the same rows as a table; the cards above show below that width (CSS). */}
         {!folded && (
-          <table className="session-table">
+          <table className={`session-table${withAccount ? '' : ' no-account'}`}>
             <caption className="visually-hidden">{heading}</caption>
             {/* Fixed widths, so the columns of one machine's groups line up; the machine is its section's heading. */}
-            <colgroup><col className="c-state" /><col className="c-project" /><col className="c-agent" /><col className="c-account" /><col className="c-origin" /><col className="c-time" /><col className="c-actions" /></colgroup>
+            <colgroup><col className="c-state" /><col className="c-project" /><col className="c-agent" />{withAccount && <col className="c-account" />}<col className="c-origin" /><col className="c-time" /><col className="c-actions" /></colgroup>
             <thead><tr>
               <th scope="col">{t('sessions.filter.state')}</th><th scope="col">{t('sessions.col.project')}</th>
-              <th scope="col">{t('sessions.col.agent')}</th><th scope="col">{t('sessions.col.account')}</th><th scope="col">{t('sessions.filter.origin')}</th>
+              <th scope="col">{t('sessions.col.agent')}</th>{withAccount && <th scope="col">{t('sessions.col.account')}</th>}<th scope="col">{t('sessions.filter.origin')}</th>
               <th scope="col">{t('sessions.col.time')}</th><th scope="col">{t('sessions.col.actions')}</th>
             </tr></thead>
             <tbody>{inGroup.map((r) => {
               const when = r.group === 'ended' ? (r.endedAt ?? r.at) : (r.startedAt ?? r.at);
               return (
                 <tr key={r.id} className={`sg-${r.group}${stale ? ' session-stale' : ''}`}>
-                  <td><span className={`state ${SESSION_MARK[r.group].cls}`}><SessionMark group={r.group} /> {stateWords(lang, r, { autoContinue: sessions?.autoContinue !== false })}</span></td>
+                  <td><span className={`state ${SESSION_MARK[r.group].cls}`}><SessionMark group={r.group} /> {tableStateWords(lang, r, { autoContinue: sessions?.autoContinue !== false })}</span></td>
                   <th scope="row" title={projectName(lang, r)}><button className="linkish session-title" onClick={() => open(r.id)}>{projectName(lang, r)}</button></th>
                   <td>{agentName(r.agent)}</td>
-                  <td title={r.account ?? undefined}>{r.account ?? ''}</td>
+                  {withAccount && <td title={r.account ?? undefined}>{r.account ?? ''}</td>}
                   <td>{t(`sessions.origin.${originKey(r)}`)}</td>
                   <td className="num">{when ? clock(lang, when) : ''}</td>
                   <td><SessionActions row={r} place="card" open={open} askEnd={askEnd} continued={continued} /></td>

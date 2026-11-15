@@ -44,7 +44,7 @@ test('FD-273: an agent runs here, on another machine the placement record names,
   } finally { setWording(was); }
 });
 
-test('FD-273: the details card reads where, organization, sign-in, repository, version, installer, date and copies, in that order', () => {
+test('FD-273: the details card reads where, organization, sign-in, repository, installer, date and copies, in that order', () => {
   const was = setWording('mac');
   try {
     const s = svc('p.default', {
@@ -53,8 +53,8 @@ test('FD-273: the details card reads where, organization, sign-in, repository, v
     });
     const copy = svc('p.cloud', { placement: 'remote', origin: 'https://p.acme.workers.dev' });
     const facts = agentFacts(s, [s, copy]);
-    assert.deepEqual(facts.map((f) => f.label), ['facts.where', 'health.organization', 'facts.entry', 'facts.repository', 'health.version', 'health.installedBy', 'facts.installedAt', 'facts.copies']);
-    assert.deepEqual(facts.map((f) => say('en', f.value)).slice(0, 5), ['On this Mac', 'Acme', 'the app signs you in', 'acme/prowl', '1.4.0']);
+    assert.deepEqual(facts.map((f) => f.label), ['facts.where', 'health.organization', 'facts.entry', 'facts.repository', 'health.installedBy', 'facts.installedAt', 'facts.copies']);
+    assert.deepEqual(facts.map((f) => say('en', f.value)).slice(0, 4), ['On this Mac', 'Acme', 'the app signs you in', 'acme/prowl']);
     assert.equal(say('ru', facts.at(-1)!.value), 'Ещё: 1, в других местах');
   } finally { setWording(was); }
 });
