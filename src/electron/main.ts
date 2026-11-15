@@ -273,7 +273,7 @@ if (!app.requestSingleInstanceLock()) {
     bundle: bundleText ? readBundle(bundleText) : null, appVersion: app.getVersion(), packaged: app.isPackaged && process.env.CI !== 'true',
     osName: osNameOf(process.platform), osVersion: process.getSystemVersion(), locale: app.getLocale(), engineVersion: process.versions.electron,
     installationFile: installationPath(process.platform, process.env, os.homedir()), stateFile: path.join(userData, 'analytics-state.json'),
-    enabled: () => analyticsMaySend(settings.peek()), fetch: (url, init) => fetch(url, init), log: (line) => log(JSON.stringify(line)),
+    enabled: () => analyticsMaySend(settings.peek()), personSetOn: () => settings.peek().analyticsSetOn, fetch: (url, init) => fetch(url, init), log: (line) => log(JSON.stringify(line)),
   });
   const analyticsCounts = (): Record<string, number> => {
     const all = monitor.snapshots();
@@ -429,7 +429,7 @@ if (!app.requestSingleInstanceLock()) {
   let hiddenSince: number | null = Date.now(); // the app starts with nothing on screen (a login start stays hidden)
   const status = (): AppStatus => ({
     services: monitor.snapshots(), off: monitor.offServices(), ...monitor.meta(), unread: activity.unread(), activityRev: activity.revision, update: updater.state, estate: estate.state, version: app.getVersion(),
-    alerts: alerts.status(), sessions: consoles.sessionsStatus(), analyticsAvailable: analytics.availability() !== 'unavailable-no-key',
+    alerts: alerts.status(), sessions: consoles.sessionsStatus(), analyticsAvailable: analytics.availability() !== 'unavailable-no-key', analyticsHold: analytics.hold(settings.peek().analytics),
     limits: personLimits, ...(lastShown ? { shown: lastShown } : {}), organizations: knownOrganizations(organizations.get()),
   });
 

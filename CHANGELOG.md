@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.8.126 - 2026-11-16
+
+### Changed
+
+- FD-272 (contract DEC-0157 UD-2, UD-4): an earlier no is kept. Before this app first sends, a shared `analytics: false`
+  in `PassionCode/installation.json` (an earlier choice for the PassionCode apps on this computer) keeps its usage data
+  off: nothing is sent, the notice says it is off and where to turn it on, and Settings shows the switch off with why.
+  Turning it on there, or by an agent through MCP `settings` on the operator's word, sends from this app alone and never
+  writes the shared file. A shared file that cannot be read before the first send holds that run, and Settings says on
+  but not sending, with *Share from this app*. After the first send only this app's own switch governs it, as before.
+
 ## 0.8.125 - 2026-11-15
 
 ### Fixed

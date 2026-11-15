@@ -144,9 +144,14 @@ export function Settings({ status, onTheme, onLanguage, onSetup, section, nonce 
         <h2 id="g-privacy">{t('settings.privacy')}</h2>
         {/* FD-136 (SCN-091): this product's own switch for anonymous usage and error data, on by default. */}
         <label className="setting">{t('settings.analytics')}
-          <input type="checkbox" role="switch" className="switch" aria-describedby="analytics-body-setting" checked={value.analytics} onChange={(e) => void save({ analytics: e.target.checked })} />
+          <input type="checkbox" role="switch" className="switch" aria-describedby="analytics-body-setting" checked={value.analytics && status.analyticsHold !== 'earlier-no'} onChange={(e) => void save({ analytics: e.target.checked })} />
         </label>
         <p className="meta" id="analytics-body-setting">{t(status.analyticsAvailable ? 'settings.analytics.body' : 'settings.analytics.unavailable')}</p>
+        {/* DEC-0157 UD-2: why the switch does not send now, and how to send from this app. */}
+        {status.analyticsAvailable && status.analyticsHold === 'earlier-no' && <p className="meta">{t('settings.analytics.earlierNo')}</p>}
+        {status.analyticsAvailable && status.analyticsHold === 'held' && value.analytics && (
+          <p className="meta row wrap">{t('settings.analytics.held')} <button className="btn btn-sm" onClick={() => void save({ analytics: true })}>{t('settings.analytics.sendAnyway')}</button></p>
+        )}
       </section>
 
       <BugsSection />

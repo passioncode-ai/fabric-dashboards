@@ -96,7 +96,10 @@ export function environmentFor(version: string, packaged: boolean, debug: boolea
   return packaged && !debug && !/^\d+\.\d+\.\d+-/.test(version) ? 'production' : 'sandbox';
 }
 
-export interface AnalyticsState { installedAt?: string; lastActiveDay?: string; version?: string }
+/** DEC-0157 UD-2: `sent`, the first send (or, for an install that sent before this rule, the stand-in run) happened, so
+ *  from then only this product's own switch governs it; `earlierNo`, when a shared `analytics: false` was read before it,
+ *  which keeps this product off until the person sets its own switch on. */
+export interface AnalyticsState { installedAt?: string; lastActiveDay?: string; version?: string; sent?: true; earlierNo?: string }
 export type FetchLike = (url: string, init: { method: string; headers: Record<string, string>; body: string; signal?: AbortSignal }) => Promise<{ status: number }>;
 
 export interface AnalyticsDeps {
@@ -111,6 +114,9 @@ export interface AnalyticsDeps {
   stateFile: string;
   /** This product's own switch (Settings), read on every event: on by default. */
   enabled: () => boolean;
+  /** DEC-0157 UD-2: the person set this product's own switch on (in Settings, or an agent on the operator's word, UD-4);
+   *  it ends an earlier no and an unreadable shared file's hold for this product. */
+  personSetOn?: () => boolean;
   fetch: FetchLike;
   now?: () => Date;
   setTimer?: (fn: () => void, ms: number) => unknown;
@@ -118,7 +124,18 @@ export interface AnalyticsDeps {
   log?: (line: Record<string, unknown>) => void;
 }
 
-export type AnalyticsAvailability = 'on' | 'off' | 'unavailable-no-key';
+/** `earlier-no`: a shared off read before the first send keeps it off (UD-2); `held`: the shared file exists but cannot
+ *  be read before the first send, so this run sends nothing and the next start reads it again (UD-2). */
+export type AnalyticsAvailability = 'on' | 'off' | 'unavailable-no-key' | 'earlier-no' | 'held';
+
+/** DEC-0157 UD-2: what the shared file says now: absent, unreadable (a read error or not its shape), or its `analytics`. */
+export function readSharedAnswer(file: string): 'absent' | 'unreadable' | { analytics: boolean | null } {
+  let text: string;
+  try { text = readFileSync(file, 'utf8'); } catch (e) { return (e as NodeJS.ErrnoException).code === 'ENOENT' ? 'absent' : 'unreadable'; }
+  const p = parseInstallation(text);
+  if (!p) return 'unreadable';
+  return { analytics: typeof p.analytics === 'boolean' ? p.analytics : null };
+}
 
 const OS_NAMES: Record<string, string> = { darwin: 'macOS', win32: 'Windows', linux: 'Linux' };
 export const osNameOf = (platform: NodeJS.Platform): string => OS_NAMES[platform] ?? String(platform).slice(0, 20);
@@ -142,7 +159,29 @@ export function createAnalytics(deps: AnalyticsDeps) {
   let flushing = false;
   const errorsSeen = new Set<string>();
 
-  const availability = (): AnalyticsAvailability => (!deps.bundle ? 'unavailable-no-key' : deps.enabled() ? 'on' : 'off');
+  // DEC-0157 UD-2: the shared file is read once a run, before the first send (or at the stand-in run); never written here.
+  let shared: ReturnType<typeof readSharedAnswer> | undefined;
+  let standIn: boolean | undefined;
+  const gate = (): AnalyticsAvailability => {
+    if (deps.personSetOn?.()) return 'on';
+    const state = readState();
+    if (state.earlierNo) return 'earlier-no';
+    if (state.sent) return 'on';
+    shared ??= readSharedAnswer(deps.installationFile);
+    if (shared === 'unreadable') return 'held';
+    if (shared !== 'absent' && shared.analytics === false) {
+      writeState({ ...state, earlierNo: now().toISOString() });
+      queue = []; // what it collected before it read the earlier no is dropped (UD-2)
+      log({ event: 'analytics.earlier_no' });
+      return 'earlier-no';
+    }
+    // An install that sent before this rule (counted in an earlier run): this run, which read the file, stands in for the
+    // first send. Judged on the state as this run found it, before this run counts anything.
+    standIn ??= Boolean(state.installedAt);
+    if (standIn) writeState({ ...state, sent: true });
+    return 'on';
+  };
+  const availability = (): AnalyticsAvailability => (!deps.bundle ? 'unavailable-no-key' : !deps.enabled() ? 'off' : gate());
   const readState = (): AnalyticsState => {
     try { const v = JSON.parse(readFileSync(deps.stateFile, 'utf8')); return v && typeof v === 'object' ? v as AnalyticsState : {}; } catch { return {}; }
   };
@@ -199,6 +238,7 @@ export function createAnalytics(deps: AnalyticsDeps) {
         if (status >= 200 && status < 300) {
           queue = queue.slice(batch.length); retry = 0;
           log({ event: 'analytics.flush', outcome: 'sent', count: batch.length });
+          if (!readState().sent) writeState({ ...readState(), sent: true }); // UD-2: from now its own switch alone governs it
           continue;
         }
         if (status === 0 || status === 429 || status >= 500) {
@@ -216,6 +256,13 @@ export function createAnalytics(deps: AnalyticsDeps) {
 
   return {
     availability,
+    /** DEC-0157 UD-2: why the switch, while on, does not send: read whether or not the notice was shown, so the notice
+     *  itself can say an earlier no keeps it off. Null when it sends, is off, or this build has no key. */
+    hold(switchOn: boolean): 'earlier-no' | 'held' | null {
+      if (!deps.bundle || !switchOn) return null;
+      const g = gate();
+      return g === 'earlier-no' || g === 'held' ? g : null;
+    },
     track,
     flush,
     /** Every start: `app_installed` once, `app_updated` when the version changed, then `app_started`. */
