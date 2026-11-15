@@ -41,7 +41,7 @@ export type DrawerChange = { kind: 'hide' } | { kind: 'height'; height: number }
 
 /** Where a link, a notification, the tray or the menu sends the window. FD-103: `agents` opens the Agents mode on its
  *  last page; `sessions` the Sessions mode on its last page, on All sessions with key `all`, or on one row by its id. */
-export interface NavTarget { page: 'service' | 'activity' | 'overview' | 'spend' | 'map' | 'settings' | 'agents' | 'sessions'; key?: string; link?: string }
+export interface NavTarget { page: 'service' | 'activity' | 'overview' | 'spend' | 'machine' | 'map' | 'settings' | 'agents' | 'sessions'; key?: string; link?: string }
 
 export interface Rect { x: number; y: number; width: number; height: number }
 

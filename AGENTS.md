@@ -44,7 +44,7 @@
 Fabric Dashboards: a macOS desktop app (Electron) that finds every local agent service speaking
 `fabric-service/0.1`, shows whether it is alive and what it did last, starts, stops and restarts
 it through launchd and opens each service's dashboard inside the app. Fabric's monitoring tool;
-also works on its own. The current version is 0.8.117 (`package.json`, `CHANGELOG.md`); the README
+also works on its own. The current version is 0.8.118 (`package.json`, `CHANGELOG.md`); the README
 *Quick start for a new teammate* is the path for a new user. Licence:
 `AGPL-3.0-only OR LicenseRef-PassionCode-Commercial` ([ADR-0007](docs/adr/0007-agpl-or-commercial.md)).
 
@@ -201,7 +201,7 @@ due probe or rescan — no fixed 1-second poll — and one for the events feed:
 | Status push to the window / tray rebuild / Dock badge | only when what a person can see changed | no IPC to a hidden window; tray and badge only when they would differ |
 | Activity writes | appended rows when events arrive; state debounced 2 s | same |
 | Update check (LC-16 in detail, ADR-0015 amendment: the pinned `update-feed.json` of the latest release, then that release's signed `SHA256SUMS`, its zip and the app's signature verified before Squirrel stages it) | 90 s after start, then every **5 minutes** (operator 2026-10-17), a failed check retried after 5 minutes; a quiet check is logged once per state; the release's static feed, never the GitHub API; while the `auto-update` file says `off`, the feed alone is read and a newer version is announced once per version («Fabric Dashboards {version} is out», a notification and an Update line, FD-143), downloaded and installed only when the person presses Update; none outside Applications (`misplaced`); a release with `needsPerson` is verified and held; a ready update whose staged files have gone from disk is downloaded and staged again before it is offered or installed (FD-75) | same; a downloaded update asks once per version «Restart to finish updating» (a notification) and installs after 10 hidden minutes (ADR-0015) |
-| Usage reports (`surfaces.usage`, ADR-0013) | read now when Spend opens and on Refresh; every 60 s while Spend or Overview is shown (one read serves both for 30 s, ADR-0014) | none, except a first read when nothing has been read yet — then the main process answers the last sums without reading |
+| Usage reports (`surfaces.usage`, ADR-0013) | read now when Spend or This Mac opens and on Refresh; every 60 s while Spend, This Mac (FD-52) or Overview is shown (one read serves both for 30 s, ADR-0014) | none, except a first read when nothing has been read yet — then the main process answers the last sums without reading |
 | Load reports (`extensions/load/0.1`, ADR-0024) | one agent's, read when its Load tab opens and on Refresh; every 60 s while the tab is shown | none, except a first read of that agent when nothing has been read yet; then the main process answers its last read |
 
 **Idle budget**, hidden, per hour, for *L* local launchd services and *R* online ones — counted on a

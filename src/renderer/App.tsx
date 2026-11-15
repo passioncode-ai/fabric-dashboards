@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { MachinePage } from './components/MachinePage';
 import { langFor, t as tr, type Lang } from '../core/i18n';
 import { DEFAULT_SETTINGS, SIDEBAR_WIDTH, type AppStatus, type Settings as AppSettings, type SettingsPatch, type ListSort } from '../core/types';
 import { filterServices } from '../core/organizations';
@@ -28,7 +29,7 @@ import { api, Icon, LangContext, nameOf, Spinner, useT } from './lib';
 
 /** FD-103: `sessions` is All sessions; `session` one session's page, `follow` a console key a Continue started (the row
  *  it becomes is followed), `until` how long a row that is not listed yet is waited for. */
-type Route = { page: 'overview' } | { page: 'activity'; serviceKey?: string; nonce?: number } | { page: 'spend' } | { page: 'map' } | { page: 'settings'; section?: 'sessions'; nonce?: number }
+type Route = { page: 'overview' } | { page: 'activity'; serviceKey?: string; nonce?: number } | { page: 'spend' } | { page: 'machine' } | { page: 'map' } | { page: 'settings'; section?: 'sessions'; nonce?: number }
   | { page: 'service'; key: string; link?: string; nonce?: number; tab?: 'logs' | 'health' | 'connections' }
   | { page: 'sessions' } | { page: 'session'; id: string; follow?: string; until?: number };
 
@@ -94,7 +95,7 @@ export function App() {
         else if (target.key) setRoute({ page: 'session', id: target.key, until: Date.now() + SESSION_WAIT_MS });
         else switchMode('sessions');
       } else if (target.page === 'overview') setRoute({ page: 'overview' });
-      else if (target.page === 'spend' || target.page === 'map' || target.page === 'settings') setRoute({ page: target.page });
+      else if (target.page === 'spend' || target.page === 'machine' || target.page === 'map' || target.page === 'settings') setRoute({ page: target.page });
       else if (target.page === 'activity') {
         if (target.key) setActivityFilter((f) => ({ ...f, serviceKey: target.key! }));
         setRoute({ page: 'activity', serviceKey: target.key, nonce: Date.now() });
@@ -412,7 +413,7 @@ function Shell({ status: everyAgent, route, setRoute, mode, switchMode, stopKey,
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }), []);
   // #endregion console-drawer
-  const agentsPage: AgentsPage = route.page === 'overview' || route.page === 'activity' || route.page === 'map' || route.page === 'spend' || route.page === 'service' || route.page === 'settings' ? route.page : 'other';
+  const agentsPage: AgentsPage = route.page === 'overview' || route.page === 'activity' || route.page === 'map' || route.page === 'spend' || route.page === 'machine' || route.page === 'service' || route.page === 'settings' ? route.page : 'other';
 
   const sessionsRows = status.sessions?.rows ?? [];
   // VIS-05: Esc then Tab leaves the terminal: forward to the sidebar's first control, back to the header's last action.
@@ -511,7 +512,7 @@ function Shell({ status: everyAgent, route, setRoute, mode, switchMode, stopKey,
             <div className="page-wrap">
             <div className="page">
               <div className="page-head" data-drawer-top="">
-                <h1>{t(route.page === 'activity' ? 'activity.title' : route.page === 'spend' ? 'spend.title' : route.page === 'map' ? 'map.title' : route.page === 'settings' ? 'settings.title' : route.page === 'sessions' ? 'sessions.all' : 'overview.title')}</h1>
+                <h1>{t(route.page === 'activity' ? 'activity.title' : route.page === 'spend' ? 'spend.title' : route.page === 'machine' ? 'machine.title' : route.page === 'map' ? 'map.title' : route.page === 'settings' ? 'settings.title' : route.page === 'sessions' ? 'sessions.all' : 'overview.title')}</h1>
                 {route.page === 'overview' && count > 0 && <span className="meta">{count === 1 ? t('overview.count.one') : t('overview.count', { count })}</span>}
                 {(route.page === 'overview' || route.page === 'sessions') && <span className="spacer" />}
                 {route.page === 'overview' && <button className="btn btn-sm" onClick={() => setNewSession('agent')}>{t('newAgent.button')}</button>}
@@ -521,6 +522,7 @@ function Shell({ status: everyAgent, route, setRoute, mode, switchMode, stopKey,
               {route.page === 'overview' && <Overview status={status} products={products} open={open} act={act} agent={handToAgent} onSetup={() => openSetup('new')} setupCard={setupCard} visit={visit} onDismissVisit={() => setVisit(null)} onContinue={continueWith} goSpend={() => setRoute({ page: 'spend' })} list={layout.list} onHiddenOpen={(o) => changeLayout({ list: { hiddenOpen: o } })} />}
               {route.page === 'activity' && <Activity status={status} openAt={open} filter={activityFilter} setFilter={setActivityFilter} />}
               {route.page === 'spend' && <Spend status={status} onOpen={(key) => open(key)} />}
+              {route.page === 'machine' && <MachinePage status={status} labels={layout.list.orgLabels} onOpen={(key) => open(key)} />}
               {route.page === 'map' && <ConnectionsMap status={status} every={orgs.length ? everyAgent.services : undefined} open={(key) => open(key, undefined, 'connections')} onAgent={handToAgent} />}
               {route.page === 'settings' && <Settings status={status} onTheme={onTheme} onLanguage={onLanguage} onSetup={() => openSetup('new')} section={route.section} nonce={route.nonce} />}
               {route.page === 'sessions' && <AllSessions sessions={status.sessions} noteSeen={noteSeen} onNoteSeen={onNoteSeen} onSetUp={() => setRoute({ page: 'settings', section: 'sessions', nonce: Date.now() })}

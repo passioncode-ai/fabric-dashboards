@@ -746,6 +746,13 @@ input.switch:focus-visible { outline: 2px solid var(--pc-focus); outline-offset:
 .org-settings th[scope='row'] { display: flex; align-items: center; gap: var(--pc-space-2); font-weight: 400; }
 .org-settings .org-label { min-width: 0; width: 22ch; }
 .org-settings td { width: 1%; white-space: nowrap; }
+/* FD-52 (SCN-116): This computer's totals and one section per context. */
+.machine-totals { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: var(--pc-space-3); margin: var(--pc-space-3) 0; }
+.machine-total { display: grid; gap: var(--pc-space-1); padding: var(--pc-space-3); background: var(--pc-panel); border: 1px solid var(--pc-border); border-radius: var(--pc-radius-panel); }
+.machine-total strong { font-size: var(--pc-type-section); font-variant-numeric: tabular-nums; }
+.machine-context { margin-top: var(--pc-space-5); }
+.machine-context h2 { display: flex; align-items: center; gap: var(--pc-space-2); font-size: var(--pc-type-card); margin: 0 0 var(--pc-space-1); }
+.machine-agents { list-style: none; margin: var(--pc-space-2) 0 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: var(--pc-space-1) var(--pc-space-4); }
 .org-join { display: grid; gap: var(--pc-space-2); justify-items: start; margin-top: var(--pc-space-4); }
 .org-join input { width: min(52ch, 100%); }
 

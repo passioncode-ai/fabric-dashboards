@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.8.118 - 2026-11-15
+
+### Added
+
+- FD-52: This Mac (after Spend) sums what this computer gives each context: agents, how many run and need attention,
+  and what they spent today, per organization (the personal one first, then by label, then "Context not reported"),
+  each agent one press from its page. Agents read the same with MCP `this_machine`. Contexts come from Observatory's map
+  until Fabric reports each agent's own; no agent reports people yet.
+
 ## 0.8.117 - 2026-11-15
 
 ### Added
