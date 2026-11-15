@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.8.109 - 2026-11-15
+
+### Fixed
+
+- FD-247: a session of its own that ran on another machine keeps Continue once it ends; the app no longer looks for
+  its folder on this Mac and calls it gone.
+
 ## 0.8.108 - 2026-11-15
 
 ### Security
