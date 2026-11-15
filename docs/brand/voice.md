@@ -16,7 +16,7 @@ These invariants are checked or reviewed on every string in `src/core/i18n.ts` a
 4. **The plain fact first, the identifier after it.** A person reads "Its install file is broken: … Reinstall the
    agent." An identifier the agent's owner needs (a rule such as FAC-SEM-133, a decision such as DEC-0021, an
    extension URL) trails the sentence in parentheses. Protocol words (descriptor, fabric-service/0.1, well-known
-   document, launchd job, pid) stay out of a state chip, a reason line and an empty state; the Health tab's detail
+   document, launchd job, pid) stay out of a state chip, a reason line and an empty state; the State tab's detail
    list may name them.
 5. **A button says its result.** "Run self-check", "Continue last session", "Reload page", never a bare noun.
 6. **Name the platform the app runs on.** "this Mac" and System Settings only where the app runs on macOS; "this

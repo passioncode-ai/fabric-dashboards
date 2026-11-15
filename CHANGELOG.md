@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.8.103 - 2026-11-15
+
+### Changed
+
+- FD-265 (quality wave 2): the words follow the brand pack. An agent's Health tab is named State, «скилы» are
+  «навыки (skills)», the coding agent is named in full in Russian, "another copy" replaces "connection" where it meant
+  a second place of the same agent, and the first person, a broken case and a few English-only meanings are fixed.
+  Sentences that named Terminal on every platform say "a terminal window" outside macOS. Agent tool descriptions
+  name the buttons the app really has.
+
 ## 0.8.102 - 2026-11-15
 
 ### Fixed

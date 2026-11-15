@@ -126,7 +126,7 @@ test('FD-93: the Load tab shows the queue and its limits, by context; a wrong de
     // that exists, never an empty pane.
     writerDeclares = false;
     await page.getByRole('tab', { name: 'Load' }).waitFor({ state: 'detached', timeout: 30_000 });
-    await page.getByRole('tab', { name: 'Health', selected: true }).waitFor({ timeout: 10_000 });
+    await page.getByRole('tab', { name: 'State', selected: true }).waitFor({ timeout: 10_000 });
     writerDeclares = true;
 
     await openAgent('Reader');

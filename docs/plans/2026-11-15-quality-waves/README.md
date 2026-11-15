@@ -13,7 +13,7 @@ through the copy checks, a release, and its rows closed in `docs/backlog.md`.
 |---|---|---|---|
 | 0 | Bug tracker on our analytics: journal, fingerprint in `app_error`, Settings, MCP `bugs` and `bug_report` | FD-263 | done 0.8.101 |
 | 1 | What a person sees as wrong now: the pool refusal's text, the stale "six", Russian grammar, English left in Russian; the agent header hiding tabs; the task line's edges; the ⋯ over the place icons; colour-only place states; the New session dialog not inert | T-01, T-02, T-03, T-10, U-01, U-02, U-03, U-04, U-06; C-01, C-03, C-04, C-05, C-07, C-08, P-07 (FD-264) | done 0.8.102 |
-| 2 | Glossary and copy: «навыки», "State", «агент для кода», "another copy", MCP descriptions, first person, cases, meaning parity, platform wording | T-04 to T-09, T-11 to T-16 | |
+| 2 | Glossary and copy: «навыки», "State", «агент для кода», "another copy", MCP descriptions, first person, cases, meaning parity, platform wording | T-04 to T-09, T-11 to T-16 (FD-265) | done 0.8.103 |
 | 3 | Interface polish: starting against stopped, the title jump, reading states, tooltips, names of removed agents, type sizes, the task line's role, the setup card without a coding agent, Clear with undo | U-05, U-07 to U-14 | |
 | 4 | Performance and correctness findings (P, C) by severity | P-01 to P-09, C-02, C-06, C-09 | next after wave 2 and 3 |
 | 5 | Backlog truth: close or restate rows whose state is stale (FD-239, FD-240, FD-249, FD-252, FD-261 and the rest of the 52), re-verify the blocked ones, answer issues #294 and #26 with their state | backlog | |

@@ -677,7 +677,7 @@ export async function setupCheck(deps: Deps): Promise<SetupCheckResult | (SetupC
   return { ...r, ...setupSteps(r.report), setup: setupView([{ layer: 'computer', owner: LAUNCHER_OWNER }], [computer]) };
 }
 
-/** FD-81: the auditor over every installed agent, as the app's Connections map shows it: each finding with the agent
+/** FD-81: the auditor over every installed agent, as the app's Agent map shows it: each finding with the agent
  *  to fix, its severity and the sentence the app shows (English), the declaring coverage, and the map's edges.
  *  Spending limits come from each agent's own usage report, read now. */
 export async function auditAll(deps: Deps): Promise<{ findings: (Finding & { name: string; text: string })[]; counts: Record<string, number>; coverage: { agents: number; declaring: number }; edges: EstateMap['edges']; missing: string[]; limitStops: Awaited<ReturnType<typeof limitStops>> }> {
@@ -775,7 +775,7 @@ async function askChannel(deps: Deps, request: { op: ChannelOp; service?: string
 
 /** ADR-0025 (FD-120): start a console session, or a fix in one, in the running app. */
 export async function consoleChannel(deps: Deps, request: { op: ChannelOp; service: string; task?: { kind: 'fix' | 'audit' | 'ask'; output: string }; mode?: 'continue' }): Promise<{ started: true; console: string } | Record<string, unknown>> {
-  // FD-182: the Setup console (Start setup, and Fix with my coding agent after Check setup) is no installed service.
+  // FD-182: the Setup console (Set up with my coding agent, and Fix with my coding agent after Check setup) is no installed service.
   if (request.service !== SETUP_KEY) find(deps, request.service);
   const answer = await askChannel(deps, request, 'app-not-running: Fabric Dashboards is not running, so no console can start; open it and call again');
   if (!answer.ok) throw new ToolError(`${answer.code}${answer.detail ? `: ${answer.detail}` : ''}`, { started: false, code: answer.code });

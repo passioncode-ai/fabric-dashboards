@@ -14,7 +14,7 @@ this app (ADR-0022 for agents and services).
 | coding agent | агент для кода | the program the console starts (Claude Code, Codex and others) | runtime, Runner, «кодинг-агент», «агент» alone |
 | fallback order, level | порядок запасных, уровень | Switchboard's chain: the coding agents that continue work, in turn, when one reaches its limit (Settings → Coding agents, FD-117) | fallback chain, executor, «цепочка», «фоллбек» (in the interface) |
 | runs on (what an agent's own model calls run on) | работает на | the runner an agent reports (DEC-0046), in the profile block and in Connections | «Агент для кода» for it |
-| install file | файл установки | the descriptor in the services folder, as a person reads it | descriptor, «дескриптор» (outside the Health details) |
+| install file | файл установки | the descriptor in the services folder, as a person reads it | descriptor, «дескриптор» (outside the State tab's details) |
 | services folder | папка сервисов | the folder descriptors are installed into (a path, not a category) | |
 | spend report | отчёт о расходах | an agent's own report of calls, tokens and cost | usage report (in the interface; the contract and MCP machine sentences keep the contract's own word) |
 | spend | расходы | the topic: what agents spent (the page, a profile line, a limit's name) | «траты» |
@@ -23,6 +23,10 @@ this app (ADR-0022 for agents and services).
 | job | задача | one piece of work an agent runs, which a per-job limit caps (`per_job`) | order, «заказ» (it reads as a purchase) |
 | transcript | запись разговора | a coding agent's own file of a session's turns, shown in the file manager (FD-124) | «транскрипт», «лог» |
 | self-check | проверка | an agent's `doctor` command | Doctor, «Диагностика» |
+| State (an agent's tab) | Состояние | how an agent runs: its state, install file, what it runs on (the parent pack's D-T3) | Health, «здоровье» |
+| skills | навыки | installable instructions for coding agents; first use on a page «навыки (skills)» (the parent pack's D-T6) | «скилы», «скиллы» |
+| package (sshlg-skills) | пакет | what npm installs | family, «семейство» |
+| another copy (of an agent) | другая копия | the same agent running in another place or organization | connection, «подключение» (that is the Connections tab) |
 
 ## States
 
