@@ -14,6 +14,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { ActivityStore } from '../core/activity';
 import { parseWindows, sightOf, windowNumberOf, WINDOW_LIST_JXA, type Sight } from '../core/occlusion';
+import { appMenuTemplate } from './app-menu';
 import { CHANNELS, type DrawerChange, type DrawerState, type LayoutCommand, type NavTarget, type Rect } from '../core/api';
 import { sessionNotification } from '../core/sessions-notice';
 import { consoleRowId } from '../core/sessions';
@@ -55,7 +56,7 @@ import { ALWAYS_KEPT, cancelStagedUpdate, clearRestoreRecord, KEPT_FILES, produc
 import { autoInstallNow, autoInstallWait, cookieRewrite, inSight, LINK_FRONT_CHECK_MS, linkLeftBehind, moveSkip, OCCLUSION_PROBE_MS, offerMove, onScreen, resumeBehind, COOKIES_REENCRYPTED_MARKER, HiddenGrace, partitionFor, RELAUNCH_MARKER, relaunchHidden, RESUME_ROUTE_MARKER, resumeRoute, type ResumeRoute, stalePartitions, tryMove, UPDATE_IDLE_MS, VIEW_RELEASE_ALL_MS, VIEW_RELEASE_GRACE_MS, VISIBILITY_SYNC_MS, VisibilitySync, WARM_VIEWS } from './policy';
 import { AppTray } from './tray';
 import { DockSync } from './dock';
-import { linkInArgv, menuKeys, modeMenuItems, notificationSettingsUrl, places, startHidden, uninstallCommand, uninstallTarget, windowChrome } from '../core/platform';
+import { linkInArgv, notificationSettingsUrl, places, startHidden, uninstallCommand, uninstallTarget, windowChrome } from '../core/platform';
 import { EstateUpdater } from './estate-updater';
 import { readSetupState } from '../core/setup';
 import { Updater } from './updater';
@@ -1151,41 +1152,10 @@ if (!app.requestSingleInstanceLock()) {
   }
 
   function appMenu(): void {
-    const l = lang();
-    const keys = menuKeys(process.platform);
-    // FD-37: the app menu and the Command key are macOS's; elsewhere a File menu holds updates and Quit.
-    const quit: Electron.MenuItemConstructorOptions = { label: t(l, 'menu.quit'), accelerator: keys.quit, click: () => void quitAsked() };
-    const checkUpdates: Electron.MenuItemConstructorOptions = { label: t(l, 'menu.checkUpdates'), click: () => updater.check(true) };
-    Menu.setApplicationMenu(Menu.buildFromTemplate([
-      keys.appMenu
-        ? { role: 'appMenu', submenu: [
-          { role: 'about' }, checkUpdates,
-          { type: 'separator' }, { role: 'hide' }, { role: 'hideOthers' }, { role: 'unhide' }, { type: 'separator' }, quit,
-        ] }
-        : { label: t(l, 'menu.file'), submenu: [checkUpdates, { type: 'separator' }, quit] },
-      { role: 'editMenu' },
-      // ADR-0017: the panels fold away from the menu too; the window holds the state (Settings.layout).
-      { label: t(l, 'menu.view'), submenu: [
-        // FD-103 (SCN-077): ⌘1 Agents, ⌘2 Sessions (Ctrl elsewhere).
-        ...modeMenuItems(process.platform, (key) => t(l, key)).map((m) => ({ id: m.id, label: m.label, accelerator: m.accelerator, click: () => navigate({ page: m.page }) })),
-        { type: 'separator' },
-        { id: 'reload-page', label: t(l, 'menu.reload'), accelerator: keys.reload, click: () => reloadCommand(false) },
-        { id: 'reload-hard', label: t(l, 'menu.hardReload'), accelerator: keys.hardReload, click: () => reloadCommand(true) },
-        { type: 'separator' },
-        { label: t(l, 'menu.toggleSidebar'), accelerator: keys.sidebar, click: () => layoutCommand('sidebar') },
-        { label: t(l, 'menu.toggleConsole'), accelerator: keys.console, click: () => layoutCommand('console') },
-        { label: t(l, 'menu.toggleDetails'), accelerator: keys.details, click: () => layoutCommand('details') },
-        // FD-220: an agent's dashboard fills the window, and back.
-        { label: t(l, 'menu.focus'), accelerator: keys.focus, click: () => layoutCommand('focus') },
-        // FD-227 (SCN-105): the open agents' strip from the keyboard.
-        { type: 'separator' },
-        { label: t(l, 'menu.nextAgent'), accelerator: keys.nextAgent, click: () => layoutCommand('next-agent') },
-        { label: t(l, 'menu.previousAgent'), accelerator: keys.previousAgent, click: () => layoutCommand('previous-agent') },
-        { label: t(l, 'menu.closeAgent'), accelerator: keys.closeAgent, click: () => layoutCommand('close-agent') },
-      ] },
-      { role: 'windowMenu' },
-      ...(keys.appMenu ? [] : [{ role: 'help' as const, submenu: [{ role: 'about' as const }] }]),
-    ]));
+    Menu.setApplicationMenu(Menu.buildFromTemplate(appMenuTemplate(process.platform, lang(), {
+      quit: () => void quitAsked(), checkUpdates: () => updater.check(true), page: (page) => navigate({ page }),
+      reload: reloadCommand, layout: layoutCommand,
+    })));
   }
 
   // A link opened while the app runs reaches the first instance as an argument (and through

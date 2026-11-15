@@ -83,7 +83,7 @@ export function agentFacts(s: ServiceSnapshot, copies: readonly ServiceSnapshot[
   if (dash) out.push({ label: 'facts.entry', value: { code: dash.login ? 'facts.entry.login' : 'facts.entry.open', params: {} } });
   const repo = repositoryKey(s.descriptor?.source?.repository);
   if (repo) out.push({ label: 'facts.repository', value: { code: 'facts.text', params: { value: repo } } });
-  if (s.wellKnown) out.push({ label: 'health.version', value: { code: 'facts.text', params: { value: s.wellKnown.service.version } } });
+  // The version is in the card's line of facts above this list (version, build, pid, port, uptime), not here again.
   const by = installedByWords(s.descriptor);
   if (by) out.push({ label: 'health.installedBy', value: by });
   if (s.descriptor?.installedAt && !Number.isNaN(Date.parse(s.descriptor.installedAt))) {
