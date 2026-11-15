@@ -32,7 +32,7 @@ test('SCN-103: an agent placed elsewhere with no checkout here gets the folder i
 
 test('SCN-066: the idle continue is said only when it ran, happens once per idle close, and never in a folded drawer', () => {
   const panel = read('src/renderer/components/ConsolePanel.tsx');
-  assert.match(panel, /if \(r\?\.ok\) setNotice\(\{ text: t\('console\.idle\.resumed'/, 'a refused continue keeps its own sentence');
+  assert.match(panel, /if \(r\?\.ok\) setNotice\(\{ text: t\(info\.idle\?\.why === 'stuck' \? 'console\.stuck\.resumed' : 'console\.idle\.resumed'/, 'a refused continue keeps its own sentence (FD-275: a stuck close says so)');
   assert.match(panel, /resumed\.current = `\$\{serviceKey\}@\$\{info\.idle\.at\}`/, 'keyed on the idle close, not the agent');
   assert.match(panel, /if \(page \|\| !active \|\|/, 'not while the drawer is folded');
   assert.match(read('src/renderer/DrawerApp.tsx'), /active=\{push\.shown !== false\}/);

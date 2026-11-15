@@ -30,6 +30,7 @@ import { askArgsOfProvider, bypassArgs, bypassArgsOfProvider, detectRuntimes, KN
 import type { SettingsStore } from '../core/settings';
 import { accountsOf, allSessionsOf, bindingFor, machineSessionsOf, findSwitchboard, handoverOwnKey, handoverRunArgv, handoversOf, handoversSwitch, isHandoverKey, launchFeatures, sbFailure, sessionsIn, startAccount, terminalLaunchArgv, type Binding, type SbAccounts, type SbHandover, type SbSessions, type StartAccount } from '../core/switchboard';
 import type { ServiceSnapshot, Settings } from '../core/types';
+import { claudeConfigDirs, lastTranscriptWrite, STUCK_MS, stuckKeys } from '../core/stuck';
 import { claimStop, claudeSessionDirs, folderLive, liveSessionFolders, liveSessionIds, continuedLaunches, continuedOf, finishStop, liveAgents, recoveryOf, resumeArgs, resumeOwnKey, sessionOpen, transcriptIn, transcriptOf, verdictOf, writtenAt, RESUME_SETTLE_MS, RESUMES_PER_PASS, type RecoveryStatus, type SbStop, type StopView } from '../core/recovery';
 import { parseTargets, remoteAttachArgv, remoteEndArgv, RemoteSessions } from '../core/remote-sessions';
 import { attachOwnKey, consoleRowId, dropRemoteTwins, machineTerminalKey, handoverRowId, SAME_START_MS, mergeSessions, pruneDismissed, pruneRecords, SourceReader, stopRowId, type ConsoleInput, type PendingHandover, type SbMachineProcess, type SbSessionRecord, type SessionActionResult, type SessionReason, type SessionRecord, type SessionNotice, type SessionOrigin, type SessionRow, type SessionsStatus, type SourceDegraded, type SourceResult } from '../core/sessions';
@@ -238,7 +239,7 @@ export class ConsoleHost {
     this.manager.on('data', (e: { key: string; data: string; end: number }) => this.send({ key: e.key, kind: 'data', data: e.data, end: e.end }));
     // FD-50 (LC-18): an idle session is saved and closed, checked once a minute; nothing else wakes.
     const idleMs = o.idleMs ?? IDLE_CLOSE_MS;
-    if (idleMs > 0) setInterval(() => void this.closeIdle(idleMs), 60_000).unref();
+    if (idleMs > 0) setInterval(() => void this.closeIdle(idleMs).then(() => this.closeStuck()), 60_000).unref();
     this.restoreKept();
     this.manager.on('exit', (e: { key: string; code: number | null; signal: number | null }) => {
       this.o.log(`console: ${e.key} exited with ${e.code}${e.signal ? ` (signal ${e.signal})` : ''}`);
@@ -753,19 +754,32 @@ export class ConsoleHost {
    *  holds neither memory nor MCP servers; opening the console again continues it. */
   async closeIdle(idleMs: number, now = Date.now()): Promise<string[]> {
     const keys = this.manager.idleKeys(idleMs, now);
-    for (const key of keys) {
-      let account: string | null = null;
-      try {
-        const listed = await this.sessions(key);
-        if ('sessions' in listed) account = listed.sessions.find((x) => x.state === 'running')?.movedTo ?? listed.sessions.find((x) => x.state === 'running')?.label ?? null;
-      } catch { /* the account is a nicety; the close is not */ }
-      const entry = this.o.settings.get().consoles[key] ?? { runtime: null, folder: null };
-      this.o.settings.update({ consoles: { [key]: { ...entry, idle: { at: new Date(now).toISOString(), account } } } });
-      this.endReasons.set(key, 'idle');
-      await this.endConsole(key);
-      this.o.log(`console: ${key} closed after ${Math.round(idleMs / 60_000)} idle minutes (LC-18); opening it again continues it`);
-    }
+    for (const key of keys) await this.closeSaved(key, now, null, `closed after ${Math.round(idleMs / 60_000)} idle minutes (LC-18)`);
     return keys;
+  }
+
+  /** FD-275 (the duty officer's `stuck`): a Claude Code console busy with no transcript write for 45 minutes is closed and
+   *  saved as an idle one is; opening it continues the conversation. Checked on the idle close's minute. */
+  async closeStuck(now = Date.now(), stuckMs = STUCK_MS): Promise<string[]> {
+    const consoles = this.o.settings.get().consoles;
+    const dirs = claudeConfigDirs(this.o.home ?? os.homedir());
+    const running = this.manager.runningKeys().map((key) => { const s = this.manager.snapshot(key); return { key, runtime: consoles[key]?.runtime ?? null, cwd: s.cwd, startedAt: s.startedAt }; });
+    const keys = stuckKeys(running, (cwd) => lastTranscriptWrite(cwd, dirs), now, stuckMs);
+    for (const key of keys) await this.closeSaved(key, now, 'stuck', `closed: busy with no transcript write for ${Math.round(stuckMs / 60_000)} minutes (FD-275)`);
+    return keys;
+  }
+
+  private async closeSaved(key: string, now: number, why: 'stuck' | null, said: string): Promise<void> {
+    let account: string | null = null;
+    try {
+      const listed = await this.sessions(key);
+      if ('sessions' in listed) account = listed.sessions.find((x) => x.state === 'running')?.movedTo ?? listed.sessions.find((x) => x.state === 'running')?.label ?? null;
+    } catch { /* the account is a nicety; the close is not */ }
+    const entry = this.o.settings.get().consoles[key] ?? { runtime: null, folder: null };
+    this.o.settings.update({ consoles: { [key]: { ...entry, idle: { at: new Date(now).toISOString(), account, ...(why ? { why } : {}) } } } });
+    this.endReasons.set(key, 'idle');
+    await this.endConsole(key);
+    this.o.log(`console: ${key} ${said}; opening it again continues it`);
   }
 
   /** FD-43: the sessions Switchboard launched in this console's folder, and where each runs now (FD-51).

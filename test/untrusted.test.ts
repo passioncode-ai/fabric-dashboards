@@ -435,3 +435,39 @@ test('Wave 5b (FD-236 (7)): a held conversation keeps the hold on its Continue a
   assert.ok((await host.start('runner.dev', 'new', { cols: 80, rows: 24 })).ok);
   assert.equal(settings.get().consoles['runner.dev']?.held, undefined, 'a new session with a clean context drops the hold');
 });
+
+test('FD-275: a Claude Code console busy 45 minutes with no transcript write is closed and saved as stuck; a fresh one is not', POSIX, async () => {
+  const base = tmp('fd-275-');
+  const bin = path.join(base, 'bin');
+  const folder = path.join(base, 'work');
+  fs.mkdirSync(bin); fs.mkdirSync(folder);
+  fs.writeFileSync(path.join(bin, 'claude'), '#!/bin/sh\n', { mode: 0o755 });
+  const settings = new SettingsStore(path.join(base, 'data'));
+  settings.update({ consoles: { 'runner.dev': { runtime: 'claude-code', folder, idle: null } } });
+  const logs: string[] = [];
+  const kills: number[] = [];
+  const host = new ConsoleHost({
+    settings, snapshot: () => snap(), activity: () => [], window: () => null, visible: () => false, log: (l) => logs.push(l),
+    testDirs: [bin], scriptsDir: path.join(base, 'scripts'), packRoot: path.join(base, 'packs'), mcpServer: () => ({ command: '/app/mcp', args: [] }),
+    run: async () => ({ code: 1, stdout: '', stderr: '' }),
+    spawn: () => ({ pid: 2_350_000_000, onData: () => ({ dispose() {} }), onExit: () => ({ dispose() {} }), write() {}, resize() {}, kill() {} }),
+    killGroup: (pid: number) => { kills.push(pid); }, idleMs: 0,
+    machine: async () => ({ freeDisk: 50 * 1024 ** 3, swap: null, running: 0 }),
+    home: base,
+  } as never);
+  assert.ok((await host.start('runner.dev', 'new', { cols: 80, rows: 24 })).ok);
+  const transcripts = path.join(base, '.claude', 'projects', folder.replace(/[^A-Za-z0-9]/g, '-'));
+  fs.mkdirSync(transcripts, { recursive: true });
+  const t = path.join(transcripts, 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee.jsonl');
+  fs.writeFileSync(t, '{}');
+  const now = Date.now() + 50 * 60_000;
+  fs.utimesSync(t, new Date(now - 60 * 60_000), new Date(now - 60 * 60_000));
+  assert.deepEqual(await host.closeStuck(Date.now()), [], 'running for less than 45 minutes: not stuck');
+  fs.utimesSync(t, new Date(now - 5 * 60_000), new Date(now - 5 * 60_000));
+  assert.deepEqual(await host.closeStuck(now), [], 'written 5 minutes ago: working');
+  fs.utimesSync(t, new Date(now - 50 * 60_000), new Date(now - 50 * 60_000));
+  const p = host.closeStuck(now);
+  assert.deepEqual(await p, ['runner.dev']);
+  assert.equal(settings.get().consoles['runner.dev']?.idle?.why, 'stuck');
+  assert.ok(logs.some((l) => /runner\.dev closed: busy with no transcript write for 45 minutes \(FD-275\); opening it again continues it/.test(l)), logs.join('\n'));
+});

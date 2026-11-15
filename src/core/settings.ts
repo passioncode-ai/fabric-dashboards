@@ -258,13 +258,13 @@ function mergeConsoles(raw: unknown): Settings['consoles'] {
   for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
     if (!SERVICE_KEY.test(key) || !value || typeof value !== 'object') continue;
     const v = value as { runtime?: unknown; folder?: unknown; idle?: unknown; bypass?: unknown; isolated?: unknown; where?: unknown; machine?: unknown; held?: unknown };
-    const idle = v.idle as { at?: unknown; account?: unknown } | null | undefined;
+    const idle = v.idle as { at?: unknown; account?: unknown; why?: unknown } | null | undefined;
     out[key] = {
       runtime: typeof v.runtime === 'string' && /^[a-z0-9][a-z0-9-]{0,40}$/.test(v.runtime) ? v.runtime : null,
       // FD-206: a folder on another machine is a POSIX path there, whatever this machine is.
       folder: typeof v.folder === 'string' && (isAbsoluteFolder(v.folder, process.platform) || (typeof v.machine === 'string' && MACHINE.test(v.machine) && v.folder.startsWith('/'))) ? v.folder : null,
       ...(idle && typeof idle === 'object' && typeof idle.at === 'string' && Number.isFinite(Date.parse(idle.at))
-        ? { idle: { at: idle.at, account: typeof idle.account === 'string' ? idle.account.slice(0, 120) : null } } : {}),
+        ? { idle: { at: idle.at, account: typeof idle.account === 'string' ? idle.account.slice(0, 120) : null, ...(idle.why === 'stuck' ? { why: 'stuck' as const } : {}) } } : {}),
       ...(typeof v.bypass === 'boolean' ? { bypass: v.bypass } : {}),
       ...(typeof v.isolated === 'boolean' ? { isolated: v.isolated } : {}),
       ...(v.where === 'here' ? { where: 'here' as const } : {}),
