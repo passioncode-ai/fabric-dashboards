@@ -176,6 +176,18 @@ export const TOOLS = [
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true },
   },
   {
+    name: 'bugs',
+    description: 'The app\'s own bug journal (FD-263), newest first: each failure Fabric Dashboards noticed (an exception or unhandled rejection in its main process, an error in its window, a crashed process, an action that failed) once per fingerprint, with its scrubbed message, our own stack frames, how often, first and last seen, the versions and the GitHub issue it was filed as. Read-only; nothing in it names a person, a path or a secret.',
+    inputSchema: { type: 'object', properties: { limit: { type: 'integer', minimum: 1, maximum: 300 } }, additionalProperties: false },
+    annotations: { readOnlyHint: true },
+  },
+  {
+    name: 'bug_report',
+    description: 'File one bug of the journal (by its fingerprint, from bugs) as a GitHub issue in passioncode-ai/fabric-dashboards, a PUBLIC repository. Without publish: true it only answers the title and body it would file. With publish: true it files it once (an issue that already names the fingerprint is answered instead) with the GitHub CLI\'s sign-in and records the issue in the journal. Pass the operator\'s words in params._meta.decision when you have them (action bug-report).',
+    inputSchema: { type: 'object', properties: { fp: { type: 'string', pattern: '^[0-9a-f]{12}$' }, publish: { type: 'boolean' } }, required: ['fp'], additionalProperties: false },
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true },
+  },
+  {
     name: 'service_context',
     description: 'Everything about one service a coding agent needs before working on it, read now: state and reasons as sentences, descriptor problems, version and pending update, repository, origin, dashboard, its descriptor (auth left out), its recent events and the rules for a console session. Call it first when a console was opened for this service (the first call of a session-handoff/1 pack, with key).',
     // FD-47 (DEC-0042 SH-7): the handoff's first call passes the agent's key as `key`; `service` is kept for older callers.
@@ -265,6 +277,12 @@ export async function call(deps: tools.Deps, name: string, args: Args): Promise<
     case 'rename': {
       if (args.name !== null && typeof args.name !== 'string') throw new tools.ToolError('name must be a string, or null for the agent\'s own name');
       return tools.rename(deps, need(args, 'service'), args.name as string | null);
+    }
+    case 'bugs': return tools.bugsList(deps, typeof args.limit === 'number' ? args.limit : 50);
+    case 'bug_report': {
+      const fp = need(args, 'fp');
+      if (!/^[0-9a-f]{12}$/.test(fp)) throw new tools.ToolError('fp must be a fingerprint from bugs: 12 hex');
+      return tools.bugReport(deps, fp, args.publish === true);
     }
     case 'consoles': return tools.consoles(deps);
     case 'settings': return tools.settings(deps, args.patch as Record<string, unknown> | undefined);

@@ -86,7 +86,7 @@ export function cleanProps(props: Record<string, unknown>): Props {
     if (!/^[a-z][a-z0-9_]{0,39}$/.test(k)) continue;
     if (typeof v === 'number' && Number.isFinite(v)) out[k] = v;
     else if (typeof v === 'boolean') out[k] = v;
-    else if (typeof v === 'string' && (KNOWN_KINDS.has(v) || (k === 'code' && CODE.test(v)) || (k === 'from' && /^\d+\.\d+\.\d+(-[0-9A-Za-z.]+)?$/.test(v)))) out[k] = v;
+    else if (typeof v === 'string' && (KNOWN_KINDS.has(v) || (k === 'code' && CODE.test(v)) || (k === 'from' && /^\d+\.\d+\.\d+(-[0-9A-Za-z.]+)?$/.test(v)) || (k === 'fp' && /^[0-9a-f]{12}$/.test(v)))) out[k] = v; // FD-263: a bug's fingerprint names no one
   }
   return out;
 }
@@ -241,12 +241,12 @@ export function createAnalytics(deps: AnalyticsDeps) {
       if (track('app_active', counts)) writeState({ ...state, lastActiveDay: day });
     },
     /** A crash the app noticed: where and a code only, once per launch for each. */
-    error(where: string, code: string): void {
+    error(where: string, code: string, fp?: string): void {
       const w = KNOWN_KINDS.has(where) ? where : 'unknown';
       const c = CODE.test(code) ? code : 'unknown';
-      if (errorsSeen.has(`${w}:${c}`)) return;
-      errorsSeen.add(`${w}:${c}`);
-      track('app_error', { where: w, code: c });
+      if (errorsSeen.has(`${w}:${c}:${fp ?? ''}`)) return;
+      errorsSeen.add(`${w}:${c}:${fp ?? ''}`);
+      track('app_error', { where: w, code: c, ...(fp ? { fp } : {}) }); // FD-263: the journal's fingerprint, so two bugs with one code count apart
     },
     /** FD-141: an action that did not succeed (not a crash): which one and a code, once per launch for each. */
     failed(action: 'start' | 'stop' | 'restart' | 'doctor' | 'update' | 'self_update' | 'console' | 'rename', code: string): void {

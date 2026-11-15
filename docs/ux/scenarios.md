@@ -113,6 +113,7 @@
 | SCN-105 | Keep several agents open and move between them | layout | P-01 | ST-002 | implemented | 2026-11-13 |
 | SCN-106 | Give an agent's dashboard or console the whole window | layout | P-01 | ST-002, ST-019 | implemented | 2026-11-13 |
 | SCN-107 | Give an agent a task from the top of its page | console | P-01 | ST-019 | implemented | 2026-11-14 |
+| SCN-108 | See the bugs the app noticed and report one | settings | P-01 | ST-019 | implemented | 2026-11-15 |
 ## Personas
 
 Defined in [foundation.md](foundation.md) → P-01.
@@ -2441,4 +2442,25 @@ The Sessions mode (0.8.0): every coding session apart from the agents, each stat
   - "A task for {name}" / «Задача для агента {name}»; "Give {name} a task: what should it do?" / «Дайте задачу агенту {name}: что ему сделать?»; "Give the task" / «Дать задачу» (copy checks `9c41b463`, `84c500f3`, `aff51eb3`, `fb622bbf`, `b6e9a8e8`, `75bcc55a`, no findings)
 - **Status:** implemented (2026-11-14, 0.8.83: `test/handoff.test.ts` *FD-241*; walked on the built app: the task line, then the console's runtime given `task.md` beginning «# Task: from the operator for `Sample Service`»)
 - **Coverage:** src/renderer/components/ServiceView.tsx (TaskLine), src/core/handoff.ts (askTask, jobOf), src/core/api.ts (ConsoleTask `ask`), src/electron/console.ts (taskOf)
+- **Product:** unobserved
+
+### SCN-108: See the bugs the app noticed and report one
+- **Persona:** P-01
+- **Feature:** settings
+- **Traces:** ST-019; FD-263; the operator, 2026-11-15, this repository's session `36babb6c`: «Добавь также баг-трекер, чтобы корректно собирать всю аналитику»
+- **Entry point:** Settings → "Bugs the app noticed"
+- **Preconditions:** none
+- **Steps:**
+  1. The person opens Settings -> "Bugs the app noticed" lists up to 20 failures, newest first, each once with its class, where it happened, how many times and when last
+  2. The person presses Copy on a row -> its details (class, where, fingerprint, scrubbed message, our own frames, counts, versions) are on the clipboard
+  3. The person presses "Report on GitHub" -> the browser opens a new issue in passioncode-ai/fabric-dashboards filled with that row; the person submits it (the repository is public, so the app publishes nothing by itself)
+- **Expected result:** a person sees what went wrong in the app and can hand it to the developers in two presses, with nothing that names them
+- **Alt paths:** nothing recorded -> "No bugs recorded"; a row already filed -> "Reported" instead of the button; an agent reads the same journal with MCP `bugs` and files a row with `bug_report` (`publish: true` files it, without it only the text is answered)
+- **UI elements:** the Settings group, a row per bug, Copy, "Report on GitHub"
+- **States covered:** empty, success
+- **Errors & recovery:** a journal that cannot be read lists nothing; one that cannot be written is logged and the app goes on
+- **Copy:**
+  - "Bugs the app noticed" / «Ошибки, замеченные приложением»; "No bugs recorded" / «Ошибок не записано»; "Report on GitHub" / «Сообщить на GitHub»; "Reported" / «Сообщено» (copy checks `20c670a2`, `14d5ed48`, `0cf058c8`, `e0175a48`, `5eea9ddd`, `e2ed3517`, `41d7f58b`, `8d464305`, `2f5c15c7`, `3336a7a7`)
+- **Status:** implemented (2026-11-15, 0.8.101: `test/bugs.test.ts`)
+- **Coverage:** src/core/bugs.ts, src/electron/bug-store.ts, src/electron/main.ts (bug-journal-ipc), src/electron/preload.ts, src/renderer/components/Settings.tsx (BugsSection), src/mcp/tools.ts (bugsList, bugReport), docs/BUGS.md
 - **Product:** unobserved

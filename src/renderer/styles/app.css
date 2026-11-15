@@ -813,3 +813,8 @@ div.session-group-head h2 { margin: 0; }
 .svc-task input { flex: 1; min-width: 0; height: var(--fd-control-sm); padding: 0 var(--pc-space-2); border: 1px solid var(--pc-border); border-radius: var(--pc-radius-control); background: var(--pc-bg); color: var(--pc-text); font: inherit; font-size: var(--pc-type-meta); }
 .svc-task input:focus-visible { outline: 2px solid var(--pc-focus); outline-offset: -1px; }
 .svc-task .btn { flex: none; }
+
+/* FD-263: the bug journal in Settings. */
+.bug-list { list-style: none; margin: var(--pc-space-2) 0 0; padding: 0; display: grid; gap: var(--pc-space-1); }
+.bug-row { display: flex; align-items: baseline; gap: var(--pc-space-2); min-width: 0; }
+.bug-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--pc-type-meta); }

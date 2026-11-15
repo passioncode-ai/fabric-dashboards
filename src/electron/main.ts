@@ -4,6 +4,8 @@
 import { app, BrowserWindow, clipboard, dialog, ipcMain, nativeTheme, Menu, Notification, session, shell } from 'electron';
 import { pathToFileURL } from 'node:url';
 import { guardIpc } from './ipc-guard';
+import { BugStore } from './bug-store';
+import { newIssueUrl } from '../core/bugs';
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -101,8 +103,22 @@ function log(message: string): void {
 }
 // R-2: installed first — an exception during start-up is logged instead of leaving a process that
 // holds the single-instance lock with no window, tray or link handler.
-process.on('uncaughtException', (error) => log(`uncaught: ${error.stack ?? error.message}`));
-process.on('unhandledRejection', (error) => log(`unhandled: ${String(error)}`));
+// FD-263: each one also goes to the bug journal (`bugs.json`), once analytics observes exceptions it records them there.
+let bugStore: BugStore | null = null;
+const bugs = (): BugStore => (bugStore ??= new BugStore(app.getPath('userData'), app.getVersion(), (line) => log(line)));
+let exceptionsObserved = false;
+process.on('uncaughtException', (error) => {
+  log(`uncaught: ${error.stack ?? error.message}`);
+  if (!exceptionsObserved) bugs().add({ where: 'main', kind: 'exception', name: error.name, message: error.message, stack: error.stack });
+});
+process.on('unhandledRejection', (error) => {
+  log(`unhandled: ${String(error)}`);
+  const e = error instanceof Error ? error : null;
+  const b = bugs().add({ where: 'main', kind: 'rejection', name: e?.name ?? typeof error, message: e?.message ?? String(error), stack: e?.stack });
+  if (b) noteError?.('main', 'rejection', b.fp);
+});
+/** Set once analytics exists: a bug the journal recorded is counted there by its fingerprint. */
+let noteError: ((where: string, code: string, fp: string) => void) | null = null;
 
 // Deep links (docs/adr/0004-deep-links-and-mcp.md). macOS delivers `open-url` as early as
 // `will-finish-launching`, before the window or the monitor exists: the link waits in a queue.
@@ -254,9 +270,28 @@ if (!app.requestSingleInstanceLock()) {
     return { agents_local: all.filter((x) => x.descriptor?.placement !== 'remote').length, agents_online: all.filter((x) => x.descriptor?.placement === 'remote').length };
   };
   // A crash the app noticed: where and a code only; the default handling stays (an observing handler).
-  process.on('uncaughtExceptionMonitor', (e) => analytics.error('main', String((e as NodeJS.ErrnoException).code ?? e.name ?? 'Error')));
-  app.on('render-process-gone', (_e, _wc, d) => { if (d.reason !== 'clean-exit') analytics.error('renderer', d.reason); });
-  app.on('child-process-gone', (_e, d) => { if (d.reason !== 'clean-exit') analytics.error(['gpu', 'utility', 'zygote'].includes(d.type.toLowerCase()) ? d.type.toLowerCase() : 'unknown', d.reason); });
+  noteError = (where, code, fp) => analytics.error(where, code, fp);
+  /** FD-141 and FD-263: an action that did not succeed: counted in analytics and kept in the bug journal. */
+  function noteFailed(action: Parameters<typeof analytics.failed>[0], code: string): void {
+    analytics.failed(action, code);
+    bugs().add({ where: 'action', kind: 'failed', name: code, action });
+  }
+  exceptionsObserved = true;
+  process.on('uncaughtExceptionMonitor', (e) => {
+    const b = bugs().add({ where: 'main', kind: 'exception', name: e.name, message: e.message, stack: e.stack });
+    analytics.error('main', String((e as NodeJS.ErrnoException).code ?? e.name ?? 'Error'), b?.fp);
+  });
+  app.on('render-process-gone', (_e, _wc, d) => {
+    if (d.reason === 'clean-exit') return;
+    const b = bugs().add({ where: 'renderer', kind: 'crash', name: d.reason });
+    analytics.error('renderer', d.reason, b?.fp);
+  });
+  app.on('child-process-gone', (_e, d) => {
+    if (d.reason === 'clean-exit') return;
+    const type = ['gpu', 'utility', 'zygote'].includes(d.type.toLowerCase()) ? d.type.toLowerCase() : 'unknown';
+    const b = bugs().add({ where: 'process', kind: 'crash', name: `${type}:${d.reason}` });
+    analytics.error(type, d.reason, b?.fp);
+  });
   let analyticsTimer: NodeJS.Timeout | null = null;
   // #endregion usage-analytics
   // ADR-0017: the agent consoles. FD_TEST_RUNTIME_DIRS replaces where runtimes are looked for, only
@@ -272,7 +307,7 @@ if (!app.requestSingleInstanceLock()) {
   // FD-65: the last Check setup, kept until the next press; a run in progress is shared, never doubled.
   let lastSetupCheck: SetupCheckResult | null = null;
   let setupCheckRun: Promise<SetupCheckResult> | null = null;
-  const consoles = new ConsoleHost({ failed: (code) => analytics.failed('console', code), started: (props) => analytics.sessionStarted(props), settings, snapshot: (key) => monitor.snapshot(key), placedElsewhere: (key) => monitor.placedElsewhere(key), window: () => window, drawer: () => drawer?.contents() ?? null, visible: () => windowVisible(), log: (line) => log(line), testDirs: testRuntimeDirs, scriptsDir: path.join(userData, 'console'),
+  const consoles = new ConsoleHost({ failed: (code) => noteFailed('console', code), started: (props) => analytics.sessionStarted(props), settings, snapshot: (key) => monitor.snapshot(key), placedElsewhere: (key) => monitor.placedElsewhere(key), window: () => window, drawer: () => drawer?.contents() ?? null, visible: () => windowVisible(), log: (line) => log(line), testDirs: testRuntimeDirs, scriptsDir: path.join(userData, 'console'),
     packRoot: path.join(userData, 'consoles'), keptDir: path.join(userData, 'console-output'), version: app.getVersion(), activity: (key) => activity.list({ serviceKey: key }, 200), mcpServer,
     setupState: () => readSetupState(os.homedir(), monitor.snapshots().length),
     doctor: () => (lastSetupCheck?.kind === 'report' ? lastSetupCheck.report : null),
@@ -340,7 +375,7 @@ if (!app.requestSingleInstanceLock()) {
     }
   }, log, () => { installing = true; quitting = true; }, () => settings.get().autoUpdate);
   let installing = false;
-  updater.onFailure = (code) => analytics.failed('self_update', code); // FD-141
+  updater.onFailure = (code) => noteFailed('self_update', code); // FD-141
   // #region estate-update — docs: docs/adr/0018-estate-updates-from-inside-the-app.md#decision
   // ADR-0018: the estate watcher lives in this process next to the Updater — git/npm tool spawns on
   // the LC-16 cadence, started in whenReady, stopped in will-quit, nothing while its switch is off.
@@ -846,6 +881,22 @@ if (!app.requestSingleInstanceLock()) {
     consoles.register();
     const snap = (key: string) => monitor.snapshot(key);
     ipcMain.handle(CHANNELS.status, () => status());
+    // #region bug-journal-ipc — docs: docs/BUGS.md#the-journal
+    ipcMain.on(CHANNELS.reportError, (_e, r: unknown) => {
+      const x = (r && typeof r === 'object' ? r : {}) as { name?: unknown; message?: unknown; stack?: unknown };
+      const str = (v: unknown, n: number) => (typeof v === 'string' ? v.slice(0, n) : '');
+      const b = bugs().add({ where: 'renderer', kind: 'exception', name: str(x.name, 80) || 'Error', message: str(x.message, 2000), stack: str(x.stack, 8000) });
+      if (b) noteError?.('renderer', 'exception', b.fp);
+    });
+    ipcMain.handle(CHANNELS.bugsList, () => bugs().list());
+    ipcMain.handle(CHANNELS.bugReport, async (_e, fp: unknown) => {
+      const bug = typeof fp === 'string' ? bugs().list().find((b) => b.fp === fp) : undefined;
+      if (!bug) return { ok: false };
+      // The person reads it and submits it: the repository is public, so the app publishes nothing by itself.
+      await shell.openExternal(newIssueUrl(bug));
+      return { ok: true };
+    });
+    // #endregion bug-journal-ipc
     ipcMain.on(CHANNELS.routeChanged, (_e, route: unknown) => {
       const r = resumeRoute(JSON.stringify({ at: new Date().toISOString(), route }), Date.now());
       if (r) shownRoute = r;
@@ -862,14 +913,14 @@ if (!app.requestSingleInstanceLock()) {
       const d = monitor.snapshot(key)?.descriptor;
       if (!d) return { ok: false, error: `no agent ${key}` };
       const res = await agentNames.rename(key, d.source?.repository, name);
-      if (!res.ok) analytics.failed('rename', 'refused' in res ? res.refused : 'github'); // FD-141
+      if (!res.ok) noteFailed('rename', 'refused' in res ? res.refused : 'github'); // FD-141
       return res.ok ? { ok: true } : res;
     });
     ipcMain.handle(CHANNELS.control, async (_e, key: string, action: 'restart' | 'stop' | 'start') => {
       if (!['restart', 'stop', 'start'].includes(action)) throw new Error('unknown action');
       if (action !== 'restart') views?.drop(key);
       const res = await monitor.control(key, action);
-      if (!res.ok) analytics.failed(action, res.reason.code); // FD-141
+      if (!res.ok) noteFailed(action, res.reason.code); // FD-141
       return res;
     });
     ipcMain.handle(CHANNELS.command, (_e, key: string, which: 'doctor' | 'update') => {
@@ -877,7 +928,7 @@ if (!app.requestSingleInstanceLock()) {
       // FD-141: a refusal, a deadline or a non-zero exit, as a code only (never the command's output).
       return monitor.command(key, which).then((r) => {
         const code = r.refused ? 'refused' : r.timedOut ? 'timeout' : r.code === null ? 'not_started' : r.code !== 0 ? `exit_${r.code}` : null;
-        if (code) analytics.failed(which, code);
+        if (code) noteFailed(which, code);
         return r;
       });
     });
@@ -1139,6 +1190,7 @@ if (!app.requestSingleInstanceLock()) {
   let killing = false;
   let consoleChannel: Channel | null = null;
   app.on('will-quit', (event) => {
+    bugStore?.flush(); // FD-263: a repeat counted in the last second is not lost
     // Nothing starts after quit begins; pending state reaches disk; commands we started end with us (LC-01, LC-02).
     void consoleChannel?.close(); // ADR-0025: the socket and its key go with the run
     stopSettingsWatch();

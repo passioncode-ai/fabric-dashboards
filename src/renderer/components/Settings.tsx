@@ -5,6 +5,7 @@ import type { AppStatus, Listener, Settings as SettingsValue } from '../../core/
 import { api, nameOf, Spinner, useT } from '../lib';
 import { REFERENCE_THEMES } from '../../core/appearance';
 import { revealScrollTop } from '../../core/layout';
+import type { Bug } from '../../core/bug-types';
 import { productIdOf, snapshotRows } from '../../core/products';
 
 export function Settings({ status, onTheme, onLanguage, onSetup, section, nonce }: { status: AppStatus; onTheme: (theme: SettingsValue['theme']) => void; onLanguage: () => void;
@@ -142,6 +143,8 @@ export function Settings({ status, onTheme, onLanguage, onSetup, section, nonce 
         <p className="meta" id="analytics-body-setting">{t(status.analyticsAvailable ? 'settings.analytics.body' : 'settings.analytics.unavailable')}</p>
       </section>
 
+      <BugsSection />
+
       {/* #region estate-update — docs: docs/adr/0018-estate-updates-from-inside-the-app.md#decision */}
       <section className="group" aria-labelledby="g-estate">
         <h2 id="g-estate">{t('settings.estate')}</h2>
@@ -275,6 +278,7 @@ const SECTIONS = [
   { id: 'g-fallback', label: 'fallback.title' },
   { id: 'g-updates', label: 'settings.updates' },
   { id: 'g-privacy', label: 'settings.privacy' },
+  { id: 'g-bugs', label: 'settings.bugs' },
   { id: 'g-estate', label: 'settings.estate' },
   { id: 'g-notify', label: 'settings.notifications' },
   { id: 'g-folder', label: 'settings.folder' },
@@ -282,6 +286,36 @@ const SECTIONS = [
   { id: 'g-listeners', label: 'settings.listeners' },
   { id: 'g-uninstall', label: 'settings.uninstall' },
 ] as const;
+
+// #region bug-journal-ui — docs: docs/BUGS.md#the-journal
+/** FD-263: the bug journal, newest first: each failure once with its count; copy its details or open a prefilled GitHub
+ *  issue (the person submits it: the repository is public). */
+function BugsSection() {
+  const { t, time } = useT();
+  const [bugs, setBugs] = useState<Bug[] | null>(null);
+  const [copied, setCopied] = useState<string | null>(null);
+  useEffect(() => { void api().bugs().then(setBugs).catch(() => setBugs([])); }, []);
+  const details = (b: Bug) => [`${b.name} (${b.where}, ${b.kind}${b.action ? `, ${b.action}` : ''}) ${b.fp}`, b.message, ...b.frames, `${b.count}× ${b.firstSeen} .. ${b.lastSeen}; ${b.versions.join(', ')}`].filter(Boolean).join('\n');
+  return (
+    <section className="group" aria-labelledby="g-bugs">
+      <h2 id="g-bugs">{t('settings.bugs')}</h2>
+      <p className="meta">{t('settings.bugs.body')}</p>
+      {bugs && bugs.length === 0 && <p className="meta">{t('settings.bugs.none')}</p>}
+      {bugs && bugs.length > 0 && (
+        <ul className="bug-list">
+          {bugs.slice(0, 20).map((b) => (
+            <li key={b.fp} className="bug-row">
+              <span className="bug-name" title={b.message || b.name}>{t('settings.bugs.row', { name: b.name, where: b.where, count: b.count, when: time(b.lastSeen) })}</span>
+              <button className="btn-link" onClick={() => void api().copyText(details(b)).then(() => setCopied(b.fp))}>{copied === b.fp ? t('view.copied') : t('view.copy')}</button>
+              {b.issue ? <span className="meta">{t('settings.bugs.reported')}</span> : <button className="btn-link" onClick={() => void api().reportBug(b.fp)}>{t('settings.bugs.report')}</button>}
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+// #endregion bug-journal-ui
 
 /** Where the self-update stands, with the one action that state needs (ADR-0015). */
 function UpdateState({ status }: { status: AppStatus }) {

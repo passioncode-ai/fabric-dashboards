@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.8.101 - 2026-11-15
+
+### Added
+
+- FD-263: a bug tracker. Every failure the app notices is kept once with its count in Settings → Bugs the app
+  noticed, from where it can be copied or reported on GitHub; agents read it with MCP `bugs`. Anonymous usage data
+  now tells bugs apart by a fingerprint, never by their message.
+
 ## 0.8.100 - 2026-11-15
 
 ### Fixed

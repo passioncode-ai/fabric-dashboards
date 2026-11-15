@@ -38,6 +38,8 @@ const api: FabricApi = {
   onNavigate: (l) => subscribe(CHANNELS.navigate, l),
   takeNavigation: () => ipcRenderer.invoke(CHANNELS.navigateTake),
   routeChanged: (route) => ipcRenderer.send(CHANNELS.routeChanged, route),
+  bugs: () => ipcRenderer.invoke(CHANNELS.bugsList),
+  reportBug: (fp) => ipcRenderer.invoke(CHANNELS.bugReport, fp),
   rescan: () => ipcRenderer.invoke(CHANNELS.rescan),
   openServiceGuide: () => ipcRenderer.invoke(CHANNELS.serviceGuide),
   restartToUpdate: () => ipcRenderer.invoke(CHANNELS.updateRestart),
@@ -86,3 +88,17 @@ const api: FabricApi = {
 };
 
 contextBridge.exposeInMainWorld('fabric', api);
+
+// FD-263: this page's own errors go to the bug journal, at most ten a minute; never what the page shows or holds.
+let reported: number[] = [];
+const reportError = (name: string, message: string, stack?: string) => {
+  const now = Date.now();
+  reported = reported.filter((t) => now - t < 60_000);
+  if (reported.length >= 10) return;
+  reported.push(now);
+  ipcRenderer.send(CHANNELS.reportError, { name: String(name).slice(0, 80), message: String(message).slice(0, 2000), stack: String(stack ?? '').slice(0, 8000) });
+};
+// The main project builds without the DOM library: the page's window, typed only as far as it is used here.
+const page = globalThis as unknown as { addEventListener(type: string, listener: (e: { error?: unknown; message?: string; reason?: unknown }) => void): void };
+page.addEventListener('error', (e) => { const err = e.error as Error | undefined; reportError(err?.name ?? 'Error', err?.message ?? e.message ?? '', err?.stack); });
+page.addEventListener('unhandledrejection', (e) => { const r = e.reason as Error | undefined; reportError(r instanceof Error ? r.name : 'rejection', r instanceof Error ? r.message : String(e.reason), r instanceof Error ? r.stack : undefined); });
