@@ -8,6 +8,8 @@ import path from 'node:path';
 import test from 'node:test';
 import { _electron as electron, type ElectronApplication } from 'playwright';
 import { tmp, waitFor } from '../helpers';
+// FD-247 (6b): a wide window shows each group as a table and hides the cards; a session is whichever row is on screen.
+const SESSION = '.session-card:visible, .session-table tbody tr:visible';
 
 const ROOT = path.resolve(__dirname, '../..');
 const SHOTS = process.env.FD_SCREENSHOTS;
@@ -71,7 +73,7 @@ test('SCN-101, SCN-102: New session starts the chosen coding agent in the chosen
     // The Sessions list shows it with the others.
     await page.locator('nav .nav-item', { hasText: 'All sessions' }).first().click();
     await page.getByRole('main').getByRole('heading', { level: 2, name: /^Running: 1$/ }).waitFor({ timeout: 20_000 });
-    await page.locator('.session-card', { hasText: 'my-projects' }).first().waitFor({ timeout: 20_000 });
+    await page.locator(SESSION, { hasText: 'my-projects' }).first().waitFor({ timeout: 20_000 });
   } finally {
     await closeApp(app);
   }
