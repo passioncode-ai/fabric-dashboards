@@ -114,6 +114,7 @@
 | SCN-106 | Give an agent's dashboard or console the whole window | layout | P-01 | ST-002, ST-019 | implemented | 2026-11-13 |
 | SCN-107 | Give an agent a task from the top of its page | console | P-01 | ST-019 | implemented | 2026-11-14 |
 | SCN-108 | See the bugs the app noticed and report one | settings | P-01 | ST-019 | implemented | 2026-11-15 |
+| SCN-113 | The Organizations menu keeps every organization Observatory names | navigation | P-01 | ST-016 | implemented | 2026-11-15 |
 ## Personas
 
 Defined in [foundation.md](foundation.md) → P-01.
@@ -2464,3 +2465,19 @@ The Sessions mode (0.8.0): every coding session apart from the agents, each stat
 - **Status:** implemented (2026-11-15, 0.8.101: `test/bugs.test.ts`)
 - **Coverage:** src/core/bugs.ts, src/electron/bug-store.ts, src/electron/main.ts (bug-journal-ipc), src/electron/preload.ts, src/renderer/components/Settings.tsx (BugsSection), src/mcp/tools.ts (bugsList, bugReport), docs/BUGS.md
 - **Product:** unobserved
+
+### SCN-113: The Organizations menu keeps every organization Observatory names
+
+- **Persona:** P-01
+- **Feature:** navigation
+- **Traces:** FD-248 (quality wave 6; design `docs/design/2026-11-15-organizations-and-this-machine.md`); the operator's voice note of 2026-11-14 (PassionCode missing from the menu)
+- **Entry point:** the sidebar's Organizations menu
+- **Preconditions:** Project Observatory's config names two or more organizations
+- **Steps:**
+  1. The person opens the Organizations menu -> every organization Observatory's config names is a row, the personal one tagged; one with no agent on this Mac reads 0, dimmed
+  2. The person ticks an organization with 0 -> the list shows no agent of it, and "All" brings every agent back
+- **Expected result:** no organization drops out of the menu because none of its agents runs here, is turned off, or was moved to the platform
+- **Alt paths:** no map read yet and no stored one -> no menu, as before; an agent reads the same list with MCP `organizations` (name, label, personal, agents)
+- **UI elements:** the menu rows, the count, the personal tag
+- **States covered:** empty (0 agents), success
+- **Errors & recovery:** an unreadable map keeps the last stored list (FD-162)

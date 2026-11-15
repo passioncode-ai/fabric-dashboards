@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.8.107 - 2026-11-15
+
+### Fixed
+
+- FD-248: the Organizations menu no longer loses an organization. Every organization Project Observatory names is a
+  row, the one with no agent on this Mac included (dimmed, with 0), so one never vanishes because its agents run
+  elsewhere, are turned off or moved to the platform. Agents read the same list with MCP `organizations`.
+
 ## 0.8.106 - 2026-11-15
 
 ### Security

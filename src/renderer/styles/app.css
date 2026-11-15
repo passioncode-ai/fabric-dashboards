@@ -145,6 +145,8 @@ a { color: var(--pc-link); text-decoration: underline; }
 .org-menu-list { display: flex; flex-direction: column; gap: var(--pc-space-1); padding: var(--pc-space-1) var(--pc-space-2); }
 .org-menu-list label { display: flex; align-items: center; gap: var(--pc-space-2); cursor: pointer; color: var(--pc-text); }
 .org-menu-list .count { margin-left: auto; color: var(--pc-text-muted); }
+/* Wave 6 (FD-248): an organization with no agent on this Mac keeps its row, dimmed. */
+.org-row-empty .org-name { color: var(--pc-text-muted); }
 .sidebar-footer { border-top: 1px solid var(--pc-border); padding-top: var(--pc-space-3); margin-top: var(--pc-space-3); display: flex; flex-direction: column; gap: var(--pc-space-2); }
 .main { min-width: 0; min-height: 0; display: flex; flex-direction: column; }
 .page { overflow: auto; padding: calc(var(--pc-space-6) + var(--pc-space-2)) var(--pc-space-6) var(--pc-space-6); min-height: 0; flex: 1; }

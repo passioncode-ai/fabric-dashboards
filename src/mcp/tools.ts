@@ -46,7 +46,7 @@ import { searchDirs } from '../core/runtimes';
 import type { StopView } from '../core/types';
 import { BUG_REPOSITORY, BUGS_FILE, issueOf, readBugs, writeBugs, type Bug } from '../core/bugs';
 import { AgentNameStore, cleanName, customNameOf, findGh, readNamesCache } from '../core/agent-names';
-import { canonicalOrgValue, GITHUB_PREFIX, githubOwnerOf, isShared, keepsOrganization, organizationOfInstance, sharedProducts, type Organization } from '../core/organizations';
+import { canonicalOrgValue, GITHUB_PREFIX, githubOwnerOf, isShared, keepsOrganization, knownOrganizations, organizationCounts, organizationOfInstance, sharedProducts, type Organization } from '../core/organizations';
 import { readOrganizations } from '../core/organization-store';
 
 export const COMMAND_TIMEOUT_MS = 120_000;
@@ -417,6 +417,15 @@ export async function listServices(deps: Deps, organizations?: string[]): Promis
   const keeps = (v: (typeof views)[number], i: number) => keepsOrganization(organizations!, v.organization, isShared(shared, v.key))
     || (owners.length > 0 && owners.includes(githubOwnerOf(looks[i]?.descriptor?.source?.repository)?.name ?? ''));
   return { services: organizations?.length ? views.filter(keeps) : views, services_dir: deps.servicesDir(), untrusted: { fields: VIEW_UNTRUSTED.map((f) => `services[].${f}`), note: UNTRUSTED_NOTE } };
+}
+
+/** Wave 6 (FD-248, SCN-113): the organizations the map names, each with its attributed agents here (0 included). */
+export async function organizationsKnown(deps: Deps): Promise<{ read_at: string | null; organizations: { name: string; label: string | null; personal: boolean; agents: number }[] }> {
+  const cache = readOrganizations(path.join(path.dirname(deps.settingsFile?.() ?? appSettingsFile()), 'organizations.json'));
+  const looks = await look(deps);
+  const orgOf = organizationReader(deps);
+  const rows = organizationCounts(looks.map((l) => ({ organization: orgOf(l) })), 'org', knownOrganizations(cache));
+  return { read_at: cache.readAt, organizations: rows.filter((r) => r.name !== '').map((r) => ({ name: r.name, label: r.label, personal: r.personal === true, agents: r.count })) };
 }
 
 /** FD-162: each look's organization, from the map the app last read (organizations.json beside its settings). */

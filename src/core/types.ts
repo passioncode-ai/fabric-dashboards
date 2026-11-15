@@ -235,6 +235,8 @@ export interface Listener {
 
 export interface AppStatus {
   services: ServiceSnapshot[];
+  /** Wave 6 (FD-248): every organization the map names, for the menu (one with no agent here included). */
+  organizations?: { name: string; label: string | null; personal?: boolean }[];
   /** FD-123: the services of agents turned off, not watched; the window lists them greyed in Hidden. */
   off?: { key: string; product: string; name: string }[];
   servicesDir: string;

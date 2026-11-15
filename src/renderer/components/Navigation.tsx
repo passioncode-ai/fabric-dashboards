@@ -151,7 +151,7 @@ export function AgentsNav({ page, status, everyAgent, arranged, products, curren
         </button>
       </div>
       <div className="nav nav-scroll">
-        {!rail && <OrgMenu services={everyAgent ?? status.services} chosen={layout.list.orgs ?? []} onChange={(orgs) => changeLayout({ list: { orgs } })} grouped={layout.list.groupByOrg === true} onGroup={(groupByOrg) => changeLayout({ list: { groupByOrg } })} source={layout.list.orgSource ?? 'org'} onSource={(orgSource) => changeLayout({ list: { orgSource, orgs: [] } })} />}
+        {!rail && <OrgMenu services={everyAgent ?? status.services} known={status.organizations} chosen={layout.list.orgs ?? []} onChange={(orgs) => changeLayout({ list: { orgs } })} grouped={layout.list.groupByOrg === true} onGroup={(groupByOrg) => changeLayout({ list: { groupByOrg } })} source={layout.list.orgSource ?? 'org'} onSource={(orgSource) => changeLayout({ list: { orgSource, orgs: [] } })} />}
         {pinned.length > 0 && <div className="nav-section">{t('nav.pinned')}</div>}
         {pinned.map((p, i) => <ProductItem key={p.id} p={p} current={currentProduct === p} open={open} rail={rail} pinned menu={menu} drag={dragFor('pinned', i, pinned.length)} />)}
         {/* FD-244: after the pinned ones, every agent in one list (on this Mac and online together, its places as icons on
@@ -455,9 +455,9 @@ export function SessionsNav({ sessions, currentId, allCurrent, rail, endedOpen, 
  *  Project Observatory, or repositories on GitHub, and there is more than one to tell apart. FD-237: one source at a
  *  time, the organizations or the GitHub owners, switched at the top; the kinds of FD-195 (Mine, Others, Shared) are no
  *  longer offered here (MCP `list_services` still takes them), and one already chosen shows as a row to clear. */
-function OrgMenu({ services, chosen, onChange, grouped, onGroup, source, onSource }: { services: AppStatus['services']; chosen: string[]; onChange: (orgs: string[]) => void; grouped: boolean; onGroup: (on: boolean) => void; source: OrgSource; onSource: (s: OrgSource) => void }) {
+function OrgMenu({ services, known, chosen, onChange, grouped, onGroup, source, onSource }: { services: AppStatus['services']; known?: AppStatus['organizations']; chosen: string[]; onChange: (orgs: string[]) => void; grouped: boolean; onGroup: (on: boolean) => void; source: OrgSource; onSource: (s: OrgSource) => void }) {
   const { t } = useT();
-  const bySource = { org: organizationCounts(services, 'org'), github: organizationCounts(services, 'github') };
+  const bySource = { org: organizationCounts(services, 'org', known ?? []), github: organizationCounts(services, 'github') };
   const rows = bySource[source];
   const offered = (['org', 'github'] as const).filter((s) => bySource[s].length >= 2);
   if (offered.length === 0 && chosen.length === 0) return null;
@@ -496,7 +496,7 @@ function OrgMenu({ services, chosen, onChange, grouped, onGroup, source, onSourc
         )}
         <label className="org-row"><input type="checkbox" checked={chosen.length === 0} onChange={() => onChange([])} /><span className="org-name">{t('orgs.everyRow')}</span><span className="count">{services.length}</span></label>
         {rows.map((r) => (
-          <label key={r.name} className="org-row"><input type="checkbox" checked={chosen.includes(r.name)} onChange={() => toggle(r.name)} />
+          <label key={r.name} className={`org-row${r.count === 0 ? ' org-row-empty' : ''}`}><input type="checkbox" checked={chosen.includes(r.name)} onChange={() => toggle(r.name)} />
             <span className="org-name">{nameOf(r.name)}{r.personal && <span className="org-tag">{t('orgs.personal')}</span>}</span><span className="count">{r.count}</span></label>
         ))}
         {gone.map((n) => <label key={`gone-${n}`} className="org-row"><input type="checkbox" checked onChange={() => toggle(n)} /><span className="org-name">{nameOf(n)}</span><span className="count">{filterServices(services, [n], null, source).length}</span></label>)}

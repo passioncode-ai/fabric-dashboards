@@ -351,3 +351,14 @@ test('FD-237 (verifier rounds 5 and 6): an unknown source sent to the store keep
   assert.deepEqual(store.update({ layout: { list: { orgSource: 'bogus' as never } } }).layout.list.orgs, ['acme']);
   assert.equal(githubOwnerOf('https://github.com/acme_emu/x')?.name, 'gh:acme_emu');
 });
+
+test('Wave 6 (FD-248, SCN-113): an organization Observatory names keeps its menu row with no agent here; personal first', async () => {
+  const { knownOrganizations, organizationCounts } = await import('../src/core/organizations');
+  const known = knownOrganizations({ organizations: { globex: 'Globex', initech: 'Initech', mine: 'Mine' }, personal: 'mine' });
+  assert.deepEqual(known.map((k) => k.name), ['mine', 'globex', 'initech']);
+  const services = [{ organization: { name: 'mine', label: 'Mine', personal: true } }, { organization: { name: 'globex', label: 'Globex' } }] as never[];
+  const rows = organizationCounts(services, 'org', known);
+  assert.deepEqual(rows.map((r) => [r.name, r.count]), [['globex', 1], ['initech', 0], ['mine', 1]]);
+  assert.equal(organizationCounts([], 'org', known).length, 3, 'the menu has its rows before any agent is attributed');
+  assert.deepEqual(organizationCounts([], 'org'), [], 'without the map, nothing');
+});
