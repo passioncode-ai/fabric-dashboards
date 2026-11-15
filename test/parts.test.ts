@@ -398,7 +398,7 @@ test('FD-19: machine reasons read in Russian where they are known, and stay as w
   assert.equal(machineRu('connect ECONNREFUSED 127.0.0.1:8787'), 'соединение отклонено (127.0.0.1:8787)');
   const { fromServiceUrl } = await import('../src/core/deeplink');
   const port = fromServiceUrl('http://127.0.0.1:9999/orders', []) as { reason: string };
-  assert.equal(machineRu(port.reason), 'на порту 9999 нет установленного агента; чтобы открыть страницу здесь, зарегистрируйте её агента в Fabric: положите файл установки агента (fabric-service/0.1) в папку сервисов этого компьютера, как описывает скил building-fabric-services', 'FD-109: the refusal and its step read in Russian');
+  assert.equal(machineRu(port.reason), 'на порту 9999 нет установленного агента; чтобы открыть страницу здесь, зарегистрируйте её агента в Fabric: положите файл установки агента (fabric-service/0.1) в папку сервисов этого компьютера, как описывает навык (skill) building-fabric-services', 'FD-109: the refusal and its step read in Russian');
   const remote = fromServiceUrl('https://agent.example.org/panel/', []) as { reason: string };
   assert.doesNotMatch(machineRu(remote.reason), /[A-Za-z]{4,} [a-z]{3,} /, 'FD-109: no English sentence is left in the Russian refusal');
   // FD-37

@@ -374,15 +374,15 @@ function EstateState({ status }: { status: AppStatus }) {
   const short = (sha: string | null) => (sha ? sha.slice(0, 12) : '');
   const contractLine = () => {
     const c = e.contract;
-    if (c.state === 'unconfigured') return <span className="meta">{t('estate.contract')}: {t('estate.contract.unconfigured')}</span>;
-    if (c.state === 'missing') return <span className="meta state-down">{t('estate.contract')}: {t('estate.contract.missing')}</span>;
-    if (c.state === 'not-a-clone') return <span className="meta state-down">{t('estate.contract')}: {t('estate.contract.notAClone')}</span>;
+    if (c.state === 'unconfigured') return <span className="meta">{t('reason.attention', { label: t('estate.contract'), value: t('estate.contract.unconfigured') })}</span>;
+    if (c.state === 'missing') return <span className="meta state-down">{t('reason.attention', { label: t('estate.contract'), value: t('estate.contract.missing') })}</span>;
+    if (c.state === 'not-a-clone') return <span className="meta state-down">{t('reason.attention', { label: t('estate.contract'), value: t('estate.contract.notAClone') })}</span>;
     const fetched = c.fetched === 'yes' ? ` · ${t('estate.contract.fetched')}` : c.fetched === 'failed' ? ` · ${t('estate.contract.fetchFailed')}` : '';
     // The clone's own main is reported, never moved: a pull stays the person's choice.
     const local = c.localTip && c.remoteTip && c.localTip !== c.remoteTip ? ` · ${t('estate.contract.localMain', { sha: short(c.localTip) })}` : '';
-    if (c.state === 'current') return <span className="meta">{t('estate.contract')}: {t('estate.contract.current', { sha: short(c.remoteTip) })}{fetched}{local}</span>;
-    if (c.state === 'behind') return <span className="meta note-info">{t('estate.contract')}: {t('estate.contract.behind', { local: short(c.knownTip ?? c.localTip), remote: short(c.remoteTip) })}{fetched}</span>;
-    return <span className="meta state-down">{t('estate.contract')}: {t('estate.contract.unknown')}</span>;
+    if (c.state === 'current') return <span className="meta">{t('reason.attention', { label: t('estate.contract'), value: t('estate.contract.current', { sha: short(c.remoteTip) }) })}{fetched}{local}</span>;
+    if (c.state === 'behind') return <span className="meta note-info">{t('reason.attention', { label: t('estate.contract'), value: t('estate.contract.behind', { local: short(c.knownTip ?? c.localTip), remote: short(c.remoteTip) }) })}{fetched}</span>;
+    return <span className="meta state-down">{t('reason.attention', { label: t('estate.contract'), value: t('estate.contract.unknown') })}</span>;
   };
   const skillsLine = () => {
     const s = e.skills;

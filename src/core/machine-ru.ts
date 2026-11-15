@@ -124,7 +124,7 @@ const RULES: Rule[] = [
   [/^none is at (\S+)$/, (_, o) => `по адресу ${o} его нет`],
   // FD-109: REGISTER_STEP in deeplink.ts
   [/^to open it here, register its agent with Fabric: put the agent's install file \(fabric-service\/0\.1\) in this computer's services folder, as the building-fabric-services skill describes$/,
-    () => 'чтобы открыть страницу здесь, зарегистрируйте её агента в Fabric: положите файл установки агента (fabric-service/0.1) в папку сервисов этого компьютера, как описывает скил building-fabric-services'],
+    () => 'чтобы открыть страницу здесь, зарегистрируйте её агента в Fabric: положите файл установки агента (fabric-service/0.1) в папку сервисов этого компьютера, как описывает навык (skill) building-fabric-services'],
   [/^path must be a path on the service, starting with one \/$/, () => 'путь должен быть путём на сервисе и начинаться с одного /'],
   // Wave 1 (T-10): the console's answer when Switchboard is missing (`src/electron/console.ts`).
   [/^Switchboard is not installed$/, () => 'Switchboard на этом компьютере не установлен'],
