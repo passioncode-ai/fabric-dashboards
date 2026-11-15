@@ -5,6 +5,7 @@ import type { PageState } from '../../core/api';
 import type { ActivityItem, ServiceSnapshot } from '../../core/types';
 import { instanceOf } from '../../core/products';
 import { installedByWords } from '../../core/installed-by';
+import { agentFacts } from '../../core/agent-facts';
 import { commandRan, commandReason } from '../../core/outcome';
 import { problemOf } from '../../core/focus';
 import { api, GLYPH, Icon, nameOf, NEWS_MS, portOf, shortBuild, Spinner, StateBadge, useExpiry, useT } from '../lib';
@@ -62,7 +63,7 @@ export function ServiceView({ s, all, members, open, link, nonce, tab: askedTab,
   const [pathError, setPathError] = useState('');
   // P-6: a folder or file that cannot be shown says so here, as Overview's Show folder does.
   const show = (p: string) => void api().showPath(p).then((r) => setPathError(r.ok ? '' : t('overview.showFailed', { path: p, error: r.error ?? '' })));
-  const { t, reason, duration } = useT();
+  const { t, lang, reason, duration } = useT();
   const hasDashboard = Boolean(s.wellKnown?.surfaces.dashboard);
   const [tab, setTabState] = useState<Tab>(hasDashboard ? 'dashboard' : 'health');
   const chosen = useRef(false); // the operator picked a tab; stop choosing for them
@@ -202,6 +203,10 @@ export function ServiceView({ s, all, members, open, link, nonce, tab: askedTab,
               <span>{t('health.port')} <b>{portOf(s)}</b></span>
               {wk && <span>{t('card.uptime', { uptime: duration(Date.now() - new Date(wk.process.startedAt).getTime()) })}</span>}
             </div>
+            {/* FD-273: where it runs, whose it is and where else it runs. */}
+            <dl className="kv svc-where">
+              {agentFacts(s, members).map((f) => <div key={f.label} className="svc-where-row"><dt>{t(f.label)}</dt><dd>{f.value.code === 'facts.date' ? new Date(f.value.params.at!).toLocaleDateString(lang) : t(f.value.code, f.value.params)}</dd></div>)}
+            </dl>
             <Tools names={wk?.surfaces.mcp?.capabilities ?? []} />
             {s.reasons.length > 0 && <ul className="reasons">{s.reasons.map((r, i) => <li key={i}>{reason(r)}</li>)}</ul>}
             {s.lastAction && !s.busy && now - Date.parse(s.lastAction.at) < NEWS_MS && ( /* P-15: news for half an hour, as on Overview */

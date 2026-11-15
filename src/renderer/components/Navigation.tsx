@@ -9,6 +9,7 @@ import { groupRows, machineGroups, machineStatusWords, navLines, projectName, st
 import { revealScrollTop } from '../../core/layout';
 import { api, GLYPH, Icon, nameOf, Spinner, useT } from '../lib';
 import { shownState } from '../../core/setup-wait';
+import { agentHint } from '../../core/agent-facts';
 
 export type Mode = 'agents' | 'sessions';
 
@@ -227,8 +228,9 @@ function ProductItem({ p, current, open, rail, pinned, menu, drag = null, hidden
       } : undefined}
       onDrop={drag ? (e) => { if (drag.dragging) { e.preventDefault(); drag.drop(); } } : undefined}
       onDragEnd={drag ? () => drag.end() : undefined}>
-      {/* VIS-15 (FD-113): the title in both widths, since an expanded row cuts a long name too. */}
-      <button className="nav-item" aria-current={current ? 'page' : undefined} title={t('join.nameState', { name: nameOf(s), state: t(`state.${shownState(s)}`) })} onClick={() => open(s.key)}
+      {/* VIS-15 (FD-113): the title in both widths, since an expanded row cuts a long name too. FD-273: then where each
+          copy runs and the organization, one line each. */}
+      <button className="nav-item" aria-current={current ? 'page' : undefined} title={[t('join.nameState', { name: nameOf(s), state: t(`state.${shownState(s)}`) }), ...agentHint(s, p.members).map((w) => t(w.code, w.params))].join('\n')} onClick={() => open(s.key)}
         aria-keyshortcuts={drag && drag.count > 1 ? 'Alt+ArrowUp Alt+ArrowDown' : undefined}
         onContextMenu={(e) => { e.preventDefault(); setAsk({ rect: e.currentTarget.getBoundingClientRect(), n: (ask?.n ?? 0) + 1 }); }}
         onKeyDown={drag ? (e) => { if (e.altKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) { e.preventDefault(); drag.step(p.id, e.key === 'ArrowUp' ? -1 : 1); } } : undefined}>
