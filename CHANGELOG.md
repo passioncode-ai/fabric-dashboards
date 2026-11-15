@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.8.121 - 2026-11-15
+
+### Changed
+
+- FD-268: the check that a token goes only to this user's program no longer starts `ps` for every request: the owner
+  of an agent's process is read once and reused for ten minutes while the process runs (each connection is still
+  checked against a fresh socket table). With 55 agents this removes about 25 short processes a minute.
+
 ## 0.8.120 - 2026-11-15
 
 ### Added

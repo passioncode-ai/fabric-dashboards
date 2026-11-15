@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import net from 'node:net';
 import test from 'node:test';
 import { execRunner } from '../src/core/launchd';
-import { macLsofServerEnd, LSOF_TRIES, tableRestricted, linuxConnectionCheck, linuxConnectionUids, linuxLoopbackOwnerCheck, listenersOf, macConnectionCheck, macConnectionPids, loopbackOwnerCheck, MISS_REREAD_MS, OWNED_FRESH_MS, portsOf, procNetPorts, socketTableOwner, windowsListenersOf, windowsLoopbackOwnerCheck } from '../src/core/loopback-owner';
+import { macLsofServerEnd, LSOF_TRIES, tableRestricted, linuxConnectionCheck, linuxConnectionUids, linuxLoopbackOwnerCheck, listenersOf, macConnectionCheck, macConnectionPids, OWNER_UID_FRESH_MS, loopbackOwnerCheck, MISS_REREAD_MS, OWNED_FRESH_MS, portsOf, procNetPorts, socketTableOwner, windowsListenersOf, windowsLoopbackOwnerCheck } from '../src/core/loopback-owner';
 import { windowsAclReader } from './win-acl';
 import { machineRu } from '../src/core/machine-ru';
 
@@ -239,6 +239,39 @@ test('FD-168: the macOS check reads the table once for connections asked at once
   assert.equal(await empty(47851, 53122), 'unknown');
   const broken = macConnectionCheck(async () => ({ code: 1, stdout: '', stderr: 'netstat: denied' }), 501);
   assert.equal(await broken(47851, 53122), 'unknown');
+});
+
+test('FD-268: a uid read for a live process is reused for ten minutes; a gone or old one is read again', async () => {
+  const runs: string[] = [];
+  let clock = 0;
+  const live = new Set([701, 802]);
+  const table = (client: number, pid: string) => [NS_HEAD, ns('tcp4', `127.0.0.1.${client}`, '127.0.0.1.47851', 'ESTABLISHED', 'Fabric Dash:900'), ns('tcp4', '127.0.0.1.47851', `127.0.0.1.${client}`, 'ESTABLISHED', pid)].join('\n');
+  let current = table(53122, 'agent:701');
+  const check = macConnectionCheck(async (cmd, args) => {
+    runs.push(cmd);
+    if (cmd === 'netstat') return { code: 0, stdout: current, stderr: '' };
+    return { code: 0, stdout: args.at(-1)!.split(',').filter((p) => live.has(Number(p))).map((p) => `${p} ${p === '701' ? 501 : 502}`).join('\n'), stderr: '' };
+  }, 501, () => {}, async () => {}, { alive: (p) => live.has(p), now: () => clock });
+  assert.equal(await check(47851, 53122), true);
+  current = table(53123, 'agent:701');
+  clock = OWNER_UID_FRESH_MS - 1;
+  assert.equal(await check(47851, 53123), true);
+  assert.deepEqual(runs, ['netstat', 'ps', 'netstat'], 'the table is read for each connection; ps once while the process lives');
+  // The process exited: its pid is not taken from memory but read again, and ps no longer lists it.
+  live.delete(701);
+  current = table(53124, 'agent:701');
+  assert.equal(await check(47851, 53124), 'unknown');
+  current = table(53125, 'agent:802');
+  assert.equal(await check(47851, 53125), false, 'another account is never ours');
+  live.add(701);
+  current = table(53127, 'agent:701');
+  assert.equal(await check(47851, 53127), true);
+  assert.equal(runs.filter((c) => c === 'ps').length, 4, 'the gone pid, the other account, the pid read again');
+  // Ten minutes after its read, a live process is read again too.
+  clock += OWNER_UID_FRESH_MS;
+  current = table(53126, 'agent:701');
+  assert.equal(await check(47851, 53126), true);
+  assert.equal(runs.filter((c) => c === 'ps').length, 5);
 });
 
 // /proc/net/tcp rows: sl local rem st tx:rx tr:when retrnsmt uid timeout inode
