@@ -1010,6 +1010,21 @@ test('FD-167: control refuses a system daemon of this space before launchctl cha
   assert.ok(!w.calls.launchctl.some((c) => /^(bootstrap|bootout|enable|disable|kickstart)$/.test(c[1] ?? '')), 'launchctl changed nothing');
 });
 
+test('FD-236 (5): console_new tells the calling agent its start was held (its context read like instructions)', { skip: process.platform === 'win32' && 'a Unix socket in a temporary folder' }, async () => {
+  const { openChannel } = await import('../src/electron/console-channel');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'fd-chan-held-'));
+  const w = world();
+  w.deps.settingsFile = () => path.join(dir, 'settings.json');
+  const ch = await openChannel({ userData: dir, log: () => undefined, start: async (r) => ({ ok: true, consoleKey: r.service, held: true }) });
+  try {
+    const out = await handle(w.deps, { id: 1, method: 'tools/call', params: { name: 'console_new', arguments: { service: KEY } } });
+    const sc = (out!.result as { structuredContent: { started: boolean; held?: boolean; held_why?: string } }).structuredContent;
+    assert.equal(sc.started, true);
+    assert.equal(sc.held, true);
+    assert.match(sc.held_why!, /asks before each action/);
+  } finally { await ch?.close(); fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
 test('FD-270: control refuses a job the local lifecycle broker enrolls and names the broker\'s tools', async () => {
   const w = world();
   w.deps.brokers = { targetOf: (label) => (label === DESCRIPTOR.lifecycle.label ? 'sample.service' : null) };

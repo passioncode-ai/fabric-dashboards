@@ -125,7 +125,8 @@ test('FD-234: a console whose context reads like instructions starts with permis
     home: base,
   } as never);
   const r = await host.start('runner.dev', 'new', { cols: 80, rows: 24 });
-  assert.ok(r.ok, JSON.stringify(r));
+  assert.deepEqual(r, { ok: true, held: true }, 'FD-236 (5): the start says it was held');
+  assert.match(String((await host.info('runner.dev')).held), /^\d{4}-\d\d-\d\dT/, 'FD-236 (5): the console shows since when');
   assert.ok(!spawned[0]!.includes('--dangerously-skip-permissions'), JSON.stringify(spawned[0]));
   assert.ok(logs.some((l) => /starts with permission prompts: its context reads like instructions/.test(l)));
   assert.equal(settings.get().consoles['runner.dev']?.bypass, undefined, 'the person\'s choice is not rewritten');

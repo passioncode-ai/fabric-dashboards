@@ -299,6 +299,8 @@ export function ConsolePanel({ serviceKey, height, maxHeight, onHeight, onDrag, 
     </span>
   ) : null;
 
+  // FD-236 (5): a held conversation (FD-234) runs with permission prompts; the person sees why it asks.
+  const heldChip = info?.held ? <span className="chip console-held" title={t('console.asks.hint')}>{t('console.asks')}</span> : null;
   if (page) {
     // R1-V4: the page's header says how the session ended; the strip adds only an unclean exit's code.
     const exitLine = info ? pageExitLine(lang, info.session, Boolean(info.idle), info.machine) : null;
@@ -308,6 +310,7 @@ export function ConsolePanel({ serviceKey, height, maxHeight, onHeight, onDrag, 
         {info?.session.state === 'idle' && <p className="console-state muted">{t('sessions.notKept')}</p>}
         {notice && <div className={`console-state notice${notice.info ? '' : ' error'}`} role={notice.info ? 'status' : 'alert'}><p>{notice.text}</p></div>}
         {exitLine && <p className="console-line console-exit-line meta" role="status">{exitLine}</p>}
+        {info?.held && <p className="console-line console-held-line meta">{t('console.asks.hint')}</p>}
         <div className="console-term" ref={host} onClick={() => term.current?.focus()} />
         <p className={`console-line console-keys meta${termFocus ? '' : ' quiet'}`} aria-hidden={!termFocus}>{t('sessions.keys')}</p>
       </section>
@@ -337,6 +340,7 @@ export function ConsolePanel({ serviceKey, height, maxHeight, onHeight, onDrag, 
               </>}
               {accountChip}
             </>}
+          {heldChip}
           {sessionButtons}
           <span className="spacer" />
           {running && confirmClose && (
