@@ -94,6 +94,8 @@ SCN-115 join an organization; SCN-116 see what this machine gives each context (
 8. MCP `organizations`.
    Done in 0.8.117: `own_label`, `hidden`, `seen_in` beside name, label, personal and agents.
 9. Machine view core (`src/core/machine-view.ts`), `context` and `audience` readers.
+   Steps 9 to 11 in part in 0.8.118: `machineView`, `MachinePage` after Spend, MCP `this_machine`; the `context` and
+   `audience` readers and the `list_services` fields wait for Fabric's CO-422 (no instance reports a context yet).
 10. The page (`MachinePage.tsx`, nav, route, Network link), SCN-116.
 11. MCP `this_machine` and the `list_services` fields.
 12. Backlog, CHANGELOG, release by 2026-11-22; the CO-422 field turns on when Fabric publishes it.

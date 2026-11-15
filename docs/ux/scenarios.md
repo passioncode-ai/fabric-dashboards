@@ -121,6 +121,7 @@
 | SCN-113 | The Organizations menu keeps every organization Observatory names | navigation | P-01 | ST-016 | implemented | 2026-11-15 |
 | SCN-114 | Configure the organizations | settings | P-01 | ST-016 | implemented | 2026-11-15 |
 | SCN-115 | Join an organization | settings | P-01 | ST-016 | implemented | 2026-11-15 |
+| SCN-116 | See what this computer gives each context | machine | P-01 | ST-016 | implemented | 2026-11-15 |
 ## Personas
 
 Defined in [foundation.md](foundation.md) → P-01.
@@ -2603,4 +2604,23 @@ The Sessions mode (0.8.0): every coding session apart from the agents, each stat
 - **Errors & recovery:** a user name, password or another port in the link is refused too; the app keeps nothing (membership belongs to the organizations service)
 - **Coverage:** src/core/join.ts (joinLink, JOIN_HOST), src/electron/main.ts (organizationJoin IPC, org.join), src/core/console-channel.ts (org.join), src/mcp/tools.ts (organizationJoin), src/renderer/components/Settings.tsx (JoinOrganization)
 - **Status:** implemented (2026-11-15, 0.8.117: `test/organizations.test.ts` *FD-248 step 7*)
+
+### SCN-116: See what this computer gives each context
+
+- **Persona:** P-01
+- **Feature:** machine
+- **Traces:** FD-52 (design `docs/design/2026-11-15-organizations-and-this-machine.md` §This machine (FD-52), operator decision C1 of 2026-11-15); board thread `f1fd7e94`
+- **Entry point:** the sidebar's This Mac, after Spend
+- **Preconditions:** agents installed on this computer
+- **Steps:**
+  1. The person opens This Mac -> four totals: agents, running, needing attention, spent today (read from the agents' own usage reports, again every minute while the page is shown)
+  2. Below, one section per context: the personal organization first, then the others by label (the person's own label when set), then "Context not reported"; each with its counts, today's spend and its agents, each opening its page
+  3. A line says that no agent reports how many people it serves yet
+- **Expected result:** the person sees what this computer gives each organization it works for, in sums only
+- **Alt paths:** an agent reads the same with MCP `this_machine` (contexts with `confirmed: false`, `people: null`); spend per agent stays the `spend` tool's
+- **UI elements:** the totals, the context sections, the "your own" tag, the agent links
+- **States covered:** loading (spend "…"), success
+- **Errors & recovery:** an agent whose usage report cannot be read makes the spend a lower bound, as on Spend; contexts come from Observatory's map until Fabric reports each instance's own (CO-422), so none is marked confirmed
+- **Coverage:** src/core/machine-view.ts (machineView), src/renderer/components/MachinePage.tsx, src/renderer/components/Navigation.tsx (This Mac item), src/renderer/App.tsx (route machine), src/electron/policy.ts (resume route), src/mcp/tools.ts (thisMachine), src/mcp/server.ts (this_machine)
+- **Status:** implemented (2026-11-15, 0.8.118: `test/machine-view.test.ts`)
 

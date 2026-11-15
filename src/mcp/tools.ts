@@ -9,6 +9,7 @@
 // Reading — descriptors, claim conflicts, launchd status, the health probe, the state — is one
 // look through @passioncode-ai/fabric-service-host, the same code Fabric's registry reads with.
 import { supervises } from '../core/platform';
+import { machineView } from '../core/machine-view';
 import { JOIN_HOST, joinLink } from '../core/join';
 import { filterListRows, type SessionListRow } from '../core/sessions-view';
 import fs from 'node:fs';
@@ -435,6 +436,23 @@ export async function organizationsKnown(deps: Deps): Promise<{ read_at: string 
     own_label: list.orgLabels[r.name] ?? null, hidden: list.orgHidden.includes(r.name),
     seen_in: cache.fromSwitchboard?.includes(r.name) ? ['switchboard'] : ['observatory'],
   })) };
+}
+
+/** FD-52 (SCN-116): what this computer gives each context, as the This computer page sums it: per context (the
+ *  organization of Observatory's map, `confirmed: false` until Fabric reports it; '' for none) its agents, how many run
+ *  and how many need attention, and their keys. Spend per agent is MCP `spend`'s; no agent reports people yet. */
+export async function thisMachine(deps: Deps): Promise<Record<string, unknown>> {
+  const file = deps.settingsFile?.() ?? appSettingsFile();
+  const cache = readOrganizations(path.join(path.dirname(file), 'organizations.json'));
+  const orgOf = organizationReader(deps);
+  const looks = await look(deps);
+  const view = machineView(looks.map((l) => ({ key: l.key, state: l.state, organization: orgOf(l) })), null, cache.personal ?? null);
+  return {
+    totals: { agents: view.totals.agents, running: view.totals.running, attention: view.totals.attention, stopped: view.totals.stopped },
+    contexts: view.contexts.map((c) => ({ name: c.name, label: c.label, personal: c.personal, confirmed: c.confirmed, agents: c.agents, running: c.running, attention: c.attention, stopped: c.stopped, keys: c.keys })),
+    people: null,
+    note: 'contexts come from Project Observatory\'s map until Fabric reports each instance\'s own (CO-422); spend per agent: the spend tool',
+  };
 }
 
 /** FD-162: each look's organization, from the map the app last read (organizations.json beside its settings). */

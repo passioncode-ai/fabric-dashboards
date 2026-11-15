@@ -26,7 +26,7 @@ analytics, and every finding fixed in waves to the end. Audit: [docs/reports/202
   FD-235 (the hold follows the conversation, `untrusted` on every agent-written answer, one act per relayed decision,
   an unreadable placement refuses start).
 - Wave 6: FD-246 done (sample agent from kit v0.91.0, e2e 31 of 33, the two diagnosed), FD-248 step 1 (the
-  Organizations menu keeps every organization; 0.8.117 Settings → Organizations, Switchboard as a source and Join, SCN-114, SCN-115), FD-247 steps 2 to 6 (0.8.109 to 0.8.114: other machines' sessions in the list, SCN-110; search, filters, machine headings and the sidebar's machine tree, SCN-109; 0.8.115 Open here and End there, SCN-112, and a terminal on a machine, SCN-111; 0.8.116 MCP `sessions`, New session on a machine heading and the table view). Designs:
+  Organizations menu keeps every organization; 0.8.117 Settings → Organizations, Switchboard as a source and Join, SCN-114, SCN-115; 0.8.118 This Mac, SCN-116), FD-247 steps 2 to 6 (0.8.109 to 0.8.114: other machines' sessions in the list, SCN-110; search, filters, machine headings and the sidebar's machine tree, SCN-109; 0.8.115 Open here and End there, SCN-112, and a terminal on a machine, SCN-111; 0.8.116 MCP `sessions`, New session on a machine heading and the table view). Designs:
   [Sessions with machines](design/2026-11-15-sessions-machines.md),
   [organizations and This machine](design/2026-11-15-organizations-and-this-machine.md).
 
@@ -35,11 +35,10 @@ SB-380, due 2026-11-22); FD-248 steps 4 to 8 (Settings →
 Organizations, join), then FD-52 This machine (design promised to the board by 2026-11-19, release by 2026-11-22);
 FD-268 (hidden CPU above the 0.3 % budget set for 22 agents), FD-269, FD-270, FD-271; FD-236's small items.
 
-**Next task.** FD-52 This machine (FD-248 steps 1 to 8 are shipped; 0.8.117 carries 4 to 8): the design's §This
-machine and steps 9 to 11: `src/core/machine-view.ts` (sums per context: agents by state, spend, activity per agent,
-workflow and project, people only for groups of 5 or more), the page after Spend, MCP `this_machine` and the
-`list_services` fields `context` and `audience` (null until Fabric's CO-422 reports them). Due on the board
-(thread `f1fd7e94`) 2026-11-19, release by 2026-11-22. FD-247 step 10 waits for SB-380 (2026-11-22).
+**Next task.** Post the FD-52 progress on the board thread `f1fd7e94` (the page and `this_machine` shipped in 0.8.118;
+the per-instance context waits for CO-422), then the open quality rows by priority: FD-268 (hidden CPU above the
+0.3 % budget set for 22 agents; 55 now), FD-269, FD-270, FD-271 (the Dock check of FD-05 in e2e), FD-236's small items.
+FD-247 step 10 waits for SB-380 (due 2026-11-22). Local e2e needs 5 GB free (2 to 4 GB on 2026-11-15).
 
 **Disk.** 2026-11-15 11:40 UTC the system disk had 2 GB free (Observatory: 26.9 GB of transcripts, 9.8 GB of tool
 caches). This session pruned its own caches (`npm cache clean --force`, `uv cache prune`, `pnpm store prune`,

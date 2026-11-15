@@ -73,7 +73,7 @@ interface RowDrag {
 const DRAG_TYPE = 'application/x-fabric-dashboards-agent';
 // #endregion list-drag
 
-export type AgentsPage = 'overview' | 'activity' | 'map' | 'spend' | 'service' | 'settings' | 'other';
+export type AgentsPage = 'overview' | 'activity' | 'map' | 'spend' | 'machine' | 'service' | 'settings' | 'other';
 
 interface AgentsNavProps {
   page: AgentsPage;
@@ -86,7 +86,7 @@ interface AgentsNavProps {
   layout: AppSettings['layout'];
   changeLayout: (patch: NonNullable<SettingsPatch['layout']>) => void;
   open: (key: string) => void;
-  go: (page: 'overview' | 'activity' | 'map' | 'spend') => void;
+  go: (page: 'overview' | 'activity' | 'map' | 'spend' | 'machine') => void;
   rail: boolean;
   queue: number;
   urgent: boolean;
@@ -148,6 +148,10 @@ export function AgentsNav({ page, status, everyAgent, arranged, products, curren
         </button>
         <button className="nav-item" aria-current={page === 'spend' ? 'page' : undefined} title={rail ? t('nav.spend') : undefined} onClick={() => go('spend')}>
           <Icon name="spend" /><span className="nav-label">{t('nav.spend')}</span>
+        </button>
+        {/* FD-52 (SCN-116): what this computer gives each context. */}
+        <button className="nav-item" aria-current={page === 'machine' ? 'page' : undefined} title={rail ? t('machine.title') : undefined} onClick={() => go('machine')}>
+          <Icon name="laptop" /><span className="nav-label">{t('machine.title')}</span>
         </button>
       </div>
       <div className="nav nav-scroll">
