@@ -92,7 +92,7 @@ export async function openChannel(o: ChannelOptions): Promise<Channel | null> {
 }
 
 /** The buttons' answer as the channel says it: a started session, or why it did not start. */
-export function startAnswer(service: string, r: { ok: true } | { ok: false; reason: string; detail?: string }): ChannelAnswer {
-  return r.ok ? { ok: true, consoleKey: service } : { ok: false, code: r.reason, ...(r.detail ? { detail: r.detail.slice(0, 200) } : {}) };
+export function startAnswer(service: string, r: { ok: true; held?: boolean } | { ok: false; reason: string; detail?: string }): ChannelAnswer {
+  return r.ok ? { ok: true, consoleKey: service, ...(r.held ? { held: true } : {}) } : { ok: false, code: r.reason, ...(r.detail ? { detail: r.detail.slice(0, 200) } : {}) };
 }
 // #endregion console-channel-server

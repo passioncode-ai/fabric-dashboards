@@ -62,6 +62,9 @@ export interface ConsoleInfo {
   session: { state: 'idle' | 'running' | 'exited'; label: string; cwd: string; output: string; end: number; exitCode: number | null; signal: number | null };
   /** FD-50 (LC-18): the session was closed after the idle time; opening the console continues it. */
   idle: { at: string; account: string | null } | null;
+  /** FD-236 (5): when this console's conversation was held (FD-234): it runs with permission prompts until a new
+   *  session starts on a clean context. Null or absent when it was not. */
+  held?: string | null;
   /** FD-62: the session this console runs came from a Switchboard hand-over (SB-108). */
   /** FD-62; FD-83: `kind: 'resume'` is a session this app continued after a usage limit. */
   handover?: { id: string; workflow: string; agent: string; account: string; dir: string; kind?: 'handover' | 'resume' } | null;
@@ -83,7 +86,9 @@ export type ConsoleSessions =
 
 /** Why a start did not run in the console, worded by the renderer. */
 export type ConsoleStartResult =
-  | { ok: true }
+  /** FD-236 (5): `held` when the session starts or continues with the runtime's permission prompts because its context
+   *  read like instructions (FD-234); the person sees it in the console, an agent in its MCP answer. */
+  | { ok: true; held?: boolean }
   | { ok: false; reason: 'running' | 'no-runtime' | 'no-folder' | 'no-continue' | 'switchboard' | 'terminal-only' | 'spawn' | 'isolated' | 'remote' | 'no-account' | 'held' | 'sb-unread'; detail?: string; project?: string }
   /** FD-49 (LC-17): deferred — the machine cannot carry another session now. */
   | { ok: false; reason: 'admission'; why: 'disk' | 'swap' | 'cap' | 'pool'; freeGb?: number; running?: number; cap?: number; used?: number };

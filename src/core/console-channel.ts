@@ -67,7 +67,7 @@ export interface OpenConsole {
   /** When it started, ISO 8601. */
   since: string;
 }
-export type ChannelAnswer = { ok: true; consoleKey: string } | { ok: true; consoles: OpenConsole[] } | { ok: true; result: Record<string, unknown> } | { ok: false; code: string; detail?: string };
+export type ChannelAnswer = { ok: true; consoleKey: string; held?: boolean } | { ok: true; consoles: OpenConsole[] } | { ok: true; result: Record<string, unknown> } | { ok: false; code: string; detail?: string };
 
 /** Where the channel listens: a socket in the app's data folder, or on Windows a pipe named from this run's key.
  *  FD-258 (security audit F6): a pipe name another account could predict lets it take the name first and receive the

@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.8.124 - 2026-11-15
+
+### Added
+
+- FD-236 (5): a console held because its context read like instructions (FD-234) now says so: an "Asks before acting"
+  chip in its strip and the reason on its session's page, until a new session starts on a clean context. MCP
+  `console_new` and `console_fix` answer `held: true` with `held_why`, so the calling agent knows the session may wait on
+  a person.
+
 ## 0.8.123 - 2026-11-15
 
 ### Fixed

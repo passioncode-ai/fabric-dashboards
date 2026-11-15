@@ -825,7 +825,7 @@ async function askChannel(deps: Deps, request: { op: ChannelOp; service?: string
 }
 
 /** ADR-0025 (FD-120): start a console session, or a fix in one, in the running app. */
-export async function consoleChannel(deps: Deps, request: { op: ChannelOp; service: string; task?: { kind: 'fix' | 'audit' | 'ask'; output: string }; mode?: 'continue' }): Promise<{ started: true; console: string } | Record<string, unknown>> {
+export async function consoleChannel(deps: Deps, request: { op: ChannelOp; service: string; task?: { kind: 'fix' | 'audit' | 'ask'; output: string }; mode?: 'continue' }): Promise<{ started: true; console: string; held?: true; held_why?: string } | Record<string, unknown>> {
   // FD-182: the Setup console (Set up with my coding agent, and Fix with my coding agent after Check setup) is no installed service.
   if (request.service !== SETUP_KEY) find(deps, request.service);
   const answer = await askChannel(deps, request, 'app-not-running: Fabric Dashboards is not running, so no console can start; open it and call again');
@@ -833,7 +833,9 @@ export async function consoleChannel(deps: Deps, request: { op: ChannelOp; servi
   // FD-175: a fix for an agent whose session runs was typed into it (no Enter), as the console's own button does.
   if ('result' in answer) return { started: false, ...answer.result };
   if (!('consoleKey' in answer)) throw new ToolError('the app answered a list where a start was asked');
-  return { started: true, console: answer.consoleKey };
+  // FD-236 (5): an agent is told when the start was held: the session asks before acting, since its context read like
+  // instructions (FD-234), so it may wait on a person's answer in the console.
+  return { started: true, console: answer.consoleKey, ...(answer.held ? { held: true, held_why: 'its context read like instructions, so the session asks before each action; a person answers in its console' } : {}) };
 }
 
 /** FD-166 (Fabric's CO-457): the consoles running now in the app on this machine, one row each, with the link that opens

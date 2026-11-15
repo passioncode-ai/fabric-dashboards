@@ -443,6 +443,7 @@ export class ConsoleHost {
       account: await this.shownAccount(runtime, b, inv),
       session: { state: s.state, label: s.label, cwd: s.cwd, output: s.output, end: s.end, exitCode: s.exitCode, signal: s.signal },
       idle: this.o.settings.get().consoles[key]?.idle ?? null,
+      held: this.o.settings.get().consoles[key]?.held ?? null,
       handover: this.handoverInfo(key),
       remote: this.remoteInfo(key),
       machine: this.o.settings.get().consoles[key]?.machine ?? null,
@@ -685,7 +686,7 @@ export class ConsoleHost {
       ...(saved?.bypass !== undefined ? { bypass: saved.bypass } : {}), ...(saved?.isolated !== undefined ? { isolated: saved.isolated } : {}),
       ...(fresh && !packFailed ? { held: saved?.held ?? new Date().toISOString() } : mode === 'new' && !fresh ? { held: null } : {}) } } });
     this.o.log(`console: ${key} started ${runtime.id} (${mode}) in ${folder.path}${plan.argv[0] === inv.switchboard ? ' through Switchboard' : ''}${saved?.isolated ? ' isolated' : ''}${saved?.bypass === false ? ' with permission prompts' : ''}${pack && !packFailed ? ` with its context${task ? ` and a ${task.kind} task` : ''}` : pack ? ' without its context (the pack could not be written)' : ''}`);
-    return { ok: true };
+    return held ? { ok: true, held: true } : { ok: true };
   }
 
   // #region target-session-host — docs: docs/ux/scenarios.md#scn-101-start-a-new-session-in-a-folder
