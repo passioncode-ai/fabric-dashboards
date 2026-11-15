@@ -2,6 +2,19 @@
 
 ## 0.8.108 - 2026-11-15
 
+### Security
+
+- Quality wave 5b (FD-236, FD-235): a console held because its context read like instructions stays held for that
+  conversation: its Continue, a session continued after a limit or from the Sessions list in its folder, and Open in
+  Terminal all keep the permission prompts until a new session starts on a clean context. A held Codex start keeps a
+  read-only sandbox you set.
+- `list_services`, `service_status` and `audit` name the fields an agent wrote about itself (`untrusted`), as
+  `service_context` and `activity` did; `audit` ends with a typed timeout instead of hanging.
+- The setup brief fences the setup check's own lines as data.
+- A decision of the operator relayed to the app serves one act: the same words cannot be used again a day later.
+- Start and Restart are refused while Observatory's placement record exists but cannot be read, so a second copy
+  cannot start by mistake.
+
 ### Fixed
 
 - FD-248: the Organizations menu no longer loses an organization. Every organization Project Observatory names is a
@@ -15,21 +28,6 @@
 - FD-246: the sample agent the tests run is the agent kit as of today (fabric-agent-adapter v0.91.0); every e2e file
   passes with it on an unlocked screen but one Dock check that also fails on 0.8.101 (FD-271). Designs for the
   Sessions mode with machines (FD-247) and for organizations and This machine (FD-248, FD-52) are in `docs/design/`.
-
-## 0.8.106 - 2026-11-15
-
-### Security
-
-- Quality wave 5b (FD-236, FD-235): a console held because its context read like instructions stays held for that
-  conversation: its Continue, a session continued after a limit or from the Sessions list in its folder, and Open in
-  Terminal all keep the permission prompts until a new session starts on a clean context. A held Codex start keeps a
-  read-only sandbox you set.
-- `list_services`, `service_status` and `audit` name the fields an agent wrote about itself (`untrusted`), as
-  `service_context` and `activity` did; `audit` ends with a typed timeout instead of hanging.
-- The setup brief fences the setup check's own lines as data.
-- A decision of the operator relayed to the app serves one act: the same words cannot be used again a day later.
-- Start and Restart are refused while Observatory's placement record exists but cannot be read, so a second copy
-  cannot start by mistake.
 
 ## 0.8.105 - 2026-11-15
 

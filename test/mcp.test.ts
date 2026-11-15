@@ -1023,5 +1023,8 @@ test('FD-249: arrange moves an agent one place in its section and its open tab o
 test('Wave 5b (FD-236 (3)): a call that gives no answer in time ends in a typed timeout, and a quick one passes through', async () => {
   const { withDeadline } = await import('../src/mcp/server');
   assert.equal(await withDeadline(Promise.resolve(7), 1_000, 'x'), 7);
+  // The deadline's timer is unref'd (a server waiting on stdin is not held open by it), so the test holds the loop.
+  const hold = setTimeout(() => undefined, 5_000);
   await assert.rejects(withDeadline(new Promise(() => undefined), 20, 'audit'), (e: Error & { details?: { code?: string } }) => /audit gave no answer/.test(e.message) && e.details?.code === 'timeout');
+  clearTimeout(hold);
 });
