@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.8.120 - 2026-11-15
+
+### Added
+
+- FD-273: an agent's whereabouts. Its row's tooltip names where each copy runs (this Mac, another machine by name and
+  whether a forwarded port brings it here, or online with the provider read from its address) and its organization.
+  The details card above its page lists where it runs, the organization, how the dashboard is entered, the repository,
+  the version, who installed it and when, and how many copies run elsewhere. Who has access, data isolation and the
+  space it runs in wait for the agents to declare them.
+
 ## 0.8.119 - 2026-11-15
 
 ### Fixed

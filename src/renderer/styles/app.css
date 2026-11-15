@@ -409,6 +409,10 @@ html.drawer-page, html.drawer-page body, html.drawer-page #root { background: tr
 .kv { display: grid; grid-template-columns: 140px 1fr; gap: var(--pc-space-2) var(--pc-space-4); }
 .kv dt { color: var(--pc-text-muted); font-size: var(--pc-type-meta); }
 .kv dd { margin: 0; font-family: var(--pc-font-data); font-size: var(--pc-type-meta); word-break: break-all; }
+/* FD-273: the details card's whereabouts: sentences, not data, so they wrap at words. */
+.svc-where { margin: 0 0 var(--pc-space-3); }
+.svc-where-row { display: contents; }
+.svc-where dd { font-family: inherit; word-break: normal; overflow-wrap: anywhere; }
 pre.log { background: var(--pc-panel); border: 1px solid var(--pc-border); border-radius: var(--pc-radius-control); padding: var(--pc-space-3); font: var(--pc-type-meta) / 1.5 var(--pc-font-data); white-space: pre-wrap; word-break: break-word; max-height: 60vh; overflow: auto; }
 
 /* activity */

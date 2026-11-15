@@ -97,7 +97,8 @@ test('VIS-07 (FD-113): the map is a labelled group whose agent boxes are named b
 test('VIS-15 (FD-113): an agent row in the expanded list keeps its full name as a title, as the rail does', () => {
   const long = 'an-agent-with-a-very-long-name';
   const html = agentsNav([snap(`${long}.default`, 'ready')]);
-  assert.match(html, new RegExp(`<button class="nav-item"[^>]*title="A${long.slice(1)}: Ready"`));
+  // FD-273: the first line is the name and state; where it runs follows on its own line.
+  assert.match(html, new RegExp(`<button class="nav-item"[^>]*title="A${long.slice(1)}: Ready\nOn this (Mac|computer)"`));
 });
 
 test('VIS-14 (FD-113): the idle close is announced politely, never as an error alert', async () => {
