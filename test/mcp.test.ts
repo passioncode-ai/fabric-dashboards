@@ -1010,6 +1010,18 @@ test('FD-167: control refuses a system daemon of this space before launchctl cha
   assert.ok(!w.calls.launchctl.some((c) => /^(bootstrap|bootout|enable|disable|kickstart)$/.test(c[1] ?? '')), 'launchctl changed nothing');
 });
 
+test('FD-270: control refuses a job the local lifecycle broker enrolls and names the broker\'s tools', async () => {
+  const w = world();
+  w.deps.brokers = { targetOf: (label) => (label === DESCRIPTOR.lifecycle.label ? 'sample.service' : null) };
+  for (const action of ['start', 'stop', 'restart']) {
+    const out = await handle(w.deps, { id: 1, method: 'tools/call', params: { name: 'control', arguments: { service: KEY, action } } });
+    const res = out!.result as { isError: boolean; content: { text: string }[] };
+    assert.equal(res.isError, true, action);
+    assert.match(res.content[0]!.text, /local lifecycle broker \(target sample\.service\).*lifecycle\.ensure_running/);
+  }
+  assert.ok(!w.calls.launchctl.some((c) => /^(bootstrap|bootout|enable|disable|kickstart)$/.test(c[1] ?? '')), 'launchctl changed nothing');
+});
+
 test('FD-181: list_services names the launchd domain: gui, system for a system daemon of this space, null when unsupervised', { skip: process.platform !== 'darwin' && 'launchd is read only on macOS (FD-37)' }, async () => {
   const w = world();
   const gui = await handle(w.deps, { id: 1, method: 'tools/call', params: { name: 'list_services', arguments: {} } });

@@ -302,8 +302,43 @@ export function macLsofServerEnd(stdout: string, server: number, client: number,
 export const LSOF_TRIES = 3;
 export const LSOF_GAP_MS = 60;
 
-/** FD-168: the macOS connection check: one `netstat` for every connection waiting, then `ps` for the owners' uids. */
-export function macConnectionCheck(run: Runner, uid: number, failed: (why: string) => void = () => {}, sleep: (ms: number) => Promise<void> = (ms) => new Promise((r) => setTimeout(r, ms))) {
+/** FD-268: how long a process's uid read by `ps` is reused while the process lives (its uid does not change). */
+export const OWNER_UID_FRESH_MS = 10 * 60_000;
+
+/** FD-268: whether a process still runs: signal 0 checks and sends nothing; EPERM is another account's live process. */
+export function processAlive(pid: number): boolean {
+  try { process.kill(pid, 0); return true; } catch (error) { return (error as NodeJS.ErrnoException).code === 'EPERM'; }
+}
+
+/** FD-168: the macOS connection check: one `netstat` for every connection waiting, then `ps` for the owners' uids.
+ *  FD-268: a uid read for a process is reused for OWNER_UID_FRESH_MS while that process still runs, so a quiet hour
+ *  starts `ps` once per agent and not once per request; the table itself is read fresh for every connection. A pid is
+ *  given to a new process only after the old one has exited and the counter has wrapped, so a live pid inside the window
+ *  is the process whose uid was read. */
+export function macConnectionCheck(run: Runner, uid: number, failed: (why: string) => void = () => {}, sleep: (ms: number) => Promise<void> = (ms) => new Promise((r) => setTimeout(r, ms)),
+  { alive = processAlive, now = Date.now }: { alive?: (pid: number) => boolean; now?: () => number } = {}) {
+  const known = new Map<number, { uid: number; at: number }>();
+  const uidsOf = async (pids: number[]): Promise<Map<number, number>> => {
+    const uids = new Map<number, number>();
+    const ask: number[] = [];
+    for (const p of pids) {
+      const k = known.get(p);
+      if (k && now() - k.at < OWNER_UID_FRESH_MS && alive(p)) uids.set(p, k.uid);
+      else { known.delete(p); ask.push(p); }
+    }
+    if (!ask.length) return uids;
+    if (known.size > 256) for (const [p, k] of known) if (now() - k.at >= OWNER_UID_FRESH_MS) known.delete(p);
+    const r = await run('ps', ['-o', 'pid=,uid=', '-p', ask.join(',')], 10_000);
+    for (const line of r.stdout.split('\n')) {
+      const m = /^\s*(\d+)\s+(\d+)\s*$/.exec(line);
+      if (!m) continue;
+      const [p, u] = [Number(m[1]), Number(m[2])];
+      if (!ask.includes(p)) continue;
+      uids.set(p, u);
+      known.set(p, { uid: u, at: now() });
+    }
+    return uids;
+  };
   return batched(async () => {
     const r = await run('netstat', ['-anv', '-p', 'tcp'], 10_000);
     if (r.code !== 0) throw new Error(r.stderr.trim() || `netstat exit ${r.code}`);
@@ -321,12 +356,7 @@ export function macConnectionCheck(run: Runner, uid: number, failed: (why: strin
     }
     if (!pids.length) return false;
     if (pids.some((p) => p <= 0)) return 'unknown';
-    const r = await run('ps', ['-o', 'pid=,uid=', '-p', [...new Set(pids)].join(',')], 10_000);
-    const uids = new Map<number, number>();
-    for (const line of r.stdout.split('\n')) {
-      const m = /^\s*(\d+)\s+(\d+)\s*$/.exec(line);
-      if (m) uids.set(Number(m[1]), Number(m[2]));
-    }
+    const uids = await uidsOf([...new Set(pids)]);
     const owners = new Set(pids.map((p) => uids.get(p)));
     if (owners.has(undefined)) return 'unknown';
     if (owners.size > 1) return 'unknown'; // listeners of different accounts on the chosen address

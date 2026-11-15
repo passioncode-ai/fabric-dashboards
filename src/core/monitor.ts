@@ -21,6 +21,7 @@ import type { InstanceContext, Organization } from './organizations';
 import { closedFamily, composeEventNotice, displayName, DOWN_NOTIFY_AFTER_MS, episodeKey, intentOf, NotifyLedger, shouldNotify, type Happening, type Intent } from './notify';
 import { fetchEvents, PROBE_TIMEOUT_MS, readTokenAsync } from './probe';
 import { tlsFor } from './testhooks';
+import { BrokerTargetReader } from './broker-targets';
 import type { Busy, Reason, ServiceSnapshot, Settings } from './types';
 
 export { CONTROL_TIMEOUT_MS } from './control';
@@ -66,6 +67,8 @@ export interface MonitorOptions {
   placement?: Pick<PlacementReader, 'get' | 'error'>;
   /** FD-167: which launchd labels are system daemons of this user's space (default: Observatory's root-owned record). */
   daemons?: Pick<SpaceDaemonReader, 'isSystem'>;
+  /** FD-270: which launchd labels the local lifecycle broker enrolls. Default: a BrokerTargetReader on its registry. */
+  brokers?: Pick<BrokerTargetReader, 'targetOf'>;
   /** FD-135: the name the agent's own repository gives this service key (`.fabric/names.json`, ADR-0026), or null. */
   customName?: (key: string, repository: string | undefined) => string | null;
   /** FD-162: the organization of an agent's repository, from Project Observatory's registry; undefined when no map was
@@ -154,6 +157,7 @@ export class Monitor extends EventEmitter {
   private disabled: { at: number; table: string } | null = null;
   private disabledSystem: { at: number; table: string } | null = null;
   private readonly daemons: Pick<SpaceDaemonReader, 'isSystem'>;
+  private readonly brokers: Pick<BrokerTargetReader, 'targetOf'>;
 
   constructor(private readonly o: MonitorOptions) {
     super();
@@ -168,6 +172,7 @@ export class Monitor extends EventEmitter {
     this.token = o.token ?? readTokenAsync;
     this.placement = o.placement ?? new PlacementReader();
     this.daemons = o.daemons ?? new SpaceDaemonReader({ platform: this.platform });
+    this.brokers = o.brokers ?? new BrokerTargetReader({ platform: this.platform });
   }
 
   /** FD-167, FD-180: a job whose plist is in /Library/LaunchDaemons, or that Observatory installed as a system daemon of
@@ -717,6 +722,7 @@ export class Monitor extends EventEmitter {
       elsewhere: this.elsewhere(t),
       placementError: this.placement.error,
       systemDaemon: this.where(d) === 'system',
+      brokerTarget: d.lifecycle.label ? this.brokers.targetOf(d.lifecycle.label, this.now()) : null,
       platform: this.platform,
       launchd: this.launchd,
       wellKnown: (origin) => fetchWellKnown(origin, 1500),
@@ -733,6 +739,7 @@ export class Monitor extends EventEmitter {
         if (out.why === 'plist-missing') return finish(false, { code: 'result.plistMissing', params: { name, path: out.plist } });
         if (out.why === 'placed-elsewhere') return finish(false, { code: 'result.placedElsewhere', params: { name, machine: out.machine } });
         if (out.why === 'system-daemon') return finish(false, { code: 'result.systemDaemon', params: { name } });
+        if (out.why === 'broker') return finish(false, { code: 'result.broker', params: { name, target: out.target } });
         if (out.why === 'not-here') return finish(false, { code: 'result.notHere', params: { name, machine: out.machine } });
         if (out.why === 'placement-unreadable') return finish(false, { code: 'result.placementUnreadable', params: { name, detail: out.detail } });
         return finish(false, { code: 'result.unmanaged', params: { name } });

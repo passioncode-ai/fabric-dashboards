@@ -26,19 +26,19 @@ analytics, and every finding fixed in waves to the end. Audit: [docs/reports/202
   FD-235 (the hold follows the conversation, `untrusted` on every agent-written answer, one act per relayed decision,
   an unreadable placement refuses start).
 - Wave 6: FD-246 done (sample agent from kit v0.91.0, e2e 31 of 33, the two diagnosed), FD-248 step 1 (the
-  Organizations menu keeps every organization; 0.8.117 Settings → Organizations, Switchboard as a source and Join, SCN-114, SCN-115; 0.8.118 This Mac, SCN-116; 0.8.119 FD-274 the task line clickable again; 0.8.120 FD-273 an agent's whereabouts in its tooltip and details, SCN-117; FD-275 narrowed: the second copy was FD-262's, fixed in 0.8.100, board reply `56a640dc`), FD-247 steps 2 to 6 (0.8.109 to 0.8.114: other machines' sessions in the list, SCN-110; search, filters, machine headings and the sidebar's machine tree, SCN-109; 0.8.115 Open here and End there, SCN-112, and a terminal on a machine, SCN-111; 0.8.116 MCP `sessions`, New session on a machine heading and the table view). Designs:
+  Organizations menu keeps every organization; 0.8.117 Settings → Organizations, Switchboard as a source and Join, SCN-114, SCN-115; 0.8.118 This Mac, SCN-116; 0.8.119 FD-274 the task line clickable again; 0.8.120 FD-273 an agent's whereabouts in its tooltip and details, SCN-117; 0.8.121 FD-268 the owner's uid reused for ten minutes and FD-270 the broker's jobs refused; FD-275 narrowed: the second copy was FD-262's, fixed in 0.8.100, board reply `56a640dc`), FD-247 steps 2 to 6 (0.8.109 to 0.8.114: other machines' sessions in the list, SCN-110; search, filters, machine headings and the sidebar's machine tree, SCN-109; 0.8.115 Open here and End there, SCN-112, and a terminal on a machine, SCN-111; 0.8.116 MCP `sessions`, New session on a machine heading and the table view). Designs:
   [Sessions with machines](design/2026-11-15-sessions-machines.md),
   [organizations and This machine](design/2026-11-15-organizations-and-this-machine.md).
 
 **Open, by priority.** FD-247 steps 6 to 10 (table and filters, remote actions, MCP, docs; the `--target` doors are
 SB-380, due 2026-11-22); FD-248 steps 4 to 8 (Settings →
 Organizations, join), then FD-52 This machine (design promised to the board by 2026-11-19, release by 2026-11-22);
-FD-268 (hidden CPU above the 0.3 % budget set for 22 agents), FD-269, FD-270, FD-271; FD-236's small items.
+FD-268 (hidden CPU above the 0.3 % budget set for 22 agents), FD-269, FD-271; FD-236's small items.
 
 **Next task.** FD-273's second part: ask fabric-agent-contract (board) for optional `access`, `tenancy` and `space`
 fields in `fabric-service/0.1`, so an agent can say who has access, how its data is kept apart and in which space it
 runs; show them in the details card once declared. Then FD-275's rest (stuck, waiting and old consoles by Switchboard's
-duty officer's thresholds), FD-268, FD-269, FD-270, FD-271, FD-236's small items. FD-52's per-instance context waits
+duty officer's thresholds), FD-268's measurement (`scripts/measure-idle.ts 150` once the load is below 40 and 5 GB are free), FD-269, FD-271, FD-236's small items. FD-52's per-instance context waits
 for CO-422; FD-247 step 10 for SB-380 (2026-11-22). Local e2e needs 5 GB free.
 
 **Disk.** 2026-11-15 11:40 UTC the system disk had 2 GB free (Observatory: 26.9 GB of transcripts, 9.8 GB of tool

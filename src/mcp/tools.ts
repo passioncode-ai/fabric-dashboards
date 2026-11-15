@@ -8,6 +8,7 @@
 //
 // Reading — descriptors, claim conflicts, launchd status, the health probe, the state — is one
 // look through @passioncode-ai/fabric-service-host, the same code Fabric's registry reads with.
+import { BrokerTargetReader } from '../core/broker-targets';
 import { supervises } from '../core/platform';
 import { machineView } from '../core/machine-view';
 import { JOIN_HOST, joinLink } from '../core/join';
@@ -96,6 +97,8 @@ export interface Deps {
   placement?: () => Placement | null;
   /** FD-167: which launchd labels are system daemons of this space (tests replace Observatory's record). */
   daemons?: Pick<SpaceDaemonReader, 'isSystem'>;
+  /** FD-270: which launchd labels the local lifecycle broker enrolls. */
+  brokers?: Pick<BrokerTargetReader, 'targetOf'>;
   /** FD-81: runs the launcher's read-only doctor (Check setup); default: the owned runner with this process's PATH. */
   setupRun?: (command: string, args: string[]) => Promise<{ code: number | null; output: string; timedOut: boolean; started?: boolean; stdout?: string; stderr?: string }>;
   /** FD-78: the person's kinds and hidden agents, read from the app's settings; null when there are none to read. */
@@ -596,6 +599,7 @@ export async function control(deps: Deps, key: string, action: 'start' | 'stop' 
     elsewhere: elsewhereOf(deps.placement ? deps.placement() : reader!.get(deps.now()), d),
     placementError: reader?.error ?? null,
     systemDaemon: isSystemJob(d, deps.daemons ?? new SpaceDaemonReader({ platform: deps.platform }), deps.now()),
+    brokerTarget: d.lifecycle.label ? (deps.brokers ?? new BrokerTargetReader({ platform: deps.platform })).targetOf(d.lifecycle.label, deps.now()) : null,
     platform: deps.platform, launchd: deps.launchd, wellKnown: (origin) => deps.wellKnown(origin), exists: deps.exists,
     now: deps.now, sleep: deps.sleep, pollMs: 500,
   }, { oldPid: before?.kind === 'answer' ? before.doc.process.pid : null });
@@ -607,6 +611,8 @@ export async function control(deps: Deps, key: string, action: 'start' | 'stop' 
       if (out.why === 'plist-missing') throw new ToolError(`${d.name}: the launchd plist is missing at ${out.plist}; reinstall the service`);
       // FD-132: a second copy here would run beside the one on the other machine.
       // FD-167: only root starts or stops a system daemon of this space; the host agent does it.
+      // FD-270: the local lifecycle broker enrolls the job; acting on it here would fight the broker.
+      if (out.why === 'broker') throw new ToolError(`${d.name} is enrolled with the local lifecycle broker (target ${out.target}), which starts, stops and restarts it; use its lifecycle tools (lifecycle.ensure_running, lifecycle.restart, lifecycle.stop)`);
       if (out.why === 'system-daemon') throw new ToolError(`${d.name} runs as a system service of this space, which only the administrator can start or stop; ask the host agent (studio.service.control)`);
       // FD-179: the job is not loaded here; what answers on its port is the placed copy, through a forward.
       if (out.why === 'not-here') throw new ToolError(`${d.name} runs on ${out.machine === 'unknown' ? 'another machine' : out.machine} and its job is not loaded here: nothing of it runs on this machine to stop. Stop it on the machine that runs it`);
