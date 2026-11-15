@@ -2,7 +2,7 @@
 // FD-103 (dossier node S3): how the Sessions mode words a row. Pure (no DOM, no Electron), so the sidebar, the All
 // sessions page, the session page, the tray and the notification say the same words, and a test reads them.
 import { t, type Lang } from './i18n';
-import { GROUP_ORDER, type SessionGroup, type SessionRow } from './sessions';
+import { GROUP_ORDER, type RemoteMachineStatus, type SessionGroup, type SessionRow } from './sessions';
 
 /** The coding agent's name as a person reads it. */
 export function agentName(agent: string): string {
@@ -67,6 +67,49 @@ export function dispatchLines(lang: Lang, rows: readonly SessionRow[], key: stri
 export function groupRows(rows: readonly SessionRow[]): { group: SessionGroup; rows: SessionRow[] }[] {
   return GROUP_ORDER.map((group) => ({ group, rows: rows.filter((r) => r.group === group) })).filter((g) => g.rows.length > 0);
 }
+
+// #region sessions-filter — docs: docs/design/2026-11-15-sessions-machines.md#the-list
+/** FD-247 (step 6): how a row came, as All sessions filters it: a board request (FD-137) is its own value. */
+export const originKey = (r: SessionRow): string => (dispatched(r) ? 'dispatch' : r.origin);
+
+export interface SessionFilter { machines: readonly string[]; groups: readonly SessionGroup[]; origins: readonly string[] }
+export const NO_FILTER: SessionFilter = { machines: [], groups: [], origins: [] };
+export const filterActive = (f: SessionFilter, query = ''): boolean => f.machines.length + f.groups.length + f.origins.length > 0 || query.trim() !== '';
+
+/** FD-247: the rows every chosen value lets through; an empty dimension lets every row through. */
+export function filterRows(rows: readonly SessionRow[], f: SessionFilter): SessionRow[] {
+  return rows.filter((r) => (f.machines.length === 0 || f.machines.includes(r.machine ?? ''))
+    && (f.groups.length === 0 || f.groups.includes(r.group))
+    && (f.origins.length === 0 || f.origins.includes(originKey(r))));
+}
+
+/** FD-247: every word of the query, in any order and case, in the project, folder, account, coding agent or machine. */
+export function searchRows(lang: Lang, rows: readonly SessionRow[], query: string): SessionRow[] {
+  const words = query.toLocaleLowerCase(lang).split(/\s+/).filter(Boolean);
+  if (words.length === 0) return [...rows];
+  return rows.filter((r) => {
+    const hay = [r.project, r.folder, r.account, agentName(r.agent), r.agent, r.machine].filter(Boolean).join(' ').toLocaleLowerCase(lang);
+    return words.every((w) => hay.includes(w));
+  });
+}
+
+/** FD-247: the rows by machine: this Mac first ('' with no status), then each machine read (Switchboard's order), then any
+ *  other a row names (a session of this app's own there, FD-206). A machine read with no row is kept, for its status. */
+export function machineGroups(rows: readonly SessionRow[], machines: readonly RemoteMachineStatus[] = []): { machine: string; status: RemoteMachineStatus | null; rows: SessionRow[] }[] {
+  const names = ['', ...machines.map((m) => m.machine)];
+  for (const r of rows) if (r.machine && !names.includes(r.machine)) names.push(r.machine);
+  return names.map((machine) => ({ machine, status: machines.find((m) => m.machine === machine) ?? null, rows: rows.filter((r) => (r.machine ?? '') === machine) }))
+    .filter((g) => g.machine !== '' || g.rows.length > 0 || names.length === 1);
+}
+
+/** FD-247: a machine's heading words beside its name: when it was read, or why its list is not fresh. */
+export function machineStatusWords(lang: Lang, s: RemoteMachineStatus | null): string | null {
+  if (!s) return null;
+  if (s.state === 'ok') return s.at ? t(lang, 'sessions.machine.readAt', { time: clock(lang, s.at) }) : null;
+  if (s.state === 'unreachable') return s.at ? t(lang, 'sessions.machine.unreachable', { machine: s.machine, time: clock(lang, s.at) }) : t(lang, 'sessions.machine.unreachableNever', { machine: s.machine });
+  return t(lang, `sessions.machine.${s.state}`, { machine: s.machine });
+}
+// #endregion sessions-filter
 
 /** SCN-077 step 4: what the switch's badge counts. */
 export const waitingForYou = (rows: readonly SessionRow[]): number => rows.filter((r) => r.group === 'needs-you').length;

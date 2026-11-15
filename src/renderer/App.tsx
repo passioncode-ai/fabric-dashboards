@@ -522,7 +522,7 @@ function Shell({ status: everyAgent, route, setRoute, mode, switchMode, stopKey,
               {route.page === 'map' && <ConnectionsMap status={status} every={orgs.length ? everyAgent.services : undefined} open={(key) => open(key, undefined, 'connections')} onAgent={handToAgent} />}
               {route.page === 'settings' && <Settings status={status} onTheme={onTheme} onLanguage={onLanguage} onSetup={() => openSetup('new')} section={route.section} nonce={route.nonce} />}
               {route.page === 'sessions' && <AllSessions sessions={status.sessions} noteSeen={noteSeen} onNoteSeen={onNoteSeen} onSetUp={() => setRoute({ page: 'settings', section: 'sessions', nonce: Date.now() })}
-                endedOpen={layout.endedOpen} onEndedOpen={(o) => changeLayout({ endedOpen: o })} open={openSession} askEnd={askEnd} continued={(key) => setRoute({ page: 'session', id: '', follow: key, until: Date.now() + SESSION_WAIT_MS })} />}
+                endedOpen={layout.endedOpen} onEndedOpen={(o) => changeLayout({ endedOpen: o })} filter={layout.sessionsFilter} onFilter={(f) => changeLayout({ sessionsFilter: { machines: [...f.machines], groups: [...f.groups], origins: [...f.origins] } })} open={openSession} askEnd={askEnd} continued={(key) => setRoute({ page: 'session', id: '', follow: key, until: Date.now() + SESSION_WAIT_MS })} />}
             </div>
             </div>
           )}

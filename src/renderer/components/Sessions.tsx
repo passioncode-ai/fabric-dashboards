@@ -5,7 +5,8 @@ import { remoteRefusal } from '../../core/remote-words';
 import { useEffect, useRef, useState } from 'react';
 import type { AppStatus } from '../../core/types';
 import type { SessionActionResult, SessionRow } from '../../core/sessions';
-import { agentName, chainFacts, clock, contextChip, continueLabel, groupRows, originChip, projectName, revealLabel, secondLine, stateShort, stateWords } from '../../core/sessions-view';
+import { agentName, chainFacts, clock, contextChip, continueLabel, filterActive, filterRows, groupRows, machineGroups, machineStatusWords, NO_FILTER, originChip, originKey, projectName, revealLabel, searchRows, secondLine, stateShort, stateWords, type SessionFilter } from '../../core/sessions-view';
+import { GROUP_ORDER } from '../../core/sessions';
 import { api, useT } from '../lib';
 import { SESSION_MARK, SessionMark } from './Navigation';
 
@@ -121,11 +122,11 @@ export function SessionActions({ row, place, open, askEnd, continued, onMenu }: 
 }
 
 /** SCN-078 step 3: one session as a card: the two lines, the state in words, the state's actions. */
-function SessionCard({ row, autoContinue, ...actions }: Omit<ActionsProps, 'place'> & { row: SessionRow; autoContinue: boolean }) {
+function SessionCard({ row, autoContinue, stale, ...actions }: Omit<ActionsProps, 'place'> & { row: SessionRow; autoContinue: boolean; stale?: boolean }) {
   const { lang } = useT();
   const mark = SESSION_MARK[row.group];
   return (
-    <li className={`session-card sg-${row.group}`}>
+    <li className={`session-card sg-${row.group}${stale ? ' session-stale' : ''}`}>
       <div className="session-card-head">
         <h3><button className="linkish session-title" onClick={() => actions.open(row.id)}>{projectName(lang, row)}</button></h3>
         <p className="meta session-sub">{secondLine(lang, row)}</p>
@@ -146,14 +147,53 @@ interface AllProps {
   open: (id: string) => void;
   askEnd: (row: SessionRow) => void;
   continued: (key: string) => void;
+  /** FD-247 (step 6, SCN-109): the filters kept in Settings.layout. */
+  filter?: SessionFilter;
+  onFilter?: (f: SessionFilter) => void;
 }
 
 /** SCN-078, SCN-079: All sessions. */
-export function AllSessions({ sessions, noteSeen, onNoteSeen, onSetUp, endedOpen, onEndedOpen, open, askEnd, continued }: AllProps) {
+export function AllSessions({ sessions, noteSeen, onNoteSeen, onSetUp, endedOpen, onEndedOpen, open, askEnd, continued, filter = NO_FILTER, onFilter }: AllProps) {
   const { t, lang } = useT();
-  const rows = sessions?.rows ?? [];
-  const groups = groupRows(rows);
+  const [query, setQuery] = useState('');
+  const all = sessions?.rows ?? [];
+  const rows = searchRows(lang, filterRows(all, filter), query);
   const failing = sessions?.degraded[0];
+  const machines = sessions?.machines ?? [];
+  // FD-247 (step 6): machines are headings only once another machine is read or named; one Mac reads as before.
+  const byMachine = machineGroups(rows, machines);
+  const several = machines.length > 0 || all.some((r) => r.machine);
+  const filtering = filterActive(filter, query);
+  const toggle = <K extends keyof SessionFilter>(k: K, v: SessionFilter[K][number]) => {
+    const list = filter[k] as readonly string[];
+    onFilter?.({ ...filter, [k]: list.includes(v as string) ? list.filter((x) => x !== v) : [...list, v] });
+  };
+  const machineNames = ['', ...machines.map((m) => m.machine), ...all.map((r) => r.machine).filter((m): m is string => Boolean(m))].filter((m, i, a) => a.indexOf(m) === i);
+  const origins = [...new Set(all.map(originKey))];
+  const chip = <K extends keyof SessionFilter>(k: K, v: SessionFilter[K][number], label: string) => (
+    <button key={`${k}-${v}`} type="button" className="chip filter-chip" aria-pressed={(filter[k] as readonly string[]).includes(v as string)} onClick={() => toggle(k, v)}>{label}</button>
+  );
+  const groupsOf = (list: SessionRow[], stale: boolean, scope: string) => groupRows(list).map(({ group, rows: inGroup }) => {
+    // Under a machine's heading a state is a level lower; with one Mac it is the page's first level, as before.
+    const H = several ? 'h3' : 'h2';
+    const heading = t(`sessions.group.${group}`, { n: inGroup.length });
+    // A search or a filter shows what it found: the Ended group unfolds while one is on.
+    const folded = group === 'ended' && !endedOpen && !filtering;
+    const id = `sg-${scope}-${group}`;
+    return (
+      <section key={group} className="session-group" aria-labelledby={id}>
+        {group === 'ended'
+          ? (
+            <div className="session-group-head">
+              <H id={id}><button className="fold-btn" aria-expanded={!folded} onClick={() => onEndedOpen(folded)}><span aria-hidden="true">{folded ? '▸' : '▾'}</span> {heading}</button></H>
+              <button className="btn btn-sm" aria-label={t('sessions.clear.label')} onClick={() => void api().sessionsClearEnded()}>{t('sessions.clear')}</button>
+            </div>
+          )
+          : <H id={id} className="session-group-head">{heading}</H>}
+        {!folded && <ul className="session-cards">{inGroup.map((r) => <SessionCard key={r.id} row={r} stale={stale} autoContinue={sessions?.autoContinue !== false} open={open} askEnd={askEnd} continued={continued} />)}</ul>}
+      </section>
+    );
+  });
   return (
     <div className="sessions">
       {/* V-7 of FIX-2: without Switchboard one notice says how to get it; the note and its button to Switchboard's
@@ -170,30 +210,42 @@ export function AllSessions({ sessions, noteSeen, onNoteSeen, onSetUp, endedOpen
       {(!sessions || sessions.switchboard === null) && <p className="muted row" role="status"><span className="spinner" aria-hidden="true" /> {t('sessions.reading')}</p>}
       {sessions && sessions.switchboard === false && <p className="notice" role="status">{`${t('sessions.noSwitchboard')} ${t('sessions.note.install')}`}</p>}
       {sessions?.switchboard && failing && <p className="notice warning" role="status">{t('sessions.degraded', { time: clock(lang, failing.since) })}</p>}
-      {/* FD-247 (step 5): another machine whose list is not fresh says so; its last rows stay, read up to 24 h ago. */}
-      {(sessions?.machines ?? []).filter((m) => m.state !== 'ok').map((m) => (
-        <p key={m.machine} className="meta" role="status">{m.state === 'unreachable'
-          ? (m.at ? t('sessions.machine.unreachable', { machine: m.machine, time: clock(lang, m.at) }) : t('sessions.machine.unreachableNever', { machine: m.machine }))
-          : t(`sessions.machine.${m.state}`, { machine: m.machine })}</p>
-      ))}
-      {sessions && sessions.switchboard !== null && rows.length === 0 && <div className="empty"><p>{t('sessions.empty')}</p></div>}
-      {groups.map(({ group, rows: list }) => {
-        const heading = t(`sessions.group.${group}`, { n: list.length });
-        const folded = group === 'ended' && !endedOpen;
-        return (
-          <section key={group} className="session-group" aria-labelledby={`sg-${group}`}>
-            {group === 'ended'
-              ? (
-                <div className="session-group-head">
-                  <h2 id={`sg-${group}`}><button className="fold-btn" aria-expanded={!folded} onClick={() => onEndedOpen(folded)}><span aria-hidden="true">{folded ? '▸' : '▾'}</span> {heading}</button></h2>
-                  <button className="btn btn-sm" aria-label={t('sessions.clear.label')} onClick={() => void api().sessionsClearEnded()}>{t('sessions.clear')}</button>
-                </div>
-              )
-              : <h2 id={`sg-${group}`} className="session-group-head">{heading}</h2>}
-            {!folded && <ul className="session-cards">{list.map((r) => <SessionCard key={r.id} row={r} autoContinue={sessions?.autoContinue !== false} open={open} askEnd={askEnd} continued={continued} />)}</ul>}
-          </section>
-        );
-      })}
+      {/* FD-247 (step 6, SCN-109): search and filters; the filters are kept, the search is not. */}
+      {all.length > 0 && (
+        <div className="session-filters" role="search">
+          <input type="search" className="session-search" aria-label={t('sessions.search')} placeholder={t('sessions.search.hint')} value={query} onChange={(e) => setQuery(e.target.value)} />
+          {machineNames.length > 1 && (
+            <div className="row filter-row" role="group" aria-label={t('sessions.filter.machine')}><span className="meta">{t('sessions.filter.machine')}</span>{machineNames.map((m) => chip('machines', m, m || t('sessions.machine.this')))}</div>
+          )}
+          <div className="row filter-row" role="group" aria-label={t('sessions.filter.state')}><span className="meta">{t('sessions.filter.state')}</span>{GROUP_ORDER.map((g) => chip('groups', g, t(`sessions.filter.group.${g}`)))}</div>
+          {origins.length > 1 && (
+            <div className="row filter-row" role="group" aria-label={t('sessions.filter.origin')}><span className="meta">{t('sessions.filter.origin')}</span>{origins.map((o) => chip('origins', o, t(`sessions.origin.${o}`)))}</div>
+          )}
+          {filtering && (
+            <p className="meta row" role="status">{t('sessions.filter.shown', { n: rows.length, m: all.length })}
+              <button type="button" className="btn-link" onClick={() => { setQuery(''); onFilter?.(NO_FILTER); }}>{t('sessions.filter.clear')}</button></p>
+          )}
+        </div>
+      )}
+      {sessions && sessions.switchboard !== null && all.length === 0 && machines.length === 0 && <div className="empty"><p>{t('sessions.empty')}</p></div>}
+      {all.length > 0 && rows.length === 0 && <div className="empty"><p>{t('sessions.filter.none')}</p></div>}
+      {several
+        ? byMachine.map(({ machine, status, rows: list }) => {
+          const stale = Boolean(status && status.state !== 'ok');
+          const words = machine ? machineStatusWords(lang, status) : null;
+          return (
+            <section key={machine || 'here'} className={`session-machine${stale ? ' session-machine-stale' : ''}`} aria-labelledby={`sm-${machine || 'here'}`}>
+              <h2 id={`sm-${machine || 'here'}`} className="session-machine-head">{machine || t('sessions.machine.this')}
+                {words && !stale && <span className="meta"> · {words}</span>}
+                {list.length === 0 && !stale && <span className="meta"> · {t('sessions.machine.empty')}</span>}
+              </h2>
+              {/* FD-247 (step 5): a machine whose list is not fresh says why; its last rows stay, greyed, up to 24 h. */}
+              {stale && words && <p className="meta" role="status">{words}</p>}
+              {groupsOf(list, stale, machine || 'here')}
+            </section>
+          );
+        })
+        : groupsOf(rows, false, 'here')}
       {/* FD-107: the footnote speaks of the list, so it waits for the list; under the loading line it is not drawn. */}
       {sessions && !sessions.machine && <p className="meta sessions-footnote">{t('sessions.footnote')}</p>}
     </div>

@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.8.113 - 2026-11-15
+
+### Added
+
+- FD-247: All sessions has a search (project, folder, account, coding agent, machine) and filter chips for the machine,
+  the state and how a session came, with "N of M shown" and Clear filters; the filters are kept. With other machines,
+  each is a heading with when it was read or why not, and the rows of a machine not read now are greyed.
+
 ## 0.8.112 - 2026-11-15
 
 ### Added

@@ -728,7 +728,17 @@ input.switch:focus-visible { outline: 2px solid var(--pc-focus); outline-offset:
 .sessions { display: flex; flex-direction: column; gap: var(--pc-space-4); max-width: 1040px; }
 .sessions > .notice { margin: 0; }
 .sessions-note p { margin: 0 0 var(--pc-space-3); max-width: 72ch; }
-.session-group h2, .session-group-head { font-size: var(--pc-type-card); margin: 0 0 var(--pc-space-2); font-weight: 600; }
+.session-group h2, .session-group h3, .session-group-head { font-size: var(--pc-type-card); margin: 0 0 var(--pc-space-2); font-weight: 600; }
+/* FD-247 (step 6): search and filters, machines as headings, a machine not read now greyed with its last rows. */
+.session-filters { display: flex; flex-direction: column; gap: var(--pc-space-2); margin-bottom: var(--pc-space-4); }
+.session-search { max-width: 420px; }
+.filter-row { flex-wrap: wrap; gap: var(--pc-space-2); align-items: center; }
+.filter-row > .meta { min-width: 10ch; }
+.filter-chip { cursor: pointer; color: var(--pc-text); }
+.filter-chip[aria-pressed='true'] { background: var(--pc-accent-soft); border-color: var(--pc-border-strong); }
+.session-machine { margin-bottom: var(--pc-space-5); }
+.session-machine-head { font-size: var(--pc-type-card); margin: 0 0 var(--pc-space-2); font-weight: 700; border-bottom: 1px solid var(--pc-border); padding-bottom: var(--pc-space-1); }
+.session-machine-stale .session-card, .session-card.session-stale { opacity: 0.6; }
 div.session-group-head { display: flex; align-items: center; gap: var(--pc-space-3); }
 div.session-group-head h2 { margin: 0; }
 .fold-btn { border: 0; background: none; padding: 0; color: inherit; font: inherit; cursor: pointer; display: inline-flex; align-items: center; gap: var(--pc-space-1); }

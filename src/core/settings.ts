@@ -183,6 +183,21 @@ function mergeLayout(raw: unknown): Settings['layout'] {
     mode: l.mode === 'sessions' ? 'sessions' : 'agents',
     sessionId: typeof l.sessionId === 'string' && l.sessionId.length > 0 && l.sessionId.length <= 400 ? l.sessionId : null,
     endedOpen: l.endedOpen === true,
+    sessionsFilter: mergeSessionsFilter(l.sessionsFilter),
+  };
+}
+
+const SESSION_GROUPS = ['needs-you', 'running', 'waiting', 'ended'] as const;
+const SESSION_ORIGINS = ['handover', 'resume', 'limit', 'switchboard', 'here', 'machine', 'dispatch'];
+
+/** FD-247 (step 6): All sessions' filters; anything it does not know is dropped, so a damaged value shows every row. */
+function mergeSessionsFilter(raw: unknown): Settings['layout']['sessionsFilter'] {
+  const f = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
+  const list = (v: unknown) => (Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : []);
+  return {
+    machines: [...new Set(list(f.machines).filter((m) => m.length <= 255))].slice(0, 20),
+    groups: [...new Set(list(f.groups))].filter((g): g is (typeof SESSION_GROUPS)[number] => (SESSION_GROUPS as readonly string[]).includes(g)),
+    origins: [...new Set(list(f.origins))].filter((o) => SESSION_ORIGINS.includes(o)),
   };
 }
 

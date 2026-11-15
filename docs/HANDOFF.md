@@ -26,7 +26,7 @@ analytics, and every finding fixed in waves to the end. Audit: [docs/reports/202
   FD-235 (the hold follows the conversation, `untrusted` on every agent-written answer, one act per relayed decision,
   an unreadable placement refuses start).
 - Wave 6: FD-246 done (sample agent from kit v0.91.0, e2e 31 of 33, the two diagnosed), FD-248 step 1 (the
-  Organizations menu keeps every organization), FD-247 steps 2 to 5 (0.8.109, 0.8.111, 0.8.112: other machines' sessions in the list, SCN-110). Designs:
+  Organizations menu keeps every organization), FD-247 steps 2 to 6a (0.8.109 to 0.8.113: other machines' sessions in the list, SCN-110; search, filters and machine headings, SCN-109). Designs:
   [Sessions with machines](design/2026-11-15-sessions-machines.md),
   [organizations and This machine](design/2026-11-15-organizations-and-this-machine.md).
 
@@ -35,10 +35,15 @@ SB-380, due 2026-11-22); FD-248 steps 4 to 8 (Settings →
 Organizations, join), then FD-52 This machine (design promised to the board by 2026-11-19, release by 2026-11-22);
 FD-268 (hidden CPU above the 0.3 % budget set for 22 agents), FD-269, FD-270, FD-271; FD-236's small items.
 
-**Next task.** FD-247 step 6: the renderer list per the design (helpers in `src/core/sessions-view.ts`, a table with
-search and filters by machine, agent, state; a machine tree in the sidebar; rows of a machine not read now greyed with
-its last read time), then step 7 (Open here and End for a hosted remote row, a terminal on that machine). The data is in
-`SessionsStatus.rows[].machine` and `SessionsStatus.machines[]` since 0.8.112.
+**Next task.** FD-247 step 6b: All sessions as a table on a wide window (state, project, machine, agent, account, how
+it came, time, the main action with the rest in More; cards below a width) and the sidebar's machine tree (headings that
+fold, needs-you and running rows kept in view), then step 7 (Open here and End for a hosted remote row, a terminal on
+that machine). The helpers are in `src/core/sessions-view.ts` (`machineGroups`, `filterRows`, `searchRows`).
+
+**Disk.** 2026-11-15 11:40 UTC the system disk had 2 GB free (Observatory: 26.9 GB of transcripts, 9.8 GB of tool
+caches). This session pruned its own caches (`npm cache clean --force`, `uv cache prune`, `pnpm store prune`,
+`brew cleanup -s`); the rule's transcript step (`cleanupPeriodDays` 14, then back to 90) was refused by the harness's
+settings guard and is left to Observatory's disk guard or the person. `npm run test:e2e` needs 5 GB free.
 
 Checks run: `FD_SKIP_LAUNCHD=1 npm run check` green on every merge (1275 tests at 0.8.109); the e2e suite file by file on
 an unlocked screen (wave 3 and wave 6); copy checks on every new string (no blocking finding).
