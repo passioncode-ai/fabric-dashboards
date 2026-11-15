@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.8.100 - 2026-11-15
+
+### Fixed
+
+- FD-262: a session that stopped on a usage limit is no longer continued a second time while it still runs in another
+  terminal. 0.8.87 added the check, but the background pass dropped the list of live sessions before it; now every way
+  of continuing (the pass, Continue now, Continue on a Sessions row) checks again just before it starts.
+
 ## 0.8.99 - 2026-11-15
 
 ### Changed
