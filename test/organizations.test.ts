@@ -460,3 +460,16 @@ test('FD-248 step 7: MCP organization_join answers the page; a link on another h
   assert.match(html, /placeholder="https:\/\/org\.passioncode\.ai\/…"/);
   assert.match(html, />Join an organization</);
 });
+
+test('FD-248 step 8: MCP organizations gives each organization the person\'s own label, whether it is hidden and where it was seen', async () => {
+  const tools = await import('../src/mcp/tools');
+  const { SettingsStore } = await import('../src/core/settings');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'fd-org-mcp-'));
+  const services = path.join(dir, 'services');
+  fs.mkdirSync(services);
+  fs.writeFileSync(path.join(dir, 'organizations.json'), JSON.stringify({ readAt: '2026-11-15T10:00:00Z', byRepository: {}, organizations: { acme: 'Acme', globex: 'Globex' }, personal: 'acme', fromSwitchboard: ['globex'] }));
+  new SettingsStore(dir).update({ layout: { list: { orgLabels: { acme: 'Acme (ops)' }, orgHidden: ['globex'] } } as never });
+  const deps = { servicesDir: () => services, settingsFile: () => path.join(dir, 'settings.json'), wellKnown: async () => ({ ok: false }), launchd: async () => ({ code: 0, stdout: '', stderr: '' }), now: () => Date.parse('2026-11-15T10:00:00Z') };
+  const out = await tools.organizationsKnown(deps as never);
+  assert.deepEqual(out.organizations.map((o) => [o.name, o.own_label, o.hidden, o.seen_in]), [['acme', 'Acme (ops)', false, ['observatory']], ['globex', null, true, ['switchboard']]]);
+});

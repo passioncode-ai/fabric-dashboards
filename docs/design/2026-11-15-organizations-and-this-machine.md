@@ -92,6 +92,7 @@ SCN-115 join an organization; SCN-116 see what this machine gives each context (
    Done in 0.8.117: `joinLink` (https on `org.passioncode.ai` only, no user, password or other port), IPC
    `organizationJoin`, channel op `org.join`, MCP `organization_join`.
 8. MCP `organizations`.
+   Done in 0.8.117: `own_label`, `hidden`, `seen_in` beside name, label, personal and agents.
 9. Machine view core (`src/core/machine-view.ts`), `context` and `audience` readers.
 10. The page (`MachinePage.tsx`, nav, route, Network link), SCN-116.
 11. MCP `this_machine` and the `list_services` fields.

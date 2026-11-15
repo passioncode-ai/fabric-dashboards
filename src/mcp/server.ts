@@ -69,7 +69,7 @@ export const TOOLS = [
     annotations: { readOnlyHint: true },
   },  {
     name: 'organizations',
-    description: 'Every organization Project Observatory names on this Mac, as the sidebar\'s Organizations menu lists them (FD-248, SCN-113): name, label, whether it is the personal one, and how many installed agents are attributed to it (0 for one with no agent here). Read from the map the app last read (organizations.json); read_at null means none was read yet. Read-only.',
+    description: 'Every organization Project Observatory names on this Mac, as the sidebar\'s Organizations menu lists them (FD-248, SCN-113): name, label, whether it is the personal one, how many installed agents are attributed to it (0 for one with no agent here), own_label (the person's label in Settings → Organizations, null when none), hidden (left out of the menu) and seen_in (observatory, or switchboard for one only Switchboard names). Read from the map the app last read (organizations.json); read_at null means none was read yet. Read-only.',
     inputSchema: { type: 'object', properties: {}, additionalProperties: false },
     annotations: { readOnlyHint: true },
   },

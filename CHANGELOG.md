@@ -11,6 +11,8 @@
   known organizations, with no agent moved; `PassionCode.ai` matches `passioncode`.
 - FD-248: Join an organization in Settings → Organizations opens the organizations service's page, or a pasted invite
   link on its host only, in the browser; nothing about membership is kept here. Agents use MCP `organization_join`.
+- FD-248: MCP `organizations` also gives each organization's label of your own, whether it is hidden from the menu and
+  where it was seen (Observatory or Switchboard).
 
 ## 0.8.116 - 2026-11-15
 

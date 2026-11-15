@@ -422,12 +422,19 @@ export async function listServices(deps: Deps, organizations?: string[]): Promis
 }
 
 /** Wave 6 (FD-248, SCN-113): the organizations the map names, each with its attributed agents here (0 included). */
-export async function organizationsKnown(deps: Deps): Promise<{ read_at: string | null; organizations: { name: string; label: string | null; personal: boolean; agents: number }[] }> {
-  const cache = readOrganizations(path.join(path.dirname(deps.settingsFile?.() ?? appSettingsFile()), 'organizations.json'));
+export async function organizationsKnown(deps: Deps): Promise<{ read_at: string | null; organizations: { name: string; label: string | null; personal: boolean; agents: number; own_label: string | null; hidden: boolean; seen_in: string[] }[] }> {
+  const file = deps.settingsFile?.() ?? appSettingsFile();
+  const cache = readOrganizations(path.join(path.dirname(file), 'organizations.json'));
+  const list = new SettingsStore(path.dirname(file), () => undefined).get().layout.list;
   const looks = await look(deps);
   const orgOf = organizationReader(deps);
   const rows = organizationCounts(looks.map((l) => ({ organization: orgOf(l) })), 'org', knownOrganizations(cache));
-  return { read_at: cache.readAt, organizations: rows.filter((r) => r.name !== '').map((r) => ({ name: r.name, label: r.label, personal: r.personal === true, agents: r.count })) };
+  // FD-248 (step 8): the person's own label and the menu switch (Settings → Organizations), and where it was seen.
+  return { read_at: cache.readAt, organizations: rows.filter((r) => r.name !== '').map((r) => ({
+    name: r.name, label: r.label, personal: r.personal === true, agents: r.count,
+    own_label: list.orgLabels[r.name] ?? null, hidden: list.orgHidden.includes(r.name),
+    seen_in: cache.fromSwitchboard?.includes(r.name) ? ['switchboard'] : ['observatory'],
+  })) };
 }
 
 /** FD-162: each look's organization, from the map the app last read (organizations.json beside its settings). */

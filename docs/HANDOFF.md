@@ -35,10 +35,11 @@ SB-380, due 2026-11-22); FD-248 steps 4 to 8 (Settings →
 Organizations, join), then FD-52 This machine (design promised to the board by 2026-11-19, release by 2026-11-22);
 FD-268 (hidden CPU above the 0.3 % budget set for 22 agents), FD-269, FD-270, FD-271; FD-236's small items.
 
-**Next task.** FD-248 step 8 (steps 4 to 7 in 0.8.117): MCP `organizations` gives each organization's label of the
-person's own and whether it is hidden (`layout.list.orgLabels`, `orgHidden`) and where it was seen (`fromSwitchboard`);
-then FD-52 This machine (design §This machine, steps 9 to 11: `src/core/machine-view.ts`, the page after Spend, MCP
-`this_machine`; due on the board 2026-11-19, release by 2026-11-22). FD-247 step 10 waits for SB-380 (2026-11-22).
+**Next task.** FD-52 This machine (FD-248 steps 1 to 8 are shipped; 0.8.117 carries 4 to 8): the design's §This
+machine and steps 9 to 11: `src/core/machine-view.ts` (sums per context: agents by state, spend, activity per agent,
+workflow and project, people only for groups of 5 or more), the page after Spend, MCP `this_machine` and the
+`list_services` fields `context` and `audience` (null until Fabric's CO-422 reports them). Due on the board
+(thread `f1fd7e94`) 2026-11-19, release by 2026-11-22. FD-247 step 10 waits for SB-380 (2026-11-22).
 
 **Disk.** 2026-11-15 11:40 UTC the system disk had 2 GB free (Observatory: 26.9 GB of transcripts, 9.8 GB of tool
 caches). This session pruned its own caches (`npm cache clean --force`, `uv cache prune`, `pnpm store prune`,
