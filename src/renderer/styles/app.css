@@ -739,6 +739,8 @@ input.switch:focus-visible { outline: 2px solid var(--pc-focus); outline-offset:
 .session-machine { margin-bottom: var(--pc-space-5); }
 .session-machine-head { font-size: var(--pc-type-card); margin: 0 0 var(--pc-space-2); font-weight: 700; border-bottom: 1px solid var(--pc-border); padding-bottom: var(--pc-space-1); }
 .session-machine-stale .session-card, .session-card.session-stale { opacity: 0.6; }
+.nav-machine-head { font-weight: 600; color: var(--pc-text); }
+.nav-machine-stale .session-item { opacity: 0.6; }
 div.session-group-head { display: flex; align-items: center; gap: var(--pc-space-3); }
 div.session-group-head h2 { margin: 0; }
 .fold-btn { border: 0; background: none; padding: 0; color: inherit; font: inherit; cursor: pointer; display: inline-flex; align-items: center; gap: var(--pc-space-1); }

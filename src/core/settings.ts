@@ -184,6 +184,7 @@ function mergeLayout(raw: unknown): Settings['layout'] {
     sessionId: typeof l.sessionId === 'string' && l.sessionId.length > 0 && l.sessionId.length <= 400 ? l.sessionId : null,
     endedOpen: l.endedOpen === true,
     sessionsFilter: mergeSessionsFilter(l.sessionsFilter),
+    sessionsFolded: Array.isArray(l.sessionsFolded) ? [...new Set(l.sessionsFolded.filter((m): m is string => typeof m === 'string' && m.length <= 255))].slice(0, 20) : [],
   };
 }
 

@@ -472,7 +472,7 @@ function Shell({ status: everyAgent, route, setRoute, mode, switchMode, stopKey,
         {mode === 'agents'
           ? <AgentsNav page={agentsPage} status={status} everyAgent={everyAgent.services} arranged={arranged} products={products} currentProduct={currentProduct} layout={layout} changeLayout={changeLayout} open={open}
             go={(page) => setRoute({ page })} rail={rail} queue={queue.length} urgent={queue.some(urgent)} auditErrors={auditErrors} hiddenProblem={hiddenProblem} menu={rowMenu} />
-          : <SessionsNav sessions={status.sessions} currentId={route.page === 'session' ? (sessionRow?.id ?? route.id) : null} allCurrent={route.page === 'sessions'} rail={rail}
+          : <SessionsNav folded={layout.sessionsFolded} onFold={(m, f) => changeLayout({ sessionsFolded: f ? [...layout.sessionsFolded.filter((x) => x !== m), m] : layout.sessionsFolded.filter((x) => x !== m) })} sessions={status.sessions} currentId={route.page === 'session' ? (sessionRow?.id ?? route.id) : null} allCurrent={route.page === 'sessions'} rail={rail}
             endedOpen={layout.endedOpen} onEndedOpen={(o) => changeLayout({ endedOpen: o })} openAll={() => setRoute({ page: 'sessions' })} openRow={openSession} onNew={() => setNewSession('session')} />}
         <div className="sidebar-footer">
           {!rail && <UpdateLine status={status} />}

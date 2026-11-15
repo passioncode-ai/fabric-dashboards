@@ -5,7 +5,7 @@ import type { AppStatus, ListSort, Settings as AppSettings, SettingsPatch } from
 import { moveInSection, offProducts, placeStates, type MoveSection, type Product } from '../../core/products';
 import { filterServices, GITHUB_PREFIX, groupByOrganization, ORG_MINE, ORG_OTHERS, ORG_SHARED, organizationCounts, type OrgSource } from '../../core/organizations';
 import type { SessionGroup, SessionRow } from '../../core/sessions';
-import { groupRows, navLines, projectName, stateShort, waitingForYou } from '../../core/sessions-view';
+import { groupRows, machineGroups, machineStatusWords, navLines, projectName, stateShort, waitingForYou } from '../../core/sessions-view';
 import { revealScrollTop } from '../../core/layout';
 import { api, GLYPH, Icon, nameOf, Spinner, useT } from '../lib';
 import { shownState } from '../../core/setup-wait';
@@ -375,14 +375,20 @@ export function SessionMark({ group }: { group: SessionGroup }) {
 
 /** SCN-078: the Sessions mode's list: All sessions, then the groups in their order, each heading with its count; the
  *  Ended group folds (folded by default, the fold remembered) and offers Clear. An empty group is not drawn. */
-export function SessionsNav({ sessions, currentId, allCurrent, rail, endedOpen, onEndedOpen, openAll, openRow, onNew }: {
+export function SessionsNav({ sessions, currentId, allCurrent, rail, endedOpen, onEndedOpen, openAll, openRow, onNew, folded: foldedMachines = [], onFold }: {
   sessions: AppStatus['sessions']; currentId: string | null; allCurrent: boolean; rail: boolean; endedOpen: boolean;
   onEndedOpen: (open: boolean) => void; openAll: () => void; openRow: (id: string) => void;
   /** FD-191 (SCN-101): New session, which opens its dialog. */
   onNew?: () => void;
+  /** FD-247 (step 6b): the machines whose heading is folded ('' is this Mac), kept in Settings.layout. */
+  folded?: readonly string[];
+  onFold?: (machine: string, folded: boolean) => void;
 }) {
   const { t, lang } = useT();
-  const groups = groupRows(sessions?.rows ?? []);
+  const rowsAll = sessions?.rows ?? [];
+  const machines = sessions?.machines ?? [];
+  // FD-247 (step 6b): machines are headings once another machine is read or named; one Mac reads as before.
+  const several = !rail && (machines.length > 0 || rowsAll.some((r) => r.machine));
   // FD-107: the current session's row is kept in view: scrolled to only as far as needed when the page changes to it,
   // the list fills in, or the Ended group unfolds.
   const scroller = useRef<HTMLDivElement | null>(null);
@@ -395,6 +401,43 @@ export function SessionsNav({ sessions, currentId, allCurrent, rail, endedOpen, 
     const next = revealScrollTop({ scrollTop: box.scrollTop, height: box.clientHeight }, { top, height: item.offsetHeight }, 8);
     if (next !== box.scrollTop) box.scrollTop = next;
   }, [currentId, shown, endedOpen, rail]);
+  const renderGroup = (group: SessionGroup, rows: SessionRow[], scope: string) => {
+    // R1-V3: the sidebar's ended heading is short ("Ended: 2"); the All sessions page keeps the long one.
+    const heading = t(group === 'ended' ? 'sessions.navGroup.ended' : `sessions.group.${group}`, { n: rows.length });
+    const folded = group === 'ended' && !endedOpen;
+    return (
+      <div key={group} role="group" aria-labelledby={`snav-${scope ? `${scope}-` : ''}${group}`}>
+        {group === 'ended'
+          ? (
+            <div className="nav-section-row session-fold">
+              <button id={`snav-${scope ? `${scope}-` : ''}${group}`} className={rail ? 'nav-item' : 'nav-section nav-fold-section'} aria-expanded={!folded} title={rail ? heading : undefined} onClick={() => onEndedOpen(folded)}>
+                <span aria-hidden="true">{folded ? '▸' : '▾'}</span> <span className={rail ? 'nav-label' : undefined}>{heading}</span>
+              </button>
+              {!rail && <button type="button" className="btn-link nav-clear" aria-label={t('sessions.clear.label')} onClick={() => void api().sessionsClearEnded()}>{t('sessions.clear')}</button>}
+            </div>
+          )
+          : <div className="nav-section" id={`snav-${scope ? `${scope}-` : ''}${group}`}>{heading}</div>}
+        {/* FD-107: a folded Ended group still shows the session whose page is open, so it is never out of sight. */}
+        {rows.filter((r) => !folded || r.id === currentId).map((r) => {
+          const lines = navLines(lang, r);
+          return (
+            <button key={r.id} className="nav-item session-item" aria-current={currentId === r.id ? 'page' : undefined} data-current={currentId === r.id ? '' : undefined}
+              title={rail ? [t('join.nameState', { name: projectName(lang, r), state: stateShort(lang, r) }), lines.time, lines.sub].filter(Boolean).join(' · ') : undefined} onClick={() => openRow(r.id)}>
+              <span className={`state ${SESSION_MARK[r.group].cls}`} aria-hidden="true"><SessionMark group={r.group} /></span>
+              {rail && <span className="initials" aria-hidden="true">{initialsOf(projectName(lang, r))}</span>}
+              {/* R1-V1: the time beside the project, never cut; account and origin below, the agent only when it is not Claude Code. */}
+              <span className="nav-label session-lines">
+                <span className="session-line1"><span className="session-project">{projectName(lang, r)}</span>{lines.time && <span className="session-time">{lines.time}</span>}</span>
+                <span className="session-sub">{lines.sub}</span>
+              </span>
+              <span className="visually-hidden">{stateShort(lang, r)}</span>
+            </button>
+          );
+        })}
+      </div>
+    );
+  
+  };
   return (
     <>
       <div className="nav">
@@ -409,42 +452,25 @@ export function SessionsNav({ sessions, currentId, allCurrent, rail, endedOpen, 
       </div>
       <div className="nav nav-scroll" ref={scroller}>
         {!sessions && !rail && <p className="meta nav-note row" role="status"><Spinner /> {t('sessions.reading')}</p>}
-        {groups.map(({ group, rows }) => {
-          // R1-V3: the sidebar's ended heading is short ("Ended: 2"); the All sessions page keeps the long one.
-          const heading = t(group === 'ended' ? 'sessions.navGroup.ended' : `sessions.group.${group}`, { n: rows.length });
-          const folded = group === 'ended' && !endedOpen;
-          return (
-            <div key={group} role="group" aria-labelledby={`snav-${group}`}>
-              {group === 'ended'
-                ? (
-                  <div className="nav-section-row session-fold">
-                    <button id={`snav-${group}`} className={rail ? 'nav-item' : 'nav-section nav-fold-section'} aria-expanded={!folded} title={rail ? heading : undefined} onClick={() => onEndedOpen(folded)}>
-                      <span aria-hidden="true">{folded ? '▸' : '▾'}</span> <span className={rail ? 'nav-label' : undefined}>{heading}</span>
-                    </button>
-                    {!rail && <button type="button" className="btn-link nav-clear" aria-label={t('sessions.clear.label')} onClick={() => void api().sessionsClearEnded()}>{t('sessions.clear')}</button>}
-                  </div>
-                )
-                : <div className="nav-section" id={`snav-${group}`}>{heading}</div>}
-              {/* FD-107: a folded Ended group still shows the session whose page is open, so it is never out of sight. */}
-              {rows.filter((r) => !folded || r.id === currentId).map((r) => {
-                const lines = navLines(lang, r);
-                return (
-                  <button key={r.id} className="nav-item session-item" aria-current={currentId === r.id ? 'page' : undefined} data-current={currentId === r.id ? '' : undefined}
-                    title={rail ? [t('join.nameState', { name: projectName(lang, r), state: stateShort(lang, r) }), lines.time, lines.sub].filter(Boolean).join(' · ') : undefined} onClick={() => openRow(r.id)}>
-                    <span className={`state ${SESSION_MARK[r.group].cls}`} aria-hidden="true"><SessionMark group={r.group} /></span>
-                    {rail && <span className="initials" aria-hidden="true">{initialsOf(projectName(lang, r))}</span>}
-                    {/* R1-V1: the time beside the project, never cut; account and origin below, the agent only when it is not Claude Code. */}
-                    <span className="nav-label session-lines">
-                      <span className="session-line1"><span className="session-project">{projectName(lang, r)}</span>{lines.time && <span className="session-time">{lines.time}</span>}</span>
-                      <span className="session-sub">{lines.sub}</span>
-                    </span>
-                    <span className="visually-hidden">{stateShort(lang, r)}</span>
+        {several
+          ? machineGroups(rowsAll, machines).map(({ machine, status, rows: list }) => {
+            const key = machine || 'here';
+            const foldedHere = foldedMachines.includes(machine);
+            const stale = Boolean(status && status.state !== 'ok');
+            // A folded machine still shows what needs the person, what runs and the open session.
+            const kept = foldedHere ? list.filter((r) => r.group === 'needs-you' || r.group === 'running' || r.id === currentId) : list;
+            return (
+              <div key={key} role="group" aria-labelledby={`snm-${key}`} className={stale ? 'nav-machine nav-machine-stale' : 'nav-machine'}>
+                <div className="nav-section-row">
+                  <button id={`snm-${key}`} className="nav-section nav-fold-section nav-machine-head" aria-expanded={!foldedHere} title={machine ? machineStatusWords(lang, status) ?? undefined : undefined} onClick={() => onFold?.(machine, !foldedHere)}>
+                    <span aria-hidden="true">{foldedHere ? '▸' : '▾'}</span> {machine || t('sessions.machine.this')}{stale && <span className="visually-hidden">{`: ${machineStatusWords(lang, status) ?? ''}`}</span>}
                   </button>
-                );
-              })}
-            </div>
-          );
-        })}
+                </div>
+                {groupRows(kept).map(({ group, rows }) => renderGroup(group, rows, key))}
+              </div>
+            );
+          })
+          : groupRows(rowsAll).map(({ group, rows }) => renderGroup(group, rows, ''))}
       </div>
     </>
   );
