@@ -1287,12 +1287,17 @@ if (!app.requestSingleInstanceLock()) {
           void restartToUpdate();
           return { ok: true, result: { state: updater.state.state, version: updater.state.version ?? null, restarting: updater.state.state === 'ready' } };
         }
+        if (r.op === 'session.new' && r.start?.kind === 'terminal') {
+          // FD-247 (SCN-111): Open terminal on {machine}, as the machine heading's button does.
+          const done = await consoles.openMachineTerminal(r.start.machine!, { cols: 120, rows: 32 });
+          return done.ok ? { ok: true, result: { consoleKey: done.key, machine: r.start.machine } } : { ok: false, code: done.reason, ...(done.detail ? { detail: String(done.detail).slice(0, 200) } : {}) };
+        }
         if (r.op === 'session.new' && r.start) {
           // FD-191 (SCN-101, SCN-102): the New session and New agent dialogs' Start; a choice left out is the dialog's default.
           const o = await consoles.newSessionOptions();
           const runtime = r.start.runtime ?? o.runtime;
           if (!runtime) return { ok: false, code: 'no-runtime' };
-          const done = await consoles.startNew({ kind: r.start.kind, runtime, folder: r.start.folder ?? o.folder, bypass: r.start.bypass ?? o.bypass, isolated: r.start.isolated ?? false, ...(r.start.machine ? { machine: r.start.machine } : {}) }, { cols: 120, rows: 32 }, 'mcp');
+          const done = await consoles.startNew({ kind: r.start.kind as Exclude<typeof r.start.kind, 'terminal'>, runtime, folder: r.start.folder ?? o.folder, bypass: r.start.bypass ?? o.bypass, isolated: r.start.isolated ?? false, ...(r.start.machine ? { machine: r.start.machine } : {}) }, { cols: 120, rows: 32 }, 'mcp');
           if (!done.ok) {
             if ('why' in done) return { ok: false, code: `admission_${done.why}` };
             return { ok: false, code: done.reason, ...(done.detail ? { detail: String(done.detail).slice(0, 200) } : {}) };

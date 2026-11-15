@@ -49,6 +49,22 @@ export type RemoteRead =
   | { ok: true; rows: SbSessionRecord[] }
   | { ok: false; why: 'unreachable' | 'no-switchboard' | 'too-old' | 'bad-answer' | 'unknown-machine'; detail?: string };
 
+/** FD-247 (step 7): a launch id as Switchboard writes it; only such an id reaches a command on another machine. */
+export const LAUNCH_ID = /^[A-Za-z0-9._:-]{1,128}$/;
+
+/** FD-247 (step 7): Open here for a session another machine's session host holds: a terminal (`-t`) that runs
+ *  `attach` there; closing it leaves the session running (SCN-104 on that machine). */
+export function remoteAttachArgv(target: RemoteTarget, launchId: string, ssh = '/usr/bin/ssh'): string[] | null {
+  if (!LAUNCH_ID.test(launchId)) return null;
+  return [ssh, '-t', '-o', 'ConnectTimeout=5', target.machine, [shellQuote(target.program ?? DEFAULT_REMOTE_SWITCHBOARD), 'attach', shellQuote(launchId), ...(target.dataDir ? ['--data-dir', shellQuote(target.dataDir)] : [])].join(' ')];
+}
+
+/** FD-247 (step 7): End for a session another machine's session host holds: `sessions end` there, without a prompt. */
+export function remoteEndArgv(target: RemoteTarget, launchId: string, ssh = '/usr/bin/ssh'): string[] | null {
+  if (!LAUNCH_ID.test(launchId)) return null;
+  return [ssh, '-T', '-n', '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=5', target.machine, [shellQuote(target.program ?? DEFAULT_REMOTE_SWITCHBOARD), '--json', 'sessions', 'end', shellQuote(launchId), ...(target.dataDir ? ['--data-dir', shellQuote(target.dataDir)] : [])].join(' ')];
+}
+
 /** Reads one machine's sessions; a machine `targets` does not name is refused before any ssh. */
 export async function readRemoteSessions(run: Runner, known: readonly RemoteTarget[], machine: string, ssh = '/usr/bin/ssh'): Promise<RemoteRead> {
   const target = known.find((t) => t.machine === machine || t.aliases.includes(machine));
@@ -128,6 +144,17 @@ export class RemoteSessions {
     };
     await Promise.all(Array.from({ length: Math.min(REMOTE_CONCURRENCY, due.length) }, worker));
     return changed;
+  }
+
+  /** FD-247 (step 7): read this machine again at the next tick (after an act there). */
+  invalidate(machine: string): void {
+    const m = this.machines.get(machine);
+    if (m) m.nextAt = 0;
+  }
+
+  /** FD-247 (step 7): the machine as `targets` names it (an alias finds it too), or null. */
+  target(machine: string): RemoteTarget | null {
+    return this.targets.find((t) => t.machine === machine || t.aliases.includes(machine)) ?? null;
   }
 
   /** The rows to merge: each machine's last good read, while it is under REMOTE_KEEP_MS old. */

@@ -116,6 +116,8 @@
 | SCN-108 | See the bugs the app noticed and report one | settings | P-01 | ST-019 | implemented | 2026-11-15 |
 | SCN-109 | Find a session: search, filters and machines | sessions | P-01 | ST-019 | implemented | 2026-11-15 |
 | SCN-110 | See the sessions running on other machines | sessions | P-01 | ST-019 | implemented | 2026-11-15 |
+| SCN-111 | Open a terminal on another machine | sessions | P-01 | ST-019 | implemented | 2026-11-15 |
+| SCN-112 | Open here or end a session another machine's session host holds | sessions | P-01 | ST-019 | implemented | 2026-11-15 |
 | SCN-113 | The Organizations menu keeps every organization Observatory names | navigation | P-01 | ST-016 | implemented | 2026-11-15 |
 ## Personas
 
@@ -2504,6 +2506,42 @@ The Sessions mode (0.8.0): every coding session apart from the agents, each stat
 - **States covered:** loading (reading), success, error (unreachable, no Switchboard, too old, bad answer), stale (last rows kept)
 - **Errors & recovery:** a failing machine is asked again after 1, 5 and 15 minutes, then every 15; its last rows stay for 24 hours after its last good read; whatever the machine answers is untrusted and capped at 200 rows
 - **Status:** implemented (2026-11-15, 0.8.112: `test/remote-sessions.test.ts` *FD-247 step 5*); Open here, End and a terminal on that machine come with SCN-111 and SCN-112
+
+### SCN-111: Open a terminal on another machine
+
+- **Persona:** P-01
+- **Feature:** sessions
+- **Traces:** FD-247 step 7b (design `docs/design/2026-11-15-sessions-machines.md` §Connecting to a remote machine, 1); the operator's voice note of 2026-11-14 (how an administrator connects to a remote machine from here)
+- **Entry point:** a machine's heading in All sessions (SCN-109)
+- **Preconditions:** Switchboard names the machine in `targets`; ssh reaches it
+- **Steps:**
+  1. The person presses Open terminal beside the machine's name -> a console of its own runs `ssh -t <machine>` into a login shell there and opens on its page
+  2. The person presses it again -> the same console opens; one per machine
+  3. The person ends it (End, or 30 idle minutes) -> the shell's group gets a hang-up, as any console
+- **Expected result:** the person reaches a shell on any machine of theirs without leaving the app
+- **Alt paths:** an agent does the same with MCP `session_new` `{kind: "terminal", machine}`; a machine Switchboard does not name is refused before any ssh (`unknown-machine`); an alias of a known machine opens that machine's console
+- **UI elements:** Open terminal on the machine heading (its label names the machine), the console
+- **States covered:** success, error (unknown machine, the console cap or swap, ssh failing inside the console)
+- **Errors & recovery:** held back by the console count and swap, never by this disk (only ssh runs here, FD-210); host keys are checked as ssh always does
+- **Status:** implemented (2026-11-15, 0.8.115: `test/remote-sessions.test.ts` *FD-247 step 7b*)
+
+### SCN-112: Open here or end a session another machine's session host holds
+
+- **Persona:** P-01
+- **Feature:** sessions
+- **Traces:** FD-247 step 7 (design `docs/design/2026-11-15-sessions-machines.md` §Connecting to a remote machine); SCN-104 on this Mac
+- **Entry point:** a running row of another machine in All sessions or on its page (SCN-110)
+- **Preconditions:** that machine's Switchboard runs the session in its session host (`attachable`), and ssh reaches it without a prompt
+- **Steps:**
+  1. The person presses Open here -> a console of its own runs `ssh -t <machine> <switchboard there> attach <launch>` and shows the session; a second Open here finds the same console
+  2. The person closes that console -> only the view closes; the session runs on there
+  3. The person presses End and confirms -> `sessions end <launch>` runs there; the next read of that machine shows it ended
+- **Expected result:** a session on another machine is watched and stopped from here as one on this Mac is
+- **Alt paths:** a session there that its host does not hold -> no Open here and no End (only its row); an agent does the same with MCP `session_action` (`attach`, `end`) on the row's id
+- **UI elements:** Open here, End with its question, the session's console
+- **States covered:** success, error (the machine not reachable, the session already gone)
+- **Errors & recovery:** End that fails says why ("not reachable over ssh", or what the machine answered, cut to 200 characters); only a launch id of the form `^[A-Za-z0-9._:-]{1,128}$` reaches the other machine, always quoted; Open here is held back by the console count and swap, never by this disk (FD-210)
+- **Status:** implemented (2026-11-15, 0.8.115: `test/remote-sessions.test.ts` *FD-247 step 7*)
 
 ### SCN-113: The Organizations menu keeps every organization Observatory names
 

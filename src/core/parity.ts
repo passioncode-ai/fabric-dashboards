@@ -71,6 +71,7 @@ export const PARITY: Record<keyof typeof CHANNELS, Route> = {
   sessionsContinue: { tool: 'session_action' },
   sessionsDismiss: { tool: 'session_action' },
   sessionsAttach: { tool: 'session_action' },
+  sessionsMachineTerminal: { tool: 'session_new' },
   sessionsClearEnded: { tool: 'session_action' },
   sessionsEnd: { tool: 'session_action' },
   sessionsReveal: { window: 'reveals a folder in Finder' },

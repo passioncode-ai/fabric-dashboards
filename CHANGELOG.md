@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.8.115 - 2026-11-15
+
+### Added
+
+- FD-247: a session that another machine's session host holds has Open here (a console of its own over ssh; closing it
+  leaves the session running) and End (asked first, ended there); agents do the same with MCP `session_action`.
+- FD-247: Open terminal beside another machine's name in All sessions opens a login shell there in a console of its
+  own (one per machine); agents do the same with MCP `session_new` `{kind: "terminal", machine}`.
+
 ## 0.8.114 - 2026-11-15
 
 ### Added

@@ -213,6 +213,8 @@ export interface FabricApi {
   sessionsDismiss(id: string): Promise<SessionActionResult>;
   /** FD-211: Open here, a session Switchboard's session host holds. */
   sessionsAttach(id: string, size?: { cols: number; rows: number }): Promise<SessionActionResult>;
+  /** FD-247 (SCN-111): a login shell on a machine Switchboard names, in a console of its own. */
+  sessionsMachineTerminal(machine: string, size?: { cols: number; rows: number }): Promise<SessionActionResult>;
   /** Clear in the Ended group: every ended row. */
   sessionsClearEnded(): Promise<void>;
   /** `end`: stops the session in its console (the window asks first). */
@@ -314,6 +316,7 @@ export const CHANNELS = {
   sessionsContinue: 'fd:sessions-continue',
   sessionsDismiss: 'fd:sessions-dismiss',
   sessionsAttach: 'fd:sessions-attach',
+  sessionsMachineTerminal: 'fd:sessions-machine-terminal',
   sessionsClearEnded: 'fd:sessions-clear-ended',
   sessionsEnd: 'fd:sessions-end',
   sessionsReveal: 'fd:sessions-reveal',

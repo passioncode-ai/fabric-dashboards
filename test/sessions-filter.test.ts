@@ -70,8 +70,10 @@ test('FD-247 step 6: All sessions has a search, filter chips and a heading per m
   const html = page(status());
   assert.match(html, /type="search"[^>]*aria-label="Search sessions"/);
   assert.match(html, /aria-pressed="false"[^>]*>This computer</);
-  assert.match(text(html), /This computer .* studio-2 · read at .* studio-3 studio-3: not reachable over ssh\. Last read .* studio-4 · read at .* · no sessions/);
+  assert.match(text(html), /This computer .* studio-2 · read at .* studio-3 Open terminal studio-3: not reachable over ssh\. Last read .* studio-4 · read at .* · no sessions/);
   assert.match(html, /session-machine session-machine-stale/);
+  assert.match(html, /aria-label="Open a terminal on studio-2">Open terminal</);
+  assert.doesNotMatch(html, /aria-label="Open a terminal on "/, 'this computer has no terminal button');
   assert.match(html, /<h2 id="sm-studio-2"/);
   assert.match(html, /<h3 id="sg-studio-2-running"/);
   const ru = page(status(), NO_FILTER, 'ru');
