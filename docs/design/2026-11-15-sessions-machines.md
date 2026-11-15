@@ -101,6 +101,9 @@ machine; SCN-112 open here or end a hosted session there. SCN-078 steps 1-2 and 
    `sessions` (the mode the window saves); rows `rm:<machine>:<launch>` carry no actions until step 7. Greying the kept
    rows is left to step 6 (the table); meanwhile a status line per machine not read says why.
 6. The renderer list: helpers, table and filters, machine tree, filters in settings.
+   In part in 0.8.113: `filterRows`, `searchRows`, `machineGroups`, `machineStatusWords` in `sessions-view.ts`; All
+   sessions with search, chips, "N of M shown", machine headings and greyed rows of a machine not read now;
+   `settings.layout.sessionsFilter`. Left: the table view (cards stay meanwhile) and the sidebar's machine tree.
 7. Remote actions: attach and end argv, the machine terminal console, channel and IPC.
 8. MCP tools and the parity test.
 9. Docs: scenarios, AGENTS.md lifecycle rows, CHANGELOG, copy checks in en and ru.

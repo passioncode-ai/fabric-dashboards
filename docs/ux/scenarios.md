@@ -114,6 +114,7 @@
 | SCN-106 | Give an agent's dashboard or console the whole window | layout | P-01 | ST-002, ST-019 | implemented | 2026-11-13 |
 | SCN-107 | Give an agent a task from the top of its page | console | P-01 | ST-019 | implemented | 2026-11-14 |
 | SCN-108 | See the bugs the app noticed and report one | settings | P-01 | ST-019 | implemented | 2026-11-15 |
+| SCN-109 | Find a session: search, filters and machines | sessions | P-01 | ST-019 | implemented | 2026-11-15 |
 | SCN-110 | See the sessions running on other machines | sessions | P-01 | ST-019 | implemented | 2026-11-15 |
 | SCN-113 | The Organizations menu keeps every organization Observatory names | navigation | P-01 | ST-016 | implemented | 2026-11-15 |
 ## Personas
@@ -2466,6 +2467,24 @@ The Sessions mode (0.8.0): every coding session apart from the agents, each stat
 - **Status:** implemented (2026-11-15, 0.8.101: `test/bugs.test.ts`)
 - **Coverage:** src/core/bugs.ts, src/electron/bug-store.ts, src/electron/main.ts (bug-journal-ipc), src/electron/preload.ts, src/renderer/components/Settings.tsx (BugsSection), src/mcp/tools.ts (bugsList, bugReport), docs/BUGS.md
 - **Product:** unobserved
+
+### SCN-109: Find a session: search, filters and machines
+
+- **Persona:** P-01
+- **Feature:** sessions
+- **Traces:** FD-247 step 6 (design `docs/design/2026-11-15-sessions-machines.md` §The list); the operator's voice note of 2026-11-14 (a session list to pick from)
+- **Entry point:** the Sessions mode, All sessions
+- **Preconditions:** at least one session listed
+- **Steps:**
+  1. The person types in Search sessions -> only the sessions whose project, folder, account, coding agent or machine hold every word stay
+  2. The person presses chips under Machine (shown once another machine is read or named), State and How it came -> only the chosen values stay; "{n} of {m} shown" with Clear filters says what is hidden
+  3. With other machines, each is a heading ("This Mac" first), with when it was read, or why it was not; under it the state groups as before
+- **Expected result:** the session the person looks for is found in a few presses, wherever it runs
+- **Alt paths:** one Mac and no other machine -> no machine headings and no Machine chips, the page reads as before; nothing matches -> "No session matches the search and filters"; a filter on unfolds Ended
+- **UI elements:** the search field, the chip rows, the count and Clear filters, the machine headings
+- **States covered:** empty (no match), success, stale (a machine not read now, its rows greyed)
+- **Errors & recovery:** the filters are kept in settings and read strictly (an unknown value is dropped, so a damaged file shows every row); the search is not kept
+- **Status:** implemented (2026-11-15, 0.8.113: `test/sessions-filter.test.ts` *FD-247 step 6*); the table view and the sidebar's machine tree come next
 
 ### SCN-110: See the sessions running on other machines
 
