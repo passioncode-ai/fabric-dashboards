@@ -44,6 +44,16 @@ export function remoteSessionsArgv(target: RemoteTarget, ssh = '/usr/bin/ssh'): 
   return [ssh, '-T', '-n', '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=5', target.machine, remote];
 }
 
+/** FD-247 (step 10): the same read through this Mac's Switchboard (`sessions --all --target`, SB-380), which runs the
+ *  ssh itself and answers as the machine's Switchboard does; an argv, never a shell line. */
+export function targetSessionsArgv(switchboard: string, target: RemoteTarget): string[] {
+  return [switchboard, '--json', 'sessions', '--all', '--target', target.machine,
+    ...(target.program ? ['--remote', target.program] : []), ...(target.dataDir ? ['--remote-data-dir', target.dataDir] : [])];
+}
+
+/** FD-247 (step 10): whether this Mac's Switchboard reads sessions on another machine (its `sessions --help`). */
+export const sessionsTakeTarget = (help: string): boolean => /--target\b/.test(help) && /--remote-data-dir\b/.test(help);
+
 /** How a machine's read went: its rows, or why there are none (each named on the machine's heading). */
 export type RemoteRead =
   | { ok: true; rows: SbSessionRecord[] }
@@ -66,10 +76,12 @@ export function remoteEndArgv(target: RemoteTarget, launchId: string, ssh = '/us
 }
 
 /** Reads one machine's sessions; a machine `targets` does not name is refused before any ssh. */
-export async function readRemoteSessions(run: Runner, known: readonly RemoteTarget[], machine: string, ssh = '/usr/bin/ssh'): Promise<RemoteRead> {
+export async function readRemoteSessions(run: Runner, known: readonly RemoteTarget[], machine: string, ssh = '/usr/bin/ssh', via: string | null = null): Promise<RemoteRead> {
   const target = known.find((t) => t.machine === machine || t.aliases.includes(machine));
   if (!target) return { ok: false, why: 'unknown-machine' };
-  const [file, ...args] = remoteSessionsArgv(target, ssh);
+  // FD-247 (step 10): through this Mac's Switchboard when it reads other machines (its ssh's exit code and stderr pass
+  // through, so the states below hold); our own ssh otherwise.
+  const [file, ...args] = via ? targetSessionsArgv(via, target) : remoteSessionsArgv(target, ssh);
   const r = await run(file!, args, 15_000);
   if (r.code === 255) return { ok: false, why: 'unreachable', detail: r.stderr.trim().slice(0, 300) };
   if (r.code === 127) return { ok: false, why: 'no-switchboard' };
@@ -97,6 +109,8 @@ export class RemoteSessions {
   private targets: RemoteTarget[] = [];
   private targetsAt = -Infinity;
   private targetsOf: string | null = null;
+  /** FD-247 (step 10): whether `targetsOf`'s Switchboard takes `sessions --target`, asked with `targets`. */
+  private viaTarget = false;
   private readonly machines = new Map<string, MachineRead>();
   private inFlight: Promise<boolean> | null = null;
 
@@ -117,7 +131,13 @@ export class RemoteSessions {
     if (switchboard !== this.targetsOf || now - this.targetsAt >= REMOTE_TARGETS_MS) {
       const r = await this.run(switchboard, ['--json', 'targets'], 10_000).catch(() => null);
       // A failed `targets` keeps the machines known, so one slow answer does not empty the list.
-      if (r && r.code === 0) { this.targets = parseTargets(r.stdout); this.targetsOf = switchboard; }
+      if (r && r.code === 0) {
+        if (switchboard !== this.targetsOf) {
+          const help = await this.run(switchboard, ['sessions', '--help'], 10_000).catch(() => null);
+          this.viaTarget = Boolean(help && help.code === 0 && sessionsTakeTarget(help.stdout));
+        }
+        this.targets = parseTargets(r.stdout); this.targetsOf = switchboard;
+      }
       this.targetsAt = now;
       for (const m of [...this.machines.keys()]) if (!this.targets.some((t) => t.machine === m)) { this.machines.delete(m); changed = true; }
     }
@@ -127,7 +147,7 @@ export class RemoteSessions {
     const worker = async () => {
       while (next < due.length) {
         const t = due[next++]!;
-        const read = await readRemoteSessions(this.run, this.targets, t.machine, this.ssh).catch((): RemoteRead => ({ ok: false, why: 'bad-answer' }));
+        const read = await readRemoteSessions(this.run, this.targets, t.machine, this.ssh, this.viaTarget ? switchboard : null).catch((): RemoteRead => ({ ok: false, why: 'bad-answer' }));
         const m = this.machines.get(t.machine);
         if (!m) continue;
         const at = this.now();

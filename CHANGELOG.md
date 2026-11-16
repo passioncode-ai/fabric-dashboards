@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.8.127 - 2026-11-16
+
+### Changed
+
+- FD-247 step 10: other machines' sessions are read through this Mac's Switchboard (`sessions --all --target`, SB-380),
+  which keeps one way of reaching each machine (its program and data folder from `targets`); a Switchboard older than
+  that keeps the app's own ssh read, as before. Open here and End there still use the app's own ssh.
+
 ## 0.8.126 - 2026-11-16
 
 ### Changed

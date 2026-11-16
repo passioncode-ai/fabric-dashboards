@@ -6,7 +6,7 @@ import test from 'node:test';
 import { ConsoleHost } from '../src/electron/console';
 import { SettingsStore } from '../src/core/settings';
 import { tmp } from './helpers';
-import { DEFAULT_REMOTE_SWITCHBOARD, LAUNCH_ID, parseTargets, remoteAttachArgv, remoteEndArgv, readRemoteSessions, REMOTE_BACKOFF_MS, REMOTE_KEEP_MS, REMOTE_MAX_ROWS, REMOTE_POLL_MS, RemoteSessions, remoteSessionsArgv } from '../src/core/remote-sessions';
+import { DEFAULT_REMOTE_SWITCHBOARD, LAUNCH_ID, parseTargets, remoteAttachArgv, remoteEndArgv, readRemoteSessions, targetSessionsArgv, REMOTE_BACKOFF_MS, REMOTE_KEEP_MS, REMOTE_MAX_ROWS, REMOTE_POLL_MS, RemoteSessions, remoteSessionsArgv } from '../src/core/remote-sessions';
 import { parseRequest } from '../src/core/console-channel';
 import { dropRemoteTwins, machineTerminalKey, mergeSessions, remoteRowId, type SbSessionRecord, type SessionRow } from '../src/core/sessions';
 import { DEFAULT_SETTINGS } from '../src/core/types';
@@ -62,13 +62,16 @@ const SB = '/usr/local/bin/switchboard';
 const TWO = JSON.stringify({ data: { targets: [{ machine: 'studio-2', aliases: [] }, { machine: 'studio-3', aliases: [] }, { machine: 'studio-4', aliases: [] }] } });
 const listing = (folder: string) => JSON.stringify({ ok: true, data: { sessions: [{ working_directory: folder, provider: 'claude', state: 'running', launched_at: '2026-11-15T09:00:00Z' }] } });
 
-function fakeMachines(answers: Record<string, () => { code: number; stdout?: string; stderr?: string }>) {
+function fakeMachines(answers: Record<string, () => { code: number; stdout?: string; stderr?: string }>, o: { target?: boolean } = {}) {
   const calls: string[] = [];
+  const argvs: string[][] = [];
   let open = 0;
   let most = 0;
   const run = async (file: string, args: string[]) => {
-    if (file === SB) { calls.push('targets'); return { code: 0, stdout: TWO, stderr: '' }; }
-    const machine = args[args.length - 2]!;
+    if (file === SB && args[0] === 'sessions' && args[1] === '--help') return { code: 0, stdout: o.target ? '      --target <TARGET>\n      --remote <REMOTE>\n      --remote-data-dir <REMOTE_DATA_DIR>\n' : '      --all\n', stderr: '' };
+    if (file === SB && args.includes('targets')) { calls.push('targets'); return { code: 0, stdout: TWO, stderr: '' }; }
+    argvs.push([file, ...args]);
+    const machine = file === SB ? args[args.indexOf('--target') + 1]! : args[args.length - 2]!;
     calls.push(machine);
     open += 1; most = Math.max(most, open);
     await new Promise((r) => setImmediate(r));
@@ -76,7 +79,7 @@ function fakeMachines(answers: Record<string, () => { code: number; stdout?: str
     const a = answers[machine]!();
     return { code: a.code, stdout: a.stdout ?? '', stderr: a.stderr ?? '' };
   };
-  return { run: run as never, calls, most: () => most };
+  return { run: run as never, calls, argvs, most: () => most };
 }
 
 test('FD-247 step 5: every machine read once a minute, two ssh at most, targets asked once per 10 minutes', async () => {
@@ -277,4 +280,18 @@ test('FD-247 step 7b: the console channel takes a terminal with a machine and no
   for (const start of [{ kind: 'terminal' }, { kind: 'terminal', machine: '-oProxyCommand=x' }, { kind: 'terminal', machine: 'studio-2', folder: '/x' }, { kind: 'terminal', machine: 'studio-2', runtime: 'codex' }]) {
     assert.deepEqual(parseRequest(JSON.stringify({ key: 'k', op: 'session.new', start })), { ok: false, code: 'bad-start' }, JSON.stringify(start));
   }
+});
+
+test('FD-247 step 10: a Switchboard that reads other machines is asked through `sessions --all --target`; an older one keeps the ssh path', async () => {
+  const via = fakeMachines({ 'studio-2': () => ({ code: 0, stdout: listing('/w/a') }), 'studio-3': () => ({ code: 255, stderr: 'ssh: connect to host studio-3: Operation timed out' }), 'studio-4': () => ({ code: 0, stdout: listing('/w/c') }) }, { target: true });
+  const r = new RemoteSessions(via.run, () => 1_000_000);
+  await r.poll(SB);
+  assert.ok(via.argvs.every((a) => a[0] === SB && a.slice(1, 6).join(' ') === '--json sessions --all --target ' + a[5]), JSON.stringify(via.argvs));
+  assert.deepEqual(r.input().map((m) => m.machine).sort(), ['studio-2', 'studio-4']);
+  assert.equal(r.status().find((m) => m.machine === 'studio-3')?.state, 'unreachable', 'its ssh exit code still names the state');
+  const old = fakeMachines({ 'studio-2': () => ({ code: 0, stdout: listing('/w/a') }), 'studio-3': () => ({ code: 0, stdout: listing('/w/b') }), 'studio-4': () => ({ code: 0, stdout: listing('/w/c') }) });
+  await new RemoteSessions(old.run, () => 1_000_000).poll(SB);
+  assert.ok(old.argvs.every((a) => a[0] === '/usr/bin/ssh'), JSON.stringify(old.argvs));
+  assert.deepEqual(targetSessionsArgv(SB, { machine: 'studio-2', aliases: [], program: '/opt/sb/switchboard', dataDir: '/srv/sb data' }),
+    [SB, '--json', 'sessions', '--all', '--target', 'studio-2', '--remote', '/opt/sb/switchboard', '--remote-data-dir', '/srv/sb data'], 'an argv: a space in a path is no shell word');
 });
