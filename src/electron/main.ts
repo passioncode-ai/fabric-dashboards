@@ -53,7 +53,7 @@ import { powerShellAfterExit } from '../core/after-exit';
 import { agentSettingsPatch, analyticsMaySend, rendererSettingsPatch, SettingsStore } from '../core/settings';
 import type { AppStatus, Settings, SettingsPatch } from '../core/types';
 import { ALWAYS_KEPT, cancelStagedUpdate, clearRestoreRecord, KEPT_FILES, productDataPaths, purgeAfterExit, readRestoreRecord, removeMcpRegistrations, repairMcpRegistrations, restoreMcpRegistrations, writeRestoreRecord } from '../core/uninstall';
-import { autoInstallNow, autoInstallWait, cookieRewrite, dockOnSync, inSight, LINK_FRONT_CHECK_MS, monitorLive, PAGE_SIGHT_CHECK_MS, linkLeftBehind, moveSkip, OCCLUSION_PROBE_MS, offerMove, onScreen, resumeBehind, COOKIES_REENCRYPTED_MARKER, HiddenGrace, partitionFor, RELAUNCH_MARKER, relaunchHidden, RESUME_ROUTE_MARKER, resumeRoute, type ResumeRoute, stalePartitions, tryMove, UPDATE_IDLE_MS, VIEW_RELEASE_ALL_MS, VIEW_RELEASE_GRACE_MS, VISIBILITY_SYNC_MS, VisibilitySync, WARM_VIEWS } from './policy';
+import { autoInstallNow, autoInstallWait, cookieRewrite, dockOnSync, inSight, LINK_FRONT_CHECK_MS, monitorLive, PAGE_SIGHT_CHECK_MS, linkLeftBehind, moveSkip, OCCLUSION_PROBE_MS, offerMove, onScreen, resumeBehind, COOKIES_REENCRYPTED_MARKER, HiddenGrace, partitionFor, RELAUNCH_MARKER, relaunchHidden, RESUME_ROUTE_MARKER, resumeRoute, type ResumeRoute, stalePacks, stalePartitions, tryMove, UPDATE_IDLE_MS, VIEW_RELEASE_ALL_MS, VIEW_RELEASE_GRACE_MS, VISIBILITY_SYNC_MS, VisibilitySync, WARM_VIEWS } from './policy';
 import { AppTray } from './tray';
 import { DockSync } from './dock';
 import { linkInArgv, notificationSettingsUrl, places, startHidden, uninstallCommand, uninstallTarget, windowChrome } from '../core/platform';
@@ -1387,6 +1387,9 @@ if (!app.requestSingleInstanceLock()) {
     monitor.on('removed', (key: string) => {
       views?.drop(key);
       consoles.manager.forget(key); // ADR-0017: its console ends with it
+      // FD-236 (11): its context pack goes with it (the console using it has just ended).
+      const pack = path.join(userData, 'consoles', key);
+      if (stalePacks([key], []).length) fs.rm(pack, { recursive: true, force: true }, (error) => { if (error) log(`could not remove the context pack of ${key}: ${error.message}`); });
       const ses = session.fromPartition(partitionFor(key));
       void Promise.all([ses.clearStorageData(), ses.clearCache()]).catch((error) => log(`could not clear the session of ${key}: ${(error as Error).message}`));
     });
@@ -1398,6 +1401,13 @@ if (!app.requestSingleInstanceLock()) {
       try { names = fs.readdirSync(dir); } catch { return; }
       for (const name of stalePartitions(names, monitor.snapshots().map((s) => s.key))) {
         try { fs.rmSync(path.join(dir, name), { recursive: true, force: true }); log(`removed the stored session of a service that is gone: ${name}`); } catch (error) { log(`could not remove ${name}: ${(error as Error).message}`); }
+      }
+      // FD-236 (11): and the context packs written for them.
+      const packs = path.join(userData, 'consoles');
+      let packNames: string[] = [];
+      try { packNames = fs.readdirSync(packs); } catch { /* none written yet */ }
+      for (const name of stalePacks(packNames, monitor.snapshots().map((s) => s.key))) {
+        try { fs.rmSync(path.join(packs, name), { recursive: true, force: true }); log(`removed the context pack of a service that is gone: ${name}`); } catch (error) { log(`could not remove the context pack ${name}: ${(error as Error).message}`); }
       }
       // FD-04 follow-up: cookies stored before encryption are written back once, so Chromium stores them encrypted.
       // Linux keeps the fuse off (dist-other.mjs), so there is nothing to do there. Counts are logged, never values.

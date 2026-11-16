@@ -273,6 +273,15 @@ export function stalePartitions(names: string[], keys: string[]): string[] {
   const live = new Set(keys.map((k) => partitionFor(k).slice('persist:'.length)));
   return names.filter((n) => /^svc-[a-z0-9.-]+$/.test(n) && !live.has(n));
 }
+
+/** FD-236 (11): the context-pack folders (`consoles/<key>`) of services that are gone. Only a folder named like an agent's
+ *  key (`id.instance`) is one; the app's own consoles (`session.`, `handover.`, the Setup console) and a digest-named
+ *  folder (`key-…`, whose key cannot be read back) stay. */
+export function stalePacks(names: string[], keys: string[]): string[] {
+  const live = new Set(keys);
+  const own = /^(session|handover)\.|^fabric-dashboards\.setup$/;
+  return names.filter((n) => /^[a-z0-9][a-z0-9-]{0,62}\.[a-z0-9][a-z0-9-]{0,62}$/.test(n) && !own.test(n) && !live.has(n));
+}
 // #endregion view-release
 
 // #region cookie-reencrypt — docs: SECURITY.md#dashboard-sign-ins-at-rest
