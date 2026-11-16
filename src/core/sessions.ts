@@ -4,6 +4,7 @@
 // a usage limit, and this app's own consoles with how each ended. Pure: no Electron, no file system, no clock but the
 // one passed in, so Fabric can import it the day it takes the sessions over (decision V-01, question Q-1). Ids,
 // folders, labels and times only: never a prompt, a transcript or a token.
+import type { DuplicateSession } from './duplicate-sessions';
 import type { StopView } from './types';
 
 /** FD-124 (SB-212): a hand-over that runs on money, not a subscription: an OpenRouter key or an API key account. */
@@ -267,6 +268,8 @@ export interface SessionsStatus {
   autoContinue: boolean;
   /** FD-247 (step 5): each other machine read, how its last read went and since when it fails. */
   machines?: RemoteMachineStatus[];
+  /** FD-277: sessions that run in two processes (Switchboard's `attention`), each with Close the quiet copy. */
+  duplicates?: DuplicateSession[];
 }
 
 /** FD-247: one other machine's read. `state` is `ok` or why there is no fresh list; its last rows stay until 24 h. */

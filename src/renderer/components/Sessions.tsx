@@ -4,6 +4,7 @@
 import { remoteRefusal } from '../../core/remote-words';
 import { useEffect, useRef, useState } from 'react';
 import type { AppStatus } from '../../core/types';
+import type { DuplicateSession } from '../../core/duplicate-sessions';
 import type { SessionActionResult, SessionRow } from '../../core/sessions';
 import { agentName, chainFacts, clock, contextChip, continueLabel, filterActive, filterRows, groupRows, machineGroups, machineStatusWords, NO_FILTER, originChip, originKey, projectName, revealLabel, searchRows, secondLine, stateShort, stateWords, tableStateWords, type SessionFilter } from '../../core/sessions-view';
 import { GROUP_ORDER } from '../../core/sessions';
@@ -154,6 +155,35 @@ interface AllProps {
   onNewThere?: (machine: string) => void;
 }
 
+// #region duplicate-sessions — docs: docs/ux/scenarios.md#scn-118-close-the-quiet-copy-of-a-session-that-runs-twice
+/** FD-277: one session in two processes; the button asks Switchboard to close the quiet copy and says what it did. */
+function DuplicateNotice({ d }: { d: DuplicateSession }) {
+  const { t } = useT();
+  const [busy, setBusy] = useState(false);
+  const [said, setSaid] = useState<string | null>(null);
+  const close = async () => {
+    setBusy(true);
+    try {
+      const r = await api().sessionsCloseCopy(d.sessionId);
+      setSaid(r.ok ? (r.closedPid ? t('sessions.closeCopy.done', { pid: String(r.closedPid) }) : t('sessions.closeCopy.doneAny'))
+        : r.why === 'not-two' ? t('sessions.closeCopy.notTwo') : r.why === 'all-working' ? t('sessions.closeCopy.allWorking') : t('sessions.closeCopy.failed', { detail: r.detail ?? '' }));
+    } catch (error) {
+      setSaid(t('sessions.closeCopy.failed', { detail: (error as Error).message }));
+    } finally { setBusy(false); }
+  };
+  return (
+    <section className="notice warning session-duplicate" role="status">
+      <p>{t('sessions.duplicate', { label: d.label })}</p>
+      <p className="meta">{t('sessions.duplicate.hint')}</p>
+      <div className="row">
+        <button className="btn btn-sm" disabled={busy} onClick={() => void close()}>{t('sessions.closeCopy')}</button>
+        {said && <span className="meta" role="status">{said}</span>}
+      </div>
+    </section>
+  );
+}
+// #endregion duplicate-sessions
+
 /** SCN-078, SCN-079: All sessions. */
 export function AllSessions({ sessions, noteSeen, onNoteSeen, onSetUp, endedOpen, onEndedOpen, open, askEnd, continued, filter = NO_FILTER, onFilter, onNewThere }: AllProps) {
   const { t, lang } = useT();
@@ -241,6 +271,8 @@ export function AllSessions({ sessions, noteSeen, onNoteSeen, onSetUp, endedOpen
       {(!sessions || sessions.switchboard === null) && <p className="muted row" role="status"><span className="spinner" aria-hidden="true" /> {t('sessions.reading')}</p>}
       {sessions && sessions.switchboard === false && <p className="notice" role="status">{`${t('sessions.noSwitchboard')} ${t('sessions.note.install')}`}</p>}
       {sessions?.switchboard && failing && <p className="notice warning" role="status">{t('sessions.degraded', { time: clock(lang, failing.since) })}</p>}
+      {/* FD-277 (SCN-118): a session that runs in two processes, with Switchboard's Close the quiet copy. */}
+      {(sessions?.duplicates ?? []).map((d) => <DuplicateNotice key={d.sessionId} d={d} />)}
       {/* FD-247 (step 6, SCN-109): search and filters; the filters are kept, the search is not. */}
       {all.length > 0 && (
         <div className="session-filters" role="search">

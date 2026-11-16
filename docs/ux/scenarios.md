@@ -123,6 +123,7 @@
 | SCN-115 | Join an organization | settings | P-01 | ST-016 | implemented | 2026-11-15 |
 | SCN-116 | See what this computer gives each context | machine | P-01 | ST-016 | implemented | 2026-11-15 |
 | SCN-117 | See where an agent runs | navigation | P-01 | ST-016 | implemented | 2026-11-15 |
+| SCN-118 | Close the quiet copy of a session that runs twice | sessions | P-01 | ST-019 | implemented | 2026-11-16 |
 ## Personas
 
 Defined in [foundation.md](foundation.md) → P-01.
@@ -2642,3 +2643,21 @@ The Sessions mode (0.8.0): every coding session apart from the agents, each stat
 - **Errors & recovery:** an install date that is not a date is left out; a placement record that names no machine says "another machine"
 - **Coverage:** src/core/agent-facts.ts (whereOf, agentFacts, declaredFacts, agentHint), packages/service-host/src/instance-facts.ts (instanceFacts, the contract's 34 vectors in packages/service-host/test/instance-facts.test.ts), src/renderer/components/Navigation.tsx (ProductItem title), src/renderer/components/ServiceView.tsx (svc-where)
 - **Status:** implemented (2026-11-15, 0.8.120: `test/agent-facts.test.ts`); declared facts 2026-11-16, 0.8.130
+
+### SCN-118: Close the quiet copy of a session that runs twice
+
+- **Persona:** P-01
+- **Feature:** sessions
+- **Traces:** FD-277 (fabric-switchboard 0.7.98, `switchboard attention` `session_duplicate` and `sessions close-copy`, board thread `9a462401`)
+- **Entry point:** the Sessions mode
+- **Preconditions:** Switchboard 0.7.98 or later; one coding session runs in two processes (a resume that started a second copy, say)
+- **Steps:**
+  1. The person opens Sessions -> a warning names the session by its folder: one session runs in two processes; close the quiet copy, the one that works stays
+  2. The person presses Close the quiet copy -> Switchboard closes the copy that is neither busy nor running a command and has been quiet longest; the warning says which process it closed and goes at the next read
+- **Expected result:** the session runs once again, and the copy that was working is untouched
+- **Alt paths:** the session no longer runs twice ("It no longer runs twice"); every copy is working, so nothing is closed ("Both copies are working; nothing was closed"); an agent does the same with Switchboard's MCP `switchboard_session_close_copy`
+- **UI elements:** the warning, its Close the quiet copy button and the line that says what was done
+- **States covered:** success, refused (not two, all working), error (Switchboard's own sentence)
+- **Errors & recovery:** an older Switchboard is not asked and no warning shows; `attention` is read once a minute and only while the Sessions mode is on screen, so a warning can lag a minute; a session id that is not one never reaches the command
+- **Coverage:** src/core/duplicate-sessions.ts (parseDuplicates, closeCopyArgv, parseCloseCopy, takesCloseCopy), src/electron/console.ts (pollDuplicates, closeCopy), src/renderer/components/Sessions.tsx (DuplicateNotice)
+- **Status:** implemented (2026-11-16, 0.8.135: `test/duplicate-sessions.test.ts`)

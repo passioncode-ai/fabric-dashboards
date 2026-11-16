@@ -79,6 +79,7 @@ export const PARITY: Record<keyof typeof CHANNELS, Route> = {
   sessionsReveal: { window: 'reveals a folder in Finder' },
   sessionsRevealTranscript: { window: 'reveals a transcript in Finder' },
   sessionsHandovers: { other: 'Switchboard MCP switchboard_handovers' },
+  sessionsCloseCopy: { other: 'Switchboard MCP switchboard_session_close_copy' },
   sessionsHandoversSet: { other: 'Switchboard MCP switchboard_handovers_set' },
   fallback: { other: 'Switchboard MCP switchboard_chain_get' },
   fallbackSet: { other: 'Switchboard MCP switchboard_chain_set' },
