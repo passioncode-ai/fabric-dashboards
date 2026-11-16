@@ -62,9 +62,22 @@ export const ASK_ARGS: Readonly<Record<string, readonly string[]>> = {
 export function promptsWords(runtimeId: string): string {
   return ASK_ARGS[runtimeId] ? 'with permission prompts' : 'without its skip-permissions flag';
 }
+// #region claude-ask-mode — docs: docs/adr/0017-focus-layout-and-agent-console.md#amendment-2026-11-15-permission-prompts-are-this-apps-choice-now-fd-174-fd-234-fd-236
+/** FD-236 (15): the mode Claude Code takes for a start with prompts. Its `--help` lists `manual` since the rename and no
+ *  longer lists `default`, which it still accepts (2.1.299, 2026-11-16); a release that drops the old name would refuse
+ *  such starts, and an older copy lacks the new one. So the installed copy's own help decides, read once per binary;
+ *  until it is read, `default`, which every copy takes today. */
+let claudeAskMode: 'manual' | 'default' = 'default';
+export function claudeAskModeOf(help: string): 'manual' | 'default' {
+  const m = /--permission-mode\b[^\n]*(?:\n\s+[^-\s][^\n]*)*/.exec(help);
+  return m && /["']manual["']|\bmanual\b/.test(m[0]) ? 'manual' : 'default';
+}
+export function setClaudeAskMode(mode: 'manual' | 'default'): void { claudeAskMode = mode; }
+// #endregion claude-ask-mode
 export function askArgs(runtimeId: string, readOnly: () => boolean = codexReadOnly): string[] {
   // Wave 5b (FD-236 (16)): `-s workspace-write` would loosen a stricter sandbox the person chose; their read-only stays.
   if (runtimeId === 'codex' && readOnly()) return ['-a', 'on-request'];
+  if (runtimeId === 'claude-code') return ['--permission-mode', claudeAskMode];
   return [...(ASK_ARGS[runtimeId] ?? [])];
 }
 

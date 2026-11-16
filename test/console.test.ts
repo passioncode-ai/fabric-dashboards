@@ -460,3 +460,18 @@ test('FD-236 (18): a log line says a start asks only for a runtime that has ask 
   assert.equal(promptsWords('opencode'), 'without its skip-permissions flag');
   assert.equal(promptsWords('cursor-agent'), 'without its skip-permissions flag');
 });
+
+test('FD-236 (15): Claude Code asks with the mode its own help names: manual where listed, default before', async () => {
+  const { askArgs, claudeAskModeOf, setClaudeAskMode } = await import('../src/core/runtimes');
+  // Claude Code 2.1.299's help (2026-11-16): the choices wrap onto the following lines.
+  const now = '  --permission-mode <mode>              Permission mode to use for the session\n                                        (choices: "acceptEdits", "auto",\n                                        "bypassPermissions", "manual",\n                                        "dontAsk", "plan")\n  --plugin-dir <path>  Load plugins\n';
+  const before = '  --permission-mode <mode>  Permission mode to use (choices: "acceptEdits", "bypassPermissions", "default", "plan")\n  --model <m>  The model, e.g. manual-model\n';
+  assert.equal(claudeAskModeOf(now), 'manual');
+  assert.equal(claudeAskModeOf(before), 'default', 'a later option naming the word does not count');
+  assert.equal(claudeAskModeOf(''), 'default');
+  try {
+    assert.deepEqual(askArgs('claude-code'), ['--permission-mode', 'default'], 'unread: the name every copy takes');
+    setClaudeAskMode('manual');
+    assert.deepEqual(askArgs('claude-code'), ['--permission-mode', 'manual']);
+  } finally { setClaudeAskMode('default'); }
+});
