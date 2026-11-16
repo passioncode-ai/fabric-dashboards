@@ -39,13 +39,16 @@ export function SetupCard({ onOpen, consoleOpen, onShown }: { onOpen: (mode: 'ne
   useEffect(() => {
     if (!settings || settings.setupDone) return undefined;
     const read = () => {
+      // FD-268: only while the window is on screen (LC-08); the step a person finishes elsewhere shows when they come back.
+      if (document.visibilityState !== 'visible') return;
       void api().setupState().then(setState).catch(() => undefined);
       // Read only until one is found: the console's own read covers the rest, and Switchboard is not asked every 5 s.
       if (!found.current) void api().consoleInfo(SETUP_KEY).then((i) => { found.current = i.runtimes.length > 0; setRuntimes(i.runtimes.length); }).catch(() => undefined);
     };
     read();
     const timer = setInterval(read, 5000);
-    return () => clearInterval(timer);
+    document.addEventListener('visibilitychange', read);
+    return () => { clearInterval(timer); document.removeEventListener('visibilitychange', read); };
   }, [settings]);
   const done = Boolean(state && state.mcp && state.skills && state.firstAgent);
   const steps = Boolean(settings && !settings.setupDone && state && !done);

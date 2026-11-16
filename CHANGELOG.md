@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.8.128 - 2026-11-16
+
+### Changed
+
+- FD-268: a service's token is read from its file again only when the file changed (its device, inode, size or times);
+  the owner and mode checks still run on every read. The setup card on Overview reads the setup state only while the
+  window is on screen, and once when it comes back.
+- `scripts/measure-idle.ts` runs the app without Playwright, whose focus emulation kept a hidden page `visible`, and
+  reads the main process's CPU with `ps`. The idle budget is now per agent: 0.3 % up to 22 agents, 0.014 % for each
+  agent above that. Measured on 58 agents: 0.692 % hidden.
+
 ## 0.8.127 - 2026-11-16
 
 ### Changed

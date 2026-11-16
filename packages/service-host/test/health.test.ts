@@ -251,3 +251,36 @@ test('FD-156: a token goes to a loopback port only when the host says this user 
   await request(s.origin, 'GET', '/e', { Authorization: 'Bearer t0ken-of-sixteen' });
   assert.equal(seen.length, 3, 'without a check, nothing changes');
 });
+
+test('FD-268: a token is read again only when its file changed; the file check runs on every read', { skip: process.platform === 'win32' }, async () => {
+  const { readToken, readTokenAsync } = await import('../src/health');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'fd-token-'));
+  const file = path.join(dir, 'token');
+  fs.writeFileSync(file, 'a'.repeat(32), { mode: 0o600 });
+  const reads: string[] = [];
+  const real = fs.readFileSync;
+  (fs as { readFileSync: typeof fs.readFileSync }).readFileSync = ((p: fs.PathOrFileDescriptor, o?: unknown) => {
+    if (p === file) reads.push(String(p));
+    return (real as (p: fs.PathOrFileDescriptor, o?: unknown) => string | Buffer)(p, o);
+  }) as typeof fs.readFileSync;
+  try {
+    assert.equal(await readTokenAsync(file), 'a'.repeat(32));
+    assert.equal(readToken(file), 'a'.repeat(32));
+    assert.equal(await readTokenAsync(file), 'a'.repeat(32));
+    assert.equal(reads.length, 1, 'one read while the file is the same');
+    // A new token written in place (another size), and one renamed over it (another inode), are read at once.
+    fs.writeFileSync(file, 'b'.repeat(40));
+    assert.equal(await readTokenAsync(file), 'b'.repeat(40));
+    const next = path.join(dir, 'next');
+    fs.writeFileSync(next, 'c'.repeat(40), { mode: 0o600 });
+    fs.renameSync(next, file);
+    assert.equal(await readTokenAsync(file), 'c'.repeat(40));
+    assert.equal(reads.length, 3);
+    // The mode check is not cached: a file others can read is refused although its token was read before.
+    fs.chmodSync(file, 0o644);
+    await assert.rejects(readTokenAsync(file), /mode|others|group/i);
+  } finally {
+    (fs as { readFileSync: typeof fs.readFileSync }).readFileSync = real;
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
