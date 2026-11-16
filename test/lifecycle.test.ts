@@ -20,7 +20,7 @@ import { DEFAULT_SETTINGS } from '../src/core/types';
 import { clearRestoreRecord, KEPT_FILES, MCP_SERVER_NAME, productDataPaths, purgeAfterExit, purgeData, readRestoreRecord, removeMcpRegistrations, repairMcpRegistrations, restoreMcpRegistrations, RESTORE_FILE, writeRestoreRecord } from '../src/core/uninstall';
 import { NotifyLedger } from '../src/core/notify';
 import { SettingsStore } from '../src/core/settings';
-import { autoInstallNow, autoInstallWait, dockOnSync, HiddenGrace, monitorLive, moveSkip, offerMove, relaunchHidden, resumePath, resumeRoute, stalePartitions, tryMove, UPDATE_IDLE_MS, VisibilitySync } from '../src/electron/policy';
+import { autoInstallNow, autoInstallWait, dockOnSync, HiddenGrace, monitorLive, stalePacks, moveSkip, offerMove, relaunchHidden, resumePath, resumeRoute, stalePartitions, tryMove, UPDATE_IDLE_MS, VisibilitySync } from '../src/electron/policy';
 import { codeFile, StaleWatch } from '../src/mcp/stale';
 import { APP_UPDATE_EVERY_MS, CHECK_EVERY_MS, quietCheck } from '../src/core/version';
 import { tmp } from './helpers';
@@ -1148,4 +1148,11 @@ test('LC-08, FD-276 (P-02): the monitor is live only while the window is on scre
   assert.match(preload, /addEventListener\('visibilitychange', \(\) => ipcRenderer\.send\(CHANNELS\.pageVisibility, doc\.visibilityState === 'visible'\)\)/);
   const main = fs.readFileSync(path.join(__dirname, '..', 'src', 'electron', 'main.ts'), 'utf8');
   assert.match(main, /ipcMain\.on\(CHANNELS\.pageVisibility, \(e, seen: unknown\) => \{ if \(window && e\.sender\.id === window\.webContents\.id\) seePage\(seen === true\); \}\)/, 'only the window\'s own page');
+});
+
+test('FD-236 (11): the context packs of services that are gone are found; the app\'s own consoles and digest names stay', () => {
+  const names = ['notes.default', 'gone.default', 'session.a1b2c3d4e5f6', 'session.agent-a1b2c3d4e5f6', 'handover.x1', 'fabric-dashboards.setup', 'key-0123456789abcdef01234567', '.DS_Store'];
+  assert.deepEqual(stalePacks(names, ['notes.default']), ['gone.default']);
+  assert.deepEqual(stalePacks(['a.default'], []), ['a.default'], 'a removed service\'s own key');
+  assert.deepEqual(stalePacks(['fabric-dashboards.setup', 'session.term-0011'], []), []);
 });

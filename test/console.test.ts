@@ -452,3 +452,11 @@ test('Wave 5b (FD-236 (16)): a held Codex start keeps a read-only sandbox the pe
   assert.deepEqual(askArgs('codex', () => false), ['-a', 'on-request', '-s', 'workspace-write']);
   assert.deepEqual(askArgs('claude-code', () => true), ['--permission-mode', 'default']);
 });
+
+test('FD-236 (18): a log line says a start asks only for a runtime that has ask arguments', async () => {
+  const { promptsWords } = await import('../src/core/runtimes');
+  assert.equal(promptsWords('claude-code'), 'with permission prompts');
+  assert.equal(promptsWords('codex'), 'with permission prompts');
+  assert.equal(promptsWords('opencode'), 'without its skip-permissions flag');
+  assert.equal(promptsWords('cursor-agent'), 'without its skip-permissions flag');
+});

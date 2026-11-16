@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.8.131 - 2026-11-16
+
+### Fixed
+
+- FD-236 (11): a removed service's context pack (`consoles/<id.instance>` in the app's data) is deleted with it, and
+  packs of services removed while the app was closed are deleted at its next start, as their stored sign-ins already
+  were.
+- FD-236 (14): the instruction reading also finds chat markup with a space after its bracket (`< / system >`) and a
+  private SSH key read on its own; a public key and a log line that only names the file are not read as one.
+- FD-236 (18): the log says a console starts `with permission prompts` only for a runtime that has them (Claude Code,
+  Codex, Gemini CLI); OpenCode and Cursor CLI start `without its skip-permissions flag`.
+
 ## 0.8.130 - 2026-11-16
 
 ### Added

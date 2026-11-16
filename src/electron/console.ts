@@ -26,7 +26,7 @@ import { findCheckout } from '../core/repofind';
 import { projectsOf, projectsProbeArgv, targetLaunchArgv, targetsOf } from '../core/target-session';
 import { MACHINE } from '../core/platform';
 import { isNewAgentKey, isNewSessionKey, isolatedBlock, newSessionKey, prepareNewAgent, projectsFolder, type NewSessionChoice } from '../core/new-session';
-import { askArgsOfProvider, bypassArgs, bypassArgsOfProvider, detectRuntimes, KNOWN_RUNTIMES, readLoginPath, searchDirs, specsFromSwitchboard, type Runtime, type RuntimeSpec } from '../core/runtimes';
+import { askArgsOfProvider, bypassArgs, promptsWords, bypassArgsOfProvider, detectRuntimes, KNOWN_RUNTIMES, readLoginPath, searchDirs, specsFromSwitchboard, type Runtime, type RuntimeSpec } from '../core/runtimes';
 import type { SettingsStore } from '../core/settings';
 import { accountsOf, allSessionsOf, bindingFor, machineSessionsOf, findSwitchboard, handoverOwnKey, handoverRunArgv, handoversOf, handoversSwitch, isHandoverKey, launchFeatures, sbFailure, sessionsIn, startAccount, terminalLaunchArgv, type Binding, type SbAccounts, type SbHandover, type SbSessions, type StartAccount } from '../core/switchboard';
 import type { ServiceSnapshot, Settings } from '../core/types';
@@ -554,7 +554,7 @@ export class ConsoleHost {
       return { handoff: r.handoff, env: r.env, signals: r.signals };
     } catch (error) {
       // FD-234 (verifier round 8): a pack that could not be written was not read either, so the start is held.
-      this.o.log(`console: ${key} starts without its context pack, with permission prompts: ${(error as Error).message}`);
+      this.o.log(`console: ${key} starts without its context pack, ${promptsWords(runtime.id)}: ${(error as Error).message}`);
       return { handoff: { before: [], after: [] }, env: {}, signals: ['pack-failed'] };
     }
   }
@@ -666,8 +666,8 @@ export class ConsoleHost {
     const held = (fresh || kept) && saved?.bypass !== false;
     // Wave 5b (FD-236 (13)): a pack that could not be written is its own reason, not text that reads like instructions.
     const packFailed = Boolean(pack?.signals?.includes('pack-failed'));
-    if (fresh && held) this.o.log(packFailed ? `console: ${key} starts with permission prompts: its context pack could not be written` : `console: ${key} starts with permission prompts: its context reads like instructions (${pack!.signals!.join(', ')})`);
-    else if (held) this.o.log(`console: ${key} continues with permission prompts: its conversation was held at ${saved!.held}`);
+    if (fresh && held) this.o.log(packFailed ? `console: ${key} starts ${promptsWords(runtime.id)}: its context pack could not be written` : `console: ${key} starts ${promptsWords(runtime.id)}: its context reads like instructions (${pack!.signals!.join(', ')})`);
+    else if (held) this.o.log(`console: ${key} continues ${promptsWords(runtime.id)}: its conversation was held at ${saved!.held}`);
     // FD-191: a session of its own keeps the permission and isolation it was started with, Continue included.
     const plan = planStart({ runtime, mode, folder: folder.path, binding: b.kind === 'absent' ? { kind: 'none' } : b, switchboard: inv.switchboard, inPlace: inv.inPlace, surface: inv.surface, managed, handoff: pack?.handoff, bypass: held ? false : saved?.bypass, isolated: saved?.isolated, hosted: inv.hosted });
     if (plan.kind === 'refused') return { ok: false, reason: plan.reason, detail: plan.detail };
@@ -686,7 +686,7 @@ export class ConsoleHost {
     this.o.settings.update({ consoles: { [key]: { runtime: runtime.id, folder: folder.source === 'saved' ? folder.path : this.o.settings.get().consoles[key]?.folder ?? null, idle: null,
       ...(saved?.bypass !== undefined ? { bypass: saved.bypass } : {}), ...(saved?.isolated !== undefined ? { isolated: saved.isolated } : {}),
       ...(fresh && !packFailed ? { held: saved?.held ?? new Date().toISOString() } : mode === 'new' && !fresh ? { held: null } : {}) } } });
-    this.o.log(`console: ${key} started ${runtime.id} (${mode}) in ${folder.path}${plan.argv[0] === inv.switchboard ? ' through Switchboard' : ''}${saved?.isolated ? ' isolated' : ''}${saved?.bypass === false ? ' with permission prompts' : ''}${pack && !packFailed ? ` with its context${task ? ` and a ${task.kind} task` : ''}` : pack ? ' without its context (the pack could not be written)' : ''}`);
+    this.o.log(`console: ${key} started ${runtime.id} (${mode}) in ${folder.path}${plan.argv[0] === inv.switchboard ? ' through Switchboard' : ''}${saved?.isolated ? ' isolated' : ''}${saved?.bypass === false ? ` ${promptsWords(runtime.id)}` : ''}${pack && !packFailed ? ` with its context${task ? ` and a ${task.kind} task` : ''}` : pack ? ' without its context (the pack could not be written)' : ''}`);
     return held ? { ok: true, held: true } : { ok: true };
   }
 
@@ -1705,7 +1705,7 @@ export class ConsoleHost {
     const saved = this.o.settings.get().consoles[key]?.bypass;
     // Wave 5b (FD-236 (12)): a held conversation keeps the hold here too, also while its console runs (no pack then).
     const held = (Boolean(pack?.signals?.length) || Boolean(this.o.settings.get().consoles[key]?.held)) && saved !== false;
-    if (held) this.o.log(`console: ${key} opens in Terminal with permission prompts: ${pack?.signals?.length ? `its context reads like instructions (${pack.signals.join(', ')})` : 'its conversation was held'}`);
+    if (held) this.o.log(`console: ${key} opens in Terminal ${promptsWords(runtime.id)}: ${pack?.signals?.length ? `its context reads like instructions (${pack.signals.join(', ')})` : 'its conversation was held'}`);
     const plan = planStart({ runtime, mode, folder: folder.path, binding: { kind: 'none' }, switchboard: null, inPlace: false, handoff: pack?.handoff, bypass: held ? false : saved });
     if (plan.kind !== 'run') return { ok: false, error: plan.kind === 'refused' ? plan.detail : 'unavailable' };
     return (this.o.terminal ?? openInTerminal)(this.o.scriptsDir, terminalScript(plan.argv, folder.path, pack?.env ?? {}));
@@ -1821,7 +1821,7 @@ export class ConsoleHost {
       return r;
     }
     this.o.started?.({ kind: choice.kind, runtime: runtime.id, bypass, isolated: choice.isolated, surface });
-    this.o.log(`console: new ${choice.kind} ${key} started (${runtime.id}${bypass ? '' : ', with permission prompts'}${choice.isolated ? ', isolated' : ''}${choice.machine ? `, on ${choice.machine}` : ''})`);
+    this.o.log(`console: new ${choice.kind} ${key} started (${runtime.id}${bypass ? '' : `, ${promptsWords(runtime.id)}`}${choice.isolated ? ', isolated' : ''}${choice.machine ? `, on ${choice.machine}` : ''})`);
     this.o.changed?.();
     return { ok: true, key };
   }

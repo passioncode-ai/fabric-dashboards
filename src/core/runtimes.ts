@@ -57,6 +57,11 @@ export const ASK_ARGS: Readonly<Record<string, readonly string[]>> = {
   codex: ['-a', 'on-request', '-s', 'workspace-write'],
   'gemini-cli': ['--approval-mode', 'default'],
 };
+/** FD-236 (18): how a log line names a start that does not skip permissions: a runtime with ask arguments asks; one
+ *  without (OpenCode, Cursor CLI) only drops its skip flag, so its own setting decides. */
+export function promptsWords(runtimeId: string): string {
+  return ASK_ARGS[runtimeId] ? 'with permission prompts' : 'without its skip-permissions flag';
+}
 export function askArgs(runtimeId: string, readOnly: () => boolean = codexReadOnly): string[] {
   // Wave 5b (FD-236 (16)): `-s workspace-write` would loosen a stricter sandbox the person chose; their read-only stays.
   if (runtimeId === 'codex' && readOnly()) return ['-a', 'on-request'];
