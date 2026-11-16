@@ -1208,7 +1208,15 @@ if (!app.requestSingleInstanceLock()) {
   app.on('before-quit', () => { quitting = true; });
   let killing = false;
   let consoleChannel: Channel | null = null;
+  // FD-276 (P-03): when a quit begins and when the process ends, so an update's gap without monitoring can be split
+  // between this app's own quit and the installer's work (ShipIt logs its own steps).
+  let quitAt: number | null = null;
   app.on('will-quit', (event) => {
+    if (quitAt === null) {
+      quitAt = Date.now();
+      log(`quit: begins (commands ${ownedCount()}, consoles ${consoles.manager.runningCount()}, continues ${consoles.quitWork()})`);
+      process.once('exit', () => log(`quit: the process ends ${Date.now() - quitAt!} ms after the quit began`));
+    }
     bugStore?.flush(); // FD-263: a repeat counted in the last second is not lost
     // Nothing starts after quit begins; pending state reaches disk; commands we started end with us (LC-01, LC-02).
     void consoleChannel?.close(); // ADR-0025: the socket and its key go with the run
