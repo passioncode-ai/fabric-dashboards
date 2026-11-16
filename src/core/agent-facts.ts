@@ -1,10 +1,12 @@
 // FD-273 (the operator, 2026-11-15, board d660cc30: «навести на агента, и вот всплывающим показано, где он находится,
 // какая организация … в разворачиваемой информации сверху … туда всю эту мету тоже добавить»): an agent's whereabouts
 // in words, read from what the app already holds (its descriptor, the placement record's reasons, its organization, its
-// well-known answer). One reading feeds the sidebar row's tooltip (short) and the details card (full); the fields no
-// descriptor declares yet (who has access, data isolation, the space it runs in) are asked of fabric-agent-contract and
-// are not guessed here.
+// well-known answer). One reading feeds the sidebar row's tooltip (short) and the details card (full). Who it serves, how
+// its dashboard is entered, how it keeps data apart and the space it runs in are the service's own declaration (contract
+// DEC-0173, extensions/instance-facts/0.1, SCR-36), read by the contract's reference reading and never guessed: a service
+// that declares none shows none.
 // #region agent-facts — docs: docs/ux/scenarios.md#scn-117-see-where-an-agent-runs
+import { instanceFacts } from '@passioncode-ai/fabric-service-host/instance-facts';
 import { placedElsewhere } from '@passioncode-ai/fabric-service-host/state';
 import { installedByWords } from './installed-by';
 import { repositoryKey } from './organizations';
@@ -71,7 +73,35 @@ export function organizationWords(s: Pick<ServiceSnapshot, 'organization'>): Wor
   return s.organization.personal ? { code: 'facts.orgPersonal', params: { name: s.organization.label } } : { code: 'facts.text', params: { value: s.organization.label } };
 }
 
-export interface Fact { label: string; value: Words }
+/** `declared`: the service's own word (DEC-0173), shown as such; never verified. */
+export interface Fact { label: string; value: Words; declared?: true }
+
+/** DEC-0173, SCR-36: the facts an instance declares, in the contract's words; none when it declares none. */
+export function declaredFacts(s: Pick<ServiceSnapshot, 'descriptor' | 'wellKnown' | 'organization'>): Fact[] {
+  const view = instanceFacts(s.descriptor, s.wellKnown);
+  if (!view.declared) return [];
+  const f = view.facts;
+  const out: Fact[] = [];
+  const remote = s.descriptor?.placement === 'remote';
+  const peer = Boolean((s.descriptor as { peer?: unknown } | null | undefined)?.peer);
+  const org = s.organization && !s.organization.personal ? s.organization.label : null;
+  if (f.audience === 'operator') out.push({ label: 'facts.audience', value: { code: 'facts.audience.operator', params: {} }, declared: true });
+  if (f.audience === 'public') out.push({ label: 'facts.audience', value: { code: 'facts.audience.public', params: {} }, declared: true });
+  if (f.audience === 'organization') {
+    // Beside peer: its organization's people and anyone granted (a personal context names no organization); on a remote
+    // instance without peer: an organization's people with their own keys.
+    const value: Words = peer || !remote
+      ? (org ? { code: 'facts.audience.organization', params: { org } } : { code: 'facts.audience.granted', params: {} })
+      : (org ? { code: 'facts.audience.ownKeys', params: { org } } : { code: 'facts.audience.ownKeysAny', params: {} });
+    out.push({ label: 'facts.audience', value, declared: true });
+  }
+  const entry = { 'host-signin': 'facts.entry.login', 'own-signin': 'facts.entry.own', none: 'facts.entry.open' } as const;
+  if (f.entry) out.push({ label: 'facts.entry', value: { code: entry[f.entry], params: {} }, declared: true });
+  if (f.mode) out.push({ label: 'facts.tenancy', value: { code: `facts.tenancy.${f.mode}`, params: {} }, declared: true });
+  if (f.kind) out.push({ label: 'facts.space', value: { code: f.kind === 'user' && remote ? 'facts.space.userRemote' : `facts.space.${f.kind}`, params: {} }, declared: true });
+  if (f.account) out.push({ label: 'facts.account', value: { code: 'facts.text', params: { value: f.account } }, declared: true });
+  return out;
+}
 
 /** The details card's facts, in reading order; a fact the agent does not declare is left out. `copies` are the other
  *  instances of the same product (another place, another organization). */
@@ -79,8 +109,7 @@ export function agentFacts(s: ServiceSnapshot, copies: readonly ServiceSnapshot[
   const out: Fact[] = [{ label: 'facts.where', value: whereWords(whereOf(s)) }];
   const org = organizationWords(s);
   if (org) out.push({ label: 'health.organization', value: org });
-  const dash = s.wellKnown?.surfaces.dashboard;
-  if (dash) out.push({ label: 'facts.entry', value: { code: dash.login ? 'facts.entry.login' : 'facts.entry.open', params: {} } });
+  out.push(...declaredFacts(s));
   const repo = repositoryKey(s.descriptor?.source?.repository);
   if (repo) out.push({ label: 'facts.repository', value: { code: 'facts.text', params: { value: repo } } });
   // The version is in the card's line of facts above this list (version, build, pid, port, uptime), not here again.

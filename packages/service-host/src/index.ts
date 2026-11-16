@@ -11,6 +11,7 @@ export * from './links';
 export * from './vectors';
 export * from './usage';
 export * from './connections';
+export * from './instance-facts';
 export * from './latch';
 export * from './load';
 export * from './configuration';

@@ -29,6 +29,7 @@ Private to this repository's workspace and not published to npm; see
 | `…/links` | the link builder and the key syntax | none — safe in a renderer |
 | `…/usage` | `checkUsage`, `summarizeUsage` and the usage-report shapes | none — safe in a renderer |
 | `…/connections` | `connectionsOf` and the declared-connections shapes (FD-78) | none, safe in a renderer |
+| `…/instance-facts` | `instanceFacts`: who an instance serves, how it keeps data apart and the space it runs in (FD-273, DEC-0173) | none, safe in a renderer |
 | `…/load` | `loadOf`, `loadReportProblems`, `summarizeLoad` and the load shapes (FD-93) | none, safe in a renderer |
 | `…/configuration` | `configurationOf`, `configurationProblem`: the well-known `configuration` checked; an invalid one reads as absent | none, safe in a renderer |
 | `…/actions` | `actionsOf`, `actionDeclarationErrors` and the declared-action shapes (FD-110) | none, safe in a renderer |
@@ -302,6 +303,21 @@ bearer token, a JWT, a long mixed run, or a URL with one). `connectionsOf(wellKn
 `connectionsView` and returns `{declared, reported, connections, errors}`, each connection with `failing`: an invalid
 value declares nothing, is `reported` and lists every reason, so a host shows the error rather than a guess. It runs
 the contract's 127 vectors (`test/fixtures/contract/vectors_connections.json`).
+
+## Instance facts
+
+`src/instance-facts.ts`, FD-273, entry point `@passioncode-ai/fabric-service-host/instance-facts`. A service may declare,
+in its descriptor, its well-known document or both, under `extensions`, key
+`https://fabric.passioncode.ai/agent-contract/extensions/instance-facts/0.1` (Fabric Agent Contract DEC-0173, protocol
+`fabric-instance-facts/0.1`), who it serves (`access.audience`: `operator`, `organization`, `public`), how its dashboard
+is entered (`access.entry`: `host-signin`, `own-signin`, `none`), how it keeps data apart (`tenancy.mode`: `single`,
+`per-organization`, `shared`) and the space it runs in (`space.kind`: `user`, `container`, `vm`, `system`, with an opaque
+`space.account` label). Declared, never verified. `instanceFacts(descriptor, wellKnown)` is a port of the contract's
+reference reading: each field from the well-known document where no clause of IF-6 refuses it, else from the
+descriptor's; a refused value is listed with the contract's reason and never read; a document failing the schema (checked
+by hand here) gives none; a well-known document answering as another service gives nothing; a dashboard requiring a
+host's login reads `host-signin` only for a service that declares a fact. It runs the contract's 34 vectors
+(`test/fixtures/contract/vectors_instance-facts.json`).
 
 ## Load
 

@@ -205,8 +205,10 @@ export function ServiceView({ s, all, members, open, link, nonce, tab: askedTab,
             </div>
             {/* FD-273: where it runs, whose it is and where else it runs. */}
             <dl className="kv svc-where">
-              {agentFacts(s, members).map((f) => <div key={f.label} className="svc-where-row"><dt>{t(f.label)}</dt><dd>{f.value.code === 'facts.date' ? new Date(f.value.params.at!).toLocaleDateString(lang) : t(f.value.code, f.value.params)}</dd></div>)}
+              {agentFacts(s, members).map((f) => <div key={f.label} className="svc-where-row"><dt>{t(f.label)}</dt><dd title={f.declared ? t('facts.declared') : undefined}>{f.value.code === 'facts.date' ? new Date(f.value.params.at!).toLocaleDateString(lang) : t(f.value.code, f.value.params)}</dd></div>)}
             </dl>
+            {/* DEC-0173 SCR-36: the declared facts are the service's word, said once under the list. */}
+            {agentFacts(s, members).some((f) => f.declared) && <p className="meta muted">{t('facts.declaredNote')}</p>}
             <Tools names={wk?.surfaces.mcp?.capabilities ?? []} />
             {s.reasons.length > 0 && <ul className="reasons">{s.reasons.map((r, i) => <li key={i}>{reason(r)}</li>)}</ul>}
             {s.lastAction && !s.busy && now - Date.parse(s.lastAction.at) < NEWS_MS && ( /* P-15: news for half an hour, as on Overview */

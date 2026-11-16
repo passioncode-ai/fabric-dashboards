@@ -40,6 +40,10 @@
       "types": "./dist/connections.d.ts",
       "default": "./dist/connections.js"
     },
+    "./instance-facts": {
+      "types": "./dist/instance-facts.d.ts",
+      "default": "./dist/instance-facts.js"
+    },
     "./load": {
       "types": "./dist/load.d.ts",
       "default": "./dist/load.js"

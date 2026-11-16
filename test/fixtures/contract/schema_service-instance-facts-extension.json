@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://fabric.passioncode.ai/agent-contract/0.1.0/schemas/service-instance-facts-extension.schema.json",
+  "title": "extensions/instance-facts/0.1: who an instance serves, how it keeps data apart and the space it runs in (fabric-instance-facts/0.1, DEC-0173)",
+  "description": "The value of the instance-facts extension key in a service's descriptor, its well-known document, or both. Every member and every field is optional, save that a present tenancy names its mode and a present space its kind; an absent one, and an empty access, declare nothing, never a default. Declared by the service, never verified; FAC-SEM-180 reads it against the descriptor's peer, placement and runner and the well-known document's dashboard sign-in. Whose instance it is stays the estate placement's context (DEC-0082 item 4), never a member here.",
+  "type": "object",
+  "properties": {
+    "access": {
+      "type": "object",
+      "properties": {
+        "audience": {
+          "enum": ["operator", "organization", "public"],
+          "description": "Who the instance serves: its operator alone; others it is offered to (beside peer: the members of the organization its placement's context names and anyone a share grant or an organization's listing names, a colleague or a guest included; on a remote placement, an organization's members reaching its own surface with their own keys); or, on a remote placement only, anyone who reaches its origin's own surface. It describes and grants nothing (DEC-0173 IF-2)."
+        },
+        "entry": {
+          "enum": ["host-signin", "own-signin", "none"],
+          "description": "How its dashboard is entered: a host's login code, a sign-in of its own, or none. Where the well-known document declares surfaces.dashboard, its login decides host-signin against the other two; a dashboard that requires a host's login code reads host-signin for a service that declares any fact (DEC-0173 IF-2, IF-5)."
+        }
+      },
+      "additionalProperties": false
+    },
+    "tenancy": {
+      "type": "object",
+      "required": ["mode"],
+      "properties": {
+        "mode": {
+          "enum": ["single", "per-organization", "shared"],
+          "description": "single: one tenant, the context the instance serves and no other's data; per-organization: one of the copies a product itself runs one per organization; shared: one instance holding several tenants' data, kept apart by the instance, a remote placement's only (DEC-0173 IF-3)."
+        }
+      },
+      "additionalProperties": false
+    },
+    "space": {
+      "type": "object",
+      "required": ["kind"],
+      "properties": {
+        "kind": {
+          "enum": ["user", "container", "vm", "system"],
+          "description": "user: the counted OS account whose services directory declares it (DEC-0154); container or vm: on a local placement a guest on the computer behind a forwarder its own account owns, on a remote one a platform's container or virtual machine; system: a platform's service account, a remote placement's only (DEC-0173 IF-4)."
+        },
+        "account": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$",
+          "description": "An opaque label the installer or the operator assigns, never the OS account's name, a person's name, a path or a credential; on a local placement written only in the descriptor, never the well-known document (DEC-0173 IF-4, IF-5)."
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}
