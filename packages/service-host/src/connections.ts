@@ -104,11 +104,14 @@ function rawValues(query: string): Map<string, string[]> {
   }
   return values;
 }
+// DEC-0177: a user name of 40 or more [A-Za-z0-9_-] with a letter and a digit is a token (`https://<token>@host/o/r.git`).
+const tokenUserName = (user: string): boolean => /^[A-Za-z0-9_-]{40,}$/.test(user) && /[0-9]/.test(user) && /[A-Za-z]/.test(user);
 function secretUrl(v: string): boolean {
   if (secretArgument(v)) return true;
   let url: URL;
   try { url = new URL(v); } catch { return false; }
   if (url.password !== '') return true;
+  if (tokenUserName(decodeKeepingPlus(url.username))) return true;
   for (const part of [url.search, url.hash]) for (const [name, vals] of rawValues(part.slice(1))) if (vals.some((raw) => (raw !== '' && credentialName(name)) || secretValue(raw))) return true;
   return false;
 }

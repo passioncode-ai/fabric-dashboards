@@ -1,4 +1,4 @@
-// Copied from passioncode-ai/fabric-agent-contract src/session-handoff.ts @802c8d270fdb (DEC-0042, DEC-0145), unchanged except
+// Copied from passioncode-ai/fabric-agent-contract src/session-handoff.ts @2bbfd7805b1f (DEC-0042, DEC-0145, DEC-0178), unchanged except
 // its one kit import, a type, which is declared here. Test-only: test/session-handoff.test.ts runs it against the
 // folders the console writes (FD-47). Never edit here; re-copy when the contract changes.
 import { createHash } from "node:crypto";
@@ -13,8 +13,8 @@ interface Finding { code: string; instancePath: string; message: string; severit
  * the folder lives, the manifest against its schema, and the rules no schema can state (FAC-SEM-053…055).
  *
  * It depends on nothing but Node's built-ins, and its one import of this kit is a type, so a consumer can copy
- * it byte for byte and run it under `node --experimental-strip-types` against a folder it wrote (Fabric does:
- * `apps/desktop/test/session-handoff-conformance.test.mjs`). Such a consumer passes its own compiled schema
+ * it byte for byte and run it under `node --experimental-strip-types` against a folder it wrote (Fabric Dashboards
+ * vendors it as `test/contract/session-handoff.ts`). Such a consumer passes its own compiled schema
  * check; inside this kit the schema check defaults to the contract's own validator.
  */
 
@@ -51,7 +51,7 @@ const CONTROL = /[\u0000-\u001f\u007f]/;
 const TOOL_WORD = /\b[a-z][a-z0-9]*(?:_[a-z0-9]+)+\b/g;
 /*
  * The credential detector of `src/secret-shape.ts` (DEC-0041, DEC-0044), copied so this module stays dependency-free:
- * Fabric vendors this file alone. `test/session-handoff-review.test.ts` checks that the copy agrees with the original.
+ * its vendors take this file alone (Fabric Dashboards, DEC-0151). `test/session-handoff-review.test.ts` checks that the copy agrees with the original.
  */
 /** A name's words: split at `.`, `_`, `-` and camelCase humps, lowercased (`refreshToken_v2-Id` is `refresh token v2 id`). */
 function nameWords(name: string): string[] {
@@ -84,7 +84,7 @@ export function credentialName(name: string): boolean {
   return Object.entries(CREDENTIAL_PAIRS).some(([word, partners]) => all.includes(word) && partners.some((partner) => all.includes(partner)));
 }
 const JWT_SHAPE = /eyJ[A-Za-z0-9_-]{2,}\.[A-Za-z0-9_-]{2,}\.[A-Za-z0-9_-]*/;
-const SECRET_VALUE = /(^bearer\s.+|sk-[A-Za-z0-9_-]{16,}|gh[pousr]_[A-Za-z0-9]{20,}|xox[abposr]-[A-Za-z0-9-]{10,}|AKIA[0-9A-Z]{16}|glpat-[A-Za-z0-9_-]{20,})/i;
+const SECRET_VALUE = /(^[Bb][Ee][Aa][Rr][Ee][Rr]\s.+|(?:^|[^A-Za-z0-9]|%[0-9A-Fa-f]{2}|\\[nrt"']|\\u[0-9A-Fa-f]{4}|\\x[0-9A-Fa-f]{2}|\\[bfv0ae]|\\[0-7]{1,3}|%25[0-9A-Fa-f]{2}|\x1b\[[0-9;:]*m|(?:\\u001[bB]|\\x1[bB]|\\e|\\033|\\33)\[[0-9;:]*m)(?:sk-(?=[A-Za-z0-9_-]{0,255}?\d)(?:(?=[A-Za-z0-9_-]{0,255}?[A-Z])[A-Za-z0-9_-]{16,}|[A-Za-z0-9_-]{32,})|gh[pousr]_[A-Za-z0-9]{20,}|xox[abposr]-[A-Za-z0-9-]{10,}|AKIA[0-9A-Z]{16}|glpat-[A-Za-z0-9_-]{20,}))/;
 const LONG_RUN = /[A-Za-z0-9+/=_-]{40,}/g;
 const longSecret = (value: string) => (value.match(LONG_RUN) ?? []).some((run) => /[a-z]/.test(run) && /[A-Z]/.test(run) && /[0-9]/.test(run));
 /** Whether a value could be a credential: a JWT anywhere, a provider key or `Bearer …`, or a long secret-shaped run. */
@@ -111,6 +111,54 @@ const pathLike = (piece: string): boolean =>
 export const secretArgument = (value: string): boolean =>
   JWT_SHAPE.test(value) || SECRET_VALUE.test(value) || BEARER_INSIDE.test(value) ||
   value.split(/[\s=]/).some((piece) => (pathLike(piece) ? piece.split(/[\\/]/).some((part) => longSecret(part)) : longSecret(piece)));
+/** Percent-decode and keep `+` as `+`: `URLSearchParams` turns a raw `+` into a space, which would split a base64 run. */
+const decodeKeepingPlus = (raw: string): string => {
+  try {
+    return decodeURIComponent(raw);
+  } catch {
+    return raw;
+  }
+};
+/** Each query or fragment piece's raw value, by its decoded name: what `URLSearchParams` hands over, with `+` kept. */
+function rawValues(query: string): Map<string, string[]> {
+  const values = new Map<string, string[]>();
+  for (const piece of query.split("&")) {
+    if (piece === "") continue;
+    const at = piece.indexOf("=");
+    const name = [...new URLSearchParams(at < 0 ? piece : piece.slice(0, at)).keys()][0] ?? "";
+    const value = at < 0 ? "" : decodeKeepingPlus(piece.slice(at + 1));
+    const list = values.get(name);
+    // Appended in place: a query of many pieces under one name costs one pass, not a copy per piece.
+    if (list === undefined) values.set(name, [value]);
+    else list.push(value);
+  }
+  return values;
+}
+/** A URL's user name read as a token (DEC-0177): 40 or more of `[A-Za-z0-9_-]` holding a letter and a digit. */
+const tokenUserName = (user: string): boolean => /^[A-Za-z0-9_-]{40,}$/.test(user) && /[0-9]/.test(user) && /[A-Za-z]/.test(user);
+/**
+ * Whether a server's URL carries a credential (LC-21, DEC-0178): anything `secretArgument` finds in it, a password
+ * in its user information, a user name that is a token, or a query or fragment parameter whose name can only carry a
+ * credential and has a value, or whose value is shaped like one. A string that is not an absolute URL is checked as
+ * an argument only.
+ */
+export function secretUrl(value: string): boolean {
+  if (secretArgument(value)) return true;
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    return false;
+  }
+  if (url.password !== "") return true;
+  if (tokenUserName(decodeKeepingPlus(url.username))) return true;
+  for (const part of [url.search, url.hash]) {
+    for (const [name, values] of rawValues(part.slice(1))) {
+      if (values.some((raw) => (raw !== "" && credentialName(name)) || secretValue(raw))) return true;
+    }
+  }
+  return false;
+}
 /**
  * A delegation token minted for this session (DEC-0039): exactly a JWS compact serialisation whose header says
  * `typ: fabric-delegation+jwt` and whose payload carries a numeric `exp`. The kit checks this shape only; the token's
@@ -526,10 +574,9 @@ function mcpFindings(manifest: Json, text: (name: string) => string | undefined)
       if (credential && mcp.auth === "none") findings.push(sem055(`/mcp.json/mcpServers/${name}/env/${variable}`, "a handoff with no secret carries no credential in a server's environment"));
       if (credential && mcp.auth === "bearer" && !delegationTokenShape(envValue)) findings.push(sem055(`/mcp.json/mcpServers/${name}/env/${variable}`, "a credential in a server's environment is a delegation token minted for this session (DEC-0039), never a standing key"));
     }
-    for (const field of ["url", "command"] as const) {
-      const value2 = value[field];
-      if (typeof value2 === "string" && secretArgument(value2)) findings.push(sem055(`/mcp.json/mcpServers/${name}/${field}`, `a server's ${field} never carries a credential`));
-    }
+    // A server's URL is read as a URL (DEC-0178): a password, a token as its user name or a credential-named parameter.
+    if (typeof value.url === "string" && secretUrl(value.url)) findings.push(sem055(`/mcp.json/mcpServers/${name}/url`, "a server's url never carries a credential"));
+    if (typeof value.command === "string" && secretArgument(value.command)) findings.push(sem055(`/mcp.json/mcpServers/${name}/command`, "a server's command never carries a credential"));
     for (const [index, arg] of strings(value.args).entries()) if (secretArgument(arg)) findings.push(sem055(`/mcp.json/mcpServers/${name}/args/${index}`, "a server's arguments never carry a credential: a process listing shows them"));
   }
   // SH-13 — a secret lives in mcp.json and nowhere else in the folder.
