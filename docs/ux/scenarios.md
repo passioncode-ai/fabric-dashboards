@@ -115,7 +115,7 @@
 | SCN-107 | Give an agent a task from the top of its page | console | P-01 | ST-019 | implemented | 2026-11-14 |
 | SCN-108 | See the bugs the app noticed and report one | settings | P-01 | ST-019 | implemented | 2026-11-15 |
 | SCN-109 | Find a session: search, filters and machines | sessions | P-01 | ST-019 | implemented | 2026-11-15 |
-| SCN-110 | See the sessions running on other machines | sessions | P-01 | ST-019 | implemented | 2026-11-15 |
+| SCN-110 | See the sessions running on other machines | sessions | P-01 | ST-019 | implemented | 2026-11-16 |
 | SCN-111 | Open a terminal on another machine | sessions | P-01 | ST-019 | implemented | 2026-11-15 |
 | SCN-112 | Open here or end a session another machine's session host holds | sessions | P-01 | ST-019 | implemented | 2026-11-15 |
 | SCN-113 | The Organizations menu keeps every organization Observatory names | navigation | P-01 | ST-016 | implemented | 2026-11-15 |
@@ -2509,14 +2509,15 @@ The Sessions mode (0.8.0): every coding session apart from the agents, each stat
 - **Steps:**
   1. The person opens the Sessions mode -> within 15 s each machine Switchboard names is asked once over ssh for its sessions (two at a time)
   2. The list shows that machine's running sessions and those ended in the last day, each naming the machine on both lines of its row; a session this app started there (SCN-101) is listed once, as its console
+  2a. FD-291: when both Switchboards have the sessions page (SB-395, `sessions --rows`), the machine is read with `sessions --rows --target` and its list holds every coding process there too (a Claude Code or Codex started outside Switchboard reads "Running, started by hand" and, when quiet, how long), the sessions stopped on a usage limit (waiting, with the time Switchboard tries again) and those that need a person there, each with its reason naming the machine ("Stopped on a usage limit. An account on {machine} is ready, so continue it there.", "Its process on {machine} ended, and no end was recorded.", "Runs twice on {machine}: close one copy there.", "A board run on {machine} has written nothing for 30 minutes.", "Switchboard on {machine} says it needs you."); Open here and End are offered where that row offers them, and continuing there is not offered from this Mac yet (FD-290)
   3. The person stays on the list -> each machine is read again once a minute
 - **Expected result:** every coding session of the person's machines is in one list, and a machine that cannot be read says why instead of looking empty
 - **Alt paths:** the window hidden or the Agents mode on screen -> no ssh runs; the switch off -> nothing is read and the other machines' rows go; an agent sets the switch with MCP `settings` (`remoteSessions`)
 - **UI elements:** the rows' machine name, one status line per machine not read ("{machine}: not reachable over ssh. Last read {time}.", "Switchboard is not installed there", "too old to list sessions", "its answer could not be read", "reading…"), the Settings switch
 - **States covered:** loading (reading), success, error (unreachable, no Switchboard, too old, bad answer), stale (last rows kept)
-- **Errors & recovery:** a failing machine is asked again after 1, 5 and 15 minutes, then every 15; its last rows stay for 24 hours after its last good read; whatever the machine answers is untrusted and capped at 200 rows
-- **Coverage:** src/core/remote-sessions.ts (RemoteSessions, readRemoteSessions, parseTargets), src/electron/console.ts (pollRemote, sessionsStatus), src/core/sessions.ts (mergeSessions part 5b, remoteRowId, dropRemoteTwins), src/renderer/components/Settings.tsx (remoteSessions switch)
-- **Status:** implemented (2026-11-15, 0.8.112: `test/remote-sessions.test.ts` *FD-247 step 5*); Open here, End and a terminal on that machine come with SCN-111 and SCN-112
+- **Errors & recovery:** a failing machine is asked again after 1, 5 and 15 minutes, then every 15; its last rows stay for 24 hours after its last good read; whatever the machine answers is untrusted and capped at 200 rows (FD-291: a page row whose id, group or folder is not of the contract's form is dropped); a Switchboard there without the page answers too old, and that machine is read with `sessions --all` as before
+- **Coverage:** src/core/remote-sessions.ts (RemoteSessions, readRemoteSessions, parseTargets), src/core/switchboard.ts (parsePageRows, FD-291), src/electron/console.ts (pollRemote, sessionsStatus), src/core/sessions.ts (mergeSessions part 5b, remoteRowId, dropRemoteTwins), src/renderer/components/Settings.tsx (remoteSessions switch)
+- **Status:** implemented (2026-11-15, 0.8.112: `test/remote-sessions.test.ts` *FD-247 step 5*; 2026-11-16, 0.8.154: the sessions page, *FD-291 step 1*); Open here, End and a terminal on that machine come with SCN-111 and SCN-112
 
 ### SCN-111: Open a terminal on another machine
 
