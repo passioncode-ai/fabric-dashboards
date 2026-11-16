@@ -87,6 +87,8 @@ export interface SessionRow {
   /** FD-118: a waiting stop's reason from Switchboard (0.6.83), shown instead of "No other account has capacity";
    *  null for every other row and when Switchboard names none. */
   waitReason: StopView['waitReason'] | null;
+  /** FD-288: a waiting stop this Mac could not carry at its last try (LC-17), with when it is tried again; null otherwise. */
+  held: StopView['held'] | null;
   /** An ended row: whether Continue can take up its own conversation (a known session id, a Claude Code session whose
    *  transcript the app finds by folder and time, or an agent console's own Continue); otherwise the button reads
    *  "New session here" (decision 6 of 2026-10-24). False for every row that is not ended. */
@@ -177,7 +179,7 @@ export interface LaunchFacts {
 export interface PendingHandover { id: string; dir: string; agent: string; account: string; workflow: string; offeredUntil: number; paid?: Paid }
 
 /** A limit stop as the console host judged it, with the accounts that could take it now. */
-export type StopInput = Pick<StopView, 'event' | 'session' | 'dir' | 'provider' | 'stoppedAt' | 'attempt' | 'verdict' | 'key' | 'probeAt' | 'account' | 'waitReason'> & { candidates?: { id: string; label: string }[] };
+export type StopInput = Pick<StopView, 'event' | 'session' | 'dir' | 'provider' | 'stoppedAt' | 'attempt' | 'verdict' | 'key' | 'probeAt' | 'account' | 'waitReason' | 'held'> & { candidates?: { id: string; label: string }[] };
 
 /** A console of this app that runs now. */
 export interface ConsoleInput {
@@ -366,11 +368,11 @@ function isRecord(r: unknown): r is SessionRecord {
     && (x.key === null || typeof x.key === 'string');
 }
 
-function row(o: Omit<SessionRow, 'project' | 'group' | 'at' | 'actions' | 'contextName' | 'openedInTerminal' | 'expectedAt' | 'candidates' | 'resumable' | 'consoleEmpty' | 'waitReason' | 'launch' | 'paid' | 'machine'> & Partial<Pick<SessionRow, 'actions' | 'contextName' | 'openedInTerminal' | 'expectedAt' | 'candidates' | 'resumable' | 'waitReason' | 'launch' | 'paid' | 'machine'>>): SessionRow {
+function row(o: Omit<SessionRow, 'project' | 'group' | 'at' | 'actions' | 'contextName' | 'openedInTerminal' | 'expectedAt' | 'candidates' | 'resumable' | 'consoleEmpty' | 'waitReason' | 'held' | 'launch' | 'paid' | 'machine'> & Partial<Pick<SessionRow, 'actions' | 'contextName' | 'openedInTerminal' | 'expectedAt' | 'candidates' | 'resumable' | 'waitReason' | 'held' | 'launch' | 'paid' | 'machine'>>): SessionRow {
   const group = groupOf(o.state);
   return {
     ...o, machine: o.machine ?? null, project: base(o.folder), group, actions: o.actions ?? actionsFor(o.state),
-    contextName: o.contextName ?? null, openedInTerminal: o.openedInTerminal ?? false, expectedAt: o.expectedAt ?? null, candidates: o.candidates ?? [], waitReason: o.waitReason ?? null,
+    contextName: o.contextName ?? null, openedInTerminal: o.openedInTerminal ?? false, expectedAt: o.expectedAt ?? null, candidates: o.candidates ?? [], waitReason: o.waitReason ?? null, held: o.held ?? null,
     resumable: group === 'ended' && (o.resumable ?? false),
     consoleEmpty: false,
     launch: o.launch ?? null,
@@ -490,7 +492,7 @@ export function mergeSessions(i: MergeInput): SessionRow[] {
     if (s.verdict === 'waiting' || s.verdict === 'resume') {
       const candidates = s.candidates ?? [];
       add(row({
-        ...common, state: 'waiting-reset', reason: null, candidates, waitReason: s.waitReason ?? null,
+        ...common, state: 'waiting-reset', reason: null, candidates, waitReason: s.waitReason ?? null, held: s.held ?? null,
         expectedAt: s.verdict === 'waiting' ? s.probeAt ?? null : null, // Switchboard's own probe time, never a guess (R1-S3)
         actions: actionsFor('waiting-reset', { continueNow: candidates.length > 0 }),
       }));

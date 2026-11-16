@@ -116,10 +116,18 @@ export function SessionActions({ row, place, open, askEnd, continued, onMenu }: 
   return (
     <div className="session-actions" role="group" aria-label={t('sessions.actions', { project: projectName(lang, row) })}>
       <div className="row-actions">{buttons}</div>
+      {row.held && <span className="meta state-degraded" role="status">{heldText(t, lang, row.held)}</span>}
       {waitingNoCandidate && <span id={`nocand-${row.id}`} className="meta">{t(row.waitReason ? `sessions.noCandidate.${row.waitReason}` : 'sessions.noCandidate')}</span>}
       {error && <p className="notice error session-error" role="alert">{error}</p>}
     </div>
   );
+}
+
+/** FD-288: why a limit continue waits for this Mac (LC-17), and by when it is tried again. */
+function heldText(t: ReturnType<typeof useT>['t'], lang: Parameters<typeof clock>[0], h: NonNullable<SessionRow['held']>): string {
+  const why = h.why === 'disk' ? t('sessions.held.disk', { free: h.freeGb }) : h.why === 'cap' ? t('sessions.held.cap', { cap: h.cap })
+    : h.why === 'pool' ? t('sessions.held.pool', { used: h.used, cap: h.cap }) : t('sessions.held.swap');
+  return t('sessions.held', { why, time: clock(lang, h.retryAt) });
 }
 
 /** SCN-078 step 3: one session as a card: the two lines, the state in words, the state's actions. */
@@ -398,6 +406,7 @@ export function SessionBody({ row, autoContinue = true }: { row: SessionRow; aut
       <div className="page session-body">
         <section className="session-panel" aria-label={t('sessions.short.waiting')}>
           <p>{next}</p>
+          {row.held && <p className="notice warning" role="status">{heldText(t, lang, row.held)}</p>}
           <p>{now}</p>
           <dl className="session-facts">
             <div><dt>{t('sessions.body.folder')}</dt><dd className="mono" title={row.folder}>{shortPath(row.folder)}</dd></div>

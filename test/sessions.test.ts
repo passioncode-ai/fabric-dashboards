@@ -425,6 +425,16 @@ test('FD-118: a waiting row carries Switchboard\'s reason, so the page says why 
   assert.equal(rows.find((r) => r.folder === '/w/b')!.waitReason, null);
 });
 
+test('FD-288: a waiting row carries the LC-17 hold of its stop, and no hold when the stop has none', () => {
+  const held = { why: 'disk' as const, freeGb: 1.8, retryAt: NOW + MIN };
+  const rows = mergeSessions(input({ stops: [
+    { event: 'cc-a-1', session: SID, dir: '/w/a', provider: 'claude', stoppedAt: NOW - MIN, attempt: 1, verdict: 'resume', candidates: [], probeAt: null, held },
+    { event: 'cc-b-1', session: SID2, dir: '/w/b', provider: 'claude', stoppedAt: NOW - MIN, attempt: 1, verdict: 'waiting', candidates: [], probeAt: null },
+  ] }));
+  assert.deepEqual(rows.find((r) => r.folder === '/w/a')!.held, held);
+  assert.equal(rows.find((r) => r.folder === '/w/b')!.held, null);
+});
+
 test('SB-201 (Switchboard 0.7.0): a session row is the agent Switchboard names; a proxy launch on provider claude is not Claude Code and is never resumed as one', async () => {
   const run: Runner = async () => ok({ sessions: [
     { home: '/sb/h/1', working_directory: '/w/goose', provider: 'claude', agent: 'goose', pool: 'default', state: 'ended', launched_at: NOW / 1000 - 60 },

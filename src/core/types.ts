@@ -304,7 +304,13 @@ export interface StopView { event: string; session: string; dir: string; provide
    *  account list has it); null or absent when unknown. */
   account?: string | null;
   /** FD-118: Switchboard's reason a waiting stop is not ready (0.6.83); null or absent when it names none. */
-  waitReason?: 'billing' | 'account_removed' | 'no_account' | 'backoff' | null }
+  waitReason?: 'billing' | 'account_removed' | 'no_account' | 'backoff' | null;
+  /** FD-288: a ready stop this Mac could not carry at its last try (LC-17): why, and by when the next pass tries again. */
+  held?: HeldContinue | null }
+
+/** FD-288: why a limit continue waits for this Mac (LC-17), with the figures the person needs; `retryAt` (ms) is when the
+ *  next pass tries again at the latest. */
+export type HeldContinue = { retryAt: number } & ({ why: 'disk'; freeGb: number } | { why: 'swap' } | { why: 'cap'; cap: number } | { why: 'pool'; used: number; cap: number });
 
 /** What the app knows about sessions stopped on a limit: off, unreadable, or the stops still open. */
 export interface RecoveryStatus {

@@ -250,6 +250,18 @@ test('FD-83: a machine that cannot carry a console now (LC-17) claims nothing; t
   assert.deepEqual(r.host.recoveryStatus().stops.map((s) => s.verdict), ['resume']);
 });
 
+test('FD-288: a stop held back by LC-17 carries why and when it is tried again to its session row and page', POSIX, async () => {
+  const r = rig({ freeDisk: 0.5 * GB });
+  const before = Date.now();
+  await r.host.pollRecovery();
+  const held = r.host.recoveryStatus().stops[0]!.held;
+  assert.equal(held?.why, 'disk');
+  assert.equal(held?.why === 'disk' && held.freeGb, 0.5);
+  assert.ok(held && held.retryAt >= before + 60_000, 'tried again by the hidden cadence at the latest, never earlier');
+  const row = r.host.sessionsStatus().rows.find((x) => x.state === 'waiting-reset')!;
+  assert.deepEqual(row.held, held, 'the row and its page read the same hold');
+});
+
 test('FD-233: a stop that keeps waiting for room (LC-17) is logged once per reason, not on every pass', POSIX, async () => {
   const r = rig({ freeDisk: 0.5 * GB });
   for (let i = 0; i < 3; i++) await r.host.pollRecovery();

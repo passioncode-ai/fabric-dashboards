@@ -21,7 +21,7 @@ import type { DoctorReport } from '../core/doctor';
 import type { ActivityItem } from '../core/types';
 import { ConsoleManager, planStart, terminalScript, type SpawnPty } from '../core/consoles';
 import { dropKept, loadKept, saveKept } from '../core/kept-output';
-import { admit, machineProbe, parseCapacity, type MachineState } from '../core/admission';
+import { admit, machineProbe, parseCapacity, type Admission, type MachineState } from '../core/admission';
 import { findCheckout } from '../core/repofind';
 import { projectsOf, projectsProbeArgv, targetLaunchArgv, targetsOf } from '../core/target-session';
 import { MACHINE } from '../core/platform';
@@ -29,7 +29,7 @@ import { isNewAgentKey, isNewSessionKey, isolatedBlock, newSessionKey, prepareNe
 import { askArgsOfProvider, bypassArgs, claudeAskModeOf, promptsWords, setClaudeAskMode, bypassArgsOfProvider, detectRuntimes, KNOWN_RUNTIMES, readLoginPath, searchDirs, specsFromSwitchboard, type Runtime, type RuntimeSpec } from '../core/runtimes';
 import type { SettingsStore } from '../core/settings';
 import { accountsOf, allSessionsOf, bindingFor, machineSessionsOf, findSwitchboard, handoverOwnKey, handoverRunArgv, handoversOf, handoversSwitch, isHandoverKey, launchFeatures, sbFailure, sessionsIn, startAccount, terminalLaunchArgv, type Binding, type SbAccounts, type SbHandover, type SbSessions, type StartAccount } from '../core/switchboard';
-import type { ServiceSnapshot, Settings } from '../core/types';
+import type { HeldContinue, ServiceSnapshot, Settings } from '../core/types';
 import { claudeConfigDirs, lastTranscriptWrite, STUCK_MS, stuckKeys } from '../core/stuck';
 import { claimStop, claudeSessionDirs, folderLive, liveSessionFolders, liveSessionIds, continuedLaunches, continuedOf, finishStop, liveAgents, recoveryOf, resumeArgs, resumeOwnKey, sessionOpen, transcriptIn, transcriptOf, verdictOf, writtenAt, RESUME_SETTLE_MS, RESUMES_PER_PASS, type RecoveryStatus, type SbStop, type StopView } from '../core/recovery';
 import { closeCopyArgv, DUPLICATES_MS, parseCloseCopy, parseDuplicates, takesCloseCopy, type CloseCopyResult, type DuplicateSession } from '../core/duplicate-sessions';
@@ -118,6 +118,15 @@ export interface ConsoleHostOptions {
 /** FD-62: how often hand-overs are read, in AGENTS.md's lifecycle table. */
 export const HANDOVER_POLL_MS = { visible: 15_000, hidden: 60_000 };
 
+/** FD-288: an LC-17 refusal as the session's row shows it; `retryAt` is the latest the next pass tries again (the hidden
+ *  cadence, so the time shown is never early). */
+export function heldOf(a: Extract<Admission, { ok: false }>, retryAt: number): HeldContinue {
+  if (a.why === 'disk') return { why: 'disk', freeGb: Math.round((a.freeDisk / 1024 ** 3) * 10) / 10, retryAt };
+  if (a.why === 'cap') return { why: 'cap', cap: a.cap, retryAt };
+  if (a.why === 'pool') return { why: 'pool', used: a.used, cap: a.cap, retryAt };
+  return { why: 'swap', retryAt };
+}
+
 /** FD-62: a console that runs a hand-over, as the shell lists it. */
 
 /** D2 of the 2026-10-12 board waves, stated in AGENTS.md's lifecycle table (LC-18). */
@@ -159,6 +168,8 @@ export class ConsoleHost {
   private readonly actedStops = new Map<string, StopView>();
   /** FD-233: the reason each stop last waited for room (LC-17), so a stop that keeps waiting is logged once per reason. */
   private readonly waitNoted = new Map<string, string>();
+  /** FD-288: what each ready stop waits for on this Mac (LC-17), shown on its session's row and page. */
+  private readonly heldNow = new Map<string, HeldContinue>();
   private recovery: RecoveryStatus = { on: true, stops: [], resumed: 0 };
   /** F2 of FIX-2: stops being taken up now (an automatic continue, Continue now, or Continue on a declined stop), by
    *  event: marked before the claim, so a second press or the background pass never claims or starts the same stop. */
@@ -891,6 +902,7 @@ export class ConsoleHost {
     this.lastStops.clear();
     for (const s of r.stops) this.lastStops.set(s.event, s);
     for (const e of [...this.waitNoted.keys()]) if (!this.lastStops.has(e)) this.waitNoted.delete(e);
+    for (const e of [...this.heldNow.keys()]) if (!this.lastStops.has(e)) this.heldNow.delete(e);
     const pending = r.stops.filter((s) => s.state !== 'resumed' && !this.actedStops.has(s.event) && !this.taking.has(s.event));
     const read = pending.some((s) => s.ready) ? await liveAgents(this.run, process.platform, claudeSessionDirs(this.o.home ?? os.homedir())).catch(() => null) : null;
     // F4 of FIX-2: a folder one of this app's consoles works in is live too (a hand-over taken on this tick has no claude
@@ -913,13 +925,13 @@ export class ConsoleHost {
       if (verdict === 'continued') continue;
       // FD-103 (decision 2): a stop the person declined is never continued by this app.
       if (verdict === 'resume' && on && due.length < RESUMES_PER_PASS && !held.has(stopRowId(s.event))) { due.push(s); continue; }
-      views.push({ event: s.event, session: s.session, dir: s.dir, provider: s.provider, stoppedAt: s.stoppedAt, attempt: s.attempt, verdict, candidates: candidates(s), probeAt: s.probeAt, account: accountOf(s), waitReason: s.waitReason });
+      views.push({ event: s.event, session: s.session, dir: s.dir, provider: s.provider, stoppedAt: s.stoppedAt, attempt: s.attempt, verdict, candidates: candidates(s), probeAt: s.probeAt, account: accountOf(s), waitReason: s.waitReason, held: this.heldNow.get(s.event) ?? null });
     }
     const started: string[] = [];
     for (const s of due) {
       const key = await this.resume(s, inv.switchboard, inv.dirs, s.candidates[0]!, true);
       if (key) started.push(key);
-      else if (!this.actedStops.has(s.event) && !this.taking.has(s.event)) views.push({ event: s.event, session: s.session, dir: s.dir, provider: s.provider, stoppedAt: s.stoppedAt, attempt: s.attempt, verdict: 'resume', candidates: candidates(s), probeAt: s.probeAt, account: accountOf(s), waitReason: s.waitReason });
+      else if (!this.actedStops.has(s.event) && !this.taking.has(s.event)) views.push({ event: s.event, session: s.session, dir: s.dir, provider: s.provider, stoppedAt: s.stoppedAt, attempt: s.attempt, verdict: 'resume', candidates: candidates(s), probeAt: s.probeAt, account: accountOf(s), waitReason: s.waitReason, held: this.heldNow.get(s.event) ?? null });
     }
     this.setRecovery({ on, stops: [...this.actedStops.values(), ...views.filter((v) => !this.actedStops.has(v.event))], resumed: this.recovery.resumed + started.length });
     return started;
@@ -1015,9 +1027,11 @@ export class ConsoleHost {
       // FD-233: a pass every 15 s logged the same wait each time (477 lines on 2026-11-13); once per reason is enough.
       if (this.waitNoted.get(stop.event) !== a.why) this.o.log(`console: limit stop ${stop.event} waits (LC-17: ${a.why})`);
       this.waitNoted.set(stop.event, a.why);
+      this.heldNow.set(stop.event, heldOf(a, Date.now() + HANDOVER_POLL_MS.hidden));
       return null;
     }
     this.waitNoted.delete(stop.event);
+    this.heldNow.delete(stop.event);
     // FD-262: every path that continues a stop (the pass, Continue now) asks once more, just before the claim, whether a
     // live process holds the session (its sessions file, its arguments, or Switchboard's `live`); unknown is not "none".
     if (await this.heldElsewhere(stop.session, stop.live)) {
