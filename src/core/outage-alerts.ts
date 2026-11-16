@@ -207,6 +207,13 @@ function pruneAsks(asks: Record<string, Ask>, now: number): Record<string, Ask> 
 }
 
 /** The message id of an event: the same on every retry and restart; never a `/`, at most 160 characters. */
+/** FD-286: the channel's arguments are exactly its contract's fields (`communicator.notify`: eventId, kind, subject,
+ *  text); anything the app keeps beside a message (its service, its side) stays here, since the channel refuses an
+ *  unknown field (`invalid_event`). */
+export function notifyArguments(msg: AlertMessage): { eventId: string; kind: AlertMessage['kind']; subject: string; text: string } {
+  return { eventId: msg.eventId, kind: msg.kind, subject: msg.subject.slice(0, 160), text: msg.text.slice(0, 3500) };
+}
+
 export const askIdOf = (serviceKey: string, eventId: string) => `ask:${serviceKey.slice(0, 80)}:${eventId.replace(/[^A-Za-z0-9._:-]/g, '_').slice(0, 72)}`;
 // #endregion operator-asks
 

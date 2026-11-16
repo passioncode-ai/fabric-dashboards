@@ -8,7 +8,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { atomicWrite } from '../core/fsutil';
 import { callCapability } from '../core/mcp-client';
-import { askDelivered, askIdOf, chooseChannel, sideOf, delivered, emptyOutageState, enqueueAsk, notifyChannelOf, observe, owed, owedAsks, watchedOf, type AlertMessage, type Ask, type OutageState, type Words } from '../core/outage-alerts';
+import { askDelivered, askIdOf, chooseChannel, notifyArguments, sideOf, delivered, emptyOutageState, enqueueAsk, notifyChannelOf, observe, owed, owedAsks, watchedOf, type AlertMessage, type Ask, type OutageState, type Words } from '../core/outage-alerts';
 import { authHeaders, readTokenAsync } from '../core/probe';
 import type { AppStatus, ServiceSnapshot, Settings } from '../core/types';
 
@@ -130,8 +130,7 @@ export class OutageAlerts {
     const snap = this.o.snapshots().find((s) => s.key === channel.key);
     const tokenFile = snap?.descriptor?.auth.tokenFile;
     const headers = tokenFile ? authHeaders(snap!.descriptor!, await readTokenAsync(tokenFile)) : {};
-    const { serviceKey: _key, ...args } = msg;
-    await callCapability({ origin: channel.origin, path: channel.path, headers }, channel.capability, { ...args, subject: args.subject.slice(0, 160), text: args.text.slice(0, 3500) }, this.o.version);
+    await callCapability({ origin: channel.origin, path: channel.path, headers }, channel.capability, notifyArguments(msg), this.o.version);
   }
 
   private failed(msg: AlertMessage, via: string, error: unknown): void {
