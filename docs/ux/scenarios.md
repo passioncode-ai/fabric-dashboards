@@ -2629,16 +2629,16 @@ The Sessions mode (0.8.0): every coding session apart from the agents, each stat
 
 - **Persona:** P-01
 - **Feature:** navigation
-- **Traces:** FD-273 (the operator's task relayed on the board 2026-11-15, message `d660cc30`)
+- **Traces:** FD-273 (the operator's task relayed on the board 2026-11-15, message `d660cc30`); contract DEC-0173 (CT-321, SCR-36, SCN-065)
 - **Entry point:** an agent's row in the sidebar; the details above its page (Show details)
 - **Preconditions:** agents installed, some on this Mac, some placed on another machine or online
 - **Steps:**
   1. The person points at an agent's row -> the tooltip gives its name and state, then where each copy runs (this Mac; another machine by name, and whether a forwarded port brings it here; online with the provider read from its address, or the address alone), then its organization ("yours" for the personal one)
-  2. The person opens the agent and shows its details -> under the line of version, build, pid, port and uptime, a list: where it runs, organization, how its dashboard is entered (the app signs you in, or no sign-in), repository, who installed it and when, and how many copies run in its other places
+  2. The person opens the agent and shows its details -> under the line of version, build, pid, port and uptime, a list: where it runs, organization, then what the agent declares of itself (DEC-0173): who it serves, how its dashboard is entered, how it keeps data apart, the space it runs in and that space's label, with one line under the list saying these are the agent's own word; then repository, who installed it and when, and how many copies run in its other places
 - **Expected result:** the person knows where an agent runs and whose it is without opening its Health tab
-- **Alt paths:** an agent that declares none of these shows "runs" alone; an organization map never read leaves the organization out, one read with no attribution says "Not attributed"
+- **Alt paths:** an agent that declares none of these shows "runs" alone, and no sign-in line: a dashboard's sign-in alone is no fact (DEC-0173 IF-5); a declared value the contract refuses (`public` or `shared` on this Mac, an `organization` without `peer` here, a label shaped like a key) is never shown, and a declaration that fails the contract's schema shows nothing; an organization map never read leaves the organization out, one read with no attribution says "Not attributed"
 - **UI elements:** the row's tooltip, the details card's list
 - **States covered:** success, empty (a bare descriptor)
-- **Errors & recovery:** an install date that is not a date is left out; a placement record that names no machine says "another machine"; who has access, data isolation and the space it runs in are not shown until agents declare them (asked of fabric-agent-contract)
-- **Coverage:** src/core/agent-facts.ts (whereOf, agentFacts, agentHint), src/renderer/components/Navigation.tsx (ProductItem title), src/renderer/components/ServiceView.tsx (svc-where)
-- **Status:** implemented (2026-11-15, 0.8.120: `test/agent-facts.test.ts`)
+- **Errors & recovery:** an install date that is not a date is left out; a placement record that names no machine says "another machine"
+- **Coverage:** src/core/agent-facts.ts (whereOf, agentFacts, declaredFacts, agentHint), packages/service-host/src/instance-facts.ts (instanceFacts, the contract's 34 vectors in packages/service-host/test/instance-facts.test.ts), src/renderer/components/Navigation.tsx (ProductItem title), src/renderer/components/ServiceView.tsx (svc-where)
+- **Status:** implemented (2026-11-15, 0.8.120: `test/agent-facts.test.ts`); declared facts 2026-11-16, 0.8.130

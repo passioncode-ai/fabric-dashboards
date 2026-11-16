@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.8.130 - 2026-11-16
+
+### Added
+
+- FD-273, contract DEC-0173: an agent's details show what it declares of itself (extensions/instance-facts/0.1): who it
+  serves, how its dashboard is entered, how it keeps data apart, the space it runs in and that space's label, with one
+  line saying these are the agent's own word. The service host reads them as the contract's reference reading does
+  (`@passioncode-ai/fabric-service-host/instance-facts`, the contract's 34 vectors).
+
+### Changed
+
+- The details card no longer shows a sign-in line read from the dashboard's login alone: an agent that declares no fact
+  shows none (DEC-0173 IF-5).
+
 ## 0.8.129 - 2026-11-16
 
 ### Changed

@@ -1,7 +1,8 @@
 // FD-273: where an agent runs, its organization and whose it is, read for the sidebar tooltip and the details card.
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { agentFacts, agentHint, cloudProvider, whereOf, whereWords } from '../src/core/agent-facts';
+import { INSTANCE_FACTS_EXTENSION } from '@passioncode-ai/fabric-service-host/instance-facts';
+import { agentFacts, agentHint, cloudProvider, declaredFacts, whereOf, whereWords } from '../src/core/agent-facts';
 import { setWording, t } from '../src/core/i18n';
 import type { ServiceSnapshot } from '../src/core/types';
 
@@ -44,7 +45,7 @@ test('FD-273: an agent runs here, on another machine the placement record names,
   } finally { setWording(was); }
 });
 
-test('FD-273: the details card reads where, organization, sign-in, repository, installer, date and copies, in that order', () => {
+test('FD-273: the details card reads where, organization, repository, installer, date and copies, in that order', () => {
   const was = setWording('mac');
   try {
     const s = svc('p.default', {
@@ -53,8 +54,10 @@ test('FD-273: the details card reads where, organization, sign-in, repository, i
     });
     const copy = svc('p.cloud', { placement: 'remote', origin: 'https://p.acme.workers.dev' });
     const facts = agentFacts(s, [s, copy]);
-    assert.deepEqual(facts.map((f) => f.label), ['facts.where', 'health.organization', 'facts.entry', 'facts.repository', 'health.installedBy', 'facts.installedAt', 'facts.copies']);
-    assert.deepEqual(facts.map((f) => say('en', f.value)).slice(0, 4), ['On this Mac', 'Acme', 'the app signs you in', 'acme/prowl']);
+    // DEC-0173 IF-5 (CT-321): a dashboard's login alone is no fact, so a service that declares none has no sign-in line.
+    assert.deepEqual(facts.map((f) => f.label), ['facts.where', 'health.organization', 'facts.repository', 'health.installedBy', 'facts.installedAt', 'facts.copies']);
+    assert.deepEqual(facts.map((f) => say('en', f.value)).slice(0, 3), ['On this Mac', 'Acme', 'acme/prowl']);
+    assert.equal(facts.some((f) => f.declared), false);
     assert.equal(say('ru', facts.at(-1)!.value), 'Ещё: 1, в других местах');
   } finally { setWording(was); }
 });
@@ -77,4 +80,35 @@ test('FD-273: the tooltip names each place the agent runs once, then its organiz
     assert.deepEqual(lines, ['On this Mac', 'Online at Fly.io (p.fly.dev)', 'Personal (yours)']);
     assert.deepEqual(agentHint(svc('x.default', { organization: null })).map((w) => say('ru', w)), ['На этом Mac']);
   } finally { setWording(was); }
+});
+
+test('FD-273 (DEC-0173, SCR-36): the facts a service declares, in the contract\'s words, each marked as its own word', () => {
+  const ext = (value: unknown) => ({ [INSTANCE_FACTS_EXTENSION]: value });
+  const declared = (value: unknown, o: { remote?: boolean; peer?: boolean; login?: boolean; organization?: ServiceSnapshot['organization'] } = {}) => {
+    const s = svc('p.default', { placement: o.remote ? 'remote' : undefined, version: '1.0.0', login: o.login, organization: o.organization });
+    (s.descriptor as unknown as Record<string, unknown>).extensions = ext(value);
+    (s.descriptor as unknown as Record<string, unknown>).id = 'p';
+    (s.descriptor as unknown as Record<string, unknown>).instance = 'default';
+    if (o.peer) (s.descriptor as unknown as Record<string, unknown>).peer = { path: '/peer' };
+    (s.wellKnown as unknown as Record<string, unknown>).service = { id: 'p', instance: 'default', version: '1.0.0' };
+    return s;
+  };
+  const words = (s: ServiceSnapshot, lang: 'en' | 'ru' = 'en') => declaredFacts(s).map((f) => `${t(lang, f.label)}: ${say(lang, f.value)}`);
+  const acme = { name: 'acme', label: 'Acme' };
+  assert.deepEqual(words(declared({ access: { audience: 'operator' }, tenancy: { mode: 'single' }, space: { kind: 'user', account: 'studio-1' } }, { login: true })),
+    ['serves: its operator only', 'dashboard: the app signs you in', "data: one tenant: its data is its owner's alone", 'runs as: an account on this computer', 'space label: studio-1']);
+  assert.ok(declaredFacts(declared({ access: { audience: 'operator' } })).every((f) => f.declared));
+  assert.deepEqual(words(declared({ access: { audience: 'organization' } }, { peer: true, organization: acme })), ['serves: the people of Acme and those granted access']);
+  assert.deepEqual(words(declared({ access: { audience: 'organization' } }, { peer: true, organization: { name: 'me', label: 'Me', personal: true } })), ['serves: those granted access']);
+  assert.deepEqual(words(declared({ access: { audience: 'organization' }, space: { kind: 'user' } }, { remote: true, organization: acme }), 'ru'),
+    ['кому служит: людям Acme, с их собственными ключами', 'запущен как: аккаунт на своей машине']);
+  assert.deepEqual(words(declared({ access: { audience: 'public', entry: 'own-signin' }, tenancy: { mode: 'shared' }, space: { kind: 'system' } }, { remote: true })),
+    ['serves: anyone who reaches its site with credentials of their own', 'dashboard: its own sign-in', "data: several tenants' data in one instance, kept apart by it", "runs as: a platform's account"]);
+  // A refused value is never shown: `public` on a local placement, `shared` and `system` there too.
+  assert.deepEqual(declaredFacts(declared({ access: { audience: 'public' }, tenancy: { mode: 'shared' }, space: { kind: 'system' } })), []);
+  // A value that fails the schema gives nothing.
+  assert.deepEqual(declaredFacts(declared({ access: { audience: 'everyone' } })), []);
+  // The details card carries them after the organization line.
+  const card = agentFacts(declared({ access: { audience: 'operator' } }, { organization: acme }));
+  assert.deepEqual(card.map((f) => f.label).slice(0, 3), ['facts.where', 'health.organization', 'facts.audience']);
 });
