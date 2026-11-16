@@ -7,6 +7,13 @@ Current release: **0.8.110** published 2026-11-15 09:04 UTC (0.8.111 next); earl
 order, their runs under way. 0.8.106 and 0.8.107 were never published (0.8.106's check failed on an unref'd timer in a
 test; both fold into 0.8.108).
 
+## 0.8.153: why an agent does not run, on its Logs tab; five versions waiting for a tag (2026-11-16)
+
+0.8.153 (FD-250, PR #610): the Logs tab shows, above the log files, the process now, how often launchd or systemd
+started the agent and how its last run ended (`runFacts`, `src/core/run-facts.ts`); the log line of a reason is
+redacted of credentials (`redactSecrets`, `src/core/bugs.ts`). FD-250 left: the Task Scheduler only. **0.8.149 to
+0.8.153 are merged, untagged** (disk at 1.5 GB free): the first task below now means the tag `v0.8.153`.
+
 ## 0.8.152: systemd exit reasons, and four versions waiting for a tag (2026-11-16)
 
 0.8.152 (FD-250, PR #608): a `systemd --user` unit that crashed says its exit code or signal and how often systemd
@@ -20,8 +27,8 @@ untagged** (disk at 1.3 GB free): the first task below now means the tag `v0.8.1
 typed task on the project's board with its Fabric tools (`boardTask`, `src/core/handoff.ts`; test/handoff.test.ts *FD-241:
 a task sent to Fabric's board*; `npm run check` 1409 pass). FD-241 is left only for a line on Fabric's own page, which
 the app does not open as a service. **0.8.149 to 0.8.151 are merged, untagged**, for the reason below (the disk had 1 GB
-free). **First task for the next agent:** if `git ls-remote --tags origin v0.8.152` is empty, run
-`npm run test:e2e -- test/e2e/connections.test.ts` and on green push the annotated tag `v0.8.152` on main. Then FD-242.
+free). **First task for the next agent:** if `git ls-remote --tags origin v0.8.153` is empty, run
+`npm run test:e2e -- test/e2e/connections.test.ts` and on green push the annotated tag `v0.8.153` on main. Then FD-242.
 
 ## 0.8.150: the start-up channel line, and two versions waiting for a tag (2026-11-16)
 
