@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.8.144 - 2026-11-16
+
+### Fixed
+
+- FD-286: outage alerts and asks reach the operator's notification channel again. Since 0.8.132 each message carried
+  an extra field the channel refuses (`invalid_event`), so none was delivered; now only the channel's own fields go.
+
 ## 0.8.143 - 2026-11-16
 
 ### Changed

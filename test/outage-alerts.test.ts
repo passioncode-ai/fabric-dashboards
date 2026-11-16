@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import http from 'node:http';
 import test from 'node:test';
 import { callCapability, rpcResult } from '../src/core/mcp-client';
-import { chooseChannel, PERSONAL_SIDE, sideOf, delivered, emptyOutageState, notifyChannelOf, observe, OUTAGE_ALERT_AFTER_MS, owed, type OutageState, type Watched, type Words } from '../src/core/outage-alerts';
+import { chooseChannel, notifyArguments, PERSONAL_SIDE, sideOf, delivered, emptyOutageState, notifyChannelOf, observe, OUTAGE_ALERT_AFTER_MS, owed, type OutageState, type Watched, type Words } from '../src/core/outage-alerts';
 import { merge } from '../src/core/settings';
 
 const words: Words = { down: (n) => `${n} is down`, failing: (n, s) => `${n}: ${s} is failing`, back: (n) => `${n} is back`, removed: (n) => `${n} was removed`, since: (m, r) => `For ${m} min: ${r}`, after: (m) => `Back after ${m} min.`, wasDown: (m, r) => `Was down ${m} min (${r})` };
@@ -278,4 +278,12 @@ test('FD-269: the side is kept with the episode, so a removed agent\'s recovery 
   st = observe(delivered(st, due[0]!.id, 'failure'), [], OUTAGE_ALERT_AFTER_MS + 2);
   const back = owed(st, OUTAGE_ALERT_AFTER_MS + 2, words, () => true);
   assert.deepEqual(back.map((d) => [d.msg.kind, d.msg.side]), [['recovery', 'org:acme']]);
+});
+
+test('FD-286: the channel gets only its contract\'s fields; a message\'s service and side never reach it (invalid_event)', () => {
+  const args = notifyArguments({ eventId: 'outage:copy.default:0:back', kind: 'recovery', subject: 'S'.repeat(200), text: 'T'.repeat(4000), serviceKey: 'copy.default', side: 'org:acme' });
+  assert.deepEqual(Object.keys(args).sort(), ['eventId', 'kind', 'subject', 'text']);
+  assert.equal(args.subject.length, 160);
+  assert.equal(args.text.length, 3500);
+  assert.equal(args.eventId, 'outage:copy.default:0:back');
 });
