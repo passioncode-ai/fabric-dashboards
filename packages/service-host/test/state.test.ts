@@ -54,4 +54,7 @@ test('FD-250: a local job that is down says how launchd saw it end, and how ofte
   assert.deepEqual(sig.reasons[1], { code: 'reason.launchd.signal', params: { signal: 'Killed: 9', runs: 2 } });
   const clean = deriveState({ ...base, launchd: { managed: true, loaded: true, pid: null, disabled: false, runs: 1, lastExit: { code: 0 } } });
   assert.equal(clean.reasons.length, 1, 'a clean exit adds nothing');
+  const unit = deriveState({ ...base, launchd: { managed: true, by: 'systemd', loaded: false, pid: null, disabled: false, runs: 5, lastExit: { signal: 'SIGSEGV' } } });
+  assert.equal(unit.state, 'stopped', 'a failed unit keeps its state');
+  assert.deepEqual(unit.reasons, [{ code: 'reason.not-loaded' }, { code: 'reason.systemd.signal', params: { signal: 'SIGSEGV', runs: 5 } }], 'a systemd unit names systemd');
 });

@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.8.152 - 2026-11-16
+
+### Added
+
+- FD-250: an agent supervised by `systemd --user` says how its last run ended, as one under launchd does: the exit
+  code or the signal (`ExecMainCode`, `ExecMainStatus`) and how often systemd started it (`NRestarts` + 1). A failed
+  unit, which systemd no longer counts as loaded, keeps that reason beside «not loaded».
+
 ## 0.8.151 - 2026-11-16
 
 ### Added

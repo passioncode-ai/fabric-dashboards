@@ -83,20 +83,23 @@ export function deriveState(i: StateInput): StateOutput {
   // FD-196: a record that names the forward which should bring it here says that forward is not working.
   if (away) return { state: 'stopped', reasons: [{ code: 'reason.elsewhere', params: { machine: away.placedOn, ...(away.forward ? { forward: away.forward } : {}) } }] };
   if (i.launchd.managed && (i.launchd.disabled || !i.launchd.loaded)) {
-    return { state: 'stopped', reasons: [{ code: i.launchd.disabled ? 'reason.stopped' : 'reason.not-loaded' }] };
+    // FD-250: a systemd unit that failed is not loaded; how its last run ended still says why.
+    return { state: 'stopped', reasons: [{ code: i.launchd.disabled ? 'reason.stopped' : 'reason.not-loaded' }, ...(i.launchd.disabled ? [] : exitReasons(i.launchd))] };
   }
   const since = i.firstUnansweredAt ?? i.now;
   if (i.now - since < DOWN_AFTER_MS) return { state: 'starting', reasons: [{ code: 'reason.waiting' }] };
   return { state: 'down', reasons: [{ code: 'reason.down', params: { since: new Date(since).toISOString() } }, ...exitReasons(i.launchd)] };
 }
 
-/** FD-250: why a local job is down, as launchd saw its last run end: a non-zero exit code or a signal, with how often
- *  it was started (a crash loop shows as many runs). A clean exit, or a job launchd did not run, adds nothing. */
+/** FD-250: why a local job is down, as its supervisor (launchd, or `systemd --user`) saw its last run end: a non-zero
+ *  exit code or a signal, with how often it was started (a crash loop shows as many runs). A clean exit, or a job the
+ *  supervisor did not run, adds nothing. */
 function exitReasons(l: LaunchdStatus): Reason[] {
   if (!l.managed || !l.lastExit) return [];
   const runs = l.runs ?? 1;
-  if ('signal' in l.lastExit) return [{ code: 'reason.launchd.signal', params: { signal: l.lastExit.signal, runs } }];
-  return l.lastExit.code === 0 ? [] : [{ code: 'reason.launchd.exitCode', params: { code: l.lastExit.code, runs } }];
+  const by = l.by === 'systemd' ? 'systemd' : 'launchd';
+  if ('signal' in l.lastExit) return [{ code: `reason.${by}.signal`, params: { signal: l.lastExit.signal, runs } }];
+  return l.lastExit.code === 0 ? [] : [{ code: `reason.${by}.exitCode`, params: { code: l.lastExit.code, runs } }];
 }
 
 /**

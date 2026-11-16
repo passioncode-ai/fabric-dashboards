@@ -141,7 +141,9 @@ FD-167: `status(label, table?, 'system')` and `disabledTable('system')` read a j
 `src/systemd.ts` (FD-55, contract DEC-0057): `SystemdReader.status(unit)` reads `systemctl --user show`
 (`LoadState`, `ActiveState`, `MainPID`, `UnitFileState`) into the same `JobStatus`, so a copy waiting on the
 lock reads `duplicate` under systemd as it does under launchd. The Task Scheduler has no supervisor pid: a
-waiting copy there is not shown and is never an outage. Read only — systemd is controlled by the node.
+waiting copy there is not shown and is never an outage. FD-250: it also reads `ExecMainCode`, `ExecMainStatus` and
+`NRestarts`, so a unit that crashed says its exit code or signal and how often systemd started it, as `launchctl
+print` does for launchd. Read only — systemd is controlled by the node.
 ## State precedence
 
 A remote placement (DEC-0019) has no launchd and no `duplicate`: `refused`, TLS and a redirect are
