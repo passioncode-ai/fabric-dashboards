@@ -190,3 +190,27 @@ here (the same reading that declined P6 in FD-235's triage); a channel of anothe
 person's channel choice applies where it is one of the side's channels; a side whose channels are several, or none,
 waits, and the log names the side. The side is kept with the episode and the ask, so a removed agent's recovery still
 goes to its own side.
+
+## Amendment 2026-11-16: agent-health reports become episodes (FD-285)
+
+**Context.** The contract's `agent-health/1` (DEC-0179, fabric-agent-contract `db0d8f15`) gives each product one report:
+its worst state and its checks, each with an id, area, state, count and the fix that repairs it. Switchboard serves it as
+`switchboard --json health` (0.7.102). A report read once a minute and sent as is would ring on every flicker.
+
+**Decision.** Every 5 minutes (first 60 s after start) the app reads each product's report (wave 1: Switchboard only;
+`src/electron/health-poller.ts`, `HEALTH_PRODUCTS`) and holds episodes by the agents base's `alert-episodes` pattern
+(`observeHealth`, `src/core/agent-health.ts`):
+
+- a check opens an episode after two reads in a row with `warn` or `fail`, and closes it after two reads with `ok`;
+  `unknown` breaks a run of good reads and opens nothing; a check missing from a report is `unknown`, never healed;
+- a report that cannot be read (no answer, not the schema, a value FAC-SEM-181 refuses, another product's report) is
+  one `blind` episode for the product, opened and closed the same way, so one broken reader is one message;
+- the episode key is the contract's `<product>:<checkId>@<UTC day>` (HL-6), and the channel's `eventId` is
+  `health:<key>` and `health:<key>:back`, so a retry or a restart never sends twice;
+- the messages go through the operator's channel of FD-48, after outages and asks, under the person's pause, quiet hours
+  and mute, with the check id, its state, area, count and fix name only: nothing the report did not say;
+- an episode closed before its opening message was delivered closes silently;
+- a product not installed here, or whose program has no `health` command yet, is not read: that is no broken report.
+
+The book lives in `outage-alerts.json` (`health`), and MCP `agent_health` reads it. Wave 2 reads the paths agents declare
+(CT-337) instead of the list.

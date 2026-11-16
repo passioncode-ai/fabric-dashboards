@@ -8,6 +8,7 @@
 // The state is the queue. An episode records what was DELIVERED (set only when the channel answered), so a failed
 // delivery, a missing channel or a restart never loses a message, a recovery never precedes its failure, and a
 // recovery is never sent for a failure nobody received.
+import type { HealthBook, HealthWords } from './agent-health';
 import type { Organization } from './organizations';
 import type { ServiceSnapshot, ServiceState } from './types';
 
@@ -51,6 +52,8 @@ export interface OutageState {
   /** FD-125: events an agent marked `notify` that wait for the operator's decision, by message id; absent in a file
    *  written before it. */
   asks?: Record<string, Ask>;
+  /** FD-285: what each product's `agent-health/1` report said and the episodes it opened; absent in an older file. */
+  health?: HealthBook;
 }
 
 /** FD-125: one decision an agent waits for (an events-feed row whose intent is `ask`, ADR-0010). */
@@ -88,6 +91,8 @@ export interface Words {
   /** FD-125: an agent waits for the operator's decision; `open` names the link that opens its page. */
   ask?: (name: string) => string;
   open?: (link: string) => string;
+  /** FD-285: the words of an `agent-health/1` episode. */
+  health?: HealthWords;
 }
 
 const minutes = (ms: number) => Math.max(1, Math.round(ms / 60_000));

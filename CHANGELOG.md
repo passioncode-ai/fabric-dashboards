@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.8.148 - 2026-11-16
+
+### Added
+
+- FD-285 (wave 1): Switchboard's `agent-health/1` report (contract DEC-0179) is read every 5 minutes and held as
+  episodes: a check that reads `warn` or `fail` twice in a row sends one message to the operator's channel, two `ok`
+  reads send its recovery, and a report that cannot be read is one episode of its own. The key is the contract's
+  `<product>:<check>@<UTC day>`, so nothing is sent twice. MCP `agent_health` reads what the app holds. ADR-0010,
+  amendment 2026-11-16.
+
 ## 0.8.147 - 2026-11-16
 
 ### Changed
