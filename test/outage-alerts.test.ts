@@ -365,3 +365,11 @@ test('FD-289: before any service has answered, a message waits without saying th
   assert.equal(sent.length, 1, 'the message went once the channel answered');
   fs.rmSync(dir, { recursive: true, force: true });
 });
+
+test('FD-285: a look at the services keeps the health book (the 30 s tick erased it)', () => {
+  const health = { 'fabric-switchboard': { readAt: 1, read: { state: 'warn' as const }, causes: { errors_today: { bad: 1, good: 0 } } } };
+  const st: OutageState = { ...emptyOutageState(), health };
+  const next = observe(st, [], 5);
+  assert.deepEqual(next.health, health);
+  assert.equal('health' in observe(emptyOutageState(), [], 5), false, 'no book is added where none was');
+});
