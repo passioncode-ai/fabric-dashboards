@@ -176,7 +176,9 @@ function DuplicateNotice({ d }: { d: DuplicateSession }) {
       <p>{t('sessions.duplicate', { label: d.label })}</p>
       <p className="meta">{t('sessions.duplicate.hint')}</p>
       <div className="row">
-        <button className="btn btn-sm" disabled={busy} onClick={() => void close()}>{t('sessions.closeCopy')}</button>
+        {/* Switchboard 0.7.100: both copies answer, so none may be closed; the warning says so instead of a button. */}
+        {d.close === null ? <span className="meta">{t('sessions.closeCopy.allWorking')}</span>
+          : <button className="btn btn-sm" disabled={busy} onClick={() => void close()}>{t('sessions.closeCopy')}</button>}
         {said && <span className="meta" role="status">{said}</span>}
       </div>
     </section>

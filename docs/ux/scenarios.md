@@ -2655,7 +2655,7 @@ The Sessions mode (0.8.0): every coding session apart from the agents, each stat
   1. The person opens Sessions -> a warning names the session by its folder: one session runs in two processes; close the quiet copy, the one that works stays
   2. The person presses Close the quiet copy -> Switchboard closes the copy that is neither busy nor running a command and has been quiet longest; the warning says which process it closed and goes at the next read
 - **Expected result:** the session runs once again, and the copy that was working is untouched
-- **Alt paths:** the session no longer runs twice ("It no longer runs twice"); every copy is working, so nothing is closed ("Both copies are working; nothing was closed"); an agent does the same with Switchboard's MCP `switchboard_session_close_copy`
+- **Alt paths:** the session no longer runs twice ("It no longer runs twice"); every copy is working, so nothing is closed ("Both copies are working; nothing was closed"); with Switchboard 0.7.100, the older of two working copies is closed by its pid, and when both copies answer the warning says so with no button; an agent does the same with Switchboard's MCP `switchboard_session_close_copy`
 - **UI elements:** the warning, its Close the quiet copy button and the line that says what was done
 - **States covered:** success, refused (not two, all working), error (Switchboard's own sentence)
 - **Errors & recovery:** an older Switchboard is not asked and no warning shows; `attention` is read once a minute and only while the Sessions mode is on screen, so a warning can lag a minute; a session id that is not one never reaches the command
