@@ -10,7 +10,7 @@
       "properties": {
         "audience": {
           "enum": ["operator", "organization", "public"],
-          "description": "Who the instance serves: its operator alone; others it is offered to (beside peer: the members of the organization its placement's context names and anyone a share grant or an organization's listing names, a colleague or a guest included; on a remote placement, an organization's members reaching its own surface with their own keys); or, on a remote placement only, anyone who reaches its origin's own surface. It describes and grants nothing (DEC-0173 IF-2)."
+          "description": "Who the instance serves: its operator alone; others it is offered to (beside peer: the members of the organization its placement's context names and anyone a share grant or an organization's listing names, a colleague or a guest included; on a remote placement, an organization's members reaching its own surface with their own keys, never beside a subscription runner, DEC-0174); or, on a remote placement only, anyone who reaches its origin's own surface. It describes and grants nothing (DEC-0173 IF-2)."
         },
         "entry": {
           "enum": ["host-signin", "own-signin", "none"],
@@ -25,7 +25,7 @@
       "properties": {
         "mode": {
           "enum": ["single", "per-organization", "shared"],
-          "description": "single: one tenant, the context the instance serves and no other's data; per-organization: one of the copies a product itself runs one per organization; shared: one instance holding several tenants' data, kept apart by the instance, a remote placement's only (DEC-0173 IF-3)."
+          "description": "single: one tenant, the context the instance serves and no other's data; per-organization: one of the copies a product itself runs one per organization; shared: one instance holding several tenants' data, kept apart by the instance, a remote placement's only; per-organization and shared never beside a subscription runner (DEC-0173 IF-3, DEC-0174)."
         }
       },
       "additionalProperties": false

@@ -1,8 +1,8 @@
 // #region instance-facts — docs: packages/service-host/README.md#instance-facts
 // extensions/instance-facts/0.1 (contract DEC-0173, FAC-SEM-180): who an instance serves, how it keeps data apart and
 // the space it runs in, declared by the service in its descriptor, its well-known document or both, and never verified.
-// A port of the contract's reference reading `instanceFacts` (src/instance-facts.ts at fabric-agent-contract 560d6036,
-// release v0.1.0+2026-11-16),
+// A port of the contract's reference reading `instanceFacts` (src/instance-facts.ts at fabric-agent-contract 1161cbf3,
+// release v0.1.0+2026-11-16.2, DEC-0174),
 // run against its vectors (test/fixtures/contract/vectors_instance-facts.json). The schema is checked by hand, as the
 // other readings here do. Pure: no Node import, so a renderer may import `@passioncode-ai/fabric-service-host/instance-facts`.
 
@@ -117,11 +117,15 @@ function refusal(field: FactField, value: unknown, document: FactsDocument, sett
     if (value === 'organization' && setting.peer === false && setting.local === true) return 'organization on a local placement needs peer: a host routes others only to a service that declares it (DEC-0061)';
     if (value === 'public' && setting.local === true) return 'public is a remote placement\'s: a local origin is reached from outside the computer only through peer, which no hub routes to anyone at large';
     if (value === 'public' && setting.subscription === true) return 'public beside a subscription runner: a service others reach never runs on the operator\'s subscription (DEC-0046, DEC-0061 item 3)';
+    // DEC-0174: an organization's members reaching a remote surface with their own keys still run on its runner, and a
+    // subscription serves only its owner's own sessions.
+    if (value === 'organization' && setting.subscription === true) return 'organization beside a subscription runner: a subscription serves only its owner\'s own sessions, never an organization\'s members (DEC-0061, DEC-0174)';
   }
   if (field === 'entry' && setting.login !== undefined && (value === 'host-signin') !== setting.login) {
     return setting.login ? 'the dashboard requires a host\'s login code (surfaces.dashboard.login)' : 'the dashboard takes no host\'s login code (surfaces.dashboard.login is false)';
   }
   if (field === 'mode' && value === 'shared' && setting.local === true) return 'shared is a remote service\'s: a local placement names one context and at most one grant (DEC-0082 item 4)';
+  if (field === 'mode' && (value === 'shared' || value === 'per-organization') && setting.subscription === true) return `${value} beside a subscription runner: an instance holding others' data serves more than its owner's own sessions (DEC-0061, DEC-0174)`;
   if (field === 'kind' && value === 'system' && setting.local === true) return 'system is a remote placement\'s: a local service runs under a counted OS account (DEC-0154)';
   if (field === 'account') {
     if (document === 'wellKnown' && setting.local === true) return 'a local service\'s well-known document is read by every counted OS account on the computer; the label stays in its descriptor (IF-4)';

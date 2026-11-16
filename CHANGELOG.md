@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.8.141 - 2026-11-16
+
+### Changed
+
+- FD-273, contract DEC-0174 (tag `v0.1.0+2026-11-16.2`): an agent that runs on a subscription runner and declares it
+  serves an organization, or keeps several tenants' or an organization's own data, has that fact refused and not shown,
+  as the contract now reads it. The contract's 38 vectors pass.
+
 ## 0.8.140 - 2026-11-16
 
 ### Changed
