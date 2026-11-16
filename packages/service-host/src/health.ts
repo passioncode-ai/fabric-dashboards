@@ -389,7 +389,7 @@ function readWindowsAcl(file: string, label: string, info: fs.Stats): Promise<vo
 }
 
 /** The checks both readers share; returns the path to read and the real path the ACL is read from. */
-function checkedTokenFile(tokenFile: string): { file: string; where: string; win: boolean } {
+function checkedTokenFile(tokenFile: string): { file: string; where: string; win: boolean; info: fs.Stats } {
   const file = expand(tokenFile);
   const info = fs.lstatSync(file);
   // FD-37: on Windows the profile check compares real paths, so a junction inside the profile that leads
@@ -400,29 +400,39 @@ function checkedTokenFile(tokenFile: string): { file: string; where: string; win
   const problem = tokenFileProblem(where, { symlink: info.isSymbolicLink(), uid: info.uid, mode: info.mode },
     { platform: process.platform, uid: typeof process.getuid === 'function' ? process.getuid() : undefined, home }, tokenFile);
   if (problem) throw new Error(problem);
-  return { file, where, win };
+  return { file, where, win, info };
 }
 
-function tokenOf(file: string, tokenFile: string): string {
+/** FD-268: the last token read from each file, with the file's identity then. The checks above run on every read; only
+ *  the read itself is skipped while the file is the same one (device, inode, size, change and modification times), so a
+ *  token written in place or renamed over the file is read at once. */
+const tokens = new Map<string, { id: string; token: string }>();
+const identity = (s: fs.Stats) => `${s.dev}:${s.ino}:${s.size}:${s.mtimeMs}:${s.ctimeMs}`;
+function tokenOf(file: string, tokenFile: string, info: fs.Stats): string {
+  const id = identity(info);
+  const hit = tokens.get(file);
+  if (hit?.id === id) return hit.token;
   const token = fs.readFileSync(file, 'utf8').trim();
-  if (token.length < 16) throw new Error(`the token file ${tokenFile} holds no usable token`);
+  if (token.length < 16) { tokens.delete(file); throw new Error(`the token file ${tokenFile} holds no usable token`); }
+  if (tokens.size > 512) tokens.clear();
+  tokens.set(file, { id, token });
   return token;
 }
 
 /** Read a service token with the kits' refusals (`tokenFileProblem`). Main process only. On Windows it may
  *  wait for PowerShell when no verdict is cached; prefer `readTokenAsync` wherever the caller can await. */
 export function readToken(tokenFile: string): string {
-  const { file, where, win } = checkedTokenFile(tokenFile);
+  const { file, where, win, info } = checkedTokenFile(tokenFile);
   if (win) {
     const acl = windowsTokenAclProblem(where, tokenFile, fs.statSync(where));
     if (acl) throw new Error(acl);
   }
-  return tokenOf(file, tokenFile);
+  return tokenOf(file, tokenFile, info);
 }
 
 /** `readToken` without blocking: on Windows the ACL is read by an asynchronous PowerShell first. */
 export async function readTokenAsync(tokenFile: string): Promise<string> {
-  const { file, where, win } = checkedTokenFile(tokenFile);
+  const { file, where, win, info: link } = checkedTokenFile(tokenFile);
   if (win) {
     const info = fs.statSync(where);
     await readWindowsAcl(where, tokenFile, info);
@@ -430,7 +440,7 @@ export async function readTokenAsync(tokenFile: string): Promise<string> {
     const acl = hit ? hit.problem : `the token file ${tokenFile}'s permissions could not be read: powershell.exe ETIMEDOUT`;
     if (acl) throw new Error(acl);
   }
-  return tokenOf(file, tokenFile);
+  return tokenOf(file, tokenFile, link);
 }
 
 /** The header that carries a descriptor's token. */

@@ -1131,3 +1131,11 @@ test('SCN-044: a packaged macOS copy outside Applications is asked once, moves, 
   assert.deepEqual(tryMove(() => { throw new Error(''); }, 'macOS did not move it'), { ok: false, error: 'macOS did not move it' });
   assert.equal(calls, 1);
 });
+
+test('LC-08, FD-268: the setup card reads the setup state only while the window is on screen', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', 'src', 'renderer', 'components', 'Overview.tsx'), 'utf8');
+  const at = src.indexOf('api().setupState()');
+  assert.ok(at > 0);
+  assert.match(src.slice(Math.max(0, at - 300), at), /if \(document\.visibilityState !== 'visible'\) return;/, 'a hidden window never asks');
+  assert.match(src, /document\.addEventListener\('visibilitychange', read\)/, 'coming back reads at once');
+});
