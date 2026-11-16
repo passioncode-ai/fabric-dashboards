@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.8.136 - 2026-11-16
+
+### Fixed
+
+- FD-236 (15): a Claude Code console that starts with permission prompts names the mode Claude Code's own help lists
+  (`manual` on current copies, `default` on older ones), so a Claude Code release that drops the old name does not refuse
+  such starts.
+
 ## 0.8.135 - 2026-11-16
 
 ### Added

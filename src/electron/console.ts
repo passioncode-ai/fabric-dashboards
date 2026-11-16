@@ -26,7 +26,7 @@ import { findCheckout } from '../core/repofind';
 import { projectsOf, projectsProbeArgv, targetLaunchArgv, targetsOf } from '../core/target-session';
 import { MACHINE } from '../core/platform';
 import { isNewAgentKey, isNewSessionKey, isolatedBlock, newSessionKey, prepareNewAgent, projectsFolder, type NewSessionChoice } from '../core/new-session';
-import { askArgsOfProvider, bypassArgs, promptsWords, bypassArgsOfProvider, detectRuntimes, KNOWN_RUNTIMES, readLoginPath, searchDirs, specsFromSwitchboard, type Runtime, type RuntimeSpec } from '../core/runtimes';
+import { askArgsOfProvider, bypassArgs, claudeAskModeOf, promptsWords, setClaudeAskMode, bypassArgsOfProvider, detectRuntimes, KNOWN_RUNTIMES, readLoginPath, searchDirs, specsFromSwitchboard, type Runtime, type RuntimeSpec } from '../core/runtimes';
 import type { SettingsStore } from '../core/settings';
 import { accountsOf, allSessionsOf, bindingFor, machineSessionsOf, findSwitchboard, handoverOwnKey, handoverRunArgv, handoversOf, handoversSwitch, isHandoverKey, launchFeatures, sbFailure, sessionsIn, startAccount, terminalLaunchArgv, type Binding, type SbAccounts, type SbHandover, type SbSessions, type StartAccount } from '../core/switchboard';
 import type { ServiceSnapshot, Settings } from '../core/types';
@@ -337,6 +337,12 @@ export class ConsoleHost {
         }
         const runtimes = detectRuntimes(dirs, [...KNOWN_RUNTIMES, ...extra]);
         this.o.log(`console: runtimes ${runtimes.map((r) => r.id).join(', ') || 'none'}; switchboard ${switchboard ?? 'absent'}`);
+        // FD-236 (15): the name Claude Code's own help gives the mode that asks.
+        const claude = runtimes.find((r) => r.id === 'claude-code');
+        if (claude) {
+          const help = await this.run(claude.path, ['--help'], 10_000).catch(() => null);
+          if (help && help.code === 0) setClaudeAskMode(claudeAskModeOf(help.stdout));
+        }
         return runtimes;
       })();
     }

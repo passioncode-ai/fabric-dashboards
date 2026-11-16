@@ -211,6 +211,9 @@ pulled down from the top, fold with the same button, and close only with a separ
 
 ## Amendment 2026-11-15: permission prompts are this app's choice now (FD-174, FD-234, FD-236)
 
+*Note 2026-11-16 (FD-236 (15)):* Claude Code's mode that asks is named by its own `--help`, read once per binary:
+`manual` where listed (2.1.299 lists it and still takes the older `default`), `default` otherwise.
+
 The Consequences line "Permission prompts are the runtime's" no longer holds. Since FD-174 a console starts its runtime
 without permission prompts, with the flag that runtime's `--help` names; a session of its own keeps the choice made in
 its New session dialog (FD-191). Since FD-234 a start whose context reads like instructions runs with the prompts named
