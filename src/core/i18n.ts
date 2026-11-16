@@ -222,6 +222,8 @@ const en = {
   // FD-250: how launchd saw the job's last run end.
   'reason.launchd.exitCode': 'Its last run ended with exit code {code}; launchd started it {runs} times.',
   'reason.launchd.signal': 'Its last run was ended by a signal ({signal}); launchd started it {runs} times.',
+  'reason.systemd.exitCode': 'Its last run ended with exit code {code}; systemd started it {runs} times.',
+  'reason.systemd.signal': 'Its last run was ended by a signal ({signal}); systemd started it {runs} times.',
   'reason.down': 'Not answering since {since}.',
   'reason.remote.refused': '{origin} refused the token. Set the same token on its platform and in this computer\'s token file.',
   'reason.remote.tls': 'The certificate of {origin} does not verify: {detail}. The app does not connect around it.',
@@ -1511,6 +1513,8 @@ const ru: Record<Key, string> = {
   'reason.waiting': 'Ждём первого ответа…',
   'reason.launchd.exitCode': 'Последний запуск завершился с кодом {code}; launchd запускал его раз: {runs}.',
   'reason.launchd.signal': 'Последний запуск остановлен сигналом ({signal}); launchd запускал его раз: {runs}.',
+  'reason.systemd.exitCode': 'Последний запуск завершился с кодом {code}; systemd запускал его раз: {runs}.',
+  'reason.systemd.signal': 'Последний запуск остановлен сигналом ({signal}); systemd запускал его раз: {runs}.',
   'reason.down': 'Не отвечает с {since}.',
   'reason.remote.refused': '{origin} отклоняет токен. Укажите один и тот же токен на платформе агента и в файле токена на этом компьютере.',
   'reason.remote.tls': 'Сертификат {origin} не прошёл проверку: {detail}. В обход проверки приложение не подключается.',
