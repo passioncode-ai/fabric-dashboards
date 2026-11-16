@@ -2446,15 +2446,16 @@ The Sessions mode (0.8.0): every coding session apart from the agents, each stat
 - **Steps:**
   1. The person types what the agent should do in the task line and presses Enter or "Give the task" -> the agent's console opens and the coding agent starts in its folder with the task as its first prompt (`task.md`: the person's words as typed, the agent's name and key, and to ask before anything destructive)
   2. A session already runs in that console -> the task is kept and the console offers to send it to the running session, as Fix with agent does (SCN-054)
+  3. The person presses "To Fabric's board" instead -> the console opens and its coding agent puts the task on Fabric's board for the agent's project (`fabric_whoami`, then `fabric_task_create`, the person's words in a note) and answers with the task's id, without doing the work now (FD-241, 0.8.151); a session without the Fabric tools says so and where the task should go
 - **Expected result:** an agent gets a task in one line from the page the person is on, with no menu to open
 - **Alt paths:** the start is refused (no folder, no account, the machine is short of room) -> the console says why, as for any start, and keeps the task for the next New session
-- **UI elements:** the task line (a text field with "Give {name} a task: what should it do?" and "Give the task")
+- **UI elements:** the task line (a text field with "Give {name} a task: what should it do?", "Give the task" and "To Fabric's board")
 - **States covered:** empty, success, error
 - **Errors & recovery:** an empty line sends nothing, and Give the task pressed with nothing typed puts the cursor in the line and says "Type the task first, then press Give the task" (FD-274: the button is never grey without a word); the line stays clickable when something above it grows, because the embedded dashboard follows its slot (FD-274, `elementsAbove`); FD-279: the header around it is the window's drag area, and the line and its button are kept out of it, so a click types and presses instead of moving the window (the operator, 2026-11-16: «не нажимается, ничего не дается»); the person's words are not fenced or held as a service's text (FD-234 holds what a service wrote, not the person's order)
 - **Copy:**
-  - "A task for {name}" / «Задача для агента {name}»; "Give {name} a task: what should it do?" / «Дайте задачу агенту {name}: что ему сделать?»; "Give the task" / «Дать задачу» (copy checks `9c41b463`, `84c500f3`, `aff51eb3`, `fb622bbf`, `b6e9a8e8`, `75bcc55a`, no findings)
+  - "A task for {name}" / «Задача для агента {name}»; "Give {name} a task: what should it do?" / «Дайте задачу агенту {name}: что ему сделать?»; "Give the task" / «Дать задачу» (copy checks `9c41b463`, `84c500f3`, `aff51eb3`, `fb622bbf`, `b6e9a8e8`, `75bcc55a`, no findings); "To Fabric's board" / «На доску Fabric», "Put the task on Fabric's board for {name}'s project, to be done later" / «Поставить задачу на доску Fabric для проекта агента {name}, чтобы сделать её позже» (copy checks `38347e65`, `179a6c2e`, `99e82a34`, `feee0618`, no findings)
 - **Status:** implemented (2026-11-14, 0.8.83: `test/handoff.test.ts` *FD-241*; 2026-11-15, 0.8.119: `test/layout-watch.test.ts` *FD-274*; walked on the built app: the task line, then the console's runtime given `task.md` beginning «# Task: from the operator for `Sample Service`»)
-- **Coverage:** src/renderer/components/ServiceView.tsx (TaskLine), src/core/handoff.ts (askTask, jobOf), src/core/api.ts (ConsoleTask `ask`), src/electron/console.ts (taskOf)
+- **Coverage:** src/renderer/components/ServiceView.tsx (TaskLine), src/core/handoff.ts (askTask, boardTask, jobOf), src/core/api.ts (ConsoleTask `ask`), src/electron/console.ts (taskOf)
 - **Product:** unobserved
 
 ### SCN-108: See the bugs the app noticed and report one

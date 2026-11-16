@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.8.151 - 2026-11-16
+
+### Added
+
+- FD-241: the task line on an agent's page has a second button, To Fabric's board («На доску Fabric»): the agent's
+  console opens and its coding agent puts the typed task on Fabric's board for the agent's project with its own Fabric
+  tools (`fabric_whoami`, then `fabric_task_create`, the person's words in a note), instead of doing the work now. A
+  `fabric://` link carries ids only (DEC-0040) and the app holds no board client, so the project's agent files it.
+
 ## 0.8.150 - 2026-11-16
 
 ### Fixed

@@ -196,7 +196,8 @@ export function auditTask(c: HandoffContext, findings: string): HandoffTask {
 
 /** FD-241: a task the person typed on the agent's page, in their own words. The person is not a service: the words are
  *  neither fenced nor read for instruction-like text (FD-234 holds a SERVICE's text, not the operator's order). */
-export function askTask(c: HandoffContext, words: string): HandoffTask {
+export function askTask(c: HandoffContext, words: string, to?: 'board'): HandoffTask {
+  if (to === 'board') return boardTask(c, words);
   return {
     kind: 'ask',
     title: `from the operator for ${literal(c.name, 120)}`,
@@ -204,9 +205,20 @@ export function askTask(c: HandoffContext, words: string): HandoffTask {
   };
 }
 
+/** FD-241: the same words, put on Fabric's board for the agent's project instead of done now. A `fabric://` link carries
+ *  ids only (DEC-0040), and the app holds no board client: the coding agent in the project's folder files it with its
+ *  own Fabric tools, which know the project from the folder. */
+export function boardTask(c: HandoffContext, words: string): HandoffTask {
+  return {
+    kind: 'ask',
+    title: `for Fabric's board of ${literal(c.name, 120)}`,
+    body: `The operator, from Fabric Dashboards, asks for this task on Fabric's board for ${literal(c.name)} (${literal(c.key, 200)}):\n\n${words.trim()}\n\nDo not do the work now. Call \`fabric_whoami\` to learn this folder's project, then \`fabric_task_create\` with a title that says what should happen in one plain line in the operator's language, and \`origin\` \`{ "kind": "person", "ref": "Fabric Dashboards task line" }\`; put the operator's words as written in a \`fabric_task_note\` on the new task. Answer with the task's id and title. When the Fabric tools are not in this session, say so, and say where the task should go instead.`,
+  };
+}
+
 /** The job a console task hands over. */
-function jobOf(c: HandoffContext, t: { kind: 'fix' | 'update' | 'audit' | 'ask'; output?: string; from?: 'agent' }): HandoffTask {
-  return t.kind === 'fix' ? fixTask(c) : t.kind === 'audit' ? auditTask(c, t.output ?? '') : t.kind === 'ask' ? askTask(c, t.output ?? '') : updateTask(c, t.output ?? null);
+function jobOf(c: HandoffContext, t: { kind: 'fix' | 'update' | 'audit' | 'ask'; output?: string; from?: 'agent'; to?: 'board' }): HandoffTask {
+  return t.kind === 'fix' ? fixTask(c) : t.kind === 'audit' ? auditTask(c, t.output ?? '') : t.kind === 'ask' ? askTask(c, t.output ?? '', t.to) : updateTask(c, t.output ?? null);
 }
 /** FD-234: the text of a task read for instruction-like text; a person's own task (FD-241) is not, an agent's is (FD-249). */
 const taskText = (t: { kind: string; output?: string; from?: string } | undefined) => (t && (t.kind !== 'ask' || t.from === 'agent') ? t.output : undefined);
@@ -319,7 +331,7 @@ export function writePack(dir: string, files: { context: string; task: string | 
 
 /** FD-129 (UX-16): a task for a session that already runs: only `task.md` is written, beside the pack that session
  *  started with, and the line that points the running agent at it is returned for the person to send. */
-export function writeTaskOnly(o: { snapshot: ServiceSnapshot; activity: ActivityItem[]; folder: string; dir: string; task: { kind: 'fix' | 'update' | 'audit' | 'ask'; output?: string; from?: 'agent' } }): { path: string; line: string; signals: string[] } {
+export function writeTaskOnly(o: { snapshot: ServiceSnapshot; activity: ActivityItem[]; folder: string; dir: string; task: { kind: 'fix' | 'update' | 'audit' | 'ask'; output?: string; from?: 'agent'; to?: 'board' } }): { path: string; line: string; signals: string[] } {
   const ctx = handoffContext(o.snapshot, o.activity, o.folder);
   const signals = [...new Set([...ctx.signals, ...injectionSignals([taskText(o.task)])])]; // FD-234
   const job = jobOf(ctx, o.task);
@@ -337,7 +349,7 @@ export function writeTaskOnly(o: { snapshot: ServiceSnapshot; activity: Activity
  */
 export function prepareHandoff(o: {
   snapshot: ServiceSnapshot; activity: ActivityItem[]; folder: string; runtimeId: string; dir: string;
-  server: McpCommand; version: string; task?: { kind: 'fix' | 'update' | 'audit' | 'ask'; output?: string; from?: 'agent' }; now?: () => Date;
+  server: McpCommand; version: string; task?: { kind: 'fix' | 'update' | 'audit' | 'ask'; output?: string; from?: 'agent'; to?: 'board' }; now?: () => Date;
 }): { handoff: { before: string[]; after: string[] }; env: Record<string, string>; signals: string[]; files: { context: string; task: string | null; mcp: string; brief: string | null; manifest: string | null } } {
   // A start that fails before the manifest is written again must not leave the last start's manifest behind.
   fs.rmSync(path.join(o.dir, 'handoff.json'), { force: true });

@@ -219,6 +219,22 @@ test("FD-241: a task the person types on an agent's page is the first prompt, in
   assert.match(r.handoff.after[0]!, /^Do the task in `.*task\.md`\.$/, 'the agent starts on it at once');
 });
 
+test("FD-241: a task sent to Fabric's board is filed by the project's agent with its Fabric tools, not done now", async () => {
+  const fs = await import('node:fs');
+  const path = await import('node:path');
+  const { tmp } = await import('./helpers');
+  const { prepareHandoff } = await import('../src/core/handoff');
+  const words = 'Add a health check for the nightly import.';
+  const r = prepareHandoff({ snapshot: snap(), activity: [], folder: '/w/runner', runtimeId: 'claude-code', dir: path.join(tmp('fd-board-'), 'runner.dev'),
+    server: { command: 'x', args: [] }, version: '0.8.151', task: { kind: 'ask', output: words, to: 'board' } });
+  const task = fs.readFileSync(r.files.task!, 'utf8');
+  assert.match(task, /^# Task: for Fabric's board of `Runner`/);
+  assert.ok(task.includes(words), 'their words as they typed them');
+  assert.match(task, /Do not do the work now/);
+  assert.match(task, /fabric_whoami[\s\S]*fabric_task_create/, "the project is the folder's, read before the task is filed");
+  assert.deepEqual(r.signals, [], "the person's order is not held");
+});
+
 test("FD-249: an agent's ask over MCP is read for instruction-like text, unlike the person's own", async () => {
   const path = await import('node:path');
   const { tmp } = await import('./helpers');
