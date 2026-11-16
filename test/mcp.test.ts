@@ -1080,6 +1080,12 @@ test('FD-249: arrange moves an agent one place in its section and its open tab o
   assert.deepEqual((await tools.arrange(w.deps, KEY, 'tab-left')).tabs, [KEY, 'alpha-agent.default', 'zulu-agent.default']);
   assert.equal((await tools.arrange(w.deps, KEY, 'tab-left')).changed, false, 'the first tab stays first');
   assert.deepEqual((await tools.arrange(w.deps, KEY, 'tab-right')).tabs, ['alpha-agent.default', KEY, 'zulu-agent.default']);
+  // FD-280: pinning the tab puts it first; an unpinned tab cannot move among the pinned.
+  const pinnedNow = await tools.arrange(w.deps, KEY, 'tab-pin');
+  assert.deepEqual([pinnedNow.tabs, pinnedNow.pinnedTabs], [[KEY, 'alpha-agent.default', 'zulu-agent.default'], [KEY]]);
+  assert.equal((await tools.arrange(w.deps, KEY, 'tab-pin')).changed, false);
+  assert.equal((await tools.arrange(w.deps, 'alpha-agent.default', 'tab-left')).changed, false, 'an unpinned tab stays after the pinned');
+  assert.deepEqual((await tools.arrange(w.deps, KEY, 'tab-unpin')).pinnedTabs, []);
 });
 
 test('Wave 5b (FD-236 (3)): a call that gives no answer in time ends in a typed timeout, and a quick one passes through', async () => {

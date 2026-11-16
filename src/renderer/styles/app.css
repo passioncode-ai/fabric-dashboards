@@ -318,7 +318,12 @@ h3 { font-size: var(--pc-type-card); margin: 0; font-weight: 600; }
 /* FD-92 (SCN-048): the service page takes the whole area; the console is a drawer over it, in a view of its own. */
 .svc-page { display: flex; flex: 1; min-height: 0; min-width: 0; }
 /* FD-220: the open agents, a strip at the top of the page; it moves the window like the page header. */
-.open-agents { flex: none; display: flex; gap: var(--pc-space-1); padding: var(--pc-space-2) var(--pc-space-4) 0; border-bottom: 1px solid var(--pc-border); overflow-x: auto; scrollbar-width: thin; -webkit-app-region: drag; }
+.open-agents { flex: none; display: flex; gap: var(--pc-space-1); padding: var(--pc-space-2) var(--pc-space-4) 0; border-bottom: 1px solid var(--pc-border); overflow-x: auto; overflow-y: hidden; scrollbar-width: none; -webkit-app-region: drag; }
+/* FD-281: no scrollbar drawn over the tabs; a fade on the side with more tabs says the strip scrolls. */
+.open-agents::-webkit-scrollbar { display: none; }
+.open-agents[data-more='end'] { mask-image: linear-gradient(to right, var(--pc-text) calc(100% - 28px), transparent); }
+.open-agents[data-more='start'] { mask-image: linear-gradient(to left, var(--pc-text) calc(100% - 28px), transparent); }
+.open-agents[data-more='both'] { mask-image: linear-gradient(to right, transparent, var(--pc-text) 28px, var(--pc-text) calc(100% - 28px), transparent); }
 /* FD-223: many open agents keep their names readable (each tab its own width up to 220 px) and the strip scrolls. */
 .open-agents > * { -webkit-app-region: no-drag; }
 /* Wave 3 (U-07): under the open-agent strip the page keeps less top padding, so its title stays near where it was. */
@@ -332,6 +337,12 @@ h3 { font-size: var(--pc-type-card); margin: 0; font-weight: 600; }
 .open-agent-name { display: flex; align-items: center; gap: var(--pc-space-1); min-width: 0; padding: var(--pc-space-1) 0; background: none; border: none; color: inherit; font: inherit; cursor: pointer; }
 .open-agent-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .open-agent-btn { width: 20px; height: 20px; }
+/* FD-280: a pinned tab shows only its state; its pin shows on hover and focus, an unpinned tab's pin likewise. */
+.open-agent.pinned { max-width: none; }
+.open-agent.pinned .open-agent-label { display: none; }
+.open-agent-pin { opacity: 0; }
+.open-agent:hover .open-agent-pin, .open-agent:focus-within .open-agent-pin, .open-agent.current .open-agent-pin { opacity: 1; }
+.open-agent-pin.on { color: var(--pc-link); }
 .svc-page > .svc { flex: 1; min-width: 0; }
 /* The drawer's own page: transparent, so while its edge is dragged (the view then covers the area) only the drawer shows. */
 html.drawer-page, html.drawer-page body, html.drawer-page #root { background: transparent; height: 100%; overflow: hidden; }
@@ -872,6 +883,8 @@ div.session-group-head h2 { margin: 0; }
 .svc-bar .instance-name { max-width: 14ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* FD-241: the task line under an agent's one-line header. */
+/* FD-279: the task line sits in the draggable page header; it must take clicks and typing. */
+.svc-task, .svc-task * { -webkit-app-region: no-drag; }
 .svc-task { display: flex; gap: var(--pc-space-2); align-items: center; padding: 0 var(--pc-space-4) var(--pc-space-2) var(--pc-space-6); min-width: 0; } /* wave 1 (U-02): the header's edges */
 .svc-task input { flex: 1; min-width: 0; height: var(--fd-control-sm); padding: 0 var(--pc-space-2); border: 1px solid var(--pc-border); border-radius: var(--pc-radius-control); background: var(--pc-bg); color: var(--pc-text); font: inherit; font-size: var(--pc-type-meta); }
 .svc-task input:focus-visible { outline: 2px solid var(--pc-focus); outline-offset: -1px; }

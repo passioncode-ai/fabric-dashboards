@@ -157,10 +157,10 @@ test('FD-206: a session\'s machine and its folder there survive a restart and a 
 test('FD-210: a session on another machine is not held back by this disk, takes the machine by any name it has, and says why when no account there can run it', POSIX, async () => {
   const run = async () => ({ code: 0, stdout: TARGETS, stderr: '' });
   assert.deepEqual(await targetsOf(run, '/bin/sb', { withAliases: true }), { machines: ['me@192.0.2.9', 'studio-org'], aliases: ['studio-me'] });
-  const r = rig({ freeGb: 1 });
+  const r = rig({ freeGb: 0.5 });
   assert.deepEqual((await r.host.newSessionOptions()).machines, ['me@192.0.2.9', 'studio-org'], 'an alias is not listed twice');
   const done = await r.host.startNew({ kind: 'session', runtime: 'claude-code', folder: '/srv/them/DATA/alpha', bypass: false, isolated: false, machine: 'studio-me' }, { cols: 80, rows: 24 });
-  assert.ok(done.ok, 'this Mac has 1 GB free, the session writes to the other machine');
+  assert.ok(done.ok, 'this Mac has 0.5 GB free, the session writes to the other machine');
   assert.equal(r.spawned[0]!.args[2], 'studio-me');
   assert.deepEqual(await r.host.machineFolders('studio-me'), { ok: true, home: '/srv/them', folders: ['/srv/them/DATA/alpha', '/srv/them/DATA/zeta'] });
   const here = await r.host.startNew({ kind: 'session', runtime: 'claude-code', folder: r.base, bypass: false, isolated: false }, { cols: 80, rows: 24 });

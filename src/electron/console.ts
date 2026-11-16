@@ -699,7 +699,10 @@ export class ConsoleHost {
       ...(saved?.bypass !== undefined ? { bypass: saved.bypass } : {}), ...(saved?.isolated !== undefined ? { isolated: saved.isolated } : {}),
       ...(fresh && !packFailed ? { held: saved?.held ?? new Date().toISOString() } : mode === 'new' && !fresh ? { held: null } : {}) } } });
     this.o.log(`console: ${key} started ${runtime.id} (${mode}) in ${folder.path}${plan.argv[0] === inv.switchboard ? ' through Switchboard' : ''}${saved?.isolated ? ' isolated' : ''}${saved?.bypass === false ? ` ${promptsWords(runtime.id)}` : ''}${pack && !packFailed ? ` with its context${task ? ` and a ${task.kind} task` : ''}` : pack ? ' without its context (the pack could not be written)' : ''}`);
-    return held ? { ok: true, held: true } : { ok: true };
+    // FD-283: started on a low disk: the console says so beside the running session.
+    const lowGb = a.lowDisk !== undefined ? Math.round((a.lowDisk / 1024 ** 3) * 10) / 10 : undefined;
+    if (lowGb !== undefined) this.o.log(`console: ${key} started with ${lowGb} GB free on its disk (under 5 GB)`);
+    return { ok: true, ...(held ? { held: true } : {}), ...(lowGb !== undefined ? { lowGb } : {}) };
   }
 
   // #region target-session-host — docs: docs/ux/scenarios.md#scn-101-start-a-new-session-in-a-folder

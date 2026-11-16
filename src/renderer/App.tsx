@@ -23,7 +23,7 @@ import { attentionQueue, urgent } from '../core/attention';
 import { SETUP_KEY } from '../core/offers';
 import { revisitDue, sinceLastVisit, type SinceLastVisit } from '../core/visit';
 import type { ConsoleTask, NavTarget, Rect } from '../core/api';
-import { addTab, tabStep, moveTab } from '../core/layout';
+import { addTab, tabStep, moveTab, pinTab, MAX_TABS } from '../core/layout';
 import mark from './brand/dashboards-mark.svg';
 import { api, Icon, LangContext, nameOf, Spinner, useT } from './lib';
 
@@ -429,15 +429,15 @@ function Shell({ status: everyAgent, route, setRoute, mode, switchMode, stopKey,
   useEffect(() => {
     if (route.page !== 'service' || !current || layout.tabs.includes(current.key)) return;
     // FD-228: an agent pushed out of a full strip leaves as Close takes it, its dashboard released.
-    const next = addTab(layout.tabs, current.key);
-    changeLayout({ tabs: next.tabs });
+    const next = addTab(layout.tabs, current.key, MAX_TABS, layout.pinnedTabs);
+    changeLayout({ tabs: next.tabs, pinnedTabs: layout.pinnedTabs.filter((k) => !next.dropped.includes(k)) });
     for (const key of next.dropped) void api().closeView(key);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [route.page, current?.key]);
   const closeTab = (key: string) => {
     const at = tabs.indexOf(key);
     const rest = tabs.filter((k) => k !== key);
-    changeLayout({ tabs: rest });
+    changeLayout({ tabs: rest, pinnedTabs: layout.pinnedTabs.filter((k) => k !== key) });
     void api().closeView(key);
     // The agent on show closed: its neighbour opens, else Overview.
     if (route.page === 'service' && route.key === key) {
@@ -448,9 +448,16 @@ function Shell({ status: everyAgent, route, setRoute, mode, switchMode, stopKey,
   // FD-227: Next and Previous open agent go round the strip; Close agent closes the one on show, as its × does.
   tabCommandRef.current = (which) => {
     const shown = route.page === 'service' ? route.key : null;
-    if (which === 'close-agent') { if (shown && tabs.includes(shown)) closeTab(shown); return; }
+    // FD-280: a pinned tab has no close; Close agent leaves it open.
+    if (which === 'close-agent') { if (shown && tabs.includes(shown) && !layout.pinnedTabs.includes(shown)) closeTab(shown); return; }
     const next = tabStep(tabs, shown, which === 'next-agent' ? 1 : -1);
     if (next && next !== shown) open(next);
+  };
+  // FD-282: a double-click on an empty part of the sidebar acts as one on a title bar (zoom by default on macOS); on a
+  // control, a row or the width edge it does what that element does.
+  const sidebarDoubleClick = (e: { target: EventTarget }) => {
+    if ((e.target as HTMLElement).closest('button, a, input, select, textarea, [role="separator"], [draggable="true"], [role="menu"]')) return;
+    void api().windowZoom();
   };
   // FD-220: an agent's dashboard may fill the window: the agent list and the page header step aside; Esc brings them back.
   const focus = layout.focus && route.page === 'service' && Boolean(current);
@@ -468,7 +475,7 @@ function Shell({ status: everyAgent, route, setRoute, mode, switchMode, stopKey,
   return (
     <DashChromeContext.Provider value={chrome}>
     <div className={`app${rail ? ' rail' : ''}${resizing ? ' resizing' : ''}${focus ? ' focus' : ''}`} style={rail || focus ? undefined : { gridTemplateColumns: `${layout.sidebarWidth}px 1fr` }}>
-      <nav className="sidebar" aria-label="Fabric Dashboards" inert={stopOpen} hidden={focus}>
+      <nav className="sidebar" aria-label="Fabric Dashboards" inert={stopOpen} hidden={focus} onDoubleClick={sidebarDoubleClick}>
         {!rail && <SidebarEdge width={layout.sidebarWidth} onWidth={(w, persist) => changeLayout({ sidebarWidth: w }, persist)} onHold={setResizing} />}
         <div className="brand"><img src={mark} alt="" /> <span className="brand-name">{t('app.name')}</span></div>
         <ModeSwitch mode={mode} rows={sessionsRows} rail={rail} onMode={switchMode} />
@@ -492,7 +499,8 @@ function Shell({ status: everyAgent, route, setRoute, mode, switchMode, stopKey,
       <main className="main" inert={stopOpen} ref={mainRef}>
         {mode === 'agents' && !focus && route.page !== 'session' && (
           <OpenAgents tabs={tabs} services={everyAgent.services} current={route.page === 'service' ? route.key : null} open={(key) => open(key)}
-            fold={() => setRoute({ page: 'overview' })} close={closeTab} move={(key, target) => changeLayout({ tabs: moveTab(layout.tabs, key, target) })} />
+            fold={() => setRoute({ page: 'overview' })} close={closeTab} move={(key, target) => changeLayout({ tabs: moveTab(layout.tabs, key, target, layout.pinnedTabs) })}
+            pinned={layout.pinnedTabs} pin={(key, on) => { const next = pinTab(layout.tabs, layout.pinnedTabs, key, on); changeLayout({ tabs: next.tabs, pinnedTabs: next.pinned }); }} />
         )}
         {route.page === 'session'
           ? (sessionRow

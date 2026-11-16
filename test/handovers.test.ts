@@ -113,7 +113,7 @@ test('FD-103 (decision 8, replaces FD-62\'s agent console): a hand-over in an ag
 });
 
 test('FD-62: one the machine cannot carry (LC-17), a lapsed offer or a folder not here is left to Switchboard\'s Terminal', POSIX, async () => {
-  const short = rig({ freeDisk: 1.8 * GB });
+  const short = rig({ freeDisk: 0.8 * GB });
   assert.deepEqual(await short.host.pollHandovers(), []);
   assert.deepEqual(short.spawned, []);
   assert.match(short.logs.join('\n'), /hand-over ho-0123456789ab left to Terminal \(LC-17: disk\)/);

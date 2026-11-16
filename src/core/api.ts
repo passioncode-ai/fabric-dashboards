@@ -88,8 +88,9 @@ export type ConsoleSessions =
 /** Why a start did not run in the console, worded by the renderer. */
 export type ConsoleStartResult =
   /** FD-236 (5): `held` when the session starts or continues with the runtime's permission prompts because its context
-   *  read like instructions (FD-234); the person sees it in the console, an agent in its MCP answer. */
-  | { ok: true; held?: boolean }
+   *  read like instructions (FD-234); the person sees it in the console, an agent in its MCP answer. FD-283: `lowGb`, the
+   *  free disk in GB when it is under 5 GB (the session started; the console says the disk is low). */
+  | { ok: true; held?: boolean; lowGb?: number }
   | { ok: false; reason: 'running' | 'no-runtime' | 'no-folder' | 'no-continue' | 'switchboard' | 'terminal-only' | 'spawn' | 'isolated' | 'remote' | 'no-account' | 'held' | 'sb-unread'; detail?: string; project?: string }
   /** FD-49 (LC-17): deferred — the machine cannot carry another session now. */
   | { ok: false; reason: 'admission'; why: 'disk' | 'swap' | 'cap' | 'pool'; freeGb?: number; running?: number; cap?: number; used?: number };
@@ -180,6 +181,9 @@ export interface FabricApi {
   reportBug(fp: string): Promise<{ ok: boolean }>;
   /** Read the services folder again now (the unreadable-folder Retry). */
   rescan(): Promise<void>;
+  /** FD-282: a double-click on an empty part of the sidebar does what a double-click on a title bar does (macOS's
+   *  choice in System Settings: zoom, minimize or nothing; zoom elsewhere). */
+  windowZoom(): Promise<void>;
   /** Open how a service joins (the building-fabric-services kit) in the browser — a fixed address, never one from a page. */
   openServiceGuide(): Promise<void>;
   restartToUpdate(): Promise<void>;
@@ -302,6 +306,7 @@ export const CHANNELS = {
   bugsList: 'fd:bugs-list',
   bugReport: 'fd:bug-report',
   rescan: 'fd:rescan',
+  windowZoom: 'fd:window-zoom',
   serviceGuide: 'fd:service-guide',
   updateRestart: 'fd:update-restart',
   updateCheck: 'fd:update-check',

@@ -1,13 +1,18 @@
 // #region console-admission — docs: AGENTS.md#lifecycle
 // FD-49, lifecycle LC-17 (fabric-workspace knowledge/lifecycle.md): start only what the machine can
-// carry. Before a console session starts: free disk on the folder's volume ≥ 5 GB, swap not
-// exhausted, and fewer live console sessions than the cap. When the machine cannot carry it the
+// carry. Before a console session starts: free disk on the folder's volume ≥ 1 GB (FD-283: was 5 GB; between 1 and 5 GB
+// it starts and says the disk is low), swap not exhausted, and fewer live console sessions than the cap. When the machine cannot carry it the
 // start is deferred and the console says why and what frees it — never started to fail its
 // neighbours. Pure over a probe, so a test stubs disk and swap; `machineProbe()` reads the real ones.
 import { execFile } from 'node:child_process';
 import fs from 'node:fs';
 
-export const MIN_FREE_DISK_BYTES = 5 * 1024 ** 3;
+/** FD-283 (the operator 2026-11-16: a session refused at 4.3 GB free while a plain terminal started): below this a
+ *  session is not started. A coding session itself writes kilobytes; the floor keeps the disk from filling to the last
+ *  byte under its neighbours. */
+export const MIN_FREE_DISK_BYTES = 1024 ** 3;
+/** FD-283: below this (LC-17's former floor) a session still starts, and the console says the disk is low. */
+export const LOW_FREE_DISK_BYTES = 5 * 1024 ** 3;
 /** D1 of the 2026-10-12 board waves: six console sessions at once (LC-17's day had 37 at ≈ 12 GB). */
 export const CONSOLE_SESSION_CAP = 6;
 /** Swap counts as exhausted when less than this share of it is free. */
@@ -29,7 +34,8 @@ export interface MachineState {
 }
 
 export type Admission =
-  | { ok: true }
+  /** FD-283: `lowDisk`, the free bytes when the disk has less than LOW_FREE_DISK_BYTES (still enough to start). */
+  | { ok: true; lowDisk?: number }
   | { ok: false; why: 'disk'; freeDisk: number }
   | { ok: false; why: 'swap'; swapFree: number; swapTotal: number }
   | { ok: false; why: 'cap'; running: number; cap: number }
@@ -41,7 +47,7 @@ export function admit(m: MachineState, cap = CONSOLE_SESSION_CAP): Admission {
   else if (m.running >= cap) return { ok: false, why: 'cap', running: m.running, cap };
   if (m.freeDisk !== null && m.freeDisk < MIN_FREE_DISK_BYTES) return { ok: false, why: 'disk', freeDisk: m.freeDisk };
   if (m.swap && !m.swap.growable && m.swap.total > 0 && m.swap.free / m.swap.total < SWAP_FREE_FLOOR) return { ok: false, why: 'swap', swapFree: m.swap.free, swapTotal: m.swap.total };
-  return { ok: true };
+  return m.freeDisk !== null && m.freeDisk < LOW_FREE_DISK_BYTES ? { ok: true, lowDisk: m.freeDisk } : { ok: true };
 }
 
 /** `sysctl vm.swapusage` on macOS: `total = 4096.00M  used = 3500.00M  free = 596.00M  (encrypted)`. */

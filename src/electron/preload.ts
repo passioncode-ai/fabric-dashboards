@@ -41,6 +41,7 @@ const api: FabricApi = {
   bugs: () => ipcRenderer.invoke(CHANNELS.bugsList),
   reportBug: (fp) => ipcRenderer.invoke(CHANNELS.bugReport, fp),
   rescan: () => ipcRenderer.invoke(CHANNELS.rescan),
+  windowZoom: () => ipcRenderer.invoke(CHANNELS.windowZoom),
   openServiceGuide: () => ipcRenderer.invoke(CHANNELS.serviceGuide),
   restartToUpdate: () => ipcRenderer.invoke(CHANNELS.updateRestart),
   checkForUpdates: () => ipcRenderer.invoke(CHANNELS.updateCheck),
