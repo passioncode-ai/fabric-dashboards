@@ -142,6 +142,8 @@ if (!app.requestSingleInstanceLock()) {
   app.quit();
 } else {
   let window: BrowserWindow | null = null;
+  /** The window while it exists: null before it is made and once it is destroyed. */
+  const liveWindow = (): BrowserWindow | null => (window && !window.isDestroyed() ? window : null);
   let views: ServiceViews | null = null;
   let drawer: ConsoleDrawer | null = null;
   let quitting = false;
@@ -153,7 +155,7 @@ if (!app.requestSingleInstanceLock()) {
   const stopSettingsWatch = settings.watch(() => {
     log('settings: changed outside the app; read again');
     monitor.listChanged(); // FD-123: an agent turned off or on by an agent's MCP `arrange`
-    if (window && !window.isDestroyed()) window.webContents.send(CHANNELS.settingsPush, settings.get());
+    liveWindow()?.webContents.send(CHANNELS.settingsPush, settings.get());
     pushStatus();
   });
   if (settings.recovered) log(`settings: ${settings.recovered}`);
@@ -441,7 +443,7 @@ if (!app.requestSingleInstanceLock()) {
   let badge: string | null = null;
   // FD-80: a window of a hidden app (⌘H, or hidden by another program) is not on screen, whatever isVisible() says;
   // measured 2026-10-21: System Events hid the app and Electron still reported the window visible for an hour.
-  const windowVisible = () => onScreen({ exists: Boolean(window && !window.isDestroyed()), visible: Boolean(window && !window.isDestroyed() && window.isVisible()), minimized: Boolean(window && !window.isDestroyed() && window.isMinimized()), appHidden: process.platform === 'darwin' && app.isHidden() });
+  const windowVisible = () => { const w = liveWindow(); return onScreen({ exists: Boolean(w), visible: Boolean(w?.isVisible()), minimized: Boolean(w?.isMinimized()), appHidden: process.platform === 'darwin' && app.isHidden() }); };
   // FD-80: on screen and neither covered by other windows nor on another Space, from macOS's window list; read only
   // while an update waits for the window (`probeSight`), unknown otherwise.
   let occlusion: Sight | null = null;
@@ -545,7 +547,8 @@ if (!app.requestSingleInstanceLock()) {
     const q = endWorkQuestion(lang(), { kind, consoles: names, commands: ownedCount() });
     if (!q) return true;
     const ask = { type: 'warning' as const, message: q.message, detail: q.detail, buttons: [q.confirm, t(lang(), 'action.cancel')], defaultId: 1, cancelId: 1 };
-    const parent = window && !window.isDestroyed() && window.isVisible() ? window : null;
+    const shown = liveWindow();
+    const parent = shown?.isVisible() ? shown : null;
     const { response } = parent ? await dialog.showMessageBox(parent, ask) : await dialog.showMessageBox(ask);
     log(`${kind === 'restart' ? 'update_restart' : 'quit'} ${response === 0 ? 'confirmed' : 'refused'} consoles=${names.length} commands=${ownedCount()}`);
     return response === 0;
@@ -569,7 +572,7 @@ if (!app.requestSingleInstanceLock()) {
     monitor.setVisible(monitorLive(true, pageSeen));
     // The page's own event says when it is seen; read it once in case none came (a window shown behind others sends none).
     setTimeout(() => {
-      const w = window && !window.isDestroyed() ? window : null;
+      const w = liveWindow();
       void w?.webContents.executeJavaScript('document.visibilityState').then((v: unknown) => seePage(v === 'visible'), () => undefined);
     }, PAGE_SIGHT_CHECK_MS);
     pushStatus();
@@ -588,7 +591,7 @@ if (!app.requestSingleInstanceLock()) {
   // compared after every activation change and on a slow tick (one boolean, no spawn, no IPC).
   // FD-271: a change only the sync found moves the Dock too (no `hide` event came for it); ⌘H and a minimized window keep it.
   const dockFromSync = (shown: boolean) => {
-    const w = window && !window.isDestroyed() ? window : null;
+    const w = liveWindow();
     const want = dockOnSync(shown, { visible: Boolean(w?.isVisible()), minimized: Boolean(w?.isMinimized()), appHidden: process.platform === 'darwin' && app.isHidden() });
     if (want === null) return;
     if (!want && dockSync.wantsHidden) return; // already asked
@@ -617,13 +620,13 @@ if (!app.requestSingleInstanceLock()) {
   // on: one osascript a minute (~0.1 s), never otherwise; anything else leaves the sight unknown, as before.
   let probing = false;
   const probeSight = async () => {
-    const wants = process.platform === 'darwin' && updater.state.state === 'ready' && settings.get().autoUpdate && windowVisible() && window && !window.isDestroyed();
+    const wants = process.platform === 'darwin' && updater.state.state === 'ready' && settings.get().autoUpdate && windowVisible() && liveWindow() !== null;
     if (!wants) { if (occlusion !== null) { occlusion = null; syncSight(); } return; }
     if (probing) return;
     probing = true;
     try {
       const r = await runOwned('/usr/bin/osascript', ['-l', 'JavaScript', '-e', WINDOW_LIST_JXA], { timeoutMs: 5_000, env: commandEnv() });
-      const next = r.code === 0 ? sightOf(parseWindows((r.stdout ?? r.output).trim()), window && !window.isDestroyed() ? windowNumberOf(window.getMediaSourceId()) : null) : null;
+      const next = r.code === 0 ? sightOf(parseWindows((r.stdout ?? r.output).trim()), ((w) => (w ? windowNumberOf(w.getMediaSourceId()) : null))(liveWindow())) : null;
       if (next !== occlusion) { occlusion = next; syncSight(); }
     } catch {
       occlusion = null;
@@ -669,7 +672,7 @@ if (!app.requestSingleInstanceLock()) {
   function recheckDock(): void {
     // FD-271: the tick compares the Dock with the window as it is, since a show or hide may have come with no event and
     // no change the visibility sync could see (a window shown and hidden between two ticks, both without events).
-    const w = window && !window.isDestroyed() ? window : null;
+    const w = liveWindow();
     const state = { visible: Boolean(w?.isVisible()), minimized: Boolean(w?.isMinimized()), appHidden: process.platform === 'darwin' && app.isHidden() };
     if (!dockSync.wantsHidden && dockOnSync(false, state) === false) { log('window hidden with no hide event: the Dock follows (FD-271)'); syncDock(false); return; }
     if (dockSync.wantsHidden && windowVisible()) { syncDock(true); return; }
@@ -774,7 +777,7 @@ if (!app.requestSingleInstanceLock()) {
   /** `decided`: FD-175, the operator's words relayed by an agent stand for the confirmation and its box. */
   async function uninstall(decided?: { deleteData: boolean }): Promise<{ ok: boolean; cancelled?: boolean; error?: string }> {
     const l = lang();
-    const parent = window && !window.isDestroyed() ? window : undefined;
+    const parent = liveWindow() ?? undefined;
     // LC-14: data goes only when the person asks. The box is unticked: settings and history stay,
     // and a reinstall picks them up together with the login item and the MCP entry (ADR-0015).
     const ask = {
@@ -912,7 +915,8 @@ if (!app.requestSingleInstanceLock()) {
     settings.update({ moveToApplicationsAsked: true });
     const l = lang();
     const ask = { type: 'question' as const, buttons: [t(l, 'move.confirm'), t(l, 'move.later')], defaultId: 0, cancelId: 1, message: t(l, 'move.title'), detail: t(l, 'move.body') };
-    const { response } = window && !window.isDestroyed() ? await dialog.showMessageBox(window, ask) : await dialog.showMessageBox(ask);
+    const owner = liveWindow();
+    const { response } = owner ? await dialog.showMessageBox(owner, ask) : await dialog.showMessageBox(ask);
     if (response === 0) await moveToApplications(); // a refusal is shown by moveToApplications itself
   }
   // #endregion reinstall
@@ -1182,7 +1186,7 @@ if (!app.requestSingleInstanceLock()) {
   }
 
   function layoutCommand(which: LayoutCommand): void {
-    if (window && !window.isDestroyed()) window.webContents.send(CHANNELS.layoutCommand, which);
+    liveWindow()?.webContents.send(CHANNELS.layoutCommand, which);
   }
 
   function appMenu(): void {
@@ -1291,7 +1295,7 @@ if (!app.requestSingleInstanceLock()) {
           if (!applySettingsFn) return { ok: false, code: 'not-ready' };
           const done = applySettingsFn(patch);
           // Scenario walk 2026-11-11 (SCN-098 step 1): the window changes at once, as if the person had clicked.
-          if (window && !window.isDestroyed()) window.webContents.send(CHANNELS.settingsPush, settings.get());
+          liveWindow()?.webContents.send(CHANNELS.settingsPush, settings.get());
           return { ok: true, result: { changed: Object.keys(patch), refused, ...(done.error ? { error: done.error } : {}) } };
         }
         if (r.op === 'sessions.act' && r.session) {

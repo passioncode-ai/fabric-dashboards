@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.8.133 - 2026-11-16
+
+### Internal
+
+- The main process reads its window through one `liveWindow()` (the window while it exists) instead of thirteen copies
+  of the same check; no behaviour changes.
+
 ## 0.8.132 - 2026-11-16
 
 ### Changed
