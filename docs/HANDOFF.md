@@ -7,6 +7,13 @@ Current release: **0.8.110** published 2026-11-15 09:04 UTC (0.8.111 next); earl
 order, their runs under way. 0.8.106 and 0.8.107 were never published (0.8.106's check failed on an unref'd timer in a
 test; both fold into 0.8.108).
 
+## 0.8.149: where an agent is deployed, start here (2026-11-16)
+
+FD-245 done: the Connections tab's middle card says where the agent is deployed and whose it is, and lists its other
+copies (`deployment` in `src/core/agent-facts.ts`, `test/agent-facts.test.ts` *FD-245*, SCN-073). FD-276 P-03 closed by
+measurement (quit 15 to 52 ms; the install minutes are ShipIt's). Checked: `npm run check` (1407 pass). Owed: `npm run test:e2e -- test/e2e/connections.test.ts` (the FD-78 test now also reads the Deployed block); it was not run because the disk had 1.5 GB free, under the 5 GB floor (HV-02); run it before tagging 0.8.149. **Next task:**
+FD-241's rest (the task line on Fabric's page, a task handed to Fabric's board), then FD-285 wave 2 when CT-337 lands.
+
 ## 0.8.148: agent-health episodes, start here (2026-11-16)
 
 FD-285 wave 1 (SB-393, DEC-0179): `src/core/agent-health.ts` reads `agent-health/1` (the contract's vectors and schema

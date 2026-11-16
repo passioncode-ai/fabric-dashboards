@@ -6,10 +6,11 @@ import { buildGraph, headState, stateOfService, uncheckedCount, type ConnectionN
 import type { ServiceSnapshot } from '../../core/types';
 import { api, CONN_MARK as MARK, useT } from '../lib';
 import { shownState } from '../../core/setup-wait';
+import { deployment } from '../../core/agent-facts';
 
 const ORDER: NodeKind[] = ['service', 'model', 'runner', 'connector', 'store', 'channel', 'part'];
 
-export function Connections({ s, all, open }: { s: ServiceSnapshot; all: ServiceSnapshot[]; open: (key: string) => void }) {
+export function Connections({ s, all, members = [], open }: { s: ServiceSnapshot; all: ServiceSnapshot[]; members?: ServiceSnapshot[]; open: (key: string) => void }) {
   const { t, time, reason } = useT();
   const [models, setModels] = useState<ModelUse[] | null>(null);
   useEffect(() => {
@@ -24,6 +25,7 @@ export function Connections({ s, all, open }: { s: ServiceSnapshot; all: Service
     return () => { live = false; };
   }, [s.key, Boolean(s.wellKnown?.surfaces.usage)]);
   const g = buildGraph(s, all, models ?? []);
+  const dep = deployment(s, members); // FD-245: where it is deployed, whose it is, and its other copies
   const groups = ORDER.map((k) => [k, g.uses.filter((n) => n.kind === k)] as const).filter(([, list]) => list.length > 0);
   const total = g.uses.length;
   // The agent's own state counts first: an agent that does not answer never reads "Works" for want of connections.
@@ -70,6 +72,32 @@ export function Connections({ s, all, open }: { s: ServiceSnapshot; all: Service
               <>
                 <div className="meta">{t('conn.offers')}</div>
                 <div className="conn-chips">{g.offers.capabilities.map((c) => <span key={c} className="chip mono">{c}</span>)}</div>
+              </>
+            )}
+            {/* FD-245: where this agent is deployed and whose it is; each other copy opens its own Connections. */}
+            <div className="meta">{t('conn.deployed')}</div>
+            <dl className="kv conn-where">
+              <div><dt>{t('facts.where')}</dt><dd>{t(dep.where.code, dep.where.params)}</dd></div>
+              {dep.organization && <div><dt>{t('health.organization')}</dt><dd>{t(dep.organization.code, dep.organization.params)}</dd></div>}
+            </dl>
+            {dep.copies.length > 0 && (
+              <>
+                <div className="meta">{t('conn.copies')}</div>
+                <ul className="conn-list">
+                  {dep.copies.map((c) => {
+                    const st = stateOfService(c.state);
+                    return (
+                      <li key={c.key}>
+                        <button className={`conn-node conn-${st}`} onClick={() => open(c.key)}>
+                          <span className="conn-mark" aria-hidden="true">{MARK[st]}</span>
+                          <span className="conn-label">{t(c.where.code, c.where.params)}</span>
+                          {c.organization && <span className="conn-sub">{t(c.organization.code, c.organization.params)}</span>}
+                          <span className="visually-hidden">{t(`conn.state.${st}`)}</span>
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
               </>
             )}
           </div>

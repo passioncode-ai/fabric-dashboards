@@ -262,7 +262,7 @@ export function ServiceView({ s, all, members, open, link, nonce, tab: askedTab,
         <PaneBoundary name={nameOf(s)} reset={[s.key, tab, s.wellKnown]}>
         {tab === 'dashboard' && <DashboardHost s={s} link={link} nonce={nonce} hidden={overlayOpen} applied={appliedLink} act={control} openLogs={tabs.includes('logs') ? () => setTab('logs') : undefined} />}
         {tab === 'activity' && <div className="pane">{dispatches && dispatches.length > 0 && <Dispatches lines={dispatches} onSession={onSession} />}<ServiceActivity serviceKey={s.key} tick={`${activityRev ?? ''}|${s.latestEvent?.id ?? ''}`} openAt={(k, l) => open(k, l)} /></div>}
-        {tab === 'connections' && <div className="pane"><Connections s={s} all={all} open={(key) => open(key, undefined, 'connections')} /></div>}
+        {tab === 'connections' && <div className="pane"><Connections s={s} all={all} members={members} open={(key) => open(key, undefined, 'connections')} /></div>}
         {tab === 'load' && tabs.includes('load') && <div className="pane"><Load s={s} /></div>}
         {tab === 'health' && <div className="pane"><Health s={s} output={output} detailsShown={cardShown} /></div>}
         {tab === 'logs' && <div className="pane"><Logs serviceKey={s.key} /></div>}

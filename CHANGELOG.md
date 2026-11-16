@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.8.149 - 2026-11-16
+
+### Added
+
+- FD-245: an agent's Connections tab says where it is deployed (this Mac, another machine, or online with its host and
+  provider) and whose it is, and lists its other copies, each with its own place, state and organization when that
+  differs; a copy opens its own Connections. Read from what the app already holds (`deployment`, `src/core/agent-facts.ts`).
+
 ## 0.8.148 - 2026-11-16
 
 ### Added
