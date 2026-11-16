@@ -7,14 +7,21 @@ Current release: **0.8.110** published 2026-11-15 09:04 UTC (0.8.111 next); earl
 order, their runs under way. 0.8.106 and 0.8.107 were never published (0.8.106's check failed on an unref'd timer in a
 test; both fold into 0.8.108).
 
+## 0.8.152: systemd exit reasons, and four versions waiting for a tag (2026-11-16)
+
+0.8.152 (FD-250, PR #608): a `systemd --user` unit that crashed says its exit code or signal and how often systemd
+started it (`parseSystemdShow`, `packages/service-host/src/systemd.ts`), as launchd jobs do. FD-250 left: the Task
+Scheduler, and one view per agent gathering exit reasons with FD-198's log lines. **0.8.149 to 0.8.152 are merged,
+untagged** (disk at 1.3 GB free): the first task below now means the tag `v0.8.152`.
+
 ## 0.8.151: a task line to Fabric's board, and three versions waiting for a tag (2026-11-16)
 
 0.8.151 (FD-241, PR #606): the task line on an agent's page has To Fabric's board: the console's coding agent files the
 typed task on the project's board with its Fabric tools (`boardTask`, `src/core/handoff.ts`; test/handoff.test.ts *FD-241:
 a task sent to Fabric's board*; `npm run check` 1409 pass). FD-241 is left only for a line on Fabric's own page, which
 the app does not open as a service. **0.8.149 to 0.8.151 are merged, untagged**, for the reason below (the disk had 1 GB
-free). **First task for the next agent:** if `git ls-remote --tags origin v0.8.151` is empty, run
-`npm run test:e2e -- test/e2e/connections.test.ts` and on green push the annotated tag `v0.8.151` on main. Then FD-242.
+free). **First task for the next agent:** if `git ls-remote --tags origin v0.8.152` is empty, run
+`npm run test:e2e -- test/e2e/connections.test.ts` and on green push the annotated tag `v0.8.152` on main. Then FD-242.
 
 ## 0.8.150: the start-up channel line, and two versions waiting for a tag (2026-11-16)
 
