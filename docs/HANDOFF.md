@@ -7,6 +7,16 @@ Current release: **0.8.110** published 2026-11-15 09:04 UTC (0.8.111 next); earl
 order, their runs under way. 0.8.106 and 0.8.107 were never published (0.8.106's check failed on an unref'd timer in a
 test; both fold into 0.8.108).
 
+## 0.8.150: the start-up channel line, and two versions waiting for a tag (2026-11-16)
+
+0.8.150 (FD-289, PR #604): before any agent has answered, an operator message waits without logging «no channel»
+(`src/electron/outage-alerts.ts`, test/outage-alerts.test.ts *FD-289*; `npm run check` 1408 pass). **0.8.149 and 0.8.150
+are merged but not tagged:** the e2e run owed by FD-245 (`npm run test:e2e -- test/e2e/connections.test.ts`) needs 5 GB
+free and the machine had 0.8 GB, held by other sessions (Observatory's disk guard at `critical` found nothing more to
+remove). The session's watcher tags `v<package.json version>` once the disk has 6 GB and that run is green; it does not
+outlive the session. **First task for the next agent:** if `git ls-remote --tags origin v0.8.150` is empty, run that e2e
+file, and on green push the annotated tag `v0.8.150` on main (it carries 0.8.149's change too). Then the rest of FD-241.
+
 ## 0.8.149: where an agent is deployed, start here (2026-11-16)
 
 FD-245 done: the Connections tab's middle card says where the agent is deployed and whose it is, and lists its other
