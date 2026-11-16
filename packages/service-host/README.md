@@ -316,7 +316,7 @@ is entered (`access.entry`: `host-signin`, `own-signin`, `none`), how it keeps d
 reference reading: each field from the well-known document where no clause of IF-6 refuses it, else from the
 descriptor's; a refused value is listed with the contract's reason and never read; a document failing the schema (checked
 by hand here) gives none; a well-known document answering as another service gives nothing; a dashboard requiring a
-host's login reads `host-signin` only for a service that declares a fact. It runs the contract's 35 vectors (release `v0.1.0+2026-11-16`)
+host's login reads `host-signin` only for a service that declares a fact. It runs the contract's 38 vectors (tag `v0.1.0+2026-11-16.2`, DEC-0174)
 (`test/fixtures/contract/vectors_instance-facts.json`).
 
 ## Load
