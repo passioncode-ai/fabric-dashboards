@@ -206,6 +206,12 @@ export const TOOLS = [
     annotations: { readOnlyHint: true },
   },
   {
+    name: 'agent_health',
+    description: 'What each product\'s agent-health/1 report says now and the episodes Fabric Dashboards holds on it (FD-285, contract DEC-0179): per product when it was last read, the reader\'s state (unknown with its reason for a report that could not be read: no-answer, schema, FAC-SEM-181, other-product), the version and checks of the last trusted report (id, area, state, count, fix), and per check the open or owed episode (key <product>:<check>@<UTC day>, opened, state, count, fix, whether its message went out). Read every 5 minutes; Switchboard first. Read-only; counts and codes only.',
+    inputSchema: { type: 'object', properties: { product: { type: 'string', pattern: '^[a-z][a-z0-9-]{1,62}$' } }, additionalProperties: false },
+    annotations: { readOnlyHint: true },
+  },
+  {
     name: 'bug_report',
     description: 'File one bug of the journal (by its fingerprint, from bugs) as a GitHub issue in passioncode-ai/fabric-dashboards, a PUBLIC repository. Without publish: true it only answers the title and body it would file. With publish: true it files it once (an issue that already names the fingerprint is answered instead) with the GitHub CLI\'s sign-in and records the issue in the journal. Pass the operator\'s words in params._meta.decision when you have them (action bug-report).',
     inputSchema: { type: 'object', properties: { fp: { type: 'string', pattern: '^[0-9a-f]{12}$' }, publish: { type: 'boolean' } }, required: ['fp'], additionalProperties: false },
@@ -304,6 +310,7 @@ export async function call(deps: tools.Deps, name: string, args: Args): Promise<
       return tools.rename(deps, need(args, 'service'), args.name as string | null);
     }
     case 'bugs': return tools.bugsList(deps, typeof args.limit === 'number' ? args.limit : 50);
+    case 'agent_health': return tools.agentHealth(deps, typeof args.product === 'string' ? args.product : undefined);
     case 'bug_report': {
       const fp = need(args, 'fp');
       if (!/^[0-9a-f]{12}$/.test(fp)) throw new tools.ToolError('fp must be a fingerprint from bugs: 12 hex');

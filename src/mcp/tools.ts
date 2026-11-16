@@ -9,6 +9,7 @@
 // Reading — descriptors, claim conflicts, launchd status, the health probe, the state — is one
 // look through @passioncode-ai/fabric-service-host, the same code Fabric's registry reads with.
 import { BrokerTargetReader } from '../core/broker-targets';
+import { HEALTH_POLL_MS, type HealthBook } from '../core/agent-health';
 import { supervises } from '../core/platform';
 import { machineView } from '../core/machine-view';
 import { JOIN_HOST, joinLink } from '../core/join';
@@ -369,6 +370,20 @@ export function bugsList(deps: Deps, limit = 50): { bugs: Bug[]; total: number; 
   const all = readBugs(dir).sort((a, b) => (a.lastSeen < b.lastSeen ? 1 : -1));
   return { bugs: all.slice(0, Math.max(1, Math.min(300, limit))), total: all.length, file: path.join(dir, BUGS_FILE) };
 }
+
+// #region agent-health — docs: docs/adr/0010-notifications-only-when-it-matters.md#amendment-2026-11-16-agent-health-reports-become-episodes-fd-285
+/** FD-285: the health book the app keeps in `outage-alerts.json` (written by the app; this only reads it). */
+export function agentHealth(deps: Deps, product?: string): { products: HealthBook; file: string; read_every_seconds: number } {
+  const file = path.join(path.dirname(deps.settingsFile?.() ?? appSettingsFile()), 'outage-alerts.json');
+  let book: HealthBook = {};
+  try {
+    const raw = JSON.parse(fs.readFileSync(file, 'utf8')) as { health?: unknown };
+    if (raw.health && typeof raw.health === 'object' && !Array.isArray(raw.health)) book = raw.health as HealthBook;
+  } catch { /* the app has read nothing yet */ }
+  if (product) book = book[product] ? { [product]: book[product]! } : {};
+  return { products: book, file, read_every_seconds: HEALTH_POLL_MS / 1000 };
+}
+// #endregion agent-health
 
 /** FD-263: one bug as a GitHub issue in the app's repository. Without `publish` it only answers the issue it would file
  *  (the repository is public: filing publishes the scrubbed message and frames); with it, it files the issue once

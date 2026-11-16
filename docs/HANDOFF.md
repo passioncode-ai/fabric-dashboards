@@ -7,6 +7,16 @@ Current release: **0.8.110** published 2026-11-15 09:04 UTC (0.8.111 next); earl
 order, their runs under way. 0.8.106 and 0.8.107 were never published (0.8.106's check failed on an unref'd timer in a
 test; both fold into 0.8.108).
 
+## 0.8.148: agent-health episodes, start here (2026-11-16)
+
+FD-285 wave 1 (SB-393, DEC-0179): `src/core/agent-health.ts` reads `agent-health/1` (the contract's vectors and schema
+in `test/fixtures/contract/`, `test/agent-health.test.ts`) and keeps episodes; `src/electron/health-poller.ts` runs
+`switchboard --json health` every 5 min; `OutageAlerts.health` sends what they owe through the FD-48 channel; MCP
+`agent_health` reads `outage-alerts.json`. Checked: `npm run check`, a live read of Switchboard 0.7.102 (`errors_today`
+warn opens one episode after two reads). **Next task:** wave 2 when contract CT-337 lands (read the paths agents
+declare instead of `HEALTH_PRODUCTS`), the health strip on the agent's page and This Mac, and board requests for
+`fix.capability` after Fabric's repair convention.
+
 ## Quality waves 0 to 6: start here (2026-11-15)
 
 The operator asked for an audit of interface, glitches, latency, performance and correctness, a bug tracker on our own

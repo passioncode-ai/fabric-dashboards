@@ -6,6 +6,7 @@
 // rule of 2026-10-19 for the Telegram channel: only an outage over 15 minutes and its recovery, no routine).
 import fs from 'node:fs';
 import path from 'node:path';
+import { healthDelivered, observeHealth, owedHealth } from '../core/agent-health';
 import { atomicWrite } from '../core/fsutil';
 import { callCapability } from '../core/mcp-client';
 import { askDelivered, askIdOf, chooseChannel, HELD_RETRY_MS, heldRefusal, notifyArguments, sideOf, delivered, emptyOutageState, enqueueAsk, notifyChannelOf, observe, owed, owedAsks, watchedOf, type AlertMessage, type Ask, type OutageState, type Words } from '../core/outage-alerts';
@@ -34,6 +35,8 @@ export class OutageAlerts {
     settings: () => Settings;
     words: () => Words;
     nameOf: (s: ServiceSnapshot) => string;
+    /** FD-285: a product's name in a health message (Switchboard for fabric-switchboard). */
+    productName?: (product: string) => string;
     reasonOf: (s: ServiceSnapshot) => string;
     allowed: (key: string, now: Date) => boolean;
     version: string;
@@ -55,7 +58,7 @@ export class OutageAlerts {
       try {
         const raw = JSON.parse(text) as Partial<OutageState>;
         if (typeof raw.baselines === 'object' && raw.baselines && typeof raw.episodes === 'object' && raw.episodes) {
-          return { baselines: raw.baselines, episodes: raw.episodes, ...(raw.asks && typeof raw.asks === 'object' ? { asks: raw.asks } : {}) };
+          return { baselines: raw.baselines, episodes: raw.episodes, ...(raw.asks && typeof raw.asks === 'object' ? { asks: raw.asks } : {}), ...(raw.health && typeof raw.health === 'object' ? { health: raw.health } : {}) };
         }
         this.o.log(`alerts: ${path.basename(file)} has no episodes; ignored`);
       } catch (error) {
@@ -113,6 +116,17 @@ export class OutageAlerts {
   }
   // #endregion operator-asks
 
+  /** FD-285: one reading of a product's `agent-health/1` answer (`null`: no answer); an episode it opens or closes
+   *  is sent now if the person's rules allow. */
+  health(product: string, answer: unknown): void {
+    if (this.stopped) return;
+    this.save({ ...this.state, health: observeHealth(this.state.health ?? {}, product, answer, this.now()) });
+    this.schedule(0);
+  }
+
+  /** FD-285: the health book as the MCP `agent_health` reads it. */
+  healthBook(): NonNullable<OutageState['health']> { return this.state.health ?? {}; }
+
   status(): NonNullable<AppStatus['alerts']> {
     const services = this.o.snapshots();
     const chosen = chooseChannel(services, this.o.settings().notifications.channel);
@@ -160,9 +174,10 @@ export class OutageAlerts {
       const now = this.now();
       const allowed = (key: string) => this.o.allowed(key, new Date(now));
       // Outages first, in order; then the decisions agents wait for (FD-125), oldest first.
-      const due: { id: string; step: 'failure' | 'recovery' | 'ask'; msg: AlertMessage }[] = [
+      const due: { id: string; step: 'failure' | 'recovery' | 'ask' | 'health-failure' | 'health-recovery'; msg: AlertMessage }[] = [
         ...owed(this.state, now, this.o.words(), allowed),
         ...owedAsks(this.state, now, this.o.words(), allowed).map((a) => ({ ...a, step: 'ask' as const })),
+        ...healthOwed(this.state.health, this.o.words().health, this.o.productName, allowed),
       ];
       const owedIds = new Set(due.map((d) => d.msg.eventId));
       for (const id of [...this.held.keys()]) if (!owedIds.has(id)) this.held.delete(id);
@@ -198,7 +213,9 @@ export class OutageAlerts {
           if (++failures >= 3) return;
           continue;
         }
-        this.save(d.step === 'ask' ? askDelivered(this.state, d.id) : delivered(this.state, d.id, d.step));
+        this.save(d.step === 'ask' ? askDelivered(this.state, d.id)
+          : d.step === 'health-failure' || d.step === 'health-recovery' ? { ...this.state, health: healthDelivered(this.state.health ?? {}, d.id, d.step === 'health-failure' ? 'failure' : 'recovery') }
+          : delivered(this.state, d.id, d.step));
         this.retryAt.delete(d.msg.eventId);
         this.held.delete(d.msg.eventId);
         this.o.log(`alerts: sent ${d.msg.kind} ${d.msg.eventId} via ${channel.key}`);
@@ -213,5 +230,10 @@ export class OutageAlerts {
       if (more) this.schedule(RETRY_MS);
     }
   }
+}
+/** FD-285: what the health book owes, as steps the flush tells apart from FD-48's outages. */
+function healthOwed(book: OutageState['health'], words: Words['health'], nameOf: ((product: string) => string) | undefined, allowed: (key: string) => boolean) {
+  if (!book || !words) return [];
+  return owedHealth(book, words, nameOf ?? ((p) => p), allowed).map((d) => ({ ...d, step: d.step === 'failure' ? 'health-failure' as const : 'health-recovery' as const }));
 }
 // #endregion outage-alerts

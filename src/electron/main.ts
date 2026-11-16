@@ -33,6 +33,8 @@ import { openChannel, startAnswer, type Channel } from './console-channel';
 import type { ChannelAnswer } from '../core/console-channel';
 import { chooseLang, langFor, t, type Lang } from '../core/i18n';
 import { execRunner } from '../core/launchd';
+import { HEALTH_PRODUCTS } from '../core/agent-health';
+import { HealthPoller } from './health-poller';
 import { listListeners, unattributed } from '../core/listeners';
 import { applyLoginItem, LOGIN_NEEDS_APPROVAL, loginItemAtStartup, type LoginItemOs } from '../core/loginitem';
 import { xdgLoginItem } from '../core/autostart';
@@ -414,14 +416,27 @@ if (!app.requestSingleInstanceLock()) {
         wasDown: (minutes, reason) => t(l, 'alerts.wasDown', { minutes, reason }),
         ask: (name) => t(l, 'alerts.ask', { name }),
         open: (link) => t(l, 'alerts.open', { link }),
+        health: {
+          open: (name, check, state) => t(l, 'alerts.health.open', { name, check, state }),
+          back: (name, check) => t(l, 'alerts.health.back', { name, check }),
+          blind: (name, reason) => t(l, 'alerts.health.blind', { name, reason }),
+          blindBack: (name) => t(l, 'alerts.health.blindBack', { name }),
+          detail: (area, count, fix) => t(l, fix ? 'alerts.health.fix' : 'alerts.health.detail', { area, count, ...(fix ? { fix } : {}) }),
+        },
       };
     },
+    productName: (product) => HEALTH_PRODUCTS.find((h) => h.product === product)?.name ?? product,
     changed: () => pushStatus(),
   });
   // FD-132: a placement record that cannot be used is said once in the log; the agents then read as placed here.
   monitor.on('placement-error', (error: string | null) => log(error ? `placement_unreadable ${error}` : 'placement_readable'));
   // FD-125: a decision an agent waits for reaches the operator channel too, with the link that opens its page.
   monitor.on('ask', (a: AskNotice) => alerts.ask(a.serviceKey, a.id, { name: a.name, episode: a.episode, at: a.at, text: a.text, link: askLink(a.serviceKey, a.link) }));
+  // FD-285: each product's `agent-health/1` report, read every 5 minutes; its episodes go through the same channel.
+  const health = new HealthPoller({
+    binary: async (p) => (p.product === 'fabric-switchboard' ? consoles.switchboardPath() : null),
+    run: execRunner, log, observe: (product, answer) => alerts.health(product, answer),
+  });
   function askLink(key: string, link: string | null): string | null {
     try { return linkFor(key, link && safePath(link) ? link : undefined); } catch { return null; }
   }
@@ -1229,6 +1244,7 @@ if (!app.requestSingleInstanceLock()) {
     consoleChannel = null;
     monitor.stop();
     alerts.stop(); // FD-48: no tick after quit begins
+    health.stop(); // FD-285
     viewGrace.dispose();
     viewGraceAll.dispose();
     updateGrace.dispose();
@@ -1397,6 +1413,7 @@ if (!app.requestSingleInstanceLock()) {
     monitor.on('change', pushStatus);
     monitor.on('change', () => alerts.tick());
     alerts.start();
+    health.start();
     schedulePauseEnd(); // a pause that outlived a restart still ends with a tray rebuild
     monitor.on('notify', notify);
     monitor.on('restarted', (key: string) => views?.serviceRestarted(key));
