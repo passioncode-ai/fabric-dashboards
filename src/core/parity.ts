@@ -46,6 +46,7 @@ export const PARITY: Record<keyof typeof CHANNELS, Route> = {
   pageVisibility: { window: 'the page says whether it is seen, so the monitor slows while it is covered (FD-276)' },
   bugsList: { tool: 'bugs' },
   bugReport: { tool: 'bug_report' },
+  windowZoom: { window: 'a double-click on the sidebar zooms or minimizes this window, as on a title bar (FD-282)' },
   rescan: { tool: 'list_services' }, // FD-249: the MCP server reads the services folder at every call; nothing to rescan
   serviceGuide: { tool: 'service_context' },
   updateRestart: { tool: 'app_update' },

@@ -441,7 +441,7 @@ test('R1-A: a session in a window Switchboard opened is named by the window each
 
 test('R1-B: a hand-over this computer could not carry names the cause it found: disk, six sessions or swap', POSIX, async () => {
   const cases = [
-    { machine: { freeDisk: 2 * GB }, reason: 'busy-disk', en: /less than 5 GB is free on its disk\.$/ },
+    { machine: { freeDisk: 0.5 * GB }, reason: 'busy-disk', en: /less than 1 GB is free on its disk\.$/ },
     { machine: { swap: { total: 4 * GB, free: 0.01 * GB } }, reason: 'busy-swap', en: /the system has run out of swap\.$/ },
   ];
   for (const c of cases) {

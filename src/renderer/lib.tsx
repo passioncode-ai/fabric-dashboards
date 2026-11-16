@@ -104,6 +104,8 @@ const ICONS: Record<string, string> = {
   chevronDown: 'M5 8l5 5 5-5',
   chevronUp: 'M5 12l5-5 5 5',
   close: 'M5 5l10 10M15 5 5 15',
+  // FD-280: a pushpin, to keep an open agent's tab in the strip.
+  pin: 'M7 2h6M8 2v6l-3 4h10l-3-4V2M10 12v6',
   // FD-220: fill the area, back to a part of it, and fold away.
   expand: 'M3 8V3h5M17 8V3h-5M3 12v5h5M17 12v5h-5',
   shrink: 'M8 3v5H3M12 3v5h5M8 17v-5H3M12 17v-5h5',

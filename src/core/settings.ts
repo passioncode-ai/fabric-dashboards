@@ -9,7 +9,7 @@ import { autoUpdateOn, carryOverAutoUpdate, setAutoUpdate } from './autoupdate';
 import { CONSOLE_HEIGHT, DEFAULT_SETTINGS, SIDEBAR_WIDTH, type Settings, type SettingsPatch } from './types';
 import { DEFAULT_PAGE_THEME, REFERENCE_THEMES } from './appearance';
 import { pruneDismissed, pruneRecords } from './sessions';
-import { MAX_TABS } from './layout';
+import { MAX_TABS, orderPinned, pinnedOf } from './layout';
 import { canonicalOrgValue } from './organizations';
 
 /** FD-122: how often settings.json is looked at for a change written outside the app (a stat, no read). */
@@ -167,17 +167,21 @@ function readObject(file: string): { ok: true; value: Partial<Settings>; text: s
 const SERVICE_KEY = /^[a-z0-9][a-z0-9-]*\.[a-z0-9][a-z0-9-]*$/;
 
 /** ADR-0017: a layout from any earlier or damaged file reads as a usable one. */
-function mergeLayout(raw: unknown): Settings['layout'] {
+export function mergeLayout(raw: unknown): Settings['layout'] {
   const l = (raw && typeof raw === 'object' ? raw : {}) as Partial<Settings['layout']>;
   const c = (l.console && typeof l.console === 'object' ? l.console : {}) as Partial<Settings['layout']['console']>;
   const height = typeof c.height === 'number' && Number.isFinite(c.height) ? Math.round(c.height) : CONSOLE_HEIGHT.default;
+  const open = Array.isArray(l.tabs) ? [...new Set(l.tabs.filter((k): k is string => typeof k === 'string' && /^[a-z0-9][a-z0-9._-]{0,128}$/.test(k)))].slice(-MAX_TABS) : [];
+  const tabs = Array.isArray(l.pinnedTabs) ? orderPinned(open, l.pinnedTabs.filter((k): k is string => typeof k === 'string')) : open;
   return {
     sidebar: l.sidebar === 'collapsed' ? 'collapsed' : 'expanded',
     sidebarWidth: sidebarWidth(l.sidebarWidth),
     header: l.header === 'full' ? 'full' : 'compact',
     console: { open: c.open === true, height: Math.min(CONSOLE_HEIGHT.max, Math.max(CONSOLE_HEIGHT.min, height)), full: c.full !== false },
     focus: l.focus === true,
-    tabs: Array.isArray(l.tabs) ? [...new Set(l.tabs.filter((k): k is string => typeof k === 'string' && /^[a-z0-9][a-z0-9._-]{0,128}$/.test(k)))].slice(-MAX_TABS) : [],
+    tabs,
+    // FD-280: only keys still in the strip stay pinned, and the strip shows them first.
+    pinnedTabs: Array.isArray(l.pinnedTabs) ? pinnedOf(tabs, l.pinnedTabs.filter((k): k is string => typeof k === 'string')) : [],
     list: mergeList(l.list),
     // FD-103 (SCN-077): a damaged value reads as Agents on Overview; nothing else depends on it.
     mode: l.mode === 'sessions' ? 'sessions' : 'agents',

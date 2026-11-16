@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import os from 'node:os';
 import test from 'node:test';
-import { admit, CONSOLE_SESSION_CAP, machineProbe, MIN_FREE_DISK_BYTES, parseMeminfo, parseSwapUsage } from '../src/core/admission';
+import { admit, CONSOLE_SESSION_CAP, LOW_FREE_DISK_BYTES, machineProbe, MIN_FREE_DISK_BYTES, parseMeminfo, parseSwapUsage } from '../src/core/admission';
 
 const GB = 1024 ** 3;
 const roomy = { freeDisk: 50 * GB, swap: { total: 4 * GB, free: 3 * GB }, running: 0 };
@@ -11,10 +11,16 @@ test('LC-17: a machine with room admits the start', () => {
   assert.deepEqual(admit(roomy), { ok: true });
 });
 
-test('LC-17: below 5 GB free the start is deferred, with the free space it saw', () => {
+test('FD-283 (LC-17): below 1 GB free the start is deferred, with the free space it saw', () => {
+  assert.equal(MIN_FREE_DISK_BYTES, GB);
   const out = admit({ ...roomy, freeDisk: MIN_FREE_DISK_BYTES - 1 });
   assert.deepEqual(out, { ok: false, why: 'disk', freeDisk: MIN_FREE_DISK_BYTES - 1 });
-  assert.deepEqual(admit({ ...roomy, freeDisk: MIN_FREE_DISK_BYTES }), { ok: true }, '5 GB exactly is enough');
+  assert.deepEqual(admit({ ...roomy, freeDisk: MIN_FREE_DISK_BYTES }), { ok: true, lowDisk: MIN_FREE_DISK_BYTES }, '1 GB exactly is enough');
+});
+
+test('FD-283: between 1 and 5 GB the session starts and says the disk is low (the operator: 4.3 GB was refused)', () => {
+  assert.deepEqual(admit({ ...roomy, freeDisk: 4.3 * GB }), { ok: true, lowDisk: 4.3 * GB });
+  assert.deepEqual(admit({ ...roomy, freeDisk: LOW_FREE_DISK_BYTES }), { ok: true }, '5 GB and more is not low');
 });
 
 test('LC-17: exhausted swap defers the start; no swap at all, or a system that does not say, does not', () => {

@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.8.142 - 2026-11-16
+
+### Fixed
+
+- FD-279: the task line at the top of an agent's page takes clicks and typing again; the header around it no longer
+  catches them as a window drag.
+- FD-281: scrolling the strip of open agents no longer shows a scrollbar over the tabs; the wheel scrolls sideways and a
+  fade at an edge says more tabs lie that way.
+- FD-282: a double-click on an empty part of the sidebar zooms the window as the title bar does (or minimizes it, by the
+  system setting).
+- FD-283: a console session starts with 1 GB free (it asked for 5 GB and was refused at 4.3 GB); under 5 GB the console
+  says the disk is low.
+
+### Added
+
+- FD-280: tabs can be pinned: a pinned tab stands first, has no Close and is never pushed out of a full strip. Agents pin
+  and unpin it with MCP `arrange` (`tab-pin`, `tab-unpin`).
+
 ## 0.8.141 - 2026-11-16
 
 ### Changed

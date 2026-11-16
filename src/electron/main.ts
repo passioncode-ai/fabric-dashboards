@@ -1,7 +1,7 @@
 // Fabric Dashboards main process. Built like Fabric Inbox's shell: one main
 // process, sandboxed renderers, context isolation, a single instance. It owns
 // no service process — launchd does (ADR-0002) — so quitting stops nothing.
-import { app, BrowserWindow, clipboard, dialog, ipcMain, nativeTheme, Menu, Notification, session, shell } from 'electron';
+import { app, BrowserWindow, clipboard, dialog, ipcMain, nativeTheme, Menu, Notification, session, shell, systemPreferences } from 'electron';
 import { joinLink } from '../core/join';
 import { sessionListRow } from '../core/sessions-view';
 import { pathToFileURL } from 'node:url';
@@ -65,6 +65,7 @@ import { ConsoleDrawer } from './drawer';
 import { FABRIC_GET_URL, fabricPress, fabricPresentFrom } from '../core/fabric-button';
 import { parseTestRemote, setTestRemote } from '../core/testhooks';
 import { OpsDigester } from '../core/ops-digest';
+import { titleBarDoubleClick } from '../core/layout';
 
 app.enableSandbox();
 app.setName('Fabric Dashboards');
@@ -1155,6 +1156,10 @@ if (!app.requestSingleInstanceLock()) {
       return { opened: 'menu' };
     });
     ipcMain.handle(CHANNELS.rescan, () => monitor.tick(true));
+    ipcMain.handle(CHANNELS.windowZoom, (e) => {
+      if (!window || window.isDestroyed() || e.sender.id !== window.webContents.id) return;
+      titleBarDoubleClick(window, process.platform === 'darwin' ? systemPreferences.getUserDefault('AppleActionOnDoubleClick', 'string') : undefined);
+    });
     ipcMain.handle(CHANNELS.serviceGuide, () => shell.openExternal(SERVICE_GUIDE));
     ipcMain.handle(CHANNELS.updateRestart, () => restartToUpdate());
     ipcMain.handle(CHANNELS.updateSteps, () => { const steps = updater.state.state === 'held' ? updater.state.steps : undefined; if (steps && steps.startsWith('https://')) return shell.openExternal(steps); });

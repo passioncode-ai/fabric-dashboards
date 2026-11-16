@@ -153,7 +153,8 @@ export function ConsolePanel({ serviceKey, height, maxHeight, onHeight, onDrag, 
   }, [serviceKey, refresh]);
 
   const say = (r: ConsoleStartResult) => {
-    if (r.ok) { setNotice(null); return; }
+    // FD-283: started on a low disk: the session runs, and the console says what to free.
+    if (r.ok) { setNotice(r.lowGb !== undefined ? { text: t('console.admission.lowDisk', { free: r.lowGb }) } : null); return; }
     if (r.reason === 'admission') {
       // FD-49 (LC-17): what the machine lacks, and what frees it.
       setNotice({ text: r.why === 'disk' ? t('console.admission.disk', { free: r.freeGb ?? 0 }) : r.why === 'cap' ? t('console.admission.cap', { cap: r.cap ?? 0 }) : r.why === 'pool' ? t('console.admission.pool', { used: r.used ?? 0, cap: r.cap ?? 0 }) : t('console.admission.swap') });

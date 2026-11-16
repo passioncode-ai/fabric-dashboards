@@ -44,12 +44,37 @@ export function revealScrollTop(view: { scrollTop: number; height: number }, el:
 export const MAX_TABS = 12;
 
 /** FD-228: the strip with `key` added at the end, and the agents that leave it to make room (the oldest first), whose
- *  dashboards are released as Close releases one. An agent already in the strip changes nothing. */
-export function addTab(tabs: readonly string[], key: string, max = MAX_TABS): { tabs: string[]; dropped: string[] } {
+ *  dashboards are released as Close releases one. An agent already in the strip changes nothing. FD-280: a pinned tab
+ *  (`pinned`) never leaves to make room; only when every tab is pinned does the oldest pinned one go. */
+export function addTab(tabs: readonly string[], key: string, max = MAX_TABS, pinned: readonly string[] = []): { tabs: string[]; dropped: string[] } {
   if (tabs.includes(key)) return { tabs: [...tabs], dropped: [] };
   const all = [...tabs, key];
-  const cut = Math.max(0, all.length - max);
-  return { tabs: all.slice(cut), dropped: all.slice(0, cut) };
+  const over = Math.max(0, all.length - max);
+  if (!over) return { tabs: all, dropped: [] };
+  const loose = all.filter((k) => k !== key && !pinned.includes(k)).slice(0, over);
+  const dropped = [...loose, ...all.filter((k) => k !== key && pinned.includes(k)).slice(0, over - loose.length)];
+  return { tabs: all.filter((k) => !dropped.includes(k)), dropped };
+}
+
+/** FD-280: the strip with `key` pinned (`on`) or unpinned: a pinned tab stands with the other pinned ones at the start,
+ *  after them; an unpinned one moves to the first place after the pinned ones. Answers the strip and the pinned keys,
+ *  each pinned key in the strip and in strip order. An agent not in the strip changes nothing. */
+export function pinTab(tabs: readonly string[], pinned: readonly string[], key: string, on: boolean): { tabs: string[]; pinned: string[] } {
+  const keep = pinnedOf(tabs, pinned);
+  if (!tabs.includes(key) || keep.includes(key) === on) return { tabs: orderPinned(tabs, keep), pinned: keep };
+  const nextPinned = on ? [...keep, key] : keep.filter((k) => k !== key);
+  const rest = tabs.filter((k) => !nextPinned.includes(k));
+  return { tabs: [...nextPinned, ...(on ? rest : [key, ...rest.filter((k) => k !== key)])], pinned: nextPinned };
+}
+
+/** FD-280: the pinned keys that are still in the strip, in strip order. */
+export function pinnedOf(tabs: readonly string[], pinned: readonly string[]): string[] {
+  return tabs.filter((k) => pinned.includes(k));
+}
+
+/** FD-280: the strip with its pinned tabs first, each group keeping its order. */
+export function orderPinned(tabs: readonly string[], pinned: readonly string[]): string[] {
+  return [...tabs.filter((k) => pinned.includes(k)), ...tabs.filter((k) => !pinned.includes(k))];
 }
 
 /** FD-227: the open agent a step away from the one on show (`step` 1 next, -1 previous), round the strip. With no agent
@@ -61,13 +86,34 @@ export function tabStep(tabs: readonly string[], current: string | null, step: 1
   return tabs[(at + step + tabs.length) % tabs.length]!;
 }
 /** FD-240: the strip with `key` moved to where `target` stands (dragged onto it, or a step with the keyboard): before it
- *  when moving left, after it when moving right. An agent not in the strip, or onto itself, changes nothing. */
-export function moveTab(tabs: readonly string[], key: string, target: string): string[] {
+ *  when moving left, after it when moving right. An agent not in the strip, or onto itself, changes nothing; nor does a
+ *  move across the line between pinned and unpinned tabs (FD-280). */
+export function moveTab(tabs: readonly string[], key: string, target: string, pinned: readonly string[] = []): string[] {
   const from = tabs.indexOf(key);
   const to = tabs.indexOf(target);
   if (from < 0 || to < 0 || from === to) return [...tabs];
+  // FD-280: a tab moves within its own group: pinned among the pinned, the rest among the rest.
+  if (pinned.includes(key) !== pinned.includes(target)) return [...tabs];
   const rest = tabs.filter((k) => k !== key);
   rest.splice(to, 0, key);
   return rest;
 }
 // #endregion open-agents
+
+// #region title-bar-double-click — docs: docs/ux/scenarios.md#scn-105-keep-several-agents-open-and-move-between-them
+/** FD-282: what a double-click on a title bar does, read from macOS's `AppleActionOnDoubleClick` (System Settings →
+ *  Desktop & Dock → Double-click a window's title bar): `Maximize` (or unset) zooms, `Minimize` minimizes, `None` does
+ *  nothing. On Windows and Linux (no value) it zooms. */
+export function titleBarAction(setting: string | undefined): 'zoom' | 'minimize' | 'none' {
+  if (setting === 'Minimize') return 'minimize';
+  if (setting === 'None') return 'none';
+  return 'zoom';
+}
+
+/** FD-282: does to `win` what a double-click on its title bar does. */
+export function titleBarDoubleClick(win: { isMaximized(): boolean; maximize(): void; unmaximize(): void; minimize(): void }, setting: string | undefined): void {
+  const act = titleBarAction(setting);
+  if (act === 'minimize') win.minimize();
+  else if (act === 'zoom') { if (win.isMaximized()) win.unmaximize(); else win.maximize(); }
+}
+// #endregion title-bar-double-click

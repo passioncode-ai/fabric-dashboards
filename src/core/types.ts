@@ -103,6 +103,9 @@ export interface Settings {
     focus: boolean;
     /** FD-220: the agents whose dashboards are open, in the order they were opened (service keys, at most 12). */
     tabs: string[];
+    /** FD-280: the open agents pinned in the strip, a subset of `tabs` in their order: they stand first, never leave to
+     *  make room and lose their close button until unpinned. */
+    pinnedTabs: string[];
     /** FD-39 (ADR-0020): pinned products in pin order (product ids, ADR-0012), and how the rest is sorted.
      *  FD-78: products the person hid (still watched, listed in a folded Hidden section), a kind the person chose for a
      *  product (`service` or `agent`, else the app's guess), and whether the Hidden section is open. */
@@ -232,7 +235,7 @@ export const DEFAULT_SETTINGS: Settings = {
     pausedUntil: null,
     channel: 'auto',
   },
-  layout: { sidebar: 'expanded', sidebarWidth: SIDEBAR_WIDTH.default, header: 'compact', console: { open: false, height: CONSOLE_HEIGHT.default, full: true }, focus: false, tabs: [], list: { sort: 'name', pinned: [], hidden: [], kinds: {}, hiddenOpen: false, order: [], off: [], orgs: [], groupByOrg: false, orgSource: 'org', orgLabels: {}, orgHidden: [] }, mode: 'agents', sessionId: null, endedOpen: false, sessionsFilter: { machines: [], groups: [], origins: [] }, sessionsFolded: [] },
+  layout: { sidebar: 'expanded', sidebarWidth: SIDEBAR_WIDTH.default, header: 'compact', console: { open: false, height: CONSOLE_HEIGHT.default, full: true }, focus: false, tabs: [], pinnedTabs: [], list: { sort: 'name', pinned: [], hidden: [], kinds: {}, hiddenOpen: false, order: [], off: [], orgs: [], groupByOrg: false, orgSource: 'org', orgLabels: {}, orgHidden: [] }, mode: 'agents', sessionId: null, endedOpen: false, sessionsFilter: { machines: [], groups: [], origins: [] }, sessionsFolded: [] },
   consoles: {},
   newSession: { runtime: null, folder: null, bypass: true, isolated: false },
   resumeAfterLimit: true,
