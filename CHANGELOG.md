@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.8.139 - 2026-11-16
+
+### Changed
+
+- FD-273: the instance-facts reading follows the contract's release `v0.1.0+2026-11-16` (CT-327): a well-known
+  document answering as another service is found by the same service key as the contract's identity rule, and the
+  refusal of a label in a local well-known document cites IF-4. The contract's 35 vectors pass.
+
 ## 0.8.138 - 2026-11-16
 
 ### Added

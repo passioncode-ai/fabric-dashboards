@@ -1,7 +1,8 @@
 // #region instance-facts — docs: packages/service-host/README.md#instance-facts
 // extensions/instance-facts/0.1 (contract DEC-0173, FAC-SEM-180): who an instance serves, how it keeps data apart and
 // the space it runs in, declared by the service in its descriptor, its well-known document or both, and never verified.
-// A port of the contract's reference reading `instanceFacts` (src/instance-facts.ts at fabric-agent-contract 4aff124a),
+// A port of the contract's reference reading `instanceFacts` (src/instance-facts.ts at fabric-agent-contract 560d6036,
+// release v0.1.0+2026-11-16),
 // run against its vectors (test/fixtures/contract/vectors_instance-facts.json). The schema is checked by hand, as the
 // other readings here do. Pure: no Node import, so a renderer may import `@passioncode-ai/fabric-service-host/instance-facts`.
 
@@ -32,10 +33,12 @@ type Obj = Record<string, unknown>;
 const isObject = (v: unknown): v is Obj => typeof v === 'object' && v !== null && !Array.isArray(v);
 const has = (o: Obj, k: string) => Object.prototype.hasOwnProperty.call(o, k);
 
+/** CT-327: a service's key as the identity rule FAC-SEM-009 builds it (the contract's `serviceKey`), so both agree. */
+const show = (v: unknown): string => { if (typeof v === 'string') return v; try { return String(v); } catch { return JSON.stringify(v) ?? typeof v; } };
+const serviceKey = (o: Obj) => `${show(o.id)}.${show(o.instance ?? 'default')}`;
 function answersAsAnother(descriptor: unknown, wellKnown: unknown): boolean {
   if (!isObject(descriptor) || !isObject(wellKnown)) return false;
-  const answered = isObject(wellKnown.service) ? wellKnown.service : {};
-  return descriptor.id !== answered.id || (descriptor.instance ?? 'default') !== (answered.instance ?? 'default');
+  return serviceKey(descriptor) !== serviceKey(isObject(wellKnown.service) ? wellKnown.service : {});
 }
 
 const FIELDS: ReadonlyArray<[FactField, 'access' | 'tenancy' | 'space', string]> = [
@@ -121,7 +124,7 @@ function refusal(field: FactField, value: unknown, document: FactsDocument, sett
   if (field === 'mode' && value === 'shared' && setting.local === true) return 'shared is a remote service\'s: a local placement names one context and at most one grant (DEC-0082 item 4)';
   if (field === 'kind' && value === 'system' && setting.local === true) return 'system is a remote placement\'s: a local service runs under a counted OS account (DEC-0154)';
   if (field === 'account') {
-    if (document === 'wellKnown' && setting.local === true) return 'a local service\'s well-known document is read by every counted OS account on the computer; the label stays in its descriptor (IF-5)';
+    if (document === 'wellKnown' && setting.local === true) return 'a local service\'s well-known document is read by every counted OS account on the computer; the label stays in its descriptor (IF-4)';
     if (typeof value === 'string' && credentialShaped(value)) return 'the label is shaped like a credential; it names a space, never a credential';
   }
   return undefined;
