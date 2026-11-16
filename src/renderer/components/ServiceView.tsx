@@ -192,7 +192,7 @@ export function ServiceView({ s, all, members, open, link, nonce, tab: askedTab,
           </button>
         </div>
         {/* FD-241: a task for this agent, always at the top of its page: it starts the agent's console on it. */}
-        {onAgent && <TaskLine name={nameOf(s)} onTask={(words) => onAgent(s.key, { kind: 'ask', output: words })} />}
+        {onAgent && <TaskLine name={nameOf(s)} onTask={(words, to) => onAgent(s.key, { kind: 'ask', output: words, ...(to ? { to } : {}) })} />}
         {cardShown && (
           <div className="svc-card" id="svc-card">
             {s.descriptor?.summary && <p className="svc-summary">{s.descriptor.summary}</p>}
@@ -549,18 +549,20 @@ function ServiceActivity({ serviceKey, tick, openAt }: { serviceKey: string; tic
   return <Feed items={items} openAt={openAt} self={serviceKey} />;
 }
 
-/** FD-241: one line to give the agent a task in the person's words; Enter or the button hands it to the console. */
-function TaskLine({ name, onTask }: { name: string; onTask: (words: string) => void }) {
+/** FD-241: one line to give the agent a task in the person's words; Enter or the button hands it to the console, and
+ *  "To Fabric's board" has the console's agent put it on the board of the agent's project instead of doing it now. */
+function TaskLine({ name, onTask }: { name: string; onTask: (words: string, to?: 'board') => void }) {
   const { t } = useT();
   const [words, setWords] = useState('');
   const [empty, setEmpty] = useState(false);
   const input = useRef<HTMLInputElement | null>(null);
   // FD-274: the button is never grey without a word: pressed with nothing typed it says what it waits for.
-  const send = () => { const w = words.trim(); if (!w) { setEmpty(true); input.current?.focus(); return; } onTask(w); setWords(''); setEmpty(false); };
+  const send = (to?: 'board') => { const w = words.trim(); if (!w) { setEmpty(true); input.current?.focus(); return; } onTask(w, to); setWords(''); setEmpty(false); };
   return (
     <form className="svc-task" aria-label={t('task.label', { name })} onSubmit={(e) => { e.preventDefault(); send(); }}>
       <input ref={input} type="text" value={words} maxLength={8000} placeholder={t('task.placeholder', { name })} aria-label={t('task.label', { name })} aria-describedby={empty ? 'svc-task-empty' : undefined} onChange={(e) => { setWords(e.target.value); setEmpty(false); }} />
       <button type="submit" className="btn btn-sm btn-primary">{t('task.send')}</button>
+      <button type="button" className="btn btn-sm" title={t('task.board.hint', { name })} onClick={() => send('board')}>{t('task.board')}</button>
       {empty && <span id="svc-task-empty" className="meta" role="status">{t('task.empty')}</span>}
     </form>
   );
