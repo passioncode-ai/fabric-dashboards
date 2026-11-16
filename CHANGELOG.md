@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.8.134 - 2026-11-16
+
+### Changed
+
+- FD-247 step 10: Open here and End for a session on another machine go through this Mac's Switchboard
+  (`attach --target`, `sessions end --target`, Switchboard 0.7.98), with that machine's program and data folder from
+  `targets`; a Switchboard that cannot keeps the app's own ssh. A refusal from Switchboard shows as its sentence.
+
 ## 0.8.133 - 2026-11-16
 
 ### Internal
