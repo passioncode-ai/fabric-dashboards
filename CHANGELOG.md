@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.8.138 - 2026-11-16
+
+### Added
+
+- FD-276 (P-03): `main.log` records when a quit begins (with the commands, consoles and limit continues it waits for)
+  and when the process ends, so the minutes an update install leaves without monitoring can be told apart: this app's
+  own quit, or the installer's work.
+
 ## 0.8.137 - 2026-11-16
 
 ### Fixed
