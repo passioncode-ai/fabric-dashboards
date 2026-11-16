@@ -3,7 +3,7 @@
 // docs/reference/cli.md "Setup and doctor") and shows its lines. The launcher is pinned: a check the person
 // presses never runs code the app did not name. It is never run with `--fix` and never polled: the person
 // presses the button, and the last result is kept until the next press.
-export const DOCTOR_PIN = '0.2.75';
+export const DOCTOR_PIN = '0.2.78';
 export const DOCTOR_TIMEOUT_MS = 120_000;
 // FD-212: `memory` (the launcher's PC-178, after 0.2.76: the agents' wiki memory); `other` holds a check of an area this
 // version does not know yet, so a failing check is never dropped from a report whose `ok` it made false.

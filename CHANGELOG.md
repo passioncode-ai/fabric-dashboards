@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.8.147 - 2026-11-16
+
+### Changed
+
+- FD-215: Check setup runs the PassionCode launcher 0.2.78 (was 0.2.75), which no longer reads a folder of skills as a
+  coding agent, so a Mac with obsidian-wiki stops showing Codex and Gemini rows that never clear.
+
 ## 0.8.146 - 2026-11-16
 
 ### Added
