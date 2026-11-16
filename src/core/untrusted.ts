@@ -75,6 +75,10 @@ const SIGNALS: readonly [string, RegExp][] = [
   ['secret-exfiltration', /\b(print|send|post|upload|reveal|show|echo|paste)\s+(?!\/)[^.\n]{0,30}\b(your|all|every)\s+(tokens?|secrets?|api[ _-]?keys?|passwords?|credentials)\b[^.\n]{0,30}(\bto (me|us)\b|\bto https?:\/\/|\bhere\b|\bin (the|your) (reply|answer|chat|output)\b)|\b(print|send|post|upload|reveal|cat|paste)\s+(?!\/)[^.\n]{0,30}(\.env\b|id[ _]rsa|id[ _]ed25519)/i],
   // FD-236 (14): a private key read alone (a reader of `~/.ssh/id_rsa`) is an exfiltration's first step; a public key is not.
   ['secret-exfiltration', /\b(cat|less|more|head|tail|base64|xxd)\s+(-\S{1,20}\s+){0,4}["']?[^\s"']{0,80}\bid[ _-](rsa|dsa|ecdsa|ed25519)(?![\w.-]*\.pub)\b/i],
+  // FD-236 (9): more forms of running what a download says, and of destroying or sending the home folder.
+  ['pipe-to-shell', /\b(ba|z)?sh\s+<\(\s*(curl|wget)\b|\beval\s+["']?\$\(\s*(curl|wget)\b|\b(curl|wget)\b[^\n|]{0,200}\|\s*(sudo\s+)?(python3?|node|perl|ruby)\b/i],
+  ['destructive-command', /\brm\s+(-[a-z]{1,4}\s+){2,3}["']?(~\/?|\$\{?HOME\}?\/?|\/)\*?["']?(\s|$|[`'"\];])|\bfind\s+["']?(~\/?|\$\{?HOME\}?\/?|\/)["']?\s+(\S+\s+){0,6}-delete\b/i],
+  ['secret-exfiltration', /\b(scp|rsync)\s+(-\S{1,20}\s+){0,4}[^\s]{0,40}\.ssh\b[^\s]*\s+\S+:|\bcurl\b[^\n]{0,120}\s-F\s*["']?[\w.-]+=@[^\s"']{0,60}\.ssh\b|\bnc\s+[^\n<]{0,60}<\s*[^\s]{0,40}\.ssh\b/i],
   ['fence-marker', /<\s*(\/\s*)?untrusted[-_\s\u2010-\u2015]{0,8}d[a\u0430]t[a\u0430]|&lt;\s*(\/\s*)?untrusted|&#(60|x3c);\s*(\/\s*)?untrusted/iu],
 ];
 
