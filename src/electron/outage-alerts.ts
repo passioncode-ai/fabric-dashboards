@@ -8,7 +8,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { atomicWrite } from '../core/fsutil';
 import { callCapability } from '../core/mcp-client';
-import { askDelivered, askIdOf, chooseChannel, notifyArguments, sideOf, delivered, emptyOutageState, enqueueAsk, notifyChannelOf, observe, owed, owedAsks, watchedOf, type AlertMessage, type Ask, type OutageState, type Words } from '../core/outage-alerts';
+import { askDelivered, askIdOf, chooseChannel, HELD_RETRY_MS, heldRefusal, notifyArguments, sideOf, delivered, emptyOutageState, enqueueAsk, notifyChannelOf, observe, owed, owedAsks, watchedOf, type AlertMessage, type Ask, type OutageState, type Words } from '../core/outage-alerts';
 import { authHeaders, readTokenAsync } from '../core/probe';
 import type { AppStatus, ServiceSnapshot, Settings } from '../core/types';
 
@@ -24,6 +24,8 @@ export class OutageAlerts {
   private sending = false;
   /** When each outage message may be tried again (a failed try waits RETRY_MS). */
   private retryAt = new Map<string, number>();
+  /** FD-287: messages the channel refused with a code, and that code; each said once in the log. */
+  private held = new Map<string, string>();
   private last: NonNullable<AppStatus['alerts']>['last'];
 
   constructor(private readonly o: {
@@ -115,7 +117,8 @@ export class OutageAlerts {
     const services = this.o.snapshots();
     const chosen = chooseChannel(services, this.o.settings().notifications.channel);
     const candidates = services.map(notifyChannelOf).filter((c): c is NonNullable<typeof c> => Boolean(c)).map((c) => c.key);
-    const base = { candidates, ...(this.last ? { last: this.last } : {}) };
+    const held = [...new Set(this.held.values())];
+    const base = { candidates, ...(this.last ? { last: this.last } : {}), ...(this.held.size ? { held: { count: this.held.size, codes: held } } : {}) };
     return 'none' in chosen ? { channel: null, none: chosen.none, ...base } : { channel: { key: chosen.key, capability: chosen.capability }, ...base };
   }
 
@@ -133,9 +136,18 @@ export class OutageAlerts {
     await callCapability({ origin: channel.origin, path: channel.path, headers }, channel.capability, notifyArguments(msg), this.o.version);
   }
 
+  /** A failed send waits a minute; one the channel refused with a code waits an hour and is logged once (FD-287). */
   private failed(msg: AlertMessage, via: string, error: unknown): void {
     const text = (error as Error).message.replace(/\s+/g, ' ').slice(0, 300);
-    this.o.log(`alerts: ${msg.eventId} not delivered via ${via}: ${text}`);
+    const code = heldRefusal(text);
+    this.retryAt.set(msg.eventId, this.now() + (code ? HELD_RETRY_MS : RETRY_MS));
+    if (!code) {
+      this.held.delete(msg.eventId);
+      this.o.log(`alerts: ${msg.eventId} not delivered via ${via}: ${text}`);
+    } else if (this.held.get(msg.eventId) !== code) {
+      this.held.set(msg.eventId, code);
+      this.o.log(`alerts: ${msg.eventId} refused by ${via} (${code}); it waits an hour, said once: ${text}`);
+    }
     this.last = { at: new Date(this.now()).toISOString(), ok: false, subject: msg.subject, error: text };
   }
 
@@ -152,6 +164,8 @@ export class OutageAlerts {
         ...owed(this.state, now, this.o.words(), allowed),
         ...owedAsks(this.state, now, this.o.words(), allowed).map((a) => ({ ...a, step: 'ask' as const })),
       ];
+      const owedIds = new Set(due.map((d) => d.msg.eventId));
+      for (const id of [...this.held.keys()]) if (!owedIds.has(id)) this.held.delete(id);
       const outages = due.filter((d) => (this.retryAt.get(d.msg.eventId) ?? 0) <= now);
       more = due.length > outages.length;
       if (!outages.length) return;
@@ -179,7 +193,6 @@ export class OutageAlerts {
           await this.deliver(channel, d.msg);
           failures = 0;
         } catch (error) {
-          this.retryAt.set(d.msg.eventId, this.now() + RETRY_MS);
           this.failed(d.msg, channel.key, error);
           more = true;
           if (++failures >= 3) return;
@@ -187,6 +200,7 @@ export class OutageAlerts {
         }
         this.save(d.step === 'ask' ? askDelivered(this.state, d.id) : delivered(this.state, d.id, d.step));
         this.retryAt.delete(d.msg.eventId);
+        this.held.delete(d.msg.eventId);
         this.o.log(`alerts: sent ${d.msg.kind} ${d.msg.eventId} via ${channel.key}`);
         this.last = { at: new Date(this.now()).toISOString(), ok: true, subject: d.msg.subject };
       }

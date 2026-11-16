@@ -3,9 +3,13 @@
 // one case once, no routine.
 import assert from 'node:assert/strict';
 import http from 'node:http';
+import path from 'node:path';
+import os from 'node:os';
+import fs from 'node:fs';
 import test from 'node:test';
 import { callCapability, rpcResult } from '../src/core/mcp-client';
-import { chooseChannel, notifyArguments, PERSONAL_SIDE, sideOf, delivered, emptyOutageState, notifyChannelOf, observe, OUTAGE_ALERT_AFTER_MS, owed, type OutageState, type Watched, type Words } from '../src/core/outage-alerts';
+import { OutageAlerts } from '../src/electron/outage-alerts';
+import { chooseChannel, HELD_RETRY_MS, heldRefusal, notifyArguments, PERSONAL_SIDE, sideOf, delivered, emptyOutageState, notifyChannelOf, observe, OUTAGE_ALERT_AFTER_MS, owed, type OutageState, type Watched, type Words } from '../src/core/outage-alerts';
 import { merge } from '../src/core/settings';
 
 const words: Words = { down: (n) => `${n} is down`, failing: (n, s) => `${n}: ${s} is failing`, back: (n) => `${n} is back`, removed: (n) => `${n} was removed`, since: (m, r) => `For ${m} min: ${r}`, after: (m) => `Back after ${m} min.`, wasDown: (m, r) => `Was down ${m} min (${r})` };
@@ -286,4 +290,54 @@ test('FD-286: the channel gets only its contract\'s fields; a message\'s service
   assert.equal(args.subject.length, 160);
   assert.equal(args.text.length, 3500);
   assert.equal(args.eventId, 'outage:copy.default:0:back');
+});
+
+test('FD-287: a refusal with a code waits an hour and is logged once; others are retried every minute', async (t) => {
+  assert.equal(heldRefusal('relay_notify refused: invalid_event field side is not allowed'), 'invalid_event');
+  assert.equal(heldRefusal('relay_notify refused: invalid_event_id'), 'invalid_event_id');
+  assert.equal(heldRefusal('relay_notify answered HTTP 502'), null);
+  assert.equal(heldRefusal('connect ECONNREFUSED 127.0.0.1:1'), null);
+  assert.equal(heldRefusal('relay_notify refused: busy, try later'), null);
+
+  let refusal: string | null = 'invalid_event field side is not allowed';
+  let calls = 0;
+  const server = http.createServer((req, res) => {
+    let body = '';
+    req.on('data', (c) => { body += c; });
+    req.on('end', () => {
+      if (req.method === 'DELETE') { res.writeHead(204); res.end(); return; }
+      const msg = JSON.parse(body) as { id?: number; method: string };
+      if (msg.method === 'initialize') { res.writeHead(200, { 'Content-Type': 'application/json', 'Mcp-Session-Id': 's' }); res.end(JSON.stringify({ jsonrpc: '2.0', id: msg.id, result: {} })); return; }
+      if (!msg.id) { res.writeHead(202); res.end(); return; }
+      if (msg.method === 'tools/list') { res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ jsonrpc: '2.0', id: msg.id, result: { tools: [{ name: 'relay_notify' }] } })); return; }
+      calls++;
+      const result = refusal ? { isError: true, content: [{ type: 'text', text: refusal }] } : { content: [{ type: 'text', text: '{}' }] };
+      res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ jsonrpc: '2.0', id: msg.id, result }));
+    });
+  });
+  await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'fd-287-'));
+  let now = Date.parse('2026-11-16T12:00:00Z');
+  const lines: string[] = [];
+  const channel = { key: 'relay.default', state: 'ready', organization: null, descriptor: { origin: `http://127.0.0.1:${(server.address() as { port: number }).port}`, auth: {} }, wellKnown: { surfaces: { mcp: { transport: 'streamable-http', path: '/mcp', capabilities: ['relay.notify'] } } } };
+  const alerts = new OutageAlerts({
+    dataDir: dir, snapshots: () => [channel] as never, settings: () => merge({}), words: () => ({ down: (n) => n, failing: (n) => n, back: (n) => n, removed: (n) => n, since: () => '', after: () => '', wasDown: () => '' }),
+    nameOf: () => 'Copy', reasonOf: () => '', allowed: () => true, version: '0', log: (l) => lines.push(l), changed: () => {}, now: () => now,
+  });
+  t.after(() => { alerts.stop(); server.close(); fs.rmSync(dir, { recursive: true, force: true }); });
+  const settle = async (n: number) => { for (let i = 0; i < 100 && calls < n; i++) await new Promise((r) => setTimeout(r, 10)); await new Promise((r) => setTimeout(r, 30)); };
+  alerts.ask('copy.default', 'e1', { name: 'Copy', episode: 'ep', at: now, text: 'decide', link: null });
+  await settle(1);
+  assert.equal(calls, 1);
+  assert.equal(lines.filter((l) => l.includes('refused by relay.default (invalid_event)')).length, 1);
+  assert.deepEqual(alerts.status().held, { count: 1, codes: ['invalid_event'] });
+  now += 2 * 60_000; alerts.tick(); await settle(2);
+  assert.equal(calls, 1, 'not tried again within the hour');
+  now += HELD_RETRY_MS; alerts.tick(); await settle(2);
+  assert.equal(calls, 2, 'tried again after the hour');
+  assert.equal(lines.filter((l) => l.includes('refused by')).length, 1, 'the same refusal is said once');
+  refusal = null; now += HELD_RETRY_MS; alerts.tick(); await settle(3);
+  assert.equal(calls, 3);
+  assert.equal(alerts.status().held, undefined, 'a delivered message is no longer held');
+  assert.ok(lines.some((l) => l.startsWith('alerts: sent result')));
 });

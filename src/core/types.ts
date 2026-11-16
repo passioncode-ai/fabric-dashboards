@@ -273,7 +273,7 @@ export interface AppStatus {
   /** DEC-0157 UD-2: why the switch does not send: a shared earlier no, or a shared file that cannot be read. */
   analyticsHold?: 'earlier-no' | 'held' | null;
   /** FD-48: the operator channel outages go to, why there is none, and the last delivery. */
-  alerts?: { channel: { key: string; capability: string } | null; none?: 'off' | 'none-installed' | 'several' | 'chosen-gone' | 'chosen-unreachable'; candidates: string[]; last?: { at: string; ok: boolean; subject: string; error?: string } };
+  alerts?: { channel: { key: string; capability: string } | null; none?: 'off' | 'none-installed' | 'several' | 'chosen-gone' | 'chosen-unreachable'; candidates: string[]; last?: { at: string; ok: boolean; subject: string; error?: string }; held?: { count: number; codes: string[] } };
   // #region estate-update — docs: docs/adr/0018-estate-updates-from-inside-the-app.md#decision
   /** ADR-0018: what the estate watcher saw last — the contract clone vs the remote, consumer pins, skills. */
   estate: EstateStatus;
