@@ -7,6 +7,16 @@ Current release: **0.8.110** published 2026-11-15 09:04 UTC (0.8.111 next); earl
 order, their runs under way. 0.8.106 and 0.8.107 were never published (0.8.106's check failed on an unref'd timer in a
 test; both fold into 0.8.108).
 
+## 0.8.155: health reports are kept (2026-11-16)
+
+0.8.155 (FD-285 fix): `observe` (`src/core/outage-alerts.ts`) rebuilt the alerts state without `health`, so the 30 s
+tick erased what the health poller read; Switchboard 0.7.108 answers `warn` (`errors_today`) and the live
+`outage-alerts.json` held no `health`. Kept now (test/outage-alerts.test.ts *FD-285: a look at the services keeps the
+health book*). **0.8.149 to 0.8.155 are merged, untagged** (disk under 5 GB free). **First task for the next agent:** if
+`git ls-remote --tags origin v0.8.155` is empty, run `npm run test:e2e -- test/e2e/connections.test.ts` and on green
+push the annotated tag `v0.8.155` on main; after the install, check MCP `agent_health` lists `fabric-switchboard`.
+Then FD-291 step 2, FD-242.
+
 ## 0.8.154: other machines' sessions from Switchboard's sessions page (2026-11-16)
 
 0.8.154 (FD-291 step 1): another machine is read with `sessions --rows --target M` (SB-395, fabric-switchboard

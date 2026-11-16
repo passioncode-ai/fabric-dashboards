@@ -109,7 +109,8 @@ const minutes = (ms: number) => Math.max(1, Math.round(ms / 60_000));
 const unavailable = (state: string): boolean => state === 'down' || state === 'foreign' || state === 'foreign-user';
 
 export function observe(prev: OutageState, services: readonly Watched[], now: number): OutageState {
-  const state: OutageState = { baselines: { ...prev.baselines }, episodes: { ...prev.episodes }, ...(prev.asks ? { asks: pruneAsks(prev.asks, now) } : {}) };
+  // FD-285: the health book rides in the same state; a look at the services must carry it, or the 30 s tick erases it.
+  const state: OutageState = { baselines: { ...prev.baselines }, episodes: { ...prev.episodes }, ...(prev.asks ? { asks: pruneAsks(prev.asks, now) } : {}), ...(prev.health ? { health: prev.health } : {}) };
   const present = new Set(services.map((s) => s.key));
   for (const [key, ep] of Object.entries(state.episodes)) {
     if (!present.has(key) && ep.end === null) state.episodes[key] = { ...ep, end: now, removed: true };

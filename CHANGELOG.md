@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.8.155 - 2026-11-16
+
+### Fixed
+
+- FD-285: the agents' health reports (Switchboard's `agent-health/1`) were read every 5 minutes but forgotten within
+  30 seconds, because the look at the services rebuilt the alerts state without them; no health episode could open and
+  MCP `agent_health` answered nothing. The look now keeps them.
+
 ## 0.8.154 - 2026-11-16
 
 ### Added
