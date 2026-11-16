@@ -94,6 +94,8 @@ test('FD-78: Connections draws the chain and the worst state in it; a service wi
     await conn.locator('.conn-summary').getByText('Not answering').waitFor({ timeout: 40_000 });
     assert.match(await conn.locator('.conn-node', { hasText: 'Google Ads API' }).innerText(), /quota exhausted/, 'a failing part a declaration names marks that connection');
     await conn.getByText('ads.report').waitFor();
+    // FD-245: the middle card says where the agent is deployed.
+    await conn.locator('.conn-where').getByText(/On this (Mac|computer)/).waitFor();
     if (SHOTS) await page.screenshot({ path: path.join(SHOTS, '27-connections-chain.png') });
 
     // A connected agent opens on its own Connections tab, where Ads Manager is listed under Used by.

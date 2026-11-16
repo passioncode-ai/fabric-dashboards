@@ -112,3 +112,29 @@ test('FD-273 (DEC-0173, SCR-36): the facts a service declares, in the contract\'
   const card = agentFacts(declared({ access: { audience: 'operator' } }, { organization: acme }));
   assert.deepEqual(card.map((f) => f.label).slice(0, 3), ['facts.where', 'health.organization', 'facts.audience']);
 });
+
+test('FD-245: Connections names where an agent is deployed, whose it is, and each other copy with its own place', async () => {
+  const { deployment } = await import('../src/core/agent-facts');
+  const was = setWording('mac');
+  try {
+    const mine = { name: 'sshlg', label: 'sshlg', personal: true };
+    const org = { name: 'acme', label: 'Acme', personal: false };
+    const here = svc('writer.default', { organization: mine });
+    const cloud = svc('writer.cloud', { placement: 'remote', origin: 'https://writer.acme.workers.dev', organization: org, state: 'down' });
+    const studio = svc('writer.studio', { organization: mine, state: 'stopped', reasons: [{ code: 'reason.elsewhere', params: { machine: 'mac-studio' } }] });
+    const d = deployment(here, [here, cloud, studio]);
+    assert.equal(say('en', d.where), 'On this Mac');
+    assert.equal(say('en', d.organization!), t('en', 'facts.orgPersonal', { name: 'sshlg' }));
+    assert.deepEqual(d.copies.map((c) => c.key), ['writer.cloud', 'writer.studio']);
+    assert.equal(say('en', d.copies[0]!.where), t('en', 'where.cloud', { provider: 'Cloudflare', host: 'writer.acme.workers.dev' }));
+    assert.equal(d.copies[0]!.state, 'down');
+    // Another organization is named; the same one is not repeated on each copy.
+    assert.equal(say('en', d.copies[0]!.organization!), 'Acme');
+    assert.equal(d.copies[1]!.organization, null);
+    assert.equal(say('ru', d.copies[1]!.where), 'На mac-studio');
+    // One instance: no copies; no organization map read: no organization line.
+    const alone = deployment(svc('x.default'), [svc('x.default')]);
+    assert.deepEqual(alone.copies, []);
+    assert.equal(alone.organization, null);
+  } finally { setWording(was); }
+});

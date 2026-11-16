@@ -125,6 +125,21 @@ export function agentFacts(s: ServiceSnapshot, copies: readonly ServiceSnapshot[
   return out;
 }
 
+/** FD-245: the Connections tab's "Deployed" block: where this instance runs, whose it is, and each other copy of the same
+ *  product with its own place, state and (when it differs from this one's) organization. Read from what the app holds. */
+export interface Copy { key: string; state: ServiceSnapshot['state']; where: Words; organization: Words | null }
+export interface Deployment { where: Words; organization: Words | null; copies: Copy[] }
+export function deployment(s: ServiceSnapshot, members: readonly ServiceSnapshot[] = []): Deployment {
+  const own = s.organization?.name ?? null;
+  const copies = members.filter((c) => c.key !== s.key).map((c) => ({
+    key: c.key,
+    state: c.state,
+    where: whereWords(whereOf(c)),
+    organization: (c.organization?.name ?? null) !== own ? organizationWords(c) : null,
+  }));
+  return { where: whereWords(whereOf(s)), organization: organizationWords(s), copies };
+}
+
 /** The tooltip's lines after the name and state: where each copy runs, then the organization. */
 export function agentHint(s: ServiceSnapshot, members: readonly ServiceSnapshot[] = [s]): Words[] {
   const seen = new Set<string>();
