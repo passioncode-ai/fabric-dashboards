@@ -214,6 +214,15 @@ export function notifyArguments(msg: AlertMessage): { eventId: string; kind: Ale
   return { eventId: msg.eventId, kind: msg.kind, subject: msg.subject.slice(0, 160), text: msg.text.slice(0, 3500) };
 }
 
+/** FD-287: a refusal the channel names with a code (`invalid_event`, `invalid_event_id`) will not pass on a retry: the
+ *  same arguments go out again. It waits an hour instead of a minute, is said once, and a new version tries again at
+ *  once (the wait lives in memory). A refusal with no code, a network error or HTTP status is retried every minute. */
+export const HELD_RETRY_MS = 60 * 60_000;
+export function heldRefusal(error: string): string | null {
+  const m = /\brefused: .*?\b(invalid_[a-z_]+)\b/.exec(error);
+  return m ? m[1]! : null;
+}
+
 export const askIdOf = (serviceKey: string, eventId: string) => `ask:${serviceKey.slice(0, 80)}:${eventId.replace(/[^A-Za-z0-9._:-]/g, '_').slice(0, 72)}`;
 // #endregion operator-asks
 

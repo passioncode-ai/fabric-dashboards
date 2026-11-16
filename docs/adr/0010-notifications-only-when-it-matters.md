@@ -93,7 +93,11 @@ comes back; the shared service watcher in Fabric Dashboards sends it, not each s
   a missing channel or a restart loses nothing, and the first failure stops the round, so a recovery never comes
   before its failure. An outage that closed before its failure could be delivered (the channel itself was down) is
   told once afterwards: unavailable N minutes, why, and that it works again. A message the channel never takes is
-  given up a day after its episode closed. One eventId per episode and step (`outage:<key>:<start s>`, `…:back`,
+  given up a day after its episode closed. A refusal the channel names with a code (`invalid_event`,
+  `invalid_event_id`; FD-287, `heldRefusal`) cannot pass on a retry of the same arguments, so that message waits an
+  hour instead of a minute (`HELD_RETRY_MS`), is logged once per code, is tried at once after the app restarts (a new
+  version may send what the channel takes), and Settings → Notifications says how many wait and the code; every other
+  failure is retried every minute. One eventId per episode and step (`outage:<key>:<start s>`, `…:back`,
   with no `/` and at most 160 characters) makes a repeated try a single message.
 - **The call.** At most 15 s overall, an answer of at most 1 MB, the session closed after the call. The host and
   port come from the service's origin only.

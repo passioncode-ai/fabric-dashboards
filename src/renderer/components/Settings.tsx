@@ -508,6 +508,7 @@ function AlertChannel({ status, choice, onChoose }: { status: AppStatus; choice:
       <p className="meta">{t('settings.alerts.help')}</p>
       {/* Off, or nothing to send to, is a plain fact; a choice that is gone or does not answer needs the person. */}
       {a?.none && <p className={a.none === 'off' || a.none === 'none-installed' ? 'meta' : 'notice warning'} role="status">{t(`settings.alerts.none.${a.none}`)}</p>}
+      {a?.held && <p className="notice warning" role="status">{t('settings.alerts.held', { count: a.held.count, codes: a.held.codes.join(', ') })}</p>}
       {a?.last && <p className={a.last.ok ? 'meta' : 'meta state-down'} role="status">{a.last.ok ? t('settings.alerts.lastOk', { time: time(a.last.at), subject: a.last.subject }) : t('settings.alerts.lastFailed', { time: time(a.last.at), error: a.last.error ?? '' })}</p>}
     </div>
   );

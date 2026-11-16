@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.8.145 - 2026-11-16
+
+### Fixed
+
+- FD-287: a message the operator channel refuses with a code (`invalid_event`, `invalid_event_id`) is no longer retried
+  and logged every minute: it waits an hour, the log says it once, a restart tries it at once, and Settings →
+  Notifications shows how many messages wait and the channel's code.
+
 ## 0.8.144 - 2026-11-16
 
 ### Fixed
