@@ -7,6 +7,17 @@ Current release: **0.8.110** published 2026-11-15 09:04 UTC (0.8.111 next); earl
 order, their runs under way. 0.8.106 and 0.8.107 were never published (0.8.106's check failed on an unref'd timer in a
 test; both fold into 0.8.108).
 
+## After 0.8.155: three waits on other projects (2026-11-16, 22:30 UTC)
+
+0.8.155 is tagged (b181245, run 43969454632). Read on this Mac, nothing released: FD-291 step 2 (this Mac on
+`sessions --rows`) is held because Switchboard 0.7.109's page puts live, busy processes in `waiting` and offers
+`ready_to_continue` for stops with no transcript or that moved on; findings sent (board `ae53ce6f`, thread `5a5ab221`).
+FD-242's live count was refused by the pool (`admission_pool`, 22 live of a cap of 20). FD-217's rest and FD-290 wait on
+Switchboard SB-400 (`sessions continue --in-place --hosted`, board `771f8dd1`). FD-285 wave 2 is the organizations service's own
+row (target 2026-11-28, board `37276012`). **First task for the next agent:** confirm the v0.8.155 release
+published and the installed app took it, then MCP `agent_health` lists `fabric-switchboard`; then whichever wait cleared
+first (SB-400 published: FD-290; the page fixed: FD-291 step 2; a free pool slot: FD-242).
+
 ## 0.8.155: health reports are kept (2026-11-16)
 
 0.8.155 (FD-285 fix): `observe` (`src/core/outage-alerts.ts`) rebuilt the alerts state without `health`, so the 30 s
