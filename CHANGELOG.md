@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.8.143 - 2026-11-16
+
+### Changed
+
+- FD-284 (contract DEC-0177, DEC-0178): a connections declaration whose target URL carries a token as its user name
+  (`https://<token>@host/o/r.git`) is refused as a credential, so the Connections tab shows it as not declared; the
+  vendored session-handoff checker is re-copied from the contract.
+
 ## 0.8.142 - 2026-11-16
 
 ### Fixed

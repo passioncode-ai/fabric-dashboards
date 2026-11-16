@@ -49,3 +49,13 @@ test('DEC-0096 (CT-70): the contract\'s vectors read the same through the host\'
     if (c.expected.connections) assert.deepEqual(v.connections, c.expected.connections, `${c.name}: connections`);
   }
 });
+
+test('DEC-0177: a target URL whose user name is a token is a credential, so the declaration is not declared', () => {
+  const token = 'ghx' + 'a1B2c3D4e5'.repeat(4);
+  const v = connectionsOf(doc({ connections: [{ id: 'repo', kind: 'store', target: `https://${token}@git.example.com/o/r.git`, state: 'ok' }] }));
+  assert.equal(v.declared, false);
+  assert.equal(v.reported, true);
+  for (const target of ['https://git@git.example.com/o/r.git', `https://${'a'.repeat(45)}@git.example.com/o/r.git`, 'https://deploy-bot@git.example.com/o/r.git']) {
+    assert.equal(connectionsOf(doc({ connections: [{ id: 'repo', kind: 'store', target, state: 'ok' }] })).declared, true, target);
+  }
+});
