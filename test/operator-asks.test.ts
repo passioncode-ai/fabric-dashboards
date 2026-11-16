@@ -28,7 +28,7 @@ test('FD-125: an ask is queued once per event, the same question is not repeated
   assert.equal(enqueueAsk(s, id, ask(2_000)), s, 'the same event twice');
   assert.equal(enqueueAsk(s, 'ask:x:2', ask(1_000 + ASK_REPEAT_MS - 1)), s, 'the same question again within a day');
   const due = owedAsks(s, 5_000, words, () => true);
-  assert.deepEqual(due, [{ id, msg: { serviceKey: 'sshlg-growth.default', kind: 'result', eventId: id, subject: 'Growth waits for your decision', text: `A config draft waits for approval.\nOpen: ${LINK}` } }]);
+  assert.deepEqual(due, [{ id, msg: { serviceKey: 'sshlg-growth.default', side: 'personal', kind: 'result', eventId: id, subject: 'Growth waits for your decision', text: `A config draft waits for approval.\nOpen: ${LINK}` } }]);
   assert.deepEqual(owedAsks(s, 5_000, words, () => false), [], 'paused, quiet hours or a muted agent: it waits');
   s = askDelivered(s, id);
   assert.deepEqual(owedAsks(s, 5_000, words, () => true), []);

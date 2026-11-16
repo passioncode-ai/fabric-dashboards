@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.8.132 - 2026-11-16
+
+### Changed
+
+- FD-269: outage messages and the decisions agents wait for go only through a channel of the agent's own organization.
+  An organization with no channel of its own uses the operator's own channel; a channel of another organization never
+  carries them, and the operator's own agents never go through an organization's channel. A message for an agent that was
+  removed still goes to its organization's channel (ADR-0010, amendment 2026-11-16).
+
 ## 0.8.131 - 2026-11-16
 
 ### Fixed

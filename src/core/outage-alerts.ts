@@ -8,6 +8,7 @@
 // The state is the queue. An episode records what was DELIVERED (set only when the channel answered), so a failed
 // delivery, a missing channel or a restart never loses a message, a recovery never precedes its failure, and a
 // recovery is never sent for a failure nobody received.
+import type { Organization } from './organizations';
 import type { ServiceSnapshot, ServiceState } from './types';
 
 /** How long an outage lasts before it is sent (the banner keeps ADR-0008's one minute). FD-76: over 15 minutes. */
@@ -20,7 +21,8 @@ export const OUTAGE_GIVE_UP_MS = 24 * 60 * 60_000;
 
 /** One message to the operator channel; its eventId is the same on every retry, so it is delivered once. */
 /** `kind` is the channel's: `question` would need a reply binding it routes to a peer (FD-131), so an ask goes as `result`. */
-export interface AlertMessage { eventId: string; kind: 'failure' | 'recovery' | 'result'; subject: string; text: string; serviceKey: string }
+/** `side`: whose agent the message is about (FD-269, `sideOf`); it decides the channels that may carry it. */
+export interface AlertMessage { eventId: string; kind: 'failure' | 'recovery' | 'result'; subject: string; text: string; serviceKey: string; side: string }
 
 export interface Episode {
   start: number;
@@ -36,6 +38,8 @@ export interface Episode {
   removed?: boolean;
   failureDelivered: boolean;
   recoveryDelivered: boolean;
+  /** FD-269: whose agent it is, as last seen (a removed agent's recovery still goes to its own side's channel). */
+  side?: string;
 }
 
 /** What the watcher keeps across ticks and restarts (`outage-alerts.json` in the app's data). */
@@ -60,6 +64,8 @@ export interface Ask {
   /** The `fabric-dashboards://` link that opens the agent's page on the row's link, or null. */
   link: string | null;
   delivered: boolean;
+  /** FD-269: whose agent asks, when it asked. */
+  side?: string;
 }
 
 /** FD-125: a question already sent is not sent again for a day (ADR-0010's cooldown for `ask`). */
@@ -68,10 +74,10 @@ export const ASK_REPEAT_MS = 24 * 60 * 60_000;
 export const emptyOutageState = (): OutageState => ({ baselines: {}, episodes: {} });
 
 /** What the watcher needs of a service. */
-export interface Watched { key: string; name: string; state: ServiceState; startedAt: string | null; degraded: { source: string; reason: string; setup?: boolean }[]; reason: string }
+export interface Watched { key: string; name: string; state: ServiceState; startedAt: string | null; degraded: { source: string; reason: string; setup?: boolean }[]; reason: string; side?: string }
 
 export function watchedOf(s: ServiceSnapshot, name: string, reason: string): Watched {
-  return { key: s.key, name, state: s.state, startedAt: s.wellKnown?.process.startedAt ?? null, degraded: s.wellKnown?.degraded ?? [], reason };
+  return { key: s.key, name, state: s.state, startedAt: s.wellKnown?.process.startedAt ?? null, degraded: s.wellKnown?.degraded ?? [], reason, side: sideOf(s.organization) };
 }
 
 export interface Words {
@@ -124,9 +130,9 @@ export function observe(prev: OutageState, services: readonly Watched[], now: nu
       if (!ep || ep.end !== null) {
         // A closed episode that still owes its recovery keeps its own key until delivered; the new one starts now.
         if (ep && ep.end !== null) state.episodes[`${s.key}#${ep.start}`] = ep;
-        state.episodes[s.key] = { start: now, name: s.name, ...cause, clearSince: null, end: null, failureDelivered: false, recoveryDelivered: false };
+        state.episodes[s.key] = { start: now, name: s.name, ...cause, clearSince: null, end: null, failureDelivered: false, recoveryDelivered: false, ...(s.side ? { side: s.side } : {}) };
       } else {
-        state.episodes[s.key] = { ...ep, name: s.name, ...cause, clearSince: null };
+        state.episodes[s.key] = { ...ep, name: s.name, ...cause, clearSince: null, ...(s.side ? { side: s.side } : {}) };
       }
     } else if (ep && ep.end === null) {
       const clearSince = ep.clearSince ?? now;
@@ -161,14 +167,14 @@ export function owed(state: OutageState, now: number, words: Words, allowed: (ke
     if (ep.end === null) {
       // Only while it is unavailable now: an episode in its calm (clearSince set) is a service that is well again.
       if (!ep.failureDelivered && ep.clearSince === null && lasted >= OUTAGE_ALERT_AFTER_MS) {
-        out.push({ id, step: 'failure', msg: { serviceKey: key, kind: 'failure', eventId, subject: ep.cause === 'down' ? words.down(ep.name) : words.failing(ep.name, ep.source ?? '?'), text: words.since(minutes(lasted), ep.why) } });
+        out.push({ id, step: 'failure', msg: { serviceKey: key, side: ep.side ?? PERSONAL_SIDE, kind: 'failure', eventId, subject: ep.cause === 'down' ? words.down(ep.name) : words.failing(ep.name, ep.source ?? '?'), text: words.since(minutes(lasted), ep.why) } });
       }
       continue;
     }
     if (ep.recoveryDelivered) continue;
     const subject = ep.removed ? words.removed(ep.name) : words.back(ep.name);
-    if (ep.failureDelivered) out.push({ id, step: 'recovery', msg: { serviceKey: key, kind: 'recovery', eventId: `${eventId}:back`, subject, text: words.after(minutes(lasted)) } });
-    else if (lasted >= OUTAGE_ALERT_AFTER_MS) out.push({ id, step: 'recovery', msg: { serviceKey: key, kind: 'recovery', eventId: `${eventId}:back`, subject, text: words.wasDown(minutes(lasted), ep.why) } });
+    if (ep.failureDelivered) out.push({ id, step: 'recovery', msg: { serviceKey: key, side: ep.side ?? PERSONAL_SIDE, kind: 'recovery', eventId: `${eventId}:back`, subject, text: words.after(minutes(lasted)) } });
+    else if (lasted >= OUTAGE_ALERT_AFTER_MS) out.push({ id, step: 'recovery', msg: { serviceKey: key, side: ep.side ?? PERSONAL_SIDE, kind: 'recovery', eventId: `${eventId}:back`, subject, text: words.wasDown(minutes(lasted), ep.why) } });
   }
   return out;
 }
@@ -187,7 +193,7 @@ export function enqueueAsk(state: OutageState, eventId: string, ask: Omit<Ask, '
 export function owedAsks(state: OutageState, now: number, words: Words, allowed: (key: string) => boolean): { id: string; msg: AlertMessage }[] {
   return Object.entries(state.asks ?? {}).filter(([, a]) => !a.delivered && now - a.at <= OUTAGE_GIVE_UP_MS && allowed(a.serviceKey))
     .sort((x, y) => x[1].at - y[1].at)
-    .map(([id, a]) => ({ id, msg: { serviceKey: a.serviceKey, kind: 'result' as const, eventId: id, subject: words.ask ? words.ask(a.name) : a.name, text: a.link && words.open ? `${a.text}\n${words.open(a.link)}` : a.text } }));
+    .map(([id, a]) => ({ id, msg: { serviceKey: a.serviceKey, side: a.side ?? PERSONAL_SIDE, kind: 'result' as const, eventId: id, subject: words.ask ? words.ask(a.name) : a.name, text: a.link && words.open ? `${a.text}\n${words.open(a.link)}` : a.text } }));
 }
 
 export function askDelivered(state: OutageState, id: string): OutageState {
@@ -223,13 +229,34 @@ export function notifyChannelOf(s: Pick<ServiceSnapshot, 'key' | 'state' | 'desc
 
 export type NoChannel = 'off' | 'none-installed' | 'several' | 'chosen-gone' | 'chosen-unreachable';
 
+// #region alert-sides — docs: docs/adr/0010-notifications-only-when-it-matters.md#amendment-2026-11-16-each-organizations-alerts-to-its-own-channel-fd-269
+/** FD-269 (FD-235 P1, security audit 2026-11-13): whose an agent or a channel is. An organization's name, or the
+ *  operator's own side for the personal organization and for anything not attributed (no map read, no organization). */
+export const PERSONAL_SIDE = 'personal';
+export function sideOf(org: Organization | null | undefined): string {
+  return org && !org.personal ? `org:${org.name}` : PERSONAL_SIDE;
+}
+// #endregion alert-sides
+
+type ChannelService = Pick<ServiceSnapshot, 'key' | 'state' | 'descriptor' | 'wellKnown' | 'organization'>;
+
 /** The channel the person chose: `auto` takes the one service that offers it (none, or several, is no channel). A
- *  chosen service that is installed but not answering is unreachable, not gone. */
-export function chooseChannel(services: readonly Pick<ServiceSnapshot, 'key' | 'state' | 'descriptor' | 'wellKnown'>[], choice: string): NonNullable<ReturnType<typeof notifyChannelOf>> | { none: NoChannel } {
+ *  chosen service that is installed but not answering is unreachable, not gone. FD-269: with `side`, only that side's
+ *  channels carry its messages, and an organization with none of its own falls back to the operator's own (the machine's
+ *  owner holds every organization here, FD-235's triage); a channel of another organization never carries them. */
+export function chooseChannel(services: readonly ChannelService[], choice: string, side: string = PERSONAL_SIDE): NonNullable<ReturnType<typeof notifyChannelOf>> | { none: NoChannel } {
   if (choice === 'off') return { none: 'off' };
-  const offered = services.map(notifyChannelOf).filter((c): c is NonNullable<typeof c> => Boolean(c));
-  if (choice !== 'auto') return offered.find((c) => c.key === choice) ?? { none: services.some((s) => s.key === choice) ? 'chosen-unreachable' : 'chosen-gone' };
-  if (offered.length === 1) return offered[0]!;
-  return { none: offered.length ? 'several' : 'none-installed' };
+  const channelOf = (s: ChannelService) => { const c = notifyChannelOf(s); return c ? { c, side: sideOf(s.organization) } : null; };
+  const all = services.map(channelOf).filter((x): x is NonNullable<typeof x> => Boolean(x));
+  const own = all.filter((x) => x.side === side);
+  const usable = (own.length || side === PERSONAL_SIDE ? own : all.filter((x) => x.side === PERSONAL_SIDE)).map((x) => x.c);
+  if (choice !== 'auto') {
+    const chosen = usable.find((c) => c.key === choice);
+    if (chosen) return chosen;
+    // A chosen channel of another side: this side takes its own one, as `auto` would.
+    if (!all.some((x) => x.c.key === choice)) return { none: services.some((s) => s.key === choice) ? 'chosen-unreachable' : 'chosen-gone' };
+  }
+  if (usable.length === 1) return usable[0]!;
+  return { none: usable.length ? 'several' : 'none-installed' };
 }
 // #endregion outage-alerts

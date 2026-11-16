@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import http from 'node:http';
 import test from 'node:test';
 import { callCapability, rpcResult } from '../src/core/mcp-client';
-import { chooseChannel, delivered, emptyOutageState, notifyChannelOf, observe, OUTAGE_ALERT_AFTER_MS, owed, type OutageState, type Watched, type Words } from '../src/core/outage-alerts';
+import { chooseChannel, PERSONAL_SIDE, sideOf, delivered, emptyOutageState, notifyChannelOf, observe, OUTAGE_ALERT_AFTER_MS, owed, type OutageState, type Watched, type Words } from '../src/core/outage-alerts';
 import { merge } from '../src/core/settings';
 
 const words: Words = { down: (n) => `${n} is down`, failing: (n, s) => `${n}: ${s} is failing`, back: (n) => `${n} is back`, removed: (n) => `${n} was removed`, since: (m, r) => `For ${m} min: ${r}`, after: (m) => `Back after ${m} min.`, wasDown: (m, r) => `Was down ${m} min (${r})` };
@@ -235,4 +235,47 @@ test('Wave 4 C-06: a message the channel refuses waits for its own retry; the on
   alerts.stop();
   assert.equal(calls, 2, 'the round went on after the refusal');
   assert.equal(sent.length, 1, 'the second message was delivered');
+});
+
+test('FD-269: a message goes only through a channel of its agent\'s side; an organization without one falls back to the operator\'s own', () => {
+  const at = (key: string, org: { name: string; label: string; personal?: boolean } | null | undefined, caps = [`${key.split('.')[0]}.notify`]) =>
+    ({ key, state: 'ready' as const, organization: org, descriptor: { origin: 'http://127.0.0.1:47832' } as never, wellKnown: { surfaces: { mcp: { path: '/mcp', transport: 'streamable-http' as const, capabilities: caps } } } as never });
+  const mine = { name: 'me', label: 'Me', personal: true };
+  const acme = { name: 'acme', label: 'Acme' };
+  const beta = { name: 'beta', label: 'Beta' };
+  assert.equal(sideOf(mine), PERSONAL_SIDE);
+  assert.equal(sideOf(null), PERSONAL_SIDE, 'not attributed: the operator\'s side');
+  assert.equal(sideOf(undefined), PERSONAL_SIDE, 'no map read');
+  assert.equal(sideOf(acme), 'org:acme');
+  const personal = at('relay.default', mine);
+  const acmeChannel = at('acmebot.default', acme);
+  const betaChannel = at('betabot.default', beta);
+  const key = (c: unknown) => (c as { key?: string }).key ?? (c as { none: string }).none;
+  // Each side takes its own channel; the operator's agents never go through an organization's.
+  assert.equal(key(chooseChannel([personal, acmeChannel, betaChannel], 'auto', 'org:acme')), 'acmebot.default');
+  assert.equal(key(chooseChannel([personal, acmeChannel, betaChannel], 'auto', PERSONAL_SIDE)), 'relay.default');
+  assert.equal(key(chooseChannel([acmeChannel], 'auto', PERSONAL_SIDE)), 'none-installed', 'an organization\'s channel never carries the operator\'s agents');
+  // An organization with no channel of its own falls back to the operator's, never to another organization's.
+  assert.equal(key(chooseChannel([personal, betaChannel], 'auto', 'org:acme')), 'relay.default');
+  assert.equal(key(chooseChannel([betaChannel], 'auto', 'org:acme')), 'none-installed');
+  // The person's choice holds where it is one of the side's channels; a choice of another side's is not used for it.
+  assert.equal(key(chooseChannel([personal, acmeChannel], 'acmebot.default', 'org:acme')), 'acmebot.default');
+  assert.equal(key(chooseChannel([personal, acmeChannel], 'acmebot.default', PERSONAL_SIDE)), 'relay.default');
+  assert.equal(key(chooseChannel([personal, at('relay2.default', mine)], 'auto', 'org:acme')), 'several');
+  // Without a side, the operator's: one machine-wide channel as before.
+  assert.equal(key(chooseChannel([personal], 'auto')), 'relay.default');
+});
+
+test('FD-269: the side is kept with the episode, so a removed agent\'s recovery still names it', () => {
+  const words = { down: (n: string) => `${n} is down`, failing: (n: string) => `${n} fails`, back: (n: string) => `${n} is back`, removed: (n: string) => `${n} was removed`, since: () => 's', after: () => 'a', wasDown: () => 'w' } as unknown as Words;
+  const w = (state: 'ready' | 'down'): Watched => ({ key: 'a.default', name: 'A', state, startedAt: null, degraded: [], reason: 'r', side: 'org:acme' });
+  let st: OutageState = emptyOutageState();
+  st = observe(st, [w('down')], 0);
+  assert.equal(st.episodes['a.default']!.side, 'org:acme');
+  st = observe(st, [w('down')], OUTAGE_ALERT_AFTER_MS + 1);
+  const due = owed(st, OUTAGE_ALERT_AFTER_MS + 1, words, () => true);
+  assert.equal(due[0]!.msg.side, 'org:acme');
+  st = observe(delivered(st, due[0]!.id, 'failure'), [], OUTAGE_ALERT_AFTER_MS + 2);
+  const back = owed(st, OUTAGE_ALERT_AFTER_MS + 2, words, () => true);
+  assert.deepEqual(back.map((d) => [d.msg.kind, d.msg.side]), [['recovery', 'org:acme']]);
 });

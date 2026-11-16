@@ -172,3 +172,17 @@ marks a decision explicitly belongs to the contract (CT-150, Fabric CO-448), not
 (the channel's own check of each event), and refuses one without it (`question_binding_required`).
 The decision is taken on the agent's page the message links, so nothing waits for a reply in the channel.
 
+
+## Amendment 2026-11-16: each organization's alerts to its own channel (FD-269)
+
+**Context.** The agents database's security audit of 2026-11-13 (board `488c8dd7`, FD-235 P1) asked that outages and
+the operator's asks go only to the channel of the agent's own organization. Until now one channel served the machine.
+
+**Decision.** Every message names its agent's side: its organization (Project Observatory's map, FD-162), or the
+operator's own side for the personal organization and for an agent the map does not attribute. A message goes only
+through a channel of its side (`chooseChannel(services, choice, side)`, `src/core/outage-alerts.ts`). An organization
+with no channel of its own falls back to the operator's own channel, since the machine's owner holds every organization
+here (the same reading that declined P6 in FD-235's triage); a channel of another organization never carries it. The
+person's channel choice applies where it is one of the side's channels; a side whose channels are several, or none,
+waits, and the log names the side. The side is kept with the episode and the ask, so a removed agent's recovery still
+goes to its own side.
