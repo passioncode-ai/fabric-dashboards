@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.8.146 - 2026-11-16
+
+### Added
+
+- FD-288: a session stopped on a limit that this computer cannot carry yet (too little disk, no swap, the console cap
+  or Switchboard's machine limit) says so on its row and page in Sessions, with the time it is tried again, instead of
+  only in the log.
+
 ## 0.8.145 - 2026-11-16
 
 ### Fixed
