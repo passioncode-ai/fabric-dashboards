@@ -7,6 +7,14 @@ Current release: **0.8.110** published 2026-11-15 09:04 UTC (0.8.111 next); earl
 order, their runs under way. 0.8.106 and 0.8.107 were never published (0.8.106's check failed on an unref'd timer in a
 test; both fold into 0.8.108).
 
+## 0.8.156: lookalike letters in instruction-like text (2026-11-17)
+
+0.8.155 published (run 43969454632, 16 assets) and this Mac updated to it. 0.8.156 closes FD-236 (9)'s lookalikes in
+`src/core/untrusted.ts` (`skeletons`): mixed-alphabet words and digits standing for letters are read too; numbers and
+one-alphabet words are not. Checks: `npm run check` 1417 pass; a 1.2 MB text reads in 35 ms. Waits unchanged from the
+entry below (FD-291 step 2, FD-290 on SB-400, FD-242 on a free pool slot). **First task for the next agent:** confirm the
+v0.8.156 release and the install, then MCP `agent_health` lists `fabric-switchboard`.
+
 ## After 0.8.155: three waits on other projects (2026-11-16, 22:30 UTC)
 
 0.8.155 is tagged (b181245, run 43969454632). Read on this Mac, nothing released: FD-291 step 2 (this Mac on

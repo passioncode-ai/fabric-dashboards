@@ -30,6 +30,50 @@ const fold = (text: string) => text.normalize('NFKC').replace(/\p{Default_Ignora
  *  `spaced` then splits glued words (`camelCase`) and joins runs of space, on a part already cut to the window. */
 const folded = (text: string) => text.normalize('NFKC').slice(0, READ_RAW_MAX).replace(/[\p{Default_Ignorable_Code_Point}_]/gu, ' ');
 const spaced = (part: string) => part.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/\s+/g, ' ');
+
+// FD-236 (9): lookalikes the NFKC fold keeps. A word that mixes Latin and Cyrillic (or Greek) letters is read in the
+// script most of its letters use, and a lone digit inside a word (`ign0re`, `a11`) as the letter it stands for; `1` is
+// read both as `i` and as `l`. Whole numbers (`401`, `sha256`, `ed25519`) and words in one script are left as they are,
+// so a Russian line stays Russian. Every swap is one character for one: the read window keeps its length.
+const TO_LATIN: Record<string, string> = {
+  а: 'a', е: 'e', о: 'o', р: 'p', с: 'c', у: 'y', х: 'x', і: 'i', ј: 'j', ѕ: 's', ԁ: 'd', һ: 'h', ӏ: 'l', ԛ: 'q', ԝ: 'w', к: 'k',
+  А: 'A', В: 'B', Е: 'E', К: 'K', М: 'M', Н: 'H', О: 'O', Р: 'P', С: 'C', Т: 'T', Х: 'X', У: 'Y', І: 'I', Ј: 'J', Ѕ: 'S',
+  α: 'a', ε: 'e', ι: 'i', κ: 'k', ν: 'v', ο: 'o', ρ: 'p', υ: 'u', χ: 'x',
+  Α: 'A', Β: 'B', Ε: 'E', Ζ: 'Z', Η: 'H', Ι: 'I', Κ: 'K', Μ: 'M', Ν: 'N', Ο: 'O', Ρ: 'P', Τ: 'T', Υ: 'Y', Χ: 'X',
+};
+const TO_CYRILLIC: Record<string, string> = {
+  a: 'а', e: 'е', o: 'о', p: 'р', c: 'с', y: 'у', x: 'х', k: 'к',
+  A: 'А', B: 'В', E: 'Е', K: 'К', M: 'М', H: 'Н', O: 'О', P: 'Р', C: 'С', T: 'Т', X: 'Х',
+};
+const DIGIT_AS: Record<string, string> = { '0': 'o', '3': 'e', '4': 'a', '5': 's', '7': 't' };
+const WORD = /[\p{L}\p{N}]+/gu;
+/** The readings of one part besides itself: none when no word mixes scripts or hides a letter behind a digit. */
+function skeletons(part: string): string[] {
+  let changed = false;
+  let one = false;
+  const swap = (oneAs: string) => part.replace(WORD, (word) => {
+    const latin = (word.match(/[A-Za-z]/g) ?? []).length;
+    const greek = (word.match(/[\u0370-\u03ff]/g) ?? []).length;
+    const cyrillic = (word.match(/[\u0400-\u04ff]/g) ?? []).length;
+    let out = word;
+    // Greek letters read as Latin (no Russian word uses them); Cyrillic as Latin only when Latin letters outnumber it.
+    if ((latin && (greek || cyrillic)) || (greek && cyrillic)) {
+      const toLatin = latin + greek >= cyrillic;
+      out = [...out].map((c) => (toLatin ? TO_LATIN[c] : TO_CYRILLIC[c]) ?? c).join('');
+    }
+    // A run of at most two lookalike digits beside a letter stands for letters; any other digit run is a number.
+    if (latin + greek + cyrillic) out = out.replace(/(?<!\p{N})\p{N}+(?!\p{N})/gu, (run: string, at: number, w: string) => {
+      const near = /\p{L}/u.test(w[at - 1] ?? '') || /\p{L}/u.test(w[at + run.length] ?? '');
+      if (!near || run.length > 2 || !/^[013457]+$/.test(run)) return run;
+      return run.replace(/[013457]/g, (d) => (d === '1' ? ((one = true), oneAs) : DIGIT_AS[d]!));
+    });
+    if (out !== word) changed = true;
+    return out;
+  });
+  const first = swap('i');
+  if (!changed) return [];
+  return one ? [first, swap('l')] : [first];
+}
 /** A fence marker in any spacing, case or dash: `<untrusted-data`, `< / UNTRUSTED_data`, `</untrusted‐data`. Linear:
  *  no two quantifiers can split the same run of characters. */
 const MARKER = /<\s*(\/\s*)?untrusted[-_\s\u2010-\u2015]{0,8}d[a\u0430]t[a\u0430]/giu;
@@ -95,7 +139,7 @@ export function injectionSignals(texts: readonly (string | null | undefined)[]):
     // FD-234 (verifier round 8): past the first READ_RAW_MAX the end of the text itself is read too.
     // Folding can grow a short text 18 times and cut it; the end of the text itself is read whenever there is more.
     if (text.length > READ_MAX || flat.length > READ_WHOLE) parts.push(folded(text.slice(-READ_MAX)));
-    for (const part of parts.map(spaced)) for (const [name, re] of SIGNALS) if (re.test(part)) found.add(name);
+    for (const part of parts.map(spaced)) for (const reading of [part, ...skeletons(part)]) for (const [name, re] of SIGNALS) if (re.test(reading)) found.add(name);
   }
   return [...found];
 }
