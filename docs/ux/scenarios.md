@@ -1543,7 +1543,7 @@ first release (`FD_TEST_LANG=ru` walks the Russian interface in a development ru
 - **Entry point:** Settings → Setup → "Check setup", or the setup card on Overview
 - **Preconditions:** none; Node.js 18 or later is needed for the check itself
 - **Steps:**
-  1. User presses "Check setup" -> "Checking… this can take up to two minutes." while the app runs the PassionCode launcher's read-only `doctor` at a pinned version (`npx --yes @passioncode-ai/passioncode@0.2.75 doctor --json`, no shell, two-minute cap)
+  1. User presses "Check setup" -> "Checking… this can take up to two minutes." while the app runs the PassionCode launcher's read-only `doctor` at a pinned version (`npx --yes @passioncode-ai/passioncode@0.2.78 doctor --json`, no shell, two-minute cap)
   2. The check ends -> one line: "Failing: <n> · Warnings: <n> · OK: <n> · checked at HH:MM"; below it "Setup steps": one numbered line per area in the launcher's order with Done, Worth a look or To do, the first not done marked Next, each not done with the check that holds it (FD-184); then, folded under "Everything the check found (<n>)", every failing and warning check, grouped by area (Prerequisites, Skills, Apps, MCP servers, Services), an area with a failure first and failures first within it, each with its own words and "Fix:" followed by the launcher's fix
   3. User presses "Fix with my coding agent" -> the Setup console opens beside Overview; its brief starts with what the check found, failures first, each with its fix
 - **Expected result:** the person sees in one place what is not set up on this computer and hands the repair to their coding agent; the app runs no repair itself
