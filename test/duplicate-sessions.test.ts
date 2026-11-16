@@ -33,3 +33,14 @@ test('FD-277: a Switchboard that lists close-copy in `sessions --help` closes co
   assert.equal(takesCloseCopy('Commands:\n  end         End a session\n  close-copy  Close the quiet one of two processes\n'), true);
   assert.equal(takesCloseCopy('Commands:\n  end         End a session\n'), false);
 });
+
+test('FD-277 (Switchboard 0.7.100): the copy to close is read; an older one goes by its pid, none when both answer', () => {
+  const read = parseDuplicates(JSON.stringify({ ok: true, data: { items: [
+    { reason: 'session_duplicate', session_id: ID, label: 'a', pids: [1, 2], close: { pid: 2, why: 'older', command_age: 3 } },
+    { reason: 'session_duplicate', session_id: '9fa1b537-4952-4856-a40a-31a2ffed77c3', label: 'b', pids: [3, 4], close: null },
+    { reason: 'session_duplicate', session_id: 'afa1b537-4952-4856-a40a-31a2ffed77c3', label: 'c', pids: [5, 6], close: { pid: 'x', why: 'older' } },
+  ] } }))!;
+  assert.deepEqual(read.map((d) => d.close), [{ pid: 2, why: 'older' }, null, undefined]);
+  assert.deepEqual(closeCopyArgv('/sb', ID, 2), ['/sb', '--json', 'sessions', 'close-copy', ID, '--pid', '2']);
+  assert.deepEqual(parseCloseCopy(1, JSON.stringify({ ok: false, code: 'COPY_BUSY' }), ''), { ok: false, why: 'all-working' });
+});

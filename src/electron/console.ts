@@ -1265,13 +1265,17 @@ export class ConsoleHost {
   /** FD-277: Close the quiet copy, for a session the list shows running twice; Switchboard picks the copy. */
   async closeCopy(sessionId: string): Promise<CloseCopyResult> {
     const sb = (await this.inventory()).switchboard;
-    const argv = sb && this.duplicates.some((d) => d.sessionId === sessionId) ? closeCopyArgv(sb, sessionId) : null;
+    const d = this.duplicates.find((x) => x.sessionId === sessionId);
+    // Both copies answer (Switchboard 0.7.100 `close: null`): none may be closed, so nothing is asked.
+    if (d?.close === null) return { ok: false, why: 'all-working' };
+    const argv = sb && d ? closeCopyArgv(sb, sessionId, d.close?.why === 'older' ? d.close.pid : null) : null;
     if (!argv) return { ok: false, why: 'not-two' };
     const [file, ...args] = argv;
     const r = await this.run(file!, args, 30_000).catch((error: Error) => ({ code: 1, stdout: '', stderr: error.message }));
     const result = parseCloseCopy(r.code, r.stdout, r.stderr);
     this.o.log(`console: session ${sessionId.slice(0, 8)} ran twice: ${result.ok ? `closed the quiet copy${result.closedPid ? ` (pid ${result.closedPid})` : ''}` : `not closed (${result.why})`}`);
-    await this.pollDuplicates(true);
+    // The answer goes back at once; the list is read again beside it, so the warning goes at the next push.
+    void this.pollDuplicates(true);
     return result;
   }
   // #endregion duplicate-sessions

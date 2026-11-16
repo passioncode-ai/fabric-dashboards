@@ -4,8 +4,10 @@
 // is never closed. The Sessions page shows each one with that button; the closing is Switchboard's.
 // #region duplicate-sessions — docs: docs/ux/scenarios.md#scn-118-close-the-quiet-copy-of-a-session-that-runs-twice
 
-/** One session running twice: its id, the label Switchboard gives it (its folder's name) and the processes. */
-export interface DuplicateSession { sessionId: string; label: string; pids: number[] }
+/** One session running twice: its id, the label Switchboard gives it (its folder's name) and the processes. `close`
+ *  (Switchboard 0.7.100): the copy it would close and why (`quiet`, or `older` when both work, closed by its pid), or
+ *  null when both copies answer and none may be closed; absent from an older Switchboard, which picks the quiet copy. */
+export interface DuplicateSession { sessionId: string; label: string; pids: number[]; close?: { pid: number; why: 'quiet' | 'older' } | null }
 
 /** A session id as Claude Code writes it; only such an id reaches `close-copy`. */
 export const SESSION_ID = /^[A-Za-z0-9][A-Za-z0-9-]{7,63}$/;
@@ -26,13 +28,17 @@ export function parseDuplicates(stdout: string): DuplicateSession[] | null {
     if (!it || it.reason !== 'session_duplicate' || typeof it.session_id !== 'string' || !SESSION_ID.test(it.session_id)) continue;
     const pids = Array.isArray(it.pids) ? it.pids.filter((p): p is number => Number.isInteger(p) && (p as number) > 0) : [];
     const label = typeof it.label === 'string' && it.label.trim() ? it.label.trim().slice(0, 120) : it.session_id.slice(0, 8);
-    if (!out.some((d) => d.sessionId === it.session_id)) out.push({ sessionId: it.session_id, label, pids });
+    const c = it.close as { pid?: unknown; why?: unknown } | null | undefined;
+    const close = c === null ? null : c && Number.isInteger(c.pid) && (c.pid as number) > 0 && (c.why === 'quiet' || c.why === 'older') ? { pid: c.pid as number, why: c.why as 'quiet' | 'older' } : undefined;
+    if (!out.some((d) => d.sessionId === it.session_id)) out.push({ sessionId: it.session_id, label, pids, ...(close !== undefined ? { close } : {}) });
   }
   return out;
 }
 
-export function closeCopyArgv(switchboard: string, sessionId: string): string[] | null {
-  return SESSION_ID.test(sessionId) ? [switchboard, '--json', 'sessions', 'close-copy', sessionId] : null;
+/** `--pid` only for the copy Switchboard named as the older one (0.7.100); an older Switchboard takes no `--pid`. */
+export function closeCopyArgv(switchboard: string, sessionId: string, pid: number | null = null): string[] | null {
+  if (!SESSION_ID.test(sessionId)) return null;
+  return [switchboard, '--json', 'sessions', 'close-copy', sessionId, ...(pid !== null && Number.isInteger(pid) && pid > 0 ? ['--pid', String(pid)] : [])];
 }
 
 /** What closing a copy answered: the process closed, or why none was (`not-two`: it no longer runs twice;
@@ -46,7 +52,7 @@ export function parseCloseCopy(code: number, stdout: string, stderr: string): Cl
   const text = `${typeof doc?.code === 'string' ? doc.code : ''} ${typeof doc?.error === 'string' ? doc.error : ''} ${stderr}`;
   if (code === 0 && (!doc || doc.ok !== false)) return { ok: true, closedPid: typeof data?.closed_pid === 'number' ? data.closed_pid : null };
   if (/NOT_TWO/.test(text)) return { ok: false, why: 'not-two' };
-  if (/ALL_WORKING/.test(text)) return { ok: false, why: 'all-working' };
+  if (/ALL_WORKING|COPY_BUSY/.test(text)) return { ok: false, why: 'all-working' };
   const said = typeof doc?.error === 'string' ? doc.error : (stderr || stdout).trim();
   return { ok: false, why: 'failed', detail: said.slice(0, 200) || `exit ${code}` };
 }

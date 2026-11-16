@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.8.140 - 2026-11-16
+
+### Changed
+
+- FD-277: with Switchboard 0.7.100, Close the quiet copy closes the copy Switchboard names: the older of two working
+  copies by its process id, and when both copies answer the warning says nothing can be closed instead of offering the
+  button. An older Switchboard picks the quiet copy, as before.
+- FD-277: the button's answer comes back as soon as Switchboard answers; the list is read again beside it (under load the
+  answer waited for that read).
+
 ## 0.8.139 - 2026-11-16
 
 ### Changed
