@@ -798,7 +798,7 @@
           {
             "document": "wellKnown",
             "field": "account",
-            "reason": "a local service's well-known document is read by every counted OS account on the computer; the label stays in its descriptor (IF-5)"
+            "reason": "a local service's well-known document is read by every counted OS account on the computer; the label stays in its descriptor (IF-4)"
           }
         ],
         "foreign": false,
@@ -1444,6 +1444,63 @@
       }
     },
     {
+      "name": "a dashboard login beside a well-known extension that fails its schema and a declared descriptor fact reads host-signin",
+      "descriptor": {
+        "protocol": "fabric-service/0.1",
+        "id": "notes",
+        "instance": "default",
+        "origin": "http://127.0.0.1:47910",
+        "extensions": {
+          "https://fabric.passioncode.ai/agent-contract/extensions/instance-facts/0.1": {
+            "tenancy": {
+              "mode": "single"
+            }
+          }
+        }
+      },
+      "wellKnown": {
+        "service": {
+          "id": "notes",
+          "instance": "default"
+        },
+        "extensions": {
+          "https://fabric.passioncode.ai/agent-contract/extensions/instance-facts/0.1": {
+            "access": {
+              "audience": "everyone"
+            }
+          }
+        },
+        "surfaces": {
+          "dashboard": {
+            "path": "/dashboard",
+            "login": true
+          },
+          "events": {
+            "path": "/events"
+          }
+        }
+      },
+      "read": {
+        "declared": true,
+        "facts": {
+          "mode": "single",
+          "entry": "host-signin"
+        },
+        "refused": [],
+        "foreign": false,
+        "invalid": [
+          "wellKnown"
+        ]
+      },
+      "findings": {
+        "descriptor": [],
+        "wellKnown": [
+          "FAC-SEM-180 /extensions/https:~1~1fabric.passioncode.ai~1agent-contract~1extensions~1instance-facts~10.1"
+        ],
+        "pair": []
+      }
+    },
+    {
       "name": "a credential-shaped label in a local well-known document: each reading reports its own problem",
       "descriptor": {
         "protocol": "fabric-service/0.1",
@@ -1474,7 +1531,7 @@
           {
             "document": "wellKnown",
             "field": "account",
-            "reason": "a local service's well-known document is read by every counted OS account on the computer; the label stays in its descriptor (IF-5)"
+            "reason": "a local service's well-known document is read by every counted OS account on the computer; the label stays in its descriptor (IF-4)"
           }
         ],
         "foreign": false,

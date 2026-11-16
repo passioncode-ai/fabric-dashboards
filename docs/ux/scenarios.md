@@ -2641,7 +2641,7 @@ The Sessions mode (0.8.0): every coding session apart from the agents, each stat
 - **UI elements:** the row's tooltip, the details card's list
 - **States covered:** success, empty (a bare descriptor)
 - **Errors & recovery:** an install date that is not a date is left out; a placement record that names no machine says "another machine"
-- **Coverage:** src/core/agent-facts.ts (whereOf, agentFacts, declaredFacts, agentHint), packages/service-host/src/instance-facts.ts (instanceFacts, the contract's 34 vectors in packages/service-host/test/instance-facts.test.ts), src/renderer/components/Navigation.tsx (ProductItem title), src/renderer/components/ServiceView.tsx (svc-where)
+- **Coverage:** src/core/agent-facts.ts (whereOf, agentFacts, declaredFacts, agentHint), packages/service-host/src/instance-facts.ts (instanceFacts, the contract's vectors in packages/service-host/test/instance-facts.test.ts), src/renderer/components/Navigation.tsx (ProductItem title), src/renderer/components/ServiceView.tsx (svc-where)
 - **Status:** implemented (2026-11-15, 0.8.120: `test/agent-facts.test.ts`); declared facts 2026-11-16, 0.8.130
 
 ### SCN-118: Close the quiet copy of a session that runs twice
