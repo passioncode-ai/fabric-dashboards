@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.8.156 - 2026-11-17
+
+### Fixed
+
+- FD-236 (9): the reading that keeps a console asking before it acts now sees an instruction spelled with letters from
+  another alphabet or with digits in place of letters inside a word (`іgnore` with a Cyrillic letter, `ign0re`,
+  `a11`, `nοw` with a Greek letter). A word that mixes alphabets is read in the one most of its letters use; numbers
+  such as `401`, `sha256` or `ed25519` and words in one alphabet, Russian ones included, are read as written. A text
+  of about a megabyte still reads in under 40 ms.
+
 ## 0.8.155 - 2026-11-16
 
 ### Fixed
