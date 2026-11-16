@@ -197,7 +197,9 @@ export class OutageAlerts {
         if ('none' in channel) { if (channel.none !== 'off') waiting.set(`${side} (${channel.none})`, (waiting.get(`${side} (${channel.none})`) ?? 0) + 1); continue; }
         out.push({ ...d, channel });
       }
-      if (waiting.size) { more = true; this.o.log(`alerts: message(s) wait: no channel for ${[...waiting].map(([k, n]) => `${n} of ${k}`).join(', ')}`); }
+      // FD-289: a channel is known from its service's well-known answer; before any service has answered (the first
+      // second after a start) the messages wait without a log line that says no channel exists.
+      if (waiting.size) { more = true; if (snapshots.some((s) => s.wellKnown)) this.o.log(`alerts: message(s) wait: no channel for ${[...waiting].map(([k, n]) => `${n} of ${k}`).join(', ')}`); }
       // Wave 4 (C-06): one message the channel refuses waits for its own retry, the ones behind it still go; three
       // failures in a row mean the channel itself is out, and the round ends there.
       let failures = 0;

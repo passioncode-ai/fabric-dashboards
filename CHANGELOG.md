@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.8.150 - 2026-11-16
+
+### Fixed
+
+- FD-289: in the first second after a start, before any agent has answered, `main.log` no longer says an operator
+  message waits for lack of a channel; the message waits silently and goes once the channel answers. The line is still
+  written when agents have answered and none offers a channel.
+
 ## 0.8.149 - 2026-11-16
 
 ### Added
