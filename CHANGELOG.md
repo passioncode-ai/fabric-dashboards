@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.8.137 - 2026-11-16
+
+### Fixed
+
+- FD-236 (9): the instruction reading of an agent's text also finds a download run through a process substitution or
+  `eval`, or piped to Python, Node, Perl or Ruby; `rm` with split flags or `find … -delete` on the home folder or `/`;
+  and `~/.ssh` sent with `scp`, `rsync`, `curl -F` or `nc`. Ordinary log lines beside them are still not read as one.
+
 ## 0.8.136 - 2026-11-16
 
 ### Fixed
