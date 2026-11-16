@@ -44,6 +44,20 @@ test('discovers a live service, opens its dashboard signed in, keeps one view, s
     assert.ok(logs.startsWith(path.join(base, 'app')), `a test run logs inside its own data, not the operator's (${logs})`);
     assert.ok(fs.readFileSync(path.join(logs, 'main.log'), 'utf8').includes(services), 'the start line names the test services dir');
 
+    // FD-276 (P-02): the window's page covered (Chromium's `visibilitychange`, sent by the preload) slows the monitor;
+    // seen again, it is live again. Another sender's word is ignored. Playwright keeps the page `visible`, so the
+    // page's message is played here as the preload sends it.
+    const seen = (visible: boolean, own = true) => app!.evaluate(({ BrowserWindow, ipcMain }, a) => {
+      const w = BrowserWindow.getAllWindows()[0]!;
+      ipcMain.emit('fd:page-visibility', { sender: a.own ? w.webContents : { id: -1 }, senderFrame: w.webContents.mainFrame }, a.visible);
+    }, { visible, own });
+    const sightLines = () => fs.readFileSync(path.join(logs, 'main.log'), 'utf8').split('\n').filter((l) => l.includes('(FD-276)'));
+    await seen(false, false);
+    await seen(false);
+    await seen(true);
+    await new Promise((r) => setTimeout(r, 300));
+    assert.deepEqual(sightLines().map((l) => /window (seen again|covered)/.exec(l)?.[1]), ['covered', 'seen again'], 'one line each way; the other sender changed nothing');
+
     // ADR-0016: what the agent is for, under its name, on the card and on its page; its tools there too.
     await page.locator('.card-summary').getByText('Sample fabric-service/0.1 service.').waitFor();
     await page.getByRole('button', { name: /Sample Service: Ready/ }).click();

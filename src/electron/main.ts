@@ -53,7 +53,7 @@ import { powerShellAfterExit } from '../core/after-exit';
 import { agentSettingsPatch, analyticsMaySend, rendererSettingsPatch, SettingsStore } from '../core/settings';
 import type { AppStatus, Settings, SettingsPatch } from '../core/types';
 import { ALWAYS_KEPT, cancelStagedUpdate, clearRestoreRecord, KEPT_FILES, productDataPaths, purgeAfterExit, readRestoreRecord, removeMcpRegistrations, repairMcpRegistrations, restoreMcpRegistrations, writeRestoreRecord } from '../core/uninstall';
-import { autoInstallNow, autoInstallWait, cookieRewrite, dockOnSync, inSight, LINK_FRONT_CHECK_MS, linkLeftBehind, moveSkip, OCCLUSION_PROBE_MS, offerMove, onScreen, resumeBehind, COOKIES_REENCRYPTED_MARKER, HiddenGrace, partitionFor, RELAUNCH_MARKER, relaunchHidden, RESUME_ROUTE_MARKER, resumeRoute, type ResumeRoute, stalePartitions, tryMove, UPDATE_IDLE_MS, VIEW_RELEASE_ALL_MS, VIEW_RELEASE_GRACE_MS, VISIBILITY_SYNC_MS, VisibilitySync, WARM_VIEWS } from './policy';
+import { autoInstallNow, autoInstallWait, cookieRewrite, dockOnSync, inSight, LINK_FRONT_CHECK_MS, monitorLive, PAGE_SIGHT_CHECK_MS, linkLeftBehind, moveSkip, OCCLUSION_PROBE_MS, offerMove, onScreen, resumeBehind, COOKIES_REENCRYPTED_MARKER, HiddenGrace, partitionFor, RELAUNCH_MARKER, relaunchHidden, RESUME_ROUTE_MARKER, resumeRoute, type ResumeRoute, stalePartitions, tryMove, UPDATE_IDLE_MS, VIEW_RELEASE_ALL_MS, VIEW_RELEASE_GRACE_MS, VISIBILITY_SYNC_MS, VisibilitySync, WARM_VIEWS } from './policy';
 import { AppTray } from './tray';
 import { DockSync } from './dock';
 import { linkInArgv, notificationSettingsUrl, places, startHidden, uninstallCommand, uninstallTarget, windowChrome } from '../core/platform';
@@ -445,7 +445,9 @@ if (!app.requestSingleInstanceLock()) {
   // FD-80: on screen and neither covered by other windows nor on another Space, from macOS's window list; read only
   // while an update waits for the window (`probeSight`), unknown otherwise.
   let occlusion: Sight | null = null;
-  const windowSeen = () => inSight(windowVisible(), occlusion);
+  // FD-276 (P-02): the window's page as Chromium sees it (covered by other windows, or on another Space, is unseen).
+  let pageSeen = true;
+  const windowSeen = () => inSight(windowVisible(), occlusion) && pageSeen;
   function pushStatus(): void {
     if (pushTimer) return;
     pushTimer = setTimeout(() => {
@@ -564,7 +566,12 @@ if (!app.requestSingleInstanceLock()) {
     if (busyRetry) { clearTimeout(busyRetry); busyRetry = null; }
     viewGrace.shown();
     viewGraceAll.shown();
-    monitor.setVisible(true);
+    monitor.setVisible(monitorLive(true, pageSeen));
+    // The page's own event says when it is seen; read it once in case none came (a window shown behind others sends none).
+    setTimeout(() => {
+      const w = window && !window.isDestroyed() ? window : null;
+      void w?.webContents.executeJavaScript('document.visibilityState').then((v: unknown) => seePage(v === 'visible'), () => undefined);
+    }, PAGE_SIGHT_CHECK_MS);
     pushStatus();
     void views?.resume((key) => monitor.snapshot(key)).then(() => views?.announce());
   }
@@ -594,6 +601,17 @@ if (!app.requestSingleInstanceLock()) {
   app.on('did-become-active', () => setTimeout(syncVisibility, 500));
   // FD-80: covering and uncovering the window fire no event either; only the update's grace follows it.
   const sight = new VisibilitySync(windowSeen, () => { updateGrace.shown(); if (busyRetry) { clearTimeout(busyRetry); busyRetry = null; } }, () => updateGrace.hidden(), false);
+  // #region page-sight — docs: AGENTS.md#lifecycle
+  function seePage(seen: boolean): void {
+    if (seen === pageSeen) return;
+    pageSeen = seen;
+    if (windowVisible()) {
+      monitor.setVisible(monitorLive(true, seen));
+      log(`window ${seen ? 'seen again' : 'covered by other windows or on another Space'}: the monitor follows (FD-276)`);
+    }
+    syncSight();
+  }
+  // #endregion page-sight
   const syncSight = () => { if (sight.sync() && windowVisible()) log(`window ${windowSeen() ? 'in sight again' : occlusion === 'off-screen' ? 'on another Space' : 'covered by other windows'} (FD-80)`); };
   // FD-80: the window list is read only while an update waits with the window on screen and installing by itself is
   // on: one osascript a minute (~0.1 s), never otherwise; anything else leaves the sight unknown, as before.
@@ -1143,6 +1161,7 @@ if (!app.requestSingleInstanceLock()) {
     ipcMain.handle(CHANNELS.organizationJoin, async (_e, link) => { const j = joinLink(typeof link === 'string' ? link : null); if (!j.ok) return j; await shell.openExternal(j.url); return { ok: true }; });
     ipcMain.handle(CHANNELS.locale, () => lang());
     ipcMain.handle(CHANNELS.uninstall, () => uninstall());
+    ipcMain.on(CHANNELS.pageVisibility, (e, seen: unknown) => { if (window && e.sender.id === window.webContents.id) seePage(seen === true); });
     ipcMain.on(CHANNELS.viewBounds, (_e, rect: Rect) => views?.setBounds(rect));
     // FD-92: the window's page sets the drawer; the drawer's page reports folds and heights to the window's page.
     ipcMain.on(CHANNELS.drawerState, (e, state: DrawerState) => { if (window && e.sender.id === window.webContents.id) drawer?.set(state); });

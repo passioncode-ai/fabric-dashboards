@@ -44,7 +44,7 @@
 Fabric Dashboards: a macOS desktop app (Electron) that finds every local agent service speaking
 `fabric-service/0.1`, shows whether it is alive and what it did last, starts, stops and restarts
 it through launchd and opens each service's dashboard inside the app. Fabric's monitoring tool;
-also works on its own. The current version is 0.8.128 (`package.json`, `CHANGELOG.md`); the README
+also works on its own. The current version is 0.8.129 (`package.json`, `CHANGELOG.md`); the README
 *Quick start for a new teammate* is the path for a new user. Licence:
 `AGPL-3.0-only OR LicenseRef-PassionCode-Commercial` ([ADR-0007](docs/adr/0007-agpl-or-commercial.md)).
 
@@ -202,6 +202,7 @@ due probe or rescan — no fixed 1-second poll — and one for the events feed:
 | Switchboard hand-overs (`switchboard --json handovers`, FD-62; only where Switchboard is installed) | every 15 s | every 60 s |
 | Switchboard's session list (`switchboard --json sessions --all`, FD-103, and `sessions --machine`, FD-231; same tick, one read of each in flight at most) | every 15 s | every 60 s |
 | Other machines' sessions (FD-247: `switchboard --json targets` at most every 10 min, then `switchboard --json sessions --all --target <machine>` per machine Switchboard names (FD-247 step 10, SB-380: this Mac's Switchboard runs the ssh; `sessions --help` read once to know it can), else `/usr/bin/ssh -T -n -o BatchMode=yes -o ConnectTimeout=5 <machine> '<switchboard there>' --json sessions --all`; only with Settings → Sessions → *Show sessions on other machines* on) | only while the Sessions mode is on screen: each machine once a minute, two ssh at most, 15 s deadline; a failing one after 1, 5, then 15 min | none |
+| A window covered by other windows, or on another Space (FD-276: Chromium's own page visibility, sent by the preload on each change, and read once 1.5 s after a show) | the monitor takes the hidden column below; the Dock, the views' graces and the status pushes stay as shown | same |
 | Window visibility check (FD-64: ⌘H fires no window event; one boolean, no spawn, no IPC; FD-127: a Dock hide that gave up is asked again on this pass, at most 3 times; FD-271: the Dock is compared with the window as it is, so a window hidden or shown with no event, as macOS does for a window that is not key, takes or gives back its icon on this pass) | 0.5 s after the app becomes or stops being active, plus every 15 s | same |
 | Status push to the window / tray rebuild / Dock badge | only when what a person can see changed | no IPC to a hidden window; tray and badge only when they would differ |
 | Activity writes | appended rows when events arrive; state debounced 2 s | same |

@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.8.129 - 2026-11-16
+
+### Changed
+
+- FD-276 (P-02): a window covered by other windows, or on another Space, reads its agents at the hidden cadence until it
+  is seen again. The page says so itself (Chromium's own visibility, sent on each change); the Dock icon, the open
+  dashboards and the window's updates stay as for a shown window. The wait for an automatic update install counts such a
+  window as out of sight too.
+
 ## 0.8.128 - 2026-11-16
 
 ### Changed
