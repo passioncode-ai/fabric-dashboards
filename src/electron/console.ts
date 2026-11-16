@@ -32,7 +32,7 @@ import { accountsOf, allSessionsOf, bindingFor, machineSessionsOf, findSwitchboa
 import type { ServiceSnapshot, Settings } from '../core/types';
 import { claudeConfigDirs, lastTranscriptWrite, STUCK_MS, stuckKeys } from '../core/stuck';
 import { claimStop, claudeSessionDirs, folderLive, liveSessionFolders, liveSessionIds, continuedLaunches, continuedOf, finishStop, liveAgents, recoveryOf, resumeArgs, resumeOwnKey, sessionOpen, transcriptIn, transcriptOf, verdictOf, writtenAt, RESUME_SETTLE_MS, RESUMES_PER_PASS, type RecoveryStatus, type SbStop, type StopView } from '../core/recovery';
-import { parseTargets, remoteAttachArgv, remoteEndArgv, RemoteSessions } from '../core/remote-sessions';
+import { parseTargets, remoteAttachArgv, remoteEndArgv, RemoteSessions, targetAttachArgv, targetEndArgv } from '../core/remote-sessions';
 import { attachOwnKey, consoleRowId, dropRemoteTwins, machineTerminalKey, handoverRowId, SAME_START_MS, mergeSessions, pruneDismissed, pruneRecords, SourceReader, stopRowId, type ConsoleInput, type PendingHandover, type SbMachineProcess, type SbSessionRecord, type SessionActionResult, type SessionReason, type SessionRecord, type SessionNotice, type SessionOrigin, type SessionRow, type SessionsStatus, type SourceDegraded, type SourceResult } from '../core/sessions';
 
 /** node-pty 1.1.0 ships its macOS `spawn-helper` without the executable bit, and its postinstall
@@ -1534,7 +1534,9 @@ export class ConsoleHost {
    *  `ssh -t <machine> <switchboard there> attach <launch>`; closing it only closes the view there. */
   private async attachRemote(row: SessionRow, launchId: string, size: { cols: number; rows: number }): Promise<SessionActionResult> {
     const target = this.remote.target(row.machine!);
-    const argv = target && remoteAttachArgv(target, launchId);
+    // FD-247 (step 10): through this Mac's Switchboard where it attaches on another machine itself; our ssh otherwise.
+    const via = this.remote.via();
+    const argv = target && (via?.doors.attach ? targetAttachArgv(via.switchboard, target, launchId) : remoteAttachArgv(target, launchId));
     if (!argv) return { ok: false, reason: 'not-allowed' };
     const key = attachOwnKey(`${target!.machine}:${launchId}`);
     if (this.manager.snapshot(key).state === 'running') return { ok: true, key };
@@ -1556,12 +1558,15 @@ export class ConsoleHost {
     const launchId = row.launch?.launchId;
     if (!row.actions.includes('end') || !launchId) return { ok: false, reason: 'not-allowed' };
     const target = this.remote.target(row.machine!);
-    const argv = target && remoteEndArgv(target, launchId);
+    const via = this.remote.via();
+    const argv = target && (via?.doors.end ? targetEndArgv(via.switchboard, target, launchId) : remoteEndArgv(target, launchId));
     if (!argv) return { ok: false, reason: 'not-allowed' };
     const [file, ...args] = argv;
     const r = await this.run(file!, args, 20_000).catch(() => ({ code: 1, stdout: '', stderr: 'ssh did not run' }));
     this.o.log(`console: hosted session ${launchId} on ${target!.machine} ${r.code === 0 ? 'ended' : `did not end (exit ${r.code})`}`);
-    if (r.code !== 0) return { ok: false, reason: 'spawn', detail: r.code === 255 ? `${target!.machine}: not reachable over ssh` : (r.stderr || r.stdout).trim().slice(0, 200) || `exit ${r.code}` };
+    // Switchboard's `--json` refusal is `{ok: false, error}` on stdout (read 2026-11-16 on 0.7.98): its sentence is shown.
+    const said = (() => { try { const j = JSON.parse(r.stdout) as { error?: unknown }; return typeof j.error === 'string' ? j.error : null; } catch { return null; } })();
+    if (r.code !== 0) return { ok: false, reason: 'spawn', detail: r.code === 255 ? `${target!.machine}: not reachable over ssh` : (said ?? (r.stderr || r.stdout).trim()).slice(0, 200) || `exit ${r.code}` };
     this.remote.invalidate(target!.machine);
     void this.pollRemote();
     return { ok: true, key: null };

@@ -6,7 +6,7 @@ import test from 'node:test';
 import { ConsoleHost } from '../src/electron/console';
 import { SettingsStore } from '../src/core/settings';
 import { tmp } from './helpers';
-import { DEFAULT_REMOTE_SWITCHBOARD, LAUNCH_ID, parseTargets, remoteAttachArgv, remoteEndArgv, readRemoteSessions, targetSessionsArgv, REMOTE_BACKOFF_MS, REMOTE_KEEP_MS, REMOTE_MAX_ROWS, REMOTE_POLL_MS, RemoteSessions, remoteSessionsArgv } from '../src/core/remote-sessions';
+import { DEFAULT_REMOTE_SWITCHBOARD, LAUNCH_ID, parseTargets, remoteAttachArgv, remoteEndArgv, readRemoteSessions, targetAttachArgv, targetEndArgv, targetSessionsArgv, REMOTE_BACKOFF_MS, REMOTE_KEEP_MS, REMOTE_MAX_ROWS, REMOTE_POLL_MS, RemoteSessions, remoteSessionsArgv } from '../src/core/remote-sessions';
 import { parseRequest } from '../src/core/console-channel';
 import { dropRemoteTwins, machineTerminalKey, mergeSessions, remoteRowId, type SbSessionRecord, type SessionRow } from '../src/core/sessions';
 import { DEFAULT_SETTINGS } from '../src/core/types';
@@ -68,7 +68,7 @@ function fakeMachines(answers: Record<string, () => { code: number; stdout?: str
   let open = 0;
   let most = 0;
   const run = async (file: string, args: string[]) => {
-    if (file === SB && args[0] === 'sessions' && args[1] === '--help') return { code: 0, stdout: o.target ? '      --target <TARGET>\n      --remote <REMOTE>\n      --remote-data-dir <REMOTE_DATA_DIR>\n' : '      --all\n', stderr: '' };
+    if (file === SB && args.at(-1) === '--help') return { code: 0, stdout: o.target ? '      --target <TARGET>\n      --remote <REMOTE>\n      --remote-data-dir <REMOTE_DATA_DIR>\n' : '      --all\n', stderr: '' };
     if (file === SB && args.includes('targets')) { calls.push('targets'); return { code: 0, stdout: TWO, stderr: '' }; }
     argvs.push([file, ...args]);
     const machine = file === SB ? args[args.indexOf('--target') + 1]! : args[args.length - 2]!;
@@ -294,4 +294,62 @@ test('FD-247 step 10: a Switchboard that reads other machines is asked through `
   assert.ok(old.argvs.every((a) => a[0] === '/usr/bin/ssh'), JSON.stringify(old.argvs));
   assert.deepEqual(targetSessionsArgv(SB, { machine: 'studio-2', aliases: [], program: '/opt/sb/switchboard', dataDir: '/srv/sb data' }),
     [SB, '--json', 'sessions', '--all', '--target', 'studio-2', '--remote', '/opt/sb/switchboard', '--remote-data-dir', '/srv/sb data'], 'an argv: a space in a path is no shell word');
+});
+
+test('FD-247 step 10: Open here and End there go through this Mac\'s Switchboard when it attaches and ends on another machine itself', async () => {
+  const f = fakeMachines({ 'studio-2': () => ({ code: 0, stdout: listing('/w/a') }), 'studio-3': () => ({ code: 0, stdout: listing('/w/b') }), 'studio-4': () => ({ code: 0, stdout: listing('/w/c') }) }, { target: true });
+  const r = new RemoteSessions(f.run, () => 0);
+  assert.equal(r.via(), null, 'nothing asked yet');
+  await r.poll(SB);
+  assert.deepEqual(r.via(), { switchboard: SB, doors: { sessions: true, attach: true, end: true } });
+  const target = { machine: 'studio-2', aliases: [], program: '/opt/sb', dataDir: '/data/sb' } as never;
+  assert.deepEqual(targetAttachArgv(SB, target, 'L-1'), [SB, 'attach', 'L-1', '--target', 'studio-2', '--remote', '/opt/sb', '--remote-data-dir', '/data/sb']);
+  assert.deepEqual(targetEndArgv(SB, target, 'L-1'), [SB, '--json', 'sessions', 'end', 'L-1', '--target', 'studio-2', '--remote', '/opt/sb', '--remote-data-dir', '/data/sb']);
+  assert.equal(targetEndArgv(SB, target, 'x; rm'), null, 'only a launch id reaches a command');
+  const old = fakeMachines({ 'studio-2': () => ({ code: 0, stdout: listing('/w/a') }), 'studio-3': () => ({ code: 0, stdout: listing('/w/b') }), 'studio-4': () => ({ code: 0, stdout: listing('/w/c') }) });
+  const r2 = new RemoteSessions(old.run, () => 0);
+  await r2.poll(SB);
+  assert.deepEqual(r2.via()!.doors, { sessions: false, attach: false, end: false }, 'an older Switchboard keeps our own ssh');
+});
+
+test('FD-247 step 10: the console host opens and ends a session there through Switchboard\'s --target, and shows its refusal as a sentence', { skip: process.platform === 'win32' && 'the fake switchboard is a shell script' }, async () => {
+  const base = tmp('fd-remote-via-');
+  const bin = path.join(base, 'bin');
+  fs.mkdirSync(bin);
+  const sb = path.join(bin, 'switchboard');
+  fs.writeFileSync(sb, '#!/bin/sh\n', { mode: 0o755 });
+  const settings = new SettingsStore(path.join(base, 'data'));
+  const calls: string[][] = [];
+  const spawned: string[][] = [];
+  const id = '0f9e8d7c-6b5a-4f3e-9d2c-1b0a99887766';
+  const hosted = JSON.stringify({ ok: true, data: { sessions: [{ working_directory: '/srv/w/alpha', provider: 'claude', state: 'running', attachable: true, launch_id: id, launched_at: new Date(Date.now() - 60_000).toISOString() }] } });
+  let endAnswer = { code: 0, stdout: JSON.stringify({ ok: true }) };
+  const host = new ConsoleHost({
+    settings, snapshot: () => null, window: () => null, visible: () => true, log: () => undefined, testDirs: [bin], scriptsDir: path.join(base, 'scripts'),
+    run: async (file, args) => {
+      calls.push([file, ...args]);
+      if (args.at(-1) === '--help') return { code: 0, stdout: '      --target <TARGET>\n      --remote <REMOTE>\n      --remote-data-dir <REMOTE_DATA_DIR>\n', stderr: '' };
+      if (args.join(' ') === '--json targets') return { code: 0, stdout: JSON.stringify({ data: { targets: [{ machine: 'studio-2', aliases: [] }] } }), stderr: '' };
+      if (args.join(' ') === '--json sessions --all --target studio-2') return { code: 0, stdout: hosted, stderr: '' };
+      if (args.slice(0, 3).join(' ') === '--json sessions end') return { ...endAnswer, stderr: '' };
+      if (args.join(' ') === '--json sessions --all') return { code: 0, stdout: JSON.stringify({ ok: true, data: { sessions: [] } }), stderr: '' };
+      return { code: 1, stdout: '', stderr: '' };
+    },
+    spawn: (file: string, args: string[]) => { spawned.push([file, ...args]); return { pid: 2_100_000_000, onData: () => ({ dispose() {} }), onExit: () => ({ dispose() {} }), write() {}, resize() {}, kill() {} }; },
+    killGroup: () => undefined, idleMs: 0,
+    machine: async () => ({ freeDisk: 50 * 1024 ** 3, swap: null, running: 0 }), keys: () => [], home: base,
+  } as ConstructorParameters<typeof ConsoleHost>[0]);
+  settings.update({ layout: { ...settings.get().layout, mode: 'sessions' } });
+  await host.pollSessions();
+  for (let i = 0; i < 50 && !host.sessionsStatus().rows.some((r) => r.machine === 'studio-2'); i++) await new Promise((r) => setTimeout(r, 10));
+  const row = host.sessionsStatus().rows.find((r) => r.machine === 'studio-2')!;
+  assert.equal((await host.attachSession(row.id)).ok, true);
+  assert.ok(spawned.some((a) => a.join(' ').endsWith(`attach ${id} --target studio-2`)), JSON.stringify(spawned));
+  assert.ok(!spawned.some((a) => a[0] === '/usr/bin/ssh'), 'no ssh of our own');
+  assert.deepEqual(await host.endSession(row.id), { ok: true, key: null });
+  assert.ok(calls.some((c) => c.slice(1).join(' ') === `--json sessions end ${id} --target studio-2`), JSON.stringify(calls));
+  endAnswer = { code: 1, stdout: JSON.stringify({ ok: false, error: 'No session with this launch id is open on this computer.' }) };
+  const failed = await host.endSession(row.id);
+  assert.equal(failed.ok, false);
+  if (!failed.ok) assert.equal(failed.detail, 'No session with this launch id is open on this computer.');
 });

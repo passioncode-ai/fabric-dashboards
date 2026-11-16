@@ -118,7 +118,9 @@ machine; SCN-112 open here or end a hosted session there. SCN-078 steps 1-2 and 
     Done in 0.8.127 for the list: `targetSessionsArgv` (`switchboard --json sessions --all --target <machine>`, with
     `--remote` and `--remote-data-dir` from `targets`), used when this Mac's Switchboard's `sessions --help` names them
     (`sessionsTakeTarget`, read once per Switchboard); its ssh's exit code and stderr pass through, so the states hold.
-    Open here and End there stay on our ssh until Switchboard takes `attach --target` and `sessions end --target`.
+    Open here and End there followed in 0.8.134: `targetAttachArgv` and `targetEndArgv`, used when this Mac's
+    Switchboard's `attach --help` and `sessions end --help` name `--target` (read with `targets`, `RemoteSessions.via`);
+    its `--json` refusal (`{ok: false, error}`) is shown as its sentence. Our ssh stays the fallback for an older one.
 
 ## 3. Decisions (made by the safest reversible option, 2026-11-15)
 1. Remote reads: ask Switchboard and ship the read-only ssh path meanwhile, behind a setting.

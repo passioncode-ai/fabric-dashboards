@@ -54,6 +54,20 @@ export function targetSessionsArgv(switchboard: string, target: RemoteTarget): s
 /** FD-247 (step 10): whether this Mac's Switchboard reads sessions on another machine (its `sessions --help`). */
 export const sessionsTakeTarget = (help: string): boolean => /--target\b/.test(help) && /--remote-data-dir\b/.test(help);
 
+const remoteFlags = (target: RemoteTarget) => [
+  '--target', target.machine, ...(target.program ? ['--remote', target.program] : []), ...(target.dataDir ? ['--remote-data-dir', target.dataDir] : []),
+];
+/** FD-247 (step 10): Open here through this Mac's Switchboard (`attach --target`, SB-380), which runs `ssh -t` itself. */
+export function targetAttachArgv(switchboard: string, target: RemoteTarget, launchId: string): string[] | null {
+  return LAUNCH_ID.test(launchId) ? [switchboard, 'attach', launchId, ...remoteFlags(target)] : null;
+}
+/** FD-247 (step 10): End there through this Mac's Switchboard (`sessions end --target`, SB-380). */
+export function targetEndArgv(switchboard: string, target: RemoteTarget, launchId: string): string[] | null {
+  return LAUNCH_ID.test(launchId) ? [switchboard, '--json', 'sessions', 'end', launchId, ...remoteFlags(target)] : null;
+}
+/** What this Mac's Switchboard does on another machine itself, from its `--help` texts. */
+export interface TargetDoors { sessions: boolean; attach: boolean; end: boolean }
+
 /** How a machine's read went: its rows, or why there are none (each named on the machine's heading). */
 export type RemoteRead =
   | { ok: true; rows: SbSessionRecord[] }
@@ -109,8 +123,8 @@ export class RemoteSessions {
   private targets: RemoteTarget[] = [];
   private targetsAt = -Infinity;
   private targetsOf: string | null = null;
-  /** FD-247 (step 10): whether `targetsOf`'s Switchboard takes `sessions --target`, asked with `targets`. */
-  private viaTarget = false;
+  /** FD-247 (step 10): what `targetsOf`'s Switchboard does on another machine itself, asked with `targets`. */
+  private doors: TargetDoors = { sessions: false, attach: false, end: false };
   private readonly machines = new Map<string, MachineRead>();
   private inFlight: Promise<boolean> | null = null;
 
@@ -133,8 +147,8 @@ export class RemoteSessions {
       // A failed `targets` keeps the machines known, so one slow answer does not empty the list.
       if (r && r.code === 0) {
         if (switchboard !== this.targetsOf) {
-          const help = await this.run(switchboard, ['sessions', '--help'], 10_000).catch(() => null);
-          this.viaTarget = Boolean(help && help.code === 0 && sessionsTakeTarget(help.stdout));
+          const takes = async (args: string[]) => { const h = await this.run(switchboard, args, 10_000).catch(() => null); return Boolean(h && h.code === 0 && sessionsTakeTarget(h.stdout)); };
+          this.doors = { sessions: await takes(['sessions', '--help']), attach: await takes(['attach', '--help']), end: await takes(['sessions', 'end', '--help']) };
         }
         this.targets = parseTargets(r.stdout); this.targetsOf = switchboard;
       }
@@ -147,7 +161,7 @@ export class RemoteSessions {
     const worker = async () => {
       while (next < due.length) {
         const t = due[next++]!;
-        const read = await readRemoteSessions(this.run, this.targets, t.machine, this.ssh, this.viaTarget ? switchboard : null).catch((): RemoteRead => ({ ok: false, why: 'bad-answer' }));
+        const read = await readRemoteSessions(this.run, this.targets, t.machine, this.ssh, this.doors.sessions ? switchboard : null).catch((): RemoteRead => ({ ok: false, why: 'bad-answer' }));
         const m = this.machines.get(t.machine);
         if (!m) continue;
         const at = this.now();
@@ -164,6 +178,11 @@ export class RemoteSessions {
     };
     await Promise.all(Array.from({ length: Math.min(REMOTE_CONCURRENCY, due.length) }, worker));
     return changed;
+  }
+
+  /** FD-247 (step 10): the Switchboard last asked and what it does on another machine itself; null before a good read. */
+  via(): { switchboard: string; doors: TargetDoors } | null {
+    return this.targetsOf ? { switchboard: this.targetsOf, doors: this.doors } : null;
   }
 
   /** FD-247 (step 7): read this machine again at the next tick (after an act there). */
