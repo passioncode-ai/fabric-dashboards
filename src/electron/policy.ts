@@ -192,6 +192,16 @@ export function inSight(onScreenNow: boolean, sight: 'visible' | 'covered' | 'of
   return onScreenNow && sight !== 'covered' && sight !== 'off-screen';
 }
 
+// #region page-sight — docs: AGENTS.md#lifecycle
+/** FD-276 (P-02): Chromium marks the window's page hidden when other windows cover all of it, or it is on another Space
+ *  (macOS occlusion; measured 2026-11-16 on Electron 44: covered `hidden`, uncovered `visible`, one `visibilitychange`
+ *  each). The monitor keeps its live cadence only while the window is on screen and its page is seen; the Dock, the
+ *  views' graces and the status pushes follow the window alone. */
+export const monitorLive = (onScreenNow: boolean, pageSeen: boolean): boolean => onScreenNow && pageSeen;
+/** How long after a show the page's own visibility is read once, in case its event did not come. */
+export const PAGE_SIGHT_CHECK_MS = 1_500;
+// #endregion page-sight
+
 /** Issue #335: macOS 14 and later let an app come forward only when the active app yields to it. A link opened by
  *  a program in the background (an agent's `open`, a script) shows its page behind whatever the person is using, and
  *  nothing tells them (measured 2026-11-13 on macOS 26.6: `open <link>` from a background shell, `app.focus({ steal:

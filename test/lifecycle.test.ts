@@ -20,7 +20,7 @@ import { DEFAULT_SETTINGS } from '../src/core/types';
 import { clearRestoreRecord, KEPT_FILES, MCP_SERVER_NAME, productDataPaths, purgeAfterExit, purgeData, readRestoreRecord, removeMcpRegistrations, repairMcpRegistrations, restoreMcpRegistrations, RESTORE_FILE, writeRestoreRecord } from '../src/core/uninstall';
 import { NotifyLedger } from '../src/core/notify';
 import { SettingsStore } from '../src/core/settings';
-import { autoInstallNow, autoInstallWait, dockOnSync, HiddenGrace, moveSkip, offerMove, relaunchHidden, resumePath, resumeRoute, stalePartitions, tryMove, UPDATE_IDLE_MS, VisibilitySync } from '../src/electron/policy';
+import { autoInstallNow, autoInstallWait, dockOnSync, HiddenGrace, monitorLive, moveSkip, offerMove, relaunchHidden, resumePath, resumeRoute, stalePartitions, tryMove, UPDATE_IDLE_MS, VisibilitySync } from '../src/electron/policy';
 import { codeFile, StaleWatch } from '../src/mcp/stale';
 import { APP_UPDATE_EVERY_MS, CHECK_EVERY_MS, quietCheck } from '../src/core/version';
 import { tmp } from './helpers';
@@ -1138,4 +1138,14 @@ test('LC-08, FD-268: the setup card reads the setup state only while the window 
   assert.ok(at > 0);
   assert.match(src.slice(Math.max(0, at - 300), at), /if \(document\.visibilityState !== 'visible'\) return;/, 'a hidden window never asks');
   assert.match(src, /document\.addEventListener\('visibilitychange', read\)/, 'coming back reads at once');
+});
+
+test('LC-08, FD-276 (P-02): the monitor is live only while the window is on screen and its page is seen', () => {
+  assert.equal(monitorLive(true, true), true);
+  assert.equal(monitorLive(true, false), false, 'covered by other windows, or on another Space');
+  assert.equal(monitorLive(false, true), false, 'hidden');
+  const preload = fs.readFileSync(path.join(__dirname, '..', 'src', 'electron', 'preload.ts'), 'utf8');
+  assert.match(preload, /addEventListener\('visibilitychange', \(\) => ipcRenderer\.send\(CHANNELS\.pageVisibility, doc\.visibilityState === 'visible'\)\)/);
+  const main = fs.readFileSync(path.join(__dirname, '..', 'src', 'electron', 'main.ts'), 'utf8');
+  assert.match(main, /ipcMain\.on\(CHANNELS\.pageVisibility, \(e, seen: unknown\) => \{ if \(window && e\.sender\.id === window\.webContents\.id\) seePage\(seen === true\); \}\)/, 'only the window\'s own page');
 });

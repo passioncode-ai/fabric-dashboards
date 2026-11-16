@@ -43,6 +43,7 @@ export const PARITY: Record<keyof typeof CHANNELS, Route> = {
   navigateTake: { tool: 'open' },
   routeChanged: { window: 'the page reports where it is' },
   reportError: { window: 'the page reports its own errors to the bug journal (FD-263)' },
+  pageVisibility: { window: 'the page says whether it is seen, so the monitor slows while it is covered (FD-276)' },
   bugsList: { tool: 'bugs' },
   bugReport: { tool: 'bug_report' },
   rescan: { tool: 'list_services' }, // FD-249: the MCP server reads the services folder at every call; nothing to rescan

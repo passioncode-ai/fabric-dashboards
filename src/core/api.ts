@@ -295,6 +295,7 @@ export const CHANNELS = {
   routeChanged: 'fd:route-changed',
   // FD-263: the bug journal.
   reportError: 'fd:report-error',
+  pageVisibility: 'fd:page-visibility',
   bugsList: 'fd:bugs-list',
   bugReport: 'fd:bug-report',
   rescan: 'fd:rescan',

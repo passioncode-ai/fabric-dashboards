@@ -103,4 +103,8 @@ const reportError = (name: string, message: string, stack?: string) => {
 // The main project builds without the DOM library: the page's window, typed only as far as it is used here.
 const page = globalThis as unknown as { addEventListener(type: string, listener: (e: { error?: unknown; message?: string; reason?: unknown }) => void): void };
 page.addEventListener('error', (e) => { const err = e.error as Error | undefined; reportError(err?.name ?? 'Error', err?.message ?? e.message ?? '', err?.stack); });
+// FD-276 (P-02): whether this page is seen (a window covered by others, or on another Space, reads `hidden`); the main
+// process slows its monitor while it is not. Only the window's own page is listened to there.
+const doc = (globalThis as unknown as { document?: { visibilityState: string; addEventListener(type: string, listener: () => void): void } }).document;
+doc?.addEventListener('visibilitychange', () => ipcRenderer.send(CHANNELS.pageVisibility, doc.visibilityState === 'visible'));
 page.addEventListener('unhandledrejection', (e) => { const r = e.reason as Error | undefined; reportError(r instanceof Error ? r.name : 'rejection', r instanceof Error ? r.message : String(e.reason), r instanceof Error ? r.stack : undefined); });
