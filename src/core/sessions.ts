@@ -48,7 +48,9 @@ export type SessionAction = 'end' | 'reveal' | 'openConsole' | 'dismiss' | 'cont
  *  listed by 0.8.0 builds only: from 0.8.1 such a stop is no row, FD-108); or a stop the person declined
  *  (`declined`, an ended row: "Not continued: you declined"; decision 2 of 2026-10-24); or a console the app closed as
  *  it quit (`quit`, an ended row: "Closed when the app quit"; review round 1, R1-S4). */
-export type SessionReason = 'expired' | 'no-folder' | 'busy' | 'busy-disk' | 'busy-cap' | 'busy-pool' | 'busy-swap' | 'switchboard-old' | 'not-started' | 'pending' | 'no-transcript' | 'resume-failed' | 'old' | 'billing' | 'open' | 'declined' | 'quit';
+export type SessionReason = 'expired' | 'no-folder' | 'busy' | 'busy-disk' | 'busy-cap' | 'busy-pool' | 'busy-swap' | 'switchboard-old' | 'not-started' | 'pending' | 'no-transcript' | 'resume-failed' | 'old' | 'billing' | 'open' | 'declined' | 'quit'
+  // FD-291: a row another machine's Switchboard puts in its needs-you group (SB-395), said as that machine's
+  | 'remote-ready' | 'remote-gone' | 'remote-twice' | 'remote-stuck' | 'remote-needs';
 
 export interface SessionRow {
   /** Stable across polls and restarts: `c:<console key>:<start>`, `sb:<provider>:<pool>:<launch>:<folder>` (F5 of FIX-2:
@@ -137,6 +139,27 @@ export interface SbSessionRecord {
   launch: LaunchFacts | null;
   /** FD-211 (SB-342 H-1, Switchboard 0.7.63): a session host holds it, so any app may open it (`switchboard attach`). */
   attachable?: boolean;
+}
+
+/** FD-291 (SB-395): one row of Switchboard's sessions page (`sessions --rows`), read on another machine: its group and why
+ *  as Switchboard decided them, the acts it offers, and the facts a row needs. Every field is capped when parsed. */
+export interface SbPageRow {
+  /** `pid:N`, `launch:ID` or `stop:EVENT`, as Switchboard names it. */
+  id: string;
+  group: 'needs_you' | 'running' | 'waiting' | 'ended';
+  /** Why it is in its group (`working`, `quiet`, `gone`, `ready_to_continue`, `limit`, `exited`, ...). */
+  why: string;
+  acts: string[];
+  agent: string;
+  folder: string;
+  account: string | null;
+  /** The surface that asked for its launch, null when unknown (a process no owner started). */
+  origin: string | null;
+  since: number | null;
+  launchId: string | null;
+  sessionId: string | null;
+  quietMinutes: number | null;
+  probeAt: number | null;
 }
 
 /** Who started a launch, as Switchboard recorded it. Each field is null when absent or not of the expected form. */
@@ -248,7 +271,7 @@ export interface MergeInput {
   /** FD-231: every agent process on the Mac; null or absent where Switchboard cannot list them. */
   machine?: SbMachineProcess[] | null;
   /** FD-247 (step 5): the sessions other machines' Switchboards listed, read over ssh (src/core/remote-sessions.ts). */
-  remote?: { machine: string; rows: SbSessionRecord[] }[];
+  remote?: { machine: string; rows: SbSessionRecord[]; page?: SbPageRow[] }[];
 }
 
 export type SessionSource = 'sessions' | 'handovers' | 'recovery' | 'machine';
@@ -536,6 +559,30 @@ export function mergeSessions(i: MergeInput): SessionRow[] {
         state, startedAt: started, endedAt: running ? null : s.launch?.endedAt ?? null, launch: s.launch,
       }));
     }
+    // FD-291 (SB-395): a machine read with `sessions --rows` comes with its groups decided there: its live processes (one
+    // no owner started too), the stops on a limit and the launches that went without an end, besides its launches.
+    for (const p of m.page ?? []) {
+      const ended = p.group === 'ended';
+      if (ended && !fresh(p.since, i.now)) continue;
+      const launch: LaunchFacts | null = p.launchId ? {
+        launchId: p.launchId, by: { surface: null, by: null, program: null, project: null, parent: null, caller: null }, transcript: null,
+        providerSessionId: p.sessionId, turns: null, lastTurnAt: null, ended: null, endedAt: ended ? p.since : null, continuedAs: null,
+      } : null;
+      const state: SessionState = p.group === 'running' ? (p.origin === 'fabric' ? 'running-background' : p.id.startsWith('pid:') && p.origin === null ? 'running-unmanaged' : 'running-terminal')
+        : p.group === 'waiting' ? 'waiting-reset' : p.group === 'needs_you' ? 'needs-you-not-opened' : p.why === 'closed_idle' ? 'idle-closed' : 'ended';
+      const reason: SessionReason | null = p.group !== 'needs_you' ? null
+        : p.why === 'ready_to_continue' ? 'remote-ready' : p.why === 'gone' ? 'remote-gone' : p.why === 'duplicate' ? 'remote-twice' : p.why === 'stuck' ? 'remote-stuck' : 'remote-needs';
+      const live = p.launchId && LAUNCH_RE.test(p.launchId);
+      const r = row({
+        id: `rm:${m.machine}:${p.id}`, key: null, folder: p.folder, machine: m.machine, agent: p.agent,
+        actions: [...(live && p.acts.includes('attach') ? ['attach' as const] : []), ...(live && p.acts.includes('end') ? ['end' as const] : []),
+          ...(p.group === 'needs_you' || ended ? ['dismiss' as const] : [])],
+        account: p.account, context: null, contextName: null, origin: p.id.startsWith('stop:') ? 'limit' : p.origin === null && p.id.startsWith('pid:') ? 'machine' : 'switchboard',
+        reason, state, startedAt: ended ? null : p.since, endedAt: ended ? p.since : null, launch, expectedAt: p.group === 'waiting' ? p.probeAt : null,
+      });
+      if (p.quietMinutes !== null && p.why === 'quiet') r.quietMinutes = p.quietMinutes;
+      add(r);
+    }
   }
 
   // 6. FD-231 (SL-8): agent processes no owner started. One with a launch is Switchboard's and listed above; one in the
@@ -587,6 +634,8 @@ export class SourceReader<T> {
   get degraded(): SourceDegraded | null { return this.failure; }
 }
 // #endregion sessions-data
+
+const LAUNCH_RE = /^[A-Za-z0-9._:-]{1,128}$/;
 
 /** FD-247: a row of another machine's session: `rm:<machine>:<launch id>`, else its folder and start (hashed when long). */
 export function remoteRowId(machine: string, s: Pick<SbSessionRecord, 'folder' | 'launchedAt' | 'startedAt' | 'launch'>): string {

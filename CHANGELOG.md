@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.8.154 - 2026-11-16
+
+### Added
+
+- FD-291: another machine's sessions are read from its Switchboard's sessions page (`sessions --rows --target`,
+  SB-395). The list now holds every coding process running there, the sessions stopped on a usage limit there with the
+  time they are tried again, and those that need a person, each with a reason that names the machine. A Switchboard
+  there without the page is read with `sessions --all` as before.
+
 ## 0.8.153 - 2026-11-16
 
 ### Added

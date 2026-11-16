@@ -7,6 +7,19 @@ Current release: **0.8.110** published 2026-11-15 09:04 UTC (0.8.111 next); earl
 order, their runs under way. 0.8.106 and 0.8.107 were never published (0.8.106's check failed on an unref'd timer in a
 test; both fold into 0.8.108).
 
+## 0.8.154: other machines' sessions from Switchboard's sessions page (2026-11-16)
+
+0.8.154 (FD-291 step 1): another machine is read with `sessions --rows --target M` (SB-395, fabric-switchboard
+`docs/CONTRACTS.md` "Sessions page (SB-395)" at 6830d7b9) when this Mac's Switchboard lists `--rows`; its rows are
+checked against the contract's shapes (`parsePageRows`, `src/core/switchboard.ts`) and become that machine's rows in
+their groups (`mergeSessions` part 5b, `src/core/sessions.ts`), with five reasons that name the machine.
+A Switchboard there that answers too old is read with `--all` as before. Continue is not offered on
+another machine's row yet: FD-290 waits on Switchboard's `sessions continue --in-place --hosted` (board `bdaa1558`,
+reply `a4cbfdd6`). **0.8.149 to 0.8.154 are merged, untagged** (disk at 1.8 GB free; FD-245's e2e needs 5 GB).
+**First task for the next agent:** if `git ls-remote --tags origin v0.8.154` is empty, run
+`npm run test:e2e -- test/e2e/connections.test.ts` and on green push the annotated tag `v0.8.154` on main. Then FD-291
+step 2 (this Mac on `sessions --rows`), FD-242.
+
 ## 0.8.153: why an agent does not run, on its Logs tab; five versions waiting for a tag (2026-11-16)
 
 0.8.153 (FD-250, PR #610): the Logs tab shows, above the log files, the process now, how often launchd or systemd

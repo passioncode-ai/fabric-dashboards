@@ -171,7 +171,7 @@ export function pageExitLine(lang: Lang, s: { state: string; exitCode: number | 
 export function stateWords(lang: Lang, r: SessionRow, o: { autoContinue?: boolean } = {}): string {
   switch (r.state) {
     case 'needs-you-not-opened': {
-      const why = t(lang, `sessions.reason.${r.reason ?? 'not-started'}`);
+      const why = t(lang, `sessions.reason.${r.reason ?? 'not-started'}`, r.machine ? { machine: r.machine } : {});
       return r.openedInTerminal ? `${why} ${t(lang, 'sessions.openedInTerminal')}` : why;
     }
     case 'ended-cannot-continue': // FD-108

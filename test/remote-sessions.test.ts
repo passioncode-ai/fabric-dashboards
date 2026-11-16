@@ -301,7 +301,7 @@ test('FD-247 step 10: Open here and End there go through this Mac\'s Switchboard
   const r = new RemoteSessions(f.run, () => 0);
   assert.equal(r.via(), null, 'nothing asked yet');
   await r.poll(SB);
-  assert.deepEqual(r.via(), { switchboard: SB, doors: { sessions: true, attach: true, end: true } });
+  assert.deepEqual(r.via(), { switchboard: SB, doors: { sessions: true, rows: false, attach: true, end: true } });
   const target = { machine: 'studio-2', aliases: [], program: '/opt/sb', dataDir: '/data/sb' } as never;
   assert.deepEqual(targetAttachArgv(SB, target, 'L-1'), [SB, 'attach', 'L-1', '--target', 'studio-2', '--remote', '/opt/sb', '--remote-data-dir', '/data/sb']);
   assert.deepEqual(targetEndArgv(SB, target, 'L-1'), [SB, '--json', 'sessions', 'end', 'L-1', '--target', 'studio-2', '--remote', '/opt/sb', '--remote-data-dir', '/data/sb']);
@@ -309,7 +309,7 @@ test('FD-247 step 10: Open here and End there go through this Mac\'s Switchboard
   const old = fakeMachines({ 'studio-2': () => ({ code: 0, stdout: listing('/w/a') }), 'studio-3': () => ({ code: 0, stdout: listing('/w/b') }), 'studio-4': () => ({ code: 0, stdout: listing('/w/c') }) });
   const r2 = new RemoteSessions(old.run, () => 0);
   await r2.poll(SB);
-  assert.deepEqual(r2.via()!.doors, { sessions: false, attach: false, end: false }, 'an older Switchboard keeps our own ssh');
+  assert.deepEqual(r2.via()!.doors, { sessions: false, rows: false, attach: false, end: false }, 'an older Switchboard keeps our own ssh');
 });
 
 test('FD-247 step 10: the console host opens and ends a session there through Switchboard\'s --target, and shows its refusal as a sentence', { skip: process.platform === 'win32' && 'the fake switchboard is a shell script' }, async () => {
@@ -352,4 +352,77 @@ test('FD-247 step 10: the console host opens and ends a session there through Sw
   const failed = await host.endSession(row.id);
   assert.equal(failed.ok, false);
   if (!failed.ok) assert.equal(failed.detail, 'No session with this launch id is open on this computer.');
+});
+
+// FD-291 (step 1): another machine's sessions page (`sessions --rows --target`, SB-395).
+const NOW = Date.parse('2026-11-16T12:00:00Z');
+const page = (rows: unknown[]) => JSON.stringify({ ok: true, data: { rows, counts: {}, degraded: [], observed_at: NOW / 1000 } });
+const ROWS = [
+  { id: 'pid:4242', group: 'running', why: 'quiet', acts: [], agent: 'claude-code', folder: '/w/a', account: null, pool: null, origin: null, since: NOW / 1000 - 600, launch_id: null, session_id: null, pid: 4242, quiet_minutes: 37 },
+  { id: 'launch:L-1', group: 'running', why: 'working', acts: ['attach', 'end'], agent: 'codex', folder: '/w/b', account: 'Work', pool: 'p', origin: 'cli', since: NOW / 1000 - 60, launch_id: 'L-1', session_id: 's1' },
+  { id: 'stop:cc-abc-1', group: 'needs_you', why: 'ready_to_continue', acts: ['continue'], agent: 'claude-code', folder: '/w/c', account: 'Home', pool: null, origin: null, since: NOW / 1000 - 3600, launch_id: null, session_id: 'abc' },
+  { id: 'stop:cc-def-2', group: 'waiting', why: 'limit', acts: [], agent: 'claude-code', folder: '/w/d', account: 'Home', pool: null, origin: null, since: NOW / 1000 - 3600, launch_id: null, session_id: 'def', probe_at: NOW / 1000 + 900 },
+  { id: 'launch:L-2', group: 'ended', why: 'exited', acts: ['continue'], agent: 'claude-code', folder: '/w/e', account: null, pool: null, origin: 'fabric', since: NOW / 1000 - 7200, launch_id: 'L-2', session_id: null },
+  { id: 'launch:L-3', group: 'ended', why: 'exited', acts: [], agent: 'claude-code', folder: '/w/f', account: null, pool: null, origin: 'cli', since: NOW / 1000 - 9 * 86_400, launch_id: 'L-3', session_id: null },
+  { id: '--evil', group: 'running', why: 'working', acts: [], agent: 'codex', folder: '/w/x', since: NOW / 1000 },
+  { id: 'pid:1', group: 'other', why: 'working', acts: [], agent: 'codex', folder: '/w/x', since: NOW / 1000 },
+  { id: 'pid:2', group: 'running', why: 'working', acts: [], agent: 'codex', folder: 'relative', since: NOW / 1000 },
+];
+
+function fakeRows(answer: (args: string[]) => { code: number; stdout?: string; stderr?: string }, help = '      --rows\n      --target <TARGET>\n      --remote <REMOTE>\n      --remote-data-dir <REMOTE_DATA_DIR>\n') {
+  const argvs: string[][] = [];
+  const run = async (file: string, args: string[]) => {
+    if (file === SB && args.at(-1) === '--help') return { code: 0, stdout: help, stderr: '' };
+    if (file === SB && args.includes('targets')) return { code: 0, stdout: JSON.stringify({ data: { targets: [{ machine: 'studio-2', aliases: [] }] } }), stderr: '' };
+    argvs.push([file, ...args]);
+    const a = answer(args);
+    return { code: a.code, stdout: a.stdout ?? '', stderr: a.stderr ?? '' };
+  };
+  return { run: run as never, argvs };
+}
+
+test('FD-291 step 1: a machine whose Switchboard has the sessions page is read with `--rows --target`; odd rows are dropped', async () => {
+  const f = fakeRows(() => ({ code: 0, stdout: page(ROWS) }));
+  const r = new RemoteSessions(f.run, () => NOW);
+  await r.poll(SB);
+  assert.deepEqual(f.argvs, [[SB, '--json', 'sessions', '--rows', '--target', 'studio-2']]);
+  const m = r.input()[0]!;
+  assert.deepEqual(m.page!.map((p) => p.id), ['pid:4242', 'launch:L-1', 'stop:cc-abc-1', 'stop:cc-def-2', 'launch:L-2', 'launch:L-3'], 'an id of another form, an unknown group and a relative folder are skipped');
+  assert.equal(r.status()[0]!.rows, 6);
+});
+
+test('FD-291 step 1: a Switchboard there without the page answers too old, and its launches are read with `--all` as before', async () => {
+  const f = fakeRows((args) => (args.includes('--rows') ? { code: 2, stderr: "error: unexpected argument '--rows' found" } : { code: 0, stdout: listing('/w/a') }));
+  const r = new RemoteSessions(f.run, () => NOW);
+  await r.poll(SB);
+  assert.deepEqual(f.argvs.map((a) => a[3]), ['--rows', '--all']);
+  assert.deepEqual(r.input()[0]!.rows.map((s) => s.folder), ['/w/a']);
+  assert.equal(r.input()[0]!.page, undefined);
+  const old = fakeRows(() => ({ code: 0, stdout: listing('/w/a') }), '      --target <TARGET>\n      --remote-data-dir <REMOTE_DATA_DIR>\n');
+  await new RemoteSessions(old.run, () => NOW).poll(SB);
+  assert.deepEqual(old.argvs.map((a) => a[3]), ['--all'], 'a Switchboard here without --rows is not asked for it');
+  const down = fakeRows(() => ({ code: 255, stderr: 'ssh: connect to host studio-2: Operation timed out' }));
+  const d = new RemoteSessions(down.run, () => NOW);
+  await d.poll(SB);
+  assert.equal(down.argvs.length, 1, 'an unreachable machine is not asked twice');
+  assert.equal(d.status()[0]!.state, 'unreachable');
+});
+
+test('FD-291 step 1: page rows become the machine\'s rows in their groups; acts on another machine are only Open here and End', async () => {
+  const f = fakeRows(() => ({ code: 0, stdout: page(ROWS) }));
+  const r = new RemoteSessions(f.run, () => NOW);
+  await r.poll(SB);
+  const rows = mergeSessions({ now: NOW, switchboard: [], pending: [], stops: [], consoles: [], records: [], dismissed: [], remote: r.input(NOW) });
+  const by = (id: string) => rows.find((x) => x.id === `rm:studio-2:${id}`)!;
+  assert.equal(by('pid:4242').state, 'running-unmanaged');
+  assert.equal(by('pid:4242').quietMinutes, 37);
+  assert.equal(by('pid:4242').origin, 'machine');
+  assert.deepEqual([by('launch:L-1').state, by('launch:L-1').actions], ['running-terminal', ['attach', 'end']]);
+  assert.equal(by('launch:L-1').launch?.providerSessionId, 's1');
+  assert.deepEqual([by('stop:cc-abc-1').state, by('stop:cc-abc-1').reason, by('stop:cc-abc-1').group], ['needs-you-not-opened', 'remote-ready', 'needs-you']);
+  assert.ok(!by('stop:cc-abc-1').actions.includes('continue' as never), 'continuing on another machine is not offered here yet (FD-290)');
+  assert.deepEqual([by('stop:cc-def-2').state, by('stop:cc-def-2').expectedAt, by('stop:cc-def-2').origin], ['waiting-reset', NOW + 900_000, 'limit']);
+  assert.equal(by('launch:L-2').state, 'ended');
+  assert.equal(rows.find((x) => x.id === 'rm:studio-2:launch:L-3'), undefined, 'an ended row older than the list keeps is not listed');
+  assert.ok(rows.every((x) => x.machine === 'studio-2'));
 });

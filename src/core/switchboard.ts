@@ -8,7 +8,7 @@ import type { Runner } from '@passioncode-ai/fabric-service-host';
 import path from 'node:path';
 import fs from 'node:fs';
 import type { RuntimeSpec } from './runtimes';
-import type { LaunchFacts, Paid, SbMachineProcess, SbSessionRecord, SourceResult } from './sessions';
+import type { LaunchFacts, Paid, SbMachineProcess, SbPageRow, SbSessionRecord, SourceResult } from './sessions';
 
 export type Binding =
   | { kind: 'none' } // no project or managed rule for this provider: the ordinary sign-in
@@ -252,6 +252,30 @@ export function parseAllSessions(data: Record<string, unknown>, max = Infinity):
       continues: typeof x.continues === 'string' && x.continues ? x.continues.slice(0, 64) : null, inPlace: x.in_place === true,
       launchedAt: ms(x.launched_at), startedAt: ms(x.started_at), state, launch: launchFactsOf(x),
       ...(x.attachable === true ? { attachable: true } : {}), // FD-211 (SB-342 H-1)
+    });
+  }
+  return out;
+}
+
+/** FD-291 (SB-395): the rows of `sessions --rows`, read strictly: an id of the documented forms, a known group, an absolute
+ *  folder; text capped, at most `max` rows. Another machine's answer is untrusted, so nothing here is taken as an option. */
+export function parsePageRows(data: Record<string, unknown>, max = Infinity): SbPageRow[] {
+  const str = (v: unknown, n: number) => (typeof v === 'string' && v ? v.slice(0, n) : null);
+  const word = (v: unknown) => (typeof v === 'string' && /^[a-z][a-z0-9_-]{0,39}$/.test(v) ? v : null);
+  const out: SbPageRow[] = [];
+  for (const x of Array.isArray(data.rows) ? (data.rows as Record<string, unknown>[]) : []) {
+    if (out.length >= max) break;
+    if (!x || typeof x !== 'object' || typeof x.id !== 'string' || !/^(pid|launch|stop):[A-Za-z0-9._:-]{1,200}$/.test(x.id)) continue;
+    const group = x.group === 'needs_you' || x.group === 'running' || x.group === 'waiting' || x.group === 'ended' ? x.group : null;
+    if (!group || typeof x.folder !== 'string' || x.folder.length > 4096 || (!x.folder.startsWith('/') && !path.isAbsolute(x.folder))) continue;
+    const quiet = typeof x.quiet_minutes === 'number' && Number.isFinite(x.quiet_minutes) && x.quiet_minutes >= 0 ? Math.floor(x.quiet_minutes) : null;
+    const id = (v: unknown) => (typeof v === 'string' && /^[A-Za-z0-9._:-]{1,128}$/.test(v) ? v : null);
+    out.push({
+      id: x.id, group, why: word(x.why) ?? 'unknown', folder: x.folder,
+      acts: Array.isArray(x.acts) ? (x.acts as unknown[]).map(word).filter((a): a is string => a !== null).slice(0, 8) : [],
+      agent: typeof x.agent === 'string' && /^[a-z][a-z0-9._-]{0,63}$/.test(x.agent) ? x.agent : 'unknown',
+      account: str(x.account, 200), origin: word(x.origin), since: ms(x.since), launchId: id(x.launch_id), sessionId: id(x.session_id),
+      quietMinutes: quiet, probeAt: ms(x.probe_at),
     });
   }
   return out;
