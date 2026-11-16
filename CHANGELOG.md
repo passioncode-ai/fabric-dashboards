@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.8.153 - 2026-11-16
+
+### Added
+
+- FD-250: the Logs tab says, above the log files, how the agent's supervisor last saw it run: the process it runs as
+  now, how often launchd or systemd started it and how its last run ended (exit code or signal). One tab answers why an
+  agent does not start.
+
+### Fixed
+
+- FD-250: the last line of an agent's log, shown as a reason on its page, in notifications and to agents, no longer
+  carries what reads as a credential (URL credentials, `token=…`, known key prefixes): `redactSecrets`, shared with the
+  bug journal's scrub.
+
 ## 0.8.152 - 2026-11-16
 
 ### Added

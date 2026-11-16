@@ -5,6 +5,7 @@ import type { PageState } from '../../core/api';
 import type { ActivityItem, ServiceSnapshot } from '../../core/types';
 import { instanceOf } from '../../core/products';
 import { installedByWords } from '../../core/installed-by';
+import { runFacts } from '../../core/run-facts';
 import { agentFacts } from '../../core/agent-facts';
 import { commandRan, commandReason } from '../../core/outcome';
 import { problemOf } from '../../core/focus';
@@ -265,7 +266,7 @@ export function ServiceView({ s, all, members, open, link, nonce, tab: askedTab,
         {tab === 'connections' && <div className="pane"><Connections s={s} all={all} members={members} open={(key) => open(key, undefined, 'connections')} /></div>}
         {tab === 'load' && tabs.includes('load') && <div className="pane"><Load s={s} /></div>}
         {tab === 'health' && <div className="pane"><Health s={s} output={output} detailsShown={cardShown} /></div>}
-        {tab === 'logs' && <div className="pane"><Logs serviceKey={s.key} /></div>}
+        {tab === 'logs' && <div className="pane"><Logs serviceKey={s.key} launchd={s.launchd} /></div>}
         </PaneBoundary>
       </div>
     </div>
@@ -517,8 +518,11 @@ function Profile({ s }: { s: ServiceSnapshot }) {
   );
 }
 
-function Logs({ serviceKey }: { serviceKey: string }) {
+/** SCN-025: the agent's log files; FD-250: above them, how its supervisor last saw it run (started how often, how the
+ *  last run ended, the process now), so one tab answers why it does not start. */
+function Logs({ serviceKey, launchd }: { serviceKey: string; launchd: ServiceSnapshot['launchd'] }) {
   const { t } = useT();
+  const facts = runFacts(launchd);
   const [logs, setLogs] = useState<{ path: string; text?: string; error?: string }[] | null>(null);
   useEffect(() => {
     let alive = true;
@@ -527,10 +531,12 @@ function Logs({ serviceKey }: { serviceKey: string }) {
     const timer = setInterval(() => { if (!document.hidden) load(); }, 3000);
     return () => { alive = false; clearInterval(timer); };
   }, [serviceKey]);
-  if (!logs) return <p className="row muted" role="status"><Spinner /> {t('app.loading')}</p>;
-  if (!logs.length) return <p className="muted">{t('logs.none')}</p>;
+  const ran = facts.length > 0 && <ul className="reasons log-run">{facts.map((f) => <li key={f.code}>{t(f.code, f.params)}</li>)}</ul>;
+  if (!logs) return <>{ran}<p className="row muted" role="status"><Spinner /> {t('app.loading')}</p></>;
+  if (!logs.length) return <>{ran}<p className="muted">{t('logs.none')}</p></>;
   return (
     <>
+      {ran}
       {logs.map((l) => (
         <section key={l.path}>
           <p className="mono muted">{l.path}</p>

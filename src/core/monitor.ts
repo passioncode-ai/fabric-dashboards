@@ -14,6 +14,7 @@ import { productIdOf } from '@passioncode-ai/fabric-service-host/links';
 import { rowIds } from './products';
 import { SystemdReader, authHeaders, claimConflicts, dashboardMinWidth, deriveState, elsewhereOf, isSystemJob, PlacementReader, SpaceDaemonReader, type Elsewhere, expand, fetchWellKnown, heldButSilent, loopbackOwnerOf, portOf, readDirectory, RemoteTokenLatch, REMOTE_TIMEOUT_MS, type DescriptorEntry, type WellKnownOptions, type WellKnownResult } from '@passioncode-ai/fabric-service-host';
 import { tail } from './fsutil';
+import { redactSecrets } from './bugs';
 import { commandReason, type CommandResult } from './outcome';
 import { duration, t as tr, type Lang } from './i18n';
 import { Launchd } from './launchd';
@@ -942,8 +943,9 @@ const LOG_LINE_MAX = 240;
 /** FD-198: the last non-empty line of a log's tail, without terminal colours or control characters, at most 240 characters. */
 export function lastLogLine(text: string): string | null {
   const lines = text.split(/\r?\n/).map((l) => l.replace(/\x1b\[[0-9;?]*[A-Za-z]/g, '').replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim());
-  const last = lines.reverse().find((l) => l.length > 0);
-  if (!last) return null;
+  const found = lines.reverse().find((l) => l.length > 0);
+  if (!found) return null;
+  const last = redactSecrets(found); // FD-250: the line reaches the page, notifications and agents
   return last.length > LOG_LINE_MAX ? `${last.slice(0, LOG_LINE_MAX - 1)}…` : last;
 }
 // #endregion log-reason

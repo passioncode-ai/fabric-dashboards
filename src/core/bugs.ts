@@ -15,15 +15,22 @@ export const BUGS_FILE = 'bugs.json';
 export const MAX_BUGS = 300;
 const MAX_MESSAGE = 500;
 
+/** FD-250: removes what reads as a credential (URL credentials, `token=…`, known key prefixes) and nothing else, for a
+ *  service's own log line that the app shows and hands to agents. */
+export function redactSecrets(text: string): string {
+  return text
+    .replace(/([a-z][a-z0-9+.-]*:\/\/)[^\s/@'"]+@/gi, '$1<credentials>@') // URL credentials
+    .replace(/\b(bearer|token|key|secret|password|authorization)(["'\s:=]+)[^\s"',;]{6,}/gi, '$1$2<redacted>')
+    .replace(/\b(sk|pk|ghp|gho|github_pat|xox[abp]|cak|fd)[-_][A-Za-z0-9_-]{12,}\b/g, '<redacted>');
+}
+
 /** Removes what could name a person, a machine or a secret from a message or a frame. */
 export function scrub(text: string, home: string, user: string): string {
   let s = text;
   if (home && home.length > 1) s = s.split(home).join('~');
   s = s.replace(/\/Users\/[^/\s'"]+/g, '/Users/~').replace(/[A-Za-z]:\\Users\\[^\\\s'"]+/g, 'C:\\Users\\~').replace(/\/home\/[^/\s'"]+/g, '/home/~');
   if (user && user.length > 2) s = s.replace(new RegExp(`\\b${user.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'g'), '<user>');
-  s = s.replace(/([a-z][a-z0-9+.-]*:\/\/)[^\s/@'"]+@/gi, '$1<credentials>@'); // URL credentials
-  s = s.replace(/\b(bearer|token|key|secret|password|authorization)(["'\s:=]+)[^\s"',;]{6,}/gi, '$1$2<redacted>');
-  s = s.replace(/\b(sk|pk|ghp|gho|github_pat|xox[abp]|cak|fd)[-_][A-Za-z0-9_-]{12,}\b/g, '<redacted>');
+  s = redactSecrets(s);
   s = s.replace(/\b[0-9a-f]{32,}\b/gi, '<hex>');
   return s.length > MAX_MESSAGE ? `${s.slice(0, MAX_MESSAGE)}…` : s;
 }
