@@ -32,6 +32,7 @@ import { accountsOf, allSessionsOf, bindingFor, machineSessionsOf, findSwitchboa
 import type { ServiceSnapshot, Settings } from '../core/types';
 import { claudeConfigDirs, lastTranscriptWrite, STUCK_MS, stuckKeys } from '../core/stuck';
 import { claimStop, claudeSessionDirs, folderLive, liveSessionFolders, liveSessionIds, continuedLaunches, continuedOf, finishStop, liveAgents, recoveryOf, resumeArgs, resumeOwnKey, sessionOpen, transcriptIn, transcriptOf, verdictOf, writtenAt, RESUME_SETTLE_MS, RESUMES_PER_PASS, type RecoveryStatus, type SbStop, type StopView } from '../core/recovery';
+import { closeCopyArgv, DUPLICATES_MS, parseCloseCopy, parseDuplicates, takesCloseCopy, type CloseCopyResult, type DuplicateSession } from '../core/duplicate-sessions';
 import { parseTargets, remoteAttachArgv, remoteEndArgv, RemoteSessions, targetAttachArgv, targetEndArgv } from '../core/remote-sessions';
 import { attachOwnKey, consoleRowId, dropRemoteTwins, machineTerminalKey, handoverRowId, SAME_START_MS, mergeSessions, pruneDismissed, pruneRecords, SourceReader, stopRowId, type ConsoleInput, type PendingHandover, type SbMachineProcess, type SbSessionRecord, type SessionActionResult, type SessionReason, type SessionRecord, type SessionNotice, type SessionOrigin, type SessionRow, type SessionsStatus, type SourceDegraded, type SourceResult } from '../core/sessions';
 
@@ -206,6 +207,11 @@ export class ConsoleHost {
     this.switchboardPresent = Boolean(inv.switchboard);
     return inv.switchboard ? allSessionsOf(this.run, inv.switchboard) : { ok: true, value: [] };
   });
+  /** FD-277: sessions running twice, from `attention`; read at most every DUPLICATES_MS while the Sessions mode is on screen. */
+  private duplicates: DuplicateSession[] = [];
+  private duplicatesAt = -Infinity;
+  /** FD-277: whether the Switchboard last looked at closes copies, by its path. */
+  private closeCopyOf: { switchboard: string; takes: boolean } | null = null;
   /** FD-231: until when a Switchboard without `sessions --machine` is not asked again (it updates itself). */
   private machineUnsupportedUntil = 0;
   /** FD-231: the last `sessions --machine` read answered, so every agent process is in the list. */
@@ -1226,8 +1232,43 @@ export class ConsoleHost {
     // FD-231: the processes no owner started (SL-8), on the same tick.
     await Promise.all([this.sbSessions.poll(), this.machineSessions.poll()]);
     void this.pollRemote();
+    void this.pollDuplicates();
     this.pushSessions();
   }
+
+  // #region duplicate-sessions — docs: docs/ux/scenarios.md#scn-118-close-the-quiet-copy-of-a-session-that-runs-twice
+  /** FD-277: Switchboard's `attention` read for sessions running twice, once a minute and only while the window is shown
+   *  with the Sessions mode on screen, and only where this Switchboard closes copies. A failed read keeps the last list. */
+  private async pollDuplicates(force = false): Promise<void> {
+    const now = Date.now();
+    if (!force && (!this.o.visible() || this.o.settings.get().layout.mode !== 'sessions' || now - this.duplicatesAt < DUPLICATES_MS)) return;
+    this.duplicatesAt = now;
+    const sb = (await this.inventory()).switchboard;
+    if (!sb) { if (this.duplicates.length) { this.duplicates = []; this.pushSessions(); } return; }
+    if (this.closeCopyOf?.switchboard !== sb) {
+      const help = await this.run(sb, ['sessions', '--help'], 10_000).catch(() => null);
+      this.closeCopyOf = { switchboard: sb, takes: Boolean(help && help.code === 0 && takesCloseCopy(help.stdout)) };
+    }
+    if (!this.closeCopyOf.takes) return;
+    const r = await this.run(sb, ['--json', 'attention'], 15_000).catch(() => null);
+    const read = r && r.code === 0 ? parseDuplicates(r.stdout) : null;
+    if (!read) return;
+    if (JSON.stringify(read) !== JSON.stringify(this.duplicates)) { this.duplicates = read; this.pushSessions(); }
+  }
+
+  /** FD-277: Close the quiet copy, for a session the list shows running twice; Switchboard picks the copy. */
+  async closeCopy(sessionId: string): Promise<CloseCopyResult> {
+    const sb = (await this.inventory()).switchboard;
+    const argv = sb && this.duplicates.some((d) => d.sessionId === sessionId) ? closeCopyArgv(sb, sessionId) : null;
+    if (!argv) return { ok: false, why: 'not-two' };
+    const [file, ...args] = argv;
+    const r = await this.run(file!, args, 30_000).catch((error: Error) => ({ code: 1, stdout: '', stderr: error.message }));
+    const result = parseCloseCopy(r.code, r.stdout, r.stderr);
+    this.o.log(`console: session ${sessionId.slice(0, 8)} ran twice: ${result.ok ? `closed the quiet copy${result.closedPid ? ` (pid ${result.closedPid})` : ''}` : `not closed (${result.why})`}`);
+    await this.pollDuplicates(true);
+    return result;
+  }
+  // #endregion duplicate-sessions
 
   /** FD-247 (step 5): another machine's ssh can take seconds, so it runs beside the tick and pushes when it changes
    *  something. Read only with the switch on, the window shown and the Sessions mode on screen; the switch off forgets. */
@@ -1285,7 +1326,7 @@ export class ConsoleHost {
     // FD-137 (SCN-092): a session Fabric started for a board request belongs to the agent in whose folder it ran.
     for (const r of rows) if (r.launch?.by.surface === 'fabric') { const k = this.agentOfFolder(r.folder, now); if (k) r.agentKey = k; }
     const degraded = [this.sbSessions.degraded, this.machineSessions.degraded, this.handoverDegraded, this.recoveryDegraded].filter((d): d is SourceDegraded => d !== null);
-    return { rows, degraded, machine: this.machineListed, switchboard: this.switchboardPresent, handovers: { enabled: this.handoversEnabled }, autoContinue: this.o.settings.get().resumeAfterLimit !== false, machines: this.o.settings.get().remoteSessions === false ? [] : this.remote.status(now) };
+    return { rows, degraded, machine: this.machineListed, switchboard: this.switchboardPresent, handovers: { enabled: this.handoversEnabled }, autoContinue: this.o.settings.get().resumeAfterLimit !== false, machines: this.o.settings.get().remoteSessions === false ? [] : this.remote.status(now), duplicates: this.closeCopyOf?.takes ? this.duplicates : [] };
   }
 
   // #region dispatch-agent — docs: docs/ux/scenarios.md#scn-092-see-a-session-fabric-started-for-a-board-request
@@ -1874,6 +1915,7 @@ export class ConsoleHost {
     ipcMain.handle(CHANNELS.sessionsAttach, (_e, id, s) => (idOk(id) ? this.attachSession(id, size(s ?? { cols: 100, rows: 30 })) : notARow()));
     ipcMain.handle(CHANNELS.sessionsMachineTerminal, (_e, machine, s) => (typeof machine === 'string' && MACHINE.test(machine) ? this.openMachineTerminal(machine, size(s ?? { cols: 120, rows: 32 })) : notARow()));
     ipcMain.handle(CHANNELS.sessionsClearEnded, () => this.clearEnded());
+    ipcMain.handle(CHANNELS.sessionsCloseCopy, (_e, id) => (typeof id === 'string' ? this.closeCopy(id) : { ok: false, why: 'failed' }));
     ipcMain.handle(CHANNELS.sessionsEnd, (_e, id) => (idOk(id) ? this.endSession(id) : notARow()));
     ipcMain.handle(CHANNELS.sessionsReveal, (_e, id) => (idOk(id) ? this.revealSession(id) : notARow()));
     ipcMain.handle(CHANNELS.sessionsRevealTranscript, (_e, id) => (idOk(id) ? this.revealTranscript(id) : notARow()));

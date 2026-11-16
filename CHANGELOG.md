@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.8.135 - 2026-11-16
+
+### Added
+
+- FD-277 (SCN-118): the Sessions mode warns when one coding session runs in two processes, as Switchboard 0.7.98 finds
+  it, with Close the quiet copy: Switchboard closes the copy that is neither busy nor running a command, and the warning
+  says which process it closed. Read once a minute, only while the Sessions mode is on screen.
+
 ## 0.8.134 - 2026-11-16
 
 ### Changed

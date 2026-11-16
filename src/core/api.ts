@@ -1,5 +1,6 @@
 // The typed bridge between the renderer and the main process. The renderer
 // never sees a token, a file handle or a process: it asks, the main process acts.
+import type { CloseCopyResult } from './duplicate-sessions';
 import type { FallbackChange, FallbackRead } from './fallback-types';
 import type { SetupCheckResult } from './doctor';
 import type { CommandResult } from './outcome';
@@ -224,6 +225,8 @@ export interface FabricApi {
   sessionsMachineTerminal(machine: string, size?: { cols: number; rows: number }): Promise<SessionActionResult>;
   /** Clear in the Ended group: every ended row. */
   sessionsClearEnded(): Promise<void>;
+  /** FD-277: closes the quiet copy of a session that runs in two processes (Switchboard's `sessions close-copy`). */
+  sessionsCloseCopy(sessionId: string): Promise<CloseCopyResult>;
   /** `end`: stops the session in its console (the window asks first). */
   sessionsEnd(id: string): Promise<SessionActionResult>;
   /** `reveal`: shows the row's folder in Finder. */
@@ -327,6 +330,7 @@ export const CHANNELS = {
   sessionsAttach: 'fd:sessions-attach',
   sessionsMachineTerminal: 'fd:sessions-machine-terminal',
   sessionsClearEnded: 'fd:sessions-clear-ended',
+  sessionsCloseCopy: 'fd:sessions-close-copy',
   sessionsEnd: 'fd:sessions-end',
   sessionsReveal: 'fd:sessions-reveal',
   sessionsRevealTranscript: 'fd:sessions-reveal-transcript',
