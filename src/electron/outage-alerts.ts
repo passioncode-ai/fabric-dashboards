@@ -8,7 +8,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { atomicWrite } from '../core/fsutil';
 import { callCapability } from '../core/mcp-client';
-import { askDelivered, askIdOf, chooseChannel, delivered, emptyOutageState, enqueueAsk, notifyChannelOf, observe, owed, owedAsks, watchedOf, type AlertMessage, type Ask, type OutageState, type Words } from '../core/outage-alerts';
+import { askDelivered, askIdOf, chooseChannel, sideOf, delivered, emptyOutageState, enqueueAsk, notifyChannelOf, observe, owed, owedAsks, watchedOf, type AlertMessage, type Ask, type OutageState, type Words } from '../core/outage-alerts';
 import { authHeaders, readTokenAsync } from '../core/probe';
 import type { AppStatus, ServiceSnapshot, Settings } from '../core/types';
 
@@ -103,9 +103,10 @@ export class OutageAlerts {
   // #region operator-asks — docs: docs/adr/0010-notifications-only-when-it-matters.md#amendment-2026-10-27-a-decision-reaches-the-operator-away-from-the-mac-fd-125
   /** FD-125: an agent waits for the operator's decision (an events-feed row with `notify` whose intent is `ask`):
    *  queue it for the channel, once per event, and send it now if the person's rules allow. */
-  ask(serviceKey: string, eventId: string, ask: Omit<Ask, 'delivered' | 'serviceKey'>): void {
+  ask(serviceKey: string, eventId: string, ask: Omit<Ask, 'delivered' | 'serviceKey' | 'side'>): void {
     if (this.stopped) return;
-    this.save(enqueueAsk(this.state, askIdOf(serviceKey, eventId), { ...ask, serviceKey }));
+    const side = sideOf(this.o.snapshots().find((s) => s.key === serviceKey)?.organization);
+    this.save(enqueueAsk(this.state, askIdOf(serviceKey, eventId), { ...ask, serviceKey, side }));
     this.schedule(0);
   }
   // #endregion operator-asks
@@ -155,16 +156,25 @@ export class OutageAlerts {
       const outages = due.filter((d) => (this.retryAt.get(d.msg.eventId) ?? 0) <= now);
       more = due.length > outages.length;
       if (!outages.length) return;
-      const channel = chooseChannel(this.o.snapshots(), this.o.settings().notifications.channel);
-      if ('none' in channel) {
-        // No channel now (its service between restarts, say): everything waits. `off` owes nothing to wait for.
-        if (channel.none !== 'off') { more = true; this.o.log(`alerts: ${outages.length} message(s) wait: no channel (${channel.none})`); }
-        return;
+      // FD-269: each message goes only through a channel of its agent's side (`chooseChannel`); a side with no channel
+      // now waits (its service between restarts, say). `off` owes nothing to wait for.
+      const snapshots = this.o.snapshots();
+      const choice = this.o.settings().notifications.channel;
+      const waiting = new Map<string, number>();
+      const out: Array<typeof outages[number] & { channel: { key: string; origin: string; path: string; capability: string } }> = [];
+      for (const d of outages) {
+        const now = snapshots.find((s) => s.key === d.msg.serviceKey);
+        const side = now ? sideOf(now.organization) : d.msg.side;
+        const channel = chooseChannel(snapshots, choice, side);
+        if ('none' in channel) { if (channel.none !== 'off') waiting.set(`${side} (${channel.none})`, (waiting.get(`${side} (${channel.none})`) ?? 0) + 1); continue; }
+        out.push({ ...d, channel });
       }
+      if (waiting.size) { more = true; this.o.log(`alerts: message(s) wait: no channel for ${[...waiting].map(([k, n]) => `${n} of ${k}`).join(', ')}`); }
       // Wave 4 (C-06): one message the channel refuses waits for its own retry, the ones behind it still go; three
       // failures in a row mean the channel itself is out, and the round ends there.
       let failures = 0;
-      for (const d of outages) {
+      for (const d of out) {
+        const channel = d.channel;
         if (this.stopped) return;
         try {
           await this.deliver(channel, d.msg);
