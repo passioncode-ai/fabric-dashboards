@@ -341,3 +341,27 @@ test('FD-287: a refusal with a code waits an hour and is logged once; others are
   assert.equal(alerts.status().held, undefined, 'a delivered message is no longer held');
   assert.ok(lines.some((l) => l.startsWith('alerts: sent result')));
 });
+
+test('FD-289: before any service has answered, a message waits without saying there is no channel; once one answers it goes', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'fd-289-'));
+  const lines: string[] = [];
+  const read = { key: 'relay.default', state: 'starting', organization: null, descriptor: { origin: 'http://127.0.0.1:47832' } } as Record<string, unknown>;
+  let snaps: Record<string, unknown>[] = [read];
+  const alerts = new OutageAlerts({ dataDir: dir, snapshots: () => snaps as never, settings: () => merge({}), words: () => words, nameOf: () => 'x', reasonOf: () => 'x', allowed: () => true, version: '0', log: (l) => lines.push(l), changed: () => undefined });
+  const sent: string[] = [];
+  (alerts as unknown as { deliver: (c: unknown, m: { eventId: string }) => Promise<void> }).deliver = async (_c, m) => { sent.push(m.eventId); };
+  const flush = () => (alerts as unknown as { flush: () => Promise<void> }).flush();
+  alerts.ask('a.default', 'e1', { name: 'A', episode: 'ep-a', at: Date.now(), text: 'decide?', link: null });
+  await flush();
+  assert.deepEqual(sent, []);
+  assert.equal(lines.filter((l) => l.includes('no channel')).length, 0, 'nothing is said before the first answer');
+  const other = { key: 'b.default', state: 'ready', organization: null, descriptor: { origin: 'http://127.0.0.1:1' }, wellKnown: { surfaces: {} } };
+  snaps = [read, other];
+  await flush();
+  assert.equal(lines.filter((l) => l.includes('no channel')).length, 1, 'once a service has answered, a missing channel is said');
+  snaps = [{ ...read, state: 'ready', wellKnown: { surfaces: { mcp: { path: '/mcp', transport: 'streamable-http', capabilities: ['relay.notify'] } } } }];
+  await flush();
+  alerts.stop();
+  assert.equal(sent.length, 1, 'the message went once the channel answered');
+  fs.rmSync(dir, { recursive: true, force: true });
+});
