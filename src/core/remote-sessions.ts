@@ -91,6 +91,15 @@ export function remoteEndArgv(target: RemoteTarget, launchId: string, ssh = '/us
   return [ssh, '-T', '-n', '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=5', target.machine, [shellQuote(target.program ?? DEFAULT_REMOTE_SWITCHBOARD), '--json', 'sessions', 'end', shellQuote(launchId), ...(target.dataDir ? ['--data-dir', shellQuote(target.dataDir)] : [])].join(' ')];
 }
 
+/** FD-291: Continue for a stop another machine's Switchboard reads as ready: a terminal (`-t`) that runs `sessions
+ *  continue <session> --in-place --hosted` there, which starts it in that machine's session host under a launch of its
+ *  own and attaches to it (SB-400); closing the view leaves it running. `sessions continue` takes no `--target`
+ *  (Switchboard 0.7.111), so it is always our ssh. */
+export function remoteContinueArgv(target: RemoteTarget, sessionId: string, ssh = '/usr/bin/ssh'): string[] | null {
+  if (!LAUNCH_ID.test(sessionId)) return null;
+  return [ssh, '-t', '-o', 'ConnectTimeout=5', target.machine, [shellQuote(target.program ?? DEFAULT_REMOTE_SWITCHBOARD), 'sessions', 'continue', shellQuote(sessionId), '--in-place', '--hosted', '--surface', 'dashboards', ...(target.dataDir ? ['--data-dir', shellQuote(target.dataDir)] : [])].join(' ')];
+}
+
 /** Reads one machine's sessions; a machine `targets` does not name is refused before any ssh. */
 export async function readRemoteSessions(run: Runner, known: readonly RemoteTarget[], machine: string, ssh = '/usr/bin/ssh', via: string | null = null, rows = false): Promise<RemoteRead> {
   const target = known.find((t) => t.machine === machine || t.aliases.includes(machine));

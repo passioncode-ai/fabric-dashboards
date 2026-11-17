@@ -33,7 +33,7 @@ import type { HeldContinue, ServiceSnapshot, Settings } from '../core/types';
 import { claudeConfigDirs, lastTranscriptWrite, STUCK_MS, stuckKeys } from '../core/stuck';
 import { claimStop, claudeSessionDirs, folderLive, liveSessionFolders, liveSessionIds, continuedLaunches, continuedOf, finishStop, launchTranscript, liveAgents, recoveryOf, resumeArgs, resumeOwnKey, sessionOpen, transcriptIn, transcriptOf, verdictOf, writtenAt, RESUME_SETTLE_MS, RESUMES_PER_PASS, type RecoveryStatus, type SbStop, type StopView } from '../core/recovery';
 import { closeCopyArgv, DUPLICATES_MS, parseCloseCopy, parseDuplicates, takesCloseCopy, type CloseCopyResult, type DuplicateSession } from '../core/duplicate-sessions';
-import { parseTargets, remoteAttachArgv, remoteEndArgv, RemoteSessions, targetAttachArgv, targetEndArgv } from '../core/remote-sessions';
+import { parseTargets, remoteAttachArgv, remoteContinueArgv, remoteEndArgv, RemoteSessions, targetAttachArgv, targetEndArgv } from '../core/remote-sessions';
 import { attachOwnKey, consoleRowId, dropRemoteTwins, machineTerminalKey, handoverRowId, SAME_START_MS, mergeSessions, pruneDismissed, pruneRecords, SourceReader, stopRowId, type ConsoleInput, type PendingHandover, type SbMachineProcess, type SbSessionRecord, type SessionActionResult, type SessionReason, type SessionRecord, type SessionNotice, type SessionOrigin, type SessionRow, type SessionsStatus, type SourceDegraded, type SourceResult } from '../core/sessions';
 
 /** node-pty 1.1.0 ships its macOS `spawn-helper` without the executable bit, and its postinstall
@@ -1407,6 +1407,7 @@ export class ConsoleHost {
     if (!row) return { ok: false, reason: 'unknown' };
     if (row.actions.includes('continueNow') && id.startsWith('st:')) return this.continueStop(id.slice(3), account ?? row.candidates[0]?.id ?? '');
     if (!row.actions.includes('continue')) return { ok: false, reason: 'not-allowed' };
+    if (row.machine && id.startsWith('rm:')) return this.continueRemote(row, size);
     if (!isDir(row.folder)) return { ok: false, reason: 'no-folder' };
     // F1 of FIX-2: a declined stop is taken up by this Continue alone: the background pass leaves it meanwhile.
     if (id.startsWith('st:')) {
@@ -1637,6 +1638,27 @@ export class ConsoleHost {
     this.attachedOf.set(key, launchId);
     this.originOf.set(key, 'switchboard');
     this.o.log(`console: hosted session ${launchId} on ${target!.machine} opened in ${key}`);
+    this.o.changed?.();
+    return { ok: true, key };
+  }
+
+  /** FD-291: Continue for a stop another machine's Switchboard reads as ready: a console of its own runs `ssh -t <machine>
+   *  <switchboard there> sessions continue <session> --in-place --hosted`, which continues it in that machine's session
+   *  host and shows it; closing the console only closes the view there. A second press finds the console. */
+  private async continueRemote(row: SessionRow, size: { cols: number; rows: number }): Promise<SessionActionResult> {
+    const target = this.remote.target(row.machine!);
+    const argv = target && row.remoteSession ? remoteContinueArgv(target, row.remoteSession) : null;
+    if (!argv) return { ok: false, reason: 'not-allowed' };
+    const key = attachOwnKey(`${target!.machine}:${row.remoteSession}`);
+    if (this.manager.snapshot(key).state === 'running') return { ok: true, key };
+    // Only ssh runs here (FD-210): the count and the swap hold it back (LC-17), never this Mac's disk.
+    const a = admit({ ...await (this.o.machine ?? machineProbe)(os.homedir(), this.manager.runningCount()), freeDisk: null });
+    if (!a.ok) return { ok: false, reason: 'admission', detail: a.why };
+    const r = this.manager.start(key, { argv, cwd: os.homedir(), label: row.agent }, size);
+    if (!r.ok) return { ok: false, reason: 'spawn', detail: r.error };
+    this.originOf.set(key, 'switchboard');
+    this.remote.invalidate(target!.machine);
+    this.o.log(`console: stop ${row.remoteSession} on ${target!.machine} continued in ${key}`);
     this.o.changed?.();
     return { ok: true, key };
   }

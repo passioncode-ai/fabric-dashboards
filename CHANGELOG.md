@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.8.162 - 2026-11-17
+
+### Added
+
+- FD-291: a session on another machine stopped on a usage limit, which that machine's Switchboard reads as ready to
+  continue, offers Continue. It opens a console of its own that runs `sessions continue <session> --in-place --hosted`
+  there over ssh, so the session goes on in that machine's session host; closing the console leaves it running.
+
 ## 0.8.161 - 2026-11-17
 
 ### Fixed
