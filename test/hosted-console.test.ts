@@ -16,7 +16,8 @@ const GB = 1024 ** 3;
 const LID = '00000000-0000-4000-8000-000000000211';
 const ok = (data: unknown) => ({ code: 0, stdout: JSON.stringify({ ok: true, data }), stderr: '' });
 
-function rig(o: { hosted?: boolean; listed?: boolean; endFails?: boolean; history?: boolean } = {}) {
+function rig(o: { hosted?: boolean; listed?: boolean; endFails?: boolean; history?: boolean; busy?: number } = {}) {
+  let busy = o.busy ?? 0;
   const base = tmp('fd-211-');
   const bin = path.join(base, 'bin');
   const folder = path.join(base, 'work');
@@ -42,6 +43,8 @@ function rig(o: { hosted?: boolean; listed?: boolean; endFails?: boolean; histor
       if (line === '--json sessions --history') return o.history ? ok({ launches: [{ working_directory: folder, state: 'running', provider: 'claude', agent: 'claude-code', in_place: true, hosted: true, mode: 'resume', launch_id: LID, launched_at: Math.floor(startedAt / 1000), launched_by: { surface: 'recovery' } }] }) : { code: 1, stdout: '', stderr: '' };
       if (line === `--json sessions end ${LID}`) {
         if (o.endFails) return { code: 1, stdout: '', stderr: '{"error":"No session with this launch id is open here.","ok":false}' };
+        // SB-413 (0.7.114): a host that does not answer within 15 s; nothing was sent, the session still runs.
+        if (busy > 0) { busy--; return { code: 1, stdout: '', stderr: '{"code":"HOST_BUSY","error":"The session\'s host did not answer within 15 seconds; it may be busy. Try again.","ok":false}' }; }
         // The host ends the session; its viewer (our console's process) exits with it.
         setTimeout(() => { for (const cb of exits.values()) cb({ exitCode: 129 }); }, 5);
         return ok({ launch_id: LID, exit_code: 129, reason: 'ended' });
@@ -114,6 +117,24 @@ test('FD-211: a hosted session Switchboard does not list, or cannot end, still g
     await tick(80);
     assert.notEqual(r.host.sessionsStatus().rows.find((x) => x.key === key)?.group, 'running', JSON.stringify(o));
   }
+});
+
+test('FD-309: a host that answers HOST_BUSY is asked once more before the view is closed', POSIX, async () => {
+  const r = rig({ busy: 1 });
+  const key = await r.start();
+  r.host.stopByPerson(key);
+  await tick(120);
+  assert.equal(r.asked.filter((l) => l === `--json sessions end ${LID}`).length, 2, r.asked.join('\n'));
+  assert.equal(r.host.sessionsStatus().rows.find((x) => x.key === key)?.state, 'ended-by-you', 'ended in the host, not only its view');
+});
+
+test('FD-309: a host busy twice gets one retry only, then the view is closed as before', POSIX, async () => {
+  const r = rig({ busy: 5 });
+  const key = await r.start();
+  r.host.stopByPerson(key);
+  await tick(120);
+  assert.equal(r.asked.filter((l) => l === `--json sessions end ${LID}`).length, 2);
+  assert.notEqual(r.host.sessionsStatus().rows.find((x) => x.key === key)?.group, 'running');
 });
 
 test('FD-299: a hosted session `sessions --all` does not list is found in the history and ended there, not left running', POSIX, async () => {

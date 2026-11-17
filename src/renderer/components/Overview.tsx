@@ -12,7 +12,7 @@ import { money as formatMoney } from './Spend';
 import { categoryOf, instanceOf, offProducts, placeStates, type Product } from '../../core/products';
 import { PROBLEM_STATES, type ListLayout } from '../../core/types';
 import type { AppStatus, ServiceSnapshot, Settings } from '../../core/types';
-import { api, GLYPH, Icon, nameOf, NEWS_MS, shortBuild, Spinner, StateBadge, useExpiry, useT } from '../lib';
+import { api, GLYPH, Icon, nameOf, NEWS_MS, shortBuild, Spinner, StateBadge, useExpiry, usePoll, useT } from '../lib';
 import { shownState } from '../../core/setup-wait';
 import { firstAction } from '../../core/focus';
 
@@ -412,13 +412,7 @@ function StatusStrip({ status, products, attention, urgent, goSpend, goAttention
   const { t } = useT();
   const [spend, setSpend] = useState<SpendEntry[] | null>(null);
   // D-3: read on arrival and every minute while Overview is open; a hidden window gets the last sums (LC-08).
-  useEffect(() => {
-    let alive = true;
-    const read = () => void api().spend().then((r) => { if (alive) setSpend(r.entries); }, () => undefined);
-    read();
-    const timer = setInterval(read, 60_000);
-    return () => { alive = false; clearInterval(timer); };
-  }, []);
+  usePoll((_first, alive) => void api().spend().then((r) => { if (alive()) setSpend(r.entries); }, () => undefined), 60_000, []);
   const ready = products.filter((p) => p.primary.state === 'ready').length;
   const problems = status.services.filter((s) => PROBLEM_STATES.has(s.state)).length;
   // Reachable when anything reports or failed to report: Spend lists the failures (D-3). With no

@@ -3,7 +3,7 @@ import type { SpendSum } from '@passioncode-ai/fabric-service-host/usage';
 import { limitAmount, limitHeadline, limitName, limitUsd, limitWindow } from '../../core/limits';
 import { sumSpend, type SpendEntry, type SpendWindow } from '../../core/spend';
 import type { AppStatus, ServiceSnapshot } from '../../core/types';
-import { api, nameOf, Spinner, useT } from '../lib';
+import { api, nameOf, Spinner, usePoll, useT } from '../lib';
 
 /** Read again while the page is open; a hidden window gets the last sums, not a new read (lifecycle LC-08). */
 const REFRESH_MS = 60_000;
@@ -27,13 +27,9 @@ export function Spend({ status, onOpen }: { status: AppStatus; onOpen: (key: str
       setBusy(false);
     }
   };
-  useEffect(() => {
-    // Opening Spend is a person asking: it reads now, never the strip's cached sums (live walk, 2026-10-06).
-    void read(true);
-    // LC-08: while the window is hidden the main process answers the last sums without reading.
-    const timer = setInterval(() => void read(), REFRESH_MS);
-    return () => clearInterval(timer);
-  }, []);
+  // Opening Spend is a person asking: it reads now, never the strip's cached sums (live walk, 2026-10-06).
+  // LC-08: while the window is hidden the main process answers the last sums without reading.
+  usePoll((first) => void read(first), REFRESH_MS, []);
 
   if (!entries) return <p className="muted row"><Spinner /> {t('spend.reading')}</p>;
 

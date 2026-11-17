@@ -55,7 +55,7 @@ import { canonicalOrgValue, GITHUB_PREFIX, githubOwnerOf, isShared, keepsOrganiz
 import { readOrganizations } from '../core/organization-store';
 
 export { COMMAND_TIMEOUT_MS };
-import { CONTROL_TIMEOUT_MS, controlService } from '../core/control';
+import { CONTROL_TIMEOUT_MS, controlService, refusalWords } from '../core/control';
 import { UNTRUSTED_NOTE } from '../core/untrusted';
 export { CONTROL_TIMEOUT_MS };
 
@@ -629,20 +629,22 @@ export async function control(deps: Deps, key: string, action: 'start' | 'stop' 
   }, { oldPid: before?.kind === 'answer' ? before.doc.process.pid : null });
   switch (out.kind) {
     case 'refused':
-      if (out.why === 'remote') throw new ToolError(`${d.name} runs online and is supervised by its platform; it cannot be ${action}ed from here`);
-      // ADR-0019 §7: launchd is macOS's; elsewhere the service is shown, never controlled, and the agent is told why.
-      if (out.why === 'unsupervised-here') throw new ToolError(`${d.name} is supervised by launchd, which this system does not have; start and stop it on the system that runs it`);
-      if (out.why === 'plist-missing') throw new ToolError(`${d.name}: the launchd plist is missing at ${out.plist}; reinstall the service`);
-      // FD-132: a second copy here would run beside the one on the other machine.
-      // FD-167: only root starts or stops a system daemon of this space; the host agent does it.
-      // FD-270: the local lifecycle broker enrolls the job; acting on it here would fight the broker.
-      if (out.why === 'broker') throw new ToolError(`${d.name} is enrolled with the local lifecycle broker (target ${out.target}), which starts, stops and restarts it; use its lifecycle tools (lifecycle.ensure_running, lifecycle.restart, lifecycle.stop)`);
-      if (out.why === 'system-daemon') throw new ToolError(`${d.name} runs as a system service of this space, which only the administrator can start or stop; ask the host agent (studio.service.control)`);
-      // FD-179: the job is not loaded here; what answers on its port is the placed copy, through a forward.
-      if (out.why === 'not-here') throw new ToolError(`${d.name} runs on ${out.machine === 'unknown' ? 'another machine' : out.machine} and its job is not loaded here: nothing of it runs on this machine to stop. Stop it on the machine that runs it`);
-      if (out.why === 'placement-unreadable') throw new ToolError(`${d.name}: Observatory's placement record could not be read (${out.detail}), so where it belongs is unknown; it is not started here. Fix the record, then start again`);
-      if (out.why === 'placed-elsewhere') throw new ToolError(`${d.name} is placed on ${out.machine === 'unknown' ? 'another machine' : out.machine}; starting it here would run a second copy. Move it in Observatory's placement first`);
-      throw new ToolError(`${d.name} is not managed by launchd; it cannot be ${action}ed from here`);
+      throw new ToolError(refusalWords(out, {
+        remote: () => `${d.name} runs online and is supervised by its platform; it cannot be ${action}ed from here`,
+        // ADR-0019 §7: launchd is macOS's; elsewhere the service is shown, never controlled, and the agent is told why.
+        'unsupervised-here': () => `${d.name} is supervised by launchd, which this system does not have; start and stop it on the system that runs it`,
+        'plist-missing': (r) => `${d.name}: the launchd plist is missing at ${r.plist}; reinstall the service`,
+        // FD-270: the local lifecycle broker enrolls the job; acting on it here would fight the broker.
+        broker: (r) => `${d.name} is enrolled with the local lifecycle broker (target ${r.target}), which starts, stops and restarts it; use its lifecycle tools (lifecycle.ensure_running, lifecycle.restart, lifecycle.stop)`,
+        // FD-167: only root starts or stops a system daemon of this space; the host agent does it.
+        'system-daemon': () => `${d.name} runs as a system service of this space, which only the administrator can start or stop; ask the host agent (studio.service.control)`,
+        // FD-179: the job is not loaded here; what answers on its port is the placed copy, through a forward.
+        'not-here': (r) => `${d.name} runs on ${r.machine === 'unknown' ? 'another machine' : r.machine} and its job is not loaded here: nothing of it runs on this machine to stop. Stop it on the machine that runs it`,
+        'placement-unreadable': (r) => `${d.name}: Observatory's placement record could not be read (${r.detail}), so where it belongs is unknown; it is not started here. Fix the record, then start again`,
+        // FD-132: a second copy here would run beside the one on the other machine.
+        'placed-elsewhere': (r) => `${d.name} is placed on ${r.machine === 'unknown' ? 'another machine' : r.machine}; starting it here would run a second copy. Move it in Observatory's placement first`,
+        unmanaged: () => `${d.name} is not managed by launchd; it cannot be ${action}ed from here`,
+      }));
     case 'launchctl-failed':
       return { ok: false, state: (await serviceStatus(deps, key)).state, detail: out.detail };
     case 'stopped':

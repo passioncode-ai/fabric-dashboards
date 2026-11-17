@@ -5,7 +5,7 @@
 import { useEffect, useState } from 'react';
 import type { LoadEntry } from '../../core/load';
 import type { ServiceSnapshot } from '../../core/types';
-import { api, Spinner, useT } from '../lib';
+import { api, Spinner, usePoll, useT } from '../lib';
 
 /** Read again while the tab is open; a hidden window gets the last read, not a new one (lifecycle LC-08). */
 const REFRESH_MS = 60_000;
@@ -22,13 +22,10 @@ export function Load({ s }: { s: ServiceSnapshot }) {
       if (live.on) { setEntry(r.entry); setReadAt(r.readAt); }
     } finally { if (live.on) setBusy(false); }
   };
-  useEffect(() => {
-    const live = { on: true };
-    setEntry(null);
-    void read(live);
-    const timer = setInterval(() => void read(live), REFRESH_MS);
-    return () => { live.on = false; clearInterval(timer); };
-  }, [s.key]);
+  usePoll((first, alive) => {
+    if (first) setEntry(null);
+    void read({ get on() { return alive(); } });
+  }, REFRESH_MS, [s.key]);
 
   // Sub-second waits are common: a person reads "40 ms", never "0 s".
   const ms = (n: number) => (n < 1000 ? t('duration.ms', { n }) : n < 10_000 ? t('duration.s', { n: (Math.round(n / 100) / 10).toLocaleString(lang) }) : duration(n));

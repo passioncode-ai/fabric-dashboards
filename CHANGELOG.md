@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.8.181 - 2026-11-17
+
+### Fixed
+- FD-309: Stop on a console whose session Switchboard's session host holds asks the host once more when it answers
+  `HOST_BUSY` (Switchboard 0.7.114: it did not answer within 15 seconds, nothing was sent). Before, the view was closed
+  at once and the session ran on with no viewer until the host's 30-minute idle close.
+
+### Changed
+- FD-303 (refactor wave 3): the window's and the MCP tool's words for a refused Start, Stop or Restart come from one
+  exhaustive table per surface (`refusalWords`, `src/core/control.ts`): a new reason does not compile until both name
+  it. A renderer `usePoll` replaces four copies of read, interval and cleanup (This Mac, Spend, Load, Overview's spend).
+  The account labels a waiting limit stop shows reuse the console's fresh read of the same list.
+- FD-308: the cost-bound tests of `test/untrusted.test.ts` take the best of five rounds and skip the ratio above a
+  load average of 100.
+
 ## 0.8.180 - 2026-11-17
 
 ### Changed

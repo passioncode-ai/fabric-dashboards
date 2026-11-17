@@ -62,6 +62,14 @@ export type ControlOutcome =
   | { kind: 'still-answering' }
   | { kind: 'timeout' };
 
+/** A refusal of controlService, by its reason. */
+export type ControlRefusal = Extract<ControlOutcome, { kind: 'refused' }>;
+
+/** FD-303: the window and the MCP tool each word every refusal; a new reason fails to compile until both do. */
+export function refusalWords<T>(out: ControlRefusal, words: { [W in ControlRefusal['why']]: (r: Extract<ControlRefusal, { why: W }>) => T }): T {
+  return (words[out.why] as (r: ControlRefusal) => T)(out);
+}
+
 /**
  * Run one action on a launchd-supervised service and wait for the result: for stop, no answer;
  * for start, an answer as this service; for restart, an answer as this service from a new pid.
