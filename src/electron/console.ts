@@ -28,7 +28,7 @@ import { MACHINE } from '../core/platform';
 import { isNewAgentKey, isNewSessionKey, isolatedBlock, newSessionKey, prepareNewAgent, projectsFolder, type NewSessionChoice } from '../core/new-session';
 import { askArgsOfProvider, bypassArgs, claudeAskModeOf, promptsWords, setClaudeAskMode, bypassArgsOfProvider, detectRuntimes, KNOWN_RUNTIMES, readLoginPath, searchDirs, specsFromSwitchboard, type Runtime, type RuntimeSpec } from '../core/runtimes';
 import type { SettingsStore } from '../core/settings';
-import { accountsOf, allSessionsOf, bindingFor, machineSessionsOf, findSwitchboard, handoverOwnKey, handoverRunArgv, handoversOf, handoversSwitch, isHandoverKey, launchFeatures, sbFailure, sessionsIn, startAccount, terminalLaunchArgv, type Binding, type SbAccounts, type SbHandover, type SbSessions, type StartAccount } from '../core/switchboard';
+import { accountsOf, allSessionsOf, bindingFor, machineSessionsOf, findSwitchboard, handoverOwnKey, handoverRunArgv, handoversOf, hostedContinueArgv, handoversSwitch, isHandoverKey, launchFeatures, sbFailure, sessionsIn, startAccount, terminalLaunchArgv, type Binding, type SbAccounts, type SbHandover, type SbSessions, type StartAccount } from '../core/switchboard';
 import type { HeldContinue, ServiceSnapshot, Settings } from '../core/types';
 import { claudeConfigDirs, lastTranscriptWrite, STUCK_MS, stuckKeys } from '../core/stuck';
 import { claimStop, claudeSessionDirs, folderLive, liveSessionFolders, liveSessionIds, continuedLaunches, continuedOf, finishStop, liveAgents, recoveryOf, resumeArgs, resumeOwnKey, sessionOpen, transcriptIn, transcriptOf, verdictOf, writtenAt, RESUME_SETTLE_MS, RESUMES_PER_PASS, type RecoveryStatus, type SbStop, type StopView } from '../core/recovery';
@@ -153,7 +153,7 @@ export class ConsoleHost {
   readonly manager: ConsoleManager;
   private dirs: Promise<string[]> | null = null;
   private catalog: Promise<Runtime[]> | null = null;
-  private inPlaceFor: { key: string; value: { inPlace: boolean; surface: boolean; target: boolean; hosted: boolean } } | null = null;
+  private inPlaceFor: { key: string; value: { inPlace: boolean; surface: boolean; target: boolean; hosted: boolean; continueHosted: boolean } } | null = null;
   /** FD-74: what Switchboard said about each folder, for showing the console at once (BINDING_FRESH_MS). */
   private readonly bindings = new Map<string, { at: number; value: Binding | { kind: 'absent' }; pending: boolean }>();
   private readonly run: Runner;
@@ -336,7 +336,7 @@ export class ConsoleHost {
     return (await this.inventory()).switchboard;
   }
 
-  private async inventory(): Promise<{ runtimes: Runtime[]; switchboard: string | null; inPlace: boolean; surface: boolean; target: boolean; hosted: boolean; dirs: string[] }> {
+  private async inventory(): Promise<{ runtimes: Runtime[]; switchboard: string | null; inPlace: boolean; surface: boolean; target: boolean; hosted: boolean; continueHosted: boolean; dirs: string[] }> {
     const dirs = await this.searchPath();
     const switchboard = findSwitchboard(dirs);
     if (!this.catalog) {
@@ -363,13 +363,14 @@ export class ConsoleHost {
     let surface = false;
     let target = false;
     let hosted = false;
+    let continueHosted = false;
     if (switchboard) {
       let stamp = switchboard;
       try { stamp += `:${fs.statSync(switchboard).mtimeMs}`; } catch { /* checked below anyway */ }
       if (this.inPlaceFor?.key !== stamp) this.inPlaceFor = { key: stamp, value: await launchFeatures(this.run, switchboard) };
-      ({ inPlace, surface, target, hosted } = this.inPlaceFor.value);
+      ({ inPlace, surface, target, hosted, continueHosted } = this.inPlaceFor.value);
     }
-    return { runtimes, switchboard, inPlace, surface, target, hosted, dirs };
+    return { runtimes, switchboard, inPlace, surface, target, hosted, continueHosted, dirs };
   }
 
   private folderOf(key: string): ConsoleInfo['folder'] {
@@ -1041,6 +1042,8 @@ export class ConsoleHost {
     // FIX-4: a stop this launch acted on keeps the account it stopped on (V-1 of FIX-2), from the labels last read.
     const stoppedOn = stop.account ? this.accountLabels?.value[stop.account] ?? null : null;
     const view = (verdict: StopView['verdict'], key?: string): StopView => ({ event: stop.event, session: stop.session, dir: stop.dir, provider: stop.provider, stoppedAt: stop.stoppedAt, attempt: stop.attempt, verdict, key, account: stoppedOn });
+    // FD-290: what this Switchboard can host, read before the claim so nothing waits between the claim and the start.
+    const { continueHosted } = await this.inventory();
     this.claiming.set(stop.event, { stop, sb });
     const claim = await claimStop(this.run, sb, stop, account).finally(() => this.claiming.delete(stop.event));
     if (!claim.ok) {
@@ -1068,7 +1071,14 @@ export class ConsoleHost {
     // Wave 5b (FD-236 (1)): a conversation held in this folder's console continues with permission prompts.
     const resumeHeld = this.heldIn(stop.dir);
     if (resumeHeld) this.o.log(`console: limit stop ${stop.event} continues with permission prompts: a console in its folder was held`);
-    const r = cli ? this.manager.start(key, { argv: [cli, ...(resumeHeld ? askArgsOfProvider : bypassArgsOfProvider)(stop.provider === 'codex' ? 'codex' : 'claude'), ...resumeArgs(stop)], cwd: stop.dir, label, env: { PATH: dirs.join(path.delimiter) } }, { cols: 100, rows: 30 }) : { ok: false as const, error: `${stop.provider} is not installed here` };
+    // FD-290 (SB-400): a Claude session continues as itself in Switchboard's session host, under a launch of its own, so
+    // Open here reaches it from another machine and End ends it there (FD-211). Held, a Codex session, or an older
+    // Switchboard: the agent's own CLI as before (the host's script skips permission prompts by Switchboard's settings).
+    const hostedHere = stop.provider === 'claude' && !resumeHeld && continueHosted;
+    const argv = hostedHere ? hostedContinueArgv(sb, stop.session)
+      : cli ? [cli, ...(resumeHeld ? askArgsOfProvider : bypassArgsOfProvider)(stop.provider === 'codex' ? 'codex' : 'claude'), ...resumeArgs(stop)] : null;
+    const r = argv ? this.manager.start(key, { argv, cwd: stop.dir, label, env: { PATH: dirs.join(path.delimiter) } }, { cols: 100, rows: 30 }) : { ok: false as const, error: `${stop.provider} is not installed here` };
+    if (r.ok && hostedHere) this.hostedKeys.add(key);
     if (!r.ok && r.error === 'running') {
       // FIX-4: its own console already runs (an earlier continue the person kept open); this claim starts nothing, so it
       // is finished as cancelled rather than left claimed for nobody to settle.
