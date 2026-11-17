@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.8.189 - 2026-11-17
+
+### Changed
+- FD-316 (P2-02): Switchboard's session history (about 0.7 MB) is no longer read on every limit-stop pass. A pass with a
+  stop ready to continue still reads it fresh, since it guards against continuing the same work twice; a pass with none
+  ready reuses the last read for the same launches for up to 5 minutes. Asked Switchboard for filters that remove the read
+  (board `c318fd22`).
+- FD-308: the timing tests read the load average at each measure, since it can rise during a run.
+
 ## 0.8.188 - 2026-11-17
 
 ### Fixed

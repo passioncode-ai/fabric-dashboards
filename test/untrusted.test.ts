@@ -196,7 +196,7 @@ test('FD-234 (verifier round 2): reading and fencing stay fast on long hostile t
     neutralize(text);
     oneLine(text);
     const ms = performance.now() - t0;
-    if (!LOADED) assert.ok(ms < 500, `${text.slice(0, 12)}…: ${ms.toFixed(0)} ms`); // FD-308: the reads still run above load average 100
+    if (!loaded()) assert.ok(ms < 500, `${text.slice(0, 12)}…: ${ms.toFixed(0)} ms`); // FD-308: the reads still run above load average 100
   }
 });
 
@@ -576,14 +576,17 @@ const plainLike = (texts: readonly string[]) => texts.map((t) => PLAIN_LINE.repe
 // FD-308: at load average 165 to 199 one best-of-three still read 132 ms against 6 ms; a burst of load rarely lasts five
 // rounds, while round 3's defect (10 to 22 times) fails every one, so the bound holds when any round is inside it. Above
 // load average 100 the ratio is not asserted at all.
-const LOADED = os.loadavg()[0] > 100; // FD-308: at load average 321 every round read 25 times plain; CI runners are clean
+// FD-308: at load average 321 every round read 25 times plain; CI runners are clean. Read at each measure: the load
+// can rise during a run (60 to 152 within one `npm run check`, 2026-11-17).
+const loaded = () => os.loadavg()[0] > 100;
 const withinRatio = (label: string, hostile: () => unknown, plain: () => unknown, factor: number) => {
-  if (LOADED) { hostile(); plain(); return; } // the reads still run, so a crash or a hang still fails
+  if (loaded()) { hostile(); plain(); return; } // the reads still run, so a crash or a hang still fails
   let h = Infinity;
   let p = Infinity;
   for (let round = 0; round < 5; round++) {
     h = Infinity;
     p = Infinity;
+    if (loaded()) return; // the load rose while measuring
     for (let i = 0; i < 3; i++) {
       let at = performance.now();
       hostile();
