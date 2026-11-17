@@ -446,14 +446,18 @@ if (!app.requestSingleInstanceLock()) {
   // FD-285: each product's `agent-health/1` report, read every 5 minutes; its episodes go through the same channel.
   const health = new HealthPoller({
     binary: async (p) => (p.product === 'fabric-switchboard' ? consoles.switchboardPath() : null),
-    run: execRunner, log, observe: (product, answer, expected) => alerts.health(product, answer, expected),
+    run: execRunner, log, observe: (product, answer, expected, wellKnown) => alerts.health(product, answer, expected, wellKnown),
     // FD-293: every answering service that is not a product read by its command, read with its own token.
     services: () => {
       const book = alerts.healthBook();
       return monitor.snapshots().flatMap((s) => {
         const d = s.descriptor;
         if (!d || !HEALTH_READ_STATES.includes(s.state) || HEALTH_PRODUCTS.some((h) => h.product === d.id)) return [];
-        return [{ key: s.key, expected: d.id, known: s.key in book, read: async () => fetchHealthReport(d, HEALTH_PATH, await readTokenAsync(d.auth.tokenFile)) }];
+        return [{
+          key: s.key, expected: d.id, known: s.key in book, read: async () => fetchHealthReport(d, HEALTH_PATH, await readTokenAsync(d.auth.tokenFile)),
+          // HL-7 (FD-297): read when the report arrives, so the pair is the latest probe's
+          wellKnown: () => monitor.snapshots().find((x) => x.key === s.key)?.wellKnown ?? null,
+        }];
       });
     },
   });

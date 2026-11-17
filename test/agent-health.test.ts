@@ -242,6 +242,23 @@ test('FD-293: a service is read under its service key once it answers a report; 
   poller.stop();
 });
 
+test('FD-297: the poller hands the service\'s well-known answer beside its report', async () => {
+  const { HealthPoller } = await import('../src/electron/health-poller');
+  const seen: unknown[] = [];
+  const doc = { status: 'degraded', degraded: [{ source: 'storage', reason: 'disk full' }] };
+  const poller = new HealthPoller({
+    binary: async () => null, run: async () => ({ code: 0, stdout: '', stderr: '' }),
+    observe: (_p, _a, _e, w) => seen.push(w), log: () => {},
+    services: () => [
+      { key: 'a.local', expected: 'a', known: true, read: async () => null, wellKnown: () => doc },
+      { key: 'b.local', expected: 'b', known: true, read: async () => null },
+    ],
+  });
+  await poller.pass();
+  assert.deepEqual(seen, [doc, null]);
+  poller.stop();
+});
+
 test('FD-293: the book is keyed by the service key and the report must name the descriptor id', () => {
   const now = Date.parse('2026-11-17T10:00:00Z');
   let book: HealthBook = {};
@@ -252,6 +269,28 @@ test('FD-293: the book is keyed by the service key and the report must name the 
   assert.deepEqual(readHealth(other), { state: 'ok' });
   const twice = observeHealth(observeHealth({}, 'example-agent.cloud', other, now, 'example-agent'), 'example-agent.cloud', other, now + 300_000, 'example-agent');
   assert.ok(twice['example-agent.cloud']!.causes[BLIND], 'another product answering is an unreadable report');
+});
+
+test('FD-297 (HL-7): an ok report beside a degraded well-known answer is read as unknown (FAC-SEM-181)', () => {
+  const now = Date.parse('2026-11-17T10:00:00Z');
+  const r = report([ok()], { product: 'example-agent' });
+  const source = { status: 'ready', degraded: [{ source: 'storage', reason: 'disk full' }] };
+  const said = { status: 'degraded', degraded: [] };
+  for (const wellKnown of [source, said]) {
+    const book = observeHealth({}, 'example-agent.local', r, now, 'example-agent', wellKnown);
+    assert.deepEqual(book['example-agent.local']!.read, { state: 'unknown', reason: 'FAC-SEM-181' });
+    assert.equal(book['example-agent.local']!.causes[BLIND]!.bad, 1, 'counted as an unreadable report');
+  }
+  // a setup entry waits for a person: still not ok beside it
+  const setup = { status: 'ready', degraded: [{ source: 'mail', reason: 'sign in', setup: true }] };
+  assert.equal(observeHealth({}, 'k', r, now, 'example-agent', setup).k!.read.reason, 'FAC-SEM-181');
+  // a warn report beside a degraded source is the pair the contract asks for
+  const warn = report([ok(), errors('warn', 3)], { product: 'example-agent' });
+  assert.deepEqual(observeHealth({}, 'k', warn, now, 'example-agent', source).k!.read, { state: 'warn' });
+  // ready with no degraded source, or no well-known answer at all, bounds nothing
+  for (const wellKnown of [{ status: 'ready', degraded: [] }, null, undefined]) {
+    assert.deepEqual(observeHealth({}, 'k', r, now, 'example-agent', wellKnown).k!.read, { state: 'ok' });
+  }
 });
 
 test('FD-293: fetchHealthReport reads the path with the descriptor token; 404 is no report, other errors null', async () => {

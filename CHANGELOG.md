@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.8.176 - 2026-11-17
+
+### Fixed
+
+- FD-297: an agent that tells This Mac it has a degraded part but whose health report says everything is ok is no
+  longer believed. The report is read as unreadable (the contract's rule HL-7, `FAC-SEM-181`), so This Mac shows why and
+  the operator's channel gets one message about the unreadable report instead of a calm "ok".
+
 ## 0.8.175 - 2026-11-17
 
 ### Added

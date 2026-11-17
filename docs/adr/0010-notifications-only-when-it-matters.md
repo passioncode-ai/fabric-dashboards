@@ -224,6 +224,13 @@ repository is public and the operator's agents stay private. The book is keyed b
 and the report must name the descriptor id, so a copy run for an organization goes to that organization's channel
 (FD-269).
 
+Amended 2026-11-17 (FD-297): a service read this way also answers the well-known document, so the contract's pair rule
+HL-7 applies. When the latest well-known answer says `degraded` or lists a degraded source (a `setup: true` one
+included), a report beside it that says `ok` fails `FAC-SEM-181` and is read as `unknown`, the blind cause, like any
+other unreadable report (HL-5). A `ready` answer with no degraded source bounds nothing. The well-known answer is the
+monitor's latest probe, read when the report arrives (`pairBreaks`, `src/core/agent-health.ts`). A product read by its
+command (Switchboard) has no well-known answer beside its report and is not checked.
+
 ## Amendment 2026-11-17: a mass outage is one message (FD-295)
 
 **Context.** Each agent opens its own outage episode (FD-48, FD-76). A network drop, a sleep or a restart of the machine
