@@ -1946,6 +1946,9 @@ export class ConsoleHost {
     const inv = await this.inventory();
     const runtime = inv.runtimes.find((r) => r.id === choice.runtime);
     if (!runtime) return { ok: false, reason: 'no-runtime' };
+    // FD-300: a new agent's or dashboard's brief and MCP pack are written on this Mac only; on another machine the
+    // coding agent would start without them, so only a plain session starts there.
+    if (choice.machine && choice.kind !== 'session') return { ok: false, reason: 'remote', detail: 'kind' };
     // FD-206: on another machine the folder is that machine's: it is checked there, when the session starts.
     if (choice.machine) {
       if (!inv.switchboard) return { ok: false, reason: 'remote', detail: 'no-switchboard' };

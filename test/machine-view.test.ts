@@ -43,7 +43,7 @@ test('FD-52: the page shows the totals, a section per context with its counts an
   const html = renderToStaticMarkup(React.createElement(LangContext.Provider, { value: 'en' }, React.createElement(MachinePage, { status: status as never, onOpen: () => undefined, spend, labels: { globex: 'Globex (client)' } })));
   const text = html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
   assert.match(text, /Agents 4 Running 2 Need attention 2 Spent today \$1\.75/);
-  assert.match(text, /Acme your own Agents: 2 · running: 1 · need attention: 1 · Spent today: \$1\.50/);
+  assert.match(text, /Acme yours Agents: 2 · running: 1 · need attention: 1 · Spent today: \$1\.50/);
   assert.match(text, /Globex \(client\)/);
   assert.match(text, /Context not reported Agents: 1/);
   assert.match(text, /No agent reports how many people it serves yet/);
