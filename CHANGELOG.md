@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.8.159 - 2026-11-17
+
+### Fixed
+
+- FD-285: a health alert from an agent's own report reaches the operator's channel. Its message id carried `@` before
+  the day, which the channel refuses, so no such alert was ever sent; every character the channel does not take now
+  becomes `_`, the same on every retry.
+
 ## 0.8.158 - 2026-11-17
 
 ### Fixed

@@ -9,7 +9,7 @@ import fs from 'node:fs';
 import test from 'node:test';
 import { callCapability, rpcResult } from '../src/core/mcp-client';
 import { OutageAlerts } from '../src/electron/outage-alerts';
-import { chooseChannel, HELD_RETRY_MS, heldRefusal, notifyArguments, PERSONAL_SIDE, sideOf, delivered, emptyOutageState, notifyChannelOf, observe, OUTAGE_ALERT_AFTER_MS, owed, type OutageState, type Watched, type Words } from '../src/core/outage-alerts';
+import { channelEventId, chooseChannel, HELD_RETRY_MS, heldRefusal, notifyArguments, PERSONAL_SIDE, sideOf, delivered, emptyOutageState, notifyChannelOf, observe, OUTAGE_ALERT_AFTER_MS, owed, type OutageState, type Watched, type Words } from '../src/core/outage-alerts';
 import { merge } from '../src/core/settings';
 
 const words: Words = { down: (n) => `${n} is down`, failing: (n, s) => `${n}: ${s} is failing`, back: (n) => `${n} is back`, removed: (n) => `${n} was removed`, since: (m, r) => `For ${m} min: ${r}`, after: (m) => `Back after ${m} min.`, wasDown: (m, r) => `Was down ${m} min (${r})` };
@@ -372,4 +372,12 @@ test('FD-285: a look at the services keeps the health book (the 30 s tick erased
   const next = observe(st, [], 5);
   assert.deepEqual(next.health, health);
   assert.equal('health' in observe(emptyOutageState(), [], 5), false, 'no book is added where none was');
+});
+
+test('FD-285: an event id reaches the channel in the form it takes', () => {
+  const re = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,159}$/;
+  assert.equal(notifyArguments({ eventId: 'health:fabric-switchboard:errors_today@2026-11-17', kind: 'failure', subject: 's', text: 't', serviceKey: 'x', side: PERSONAL_SIDE }).eventId, 'health:fabric-switchboard:errors_today_2026-11-17');
+  assert.equal(channelEventId('health:p:blind@2026-11-17:back'), 'health:p:blind_2026-11-17:back');
+  for (const id of ['outage:copy.default:0', '@x', 'a/b c', 'é'.repeat(300), ':back']) assert.match(channelEventId(id), re, id);
+  assert.equal(channelEventId('outage:copy.default:0:back'), 'outage:copy.default:0:back');
 });
