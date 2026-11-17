@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.8.157 - 2026-11-17
+
+### Fixed
+
+- FD-236 (9): the reading that keeps a console asking before it acts now sees common synonyms of an instruction to
+  ignore its rules ("disregard prior directives", "set aside the previous instructions", «не обращай внимания на
+  предыдущие указания»), each only after a word that points back at the agent's own rules, so tool lines such as
+  "override initial constraints" or "bypass all firewall rules" are still read as ordinary text. The lookalike reading
+  from 0.8.156 costs as little as before on ordinary text again, reads `a11` as `all` and Greek letters inside a
+  Russian word, and reads at most a megabyte of long text a second time per reading of a service's text (short
+  texts and the ends of long ones always get it).
+
 ## 0.8.156 - 2026-11-17
 
 ### Fixed
