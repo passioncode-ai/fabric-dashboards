@@ -23,7 +23,9 @@ export function MachinePage({ status, onOpen, spend: given, labels = {} }: { sta
   const personal = (status.organizations ?? []).find((o) => o.personal)?.name ?? null;
   const view = machineView(status.services, spend, personal);
   const byKey = new Map(status.services.map((s) => [s.key, s]));
-  const amount = (s: typeof view.totals.spendToday) => (s ? money(s, t) : '…');
+  // FD-296: a context whose agents report no usage, or whose reports could not be read, never reads as $0.00.
+  const amount = (x: { spendToday: typeof view.totals.spendToday; spendState: typeof view.totals.spendState }) =>
+    x.spendState === 'reported' && x.spendToday ? money(x.spendToday, t) : x.spendState === 'none' ? t('overview.strip.noSpend') : x.spendState === 'unknown' ? t('spend.unknown') : '…';
   return (
     <div className="machine">
       <p className="meta">{t('machine.body')}</p>
@@ -31,7 +33,7 @@ export function MachinePage({ status, onOpen, spend: given, labels = {} }: { sta
         <div className="machine-total"><span className="meta">{t('machine.agents')}</span><strong>{view.totals.agents}</strong></div>
         <div className="machine-total"><span className="meta">{t('machine.running')}</span><strong>{view.totals.running}</strong></div>
         <div className="machine-total"><span className="meta">{t('machine.attention')}</span><strong>{view.totals.attention}</strong></div>
-        <div className="machine-total"><span className="meta">{t('machine.spentToday')}</span><strong>{amount(view.totals.spendToday)}</strong></div>
+        <div className="machine-total"><span className="meta">{t('machine.spentToday')}</span><strong>{amount(view.totals)}</strong></div>
       </div>
       <p className="meta">{t('machine.people')}</p>
       {/* FD-285 wave 2: each product's own health report, worst first; codes and counts only (DEC-0157). */}
@@ -55,7 +57,7 @@ export function MachinePage({ status, onOpen, spend: given, labels = {} }: { sta
         <section key={c.name || 'none'} className="machine-context" aria-labelledby={`mc-${c.name || 'none'}`}>
           <h2 id={`mc-${c.name || 'none'}`}>{c.name ? (labels[c.name] ?? c.label ?? c.name) : t('machine.noContext')}
             {c.personal && <span className="chip">{t('settings.orgs.yours')}</span>}</h2>
-          <p className="meta">{t('machine.counts', { n: c.agents, running: c.running, attention: c.attention })} · {t('machine.spentToday')}: {amount(c.spendToday)}</p>
+          <p className="meta">{t('machine.counts', { n: c.agents, running: c.running, attention: c.attention })} · {t('machine.spentToday')}: {amount(c)}</p>
           <ul className="machine-agents">{c.keys.map((k) => {
             const s = byKey.get(k)!;
             return <li key={k}><button className="linkish" onClick={() => onOpen(k)}>{nameOf(s)}</button> <span className="meta">{t(`state.${s.state}`)}</span></li>;

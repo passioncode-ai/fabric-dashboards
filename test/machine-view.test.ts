@@ -49,6 +49,28 @@ test('FD-52: the page shows the totals, a section per context with its counts an
   assert.match(text, /No agent reports how many people it serves yet/);
 });
 
+test('FD-296: a context whose agents report no usage, or could not be read, is never a measured $0', () => {
+  const none = [{ key: 'b.default', kind: 'none' }, { key: 'd.default', kind: 'error', error: 'x' }, ...spend] as unknown as SpendEntry[];
+  const v = machineView(services, none);
+  const [acme, globex, other] = v.contexts;
+  assert.equal(acme!.spendState, 'reported');
+  assert.equal(acme!.spendToday?.costUsd, 1.5);
+  assert.equal(globex!.spendState, 'reported');
+  assert.equal(other!.spendState, 'unknown', 'its one agent did not answer');
+  assert.equal(other!.spendToday, null);
+  assert.equal(v.totals.spendState, 'reported');
+  assert.equal(v.totals.spendToday?.partial, true, 'an unread agent makes the total a lower bound');
+  const quiet = machineView(services, [{ key: 'a.default', kind: 'none' }] as SpendEntry[]);
+  assert.deepEqual(quiet.contexts.map((c) => [c.spendState, c.spendToday]), [['none', null], ['none', null], ['none', null]]);
+  assert.equal(quiet.totals.spendState, 'none');
+  assert.equal(machineView(services).totals.spendState, 'unread');
+  const status = { services: services.map((s) => ({ ...s, descriptor: { id: s.key.split('.')[0]!, instance: 'default', name: s.key } })), organizations: [] };
+  const render = (entries: SpendEntry[], lang: 'en' | 'ru') => renderToStaticMarkup(React.createElement(LangContext.Provider, { value: lang }, React.createElement(MachinePage, { status: status as never, onOpen: () => undefined, spend: entries }))).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
+  assert.doesNotMatch(render([{ key: 'a.default', kind: 'none' }] as SpendEntry[], 'en'), /\$0\.00/);
+  assert.match(render([{ key: 'a.default', kind: 'none' }] as SpendEntry[], 'en'), /Spent today not reported/);
+  assert.match(render([{ key: 'a.default', kind: 'error', error: 'x' }] as SpendEntry[], 'ru'), /Потрачено сегодня неизвестно/);
+});
+
 test('FD-52: This computer is a page Restart to update can reopen', async () => {
   const policy = await import('../src/electron/policy');
   const parse = (policy as unknown as Record<string, (x: unknown) => unknown>);

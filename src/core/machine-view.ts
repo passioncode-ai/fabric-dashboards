@@ -16,11 +16,16 @@ export interface MachineContext extends MachineCounts {
   personal: boolean;
   /** Whether Fabric reported this context (CO-422); false while it comes from Observatory's map. */
   confirmed: boolean;
-  /** Today's spend of its agents that report usage; null before the reports are read. */
+  /** Today's spend of its agents that report usage; null unless `spendState` is `reported`. */
   spendToday: SpendSum | null;
+  spendState: SpendState;
   keys: string[];
 }
-export interface MachineView { totals: MachineCounts & { spendToday: SpendSum | null }; contexts: MachineContext[] }
+/** FD-296 (verdicts 1.0.0): a sum keeps "not read", "nobody reports" and "unknown" apart from a measured amount.
+ *  `unread`: the reports are not read yet; `none`: none of its agents reports usage; `unknown`: the ones that do could
+ *  not be read; `reported`: at least one report was read (the others make the sum a lower bound). */
+export type SpendState = 'unread' | 'none' | 'unknown' | 'reported';
+export interface MachineView { totals: MachineCounts & { spendToday: SpendSum | null; spendState: SpendState }; contexts: MachineContext[] }
 
 const RUNNING: readonly ServiceState[] = ['ready', 'degraded'];
 const ATTENTION: readonly ServiceState[] = ['degraded', 'down', 'conflict', 'foreign', 'foreign-user', 'duplicate', 'invalid'];
@@ -42,12 +47,17 @@ export function machineView(services: readonly MachineSubject[], spend: readonly
     const name = s.organization?.name ?? '';
     by.set(name, [...(by.get(name) ?? []), s]);
   }
-  const spendOf = (keys: readonly string[]) => (spend ? sumSpend(spend.filter((e) => keys.includes(e.key)), 'today') : null);
+  const spendOf = (keys: readonly string[]): { spendToday: SpendSum | null; spendState: SpendState } => {
+    if (!spend) return { spendToday: null, spendState: 'unread' };
+    const mine = spend.filter((e) => keys.includes(e.key));
+    if (mine.some((e) => e.kind === 'report')) return { spendToday: sumSpend(mine, 'today'), spendState: 'reported' };
+    return { spendToday: null, spendState: mine.some((e) => e.kind === 'error') ? 'unknown' : 'none' };
+  };
   const contexts: MachineContext[] = [...by].map(([name, list]) => {
     const org = list.find((s) => s.organization)?.organization ?? null;
     const keys = list.map((s) => s.key);
-    return { name, label: org?.label ?? null, personal: Boolean(name && (org?.personal || name === personalName)), confirmed: false, ...counts(list), spendToday: spendOf(keys), keys };
+    return { name, label: org?.label ?? null, personal: Boolean(name && (org?.personal || name === personalName)), confirmed: false, ...counts(list), ...spendOf(keys), keys };
   }).sort((a, b) => (a.name === '' ? 1 : b.name === '' ? -1 : a.personal ? -1 : b.personal ? 1 : (a.label ?? a.name).localeCompare(b.label ?? b.name)));
-  return { totals: { ...counts(services), spendToday: spendOf(services.map((s) => s.key)) }, contexts };
+  return { totals: { ...counts(services), ...spendOf(services.map((s) => s.key)) }, contexts };
 }
 // #endregion machine-view
