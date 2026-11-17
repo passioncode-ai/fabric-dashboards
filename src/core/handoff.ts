@@ -14,7 +14,7 @@ import { t, type Lang } from './i18n';
 import type { ActivityItem, ServiceSnapshot } from './types';
 import { waitsForSetup } from './setup-wait';
 import { askArgs, bypassArgs } from './runtimes';
-import { fence, injectionSignals, literal, newFenceId, oneLine, UNTRUSTED_NOTE, UNTRUSTED_TAG } from './untrusted';
+import { fence, injectionSignals, literal, newFenceId, oneLine, pathLiteral, UNTRUSTED_NOTE, UNTRUSTED_TAG } from './untrusted';
 
 /** What the pack says. Built from the monitor's snapshot and the activity store; no token ever. */
 export interface HandoffContext {
@@ -141,7 +141,7 @@ export function contextMarkdown(c: HandoffContext, generatedAt: string): string 
     line('Placement', c.placement === 'remote' ? 'online (runs on its own server)' : 'on this computer'),
     line('Origin', c.origin && literal(c.origin)),
     line('Repository', c.repository && literal(c.repository)),
-    line('Folder', c.folder && literal(c.folder, 4096)),
+    line('Folder', c.folder && pathLiteral(c.folder)),
     line('Version', c.version && literal(c.version)),
     '',
     '## State now',

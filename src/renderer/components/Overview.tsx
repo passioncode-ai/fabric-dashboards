@@ -3,6 +3,7 @@ import type { SinceLastVisit } from '../../core/visit';
 import { installCommands } from '../../core/install-commands';
 import { platformOf } from './Sessions';
 import { areasInOrder, attention, setupSteps, type SetupCheckResult } from '../../core/doctor';
+import { computerSetup } from '../../core/setup-layer';
 import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react';
 import { sumSpend, type SpendEntry } from '../../core/spend';
 import { attentionQueue, foldAttention, groupAttention, urgent } from '../../core/attention';
@@ -520,7 +521,15 @@ export function SetupCheck({ onRepair, lead, trail, autoRun, agentWorking, reche
       {/* FD-184: the setup as numbered steps in the launcher's order, the first not done marked; the full findings fold. */}
       {!running && result?.kind === 'report' && lines.length > 0 && (() => {
         const { steps, next } = setupSteps(result.report);
+        // FD-209 (SCN-100 step 1): the count MCP `setup_check` answers (`setup.next`) and the gates the person will meet,
+        // from the same records, so the card and an agent read one figure.
+        const { view, gates } = computerSetup(result.report, result.checkedAt, (a) => t(`setupCheck.area.${a}`));
         return (
+          <>
+          <p className="meta row wrap setup-left">
+            <span>{t('setupCheck.left', { steps: view.next.steps, yours: view.next.yours })}</span>
+            {gates.length > 0 && <span className="chip setup-step-gate">{t('setupCheck.step.needsYou', { what: gates.map((g) => t(`setupCheck.gate.${g}`)).join(', ') })}</span>}
+          </p>
           <ol className="setup-steps" aria-label={t('setupCheck.steps')}>
             {steps.map((s) => (
               <li key={s.area} className={`setup-step setup-step-${s.state}`} aria-current={s.area === next ? 'step' : undefined}>
@@ -532,6 +541,7 @@ export function SetupCheck({ onRepair, lead, trail, autoRun, agentWorking, reche
               </li>
             ))}
           </ol>
+          </>
         );
       })()}
       {!running && lines.length > 0 && (

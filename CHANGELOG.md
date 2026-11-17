@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.8.164 - 2026-11-17
+
+### Fixed
+
+- FD-236 (14): a console's context names its folder exactly as you chose it. A name with accents written as separate
+  marks, fullwidth letters or backticks no longer turns into another path in the agent's context; a folder name that
+  looks like a data marker is still made inert.
+
+## 0.8.163 - 2026-11-17
+
+### Added
+
+- FD-209: the setup card says above its steps how many are left and how many of them are yours ("Steps left: 3,
+  yours: 1"), with what you will be asked for ("Needs you: sign in"). It is the figure MCP `setup_check` answers as
+  `setup.next`, computed by the same code.
+
 ## 0.8.162 - 2026-11-17
 
 ### Added

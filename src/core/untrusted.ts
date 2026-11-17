@@ -178,6 +178,18 @@ export function literal(text: string, max = 300): string {
   return `\`${oneLine(text, max).replace(/`/g, "'")}\``;
 }
 
+/** FD-236 (14): a path as code on one line, byte for byte, so the agent opens the folder the person chose: a fold (NFKC)
+ *  would turn a decomposed or fullwidth name into another path. The span's fence is one backtick longer than any run in
+ *  the path, so none ends it. A path with a control character, longer than `max`, or holding a fence marker even after
+ *  the fold, is quoted as `literal` quotes a service's text. */
+export function pathLiteral(path: string, max = 4096): string {
+  if (path.length > max || /[\u0000-\u001f\u007f-\u009f\u2028\u2029]/.test(path) || fold(path).search(MARKER) !== -1 || /&lt;\s*(\/\s*)?untrusted/i.test(fold(path))) return literal(path, max);
+  const run = Math.max(0, ...(path.match(/`+/g) ?? []).map((r) => r.length));
+  const tick = '`'.repeat(run + 1);
+  const pad = path.startsWith('`') || path.endsWith('`') ? ' ' : '';
+  return `${tick}${pad}${path}${pad}${tick}`;
+}
+
 // Each pattern needs an instruction's form (a verb aimed at the agent and its target), so ordinary log lines ("POST
 // /api/token 401", "send failed: missing token", "rm -rf /tmp/build") are not read as one. Every gap is bounded.
 const SIGNALS: readonly [string, RegExp][] = [
