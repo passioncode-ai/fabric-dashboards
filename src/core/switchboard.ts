@@ -321,6 +321,20 @@ export async function machineSessionsOf(run: Runner, sb: string): Promise<Source
   }
   return { ok: true, value: out };
 }
+/** FD-291 step 2 (SB-395, Switchboard 0.7.111): this Mac's sessions page (`sessions --rows`), the groups decided by
+ *  Switchboard: its own processes waiting on a limit included, which `--machine` called running. A Switchboard without
+ *  the flag is `unsupported` (the caller reads `--machine` instead); the rows are capped like another machine's. */
+export async function pageRowsOf(run: Runner, sb: string): Promise<SourceResult<SbPageRow[]> | { ok: false; reason: 'unsupported' }> {
+  const r = await run(sb, ['--json', 'sessions', '--rows'], 10_000);
+  const text = `${r.stdout}\n${r.stderr}`;
+  const data = r.code === 0 ? parse(r.stdout) : null;
+  if (!data) {
+    if (/invalid arguments|unexpected argument|unrecognized|earlier version than this command/i.test(text)) return { ok: false, reason: 'unsupported' };
+    return { ok: false, reason: 'error', detail: sbFailure(r) };
+  }
+  if (!Array.isArray(data.rows)) return { ok: false, reason: 'unsupported' };
+  return { ok: true, value: parsePageRows(data, 1000) };
+}
 // #endregion switchboard-sessions
 
 // #region switchboard-launch-chain — docs: docs/ux/scenarios.md#scn-080-open-one-sessions-page

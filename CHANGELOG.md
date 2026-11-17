@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.8.170 - 2026-11-17
+
+### Changed
+
+- FD-291: the Sessions mode reads this Mac's sessions from Switchboard's sessions page (`sessions --rows`, Switchboard
+  0.7.112), and only an older Switchboard is asked `sessions --machine`. A session started by hand that stopped on a
+  usage limit and waits in its own terminal is listed under Waiting for a limit reset as "Stopped by a limit, waits in
+  its terminal", with no Continue: it is continued in that terminal. A launch Switchboard's page reads as ended no
+  longer shows as running.
+
 ## 0.8.169 - 2026-11-17
 
 ### Added
