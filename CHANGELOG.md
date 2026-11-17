@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.8.166 - 2026-11-17
+
+### Added
+
+- FD-285: This Mac shows each agent's own health report, read every 5 minutes: its state, its version, when it was
+  read, the checks that are not ok with their area, count and fix, how many episodes are open, and why a report could
+  not be read. Switchboard is the first product that reports.
+
 ## 0.8.165 - 2026-11-17
 
 ### Fixed

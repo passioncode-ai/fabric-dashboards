@@ -245,6 +245,28 @@ export function healthDelivered(book: HealthBook, id: string, stepName: 'failure
   const next: HealthCause = episode.recoveryDelivered ? { bad: c.bad, good: c.good } : { ...c, episode };
   return { ...book, [product]: { ...p, causes: { ...p.causes, [check]: next } } };
 }
+
+/** FD-285 wave 2 (SCN-116): one product's last report as the This computer page shows it. Codes, counts and fix
+ *  names only, as the channel gets them (DEC-0157); `checks` are the ones not ok, worst first. */
+export interface HealthRow {
+  product: string; name: string; state: HealthState; reason?: HealthReason; version?: string; readAt: number;
+  checks: { id: string; area: string; state: HealthState; count: number; fix?: string }[];
+  /** Episodes open now (opened and not closed). */
+  open: number;
+}
+
+const rank = (s: HealthState) => HEALTH_STATES.indexOf(s);
+
+/** The book as rows, worst product first, then by name. */
+export function healthRows(book: HealthBook, nameOf: (product: string) => string): HealthRow[] {
+  return Object.entries(book).map(([product, p]): HealthRow => {
+    const checks = (p.read.reason ? [] : p.checks ?? []).filter((c) => c.state !== 'ok')
+      .sort((a, b) => rank(b.state) - rank(a.state) || a.id.localeCompare(b.id))
+      .map((c) => ({ id: c.id, area: c.area, state: c.state, count: c.count, ...(fixName(c.fix) ? { fix: fixName(c.fix)! } : {}) }));
+    const open = Object.values(p.causes).filter((c) => c.episode && c.episode.closedAt === undefined).length;
+    return { product, name: nameOf(product), state: p.read.state, ...(p.read.reason ? { reason: p.read.reason } : {}), ...(p.version ? { version: p.version } : {}), readAt: p.readAt, checks, open };
+  }).sort((a, b) => rank(b.state) - rank(a.state) || a.name.localeCompare(b.name));
+}
 // #endregion agent-health
 
 // #region agent-health-products — docs: docs/adr/0010-notifications-only-when-it-matters.md#amendment-2026-11-16-agent-health-reports-become-episodes-fd-285

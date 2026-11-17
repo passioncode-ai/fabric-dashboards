@@ -33,7 +33,7 @@ import { openChannel, startAnswer, type Channel } from './console-channel';
 import type { ChannelAnswer } from '../core/console-channel';
 import { chooseLang, langFor, t, type Lang } from '../core/i18n';
 import { execRunner } from '../core/launchd';
-import { HEALTH_PRODUCTS } from '../core/agent-health';
+import { HEALTH_PRODUCTS, healthRows } from '../core/agent-health';
 import { HealthPoller } from './health-poller';
 import { listListeners, unattributed } from '../core/listeners';
 import { applyLoginItem, LOGIN_NEEDS_APPROVAL, loginItemAtStartup, type LoginItemOs } from '../core/loginitem';
@@ -103,6 +103,9 @@ const rendererIndex = path.join(__dirname, '../../renderer/index.html');
 const SERVICE_GUIDE = 'https://github.com/passioncode-ai/fabric-agent-adapter#readme';
 
 /** ~/Library/Logs/Fabric Dashboards/main.log: timestamped, 0600, 5 × 5 MB at most (LC-12). */
+/** FD-285: a product's name as the health report and the This computer page show it. */
+const healthProductName = (product: string) => HEALTH_PRODUCTS.find((h) => h.product === product)?.name ?? product;
+
 function log(message: string): void {
   appendLog(path.join(app.getPath('logs'), 'main.log'), `${new Date().toISOString()} ${message}`);
   try { digester.record(message); } catch { /* the digest is best effort */ }
@@ -425,7 +428,7 @@ if (!app.requestSingleInstanceLock()) {
         },
       };
     },
-    productName: (product) => HEALTH_PRODUCTS.find((h) => h.product === product)?.name ?? product,
+    productName: healthProductName,
     changed: () => pushStatus(),
   });
   // FD-132: a placement record that cannot be used is said once in the log; the agents then read as placed here.
@@ -447,7 +450,7 @@ if (!app.requestSingleInstanceLock()) {
   let hiddenSince: number | null = Date.now(); // the app starts with nothing on screen (a login start stays hidden)
   const status = (): AppStatus => ({
     services: monitor.snapshots(), off: monitor.offServices(), ...monitor.meta(), unread: activity.unread(), activityRev: activity.revision, update: updater.state, estate: estate.state, version: app.getVersion(),
-    alerts: alerts.status(), sessions: consoles.sessionsStatus(), analyticsAvailable: analytics.availability() !== 'unavailable-no-key', analyticsHold: analytics.hold(settings.peek().analytics),
+    alerts: alerts.status(), health: healthRows(alerts.healthBook(), healthProductName), sessions: consoles.sessionsStatus(), analyticsAvailable: analytics.availability() !== 'unavailable-no-key', analyticsHold: analytics.hold(settings.peek().analytics),
     limits: personLimits, ...(lastShown ? { shown: lastShown } : {}), organizations: knownOrganizations(organizations.get()),
   });
 
