@@ -19,6 +19,8 @@ export interface UninstallDeps {
   log: (message: string) => void;
   launcher: () => string;
   userData: string;
+  /** S2-01: a second profile (FABRIC_DASHBOARDS_USER_DATA) removes only its own folders, never the default profile's. */
+  secondProfile: boolean;
 }
 
 // #region uninstall-flow — docs: docs/ux/scenarios.md#scn-024-settings-launch-at-login-notifications-quiet-hours
@@ -71,7 +73,7 @@ export async function uninstall(o: UninstallDeps, decided?: { deleteData: boolea
   const helpers: Promise<void>[] = [];
   const awaitHelper = (h: ReturnType<typeof purgeAfterExit>) => { if (h instanceof Promise) helpers.push(h.catch((error: Error) => log(`uninstall: a helper could not start: ${error.message}`))); };
   if (app.isPackaged) {
-    const all = [...new Set([...productDataPaths(app.getPath('home')), userData, app.getPath('logs')])];
+    const all = [...new Set([...(o.secondProfile ? [] : productDataPaths(app.getPath('home'))), userData, app.getPath('logs')])];
     if (deleteData) {
       // LC-16: even «delete my settings» leaves the automatic-update switch as the person set it.
       awaitHelper(purgeAfterExit(process.pid, all.filter((p) => path.resolve(p) !== path.resolve(userData)), { dir: userData, names: ALWAYS_KEPT }));

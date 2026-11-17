@@ -530,3 +530,15 @@ test('FD-217 (rest, SB-400): a Claude stop whose transcript only a Switchboard h
   assert.equal(old.spawned.length, 0);
   assert.ok(!old.calls.some((c) => c.includes('claim')), 'the plain CLI would open without its conversation: nothing is claimed');
 });
+
+test('P2-06: a stop acted on stays in the view while listed, and leaves it a day after it stopped once Switchboard drops it', POSIX, async () => {
+  let listed = true;
+  const r = rig({ sessions: (d) => (listed ? [row({ dir: d, at: Date.now() - 60_000 })] : []) });
+  await r.host.pollRecovery();
+  assert.equal(r.host.recoveryStatus().stops.length, 1);
+  listed = false;
+  await r.host.pollRecovery(Date.now() + 60_000);
+  assert.equal(r.host.recoveryStatus().stops.length, 1, 'kept within a day');
+  await r.host.pollRecovery(Date.now() + 25 * 60 * 60_000);
+  assert.equal(r.host.recoveryStatus().stops.length, 0, 'gone after a day');
+});

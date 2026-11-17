@@ -197,7 +197,10 @@ export function inSight(onScreenNow: boolean, sight: 'visible' | 'covered' | 'of
  *  (macOS occlusion; measured 2026-11-16 on Electron 44: covered `hidden`, uncovered `visible`, one `visibilitychange`
  *  each). The monitor keeps its live cadence only while the window is on screen and its page is seen; the Dock, the
  *  views' graces and the status pushes follow the window alone. */
-export const monitorLive = (onScreenNow: boolean, pageSeen: boolean): boolean => onScreenNow && pageSeen;
+/** P2-01 (2026-11-17 performance audit): macOS's window list can say the window is covered while Chromium still calls the
+ *  page visible; a known cover wins, an unknown one (null) leaves the page's word. */
+export const monitorLive = (onScreenNow: boolean, pageSeen: boolean, sight: 'visible' | 'covered' | 'off-screen' | null = null): boolean =>
+  onScreenNow && pageSeen && sight !== 'covered' && sight !== 'off-screen';
 /** How long after a show the page's own visibility is read once, in case its event did not come. */
 export const PAGE_SIGHT_CHECK_MS = 1_500;
 // #endregion page-sight

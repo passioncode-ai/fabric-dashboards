@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.8.186 - 2026-11-17
+
+### Fixed
+- FD-312 (P2-01): a window macOS reports covered by other windows, or on another Space, no longer keeps the on-screen
+  cadence of probes and `launchctl` reads; the window list, read once a minute while the window is shown, wins over
+  Chromium's page visibility. Measured before: 3.55 % CPU with the window covered.
+- FD-311 (C2-01, C2-02, C2-03): a Switchboard read that timed out under load is no longer taken as an answer. The machine
+  session limit keeps its last value for 10 minutes instead of reading as "no limit"; a `--help` probe that timed out is
+  asked again instead of turning features off until Switchboard updates; the hand-over read waits 20 s, not 10 s.
+- FD-313 (S2-01): Uninstall in a second profile removes only that profile's folders.
+- FD-312 (P2-06): stops acted on leave the recovery view a day after Switchboard drops them, instead of growing until
+  the app restarts.
+
+### Changed
+- FD-313 (S2-04, S2-05): the console channel checks a new session's fields again before starting it, and the MCP
+  server enforces the string, boolean and list limits its tool table advertises.
+- AGENTS.md carries the agents base's rule R33 O10 (a wait is improvement time).
+
 ## 0.8.185 - 2026-11-17
 
 ### Changed

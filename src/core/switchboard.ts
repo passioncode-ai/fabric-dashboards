@@ -16,6 +16,12 @@ export function switchboardStamp(file: string): string {
   try { return `${file}:${fs.statSync(file).mtimeMs}`; } catch { return file; }
 }
 
+/** C2-02 (2026-11-17 connections audit): a read that got no answer in time, or never ran (`execRunner` says so on stderr),
+ *  says nothing about what Switchboard can do; an answer from it must not be kept. */
+export function noAnswer(r: { code: number; stderr: string }): boolean {
+  return r.code !== 0 && /no answer within [\d.]+ s \(stopped\)|ended by SIG[A-Z]+/.test(r.stderr);
+}
+
 /** A Switchboard that does not know the subcommand or flag asked: clap's words, or Switchboard's own refusal. */
 export function isOldSwitchboard(text: string): boolean {
   return /unrecognized subcommand|unexpected argument|earlier version than this command/i.test(text);
@@ -91,27 +97,30 @@ export async function canLaunchInPlace(run: Runner, sb: string): Promise<boolean
 
 /** What this Switchboard's `launch` takes: in place (SB-75), and since 0.7.0 `--surface` (SB-212, FD-124), which
  *  marks a launch as asked for from here in its launch record. */
-export async function launchFeatures(run: Runner, sb: string): Promise<{ inPlace: boolean; surface: boolean; target: boolean; hosted: boolean; continueHosted: boolean }> {
-  const r = await run(sb, ['launch', '--help'], 10_000);
+export async function launchFeatures(run: Runner, sb: string): Promise<{ inPlace: boolean; surface: boolean; target: boolean; hosted: boolean; continueHosted: boolean; settled: boolean }> {
+  // C2-02: `settled` is false when any help read got no answer in time: the caller asks again instead of keeping it.
+  let settled = true;
+  const ask = async (args: string[]) => { const x = await run(sb, args, 10_000); if (noAnswer(x)) settled = false; return x; };
+  const r = await ask(['launch', '--help']);
   const text = `${r.stdout}\n${r.stderr}`;
   const ok = r.code === 0;
   // FD-211 (SB-342 H-1, H-1d): `--hosted` runs the session in Switchboard's session host, and `sessions end` (0.7.66)
   // ends it; this app uses the host only when it can also end what it starts there.
   let hosted = false;
   if (ok && /--hosted\b/.test(text)) {
-    const e = await run(sb, ['sessions', '--help'], 10_000);
+    const e = await ask(['sessions', '--help']);
     hosted = e.code === 0 && /^\s+end\b/m.test(`${e.stdout}\n${e.stderr}`);
   }
   // FD-290 (SB-400, 0.7.110): `sessions continue <id> --in-place --hosted --surface recovery` continues a stopped Claude
   // session as itself in a session host of its own launch, which `sessions end` ends like a hosted launch.
   let continueHosted = false;
   if (hosted) {
-    const c = await run(sb, ['sessions', 'continue', '--help'], 10_000);
+    const c = await ask(['sessions', 'continue', '--help']);
     const t = `${c.stdout}\n${c.stderr}`;
     continueHosted = c.code === 0 && /--in-place\b/.test(t) && /--hosted\b/.test(t) && /--surface\b/.test(t) && /\brecovery\b/.test(t);
   }
   // FD-206: since 0.7.53 `--target` starts the session on another machine (SB-332).
-  return { inPlace: ok && /--in-place\b/.test(text) && /--provider\b/.test(text), surface: ok && /--surface\b/.test(text), target: ok && /--target\b/.test(text), hosted, continueHosted };
+  return { inPlace: ok && /--in-place\b/.test(text) && /--provider\b/.test(text), surface: ok && /--surface\b/.test(text), target: ok && /--target\b/.test(text), hosted, continueHosted, settled };
 }
 
 /** FD-290: the command a limit stop's own console runs to continue its Claude session in Switchboard's session host. */
@@ -430,7 +439,7 @@ const HANDOVER_ID = /^ho-[0-9a-f]{12}$/;
 /** The hand-overs waiting for a console, oldest first. A Switchboard without them (before SB-108, or a running
  *  app older than its CLI) says so; a malformed record is skipped, never guessed at. */
 export async function handoversOf(run: Runner, sb: string): Promise<SbHandovers> {
-  const r = await run(sb, ['--json', 'handovers'], 10_000);
+  const r = await run(sb, ['--json', 'handovers'], 20_000); // C2-03: it answers in about 0.4 s idle, and timed out 50 times in a day at load average above 100
   const text = `${r.stdout}\n${r.stderr}`;
   const data = r.code === 0 ? parse(r.stdout) : null;
   if (!data) {
@@ -465,8 +474,9 @@ export function handoverRunArgv(sb: string, id: string, ask = false): string[] {
 }
 
 /** FD-236 (board 98195435): whether this Switchboard's `handovers run` takes `--ask`, read from its own `--help`. */
-export async function handoverAskOf(run: Runner, sb: string): Promise<boolean> {
+export async function handoverAskOf(run: Runner, sb: string): Promise<boolean | null> {
   const r = await run(sb, ['handovers', 'run', '--help'], 10_000);
+  if (noAnswer(r)) return null; // C2-02: unknown, asked again next time
   return r.code === 0 && /--ask\b/.test(`${r.stdout}\n${r.stderr}`);
 }
 
