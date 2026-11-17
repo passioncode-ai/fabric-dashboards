@@ -309,3 +309,18 @@ test('FD-293: fetchHealthReport reads the path with the descriptor token; 404 is
     status = 200; body = 'not json'; assert.equal(await fetchHealthReport(d, '/fabric/v1/health', 'tok'), 'not json');
   } finally { await new Promise((r) => s.close(r)); }
 });
+
+test('FD-317 (P2-08): health reports are read four at once and taken in order', async () => {
+  const { HealthPoller } = await import('../src/electron/health-poller');
+  let open = 0;
+  let most = 0;
+  const seen: string[] = [];
+  const services = Array.from({ length: 9 }, (_, i) => ({
+    key: `a${i}.default`, expected: `a${i}`, known: true,
+    read: async () => { open += 1; most = Math.max(most, open); await new Promise((r) => setTimeout(r, 5)); open -= 1; return null; },
+  }));
+  const poller = new HealthPoller({ binary: async () => null, run: async () => ({ code: 0, stdout: '', stderr: '' }), observe: (p) => seen.push(p), log: () => undefined, services: () => services });
+  await poller.pass();
+  assert.equal(most, 4);
+  assert.deepEqual(seen, services.map((s) => s.key));
+});

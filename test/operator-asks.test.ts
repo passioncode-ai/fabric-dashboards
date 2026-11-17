@@ -71,3 +71,18 @@ test('FD-131: an ask goes as a kind the channel takes without a reply binding; t
   assert.ok(!('question' in due.msg), 'no reply binding is sent');
   assert.match(due.msg.text, /fabric-dashboards:\/\/service\/sshlg-growth\.default/, 'the link to decide on the agent page');
 });
+
+test('FD-317 (P2-05): a looked-at state is written 2 s later, a new ask at once, and stop() writes what waits', () => {
+  const dir = tmp('fd-317-');
+  const file = path.join(dir, 'outage-alerts.json');
+  const alerts = new OutageAlerts({
+    dataDir: dir, snapshots: () => [], settings: () => DEFAULT_SETTINGS, words: () => ({} as Words), nameOf: () => 'x', reasonOf: () => 'x',
+    allowed: () => true, version: '0.0.0', log: () => undefined, changed: () => undefined,
+  });
+  alerts.health('fabric-switchboard', { schema: 'agent-health/1', product: 'fabric-switchboard', version: '1', at: '2026-11-17T00:00:00Z', state: 'ok', checks: [] });
+  assert.equal(fs.existsSync(file), false, 'not yet: written 2 s after the change');
+  alerts.ask('sshlg-growth.default', 'evt-1', { name: 'Growth', episode: 'e', at: Date.now(), text: 't', link: null });
+  assert.ok(JSON.parse(fs.readFileSync(file, 'utf8')).asks, 'a new ask is written at once');
+  alerts.stop();
+  assert.ok(JSON.parse(fs.readFileSync(file, 'utf8')).health['fabric-switchboard'], 'stop() writes the health read that waited');
+});

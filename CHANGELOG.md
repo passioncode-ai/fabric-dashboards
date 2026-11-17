@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.8.190 - 2026-11-18
+
+### Changed
+- FD-317 (performance audit P2-04, P2-05, P2-07, P2-08): the port-conflict map is built once until a descriptor changes and
+  the list rows once per list, not once per service; the operator-channel state is written 2 s after it changes (a
+  delivery and a new ask at once, everything left on quit), its backup copy at most hourly; an Overview card renders again
+  only when its agent's data changes or once a minute; agents' health reports are read four at once.
+
 ## 0.8.189 - 2026-11-17
 
 ### Changed

@@ -4,7 +4,7 @@ import { installCommands } from '../../core/install-commands';
 import { platformOf } from './Sessions';
 import { areasInOrder, attention, setupSteps, type SetupCheckResult } from '../../core/doctor';
 import { computerSetup } from '../../core/setup-layer';
-import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react';
+import { Fragment, memo, useEffect, useRef, useState, type ReactNode } from 'react';
 import { sumSpend, type SpendEntry } from '../../core/spend';
 import { attentionQueue, foldAttention, groupAttention, urgent } from '../../core/attention';
 import { FixButton } from './ServiceActions';
@@ -331,7 +331,15 @@ export function Overview({ status, products, open, act, goSpend, agent, visit, o
   );
 }
 
-function Card({ p, open }: { p: Product; open: (key: string) => void }) {
+/** FD-317 (P2-07): a card renders again only when its product's data changes, or once a minute for its uptime; before,
+ *  every status push (any service's probe) rendered all of them. `open` is left out: it only routes (setRoute is stable).
+ *  The language comes through context, which still renders it. */
+const Card = memo(CardView, (a, b) => cardPrint(a.p) === cardPrint(b.p));
+function cardPrint(p: Product): string {
+  return `${Math.floor(Date.now() / 60_000)}|${JSON.stringify(p)}`;
+}
+
+function CardView({ p, open }: { p: Product; open: (key: string) => void }) {
   const { t, duration, time } = useT();
   const s = p.primary;
   const others = p.members.slice(1);

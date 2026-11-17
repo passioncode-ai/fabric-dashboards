@@ -9,6 +9,8 @@ import type { RunResult } from '../core/launchd';
 
 /** FD-293: one service to read over HTTP on this pass. */
 /** FD-293: one service read over HTTP; `wellKnown` its last well-known answer, read beside the report (HL-7, FD-297). */
+/** FD-317 (P2-08): how many agents' health reports are read at once. */
+export const HEALTH_READ_BATCH = 4;
 export interface HealthServiceRead { key: string; expected: string; known: boolean; read: () => Promise<unknown>; wellKnown?: () => { status?: unknown; degraded?: unknown } | null }
 
 const FIRST_MS = 60_000;
@@ -77,21 +79,27 @@ export class HealthPoller {
       let services: readonly HealthServiceRead[] = [];
       try { services = this.o.services?.() ?? []; } catch (error) { this.o.log(`health: the services could not be listed: ${(error as Error).message}`); }
       const now = this.o.now ?? Date.now;
-      for (const s of services) {
+      // FD-317 (P2-08): read a few at once (each token read checks the port's owner; reads started together share that
+      // check), then take the answers in order, as before.
+      const due = services.filter((s) => s.known || (this.none.get(s.key) ?? 0) <= now());
+      for (let i = 0; i < due.length; i += HEALTH_READ_BATCH) {
         if (this.stopped) return;
-        if (!s.known && (this.none.get(s.key) ?? 0) > now()) continue;
-        let answer: unknown;
-        try { answer = await s.read(); } catch { answer = null; }
-        // a service that has never answered a report: no report, asked again later; a known one that stops is blind
-        if (!s.known && !servesReport(answer, s.expected)) {
-          if (!this.said.has(s.key)) this.o.log(`health: ${s.key} serves no report at ${HEALTH_PATH}; asked again in an hour`);
-          this.said.add(s.key);
-          this.none.set(s.key, now() + HEALTH_NONE_RETRY_MS);
-          continue;
+        const batch = due.slice(i, i + HEALTH_READ_BATCH);
+        const answers = await Promise.all(batch.map((s) => Promise.resolve().then(() => s.read()).catch(() => null)));
+        for (const [j, s] of batch.entries()) {
+          if (this.stopped) return;
+          const answer = answers[j];
+          // a service that has never answered a report: no report, asked again later; a known one that stops is blind
+          if (!s.known && !servesReport(answer, s.expected)) {
+            if (!this.said.has(s.key)) this.o.log(`health: ${s.key} serves no report at ${HEALTH_PATH}; asked again in an hour`);
+            this.said.add(s.key);
+            this.none.set(s.key, now() + HEALTH_NONE_RETRY_MS);
+            continue;
+          }
+          this.none.delete(s.key);
+          this.said.delete(s.key);
+          this.o.observe(s.key, answer, s.expected, s.wellKnown?.() ?? null);
         }
-        this.none.delete(s.key);
-        this.said.delete(s.key);
-        this.o.observe(s.key, answer, s.expected, s.wellKnown?.() ?? null);
       }
     } finally {
       this.running = false;
