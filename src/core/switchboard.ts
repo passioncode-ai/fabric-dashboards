@@ -244,6 +244,16 @@ export async function allSessionsOf(run: Runner, sb: string): Promise<SourceResu
   return { ok: true, value: parseAllSessions(data) };
 }
 
+/** FD-299: the launches of `switchboard --json sessions --history` (newest first) as the same records, for a launch
+ *  `sessions --all` does not list: a session continued in the session host after a limit (`sessions continue --hosted
+ *  --surface recovery`, mode `resume`) is in the history only (Switchboard 0.7.112). A failure answers `error`. */
+export async function historySessionsOf(run: Runner, sb: string): Promise<SourceResult<SbSessionRecord[]>> {
+  const r = await run(sb, ['--json', 'sessions', '--history'], 10_000);
+  const data = r.code === 0 ? parse(r.stdout) : null;
+  if (!data || !Array.isArray(data.launches)) return { ok: false, reason: 'error', detail: sbFailure(r) };
+  return { ok: true, value: parseAllSessions({ sessions: data.launches }) };
+}
+
 /** FD-247 (step 4): the records of `switchboard --json sessions --all`, this Mac's or another machine's (read over ssh,
  *  so untrusted there: at most `max` rows, every field capped, a malformed row skipped). */
 export function parseAllSessions(data: Record<string, unknown>, max = Infinity): SbSessionRecord[] {
