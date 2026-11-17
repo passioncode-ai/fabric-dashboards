@@ -763,3 +763,29 @@ test('FD-236 (10): a block stays within its limit after the fold grows the text'
   const pairs = fence('service:x', 'ﷺ'.repeat(14_563) + '😀'.repeat(10), 'cafe');
   assert.ok(!/[\uD800-\uDBFF](?![\uDC00-\uDFFF])/.test(pairs), 'no lone high surrogate at the cut');
 });
+
+test('FD-294: a cut never leaves half of a surrogate pair (oneLine, literal and fence)', () => {
+  const lone = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/;
+  const emoji = '\u{1F600}';
+  // `max - 1` lands on the high half of the last emoji.
+  for (const max of [5, 6, 7, 8, 120]) {
+    const out = oneLine(emoji.repeat(200), max);
+    assert.ok(!lone.test(out), `oneLine max ${max}: ${JSON.stringify(out)}`);
+    assert.ok(out.length <= max, `oneLine max ${max} is ${out.length} long`);
+    assert.ok(!lone.test(literal(emoji.repeat(200), max)), `literal max ${max}`);
+  }
+  // The raw pre-cut (`max * 4` before the fold) lands on a pair too.
+  const odd = `a${emoji.repeat(100)}`;
+  assert.ok(!lone.test(oneLine(odd, 30)));
+  const id = 'abc123';
+  const block = fence('service:x', `a${emoji.repeat(200_000)}`, id);
+  assert.ok(!lone.test(block), 'fence pre-cut keeps pairs whole');
+});
+
+test('FD-294: an event cut at 400 characters in the context keeps its pairs whole', () => {
+  const lone = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/;
+  const text = `a${'\u{1F600}'.repeat(300)}`;
+  const md = contextMarkdown(handoffContext(snap(), [ev(text)], null), '2026-11-17T00:00:00Z');
+  assert.ok(md.includes('\u{1F600}'), 'the event reaches the context');
+  assert.ok(!lone.test(md));
+});

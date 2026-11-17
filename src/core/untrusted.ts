@@ -159,24 +159,31 @@ export function neutralize(text: string): string {
   return fold(text).replace(MARKER, (_m, close: string | undefined) => `‹${close ? '/' : ''}untrusted-data`).replace(/&lt;\s*(\/\s*)?untrusted/gi, '&lt;‹untrusted');
 }
 
+/** FD-294: the first `n` UTF-16 units of `s`, one fewer when the cut would keep the high half of a pair alone. */
+export function cutWhole(s: string, n: number): string {
+  if (s.length <= n) return s;
+  const c = s.charCodeAt(n - 1);
+  return s.slice(0, c >= 0xd800 && c <= 0xdbff ? n - 1 : n);
+}
+
 /** One fenced block, its source named (`service:<key>`, `command`, `audit`) and closed by this start's id. */
 export function fence(source: string, text: string, id: string = newFenceId()): string {
   // FD-236 (10): the limit holds after the fold too: NFKC grows some characters (`ﷺ` into 18), so a text cut before it
   // could still fill a block many times the limit. The cut never splits a surrogate pair, and leaves no marker live: the
   // fold made every one inert before it.
-  let body = neutralize(text.length > FENCE_MAX ? text.slice(0, FENCE_MAX) : text);
+  let body = neutralize(cutWhole(text, FENCE_MAX));
   const cut = text.length > FENCE_MAX || body.length > FENCE_MAX;
-  if (body.length > FENCE_MAX) body = body.slice(0, /[\uD800-\uDBFF]/.test(body[FENCE_MAX - 1]!) ? FENCE_MAX - 1 : FENCE_MAX);
+  if (body.length > FENCE_MAX) body = cutWhole(body, FENCE_MAX);
   if (cut) body = `${body}\n… (cut at ${FENCE_MAX} characters)`;
   const tag = `${UNTRUSTED_TAG} id="${id.replace(/[^a-f0-9]/g, '')}"`;
   return `<${tag} source="${source.replace(/[^A-Za-z0-9._:-]/g, '')}">\n${body}\n</${tag}>`;
 }
 
 /** A short text a service wrote, as one line (a name in a heading): no line breaks, no fence markers, at most `max`.
- *  Control characters go first, so none can turn an inert marker live again. */
+ *  Control characters go first, so none can turn an inert marker live again. No cut keeps half a pair (FD-294). */
 export function oneLine(text: string, max = 120): string {
-  const flat = neutralize(text.slice(0, max * 4).replace(/[\u0000-\u001f\u007f-\u009f\u2028\u2029]+/g, ' ')).replace(/\s+/g, ' ').trim();
-  return flat.length > max ? `${flat.slice(0, max - 1)}…` : flat;
+  const flat = neutralize(cutWhole(text, max * 4).replace(/[\u0000-\u001f\u007f-\u009f\u2028\u2029]+/g, ' ')).replace(/\s+/g, ' ').trim();
+  return flat.length > max ? `${cutWhole(flat, max - 1)}…` : flat;
 }
 
 /** A short value a service wrote, quoted as code on one line: no backtick can end the quote. */

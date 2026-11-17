@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.8.171 - 2026-11-17
+
+### Security
+
+- FD-294: no cut of an agent service's text keeps half of a character. A fenced block, a one-line reason and an event
+  line in a console's context pack are cut at a fixed length, and a cut that fell inside an emoji or another character
+  outside the basic plane left half of it behind: shown as a broken character, and refused by some JSON readers. The
+  cut now falls before that character.
+
 ## 0.8.170 - 2026-11-17
 
 ### Changed
