@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.8.185 - 2026-11-17
+
+### Changed
+- FD-307 (refactor wave 7, no behaviour change): what a read of Switchboard's hand-overs means (offers seen once, the
+  list's readability, whether hand-overs open here) leaves `ConsoleHost` for `HandoverBook`
+  (`src/core/handover-book.ts`, with its own tests); `degradedSince` (`src/core/sessions.ts`) replaces two hand-written
+  copies of "unreadable since its first failure".
+
 ## 0.8.184 - 2026-11-17
 
 ### Changed

@@ -46,7 +46,7 @@ on 2026-11-17); waves that touch a shared screen record that and run it when the
 | 4 | `main.ts` split: the console-channel answers, outage words and the uninstall flow into their modules; `registerIpc` into per-group functions | FD-304 | medium; done 0.8.182 |
 | 5 | One Switchboard feature probe (launch, sessions, continue, hand-overs help) keyed by path and modification time, so a Switchboard updated in place is read again everywhere | FD-305 | medium (decision below); done 0.8.183 |
 | 6 | `Shell` (`App.tsx`) into `useSessionsShell` and `useConsoleDrawer` | FD-306 | medium; done 0.8.184 |
-| 7 | `ConsoleHost` into collaborators (hand-overs, limit recovery, Sessions list, new sessions) over one explicit state object | FD-307 | high: 18 test files construct it |
+| 7 | `ConsoleHost` into collaborators (hand-overs, limit recovery, Sessions list, new sessions) over one explicit state object | FD-307 | high: 18 test files construct it; state part done 0.8.185, the split is FD-310 (D-5) |
 
 Waves 2 to 7 change no behaviour a person or agent can see, except wave 5's re-probe timing.
 
@@ -65,6 +65,11 @@ Waves 2 to 7 change no behaviour a person or agent can see, except wave 5's re-p
 - **D-4 (wave 4).** `registerIpc` stays one function: its handlers are one line each over the main process's one
   closure, so splitting it re-indents about 250 lines and moves no state out. The parts that held logic (the console
   channel's answers, the uninstall flow, the channel's words) moved to their modules instead.
+
+- **D-5 (wave 7).** `ConsoleHost` is not split into collaborators in this run. Its regions share about 40 mutable
+  collections, and quit reads the same stop-claim state as limit recovery, so a collaborator now would take the whole
+  host as its argument and move no coupling. The hand-overs' state moved out first (`HandoverBook`); the stop-claim state
+  is next, then the split (FD-310).
 
 ## Running alongside
 

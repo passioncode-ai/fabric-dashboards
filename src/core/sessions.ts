@@ -287,6 +287,12 @@ export type SessionSource = 'sessions' | 'handovers' | 'recovery' | 'machine';
 /** A source that did not answer: its last good answer is still used, and the list says it may be out of date. */
 export interface SourceDegraded { source: SessionSource; reason: 'old' | 'error'; detail: string; since: number }
 
+/** FD-307: a source that still cannot be read keeps the time of its first failure (R1-U6: a status that changed every
+ *  tick was pushed every tick); the reason and detail are the latest. */
+export function degradedSince(prev: SourceDegraded | null, source: SessionSource, reason: 'old' | 'error', detail: string, now: number): SourceDegraded {
+  return { source, reason, detail, since: prev?.since ?? now };
+}
+
 /** What the window gets as `status.sessions`. */
 export interface SessionsStatus {
   rows: SessionRow[];
