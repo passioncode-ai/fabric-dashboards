@@ -45,7 +45,7 @@ on 2026-11-17); waves that touch a shared screen record that and run it when the
 | 3 | Shared shapes: the control refusal branch shared by monitor and MCP, a renderer `usePoll` for the eight effects, one accounts cache in `ConsoleHost` | FD-303 | low to medium; done 0.8.181 |
 | 4 | `main.ts` split: the console-channel answers, outage words and the uninstall flow into their modules; `registerIpc` into per-group functions | FD-304 | medium; done 0.8.182 |
 | 5 | One Switchboard feature probe (launch, sessions, continue, hand-overs help) keyed by path and modification time, so a Switchboard updated in place is read again everywhere | FD-305 | medium (decision below); done 0.8.183 |
-| 6 | `Shell` (`App.tsx`) into `useSessionsShell` and `useConsoleDrawer` | FD-306 | medium |
+| 6 | `Shell` (`App.tsx`) into `useSessionsShell` and `useConsoleDrawer` | FD-306 | medium; done 0.8.184 |
 | 7 | `ConsoleHost` into collaborators (hand-overs, limit recovery, Sessions list, new sessions) over one explicit state object | FD-307 | high: 18 test files construct it |
 
 Waves 2 to 7 change no behaviour a person or agent can see, except wave 5's re-probe timing.

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type MutableRefObject, type RefObject } from 'react';
 import { MachinePage } from './components/MachinePage';
 import { langFor, t as tr, type Lang } from '../core/i18n';
 import { DEFAULT_SETTINGS, PROBLEM_STATES, SIDEBAR_WIDTH, type AppStatus, type Settings as AppSettings, type SettingsPatch, type ListSort } from '../core/types';
@@ -170,36 +170,39 @@ interface ShellProps {
   noteSeen: boolean; onNoteSeen: () => void;
 }
 
-function Shell({ status: everyAgent, route, setRoute, mode, switchMode, stopKey, setStopKey, activityFilter, setActivityFilter, layout, changeLayout, onLanguage, scheme, onTheme, noteSeen, onNoteSeen }: ShellProps) {
-  const { t, lang } = useT();
-  // FD-162 (SCN-094): the organizations chosen in the sidebar narrow every list below; the agent open on the page stays.
-  const orgs = layout.list.orgs ?? [];
-  const status: AppStatus = orgs.length ? { ...everyAgent, services: filterServices(everyAgent.services, orgs, route.page === 'service' ? route.key : null, layout.list.orgSource ?? 'org') } : everyAgent;
-  const open = (key: string, link?: string, tab?: 'logs' | 'health' | 'connections') => setRoute({ page: 'service', key, link, nonce: Date.now(), tab });
-  // SCN-059: the agent selected last leads the next visit's Continue list.
-  const routeKey = route.page === 'service' ? route.key : null;
-  useEffect(() => { if (routeKey) void api().updateSettings({ lastService: routeKey }).catch(() => undefined); }, [routeKey]);
-  const act = (key: string, action: 'restart' | 'start' | 'update') => {
-    // U-2: an update started from Needs attention shows its output on the service's Health tab.
-    if (action === 'update') open(key, undefined, 'health');
-    else void api().control(key, action);
-  };
-  // W2 (UX-04): the Overview badge counts the queue Needs attention lists, the tray and the Dock count; red when
-  // something does not work.
-  const queue = attentionQueue(status.services, { now: Date.now(), limits: status.limits });
-  // FD-81: the auditor runs with every status push; the nav carries what does not work, the page the rest. UX-05: with
-  // the limits the main process holds, as the page reads them.
-  // FD-162: every agent is audited (a target outside the organization filter is itself); the count is the shown agents'.
-  const shownKeys = new Set(status.services.map((s) => s.key));
-  const auditErrors = audit(everyAgent.services, status.limits ?? {}).findings.filter((f) => f.severity === 'error' && shownKeys.has(f.key)).length;
-  const current = route.page === 'service' ? status.services.find((s) => s.key === route.key) : undefined;
-  const stopping = stopKey ? status.services.find((s) => s.key === stopKey) : undefined;
-  // FD-135 (SCN-090): the agent whose Rename dialog is open.
-  const [renameKey, setRenameKey] = useState<string | null>(null);
-  // FD-136 (SCN-091): the usage-data notice is open over the page.
-  const [noticeOpen, setNoticeOpen] = useState(false);
-  const renaming = renameKey ? status.services.find((s) => s.key === renameKey) : undefined;
-  // #region sessions-shell — docs: docs/ux/scenarios.md#scn-080-open-one-sessions-page
+/** FD-92, FD-224 (FD-306): where the console drawer goes: the content area from under the page header down, measured again
+ *  when it resizes, when the element it starts under changes, and when `deps` change. */
+function useDrawerArea(mainRef: RefObject<HTMLElement | null>, deps: readonly unknown[]): Rect | null {
+  const [area, setArea] = useState<Rect | null>(null);
+  useEffect(() => {
+    const el = mainRef.current;
+    if (!el) return;
+    const measure = () => {
+      const m = el.getBoundingClientRect();
+      const top = el.querySelector('[data-drawer-top]')?.getBoundingClientRect().bottom ?? m.top;
+      const y = Math.max(m.top, Math.min(top, m.bottom));
+      setArea((a) => (a && a.x === m.left && a.y === y && a.width === m.width && a.height === m.bottom - y ? a : { x: m.left, y, width: m.width, height: m.bottom - y }));
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    const head = el.querySelector('[data-drawer-top]');
+    if (head) observer.observe(head);
+    // FD-224: the element the console starts under can change without the page resizing (the dashboard's toolbar takes
+    // over from the bar shown while it opens); one measure per frame at most.
+    let frame = 0;
+    const swapped = new MutationObserver(() => { if (!frame) frame = requestAnimationFrame(() => { frame = 0; measure(); }); });
+    swapped.observe(el, { childList: true, subtree: true });
+    window.addEventListener('resize', measure);
+    return () => { observer.disconnect(); swapped.disconnect(); if (frame) cancelAnimationFrame(frame); window.removeEventListener('resize', measure); };
+    // The caller names what moves the area, as useEffect's own list.
+  }, deps); // eslint-disable-line react-hooks/exhaustive-deps
+  return area;
+}
+
+// #region sessions-shell — docs: docs/ux/scenarios.md#scn-080-open-one-sessions-page
+/** FD-306: the Sessions page's own state, moved out of Shell unchanged. */
+function useSessionsShell({ route, setRoute, status, opener, t }: { route: Route; setRoute: (r: Route) => void; status: AppStatus; opener: MutableRefObject<HTMLElement | null>; t: ReturnType<typeof useT>['t'] }) {
   // FD-103: the session on show, followed through a Continue (its new row) and waited for while it may still arrive;
   // a session that left the list returns the page to All sessions, never to an empty page (UX-18).
   const [waitTick, setWaitTick] = useState(0);
@@ -239,11 +242,44 @@ function Shell({ status: everyAgent, route, setRoute, mode, switchMode, stopKey,
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
   }, [ending]);
-  // #endregion sessions-shell
+  return { sessionRow, openSession, followContinue, ending, setEnding, endError, askEnd, confirmEnd };
+}
+// #endregion sessions-shell
+
+function Shell({ status: everyAgent, route, setRoute, mode, switchMode, stopKey, setStopKey, activityFilter, setActivityFilter, layout, changeLayout, onLanguage, scheme, onTheme, noteSeen, onNoteSeen }: ShellProps) {
+  const { t, lang } = useT();
+  // FD-162 (SCN-094): the organizations chosen in the sidebar narrow every list below; the agent open on the page stays.
+  const orgs = layout.list.orgs ?? [];
+  const status: AppStatus = orgs.length ? { ...everyAgent, services: filterServices(everyAgent.services, orgs, route.page === 'service' ? route.key : null, layout.list.orgSource ?? 'org') } : everyAgent;
+  const open = (key: string, link?: string, tab?: 'logs' | 'health' | 'connections') => setRoute({ page: 'service', key, link, nonce: Date.now(), tab });
+  // SCN-059: the agent selected last leads the next visit's Continue list.
+  const routeKey = route.page === 'service' ? route.key : null;
+  useEffect(() => { if (routeKey) void api().updateSettings({ lastService: routeKey }).catch(() => undefined); }, [routeKey]);
+  const act = (key: string, action: 'restart' | 'start' | 'update') => {
+    // U-2: an update started from Needs attention shows its output on the service's Health tab.
+    if (action === 'update') open(key, undefined, 'health');
+    else void api().control(key, action);
+  };
+  // W2 (UX-04): the Overview badge counts the queue Needs attention lists, the tray and the Dock count; red when
+  // something does not work.
+  const queue = attentionQueue(status.services, { now: Date.now(), limits: status.limits });
+  // FD-81: the auditor runs with every status push; the nav carries what does not work, the page the rest. UX-05: with
+  // the limits the main process holds, as the page reads them.
+  // FD-162: every agent is audited (a target outside the organization filter is itself); the count is the shown agents'.
+  const shownKeys = new Set(status.services.map((s) => s.key));
+  const auditErrors = audit(everyAgent.services, status.limits ?? {}).findings.filter((f) => f.severity === 'error' && shownKeys.has(f.key)).length;
+  const current = route.page === 'service' ? status.services.find((s) => s.key === route.key) : undefined;
+  const stopping = stopKey ? status.services.find((s) => s.key === stopKey) : undefined;
+  // FD-135 (SCN-090): the agent whose Rename dialog is open.
+  const [renameKey, setRenameKey] = useState<string | null>(null);
+  // FD-136 (SCN-091): the usage-data notice is open over the page.
+  const [noticeOpen, setNoticeOpen] = useState(false);
+  const renaming = renameKey ? status.services.find((s) => s.key === renameKey) : undefined;
+  const opener = useRef<HTMLElement | null>(null);
+  const { sessionRow, openSession, followContinue, ending, setEnding, endError, askEnd, confirmEnd } = useSessionsShell({ route, setRoute, status, opener, t });
   // U-14: the Stop dialog holds focus. Everything behind it is inert while it is open (the embedded
   // dashboard is a native view and hides itself on overlayOpen); closing it puts focus back on the
   // control that opened it, when that control is still on screen.
-  const opener = useRef<HTMLElement | null>(null);
   const askStop = (key: string) => { opener.current = document.activeElement instanceof HTMLElement ? document.activeElement : null; setStopKey(key); };
   // FD-191 (SCN-101, SCN-102): New session and New agent; the console steps aside while the dialog is open.
   const [newSession, setNewSession] = useState<'session' | 'agent' | 'dashboard' | null>(null);
@@ -364,29 +400,7 @@ function Shell({ status: everyAgent, route, setRoute, mode, switchMode, stopKey,
   const drawerKey = pageConsole ?? (route.page === 'service' && current ? (layout.console.open ? current.key : null)
     : route.page === 'overview' && setupOpen ? SETUP_KEY : null);
   const mainRef = useRef<HTMLElement>(null);
-  const [area, setArea] = useState<Rect | null>(null);
-  useEffect(() => {
-    const el = mainRef.current;
-    if (!el) return;
-    const measure = () => {
-      const m = el.getBoundingClientRect();
-      const top = el.querySelector('[data-drawer-top]')?.getBoundingClientRect().bottom ?? m.top;
-      const y = Math.max(m.top, Math.min(top, m.bottom));
-      setArea((a) => (a && a.x === m.left && a.y === y && a.width === m.width && a.height === m.bottom - y ? a : { x: m.left, y, width: m.width, height: m.bottom - y }));
-    };
-    measure();
-    const observer = new ResizeObserver(measure);
-    observer.observe(el);
-    const head = el.querySelector('[data-drawer-top]');
-    if (head) observer.observe(head);
-    // FD-224: the element the console starts under can change without the page resizing (the dashboard's toolbar takes
-    // over from the bar shown while it opens); one measure per frame at most.
-    let frame = 0;
-    const swapped = new MutationObserver(() => { if (!frame) frame = requestAnimationFrame(() => { frame = 0; measure(); }); });
-    swapped.observe(el, { childList: true, subtree: true });
-    window.addEventListener('resize', measure);
-    return () => { observer.disconnect(); swapped.disconnect(); if (frame) cancelAnimationFrame(frame); window.removeEventListener('resize', measure); };
-  }, [route.page, route.page === 'service' ? route.key : '', layout.header, layout.sidebar, layout.focus, drawerKey, sessionRow?.id]);
+  const area = useDrawerArea(mainRef, [route.page, route.page === 'service' ? route.key : '', layout.header, layout.sidebar, layout.focus, drawerKey, sessionRow?.id]);
   // FD-191 (SCN-101, SCN-102): New session and New agent; the console steps aside while the dialog is open.
   const drawerTask = agentTask && agentTask.key === drawerKey ? { task: agentTask.task, mode: agentTask.mode, nonce: agentTask.nonce } : null;
   // FD-220: an agent's console fills the area under its header (the agent's window) unless the person keeps it a drawer.
