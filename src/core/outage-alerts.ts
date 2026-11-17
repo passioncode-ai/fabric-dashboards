@@ -217,7 +217,14 @@ function pruneAsks(asks: Record<string, Ask>, now: number): Record<string, Ask> 
  *  text); anything the app keeps beside a message (its service, its side) stays here, since the channel refuses an
  *  unknown field (`invalid_event`). */
 export function notifyArguments(msg: AlertMessage): { eventId: string; kind: AlertMessage['kind']; subject: string; text: string } {
-  return { eventId: msg.eventId, kind: msg.kind, subject: msg.subject.slice(0, 160), text: msg.text.slice(0, 3500) };
+  return { eventId: channelEventId(msg.eventId), kind: msg.kind, subject: msg.subject.slice(0, 160), text: msg.text.slice(0, 3500) };
+}
+
+/** FD-285: the channel takes an id of `[A-Za-z0-9][A-Za-z0-9_.:-]{0,159}` and refuses any other (`invalid_event_id`);
+ *  a health episode's key carries `@` before its day. Every other character becomes `_`, the same on every retry. */
+export function channelEventId(id: string): string {
+  const safe = id.replace(/[^A-Za-z0-9_.:-]/g, '_').slice(0, 160);
+  return /^[A-Za-z0-9]/.test(safe) ? safe : `e${safe}`.slice(0, 160);
 }
 
 /** FD-287: a refusal the channel names with a code (`invalid_event`, `invalid_event_id`) will not pass on a retry: the
