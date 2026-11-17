@@ -2618,7 +2618,7 @@ The Sessions mode (0.8.0): every coding session apart from the agents, each stat
 
 - **Persona:** P-01
 - **Feature:** machine
-- **Traces:** FD-52 (design `docs/design/2026-11-15-organizations-and-this-machine.md` §This machine (FD-52), operator decision C1 of 2026-11-15); board thread `f1fd7e94`
+- **Traces:** FD-52 (design `docs/design/2026-11-15-organizations-and-this-machine.md` §This machine (FD-52), operator decision C1 of 2026-11-15); board thread `f1fd7e94`; FD-296 (architect review `445c0b80` item 8, verdicts 1.0.0)
 - **Entry point:** the sidebar's This Mac, after Spend
 - **Preconditions:** agents installed on this computer
 - **Steps:**
@@ -2629,10 +2629,10 @@ The Sessions mode (0.8.0): every coding session apart from the agents, each stat
 - **Expected result:** the person sees what this computer gives each organization it works for, in sums only, and what each reporting agent says is wrong with it now
 - **Alt paths:** an agent reads the same with MCP `this_machine` (contexts with `confirmed: false`, `people: null`); spend per agent stays the `spend` tool's
 - **UI elements:** the totals, the context sections, the "your own" tag, the agent links
-- **States covered:** loading (spend "…"), success
-- **Errors & recovery:** an agent whose usage report cannot be read makes the spend a lower bound, as on Spend; contexts come from Observatory's map until Fabric reports each instance's own (CO-422), so none is marked confirmed
+- **States covered:** loading (spend "…"), success, not reported, unknown
+- **Errors & recovery:** an agent whose usage report cannot be read makes the spend a lower bound, as on Spend; a total or context none of whose agents reports usage says "not reported", and one whose reports all failed to read says "unknown", never a measured $0.00 (FD-296); contexts come from Observatory's map until Fabric reports each instance's own (CO-422), so none is marked confirmed
 - **Coverage:** src/core/machine-view.ts (machineView), src/renderer/components/MachinePage.tsx, src/renderer/components/Navigation.tsx (This Mac item), src/renderer/App.tsx (route machine), src/electron/policy.ts (resume route), src/mcp/tools.ts (thisMachine), src/mcp/server.ts (this_machine), src/core/agent-health.ts (healthRows)
-- **Status:** implemented (2026-11-15, 0.8.118: `test/machine-view.test.ts`; health reports 0.8.166)
+- **Status:** implemented (2026-11-15, 0.8.118: `test/machine-view.test.ts`; health reports 0.8.166; no measured zero for no data 0.8.174, *FD-296*)
 
 ### SCN-117: See where an agent runs
 

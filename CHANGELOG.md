@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.8.174 - 2026-11-17
+
+### Fixed
+
+- FD-296: This Mac no longer shows $0.00 spent today for an organization whose agents do not report what they spend,
+  or whose reports could not be read. It now says "not reported" or "unknown", as Overview and Spend do; a measured
+  amount is shown only when an agent's report was read.
+
 ## 0.8.173 - 2026-11-17
 
 ### Changed
