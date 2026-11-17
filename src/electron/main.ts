@@ -1389,7 +1389,8 @@ if (!app.requestSingleInstanceLock()) {
           // FD-175 (FD-129's button): a fix for an agent whose session runs is typed into that session, not a second one.
           if (!x.ok && x.reason === 'running' && task) {
             const sent = consoles.sendTask(r.service, task);
-            return sent.ok ? { ok: true, result: { typed: true, console: r.service, waitsForEnter: true } } : { ok: false, code: sent.error ?? 'not-sent' };
+            // FD-236 (4): a typed task that reads like instructions holds the conversation; the agent is told, as on a start.
+            return sent.ok ? { ok: true, result: { typed: true, console: r.service, waitsForEnter: true, ...(sent.held ? { held: true, held_why: 'the task read like instructions, so its next Continue asks before each action; a person sends the typed line' } : {}) } } : { ok: false, code: sent.error ?? 'not-sent' };
           }
           return startAnswer(r.service, x);
         });

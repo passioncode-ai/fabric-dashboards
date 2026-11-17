@@ -436,6 +436,44 @@ test('Wave 5b (FD-236 (7)): a held conversation keeps the hold on its Continue a
   assert.equal(settings.get().consoles['runner.dev']?.held, undefined, 'a new session with a clean context drops the hold');
 });
 
+test('FD-236 (4): a task that reads like instructions typed into a running session holds its conversation; a clean one does not', POSIX, async () => {
+  const base = tmp('fd-236t-');
+  const bin = path.join(base, 'bin');
+  const folder = path.join(base, 'work');
+  fs.mkdirSync(bin); fs.mkdirSync(folder);
+  fs.writeFileSync(path.join(bin, 'claude'), '#!/bin/sh\n', { mode: 0o755 });
+  const settings = new SettingsStore(path.join(base, 'data'));
+  settings.update({ consoles: { 'runner.dev': { runtime: 'claude-code', folder, idle: null } } });
+  const typed: string[] = [];
+  const logs: string[] = [];
+  const spawned: string[][] = [];
+  const exits: (() => void)[] = [];
+  const host = new ConsoleHost({
+    settings, snapshot: () => snap(), activity: () => [], window: () => null, visible: () => false, log: (l) => logs.push(l),
+    testDirs: [bin], scriptsDir: path.join(base, 'scripts'), packRoot: path.join(base, 'packs'), mcpServer: () => ({ command: '/app/mcp', args: [] }),
+    run: async () => ({ code: 1, stdout: '', stderr: '' }),
+    spawn: (_file, args) => { spawned.push(args); let exit: ((e: { exitCode: number }) => void) | null = null; const done = () => { const f = exit; exit = null; f?.({ exitCode: 0 }); }; exits.push(done); return { pid: 2_340_200_000 + spawned.length, onData: () => ({ dispose() {} }), onExit: (cb: (e: { exitCode: number }) => void) => { exit = cb; return { dispose() {} }; }, write: (d: string) => { typed.push(d); }, resize() {}, kill: done }; },
+    killGroup: () => { exits.forEach((f) => f()); }, idleMs: 0,
+    machine: async () => ({ freeDisk: 50 * 1024 ** 3, swap: null, running: 0 }),
+    home: base,
+  } as never);
+  assert.ok((await host.start('runner.dev', 'new', { cols: 80, rows: 24 })).ok);
+  assert.equal(settings.get().consoles['runner.dev']?.held, undefined, 'a clean start is not held');
+  const clean = host.sendTask('runner.dev', { kind: 'fix', output: 'database locked' });
+  assert.deepEqual(clean, { ok: true });
+  assert.equal(settings.get().consoles['runner.dev']?.held, undefined);
+  const dirty = host.sendTask('runner.dev', { kind: 'fix', output: ATTACK });
+  assert.deepEqual(dirty, { ok: true, held: true });
+  assert.ok(settings.get().consoles['runner.dev']?.held, 'the hold is recorded with the console');
+  assert.equal(settings.get().consoles['runner.dev']?.runtime, 'claude-code', 'the saved choice is kept');
+  assert.ok(logs.some((l) => /the person sends it, and the conversation is held/.test(l)), logs.join('\n'));
+  assert.ok(typed.length >= 2 && typed.every((d) => !d.includes('\r')), 'typed with no Enter');
+  host.stopByPerson('runner.dev');
+  await new Promise((r) => setTimeout(r, 30));
+  assert.ok((await host.start('runner.dev', 'continue', { cols: 80, rows: 24 })).ok);
+  assert.ok(!spawned[1]!.includes('--dangerously-skip-permissions'), JSON.stringify(spawned[1]));
+});
+
 test('FD-275: a Claude Code console busy 45 minutes with no transcript write is closed and saved as stuck; a fresh one is not', POSIX, async () => {
   const base = tmp('fd-275-');
   const bin = path.join(base, 'bin');
