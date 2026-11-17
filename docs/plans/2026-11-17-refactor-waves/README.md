@@ -40,8 +40,8 @@ on 2026-11-17); waves that touch a shared screen record that and run it when the
 
 | Wave | What | Rows | Risk |
 |---|---|---|---|
-| 1 | S-1 fixed (refuse a machine for agent and dashboard, dialog and MCP); the 17 document drifts; README's tool list; backlog rows whose state is stale | FD-300, FD-301 | low |
-| 2 | Pure moves: one `COMMAND_TIMEOUT_MS`, one `SERVICE_KEY`, one `PROBLEM_STATES`, needless exports dropped, `isOldSwitchboard` and `isUnsupported` for the 10 copies, console helpers and IPC validators out of `console.ts`, `readRegistry` out of `main.ts`, the MCP schema out of `server.ts` | FD-302 | low |
+| 1 | S-1 fixed (refuse a machine for agent and dashboard, dialog and MCP); the 17 document drifts; README's tool list; backlog rows whose state is stale | FD-300, FD-301 | low; done 0.8.179 |
+| 2 | Pure moves: one `COMMAND_TIMEOUT_MS`, one `SERVICE_KEY`, one `PROBLEM_STATES`, needless exports dropped, `isOldSwitchboard` and `isUnsupported` for the 10 copies, console helpers and IPC validators out of `console.ts`, `readRegistry` out of `main.ts`, the MCP schema out of `server.ts` | FD-302 | low; done 0.8.180 |
 | 3 | Shared shapes: the control refusal branch shared by monitor and MCP, a renderer `usePoll` for the eight effects, one accounts cache in `ConsoleHost` | FD-303 | low to medium |
 | 4 | `main.ts` split: the console-channel answers, outage words and the uninstall flow into their modules; `registerIpc` into per-group functions | FD-304 | medium |
 | 5 | One Switchboard feature probe (launch, sessions, continue, hand-overs help) keyed by path and modification time, so a Switchboard updated in place is read again everywhere | FD-305 | medium (decision below) |

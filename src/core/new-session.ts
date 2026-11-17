@@ -10,6 +10,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { handoffArgs, mcpConfig, writePack, type McpCommand } from './handoff';
+import { MACHINE } from './platform';
 
 export type NewSessionKind = 'session' | 'agent' | 'dashboard';
 
@@ -140,3 +141,17 @@ export function prepareNewDashboard(o: { dir: string; runtimeId: string; folder:
 
 export const homeFolder = () => os.homedir();
 // #endregion new-session
+
+/** FD-191: a New session request from the window or the console channel, checked field by field; null when malformed. */
+export function newSessionChoiceOf(v: unknown): NewSessionChoice | null {
+  const c = (v ?? null) as Record<string, unknown> | null;
+  if (!c || typeof c !== 'object' || Array.isArray(c)) return null;
+  if (c.kind !== 'session' && c.kind !== 'agent' && c.kind !== 'dashboard') return null;
+  if (typeof c.runtime !== 'string' || !/^[a-z0-9][a-z0-9-]{0,63}$/.test(c.runtime)) return null;
+  // FD-206: a machine as ssh knows it; its folder is a POSIX path there.
+  if (c.machine !== undefined && c.machine !== null && (typeof c.machine !== 'string' || !MACHINE.test(c.machine))) return null;
+  const machine = typeof c.machine === 'string' ? c.machine : undefined;
+  if (typeof c.folder !== 'string' || c.folder.length > 4096 || c.folder.includes('\u0000') || !(machine ? c.folder.startsWith('/') : path.isAbsolute(c.folder))) return null;
+  if (typeof c.bypass !== 'boolean' || typeof c.isolated !== 'boolean') return null;
+  return { kind: c.kind, runtime: c.runtime, folder: c.folder, bypass: c.bypass, isolated: c.isolated, ...(machine ? { machine } : {}) };
+}

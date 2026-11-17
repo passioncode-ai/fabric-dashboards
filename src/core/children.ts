@@ -12,6 +12,9 @@ import { descendantsOf, parseSnapshot, SNAPSHOT_SCRIPT } from './proctree';
  *  Node (`ELECTRON_RUN_AS_NODE=1`): passed on, any Electron or `open`-based step inside the command
  *  would start in Node mode and silently do nothing. `NODE_OPTIONS` would inject flags into every
  *  Node program the command runs. */
+/** The deadline of a descriptor's `doctor` and `update` argv, in the app and the MCP server (AGENTS.md §Lifecycle). */
+export const COMMAND_TIMEOUT_MS = 120_000;
+
 export const STRIPPED_ENV = ['ELECTRON_RUN_AS_NODE', 'NODE_OPTIONS'] as const;
 
 export function commandEnv(env: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {

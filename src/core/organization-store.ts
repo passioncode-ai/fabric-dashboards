@@ -2,8 +2,9 @@
 // so the MCP server reads what the app last read and a restart shows the organizations before Observatory answers again.
 // #region organization-store — docs: docs/ux/scenarios.md#scn-094-show-only-one-organizations-agents
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
-import { addRegistryProjects, addSurveyPage, addSwitchboardOrganizations, EMPTY_ORGANIZATIONS, parseSwitchboardOrganizations, organizationOf, organizationOfInstance, ORGANIZATIONS_EVERY_MS, type InstanceContext, type Organization, type OrganizationsCache } from './organizations';
+import { addRegistryProjects, addSurveyPage, addSwitchboardOrganizations, EMPTY_ORGANIZATIONS, parseSwitchboardOrganizations, organizationOf, organizationOfInstance, ORGANIZATIONS_EVERY_MS, type InstanceContext, type Organization, type OrganizationsCache, OWN_REPOSITORY_OWNER } from './organizations';
 
 const MAX_PAGES = 20;
 
@@ -123,6 +124,30 @@ export class OrganizationStore {
     this.told = line;
     this.o.log(line);
   }
+}
+
+/** FD-162: Observatory's own registry on this Mac, read without a token (as FD-132 reads its placement record), with
+ *  the labels, the personal and platform organizations of its config and its Cloudflare accounts; null when absent. */
+export function readObservatoryRegistry(home = os.homedir(), env: NodeJS.ProcessEnv = process.env): Record<string, unknown> | null {
+  const base = path.join(env.XDG_DATA_HOME || path.join(home, '.local', 'share'), 'project-observatory-full');
+  let projects: Record<string, unknown>;
+  try { projects = JSON.parse(fs.readFileSync(path.join(base, 'registry', 'projects.json'), 'utf8')) as Record<string, unknown>; } catch { return null; }
+  try {
+    const cfg = JSON.parse(fs.readFileSync(path.join(base, 'config', 'organizations.json'), 'utf8')) as { organizations?: Record<string, { label?: unknown; default?: unknown; platform?: unknown; match?: { repository_owners?: unknown } }> };
+    projects.organization_labels = Object.fromEntries(Object.entries(cfg.organizations ?? {}).map(([k, v]) => [k, v?.label]));
+    // FD-195: the organization marked `default: true` is the operator's own: the kind "Mine" and the menu's "yours" tag (FD-237).
+    projects.organization_personal = Object.entries(cfg.organizations ?? {}).find(([, v]) => v?.default === true)?.[0] ?? null;
+    // FD-197: the platform's organizations: those the config marks `platform: true`, else the one that owns this
+    // app's own repository (the platform's publisher).
+    const entries = Object.entries(cfg.organizations ?? {});
+    const marked = entries.filter(([, v]) => v?.platform === true).map(([k]) => k);
+    projects.organization_platform = marked.length ? marked : entries
+      .filter(([, v]) => Array.isArray(v?.match?.repository_owners) && (v.match.repository_owners as unknown[]).some((o) => typeof o === 'string' && o.toLowerCase() === OWN_REPOSITORY_OWNER))
+      .map(([k]) => k);
+  } catch { /* no labels: names are shown as they are */ }
+  // FD-197: which organization each Cloudflare account belongs to, for the online instances.
+  try { projects.cloudflare_accounts = JSON.parse(fs.readFileSync(path.join(base, 'registry', 'cloudflare-account.json'), 'utf8')); } catch { /* none: online instances keep their repository's organization */ }
+  return projects;
 }
 
 // #endregion organization-store

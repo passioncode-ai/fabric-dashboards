@@ -4,7 +4,7 @@
 // `instance`, never a second `id`"). Presentation only: monitoring, notifications, the tray, MCP,
 // deep links and controls keep the exact `id.instance` key of each member. Pure: the renderer and
 // the main process share it.
-import type { ListLayout, ProductKind, ServiceSnapshot } from './types';
+import { PROBLEM_STATES, type ListLayout, type ProductKind, type ServiceSnapshot } from './types';
 
 export interface Product {
   /** The service `id` the members share. */
@@ -19,7 +19,7 @@ export interface Product {
   memberProblem: boolean;
 }
 
-const PROBLEM = new Set(['down', 'duplicate', 'foreign-user', 'foreign', 'conflict', 'invalid']);
+const PROBLEM = PROBLEM_STATES;
 
 // FD-21 (audit M-4): the key grammar lives in the shared package, so Fabric splits keys the same way.
 import { instanceOf, productIdOf } from '@passioncode-ai/fabric-service-host/links';

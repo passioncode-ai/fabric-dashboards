@@ -10,6 +10,16 @@ import fs from 'node:fs';
 import type { RuntimeSpec } from './runtimes';
 import type { LaunchFacts, Paid, SbMachineProcess, SbPageRow, SbSessionRecord, SourceResult } from './sessions';
 
+/** A Switchboard that does not know the subcommand or flag asked: clap's words, or Switchboard's own refusal. */
+export function isOldSwitchboard(text: string): boolean {
+  return /unrecognized subcommand|unexpected argument|earlier version than this command/i.test(text);
+}
+
+/** As isOldSwitchboard, and also a flag Switchboard's own parser refuses ("invalid arguments", "unrecognized"). */
+export function isUnsupported(text: string): boolean {
+  return /invalid arguments|unexpected argument|unrecognized|earlier version than this command/i.test(text);
+}
+
 export type Binding =
   | { kind: 'none' } // no project or managed rule for this provider: the ordinary sign-in
   | { kind: 'project'; name: string; pool: string }
@@ -238,7 +248,7 @@ export async function allSessionsOf(run: Runner, sb: string): Promise<SourceResu
   const text = `${r.stdout}\n${r.stderr}`;
   const data = r.code === 0 ? parse(r.stdout) : null;
   if (!data) {
-    const old = /unrecognized subcommand|unexpected argument|earlier version than this command/i.test(text);
+    const old = isOldSwitchboard(text);
     return { ok: false, reason: old ? 'old' : 'error', detail: sbFailure(r) };
   }
   return { ok: true, value: parseAllSessions(data) };
@@ -312,7 +322,7 @@ export async function machineSessionsOf(run: Runner, sb: string): Promise<Source
   const text = `${r.stdout}\n${r.stderr}`;
   const data = r.code === 0 ? parse(r.stdout) : null;
   if (!data) {
-    if (/invalid arguments|unexpected argument|unrecognized|earlier version than this command/i.test(text)) return { ok: false, reason: 'unsupported' };
+    if (isUnsupported(text)) return { ok: false, reason: 'unsupported' };
     return { ok: false, reason: 'error', detail: sbFailure(r) };
   }
   const out: SbMachineProcess[] = [];
@@ -339,7 +349,7 @@ export async function pageRowsOf(run: Runner, sb: string): Promise<SourceResult<
   const text = `${r.stdout}\n${r.stderr}`;
   const data = r.code === 0 ? parse(r.stdout) : null;
   if (!data) {
-    if (/invalid arguments|unexpected argument|unrecognized|earlier version than this command/i.test(text)) return { ok: false, reason: 'unsupported' };
+    if (isUnsupported(text)) return { ok: false, reason: 'unsupported' };
     return { ok: false, reason: 'error', detail: sbFailure(r) };
   }
   if (!Array.isArray(data.rows)) return { ok: false, reason: 'unsupported' };
@@ -418,7 +428,7 @@ export async function handoversOf(run: Runner, sb: string): Promise<SbHandovers>
   const text = `${r.stdout}\n${r.stderr}`;
   const data = r.code === 0 ? parse(r.stdout) : null;
   if (!data) {
-    const old = /unrecognized subcommand|unexpected argument|earlier version than this command/i.test(text);
+    const old = isOldSwitchboard(text);
     return { unavailable: old ? 'old' : 'error', detail: sbFailure(r) };
   }
   const handovers: SbHandover[] = [];

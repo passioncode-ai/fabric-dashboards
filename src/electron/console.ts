@@ -25,10 +25,11 @@ import { admit, machineProbe, parseCapacity, type Admission, type MachineState }
 import { findCheckout } from '../core/repofind';
 import { projectsOf, projectsProbeArgv, targetLaunchArgv, targetsOf } from '../core/target-session';
 import { MACHINE } from '../core/platform';
-import { isNewAgentKey, isNewDashboardKey, isNewSessionKey, isolatedBlock, newSessionKey, prepareNewAgent, prepareNewDashboard, projectsFolder, type NewSessionChoice, type NewSessionKind } from '../core/new-session';
+import { isNewAgentKey, isNewDashboardKey, isNewSessionKey, isolatedBlock, newSessionChoiceOf, newSessionKey, prepareNewAgent, prepareNewDashboard, projectsFolder, type NewSessionChoice, type NewSessionKind } from '../core/new-session';
+export { newSessionChoiceOf }; // FD-302: moved to src/core/new-session.ts; tests and the console channel import it here
 import { askArgsOfProvider, bypassArgs, claudeAskModeOf, promptsWords, setClaudeAskMode, bypassArgsOfProvider, detectRuntimes, KNOWN_RUNTIMES, readLoginPath, searchDirs, specsFromSwitchboard, type Runtime, type RuntimeSpec } from '../core/runtimes';
-import type { SettingsStore } from '../core/settings';
-import { accountsOf, allSessionsOf, bindingFor, machineSessionsOf, pageRowsOf, findSwitchboard, handoverAskOf, handoverOwnKey, handoverRunArgv, handoversOf, hostedContinueArgv, handoversSwitch, historySessionsOf, isHandoverKey, launchFeatures, sbFailure, sessionsIn, startAccount, terminalLaunchArgv, type Binding, type SbAccounts, type SbHandover, type SbSessions, type StartAccount } from '../core/switchboard';
+import { SERVICE_KEY, type SettingsStore } from '../core/settings';
+import { accountsOf, allSessionsOf, isOldSwitchboard, bindingFor, machineSessionsOf, pageRowsOf, findSwitchboard, handoverAskOf, handoverOwnKey, handoverRunArgv, handoversOf, hostedContinueArgv, handoversSwitch, historySessionsOf, isHandoverKey, launchFeatures, sbFailure, sessionsIn, startAccount, terminalLaunchArgv, type Binding, type SbAccounts, type SbHandover, type SbSessions, type StartAccount } from '../core/switchboard';
 import type { HeldContinue, ServiceSnapshot, Settings } from '../core/types';
 import { claudeConfigDirs, lastTranscriptWrite, STUCK_MS, stuckKeys } from '../core/stuck';
 import { claimStop, claudeSessionDirs, folderLive, liveSessionFolders, liveSessionIds, continuedLaunches, continuedOf, finishStop, launchTranscript, liveAgents, recoveryOf, resumeArgs, resumeOwnKey, sessionOpen, transcriptIn, transcriptOf, verdictOf, writtenAt, RESUME_SETTLE_MS, RESUMES_PER_PASS, type RecoveryStatus, type SbStop, type StopView } from '../core/recovery';
@@ -39,7 +40,7 @@ import { attachOwnKey, consoleRowId, dropRemoteTwins, machineTerminalKey, handov
 /** node-pty 1.1.0 ships its macOS `spawn-helper` without the executable bit, and its postinstall
  *  does not set it: without it every spawn fails with `posix_spawnp failed`. A development checkout
  *  is fixed here; the release build sets it before signing (scripts/dist-mac.mjs). */
-export function ensureSpawnHelper(moduleDir: string, arch = process.arch, platform: NodeJS.Platform = process.platform): string | null {
+function ensureSpawnHelper(moduleDir: string, arch = process.arch, platform: NodeJS.Platform = process.platform): string | null {
   if (platform !== 'darwin') return null; // FD-37: only macOS's node-pty spawns through spawn-helper (Windows: conpty; Linux: built from source)
   const helper = path.join(moduleDir, 'prebuilds', `darwin-${arch}`, 'spawn-helper').replace('app.asar', 'app.asar.unpacked');
   try {
@@ -120,7 +121,7 @@ export const HANDOVER_POLL_MS = { visible: 15_000, hidden: 60_000 };
 
 /** FD-288: an LC-17 refusal as the session's row shows it; `retryAt` is the latest the next pass tries again (the hidden
  *  cadence, so the time shown is never early). */
-export function heldOf(a: Extract<Admission, { ok: false }>, retryAt: number): HeldContinue {
+function heldOf(a: Extract<Admission, { ok: false }>, retryAt: number): HeldContinue {
   if (a.why === 'disk') return { why: 'disk', freeGb: Math.round((a.freeDisk / 1024 ** 3) * 10) / 10, retryAt };
   if (a.why === 'cap') return { why: 'cap', cap: a.cap, retryAt };
   if (a.why === 'pool') return { why: 'pool', used: a.used, cap: a.cap, retryAt };
@@ -130,23 +131,23 @@ export function heldOf(a: Extract<Admission, { ok: false }>, retryAt: number): H
 /** FD-62: a console that runs a hand-over, as the shell lists it. */
 
 /** D2 of the 2026-10-12 board waves, stated in AGENTS.md's lifecycle table (LC-18). */
-export const IDLE_CLOSE_MS = 30 * 60_000;
+const IDLE_CLOSE_MS = 30 * 60_000;
 
 /** F3 of FIX-2: how long a quit waits for a continue in flight to settle its stop, then for the cancelling of a stop still
  *  claimed; both inside the app's own quit (main.ts exits once endAllForQuit resolves). */
-export const QUIT_SETTLE_MS = 2500;
+const QUIT_SETTLE_MS = 2500;
 /** FD-231: how long a Switchboard that does not know `sessions --machine` (before 0.7.72) is left unasked. */
 export const MACHINE_RECHECK_MS = 10 * 60_000;
 /** FD-291 step 2: this Mac's agent processes, as the sessions page (`--rows`) or, from an older Switchboard, `--machine` read them. */
 type LocalProcesses = { page: SbPageRow[] | null; machine: SbMachineProcess[] | null };
-export const QUIT_FINISH_MS = 1500;
+const QUIT_FINISH_MS = 1500;
 
 /** FD-74: how long the console trusts Switchboard's last answer about a folder before asking again in the background. */
 export const BINDING_FRESH_MS = 30_000;
 /** Wave 4 (P-08): how long one `switchboard capacity` answer serves the machine checks of one pass. */
 const CAPACITY_FRESH_MS = 10_000;
 /** FD-137: how long the agents' folders, matched to board-request sessions, are kept before they are looked up again. */
-export const AGENT_FOLDER_MS = 5 * 60_000;
+const AGENT_FOLDER_MS = 5 * 60_000;
 /** FD-211: a folder as Switchboard and this app may each write it, without a trailing separator. */
 const trimSlash = (p: string) => (p.length > 1 ? p.replace(/[\\/]+$/, '') : p);
 const realOf = (p: string) => { try { return fs.realpathSync(p); } catch { return path.resolve(p); } };
@@ -1227,7 +1228,7 @@ export class ConsoleHost {
     this.failedResumes.delete(key);
     if (snap.startedAt === null) return;
     const now = Date.now();
-    if (h && !resumed && code !== 0 && now - snap.startedAt < 60_000 && /earlier version than this command|unrecognized subcommand|unexpected argument/i.test(snap.output)) {
+    if (h && !resumed && code !== 0 && now - snap.startedAt < 60_000 && isOldSwitchboard(snap.output)) {
       this.notOpened(h, 'switchboard-old', now);
       return;
     }
@@ -1994,7 +1995,7 @@ export class ConsoleHost {
   // #endregion new-session
 
   register(): void {
-    const keyOk = (key: unknown): key is string => typeof key === 'string' && /^[a-z0-9][a-z0-9-]*\.[a-z0-9][a-z0-9-]*$/.test(key);
+    const keyOk = (key: unknown): key is string => typeof key === 'string' && SERVICE_KEY.test(key);
     const size = (v: unknown) => {
       const s = (v ?? {}) as { cols?: unknown; rows?: unknown };
       return { cols: clampInt(s.cols, 2, 1000, 80), rows: clampInt(s.rows, 1, 500, 24) };
@@ -2042,20 +2043,6 @@ export class ConsoleHost {
     ipcMain.on(CHANNELS.consoleInput, (_e, key, data) => { if (keyOk(key) && typeof data === 'string' && data.length <= 1_000_000) this.manager.input(key, data); });
     ipcMain.on(CHANNELS.consoleResize, (_e, key, cols, rows) => { if (keyOk(key)) { const s = size({ cols, rows }); this.manager.resize(key, s.cols, s.rows); } });
   }
-}
-
-/** FD-191: a New session request from the window or the console channel, checked field by field; null when malformed. */
-export function newSessionChoiceOf(v: unknown): NewSessionChoice | null {
-  const c = (v ?? null) as Record<string, unknown> | null;
-  if (!c || typeof c !== 'object' || Array.isArray(c)) return null;
-  if (c.kind !== 'session' && c.kind !== 'agent' && c.kind !== 'dashboard') return null;
-  if (typeof c.runtime !== 'string' || !/^[a-z0-9][a-z0-9-]{0,63}$/.test(c.runtime)) return null;
-  // FD-206: a machine as ssh knows it; its folder is a POSIX path there.
-  if (c.machine !== undefined && c.machine !== null && (typeof c.machine !== 'string' || !MACHINE.test(c.machine))) return null;
-  const machine = typeof c.machine === 'string' ? c.machine : undefined;
-  if (typeof c.folder !== 'string' || c.folder.length > 4096 || c.folder.includes('\u0000') || !(machine ? c.folder.startsWith('/') : path.isAbsolute(c.folder))) return null;
-  if (typeof c.bypass !== 'boolean' || typeof c.isolated !== 'boolean') return null;
-  return { kind: c.kind, runtime: c.runtime, folder: c.folder, bypass: c.bypass, isolated: c.isolated, ...(machine ? { machine } : {}) };
 }
 
 function clampInt(v: unknown, min: number, max: number, fallback: number): number {

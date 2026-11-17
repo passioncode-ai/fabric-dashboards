@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { MachinePage } from './components/MachinePage';
 import { langFor, t as tr, type Lang } from '../core/i18n';
-import { DEFAULT_SETTINGS, SIDEBAR_WIDTH, type AppStatus, type Settings as AppSettings, type SettingsPatch, type ListSort } from '../core/types';
+import { DEFAULT_SETTINGS, PROBLEM_STATES, SIDEBAR_WIDTH, type AppStatus, type Settings as AppSettings, type SettingsPatch, type ListSort } from '../core/types';
 import { filterServices } from '../core/organizations';
 import { groupProducts, productOf, type Product, arrangeProducts, categoryOf, setKind, setOff, showAgain, togglePin } from '../core/products';
 import { Activity, type ActivityFilter } from './components/Activity';
@@ -38,7 +38,7 @@ const modeOfRoute = (r: Route): Mode | null => (r.page === 'sessions' || r.page 
 /** How long a session page waits for a row that is not listed yet (a notification clicked before the next read). */
 const SESSION_WAIT_MS = 20_000;
 
-const PROBLEM = new Set(['down', 'duplicate', 'foreign-user', 'foreign', 'conflict', 'invalid']);
+const PROBLEM = PROBLEM_STATES;
 
 export function App() {
   const [status, setStatus] = useState<AppStatus | null>(null);

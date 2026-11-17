@@ -23,7 +23,7 @@ import {
   type Descriptor, type DescriptorEntry, type ServiceLook, type ServiceState, type WellKnownResult, authHeaders, portOf, RemoteTokenLatch, REMOTE_TIMEOUT_MS, type WellKnownOptions,
   elsewhereOf, PlacementReader, SpaceDaemonReader, isSystemJob, type Placement,
 } from '@passioncode-ai/fabric-service-host';
-import { runOwned } from '../core/children';
+import { COMMAND_TIMEOUT_MS, runOwned } from '../core/children';
 import { fromServiceUrl, isServiceKey, linkFor, safePath, sessionLink } from '../core/deeplink';
 import { displayName } from '../core/names';
 import { Launchd, execRunner, type Runner } from '../core/launchd';
@@ -54,7 +54,7 @@ import { AgentNameStore, cleanName, customNameOf, findGh, readNamesCache } from 
 import { canonicalOrgValue, GITHUB_PREFIX, githubOwnerOf, isShared, keepsOrganization, knownOrganizations, organizationCounts, organizationOfInstance, sharedProducts, type Organization } from '../core/organizations';
 import { readOrganizations } from '../core/organization-store';
 
-export const COMMAND_TIMEOUT_MS = 120_000;
+export { COMMAND_TIMEOUT_MS };
 import { CONTROL_TIMEOUT_MS, controlService } from '../core/control';
 import { UNTRUSTED_NOTE } from '../core/untrusted';
 export { CONTROL_TIMEOUT_MS };

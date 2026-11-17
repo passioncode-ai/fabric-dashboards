@@ -10,7 +10,7 @@ import { attentionQueue, foldAttention, groupAttention, urgent } from '../../cor
 import { FixButton } from './ServiceActions';
 import { money as formatMoney } from './Spend';
 import { categoryOf, instanceOf, offProducts, placeStates, type Product } from '../../core/products';
-import type { ListLayout } from '../../core/types';
+import { PROBLEM_STATES, type ListLayout } from '../../core/types';
 import type { AppStatus, ServiceSnapshot, Settings } from '../../core/types';
 import { api, GLYPH, Icon, nameOf, NEWS_MS, shortBuild, Spinner, StateBadge, useExpiry, useT } from '../lib';
 import { shownState } from '../../core/setup-wait';
@@ -391,7 +391,7 @@ function Card({ p, open }: { p: Product; open: (key: string) => void }) {
 }
 
 /** DEC-0019: a remote placement — an online agent or dashboard at an https origin. */
-export function isOnline(s: ServiceSnapshot): boolean {
+function isOnline(s: ServiceSnapshot): boolean {
   return s.descriptor?.placement === 'remote';
 }
 
@@ -420,7 +420,7 @@ function StatusStrip({ status, products, attention, urgent, goSpend, goAttention
     return () => { alive = false; clearInterval(timer); };
   }, []);
   const ready = products.filter((p) => p.primary.state === 'ready').length;
-  const problems = status.services.filter((s) => ['down', 'duplicate', 'foreign-user', 'foreign', 'conflict', 'invalid'].includes(s.state)).length;
+  const problems = status.services.filter((s) => PROBLEM_STATES.has(s.state)).length;
   // Reachable when anything reports or failed to report: Spend lists the failures (D-3). With no
   // report at all the sum is unknown, never "≥ $0.00" (T-22).
   const reporting = spend?.some((e) => e.kind === 'report' || e.kind === 'error') ?? false;
