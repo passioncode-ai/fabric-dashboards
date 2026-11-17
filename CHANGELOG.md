@@ -1,16 +1,30 @@
 # Changelog
 
+## 0.8.158 - 2026-11-17
+
+### Fixed
+
+- FD-236 (9): the lookalike reading added in 0.8.156 costs 1.5 to 3 times 0.8.155's reading on text full of digits
+  beside letters, down from 10 to 22 times in 0.8.157, and the same on plain text: it is one pass over the text, and
+  it is capped per reading of a service's text in three parts (heads of long texts, their ends, short texts), so long
+  texts never spend what a short line after them needs, and a short line whose share is spent holds the start instead
+  of losing its second reading. Padding that grows a short line past
+  16 K when folded no longer costs it its second reading. A digit standing for a Cyrillic letter in a Russian word is
+  read too (`игн0рируй`, `инструкц1и`). SECURITY.md names a gap again: a Switchboard hand-over taken in a held folder
+  runs with Switchboard's own setting.
+
 ## 0.8.157 - 2026-11-17
 
 ### Fixed
 
 - FD-236 (9): the reading that keeps a console asking before it acts now sees common synonyms of an instruction to
   ignore its rules ("disregard prior directives", "set aside the previous instructions", «не обращай внимания на
-  предыдущие указания»), each only after a word that points back at the agent's own rules, so tool lines such as
-  "override initial constraints" or "bypass all firewall rules" are still read as ordinary text. The lookalike reading
-  from 0.8.156 costs as little as before on ordinary text again, reads `a11` as `all` and Greek letters inside a
-  Russian word, and reads at most a megabyte of long text a second time per reading of a service's text (short
-  texts and the ends of long ones always get it).
+  предыдущие указания»), each only after a word that points back at the agent's own rules, so the tool lines named
+  here, "override initial constraints" and "bypass all firewall rules", are still read as ordinary text. The lookalike
+  reading from 0.8.156 costs as little as before on text with no Cyrillic or Greek letter and no digit beside a letter again, reads a `1` that
+  starts a word as `i` and one that ends it as `l` (`1gnore a11 rules`) and Greek letters inside a Russian word, and
+  reads at most a megabyte of long text a second time per reading of a service's text (short texts and the ends of
+  long ones always get it).
 
 ## 0.8.156 - 2026-11-17
 

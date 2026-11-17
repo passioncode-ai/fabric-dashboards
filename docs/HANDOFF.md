@@ -1,15 +1,28 @@
 # Handoff — Fabric Dashboards
 
-Updated 2026-10-26 (0.8.7 current, see *0.8.7: start here*; earlier the same day 0.8.6, see *0.8.5: start here* and *Session 2026-10-26: start here*). Earlier: updated 2026-10-25 (0.8.1 current; the consolidation, see *Consolidation 2026-10-25: start here*). Earlier: updated 2026-10-24 (0.7.28). Earlier header: updated 2026-10-07 (0.6.2: 0.6.1 withdrawn for audit HIGH-2, audit fixes, signed feed; 0.6.1: LC-16 in detail updater, Russian by choice; 0.6.0 published 2026-10-06 21:35 UTC; release 0.5.6: third review pass, token latch; release 0.5.5 withdrawn: release audit and its second pass, A2A plan, ADR-0016, ADR-0015 data and updates, FD-05, FD-06, FD-13; Spend and DEC-0021; one entry per agent, ADR-0012; lifecycle contract landed from PR #21, unreleased; CI release rehearsal
+Updated 2026-11-17 (0.8.157 published, 0.8.158 next: start at *0.8.158* below). History: updated 2026-10-26 (0.8.7 current then, see *0.8.7: start here*; earlier the same day 0.8.6, see *0.8.5: start here* and *Session 2026-10-26: start here*). Earlier: updated 2026-10-25 (0.8.1 current; the consolidation, see *Consolidation 2026-10-25: start here*). Earlier: updated 2026-10-24 (0.7.28). Earlier header: updated 2026-10-07 (0.6.2: 0.6.1 withdrawn for audit HIGH-2, audit fixes, signed feed; 0.6.1: LC-16 in detail updater, Russian by choice; 0.6.0 published 2026-10-06 21:35 UTC; release 0.5.6: third review pass, token latch; release 0.5.5 withdrawn: release audit and its second pass, A2A plan, ADR-0016, ADR-0015 data and updates, FD-05, FD-06, FD-13; Spend and DEC-0021; one entry per agent, ADR-0012; lifecycle contract landed from PR #21, unreleased; CI release rehearsal
 `v0.4.1-rc.1` green; releases move to CI signing; release 0.4.1, MCP links to online services).
 
-Current release: **0.8.110** published 2026-11-15 09:04 UTC (0.8.111 next); earlier **0.8.105** published 2026-11-15 07:16 UTC; 0.8.108 (`de97f12`) and 0.8.109 (`33d0b30`) tagged in
+Current release: **0.8.157** published 2026-11-17 01:12 UTC (16 assets) (0.8.158 next; see *0.8.158* below). Earlier: **0.8.110** published 2026-11-15 09:04 UTC; earlier **0.8.105** published 2026-11-15 07:16 UTC; 0.8.108 (`de97f12`) and 0.8.109 (`33d0b30`) tagged in
 order, their runs under way. 0.8.106 and 0.8.107 were never published (0.8.106's check failed on an unref'd timer in a
 test; both fold into 0.8.108).
 
+## 0.8.158: the lookalike reading's cost on short text, and short lines kept short (2026-11-17)
+
+0.8.157 tagged (merge 3693010, run 43989326135). The third blind reading of FD-236 (9) found short parts uncharged
+(hostile short text cost 10 to 22 times 0.8.155), short or long decided after folding (padding made a short line
+long and cost it its second reading) and the hand-over gap dropped from SECURITY.md. 0.8.158: `skeletons` is one
+pass of char codes; three pools a call (1 MB heads of long texts, 1 MB their tails, 2 MB short texts; product round 4 found a shared tail pool spent by 64 long strings; unit round 4: a short line whose pool is spent holds the start as `unread-lookalikes`, and a four-byte letter keeps its word whole) decided by the text as
+written, scanned only while the pool holds twice the part; a digit in a mostly Cyrillic word reads as a Cyrillic
+letter; SECURITY.md "Not covered yet" names the hand-over again; scenarios.md names Claude Code's asking mode as its
+`--help` lists it. The copy check of the 0.8.158 changelog line: report `93832372-2dcb-4834-bcb3-bf64ce76c55b` (no
+findings; the first wording, `ecbd74fe`, overstated the cost). Bench (load 85 to 90, against 0.8.155): see the FD-236 row. **First task for the next agent:** confirm
+v0.8.158 published and installed, then MCP `agent_health` lists `fabric-switchboard`; e2e when the screen
+is unlocked and the disk has 5 GB free.
+
 ## 0.8.157: synonyms of ignoring the instructions, and the lookalike reading's cost (2026-11-17)
 
-0.8.156 tagged (808b222, run 43984330451; e2e not run: the screen was locked and the disk had 3 GB free). 0.8.157
+0.8.156 tagged (merge 9c214eb, run 43984330451; e2e not run: the screen was locked and the disk had 3 GB free). 0.8.157
 closes FD-236 (9)'s synonyms in `src/core/untrusted.ts` and answers the blind readings of 0.8.156 and the synonyms:
 false readings of tool lines removed (each new word needs one that points back at the agent's rules), the lookalike
 reading's cost back to 0.8.155's on ordinary text with a megabyte budget a call for long parts (charged whenever scanned; short
