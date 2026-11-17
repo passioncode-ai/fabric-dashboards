@@ -105,10 +105,13 @@ export function literal(text: string, max = 300): string {
 // Each pattern needs an instruction's form (a verb aimed at the agent and its target), so ordinary log lines ("POST
 // /api/token 401", "send failed: missing token", "rm -rf /tmp/build") are not read as one. Every gap is bounded.
 const SIGNALS: readonly [string, RegExp][] = [
-  ['ignore-instructions', /(ignore|disregard|forget|override)\b[^.\n]{0,40}\b(previous|prior|above|earlier|all|your|system)\b[^.\n]{0,20}\b(instructions?|prompts?|rules)\b/i],
+  // FD-236 (9): synonyms of the verb ("bypass", "set aside", "pay no attention to") and of the rules ("directives",
+  // "guidelines", "constraints"); "commands" and "orders" only after a word that points back at what came before.
+  ['ignore-instructions', /(ignore|disregard|forget|override|bypass|discard|neglect|set aside|pay no attention to)\b[^.\n]{0,40}\b(previous|prior|preceding|above|earlier|all|your|system|original|initial)\b[^.\n]{0,20}\b(instructions?|prompts?|rules|directives?|guidelines?|guidance|constraints)\b/i],
+  ['ignore-instructions', /(ignore|disregard|forget|override|bypass|discard|set aside|pay no attention to)\b[^.\n]{0,30}\b(previous|prior|preceding|above|earlier)\s+(commands?|orders)\b/i],
   ['ignore-instructions', /(ignore|disregard|forget)\b[^.\n]{0,30}\b(what you were told|(instructions|rules) (above|before|earlier|you were given))/i],
   ['ignore-instructions', /\binstead\b[^.\n]{0,20}\b(delete|remove|wipe|erase|upload)\s+(~|\/|\$HOME|the (repo|repository|folder|directory|database|files))/i],
-  ['ignore-instructions', /(игнорируй|забудь|проигнорируй)[^.\n]{0,40}(инструкци|правил|указани)/i],
+  ['ignore-instructions', /(игнорируй|забудь|проигнорируй|не обращай(те)? внимани[ея] на|отбрось|пренебреги)[^.\n]{0,40}(инструкци|правил|указани|директив|ограничени)/i],
   ['role-change', /\byou are now (an? |the )?(admin|root|system|developer|assistant|agent|unrestricted|jailbroken)\b|\bnew instructions?\s*:/i],
   ['system-prompt', /\b(reveal|print|show|ignore|override|repeat)\b[^.\n]{0,20}\bsystem (prompt|message)\b|(покажи|игнорируй)[^.\n]{0,20}системн(ый|ое) (промпт|сообщение)/i],
   ['chat-markup', /<\s*\/?\s*(system|assistant|tool[ _]call|function[ _]calls?)\s*>|\[INST\][^\n]{0,300}\[\/INST\]|<\|im[ _](start|end)\|>/i],
