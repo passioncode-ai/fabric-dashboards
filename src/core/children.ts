@@ -5,7 +5,7 @@
 // short, bounded by their own runner and start nothing that outlives them.
 // #region owned-children — docs: AGENTS.md#lifecycle
 import { execFile, spawn, type ChildProcess } from 'node:child_process';
-import { windowsPowerShellEnv } from '@passioncode-ai/fabric-service-host';
+import { windowsPowerShellEnv, type Runner } from '@passioncode-ai/fabric-service-host';
 import { descendantsOf, parseSnapshot, SNAPSHOT_SCRIPT } from './proctree';
 
 /** Variables a descriptor's command must never inherit. The packaged MCP server runs Electron as
@@ -177,6 +177,15 @@ export function runOwned(command: string, args: string[], o: OwnedOptions): Prom
 }
 
 /** End every owned command and its group — on quit, on stdin EOF, on SIGTERM. */
+/** FD-314 (C2-06): a Runner whose deadline ends the command's whole process group (an ssh under `switchboard --target`
+ *  goes with it), and whose failures read as execRunner's do, so `noAnswer` tells a timeout the same way. */
+export const ownedRunner: Runner = (command, args, timeoutMs = 30_000) => runOwned(command, args, { timeoutMs }).then((r) => {
+  const stdout = r.stdout ?? '';
+  if (r.timedOut) return { code: 1, stdout, stderr: `no answer within ${timeoutMs / 1000} s (stopped)` };
+  if (r.code === 0) return { code: 0, stdout, stderr: r.stderr ?? '' };
+  return { code: r.code ?? 1, stdout, stderr: r.stderr || (r.signal ? `ended by ${r.signal}` : r.started === false ? r.output : `exit ${r.code} with nothing on stderr`) };
+});
+
 export async function killOwned(graceMs = 300): Promise<void> {
   if (WIN) {
     await Promise.all([...owned].map((child) => killWindowsTree(child)));

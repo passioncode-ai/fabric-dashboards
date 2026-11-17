@@ -28,3 +28,14 @@ test('C2-02: launchFeatures says a timed-out help read is not settled; handoverA
   assert.equal(await handoverAskOf(async () => ({ code: 0, stdout: '--ask', stderr: '' }), '/sb'), true);
   assert.equal(await handoverAskOf(async () => ({ code: 2, stdout: '', stderr: 'error: unexpected argument' }), '/sb'), false);
 });
+
+test('FD-314 (C2-06): ownedRunner reads as execRunner does, and its deadline ends the whole group', async () => {
+  const { ownedRunner } = await import('../src/core/children');
+  const slow = await ownedRunner(process.execPath, ['-e', 'setTimeout(() => {}, 5000)'], 300);
+  assert.equal(noAnswer(slow), true, slow.stderr);
+  const ok = await ownedRunner(process.execPath, ['-e', 'process.stdout.write("hi")'], 10_000);
+  assert.deepEqual([ok.code, ok.stdout], [0, 'hi']);
+  const bad = await ownedRunner(process.execPath, ['-e', 'process.stderr.write("no"); process.exit(3)'], 10_000);
+  assert.deepEqual([bad.code, bad.stderr.trim()], [3, 'no']);
+  assert.equal(noAnswer(bad), false);
+});
