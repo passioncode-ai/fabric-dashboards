@@ -149,6 +149,8 @@ const QUIT_FINISH_MS = 1500;
 export const CAPACITY_KEEP_MS = 10 * 60_000;
 /** P2-06: how long a stop acted on stays in the recovery view once Switchboard no longer lists it. */
 export const ACTED_KEEP_MS = 24 * 60 * 60_000;
+/** FD-316: how long a history read serves passes with no ready stop, for the same open launches. */
+export const MOVED_ON_FRESH_MS = 5 * 60_000;
 export const BINDING_FRESH_MS = 30_000;
 /** Wave 4 (P-08): how long one `switchboard capacity` answer serves the machine checks of one pass. */
 const CAPACITY_FRESH_MS = 10_000;
@@ -351,6 +353,7 @@ export class ConsoleHost {
     }
     return pool ? { ...m, pool } : m;
   }
+  private movedOnSeen: { key: string; at: number; value: NonNullable<Awaited<ReturnType<typeof continuedLaunches>>> } | null = null;
   private capacitySeen: { at: number; answeredAt: number; sb: string; pool: ReturnType<typeof parseCapacity> } | null = null;
 
 
@@ -967,7 +970,15 @@ export class ConsoleHost {
     const due: SbStop[] = [];
     // FIX-5: a stop whose session went on after it (or stopped again later) is not waiting and is never continued again.
     // FD-217: a stop whose launch another launch continued is read once a pass, only when a stop names its launch.
-    const movedOn = pending.some((s) => s.launchId) ? await continuedLaunches(this.run, inv.switchboard).catch(() => null) : null;
+    // FD-316 (P2-02): the history is about 0.7 MB. A pass with a ready stop reads it fresh, since it guards a second
+    // continue of the same work; a pass with none ready (the view only) reuses the last read for the same launches up to
+    // MOVED_ON_FRESH_MS.
+    const launches = pending.flatMap((s) => (s.launchId ? [s.launchId] : [])).sort().join(' ');
+    const seen = this.movedOnSeen;
+    const movedOn = !launches ? null
+      : !pending.some((s) => s.ready) && seen && seen.key === launches && now - seen.at < MOVED_ON_FRESH_MS && now >= seen.at ? seen.value
+        : await continuedLaunches(this.run, inv.switchboard).catch(() => null);
+    if (launches && movedOn && movedOn !== seen?.value) this.movedOnSeen = { key: launches, at: now, value: movedOn };
     const continued = continuedOf(r.stops, this.o.home ?? os.homedir(), now, movedOn);
     for (const s of pending) {
       // FD-217 (rest): a Claude session whose transcript only Switchboard's home holds is continued there by Switchboard's

@@ -542,3 +542,18 @@ test('P2-06: a stop acted on stays in the view while listed, and leaves it a day
   await r.host.pollRecovery(Date.now() + 25 * 60 * 60_000);
   assert.equal(r.host.recoveryStatus().stops.length, 0, 'gone after a day');
 });
+
+test('FD-316 (P2-02): with no stop ready the history serves 5 minutes for the same launches; a ready stop always reads it fresh', POSIX, async () => {
+  const count = (calls: string[][]) => calls.filter((c) => c.join(' ').endsWith('sessions --history')).length;
+  const waiting = rig({ history: [], sessions: (d) => [{ ...row({ dir: d, at: Date.now() - 60_000, ready: false }), launch_id: LAUNCH }] });
+  await waiting.host.pollRecovery();
+  await waiting.host.pollRecovery(Date.now() + 60_000);
+  assert.equal(count(waiting.calls), 1, 'read once for the view');
+  await waiting.host.pollRecovery(Date.now() + 6 * 60_000);
+  assert.equal(count(waiting.calls), 2, 'read again after 5 minutes');
+  // a ready stop the folder's live agent holds back is looked at every pass, and the history with it
+  const ready = rig({ history: [], live: { inFolder: true }, sessions: (d) => [{ ...row({ dir: d, at: Date.now() - 60_000 }), launch_id: LAUNCH }] });
+  await ready.host.pollRecovery();
+  await ready.host.pollRecovery(Date.now() + 60_000);
+  assert.equal(count(ready.calls), 2, 'fresh each pass: it guards a second continue');
+});
