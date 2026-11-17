@@ -408,6 +408,11 @@ test('T-9: an argument of the wrong type is refused, never replaced by its defau
     ['spend', { service: 42 }, /service must be a string/],
     ['spend', { service: '' }, /service must be a service key/],
     ['open', { service: KEY, fallback: 'always' }, /fallback must be one of/],
+    // S2-05: the table's own limits hold at the door.
+    ['sessions', { query: 'x'.repeat(201) }, /query must be at most 200 characters/],
+    ['sessions', { machines: Array.from({ length: 21 }, (_, i) => `m${i}`) }, /machines must have at most 20 items/],
+    ['sessions', { machines: 'studio' }, /machines must be a list/],
+    ['session_new', { bypass: 'yes' }, /bypass must be true or false/],
   ] as const) {
     const r = await handle(deps, { jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name, arguments: args } }) as { result: { isError?: boolean; content: { text: string }[] } };
     assert.equal(r.result.isError, true, `${name} ${JSON.stringify(args)}`);

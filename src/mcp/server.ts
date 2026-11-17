@@ -36,7 +36,7 @@ import { INSTRUCTIONS, TOOLS } from './schema';
 export { TOOLS };
 
 type Args = Record<string, unknown>;
-type Schema = { properties?: Record<string, { type?: string; enum?: readonly string[]; minimum?: number; maximum?: number }> };
+type Schema = { properties?: Record<string, { type?: string; enum?: readonly string[]; minimum?: number; maximum?: number; maxLength?: number; maxItems?: number; items?: { maxLength?: number } }> };
 
 /** T-9: an argument that is present must be what the schema declares; a wrong one is refused, never
  *  silently replaced by its default (a numeric path, a string limit, an empty service key). */
@@ -49,6 +49,15 @@ function wrongArgument(schema: Schema, args: Args): string | null {
     if (p.type === 'integer' && (typeof value !== 'number' || !Number.isInteger(value))) return `${key} must be an integer`;
     if (typeof value === 'number' && ((p.minimum !== undefined && value < p.minimum) || (p.maximum !== undefined && value > p.maximum))) return `${key} must be between ${p.minimum} and ${p.maximum}`;
     if (p.enum && !p.enum.includes(value as string)) return `${key} must be one of ${p.enum.join(', ')}`;
+    // S2-05 (2026-11-17 security audit): the limits the tool table advertises hold here too, not only in inner layers.
+    if (p.type === 'string' && p.maxLength !== undefined && (value as string).length > p.maxLength) return `${key} must be at most ${p.maxLength} characters`;
+    if (p.type === 'boolean' && typeof value !== 'boolean') return `${key} must be true or false`;
+    if (p.type === 'array') {
+      if (!Array.isArray(value)) return `${key} must be a list`;
+      if (p.maxItems !== undefined && value.length > p.maxItems) return `${key} must have at most ${p.maxItems} items`;
+      const most = p.items?.maxLength;
+      if (most !== undefined && value.some((v) => typeof v !== 'string' || v.length > most)) return `${key} must hold strings of at most ${most} characters`;
+    }
   }
   return null;
 }

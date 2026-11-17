@@ -29,7 +29,7 @@ import { isNewAgentKey, isNewDashboardKey, isNewSessionKey, isolatedBlock, newSe
 export { newSessionChoiceOf }; // FD-302: moved to src/core/new-session.ts; tests and the console channel import it here
 import { askArgsOfProvider, bypassArgs, claudeAskModeOf, promptsWords, setClaudeAskMode, bypassArgsOfProvider, detectRuntimes, KNOWN_RUNTIMES, readLoginPath, searchDirs, specsFromSwitchboard, type Runtime, type RuntimeSpec } from '../core/runtimes';
 import { SERVICE_KEY, type SettingsStore } from '../core/settings';
-import { accountsOf, allSessionsOf, isOldSwitchboard, switchboardStamp, bindingFor, machineSessionsOf, pageRowsOf, findSwitchboard, handoverAskOf, handoverOwnKey, handoverRunArgv, handoversOf, hostedContinueArgv, handoversSwitch, historySessionsOf, isHandoverKey, launchFeatures, sbFailure, sessionsIn, startAccount, terminalLaunchArgv, type Binding, type SbAccounts, type SbHandover, type SbSessions, type StartAccount } from '../core/switchboard';
+import { accountsOf, allSessionsOf, isOldSwitchboard, noAnswer, switchboardStamp, bindingFor, machineSessionsOf, pageRowsOf, findSwitchboard, handoverAskOf, handoverOwnKey, handoverRunArgv, handoversOf, hostedContinueArgv, handoversSwitch, historySessionsOf, isHandoverKey, launchFeatures, sbFailure, sessionsIn, startAccount, terminalLaunchArgv, type Binding, type SbAccounts, type SbHandover, type SbSessions, type StartAccount } from '../core/switchboard';
 import type { HeldContinue, ServiceSnapshot, Settings } from '../core/types';
 import { claudeConfigDirs, lastTranscriptWrite, STUCK_MS, stuckKeys } from '../core/stuck';
 import { claimStop, claudeSessionDirs, folderLive, liveSessionFolders, liveSessionIds, continuedLaunches, continuedOf, finishStop, launchTranscript, liveAgents, recoveryOf, resumeArgs, resumeOwnKey, sessionOpen, transcriptIn, transcriptOf, verdictOf, writtenAt, RESUME_SETTLE_MS, RESUMES_PER_PASS, type RecoveryStatus, type SbStop, type StopView } from '../core/recovery';
@@ -144,6 +144,10 @@ type LocalProcesses = { page: SbPageRow[] | null; machine: SbMachineProcess[] | 
 const QUIT_FINISH_MS = 1500;
 
 /** FD-74: how long the console trusts Switchboard's last answer about a folder before asking again in the background. */
+/** C2-01: how long the machine session limit Switchboard last named stands while it does not answer in time. */
+export const CAPACITY_KEEP_MS = 10 * 60_000;
+/** P2-06: how long a stop acted on stays in the recovery view once Switchboard no longer lists it. */
+export const ACTED_KEEP_MS = 24 * 60 * 60_000;
 export const BINDING_FRESH_MS = 30_000;
 /** Wave 4 (P-08): how long one `switchboard capacity` answer serves the machine checks of one pass. */
 const CAPACITY_FRESH_MS = 10_000;
@@ -159,7 +163,7 @@ export class ConsoleHost {
   private catalog: Promise<Runtime[]> | null = null;
   /** FD-236: whether this Switchboard's `handovers run` takes `--ask`, by its path and modification time. */
   private handoverAskFor: { key: string; value: boolean } | null = null;
-  private inPlaceFor: { key: string; value: { inPlace: boolean; surface: boolean; target: boolean; hosted: boolean; continueHosted: boolean } } | null = null;
+  private inPlaceFor: { key: string; sb: string; value: { inPlace: boolean; surface: boolean; target: boolean; hosted: boolean; continueHosted: boolean } } | null = null;
   /** FD-74: what Switchboard said about each folder, for showing the console at once (BINDING_FRESH_MS). */
   private readonly bindings = new Map<string, { at: number; value: Binding | { kind: 'absent' }; pending: boolean }>();
   private readonly run: Runner;
@@ -334,13 +338,19 @@ export class ConsoleHost {
     let pool: ReturnType<typeof parseCapacity>;
     if (cached && c && c.sb === inv.switchboard && Date.now() - c.at < CAPACITY_FRESH_MS && Date.now() >= c.at) pool = c.pool; // a start asks afresh
     else {
-      const r = await this.run(inv.switchboard, ['--json', 'capacity'], 5_000);
-      pool = r.code === 0 ? parseCapacity(r.stdout) : null;
-      this.capacitySeen = { at: Date.now(), sb: inv.switchboard, pool };
+      const r = await this.run(inv.switchboard, ['--json', 'capacity'], 15_000);
+      // C2-01 (2026-11-17 connections audit): a read with no answer in time comes when the machine is busiest; it is
+      // not "no limit": this Switchboard's last answer of the last 10 minutes stands, and is not renewed.
+      if (noAnswer(r) && c && c.sb === inv.switchboard && c.pool && Date.now() - c.answeredAt < CAPACITY_KEEP_MS) pool = c.pool;
+      else {
+        pool = r.code === 0 ? parseCapacity(r.stdout) : null;
+        this.capacitySeen = { at: Date.now(), answeredAt: noAnswer(r) ? c?.answeredAt ?? 0 : Date.now(), sb: inv.switchboard, pool };
+      }
     }
     return pool ? { ...m, pool } : m;
   }
-  private capacitySeen: { at: number; sb: string; pool: ReturnType<typeof parseCapacity> } | null = null;
+  private capacitySeen: { at: number; answeredAt: number; sb: string; pool: ReturnType<typeof parseCapacity> } | null = null;
+
 
   /** The runtimes installed, read once per launch (looked for again while none is found), and
    *  Switchboard, looked for on every call: one installed later must bind its folders at once
@@ -380,8 +390,15 @@ export class ConsoleHost {
     let continueHosted = false;
     if (switchboard) {
       const stamp = switchboardStamp(switchboard);
-      if (this.inPlaceFor?.key !== stamp) this.inPlaceFor = { key: stamp, value: await launchFeatures(this.run, switchboard) };
-      ({ inPlace, surface, target, hosted, continueHosted } = this.inPlaceFor.value);
+      if (this.inPlaceFor?.key !== stamp) {
+        const read = await launchFeatures(this.run, switchboard);
+        // C2-02: a full answer is kept for this binary; one with a help read that got no answer in time is asked again
+        // next time (key ''), and until then this Switchboard's last full answer, if any, stands.
+        if (read.settled) this.inPlaceFor = { key: stamp, sb: switchboard, value: read };
+        else if (this.inPlaceFor?.sb !== switchboard) this.inPlaceFor = { key: '', sb: switchboard, value: read };
+        else this.inPlaceFor = { ...this.inPlaceFor, key: '' };
+      }
+      ({ inPlace, surface, target, hosted, continueHosted } = this.inPlaceFor!.value);
     }
     return { runtimes, switchboard, inPlace, surface, target, hosted, continueHosted, dirs };
   }
@@ -870,8 +887,11 @@ export class ConsoleHost {
     let ask = false;
     if (this.heldIn(h.dir)) {
       const stamp = switchboardStamp(sb);
-      if (this.handoverAskFor?.key !== stamp) this.handoverAskFor = { key: stamp, value: await handoverAskOf(this.run, sb) };
-      ask = this.handoverAskFor.value;
+      if (this.handoverAskFor?.key !== stamp) {
+        const read = await handoverAskOf(this.run, sb);
+        if (read !== null) this.handoverAskFor = { key: stamp, value: read }; // C2-02: no answer in time is not kept
+      }
+      ask = this.handoverAskFor?.key === stamp ? this.handoverAskFor.value : false;
       this.o.log(ask ? `console: hand-over ${h.id} runs with permission prompts: a console in its folder was held`
         : `console: hand-over ${h.id} runs with Switchboard's own permission setting: a console in its folder was held and this Switchboard's handovers run takes no --ask`);
     }
@@ -921,6 +941,9 @@ export class ConsoleHost {
     for (const s of r.stops) this.lastStops.set(s.event, s);
     for (const e of [...this.waitNoted.keys()]) if (!this.lastStops.has(e)) this.waitNoted.delete(e);
     for (const e of [...this.heldNow.keys()]) if (!this.lastStops.has(e)) this.heldNow.delete(e);
+    // P2-06 (2026-11-17 performance audit): a stop acted on stays in the view while Switchboard lists it, and a day after
+    // it stopped once it does not (the app restarts several times a day; before, only a restart cleared these).
+    for (const [e, v] of [...this.actedStops]) if (!this.lastStops.has(e) && now - v.stoppedAt > ACTED_KEEP_MS) this.actedStops.delete(e);
     const pending = r.stops.filter((s) => s.state !== 'resumed' && !this.actedStops.has(s.event) && !this.taking.has(s.event));
     const read = pending.some((s) => s.ready) ? await liveAgents(this.run, process.platform, claudeSessionDirs(this.o.home ?? os.homedir())).catch(() => null) : null;
     // F4 of FIX-2: a folder one of this app's consoles works in is live too (a hand-over taken on this tick has no claude
@@ -1324,7 +1347,8 @@ export class ConsoleHost {
     const stamp = switchboardStamp(sb);
     if (this.closeCopyOf?.switchboard !== stamp) {
       const help = await this.run(sb, ['sessions', '--help'], 10_000).catch(() => null);
-      this.closeCopyOf = { switchboard: stamp, takes: Boolean(help && help.code === 0 && takesCloseCopy(help.stdout)) };
+      if (!help || noAnswer(help)) return; // C2-02: asked again on the next pass
+      this.closeCopyOf = { switchboard: stamp, takes: help.code === 0 && takesCloseCopy(help.stdout) };
     }
     if (!this.closeCopyOf.takes) return;
     const r = await this.run(sb, ['--json', 'attention'], 15_000).catch(() => null);

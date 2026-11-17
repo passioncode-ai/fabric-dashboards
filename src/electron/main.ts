@@ -562,7 +562,7 @@ if (!app.requestSingleInstanceLock()) {
     if (busyRetry) { clearTimeout(busyRetry); busyRetry = null; }
     viewGrace.shown();
     viewGraceAll.shown();
-    monitor.setVisible(monitorLive(true, pageSeen));
+    monitor.setVisible(monitorLive(true, pageSeen, occlusion));
     // The page's own event says when it is seen; read it once in case none came (a window shown behind others sends none).
     setTimeout(() => {
       const w = liveWindow();
@@ -602,27 +602,28 @@ if (!app.requestSingleInstanceLock()) {
     if (seen === pageSeen) return;
     pageSeen = seen;
     if (windowVisible()) {
-      monitor.setVisible(monitorLive(true, seen));
+      monitor.setVisible(monitorLive(true, seen, occlusion));
       log(`window ${seen ? 'seen again' : 'covered by other windows or on another Space'}: the monitor follows (FD-276)`);
     }
     syncSight();
   }
   // #endregion page-sight
   const syncSight = () => { if (sight.sync() && windowVisible()) log(`window ${windowSeen() ? 'in sight again' : occlusion === 'off-screen' ? 'on another Space' : 'covered by other windows'} (FD-80)`); };
-  // FD-80: the window list is read only while an update waits with the window on screen and installing by itself is
-  // on: one osascript a minute (~0.1 s), never otherwise; anything else leaves the sight unknown, as before.
+  // FD-80, P2-01: the window list is read while the window is on screen (one osascript a minute, ~0.1 s): an update's
+  // grace and the monitor's cadence both follow it; anything else leaves the sight unknown, as before.
   let probing = false;
   const probeSight = async () => {
-    const wants = process.platform === 'darwin' && updater.state.state === 'ready' && settings.get().autoUpdate && windowVisible() && liveWindow() !== null;
+    const wants = process.platform === 'darwin' && windowVisible() && liveWindow() !== null;
     if (!wants) { if (occlusion !== null) { occlusion = null; syncSight(); } return; }
     if (probing) return;
     probing = true;
     try {
       const r = await runOwned('/usr/bin/osascript', ['-l', 'JavaScript', '-e', WINDOW_LIST_JXA], { timeoutMs: 5_000, env: commandEnv() });
       const next = r.code === 0 ? sightOf(parseWindows((r.stdout ?? r.output).trim()), ((w) => (w ? windowNumberOf(w.getMediaSourceId()) : null))(liveWindow())) : null;
-      if (next !== occlusion) { occlusion = next; syncSight(); }
+      if (next !== occlusion) { occlusion = next; syncSight(); if (windowVisible()) monitor.setVisible(monitorLive(true, pageSeen, occlusion)); }
     } catch {
       occlusion = null;
+      if (windowVisible()) monitor.setVisible(monitorLive(true, pageSeen, null));
     } finally {
       probing = false;
     }
@@ -765,7 +766,7 @@ if (!app.requestSingleInstanceLock()) {
     : { get: () => app.getLoginItemSettings(loginArgs), set: (openAtLogin) => app.setLoginItemSettings({ openAtLogin, ...loginArgs }) };
 
   // LC-14: Settings → Uninstall (src/electron/uninstall-flow.ts, FD-304).
-  const uninstall = (decided?: { deleteData: boolean }) => runUninstall({ lang, liveWindow, loginOs, settings, log, launcher, userData }, decided);
+  const uninstall = (decided?: { deleteData: boolean }) => runUninstall({ lang, liveWindow, loginOs, settings, log, launcher, userData, secondProfile: Boolean(process.env.FABRIC_DASHBOARDS_USER_DATA) }, decided);
 
   // #region reinstall — docs: docs/adr/0015-data-survives-uninstall-updates-install-themselves.md#decision
   /** The packaged MCP launcher of this install. */

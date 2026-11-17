@@ -1144,6 +1144,11 @@ test('LC-08, FD-276 (P-02): the monitor is live only while the window is on scre
   assert.equal(monitorLive(true, true), true);
   assert.equal(monitorLive(true, false), false, 'covered by other windows, or on another Space');
   assert.equal(monitorLive(false, true), false, 'hidden');
+  // P2-01: macOS's window list says covered while the page still reads visible: the cover wins; unknown leaves the page's word.
+  assert.equal(monitorLive(true, true, 'covered'), false);
+  assert.equal(monitorLive(true, true, 'off-screen'), false);
+  assert.equal(monitorLive(true, true, 'visible'), true);
+  assert.equal(monitorLive(true, true, null), true);
   const preload = fs.readFileSync(path.join(__dirname, '..', 'src', 'electron', 'preload.ts'), 'utf8');
   assert.match(preload, /addEventListener\('visibilitychange', \(\) => ipcRenderer\.send\(CHANNELS\.pageVisibility, doc\.visibilityState === 'visible'\)\)/);
   const main = fs.readFileSync(path.join(__dirname, '..', 'src', 'electron', 'main.ts'), 'utf8');

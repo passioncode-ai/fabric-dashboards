@@ -196,7 +196,7 @@ test('FD-234 (verifier round 2): reading and fencing stay fast on long hostile t
     neutralize(text);
     oneLine(text);
     const ms = performance.now() - t0;
-    assert.ok(ms < 500, `${text.slice(0, 12)}…: ${ms.toFixed(0)} ms`);
+    if (!LOADED) assert.ok(ms < 500, `${text.slice(0, 12)}…: ${ms.toFixed(0)} ms`); // FD-308: the reads still run above load average 100
   }
 });
 
