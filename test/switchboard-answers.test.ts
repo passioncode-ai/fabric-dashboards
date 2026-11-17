@@ -11,8 +11,8 @@ test('C2-02: noAnswer tells a read with no answer in time from a refusal', async
   assert.equal(noAnswer({ code: 1, stdout: '', stderr: 'ended by SIGKILL' }), true);
   assert.equal(noAnswer({ code: 2, stdout: '', stderr: "error: unrecognized subcommand 'capacity'" }), false, 'an old Switchboard answered');
   assert.equal(noAnswer({ code: 0, stdout: '{}', stderr: '' }), false);
-  // The words are execRunner's own: a real command killed at its deadline reads so.
-  const r = await execRunner('/bin/sleep', ['5'], 200);
+  // The words are execRunner's own: a real command killed at its deadline reads so (Node itself, so every system has it).
+  const r = await execRunner(process.execPath, ['-e', 'setTimeout(() => {}, 5000)'], 200);
   assert.equal(noAnswer(r), true, r.stderr);
 });
 
