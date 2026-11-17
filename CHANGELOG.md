@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.8.180 - 2026-11-17
+
+### Changed
+- FD-302 (refactor wave 2, no behaviour change): one `COMMAND_TIMEOUT_MS` (`src/core/children.ts`), one `SERVICE_KEY`
+  (`src/core/settings.ts`), one `PROBLEM_STATES` (`src/core/types.ts`) in place of five copies; `isOldSwitchboard` and
+  `isUnsupported` (`src/core/switchboard.ts`) in place of eight copies of the same patterns; Observatory's registry
+  reader moved out of `main.ts` into `readObservatoryRegistry` (`src/core/organization-store.ts`, now unit-tested);
+  the MCP instructions and tool table into `src/mcp/schema.ts`; `newSessionChoiceOf` into `src/core/new-session.ts`;
+  13 exports used only in their own file are no longer exported.
+
 ## 0.8.179 - 2026-11-17
 
 ### Fixed

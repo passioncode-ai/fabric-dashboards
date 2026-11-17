@@ -10,6 +10,9 @@ import type { EstateStatus } from './estate-update';
 import type { Organization } from './organizations';
 import type { Dismissal, SessionRecord, SessionsStatus } from './sessions';
 
+
+/** The states a person must act on: the sidebar, Overview, the auditor and the product list count these as problems. */
+export const PROBLEM_STATES: ReadonlySet<string> = new Set(['down', 'duplicate', 'foreign-user', 'foreign', 'conflict', 'invalid']);
 export { PROTOCOL } from '@passioncode-ai/fabric-service-host/protocol';
 export type { Busy, Descriptor, LaunchdStatus, Reason, ServiceEvent, ServiceState, WellKnown, WellKnownResult } from '@passioncode-ai/fabric-service-host/protocol';
 

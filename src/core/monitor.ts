@@ -6,7 +6,7 @@ import { controlService } from './control';
 import { EventEmitter } from 'node:events';
 import fs from 'node:fs';
 import { ActivityStore } from './activity';
-import { runOwned } from './children';
+import { COMMAND_TIMEOUT_MS, runOwned } from './children';
 import { placeCommand, userLaunchJobs, type LaunchJob } from './remote-console';
 import { execRunner } from './launchd';
 import os from 'node:os';
@@ -26,15 +26,15 @@ import { BrokerTargetReader } from './broker-targets';
 import type { Busy, Reason, ServiceSnapshot, Settings } from './types';
 
 export { CONTROL_TIMEOUT_MS } from './control';
-export const COMMAND_TIMEOUT_MS = 120_000;
+export { COMMAND_TIMEOUT_MS };
 /** Consecutive failed probes before silence counts at all (ADR-0008). Fewer keep the last answer. */
 export const DOWN_AFTER_MISSES = 3;
 
 export interface Notice { serviceKey: string; title: string; subtitle?: string; body: string; link?: string; target: 'service' | 'activity'; /** FD-48: set on an events-feed banner — what it wants (ADR-0010). */ intent?: Exclude<Intent, 'quiet'> }
 
 /** FD-201: how long an unknown loopback owner must last before it reads as `foreign-user`, and how soon it is read again. */
-export const UNKNOWN_OWNER_CONFIRM_MS = 15_000;
-export const UNKNOWN_OWNER_RECHECK_MS = 6_000;
+const UNKNOWN_OWNER_CONFIRM_MS = 15_000;
+const UNKNOWN_OWNER_RECHECK_MS = 6_000;
 
 export interface MonitorOptions {
   /** FD-200: this user's launchd jobs, for the route of an agent placed elsewhere (default `~/Library/LaunchAgents`). */
@@ -936,7 +936,7 @@ export class Monitor extends EventEmitter {
 
 // #region log-reason — docs: docs/ux/scenarios.md#scn-012-another-program-answers-on-the-services-port
 /** FD-198: the states a service's own log may explain, and how recent its last write must be to count for this episode. */
-export const LOG_REASON_STATES: ReadonlySet<string> = new Set(['down', 'foreign', 'foreign-user', 'duplicate']);
+const LOG_REASON_STATES: ReadonlySet<string> = new Set(['down', 'foreign', 'foreign-user', 'duplicate']);
 export const LOG_FRESH_MS = 15 * 60_000;
 const LOG_LINE_MAX = 240;
 

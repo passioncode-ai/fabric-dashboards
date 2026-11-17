@@ -8,6 +8,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { shellQuote } from './consoles';
+import { SERVICE_KEY } from './settings';
 
 /** How ssh reaches the machine: its destination and the options of the forward that name the key or the jump. */
 export interface SshRoute {
@@ -146,7 +147,7 @@ export function accessOf(r: { code: number | null; stdout: string; stderr: strin
 export function remoteCommandArgv(o: { route: SshRoute; home: string; argv: string[]; key?: string; which?: 'doctor' | 'update'; ssh?: string }): string[] {
   const word = (a: string) => (a === o.home ? '"$HOME"' : a.startsWith(o.home + '/') ? `"$HOME"/${shellQuote(a.slice(o.home.length + 1))}` : shellQuote(a));
   const fallback = `exec ${o.argv.map(word).join(' ')}`;
-  const own = o.key && o.which && /^[a-z0-9][a-z0-9-]*\.[a-z0-9][a-z0-9-]*$/.test(o.key)
+  const own = o.key && o.which && SERVICE_KEY.test(o.key)
     ? `f="$HOME/Library/Application Support/ai.passioncode.fabric/services/${o.key}.json"; k=commands.${o.which}; `
       + 'n=$(plutil -extract "$k" raw -o - "$f" 2>/dev/null); '
       + 'if [ -n "$n" ] && [ "$n" -gt 0 ] 2>/dev/null; then set --; i=0; while [ "$i" -lt "$n" ]; do '

@@ -11,7 +11,7 @@ import { CONNECTIONS_EXTENSION, connectionsOf } from '@passioncode-ai/fabric-ser
 import type { LimitView } from '@passioncode-ai/fabric-service-host/usage';
 import { resolveTarget, stateOfService, type Seen } from './connections';
 import { productIdOf } from './products';
-import type { Reason } from './types';
+import { PROBLEM_STATES, type Reason } from './types';
 
 /** FD-151: extensions whose short key an agent may write by mistake. */
 const SHORTENED = [CONNECTIONS_EXTENSION, LOAD_EXTENSION, ACTIONS_EXTENSION, 'https://fabric.passioncode.ai/agent-contract/extensions/dashboard/0.1'];
@@ -44,7 +44,7 @@ export interface Audit {
   counts: Record<Severity, number>;
 }
 
-const PROBLEM = new Set(['down', 'duplicate', 'foreign-user', 'foreign', 'conflict', 'invalid']);
+const PROBLEM = PROBLEM_STATES;
 const ORDER: Record<Severity, number> = { error: 0, warn: 1, setup: 2, info: 3 };
 const nameOf = (s: Seen) => s.descriptor?.name ?? s.wellKnown?.service.name ?? s.key;
 /** A repository address's last segment (`https://github.com/org/name.git` → `name`), or null. */

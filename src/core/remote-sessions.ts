@@ -6,7 +6,7 @@
 import { shellQuote } from './consoles';
 import { MACHINE } from './platform';
 import type { RemoteMachineStatus, SbPageRow, SbSessionRecord } from './sessions';
-import { parse, parseAllSessions, parsePageRows } from './switchboard';
+import { isOldSwitchboard, parse, parseAllSessions, parsePageRows } from './switchboard';
 import type { Runner } from '@passioncode-ai/fabric-service-host';
 
 /** Where Switchboard's macOS app keeps its CLI: the one `launch --target` uses on a machine whose target names none. */
@@ -122,7 +122,7 @@ export async function readRemoteSessions(run: Runner, known: readonly RemoteTarg
   if (r.code === 127) return { ok: false, why: 'no-switchboard' };
   const data = r.code === 0 ? parse(r.stdout) : null;
   if (!data) {
-    if (/unrecognized subcommand|unexpected argument|earlier version than this command/i.test(`${r.stdout}\n${r.stderr}`)) return { ok: false, why: 'too-old' };
+    if (isOldSwitchboard(`${r.stdout}\n${r.stderr}`)) return { ok: false, why: 'too-old' };
     return { ok: false, why: 'bad-answer', detail: (r.stderr || r.stdout).trim().slice(0, 300) };
   }
   return { ok: true, rows: parseAllSessions(data, REMOTE_MAX_ROWS) };

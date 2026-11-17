@@ -14,7 +14,7 @@ import { agentHint } from '../../core/agent-facts';
 export type Mode = 'agents' | 'sessions';
 
 /** Two letters for a rail entry: the first letters of the first two words, else the first two letters. */
-export function initialsOf(name: string): string {
+function initialsOf(name: string): string {
   const words = name.trim().split(/[\s._-]+/).filter(Boolean);
   const letters = words.length > 1 ? words[0]![0]! + words[1]![0]! : (words[0] ?? '?').slice(0, 2);
   return letters.toUpperCase();

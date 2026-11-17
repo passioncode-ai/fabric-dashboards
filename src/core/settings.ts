@@ -164,7 +164,8 @@ function readObject(file: string): { ok: true; value: Partial<Settings>; text: s
   }
 }
 
-const SERVICE_KEY = /^[a-z0-9][a-z0-9-]*\.[a-z0-9][a-z0-9-]*$/;
+/** A service key, `id.instance`, as the window, the console channel and the settings take it. */
+export const SERVICE_KEY = /^[a-z0-9][a-z0-9-]*\.[a-z0-9][a-z0-9-]*$/;
 
 /** ADR-0017: a layout from any earlier or damaged file reads as a usable one. */
 export function mergeLayout(raw: unknown): Settings['layout'] {
