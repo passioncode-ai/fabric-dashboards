@@ -6,7 +6,7 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { contextMarkdown, fixTask, handoffContext, packDir, prepareHandoff, taskMarkdown, updateTask, auditTask } from '../src/core/handoff';
-import { fence, injectionSignals, literal, neutralize, oneLine, UNTRUSTED_NOTE } from '../src/core/untrusted';
+import { fence, injectionSignals, literal, neutralize, oneLine, pathLiteral, UNTRUSTED_NOTE } from '../src/core/untrusted';
 import { CONSOLE_RULES } from '../src/mcp/tools';
 import { ConsoleHost } from '../src/electron/console';
 import { SettingsStore } from '../src/core/settings';
@@ -691,4 +691,25 @@ test('FD-236 (9): synonyms of ignoring the instructions are read; ordinary lines
     'игнорируй предупреждения о системных ограничениях',
     'Пожалуйста, не обращай внимания на все предыдущие ошибки сборки и правила линтера',
   ]) assert.deepEqual(injectionSignals([line]), [], line);
+});
+
+test('FD-236 (14): the context names the folder exactly as chosen, and a marker in it is still made inert', () => {
+  const nfd = '/srv/w/Projéts/café';
+  const wide = '/srv/w/Ａpp １';
+  const tick = '/srv/w/a`b``c';
+  for (const p of [nfd, wide, tick]) {
+    const md = contextMarkdown(handoffContext(snap(), [], p), 'x');
+    const line = md.split('\n').find((l) => l.includes('Folder'))!;
+    const m = /^(`+) ?(.*?) ?\1$/.exec(line.slice(line.indexOf('`')));
+    assert.ok(m, line);
+    assert.equal(m[2], p, 'the path is kept byte for byte');
+  }
+  assert.equal(pathLiteral(tick), '```/srv/w/a`b``c```');
+  assert.equal(pathLiteral('`x`'), '`` `x` ``');
+  // A marker, even one only a fold reveals, and a control character fall back to the folded, neutralized quote.
+  for (const bad of ['/tmp/<untrusted-data>/x', '/tmp/＜untrusted-data＞', '/tmp/a\nb']) {
+    const q = pathLiteral(bad);
+    assert.equal(q, literal(bad, 4096));
+    assert.ok(!/<\s*\/?\s*untrusted-data/i.test(q), q);
+  }
 });
