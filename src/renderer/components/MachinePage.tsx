@@ -5,13 +5,14 @@ import { machineView } from '../../core/machine-view';
 import type { SpendEntry } from '../../core/spend';
 import type { AppStatus } from '../../core/types';
 import { api, nameOf, useT } from '../lib';
+import { HealthEntry } from './HealthReport';
 import { money } from './Spend';
 
 /** Read again while the page is open, as Spend does; a hidden window gets the last sums (lifecycle LC-08). */
 const REFRESH_MS = 60_000;
 
 export function MachinePage({ status, onOpen, spend: given, labels = {} }: { status: AppStatus; onOpen: (key: string) => void; /** Tests pass the reports. */ spend?: SpendEntry[] | null; /** FD-248: the person's own labels. */ labels?: Record<string, string> }) {
-  const { t, time } = useT();
+  const { t } = useT();
   const [spend, setSpend] = useState<SpendEntry[] | null>(given ?? null);
   useEffect(() => {
     if (given !== undefined) return undefined;
@@ -42,14 +43,7 @@ export function MachinePage({ status, onOpen, spend: given, labels = {} }: { sta
           <h2 id="mc-health">{t('machine.health.title')}</h2>
           <p className="meta">{t('machine.health.body')}</p>
           <ul className="machine-health-list">{status.health!.map((h) => (
-            <li key={h.product}>
-              <strong>{h.name}</strong>{h.version && <span className="meta"> {h.version}</span>} <span className={`chip health-${h.state}`}>{t(`machine.health.${h.state}`)}</span>
-              <span className="meta"> · {t('machine.health.read', { time: time(new Date(h.readAt).toISOString()) })}{h.open > 0 && <> · {t('machine.health.open', { n: h.open })}</>}</span>
-              {h.reason && <p className="meta">{t('machine.health.unread', { reason: t(`machine.health.reason.${h.reason}`) })}</p>}
-              {h.checks.length > 0 && <ul className="machine-health-checks">{h.checks.map((c) => (
-                <li key={c.id}><code>{c.id}</code> <span className="meta">{t(`machine.health.${c.state}`)} · {t('machine.health.check', { area: c.area, count: c.count })}{c.fix && <> · {t('machine.health.fix', { fix: c.fix })}</>}</span></li>
-              ))}</ul>}
-            </li>
+            <li key={h.product}><HealthEntry h={h} /></li>
           ))}</ul>
         </section>
       )}

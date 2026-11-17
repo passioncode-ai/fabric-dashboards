@@ -3,6 +3,7 @@ import { elementsAbove } from '../layout-watch';
 import { createContext, useContext, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { PageState } from '../../core/api';
 import type { ActivityItem, ServiceSnapshot } from '../../core/types';
+import type { HealthRow } from '../../core/agent-health';
 import { instanceOf } from '../../core/products';
 import { installedByWords } from '../../core/installed-by';
 import { runFacts } from '../../core/run-facts';
@@ -13,6 +14,7 @@ import { api, GLYPH, Icon, nameOf, NEWS_MS, portOf, shortBuild, Spinner, StateBa
 import { Feed } from './Activity';
 import { CompactActions, FixButton, UnavailablePane } from './ServiceActions';
 import { Connections } from './Connections';
+import { HealthEntry } from './HealthReport';
 import { Load } from './Load';
 import { PaneBoundary } from './PaneBoundary';
 import { subscriptionCost, usd } from './Spend';
@@ -58,9 +60,11 @@ interface Props {
   /** FD-137 (SCN-092): the sessions Fabric started in this agent's folder for board requests, as lines; and opening one. */
   dispatches?: { id: string; request: string; outcome: string; ran: string | null }[];
   onSession?: (id: string) => void;
+  /** FD-298: this agent's own `agent-health/1` report as the app last read it (FD-293), shown on its Health tab. */
+  health?: HealthRow;
 }
 
-export function ServiceView({ s, all, members, open, link, nonce, tab: askedTab, runUpdate, activityRev, overlayOpen, askStop, updateStarted, headerFull, onToggleHeader, consoleOpen, onToggleConsole, onAgent, dispatches, onSession }: Props) {
+export function ServiceView({ s, all, members, open, link, nonce, tab: askedTab, runUpdate, activityRev, overlayOpen, askStop, updateStarted, headerFull, onToggleHeader, consoleOpen, onToggleConsole, onAgent, dispatches, onSession, health }: Props) {
   const [pathError, setPathError] = useState('');
   // P-6: a folder or file that cannot be shown says so here, as Overview's Show folder does.
   const show = (p: string) => void api().showPath(p).then((r) => setPathError(r.ok ? '' : t('overview.showFailed', { path: p, error: r.error ?? '' })));
@@ -265,7 +269,7 @@ export function ServiceView({ s, all, members, open, link, nonce, tab: askedTab,
         {tab === 'activity' && <div className="pane">{dispatches && dispatches.length > 0 && <Dispatches lines={dispatches} onSession={onSession} />}<ServiceActivity serviceKey={s.key} tick={`${activityRev ?? ''}|${s.latestEvent?.id ?? ''}`} openAt={(k, l) => open(k, l)} /></div>}
         {tab === 'connections' && <div className="pane"><Connections s={s} all={all} members={members} open={(key) => open(key, undefined, 'connections')} /></div>}
         {tab === 'load' && tabs.includes('load') && <div className="pane"><Load s={s} /></div>}
-        {tab === 'health' && <div className="pane"><Health s={s} output={output} detailsShown={cardShown} /></div>}
+        {tab === 'health' && <div className="pane"><Health s={s} output={output} detailsShown={cardShown} report={health} /></div>}
         {tab === 'logs' && <div className="pane"><Logs serviceKey={s.key} launchd={s.launchd} /></div>}
         </PaneBoundary>
       </div>
@@ -436,13 +440,21 @@ function FocusFallbackBar({ s }: { s: ServiceSnapshot }) {
   );
 }
 
-function Health({ s, output, detailsShown = false }: { s: ServiceSnapshot; output: { title: string; text: string; running: 'doctor' | 'update' | null } | null; detailsShown?: boolean }) {
+function Health({ s, output, detailsShown = false, report }: { s: ServiceSnapshot; output: { title: string; text: string; running: 'doctor' | 'update' | null } | null; detailsShown?: boolean; report?: HealthRow }) {
   const { t, lang } = useT();
   const wk = s.wellKnown;
   return (
     <>
       {s.problems.length > 0 && (
         <div className="notice error"><h2>{t('health.problems')}</h2><ul>{s.problems.map((p) => <li key={p}>{p}</li>)}</ul></div>
+      )}
+      {/* FD-298: what the agent itself reports is wrong with it, read every 5 minutes (FD-293); absent until it answers one. */}
+      {report && (
+        <section className="agent-health" aria-labelledby="agent-health-title">
+          <h2 id="agent-health-title" className="pane-title">{t('health.report')}</h2>
+          <p className="meta">{t('health.report.body')}</p>
+          <div><HealthEntry h={report} name={false} /></div>
+        </section>
       )}
       {wk && wk.degraded.length === 0 && <p className="state state-ready">{t('health.allClear')}</p>}
       {wk && wk.degraded.length > 0 && <ul>{wk.degraded.map((d) => <li key={d.source}><b>{d.source}</b>: {d.reason}</li>)}</ul>}

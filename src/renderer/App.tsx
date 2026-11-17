@@ -514,7 +514,8 @@ function Shell({ status: everyAgent, route, setRoute, mode, switchMode, stopKey,
             <ServiceView key={current.key} s={current} all={status.services} members={currentProduct?.members ?? [current]} open={open} link={route.link} nonce={route.nonce} tab={route.tab} runUpdate={route.tab === 'health' && route.page === 'service'} activityRev={status.activityRev} overlayOpen={stopOpen || resizing || menuOverPage} askStop={askStop} updateStarted={() => setRoute({ ...route, tab: undefined })}
               headerFull={layout.header === 'full'} onToggleHeader={() => changeLayout({ header: layout.header === 'full' ? 'compact' : 'full' })}
               consoleOpen={layout.console.open} onToggleConsole={() => changeLayout({ console: { open: !layout.console.open } })} onAgent={handToAgent}
-              dispatches={dispatchLines(lang, status.sessions?.rows ?? [], current.key)} onSession={(id) => setRoute({ page: 'session', id })} />
+              dispatches={dispatchLines(lang, status.sessions?.rows ?? [], current.key)} onSession={(id) => setRoute({ page: 'session', id })}
+              health={status.health?.find((h) => h.product === current.key)} />
           </div>
           : (
             <div className="page-wrap">

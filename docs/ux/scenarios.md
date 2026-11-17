@@ -125,6 +125,7 @@
 | SCN-117 | See where an agent runs | navigation | P-01 | ST-016 | implemented | 2026-11-15 |
 | SCN-118 | Close the quiet copy of a session that runs twice | sessions | P-01 | ST-019 | implemented | 2026-11-16 |
 | SCN-119 | Start a new dashboard from the agent list | console | P-01 | ST-019, ST-022 | implemented | 2026-11-17 |
+| SCN-120 | See an agent's own health report on its Health tab | health | P-01 | ST-004 | implemented | 2026-11-17 |
 ## Personas
 
 Defined in [foundation.md](foundation.md) → P-01.
@@ -2631,7 +2632,7 @@ The Sessions mode (0.8.0): every coding session apart from the agents, each stat
 - **UI elements:** the totals, the context sections, the "your own" tag, the agent links
 - **States covered:** loading (spend "…"), success, not reported, unknown
 - **Errors & recovery:** an agent whose usage report cannot be read makes the spend a lower bound, as on Spend; a total or context none of whose agents reports usage says "not reported", and one whose reports all failed to read says "unknown", never a measured $0.00 (FD-296); contexts come from Observatory's map until Fabric reports each instance's own (CO-422), so none is marked confirmed
-- **Coverage:** src/core/machine-view.ts (machineView), src/renderer/components/MachinePage.tsx, src/renderer/components/Navigation.tsx (This Mac item), src/renderer/App.tsx (route machine), src/electron/policy.ts (resume route), src/mcp/tools.ts (thisMachine), src/mcp/server.ts (this_machine), src/core/agent-health.ts (healthRows)
+- **Coverage:** src/core/machine-view.ts (machineView), src/renderer/components/MachinePage.tsx, src/renderer/components/HealthReport.tsx (HealthEntry, FD-298), src/renderer/components/Navigation.tsx (This Mac item), src/renderer/App.tsx (route machine), src/electron/policy.ts (resume route), src/mcp/tools.ts (thisMachine), src/mcp/server.ts (this_machine), src/core/agent-health.ts (healthRows)
 - **Status:** implemented (2026-11-15, 0.8.118: `test/machine-view.test.ts`; health reports 0.8.166; no measured zero for no data 0.8.174, *FD-296*)
 
 ### SCN-117: See where an agent runs
@@ -2690,4 +2691,25 @@ The Sessions mode (0.8.0): every coding session apart from the agents, each stat
   - "Create with coding agent" / «Создать с агентом для кода»
 - **Status:** implemented (2026-11-17: `test/new-session.test.ts` *FD-171 (SCN-119)*: its own key kind, the brief names the recipe, the MCP reads and the proof, 0600, the runtime's arguments, the console channel and the dialog's door take it, New dashboard starts with it and is listed; `test/e2e/new-session.test.ts` opens its dialog)
 - **Coverage:** src/core/new-session.ts (newDashboardMarkdown, prepareNewDashboard), src/electron/console.ts (pack), src/core/console-channel.ts, src/mcp/server.ts (session_new), src/renderer/App.tsx, src/renderer/components/NewSessionDialog.tsx, test/new-session.test.ts
+- **Product:** unobserved
+
+### SCN-120: See an agent's own health report on its Health tab
+- **Persona:** P-01
+- **Feature:** health
+- **Traces:** ST-004; FD-298 (the strip on the agent's own page left from FD-285); FD-293 (an agent that serves `GET /fabric/v1/health`); contract DEC-0179 `agent-health/1`
+- **Entry point:** an agent's page, Health tab
+- **Preconditions:** the agent is a listed service and gives a health report (today over HTTP, FD-293), read by the health poller every 5 minutes
+- **Steps:**
+  1. The person opens the agent's Health tab -> a section "Its health report" says what the agent reports is wrong with it now and that two bad readings in a row reach the notification channel, then the report: its version, its state, when it was read, how many episodes are open, the checks that are not ok with their area, count and fix, or why the report could not be read
+  2. The report changes at the next reading -> the section shows the new one, as This Mac does (SCN-116 step 4)
+- **Expected result:** the person sees on the agent's own page what it reports about itself, without opening This Mac
+- **Alt paths:** an agent that gives no report -> no section; Switchboard, which is not a listed service, stays on This Mac only
+- **UI elements:** the "Its health report" section, the state chip, the checks list
+- **States covered:** success, error (unreadable report), unknown
+- **Errors & recovery:** a report that fails the schema, does not answer or says ok beside a degraded part reads "unknown" with its reason (FD-293, FD-297)
+- **Copy:**
+  - "Its health report" / «Отчёт агента о здоровье»
+  - "What the agent reports is wrong with it now, read every 5 minutes. Two bad readings in a row reach your notification channel." / «Что агент сообщает о своих неполадках сейчас; отчёт читается каждые 5 минут. Два плохих чтения подряд уходят в ваш канал уведомлений.»
+- **Status:** implemented (2026-11-17, 0.8.177: `test/machine-view.test.ts` *FD-298*; copy check reports `ecbecc50`, `bb146115`, `35682b6f`, `61827eb8`, no findings)
+- **Coverage:** src/renderer/components/HealthReport.tsx (HealthEntry), src/renderer/components/ServiceView.tsx (Health), src/renderer/App.tsx (health prop), src/renderer/components/MachinePage.tsx
 - **Product:** unobserved
