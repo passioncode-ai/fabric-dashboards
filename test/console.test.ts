@@ -432,9 +432,13 @@ test('FD-242: closing a console leaves nothing running: a child that ignores the
   const m = new ConsoleManager({ spawn: real, env: () => ({ PATH: process.env.PATH ?? '/bin:/usr/bin' }), killGraceMs: 300 });
   assert.deepEqual(m.start('a.default', { argv: ['/bin/sh', '-c', script], cwd: dir, label: 'fake' }, { cols: 80, rows: 24 }), { ok: true });
   const alive = (pid: number) => { try { process.kill(pid, 0); return true; } catch { return false; } };
-  const deadline = Date.now() + 5000;
-  while (!fs.existsSync(pidFile) && Date.now() < deadline) await new Promise((r) => setTimeout(r, 20));
-  const child = Number(fs.readFileSync(pidFile, 'utf8'));
+  // Read until the file holds a whole pid: on a loaded Mac it exists before `echo` has written it, and pid 0 would name
+  // this test's own process group (the cleanup's SIGKILL below once ended the whole gate).
+  const pidOf = () => (fs.existsSync(pidFile) ? Number(fs.readFileSync(pidFile, 'utf8').trim()) : NaN);
+  const deadline = Date.now() + 30_000;
+  while (!(pidOf() > 1) && Date.now() < deadline) await new Promise((r) => setTimeout(r, 20));
+  const child = pidOf();
+  assert.ok(Number.isInteger(child) && child > 1, `the child wrote its pid (${child})`);
   assert.ok(alive(child), 'the child runs');
   m.stop('a.default');
   await new Promise((r) => setTimeout(r, 1200));
