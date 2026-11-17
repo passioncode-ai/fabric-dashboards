@@ -8,7 +8,8 @@ import { HEALTH_NONE_RETRY_MS, HEALTH_PATH, HEALTH_POLL_MS, HEALTH_PRODUCTS, hea
 import type { RunResult } from '../core/launchd';
 
 /** FD-293: one service to read over HTTP on this pass. */
-export interface HealthServiceRead { key: string; expected: string; known: boolean; read: () => Promise<unknown> }
+/** FD-293: one service read over HTTP; `wellKnown` its last well-known answer, read beside the report (HL-7, FD-297). */
+export interface HealthServiceRead { key: string; expected: string; known: boolean; read: () => Promise<unknown>; wellKnown?: () => { status?: unknown; degraded?: unknown } | null }
 
 const FIRST_MS = 60_000;
 const DEADLINE_MS = 15_000;
@@ -26,7 +27,7 @@ export class HealthPoller {
   constructor(private readonly o: {
     binary: (p: HealthProduct) => Promise<string | null>;
     run: (file: string, args: string[], timeoutMs: number) => Promise<RunResult>;
-    observe: (product: string, answer: unknown, expected?: string) => void;
+    observe: (product: string, answer: unknown, expected?: string, wellKnown?: { status?: unknown; degraded?: unknown } | null) => void;
     log: (line: string) => void;
     products?: readonly HealthProduct[];
     /** FD-293: the services to read over HTTP now: their service key, the product their report must name, whether the
@@ -90,7 +91,7 @@ export class HealthPoller {
         }
         this.none.delete(s.key);
         this.said.delete(s.key);
-        this.o.observe(s.key, answer, s.expected);
+        this.o.observe(s.key, answer, s.expected, s.wellKnown?.() ?? null);
       }
     } finally {
       this.running = false;

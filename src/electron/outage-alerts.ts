@@ -118,9 +118,9 @@ export class OutageAlerts {
 
   /** FD-285: one reading of a product's `agent-health/1` answer (`null`: no answer); an episode it opens or closes
    *  is sent now if the person's rules allow. */
-  health(product: string, answer: unknown, expected?: string): void {
+  health(product: string, answer: unknown, expected?: string, wellKnown?: { status?: unknown; degraded?: unknown } | null): void {
     if (this.stopped) return;
-    this.save({ ...this.state, health: observeHealth(this.state.health ?? {}, product, answer, this.now(), expected ?? product) });
+    this.save({ ...this.state, health: observeHealth(this.state.health ?? {}, product, answer, this.now(), expected ?? product, wellKnown) });
     this.schedule(0);
   }
 

@@ -166,12 +166,23 @@ function step(cause: HealthCause, verdict: 'bad' | 'good' | 'unknown', now: numb
   return { ...cause, bad: 0, good };
 }
 
+/** HL-7 (FD-297): a service's well-known answer read beside its report: when it says `degraded` or lists a degraded
+ *  source (a `setup: true` one included), the report is never `ok`; such a pair fails `FAC-SEM-181` and is unreadable.
+ *  No answer, or `ready` with no degraded source, bounds nothing. */
+export function pairBreaks(report: HealthReport, wellKnown: { status?: unknown; degraded?: unknown } | null | undefined): boolean {
+  if (!wellKnown || report.state !== 'ok') return false;
+  const degraded = Array.isArray(wellKnown.degraded) ? wellKnown.degraded : [];
+  return degraded.length > 0 || wellKnown.status === 'degraded';
+}
+
 /** One reading of one product (`answer` null: no answer), at `now` (ms). `product` is the book's key; `expected` the
  *  product slug the report must name, the key itself unless an instance is read (FD-293: the key is `example-agent.cloud`,
- *  the report says `example-agent`). */
-export function observeHealth(book: HealthBook, product: string, answer: unknown, now: number, expected = product): HealthBook {
+ *  the report says `example-agent`); `wellKnown` the service's last well-known answer, read beside it (HL-7, FD-297). */
+export function observeHealth(book: HealthBook, product: string, answer: unknown, now: number, expected = product,
+  wellKnown?: { status?: unknown; degraded?: unknown } | null): HealthBook {
   let read = readHealth(answer);
   if (!read.reason && (answer as HealthReport).product !== expected) read = { state: 'unknown', reason: 'other-product' };
+  if (!read.reason && pairBreaks(answer as HealthReport, wellKnown)) read = { state: 'unknown', reason: 'FAC-SEM-181' };
   const prev = book[product];
   const causes: Record<string, HealthCause> = { ...(prev?.causes ?? {}) };
   const cause = (id: string) => causes[id] ?? { bad: 0, good: 0 };
