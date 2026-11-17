@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.8.160 - 2026-11-17
+
+### Changed
+
+- FD-290: a Claude session stopped on a usage limit continues in Switchboard's session host when Switchboard offers it
+  (0.7.110 or later): the app runs `switchboard sessions continue <session> --in-place --hosted --surface recovery` in
+  the session's own console, so it runs under a launch of its own, End ends it there and quitting the app leaves it
+  running. A Codex session, a session in a held folder and an older Switchboard keep the agent's own CLI.
+
 ## 0.8.159 - 2026-11-17
 
 ### Fixed

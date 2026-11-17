@@ -75,7 +75,7 @@ export async function canLaunchInPlace(run: Runner, sb: string): Promise<boolean
 
 /** What this Switchboard's `launch` takes: in place (SB-75), and since 0.7.0 `--surface` (SB-212, FD-124), which
  *  marks a launch as asked for from here in its launch record. */
-export async function launchFeatures(run: Runner, sb: string): Promise<{ inPlace: boolean; surface: boolean; target: boolean; hosted: boolean }> {
+export async function launchFeatures(run: Runner, sb: string): Promise<{ inPlace: boolean; surface: boolean; target: boolean; hosted: boolean; continueHosted: boolean }> {
   const r = await run(sb, ['launch', '--help'], 10_000);
   const text = `${r.stdout}\n${r.stderr}`;
   const ok = r.code === 0;
@@ -86,8 +86,21 @@ export async function launchFeatures(run: Runner, sb: string): Promise<{ inPlace
     const e = await run(sb, ['sessions', '--help'], 10_000);
     hosted = e.code === 0 && /^\s+end\b/m.test(`${e.stdout}\n${e.stderr}`);
   }
+  // FD-290 (SB-400, 0.7.110): `sessions continue <id> --in-place --hosted --surface recovery` continues a stopped Claude
+  // session as itself in a session host of its own launch, which `sessions end` ends like a hosted launch.
+  let continueHosted = false;
+  if (hosted) {
+    const c = await run(sb, ['sessions', 'continue', '--help'], 10_000);
+    const t = `${c.stdout}\n${c.stderr}`;
+    continueHosted = c.code === 0 && /--in-place\b/.test(t) && /--hosted\b/.test(t) && /--surface\b/.test(t) && /\brecovery\b/.test(t);
+  }
   // FD-206: since 0.7.53 `--target` starts the session on another machine (SB-332).
-  return { inPlace: ok && /--in-place\b/.test(text) && /--provider\b/.test(text), surface: ok && /--surface\b/.test(text), target: ok && /--target\b/.test(text), hosted };
+  return { inPlace: ok && /--in-place\b/.test(text) && /--provider\b/.test(text), surface: ok && /--surface\b/.test(text), target: ok && /--target\b/.test(text), hosted, continueHosted };
+}
+
+/** FD-290: the command a limit stop's own console runs to continue its Claude session in Switchboard's session host. */
+export function hostedContinueArgv(sb: string, session: string): string[] {
+  return [sb, 'sessions', 'continue', session, '--in-place', '--hosted', '--surface', 'recovery'];
 }
 
 /** The command the console runs for a bound folder once Switchboard launches in place; with `surface`, the launch

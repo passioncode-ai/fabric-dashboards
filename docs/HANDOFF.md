@@ -1,11 +1,25 @@
 # Handoff — Fabric Dashboards
 
-Updated 2026-11-17 (0.8.159 published and installed: start at *0.8.159* below). History: updated 2026-10-26 (0.8.7 current then, see *0.8.7: start here*; earlier the same day 0.8.6, see *0.8.5: start here* and *Session 2026-10-26: start here*). Earlier: updated 2026-10-25 (0.8.1 current; the consolidation, see *Consolidation 2026-10-25: start here*). Earlier: updated 2026-10-24 (0.7.28). Earlier header: updated 2026-10-07 (0.6.2: 0.6.1 withdrawn for audit HIGH-2, audit fixes, signed feed; 0.6.1: LC-16 in detail updater, Russian by choice; 0.6.0 published 2026-10-06 21:35 UTC; release 0.5.6: third review pass, token latch; release 0.5.5 withdrawn: release audit and its second pass, A2A plan, ADR-0016, ADR-0015 data and updates, FD-05, FD-06, FD-13; Spend and DEC-0021; one entry per agent, ADR-0012; lifecycle contract landed from PR #21, unreleased; CI release rehearsal
+Updated 2026-11-17 (0.8.160: start at *0.8.160* below; 0.8.159 published and installed). History: updated 2026-10-26 (0.8.7 current then, see *0.8.7: start here*; earlier the same day 0.8.6, see *0.8.5: start here* and *Session 2026-10-26: start here*). Earlier: updated 2026-10-25 (0.8.1 current; the consolidation, see *Consolidation 2026-10-25: start here*). Earlier: updated 2026-10-24 (0.7.28). Earlier header: updated 2026-10-07 (0.6.2: 0.6.1 withdrawn for audit HIGH-2, audit fixes, signed feed; 0.6.1: LC-16 in detail updater, Russian by choice; 0.6.0 published 2026-10-06 21:35 UTC; release 0.5.6: third review pass, token latch; release 0.5.5 withdrawn: release audit and its second pass, A2A plan, ADR-0016, ADR-0015 data and updates, FD-05, FD-06, FD-13; Spend and DEC-0021; one entry per agent, ADR-0012; lifecycle contract landed from PR #21, unreleased; CI release rehearsal
 `v0.4.1-rc.1` green; releases move to CI signing; release 0.4.1, MCP links to online services).
 
 Current release: **0.8.159** published 2026-11-17 02:43 UTC (run 44001070642, 16 assets), installed on this Mac 03:09 UTC by its own updater. Earlier: **0.8.158** published 02:09 UTC (run 43996927838); **0.8.157** published 01:12 UTC (16 assets). Earlier: **0.8.110** published 2026-11-15 09:04 UTC; earlier **0.8.105** published 2026-11-15 07:16 UTC; 0.8.108 (`de97f12`) and 0.8.109 (`33d0b30`) tagged in
 order, their runs under way. 0.8.106 and 0.8.107 were never published (0.8.106's check failed on an unref'd timer in a
 test; both fold into 0.8.108).
+
+## 0.8.160: a limit stop continues in Switchboard's session host (2026-11-17)
+
+FD-290 in part. fabric-switchboard SB-400 (0.7.110, installed 0.7.111) added `sessions continue <id> --in-place --hosted
+--surface recovery`: a Claude session continues as itself in its own config folder, inside the session host, under a
+launch of its own whose record carries `in_place` and the folder. `launchFeatures` (`src/core/switchboard.ts`) reads
+`sessions continue --help` when hosted launches exist and sets `continueHosted`; `resumeOnce` (`src/electron/console.ts`)
+reads it before the claim and, for a Claude stop outside a held folder, runs `hostedContinueArgv` in the stop's own
+console and marks the key hosted, so End ends it with `sessions end` (FD-211's `launchOf`) and quit detaches. Codex, a
+held folder and an older Switchboard keep the agent's own CLI. Test: `test/recovery.test.ts` *FD-290* (34 pass in that
+file and `test/hosted-console.test.ts`). Copy check `faec28ba-103f-4c35-9ae1-edc1ea49a02e`. Left: FD-291's Continue
+through `--target` on another machine's `ready_to_continue` row, and FD-217's rest (stops whose conversation is in a
+Switchboard home still read as without a transcript). **First task for the next agent:** FD-291 `--target` Continue,
+then e2e when the screen is unlocked.
 
 ## 0.8.159: health alerts reach the operator's channel (2026-11-17)
 

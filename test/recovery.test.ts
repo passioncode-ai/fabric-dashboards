@@ -146,7 +146,7 @@ test('FD-83: settings from an earlier version continue sessions by themselves; a
   assert.equal(merge({ resumeAfterLimit: false }).resumeAfterLimit, false);
 });
 
-function rig(o: { sessions?: (dir: string) => unknown[]; live?: { inFolder?: boolean; args?: string }; on?: boolean; claim?: number; freeDisk?: number; serviceFolder?: boolean; spawnFails?: boolean; exitsAtOnce?: boolean; noTranscript?: boolean; silent?: boolean; history?: unknown[] } = {}) {
+function rig(o: { sessions?: (dir: string) => unknown[]; live?: { inFolder?: boolean; args?: string }; on?: boolean; claim?: number; freeDisk?: number; serviceFolder?: boolean; spawnFails?: boolean; exitsAtOnce?: boolean; noTranscript?: boolean; silent?: boolean; history?: unknown[]; hosted?: boolean | 'old' } = {}) {
   const base = tmp('fd-rs-');
   const bin = path.join(base, 'bin');
   const dir = path.join(base, 'checkout');
@@ -170,6 +170,10 @@ function rig(o: { sessions?: (dir: string) => unknown[]; live?: { inFolder?: boo
       if (args[1] === 'recovery' && args[2] === 'claim') return o.claim === 1 ? { code: 1, stdout: '', stderr: 'already claimed' } : ok({ claimed: true });
       if (args[1] === 'recovery' && args[2] === 'finish') return ok({});
       if (args.join(' ') === '--json sessions --history' && o.history) return ok({ launches: o.history });
+      // FD-290: a Switchboard with a session host and `sessions continue --hosted` (SB-400), or one before it ('old').
+      if (o.hosted && args.join(' ') === 'launch --help') return { code: 0, stdout: '--provider --in-place --surface --target --hosted', stderr: '' };
+      if (o.hosted && args.join(' ') === 'sessions --help') return { code: 0, stdout: 'Commands:\n  continue  x\n  end  y\n', stderr: '' };
+      if (o.hosted && args.join(' ') === 'sessions continue --help') return { code: 0, stdout: o.hosted === 'old' ? '--json --data-dir' : '--in-place --hosted --surface <SURFACE>\n  - recovery', stderr: '' };
       if (path.basename(file) === 'lsof') return { code: o.live?.inFolder ? 0 : 1, stdout: o.live?.inFolder ? `p1\nn${dir}\n` : '', stderr: '' };
       if (path.basename(file) === 'ps') return { code: 0, stdout: o.live?.args ?? 'zsh\n', stderr: '' };
       return { code: 1, stdout: '', stderr: '' };
@@ -178,7 +182,8 @@ function rig(o: { sessions?: (dir: string) => unknown[]; live?: { inFolder?: boo
       if (o.spawnFails) throw new Error('posix_spawnp failed');
       spawned.push({ file, args, cwd: opts.cwd });
       // Like a real `claude --resume <id> <brief>`: it appends the brief to its own transcript at once.
-      const own = path.join(home, '.claude', 'projects', 'p', `${args[args.indexOf('--resume') + 1]}.jsonl`); // FD-174: after the bypass flag
+      const at = args.indexOf('--resume') >= 0 ? args.indexOf('--resume') : args.indexOf('continue'); // FD-290: `sessions continue <id>`
+      const own = path.join(home, '.claude', 'projects', 'p', `${args[at + 1]}.jsonl`); // FD-174: after the bypass flag
       if (!o.silent && !o.exitsAtOnce) setTimeout(() => { try { fs.appendFileSync(own, '{"brief":true}\n'); fs.utimesSync(own, new Date(), new Date(Date.now() + 1000)); } catch { /* none */ } }, 20);
       return { pid: 999_999_999, onData: () => ({ dispose() {} }), onExit: (cb: (e: { exitCode: number; signal?: number }) => void) => { if (o.exitsAtOnce) setTimeout(() => cb({ exitCode: 1 }), 10); return { dispose() {} }; }, write() {}, resize() {}, kill() {} };
     },
@@ -488,4 +493,21 @@ test('FD-262 (fabric-switchboard finding 36e058ab): the background pass and Cont
   const direct = await (r.host as unknown as { continueStop(e: string, a: string): Promise<{ ok: boolean }> }).continueStop(event, 'acc-2');
   assert.equal(r.spawned.length, 0, `Continue starts no second copy either (${JSON.stringify([row, direct])})`);
   assert.ok(!r.calls.some((c) => c.includes('claim')), 'and claims nothing');
+});
+
+test('FD-290 (SB-400): a Claude stop continues in Switchboard\'s session host under a launch of its own; an older Switchboard keeps the agent\'s own CLI', POSIX, async () => {
+  const r = rig({ hosted: true });
+  const [key] = await r.host.pollRecovery();
+  assert.ok(key && isHandoverKey(key));
+  assert.equal(r.spawned.length, 1);
+  assert.equal(r.spawned[0]!.file, r.sb, 'Switchboard runs it, attached here');
+  assert.deepEqual(r.spawned[0]!.args, ['sessions', 'continue', SID, '--in-place', '--hosted', '--surface', 'recovery']);
+  assert.equal(r.spawned[0]!.cwd, r.dir);
+  const event = `cc-${SID}-1792066929`;
+  assert.deepEqual(sbCalls(r.calls), ['--json recovery', `--json recovery claim --account acc-2 ${event}`, `--json recovery finish ${event} resumed`]);
+  assert.ok(r.host.runsOnWithoutApp(key), 'the app quitting closes only its view, and End ends it with `sessions end`');
+  const old = rig({ hosted: 'old' });
+  await old.host.pollRecovery();
+  assert.equal(path.basename(old.spawned[0]!.file), 'claude', 'a Switchboard before SB-400: the agent\'s own CLI');
+  assert.ok(!old.host.runsOnWithoutApp(old.host.recoveryStatus().stops[0]!.key!));
 });
