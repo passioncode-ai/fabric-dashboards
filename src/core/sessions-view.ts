@@ -177,6 +177,7 @@ export function stateWords(lang: Lang, r: SessionRow, o: { autoContinue?: boolea
     case 'ended-cannot-continue': // FD-108
       return t(lang, 'sessions.state.cannotContinue', { why: t(lang, `sessions.cannot.${r.reason ?? 'resume-failed'}`) });
     case 'waiting-reset':
+      if (r.reason === 'limit-terminal') return t(lang, 'sessions.state.limitTerminal'); // FD-291 step 2: not this app's to continue
       if (o.autoContinue === false) return t(lang, 'sessions.state.autoOff');
       return r.expectedAt ? t(lang, 'sessions.state.waitingAt', { time: clock(lang, r.expectedAt) }) : t(lang, 'sessions.state.waiting');
     case 'ended':

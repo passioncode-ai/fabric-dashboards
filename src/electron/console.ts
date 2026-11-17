@@ -28,13 +28,13 @@ import { MACHINE } from '../core/platform';
 import { isNewAgentKey, isNewDashboardKey, isNewSessionKey, isolatedBlock, newSessionKey, prepareNewAgent, prepareNewDashboard, projectsFolder, type NewSessionChoice, type NewSessionKind } from '../core/new-session';
 import { askArgsOfProvider, bypassArgs, claudeAskModeOf, promptsWords, setClaudeAskMode, bypassArgsOfProvider, detectRuntimes, KNOWN_RUNTIMES, readLoginPath, searchDirs, specsFromSwitchboard, type Runtime, type RuntimeSpec } from '../core/runtimes';
 import type { SettingsStore } from '../core/settings';
-import { accountsOf, allSessionsOf, bindingFor, machineSessionsOf, findSwitchboard, handoverAskOf, handoverOwnKey, handoverRunArgv, handoversOf, hostedContinueArgv, handoversSwitch, isHandoverKey, launchFeatures, sbFailure, sessionsIn, startAccount, terminalLaunchArgv, type Binding, type SbAccounts, type SbHandover, type SbSessions, type StartAccount } from '../core/switchboard';
+import { accountsOf, allSessionsOf, bindingFor, machineSessionsOf, pageRowsOf, findSwitchboard, handoverAskOf, handoverOwnKey, handoverRunArgv, handoversOf, hostedContinueArgv, handoversSwitch, isHandoverKey, launchFeatures, sbFailure, sessionsIn, startAccount, terminalLaunchArgv, type Binding, type SbAccounts, type SbHandover, type SbSessions, type StartAccount } from '../core/switchboard';
 import type { HeldContinue, ServiceSnapshot, Settings } from '../core/types';
 import { claudeConfigDirs, lastTranscriptWrite, STUCK_MS, stuckKeys } from '../core/stuck';
 import { claimStop, claudeSessionDirs, folderLive, liveSessionFolders, liveSessionIds, continuedLaunches, continuedOf, finishStop, launchTranscript, liveAgents, recoveryOf, resumeArgs, resumeOwnKey, sessionOpen, transcriptIn, transcriptOf, verdictOf, writtenAt, RESUME_SETTLE_MS, RESUMES_PER_PASS, type RecoveryStatus, type SbStop, type StopView } from '../core/recovery';
 import { closeCopyArgv, DUPLICATES_MS, parseCloseCopy, parseDuplicates, takesCloseCopy, type CloseCopyResult, type DuplicateSession } from '../core/duplicate-sessions';
 import { parseTargets, remoteAttachArgv, remoteContinueArgv, remoteEndArgv, RemoteSessions, targetAttachArgv, targetEndArgv } from '../core/remote-sessions';
-import { attachOwnKey, consoleRowId, dropRemoteTwins, machineTerminalKey, handoverRowId, SAME_START_MS, mergeSessions, pruneDismissed, pruneRecords, SourceReader, stopRowId, type ConsoleInput, type PendingHandover, type SbMachineProcess, type SbSessionRecord, type SessionActionResult, type SessionReason, type SessionRecord, type SessionNotice, type SessionOrigin, type SessionRow, type SessionsStatus, type SourceDegraded, type SourceResult } from '../core/sessions';
+import { attachOwnKey, consoleRowId, dropRemoteTwins, machineTerminalKey, handoverRowId, SAME_START_MS, mergeSessions, pruneDismissed, pruneRecords, SourceReader, stopRowId, type ConsoleInput, type PendingHandover, type SbMachineProcess, type SbPageRow, type SbSessionRecord, type SessionActionResult, type SessionReason, type SessionRecord, type SessionNotice, type SessionOrigin, type SessionRow, type SessionsStatus, type SourceDegraded, type SourceResult } from '../core/sessions';
 
 /** node-pty 1.1.0 ships its macOS `spawn-helper` without the executable bit, and its postinstall
  *  does not set it: without it every spawn fails with `posix_spawnp failed`. A development checkout
@@ -137,6 +137,8 @@ export const IDLE_CLOSE_MS = 30 * 60_000;
 export const QUIT_SETTLE_MS = 2500;
 /** FD-231: how long a Switchboard that does not know `sessions --machine` (before 0.7.72) is left unasked. */
 export const MACHINE_RECHECK_MS = 10 * 60_000;
+/** FD-291 step 2: this Mac's agent processes, as the sessions page (`--rows`) or, from an older Switchboard, `--machine` read them. */
+type LocalProcesses = { page: SbPageRow[] | null; machine: SbMachineProcess[] | null };
 export const QUIT_FINISH_MS = 1500;
 
 /** FD-74: how long the console trusts Switchboard's last answer about a folder before asking again in the background. */
@@ -229,13 +231,24 @@ export class ConsoleHost {
   private machineUnsupportedUntil = 0;
   /** FD-231: the last `sessions --machine` read answered, so every agent process is in the list. */
   private machineListed = false;
-  private readonly machineSessions = new SourceReader<SbMachineProcess[]>('machine', async () => {
+  /** FD-291 step 2: until when a Switchboard without `sessions --rows` is not asked for it again (`--machine` is read). */
+  private rowsUnsupportedUntil = 0;
+  private readonly machineSessions = new SourceReader<LocalProcesses>('machine', async () => {
     const inv = await this.inventory();
-    if (!inv.switchboard || Date.now() < this.machineUnsupportedUntil) return { ok: true, value: [] };
+    if (!inv.switchboard) return { ok: true, value: { page: null, machine: [] } };
+    // FD-291 step 2 (SB-395): the sessions page first, its groups decided by Switchboard; `--machine` where it has none.
+    if (Date.now() >= this.rowsUnsupportedUntil) {
+      const p = await pageRowsOf(this.run, inv.switchboard);
+      if (p.ok) { this.machineListed = true; return { ok: true, value: { page: p.value, machine: null } }; }
+      if (p.reason !== 'unsupported') return p as SourceResult<LocalProcesses>;
+      this.rowsUnsupportedUntil = Date.now() + MACHINE_RECHECK_MS;
+    }
+    if (Date.now() < this.machineUnsupportedUntil) return { ok: true, value: { page: null, machine: [] } };
     const r = await machineSessionsOf(this.run, inv.switchboard);
-    if (!r.ok && r.reason === 'unsupported') { this.machineUnsupportedUntil = Date.now() + MACHINE_RECHECK_MS; this.machineListed = false; return { ok: true, value: [] }; }
-    if (r.ok) this.machineListed = true;
-    return r as SourceResult<SbMachineProcess[]>;
+    if (!r.ok && r.reason === 'unsupported') { this.machineUnsupportedUntil = Date.now() + MACHINE_RECHECK_MS; this.machineListed = false; return { ok: true, value: { page: null, machine: [] } }; }
+    if (!r.ok) return r as SourceResult<LocalProcesses>;
+    this.machineListed = true;
+    return { ok: true, value: { page: null, machine: r.value } };
   });
   /** FD-247 (step 5): the other machines' sessions, read over ssh only while the window shows the Sessions mode. */
   private readonly remote: RemoteSessions;
@@ -1375,7 +1388,7 @@ export class ConsoleHost {
     });
     let rows = mergeSessions({
       now, switchboard: this.sbSessions.value ?? (this.switchboardPresent === false ? [] : null), pending: this.pending,
-      stops: this.recovery.stops, consoles, records: m.records, dismissed: m.dismissed, machine: this.machineSessions.value,
+      stops: this.recovery.stops, consoles, records: m.records, dismissed: m.dismissed, machine: this.machineSessions.value?.machine ?? null, page: this.machineSessions.value?.page ?? null,
       remote: this.o.settings.get().remoteSessions === false ? [] : this.remote.input(now),
     });
     // V-5 of FIX-2: an ended row whose console holds nothing (the app restarted since) says so on its page.

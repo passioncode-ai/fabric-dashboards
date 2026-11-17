@@ -50,7 +50,9 @@ export type SessionAction = 'end' | 'reveal' | 'openConsole' | 'dismiss' | 'cont
  *  it quit (`quit`, an ended row: "Closed when the app quit"; review round 1, R1-S4). */
 export type SessionReason = 'expired' | 'no-folder' | 'busy' | 'busy-disk' | 'busy-cap' | 'busy-pool' | 'busy-swap' | 'switchboard-old' | 'not-started' | 'pending' | 'no-transcript' | 'resume-failed' | 'old' | 'billing' | 'open' | 'declined' | 'quit'
   // FD-291: a row another machine's Switchboard puts in its needs-you group (SB-395), said as that machine's
-  | 'remote-ready' | 'remote-gone' | 'remote-twice' | 'remote-stuck' | 'remote-needs';
+  | 'remote-ready' | 'remote-gone' | 'remote-twice' | 'remote-stuck' | 'remote-needs'
+  // FD-291 step 2: a process on this Mac no owner started that Switchboard reads as stopped by a limit (`sessions --rows`)
+  | 'limit-terminal';
 
 export interface SessionRow {
   /** Stable across polls and restarts: `c:<console key>:<start>`, `sb:<provider>:<pool>:<launch>:<folder>` (F5 of FIX-2:
@@ -274,6 +276,9 @@ export interface MergeInput {
   dismissed: Dismissal[];
   /** FD-231: every agent process on the Mac; null or absent where Switchboard cannot list them. */
   machine?: SbMachineProcess[] | null;
+  /** FD-291 step 2 (SB-395): this Mac's sessions page (`sessions --rows`); when given, its `pid:` rows are the processes
+   *  (`machine` is not read) and a launch it reads as ended is ended. Null or absent where Switchboard has no `--rows`. */
+  page?: SbPageRow[] | null;
   /** FD-247 (step 5): the sessions other machines' Switchboards listed, read over ssh (src/core/remote-sessions.ts). */
   remote?: { machine: string; rows: SbSessionRecord[]; page?: SbPageRow[] }[];
 }
@@ -529,10 +534,14 @@ export function mergeSessions(i: MergeInput): SessionRow[] {
     add(row({ ...common, state: 'ended-cannot-continue', reason: s.verdict === 'failed' ? 'resume-failed' : s.verdict, actions: ['dismiss'] }));
   }
 
-  // 5. Switchboard's sessions that are none of the above.
+  // 5. Switchboard's sessions that are none of the above. FD-291 step 2: a launch the sessions page reads as ended (its
+  // process gone) is ended, whatever its launch record still says.
+  const pageEnded = new Map<string, number | null>();
+  for (const p of i.page ?? []) if (p.id.startsWith('launch:') && p.group === 'ended' && p.launchId) pageEnded.set(p.launchId, p.since);
   for (const s of sb) {
     if (used.has(s)) continue;
-    const running = s.state === 'running' || s.state === 'starting' || s.state === 'unknown';
+    const endedThere = s.launch?.launchId ? pageEnded.get(s.launch.launchId) : undefined;
+    const running = endedThere === undefined && (s.state === 'running' || s.state === 'starting' || s.state === 'unknown');
     const started = s.launchedAt ?? s.startedAt;
     if (!running && !fresh(started, i.now)) continue; // ended more than a day ago, as far as can be told
     // FD-211: a session a host holds opens here, beside what its state offers.
@@ -543,7 +552,7 @@ export function mergeSessions(i: MergeInput): SessionRow[] {
       account: s.account || null, context: s.context, contextName: s.contextName, origin: s.continues ? 'handover' : 'switchboard', reason: null,
       // SB-201: only a Claude Code session has a Claude Code conversation to resume; a proxy launch rides `claude` too.
       // FD-207: a board run (`switchboard dispatch`) has no window; one launched in place runs in someone's terminal.
-      state, startedAt: started, endedAt: running ? null : s.launch?.endedAt ?? null, resumable: s.agent === 'claude-code',
+      state, startedAt: started, endedAt: running ? null : s.launch?.endedAt ?? endedThere ?? null, resumable: s.agent === 'claude-code',
       launch: s.launch,
     }));
   }
@@ -594,18 +603,37 @@ export function mergeSessions(i: MergeInput): SessionRow[] {
 
   // 6. FD-231 (SL-8): agent processes no owner started. One with a launch is Switchboard's and listed above; one in the
   // folder of a console of this app that started within SAME_START_MS is that console (a runtime this app ran itself,
-  // with no Switchboard account): neither is listed twice.
-  for (const p of i.machine ?? []) {
-    if (p.launchId) continue;
-    if (p.folder && i.consoles.some((c) => norm(c.folder) === norm(p.folder!) && p.startedAt !== null && Math.abs(c.startedAt - p.startedAt) <= SAME_START_MS)) continue;
-    const r = row({
-      id: processRowId(p.pid, p.startedAt), key: null, folder: p.folder ?? '', agent: p.agent, account: null, context: null,
-      origin: 'machine', state: 'running-unmanaged', reason: null, startedAt: p.startedAt, endedAt: null,
-      actions: p.folder ? actionsFor('running-unmanaged') : [],
-    });
-    r.at = Math.max(r.at, p.lastWriteAt ?? 0);
-    if (p.quiet && p.quietMinutes !== null) r.quietMinutes = p.quietMinutes;
-    add(r);
+  // with no Switchboard account): neither is listed twice. FD-291 step 2: with the sessions page they are its `pid:` rows,
+  // and one Switchboard reads as stopped by a limit waits in its own terminal, never "running".
+  const ours = (folder: string | null, startedAt: number | null) => folder !== null && i.consoles.some((c) => norm(c.folder) === norm(folder) && startedAt !== null && Math.abs(c.startedAt - startedAt) <= SAME_START_MS);
+  if (i.page) {
+    for (const p of i.page) {
+      if (!p.id.startsWith('pid:') || p.group === 'ended' || p.launchId || ours(p.folder, p.since)) continue;
+      const pid = Number(p.id.slice(4));
+      if (!Number.isInteger(pid) || pid <= 0) continue;
+      const waiting = p.group === 'waiting';
+      const r = row({
+        id: processRowId(pid, p.since), key: null, folder: p.folder, agent: p.agent === 'codex' ? 'codex' : 'claude-code', account: p.account, context: null,
+        origin: 'machine', state: waiting ? 'waiting-reset' : 'running-unmanaged', reason: waiting ? 'limit-terminal' : null, startedAt: p.since, endedAt: null,
+        actions: ['reveal'],
+      });
+      // Its last write, from how long it has been quiet when Switchboard read it.
+      if (p.quietMinutes !== null) r.at = Math.max(r.at, i.now - p.quietMinutes * 60_000);
+      if (!waiting && p.why === 'quiet' && p.quietMinutes !== null) r.quietMinutes = p.quietMinutes;
+      add(r);
+    }
+  } else {
+    for (const p of i.machine ?? []) {
+      if (p.launchId || ours(p.folder, p.startedAt)) continue;
+      const r = row({
+        id: processRowId(p.pid, p.startedAt), key: null, folder: p.folder ?? '', agent: p.agent, account: null, context: null,
+        origin: 'machine', state: 'running-unmanaged', reason: null, startedAt: p.startedAt, endedAt: null,
+        actions: p.folder ? actionsFor('running-unmanaged') : [],
+      });
+      r.at = Math.max(r.at, p.lastWriteAt ?? 0);
+      if (p.quiet && p.quietMinutes !== null) r.quietMinutes = p.quietMinutes;
+      add(r);
+    }
   }
 
   return rows.sort((a, b) => b.at - a.at || a.id.localeCompare(b.id));
