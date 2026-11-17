@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.8.172 - 2026-11-17
+
+### Security
+
+- FD-294: a bug report keeps no e-mail address. The app's bug journal already removed the home folder, the user name
+  and credentials from a message before it could be filed in the public repository; an address in an error's text now
+  reads `<email>` too.
+
 ## 0.8.171 - 2026-11-17
 
 ### Security

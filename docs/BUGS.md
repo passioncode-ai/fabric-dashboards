@@ -17,7 +17,7 @@ Every failure the app notices is one row per **fingerprint** in `bugs.json` in t
 
 A row holds the error's class, its message and **our own** stack frames (`core/monitor.js:300 Monitor.tick`; a
 dependency's or Node's frame is left out), how often, first and last seen and the versions it was seen in. The message
-and frames are scrubbed (`scrub`, `src/core/bugs.ts`): the home folder and user name, URL credentials, token-shaped
+and frames are scrubbed (`scrub`, `src/core/bugs.ts`): the home folder and user name, e-mail addresses (FD-294), URL credentials, token-shaped
 values and long hex runs are removed, and a message is cut at 500 characters. The fingerprint is a hash of where, the
 kind, the class and the function names of the top four own frames: the same bug in another version, or moved by a few
 lines, stays one row.

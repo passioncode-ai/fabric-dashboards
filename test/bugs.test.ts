@@ -127,3 +127,10 @@ test('Wave 1 T-10: Switchboard missing reads in Russian', async () => {
   const { machineRu } = await import('../src/core/machine-ru');
   assert.equal(machineRu('Switchboard is not installed'), 'Switchboard на этом компьютере не установлен');
 });
+
+test('FD-294 (7): a bug report keeps no e-mail address', () => {
+  const s = scrub('sign-in failed for ann.lee+work@example.co.uk at 10:00, then pat@mail.example.org', '', '');
+  assert.ok(!/@[a-z]/i.test(s), s);
+  assert.ok(s.includes('<email>'), s);
+  assert.equal(scrub('@scope/pkg@1.2.3 and user@host:repo', '', ''), '@scope/pkg@1.2.3 and user@host:repo', 'package and ssh specs stay');
+});
