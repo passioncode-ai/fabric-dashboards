@@ -1,11 +1,20 @@
 # Handoff — Fabric Dashboards
 
-Updated 2026-11-17 (0.8.162: start at *0.8.162* below; 0.8.161 tagged). History: updated 2026-10-26 (0.8.7 current then, see *0.8.7: start here*; earlier the same day 0.8.6, see *0.8.5: start here* and *Session 2026-10-26: start here*). Earlier: updated 2026-10-25 (0.8.1 current; the consolidation, see *Consolidation 2026-10-25: start here*). Earlier: updated 2026-10-24 (0.7.28). Earlier header: updated 2026-10-07 (0.6.2: 0.6.1 withdrawn for audit HIGH-2, audit fixes, signed feed; 0.6.1: LC-16 in detail updater, Russian by choice; 0.6.0 published 2026-10-06 21:35 UTC; release 0.5.6: third review pass, token latch; release 0.5.5 withdrawn: release audit and its second pass, A2A plan, ADR-0016, ADR-0015 data and updates, FD-05, FD-06, FD-13; Spend and DEC-0021; one entry per agent, ADR-0012; lifecycle contract landed from PR #21, unreleased; CI release rehearsal
+Updated 2026-11-17 (0.8.163: start at *0.8.163* below; 0.8.161 and 0.8.162 tagged). History: updated 2026-10-26 (0.8.7 current then, see *0.8.7: start here*; earlier the same day 0.8.6, see *0.8.5: start here* and *Session 2026-10-26: start here*). Earlier: updated 2026-10-25 (0.8.1 current; the consolidation, see *Consolidation 2026-10-25: start here*). Earlier: updated 2026-10-24 (0.7.28). Earlier header: updated 2026-10-07 (0.6.2: 0.6.1 withdrawn for audit HIGH-2, audit fixes, signed feed; 0.6.1: LC-16 in detail updater, Russian by choice; 0.6.0 published 2026-10-06 21:35 UTC; release 0.5.6: third review pass, token latch; release 0.5.5 withdrawn: release audit and its second pass, A2A plan, ADR-0016, ADR-0015 data and updates, FD-05, FD-06, FD-13; Spend and DEC-0021; one entry per agent, ADR-0012; lifecycle contract landed from PR #21, unreleased; CI release rehearsal
 `v0.4.1-rc.1` green; releases move to CI signing; release 0.4.1, MCP links to online services).
 
 Current release: **0.8.160** published 2026-11-17 05:16 UTC (run 44019086342, 16 assets). Earlier: **0.8.159** published 02:43 UTC (run 44001070642), installed on this Mac 03:09 UTC by its own updater; **0.8.158** published 02:09 UTC (run 43996927838); **0.8.157** published 01:12 UTC (16 assets). Earlier: **0.8.110** published 2026-11-15 09:04 UTC; earlier **0.8.105** published 2026-11-15 07:16 UTC; 0.8.108 (`de97f12`) and 0.8.109 (`33d0b30`) tagged in
 order, their runs under way. 0.8.106 and 0.8.107 were never published (0.8.106's check failed on an unref'd timer in a
 test; both fold into 0.8.108).
+
+## 0.8.163: the setup card counts what is left (2026-11-17)
+
+FD-209 done on the card. `computerSetup` (`src/core/setup-layer.ts`) reads the launcher's doctor as the computer layer
+and returns `{view, gates}`; MCP `setup_check` answers its `view` as `setup` and the setup card (`SetupCheck`,
+`src/renderer/components/Overview.tsx`) shows `view.next` above its steps as "Steps left: {steps}, yours: {yours}",
+with the gates ahead as "Needs you: …". Test: `test/setup-layer.test.ts` *FD-209 (SCN-100 step 1)*. **First task for
+the next agent:** watch v0.8.161, v0.8.162 and v0.8.163 to published (16 assets each) and confirm this Mac's copy
+updates; then FD-291 step 2 when fabric-switchboard answers on thread `5a5ab221`.
 
 ## 0.8.162: Continue on another machine's ready stop (2026-11-17)
 

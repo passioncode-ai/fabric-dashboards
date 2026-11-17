@@ -36,7 +36,7 @@ import { buildGraph, chainState, stateOfService, worstOf, type ConnectionGraph }
 import { audit as runAudit, type Finding } from '../core/audit';
 import { estateMap, type EstateMap } from '../core/estate-map';
 import { doctorArgv, doctorResult, DOCTOR_TIMEOUT_MS, setupSteps, type SetupCheckResult, type SetupStep } from '../core/doctor';
-import { doctorLayer, LAUNCHER_OWNER, setupView, type SetupView } from '../core/setup-layer';
+import { computerSetup, type SetupView } from '../core/setup-layer';
 import { SETUP_KEY } from '../core/offers';
 import { AGENT_SETTINGS, merge as mergeSettings, SettingsStore } from '../core/settings';
 import { places } from '../core/platform';
@@ -747,8 +747,7 @@ export async function setupCheck(deps: Deps): Promise<SetupCheckResult | (SetupC
   // FD-185: the steps the setup card shows, so an agent reads where the setup is in one look. FD-208, FD-209: the same
   // setup as fabric-agent-contract's draft `setup-layer/1` (CT-290), layer by layer, with the person's sheet.
   if (r.kind !== 'report') return r;
-  const computer = doctorLayer(r.report, r.checkedAt, (area) => tr('en', `setupCheck.area.${area}`));
-  return { ...r, ...setupSteps(r.report), setup: setupView([{ layer: 'computer', owner: LAUNCHER_OWNER }], [computer]) };
+  return { ...r, ...setupSteps(r.report), setup: computerSetup(r.report, r.checkedAt, (area) => tr('en', `setupCheck.area.${area}`)).view };
 }
 
 /** FD-81: the auditor over every installed agent, as the app's Agent map shows it: each finding with the agent

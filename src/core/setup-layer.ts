@@ -156,3 +156,12 @@ export function doctorLayer(report: DoctorReport, generatedAt: string, title: (a
   return { type: 'setup-layer/1', layer: 'computer', owner: LAUNCHER_OWNER, generatedAt, steps };
 }
 // #endregion setup-layers
+
+/** FD-209 (SCN-100 step 1): this computer's setup as the setup card shows it above its steps and MCP `setup_check`
+ *  answers it (`setup`): the view of the launcher's doctor read as the computer layer, and the gates the person will
+ *  meet on the steps not done, in step order. One call for both, so the card and an agent read one figure. */
+export function computerSetup(report: DoctorReport, generatedAt: string, title: (area: string) => string): { view: SetupView; gates: DoctorGate[] } {
+  const view = setupView([{ layer: 'computer', owner: LAUNCHER_OWNER }], [doctorLayer(report, generatedAt, title)]);
+  const gates = [...new Set(setupSteps(report).steps.flatMap((s) => (s.gate && s.state !== 'done' ? [s.gate] : [])))];
+  return { view, gates };
+}
