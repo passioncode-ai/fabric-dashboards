@@ -14,7 +14,7 @@ import { t, type Lang } from './i18n';
 import type { ActivityItem, ServiceSnapshot } from './types';
 import { waitsForSetup } from './setup-wait';
 import { askArgs, bypassArgs } from './runtimes';
-import { fence, injectionSignals, literal, newFenceId, oneLine, pathLiteral, UNTRUSTED_NOTE, UNTRUSTED_TAG } from './untrusted';
+import { cutWhole, fence, injectionSignals, literal, newFenceId, oneLine, pathLiteral, UNTRUSTED_NOTE, UNTRUSTED_TAG } from './untrusted';
 
 /** What the pack says. Built from the monitor's snapshot and the activity store; no token ever. */
 export interface HandoffContext {
@@ -152,7 +152,7 @@ export function contextMarkdown(c: HandoffContext, generatedAt: string): string 
     line('Update available', c.updateAvailable ? `${literal(c.updateAvailable)}${c.canUpdate ? ' (the descriptor has an `update` command; the MCP tool `update` runs it)' : ' (the descriptor has no `update` command)'}` : null),
     '',
     '## Recent events (newest first)',
-    ...(c.events.length ? [fence(src, c.events.map((e) => `- ${e.at} [${e.level}] ${e.text.replace(/\s+/g, ' ').slice(0, 400)}`).join('\n'), c.fenceId)] : ['- None recorded.']),
+    ...(c.events.length ? [fence(src, c.events.map((e) => `- ${e.at} [${e.level}] ${cutWhole(e.text.replace(/\s+/g, ' '), 400)}`).join('\n'), c.fenceId)] : ['- None recorded.']),
     '',
     '## Descriptor (its auth block left out)',
     fence(src, ['```json', JSON.stringify(c.descriptor, null, 2), '```'].join('\n'), c.fenceId),
