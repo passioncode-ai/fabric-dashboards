@@ -1,11 +1,24 @@
 # Handoff — Fabric Dashboards
 
-Updated 2026-11-17 (0.8.158 tagged, 0.8.159 next: FD-285 health alerts reach the channel, `channelEventId` in `src/core/outage-alerts.ts`; then start at *0.8.158* below for its checks). History: updated 2026-10-26 (0.8.7 current then, see *0.8.7: start here*; earlier the same day 0.8.6, see *0.8.5: start here* and *Session 2026-10-26: start here*). Earlier: updated 2026-10-25 (0.8.1 current; the consolidation, see *Consolidation 2026-10-25: start here*). Earlier: updated 2026-10-24 (0.7.28). Earlier header: updated 2026-10-07 (0.6.2: 0.6.1 withdrawn for audit HIGH-2, audit fixes, signed feed; 0.6.1: LC-16 in detail updater, Russian by choice; 0.6.0 published 2026-10-06 21:35 UTC; release 0.5.6: third review pass, token latch; release 0.5.5 withdrawn: release audit and its second pass, A2A plan, ADR-0016, ADR-0015 data and updates, FD-05, FD-06, FD-13; Spend and DEC-0021; one entry per agent, ADR-0012; lifecycle contract landed from PR #21, unreleased; CI release rehearsal
+Updated 2026-11-17 (0.8.159 published and installed: start at *0.8.159* below). History: updated 2026-10-26 (0.8.7 current then, see *0.8.7: start here*; earlier the same day 0.8.6, see *0.8.5: start here* and *Session 2026-10-26: start here*). Earlier: updated 2026-10-25 (0.8.1 current; the consolidation, see *Consolidation 2026-10-25: start here*). Earlier: updated 2026-10-24 (0.7.28). Earlier header: updated 2026-10-07 (0.6.2: 0.6.1 withdrawn for audit HIGH-2, audit fixes, signed feed; 0.6.1: LC-16 in detail updater, Russian by choice; 0.6.0 published 2026-10-06 21:35 UTC; release 0.5.6: third review pass, token latch; release 0.5.5 withdrawn: release audit and its second pass, A2A plan, ADR-0016, ADR-0015 data and updates, FD-05, FD-06, FD-13; Spend and DEC-0021; one entry per agent, ADR-0012; lifecycle contract landed from PR #21, unreleased; CI release rehearsal
 `v0.4.1-rc.1` green; releases move to CI signing; release 0.4.1, MCP links to online services).
 
-Current release: **0.8.157** published 2026-11-17 01:12 UTC (16 assets) (0.8.158 next; see *0.8.158* below). Earlier: **0.8.110** published 2026-11-15 09:04 UTC; earlier **0.8.105** published 2026-11-15 07:16 UTC; 0.8.108 (`de97f12`) and 0.8.109 (`33d0b30`) tagged in
+Current release: **0.8.159** published 2026-11-17 02:43 UTC (run 44001070642, 16 assets), installed on this Mac 03:09 UTC by its own updater. Earlier: **0.8.158** published 02:09 UTC (run 43996927838); **0.8.157** published 01:12 UTC (16 assets). Earlier: **0.8.110** published 2026-11-15 09:04 UTC; earlier **0.8.105** published 2026-11-15 07:16 UTC; 0.8.108 (`de97f12`) and 0.8.109 (`33d0b30`) tagged in
 order, their runs under way. 0.8.106 and 0.8.107 were never published (0.8.106's check failed on an unref'd timer in a
 test; both fold into 0.8.108).
+
+## 0.8.159: health alerts reach the operator's channel (2026-11-17)
+
+0.8.158 merged (PR #617, merge bcdfed6) and published. The installed 0.8.158 logged every FD-285 health alert refused by
+the operator's channel (`invalid_event_id`: its episode key carries `@`, the channel takes
+`[A-Za-z0-9][A-Za-z0-9_.:-]{0,159}`). 0.8.159 (PR #618, merge 0b5e485) maps the id through `channelEventId`
+(`src/core/outage-alerts.ts`); after the update main.log shows `alerts: sent failure
+health:fabric-switchboard:errors_today@2026-11-17` via the operator's notification channel. Checks: `npm run check` 1424
+pass, 0 fail; copy check report `7a1208f1-7c5a-430d-97a1-a9b7b26c402d`. The agents base ported FD-236 (9) into
+`patterns/untrusted-fence` 1.3.0 (board reply `feb9a43c`), told of 0.8.158's three pools and `unread-lookalikes`
+(`7b4685ce`). The disk fell to 141 MB free during the release; tool caches and Observatory's critical cleanup brought it
+to 7.8 GB. **First task for the next agent:** e2e when the screen is unlocked; otherwise the board by priority (most
+open rows wait on others: FD-12, FD-58, FD-105, FD-140, FD-291 step 2, FD-290 on SB-400, FD-242 on a free pool slot).
 
 ## 0.8.158: the lookalike reading's cost on short text, and short lines kept short (2026-11-17)
 
