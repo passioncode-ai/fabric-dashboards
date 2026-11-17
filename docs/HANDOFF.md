@@ -1,11 +1,24 @@
 # Handoff — Fabric Dashboards
 
-Updated 2026-11-17 (0.8.161: start at *0.8.161* below; 0.8.160 published). History: updated 2026-10-26 (0.8.7 current then, see *0.8.7: start here*; earlier the same day 0.8.6, see *0.8.5: start here* and *Session 2026-10-26: start here*). Earlier: updated 2026-10-25 (0.8.1 current; the consolidation, see *Consolidation 2026-10-25: start here*). Earlier: updated 2026-10-24 (0.7.28). Earlier header: updated 2026-10-07 (0.6.2: 0.6.1 withdrawn for audit HIGH-2, audit fixes, signed feed; 0.6.1: LC-16 in detail updater, Russian by choice; 0.6.0 published 2026-10-06 21:35 UTC; release 0.5.6: third review pass, token latch; release 0.5.5 withdrawn: release audit and its second pass, A2A plan, ADR-0016, ADR-0015 data and updates, FD-05, FD-06, FD-13; Spend and DEC-0021; one entry per agent, ADR-0012; lifecycle contract landed from PR #21, unreleased; CI release rehearsal
+Updated 2026-11-17 (0.8.162: start at *0.8.162* below; 0.8.161 tagged). History: updated 2026-10-26 (0.8.7 current then, see *0.8.7: start here*; earlier the same day 0.8.6, see *0.8.5: start here* and *Session 2026-10-26: start here*). Earlier: updated 2026-10-25 (0.8.1 current; the consolidation, see *Consolidation 2026-10-25: start here*). Earlier: updated 2026-10-24 (0.7.28). Earlier header: updated 2026-10-07 (0.6.2: 0.6.1 withdrawn for audit HIGH-2, audit fixes, signed feed; 0.6.1: LC-16 in detail updater, Russian by choice; 0.6.0 published 2026-10-06 21:35 UTC; release 0.5.6: third review pass, token latch; release 0.5.5 withdrawn: release audit and its second pass, A2A plan, ADR-0016, ADR-0015 data and updates, FD-05, FD-06, FD-13; Spend and DEC-0021; one entry per agent, ADR-0012; lifecycle contract landed from PR #21, unreleased; CI release rehearsal
 `v0.4.1-rc.1` green; releases move to CI signing; release 0.4.1, MCP links to online services).
 
 Current release: **0.8.160** published 2026-11-17 05:16 UTC (run 44019086342, 16 assets). Earlier: **0.8.159** published 02:43 UTC (run 44001070642), installed on this Mac 03:09 UTC by its own updater; **0.8.158** published 02:09 UTC (run 43996927838); **0.8.157** published 01:12 UTC (16 assets). Earlier: **0.8.110** published 2026-11-15 09:04 UTC; earlier **0.8.105** published 2026-11-15 07:16 UTC; 0.8.108 (`de97f12`) and 0.8.109 (`33d0b30`) tagged in
 order, their runs under way. 0.8.106 and 0.8.107 were never published (0.8.106's check failed on an unref'd timer in a
 test; both fold into 0.8.108).
+
+## 0.8.162: Continue on another machine's ready stop (2026-11-17)
+
+FD-291's Continue, done. A row of another machine that its Switchboard reads as ready to continue (`sessions --rows`,
+`why: ready_to_continue`, `acts: continue`, a session id of the launch-id form) carries `remoteSession` and offers
+Continue (`src/core/sessions.ts`, part 5b). `continueRemote` (`src/electron/console.ts`) opens a console of its own
+(`attachOwnKey('<machine>:<session>')`, admission without the disk check, FD-210) running `remoteContinueArgv`
+(`src/core/remote-sessions.ts`): `ssh -t -o ConnectTimeout=5 <machine> '<sb-there>' sessions continue '<session>'
+--in-place --hosted --surface dashboards [--data-dir '<D>']`. Switchboard 0.7.111 has no `--target` on `sessions
+continue`, so it is our ssh. MCP `session_action` `continue` takes the same path. Tests: `test/remote-sessions.test.ts`
+*FD-291* (23 pass). Left: FD-291 step 2 (this Mac on `--rows`) waits for fabric-switchboard to read a launch continued
+by a hand-over as moved on, not ready (report on thread `5a5ab221`). **First task for the next agent:** that board
+reply if not yet sent, then e2e when the screen is unlocked and the disk has 5 GB.
 
 ## 0.8.161: a limit stop whose conversation is in a Switchboard home continues (2026-11-17)
 

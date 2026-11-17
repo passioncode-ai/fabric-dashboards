@@ -93,7 +93,8 @@ export interface SessionRow {
   held: StopView['held'] | null;
   /** An ended row: whether Continue can take up its own conversation (a known session id, a Claude Code session whose
    *  transcript the app finds by folder and time, or an agent console's own Continue); otherwise the button reads
-   *  "New session here" (decision 6 of 2026-10-24). False for every row that is not ended. */
+   *  "New session here" (decision 6 of 2026-10-24). False for every row that is not ended, except another machine's
+   *  stop ready to continue (FD-291), which continues its own conversation there. */
   resumable: boolean;
   /** V-5 (FIX-2): an ended row whose console of this app holds nothing it printed (the app restarted since): its page
    *  says so instead of showing an empty console. Set by the console host; false in the pure merge. */
@@ -109,6 +110,9 @@ export interface SessionRow {
   /** FD-231: a session no owner started whose folder's transcripts Switchboard found unwritten for its quiet time (30
    *  minutes): how many minutes. Absent for every other row. */
   quietMinutes?: number;
+  /** FD-291: another machine's limit stop that its Switchboard reads as ready to continue (`acts: continue`, SB-395):
+   *  the session id Continue passes to `sessions continue` there. Absent for every other row. */
+  remoteSession?: string;
   /** The row's latest known time, the list's order (newest first). */
   at: number;
 }
@@ -573,14 +577,17 @@ export function mergeSessions(i: MergeInput): SessionRow[] {
       const reason: SessionReason | null = p.group !== 'needs_you' ? null
         : p.why === 'ready_to_continue' ? 'remote-ready' : p.why === 'gone' ? 'remote-gone' : p.why === 'duplicate' ? 'remote-twice' : p.why === 'stuck' ? 'remote-stuck' : 'remote-needs';
       const live = p.launchId && LAUNCH_RE.test(p.launchId);
+      // FD-291: a stop there that its Switchboard offers to continue, by a session id that may reach a command line there.
+      const ready = p.group === 'needs_you' && p.why === 'ready_to_continue' && p.acts.includes('continue') && p.sessionId !== null && LAUNCH_RE.test(p.sessionId);
       const r = row({
         id: `rm:${m.machine}:${p.id}`, key: null, folder: p.folder, machine: m.machine, agent: p.agent,
-        actions: [...(live && p.acts.includes('attach') ? ['attach' as const] : []), ...(live && p.acts.includes('end') ? ['end' as const] : []),
+        actions: [...(ready ? ['continue' as const] : []), ...(live && p.acts.includes('attach') ? ['attach' as const] : []), ...(live && p.acts.includes('end') ? ['end' as const] : []),
           ...(p.group === 'needs_you' || ended ? ['dismiss' as const] : [])],
         account: p.account, context: null, contextName: null, origin: p.id.startsWith('stop:') ? 'limit' : p.origin === null && p.id.startsWith('pid:') ? 'machine' : 'switchboard',
         reason, state, startedAt: ended ? null : p.since, endedAt: ended ? p.since : null, launch, expectedAt: p.group === 'waiting' ? p.probeAt : null,
       });
       if (p.quietMinutes !== null && p.why === 'quiet') r.quietMinutes = p.quietMinutes;
+      if (ready) { r.remoteSession = p.sessionId!; r.resumable = true; }
       add(r);
     }
   }

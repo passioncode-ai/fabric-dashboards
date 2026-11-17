@@ -66,6 +66,12 @@ MCP capability first.
 3. New session there: the FD-206 dialog with that machine and folder filled in.
 4. End on a remote hosted row: asks first, then `ssh <machine> <sb-there> sessions end <id>`; non-hosted remote rows
    offer no End.
+5. FD-291 (2026-11-17, 0.8.162): Continue on a stop that machine's Switchboard reads as ready (`why: ready_to_continue`,
+   `acts: continue`): a console of its own runs `ssh -t <machine> <sb-there> sessions continue <session> --in-place
+   --hosted --surface dashboards`, which continues it in that machine's session host under a launch of its own and
+   attaches (SB-400); closing the view leaves it running there. `sessions continue` takes no `--target` (Switchboard
+   0.7.111), so it is always our ssh. The session id is checked like a launch id and quoted; nothing of this Mac (no
+   context pack, no prompt) reaches that machine, so the FD-234 hold has nothing to fence.
 
 ### Security
 - ssh only to names in the current `targets` list, matched by `MACHINE` (`platform.ts:152`), through a fixed argv; no

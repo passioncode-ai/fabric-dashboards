@@ -6,10 +6,11 @@ import test from 'node:test';
 import { ConsoleHost } from '../src/electron/console';
 import { SettingsStore } from '../src/core/settings';
 import { tmp } from './helpers';
-import { DEFAULT_REMOTE_SWITCHBOARD, LAUNCH_ID, parseTargets, remoteAttachArgv, remoteEndArgv, readRemoteSessions, targetAttachArgv, targetEndArgv, targetSessionsArgv, REMOTE_BACKOFF_MS, REMOTE_KEEP_MS, REMOTE_MAX_ROWS, REMOTE_POLL_MS, RemoteSessions, remoteSessionsArgv } from '../src/core/remote-sessions';
+import { DEFAULT_REMOTE_SWITCHBOARD, LAUNCH_ID, parseTargets, remoteAttachArgv, remoteContinueArgv, remoteEndArgv, readRemoteSessions, targetAttachArgv, targetEndArgv, targetSessionsArgv, REMOTE_BACKOFF_MS, REMOTE_KEEP_MS, REMOTE_MAX_ROWS, REMOTE_POLL_MS, RemoteSessions, remoteSessionsArgv } from '../src/core/remote-sessions';
 import { parseRequest } from '../src/core/console-channel';
 import { dropRemoteTwins, machineTerminalKey, mergeSessions, remoteRowId, type SbSessionRecord, type SessionRow } from '../src/core/sessions';
 import { DEFAULT_SETTINGS } from '../src/core/types';
+import { parsePageRows } from '../src/core/switchboard';
 import { merge as mergeSettings } from '../src/core/settings';
 
 const TARGETS = JSON.stringify({ data: { targets: [
@@ -408,7 +409,7 @@ test('FD-291 step 1: a Switchboard there without the page answers too old, and i
   assert.equal(d.status()[0]!.state, 'unreachable');
 });
 
-test('FD-291 step 1: page rows become the machine\'s rows in their groups; acts on another machine are only Open here and End', async () => {
+test('FD-291 step 1: page rows become the machine\'s rows in their groups; acts on another machine are Continue, Open here and End', async () => {
   const f = fakeRows(() => ({ code: 0, stdout: page(ROWS) }));
   const r = new RemoteSessions(f.run, () => NOW);
   await r.poll(SB);
@@ -420,9 +421,64 @@ test('FD-291 step 1: page rows become the machine\'s rows in their groups; acts 
   assert.deepEqual([by('launch:L-1').state, by('launch:L-1').actions], ['running-terminal', ['attach', 'end']]);
   assert.equal(by('launch:L-1').launch?.providerSessionId, 's1');
   assert.deepEqual([by('stop:cc-abc-1').state, by('stop:cc-abc-1').reason, by('stop:cc-abc-1').group], ['needs-you-not-opened', 'remote-ready', 'needs-you']);
-  assert.ok(!by('stop:cc-abc-1').actions.includes('continue' as never), 'continuing on another machine is not offered here yet (FD-290)');
+  assert.deepEqual([by('stop:cc-abc-1').actions, by('stop:cc-abc-1').remoteSession, by('stop:cc-abc-1').resumable], [['continue', 'dismiss'], 'abc', true]);
+  assert.equal(by('launch:L-2').actions.includes('continue' as never), false, 'an ended launch there is not continued from here');
   assert.deepEqual([by('stop:cc-def-2').state, by('stop:cc-def-2').expectedAt, by('stop:cc-def-2').origin], ['waiting-reset', NOW + 900_000, 'limit']);
   assert.equal(by('launch:L-2').state, 'ended');
   assert.equal(rows.find((x) => x.id === 'rm:studio-2:launch:L-3'), undefined, 'an ended row older than the list keeps is not listed');
   assert.ok(rows.every((x) => x.machine === 'studio-2'));
+});
+
+// FD-291: Continue for a stop another machine's Switchboard reads as ready (`sessions continue --in-place --hosted`, SB-400).
+test('FD-291: Continue on another machine is one fixed argv over our ssh; a session id that is not one goes nowhere', () => {
+  const [a, b] = parseTargets(TARGETS);
+  assert.deepEqual(remoteContinueArgv(a!, 'e673ebe6-a533-4a96-895b-9575d7fdbee4'), ['/usr/bin/ssh', '-t', '-o', 'ConnectTimeout=5', 'me@192.0.2.9',
+    `'${DEFAULT_REMOTE_SWITCHBOARD}' sessions continue 'e673ebe6-a533-4a96-895b-9575d7fdbee4' --in-place --hosted --surface dashboards`]);
+  assert.equal(remoteContinueArgv(b!, 's1')!.at(-1), `'/opt/sb/bin/switchboard' sessions continue 's1' --in-place --hosted --surface dashboards --data-dir '/srv/sb data'`);
+  for (const bad of ['', 'a b', "x';rm -rf ~;'", '$(id)', '-x', 'x'.repeat(129)].filter((x) => !LAUNCH_ID.test(x))) assert.equal(remoteContinueArgv(a!, bad), null);
+});
+
+test('FD-291: a ready stop there offers Continue only when its Switchboard does and its session id is safe', () => {
+  const stop = ROWS[2]!;
+  const rows = mergeSessions({ now: NOW, switchboard: [], pending: [], stops: [], consoles: [], records: [], dismissed: [], remote: [{ machine: 'studio-2', rows: [], page: parsePageRows({ rows: [
+    stop, { ...stop, id: 'stop:cc-x-2', acts: [] }, { ...stop, id: 'stop:cc-x-3', session_id: 'bad id' }, { ...stop, id: 'stop:cc-x-4', session_id: null },
+  ] }) }] });
+  const by = (id: string) => rows.find((x) => x.id === `rm:studio-2:${id}`)!;
+  assert.deepEqual(by('stop:cc-abc-1').actions, ['continue', 'dismiss']);
+  for (const id of ['stop:cc-x-2', 'stop:cc-x-3', 'stop:cc-x-4']) {
+    assert.deepEqual([by(id).actions, by(id).remoteSession, by(id).resumable], [['dismiss'], undefined, false], id);
+  }
+});
+
+test('FD-291: the console host continues a ready stop there in a console of its own over ssh; a second press finds it', { skip: process.platform === 'win32' && 'the fake switchboard is a shell script' }, async () => {
+  const base = tmp('fd-remote-continue-');
+  const bin = path.join(base, 'bin');
+  fs.mkdirSync(bin);
+  fs.writeFileSync(path.join(bin, 'switchboard'), '#!/bin/sh\n', { mode: 0o755 });
+  const settings = new SettingsStore(path.join(base, 'data'));
+  const spawned: string[][] = [];
+  const host = new ConsoleHost({
+    settings, snapshot: () => null, window: () => null, visible: () => true, log: () => undefined, testDirs: [bin], scriptsDir: path.join(base, 'scripts'),
+    run: async (_file, args) => {
+      if (args.at(-1) === '--help') return { code: 0, stdout: '      --rows\n      --target <TARGET>\n      --remote <REMOTE>\n      --remote-data-dir <REMOTE_DATA_DIR>\n', stderr: '' };
+      if (args.join(' ') === '--json targets') return { code: 0, stdout: JSON.stringify({ data: { targets: [{ machine: 'studio-2', aliases: [] }] } }), stderr: '' };
+      if (args.join(' ') === '--json sessions --rows --target studio-2') return { code: 0, stdout: page([{ ...ROWS[2], since: Date.now() / 1000 - 600 }]), stderr: '' };
+      if (args.join(' ') === '--json sessions --all') return { code: 0, stdout: JSON.stringify({ ok: true, data: { sessions: [] } }), stderr: '' };
+      return { code: 1, stdout: '', stderr: '' };
+    },
+    spawn: (file: string, args: string[]) => { spawned.push([file, ...args]); return { pid: 2_100_000_000, onData: () => ({ dispose() {} }), onExit: () => ({ dispose() {} }), write() {}, resize() {}, kill() {} }; },
+    killGroup: () => undefined, idleMs: 0,
+    machine: async () => ({ freeDisk: 50 * 1024 ** 3, swap: null, running: 0 }), keys: () => [], home: base,
+  } as ConstructorParameters<typeof ConsoleHost>[0]);
+  settings.update({ layout: { ...settings.get().layout, mode: 'sessions' } });
+  await host.pollSessions();
+  for (let i = 0; i < 50 && !host.sessionsStatus().rows.some((r) => r.machine === 'studio-2'); i++) await new Promise((r) => setTimeout(r, 10));
+  const row = host.sessionsStatus().rows.find((r) => r.machine === 'studio-2')!;
+  assert.deepEqual([row.reason, row.actions], ['remote-ready', ['continue', 'dismiss']]);
+  const done = await host.continueSession(row.id);
+  assert.equal(done.ok, true);
+  assert.equal(spawned.length, 1);
+  assert.ok(spawned[0]!.join(' ').endsWith(`studio-2 '${DEFAULT_REMOTE_SWITCHBOARD}' sessions continue 'abc' --in-place --hosted --surface dashboards`), JSON.stringify(spawned));
+  assert.deepEqual(await host.continueSession(row.id), done, 'a second press finds the same console');
+  assert.equal(spawned.length, 1);
 });

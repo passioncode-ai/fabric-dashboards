@@ -117,7 +117,7 @@
 | SCN-109 | Find a session: search, filters and machines | sessions | P-01 | ST-019 | implemented | 2026-11-15 |
 | SCN-110 | See the sessions running on other machines | sessions | P-01 | ST-019 | implemented | 2026-11-16 |
 | SCN-111 | Open a terminal on another machine | sessions | P-01 | ST-019 | implemented | 2026-11-15 |
-| SCN-112 | Open here or end a session another machine's session host holds | sessions | P-01 | ST-019 | implemented | 2026-11-15 |
+| SCN-112 | Open here, continue or end a session on another machine | sessions | P-01 | ST-019 | implemented | 2026-11-15 |
 | SCN-113 | The Organizations menu keeps every organization Observatory names | navigation | P-01 | ST-016 | implemented | 2026-11-15 |
 | SCN-114 | Configure the organizations | settings | P-01 | ST-016 | implemented | 2026-11-15 |
 | SCN-115 | Join an organization | settings | P-01 | ST-016 | implemented | 2026-11-15 |
@@ -2509,7 +2509,7 @@ The Sessions mode (0.8.0): every coding session apart from the agents, each stat
 - **Steps:**
   1. The person opens the Sessions mode -> within 15 s each machine Switchboard names is asked once over ssh for its sessions (two at a time)
   2. The list shows that machine's running sessions and those ended in the last day, each naming the machine on both lines of its row; a session this app started there (SCN-101) is listed once, as its console
-  2a. FD-291: when both Switchboards have the sessions page (SB-395, `sessions --rows`), the machine is read with `sessions --rows --target` and its list holds every coding process there too (a Claude Code or Codex started outside Switchboard reads "Running, started by hand" and, when quiet, how long), the sessions stopped on a usage limit (waiting, with the time Switchboard tries again) and those that need a person there, each with its reason naming the machine ("Stopped on a usage limit. An account on {machine} is ready, so continue it there.", "Its process on {machine} ended, and no end was recorded.", "Runs twice on {machine}: close one copy there.", "A board run on {machine} has written nothing for 30 minutes.", "Switchboard on {machine} says it needs you."); Open here and End are offered where that row offers them, and continuing there is not offered from this Mac yet (FD-290)
+  2a. FD-291: when both Switchboards have the sessions page (SB-395, `sessions --rows`), the machine is read with `sessions --rows --target` and its list holds every coding process there too (a Claude Code or Codex started outside Switchboard reads "Running, started by hand" and, when quiet, how long), the sessions stopped on a usage limit (waiting, with the time Switchboard tries again) and those that need a person there, each with its reason naming the machine ("Stopped on a usage limit. An account on {machine} is ready, so continue it there.", "Its process on {machine} ended, and no end was recorded.", "Runs twice on {machine}: close one copy there.", "A board run on {machine} has written nothing for 30 minutes.", "Switchboard on {machine} says it needs you."); Open here and End are offered where that row offers them, and a stop ready to continue there offers Continue (SCN-112 step 4, FD-291)
   3. The person stays on the list -> each machine is read again once a minute
 - **Expected result:** every coding session of the person's machines is in one list, and a machine that cannot be read says why instead of looking empty
 - **Alt paths:** the window hidden or the Agents mode on screen -> no ssh runs; the switch off -> nothing is read and the other machines' rows go; an agent sets the switch with MCP `settings` (`remoteSessions`)
@@ -2538,24 +2538,25 @@ The Sessions mode (0.8.0): every coding session apart from the agents, each stat
 - **Coverage:** src/electron/console.ts (openMachineTerminal), src/core/sessions.ts (machineTerminalKey), src/core/console-channel.ts (kind terminal), src/electron/main.ts (session.new terminal), src/renderer/components/Sessions.tsx (Open terminal)
 - **Status:** implemented (2026-11-15, 0.8.115: `test/remote-sessions.test.ts` *FD-247 step 7b*)
 
-### SCN-112: Open here or end a session another machine's session host holds
+### SCN-112: Open here, continue or end a session on another machine
 
 - **Persona:** P-01
 - **Feature:** sessions
 - **Traces:** FD-247 step 7 (design `docs/design/2026-11-15-sessions-machines.md` §Connecting to a remote machine); SCN-104 on this Mac
-- **Entry point:** a running row of another machine in All sessions or on its page (SCN-110)
-- **Preconditions:** that machine's Switchboard runs the session in its session host (`attachable`), and ssh reaches it without a prompt
+- **Entry point:** a running row of another machine in All sessions or on its page (SCN-110), or (step 4) a row there stopped on a usage limit with an account ready
+- **Preconditions:** that machine's Switchboard runs the session in its session host (`attachable`), or (step 4) reads its stop as ready to continue (`sessions --rows`, `acts: continue`) and has `sessions continue --hosted` (SB-400); ssh reaches it without a prompt
 - **Steps:**
   1. The person presses Open here -> a console of its own runs `ssh -t <machine> <switchboard there> attach <launch>` and shows the session; a second Open here finds the same console
   2. The person closes that console -> only the view closes; the session runs on there
   3. The person presses End and confirms -> `sessions end <launch>` runs there; the next read of that machine shows it ended
-- **Expected result:** a session on another machine is watched and stopped from here as one on this Mac is
-- **Alt paths:** a session there that its host does not hold -> no Open here and no End (only its row); an agent does the same with MCP `session_action` (`attach`, `end`) on the row's id
-- **UI elements:** Open here, End with its question, the session's console
+  4. FD-291: on a row "Stopped on a usage limit. An account on {machine} is ready" the person presses Continue -> a console of its own runs `ssh -t <machine> <switchboard there> sessions continue <session> --in-place --hosted --surface dashboards`, which continues the session there in its session host and shows it; closing that console leaves it running there; a second Continue finds the same console
+- **Expected result:** a session on another machine is watched, continued and stopped from here as one on this Mac is
+- **Alt paths:** a session there that its host does not hold -> no Open here and no End (only its row); a stop whose Switchboard does not offer to continue it, or whose session id is not of the form below, offers no Continue; an older Switchboard there that lacks `--hosted` says so in the console; an agent does the same with MCP `session_action` (`attach`, `end`, `continue`) on the row's id
+- **UI elements:** Open here, Continue, End with its question, the session's console
 - **States covered:** success, error (the machine not reachable, the session already gone)
-- **Errors & recovery:** End that fails says why ("not reachable over ssh", or what the machine answered, cut to 200 characters); only a launch id of the form `^[A-Za-z0-9._:-]{1,128}$` reaches the other machine, always quoted; Open here is held back by the console count and swap, never by this disk (FD-210)
-- **Coverage:** src/core/remote-sessions.ts (remoteAttachArgv, remoteEndArgv, LAUNCH_ID), src/electron/console.ts (attachRemote, endRemote), src/core/sessions.ts (remote row actions)
-- **Status:** implemented (2026-11-15, 0.8.115: `test/remote-sessions.test.ts` *FD-247 step 7*)
+- **Errors & recovery:** End that fails says why ("not reachable over ssh", or what the machine answered, cut to 200 characters); only a launch or session id of the form `^[A-Za-z0-9._:-]{1,128}$` reaches the other machine, always quoted; Open here and Continue are held back by the console count and swap, never by this disk (FD-210)
+- **Coverage:** src/core/remote-sessions.ts (remoteAttachArgv, remoteContinueArgv, remoteEndArgv, LAUNCH_ID), src/electron/console.ts (attachRemote, continueRemote, endRemote), src/core/sessions.ts (remote row actions, remoteSession)
+- **Status:** implemented (2026-11-15, 0.8.115: `test/remote-sessions.test.ts` *FD-247 step 7*; 2026-11-17, 0.8.162: Continue, *FD-291*)
 
 ### SCN-113: The Organizations menu keeps every organization Observatory names
 
