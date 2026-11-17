@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.8.161 - 2026-11-17
+
+### Fixed
+
+- FD-217: a Claude session stopped on a usage limit whose conversation is kept in a Switchboard home (a session
+  Switchboard launched) is no longer read as "not in your home" when Switchboard can continue it there (0.7.110 or
+  later): the app continues it in Switchboard's session host and proves it by that home's transcript. With an older
+  Switchboard such a stop is still listed and never claimed.
+
 ## 0.8.160 - 2026-11-17
 
 ### Changed
