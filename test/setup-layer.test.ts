@@ -135,3 +135,22 @@ test('FD-215 (the launcher\'s message 84198dd6): a line `setup` does not fix is 
   assert.ok(parseSetupLayer(doctorLayer(report, '2026-11-13T00:00:00Z', (a) => a)).ok);
   assert.match(doctorMarkdown(report), /memory\.vault.*`setup` does not fix this/);
 });
+
+test('FD-209 (SCN-100 step 1): the setup card\'s count and MCP `setup_check`\'s `setup.next` are one figure, with the gates ahead', async () => {
+  const { parseDoctor } = await import('../src/core/doctor');
+  const { computerSetup, doctorLayer, setupView, LAUNCHER_OWNER } = await import('../src/core/setup-layer');
+  const report = parseDoctor(JSON.stringify({ version: '0.2.78', at: 't', ok: false, checks: [
+    { id: 'node', area: 'prerequisites', state: 'ok', detail: 'Node 26' },
+    { id: 'skills.adapter', area: 'skills', state: 'warn', detail: 'old', fix: 'update' },
+    { id: 'app.fabric', area: 'apps', state: 'fail', detail: 'missing', fix: 'install', gate: 'sign-in' },
+    { id: 'mcp.claude', area: 'mcp', state: 'fail', detail: 'not signed in', fix: 'claude login', gate: 'sign-in' },
+  ] }))!;
+  const title = (a: string) => a;
+  const { view, gates } = computerSetup(report, '2026-11-17T10:00:00Z', title);
+  assert.deepEqual(view, setupView([{ layer: 'computer', owner: LAUNCHER_OWNER }], [doctorLayer(report, '2026-11-17T10:00:00Z', title)]));
+  assert.equal(view.next.steps, 3, 'skills, apps and mcp are not done');
+  assert.ok(view.next.yours >= 1 && view.next.yours <= view.next.steps);
+  assert.deepEqual(gates, ['sign-in'], 'a gate is named once, however many steps meet it');
+  const clean = parseDoctor(JSON.stringify({ version: 'x', at: 't', ok: true, checks: [] }))!;
+  assert.deepEqual(computerSetup(clean, 't', title).gates, []);
+});
