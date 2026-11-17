@@ -401,7 +401,7 @@ test('FD-248 step 5: Settings → Organizations lists each organization with a l
   assert.match(html, /placeholder="Acme"/);
   assert.match(html, /Agents here: 1/);
   assert.match(html, /Agents here: 0/);
-  assert.match(html, /your own/);
+  assert.match(html, /yours/);
   assert.match(html, /aria-label="Show Globex in the menu"/);
   assert.equal((html.match(/checked=""/g) ?? []).length, 1, 'acme shows, globex is hidden');
 });

@@ -25,7 +25,7 @@ export function newSessionFailText(t: T, r: Extract<NewSessionResult, { ok: fals
   if (r.reason === 'switchboard') return t('console.sbError', { detail: r.detail ?? '' });
   if (r.reason === 'spawn') return t('console.spawnError', { detail: r.detail ?? '' });
   // FD-206: a session on another machine refused before it started.
-  if (r.reason === 'remote' && ['provider', 'old-switchboard', 'no-switchboard', 'unknown-machine'].includes(r.detail ?? '')) return t(`newSession.remote.${r.detail}`);
+  if (r.reason === 'remote' && ['provider', 'old-switchboard', 'no-switchboard', 'unknown-machine', 'kind'].includes(r.detail ?? '')) return t(`newSession.remote.${r.detail}`);
   return t('newSession.failed');
 }
 
@@ -61,7 +61,7 @@ export function NewSessionDialog({ kind, onClose, onStarted, machine: preset }: 
       setBypass(o.bypass);
       setIsolated(o.isolated);
       const first = initialMachine(preset, o);
-      if (first.machine) { setMachine(first.machine); setRemoteFolder(first.remoteFolder); }
+      if (first.machine && kind === 'session') { setMachine(first.machine); setRemoteFolder(first.remoteFolder); }
     }).catch((e: Error) => { if (live) setError(t('newSession.failed.read', { detail: e.message })); });
     return () => { live = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -130,7 +130,7 @@ export function NewSessionDialog({ kind, onClose, onStarted, machine: preset }: 
                 ))}
               </div>
             </fieldset>
-            {options.machines.length > 0 && (
+            {options.machines.length > 0 && kind === 'session' && ( /* FD-300: an agent's or dashboard's brief is written on this Mac only */
               <div className="new-session-field">
                 <label className="new-session-label" htmlFor="new-session-machine">{t('newSession.machine')}</label>
                 <select id="new-session-machine" value={machine} disabled={busy} aria-describedby={machine ? 'new-session-machine-hint' : undefined} onChange={(e) => { setMachine(e.target.value); setError(null); }}>

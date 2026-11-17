@@ -259,6 +259,15 @@ test('FD-191 (SCN-102): New agent starts with the brief to create one, in the pr
   assert.ok(r.spawned[0]!.args.some((a) => a.includes('agent.md')));
 });
 
+test('FD-300 (SCN-102, SCN-119): New agent and New dashboard on another machine are refused, never started without their brief', POSIX, async () => {
+  const r = rig();
+  for (const kind of ['agent', 'dashboard'] as const) {
+    const done = await r.host.startNew({ kind, runtime: 'claude-code', folder: '/srv/agents', bypass: true, isolated: false, machine: 'build-box' }, { cols: 80, rows: 24 });
+    assert.deepEqual(done, { ok: false, reason: 'remote', detail: 'kind' });
+  }
+  assert.equal(r.spawned.length, 0, 'nothing started');
+});
+
 test('FD-171 (SCN-119): New dashboard starts with the brief to make one, in the chosen folder', POSIX, async () => {
   const r = rig();
   const done = await r.host.startNew({ kind: 'dashboard', runtime: 'claude-code', folder: r.folder, bypass: true, isolated: false }, { cols: 80, rows: 24 });

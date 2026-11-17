@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.8.179 - 2026-11-17
+
+### Fixed
+- FD-300: New agent and New dashboard no longer start on another machine without their brief. The brief and this app's
+  MCP pack are written beside this computer's console, and a start on another machine carried neither, so the coding
+  agent began a plain session there. The dialog offers no Machine choice for these kinds, and MCP `session_new` with a
+  machine answers `remote: kind` (SCN-102, SCN-119).
+
+### Changed
+- FD-301: the personal organization's tag reads "yours" in Settings and on This Mac too, as in the Organizations menu.
+- FD-301: scenarios, README and the backlog read against the code (refactor plan, wave 1,
+  `docs/plans/2026-11-17-refactor-waves/`): SCN-009/010, 062, 082, 090, 094, 098, 100, 101, 104, 105, 109, 115, 116;
+  the README lists all 33 MCP tools; FD-248 and FD-290 closed, FD-285 and FD-247 restated.
+
 ## 0.8.178 - 2026-11-17
 
 ### Fixed
