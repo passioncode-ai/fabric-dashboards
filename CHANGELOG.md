@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.8.184 - 2026-11-17
+
+### Changed
+- FD-306 (refactor wave 6, no behaviour change): `Shell` (`src/renderer/App.tsx`) hands the Sessions page's state to
+  `useSessionsShell` and the console drawer's measured area to `useDrawerArea`.
+
 ## 0.8.183 - 2026-11-17
 
 ### Changed
