@@ -16,7 +16,7 @@ const GB = 1024 ** 3;
 const LID = '00000000-0000-4000-8000-000000000211';
 const ok = (data: unknown) => ({ code: 0, stdout: JSON.stringify({ ok: true, data }), stderr: '' });
 
-function rig(o: { hosted?: boolean; listed?: boolean; endFails?: boolean } = {}) {
+function rig(o: { hosted?: boolean; listed?: boolean; endFails?: boolean; history?: boolean } = {}) {
   const base = tmp('fd-211-');
   const bin = path.join(base, 'bin');
   const folder = path.join(base, 'work');
@@ -38,6 +38,8 @@ function rig(o: { hosted?: boolean; listed?: boolean; endFails?: boolean } = {})
       if (line === 'launch --help') return { code: 0, stdout: `--provider --in-place --surface --target${o.hosted === false ? '' : ' --hosted'}`, stderr: '' };
       if (line === 'sessions --help') return { code: 0, stdout: 'Commands:\n  show  One launch\n  end   End a session a session host holds\n', stderr: '' };
       if (line === '--json sessions --all') return ok({ sessions: o.listed === false ? [] : [{ working_directory: folder, state: 'running', provider: 'claude', agent: 'claude-code', in_place: true, launch_id: LID, launched_at: Math.floor(startedAt / 1000) }] });
+      // FD-299: a limit continue in the session host (mode resume) is listed only in the history, as Switchboard 0.7.112 does.
+      if (line === '--json sessions --history') return o.history ? ok({ launches: [{ working_directory: folder, state: 'running', provider: 'claude', agent: 'claude-code', in_place: true, hosted: true, mode: 'resume', launch_id: LID, launched_at: Math.floor(startedAt / 1000), launched_by: { surface: 'recovery' } }] }) : { code: 1, stdout: '', stderr: '' };
       if (line === `--json sessions end ${LID}`) {
         if (o.endFails) return { code: 1, stdout: '', stderr: '{"error":"No session with this launch id is open here.","ok":false}' };
         // The host ends the session; its viewer (our console's process) exits with it.
@@ -112,6 +114,16 @@ test('FD-211: a hosted session Switchboard does not list, or cannot end, still g
     await tick(80);
     assert.notEqual(r.host.sessionsStatus().rows.find((x) => x.key === key)?.group, 'running', JSON.stringify(o));
   }
+});
+
+test('FD-299: a hosted session `sessions --all` does not list is found in the history and ended there, not left running', POSIX, async () => {
+  const r = rig({ listed: false, history: true });
+  const key = await r.start();
+  r.host.stopByPerson(key);
+  await tick(80);
+  assert.ok(r.asked.includes('--json sessions --history'), r.asked.join('\n'));
+  assert.ok(r.asked.includes(`--json sessions end ${LID}`), r.asked.join('\n'));
+  assert.equal(r.host.sessionsStatus().rows.find((x) => x.key === key)?.state, 'ended-by-you');
 });
 
 test('FD-211: a Switchboard without a way to end hosted sessions starts consoles as before', POSIX, async () => {

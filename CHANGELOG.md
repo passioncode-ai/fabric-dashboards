@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.8.178 - 2026-11-17
+
+### Fixed
+- FD-299: a session continued after a usage limit in Switchboard's session host (FD-290) is ended there by Stop and the
+  idle close. Switchboard 0.7.112 lists such a launch (mode `resume`) only in `sessions --history`, not in
+  `sessions --all`, so the app closed only its view and the session ran on for 30 more minutes, where opening the console
+  again would have started a second copy of it. The launch is now looked for in the history too (`historySessionsOf`,
+  `src/core/switchboard.ts`).
+
 ## 0.8.177 - 2026-11-17
 
 ### Added

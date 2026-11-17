@@ -28,7 +28,7 @@ import { MACHINE } from '../core/platform';
 import { isNewAgentKey, isNewDashboardKey, isNewSessionKey, isolatedBlock, newSessionKey, prepareNewAgent, prepareNewDashboard, projectsFolder, type NewSessionChoice, type NewSessionKind } from '../core/new-session';
 import { askArgsOfProvider, bypassArgs, claudeAskModeOf, promptsWords, setClaudeAskMode, bypassArgsOfProvider, detectRuntimes, KNOWN_RUNTIMES, readLoginPath, searchDirs, specsFromSwitchboard, type Runtime, type RuntimeSpec } from '../core/runtimes';
 import type { SettingsStore } from '../core/settings';
-import { accountsOf, allSessionsOf, bindingFor, machineSessionsOf, pageRowsOf, findSwitchboard, handoverAskOf, handoverOwnKey, handoverRunArgv, handoversOf, hostedContinueArgv, handoversSwitch, isHandoverKey, launchFeatures, sbFailure, sessionsIn, startAccount, terminalLaunchArgv, type Binding, type SbAccounts, type SbHandover, type SbSessions, type StartAccount } from '../core/switchboard';
+import { accountsOf, allSessionsOf, bindingFor, machineSessionsOf, pageRowsOf, findSwitchboard, handoverAskOf, handoverOwnKey, handoverRunArgv, handoversOf, hostedContinueArgv, handoversSwitch, historySessionsOf, isHandoverKey, launchFeatures, sbFailure, sessionsIn, startAccount, terminalLaunchArgv, type Binding, type SbAccounts, type SbHandover, type SbSessions, type StartAccount } from '../core/switchboard';
 import type { HeldContinue, ServiceSnapshot, Settings } from '../core/types';
 import { claudeConfigDirs, lastTranscriptWrite, STUCK_MS, stuckKeys } from '../core/stuck';
 import { claimStop, claudeSessionDirs, folderLive, liveSessionFolders, liveSessionIds, continuedLaunches, continuedOf, finishStop, launchTranscript, liveAgents, recoveryOf, resumeArgs, resumeOwnKey, sessionOpen, transcriptIn, transcriptOf, verdictOf, writtenAt, RESUME_SETTLE_MS, RESUMES_PER_PASS, type RecoveryStatus, type SbStop, type StopView } from '../core/recovery';
@@ -1287,15 +1287,21 @@ export class ConsoleHost {
   /** FD-211: the launch id of a console's own session: Switchboard's in-place record in its folder, the nearest start. */
   private async launchOf(sb: string, folder: string | null, startedAt: number): Promise<string | null> {
     if (!folder) return null;
+    const nearest = (list: SbSessionRecord[]) => {
+      let hit: SbSessionRecord | null = null;
+      for (const s of list) {
+        if (!s.inPlace || s.state === 'ended' || !s.launch?.launchId || s.launchedAt === null || trimSlash(s.folder) !== trimSlash(folder)) continue;
+        const gap = Math.abs(s.launchedAt - startedAt);
+        if (gap <= SAME_START_MS && (!hit || gap < Math.abs(hit.launchedAt! - startedAt))) hit = s;
+      }
+      return hit?.launch?.launchId ?? null;
+    };
     const read = await allSessionsOf(this.run, sb);
-    const list = read.ok ? read.value : this.sbSessions.value ?? [];
-    let hit: SbSessionRecord | null = null;
-    for (const s of list) {
-      if (!s.inPlace || s.state === 'ended' || !s.launch?.launchId || s.launchedAt === null || trimSlash(s.folder) !== trimSlash(folder)) continue;
-      const gap = Math.abs(s.launchedAt - startedAt);
-      if (gap <= SAME_START_MS && (!hit || gap < Math.abs(hit.launchedAt! - startedAt))) hit = s;
-    }
-    return hit?.launch?.launchId ?? null;
+    const found = nearest(read.ok ? read.value : this.sbSessions.value ?? []);
+    if (found) return found;
+    // FD-299: a limit continue in the session host is listed only in the history.
+    const history = await historySessionsOf(this.run, sb);
+    return history.ok ? nearest(history.value) : null;
   }
 
   /** FD-211: a console whose session runs on when the app quits (a view, or a session Switchboard's host holds). */
