@@ -10,6 +10,12 @@ import fs from 'node:fs';
 import type { RuntimeSpec } from './runtimes';
 import type { LaunchFacts, Paid, SbMachineProcess, SbPageRow, SbSessionRecord, SourceResult } from './sessions';
 
+/** FD-305 (decision D-3): what a feature probe's answer is cached by: the binary's path and modification time, so a
+ *  Switchboard updated in place is asked again; a path that cannot be read stands alone and is asked again next time. */
+export function switchboardStamp(file: string): string {
+  try { return `${file}:${fs.statSync(file).mtimeMs}`; } catch { return file; }
+}
+
 /** A Switchboard that does not know the subcommand or flag asked: clap's words, or Switchboard's own refusal. */
 export function isOldSwitchboard(text: string): boolean {
   return /unrecognized subcommand|unexpected argument|earlier version than this command/i.test(text);

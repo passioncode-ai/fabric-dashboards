@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.8.183 - 2026-11-17
+
+### Changed
+- FD-305 (refactor wave 5): every Switchboard feature probe (`launch --help`, `handovers run --help`, `sessions --help`
+  for close-copy and for other machines) is cached by the binary's path and modification time (`switchboardStamp`,
+  `src/core/switchboard.ts`). Two of them were cached by path alone, so a Switchboard updated in place kept its old
+  answers there until the app restarted.
+
 ## 0.8.182 - 2026-11-17
 
 ### Changed
