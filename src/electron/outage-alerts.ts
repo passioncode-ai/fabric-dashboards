@@ -15,6 +15,9 @@ import type { AppStatus, ServiceSnapshot, Settings } from '../core/types';
 
 const FILE = 'outage-alerts.json';
 const TICK_MS = 30_000;
+/** FD-317 (P2-05): how long a changed state waits before it is written, and how often its last good copy is refreshed. */
+const SAVE_DELAY_MS = 2_000;
+const BAK_EVERY_MS = 60 * 60_000;
 const RETRY_MS = 60_000;
 
 export class OutageAlerts {
@@ -68,12 +71,27 @@ export class OutageAlerts {
     return emptyOutageState();
   }
 
-  private save(next: OutageState): void {
+  /** FD-317 (P2-05): the state is written 2 s after it changes (13 rewrites in 150 s were measured, each a restart's
+   *  `startedAt`); a delivery and a new ask are written at once, so a crash never sends one twice. stop() writes what
+   *  waits; the last good copy is refreshed at most hourly. */
+  private save(next: OutageState, now = false): void {
     if (JSON.stringify(next) === JSON.stringify(this.state)) return;
     this.state = next;
+    if (now) { this.write(); return; }
+    if (!this.writeTimer) {
+      this.writeTimer = setTimeout(() => this.write(), SAVE_DELAY_MS);
+      this.writeTimer.unref?.();
+    }
+  }
+
+  private writeTimer: NodeJS.Timeout | null = null;
+  private bakAt = -Infinity;
+  private write(): void {
+    if (this.writeTimer) { clearTimeout(this.writeTimer); this.writeTimer = null; }
     try {
-      if (fs.existsSync(this.file())) fs.copyFileSync(this.file(), `${this.file()}.bak`);
-      atomicWrite(this.file(), `${JSON.stringify(next)}\n`, 0o600);
+      const at = Date.now();
+      if (at - this.bakAt >= BAK_EVERY_MS && fs.existsSync(this.file())) { fs.copyFileSync(this.file(), `${this.file()}.bak`); this.bakAt = at; }
+      atomicWrite(this.file(), `${JSON.stringify(this.state)}\n`, 0o600);
     } catch (error) {
       this.o.log(`alerts: ${FILE} could not be written: ${(error as Error).message}`);
     }
@@ -86,6 +104,7 @@ export class OutageAlerts {
 
   /** Nothing is sent once the app quits. */
   stop(): void {
+    if (this.writeTimer) this.write();
     this.stopped = true;
     if (this.interval) clearInterval(this.interval);
     if (this.timer) clearTimeout(this.timer);
@@ -111,7 +130,7 @@ export class OutageAlerts {
   ask(serviceKey: string, eventId: string, ask: Omit<Ask, 'delivered' | 'serviceKey' | 'side'>): void {
     if (this.stopped) return;
     const side = sideOf(this.o.snapshots().find((s) => s.key === serviceKey)?.organization);
-    this.save(enqueueAsk(this.state, askIdOf(serviceKey, eventId), { ...ask, serviceKey, side }));
+    this.save(enqueueAsk(this.state, askIdOf(serviceKey, eventId), { ...ask, serviceKey, side }), true);
     this.schedule(0);
   }
   // #endregion operator-asks
@@ -218,7 +237,7 @@ export class OutageAlerts {
         this.save(d.step === 'ask' ? askDelivered(this.state, d.id)
           : d.step === 'health-failure' || d.step === 'health-recovery' ? { ...this.state, health: healthDelivered(this.state.health ?? {}, d.id, d.step === 'health-failure' ? 'failure' : 'recovery') }
           // FD-295: a group message settles every episode it names.
-          : (d.ids ?? [d.id]).reduce((state, id) => delivered(state, id, d.step as 'failure' | 'recovery'), this.state));
+          : (d.ids ?? [d.id]).reduce((state, id) => delivered(state, id, d.step as 'failure' | 'recovery'), this.state), true);
         this.retryAt.delete(d.msg.eventId);
         this.held.delete(d.msg.eventId);
         this.o.log(`alerts: sent ${d.msg.kind} ${d.msg.eventId} via ${channel.key}`);

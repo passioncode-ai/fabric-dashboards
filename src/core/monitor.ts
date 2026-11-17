@@ -372,6 +372,7 @@ export class Monitor extends EventEmitter {
         if (now - since < REMOVAL_GRACE_MS) continue;
         this.missingSince.delete(key);
         this.tracked.delete(key);
+        this.conflictsMemo = null;
         this.appEvent(key, t, 'service.removed', 'info', 'app.event.removed');
         this.emit('removed', key); // its view and its stored session go with it (LC-12)
       }
@@ -381,6 +382,7 @@ export class Monitor extends EventEmitter {
       if (existing) {
         const before = JSON.stringify(existing.entry);
         existing.entry = entry;
+        this.conflictsMemo = null;
         if (JSON.stringify(entry) !== before) existing.nextProbeAt = this.now();
         continue;
       }
@@ -397,12 +399,16 @@ export class Monitor extends EventEmitter {
         feedError: null, downNotified: false, lastState: null, lastPid: null, baselined: false, launchdAt: null, polledAt: null,
       };
       this.tracked.set(entry.key, t);
+      this.conflictsMemo = null;
       if (!this.scanning) this.appEvent(entry.key, t, 'service.installed', 'info', 'app.event.installed');
     }
   }
 
+  /** FD-317 (P2-04): the claims conflict only by the descriptors, so the map is built once until an entry changes
+   *  (before, each probe and each snapshot rebuilt it over every service: N² for one list). */
+  private conflictsMemo: Map<string, { port?: number; with: string[] }> | null = null;
   private conflicts(): Map<string, { port?: number; with: string[] }> {
-    return claimConflicts([...this.tracked.values()].map((t) => t.entry));
+    return this.conflictsMemo ??= claimConflicts([...this.tracked.values()].map((t) => t.entry));
   }
 
   private async probe(t: Tracked, disabledTable: () => Promise<string>): Promise<void> {
@@ -852,7 +858,8 @@ export class Monitor extends EventEmitter {
   /** The services the app watches. FD-123: an agent turned off is not among them (offServices names it), so no count,
    *  badge, tray entry, outage alert or spend read sees a state nobody measured. */
   snapshots(): ServiceSnapshot[] {
-    return [...this.tracked.values()].filter((t) => !this.isOff(t)).map((t) => this.snapshotOf(t)).sort((a, b) => (a.descriptor?.name ?? a.key).localeCompare(b.descriptor?.name ?? b.key));
+    const rows = this.offIds().size ? this.rows() : undefined;
+    return [...this.tracked.values()].filter((t) => !this.isOff(t, rows)).map((t) => this.snapshotOf(t)).sort((a, b) => (a.descriptor?.name ?? a.key).localeCompare(b.descriptor?.name ?? b.key));
   }
 
   snapshot(key: string): ServiceSnapshot | null {
@@ -866,17 +873,21 @@ export class Monitor extends EventEmitter {
     return new Set(this.o.settings().layout.list.off ?? []);
   }
 
-  private isOff(t: Tracked): boolean {
+  private isOff(t: Tracked, rows?: Map<string, string>): boolean {
     const off = this.offIds();
-    return off.size > 0 && off.has(this.rowOf(t));
+    return off.size > 0 && off.has(rows?.get(t.entry.key) ?? this.rowOf(t));
   }
 
   /** FD-244 (design 2026-11-15): the list row an instance is in: its product, or `<id>@<organization>` for an instance run
    *  for another organization than its product's primary, so turning one row off leaves the other organization's alone. */
   private rowOf(t: Tracked): string {
+    return this.rows().get(t.entry.key) ?? productIdOf(t.entry.key);
+  }
+
+  /** Every instance's list row at once (FD-317: one build per list, not one per service). */
+  private rows(): Map<string, string> {
     const tracked = [...this.tracked.values()];
-    const rows = rowIds(tracked.map((x) => ({ key: x.entry.key, organization: this.organized(x).organization?.name ?? null, x })), (m) => Boolean(m.x.lastAnswer?.doc.surfaces.dashboard));
-    return rows.get(t.entry.key) ?? productIdOf(t.entry.key);
+    return rowIds(tracked.map((x) => ({ key: x.entry.key, organization: this.organized(x).organization?.name ?? null, x })), (m) => Boolean(m.x.lastAnswer?.doc.surfaces.dashboard));
   }
 
   private wasOff: ReadonlySet<string> = new Set();
@@ -884,8 +895,9 @@ export class Monitor extends EventEmitter {
   /** An agent turned back on starts from nothing: no stale outage, no old feed replayed as news, probed at once. */
   private syncOff(): void {
     const off = this.offIds();
+    const rows = this.rows();
     for (const t of this.tracked.values()) {
-      const id = this.rowOf(t);
+      const id = rows.get(t.entry.key) ?? productIdOf(t.entry.key);
       if (!this.wasOff.has(id) || off.has(id)) continue;
       Object.assign(t, {
         probe: null, firstUnansweredAt: null, misses: 0, lastAnswer: null, nextProbeAt: this.now(), backoff: 0, feedError: null,
@@ -899,8 +911,9 @@ export class Monitor extends EventEmitter {
 
   /** FD-123: the services of agents turned off: on disk, never probed; the window lists them greyed in Hidden. */
   offServices(): { key: string; product: string; name: string }[] {
-    return [...this.tracked.values()].filter((t) => this.isOff(t))
-      .map((t) => ({ key: t.entry.key, product: this.rowOf(t), name: this.named(t.entry.descriptor, t.entry.key)?.name ?? t.entry.key }))
+    const rows = this.rows();
+    return [...this.tracked.values()].filter((t) => this.isOff(t, rows))
+      .map((t) => ({ key: t.entry.key, product: rows.get(t.entry.key) ?? productIdOf(t.entry.key), name: this.named(t.entry.descriptor, t.entry.key)?.name ?? t.entry.key }))
       .sort((a, b) => a.name.localeCompare(b.name) || (a.key < b.key ? -1 : 1));
   }
 
