@@ -188,8 +188,10 @@ Claude Code `permissions.allow` rule still approves its tools. OpenCode and Curs
 drops their bypass flag and their own settings decide; a runtime with no skip flag at all starts as before. Logged, the person's saved choice unchanged. The reading is a heuristic that keeps a person in the loop, not a proof; it also reads a word that mixes alphabets in
 the one most of its letters use and a digit standing for a letter (`іgnore`, `a11`), and common synonyms ("disregard
 prior directives", «не обращай внимания на предыдущие указания»), with that second reading capped per reading of a
-service's text and per task: about a megabyte for the heads of long texts and two for short texts (at most 16 K as
-written) and the ends of long ones, which no long text spends; past a cap a text is read only as written. The hold is recorded with the console and follows the conversation (its Continue, a limit resume, a Sessions
+service's text and per task: about a megabyte for the heads of long texts, one for their ends and two for short texts
+(at most 16 K as written), which no long text spends; past a cap the head of a long text is read only as written, and a
+short text or the end of a long one that could hide a lookalike holds the start (`unread-lookalikes`), so texts before
+a short line cannot switch its second reading off. The hold is recorded with the console and follows the conversation (its Continue, a limit resume, a Sessions
 continue in its folder and Open in Terminal ask until a new session starts on a clean context); the app shows "Asks
 before acting" on a held console, and MCP `console_new` and `console_fix` answer `held: true`. `list_services`,
 `service_status`, `audit`, `service_context` and `activity` carry an `untrusted` list of fields; the Setup console's

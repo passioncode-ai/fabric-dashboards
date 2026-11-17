@@ -63,15 +63,19 @@ const kindOf = (c: number): number => {
   if ((c >= 65 && c <= 90) || (c >= 97 && c <= 122)) return 1;
   if (c >= 48 && c <= 57) return 2;
   if (c < 128) return 0;
+  // Unit round 4: a half of a four-byte letter or number keeps its word whole, as the reading before round 3 did.
+  if (c >= 0xd800 && c <= 0xdfff) return 3;
   let k = KINDS[c]!;
   if (!k) KINDS[c] = k = /\p{L}/u.test(String.fromCharCode(c)) ? 1 : /\p{N}/u.test(String.fromCharCode(c)) ? 3 : 4;
   return k === 4 ? 0 : k;
 };
 /** Characters a call reads a second time in the heads of long texts: four of them. */
 const SKELETON_BUDGET = 1024 * 1024;
-/** Characters a call reads a second time in short texts and tails: forty texts of READ_MAX three times, more than a
- *  real hand-over (twenty events and a descriptor) holds. */
+/** Characters a call reads a second time in short texts: about forty texts of READ_MAX three times, more than a real
+ *  hand-over (twenty events and a descriptor) holds. */
 const SHORT_BUDGET = 2 * 1024 * 1024;
+/** Characters a call reads a second time in the ends of long texts: about thirty of them. */
+const TAIL_BUDGET = 1024 * 1024;
 /** One word as read twice: a `1` between letters as `i`, then as `l`; null when nothing in it changes. */
 function rewrite(part: string, from: number, to: number, mixed: boolean, toLatin: boolean, russian: boolean): [string, string, boolean] | null {
   const chars: string[] = [];
@@ -213,31 +217,36 @@ const SIGNALS: readonly [string, RegExp][] = [
  *  keep a person in the loop (permission prompts on), never proof of an attack. */
 export function injectionSignals(texts: readonly (string | null | undefined)[]): string[] {
   const found = new Set<string>();
-  // FD-236 (9): the lookalike reading is bounded per call, in two pools, so hostile texts cannot stall the main process
-  // that packs a console. A long part (the head of a text longer than READ_MAX) draws on SKELETON_BUDGET; a short one
-  // (a text of at most READ_MAX characters as written, every tail) on SHORT_BUDGET, which no long part touches, so long
-  // events never spend what a descriptor line after them needs (seam round 2). Short or long is decided by the text as
-  // written, not after folding (verifier round 3: `aB`, `㎐` or `ﷺ` padding grew a short line past READ_MAX). A part is
-  // scanned only while its pool holds twice its length, the most it can cost, so no pool is overrun (round 3).
-  const pools = { long: SKELETON_BUDGET, short: SHORT_BUDGET };
+  // FD-236 (9): the lookalike reading is bounded per call, in three pools, so hostile texts cannot stall the main process
+  // that packs a console: the heads of texts longer than READ_MAX as written (SKELETON_BUDGET), their ends (TAIL_BUDGET)
+  // and short texts, at most READ_MAX as written (SHORT_BUDGET). No long text touches the short pool, so long events or
+  // descriptor strings never spend what a short line after them needs (seam round 2; product round 4: tails shared it).
+  // Short or long is decided by the text as written, not after folding (round 3: `aB`, `㎐` or `ﷺ` padding grew a short
+  // line past READ_MAX). A part is scanned only while its pool holds twice its length, the most it can cost, so no pool
+  // is overrun (round 3). A short part or tail its pool cannot pay for fails closed (`unread-lookalikes`, unit round 4).
+  const pools = { long: SKELETON_BUDGET, tail: TAIL_BUDGET, short: SHORT_BUDGET };
   for (const text of texts) {
     if (!text) continue;
     // Folded first (NFKC can grow a character 18 times), then one line as context.md shows events, then the head and the
     // tail: neither padding nor a line break can push an instruction out of reach (a middle part still sits in its fence).
     // A short text is read whole however much folding grew it; a longer one by its head and the end of the text itself.
     const flat = folded(text.slice(0, READ_RAW_MAX));
-    const parts: [string, 'long' | 'short'][] = [];
+    const parts: [string, 'long' | 'tail' | 'short'][] = [];
     if (text.length <= READ_MAX) parts.push([flat, 'short']);
     else {
-      if (flat.length > READ_WHOLE) parts.push([flat.slice(0, READ_WHOLE), 'long'], [flat.slice(-READ_MAX), 'short']);
+      if (flat.length > READ_WHOLE) parts.push([flat.slice(0, READ_WHOLE), 'long'], [flat.slice(-READ_MAX), 'tail']);
       else parts.push([flat, 'long']);
       // FD-234 (verifier round 8): past the first READ_RAW_MAX the end of the text itself is read too.
-      parts.push([folded(text.slice(-READ_MAX)), 'short']);
+      parts.push([folded(text.slice(-READ_MAX)), 'tail']);
     }
     for (const [raw, pool] of parts) {
       const part = spaced(raw);
       // Charged whenever the second reading scans the part, changed or not, once per extra reading (unit round 2).
-      const scan = pools[pool] >= part.length * 2 && MAY_HIDE.test(part);
+      const hides = MAY_HIDE.test(part);
+      const scan = hides && pools[pool] >= part.length * 2;
+      // Unit round 4: a short text or tail that may hide a lookalike and finds its pool spent fails closed, so texts
+      // before it cannot switch its reading off; the heads of long texts stay read as written (their ends are read).
+      if (hides && !scan && pool !== 'long') found.add('unread-lookalikes');
       const readings = scan ? [part, ...skeletons(part)] : [part];
       if (scan) pools[pool] -= part.length * Math.max(1, readings.length - 1);
       for (const reading of readings) for (const [name, re] of SIGNALS) if (re.test(reading)) found.add(name);
