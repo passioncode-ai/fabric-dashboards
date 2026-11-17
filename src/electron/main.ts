@@ -419,6 +419,12 @@ if (!app.requestSingleInstanceLock()) {
         wasDown: (minutes, reason) => t(l, 'alerts.wasDown', { minutes, reason }),
         ask: (name) => t(l, 'alerts.ask', { name }),
         open: (link) => t(l, 'alerts.open', { link }),
+        group: {
+          down: (count) => t(l, 'alerts.group.down', { count }),
+          back: (count) => t(l, 'alerts.group.back', { count }),
+          line: (name, minutes, reason) => t(l, 'alerts.group.line', { name, minutes, reason }),
+          more: (count) => t(l, 'alerts.group.more', { count }),
+        },
         health: {
           open: (name, check, state) => t(l, 'alerts.health.open', { name, check, state }),
           back: (name, check) => t(l, 'alerts.health.back', { name, check }),
