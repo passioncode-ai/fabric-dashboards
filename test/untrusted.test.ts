@@ -752,3 +752,14 @@ test('FD-236 (14): the context names the folder exactly as chosen, and a marker 
     assert.ok(!/<\s*\/?\s*untrusted-data/i.test(q), q);
   }
 });
+
+test('FD-236 (10): a block stays within its limit after the fold grows the text', () => {
+  const grown = fence('service:x', 'ﷺ'.repeat(200_000), 'cafe');
+  const inner = grown.split('\n').slice(1, -1).join('\n');
+  assert.ok(inner.length <= 256 * 1024 + 40, `the block holds ${inner.length} characters`);
+  assert.match(inner, /… \(cut at 262144 characters\)$/);
+  const small = fence('service:x', 'plain text', 'cafe');
+  assert.ok(!/cut at/.test(small), 'a short text is not marked cut');
+  const pairs = fence('service:x', 'ﷺ'.repeat(14_563) + '😀'.repeat(10), 'cafe');
+  assert.ok(!/[\uD800-\uDBFF](?![\uDC00-\uDFFF])/.test(pairs), 'no lone high surrogate at the cut');
+});

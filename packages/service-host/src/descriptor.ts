@@ -24,6 +24,9 @@ export function isLocalPath(p: unknown, platform: NodeJS.Platform = process.plat
 }
 
 /** Where installers write descriptors: FABRIC_SERVICES_DIR, else the OS location. */
+/** FD-236 (10): the largest descriptor read (1 MiB); the ones on a real machine are under 2 KB. */
+export const DESCRIPTOR_MAX_BYTES = 1024 * 1024;
+
 export function servicesDir(env: NodeJS.ProcessEnv = process.env, platform = process.platform, home = os.homedir()): string {
   if (env.FABRIC_SERVICES_DIR) return expand(env.FABRIC_SERVICES_DIR, home, platform);
   if (platform === 'darwin') return path.posix.join(home, 'Library/Application Support/ai.passioncode.fabric/services');
@@ -235,6 +238,13 @@ export function readDirectory(dir: string, platform: NodeJS.Platform = process.p
     const stem = name.slice(0, -'.json'.length);
     const unsafe = folderProblem ?? writableByOthers(file, platform, uid, 'the descriptor');
     if (unsafe) return { path: file, key: stem, descriptor: null, problems: [unsafe] };
+    // FD-236 (10): a descriptor is a few kilobytes; one of megabytes would cost the reader (and every context pack that
+    // quotes it) CPU on each rescan, so it is refused before it is read.
+    let size = 0;
+    try { size = fs.statSync(file).size; } catch { /* the read below reports it */ }
+    if (size > DESCRIPTOR_MAX_BYTES) {
+      return { path: file, key: stem, descriptor: null, problems: [`the file is ${size} bytes, larger than a descriptor may be (${DESCRIPTOR_MAX_BYTES}), so it is not read`] };
+    }
     let raw: unknown;
     try {
       raw = JSON.parse(fs.readFileSync(file, 'utf8'));

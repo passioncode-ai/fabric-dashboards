@@ -69,7 +69,8 @@ carries every extension as the service sent it. A host turns the declaration int
   Fabric's port), else `$XDG_DATA_HOME/passioncode-fabric/services`.
 - `readDirectory(dir)` → `DescriptorEntry[]` (`path`, `key` = `id.instance` or the file stem,
   `descriptor` or `null`, `problems`). A half-written, unreadable or misnamed file is an entry
-  with its problem; an absent directory is `[]`; a directory that cannot be read at all throws.
+  with its problem; an absent directory is `[]`; a directory that cannot be read at all throws. A file larger than
+  `DESCRIPTOR_MAX_BYTES` (1 MiB) is an entry with that problem and is not read (FD-236 (10)).
 - `validateDescriptor(raw, platform?)` → every problem as one sentence (FAC-SEM-012, FAC-SEM-024 and the schema),
   placement-aware: a `remote` descriptor (DEC-0019) needs an `https://<dns-name>` origin, `lifecycle.manager:
   "none"`, no launchd fields and no `update`; `paths` is optional for it.

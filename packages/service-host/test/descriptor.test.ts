@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import { claimConflicts, expand, portOf, readDirectory, servicesDir, validateDescriptor } from '../src/descriptor';
+import { claimConflicts, DESCRIPTOR_MAX_BYTES, expand, portOf, readDirectory, servicesDir, validateDescriptor } from '../src/descriptor';
 import { tmpDir } from './tmp';
 
 const FIXTURES = path.join(__dirname, '../../../test/fixtures/contract');
@@ -177,4 +177,16 @@ test('FD-256 (security audit F4): a descriptor, or a services folder, that other
   assert.ok(readDirectory(dir, 'darwin', uid).every((e) => /the services folder can be changed by other users/.test(e.problems[0]!)), 'a folder others may write taints every file');
   fs.chmodSync(dir, 0o700);
   assert.ok(!readDirectory(dir, 'win32', uid).some((e) => e.problems.some((m) => /not trusted/.test(m))), 'Windows: the profile\'s ACL decides');
+});
+
+test('FD-236 (10): a descriptor larger than 1 MiB is refused before it is read; one just under it is read', () => {
+  const dir = tmp('fd-236-size-');
+  fs.chmodSync(dir, 0o700);
+  const body = (pad: number) => JSON.stringify({ protocol: 'fabric-service/0.1', id: 'big', instance: 'default', name: 'X', origin: 'http://127.0.0.1:47001', lifecycle: { manager: 'none' }, installedAt: '2026-11-14T00:00:00Z', installedBy: 't', pad: 'x'.repeat(pad) });
+  fs.writeFileSync(path.join(dir, 'big.default.json'), body(DESCRIPTOR_MAX_BYTES));
+  fs.writeFileSync(path.join(dir, 'fits.default.json'), body(DESCRIPTOR_MAX_BYTES - 2000).replace('"big"', '"fits"'));
+  const byKey = Object.fromEntries(readDirectory(dir, 'darwin').map((e) => [e.key, e]));
+  assert.equal(byKey['big.default']!.descriptor, null);
+  assert.match(byKey['big.default']!.problems[0]!, /larger than a descriptor may be \(1048576\)/);
+  assert.ok(!byKey['fits.default']!.problems.some((m) => /larger than/.test(m)), 'just under the limit is read');
 });

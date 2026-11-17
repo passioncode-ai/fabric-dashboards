@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.8.168 - 2026-11-17
+
+### Security
+
+- FD-236 (10): a fenced block of an agent service's text keeps its 256 KB limit after the text is folded: a few
+  characters grow many times in that fold, so a block could hold far more than the limit. A descriptor file larger than
+  1 MiB is refused before it is read (the ones on a real Mac are under 2 KB), so an oversized one no longer costs CPU on
+  every rescan.
+
 ## 0.8.167 - 2026-11-17
 
 ### Security
