@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.8.187 - 2026-11-17
+
+Carries 0.8.185 and 0.8.186, whose release runs did not publish: 0.8.185's macOS job got no runner, and 0.8.186's
+Windows check failed on a test of FD-311 that started `/bin/sleep`, which Windows does not have. The test now times out
+Node itself.
+
 ## 0.8.186 - 2026-11-17
 
 ### Fixed
