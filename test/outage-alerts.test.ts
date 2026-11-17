@@ -9,7 +9,7 @@ import fs from 'node:fs';
 import test from 'node:test';
 import { callCapability, rpcResult } from '../src/core/mcp-client';
 import { OutageAlerts } from '../src/electron/outage-alerts';
-import { channelEventId, chooseChannel, HELD_RETRY_MS, heldRefusal, notifyArguments, PERSONAL_SIDE, sideOf, delivered, emptyOutageState, notifyChannelOf, observe, OUTAGE_ALERT_AFTER_MS, owed, type OutageState, type Watched, type Words } from '../src/core/outage-alerts';
+import { alertWords, channelEventId, chooseChannel, HELD_RETRY_MS, heldRefusal, notifyArguments, PERSONAL_SIDE, sideOf, delivered, emptyOutageState, notifyChannelOf, observe, OUTAGE_ALERT_AFTER_MS, owed, type OutageState, type Watched, type Words } from '../src/core/outage-alerts';
 import { merge } from '../src/core/settings';
 
 const words: Words = { down: (n) => `${n} is down`, failing: (n, s) => `${n}: ${s} is failing`, back: (n) => `${n} is back`, removed: (n) => `${n} was removed`, since: (m, r) => `For ${m} min: ${r}`, after: (m) => `Back after ${m} min.`, wasDown: (m, r) => `Was down ${m} min (${r})` };
@@ -443,4 +443,21 @@ test('FD-295: a group the channel refused is sent again whole, under the same id
   assert.equal(again[0]!.msg.eventId, first[0]!.msg.eventId);
   for (const id of again[0]!.ids!) state = delivered(state, id, again[0]!.step);
   assert.deepEqual(owed(state, 17 * MIN, many, () => true), []);
+});
+
+test('FD-304: alertWords gives every channel sentence in English and Russian, with every placeholder filled', () => {
+  for (const l of ['en', 'ru'] as const) {
+    const w = alertWords(l);
+    const said = [
+      w.down('A'), w.failing('A', 'db'), w.back('A'), w.since(5, 'r'), w.after(5), w.removed('A'), w.wasDown(5, 'r'), w.ask('A'), w.open('fabric-dashboards://x'),
+      w.group.down(3), w.group.back(3), w.group.line('A', 5, 'r'), w.group.more(2),
+      w.health!.open('A', 'c', 'warn'), w.health!.back('A', 'c'), w.health!.blind('A', 'r'), w.health!.blindBack('A'), w.health!.detail('area', 2, 'fix it'), w.health!.detail('area', 2),
+    ];
+    for (const s of said) {
+      assert.ok(s.length > 0, l);
+      assert.doesNotMatch(s, /\{[a-z]+\}/, `${l}: ${s}`);
+      assert.doesNotMatch(s, /^alerts\./, `${l}: a key, not a sentence: ${s}`);
+    }
+    assert.notEqual(alertWords('en').down('A'), alertWords('ru').down('A'));
+  }
 });

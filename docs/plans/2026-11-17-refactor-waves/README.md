@@ -43,7 +43,7 @@ on 2026-11-17); waves that touch a shared screen record that and run it when the
 | 1 | S-1 fixed (refuse a machine for agent and dashboard, dialog and MCP); the 17 document drifts; README's tool list; backlog rows whose state is stale | FD-300, FD-301 | low; done 0.8.179 |
 | 2 | Pure moves: one `COMMAND_TIMEOUT_MS`, one `SERVICE_KEY`, one `PROBLEM_STATES`, needless exports dropped, `isOldSwitchboard` and `isUnsupported` for the 10 copies, console helpers and IPC validators out of `console.ts`, `readRegistry` out of `main.ts`, the MCP schema out of `server.ts` | FD-302 | low; done 0.8.180 |
 | 3 | Shared shapes: the control refusal branch shared by monitor and MCP, a renderer `usePoll` for the eight effects, one accounts cache in `ConsoleHost` | FD-303 | low to medium; done 0.8.181 |
-| 4 | `main.ts` split: the console-channel answers, outage words and the uninstall flow into their modules; `registerIpc` into per-group functions | FD-304 | medium |
+| 4 | `main.ts` split: the console-channel answers, outage words and the uninstall flow into their modules; `registerIpc` into per-group functions | FD-304 | medium; done 0.8.182 |
 | 5 | One Switchboard feature probe (launch, sessions, continue, hand-overs help) keyed by path and modification time, so a Switchboard updated in place is read again everywhere | FD-305 | medium (decision below) |
 | 6 | `Shell` (`App.tsx`) into `useSessionsShell` and `useConsoleDrawer` | FD-306 | medium |
 | 7 | `ConsoleHost` into collaborators (hand-overs, limit recovery, Sessions list, new sessions) over one explicit state object | FD-307 | high: 18 test files construct it |
@@ -61,6 +61,10 @@ Waves 2 to 7 change no behaviour a person or agent can see, except wave 5's re-p
 - **D-3 (wave 5).** Every Switchboard probe keys its cache by path and modification time, as `inPlaceFor` does today;
   the other three are keyed by path only, so a Switchboard updated in place keeps its old answers until the app
   restarts. Reading again after an update is strictly the fresher answer.
+
+- **D-4 (wave 4).** `registerIpc` stays one function: its handlers are one line each over the main process's one
+  closure, so splitting it re-indents about 250 lines and moves no state out. The parts that held logic (the console
+  channel's answers, the uninstall flow, the channel's words) moved to their modules instead.
 
 ## Running alongside
 
