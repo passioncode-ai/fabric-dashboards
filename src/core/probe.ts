@@ -83,3 +83,15 @@ export async function fetchLoad(d: Descriptor, loadPath: string, token: string):
   }
   return body as LoadReport;
 }
+
+/** FD-293: GET the service's `agent-health/1` report (contract DEC-0179) with the descriptor token. `undefined`: the
+ *  service serves none there (404, it has no route yet), which is no unreadable report; `null`: no answer (refused,
+ *  not reached, the token gate refused the port, any other status); else the body as the reader judges it (a body that
+ *  is no JSON stays a string and reads `schema`). */
+export async function fetchHealthReport(d: Descriptor, path: string, token: string): Promise<unknown> {
+  let res: Awaited<ReturnType<typeof request>>;
+  try { res = await request(d.origin, 'GET', path, authHeaders(d, token), 5000, tlsFor(d.origin)); } catch { return null; }
+  if (res.status === 404) return undefined;
+  if (res.status !== 200) return null;
+  try { return JSON.parse(res.body) as unknown; } catch { return res.body; }
+}

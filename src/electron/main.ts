@@ -33,7 +33,7 @@ import { openChannel, startAnswer, type Channel } from './console-channel';
 import type { ChannelAnswer } from '../core/console-channel';
 import { chooseLang, langFor, t, type Lang } from '../core/i18n';
 import { execRunner } from '../core/launchd';
-import { HEALTH_PRODUCTS, healthRows } from '../core/agent-health';
+import { HEALTH_PATH, HEALTH_PRODUCTS, HEALTH_READ_STATES, healthRows } from '../core/agent-health';
 import { HealthPoller } from './health-poller';
 import { listListeners, unattributed } from '../core/listeners';
 import { applyLoginItem, LOGIN_NEEDS_APPROVAL, loginItemAtStartup, type LoginItemOs } from '../core/loginitem';
@@ -41,7 +41,7 @@ import { xdgLoginItem } from '../core/autostart';
 import { Monitor, type AskNotice, type Notice } from '../core/monitor';
 import { BUNDLE_FILE, createAnalytics, installationPath, osNameOf, readBundle } from '../core/analytics';
 import { AgentNameStore, findGh, githubRepoOf, NAMES_EVERY_MS, NAMES_FIRST_MS, NAMES_TICK_MS, type GithubRepo } from '../core/agent-names';
-import { authHeaders, fetchLoad, fetchUsage, readTokenAsync } from '../core/probe';
+import { authHeaders, fetchHealthReport, fetchLoad, fetchUsage, readTokenAsync } from '../core/probe';
 import { callCapability } from '../core/mcp-client';
 import { OrganizationStore } from '../core/organization-store';
 import { knownOrganizations, ORGANIZATIONS_EVERY_MS, ORGANIZATIONS_FIRST_MS, OWN_REPOSITORY_OWNER } from '../core/organizations';
@@ -53,7 +53,7 @@ import { NotifyLedger, shouldNotify } from '../core/notify';
 import { OutageAlerts } from './outage-alerts';
 import { powerShellAfterExit } from '../core/after-exit';
 import { agentSettingsPatch, analyticsMaySend, rendererSettingsPatch, SettingsStore } from '../core/settings';
-import type { AppStatus, Settings, SettingsPatch } from '../core/types';
+import type { AppStatus, ServiceSnapshot, Settings, SettingsPatch } from '../core/types';
 import { ALWAYS_KEPT, cancelStagedUpdate, clearRestoreRecord, KEPT_FILES, productDataPaths, purgeAfterExit, readRestoreRecord, removeMcpRegistrations, repairMcpRegistrations, restoreMcpRegistrations, writeRestoreRecord } from '../core/uninstall';
 import { autoInstallNow, autoInstallWait, cookieRewrite, dockOnSync, inSight, LINK_FRONT_CHECK_MS, monitorLive, PAGE_SIGHT_CHECK_MS, linkLeftBehind, moveSkip, OCCLUSION_PROBE_MS, offerMove, onScreen, resumeBehind, COOKIES_REENCRYPTED_MARKER, HiddenGrace, partitionFor, RELAUNCH_MARKER, relaunchHidden, RESUME_ROUTE_MARKER, resumeRoute, type ResumeRoute, stalePacks, stalePartitions, tryMove, UPDATE_IDLE_MS, VIEW_RELEASE_ALL_MS, VIEW_RELEASE_GRACE_MS, VISIBILITY_SYNC_MS, VisibilitySync, WARM_VIEWS } from './policy';
 import { AppTray } from './tray';
@@ -103,8 +103,10 @@ const rendererIndex = path.join(__dirname, '../../renderer/index.html');
 const SERVICE_GUIDE = 'https://github.com/passioncode-ai/fabric-agent-adapter#readme';
 
 /** ~/Library/Logs/Fabric Dashboards/main.log: timestamped, 0600, 5 × 5 MB at most (LC-12). */
-/** FD-285: a product's name as the health report and the This computer page show it. */
-const healthProductName = (product: string) => HEALTH_PRODUCTS.find((h) => h.product === product)?.name ?? product;
+/** FD-285: a product's name as the health report and the This computer page show it; FD-293: an agent read over HTTP
+ *  is keyed by its service key and named as its card names it. */
+const healthProductName = (product: string, snapshots: readonly ServiceSnapshot[] = []) =>
+  HEALTH_PRODUCTS.find((h) => h.product === product)?.name ?? snapshots.find((s) => s.key === product)?.descriptor?.name ?? product;
 
 function log(message: string): void {
   appendLog(path.join(app.getPath('logs'), 'main.log'), `${new Date().toISOString()} ${message}`);
@@ -434,7 +436,7 @@ if (!app.requestSingleInstanceLock()) {
         },
       };
     },
-    productName: healthProductName,
+    productName: (product) => healthProductName(product, monitor.snapshots()),
     changed: () => pushStatus(),
   });
   // FD-132: a placement record that cannot be used is said once in the log; the agents then read as placed here.
@@ -444,7 +446,16 @@ if (!app.requestSingleInstanceLock()) {
   // FD-285: each product's `agent-health/1` report, read every 5 minutes; its episodes go through the same channel.
   const health = new HealthPoller({
     binary: async (p) => (p.product === 'fabric-switchboard' ? consoles.switchboardPath() : null),
-    run: execRunner, log, observe: (product, answer) => alerts.health(product, answer),
+    run: execRunner, log, observe: (product, answer, expected) => alerts.health(product, answer, expected),
+    // FD-293: every answering service that is not a product read by its command, read with its own token.
+    services: () => {
+      const book = alerts.healthBook();
+      return monitor.snapshots().flatMap((s) => {
+        const d = s.descriptor;
+        if (!d || !HEALTH_READ_STATES.includes(s.state) || HEALTH_PRODUCTS.some((h) => h.product === d.id)) return [];
+        return [{ key: s.key, expected: d.id, known: s.key in book, read: async () => fetchHealthReport(d, HEALTH_PATH, await readTokenAsync(d.auth.tokenFile)) }];
+      });
+    },
   });
   function askLink(key: string, link: string | null): string | null {
     try { return linkFor(key, link && safePath(link) ? link : undefined); } catch { return null; }
@@ -456,7 +467,7 @@ if (!app.requestSingleInstanceLock()) {
   let hiddenSince: number | null = Date.now(); // the app starts with nothing on screen (a login start stays hidden)
   const status = (): AppStatus => ({
     services: monitor.snapshots(), off: monitor.offServices(), ...monitor.meta(), unread: activity.unread(), activityRev: activity.revision, update: updater.state, estate: estate.state, version: app.getVersion(),
-    alerts: alerts.status(), health: healthRows(alerts.healthBook(), healthProductName), sessions: consoles.sessionsStatus(), analyticsAvailable: analytics.availability() !== 'unavailable-no-key', analyticsHold: analytics.hold(settings.peek().analytics),
+    alerts: alerts.status(), health: healthRows(alerts.healthBook(), (product) => healthProductName(product, monitor.snapshots())), sessions: consoles.sessionsStatus(), analyticsAvailable: analytics.availability() !== 'unavailable-no-key', analyticsHold: analytics.hold(settings.peek().analytics),
     limits: personLimits, ...(lastShown ? { shown: lastShown } : {}), organizations: knownOrganizations(organizations.get()),
   });
 

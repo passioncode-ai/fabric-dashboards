@@ -166,10 +166,12 @@ function step(cause: HealthCause, verdict: 'bad' | 'good' | 'unknown', now: numb
   return { ...cause, bad: 0, good };
 }
 
-/** One reading of one product (`answer` null: no answer), at `now` (ms). */
-export function observeHealth(book: HealthBook, product: string, answer: unknown, now: number): HealthBook {
+/** One reading of one product (`answer` null: no answer), at `now` (ms). `product` is the book's key; `expected` the
+ *  product slug the report must name, the key itself unless an instance is read (FD-293: the key is `example-agent.cloud`,
+ *  the report says `example-agent`). */
+export function observeHealth(book: HealthBook, product: string, answer: unknown, now: number, expected = product): HealthBook {
   let read = readHealth(answer);
-  if (!read.reason && (answer as HealthReport).product !== product) read = { state: 'unknown', reason: 'other-product' };
+  if (!read.reason && (answer as HealthReport).product !== expected) read = { state: 'unknown', reason: 'other-product' };
   const prev = book[product];
   const causes: Record<string, HealthCause> = { ...(prev?.causes ?? {}) };
   const cause = (id: string) => causes[id] ?? { bad: 0, good: 0 };
@@ -208,7 +210,9 @@ export interface HealthWords {
 }
 
 /** What the book owes the channel, oldest first: one message when an episode opens, one when it closes. Ids and
- *  counts only, never a label or free text (DEC-0157); the operator's own channel (FD-269: Switchboard is his). */
+ *  counts only, never a label or free text (DEC-0157); the operator's own channel (FD-269: Switchboard is his), or, for a
+ *  product the book keys by a service key (FD-293), the channel of that service's organization, which the sender
+ *  finds from its snapshot. */
 export function owedHealth(book: HealthBook, words: HealthWords, nameOf: (product: string) => string, allowed: (product: string) => boolean): { id: string; step: 'failure' | 'recovery'; msg: AlertMessage }[] {
   const out: { id: string; step: 'failure' | 'recovery'; msg: AlertMessage; at: number }[] = [];
   for (const [product, p] of Object.entries(book)) {
@@ -276,6 +280,23 @@ export interface HealthProduct { product: string; name: string; argv: readonly s
 export const HEALTH_PRODUCTS: readonly HealthProduct[] = [
   { product: 'fabric-switchboard', name: 'Switchboard', argv: ['--json', 'health'] },
 ];
+
+/** FD-293: where a service serves its report over HTTP, `GET` on its origin with its descriptor token, as a host reads
+ *  its usage and load reports (the token gate of DEC-0154 HA-2 holds on loopback). Every answering service is asked; one
+ *  that has never answered a report is asked again only after `HEALTH_NONE_RETRY_MS`, and is not in the book. Interim
+ *  until contract CT-337 names where a service declares its report; then the declared path is read instead. Every
+ *  instance is a product of its own in the book, keyed by its service key, so an organization's copy is told through
+ *  its organization's channel (FD-269). */
+export const HEALTH_PATH = '/fabric/v1/health';
+export const HEALTH_NONE_RETRY_MS = 60 * 60_000;
+/** FD-293: whether an answer is a readable report naming `expected`: until a service has answered one, anything else
+ *  (a 404, a refused token, a page) is no report, never a broken one. */
+export function servesReport(answer: unknown, expected: string): boolean {
+  return !readHealth(answer).reason && (answer as HealthReport).product === expected;
+}
+/** FD-293: a service is read only while it answers its well-known probe: one that does not is FD-48's outage, never a
+ *  second, blind health episode on top of it. */
+export const HEALTH_READ_STATES: readonly string[] = ['ready', 'degraded'];
 
 /** A program too old to have the command: not a broken report, the product simply offers none yet. */
 export function healthCommandMissing(code: number | null, output: string): boolean {

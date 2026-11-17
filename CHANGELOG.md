@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.8.175 - 2026-11-17
+
+### Added
+
+- FD-293: an agent that has no command line but serves its health report over HTTP (`GET /fabric/v1/health`, read with
+  its own token) is now read every 5 minutes too. Its report appears on This Mac under the agent's card name, and its
+  episodes reach the operator's channel, or the channel of the organization the agent's copy works for. An agent that
+  does not answer is not read (its outage is already one message); one that serves no report is noted once in the log
+  and asked again an hour later.
+
 ## 0.8.174 - 2026-11-17
 
 ### Fixed
