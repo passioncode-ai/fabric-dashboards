@@ -25,7 +25,7 @@ import { admit, machineProbe, parseCapacity, type Admission, type MachineState }
 import { findCheckout } from '../core/repofind';
 import { projectsOf, projectsProbeArgv, targetLaunchArgv, targetsOf } from '../core/target-session';
 import { MACHINE } from '../core/platform';
-import { isNewAgentKey, isNewSessionKey, isolatedBlock, newSessionKey, prepareNewAgent, projectsFolder, type NewSessionChoice } from '../core/new-session';
+import { isNewAgentKey, isNewDashboardKey, isNewSessionKey, isolatedBlock, newSessionKey, prepareNewAgent, prepareNewDashboard, projectsFolder, type NewSessionChoice, type NewSessionKind } from '../core/new-session';
 import { askArgsOfProvider, bypassArgs, claudeAskModeOf, promptsWords, setClaudeAskMode, bypassArgsOfProvider, detectRuntimes, KNOWN_RUNTIMES, readLoginPath, searchDirs, specsFromSwitchboard, type Runtime, type RuntimeSpec } from '../core/runtimes';
 import type { SettingsStore } from '../core/settings';
 import { accountsOf, allSessionsOf, bindingFor, machineSessionsOf, findSwitchboard, handoverAskOf, handoverOwnKey, handoverRunArgv, handoversOf, hostedContinueArgv, handoversSwitch, isHandoverKey, launchFeatures, sbFailure, sessionsIn, startAccount, terminalLaunchArgv, type Binding, type SbAccounts, type SbHandover, type SbSessions, type StartAccount } from '../core/switchboard';
@@ -63,7 +63,7 @@ export interface ConsoleHostOptions {
   /** FD-141: a console start that was refused, by its reason only (usage and error data, docs/ANALYTICS.md). */
   failed?: (code: string) => void;
   /** FD-191: a session of its own or a new agent started from its dialog (usage data `session_started`, kinds only). */
-  started?: (props: { kind: 'session' | 'agent'; runtime: string; bypass: boolean; isolated: boolean; surface: 'dialog' | 'mcp' }) => void;
+  started?: (props: { kind: NewSessionKind; runtime: string; bypass: boolean; isolated: boolean; surface: 'dialog' | 'mcp' }) => void;
   settings: SettingsStore;
   snapshot: (key: string) => ServiceSnapshot | null;
   window: () => BrowserWindow | null;
@@ -563,13 +563,15 @@ export class ConsoleHost {
         return null;
       }
     }
-    // FD-191 (SCN-102): a new agent's console starts with the brief to create one, and this app's MCP server.
-    if (isNewAgentKey(key) && this.o.packRoot && this.o.mcpServer) {
+    // FD-191 (SCN-102): a new agent's console starts with the brief to create one, and this app's MCP server; FD-171
+    // (SCN-119): a new dashboard's the same way, with the brief to make one.
+    const briefed = isNewAgentKey(key) ? { prepare: prepareNewAgent, what: 'new-agent' } : isNewDashboardKey(key) ? { prepare: prepareNewDashboard, what: 'new-dashboard' } : null;
+    if (briefed && this.o.packRoot && this.o.mcpServer) {
       try {
-        const r = prepareNewAgent({ dir: packDir(this.o.packRoot, key), runtimeId: runtime.id, folder, server: this.o.mcpServer() });
+        const r = briefed.prepare({ dir: packDir(this.o.packRoot, key), runtimeId: runtime.id, folder, server: this.o.mcpServer() });
         return { handoff: r.handoff, env: r.env };
       } catch (error) {
-        this.o.log(`console: ${key} starts without its new-agent brief: ${(error as Error).message}`);
+        this.o.log(`console: ${key} starts without its ${briefed.what} brief: ${(error as Error).message}`);
         return null;
       }
     }
@@ -2024,7 +2026,7 @@ export class ConsoleHost {
 export function newSessionChoiceOf(v: unknown): NewSessionChoice | null {
   const c = (v ?? null) as Record<string, unknown> | null;
   if (!c || typeof c !== 'object' || Array.isArray(c)) return null;
-  if (c.kind !== 'session' && c.kind !== 'agent') return null;
+  if (c.kind !== 'session' && c.kind !== 'agent' && c.kind !== 'dashboard') return null;
   if (typeof c.runtime !== 'string' || !/^[a-z0-9][a-z0-9-]{0,63}$/.test(c.runtime)) return null;
   // FD-206: a machine as ssh knows it; its folder is a POSIX path there.
   if (c.machine !== undefined && c.machine !== null && (typeof c.machine !== 'string' || !MACHINE.test(c.machine))) return null;

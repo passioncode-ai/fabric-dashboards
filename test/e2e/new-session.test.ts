@@ -1,4 +1,4 @@
-// FD-191 (SCN-101, SCN-102): New session in the Sessions mode and New agent in the agent list, end to end against the
+// FD-191 (SCN-101, SCN-102) and FD-171 (SCN-119): New session in the Sessions mode and New agent in the agent list, end to end against the
 // real app. A fake `claude` records the arguments it was started with; the dialog offers it, opens on the folder last
 // chosen, starts it there without permission prompts, and the session's page and the Sessions list show it. New agent
 // opens the same dialog with its own title and closes on Cancel.
@@ -46,6 +46,14 @@ test('SCN-101, SCN-102: New session starts the chosen coding agent in the chosen
     if (SHOTS) await page.screenshot({ path: path.join(SHOTS, '40-new-agent.png') });
     await agentDialog.getByRole('button', { name: 'Cancel' }).click();
     await agentDialog.waitFor({ state: 'detached' });
+    // SCN-119 (FD-171): New dashboard on the agent list opens the dialog under its own title; Cancel closes it.
+    await page.getByRole('button', { name: 'New dashboard', exact: true }).click();
+    const dashboardDialog = page.getByRole('dialog', { name: 'New dashboard' });
+    await dashboardDialog.getByText(/asks what the page should show/).waitFor({ timeout: 20_000 });
+    await dashboardDialog.getByRole('button', { name: 'Create with coding agent' }).waitFor();
+    if (SHOTS) await page.screenshot({ path: path.join(SHOTS, '41-new-dashboard.png') });
+    await dashboardDialog.getByRole('button', { name: 'Cancel' }).click();
+    await dashboardDialog.waitFor({ state: 'detached' });
     // SCN-101: New session in the Sessions mode.
     await page.getByRole('button', { name: /^Sessions/ }).first().click();
     await page.getByRole('heading', { level: 1, name: 'All sessions' }).waitFor({ timeout: 20_000 });

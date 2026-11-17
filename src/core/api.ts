@@ -208,7 +208,7 @@ export interface FabricApi {
   /** FD-191: the system folder picker, opened on `current`; null when the person cancelled. */
   newSessionPickFolder(current: string): Promise<string | null>;
   /** FD-191: start a session of its own (or a new agent's) with these choices; the answer names its console key. */
-  newSessionStart(choice: { kind: 'session' | 'agent'; runtime: string; folder: string; bypass: boolean; isolated: boolean; machine?: string }, size: { cols: number; rows: number }): Promise<NewSessionResult>;
+  newSessionStart(choice: { kind: 'session' | 'agent' | 'dashboard'; runtime: string; folder: string; bypass: boolean; isolated: boolean; machine?: string }, size: { cols: number; rows: number }): Promise<NewSessionResult>;
   newSessionMachineFolders(machine: string): Promise<MachineFolders>;
   /** FD-39: `task` hands a job with the context (Fix / Update with agent, ADR-0020). */
   consoleStart(key: string, mode: 'new' | 'continue', size: { cols: number; rows: number }, task?: ConsoleTask): Promise<ConsoleStartResult>;

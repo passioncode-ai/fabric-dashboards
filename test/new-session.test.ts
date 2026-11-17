@@ -6,7 +6,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import { ConsoleHost, newSessionChoiceOf } from '../src/electron/console';
-import { isNewAgentKey, isNewSessionKey, isOwnConsoleKey, isolatedBlock, newAgentMarkdown, newSessionKey, prepareNewAgent, projectsFolder } from '../src/core/new-session';
+import { isNewAgentKey, isNewDashboardKey, isNewSessionKey, isOwnConsoleKey, isolatedBlock, newAgentMarkdown, newDashboardMarkdown, newSessionKey, prepareNewAgent, prepareNewDashboard, projectsFolder } from '../src/core/new-session';
 import { planStart } from '../src/core/consoles';
 import { openConsolesOf, parseRequest } from '../src/core/console-channel';
 import { createAnalytics } from '../src/core/analytics';
@@ -82,6 +82,37 @@ test('FD-191 (SCN-102): the new agent\'s brief names the folder, the skills and 
   assert.deepEqual(prepareNewAgent({ dir, runtimeId: 'goose', folder: '/x', server }).handoff, { before: [], after: [] }, 'another runtime starts with nothing added');
 });
 
+test('FD-171 (SCN-119): a new dashboard gets a console key of its own kind, a session of its own like the others', () => {
+  const d = newSessionKey('dashboard', 'a');
+  assert.match(d, /^session\.dashboard-[0-9a-f]{12}$/);
+  assert.ok(isNewSessionKey(d) && isNewDashboardKey(d) && !isNewAgentKey(d) && isOwnConsoleKey(d));
+  assert.ok(!isNewDashboardKey(newSessionKey('agent', 'a')) && !isNewDashboardKey(newSessionKey('session', 'a')));
+  assert.ok(!isNewSessionKey('session.dashboard-0123'), 'twelve hex digits, no fewer');
+});
+
+test('FD-171 (SCN-119): the new dashboard\'s brief names the adapter recipe, the MCP reads and the proof, and its pack is the person\'s alone', { skip: process.platform === 'win32' && 'POSIX file modes' }, () => {
+  const md = newDashboardMarkdown({ folder: '/Users/p/Developer' });
+  for (const s of ['/Users/p/Developer', 'building-fabric-services', 'recipes/dashboard-only/', 'install.py --id', 'install.mjs', 'snapshot.json', 'list_services', '`spend`', '`connections`', 'Never read another agent', 'one question at a time', '`open`']) assert.ok(md.includes(s), s);
+  assert.ok(!md.includes('\u2014'), 'no em dash');
+  const dir = path.join(tmp('fd-nd-'), 'session.dashboard-0123456789ab');
+  const server = { command: '/app/mcp', args: [] as string[] };
+  const claude = prepareNewDashboard({ dir, runtimeId: 'claude-code', folder: '/Users/p/Developer', server });
+  assert.equal(path.basename(claude.file), 'dashboard.md');
+  assert.equal(fs.statSync(claude.file).mode & 0o777, 0o600);
+  assert.equal(fs.readFileSync(claude.file, 'utf8'), md);
+  assert.deepEqual(claude.env, { FABRIC_DASHBOARDS_NEW_DASHBOARD: claude.file });
+  assert.ok(claude.handoff.before.includes('--append-system-prompt'));
+  assert.match(claude.handoff.after[0]!, /Read .*dashboard\.md and let's make a new dashboard together\./);
+  const codex = prepareNewDashboard({ dir, runtimeId: 'codex', folder: '/Users/p/Developer', server });
+  assert.ok(codex.handoff.before.includes('-c') && /dashboard\.md/.test(codex.handoff.after[0]!));
+  assert.deepEqual(prepareNewDashboard({ dir, runtimeId: 'goose', folder: '/x', server }).handoff, { before: [], after: [] }, 'another runtime starts with nothing added');
+});
+
+test('FD-171 (SCN-119): the console channel and the dialog\'s door take kind dashboard', () => {
+  assert.deepEqual(parseRequest(JSON.stringify({ key: 'k', op: 'session.new', start: { kind: 'dashboard', runtime: 'codex' } })), { ok: true, request: { key: 'k', op: 'session.new', service: '', start: { kind: 'dashboard', runtime: 'codex' } } });
+  assert.equal(newSessionChoiceOf({ kind: 'dashboard', runtime: 'claude-code', folder: '/w', bypass: true, isolated: false })?.kind, 'dashboard');
+});
+
 test('FD-191: the last choices are kept, a bad one dropped; a session\'s permission and isolation survive a reload', () => {
   const d = merge({});
   assert.deepEqual(d.newSession, { runtime: null, folder: null, bypass: true, isolated: false }, 'without prompts at first (FD-174), not isolated');
@@ -125,11 +156,13 @@ test('FD-191: `session_started` carries kinds only: any coding agent but the two
   } as never);
   a.sessionStarted({ kind: 'agent', runtime: 'goose', bypass: true, isolated: false });
   a.sessionStarted({ kind: 'session', runtime: 'codex', bypass: false, isolated: true, surface: 'mcp' });
+  a.sessionStarted({ kind: 'dashboard', runtime: 'claude-code', bypass: true, isolated: false }); // FD-171
   return a.flush().then(() => {
     // The analytics agent's review (board message `2d48d83f`): `surface` and `actor` added, nothing renamed.
     assert.deepEqual(sent.map(({ name, kind, runtime, bypass, isolated, surface, actor }) => ({ name, kind, runtime, bypass, isolated, surface, actor })), [
       { name: 'session_started', kind: 'agent', runtime: 'other', bypass: true, isolated: false, surface: 'dialog', actor: 'human' },
       { name: 'session_started', kind: 'session', runtime: 'codex', bypass: false, isolated: true, surface: 'mcp', actor: 'agent' },
+      { name: 'session_started', kind: 'dashboard', runtime: 'claude-code', bypass: true, isolated: false, surface: 'dialog', actor: 'human' },
     ]);
   });
 });
@@ -224,6 +257,20 @@ test('FD-191 (SCN-102): New agent starts with the brief to create one, in the pr
   assert.ok(fs.readFileSync(brief, 'utf8').includes(r.folder));
   assert.ok(r.spawned[0]!.args.includes('--append-system-prompt'));
   assert.ok(r.spawned[0]!.args.some((a) => a.includes('agent.md')));
+});
+
+test('FD-171 (SCN-119): New dashboard starts with the brief to make one, in the chosen folder', POSIX, async () => {
+  const r = rig();
+  const done = await r.host.startNew({ kind: 'dashboard', runtime: 'claude-code', folder: r.folder, bypass: true, isolated: false }, { cols: 80, rows: 24 });
+  assert.ok(done.ok);
+  const key = done.ok ? done.key : '';
+  assert.ok(isNewDashboardKey(key));
+  const brief = path.join(r.base, 'packs', key, 'dashboard.md');
+  assert.ok(fs.readFileSync(brief, 'utf8').includes('recipes/dashboard-only/'));
+  assert.equal(r.spawned[0]!.cwd, r.folder);
+  assert.ok(r.spawned[0]!.args.some((a) => a.includes('dashboard.md')));
+  assert.deepEqual(r.started, [{ kind: 'dashboard', runtime: 'claude-code', bypass: true, isolated: false, surface: 'dialog' }]);
+  assert.equal(r.host.sessionsStatus().rows.find((x) => x.key === key)?.state, 'running-ours', 'listed with the other sessions');
 });
 
 test('FD-191: a refused start says why and leaves no console choice behind', POSIX, async () => {
