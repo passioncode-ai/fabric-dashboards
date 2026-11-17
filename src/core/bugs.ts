@@ -31,6 +31,8 @@ export function scrub(text: string, home: string, user: string): string {
   s = s.replace(/\/Users\/[^/\s'"]+/g, '/Users/~').replace(/[A-Za-z]:\\Users\\[^\\\s'"]+/g, 'C:\\Users\\~').replace(/\/home\/[^/\s'"]+/g, '/home/~');
   if (user && user.length > 2) s = s.replace(new RegExp(`\\b${user.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'g'), '<user>');
   s = redactSecrets(s);
+  // FD-294 (7): an address names a person; a domain with a dot is required, so `pkg@1.2.3` and `user@host:repo` stay.
+  s = s.replace(/[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}\b/g, '<email>');
   s = s.replace(/\b[0-9a-f]{32,}\b/gi, '<hex>');
   return s.length > MAX_MESSAGE ? `${s.slice(0, MAX_MESSAGE)}…` : s;
 }
