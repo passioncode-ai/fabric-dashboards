@@ -32,9 +32,10 @@ const folded = (text: string) => text.normalize('NFKC').slice(0, READ_RAW_MAX).r
 const spaced = (part: string) => part.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/\s+/g, ' ');
 
 // FD-236 (9): lookalikes the NFKC fold keeps. A word that mixes Latin and Cyrillic (or Greek) letters is read in the
-// script most of its letters use, and a lone digit inside a word (`ign0re`, `a11`) as the letter it stands for; `1` is
-// read both as `i` and as `l`. Whole numbers (`401`, `sha256`, `ed25519`) and words in one script are left as they are,
-// so a Russian line stays Russian. Every swap is one character for one: the read window keeps its length.
+// script most of its letters use, and a lone digit inside a word (`ign0re`, `a11`) as the letter it stands for. A `1`
+// that starts a word reads as `i` and one that ends it as `l` (`1gnore a11`); one between letters is read both ways,
+// in two readings (`d1sregard`, `he11o`). Whole numbers (`401`, `sha256`, `ed25519`) and words in one script are left
+// as they are, so a Russian line stays Russian. Every swap is one character for one: the read window keeps its length.
 const TO_LATIN: Record<string, string> = {
   а: 'a', е: 'e', о: 'o', р: 'p', с: 'c', у: 'y', х: 'x', і: 'i', ј: 'j', ѕ: 's', ԁ: 'd', һ: 'h', ӏ: 'l', ԛ: 'q', ԝ: 'w', к: 'k',
   А: 'A', В: 'B', Е: 'E', К: 'K', М: 'M', Н: 'H', О: 'O', Р: 'P', С: 'C', Т: 'T', Х: 'X', У: 'Y', І: 'I', Ј: 'J', Ѕ: 'S',
@@ -44,35 +45,55 @@ const TO_LATIN: Record<string, string> = {
 const TO_CYRILLIC: Record<string, string> = {
   a: 'а', e: 'е', o: 'о', p: 'р', c: 'с', y: 'у', x: 'х', k: 'к',
   A: 'А', B: 'В', E: 'Е', K: 'К', M: 'М', H: 'Н', O: 'О', P: 'Р', C: 'С', T: 'Т', X: 'Х',
+  α: 'а', ε: 'е', κ: 'к', ο: 'о', ρ: 'р', χ: 'х',
+  Α: 'А', Β: 'В', Ε: 'Е', Η: 'Н', Κ: 'К', Μ: 'М', Ο: 'О', Ρ: 'Р', Τ: 'Т', Χ: 'Х',
 };
 const DIGIT_AS: Record<string, string> = { '0': 'o', '3': 'e', '4': 'a', '5': 's', '7': 't' };
 const WORD = /[\p{L}\p{N}]+/gu;
+/** A part worth a second reading: a Greek or Cyrillic letter, or a lookalike digit beside a letter. Most text has
+ *  neither and costs one scan (FD-236 (9), verifier round 1: a megabyte of plain prose read in under 5 ms again). */
+const MAY_HIDE = /[Ͱ-ԯ]|\p{L}[013457]|[013457]\p{L}/u;
+const isLetter = (c: string | undefined) => c !== undefined && /\p{L}/u.test(c);
+/** Characters a call reads a second time for lookalikes: the head and tail of four long texts. */
+const SKELETON_BUDGET = 1024 * 1024;
 /** The readings of one part besides itself: none when no word mixes scripts or hides a letter behind a digit. */
 function skeletons(part: string): string[] {
+  if (!MAY_HIDE.test(part)) return [];
   let changed = false;
-  let one = false;
-  const swap = (oneAs: string) => part.replace(WORD, (word) => {
-    const latin = (word.match(/[A-Za-z]/g) ?? []).length;
-    const greek = (word.match(/[\u0370-\u03ff]/g) ?? []).length;
-    const cyrillic = (word.match(/[\u0400-\u04ff]/g) ?? []).length;
+  let between = false;
+  const swap = (midOne: string) => part.replace(WORD, (word) => {
+    let latin = 0;
+    let greek = 0;
+    let cyrillic = 0;
+    let digit = false;
+    for (let i = 0; i < word.length; i++) {
+      const c = word.charCodeAt(i);
+      if ((c >= 65 && c <= 90) || (c >= 97 && c <= 122)) latin++;
+      else if (c >= 0x370 && c <= 0x3ff) greek++;
+      else if (c >= 0x400 && c <= 0x52f) cyrillic++;
+      else if (c >= 48 && c <= 57) digit = true;
+    }
     let out = word;
-    // Greek letters read as Latin (no Russian word uses them); Cyrillic as Latin only when Latin letters outnumber it.
+    // Greek letters read as Latin (no Russian word uses them) unless Cyrillic outnumbers the rest; Cyrillic reads as
+    // Latin only when Latin and Greek letters outnumber it.
     if ((latin && (greek || cyrillic)) || (greek && cyrillic)) {
       const toLatin = latin + greek >= cyrillic;
       out = [...out].map((c) => (toLatin ? TO_LATIN[c] : TO_CYRILLIC[c]) ?? c).join('');
     }
     // A run of at most two lookalike digits beside a letter stands for letters; any other digit run is a number.
-    if (latin + greek + cyrillic) out = out.replace(/(?<!\p{N})\p{N}+(?!\p{N})/gu, (run: string, at: number, w: string) => {
-      const near = /\p{L}/u.test(w[at - 1] ?? '') || /\p{L}/u.test(w[at + run.length] ?? '');
-      if (!near || run.length > 2 || !/^[013457]+$/.test(run)) return run;
-      return run.replace(/[013457]/g, (d) => (d === '1' ? ((one = true), oneAs) : DIGIT_AS[d]!));
+    if (digit && latin + greek + cyrillic) out = out.replace(/(?<!\p{N})\p{N}+(?!\p{N})/gu, (run: string, at: number, w: string) => {
+      const before = isLetter(w[at - 1]);
+      const after = isLetter(w[at + run.length]);
+      if ((!before && !after) || run.length > 2 || !/^[013457]+$/.test(run)) return run;
+      const one = !before ? 'i' : !after ? 'l' : ((between = true), midOne);
+      return run.replace(/[013457]/g, (d) => (d === '1' ? one : DIGIT_AS[d]!));
     });
     if (out !== word) changed = true;
     return out;
   });
   const first = swap('i');
   if (!changed) return [];
-  return one ? [first, swap('l')] : [first];
+  return between ? [first, swap('l')] : [first];
 }
 /** A fence marker in any spacing, case or dash: `<untrusted-data`, `< / UNTRUSTED_data`, `</untrusted‐data`. Linear:
  *  no two quantifiers can split the same run of characters. */
@@ -105,13 +126,20 @@ export function literal(text: string, max = 300): string {
 // Each pattern needs an instruction's form (a verb aimed at the agent and its target), so ordinary log lines ("POST
 // /api/token 401", "send failed: missing token", "rm -rf /tmp/build") are not read as one. Every gap is bounded.
 const SIGNALS: readonly [string, RegExp][] = [
-  // FD-236 (9): synonyms of the verb ("bypass", "set aside", "pay no attention to") and of the rules ("directives",
-  // "guidelines", "constraints"); "commands" and "orders" only after a word that points back at what came before.
-  ['ignore-instructions', /(ignore|disregard|forget|override|bypass|discard|neglect|set aside|pay no attention to)\b[^.\n]{0,40}\b(previous|prior|preceding|above|earlier|all|your|system|original|initial)\b[^.\n]{0,20}\b(instructions?|prompts?|rules|directives?|guidelines?|guidance|constraints)\b/i],
-  ['ignore-instructions', /(ignore|disregard|forget|override|bypass|discard|set aside|pay no attention to)\b[^.\n]{0,30}\b(previous|prior|preceding|above|earlier)\s+(commands?|orders)\b/i],
+  // FD-236 (9): more names for the rules ("directives", "guidelines", "constraints") and verbs that are rare outside an
+  // instruction ("set aside", "pay no attention to", "neglect"), each only with a word that points back at the agent's
+  // own rules (previous, prior, your), so "override initial constraints with --relax" or "Feature flags override all
+  // system guidelines" stay log lines; not "bypass" or "discard", which proxies, linters and caches print about their own
+  // rules. "commands" and "orders" count only after such a word, and not after "forget" ("history -c: forget previous
+  // commands").
+  ['ignore-instructions', /(ignore|disregard|forget|override)\b[^.\n]{0,40}\b(previous|prior|above|earlier|all|your|system)\b[^.\n]{0,20}\b(instructions?|prompts?|rules)\b/i],
+  ['ignore-instructions', /\b(ignore|disregard|forget|override|set aside|pay no attention to|neglect)\b[^.\n]{0,40}\b(previous|prior|preceding|above|earlier|your)\b[^.\n]{0,20}\b(instructions?|prompts?|rules|directives?|guidelines?|guidance|constraints)\b/i],
+  ['ignore-instructions', /\b(ignore|disregard|override|set aside|pay no attention to|neglect)\b[^.\n]{0,30}\b(previous|prior|preceding|earlier)\s+(commands?|orders)\b/i],
   ['ignore-instructions', /(ignore|disregard|forget)\b[^.\n]{0,30}\b(what you were told|(instructions|rules) (above|before|earlier|you were given))/i],
   ['ignore-instructions', /\binstead\b[^.\n]{0,20}\b(delete|remove|wipe|erase|upload)\s+(~|\/|\$HOME|the (repo|repository|folder|directory|database|files))/i],
-  ['ignore-instructions', /(игнорируй|забудь|проигнорируй|не обращай(те)? внимани[ея] на|отбрось|пренебреги)[^.\n]{0,40}(инструкци|правил|указани|директив|ограничени)/i],
+  ['ignore-instructions', /(игнорируй|забудь|проигнорируй)[^.\n]{0,40}(инструкци|правил|указани)/i],
+  // FD-236 (9): the same synonyms in Russian, within one clause and after a word that points back («предыдущие», «свои»).
+  ['ignore-instructions', /(игнорируй|забудь|проигнорируй|не обращай внимани[ея] на|отбрось|пренебреги)[^.,;\n]{0,30}(предыдущ|прежн|выше|все |всеми |сво|системн)[^.,;\n]{0,20}(инструкци|правил|указани|директив|ограничени)/i],
   ['role-change', /\byou are now (an? |the )?(admin|root|system|developer|assistant|agent|unrestricted|jailbroken)\b|\bnew instructions?\s*:/i],
   ['system-prompt', /\b(reveal|print|show|ignore|override|repeat)\b[^.\n]{0,20}\bsystem (prompt|message)\b|(покажи|игнорируй)[^.\n]{0,20}системн(ый|ое) (промпт|сообщение)/i],
   ['chat-markup', /<\s*\/?\s*(system|assistant|tool[ _]call|function[ _]calls?)\s*>|\[INST\][^\n]{0,300}\[\/INST\]|<\|im[ _](start|end)\|>/i],
@@ -133,6 +161,9 @@ const SIGNALS: readonly [string, RegExp][] = [
  *  keep a person in the loop (permission prompts on), never proof of an attack. */
 export function injectionSignals(texts: readonly (string | null | undefined)[]): string[] {
   const found = new Set<string>();
+  // FD-236 (9), verifier round 1: the lookalike reading is at most SKELETON_BUDGET characters a call, so twenty hostile
+  // texts of a megabyte cannot stall the main process that packs a console; past it each part is read as written.
+  let budget = SKELETON_BUDGET;
   for (const text of texts) {
     if (!text) continue;
     // Folded first (NFKC can grow a character 18 times), then one line as context.md shows events, then the head and the
@@ -142,7 +173,11 @@ export function injectionSignals(texts: readonly (string | null | undefined)[]):
     // FD-234 (verifier round 8): past the first READ_RAW_MAX the end of the text itself is read too.
     // Folding can grow a short text 18 times and cut it; the end of the text itself is read whenever there is more.
     if (text.length > READ_MAX || flat.length > READ_WHOLE) parts.push(folded(text.slice(-READ_MAX)));
-    for (const part of parts.map(spaced)) for (const reading of [part, ...skeletons(part)]) for (const [name, re] of SIGNALS) if (re.test(reading)) found.add(name);
+    for (const part of parts.map(spaced)) {
+      const readings = budget > 0 ? [part, ...skeletons(part)] : [part];
+      if (readings.length > 1) budget -= part.length;
+      for (const reading of readings) for (const [name, re] of SIGNALS) if (re.test(reading)) found.add(name);
+    }
   }
   return [...found];
 }

@@ -7,6 +7,16 @@ Current release: **0.8.110** published 2026-11-15 09:04 UTC (0.8.111 next); earl
 order, their runs under way. 0.8.106 and 0.8.107 were never published (0.8.106's check failed on an unref'd timer in a
 test; both fold into 0.8.108).
 
+## 0.8.157: synonyms of ignoring the instructions, and the lookalike reading's cost (2026-11-17)
+
+0.8.156 tagged (808b222, run 43984330451; e2e not run: the screen was locked and the disk had 3 GB free). 0.8.157
+closes FD-236 (9)'s synonyms in `src/core/untrusted.ts` and answers the blind readings of 0.8.156 and the synonyms:
+false readings of tool lines removed (each new word needs one that points back at the agent's rules), the lookalike
+reading's cost back to 0.8.155's on ordinary text with a megabyte budget a call, `a11`, Greek in Russian words and
+U+0500..U+052F read. SECURITY.md's FD-236 paragraph updated. Checks: `npm run check` 1419 pass; e2e not run (screen
+locked). Waits unchanged (FD-291 step 2, FD-290 on SB-400, FD-242 on a free pool slot). **First task for the next
+agent:** confirm v0.8.156 and v0.8.157 published and installed, then MCP `agent_health` lists `fabric-switchboard`.
+
 ## 0.8.156: lookalike letters in instruction-like text (2026-11-17)
 
 0.8.155 published (run 43969454632, 16 assets) and this Mac updated to it. 0.8.156 closes FD-236 (9)'s lookalikes in

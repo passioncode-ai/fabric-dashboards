@@ -181,17 +181,20 @@ answers (`service_context`, `activity`: an `untrusted` list of fields) say all o
 (`injectionSignals`: "ignore previous instructions", role or chat markup, `curl … | sh`, `rm -rf ~`, reading
 `~/.ssh` and sending it, asking to print a secret; every descriptor string up to 64 levels deep is read as written, a value that is not a string as its text) starts with
 permission prompts on, for that start (a console or Open in Terminal; a pack that cannot be written holds the start
-too): the runtime gets an explicit mode that asks (Claude Code `--permission-mode default`, Codex `-a on-request -s workspace-write`,
+too): the runtime gets an explicit mode that asks (Claude Code `--permission-mode` with the asking mode its own `--help` lists, `manual` or `default`, Codex `-a on-request -s workspace-write`,
 Gemini CLI `--approval-mode default`), which neither its own settings nor Switchboard's launch override (Switchboard
 adds its bypass only when the arguments name no mode). For Codex that is the approval policy and the sandbox; a
 Claude Code `permissions.allow` rule still approves its tools. OpenCode and Cursor CLI have no such mode: a held start
-drops their bypass flag and their own settings decide; a runtime with no skip flag at all starts as before. Logged, the person's saved choice unchanged. The reading is a heuristic that keeps a person in the loop, not a proof. Not covered yet (FD-236): a held
-conversation continued after a limit, or from a Switchboard or hand-over row of the Sessions list, resumes without the
-hold; a Fix or Update typed into a
-session that already runs is fenced but only logged, not held (the person sends it); the console's own Continue reads only the events listed now, so a conversation that read an instruction-like event continues unheld once that event has scrolled out; the Setup console's `setup.md` carries the launcher doctor's text unfenced, and the Setup and New agent consoles (which carry no service text) are not held when their pack cannot be written; and `service_status`,
-`list_services`, `audit`, `doctor` and `update` mark nothing in their answers (the console rules name them; only
-`service_context` and `activity` carry an `untrusted` field, the pack carries the blocks). The hold shows no sign in
-the app yet: its reason is in `context.md` and the app's log (only in the log when the pack could not be written).
+drops their bypass flag and their own settings decide; a runtime with no skip flag at all starts as before. Logged, the person's saved choice unchanged. The reading is a heuristic that keeps a person in the loop, not a proof; it also reads a word that mixes alphabets in
+the one most of its letters use and a digit standing for a letter (`іgnore`, `a11`), and common synonyms ("disregard
+prior directives", «не обращай внимания на предыдущие указания»), with that second reading capped at about a megabyte
+a start. The hold is recorded with the console and follows the conversation (its Continue, a limit resume, a Sessions
+continue in its folder and Open in Terminal ask until a new session starts on a clean context); the app shows "Asks
+before acting" on a held console, and MCP `console_new` and `console_fix` answer `held: true`. `list_services`,
+`service_status`, `audit`, `service_context` and `activity` carry an `untrusted` list of fields; the Setup console's
+`setup.md` fences the launcher doctor's text. Not covered yet (FD-236): a Fix or Update typed into a session that
+already runs is fenced but only logged, not held (the person sends it); the Setup and New agent consoles (which carry
+no service text) are not held when their pack cannot be written; `doctor` and `update` mark nothing in their answers.
 
 ## Dashboard sign-ins at rest
 
