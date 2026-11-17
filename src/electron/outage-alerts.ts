@@ -174,7 +174,7 @@ export class OutageAlerts {
       const now = this.now();
       const allowed = (key: string) => this.o.allowed(key, new Date(now));
       // Outages first, in order; then the decisions agents wait for (FD-125), oldest first.
-      const due: { id: string; step: 'failure' | 'recovery' | 'ask' | 'health-failure' | 'health-recovery'; msg: AlertMessage }[] = [
+      const due: { id: string; ids?: string[]; step: 'failure' | 'recovery' | 'ask' | 'health-failure' | 'health-recovery'; msg: AlertMessage }[] = [
         ...owed(this.state, now, this.o.words(), allowed),
         ...owedAsks(this.state, now, this.o.words(), allowed).map((a) => ({ ...a, step: 'ask' as const })),
         ...healthOwed(this.state.health, this.o.words().health, this.o.productName, allowed),
@@ -217,7 +217,8 @@ export class OutageAlerts {
         }
         this.save(d.step === 'ask' ? askDelivered(this.state, d.id)
           : d.step === 'health-failure' || d.step === 'health-recovery' ? { ...this.state, health: healthDelivered(this.state.health ?? {}, d.id, d.step === 'health-failure' ? 'failure' : 'recovery') }
-          : delivered(this.state, d.id, d.step));
+          // FD-295: a group message settles every episode it names.
+          : (d.ids ?? [d.id]).reduce((state, id) => delivered(state, id, d.step as 'failure' | 'recovery'), this.state));
         this.retryAt.delete(d.msg.eventId);
         this.held.delete(d.msg.eventId);
         this.o.log(`alerts: sent ${d.msg.kind} ${d.msg.eventId} via ${channel.key}`);

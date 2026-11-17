@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.8.173 - 2026-11-17
+
+### Changed
+
+- FD-295: a mass outage is one message. When three or more agents stop answering within 5 minutes of each other (a
+  network drop, a sleep), the operator's channel gets one message naming them, with how long and why for each, and one
+  more when they are back, instead of one per agent. Two agents, or one that falls later, are still sent one by one;
+  each organization's agents still go to its own channel.
+
 ## 0.8.172 - 2026-11-17
 
 ### Security

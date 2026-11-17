@@ -381,3 +381,66 @@ test('FD-285: an event id reaches the channel in the form it takes', () => {
   for (const id of ['outage:copy.default:0', '@x', 'a/b c', 'é'.repeat(300), ':back']) assert.match(channelEventId(id), re, id);
   assert.equal(channelEventId('outage:copy.default:0:back'), 'outage:copy.default:0:back');
 });
+
+// FD-295 (architect review 445c0b80 item 9): a mass outage is one case. Three or more agents of one side whose
+// messages come due within five minutes go out as one message naming them, and their recoveries as one.
+const many: Words = { ...words, group: { down: (n) => `${n} agents are not answering`, back: (n) => `${n} agents are back`, line: (name, m, r) => `${name}: ${m} min, ${r}`, more: (n) => `and ${n} more` } };
+const runWith = (w: Words, steps: { at: number; services: Watched[] }[]) => {
+  let state: OutageState = emptyOutageState();
+  const sent: { at: number; kind: string; subject: string; text: string; eventId: string }[] = [];
+  for (const s of steps) {
+    state = observe(state, s.services, s.at);
+    for (const d of owed(state, s.at, w, () => true)) {
+      sent.push({ at: s.at, kind: d.msg.kind, subject: d.msg.subject, text: d.msg.text, eventId: d.msg.eventId });
+      for (const id of d.ids ?? [d.id]) state = delivered(state, id, d.step);
+    }
+  }
+  return { state, sent };
+};
+const agent = (i: number, over: Partial<Watched> = {}) => svc({ key: `a${i}.default`, name: `Agent ${i}`, ...over });
+const fleet = (n: number, state: Watched['state'], from = 0) => Array.from({ length: n }, (_, i) => agent(i + from, { state }));
+const everyMinute = (to: number, at: (m: number) => Watched[]) => Array.from({ length: to + 1 }, (_, m) => ({ at: m * MIN, services: at(m) }));
+
+test('FD-295: thirty agents falling together send one message naming them, and one when they are back', () => {
+  const r = runWith(many, everyMinute(70, (m) => fleet(30, m < 30 ? 'down' : 'ready')));
+  assert.deepEqual(r.sent.map((s) => [s.at, s.kind, s.subject]), [[15 * MIN, 'failure', '30 agents are not answering'], [45 * MIN, 'recovery', '30 agents are back']]);
+  assert.match(r.sent[0]!.text, /^Agent 0: 15 min, connection refused\n/);
+  assert.match(r.sent[0]!.text, /\nand 10 more$/, 'twenty agents named, the rest counted');
+  assert.equal(r.sent[0]!.text.split('\n').length, 21);
+  assert.equal(r.sent[0]!.eventId, 'outage:a0.default:0:+29', 'the group is named by its first member, the same on every retry');
+  assert.equal(r.sent[1]!.eventId, 'outage:a0.default:0:+29:back');
+  assert.deepEqual(r.state.episodes, {}, 'every member is settled');
+});
+
+test('FD-295: agents falling a few minutes apart wait for each other, at most five minutes', () => {
+  const r = runWith(many, everyMinute(40, (m) => [agent(1, { state: m >= 0 ? 'down' : 'ready' }), agent(2, { state: m >= 2 ? 'down' : 'ready' }), agent(3, { state: m >= 4 ? 'down' : 'ready' })]));
+  assert.deepEqual(r.sent.map((s) => [s.at, s.subject]), [[19 * MIN, '3 agents are not answering']], 'the first is held until the last comes due, four minutes later');
+  const far = runWith(many, everyMinute(40, (m) => [agent(1, { state: 'down' }), agent(2, { state: m >= 2 ? 'down' : 'ready' }), agent(3, { state: m >= 9 ? 'down' : 'ready' })]));
+  assert.deepEqual(far.sent.map((s) => [s.at, s.subject]), [[15 * MIN, 'Agent 1 is down'], [17 * MIN, 'Agent 2 is down'], [24 * MIN, 'Agent 3 is down']], 'a peer more than five minutes behind is not waited for');
+});
+
+test('FD-295: two agents falling together are told one by one; the old Words send every one alone', () => {
+  const two = runWith(many, everyMinute(20, () => fleet(2, 'down')));
+  assert.deepEqual(two.sent.map((s) => s.subject), ['Agent 0 is down', 'Agent 1 is down']);
+  const old = runWith(words, everyMinute(20, () => fleet(4, 'down')));
+  assert.equal(old.sent.length, 4, 'no group words, no group');
+});
+
+test('FD-295: agents of different sides are never grouped together', () => {
+  const r = runWith(many, everyMinute(20, () => [...fleet(3, 'down'), ...fleet(3, 'down', 10).map((a) => ({ ...a, side: 'org:acme' }))]));
+  assert.deepEqual(r.sent.map((s) => s.subject), ['3 agents are not answering', '3 agents are not answering']);
+  assert.deepEqual(r.sent.map((s) => s.eventId), ['outage:a0.default:0:+2', 'outage:a10.default:0:+2']);
+});
+
+test('FD-295: a group the channel refused is sent again whole, under the same id', () => {
+  let state: OutageState = emptyOutageState();
+  for (let m = 0; m <= 15; m += 1) state = observe(state, fleet(4, 'down'), m * MIN);
+  const first = owed(state, 15 * MIN, many, () => true);
+  assert.equal(first.length, 1);
+  assert.deepEqual(first[0]!.ids, ['a0.default', 'a1.default', 'a2.default', 'a3.default']);
+  state = observe(state, fleet(4, 'down'), 16 * MIN);
+  const again = owed(state, 16 * MIN, many, () => true);
+  assert.equal(again[0]!.msg.eventId, first[0]!.msg.eventId);
+  for (const id of again[0]!.ids!) state = delivered(state, id, again[0]!.step);
+  assert.deepEqual(owed(state, 17 * MIN, many, () => true), []);
+});

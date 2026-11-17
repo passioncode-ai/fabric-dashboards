@@ -93,6 +93,8 @@ export interface Words {
   open?: (link: string) => string;
   /** FD-285: the words of an `agent-health/1` episode. */
   health?: HealthWords;
+  /** FD-295: the words of a mass outage told as one message; without them every outage is told alone. */
+  group?: { down: (count: number) => string; back: (count: number) => string; line: (name: string, minutes: number, reason: string) => string; more: (count: number) => string };
 }
 
 const minutes = (ms: number) => Math.max(1, Math.round(ms / 60_000));
@@ -157,32 +159,72 @@ export function observe(prev: OutageState, services: readonly Watched[], now: nu
 /** One episode id per outage, the same across restarts; never a `/`, at most 160 characters. */
 const idOf = (key: string, ep: Episode) => `outage:${key.split('#')[0]!.slice(0, 120)}:${Math.floor(ep.start / 1000)}`;
 
+// #region outage-groups — docs: docs/adr/0010-notifications-only-when-it-matters.md#amendment-2026-11-17-a-mass-outage-is-one-message-fd-295
+/** FD-295 (architect review 445c0b80 item 9, the base's `alert-episodes` cap): a network drop or a sleep that takes many
+ *  agents down at once is one case (the operator's rule of 2026-10-19), so OUTAGE_GROUP_AT or more messages of one step
+ *  and one side that come due within OUTAGE_GROUP_WINDOW_MS go out as one, naming the agents. A message whose peers
+ *  are about to come due waits for them, at most that window. */
+export const OUTAGE_GROUP_AT = 3;
+export const OUTAGE_GROUP_WINDOW_MS = 5 * 60_000;
+/** How many agents a group message names; the rest are counted. */
+const GROUP_NAMES = 20;
+// #endregion outage-groups
+
+/** One message owed; `ids` names every episode a group message carries (FD-295), each delivered with it. */
+export interface OwedAlert { id: string; step: 'failure' | 'recovery'; msg: AlertMessage; ids?: string[] }
+
 /**
  * What the state owes now, in order: a failure once an open episode has lasted fifteen minutes and the service is
  * still unavailable (never during the calm before an episode closes, FD-76); after a delivered
  * failure, the recovery once it closed; an outage that closed with its failure undelivered (the channel itself was
  * unreachable) is told once afterwards. `allowed` is the person's own rules: an episode they muted owes nothing.
+ * With `words.group`, a mass outage is one message (FD-295, `OUTAGE_GROUP_AT`).
  */
-export function owed(state: OutageState, now: number, words: Words, allowed: (key: string) => boolean): { id: string; step: 'failure' | 'recovery'; msg: AlertMessage }[] {
-  const out: { id: string; step: 'failure' | 'recovery'; msg: AlertMessage }[] = [];
+export function owed(state: OutageState, now: number, words: Words, allowed: (key: string) => boolean): OwedAlert[] {
+  type Due = OwedAlert & { due: number; ep: Episode; lasted: number };
+  const single: Due[] = [];
+  // FD-295: what comes due soon, by side and step, so a message can wait for its peers.
+  const soon: { side: string; step: 'failure' | 'recovery'; due: number }[] = [];
   for (const [id, ep] of Object.entries(state.episodes).sort((a, b) => a[1].start - b[1].start)) {
     const key = id.split('#')[0]!;
     if (!allowed(key)) continue;
+    const side = ep.side ?? PERSONAL_SIDE;
     const eventId = idOf(id, ep);
     const lasted = (ep.end ?? now) - ep.start;
     if (ep.end === null) {
       // Only while it is unavailable now: an episode in its calm (clearSince set) is a service that is well again.
-      if (!ep.failureDelivered && ep.clearSince === null && lasted >= OUTAGE_ALERT_AFTER_MS) {
-        out.push({ id, step: 'failure', msg: { serviceKey: key, side: ep.side ?? PERSONAL_SIDE, kind: 'failure', eventId, subject: ep.cause === 'down' ? words.down(ep.name) : words.failing(ep.name, ep.source ?? '?'), text: words.since(minutes(lasted), ep.why) } });
+      if (!ep.failureDelivered && ep.clearSince === null) {
+        if (lasted >= OUTAGE_ALERT_AFTER_MS) single.push({ id, step: 'failure', due: ep.start + OUTAGE_ALERT_AFTER_MS, ep, lasted, msg: { serviceKey: key, side, kind: 'failure', eventId, subject: ep.cause === 'down' ? words.down(ep.name) : words.failing(ep.name, ep.source ?? '?'), text: words.since(minutes(lasted), ep.why) } });
+        else soon.push({ side, step: 'failure', due: ep.start + OUTAGE_ALERT_AFTER_MS });
+      } else if (ep.clearSince !== null && (ep.failureDelivered || ep.clearSince - ep.start >= OUTAGE_ALERT_AFTER_MS)) {
+        soon.push({ side, step: 'recovery', due: ep.clearSince + OUTAGE_CLEAR_AFTER_MS });
       }
       continue;
     }
     if (ep.recoveryDelivered) continue;
     const subject = ep.removed ? words.removed(ep.name) : words.back(ep.name);
-    if (ep.failureDelivered) out.push({ id, step: 'recovery', msg: { serviceKey: key, side: ep.side ?? PERSONAL_SIDE, kind: 'recovery', eventId: `${eventId}:back`, subject, text: words.after(minutes(lasted)) } });
-    else if (lasted >= OUTAGE_ALERT_AFTER_MS) out.push({ id, step: 'recovery', msg: { serviceKey: key, side: ep.side ?? PERSONAL_SIDE, kind: 'recovery', eventId: `${eventId}:back`, subject, text: words.wasDown(minutes(lasted), ep.why) } });
+    const due = ep.removed ? ep.end : ep.end + OUTAGE_CLEAR_AFTER_MS;
+    if (ep.failureDelivered) single.push({ id, step: 'recovery', due, ep, lasted, msg: { serviceKey: key, side, kind: 'recovery', eventId: `${eventId}:back`, subject, text: words.after(minutes(lasted)) } });
+    else if (lasted >= OUTAGE_ALERT_AFTER_MS) single.push({ id, step: 'recovery', due, ep, lasted, msg: { serviceKey: key, side, kind: 'recovery', eventId: `${eventId}:back`, subject, text: words.wasDown(minutes(lasted), ep.why) } });
   }
-  return out;
+  const plain = (d: Due): OwedAlert => ({ id: d.id, step: d.step, msg: d.msg });
+  const group = words.group;
+  if (!group) return single.map(plain);
+  const parts = new Map<string, Due[]>();
+  for (const d of single) { const k = `${d.step}\u0000${d.msg.side}`; parts.set(k, [...(parts.get(k) ?? []), d]); }
+  const out: { due: number; alert: OwedAlert }[] = [];
+  for (const part of parts.values()) {
+    const first = part.reduce((a, b) => (b.due < a.due ? b : a));
+    const peers = soon.filter((x) => x.step === first.step && x.side === first.msg.side && x.due <= first.due + OUTAGE_GROUP_WINDOW_MS).length;
+    if (peers && part.length + peers >= OUTAGE_GROUP_AT && now < first.due + OUTAGE_GROUP_WINDOW_MS) continue;
+    if (part.length < OUTAGE_GROUP_AT) { for (const d of part) out.push({ due: d.due, alert: plain(d) }); continue; }
+    const lines = part.slice(0, GROUP_NAMES).map((d) => group.line(d.ep.name, minutes(d.lasted), d.ep.why));
+    if (part.length > GROUP_NAMES) lines.push(group.more(part.length - GROUP_NAMES));
+    const lead = part[0]!;
+    const eventId = `${idOf(lead.id, lead.ep)}:+${part.length - 1}${lead.step === 'recovery' ? ':back' : ''}`;
+    out.push({ due: first.due, alert: { id: lead.id, step: lead.step, ids: part.map((d) => d.id), msg: { serviceKey: lead.msg.serviceKey, side: lead.msg.side, kind: lead.msg.kind, eventId, subject: lead.step === 'failure' ? group.down(part.length) : group.back(part.length), text: lines.join('\n') } } });
+  }
+  return out.sort((a, b) => a.due - b.due).map((x) => x.alert);
 }
 
 // #region operator-asks — docs: docs/adr/0010-notifications-only-when-it-matters.md#amendment-2026-10-27-a-decision-reaches-the-operator-away-from-the-mac-fd-125

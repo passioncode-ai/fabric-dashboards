@@ -214,3 +214,28 @@ its worst state and its checks, each with an id, area, state, count and the fix 
 
 The book lives in `outage-alerts.json` (`health`), and MCP `agent_health` reads it. Wave 2 reads the paths agents declare
 (CT-337) instead of the list.
+
+## Amendment 2026-11-17: a mass outage is one message (FD-295)
+
+**Context.** Each agent opens its own outage episode (FD-48, FD-76). A network drop, a sleep or a restart of the machine
+takes many agents down at once: with 30 agents that is 30 messages to the operator's channel, and 30 more when they come
+back. Architect review `445c0b80` item 9 pointed at the agents base's `alert-episodes` 1.2.0, which caps urgent messages
+per hour, sends one `noisy` notice and a digest for the rest.
+
+**Decision.** Outages that come due together go out as one message (`OUTAGE_GROUP_AT`, `OUTAGE_GROUP_WINDOW_MS`,
+`owed`, `src/core/outage-alerts.ts`):
+
+- three or more messages of one step (failure or recovery) and one side (FD-269) that come due within 5 minutes of the
+  first are one message: "{count} agents are not answering" (or "are back"), then one line per agent with its name, how
+  many minutes and why, at most 20 lines and "And {count} more" for the rest;
+- the first message of such a run waits for the others at most 5 minutes past its own due time, so a group is never
+  later than that; two messages, or a third that comes due later than the window, go one by one as before;
+- failures and recoveries never share a message, and sides never mix: each side's group goes to its own channel;
+- the group's `eventId` is the first episode's id with `:+<others>` (and `:back`), so a retry sends the same message
+  once; delivering it settles every episode it names, and a refused group is retried whole;
+- the 15-minute rule, the one-case-once rule of 2026-10-19 and the pause, quiet hours and mute apply to each episode
+  before it is grouped.
+
+The base's per-hour cap is not adopted: what floods the channel is many agents falling at once, which grouping turns
+into one message, while one agent's repeated outages are already one episode under the 15-minute rule. A dismissal with
+`until` is the person's mute, which already exists.

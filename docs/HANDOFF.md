@@ -1,11 +1,22 @@
 # Handoff — Fabric Dashboards
 
-Updated 2026-11-17 (0.8.172: start at *0.8.172* below; 0.8.171 tagged; 0.8.170 tagged; 0.8.169 published; 0.8.168 tagged; 0.8.167 tagged; 0.8.166 tagged; 0.8.165 tagged; 0.8.164 tagged; 0.8.161 and 0.8.163 tagged, 0.8.162's run cancelled by 0.8.163's tag, its changes ship in 0.8.163). History: updated 2026-10-26 (0.8.7 current then, see *0.8.7: start here*; earlier the same day 0.8.6, see *0.8.5: start here* and *Session 2026-10-26: start here*). Earlier: updated 2026-10-25 (0.8.1 current; the consolidation, see *Consolidation 2026-10-25: start here*). Earlier: updated 2026-10-24 (0.7.28). Earlier header: updated 2026-10-07 (0.6.2: 0.6.1 withdrawn for audit HIGH-2, audit fixes, signed feed; 0.6.1: LC-16 in detail updater, Russian by choice; 0.6.0 published 2026-10-06 21:35 UTC; release 0.5.6: third review pass, token latch; release 0.5.5 withdrawn: release audit and its second pass, A2A plan, ADR-0016, ADR-0015 data and updates, FD-05, FD-06, FD-13; Spend and DEC-0021; one entry per agent, ADR-0012; lifecycle contract landed from PR #21, unreleased; CI release rehearsal
+Updated 2026-11-17 (0.8.173: start at *0.8.173* below; 0.8.172 tagged; 0.8.171 tagged; 0.8.170 tagged; 0.8.169 published; 0.8.168 tagged; 0.8.167 tagged; 0.8.166 tagged; 0.8.165 tagged; 0.8.164 tagged; 0.8.161 and 0.8.163 tagged, 0.8.162's run cancelled by 0.8.163's tag, its changes ship in 0.8.163). History: updated 2026-10-26 (0.8.7 current then, see *0.8.7: start here*; earlier the same day 0.8.6, see *0.8.5: start here* and *Session 2026-10-26: start here*). Earlier: updated 2026-10-25 (0.8.1 current; the consolidation, see *Consolidation 2026-10-25: start here*). Earlier: updated 2026-10-24 (0.7.28). Earlier header: updated 2026-10-07 (0.6.2: 0.6.1 withdrawn for audit HIGH-2, audit fixes, signed feed; 0.6.1: LC-16 in detail updater, Russian by choice; 0.6.0 published 2026-10-06 21:35 UTC; release 0.5.6: third review pass, token latch; release 0.5.5 withdrawn: release audit and its second pass, A2A plan, ADR-0016, ADR-0015 data and updates, FD-05, FD-06, FD-13; Spend and DEC-0021; one entry per agent, ADR-0012; lifecycle contract landed from PR #21, unreleased; CI release rehearsal
 `v0.4.1-rc.1` green; releases move to CI signing; release 0.4.1, MCP links to online services).
 
 Current release: **0.8.169** published 2026-11-17 07:19 UTC (run 44033704090, 16 assets). Earlier: **0.8.167** published 06:58 UTC (16 assets); the runs of 0.8.164, 0.8.165, 0.8.166 and 0.8.168 were cancelled by the next tag, their changes ship in 0.8.167 and 0.8.169. Earlier: **0.8.163** published 06:26 UTC (run 44026390139, 16 assets). Earlier: **0.8.160** published 05:16 UTC (run 44019086342, 16 assets). Earlier: **0.8.159** published 02:43 UTC (run 44001070642), installed on this Mac 03:09 UTC by its own updater; **0.8.158** published 02:09 UTC (run 43996927838); **0.8.157** published 01:12 UTC (16 assets). Earlier: **0.8.110** published 2026-11-15 09:04 UTC; earlier **0.8.105** published 2026-11-15 07:16 UTC; 0.8.108 (`de97f12`) and 0.8.109 (`33d0b30`) tagged in
 order, their runs under way. 0.8.106 and 0.8.107 were never published (0.8.106's check failed on an unref'd timer in a
 test; both fold into 0.8.108).
+
+## 0.8.173: a mass outage is one message (2026-11-17)
+
+FD-295 closed (architect review `445c0b80` item 9): three or more outage messages of one step and one side that come due
+within 5 minutes go to the operator's channel as one message naming the agents, and their recoveries as one (`owed`,
+`OUTAGE_GROUP_AT`, `OUTAGE_GROUP_WINDOW_MS`, `src/core/outage-alerts.ts`; the delivery settles every episode a group
+names, `src/electron/outage-alerts.ts`; words `alerts.group.*`, `src/core/i18n.ts`). ADR-0010 amendment 2026-11-17,
+SCN-062 alt path. Checks run: `test/outage-alerts.test.ts` *FD-295* (5 tests), `FD_SKIP_LAUNCHD=1 npm run check` green.
+Not observed live yet: the first mass outage after the release shows one message in `main.log` (`alerts:` lines).
+
+Next task: FD-296 (recorded verdicts of This Mac, Spend and Overview: a measured zero against no data).
 
 ## 0.8.172: the architect review read through (2026-11-17)
 
