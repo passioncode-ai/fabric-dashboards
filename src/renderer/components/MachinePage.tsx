@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { machineView } from '../../core/machine-view';
 import type { SpendEntry } from '../../core/spend';
 import type { AppStatus } from '../../core/types';
-import { api, nameOf, useT } from '../lib';
+import { api, nameOf, usePoll, useT } from '../lib';
 import { HealthEntry } from './HealthReport';
 import { money } from './Spend';
 
@@ -14,13 +14,7 @@ const REFRESH_MS = 60_000;
 export function MachinePage({ status, onOpen, spend: given, labels = {} }: { status: AppStatus; onOpen: (key: string) => void; /** Tests pass the reports. */ spend?: SpendEntry[] | null; /** FD-248: the person's own labels. */ labels?: Record<string, string> }) {
   const { t } = useT();
   const [spend, setSpend] = useState<SpendEntry[] | null>(given ?? null);
-  useEffect(() => {
-    if (given !== undefined) return undefined;
-    const read = (force = false) => void api().spend(force).then((r) => setSpend(r.entries)).catch(() => undefined);
-    read(true);
-    const timer = setInterval(() => read(), REFRESH_MS);
-    return () => clearInterval(timer);
-  }, [given]);
+  usePoll((first) => void api().spend(first).then((r) => setSpend(r.entries)).catch(() => undefined), REFRESH_MS, [given], given === undefined);
   const personal = (status.organizations ?? []).find((o) => o.personal)?.name ?? null;
   const view = machineView(status.services, spend, personal);
   const byKey = new Map(status.services.map((s) => [s.key, s]));

@@ -13,6 +13,20 @@ declare global {
 
 export const api = (): FabricApi => window.fabric;
 
+/** FD-303: reads at once (`first` true), then every `ms` until the component goes or a dependency changes; `alive()`
+ *  is false once the answer no longer belongs. Off (`on` false), nothing is read. */
+export function usePoll(read: (first: boolean, alive: () => boolean) => void, ms: number, deps: readonly unknown[], on = true): void {
+  useEffect(() => {
+    if (!on) return undefined;
+    let live = true;
+    const alive = () => live;
+    read(true, alive);
+    const timer = setInterval(() => read(false, alive), ms);
+    return () => { live = false; clearInterval(timer); };
+    // The caller names what the read depends on, as useEffect's own list.
+  }, [...deps, on, ms]); // eslint-disable-line react-hooks/exhaustive-deps
+}
+
 export { NEWS_MS };
 
 /** T-19: re-render once at the earliest of `times` + `ms`, so news that expires leaves the screen

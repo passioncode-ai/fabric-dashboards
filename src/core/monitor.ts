@@ -2,7 +2,7 @@
 // It reads the services directory, probes every service, controls them through
 // launchd only, and never starts a service process itself (ADR-0002).
 import { supervises } from './platform';
-import { controlService } from './control';
+import { controlService, refusalWords } from './control';
 import { EventEmitter } from 'node:events';
 import fs from 'node:fs';
 import { ActivityStore } from './activity';
@@ -736,14 +736,18 @@ export class Monitor extends EventEmitter {
     }, { oldPid, duplicate: t.lastState === 'duplicate' });
     switch (out.kind) {
       case 'refused':
-        if (out.why === 'unsupervised-here') return finish(false, { code: 'result.unsupervisedHere', params: { name } });
-        if (out.why === 'plist-missing') return finish(false, { code: 'result.plistMissing', params: { name, path: out.plist } });
-        if (out.why === 'placed-elsewhere') return finish(false, { code: 'result.placedElsewhere', params: { name, machine: out.machine } });
-        if (out.why === 'system-daemon') return finish(false, { code: 'result.systemDaemon', params: { name } });
-        if (out.why === 'broker') return finish(false, { code: 'result.broker', params: { name, target: out.target } });
-        if (out.why === 'not-here') return finish(false, { code: 'result.notHere', params: { name, machine: out.machine } });
-        if (out.why === 'placement-unreadable') return finish(false, { code: 'result.placementUnreadable', params: { name, detail: out.detail } });
-        return finish(false, { code: 'result.unmanaged', params: { name } });
+        return finish(false, refusalWords(out, {
+          'unsupervised-here': () => ({ code: 'result.unsupervisedHere', params: { name } }),
+          'plist-missing': (r) => ({ code: 'result.plistMissing', params: { name, path: r.plist } }),
+          'placed-elsewhere': (r) => ({ code: 'result.placedElsewhere', params: { name, machine: r.machine } }),
+          'system-daemon': () => ({ code: 'result.systemDaemon', params: { name } }),
+          broker: (r) => ({ code: 'result.broker', params: { name, target: r.target } }),
+          'not-here': (r) => ({ code: 'result.notHere', params: { name, machine: r.machine } }),
+          'placement-unreadable': (r) => ({ code: 'result.placementUnreadable', params: { name, detail: r.detail } }),
+          // An online service never reaches Start or Stop in the window; were one to, it reads as not managed here.
+          remote: () => ({ code: 'result.unmanaged', params: { name } }),
+          unmanaged: () => ({ code: 'result.unmanaged', params: { name } }),
+        }));
       case 'launchctl-failed':
         return finish(false, { code: 'result.launchctl', params: { detail: out.detail } });
       case 'stopped': {

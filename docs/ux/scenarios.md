@@ -2379,7 +2379,7 @@ The Sessions mode (0.8.0): every coding session apart from the agents, each stat
 - **Alt paths:** no Switchboard here -> "Could not open this session here: no-switchboard"; six consoles run, or the swap is exhausted -> the refusal says so (LC-17; a view writes nothing to this Mac's disk, so free disk is not asked); the app quits while a view is open -> it is not named among the sessions the quit ends, and the session runs on
 - **UI elements:** Open here on a Sessions row; the console's one-line note
 - **States covered:** success, error
-- **Errors & recovery:** `switchboard attach` fails (the host is gone) -> the console shows its exit, the row reads as Switchboard lists it, and pressing Open here again is safe
+- **Errors & recovery:** `switchboard attach` fails (the host is gone) -> the console shows its exit, the row reads as Switchboard lists it, and pressing Open here again is safe; Stop finds the host busy (`HOST_BUSY`, Switchboard 0.7.114) -> it is asked once more before the view closes, so the session does not run on with no viewer (FD-309)
 - **Copy:**
   - "Open here" / «Открыть здесь»
   - "Could not open this session here: {reason}" / «Не удалось открыть эту сессию здесь: {reason}»

@@ -1008,6 +1008,9 @@ export class ConsoleHost {
   private async labelsOf(sb: string, now = Date.now()): Promise<Record<string, string>> {
     const c = this.accountLabels;
     if (c && c.sb === sb && now - c.at < BINDING_FRESH_MS && now >= c.at) return c.value;
+    // FD-303: the console's own read of the same list (shownAccount), when fresh, answers too: one Switchboard read.
+    const seen = this.accountsSeen;
+    if (seen?.value && seen.sb === sb && now - seen.at < BINDING_FRESH_MS && now >= seen.at) return seen.value.labels ?? {};
     const read = await accountsOf(this.run, sb).catch(() => null);
     if (!read) return c?.value ?? {};
     this.accountLabels = { at: now, sb, value: read.labels ?? {} };
@@ -1273,7 +1276,13 @@ export class ConsoleHost {
     const snap = this.manager.snapshot(key);
     const launch = inv.switchboard && snap.startedAt !== null ? await this.launchOf(inv.switchboard, snap.cwd, snap.startedAt) : null;
     if (inv.switchboard && launch) {
-      const r = await this.run(inv.switchboard, ['--json', 'sessions', 'end', launch], 20_000);
+      let r = await this.run(inv.switchboard, ['--json', 'sessions', 'end', launch], 20_000);
+      // FD-309 (SB-413, Switchboard 0.7.114): HOST_BUSY means nothing was sent and the session still runs; asked once more
+      // before the view is closed, so it does not run on with no viewer.
+      if (r.code !== 0 && /HOST_BUSY/.test(`${r.stdout}\n${r.stderr}`)) {
+        this.o.log(`console: ${key} hosted session ${launch}: the host was busy; asking once more`);
+        r = await this.run(inv.switchboard, ['--json', 'sessions', 'end', launch], 20_000);
+      }
       if (r.code === 0) {
         this.o.log(`console: ${key} ended its hosted session ${launch}`);
         // Its view ends with the session; one that does not within a few seconds is closed.
