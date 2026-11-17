@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.8.165 - 2026-11-17
+
+### Fixed
+
+- FD-236 (4): a fix or task typed into a running console whose text reads like instructions now holds that
+  conversation, as a start with that text would: its next Continue, a limit resume and a Sessions continue in its folder
+  ask before each action. The line still waits for your Enter, and MCP `console_fix` answers `held: true` with why.
+
 ## 0.8.164 - 2026-11-17
 
 ### Fixed

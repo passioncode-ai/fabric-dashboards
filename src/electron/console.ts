@@ -585,7 +585,7 @@ export class ConsoleHost {
 
   /** FD-129 (UX-16): the task goes to the session that runs: its `task.md` is written and one line pointing at it is
    *  typed in, with no Enter, so the person reads it and sends it. Nothing is typed when no session runs. */
-  sendTask(key: string, task: ConsoleTask): { ok: boolean; error?: string } {
+  sendTask(key: string, task: ConsoleTask): { ok: boolean; error?: string; held?: true } {
     if (this.manager.snapshot(key).state !== 'running') return { ok: false, error: 'not-running' };
     // FD-187: the Setup console has no agent snapshot; its request is written beside setup.md.
     if (key === SETUP_KEY) {
@@ -606,8 +606,13 @@ export class ConsoleHost {
       const r = writeTaskOnly({ snapshot: snap, activity: this.o.activity?.(key) ?? [], folder: folder.path, dir: packDir(this.o.packRoot, key), task });
       this.manager.input(key, r.line);
       // FD-234: the line is typed with no Enter, so the person still decides; the log says when its text reads like instructions.
-      this.o.log(`console: ${key} got a ${task.kind} task typed into its running session${r.signals.length ? `; its text reads like instructions (${r.signals.join(', ')}): the person sends it` : ''}`);
-      return { ok: true };
+      // FD-236 (4): such a task also holds the conversation, as a start with that text would: its Continue, a limit resume
+      // and a Sessions continue in its folder run with permission prompts until a new session starts on a clean context.
+      const saved = this.o.settings.get().consoles[key];
+      const held = r.signals.length > 0 && saved?.bypass !== false;
+      if (held) this.o.settings.update({ consoles: { [key]: { runtime: saved?.runtime ?? null, folder: saved?.folder ?? null, ...saved, held: saved?.held ?? new Date().toISOString() } } });
+      this.o.log(`console: ${key} got a ${task.kind} task typed into its running session${r.signals.length ? `; its text reads like instructions (${r.signals.join(', ')}): the person sends it${held ? ', and the conversation is held' : ''}` : ''}`);
+      return { ok: true, ...(held ? { held: true as const } : {}) };
     } catch (error) {
       return { ok: false, error: (error as Error).message };
     }
