@@ -6,7 +6,7 @@
 import { shellQuote } from './consoles';
 import { MACHINE } from './platform';
 import type { RemoteMachineStatus, SbPageRow, SbSessionRecord } from './sessions';
-import { isOldSwitchboard, parse, parseAllSessions, parsePageRows } from './switchboard';
+import { isOldSwitchboard, parse, parseAllSessions, parsePageRows, switchboardStamp } from './switchboard';
 import type { Runner } from '@passioncode-ai/fabric-service-host';
 
 /** Where Switchboard's macOS app keeps its CLI: the one `launch --target` uses on a machine whose target names none. */
@@ -144,6 +144,8 @@ export class RemoteSessions {
   private targets: RemoteTarget[] = [];
   private targetsAt = -Infinity;
   private targetsOf: string | null = null;
+  /** FD-305: the switchboardStamp the doors were read for. */
+  private doorsOf: string | null = null;
   /** FD-247 (step 10): what `targetsOf`'s Switchboard does on another machine itself, asked with `targets`. */
   private doors: TargetDoors = { sessions: false, attach: false, end: false };
   private readonly machines = new Map<string, MachineRead>();
@@ -167,7 +169,8 @@ export class RemoteSessions {
       const r = await this.run(switchboard, ['--json', 'targets'], 10_000).catch(() => null);
       // A failed `targets` keeps the machines known, so one slow answer does not empty the list.
       if (r && r.code === 0) {
-        if (switchboard !== this.targetsOf) {
+        if (switchboardStamp(switchboard) !== this.doorsOf) {
+          this.doorsOf = switchboardStamp(switchboard); // FD-305: an in-place update is asked again
           const takes = async (args: string[]) => { const h = await this.run(switchboard, args, 10_000).catch(() => null); return Boolean(h && h.code === 0 && sessionsTakeTarget(h.stdout)); };
           const help = await this.run(switchboard, ['sessions', '--help'], 10_000).catch(() => null);
           const text = help && help.code === 0 ? help.stdout : '';
@@ -236,6 +239,7 @@ export class RemoteSessions {
     this.targets = [];
     this.targetsAt = -Infinity;
     this.targetsOf = null;
+    this.doorsOf = null;
     return had;
   }
 }

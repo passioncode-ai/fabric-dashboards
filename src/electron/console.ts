@@ -29,7 +29,7 @@ import { isNewAgentKey, isNewDashboardKey, isNewSessionKey, isolatedBlock, newSe
 export { newSessionChoiceOf }; // FD-302: moved to src/core/new-session.ts; tests and the console channel import it here
 import { askArgsOfProvider, bypassArgs, claudeAskModeOf, promptsWords, setClaudeAskMode, bypassArgsOfProvider, detectRuntimes, KNOWN_RUNTIMES, readLoginPath, searchDirs, specsFromSwitchboard, type Runtime, type RuntimeSpec } from '../core/runtimes';
 import { SERVICE_KEY, type SettingsStore } from '../core/settings';
-import { accountsOf, allSessionsOf, isOldSwitchboard, bindingFor, machineSessionsOf, pageRowsOf, findSwitchboard, handoverAskOf, handoverOwnKey, handoverRunArgv, handoversOf, hostedContinueArgv, handoversSwitch, historySessionsOf, isHandoverKey, launchFeatures, sbFailure, sessionsIn, startAccount, terminalLaunchArgv, type Binding, type SbAccounts, type SbHandover, type SbSessions, type StartAccount } from '../core/switchboard';
+import { accountsOf, allSessionsOf, isOldSwitchboard, switchboardStamp, bindingFor, machineSessionsOf, pageRowsOf, findSwitchboard, handoverAskOf, handoverOwnKey, handoverRunArgv, handoversOf, hostedContinueArgv, handoversSwitch, historySessionsOf, isHandoverKey, launchFeatures, sbFailure, sessionsIn, startAccount, terminalLaunchArgv, type Binding, type SbAccounts, type SbHandover, type SbSessions, type StartAccount } from '../core/switchboard';
 import type { HeldContinue, ServiceSnapshot, Settings } from '../core/types';
 import { claudeConfigDirs, lastTranscriptWrite, STUCK_MS, stuckKeys } from '../core/stuck';
 import { claimStop, claudeSessionDirs, folderLive, liveSessionFolders, liveSessionIds, continuedLaunches, continuedOf, finishStop, launchTranscript, liveAgents, recoveryOf, resumeArgs, resumeOwnKey, sessionOpen, transcriptIn, transcriptOf, verdictOf, writtenAt, RESUME_SETTLE_MS, RESUMES_PER_PASS, type RecoveryStatus, type SbStop, type StopView } from '../core/recovery';
@@ -227,7 +227,7 @@ export class ConsoleHost {
   private duplicates: DuplicateSession[] = [];
   private duplicatesAt = -Infinity;
   /** FD-277: whether the Switchboard last looked at closes copies, by its path. */
-  private closeCopyOf: { switchboard: string; takes: boolean } | null = null;
+  private closeCopyOf: { switchboard: string; takes: boolean } | null = null; // keyed by switchboardStamp (FD-305)
   /** FD-231: until when a Switchboard without `sessions --machine` is not asked again (it updates itself). */
   private machineUnsupportedUntil = 0;
   /** FD-231: the last `sessions --machine` read answered, so every agent process is in the list. */
@@ -381,8 +381,7 @@ export class ConsoleHost {
     let hosted = false;
     let continueHosted = false;
     if (switchboard) {
-      let stamp = switchboard;
-      try { stamp += `:${fs.statSync(switchboard).mtimeMs}`; } catch { /* checked below anyway */ }
+      const stamp = switchboardStamp(switchboard);
       if (this.inPlaceFor?.key !== stamp) this.inPlaceFor = { key: stamp, value: await launchFeatures(this.run, switchboard) };
       ({ inPlace, surface, target, hosted, continueHosted } = this.inPlaceFor.value);
     }
@@ -885,8 +884,7 @@ export class ConsoleHost {
     // where this Switchboard can start it so (`handovers run --ask`); an older one runs it with its own setting, as before.
     let ask = false;
     if (this.heldIn(h.dir)) {
-      let stamp = sb;
-      try { stamp += `:${fs.statSync(sb).mtimeMs}`; } catch { /* read again next time */ }
+      const stamp = switchboardStamp(sb);
       if (this.handoverAskFor?.key !== stamp) this.handoverAskFor = { key: stamp, value: await handoverAskOf(this.run, sb) };
       ask = this.handoverAskFor.value;
       this.o.log(ask ? `console: hand-over ${h.id} runs with permission prompts: a console in its folder was held`
@@ -1338,9 +1336,10 @@ export class ConsoleHost {
     this.duplicatesAt = now;
     const sb = (await this.inventory()).switchboard;
     if (!sb) { if (this.duplicates.length) { this.duplicates = []; this.pushSessions(); } return; }
-    if (this.closeCopyOf?.switchboard !== sb) {
+    const stamp = switchboardStamp(sb);
+    if (this.closeCopyOf?.switchboard !== stamp) {
       const help = await this.run(sb, ['sessions', '--help'], 10_000).catch(() => null);
-      this.closeCopyOf = { switchboard: sb, takes: Boolean(help && help.code === 0 && takesCloseCopy(help.stdout)) };
+      this.closeCopyOf = { switchboard: stamp, takes: Boolean(help && help.code === 0 && takesCloseCopy(help.stdout)) };
     }
     if (!this.closeCopyOf.takes) return;
     const r = await this.run(sb, ['--json', 'attention'], 15_000).catch(() => null);
