@@ -35,7 +35,8 @@ const spaced = (part: string) => part.replace(/([a-z])([A-Z])/g, '$1 $2').replac
 // script most of its letters use, and a lone digit inside a word (`ign0re`, `a11`) as the letter it stands for. A `1`
 // that starts a word reads as `i` and one that ends it as `l` (`1gnore a11`); one between letters is read both ways,
 // in two readings (`d1sregard`, `he11o`). Whole numbers (`401`, `sha256`, `ed25519`) and words in one script are left
-// as they are, so a Russian line stays Russian. Every swap is one character for one: the read window keeps its length.
+// as they are, so a Russian line stays Russian; in a word mostly Cyrillic
+// a `0`, `1` or `3` reads as `о`, `и` or `з` (`игн0рируй`, verifier round 3). Every swap is one character for one: the read window keeps its length.
 const TO_LATIN: Record<string, string> = {
   а: 'a', е: 'e', о: 'o', р: 'p', с: 'c', у: 'y', х: 'x', і: 'i', ј: 'j', ѕ: 's', ԁ: 'd', һ: 'h', ӏ: 'l', ԛ: 'q', ԝ: 'w', к: 'k',
   А: 'A', В: 'B', Е: 'E', К: 'K', М: 'M', Н: 'H', О: 'O', Р: 'P', С: 'C', Т: 'T', Х: 'X', У: 'Y', І: 'I', Ј: 'J', Ѕ: 'S',
@@ -49,51 +50,101 @@ const TO_CYRILLIC: Record<string, string> = {
   Α: 'А', Β: 'В', Ε: 'Е', Η: 'Н', Κ: 'К', Μ: 'М', Ο: 'О', Ρ: 'Р', Τ: 'Т', Χ: 'Х',
 };
 const DIGIT_AS: Record<string, string> = { '0': 'o', '3': 'e', '4': 'a', '5': 's', '7': 't' };
-const WORD = /[\p{L}\p{N}]+/gu;
+/** In a word most of whose letters are Cyrillic a digit stands for a Cyrillic letter (`игн0рируй`, `инструкц1и`). */
+const DIGIT_AS_CYRILLIC: Record<string, string> = { '0': 'о', '1': 'и', '3': 'з' };
 /** A part worth a second reading: a Greek or Cyrillic letter, or a lookalike digit beside a letter. Most text has
  *  neither and costs one scan (FD-236 (9), verifier round 1: a megabyte of plain prose read in under 5 ms again). */
 const MAY_HIDE = /[Ͱ-ԯ]|\p{L}[013457]|[013457]\p{L}/u;
-const isLetter = (c: string | undefined) => c !== undefined && /\p{L}/u.test(c);
-/** Characters a call reads a second time for lookalikes: the head and tail of four long texts. */
+/** What a UTF-16 unit is to a word: 0 a separator, 1 a letter, 2 an ASCII digit, 3 another number. Cached, so the
+ *  second reading is one pass of char codes (verifier round 3: building it with a callback a word cost ten times the
+ *  regex passes on short hostile text). */
+const KINDS = new Uint8Array(65536);
+const kindOf = (c: number): number => {
+  if ((c >= 65 && c <= 90) || (c >= 97 && c <= 122)) return 1;
+  if (c >= 48 && c <= 57) return 2;
+  if (c < 128) return 0;
+  let k = KINDS[c]!;
+  if (!k) KINDS[c] = k = /\p{L}/u.test(String.fromCharCode(c)) ? 1 : /\p{N}/u.test(String.fromCharCode(c)) ? 3 : 4;
+  return k === 4 ? 0 : k;
+};
+/** Characters a call reads a second time in the heads of long texts: four of them. */
 const SKELETON_BUDGET = 1024 * 1024;
-/** The readings of one part besides itself: none when no word mixes scripts or hides a letter behind a digit. */
+/** Characters a call reads a second time in short texts and tails: forty texts of READ_MAX three times, more than a
+ *  real hand-over (twenty events and a descriptor) holds. */
+const SHORT_BUDGET = 2 * 1024 * 1024;
+/** One word as read twice: a `1` between letters as `i`, then as `l`; null when nothing in it changes. */
+function rewrite(part: string, from: number, to: number, mixed: boolean, toLatin: boolean, russian: boolean): [string, string, boolean] | null {
+  const chars: string[] = [];
+  for (let i = from; i < to; i++) {
+    const ch = part[i]!;
+    chars.push(mixed ? ((toLatin ? TO_LATIN[ch] : TO_CYRILLIC[ch]) ?? ch) : ch);
+  }
+  const other = chars.slice();
+  let mid = false;
+  // A run of at most two lookalike digits beside a letter stands for letters; any other digit run is a number.
+  for (let i = 0; i < chars.length; ) {
+    const k = kindOf(part.charCodeAt(from + i));
+    if (k !== 2 && k !== 3) { i++; continue; }
+    const at = i;
+    while (i < chars.length && [2, 3].includes(kindOf(part.charCodeAt(from + i)))) i++;
+    const before = at > 0;
+    const after = i < chars.length;
+    if ((!before && !after) || i - at > 2) continue;
+    let swappable = true;
+    for (let j = at; j < i; j++) if (!(russian ? '013' : '013457').includes(chars[j]!)) swappable = false;
+    if (!swappable) continue;
+    for (let j = at; j < i; j++) {
+      const d = chars[j]!;
+      if (russian) { chars[j] = other[j] = DIGIT_AS_CYRILLIC[d]!; continue; }
+      if (d !== '1') { chars[j] = other[j] = DIGIT_AS[d]!; continue; }
+      if (!before) chars[j] = other[j] = 'i';
+      else if (!after) chars[j] = other[j] = 'l';
+      else { chars[j] = 'i'; other[j] = 'l'; mid = true; }
+    }
+  }
+  const first = chars.join('');
+  if (!mid && first === part.slice(from, to)) return null;
+  return [first, other.join(''), mid];
+}
+/** The readings of one part besides itself: none when no word mixes scripts or hides a letter behind a digit. One pass
+ *  of char codes; a word that needs no swap is passed over without building anything. */
 function skeletons(part: string): string[] {
   if (!MAY_HIDE.test(part)) return [];
-  let changed = false;
+  let first: string[] | null = null;
+  let second: string[] | null = null;
   let between = false;
-  const swap = (midOne: string) => part.replace(WORD, (word) => {
+  let last = 0;
+  for (let i = 0; i < part.length; ) {
+    if (!kindOf(part.charCodeAt(i))) { i++; continue; }
+    const from = i;
     let latin = 0;
     let greek = 0;
     let cyrillic = 0;
     let digit = false;
-    for (let i = 0; i < word.length; i++) {
-      const c = word.charCodeAt(i);
+    for (let c = part.charCodeAt(i), k = kindOf(c); k; c = part.charCodeAt(++i), k = i < part.length ? kindOf(c) : 0) {
       if ((c >= 65 && c <= 90) || (c >= 97 && c <= 122)) latin++;
       else if (c >= 0x370 && c <= 0x3ff) greek++;
       else if (c >= 0x400 && c <= 0x52f) cyrillic++;
-      else if (c >= 48 && c <= 57) digit = true;
+      else if (k === 2 || k === 3) digit = true;
     }
-    let out = word;
     // Greek letters read as Latin (no Russian word uses them) unless Cyrillic outnumbers the rest; Cyrillic reads as
     // Latin only when Latin and Greek letters outnumber it.
-    if ((latin && (greek || cyrillic)) || (greek && cyrillic)) {
-      const toLatin = latin + greek >= cyrillic;
-      out = [...out].map((c) => (toLatin ? TO_LATIN[c] : TO_CYRILLIC[c]) ?? c).join('');
-    }
-    // A run of at most two lookalike digits beside a letter stands for letters; any other digit run is a number.
-    if (digit && latin + greek + cyrillic) out = out.replace(/(?<!\p{N})\p{N}+(?!\p{N})/gu, (run: string, at: number, w: string) => {
-      const before = isLetter(w[at - 1]);
-      const after = isLetter(w[at + run.length]);
-      if ((!before && !after) || run.length > 2 || !/^[013457]+$/.test(run)) return run;
-      const one = !before ? 'i' : !after ? 'l' : ((between = true), midOne);
-      return run.replace(/[013457]/g, (d) => (d === '1' ? one : DIGIT_AS[d]!));
-    });
-    if (out !== word) changed = true;
-    return out;
-  });
-  const first = swap('i');
-  if (!changed) return [];
-  return between ? [first, swap('l')] : [first];
+    const mixed = Boolean((latin && (greek || cyrillic)) || (greek && cyrillic));
+    if (!mixed && !(digit && latin + greek + cyrillic)) continue;
+    const word = rewrite(part, from, i, mixed, latin + greek >= cyrillic, cyrillic > latin + greek);
+    if (!word) continue;
+    first ??= [];
+    second ??= [];
+    const gap = part.slice(last, from);
+    first.push(gap, word[0]);
+    second.push(gap, word[1]);
+    if (word[2]) between = true;
+    last = i;
+  }
+  if (!first || !second) return [];
+  first.push(part.slice(last));
+  second.push(part.slice(last));
+  return between ? [first.join(''), second.join('')] : [first.join('')];
 }
 /** A fence marker in any spacing, case or dash: `<untrusted-data`, `< / UNTRUSTED_data`, `</untrusted‐data`. Linear:
  *  no two quantifiers can split the same run of characters. */
@@ -162,27 +213,33 @@ const SIGNALS: readonly [string, RegExp][] = [
  *  keep a person in the loop (permission prompts on), never proof of an attack. */
 export function injectionSignals(texts: readonly (string | null | undefined)[]): string[] {
   const found = new Set<string>();
-  // FD-236 (9), verifier round 1: the lookalike reading of long parts is at most SKELETON_BUDGET characters a call, so
-  // twenty hostile texts of a megabyte cannot stall the main process that packs a console; past it a long part is read
-  // as written. A part up to READ_MAX (a short text, every tail) always gets it (seam round 2: long events spent the
-  // budget and a short descriptor line after them went unread), at most three readings of what is read anyway.
-  let budget = SKELETON_BUDGET;
+  // FD-236 (9): the lookalike reading is bounded per call, in two pools, so hostile texts cannot stall the main process
+  // that packs a console. A long part (the head of a text longer than READ_MAX) draws on SKELETON_BUDGET; a short one
+  // (a text of at most READ_MAX characters as written, every tail) on SHORT_BUDGET, which no long part touches, so long
+  // events never spend what a descriptor line after them needs (seam round 2). Short or long is decided by the text as
+  // written, not after folding (verifier round 3: `aB`, `㎐` or `ﷺ` padding grew a short line past READ_MAX). A part is
+  // scanned only while its pool holds twice its length, the most it can cost, so no pool is overrun (round 3).
+  const pools = { long: SKELETON_BUDGET, short: SHORT_BUDGET };
   for (const text of texts) {
     if (!text) continue;
     // Folded first (NFKC can grow a character 18 times), then one line as context.md shows events, then the head and the
     // tail: neither padding nor a line break can push an instruction out of reach (a middle part still sits in its fence).
+    // A short text is read whole however much folding grew it; a longer one by its head and the end of the text itself.
     const flat = folded(text.slice(0, READ_RAW_MAX));
-    const parts = flat.length > READ_WHOLE ? [flat.slice(0, READ_WHOLE), flat.slice(-READ_MAX)] : [flat];
-    // FD-234 (verifier round 8): past the first READ_RAW_MAX the end of the text itself is read too.
-    // Folding can grow a short text 18 times and cut it; the end of the text itself is read whenever there is more.
-    if (text.length > READ_MAX || flat.length > READ_WHOLE) parts.push(folded(text.slice(-READ_MAX)));
-    for (const part of parts.map(spaced)) {
-      // A long part is charged whenever the second reading scans it, changed or not, once per extra reading (unit round
-      // 2: Russian prose and hex ids were scanned with no charge, so twenty of them cost five to seven times the plain read).
-      const long = part.length > READ_MAX;
-      const scan = (!long || budget > 0) && MAY_HIDE.test(part);
+    const parts: [string, 'long' | 'short'][] = [];
+    if (text.length <= READ_MAX) parts.push([flat, 'short']);
+    else {
+      if (flat.length > READ_WHOLE) parts.push([flat.slice(0, READ_WHOLE), 'long'], [flat.slice(-READ_MAX), 'short']);
+      else parts.push([flat, 'long']);
+      // FD-234 (verifier round 8): past the first READ_RAW_MAX the end of the text itself is read too.
+      parts.push([folded(text.slice(-READ_MAX)), 'short']);
+    }
+    for (const [raw, pool] of parts) {
+      const part = spaced(raw);
+      // Charged whenever the second reading scans the part, changed or not, once per extra reading (unit round 2).
+      const scan = pools[pool] >= part.length * 2 && MAY_HIDE.test(part);
       const readings = scan ? [part, ...skeletons(part)] : [part];
-      if (scan && long) budget -= part.length * Math.max(1, readings.length - 1);
+      if (scan) pools[pool] -= part.length * Math.max(1, readings.length - 1);
       for (const reading of readings) for (const [name, re] of SIGNALS) if (re.test(reading)) found.add(name);
     }
   }
