@@ -31,7 +31,7 @@ import type { SettingsStore } from '../core/settings';
 import { accountsOf, allSessionsOf, bindingFor, machineSessionsOf, findSwitchboard, handoverOwnKey, handoverRunArgv, handoversOf, hostedContinueArgv, handoversSwitch, isHandoverKey, launchFeatures, sbFailure, sessionsIn, startAccount, terminalLaunchArgv, type Binding, type SbAccounts, type SbHandover, type SbSessions, type StartAccount } from '../core/switchboard';
 import type { HeldContinue, ServiceSnapshot, Settings } from '../core/types';
 import { claudeConfigDirs, lastTranscriptWrite, STUCK_MS, stuckKeys } from '../core/stuck';
-import { claimStop, claudeSessionDirs, folderLive, liveSessionFolders, liveSessionIds, continuedLaunches, continuedOf, finishStop, liveAgents, recoveryOf, resumeArgs, resumeOwnKey, sessionOpen, transcriptIn, transcriptOf, verdictOf, writtenAt, RESUME_SETTLE_MS, RESUMES_PER_PASS, type RecoveryStatus, type SbStop, type StopView } from '../core/recovery';
+import { claimStop, claudeSessionDirs, folderLive, liveSessionFolders, liveSessionIds, continuedLaunches, continuedOf, finishStop, launchTranscript, liveAgents, recoveryOf, resumeArgs, resumeOwnKey, sessionOpen, transcriptIn, transcriptOf, verdictOf, writtenAt, RESUME_SETTLE_MS, RESUMES_PER_PASS, type RecoveryStatus, type SbStop, type StopView } from '../core/recovery';
 import { closeCopyArgv, DUPLICATES_MS, parseCloseCopy, parseDuplicates, takesCloseCopy, type CloseCopyResult, type DuplicateSession } from '../core/duplicate-sessions';
 import { parseTargets, remoteAttachArgv, remoteEndArgv, RemoteSessions, targetAttachArgv, targetEndArgv } from '../core/remote-sessions';
 import { attachOwnKey, consoleRowId, dropRemoteTwins, machineTerminalKey, handoverRowId, SAME_START_MS, mergeSessions, pruneDismissed, pruneRecords, SourceReader, stopRowId, type ConsoleInput, type PendingHandover, type SbMachineProcess, type SbSessionRecord, type SessionActionResult, type SessionReason, type SessionRecord, type SessionNotice, type SessionOrigin, type SessionRow, type SessionsStatus, type SourceDegraded, type SourceResult } from '../core/sessions';
@@ -922,7 +922,9 @@ export class ConsoleHost {
     const movedOn = pending.some((s) => s.launchId) ? await continuedLaunches(this.run, inv.switchboard).catch(() => null) : null;
     const continued = continuedOf(r.stops, this.o.home ?? os.homedir(), now, movedOn);
     for (const s of pending) {
-      const verdict = verdictOf(s, live, now, isDir, (x) => transcriptOf(x, this.o.home ?? os.homedir()), continued);
+      // FD-217 (rest): a Claude session whose transcript only Switchboard's home holds is continued there by Switchboard's
+      // session host (SB-400), so with `sessions continue --hosted` the launch's own transcript counts too.
+      const verdict = verdictOf(s, live, now, isDir, (x) => transcriptOf(x, this.o.home ?? os.homedir()) ?? (inv.continueHosted && x.provider === 'claude' ? launchTranscript(x) : null), continued);
       if (verdict === 'continued') continue;
       // FD-103 (decision 2): a stop the person declined is never continued by this app.
       if (verdict === 'resume' && on && due.length < RESUMES_PER_PASS && !held.has(stopRowId(s.event))) { due.push(s); continue; }
@@ -1044,6 +1046,22 @@ export class ConsoleHost {
     const view = (verdict: StopView['verdict'], key?: string): StopView => ({ event: stop.event, session: stop.session, dir: stop.dir, provider: stop.provider, stoppedAt: stop.stoppedAt, attempt: stop.attempt, verdict, key, account: stoppedOn });
     // FD-290: what this Switchboard can host, read before the claim so nothing waits between the claim and the start.
     const { continueHosted } = await this.inventory();
+    // Wave 5b (FD-236 (1)): a conversation held in this folder's console continues with permission prompts.
+    const resumeHeld = this.heldIn(stop.dir);
+    // FD-290 (SB-400): a Claude session continues as itself in Switchboard's session host, under a launch of its own, so
+    // Open here reaches it from another machine and End ends it there (FD-211). Held, a Codex session, or an older
+    // Switchboard: the agent's own CLI as before (the host's script skips permission prompts by Switchboard's settings).
+    const hostedHere = stop.provider === 'claude' && !resumeHeld && continueHosted;
+    // FD-84, FD-217 (rest): the proof of a continuation is its own transcript being written. The agent's own CLI reads the
+    // person's home; Switchboard's host continues it in the home its launch recorded. A session only Switchboard's home
+    // holds is never claimed for the plain CLI, which would open without its conversation.
+    const homeTranscript = transcriptOf(stop, this.o.home ?? os.homedir());
+    const transcript = homeTranscript ?? (hostedHere ? launchTranscript(stop) : null);
+    if (!transcript && launchTranscript(stop)) {
+      if (this.waitNoted.get(stop.event) !== 'switchboard-home') this.o.log(`console: limit stop ${stop.event} waits: its transcript is in a Switchboard home and this one cannot continue it there now`);
+      this.waitNoted.set(stop.event, 'switchboard-home');
+      return null;
+    }
     this.claiming.set(stop.event, { stop, sb });
     const claim = await claimStop(this.run, sb, stop, account).finally(() => this.claiming.delete(stop.event));
     if (!claim.ok) {
@@ -1056,8 +1074,7 @@ export class ConsoleHost {
     }
     this.claimedOpen.set(stop.event, { stop, sb });
     if (this.quitting) { await this.finish(stop, sb, 'cancelled'); return null; } // F3: claimed while the app quit
-    // FD-84: the proof of a continuation is its own transcript being written, read before and after the start.
-    const transcript = transcriptOf(stop, this.o.home ?? os.homedir());
+    // FD-84: read before and after the start.
     const before = transcript ? writtenAt(transcript) : null;
     // FD-103 (decision 8, extended by the orchestrator 2026-10-24): a session continued after a limit reset gets a console
     // of its own, never an agent's free console in its folder, so it lives on its session page and the agent's console
@@ -1068,13 +1085,7 @@ export class ConsoleHost {
     // Switchboard group routes it through Switchboard by its own settings.
     const cli = dirs.map((d) => path.join(d, stop.provider)).find((f) => { try { fs.accessSync(f, fs.constants.X_OK); return fs.statSync(f).isFile(); } catch { return false; } });
     const label = stop.provider === 'codex' ? 'Codex' : 'Claude Code';
-    // Wave 5b (FD-236 (1)): a conversation held in this folder's console continues with permission prompts.
-    const resumeHeld = this.heldIn(stop.dir);
     if (resumeHeld) this.o.log(`console: limit stop ${stop.event} continues with permission prompts: a console in its folder was held`);
-    // FD-290 (SB-400): a Claude session continues as itself in Switchboard's session host, under a launch of its own, so
-    // Open here reaches it from another machine and End ends it there (FD-211). Held, a Codex session, or an older
-    // Switchboard: the agent's own CLI as before (the host's script skips permission prompts by Switchboard's settings).
-    const hostedHere = stop.provider === 'claude' && !resumeHeld && continueHosted;
     const argv = hostedHere ? hostedContinueArgv(sb, stop.session)
       : cli ? [cli, ...(resumeHeld ? askArgsOfProvider : bypassArgsOfProvider)(stop.provider === 'codex' ? 'codex' : 'claude'), ...resumeArgs(stop)] : null;
     const r = argv ? this.manager.start(key, { argv, cwd: stop.dir, label, env: { PATH: dirs.join(path.delimiter) } }, { cols: 100, rows: 30 }) : { ok: false as const, error: `${stop.provider} is not installed here` };

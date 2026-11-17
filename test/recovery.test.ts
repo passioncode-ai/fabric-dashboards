@@ -18,7 +18,8 @@ const GB = 1024 ** 3;
 const NOW = 1_792_617_104_000;
 const SID = '5f151e9c-cc90-4fed-a01b-101c647f52ab';
 const ok = (data: unknown) => ({ code: 0, stdout: JSON.stringify({ ok: true, data }), stderr: '' });
-const row = (o: { dir?: string; session?: string; event?: string; ready?: boolean; kind?: string; state?: string; at?: number; provider?: string; candidates?: string[] } = {}) => ({
+const row = (o: { dir?: string; session?: string; event?: string; ready?: boolean; kind?: string; state?: string; at?: number; provider?: string; candidates?: string[]; transcript?: string } = {}) => ({
+  ...(o.transcript ? { transcript: o.transcript } : {}),
   candidates: o.candidates ?? ['acc-2', 'acc-3'], mode: 'capacity', probe_at: null, ready: o.ready ?? true,
   stop: { account: 'acc-1', attempt: 2, directory: o.dir ?? '/tmp', event: o.event ?? `cc-${o.session ?? SID}-1792066929`, kind: o.kind ?? 'limit', mode: null, pool: 'default', provider: o.provider ?? 'claude', selected_account: null, session: o.session ?? SID, state: o.state ?? 'waiting', stopped_at: (o.at ?? NOW - 60_000) / 1000 },
 });
@@ -146,7 +147,7 @@ test('FD-83: settings from an earlier version continue sessions by themselves; a
   assert.equal(merge({ resumeAfterLimit: false }).resumeAfterLimit, false);
 });
 
-function rig(o: { sessions?: (dir: string) => unknown[]; live?: { inFolder?: boolean; args?: string }; on?: boolean; claim?: number; freeDisk?: number; serviceFolder?: boolean; spawnFails?: boolean; exitsAtOnce?: boolean; noTranscript?: boolean; silent?: boolean; history?: unknown[]; hosted?: boolean | 'old' } = {}) {
+function rig(o: { sessions?: (dir: string) => unknown[]; live?: { inFolder?: boolean; args?: string }; on?: boolean; claim?: number; freeDisk?: number; serviceFolder?: boolean; spawnFails?: boolean; exitsAtOnce?: boolean; noTranscript?: boolean; silent?: boolean; history?: unknown[]; hosted?: boolean | 'old'; launchHome?: boolean } = {}) {
   const base = tmp('fd-rs-');
   const bin = path.join(base, 'bin');
   const dir = path.join(base, 'checkout');
@@ -155,7 +156,10 @@ function rig(o: { sessions?: (dir: string) => unknown[]; live?: { inFolder?: boo
   fs.writeFileSync(path.join(bin, 'claude'), '#!/bin/sh\n', { mode: 0o755 });
   const home = path.join(base, 'home');
   fs.mkdirSync(path.join(home, '.claude', 'projects', 'p'), { recursive: true });
-  if (!o.noTranscript) for (const id of [SID, '00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-000000000002', '00000000-0000-4000-8000-000000000003']) fs.writeFileSync(path.join(home, '.claude', 'projects', 'p', `${id}.jsonl`), '{}\n');
+  // FD-217 (rest): the transcript only a Switchboard home holds, named by the stop's launch.
+  const sbt = path.join(base, 'switchboard', 'homes', 'acc-1', 'projects', 'p', `${SID}.jsonl`);
+  if (o.launchHome) { fs.mkdirSync(path.dirname(sbt), { recursive: true }); fs.writeFileSync(sbt, '{}\n'); }
+  if (!o.noTranscript && !o.launchHome) for (const id of [SID, '00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-000000000002', '00000000-0000-4000-8000-000000000003']) fs.writeFileSync(path.join(home, '.claude', 'projects', 'p', `${id}.jsonl`), '{}\n');
   let settings = { resumeAfterLimit: o.on ?? true, consoles: o.serviceFolder ? { 'agent.default': { runtime: 'claude-code', folder: dir } } : {} } as Record<string, unknown>;
   const calls: string[][] = [];
   const spawned: { file: string; args: string[]; cwd: string }[] = [];
@@ -166,7 +170,7 @@ function rig(o: { sessions?: (dir: string) => unknown[]; live?: { inFolder?: boo
     testDirs: [bin], scriptsDir: path.join(base, 'scripts'),
     run: async (file, args) => {
       calls.push([path.basename(file), ...args]);
-      if (args.join(' ') === '--json recovery') return ok({ sessions: (o.sessions ?? ((d) => [row({ dir: d, at: Date.now() - 60_000 })]))(dir) });
+      if (args.join(' ') === '--json recovery') return ok({ sessions: (o.sessions ?? ((d) => [row({ dir: d, at: Date.now() - 60_000, transcript: o.launchHome ? sbt : undefined })]))(dir) });
       if (args[1] === 'recovery' && args[2] === 'claim') return o.claim === 1 ? { code: 1, stdout: '', stderr: 'already claimed' } : ok({ claimed: true });
       if (args[1] === 'recovery' && args[2] === 'finish') return ok({});
       if (args.join(' ') === '--json sessions --history' && o.history) return ok({ launches: o.history });
@@ -183,7 +187,7 @@ function rig(o: { sessions?: (dir: string) => unknown[]; live?: { inFolder?: boo
       spawned.push({ file, args, cwd: opts.cwd });
       // Like a real `claude --resume <id> <brief>`: it appends the brief to its own transcript at once.
       const at = args.indexOf('--resume') >= 0 ? args.indexOf('--resume') : args.indexOf('continue'); // FD-290: `sessions continue <id>`
-      const own = path.join(home, '.claude', 'projects', 'p', `${args[at + 1]}.jsonl`); // FD-174: after the bypass flag
+      const own = o.launchHome ? sbt : path.join(home, '.claude', 'projects', 'p', `${args[at + 1]}.jsonl`); // FD-174: after the bypass flag
       if (!o.silent && !o.exitsAtOnce) setTimeout(() => { try { fs.appendFileSync(own, '{"brief":true}\n'); fs.utimesSync(own, new Date(), new Date(Date.now() + 1000)); } catch { /* none */ } }, 20);
       return { pid: 999_999_999, onData: () => ({ dispose() {} }), onExit: (cb: (e: { exitCode: number; signal?: number }) => void) => { if (o.exitsAtOnce) setTimeout(() => cb({ exitCode: 1 }), 10); return { dispose() {} }; }, write() {}, resize() {}, kill() {} };
     },
@@ -510,4 +514,19 @@ test('FD-290 (SB-400): a Claude stop continues in Switchboard\'s session host un
   await old.host.pollRecovery();
   assert.equal(path.basename(old.spawned[0]!.file), 'claude', 'a Switchboard before SB-400: the agent\'s own CLI');
   assert.ok(!old.host.runsOnWithoutApp(old.host.recoveryStatus().stops[0]!.key!));
+});
+
+test('FD-217 (rest, SB-400): a Claude stop whose transcript only a Switchboard home holds is continued there by the session host; an older Switchboard leaves it unclaimed as no-transcript', POSIX, async () => {
+  const r = rig({ hosted: true, launchHome: true });
+  const [key] = await r.host.pollRecovery();
+  assert.ok(key && isHandoverKey(key));
+  assert.equal(r.spawned[0]!.file, r.sb);
+  assert.deepEqual(r.spawned[0]!.args, ['sessions', 'continue', SID, '--in-place', '--hosted', '--surface', 'recovery']);
+  const event = `cc-${SID}-1792066929`;
+  assert.deepEqual(sbCalls(r.calls), ['--json recovery', `--json recovery claim --account acc-2 ${event}`, `--json recovery finish ${event} resumed`], 'proved by the Switchboard-home transcript written');
+  const old = rig({ hosted: 'old', launchHome: true });
+  assert.deepEqual(await old.host.pollRecovery(), []);
+  assert.deepEqual(old.host.recoveryStatus().stops.map((s) => s.verdict), ['no-transcript']);
+  assert.equal(old.spawned.length, 0);
+  assert.ok(!old.calls.some((c) => c.includes('claim')), 'the plain CLI would open without its conversation: nothing is claimed');
 });
