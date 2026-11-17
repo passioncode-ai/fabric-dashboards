@@ -187,8 +187,9 @@ adds its bypass only when the arguments name no mode). For Codex that is the app
 Claude Code `permissions.allow` rule still approves its tools. OpenCode and Cursor CLI have no such mode: a held start
 drops their bypass flag and their own settings decide; a runtime with no skip flag at all starts as before. Logged, the person's saved choice unchanged. The reading is a heuristic that keeps a person in the loop, not a proof; it also reads a word that mixes alphabets in
 the one most of its letters use and a digit standing for a letter (`іgnore`, `a11`), and common synonyms ("disregard
-prior directives", «не обращай внимания на предыдущие указания»), with that second reading capped at about a megabyte
-a start. The hold is recorded with the console and follows the conversation (its Continue, a limit resume, a Sessions
+prior directives", «не обращай внимания на предыдущие указания»), with that second reading capped at about a megabyte of
+long text per reading of a service's text and per task: a short text and the end of a long one always get it, and a
+long text read after the cap only as written. The hold is recorded with the console and follows the conversation (its Continue, a limit resume, a Sessions
 continue in its folder and Open in Terminal ask until a new session starts on a clean context); the app shows "Asks
 before acting" on a held console, and MCP `console_new` and `console_fix` answer `held: true`. `list_services`,
 `service_status`, `audit`, `service_context` and `activity` carry an `untrusted` list of fields; the Setup console's

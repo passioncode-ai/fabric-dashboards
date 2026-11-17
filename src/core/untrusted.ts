@@ -139,7 +139,8 @@ const SIGNALS: readonly [string, RegExp][] = [
   ['ignore-instructions', /\binstead\b[^.\n]{0,20}\b(delete|remove|wipe|erase|upload)\s+(~|\/|\$HOME|the (repo|repository|folder|directory|database|files))/i],
   ['ignore-instructions', /(игнорируй|забудь|проигнорируй)[^.\n]{0,40}(инструкци|правил|указани)/i],
   // FD-236 (9): the same synonyms in Russian, within one clause and after a word that points back («предыдущие», «свои»).
-  ['ignore-instructions', /(игнорируй|забудь|проигнорируй|не обращай внимани[ея] на|отбрось|пренебреги)[^.,;\n]{0,30}(предыдущ|прежн|выше|все |всеми |сво|системн)[^.,;\n]{0,20}(инструкци|правил|указани|директив|ограничени)/i],
+  ['ignore-instructions', /(игнорируй|забудь|проигнорируй|не обращай внимани[ея] на|отбрось|пренебреги)(?![а-яё])[^.,;\n]{0,30}(предыдущ|прежн|выше|сво(?:и|ими|их|им|ей|ё|е|ю|я)(?![а-яё]))[а-яё]*\s+(?:[а-яё]+\s+)?(инструкци|правил|указани|директив|ограничени)/i],
+  ['ignore-instructions', /(игнорируй|забудь|проигнорируй|не обращай внимани[ея] на|отбрось|пренебреги)(?![а-яё])[^.,;\n]{0,30}(инструкци|правил|указани|директив|ограничени)[а-яё]*\s+(выше|прежн|предыдущ)/i],
   ['role-change', /\byou are now (an? |the )?(admin|root|system|developer|assistant|agent|unrestricted|jailbroken)\b|\bnew instructions?\s*:/i],
   ['system-prompt', /\b(reveal|print|show|ignore|override|repeat)\b[^.\n]{0,20}\bsystem (prompt|message)\b|(покажи|игнорируй)[^.\n]{0,20}системн(ый|ое) (промпт|сообщение)/i],
   ['chat-markup', /<\s*\/?\s*(system|assistant|tool[ _]call|function[ _]calls?)\s*>|\[INST\][^\n]{0,300}\[\/INST\]|<\|im[ _](start|end)\|>/i],
@@ -161,8 +162,10 @@ const SIGNALS: readonly [string, RegExp][] = [
  *  keep a person in the loop (permission prompts on), never proof of an attack. */
 export function injectionSignals(texts: readonly (string | null | undefined)[]): string[] {
   const found = new Set<string>();
-  // FD-236 (9), verifier round 1: the lookalike reading is at most SKELETON_BUDGET characters a call, so twenty hostile
-  // texts of a megabyte cannot stall the main process that packs a console; past it each part is read as written.
+  // FD-236 (9), verifier round 1: the lookalike reading of long parts is at most SKELETON_BUDGET characters a call, so
+  // twenty hostile texts of a megabyte cannot stall the main process that packs a console; past it a long part is read
+  // as written. A part up to READ_MAX (a short text, every tail) always gets it (seam round 2: long events spent the
+  // budget and a short descriptor line after them went unread), at most three readings of what is read anyway.
   let budget = SKELETON_BUDGET;
   for (const text of texts) {
     if (!text) continue;
@@ -174,8 +177,12 @@ export function injectionSignals(texts: readonly (string | null | undefined)[]):
     // Folding can grow a short text 18 times and cut it; the end of the text itself is read whenever there is more.
     if (text.length > READ_MAX || flat.length > READ_WHOLE) parts.push(folded(text.slice(-READ_MAX)));
     for (const part of parts.map(spaced)) {
-      const readings = budget > 0 ? [part, ...skeletons(part)] : [part];
-      if (readings.length > 1) budget -= part.length;
+      // A long part is charged whenever the second reading scans it, changed or not, once per extra reading (unit round
+      // 2: Russian prose and hex ids were scanned with no charge, so twenty of them cost five to seven times the plain read).
+      const long = part.length > READ_MAX;
+      const scan = (!long || budget > 0) && MAY_HIDE.test(part);
+      const readings = scan ? [part, ...skeletons(part)] : [part];
+      if (scan && long) budget -= part.length * Math.max(1, readings.length - 1);
       for (const reading of readings) for (const [name, re] of SIGNALS) if (re.test(reading)) found.add(name);
     }
   }

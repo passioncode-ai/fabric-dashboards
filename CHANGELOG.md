@@ -9,7 +9,8 @@
   предыдущие указания»), each only after a word that points back at the agent's own rules, so tool lines such as
   "override initial constraints" or "bypass all firewall rules" are still read as ordinary text. The lookalike reading
   from 0.8.156 costs as little as before on ordinary text again, reads `a11` as `all` and Greek letters inside a
-  Russian word, and reads at most a megabyte a second time per console start.
+  Russian word, and reads at most a megabyte of long text a second time per reading of a service's text (short
+  texts and the ends of long ones always get it).
 
 ## 0.8.156 - 2026-11-17
 
