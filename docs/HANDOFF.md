@@ -7,6 +7,16 @@ Current release: **0.8.160** published 2026-11-17 05:16 UTC (run 44019086342, 16
 order, their runs under way. 0.8.106 and 0.8.107 were never published (0.8.106's check failed on an unref'd timer in a
 test; both fold into 0.8.108).
 
+## After 0.8.165: the cost tests compare with a baseline (2026-11-17)
+
+Tests only, no release. The two cost tests in `test/untrusted.test.ts` asserted a floor of 1.5 s and failed above load
+average about 300. They now time each hostile read against plain text of the same lengths in the same test (best of
+three each, interleaved; `withinRatio`) and assert the ratio: 12 for one text, 8 for a batch or a descriptor. Measured
+on this change at load average 54: 0.8 to 3.0 (round 3's defect was 10 to 22). The descriptor's baseline uses distinct
+strings, since `handoffContext` reads each distinct string once. Checks: `FD_SKIP_LAUNCHD=1 npm run check`.
+FD-236 left: (10), and a Switchboard hand-over taken in a held folder, asked of Switchboard (board request 98195435:
+a `handovers run` option that starts with prompts on; pass it for a held folder once `--help` lists it).
+
 ## 0.8.165: a typed task holds the conversation (2026-11-17)
 
 FD-236 (4): `sendTask` (`src/electron/console.ts`) records `held` with the console when a task typed into its running

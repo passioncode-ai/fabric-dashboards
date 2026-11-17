@@ -568,32 +568,42 @@ test('FD-236 (9): Cyrillic, Greek and digit lookalikes inside a word are read; n
   ]) assert.deepEqual(injectionSignals([line]), [], line);
 });
 
+// FD-236 seam round 4: a cost bound with a floor in milliseconds fails on a loaded machine (above load average about 300).
+// The hostile read is timed against plain text of the same lengths in the same test, best of three each, interleaved,
+// so load slows both and only their ratio is asserted (measured 0.8 to 3.0 on 0.8.165; round 3's defect was 10 to 22).
+const PLAIN_LINE = 'the build finished and the cache was warm. ';
+const plainLike = (texts: readonly string[]) => texts.map((t) => PLAIN_LINE.repeat(Math.ceil(t.length / PLAIN_LINE.length)).slice(0, t.length));
+const withinRatio = (label: string, hostile: () => unknown, plain: () => unknown, factor: number) => {
+  let h = Infinity;
+  let p = Infinity;
+  for (let i = 0; i < 3; i++) {
+    let at = performance.now();
+    hostile();
+    h = Math.min(h, performance.now() - at);
+    at = performance.now();
+    plain();
+    p = Math.min(p, performance.now() - at);
+  }
+  assert.ok(h < p * factor + 50, `${label}: ${h.toFixed(0)} ms, plain text of the same lengths ${p.toFixed(0)} ms`);
+};
+
 test('FD-236 (9): the second reading keeps a megabyte of text inside the cost bound', () => {
   // Verifier round 1: rebuilding every word and reading it three times took 20 to 40 times the plain read. Text that
   // cannot hide a letter costs one scan; text full of candidates costs at most a few times the plain read.
-  const time = (text: string) => {
-    let best = Infinity;
-    for (let i = 0; i < 3; i++) {
-      const start = performance.now();
-      injectionSignals([text]);
-      best = Math.min(best, performance.now() - start);
-    }
-    return best;
-  };
   const mb = 2 ** 20;
-  const plain = time('the build finished and the cache was warm. '.repeat(mb / 44));
   for (const text of ['a1 '.repeat(mb / 3), '1gnore a11 '.repeat(mb / 11), 'deadbeef0123 cafe4567 '.repeat(mb / 22), 'JSONа APIшка PRом '.repeat(mb / 18), 'Сервис ответил вовремя. '.repeat(mb / 24)]) {
-    assert.ok(time(text) < Math.max(400, plain * 12), `${text.slice(0, 12)}: ${time(text).toFixed(1)} ms, plain ${plain.toFixed(1)} ms`);
+    const [plain] = plainLike([text]);
+    withinRatio(text.slice(0, 12), () => injectionSignals([text]), () => injectionSignals([plain]), 12);
   }
   // Seam round 1: twenty such texts (what one console start reads) share one budget for the second reading.
-  const start = performance.now();
-  assert.deepEqual(injectionSignals(Array.from({ length: 20 }, () => 'a1 '.repeat(mb / 3))), []);
-  assert.ok(performance.now() - start < Math.max(1500, plain * 60), `20 texts: ${(performance.now() - start).toFixed(0)} ms`);
+  const twenty = Array.from({ length: 20 }, () => 'a1 '.repeat(mb / 3));
+  assert.deepEqual(injectionSignals(twenty), []);
+  withinRatio('20 texts', () => injectionSignals(twenty), () => injectionSignals(plainLike(twenty)), 8);
   // Unit round 2: text the second reading scans but does not change is charged too.
   for (const one of ['x1234y '.repeat(mb / 7), 'bб12345 '.repeat(mb / 8), 'Сервис ответил вовремя. '.repeat(mb / 24)]) {
-    const at = performance.now();
-    assert.deepEqual(injectionSignals(Array.from({ length: 20 }, () => one)), []);
-    assert.ok(performance.now() - at < Math.max(1500, plain * 60), `20 × ${one.slice(0, 8)}: ${(performance.now() - at).toFixed(0)} ms`);
+    const texts = Array.from({ length: 20 }, () => one);
+    assert.deepEqual(injectionSignals(texts), []);
+    withinRatio(`20 × ${one.slice(0, 8)}`, () => injectionSignals(texts), () => injectionSignals(plainLike(texts)), 8);
   }
   // Seam round 2: long events that spend the budget leave a short line after them its second reading.
   const spent = Array.from({ length: 4 }, () => 'a1 ' + 'x '.repeat(150_000));
@@ -603,31 +613,22 @@ test('FD-236 (9): the second reading keeps a megabyte of text inside the cost bo
 });
 
 test('FD-236 (9) (verifier round 3): short hostile text stays inside the cost bound, and padding cannot make a short line long', () => {
-  const time = (texts: string[]) => {
-    let best = Infinity;
-    for (let i = 0; i < 2; i++) {
-      const start = performance.now();
-      injectionSignals(texts);
-      best = Math.min(best, performance.now() - start);
-    }
-    return best;
-  };
   const mb = 2 ** 20;
-  const plain = time(['the build finished and the cache was warm. '.repeat(mb / 44)]);
   // Round 3: two hundred short texts full of candidates, and a hundred megabytes, cost 10 to 22 times 0.8.155.
   for (const [label, texts] of [
     ['200 × a1', Array.from({ length: 200 }, () => 'a1'.repeat(8000))],
     ['200 × d1sregard', Array.from({ length: 200 }, () => 'd1sregard '.repeat(1600))],
     ['100 × 1 MB a1', Array.from({ length: 100 }, () => 'a1'.repeat(mb / 2))],
   ] as const) {
-    const ms = time([...texts]);
-    assert.ok(ms < Math.max(1500, plain * 60), `${label}: ${ms.toFixed(0)} ms, plain ${plain.toFixed(1)} ms`);
+    withinRatio(label, () => injectionSignals([...texts]), () => injectionSignals(plainLike(texts)), 8);
   }
   // Round 3: a descriptor of 1280 short strings, read whole through handoffContext.
-  const fat = snap({ descriptor: { ...snap().descriptor!, ...Object.fromEntries(Array.from({ length: 1280 }, (_, i) => [`x${i}`, '1gnore a11 JSONа '.repeat(942) + i])) } as never });
-  const at = performance.now();
-  handoffContext(fat, [], null);
-  assert.ok(performance.now() - at < Math.max(1500, plain * 60), `descriptor: ${(performance.now() - at).toFixed(0)} ms`);
+  const strings = Array.from({ length: 1280 }, (_, i) => '1gnore a11 JSONа '.repeat(942) + i);
+  const descriptorOf = (values: readonly string[]) => snap({ descriptor: { ...snap().descriptor!, ...Object.fromEntries(values.map((v, i) => [`x${i}`, v])) } as never });
+  const fat = descriptorOf(strings);
+  // Distinct like the hostile ones: handoffContext reads each distinct string once.
+  const lean = descriptorOf(plainLike(strings).map((v, i) => v.slice(0, v.length - String(i).length) + i));
+  withinRatio('descriptor', () => handoffContext(fat, [], null), () => handoffContext(lean, [], null), 8);
   // Round 3: padding that folding or spacing grows past READ_MAX leaves a short line short, after long text spent its pool.
   const spent = Array.from({ length: 6 }, () => 'a1 '.repeat(mb / 3));
   for (const pad of ['aB'.repeat(6000), '㎐'.repeat(9000), 'ﬀ'.repeat(9000), 'ﷺ'.repeat(1000)]) {
