@@ -35,7 +35,8 @@ import { claudeConfigDirs, lastTranscriptWrite, STUCK_MS, stuckKeys } from '../c
 import { claimStop, claudeSessionDirs, folderLive, liveSessionFolders, liveSessionIds, continuedLaunches, continuedOf, finishStop, launchTranscript, liveAgents, recoveryOf, resumeArgs, resumeOwnKey, sessionOpen, transcriptIn, transcriptOf, verdictOf, writtenAt, RESUME_SETTLE_MS, RESUMES_PER_PASS, type RecoveryStatus, type SbStop, type StopView } from '../core/recovery';
 import { closeCopyArgv, DUPLICATES_MS, parseCloseCopy, parseDuplicates, takesCloseCopy, type CloseCopyResult, type DuplicateSession } from '../core/duplicate-sessions';
 import { parseTargets, remoteAttachArgv, remoteContinueArgv, remoteEndArgv, RemoteSessions, targetAttachArgv, targetEndArgv } from '../core/remote-sessions';
-import { attachOwnKey, consoleRowId, dropRemoteTwins, machineTerminalKey, handoverRowId, SAME_START_MS, mergeSessions, pruneDismissed, pruneRecords, SourceReader, stopRowId, type ConsoleInput, type PendingHandover, type SbMachineProcess, type SbPageRow, type SbSessionRecord, type SessionActionResult, type SessionReason, type SessionRecord, type SessionNotice, type SessionOrigin, type SessionRow, type SessionsStatus, type SourceDegraded, type SourceResult } from '../core/sessions';
+import { HandoverBook } from '../core/handover-book';
+import { attachOwnKey, consoleRowId, degradedSince, dropRemoteTwins, machineTerminalKey, handoverRowId, SAME_START_MS, mergeSessions, pruneDismissed, pruneRecords, SourceReader, stopRowId, type ConsoleInput, type PendingHandover, type SbMachineProcess, type SbPageRow, type SbSessionRecord, type SessionActionResult, type SessionReason, type SessionRecord, type SessionNotice, type SessionOrigin, type SessionRow, type SessionsStatus, type SourceDegraded, type SourceResult } from '../core/sessions';
 
 /** node-pty 1.1.0 ships its macOS `spawn-helper` without the executable bit, and its postinstall
  *  does not set it: without it every spawn fails with `posix_spawnp failed`. A development checkout
@@ -162,11 +163,11 @@ export class ConsoleHost {
   /** FD-74: what Switchboard said about each folder, for showing the console at once (BINDING_FRESH_MS). */
   private readonly bindings = new Map<string, { at: number; value: Binding | { kind: 'absent' }; pending: boolean }>();
   private readonly run: Runner;
-  /** FD-62: the hand-overs this launch acted on (taken or deferred), by id — each is acted on once. */
-  private readonly seenHandovers = new Set<string>();
+  /** FD-62, FD-307: Switchboard's hand-overs as last read: the offers this launch acted on (each once), whether the list
+   *  can be read, and whether hand-overs open here (src/core/handover-book.ts). */
+  private readonly handovers = new HandoverBook();
   /** FD-62: the hand-over each console key runs, for its header and the shell's list. */
   private readonly handoverOf = new Map<string, SbHandover>();
-  private handoversUnavailable: string | null = null;
   /** FD-83: the hand-over records of sessions this launch continued after a limit, by console key. */
   private readonly resumedKeys = new Set<string>();
   /** FD-83: stops this launch acted on (continued, or failed to), by event — each is acted on once. */
@@ -200,9 +201,6 @@ export class ConsoleHost {
   private readonly sessionIds = new Map<string, { sessionId: string; provider: 'claude' | 'codex' }>();
   /** FD-103: the stops of the last recovery read, by event, for Continue now. */
   private readonly lastStops = new Map<string, SbStop>();
-  private pending: PendingHandover[] | null = null;
-  private handoversEnabled: boolean | null = null;
-  private handoverDegraded: SourceDegraded | null = null;
   /** R1-U6: an unreadable recovery since its first failure, like the hand-overs' (a status that changes every tick is
    *  pushed every tick). */
   private recoveryDegraded: SourceDegraded | null = null;
@@ -848,25 +846,12 @@ export class ConsoleHost {
   async pollHandovers(now = Date.now()): Promise<string[]> {
     const inv = await this.inventory();
     if (!inv.switchboard) return [];
-    const r = await handoversOf(this.run, inv.switchboard);
-    if ('unavailable' in r) {
-      if (this.handoversUnavailable !== r.unavailable) this.o.log(`console: hand-overs cannot be read (${r.unavailable}): ${r.detail}`);
-      this.handoversUnavailable = r.unavailable;
-      this.handoverDegraded = { source: 'handovers', reason: r.unavailable, detail: r.detail, since: this.handoverDegraded?.since ?? now };
-      return [];
-    }
-    if (this.handoversUnavailable) this.o.log('console: hand-overs can be read again'); // FD-69: a recovery is said, not silent
-    this.handoversUnavailable = null;
-    this.handoverDegraded = null;
-    this.pending = r.handovers;
-    this.handoversEnabled = r.enabled;
+    // FD-307: what each read means is the book's (src/core/handover-book.ts); the host acts on it.
+    const read = this.handovers.read(await handoversOf(this.run, inv.switchboard), now);
+    if (read.log) this.o.log(read.log);
     const taken: string[] = [];
-    for (const h of r.handovers) {
-      if (this.seenHandovers.has(h.id)) continue;
-      // FD-103: an offer that lapsed before this app saw it is a row for the person, not only a skip.
-      if (h.offeredUntil <= now) { this.seenHandovers.add(h.id); this.notOpened(h, 'expired', now); continue; }
-      this.seenHandovers.add(h.id);
-      if (this.seenHandovers.size > 512) this.seenHandovers.delete(this.seenHandovers.values().next().value!);
+    for (const { handover: h, expired } of read.fresh) {
+      if (expired) { this.notOpened(h, 'expired', now); continue; }
       const key = await this.takeHandover(h, inv.switchboard, inv.dirs);
       if (key) taken.push(key);
     }
@@ -923,7 +908,7 @@ export class ConsoleHost {
     const r = await recoveryOf(this.run, inv.switchboard);
     if ('unavailable' in r) {
       if (this.recovery.unavailable !== r.unavailable) this.o.log(`console: limit stops cannot be read (${r.unavailable}): ${r.detail}`);
-      this.recoveryDegraded = { source: 'recovery', reason: r.unavailable, detail: r.detail.slice(0, 300), since: this.recoveryDegraded?.since ?? now };
+      this.recoveryDegraded = degradedSince(this.recoveryDegraded, 'recovery', r.unavailable, r.detail.slice(0, 300), now);
       return this.setRecovery({ on, unavailable: r.unavailable, stops: [...this.actedStops.values()], resumed: this.recovery.resumed });
     }
     if (this.recovery.unavailable && this.recovery.unavailable !== 'absent') this.o.log('console: limit stops can be read again'); // FD-85, as FD-69 for hand-overs
@@ -1402,7 +1387,7 @@ export class ConsoleHost {
       };
     });
     let rows = mergeSessions({
-      now, switchboard: this.sbSessions.value ?? (this.switchboardPresent === false ? [] : null), pending: this.pending,
+      now, switchboard: this.sbSessions.value ?? (this.switchboardPresent === false ? [] : null), pending: this.handovers.pending,
       stops: this.recovery.stops, consoles, records: m.records, dismissed: m.dismissed, machine: this.machineSessions.value?.machine ?? null, page: this.machineSessions.value?.page ?? null,
       remote: this.o.settings.get().remoteSessions === false ? [] : this.remote.input(now),
     });
@@ -1421,8 +1406,8 @@ export class ConsoleHost {
     for (const r of rows) if (r.group === 'ended' && r.actions.includes('continue') && r.folder && !elsewhere(r) && !isDir(r.folder)) { r.actions = r.actions.filter((a) => a !== 'continue'); r.reason ??= 'no-folder'; }
     // FD-137 (SCN-092): a session Fabric started for a board request belongs to the agent in whose folder it ran.
     for (const r of rows) if (r.launch?.by.surface === 'fabric') { const k = this.agentOfFolder(r.folder, now); if (k) r.agentKey = k; }
-    const degraded = [this.sbSessions.degraded, this.machineSessions.degraded, this.handoverDegraded, this.recoveryDegraded].filter((d): d is SourceDegraded => d !== null);
-    return { rows, degraded, machine: this.machineListed, switchboard: this.switchboardPresent, handovers: { enabled: this.handoversEnabled }, autoContinue: this.o.settings.get().resumeAfterLimit !== false, machines: this.o.settings.get().remoteSessions === false ? [] : this.remote.status(now), duplicates: this.closeCopyOf?.takes ? this.duplicates : [] };
+    const degraded = [this.sbSessions.degraded, this.machineSessions.degraded, this.handovers.degraded, this.recoveryDegraded].filter((d): d is SourceDegraded => d !== null);
+    return { rows, degraded, machine: this.machineListed, switchboard: this.switchboardPresent, handovers: { enabled: this.handovers.enabled }, autoContinue: this.o.settings.get().resumeAfterLimit !== false, machines: this.o.settings.get().remoteSessions === false ? [] : this.remote.status(now), duplicates: this.closeCopyOf?.takes ? this.duplicates : [] };
   }
 
   // #region dispatch-agent — docs: docs/ux/scenarios.md#scn-092-see-a-session-fabric-started-for-a-board-request
@@ -1788,12 +1773,12 @@ export class ConsoleHost {
     if (!inv.switchboard) return { available: false, enabled: null };
     // Scenario walk 2026-11-11 (SCN-086): not read yet (the first poll) or the last read failed: read it now, and say
     // "update Switchboard" only when Switchboard itself says it is too old.
-    if (this.handoversEnabled === null) {
+    if (this.handovers.enabled === null) {
       const r = await handoversOf(this.run, inv.switchboard);
-      if ('enabled' in r) this.handoversEnabled = r.enabled;
+      if ('enabled' in r) this.handovers.enabled = r.enabled;
       else return { available: true, enabled: null, old: r.unavailable === 'old' };
     }
-    return { available: true, enabled: this.handoversEnabled };
+    return { available: true, enabled: this.handovers.enabled };
   }
 
   /** FD-103: turns Switchboard's switch on or off through its CLI, then reads it back. */
@@ -1801,12 +1786,12 @@ export class ConsoleHost {
     const inv = await this.inventory();
     if (!inv.switchboard) return { ok: false, enabled: null, detail: 'Switchboard is not installed' };
     const r = await handoversSwitch(this.run, inv.switchboard, on);
-    if (!r.ok) return { ok: false, enabled: this.handoversEnabled, detail: r.detail };
+    if (!r.ok) return { ok: false, enabled: this.handovers.enabled, detail: r.detail };
     const read = await handoversOf(this.run, inv.switchboard);
-    if ('enabled' in read) this.handoversEnabled = read.enabled;
+    if ('enabled' in read) this.handovers.enabled = read.enabled;
     this.o.log(`console: Switchboard hand-overs to this app turned ${on ? 'on' : 'off'}`);
     this.o.changed?.();
-    return { ok: true, enabled: this.handoversEnabled };
+    return { ok: true, enabled: this.handovers.enabled };
   }
   // #endregion sessions-host
 
