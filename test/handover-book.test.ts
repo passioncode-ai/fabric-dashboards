@@ -36,3 +36,24 @@ test('FD-307: at most SEEN_HANDOVERS_MAX offers are remembered; the oldest is of
   assert.deepEqual(b.read({ enabled: true, handovers: [h('x0'), h('x1')] }, 0).fresh.map((f) => f.handover.id), ['x0', 'x1']);
   assert.deepEqual(b.read({ enabled: true, handovers: [h('x5')] }, 0).fresh, [], 'a newer one is still remembered');
 });
+
+test('FD-314 (P2-03): a hand-over read that got no answer in time makes the host slow; any other failure does not', { skip: process.platform === 'win32' && 'POSIX execute bits: the fake switchboard is a shell script' }, async () => {
+  const { ConsoleHost } = await import('../src/electron/console');
+  const { SettingsStore } = await import('../src/core/settings');
+  const { tmp } = await import('./helpers');
+  const fs = await import('node:fs');
+  const path = await import('node:path');
+  for (const [stderr, slow] of [['no answer within 20 s (stopped)', true], ['error: something else', false]] as const) {
+    const base = tmp('fd-314-');
+    const bin = path.join(base, 'bin');
+    fs.mkdirSync(bin);
+    fs.writeFileSync(path.join(bin, 'switchboard'), '#!/bin/sh\n', { mode: 0o755 });
+    const host = new ConsoleHost({
+      settings: new SettingsStore(path.join(base, 'data')), snapshot: () => null, window: () => null, visible: () => false, log: () => {},
+      testDirs: [bin], scriptsDir: path.join(base, 'scripts'), home: base,
+      run: async (_f, args) => (args.join(' ') === '--json handovers' ? { code: 1, stdout: '', stderr } : { code: 1, stdout: '', stderr: '' }),
+    } as never);
+    await host.pollHandovers();
+    assert.equal(host.switchboardSlow(), slow, stderr);
+  }
+});

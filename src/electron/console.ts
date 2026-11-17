@@ -36,6 +36,7 @@ import { claimStop, claudeSessionDirs, folderLive, liveSessionFolders, liveSessi
 import { closeCopyArgv, DUPLICATES_MS, parseCloseCopy, parseDuplicates, takesCloseCopy, type CloseCopyResult, type DuplicateSession } from '../core/duplicate-sessions';
 import { parseTargets, remoteAttachArgv, remoteContinueArgv, remoteEndArgv, RemoteSessions, targetAttachArgv, targetEndArgv } from '../core/remote-sessions';
 import { HandoverBook } from '../core/handover-book';
+import { ownedRunner } from '../core/children';
 import { attachOwnKey, consoleRowId, degradedSince, dropRemoteTwins, machineTerminalKey, handoverRowId, SAME_START_MS, mergeSessions, pruneDismissed, pruneRecords, SourceReader, stopRowId, type ConsoleInput, type PendingHandover, type SbMachineProcess, type SbPageRow, type SbSessionRecord, type SessionActionResult, type SessionReason, type SessionRecord, type SessionNotice, type SessionOrigin, type SessionRow, type SessionsStatus, type SourceDegraded, type SourceResult } from '../core/sessions';
 
 /** node-pty 1.1.0 ships its macOS `spawn-helper` without the executable bit, and its postinstall
@@ -260,7 +261,8 @@ export class ConsoleHost {
 
   constructor(private readonly o: ConsoleHostOptions) {
     this.run = o.run ?? execRunner;
-    this.remote = new RemoteSessions(this.run);
+    // FD-314 (C2-06): reads of other machines spawn ssh; a deadline ends its whole group (tests pass their own run).
+    this.remote = new RemoteSessions(o.run ? this.run : ownedRunner);
     // One-shot Terminal files remove themselves when they run; one Terminal never ran is removed here.
     try {
       for (const name of fs.readdirSync(o.scriptsDir)) if (/^open-.*\.command$/.test(name)) fs.rmSync(path.join(o.scriptsDir, name), { force: true });
@@ -857,6 +859,12 @@ export class ConsoleHost {
   }
 
   // #region console-handovers — docs: docs/ux/scenarios.md#scn-069-a-hand-over-opens-in-the-console
+  /** FD-314 (P2-03): Switchboard's last hand-over or limit-stop read got no answer in time; the next tick waits twice as
+   *  long, so a loaded machine is not asked again on the next beat. */
+  switchboardSlow(): boolean {
+    return [this.handovers.degraded, this.recoveryDegraded].some((d) => d !== null && /no answer within/.test(d.detail));
+  }
+
   /** FD-62 (SB-108): takes each hand-over Switchboard left for a console, once, on a console PTY. One the
    *  machine cannot carry now (LC-17) is left alone: Switchboard opens it in Terminal after two minutes.
    *  Nothing runs without Switchboard. Returns the console keys that took one. */

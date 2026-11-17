@@ -645,7 +645,8 @@ if (!app.requestSingleInstanceLock()) {
       .then(() => consoles.pollRecovery()).catch((error) => log(`console: limit stops read failed: ${(error as Error).message}`));
     void Promise.all([chain, consoles.pollSessions().catch((error) => log(`console: session list read failed: ${(error as Error).message}`))]).finally(() => {
       if (quitting) return;
-      handoverTimer = setTimeout(pollHandovers, windowVisible() ? HANDOVER_POLL_MS.visible : HANDOVER_POLL_MS.hidden);
+      // FD-314 (P2-03): after a read that got no answer in time, twice the cadence.
+      handoverTimer = setTimeout(pollHandovers, (windowVisible() ? HANDOVER_POLL_MS.visible : HANDOVER_POLL_MS.hidden) * (consoles.switchboardSlow() ? 2 : 1));
       handoverTimer.unref();
     });
   };

@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.8.188 - 2026-11-17
+
+### Fixed
+- FD-314 (C2-06): a read of another machine's sessions that runs past its deadline now ends its whole process group, so
+  the ssh Switchboard starts for it does not stay behind.
+- FD-314 (P2-03): after a hand-over or limit-stop read that got no answer in time, the next read waits twice as long,
+  so a loaded machine is not asked again on the next beat.
+
 ## 0.8.187 - 2026-11-17
 
 Carries 0.8.185 and 0.8.186, whose release runs did not publish: 0.8.185's macOS job got no runner, and 0.8.186's
