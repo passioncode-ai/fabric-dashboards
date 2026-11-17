@@ -418,9 +418,16 @@ export { handoverOwnKey } from './sessions'; // one definition: the pure Session
  *  so does a session continued from the Sessions list in a folder no agent's console owns (`handover.cs-<12 hex>`). */
 export const isHandoverKey = (key: string) => /^handover\.(ho|rs|cs|at)-[0-9a-f]{12}$/.test(key); // FD-211: `at`, a hosted session opened here
 
-/** The command a console runs to take the hand-over: Switchboard takes it once and runs its session here. */
-export function handoverRunArgv(sb: string, id: string): string[] {
-  return [sb, 'handovers', 'run', id];
+/** The command a console runs to take the hand-over: Switchboard takes it once and runs its session here. With `ask`
+ *  (FD-236, SB 0.7.112) the session runs with permission prompts on, for a folder whose console was held. */
+export function handoverRunArgv(sb: string, id: string, ask = false): string[] {
+  return [sb, 'handovers', 'run', id, ...(ask ? ['--ask'] : [])];
+}
+
+/** FD-236 (board 98195435): whether this Switchboard's `handovers run` takes `--ask`, read from its own `--help`. */
+export async function handoverAskOf(run: Runner, sb: string): Promise<boolean> {
+  const r = await run(sb, ['handovers', 'run', '--help'], 10_000);
+  return r.code === 0 && /--ask\b/.test(`${r.stdout}\n${r.stderr}`);
 }
 
 /** FD-103: Switchboard's own switch for handing sessions over to a console, set through its CLI (`handovers set on|off`);

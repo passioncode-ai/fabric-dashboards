@@ -77,7 +77,9 @@ service data.
   `switchboard handovers run`, and Switchboard picks its runtime and flags. The runtime starts with its own flag
   that skips permission prompts (SCN-097); a console whose saved choice keeps prompts, or a start held for its context
   (FD-234, below), gets an explicit mode that asks instead (Claude Code, Codex, Gemini CLI; OpenCode and Cursor CLI only lose their skip flag and their own settings decide; a runtime with no skip flag starts as before). A session continued after a limit, or a Switchboard or hand-over
-  row continued from the Sessions list, always gets the skipping flag (FD-236 (1)); a console of this app continued from
+  row continued from the Sessions list, gets the skipping flag unless a console in its folder was held, then the mode
+  that asks (FD-236 (1)); a hand-over taken in a held folder runs `handovers run --ask` where Switchboard's own `--help`
+  lists it (FD-236, Switchboard 0.7.112), and with Switchboard's own setting on an older one; a console of this app continued from
   its row follows its saved choice and is read again. A runtime with no known flag starts with its own settings. Reading which
   account a folder uses runs `switchboard --json project show` and `accounts list` (no credentials
   are printed by either).
@@ -195,11 +197,11 @@ a short line cannot switch its second reading off. The hold is recorded with the
 continue in its folder and Open in Terminal ask until a new session starts on a clean context); the app shows "Asks
 before acting" on a held console, and MCP `console_new` and `console_fix` answer `held: true`. `list_services`,
 `service_status`, `audit`, `service_context` and `activity` carry an `untrusted` list of fields; the Setup console's
-`setup.md` fences the launcher doctor's text. Not covered yet (FD-236): a Fix or Update typed into a session that
-already runs is fenced but only logged, not held (the person sends it); the Setup and New agent consoles (which carry
-no service text) are not held when their pack cannot be written; `doctor` and `update` mark nothing in their answers;
-a Switchboard hand-over taken in a held folder (`switchboard handovers run`, SCN-097) runs with Switchboard's own
-setting, because that command takes no permission mode.
+`setup.md` fences the launcher doctor's text. A Fix or Update typed into a session that already runs and reads like
+instructions holds its conversation (FD-236 (4), 0.8.165). Not covered yet (FD-236): the Setup and New agent consoles
+(which carry no service text) are not held when their pack cannot be written; `doctor` and `update` mark nothing in
+their answers; a Switchboard hand-over taken in a held folder runs with Switchboard's own setting where its
+`handovers run` takes no `--ask` (before Switchboard 0.7.112).
 
 ## Dashboard sign-ins at rest
 

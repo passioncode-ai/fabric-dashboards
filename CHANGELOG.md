@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.8.167 - 2026-11-17
+
+### Security
+
+- FD-236: a Switchboard hand-over taken in a folder whose console was held for instruction-like text runs with
+  permission prompts on (`switchboard handovers run --ask`), once Switchboard's own `--help` lists the option
+  (Switchboard 0.7.112). An older Switchboard runs it with its own setting, as before, and the app's log says so.
+
 ## 0.8.166 - 2026-11-17
 
 ### Added

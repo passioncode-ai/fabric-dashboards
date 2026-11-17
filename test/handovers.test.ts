@@ -44,15 +44,16 @@ test('FD-62, FD-103 (decision 8): a hand-over\'s console of its own is named by 
   assert.ok(isHandoverKey(`handover.${ID}`));
   assert.ok(!isHandoverKey('handover.something'));
   assert.deepEqual(handoverRunArgv('/bin/switchboard', ID), ['/bin/switchboard', 'handovers', 'run', ID]);
+  assert.deepEqual(handoverRunArgv('/bin/switchboard', ID, true), ['/bin/switchboard', 'handovers', 'run', ID, '--ask']);
 });
 
-function rig(o: { freeDisk?: number; handovers?: unknown[]; switchboard?: boolean; serviceFolder?: string } = {}) {
+function rig(o: { freeDisk?: number; handovers?: unknown[]; switchboard?: boolean; serviceFolder?: string; held?: boolean; askHelp?: boolean } = {}) {
   const base = tmp('fd-ho-');
   const bin = path.join(base, 'bin');
   const dir = path.join(base, 'checkout');
   fs.mkdirSync(bin); fs.mkdirSync(dir);
   if (o.switchboard !== false) fs.writeFileSync(path.join(bin, 'switchboard'), '#!/bin/sh\n', { mode: 0o755 });
-  let settings = { consoles: o.serviceFolder ? { 'agent.default': { runtime: 'claude-code', folder: o.serviceFolder === 'same' ? dir : o.serviceFolder } } : {} } as Record<string, unknown>;
+  let settings = { consoles: o.serviceFolder ? { 'agent.default': { runtime: 'claude-code', folder: o.serviceFolder === 'same' ? dir : o.serviceFolder, ...(o.held ? { held: true } : {}) } } : {} } as Record<string, unknown>;
   const calls: string[][] = [];
   const spawned: { file: string; args: string[]; cwd: string }[] = [];
   const exits: ((e: { exitCode: number; signal?: number }) => void)[] = [];
@@ -66,6 +67,7 @@ function rig(o: { freeDisk?: number; handovers?: unknown[]; switchboard?: boolea
     run: async (_file, args) => {
       calls.push(args);
       if (args.join(' ') === '--json handovers') return ok({ enabled: true, handovers });
+      if (args.join(' ') === 'handovers run --help' && o.askHelp !== undefined) return { code: 0, stdout: `Usage: switchboard handovers run <ID>${o.askHelp ? ' [--ask]\n  --ask  run the session with permission prompts on' : ''}`, stderr: '' };
       return { code: 1, stdout: '', stderr: '' };
     },
     spawn: (file, args, opts) => {
@@ -143,4 +145,19 @@ test('FD-69: a hand-over read that failed and then works again is said once each
   await r.host.pollHandovers();
   assert.equal(r.logs.filter((l) => /hand-overs cannot be read \(error\): killed/.test(l)).length, 1, 'the failure is logged once, with its reason');
   assert.equal(r.logs.filter((l) => /hand-overs can be read again/.test(l)).length, 1, 'the recovery is logged once');
+});
+
+test('FD-236: a hand-over in a held folder runs with permission prompts once Switchboard takes --ask; otherwise as before', POSIX, async () => {
+  const asks = rig({ serviceFolder: 'same', held: true, askHelp: true });
+  assert.deepEqual(await asks.host.pollHandovers(), [`handover.${ID}`]);
+  assert.deepEqual(asks.spawned.map((x) => x.args), [['handovers', 'run', ID, '--ask']]);
+  assert.ok(asks.logs.some((l) => l.includes('runs with permission prompts')));
+  const older = rig({ serviceFolder: 'same', held: true, askHelp: false });
+  await older.host.pollHandovers();
+  assert.deepEqual(older.spawned.map((x) => x.args), [['handovers', 'run', ID]]);
+  assert.ok(older.logs.some((l) => l.includes('takes no --ask')), 'an older Switchboard is said, not silent');
+  const free = rig({ serviceFolder: 'same', askHelp: true });
+  await free.host.pollHandovers();
+  assert.deepEqual(free.spawned.map((x) => x.args), [['handovers', 'run', ID]], 'a folder nobody held keeps Switchboard\'s own setting');
+  assert.ok(!free.calls.some((c) => c.join(' ') === 'handovers run --help'), 'its help is read only for a held folder');
 });

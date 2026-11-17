@@ -28,7 +28,7 @@ import { MACHINE } from '../core/platform';
 import { isNewAgentKey, isNewSessionKey, isolatedBlock, newSessionKey, prepareNewAgent, projectsFolder, type NewSessionChoice } from '../core/new-session';
 import { askArgsOfProvider, bypassArgs, claudeAskModeOf, promptsWords, setClaudeAskMode, bypassArgsOfProvider, detectRuntimes, KNOWN_RUNTIMES, readLoginPath, searchDirs, specsFromSwitchboard, type Runtime, type RuntimeSpec } from '../core/runtimes';
 import type { SettingsStore } from '../core/settings';
-import { accountsOf, allSessionsOf, bindingFor, machineSessionsOf, findSwitchboard, handoverOwnKey, handoverRunArgv, handoversOf, hostedContinueArgv, handoversSwitch, isHandoverKey, launchFeatures, sbFailure, sessionsIn, startAccount, terminalLaunchArgv, type Binding, type SbAccounts, type SbHandover, type SbSessions, type StartAccount } from '../core/switchboard';
+import { accountsOf, allSessionsOf, bindingFor, machineSessionsOf, findSwitchboard, handoverAskOf, handoverOwnKey, handoverRunArgv, handoversOf, hostedContinueArgv, handoversSwitch, isHandoverKey, launchFeatures, sbFailure, sessionsIn, startAccount, terminalLaunchArgv, type Binding, type SbAccounts, type SbHandover, type SbSessions, type StartAccount } from '../core/switchboard';
 import type { HeldContinue, ServiceSnapshot, Settings } from '../core/types';
 import { claudeConfigDirs, lastTranscriptWrite, STUCK_MS, stuckKeys } from '../core/stuck';
 import { claimStop, claudeSessionDirs, folderLive, liveSessionFolders, liveSessionIds, continuedLaunches, continuedOf, finishStop, launchTranscript, liveAgents, recoveryOf, resumeArgs, resumeOwnKey, sessionOpen, transcriptIn, transcriptOf, verdictOf, writtenAt, RESUME_SETTLE_MS, RESUMES_PER_PASS, type RecoveryStatus, type SbStop, type StopView } from '../core/recovery';
@@ -153,6 +153,8 @@ export class ConsoleHost {
   readonly manager: ConsoleManager;
   private dirs: Promise<string[]> | null = null;
   private catalog: Promise<Runtime[]> | null = null;
+  /** FD-236: whether this Switchboard's `handovers run` takes `--ask`, by its path and modification time. */
+  private handoverAskFor: { key: string; value: boolean } | null = null;
   private inPlaceFor: { key: string; value: { inPlace: boolean; surface: boolean; target: boolean; hosted: boolean; continueHosted: boolean } } | null = null;
   /** FD-74: what Switchboard said about each folder, for showing the console at once (BINDING_FRESH_MS). */
   private readonly bindings = new Map<string, { at: number; value: Binding | { kind: 'absent' }; pending: boolean }>();
@@ -863,7 +865,18 @@ export class ConsoleHost {
     const key = handoverOwnKey(h.id);
     const a = admit(await this.machine(h.dir));
     if (!a.ok) { this.o.log(`console: hand-over ${h.id} left to Terminal (LC-17: ${a.why})`); this.notOpened(h, `busy-${a.why}`); return null; } // R1-B: the cause found
-    const r = this.manager.start(key, { argv: handoverRunArgv(sb, h.id), cwd: h.dir, label: h.agent || 'agent', env: { PATH: dirs.join(path.delimiter) } }, { cols: 100, rows: 30 });
+    // FD-236: a conversation held in this folder's console may be the one handed over, so it keeps the permission prompts
+    // where this Switchboard can start it so (`handovers run --ask`); an older one runs it with its own setting, as before.
+    let ask = false;
+    if (this.heldIn(h.dir)) {
+      let stamp = sb;
+      try { stamp += `:${fs.statSync(sb).mtimeMs}`; } catch { /* read again next time */ }
+      if (this.handoverAskFor?.key !== stamp) this.handoverAskFor = { key: stamp, value: await handoverAskOf(this.run, sb) };
+      ask = this.handoverAskFor.value;
+      this.o.log(ask ? `console: hand-over ${h.id} runs with permission prompts: a console in its folder was held`
+        : `console: hand-over ${h.id} runs with Switchboard's own permission setting: a console in its folder was held and this Switchboard's handovers run takes no --ask`);
+    }
+    const r = this.manager.start(key, { argv: handoverRunArgv(sb, h.id, ask), cwd: h.dir, label: h.agent || 'agent', env: { PATH: dirs.join(path.delimiter) } }, { cols: 100, rows: 30 });
     if (!r.ok) { this.o.log(`console: hand-over ${h.id} not taken in ${key}: ${r.error}`); this.notOpened(h, 'not-started'); return null; }
     this.handoverOf.set(key, h);
     this.o.log(`console: hand-over ${h.id} (${h.agent}, ${h.workflow}) taken in ${key}`);
