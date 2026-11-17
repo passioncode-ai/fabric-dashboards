@@ -11,6 +11,7 @@
 import type { HealthBook, HealthWords } from './agent-health';
 import type { Organization } from './organizations';
 import type { ServiceSnapshot, ServiceState } from './types';
+import { t, type Lang } from './i18n';
 
 /** How long an outage lasts before it is sent (the banner keeps ADR-0008's one minute). FD-76: over 15 minutes. */
 export const OUTAGE_ALERT_AFTER_MS = 15 * 60_000;
@@ -95,6 +96,34 @@ export interface Words {
   health?: HealthWords;
   /** FD-295: the words of a mass outage told as one message; without them every outage is told alone. */
   group?: { down: (count: number) => string; back: (count: number) => string; line: (name: string, minutes: number, reason: string) => string; more: (count: number) => string };
+}
+
+/** The operator channel's words in the person's language (FD-48, FD-125, FD-285, FD-295); moved out of main.ts (FD-304). */
+export function alertWords(l: Lang): Words {
+  return {
+    down: (name) => t(l, 'alerts.down', { name }),
+    failing: (name, source) => t(l, 'alerts.failing', { name, source }),
+    back: (name) => t(l, 'alerts.back', { name }),
+    since: (minutes, reason) => t(l, 'alerts.since', { minutes, reason }),
+    after: (minutes) => t(l, 'alerts.after', { minutes }),
+    removed: (name) => t(l, 'alerts.removed', { name }),
+    wasDown: (minutes, reason) => t(l, 'alerts.wasDown', { minutes, reason }),
+    ask: (name) => t(l, 'alerts.ask', { name }),
+    open: (link) => t(l, 'alerts.open', { link }),
+    group: {
+      down: (count) => t(l, 'alerts.group.down', { count }),
+      back: (count) => t(l, 'alerts.group.back', { count }),
+      line: (name, minutes, reason) => t(l, 'alerts.group.line', { name, minutes, reason }),
+      more: (count) => t(l, 'alerts.group.more', { count }),
+    },
+    health: {
+      open: (name, check, state) => t(l, 'alerts.health.open', { name, check, state }),
+      back: (name, check) => t(l, 'alerts.health.back', { name, check }),
+      blind: (name, reason) => t(l, 'alerts.health.blind', { name, reason }),
+      blindBack: (name) => t(l, 'alerts.health.blindBack', { name }),
+      detail: (area, count, fix) => t(l, fix ? 'alerts.health.fix' : 'alerts.health.detail', { area, count, ...(fix ? { fix } : {}) }),
+    },
+  };
 }
 
 const minutes = (ms: number) => Math.max(1, Math.round(ms / 60_000));

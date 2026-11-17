@@ -3,7 +3,6 @@
 // no service process — launchd does (ADR-0002) — so quitting stops nothing.
 import { app, BrowserWindow, clipboard, dialog, ipcMain, nativeTheme, Menu, Notification, session, shell, systemPreferences } from 'electron';
 import { joinLink } from '../core/join';
-import { sessionListRow } from '../core/sessions-view';
 import { pathToFileURL } from 'node:url';
 import { guardIpc } from './ipc-guard';
 import { BugStore } from './bug-store';
@@ -17,7 +16,6 @@ import { parseWindows, sightOf, windowNumberOf, WINDOW_LIST_JXA, type Sight } fr
 import { appMenuTemplate } from './app-menu';
 import { CHANNELS, type DrawerChange, type DrawerState, type LayoutCommand, type NavTarget, type Rect } from '../core/api';
 import { sessionNotification } from '../core/sessions-notice';
-import { consoleRowId } from '../core/sessions';
 import { commandEnv, killOwned, ownedCount, runOwned } from '../core/children';
 import { doctorArgv, doctorResult, DOCTOR_TIMEOUT_MS, type SetupCheckResult } from '../core/doctor';
 import { readLoginPath, searchDirs } from '../core/runtimes';
@@ -27,10 +25,9 @@ import { displayName } from '../core/names';
 import { ConsoleHost, HANDOVER_POLL_MS } from './console';
 import { appendLog, sweepTemps } from '../core/fsutil';
 import { linkFor, parseDeepLink, safePath, SCHEME } from '../core/deeplink';
-import { servicesDir, setLoopbackConnectionCheck, setLoopbackOwnerCheck, setWindowsAclReader, windowsPowerShellEnv } from '@passioncode-ai/fabric-service-host';
+import { servicesDir, setLoopbackConnectionCheck, setLoopbackOwnerCheck, setWindowsAclReader } from '@passioncode-ai/fabric-service-host';
 import { linuxConnectionCheck, linuxLoopbackOwnerCheck, loopbackOwnerCheck, macConnectionCheck, windowsLoopbackOwnerCheck } from '../core/loopback-owner';
-import { openChannel, startAnswer, type Channel } from './console-channel';
-import type { ChannelAnswer } from '../core/console-channel';
+import { openChannel, type Channel } from './console-channel';
 import { chooseLang, langFor, t, type Lang } from '../core/i18n';
 import { execRunner } from '../core/launchd';
 import { HEALTH_PATH, HEALTH_PRODUCTS, HEALTH_READ_STATES, healthRows } from '../core/agent-health';
@@ -51,14 +48,16 @@ import type { LimitView } from '@passioncode-ai/fabric-service-host/usage';
 import { readLoad, type LoadEntry } from '../core/load';
 import { NotifyLedger, shouldNotify } from '../core/notify';
 import { OutageAlerts } from './outage-alerts';
-import { powerShellAfterExit } from '../core/after-exit';
-import { agentSettingsPatch, analyticsMaySend, rendererSettingsPatch, SettingsStore } from '../core/settings';
+import { uninstall as runUninstall } from './uninstall-flow';
+import { channelAnswers } from './channel-answers';
+import { alertWords } from '../core/outage-alerts';
+import { analyticsMaySend, rendererSettingsPatch, SettingsStore } from '../core/settings';
 import type { AppStatus, ServiceSnapshot, Settings, SettingsPatch } from '../core/types';
-import { ALWAYS_KEPT, cancelStagedUpdate, clearRestoreRecord, KEPT_FILES, productDataPaths, purgeAfterExit, readRestoreRecord, removeMcpRegistrations, repairMcpRegistrations, restoreMcpRegistrations, writeRestoreRecord } from '../core/uninstall';
+import { clearRestoreRecord, readRestoreRecord, repairMcpRegistrations, restoreMcpRegistrations, writeRestoreRecord } from '../core/uninstall';
 import { autoInstallNow, autoInstallWait, cookieRewrite, dockOnSync, inSight, LINK_FRONT_CHECK_MS, monitorLive, PAGE_SIGHT_CHECK_MS, linkLeftBehind, moveSkip, OCCLUSION_PROBE_MS, offerMove, onScreen, resumeBehind, COOKIES_REENCRYPTED_MARKER, HiddenGrace, partitionFor, RELAUNCH_MARKER, relaunchHidden, RESUME_ROUTE_MARKER, resumeRoute, type ResumeRoute, stalePacks, stalePartitions, tryMove, UPDATE_IDLE_MS, VIEW_RELEASE_ALL_MS, VIEW_RELEASE_GRACE_MS, VISIBILITY_SYNC_MS, VisibilitySync, WARM_VIEWS } from './policy';
 import { AppTray } from './tray';
 import { DockSync } from './dock';
-import { linkInArgv, notificationSettingsUrl, places, startHidden, uninstallCommand, uninstallTarget, windowChrome } from '../core/platform';
+import { linkInArgv, notificationSettingsUrl, places, startHidden, windowChrome } from '../core/platform';
 import { EstateUpdater } from './estate-updater';
 import { readSetupState } from '../core/setup';
 import { Updater } from './updater';
@@ -389,33 +388,7 @@ if (!app.requestSingleInstanceLock()) {
     nameOf: (s) => displayName(s.wellKnown?.service.name ?? s.descriptor?.name ?? s.key, s.descriptor?.instance ?? s.key.split('.')[1] ?? 'default'),
     reasonOf: (s) => (s.reasons[0] ? t(lang(), s.reasons[0].code, s.reasons[0].params) : s.state),
     allowed: (key, now) => shouldNotify(settings.peek(), { kind: 'down', serviceKey: key }, now),
-    words: () => {
-      const l = lang();
-      return {
-        down: (name) => t(l, 'alerts.down', { name }),
-        failing: (name, source) => t(l, 'alerts.failing', { name, source }),
-        back: (name) => t(l, 'alerts.back', { name }),
-        since: (minutes, reason) => t(l, 'alerts.since', { minutes, reason }),
-        after: (minutes) => t(l, 'alerts.after', { minutes }),
-        removed: (name) => t(l, 'alerts.removed', { name }),
-        wasDown: (minutes, reason) => t(l, 'alerts.wasDown', { minutes, reason }),
-        ask: (name) => t(l, 'alerts.ask', { name }),
-        open: (link) => t(l, 'alerts.open', { link }),
-        group: {
-          down: (count) => t(l, 'alerts.group.down', { count }),
-          back: (count) => t(l, 'alerts.group.back', { count }),
-          line: (name, minutes, reason) => t(l, 'alerts.group.line', { name, minutes, reason }),
-          more: (count) => t(l, 'alerts.group.more', { count }),
-        },
-        health: {
-          open: (name, check, state) => t(l, 'alerts.health.open', { name, check, state }),
-          back: (name, check) => t(l, 'alerts.health.back', { name, check }),
-          blind: (name, reason) => t(l, 'alerts.health.blind', { name, reason }),
-          blindBack: (name) => t(l, 'alerts.health.blindBack', { name }),
-          detail: (area, count, fix) => t(l, fix ? 'alerts.health.fix' : 'alerts.health.detail', { area, count, ...(fix ? { fix } : {}) }),
-        },
-      };
-    },
+    words: () => alertWords(lang()),
     productName: (product) => healthProductName(product, monitor.snapshots()),
     changed: () => pushStatus(),
   });
@@ -791,94 +764,8 @@ if (!app.requestSingleInstanceLock()) {
     : process.platform === 'linux' ? xdgLoginItem(process.env, os.homedir(), process.execPath)
     : { get: () => app.getLoginItemSettings(loginArgs), set: (openAtLogin) => app.setLoginItemSettings({ openAtLogin, ...loginArgs }) };
 
-  // #region uninstall-flow — docs: docs/ux/scenarios.md#scn-024-settings-launch-at-login-notifications-quiet-hours
-  /** LC-14: undo what installing and running added. Registrations go first and stop the flow on
-   *  failure, so a half-uninstalled app never deletes its data and leaves an entry behind. */
-  /** `decided`: FD-175, the operator's words relayed by an agent stand for the confirmation and its box. */
-  async function uninstall(decided?: { deleteData: boolean }): Promise<{ ok: boolean; cancelled?: boolean; error?: string }> {
-    const l = lang();
-    const parent = liveWindow() ?? undefined;
-    // LC-14: data goes only when the person asks. The box is unticked: settings and history stay,
-    // and a reinstall picks them up together with the login item and the MCP entry (ADR-0015).
-    const ask = {
-      type: 'warning' as const, buttons: [t(l, 'uninstall.confirm'), t(l, 'action.cancel')], defaultId: 1, cancelId: 1,
-      message: t(l, 'uninstall.title'), detail: t(l, 'settings.uninstall.body'), checkboxLabel: t(l, 'uninstall.deleteData'), checkboxChecked: false,
-    };
-    const { response, checkboxChecked: deleteData } = decided ? { response: 0, checkboxChecked: decided.deleteData }
-      : parent ? await dialog.showMessageBox(parent, ask) : await dialog.showMessageBox(ask);
-    if (response !== 0) return { ok: false, cancelled: true };
-    const wasAtLogin = Boolean(loginOs && settings.get().launchAtLogin);
-    let mcp: ReturnType<typeof removeMcpRegistrations>['entries'] = [];
-    try {
-      // R-11: the MCP entry first — it is the step that can fail on a busy ~/.claude.json, and a
-      // failure then leaves nothing half-removed. The login item second; a refusal puts the MCP entries back.
-      if (app.isPackaged) {
-        const r = removeMcpRegistrations();
-        mcp = r.entries;
-        log(`uninstall: MCP registration removed from ${JSON.stringify(r.removed)}`);
-      }
-      if (loginOs) {
-        const refused = applyLoginItem(false, loginOs);
-        if (refused) {
-          try {
-            restoreMcpRegistrations(mcp, launcher());
-          } catch (e) {
-            // T-15: the MCP entry is gone and could not be put back — say so, never "Nothing was removed".
-            log(`uninstall: MCP registration not put back: ${(e as Error).message}`);
-            return { ok: false, error: t(l, 'uninstall.partial', { error: refused }) };
-          }
-          throw new Error(refused);
-        }
-      }
-    } catch (error) {
-      log(`uninstall stopped: ${(error as Error).message}`);
-      return { ok: false, error: t(l, 'uninstall.failed', { error: (error as Error).message }) };
-    }
-    // Data goes after this process exits — Chromium writes into userData until then (purgeAfterExit).
-    // A development run shares the installed app's profile name, so it purges nothing.
-    // Windows helpers start through a launcher that must have finished before this app quits (src/core/after-exit.ts).
-    const helpers: Promise<void>[] = [];
-    const awaitHelper = (h: ReturnType<typeof purgeAfterExit>) => { if (h instanceof Promise) helpers.push(h.catch((error: Error) => log(`uninstall: a helper could not start: ${error.message}`))); };
-    if (app.isPackaged) {
-      const all = [...new Set([...productDataPaths(app.getPath('home')), userData, app.getPath('logs')])];
-      if (deleteData) {
-        // LC-16: even «delete my settings» leaves the automatic-update switch as the person set it.
-        awaitHelper(purgeAfterExit(process.pid, all.filter((p) => path.resolve(p) !== path.resolve(userData)), { dir: userData, names: ALWAYS_KEPT }));
-      } else {
-        try {
-          writeRestoreRecord(userData, { at: new Date().toISOString(), loginItem: wasAtLogin, mcp });
-        } catch (error) {
-          log(`uninstall: could not write the restore record: ${(error as Error).message}`);
-        }
-        awaitHelper(purgeAfterExit(process.pid, all.filter((p) => path.resolve(p) !== path.resolve(userData)), { dir: userData, names: KEPT_FILES }));
-      }
-      // R-20 (FD-21): a downloaded update would be installed by ShipIt as this app quits, putting the
-      // trashed bundle back — its record goes first.
-      if (process.platform === 'darwin') {
-        const cancelled = cancelStagedUpdate(app.getPath('home'));
-        if (cancelled.length) log(`uninstall: the staged update was removed (${cancelled.length} item(s)) so it cannot reinstall the app`);
-      }
-      // FD-37: only what this install is — never a parent folder (uninstallTarget, ADR-0019).
-      const target = uninstallTarget(process.platform, process.execPath, process.env, (p) => fs.existsSync(p));
-      log(`uninstall: ${target.kind}${'path' in target ? ` ${target.path}` : ''}`);
-      try {
-        if (target.kind === 'trash-bundle' || target.kind === 'trash-file') await shell.trashItem(target.path);
-        else if (target.kind === 'run-uninstaller') {
-          // After this app exits (uninstallCommand); a failure to start it is said, never thrown.
-          const cmd = uninstallCommand(target, process.pid);
-          // A grandchild outside this app's job, or Windows kills the waiter when the app exits (src/core/after-exit.ts).
-          helpers.push(powerShellAfterExit(cmd.args[3]!, windowsPowerShellEnv()).catch((error: Error) => log(`uninstall: the uninstaller could not start: ${error.message}`)));
-        } else await dialog.showMessageBox({ type: 'info', message: t(l, 'uninstall.manual', { how: target.kind === 'package' ? target.command : t(l, target.reason) }), buttons: ['OK'] });
-      } catch (error) {
-        await dialog.showMessageBox({ type: 'info', message: t(l, 'uninstall.trashFailed', { error: (error as Error).message }), buttons: ['OK'] });
-      }
-    }
-    log(`uninstall: login item and registration removed; ${deleteData ? 'all data' : 'everything but settings and history'} is removed after exit`);
-    await Promise.all(helpers); // every helper runs outside this app before it quits (bounded: cmd.exe returns at once)
-    setImmediate(() => app.quit()); // before-quit sets quitting, so the window lets itself close
-    return { ok: true };
-  }
-  // #endregion uninstall-flow
+  // LC-14: Settings → Uninstall (src/electron/uninstall-flow.ts, FD-304).
+  const uninstall = (decided?: { deleteData: boolean }) => runUninstall({ lang, liveWindow, loginOs, settings, log, launcher, userData }, decided);
 
   // #region reinstall — docs: docs/adr/0015-data-survives-uninstall-updates-install-themselves.md#decision
   /** The packaged MCP launcher of this install. */
@@ -1314,91 +1201,10 @@ if (!app.requestSingleInstanceLock()) {
     void openChannel({
       userData, log,
       // FD-166: the read answers what the Sessions list shows; the starts take the buttons' own path.
-      start: async (r): Promise<ChannelAnswer> => {
-        if (r.op === 'console.list') return { ok: true, consoles: consoles.openConsoles() };
-        if (r.op === 'sessions.list') {
-          // FD-247 (step 8): the Sessions list as the window has it, every machine included.
-          const s = consoles.sessionsStatus();
-          return { ok: true, result: { sessions: s.rows.map(sessionListRow), machines: s.machines ?? [], switchboard: s.switchboard, degraded: s.degraded.map((d) => d.source) } };
-        }
-        // #region agent-doors — docs: docs/ux/scenarios.md#scn-098-an-agent-changes-what-a-person-changes-in-settings-and-on-the-sessions-page
-        // FD-175: the window's own buttons for an agent, each through the code its button runs.
-        if (r.op === 'settings.update') {
-          const { patch, refused } = agentSettingsPatch(r.patch);
-          if (!applySettingsFn) return { ok: false, code: 'not-ready' };
-          const done = applySettingsFn(patch);
-          // Scenario walk 2026-11-11 (SCN-098 step 1): the window changes at once, as if the person had clicked.
-          liveWindow()?.webContents.send(CHANNELS.settingsPush, settings.get());
-          return { ok: true, result: { changed: Object.keys(patch), refused, ...(done.error ? { error: done.error } : {}) } };
-        }
-        if (r.op === 'sessions.act' && r.session) {
-          const { act, row, account } = r.session;
-          if (act === 'clear-ended') { await consoles.clearEnded(); return { ok: true, result: { act } }; }
-          const done = act === 'continue' ? await consoles.continueSession(row!, { cols: 100, rows: 30 }, account)
-            : act === 'end' ? await consoles.endSession(row!) : act === 'attach' ? await consoles.attachSession(row!) : await consoles.dismissSession(row!);
-          return done.ok ? { ok: true, result: { act, ...done } } : { ok: false, code: done.reason ?? 'refused', ...(done.detail ? { detail: String(done.detail).slice(0, 200) } : {}) };
-        }
-        if (r.op === 'app.update') {
-          if (r.update === 'check') { await updater.check(true); return { ok: true, result: { state: updater.state.state, version: updater.state.version ?? null } }; }
-          // Restart to update may ask the person first (running consoles): started, never awaited here.
-          void restartToUpdate();
-          return { ok: true, result: { state: updater.state.state, version: updater.state.version ?? null, restarting: updater.state.state === 'ready' } };
-        }
-        if (r.op === 'session.new' && r.start?.kind === 'terminal') {
-          // FD-247 (SCN-111): Open terminal on {machine}, as the machine heading's button does.
-          const done = await consoles.openMachineTerminal(r.start.machine!, { cols: 120, rows: 32 });
-          return done.ok ? { ok: true, result: { consoleKey: done.key, machine: r.start.machine } } : { ok: false, code: done.reason, ...(done.detail ? { detail: String(done.detail).slice(0, 200) } : {}) };
-        }
-        if (r.op === 'session.new' && r.start) {
-          // FD-191 (SCN-101, SCN-102): the New session and New agent dialogs' Start; a choice left out is the dialog's default.
-          const o = await consoles.newSessionOptions();
-          const runtime = r.start.runtime ?? o.runtime;
-          if (!runtime) return { ok: false, code: 'no-runtime' };
-          const done = await consoles.startNew({ kind: r.start.kind as Exclude<typeof r.start.kind, 'terminal'>, runtime, folder: r.start.folder ?? o.folder, bypass: r.start.bypass ?? o.bypass, isolated: r.start.isolated ?? false, ...(r.start.machine ? { machine: r.start.machine } : {}) }, { cols: 120, rows: 32 }, 'mcp');
-          if (!done.ok) {
-            if ('why' in done) return { ok: false, code: `admission_${done.why}` };
-            return { ok: false, code: done.reason, ...(done.detail ? { detail: String(done.detail).slice(0, 200) } : {}) };
-          }
-          const snap = consoles.manager.snapshot(done.key);
-          return { ok: true, result: { started: true, console: done.key, row: consoleRowId(done.key, snap.startedAt ?? Date.now()), kind: r.start.kind, runtime, folder: r.start.machine ? r.start.folder : snap.cwd, ...(r.start.machine ? { machine: r.start.machine } : {}) } };
-        }
-        if (r.op === 'console.choose' && r.choice) {
-          const done = await consoles.chooseFor(r.service, r.choice);
-          return done.ok ? { ok: true, result: { runtime: done.runtime, folder: done.folder, where: done.where } } : { ok: false, code: done.reason, detail: done.detail };
-        }
-        if (r.op === 'org.join') {
-          // FD-248 (SCN-115): MCP `organization_join` with `open: true`, the same check as the button.
-          const j = joinLink(r.link ?? null);
-          if (!j.ok) return { ok: false, code: 'refused', detail: 'host' };
-          await shell.openExternal(j.url);
-          return { ok: true, result: { opened: j.url } };
-        }
-        if (r.op === 'app.install' && r.install) {
-          if (r.install === 'move-to-applications') {
-            const skip = moveSkip(copyAt());
-            if (skip) return { ok: true, result: { moved: false, why: skip } };
-            // A move that works quits and relaunches from Applications: the answer goes first.
-            setTimeout(() => { void moveToApplications(true); }, 500);
-            return { ok: true, result: { moving: true } };
-          }
-          const deleteData = r.install === 'uninstall-all';
-          // The app quits once its helpers run: the answer goes first, and a refusal is in main.log.
-          setTimeout(() => { void uninstall({ deleteData }).then((u) => { if (!u.ok) log(`uninstall asked by an agent stopped: ${u.error ?? 'cancelled'}`); }); }, 500);
-          return { ok: true, result: { uninstalling: true, deleteData } };
-        }
-        // #endregion agent-doors
-        // FD-249: an `ask` over the channel is an agent's words, read as a service's text would be (FD-234).
-        const task = r.task ? { ...r.task, ...(r.task.kind === 'ask' ? { from: 'agent' as const } : {}) } : undefined;
-        return consoles.start(r.service, r.mode === 'continue' ? 'continue' : 'new', { cols: 120, rows: 32 }, task).then((x) => {
-          // FD-175 (FD-129's button): a fix for an agent whose session runs is typed into that session, not a second one.
-          if (!x.ok && x.reason === 'running' && task) {
-            const sent = consoles.sendTask(r.service, task);
-            // FD-236 (4): a typed task that reads like instructions holds the conversation; the agent is told, as on a start.
-            return sent.ok ? { ok: true, result: { typed: true, console: r.service, waitsForEnter: true, ...(sent.held ? { held: true, held_why: 'the task read like instructions, so its next Continue asks before each action; a person sends the typed line' } : {}) } } : { ok: false, code: sent.error ?? 'not-sent' };
-          }
-          return startAnswer(r.service, x);
-        });
-      },
+      start: channelAnswers({
+        consoles, settings, updater, log, liveWindow, applySettings: () => applySettingsFn, restartToUpdate, copyAt, moveToApplications,
+        uninstall: (decided) => uninstall(decided),
+      }),
     }).then((c) => { consoleChannel = c; if (c) log('console channel open'); });
     // #endregion console-channel-start
     appMenu();

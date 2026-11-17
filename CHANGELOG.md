@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.8.182 - 2026-11-17
+
+### Changed
+- FD-304 (refactor wave 4, no behaviour change): `main.ts` loses 194 lines. The console channel's answers move to
+  `src/electron/channel-answers.ts` (`channelAnswers`), the uninstall flow to `src/electron/uninstall-flow.ts`, and
+  the operator channel's words to `alertWords` (`src/core/outage-alerts.ts`, now tested in both languages).
+
 ## 0.8.181 - 2026-11-17
 
 ### Fixed

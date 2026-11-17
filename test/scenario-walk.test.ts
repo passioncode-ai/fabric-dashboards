@@ -48,8 +48,10 @@ test('SCN-103: "View only" shows only for a key that reaches the port, not for a
 });
 
 test('SCN-098: a setting changed through the console channel reaches the window, its language included', () => {
-  const main = read('src/electron/main.ts');
+  // FD-304: the channel's answers moved out of main.ts.
+  const main = read('src/electron/channel-answers.ts');
   const branch = main.slice(main.indexOf("if (r.op === 'settings.update')"), main.indexOf("if (r.op === 'sessions.act'"));
+  assert.ok(branch.length > 0);
   assert.match(branch, /liveWindow\(\)\?\.webContents\.send\(CHANNELS\.settingsPush, settings\.get\(\)\)/);
   assert.match(read('src/renderer/App.tsx'), /onSettings\(\(s\) => \{[^}]*reloadLang\(\)/);
 });
