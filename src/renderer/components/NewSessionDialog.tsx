@@ -37,7 +37,7 @@ export function initialMachine(preset: string | undefined, o: Pick<NewSessionOpt
   return o.machine ? { machine: o.machine, remoteFolder: o.remoteFolder ?? '' } : { machine: '', remoteFolder: '' };
 }
 
-export function NewSessionDialog({ kind, onClose, onStarted, machine: preset }: { kind: 'session' | 'agent'; onClose: () => void; onStarted: (key: string) => void; /** FD-247: opened from a machine's heading, that machine chosen. */ machine?: string }) {
+export function NewSessionDialog({ kind, onClose, onStarted, machine: preset }: { kind: 'session' | 'agent' | 'dashboard'; onClose: () => void; onStarted: (key: string) => void; /** FD-247: opened from a machine's heading, that machine chosen. */ machine?: string }) {
   const { t } = useT();
   const [options, setOptions] = useState<NewSessionOptions | null>(null);
   const [runtime, setRuntime] = useState<string | null>(null);
@@ -108,13 +108,13 @@ export function NewSessionDialog({ kind, onClose, onStarted, machine: preset }: 
       setBusy(false);
     }
   };
-  const title = kind === 'agent' ? t('newAgent.title') : t('newSession.title');
+  const title = kind === 'agent' ? t('newAgent.title') : kind === 'dashboard' ? t('newDashboard.title') : t('newSession.title');
   return (
     <div className="scrim" role="presentation">
       <form className="dialog new-session" role="dialog" aria-modal="true" aria-labelledby="new-session-title" aria-describedby="new-session-lead"
         onSubmit={(e) => { e.preventDefault(); if (!busy) void start(); }}>
         <h2 id="new-session-title">{title}</h2>
-        <p id="new-session-lead" className="meta">{kind === 'agent' ? t('newAgent.lead') : t('newSession.lead')}</p>
+        <p id="new-session-lead" className="meta">{kind === 'agent' ? t('newAgent.lead') : kind === 'dashboard' ? t('newDashboard.lead') : t('newSession.lead')}</p>
         {!options && !error && <p className="muted row" role="status"><Spinner /> {t('console.loading')}</p>}
         {options && options.runtimes.length === 0 && <p className="notice" role="status">{t('console.noRuntime', { list: 'claude, codex, gemini, opencode, qwen, goose, aider, agent, copilot, amp' })}</p>}
         {options && options.runtimes.length > 0 && (
@@ -178,7 +178,7 @@ export function NewSessionDialog({ kind, onClose, onStarted, machine: preset }: 
         <div className="row">
           {busy && <span className="meta row"><Spinner /> {t('newSession.starting')}</span>}
           <button type="button" className="btn" disabled={busy} onClick={onClose}>{t('action.cancel')}</button>
-          <button type="submit" className="btn btn-primary" disabled={busy || !chosen || !target}>{kind === 'agent' ? t('newAgent.start') : t('newSession.start')}</button>
+          <button type="submit" className="btn btn-primary" disabled={busy || !chosen || !target}>{kind === 'agent' ? t('newAgent.start') : kind === 'dashboard' ? t('newDashboard.start') : t('newSession.start')}</button>
         </div>
       </form>
     </div>

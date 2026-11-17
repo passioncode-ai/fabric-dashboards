@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.8.169 - 2026-11-17
+
+### Added
+
+- FD-171: *New dashboard* on the agent list, beside New agent (and MCP `session_new` with kind `dashboard`). It opens
+  the New session dialog; the coding agent starts with a brief to make one dashboard with the person: a page that shows
+  what they want about the agents of this computer, served as a dashboard-only `fabric-service/0.1` service built with
+  the adapter's recipe `recipes/dashboard-only/`, filled from this app's MCP and Project Observatory, run under launchd
+  and opened here. It holds no token but its own.
+
 ## 0.8.168 - 2026-11-17
 
 ### Security

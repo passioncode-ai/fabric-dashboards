@@ -46,7 +46,7 @@ export interface ChannelRequest {
   start?: NewSessionRequest;
 }
 /** FD-247 (step 7b): kind `terminal` opens a login shell on `machine` (SCN-111); it takes no runtime, folder or flags. */
-export interface NewSessionRequest { kind: 'session' | 'agent' | 'terminal'; runtime?: string; folder?: string; bypass?: boolean; isolated?: boolean; machine?: string }
+export interface NewSessionRequest { kind: 'session' | 'agent' | 'dashboard' | 'terminal'; runtime?: string; folder?: string; bypass?: boolean; isolated?: boolean; machine?: string }
 export type AppInstall = 'move-to-applications' | 'uninstall' | 'uninstall-all';
 /** FD-166: one console of this app that runs now, as the Sessions list joins it with Switchboard's record. Ids only:
  *  never what the console printed, its prompt or a path inside the agent's data. */
@@ -143,7 +143,7 @@ export function parseRequest(line: string): { ok: true; request: ChannelRequest 
     }
     // FD-206: a machine as ssh knows it, and then a folder there is required.
     if (c.machine !== undefined && (typeof c.machine !== 'string' || !MACHINE.test(c.machine) || typeof c.folder !== 'string' || !c.folder.startsWith('/'))) return { ok: false, code: 'bad-start' };
-    if (c.kind !== 'session' && c.kind !== 'agent') return { ok: false, code: 'bad-start' };
+    if (c.kind !== 'session' && c.kind !== 'agent' && c.kind !== 'dashboard') return { ok: false, code: 'bad-start' };
     if (c.runtime !== undefined && (typeof c.runtime !== 'string' || !/^[a-z0-9][a-z0-9-]{0,63}$/.test(c.runtime))) return { ok: false, code: 'bad-start' };
     if (c.folder !== undefined && (typeof c.folder !== 'string' || c.folder.length > 4096 || c.folder.includes('\u0000') || !(c.folder.startsWith('/') || /^[A-Za-z]:[\\/]/.test(c.folder)))) return { ok: false, code: 'bad-start' };
     if ((c.bypass !== undefined && typeof c.bypass !== 'boolean') || (c.isolated !== undefined && typeof c.isolated !== 'boolean')) return { ok: false, code: 'bad-start' };

@@ -124,6 +124,7 @@
 | SCN-116 | See what this computer gives each context | machine | P-01 | ST-016 | implemented | 2026-11-15 |
 | SCN-117 | See where an agent runs | navigation | P-01 | ST-016 | implemented | 2026-11-15 |
 | SCN-118 | Close the quiet copy of a session that runs twice | sessions | P-01 | ST-019 | implemented | 2026-11-16 |
+| SCN-119 | Start a new dashboard from the agent list | console | P-01 | ST-019, ST-022 | implemented | 2026-11-17 |
 ## Personas
 
 Defined in [foundation.md](foundation.md) → P-01.
@@ -2668,3 +2669,25 @@ The Sessions mode (0.8.0): every coding session apart from the agents, each stat
 - **Errors & recovery:** an older Switchboard is not asked and no warning shows; `attention` is read once a minute and only while the Sessions mode is on screen, so a warning can lag a minute; a session id that is not one never reaches the command
 - **Coverage:** src/core/duplicate-sessions.ts (parseDuplicates, closeCopyArgv, parseCloseCopy, takesCloseCopy), src/electron/console.ts (pollDuplicates, closeCopy), src/renderer/components/Sessions.tsx (DuplicateNotice)
 - **Status:** implemented (2026-11-16, 0.8.135: `test/duplicate-sessions.test.ts`)
+
+### SCN-119: Start a new dashboard from the agent list
+- **Persona:** P-01
+- **Feature:** console
+- **Traces:** ST-019, ST-022; FD-171 step 2; the operator, 2026-11-07, this repository's session `0edbdfdf`: "each person runs their own Dashboards, and a person can have their own dashboard"; the adapter's recipe `building-fabric-services/recipes/dashboard-only/` (FAA-268, board thread `38c35e11`)
+- **Entry point:** Overview's header (the agent list): New dashboard; an agent, MCP `session_new` with kind dashboard
+- **Preconditions:** at least one coding agent is installed
+- **Steps:**
+  1. The person presses New dashboard -> the same dialog as SCN-101, titled New dashboard, with "Your coding agent asks what the page should show about your agents, builds it in this folder as a service that runs by itself and opens it here."
+  2. The person presses Create with coding agent -> the session's page opens; the coding agent starts with the brief to make one dashboard (written beside its console, never in the person's folder) and this app's MCP server, and asks its first question: what the page should show and for whom
+  3. The coding agent installs a dashboard-only `fabric-service/0.1` service with the adapter's recipe (`install.py --id <id> --folder <folder>`, or `install.mjs`), fills its page from this app's MCP (`list_services`, `spend`, `connections`, `sessions`) and Project Observatory, runs it under launchd, checks with `list_services` that it is `ready` and opens it with `open` -> the new dashboard appears in the agent list and opens inside the app
+- **Expected result:** a person who wants their own view of the agents starts from the agent list, answers questions, and ends with their page in the list, opened here; it holds no token but its own
+- **Alt paths:** as SCN-101 (no switch, no Switchboard, no coding agent installed, an agent's call); the Fabric skills are not installed -> the brief tells the coding agent to say so and install the adapter as the setup does
+- **UI elements:** New dashboard (Overview's header, beside New agent), the dialog of SCN-101 with Create with coding agent
+- **States covered:** loading, success, empty, error
+- **Errors & recovery:** as SCN-101
+- **Copy:**
+  - "New dashboard" / «Новый дашборд»; "Your coding agent asks what the page should show about your agents, builds it in this folder as a service that runs by itself and opens it here." / «Агент для кода спросит, что показывать о ваших агентах, соберёт страницу в этой папке как сервис, который работает сам, и откроет её здесь.»
+  - "Create with coding agent" / «Создать с агентом для кода»
+- **Status:** implemented (2026-11-17: `test/new-session.test.ts` *FD-171 (SCN-119)*: its own key kind, the brief names the recipe, the MCP reads and the proof, 0600, the runtime's arguments, the console channel and the dialog's door take it, New dashboard starts with it and is listed; `test/e2e/new-session.test.ts` opens its dialog)
+- **Coverage:** src/core/new-session.ts (newDashboardMarkdown, prepareNewDashboard), src/electron/console.ts (pack), src/core/console-channel.ts, src/mcp/server.ts (session_new), src/renderer/App.tsx, src/renderer/components/NewSessionDialog.tsx, test/new-session.test.ts
+- **Product:** unobserved
