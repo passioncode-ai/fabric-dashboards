@@ -2624,13 +2624,14 @@ The Sessions mode (0.8.0): every coding session apart from the agents, each stat
   1. The person opens This Mac -> four totals: agents, running, needing attention, spent today (read from the agents' own usage reports, again every minute while the page is shown)
   2. Below, one section per context: the personal organization first, then the others by label (the person's own label when set), then "Context not reported"; each with its counts, today's spend and its agents, each opening its page
   3. A line says that no agent reports how many people it serves yet
-- **Expected result:** the person sees what this computer gives each organization it works for, in sums only
+  4. When an agent gives a health report (FD-285, `agent-health/1`, Switchboard first), a section "Agent health reports" lists each, worst first: its state, version and read time, the checks that are not ok with their area, count and fix, how many episodes are open, or why its report could not be read
+- **Expected result:** the person sees what this computer gives each organization it works for, in sums only, and what each reporting agent says is wrong with it now
 - **Alt paths:** an agent reads the same with MCP `this_machine` (contexts with `confirmed: false`, `people: null`); spend per agent stays the `spend` tool's
 - **UI elements:** the totals, the context sections, the "your own" tag, the agent links
 - **States covered:** loading (spend "…"), success
 - **Errors & recovery:** an agent whose usage report cannot be read makes the spend a lower bound, as on Spend; contexts come from Observatory's map until Fabric reports each instance's own (CO-422), so none is marked confirmed
-- **Coverage:** src/core/machine-view.ts (machineView), src/renderer/components/MachinePage.tsx, src/renderer/components/Navigation.tsx (This Mac item), src/renderer/App.tsx (route machine), src/electron/policy.ts (resume route), src/mcp/tools.ts (thisMachine), src/mcp/server.ts (this_machine)
-- **Status:** implemented (2026-11-15, 0.8.118: `test/machine-view.test.ts`)
+- **Coverage:** src/core/machine-view.ts (machineView), src/renderer/components/MachinePage.tsx, src/renderer/components/Navigation.tsx (This Mac item), src/renderer/App.tsx (route machine), src/electron/policy.ts (resume route), src/mcp/tools.ts (thisMachine), src/mcp/server.ts (this_machine), src/core/agent-health.ts (healthRows)
+- **Status:** implemented (2026-11-15, 0.8.118: `test/machine-view.test.ts`; health reports 0.8.166)
 
 ### SCN-117: See where an agent runs
 

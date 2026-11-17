@@ -69,3 +69,41 @@ test('FD-52: MCP this_machine sums the installed agents per context, unconfirmed
   assert.deepEqual(out.contexts, []);
   assert.equal(out.people, null);
 });
+
+test('FD-285 wave 2: health rows are worst first, list only checks that are not ok, worst first, and count open episodes', async () => {
+  const { healthRows } = await import('../src/core/agent-health');
+  const ep = { key: 'k', openedAt: 1, state: 'warn' as const };
+  const book = {
+    'fabric-switchboard': { readAt: 1_763_000_000_000, read: { state: 'warn' as const }, version: '0.7.111', at: 1, checks: [
+      { id: 'owner', area: 'lifecycle', state: 'ok' as const, count: 0 },
+      { id: 'errors_today', area: 'errors', state: 'warn' as const, count: 584 },
+      { id: 'crashes', area: 'crash', state: 'fail' as const, count: 1, fix: { tool: 'switchboard_bugs' } },
+    ], causes: { errors_today: { bad: 2, good: 0, episode: ep }, crashes: { bad: 1, good: 0 }, owner: { bad: 0, good: 3, episode: { ...ep, closedAt: 2 } } } },
+    quiet: { readAt: 2, read: { state: 'unknown' as const, reason: 'no-answer' as const }, checks: [{ id: 'x', area: 'errors', state: 'fail' as const, count: 9 }], causes: {} },
+    fine: { readAt: 3, read: { state: 'ok' as const }, checks: [], causes: {} },
+  };
+  const rows = healthRows(book as never, (p) => (p === 'fabric-switchboard' ? 'Switchboard' : p));
+  assert.deepEqual(rows.map((r) => [r.name, r.state, r.open]), [['Switchboard', 'warn', 1], ['quiet', 'unknown', 0], ['fine', 'ok', 0]]);
+  assert.deepEqual(rows[0]!.checks, [
+    { id: 'crashes', area: 'crash', state: 'fail', count: 1, fix: 'tool switchboard_bugs' },
+    { id: 'errors_today', area: 'errors', state: 'warn', count: 584 },
+  ]);
+  assert.deepEqual(rows[1]!.checks, [], 'an unread report shows no stale checks');
+  assert.equal(rows[1]!.reason, 'no-answer');
+});
+
+test('FD-285 wave 2: the page shows each product\'s report, its checks, fix and why a report was not read, and nothing without reports', () => {
+  const base = { services: [], organizations: [] };
+  const health = [
+    { product: 'fabric-switchboard', name: 'Switchboard', state: 'warn', version: '0.7.111', readAt: Date.UTC(2026, 10, 17, 9, 30), open: 1, checks: [{ id: 'errors_today', area: 'errors', state: 'warn', count: 584, fix: 'tool switchboard_bugs' }] },
+    { product: 'other', name: 'Other', state: 'unknown', reason: 'schema', readAt: 1, open: 0, checks: [] },
+  ];
+  const render = (status: unknown, lang: 'en' | 'ru') => renderToStaticMarkup(React.createElement(LangContext.Provider, { value: lang }, React.createElement(MachinePage, { status: status as never, onOpen: () => undefined, spend: [] }))).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
+  const en = render({ ...base, health }, 'en');
+  assert.match(en, /Agent health reports/);
+  assert.match(en, /Switchboard 0\.7\.111 warning · read at .* · open episodes: 1/);
+  assert.match(en, /errors_today warning · area: errors, count: 584 · fix: tool switchboard_bugs/);
+  assert.match(en, /Other no report .* Its report could not be read: not in the agent-health\/1 format/);
+  assert.match(render({ ...base, health }, 'ru'), /Отчёты агентов о здоровье.*предупреждение.*Отчёт не прочитан: не в формате agent-health\/1/);
+  assert.doesNotMatch(render(base, 'en'), /Agent health reports/);
+});

@@ -5,6 +5,7 @@
 // renderer free of the package's Node code.
 import type { LimitView } from '@passioncode-ai/fabric-service-host/usage';
 import type { Busy, Descriptor, LaunchdStatus, Reason, ServiceEvent, ServiceState, WellKnown } from '@passioncode-ai/fabric-service-host/protocol';
+import type { HealthRow } from './agent-health';
 import type { EstateStatus } from './estate-update';
 import type { Organization } from './organizations';
 import type { Dismissal, SessionRecord, SessionsStatus } from './sessions';
@@ -278,6 +279,8 @@ export interface AppStatus {
   /** ADR-0018: what the estate watcher saw last — the contract clone vs the remote, consumer pins, skills. */
   estate: EstateStatus;
   // #endregion estate-update
+  /** FD-285 wave 2: each product's last `agent-health/1` report, worst first (`healthRows`); absent before the first read. */
+  health?: HealthRow[];
   /** FD-103: every coding session of this Mac, merged from Switchboard and this app's consoles (src/core/sessions.ts). */
   sessions?: SessionsStatus;
   /** W2 (UX-05, UX-06): the spending limits that need a person (tripped or over the line), by agent, from the last

@@ -11,7 +11,7 @@ import { money } from './Spend';
 const REFRESH_MS = 60_000;
 
 export function MachinePage({ status, onOpen, spend: given, labels = {} }: { status: AppStatus; onOpen: (key: string) => void; /** Tests pass the reports. */ spend?: SpendEntry[] | null; /** FD-248: the person's own labels. */ labels?: Record<string, string> }) {
-  const { t } = useT();
+  const { t, time } = useT();
   const [spend, setSpend] = useState<SpendEntry[] | null>(given ?? null);
   useEffect(() => {
     if (given !== undefined) return undefined;
@@ -34,6 +34,23 @@ export function MachinePage({ status, onOpen, spend: given, labels = {} }: { sta
         <div className="machine-total"><span className="meta">{t('machine.spentToday')}</span><strong>{amount(view.totals.spendToday)}</strong></div>
       </div>
       <p className="meta">{t('machine.people')}</p>
+      {/* FD-285 wave 2: each product's own health report, worst first; codes and counts only (DEC-0157). */}
+      {(status.health?.length ?? 0) > 0 && (
+        <section className="machine-context machine-health" aria-labelledby="mc-health">
+          <h2 id="mc-health">{t('machine.health.title')}</h2>
+          <p className="meta">{t('machine.health.body')}</p>
+          <ul className="machine-health-list">{status.health!.map((h) => (
+            <li key={h.product}>
+              <strong>{h.name}</strong>{h.version && <span className="meta"> {h.version}</span>} <span className={`chip health-${h.state}`}>{t(`machine.health.${h.state}`)}</span>
+              <span className="meta"> · {t('machine.health.read', { time: time(new Date(h.readAt).toISOString()) })}{h.open > 0 && <> · {t('machine.health.open', { n: h.open })}</>}</span>
+              {h.reason && <p className="meta">{t('machine.health.unread', { reason: t(`machine.health.reason.${h.reason}`) })}</p>}
+              {h.checks.length > 0 && <ul className="machine-health-checks">{h.checks.map((c) => (
+                <li key={c.id}><code>{c.id}</code> <span className="meta">{t(`machine.health.${c.state}`)} · {t('machine.health.check', { area: c.area, count: c.count })}{c.fix && <> · {t('machine.health.fix', { fix: c.fix })}</>}</span></li>
+              ))}</ul>}
+            </li>
+          ))}</ul>
+        </section>
+      )}
       {view.contexts.map((c) => (
         <section key={c.name || 'none'} className="machine-context" aria-labelledby={`mc-${c.name || 'none'}`}>
           <h2 id={`mc-${c.name || 'none'}`}>{c.name ? (labels[c.name] ?? c.label ?? c.name) : t('machine.noContext')}
