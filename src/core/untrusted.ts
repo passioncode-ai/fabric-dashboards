@@ -161,9 +161,15 @@ export function neutralize(text: string): string {
 
 /** One fenced block, its source named (`service:<key>`, `command`, `audit`) and closed by this start's id. */
 export function fence(source: string, text: string, id: string = newFenceId()): string {
-  if (text.length > FENCE_MAX) text = `${text.slice(0, FENCE_MAX)}\n… (cut at ${FENCE_MAX} characters)`;
+  // FD-236 (10): the limit holds after the fold too: NFKC grows some characters (`ﷺ` into 18), so a text cut before it
+  // could still fill a block many times the limit. The cut never splits a surrogate pair, and leaves no marker live: the
+  // fold made every one inert before it.
+  let body = neutralize(text.length > FENCE_MAX ? text.slice(0, FENCE_MAX) : text);
+  const cut = text.length > FENCE_MAX || body.length > FENCE_MAX;
+  if (body.length > FENCE_MAX) body = body.slice(0, /[\uD800-\uDBFF]/.test(body[FENCE_MAX - 1]!) ? FENCE_MAX - 1 : FENCE_MAX);
+  if (cut) body = `${body}\n… (cut at ${FENCE_MAX} characters)`;
   const tag = `${UNTRUSTED_TAG} id="${id.replace(/[^a-f0-9]/g, '')}"`;
-  return `<${tag} source="${source.replace(/[^A-Za-z0-9._:-]/g, '')}">\n${neutralize(text)}\n</${tag}>`;
+  return `<${tag} source="${source.replace(/[^A-Za-z0-9._:-]/g, '')}">\n${body}\n</${tag}>`;
 }
 
 /** A short text a service wrote, as one line (a name in a heading): no line breaks, no fence markers, at most `max`.

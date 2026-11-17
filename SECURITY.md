@@ -198,8 +198,10 @@ continue in its folder and Open in Terminal ask until a new session starts on a 
 before acting" on a held console, and MCP `console_new` and `console_fix` answer `held: true`. `list_services`,
 `service_status`, `audit`, `service_context` and `activity` carry an `untrusted` list of fields; the Setup console's
 `setup.md` fences the launcher doctor's text. A Fix or Update typed into a session that already runs and reads like
-instructions holds its conversation (FD-236 (4), 0.8.165). Not covered yet (FD-236): the Setup and New agent consoles
-(which carry no service text) are not held when their pack cannot be written; `doctor` and `update` mark nothing in
+instructions holds its conversation (FD-236 (4), 0.8.165). A block holds at most 256 KB of text after the
+fold too, and a descriptor file over 1 MiB is refused before it is read (FD-236 (10), 0.8.168). By design, the Setup and
+New agent consoles start unheld when their pack cannot be written: they carry no service text. Not covered yet
+(FD-236): `doctor` and `update` mark nothing in
 their answers; a Switchboard hand-over taken in a held folder runs with Switchboard's own setting where its
 `handovers run` takes no `--ask` (before Switchboard 0.7.112).
 
