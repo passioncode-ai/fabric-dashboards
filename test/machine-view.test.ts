@@ -129,3 +129,19 @@ test('FD-285 wave 2: the page shows each product\'s report, its checks, fix and 
   assert.match(render({ ...base, health }, 'ru'), /Отчёты агентов о здоровье.*предупреждение.*Отчёт не прочитан: не в формате agent-health\/1/);
   assert.doesNotMatch(render(base, 'en'), /Agent health reports/);
 });
+
+test('FD-298: an agent\'s Health tab shows its own report, without its name, and the page hands it the row for its key', async () => {
+  const { HealthEntry } = await import('../src/renderer/components/HealthReport');
+  const h = { product: 'example-agent.default', name: 'Example', state: 'fail', version: '1.2.0', readAt: Date.UTC(2026, 10, 17, 9, 30), open: 1, checks: [{ id: 'queue', area: 'work', state: 'fail', count: 7 }] };
+  const render = (props: unknown, lang: 'en' | 'ru') => renderToStaticMarkup(React.createElement(LangContext.Provider, { value: lang }, React.createElement(HealthEntry, props as never))).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
+  const own = render({ h, name: false }, 'en');
+  assert.doesNotMatch(own, /Example/, 'the agent\'s own page does not name it again');
+  assert.match(own, /1\.2\.0 failing · read at .* · open episodes: 1/);
+  assert.match(own, /queue failing · area: work, count: 7/);
+  assert.match(render({ h }, 'en'), /Example 1\.2\.0 failing/);
+  assert.match(render({ h: { ...h, state: 'unknown', reason: 'FAC-SEM-181', checks: [] }, name: false }, 'ru'), /Отчёт не прочитан/);
+  const view = fs.readFileSync(path.join(__dirname, '../src/renderer/components/ServiceView.tsx'), 'utf8');
+  assert.match(view, /\{report && \([\s\S]*?t\('health\.report'\)[\s\S]*?<HealthEntry h=\{report\} name=\{false\} \/>/);
+  const app = fs.readFileSync(path.join(__dirname, '../src/renderer/App.tsx'), 'utf8');
+  assert.match(app, /health=\{status\.health\?\.find\(\(h\) => h\.product === current\.key\)\}/);
+});

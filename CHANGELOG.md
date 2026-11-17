@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.8.177 - 2026-11-17
+
+### Added
+- An agent's Health tab shows its own health report (FD-298): "Its health report" with its version, state, read time,
+  open episodes and the checks that are not ok, the same entry This Mac lists (`HealthEntry`,
+  `src/renderer/components/HealthReport.tsx`), handed the row whose product is the agent's key (SCN-120).
+
 ## 0.8.176 - 2026-11-17
 
 ### Fixed

@@ -1,11 +1,21 @@
 # Handoff — Fabric Dashboards
 
-Updated 2026-11-17 (0.8.176: start at *0.8.176* below; 0.8.175 tagged; 0.8.174 tagged; 0.8.173 tagged; 0.8.172 tagged; 0.8.171 tagged; 0.8.170 tagged; 0.8.169 published; 0.8.168 tagged; 0.8.167 tagged; 0.8.166 tagged; 0.8.165 tagged; 0.8.164 tagged; 0.8.161 and 0.8.163 tagged, 0.8.162's run cancelled by 0.8.163's tag, its changes ship in 0.8.163). History: updated 2026-10-26 (0.8.7 current then, see *0.8.7: start here*; earlier the same day 0.8.6, see *0.8.5: start here* and *Session 2026-10-26: start here*). Earlier: updated 2026-10-25 (0.8.1 current; the consolidation, see *Consolidation 2026-10-25: start here*). Earlier: updated 2026-10-24 (0.7.28). Earlier header: updated 2026-10-07 (0.6.2: 0.6.1 withdrawn for audit HIGH-2, audit fixes, signed feed; 0.6.1: LC-16 in detail updater, Russian by choice; 0.6.0 published 2026-10-06 21:35 UTC; release 0.5.6: third review pass, token latch; release 0.5.5 withdrawn: release audit and its second pass, A2A plan, ADR-0016, ADR-0015 data and updates, FD-05, FD-06, FD-13; Spend and DEC-0021; one entry per agent, ADR-0012; lifecycle contract landed from PR #21, unreleased; CI release rehearsal
+Updated 2026-11-17 (0.8.177: start at *0.8.177* below; 0.8.176 tagged; 0.8.175 tagged; 0.8.174 tagged; 0.8.173 tagged; 0.8.172 tagged; 0.8.171 tagged; 0.8.170 tagged; 0.8.169 published; 0.8.168 tagged; 0.8.167 tagged; 0.8.166 tagged; 0.8.165 tagged; 0.8.164 tagged; 0.8.161 and 0.8.163 tagged, 0.8.162's run cancelled by 0.8.163's tag, its changes ship in 0.8.163). History: updated 2026-10-26 (0.8.7 current then, see *0.8.7: start here*; earlier the same day 0.8.6, see *0.8.5: start here* and *Session 2026-10-26: start here*). Earlier: updated 2026-10-25 (0.8.1 current; the consolidation, see *Consolidation 2026-10-25: start here*). Earlier: updated 2026-10-24 (0.7.28). Earlier header: updated 2026-10-07 (0.6.2: 0.6.1 withdrawn for audit HIGH-2, audit fixes, signed feed; 0.6.1: LC-16 in detail updater, Russian by choice; 0.6.0 published 2026-10-06 21:35 UTC; release 0.5.6: third review pass, token latch; release 0.5.5 withdrawn: release audit and its second pass, A2A plan, ADR-0016, ADR-0015 data and updates, FD-05, FD-06, FD-13; Spend and DEC-0021; one entry per agent, ADR-0012; lifecycle contract landed from PR #21, unreleased; CI release rehearsal
 `v0.4.1-rc.1` green; releases move to CI signing; release 0.4.1, MCP links to online services).
 
 Current release: **0.8.169** published 2026-11-17 07:19 UTC (run 44033704090, 16 assets). Earlier: **0.8.167** published 06:58 UTC (16 assets); the runs of 0.8.164, 0.8.165, 0.8.166 and 0.8.168 were cancelled by the next tag, their changes ship in 0.8.167 and 0.8.169. Earlier: **0.8.163** published 06:26 UTC (run 44026390139, 16 assets). Earlier: **0.8.160** published 05:16 UTC (run 44019086342, 16 assets). Earlier: **0.8.159** published 02:43 UTC (run 44001070642), installed on this Mac 03:09 UTC by its own updater; **0.8.158** published 02:09 UTC (run 43996927838); **0.8.157** published 01:12 UTC (16 assets). Earlier: **0.8.110** published 2026-11-15 09:04 UTC; earlier **0.8.105** published 2026-11-15 07:16 UTC; 0.8.108 (`de97f12`) and 0.8.109 (`33d0b30`) tagged in
 order, their runs under way. 0.8.106 and 0.8.107 were never published (0.8.106's check failed on an unref'd timer in a
 test; both fold into 0.8.108).
+
+## 0.8.177: an agent's own health report on its Health tab (2026-11-17)
+
+FD-298 closed: the strip on the agent's own page left from FD-285. The entry This Mac lists is now `HealthEntry`
+(`src/renderer/components/HealthReport.tsx`); an agent's Health tab (`Health` in `src/renderer/components/ServiceView.tsx`)
+shows it under "Its health report" when `AppStatus.health` holds a row for the agent's key (`src/renderer/App.tsx`), which
+an agent serving `/fabric/v1/health` (FD-293) has. SCN-120; copy check reports `ecbecc50`, `bb146115`, `35682b6f`,
+`61827eb8`, no findings. Checks run: `test/machine-view.test.ts` *FD-298*, `FD_SKIP_LAUNCHD=1 npm run check`. Next task: as
+0.8.175 below; after 0.8.175 to 0.8.177 publish, read the `health:` lines in `main.log` and tell the online agent in thread
+`fc5bb0c7` that the HTTP read is out.
 
 ## 0.8.176: a degraded agent's ok report is not believed (2026-11-17)
 
