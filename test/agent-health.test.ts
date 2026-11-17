@@ -211,3 +211,62 @@ test('FD-285: the poller reads only an installed product with the command; a fai
   assert.equal(seen.length, 2, 'not installed: not read');
   poller.stop();
 });
+
+test('FD-293: a service is read under its service key once it answers a report; until then it is asked hourly', async () => {
+  const { HealthPoller } = await import('../src/electron/health-poller');
+  const seen: [string, unknown, string | undefined][] = [];
+  const lines: string[] = [];
+  let answer: unknown = undefined;
+  let reads = 0;
+  let now = Date.parse('2026-11-17T10:00:00Z');
+  let known = false;
+  const poller = new HealthPoller({
+    binary: async () => null, run: async () => ({ code: 0, stdout: '', stderr: '' }),
+    observe: (p, a, e) => seen.push([p, a, e]), log: (l) => lines.push(l), now: () => now,
+    services: () => [{ key: 'example-agent.cloud', expected: 'example-agent', known, read: async () => { reads += 1; return answer; } }],
+  });
+  await poller.pass();
+  assert.equal(seen.length, 0, 'a 404: no report, not read');
+  now += 5 * 60_000; await poller.pass();
+  assert.equal(reads, 1, 'not asked again within the hour');
+  assert.equal(lines.length, 1, 'said once');
+  answer = '<html>'; now += 60 * 60_000; await poller.pass();
+  assert.equal(reads, 2); assert.equal(seen.length, 0, 'a page is no report either');
+  answer = report([ok()], { product: 'another-agent' }); now += 60 * 60_000; await poller.pass();
+  assert.equal(seen.length, 0, 'a report naming another product is not this service\'s');
+  answer = report([ok()], { product: 'example-agent' }); now += 60 * 60_000; await poller.pass();
+  assert.deepEqual([seen[0]![0], seen[0]![2]], ['example-agent.cloud', 'example-agent']);
+  known = true; answer = null; now += 5 * 60_000; await poller.pass();
+  assert.deepEqual(seen[1], ['example-agent.cloud', null, 'example-agent'], 'a known service that stops answering is a blind reading');
+  assert.equal(lines.length, 1);
+  poller.stop();
+});
+
+test('FD-293: the book is keyed by the service key and the report must name the descriptor id', () => {
+  const now = Date.parse('2026-11-17T10:00:00Z');
+  let book: HealthBook = {};
+  book = observeHealth(book, 'example-agent.cloud', report([ok()], { product: 'example-agent' }), now, 'example-agent');
+  assert.ok(book['example-agent.cloud'], 'kept under the service key');
+  assert.equal(book['example-agent'], undefined);
+  const other = report([ok()], { product: 'another-agent' });
+  assert.deepEqual(readHealth(other), { state: 'ok' });
+  const twice = observeHealth(observeHealth({}, 'example-agent.cloud', other, now, 'example-agent'), 'example-agent.cloud', other, now + 300_000, 'example-agent');
+  assert.ok(twice['example-agent.cloud']!.causes[BLIND], 'another product answering is an unreadable report');
+});
+
+test('FD-293: fetchHealthReport reads the path with the descriptor token; 404 is no report, other errors null', async () => {
+  const http = await import('node:http');
+  const { fetchHealthReport } = await import('../src/core/probe');
+  const d0 = read('positive_service-descriptor.json');
+  let status = 200; let body = JSON.stringify(report([ok()], { product: d0.id })); let seenUrl = '';
+  const s = http.createServer((req, res) => { seenUrl = req.url ?? ''; res.statusCode = status; res.end(body); });
+  await new Promise<void>((r) => s.listen(0, '127.0.0.1', r));
+  try {
+    const d = { ...d0, origin: `http://127.0.0.1:${(s.address() as { port: number }).port}` };
+    assert.equal((await fetchHealthReport(d, '/fabric/v1/health', 'tok') as HealthReport).product, d0.id);
+    assert.equal(seenUrl, '/fabric/v1/health');
+    status = 404; assert.equal(await fetchHealthReport(d, '/fabric/v1/health', 'tok'), undefined);
+    status = 500; assert.equal(await fetchHealthReport(d, '/fabric/v1/health', 'tok'), null);
+    status = 200; body = 'not json'; assert.equal(await fetchHealthReport(d, '/fabric/v1/health', 'tok'), 'not json');
+  } finally { await new Promise((r) => s.close(r)); }
+});

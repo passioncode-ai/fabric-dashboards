@@ -215,6 +215,15 @@ its worst state and its checks, each with an id, area, state, count and the fix 
 The book lives in `outage-alerts.json` (`health`), and MCP `agent_health` reads it. Wave 2 reads the paths agents declare
 (CT-337) instead of the list.
 
+Amended 2026-11-17 (FD-293): an agent with no command line is read over HTTP until CT-337 names where a report is
+declared. Every answering service (ready or degraded) is asked for `GET /fabric/v1/health` with its descriptor token
+(the loopback token gate of `health.ts` applies); one that does not answer already has its FD-48 outage, and a second,
+blind episode would say the same twice. Until a service has answered a report naming it, anything else (a 404, a refused
+token, a page) is no report, not a broken one: logged once and asked again an hour later. No agent is listed by name: the
+repository is public and the operator's agents stay private. The book is keyed by the service key (`example-agent.cloud`)
+and the report must name the descriptor id, so a copy run for an organization goes to that organization's channel
+(FD-269).
+
 ## Amendment 2026-11-17: a mass outage is one message (FD-295)
 
 **Context.** Each agent opens its own outage episode (FD-48, FD-76). A network drop, a sleep or a restart of the machine
