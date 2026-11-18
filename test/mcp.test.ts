@@ -142,8 +142,9 @@ test('FD-109: open never falls back to a browser unless the caller asks for it, 
   assert.equal(result.structuredContent.opened_in, 'nothing');
   assert.equal(result.structuredContent.open_link, 'fabric-dashboards://service/example-agent.default');
   assert.deepEqual(absent.calls.open, []);
-  const list = await handle(absent.deps, { id: 2, method: 'tools/list' });
-  const openTool = (list!.result as { tools: { name: string; inputSchema: { properties: { fallback: { default: string } } } }[] }).tools.find((t) => t.name === 'open')!;
+  // FD-339: the schema is read through search now.
+  const found = await handle(absent.deps, { id: 2, method: 'tools/call', params: { name: 'search', arguments: { query: 'open' } } });
+  const openTool = (found!.result as { structuredContent: { operations: { name: string; inputSchema: { properties: { fallback: { default: string } } } }[] } }).structuredContent.operations.find((t) => t.name === 'open')!;
   assert.equal(openTool.inputSchema.properties.fallback.default, 'never');
 });
 
@@ -218,7 +219,7 @@ test('the protocol: initialize, tools/list, a call, a refusal as isError, notifi
   assert.equal((unknownVersion!.result as { protocolVersion: string }).protocolVersion, '2025-06-18');
 
   const list = await handle(deps, { jsonrpc: '2.0', id: 3, method: 'tools/list' });
-  assert.deepEqual((list!.result as { tools: { name: string }[] }).tools.map((t) => t.name), TOOLS.map((t) => t.name));
+  assert.deepEqual((list!.result as { tools: { name: string }[] }).tools.map((t) => t.name), ['search', 'execute'], 'FD-339: two doors');
 
   const ok = await handle(deps, { jsonrpc: '2.0', id: 4, method: 'tools/call', params: { name: 'link', arguments: { service: KEY } } });
   assert.equal((ok!.result as { structuredContent: { service: string } }).structuredContent.service, KEY);
@@ -1100,4 +1101,42 @@ test('Wave 5b (FD-236 (3)): a call that gives no answer in time ends in a typed 
   const hold = setTimeout(() => undefined, 5_000);
   await assert.rejects(withDeadline(new Promise(() => undefined), 20, 'audit'), (e: Error & { details?: { code?: string } }) => /audit gave no answer/.test(e.message) && e.details?.code === 'timeout');
   clearTimeout(hold);
+});
+
+test('FD-339: two doors: search finds operations with a schema-valid example, execute runs them through the same checks', async () => {
+  const { deps } = world();
+  const all = await handle(deps, { id: 1, method: 'tools/call', params: { name: 'search', arguments: { limit: 50 } } });
+  const page = (all!.result as { structuredContent: { operations: { name: string; effect: string; gate: string; example: { operation: string; arguments: Record<string, unknown> } }[]; total: number; next: string | null } }).structuredContent;
+  assert.equal(page.total, TOOLS.length);
+  assert.ok(page.operations.length <= 50);
+  for (const op of page.operations) {
+    assert.equal(op.example.operation, op.name);
+    const tool = TOOLS.find((t) => t.name === op.name)!;
+    for (const k of (tool.inputSchema as { required?: string[] }).required ?? []) assert.ok(k in op.example.arguments, `${op.name}: example names ${k}`);
+  }
+  assert.equal(page.operations.find((o) => o.name === 'control')!.gate, 'relayed');
+  assert.equal(page.operations.find((o) => o.name === 'list_services')!.effect, 'read');
+  const narrowed = await handle(deps, { id: 2, method: 'tools/call', params: { name: 'search', arguments: { query: 'dashboard link' } } });
+  assert.ok((narrowed!.result as { structuredContent: { operations: { name: string }[] } }).structuredContent.operations.some((o) => o.name === 'link'));
+
+  const ran = await handle(deps, { id: 3, method: 'tools/call', params: { name: 'execute', arguments: { operation: 'link', arguments: { service: KEY } } } });
+  assert.equal((ran!.result as { structuredContent: { service: string } }).structuredContent.service, KEY);
+  const unknown = await handle(deps, { id: 4, method: 'tools/call', params: { name: 'execute', arguments: { operation: 'rm_rf' } } });
+  assert.equal((unknown!.result as { structuredContent: { code: string } }).structuredContent.code, 'unknown-operation');
+  const noKey = await handle(deps, { id: 5, method: 'tools/call', params: { name: 'execute', arguments: { operation: 'control', arguments: { service: KEY, action: 'restart' } } } });
+  assert.equal((noKey!.result as { structuredContent: { code: string } }).structuredContent.code, 'idempotency-required');
+  const bad = await handle(deps, { id: 6, method: 'tools/call', params: { name: 'execute', arguments: { operation: 'link', arguments: { service: KEY, evil: 1 } } } });
+  assert.equal((bad!.result as { isError: boolean }).isError, true, 'the operation\'s own checks still hold');
+  // The old names keep working for one release.
+  const old = await handle(deps, { id: 7, method: 'tools/call', params: { name: 'link', arguments: { service: KEY } } });
+  assert.equal((old!.result as { structuredContent: { service: string } }).structuredContent.service, KEY);
+});
+
+test('FD-339: an idempotency key answers its first result and refuses other arguments', async () => {
+  const { Idempotency } = await import('../src/mcp/doors');
+  const i = new Idempotency();
+  assert.deepEqual(i.check('k1', 'control', { a: 1 }), { kind: 'new' });
+  i.remember('k1', 'control', { a: 1 }, { done: true });
+  assert.deepEqual(i.check('k1', 'control', { a: 1 }), { kind: 'repeat', result: { done: true } });
+  assert.deepEqual(i.check('k1', 'control', { a: 2 }), { kind: 'conflict' });
 });

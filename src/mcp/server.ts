@@ -32,6 +32,10 @@ export function appVersion(from = __dirname): string {
 }
 
 import { INSTRUCTIONS, TOOLS } from './schema';
+import { DOORS, EXECUTE_TOOL, gateOf, Idempotency, search, SEARCH_TOOL } from './doors';
+
+/** FD-339: `execute`'s idempotency keys, for this server's life. */
+const idempotency = new Idempotency();
 
 export { TOOLS };
 
@@ -147,22 +151,8 @@ export async function handle(deps: tools.Deps, message: Message): Promise<Record
   const reply = (result: unknown) => ({ jsonrpc: '2.0', id, result });
   const fail = (code: number, text: string) => ({ jsonrpc: '2.0', id, error: { code, message: text } });
   if (id === undefined || id === null) return null; // a notification (initialized, cancelled…)
-  switch (method) {
-    case 'initialize': {
-      const asked = String(params.protocolVersion ?? '');
-      return reply({
-        protocolVersion: PROTOCOL_VERSIONS.includes(asked) ? asked : PROTOCOL_VERSIONS[0],
-        capabilities: { tools: { listChanged: false } },
-        serverInfo: SERVER,
-        instructions: INSTRUCTIONS,
-        _meta: ACTIONS_META, // FD-110 (DEC-0121 AP-1): this app's buttons and their tools; the app serves no well-known
-      });
-    }
-    case 'ping': return reply({});
-    case 'tools/list': return reply({ tools: TOOLS });
-    case 'tools/call': {
-      const name = String(params.name ?? '');
-      const args = (params.arguments && typeof params.arguments === 'object' ? params.arguments : {}) as Args;
+  /** One operation through the checks every caller passes (M-2, MD-10): a whole JSON-RPC answer. */
+  async function callTool(name: string, args: Args): Promise<Record<string, unknown>> {
       // M-2: an unknown tool is a protocol error, and arguments a tool does not declare are refused.
       const tool = TOOLS.find((x) => x.name === name);
       if (!tool) return fail(-32602, `unknown tool ${JSON.stringify(name)}`);
@@ -209,6 +199,50 @@ export async function handle(deps: tools.Deps, message: Message): Promise<Record
         return reply({ content: [{ type: 'text', text: error instanceof tools.ToolError && error.details ? JSON.stringify(error.details, null, 2) : text }], isError: true,
           ...(error instanceof tools.ToolError && error.details ? { structuredContent: error.details } : {}) });
       }
+      }
+  switch (method) {
+    case 'initialize': {
+      const asked = String(params.protocolVersion ?? '');
+      return reply({
+        protocolVersion: PROTOCOL_VERSIONS.includes(asked) ? asked : PROTOCOL_VERSIONS[0],
+        capabilities: { tools: { listChanged: false } },
+        serverInfo: SERVER,
+        instructions: INSTRUCTIONS,
+        _meta: ACTIONS_META, // FD-110 (DEC-0121 AP-1): this app's buttons and their tools; the app serves no well-known
+      });
+    }
+    case 'ping': return reply({});
+    case 'tools/list': return reply({ tools: DOORS }); // FD-339: two doors; the old names stay callable one release
+    case 'tools/call': {
+      const name = String(params.name ?? '');
+      const args = (params.arguments && typeof params.arguments === 'object' ? params.arguments : {}) as Args;
+      const refuse = (code: string, message: string) => reply({ content: [{ type: 'text', text: JSON.stringify({ code, message }, null, 2) }], isError: true, structuredContent: { code, message } });
+      if (name === SEARCH_TOOL.name) {
+        const wrong = wrongArgument(SEARCH_TOOL.inputSchema as Schema, args) ?? Object.keys(args).filter((k) => !['query', 'cursor', 'limit'].includes(k)).map((k) => `unknown argument ${JSON.stringify(k)}`)[0] ?? null;
+        if (wrong) return refuse('invalid-arguments', `${wrong} for search`);
+        const found = search(args);
+        return reply({ content: [{ type: 'text', text: JSON.stringify(found, null, 2) }], structuredContent: found });
+      }
+      if (name === EXECUTE_TOOL.name) {
+        const extra = Object.keys(args).filter((k) => !['operation', 'arguments', 'idempotencyKey'].includes(k));
+        if (extra.length) return refuse('invalid-arguments', `unknown argument ${JSON.stringify(extra[0])} for execute`);
+        const operation = typeof args.operation === 'string' ? args.operation : '';
+        if (!TOOLS.some((t) => t.name === operation)) return refuse('unknown-operation', `no operation ${JSON.stringify(operation)}; search lists them`);
+        if (args.arguments !== undefined && (typeof args.arguments !== 'object' || args.arguments === null || Array.isArray(args.arguments))) return refuse('invalid-arguments', 'arguments is an object');
+        const inner = (args.arguments ?? {}) as Args;
+        const key = typeof args.idempotencyKey === 'string' && args.idempotencyKey ? args.idempotencyKey : null;
+        if (gateOf(operation) === 'relayed') {
+          if (!key) return refuse('idempotency-required', `${operation} acts on another agent: give an idempotencyKey`);
+          const seen = idempotency.check(key, operation, inner);
+          if (seen.kind === 'conflict') return refuse('idempotency-conflict', 'this idempotencyKey served another call');
+          if (seen.kind === 'repeat') return reply(seen.result);
+          const result = await callTool(operation, inner);
+          if (!(result as { result?: { isError?: boolean } }).result?.isError) idempotency.remember(key, operation, inner, (result as { result: Record<string, unknown> }).result);
+          return result;
+        }
+        return callTool(operation, inner);
+      }
+      return callTool(name, args);
     }
     default: return fail(-32601, `method not found: ${method}`);
   }
