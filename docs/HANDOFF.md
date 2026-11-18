@@ -7,6 +7,14 @@ Current release: **0.8.178** published 2026-11-17 12:06 UTC (run 44072876355, 16
 order, their runs under way. 0.8.106 and 0.8.107 were never published (0.8.106's check failed on an unref'd timer in a
 test; both fold into 0.8.108).
 
+## Refactor task closed, FD-325 opened (2026-11-18)
+
+The board task «Анализ целевого вида и функций, план рефакторинга и его выполнение волнами» moves to review: waves 1 to 7
+and FD-310 are merged and released (0.8.179 to 0.8.198), D-6 closes the rest. Its one open check, the e2e of the shared
+screens, is FD-325 in [the backlog](backlog.md): at 06:45 UTC the disk had 3.5 GB free (floor 5 GB) and the load average
+was 34. Next task: FD-325 once `df` shows 5 GB free and the load average is under 40; FD-322 not before 2026-11-25;
+FD-323 and the FD-324 edit wait for fabric-agent-contract.
+
 ## After 0.8.198: FD-310 closed by D-6 (2026-11-18)
 
 The refactor waves are done: waves 1 to 7 and FD-310 steps 1 and 2; the rest of the split is declined by D-6 in
