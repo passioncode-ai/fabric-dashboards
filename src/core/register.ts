@@ -41,6 +41,14 @@ export function parseRegisterLink(url: URL): RegisterLink | { reason: string } {
   return { origin: origin.toLowerCase(), invite };
 }
 
+/** FD-331: a pasted invitation: the whole `fabric-dashboards://register?…` link (spaces around it ignored). */
+export function connectLinkOf(text: string): RegisterLink | { reason: string } {
+  let url: URL;
+  try { url = new URL(text.trim()); } catch { return { reason: 'paste the invitation link, fabric-dashboards://register?origin=…&invite=…' }; }
+  if (url.protocol !== 'fabric-dashboards:' || url.hostname !== 'register') return { reason: 'paste the invitation link, fabric-dashboards://register?origin=…&invite=…' };
+  return parseRegisterLink(url);
+}
+
 /** The host of an `https://` origin, without its port. */
 export const hostOf = (origin: string): string => new URL(origin).hostname;
 

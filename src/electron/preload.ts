@@ -55,6 +55,7 @@ const api: FabricApi = {
   consoleChoose: (key, choice) => ipcRenderer.invoke(CHANNELS.consoleChoose, key, choice),
   consolePickFolder: (key) => ipcRenderer.invoke(CHANNELS.consolePickFolder, key),
   consoleClone: (key) => ipcRenderer.invoke(CHANNELS.consoleClone, key),
+  connectAgent: (link) => ipcRenderer.invoke(CHANNELS.connectAgent, link),
   newSessionOptions: () => ipcRenderer.invoke(CHANNELS.newSessionOptions),
   newSessionPickFolder: (current) => ipcRenderer.invoke(CHANNELS.newSessionPickFolder, current),
   newSessionStart: (choice, size) => ipcRenderer.invoke(CHANNELS.newSessionStart, choice, size),

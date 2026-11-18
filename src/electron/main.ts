@@ -51,6 +51,8 @@ import { NotifyLedger, shouldNotify } from '../core/notify';
 import { OutageAlerts } from './outage-alerts';
 import { uninstall as runUninstall } from './uninstall-flow';
 import { registerFromLink } from './register-flow';
+import { connectLinkOf, type RegisterLink } from '../core/register';
+import type { ConnectAgentResult } from '../core/api';
 import { channelAnswers } from './channel-answers';
 import { alertWords } from '../core/outage-alerts';
 import { isOldSwitchboard } from '../core/switchboard';
@@ -837,8 +839,26 @@ if (!app.requestSingleInstanceLock()) {
 
   /** FD-175: Settings' own change, for the console channel (set by registerIpc, where it lives beside its handler). */
   let applySettingsFn: ((patch: SettingsPatch) => { settings: Settings; error?: string }) | null = null;
+  /** FD-193, FD-331: register an organization's showcase and agents from an invitation; the person confirms. */
+  function registerLink(link: RegisterLink) {
+    return registerFromLink({ lang, liveWindow: () => window && !window.isDestroyed() ? window : null, log, userData: app.getPath('userData'), fetch: (u, i) => net.fetch(String(u), i) }, link);
+  }
+
+  /** FD-331: «Подключить агента»: a pasted invitation link, from the window or an agent (MCP `agent_connect`). */
+  async function connectAgent(text: string): Promise<ConnectAgentResult> {
+    const link = connectLinkOf(text);
+    if ('reason' in link) return { ok: false, reason: link.reason };
+    showWindow();
+    const r = await registerLink(link);
+    if (!r) return { ok: false, reason: 'not added: the person declined, or another registration is running' };
+    if (!r.ok) return { ok: false, reason: `${r.code}: ${r.detail}` };
+    navigate({ page: 'overview' });
+    return { ok: true, host: r.host, added: r.written.length, skipped: r.skipped.length };
+  }
+
   function registerIpc(): void {
     guardIpc(pathToFileURL(rendererIndex).href, log); // FD-259: before any handler is registered
+    ipcMain.handle(CHANNELS.connectAgent, (_e, text) => (typeof text === 'string' && text.length <= 2048 ? connectAgent(text) : Promise.resolve({ ok: false, reason: 'not a link' })));
     consoles.register();
     const snap = (key: string) => monitor.snapshot(key);
     ipcMain.handle(CHANNELS.status, () => status());
@@ -1210,7 +1230,7 @@ if (!app.requestSingleInstanceLock()) {
       // FD-166: the read answers what the Sessions list shows; the starts take the buttons' own path.
       start: channelAnswers({
         consoles, settings, updater, log, liveWindow, applySettings: () => applySettingsFn, restartToUpdate, copyAt, moveToApplications,
-        uninstall: (decided) => uninstall(decided),
+        uninstall: (decided) => uninstall(decided), connectAgent,
       }),
     }).then((c) => { consoleChannel = c; if (c) log('console channel open'); });
     // #endregion console-channel-start
@@ -1315,9 +1335,7 @@ if (!app.requestSingleInstanceLock()) {
       if (target.page === 'register') {
         // FD-193: the person confirms, then the showcase's agents are written as descriptors the next scan reads.
         showWindow();
-        void registerFromLink({ lang, liveWindow: () => window && !window.isDestroyed() ? window : null, log, userData: app.getPath('userData'), fetch: (u, i) => net.fetch(String(u), i) }, target)
-          .then((r) => { if (r?.ok) navigate({ page: 'overview' }); })
-          .catch((error: Error) => log(`register: ${error.message}`));
+        void registerLink(target).then((r) => { if (r?.ok) navigate({ page: 'overview' }); }).catch((error: Error) => log(`register: ${error.message}`));
         return;
       }
       if (target.page === 'overview') navigate({ page: 'overview' }); // U-5: the overview, not whatever page was open

@@ -2723,6 +2723,7 @@ The Sessions mode (0.8.0): every coding session apart from the agents, each stat
 - **Entry point:** a `fabric-dashboards://register?origin=https://<showcase>&invite=<code>` link the organization's assistant gives the person (in Telegram, after it checked who they are)
 - **Preconditions:** the organization runs a showcase of its agents (an online service) and gave this person a grant to some of them; the invitation is a host invitation, one-time, not expired
 - **Steps:**
+  0. FD-331: the person presses Connect an agent on Overview and pastes the invitation link the organization sent -> the app checks it is a `fabric-dashboards://register?origin=…&invite=…` link (anything else says «Not connected: paste the invitation link…»), then the steps below run as for a clicked link; an agent does the same with MCP `agent_connect`
   1. The person opens the link -> the app comes forward and asks "Add the agents of <host> to this computer?" with what the link does and that they add them only if they expected it; Add agents and Cancel
   2. The person chooses Add agents -> the app redeems the invitation for a token of this computer, keeps the token beside the descriptors and writes one agent for the showcase and one for each agent address the showcase names for this person
   3. The registration ends -> "Agents added from <host>: N" (and "Not added: M. The log says why." when some address was refused), then the overview, where the agents appear at the next scan and open signed in like any online agent

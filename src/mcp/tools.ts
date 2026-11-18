@@ -944,6 +944,13 @@ export async function consoleChoose(deps: Deps, service: string, choice: { runti
   return 'result' in answer ? { service, ...answer.result } : { service };
 }
 
+/** FD-331: Connect an agent from an invitation link, through the running app; the person confirms there. */
+export async function agentConnect(deps: Deps, link: string): Promise<Record<string, unknown>> {
+  const answer = await askChannel(deps, { op: 'agent.connect', link } as never, 'app-not-running: Fabric Dashboards is not running, so nothing is connected; open it and call again');
+  if (!answer.ok) throw new ToolError(`${answer.code}${answer.detail ? `: ${answer.detail}` : ''}`, { connected: false, code: answer.code });
+  return 'result' in answer ? answer.result : {};
+}
+
 /** FD-191 (SCN-101, SCN-102): the Sessions mode's New session and the agent list's New agent, through the running app. */
 export async function sessionNew(deps: Deps, start: NewSessionRequest): Promise<Record<string, unknown>> {
   const answer = await askChannel(deps, { op: 'session.new', start }, 'app-not-running: Fabric Dashboards is not running, so no session can start; open it and call again');

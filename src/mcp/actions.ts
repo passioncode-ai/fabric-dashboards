@@ -47,6 +47,8 @@ export const OWN_ACTIONS: DeclaredAction[] = [
   { id: 'sessions-clear-ended', title: 'Clear ended', tool: 'session_action', gate: 'none' },
   { id: 'check-for-updates', title: 'Check for updates', tool: 'app_update', gate: 'none' },
   { id: 'restart-to-update', title: 'Restart to update', tool: 'app_update', gate: 'relayed' },
+  // FD-331: Connect an agent from an invitation; the person confirms in the app's own dialog.
+  { id: 'connect-agent', title: 'Connect an agent', tool: 'agent_connect', gate: 'none' },
   { id: 'console-choose', title: 'Choose the console\'s agent and folder', tool: 'console_choose', gate: 'none' },
   { id: 'move-to-applications', title: 'Move to Applications', tool: 'app_install', gate: 'relayed' },
   { id: 'uninstall', title: 'Uninstall', tool: 'app_install', gate: 'relayed' },

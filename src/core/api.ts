@@ -49,6 +49,9 @@ export interface NavTarget { page: 'service' | 'activity' | 'overview' | 'spend'
 export interface Rect { x: number; y: number; width: number; height: number }
 
 /** ADR-0017: what a service's console shows before and while it runs. */
+/** FD-331: what connecting an agent from an invitation came to. */
+export type ConnectAgentResult = { ok: true; host: string; added: number; skipped: number } | { ok: false; reason: string };
+
 export interface ConsoleInfo {
   /** FD-334: the agent's GitHub repository can be cloned into `into` to edit it here (no checkout found), and why the
    *  last clone failed, if it did. */
@@ -208,6 +211,8 @@ export interface FabricApi {
   consolePickFolder(key: string): Promise<ConsoleInfo>;
   /** FD-334: clone the agent's repository into ~/DATA and make it the console's folder. */
   consoleClone(key: string): Promise<ConsoleInfo>;
+  /** FD-331: Connect an agent from a pasted invitation link. */
+  connectAgent(link: string): Promise<ConnectAgentResult>;
   /** FD-191: what the New session / New agent dialog offers now. */
   newSessionOptions(): Promise<NewSessionOptions>;
   /** FD-191: the system folder picker, opened on `current`; null when the person cancelled. */
@@ -327,6 +332,7 @@ export const CHANNELS = {
   consoleChoose: 'fd:console-choose',
   consolePickFolder: 'fd:console-pick-folder',
   consoleClone: 'fd:console-clone',
+  connectAgent: 'fd:connect-agent',
   newSessionOptions: 'fd:new-session-options',
   newSessionPickFolder: 'fd:new-session-pick-folder',
   newSessionStart: 'fd:new-session-start',
