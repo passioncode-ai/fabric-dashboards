@@ -7,6 +7,17 @@ Current release: **0.8.178** published 2026-11-17 12:06 UTC (run 44072876355, 16
 order, their runs under way. 0.8.106 and 0.8.107 were never published (0.8.106's check failed on an unref'd timer in a
 test; both fold into 0.8.108).
 
+## Agent-connect audit: vision and spec (2026-11-18)
+
+Asked by the operator after the notification «На порту SMM Manager другая программа». Read-only audit of how agents
+reach this app (local, placed on another machine, cloud), the coding-agent console, and the false alarm:
+[report](reports/2026-11-18-agent-connect-audit/README.md). Found: SMM Manager is the program on 8720, its well-known
+misses `surfaces.events`, and any failed check reads `foreign` (`packages/service-host/src/state.ts:74`); a placed
+agent's console bypasses that machine's Switchboard (board `51c3dcca`). Rows FD-327 to FD-332 in [the backlog](backlog.md);
+asked smm-manager-agent for its events feed (request `1094b815`). Checks run: the live well-known of 31 local agents,
+`lsof` and `ps` of 8720 and 8794, the installed app's `service_status`. Next task: FD-327 (own-identity non-conforming
+answer reads `degraded`, not `foreign`), then FD-328.
+
 ## Refactor task closed, FD-325 opened (2026-11-18)
 
 The board task «Анализ целевого вида и функций, план рефакторинга и его выполнение волнами» moves to review: waves 1 to 7
