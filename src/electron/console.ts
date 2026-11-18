@@ -23,7 +23,7 @@ import { ConsoleManager, planStart, terminalScript, type SpawnPty } from '../cor
 import { dropKept, loadKept, saveKept } from '../core/kept-output';
 import { admit, machineProbe, parseCapacity, type Admission, type MachineState } from '../core/admission';
 import { findCheckout } from '../core/repofind';
-import { projectsOf, projectsProbeArgv, targetLaunchArgv, targetsOf } from '../core/target-session';
+import { projectsOf, projectsProbeArgv, targetLaunchArgv, targetOfDestination, targetsOf } from '../core/target-session';
 import { MACHINE } from '../core/platform';
 import { isNewAgentKey, isNewDashboardKey, isNewSessionKey, isolatedBlock, newSessionChoiceOf, newSessionKey, prepareNewAgent, prepareNewDashboard, projectsFolder, type NewSessionChoice, type NewSessionKind } from '../core/new-session';
 export { newSessionChoiceOf }; // FD-302: moved to src/core/new-session.ts; tests and the console channel import it here
@@ -536,6 +536,12 @@ export class ConsoleHost {
     return { placedOn: placed.placedOn, route: routeTo({ forward: placed.forward, port, jobs }) };
   }
 
+  /** FD-328: the Switchboard target for an ssh destination, or null when Switchboard does not answer or lacks it. */
+  private async targetOf(sb: string, destination: string): Promise<string | null> {
+    const r = await this.run(sb, ['--json', 'targets'], 10_000).catch(() => null);
+    return r && r.code === 0 ? targetOfDestination(r.stdout, destination) : null;
+  }
+
   private remoteInfo(key: string): ConsoleInfo['remote'] {
     const r = this.placementOf(key);
     if (!r) return null;
@@ -697,14 +703,20 @@ export class ConsoleHost {
       if (heldThere) this.o.log(`console: ${key} continues on ${remote.route.destination} ${promptsWords(runtime.id)}: its conversation was held at ${saved!.held}`);
       const local = planStart({ runtime, mode, folder: folder.path, binding: { kind: 'none' }, switchboard: null, inPlace: false, bypass: heldThere ? false : saved?.bypass });
       if (local.kind !== 'run') return local.kind === 'refused' ? { ok: false, reason: local.reason, detail: local.detail } : { ok: false, reason: 'spawn' };
-      const argv = remoteArgv({ route: remote.route, folder: there.path, home, argv: remoteRuntimeArgv(local.argv) });
-      const r = this.manager.start(key, { argv, cwd: home, label: `${runtime.name} · ${remote.route.destination}`, env: { PATH: inv.dirs.join(path.delimiter) } }, size);
+      // FD-328 (Switchboard's request `51c3dcca`): that machine's Switchboard starts the coding agent there, so its folder's
+      // group signs it in; the bare runtime over ssh only where Switchboard here does not know that machine.
+      const machine = inv.switchboard && inv.target && inv.inPlace && runtime.provider ? await this.targetOf(inv.switchboard, remote.route.destination) : null;
+      const argv = machine && runtime.provider
+        ? targetLaunchArgv({ sb: inv.switchboard!, machine, provider: runtime.provider, isolated: false, folder: there.path, args: local.argv.slice(1), surface: inv.surface })
+        : remoteArgv({ route: remote.route, folder: there.path, home, argv: remoteRuntimeArgv(local.argv) });
+      if (!machine) this.o.log(`console: ${key} runs ${runtime.id} on ${remote.route.destination} without that machine's Switchboard: Switchboard here does not list it as a target`);
+      const r = this.manager.start(key, { argv, cwd: home, label: `${runtime.name} · ${machine ?? remote.route.destination}`, env: { PATH: inv.dirs.join(path.delimiter) } }, size);
       if (!r.ok) return { ok: false, reason: r.error === 'running' ? 'running' : 'spawn', detail: r.error };
       this.handoverOf.delete(key);
       if (mode === 'continue') this.forgetLatestEnded(key);
       this.o.settings.update({ consoles: { [key]: { runtime: runtime.id, folder: folder.source === 'saved' ? folder.path : saved?.folder ?? null, idle: null, ...(saved?.bypass !== undefined ? { bypass: saved.bypass } : {}) } } });
       this.remoteRuns.set(key, there.path);
-      this.o.log(`console: ${key} started ${runtime.id} (${mode}) on ${remote.route.destination} in ${there.path}, through ${remote.route.via}`);
+      this.o.log(`console: ${key} started ${runtime.id} (${mode}) on ${remote.route.destination} in ${there.path}, ${machine ? `through Switchboard on ${machine}` : `through ${remote.route.via}`}`);
       return { ok: true };
     }
     const b = await this.bindingFor(runtime, folder.path, inv);
