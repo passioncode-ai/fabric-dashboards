@@ -220,3 +220,30 @@ test('COPY-15 (FD-113): the per-model rows cover the same last 30 UTC days as th
   assert.ok(!s.models.some((m) => m.model === 'old-model'), 'a model called only 31 days ago is outside the window');
   assert.equal(s.month.calls, s.models.reduce((n, m) => n + m.calls, 0), 'the rows add up to the month');
 });
+
+// FD-324, contract DEC-0183 (pinned at fabric-agent-contract aeecb12a): the week, editable limits with their bounds, the
+// change history and the months. A report that carries them reads; each negative fixture names its problem.
+test('DEC-0183: the limits-edit fixture reads; a bad period, via or month is refused', () => {
+  const good = fixture('positive_service-usage-limits-edit.json');
+  assert.equal(checkUsage(good, ME), null);
+  assert.match(checkUsage(fixture('negative_service-usage-budgets-bad-period.json'), ME)!, /period is not day, week or month/);
+  assert.match(checkUsage(fixture('negative_service-usage-limit-change-unknown-via.json'), ME)!, /via is not dashboard, agent or config/);
+  assert.match(checkUsage(fixture('negative_service-usage-month-bad.json'), ME)!, /months\[0\]\.month is not a month/);
+  const base = good.budgets as Record<string, unknown>[];
+  const withOne = (patch: Record<string, unknown>, i = 0) => ({ ...good, budgets: base.map((l, j) => (j === i ? { ...l, ...patch } : l)) });
+  assert.match(checkUsage(withOne({ editable: false }), ME)!, /bounds an amount but is not editable/);
+  assert.match(checkUsage(withOne({ minUsd: 300 }), ME)!, /minUsd is above maxUsd/);
+  assert.match(checkUsage(withOne({ period: 'day' }, 1), ME)!, /weekly limit that does not count a week/);
+  assert.equal(checkUsage(withOne({ period: undefined, since: '2026-09-28T00:00:00Z' }, 1), ME), null, 'SL-1: a week stated before the pin, from Monday');
+  const changes = good.limitChanges as Record<string, unknown>[];
+  assert.match(checkUsage({ ...good, limitChanges: [changes[0], changes[0]] }, ME)!, /limitChanges\[1\]\.id appears twice/);
+  assert.match(checkUsage({ ...good, limitChanges: [{ ...changes[0], at: '2026-10-05T00:00:00Z' }] }, ME)!, /limitChanges\[0\] is after generatedAt/);
+  assert.match(checkUsage({ ...good, limitChanges: [{ ...changes[0], by: 'robot' }] }, ME)!, /by is not operator, agent or service/);
+  const months = good.months as Record<string, unknown>[];
+  assert.match(checkUsage({ ...good, months: [months[1], months[0]] }, ME)!, /months\[1\] does not run forward/);
+  const s = summarizeUsage(good as UsageReport, AT('2026-10-04'));
+  assert.deepEqual(s.limits.filter((l) => l.editable).map((l) => l.id).sort(), ['emergency.day', 'emergency.month', 'machine.daily', 'machine.monthly', 'machine.weekly']);
+  assert.equal(s.limitChanges?.length, 3, 'the change history reaches the summary, newest first');
+  assert.equal(s.limitChanges![0]!.id, 'chg-0003');
+  assert.deepEqual(s.months?.map((m) => m.month), ['2026-08', '2026-09', '2026-10']);
+});

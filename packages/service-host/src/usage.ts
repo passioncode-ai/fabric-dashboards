@@ -47,7 +47,27 @@ export interface UsageReport {
   budget?: { period: 'day' | 'month'; limitUsd: number; spentUsd: number | null };
   /** DEC-0027: every spending limit the service applies, enforced or not (at most 64). */
   budgets?: UsageLimit[];
+  /** DEC-0183 SL-4: the latest changes of the limits, newest first (at most 64). */
+  limitChanges?: LimitChange[];
+  /** DEC-0183 SL-6: money per UTC month, up to the last 12, oldest first; the report's month last and partial. */
+  months?: UsageMonth[];
 }
+
+/** DEC-0183 SL-4: one change of a limit, through the dashboard, an agent or the service's configuration. */
+export interface LimitChange {
+  id: string;
+  at: string;
+  by: 'operator' | 'agent' | 'service';
+  byRef?: string;
+  via: 'dashboard' | 'agent' | 'config';
+  limitId: string;
+  before: { limitUsd: number | null; enforced: boolean } | null;
+  after: { limitUsd: number | null; enforced: boolean };
+  reason: string;
+}
+
+/** DEC-0183 SL-6: one UTC month's money (rows not on a subscription, DEC-0110). */
+export interface UsageMonth { month: string; calls: number; unpricedCalls: number; costUsd: number | null }
 
 /** One spending limit (DEC-0027, FAC-SEM-031). `kind` is an open vocabulary. */
 export interface UsageLimit {
@@ -55,7 +75,7 @@ export interface UsageLimit {
   scope: 'machine' | 'project' | 'pool' | 'job';
   subject?: string;
   kind: string;
-  period?: 'day' | 'month';
+  period?: 'day' | 'week' | 'month';
   windowSeconds?: number;
   since?: string;
   /** null only for a relative limit (velocity, or an unknown kind). */
@@ -64,6 +84,10 @@ export interface UsageLimit {
   spentUsd: number | null;
   enforced: boolean;
   tripped?: boolean;
+  /** DEC-0183 SL-3: the service takes `spend.limits.set` for this limit, within `minUsd`..`maxUsd` when given. */
+  editable?: boolean;
+  minUsd?: number;
+  maxUsd?: number;
 }
 
 /** How a limit reads for a person: stopped work, over its line, close to it, fine, not countable,
@@ -123,6 +147,10 @@ export interface SpendSummary {
   /** Every limit, what needs a person first (rankLimits); empty when the report lists none. */
   limits: LimitView[];
   generatedAt: string;
+  /** FD-324 (DEC-0183 SL-4): the report's change history of its limits, newest first; absent when it gives none. */
+  limitChanges?: LimitChange[];
+  /** FD-324 (DEC-0183 SL-6): the report's months, oldest first; absent when it gives none. */
+  months?: UsageMonth[];
   /** FD-324: money spent each of the same last 30 UTC days, oldest first. A day the report does not list spent nothing;
    *  `costUsd` null and `partial` keep an unknown or a lower bound as they are. Absent from a sum made by hand. */
   daily?: SpendDay[];
@@ -182,12 +210,70 @@ export function checkUsage(value: unknown, expected: { id: string; instance: str
     const p = limitsProblem(r.budgets);
     if (p) return p;
   }
+  if (r.limitChanges !== undefined) {
+    const p = changesProblem(r.limitChanges, r.generatedAt);
+    if (p) return p;
+  }
+  if (r.months !== undefined) {
+    const p = monthsProblem(r.months);
+    if (p) return p;
+  }
   return null;
 }
 
-const LIMIT_FIELDS = new Set(['id', 'scope', 'subject', 'kind', 'period', 'windowSeconds', 'since', 'limitUsd', 'spentUsd', 'enforced', 'tripped']);
+const MONTH = /^\d{4}-(0[1-9]|1[0-2])$/;
+const CHANGE_FIELDS = new Set(['id', 'at', 'by', 'byRef', 'via', 'limitId', 'before', 'after', 'reason']);
+const setting = (x: unknown) => !!x && typeof x === 'object' && !Array.isArray(x) && Object.keys(x).every((k) => k === 'limitUsd' || k === 'enforced')
+  && ((x as { limitUsd: unknown }).limitUsd === null || (typeof (x as { limitUsd: unknown }).limitUsd === 'number' && ((x as { limitUsd: number }).limitUsd > 0)))
+  && typeof (x as { enforced: unknown }).enforced === 'boolean';
+
+/** DEC-0183 SL-4 (FAC-SEM-031): the change history, at most 64, ids unique, none after the report. */
+export function changesProblem(value: unknown, generatedAt: string): string | null {
+  if (!Array.isArray(value) || value.length > 64) return 'limitChanges is not a list of at most 64';
+  const seen = new Set<string>();
+  const until = Date.parse(generatedAt);
+  for (const [i, raw] of value.entries()) {
+    const at = `limitChanges[${i}]`;
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return `${at} is not an object`;
+    const c = raw as Record<string, unknown>;
+    for (const k of Object.keys(c)) if (!CHANGE_FIELDS.has(k)) return `${at} has an unknown field ${k}`;
+    if (typeof c.id !== 'string' || !c.id || c.id.length > 128) return `${at}.id is missing`;
+    if (seen.has(c.id)) return `${at}.id appears twice`;
+    seen.add(c.id);
+    if (typeof c.at !== 'string' || !Number.isFinite(Date.parse(c.at))) return `${at}.at is not a time`;
+    if (Number.isFinite(until) && Date.parse(c.at) > until) return `${at} is after generatedAt`;
+    if (!['operator', 'agent', 'service'].includes(String(c.by))) return `${at}.by is not operator, agent or service`;
+    if (c.byRef !== undefined && (typeof c.byRef !== 'string' || !c.byRef || c.byRef.length > 128)) return `${at}.byRef is not a reference`;
+    if (!['dashboard', 'agent', 'config'].includes(String(c.via))) return `${at}.via is not dashboard, agent or config`;
+    if (typeof c.limitId !== 'string' || !c.limitId) return `${at}.limitId is missing`;
+    if (c.before !== null && !setting(c.before)) return `${at}.before is not a limit setting or null`;
+    if (!setting(c.after)) return `${at}.after is not a limit setting`;
+    if (typeof c.reason !== 'string' || !c.reason || c.reason.length > 500) return `${at}.reason is missing`;
+  }
+  return null;
+}
+
+/** DEC-0183 SL-6 (FAC-SEM-031): at most 12 months, each once, running forward. */
+export function monthsProblem(value: unknown): string | null {
+  if (!Array.isArray(value) || value.length > 12) return 'months is not a list of at most 12';
+  let previous = '';
+  for (const [i, raw] of value.entries()) {
+    const at = `months[${i}]`;
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return `${at} is not an object`;
+    const m = raw as Record<string, unknown>;
+    if (typeof m.month !== 'string' || !MONTH.test(m.month)) return `${at}.month is not a month`;
+    if (m.month <= previous) return `${at} does not run forward`;
+    previous = m.month;
+    if (!count(m.calls) || !count(m.unpricedCalls)) return `${at} has a count that is not one`;
+    if (!money(m.costUsd)) return `${at}.costUsd is neither a non-negative number nor null`;
+    if ((m.unpricedCalls as number) > (m.calls as number)) return `${at} has more unpriced calls than calls`;
+  }
+  return null;
+}
+
+const LIMIT_FIELDS = new Set(['id', 'scope', 'subject', 'kind', 'period', 'windowSeconds', 'since', 'limitUsd', 'spentUsd', 'enforced', 'tripped', 'editable', 'minUsd', 'maxUsd']);
 const PER_ORDER = new Set(['per_job', 'approval']);
-const KNOWN_KINDS = new Set(['per_job', 'approval', 'daily', 'monthly', 'velocity', 'pool', 'emergency']);
+const KNOWN_KINDS = new Set(['per_job', 'approval', 'daily', 'weekly', 'monthly', 'velocity', 'pool', 'emergency']);
 
 /** The first thing that makes `budgets` unreadable for a host (DEC-0027 schema and FAC-SEM-031), or
  *  null. An unknown kind is not a problem — a host shows it generically — and neither is a breach. */
@@ -209,7 +295,7 @@ export function limitsProblem(value: unknown): string | null {
     if (typeof l.kind !== 'string' || !l.kind || l.kind.length > 64) return `${at}.kind is missing`;
     const windows = (['period', 'windowSeconds', 'since'] as const).filter((f) => l[f] !== undefined);
     if (windows.length > 1) return `${at} has more than one window`;
-    if (l.period !== undefined && l.period !== 'day' && l.period !== 'month') return `${at}.period is not day or month`;
+    if (l.period !== undefined && l.period !== 'day' && l.period !== 'week' && l.period !== 'month') return `${at}.period is not day, week or month`;
     if (l.windowSeconds !== undefined && !(Number.isInteger(l.windowSeconds) && (l.windowSeconds as number) > 0)) return `${at}.windowSeconds is not a positive whole number`;
     if (l.since !== undefined && (typeof l.since !== 'string' || !Number.isFinite(Date.parse(l.since)))) return `${at}.since is not a time`;
     if (!(l.limitUsd === null || (typeof l.limitUsd === 'number' && Number.isFinite(l.limitUsd) && l.limitUsd > 0))) return `${at}.limitUsd is not a positive amount`;
@@ -218,9 +304,16 @@ export function limitsProblem(value: unknown): string | null {
     if (typeof l.enforced !== 'boolean') return `${at}.enforced is not true or false`;
     if (l.tripped !== undefined && typeof l.tripped !== 'boolean') return `${at}.tripped is not true or false`;
     if (l.tripped === true && l.enforced !== true) return `${at} stopped work but is not enforced`;
+    // DEC-0183 SL-3: bounds only on an editable limit, the lower not above the upper.
+    if (l.editable !== undefined && typeof l.editable !== 'boolean') return `${at}.editable is not true or false`;
+    for (const f of ['minUsd', 'maxUsd'] as const) if (l[f] !== undefined && !(typeof l[f] === 'number' && Number.isFinite(l[f]) && (l[f] as number) > 0)) return `${at}.${f} is not a positive amount`;
+    if ((l.minUsd !== undefined || l.maxUsd !== undefined) && l.editable !== true) return `${at} bounds an amount but is not editable`;
+    if (typeof l.minUsd === 'number' && typeof l.maxUsd === 'number' && l.minUsd > l.maxUsd) return `${at}.minUsd is above maxUsd`;
     if (PER_ORDER.has(l.kind) && (windows.length || l.spentUsd !== null)) return `${at} is a ${l.kind} limit with a window or a spend`;
     const seconds = typeof l.windowSeconds === 'number' ? l.windowSeconds : null;
     if (l.kind === 'daily' && !(l.period === 'day' || seconds === 86_400)) return `${at} is a daily limit that does not count a day`;
+    // DEC-0183 SL-1: a week is the ISO week or the last 7 days; a report pinned before it counts the week from Monday.
+    if (l.kind === 'weekly' && !(l.period === 'week' || seconds === 604_800 || l.since !== undefined)) return `${at} is a weekly limit that does not count a week`;
     if (l.kind === 'monthly' && !(l.period === 'month' || (seconds !== null && seconds >= 28 * 86_400 && seconds <= 31 * 86_400))) return `${at} is a monthly limit that does not count a month`;
     if (l.kind === 'velocity' && seconds === null) return `${at} is a velocity limit without windowSeconds`;
     if ((l.kind === 'pool' || l.kind === 'emergency') && !windows.length) return `${at} is a ${l.kind} limit without a window`;
@@ -320,6 +413,9 @@ export function summarizeUsage(report: UsageReport, now: number): SpendSummary {
     const d = days.get(date);
     daily.push(d ? { date, calls: d.calls, costUsd: d.costUsd, partial: d.partial } : { date, calls: 0, costUsd: 0, partial: false });
   }
-  return { ...out, models: ranked, budget: report.budget ?? null, limits: rankLimits(report.budgets ?? []), generatedAt: report.generatedAt, daily };
+  return {
+    ...out, models: ranked, budget: report.budget ?? null, limits: rankLimits(report.budgets ?? []), generatedAt: report.generatedAt, daily,
+    ...(report.limitChanges ? { limitChanges: report.limitChanges } : {}), ...(report.months ? { months: report.months } : {}),
+  };
 }
 // #endregion usage-report
