@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.8.202 - 2026-11-18
+
+### Added
+- FD-336: an agent built from an organization's etalon names its template on the Health tab: the version it was built
+  from, the etalon's version, and whether the copy is behind, the same, newer, or cannot compare them now. Update
+  follows the copy's own report of a newer version.
+
+### Changed
+- FD-330: a cloud agent that names no repository has no code to edit here, so its console button is muted and reads
+  «No coding agent» («Без агента для кода»), with the reason. Pressing it still opens the console and asks for a folder.
+
 ## 0.8.201 - 2026-11-18
 
 ### Added
