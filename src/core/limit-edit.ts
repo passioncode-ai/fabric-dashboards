@@ -5,62 +5,53 @@
 // amount or the limit turned on is the caller's own act; any other change is the operator's and travels with the
 // operator's decision in `_meta.decision` (DEC-0121 AP-2). The agent checks again and records the change; the host keeps
 // nothing of its own.
+import { createHash } from 'node:crypto';
+import { authHeaders } from '@passioncode-ai/fabric-service-host';
 import type { UsageLimit } from '@passioncode-ai/fabric-service-host/usage';
+import { changeOf, limitDoorOf, planLimitChange, SPEND_LIMITS_SET, type LimitChangeInput } from './limit-plan';
+import { callCapability } from './mcp-client';
 
-export const SPEND_LIMITS_SET = 'spend.limits.set';
+export { changeOf, limitDoorOf, planLimitChange, SPEND_LIMITS_SET, type LimitChangeInput, type LimitPlan } from './limit-plan';
 
-/** The kinds whose limit is a dollar amount, so `null` is refused for them (DEC-0183 SL-2 `invalid-amount`). */
-const DOLLAR_KINDS = new Set(['per_job', 'approval', 'daily', 'weekly', 'monthly', 'pool', 'emergency']);
+/** The operator's decision a relayed change carries (DEC-0121 AP-2), sent on to the agent in `_meta.decision`. */
+export interface RelayedDecision { by: 'operator'; via: 'relayed-instruction'; action: string; instruction: string; at: string }
 
-export interface LimitChangeInput { limitId: string; limitUsd?: number | null; enforced?: boolean; reason: string }
+export class LimitEditError extends Error {
+  constructor(readonly code: string, message: string) { super(message); }
+}
 
-export type LimitPlan =
-  | { ok: true; tightens: boolean; args: { limitId: string; limitUsd?: number | null; enforced?: boolean; reason: string } }
-  | { ok: false; code: 'unknown-limit' | 'limit-not-editable' | 'invalid-amount' | 'no-change' | 'reason-required'; message: string };
-
-/** What a change of one of `limits` would be, before anything is sent: the agent's own refusals, read from its report. */
-export function planLimitChange(limits: readonly UsageLimit[], c: LimitChangeInput): LimitPlan {
-  const l = limits.find((x) => x.id === c.limitId);
-  if (!l) return { ok: false, code: 'unknown-limit', message: `the agent reports no limit ${JSON.stringify(c.limitId)}` };
-  if (l.editable !== true) return { ok: false, code: 'limit-not-editable', message: `${l.id} cannot be changed from here: the agent does not offer it` };
-  const reason = typeof c.reason === 'string' ? c.reason.trim() : '';
-  if (!reason) return { ok: false, code: 'reason-required', message: 'say why the limit changes: the agent records the reason with the change' };
-  if (reason.length > 500) return { ok: false, code: 'reason-required', message: 'the reason is at most 500 characters' };
-  const amount = c.limitUsd;
-  if (amount !== undefined) {
-    if (amount === null ? DOLLAR_KINDS.has(l.kind) : !(typeof amount === 'number' && Number.isFinite(amount) && amount > 0)) {
-      return { ok: false, code: 'invalid-amount', message: amount === null ? `${l.id} is a dollar amount and cannot be cleared` : 'the amount is a positive number of dollars' };
-    }
-    if (typeof amount === 'number' && ((l.minUsd !== undefined && amount < l.minUsd) || (l.maxUsd !== undefined && amount > l.maxUsd))) {
-      return { ok: false, code: 'invalid-amount', message: `${l.id} takes ${l.minUsd ?? 0} to ${l.maxUsd ?? '∞'} USD` };
-    }
+/** One change, as Change on Spend and MCP `spend_limit_set` both make it: checked against the agent's report, sent to
+ *  its `spend.limits.set` with the operator's decision when it does more than tighten, and answered with the change the
+ *  agent recorded. Refusals are `LimitEditError` with the contract's code (or this host's: `operator-decision-required`
+ *  before sending, `no-limit-door`, `agent-refused`, `no-change-recorded`). */
+export async function applyLimitChange(o: {
+  key: string;
+  look: { descriptor: { origin: string; auth?: { tokenFile?: string } } | null; wellKnown?: Parameters<typeof limitDoorOf>[0]['wellKnown'] };
+  limits: readonly UsageLimit[];
+  change: LimitChangeInput;
+  decision: RelayedDecision | null;
+  readToken: (file: string) => string | Promise<string>;
+  version: string;
+  now: number;
+  idempotencyKey?: string;
+}): Promise<{ change: Record<string, unknown>; repeated: boolean }> {
+  const plan = planLimitChange(o.limits, o.change);
+  if (!plan.ok) throw new LimitEditError(plan.code, plan.message);
+  if (!plan.tightens && !o.decision) throw new LimitEditError('operator-decision-required', `raising, clearing or turning off ${o.change.limitId} is the operator's decision`);
+  const door = o.look.descriptor ? limitDoorOf({ descriptor: o.look.descriptor, wellKnown: o.look.wellKnown }) : null;
+  if (!door) throw new LimitEditError('no-limit-door', 'the agent does not take spend.limits.set on this Mac');
+  const d = o.look.descriptor!;
+  const headers = d.auth?.tokenFile ? authHeaders(d as Parameters<typeof authHeaders>[0], await o.readToken(d.auth.tokenFile)) : {};
+  // Without a key of the caller's, one per change and minute: a retry within it is the same change at the agent.
+  const key = o.idempotencyKey ?? `fd-${createHash('sha256').update(JSON.stringify([o.key, plan.args, o.decision?.at ?? null, Math.floor(o.now / 60_000)])).digest('hex').slice(0, 32)}`;
+  let result: unknown;
+  try {
+    result = await callCapability({ ...door, headers }, SPEND_LIMITS_SET, { ...plan.args, idempotencyKey: key }, o.version, 20_000, { ...(o.decision ? { meta: { decision: o.decision } } : {}), idempotencyKey: key });
+  } catch (error) {
+    throw new LimitEditError('agent-refused', (error as Error).message);
   }
-  const amountChanges = amount !== undefined && amount !== l.limitUsd;
-  const enforcedChanges = c.enforced !== undefined && c.enforced !== l.enforced;
-  if (!amountChanges && !enforcedChanges) return { ok: false, code: 'no-change', message: `${l.id} already reads so` };
-  // SL-2: only a lower amount and turning the limit on tighten; a higher amount, a cleared one or turning it off is the operator's.
-  const amountTightens = !amountChanges || (typeof amount === 'number' && typeof l.limitUsd === 'number' && amount < l.limitUsd);
-  const enforcedTightens = !enforcedChanges || c.enforced === true;
-  return {
-    ok: true, tightens: amountTightens && enforcedTightens,
-    args: { limitId: l.id, ...(amountChanges ? { limitUsd: amount } : {}), ...(enforcedChanges ? { enforced: c.enforced } : {}), reason },
-  };
-}
-
-/** Where an agent takes `spend.limits.set`: its MCP surface on this machine, when it lists the capability. */
-export function limitDoorOf(s: { wellKnown?: { surfaces: { mcp?: { transport?: string; path: string; capabilities?: string[] } } } | null; descriptor?: { origin: string } | null }): { origin: string; path: string } | null {
-  const mcp = s.wellKnown?.surfaces.mcp;
-  const origin = s.descriptor?.origin ?? '';
-  if (!mcp || mcp.transport !== 'streamable-http' || !/^http:\/\/127\.0\.0\.1:\d+$/.test(origin) || !/^\/(?!\/)/.test(mcp.path)) return null;
-  return (mcp.capabilities ?? []).includes(SPEND_LIMITS_SET) ? { origin, path: mcp.path } : null;
-}
-
-/** The change the agent recorded (DEC-0183 SL-2 answer `{change, repeated?}`), from a tool result, or null. */
-export function changeOf(result: unknown): { change: Record<string, unknown>; repeated: boolean } | null {
-  const r = result as { structuredContent?: unknown; content?: { type: string; text?: string }[] } | null;
-  let body: unknown = r?.structuredContent;
-  if (!body) { try { body = JSON.parse((r?.content ?? []).find((c) => c.type === 'text')?.text ?? ''); } catch { body = null; } }
-  const b = body as { change?: unknown; repeated?: unknown } | null;
-  return b && typeof b.change === 'object' && b.change !== null ? { change: b.change as Record<string, unknown>, repeated: b.repeated === true } : null;
+  const answer = changeOf(result);
+  if (!answer) throw new LimitEditError('no-change-recorded', 'the agent answered without the change it recorded');
+  return answer;
 }
 // #endregion limit-edit
