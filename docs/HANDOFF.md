@@ -7,6 +7,17 @@ Current release: **0.8.178** published 2026-11-17 12:06 UTC (run 44072876355, 16
 order, their runs under way. 0.8.106 and 0.8.107 were never published (0.8.106's check failed on an unref'd timer in a
 test; both fold into 0.8.108).
 
+## Waves of 2026-11-18, state at 18:50 UTC (2026-11-18)
+
+Released: 0.8.199 (FD-327, FD-328, FD-329; run 44363277392 green, 16 assets). Tagged: v0.8.200 (FD-326, FD-333, FD-334,
+FD-339; run 44370877257 waiting for a macOS runner, a watcher follows it). Merged after the tag, for 0.8.201: FD-331
+(Connect an agent, PR #682) and FD-338's measurement (PR #681: 0.792 % hidden with 70 agents, inside budget).
+Waits: the screen is locked, so the e2e (FD-325) and the walk of the launch UI (FD-335) wait for it to be unlocked;
+Switchboard's answer on sessions (thread `361695c0`, FD-337); the agents base on copies' `update.available` (thread
+`2ee63c7c`, FD-336); studio-agent on showcase hosts and repositories (thread `66c6f6c7`, FD-331's rest); the adapter's
+session line (thread `0416a7c2`). Next task: once v0.8.200 is published, version 0.8.201 with FD-331; then FD-335 and
+FD-325 on an unlocked screen; FD-322 not before 2026-11-25; retire the old MCP tool names in 0.8.202.
+
 ## 0.8.200: the terminal, a console without a local copy, Continue in a Switchboard home, two MCP doors (2026-11-18)
 
 FD-333 (PR #676), FD-326 (#677), FD-334 (#678), FD-339 (#679); 0.8.199 published (run 44363277392, 16 assets). Gates
