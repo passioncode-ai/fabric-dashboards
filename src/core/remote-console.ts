@@ -223,3 +223,21 @@ function unescapeXml(s: string): string {
   return s.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&amp;/g, '&');
 }
 // #endregion remote-console
+
+// #region clone-workplace — docs: docs/ux/scenarios.md#scn-103-edit-an-agent-on-the-machine-it-runs-on
+/** FD-334: an agent whose code is on no machine this app reaches (a cloud agent) is edited in a checkout of its GitHub
+ *  repository, cloned on request into `~/DATA/<name>` with the person's own `gh` through Switchboard. Null when the
+ *  repository is not on GitHub, its names are not plain, or that folder already exists (it is never written over). */
+export function cloneOffer(repository: string | undefined, home: string, exists: (p: string) => boolean = fs.existsSync): { owner: string; name: string; into: string } | null {
+  if (!repository) return null;
+  const m = /^(?:https:\/\/github\.com\/|git@github\.com:)([A-Za-z0-9-]{1,39})\/([A-Za-z0-9._-]{1,100}?)(?:\.git)?\/?$/.exec(repository.trim());
+  if (!m || m[2] === '.' || m[2] === '..') return null;
+  const into = path.join(home, 'DATA', m[2]!);
+  return exists(into) ? null : { owner: m[1]!, name: m[2]!, into };
+}
+
+/** FD-334: Switchboard's clone of that repository, as its GitHub page does it (`switchboard github clone`). */
+export function cloneArgv(sb: string, offer: { owner: string; name: string; into: string }): string[] {
+  return [sb, 'github', 'clone', '--into', offer.into, offer.owner, offer.name];
+}
+// #endregion clone-workplace

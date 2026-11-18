@@ -6,7 +6,8 @@ import path from 'node:path';
 import test from 'node:test';
 import { ConsoleHost } from '../src/electron/console';
 import { remoteRefusal } from '../src/core/remote-words';
-import { accessOf, accessProbeArgv, folderOf, folderProbeArgv, forwardOf, remoteFolderCandidates, launchJobOf, placeCommand, remoteCommandArgv, readLaunchJobs, remoteArgv, remoteRuntimeArgv, remoteScript, routeTo, type LaunchJob } from '../src/core/remote-console';
+import { cloneArgv, cloneOffer, accessOf, accessProbeArgv, folderOf, folderProbeArgv, forwardOf, remoteFolderCandidates, launchJobOf, placeCommand, remoteCommandArgv, readLaunchJobs, remoteArgv, remoteRuntimeArgv, remoteScript, routeTo, type LaunchJob } from '../src/core/remote-console';
+import { parseRequest } from '../src/core/console-channel';
 import { SettingsStore } from '../src/core/settings';
 import { failText } from '../src/renderer/components/Sessions';
 import { t } from '../src/core/i18n';
@@ -285,4 +286,64 @@ test('FD-204: a session on another machine is listed with the folder it opened i
   assert.equal(listed?.folder, `${remoteHome}/DATA/agent`);
   const row = r.host.sessionsStatus().rows.find((x) => x.key === 'example-agent.default');
   assert.equal(row?.folder, `${remoteHome}/DATA/agent`);
+});
+
+test('FD-334: a GitHub repository with no checkout is offered for cloning into ~/DATA, never over an existing folder', () => {
+  const none = () => false;
+  assert.deepEqual(cloneOffer('https://github.com/acme/agent-x', '/srv/u', none), { owner: 'acme', name: 'agent-x', into: '/srv/u/DATA/agent-x' });
+  assert.deepEqual(cloneOffer('git@github.com:acme/agent-x.git', '/srv/u', none), { owner: 'acme', name: 'agent-x', into: '/srv/u/DATA/agent-x' });
+  assert.equal(cloneOffer('https://github.com/acme/agent-x', '/srv/u', () => true), null, 'the folder exists: nothing written over');
+  assert.equal(cloneOffer('https://gitlab.com/acme/agent-x', '/srv/u', none), null, 'not GitHub');
+  assert.equal(cloneOffer('https://github.com/acme/..', '/srv/u', none), null);
+  assert.equal(cloneOffer('https://github.com/acme/a;b', '/srv/u', none), null, 'names that are not plain');
+  assert.equal(cloneOffer(undefined, '/srv/u', none), null);
+  assert.deepEqual(cloneArgv('/sb', { owner: 'acme', name: 'agent-x', into: '/srv/u/DATA/agent-x' }), ['/sb', 'github', 'clone', '--into', '/srv/u/DATA/agent-x', 'acme', 'agent-x']);
+});
+
+test('FD-334: console_choose takes clone alone, as the console\'s Clone and open button', () => {
+  assert.deepEqual(parseRequest(JSON.stringify({ key: 'k', op: 'console.choose', service: 'agent.default', choice: { clone: true } })), { ok: true, request: { key: 'k', op: 'console.choose', service: 'agent.default', choice: { clone: true } } });
+  assert.equal(parseRequest(JSON.stringify({ key: 'k', op: 'console.choose', service: 'agent.default', choice: { clone: true, folder: '/x' } })).ok, false);
+  assert.equal(parseRequest(JSON.stringify({ key: 'k', op: 'console.choose', service: 'agent.default', choice: { clone: 'yes' } })).ok, false);
+});
+
+test('FD-334: Clone and open clones through Switchboard and makes the clone the console\'s folder; a failure is said', async () => {
+  for (const outcome of ['ok', 'fail'] as const) {
+    const base = tmp('fd-334-');
+    const bin = path.join(base, 'bin');
+    const home = path.join(base, 'home');
+    fs.mkdirSync(bin); fs.mkdirSync(home);
+    fs.writeFileSync(path.join(bin, 'claude'), '#!/bin/sh\n', { mode: 0o755 });
+    fs.writeFileSync(path.join(bin, 'switchboard'), '#!/bin/sh\n', { mode: 0o755 });
+    let settings = { consoles: {} } as Record<string, unknown>;
+    const asked: string[][] = [];
+    const host = new ConsoleHost({
+      settings: { get: () => settings, update: (p: { consoles?: Record<string, unknown> }) => { settings = { ...settings, consoles: { ...(settings.consoles as object), ...p.consoles } }; } } as never,
+      snapshot: () => ({ descriptor: { placement: 'remote', origin: 'https://agent.example.com', source: { repository: 'https://github.com/acme/agent-x' } } }) as never,
+      window: () => null, visible: () => false, log: () => {}, testDirs: [bin], scriptsDir: path.join(base, 'scripts'), home,
+      run: async (_cmd: string, args: string[]) => {
+        asked.push(args);
+        if (args[0] === 'github' && args[1] === 'clone') {
+          if (outcome === 'ok') { fs.mkdirSync(args[3]!, { recursive: true }); return { code: 0, stdout: '', stderr: '' }; }
+          return { code: 1, stdout: '', stderr: 'GraphQL: Could not resolve to a Repository\n' };
+        }
+        return { code: 1, stdout: '', stderr: '' };
+      },
+      spawn: () => { throw new Error('nothing starts'); }, killGroup: () => {},
+      machine: async () => ({ freeDisk: 50 * 1024 ** 3, swap: null, running: 0 }),
+      placedElsewhere: () => null,
+    });
+    const key = 'agent-x.cloud';
+    const before = await host.info(key);
+    assert.equal(before.folder, null);
+    assert.deepEqual(before.clone, { owner: 'acme', name: 'agent-x', into: path.join(home, 'DATA', 'agent-x'), error: null });
+    const after = await host.clone(key);
+    assert.deepEqual(asked.find((a) => a[0] === 'github'), ['github', 'clone', '--into', path.join(home, 'DATA', 'agent-x'), 'acme', 'agent-x']);
+    if (outcome === 'ok') {
+      assert.equal(after.folder?.path, path.join(home, 'DATA', 'agent-x'));
+      assert.equal(after.clone, null, 'the clone is the folder now: nothing more to offer');
+    } else {
+      assert.equal(after.folder, null);
+      assert.equal(after.clone?.error, 'GraphQL: Could not resolve to a Repository');
+    }
+  }
 });

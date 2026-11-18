@@ -11,7 +11,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { execRunner, portOf, type Runner } from '@passioncode-ai/fabric-service-host';
-import { accessOf, accessProbeArgv, folderOf as remoteFolderOf, folderProbeArgv, readLaunchJobs, remoteArgv, remoteFolderCandidates, remoteRuntimeArgv, routeTo, type LaunchJob, type RemoteAccess, type SshRoute } from '../core/remote-console';
+import { accessOf, accessProbeArgv, cloneArgv, cloneOffer, folderOf as remoteFolderOf, folderProbeArgv, readLaunchJobs, remoteArgv, remoteFolderCandidates, remoteRuntimeArgv, routeTo, type LaunchJob, type RemoteAccess, type SshRoute } from '../core/remote-console';
 import { CHANNELS, type ConsoleInfo, type ConsoleStartResult, type ConsoleTask, type NewSessionOptions, type NewSessionResult } from '../core/api';
 import { openConsolesOf, type OpenConsole } from '../core/console-channel';
 import { prepareHandoff, writeTaskOnly, type McpCommand, packDir } from '../core/handoff';
@@ -195,6 +195,8 @@ export class ConsoleHost {
   private readonly failedResumes = new Set<string>();
   /** FD-103: the coding agent's own session id of a console that continues a known session, for Continue later. */
   private readonly sessionIds = new Map<string, { sessionId: string; provider: 'claude' | 'codex' }>();
+  /** FD-334: why the last clone of an agent's repository failed, by console key. */
+  private readonly cloneErrors = new Map<string, string>();
   /** Scenario walk 2026-11-11 (SCN-078): null until the first inventory answers, so a launch never says "not installed" for a Switchboard it has not looked for yet. */
   private switchboardPresent: boolean | null = null;
   /** Scenario walk 2026-11-11 (SCN-084): the origin a continued session keeps, by console key. */
@@ -509,6 +511,7 @@ export class ConsoleHost {
       handover: this.handoverInfo(key),
       remote: this.remoteInfo(key),
       machine: this.o.settings.get().consoles[key]?.machine ?? null,
+      clone: this.cloneOf(key, folder, inv.switchboard),
       ...(this.attachedOf.has(key) ? { view: true } : {}),
     };
   }
@@ -1902,6 +1905,31 @@ export class ConsoleHost {
     return (this.o.terminal ?? openInTerminal)(this.o.scriptsDir, terminalScript(plan.argv, folder.path, pack?.env ?? {}));
   }
 
+  /** FD-334: Clone and open: no checkout of the agent's repository is found, so offer one in `~/DATA/<name>`. */
+  private cloneOf(key: string, folder: ConsoleInfo['folder'], sb: string | null): ConsoleInfo['clone'] {
+    if (folder || !sb || this.o.placedElsewhere?.(key)) return null;
+    const offer = cloneOffer(this.o.snapshot(key)?.descriptor?.source?.repository, this.o.home ?? os.homedir());
+    return offer ? { ...offer, error: this.cloneErrors.get(key) ?? null } : null;
+  }
+
+  /** FD-334: clones the agent's repository through Switchboard (the person's own `gh`) and makes it the console's folder. */
+  async clone(key: string): Promise<ConsoleInfo> {
+    const inv = await this.inventory();
+    const offer = inv.switchboard ? this.cloneOf(key, this.folderOf(key), inv.switchboard) : null;
+    if (!offer || !inv.switchboard) return this.info(key);
+    this.cloneErrors.delete(key);
+    const r = await this.run(inv.switchboard, cloneArgv(inv.switchboard, offer).slice(1), 600_000).catch((e: Error) => ({ code: 1, stdout: '', stderr: e.message }));
+    if (r.code === 0 && isDir(offer.into)) {
+      this.o.settings.update({ consoles: { [key]: { runtime: this.o.settings.get().consoles[key]?.runtime ?? null, folder: offer.into } } });
+      this.o.log(`console: ${key} cloned ${offer.owner}/${offer.name} into ${offer.into} through Switchboard (FD-334)`);
+    } else {
+      const why = (r.stderr || r.stdout).trim().split('\n').filter(Boolean).at(-1)?.slice(0, 300) || `exit ${r.code}`;
+      this.cloneErrors.set(key, why);
+      this.o.log(`console: ${key} clone of ${offer.owner}/${offer.name} failed: ${why}`);
+    }
+    return this.info(key);
+  }
+
   async pickFolder(key: string): Promise<ConsoleInfo> {
     const w = this.o.window();
     const current = this.folderOf(key);
@@ -1929,7 +1957,7 @@ export class ConsoleHost {
 
   /** FD-175: the console's pickers for an agent (the console channel's `console.choose`): a runtime installed here and
    *  an existing folder, saved as the person's choice would be. Nothing is saved when either is refused. */
-  async chooseFor(key: string, choice: { runtime?: string; folder?: string; where?: 'here' | 'there' }): Promise<{ ok: true; runtime: string | null; folder: string | null; where: 'here' | 'there' | null } | { ok: false; reason: 'unknown-runtime' | 'no-folder' | 'not-placed-elsewhere'; detail: string }> {
+  async chooseFor(key: string, choice: { runtime?: string; folder?: string; where?: 'here' | 'there'; clone?: boolean }): Promise<{ ok: true; runtime: string | null; folder: string | null; where: 'here' | 'there' | null } | { ok: false; reason: 'unknown-runtime' | 'no-folder' | 'not-placed-elsewhere'; detail: string }> {
     const inv = await this.inventory();
     if (choice.runtime !== undefined && !inv.runtimes.some((r) => r.id === choice.runtime)) {
       return { ok: false, reason: 'unknown-runtime', detail: `installed here: ${inv.runtimes.map((r) => r.id).join(', ') || 'none'}` };
@@ -1940,6 +1968,12 @@ export class ConsoleHost {
       if (!dir) return { ok: false, reason: 'no-folder', detail: 'not an existing folder on this machine' };
     }
     if (choice.where !== undefined && !this.o.placedElsewhere?.(key)) return { ok: false, reason: 'not-placed-elsewhere', detail: 'this agent runs on this machine, so its console already runs here' };
+    // FD-334: Clone and open, as the console's button.
+    if (choice.clone) {
+      const after = await this.clone(key);
+      if (!after.folder) return { ok: false, reason: 'no-folder', detail: after.clone?.error ?? 'no repository on GitHub to clone, or its folder in ~/DATA already exists' };
+      return { ok: true, runtime: after.runtime, folder: after.folder.path, where: after.remote?.where ?? null };
+    }
     const saved = this.o.settings.get().consoles[key];
     this.o.settings.update({ consoles: { [key]: { runtime: choice.runtime ?? saved?.runtime ?? null, folder: choice.folder ?? saved?.folder ?? null, ...(choice.where ? { where: choice.where } : {}) } } });
     const info = await this.info(key);
@@ -2038,6 +2072,7 @@ export class ConsoleHost {
     ipcMain.handle(CHANNELS.consoleInfo, (_e, key) => (keyOk(key) ? this.info(key) : Promise.reject(new Error('not a service key'))));
     ipcMain.handle(CHANNELS.consoleChoose, (_e, key, choice) => (keyOk(key) ? this.choose(key, choice ?? {}) : Promise.reject(new Error('not a service key'))));
     ipcMain.handle(CHANNELS.consolePickFolder, (_e, key) => (keyOk(key) ? this.pickFolder(key) : Promise.reject(new Error('not a service key'))));
+    ipcMain.handle(CHANNELS.consoleClone, (_e, key) => (keyOk(key) ? this.clone(key) : Promise.reject(new Error('not a service key'))));
     // FD-191: the New session and New agent dialogs.
     ipcMain.handle(CHANNELS.newSessionOptions, () => this.newSessionOptions());
     ipcMain.handle(CHANNELS.newSessionMachineFolders, (_e, machine) => (typeof machine === 'string' && MACHINE.test(machine) ? this.machineFolders(machine) : { ok: false, why: 'unknown-machine' }));

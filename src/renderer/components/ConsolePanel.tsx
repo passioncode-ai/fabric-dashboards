@@ -57,6 +57,7 @@ export function ConsolePanel({ serviceKey, height, maxHeight, onHeight, onDrag, 
   const fit = useRef<FitAddon | null>(null);
   /** How far into the session's output the terminal shows: events and snapshots meet here. */
   const shown = useRef(0);
+  const [cloning, setCloning] = useState(false); // FD-334
   const [info, setInfo] = useState<ConsoleInfo | null>(null);
   const [notice, setNotice] = useState<{ text: string; terminalOnly?: boolean; info?: boolean } | null>(null);
   const [confirmClose, setConfirmClose] = useState(false);
@@ -384,7 +385,13 @@ export function ConsolePanel({ serviceKey, height, maxHeight, onHeight, onDrag, 
       {info && !ownHandover && info.runtimes.length > 0 && !folderOk && (
         <div className="console-state notice">
           <p>{info.folder && !info.folder.exists ? t('console.folderGone', { path: info.folder.path }) : t('console.noFolder')}</p>
-          <button className="btn" onClick={() => void api().consolePickFolder(serviceKey).then(setInfo)}>{t('console.chooseFolder')}</button>
+          {/* FD-334: no checkout here: clone the agent's repository into ~/DATA and open the console there. */}
+          {info.clone && <p className="muted">{t('console.clone.why', { repo: `${info.clone.owner}/${info.clone.name}`, into: info.clone.into })}</p>}
+          {info.clone?.error && <p className="error" role="alert">{t('console.clone.failed', { detail: info.clone.error })}</p>}
+          <div className="row">
+            {info.clone && <button className="btn btn-primary" disabled={cloning} onClick={() => { setCloning(true); void api().consoleClone(serviceKey).then(setInfo).finally(() => setCloning(false)); }}>{cloning ? <><Spinner /> {t('console.clone.running')}</> : t('console.clone.button')}</button>}
+            <button className="btn" onClick={() => void api().consolePickFolder(serviceKey).then(setInfo)}>{t('console.chooseFolder')}</button>
+          </div>
         </div>
       )}
       {info?.binding.kind === 'error' && <p className="console-state notice error" role="alert">{t('console.sbError', { detail: info.binding.detail })}</p>}

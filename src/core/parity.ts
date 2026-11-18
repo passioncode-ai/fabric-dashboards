@@ -60,6 +60,7 @@ export const PARITY: Record<keyof typeof CHANNELS, Route> = {
   consoleInfo: { tool: 'console_choose' },
   consoleChoose: { tool: 'console_choose' },
   consolePickFolder: { tool: 'console_choose' },
+  consoleClone: { tool: 'console_choose' },
   newSessionOptions: { tool: 'session_new' },
   newSessionPickFolder: { tool: 'session_new' },
   newSessionStart: { tool: 'session_new' },
