@@ -7,6 +7,18 @@ Current release: **0.8.178** published 2026-11-17 12:06 UTC (run 44072876355, 16
 order, their runs under way. 0.8.106 and 0.8.107 were never published (0.8.106's check failed on an unref'd timer in a
 test; both fold into 0.8.108).
 
+## 0.8.205: spending limits changed from Spend (2026-11-18)
+
+Published: 0.8.204 (22:08 UTC, 16 assets) and 0.8.205 (22:51 UTC, run 44409201626, 16 assets: FD-324 in full, the read
+of contract DEC-0183, MCP `spend_limit_set`, Change on Spend with the change history, spend by month, and the auditor's
+finding for a spending agent without an emergency stop). Merged after the tag: FD-341 (Continue refuses
+`no-transcript` when a known conversation is gone, PR #706) and backlog rows FD-340, FD-342 from the agents base's
+reading of 0.8.204 (reply `62ab873c`; `agent-host` 1.1.0 took our five lessons). Trap recorded: a docs-only backlog
+change still needs `npm run check` (PR #705 broke the row-shape test until #706). Waits: FD-325 and FD-335 need an
+unlocked screen and load under 40; FD-337 Open in Switchboard waits for SB-479; FD-331's rest for STU-148 (by
+2026-11-21); Change on an online agent for FD-194; FD-322 not before 2026-11-25. Next task: FD-340 (a placed agent
+reached through a forward with no launchd job here reads `duplicate`), then FD-342, then version 0.8.206.
+
 ## After 0.8.204: spending limits changed from Spend (FD-324, contract DEC-0183) (2026-11-18)
 
 0.8.203 was not published: its Windows and Linux package check called `list_services` by the name FD-339 retired; the
