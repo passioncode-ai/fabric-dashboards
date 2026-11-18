@@ -104,7 +104,7 @@ export async function call(deps: tools.Deps, name: string, args: Args): Promise<
       return tools.sessionAction(deps, act, row, typeof args.account === 'string' ? args.account : undefined);
     }
     case 'app_update': return tools.appUpdate(deps, need(args, 'action') as 'check' | 'restart');
-    case 'console_choose': return tools.consoleChoose(deps, need(args, 'service'), { ...(typeof args.runtime === 'string' ? { runtime: args.runtime } : {}), ...(typeof args.folder === 'string' ? { folder: args.folder } : {}), ...(args.where === 'here' || args.where === 'there' ? { where: args.where } : {}) });
+    case 'console_choose': return tools.consoleChoose(deps, need(args, 'service'), { ...(typeof args.runtime === 'string' ? { runtime: args.runtime } : {}), ...(typeof args.folder === 'string' ? { folder: args.folder } : {}), ...(args.where === 'here' || args.where === 'there' ? { where: args.where } : {}), ...(args.clone === true ? { clone: true } : {}) });
     case 'app_install': return tools.appInstall(deps, need(args, 'action') as 'move-to-applications' | 'uninstall' | 'uninstall-all', need(args, 'confirm'));
     case 'console_new': return tools.consoleChannel(deps, { op: 'console.new', service: need(args, 'service'), ...(args.mode === 'continue' ? { mode: 'continue' as const } : {}) });
     case 'session_new': return tools.sessionNew(deps, {

@@ -50,6 +50,9 @@ export interface Rect { x: number; y: number; width: number; height: number }
 
 /** ADR-0017: what a service's console shows before and while it runs. */
 export interface ConsoleInfo {
+  /** FD-334: the agent's GitHub repository can be cloned into `into` to edit it here (no checkout found), and why the
+   *  last clone failed, if it did. */
+  clone?: { owner: string; name: string; into: string; error: string | null } | null;
   key: string;
   runtimes: { id: string; name: string; canContinue: boolean; viaSwitchboard: boolean }[];
   /** The runtime chosen for this service (saved, else Claude Code, else the first found); null when none is installed. */
@@ -203,6 +206,8 @@ export interface FabricApi {
   consoleChoose(key: string, choice: { runtime?: string; where?: 'here' | 'there' }): Promise<ConsoleInfo>;
   /** A folder dialog; the choice is saved for this service. */
   consolePickFolder(key: string): Promise<ConsoleInfo>;
+  /** FD-334: clone the agent's repository into ~/DATA and make it the console's folder. */
+  consoleClone(key: string): Promise<ConsoleInfo>;
   /** FD-191: what the New session / New agent dialog offers now. */
   newSessionOptions(): Promise<NewSessionOptions>;
   /** FD-191: the system folder picker, opened on `current`; null when the person cancelled. */
@@ -321,6 +326,7 @@ export const CHANNELS = {
   consoleInfo: 'fd:console-info',
   consoleChoose: 'fd:console-choose',
   consolePickFolder: 'fd:console-pick-folder',
+  consoleClone: 'fd:console-clone',
   newSessionOptions: 'fd:new-session-options',
   newSessionPickFolder: 'fd:new-session-pick-folder',
   newSessionStart: 'fd:new-session-start',
