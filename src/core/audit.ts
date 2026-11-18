@@ -60,7 +60,8 @@ function connectionReason(state: string, name: string, text: string): { code: st
   return text.trim() ? { code: `audit.connection.${state}`, params: { name, text } } : { code: `audit.connection.${state}.bare`, params: { name } };
 }
 
-export function audit(all: readonly Seen[], limits: Readonly<Record<string, readonly LimitView[]>> = {}): Audit {
+/** `noEmergency`: the agents that spend money and report no emergency stop (`spendingWithoutEmergency`, FD-324). */
+export function audit(all: readonly Seen[], limits: Readonly<Record<string, readonly LimitView[]>> = {}, noEmergency: readonly string[] = []): Audit {
   const out: Finding[] = [];
   const add = (f: Finding) => out.push(f);
   let declaring = 0;
@@ -169,6 +170,8 @@ export function audit(all: readonly Seen[], limits: Readonly<Record<string, read
         add({ id: `${s.key}:chain:${c.id}`, key: s.key, severity: theirs === 'down' ? 'error' : 'warn', kind: 'chain', reason: { code: `audit.chain.${theirs}`, params: { name: nameOf(reached), target: reached.key } } });
       }
     }
+    // FD-324 (DEC-0183 SL-5): the estate's emergency stop, 500 USD a day and 1000 USD a month, is the agent's to carry.
+    if (noEmergency.includes(s.key)) add({ id: `${s.key}:limit:no-emergency`, key: s.key, severity: 'info', kind: 'limit', reason: { code: 'audit.limit.noEmergency' } });
     for (const l of limits[s.key] ?? []) {
       if (l.state === 'tripped' || l.state === 'breach') {
         add({ id: `${s.key}:limit:${l.id}`, key: s.key, severity: l.state === 'tripped' ? 'error' : 'warn', kind: 'limit', reason: { code: `audit.limit.${l.state}`, params: { limit: l.id } } });

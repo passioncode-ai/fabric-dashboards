@@ -60,6 +60,12 @@ export function limitsNeedingPerson(entries: readonly SpendEntry[]): Record<stri
   return out;
 }
 
+/** FD-324 (contract DEC-0183 SL-5): the agents that spent money in the last 30 days and report no limit of kind
+ *  `emergency`. Read only from reports; an agent that reports nothing, or spent only on a subscription, is not one. */
+export function spendingWithoutEmergency(entries: readonly SpendEntry[]): string[] {
+  return entries.flatMap((e) => (e.kind === 'report' && (e.summary.month.costUsd ?? 0) > 0 && !e.summary.limits.some((l) => l.kind === 'emergency') ? [e.key] : []));
+}
+
 export type SpendWindow = 'today' | 'week' | 'month';
 
 /**

@@ -9,6 +9,7 @@ import { audit, auditBrief, byAgent, type Finding } from '../../core/audit';
 import { estateMap, type MapNode } from '../../core/estate-map';
 import type { ConsoleTask, ConsoleInfo } from '../../core/api';
 import type { AppStatus } from '../../core/types';
+import { spendingWithoutEmergency } from '../../core/spend';
 import { api, CONN_MARK as MARK, nameOf, SEV_MARK, useT } from '../lib';
 
 const COL_W = 196, COL_GAP = 72, NODE_H = 40, ROW_GAP = 14, PAD = 8;
@@ -16,17 +17,22 @@ const COL_W = 196, COL_GAP = 72, NODE_H = 40, ROW_GAP = 14, PAD = 8;
 export function ConnectionsMap({ status, every, open, onAgent }: { status: AppStatus; every?: AppStatus['services']; open: (key: string) => void; onAgent: (key: string, task: ConsoleTask) => void }) {
   const { t, reason } = useT();
   const [limits, setLimits] = useState<Record<string, LimitView[]>>({});
+  const [noEmergency, setNoEmergency] = useState<string[]>([]);
   useEffect(() => {
     let live = true;
     // ADR-0013: the usage reports are read in the main process; only the ranked limits come here.
-    void api().spend(false).then((r) => { if (live) setLimits(Object.fromEntries(r.entries.flatMap((e) => (e.kind === 'report' ? [[e.key, e.summary.limits]] : [])))); }).catch(() => undefined);
+    void api().spend(false).then((r) => {
+      if (!live) return;
+      setLimits(Object.fromEntries(r.entries.flatMap((e) => (e.kind === 'report' ? [[e.key, e.summary.limits]] : []))));
+      setNoEmergency(spendingWithoutEmergency(r.entries)); // FD-324
+    }).catch(() => undefined);
     return () => { live = false; };
   }, []);
   // FD-162: the auditor and the map read every agent, so a target outside the organization filter is itself; the page
   // shows the agents the filter keeps and the ones they call.
   const services = every ?? status.services;
   const scope = useMemo(() => (every ? new Set(status.services.map((s) => s.key)) : undefined), [every, status.services]);
-  const a = useMemo(() => { const r = audit(services, limits); return scope ? { ...r, findings: r.findings.filter((f) => scope.has(f.key)), counts: countOf(r.findings.filter((f) => scope.has(f.key))) } : r; }, [services, limits, scope]);
+  const a = useMemo(() => { const r = audit(services, limits, noEmergency); return scope ? { ...r, findings: r.findings.filter((f) => scope.has(f.key)), counts: countOf(r.findings.filter((f) => scope.has(f.key))) } : r; }, [services, limits, noEmergency, scope]);
   const map = useMemo(() => estateMap(services, scope), [services, scope]);
   const byKey = new Map(services.map((s) => [s.key, s]));
   const name = (key: string) => (byKey.get(key) ? nameOf(byKey.get(key)!) : key);

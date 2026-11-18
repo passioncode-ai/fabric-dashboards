@@ -29,7 +29,7 @@ import { displayName } from '../core/names';
 import { Launchd, execRunner, type Runner } from '../core/launchd';
 import { fetchEvents, fetchLoad, fetchUsage, fetchWellKnown, PROBE_TIMEOUT_MS, readTokenAsync } from '../core/probe';
 import { readLoad, type LoadEntry } from '../core/load';
-import { readSpend, type SpendEntry } from '../core/spend';
+import { readSpend, spendingWithoutEmergency, type SpendEntry } from '../core/spend';
 import { applyLimitChange, LimitEditError, SPEND_LIMITS_SET, type LimitChangeInput, type RelayedDecision } from '../core/limit-edit';
 import { arrangeProducts, categoryOf, groupProducts, moveInSection, productIdOf, setKind, setOff, showAgain, togglePin, type Category, type Product } from '../core/products';
 import { moveTab, pinTab } from '../core/layout';
@@ -761,7 +761,7 @@ export async function auditAll(deps: Deps): Promise<{ findings: (Finding & { nam
   const looks = (await look(deps)).map((l) => ({ ...l, organization: orgOf(l) })); // FD-163: as the app reads them
   const spendEntries = await readSpend(looks, { token: deps.token, fetchUsage: deps.usage, now: deps.now });
   const limits = Object.fromEntries(spendEntries.flatMap((e) => (e.kind === 'report' ? [[e.key, e.summary.limits]] : [])));
-  const a = runAudit(looks, limits);
+  const a = runAudit(looks, limits, spendingWithoutEmergency(spendEntries));
   const names = new Map(looks.map((l) => [l.key, l.descriptor ? displayName(l.descriptor.name, l.descriptor.instance) : l.key]));
   const map = estateMap(looks);
   return {
