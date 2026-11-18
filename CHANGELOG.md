@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.8.206 - 2026-11-19
+
+### Fixed
+- FD-341: Continue on an ended session whose conversation is gone from every Claude Code and Codex home says so and
+  starts nothing. Before, it started a new session and the context was lost without a word.
+- FD-340: an agent placed on another machine, with no launchd job of its own here, reads as that copy reached through
+  its forward when the placement record names the forward, instead of "runs twice".
+
 ## 0.8.205 - 2026-11-18
 
 ### Added
