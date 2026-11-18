@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.8.205 - 2026-11-18
+
+### Added
+- FD-324: change an agent's spending limit from Spend. An editable limit of an agent that takes `spend.limits.set`
+  (contract DEC-0183) has Change: the amount within the agent's bounds, Enforced, and a reason the agent records. A
+  higher limit or turning one off is your decision and says so first. The agent's last five limit changes show under
+  its limits, and its spend by month under the daily chart. An agent does the same with MCP `spend_limit_set`; a raise
+  there needs the operator's words.
+
+### Fixed
+- FD-324: a spend report carrying the contract's new members (a weekly limit, editable limits, the change history,
+  months) is read; before, the agent dropped out of Spend.
+
 ## 0.8.204 - 2026-11-18
 
 ### Fixed
