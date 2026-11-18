@@ -123,7 +123,13 @@ export interface SpendSummary {
   /** Every limit, what needs a person first (rankLimits); empty when the report lists none. */
   limits: LimitView[];
   generatedAt: string;
+  /** FD-324: money spent each of the same last 30 UTC days, oldest first. A day the report does not list spent nothing;
+   *  `costUsd` null and `partial` keep an unknown or a lower bound as they are. Absent from a sum made by hand. */
+  daily?: SpendDay[];
 }
+
+/** FD-324: one UTC day of money spent (the subscription estimate is not money, FD-88). */
+export interface SpendDay { date: string; calls: number; costUsd: number | null; partial: boolean }
 
 const DATE = /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
 const count = (x: unknown) => Number.isInteger(x) && (x as number) >= 0;
@@ -288,8 +294,12 @@ export function summarizeUsage(report: UsageReport, now: number): SpendSummary {
   const today = utcDate(now, 0), weekFrom = utcDate(now, 6), monthFrom = utcDate(now, 29);
   const out = { today: empty(), week: empty(), month: empty() };
   const models = new Map<string, SpendSum & { provider: string; model: string; route?: UsageRoute }>();
+  const days = new Map<string, SpendSum>();
   for (const day of report.days) {
+    const daySum = day.date >= monthFrom && day.date <= today ? empty() : null;
+    if (daySum) days.set(day.date, daySum);
     for (const m of day.byModel) {
+      if (daySum) add(daySum, m, m.route);
       if (day.date === today) add(out.today, m, m.route);
       if (day.date >= weekFrom && day.date <= today) add(out.week, m, m.route);
       if (day.date >= monthFrom && day.date <= today) add(out.month, m, m.route);
@@ -302,8 +312,14 @@ export function summarizeUsage(report: UsageReport, now: number): SpendSummary {
       models.set(k, sum);
     }
   }
-  for (const s of [out.today, out.week, out.month, ...models.values()]) settleSum(s);
+  for (const s of [out.today, out.week, out.month, ...models.values(), ...days.values()]) settleSum(s);
   const ranked = [...models.values()].sort((a, b) => (b.costUsd ?? -1) - (a.costUsd ?? -1) || (b.estimateUsd ?? -1) - (a.estimateUsd ?? -1) || b.calls - a.calls);
-  return { ...out, models: ranked, budget: report.budget ?? null, limits: rankLimits(report.budgets ?? []), generatedAt: report.generatedAt };
+  const daily: SpendDay[] = [];
+  for (let back = 29; back >= 0; back--) {
+    const date = utcDate(now, back);
+    const d = days.get(date);
+    daily.push(d ? { date, calls: d.calls, costUsd: d.costUsd, partial: d.partial } : { date, calls: 0, costUsd: 0, partial: false });
+  }
+  return { ...out, models: ranked, budget: report.budget ?? null, limits: rankLimits(report.budgets ?? []), generatedAt: report.generatedAt, daily };
 }
 // #endregion usage-report

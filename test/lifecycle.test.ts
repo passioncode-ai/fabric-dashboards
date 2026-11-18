@@ -356,6 +356,10 @@ function fakeInstall(version: string) {
   return { base, contents, server: path.join(asar, 'out/main/mcp/server.js'), update: writePlist };
 }
 
+/** FD-321: the product bound for an MCP server's exit is 1 s; above load average 100 (an audit wave measured 2.4 s at
+ *  177, a later gate 1025 ms at 584) the process is starved, not slow to leave, so the bound widens with the load. */
+const exitBound = () => (os.loadavg()[0] > 100 ? 5000 : 1000);
+
 function speak(server: string, env: NodeJS.ProcessEnv = {}) {
   const child = spawn(process.execPath, [server], { env: { ...process.env, ...env }, stdio: ['pipe', 'pipe', 'pipe'] });
   const lines: Record<string, unknown>[] = [];
@@ -392,9 +396,7 @@ test('LC-10: the stdio server exits within 1 s of stdin closing, and within 1 s 
     const exit = await s.exited;
     assert.equal(exit.signal, null, `${how}: the server exited by itself, it was not killed`);
     assert.equal(exit.code, 0, how);
-    // FD-321: the product bound is 1 s; above load average 100 (an audit wave measured 2.4 s at 177) the process is
-    // starved, not slow to leave, so the bound widens with the load instead of failing on the machine.
-    const bound = os.loadavg()[0] > 100 ? 5000 : 1000;
+    const bound = exitBound();
     assert.ok(exit.at - at <= bound, `${how}: exited in ${exit.at - at} ms (bound ${bound} ms, load ${os.loadavg()[0].toFixed(0)})`);
   }
 });
@@ -430,9 +432,10 @@ test('LC-10: a session that ends mid-command takes the command\'s whole process 
   s.child.stdin.end();
   const exit = await s.exited;
   assert.equal(exit.code, 0);
-  assert.ok(exit.at - at <= 1000, `exited in ${exit.at - at} ms with a command in flight`);
+  const bound = exitBound();
+  assert.ok(exit.at - at <= bound, `exited in ${exit.at - at} ms with a command in flight (bound ${bound} ms, load ${os.loadavg()[0].toFixed(0)})`);
   const alive = () => { try { process.kill(grandchild, 0); return true; } catch { return false; } };
-  const gone = Date.now() + 2000;
+  const gone = Date.now() + 2 * bound;
   while (alive() && Date.now() < gone) await new Promise((r) => setTimeout(r, 20));
   assert.equal(alive(), false, 'no orphan survives the session');
 });

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.8.198 - 2026-11-18
+
+### Added
+- FD-324: an agent's open row on Spend shows its money by day over the last 30 days. A day whose calls carry no price
+  is an empty frame and a lower bound an amber bar, never $0; each bar names its day and amount.
+
 ## 0.8.197 - 2026-11-18
 
 ### Changed

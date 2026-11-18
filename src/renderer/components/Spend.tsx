@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useState } from 'react';
-import type { SpendSum } from '@passioncode-ai/fabric-service-host/usage';
+import type { SpendDay, SpendSum } from '@passioncode-ai/fabric-service-host/usage';
 import { limitAmount, limitHeadline, limitName, limitUsd, limitWindow } from '../../core/limits';
 import { sumSpend, type SpendEntry, type SpendWindow } from '../../core/spend';
 import type { AppStatus, ServiceSnapshot } from '../../core/types';
@@ -86,6 +86,7 @@ export function Spend({ status, onOpen }: { status: AppStatus; onOpen: (key: str
                 {open === e.key && (
                   <tr className="spend-models">
                     <td colSpan={5}>
+                      {e.summary.daily && <DailyChart days={e.summary.daily} t={t} day={day} />}
                       {(e.summary.limits ?? []).length > 0 && (
                         <table className="spend-limits" aria-label={t('spend.limits')}>
                           <thead><tr><th scope="col">{t('spend.limits.limit')}</th><th scope="col">{t('spend.limits.window')}</th><th scope="col" className="num">{t('spend.limits.amount')}</th><th scope="col">{t('spend.limits.state')}</th></tr></thead>
@@ -139,6 +140,29 @@ export function Spend({ status, onOpen }: { status: AppStatus; onOpen: (key: str
 }
 
 export type T = (key: string, params?: Record<string, string | number>) => string;
+
+// #region spend-daily — docs: docs/ux/scenarios.md#scn-036-see-what-every-agent-spent
+/** FD-324: one agent's money by day over the last 30 UTC days, oldest first. An unknown day is drawn as an empty frame
+ *  and a lower bound as a hatched bar, never as $0; each bar names its day and amount for a screen reader. */
+export function DailyChart({ days, t, day }: { days: SpendDay[]; t: T; day: (iso: string) => string }) {
+  const top = Math.max(0, ...days.map((d) => d.costUsd ?? 0));
+  const W = 6, GAP = 2, H = 48;
+  const label = (d: SpendDay) => t(d.costUsd === null ? 'spend.daily.unknownDay' : 'spend.daily.day', { date: day(`${d.date}T00:00:00Z`), amount: money(d, t) });
+  return (
+    <figure className="spend-daily">
+      <figcaption>{t('spend.daily')}</figcaption>
+      <svg role="img" aria-label={t('spend.daily.summary', { count: days.filter((d) => d.calls > 0).length })} width={days.length * (W + GAP)} height={H} viewBox={`0 0 ${days.length * (W + GAP)} ${H}`}>
+        {days.map((d, i) => {
+          const x = i * (W + GAP);
+          if (d.costUsd === null) return <rect key={d.date} className="unknown" x={x + 0.5} y={0.5} width={W - 1} height={H - 1}><title>{label(d)}</title></rect>;
+          const h = top > 0 ? Math.max(d.costUsd > 0 ? 2 : 0, Math.round((d.costUsd / top) * H)) : 0;
+          return <rect key={d.date} className={d.partial ? 'partial' : undefined} x={x} y={H - h} width={W} height={Math.max(h, 1)} opacity={h === 0 ? 0.25 : 1}><title>{label(d)}</title></rect>;
+        })}
+      </svg>
+    </figure>
+  );
+}
+// #endregion spend-daily
 
 export function usd(x: number | null, t: T): string {
   return limitUsd(x, t);
