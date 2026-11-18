@@ -7,6 +7,12 @@ Current release: **0.8.178** published 2026-11-17 12:06 UTC (run 44072876355, 16
 order, their runs under way. 0.8.106 and 0.8.107 were never published (0.8.106's check failed on an unref'd timer in a
 test; both fold into 0.8.108).
 
+## Waves of 2026-11-18 started (2026-11-18)
+
+The operator asked to close every task in waves and release: [plan](plans/2026-11-18-waves/README.md). Done: FD-327 and
+FD-329 (PR #672, `db554f42`; `FD_SKIP_LAUNCHD=1 npm run check` exit 0 at load average 250). New rows FD-333 to FD-339.
+Next task: FD-328 (a placed agent's console through that machine's Switchboard), then FD-333.
+
 ## Agent-connect audit: vision and spec (2026-11-18)
 
 Asked by the operator after the notification «На порту SMM Manager другая программа». Read-only audit of how agents
