@@ -1536,6 +1536,13 @@ export class ConsoleHost {
     const before = { id: key.slice('handover.'.length), workflow: row.project, agent: row.agent, account: row.origin === 'limit' ? '' : (row.account ?? ''), dir: row.folder, offeredUntil: 0, paid: row.paid };
     const resumed = row.origin === 'resume' || id.startsWith('st:');
     const tookUp = Boolean(sessionId && provider && (provider === 'claude' ? root === path.join(home, '.claude') : transcriptOf({ session: sessionId, provider } as SbStop, home)));
+    // FD-341 (the agents base's reading of 0.8.204): a session whose conversation this app knew and finds in no home
+    // now is refused, never started over as a new one: the person would lose its context without being told.
+    // A limit stop keeps FIX-4's way (a new session in its folder, its claim finished as cancelled).
+    if (!id.startsWith('st:') && record?.sessionId && provider && !tookUp && (provider === 'claude' ? root === null : true)) {
+      this.o.log(`console: session ${id} not continued: its conversation is in no Claude Code or Codex home now (FD-341)`);
+      return { ok: false, reason: 'no-transcript' };
+    }
     if (sessionId && provider && tookUp) {
       const cli = inv.dirs.map((d) => path.join(d, provider)).find((f) => { try { fs.accessSync(f, fs.constants.X_OK); return fs.statSync(f).isFile(); } catch { return false; } });
       if (!cli) return { ok: false, reason: 'no-runtime' };

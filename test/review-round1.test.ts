@@ -260,7 +260,7 @@ test('R1-U4: Continue on a Switchboard row never takes up a conversation that ma
 
 // ── R1-U5 ──
 
-test('R1-U5: a new session on a key that once resumed a conversation does not inherit its session id', POSIX, async () => {
+test('R1-U5, FD-341: a session whose known conversation is gone is refused, never started over as a new one', POSIX, async () => {
   const r = rig({ stop: { silent: true } });
   await r.host.pollRecovery();
   const failed = r.host.sessionsStatus().rows.find((x) => x.state === 'needs-you-resume-failed')!;
@@ -268,13 +268,11 @@ test('R1-U5: a new session on a key that once resumed a conversation does not in
   await tick();
   const record = r.settings.get().sessions.records.find((x) => x.id === failed.id)!;
   assert.equal(record.sessionId, SID, 'the resumed session\'s own id is kept for Continue');
-  fs.rmSync(path.join(r.home, '.claude', 'projects', 'p', `${SID}.jsonl`)); // its conversation is gone: Continue starts a new one
+  fs.rmSync(path.join(r.home, '.claude', 'projects', 'p', `${SID}.jsonl`)); // its conversation is gone
   const next = await r.host.continueSession(failed.id);
-  assert.deepEqual(next, { ok: true, key: failed.key });
-  const running = r.host.sessionsStatus().rows.find((x) => x.state === 'running-ours')!;
-  await r.host.endSession(running.id);
-  await tick();
-  assert.equal(r.settings.get().sessions.records.find((x) => x.id === running.id)!.sessionId, null);
+  assert.deepEqual(next, { ok: false, reason: 'no-transcript' }, 'FD-341: refused, so the person is told the context is gone');
+  assert.equal(r.host.sessionsStatus().rows.some((x) => x.state === 'running-ours'), false, 'nothing started in its place');
+  assert.equal(r.settings.get().sessions.records.find((x) => x.id === failed.id)!.sessionId, SID, 'the record keeps its conversation\'s id');
 });
 
 // ── R1-U6 ──
@@ -463,6 +461,7 @@ test('R1-B: a hand-over this computer could not carry names the cause it found: 
   const t = (key: string, params?: Record<string, string | number>) => translate('en', key, params);
   assert.match(failText(t, { ok: false, reason: 'admission', detail: 'swap' }, { action: 'continue', folder: '/w' }), /run out of swap/);
   assert.match(failText(t, { ok: false, reason: 'admission', detail: 'disk' }, { action: 'continue', folder: '/w' }), /free on its disk/);
+  assert.match(failText(t, { ok: false, reason: 'no-transcript' }, { action: 'continue', folder: '/w' }), /Its conversation is not in your Claude Code or Codex home/, 'FD-341');
 });
 
 test('R1-C: continuing an idle-closed agent console from the console itself takes its ended row off the Sessions list', POSIX, async () => {

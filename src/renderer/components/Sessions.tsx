@@ -33,6 +33,7 @@ export function failText(t: T, r: Extract<SessionActionResult, { ok: false }>, o
   if (o.action === 'attach') return t('sessions.attachFailed', { reason: r.detail ?? r.reason }); // FD-211
   if (r.reason === 'held' || (r.reason === 'running' && r.detail === 'held')) return t('sessions.reason.held'); // wave 1 (C-01, C-03)
   if (r.reason === 'no-folder') return t('sessions.reason.no-folder');
+  if (r.reason === 'no-transcript') return t('sessions.reason.no-transcript'); // FD-341
   if (r.reason === 'remote') return t(remoteRefusal(r.detail)); // FD-199, FD-200
   return t('sessions.reason.resume-failed');
 }
