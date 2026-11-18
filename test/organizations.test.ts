@@ -432,6 +432,21 @@ test('FD-248 step 6: the store adds Switchboard\'s organizations on a read and k
   assert.deepEqual(read.fromSwitchboard, ['globex']);
 });
 
+test('FD-315 (C2-05): a failed Switchboard read keeps the organizations it named; no Switchboard names none', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'fd-org-315-'));
+  const file = path.join(dir, 'organizations.json');
+  const registry = { schema_version: 2, organization_labels: { acme: 'Acme' }, organization_personal: 'acme', projects: [] };
+  let sb: () => Promise<string | null> = async () => JSON.stringify({ ok: true, data: { organizations: [{ name: 'Globex' }] } });
+  const store = new OrganizationStore({ file, log: () => undefined, onChange: () => undefined, fetchPage: async () => null, readRegistry: () => registry, readSwitchboard: () => sb() });
+  await store.refresh();
+  sb = async () => { throw new Error('no answer within 10 s (stopped)'); };
+  await store.refresh();
+  assert.equal(readOrganizations(file).organizations.globex, 'Globex', 'kept through a failed read');
+  sb = async () => null;
+  await store.refresh();
+  assert.equal(readOrganizations(file).organizations.globex, undefined, 'gone once no Switchboard names it');
+});
+
 test('FD-248 step 7: Join opens only the organizations service\'s host; a pasted invite link elsewhere is refused before any browser', async () => {
   const { joinLink, JOIN_URL } = await import('../src/core/join');
   assert.deepEqual(joinLink(), { ok: true, url: JOIN_URL });

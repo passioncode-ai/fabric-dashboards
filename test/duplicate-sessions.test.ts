@@ -44,3 +44,33 @@ test('FD-277 (Switchboard 0.7.100): the copy to close is read; an older one goes
   assert.deepEqual(closeCopyArgv('/sb', ID, 2), ['/sb', '--json', 'sessions', 'close-copy', ID, '--pid', '2']);
   assert.deepEqual(parseCloseCopy(1, JSON.stringify({ ok: false, code: 'COPY_BUSY' }), ''), { ok: false, why: 'all-working' });
 });
+
+test('FD-315 (C2-05): an attention read that fails keeps the last list and is said as a source not answering, once', { skip: process.platform === 'win32' && 'POSIX execute bits: the fake switchboard is a shell script' }, async () => {
+  const { ConsoleHost } = await import('../src/electron/console');
+  const { SettingsStore } = await import('../src/core/settings');
+  const { tmp } = await import('./helpers');
+  const fs = await import('node:fs');
+  const path = await import('node:path');
+  const base = tmp('fd-315-');
+  const bin = path.join(base, 'bin');
+  fs.mkdirSync(bin);
+  fs.writeFileSync(path.join(bin, 'switchboard'), '#!/bin/sh\n', { mode: 0o755 });
+  let attention = { code: 0, stdout: JSON.stringify({ ok: true, data: { items: [{ reason: 'session_duplicate', session_id: ID, label: 'a', pids: [1, 2], close: { pid: 2, why: 'older' } }] } }), stderr: '' };
+  const host = new ConsoleHost({
+    settings: new SettingsStore(path.join(base, 'data')), snapshot: () => null, window: () => null, visible: () => true, log: () => {},
+    testDirs: [bin], scriptsDir: path.join(base, 'scripts'), home: base,
+    run: async (_f, args) => (args.join(' ') === 'sessions --help' ? { code: 0, stdout: 'Commands:\n  close-copy  x\n', stderr: '' }
+      : args.join(' ') === '--json attention' ? attention : { code: 1, stdout: '', stderr: '' }),
+  } as never);
+  const poll = () => (host as unknown as { pollDuplicates: (f: boolean) => Promise<void> }).pollDuplicates(true);
+  await poll();
+  const dupes = () => (host as unknown as { duplicates: unknown[] }).duplicates.length;
+  assert.equal(dupes(), 1);
+  attention = { code: 1, stdout: '', stderr: 'no answer within 15 s (stopped)' };
+  await poll();
+  assert.equal(dupes(), 1, 'the last list is kept');
+  assert.ok(host.sessionsStatus().degraded.some((d) => d.source === 'attention'));
+  attention = { code: 0, stdout: JSON.stringify({ ok: true, data: { items: [] } }), stderr: '' };
+  await poll();
+  assert.equal(host.sessionsStatus().degraded.some((d) => d.source === 'attention'), false, 'said well again');
+});

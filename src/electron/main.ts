@@ -51,6 +51,7 @@ import { OutageAlerts } from './outage-alerts';
 import { uninstall as runUninstall } from './uninstall-flow';
 import { channelAnswers } from './channel-answers';
 import { alertWords } from '../core/outage-alerts';
+import { isOldSwitchboard } from '../core/switchboard';
 import { analyticsMaySend, rendererSettingsPatch, SettingsStore } from '../core/settings';
 import type { AppStatus, ServiceSnapshot, Settings, SettingsPatch } from '../core/types';
 import { clearRestoreRecord, readRestoreRecord, repairMcpRegistrations, restoreMcpRegistrations, writeRestoreRecord } from '../core/uninstall';
@@ -229,6 +230,8 @@ if (!app.requestSingleInstanceLock()) {
       const sb = await consoles.switchboardPath();
       if (!sb) return null;
       const r = await execRunner(sb, ['--json', 'org', 'list'], 10_000);
+      // FD-315: a read that failed keeps what Switchboard named last time; one without `org list` names nothing.
+      if (r.code !== 0 && !isOldSwitchboard(`${r.stdout}\n${r.stderr}`)) throw new Error(r.stderr.slice(0, 200) || `exit ${r.code}`);
       return r.code === 0 ? r.stdout : null;
     },
     fetchPage: async (cursor) => {

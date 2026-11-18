@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.8.191 - 2026-11-18
+
+### Fixed
+- FD-315 (connections audit C2-05): a Switchboard read that fails no longer drops what the app knew. The organizations
+  Switchboard named stay through a failed `org list` (and go when no Switchboard names them); a coding-agent catalog whose
+  `agents list` got no answer in time is read again 10 minutes later instead of staying without Switchboard's agents for
+  the run; a failed `attention` read keeps the last list of sessions running twice and the Sessions page says Switchboard
+  is not answering, as for its other reads.
+
 ## 0.8.190 - 2026-11-18
 
 ### Changed
