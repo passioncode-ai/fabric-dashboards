@@ -280,6 +280,7 @@ export function AllSessions({ sessions, noteSeen, onNoteSeen, onSetUp, endedOpen
       )}
       {(!sessions || sessions.switchboard === null) && <p className="muted row" role="status"><span className="spinner" aria-hidden="true" /> {t('sessions.reading')}</p>}
       {sessions && sessions.switchboard === false && <p className="notice" role="status">{`${t('sessions.noSwitchboard')} ${t('sessions.note.install')}`}</p>}
+      {sessions?.switchboardOld && <p className="notice" role="status">{t('sessions.switchboardOld', { version: sessions.switchboardOld.version, floor: sessions.switchboardOld.floor })}</p>}
       {sessions?.switchboard && failing && <p className="notice warning" role="status">{t('sessions.degraded', { time: clock(lang, failing.since) })}</p>}
       {/* FD-277 (SCN-118): a session that runs in two processes, with Switchboard's Close the quiet copy. */}
       {(sessions?.duplicates ?? []).map((d) => <DuplicateNotice key={d.sessionId} d={d} />)}

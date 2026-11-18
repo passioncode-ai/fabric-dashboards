@@ -29,7 +29,7 @@ import { isNewAgentKey, isNewDashboardKey, isNewSessionKey, isolatedBlock, newSe
 export { newSessionChoiceOf }; // FD-302: moved to src/core/new-session.ts; tests and the console channel import it here
 import { askArgsOfProvider, bypassArgs, claudeAskModeOf, promptsWords, setClaudeAskMode, bypassArgsOfProvider, detectRuntimes, KNOWN_RUNTIMES, readLoginPath, searchDirs, specsFromSwitchboard, type Runtime, type RuntimeSpec } from '../core/runtimes';
 import { SERVICE_KEY, type SettingsStore } from '../core/settings';
-import { accountsOf, allSessionsOf, isOldSwitchboard, noAnswer, switchboardStamp, bindingFor, machineSessionsOf, pageRowsOf, findSwitchboard, handoverAskOf, handoverOwnKey, handoverRunArgv, handoversOf, hostedContinueArgv, handoversSwitch, historySessionsOf, isHandoverKey, launchFeatures, sbFailure, sessionsIn, startAccount, terminalLaunchArgv, type Binding, type SbAccounts, type SbHandover, type SbSessions, type StartAccount } from '../core/switchboard';
+import { accountsOf, allSessionsOf, belowFloor, isOldSwitchboard, noAnswer, parseSwitchboardVersion, switchboardStamp, SWITCHBOARD_FLOOR, bindingFor, machineSessionsOf, pageRowsOf, findSwitchboard, handoverAskOf, handoverOwnKey, handoverRunArgv, handoversOf, hostedContinueArgv, handoversSwitch, historySessionsOf, isHandoverKey, launchFeatures, sbFailure, sessionsIn, startAccount, terminalLaunchArgv, type Binding, type SbAccounts, type SbHandover, type SbSessions, type StartAccount } from '../core/switchboard';
 import type { HeldContinue, ServiceSnapshot, Settings } from '../core/types';
 import { claudeConfigDirs, lastTranscriptWrite, STUCK_MS, stuckKeys } from '../core/stuck';
 import { claimStop, claudeSessionDirs, folderLive, liveSessionFolders, liveSessionIds, continuedLaunches, continuedOf, finishStop, launchTranscript, liveAgents, recoveryOf, resumeArgs, resumeOwnKey, sessionOpen, transcriptIn, transcriptOf, verdictOf, writtenAt, RESUME_SETTLE_MS, RESUMES_PER_PASS, type RecoveryStatus, type SbStop, type StopView } from '../core/recovery';
@@ -229,8 +229,21 @@ export class ConsoleHost {
   private readonly sbSessions = new SourceReader<SbSessionRecord[]>('sessions', async () => {
     const inv = await this.inventory();
     this.switchboardPresent = Boolean(inv.switchboard);
+    if (inv.switchboard) await this.readSwitchboardVersion(inv.switchboard);
     return inv.switchboard ? allSessionsOf(this.run, inv.switchboard) : { ok: true, value: [] };
   });
+  /** FD-319: the Switchboard version read once per binary (path and modification time), and whether it is below the floor. */
+  private versionOf: { stamp: string; version: string | null; old: boolean } | null = null;
+  private async readSwitchboardVersion(sb: string): Promise<void> {
+    const stamp = switchboardStamp(sb);
+    if (this.versionOf?.stamp === stamp) return;
+    const r = await this.run(sb, ['--version'], 10_000).catch(() => null);
+    if (!r || noAnswer(r)) return; // asked again next read
+    const v = parseSwitchboardVersion(`${r.stdout}\n${r.stderr}`);
+    const old = belowFloor(v);
+    this.versionOf = { stamp, version: v ? v.join('.') : null, old };
+    if (old) this.o.log(`console: Switchboard ${v!.join('.')} is older than ${SWITCHBOARD_FLOOR}, the oldest this app reads fully`);
+  }
   /** FD-277: sessions running twice, from `attention`; read at most every DUPLICATES_MS while the Sessions mode is on screen. */
   private duplicates: DuplicateSession[] = [];
   private duplicatesAt = -Infinity;
@@ -1466,7 +1479,7 @@ export class ConsoleHost {
     // FD-137 (SCN-092): a session Fabric started for a board request belongs to the agent in whose folder it ran.
     for (const r of rows) if (r.launch?.by.surface === 'fabric') { const k = this.agentOfFolder(r.folder, now); if (k) r.agentKey = k; }
     const degraded = [this.sbSessions.degraded, this.machineSessions.degraded, this.handovers.degraded, this.recoveryDegraded, this.attentionDegraded].filter((d): d is SourceDegraded => d !== null);
-    return { rows, degraded, machine: this.machineListed, switchboard: this.switchboardPresent, handovers: { enabled: this.handovers.enabled }, autoContinue: this.o.settings.get().resumeAfterLimit !== false, machines: this.o.settings.get().remoteSessions === false ? [] : this.remote.status(now), duplicates: this.closeCopyOf?.takes ? this.duplicates : [] };
+    return { rows, degraded, machine: this.machineListed, switchboard: this.switchboardPresent, ...(this.versionOf?.old ? { switchboardOld: { version: this.versionOf.version!, floor: SWITCHBOARD_FLOOR } } : {}), handovers: { enabled: this.handovers.enabled }, autoContinue: this.o.settings.get().resumeAfterLimit !== false, machines: this.o.settings.get().remoteSessions === false ? [] : this.remote.status(now), duplicates: this.closeCopyOf?.takes ? this.duplicates : [] };
   }
 
   // #region dispatch-agent — docs: docs/ux/scenarios.md#scn-092-see-a-session-fabric-started-for-a-board-request
