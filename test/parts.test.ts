@@ -12,6 +12,7 @@ import { DEFAULT_SETTINGS, type Settings } from '../src/core/types';
 import { clampRect, dashboardPathOf, loadErrorText, navigation, partitionFor, resolveLink, routeLink } from '../src/electron/policy';
 import { tmp } from './helpers';
 import { hasWorkplace, windowFill } from '../src/core/focus';
+import { TEMPLATE_EXTENSION, templateWords } from '../src/core/installed-by';
 
 test('navigation stays on the service origin; web links leave only through the browser', () => {
   const o = 'http://127.0.0.1:47195';
@@ -534,4 +535,14 @@ test('FD-330: a cloud agent that names no repository has no coding agent by defa
   assert.equal(hasWorkplace({ placement: 'local' }), true, 'a local agent is edited where it runs');
   assert.equal(hasWorkplace({}), true);
   assert.equal(hasWorkplace(null), true, 'an unread descriptor hides nothing');
+});
+
+test('FD-336: a copy built from an etalon says its template, version and the etalon, the well-known first', () => {
+  const ext = (o: Record<string, unknown>) => ({ extensions: { [TEMPLATE_EXTENSION]: o } });
+  assert.deepEqual(templateWords(ext({ template: 'org-administrator', version: '1.28.20', etalon: { version: '1.29.9' }, state: 'behind' })),
+    { code: 'template.behind', params: { template: 'org-administrator', version: '1.28.20', etalon: '1.29.9' } });
+  assert.equal(templateWords(null, ext({ template: 'media', version: '1', state: 'current' }))!.code, 'template.current', 'the descriptor when the well-known has none');
+  assert.equal(templateWords(ext({ template: 'a', state: 'weird' }))!.code, 'template.unknown');
+  assert.equal(templateWords(ext({ version: '1' })), null, 'no template named: nothing shown');
+  assert.equal(templateWords(null, undefined), null);
 });
