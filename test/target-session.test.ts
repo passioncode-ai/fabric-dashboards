@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import { ConsoleHost, newSessionChoiceOf } from '../src/electron/console';
-import { projectsOf, projectsProbeArgv, targetLaunchArgv, targetsOf, MACHINE } from '../src/core/target-session';
+import { projectsOf, projectsProbeArgv, targetLaunchArgv, targetOfDestination, targetsOf, MACHINE } from '../src/core/target-session';
 import { parseRequest } from '../src/core/console-channel';
 import { SettingsStore } from '../src/core/settings';
 import { newSessionFailText } from '../src/renderer/components/NewSessionDialog';
@@ -167,4 +167,19 @@ test('FD-210: a session on another machine is not held back by this disk, takes 
   assert.equal(!here.ok && here.reason, 'admission', 'a session here still needs the free space here');
   assert.match(pageExitLine('en', { state: 'exited', exitCode: 3, signal: null }, false, 'studio-me')!, /^studio-me has no account that can run a session in this folder\./);
   assert.match(pageExitLine('en', { state: 'exited', exitCode: 3, signal: null }, false, null)!, /3/, 'code 3 here is just a code');
+});
+
+test('FD-328: an agent placed on another machine is started through the Switchboard target its ssh destination names', () => {
+  const out = JSON.stringify({ ok: true, data: { targets: [
+    { machine: 'studio-one', aliases: ['ops@studio.example'] },
+    { machine: 'team@studio.example', aliases: [] },
+    { machine: 'bad name;rm', aliases: ['x@y'] },
+  ] } });
+  assert.equal(targetOfDestination(out, 'ops@studio.example'), 'studio-one');
+  assert.equal(targetOfDestination(out, 'team@studio.example'), 'team@studio.example');
+  assert.equal(targetOfDestination(out, 'x@y'), null, 'a target whose own name is unsafe is never used');
+  assert.equal(targetOfDestination(out, 'other@host'), null);
+  assert.equal(targetOfDestination('not json', 'ops@studio.example'), null);
+  assert.deepEqual(targetLaunchArgv({ sb: '/sb', machine: 'studio-one', provider: 'claude', isolated: false, folder: '/srv/work/agent', args: ['--continue'], surface: true }),
+    ['/sb', 'launch', '--target', 'studio-one', '--provider', 'claude', '--mode', 'managed', '--working-directory', '/srv/work/agent', '--in-place', '--surface', 'dashboards', '--', '--continue']);
 });

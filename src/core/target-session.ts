@@ -37,6 +37,22 @@ export async function targetsOf(run: Runner, sb: string, o?: { withAliases: true
   return done();
 }
 
+/** FD-328: the name Switchboard knows an ssh destination by (`user@host`, or an alias of a target), or null: an agent
+ *  placed on another machine is then started through that machine's Switchboard, never as a bare runtime over ssh. */
+export function targetOfDestination(stdout: string, destination: string): string | null {
+  let data: unknown;
+  try { data = JSON.parse(stdout); } catch { return null; }
+  const list = (data as { data?: { targets?: unknown } })?.data?.targets;
+  if (!Array.isArray(list)) return null;
+  for (const t of list) {
+    const m = (t as { machine?: unknown })?.machine;
+    if (typeof m !== 'string' || !MACHINE.test(m)) continue;
+    const al = (t as { aliases?: unknown })?.aliases;
+    if (m === destination || (Array.isArray(al) && al.includes(destination))) return m;
+  }
+  return null;
+}
+
 /** Asks the machine for its home and the projects under its `~/DATA`, with no prompt and a bounded connect. */
 export function projectsProbeArgv(machine: string, ssh = '/usr/bin/ssh'): string[] {
   const script = `printf '${HOME_MARK}%s\\n' "$HOME"; for d in "$HOME"/DATA/*/; do if [ -d "$d" ]; then printf '${FOLDER_MARK}%s\\n' "\${d%/}"; fi; done; echo ${FOLDERS_END}`;
