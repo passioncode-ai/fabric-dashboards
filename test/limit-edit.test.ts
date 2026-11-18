@@ -103,3 +103,20 @@ test('FD-324: Change shows the amount within its bounds, Enforced and the reason
   assert.match(ruHistory, /<h3>Изменения<\/h3>/);
   assert.match(ruHistory, /Кто решил: оператор/);
 });
+
+test('FD-324 (SL-6): the months chart names each month and its money; the last is so far, an unpriced one a lower bound', async () => {
+  const React = await import('react');
+  (globalThis as { React?: unknown }).React = React;
+  const { renderToStaticMarkup } = await import('react-dom/server');
+  const { MonthlyChart } = await import('../src/renderer/components/Spend');
+  const { t: tr } = await import('../src/core/i18n');
+  const en = (k: string, p?: Record<string, string | number>) => tr('en', k, p);
+  const months = summarizeUsage(fixture('positive_service-usage-limits-edit.json'), Date.parse('2026-10-04T12:00:00Z')).months!;
+  const html = renderToStaticMarkup(React.createElement(MonthlyChart, { months, t: en, monthName: (m: string) => m }));
+  assert.match(html, /Spend by month, as the agent reports it/);
+  assert.match(html, /aria-label="Spend by month over the last 3 months"/);
+  assert.match(html, /<title>2026-08: \$14\.20<\/title>/);
+  assert.match(html, /<title>2026-09: ≥ \$38\.75<\/title>/, '4 calls carry no price: a lower bound');
+  assert.match(html, /<title>2026-10: ≥ \$1\.59 so far<\/title>/);
+  assert.equal((html.match(/class="partial"/g) ?? []).length, 2);
+});

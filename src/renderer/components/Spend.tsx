@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useState } from 'react';
-import type { LimitChange, LimitView, SpendDay, SpendSum } from '@passioncode-ai/fabric-service-host/usage';
+import type { LimitChange, LimitView, SpendDay, SpendSum, UsageMonth } from '@passioncode-ai/fabric-service-host/usage';
 import { limitAmount, limitHeadline, limitName, limitUsd, limitWindow } from '../../core/limits';
 import { planLimitChange } from '../../core/limit-plan';
 import { sumSpend, type SpendEntry, type SpendWindow } from '../../core/spend';
@@ -13,6 +13,7 @@ const REFRESH_MS = 60_000;
 export function Spend({ status, onOpen }: { status: AppStatus; onOpen: (key: string) => void }) {
   const { t, time, lang, reason } = useT();
   const day = (iso: string) => new Date(iso).toLocaleDateString(lang, { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
+  const monthName = (m: string) => new Date(`${m}-01T00:00:00Z`).toLocaleDateString(lang, { month: 'short', year: 'numeric', timeZone: 'UTC' });
   const [entries, setEntries] = useState<SpendEntry[] | null>(null);
   const [readAt, setReadAt] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -90,6 +91,7 @@ export function Spend({ status, onOpen }: { status: AppStatus; onOpen: (key: str
                   <tr className="spend-models">
                     <td colSpan={5}>
                       {e.summary.daily && <DailyChart days={e.summary.daily} t={t} day={day} />}
+                      {(e.summary.months ?? []).length > 1 && <MonthlyChart months={e.summary.months!} t={t} monthName={monthName} />}
                       {(e.summary.limits ?? []).length > 0 && (
                         <table className="spend-limits" aria-label={t('spend.limits')}>
                           <thead><tr><th scope="col">{t('spend.limits.limit')}</th><th scope="col">{t('spend.limits.window')}</th><th scope="col" className="num">{t('spend.limits.amount')}</th><th scope="col">{t('spend.limits.state')}</th>{e.canSetLimits && <th scope="col"><span className="visually-hidden">{t('spend.limits.change')}</span></th>}</tr></thead>
@@ -242,6 +244,30 @@ export function DailyChart({ days, t, day }: { days: SpendDay[]; t: T; day: (iso
   );
 }
 // #endregion spend-daily
+
+// #region spend-monthly — docs: docs/ux/scenarios.md#scn-036-see-what-every-agent-spent
+/** FD-324 (contract DEC-0183 SL-6): one agent's money by month as its report gives it (up to 12, oldest first, the last
+ *  one still running). An unknown month is an empty frame and a lower bound a hatched bar, as on the daily chart. */
+export function MonthlyChart({ months, t, monthName }: { months: UsageMonth[]; t: T; monthName: (m: string) => string }) {
+  const top = Math.max(0, ...months.map((m) => m.costUsd ?? 0));
+  const W = 18, GAP = 4, H = 48;
+  const last = months.length - 1;
+  const label = (m: UsageMonth, i: number) => t(i === last ? 'spend.monthly.current' : 'spend.monthly.month', { month: monthName(m.month), amount: money({ costUsd: m.costUsd, partial: m.unpricedCalls > 0 }, t) });
+  return (
+    <figure className="spend-daily spend-monthly">
+      <figcaption>{t('spend.monthly')}</figcaption>
+      <svg role="img" aria-label={t('spend.monthly.summary', { count: months.length })} width={months.length * (W + GAP)} height={H} viewBox={`0 0 ${months.length * (W + GAP)} ${H}`}>
+        {months.map((m, i) => {
+          const x = i * (W + GAP);
+          if (m.costUsd === null) return <rect key={m.month} className="unknown" x={x + 0.5} y={0.5} width={W - 1} height={H - 1}><title>{label(m, i)}</title></rect>;
+          const h = top > 0 ? Math.max(m.costUsd > 0 ? 2 : 0, Math.round((m.costUsd / top) * H)) : 0;
+          return <rect key={m.month} className={m.unpricedCalls > 0 ? 'partial' : undefined} x={x} y={H - h} width={W} height={Math.max(h, 1)} opacity={h === 0 ? 0.25 : 1}><title>{label(m, i)}</title></rect>;
+        })}
+      </svg>
+    </figure>
+  );
+}
+// #endregion spend-monthly
 
 export function usd(x: number | null, t: T): string {
   return limitUsd(x, t);
