@@ -44,6 +44,9 @@ export type DrawerChange = { kind: 'hide' } | { kind: 'height'; height: number }
 
 /** Where a link, a notification, the tray or the menu sends the window. FD-103: `agents` opens the Agents mode on its
  *  last page; `sessions` the Sessions mode on its last page, on All sessions with key `all`, or on one row by its id. */
+/** FD-324: what Change on Spend answers: the change the agent recorded, or the refusal's code and words. */
+export type SpendLimitSetResult = { ok: true; change: Record<string, unknown>; repeated: boolean } | { ok: false; code: string; message: string };
+
 export interface NavTarget { page: 'service' | 'activity' | 'overview' | 'spend' | 'machine' | 'map' | 'settings' | 'agents' | 'sessions'; key?: string; link?: string }
 
 export interface Rect { x: number; y: number; width: number; height: number }
@@ -142,6 +145,9 @@ export interface FabricApi {
   /** Every service's own usage report, read now and summed in the main process (ADR-0013). */
   /** What every agent spent, and when the main process read it. `force` (Refresh) reads now, even inside the 30 s reuse window. */
   spend(force?: boolean): Promise<{ entries: SpendEntry[]; readAt: string | null }>;
+  /** FD-324 (DEC-0183 SL-2): Change on Spend. The person's reason is recorded by the agent; a change that does more than
+   *  tighten carries it as the operator's words (the person pressing is the operator). */
+  spendLimitSet(key: string, change: { limitId: string; limitUsd?: number; enforced?: boolean; reason: string }): Promise<SpendLimitSetResult>;
   /** FD-93: one agent's own load report, read now in the main process (DEC-0104); `readAt` is that read's time. */
   load(key: string): Promise<{ entry: LoadEntry; readAt: string }>;
   activity(filter: { serviceKey?: string; minLevel?: ActivityItem['level'] }): Promise<ActivityItem[]>;
@@ -287,6 +293,7 @@ export const CHANNELS = {
   command: 'fd:command',
   logs: 'fd:logs',
   spend: 'fd:spend',
+  spendLimitSet: 'fd:spend-limit-set',
   load: 'fd:load',
   activity: 'fd:activity',
   activitySeen: 'fd:activity-seen',

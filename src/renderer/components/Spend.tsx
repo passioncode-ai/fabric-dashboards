@@ -1,6 +1,7 @@
 import { Fragment, useEffect, useState } from 'react';
-import type { SpendDay, SpendSum } from '@passioncode-ai/fabric-service-host/usage';
+import type { LimitChange, LimitView, SpendDay, SpendSum } from '@passioncode-ai/fabric-service-host/usage';
 import { limitAmount, limitHeadline, limitName, limitUsd, limitWindow } from '../../core/limits';
+import { planLimitChange } from '../../core/limit-plan';
 import { sumSpend, type SpendEntry, type SpendWindow } from '../../core/spend';
 import type { AppStatus, ServiceSnapshot } from '../../core/types';
 import { api, nameOf, Spinner, usePoll, useT } from '../lib';
@@ -16,6 +17,8 @@ export function Spend({ status, onOpen }: { status: AppStatus; onOpen: (key: str
   const [readAt, setReadAt] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [open, setOpen] = useState<string | null>(null);
+  // FD-324: the limit whose Change is open, as `<agent key>\u0000<limit id>`.
+  const [editing, setEditing] = useState<string | null>(null);
 
   const read = async (force = false) => {
     setBusy(true);
@@ -89,19 +92,30 @@ export function Spend({ status, onOpen }: { status: AppStatus; onOpen: (key: str
                       {e.summary.daily && <DailyChart days={e.summary.daily} t={t} day={day} />}
                       {(e.summary.limits ?? []).length > 0 && (
                         <table className="spend-limits" aria-label={t('spend.limits')}>
-                          <thead><tr><th scope="col">{t('spend.limits.limit')}</th><th scope="col">{t('spend.limits.window')}</th><th scope="col" className="num">{t('spend.limits.amount')}</th><th scope="col">{t('spend.limits.state')}</th></tr></thead>
+                          <thead><tr><th scope="col">{t('spend.limits.limit')}</th><th scope="col">{t('spend.limits.window')}</th><th scope="col" className="num">{t('spend.limits.amount')}</th><th scope="col">{t('spend.limits.state')}</th>{e.canSetLimits && <th scope="col"><span className="visually-hidden">{t('spend.limits.change')}</span></th>}</tr></thead>
                           <tbody>
                             {(e.summary.limits ?? []).map((l) => (
-                              <tr key={l.id} className={l.state === 'off' ? 'muted' : undefined}>
-                                <td>{limitName(l, t)}</td>
-                                <td>{limitWindow(l, t, day)}</td>
-                                <td className="num">{limitAmount(l, t)}</td>
-                                <td className={l.state === 'tripped' || l.state === 'breach' ? 'state-down' : l.state === 'near' ? 'state-degraded' : undefined}>{t(`limit.state.${l.state}`)}</td>
-                              </tr>
+                              <Fragment key={l.id}>
+                                <tr className={l.state === 'off' ? 'muted' : undefined}>
+                                  <td>{limitName(l, t)}</td>
+                                  <td>{limitWindow(l, t, day)}</td>
+                                  <td className="num">{limitAmount(l, t)}</td>
+                                  <td className={l.state === 'tripped' || l.state === 'breach' ? 'state-down' : l.state === 'near' ? 'state-degraded' : undefined}>{t(`limit.state.${l.state}`)}</td>
+                                  {e.canSetLimits && <td>{l.editable && (
+                                    <button className="btn btn-sm" aria-expanded={editing === `${e.key}\u0000${l.id}`} aria-label={t('spend.limits.change.label', { limit: limitName(l, t) })} onClick={() => setEditing(editing === `${e.key}\u0000${l.id}` ? null : `${e.key}\u0000${l.id}`)}>{t('spend.limits.change')}</button>
+                                  )}</td>}
+                                </tr>
+                                {editing === `${e.key}\u0000${l.id}` && (
+                                  <tr className="spend-limit-edit"><td colSpan={5}>
+                                    <LimitEditor agent={e.key} limit={l} t={t} onCancel={() => setEditing(null)} onDone={() => { setEditing(null); void read(true); }} />
+                                  </td></tr>
+                                )}
+                              </Fragment>
                             ))}
                           </tbody>
                         </table>
                       )}
+                      {(e.summary.limitChanges ?? []).length > 0 && <LimitChanges changes={e.summary.limitChanges!} limits={e.summary.limits ?? []} t={t} day={day} />}
                       {e.summary.models.length === 0 ? <span className="muted">{t('spend.noCalls')}</span> : (
                         <table>
                           <thead><tr><th scope="col">{t('spend.model')}</th><th scope="col" className="num">{t('spend.calls')}</th><th scope="col" className="num">{t('spend.tokens')}</th><th scope="col" className="num">{t('spend.cost')}</th></tr></thead>
@@ -140,6 +154,71 @@ export function Spend({ status, onOpen }: { status: AppStatus; onOpen: (key: str
 }
 
 export type T = (key: string, params?: Record<string, string | number>) => string;
+
+// #region limit-edit-ui — docs: docs/ux/scenarios.md#scn-036-see-what-every-agent-spent
+/** The refusals that read as words here; any other comes in the agent's or this app's own words. */
+const EDIT_ERRORS = new Set(['invalid-amount', 'no-change', 'reason-required', 'report-unreadable']);
+
+/** FD-324 (contract DEC-0183 SL-2): Change on one editable limit: its amount, whether it is enforced, and the reason the
+ *  agent records with it. A change that does more than tighten is the person's decision, and says so before Save. */
+export function LimitEditor({ agent, limit, t, onCancel, onDone }: { agent: string; limit: LimitView; t: T; onCancel: () => void; onDone: () => void }) {
+  const [amount, setAmount] = useState(limit.limitUsd === null ? '' : String(limit.limitUsd));
+  const [enforced, setEnforced] = useState(limit.enforced);
+  const [reason, setReason] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const parsed = amount.trim() === '' ? undefined : Number(amount);
+  const change = { limitId: limit.id, reason, ...(parsed !== undefined && parsed !== limit.limitUsd ? { limitUsd: parsed } : {}), ...(enforced !== limit.enforced ? { enforced } : {}) };
+  const plan = planLimitChange([limit], change);
+  const id = `limit-edit-${limit.id.replace(/[^A-Za-z0-9_-]/g, '-')}`;
+  const save = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const r = await api().spendLimitSet(agent, change);
+      if (r.ok) onDone();
+      else setError(t('spend.limits.edit.failed', { reason: EDIT_ERRORS.has(r.code) ? t(`spend.limits.err.${r.code}`) : r.message }));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <form className="limit-edit" onSubmit={(ev) => { ev.preventDefault(); void save(); }}>
+      <label htmlFor={`${id}-amount`}>{t('spend.limits.edit.amount')}</label>
+      <input id={`${id}-amount`} type="number" inputMode="decimal" step="0.01" min={limit.minUsd ?? 0.01} {...(limit.maxUsd !== undefined ? { max: limit.maxUsd } : {})} value={amount} onChange={(ev) => setAmount(ev.target.value)} aria-describedby={limit.minUsd !== undefined || limit.maxUsd !== undefined ? `${id}-bounds` : undefined} />
+      {(limit.minUsd !== undefined || limit.maxUsd !== undefined) && <span id={`${id}-bounds`} className="meta">{t('spend.limits.edit.bounds', { min: usd(limit.minUsd ?? 0, t), max: limit.maxUsd !== undefined ? usd(limit.maxUsd, t) : '∞' })}</span>}
+      <label className="row"><input type="checkbox" checked={enforced} onChange={(ev) => setEnforced(ev.target.checked)} /> {t('spend.limits.edit.enforced')}</label>
+      <label htmlFor={`${id}-reason`}>{t('spend.limits.edit.reason')}</label>
+      <input id={`${id}-reason`} type="text" maxLength={500} required value={reason} onChange={(ev) => setReason(ev.target.value)} aria-describedby={`${id}-reason-hint`} />
+      <span id={`${id}-reason-hint`} className="meta">{t('spend.limits.edit.reasonHint')}</span>
+      {plan.ok && !plan.tightens && <p className="meta">{t('spend.limits.edit.yours')}</p>}
+      {error && <p className="state-down" role="alert">{error}</p>}
+      <div className="row">
+        <button type="submit" className="btn btn-sm" disabled={busy || !plan.ok}>{busy ? <><Spinner /> {t('spend.limits.edit.saving')}</> : t('spend.limits.edit.save')}</button>
+        <button type="button" className="btn btn-sm" disabled={busy} onClick={onCancel}>{t('action.cancel')}</button>
+      </div>
+    </form>
+  );
+}
+
+/** FD-324 (DEC-0183 SL-4): the latest changes of an agent's limits, newest first, as the agent recorded them. */
+export function LimitChanges({ changes, limits, t, day }: { changes: LimitChange[]; limits: LimitView[]; t: T; day: (iso: string) => string }) {
+  const byId = new Map(limits.map((l) => [l.id, l]));
+  const setting = (x: { limitUsd: number | null; enforced: boolean }) => (x.enforced ? usd(x.limitUsd, t) : t('spend.changes.off', { amount: usd(x.limitUsd, t) }));
+  return (
+    <section className="limit-changes" aria-label={t('spend.changes')}>
+      <h3>{t('spend.changes')}</h3>
+      <ul>
+        {changes.slice(0, 5).map((c) => {
+          const l = byId.get(c.limitId);
+          const what = c.before === null ? t('spend.changes.created', { after: setting(c.after) }) : `${setting(c.before)} → ${setting(c.after)}`;
+          return <li key={c.id}>{t('spend.changes.row', { date: day(c.at), limit: l ? limitName(l, t) : c.limitId, what, who: t(`spend.changes.by.${c.by}`), reason: c.reason })}</li>;
+        })}
+      </ul>
+    </section>
+  );
+}
+// #endregion limit-edit-ui
 
 // #region spend-daily — docs: docs/ux/scenarios.md#scn-036-see-what-every-agent-spent
 /** FD-324: one agent's money by day over the last 30 UTC days, oldest first. An unknown day is drawn as an empty frame
